@@ -94,6 +94,7 @@ export interface AsyncExportRequest {
   selectionSnapshot?: { selectedRowKeys: readonly Key[]; rowCount: number };
   reason: string;
   idempotencyKey?: string;
+  confirmationId?: string;
 }
 
 export type ExportJobStatus =

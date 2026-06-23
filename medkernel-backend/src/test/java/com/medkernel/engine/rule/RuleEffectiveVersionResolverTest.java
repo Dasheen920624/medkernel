@@ -38,9 +38,9 @@ class RuleEffectiveVersionResolverTest {
     }
 
     @Test
-    void noOrgContextUsesPublishedUnifiedVersionInsteadOfLegacyActivePointer() {
+    void noOrgContextUsesPublishedUnifiedVersionInsteadOfAuthoringPointer() {
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace", OrgScope.tenant("tenant-A"), "clinical-decision-user"));
+            "trace", OrgScope.tenant("tenant-A"), "clinical-user"));
         RuleDefinition rule = rule("tenant-A", "rv-old");
         RuleVersion unifiedContent = version("tenant-A", 2, "rv-v2");
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
@@ -61,7 +61,7 @@ class RuleEffectiveVersionResolverTest {
     @Test
     void noLocalPublishedVersionFallsBackToPlatformAuthority() {
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace", OrgScope.tenant("tenant-A"), "clinical-decision-user"));
+            "trace", OrgScope.tenant("tenant-A"), "clinical-user"));
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
             "tenant-A", VersionedAssetType.RULE, "RULE.A", AssetVersionStatus.PUBLISHED))
             .thenReturn(List.of());
@@ -93,7 +93,7 @@ class RuleEffectiveVersionResolverTest {
 
     @Test
     void platformContextDoesNotUsePublishedVersionFromAnotherOrganization() {
-        RequestContext.restore(new RequestContext.Snapshot("trace", null, "clinical-decision-user"));
+        RequestContext.restore(new RequestContext.Snapshot("trace", null, "clinical-user"));
         RuleDefinition rule = rule(PlatformAuthority.PLATFORM_TENANT_ID, null);
         RuleVersion content = version(PlatformAuthority.PLATFORM_TENANT_ID, 2, "rv-v2");
         when(definitions.findByTenantIdAndRuleCode(
@@ -121,7 +121,7 @@ class RuleEffectiveVersionResolverTest {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace",
             new OrgScope("tenant-A", null, "hospital-1", null, null, null, null),
-            "clinical-decision-user"));
+            "clinical-user"));
         AssetVersion selected = asset("tenant-A", "4", "tenant:tenant-A/hospital:hospital-1");
         when(inheritanceResolver.resolve(org.mockito.ArgumentMatchers.any()))
             .thenReturn(new ResolvedAssetVersion(
@@ -145,7 +145,7 @@ class RuleEffectiveVersionResolverTest {
         return new RuleDefinition(
             1L, "rule-a", tenantId, "RULE.A", "测试规则", RuleType.ORDER,
             RuleAuthoringMode.DSL, RuleRiskLevel.MEDIUM, 100, null, 0,
-            RuleDefinitionStatus.PUBLISHED, activeVersionId, null, null,
+            RuleDefinitionStatus.PUBLISHED, activeVersionId, null,
             now, "tester", now, "tester", "trace");
     }
 

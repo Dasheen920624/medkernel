@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -26,7 +27,9 @@ import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.InheritanceOverrideRepository;
 import com.medkernel.engine.versioning.InheritanceOverrideStatus;
 import com.medkernel.engine.versioning.VersionPublishEvidence;
+import com.medkernel.engine.versioning.VersionPublishQualityGate;
 import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.engine.knowledge.production.gate.PublicationQualityRecordService;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.context.OrgScope;
@@ -37,6 +40,8 @@ import com.medkernel.shared.api.PageResponse;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 /**
  * 平台知识按需派生契约测试。
@@ -57,6 +62,7 @@ class KnowledgeCustomizationServiceTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired AssetVersionRepository assetVersions;
     @Autowired InheritanceOverrideRepository overrides;
+    @MockBean PublicationQualityRecordService publicationQualityRecords;
 
     private Long platformIdentityId;
     private Long platformVersionId;
@@ -64,6 +70,9 @@ class KnowledgeCustomizationServiceTest {
     @BeforeEach
     void prepare() {
         cleanUp();
+        when(publicationQualityRecords.requirePublishEvidence(any(), any(), any()))
+            .thenReturn(new VersionPublishEvidence(new VersionPublishQualityGate(
+                true, true, true, true, true, "服务端质量门测试记录")));
         Instant now = Instant.now();
         insertOrganization(
             "hospital-a", null, "/tenant-a/hospital-a", "FACILITY",
@@ -111,12 +120,12 @@ class KnowledgeCustomizationServiceTest {
         platformIdentityId = identity.id();
         platformVersionId = version.id();
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace-customize", OrgScope.tenant("tenant-a"), "knowledge-admin"));
+            "trace-customize", OrgScope.tenant("tenant-a"), "engine-operator"));
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(
-                "knowledge-admin",
+                "engine-operator",
                 "n/a",
-                List.of(new SimpleGrantedAuthority(RoleCode.ORGANIZATION_ADMIN.authority()))));
+                List.of(new SimpleGrantedAuthority(RoleCode.ENGINE_OPERATOR.authority()))));
     }
 
     @AfterEach
@@ -171,7 +180,7 @@ class KnowledgeCustomizationServiceTest {
         assertThat(customizations.count()).isEqualTo(1);
 
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace-platform", OrgScope.tenant(PlatformTenant.ID), "platform-governance-admin"));
+            "trace-platform", OrgScope.tenant(PlatformTenant.ID), "platform-admin"));
         assertThatThrownBy(() -> service.create(request))
             .hasMessageContaining("平台主租户");
     }
@@ -204,7 +213,7 @@ class KnowledgeCustomizationServiceTest {
         KnowledgeCustomizationResponse active = service.publish(
             draft.customizationId(),
             "已完成本院医务与质控联合审核",
-            VersionPublishEvidence.empty());
+            900L);
 
         assertThat(active.status()).isEqualTo(KnowledgeCustomizationStatus.ACTIVE);
         assertThat(active.overrideId()).isNotBlank();

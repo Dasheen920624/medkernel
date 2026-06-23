@@ -349,12 +349,12 @@ export default function CdssFatigue() {
     ? getRecommendationJourneySteps(detailData, sourcesData ?? detailData.sources, diagnoseData)
     : [];
 
-  // ACTIVE 临床快照是评估上下文的唯一来源，患者、就诊与配置包版本由服务端再次校验。
+  // ACTIVE 临床快照是评估上下文的唯一来源；运行资产由医院当前运行修订在服务端解析。
   const handleTriggerCdss = async () => {
     try {
       const values = await triggerForm.validateFields();
-      if (!selectedSnapshot || !snapshotDetailQuery.data?.packageVersion) {
-        message.error("请先选择包含配置包版本的 ACTIVE 临床快照");
+      if (!selectedSnapshot) {
+        message.error("请先选择 ACTIVE 临床快照");
         return;
       }
 
@@ -365,7 +365,6 @@ export default function CdssFatigue() {
         contextSnapshotId: selectedSnapshot.snapshotId,
         patientId: selectedSnapshot.patientId,
         encounterId: selectedSnapshot.encounterId || undefined,
-        packageVersion: snapshotDetailQuery.data.packageVersion,
       });
 
       message.success(
@@ -754,8 +753,8 @@ export default function CdssFatigue() {
           />
           {snapshotDetailQuery.data && (
             <Descriptions bordered size="small" column={3} className={styles.sectionGap}>
-              <Descriptions.Item label="配置包">
-                {snapshotDetailQuery.data.packageVersion}
+              <Descriptions.Item label="快照运行标识">
+                {snapshotDetailQuery.data.runtimeReleaseId || "由医院当前运行修订解析"}
               </Descriptions.Item>
               <Descriptions.Item label="质量">
                 {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}

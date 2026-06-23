@@ -112,7 +112,6 @@ class ReleaseGovernanceControllerTest {
                 invalidSimulation,
                 "",
                 "",
-                null,
                 null
             );
 
@@ -196,7 +195,6 @@ class ReleaseGovernanceControllerTest {
             simulation,
             confirmedDigest,
             "已完成临床复核",
-            null,
             null
         );
     }

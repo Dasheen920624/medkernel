@@ -106,7 +106,7 @@ class KnowgenSpecializedPayloadValidatorTest {
         String composite = """
             {
               "sections": {
-                "asset_type": "CONDITION_FRAGMENT",
+                "asset_type": "SAFETY",
                 "canonical_id": "待编著",
                 "structure": "待编著",
                 "dependencies": "待编著",

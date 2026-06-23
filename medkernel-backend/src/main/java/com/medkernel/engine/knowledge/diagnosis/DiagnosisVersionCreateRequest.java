@@ -23,7 +23,6 @@ public record DiagnosisVersionCreateRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     @Valid @NotNull DiagnosisAssetCreateRequest.SourceInput source,
     @Valid @NotNull DiagnosisAssetCreateRequest.VersionInput version,
     @Valid @NotNull DiagnosisAssetCreateRequest.EvidenceInput evidence
@@ -35,6 +34,6 @@ public record DiagnosisVersionCreateRequest(
     public KnowledgeApiContext context() {
         return new KnowledgeApiContext(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion);
+            departmentId, specialtyId, userId, roleCodes);
     }
 }

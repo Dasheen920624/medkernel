@@ -17,7 +17,6 @@ import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.TenantUserRepository;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
-import com.medkernel.engine.security.bootstrap.MfaSecretCodec;
 
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.not;
@@ -43,19 +42,6 @@ class TenantProvisioningControllerTest {
     @Autowired PlatformCredentialRepository credentials;
     @Autowired TenantUserRepository users;
     @Autowired UserRoleAssignmentRepository roleAssignments;
-    @Autowired MfaSecretCodec mfaSecretCodec;
-
-    @BeforeEach
-    void seedPlatformAdminMfa() {
-        if (credentials.findByTenantIdAndUserId("t-1", "platform-admin-1").isEmpty()) {
-            java.time.Instant now = java.time.Instant.now();
-            credentials.save(new PlatformCredential(
-                null, "cred-platform-admin-1", "t-1", "platform-admin-1", "platform-governance-admin",
-                "$2a$10$hash", "ACTIVE", "N", mfaSecretCodec.encode("JBSWY3DPEHPK3PXP", "Recovery@2026"),
-                now, "test", now, "test", "trace-test"));
-        }
-    }
-
     @AfterEach
     void cleanUp() {
         users.findByTenantIdOrderByDisplayNameAsc(NEW_TENANT, Pageable.unpaged())
@@ -67,12 +53,7 @@ class TenantProvisioningControllerTest {
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor platformAdmin() {
         return jwt().jwt(t -> t.subject("platform-admin-1").claim("tenant_id", "t-1"))
-            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_GOVERNANCE_ADMIN"));
-    }
-
-    private static org.springframework.test.web.servlet.request.RequestPostProcessor platformAdminWithoutMfa() {
-        return jwt().jwt(t -> t.subject("platform-admin-no-mfa").claim("tenant_id", "t-1"))
-            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_GOVERNANCE_ADMIN"));
+            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
     }
 
     @Test
@@ -100,7 +81,7 @@ class TenantProvisioningControllerTest {
             .andExpect(status().isOk())
             .andExpect(cookie().httpOnly("mk_access", true))
             .andExpect(jsonPath("$.data.tenantId").value("t-hosp2"))
-            .andExpect(jsonPath("$.data.roles[0]").value("organization-admin"))
+            .andExpect(jsonPath("$.data.roles[0]").value("platform-admin"))
             .andExpect(jsonPath("$.data.mustChangePwd").value(true));
     }
 
@@ -114,12 +95,11 @@ class TenantProvisioningControllerTest {
     }
 
     @Test
-    void provisionTenant_requiresBoundMfaForHighRiskAction() throws Exception {
-        mvc.perform(post("/api/v1/admin/tenants").with(platformAdminWithoutMfa())
+    void provisionTenant_doesNotRequireMfaWhenFeatureIsDisabledByDefault() throws Exception {
+        mvc.perform(post("/api/v1/admin/tenants").with(platformAdmin())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"tenantId\":\"t-hosp2\",\"tenantName\":\"测试医院2\",\"adminUsername\":\"hosp2admin\"}"))
-            .andExpect(status().isForbidden())
-            .andExpect(jsonPath("$.code").value("ENG-AUTH-010"));
+            .andExpect(status().isOk());
     }
 
     @Test

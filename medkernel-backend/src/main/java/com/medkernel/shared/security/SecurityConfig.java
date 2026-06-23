@@ -65,6 +65,7 @@ import com.medkernel.shared.idempotency.IdempotencyRepository;
 @EnableConfigurationProperties({
     AuthCookieProperties.class,
     AuthJwtProperties.class,
+    AuthMfaProperties.class,
     AuthSessionProperties.class,
     AuditFallbackProperties.class
 })
@@ -73,7 +74,7 @@ public class SecurityConfig {
     /**
      * servlet Web 专属：依赖 {@link HttpSecurity}，仅在 servlet Web 应用类型下装配。
      *
-     * <p>非 Web 模式（{@code web-application-type=none}，如首发身份应急命令救命通道）下，
+     * <p>非 Web 模式（{@code web-application-type=none}，如初始身份应急命令救命通道）下，
      * Spring Boot 不提供 {@code HttpSecurity} Bean；若不设条件，本 Bean 会因缺依赖让上下文启动失败，
      * 连带 {@link com.medkernel.engine.security.bootstrap.BootstrapEmergencyCommand} 永不执行。
      * 方法级安全（{@link EnableMethodSecurity}）、{@link #passwordEncoder()}、{@link #jwtDecoder} 等
@@ -147,8 +148,8 @@ public class SecurityConfig {
     /**
      * JWT roles claim → ROLE_* 权限。
      *
-     * <p>例：claim {@code roles=["clinical-decision-user","quality-governor"]}
-     * → 权限 {@code ROLE_CLINICAL_DECISION_USER}、{@code ROLE_QUALITY_GOVERNOR}。
+     * <p>例：claim {@code roles=["clinical-user","engine-operator"]}
+     * → 权限 {@code ROLE_CLINICAL_USER}、{@code ROLE_ENGINE_OPERATOR}。
      * 业务动作授权由 {@code @PreAuthorize("@perm.has(...)")} 使用有效权限画像统一判断。
      *
      * <p>不暴露为 Spring Bean —— 一旦作为 {@link Converter} bean 暴露，Spring MVC 的

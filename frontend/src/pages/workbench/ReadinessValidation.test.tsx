@@ -50,14 +50,14 @@ function renderPage() {
   );
 }
 
-function profile(roleCode = "implementation-operator"): SecurityProfile {
+function profile(roleCode = "platform-admin"): SecurityProfile {
   return {
     userId: `${roleCode}-1`,
     username: roleCode,
     roles: [
       {
         code: roleCode,
-        displayName: "实施运维员",
+        displayName: "医疗引擎运营员",
         source: "DEFAULT",
         scopeLevel: "HOSPITAL",
         scopeCode: "h-1",
@@ -93,6 +93,7 @@ function profile(roleCode = "implementation-operator"): SecurityProfile {
     mustChangePwd: false,
     mfaRequired: false,
     mfaBound: true,
+    mfaVerified: true,
   };
 }
 
@@ -252,17 +253,10 @@ const knowledgeReadiness = {
       message: "模型生产任务必须声明 prompt/tool/model 版本三元组",
       evidence: "<empty>",
     },
-    {
-      code: "P6_ACCEPTANCE",
-      ready: false,
-      required: true,
-      message: "P6 独立验收未放行，禁止正式模型生成知识",
-      evidence: "medkernel.knowledge.production.p6-independent-acceptance=false",
-    },
   ],
 };
 
-function setLoadedState(roleCode = "implementation-operator") {
+function setLoadedState(roleCode = "platform-admin") {
   hookState.security = {
     data: profile(roleCode),
     isLoading: false,
@@ -295,7 +289,7 @@ describe("ReadinessValidation", () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "验收自检" })).toBeInTheDocument();
-    expect(screen.getByText("3 PASS / 11 BLOCK / 2 未启用")).toBeInTheDocument();
+    expect(screen.getByText("3 PASS / 10 BLOCK / 2 未启用")).toBeInTheDocument();
     expect(screen.getByText("存在阻塞项，验收前需处理")).toBeInTheDocument();
     expect(screen.getByTestId("readiness-validation-tabs")).toBeInTheDocument();
     expect(screen.getAllByTestId(/^readiness-validation-filter-/)).toHaveLength(3);
@@ -303,12 +297,12 @@ describe("ReadinessValidation", () => {
   });
 
   it("uses the canonical route contract for governance administrators", () => {
-    setLoadedState("organization-admin");
+    setLoadedState("platform-admin");
 
     renderPage();
 
     expect(screen.queryByText("当前权限不足")).not.toBeInTheDocument();
-    expect(screen.getByText("3 PASS / 11 BLOCK / 2 未启用")).toBeInTheDocument();
+    expect(screen.getByText("3 PASS / 10 BLOCK / 2 未启用")).toBeInTheDocument();
     expect(hookState.runtimeEnabledCalls.at(-1)).toBe(true);
     expect(hookState.knowledgeReadinessEnabledCalls.at(-1)).toBe(true);
   });
@@ -328,7 +322,7 @@ describe("ReadinessValidation", () => {
     expect(navigateSpy).toHaveBeenCalledWith("/system/providers");
   });
 
-  it("shows all nine production readiness gates with real configuration destinations", () => {
+  it("shows all eight production readiness gates with real configuration destinations", () => {
     renderPage();
 
     const literatureRoot = screen.getByTestId(
@@ -357,7 +351,7 @@ describe("ReadinessValidation", () => {
   it("shows a forbidden state for clinical roles and does not query runtime sources", () => {
     hookState.security = {
       data: {
-        ...profile("clinical-decision-user"),
+        ...profile("clinical-user"),
         permissions: [
           {
             code: "menu.workbench",

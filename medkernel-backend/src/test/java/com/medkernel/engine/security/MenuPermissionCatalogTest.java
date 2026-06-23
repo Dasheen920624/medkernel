@@ -15,7 +15,7 @@ class MenuPermissionCatalogTest {
         "workbench",
         "implementation-guide",
         "tenant-onboarding",
-        "config-packages",
+        "runtime-releases",
         "pathway-templates",
         "rule-definitions",
         "terminology-mapping",
@@ -92,7 +92,7 @@ class MenuPermissionCatalogTest {
             "organization-people", Set.of("tenant-onboarding", "admin-users", "identity-bindings"),
             "knowledge-governance", Set.of(
                 "knowledge-governance", "institution-knowledge", "diagnosis-knowledge",
-                "config-packages", "terminology-mapping", "rule-definitions", "pathway-templates",
+                "runtime-releases", "terminology-mapping", "rule-definitions", "pathway-templates",
                 "provenance", "graph-explore"),
             "knowledge-production", Set.of("knowledge-production", "ai-workflows"),
             "clinical-collaboration", Set.of(

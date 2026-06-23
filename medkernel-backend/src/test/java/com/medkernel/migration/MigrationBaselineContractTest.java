@@ -4,3537 +4,439 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 五方言迁移静态合同门禁。
+ * 全新项目单一数据库基线静态合同。
  *
- * <p>达梦、金仓没有稳定公开容器可供普通 CI 执行，因此这里把版本序列、表族、索引、
- * 业务约束和关键字段作为全部五方言的最低合同；可启动的数据库仍由 Flyway smoke 执行解析验证。
+ * <p>{@code db/schema/medkernel.schema.json} 是唯一结构真相源，五方言目录只保留生成的
+ * {@code V1__baseline.sql}。可启动的数据库另由 Flyway smoke 执行真实语法验证。
  */
 class MigrationBaselineContractTest {
 
     private static final List<String> DIALECTS = List.of("h2", "postgres", "oracle", "dm", "kingbase");
-    private static final List<String> QUALITY_TRACE_TABLES = List.of(
-        "evaluation_indicator",
-        "evaluation_run",
-        "evaluation_result",
-        "quality_finding",
-        "rectification_task",
-        "rectification_review",
-        "evaluation_idempotency_key"
-    );
+    private static final String BASELINE_FILE = "V1__baseline.sql";
+    private static final Pattern CREATE_TABLE = Pattern.compile(
+        "(?im)^CREATE TABLE\\s+([a-z][a-z0-9_]*)\\s*\\(");
+    private static final Pattern TABLE_COMMENT = Pattern.compile("(?im)^COMMENT ON TABLE\\s+");
+    private static final Pattern COLUMN_COMMENT = Pattern.compile("(?im)^COMMENT ON COLUMN\\s+");
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void personnelAppointmentAndImportPersistWardAcrossAllDialects() {
+    void everyDialectPublishesOnlyOneGeneratedV1() throws IOException {
         for (String dialect : DIALECTS) {
-            String ddl = readMigration(
-                dialect, "V115__knowledge_customization_personnel_master.sql");
-            assertThat(ddl)
-                .as("%s 人员任职和导入必须持久化病区", dialect)
-                .contains("ward_id", "ward_code")
-                .contains("病区");
+            try (var files = Files.list(migrationPath(dialect))) {
+                assertThat(files
+                    .map(path -> path.getFileName().toString())
+                    .filter(name -> name.endsWith(".sql"))
+                    .sorted()
+                    .toList())
+                    .as("%s 只保留全新项目单一基线", dialect)
+                    .containsExactly(BASELINE_FILE);
+            }
+
+            assertThat(readBaseline(dialect))
+                .as("%s 基线必须由统一模型生成", dialect)
+                .startsWith("-- MedKernel 全新上线数据库基线")
+                .contains("scripts/db/generate-migrations.mjs")
+                .contains("db/schema/medkernel.schema.json");
         }
     }
 
-    private static final List<String> EXPECTED_MIGRATIONS = List.of(
-        "V1__init.sql",
-        "V2__org_audit_baseline.sql",
-        "V3__knowledge_asset_baseline.sql",
-        "V4__terminology_mapping_baseline.sql",
-        "V5__audit_chain_baseline.sql",
-        "V6__security_permission_baseline.sql",
-        "V7__clinical_context_baseline.sql",
-        "V8__observability_baseline.sql",
-        "V9__audit_event_outcome.sql",
-        "V10__clinical_event_api.sql",
-        "V11__rule_engine_api.sql",
-        "V12__pathway_engine_api.sql",
-        "V13__recommendation_cdss_api.sql",
-        "V14__evaluation_quality_api.sql",
-        "V15__package_release_baseline.sql",
-        "V16__followup_engine_api.sql",
-        "V17__embed_engine_api.sql",
-        "V18__model_gateway_api.sql",
-        "V19__large_list_api.sql",
-        "V20__integration_engine_api.sql",
-        "V21__audit_evidence_api.sql",
-        "V22__engine_remediation.sql",
-        "V23__tenant_pilot_baseline.sql",
-        "V24__mpi_patient_registry.sql",
-        "V25__security_user_role_seed.sql",
-        "V26__integration_adapter_health_states.sql",
-        "V27__platform_credential.sql",
-        "V28__emergency_permission_grant.sql",
-        "V29__sys_idempotency.sql",
-        "V30__audit_event_spine_contract.sql",
-        "V31__configuration_center.sql",
-        "V32__source_fragment_content_hash.sql",
-        "V33__package_sync_not_synced_status.sql",
-        "V34__experience_foundation_persistence.sql",
-        "V35__experience_user_preference.sql",
-        "V36__bootstrap_init_token.sql",
-        "V37__large_list_audit_event_indexes.sql",
-        "V38__standard_clinical_model.sql",
-        "V39__clinical_event_context_scope.sql",
-        "V40__projection_sync_baseline.sql",
-        "V41__runtime_task_framework.sql",
-        "V42__runtime_task_retry_dead_letter.sql",
-        "V43__menu_permission_granularity.sql",
-        "V44__system_superadmin_seed.sql",
-        "V45__credential_login_attempt.sql",
-        "V46__auth_mfa_sm3_reset.sql",
-        "V47__workbench_readiness_validation_permission.sql",
-        "V48__context_snapshot_standard_contract.sql",
-        "V49__knowledge_citation_anchor_offsets.sql",
-        "V50__knowledge_trust_grading.sql",
-        "V51__knowledge_projection_targets.sql",
-        "V52__knowledge_candidate_workflow.sql",
-        "V53__terminology_high_risk_rules.sql",
-        "V54__asset_version_framework.sql",
-        "V55__version_inheritance_override.sql",
-        "V56__version_release_replay.sql",
-        "V57__knowledge_effective_scope_unique.sql",
-        "V58__knowledge_invalidation_affected_tasks.sql",
-        "V59__integration_adapter_tenant_unique.sql",
-        "V60__integration_message_tenant_unique.sql",
-        "V61__integration_webhook_tenant_unique.sql",
-        "V62__integration_message_not_connected_status.sql",
-        "V63__fhir_resource_mapping.sql",
-        "V64__mpi_merge_review_data_quality_report.sql",
-        "V65__pilot_package_template.sql",
-        "V66__integration_business_service_package.sql",
-        "V67__clinical_event_api_contract.sql",
-        "V68__recommendation_cdss_contract.sql",
-        "V69__followup_api09_contract.sql",
-        "V70__embed_api11_contract.sql",
-        "V71__followup_controlled_plan_clock.sql",
-        "V72__cdss_risk_matrix.sql",
-        "V73__clinical_redline.sql",
-        "V74__context_field_catalog.sql",
-        "V75__clinical_redline_silent_trial.sql",
-        "V76__recommendation_source_redline_type.sql",
-        "V77__workflow_collaboration.sql",
-        "V78__diagnosis_knowledge_asset.sql",
-        "V79__version_propagation_and_override_policy.sql",
-        "V80__workflow_transfer_reason.sql",
-        "V81__workflow_sync_event_notifications.sql",
-        "V82__workflow_organization_scope.sql",
-        "V83__quality_dashboard_alerts.sql",
-        "V84__insurance_quality_service.sql",
-        "V85__org_unit_platform_level.sql",
-        "V86__emr_level_target_mapping.sql",
-        "V87__emr_level_evidence_package.sql",
-        "V88__asset_type_unification.sql",
-        "V89__evidence_file_uri_sm_signature.sql",
-        "V90__compliance_data_permission_policy.sql",
-        "V91__compliance_masking_rule.sql",
-        "V92__compliance_export_approval.sql",
-        "V93__interop_assessment_mapping.sql",
-        "V94__structured_allergy_intolerance_resource.sql",
-        "V95__compliance_identity_binding.sql",
-        "V96__tenant_user_directory.sql",
-        "V97__plugin_security_boundary.sql",
-        "V98__engine_domain_event_sources.sql",
-        "V99__mk_engine_rule_parameter_binding.sql",
-        "V100__mk_engine_condition_fragment.sql",
-        "V101__authoring_asset_library.sql",
-        "V102__authoring_batch_job.sql",
-        "V103__formula_asset_type_unification.sql",
-        "V104__org_scope_second_phase.sql",
-        "V105__tenant_package_reference.sql",
-        "V106__platform_tenant_governance_permissions.sql",
-        "V107__asset_dependency_integrity.sql",
-        "V108__asset_lifecycle_quality_gate.sql",
-        "V109__knowledge_evidence_governance.sql",
-        "V110__release_simulation_rollout.sql",
-        "V111__package_entitlement.sql",
-        "V112__package_physical_convergence.sql",
-        "V113__batch_inheritance_resolution_indexes.sql",
-        "V114__terminology_global_potassium_sodium_rule.sql",
-        "V115__knowledge_customization_personnel_master.sql",
-        "V116__platform_seed_config_source.sql",
-        "V117__nullable_unconfigured_system_config.sql",
-        "V118__trace_id_contract_width.sql",
-        "V119__embed_external_host_contract.sql",
-        "V120__master_data_sync_contract.sql",
-        "V121__followup_template_asset.sql",
-        "V122__snapshot_comment_wording.sql",
-        "V123__sandbox_permission_catalog.sql",
-        "V124__model_egress_governance.sql",
-        "V125__model_provider.sql",
-        "V126__medical_regression_eval.sql",
-        "V127__model_enhancement_matrix.sql",
-        "V128__engine_data_export_job.sql",
-        "V129__knowledge_discovery_run.sql",
-        "V130__knowledge_production_job.sql",
-        "V131__knowledge_production_candidate.sql",
-        "V132__knowledge_review_return.sql",
-        "V133__doc_parse_job.sql",
-        "V134__diagnosis_knowledge_menu_permission.sql",
-        "V135__terminology_candidate_generation_job.sql",
-        "V136__aik_gate_result.sql",
-        "V137__knowledge_generation_triage.sql",
-        "V138__knowledge_shadow_run.sql",
-        "V139__mk_llm_model_version_bundle.sql",
-        "V140__knowledge_diff_expiry_task.sql",
-        "V141__aik_pack_job.sql",
-        "V142__knowledge_acquisition.sql",
-        "V143__knowledge_acquisition_schedule.sql",
-        "V144__data_minimization_policy.sql",
-        "V145__engine_data_field_encryption.sql",
-        "V146__knowledge_surface_menu_split.sql",
-        "V147__knowledge_candidate_explain_evidence.sql",
-        "V148__knowledge_review_feedback_loop.sql",
-        "V149__knowledge_acquisition_source_lock.sql",
-        "V150__model_version_active_scope_unique.sql",
-        "V151__model_eval_review_evidence.sql",
-        "V152__model_provider_lock_version.sql",
-        "V153__sandbox_runtime_baseline.sql",
-        "V154__sandbox_replay_manifest.sql",
-        "V155__knowledge_initialization_batch.sql",
-        "V156__model_eval_release_fingerprint.sql",
-        "V157__sandbox_run_mode_reserved_word.sql",
-        "V158__llm_provider_credential_vault.sql",
-        "V159__remove_legacy_model_controls.sql"
-    );
+    @Test
+    void generatedBaselinesMatchCanonicalTablesAndChineseComments() throws IOException {
+        JsonNode schema = schema();
+        Set<String> canonicalTables = new LinkedHashSet<>();
+        int columnCount = 0;
+        for (JsonNode table : schema.path("tables")) {
+            canonicalTables.add(table.path("name").asText());
+            columnCount += table.path("columns").size();
+        }
+
+        assertThat(schema.path("version").asInt()).isEqualTo(1);
+        assertThat(canonicalTables).as("规范模型表名不得重复")
+            .hasSize(schema.path("tables").size());
+
+        for (String dialect : DIALECTS) {
+            String ddl = readBaseline(dialect);
+            assertThat(names(CREATE_TABLE, ddl)).as("%s 终态表集合", dialect)
+                .containsExactlyElementsOf(canonicalTables);
+            assertThat(count(TABLE_COMMENT, ddl)).as("%s 每张表都有中文注释", dialect)
+                .isEqualTo(canonicalTables.size());
+            assertThat(count(COLUMN_COMMENT, ddl)).as("%s 每个字段都有中文注释", dialect)
+                .isEqualTo(columnCount);
+        }
+    }
 
     @Test
-    void legacyModelEvaluationMenuPermissionIsRemovedAcrossAllDialects() {
+    void canonicalModelRemovesLegacyRoleAndExpertSignoffBaggage() throws IOException {
+        JsonNode schema = schema();
+        Set<String> tableNames = new LinkedHashSet<>();
+        for (JsonNode table : schema.path("tables")) {
+            tableNames.add(table.path("name").asText());
+        }
+        assertThat(tableNames).doesNotContain(
+            "medkernel_meta", "sys_role", "sys_permission", "role_permission", "rule_signoff",
+            "mk_knowledge_source_version_approval", "mk_engine_condition_fragment");
+
+        JsonNode evalRun = table(schema, "mk_llm_eval_run");
+        assertThat(columnNames(evalRun)).doesNotContain("reviewer", "signed_at", "review_comment");
+
+        String serialized = objectMapper.writeValueAsString(schema).toLowerCase(Locale.ROOT);
+        assertThat(serialized).doesNotContain(
+            "独立专家", "双签", "rule_signoff", "sys_role", "sys_permission", "role_permission",
+            "mk_knowledge_source_version_approval", "mk_engine_condition_fragment",
+            "condition_fragment", "条件片段", "subpathway", "subpathwayref", "子路径",
+            "parent_template_id", "idx_pathway_template_parent", "p6");
+
         for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V159__remove_legacy_model_controls.sql");
-            assertThat(ddl)
-                .as("%s 旧医学回归复核菜单权限必须彻底移除且不保留兼容入口", dialect)
+            assertThat(readBaseline(dialect).toLowerCase(Locale.ROOT))
+                .as("%s 不生成旧门阀", dialect)
+                .doesNotContain(
+                    "独立专家", "双签", "rule_signoff", "sys_role", "sys_permission", "role_permission",
+                    "mk_knowledge_source_version_approval", "condition_fragment", "条件片段",
+                    "subpathway", "subpathwayref", "子路径",
+                    "parent_template_id", "idx_pathway_template_parent", "p6");
+        }
+    }
+
+    @Test
+    void baselinePreservesCompleteMedicalEngineAndSaasSurfaces() throws IOException {
+        Set<String> requiredTables = Set.of(
+            "audit_event",
+            "org_unit",
+            "tenant_user",
+            "user_role_assignment",
+            "knowledge_identity",
+            "knowledge_asset_version",
+            "platform_baseline_release",
+            "platform_baseline_item",
+            "clinical_runtime_release",
+            "clinical_runtime_release_item",
+            "rule_definition",
+            "rule_version",
+            "evaluation_run",
+            "followup_plan",
+            "integration_adapter",
+            "mk_llm_provider",
+            "mk_llm_eval_run",
+            "mk_llm_model_version_bundle",
+            "mk_knowledge_production_job",
+            "mk_knowledge_production_candidate",
+            "mk_knowledge_initialization_batch",
+            "mk_knowledge_initialization_item",
+            "mk_sandbox_run"
+        );
+
+        Set<String> canonicalTables = new LinkedHashSet<>();
+        for (JsonNode table : schema().path("tables")) {
+            canonicalTables.add(table.path("name").asText());
+        }
+        assertThat(canonicalTables).containsAll(requiredTables);
+
+        for (String dialect : DIALECTS) {
+            assertThat(names(CREATE_TABLE, readBaseline(dialect)))
+                .as("%s 完整功能表面不得因权限收缩被删除", dialect)
+                .containsAll(requiredTables);
+        }
+    }
+
+    @Test
+    void clinicalRuntimeTablesPersistOnlyTheHospitalRuntimeReleaseReference() throws IOException {
+        for (String tableName : List.of("clinical_event", "context_snapshot", "recommendation_trigger")) {
+            assertThat(columnNames(table(schema(), tableName)))
+                .as("%s 临床运行事实只绑定服务端锁定的医院运行修订", tableName)
+                .contains("runtime_release_id")
+                .doesNotContain("package_id", "package_code", "package_version");
+        }
+        for (String dialect : DIALECTS) {
+            String ddl = readBaseline(dialect);
+            for (String tableName : List.of("clinical_event", "context_snapshot", "recommendation_trigger")) {
+                assertThat(createTableBlock(ddl, tableName))
+                    .as("%s.%s 临床运行事实不得回引旧包三元组", dialect, tableName)
+                    .contains("runtime_release_id VARCHAR")
+                    .doesNotContain("package_id", "package_code", "package_version");
+            }
+        }
+    }
+
+    @Test
+    void clinicalRuntimeEvidenceReferencesTheExactHospitalReleaseLedger() throws IOException {
+        for (String tableName : List.of("clinical_event", "context_snapshot", "recommendation_trigger")) {
+            String foreignKeyName = "fk_" + tableName + "_runtime_release";
+            JsonNode foreignKey = foreignKey(table(schema(), tableName), foreignKeyName);
+            assertThat(textList(foreignKey.path("columns")))
+                .as("%s 必须通过运行发布 ID 固化实际生效组合", tableName)
+                .containsExactly("runtime_release_id");
+            assertThat(foreignKey.path("referencedTable").asText())
+                .isEqualTo("clinical_runtime_release");
+            assertThat(textList(foreignKey.path("referencedColumns")))
+                .containsExactly("release_id");
+        }
+
+        for (String dialect : DIALECTS) {
+            assertThat(readBaseline(dialect))
+                .as("%s 临床运行证据必须引用医院运行发布账本", dialect)
                 .contains(
-                    "DELETE FROM role_permission",
-                    "DELETE FROM sys_permission",
-                    "DROP COLUMN credential_ref",
-                    "'menu.model-evaluation-review'",
-                    "旧医学回归复核菜单权限")
-                .doesNotContain("INSERT INTO");
+                    "ALTER TABLE clinical_event ADD CONSTRAINT fk_clinical_event_runtime_release "
+                        + "FOREIGN KEY (runtime_release_id) REFERENCES clinical_runtime_release (release_id);",
+                    "ALTER TABLE context_snapshot ADD CONSTRAINT fk_context_snapshot_runtime_release "
+                        + "FOREIGN KEY (runtime_release_id) REFERENCES clinical_runtime_release (release_id);",
+                    "ALTER TABLE recommendation_trigger ADD CONSTRAINT fk_recommendation_trigger_runtime_release "
+                        + "FOREIGN KEY (runtime_release_id) REFERENCES clinical_runtime_release (release_id);"
+                );
         }
     }
 
     @Test
-    void modelProviderCredentialVaultIsEncryptedTenantScopedAndAuditedAcrossAllDialects() {
+    void retiredPackageContainerTablesAreRemovedFromTheCleanV1() throws IOException {
+        Set<String> retiredTables = Set.of(
+            "knowledge_package",
+            "institution_extension_package",
+            "package_item",
+            "release_plan",
+            "sync_log",
+            "mk_aik_pack_job",
+            "mk_pkg_package_entitlement",
+            "mk_pkg_pilot_package_template",
+            "mk_pkg_pilot_template_item",
+            "mk_pkg_tenant_package_reference"
+        );
+
+        Set<String> tableNames = new LinkedHashSet<>();
+        for (JsonNode candidate : schema().path("tables")) {
+            tableNames.add(candidate.path("name").asText());
+        }
+        assertThat(tableNames)
+            .as("旧发布容器、构包作业、包授权和包同步表不得进入全新 V1")
+            .doesNotContainAnyElementsOf(retiredTables);
+
         for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V158__llm_provider_credential_vault.sql");
-            assertThat(ddl)
-                .as("%s 模型凭据必须以租户加密库保存并支持轮换审计", dialect)
+            assertThat(names(CREATE_TABLE, readBaseline(dialect)))
+                .as("%s 旧发布容器表不得生成", dialect)
+                .doesNotContainAnyElementsOf(retiredTables);
+        }
+    }
+
+    @Test
+    void hospitalRuntimeUsesOneAppendOnlyReleaseLedgerWithoutMutableBindingTable() throws IOException {
+        Set<String> tableNames = new LinkedHashSet<>();
+        for (JsonNode candidate : schema().path("tables")) {
+            tableNames.add(candidate.path("name").asText());
+        }
+        assertThat(tableNames)
+            .contains("clinical_runtime_release")
+            .doesNotContain("clinical_runtime_package_binding");
+
+        assertThat(columnNames(table(schema(), "clinical_runtime_release")))
+            .contains(
+                "release_id", "tenant_id", "hospital_id", "revision_no",
+                "platform_baseline_release_id", "manifest_sha256", "rollback_from_release_id",
+                "activated_at", "activated_by"
+            )
+            .doesNotContain(
+                "authority_package_id", "authority_package_code", "authority_package_version",
+                "group_extension_package_id", "hospital_extension_package_id",
+                "effective_content_sha256");
+        assertThat(columnNames(table(schema(), "clinical_runtime_release_item")))
+            .contains(
+                "release_id", "source_tenant_id", "source_layer", "asset_type",
+                "asset_identity", "entry_state", "version_id", "version_no", "content_hash");
+        for (String dialect : DIALECTS) {
+            assertThat(readBaseline(dialect))
+                .as("%s 医院运行发布账本", dialect)
                 .contains(
-                    "mk_llm_provider_credential",
-                    "tenant_id",
-                    "provider_code",
-                    "credential_ciphertext",
-                    "credential_fingerprint",
-                    "credential_last4",
-                    "lock_version",
-                    "created_at",
-                    "created_by",
-                    "updated_at",
-                    "updated_by",
-                    "trace_id",
-                    "uk_mk_llm_provider_credential_tenant",
-                    "idx_mk_llm_provider_credential_tenant",
-                    "模型 Provider 凭据加密库",
-                    "只保存密文",
-                    "乐观锁");
+                    "CREATE TABLE clinical_runtime_release",
+                    "CREATE TABLE clinical_runtime_release_item",
+                    "uk_clinical_runtime_release_revision",
+                    "platform_baseline_release_id VARCHAR",
+                    "manifest_sha256 VARCHAR",
+                    "source_tenant_id VARCHAR",
+                    "source_layer VARCHAR"
+                )
+                .doesNotContain("CREATE TABLE clinical_runtime_package_binding");
         }
     }
 
     @Test
-    void oracleModelProviderCredentialCiphertextUsesClob() {
-        String ddl = readMigration("oracle", "V158__llm_provider_credential_vault.sql");
-        assertThat(ddl)
-            .as("Oracle 模型凭据密文必须使用 CLOB，避免 VARCHAR2 4000 字节上限截断加密载荷")
-            .contains("credential_ciphertext  CLOB")
-            .doesNotContain("credential_ciphertext  VARCHAR2");
-    }
+    void versionedContentLifecycleUsesOnlyDraftPublishedAndWithdrawn() throws IOException {
+        JsonNode schema = schema();
+        JsonNode assetVersion = table(schema, "mk_version_asset_version");
+        assertThat(checkExpression(assetVersion, "ck_mk_version_asset_version_status"))
+            .as("内容版本生命周期不得混入审核态、批准态或退役态")
+            .isEqualTo("status IN('DRAFT', 'PUBLISHED', 'WITHDRAWN')");
+        assertThat(columnComment(assetVersion, "status"))
+            .as("内容版本状态注释必须跟三态模型一致")
+            .contains("DRAFT 草稿", "PUBLISHED 已发布", "WITHDRAWN 已撤回")
+            .doesNotContain("IN_REVIEW", "APPROVED", "DEPRECATED", "RETIRED");
 
-    @Test
-    void modelEvaluationReleaseFingerprintInvalidatesHistoricalRunsAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V156__model_eval_release_fingerprint.sql");
-            assertThat(ddl)
-                .as("%s 医学评测必须冻结运行制品指纹", dialect)
-                .contains("mk_llm_eval_run", "release_fingerprint", "运行制品指纹");
-        }
-    }
+        JsonNode replayAsset = table(schema, "mk_sandbox_replay_asset_binding");
+        assertThat(checkExpression(replayAsset, "ck_mk_sandbox_replay_asset_status"))
+            .as("沙箱历史回放只能绑定曾发布或撤回的内容版本")
+            .isEqualTo("historical_status IN('PUBLISHED', 'WITHDRAWN')");
 
-    @Test
-    void knowledgeInitializationBatchPersistsStableManifestsAndReviewStateAcrossAllDialects() {
         for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V155__knowledge_initialization_batch.sql");
+            String ddl = readBaseline(dialect);
             assertThat(ddl)
-                .as("%s 知识初始化批次必须固定来源、候选、风险和审核状态", dialect)
+                .as("%s 内容版本生命周期三态", dialect)
                 .contains(
-                    "mk_knowledge_source_version_approval",
-                    "mk_knowledge_initialization_batch",
-                    "mk_knowledge_initialization_item",
-                    "source_version_id",
-                    "source_hash",
-                    "batch_code",
-                    "release_type",
-                    "release_version",
-                    "foundation_release_version",
-                    "phase_code",
-                    "source_manifest_hash",
-                    "candidate_manifest_hash",
-                    "overall_hash",
-                    "candidate_classification_id",
-                    "risk_level",
-                    "generated_by_model_flag",
-                    "idempotency_key",
-                    "uk_mk_knowledge_source_approval",
-                    "uk_mk_knowledge_init_batch_code",
-                    "uk_mk_knowledge_init_idempotency",
-                    "uk_mk_knowledge_init_item_candidate",
-                    "ck_mk_knowledge_init_batch_status",
-                    "ck_mk_knowledge_init_item_status",
-                    "初始化发行",
-                    "独立批准",
-                    "候选");
+                    "ck_mk_version_asset_version_status CHECK (status IN('DRAFT', 'PUBLISHED', 'WITHDRAWN'))",
+                    "ck_mk_sandbox_replay_asset_status CHECK (historical_status IN('PUBLISHED', 'WITHDRAWN'))",
+                    "COMMENT ON COLUMN mk_version_asset_version.status IS '统一内容版本状态：DRAFT 草稿、PUBLISHED 已发布、WITHDRAWN 已撤回'")
+                .doesNotContain(
+                    "ck_mk_version_asset_version_status CHECK (status IN('DRAFT', 'IN_REVIEW', 'APPROVED', 'PUBLISHED', 'DEPRECATED', 'RETIRED'))",
+                    "ck_mk_sandbox_replay_asset_status CHECK (historical_status IN('PUBLISHED', 'DEPRECATED', 'RETIRED'))",
+                    "统一生命周期：DRAFT 草稿、IN_REVIEW 评审中、APPROVED 已批准");
         }
     }
 
     @Test
-    void sandboxReplayManifestIsImmutableAndHashedAcrossAllDialects() {
+    void generatedBaselinesContainOnlyStructureAndCriticalDatabaseGuards() throws IOException {
         for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V154__sandbox_replay_manifest.sql");
-            assertThat(ddl)
-                .as("%s 沙盘历史重放必须保存脱敏上下文与精确资产摘要", dialect)
+            String ddl = readBaseline(dialect);
+            assertThat(ddl).as("%s 静态目录由应用播种，V1 只负责结构", dialect)
+                .doesNotContain("\nINSERT ", "\nUPDATE ", "\nDELETE ")
                 .contains(
-                    "mk_sandbox_replay_case",
-                    "mk_sandbox_replay_asset_binding",
-                    "source_tenant_ref",
-                    "source_context_ref",
-                    "context_snapshot_json",
-                    "context_snapshot_hash",
-                    "deidentification_profile",
-                    "manifest_hash",
-                    "asset_identity",
-                    "version_id",
-                    "content_json",
-                    "content_hash",
-                    "historical_status",
-                    "replay_case_id",
-                    "REVOKED",
-                    "历史重放",
-                    "脱敏");
-        }
-    }
-
-    @Test
-    void modelVersionActiveScopeIsUniqueAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V150__model_version_active_scope_unique.sql");
-            assertThat(ddl)
-                .as("%s 模型版本 ACTIVE 作用域必须由关系库强制唯一", dialect)
-                .contains(
-                    "active_scope_key",
-                    "tenant_id || '|' || capability_code",
                     "uk_mk_llm_model_version_active_scope",
                     "ck_mk_llm_model_version_active_scope",
-                    "ACTIVE",
-                    "RETIRED");
+                    "uk_mk_llm_provider_credential_tenant",
+                    "idx_mk_llm_provider_credential_tenant",
+                    "uk_mk_knowledge_init_batch_code",
+                    "uk_mk_knowledge_init_item_candidate");
         }
     }
 
     @Test
-    void medicalRegressionRedLineTypeFitsClinicalRedLineCategoriesAcrossAllDialects() {
-        Pattern redLineTypeWidth = Pattern.compile("red_line_type\\s+VARCHAR2?\\(64\\)", Pattern.CASE_INSENSITIVE);
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V126__medical_regression_eval.sql");
-            assertThat(redLineTypeWidth.matcher(ddl).find())
-                .as("%s 医学回归红线类型字段必须容纳 SPECIAL_POPULATION_CONTRAINDICATION", dialect)
-                .isTrue();
-        }
-    }
-
-    @Test
-    void aiQualityEvaluationFieldsArePersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V126__medical_regression_eval.sql");
-            assertThat(ddl)
-                .as("%s AI 质量评测必须持久化质量维度、幻觉拦截、术语分和版本趋势", dialect)
-                .contains(
-                    "case_domain",
-                    "expected_terms_json",
-                    "forbidden_assertions_json",
-                    "min_score",
-                    "capability_code",
-                    "prompt_version",
-                    "tool_version",
-                    "quality_score",
-                    "terminology_score",
-                    "hallucination_detected",
-                    "case_summary_json",
-                    "ck_mk_llm_regression_case_score",
-                    "ck_mk_llm_eval_run_hallucination",
-                    "ck_mk_llm_eval_run_quality_score",
-                    "idx_mk_llm_regression_case_domain",
-                    "idx_mk_llm_eval_run_capability",
-                    "AI 质量评测维度",
-                    "幻觉拦截",
-                    "术语质量");
-        }
-    }
-
-    @Test
-    void terminologyCandidateGenerationJobIsPersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V135__terminology_candidate_generation_job.sql");
-            assertThat(ddl)
-                .as("%s 术语候选生成任务必须持久化并关联候选分页追溯", dialect)
-                .contains("mk_term_candidate_generation_job", "job_code", "source_system",
-                    "generated_count", "candidate_page_uri", "generation_job_code")
-                .contains("ck_mk_term_candidate_generation_job_status")
-                .contains("idx_mapping_candidate_generation_job");
-        }
-    }
-
-    @Test
-    void knowledgeGenerationTriageIsPersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V137__knowledge_generation_triage.sql");
-            assertThat(ddl)
-                .as("%s 生成期知识候选分流必须持久化 8 态、动作与审计依据", dialect)
-                .contains("mk_knowledge_generation_triage", "triage_state", "action", "basis")
-                .contains("NEW_ASSET", "DUPLICATE", "MINOR_REVISION", "MAJOR_UPGRADE",
-                    "CONFLICT", "DOWNGRADE", "DEPRECATION", "UNCERTAIN")
-                .contains("SKIP_DUPLICATE", "idx_mk_knowledge_generation_triage_job");
-        }
-    }
-
-    @Test
-    void knowledgeShadowRunIsPersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V138__knowledge_shadow_run.sql");
-            assertThat(ddl)
-                .as("%s 生成期影子评测必须持久化指标、退化标记和达标裁决", dialect)
-                .contains("mk_knowledge_shadow_run", "capability_code", "total_cases",
-                    "hit_count", "false_positive_count", "miss_count", "ready_for_review", "basis")
-                .contains("NOT_READY", "FAILED", "PASSED", "PENDING_REVIEW")
-                .contains("idx_mk_knowledge_shadow_run_job", "ck_mk_knowledge_shadow_run_status");
-        }
-    }
-
-    @Test
-    void modelVersionBundleIsPersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V139__mk_llm_model_version_bundle.sql");
-            assertThat(ddl)
-                .as("%s LLM-04 版本三元组必须持久化版本号、hash 与任务 tool_version", dialect)
-                .contains("mk_llm_model_version_bundle", "prompt_version", "prompt_hash",
-                    "tool_version", "tool_hash", "model_version", "model_hash")
-                .contains("model_capability_task", "ck_mk_llm_model_version_bundle_status",
-                    "idx_mk_llm_model_version_bundle_capability")
-                .contains("模型版本三元组版本包");
-        }
-    }
-
-    @Test
-    void knowledgeDiffAndExpiryTaskArePersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V140__knowledge_diff_expiry_task.sql");
-            assertThat(ddl)
-                .as("%s AIK-STD-08 差异检测与过期治理必须持久化", dialect)
-                .contains("mk_knowledge_diff", "mk_knowledge_expiry_task",
-                    "candidate_content_hash", "diff_type",
-                    "task_type", "review_due_at")
-                .contains("ck_knowledge_diff_type", "ck_expiry_task_type", "ck_expiry_task_status",
-                    "idx_knowledge_diff_target", "idx_expiry_task_status")
-                .contains("AIK-STD-08 最新知识探索差异台账", "过期知识复核任务");
-        }
-    }
-
-    @Test
-    void aikPackJobIsPersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V141__aik_pack_job.sql");
-            assertThat(ddl)
-                .as("%s AIK-STD-07 知识包装配作业必须持久化清单、包引用和状态", dialect)
-                .contains("mk_aik_pack_job", "package_id", "asset_manifest", "manifest_sha256", "item_count")
-                .contains("PACKAGED", "FAILED", "uk_aik_pack_job_id", "uk_aik_pack_job_package",
-                    "fk_aik_pack_job_package", "ck_aik_pack_job_status", "idx_aik_pack_job_package")
-                .contains("AIK-STD-07 知识包装配作业", "PKG-01 包引用");
-        }
-    }
-
-    @Test
-    void knowledgeAcquisitionIsPersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V142__knowledge_acquisition.sql");
-            assertThat(ddl)
-                .as("%s AIK-STD-14 公域资料获取必须持久化白名单、许可、robots 策略和运行账本", dialect)
-                .contains("mk_knowledge_acquisition_source", "mk_knowledge_acquisition_run",
-                    "source_code", "domain", "license_policy", "robots_policy", "approved_by",
-                    "source_hash", "material_file_uri", "parse_job_code")
-                .contains("PERMITTED", "FORBIDDEN", "ALLOW_FETCH", "DISALLOW_FETCH",
-                    "SUCCEEDED", "DUPLICATE", "BLOCKED", "FAILED")
-                .contains("uk_mk_knowledge_acquisition_source_code",
-                    "ck_mk_knowledge_acquisition_source_type",
-                    "ck_mk_knowledge_acquisition_source_authority",
-                    "ck_mk_knowledge_acquisition_license_policy",
-                    "ck_mk_knowledge_acquisition_robots_policy",
-                    "fk_mk_knowledge_acquisition_run_source",
-                    "ck_mk_knowledge_acquisition_run_status",
-                    "idx_mk_knowledge_acquisition_source_domain",
-                    "idx_mk_knowledge_acquisition_run_status")
-                .contains("AIK-STD-14 公域资料来源白名单", "公域资料获取运行账本");
-        }
-    }
-
-    @Test
-    void knowledgeAcquisitionScheduleIsPersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V143__knowledge_acquisition_schedule.sql");
-            assertThat(ddl)
-                .as("%s AIK-STD-14 公域资料调度必须持久化到期策略和默认生成计划", dialect)
-                .contains("schedule_enabled_flag", "schedule_interval_minutes", "next_check_at",
-                    "last_check_at", "default_format", "generation_plan_json")
-                .contains("ck_mk_knowledge_acquisition_source_schedule",
-                    "ck_mk_knowledge_acquisition_interval",
-                    "idx_mk_knowledge_acquisition_schedule_due")
-                .contains("公域资料自动获取调度", "候选生成计划 JSON");
-        }
-    }
-
-    @Test
-    void dataMinimizationPolicyIsPersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V144__data_minimization_policy.sql");
-            assertThat(ddl)
-                .as("%s OPT-09 数据最小化策略必须持久化脱敏规则、审批阈值和不可关闭护栏", dialect)
-                .contains("mk_llm_egress_whitelist", "desensitization_rules",
-                    "approval_threshold_level", "guardrail_locked_flag")
-                .contains("MASK_ALL", "GENERALIZE", "NULLIFY", "NONE")
-                .contains("ck_mk_llm_egress_policy_threshold",
-                    "ck_mk_llm_egress_policy_guardrail")
-                .contains("数据最小化策略", "脱敏规则", "审批阈值", "高危护栏");
-        }
-    }
-
-    @Test
-    void diagnosisKnowledgeMenuPermissionIsPersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V134__diagnosis_knowledge_menu_permission.sql");
-            assertThat(ddl)
-                .as("%s 诊断知识维护菜单权限必须进入系统权限目录", dialect)
-                .contains("'menu.diagnosis-knowledge'", "'MENU'", "'diagnosis-knowledge'", "'查看诊断知识维护'")
-                .contains("migration-v134");
-        }
-    }
-
-    @Test
-    void knowledgeSurfaceMenuSplitIsPersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V146__knowledge_surface_menu_split.sql");
-            assertThat(ddl)
-                .as("%s 知识审核、机构知识和知识生产入口必须有独立菜单权限", dialect)
-                .contains("'menu.institution-knowledge'", "'MENU'", "'institution-knowledge'",
-                    "'查看机构知识'")
-                .contains("'menu.knowledge-production'", "'MENU'", "'knowledge-production'",
-                    "'查看知识生产'")
-                .contains("menu.ai-workflows", "查看模型能力", "migration-v146");
-        }
-    }
-
-    @Test
-    void knowledgeCandidateExplainEvidenceIsDataMinimizedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V147__knowledge_candidate_explain_evidence.sql");
-            assertThat(ddl)
-                .as("%s AI 候选解释证据只允许保存最小必要元数据", dialect)
-                .contains("explain_json", "候选生产解释元数据JSON")
-                .contains("模型任务ID", "模式", "版本三元组", "来源引用", "置信", "降级原因")
-                .contains("不保存提示词原文或候选正文");
-        }
-    }
-
-    @Test
-    void knowledgeReviewFeedbackLoopIsPersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V148__knowledge_review_feedback_loop.sql");
-            assertThat(ddl)
-                .as("%s 审核反馈必须结构化登记并只表达回流动作", dialect)
-                .contains("feedback_type", "followup_action")
-                .contains("ACCEPTED", "NOT_ADOPTED", "CONTENT_GAP", "SOURCE_BLANK", "FALSE_POSITIVE")
-                .contains("NONE", "CREATE_REVISION_CANDIDATE", "REQUEST_SOURCE_EVIDENCE",
-                    "MARK_FALSE_POSITIVE", "ARCHIVE_REJECTED")
-                .contains("审核反馈类型", "审核后回流动作");
-        }
-    }
-
-    @Test
-    void knowledgeAcquisitionSourceOptimisticLockIsPersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V149__knowledge_acquisition_source_lock.sql");
-            assertThat(ddl)
-                .as("%s 公域来源审批必须防止并发草稿覆盖治理决定", dialect)
-                .contains("mk_knowledge_acquisition_source", "lock_version", "DEFAULT 0", "NOT NULL")
-                .contains("防止草稿更新、审批和停用相互覆盖");
-        }
-    }
-
-    @Test
-    void modelEvaluationReviewEvidenceIsPersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V151__model_eval_review_evidence.sql");
-            assertThat(ddl)
-                .as("%s 医学回归专家复核必须持久化逐例证据、复核意见和独立菜单权限", dialect)
-                .contains("mk_llm_eval_case_evidence", "regression_case_id", "case_input",
-                    "expected_phrase", "output_content", "source_citations",
-                    "citation_verified", "red_line_breach", "failure_reasons_json")
-                .contains("review_comment", "idx_mk_llm_eval_case_evidence_run")
-                .contains("'menu.model-evaluation-review'", "'MENU'",
-                    "'model-evaluation-review'", "'查看医学回归复核'")
-                .contains("逐用例不可变证据", "专家复核意见");
-        }
-    }
-
-    @Test
-    void modelProviderLockVersionIsPersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V152__model_provider_lock_version.sql");
-            assertThat(ddl)
-                .as("%s 模型 provider 配置、探活与启停必须防止并发覆盖", dialect)
-                .contains("mk_llm_provider", "lock_version", "DEFAULT 0", "NOT NULL")
-                .contains("模型 provider 治理并发版本号");
-        }
-    }
-
-    @Test
-    void sandboxRuntimeBaselineIsPersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V153__sandbox_runtime_baseline.sql");
-            assertThat(ddl)
-                .as("%s 沙盘 CURRENT 必须由明确绑定解析并冻结不可变运行基线", dialect)
-                .contains("mk_sandbox_runtime_binding", "mk_sandbox_run", "active_scope_key",
-                    "package_owner_tenant_id", "package_version", "baseline_hash",
-                    "asset_bindings_json", "external_side_effect_status")
-                .contains("uk_mk_sandbox_runtime_binding_active", "SUPPRESSED", "CURRENT")
-                .contains("ck_mk_sandbox_run_baseline_complete", "PREPARING", "FAILED")
-                .contains("沙盘运行绑定", "不可变运行基线", "外部副作用");
-        }
-    }
-
-    @Test
-    void oracleSandboxBaselineDoesNotReferenceClobInCheckConstraints() {
-        assertThat(readMigration("oracle", "V153__sandbox_runtime_baseline.sql"))
-            .as("Oracle 沙盘运行基线必须保留 CLOB 资产快照列")
-            .contains("asset_bindings_json          CLOB");
-
-        for (String migration : List.of(
-            "V153__sandbox_runtime_baseline.sql",
-            "V154__sandbox_replay_manifest.sql"
-        )) {
-            String ddl = readMigration("oracle", migration);
-            assertThat(ddl)
-                .as("%s 必须避开 Oracle LOB CHECK 限制", migration)
-                .contains("Oracle LOB 列不能参与 CHECK")
-                .doesNotContain(
-                    "asset_bindings_json IS NULL",
-                    "asset_bindings_json IS NOT NULL"
-                );
-        }
-    }
-
-    @Test
-    void sandboxRunModeAvoidsOracleReservedWordAcrossAllDialects() {
-        String oracleBaseline = readMigration("oracle", "V153__sandbox_runtime_baseline.sql");
-        String oracleReplay = readMigration("oracle", "V154__sandbox_replay_manifest.sql");
-        assertThat(oracleBaseline)
-            .as("Oracle 新装基线不得声明 MODE 保留字列")
-            .contains("run_mode")
-            .doesNotContainPattern("(?m)^\\s*mode\\s+VARCHAR2");
-        assertThat(oracleReplay)
-            .as("Oracle 重放约束必须引用 run_mode")
-            .contains("run_mode")
-            .doesNotContainPattern("(?m)\\bmode\\s*(?:=|<>|NOT IN)");
-
-        for (String dialect : DIALECTS) {
-            String migration = readMigration(
-                dialect, "V157__sandbox_run_mode_reserved_word.sql");
-            assertThat(migration)
-                .as("%s 最终沙盘运行模式列必须统一为 run_mode", dialect)
-                .contains("mk_sandbox_run", "run_mode", "沙盘运行模式");
-            if (!"oracle".equals(dialect)) {
-                assertThat(migration)
-                    .containsIgnoringCase("RENAME COLUMN mode TO run_mode");
+    void canonicalModelDoesNotDuplicatePrimaryOrUniqueIndexes() throws IOException {
+        for (JsonNode table : schema().path("tables")) {
+            Set<List<String>> keyColumns = new LinkedHashSet<>();
+            if (!table.path("primaryKey").isMissingNode() && !table.path("primaryKey").isNull()) {
+                keyColumns.add(textList(table.path("primaryKey").path("columns")));
             }
-        }
-    }
-
-    @Test
-    void sandboxPermissionsArePersistedAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V123__sandbox_permission_catalog.sql");
-            assertThat(ddl)
-                .as("%s 沙盘菜单与运行权限必须进入系统权限目录", dialect)
-                .contains("'menu.sandbox'", "'MENU'", "'sandbox'", "'查看全真体验沙盘'")
-                .contains("'sandbox.run'", "'ACTION'", "'运行全真体验沙盘'")
-                .contains("migration-v123");
-        }
-    }
-
-    @Test
-    void snapshotCommentsUseCurrentProductWordingAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V122__snapshot_comment_wording.sql");
-            assertThat(ddl)
-                .as("%s 快照与派生注释使用当前产品表述", dialect)
-                .contains("构包时固化的院内术语 ID")
-                .contains("派生时记录的平台基线版本主键")
-                .doesNotContain("冻结");
-        }
-    }
-
-    @Test
-    void unconfiguredSystemConfigValueIsNullableAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(
-                dialect, "V117__nullable_unconfigured_system_config.sql");
-            assertThat(ddl)
-                .as("%s 配置中心必须允许未配置值", dialect)
-                .containsIgnoringCase("mk_config_item")
-                .containsIgnoringCase("config_value")
-                .containsIgnoringCase("mk_config_history")
-                .containsIgnoringCase("after_value")
-                .containsIgnoringCase("null");
-        }
-    }
-
-    @Test
-    void traceIdPersistenceWidthMatchesInboundContractAcrossAllDialects() {
-        for (String dialect : DIALECTS) {
-            String patchDdl = readMigration(dialect, "V118__trace_id_contract_width.sql");
-            assertThat(patchDdl)
-                .as("%s 追踪标识持久化宽度必须与入站契约一致", dialect)
-                .containsIgnoringCase("platform_credential")
-                .containsIgnoringCase("mk_security_bootstrap_init_token")
-                .containsIgnoringCase("trace_id")
-                .contains("128");
-
-            String qualityDdl = Set.of("oracle", "dm").contains(dialect)
-                ? patchDdl
-                : readMigration(dialect, "V14__evaluation_quality_api.sql");
-            for (String table : QUALITY_TRACE_TABLES) {
-                assertThat(hasTraceIdWidth(qualityDdl, table, 128))
-                    .as("%s 的 %s.trace_id 必须支持 128 字符", dialect, table)
-                    .isTrue();
+            for (JsonNode unique : table.path("uniqueConstraints")) {
+                keyColumns.add(textList(unique.path("columns")));
             }
-        }
-    }
-
-    private static boolean hasTraceIdWidth(String ddl, String table, int width) {
-        Pattern targetTable = Pattern.compile(
-            "(?i)(?:CREATE|ALTER)\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?"
-                + Pattern.quote(table) + "\\b");
-        Pattern nextTable = Pattern.compile(
-            "(?i)(?:CREATE|ALTER)\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?");
-        Pattern widthPattern = Pattern.compile(
-            "(?is)trace_id\\s+(?:SET\\s+DATA\\s+TYPE\\s+|TYPE\\s+)?"
-                + "VARCHAR2?\\s*\\(\\s*" + width + "(?:\\s+CHAR)?\\s*\\)");
-
-        var targetMatcher = targetTable.matcher(ddl);
-        while (targetMatcher.find()) {
-            var nextMatcher = nextTable.matcher(ddl);
-            int end = nextMatcher.find(targetMatcher.end()) ? nextMatcher.start() : ddl.length();
-            if (widthPattern.matcher(ddl.substring(targetMatcher.start(), end)).find()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static final Set<String> REQUIRED_TABLES = Set.of(
-        "medkernel_meta", "org_unit", "org_closure", "mk_org_secondary_membership",
-        "audit_event", "source_document", "source_version", "mk_knowledge_material_object",
-        "source_fragment", "knowledge_identity", "knowledge_asset_version", "citation",
-        "knowledge_supersession", "knowledge_export_job", "mk_knowledge_invalidation", "mk_knowledge_affected_case_task",
-        "mk_knowledge_diff", "mk_knowledge_expiry_task",
-        "mk_knowledge_acquisition_source", "mk_knowledge_acquisition_run",
-        "mk_engine_data_export_job", "mk_engine_data_encrypted_field", "mk_engine_data_field_policy",
-        "mk_knowledge_discovery_run", "mk_knowledge_production_job",
-        "mk_knowledge_production_candidate", "mk_doc_parse_job", "mk_aik_gate_result",
-        "mk_knowledge_generation_triage", "mk_knowledge_shadow_run", "mk_llm_model_version_bundle",
-        "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
-        "standard_term", "local_term", "mk_term_high_risk_rule", "mk_term_candidate_generation_job",
-        "term_mapping", "mapping_candidate", "mapping_conflict", "audit_chain_head",
-        "sys_role", "sys_permission", "role_permission", "user_role_assignment", "tenant_user",
-        "mk_plugin_registry", "mk_plugin_grant",
-        "context_snapshot", "canonical_resource", "clinical_event", "context_idempotency_key",
-        "mk_obs_state_transition", "mk_obs_payload_store", "clinical_event_payload", "clinical_event_outbox",
-        "rule_definition", "rule_version", "rule_applicability", "rule_governance", "rule_signoff",
-        "rule_test_case", "mk_engine_rule_parameter_binding", "mk_engine_condition_fragment",
-        "mk_engine_authoring_asset_profile", "mk_engine_authoring_asset_favorite",
-        "mk_engine_authoring_batch_job", "mk_engine_authoring_batch_item",
-        "rule_execution_log", "rule_override_log", "rule_shadow_feedback",
-        "rule_backtest_run", "rule_drift_snapshot",
-        "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
-        "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
-        "specialty_metric_binding", "pathway_outcome_binding", "recommendation_trigger", "recommendation_card",
-        "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
-        "mk_engine_cdss_risk_matrix", "mk_engine_clinical_redline", "mk_engine_clinical_redline_trial",
-        "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
-        "mk_quality_dashboard_alert", "mk_quality_case_review", "mk_quality_drg_grouping",
-        "mk_quality_insurance_issue",
-        "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
-        "rectification_task", "rectification_review", "evaluation_idempotency_key",
-        "knowledge_package", "package_item", "mk_aik_pack_job",
-        "mk_term_mapping_snapshot", "mk_knowledge_customization",
-        "mk_identity_person", "mk_identity_person_appointment", "mk_identity_person_account",
-        "mk_identity_person_import_job", "mk_identity_person_import_row",
-        "mk_pkg_package_entitlement", "release_plan", "sync_log",
-        "mk_pkg_tenant_package_reference",
-        "mk_pkg_pilot_package_template", "mk_pkg_pilot_template_item",
-        "mk_version_rollout_observation", "mk_version_override_template",
-        "mk_version_override_template_item", "mk_version_override_operation",
-        "mk_followup_template", "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
-        "mk_engine_workflow_todo", "mk_engine_notification",
-        "embed_launch_token", "embed_origin_whitelist",
-        "model_capability_definition", "model_capability_task", "model_capability_policy",
-        "mk_llm_egress_whitelist", "mk_llm_egress_approval", "mk_llm_egress_evidence", "mk_llm_provider",
-        "mk_llm_provider_credential",
-        "mk_llm_regression_case", "mk_llm_eval_run", "mk_llm_eval_case_evidence",
-        "mk_llm_enhancement_matrix",
-        "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
-        "integration_adapter", "integration_webhook_config", "integration_message_log",
-        "mk_integration_master_data_sync_batch", "mk_integration_master_data_sync_record",
-        "mk_integration_onboarding", "mk_integration_regional_source",
-        "evidence_snapshot", "mk_compliance_data_permission", "mk_compliance_masking_rule",
-        "mk_compliance_export_approval", "mk_compliance_interop_assessment_item",
-        "mk_compliance_interop_evidence_map", "mk_compliance_identity_binding",
-        "tenant_branding", "tenant_success_plan",
-        "mpi_patient", "mk_mpi_merge_review", "mk_integration_data_quality_report",
-        "platform_credential", "sys_login_attempt", "sys_password_reset_token",
-        "emergency_permission_grant",
-        "sys_idempotency",
-        "sys_task", "sys_task_dead_letter",
-        "mk_security_bootstrap_init_token",
-        "mk_config_item", "mk_config_history",
-        "mk_clinical_patient", "mk_clinical_encounter", "mk_clinical_condition",
-        "mk_clinical_observation", "mk_clinical_medication", "mk_clinical_procedure",
-        "mk_clinical_diagnostic_report", "mk_clinical_document",
-        "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
-        "mk_clinical_follow_up", "mk_clinical_claim",
-        "mk_projection_sync", "mk_projection_snapshot",
-        "mk_version_asset_version", "mk_version_inheritance_override",
-        "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
-        "mk_version_asset_dependency",
-        "mk_sandbox_runtime_binding", "mk_sandbox_run",
-        "mk_sandbox_replay_case", "mk_sandbox_replay_asset_binding",
-        "mk_knowledge_source_version_approval", "mk_knowledge_initialization_batch",
-        "mk_knowledge_initialization_item",
-        "mk_fhir_resource_mapping", "mk_fhir_mapping_rule",
-        "mk_context_field_catalog",
-        "mk_diagnosis_criterion", "mk_diagnosis_differential", "mk_diagnosis_care_pointer",
-        "mk_diagnosis_test_case", "mk_diagnosis_confidence_policy"
-    );
-
-    @Test
-    void terminologyBaselineMustNotRetainLegacyGrayScopeJson() throws IOException {
-        for (String dialect : DIALECTS) {
-            assertThat(Files.readString(migrationPathFor(dialect, "V4__terminology_mapping_baseline.sql")))
-                .as("%s 术语基线不得保留旧灰度 JSON 双轨字段", dialect)
-                .doesNotContainIgnoringCase("gray_scope_json");
-        }
-    }
-    private static final Set<String> REQUIRED_INDEXES = Set.of(
-        "idx_org_unit_parent", "idx_org_unit_tenant_lv", "idx_org_unit_path",
-        "idx_org_closure_ancestor", "idx_org_closure_descendant",
-        "idx_mk_org_secondary_child", "idx_mk_org_secondary_parent",
-        "idx_audit_event_resource",
-        "idx_audit_event_actor", "idx_audit_event_tenant", "idx_audit_event_trace",
-        "idx_audit_event_large_cursor", "idx_audit_event_large_action",
-        "idx_audit_event_large_resource", "idx_audit_event_large_actor",
-        "idx_source_document_tenant_type", "idx_source_document_tenant_auth",
-        "idx_source_version_tenant_doc", "idx_mk_knowledge_material_object_lookup",
-        "idx_source_fragment_tenant_ver",
-        "idx_knowledge_identity_tenant_domain", "idx_knowledge_identity_specialty",
-        "idx_knowledge_identity_updated", "idx_knowledge_av_identity_status",
-        "idx_knowledge_av_effective_scope",
-        "idx_knowledge_av_tenant_status", "idx_knowledge_av_tenant_updated",
-        "idx_knowledge_av_content_hash", "idx_knowledge_av_authority", "idx_knowledge_av_review_due",
-        "idx_citation_tenant_av", "idx_citation_fragment",
-        "idx_supersession_tenant_identity", "idx_supersession_old", "idx_supersession_new",
-        "idx_supersession_successor", "idx_supersession_grace",
-        "idx_mk_knowledge_invalidation_identity", "idx_mk_knowledge_invalidation_status",
-        "idx_mk_knowledge_affected_task_status", "idx_mk_knowledge_affected_task_version",
-        "idx_knowledge_diff_target", "idx_knowledge_diff_run",
-        "idx_expiry_task_status", "idx_expiry_task_version",
-        "idx_aik_pack_job_package", "idx_aik_pack_job_status",
-        "idx_mk_knowledge_acquisition_source_domain", "idx_mk_knowledge_acquisition_source_status",
-        "idx_mk_knowledge_acquisition_run_status", "idx_mk_knowledge_acquisition_run_source",
-        "idx_mk_knowledge_acquisition_schedule_due",
-        "idx_export_job_tenant_status", "idx_export_job_tenant_created",
-        "idx_mk_engine_data_encrypted_field_scope", "idx_mk_engine_data_encrypted_field_hash",
-        "idx_mk_engine_data_field_policy_level", "idx_mk_engine_data_field_policy_status",
-        "idx_candidate_classification_identity", "idx_candidate_classification_status",
-        "idx_candidate_classification_candidate", "idx_review_assignment_identity",
-        "idx_review_assignment_status", "idx_review_assignment_candidate",
-        "idx_standard_term_tenant_category", "idx_standard_term_tenant_updated",
-        "idx_mk_term_high_risk_rule_tenant_status", "idx_mk_term_high_risk_rule_category",
-        "idx_local_term_tenant_source", "idx_local_term_department",
-        "idx_term_mapping_tenant_status", "idx_term_mapping_local_standard",
-        "idx_mapping_candidate_tenant_status", "idx_mapping_conflict_tenant_status",
-        "idx_sys_role_tenant_active", "idx_sys_permission_dimension",
-        "idx_role_permission_tenant_role",
-        "idx_user_role_assignment_user",
-        "idx_context_snapshot_tenant_patient", "idx_context_snapshot_tenant_enc",
-        "idx_context_snapshot_status", "idx_context_snapshot_tenant_request",
-        "idx_context_snapshot_org_path", "idx_context_snapshot_package_version",
-        "idx_canonical_resource_snapshot",
-        "idx_canonical_resource_tenant_type", "idx_clinical_event_tenant_received",
-        "idx_clinical_event_snapshot", "idx_context_idempotency_expires",
-        "uk_clinical_event_idempotency", "idx_clinical_event_trigger", "idx_clinical_event_callback",
-        "idx_most_entity", "idx_most_tenant_time", "idx_most_trace", "idx_most_failed",
-        "idx_mops_trace", "idx_mops_entity", "idx_mops_tenant_time",
-        "idx_canonical_resource_trace",
-        "idx_audit_event_outcome",
-        "idx_cep_tenant_time", "idx_outbox_pending", "idx_outbox_tenant",
-        "idx_clinical_event_patient", "idx_clinical_event_encounter",
-        "idx_rule_definition_tenant_status", "idx_rule_definition_type_risk", "idx_rule_definition_priority",
-        "idx_rule_version_rule_status", "idx_rule_applicability_effective",
-        "idx_rule_governance_state", "idx_rule_signoff_version",
-        "idx_rule_test_case_version_type",
-        "idx_mk_engine_rule_parameter_binding_version", "idx_mk_engine_rule_parameter_binding_key",
-        "idx_mk_engine_condition_fragment_code", "idx_mk_engine_condition_fragment_package",
-        "idx_mk_engine_condition_fragment_status",
-        "idx_mk_engine_authoring_asset_profile_category",
-        "idx_mk_engine_authoring_asset_favorite_user", "idx_mk_engine_authoring_asset_favorite_asset",
-        "idx_mk_engine_authoring_batch_job_status", "idx_mk_engine_authoring_batch_item_job",
-        "idx_mk_engine_authoring_batch_item_status",
-        "idx_rule_execution_tenant_time", "idx_rule_execution_rule_time",
-        "idx_rule_execution_trigger", "idx_rule_execution_dedupe",
-        "idx_rule_override_rule_time", "idx_rule_override_execution",
-        "idx_rule_shadow_feedback_rule_time", "idx_rule_shadow_feedback_decision",
-        "idx_rule_backtest_rule_time", "idx_rule_backtest_version_time",
-        "idx_rule_drift_rule_time", "idx_rule_drift_status",
-        "idx_specialty_profile_package", "idx_pathway_template_tenant_status",
-        "idx_pathway_template_package", "idx_pathway_template_disease",
-        "idx_pathway_template_parent",
-        "idx_pathway_milestone_template_order", "idx_pathway_milestone_phase_day",
-        "idx_pathway_node_template_order", "idx_pathway_edge_template_from",
-        "idx_pathway_edge_template_to", "idx_patient_pathway_patient",
-        "idx_patient_pathway_template_status", "idx_pathway_variance_pathway_time",
-        "idx_clinical_clock_pathway", "idx_clinical_clock_due",
-        "idx_specialty_metric_package", "idx_specialty_metric_template",
-        "idx_pathway_outcome_template", "idx_pathway_outcome_indicator",
-        "idx_rec_trigger_tenant_time", "idx_rec_trigger_patient", "idx_rec_trigger_status",
-        "idx_rec_trigger_scenario", "idx_rec_card_trigger", "idx_rec_card_tenant_status",
-        "idx_rec_card_risk", "idx_rec_card_fatigue", "idx_rec_source_card",
-        "idx_rec_feedback_card_time", "uk_rec_feedback_idempotency",
-        "idx_rec_fatigue_card", "idx_rec_fatigue_key", "idx_rec_fatigue_tenant_time",
-        "idx_cdss_risk_matrix_active", "idx_cdss_risk_matrix_version", "idx_rec_card_risk_matrix",
-        "idx_clinical_redline_active", "idx_clinical_redline_category", "idx_clinical_redline_source",
-        "idx_clinical_redline_trial_redline", "idx_clinical_redline_trial_status",
-        "idx_eval_indicator_tenant_status", "idx_eval_indicator_code_status",
-        "idx_eval_run_tenant_time", "idx_eval_run_context",
-        "idx_eval_result_run", "idx_eval_result_indicator",
-        "idx_quality_finding_status", "idx_quality_finding_department",
-        "idx_quality_dashboard_alert_tenant_status", "idx_quality_dashboard_alert_department",
-        "idx_quality_case_review_tenant_status", "idx_quality_case_review_department",
-        "idx_quality_drg_grouping_tenant_status", "idx_quality_drg_grouping_department",
-        "idx_quality_insurance_issue_tenant_status", "idx_quality_insurance_issue_department",
-        "idx_quality_insurance_issue_claim",
-        "idx_emr_level_target_scope", "idx_emr_level_item_target",
-        "idx_emr_level_gap_target", "idx_emr_level_gap_task",
-        "idx_emr_level_pkg_target", "idx_emr_level_pkg_created",
-        "idx_rect_task_finding", "idx_rect_task_department_status",
-        "idx_rect_review_finding", "idx_eval_idempotency_resource",
-        "idx_knowledge_pkg_tenant_status", "idx_package_item_pkg",
-        "idx_term_mapping_snapshot_item", "idx_term_mapping_snapshot_anchor",
-        "idx_release_plan_pkg", "idx_sync_log_plan",
-        "idx_pkg_tpref_tenant_status", "idx_pkg_tpref_package",
-        "idx_pkg_tpl_tenant_status", "idx_pkg_tpli_template",
-        "idx_followup_plan_tenant_patient", "idx_followup_plan_status", "idx_followup_plan_fact",
-        "idx_mk_followup_template_tenant", "idx_followup_plan_template",
-        "uk_followup_plan_idempotency",
-        "idx_followup_task_tenant_plan", "idx_followup_task_due_date",
-        "uk_followup_task_idempotency", "idx_followup_task_status_due", "idx_followup_task_clock",
-        "idx_followup_questionnaire_task", "idx_followup_questionnaire_plan",
-        "uk_followup_questionnaire_idempotency", "idx_followup_event_plan",
-        "idx_followup_event_type", "uk_followup_event_idempotency",
-        "idx_workflow_todo_tenant_status_due", "idx_workflow_todo_assignee_status",
-        "idx_workflow_todo_org_scope",
-        "idx_notification_tenant_status_created", "idx_notification_recipient_status",
-        "idx_notification_org_scope",
-        "idx_embed_token_tenant", "idx_embed_token_status_expired", "idx_embed_token_hook",
-        "idx_model_task_tenant",
-        "idx_mk_llm_egress_approval_lookup", "idx_mk_llm_egress_evidence_tenant", "idx_mk_llm_provider_tenant",
-        "idx_mk_llm_provider_credential_tenant",
-        "idx_mk_llm_regression_case_tenant", "idx_mk_llm_regression_case_domain",
-        "idx_mk_llm_eval_run_lookup", "idx_mk_llm_eval_run_capability",
-        "idx_mk_llm_eval_case_evidence_run", "idx_mk_llm_enhancement_matrix_status",
-        "idx_mk_engine_data_export_job_tenant", "idx_mk_knowledge_discovery_run_tenant",
-        "idx_mk_knowledge_production_job_lookup", "idx_mk_knowledge_production_candidate_job",
-        "idx_mk_doc_parse_job_lookup", "idx_mk_aik_gate_result_job",
-        "idx_mk_knowledge_generation_triage_job", "idx_mk_knowledge_generation_triage_identity",
-        "idx_mk_knowledge_shadow_run_job", "idx_mk_knowledge_shadow_run_status",
-        "idx_mk_llm_model_version_bundle_capability",
-        "idx_saved_view_user_page", "idx_saved_view_default", "idx_user_pref_user_key",
-        "idx_export_task_status", "idx_export_task_resource",
-        "idx_integ_adapter_tenant", "idx_integ_webhook_tenant", "idx_integ_msg_tenant", "idx_integ_msg_trace",
-        "idx_mk_integration_master_data_sync_batch_latest", "idx_mk_integration_master_data_sync_record_status",
-        "idx_integ_onb_tenant_status", "idx_integ_onb_adapter",
-        "idx_integ_regional_tenant_trust", "idx_integ_regional_org",
-        "idx_evd_tenant", "idx_evd_trace",
-        "idx_compliance_data_permission_scope", "idx_compliance_data_permission_resource",
-        "idx_compliance_masking_rule_resource", "idx_compliance_masking_rule_status",
-        "idx_compliance_export_approval_status", "idx_compliance_export_approval_resource",
-        "idx_compliance_export_approval_evidence",
-        "idx_compliance_interop_item_status", "idx_compliance_interop_item_dimension",
-        "idx_compliance_interop_evidence_item", "idx_compliance_interop_evidence_source",
-        "idx_compliance_interop_evidence_status",
-        "idx_compliance_identity_binding_user", "idx_compliance_identity_binding_status",
-        "idx_tenant_user_directory",
-        "idx_plugin_registry_tenant", "idx_mk_plugin_grant_tenant_status",
-        "idx_mpi_patient_tenant_status",
-        "idx_mpi_mrv_tenant_status", "idx_mpi_mrv_source", "idx_dqr_tenant_generated",
-        "idx_platform_credential_login", "idx_sys_login_attempt_locked_until",
-        "idx_pwd_reset_token_lookup", "idx_pwd_reset_token_expiry",
-        "idx_emergency_permission_active", "idx_emergency_permission_expiry",
-        "idx_sys_idempotency_expiry",
-        "idx_sys_task_status_ts", "idx_sys_task_mode_ts", "idx_sys_task_org_ts",
-        "idx_sys_task_retry_ts", "idx_sys_task_dead_letter",
-        "idx_sys_task_dead_tenant_ts", "idx_sys_task_dead_task",
-        "idx_bootstrap_init_token_expires",
-        "idx_audit_event_org_path",
-        "idx_audit_event_env",
-        "idx_config_item_tenant_key", "idx_config_history_tenant_key",
-        "idx_mk_clinical_patient_org_path",
-        "idx_mk_clinical_encounter_patient", "idx_mk_clinical_encounter_org_path",
-        "idx_mk_clinical_condition_patient", "idx_mk_clinical_condition_org_path",
-        "idx_mk_clinical_condition_code", "idx_mk_clinical_observation_patient",
-        "idx_mk_clinical_observation_org_path", "idx_mk_clinical_observation_code",
-        "idx_mk_clinical_medication_patient", "idx_mk_clinical_medication_org_path",
-        "idx_mk_clinical_medication_code", "idx_mk_clinical_procedure_patient",
-        "idx_mk_clinical_procedure_org_path", "idx_mk_clinical_procedure_code",
-        "idx_mk_clinical_diagnostic_report_patient", "idx_mk_clinical_diagnostic_report_org_path",
-        "idx_mk_clinical_document_patient", "idx_mk_clinical_document_org_path",
-        "idx_mk_clinical_nursing_assessment_patient", "idx_mk_clinical_nursing_assessment_org_path",
-        "idx_mk_clinical_care_plan_patient", "idx_mk_clinical_care_plan_org_path",
-        "idx_mk_clinical_follow_up_patient", "idx_mk_clinical_follow_up_org_path",
-        "idx_mk_clinical_claim_patient", "idx_mk_clinical_claim_org_path",
-        "idx_mk_projection_sync_tenant_target_ts", "idx_mk_projection_sync_tenant_status",
-        "idx_mk_projection_snapshot_tenant_target",
-        "idx_mk_version_asset_version_tenant_status", "idx_mk_version_asset_version_identity",
-        "idx_mk_version_asset_version_active_scope", "idx_av_batch_identity",
-        "idx_mk_version_inheritance_override_scope", "idx_mk_version_inheritance_override_version",
-        "idx_io_batch_scope",
-        "idx_mk_version_release_plan_asset", "idx_mk_version_release_plan_version",
-        "idx_mk_version_activation_transaction_asset", "idx_mk_version_replay_binding_version",
-        "idx_mk_version_asset_dependency_owner", "idx_mk_version_asset_dependency_target",
-        "idx_mk_version_rollout_plan",
-        "idx_mk_version_override_template_tenant",
-        "idx_mk_version_override_operation_tenant",
-        "idx_mk_sandbox_runtime_binding_tenant", "idx_mk_sandbox_run_tenant_status",
-        "idx_mk_sandbox_run_scenario", "idx_mk_sandbox_replay_case_status",
-        "idx_mk_sandbox_replay_asset_case", "idx_mk_sandbox_run_replay_case",
-        "idx_mk_knowledge_source_approval_status",
-        "idx_mk_knowledge_init_batch_status", "idx_mk_knowledge_init_batch_release",
-        "idx_mk_knowledge_init_item_batch", "idx_mk_knowledge_init_item_source",
-        "idx_package_entitlement_package_status",
-        "idx_package_entitlement_tenant_status",
-        "idx_mk_fhir_res_map_tenant", "idx_mk_fhir_res_map_canon", "idx_mk_fhir_rule_tenant",
-        "idx_mk_ctx_field_catalog_tenant",
-        "idx_mk_diagnosis_criterion_finding", "idx_mk_diagnosis_criterion_version",
-        "idx_mk_diagnosis_differential_version", "idx_mk_diagnosis_pointer_version",
-        "idx_mk_diagnosis_testcase_version", "idx_mk_diagnosis_confpolicy_tenant",
-        "idx_mk_term_candidate_generation_job_tenant", "idx_mapping_candidate_generation_job",
-        "idx_knowledge_customization_local", "idx_person_directory",
-        "idx_person_appointment_person", "idx_person_appointment_org",
-        "idx_person_import_row_job", "idx_compliance_data_permission_ward"
-    );
-    private static final Set<String> COMMON_CONSTRAINTS = Set.of(
-        "uk_mk_knowledge_source_approval", "ck_mk_knowledge_source_approval_status",
-        "fk_mk_knowledge_source_approval_version",
-        "uk_mk_knowledge_init_batch_code", "uk_mk_knowledge_init_idempotency",
-        "ck_mk_knowledge_init_release_type", "ck_mk_knowledge_init_phase",
-        "ck_mk_knowledge_init_batch_status", "ck_mk_knowledge_init_batch_counts",
-        "ck_mk_knowledge_init_foundation_ref",
-        "uk_mk_knowledge_init_item_sequence", "uk_mk_knowledge_init_item_canonical",
-        "uk_mk_knowledge_init_item_candidate", "fk_mk_knowledge_init_item_batch",
-        "fk_mk_knowledge_init_item_source", "fk_mk_knowledge_init_item_classification",
-        "ck_mk_knowledge_init_item_risk", "ck_mk_knowledge_init_item_model",
-        "ck_mk_knowledge_init_item_change", "ck_mk_knowledge_init_item_status",
-        "ck_mk_knowledge_init_item_replacement",
-        "ck_knowledge_package_access_policy",
-        "uk_package_entitlement_id",
-        "uk_package_entitlement_tenant_package",
-        "fk_package_entitlement_platform_package",
-        "ck_package_entitlement_status",
-        "ck_package_entitlement_expiry",
-        "uk_org_unit_tenant_code", "ck_org_unit_level", "ck_org_unit_status",
-        "ck_org_unit_facility_type", "pk_mk_org_secondary_membership",
-        "fk_mk_org_secondary_child", "fk_mk_org_secondary_parent",
-        "ck_mk_org_secondary_not_self", "ck_mk_org_secondary_priority",
-        "pk_org_closure", "fk_org_closure_ancestor", "fk_org_closure_descendant",
-        "ck_org_closure_depth",
-        "uk_audit_event_event_id", "ck_audit_event_status",
-        "uk_source_document_tenant_code", "ck_source_document_type", "ck_source_document_authority",
-        "uk_source_version_doc_no", "uk_source_version_doc_hash",
-        "uk_mk_knowledge_material_object_scope_hash", "ck_mk_knowledge_material_object_backend",
-        "uk_source_fragment_version_anchor", "uk_source_fragment_version_hash",
-        "uk_knowledge_identity_tenant_code", "ck_knowledge_identity_domain", "ck_knowledge_identity_status",
-        "uk_knowledge_asset_version", "uk_knowledge_asset_version_active_scope",
-        "ck_knowledge_asset_version_status", "ck_knowledge_asset_version_risk",
-        "ck_knowledge_asset_version_authority", "ck_knowledge_asset_grade_quality", "ck_knowledge_asset_grade_strength",
-        "ck_knowledge_av_review_cycle",
-        "uk_citation_av_fragment", "ck_citation_relation", "ck_citation_anchor_offsets", "ck_knowledge_supersession_type",
-        "uk_mk_knowledge_invalidation_key", "ck_mk_knowledge_invalidation_type",
-        "ck_mk_knowledge_invalidation_status", "ck_mk_knowledge_invalidation_risk",
-        "ck_mk_knowledge_invalidation_review", "uk_mk_knowledge_affected_task_key",
-        "ck_mk_knowledge_affected_task_type", "ck_mk_knowledge_affected_task_status",
-        "ck_mk_knowledge_affected_target_type",
-        "uk_knowledge_diff_run_asset_hash", "ck_knowledge_diff_type",
-        "uk_expiry_task_key", "ck_expiry_task_type", "ck_expiry_task_status", "ck_expiry_task_risk",
-        "uk_aik_pack_job_id", "uk_aik_pack_job_package", "fk_aik_pack_job_package",
-        "ck_aik_pack_job_status", "ck_aik_pack_job_count",
-        "uk_mk_knowledge_acquisition_source_code", "ck_mk_knowledge_acquisition_source_enabled",
-        "ck_mk_knowledge_acquisition_source_type", "ck_mk_knowledge_acquisition_source_authority",
-        "ck_mk_knowledge_acquisition_license_policy", "ck_mk_knowledge_acquisition_robots_policy",
-        "uk_mk_knowledge_acquisition_run_code", "ck_mk_knowledge_acquisition_run_trigger",
-        "ck_mk_knowledge_acquisition_run_status", "fk_mk_knowledge_acquisition_run_source",
-        "ck_mk_knowledge_acquisition_source_schedule", "ck_mk_knowledge_acquisition_interval",
-        "ck_mk_knowledge_acquisition_default_format",
-        "uk_knowledge_export_job_code", "ck_knowledge_export_job_type", "ck_knowledge_export_job_status",
-        "uk_mk_engine_data_export_job_code", "uk_mk_engine_data_export_job_idem",
-        "ck_mk_engine_data_export_job_type", "ck_mk_engine_data_export_job_status",
-        "ck_mk_engine_data_encrypted_field_level", "ck_mk_engine_data_encrypted_field_cipher",
-        "ck_mk_engine_data_encrypted_field_hash", "uk_mk_engine_data_field_policy_path",
-        "ck_mk_engine_data_field_policy_level", "ck_mk_engine_data_field_policy_encrypt",
-        "ck_mk_engine_data_field_policy_channel", "ck_mk_engine_data_field_policy_status",
-        "uk_mk_knowledge_discovery_run_code", "ck_mk_knowledge_discovery_run_status",
-        "uk_mk_knowledge_production_job_code", "ck_mk_knowledge_production_job_producer",
-        "ck_mk_knowledge_production_job_pipeline", "ck_mk_knowledge_production_job_status",
-        "ck_mk_knowledge_production_job_domain", "ck_mk_knowledge_production_candidate_risk",
-        "ck_mk_knowledge_generation_triage_state", "ck_mk_knowledge_generation_triage_action",
-        "ck_mk_knowledge_shadow_run_status", "ck_mk_knowledge_shadow_run_counts",
-        "ck_mk_llm_model_version_bundle_status", "ck_mk_llm_model_version_active_scope",
-        "uk_mk_llm_model_version_active_scope",
-        "ck_mk_llm_egress_policy_threshold", "ck_mk_llm_egress_policy_guardrail",
-        "uk_mk_doc_parse_job_code", "ck_mk_doc_parse_job_format", "ck_mk_doc_parse_job_status",
-        "ck_knowledge_candidate_classification", "ck_knowledge_candidate_review_status",
-        "ck_review_assignment_review_status", "ck_review_assignment_decision",
-        "ck_review_assignment_feedback_type", "ck_review_assignment_followup_action",
-        "uk_standard_term_code", "ck_standard_term_category", "ck_standard_term_status",
-        "uk_mk_term_high_risk_rule_code", "ck_mk_term_high_risk_rule_type", "ck_mk_term_high_risk_rule_category", "ck_mk_term_high_risk_rule_status",
-        "uk_mk_term_candidate_generation_job_code", "ck_mk_term_candidate_generation_job_status",
-        "uk_local_term_code", "ck_local_term_category", "ck_local_term_status",
-        "ck_term_mapping_status", "ck_term_mapping_risk",
-        "ck_mapping_candidate_status", "ck_mapping_candidate_source", "ck_mapping_candidate_risk",
-        "ck_mapping_conflict_type", "ck_mapping_conflict_status", "ck_mapping_conflict_risk",
-        "uk_sys_role_tenant_code", "uk_sys_permission_code",
-        "ck_sys_role_builtin", "ck_sys_role_active", "ck_sys_permission_dimension", "ck_sys_permission_risk",
-        "ck_sys_permission_active", "uk_role_permission", "ck_role_permission_effect",
-        "uk_user_role_assignment", "ck_user_role_assignment_active",
-        "uk_tenant_user_identity", "ck_tenant_user_status", "ck_tenant_user_version",
-        "uk_plugin_registry_id", "uk_plugin_registry_tenant_code",
-        "ck_plugin_registry_status", "ck_plugin_registry_boundary", "ck_plugin_registry_version",
-        "uk_mk_plugin_grant_id", "uk_mk_plugin_grant_capability", "fk_plugin_grant_registry",
-        "ck_mk_plugin_grant_type", "ck_mk_plugin_grant_status",
-        "ck_mk_plugin_grant_clinical", "ck_mk_plugin_grant_version",
-        "uk_context_snapshot_id", "ck_context_snapshot_status", "ck_context_snapshot_quality",
-        "uk_canonical_resource_id", "ck_canonical_resource_type", "ck_canonical_resource_quality",
-        "uk_clinical_event_id", "ck_clinical_event_type", "ck_clinical_event_status",
-        "ck_clinical_event_trigger_point", "ck_clinical_event_setting",
-        "uk_context_idempotency_tenant_key",
-        "ck_most_error_class",
-        "uk_mops_payload_id", "ck_mops_storage_type",
-        "ck_audit_event_outcome",
-        "uk_event_payload", "ck_storage_type",
-        "uk_outbox_event_id", "ck_outbox_status",
-        "uk_rule_definition_tenant_code", "ck_rule_definition_type",
-        "ck_rule_definition_mode", "ck_rule_definition_risk", "ck_rule_definition_priority",
-        "ck_rule_definition_dedupe", "ck_rule_definition_status",
-        "uk_rule_version_rule_no", "ck_rule_version_status",
-        "uk_rule_applicability_version", "ck_rule_applicability_rollout",
-        "ck_rule_applicability_dates",
-        "uk_rule_governance_id", "uk_rule_governance_version",
-        "ck_rule_governance_state", "ck_rule_governance_signoffs", "ck_rule_governance_round",
-        "uk_rule_signoff_id", "uk_rule_signoff_signer",
-        "ck_rule_signoff_stage", "ck_rule_signoff_decision",
-        "uk_rule_test_case_id", "ck_rule_test_case_type", "ck_rule_test_case_status",
-        "uk_mk_engine_rule_parameter_binding_key",
-        "uk_mk_engine_condition_fragment_id", "uk_mk_engine_condition_fragment_version",
-        "uk_mk_engine_authoring_asset_profile_asset",
-        "uk_mk_engine_authoring_asset_favorite_user_asset",
-        "uk_mk_engine_authoring_batch_job", "ck_mk_engine_authoring_batch_job_type",
-        "ck_mk_engine_authoring_batch_job_status", "uk_mk_engine_authoring_batch_item",
-        "ck_mk_engine_authoring_batch_item_status",
-        "uk_rule_execution_id", "ck_rule_execution_status", "ck_rule_execution_severity",
-        "uk_rule_override_id", "uk_rule_override_execution_action", "ck_rule_override_action",
-        "uk_rule_shadow_feedback_id", "uk_rule_shadow_feedback_execution",
-        "ck_rule_shadow_feedback_decision",
-        "uk_rule_backtest_id", "ck_rule_backtest_sample", "ck_rule_backtest_counts",
-        "ck_rule_backtest_rates",
-        "uk_rule_drift_snapshot_id", "ck_rule_drift_window", "ck_rule_drift_sample",
-        "ck_rule_drift_rates", "ck_rule_drift_status",
-        "uk_specialty_profile_package_code", "uk_pathway_template_tenant_code",
-        "ck_pathway_template_level", "ck_pathway_template_status", "ck_pathway_entry_mode",
-        "uk_pathway_milestone_template_code", "ck_pathway_milestone_day", "ck_pathway_milestone_expected",
-        "uk_pathway_node_template_code", "ck_pathway_node_type", "ck_pathway_node_terminal",
-        "ck_pathway_node_disabled",
-        "uk_pathway_edge_template_code", "ck_pathway_edge_type",
-        "uk_patient_pathway_id", "ck_patient_pathway_status",
-        "uk_pathway_variance_id", "ck_pathway_variance_type", "ck_pathway_variance_resolution",
-        "uk_clinical_clock_id", "ck_clinical_clock_status", "ck_clinical_clock_escalation",
-        "uk_specialty_metric_binding", "ck_specialty_metric_required",
-        "uk_pathway_outcome_binding", "ck_pathway_outcome_scope",
-        "uk_rec_trigger_id", "uk_rec_trigger_tenant_code", "ck_rec_trigger_status",
-        "uk_rec_card_id", "uk_rec_card_trigger_code", "ck_rec_card_type",
-        "ck_rec_card_risk", "ck_rec_card_interrupt", "ck_rec_card_status",
-        "ck_rec_card_physician_confirmation", "ck_rec_card_ai_generated",
-        "ck_rec_card_automation", "ck_rec_card_review", "ck_rec_card_auto_execution",
-        "uk_cdss_risk_matrix_id", "uk_cdss_risk_matrix_scope_version",
-        "ck_cdss_risk_matrix_severity", "ck_cdss_risk_matrix_auto", "ck_cdss_risk_matrix_risk",
-        "ck_cdss_risk_matrix_review", "ck_cdss_risk_matrix_status", "ck_cdss_risk_matrix_auto_exec",
-        "uk_clinical_redline_id", "uk_clinical_redline_version", "uk_clinical_redline_active_scope",
-        "ck_clinical_redline_category", "ck_clinical_redline_status", "ck_clinical_redline_hazard",
-        "ck_clinical_redline_review", "ck_clinical_redline_override",
-        "uk_clinical_redline_trial_id", "ck_clinical_redline_trial_status",
-        "ck_clinical_redline_trial_gate", "ck_clinical_redline_trial_counts",
-        "uk_rec_source_id", "ck_rec_source_type", "uk_rec_feedback_id",
-        "ck_rec_feedback_type", "uk_rec_fatigue_id", "ck_rec_fatigue_signal",
-        "uk_eval_indicator_id", "uk_eval_indicator_tenant_version",
-        "ck_eval_indicator_subject", "ck_eval_indicator_status",
-        "uk_eval_run_id", "uk_eval_run_tenant_code", "ck_eval_run_type", "ck_eval_run_status",
-        "uk_eval_result_id", "ck_eval_result_subject", "ck_eval_result_level",
-        "uk_quality_finding_id", "uk_quality_finding_result_code",
-        "ck_quality_finding_severity", "ck_quality_finding_status",
-        "uk_rect_task_id", "uk_rect_task_finding", "ck_rect_task_status",
-        "uk_rect_review_id", "ck_rect_review_decision",
-        "uk_eval_idempotency_operation_key", "ck_eval_idempotency_operation",
-        "ck_eval_idempotency_finding_status", "ck_eval_idempotency_task_status",
-        "uk_knowledge_package_id", "uk_knowledge_package_tenant_version", "ck_knowledge_package_status",
-        "uk_package_item_id", "uk_package_item_tenant_asset", "ck_package_item_asset_type",
-        "uk_term_mapping_snapshot", "fk_term_mapping_snapshot_item",
-        "uk_release_plan_id", "ck_release_plan_strategy", "ck_release_plan_scope_type", "ck_release_plan_status",
-        "uk_sync_log_id", "ck_sync_log_status",
-        "uk_pkg_tpref_id", "uk_pkg_tpref_scope", "fk_pkg_tpref_platform_package", "ck_pkg_tpref_status",
-        "uk_pkg_tpl_tenant_code", "ck_pkg_tpl_status",
-        "fk_pkg_tpli_template", "uk_pkg_tpli_asset", "ck_pkg_tpli_type",
-        "ck_pkg_tpli_required", "ck_pkg_tpli_sort",
-        "uk_followup_plan_id", "uk_followup_task_id",
-        "uk_followup_questionnaire_id", "uk_followup_event_id",
-        "uk_workflow_todo_id", "uk_workflow_todo_source",
-        "ck_workflow_todo_source_type", "ck_workflow_todo_priority", "ck_workflow_todo_status",
-        "uk_quality_dashboard_alert_id", "uk_quality_dashboard_alert_source",
-        "ck_quality_dashboard_alert_type", "ck_quality_dashboard_alert_status",
-        "uk_quality_case_review_id", "uk_quality_case_review_snapshot",
-        "ck_quality_case_review_status", "ck_quality_case_review_model",
-        "uk_quality_drg_grouping_id", "uk_quality_drg_grouping_snapshot",
-        "ck_quality_drg_grouping_status",
-        "uk_quality_insurance_issue_id", "uk_quality_insurance_issue_source",
-        "ck_quality_insurance_issue_type", "ck_quality_insurance_issue_severity",
-        "ck_quality_insurance_issue_status",
-        "uk_emr_level_target_id", "uk_emr_level_target_scope",
-        "ck_emr_level_target_level", "ck_emr_level_target_status", "ck_emr_level_target_counts",
-        "uk_emr_level_item_id", "uk_emr_level_item_capability",
-        "ck_emr_level_item_required_level", "ck_emr_level_item_status",
-        "uk_emr_level_gap_id", "uk_emr_level_gap_item",
-        "ck_emr_level_gap_capability", "ck_emr_level_gap_status",
-        "uk_emr_level_pkg_id", "uk_emr_level_pkg_idem",
-        "ck_emr_level_pkg_status", "ck_emr_level_pkg_lines",
-        "uk_notification_id", "uk_notification_dedupe",
-        "ck_notification_source_type", "ck_notification_level", "ck_notification_status",
-        "uk_embed_launch_token", "uk_embed_origin_tenant",
-        "ck_model_capability_definition_enabled", "uk_model_task_id", "ck_model_policy_scope",
-        "ck_model_policy_timeout_ms", "ck_model_policy_rate_limit", "uk_model_policy_scope",
-        "uk_mk_llm_egress_whitelist", "ck_mk_llm_egress_whitelist_sensitivity", "ck_mk_llm_egress_approval_status",
-        "uk_mk_llm_provider_tenant_code", "ck_mk_llm_provider_type", "ck_mk_llm_provider_enabled",
-        "uk_mk_llm_provider_credential_tenant",
-        "ck_mk_llm_regression_case_citation", "ck_mk_llm_regression_case_enabled",
-        "ck_mk_llm_regression_case_score", "ck_mk_llm_eval_run_status",
-        "ck_mk_llm_eval_run_hallucination", "ck_mk_llm_eval_run_quality_score",
-        "fk_mk_llm_eval_case_run", "uk_mk_llm_eval_case_run_case", "ck_mk_llm_eval_case_flags",
-        "uk_mk_llm_enhancement_matrix_point", "ck_mk_llm_enhancement_matrix_status", "ck_mk_llm_enhancement_matrix_enabled",
-        "pk_saved_view", "uk_saved_view_user_name", "ck_saved_view_default", "ck_saved_view_status",
-        "pk_user_pref", "uk_user_pref_user_key", "ck_user_pref_status",
-        "pk_export_task", "uk_export_task_idempotency", "ck_export_task_scope", "ck_export_task_status",
-        "uk_integration_adapter", "uk_integration_webhook", "uk_integration_message",
-        "ck_integration_adapter_status", "ck_integration_adapter_health",
-        "ck_integration_webhook_status", "ck_integration_message_dir", "ck_integration_message_status",
-        "uk_mk_integration_master_data_sync_batch", "ck_mk_integration_master_data_sync_batch_mode",
-        "ck_mk_integration_master_data_sync_batch_status", "uk_mk_integration_master_data_sync_record",
-        "ck_mk_integration_master_data_sync_record_type", "ck_mk_integration_master_data_sync_record_status",
-        "ck_mk_integration_master_data_sync_record_version",
-        "uk_mk_followup_template_id", "uk_mk_followup_template_code_version",
-        "uk_mk_followup_template_asset_version", "ck_mk_followup_template_version",
-        "uk_integ_onboarding_tenant_id", "ck_integ_onboarding_mode",
-        "ck_integ_onboarding_status", "ck_integ_onboarding_fhir",
-        "uk_integ_regional_source_id", "ck_integ_regional_trust", "ck_integ_regional_status",
-        "uk_evidence_snapshot",
-        "uk_compliance_data_permission_policy", "ck_compliance_data_permission_action",
-        "ck_compliance_data_permission_level", "ck_compliance_data_permission_status",
-        "ck_compliance_data_permission_version",
-        "uk_compliance_masking_rule", "ck_compliance_masking_rule_strategy",
-        "ck_compliance_masking_rule_status", "ck_compliance_masking_rule_keep",
-        "ck_compliance_masking_rule_version",
-        "uk_compliance_export_approval", "uk_compliance_export_approval_idem",
-        "ck_compliance_export_approval_status", "ck_compliance_export_approval_decision",
-        "ck_compliance_export_approval_version",
-        "uk_compliance_interop_item_id", "uk_compliance_interop_item_code",
-        "ck_compliance_interop_item_dimension", "ck_compliance_interop_item_status",
-        "ck_compliance_interop_item_version", "uk_compliance_interop_evidence_map",
-        "uk_compliance_interop_evidence_source", "ck_compliance_interop_evidence_source",
-        "ck_compliance_interop_evidence_status",
-        "uk_compliance_identity_binding_id", "uk_compliance_identity_subject",
-        "ck_compliance_identity_provider", "ck_compliance_identity_status",
-        "ck_compliance_identity_version",
-        "uk_tenant_branding", "uk_tenant_success_plan",
-        "uk_mpi_patient_id", "uk_mpi_merge_review_pair", "ck_mpi_merge_review_risk",
-        "ck_mpi_merge_review_status", "ck_dqr_required_nonneg", "ck_dqr_adapter_nonneg",
-        "ck_dqr_status_nonneg", "ck_dqr_rates",
-        "uk_platform_credential_id", "uk_platform_credential_username",
-        "ck_platform_credential_status", "ck_platform_credential_mustchg",
-        "uk_sys_login_attempt_id", "uk_sys_login_attempt_tenant_user", "ck_sys_login_attempt_failed_count",
-        "uk_password_reset_token_id", "ck_password_reset_token_expiry",
-        "ck_emergency_permission_code", "ck_emergency_permission_active",
-        "uk_sys_idempotency_tenant_key", "ck_sys_idempotency_status",
-        "uk_sys_task_tenant_task", "ck_sys_task_mode", "ck_sys_task_status",
-        "uk_sys_task_dead_letter", "uk_sys_task_dead_task", "ck_sys_task_dead_mode",
-        "uk_bootstrap_init_token_id", "uk_bootstrap_init_token_hash", "ck_bootstrap_init_token_status",
-        "uk_audit_event_dedupe",
-        "pk_config_item", "uk_config_item_tenant_key", "ck_config_item_value_type",
-        "ck_config_item_risk", "ck_config_item_source", "ck_config_item_protected",
-        "ck_config_item_active", "pk_config_history", "ck_config_history_change_type",
-        "uk_mk_clinical_patient_source", "uk_mk_clinical_encounter_source",
-        "uk_mk_clinical_condition_source", "uk_mk_clinical_observation_source",
-        "uk_mk_clinical_medication_source", "uk_mk_clinical_procedure_source",
-        "uk_mk_clinical_diagnostic_report_source", "uk_mk_clinical_document_source",
-        "uk_mk_clinical_nursing_assessment_source", "uk_mk_clinical_care_plan_source",
-        "uk_mk_clinical_follow_up_source", "uk_mk_clinical_claim_source",
-        "uk_mk_projection_sync_tenant_sync", "ck_mk_projection_sync_target",
-        "ck_mk_projection_sync_status", "uk_mk_projection_snapshot_fact",
-        "ck_mk_projection_snapshot_target", "ck_mk_projection_snapshot_kind",
-        "uk_mk_version_asset_version_id", "uk_mk_version_asset_version_no",
-        "uk_mk_version_asset_version_active", "ck_mk_version_asset_version_type",
-        "ck_mk_version_asset_version_status", "ck_mk_version_asset_version_hash",
-        "ck_mk_version_asset_safety_policy", "ck_mk_version_asset_override_policy",
-        "uk_mk_version_inheritance_override_id", "uk_mk_version_inheritance_override_active",
-        "ck_mk_version_inheritance_override_type", "ck_mk_version_inheritance_override_mode",
-        "ck_mk_version_inheritance_override_propagation",
-        "ck_mk_version_inheritance_override_lifecycle",
-        "uk_mk_version_release_plan_id", "ck_mk_version_release_plan_type",
-        "ck_mk_version_release_plan_scope", "ck_mk_version_release_plan_status",
-        "ck_mk_version_release_rollout_strategy",
-        "uk_mk_version_activation_transaction_id", "uk_mk_version_activation_transaction_idem",
-        "ck_mk_version_activation_transaction_type", "ck_mk_version_activation_transaction_action",
-        "uk_mk_version_replay_binding_id", "uk_mk_version_replay_binding_event",
-        "ck_mk_version_replay_binding_type", "ck_mk_version_replay_binding_hash",
-        "uk_mk_version_asset_dependency_id", "uk_mk_version_asset_dependency_edge",
-        "ck_mk_version_asset_dependency_owner_type", "ck_mk_version_asset_dependency_target_type",
-        "ck_mk_version_asset_dependency_kind",
-        "uk_mk_version_rollout_observation_id",
-        "ck_mk_version_rollout_observation_counts",
-        "ck_mk_version_rollout_observation_rates",
-        "uk_mk_version_override_template_id",
-        "uk_mk_version_override_template_name",
-        "ck_mk_version_override_template_status",
-        "uk_mk_version_override_template_item_id",
-        "uk_mk_version_override_template_asset",
-        "ck_mk_version_override_template_mode",
-        "ck_mk_version_override_template_propagation",
-        "uk_mk_version_override_operation_id",
-        "ck_mk_version_override_operation_type",
-        "ck_mk_version_override_operation_status",
-        "uk_mk_fhir_res_map_fhir", "uk_mk_fhir_res_map_canon",
-        "ck_mk_fhir_res_map_ver", "ck_mk_fhir_res_map_status",
-        "ck_mk_fhir_res_map_rate", "ck_mk_fhir_res_map_missing",
-        "uk_mk_fhir_rule_code", "ck_mk_fhir_rule_ver",
-        "ck_mk_fhir_rule_status", "ck_mk_fhir_rule_version",
-        "uk_mk_ctx_field_catalog_tenant_path", "ck_mk_ctx_field_catalog_data_type",
-        "ck_mk_ctx_field_catalog_status",
-        "ck_mk_diagnosis_criterion_dir", "ck_mk_diagnosis_criterion_weight",
-        "uk_mk_dx_diff_version_target",
-        "ck_mk_diagnosis_pointer_type", "ck_mk_diagnosis_pointer_target",
-        "ck_mk_diagnosis_testcase_conf",
-        "uk_mk_diagnosis_testcase", "uk_mk_diagnosis_confpolicy",
-        "uk_knowledge_customization_scope", "ck_knowledge_customization_source",
-        "ck_knowledge_customization_status", "ck_knowledge_customization_version",
-        "uk_person_employee", "ck_person_status", "ck_person_version",
-        "fk_person_appointment_person", "ck_person_appointment_type",
-        "ck_person_appointment_primary", "ck_person_appointment_status",
-        "ck_person_appointment_version", "fk_person_account_person",
-        "uk_person_account_person", "uk_person_account_user",
-        "ck_person_account_status", "ck_person_account_version",
-        "uk_person_import_digest", "ck_person_import_status",
-        "ck_person_import_version", "fk_person_import_row_job",
-        "uk_person_import_row_no", "ck_person_import_row_action",
-        "ck_person_import_row_status",
-        "uk_mk_sandbox_runtime_binding_id", "uk_mk_sandbox_runtime_binding_active",
-        "fk_mk_sandbox_runtime_binding_package", "ck_mk_sandbox_runtime_binding_status",
-        "ck_mk_sandbox_runtime_binding_active", "uk_mk_sandbox_run_id",
-        "uk_mk_sandbox_run_baseline", "fk_mk_sandbox_run_binding",
-        "fk_mk_sandbox_run_package", "ck_mk_sandbox_run_mode",
-        "ck_mk_sandbox_run_current_binding", "ck_mk_sandbox_run_baseline_complete",
-        "uk_mk_sandbox_replay_case", "uk_mk_sandbox_replay_manifest",
-        "ck_mk_sandbox_replay_case_status", "ck_mk_sandbox_replay_case_revoke",
-        "uk_mk_sandbox_replay_asset_id", "uk_mk_sandbox_replay_asset_version",
-        "fk_mk_sandbox_replay_asset_case", "ck_mk_sandbox_replay_asset_source",
-        "ck_mk_sandbox_replay_asset_status", "fk_mk_sandbox_run_replay_case",
-        "ck_mk_sandbox_run_replay_case",
-        "ck_mk_sandbox_run_resolution",
-        "ck_mk_sandbox_run_side_effect", "ck_mk_sandbox_run_status"
-    );
-    private static final Set<String> TENANT_TABLES = Set.of(
-        "org_unit", "org_closure", "audit_event", "source_document", "source_version",
-        "mk_knowledge_material_object", "source_fragment",
-        "knowledge_identity", "knowledge_asset_version", "citation", "knowledge_supersession",
-        "knowledge_export_job", "mk_engine_data_export_job", "mk_engine_data_encrypted_field",
-        "mk_engine_data_field_policy", "mk_knowledge_discovery_run",
-        "mk_knowledge_diff", "mk_knowledge_expiry_task",
-        "mk_knowledge_acquisition_source", "mk_knowledge_acquisition_run",
-        "mk_knowledge_production_job", "mk_knowledge_production_candidate", "mk_doc_parse_job",
-        "mk_aik_gate_result", "mk_knowledge_generation_triage", "mk_knowledge_shadow_run",
-        "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment",
-        "mk_knowledge_customization",
-        "standard_term", "local_term", "mk_term_high_risk_rule", "term_mapping", "mapping_candidate",
-        "mapping_conflict", "audit_chain_head", "sys_role", "role_permission", "user_role_assignment",
-        "mk_identity_person", "mk_identity_person_appointment", "mk_identity_person_account",
-        "mk_identity_person_import_job", "mk_identity_person_import_row",
-        "context_snapshot", "canonical_resource", "clinical_event", "context_idempotency_key",
-        "mk_obs_state_transition", "mk_obs_payload_store", "clinical_event_payload", "clinical_event_outbox",
-        "rule_definition", "rule_version", "rule_applicability", "rule_governance", "rule_signoff",
-        "rule_test_case", "mk_engine_rule_parameter_binding", "mk_engine_condition_fragment",
-        "rule_execution_log", "rule_override_log", "rule_shadow_feedback",
-        "rule_backtest_run", "rule_drift_snapshot",
-        "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
-        "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
-        "specialty_metric_binding", "pathway_outcome_binding", "recommendation_trigger", "recommendation_card",
-        "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
-        "mk_engine_cdss_risk_matrix", "mk_engine_clinical_redline",
-        "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
-        "mk_quality_dashboard_alert", "mk_quality_case_review", "mk_quality_drg_grouping",
-        "mk_quality_insurance_issue",
-        "mk_compliance_interop_assessment_item", "mk_compliance_interop_evidence_map",
-        "mk_compliance_identity_binding",
-        "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
-        "rectification_task", "rectification_review", "evaluation_idempotency_key",
-        "knowledge_package", "package_item", "mk_aik_pack_job", "release_plan", "sync_log",
-        "mk_followup_template", "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
-        "mk_engine_workflow_todo", "mk_engine_notification",
-        "model_capability_task", "model_capability_policy",
-        "mk_llm_egress_whitelist", "mk_llm_egress_approval", "mk_llm_egress_evidence", "mk_llm_provider",
-        "mk_llm_provider_credential",
-        "mk_llm_regression_case", "mk_llm_eval_run", "mk_llm_eval_case_evidence",
-        "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
-        "integration_adapter", "integration_webhook_config", "integration_message_log",
-        "mk_integration_master_data_sync_batch", "mk_integration_master_data_sync_record",
-        "mk_integration_onboarding", "mk_integration_regional_source",
-        "evidence_snapshot",
-        "tenant_branding", "tenant_success_plan",
-        "mpi_patient", "mk_mpi_merge_review", "mk_integration_data_quality_report",
-        "platform_credential", "sys_login_attempt", "sys_password_reset_token",
-        "emergency_permission_grant",
-        "sys_idempotency",
-        "sys_task", "sys_task_dead_letter",
-        "mk_config_item", "mk_config_history",
-        "mk_clinical_patient", "mk_clinical_encounter", "mk_clinical_condition",
-        "mk_clinical_observation", "mk_clinical_medication", "mk_clinical_procedure",
-        "mk_clinical_diagnostic_report", "mk_clinical_document",
-        "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
-        "mk_clinical_follow_up", "mk_clinical_claim",
-        "mk_projection_sync", "mk_projection_snapshot",
-        "mk_version_asset_version", "mk_version_inheritance_override",
-        "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
-        "mk_version_asset_dependency",
-        "mk_sandbox_runtime_binding", "mk_sandbox_run",
-        "mk_fhir_resource_mapping", "mk_fhir_mapping_rule"
-    );
-    private static final Set<String> MUTABLE_AUDITED_TABLES = Set.of(
-        "org_unit", "source_document", "knowledge_identity", "knowledge_asset_version",
-        "mk_knowledge_expiry_task",
-        "mk_knowledge_candidate_classification", "mk_knowledge_review_assignment", "mk_knowledge_production_job",
-        "mk_engine_data_field_policy",
-        "mk_doc_parse_job", "mk_knowledge_acquisition_source", "mk_knowledge_acquisition_run",
-        "standard_term", "local_term", "mk_term_high_risk_rule", "term_mapping", "mapping_candidate", "mapping_conflict",
-        "sys_role", "sys_permission", "role_permission", "user_role_assignment",
-        "rule_definition", "rule_version", "rule_applicability", "rule_governance", "rule_test_case",
-        "mk_engine_condition_fragment",
-        "specialty_profile", "pathway_template", "pathway_milestone", "pathway_node",
-        "pathway_edge", "patient_pathway", "pathway_variance", "clinical_clock",
-        "specialty_metric_binding", "pathway_outcome_binding", "recommendation_trigger", "recommendation_card",
-        "recommendation_source", "recommendation_feedback", "recommendation_fatigue_signal",
-        "mk_engine_cdss_risk_matrix", "mk_engine_clinical_redline",
-        "evaluation_indicator", "evaluation_run", "evaluation_result", "quality_finding",
-        "mk_quality_dashboard_alert", "mk_quality_case_review", "mk_quality_drg_grouping",
-        "mk_quality_insurance_issue",
-        "mk_compliance_interop_assessment_item", "mk_compliance_interop_evidence_map",
-        "mk_compliance_identity_binding",
-        "mk_emr_level_target", "mk_emr_level_item", "mk_emr_level_gap", "mk_emr_level_evidence_package",
-        "rectification_task", "rectification_review",
-        "knowledge_package", "package_item", "mk_aik_pack_job", "release_plan", "sync_log",
-        "mk_followup_template", "followup_plan", "followup_task", "followup_questionnaire", "followup_event",
-        "mk_engine_workflow_todo", "mk_engine_notification",
-        "embed_launch_token", "embed_origin_whitelist",
-        "model_capability_definition", "model_capability_task", "model_capability_policy",
-        "mk_llm_egress_whitelist", "mk_llm_egress_approval", "mk_llm_egress_evidence", "mk_llm_provider",
-        "mk_llm_provider_credential",
-        "mk_llm_regression_case", "mk_llm_eval_run", "mk_llm_enhancement_matrix",
-        "mk_experience_saved_view", "mk_experience_export_task", "mk_experience_user_pref",
-        "integration_adapter", "integration_webhook_config", "integration_message_log",
-        "mk_integration_onboarding", "mk_integration_regional_source",
-        "evidence_snapshot",
-        "tenant_branding", "tenant_success_plan",
-        "mpi_patient", "mk_mpi_merge_review",
-        "platform_credential", "sys_login_attempt", "sys_password_reset_token",
-        "emergency_permission_grant",
-        "sys_task", "sys_task_dead_letter",
-        "mk_config_item",
-        "mk_clinical_patient", "mk_clinical_encounter", "mk_clinical_condition",
-        "mk_clinical_observation", "mk_clinical_medication", "mk_clinical_procedure",
-        "mk_clinical_diagnostic_report", "mk_clinical_document",
-        "mk_clinical_nursing_assessment", "mk_clinical_care_plan",
-        "mk_clinical_follow_up", "mk_clinical_claim",
-        "mk_version_asset_version", "mk_version_inheritance_override",
-        "mk_version_release_plan", "mk_version_activation_transaction", "mk_version_replay_binding",
-        "mk_version_asset_dependency",
-        "mk_sandbox_runtime_binding", "mk_sandbox_run",
-        "mk_fhir_resource_mapping", "mk_fhir_mapping_rule"
-    );
-    private static final Map<String, Set<String>> TECHNICAL_AUDIT_FIELDS = Map.ofEntries(
-        Map.entry("audit_event", Set.of("occurred_at", "actor_user_id", "created_at")),
-        Map.entry("mk_obs_state_transition", Set.of("occurred_at", "actor", "created_at", "created_by")),
-        Map.entry("mk_obs_payload_store", Set.of("created_at", "created_by", "deleted_at", "deleted_by")),
-        Map.entry("knowledge_supersession", Set.of("transitioned_at", "transitioned_by")),
-        Map.entry("knowledge_export_job", Set.of("requested_by", "created_at", "started_at", "completed_at", "expires_at")),
-        Map.entry("mk_knowledge_material_object", Set.of("stored_at", "stored_by")),
-        Map.entry("mk_engine_data_export_job", Set.of("requested_by", "created_at", "started_at", "completed_at", "expires_at")),
-        Map.entry("mk_engine_data_encrypted_field", Set.of("created_at", "created_by", "trace_id")),
-        Map.entry("mk_term_candidate_generation_job", Set.of("requested_by", "created_at", "started_at", "completed_at")),
-        Map.entry("audit_chain_head", Set.of("last_signature", "updated_at")),
-        Map.entry("rule_execution_log", Set.of("actor_user_id", "executed_at", "created_at")),
-        Map.entry("rule_applicability", Set.of(
-            "created_at", "created_by", "updated_at", "updated_by", "trace_id")),
-        Map.entry("rule_governance", Set.of("trace_id", "lock_version")),
-        Map.entry("rule_signoff", Set.of("signed_at", "trace_id")),
-        Map.entry("mk_engine_rule_parameter_binding", Set.of("created_at", "created_by", "trace_id")),
-        Map.entry("rule_override_log", Set.of("overridden_by", "overridden_at", "created_at")),
-        Map.entry("rule_shadow_feedback", Set.of("assessed_by", "assessed_at", "created_at")),
-        Map.entry("rule_backtest_run", Set.of("created_at", "created_by")),
-        Map.entry("rule_drift_snapshot", Set.of("created_at", "created_by")),
-        Map.entry("patient_pathway", Set.of("entered_at", "completed_at", "exited_at")),
-        Map.entry("sys_task", Set.of("started_at", "finished_at", "trace_id")),
-        Map.entry("sys_task_dead_letter", Set.of("trace_id", "replayed_at")),
-        Map.entry("sys_login_attempt", Set.of("trace_id")),
-        Map.entry("sys_password_reset_token", Set.of("trace_id")),
-        Map.entry("mk_projection_sync", Set.of("started_at", "finished_at", "requested_by", "trace_id")),
-        Map.entry("mk_projection_snapshot", Set.of("source_updated_at", "synced_at", "trace_id")),
-        Map.entry("mk_mpi_merge_review", Set.of("requested_at", "requested_by", "reviewed_at", "reviewed_by", "trace_id", "created_at", "updated_at")),
-        Map.entry("mk_integration_data_quality_report", Set.of("generated_at", "created_at", "created_by", "trace_id")),
-        Map.entry("mk_integration_onboarding", Set.of("created_at", "created_by", "updated_at", "updated_by", "trace_id")),
-        Map.entry("mk_integration_regional_source", Set.of("created_at", "created_by", "updated_at", "updated_by", "trace_id")),
-        Map.entry("mk_compliance_identity_binding",
-            Set.of("created_at", "created_by", "updated_at", "updated_by", "trace_id"))
-    );
-    private static final Map<String, Set<String>> LIFECYCLE_FIELDS = Map.<String, Set<String>>ofEntries(
-        Map.entry("org_unit", Set.of("status")),
-        Map.entry("audit_event", Set.of("status")),
-        Map.entry("source_version", Set.of("version_no")),
-        Map.entry("mk_knowledge_material_object", Set.of("sha256", "storage_backend")),
-        Map.entry("knowledge_identity", Set.of("status")),
-        Map.entry("knowledge_asset_version", Set.of("version_no", "status")),
-        Map.entry("mk_knowledge_diff", Set.of("diff_type", "candidate_content_hash")),
-        Map.entry("mk_knowledge_expiry_task", Set.of("task_type", "status", "review_due_at")),
-        Map.entry("mk_aik_pack_job", Set.of("status", "manifest_sha256")),
-        Map.entry("mk_knowledge_acquisition_source", Set.of("domain", "license_policy", "robots_policy",
-            "enabled_flag", "schedule_enabled_flag", "next_check_at")),
-        Map.entry("mk_knowledge_acquisition_run", Set.of("status", "source_hash", "material_file_uri")),
-        Map.entry("mk_knowledge_candidate_classification", Set.of("classification", "review_status", "content_hash")),
-        Map.entry("mk_knowledge_review_assignment", Set.of("review_status", "decision")),
-        Map.entry("knowledge_export_job", Set.of("status")),
-        Map.entry("mk_engine_data_export_job", Set.of("status")),
-        Map.entry("mk_engine_data_encrypted_field", Set.of("data_level", "search_hash")),
-        Map.entry("mk_engine_data_field_policy", Set.of("data_level", "encryption_required_flag", "status")),
-        Map.entry("mk_knowledge_production_job", Set.of("status", "domain")),
-        Map.entry("mk_knowledge_production_candidate", Set.of("risk_level")),
-        Map.entry("mk_knowledge_generation_triage", Set.of("triage_state", "action", "content_hash")),
-        Map.entry("mk_knowledge_shadow_run", Set.of("status", "capability_code", "content_hash")),
-        Map.entry("mk_doc_parse_job", Set.of("status")),
-        Map.entry("standard_term", Set.of("version_no", "status")),
-        Map.entry("mk_term_high_risk_rule", Set.of("rule_type", "status")),
-        Map.entry("mk_term_candidate_generation_job", Set.of("status")),
-        Map.entry("local_term", Set.of("status")),
-        Map.entry("term_mapping", Set.of("status")),
-        Map.entry("mapping_candidate", Set.of("status")),
-        Map.entry("mapping_conflict", Set.of("status")),
-        Map.entry("sys_role", Set.of("active_flag")),
-        Map.entry("sys_permission", Set.of("dimension", "active_flag")),
-        Map.entry("mk_security_bootstrap_init_token", Set.of("status")),
-        Map.entry("context_snapshot", Set.of("status", "quality_status")),
-        Map.entry("clinical_event", Set.of("processing_status")),
-        Map.entry("clinical_event_outbox", Set.of("claim_status")),
-        Map.entry("rule_definition", Set.of("status", "risk_level")),
-        Map.entry("rule_version", Set.of("version_no", "status")),
-        Map.entry("rule_applicability", Set.of("rollout_percent")),
-        Map.entry("rule_governance", Set.of("state", "required_signoffs", "review_round")),
-        Map.entry("rule_signoff", Set.of("stage", "decision", "review_round")),
-        Map.entry("rule_test_case", Set.of("case_type", "last_status")),
-        Map.entry("rule_execution_log", Set.of("status", "severity")),
-        Map.entry("rule_override_log", Set.of("action_code")),
-        Map.entry("rule_shadow_feedback", Set.of("decision")),
-        Map.entry("rule_backtest_run", Set.of("sample_count")),
-        Map.entry("rule_drift_snapshot", Set.of("status")),
-        Map.entry("pathway_template", Set.of("template_version", "status")),
-        Map.entry("pathway_node", Set.of("node_type")),
-        Map.entry("pathway_edge", Set.of("edge_type")),
-        Map.entry("patient_pathway", Set.of("status")),
-        Map.entry("pathway_variance", Set.of("variance_type")),
-        Map.entry("clinical_clock", Set.of("status")),
-        Map.entry("recommendation_trigger", Set.of("status")),
-        Map.entry("recommendation_card", Set.of("card_type", "risk_level", "interrupt_level", "status")),
-        Map.entry("mk_engine_cdss_risk_matrix", Set.of("severity_level", "automation_level", "risk_level",
-            "review_requirement", "status", "matrix_version")),
-        Map.entry("mk_engine_clinical_redline", Set.of("category", "status", "hazard_severity",
-            "review_requirement", "redline_version")),
-        Map.entry("recommendation_source", Set.of("source_type")),
-        Map.entry("recommendation_feedback", Set.of("feedback_type")),
-        Map.entry("recommendation_fatigue_signal", Set.of("signal_type")),
-        Map.entry("evaluation_indicator", Set.of("version_no", "subject_type", "status")),
-        Map.entry("evaluation_run", Set.of("run_type", "status")),
-        Map.entry("evaluation_result", Set.of("subject_type", "result_level")),
-        Map.entry("quality_finding", Set.of("severity", "status")),
-        Map.entry("mk_quality_dashboard_alert", Set.of("alert_type", "status")),
-        Map.entry("mk_quality_case_review", Set.of("review_status", "model_status")),
-        Map.entry("mk_quality_drg_grouping", Set.of("grouping_status")),
-        Map.entry("mk_quality_insurance_issue", Set.of("issue_type", "severity", "status")),
-        Map.entry("mk_emr_level_target", Set.of("target_level", "status")),
-        Map.entry("mk_emr_level_item", Set.of("required_level", "capability_status")),
-        Map.entry("mk_emr_level_gap", Set.of("capability_status", "gap_status")),
-        Map.entry("mk_emr_level_evidence_package", Set.of("status")),
-        Map.entry("rectification_task", Set.of("status")),
-        Map.entry("rectification_review", Set.of("decision")),
-        Map.entry("knowledge_package", Set.of("package_version", "status")),
-        Map.entry("package_item", Set.of("asset_type")),
-        Map.entry("release_plan", Set.of("strategy", "scope_type", "status")),
-        Map.entry("sync_log", Set.of("status")),
-        Map.entry("followup_plan", Set.of("status")),
-        Map.entry("followup_task", Set.of("status", "task_type")),
-        Map.entry("followup_questionnaire", Set.of("status")),
-        Map.entry("followup_event", Set.of("event_type")),
-        Map.entry("mk_engine_workflow_todo", Set.of("source_type", "priority", "status")),
-        Map.entry("mk_engine_notification", Set.of("source_type", "notification_level", "status")),
-        Map.entry("embed_launch_token", Set.of("status")),
-        Map.entry("model_capability_definition", Set.of("enabled_flag")),
-        Map.entry("mk_llm_enhancement_matrix", Set.of("access_status", "enabled_flag")),
-        Map.entry("model_capability_task", Set.of("model_mode", "status")),
-        Map.entry("model_capability_policy", Set.of("route_strategy", "scope_type")),
-        Map.entry("mk_experience_saved_view", Set.of("version", "status")),
-        Map.entry("mk_experience_export_task", Set.of("selected_scope", "status")),
-        Map.entry("mk_experience_user_pref", Set.of("version", "status")),
-        Map.entry("integration_adapter", Set.of("status", "health_status")),
-        Map.entry("integration_webhook_config", Set.of("status")),
-        Map.entry("integration_message_log", Set.of("status", "direction")),
-        Map.entry("mk_integration_onboarding", Set.of("access_mode", "status", "fhir_version")),
-        Map.entry("mk_integration_regional_source", Set.of("trust_level", "status")),
-        Map.entry("tenant_success_plan", Set.of("current_stage")),
-        Map.entry("mpi_patient", Set.of("status")),
-        Map.entry("mk_mpi_merge_review", Set.of("risk_level", "status")),
-        Map.entry("emergency_permission_grant", Set.of("active_flag")),
-        Map.entry("sys_task", Set.of("task_mode", "status")),
-        Map.entry("sys_task_dead_letter", Set.of("task_mode")),
-        Map.entry("mk_config_item", Set.of("value_type", "risk_level", "source", "protected_flag", "active_flag", "version")),
-        Map.entry("mk_config_history", Set.of("change_type", "version")),
-        Map.entry("mk_projection_sync", Set.of("target_type", "status")),
-        Map.entry("mk_projection_snapshot", Set.of("target_type", "fact_kind")),
-        Map.entry("mk_version_asset_version", Set.of("version_no", "content_hash", "status")),
-        Map.entry("mk_version_inheritance_override", Set.of("override_mode", "lifecycle_status")),
-        Map.entry("mk_version_release_plan", Set.of("scope_type", "status")),
-        Map.entry("mk_version_activation_transaction", Set.of("action")),
-        Map.entry("mk_version_replay_binding", Set.of("result_hash")),
-        Map.entry("mk_version_asset_dependency", Set.of("asset_type", "depends_on_asset_type", "dependency_kind")),
-        Map.entry("mk_fhir_resource_mapping", Set.of("fhir_version", "mapping_status")),
-        Map.entry("mk_fhir_mapping_rule", Set.of("fhir_version", "rule_version", "status")),
-        Map.entry("mk_compliance_interop_assessment_item", Set.of("dimension", "status", "version")),
-        Map.entry("mk_compliance_interop_evidence_map", Set.of("evidence_source_type", "status")),
-        Map.entry("mk_compliance_identity_binding", Set.of("status", "version"))
-    );
-
-    private static final Pattern TABLE_PATTERN =
-        Pattern.compile("(?i)CREATE\\s+TABLE(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s+([a-z0-9_]+)");
-    private static final Pattern TABLE_BLOCK_PATTERN = Pattern.compile(
-        "(?is)CREATE\\s+TABLE(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s+([a-z0-9_]+)\\s*\\((.*?)\\);");
-    private static final Pattern INDEX_PATTERN = Pattern.compile(
-        "(?i)CREATE\\s+(?:UNIQUE\\s+)?INDEX(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s+([a-z0-9_]+)");
-    private static final Pattern RENAME_COLUMN_PATTERN = Pattern.compile(
-        "(?i)ALTER\\s+TABLE\\s+([a-z0-9_]+)\\s+RENAME\\s+COLUMN\\s+"
-            + "([a-z0-9_]+)\\s+TO\\s+([a-z0-9_]+)");
-    // 只匹配独立的 CONSTRAINT 关键字声明：前置 (?<![a-z0-9_]) 排除把列名后缀（如 value_constraint / temporal_constraint）误当约束名；
-    // (?<!DROP\s) 排除 DROP CONSTRAINT 回退语句。
-    private static final Pattern CONSTRAINT_PATTERN =
-        Pattern.compile("(?i)(?<![a-z0-9_])(?<!DROP\\s)CONSTRAINT\\s+([a-z0-9_]+)");
-
-    @Test
-    void everyDialectPublishesTheSameAuthoritativeMigrationSequence() throws IOException {
-        for (String dialect : DIALECTS) {
-            assertThat(migrationFiles(dialect))
-                .as("%s 权威迁移序列", dialect)
-                .containsExactlyElementsOf(EXPECTED_MIGRATIONS);
-        }
-    }
-
-    @Test
-    void integrationAdapterUniqueConstraintIsTenantScopedInEveryDialect() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V59__integration_adapter_tenant_unique.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s 适配器唯一约束必须收窄到租户作用域", dialect)
-                .contains("drop constraint")
-                .contains("uk_integration_adapter")
-                .contains("unique (tenant_id, adapter_id)");
-        }
-    }
-
-    @Test
-    void integrationMessageIdempotencyConstraintIsTenantScopedInEveryDialect() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V60__integration_message_tenant_unique.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s 入站消息幂等键必须收窄到租户作用域", dialect)
-                .contains("drop constraint")
-                .contains("uk_integration_message")
-                .contains("unique (tenant_id, message_id)");
-        }
-    }
-
-    @Test
-    void integrationWebhookUniqueConstraintIsTenantScopedInEveryDialect() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V61__integration_webhook_tenant_unique.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s Webhook 唯一约束必须收窄到租户作用域", dialect)
-                .contains("drop constraint")
-                .contains("uk_integration_webhook")
-                .contains("unique (tenant_id, webhook_id)");
-        }
-    }
-
-    @Test
-    void integrationMessageStatusAllowsNotConnectedForNonBlockingDegradationInEveryDialect() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V62__integration_message_not_connected_status.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s 集成消息状态必须支持断连降级且不伪造成功", dialect)
-                .contains("ck_integration_message_status")
-                .contains("not_connected")
-                .contains("dead_letter");
-        }
-    }
-
-    @Test
-    void v63ShouldDeclareFhirResourceMappingAndRulesForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V63__fhir_resource_mapping.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s FHIR 资源映射与规则表", dialect)
-                .contains("mk_fhir_resource_mapping")
-                .contains("mk_fhir_mapping_rule")
-                .contains("uk_mk_fhir_res_map_fhir")
-                .contains("uk_mk_fhir_res_map_canon")
-                .contains("ck_mk_fhir_res_map_ver")
-                .contains("ck_mk_fhir_res_map_status")
-                .contains("idx_mk_fhir_res_map_tenant")
-                .contains("uk_mk_fhir_rule_code")
-                .contains("ck_mk_fhir_rule_ver")
-                .contains("ck_mk_fhir_rule_status")
-                .contains("idx_mk_fhir_rule_tenant")
-                .contains("comment on table mk_fhir_resource_mapping")
-                .contains("comment on table mk_fhir_mapping_rule");
-        }
-    }
-
-    @Test
-    void v77ShouldDeclareWorkflowCollaborationTablesForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V77__workflow_collaboration.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s 临床协同待办与通知中心迁移", dialect)
-                .contains("mk_engine_workflow_todo")
-                .contains("mk_engine_notification")
-                .contains("uk_workflow_todo_source")
-                .contains("uk_notification_dedupe")
-                .contains("ck_workflow_todo_status")
-                .contains("ck_notification_status")
-                .contains("idx_workflow_todo_tenant_status_due")
-                .contains("idx_notification_tenant_status_created")
-                .contains("comment on table mk_engine_workflow_todo")
-                .contains("comment on table mk_engine_notification");
-        }
-    }
-
-    @Test
-    void v80ShouldPersistWorkflowTransferReasonForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V80__workflow_transfer_reason.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s 待办转交说明迁移", dialect)
-                .contains("mk_engine_workflow_todo")
-                .contains("transfer_reason")
-                .contains("comment on column mk_engine_workflow_todo.transfer_reason");
-        }
-    }
-
-    @Test
-    void v81ShouldAllowWorkflowSyncEventNotificationsForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V81__workflow_sync_event_notifications.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s 临床同步事件通知来源迁移", dialect)
-                .contains("mk_engine_notification")
-                .contains("ck_notification_source_type")
-                .contains("sync_event")
-                .contains("comment on column mk_engine_notification.source_type");
-        }
-    }
-
-    @Test
-    void v82ShouldAddWorkflowOrganizationScopeForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V82__workflow_organization_scope.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s 临床协同组织作用域迁移", dialect)
-                .contains("mk_engine_workflow_todo")
-                .contains("mk_engine_notification")
-                .contains("org_unit_id")
-                .contains("idx_workflow_todo_org_scope")
-                .contains("idx_notification_org_scope")
-                .contains("comment on column mk_engine_workflow_todo.org_unit_id")
-                .contains("comment on column mk_engine_notification.org_unit_id");
-        }
-    }
-
-    @Test
-    void v85ShouldWidenOrgUnitLevelCheckToPlatformForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V85__org_unit_platform_level.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s 平台权威层组织层级校验放宽（org_unit.level_code 容纳 PLATFORM）", dialect)
-                .contains("org_unit")
-                .contains("drop constraint")
-                .contains("ck_org_unit_level")
-                .contains("platform")
-                .contains("comment on column org_unit.level_code");
-        }
-    }
-
-    @Test
-    void v104ShouldCompleteOrgScopeSecondPhaseForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V104__org_scope_second_phase.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s 组织树二期补全迁移", dialect)
-                .contains("facility_type")
-                .contains("region")
-                .contains("facility")
-                .contains("ward")
-                .contains("mk_org_secondary_membership")
-                .contains("ck_org_unit_facility_type")
-                .contains("idx_mk_org_secondary_child")
-                .contains("comment on column org_unit.facility_type")
-                .contains("comment on table mk_org_secondary_membership");
-        }
-    }
-
-    @Test
-    void v105ShouldCreateTenantPackageReferenceWithoutCopyingPackagesForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V105__tenant_package_reference.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s 租户开通只记录平台包引用，不复制配置包资产", dialect)
-                .contains("mk_pkg_tenant_package_reference")
-                .contains("platform_tenant_id")
-                .contains("platform_package_id")
-                .contains("target_org_unit_id")
-                .contains("source_template_code")
-                .contains("fk_pkg_tpref_platform_package")
-                .contains("foreign key (platform_tenant_id, platform_package_id)")
-                .contains("references knowledge_package (tenant_id, package_id)")
-                .contains("uk_pkg_tpref_scope")
-                .contains("ck_pkg_tpref_status")
-                .contains("idx_pkg_tpref_tenant_status")
-                .contains("comment on table mk_pkg_tenant_package_reference")
-                .doesNotContain("insert into knowledge_package")
-                .doesNotContain("insert into package_item");
-        }
-    }
-
-    @Test
-    void v106ShouldSeparatePlatformPublishAndTenantOverrideGovernanceForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V106__platform_tenant_governance_permissions.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s 平台发布与租户覆盖权限分离迁移", dialect)
-                .contains("mk_version_inheritance_override")
-                .contains("lifecycle_status")
-                .contains("in_review")
-                .contains("published")
-                .contains("ck_mk_version_inheritance_override_lifecycle")
-                .contains("platform.publish")
-                .contains("tenant.override")
-                .contains("sys_permission")
-                .contains("comment on column mk_version_inheritance_override.lifecycle_status")
-                .contains("仅 published 参与解析");
-        }
-    }
-
-    @Test
-    void v86ShouldCreateEmrLevelTargetMappingForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V86__emr_level_target_mapping.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s 电子病历评级目标映射迁移", dialect)
-                .contains("mk_emr_level_target")
-                .contains("mk_emr_level_item")
-                .contains("mk_emr_level_gap")
-                .contains("ck_emr_level_item_status")
-                .contains("missing_evidence")
-                .contains("idx_emr_level_gap_task")
-                .contains("comment on table mk_emr_level_target");
-        }
-    }
-
-    @Test
-    void v87ShouldCreateEmrLevelEvidencePackageForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V87__emr_level_evidence_package.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s 电子病历评级证据包迁移", dialect)
-                .contains("mk_emr_level_evidence_package")
-                .contains("uk_emr_level_pkg_id")
-                .contains("uk_emr_level_pkg_idem")
-                .contains("ck_emr_level_pkg_status")
-                .contains("payload_sha256")
-                .contains("payload_ndjson")
-                .contains("idx_emr_level_pkg_target")
-                .contains("comment on table mk_emr_level_evidence_package");
-        }
-    }
-
-    @Test
-    void v88ShouldUnifyAssetTypeEnumForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V88__asset_type_unification.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s 资产类型枚举归一（mk_version_asset_version + package_item 两处 CHECK 放宽到统一 11 值）", dialect)
-                .contains("drop constraint")
-                .contains("ck_mk_version_asset_version_type")
-                .contains("ck_package_item_asset_type")
-                .contains("field_catalog")
-                .contains("recommendation")
-                .contains("cdss_risk")
-                .contains("comment on column mk_version_asset_version.asset_type")
-                .contains("comment on column package_item.asset_type");
-        }
-    }
-
-    @Test
-    void v101ShouldAddAuthoringAssetLibraryForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V101__authoring_asset_library.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s P12-6 统一资产库迁移", dialect)
-                .contains("mk_engine_authoring_asset_profile")
-                .contains("mk_engine_authoring_asset_favorite")
-                .contains("condition_fragment")
-                .contains("value_set")
-                .contains("order_set")
-                .contains("action_card")
-                .contains("subpathway")
-                .contains("ck_package_item_asset_type")
-                .contains("ck_mk_version_asset_version_type")
-                .contains("comment on table mk_engine_authoring_asset_profile")
-                .contains("comment on table mk_engine_authoring_asset_favorite");
-        }
-    }
-
-    @Test
-    void v102ShouldAddAuthoringBatchJobsForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V102__authoring_batch_job.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s P12-7 创作批量任务迁移", dialect)
-                .contains("mk_engine_authoring_batch_job")
-                .contains("mk_engine_authoring_batch_item")
-                .contains("rule_generate")
-                .contains("rule_publish")
-                .contains("package_distribute")
-                .contains("not_connected")
-                .contains("idx_mk_engine_authoring_batch_job_status")
-                .contains("idx_mk_engine_authoring_batch_item_job")
-                .contains("comment on table mk_engine_authoring_batch_job")
-                .contains("comment on table mk_engine_authoring_batch_item");
-        }
-    }
-
-    @Test
-    void v103ShouldUnifyFormulaAssetTypeForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V103__formula_asset_type_unification.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s P13-4 受控公式资产类型归一", dialect)
-                .contains("formula")
-                .contains("ck_mk_version_asset_version_type")
-                .contains("ck_package_item_asset_type")
-                .contains("ck_pkg_tpli_type")
-                .contains("ck_mk_version_inheritance_override_type")
-                .contains("ck_mk_version_release_plan_type")
-                .contains("ck_mk_version_activation_transaction_type")
-                .contains("ck_mk_version_replay_binding_type")
-                .contains("comment on column mk_version_asset_version.asset_type");
-        }
-    }
-
-    @Test
-    void v89ShouldAddEvidenceFileUriAndSmSignatureForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V89__evidence_file_uri_sm_signature.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s 证据链真实文件 URI 与国密 SM3/SM2 签名字段", dialect)
-                .contains("evidence_snapshot")
-                .contains("file_uri")
-                .contains("file_digest")
-                .contains("signature_algorithm")
-                .contains("signature_value")
-                .contains("signer_public_key")
-                .contains("sm3")
-                .contains("sm2")
-                .contains("comment on column evidence_snapshot.file_uri")
-                .contains("comment on column evidence_snapshot.signature_value");
-        }
-    }
-
-    @Test
-    void v90ShouldCreateComplianceDataPermissionPolicyForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V90__compliance_data_permission_policy.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s SYS-06 行列数据权限策略表", dialect)
-                .contains("mk_compliance_data_permission")
-                .contains("allowed_columns_json")
-                .contains("min_data_level")
-                .contains("uk_compliance_data_permission_policy")
-                .contains("ck_compliance_data_permission_action")
-                .contains("ck_compliance_data_permission_level")
-                .contains("ck_compliance_data_permission_status")
-                .contains("idx_compliance_data_permission_scope")
-                .contains("idx_compliance_data_permission_resource")
-                .contains("comment on table mk_compliance_data_permission");
-        }
-    }
-
-    @Test
-    void v91ShouldCreateComplianceMaskingRuleForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V91__compliance_masking_rule.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s SYS-06 后端脱敏规则表", dialect)
-                .contains("mk_compliance_masking_rule")
-                .contains("resource_type")
-                .contains("field_name")
-                .contains("scenario_code")
-                .contains("strategy")
-                .contains("mask_char")
-                .contains("prefix_keep")
-                .contains("suffix_keep")
-                .contains("uk_compliance_masking_rule")
-                .contains("ck_compliance_masking_rule_strategy")
-                .contains("ck_compliance_masking_rule_status")
-                .contains("idx_compliance_masking_rule_resource")
-                .contains("idx_compliance_masking_rule_status")
-                .contains("comment on table mk_compliance_masking_rule");
-        }
-    }
-
-    @Test
-    void v92ShouldCreateComplianceExportApprovalForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V92__compliance_export_approval.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s SYS-06 导出审批表", dialect)
-                .contains("mk_compliance_export_approval")
-                .contains("approval_id")
-                .contains("idempotency_key")
-                .contains("export_scope_snapshot")
-                .contains("request_reason")
-                .contains("review_decision")
-                .contains("export_uri")
-                .contains("export_digest")
-                .contains("approval_evidence_id")
-                .contains("export_evidence_id")
-                .contains("uk_compliance_export_approval")
-                .contains("uk_compliance_export_approval_idem")
-                .contains("ck_compliance_export_approval_status")
-                .contains("ck_compliance_export_approval_decision")
-                .contains("idx_compliance_export_approval_status")
-                .contains("idx_compliance_export_approval_resource")
-                .contains("idx_compliance_export_approval_evidence")
-                .contains("comment on table mk_compliance_export_approval");
-        }
-    }
-
-    @Test
-    void v93ShouldCreateInteropAssessmentMappingForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V93__interop_assessment_mapping.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s OPT-05 互联互通测评映射表", dialect)
-                .contains("mk_compliance_interop_assessment_item")
-                .contains("mk_compliance_interop_evidence_map")
-                .contains("data_resource")
-                .contains("standardization")
-                .contains("infrastructure")
-                .contains("application_effect")
-                .contains("evidence_snapshot")
-                .contains("emr_level_evidence_package")
-                .contains("uk_compliance_interop_item_id")
-                .contains("uk_compliance_interop_item_code")
-                .contains("uk_compliance_interop_evidence_map")
-                .contains("uk_compliance_interop_evidence_source")
-                .contains("ck_compliance_interop_item_dimension")
-                .contains("ck_compliance_interop_evidence_source")
-                .contains("idx_compliance_interop_item_dimension")
-                .contains("idx_compliance_interop_evidence_source")
-                .contains("comment on table mk_compliance_interop_assessment_item")
-                .contains("comment on table mk_compliance_interop_evidence_map");
-        }
-    }
-
-    @Test
-    void everyDialectPreservesRequiredTablesIndexesAndBusinessConstraints() throws IOException {
-        for (String dialect : DIALECTS) {
-            String ddl = combinedDdl(dialect);
-            assertThat(names(TABLE_PATTERN, ddl)).as("%s 表族", dialect)
-                .containsExactlyInAnyOrderElementsOf(REQUIRED_TABLES);
-            Set<String> expectedIndexes = REQUIRED_INDEXES;
-            if (dialect.equals("oracle")) {
-                expectedIndexes = new HashSet<>(REQUIRED_INDEXES);
-                expectedIndexes.remove("idx_mk_knowledge_material_object_lookup");
-            }
-            assertThat(names(INDEX_PATTERN, ddl)).as("%s 索引", dialect)
-                .containsExactlyInAnyOrderElementsOf(expectedIndexes);
-
-            Set<String> expectedConstraints = COMMON_CONSTRAINTS;
-            if (dialect.equals("oracle") || dialect.equals("dm")) {
-                expectedConstraints = new HashSet<>(COMMON_CONSTRAINTS);
-                expectedConstraints.add("ck_mapping_candidate_conflict");
-                expectedConstraints.add("ck_mk_fhir_rule_required");
-            }
-            assertThat(names(CONSTRAINT_PATTERN, ddl)).as("%s 业务约束", dialect)
-                .containsExactlyInAnyOrderElementsOf(expectedConstraints);
-        }
-    }
-
-    @Test
-    void schemaConsistencyReportHasNoTableColumnDiffsAcrossDialects() throws IOException {
-        Map<String, Set<String>> reference = tableColumns(combinedDdl("h2"));
-        Map<String, Object> diffs = new LinkedHashMap<>();
-
-        for (String dialect : DIALECTS) {
-            Map<String, Set<String>> current = tableColumns(combinedDdl(dialect));
-            for (String table : REQUIRED_TABLES) {
-                Set<String> expectedColumns = reference.getOrDefault(table, Set.of());
-                Set<String> actualColumns = current.getOrDefault(table, Set.of());
-                if (!expectedColumns.equals(actualColumns)) {
-                    diffs.put(dialect + "." + table, Map.of(
-                        "missing", difference(expectedColumns, actualColumns),
-                        "extra", difference(actualColumns, expectedColumns)
-                    ));
+            for (JsonNode index : table.path("indexes")) {
+                List<String> indexColumns = new java.util.ArrayList<>();
+                for (JsonNode column : index.path("columns")) {
+                    indexColumns.add(column.path("name").asText());
                 }
+                assertThat(keyColumns)
+                    .as("%s.%s 不得重复主键或唯一约束索引", table.path("name").asText(), index.path("name").asText())
+                    .doesNotContain(indexColumns);
             }
         }
-
-        assertThat(diffs).as("五方言表/列一致性差异清单").isEmpty();
     }
 
     @Test
-    void tableColumnSnapshotAppliesForwardColumnRenames() {
-        String ddl = """
-            CREATE TABLE mk_example (
-                id BIGINT PRIMARY KEY,
-                mode VARCHAR(32) NOT NULL
-            );
-            ALTER TABLE mk_example RENAME COLUMN mode TO run_mode;
-            """;
-
-        assertThat(tableColumns(ddl).get("mk_example"))
-            .containsExactlyInAnyOrder("id", "run_mode");
-    }
-
-    @Test
-    void tenantIsolationAuditAndLifecycleColumnsRemainPresent() throws IOException {
-        for (String dialect : DIALECTS) {
-            String ddl = combinedDdl(dialect);
-            Map<String, String> tables = tableBlocks(ddl);
-            TENANT_TABLES.forEach(table ->
-                assertThat(tables.get(table)).as("%s.%s 租户字段", dialect, table).contains("tenant_id"));
-            MUTABLE_AUDITED_TABLES.forEach(table ->
-                assertThat(tables.get(table)).as("%s.%s 审计字段", dialect, table)
-                    .contains("created_at", "created_by", "updated_at", "updated_by"));
-            TECHNICAL_AUDIT_FIELDS.forEach((table, fields) ->
-                assertThat(tables.get(table)).as("%s.%s 专属审计字段", dialect, table)
-                    .contains(fields.toArray(String[]::new)));
-            LIFECYCLE_FIELDS.forEach((table, fields) ->
-                assertThat(tables.get(table) + "\n" + ddl).as("%s.%s 状态或版本字段", dialect, table)
-                    .contains(fields.toArray(String[]::new)));
+    void largeEncryptedAndStructuredPayloadsUseDialectAppropriateTypes() throws IOException {
+        assertThat(readBaseline("oracle"))
+            .contains("credential_ciphertext CLOB NOT NULL")
+            .doesNotContain("credential_ciphertext VARCHAR2");
+        assertThat(readBaseline("dm"))
+            .contains("credential_ciphertext VARCHAR2(4096) NOT NULL");
+        for (String dialect : List.of("h2", "postgres", "kingbase")) {
+            assertThat(readBaseline(dialect))
+                .as("%s 模型凭据密文不得受短字符串上限影响", dialect)
+                .contains("credential_ciphertext VARCHAR(4096) NOT NULL");
         }
     }
 
-    @Test
-    void v8ShouldDeclareObservabilityBaseline() {
-        String h2 = readMigration("h2", "V8__observability_baseline.sql");
-        assertThat(h2).contains(
-            "CREATE TABLE IF NOT EXISTS mk_obs_state_transition",
-            "CREATE TABLE IF NOT EXISTS mk_obs_payload_store",
-            "org_path",
-            "payload_base64",
-            "deleted_at");
-        assertThat(h2).contains("ALTER TABLE canonical_resource ADD COLUMN IF NOT EXISTS trace_id");
-        assertThat(h2).contains("ck_most_error_class", "ck_mops_storage_type", "uk_mops_payload_id");
-        assertThat(h2).contains("idx_most_entity", "idx_most_trace", "idx_mops_trace");
+    private JsonNode schema() throws IOException {
+        var resource = getClass().getClassLoader().getResource("db/schema/medkernel.schema.json");
+        assertThat(resource).as("数据库规范模型资源").isNotNull();
+        return objectMapper.readTree(resource);
     }
 
-    @Test
-    void v8ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V8__observability_baseline.sql"))
-                .as("dialect %s must ship V8", dialect)
-                .exists();
+    private JsonNode table(JsonNode schema, String tableName) {
+        for (JsonNode table : schema.path("tables")) {
+            if (tableName.equals(table.path("name").asText())) {
+                return table;
+            }
         }
+        throw new IllegalArgumentException("规范模型缺少表: " + tableName);
     }
 
-    @Test
-    void v48ShouldExtendContextSnapshotStandardContract() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V48__context_snapshot_standard_contract.sql")
-                .toLowerCase(Locale.ROOT);
-            assertThat(sql).as("%s V48 标准上下文字段", dialect)
-                .contains("context_snapshot", "request_id", "org_path", "package_version");
-            assertThat(sql).as("%s V48 标准上下文索引", dialect)
-                .contains(
-                    "idx_context_snapshot_tenant_request",
-                    "idx_context_snapshot_org_path",
-                    "idx_context_snapshot_package_version"
-                );
+    private JsonNode foreignKey(JsonNode table, String foreignKeyName) {
+        for (JsonNode foreignKey : table.path("foreignKeys")) {
+            if (foreignKeyName.equals(foreignKey.path("name").asText())) {
+                return foreignKey;
+            }
         }
+        throw new IllegalArgumentException(
+            "规范模型缺少外键: " + table.path("name").asText() + "." + foreignKeyName);
     }
 
-    @Test
-    void v94ShouldExtendCanonicalResourceTypeForStructuredAllergyIntoleranceInAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V94__structured_allergy_intolerance_resource.sql");
-            assertThat(sql).as("%s V94 结构化过敏资源类型", dialect)
-                .contains("ck_canonical_resource_type", "ALLERGY_INTOLERANCE");
+    private Set<String> columnNames(JsonNode table) {
+        Set<String> names = new LinkedHashSet<>();
+        for (JsonNode column : table.path("columns")) {
+            names.add(column.path("name").asText());
         }
+        return names;
     }
 
-    @Test
-    void v95ShouldDefineTenantScopedAuditedIdentityBindingInAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V95__compliance_identity_binding.sql");
-            assertThat(sql).as("%s V95 外部身份绑定合同", dialect)
-                .contains(
-                    "mk_compliance_identity_binding",
-                    "tenant_id",
-                    "external_subject_digest",
-                    "uk_compliance_identity_subject",
-                    "ck_compliance_identity_provider",
-                    "ck_compliance_identity_status",
-                    "ck_compliance_identity_version",
-                    "created_at",
-                    "created_by",
-                    "updated_at",
-                    "updated_by",
-                    "trace_id",
-                    "COMMENT ON TABLE mk_compliance_identity_binding");
+    private String columnComment(JsonNode table, String columnName) {
+        for (JsonNode column : table.path("columns")) {
+            if (columnName.equals(column.path("name").asText())) {
+                return column.path("comment").asText();
+            }
         }
+        throw new IllegalArgumentException(
+            "规范模型缺少字段: " + table.path("name").asText() + "." + columnName);
     }
 
-    @Test
-    void v96ShouldDefineCanonicalTenantUserDirectoryInAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V96__tenant_user_directory.sql");
-            assertThat(sql).as("%s V96 统一租户用户目录合同", dialect)
-                .contains(
-                    "tenant_user",
-                    "tenant_id",
-                    "user_id",
-                    "display_name",
-                    "uk_tenant_user_identity",
-                    "ck_tenant_user_status",
-                    "ck_tenant_user_version",
-                    "platform_credential",
-                    "user_role_assignment",
-                    "COMMENT ON TABLE tenant_user");
+    private String checkExpression(JsonNode table, String constraintName) {
+        for (JsonNode constraint : table.path("checkConstraints")) {
+            if (constraintName.equals(constraint.path("name").asText())) {
+                return constraint.path("expression").asText();
+            }
         }
+        throw new IllegalArgumentException(
+            "规范模型缺少检查约束: " + table.path("name").asText() + "." + constraintName);
     }
 
-    @Test
-    void v97ShouldDefineTenantScopedPluginSecurityBoundaryInAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V97__plugin_security_boundary.sql");
-            assertThat(sql).as("%s V97 插件安全边界合同", dialect)
-                .contains(
-                    "mk_plugin_registry",
-                    "mk_plugin_grant",
-                    "tenant_id",
-                    "plugin_id",
-                    "plugin_code",
-                    "authority_boundary",
-                    "capabilities_json",
-                    "service_contract_id",
-                    "approval_reason",
-                    "clinical_safety_confirmed",
-                    "uk_plugin_registry_tenant_code",
-                    "uk_mk_plugin_grant_capability",
-                    "ck_plugin_registry_status",
-                    "ck_plugin_registry_boundary",
-                    "ck_mk_plugin_grant_type",
-                    "ck_mk_plugin_grant_status",
-                    "created_at",
-                    "created_by",
-                    "updated_at",
-                    "updated_by",
-                    "trace_id",
-                    "COMMENT ON TABLE mk_plugin_registry",
-                    "COMMENT ON TABLE mk_plugin_grant");
+    private List<String> textList(JsonNode array) {
+        List<String> values = new java.util.ArrayList<>();
+        for (JsonNode item : array) {
+            values.add(item.asText());
         }
+        return values;
     }
 
-    @Test
-    void v49ShouldAddCitationAnchorOffsetsForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V49__knowledge_citation_anchor_offsets.sql");
-            assertThat(ddl).as("%s 引用锚点偏移字段", dialect)
-                .contains("uk_source_version_doc_hash")
-                .contains("start_offset")
-                .contains("end_offset")
-                .contains("ck_citation_anchor_offsets")
-                .contains("COMMENT ON COLUMN citation.start_offset")
-                .contains("COMMENT ON COLUMN citation.end_offset");
+    private Set<String> names(Pattern pattern, String value) {
+        Set<String> names = new LinkedHashSet<>();
+        var matcher = pattern.matcher(value);
+        while (matcher.find()) {
+            names.add(matcher.group(1).toLowerCase(Locale.ROOT));
         }
+        return names;
     }
 
-    @Test
-    void v50ShouldAddKnowledgeTrustGradingForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V50__knowledge_trust_grading.sql");
-            assertThat(ddl).as("%s 知识可信分级迁移", dialect)
-                .contains("authority_basis")
-                .contains("authority_level")
-                .contains("grade_quality")
-                .contains("grade_strength")
-                .contains("conflict_arbitration")
-                .contains("ck_source_document_authority")
-                .contains("ck_knowledge_asset_version_authority")
-                .contains("ck_knowledge_asset_grade_quality")
-                .contains("ck_knowledge_asset_grade_strength")
-                .contains("idx_knowledge_av_authority")
-                .contains("COMMENT ON COLUMN source_document.authority_basis")
-                .contains("COMMENT ON COLUMN knowledge_asset_version.authority_level")
-                .contains("COMMENT ON COLUMN knowledge_asset_version.grade_quality")
-                .contains("COMMENT ON COLUMN knowledge_asset_version.grade_strength")
-                .contains("COMMENT ON COLUMN knowledge_asset_version.conflict_arbitration");
-        }
+    private long count(Pattern pattern, String value) {
+        return pattern.matcher(value).results().count();
     }
 
-    @Test
-    void v51ShouldAllowKnowledgeGraphAndSearchProjectionTargetsForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V51__knowledge_projection_targets.sql");
-            assertThat(ddl).as("%s 知识图与搜索投影目标迁移", dialect)
-                .contains("ck_mk_projection_sync_target")
-                .contains("ck_mk_projection_snapshot_target")
-                .contains("KNOWLEDGE_GRAPH")
-                .contains("KNOWLEDGE_SEARCH")
-                .contains("COMMENT ON COLUMN mk_projection_sync.target_type")
-                .contains("COMMENT ON COLUMN mk_projection_snapshot.target_type");
-        }
+    private String createTableBlock(String ddl, String tableName) {
+        Pattern tablePattern = Pattern.compile(
+            "(?ims)^CREATE TABLE\\s+" + tableName + "\\s*\\(.*?^\\);");
+        var matcher = tablePattern.matcher(ddl);
+        assertThat(matcher.find()).as("生成基线缺少表: %s", tableName).isTrue();
+        return matcher.group();
     }
 
-    @Test
-    void v52ShouldAddKnowledgeCandidateWorkflowForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V52__knowledge_candidate_workflow.sql");
-            assertThat(ddl).as("%s 知识候选识别与审核迁移", dialect)
-                .contains("mk_knowledge_candidate_classification")
-                .contains("mk_knowledge_review_assignment")
-                .contains("org_path")
-                .contains("PENDING_REPLACEMENT_REVIEW")
-                .contains("NEW_ASSET")
-                .contains("SAME_IDENTITY_NEW_VERSION")
-                .contains("DUPLICATE")
-                .contains("CONFLICT")
-                .contains("DUPLICATE_SKIPPED")
-                .contains("APPROVED")
-                .contains("REJECTED")
-                .contains("ck_knowledge_asset_version_status")
-                .contains("ck_knowledge_candidate_classification")
-                .contains("ck_knowledge_candidate_review_status")
-                .contains("ck_review_assignment_review_status")
-                .contains("ck_review_assignment_decision")
-                .contains("idx_candidate_classification_identity")
-                .contains("idx_candidate_classification_status")
-                .contains("idx_review_assignment_identity")
-                .contains("idx_review_assignment_status")
-                .contains("COMMENT ON TABLE mk_knowledge_candidate_classification")
-                .contains("COMMENT ON TABLE mk_knowledge_review_assignment")
-                .contains("COMMENT ON COLUMN mk_knowledge_candidate_classification.org_path")
-                .contains("COMMENT ON COLUMN mk_knowledge_review_assignment.org_path")
-                .contains("COMMENT ON COLUMN mk_knowledge_candidate_classification.diff_summary")
-                .contains("COMMENT ON COLUMN mk_knowledge_review_assignment.reason");
-        }
-    }
-
-    @Test
-    void v132ShouldAddReturnReviewStateForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V132__knowledge_review_return.sql");
-            assertThat(ddl).as("%s 候选退修态迁移", dialect)
-                .contains("ck_knowledge_candidate_review_status")
-                .contains("ck_review_assignment_review_status")
-                .contains("ck_review_assignment_decision")
-                .contains("RETURNED")
-                .contains("'RETURN'")
-                .contains("COMMENT ON COLUMN mk_knowledge_review_assignment.decision");
-        }
-    }
-
-    @Test
-    void v53ShouldSeedTerminologyHighRiskRulesForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V53__terminology_high_risk_rules.sql");
-            assertThat(ddl).as("%s 术语高危近似规则迁移", dialect)
-                .contains("mk_term_high_risk_rule")
-                .contains("MED-C1-TROPONIN-TI")
-                .contains("MED-C1-K-NA")
-                .contains("MED-C1-LEFT-RIGHT")
-                .contains("MED-C1-DOSE-10X")
-                .contains("MED-C1-INSULIN-UML")
-                .contains("MUTUALLY_EXCLUSIVE_TERMS")
-                .contains("DOSE_MAGNITUDE")
-                .contains("UNIT_STRENGTH")
-                .contains("ck_mk_term_high_risk_rule_type")
-                .contains("ck_mk_term_high_risk_rule_category")
-                .contains("ck_mk_term_high_risk_rule_status")
-                .contains("idx_mk_term_high_risk_rule_tenant_status")
-                .contains("idx_mk_term_high_risk_rule_category")
-                .contains("COMMENT ON TABLE mk_term_high_risk_rule")
-                .contains("COMMENT ON COLUMN mk_term_high_risk_rule.evidence_text");
-        }
-    }
-
-    @Test
-    void v54ShouldDeclareAssetVersionFrameworkForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V54__asset_version_framework.sql");
-            assertThat(ddl).as("%s 不可变资产版本框架迁移", dialect)
-                .contains("mk_version_asset_version")
-                .contains("content_hash")
-                .contains("org_path")
-                .contains("active_scope_key")
-                .contains("uk_mk_version_asset_version_id")
-                .contains("uk_mk_version_asset_version_no")
-                .contains("uk_mk_version_asset_version_active")
-                .contains("ck_mk_version_asset_version_type")
-                .contains("ck_mk_version_asset_version_status")
-                .contains("ck_mk_version_asset_version_hash")
-                .contains("idx_mk_version_asset_version_tenant_status")
-                .contains("idx_mk_version_asset_version_identity")
-                .contains("idx_mk_version_asset_version_active_scope")
-                .contains("COMMENT ON TABLE mk_version_asset_version")
-                .contains("COMMENT ON COLUMN mk_version_asset_version.content_hash")
-                .contains("COMMENT ON COLUMN mk_version_asset_version.active_scope_key");
-        }
-    }
-
-    @Test
-    void v55ShouldDeclareVersionInheritanceOverrideForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V55__version_inheritance_override.sql");
-            assertThat(ddl).as("%s 继承覆盖迁移", dialect)
-                .contains("mk_version_asset_version")
-                .contains("safety_policy")
-                .contains("mk_version_inheritance_override")
-                .contains("override_mode")
-                .contains("diff_summary")
-                .contains("override_reason")
-                .contains("impact_scope")
-                .contains("uk_mk_version_inheritance_override_id")
-                .contains("uk_mk_version_inheritance_override_active")
-                .contains("ck_mk_version_asset_safety_policy")
-                .contains("ck_mk_version_inheritance_override_type")
-                .contains("ck_mk_version_inheritance_override_mode")
-                .contains("idx_mk_version_inheritance_override_scope")
-                .contains("idx_mk_version_inheritance_override_version")
-                .contains("COMMENT ON COLUMN mk_version_asset_version.safety_policy")
-                .contains("COMMENT ON TABLE mk_version_inheritance_override")
-                .contains("COMMENT ON COLUMN mk_version_inheritance_override.diff_summary")
-                .contains("COMMENT ON COLUMN mk_version_inheritance_override.override_reason")
-                .contains("COMMENT ON COLUMN mk_version_inheritance_override.impact_scope");
-        }
-    }
-
-    @Test
-    void v56ShouldDeclareVersionReleaseReplayForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V56__version_release_replay.sql");
-            assertThat(ddl).as("%s 发布流与历史重放迁移", dialect)
-                .contains("WITHDRAWN")
-                .contains("mk_version_release_plan")
-                .contains("mk_version_activation_transaction")
-                .contains("mk_version_replay_binding")
-                .doesNotContain("BED_PERCENT", "SPECIALTY")
-                .contains("ROLLBACKED")
-                .contains("REVIEW_REJECTED")
-                .contains("FULL_ACTIVATE")
-                .contains("ck_mk_version_release_plan_scope")
-                .contains("ck_mk_version_release_plan_status")
-                .contains("uk_mk_version_activation_transaction_idem")
-                .contains("ck_mk_version_activation_transaction_action")
-                .contains("ck_mk_version_replay_binding_hash")
-                .contains("idx_mk_version_release_plan_asset")
-                .contains("idx_mk_version_activation_transaction_asset")
-                .contains("idx_mk_version_replay_binding_version")
-                .contains("COMMENT ON TABLE mk_version_release_plan")
-                .contains("COMMENT ON TABLE mk_version_activation_transaction")
-                .contains("COMMENT ON TABLE mk_version_replay_binding")
-                .contains("COMMENT ON COLUMN mk_version_asset_version.status");
-        }
-    }
-
-    @Test
-    void v107ShouldDeclareAssetDependencyIntegrityForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V107__asset_dependency_integrity.sql");
-            assertThat(ddl).as("%s 资产依赖与一致性快照迁移", dialect)
-                .contains("mk_version_asset_dependency")
-                .contains("dependency_id")
-                .contains("depends_on_asset_type")
-                .contains("depends_on_identity")
-                .contains("min_version_no")
-                .contains("max_version_no")
-                .contains("dependency_kind")
-                .contains("uk_mk_version_asset_dependency_id")
-                .contains("uk_mk_version_asset_dependency_edge")
-                .contains("ck_mk_version_asset_dependency_kind")
-                .contains("idx_mk_version_asset_dependency_owner")
-                .contains("idx_mk_version_asset_dependency_target")
-                .contains("COMMENT ON TABLE mk_version_asset_dependency")
-                .contains("COMMENT ON COLUMN mk_version_asset_dependency.depends_on_identity")
-                .contains("COMMENT ON COLUMN mk_version_asset_dependency.min_version_no")
-                .contains("COMMENT ON COLUMN mk_version_asset_dependency.max_version_no");
-        }
-    }
-
-    @Test
-    void v108ShouldDeclareUnifiedLifecycleAndQualityGateForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V108__asset_lifecycle_quality_gate.sql");
-            assertThat(ddl).as("%s 资产生命周期与发布质量门迁移", dialect)
-                .contains("IN_REVIEW")
-                .contains("APPROVED")
-                .contains("DEPRECATED")
-                .contains("RETIRED")
-                .doesNotContain("PENDING_REVIEW", "ACTIVE','OFFLINE", "SILENT_OBSERVATION", "FULL'")
-                .contains("electronic_signature_id")
-                .contains("electronic_signature_hash")
-                .contains("electronic_signature_signed_at")
-                .contains("quality_gate_summary")
-                .contains("ck_mk_version_asset_version_status")
-                .contains("ck_mk_version_release_plan_status")
-                .contains("COMMENT ON COLUMN mk_version_release_plan.electronic_signature_id")
-                .contains("COMMENT ON COLUMN mk_version_release_plan.electronic_signature_signed_at")
-                .contains("COMMENT ON COLUMN mk_version_release_plan.quality_gate_summary");
-        }
-    }
-
-    @Test
-    void contextSnapshotUsesOnlyUnifiedPackageVersionForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V7__clinical_context_baseline.sql")
-                + readMigration(dialect, "V48__context_snapshot_standard_contract.sql");
-            assertThat(ddl)
-                .as("%s 标准上下文包版本契约", dialect)
-                .contains("package_version")
-                .doesNotContain(
-                    "knowledge_pkg_version",
-                    "rule_pkg_version",
-                    "pathway_pkg_version",
-                    "兼容旧三类包版本字段");
-        }
-    }
-
-    @Test
-    void v57ShouldDeclareKnowledgeEffectiveScopeUniqueForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V57__knowledge_effective_scope_unique.sql");
-            assertThat(ddl).as("%s 知识完整适用域唯一约束迁移", dialect)
-                .contains("organization_scope")
-                .contains("applicable_scope")
-                .contains("active_scope_key")
-                .contains("uk_knowledge_asset_version_active_scope")
-                .contains("idx_knowledge_av_effective_scope")
-                .contains("COMMENT ON COLUMN knowledge_asset_version.organization_scope")
-                .contains("COMMENT ON COLUMN knowledge_asset_version.applicable_scope")
-                .contains("COMMENT ON COLUMN knowledge_asset_version.active_scope_key");
-        }
-    }
-
-    @Test
-    void v9ShouldExtendAuditEventWithOutcome() {
-        String h2 = readMigration("h2", "V9__audit_event_outcome.sql");
-        assertThat(h2).contains("ALTER TABLE audit_event ADD COLUMN");
-        assertThat(h2).contains("outcome");
-        assertThat(h2).contains("error_code");
-        assertThat(h2).contains("ck_audit_event_outcome");
-        assertThat(h2).contains("idx_audit_event_outcome");
-    }
-
-    @Test
-    void v30ShouldExtendAuditEventIntoCompleteSpineContract() {
-        String h2 = readMigration("h2", "V30__audit_event_spine_contract.sql");
-        assertThat(h2).contains("ALTER TABLE audit_event ADD COLUMN");
-        assertThat(h2).contains(
-            "actor_roles",
-            "org_path",
-            "environment_key",
-            "before_snapshot",
-            "after_snapshot",
-            "dedupe_key");
-        assertThat(h2).contains("uk_audit_event_dedupe");
-        assertThat(h2).contains("idx_audit_event_org_path");
-        assertThat(h2).contains("idx_audit_event_env");
-    }
-
-    @Test
-    void v32ShouldAddSourceFragmentContentHashForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V32__source_fragment_content_hash.sql");
-            assertThat(ddl).as("%s source_fragment 内容指纹迁移", dialect)
-                .contains("content_hash")
-                .contains("uk_source_fragment_version_hash")
-                .contains("COMMENT ON COLUMN source_fragment.content_hash");
-        }
-    }
-
-    @Test
-    void v33ShouldAddNotSyncedPackageSyncStatusForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V33__package_sync_not_synced_status.sql");
-            assertThat(ddl).as("%s 包同步 NOT_SYNCED 状态迁移", dialect)
-                .contains("ck_release_plan_status")
-                .contains("ck_sync_log_status")
-                .contains("NOT_SYNCED")
-                .contains("COMMENT ON COLUMN release_plan.status")
-                .contains("COMMENT ON COLUMN sync_log.status");
-        }
-    }
-
-    @Test
-    void v34ShouldDeclareExperienceFoundationPersistenceForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V34__experience_foundation_persistence.sql");
-            assertThat(ddl).as("%s 产品体验底座持久化", dialect)
-                .contains("mk_experience_saved_view")
-                .contains("uk_saved_view_user_name")
-                .contains("COMMENT ON TABLE mk_experience_saved_view")
-                .contains("COMMENT ON TABLE mk_experience_export_task");
-
-            String largeListDdl = readMigration(dialect, "V19__large_list_api.sql");
-            assertThat(largeListDdl).as("%s 异步导出任务权威表", dialect)
-                .contains("mk_experience_export_task")
-                .contains("uk_export_task_idempotency")
-                .contains("ck_export_task_status")
-                .doesNotContain("large_list_export_job");
-        }
-    }
-
-    @Test
-    void v35ShouldDeclareExperienceUserPreferenceForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V35__experience_user_preference.sql");
-            assertThat(ddl).as("%s 用户体验偏好持久化", dialect)
-                .contains("mk_experience_user_pref")
-                .contains("uk_user_pref_user_key")
-                .contains("idx_user_pref_user_key")
-                .contains("COMMENT ON TABLE mk_experience_user_pref")
-                .contains("COMMENT ON COLUMN mk_experience_user_pref.pref_key")
-                .contains("COMMENT ON COLUMN mk_experience_user_pref.pref_value");
-        }
-    }
-
-    @Test
-    void v36ShouldDeclareBootstrapInitTokenForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V36__bootstrap_init_token.sql");
-            assertThat(ddl).as("%s 首发 init token 持久化", dialect)
-                .contains("mk_security_bootstrap_init_token")
-                .contains("token_hash")
-                .contains("expires_at")
-                .contains("uk_bootstrap_init_token_hash")
-                .contains("idx_bootstrap_init_token_expires")
-                .contains("COMMENT ON TABLE mk_security_bootstrap_init_token")
-                .contains("COMMENT ON COLUMN mk_security_bootstrap_init_token.token_hash");
-        }
-    }
-
-    @Test
-    void v44ShouldSeedOnlySystemSuperAdminRoleForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V44__system_superadmin_seed.sql");
-            assertThat(ddl).as("%s 内置超级管理员种子", dialect)
-                .contains("system-superadmin")
-                .contains("内置超级管理员")
-                .contains("sys_role")
-                .doesNotContain("user_role_assignment")
-                .doesNotContain("system-superadmin-1");
-        }
-    }
-
-    @Test
-    void v2ShouldDeclareOrganizationTreeAndSpecialtyDimensionSeparately() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V2__org_audit_baseline.sql");
-            assertThat(ddl).as("%s 组织表必须带组织路径", dialect)
-                .contains("org_path");
-            assertThat(ddl).as("%s 组织层级不得把专病作为树节点", dialect)
-                .contains("specialty_id")
-                .doesNotContain("SPECIALTY")
-                .doesNotContain("WARD");
-            assertThat(ddl).as("%s 组织闭包表", dialect)
-                .contains("org_closure")
-                .contains("ancestor_id")
-                .contains("descendant_id")
-                .contains("ck_org_closure_depth")
-                .contains("idx_org_closure_ancestor")
-                .contains("idx_org_closure_descendant");
-        }
-    }
-
-    @Test
-    void v9ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V9__audit_event_outcome.sql"))
-                .as("dialect %s must ship V9", dialect)
-                .exists();
-        }
-    }
-
-    @Test
-    void v10ShouldDeclareClinicalEventApiTablesAndColumns() {
-        String h2 = readMigration("h2", "V10__clinical_event_api.sql");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS clinical_event_payload");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS clinical_event_outbox");
-        assertThat(h2).contains("ALTER TABLE clinical_event ADD COLUMN IF NOT EXISTS patient_id");
-        assertThat(h2).contains("ALTER TABLE clinical_event ADD COLUMN IF NOT EXISTS encounter_id");
-        assertThat(h2).contains("ALTER TABLE clinical_event ADD COLUMN IF NOT EXISTS clinical_setting");
-        assertThat(h2).contains("ALTER TABLE clinical_event ADD COLUMN IF NOT EXISTS package_version");
-        assertThat(h2).contains("ALTER TABLE clinical_event ADD COLUMN IF NOT EXISTS error_code");
-        assertThat(h2).contains("ALTER TABLE clinical_event ADD COLUMN IF NOT EXISTS error_class");
-        assertThat(h2).contains("ALTER TABLE clinical_event ADD COLUMN IF NOT EXISTS retry_count");
-        assertThat(h2).contains("ALTER TABLE clinical_event ADD COLUMN IF NOT EXISTS root_event_id");
-        assertThat(h2).contains("uk_event_payload");
-        assertThat(h2).contains("uk_outbox_event_id");
-        assertThat(h2).contains("ck_clinical_event_setting");
-        assertThat(h2).contains("idx_outbox_pending");
-    }
-
-    @Test
-    void v10ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V10__clinical_event_api.sql"))
-                .as("dialect %s must ship V10", dialect)
-                .exists();
-        }
-    }
-
-    @Test
-    void v67ShouldDeclareClinicalEventCustomerContractColumnsAndIndexes() {
-        String h2 = readMigration("h2", "V67__clinical_event_api_contract.sql");
-        assertThat(h2).contains("trigger_point");
-        assertThat(h2).contains("idempotency_key");
-        assertThat(h2).contains("callback_webhook_id");
-        assertThat(h2).contains("ck_clinical_event_trigger_point");
-        assertThat(h2).contains("uk_clinical_event_idempotency");
-        assertThat(h2).contains("idx_clinical_event_trigger");
-        assertThat(h2).contains("idx_clinical_event_callback");
-        assertThat(h2).contains("PATIENT_VIEW", "ORDER_SIGN", "MEDICATION_PRESCRIBE",
-            "RESULT_REVIEW", "DISCHARGE_SIGN", "FOLLOWUP_ALERT");
-    }
-
-    @Test
-    void v67ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V67__clinical_event_api_contract.sql"))
-                .as("dialect %s must ship V67", dialect)
-                .exists();
-        }
-    }
-
-    @Test
-    void v68ShouldDeclareRecommendationFeedbackIdempotencyAndSuppressionContract() {
-        String h2 = readMigration("h2", "V68__recommendation_cdss_contract.sql");
-        assertThat(h2).contains("recommendation_feedback");
-        assertThat(h2).contains("idempotency_key");
-        assertThat(h2).contains("uk_rec_feedback_idempotency");
-        assertThat(h2).contains("recommendation_fatigue_signal");
-        assertThat(h2).contains("SUPPRESSED");
-        assertThat(h2).contains("COMMENT ON COLUMN recommendation_feedback.idempotency_key");
-    }
-
-    @Test
-    void v68ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V68__recommendation_cdss_contract.sql"))
-                .as("dialect %s must ship V68", dialect)
-                .exists();
-        }
-    }
-
-    @Test
-    void v69ShouldDeclareFollowupCustomerApiContractColumnsAndIndexes() {
-        String h2 = readMigration("h2", "V69__followup_api09_contract.sql");
-        assertThat(h2).contains(
-            "followup_plan",
-            "idempotency_key",
-            "followup_questionnaire",
-            "plan_id",
-            "questionnaire_template_id",
-            "answer_data",
-            "submitted_at",
-            "executor_id",
-            "uk_followup_plan_idempotency",
-            "uk_followup_task_idempotency",
-            "uk_followup_questionnaire_idempotency",
-            "uk_followup_event_idempotency",
-            "idx_followup_task_status_due",
-            "idx_followup_questionnaire_plan",
-            "RETURN_VISIT",
-            "IN_PROGRESS",
-            "ABNORMAL_RETURN",
-            "NOTIFICATION_REQUESTED",
-            "COMMENT ON COLUMN followup_event.idempotency_key");
-    }
-
-    @Test
-    void v69ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V69__followup_api09_contract.sql"))
-                .as("dialect %s must ship V69", dialect)
-                .exists();
-        }
-    }
-
-    @Test
-    void v70ShouldDeclareEmbedApi11ContractColumnsAndIndexes() {
-        String h2 = readMigration("h2", "V70__embed_api11_contract.sql");
-        assertThat(h2).contains(
-            "embed_launch_token",
-            "integration_mode",
-            "hook",
-            "hook_instance",
-            "consumed_at",
-            "idx_embed_token_status_expired",
-            "idx_embed_token_hook",
-            "IFRAME",
-            "SDK",
-            "API",
-            "REVOKED",
-            "COMMENT ON COLUMN embed_launch_token.integration_mode");
-    }
-
-    @Test
-    void v70ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V70__embed_api11_contract.sql"))
-                .as("dialect %s must ship V70", dialect)
-                .exists();
-        }
-    }
-
-    @Test
-    void v71ShouldDeclareFollowupControlledPlanClockColumnsAndIndexes() {
-        String h2 = readMigration("h2", "V71__followup_controlled_plan_clock.sql");
-        assertThat(h2).contains(
-            "source_fact_type",
-            "source_fact_id",
-            "generation_rule_code",
-            "generation_explanation",
-            "clinical_clock_id",
-            "idx_followup_plan_fact",
-            "idx_followup_task_clock",
-            "COMMENT ON COLUMN followup_plan.generation_explanation",
-            "COMMENT ON COLUMN followup_task.clinical_clock_id");
-    }
-
-    @Test
-    void v71ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V71__followup_controlled_plan_clock.sql"))
-                .as("dialect %s must ship V71", dialect)
-                .exists();
-        }
-    }
-
-    @Test
-    void v72ShouldDeclareCdssRiskMatrixAndRecommendationTraceColumns() {
-        String h2 = readMigration("h2", "V72__cdss_risk_matrix.sql");
-        assertThat(h2).contains(
-            "mk_engine_cdss_risk_matrix",
-            "trigger_point",
-            "severity_level",
-            "automation_level",
-            "review_requirement",
-            "silent_run_hours",
-            "release_gate",
-            "auto_execution_allowed",
-            "samd_classification",
-            "regulatory_evidence",
-            "risk_matrix_version",
-            "idx_cdss_risk_matrix_active",
-            "idx_rec_card_risk_matrix",
-            "ck_cdss_risk_matrix_auto_exec",
-            "COMMENT ON COLUMN mk_engine_cdss_risk_matrix.samd_classification",
-            "COMMENT ON COLUMN recommendation_card.risk_matrix_explanation");
-    }
-
-    @Test
-    void v72ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V72__cdss_risk_matrix.sql"))
-                .as("dialect %s must ship V72", dialect)
-                .exists();
-        }
-    }
-
-    @Test
-    void v73ShouldDeclareClinicalRedlineVersionedCatalogWithoutSeededMedicalConstants() {
-        String h2 = readMigration("h2", "V73__clinical_redline.sql");
-        assertThat(h2).contains(
-            "mk_engine_clinical_redline",
-            "category",
-            "redline_key",
-            "redline_version",
-            "hazard_severity",
-            "condition_dsl",
-            "evidence_source",
-            "risk_matrix_id",
-            "lower_tenant_override_allowed",
-            "idx_clinical_redline_active",
-            "uk_clinical_redline_active_scope",
-            "ck_clinical_redline_category",
-            "COMMENT ON COLUMN mk_engine_clinical_redline.condition_dsl");
-        assertThat(h2).doesNotContain("INSERT INTO mk_engine_clinical_redline");
-    }
-
-    @Test
-    void v73ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V73__clinical_redline.sql"))
-                .as("dialect %s must ship V73", dialect)
-                .exists();
-        }
-    }
-
-    @Test
-    void v75ShouldDeclareClinicalRedlineSilentTrialEvidenceWithoutSeededMedicalConstants() {
-        String h2 = readMigration("h2", "V75__clinical_redline_silent_trial.sql");
-        assertThat(h2).contains(
-            "mk_engine_clinical_redline_trial",
-            "trial_id",
-            "redline_id",
-            "redline_version",
-            "required_silent_hours",
-            "actual_silent_hours",
-            "evaluated_case_count",
-            "safety_incident_count",
-            "evidence_reference",
-            "idx_clinical_redline_trial_redline",
-            "ck_clinical_redline_trial_counts",
-            "COMMENT ON COLUMN mk_engine_clinical_redline_trial.evidence_reference");
-        assertThat(h2).doesNotContain("INSERT INTO mk_engine_clinical_redline_trial");
-    }
-
-    @Test
-    void v78ShouldDeclareDiagnosisKnowledgeAssetTablesAndDomainCheckForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String sql = readMigration(dialect, "V78__diagnosis_knowledge_asset.sql")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ");
-
-            assertThat(sql)
-                .as("%s 诊断知识 5 张子表与命中/置信结构字段", dialect)
-                .contains("mk_diagnosis_criterion")
-                .contains("mk_diagnosis_differential")
-                .contains("mk_diagnosis_care_pointer")
-                .contains("mk_diagnosis_test_case")
-                .contains("mk_diagnosis_confidence_policy")
-                .contains("finding_term_code")
-                .contains("expected_confidence")
-                .contains("scope_key")
-                .contains("ck_mk_diagnosis_criterion_dir")
-                .contains("ck_mk_diagnosis_criterion_weight")
-                .contains("ck_mk_diagnosis_pointer_type")
-                .contains("ck_mk_diagnosis_pointer_target")
-                .contains("target_type")
-                .contains("ck_mk_diagnosis_testcase_conf")
-                .contains("uk_mk_diagnosis_testcase")
-                .contains("uk_mk_diagnosis_confpolicy")
-                .contains("idx_mk_diagnosis_criterion_finding")
-                .contains("comment on table mk_diagnosis_confidence_policy");
-
-            assertThat(sql)
-                .as("%s 必须放开 knowledge_identity domain 约束收纳 diagnosis（否则诊断身份插不进库）", dialect)
-                .contains("alter table knowledge_identity drop constraint ck_knowledge_identity_domain")
-                .contains("ck_knowledge_identity_domain check (domain in")
-                .contains("'diagnosis'");
-
-            // 仅放行可配置的 DEFAULT 置信策略种子；不得在迁移里写死任何诊断标准/鉴别/测试病例等医学常量。
-            assertThat(sql)
-                .as("%s 默认置信策略开箱种子（可被租户/科室覆盖）", dialect)
-                .contains("insert into mk_diagnosis_confidence_policy")
-                .contains("'default'");
-            assertThat(sql)
-                .as("%s 不得种入诊断标准/测试病例等医学常量", dialect)
-                .doesNotContain("insert into mk_diagnosis_criterion")
-                .doesNotContain("insert into mk_diagnosis_test_case")
-                .doesNotContain("insert into mk_diagnosis_differential")
-                .doesNotContain("insert into mk_diagnosis_care_pointer");
-        }
-    }
-
-    @Test
-    void v75ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V75__clinical_redline_silent_trial.sql"))
-                .as("dialect %s must ship V75", dialect)
-                .exists();
-        }
-    }
-
-    @Test
-    void v78ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V78__diagnosis_knowledge_asset.sql"))
-                .as("dialect %s must ship V78", dialect)
-                .exists();
-        }
-    }
-
-    @Test
-    void v76ShouldExtendRecommendationSourceTypeForClinicalRedlineWithoutSeededMedicalConstants() {
-        String h2 = readMigration("h2", "V76__recommendation_source_redline_type.sql");
-        assertThat(h2).contains(
-            "recommendation_source",
-            "ck_rec_source_type",
-            "'REDLINE'",
-            "COMMENT ON COLUMN recommendation_source.source_type");
-        assertThat(h2).doesNotContain("INSERT INTO recommendation_source");
-    }
-
-    @Test
-    void v76ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V76__recommendation_source_redline_type.sql"))
-                .as("dialect %s must ship V76", dialect)
-                .exists();
-        }
-    }
-
-    @Test
-    void v79ShouldDeclarePropagationAndOverridePolicyForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V79__version_propagation_and_override_policy.sql");
-            assertThat(ddl).as("%s 传播语义与覆盖策略护栏迁移", dialect)
-                .contains("mk_version_inheritance_override")
-                .contains("propagation")
-                .contains("INHERITABLE")
-                .contains("EXCLUSIVE")
-                .contains("ck_mk_version_inheritance_override_propagation")
-                .contains("mk_version_asset_version")
-                .contains("override_policy")
-                .contains("FREE")
-                .contains("REVIEW")
-                .contains("LOCKED")
-                .contains("ck_mk_version_asset_override_policy")
-                .contains("COMMENT ON COLUMN mk_version_inheritance_override.propagation")
-                .contains("COMMENT ON COLUMN mk_version_asset_version.override_policy");
-        }
-    }
-
-    @Test
-    void v79ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V79__version_propagation_and_override_policy.sql"))
-                .as("dialect %s must ship V79", dialect)
-                .exists();
-        }
-    }
-
-    @Test
-    void v11ShouldDeclareRuleEngineApiTablesAndColumns() {
-        String h2 = readMigration("h2", "V11__rule_engine_api.sql");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS rule_definition");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS rule_version");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS rule_test_case");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS rule_execution_log");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS rule_applicability");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS rule_governance");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS rule_signoff");
-        assertThat(h2).contains("dsl_json");
-        assertThat(h2).contains("explanation_json");
-        assertThat(h2).contains("input_digest");
-        assertThat(h2).contains("priority");
-        assertThat(h2).contains("suppressed_by");
-        assertThat(h2).contains("dedupe_window_seconds");
-        assertThat(h2).contains("patient_id");
-        assertThat(h2).contains("semantic_key");
-        assertThat(h2).contains("deduplicated_from_execution_id");
-        assertThat(h2).contains("population_json");
-        assertThat(h2).contains("org_scope_json");
-        assertThat(h2).contains("settings_json");
-        assertThat(h2).contains("lock_version");
-        assertThat(h2).contains("NOT_APPLICABLE");
-        assertThat(h2).contains("SHADOW_RECORDED");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS rule_override_log");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS rule_shadow_feedback");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS rule_backtest_run");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS rule_drift_snapshot");
-        assertThat(h2).contains("uk_rule_definition_tenant_code");
-        assertThat(h2).contains("ck_rule_definition_status");
-        assertThat(h2).contains("ck_rule_governance_state");
-        assertThat(h2).contains("uk_rule_signoff_signer");
-        assertThat(h2).contains("ck_rule_test_case_type");
-        assertThat(h2).contains("idx_rule_execution_trigger");
-        assertThat(h2).contains("idx_rule_execution_dedupe");
-        assertThat(h2).contains("ck_rule_override_action");
-        assertThat(h2).contains("idx_rule_shadow_feedback_decision");
-        assertThat(h2).contains("ck_rule_shadow_feedback_decision");
-        assertThat(h2).contains("sensitivity");
-        assertThat(h2).contains("specificity");
-        assertThat(h2).contains("baseline_fire_rate");
-        assertThat(h2).contains("ck_rule_drift_status");
-    }
-
-    @Test
-    void v11ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V11__rule_engine_api.sql"))
-                .as("dialect %s must ship V11", dialect)
-                .exists();
-        }
-    }
-
-    @Test
-    void v12ShouldDeclarePathwayEngineApiTablesAndColumns() {
-        String h2 = readMigration("h2", "V12__pathway_engine_api.sql");
-        assertThat(h2).doesNotContain("specialty_package");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS specialty_profile");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS pathway_template");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS pathway_milestone");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS pathway_node");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS pathway_edge");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS patient_pathway");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS pathway_variance");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS clinical_clock");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS specialty_metric_binding");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS pathway_outcome_binding");
-        assertThat(h2).contains("entry_mode");
-        assertThat(h2).contains("parent_template_id");
-        assertThat(h2).contains("entry_criteria_json");
-        assertThat(h2).contains("milestone_code");
-        assertThat(h2).contains("disabled_flag");
-        assertThat(h2).contains("condition_json");
-        assertThat(h2).contains("current_node_code");
-        assertThat(h2).contains("metric_code");
-        assertThat(h2).contains("indicator_code");
-        assertThat(h2).contains("package_version");
-        assertThat(h2).contains("baseline_event");
-        assertThat(h2).contains("target_due_at");
-        assertThat(h2).contains("max_due_at");
-        assertThat(h2).contains("escalation_level");
-        assertThat(h2).contains("escalation_policy_json");
-        assertThat(h2).contains("ck_pathway_entry_mode");
-        assertThat(h2).contains("ck_pathway_milestone_day");
-        assertThat(h2).contains("ck_pathway_node_type");
-        assertThat(h2).contains("ck_pathway_node_disabled");
-        assertThat(h2).contains("'DECISION','PARALLEL','WAIT_TIMER','SUBPATHWAY','MANUAL_GATE','ORDER_SET'");
-        assertThat(h2).contains("'RESOURCE_UNAVAILABLE','PHYSICIAN_DECISION','ROLLBACK','JOIN'");
-        assertThat(h2).contains("ck_patient_pathway_status");
-        assertThat(h2).contains("ck_clinical_clock_escalation");
-        assertThat(h2).contains("'NONE','REMINDER','REPORT','QUALITY_RECORD'");
-        assertThat(h2).contains("idx_clinical_clock_due");
-        assertThat(h2).contains("ck_pathway_outcome_scope");
-        assertThat(h2).contains("'TEMPLATE','PHASE','MILESTONE'");
-        assertThat(h2).contains("idx_pathway_outcome_template");
-        assertThat(h2).contains("idx_pathway_outcome_indicator");
-    }
-
-    @Test
-    void packageBaselinesShouldUseOnlyUnifiedContainerForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String terminologyBaseline = readMigration(
-                dialect, "V4__terminology_mapping_baseline.sql");
-            String pathwayBaseline = readMigration(
-                dialect, "V12__pathway_engine_api.sql");
-            String convergence = readMigration(dialect, "V112__package_physical_convergence.sql");
-
-            assertThat(terminologyBaseline)
-                .as("%s 初始术语迁移不得创建独立包容器", dialect)
-                .doesNotContain("term_mapping_package");
-            assertThat(pathwayBaseline)
-                .as("%s 初始路径迁移不得创建独立专病包容器", dialect)
-                .doesNotContain("specialty_package");
-            assertThat(convergence)
-                .as("%s 应只新增统一条目下的术语快照", dialect)
-                .doesNotContain("DROP TABLE")
-                .contains("mk_term_mapping_snapshot")
-                .contains("package_item_id")
-                .contains("mapping_snapshot")
-                .contains("fk_term_mapping_snapshot_item");
-        }
-    }
-
-    @Test
-    void batchInheritanceResolutionIndexesShouldExistInAllFiveDialects() {
-        for (String dialect : DIALECTS) {
-            String migration = readMigration(
-                dialect, "V113__batch_inheritance_resolution_indexes.sql");
-
-            assertThat(migration)
-                .as("%s 应为集合解析提供租户、身份、组织闭包与生命周期联合索引", dialect)
-                .contains("idx_av_batch_identity")
-                .contains("mk_version_asset_version")
-                .contains("tenant_id")
-                .contains("asset_identity")
-                .contains("status")
-                .contains("idx_io_batch_scope")
-                .contains("mk_version_inheritance_override")
-                .contains("org_path")
-                .contains("lifecycle_status");
-        }
-    }
-
-    @Test
-    void potassiumSodiumHighRiskRuleShouldBecomeCrossCategoryInAllFiveDialects() {
-        for (String dialect : DIALECTS) {
-            String migration = readMigration(
-                dialect, "V114__terminology_global_potassium_sodium_rule.sql");
-
-            assertThat(migration)
-                .as("%s 应把系统级钾钠高危近似规则放宽为跨分类安全底线", dialect)
-                .contains("UPDATE mk_term_high_risk_rule")
-                .contains("SET category = NULL")
-                .contains("rule_code = 'MED-C1-K-NA'")
-                .contains("category = 'DRUG'");
-        }
-    }
-
-    @Test
-    void v12ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V12__pathway_engine_api.sql"))
-                .as("dialect %s must ship V12", dialect)
-                .exists();
-        }
-    }
-
-    @Test
-    void v13ShouldDeclareRecommendationCdssApiTablesAndColumns() {
-        String h2 = readMigration("h2", "V13__recommendation_cdss_api.sql");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS recommendation_trigger");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS recommendation_card");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS recommendation_source");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS recommendation_feedback");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS recommendation_fatigue_signal");
-        assertThat(h2).contains("input_digest");
-        assertThat(h2).contains("source_summary");
-        assertThat(h2).contains("explanation_json");
-        assertThat(h2).contains("requires_physician_confirmation");
-        assertThat(h2).contains("ai_generated");
-        assertThat(h2).contains("fatigue_key");
-        assertThat(h2).contains("ck_rec_card_risk");
-        assertThat(h2).contains("ck_rec_feedback_type");
-        assertThat(h2).contains("idx_rec_fatigue_key");
-    }
-
-    @Test
-    void v13ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V13__recommendation_cdss_api.sql"))
-                .as("dialect %s must ship V13", dialect)
-                .exists();
-        }
-    }
-
-    @Test
-    void v14ShouldDeclareEvaluationQualityApiTablesAndColumns() {
-        String h2 = readMigration("h2", "V14__evaluation_quality_api.sql");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS evaluation_indicator");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS evaluation_run");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS evaluation_result");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS quality_finding");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS rectification_task");
-        assertThat(h2).contains("CREATE TABLE IF NOT EXISTS rectification_review");
-        assertThat(h2).contains("denominator_definition");
-        assertThat(h2).contains("numerator_definition");
-        assertThat(h2).contains("evidence_summary");
-        assertThat(h2).contains("responsible_department_id");
-        assertThat(h2).contains("assignee_user_id");
-        assertThat(h2).contains("comment");
-        assertThat(h2).contains("ck_eval_indicator_status");
-        assertThat(h2).contains("ck_quality_finding_severity");
-        assertThat(h2).contains("idx_rect_task_department_status");
-    }
-
-    @Test
-    void v14ShouldExistInAllFiveDialects() {
-        for (String dialect : List.of("postgres", "oracle", "dm", "kingbase", "h2")) {
-            assertThat(migrationPathFor(dialect, "V14__evaluation_quality_api.sql"))
-                .as("dialect %s must ship V14", dialect)
-                .exists();
-        }
-    }
-
-    @Test
-    void v14RectificationLookupIndexMustNotDuplicateUniqueFindingKey() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V14__evaluation_quality_api.sql");
-            assertThat(ddl)
-                .as("%s 整改任务查询索引必须覆盖状态，避免与唯一键重复", dialect)
-                .containsPattern("idx_rect_task_finding\\s+ON\\s+rectification_task\\s*"
-                    + "\\(tenant_id,\\s*finding_id,\\s*status\\)");
-        }
-    }
-
-    @Test
-    void v14ReviewCommentColumnMustAvoidOracleReservedKeyword() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V14__evaluation_quality_api.sql");
-            assertThat(ddl)
-                .as("%s 复核意见列必须避开 Oracle 保留字", dialect)
-                .contains("review_comment")
-                .doesNotContainPattern("(?m)^\\s*comment\\s+VARCHAR");
-        }
-    }
-
-    @Test
-    void v104ReleaseScopeMustUseCanonicalOrganizationScopeValues() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V104__org_scope_second_phase.sql");
-            assertThat(ddl)
-                .as("%s 包发布作用域必须收敛到组织树二期层级", dialect)
-                .contains("('ALL','REGION','FACILITY','CAMPUS','DEPARTMENT','WARD')")
-                .contains("ck_release_plan_scope_type")
-                .contains("ck_mk_version_release_plan_scope")
-                .doesNotContain("DOCTOR_TEAM", "sync_target");
-        }
-    }
-
-    @Test
-    void v109MustBackfillExistingActiveKnowledgeReviewDeadlinesInAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V109__knowledge_evidence_governance.sql");
-            assertThat(ddl)
-                .as("%s 存量 ACTIVE 权威知识必须补入复审计划", dialect)
-                .contains("UPDATE knowledge_asset_version")
-                .contains("SET next_review_at")
-                .contains("status = 'ACTIVE'")
-                .contains("next_review_at IS NULL");
-        }
-    }
-
-    @Test
-    void v110MustPersistStructuredRolloutAndOverrideReuseForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V110__release_simulation_rollout.sql");
-            assertThat(ddl)
-                .as("%s 发布模拟、灰度与覆盖复用迁移", dialect)
-                .contains("rollout_strategy")
-                .contains("rollout_config_json")
-                .contains("rollout_stage_index")
-                .contains("rollout_paused_reason")
-                .contains("PAUSED")
-                .contains("RELEASE_ROLLOUT")
-                .contains("mk_version_rollout_observation")
-                .contains("mk_version_override_template")
-                .contains("mk_version_override_template_item")
-                .contains("mk_version_override_operation")
-                .contains("ck_mk_version_release_rollout_strategy")
-                .contains("ck_mk_version_rollout_observation_rates")
-                .contains("idx_mk_version_rollout_plan")
-                .contains("idx_mk_version_override_template_tenant")
-                .contains("uk_mk_version_override_template_asset")
-                .doesNotContain("idx_mk_version_override_template_item")
-                .contains("COMMENT ON TABLE mk_version_rollout_observation")
-                .contains("COMMENT ON TABLE mk_version_override_template")
-                .contains("COMMENT ON TABLE mk_version_override_operation");
-        }
-    }
-
-    @Test
-    void v111MustPersistPackageAccessPolicyAndTenantEntitlementForAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V111__package_entitlement.sql");
-            assertThat(ddl)
-                .as("%s 平台包授权迁移", dialect)
-                .contains("access_policy")
-                .contains("mk_pkg_package_entitlement")
-                .contains("package_identity")
-                .contains("platform_package_id")
-                .contains("expires_at")
-                .contains("GRANTED")
-                .contains("REVOKED")
-                .contains("uk_package_entitlement_tenant_package")
-                .contains("idx_package_entitlement_package_status")
-                .contains("COMMENT ON TABLE mk_pkg_package_entitlement")
-                .contains("COMMENT ON COLUMN knowledge_package.access_policy");
-        }
-    }
-
-    @Test
-    void menuPermissionMigrationsMustNotSeedLegacySectionPermissions() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V6__security_permission_baseline.sql")
-                + readMigration(dialect, "V43__menu_permission_granularity.sql");
-            assertThat(ddl)
-                .as("%s 菜单权限迁移不得保留旧一级 section 权限", dialect)
-                .doesNotContain(
-                    "menu.pilot-setup",
-                    "menu.clinical-run",
-                    "menu.quality-improve",
-                    "menu.compliance-ops",
-                    "menu.advanced-tools");
-        }
-    }
-
-    @Test
-    void v25ShouldSeedOnlyPlatformResponsibilitiesInAllDialects() {
-        for (String dialect : DIALECTS) {
-            String ddl = readMigration(dialect, "V25__security_user_role_seed.sql");
-            assertThat(ddl).as("%s V25 平台职责初始化", dialect)
-                .contains("user_role_assignment")
-                .contains("platform-governance-admin-1")
-                .contains("platform-knowledge-governor-1")
-                .contains("migration-v25")
-                .doesNotContain(
-                    "'platform-admin'",
-                    "'group-admin'",
-                    "'hospital-admin'",
-                    "'doctor'",
-                    "'nurse'",
-                    "'implementation-engineer'");
-        }
-    }
-
-    private List<String> migrationFiles(String dialect) throws IOException {
-        try (var files = Files.list(migrationPath(dialect))) {
-            return files.map(path -> path.getFileName().toString())
-                .filter(name -> name.endsWith(".sql"))
-                .sorted((left, right) -> Integer.compare(migrationVersion(left), migrationVersion(right)))
-                .toList();
-        }
-    }
-
-    private int migrationVersion(String filename) {
-        int separator = filename.indexOf("__");
-        return Integer.parseInt(filename.substring(1, separator));
-    }
-
-    private String combinedDdl(String dialect) throws IOException {
-        StringBuilder ddl = new StringBuilder();
-        for (String migration : EXPECTED_MIGRATIONS) {
-            ddl.append(Files.readString(migrationPath(dialect).resolve(migration))).append('\n');
-        }
-        return ddl.toString().toLowerCase(Locale.ROOT);
+    private String readBaseline(String dialect) throws IOException {
+        return Files.readString(migrationPath(dialect).resolve(BASELINE_FILE));
     }
 
     private Path migrationPath(String dialect) {
@@ -3545,82 +447,5 @@ class MigrationBaselineContractTest {
         } catch (URISyntaxException exception) {
             throw new IllegalStateException("无法读取迁移资源目录: " + dialect, exception);
         }
-    }
-
-    private Set<String> names(Pattern pattern, String ddl) {
-        LinkedHashSet<String> names = new LinkedHashSet<>();
-        var matcher = pattern.matcher(ddl);
-        while (matcher.find()) {
-            names.add(matcher.group(1).toLowerCase(Locale.ROOT));
-        }
-        return names;
-    }
-
-    private Map<String, String> tableBlocks(String ddl) {
-        Map<String, String> blocks = new LinkedHashMap<>();
-        var matcher = TABLE_BLOCK_PATTERN.matcher(ddl);
-        while (matcher.find()) {
-            blocks.put(matcher.group(1).toLowerCase(Locale.ROOT), matcher.group(2));
-        }
-        return blocks;
-    }
-
-    private Map<String, Set<String>> tableColumns(String ddl) {
-        Map<String, Set<String>> columns = new LinkedHashMap<>();
-        tableBlocks(ddl).forEach((table, block) -> columns.put(table, columnNames(block)));
-        var renameMatcher = RENAME_COLUMN_PATTERN.matcher(ddl);
-        while (renameMatcher.find()) {
-            String table = renameMatcher.group(1).toLowerCase(Locale.ROOT);
-            String oldColumn = renameMatcher.group(2).toLowerCase(Locale.ROOT);
-            String newColumn = renameMatcher.group(3).toLowerCase(Locale.ROOT);
-            Set<String> current = columns.get(table);
-            if (current != null && current.contains(oldColumn)) {
-                LinkedHashSet<String> renamed = new LinkedHashSet<>(current);
-                renamed.remove(oldColumn);
-                renamed.add(newColumn);
-                columns.put(table, renamed);
-            }
-        }
-        return columns;
-    }
-
-    private Set<String> columnNames(String tableBlock) {
-        LinkedHashSet<String> columns = new LinkedHashSet<>();
-        for (String line : tableBlock.split("\\R")) {
-            String trimmed = line.strip().replaceFirst(",\\s*$", "");
-            if (trimmed.isBlank()
-                || trimmed.startsWith("--")
-                || trimmed.startsWith("constraint ")
-                || trimmed.startsWith("primary key")
-                || trimmed.startsWith("unique ")
-                || trimmed.startsWith("foreign key")
-                || trimmed.startsWith("check ")) {
-                continue;
-            }
-
-            String name = trimmed.split("\\s+", 2)[0];
-            if (name.matches("[a-z][a-z0-9_]*")) {
-                columns.add(name);
-            }
-        }
-        return columns;
-    }
-
-    private Set<String> difference(Set<String> left, Set<String> right) {
-        LinkedHashSet<String> result = new LinkedHashSet<>(left);
-        result.removeAll(right);
-        return result;
-    }
-
-    private String readMigration(String dialect, String filename) {
-        try {
-            return Files.readString(migrationPathFor(dialect, filename));
-        } catch (IOException e) {
-            throw new IllegalStateException("无法读取迁移文件: " + dialect + "/" + filename, e);
-        }
-    }
-
-    private Path migrationPathFor(String dialect, String filename) {
-        return migrationPath(dialect).resolve(filename);
     }
 }

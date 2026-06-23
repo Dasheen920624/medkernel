@@ -14,7 +14,6 @@ import jakarta.validation.constraints.NotNull;
 public record InsuranceAuditRequest(
     @NotBlank String contextSnapshotId,
     @NotBlank String scenarioCode,
-    String packageVersion,
     @NotBlank String indicatorId,
     @NotBlank String responsibleDepartmentId,
     @NotNull Instant dueAt,

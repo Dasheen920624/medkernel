@@ -1,9 +1,4 @@
-import {
-  EditOutlined,
-  PlusOutlined,
-  ReloadOutlined,
-  SafetyCertificateOutlined,
-} from "@ant-design/icons";
+import { CheckCircleOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import {
   Alert,
   App as AntdApp,
@@ -24,8 +19,8 @@ import { useState } from "react";
 
 import { getApiErrorMessage } from "@/shared/api/errors";
 import {
-  useApproveKnowledgeAcquisitionSource,
   useDisableKnowledgeAcquisitionSource,
+  useEnableKnowledgeAcquisitionSource,
   useKnowledgeAcquisitionSources,
   useSaveKnowledgeAcquisitionSourceDraft,
   type KnowledgeAcquisitionSource,
@@ -44,23 +39,19 @@ const PAGE_SIZE = 20;
 
 interface AcquisitionSourceGovernancePanelProps {
   canWrite: boolean;
-  canApprove: boolean;
 }
 
 type SourceDraftForm = Omit<
   KnowledgeAcquisitionSourceDraftRequest,
   "generationPlan" | "scheduleIntervalMinutes" | "defaultFormat"
 > & { sourceCode: string };
-type PendingAction = { type: "approve" | "disable"; source: KnowledgeAcquisitionSource };
+type PendingAction = { type: "enable" | "disable"; source: KnowledgeAcquisitionSource };
 
 function sourceStatus(source: KnowledgeAcquisitionSource) {
   if (source.enabledFlag === "Y") {
     return <Tag color="success">已启用</Tag>;
   }
-  if (source.approvedAt) {
-    return <Tag>已停用</Tag>;
-  }
-  return <Tag color="warning">待审批</Tag>;
+  return <Tag>已停用</Tag>;
 }
 
 function optionLabel(options: Array<{ value: string; label: string }>, value: string) {
@@ -94,7 +85,6 @@ function toDraftForm(source: KnowledgeAcquisitionSource): SourceDraftForm {
 
 export default function AcquisitionSourceGovernancePanel({
   canWrite,
-  canApprove,
 }: AcquisitionSourceGovernancePanelProps) {
   const { message } = AntdApp.useApp();
   const [page, setPage] = useState(1);
@@ -104,7 +94,7 @@ export default function AcquisitionSourceGovernancePanel({
   const [form] = Form.useForm<SourceDraftForm>();
   const sourcesQuery = useKnowledgeAcquisitionSources({ page, size: PAGE_SIZE });
   const saveDraft = useSaveKnowledgeAcquisitionSourceDraft();
-  const approveSource = useApproveKnowledgeAcquisitionSource();
+  const enableSource = useEnableKnowledgeAcquisitionSource();
   const disableSource = useDisableKnowledgeAcquisitionSource();
 
   const openDraft = (source?: KnowledgeAcquisitionSource) => {
@@ -121,7 +111,7 @@ export default function AcquisitionSourceGovernancePanel({
         sourceCode: sourceCode.trim().toUpperCase(),
         request: { ...request, scheduleEnabled: false },
       });
-      message.success("来源已保存为停用草稿，须由独立审批人启用");
+      message.success("来源已保存为停用配置，核对无误后可直接启用");
       setDrawerOpen(false);
     } catch (error) {
       message.error(getApiErrorMessage(error, "来源草稿保存失败"));
@@ -131,9 +121,9 @@ export default function AcquisitionSourceGovernancePanel({
   const confirmAction = async () => {
     if (!pendingAction) return;
     try {
-      if (pendingAction.type === "approve") {
-        await approveSource.mutateAsync(pendingAction.source.sourceCode);
-        message.success("来源已审批启用");
+      if (pendingAction.type === "enable") {
+        await enableSource.mutateAsync(pendingAction.source.sourceCode);
+        message.success("来源已启用");
       } else {
         await disableSource.mutateAsync(pendingAction.source.sourceCode);
         message.success("来源及自动调度已停用");
@@ -143,7 +133,7 @@ export default function AcquisitionSourceGovernancePanel({
       message.error(
         getApiErrorMessage(
           error,
-          pendingAction.type === "approve" ? "来源审批失败" : "来源停用失败",
+          pendingAction.type === "enable" ? "来源启用失败" : "来源停用失败",
         ),
       );
     }
@@ -189,17 +179,17 @@ export default function AcquisitionSourceGovernancePanel({
     },
     { title: "状态", key: "status", render: (_, source) => sourceStatus(source) },
     {
-      title: "审批证据",
-      key: "approval",
+      title: "维护记录",
+      key: "maintenance",
       render: (_, source) =>
-        source.approvedBy ? (
+        source.updatedBy ? (
           <Text>
-            {source.approvedBy}
+            {source.updatedBy}
             <br />
-            <Text type="secondary">{formatDateTime(source.approvedAt)}</Text>
+            <Text type="secondary">{formatDateTime(source.updatedAt)}</Text>
           </Text>
         ) : (
-          <Text type="secondary">尚未审批</Text>
+          <Text type="secondary">未记录</Text>
         ),
     },
     {
@@ -217,17 +207,17 @@ export default function AcquisitionSourceGovernancePanel({
               编辑
             </Button>
           ) : null}
-          {canApprove && source.enabledFlag !== "Y" ? (
+          {canWrite && source.enabledFlag !== "Y" ? (
             <Button
               type="link"
-              icon={<SafetyCertificateOutlined />}
-              aria-label={`审批启用 ${source.sourceCode}`}
-              onClick={() => setPendingAction({ type: "approve", source })}
+              icon={<CheckCircleOutlined />}
+              aria-label={`启用来源 ${source.sourceCode}`}
+              onClick={() => setPendingAction({ type: "enable", source })}
             >
-              审批启用
+              启用
             </Button>
           ) : null}
-          {canApprove && source.enabledFlag === "Y" ? (
+          {canWrite && source.enabledFlag === "Y" ? (
             <Button
               type="link"
               danger
@@ -259,7 +249,7 @@ export default function AcquisitionSourceGovernancePanel({
       <PageState
         state="empty"
         title="暂无受治理的公域来源"
-        description="先登记停用草稿，再由不同的高权限审批人完成 MFA 审批。"
+        description="先登记来源配置，核对许可与 robots 策略后直接启用。"
       />
     );
   } else {
@@ -305,8 +295,8 @@ export default function AcquisitionSourceGovernancePanel({
         <Alert
           type="info"
           showIcon
-          message="来源登记、独立审批、运行获取三段分离"
-          description="保存仅形成停用草稿；许可与 robots 裁决必须有可审计依据。审批启用要求不同操作者、MFA 与专用高风险权限。"
+          message="来源配置、技术校验、运行获取"
+          description="保存后默认停用；启用前系统校验域名、HTTPS、许可与 robots 边界，所有变更保留维护记录。"
         />
         {content}
       </Space>
@@ -326,8 +316,8 @@ export default function AcquisitionSourceGovernancePanel({
         <Alert
           type="warning"
           showIcon
-          message="任何编辑都会撤销旧审批并停用来源"
-          description="本表单不启用自动调度；请先完成来源、许可与 robots 人工核验。"
+          message="任何编辑都会停用来源"
+          description="本表单不直接启用自动调度；请先核对来源、许可与 robots 信息。"
           className="mk-card-gap-bottom"
         />
         <Form form={form} layout="vertical" onFinish={(values) => void submitDraft(values)}>
@@ -382,21 +372,21 @@ export default function AcquisitionSourceGovernancePanel({
       </Drawer>
 
       <Modal
-        title={pendingAction?.type === "approve" ? "确认审批并启用来源？" : "确认停用来源？"}
+        title={pendingAction?.type === "enable" ? "确认启用来源？" : "确认停用来源？"}
         open={Boolean(pendingAction)}
-        okText={pendingAction?.type === "approve" ? "确认启用" : "确认停用"}
+        okText={pendingAction?.type === "enable" ? "确认启用" : "确认停用"}
         okButtonProps={{
           danger: pendingAction?.type === "disable",
-          loading: approveSource.isPending || disableSource.isPending,
+          loading: enableSource.isPending || disableSource.isPending,
         }}
         cancelText="取消"
         onOk={() => void confirmAction()}
         onCancel={() => setPendingAction(undefined)}
       >
         <Text>
-          {pendingAction?.type === "approve"
-            ? `将启用 ${pendingAction.source.sourceCode}。系统会校验 MFA、独立审批人与许可边界。`
-            : `将停用 ${pendingAction?.source.sourceCode ?? "该来源"} 及其自动调度，历史审批证据仍保留。`}
+          {pendingAction?.type === "enable"
+            ? `将启用 ${pendingAction.source.sourceCode}。系统会校验来源配置、许可与 robots 边界。`
+            : `将停用 ${pendingAction?.source.sourceCode ?? "该来源"} 及其自动调度，历史维护记录仍保留。`}
         </Text>
       </Modal>
     </Card>

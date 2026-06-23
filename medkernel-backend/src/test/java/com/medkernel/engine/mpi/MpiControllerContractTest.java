@@ -33,7 +33,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * SVC-PILOT-02 MPI 服务包 HTTP 契约测试。
+ * SVC-PILOT-02 MPI 服务 HTTP 契约测试。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -170,17 +170,17 @@ class MpiControllerContractTest {
 
     private static RequestPostProcessor readJwt() {
         return jwt().jwt(token -> token
-                .subject("integration-operator")
+                .subject("platform-admin")
                 .claim("tenant_id", "tenant-A")
-                .claim("roles", List.of("integration-operator")))
-            .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"));
+                .claim("roles", List.of("platform-admin")))
+            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
     }
 
     private static RequestPostProcessor writeJwt() {
         return jwt().jwt(token -> token
-                .subject("organization-admin")
+                .subject("platform-admin")
                 .claim("tenant_id", "tenant-A")
-                .claim("roles", List.of("organization-admin")))
-            .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"));
+                .claim("roles", List.of("platform-admin")))
+            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
     }
 }

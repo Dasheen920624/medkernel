@@ -8,7 +8,7 @@ import {
 } from "./ruleOperatorCatalog";
 
 /**
- * 递归条件模型（RULE-01 / PATH-01 可视化创作内核，OpenSpec 变更 pathway-rule-authoring-overhaul P1-1）。
+ * 递归条件模型，作为规则与路径可视化创作的统一条件内核。
  *
  * <p>本模型用可嵌套的「条件组（all/any/not）+ 叶子」表达任意深度临床判断
  * （如 `A 且 (B 或 C)`），并与后端
@@ -41,13 +41,6 @@ export interface RuleLeaf {
   operator: RuleOperator;
   value?: RuleLeafValue;
   valueKind: RuleValueKind;
-  fragment?: {
-    fragmentId?: string;
-    fragmentCode: string;
-    name?: string;
-    version: number;
-    packageVersion: string;
-  };
 }
 
 /** 条件组：可嵌套的逻辑容器，支持 all/any 与可选取反。 */
@@ -68,7 +61,7 @@ export const MAX_TREE_DEPTH = 5;
 export const MAX_LEAF_COUNT = 50;
 
 /** DSL 叶子序列化形态（后端忽略 `ui` 旁注）。 */
-type DslUi = { id?: string; label?: string; valueKind?: RuleValueKind; fragmentId?: string };
+type DslUi = { id?: string; label?: string; valueKind?: RuleValueKind };
 
 interface DslLeaf {
   fact: string;
@@ -77,19 +70,11 @@ interface DslLeaf {
   ui?: DslUi;
 }
 
-interface DslFragment {
-  fragmentRef: string;
-  version: number;
-  packageVersion: string;
-  ui?: DslUi;
-}
-
 /** DSL 节点：`{all:[...]}` | `{any:[...]}` | `{not:节点}` | 叶子。 */
 export type DslNode =
   | { all: DslNode[] }
   | { any: DslNode[] }
   | { not: DslNode }
-  | DslFragment
   | DslLeaf;
 
 let idSeq = 0;
@@ -116,7 +101,6 @@ export function createLeaf(partial: Partial<RuleLeaf> = {}): RuleLeaf {
     value: partial.value,
     valueKind: partial.valueKind ?? "string",
   };
-  if (partial.fragment) leaf.fragment = partial.fragment;
   return leaf;
 }
 
@@ -138,10 +122,6 @@ export function createDefaultTree(): RuleGroup {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isDslFragment(dsl: DslLeaf | DslFragment): dsl is DslFragment {
-  return typeof (dsl as DslFragment).fragmentRef === "string";
 }
 
 /** 归一比较值，使其与 valueKind 一致（用于序列化）。 */
@@ -183,15 +163,7 @@ function inferValueKind(value: unknown): RuleValueKind {
   return inferRuleValueKind(value);
 }
 
-function leafToDsl(leaf: RuleLeaf): DslLeaf | DslFragment {
-  if (leaf.fragment) {
-    return {
-      fragmentRef: leaf.fragment.fragmentCode,
-      version: leaf.fragment.version,
-      packageVersion: leaf.fragment.packageVersion,
-      ui: { id: leaf.id, label: leaf.label, fragmentId: leaf.fragment.fragmentId },
-    };
-  }
+function leafToDsl(leaf: RuleLeaf): DslLeaf {
   const node: DslLeaf = {
     fact: leaf.fact.trim(),
     operator: leaf.operator,
@@ -213,34 +185,8 @@ export function nodeToDsl(node: RuleNode): DslNode {
   return node.negate ? { not: grouped } : grouped;
 }
 
-function dslLeafToNode(dsl: DslLeaf | DslFragment, index: number): RuleLeaf {
+function dslLeafToNode(dsl: DslLeaf, index: number): RuleLeaf {
   const ui = isRecord(dsl.ui) ? dsl.ui : undefined;
-  if (isDslFragment(dsl)) {
-    const fragment = dsl;
-    if (
-      !fragment.fragmentRef.trim() ||
-      !fragment.packageVersion.trim() ||
-      !Number.isInteger(fragment.version)
-    ) {
-      throw new Error("条件片段引用必须包含 fragmentRef、version 与 packageVersion");
-    }
-    const label = (ui?.label as string | undefined) ?? `片段 ${fragment.fragmentRef}`;
-    return {
-      kind: "leaf",
-      id: (ui?.id as string | undefined) ?? nextNodeId("cond"),
-      label,
-      fact: "",
-      operator: "exists",
-      valueKind: "empty",
-      fragment: {
-        fragmentId: ui?.fragmentId as string | undefined,
-        fragmentCode: fragment.fragmentRef,
-        name: label,
-        version: fragment.version,
-        packageVersion: fragment.packageVersion,
-      },
-    };
-  }
   if (!isRuleOperator(dsl.operator)) {
     throw new Error("规则算子不在受控目录内");
   }
@@ -308,7 +254,6 @@ export function treeDepth(node: RuleNode): number {
 /** 是否存在未解析字段（空或仍含模板占位符），用于提交前拦截。 */
 export function hasUnresolvedFact(node: RuleNode): boolean {
   if (node.kind === "leaf") {
-    if (node.fragment) return false;
     const fact = node.fact.trim();
     return fact.length === 0 || fact.includes("<字段路径>");
   }

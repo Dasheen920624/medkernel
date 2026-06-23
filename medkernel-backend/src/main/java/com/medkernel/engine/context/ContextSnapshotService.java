@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditEvent;
@@ -47,7 +48,7 @@ import com.medkernel.shared.context.RequestContext;
  * 标准上下文核心业务编排。
  *
  * <p>承担 GA-ENG-API-01 三接口（创建 / 按 ID 查 / 按患者或就诊列表）的业务规则：
- * 包版本校验、schema 缺失字段分级、quality_status 聚合、字典映射端口调用、
+ * 当前医院运行修订锁定、schema 缺失字段分级、quality_status 聚合、字典映射端口调用、
  * 幂等键命中复用与失败兜底。
  *
  * <p>所有方法从 {@link RequestContext} 取 tenantId / userId / traceId，
@@ -62,7 +63,7 @@ public class ContextSnapshotService {
     private final CanonicalResourceRepository resources;
     private final ContextIdempotencyKeyRepository idemRepo;
     private final ContextValidator validator;
-    private final PackageVersionPort versions;
+    private final CurrentClinicalRuntimeReleaseResolver runtimeReleases;
     private final TerminologyMappingPort mapping;
     private final AuditRecorder auditRecorder;
     private final IsolatedAuditPublisher isolatedAudit;
@@ -74,7 +75,7 @@ public class ContextSnapshotService {
                                   CanonicalResourceRepository resources,
                                   ContextIdempotencyKeyRepository idemRepo,
                                   ContextValidator validator,
-                                  PackageVersionPort versions,
+                                  CurrentClinicalRuntimeReleaseResolver runtimeReleases,
                                   TerminologyMappingPort mapping,
                                   AuditRecorder auditRecorder,
                                   IsolatedAuditPublisher isolatedAudit,
@@ -85,7 +86,7 @@ public class ContextSnapshotService {
         this.resources = resources;
         this.idemRepo = idemRepo;
         this.validator = validator;
-        this.versions = versions;
+        this.runtimeReleases = runtimeReleases;
         this.mapping = mapping;
         this.auditRecorder = auditRecorder;
         this.isolatedAudit = isolatedAudit;
@@ -96,6 +97,19 @@ public class ContextSnapshotService {
 
     @Transactional
     public ContextSnapshotResponse create(ContextSnapshotRequest req, String idempotencyKey) {
+        OrgScope scope = requireCurrentOrgScope();
+        ClinicalRuntimeRelease release = runtimeReleases.resolve(scope);
+        return createBound(req, idempotencyKey, release == null ? null : release.releaseId());
+    }
+
+    /**
+     * 使用上游事件已经锁定的运行修订创建快照，避免发布切换发生在事件接收与异步处理之间时串版。
+     */
+    @Transactional
+    public ContextSnapshotResponse createBound(
+            ContextSnapshotRequest req,
+            String idempotencyKey,
+            String runtimeReleaseId) {
         OrgScope scope = requireCurrentOrgScope();
         String tenantId = scope.tenantId();
         String userId = RequestContext.currentUserId().orElse("system");
@@ -116,7 +130,11 @@ public class ContextSnapshotService {
             }
         }
 
-        validatePackageVersions(tenantId, req);
+        if (!hasText(runtimeReleaseId)) {
+            publishFailureAudit(ErrorCode.ENG_CONTEXT_002, req,
+                "当前医院尚未生成临床运行修订 patient=" + req.patientId());
+            throw new ApiException(ErrorCode.ENG_CONTEXT_002, "当前医院尚未生成临床运行修订");
+        }
 
         List<MissingFieldEntry> missing = validator.findMissingFields(req.resources());
         QualityStatus quality = validator.computeQuality(req.resources());
@@ -127,7 +145,8 @@ public class ContextSnapshotService {
         }
 
         List<ClinicalCodeMappingAnchor> anchors = ClinicalCodeMappingAnchorRegistry.fromResources(req.resources());
-        Map<String, String> mappingStatus = mapping.evaluate(tenantId, anchors);
+        Map<String, String> mappingStatus = mapping.evaluate(
+            tenantId, runtimeReleaseId, anchors);
 
         String snapshotId = "ctx-" + UUID.randomUUID();
         Instant now = Instant.now();
@@ -135,10 +154,11 @@ public class ContextSnapshotService {
             null, snapshotId, tenantId, req.orgUnitId(),
             ContextSnapshotRequest.firstNonBlank(req.requestId(), effectiveIdempotencyKey),
             orgPath(scope, req),
-            req.packageVersion(),
+            runtimeReleaseId,
             req.patientId(), req.encounterId(),
             ContextSnapshotStatus.ACTIVE,
             writeJson(missing), writeJson(mappingStatus),
+            writeJson(req.resources().extensions()),
             quality, traceId, null, now, userId
         ));
 
@@ -257,16 +277,6 @@ public class ContextSnapshotService {
         }
     }
 
-    private void validatePackageVersions(String tenantId, ContextSnapshotRequest req) {
-        if (!versions.exists(tenantId, req.packageVersion())) {
-            publishFailureAudit(
-                ErrorCode.ENG_CONTEXT_002,
-                req,
-                "包版本不存在 patient=" + req.patientId());
-            throw new ApiException(ErrorCode.ENG_CONTEXT_002, "包版本不存在");
-        }
-    }
-
     private void persistResources(String snapshotId, String tenantId, ContextSnapshotResources r) {
         int seq = 0;
         if (r.patient() != null) {
@@ -339,7 +349,7 @@ public class ContextSnapshotService {
             snap.snapshotId(),
             snap.status(),
             resourcesDto,
-            snap.packageVersion(),
+            snap.runtimeReleaseId(),
             snap.qualityStatus(),
             missing,
             mappingStatus,
@@ -384,7 +394,8 @@ public class ContextSnapshotService {
             }
         }
         return new ContextSnapshotResources(patient, allergyIntolerances, encounters, conditions, nursingAssessments,
-            observations, diagnosticReports, medications, procedures, documents, carePlans, followUps, claims);
+            observations, diagnosticReports, medications, procedures, documents, carePlans, followUps, claims,
+            readExtensions(snap.extensionsJson()));
     }
 
     private String writeJson(Object o) {
@@ -423,6 +434,21 @@ public class ContextSnapshotService {
             return json.readValue(rawJson, new TypeReference<Map<String, String>>() {});
         } catch (JsonProcessingException exception) {
             throw new ApiException(ErrorCode.ENG_CONTEXT_001, "mappingStatus JSON 解析失败", exception);
+        }
+    }
+
+    private JsonNode readExtensions(String rawJson) {
+        if (!hasText(rawJson)) {
+            return json.createObjectNode();
+        }
+        try {
+            JsonNode value = json.readTree(rawJson);
+            if (value == null || !value.isObject()) {
+                throw new ApiException(ErrorCode.ENG_CONTEXT_001, "extensions JSON 必须是对象");
+            }
+            return value;
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.ENG_CONTEXT_001, "extensions JSON 解析失败", exception);
         }
     }
 

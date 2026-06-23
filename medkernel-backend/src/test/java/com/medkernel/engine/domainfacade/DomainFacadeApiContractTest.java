@@ -39,7 +39,7 @@ class DomainFacadeApiContractTest {
 
     @Test
     void list_returnsSeventeenFacadeDefinitionsWithoutClinicalContentSeeds() throws Exception {
-        mockMvc.perform(get("/api/v1/engine/domain-facades").with(knowledgeGovernorJwt()))
+        mockMvc.perform(get("/api/v1/engine/domain-facades").with(engineOperatorJwt()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.length()").value(17))
             .andExpect(jsonPath("$.data[0].code").value("NURSING-01"))
@@ -50,11 +50,11 @@ class DomainFacadeApiContractTest {
     }
 
     @Test
-    void getServicePackage_returnsAggregationMembersOnly() throws Exception {
-        mockMvc.perform(get("/api/v1/engine/domain-facades/SVC-DOMAIN-01").with(knowledgeGovernorJwt()))
+    void getServiceCombination_returnsAggregationMembersOnly() throws Exception {
+        mockMvc.perform(get("/api/v1/engine/domain-facades/SVC-DOMAIN-01").with(engineOperatorJwt()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.kind").value("SERVICE_PACKAGE"))
-            .andExpect(jsonPath("$.data.engineChain[0]").value("PACKAGE"))
+            .andExpect(jsonPath("$.data.kind").value("SERVICE_COMBINATION"))
+            .andExpect(jsonPath("$.data.engineChain[0]").value("RELEASE"))
             .andExpect(jsonPath("$.data.memberFacadeCodes.length()").value(7))
             .andExpect(jsonPath("$.data.memberFacadeCodes", hasItem("CRITICAL-01")))
             .andExpect(jsonPath("$.data.memberFacadeCodes", hasItem("INFECTION-PH-01")));
@@ -62,7 +62,7 @@ class DomainFacadeApiContractTest {
 
     @Test
     void listB0Fixtures_returnsExecutableEvidenceForAllFacadesWithoutModelRequirement() throws Exception {
-        mockMvc.perform(get("/api/v1/engine/domain-facades/b0-fixtures").with(knowledgeGovernorJwt()))
+        mockMvc.perform(get("/api/v1/engine/domain-facades/b0-fixtures").with(engineOperatorJwt()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.length()").value(17))
             .andExpect(jsonPath("$.data[*].code", hasItem("NURSING-01")))
@@ -76,7 +76,7 @@ class DomainFacadeApiContractTest {
     @Test
     void getB0Fixture_declaresSpecialtyExtensionHonestEmptyUntilAssetsExist() throws Exception {
         mockMvc.perform(get("/api/v1/engine/domain-facades/SPECIALTY-EXT-01/b0-fixture")
-                .with(knowledgeGovernorJwt()))
+                .with(engineOperatorJwt()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.code").value("SPECIALTY-EXT-01"))
             .andExpect(jsonPath("$.data.status").value("PASS"))
@@ -84,11 +84,11 @@ class DomainFacadeApiContractTest {
             .andExpect(jsonPath("$.data.assetSeedPolicy").value("NO_SEED_HONEST_EMPTY"));
     }
 
-    private static org.springframework.test.web.servlet.request.RequestPostProcessor knowledgeGovernorJwt() {
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor engineOperatorJwt() {
         return jwt().jwt(token -> token
-            .subject("knowledge-governor")
+            .subject("engine-operator")
             .claim("tenant_id", "tenant-1")
-            .claim("roles", List.of("knowledge-governor")))
-            .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"));
+            .claim("roles", List.of("engine-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"));
     }
 }

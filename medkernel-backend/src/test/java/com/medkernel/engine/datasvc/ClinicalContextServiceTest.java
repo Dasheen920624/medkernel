@@ -48,7 +48,7 @@ class ClinicalContextServiceTest {
     }
 
     private EmbedLaunchToken token(String tenantId, String status, Instant expiredAt) {
-        return new EmbedLaunchToken(1L, "tok-1", tenantId, "user-9", "clinical-decision-user",
+        return new EmbedLaunchToken(1L, "tok-1", tenantId, "user-9", "clinical-user",
             "P-123456", "E-999", "order-sign", status, expiredAt,
             Instant.parse("2026-06-14T00:00:00Z"), "creator",
             Instant.parse("2026-06-14T00:00:00Z"), "editor", "trace-1",
@@ -65,7 +65,7 @@ class ClinicalContextServiceTest {
         assertThat(result.authorized()).isTrue();
         assertThat(result.dataLevel()).isEqualTo(EngineDataLevel.D4);
         assertThat(result.triggerPoint()).isEqualTo("order-sign");
-        assertThat(result.roleCode()).isEqualTo("clinical-decision-user");
+        assertThat(result.roleCode()).isEqualTo("clinical-user");
         assertThat(result.degraded()).isFalse();
         // 患者/就诊引用须脱敏：不得出现原始标识。
         assertThat(result.patientRef()).isNotBlank().doesNotContain("P-123456");

@@ -47,8 +47,8 @@ public class SandboxReplayHashing {
         manifest.put("sourceTraceRef", request.sourceTraceRef());
         manifest.put("sourceContextRef", request.sourceContextRef());
         manifest.put("contextSnapshotHash", request.contextSnapshotHash());
-        manifest.put("packageCode", request.packageCode());
-        manifest.put("packageVersion", request.packageVersion());
+        manifest.put("sourceRuntimeReleaseRef", request.sourceRuntimeReleaseRef());
+        manifest.put("sourceRuntimeRevisionNo", request.sourceRuntimeRevisionNo());
         manifest.put("occurredAt", request.occurredAt());
         manifest.put("deidentificationProfile", request.deidentificationProfile());
         List<Map<String, Object>> assetEntries = new ArrayList<>();

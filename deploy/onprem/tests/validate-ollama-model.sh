@@ -17,8 +17,12 @@ grep -Eq '^PARAMETER seed [0-9]+$' "$model_file" || fail "必须固定随机种�
 grep -Fxq 'PARAMETER num_ctx 2048' "$model_file" || fail "上下文预算必须匹配 134 资源上限"
 grep -Eq '^SYSTEM .*Never invent a source, diagnosis, order, prescription, threshold, or medical fact\.' "$model_file" \
   || fail "系统约束必须禁止编造医学事实"
-grep -Eq '^SYSTEM .*independent human review\.$' "$model_file" \
-  || fail "系统约束必须要求独立人工审核"
+grep -Eq '^SYSTEM .*current responsible operator review\.$' "$model_file" \
+  || fail "系统约束必须要求当前责任操作者复核"
+
+if grep -Eqi '(independent human review|expert review|dual sign)' "$model_file"; then
+  fail "模型定义不得重新引入专家、独立审核或双签门阀"
+fi
 
 if grep -Eqi '(api[_-]?key|password|secret|token|https?://)' "$model_file"; then
   fail "模型定义不得包含凭据或现场端点"

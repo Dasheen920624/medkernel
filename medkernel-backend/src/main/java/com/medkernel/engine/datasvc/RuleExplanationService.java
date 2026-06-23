@@ -47,7 +47,7 @@ public class RuleExplanationService {
             // 上游规则定义库不可用：诚实降级，不以伪造元数据伪装（铁律 #1）。
             auditRecorder.record(AuditAction.EXECUTE, "rule_definition", "explain-rule",
                 "规则解释上游不可用，已诚实降级：" + upstreamDown.getMessage());
-            return new RuleExplanation(ruleId, null, null, null, null, null, null, null,
+            return new RuleExplanation(ruleId, null, null, null, null, null, null,
                 EngineDataLevel.D1, Instant.now(), true, "上游规则定义暂不可用，未返回解释");
         }
 
@@ -59,7 +59,7 @@ public class RuleExplanationService {
             "解释规则 D1 元数据 tenant=" + tenantId + " ruleId=" + ruleId);
         return new RuleExplanation(rule.ruleId(), rule.ruleCode(), rule.name(),
             nameOf(rule.ruleType()), nameOf(rule.riskLevel()), nameOf(rule.status()),
-            rule.activeVersionId(), rule.packageVersion(),
+            rule.activeVersionId(),
             EngineDataLevel.D1, Instant.now(), false, null);
     }
 

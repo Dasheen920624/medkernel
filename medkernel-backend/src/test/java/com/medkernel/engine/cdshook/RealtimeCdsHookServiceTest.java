@@ -66,7 +66,6 @@ class RealtimeCdsHookServiceTest {
         assertThat(request.patientId()).isEqualTo("MPI-1");
         assertThat(request.encounterId()).isEqualTo("ENC-1");
         assertThat(request.scenarioCode()).isEqualTo("order-sign");
-        assertThat(request.packageVersion()).isEqualTo("pkg-2026.06");
         assertThat(request.candidateCards()).isEmpty();
     }
 
@@ -109,7 +108,6 @@ class RealtimeCdsHookServiceTest {
         ObjectNode context = json.createObjectNode()
             .put("patientId", "MPI-1")
             .put("encounterId", "ENC-1")
-            .put("packageVersion", "pkg-2026.06")
             .put("contextSnapshotId", "ctx-active-001")
             .put("sourceEventId", "evt-order-001");
         context.set("orders", json.createArrayNode().add(json.createObjectNode()
@@ -120,7 +118,6 @@ class RealtimeCdsHookServiceTest {
             "hook-order-001",
             "MPI-1",
             "ENC-1",
-            "pkg-2026.06",
             "HIS",
             context,
             null,

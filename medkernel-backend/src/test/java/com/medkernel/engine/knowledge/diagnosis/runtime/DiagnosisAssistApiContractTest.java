@@ -27,7 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 /**
  * 鉴别诊断 API 安全/契约：认证、recommendation.write 权限、@DataScope 租户门、候选/空态响应。
  *
- * <p>角色权限取自 DefaultPermissionPolicy：IT_OPS / MEDICAL_AFFAIRS 有 recommendation.write；DOCTOR / GUEST 无。
+ * <p>角色权限取自 DefaultPermissionPolicy：临床使用者可执行诊疗辅助；审计员 / GUEST 无写入权限。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -55,8 +55,8 @@ class DiagnosisAssistApiContractTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
-    void doctorForbiddenWithoutRecommendationWrite() throws Exception {
+    @WithMockUser(authorities = "ROLE_AUDITOR")
+    void auditorForbiddenWithoutRecommendationWrite() throws Exception {
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(BODY))
             .andExpect(status().isForbidden());
     }
@@ -69,22 +69,22 @@ class DiagnosisAssistApiContractTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
-    void itOpsCanReachButDataScopeRejectsMissingTenant() throws Exception {
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
+    void clinicalUserCanReachButDataScopeRejectsMissingTenant() throws Exception {
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
 
     @Test
-    void itOpsWithTenantGetsRankedCandidates() throws Exception {
+    void clinicalUserWithTenantGetsRankedCandidates() throws Exception {
         when(service.assist(any())).thenReturn(new DiagnosisAssistResponse(
             List.of(new DiagnosisCandidate(100L, "社区获得性肺炎", "DX.PNEU", DiagnosisConfidence.STRONG,
-                List.of("FEVER", "COUGH"), List.of(), List.of(), List.of(),
+                List.of("FEVER", "COUGH"), List.of(), List.of(), List.of(), List.of(),
                 "A_REGULATION", false, 10L)),
             List.of("LOCALX"), "辅助建议，需医师确认（非自动诊断）。", "trace-dx"));
 
-        mockMvc.perform(post(PATH).with(tenantJwt("ROLE_INTEGRATION_OPERATOR"))
+        mockMvc.perform(post(PATH).with(tenantJwt("ROLE_CLINICAL_USER"))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.candidates[0].confidence").value("STRONG"))
@@ -98,7 +98,7 @@ class DiagnosisAssistApiContractTest {
         when(service.assist(any())).thenReturn(new DiagnosisAssistResponse(
             List.of(), List.of(), DiagnosisAssistService.ADVISORY_EMPTY, "trace-dx"));
 
-        mockMvc.perform(post(PATH).with(tenantJwt("ROLE_INTEGRATION_OPERATOR"))
+        mockMvc.perform(post(PATH).with(tenantJwt("ROLE_CLINICAL_USER"))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.candidates").isEmpty())

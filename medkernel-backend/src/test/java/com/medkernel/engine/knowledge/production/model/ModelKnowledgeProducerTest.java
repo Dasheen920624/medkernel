@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.authoring.GeneratedAssetCandidateRequest;
+import com.medkernel.engine.authoring.GeneratedAssetCandidateService;
+import com.medkernel.engine.authoring.GeneratedAssetDraftResponse;
 import com.medkernel.engine.factory.AssetSourceRef;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
@@ -66,7 +69,7 @@ class ModelKnowledgeProducerTest {
 
     private static final String TENANT = "tenant-model";
     private static final String JOB_CODE = "job-model";
-    private static final String CAPABILITY = "rule.draft";
+    private static final String CAPABILITY = "knowledge.production.knowledge";
     private static final String PROVIDER = "claude-prod";
     private static final String MODEL_STRATEGY =
         "prompt:aikstd13-v1;tool:submit-candidate-v1;model:claude-opus-4";
@@ -78,6 +81,7 @@ class ModelKnowledgeProducerTest {
     private final CandidateSafetyGateService gateService = mock(CandidateSafetyGateService.class);
     private final KnowledgeGenerationTriageService triageService = mock(KnowledgeGenerationTriageService.class);
     private final KnowledgeShadowEvaluationService shadowService = mock(KnowledgeShadowEvaluationService.class);
+    private final GeneratedAssetCandidateService generatedAssets = mock(GeneratedAssetCandidateService.class);
 
     private final ModelKnowledgeProducer producer = new ModelKnowledgeProducer(
         jobRepository,
@@ -87,6 +91,7 @@ class ModelKnowledgeProducerTest {
         gateService,
         triageService,
         shadowService,
+        generatedAssets,
         new ObjectMapper());
 
     @BeforeEach
@@ -104,8 +109,7 @@ class ModelKnowledgeProducerTest {
             1L, KnowledgeShadowRunStatus.PASSED, true, "影子评测通过"));
         when(production.submitCandidate(eq(JOB_CODE), any(), any())).thenReturn(new CandidateSubmissionResponse(
             "candidate:model:1",
-            new ReviewRoutingDecision(RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.CLINICAL_GOVERNOR,
-                false, KnowledgeDomain.CLINICAL)));
+            new ReviewRoutingDecision(RoleCode.ENGINE_OPERATOR, KnowledgeDomain.CLINICAL)));
     }
 
     @AfterEach
@@ -128,6 +132,88 @@ class ModelKnowledgeProducerTest {
                     assertThat(gate.reason()).contains("文献资料库");
                 }));
         verify(modelGateway, never()).submitTask(any());
+        verify(production, never()).submitCandidate(any(), any(), any());
+    }
+
+    @Test
+    void rejectsCapabilityThatDoesNotMatchFormalKnowledgeProduction() {
+        ModelKnowledgeProductionRequest mismatched = new ModelKnowledgeProductionRequest(
+            "knowledge.discovery",
+            "请基于来源锚点生成医学知识候选",
+            PROVIDER,
+            60,
+            "knowledge:htn:model",
+            "高血压知识候选",
+            List.of(sourceRef()),
+            SourceAuthorityLevel.B_GUIDELINE,
+            KnowledgeRiskLevel.MEDIUM,
+            target());
+
+        assertThatThrownBy(() -> producer.generate(JOB_CODE, mismatched))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining(CAPABILITY);
+
+        verify(readinessService, never()).evaluate(any(), any(), any());
+        verify(modelGateway, never()).submitTask(any());
+    }
+
+    @Test
+    void rejectsMissingCapabilityAsBadRequestInsteadOfNullPointer() {
+        ModelKnowledgeProductionRequest missing = new ModelKnowledgeProductionRequest(
+            null,
+            "请基于来源锚点生成医学知识候选",
+            PROVIDER,
+            60,
+            "knowledge:htn:model",
+            "高血压知识候选",
+            List.of(sourceRef()),
+            SourceAuthorityLevel.B_GUIDELINE,
+            KnowledgeRiskLevel.MEDIUM,
+            target());
+
+        assertThatThrownBy(() -> producer.generate(JOB_CODE, missing))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining(CAPABILITY);
+
+        verify(readinessService, never()).evaluate(any(), any(), any());
+        verify(modelGateway, never()).submitTask(any());
+    }
+
+    @Test
+    void structuralAssetJobMaterializesRuleDraftThroughUnifiedAuthoringRegistry() {
+        Instant now = Instant.EPOCH;
+        when(jobRepository.findByTenantIdAndJobCode(TENANT, JOB_CODE)).thenReturn(Optional.of(
+            new KnowledgeProductionJob(
+                1L, TENANT, JOB_CODE, "source-version:9", VersionedAssetType.RULE,
+                KnowledgeProducer.API_MODEL, TargetPipeline.TENANT_OVERLAY, KnowledgeDomain.CLINICAL,
+                MODEL_STRATEGY, ProductionJobStatus.PENDING, 0, "{}", now, "u", now, "u", "trace-model")));
+        when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(successfulRuleModelTask());
+        when(generatedAssets.materializeDraft(any())).thenReturn(new GeneratedAssetDraftResponse(
+            "av-rule-1",
+            VersionedAssetType.RULE,
+            "RULE.CKD.DOSE",
+            "V1",
+            AssetVersionStatus.DRAFT,
+            "a".repeat(64),
+            "trace-model"));
+        ArgumentCaptor<GeneratedAssetCandidateRequest> generatedCaptor =
+            ArgumentCaptor.forClass(GeneratedAssetCandidateRequest.class);
+
+        ModelKnowledgeProductionResult result = producer.generate(JOB_CODE, ruleRequest());
+
+        assertThat(result.summary().candidates()).singleElement()
+            .satisfies(candidate -> {
+                assertThat(candidate.assetType()).isEqualTo(VersionedAssetType.RULE);
+                assertThat(candidate.candidateRef()).isEqualTo("asset-version:av-rule-1");
+            });
+        verify(generatedAssets).materializeDraft(generatedCaptor.capture());
+        assertThat(generatedCaptor.getValue().assetType()).isEqualTo(VersionedAssetType.RULE);
+        assertThat(generatedCaptor.getValue().assetIdentity()).isEqualTo("RULE.CKD.DOSE");
+        assertThat(generatedCaptor.getValue().content().path("ruleCode").asText()).isEqualTo("RULE.CKD.DOSE");
+        assertThat(generatedCaptor.getValue().content().path("fieldCatalogIdentity").asText())
+            .isEqualTo("FIELD.CATALOG.CLINICAL_CONTEXT");
+        assertThat(generatedCaptor.getValue().content().path("generationEvidence").path("modelTaskId").asText())
+            .isEqualTo("task-rule-1");
         verify(production, never()).submitCandidate(any(), any(), any());
     }
 
@@ -157,9 +243,9 @@ class ModelKnowledgeProducerTest {
         verify(gateService).evaluate(envelopeCaptor.capture(), any());
         verify(production).submitCandidate(eq(JOB_CODE), any(KnowledgeAssetEnvelope.class), eq(target()));
         KnowledgeAssetEnvelope envelope = envelopeCaptor.getValue();
-        assertThat(envelope.assetType()).isEqualTo(VersionedAssetType.RULE);
-        assertThat(envelope.assetIdentity()).isEqualTo("rule:htn:model");
-        assertThat(envelope.subject()).isEqualTo("高血压 AI 候选规则");
+        assertThat(envelope.assetType()).isEqualTo(VersionedAssetType.KNOWLEDGE);
+        assertThat(envelope.assetIdentity()).isEqualTo("knowledge:htn:model");
+        assertThat(envelope.subject()).isEqualTo("高血压知识候选");
         assertThat(envelope.sources()).containsExactly(sourceRef());
         assertThat(envelope.trustLevel()).isEqualTo(SourceAuthorityLevel.B_GUIDELINE);
         assertThat(envelope.riskLevel()).isEqualTo(KnowledgeRiskLevel.MEDIUM);
@@ -290,8 +376,22 @@ class ModelKnowledgeProducerTest {
             "请基于来源锚点生成一条高血压 AI 候选规则",
             providerCode,
             60,
-            "rule:htn:model",
-            "高血压 AI 候选规则",
+            "knowledge:htn:model",
+            "高血压知识候选",
+            List.of(sourceRef()),
+            SourceAuthorityLevel.B_GUIDELINE,
+            KnowledgeRiskLevel.MEDIUM,
+            target());
+    }
+
+    private ModelKnowledgeProductionRequest ruleRequest() {
+        return new ModelKnowledgeProductionRequest(
+            CAPABILITY,
+            "请基于来源锚点生成一条慢性肾病用药剂量复核规则",
+            PROVIDER,
+            60,
+            "RULE.CKD.DOSE",
+            "慢性肾病用药剂量复核规则",
             List.of(sourceRef()),
             SourceAuthorityLevel.B_GUIDELINE,
             KnowledgeRiskLevel.MEDIUM,
@@ -313,7 +413,7 @@ class ModelKnowledgeProducerTest {
     private KnowledgeProductionJob job(KnowledgeProducer jobProducer, TargetPipeline targetPipeline) {
         Instant now = Instant.EPOCH;
         return new KnowledgeProductionJob(
-            1L, TENANT, JOB_CODE, "source-version:9", VersionedAssetType.RULE,
+            1L, TENANT, JOB_CODE, "source-version:9", VersionedAssetType.KNOWLEDGE,
             jobProducer, targetPipeline, KnowledgeDomain.CLINICAL, MODEL_STRATEGY,
             ProductionJobStatus.PENDING, 0, "{}", now, "u", now, "u", "trace-model");
     }
@@ -332,8 +432,7 @@ class ModelKnowledgeProducerTest {
                 KnowledgeProductionReadinessItem.pass("MODEL_PROVIDER", "provider 已健康", PROVIDER),
                 KnowledgeProductionReadinessItem.pass("MODEL_EVALUATION", "评测通过", "runId=1"),
                 KnowledgeProductionReadinessItem.pass("EGRESS_GOVERNANCE", "白名单已配置", CAPABILITY),
-                KnowledgeProductionReadinessItem.pass("VERSION_TRIPLE", "三元组已声明", MODEL_STRATEGY),
-                KnowledgeProductionReadinessItem.pass("P6_ACCEPTANCE", "P6 已验收", "true")));
+                KnowledgeProductionReadinessItem.pass("VERSION_TRIPLE", "三元组已声明", MODEL_STRATEGY)));
     }
 
     private KnowledgeProductionReadinessResponse localReady(String providerCode) {
@@ -352,8 +451,7 @@ class ModelKnowledgeProducerTest {
                 KnowledgeProductionReadinessItem.pass("MODEL_EVALUATION", "评测通过", "runId=1"),
                 KnowledgeProductionReadinessItem.pass("EGRESS_GOVERNANCE", "本地模型不外调", providerCode),
                 KnowledgeProductionReadinessItem.pass("MODEL_POLICY", "策略匹配", "LOCAL_MODEL"),
-                KnowledgeProductionReadinessItem.pass("VERSION_TRIPLE", "三元组已声明", MODEL_STRATEGY),
-                KnowledgeProductionReadinessItem.pass("P6_ACCEPTANCE", "P6 已验收", "true")));
+                KnowledgeProductionReadinessItem.pass("VERSION_TRIPLE", "三元组已声明", MODEL_STRATEGY)));
     }
 
     private KnowledgeProductionReadinessResponse blocked(String code, String message) {
@@ -383,6 +481,39 @@ class ModelKnowledgeProducerTest {
             false,
             null,
             120L,
+            "trace-model");
+    }
+
+    private ModelTaskResponse successfulRuleModelTask() {
+        return new ModelTaskResponse(
+            "task-rule-1",
+            "SUCCEEDED",
+            """
+                {
+                  "schemaVersion": "1.0",
+                  "ruleCode": "RULE.CKD.DOSE",
+                  "name": "肾功能下降用药剂量复核",
+                  "fieldCatalogIdentity": "FIELD.CATALOG.CLINICAL_CONTEXT",
+                  "fieldBindings": ["observations[].valueNumeric", "medications[].code"],
+                  "terminologyRefs": ["TERM.LOINC", "TERM.ATC"],
+                  "triggerBindings": [{"triggerPoint": "ORDER_SIGN", "purpose": "RULE_EXECUTION"}],
+                  "dsl": {
+                    "when": {"all": [{"field": "observations[].valueNumeric", "operator": "<", "value": 30}]},
+                    "then": [{"actionCardRef": "ACTION.CKD.DOSE_REVIEW"}],
+                    "explain": {"message": "肾功能下降时需复核剂量。"}
+                  }
+                }
+                """,
+            "B2",
+            "claude-opus-4",
+            "prompt:aikstd13-v1",
+            "tool:submit-candidate-v1",
+            "[{\"sourceRef\":\"GL-HTN-2024:v1:section-1\"}]",
+            0.88,
+            "MEDIUM",
+            false,
+            null,
+            140L,
             "trace-model");
     }
 

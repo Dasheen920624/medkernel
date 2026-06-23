@@ -1216,9 +1216,9 @@ class WorkflowCollaborationServiceTest {
             "入径评估",
             PathwayNodeType.MANUAL_GATE,
             "clock-1",
-            "clinical-decision-user",
-            "clinical-governor",
-            List.of("nursing-collaborator"),
+            "clinical-user",
+            "engine-operator",
+            List.of("clinical-user"),
             List.of("quality"),
             dueAt,
             "/clinical/pathways?patientPathwayId=pp-1&nodeCode=ASSESS",
@@ -1232,16 +1232,16 @@ class WorkflowCollaborationServiceTest {
         assertThat(saved.sourceId()).isEqualTo("pp-1:ASSESS:clock-1");
         assertThat(saved.title()).isEqualTo("路径节点待处理：入径评估");
         assertThat(saved.summary()).isEqualTo(
-            "责任：clinical-decision-user；签责：clinical-governor；会诊：nursing-collaborator；知会：quality");
+            "责任：clinical-user；签责：engine-operator；会诊：clinical-user；知会：quality");
         assertThat(saved.priority()).isEqualTo(WorkflowPriority.HIGH);
-        assertThat(saved.assigneeRole()).isEqualTo("clinical-decision-user");
+        assertThat(saved.assigneeRole()).isEqualTo("clinical-user");
         assertThat(saved.dueAt()).isEqualTo(dueAt);
         assertThat(saved.deepLink()).contains("patientPathwayId=pp-1");
 
         ArgumentCaptor<WorkflowNotification> notificationCaptor =
             ArgumentCaptor.forClass(WorkflowNotification.class);
         verify(notifications).save(notificationCaptor.capture());
-        assertThat(notificationCaptor.getValue().recipientRole()).isEqualTo("clinical-decision-user");
+        assertThat(notificationCaptor.getValue().recipientRole()).isEqualTo("clinical-user");
         assertThat(notificationCaptor.getValue().sourceType())
             .isEqualTo(WorkflowNotificationSourceType.WORKFLOW_TODO);
     }
@@ -1699,7 +1699,7 @@ class WorkflowCollaborationServiceTest {
                 "enc-1",
                 ClinicalSetting.INPATIENT,
                 "LIS",
-                "pkg-1",
+                "runtime-release-test",
                 "digest-report-1",
                 now.minusSeconds(30),
                 now.minusSeconds(20),
@@ -1777,7 +1777,7 @@ class WorkflowCollaborationServiceTest {
             "enc-1",
             ClinicalSetting.INPATIENT,
             "HIS",
-            "pkg-2026.06",
+            "runtime-release-test",
             "digest-order-1",
             now.minusSeconds(30),
             now.minusSeconds(20),
@@ -1891,7 +1891,7 @@ class WorkflowCollaborationServiceTest {
             ClinicalSetting.INPATIENT,
             "snap-order-1",
             "HIS",
-            "pkg-2026.06",
+            "runtime-release-test",
             "digest-order-1",
             occurredAt,
             "HIS:order-sign",
@@ -1909,7 +1909,8 @@ class WorkflowCollaborationServiceTest {
                 List.of(),
                 List.of(),
                 List.of(),
-                List.of()),
+                List.of(),
+                ContextSnapshotResources.emptyExtensions()),
             null,
             List.of());
     }

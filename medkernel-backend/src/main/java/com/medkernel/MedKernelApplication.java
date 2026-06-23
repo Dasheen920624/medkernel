@@ -9,7 +9,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 public class MedKernelApplication {
 
-    /** 首发身份应急命令选项前缀；命中即以非 Web 模式旁路启动救命通道。 */
+    /** 初始身份应急命令选项前缀；命中即以非 Web 模式旁路启动救命通道。 */
     private static final String EMERGENCY_OPTION = "--bootstrap-emergency";
 
     public static void main(String[] args) {
@@ -24,7 +24,7 @@ public class MedKernelApplication {
     }
 
     /**
-     * 判断启动参数是否为首发身份应急命令（{@code --bootstrap-emergency} 或 {@code --bootstrap-emergency=...}）。
+     * 判断启动参数是否为初始身份应急命令（{@code --bootstrap-emergency} 或 {@code --bootstrap-emergency=...}）。
      */
     static boolean isEmergencyCommand(String[] args) {
         if (args == null) {

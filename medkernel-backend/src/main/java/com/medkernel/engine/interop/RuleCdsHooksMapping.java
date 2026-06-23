@@ -19,7 +19,6 @@ public record RuleCdsHooksMapping(
     ClinicalEventTriggerPoint hook,
     String ruleCode,
     String name,
-    String packageVersion,
     RuleType ruleType,
     RuleAuthoringMode authoringMode,
     RuleRiskLevel riskLevel,

@@ -24,7 +24,7 @@ import com.medkernel.shared.api.error.ErrorCode;
  * 模型外调出域数据最小化与安全闸（LLM-03）。
  *
  * <p>B2 外部调用出域前置拦截：① 仅保留能力码白名单声明的允许字段，其余剥离（FR-1）；
- * ② 保留字段强制脱敏后才出域（FR-2）；③ 高敏出域须经审批，否则诚实阻断（FR-3/4）；
+ * ② 保留字段强制脱敏后才出域；③ 达到阈值的出域须由当前获授权操作者确认用途，否则诚实阻断；
  * ④ 出域留证（FR-5）。任一不满足均诚实报错，由网关降级 B0，绝不静默放行裸数据。
  */
 @Component
@@ -38,14 +38,14 @@ public class ModelEgressGuard {
         "姓名", "患者姓名", "患者编号", "身份证", "身份证号", "电话", "手机号", "邮箱", "住址");
 
     private final ModelEgressWhitelistRepository whitelistRepo;
-    private final ModelEgressApprovalRepository approvalRepo;
+    private final ModelEgressConfirmationRepository confirmationRepo;
     private final ModelEgressEvidenceRepository evidenceRepo;
 
     public ModelEgressGuard(ModelEgressWhitelistRepository whitelistRepo,
-                            ModelEgressApprovalRepository approvalRepo,
+                            ModelEgressConfirmationRepository confirmationRepo,
                             ModelEgressEvidenceRepository evidenceRepo) {
         this.whitelistRepo = whitelistRepo;
-        this.approvalRepo = approvalRepo;
+        this.confirmationRepo = confirmationRepo;
         this.evidenceRepo = evidenceRepo;
     }
 
@@ -89,22 +89,22 @@ public class ModelEgressGuard {
         String payload = minimized.toString();
         String desensitizedHash = sha256(payload);
 
-        // FR-3：高敏出域须命中已批准审批记录，否则诚实阻断（不静默出域）。
-        Long approvalId = null;
-        if (requiresApproval(whitelist.sensitivityLevel(), whitelist.approvalThresholdLevel())) {
-            ModelEgressApproval approval = approvalRepo
-                .findFirstByTenantIdAndCapabilityCodeAndPayloadHashAndStatusOrderByIdDesc(
-                    tenantId, capabilityCode, desensitizedHash, "APPROVED")
+        // 达到阈值的出域须命中当前操作者留下的责任确认，否则诚实阻断。
+        Long confirmationId = null;
+        if (requiresConfirmation(whitelist.sensitivityLevel(), whitelist.confirmationThresholdLevel())) {
+            ModelEgressConfirmation confirmation = confirmationRepo
+                .findFirstByTenantIdAndCapabilityCodeAndPayloadHashOrderByIdDesc(
+                    tenantId, capabilityCode, desensitizedHash)
                 .orElseThrow(() -> new ApiException(ErrorCode.ENG_LLM_007,
-                    "能力 " + capabilityCode + " 高敏数据外调出域未经审批，已阻断"));
-            approvalId = approval.id();
+                    "能力 " + capabilityCode + " 高敏数据外调出域未经责任确认，已阻断"));
+            confirmationId = confirmation.id();
         }
 
-        // FR-5：出域留证（字段清单 + 脱敏后 hash + 审批引用 + 目标 provider）。
+        // 出域留证（字段清单 + 脱敏后 hash + 责任确认引用 + 目标 provider）。
         Instant now = Instant.now();
         evidenceRepo.save(new ModelEgressEvidence(
             null, tenantId, capabilityCode, taskId,
-            toJsonArray(egressFields), desensitizedHash, approvalId, providerCode,
+            toJsonArray(egressFields), desensitizedHash, confirmationId, providerCode,
             now, "system", now, "system"));
 
         return new EgressPreparation(payload, egressFields, desensitizedHash);
@@ -162,9 +162,9 @@ public class ModelEgressGuard {
         return DIRECT_IDENTIFIER_FIELDS.contains(normalized);
     }
 
-    private boolean requiresApproval(String sensitivityLevel, String approvalThresholdLevel) {
+    private boolean requiresConfirmation(String sensitivityLevel, String confirmationThresholdLevel) {
         int sensitivityRank = sensitivityRank(sensitivityLevel, 3);
-        int thresholdRank = sensitivityRank(approvalThresholdLevel, 1);
+        int thresholdRank = sensitivityRank(confirmationThresholdLevel, 1);
         return sensitivityRank >= thresholdRank;
     }
 

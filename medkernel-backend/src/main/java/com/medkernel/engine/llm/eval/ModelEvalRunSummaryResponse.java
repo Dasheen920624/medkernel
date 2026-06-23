@@ -20,9 +20,6 @@ public record ModelEvalRunSummaryResponse(
     boolean redLineBreach,
     boolean hallucinationDetected,
     String status,
-    String reviewer,
-    Instant signedAt,
-    String reviewComment,
     Instant createdAt,
     String createdBy
 ) {

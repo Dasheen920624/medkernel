@@ -1,7 +1,7 @@
 package com.medkernel.engine.knowledge.acquisition;
 
 /**
- * 公域资料许可裁决。许可原文仍落 {@code license}，本字段记录治理审批后的可用性。
+ * 公域资料许可判定。许可原文仍落 {@code license}，本字段记录经核验后的可用性。
  */
 public enum AcquisitionLicensePolicy {
     /** 已确认可用于知识生产。 */

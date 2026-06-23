@@ -32,29 +32,34 @@ class TerminologyMappingPortAdapterTest {
             standardSources, "tenant-A", "LOINC", "718-7", StandardTermStatus.ACTIVE))
             .thenReturn(Optional.of(standardTerm("718-7")));
 
-        Map<String, String> result = adapter.evaluate("tenant-A", List.of(anchor));
+        Map<String, String> result = adapter.evaluate(
+            "tenant-A", "release-1", List.of(anchor));
 
         assertThat(result).containsEntry(anchor.key(), "VALID");
     }
 
     @Test
-    void validatesLocalCodingThroughActivePackageSnapshot() {
+    void validatesLocalCodingThroughLockedRuntimeRelease() {
         ClinicalCodeMappingAnchor anchor = anchor("HB", "LIS", "LOINC");
-        when(effectiveMappings.resolve("tenant-A", "LIS", "HB", "LOINC", "LAB"))
-            .thenReturn(List.of(new EffectiveTermMapping(1L, 2L, "718-7")));
+        when(effectiveMappings.resolve(
+            "tenant-A", "release-1", "LIS", "HB", "LOINC", "LAB"))
+            .thenReturn(List.of(new EffectiveTermMapping(1L, 2L, "718-7", "V1")));
 
-        Map<String, String> result = adapter.evaluate("tenant-A", List.of(anchor));
+        Map<String, String> result = adapter.evaluate(
+            "tenant-A", "release-1", List.of(anchor));
 
         assertThat(result).containsEntry(anchor.key(), "VALID");
     }
 
     @Test
-    void ignoresConfirmedMappingThatHasNotEnteredAnActivePackage() {
+    void ignoresConfirmedMappingThatHasNotEnteredTheLockedRuntimeRelease() {
         ClinicalCodeMappingAnchor anchor = anchor("HB", "LIS", "LOINC");
-        when(effectiveMappings.resolve("tenant-A", "LIS", "HB", "LOINC", "LAB"))
+        when(effectiveMappings.resolve(
+            "tenant-A", "release-1", "LIS", "HB", "LOINC", "LAB"))
             .thenReturn(List.of());
 
-        Map<String, String> result = adapter.evaluate("tenant-A", List.of(anchor));
+        Map<String, String> result = adapter.evaluate(
+            "tenant-A", "release-1", List.of(anchor));
 
         assertThat(result).containsEntry(anchor.key(), "UNKNOWN");
         verify(standardTerms, never()).findFirstByTenantIdsAndId(

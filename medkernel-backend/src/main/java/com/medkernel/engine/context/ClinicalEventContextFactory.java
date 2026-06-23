@@ -57,7 +57,7 @@ public class ClinicalEventContextFactory {
             event.clinicalSetting(),
             event.snapshotId(),
             event.sourceSystem(),
-            event.packageVersion(),
+            event.runtimeReleaseId(),
             event.payloadDigest(),
             event.occurredAt(),
             triggerSource(event),
@@ -109,7 +109,8 @@ public class ClinicalEventContextFactory {
             documents(event, payload),
             List.<CanonicalCarePlan>of(),
             followUps(event, payload),
-            List.<CanonicalClaim>of()
+            List.<CanonicalClaim>of(),
+            payload.path("extensions")
         );
     }
 
@@ -367,7 +368,7 @@ public class ClinicalEventContextFactory {
     }
 
     private String mappedVersion(ClinicalEvent event, JsonNode node) {
-        return firstText(node, event.packageVersion(), "mappedVersion", "mappingVersion");
+        return firstText(node, event.runtimeReleaseId(), "mappedVersion", "mappingVersion");
     }
 
     private String sourceSystem(ClinicalEvent event, JsonNode node) {

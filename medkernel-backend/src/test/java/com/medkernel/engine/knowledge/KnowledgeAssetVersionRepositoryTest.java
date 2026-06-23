@@ -3,7 +3,6 @@ package com.medkernel.engine.knowledge;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
-import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -14,7 +13,7 @@ import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.test.context.TestPropertySource;
 
-/** 知识版本仓储：验证诊断运行查询与复审队列分页查询。 */
+/** 知识版本仓储：验证复审队列分页和候选分类查找。 */
 @DataJdbcTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -38,21 +37,6 @@ class KnowledgeAssetVersionRepositoryTest {
     void wipe() {
         versionRepo.deleteAll();
         identityRepo.deleteAll();
-    }
-
-    @Test
-    void findActiveDiagnosisVersionsReturnsOnlyActiveDiagnosis() {
-        KnowledgeIdentity dx = identityRepo.save(identity("DX.PNEUMONIA", KnowledgeDomain.DIAGNOSIS, "社区获得性肺炎"));
-        versionRepo.save(activeVersion(dx.id()));
-        KnowledgeIdentity gl = identityRepo.save(identity("GL.SEPSIS", KnowledgeDomain.GUIDELINE, "脓毒症指南"));
-        versionRepo.save(activeVersion(gl.id())); // 非诊断域，不应返回
-
-        List<KnowledgeAssetVersion> result = versionRepo.findActiveDiagnosisVersions("t-1");
-
-        assertThat(result).singleElement().satisfies(v -> {
-            assertThat(v.identityId()).isEqualTo(dx.id());
-            assertThat(v.status()).isEqualTo(KnowledgeVersionStatus.ACTIVE);
-        });
     }
 
     @Test

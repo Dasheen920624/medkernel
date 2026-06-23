@@ -10,6 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.annotation.DirtiesContext;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -25,7 +26,7 @@ import com.medkernel.shared.context.RequestContext;
 /**
  * 真实空 PostgreSQL 首部署冒烟：防「首次部署同族缺陷」再潜伏的系统性防护网。
  *
- * <p>背景：2026-06-10 知识生产服务器清库首发暴露一族 H2 结构上测不出的缺陷——
+ * <p>背景：2026-06-10 知识生产服务器清库上线暴露一族 H2 结构上测不出的缺陷——
  * 其中最隐蔽的是只读事务播种 SQLSTATE 25006（H2 不强制只读事务，永远测不出）。
  * 本测试在**真实空 PostgreSQL（Testcontainers）** 上以 Flyway 迁移建库、启动全量 Spring 上下文
  * （连带所有 ApplicationRunner / 种子器的空库首动也一并验证），再实跑首部署关键路径：
@@ -44,6 +45,7 @@ import com.medkernel.shared.context.RequestContext;
 @ActiveProfiles("test")
 @Tag("docker")
 @Testcontainers(disabledWithoutDocker = true)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class FirstDeployEmptyPostgresSmokeTest {
 
     @Container

@@ -23,19 +23,15 @@ import com.medkernel.shared.datascope.DataScope;
 import jakarta.validation.Valid;
 
 /**
- * 身份安全服务包的统一用户管理 API。
+ * 身份安全服务的统一用户管理 API。
  */
 @RestController
 @RequestMapping("/api/v1/compliance/users")
 @DataScope(requireTenant = true)
 public class ComplianceUserController {
 
-    private static final String READ_GUARD =
-        "@perm.has('org.read') and hasAnyRole('SYSTEM_SUPERADMIN','PLATFORM_GOVERNANCE_ADMIN',"
-            + "'ORGANIZATION_ADMIN','IDENTITY_ACCESS_ADMIN','IMPLEMENTATION_OPERATOR')";
-    private static final String WRITE_GUARD =
-        "@perm.has('org.write') and hasAnyRole('SYSTEM_SUPERADMIN','PLATFORM_GOVERNANCE_ADMIN',"
-            + "'ORGANIZATION_ADMIN','IDENTITY_ACCESS_ADMIN','IMPLEMENTATION_OPERATOR')";
+    private static final String READ_GUARD = "@perm.has('org.read')";
+    private static final String WRITE_GUARD = "@perm.has('org.write')";
 
     private final ComplianceUserService service;
 

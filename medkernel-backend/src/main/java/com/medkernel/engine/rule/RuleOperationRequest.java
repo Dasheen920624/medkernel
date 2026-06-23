@@ -18,8 +18,7 @@ public record RuleOperationRequest(
     @JsonProperty("department_id") String departmentId,
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
-    @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion
+    @JsonProperty("role_codes") List<String> roleCodes
 ) implements RuleContextRequest {
     public RuleOperationRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
@@ -28,7 +27,7 @@ public record RuleOperationRequest(
     public RuleApiContext apiContext() {
         return new RuleApiContext(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }

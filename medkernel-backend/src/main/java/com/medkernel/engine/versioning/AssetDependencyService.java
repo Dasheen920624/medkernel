@@ -137,19 +137,18 @@ public class AssetDependencyService {
 
     private List<AssetVersion> resolvableCandidates(AssetVersion owner, AssetDependency edge) {
         List<AssetVersion> candidates = new ArrayList<>();
-        candidates.addAll(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+        candidates.addAll(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
             owner.tenantId(),
             edge.dependsOnAssetType(),
-            InheritanceResolver.activeScopeKey(edge.dependsOnIdentity(), owner.organizationScope(), owner.applicableScope()),
+            edge.dependsOnIdentity(),
             AssetVersionStatus.PUBLISHED
         ));
         if (!PlatformAuthority.PLATFORM_TENANT_ID.equals(owner.tenantId())
                 || !PlatformAuthority.PLATFORM_ORG_PATH.equals(owner.organizationScope())) {
-            candidates.addAll(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            candidates.addAll(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
                 PlatformAuthority.PLATFORM_TENANT_ID,
                 edge.dependsOnAssetType(),
-                InheritanceResolver.activeScopeKey(
-                    edge.dependsOnIdentity(), PlatformAuthority.PLATFORM_ORG_PATH, owner.applicableScope()),
+                edge.dependsOnIdentity(),
                 AssetVersionStatus.PUBLISHED
             ));
         }
@@ -171,7 +170,7 @@ public class AssetDependencyService {
             || orgPath.startsWith(version.organizationScope() + "/");
     }
 
-    static boolean isCompatible(String versionNo, AssetDependency edge) {
+    public static boolean isCompatible(String versionNo, AssetDependency edge) {
         String value = required(versionNo, "依赖版本号");
         if (edge.minVersionNo() != null && compareVersionNo(value, edge.minVersionNo()) < 0) {
             return false;

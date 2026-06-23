@@ -92,6 +92,7 @@ class FhirR5CanonicalMapperTest {
 
         CanonicalResourceMappingResult result = mapper.fromR5(new FhirCanonicalMappingRequest(
             "tenant-A",
+            "runtime-release-1",
             "snapshot-r5",
             4,
             "trace-r5",
@@ -110,7 +111,7 @@ class FhirR5CanonicalMapperTest {
     }
 
     private static TerminologyMappingPort terminologyReturning(String status) {
-        return (tenantId, anchors) -> anchors.stream()
+        return (tenantId, runtimeReleaseId, anchors) -> anchors.stream()
             .collect(Collectors.toMap(anchor -> anchor.key(), anchor -> status, (left, right) -> left));
     }
 }

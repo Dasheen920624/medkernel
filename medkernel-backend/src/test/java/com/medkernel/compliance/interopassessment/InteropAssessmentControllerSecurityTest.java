@@ -46,7 +46,7 @@ class InteropAssessmentControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
+    @WithMockUser(authorities = "ROLE_AUDITOR")
     void auditRoleWithoutTenantIsBlockedByDataScope() throws Exception {
         mvc.perform(get("/api/v1/compliance/interop-assessment")
                 .param("standardVersion", "IOT-2026"))
@@ -87,8 +87,8 @@ class InteropAssessmentControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
             .andExpect(status().isForbidden());
     }
 
@@ -100,6 +100,6 @@ class InteropAssessmentControllerSecurityTest {
             .claim("hospital_id", "hospital-A")
             .claim("department_id", "dept-it")
             .claim("roles", List.of("audit_compliance")))
-            .authorities(new SimpleGrantedAuthority("ROLE_COMPLIANCE_AUDITOR"));
+            .authorities(new SimpleGrantedAuthority("ROLE_AUDITOR"));
     }
 }

@@ -52,6 +52,7 @@ class SystemConfigControllerTest {
     private static final String BACKUP_RTO_KEY = "medkernel.runtime.backup.rto";
     private static final String JWT_TTL_KEY = "medkernel.auth.jwt.ttl-seconds";
     private static final String AUTH_MODE_KEY = "medkernel.auth.mode";
+    private static final String MFA_ENABLED_KEY = "medkernel.auth.mfa.enabled";
     private static final String AUTH_PASSWORD_MIN_LENGTH_KEY = "medkernel.auth.password.min-length";
     private static final String KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY =
         "medkernel.knowledge.literature.material-root-uri";
@@ -61,7 +62,6 @@ class SystemConfigControllerTest {
     private static final String LOG_LEVEL_KEY = "medkernel.logging.level.com.medkernel";
     private static final String DEV_SECRET = "medkernel-dev-secret-please-change-at-least-32-bytes";
     private static final String MFA_USER = "it-ops-1";
-    private static final String MFA_SYSTEM_SUPERADMIN_USER = "system-superadmin-mfa";
 
     @Autowired
     MockMvc mvc;
@@ -87,14 +87,11 @@ class SystemConfigControllerTest {
     @BeforeEach
     void seedMfaCredential() {
         seedMfaCredential(MFA_USER);
-        seedMfaCredential(MFA_SYSTEM_SUPERADMIN_USER);
     }
 
     @AfterEach
     void restoreSeededRuntimeFlags() {
         credentialRepository.findByTenantIdAndUserId("t-1", MFA_USER)
-            .ifPresent(credentialRepository::delete);
-        credentialRepository.findByTenantIdAndUserId("t-1", MFA_SYSTEM_SUPERADMIN_USER)
             .ifPresent(credentialRepository::delete);
         jdbcTemplate.update("""
             UPDATE mk_config_item
@@ -113,6 +110,8 @@ class SystemConfigControllerTest {
             """, EXTERNAL_PROVIDER_FLAG_KEY);
         jdbcTemplate.update("DELETE FROM mk_config_history WHERE config_key IN (?, ?, ?, ?)",
             GRAPH_FLAG_KEY, AUDIT_FLAG_KEY, DOMESTIC_CRYPTO_FLAG_KEY, EXTERNAL_PROVIDER_FLAG_KEY);
+        jdbcTemplate.update("DELETE FROM mk_config_item WHERE tenant_id = 'SYSTEM' AND config_key = ?",
+            MFA_ENABLED_KEY);
         jdbcTemplate.update("""
             UPDATE mk_config_item
                SET config_value = 'false', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
@@ -148,14 +147,6 @@ class SystemConfigControllerTest {
         jdbcTemplate.update("DELETE FROM mk_config_history WHERE config_key = ?", KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY);
         jdbcTemplate.update("""
             UPDATE mk_config_item
-               SET config_value = 'false', source = 'PLATFORM_SEED', version = 1, updated_by = 'test-cleanup'
-             WHERE tenant_id = 'SYSTEM' AND config_key = ?
-            """, KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY);
-        jdbcTemplate.update(
-            "DELETE FROM mk_config_history WHERE config_key = ?",
-            KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY);
-        jdbcTemplate.update("""
-            UPDATE mk_config_item
                SET config_value = 'DEBUG', source = 'YML_SEED', version = 1, updated_by = 'test-cleanup'
              WHERE tenant_id = 'SYSTEM' AND config_key = ?
             """, LOG_LEVEL_KEY);
@@ -164,7 +155,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void runtimeFeatureFlagIsBackedByConfigCenterWithoutRestart() throws Exception {
         assertThat(runtimeFlag("graph-projection").enabled()).isFalse();
 
@@ -192,7 +183,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void configListExposesSeededFeatureFlagMetadata() throws Exception {
         mvc.perform(get("/api/v1/system/configs")
                 .queryParam("prefix", "medkernel.runtime.feature-flags"))
@@ -207,7 +198,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void backupPolicyIsBackedByConfigCenterWithoutRestart() throws Exception {
         assertThat(runtimeOperationsService.snapshot().backup().enabled()).isFalse();
 
@@ -229,14 +220,14 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void jwtTtlIsBackedByConfigCenterWithoutRestart() throws Exception {
         patchHighRiskConfig(JWT_TTL_KEY, "120", "验证 JWT TTL 热生效");
 
         JwtDecoder decoder = NimbusJwtDecoder
             .withSecretKey(new SecretKeySpec(DEV_SECRET.getBytes(), "HmacSHA256"))
             .build();
-        Jwt jwt = decoder.decode(jwtIssuer.issue("doctor-1", "t-1", java.util.List.of("clinical-decision-user")));
+        Jwt jwt = decoder.decode(jwtIssuer.issue("doctor-1", "t-1", java.util.List.of("clinical-user")));
 
         assertThat(jwt.getIssuedAt()).isNotNull();
         assertThat(jwt.getExpiresAt()).isNotNull();
@@ -244,7 +235,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void authModeIsBackedByConfigCenterAndRejectsInvalidValue() throws Exception {
         mvc.perform(get("/api/v1/system/configs")
                 .queryParam("prefix", "medkernel.auth."))
@@ -270,7 +261,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void passwordMinLengthCannotBeWeakenedBelowStrongBaseline() throws Exception {
         mvc.perform(patch("/api/v1/system/configs/{key}", AUTH_PASSWORD_MIN_LENGTH_KEY)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -287,7 +278,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void knowledgeLiteratureMaterialRootUriRequiresManagedStorageConfiguration() throws Exception {
         mvc.perform(get("/api/v1/system/configs")
                 .queryParam("prefix", "medkernel.knowledge.literature."))
@@ -357,7 +348,17 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    void obsoleteP6IndependentAcceptanceIsNotSeededAsRuntimeConfiguration() {
+        Integer count = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM mk_config_item WHERE config_key = ?",
+            Integer.class,
+            KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY);
+
+        assertThat(count).isZero();
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void nullableUnconfiguredValueIsReturnedAsEmptyString() throws Exception {
         jdbcTemplate.update("""
             UPDATE mk_config_item
@@ -374,7 +375,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void loggingLevelIsAppliedFromConfigCenterWithoutRestart() throws Exception {
         patchConfig(LOG_LEVEL_KEY, "WARN", "验证日志级别热生效");
 
@@ -383,7 +384,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void highRiskFeatureFlagRequiresSecondConfirmationBeforeUpdate() throws Exception {
         mvc.perform(patch("/api/v1/system/configs/{key}", EXTERNAL_PROVIDER_FLAG_KEY)
                 .with(itOpsWithMfa())
@@ -419,66 +420,35 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    void p6AcceptanceCanOnlyBeEnabledByMfaBoundSystemSuperAdmin() throws Exception {
-        String body = """
-            {
-              "value": "true",
-              "reason": "完成 P6 独立验收并确认正式生产影响",
-              "expectedVersion": 1,
-              "confirmedHighRisk": true
-            }
-            """;
-
-        mvc.perform(patch(
-                "/api/v1/system/configs/{key}",
-                KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY)
-                .with(itOpsWithMfa())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(body))
-            .andExpect(status().isForbidden())
-            .andExpect(jsonPath("$.code").value("ENG-API-004"));
-
-        assertThat(configValue(KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY)).isEqualTo("false");
-
-        mvc.perform(patch(
-                "/api/v1/system/configs/{key}",
-                KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY)
-                .with(systemSuperAdminWithMfa())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(body))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.value").value("true"))
-            .andExpect(jsonPath("$.data.version").value(2));
-    }
-
-    @Test
-    void highRiskConfirmedUpdateRequiresMfaBoundUser() throws Exception {
+    void defaultDisabledMfaAllowsConfirmedHighRiskUpdateWithoutMfaBoundUser() throws Exception {
         mvc.perform(patch("/api/v1/system/configs/{key}", EXTERNAL_PROVIDER_FLAG_KEY)
                 .with(itOpsWithoutMfa())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "value": "true",
-                      "reason": "已确认高危配置影响但未绑定 MFA",
+                      "reason": "默认关闭 MFA 时确认高危配置影响",
                       "expectedVersion": 1,
                       "confirmedHighRisk": true
                     }
                     """))
-            .andExpect(status().isForbidden())
-            .andExpect(jsonPath("$.code").value("ENG-AUTH-010"));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
 
-        assertThat(configValue(EXTERNAL_PROVIDER_FLAG_KEY)).isEqualTo("false");
+        assertThat(configValue(EXTERNAL_PROVIDER_FLAG_KEY)).isEqualTo("true");
     }
 
     @Test
-    void systemSuperAdminStillRequiresMfaBeforeConfirmedHighRiskUpdate() throws Exception {
+    void enabledMfaStillRequiresVerifiedSessionForSystemSuperAdmin() throws Exception {
+        upsertMfaEnabled(true);
+
         mvc.perform(patch("/api/v1/system/configs/{key}", EXTERNAL_PROVIDER_FLAG_KEY)
                 .with(systemSuperAdmin())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "value": "true",
-                      "reason": "内置超管也必须先绑定 MFA",
+                      "reason": "显式开启 MFA 后内置超管也必须完成验证",
                       "expectedVersion": 1,
                       "confirmedHighRisk": true
                     }
@@ -489,8 +459,30 @@ class SystemConfigControllerTest {
         assertThat(configValue(EXTERNAL_PROVIDER_FLAG_KEY)).isEqualTo("false");
     }
 
+    private void upsertMfaEnabled(boolean enabled) {
+        int updated = jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = ?, updated_by = 'test'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, Boolean.toString(enabled), MFA_ENABLED_KEY);
+        if (updated > 0) {
+            return;
+        }
+        jdbcTemplate.update("""
+            INSERT INTO mk_config_item (
+                config_id, tenant_id, config_key, config_value, value_type, display_name,
+                risk_level, owner, description, source, protected_flag, active_flag,
+                version, created_at, created_by, updated_at, updated_by
+            ) VALUES (
+                'cfg-test-mfa-enabled', 'SYSTEM', ?, ?, 'BOOLEAN', '登录 MFA',
+                'HIGH', '平台管理员', '测试 MFA 运行策略。', 'YML_SEED', 'Y', 'Y',
+                1, CURRENT_TIMESTAMP, 'test', CURRENT_TIMESTAMP, 'test'
+            )
+            """, MFA_ENABLED_KEY, Boolean.toString(enabled));
+    }
+
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void configRollbackRestoresPreviousValueAndWritesRollbackHistory() throws Exception {
         patchConfig(GRAPH_FLAG_KEY, "true", "验证配置回滚前置变更");
         assertThat(runtimeFlag("graph-projection").enabled()).isTrue();
@@ -521,7 +513,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void highRiskRollbackRequiresSecondConfirmation() throws Exception {
         patchHighRiskConfig(EXTERNAL_PROVIDER_FLAG_KEY, "true", "先开启高危配置以验证回滚确认");
 
@@ -553,7 +545,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void auditPersistenceFeatureFlagCannotBeDisabledFromConfigCenter() throws Exception {
         mvc.perform(patch("/api/v1/system/configs/{key}", AUDIT_FLAG_KEY)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -595,7 +587,7 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void domesticCryptoFeatureFlagCannotBeDisabledFromConfigCenter() throws Exception {
         mvc.perform(patch("/api/v1/system/configs/{key}", DOMESTIC_CRYPTO_FLAG_KEY)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -674,12 +666,6 @@ class SystemConfigControllerTest {
             .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_SYSTEM_SUPERADMIN"));
     }
 
-    private SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor systemSuperAdminWithMfa() {
-        return SecurityMockMvcRequestPostProcessors.jwt()
-            .jwt(t -> t.subject(MFA_SYSTEM_SUPERADMIN_USER).claim("tenant_id", "t-1"))
-            .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_SYSTEM_SUPERADMIN"));
-    }
-
     private void seedMfaCredential(String userId) {
         if (credentialRepository.findByTenantIdAndUserId("t-1", userId).isPresent()) {
             return;
@@ -705,6 +691,6 @@ class SystemConfigControllerTest {
     private SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor jwtFor(String userId) {
         return SecurityMockMvcRequestPostProcessors.jwt()
             .jwt(t -> t.subject(userId).claim("tenant_id", "t-1"))
-            .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"));
+            .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
     }
 }

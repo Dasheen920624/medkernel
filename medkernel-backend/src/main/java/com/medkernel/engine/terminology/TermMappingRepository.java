@@ -55,7 +55,7 @@ public interface TermMappingRepository extends ListCrudRepository<TermMapping, L
 
     /**
      * 查询给定租户和组织作用域下所有 CONFIRMED 状态映射，
-     * 供 {@link TerminologyKnowledgePackageService#build} 构建统一术语知识包。
+     * 供 {@link TerminologyAssetDraftService#createDraft} 生成不可变术语资产草稿。
      *
      * <p>租户范围读取全部映射；其他组织范围通过组织闭包限定到该祖先节点下的科室。
      */

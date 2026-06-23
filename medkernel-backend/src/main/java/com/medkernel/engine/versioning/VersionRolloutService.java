@@ -221,8 +221,8 @@ public class VersionRolloutService {
         if (isBlank(command.reason())) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "回退原因不能为空");
         }
-        if (!Boolean.TRUE.equals(command.confirmedHighRisk())) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "回退必须完成高风险二次确认");
+        if (!Boolean.TRUE.equals(command.confirmedOperation())) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "执行回退前必须核对版本与影响");
         }
         if (isBlank(command.actor())) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "操作人不能为空");

@@ -117,6 +117,10 @@ describe("QcAlerts", () => {
     expect(screen.getByText("高风险质控问题待闭环：术前记录缺失")).toBeInTheDocument();
     expect(screen.getByText("心内科 · CARDIO")).toBeInTheDocument();
     expect(screen.getByText("trace-alert-p1")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "查看评价结果来源" })).toHaveAttribute(
+      "href",
+      "/qc/eval/results",
+    );
     expect(screen.queryByText("PDCA 质控整改与专家复核中心")).not.toBeInTheDocument();
     expect(screen.queryByText(/TRACE_NOT_FOUND|_TRACE/)).not.toBeInTheDocument();
   });

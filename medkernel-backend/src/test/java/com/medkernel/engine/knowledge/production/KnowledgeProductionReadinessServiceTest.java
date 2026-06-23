@@ -37,12 +37,12 @@ import com.medkernel.shared.context.RequestContext;
 /**
  * 知识生产模型 readiness 闸测试。
  *
- * <p>readiness 只聚合真实前置事实；缺文献根、缺 provider、缺评测、缺出域白名单、缺版本三元组或 P6 未验收均阻断模型生成。
+ * <p>readiness 只聚合真实前置事实；缺文献根、缺 provider、缺评测、缺出域白名单或缺版本三元组均阻断模型生成。
  */
 class KnowledgeProductionReadinessServiceTest {
 
     private static final String TENANT = "tenant-ready";
-    private static final String CAPABILITY = "rule.draft";
+    private static final String CAPABILITY = "knowledge.production.knowledge";
 
     private SystemConfigService configService;
     private DeploymentFormService deploymentFormService;
@@ -90,7 +90,6 @@ class KnowledgeProductionReadinessServiceTest {
     @Test
     void blocksWhenAllFormalProductionPrerequisitesAreMissing() {
         when(configService.runtimeKnowledgeLiteratureMaterialRootUri()).thenReturn("");
-        when(configService.runtimeKnowledgeProductionP6IndependentAcceptance()).thenReturn(false);
         when(deploymentFormService.currentForm()).thenReturn(DeploymentForm.HOSPITAL_RUNTIME);
         when(providerRepository.findByTenantIdAndEnabledFlag(TENANT, "Y")).thenReturn(List.of());
         when(caseRepository.findByTenantIdAndCapabilityCodeAndEnabledFlag(TENANT, CAPABILITY, "Y"))
@@ -106,7 +105,8 @@ class KnowledgeProductionReadinessServiceTest {
         assertThat(response.items()).filteredOn(item -> !item.ready())
             .extracting(KnowledgeProductionReadinessItem::code)
             .contains("LITERATURE_ROOT", "DEPLOYMENT_FORM", "MODEL_PROVIDER", "REGRESSION_BASELINE",
-                "MODEL_EVALUATION", "EGRESS_GOVERNANCE", "VERSION_TRIPLE", "P6_ACCEPTANCE");
+                "MODEL_EVALUATION", "EGRESS_GOVERNANCE", "VERSION_TRIPLE")
+            .doesNotContain("P6_ACCEPTANCE");
     }
 
     @Test
@@ -149,7 +149,6 @@ class KnowledgeProductionReadinessServiceTest {
         ModelProviderConfig provider = disabledProvider("claude-prod", "CLAUDE", "claude-opus-4");
         when(configService.runtimeKnowledgeLiteratureMaterialRootUri())
             .thenReturn("file:///medkernel-data/platform-knowledge/t-1/literature-materials/");
-        when(configService.runtimeKnowledgeProductionP6IndependentAcceptance()).thenReturn(true);
         when(deploymentFormService.currentForm()).thenReturn(DeploymentForm.PRODUCTION_CENTER);
         when(providerRepository.findByTenantIdAndProviderCode(TENANT, "claude-prod"))
             .thenReturn(Optional.of(provider));
@@ -218,7 +217,6 @@ class KnowledgeProductionReadinessServiceTest {
         ModelProviderConfig provider = localProvider("ollama-local", "qwen2.5:7b");
         when(configService.runtimeKnowledgeLiteratureMaterialRootUri())
             .thenReturn("s3://mk/platform-knowledge/t-1/literature-materials/");
-        when(configService.runtimeKnowledgeProductionP6IndependentAcceptance()).thenReturn(true);
         when(deploymentFormService.currentForm()).thenReturn(DeploymentForm.HOSPITAL_RUNTIME);
         when(providerRepository.findByTenantIdAndProviderCode(TENANT, "ollama-local")).thenReturn(Optional.of(provider));
         when(caseRepository.findByTenantIdAndCapabilityCodeAndEnabledFlag(TENANT, CAPABILITY, "Y"))
@@ -247,11 +245,44 @@ class KnowledgeProductionReadinessServiceTest {
     }
 
     @Test
+    void unifiedApiModelAcceptsLocalOllamaWithoutExternalDeploymentOrEgressWhitelist() {
+        ModelProviderConfig provider = localProvider("ollama-local", "qwen2.5:7b");
+        when(configService.runtimeKnowledgeLiteratureMaterialRootUri())
+            .thenReturn("file:///medkernel-data/platform-knowledge/t-1/literature-materials/");
+        when(deploymentFormService.currentForm()).thenReturn(DeploymentForm.HOSPITAL_RUNTIME);
+        when(providerRepository.findByTenantIdAndProviderCode(TENANT, "ollama-local"))
+            .thenReturn(Optional.of(provider));
+        when(caseRepository.findByTenantIdAndCapabilityCodeAndEnabledFlag(TENANT, CAPABILITY, "Y"))
+            .thenReturn(List.of(regressionCase()));
+        when(evalRunRepository
+            .findFirstByTenantIdAndProviderCodeAndModelVersionAndCapabilityCodeAndStatusOrderByIdDesc(
+                TENANT, "ollama-local", "qwen2.5:7b", CAPABILITY, "PASSED"))
+            .thenReturn(Optional.of(evalRun(provider)));
+        when(evalService.isClearedForGoLive(
+            TENANT, "ollama-local", "qwen2.5:7b", CAPABILITY)).thenReturn(true);
+        when(policyRepository.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            TENANT, CAPABILITY, "TENANT", TENANT))
+            .thenReturn(Optional.of(policy("LOCAL_MODEL")));
+        when(versionBundleRepository.findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(
+            TENANT, CAPABILITY, "ACTIVE")).thenReturn(Optional.of(versionBundle(provider.modelVersion())));
+
+        KnowledgeProductionReadinessResponse response = service.evaluate(
+            KnowledgeProducer.API_MODEL,
+            CAPABILITY,
+            "ollama-local");
+
+        assertThat(response.ready()).isTrue();
+        assertThat(response.modelInvocationAllowed()).isTrue();
+        assertThat(response.items()).filteredOn(item -> "EGRESS_GOVERNANCE".equals(item.code()))
+            .singleElement()
+            .satisfies(item -> assertThat(item.message()).contains("本地模型不外调"));
+    }
+
+    @Test
     void blocksPassedEvaluationFromDifferentCapability() {
         ModelProviderConfig provider = localProvider("ollama-local", "qwen2.5:7b");
         when(configService.runtimeKnowledgeLiteratureMaterialRootUri())
             .thenReturn("s3://mk/platform-knowledge/t-1/literature-materials/");
-        when(configService.runtimeKnowledgeProductionP6IndependentAcceptance()).thenReturn(true);
         when(deploymentFormService.currentForm()).thenReturn(DeploymentForm.PRODUCTION_CENTER);
         when(providerRepository.findByTenantIdAndProviderCode(TENANT, "ollama-local"))
             .thenReturn(Optional.of(provider));
@@ -280,7 +311,6 @@ class KnowledgeProductionReadinessServiceTest {
         ModelProviderConfig provider = localProvider("ollama-local", "qwen2.5:7b");
         when(configService.runtimeKnowledgeLiteratureMaterialRootUri())
             .thenReturn("s3://mk/platform-knowledge/t-1/literature-materials/");
-        when(configService.runtimeKnowledgeProductionP6IndependentAcceptance()).thenReturn(true);
         when(deploymentFormService.currentForm()).thenReturn(DeploymentForm.PRODUCTION_CENTER);
         when(providerRepository.findByTenantIdAndProviderCode(TENANT, "ollama-local"))
             .thenReturn(Optional.of(provider));
@@ -316,7 +346,6 @@ class KnowledgeProductionReadinessServiceTest {
         MedicalRegressionCase currentCase = regressionCase("新期望");
         when(configService.runtimeKnowledgeLiteratureMaterialRootUri())
             .thenReturn("s3://mk/platform-knowledge/t-1/literature-materials/");
-        when(configService.runtimeKnowledgeProductionP6IndependentAcceptance()).thenReturn(true);
         when(deploymentFormService.currentForm()).thenReturn(DeploymentForm.PRODUCTION_CENTER);
         when(providerRepository.findByTenantIdAndProviderCode(TENANT, "ollama-local"))
             .thenReturn(Optional.of(provider));
@@ -348,7 +377,6 @@ class KnowledgeProductionReadinessServiceTest {
         ModelProviderConfig provider = provider("private-box", "PRIVATE_BOX", "mk-local-v1");
         when(configService.runtimeKnowledgeLiteratureMaterialRootUri())
             .thenReturn("s3://mk/platform-knowledge/t-1/literature-materials/");
-        when(configService.runtimeKnowledgeProductionP6IndependentAcceptance()).thenReturn(true);
         when(deploymentFormService.currentForm()).thenReturn(DeploymentForm.HOSPITAL_RUNTIME);
         when(providerRepository.findByTenantIdAndProviderCode(TENANT, "private-box")).thenReturn(Optional.of(provider));
         when(caseRepository.findByTenantIdAndCapabilityCodeAndEnabledFlag(TENANT, CAPABILITY, "Y"))
@@ -409,7 +437,6 @@ class KnowledgeProductionReadinessServiceTest {
     private void stubExternalPrerequisites(ModelProviderConfig provider, ModelEgressWhitelist whitelist) {
         when(configService.runtimeKnowledgeLiteratureMaterialRootUri())
             .thenReturn("s3://mk/platform-knowledge/t-1/literature-materials/");
-        when(configService.runtimeKnowledgeProductionP6IndependentAcceptance()).thenReturn(true);
         when(deploymentFormService.currentForm()).thenReturn(DeploymentForm.PRODUCTION_CENTER);
         when(providerRepository.findByTenantIdAndProviderCode(TENANT, provider.providerCode()))
             .thenReturn(Optional.of(provider));
@@ -485,7 +512,7 @@ class KnowledgeProductionReadinessServiceTest {
             capabilityCode, "prompt:v1", "tool:v1", releaseFingerprint,
             1, 1, 0, 100.0, 100.0, "N", "N", "N", "PASSED",
             RegressionBaselineEvidence.toJson(evaluatedCases),
-            "逐例证据已核查并确认可放行。", "reviewer", now, now, "u", now, "u");
+            now, "u", now, "u");
     }
 
     private ModelEgressWhitelist whitelist() {

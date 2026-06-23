@@ -2,7 +2,7 @@
  * CLI 命令域（DATASVC-01 FR-3，规范 §8.5 首版 6 命令域）。
  *
  * 每个命令域只经后端受控合同（受控工具执行入口 / 只读统计端点 / 异步导出端点）取数，**不直连库、不绕治理**。
- * `exports` 走后端经 SYS-06 审批闸控制的异步导出端点，**不绕导出审批、不伪造任务**（铁律 #1）。
+ * `exports` 走后端范围确认与异步导出端点，不伪造任务或文件。
  */
 
 export class CliUsageError extends Error {
@@ -19,7 +19,7 @@ export const DOMAINS = {
   'clinical-signals': '查看脱敏聚合后的临床信号与引擎降级情况',
   agent: '通过受控工具获取公域资料或回写 AI Agent 生产候选',
   privacy: '验证数据分级是否准入数据服务/CLI/MCP',
-  exports: '提交与查看经审批闸控制的异步导出任务（submit/status/list/cancel/complete）',
+  exports: '提交与查看经范围确认保护的异步导出任务（submit/status/list/cancel/complete）',
   diagnostics: '检查服务连通、受控工具目录与状态',
 };
 
@@ -132,11 +132,11 @@ export async function runCommand(client, domain, action, positional = [], option
           throw new CliUsageError(`privacy 不支持的动作：${action || '(空)'}（可用：validate）`);
       }
     case 'exports':
-      // 走后端经 SYS-06 审批闸控制的异步导出端点；CLI 不直连库、不绕导出审批、不伪造任务（铁律 #1）。
+      // CLI 只使用后端已冻结的导出范围，不直连数据库、不伪造任务或文件。
       switch (action) {
         case 'submit': {
           const exportType = requireArg(positional, 'exportType');
-          const approvalId = requireArgAt(positional, 1, 'approvalId');
+          const confirmationId = requireArgAt(positional, 1, 'confirmationId');
           const idempotencyKey = requireArgAt(positional, 2, 'idempotencyKey');
           const windowDays = options.windowDays == null ? 0 : Number(options.windowDays);
           return {
@@ -145,7 +145,7 @@ export async function runCommand(client, domain, action, positional = [], option
             result: await client.post('/api/v1/engine-data/exports', {
               exportType,
               windowDays,
-              approvalId,
+              confirmationId,
               idempotencyKey,
             }),
           };
@@ -169,14 +169,14 @@ export async function runCommand(client, domain, action, positional = [], option
             ),
           };
         case 'complete': {
-          // 登记导出完成走合规导出审批端点（audit.export，服务端鉴权）；CLI 不绕审批。
-          const approvalId = requireArg(positional, 'approvalId');
+          // 登记导出完成走合规导出确认端点，由服务端核验真实任务产物。
+          const confirmationId = requireArg(positional, 'confirmationId');
           const jobCode = requireArgAt(positional, 1, 'jobCode');
           return {
             domain,
             action,
             result: await client.post(
-              `/api/v1/compliance/exports/${encodeURIComponent(approvalId)}:complete-from-job`,
+              `/api/v1/compliance/exports/${encodeURIComponent(confirmationId)}:complete-from-job`,
               { jobId: jobCode, reason: options.reason || `CLI 登记导出完成 ${jobCode}` },
             ),
           };

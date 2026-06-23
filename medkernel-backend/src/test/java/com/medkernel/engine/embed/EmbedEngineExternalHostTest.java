@@ -64,7 +64,7 @@ class EmbedEngineExternalHostTest {
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(
                 "doctor-1", null, List.of(
-                    new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))));
+                    new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))));
     }
 
     @AfterEach
@@ -79,7 +79,7 @@ class EmbedEngineExternalHostTest {
         when(tokenRepo.save(any(EmbedLaunchToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         EmbedLaunchTokenResponse response = service.generateToken(new EmbedLaunchTokenRequest(
-            "clinical-decision-user",
+            "clinical-user",
             "MPI-1001",
             "ENC-2001",
             "patient-view",
@@ -100,7 +100,7 @@ class EmbedEngineExternalHostTest {
             .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.generateToken(new EmbedLaunchTokenRequest(
-            "clinical-decision-user",
+            "clinical-user",
             "MPI-1001",
             "ENC-2001",
             "patient-view",
@@ -120,7 +120,7 @@ class EmbedEngineExternalHostTest {
         allowTrustedOrigin();
 
         assertThatThrownBy(() -> service.generateToken(new EmbedLaunchTokenRequest(
-            "quality-governor",
+            "engine-operator",
             "MPI-1001",
             "ENC-2001",
             "patient-view",
@@ -232,7 +232,7 @@ class EmbedEngineExternalHostTest {
             TOKEN,
             "tenant-1",
             "doctor-1",
-            "clinical-decision-user",
+            "clinical-user",
             "MPI-1001",
             "ENC-2001",
             "patient-view",

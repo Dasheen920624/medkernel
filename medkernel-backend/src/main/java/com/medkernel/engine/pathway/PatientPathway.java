@@ -9,7 +9,8 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 患者路径运行实例。
  *
- * <p>保存患者、就诊、模板、当前节点、运行状态、入径时间、完成/退出时间和最后事件 ID。
+ * <p>保存患者、就诊、入径时医院运行修订、精确路径版本、模板、当前节点、运行状态、
+ * 入径时间、完成/退出时间和最后事件 ID。运行修订和路径版本在实例生命周期内不可改变。
  */
 @Table("patient_pathway")
 public record PatientPathway(
@@ -19,6 +20,8 @@ public record PatientPathway(
     @Column("patient_id") String patientId,
     @Column("encounter_id") String encounterId,
     @Column("template_id") String templateId,
+    @Column("runtime_release_id") String runtimeReleaseId,
+    @Column("pathway_version_id") String pathwayVersionId,
     @Column("current_node_code") String currentNodeCode,
     PatientPathwayStatus status,
     @Column("entered_at") Instant enteredAt,

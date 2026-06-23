@@ -18,7 +18,6 @@ const GATE_CODES = [
   "EGRESS_GOVERNANCE",
   "MODEL_POLICY",
   "VERSION_TRIPLE",
-  "P6_ACCEPTANCE",
 ];
 
 describe("ProductionReadinessPanel", () => {
@@ -40,7 +39,7 @@ describe("ProductionReadinessPanel", () => {
     } as never);
   });
 
-  it("renders all nine server-backed gates in production order", () => {
+  it("renders all eight server-backed technical gates in production order", () => {
     render(<ProductionReadinessPanel />);
 
     const labels = [
@@ -52,15 +51,16 @@ describe("ProductionReadinessPanel", () => {
       "6. 出域治理",
       "7. 模型策略",
       "8. 版本三元组",
-      "9. P6 独立验收",
     ];
     labels.forEach((label) => expect(screen.getByText(label)).toBeInTheDocument());
     expect(screen.getByText(/file:\/\/\/medkernel-data\//)).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "前往处理" })).toHaveLength(8);
+    expect(screen.getAllByRole("link", { name: "前往处理" })).toHaveLength(7);
     expect(
       screen
         .getAllByRole("link", { name: "前往处理" })
         .some((link) => link.getAttribute("href") === "/knowledge/production?step=provider"),
     ).toBe(true);
+    expect(screen.getAllByText(/责任角色：医疗引擎运营员/)).toHaveLength(8);
+    expect(screen.queryByText(/专家|集成运维员|平台治理管理员/)).not.toBeInTheDocument();
   });
 });

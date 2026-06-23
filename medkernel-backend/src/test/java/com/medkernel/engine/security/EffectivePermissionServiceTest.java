@@ -1,8 +1,5 @@
 package com.medkernel.engine.security;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -13,235 +10,119 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import com.medkernel.shared.context.OrgScope;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 class EffectivePermissionServiceTest {
 
-    private final RolePermissionOverrideRepository rolePermissionRepository =
-        Mockito.mock(RolePermissionOverrideRepository.class);
     private final UserRoleAssignmentRepository userRoleAssignmentRepository =
         Mockito.mock(UserRoleAssignmentRepository.class);
-    private final EmergencyPermissionGrantRepository emergencyGrantRepository =
-        Mockito.mock(EmergencyPermissionGrantRepository.class);
-    private final Clock clock = Clock.fixed(Instant.parse("2026-05-31T12:00:00Z"), ZoneOffset.UTC);
     private final EffectivePermissionService service =
-        new EffectivePermissionService(
-            rolePermissionRepository,
-            userRoleAssignmentRepository,
-            emergencyGrantRepository,
-            clock);
+        new EffectivePermissionService(userRoleAssignmentRepository);
 
     @Test
-    void tenantOverrideCanDenyDefaultPermissionAndAllowExtraPermission() {
-        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
-            .thenReturn(List.of());
-        when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
-            .thenReturn(List.of(
-                override("t-1", RoleCode.CLINICAL_DECISION_USER, PermissionCode.RECOMMENDATION_ACCEPT, PermissionEffect.DENY),
-                override("t-1", RoleCode.CLINICAL_DECISION_USER, PermissionCode.AUDIT_READ, PermissionEffect.ALLOW),
-                override("t-1", RoleCode.CLINICAL_DECISION_USER, PermissionCode.MENU_ADMIN_AUDIT, PermissionEffect.ALLOW)
-            ));
+    void userRoleAssignmentsAreMergedWithJwtRolesInsideAssignedScope() {
+        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "user-1"))
+            .thenReturn(List.of(assignment(
+                "t-1", "user-1", RoleCode.ENGINE_OPERATOR, "DEPARTMENT", "oncology")));
 
-        var profile = service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), OrgScope.tenant("t-1"), "doctor-1");
-
-        assertThat(profile.permissionCodes())
-            .contains(PermissionCode.RECOMMENDATION_READ.code(), PermissionCode.AUDIT_READ.code())
-            .doesNotContain(PermissionCode.RECOMMENDATION_ACCEPT.code());
-        assertThat(profile.menuKeys()).contains("cdss-fatigue", "admin-audit");
-    }
-
-    @Test
-    void explicitDenyWinsWhenEffectiveRolesContainConflictingOverrides() {
-        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
-            .thenReturn(List.of(assignment("t-1", "doctor-1", RoleCode.QUALITY_GOVERNOR)));
-        when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
-            .thenReturn(List.of(
-                override("t-1", RoleCode.CLINICAL_DECISION_USER, PermissionCode.AUDIT_EXPORT, PermissionEffect.DENY),
-                override("t-1", RoleCode.QUALITY_GOVERNOR, PermissionCode.AUDIT_EXPORT, PermissionEffect.ALLOW)
-            ));
-
-        var profile = service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), OrgScope.tenant("t-1"), "doctor-1");
-
-        assertThat(profile.permissionCodes()).doesNotContain(PermissionCode.AUDIT_EXPORT.code());
-    }
-
-    @Test
-    void userRoleAssignmentsAreMergedWithJwtRolesInsideTenant() {
-        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
-            .thenReturn(List.of(assignment("t-1", "doctor-1", RoleCode.QUALITY_GOVERNOR)));
-        when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
-            .thenReturn(List.of());
-
-        var profile = service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), OrgScope.tenant("t-1"), "doctor-1");
+        var scope = new OrgScope(
+            "t-1", "group-1", "hospital-1", null, null, "oncology", null, null);
+        var profile = service.resolve(auth("user-1", RoleCode.CLINICAL_USER), scope, "user-1");
 
         assertThat(profile.roleCodes())
-            .containsExactlyInAnyOrder(RoleCode.CLINICAL_DECISION_USER.code(), RoleCode.QUALITY_GOVERNOR.code());
+            .containsExactlyInAnyOrder(RoleCode.CLINICAL_USER.code(), RoleCode.ENGINE_OPERATOR.code());
         assertThat(profile.permissionCodes())
-            .contains(PermissionCode.RECOMMENDATION_ACCEPT.code(), PermissionCode.EVALUATION_PUBLISH.code());
+            .contains(PermissionCode.RECOMMENDATION_ACCEPT.code(), PermissionCode.KNOWLEDGE_PUBLISH.code());
     }
 
     @Test
-    void scopedRoleAssignmentDoesNotGrantPermissionsOutsideCurrentDepartment() {
-        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
-            .thenReturn(List.of(assignment("t-1", "doctor-1", RoleCode.QUALITY_GOVERNOR, "DEPARTMENT", "oncology")));
-        when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
-            .thenReturn(List.of());
+    void scopedRoleAssignmentDoesNotGrantPermissionsOutsideAssignedDepartment() {
+        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "user-1"))
+            .thenReturn(List.of(assignment(
+                "t-1", "user-1", RoleCode.ENGINE_OPERATOR, "DEPARTMENT", "oncology")));
 
-        var cardiologyScope = new OrgScope("t-1", null, "hospital-1", null, null, "cardiology", null);
-        var profile = service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), cardiologyScope, "doctor-1");
+        var scope = new OrgScope(
+            "t-1", "group-1", "hospital-1", null, null, "cardiology", null, null);
+        var profile = service.resolve(auth("user-1", RoleCode.CLINICAL_USER), scope, "user-1");
 
-        assertThat(profile.roleCodes()).doesNotContain(RoleCode.QUALITY_GOVERNOR.code());
-        assertThat(profile.permissionCodes()).doesNotContain(PermissionCode.EVALUATION_PUBLISH.code());
+        assertThat(profile.roleCodes()).containsExactly(RoleCode.CLINICAL_USER.code());
+        assertThat(profile.permissionCodes()).doesNotContain(PermissionCode.KNOWLEDGE_PUBLISH.code());
     }
 
     @Test
     void wardScopedRoleOnlyAppliesInsideAssignedWard() {
-        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
-            .thenReturn(List.of(assignment("t-1", "doctor-1", RoleCode.QUALITY_GOVERNOR, "WARD", "ward-a")));
-        when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
-            .thenReturn(List.of());
+        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "user-1"))
+            .thenReturn(List.of(assignment(
+                "t-1", "user-1", RoleCode.AUDITOR, "WARD", "ward-a")));
 
         var assignedWard = new OrgScope(
-            "t-1", null, "hospital-1", null, null, "cardiology", "ward-a", null);
+            "t-1", "group-1", "hospital-1", null, null, "cardiology", "ward-a", null);
         var anotherWard = new OrgScope(
-            "t-1", null, "hospital-1", null, null, "cardiology", "ward-b", null);
+            "t-1", "group-1", "hospital-1", null, null, "cardiology", "ward-b", null);
 
-        assertThat(service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), assignedWard, "doctor-1").roleCodes())
-            .contains(RoleCode.QUALITY_GOVERNOR.code());
-        assertThat(service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), anotherWard, "doctor-1").roleCodes())
-            .doesNotContain(RoleCode.QUALITY_GOVERNOR.code());
+        assertThat(service.resolve(auth("user-1", RoleCode.CLINICAL_USER), assignedWard, "user-1").roleCodes())
+            .contains(RoleCode.AUDITOR.code());
+        assertThat(service.resolve(auth("user-1", RoleCode.CLINICAL_USER), anotherWard, "user-1").roleCodes())
+            .doesNotContain(RoleCode.AUDITOR.code());
     }
 
     @Test
-    void clinicalDoctorOnlyReceivesClinicalNavigationRatherThanConfigurationOrAdvancedTools() {
+    void clinicalUserReceivesClinicalNavigationWithoutAdministrationPages() {
         when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
             .thenReturn(List.of());
-        when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
-            .thenReturn(List.of());
 
-        var profile = service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), OrgScope.tenant("t-1"), "doctor-1");
+        var profile = service.resolve(
+            auth("doctor-1", RoleCode.CLINICAL_USER),
+            OrgScope.tenant("t-1"),
+            "doctor-1");
 
         assertThat(profile.menuKeys())
             .contains("workbench", "mpi", "patient-pathways", "cdss-fatigue")
-            .doesNotContain("pilot-setup", "quality-improve", "advanced-tools");
+            .doesNotContain("tenant-onboarding", "admin-users", "admin-audit");
     }
 
     @Test
-    void integrationExecutionPermissionDoesNotExposeUnrelatedQualityNavigation() {
-        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
+    void platformAdministrationDoesNotAcquireEnginePublishingOrEmergencyPermissions() {
+        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "admin-1"))
             .thenReturn(List.of());
-        when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
-            .thenReturn(List.of());
-
-        var profile = service.resolve(auth(RoleCode.INTEGRATION_OPERATOR), OrgScope.tenant("t-1"), "doctor-1");
-
-        assertThat(profile.permissionCodes()).contains(PermissionCode.EVALUATION_EXECUTE.code());
-        assertThat(profile.menuKeys())
-            .contains("adapter-hub", "system-providers")
-            .doesNotContain("qc-dashboard");
-    }
-
-    @Test
-    void activeEmergencyGrantAddsEmergencyEnvironmentUntilItExpires() {
-        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
-            .thenReturn(List.of());
-        when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
-            .thenReturn(List.of());
-        when(emergencyGrantRepository.findActiveByTenantIdAndUserIdAndPermissionCode(
-                "t-1",
-                "doctor-1",
-                PermissionCode.ENV_EMERGENCY.code(),
-                clock.instant()))
-            .thenReturn(List.of(grant("t-1", "doctor-1", clock.instant().plusSeconds(1800))));
-
-        var profile = service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), OrgScope.tenant("t-1"), "doctor-1");
-
-        assertThat(profile.permissionCodes()).contains(PermissionCode.ENV_EMERGENCY.code());
-        assertThat(profile.environmentKeys()).contains("production", "emergency");
-    }
-
-    @Test
-    void missingEmergencyGrantDoesNotExposeEmergencyEnvironment() {
-        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "doctor-1"))
-            .thenReturn(List.of());
-        when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
-            .thenReturn(List.of());
-        when(emergencyGrantRepository.findActiveByTenantIdAndUserIdAndPermissionCode(
-                "t-1",
-                "doctor-1",
-                PermissionCode.ENV_EMERGENCY.code(),
-                clock.instant()))
-            .thenReturn(List.of());
-
-        var profile = service.resolve(auth(RoleCode.CLINICAL_DECISION_USER), OrgScope.tenant("t-1"), "doctor-1");
-
-        assertThat(profile.permissionCodes()).doesNotContain(PermissionCode.ENV_EMERGENCY.code());
-        assertThat(profile.environmentKeys()).contains("production").doesNotContain("emergency");
-    }
-
-    @Test
-    void systemSuperAdminUsesRbacAndCannotBeDowngradedByTenantDenyOverrides() {
-        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "system-superadmin-1"))
-            .thenReturn(List.of());
-        when(rolePermissionRepository.findByTenantIdAndRoleCodes(eq("t-1"), anyCollection()))
-            .thenReturn(List.of(
-                override("t-1", "system-superadmin", PermissionCode.SYSTEM_MANAGE, PermissionEffect.DENY),
-                override("t-1", "system-superadmin", PermissionCode.MENU_SECURITY_BASELINE, PermissionEffect.DENY),
-                override("t-1", "system-superadmin", PermissionCode.ENV_EMERGENCY, PermissionEffect.DENY)
-            ));
 
         var profile = service.resolve(
-            auth("system-superadmin-1", "ROLE_SYSTEM_SUPERADMIN"),
+            auth("admin-1", RoleCode.PLATFORM_ADMIN),
             OrgScope.tenant("t-1"),
-            "system-superadmin-1");
+            "admin-1");
 
-        assertThat(profile.roleCodes()).containsExactly("system-superadmin");
+        assertThat(profile.permissionCodes())
+            .contains(PermissionCode.TENANT_WRITE.code(), PermissionCode.SYSTEM_MANAGE.code())
+            .doesNotContain(
+                PermissionCode.KNOWLEDGE_PUBLISH.code(),
+                PermissionCode.EVALUATION_PUBLISH.code(),
+                PermissionCode.ENV_EMERGENCY.code());
+    }
+
+    @Test
+    void systemSuperAdminAlwaysUsesBuiltInCompletePermissionBundle() {
+        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "root-1"))
+            .thenReturn(List.of());
+
+        var profile = service.resolve(
+            auth("root-1", RoleCode.SYSTEM_SUPERADMIN),
+            OrgScope.tenant("t-1"),
+            "root-1");
+
+        assertThat(profile.roleCodes()).containsExactly(RoleCode.SYSTEM_SUPERADMIN.code());
         assertThat(profile.permissionCodes())
             .contains(
                 PermissionCode.SYSTEM_MANAGE.code(),
                 PermissionCode.MENU_SECURITY_BASELINE.code(),
                 PermissionCode.ENV_EMERGENCY.code());
-        assertThat(profile.mfaRequired()).isTrue();
+        assertThat(profile.mfaRequired()).isFalse();
     }
 
-    private UsernamePasswordAuthenticationToken auth(RoleCode role) {
-        return auth("doctor-1", role.authority());
-    }
-
-    private UsernamePasswordAuthenticationToken auth(String userId, String authority) {
-        return new UsernamePasswordAuthenticationToken(userId, "n/a", List.of(new SimpleGrantedAuthority(authority)));
-    }
-
-    private RolePermissionOverride override(
-            String tenantId,
-            RoleCode role,
-            PermissionCode permission,
-            PermissionEffect effect) {
-        return override(tenantId, role.code(), permission, effect);
-    }
-
-    private RolePermissionOverride override(
-            String tenantId,
-            String roleCode,
-            PermissionCode permission,
-            PermissionEffect effect) {
-        return new RolePermissionOverride(
-            null,
-            tenantId,
-            roleCode,
-            permission.code(),
-            effect,
-            null,
-            "test",
-            null,
-            "test"
-        );
-    }
-
-    private UserRoleAssignment assignment(String tenantId, String userId, RoleCode role) {
-        return assignment(tenantId, userId, role, "TENANT", tenantId);
+    private UsernamePasswordAuthenticationToken auth(String userId, RoleCode role) {
+        return new UsernamePasswordAuthenticationToken(
+            userId,
+            "n/a",
+            List.of(new SimpleGrantedAuthority(role.authority())));
     }
 
     private UserRoleAssignment assignment(
@@ -261,27 +142,6 @@ class EffectivePermissionServiceTest {
             null,
             "test",
             null,
-            "test"
-        );
-    }
-
-    private EmergencyPermissionGrant grant(String tenantId, String userId, Instant expiresAt) {
-        return new EmergencyPermissionGrant(
-            null,
-            tenantId,
-            userId,
-            PermissionCode.ENV_EMERGENCY.code(),
-            "抢救高危患者需要临时访问应急环境",
-            "chief-1",
-            clock.instant(),
-            expiresAt,
-            null,
-            null,
-            "Y",
-            clock.instant(),
-            "chief-1",
-            clock.instant(),
-            "chief-1"
-        );
+            "test");
     }
 }

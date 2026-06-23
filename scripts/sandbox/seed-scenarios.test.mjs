@@ -1,17 +1,71 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { loadScenarioRules } from "./scenario-rules.mjs";
 import {
   buildCanonicalResources,
-  deriveSandboxPackageVersion,
+  deriveSandboxRuntimeDigest,
+  resolveSandboxEvidenceDir,
+  resolveSandboxAccounts,
+  RULE_GOVERNANCE_STAGES,
+  SANDBOX_ACTOR_ROLES,
 } from "./seed-scenarios.mjs";
 
 const manifest = await loadScenarioRules();
 
-test("配置包版本由演练规则清单内容稳定派生", () => {
-  const first = deriveSandboxPackageVersion(manifest);
-  const second = deriveSandboxPackageVersion(structuredClone(manifest));
+test("演练只使用四个可分配职责并遵循无会签的规则发布链", () => {
+  assert.deepEqual(RULE_GOVERNANCE_STAGES, [
+    "DRAFT",
+    "REVIEWED",
+    "SHADOW",
+    "CANARY",
+    "FULL",
+    "MONITOR",
+  ]);
+  assert.deepEqual(
+    [...new Set(Object.values(SANDBOX_ACTOR_ROLES))].sort(),
+    ["auditor", "engine-operator", "platform-admin"].sort(),
+  );
+});
+
+test("沙盘证据只写运行时目录且拒绝回写仓库", () => {
+  assert.equal(
+    resolveSandboxEvidenceDir(
+      { MEDKERNEL_RUNTIME_ROOT: "/var/lib/medkernel" },
+      "/workspace/medkernel",
+    ),
+    "/var/lib/medkernel/evidence/current-launch/sandbox",
+  );
+  assert.throws(
+    () =>
+      resolveSandboxEvidenceDir(
+        {
+          DRILL_EVIDENCE_DIR:
+            "/workspace/medkernel/tmp/forbidden-evidence/sandbox",
+        },
+        "/workspace/medkernel",
+      ),
+    /必须位于代码仓库之外/u,
+  );
+});
+
+test("沙盘只读取统一上线凭据中的演练机构四职责", () => {
+  const credentials = canonicalCredentials();
+  const accounts = resolveSandboxAccounts(credentials);
+
+  assert.equal(accounts["platform-admin"].tenantId, "t-rehearsal");
+  assert.equal(accounts["engine-operator"].role, "engine-operator");
+  assert.equal(accounts.auditor.username, "auditor");
+  assert.throws(
+    () => resolveSandboxAccounts({ roleAccounts: {} }),
+    /旧凭据字段|schemaVersion/u,
+  );
+});
+
+test("医院运行修订清单摘要由演练规则清单内容稳定派生", () => {
+  const first = deriveSandboxRuntimeDigest(manifest);
+  const second = deriveSandboxRuntimeDigest(structuredClone(manifest));
 
   assert.match(first, /^sandbox-[a-f0-9]{16}$/u);
   assert.equal(second, first);
@@ -19,7 +73,17 @@ test("配置包版本由演练规则清单内容稳定派生", () => {
 
   const changed = structuredClone(manifest);
   changed.scenarios[0].changeSummary += "（变更）";
-  assert.notEqual(deriveSandboxPackageVersion(changed), first);
+  assert.notEqual(deriveSandboxRuntimeDigest(changed), first);
+});
+
+test("沙盘演练脚本不再创建或发布旧容器", async () => {
+  const source = await readFile(new URL("./seed-scenarios.mjs", import.meta.url), "utf8");
+
+  assert.equal(source.includes("/engine/pkg"), false);
+  assert.equal(source.includes("package_version"), false);
+  assert.equal(source.includes("packageVersion"), false);
+  assert.equal(source.includes("packageCode"), false);
+  assert.equal(source.includes("packageId"), false);
 });
 
 test("全部四十个测试样例都能规范化为完整的十三类标准资源容器", () => {
@@ -86,3 +150,44 @@ test("缺字段样例使用非匹配占位值通过 DTO 校验且不伪造医学
   );
   assert.equal(buildCanonicalResources(recordCase).patient.birthDate, null);
 });
+
+function canonicalCredentials() {
+  const account = (tenantId, role) => ({
+    tenantId,
+    userId: role,
+    username: role,
+    displayName: role,
+    role,
+    assignable: true,
+    password: "controlled-password",
+  });
+  const accounts = (tenantId) => ({
+    "platform-admin": account(tenantId, "platform-admin"),
+    "engine-operator": account(tenantId, "engine-operator"),
+    "clinical-user": account(tenantId, "clinical-user"),
+    auditor: account(tenantId, "auditor"),
+  });
+  return {
+    schemaVersion: "1.0.0",
+    status: "READY",
+    generatedAt: "2026-06-22T08:00:00.000Z",
+    platform: {
+      tenantId: "t-1",
+      takeover: {
+        tenantId: "t-1",
+        userId: "system-takeover",
+        username: "system-takeover",
+        displayName: "system-superadmin",
+        role: "system-superadmin",
+        assignable: false,
+        password: "controlled-password",
+      },
+      accounts: accounts("t-1"),
+    },
+    rehearsal: {
+      tenantId: "t-rehearsal",
+      tenantName: "完整上线演练机构",
+      accounts: accounts("t-rehearsal"),
+    },
+  };
+}

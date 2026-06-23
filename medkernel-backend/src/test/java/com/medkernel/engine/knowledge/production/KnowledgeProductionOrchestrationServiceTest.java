@@ -173,8 +173,8 @@ class KnowledgeProductionOrchestrationServiceTest {
             envelope(CUSTOMER, VersionedAssetType.KNOWLEDGE), new MaterializationTarget(5L, null));
 
         assertThat(resp.candidateRef()).isEqualTo("staged:discovery:SRC:v1:a");
-        assertThat(resp.routing().ownerReviewerRole())
-            .isEqualTo(com.medkernel.engine.security.RoleCode.KNOWLEDGE_GOVERNOR); // overlay→机构归口
+        assertThat(resp.routing().reviewerRole())
+            .isEqualTo(com.medkernel.engine.security.RoleCode.ENGINE_OPERATOR); // overlay→机构归口
         verify(candidateIntake).intake(any(), any(), any(), any());
         ArgumentCaptor<KnowledgeProductionJob> saved = ArgumentCaptor.forClass(KnowledgeProductionJob.class);
         verify(jobRepository).save(saved.capture());
@@ -225,8 +225,8 @@ class KnowledgeProductionOrchestrationServiceTest {
             envelope(PlatformTenant.ID, VersionedAssetType.KNOWLEDGE), new MaterializationTarget(5L, null));
 
         assertThat(resp.candidateRef()).isEqualTo("platform:knowledge:1");
-        assertThat(resp.routing().ownerReviewerRole())
-            .isEqualTo(com.medkernel.engine.security.RoleCode.PLATFORM_KNOWLEDGE_GOVERNOR);
+        assertThat(resp.routing().reviewerRole())
+            .isEqualTo(com.medkernel.engine.security.RoleCode.ENGINE_OPERATOR);
         verify(candidateIntake).intake(any(), any(), any(), any());
     }
 
@@ -376,9 +376,8 @@ class KnowledgeProductionOrchestrationServiceTest {
         assertThat(views.total()).isEqualTo(21);
         assertThat(views.hasNext()).isTrue();
         assertThat(views.items().get(0).candidateRef()).isEqualTo("staged:x");
-        assertThat(views.items().get(0).routing().requiresDualSign()).isTrue(); // HIGH→双签
-        assertThat(views.items().get(0).routing().ownerReviewerRole())
-            .isEqualTo(com.medkernel.engine.security.RoleCode.KNOWLEDGE_GOVERNOR);
+        assertThat(views.items().get(0).routing().reviewerRole())
+            .isEqualTo(com.medkernel.engine.security.RoleCode.ENGINE_OPERATOR);
         verify(candidateRepository).countByTenantIdAndJobCode(CUSTOMER, "job-1");
         verify(candidateRepository).pageByTenantIdAndJobCode(CUSTOMER, "job-1", 0, 20);
     }

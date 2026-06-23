@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -36,18 +37,23 @@ class CdsHookContractTest {
     private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
 
     @Test
+    void liveRequestDoesNotExposePackageSelection() {
+        assertThat(Arrays.stream(CdsHookRequest.class.getRecordComponents())
+            .map(component -> component.getName()))
+            .doesNotContain("packageId", "packageCode", "packageVersion");
+    }
+
+    @Test
     void requestNormalizesVersionAndChecksHookRequiredContextFields() {
         ObjectNode context = JsonNodeFactory.instance.objectNode()
             .put("patientId", "MPI-1")
-            .put("encounterId", "ENC-1")
-            .put("packageVersion", "pkg-2026.06");
+            .put("encounterId", "ENC-1");
         context.set("orders", JsonNodeFactory.instance.arrayNode());
         CdsHookRequest request = new CdsHookRequest(
             ClinicalEventTriggerPoint.ORDER_SIGN,
             "hook-order-001",
             "MPI-1",
             "ENC-1",
-            "pkg-2026.06",
             "HIS",
             context,
             null,
@@ -61,7 +67,6 @@ class CdsHookContractTest {
             "hook-med-001",
             "MPI-1",
             "ENC-1",
-            "pkg-2026.06",
             "HIS",
             context,
             null,
@@ -89,7 +94,6 @@ class CdsHookContractTest {
             "ENC-1",
             ClinicalSetting.INPATIENT,
             "HIS",
-            "pkg-2026.06",
             ClinicalEventTriggerPoint.ORDER_SIGN,
             "hook-order-001",
             null,
@@ -172,9 +176,11 @@ class CdsHookContractTest {
                 "discharge-sign",
                 "followup-alert");
         assertThat(ClinicalEventTriggerPoint.MEDICATION_PRESCRIBE.requiredContextFields())
-            .contains("patientId", "encounterId", "packageVersion", "medications");
+            .contains("patientId", "encounterId", "medications")
+            .doesNotContain("packageId", "packageVersion");
         assertThat(ClinicalEventTriggerPoint.FOLLOWUP_ALERT.requiredContextFields())
-            .contains("patientId", "packageVersion", "followupPlanId");
+            .contains("patientId", "followupPlanId")
+            .doesNotContain("packageId", "packageVersion");
     }
 
     @SuppressWarnings("unused")

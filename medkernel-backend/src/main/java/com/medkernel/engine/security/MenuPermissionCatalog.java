@@ -10,7 +10,7 @@ import static com.medkernel.engine.security.PermissionCode.MENU_KNOWLEDGE_GOVERN
 import static com.medkernel.engine.security.PermissionCode.MENU_ADAPTER_HUB;
 import static com.medkernel.engine.security.PermissionCode.MENU_CDSS_FATIGUE;
 import static com.medkernel.engine.security.PermissionCode.MENU_CLINICAL_FOLLOWUP;
-import static com.medkernel.engine.security.PermissionCode.MENU_CONFIG_PACKAGES;
+import static com.medkernel.engine.security.PermissionCode.MENU_RUNTIME_RELEASES;
 import static com.medkernel.engine.security.PermissionCode.MENU_DEV_CONSOLE;
 import static com.medkernel.engine.security.PermissionCode.MENU_DIAGNOSIS_KNOWLEDGE;
 import static com.medkernel.engine.security.PermissionCode.MENU_DOMESTIC_CHECK;
@@ -59,8 +59,8 @@ public final class MenuPermissionCatalog {
             MENU_INSTITUTION_KNOWLEDGE, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "diagnosis-knowledge", "诊断知识维护",
             MENU_DIAGNOSIS_KNOWLEDGE, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "config-packages", "配置包与发布",
-            MENU_CONFIG_PACKAGES, MenuPlacement.PRIMARY),
+        menu("knowledge-governance", "runtime-releases", "运行发布",
+            MENU_RUNTIME_RELEASES, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "terminology-mapping", "术语与字典",
             MENU_TERMINOLOGY_MAPPING, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "rule-definitions", "规则配置",

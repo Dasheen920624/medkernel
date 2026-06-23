@@ -128,7 +128,7 @@ describe("InsuranceAudit", () => {
               snapshotId,
               status: "ACTIVE",
               resources: {},
-              packageVersion: "2026.1",
+              runtimeReleaseId: "runtime-release-ins",
               qualityStatus: "VALID",
               missingFields: [],
               mappingStatus: {},
@@ -286,7 +286,6 @@ describe("InsuranceAudit", () => {
         expect.objectContaining({
           contextSnapshotId: "snapshot-ins",
           scenarioCode: "A9",
-          packageVersion: "2026.1",
           responsibleDepartmentId: "dept-insurance",
         }),
       );

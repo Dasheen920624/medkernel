@@ -23,7 +23,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * SVC-PILOT-01 服务包对外 HTTP 契约测试。
+ * SVC-PILOT-01 服务对外 HTTP 契约测试。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -121,8 +121,8 @@ class TenantEngineControllerContractTest {
         return jwt().jwt(token -> token
                 .subject("implementer")
                 .claim("tenant_id", "tenant-A")
-                .claim("roles", List.of("organization-admin")))
-            .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"));
+                .claim("roles", List.of("platform-admin")))
+            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
     }
 
 }

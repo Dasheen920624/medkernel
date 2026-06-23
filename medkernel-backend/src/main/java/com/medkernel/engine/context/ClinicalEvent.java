@@ -25,7 +25,7 @@ public record ClinicalEvent(
     @Column("encounter_id") String encounterId,
     @Column("clinical_setting") ClinicalSetting clinicalSetting,
     @Column("source_system") String sourceSystem,
-    @Column("package_version") String packageVersion,
+    @Column("runtime_release_id") String runtimeReleaseId,
     @Column("payload_digest") String payloadDigest,
     @Column("occurred_at") Instant occurredAt,
     @Column("received_at") Instant receivedAt,

@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * SVC-QUALITY-02 病案医保服务包 API。
+ * SVC-QUALITY-02 病案医保服务 API。
  *
  * <p>提供病案内涵质控、DRG/DIP 入组核对与医保审核三个确定性 B0 入口。
  */

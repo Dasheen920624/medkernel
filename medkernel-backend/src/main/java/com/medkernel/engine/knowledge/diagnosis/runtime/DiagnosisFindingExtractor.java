@@ -28,30 +28,46 @@ public class DiagnosisFindingExtractor {
         this.port = port;
     }
 
-    public ExtractedFindings extract(String tenantId, ContextSnapshotResources r) {
+    public ExtractedFindings extract(
+            String tenantId,
+            String runtimeReleaseId,
+            ContextSnapshotResources r) {
         Set<String> normalized = new LinkedHashSet<>();
         List<String> unmapped = new ArrayList<>();
         for (CanonicalCondition c : r.conditions()) {
-            classify(tenantId, CanonicalResourceType.CONDITION, c.code(), c.codeSystem(), normalized, unmapped);
+            classify(
+                tenantId, runtimeReleaseId,
+                CanonicalResourceType.CONDITION, c.code(), c.codeSystem(), normalized, unmapped);
         }
         for (CanonicalObservation o : r.observations()) {
-            classify(tenantId, CanonicalResourceType.OBSERVATION, o.code(), null, normalized, unmapped);
+            classify(
+                tenantId, runtimeReleaseId,
+                CanonicalResourceType.OBSERVATION, o.code(), null, normalized, unmapped);
         }
         for (CanonicalMedication m : r.medications()) {
-            classify(tenantId, CanonicalResourceType.MEDICATION, m.code(), null, normalized, unmapped);
+            classify(
+                tenantId, runtimeReleaseId,
+                CanonicalResourceType.MEDICATION, m.code(), null, normalized, unmapped);
         }
         for (CanonicalProcedure p : r.procedures()) {
-            classify(tenantId, CanonicalResourceType.PROCEDURE, p.code(), null, normalized, unmapped);
+            classify(
+                tenantId, runtimeReleaseId,
+                CanonicalResourceType.PROCEDURE, p.code(), null, normalized, unmapped);
         }
         return new ExtractedFindings(Set.copyOf(normalized), List.copyOf(unmapped));
     }
 
-    private void classify(String tenantId, CanonicalResourceType type, String code, String system,
+    private void classify(
+                          String tenantId,
+                          String runtimeReleaseId,
+                          CanonicalResourceType type,
+                          String code,
+                          String system,
                           Set<String> normalized, List<String> unmapped) {
         if (code == null || code.isBlank()) {
             return;
         }
-        port.normalize(tenantId, type, code, system)
+        port.normalize(tenantId, runtimeReleaseId, type, code, system)
             .ifPresentOrElse(normalized::add, () -> unmapped.add(code));
     }
 }

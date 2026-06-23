@@ -1,36 +1,26 @@
 # 集团医疗智能中枢 · MedKernel
 
-> v1.0 GA 0 业务引擎全能力上线基线 · 2026-05-28
+> v1.0 GA 完整上线基线 · 2026-06-22
 > 把指南、路径、规则和院内数据接起来，在临床现场提醒医生，在质控侧形成整改闭环，并留下合规证据。
 
 ---
 
 ## 一句话定位
 
-MedKernel = **集团医疗智能中枢**，面向集团医院 / 多院区 / 三甲三乙 / 分院 / 社区卫生服务中心 / 街道卫生所。客户可见心智固定为 **4 条主路径 + 跨域服务包 + 隐藏高级工具**：
+MedKernel = **集团医疗智能中枢**，面向集团医院、多院区、医院、分院和基层医疗机构。系统完整保留医疗引擎、知识生产和平台管理三个产品空间：
 
-为了保持方案简单纯粹，v1.0 GA 按 **基础底座 + 服务能力** 两层理解：
-
-| 层 | 说明 |
+| 产品空间 | 完整能力 |
 |---|---|
-| 基础底座 | 组织、权限、数据、知识、规则、发布、审计、模型、部署、嵌入等共用能力 |
-| 服务能力 | 试点准备、临床运行、质控改进、合规运维 4 条主路径；第三方业务接口、专病路径和专业协同作为跨域服务包；高级工具只给专家/实施/运维使用 |
+| 医疗引擎 | 知识、术语、规则、路径、患者上下文、推荐、任务、随访、质量和审计 |
+| 知识生产 | 权威来源、文档解析、模型生成、安全门、影子验证、审核、发布和回滚 |
+| 平台管理 | 机构、人员、身份、系统接入、安全配置、运行保障、国产化和部署 |
 
-当前执行方式是 **0 业务引擎全能力上线**：先打通知识、字典、规则、路径、推荐、评估、随访、包发布、嵌入、模型网关、大规模列表、审计证据和降级链路；引擎全能力验收后，再按试点准备、临床运行、质控改进、合规运维、专病路径和专业协同服务包包装业务。
+客户可分配职责只有平台管理员、医疗引擎运营员、临床使用者和审计员。MFA 默认关闭，需要时全局开启；高风险保留技术安全门、医师逐次确认、审计和回滚，不要求双签、委员会或独立专家。
 
-业务接口口径固定：S0-S40 是业务能力目录，不是接口清单。文档只用 `API 归类` 说明当前引擎 API、后续 E6 业务包装 API、复用已有引擎 API、外部系统集成 API 或暂不设独立 API。第三方对接统一通过适配器、标准上下文、临床事件、FHIR/CDS Hooks 风格门面、嵌入、回调、包发布同步和审计证据链管理。
+第三方对接统一通过适配器、标准患者资源、临床事件、医院当前运行修订、FHIR/CDS Hooks
+风格门面、嵌入、回调和审计证据链管理。临床调用方不传发布包、领域或资产版本。
 
-| 服务表达 | 客户能理解的话 |
-|---|---|
-| 试点准备 | 把医院、系统、路径、规则准备好 |
-| 临床运行 | 患者进路径、医生收到提醒、任务有人处理 |
-| 质控改进 | 看问题、派整改、看效果 |
-| 合规运维 | 身份、审计、安全、监控、交付证据 |
-| 第三方业务接口服务包 | 引擎验收后，将接入管理、字段映射、健康检查、互操作门面、Webhook 和证据交换统一包装 |
-| 专病路径服务包 | 引擎验收后，将疾病来源、路径、规则、质控、随访和证据打包上线 |
-| 专业协同服务包 | 引擎验收后，护理、药事、医技、手麻输血、营养康复心理疼痛、院感公卫等复用同一引擎 |
-
-> 详见 [产品宪法](docs/CONSTITUTION.md)。
+> 完整范围见 [产品范围](docs/PRODUCT_SCOPE.md)，硬约束见 [产品宪法](docs/CONSTITUTION.md)。
 
 ---
 
@@ -54,8 +44,8 @@ MedKernel = **集团医疗智能中枢**，面向集团医院 / 多院区 / 三�
 medkernel/
 ├─ medkernel-backend/    ← Spring Boot 3 + JDK 21 + Jakarta EE
 ├─ frontend/             ← React 18 + Antd 5 + FSD（app/pages/widgets/features/entities/shared）
-├─ docs/                 ← 文档中心（宪法核心 + 施工卡 cards/「实现唯一源」+ 体验契约 + 域简报 + 覆盖矩阵 + 任务台账；4 巨物迁移过渡期保留、非权威）
-├─ openspec/             ← OpenSpec 当前稳定规格；已归档变更只作审计记录，不作当前事实源
+├─ docs/                 ← 当前产品、架构、数据库、部署、质量与接口文档
+├─ openspec/             ← OpenSpec 变更提案工具；无活动变更时不保留规格副本
 └─ deploy/               ← Docker 部署平台 + 监控配置（PostgreSQL / Neo4j / Dify / Grafana / Prometheus）
 ```
 
@@ -129,20 +119,21 @@ npm run dev
 
 ## 关键文档
 
-> 文档体系已重构为**自包含施工卡**：构建任一任务只读「核心 + 域简报 + 该施工卡」，不再通读巨物。完整权威顺序与会话接力见 [AGENTS.md](AGENTS.md)。
+> 当前文档只描述现行产品、代码、部署和验收事实。历史设计与演练结果通过 Git 追溯，不作为当前实现依据。
 
 | 文档 | 一句话 |
 |---|---|
-| [AGENTS.md](AGENTS.md) | AI 协作权威：文档权威顺序 / 分支与 PR 规范 / 会话接力（各工具入口 CLAUDE.md·GEMINI.md 仅转交至此）|
-| [docs/CONSTITUTION.md](docs/CONSTITUTION.md) | **核心**（恒读）：11 视角不变量 / 20 条硬约束 / 菜单 / 状态机 / 7 步流 / 6 阶段租户生命周期 |
-| [docs/cards/](docs/cards/) | **施工卡 = 实现唯一源**：一卡 = 一可交付物（功能/契约/11 视角/验收）；[`_index.md`](docs/cards/_index.md) 按场景 S0–S40 找卡，[`_coverage-matrix.md`](docs/cards/_coverage-matrix.md) 旧锚点→卡保真 |
-| [docs/EXPERIENCE_CONTRACT.md](docs/EXPERIENCE_CONTRACT.md) | 共享体验与组件契约（页面卡必读）|
-| [docs/backlog.md](docs/backlog.md) | 单一任务台账：D0–D6 第一波 B0 真实纵向 + 第二波 AI 加深 + GA 验收 |
-| [docs/AI_DEVELOPMENT_RESTART_PLAN.md](docs/AI_DEVELOPMENT_RESTART_PLAN.md) | AI 研发重启执行方案：开工流程、阶段闸门、PR 证据模板 |
-| [docs/BUSINESS_IMPLEMENTATION_SCOPE_AUDIT.md](docs/BUSINESS_IMPLEMENTATION_SCOPE_AUDIT.md) | 业务实现范围核查：S0–S40、菜单目录权威、卡到代码、B0 主链路、wave2 消费点 |
-| [docs/README.md](docs/README.md) | 文档中心导航（四层模型 + 目录树）|
-
-**迁移过渡期保留（不再作为权威，全部域搬迁完成 P8 后退役）**：[FOUNDATION_AND_SERVICES](docs/MEDKERNEL_FOUNDATION_AND_SERVICES.md)（总览）· [PRODUCT_EXPERIENCE_RULES](docs/MEDKERNEL_PRODUCT_EXPERIENCE_RULES.md)（旧体验规范）· [IMPLEMENTATION_LANDING_PLAN](docs/MEDKERNEL_IMPLEMENTATION_LANDING_PLAN.md)（落地方案）· [BUSINESS_SCENARIO_DETAIL_SPEC](docs/MEDKERNEL_BUSINESS_SCENARIO_DETAIL_SPEC.md)（详细规范）—— 内容逐域迁入施工卡，保真见覆盖矩阵。语言规范见 [DOCUMENTATION_LANGUAGE_POLICY](docs/DOCUMENTATION_LANGUAGE_POLICY.md)。
+| [AGENTS.md](AGENTS.md) | 协作规则、分支与 PR 规范、会话接力 |
+| [docs/CONSTITUTION.md](docs/CONSTITUTION.md) | 产品不变量、医疗安全红线和上线边界 |
+| [docs/PRODUCT_SCOPE.md](docs/PRODUCT_SCOPE.md) | S0–S40、全医疗专业领域、完整功能与统一验收 |
+| [docs/audit/product-function-catalog.md](docs/audit/product-function-catalog.md) | 完整页面、接口与能力目录 |
+| [docs/audit/product-role-journeys.md](docs/audit/product-role-journeys.md) | 四个可分配职责的功能覆盖矩阵 |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 三产品空间、模块边界与核心链路 |
+| [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) | 单一模式源、五方言部署产物与递增迁移规则 |
+| [docs/EXPERIENCE_CONTRACT.md](docs/EXPERIENCE_CONTRACT.md) | 共享页面、组件和交互契约 |
+| [docs/DEPLOYMENT_AND_REHEARSAL.md](docs/DEPLOYMENT_AND_REHEARSAL.md) | 部署、清库、知识生成和演练流程 |
+| [docs/audit/质量基线.md](docs/audit/质量基线.md) | 测试、T-GATE、部署和上线验收基线 |
+| [docs/README.md](docs/README.md) | 当前文档中心 |
 
 ---
 
@@ -163,8 +154,8 @@ npm run dev
 
 本项目尚未正式上线，按全新项目运作：
 
-- 当前工作树只保留 v1.0 GA 需要的权威文档、代码、部署资产和任务台账。
-- 不保留旧版本历史归档目录、旧任务锁、旧分支策略或旧模板；`openspec/archive/` 仅用于已完成变更的审计追溯。
+- 当前工作树只保留 v1.0 GA 需要的权威文档、代码和部署资产。
+- 不保留旧版本历史归档目录、旧任务锁、旧分支策略或旧模板。
 - 所有新增和修改文档使用简体中文。
 - 远程长期分支只保留 `main`，不创建或保留 `develop`；所有功能完成后通过 PR 合并到 GitHub 远程 `main`。
 

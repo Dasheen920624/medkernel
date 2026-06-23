@@ -119,7 +119,7 @@ test("生产路由禁止注册 Demo 演示页", async () => {
         const StepFlowDemo = lazy(() => import("@/pages/StepFlowDemo"));
 
         export function AppRouter() {
-          return <Route path="/config/packages/demo" element={<StepFlowDemo />} />;
+          return <Route path="/demo/step-flow" element={<StepFlowDemo />} />;
         }
       `,
     },
@@ -446,8 +446,8 @@ test("后端生产代码会阻断导出成功但仅写 memory 占位 URI", async
 test("后端生产代码会阻断模拟同步和时间戳摘要伪造同步证据", async () => {
   await withFixture(
     {
-      "medkernel-backend/src/main/java/com/medkernel/engine/pkg/BadSyncAdapter.java": `
-        package com.medkernel.engine.pkg;
+      "medkernel-backend/src/main/java/com/medkernel/engine/release/BadSyncAdapter.java": `
+        package com.medkernel.engine.release;
 
         import java.time.Instant;
 
@@ -461,7 +461,7 @@ test("后端生产代码会阻断模拟同步和时间戳摘要伪造同步证�
     },
     async (root) => {
       const report = await scanFiles(root, [
-        "medkernel-backend/src/main/java/com/medkernel/engine/pkg/BadSyncAdapter.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/release/BadSyncAdapter.java",
       ]);
 
       assert.equal(hasBlockingViolations(report), true);
@@ -470,11 +470,11 @@ test("后端生产代码会阻断模拟同步和时间戳摘要伪造同步证�
   );
 });
 
-test("后端生产代码会阻断包影响分析伪造默认科室", async () => {
+test("后端生产代码会阻断资产影响分析伪造默认科室", async () => {
   await withFixture(
     {
-      "medkernel-backend/src/main/java/com/medkernel/engine/pkg/BadImpactService.java": `
-        package com.medkernel.engine.pkg;
+      "medkernel-backend/src/main/java/com/medkernel/engine/release/BadImpactService.java": `
+        package com.medkernel.engine.release;
 
         public class BadImpactService {
           String getAssetDepartment() {
@@ -485,7 +485,7 @@ test("后端生产代码会阻断包影响分析伪造默认科室", async () =>
     },
     async (root) => {
       const report = await scanFiles(root, [
-        "medkernel-backend/src/main/java/com/medkernel/engine/pkg/BadImpactService.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/release/BadImpactService.java",
       ]);
 
       assert.equal(hasBlockingViolations(report), true);
@@ -497,8 +497,8 @@ test("后端生产代码会阻断包影响分析伪造默认科室", async () =>
 test("后端同步证据字段与审计时间更新不会被误判为伪同步证据", async () => {
   await withFixture(
     {
-      "medkernel-backend/src/main/java/com/medkernel/engine/pkg/GoodSyncLog.java": `
-        package com.medkernel.engine.pkg;
+      "medkernel-backend/src/main/java/com/medkernel/engine/release/GoodSyncLog.java": `
+        package com.medkernel.engine.release;
 
         import java.time.Instant;
 
@@ -511,7 +511,7 @@ test("后端同步证据字段与审计时间更新不会被误判为伪同步�
     },
     async (root) => {
       const report = await scanFiles(root, [
-        "medkernel-backend/src/main/java/com/medkernel/engine/pkg/GoodSyncLog.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/release/GoodSyncLog.java",
       ]);
 
       assert.equal(hasBlockingViolations(report), false);

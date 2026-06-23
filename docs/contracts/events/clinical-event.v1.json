@@ -17,7 +17,7 @@
     "encounterId",
     "clinicalSetting",
     "sourceSystem",
-    "packageVersion",
+    "runtimeReleaseId",
     "payloadDigest",
     "occurredAt",
     "receivedAt",
@@ -45,7 +45,7 @@
       "enum": ["INPATIENT", "OUTPATIENT", "ED", "FOLLOWUP"]
     },
     "sourceSystem": { "type": ["string", "null"] },
-    "packageVersion": { "type": ["string", "null"] },
+    "runtimeReleaseId": { "type": ["string", "null"] },
     "payloadDigest": { "type": ["string", "null"] },
     "occurredAt": { "type": ["string", "null"], "format": "date-time" },
     "receivedAt": { "type": ["string", "null"], "format": "date-time" },

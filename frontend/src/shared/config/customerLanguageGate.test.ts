@@ -8,6 +8,7 @@ import {
   customerEnumLabel,
   customerSafeDisplayText,
   hasTechnicalDetailText,
+  sourceAuthorityLabel,
 } from "./customerLabels";
 
 const sourceRoot = resolve(process.cwd(), "src");
@@ -44,6 +45,17 @@ describe("customer language gate", () => {
     expect(customerDisplayText("HIS 适配器仍为 NOT_CONNECTED")).toBe("HIS 适配器仍为 未接通");
     expect(customerDisplayText("权限维度 ASSET 缺少授权")).toBe("权限维度 治理资产 缺少授权");
     expect(customerDisplayText("MEDIUM")).toBe("中风险");
+  });
+
+  it("uses the same five source authority levels as the medical engine", () => {
+    expect(sourceAuthorityLabel("A_REGULATION")).toBe("法规与强制规范");
+    expect(sourceAuthorityLabel("B_GUIDELINE")).toBe("权威指南");
+    expect(sourceAuthorityLabel("C_CONSENSUS_LITERATURE")).toBe("共识与医学文献");
+    expect(sourceAuthorityLabel("D_HOSPITAL")).toBe("院内制度");
+    expect(sourceAuthorityLabel("E_FEEDBACK")).toBe("反馈与其他低阶来源");
+    expect(sourceAuthorityLabel("C_CONSENSUS")).toBe("来源未分级");
+    expect(sourceAuthorityLabel("E_LITERATURE")).toBe("来源未分级");
+    expect(sourceAuthorityLabel("F_EXPERIENCE")).toBe("来源未分级");
   });
 
   it("replaces raw technical details with customer-safe fallback text", () => {

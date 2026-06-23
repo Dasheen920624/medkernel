@@ -84,7 +84,6 @@ public class RealtimeCdsHookService {
             request.encounterId(),
             text(context, "patientPathwayId"),
             textOrDefault(context, "scenarioCode", request.hook().wireValue()),
-            request.packageVersion(),
             text(context, "inputDigest"),
             instant(context, "occurredAt"),
             List.of(),

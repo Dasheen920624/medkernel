@@ -25,6 +25,10 @@ public interface CdssRiskMatrixRepository extends ListCrudRepository<CdssRiskMat
         String tenantId,
         CdssRiskMatrixStatus status);
 
+    List<CdssRiskMatrixRule> findByTenantIdAndMatrixVersionOrderByTriggerPointAscSeverityLevelAscAutomationLevelAsc(
+        String tenantId,
+        String matrixVersion);
+
     default Optional<CdssRiskMatrixRule> findActiveRule(
             String tenantId,
             String triggerPoint,

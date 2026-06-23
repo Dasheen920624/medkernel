@@ -98,16 +98,16 @@ class EmrLevelControllerSecurityTest {
                 EmrLevelCapabilityStatus.GAP, null, false, true, true,
                 "未接入真实质控闭环证据", "rct-emr-1", "trace-emr")),
             "trace-emr");
-        EmrLevelEvidencePackageExportResponse export = new EmrLevelEvidencePackageExportResponse(
-            "emr-evidence-package-1", "target-1", "hospital-A", "EMR-RATING-2026",
-            "EXPORTED", "application/x-ndjson", "target-1-evidence-package.ndjson",
-            "sha256-demo", "{\"recordType\":\"EMR_LEVEL_PACKAGE_SUMMARY\"}\n", 1, "trace-emr");
+        EmrLevelEvidenceExportResponse export = new EmrLevelEvidenceExportResponse(
+            "emr-evidence-export-1", "target-1", "hospital-A", "EMR-RATING-2026",
+            "EXPORTED", "application/x-ndjson", "target-1-evidence-export.ndjson",
+            "sha256-demo", "{\"recordType\":\"EMR_LEVEL_EXPORT_SUMMARY\"}\n", 1, "trace-emr");
         when(service.upsertTarget(any())).thenReturn(target);
         when(service.target("hospital-A", "EMR-RATING-2026")).thenReturn(target);
         when(service.gaps("hospital-A", "EMR-RATING-2026")).thenReturn(List.of(gap));
         when(service.progress(eq("hospital-A"), eq("EMR-RATING-2026"))).thenReturn(progress);
         when(service.dataQuality(eq("hospital-A"), eq("EMR-RATING-2026"))).thenReturn(quality);
-        when(service.exportEvidencePackage(any())).thenReturn(export);
+        when(service.exportEvidence(any())).thenReturn(export);
 
         mvc.perform(put("/api/v1/engine/emr-level/targets")
                 .contentType("application/json")
@@ -146,12 +146,12 @@ class EmrLevelControllerSecurityTest {
             .andExpect(jsonPath("$.data.missingEvidenceItems").value(1))
             .andExpect(jsonPath("$.data.closedLoopEvidence.cdssAcceptedCount").value(1));
 
-        mvc.perform(post("/api/v1/engine/emr-level/evidence-package:export")
+        mvc.perform(post("/api/v1/engine/emr-level/evidence-exports")
                 .contentType("application/json")
                 .content(EXPORT_BODY)
                 .with(qaJwt()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.packageId").value("emr-evidence-package-1"))
+            .andExpect(jsonPath("$.data.exportId").value("emr-evidence-export-1"))
             .andExpect(jsonPath("$.data.contentType").value("application/x-ndjson"));
     }
 
@@ -163,21 +163,21 @@ class EmrLevelControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
             .andExpect(status().isForbidden());
     }
 
     @Test
-    void doctorCannotExportEmrLevelEvidencePackage() throws Exception {
-        mvc.perform(post("/api/v1/engine/emr-level/evidence-package:export")
+    void doctorCannotExportEmrLevelEvidence() throws Exception {
+        mvc.perform(post("/api/v1/engine/emr-level/evidence-exports")
                 .contentType("application/json")
                 .content(EXPORT_BODY)
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
             .andExpect(status().isForbidden());
     }
 
@@ -185,7 +185,7 @@ class EmrLevelControllerSecurityTest {
         return jwt().jwt(token -> token
             .subject("qa-1")
             .claim("tenant_id", "tenant-A")
-            .claim("roles", List.of("quality-governor")))
-            .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"));
+            .claim("roles", List.of("engine-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"));
     }
 }

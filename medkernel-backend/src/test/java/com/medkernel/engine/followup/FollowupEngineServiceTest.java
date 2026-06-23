@@ -76,6 +76,8 @@ class FollowupEngineServiceTest {
     private ClinicalClockRepository clinicalClockRepository;
     @Mock
     private FollowupTemplateService templateService;
+    @Mock
+    private RuntimeReleaseFollowupTemplateSelector runtimeTemplates;
 
     @InjectMocks
     private FollowupEngineService service;
@@ -118,7 +120,7 @@ class FollowupEngineServiceTest {
     }
 
     @Test
-    void generatePlanUsesPublishedTemplateTasksAndQuestionnaireBinding() {
+    void generatePlanUsesRuntimeReleasePinnedTemplateTasksAndQuestionnaireBinding() {
         stubActiveSnapshot("ctx-template-1", "PAT01", "ENC01", "D01");
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         FollowupTemplate template = new FollowupTemplate(
@@ -142,7 +144,8 @@ class FollowupEngineServiceTest {
             "user-1",
             "trace-123"
         );
-        when(templateService.requirePublished("ftpl-1")).thenReturn(template);
+        when(runtimeTemplates.requireByTemplateId("tenant-1", "runtime-release-test", "ftpl-1"))
+            .thenReturn(template);
         when(templateService.tasks(template)).thenReturn(List.of(
             new FollowupTemplateTaskInput(
                 FollowupTaskType.QUESTIONNAIRE,
@@ -163,6 +166,7 @@ class FollowupEngineServiceTest {
             "ftpl-1"
         ));
 
+        assertThat(response.runtimeReleaseId()).isEqualTo("runtime-release-test");
         assertThat(response.templateId()).isEqualTo("ftpl-1");
         assertThat(response.templateVersion()).isEqualTo(3);
         assertThat(response.tasks()).extracting(FollowupTaskDetailResponse::taskType)
@@ -174,6 +178,10 @@ class FollowupEngineServiceTest {
         verify(taskRepository, org.mockito.Mockito.times(2)).save(taskCaptor.capture());
         assertThat(taskCaptor.getAllValues().get(0).dueDate())
             .isBefore(taskCaptor.getAllValues().get(1).dueDate());
+        ArgumentCaptor<FollowupPlan> planCaptor = ArgumentCaptor.forClass(FollowupPlan.class);
+        verify(planRepository).save(planCaptor.capture());
+        assertThat(planCaptor.getValue().runtimeReleaseId()).isEqualTo("runtime-release-test");
+        verify(templateService, never()).requirePublished("ftpl-1");
     }
 
     @Test
@@ -201,7 +209,7 @@ class FollowupEngineServiceTest {
             "ctx-empty-resources-1",
             ContextSnapshotStatus.ACTIVE,
             null,
-            "2026.06",
+            "runtime-release-test",
             QualityStatus.PARTIAL,
             List.of(),
             Map.of(),
@@ -507,7 +515,7 @@ class FollowupEngineServiceTest {
         });
         when(contextSnapshotService.create(any(ContextSnapshotRequest.class), eq("b0-result-key")))
             .thenReturn(new ContextSnapshotResponse(
-                "ctx-b0", ContextSnapshotStatus.ACTIVE, null, null,
+                "ctx-b0", ContextSnapshotStatus.ACTIVE, null, "runtime-release-test",
                 QualityStatus.VALID, List.of(), Map.of(), Instant.now(), "trace-123"
             ));
 
@@ -536,7 +544,6 @@ class FollowupEngineServiceTest {
             questionnaire.questionnaireId(),
             "{\"painScore\":4,\"returnTaskId\":\"" + abnormal.returnTaskId() + "\"}",
             "Y",
-            "pkg-b0",
             "b0-result-key"
         ));
 
@@ -596,12 +603,13 @@ class FollowupEngineServiceTest {
             List.of(),
             List.of(),
             List.of(),
-            List.of());
+            List.of(),
+            ContextSnapshotResources.emptyExtensions());
         when(contextSnapshotService.findById(snapshotId)).thenReturn(new ContextSnapshotResponse(
             snapshotId,
             ContextSnapshotStatus.ACTIVE,
             resources,
-            "2026.06",
+            "runtime-release-test",
             QualityStatus.VALID,
             List.of(),
             Map.of(),
@@ -623,12 +631,13 @@ class FollowupEngineServiceTest {
                 "dept-1",
                 "request-1",
                 "/tenant-1/dept-1",
-                "2026.06",
+                "runtime-release-test",
                 patientId,
                 encounterId,
                 status,
                 "[]",
                 "{}",
+            "{}",
                 QualityStatus.VALID,
                 "trace-123",
                 "signature",
@@ -797,7 +806,7 @@ class FollowupEngineServiceTest {
         when(questionnaireRepository.findByQuestionnaireId("FQ01")).thenReturn(Optional.of(questionnaire));
         when(contextSnapshotService.create(any(ContextSnapshotRequest.class), eq("result-key-1")))
             .thenReturn(new ContextSnapshotResponse(
-                "ctx-follow-1", ContextSnapshotStatus.ACTIVE, null, null,
+                "ctx-follow-1", ContextSnapshotStatus.ACTIVE, null, "runtime-release-test",
                 QualityStatus.VALID, List.of(), Map.of(), Instant.now(), "trace-123"
             ));
         when(eventRepository.save(any(FollowupEvent.class))).thenAnswer(inv -> {
@@ -808,7 +817,7 @@ class FollowupEngineServiceTest {
 
         FollowupResultBackflowResponse response = service.backflowResult(new FollowupResultBackflowRequest(
             "PLAN01", "TASK01", "FQ01", "{\"painScore\":2}", "N",
-            "pkg-2026.06", "result-key-1"
+            "result-key-1"
         ));
 
         assertThat(response.contextSnapshotId()).isEqualTo("ctx-follow-1");
@@ -816,9 +825,11 @@ class FollowupEngineServiceTest {
         verify(contextSnapshotService).create(snapshotCaptor.capture(), eq("result-key-1"));
         assertThat(snapshotCaptor.getValue().resources().patient().name()).isEqualTo("随访回流未提供患者姓名");
         assertThat(snapshotCaptor.getValue().resources().patient().qualityStatus()).isEqualTo(QualityStatus.PARTIAL);
+        assertThat(snapshotCaptor.getValue().resources().patient().mappedVersion()).isEqualTo("FOLLOWUP_RESULT");
         assertThat(snapshotCaptor.getValue().resources().followUps()).hasSize(1);
         assertThat(snapshotCaptor.getValue().resources().followUps().get(0).followUpId()).isEqualTo("FQ01");
         assertThat(snapshotCaptor.getValue().resources().followUps().get(0).abnormalFlag()).isEqualTo("N");
+        assertThat(snapshotCaptor.getValue().resources().followUps().get(0).mappedVersion()).isEqualTo("FOLLOWUP_RESULT");
         assertThat(snapshotCaptor.getValue().orgUnitId()).isEqualTo("dept-1");
         verify(eventRepository).save(any(FollowupEvent.class));
     }
@@ -846,7 +857,7 @@ class FollowupEngineServiceTest {
 
         FollowupResultBackflowResponse response = service.backflowResult(new FollowupResultBackflowRequest(
             "PLAN01", "TASK01", "FQ01", "{\"painScore\":8}", "Y",
-            "pkg-2026.06", "result-key-1"
+            "result-key-1"
         ));
 
         assertThat(response.eventId()).isEqualTo("FE-RESULT-EXISTING");

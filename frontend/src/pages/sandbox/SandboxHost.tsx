@@ -17,7 +17,7 @@ import {
   buildSandboxContextOverride,
   isNumericScenario,
   mergeSandboxCatalog,
-  scenariosByServicePackage,
+  scenariosByServiceLine,
 } from "@/features/sandbox/sandboxScenarios";
 import type { SandboxScenario } from "@/features/sandbox/sandboxScenarios";
 import { getApiErrorMessage } from "@/shared/api/errors";
@@ -37,15 +37,14 @@ import { PageShell } from "@/shared/ui/PageShell";
 
 import styles from "./SandboxHost.module.css";
 
-const SERVICE_PACKAGE_LABELS = {
+const SERVICE_LINE_LABELS = {
   "clinical-collaboration": "临床协同",
   "quality-improvement": "质量改进",
   "engine-orchestration": "引擎编排",
 } as const;
 
 const RESOLUTION_SOURCE_LABELS: Record<SandboxResolutionSource, string> = {
-  TENANT_PACKAGE: "演练机构规则",
-  PLATFORM_PACKAGE: "平台主源规则",
+  CURRENT_RUNTIME_RELEASE: "医院当前运行修订",
   REPLAY_MANIFEST: "历史重放清单",
 } as const;
 
@@ -66,10 +65,10 @@ function isRunModeReady(mode: SandboxRunMode, runtimeReady: boolean, replayReady
   return replayReady;
 }
 
-function bindingLabel(mode: SandboxRunMode, replayCaseId: string, currentBindingLabel: string) {
-  if (mode === "CURRENT") return currentBindingLabel;
+function runtimeLabel(mode: SandboxRunMode, replayCaseId: string, currentRuntimeLabel: string) {
+  if (mode === "CURRENT") return currentRuntimeLabel;
   if (mode === "COMPARE") {
-    return `${replayCaseId.trim() || "待输入"} ↔ ${currentBindingLabel}`;
+    return `${replayCaseId.trim() || "待输入"} ↔ ${currentRuntimeLabel}`;
   }
   return replayCaseId.trim() || "待输入";
 }
@@ -101,7 +100,7 @@ export default function SandboxHost() {
   const scenarios = useMemo(() => mergeSandboxCatalog(scenariosQuery.data), [scenariosQuery.data]);
   const selectedScenario: SandboxScenario =
     scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? scenarios[0];
-  const scenarioGroups = scenariosByServicePackage(scenarios);
+  const scenarioGroups = scenariosByServiceLine(scenarios);
   const runtimeStatus = runtimeQuery.data;
   const runtimeReady = runtimeStatus?.ready === true;
   const replayReady = replayCaseId.trim().length > 0;
@@ -111,10 +110,12 @@ export default function SandboxHost() {
   const runtimeSourceLabel = runtimeStatus?.resolutionSource
     ? RESOLUTION_SOURCE_LABELS[runtimeStatus.resolutionSource]
     : "尚未解析";
-  const currentBindingLabel = runtimeStatus?.ready
-    ? `${runtimeStatus.packageCode}@${runtimeStatus.packageVersion}`
+  const currentRuntimeLabel = runtimeStatus?.ready
+    ? `修订 #${runtimeStatus.runtimeRevisionNo ?? "?"} · ${
+        runtimeStatus.runtimeReleaseId ?? "未知运行发布"
+      }`
     : "未就绪";
-  const selectedBindingLabel = bindingLabel(runMode, replayCaseId, currentBindingLabel);
+  const selectedRuntimeLabel = runtimeLabel(runMode, replayCaseId, currentRuntimeLabel);
 
   const scenarioStatusLabel = (scenario: SandboxScenario) => {
     if (scenario.status === "catalog-unavailable") return "目录不可用";
@@ -215,10 +216,10 @@ export default function SandboxHost() {
             <ExperimentOutlined />
             <Typography.Text strong>业务场景</Typography.Text>
           </div>
-          {Object.entries(scenarioGroups).map(([servicePackage, scenarios]) => (
-            <section key={servicePackage} className={styles.scenarioGroup}>
+          {Object.entries(scenarioGroups).map(([serviceLine, scenarios]) => (
+            <section key={serviceLine} className={styles.scenarioGroup}>
               <Typography.Text type="secondary" className={styles.groupLabel}>
-                {SERVICE_PACKAGE_LABELS[servicePackage as keyof typeof SERVICE_PACKAGE_LABELS]}
+                {SERVICE_LINE_LABELS[serviceLine as keyof typeof SERVICE_LINE_LABELS]}
               </Typography.Text>
               <div className={styles.scenarioList}>
                 {scenarios.map((scenario) => (
@@ -277,8 +278,8 @@ export default function SandboxHost() {
               <Descriptions.Item label="规则来源">
                 {sourceLabel(runMode, runtimeSourceLabel)}
               </Descriptions.Item>
-              <Descriptions.Item label={runMode === "CURRENT" ? "当前绑定" : "重放清单"}>
-                {selectedBindingLabel}
+              <Descriptions.Item label={runMode === "CURRENT" ? "当前修订" : "重放清单"}>
+                {selectedRuntimeLabel}
               </Descriptions.Item>
               <Descriptions.Item label="有效资产">
                 {runMode === "HISTORICAL_EXACT" ? "运行时验真" : (runtimeStatus?.assetCount ?? 0)}
@@ -331,7 +332,7 @@ export default function SandboxHost() {
                 type="warning"
                 showIcon
                 message="运行基线未就绪"
-                description={runtimeStatus.reason || "演练机构尚未建立可运行绑定。"}
+                description={runtimeStatus.reason || "演练机构尚未发布可运行修订。"}
               />
             )}
           {scenariosQuery.isError && (
@@ -355,8 +356,12 @@ export default function SandboxHost() {
                 {result.replayCaseId && (
                   <Descriptions.Item label="重放清单">{result.replayCaseId}</Descriptions.Item>
                 )}
-                <Descriptions.Item label="解析版本">
-                  {result.resolvedPackageVersion}
+                <Descriptions.Item label="运行修订">
+                  {result.runtimeReleaseRef
+                    ? `${result.runtimeReleaseRef}${
+                        result.runtimeRevisionNo ? ` · #${result.runtimeRevisionNo}` : ""
+                      }`
+                    : "未记录"}
                 </Descriptions.Item>
                 <Descriptions.Item label="安全边界">
                   {result.externalSideEffects ? "外部副作用未关闭" : "外部副作用已关闭"}

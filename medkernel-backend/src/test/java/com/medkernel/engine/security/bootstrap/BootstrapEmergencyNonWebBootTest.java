@@ -12,7 +12,7 @@ import org.springframework.web.context.WebApplicationContext;
 /**
  * 应急命令救命通道前置门禁：应用必须能在**非 Web 模式**（{@code web-application-type=none}）下完整启动。
  *
- * <p>背景：首发身份应急命令（MFA 重置 / 解锁）是 {@link BootstrapEmergencyCommand} 这个
+ * <p>背景：初始身份应急命令（MFA 重置 / 解锁）是 {@link BootstrapEmergencyCommand} 这个
  * {@link org.springframework.boot.ApplicationRunner}，只有在 Spring 上下文成功启动后才会执行。
  * 真实部署中生产实例已占用业务端口，救命通道必须以非 Web 模式旁路启动、不绑定端口。
  *

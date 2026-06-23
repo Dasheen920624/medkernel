@@ -47,7 +47,7 @@ class DomainFacadeB0FixtureServiceTest {
                 assertThat(item.modelRequired()).isFalse();
                 assertThat(item.clinicalContentSeeded()).isFalse();
                 assertThat(item.newBusinessEngineRequired()).isFalse();
-                assertThat(item.servicePackageMembersResolvable()).isTrue();
+                assertThat(item.serviceCombinationMembersResolvable()).isTrue();
                 assertThat(item.fixtureId()).startsWith("DOMAIN-B0-");
                 assertThat(item.engineFixtures()).isNotEmpty();
                 assertThat(item.engineFixtures()).allSatisfy(engine -> {
@@ -61,12 +61,12 @@ class DomainFacadeB0FixtureServiceTest {
     }
 
     @Test
-    void servicePackagesResolveOnlyDeclaredMemberFacades() {
-        DomainFacadeB0FixtureEvidence diseasePackage = service.requireFixtureEvidence("SVC-DOMAIN-01");
-        DomainFacadeB0FixtureEvidence collaborationPackage = service.requireFixtureEvidence("SVC-DOMAIN-02");
+    void serviceCombinationsResolveOnlyDeclaredMemberFacades() {
+        DomainFacadeB0FixtureEvidence diseaseCombination = service.requireFixtureEvidence("SVC-DOMAIN-01");
+        DomainFacadeB0FixtureEvidence collaborationCombination = service.requireFixtureEvidence("SVC-DOMAIN-02");
 
-        assertThat(diseasePackage.kind()).isEqualTo(DomainFacadeKind.SERVICE_PACKAGE);
-        assertThat(diseasePackage.verifiedMemberFacadeCodes()).containsExactly(
+        assertThat(diseaseCombination.kind()).isEqualTo(DomainFacadeKind.SERVICE_COMBINATION);
+        assertThat(diseaseCombination.verifiedMemberFacadeCodes()).containsExactly(
             "CRITICAL-01",
             "PERIOP-01",
             "ONCO-RENAL-01",
@@ -74,7 +74,7 @@ class DomainFacadeB0FixtureServiceTest {
             "TCM-HEALTH-01",
             "PRIMARY-CARE-01",
             "INFECTION-PH-01");
-        assertThat(collaborationPackage.verifiedMemberFacadeCodes()).containsExactly(
+        assertThat(collaborationCombination.verifiedMemberFacadeCodes()).containsExactly(
             "NURSING-01",
             "PHARMACY-01",
             "REPORT-01",

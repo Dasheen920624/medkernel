@@ -54,7 +54,7 @@ class EmbedEngineServiceTest {
         SecurityContextHolder.getContext().setAuthentication(
             new UsernamePasswordAuthenticationToken(
                 "doctor-1", null, java.util.List.of(
-                    new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))));
+                    new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))));
     }
 
     @AfterEach
@@ -72,7 +72,7 @@ class EmbedEngineServiceTest {
         when(tokenRepo.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         EmbedLaunchTokenResponse response = service.generateToken(new EmbedLaunchTokenRequest(
-            "clinical-decision-user",
+            "clinical-user",
             "MPI-1001",
             "ENC-2001",
             "ORDER_SIGN",
@@ -97,7 +97,7 @@ class EmbedEngineServiceTest {
     @Test
     void generateTokenRejectsUnsupportedHookBeforeSaving() {
         assertThatThrownBy(() -> service.generateToken(new EmbedLaunchTokenRequest(
-            "clinical-decision-user",
+            "clinical-user",
             "MPI-1001",
             "ENC-2001",
             "OUTPATIENT",
@@ -195,7 +195,7 @@ class EmbedEngineServiceTest {
             tokenValue,
             "tenant-1",
             "doctor-1",
-            "clinical-decision-user",
+            "clinical-user",
             "MPI-1001",
             "ENC-2001",
             hook,

@@ -118,7 +118,7 @@ public class AcquisitionOrchestrationService {
         String sourceDomain = normalizeDomain(source.domain());
         if (!source.isEffective()) {
             return saveBlocked(tenantId, runCode, source, request, domain,
-                "来源未启用、未审批、许可不允许或 robots 策略不允许：" + request.sourceCode(), actor, now, triggerType);
+                "来源未启用、许可不允许或 robots 策略不允许：" + request.sourceCode(), actor, now, triggerType);
         }
         if (!"https".equalsIgnoreCase(uri.getScheme())) {
             return saveBlocked(tenantId, runCode, source, request, domain,

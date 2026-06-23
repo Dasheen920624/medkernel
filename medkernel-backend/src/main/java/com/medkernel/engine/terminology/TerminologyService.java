@@ -23,6 +23,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import com.medkernel.engine.versioning.PlatformAuthority;
 import com.medkernel.engine.versioning.RolloutStrategy;
+import com.medkernel.engine.context.ClinicalRuntimeRelease;
+import com.medkernel.engine.context.CurrentClinicalRuntimeReleaseResolver;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -47,6 +49,7 @@ public class TerminologyService {
     private final LocalTermRepository localTermRepository;
     private final TermMappingRepository mappingRepository;
     private final EffectiveTermMappingResolver effectiveMappings;
+    private final CurrentClinicalRuntimeReleaseResolver runtimeReleases;
     private final MappingCandidateRepository candidateRepository;
     private final MappingConflictRepository conflictRepository;
     private final HighRiskRuleRepository highRiskRuleRepository;
@@ -57,6 +60,7 @@ public class TerminologyService {
                               LocalTermRepository localTermRepository,
                               TermMappingRepository mappingRepository,
                               EffectiveTermMappingResolver effectiveMappings,
+                              CurrentClinicalRuntimeReleaseResolver runtimeReleases,
                               MappingCandidateRepository candidateRepository,
                               MappingConflictRepository conflictRepository,
                               HighRiskRuleRepository highRiskRuleRepository,
@@ -67,6 +71,7 @@ public class TerminologyService {
         this.localTermRepository = localTermRepository;
         this.mappingRepository = mappingRepository;
         this.effectiveMappings = effectiveMappings;
+        this.runtimeReleases = runtimeReleases;
         this.candidateRepository = candidateRepository;
         this.conflictRepository = conflictRepository;
         this.highRiskRuleRepository = highRiskRuleRepository;
@@ -318,7 +323,6 @@ public class TerminologyService {
         if (candidate.status() != MappingCandidateStatus.PENDING) {
             throw ApiException.conflict("映射候选 id=" + candidateId + " 不是待确认状态");
         }
-        ensureHighRiskSecondConfirmation(candidate, request);
         return confirmPendingCandidate(candidate, request.reviewNote(), request.evidenceOverride(), userId, now);
     }
 
@@ -477,7 +481,7 @@ public class TerminologyService {
     }
 
     /**
-     * 评估一组标准编码的院内→标准对照覆盖情况（P5 对照覆盖分析，advisory）。
+     * 评估一组标准编码的院内→标准对照覆盖情况。
      *
      * @param standardSystem 标准字典/编码系统（如 ICD-10）
      * @param codes          规则/路径引用的标准编码集合
@@ -494,13 +498,16 @@ public class TerminologyService {
         }
         java.util.List<MappingCoverageItem> items = new java.util.ArrayList<>();
         List<String> standardSources = standardTermSources(tenantId);
+        ClinicalRuntimeRelease runtimeRelease = runtimeReleases.resolve(
+            RequestContext.currentOrgScope());
         for (String code : distinct) {
             var standardTerm = standardTermRepository
                 .findFirstByTenantIdsAndStandardSystemAndTermCodeAndStatus(
                     standardSources, tenantId, standardSystem, code, StandardTermStatus.ACTIVE);
             int confirmed = standardTerm
                 .map(term -> effectiveMappings.countByStandardCode(
-                    tenantId, standardSystem, term.termCode()))
+                    tenantId, runtimeRelease.releaseId(),
+                    standardSystem, term.termCode()))
                 .orElse(0);
             items.add(new MappingCoverageItem(
                 code, MappingCoverageItem.classify(standardTerm.isPresent(), confirmed), confirmed));
@@ -583,17 +590,6 @@ public class TerminologyService {
         return candidate.evidenceText();
     }
 
-    private void ensureHighRiskSecondConfirmation(MappingCandidate candidate, TerminologyCandidateConfirmRequest request) {
-        if (candidate.riskLevel() != TermRiskLevel.HIGH) {
-            return;
-        }
-        if (!Boolean.TRUE.equals(request.highRiskAcknowledged())
-                || request.highRiskReason() == null
-                || request.highRiskReason().isBlank()) {
-            throw new ApiException(ErrorCode.MAPPING_HIGH_RISK_AUTOCONFIRM_DENIED);
-        }
-    }
-
     /**
      * 提交确定性 B0 候选生成任务。接口立即返回 PENDING，不同步返回候选明细。
      */
@@ -609,7 +605,6 @@ public class TerminologyService {
             request.sourceSystem().trim(),
             request.minimumScore(),
             !Boolean.FALSE.equals(request.semanticAssistEnabled()),
-            request.packageVersion(),
             userId,
             TerminologyCandidateGenerationJobStatus.PENDING,
             0,
@@ -829,7 +824,7 @@ public class TerminologyService {
         mutator.accept(builder);
         return new TerminologyCandidateGenerationJob(
             src.id(), src.tenantId(), src.jobCode(), src.sourceSystem(), src.minimumScore(),
-            src.semanticAssistEnabled(), src.packageVersion(), src.requestedBy(),
+            src.semanticAssistEnabled(), src.requestedBy(),
             builder.status, builder.progress, builder.generatedCount, builder.candidatePageUri,
             builder.errorMessage, src.createdAt(), builder.startedAt, builder.completedAt
         );

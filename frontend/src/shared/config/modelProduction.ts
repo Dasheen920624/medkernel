@@ -12,6 +12,7 @@ export const MODEL_PROVIDER_TYPE_OPTIONS = [
 
 export const MODEL_CAPABILITY_OPTIONS = [
   { value: "knowledge.discovery", label: "临床知识关联发现" },
+  { value: "knowledge.production.knowledge", label: "正式医学知识生产" },
   { value: "knowledge.extract", label: "病历语义实体提取" },
   { value: "terminology.map", label: "标准术语映射" },
   { value: "rule.draft", label: "临床规则草案拟定" },

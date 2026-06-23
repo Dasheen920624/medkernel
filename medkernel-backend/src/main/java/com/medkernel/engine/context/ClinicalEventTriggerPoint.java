@@ -10,12 +10,12 @@ import com.fasterxml.jackson.annotation.JsonValue;
  * CDS Hooks 风格临床触发点，作为 D3 OPT-02 事件、推荐与嵌入共享的 6 类客户面入口。
  */
 public enum ClinicalEventTriggerPoint {
-    PATIENT_VIEW("patient-view", List.of("patientId", "packageVersion")),
-    ORDER_SIGN("order-sign", List.of("patientId", "encounterId", "packageVersion", "orders")),
-    MEDICATION_PRESCRIBE("medication-prescribe", List.of("patientId", "encounterId", "packageVersion", "medications")),
-    RESULT_REVIEW("result-review", List.of("patientId", "encounterId", "packageVersion", "results")),
-    DISCHARGE_SIGN("discharge-sign", List.of("patientId", "encounterId", "packageVersion", "dischargeSummary")),
-    FOLLOWUP_ALERT("followup-alert", List.of("patientId", "packageVersion", "followupPlanId"));
+    PATIENT_VIEW("patient-view", List.of("patientId")),
+    ORDER_SIGN("order-sign", List.of("patientId", "encounterId", "orders")),
+    MEDICATION_PRESCRIBE("medication-prescribe", List.of("patientId", "encounterId", "medications")),
+    RESULT_REVIEW("result-review", List.of("patientId", "encounterId", "results")),
+    DISCHARGE_SIGN("discharge-sign", List.of("patientId", "encounterId", "dischargeSummary")),
+    FOLLOWUP_ALERT("followup-alert", List.of("patientId", "followupPlanId"));
 
     private final String wireValue;
     private final List<String> requiredContextFields;

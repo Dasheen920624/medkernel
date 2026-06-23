@@ -7,14 +7,14 @@
 - **走后端 API 鉴权**：仅经 `MEDKERNEL_API_BASE` + `MEDKERNEL_API_TOKEN` 调后端受控合同。
 - **不直连数据库、不读本地库连接串**：配置只读 API 基址与令牌，JDBC/DATASOURCE/DATABASE_URL 等一律不读不用。
 - **不绕治理**：工具清单/权限/脱敏/审计/降级全由后端裁决；CLI 只是薄客户端。
-- **不绕导出审批**：导出审批由后端裁决；CLI 只提交/查询/登记受控导出任务。
+- **导出范围确认**：CLI 只使用后端冻结并留证的范围，提交、查询和登记真实导出任务。
 
 ## 配置
 
 | 环境变量 | 说明 |
 |---|---|
 | `MEDKERNEL_API_BASE` | 后端 API 基址，如 `https://medkernel.example.org` |
-| `MEDKERNEL_API_TOKEN` | 后端鉴权令牌（Bearer）；读工具须 `engine-data.read`，Agent 取数/回写须 `knowledge.write`，导出动作须后端相应审批权限 |
+| `MEDKERNEL_API_TOKEN` | 后端鉴权令牌（Bearer）；读工具须 `engine-data.read`，Agent 取数/回写须 `knowledge.write`，导出动作须相应导出权限 |
 
 ## 用法
 
@@ -30,7 +30,7 @@ medkernel <命令域> <动作> [参数] [--purpose 用途]
 | `clinical-signals` | `list` / `summary` | `GET /clinical-signals` / 工具 `summarizeEngineSignals` |
 | `agent` | `submit-candidate <payloadJson>` / `fetch-public-material <payloadJson>` | 工具 `submitProductionCandidate` / `fetchPublicMaterial` |
 | `privacy` | `validate <D0-D5>` | 工具 `validatePrivacyPolicy` |
-| `exports` | `submit <exportType> <approvalId> <idempotencyKey>` / `status <jobCode>` / `list` / `cancel <jobCode>` / `complete <approvalId> <jobCode>` | 受控导出任务与合规登记端点 |
+| `exports` | `submit <exportType> <confirmationId> <idempotencyKey>` / `status <jobCode>` / `list` / `cancel <jobCode>` / `complete <confirmationId> <jobCode>` | 范围确认后的导出任务与真实产物登记端点 |
 
 示例：
 

@@ -47,6 +47,7 @@ class ClinicalEventServiceTest {
     private StateTransitionRecorder transitions;
     private DiagnoseResponseAssembler diagnoseAssembler;
     private IntegrationWebhookConfigRepository webhooks;
+    private CurrentClinicalRuntimeReleaseResolver runtimeReleases;
     private ObjectMapper json;
     private ClinicalEventService service;
 
@@ -60,16 +61,19 @@ class ClinicalEventServiceTest {
         transitions = mock(StateTransitionRecorder.class);
         diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
         webhooks = mock(IntegrationWebhookConfigRepository.class);
+        runtimeReleases = mock(CurrentClinicalRuntimeReleaseResolver.class);
         json = new ObjectMapper();
         json.findAndRegisterModules();
 
         service = new ClinicalEventService(
             events, payloads, outbox, processor, auditRecorder, transitions, diagnoseAssembler, json,
-            new ClinicalEventProperties(1024, Duration.ofMillis(50), 10, 3, List.of(1L, 5L, 30L)), webhooks);
+            new ClinicalEventProperties(1024, Duration.ofMillis(50), 10, 3, List.of(1L, 5L, 30L)),
+            webhooks, runtimeReleases);
 
         when(events.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(payloads.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(outbox.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(runtimeReleases.resolve(any(OrgScope.class))).thenReturn(runtimeRelease("release-1"));
 
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-event",
@@ -130,6 +134,7 @@ class ClinicalEventServiceTest {
         assertThat(eventCap.getValue().patientId()).isEqualTo("MPI-1");
         assertThat(eventCap.getValue().encounterId()).isEqualTo("ENC-1");
         assertThat(eventCap.getValue().clinicalSetting()).isEqualTo(ClinicalSetting.INPATIENT);
+        assertThat(eventCap.getValue().runtimeReleaseId()).isEqualTo("release-1");
         assertThat(eventCap.getValue().orgScopeJson()).contains("\"tenantId\":\"tenant-A\"");
         assertThat(eventCap.getValue().orgScopeJson()).contains("\"departmentId\":\"dept-A\"");
         assertThat(eventCap.getValue().processingStatus()).isEqualTo(ClinicalEventStatus.RECEIVED);
@@ -233,7 +238,8 @@ class ClinicalEventServiceTest {
     void receiveAsyncRejectsOversizedPayload() {
         service = new ClinicalEventService(
             events, payloads, outbox, processor, auditRecorder, transitions, diagnoseAssembler, json,
-            new ClinicalEventProperties(10, Duration.ofMillis(50), 10, 3, List.of(1L)), webhooks);
+            new ClinicalEventProperties(10, Duration.ofMillis(50), 10, 3, List.of(1L)),
+            webhooks, runtimeReleases);
 
         assertThatThrownBy(() -> service.receiveAsync(sampleRequest("evt-big")))
             .isInstanceOf(ApiException.class)
@@ -401,7 +407,7 @@ class ClinicalEventServiceTest {
     private ClinicalEventRequest sampleRequest(String eventId, String idempotencyKey, String callbackWebhookId) {
         return new ClinicalEventRequest(
             eventId, ClinicalEventType.DIAGNOSIS, "MPI-1", "ENC-1",
-            ClinicalSetting.INPATIENT, "HIS", "kpv-1", ClinicalEventTriggerPoint.PATIENT_VIEW,
+            ClinicalSetting.INPATIENT, "HIS", ClinicalEventTriggerPoint.PATIENT_VIEW,
             idempotencyKey, callbackWebhookId, samplePayload(), Instant.parse("2026-05-27T01:00:00Z"));
     }
 
@@ -416,9 +422,16 @@ class ClinicalEventServiceTest {
             1L, eventId, "tenant-A", ClinicalEventType.DIAGNOSIS,
             ClinicalEventTriggerPoint.PATIENT_VIEW, null, null,
             "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\"}",
-            "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, "HIS", "kpv-1", digest,
+            "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, "HIS", "runtime-release-test", digest,
             Instant.parse("2026-05-27T01:00:00Z"), Instant.parse("2026-05-27T01:00:01Z"),
             null, status, null, null, 0, null, "trace-event");
+    }
+
+    private ClinicalRuntimeRelease runtimeRelease(String releaseId) {
+        Instant now = Instant.parse("2026-05-27T01:00:00Z");
+        return new ClinicalRuntimeRelease(
+            1L, releaseId, "tenant-A", "hospital-A", 1L, "baseline-1",
+            "a".repeat(64), null, now, "tester", now, "tester", "trace-event");
     }
 
     private String digest(JsonNode payload) {

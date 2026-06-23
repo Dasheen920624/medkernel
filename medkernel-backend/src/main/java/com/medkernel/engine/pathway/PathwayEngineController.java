@@ -22,8 +22,8 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 路径引擎 REST 入口（GA-ENG-API-06 {@code /api/v1/engine/pathway/**}）。
  *
- * <p>承担路径模板、发布、试运行、患者入径、节点推进、变异与关键时钟的 HTTP 合同；
- * 权限由 {@code pathway.read}/{@code pathway.write}/{@code pathway.publish} 拆分控制，
+ * <p>承担路径模板、试运行、患者入径、节点推进、变异与关键时钟的 HTTP 合同；
+ * 权限由 {@code pathway.read}/{@code pathway.write}/{@code pathway.execute} 拆分控制，
  * 租户隔离由类级 {@link DataScope}{@code (requireTenant=true)} 兜底。
  */
 @RestController
@@ -43,7 +43,7 @@ public class PathwayEngineController {
     /**
      * 创建路径模板草稿，并一次性保存节点、边和质控指标绑定。
      *
-     * <p>权限：{@code pathway.write}；模板必须关联当前租户下存在的路径知识包。
+     * <p>权限：{@code pathway.write}；版本号由服务端按稳定路径编码自动递增。
      */
     @PostMapping("/pathway-templates")
     @PreAuthorize("@perm.has('pathway.write')")
@@ -55,7 +55,7 @@ public class PathwayEngineController {
     }
 
     /**
-     * 按状态、病种、路径知识包和模板编码过滤分页查询路径模板。
+     * 按状态、病种和模板编码过滤分页查询路径模板。
      *
      * <p>权限：{@code pathway.read}；过滤参数均可选，{@code null} 表示不过滤。
      */
@@ -64,14 +64,13 @@ public class PathwayEngineController {
     public ApiResult<PageResponse<PathwayTemplate>> listTemplates(
             @RequestParam(required = false) PathwayTemplateStatus status,
             @RequestParam(required = false) String diseaseCode,
-            @RequestParam(required = false) String packageId,
             @RequestParam(required = false) String templateCode,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String sort) {
         return ApiResult.ok(service.listTemplates(
-            new PathwayTemplateFilter(status, diseaseCode, packageId, templateCode, keyword),
+            new PathwayTemplateFilter(status, diseaseCode, templateCode, keyword),
             new PageRequest(page, size, sort)));
     }
 
@@ -84,71 +83,6 @@ public class PathwayEngineController {
     @PreAuthorize("@perm.has('pathway.read')")
     public ApiResult<PathwayTemplateDetailResponse> templateDetail(@PathVariable String templateId) {
         return ApiResult.ok(service.templateDetail(templateId));
-    }
-
-    /**
-     * 查看路径模板继承差异与有效合并结果。
-     *
-     * <p>权限：{@code pathway.read}；返回下级模板相对父级链路的新增、覆盖、禁用和合并图。
-     */
-    @GetMapping("/pathway-templates/{templateId}/inheritance-diff")
-    @PreAuthorize("@perm.has('pathway.read')")
-    public ApiResult<PathwayTemplateInheritanceDiffResponse> templateInheritanceDiff(
-            @PathVariable String templateId) {
-        return ApiResult.ok(service.templateInheritanceDiff(templateId));
-    }
-
-    /**
-     * 读取路径模板发布前影响摘要。
-     *
-     * <p>权限：{@code pathway.read}；摘要来自真实拓扑、关键时钟和患者路径实例事实。
-     */
-    @GetMapping("/pathway-templates/{templateId}/impact")
-    @PreAuthorize("@perm.has('pathway.read')")
-    public ApiResult<PathwayTemplateImpactResponse> templateImpact(@PathVariable String templateId) {
-        return ApiResult.ok(service.templateImpact(templateId));
-    }
-
-    /**
-     * 执行路径模板发布门禁并发布草稿模板。
-     *
-     * <p>权限：{@code pathway.publish}；发布门禁失败时抛出 {@code ENG-PATHWAY-004}。
-     */
-    @PostMapping("/pathway-templates/{templateId}/publish")
-    @PreAuthorize("@perm.has('pathway.publish')")
-    public ApiResult<PathwayTemplatePublishResponse> publishTemplate(
-            @PathVariable String templateId,
-            @RequestBody @Valid PathwayOperationRequest request) {
-        validateContext(request);
-        return ApiResult.ok(service.publishTemplate(templateId, request));
-    }
-
-    /**
-     * 对已灰度发布的路径模板执行院级全量确认。
-     *
-     * <p>权限：{@code pathway.publish}；必须携带当前影响摘要、审核说明和院级管理员角色。
-     */
-    @PostMapping("/pathway-templates/{templateId}/rollout/full")
-    @PreAuthorize("@perm.has('pathway.publish')")
-    public ApiResult<PathwayTemplatePublishResponse> fullRolloutTemplate(
-            @PathVariable String templateId,
-            @RequestBody @Valid PathwayOperationRequest request) {
-        validateContext(request);
-        return ApiResult.ok(service.fullRolloutTemplate(templateId, request));
-    }
-
-    /**
-     * 将当前路径模板回滚到同编码历史版本。
-     *
-     * <p>权限：{@code pathway.publish}；必须携带当前影响摘要、审核说明和回滚目标模板。
-     */
-    @PostMapping("/pathway-templates/{templateId}/rollback")
-    @PreAuthorize("@perm.has('pathway.publish')")
-    public ApiResult<PathwayTemplatePublishResponse> rollbackTemplate(
-            @PathVariable String templateId,
-            @RequestBody @Valid PathwayOperationRequest request) {
-        validateContext(request);
-        return ApiResult.ok(service.rollbackTemplate(templateId, request));
     }
 
     /**
@@ -177,6 +111,19 @@ public class PathwayEngineController {
         validateContext(request);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResult.ok(service.enterPatientPathway(request)));
+    }
+
+    /**
+     * 查询当前患者快照和临床触发点下可供医师确认的入径候选。
+     *
+     * <p>权限：{@code pathway.execute}；调用方不提交包、领域、运行修订或资产版本。
+     */
+    @GetMapping("/patient-pathways/entry-candidates")
+    @PreAuthorize("@perm.has('pathway.execute')")
+    public ApiResult<PathwayEntryCandidateResponse> entryCandidates(
+            @RequestParam String contextSnapshotId,
+            @RequestParam String triggerPoint) {
+        return ApiResult.ok(service.entryCandidates(contextSnapshotId, triggerPoint));
     }
 
     /**

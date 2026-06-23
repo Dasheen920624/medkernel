@@ -30,12 +30,8 @@ import jakarta.validation.Valid;
 @DataScope(requireTenant = true)
 public class PersonnelController {
 
-    private static final String READ_GUARD =
-        "@perm.has('org.read') and hasAnyRole('SYSTEM_SUPERADMIN','PLATFORM_GOVERNANCE_ADMIN',"
-            + "'ORGANIZATION_ADMIN','IDENTITY_ACCESS_ADMIN','IMPLEMENTATION_OPERATOR')";
-    private static final String WRITE_GUARD =
-        "@perm.has('org.write') and hasAnyRole('SYSTEM_SUPERADMIN','PLATFORM_GOVERNANCE_ADMIN',"
-            + "'ORGANIZATION_ADMIN','IDENTITY_ACCESS_ADMIN','IMPLEMENTATION_OPERATOR')";
+    private static final String READ_GUARD = "@perm.has('org.read')";
+    private static final String WRITE_GUARD = "@perm.has('org.write')";
 
     private final PersonnelService service;
     private final PersonnelImportService imports;
@@ -97,7 +93,7 @@ public class PersonnelController {
     public ResponseEntity<String> importTemplate() {
         String body = """
             人员编号,姓名,机构编码,科室编码,病区编码,人员类型,岗位,登录名,角色,身份来源,院内身份标识
-            EMP-001,王医生,HOSP-A,CARDIO,CARDIO-W1,院内人员,主治医师,wang.doctor,临床决策使用者,工号,EMP-001
+            EMP-001,王医生,HOSP-A,CARDIO,CARDIO-W1,院内人员,主治医师,wang.doctor,临床使用者,工号,EMP-001
             """;
         return ResponseEntity.ok()
             .header(

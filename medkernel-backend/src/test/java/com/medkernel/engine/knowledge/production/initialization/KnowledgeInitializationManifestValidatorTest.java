@@ -269,7 +269,7 @@ class KnowledgeInitializationManifestValidatorTest {
             "APPROVED_SOURCE_ONLY",
             "RISK_TIERED_REVIEW",
             "test:" + canonicalId,
-            "knowledge-governor",
+            "engine-operator",
             "knowledge-runtime",
             "rollback:" + canonicalId,
             InitializationChangeType.NEW,

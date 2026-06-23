@@ -28,7 +28,7 @@ public class SandboxReplayService {
     private static final Pattern HASH = Pattern.compile("[0-9a-f]{64}");
     private static final Pattern ALIAS = Pattern.compile("sha256:[0-9a-f]{64}");
     private static final Set<AssetVersionStatus> EXECUTABLE_HISTORICAL_STATUSES = Set.of(
-        AssetVersionStatus.PUBLISHED, AssetVersionStatus.DEPRECATED, AssetVersionStatus.RETIRED);
+        AssetVersionStatus.PUBLISHED, AssetVersionStatus.WITHDRAWN);
 
     private final SandboxReplayCaseRepository cases;
     private final SandboxReplayAssetBindingRepository assets;
@@ -68,8 +68,8 @@ public class SandboxReplayService {
             null, request.replayCaseId().trim(), tenantId, request.sourceTenantRef(),
             request.sourceEventRef(), request.sourceTraceRef(), request.sourceContextRef(),
             hashing.canonicalJson(request.contextSnapshot()), request.contextSnapshotHash(),
-            required(request.packageCode(), "历史配置包编码"),
-            required(request.packageVersion(), "历史配置包版本"), request.occurredAt(),
+            requiredAlias(request.sourceRuntimeReleaseRef(), "来源运行修订"),
+            request.sourceRuntimeRevisionNo(), request.occurredAt(),
             request.manifestHash(), request.deidentificationProfile(), SandboxReplayStatus.IMPORTED,
             now, actor, null, null, null, now, now, traceId));
         for (SandboxReplayAssetImportRequest asset : request.assets()) {
@@ -153,8 +153,10 @@ public class SandboxReplayService {
         deidentification.validate(request.contextSnapshot());
         ensureHash(request.contextSnapshotHash(), hashing.contentHash(request.contextSnapshot()),
             "上下文内容摘要");
-        required(request.packageCode(), "历史配置包编码");
-        required(request.packageVersion(), "历史配置包版本");
+        requireAlias(request.sourceRuntimeReleaseRef(), "来源运行修订");
+        if (request.sourceRuntimeRevisionNo() <= 0) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "来源运行修订号必须大于零");
+        }
         if (request.occurredAt() == null) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "历史事件发生时间不能为空");
         }
@@ -177,7 +179,7 @@ public class SandboxReplayService {
         required(asset.assetVersion(), "历史资产版本号");
         requireAlias(asset.sourceOrgRef(), "历史资产来源组织");
         if (!EXECUTABLE_HISTORICAL_STATUSES.contains(asset.historicalStatus())) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "历史资产必须曾处于已发布、已废弃或已退役状态");
+            throw new ApiException(ErrorCode.BAD_REQUEST, "历史资产必须曾处于已发布或已撤回状态");
         }
         ensureHash(asset.contentHash(), hashing.contentHash(asset.content()), "资产内容摘要");
         if (!uniqueAssets.add(asset.assetType() + "|" + identity + "|" + versionId)) {
@@ -199,7 +201,8 @@ public class SandboxReplayService {
         return new SandboxReplayImportRequest(
             replayCase.replayCaseId(), replayCase.sourceTenantRef(), replayCase.sourceEventRef(),
             replayCase.sourceTraceRef(), replayCase.sourceContextRef(), context,
-            replayCase.contextSnapshotHash(), replayCase.packageCode(), replayCase.packageVersion(),
+            replayCase.contextSnapshotHash(), replayCase.sourceRuntimeReleaseRef(),
+            replayCase.sourceRuntimeRevisionNo(),
             replayCase.occurredAt(), replayCase.manifestHash(),
             replayCase.deidentificationProfile(), importedAssets);
     }
@@ -228,6 +231,11 @@ public class SandboxReplayService {
         if (value == null || !ALIAS.matcher(value).matches()) {
             throw new ApiException(ErrorCode.BAD_REQUEST, label + "必须使用 sha256 不可逆别名");
         }
+    }
+
+    private static String requiredAlias(String value, String label) {
+        requireAlias(value, label);
+        return value;
     }
 
     private static String required(String value, String label) {

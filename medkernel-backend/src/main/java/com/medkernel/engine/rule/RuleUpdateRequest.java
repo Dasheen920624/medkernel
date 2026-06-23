@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.medkernel.engine.versioning.AssetTriggerBindingInput;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Max;
@@ -12,9 +13,10 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
- * 更新草稿规则的入参。
+ * 更新当前草稿规则版本的入参。
  *
- * <p>仅允许更新 DRAFT 状态规则；不会伪造版本递增能力，完整多版本发布由 SYS-04 承接。
+ * <p>初始草稿可修改完整定义；已发布规则复制出的下一版草稿只允许修改版本正文与来源说明，
+ * 稳定编码、风险和适用域元数据保持不变。
  */
 public record RuleUpdateRequest(
     @JsonProperty("request_id") String requestId,
@@ -28,7 +30,7 @@ public record RuleUpdateRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
+    @NotNull List<AssetTriggerBindingInput> triggers,
     @NotBlank String ruleCode,
     @NotBlank String name,
     @NotNull RuleType ruleType,
@@ -45,12 +47,13 @@ public record RuleUpdateRequest(
 ) implements RuleContextRequest {
     public RuleUpdateRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
+        triggers = triggers == null ? List.of() : List.copyOf(triggers);
     }
 
     public RuleApiContext apiContext() {
         return new RuleApiContext(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }

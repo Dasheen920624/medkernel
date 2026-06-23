@@ -85,7 +85,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useSecurityProfile: () => ({
     data: {
       permissions: [{ code: "org.read" }, { code: "org.write" }],
-      roles: [{ code: "organization-admin" }],
+      roles: [{ code: "platform-admin" }],
     },
     isLoading: false,
     isError: false,
@@ -109,7 +109,7 @@ vi.mock("@/shared/api/hooks", () => ({
           mustChangePwd: true,
           roles: [
             {
-              code: "clinical-decision-user",
+              code: "clinical-user",
               displayName: "临床医生",
               scopeLevel: "DEPARTMENT",
               scopeCode: "dept-cardio",
@@ -219,6 +219,9 @@ describe("人员与账号", () => {
     expect(screen.queryByLabelText("范围编码")).not.toBeInTheDocument();
     expect(screen.getByText("同时开通登录账号")).toBeInTheDocument();
     expect(screen.getByText("同时绑定院内身份来源")).toBeInTheDocument();
+    expect(
+      screen.getByText("临床使用者", { selector: ".ant-select-selection-item" }),
+    ).toBeInTheDocument();
   });
 
   it("批量导入先预检并展示冲突，不直接写入", async () => {

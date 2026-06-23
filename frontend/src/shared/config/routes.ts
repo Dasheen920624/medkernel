@@ -3,7 +3,6 @@
  * AppLayout + router + 菜单 + 面包屑 + 权限元数据全部读这里。
  */
 import type { RouteExperience } from "@/shared/ui/experienceTypes";
-import { KNOWN_ROLE_CODES } from "./roleCatalog";
 
 export type RouteSectionKey =
   | "workbench"
@@ -37,7 +36,6 @@ export interface RouteMeta {
   menuLabel?: string;
   placement: RoutePlacement;
   navigationOrder: number;
-  requiredRoles: string[];
   requiredPermissions: string[];
   hidden?: boolean;
   pageType?: PageType;
@@ -49,17 +47,11 @@ export interface RouteMeta {
 
 type RouteMetaInput = Omit<
   RouteMeta,
-  | "requiredRoles"
-  | "requiredPermissions"
-  | "placement"
-  | "navigationOrder"
-  | "requiresSixStates"
-  | "requiresStepFlow"
+  "requiredPermissions" | "placement" | "navigationOrder" | "requiresSixStates" | "requiresStepFlow"
 > &
   Partial<
     Pick<
       RouteMeta,
-      | "requiredRoles"
       | "requiredPermissions"
       | "placement"
       | "navigationOrder"
@@ -90,15 +82,6 @@ export const routeSections: RouteSectionMeta[] = [
   { key: "system-operations", label: "系统运维" },
 ];
 
-const CUSTOMER_ROLE_CODES = [...KNOWN_ROLE_CODES];
-const SYSTEM_SUPERADMIN_ROLE = "system-superadmin";
-const GOVERNANCE_ADMIN_ROLE_CODES = new Set([
-  SYSTEM_SUPERADMIN_ROLE,
-  "platform-governance-admin",
-  "organization-admin",
-]);
-const WORKBENCH_LANDING_ROLE_CODES = [...CUSTOMER_ROLE_CODES, SYSTEM_SUPERADMIN_ROLE];
-
 function readonlyExperience(
   primaryRole: string,
   goal: string,
@@ -119,7 +102,7 @@ function readonlyExperience(
 }
 
 const terminologyMappingExperience: RouteExperience = {
-  primaryRole: "信息科 / 专科专家 / 医务处",
+  primaryRole: "医疗引擎运营员",
   goal: "核查院内码与标准码的映射关系，降低后续规则和路径执行风险",
   defaultView: "最近更新的待确认和高风险映射优先",
   defaultFilters: [
@@ -157,7 +140,7 @@ const terminologyMappingExperience: RouteExperience = {
 };
 
 const auditExperience: RouteExperience = {
-  primaryRole: "审计人员 / 信息科",
+  primaryRole: "审计员",
   goal: "按时间、操作人、动作和对象追溯当前服务空间的关键操作证据",
   defaultView: "最近发生的事件优先",
   defaultFilters: [
@@ -195,7 +178,7 @@ const auditExperience: RouteExperience = {
 };
 
 const securityBaselineExperience: RouteExperience = {
-  primaryRole: "信息科 / 安全管理员",
+  primaryRole: "平台管理员 / 审计员",
   goal: "统一核查并管理运行配置、数据权限、脱敏规则与互操作测评证据",
   defaultView: "安全基线概览",
   defaultFilters: [],
@@ -207,7 +190,7 @@ const securityBaselineExperience: RouteExperience = {
 };
 
 const identityBindingExperience: RouteExperience = {
-  primaryRole: "信息科 / 各级管理员",
+  primaryRole: "平台管理员",
   goal: "管理系统用户与员工号、统一身份和国密证书的唯一绑定关系",
   defaultView: "当前服务空间的有效绑定和解绑历史",
   defaultFilters: [],
@@ -227,7 +210,7 @@ export const ADAPTER_PROTOCOL_OPTIONS = [
 ] as const;
 
 const adapterHubExperience: RouteExperience = {
-  primaryRole: "信息科 / 实施运维员",
+  primaryRole: "平台管理员",
   goal: "查看院内系统接入、健康、字段映射、死信和数据质量，确保断连诚实暴露",
   defaultView: "异常连接、字段映射缺口和待上线接入申请优先",
   defaultFilters: [
@@ -301,9 +284,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     menuLabel: "工作台",
     placement: "primary",
     navigationOrder: 1,
-    requiredRoles: WORKBENCH_LANDING_ROLE_CODES,
     experience: readonlyExperience(
-      "当前职责角色",
+      "平台管理员 / 医疗引擎运营员 / 临床使用者 / 审计员",
       "查看当前运行状态和需要跟进的事项",
       "当前重点事项",
     ),
@@ -317,16 +299,9 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "workbench",
     placement: "hidden",
     requiredPermissions: ["menu.workbench", "workbench:readiness:view"],
-    requiredRoles: [
-      "implementation-operator",
-      "integration-operator",
-      "organization-admin",
-      "platform-governance-admin",
-      SYSTEM_SUPERADMIN_ROLE,
-    ],
     hidden: true,
     experience: {
-      primaryRole: "实施运维员 / 集成运维员 / 机构管理员 / 平台治理管理员",
+      primaryRole: "平台管理员",
       goal: "确认当前服务机构运行验收状态和阻塞修复去处",
       defaultView: "阻塞项优先",
       defaultFilters: [
@@ -375,8 +350,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 1,
     requiredPermissions: ["menu.implementation-guide", "tenant.read"],
-    requiredRoles: ["implementation-operator", "platform-governance-admin", "organization-admin"],
-    experience: readonlyExperience("实施运维员", "按步骤完成机构开通、联调和验收", "待完成步骤"),
+    experience: readonlyExperience("平台管理员", "按步骤完成机构开通、联调和验收", "待完成步骤"),
     pageType: "configuration",
     stateMachine: "config",
   },
@@ -391,58 +365,25 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 1,
     requiredPermissions: ["menu.tenant-onboarding", "tenant.read"],
-    requiredRoles: ["implementation-operator", "platform-governance-admin", "organization-admin"],
-    experience: readonlyExperience("实施运维员", "开通服务空间或配置当前服务机构", "待配置组织"),
-    pageType: "configuration",
-    stateMachine: "config",
-  },
-  {
-    path: "/config/packages",
-    title: "配置包与发布",
-    breadcrumb: ["知识治理", "配置包与发布"],
-    requireAuth: true,
-    sectionKey: "knowledge-governance",
-    menuKey: "config-packages",
-    menuLabel: "配置包与发布",
-    placement: "primary",
-    navigationOrder: 2,
-    requiredPermissions: ["menu.config-packages", "package.read", "package.publish"],
-    requiredRoles: [
-      "implementation-operator",
-      "platform-knowledge-governor",
-      "knowledge-governor",
-      "platform-governance-admin",
-      "organization-admin",
-    ],
-    experience: readonlyExperience(
-      "实施运维员",
-      "核查配置包准备和发布状态",
-      "待处理配置包",
-      "large",
-    ),
+    experience: readonlyExperience("平台管理员", "开通服务空间或配置当前服务机构", "待配置组织"),
     pageType: "configuration",
     stateMachine: "config",
   },
   {
     path: "/config/releases",
-    title: "发布治理",
-    breadcrumb: ["知识治理", "配置包与发布", "发布治理"],
+    title: "运行发布",
+    breadcrumb: ["知识治理", "运行发布"],
     requireAuth: true,
     sectionKey: "knowledge-governance",
-    placement: "hidden",
-    hidden: true,
-    requiredPermissions: ["menu.config-packages", "package.read", "package.publish"],
-    requiredRoles: [
-      "implementation-operator",
-      "platform-knowledge-governor",
-      "knowledge-governor",
-      "platform-governance-admin",
-      "organization-admin",
-    ],
+    menuKey: "runtime-releases",
+    menuLabel: "运行发布",
+    placement: "primary",
+    navigationOrder: 2,
+    requiredPermissions: ["menu.runtime-releases", "asset.read"],
     experience: readonlyExperience(
-      "平台知识治理员 / 机构知识治理员",
-      "先模拟影响，再灰度放量或批量复用覆盖",
-      "影响模拟",
+      "医疗引擎运营员",
+      "发布平台权威基线并为医院生成精确、可追溯的运行修订",
+      "平台权威基线与医院运行修订",
       "large",
     ),
     pageType: "configuration",
@@ -457,18 +398,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "hidden",
     hidden: true,
     requiredPermissions: ["rule.read", "pathway.read"],
-    requiredRoles: [
-      "implementation-operator",
-      "integration-operator",
-      "platform-knowledge-governor",
-      "knowledge-governor",
-      "clinical-governor",
-      "medication-safety-user",
-      "platform-governance-admin",
-      "organization-admin",
-    ],
     experience: readonlyExperience(
-      "实施运维员",
+      "医疗引擎运营员",
       "编目、收藏和复用规则路径资产",
       "最近更新资产",
       "large",
@@ -488,7 +419,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     navigationOrder: 5,
     requiredPermissions: ["menu.pathway-templates", "pathway.read"],
     experience: readonlyExperience(
-      "机构知识治理员 / 临床治理负责人",
+      "医疗引擎运营员",
       "核查路径模板准备状态",
       "待处理路径",
       "large",
@@ -508,7 +439,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     navigationOrder: 4,
     requiredPermissions: ["menu.rule-definitions", "rule.read"],
     experience: readonlyExperience(
-      "机构知识治理员 / 临床治理负责人",
+      "医疗引擎运营员",
       "核查规则资产准备状态",
       "待处理规则",
       "large",
@@ -527,13 +458,6 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 3,
     requiredPermissions: ["menu.terminology-mapping", "term.read"],
-    requiredRoles: [
-      "integration-operator",
-      "implementation-operator",
-      "platform-knowledge-governor",
-      "knowledge-governor",
-      "diagnostic-service-user",
-    ],
     experience: terminologyMappingExperience,
     pageType: "configuration",
     stateMachine: "config",
@@ -554,7 +478,6 @@ const routeMetaInputs: RouteMetaInput[] = [
       "integration.write",
       "integration.execute",
     ],
-    requiredRoles: ["integration-operator", "implementation-operator"],
     experience: adapterHubExperience,
     pageType: "configuration",
     stateMachine: "config",
@@ -570,7 +493,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 1,
     experience: readonlyExperience(
-      "临床决策使用者",
+      "临床使用者",
       "查阅授权范围内的患者索引状态",
       "待核查记录",
       "large",
@@ -588,7 +511,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 2,
     experience: readonlyExperience(
-      "临床决策使用者 / 护理协同人员",
+      "临床使用者",
       "查看患者路径运行事项",
       "待处理节点",
       "large",
@@ -607,7 +530,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 3,
     experience: readonlyExperience(
-      "临床治理负责人 / 药事安全人员",
+      "临床使用者",
       "查看临床提醒负担和治理线索",
       "需关注提醒",
       "large",
@@ -624,10 +547,10 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "hidden",
     hidden: true,
     // 临床执行侧（医师人工确认危急值提醒），只需 rule.read；不要求 menu.rule-definitions（治理侧菜单），
-    // 否则 clinical-decision-user 无法完成医师确认闭环。见 P5-ACT6-02。
+    // 否则临床使用者无法完成医师确认闭环。
     requiredPermissions: ["rule.read"],
     experience: readonlyExperience(
-      "临床决策使用者",
+      "临床使用者",
       "核查规则提示的依据和状态",
       "最近提示",
       "large",
@@ -646,7 +569,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 4,
     experience: readonlyExperience(
-      "临床决策使用者 / 护理协同人员",
+      "临床使用者",
       "处理当前岗位待办事项",
       "待我处理",
       "large",
@@ -664,7 +587,12 @@ const routeMetaInputs: RouteMetaInput[] = [
     menuLabel: "消息通知",
     placement: "header",
     navigationOrder: 1,
-    experience: readonlyExperience("当前职责角色", "查看需要关注的通知", "未读通知", "large"),
+    experience: readonlyExperience(
+      "平台管理员 / 医疗引擎运营员 / 临床使用者 / 审计员",
+      "查看需要关注的通知",
+      "未读通知",
+      "large",
+    ),
     pageType: "list",
     stateMachine: "todo",
   },
@@ -679,7 +607,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 5,
     experience: readonlyExperience(
-      "护理协同人员 / 临床决策使用者",
+      "临床使用者",
       "生成专病随访计划并跟进分期任务与异常回院事件",
       "计划台账列表",
       "large",
@@ -697,17 +625,9 @@ const routeMetaInputs: RouteMetaInput[] = [
     menuLabel: "全真体验沙盘",
     placement: "primary",
     navigationOrder: 6,
-    // 法定角色见 IA 矩阵 §3：主角色=临床决策使用者、实施运维员；
-    // 次角色=临床治理负责人（验证其治理的规则/路径表现）、集成运维员（验证院内系统嵌入链路）。
-    requiredRoles: [
-      "clinical-decision-user",
-      "implementation-operator",
-      "clinical-governor",
-      "integration-operator",
-    ],
     requiredPermissions: ["menu.sandbox", "sandbox.run"],
     experience: {
-      primaryRole: "临床决策使用者 / 实施运维员",
+      primaryRole: "临床使用者 / 医疗引擎运营员",
       goal: "以院内业务系统视角验证真实引擎调用、嵌入终端和反馈闭环",
       defaultView: "可运行场景与最近一次路径证据",
       defaultFilters: [],
@@ -730,7 +650,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 1,
     requiredPermissions: ["menu.qc-dashboard", "evaluation.read"],
-    experience: readonlyExperience("质量与医保治理员", "查看质量风险与改进进展", "本期风险概览"),
+    experience: readonlyExperience("医疗引擎运营员", "查看质量风险与改进进展", "本期风险概览"),
     pageType: "dashboard",
   },
   {
@@ -745,7 +665,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     navigationOrder: 2,
     requiredPermissions: ["menu.qc-alerts", "evaluation.read"],
     experience: readonlyExperience(
-      "质量与医保治理员",
+      "医疗引擎运营员",
       "处理质量问题与整改事项",
       "高风险待处理",
       "large",
@@ -765,7 +685,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     navigationOrder: 3,
     requiredPermissions: ["menu.insurance-audit", "evaluation.read"],
     experience: readonlyExperience(
-      "质量与医保治理员",
+      "医疗引擎运营员",
       "核查医保审核问题与依据",
       "待审核问题",
       "large",
@@ -785,7 +705,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     navigationOrder: 4,
     requiredPermissions: ["menu.qc-eval-sets", "evaluation.read"],
     experience: readonlyExperience(
-      "质量与医保治理员",
+      "医疗引擎运营员",
       "核查评价指标配置状态",
       "待维护指标",
       "large",
@@ -803,7 +723,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     hidden: true,
     requiredPermissions: ["menu.qc-alerts", "evaluation.read"],
     experience: readonlyExperience(
-      "质量与医保治理员",
+      "医疗引擎运营员",
       "查看评价结果来源和待改进事项",
       "近期评价",
       "large",
@@ -821,16 +741,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 1,
     requiredPermissions: ["menu.knowledge-governance", "knowledge.review"],
-    requiredRoles: [
-      "platform-governance-admin",
-      "platform-knowledge-governor",
-      "knowledge-governor",
-      "clinical-governor",
-      "quality-governor",
-      "medication-safety-user",
-    ],
     experience: readonlyExperience(
-      "平台知识治理员 / 机构知识治理员 / 临床治理负责人",
+      "医疗引擎运营员",
       "审核知识候选并完成发布、驳回、替换或恢复",
       "待治理知识",
       "large",
@@ -849,15 +761,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 1.25,
     requiredPermissions: ["menu.institution-knowledge", "knowledge.write"],
-    requiredRoles: [
-      "platform-governance-admin",
-      "platform-knowledge-governor",
-      "organization-admin",
-      "knowledge-governor",
-      "clinical-governor",
-    ],
     experience: readonlyExperience(
-      "机构知识治理员 / 临床治理负责人",
+      "医疗引擎运营员",
       "维护院内覆盖、机构定制、换基线和恢复平台标准",
       "机构知识血缘",
       "large",
@@ -876,15 +781,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 1.5,
     requiredPermissions: ["menu.diagnosis-knowledge", "knowledge.read"],
-    requiredRoles: [
-      "platform-governance-admin",
-      "platform-knowledge-governor",
-      "knowledge-governor",
-      "clinical-governor",
-      "medication-safety-user",
-    ],
     experience: readonlyExperience(
-      "平台知识治理员 / 机构知识治理员 / 临床治理负责人",
+      "医疗引擎运营员",
       "维护诊断身份、诊断标准、鉴别诊断、测试病例与来源证据",
       "诊断知识台账",
       "large",
@@ -903,17 +801,9 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 1,
     requiredPermissions: ["menu.knowledge-production", "knowledge.read"],
-    requiredRoles: [
-      "platform-governance-admin",
-      "platform-knowledge-governor",
-      "knowledge-governor",
-      "quality-governor",
-      "implementation-operator",
-      "integration-operator",
-    ],
     experience: readonlyExperience(
-      "集成运维员 / 质量治理专家 / 平台知识治理员 / 系统超级管理员",
-      "在同一页面完成模型服务、医学评测、独立复核、九项生产闸和正式大模型知识生产",
+      "医疗引擎运营员",
+      "在同一页面完成模型服务、医学评测、八项技术闸和正式大模型知识生产",
       "模型生产步骤",
       "large",
     ),
@@ -930,15 +820,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 2,
     requiredPermissions: ["menu.admin-users", "org.read"],
-    requiredRoles: [
-      "system-superadmin",
-      "platform-governance-admin",
-      "organization-admin",
-      "identity-access-admin",
-      "implementation-operator",
-    ],
     experience: readonlyExperience(
-      "人员与访问管理员 / 机构管理员",
+      "平台管理员",
       "维护人员、任职、账号与组织范围",
       "有效人员",
       "large",
@@ -956,13 +839,6 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 3,
     requiredPermissions: ["menu.identity-bindings", "org.read"],
-    requiredRoles: [
-      "identity-access-admin",
-      "integration-operator",
-      "implementation-operator",
-      "platform-governance-admin",
-      "organization-admin",
-    ],
     experience: identityBindingExperience,
     pageType: "system",
     stateMachine: "change",
@@ -1006,14 +882,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 3,
     requiredPermissions: ["menu.system-providers", "system.read"],
-    requiredRoles: [
-      "implementation-operator",
-      "integration-operator",
-      "platform-governance-admin",
-      "organization-admin",
-    ],
     experience: readonlyExperience(
-      "集成运维员 / 实施运维员",
+      "平台管理员",
       "核查依赖服务、备份恢复与国产化运行状态",
       "异常优先",
     ),
@@ -1029,7 +899,11 @@ const routeMetaInputs: RouteMetaInput[] = [
     menuLabel: "通知偏好",
     placement: "profile",
     navigationOrder: 1,
-    experience: readonlyExperience("当前用户", "配置个人通知偏好与服务机构默认策略", "当前配置"),
+    experience: readonlyExperience(
+      "平台管理员 / 医疗引擎运营员 / 临床使用者 / 审计员",
+      "配置个人通知偏好与服务机构默认策略",
+      "当前配置",
+    ),
     pageType: "configuration",
     stateMachine: "config",
   },
@@ -1045,7 +919,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     navigationOrder: 6,
     requiredPermissions: ["menu.provenance", "knowledge.read"],
     experience: readonlyExperience(
-      "平台知识治理员 / 机构知识治理员 / 实施运维员",
+      "医疗引擎运营员 / 审计员",
       "追溯来源与运行证据",
       "最近来源",
       "large",
@@ -1063,16 +937,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 7,
     requiredPermissions: ["menu.graph-explore", "projection.read"],
-    requiredRoles: [
-      "implementation-operator",
-      "integration-operator",
-      "platform-knowledge-governor",
-      "knowledge-governor",
-      "platform-governance-admin",
-      "organization-admin",
-    ],
     experience: readonlyExperience(
-      "平台知识治理员 / 机构知识治理员 / 集成运维员",
+      "医疗引擎运营员",
       "核查知识关系查询结果",
       "最近查询",
       "large",
@@ -1090,15 +956,8 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 2,
     requiredPermissions: ["menu.ai-workflows", "llm.read"],
-    requiredRoles: [
-      "platform-governance-admin",
-      "platform-knowledge-governor",
-      "knowledge-governor",
-      "implementation-operator",
-      "integration-operator",
-    ],
     experience: readonlyExperience(
-      "平台知识治理员 / 机构知识治理员 / 实施运维员",
+      "医疗引擎运营员",
       "核查当前组织 AI 能力与降级状态",
       "能力状态",
       "large",
@@ -1115,7 +974,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     menuLabel: "国产化核验",
     placement: "primary",
     navigationOrder: 4,
-    experience: readonlyExperience("集成运维员 / 实施运维员", "核查国产化适配准备状态", "待检查项"),
+    experience: readonlyExperience("平台管理员", "核查国产化适配准备状态", "待检查项"),
     pageType: "advanced",
   },
   {
@@ -1128,7 +987,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     menuLabel: "诊断工具",
     placement: "primary",
     navigationOrder: 5,
-    experience: readonlyExperience("集成运维员", "核查受控调试信息", "最近诊断", "large"),
+    experience: readonlyExperience("平台管理员", "核查受控调试信息", "最近诊断", "large"),
     pageType: "advanced",
   },
   {
@@ -1169,7 +1028,6 @@ function normalizeRouteMeta(route: RouteMetaInput): RouteMeta {
     navigationOrder: route.navigationOrder ?? Number.MAX_SAFE_INTEGER,
     hidden: route.hidden ?? placement !== "primary",
     requiredPermissions,
-    requiredRoles: route.requiredRoles ?? [],
     requiresSixStates: route.requiresSixStates ?? route.requireAuth,
     requiresStepFlow: route.requiresStepFlow ?? route.pageType === "configuration",
   };
@@ -1204,21 +1062,12 @@ export function canAccessRoute(
     profile.permissions?.map((permission) => permission.code) ?? [],
   );
   const grantedMenuKeys = new Set(profile.menuKeys ?? []);
-  const grantedRoles = new Set(profile.roles?.map((role) => role.code) ?? []);
   const hasRequiredPermissions = route.requiredPermissions.every(
     (permission) =>
       grantedPermissions.has(permission) ||
       (permission.startsWith("menu.") && grantedMenuKeys.has(permission.slice("menu.".length))),
   );
-  const hasGovernanceAdminRole = [...grantedRoles].some((role) =>
-    GOVERNANCE_ADMIN_ROLE_CODES.has(role),
-  );
-  const hasRequiredRole =
-    hasGovernanceAdminRole ||
-    route.requiredRoles.length === 0 ||
-    route.requiredRoles.some((role) => grantedRoles.has(role));
-
-  return hasRequiredPermissions && hasRequiredRole;
+  return hasRequiredPermissions;
 }
 
 export function getRouteBreadcrumb(path: string): string[] {

@@ -23,7 +23,7 @@ import jakarta.validation.constraints.Min;
 /**
  * 医学回归评测治理控制器（LLM-07 T18）。
  *
- * <p>由质量与医保治理员（{@code llm.eval.manage}）对候选 provider/版本运行医学回归评测、对高风险换版做专家复核签字放行。
+ * <p>由医疗引擎运营职责（{@code llm.eval.manage}）对候选 provider/版本运行医学回归评测。
  * 评测结果是 provider 上线门禁（{@code ENG-LLM-008}）的依据。全线 {@link DataScope} 强多租户隔离。
  */
 @RestController
@@ -46,7 +46,7 @@ public class ModelEvalController {
     @GetMapping("/runs")
     @PreAuthorize("@perm.has('llm.eval.manage')")
     public ApiResult<PageResponse<ModelEvalRunSummaryResponse>> listRuns(
-            @RequestParam(defaultValue = "PENDING_REVIEW") String status,
+            @RequestParam(defaultValue = "PASSED") String status,
             @RequestParam(defaultValue = "1") @Min(1) Integer page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(200) Integer size) {
         return ApiResult.ok(service.listRuns(status, new PageRequest(page, size, null)));
@@ -67,17 +67,6 @@ public class ModelEvalController {
     public ApiResult<ModelEvalRun> runEvaluation(@Valid @RequestBody ModelEvalRunRequest request) {
         return ApiResult.ok(service.runEvaluation(
             request.providerCode().trim(), request.modelVersion().trim(), request.capabilityCode().trim()));
-    }
-
-    /**
-     * 专家复核签字放行一条待复核（{@code PENDING_REVIEW}）评测运行（高风险换版）。
-     */
-    @PostMapping("/{runId}/sign-off")
-    @PreAuthorize("@perm.has('llm.eval.manage') and hasRole('QUALITY_GOVERNOR')")
-    public ApiResult<ModelEvalRun> signOff(
-            @PathVariable Long runId,
-            @Valid @RequestBody ModelEvalSignOffRequest request) {
-        return ApiResult.ok(service.signOff(runId, request));
     }
 
     /**

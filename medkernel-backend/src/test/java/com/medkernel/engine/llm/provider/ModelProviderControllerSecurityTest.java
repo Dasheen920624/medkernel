@@ -85,14 +85,14 @@ class ModelProviderControllerSecurityTest {
         mockMvc.perform(put("/api/v1/model-providers/ollama-local")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void integrationOperatorCanConfigureProvider() throws Exception {
+    void engineOperatorCanConfigureProvider() throws Exception {
         when(service.upsertProvider(
             org.mockito.ArgumentMatchers.eq("ollama-local"),
             any(ModelProviderUpsertRequest.class)))
@@ -102,8 +102,8 @@ class ModelProviderControllerSecurityTest {
         mockMvc.perform(put("/api/v1/model-providers/ollama-local")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.credentialConfigured").value(true))
@@ -116,13 +116,13 @@ class ModelProviderControllerSecurityTest {
         mockMvc.perform(get("/api/v1/model-providers/ollama-local")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void integrationOperatorReadsSanitizedProviderGovernanceSnapshot() throws Exception {
+    void engineOperatorReadsSanitizedProviderGovernanceSnapshot() throws Exception {
         when(service.getProvider("ollama-local")).thenReturn(new ModelProviderGovernanceView(
             "ollama-local", "OLLAMA", "http://127.0.0.1:11434", true,
             "VAULT", "1234", 3L, Instant.parse("2026-06-20T05:00:00Z"), "ops-001",
@@ -131,8 +131,8 @@ class ModelProviderControllerSecurityTest {
         mockMvc.perform(get("/api/v1/model-providers/ollama-local")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.credentialConfigured").value(true))
                 .andExpect(jsonPath("$.data.credentialLast4").value("1234"))
@@ -140,15 +140,15 @@ class ModelProviderControllerSecurityTest {
     }
 
     @Test
-    void integrationOperatorCanListProvidersWithServerPagination() throws Exception {
+    void engineOperatorCanListProvidersWithServerPagination() throws Exception {
         when(service.listProviders(any(PageRequest.class))).thenReturn(PageResponse.of(
             List.of(sanitizedView()), new PageRequest(1, 20, null), 1));
 
         mockMvc.perform(get("/api/v1/model-providers?page=1&size=20")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].providerCode").value("ollama-local"))
                 .andExpect(jsonPath("$.data.total").value(1))
@@ -156,29 +156,25 @@ class ModelProviderControllerSecurityTest {
     }
 
     @Test
-    void qualityGovernorCanReadSanitizedProvidersForMedicalEvaluation() throws Exception {
+    void auditorCannotReadProviderConfiguration() throws Exception {
         when(service.listProviders(any(PageRequest.class))).thenReturn(PageResponse.of(
             List.of(sanitizedView()), new PageRequest(1, 20, null), 1));
 
         mockMvc.perform(get("/api/v1/model-providers?page=1&size=20")
                 .with(jwt().jwt(token -> token
-                    .subject("quality-reviewer").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].providerCode").value("ollama-local"))
-                .andExpect(jsonPath("$.data.items[0].credentialConfigured").value(true))
-                .andExpect(content().string(not(containsString("credentialRef"))))
-                .andExpect(content().string(not(containsString("MODEL_API_KEY"))));
+                    .subject("model-auditor").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("auditor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_AUDITOR"))))
+                .andExpect(status().isForbidden());
     }
 
     @Test
-    void qualityGovernorCannotMutateProviderConfiguration() throws Exception {
+    void auditorCannotMutateProviderConfiguration() throws Exception {
         mockMvc.perform(put("/api/v1/model-providers/ollama-local")
                 .with(jwt().jwt(token -> token
-                    .subject("quality-reviewer").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR")))
+                    .subject("model-auditor").claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("auditor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_AUDITOR")))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isForbidden());
     }
@@ -188,14 +184,14 @@ class ModelProviderControllerSecurityTest {
         mockMvc.perform(put("/api/v1/model-providers/ollama-local/credential")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON).content(CREDENTIAL_BODY))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void integrationOperatorCanRotateAndRemoveCredentialWithoutSecretEcho() throws Exception {
+    void engineOperatorCanRotateAndRemoveCredentialWithoutSecretEcho() throws Exception {
         when(service.saveCredential(
             org.mockito.ArgumentMatchers.eq("ollama-local"),
             any(ModelProviderCredentialUpsertRequest.class))).thenReturn(sanitizedView());
@@ -206,8 +202,8 @@ class ModelProviderControllerSecurityTest {
         mockMvc.perform(put("/api/v1/model-providers/ollama-local/credential")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON).content(CREDENTIAL_BODY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.credentialLast4").value("1234"))
@@ -216,8 +212,8 @@ class ModelProviderControllerSecurityTest {
         mockMvc.perform(delete("/api/v1/model-providers/ollama-local/credential")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON).content(CREDENTIAL_REMOVAL_BODY))
                 .andExpect(status().isOk())
                 .andExpect(content().string(not(containsString("credentialRef"))));
@@ -236,8 +232,8 @@ class ModelProviderControllerSecurityTest {
         mockMvc.perform(put("/api/v1/model-providers/ollama-local/credential")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON).content(superficialReason))
                 .andExpect(status().isBadRequest());
     }
@@ -247,27 +243,27 @@ class ModelProviderControllerSecurityTest {
         mockMvc.perform(post("/api/v1/model-providers/ollama-local/enable")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON).content(ACTIVATION_BODY))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void integrationOperatorCanEnableAndDisableProvider() throws Exception {
+    void engineOperatorCanEnableAndDisableProvider() throws Exception {
         mockMvc.perform(post("/api/v1/model-providers/ollama-local/enable")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON).content(ACTIVATION_BODY))
                 .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/v1/model-providers/ollama-local/disable")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON).content(ACTIVATION_BODY))
                 .andExpect(status().isOk());
     }
@@ -277,8 +273,8 @@ class ModelProviderControllerSecurityTest {
         mockMvc.perform(post("/api/v1/model-providers/ollama-local/enable")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
     }
@@ -288,21 +284,21 @@ class ModelProviderControllerSecurityTest {
         mockMvc.perform(post("/api/v1/model-providers/ollama-local/health-check")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void integrationOperatorCanProbeProviderHealth() throws Exception {
+    void engineOperatorCanProbeProviderHealth() throws Exception {
         when(service.checkHealth("ollama-local")).thenReturn(providerWithCredential());
         when(service.getProvider("ollama-local")).thenReturn(sanitizedView());
 
         mockMvc.perform(post("/api/v1/model-providers/ollama-local/health-check")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.credentialConfigured").value(true))
                 .andExpect(content().string(not(containsString("credentialRef"))))

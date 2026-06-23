@@ -25,6 +25,8 @@ import com.medkernel.engine.knowledge.KnowledgeCandidateReviewRequest;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.knowledge.KnowledgeVersionService;
 import com.medkernel.engine.knowledge.KnowledgeVersionStatus;
+import com.medkernel.engine.knowledge.SourceDocument;
+import com.medkernel.engine.knowledge.SourceDocumentRepository;
 import com.medkernel.engine.knowledge.SourceFragmentRepository;
 import com.medkernel.engine.knowledge.SourceVersion;
 import com.medkernel.engine.knowledge.SourceVersionRepository;
@@ -33,19 +35,21 @@ import com.medkernel.engine.knowledge.production.KnowledgeProductionCandidate;
 import com.medkernel.engine.knowledge.production.KnowledgeProductionCandidateRepository;
 import com.medkernel.engine.knowledge.production.KnowledgeProductionJob;
 import com.medkernel.engine.knowledge.production.KnowledgeProductionJobRepository;
+import com.medkernel.engine.knowledge.production.gate.PublicationQualityRecord;
+import com.medkernel.engine.knowledge.production.gate.PublicationQualityRecordRequest;
+import com.medkernel.engine.knowledge.production.gate.PublicationQualityRecordService;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
-import com.medkernel.engine.versioning.VersionPublishEvidence;
 
 /** 初始化发行批次编排；复用现有候选、审核和发布链，不另建医学状态机。 */
 @Service
 public class KnowledgeInitializationService {
 
     private final SourceVersionRepository sourceVersions;
-    private final SourceVersionApprovalRepository sourceApprovals;
+    private final SourceDocumentRepository sourceDocuments;
     private final SourceFragmentRepository sourceFragments;
     private final KnowledgeAssetVersionRepository versions;
     private final CandidateClassificationRepository classifications;
@@ -54,13 +58,14 @@ public class KnowledgeInitializationService {
     private final KnowledgeInitializationBatchRepository batches;
     private final KnowledgeInitializationItemRepository items;
     private final KnowledgeVersionService versionService;
+    private final PublicationQualityRecordService publicationQualityRecords;
     private final KnowledgeInitializationCatalog catalog;
     private final KnowledgeInitializationManifestValidator validator;
     private final ObjectMapper json;
 
     public KnowledgeInitializationService(
             SourceVersionRepository sourceVersions,
-            SourceVersionApprovalRepository sourceApprovals,
+            SourceDocumentRepository sourceDocuments,
             SourceFragmentRepository sourceFragments,
             KnowledgeAssetVersionRepository versions,
             CandidateClassificationRepository classifications,
@@ -69,11 +74,12 @@ public class KnowledgeInitializationService {
             KnowledgeInitializationBatchRepository batches,
             KnowledgeInitializationItemRepository items,
             KnowledgeVersionService versionService,
+            PublicationQualityRecordService publicationQualityRecords,
             KnowledgeInitializationCatalog catalog,
             KnowledgeInitializationManifestValidator validator,
             ObjectMapper json) {
         this.sourceVersions = sourceVersions;
-        this.sourceApprovals = sourceApprovals;
+        this.sourceDocuments = sourceDocuments;
         this.sourceFragments = sourceFragments;
         this.versions = versions;
         this.classifications = classifications;
@@ -82,6 +88,7 @@ public class KnowledgeInitializationService {
         this.batches = batches;
         this.items = items;
         this.versionService = versionService;
+        this.publicationQualityRecords = publicationQualityRecords;
         this.catalog = catalog;
         this.validator = validator;
         this.json = json;
@@ -164,9 +171,21 @@ public class KnowledgeInitializationService {
         }
         for (KnowledgeInitializationItem item : pendingLow) {
             requireSourceCurrent(tenantId, item);
+            ParsedCandidateRef candidateRef = parseCandidateRef(item.candidateRef());
+            KnowledgeAssetVersion candidate = versions.findByTenantIdAndIdentityIdAndVersionNo(
+                tenantId, candidateRef.identityId(), candidateRef.versionNo())
+                .orElseThrow(() -> ApiException.notFound("知识候选引用 " + item.candidateRef()));
+            KnowledgeProductionCandidate lineage = productionCandidates.findByTenantIdAndCandidateRefIn(
+                tenantId, List.of(item.candidateRef())).stream()
+                .findFirst()
+                .orElseThrow(() -> ApiException.notFound("候选生产血缘 " + item.candidateRef()));
+            PublicationQualityRecord qualityRecord = publicationQualityRecords.create(
+                lineage.jobCode(),
+                new PublicationQualityRecordRequest(
+                    item.candidateRef(), candidateRef.identityId(), candidate.id()));
             KnowledgeCandidateResponse response = versionService.reviewCandidate(
                 item.candidateClassificationId(),
-                batchReviewRequest(batch, item, request, tenantId, actor));
+                batchReviewRequest(batch, item, request, tenantId, actor, qualityRecord.id()));
             if (!"APPROVED".equals(response.reasonCode())) {
                 throw new ApiException(ErrorCode.CONFLICT, "LOW 候选未完成批准：" + item.canonicalId());
             }
@@ -367,13 +386,7 @@ public class KnowledgeInitializationService {
         }
         SourceVersion sourceVersion = sourceVersions.findByTenantIdAndId(tenantId, candidate.sourceVersionId())
             .orElseThrow(() -> ApiException.notFound("来源版本 id=" + candidate.sourceVersionId()));
-        SourceVersionApproval approval = sourceApprovals.findByTenantIdAndSourceVersionId(
-            tenantId, sourceVersion.id())
-            .filter(item -> item.status() == SourceVersionApprovalStatus.APPROVED)
-            .orElseThrow(() -> new ApiException(ErrorCode.CONFLICT, "来源版本未独立批准"));
-        if (!sourceVersion.contentHash().equals(approval.sourceHash())) {
-            throw new ApiException(ErrorCode.CONFLICT, "来源摘要漂移，批准证据已失效");
-        }
+        requireCompleteSource(tenantId, sourceVersion);
         if (candidate.anchors() == null || candidate.anchors().isBlank()) {
             throw new ApiException(ErrorCode.CONFLICT, "候选缺少来源锚点");
         }
@@ -510,13 +523,25 @@ public class KnowledgeInitializationService {
     private void requireSourceCurrent(String tenantId, KnowledgeInitializationItem item) {
         SourceVersion source = sourceVersions.findByTenantIdAndId(tenantId, item.sourceVersionId())
             .orElseThrow(() -> ApiException.notFound("来源版本 id=" + item.sourceVersionId()));
-        SourceVersionApproval approval = sourceApprovals.findByTenantIdAndSourceVersionId(
-            tenantId, item.sourceVersionId())
-            .filter(record -> record.status() == SourceVersionApprovalStatus.APPROVED)
-            .orElseThrow(() -> new ApiException(ErrorCode.CONFLICT, "来源版本批准已失效"));
-        if (!item.sourceHash().equals(source.contentHash())
-                || !item.sourceHash().equals(approval.sourceHash())) {
+        requireCompleteSource(tenantId, source);
+        if (!item.sourceHash().equals(source.contentHash())) {
             throw new ApiException(ErrorCode.CONFLICT, "来源漂移，阻断整批激活");
+        }
+    }
+
+    private void requireCompleteSource(String tenantId, SourceVersion version) {
+        if (blank(version.versionNo()) || !hash(version.contentHash()) || blank(version.fileUri())) {
+            throw new ApiException(
+                ErrorCode.BAD_REQUEST,
+                "来源版本技术信息不完整：必须包含版本号、64 位文件摘要和受管原件 URI");
+        }
+        SourceDocument document = sourceDocuments.findByTenantIdAndId(tenantId, version.sourceDocumentId())
+            .orElseThrow(() -> ApiException.notFound("来源文档 id=" + version.sourceDocumentId()));
+        if (document.authorityLevel() == null || blank(document.authorityBasis())
+                || blank(document.title()) || blank(document.publisher()) || blank(document.license())) {
+            throw new ApiException(
+                ErrorCode.BAD_REQUEST,
+                "来源文档元数据不完整：必须包含权威等级、依据、标题、发布机构和许可");
         }
     }
 
@@ -556,7 +581,8 @@ public class KnowledgeInitializationService {
             KnowledgeInitializationItem item,
             KnowledgeInitializationBatchApproveRequest request,
             String tenantId,
-            String actor) {
+            String actor,
+            Long qualityGateRecordId) {
         return new KnowledgeCandidateReviewRequest(
             request.idempotencyKey().trim() + ":" + item.id(),
             RequestContext.currentTraceId(),
@@ -569,10 +595,9 @@ public class KnowledgeInitializationService {
             null,
             actor,
             authenticatedRoleCodes(),
-            batch.releaseVersion(),
             KnowledgeCandidateReviewDecision.APPROVE,
             request.reason(),
-            VersionPublishEvidence.empty());
+            qualityGateRecordId);
     }
 
     private List<String> authenticatedRoleCodes() {
@@ -654,6 +679,14 @@ public class KnowledgeInitializationService {
 
     private String normalize(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private boolean blank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private boolean hash(String value) {
+        return value != null && value.matches("[0-9a-f]{64}");
     }
 
     private ParsedCandidateRef parseCandidateRef(String candidateRef) {

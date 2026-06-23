@@ -1,10 +1,6 @@
 package com.medkernel.engine.integration.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -15,46 +11,36 @@ import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
+import com.medkernel.engine.context.ClinicalRuntimeRelease;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseContent;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseContentResolver;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseItem;
+import com.medkernel.engine.context.ContextSnapshotRequest;
+import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
-import com.medkernel.engine.pkg.EffectiveKnowledgePackageResolver;
-import com.medkernel.engine.pkg.EffectiveKnowledgePackageResponse;
-import com.medkernel.engine.pkg.PackageEngineService;
-import com.medkernel.engine.pkg.PackageSyncRequest;
-import com.medkernel.engine.pkg.ReleaseScopeType;
-import com.medkernel.engine.pkg.ReleaseStrategy;
-import com.medkernel.engine.pkg.SyncLogResponse;
-import com.medkernel.engine.pkg.SyncLogStatus;
-import com.medkernel.engine.versioning.InheritanceOverrideMode;
-import com.medkernel.engine.versioning.InheritanceOverrideRegisterCommand;
-import com.medkernel.engine.versioning.InheritanceOverrideService;
-import com.medkernel.engine.versioning.InheritancePropagation;
+import com.medkernel.engine.context.CurrentClinicalRuntimeReleaseResolver;
+import com.medkernel.engine.release.ReleaseEntryState;
+import com.medkernel.engine.release.ReleaseSourceLayer;
 import com.medkernel.engine.versioning.VersionedAssetType;
-import com.medkernel.shared.api.PageRequest;
-import com.medkernel.shared.api.PageResponse;
-import com.medkernel.shared.audit.AuditRecorder;
-import com.medkernel.shared.api.error.ApiException;
-import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 class ThirdPartyKnowledgeRuntimeServiceTest {
 
-    private final EffectiveKnowledgePackageResolver packageResolver =
-        mock(EffectiveKnowledgePackageResolver.class);
+    private final CurrentClinicalRuntimeReleaseResolver currentReleases =
+        mock(CurrentClinicalRuntimeReleaseResolver.class);
+    private final ClinicalRuntimeReleaseContentResolver releaseContents =
+        mock(ClinicalRuntimeReleaseContentResolver.class);
     private final ContextSnapshotService contexts = mock(ContextSnapshotService.class);
-    private final InheritanceOverrideService overrides = mock(InheritanceOverrideService.class);
-    private final PackageEngineService packages = mock(PackageEngineService.class);
-    private final AuditRecorder audits = mock(AuditRecorder.class);
     private final ThirdPartyKnowledgeRuntimeService service =
-        new ThirdPartyKnowledgeRuntimeService(packageResolver, contexts, overrides, packages, audits);
+        new ThirdPartyKnowledgeRuntimeService(currentReleases, releaseContents, contexts);
 
     @BeforeEach
     void setUpContext() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-third-party-runtime",
-            OrgScope.tenant("tenant-A"),
+            new OrgScope("tenant-A", null, "hospital-A", null, null, "dept-A", null, null),
             "integration-user"));
     }
 
@@ -64,113 +50,58 @@ class ThirdPartyKnowledgeRuntimeServiceTest {
     }
 
     @Test
-    void resolvesEffectivePackageWithCanonicalDimensionsAndRequestedTime() {
-        Instant effectiveAt = Instant.parse("2026-06-01T08:00:00Z");
-        when(packageResolver.resolve(
-            eq("tenant-A"),
-            eq("PKG.AF"),
-            eq("2026.06"),
-            eq("dept-1"),
-            eq("specialty=AF;scenario=S16;setting=ED"),
-            eq(effectiveAt)))
-            .thenReturn(new EffectiveKnowledgePackageResponse(
-                "tenant-A", "dept-1", "pkg-1", "PKG.AF", "2026.06",
-                List.of(), List.of(), List.of()));
-
-        ThirdPartyEffectivePackageResponse response = service.resolveEffectivePackage(
-            new ThirdPartyEffectivePackageQuery(
-                "PKG.AF", "2026.06", "dept-1",
-                "AF", "S16", "ED", null, null, effectiveAt));
-
-        assertThat(response.contractVersion()).isEqualTo("v1");
-        assertThat(response.effectiveAt()).isEqualTo(effectiveAt);
-        assertThat(response.applicableScope())
-            .isEqualTo("specialty=AF;scenario=S16;setting=ED");
-        assertThat(response.snapshot().contentSha256()).hasSize(64);
-    }
-
-    @Test
-    void createsOverrideOnlyForCurrentTenantAndActor() {
-        ThirdPartyOverrideRequest request = new ThirdPartyOverrideRequest(
+    void resolvesTheAuthenticatedHospitalsCurrentImmutableRuntimeRelease() {
+        Instant activatedAt = Instant.parse("2026-06-23T08:00:00Z");
+        ClinicalRuntimeRelease release = new ClinicalRuntimeRelease(
+            1L,
+            "runtime-H12",
+            "tenant-A",
+            "hospital-A",
+            12L,
+            "baseline-A7",
+            "a".repeat(64),
+            null,
+            activatedAt,
+            "publisher-A",
+            activatedAt,
+            "publisher-A",
+            "trace-release");
+        ClinicalRuntimeReleaseItem rule = new ClinicalRuntimeReleaseItem(
+            1L,
+            release.releaseId(),
+            "t-1",
+            ReleaseSourceLayer.PLATFORM,
             VersionedAssetType.RULE,
-            "RULE.AF",
-            "av-platform",
-            "av-local",
-            "dept-1",
-            "specialty=AF;scenario=S16",
-            InheritanceOverrideMode.REPLACE,
-            "阈值按本院检验参考区间调整",
-            "院内检验方法不同",
-            "房颤急诊场景",
-            InheritancePropagation.INHERITABLE);
+            "RULE.AF.SAFETY",
+            ReleaseEntryState.ACTIVE,
+            "rule-v3",
+            "V3",
+            "b".repeat(64),
+            activatedAt,
+            "publisher-A",
+            "trace-release");
+        when(currentReleases.resolve(RequestContext.currentOrgScope())).thenReturn(release);
+        when(releaseContents.resolve("tenant-A", "runtime-H12"))
+            .thenReturn(new ClinicalRuntimeReleaseContent(release, List.of(rule)));
 
-        service.createOverride(request);
-
-        ArgumentCaptor<InheritanceOverrideRegisterCommand> command =
-            ArgumentCaptor.forClass(InheritanceOverrideRegisterCommand.class);
-        verify(overrides).registerOverride(command.capture());
-        assertThat(command.getValue())
-            .extracting(
-                InheritanceOverrideRegisterCommand::tenantId,
-                InheritanceOverrideRegisterCommand::createdBy,
-                InheritanceOverrideRegisterCommand::traceId,
-                InheritanceOverrideRegisterCommand::overrideMode,
-                InheritanceOverrideRegisterCommand::propagation)
-            .containsExactly(
-                "tenant-A",
-                "integration-user",
-                "trace-third-party-runtime",
-                InheritanceOverrideMode.REPLACE,
-                InheritancePropagation.INHERITABLE);
-        verify(audits).record(any(), eq("mk_version_inheritance_override"), any(), any());
-    }
-
-    @Test
-    void reconciliationReportsHonestNotSyncedState() {
-        PageRequest page = new PageRequest(1, 20, null);
-        List<SyncLogResponse> logs = List.of(
-            new SyncLogResponse(
-                "log-1", "plan-1", "adapter-1", SyncLogStatus.SUCCESS,
-                null, null, 0, "ok"),
-            new SyncLogResponse(
-                "log-2", "plan-1", "adapter-2", SyncLogStatus.NOT_SYNCED,
-                "NOT_CONNECTED", "适配器未接入真实同步通道", 0, null));
-        when(packages.listSyncLogs("pkg-1", page)).thenReturn(PageResponse.of(logs, page, logs.size()));
-
-        ThirdPartyPackageReconciliationResponse response = service.reconcilePackage("pkg-1", page);
+        ThirdPartyRuntimeReleaseResponse response = service.resolveCurrentRuntimeRelease();
 
         assertThat(response.contractVersion()).isEqualTo("v1");
-        assertThat(response.status()).isEqualTo(ThirdPartyReconciliationStatus.NOT_SYNCED);
-        assertThat(response.logs().items()).hasSize(2);
-        assertThat(response.logs().page()).isEqualTo(1);
+        assertThat(response.releaseId()).isEqualTo("runtime-H12");
+        assertThat(response.revisionNo()).isEqualTo(12L);
+        assertThat(response.platformBaselineReleaseId()).isEqualTo("baseline-A7");
+        assertThat(response.manifestSha256()).isEqualTo("a".repeat(64));
+        assertThat(response.assetCount()).isEqualTo(1);
+        assertThat(response.assets()).containsExactly(rule);
+        verify(releaseContents).resolve("tenant-A", "runtime-H12");
     }
 
     @Test
-    void rejectsPackageDistributionWhenBodyTenantDiffersFromRequestTenant() {
-        PackageSyncRequest request = new PackageSyncRequest(
-            "req-1",
-            "trace-third-party-runtime",
-            "tenant-B",
-            null,
-            "hospital-1",
-            null,
-            null,
-            "dept-1",
-            "AF",
-            "integration-user",
-            List.of("IT_OPS"),
-            "2026.06",
-            "第三方分发",
-            "dept-1",
-            ReleaseStrategy.GRAYSCALE,
-            ReleaseScopeType.DEPARTMENT,
-            "dept-1",
-            List.of("adapter-1"));
+    void delegatesContextSnapshotWritesWithoutAcceptingPackageSelectors() {
+        ContextSnapshotRequest request = mock(ContextSnapshotRequest.class);
+        ContextSnapshotResponse response = mock(ContextSnapshotResponse.class);
+        when(contexts.create(request, "idem-1")).thenReturn(response);
 
-        assertThatThrownBy(() -> service.distributePackage("pkg-1", request))
-            .isInstanceOf(ApiException.class)
-            .extracting(error -> ((ApiException) error).errorCode())
-            .isEqualTo(ErrorCode.ORG_SCOPE_DENIED);
-        verify(packages, never()).syncPackage(any(), any());
+        assertThat(service.writeContext(request, "idem-1")).isSameAs(response);
     }
 }

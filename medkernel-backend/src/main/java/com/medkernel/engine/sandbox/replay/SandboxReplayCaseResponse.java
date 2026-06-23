@@ -6,8 +6,8 @@ import java.time.Instant;
 public record SandboxReplayCaseResponse(
     String replayCaseId,
     SandboxReplayStatus status,
-    String packageCode,
-    String packageVersion,
+    String sourceRuntimeReleaseRef,
+    Long sourceRuntimeRevisionNo,
     String manifestHash,
     String deidentificationProfile,
     Instant occurredAt,
@@ -18,8 +18,8 @@ public record SandboxReplayCaseResponse(
 ) {
     static SandboxReplayCaseResponse from(SandboxReplayCase replayCase, int assetCount) {
         return new SandboxReplayCaseResponse(
-            replayCase.replayCaseId(), replayCase.status(), replayCase.packageCode(),
-            replayCase.packageVersion(), replayCase.manifestHash(),
+            replayCase.replayCaseId(), replayCase.status(), replayCase.sourceRuntimeReleaseRef(),
+            replayCase.sourceRuntimeRevisionNo(), replayCase.manifestHash(),
             replayCase.deidentificationProfile(), replayCase.occurredAt(), replayCase.importedAt(),
             replayCase.revokedAt(), replayCase.revokeReason(), assetCount);
     }

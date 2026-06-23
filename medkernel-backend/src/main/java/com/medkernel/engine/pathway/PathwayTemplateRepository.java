@@ -10,7 +10,7 @@ import org.springframework.stereotype.Repository;
 /**
  * 路径模板仓库。
  *
- * <p>保存专病路径模板主数据，支持按状态、病种、路径知识包和模板编码进行租户内分页检索。
+ * <p>保存专病路径模板主数据，支持按状态、病种和模板编码进行租户内分页检索。
  */
 @Repository
 public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTemplate, Long> {
@@ -27,26 +27,31 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
         String tenantId, String templateCode, Integer templateVersion);
 
     /**
+     * 读取同一稳定模板编码的最高历史版本，用于在回滚后继续生成单调递增版本号。
+     */
+    Optional<PathwayTemplate> findTopByTenantIdAndTemplateCodeOrderByTemplateVersionDesc(
+        String tenantId, String templateCode);
+
+    /**
      * 按真实来源引用查询模板，用于知识安全撤回后的路径影响扫描。
      */
     List<PathwayTemplate> findByTenantIdAndSourceRef(String tenantId, String sourceRef);
 
     /**
-     * 按可选状态、病种、路径知识包和模板编码分页查询路径模板。
+     * 按可选状态、病种和模板编码分页查询路径模板。
      */
     @Query("""
         SELECT * FROM pathway_template
         WHERE tenant_id = :tenantId
           AND (:status IS NULL OR status = :status)
           AND (:diseaseCode IS NULL OR disease_code = :diseaseCode)
-          AND (:packageId IS NULL OR package_id = :packageId)
           AND (:templateCode IS NULL OR template_code = :templateCode)
           AND (:keyword IS NULL OR LOWER(template_code) LIKE :keyword OR LOWER(name) LIKE :keyword OR LOWER(disease_code) LIKE :keyword)
         ORDER BY updated_at DESC, id DESC
         OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
         """)
     List<PathwayTemplate> pageByFilter(String tenantId, String status, String diseaseCode,
-                                       String packageId, String templateCode, String keyword,
+                                       String templateCode, String keyword,
                                        int offset, int limit);
 
     /**
@@ -57,12 +62,11 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
         WHERE tenant_id = :tenantId
           AND (:status IS NULL OR status = :status)
           AND (:diseaseCode IS NULL OR disease_code = :diseaseCode)
-          AND (:packageId IS NULL OR package_id = :packageId)
           AND (:templateCode IS NULL OR template_code = :templateCode)
           AND (:keyword IS NULL OR LOWER(template_code) LIKE :keyword OR LOWER(name) LIKE :keyword OR LOWER(disease_code) LIKE :keyword)
         ORDER BY updated_at DESC, id DESC
         """)
-    List<PathwayTemplate> listByFilter(String tenantId, String status, String diseaseCode, String packageId,
+    List<PathwayTemplate> listByFilter(String tenantId, String status, String diseaseCode,
                                        String templateCode, String keyword);
 
     /**
@@ -73,17 +77,16 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
         WHERE tenant_id = :tenantId
           AND (:status IS NULL OR status = :status)
           AND (:diseaseCode IS NULL OR disease_code = :diseaseCode)
-          AND (:packageId IS NULL OR package_id = :packageId)
           AND (:templateCode IS NULL OR template_code = :templateCode)
           AND (:keyword IS NULL OR LOWER(template_code) LIKE :keyword OR LOWER(name) LIKE :keyword OR LOWER(disease_code) LIKE :keyword)
         """)
-    long countByFilter(String tenantId, String status, String diseaseCode, String packageId,
+    long countByFilter(String tenantId, String status, String diseaseCode,
                        String templateCode, String keyword);
 
     /**
      * 统计租户本地模板与平台已发布模板合并后的有效总数。
      *
-     * <p>平台模板保持平台主源语义，不按租户包过滤；本地同编码同版本模板优先覆盖平台模板。
+     * <p>平台模板保持平台主源语义；本地同编码同版本模板优先覆盖平台模板。
      */
     @Query("""
         SELECT COUNT(*) FROM (
@@ -92,7 +95,6 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
             WHERE local.tenant_id = :tenantId
               AND (:tenantStatus IS NULL OR local.status = :tenantStatus)
               AND (:diseaseCode IS NULL OR local.disease_code = :diseaseCode)
-              AND (:packageId IS NULL OR local.package_id = :packageId)
               AND (:templateCode IS NULL OR local.template_code = :templateCode)
               AND (:keyword IS NULL OR LOWER(local.template_code) LIKE :keyword OR LOWER(local.name) LIKE :keyword OR LOWER(local.disease_code) LIKE :keyword)
             UNION ALL
@@ -111,7 +113,6 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
                       AND local_shadow.template_version = platform.template_version
                       AND (:tenantStatus IS NULL OR local_shadow.status = :tenantStatus)
                       AND (:diseaseCode IS NULL OR local_shadow.disease_code = :diseaseCode)
-                      AND (:packageId IS NULL OR local_shadow.package_id = :packageId)
                       AND (:templateCode IS NULL OR local_shadow.template_code = :templateCode)
                       AND (:keyword IS NULL OR LOWER(local_shadow.template_code) LIKE :keyword OR LOWER(local_shadow.name) LIKE :keyword OR LOWER(local_shadow.disease_code) LIKE :keyword)
                   )
@@ -119,7 +120,7 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
         """)
     long countEffectiveByFilter(String tenantId, String platformTenantId,
                                 String tenantStatus, String platformStatus,
-                                String diseaseCode, String packageId,
+                                String diseaseCode,
                                 String templateCode, String keyword);
 
     /**
@@ -132,7 +133,6 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
             WHERE local.tenant_id = :tenantId
               AND (:tenantStatus IS NULL OR local.status = :tenantStatus)
               AND (:diseaseCode IS NULL OR local.disease_code = :diseaseCode)
-              AND (:packageId IS NULL OR local.package_id = :packageId)
               AND (:templateCode IS NULL OR local.template_code = :templateCode)
               AND (:keyword IS NULL OR LOWER(local.template_code) LIKE :keyword OR LOWER(local.name) LIKE :keyword OR LOWER(local.disease_code) LIKE :keyword)
             UNION ALL
@@ -151,7 +151,6 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
                       AND local_shadow.template_version = platform.template_version
                       AND (:tenantStatus IS NULL OR local_shadow.status = :tenantStatus)
                       AND (:diseaseCode IS NULL OR local_shadow.disease_code = :diseaseCode)
-                      AND (:packageId IS NULL OR local_shadow.package_id = :packageId)
                       AND (:templateCode IS NULL OR local_shadow.template_code = :templateCode)
                       AND (:keyword IS NULL OR LOWER(local_shadow.template_code) LIKE :keyword OR LOWER(local_shadow.name) LIKE :keyword OR LOWER(local_shadow.disease_code) LIKE :keyword)
                   )
@@ -161,7 +160,7 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
         """)
     List<PathwayTemplate> pageEffectiveByFilter(String tenantId, String platformTenantId,
                                                 String tenantStatus, String platformStatus,
-                                                String diseaseCode, String packageId,
+                                                String diseaseCode,
                                                 String templateCode, String keyword,
                                                 int offset, int limit);
 
@@ -239,37 +238,4 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
         String tagPattern,
         String favoriteUserId);
 
-    /**
-     * 条件片段影响分析按路径边条件预过滤候选模板，避免全量路径扫描。
-     */
-    @Query("""
-        SELECT DISTINCT pt.*
-        FROM pathway_template pt
-        JOIN pathway_edge pe
-          ON pe.tenant_id = pt.tenant_id
-         AND pe.template_id = pt.template_id
-        WHERE pt.tenant_id = :tenantId
-          AND LOWER(pe.condition_json) LIKE :fragmentPattern
-        ORDER BY pt.updated_at DESC, pt.id DESC
-        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
-        """)
-    List<PathwayTemplate> pageTemplateImpactsByFragmentPattern(
-        String tenantId,
-        String fragmentPattern,
-        int offset,
-        int limit);
-
-    /**
-     * 与 {@link #pageTemplateImpactsByFragmentPattern} 同口径统计路径模板影响候选数。
-     */
-    @Query("""
-        SELECT COUNT(DISTINCT pt.template_id)
-        FROM pathway_template pt
-        JOIN pathway_edge pe
-          ON pe.tenant_id = pt.tenant_id
-         AND pe.template_id = pt.template_id
-        WHERE pt.tenant_id = :tenantId
-          AND LOWER(pe.condition_json) LIKE :fragmentPattern
-        """)
-    long countTemplateImpactsByFragmentPattern(String tenantId, String fragmentPattern);
 }

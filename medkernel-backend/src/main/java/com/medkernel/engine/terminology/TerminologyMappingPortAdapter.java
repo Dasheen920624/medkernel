@@ -13,7 +13,7 @@ import com.medkernel.engine.context.TerminologyMappingPort;
 import com.medkernel.engine.versioning.PlatformAuthority;
 
 /**
- * TERM-01 已全量激活映射包对标准上下文 / FHIR 门面的字典状态端口实现。
+ * 医院运行修订锁定术语版本对标准上下文 / FHIR 门面的字典状态端口实现。
  */
 @Component
 public class TerminologyMappingPortAdapter implements TerminologyMappingPort {
@@ -29,15 +29,23 @@ public class TerminologyMappingPortAdapter implements TerminologyMappingPort {
     }
 
     @Override
-    public Map<String, String> evaluate(String tenantId, List<ClinicalCodeMappingAnchor> anchors) {
+    public Map<String, String> evaluate(
+            String tenantId,
+            String runtimeReleaseId,
+            List<ClinicalCodeMappingAnchor> anchors) {
         Map<String, String> statuses = new LinkedHashMap<>();
         for (ClinicalCodeMappingAnchor anchor : anchors == null ? List.<ClinicalCodeMappingAnchor>of() : anchors) {
-            statuses.putIfAbsent(anchor.key(), evaluateAnchor(tenantId, anchor));
+            statuses.putIfAbsent(
+                anchor.key(),
+                evaluateAnchor(tenantId, runtimeReleaseId, anchor));
         }
         return statuses;
     }
 
-    private String evaluateAnchor(String tenantId, ClinicalCodeMappingAnchor anchor) {
+    private String evaluateAnchor(
+            String tenantId,
+            String runtimeReleaseId,
+            ClinicalCodeMappingAnchor anchor) {
         String targetDictionary = normalize(anchor.targetDictionaryKey());
         String sourceSystem = normalize(anchor.localCodeSystem());
         List<String> standardSources = standardTermSources(tenantId);
@@ -48,6 +56,7 @@ public class TerminologyMappingPortAdapter implements TerminologyMappingPort {
         }
         List<EffectiveTermMapping> confirmed = effectiveMappings.resolve(
             tenantId,
+            runtimeReleaseId,
             sourceSystem.isBlank() ? null : sourceSystem,
             anchor.localCode(),
             targetDictionary.isBlank() ? null : targetDictionary,

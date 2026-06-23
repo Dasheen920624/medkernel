@@ -50,8 +50,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: medkernel-backend-sbom-${{ github.sha }}
-          path: medkernel-backend/target/bom.json
-          if-no-files-found: warn
+          path: medkernel-backend/target/classes/META-INF/sbom/application.cdx.json
+          if-no-files-found: error
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -83,15 +83,15 @@ jobs:
             fi
           fi
 
-      - name: Verify CONSTITUTION + backlog exist
+      - name: Verify current authoritative docs exist
         run: |
           test -f docs/CONSTITUTION.md || { echo "::error::缺 docs/CONSTITUTION.md"; exit 1; }
-          test -f docs/MEDKERNEL_FOUNDATION_AND_SERVICES.md || { echo "::error::缺 docs/MEDKERNEL_FOUNDATION_AND_SERVICES.md"; exit 1; }
-          test -f docs/MEDKERNEL_PRODUCT_EXPERIENCE_RULES.md || { echo "::error::缺 docs/MEDKERNEL_PRODUCT_EXPERIENCE_RULES.md"; exit 1; }
-          test -f docs/MEDKERNEL_IMPLEMENTATION_LANDING_PLAN.md || { echo "::error::缺 docs/MEDKERNEL_IMPLEMENTATION_LANDING_PLAN.md"; exit 1; }
-          test -f docs/MEDKERNEL_BUSINESS_SCENARIO_DETAIL_SPEC.md || { echo "::error::缺 docs/MEDKERNEL_BUSINESS_SCENARIO_DETAIL_SPEC.md"; exit 1; }
-          test -f docs/backlog.md || { echo "::error::缺 docs/backlog.md"; exit 1; }
-          echo "✓ 6 张权威文档齐备"
+          test -f docs/ARCHITECTURE.md || { echo "::error::缺 docs/ARCHITECTURE.md"; exit 1; }
+          test -f docs/DATABASE_SCHEMA.md || { echo "::error::缺 docs/DATABASE_SCHEMA.md"; exit 1; }
+          test -f docs/audit/product-function-catalog.md || { echo "::error::缺功能目录"; exit 1; }
+          test -f docs/audit/product-role-journeys.md || { echo "::error::缺职责矩阵"; exit 1; }
+          test -f docs/audit/质量基线.md || { echo "::error::缺质量基线"; exit 1; }
+          echo "✓ 当前权威文档齐备"
 
       - name: Forbid legacy task naming in code
         run: |
@@ -107,6 +107,9 @@ jobs:
 
       - name: Test onprem publish package contract
         run: bash deploy/onprem/tests/validate-mk-publish-package.sh
+
+      - name: Test shell assertion semantics
+        run: bash scripts/check-shell-test-assertions.sh
 
       - name: Test onprem fresh deployment script contract
         run: bash deploy/onprem/tests/validate-medkernel-fresh-deploy.sh
@@ -130,6 +133,12 @@ jobs:
 
       - name: Test migration convention guard
         run: node --test scripts/migration-convention-guard.test.mjs
+
+      - name: Test single-source database generator
+        run: node --test scripts/db/generate-migrations.test.mjs
+
+      - name: Verify five-dialect V1 matches the canonical schema
+        run: node scripts/db/generate-migrations.mjs --check
 
       - name: Block new touched-file migration convention debt
         run: node scripts/migration-convention-guard.mjs --mode=changed --base=origin/main
@@ -262,7 +271,6 @@ jobs:
         run: mvn -B -q test
 
   # GA-ENG-DOC-01 · 引擎层中文 Javadoc / SQL COMMENT 软门禁
-  # 设计文档：docs/superpowers/specs/2026-05-27-engine-comment-language-design.md
   # 新增 .java / .sql 文件缺中文注释 → fail；修改既有文件缺口 → 仅 step summary warn。
   comment-language-check:
     name: comment-language-check

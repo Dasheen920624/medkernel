@@ -75,8 +75,8 @@ describe("SecurityBaseline", () => {
         username: "security-admin",
         roles: [
           {
-            code: "platform-governance-admin",
-            displayName: "平台治理管理员",
+            code: "platform-admin",
+            displayName: "平台管理员",
             source: "PLATFORM_SEED",
             scopeLevel: "TENANT",
             scopeCode: "t-1",
@@ -211,19 +211,6 @@ describe("SecurityBaseline", () => {
           version: 1,
           updatedAt: "2026-06-06T00:00:00Z",
         },
-        {
-          key: "medkernel.knowledge.production.p6-independent-acceptance",
-          value: "false",
-          valueType: "BOOLEAN",
-          displayName: "P6 正式知识生产独立验收",
-          risk: "HIGH",
-          owner: "平台知识治理组 / 医务处 / 信息科",
-          description: "正式模型生成知识的独立验收放行标记。",
-          source: "PLATFORM_SEED",
-          protectedConfig: true,
-          version: 1,
-          updatedAt: "2026-06-06T00:00:00Z",
-        },
       ]) as never,
     );
     vi.mocked(useTenantSystemConfigs).mockReturnValue(
@@ -234,21 +221,8 @@ describe("SecurityBaseline", () => {
           valueType: "BOOLEAN",
           displayName: "规则临床算子",
           risk: "HIGH",
-          owner: "医务处 / 信息科",
+          owner: "当前授权责任人",
           description: "控制临床算子是否参与求值",
-          source: "SYSTEM_INHERITED",
-          protectedConfig: true,
-          version: 1,
-          updatedAt: "2026-06-06T00:00:00Z",
-        },
-        {
-          key: "medkernel.knowledge.production.p6-independent-acceptance",
-          value: "false",
-          valueType: "BOOLEAN",
-          displayName: "P6 正式知识生产独立验收",
-          risk: "HIGH",
-          owner: "平台知识治理组 / 医务处 / 信息科",
-          description: "正式模型生成知识的独立验收放行标记。",
           source: "SYSTEM_INHERITED",
           protectedConfig: true,
           version: 1,
@@ -358,11 +332,22 @@ describe("SecurityBaseline", () => {
             itemCode: "STD-01",
             itemName: "标准数据集覆盖",
             requirementSummary: "核心数据资源采用受控标准编码",
-            status: "MISSING_EVIDENCE",
-            evidenceCount: 0,
-            sharedWithEmrLevel: false,
-            gapReason: "缺少真实证据映射",
-            evidences: [],
+            status: "SATISFIED",
+            evidenceCount: 1,
+            sharedWithEmrLevel: true,
+            gapReason: null,
+            evidences: [
+              {
+                mapId: "map-emr-export-1",
+                sourceType: "EMR_LEVEL_EVIDENCE_EXPORT",
+                sourceId: "emr-export-001",
+                evidenceRef: "EMR-LEVEL-EXPORT-001",
+                evidenceSummary: "电子病历评级证据导出覆盖标准数据集",
+                fileUri: "/evidence/emr-export-001.ndjson",
+                payloadDigest: "sha256:emr-export-001",
+                sharedWithEmrLevel: true,
+              },
+            ],
           },
         ],
       }) as never,
@@ -429,8 +414,6 @@ describe("SecurityBaseline", () => {
     expect(screen.getByText("平台知识文献资料")).toBeInTheDocument();
     expect(screen.getAllByText("平台知识文献资料库根地址").length).toBeGreaterThan(0);
     expect(screen.getAllByText("未配置").length).toBeGreaterThan(0);
-    expect(screen.getByText("仅内置超管放行")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "编辑 P6 正式知识生产独立验收" })).toBeDisabled();
     expect(
       screen.getByText(/正式知识生产前必须通过配置中心维护受管本地磁盘、对象存储或 HTTPS 网关/),
     ).toBeInTheDocument();
@@ -450,8 +433,25 @@ describe("SecurityBaseline", () => {
 
     await user.click(screen.getByRole("tab", { name: "互操作测评" }));
     expect(screen.getByText("标准数据集覆盖")).toBeInTheDocument();
-    expect(screen.getByText("缺少真实证据映射")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Expand row" }));
+    expect(screen.getByText("电子病历评级证据导出")).toBeInTheDocument();
   }, 15_000);
+
+  it("treats globally disabled MFA as a valid passing configuration", () => {
+    const currentProfile = vi.mocked(useSecurityProfile)().data;
+    vi.mocked(useSecurityProfile).mockReturnValue(
+      query({
+        ...currentProfile,
+        mfaRequired: false,
+        mfaBound: false,
+      }) as never,
+    );
+
+    renderPage();
+
+    expect(screen.getAllByText("MFA 全局配置已关闭").length).toBeGreaterThan(0);
+    expect(screen.getByRole("row", { name: /MFA 通过 MFA 全局配置已关闭/ })).toBeInTheDocument();
+  });
 
   it("updates a real config item with version and high-risk confirmation", async () => {
     const user = userEvent.setup();
@@ -479,55 +479,6 @@ describe("SecurityBaseline", () => {
         },
       }),
     );
-  });
-
-  it("allows the built-in system superadmin to open P6 acceptance release", async () => {
-    vi.mocked(useSecurityProfile).mockReturnValue(
-      query({
-        userId: "system-superadmin-1",
-        username: "system-superadmin",
-        roles: [
-          {
-            code: "system-superadmin",
-            displayName: "内置超级管理员",
-            source: "PLATFORM_SEED",
-            scopeLevel: "TENANT",
-            scopeCode: "t-1",
-          },
-        ],
-        permissions: [
-          {
-            code: "system.manage",
-            dimension: "ACTION",
-            target: "system",
-            displayName: "系统配置",
-            risk: "HIGH",
-          },
-        ],
-        menuKeys: ["security-baseline"],
-        environmentKeys: ["prod"],
-        dataScope: {
-          tenantId: "t-1",
-          groupId: null,
-          hospitalId: null,
-          campusId: null,
-          siteId: null,
-          departmentId: null,
-          specialtyId: null,
-        },
-        mustChangePwd: false,
-        mfaRequired: true,
-        mfaBound: true,
-      }) as never,
-    );
-    const user = userEvent.setup();
-    renderPage();
-
-    await user.click(screen.getByRole("tab", { name: "系统配置" }));
-    const edit = screen.getByRole("button", { name: "编辑 P6 正式知识生产独立验收" });
-    expect(edit).toBeEnabled();
-    await user.click(edit);
-    expect(screen.getByRole("dialog", { name: "编辑系统配置" })).toBeInTheDocument();
   });
 
   it("maintains the platform knowledge literature repository root through system config", async () => {
@@ -571,8 +522,7 @@ describe("SecurityBaseline", () => {
       target: { value: "tenant-A" },
     });
     expect(screen.getByText("规则临床算子")).toBeInTheDocument();
-    expect(screen.getAllByText("继承系统")).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "编辑 P6 正式知识生产独立验收" })).toBeDisabled();
+    expect(screen.getAllByText("继承系统")).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "编辑 规则临床算子" }));
     const dialog = screen.getByRole("dialog", { name: "编辑服务机构配置" });
     fireEvent.change(within(dialog).getByRole("textbox", { name: "变更原因" }), {

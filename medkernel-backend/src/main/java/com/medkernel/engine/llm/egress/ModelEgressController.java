@@ -15,7 +15,7 @@ import jakarta.validation.Valid;
 /**
  * 模型外调出域治理接口控制器（LLM-03）。
  *
- * <p>由集成运维员（{@code llm.egress.manage}）维护出域字段白名单与裁定高敏出域审批；
+ * <p>由引擎运营员（{@code llm.egress.manage}）维护出域字段白名单并确认高敏出域用途；
  * 全线 {@link DataScope} 强多租户隔离。运行时出域拦截在 {@code ModelEgressGuard}。
  */
 @RestController
@@ -41,12 +41,12 @@ public class ModelEgressController {
     }
 
     /**
-     * 裁定一条高敏出域审批（APPROVED / REJECTED）。
+     * 确认一条脱敏后高敏载荷的出域用途。
      */
-    @PostMapping("/approvals")
+    @PostMapping("/confirmations")
     @PreAuthorize("@perm.has('llm.egress.manage')")
-    public ApiResult<ModelEgressApproval> decideApproval(
-            @Valid @RequestBody ModelEgressApprovalRequest request) {
-        return ApiResult.ok(service.decideApproval(request));
+    public ApiResult<ModelEgressConfirmation> confirmEgress(
+            @Valid @RequestBody ModelEgressConfirmationRequest request) {
+        return ApiResult.ok(service.confirmEgress(request));
     }
 }

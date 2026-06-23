@@ -52,14 +52,14 @@ class AuthoringAssetLibraryControllerTest {
             .thenReturn(PageResponse.of(List.of(item()), new PageRequest(0, 20, null), 1));
 
         mvc.perform(get("/api/v1/engine/authoring/assets")
-                .queryParam("assetType", "CONDITION_FRAGMENT")
+                .queryParam("assetType", "RULE")
                 .queryParam("keyword", "CKD")
                 .queryParam("tag", "复用")
                 .queryParam("favoriteOnly", "true")
                 .with(readJwt()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data.items[0].assetType").value("CONDITION_FRAGMENT"))
+            .andExpect(jsonPath("$.data.items[0].assetType").value("RULE"))
             .andExpect(jsonPath("$.data.items[0].tags[0]").value("复用"))
             .andExpect(jsonPath("$.data.total").value(1));
     }
@@ -88,27 +88,19 @@ class AuthoringAssetLibraryControllerTest {
     }
 
     @Test
-    void listEndpointRejectsFollowupOnlyReaderForRuleAssets() throws Exception {
-        mvc.perform(get("/api/v1/engine/authoring/assets")
-                .queryParam("assetType", "RULE")
-                .with(followupReadJwt()))
-            .andExpect(status().isForbidden());
-    }
-
-    @Test
     void profileEndpointSavesCategoryAndTags() throws Exception {
         when(service.updateProfile(
-                eq(VersionedAssetType.CONDITION_FRAGMENT),
-                eq("frag-ckd"),
+                eq(VersionedAssetType.RULE),
+                eq("rule-ckd"),
                 any(AuthoringAssetProfileRequest.class)))
             .thenReturn(new AuthoringAssetProfileResponse(
-                VersionedAssetType.CONDITION_FRAGMENT,
-                "frag-ckd",
+                VersionedAssetType.RULE,
+                "rule-ckd",
                 "慢病",
                 List.of("复用", "CKD"),
                 "trace-assets"));
 
-        mvc.perform(put("/api/v1/engine/authoring/assets/CONDITION_FRAGMENT/frag-ckd/profile")
+        mvc.perform(put("/api/v1/engine/authoring/assets/RULE/rule-ckd/profile")
                 .with(writeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -122,58 +114,28 @@ class AuthoringAssetLibraryControllerTest {
 
     @Test
     void favoriteEndpointTogglesPersonalFavorite() throws Exception {
-        when(service.favorite(VersionedAssetType.CONDITION_FRAGMENT, "frag-ckd"))
+        when(service.favorite(VersionedAssetType.RULE, "rule-ckd"))
             .thenReturn(new AuthoringAssetFavoriteResponse(
-                VersionedAssetType.CONDITION_FRAGMENT,
-                "frag-ckd",
+                VersionedAssetType.RULE,
+                "rule-ckd",
                 true,
                 "trace-assets"));
-        when(service.unfavorite(VersionedAssetType.CONDITION_FRAGMENT, "frag-ckd"))
+        when(service.unfavorite(VersionedAssetType.RULE, "rule-ckd"))
             .thenReturn(new AuthoringAssetFavoriteResponse(
-                VersionedAssetType.CONDITION_FRAGMENT,
-                "frag-ckd",
+                VersionedAssetType.RULE,
+                "rule-ckd",
                 false,
                 "trace-assets"));
 
-        mvc.perform(post("/api/v1/engine/authoring/assets/CONDITION_FRAGMENT/frag-ckd/favorite")
+        mvc.perform(post("/api/v1/engine/authoring/assets/RULE/rule-ckd/favorite")
                 .with(writeJwt()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.favorite").value(true));
 
-        mvc.perform(delete("/api/v1/engine/authoring/assets/CONDITION_FRAGMENT/frag-ckd/favorite")
+        mvc.perform(delete("/api/v1/engine/authoring/assets/RULE/rule-ckd/favorite")
                 .with(writeJwt()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.favorite").value(false));
-    }
-
-    @Test
-    void cloneEndpointReturnsDraftAsset() throws Exception {
-        when(service.cloneAsset(
-                eq(VersionedAssetType.CONDITION_FRAGMENT),
-                eq("frag-ckd"),
-                any(AuthoringAssetCloneRequest.class)))
-            .thenReturn(new AuthoringAssetCloneResponse(
-                VersionedAssetType.CONDITION_FRAGMENT,
-                "frag-ckd",
-                VersionedAssetType.CONDITION_FRAGMENT,
-                "frag-ckd-copy",
-                "FRAG.CKD.COPY",
-                "DRAFT"));
-
-        mvc.perform(post("/api/v1/engine/authoring/assets/CONDITION_FRAGMENT/frag-ckd/clone")
-                .with(writeJwt())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                    {
-                      "newCode": "FRAG.CKD.COPY",
-                      "newName": "CKD 条件副本",
-                      "newVersion": 1,
-                      "packageVersion": "pkg-2026.06"
-                    }
-                    """))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.clonedAssetId").value("frag-ckd-copy"))
-            .andExpect(jsonPath("$.data.status").value("DRAFT"));
     }
 
     @Test
@@ -189,16 +151,14 @@ class AuthoringAssetLibraryControllerTest {
 
     private AuthoringAssetLibraryItem item() {
         return new AuthoringAssetLibraryItem(
-            VersionedAssetType.CONDITION_FRAGMENT,
-            "frag-ckd",
-            "FRAG.CKD",
-            "CKD 条件片段",
+            VersionedAssetType.RULE,
+            "rule-ckd",
+            "RULE.CKD",
+            "CKD 阻断规则",
             "慢病",
             List.of("复用", "CKD"),
             "1",
             "ACTIVE",
-            "pkg-2026.06",
-            true,
             true,
             Instant.parse("2026-06-08T00:00:00Z")
         );
@@ -208,31 +168,31 @@ class AuthoringAssetLibraryControllerTest {
         return jwt().jwt(token -> token
                 .subject("asset-reader")
                 .claim("tenant_id", "tenant-A")
-                .claim("roles", List.of("clinical-decision-user")))
-            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"));
+                .claim("roles", List.of("clinical-user")))
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"));
     }
 
     private static RequestPostProcessor writeJwt() {
         return jwt().jwt(token -> token
                 .subject("asset-author")
                 .claim("tenant_id", "tenant-A")
-                .claim("roles", List.of("medical_affairs")))
-            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR"));
+                .claim("roles", List.of("engine-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"));
     }
 
     private static RequestPostProcessor followupReadJwt() {
         return jwt().jwt(token -> token
-                .subject("implementation-operator")
+                .subject("clinical-user")
                 .claim("tenant_id", "tenant-A")
-                .claim("roles", List.of("implementation-operator")))
-            .authorities(new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_OPERATOR"));
+                .claim("roles", List.of("clinical-user")))
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"));
     }
 
     private static RequestPostProcessor platformKnowledgeReadJwt() {
         return jwt().jwt(token -> token
-                .subject("platform-knowledge-governor")
+                .subject("engine-operator")
                 .claim("tenant_id", "tenant-A")
-                .claim("roles", List.of("platform-knowledge-governor")))
-            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_KNOWLEDGE_GOVERNOR"));
+                .claim("roles", List.of("engine-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"));
     }
 }

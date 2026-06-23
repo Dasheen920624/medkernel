@@ -34,7 +34,7 @@ class RuleUsageStatsRepositoryIntegrationTest {
     private static final String TENANT = "tenant-datasvc-it";
 
     private RuleExecutionLog log(String suffix, String ruleId, boolean hit, Instant at) {
-        return new RuleExecutionLog(null, "exec-" + suffix, TENANT, ruleId, "v1", "ORDER_SIGN",
+        return new RuleExecutionLog(null, "exec-" + suffix, TENANT, ruleId, "v1", null, "ORDER_SIGN",
             null, null, null, null, null, "digest-" + suffix, hit, RuleRiskLevel.LOW,
             null, null, RuleExecutionStatus.SUCCESS, null, null, null, at, at, null);
     }

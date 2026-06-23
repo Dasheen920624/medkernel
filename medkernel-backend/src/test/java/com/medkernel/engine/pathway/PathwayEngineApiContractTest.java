@@ -1,6 +1,9 @@
 package com.medkernel.engine.pathway;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -45,8 +48,8 @@ class PathwayEngineApiContractTest {
     }
 
     @Test
-    void pathwayPackageNotFoundUsesUnifiedKnowledgePackageWording() {
-        assertThat(ErrorCode.ENG_PATHWAY_007.defaultMessage()).isEqualTo("路径知识包不存在");
+    void pathwayMissingAssetUsesRuntimeAssetWording() {
+        assertThat(ErrorCode.ENG_PATHWAY_007.defaultMessage()).isEqualTo("路径运行资产不存在");
     }
 
     @Test
@@ -83,6 +86,88 @@ class PathwayEngineApiContractTest {
     }
 
     @Test
+    void patientPathwayRuntimeEndpointsDoNotRequireClientSuppliedPackageVersion() throws Exception {
+        when(service.enterPatientPathway(any(PatientPathwayEnterRequest.class)))
+            .thenReturn(new PatientPathwayDetailResponse(
+                null, List.of(), List.of(), List.of(), "trace-pathway"));
+        when(service.advance(any(PathwayAdvanceRequest.class)))
+            .thenReturn(new PathwayAdvanceResponse(
+                "pp-1", "ASSESS", "FOLLOWUP", PatientPathwayStatus.NODE_EXECUTING,
+                null, "trace-pathway"));
+
+        mvc.perform(post("/api/v1/engine/pathway/patient-pathways/enter")
+                .with(executeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "request_id": "req-enter",
+                      "trace_id": "trace-pathway",
+                      "tenant_id": "t-1",
+                      "user_id": "api06-clinician",
+                      "role_codes": ["clinical-user"],
+                      "contextSnapshotId": "ctx-active-1",
+                      "triggerPoint": "patient-view",
+                      "templateId": "pt-1"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.success").value(true));
+
+        mvc.perform(post("/api/v1/engine/pathway/patient-pathways/pp-1/advance")
+                .with(executeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "request_id": "req-advance",
+                      "trace_id": "trace-pathway",
+                      "tenant_id": "t-1",
+                      "user_id": "api06-clinician",
+                      "role_codes": ["clinical-user"],
+                      "triggerPoint": "patient-view",
+                      "eventType": "COMPLETE",
+                      "currentNodeCode": "ASSESS",
+                      "requestedNextNodeCode": "FOLLOWUP"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void entryCandidatesAreResolvedFromSnapshotAndTriggerWithoutVersionSelector() throws Exception {
+        when(service.entryCandidates("ctx-active-1", "result-review"))
+            .thenReturn(new PathwayEntryCandidateResponse(
+                "ctx-active-1",
+                "result-review",
+                List.of(new PathwayEntryCandidate(
+                    "pt-1", "TPL.COPD", "稳定期随访路径", "COPD"))));
+
+        mvc.perform(get("/api/v1/engine/pathway/patient-pathways/entry-candidates")
+                .with(executeJwt())
+                .param("contextSnapshotId", "ctx-active-1")
+                .param("triggerPoint", "result-review"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.contextSnapshotId").value("ctx-active-1"))
+            .andExpect(jsonPath("$.data.triggerPoint").value("result-review"))
+            .andExpect(jsonPath("$.data.candidates[0].templateId").value("pt-1"))
+            .andExpect(jsonPath("$.data.candidates[0].pathwayVersionId").doesNotExist())
+            .andExpect(jsonPath("$.data.runtimeReleaseId").doesNotExist());
+    }
+
+    @Test
+    void legacyPathwaySpecificPublishDtosAreRemoved() {
+        assertThatThrownBy(() -> Class.forName(
+                "com.medkernel.engine.pathway.PathwayOperationRequest"))
+            .isInstanceOf(ClassNotFoundException.class);
+        assertThatThrownBy(() -> Class.forName(
+                "com.medkernel.engine.pathway.PathwayTemplateImpactResponse"))
+            .isInstanceOf(ClassNotFoundException.class);
+        assertThatThrownBy(() -> Class.forName(
+                "com.medkernel.engine.pathway.PathwayTemplatePublishResponse"))
+            .isInstanceOf(ClassNotFoundException.class);
+    }
+
+    @Test
     void varianceAndClockEndpointsUseCustomerRouteAndTenantScope() throws Exception {
         mvc.perform(get("/api/v1/engine/pathway/patient-pathways/pp-1/variances")
                 .with(readJwt()))
@@ -96,11 +181,28 @@ class PathwayEngineApiContractTest {
     }
 
     @Test
-    void templateImpactEndpointUsesCustomerRouteAndTenantScope() throws Exception {
+    void legacyPathwaySpecificPublishEndpointsAreRemoved() throws Exception {
         mvc.perform(get("/api/v1/engine/pathway/pathway-templates/pt-1/impact")
                 .with(readJwt()))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.success").value(true));
+            .andExpect(status().isNotFound());
+
+        mvc.perform(post("/api/v1/engine/pathway/pathway-templates/pt-1/publish")
+                .with(writeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isNotFound());
+
+        mvc.perform(post("/api/v1/engine/pathway/pathway-templates/pt-1/rollout/full")
+                .with(writeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isNotFound());
+
+        mvc.perform(post("/api/v1/engine/pathway/pathway-templates/pt-1/rollback")
+                .with(writeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isNotFound());
     }
 
     @Test
@@ -120,23 +222,23 @@ class PathwayEngineApiContractTest {
         return jwt().jwt(token -> token
                 .subject("api06-doctor")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("clinical-decision-user")))
-            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"));
+                .claim("roles", List.of("clinical-user")))
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"));
     }
 
     private static RequestPostProcessor writeJwt() {
         return jwt().jwt(token -> token
                 .subject("api06-specialist")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("knowledge-governor")))
-            .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"));
+                .claim("roles", List.of("engine-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"));
     }
 
     private static RequestPostProcessor executeJwt() {
         return jwt().jwt(token -> token
                 .subject("api06-clinician")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("clinical-decision-user")))
-            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"));
+                .claim("roles", List.of("clinical-user")))
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"));
     }
 }

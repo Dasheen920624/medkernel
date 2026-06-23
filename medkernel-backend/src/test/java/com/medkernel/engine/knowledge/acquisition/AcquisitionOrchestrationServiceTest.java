@@ -103,8 +103,6 @@ class AcquisitionOrchestrationServiceTest {
             AcquisitionLicensePolicy.PERMITTED,
             AcquisitionRobotsPolicy.ALLOW_FETCH,
             "Y",
-            "super-admin",
-            Instant.parse("2026-06-17T00:00:00Z"),
             "N",
             null,
             null,
@@ -304,8 +302,7 @@ class AcquisitionOrchestrationServiceTest {
             "zh-CN", Instant.EPOCH, "user-001")));
         GenerationSummary generationSummary = new GenerationSummary(
             List.of(new GeneratedCandidate(VersionedAssetType.RULE, "job-acq", "kv:1:draft",
-                new ReviewRoutingDecision(RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.KNOWLEDGE_GOVERNOR,
-                    false, KnowledgeDomain.CLINICAL))),
+                new ReviewRoutingDecision(RoleCode.ENGINE_OPERATOR, KnowledgeDomain.CLINICAL))),
             List.of(),
             List.of());
         when(candidateGeneration.generate(any())).thenReturn(generationSummary);

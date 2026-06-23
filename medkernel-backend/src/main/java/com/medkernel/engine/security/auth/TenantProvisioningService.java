@@ -29,7 +29,7 @@ import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 平台级租户开通服务（跨租户）：创建新租户根组织 + 首个医院管理员账号 + 角色。
+ * 平台级租户开通服务（跨租户）：创建新租户根组织 + 首个平台管理员账号 + 固定职责。
  *
  * <p>全 profile 注册，由 {@code tenant.write} 高风险权限守卫（实际仅平台管理员具备）。
  * 显式向**新租户**写入数据，不依赖请求方当前租户。
@@ -79,7 +79,7 @@ public class TenantProvisioningService {
             .toList();
     }
 
-    /** 开通客户服务空间：建根组织 + 首个机构管理员账号（须首登改密）。 */
+    /** 开通客户服务空间：建根组织 + 首个平台管理员账号（须首登改密）。 */
     @Transactional
     public ProvisionTenantResponse provisionTenant(ProvisionTenantRequest req) {
         String tenantId = req.tenantId().trim();
@@ -112,7 +112,7 @@ public class TenantProvisioningService {
             credentialPasswords.encode(rawPassword), "ACTIVE", "Y", null,
             now, actor, now, actor, traceId()));
         roleAssignments.save(new UserRoleAssignment(
-            null, tenantId, adminUserId, RoleCode.ORGANIZATION_ADMIN.code(), "TENANT", tenantId, "Y",
+            null, tenantId, adminUserId, RoleCode.PLATFORM_ADMIN.code(), "TENANT", tenantId, "Y",
             now, actor, now, actor));
 
         auditRecorder.record(AuditAction.CREATE, "platform_tenant", tenantId,

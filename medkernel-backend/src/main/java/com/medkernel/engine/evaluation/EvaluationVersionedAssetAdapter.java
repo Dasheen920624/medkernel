@@ -32,7 +32,6 @@ public class EvaluationVersionedAssetAdapter implements VersionedAssetPort {
             command.tenantId(),
             VersionedAssetType.EVALUATION,
             command.assetIdentity(),
-            command.versionNo(),
             command.organizationScope(),
             command.applicableScope(),
             command.content(),

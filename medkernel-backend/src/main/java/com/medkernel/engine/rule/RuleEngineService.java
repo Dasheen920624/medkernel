@@ -26,14 +26,18 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medkernel.engine.context.ClinicalEventTriggerPoint;
+import com.medkernel.engine.context.ContextFieldPathPolicy;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.event.EngineDomainEventPort;
 import com.medkernel.engine.event.OverrideCapturedEvent;
 import com.medkernel.engine.event.RuleFiredEvent;
-import com.medkernel.engine.pkg.PackageReferenceConsistency;
+import com.medkernel.engine.versioning.AssetReferenceConsistency;
+import com.medkernel.engine.versioning.AssetVersionNumbers;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -44,6 +48,8 @@ import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
 import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.AssetTriggerBindingService;
+import com.medkernel.engine.versioning.AssetTriggerPurpose;
 import com.medkernel.engine.versioning.InheritanceResolveQuery;
 import com.medkernel.engine.versioning.InheritanceResolver;
 import com.medkernel.engine.versioning.PlatformAuthority;
@@ -110,6 +116,7 @@ public class RuleEngineService {
     private final TerminologyCoverageGate terminologyCoverageGate;
     private final RuleVersionedAssetAdapter versionedAssets;
     private final AssetVersionRepository assetVersions;
+    private final AssetTriggerBindingService triggerBindings;
     private final ReleasePort releasePort;
     private final RuleGovernanceService governanceService;
     private final InheritanceResolver inheritanceResolver;
@@ -157,6 +164,7 @@ public class RuleEngineService {
                              ObjectProvider<TerminologyCoverageGate> terminologyCoverageGateProvider,
                              RuleVersionedAssetAdapter versionedAssets,
                              AssetVersionRepository assetVersions,
+                             AssetTriggerBindingService triggerBindings,
                              ReleasePort releasePort,
                              RuleGovernanceService governanceService,
                              RuleShadowFeedbackRepository shadowFeedback,
@@ -170,7 +178,7 @@ public class RuleEngineService {
             auditRecorder, transitions,
             diagnoseAssembler, json, impactIndexProvider.getIfAvailable(RuleImpactIndex::empty),
             terminologyCoverageGateProvider.getIfAvailable(TerminologyCoverageGate::noop),
-            versionedAssets, assetVersions, releasePort, governanceService, shadowFeedback,
+            versionedAssets, assetVersions, triggerBindings, releasePort, governanceService, shadowFeedback,
             backtests, driftSnapshots, inheritanceResolver, contextSnapshots,
             domainEventProvider.getIfAvailable(EngineDomainEventPort::noop));
     }
@@ -191,6 +199,7 @@ public class RuleEngineService {
                       TerminologyCoverageGate terminologyCoverageGate,
                       RuleVersionedAssetAdapter versionedAssets,
                       AssetVersionRepository assetVersions,
+                      AssetTriggerBindingService triggerBindings,
                       ReleasePort releasePort,
                       RuleGovernanceService governanceService,
                       RuleShadowFeedbackRepository shadowFeedback,
@@ -200,7 +209,7 @@ public class RuleEngineService {
                       ContextSnapshotService contextSnapshots) {
         this(definitions, versions, parameterBindings, testCases, executions, overrides, evaluator, applicabilityService,
             auditRecorder, transitions, diagnoseAssembler, json, impactIndex, terminologyCoverageGate,
-            versionedAssets, assetVersions, releasePort, governanceService, shadowFeedback, backtests,
+            versionedAssets, assetVersions, triggerBindings, releasePort, governanceService, shadowFeedback, backtests,
             driftSnapshots, inheritanceResolver, contextSnapshots, EngineDomainEventPort.noop());
     }
 
@@ -220,6 +229,7 @@ public class RuleEngineService {
                       TerminologyCoverageGate terminologyCoverageGate,
                       RuleVersionedAssetAdapter versionedAssets,
                       AssetVersionRepository assetVersions,
+                      AssetTriggerBindingService triggerBindings,
                       ReleasePort releasePort,
                       RuleGovernanceService governanceService,
                       RuleShadowFeedbackRepository shadowFeedback,
@@ -252,6 +262,7 @@ public class RuleEngineService {
             : terminologyCoverageGate;
         this.versionedAssets = Objects.requireNonNull(versionedAssets, "规则统一版本适配器不能为空");
         this.assetVersions = Objects.requireNonNull(assetVersions, "统一资产版本仓库不能为空");
+        this.triggerBindings = Objects.requireNonNull(triggerBindings, "资产触发绑定服务不能为空");
         this.releasePort = Objects.requireNonNull(releasePort, "统一发布端口不能为空");
         this.governanceService = Objects.requireNonNull(governanceService, "规则治理服务不能为空");
         this.inheritanceResolver = Objects.requireNonNull(inheritanceResolver, "继承解析器不能为空");
@@ -264,7 +275,8 @@ public class RuleEngineService {
     /**
      * 创建规则定义和初始草稿版本。
      *
-     * <p>前置：当前请求必须携带租户上下文；DSL 必须包含 trigger/when/then/explain。
+     * <p>前置：当前请求必须携带租户上下文；DSL 必须包含 when/then/explain，
+     * 触发点由精确资产版本的多触发绑定独立维护。
      * 失败：DSL 校验失败抛 {@link ApiException} 错误码 {@code ENG-RULE-001}。
      */
     @Transactional
@@ -287,7 +299,7 @@ public class RuleEngineService {
             request.priority() == null ? 100 : request.priority(),
             trimToNull(request.suppressedBy()),
             request.dedupeWindowSeconds() == null ? 0 : request.dedupeWindowSeconds(),
-            RuleDefinitionStatus.DRAFT, versionId, request.packageVersion(), request.applicableOrgUnitId(),
+            RuleDefinitionStatus.DRAFT, versionId, request.applicableOrgUnitId(),
             now, actor, now, actor, traceId);
         RuleVersion version = new RuleVersion(
             null, versionId, tenantId, ruleId, 1, request.sourceRef(), request.changeSummary(),
@@ -300,11 +312,10 @@ public class RuleEngineService {
         governanceService.initialize(
             tenantId, versionId, definition.riskLevel(), actor, traceId);
         applicabilityService.saveMirror(version, request.dsl(), now, actor, traceId);
-        versionedAssets.registerDraft(new AssetVersionRegisterCommand(
+        AssetVersion registeredAssetVersion = versionedAssets.registerDraft(new AssetVersionRegisterCommand(
             tenantId,
             VersionedAssetType.RULE,
             definition.ruleCode(),
-            String.valueOf(version.versionNo()),
             releaseOrgScope(definition),
             releaseApplicableScope(definition),
             ruleAssetContent(definition, version),
@@ -313,8 +324,11 @@ public class RuleEngineService {
             actor,
             traceId,
             safetyPolicy(definition),
-            null
+            null,
+            AssetReferenceConsistency.dependencyDeclarations(request.dsl())
         ));
+        triggerBindings.replaceBindings(
+            registeredAssetVersion, request.triggers(), actor, traceId);
         transitions.record(RULE_ENTITY, ruleId, null, RuleDefinitionStatus.DRAFT.name(), "CREATE_RULE", null);
         auditRecorder.record(AuditAction.CREATE, RULE_ENTITY, ruleId, "创建规则 " + request.ruleCode());
         if (!bindings.isEmpty()) {
@@ -329,22 +343,157 @@ public class RuleEngineService {
     }
 
     /**
+     * 将已全量运行的当前规则复制为同一稳定编码的下一版草稿。
+     *
+     * <p>旧发布版本继续由统一版本解析器提供运行服务；新版本只切换编辑态指针，
+     * 并复制 DSL、解释、适用域、参数绑定和发布门禁用例。测试执行结果不会复制，
+     * 新版本必须重新完成技术验证。
+     */
+    @Transactional
+    public RuleVersionCreateResponse createNextVersion(String ruleId) {
+        String tenantId = requireCurrentTenant();
+        String traceId = RequestContext.currentTraceId();
+        String actor = RequestContext.currentUserId().orElse("system");
+        Instant now = Instant.now();
+        RuleDefinition rule = findRule(ruleId, tenantId);
+        RuleVersion current = findVersion(rule.activeVersionId(), tenantId);
+        RuleGovernance governance =
+            governanceService.requireGovernance(tenantId, current.versionId());
+        if (rule.status() != RuleDefinitionStatus.PUBLISHED
+                || current.status() != RuleVersionStatus.PUBLISHED
+                || (governance.state() != RuleGovernanceState.FULL
+                    && governance.state() != RuleGovernanceState.MONITOR)) {
+            throw new ApiException(
+                ErrorCode.ENG_RULE_006,
+                "只有已全量运行或监测中的规则可以复制为下一版本"
+            );
+        }
+        int nextVersionNo = versions
+            .findByRuleIdAndTenantIdOrderByVersionNoDesc(ruleId, tenantId)
+            .stream()
+            .map(RuleVersion::versionNo)
+            .filter(Objects::nonNull)
+            .max(Integer::compareTo)
+            .orElse(current.versionNo()) + 1;
+        String nextVersionId = "rv-" + UUID.randomUUID();
+        RuleVersion next = new RuleVersion(
+            null,
+            nextVersionId,
+            tenantId,
+            rule.ruleId(),
+            nextVersionNo,
+            current.sourceRef(),
+            "基于 v" + current.versionNo() + " 创建 v" + nextVersionNo + " 草稿",
+            current.dslJson(),
+            current.explanationJson(),
+            RuleVersionStatus.DRAFT,
+            null,
+            null,
+            null,
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        );
+        RuleDefinition updatedRule = copyRule(
+            rule,
+            RuleDefinitionStatus.PUBLISHED,
+            nextVersionId,
+            now,
+            actor,
+            traceId
+        );
+
+        versions.save(next);
+        definitions.save(updatedRule);
+        applicabilityService.saveMirror(
+            next, readJson(next.dslJson()), now, actor, traceId);
+        parameterBindings
+            .findByRuleVersionIdAndTenantIdOrderByParamKeyAsc(current.versionId(), tenantId)
+            .stream()
+            .map(binding -> new RuleParameterBinding(
+                null,
+                nextVersionId,
+                tenantId,
+                binding.paramKey(),
+                binding.paramValueJson(),
+                now,
+                actor,
+                traceId
+            ))
+            .forEach(parameterBindings::save);
+        testCases
+            .findByVersionIdAndTenantIdOrderByCreatedAtAsc(current.versionId(), tenantId)
+            .stream()
+            .map(source -> copyTestCaseToVersion(
+                source, nextVersionId, now, actor, traceId))
+            .forEach(testCases::save);
+        governanceService.initialize(
+            tenantId, nextVersionId, updatedRule.riskLevel(), actor, traceId);
+        AssetVersion sourceAssetVersion = requireRuleAssetVersion(rule, current);
+        AssetVersion nextAssetVersion = versionedAssets.registerDraft(new AssetVersionRegisterCommand(
+            tenantId,
+            VersionedAssetType.RULE,
+            updatedRule.ruleCode(),
+            releaseOrgScope(updatedRule),
+            releaseApplicableScope(updatedRule),
+            ruleAssetContent(updatedRule, next),
+            null,
+            next.sourceRef(),
+            actor,
+            traceId,
+            safetyPolicy(updatedRule),
+            null,
+            AssetReferenceConsistency.dependencyDeclarations(readJson(next.dslJson()))
+        ));
+        triggerBindings.copyBindings(
+            sourceAssetVersion, nextAssetVersion, actor, traceId);
+        transitions.record(
+            RULE_ENTITY,
+            ruleId,
+            current.versionId(),
+            nextVersionId,
+            "CREATE_NEXT_RULE_VERSION",
+            null
+        );
+        auditRecorder.record(
+            AuditAction.CREATE,
+            RULE_ENTITY,
+            ruleId,
+            "复制规则为下一版本 v" + nextVersionNo
+        );
+        return new RuleVersionCreateResponse(
+            ruleId,
+            nextVersionId,
+            nextVersionNo,
+            RuleVersionStatus.DRAFT,
+            traceId
+        );
+    }
+
+    /**
      * 更新草稿规则定义和当前草稿版本。
      *
-     * <p>本卡只收口 API 合同与草稿修改，不伪造多版本能力；完整版本递增、灰度和回滚由 SYS-04 承接。
+     * <p>已发布版本保持不可变并继续运行；只有当前指向的草稿版本可修改。
      */
     @Transactional
     public RuleDetailResponse updateRule(String ruleId, RuleUpdateRequest request) {
         String tenantId = requireCurrentTenant();
         RuleDefinition rule = findRule(ruleId, tenantId);
-        ensureDraft(rule);
         RuleVersion version = findVersion(rule.activeVersionId(), tenantId);
+        ensureEditableDraft(rule, version);
         ensureGovernanceDraft(tenantId, version.versionId());
         validateDsl(request.dsl());
+        ensurePublishedIdentityMetadataUnchanged(rule, request);
         ensureRuleCodeAvailable(tenantId, request.ruleCode(), ruleId);
 
         Instant now = Instant.now();
         String actor = RequestContext.currentUserId().orElse("system");
+        RuleDefinitionStatus authoringStatus =
+            rule.status() == RuleDefinitionStatus.PUBLISHED
+                ? RuleDefinitionStatus.PUBLISHED
+                : RuleDefinitionStatus.DRAFT;
         RuleDefinition updatedRule = new RuleDefinition(
             rule.id(), rule.ruleId(), rule.tenantId(), request.ruleCode(), request.name(),
             request.ruleType(), request.authoringMode() == null ? RuleAuthoringMode.DSL : request.authoringMode(),
@@ -352,8 +501,8 @@ public class RuleEngineService {
             request.priority() == null ? 100 : request.priority(),
             trimToNull(request.suppressedBy()),
             request.dedupeWindowSeconds() == null ? 0 : request.dedupeWindowSeconds(),
-            RuleDefinitionStatus.DRAFT, rule.activeVersionId(), request.packageVersion(),
-            request.applicableOrgUnitId(), rule.createdAt(), rule.createdBy(), now, actor,
+            authoringStatus, rule.activeVersionId(), request.applicableOrgUnitId(),
+            rule.createdAt(), rule.createdBy(), now, actor,
             RequestContext.currentTraceId());
         RuleVersion updatedVersion = new RuleVersion(
             version.id(), version.versionId(), version.tenantId(), version.ruleId(), version.versionNo(),
@@ -377,14 +526,24 @@ public class RuleEngineService {
             updatedVersion.sourceRef(),
             safetyPolicy(updatedRule),
             assetVersion.overridePolicy(),
-            actor
+            actor,
+            RequestContext.currentTraceId(),
+            AssetReferenceConsistency.dependencyDeclarations(request.dsl())
         ));
-        transitions.record(RULE_ENTITY, ruleId, rule.status().name(), RuleDefinitionStatus.DRAFT.name(),
+        triggerBindings.replaceBindings(
+            updatedAssetVersion,
+            request.triggers(),
+            actor,
+            RequestContext.currentTraceId()
+        );
+        transitions.record(RULE_ENTITY, ruleId, rule.status().name(), authoringStatus.name(),
             "UPDATE_RULE", null);
         auditRecorder.record(AuditAction.UPDATE, RULE_ENTITY, ruleId, "更新规则 " + request.ruleCode());
         return new RuleDetailResponse(
             updatedRule, updatedVersion,
+            versionHistory(updatedRule, updatedVersion),
             testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc(version.versionId(), tenantId),
+            triggerBindings.listBindings(updatedAssetVersion),
             updatedAssetVersion.status(),
             governanceSnapshot(updatedRule, updatedVersion, List.of(), null, null, List.of()));
     }
@@ -403,7 +562,9 @@ public class RuleEngineService {
         return new RuleDetailResponse(
             rule,
             version,
+            versionHistory(rule, version),
             testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc(version.versionId(), tenantId),
+            triggerBindings.listBindings(assetVersion),
             assetVersion.status(),
             governanceSnapshot(rule, version, List.of(), null, null, List.of()));
     }
@@ -455,8 +616,8 @@ public class RuleEngineService {
         String actor = RequestContext.currentUserId().orElse("system");
         Instant now = Instant.now();
         RuleDefinition rule = findRule(ruleId, tenantId);
-        ensureDraft(rule);
         RuleVersion version = findVersion(rule.activeVersionId(), tenantId);
+        ensureEditableDraft(rule, version);
         ensureGovernanceDraft(tenantId, version.versionId());
         ContextSnapshotResponse snapshot = contextSnapshots.findById(request.contextSnapshotId());
         if (snapshot.status() != ContextSnapshotStatus.ACTIVE || snapshot.resources() == null) {
@@ -490,7 +651,7 @@ public class RuleEngineService {
     /**
      * 用指定上下文试运行执行规则当前版本，并写入执行日志与状态迁移。
      *
-     * <p>触发点取自 DSL 的 {@code trigger}（缺省 {@code SIMULATE}）；
+     * <p>试运行必须显式选择当前资产版本已经绑定的标准临床触发点；
      * 失败：规则/版本不存在抛 {@code ENG-RULE-002}/{@code ENG-RULE-003}。
      */
     @Transactional
@@ -498,69 +659,21 @@ public class RuleEngineService {
         String tenantId = requireCurrentTenant();
         RuleDefinition rule = findRule(ruleId, tenantId);
         RuleVersion version = findVersion(rule.activeVersionId(), tenantId);
-        String trigger = readJson(version.dslJson()).path("trigger").asText("SIMULATE");
-        return evaluateAndLog(rule, version, tenantId, request.context(), trigger, null);
-    }
-
-    /**
-     * 记录同行评审或临床委员会会签。
-     */
-    @Transactional
-    public RuleGovernanceResponse signoffGovernance(String ruleId, RuleSignoffRequest request) {
-        String tenantId = requireCurrentTenant();
-        RuleDefinition rule = findRule(ruleId, tenantId);
-        RuleVersion version = findVersion(rule.activeVersionId(), tenantId);
-        String actor = RequestContext.currentUserId().orElse("system");
-        RoleCode role = authenticatedSignoffRole();
-        RuleGovernance updated = governanceService.recordSignoff(
-            tenantId,
-            version.versionId(),
-            request.stage(),
-            request.decision(),
-            request.reason(),
-            actor,
-            role,
-            RequestContext.currentTraceId()
-        );
-        List<String> releaseEvidence = new ArrayList<>();
-        String impactDigest = null;
-        String impactStatus = null;
-        if (updated.state() == RuleGovernanceState.DRAFT
-                && request.decision() == RuleSignoffDecision.REJECTED) {
-            RuleImpactResponse impact = impactFor(rule, version);
-            impactDigest = impact.impactDigest();
-            impactStatus = impact.analysisStatus();
-            appendEvidence(
-                releaseEvidence,
-                releasePort.rejectReview(
-                    governanceReleaseCommand(
-                        rule,
-                        version,
-                        impact,
-                        request.reason(),
-                        actor
-                    )
-                )
-            );
+        requireCanonicalTrigger(request.triggerPoint());
+        if (!triggerBindings.matches(
+                requireRuleAssetVersion(rule, version),
+                AssetTriggerPurpose.RULE_EXECUTION,
+                request.triggerPoint())) {
+            throw new ApiException(
+                ErrorCode.ENG_RULE_006,
+                "试运行触发点未绑定当前规则版本: " + request.triggerPoint());
         }
-        auditRecorder.record(
-            AuditAction.UPDATE,
-            RULE_ENTITY,
-            ruleId,
-            "规则治理签署 " + request.stage() + " / " + request.decision()
-        );
-        return governanceSnapshot(
-            rule,
-            version,
-            List.of(),
-            impactDigest,
-            impactStatus,
-            releaseEvidence
-        );
+        return evaluateAndLog(
+            rule, version, tenantId, request.context(), request.triggerPoint(), null);
     }
 
     /**
-     * 按八阶段闭集推进规则治理状态，发布端口只执行当前阶段对应的一步。
+     * 按七阶段闭集推进规则治理状态，发布端口只执行当前阶段对应的一步。
      */
     @Transactional
     public RuleGovernanceResponse transitionGovernance(
@@ -578,9 +691,9 @@ public class RuleEngineService {
         List<String> releaseEvidence = new ArrayList<>();
 
         if (current.state() == RuleGovernanceState.DRAFT
-                && target == RuleGovernanceState.PEER_REVIEW) {
-            ensureDraft(rule);
-            ensureRuleReferencePackageConsistency(rule, version);
+                && target == RuleGovernanceState.REVIEWED) {
+            ensureEditableDraft(rule, version);
+            ensureRuleStableAssetReferences(rule, version);
             validateGovernanceImpact(rule, request, impact);
             List<RuleTestCase> cases =
                 testCases.findByVersionIdAndTenantIdOrderByCreatedAtAsc(version.versionId(), tenantId);
@@ -607,7 +720,7 @@ public class RuleEngineService {
             actor,
             traceId
         );
-        if (target == RuleGovernanceState.PEER_REVIEW) {
+        if (target == RuleGovernanceState.REVIEWED) {
             appendEvidence(
                 releaseEvidence,
                 releasePort.submitForReview(
@@ -736,8 +849,8 @@ public class RuleEngineService {
             VersionedAssetType.RULE,
             rule.ruleCode(),
             assetVersion.versionId(),
-            releaseOrgScope(rule),
-            releaseApplicableScope(rule),
+            assetVersion.organizationScope(),
+            assetVersion.applicableScope(),
             null,
             null,
             rolloutPolicy,
@@ -745,7 +858,6 @@ public class RuleEngineService {
             reason.trim(),
             actor,
             RequestContext.currentTraceId(),
-            publishEvidence.electronicSignature(),
             publishEvidence.qualityGate()
         );
     }
@@ -759,25 +871,12 @@ public class RuleEngineService {
             List<String> releaseEvidence) {
         RuleGovernance governance =
             governanceService.requireGovernance(rule.tenantId(), version.versionId());
-        List<RuleSignoff> signoffs =
-            governanceService.signoffs(rule.tenantId(), version.versionId());
-        int committeeApprovalCount = (int) signoffs.stream()
-            .filter(signoff -> signoff.reviewRound() == governance.reviewRound())
-            .filter(signoff -> signoff.stage() == RuleSignoffStage.COMMITTEE)
-            .filter(signoff -> signoff.decision() == RuleSignoffDecision.APPROVED)
-            .map(RuleSignoff::signerId)
-            .distinct()
-            .count();
         return new RuleGovernanceResponse(
             rule.ruleId(),
             version.versionId(),
             governance.state(),
-            governance.requiredSignoffs(),
-            governance.reviewRound(),
-            committeeApprovalCount,
             governance.authorId(),
             governance.lastReason(),
-            signoffs,
             testResults,
             impactDigest,
             impactStatus,
@@ -801,7 +900,7 @@ public class RuleEngineService {
         ));
         AssetVersion assetVersion = requireRuleAssetVersion(rule, version);
         assetVersions.save(assetVersion.withStatusAndWindow(
-            AssetVersionStatus.RETIRED,
+            AssetVersionStatus.WITHDRAWN,
             "version:" + assetVersion.versionId(),
             assetVersion.effectiveFrom(),
             now,
@@ -810,29 +909,13 @@ public class RuleEngineService {
         ));
     }
 
-    private static RoleCode authenticatedSignoffRole() {
-        return List.of(
-                RoleCode.PLATFORM_KNOWLEDGE_GOVERNOR,
-                RoleCode.KNOWLEDGE_GOVERNOR,
-                RoleCode.CLINICAL_GOVERNOR,
-                RoleCode.MEDICATION_SAFETY_USER,
-                RoleCode.QUALITY_GOVERNOR
-            ).stream()
-            .filter(AuthenticatedRoleGuard::has)
-            .findFirst()
-            .orElseThrow(() -> new ApiException(
-                ErrorCode.FORBIDDEN,
-                "当前登录角色无权执行临床规则签署"
-            ));
-    }
-
     private static void ensureGovernanceReleaseCoordinator(
             RuleDefinition rule,
             RuleGovernance current,
             RuleGovernanceState target) {
         if (PlatformTenant.isPlatformTenant(rule.tenantId())) {
             boolean submitForReview = current.state() == RuleGovernanceState.DRAFT
-                && target == RuleGovernanceState.PEER_REVIEW;
+                && target == RuleGovernanceState.REVIEWED;
             boolean coordinateRelease = target == RuleGovernanceState.SHADOW
                 || target == RuleGovernanceState.CANARY
                 || target == RuleGovernanceState.FULL
@@ -840,28 +923,23 @@ public class RuleEngineService {
                 || target == RuleGovernanceState.RETIRED;
             if (submitForReview || coordinateRelease) {
                 requireAnyRole(
-                    "平台规则治理推进仅平台知识治理职责可执行",
-                    RoleCode.PLATFORM_KNOWLEDGE_GOVERNOR,
-                    RoleCode.PLATFORM_GOVERNANCE_ADMIN);
+                    "平台规则治理推进需要医疗引擎运营职责",
+                    RoleCode.ENGINE_OPERATOR);
             }
             return;
         }
         if (current.state() == RuleGovernanceState.DRAFT
-                && target == RuleGovernanceState.PEER_REVIEW) {
+                && target == RuleGovernanceState.REVIEWED) {
             requireAnyRole(
-                "提交同行评审仅规则治理创作角色可执行",
-                RoleCode.KNOWLEDGE_GOVERNOR,
-                RoleCode.CLINICAL_GOVERNOR,
-                RoleCode.MEDICATION_SAFETY_USER,
-                RoleCode.QUALITY_GOVERNOR
+                "确认规则进入发布验证需要医疗引擎运营职责",
+                RoleCode.ENGINE_OPERATOR
             );
             return;
         }
         if (target == RuleGovernanceState.FULL) {
             requireAnyRole(
-                "规则全量激活仅机构或临床治理负责人可执行",
-                RoleCode.ORGANIZATION_ADMIN,
-                RoleCode.CLINICAL_GOVERNOR);
+                "规则全量激活需要医疗引擎运营职责",
+                RoleCode.ENGINE_OPERATOR);
             return;
         }
         if (target == RuleGovernanceState.SHADOW
@@ -869,9 +947,8 @@ public class RuleEngineService {
                 || target == RuleGovernanceState.MONITOR
                 || target == RuleGovernanceState.RETIRED) {
             requireAnyRole(
-                "规则影子、灰度、监测和退役仅临床治理负责人或机构管理员可执行",
-                RoleCode.CLINICAL_GOVERNOR,
-                RoleCode.ORGANIZATION_ADMIN
+                "规则影子、灰度、监测和退役需要医疗引擎运营职责",
+                RoleCode.ENGINE_OPERATOR
             );
         }
     }
@@ -885,7 +962,7 @@ public class RuleEngineService {
 
     private AssetVersion requireRuleAssetVersion(RuleDefinition rule, RuleVersion version) {
         return assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-                rule.tenantId(), VersionedAssetType.RULE, rule.ruleCode(), String.valueOf(version.versionNo()))
+                rule.tenantId(), VersionedAssetType.RULE, rule.ruleCode(), assetVersionNo(version))
             .orElseThrow(() -> new ApiException(
                 ErrorCode.CONFLICT,
                 "规则缺少统一资产版本，禁止发布: " + rule.ruleCode() + "@" + version.versionNo()
@@ -905,14 +982,11 @@ public class RuleEngineService {
     }
 
     private static String releaseOrgScope(RuleDefinition rule) {
-        if (PlatformTenant.isPlatformTenant(rule.tenantId())) {
-            return PlatformAuthority.PLATFORM_ORG_PATH;
-        }
-        return notBlank(rule.applicableOrgUnitId(), "tenant:" + rule.tenantId());
+        return null;
     }
 
     private static String releaseApplicableScope(RuleDefinition rule) {
-        return notBlank(rule.packageVersion(), "ALL");
+        return "ALL";
     }
 
     private static String notBlank(String value, String fallback) {
@@ -935,7 +1009,6 @@ public class RuleEngineService {
             rule.ruleType(),
             rule.authoringMode(),
             rule.riskLevel(),
-            rule.packageVersion(),
             rule.applicableOrgUnitId(),
             version.versionNo(),
             version.sourceRef(),
@@ -960,7 +1033,7 @@ public class RuleEngineService {
      * 按触发点和上下文执行统一版本已发布规则集合。
      *
      * <p>候选范围：请求未指定 {@code ruleIds} 时取本地和平台统一版本已发布规则，否则取指定规则；
-     * 仅 DSL 的 {@code trigger} 与请求 {@code triggerPoint} 匹配的版本参与评估。
+     * 仅资产版本显式绑定请求 {@code triggerPoint} 的版本参与评估。
      */
     @Transactional
     public RuleEvaluateResponse evaluate(RuleEvaluateRequest request) {
@@ -973,7 +1046,7 @@ public class RuleEngineService {
             json.valueToTree(snapshot.resources()),
             request.eventId(),
             request.ruleIds(),
-            snapshot.packageVersion()
+            snapshot.runtimeReleaseId()
         );
     }
 
@@ -987,12 +1060,12 @@ public class RuleEngineService {
     }
 
     /**
-     * 执行服务内已经完成真实性校验的上下文，可选校验上下文包版本。
+     * 执行服务内已经完成真实性校验的上下文，可携带运行修订 ID 留证。
      */
     @Transactional
     public RuleEvaluateResponse evaluateContext(String triggerPoint, JsonNode context,
                                                 String eventId, List<String> ruleIds,
-                                                String contextPackageVersion) {
+                                                String runtimeReleaseId) {
         requireCanonicalTrigger(triggerPoint);
         String tenantId = requireCurrentTenant();
         List<String> selectedRuleIds = ruleIds == null ? List.of() : ruleIds;
@@ -1001,27 +1074,91 @@ public class RuleEngineService {
             : selectedRuleIds.stream().map(ruleId -> findEffectiveRule(ruleId, tenantId)).toList();
 
         List<RuleRuntimeCandidate> executable = candidates.stream()
-            .map(rule -> effectiveVersions.resolve(
-                    tenantId, rule, releaseApplicableScope(rule))
-                .map(resolved -> runtimeCandidate(resolved.rule(), resolved.version()))
-                .or(() -> governedPrePublicationCandidate(rule)))
-            .flatMap(Optional::stream)
-            .map(candidate -> {
-                ensureRuleRuntimePackageConsistency(candidate.rule(), contextPackageVersion);
-                return candidate;
-            })
+            .flatMap(rule -> runtimeCandidates(tenantId, rule, context).stream())
             .filter(candidate -> candidate.mode() != RuleRuntimeMode.INACTIVE)
             .filter(candidate -> candidate.mode() != RuleRuntimeMode.CANARY
                 || isCanaryEligible(candidate.rule(), context))
-            .filter(candidate -> triggerMatches(candidate.version(), triggerPoint))
+            .filter(candidate -> triggerBindings.matches(
+                requireRuleAssetVersion(candidate.rule(), candidate.version()),
+                AssetTriggerPurpose.RULE_EXECUTION,
+                triggerPoint
+            ))
             .toList();
         executable = executable.stream()
             .sorted(Comparator
                 .<RuleRuntimeCandidate>comparingInt(candidate -> candidate.rule().priority())
                 .reversed()
+            .thenComparing(candidate -> candidate.rule().ruleCode()))
+            .toList();
+        return evaluateCandidates(tenantId, triggerPoint, context, eventId, executable, runtimeReleaseId);
+    }
+
+    /**
+     * 只执行医院运行发布锁定的确切规则版本，不再读取可变的当前激活版本。
+     */
+    @Transactional
+    public RuleEvaluateResponse evaluatePinnedContext(
+            String triggerPoint,
+            JsonNode context,
+            String eventId,
+            List<RuntimeRuleReference> selectedRules,
+            String runtimeReleaseId) {
+        requireCanonicalTrigger(triggerPoint);
+        String tenantId = requireCurrentTenant();
+        if (runtimeReleaseId == null || runtimeReleaseId.isBlank()) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "医院运行发布 ID 不能为空");
+        }
+        List<RuleRuntimeCandidate> executable = (selectedRules == null
+                ? List.<RuntimeRuleReference>of()
+                : List.copyOf(selectedRules))
+            .stream()
+            .map(reference -> pinnedCandidate(tenantId, reference))
+            .sorted(Comparator
+                .<RuleRuntimeCandidate>comparingInt(candidate -> candidate.rule().priority())
+                .reversed()
                 .thenComparing(candidate -> candidate.rule().ruleCode()))
             .toList();
+        return evaluateCandidates(
+            tenantId, triggerPoint, context, eventId, executable, runtimeReleaseId.trim());
+    }
 
+    private RuleRuntimeCandidate pinnedCandidate(
+            String executionTenantId,
+            RuntimeRuleReference reference) {
+        if (reference == null
+                || reference.tenantId() == null || reference.tenantId().isBlank()
+                || reference.ruleId() == null || reference.ruleId().isBlank()
+                || reference.versionId() == null || reference.versionId().isBlank()) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "运行发布中的规则引用不完整");
+        }
+        if (!executionTenantId.equals(reference.tenantId())
+                && !PlatformTenant.isPlatformTenant(reference.tenantId())) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "运行发布引用了其他租户的规则");
+        }
+        RuleDefinition rule = definitions
+            .findByRuleIdAndTenantId(reference.ruleId(), reference.tenantId())
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_RULE_006, "运行发布中的规则不存在：" + reference.ruleId()));
+        RuleVersion version = versions
+            .findByVersionIdAndTenantId(reference.versionId(), reference.tenantId())
+            .filter(candidate -> rule.ruleId().equals(candidate.ruleId()))
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_RULE_006,
+                "运行发布中的规则版本不存在：" + reference.versionId()));
+        if (rule.status() != RuleDefinitionStatus.PUBLISHED
+                || version.status() != RuleVersionStatus.PUBLISHED) {
+            throw new ApiException(ErrorCode.ENG_RULE_006, "运行发布只能执行已发布规则版本");
+        }
+        return new RuleRuntimeCandidate(rule, version, RuleRuntimeMode.ACTIVE);
+    }
+
+    private RuleEvaluateResponse evaluateCandidates(
+            String tenantId,
+            String triggerPoint,
+            JsonNode context,
+            String eventId,
+            List<RuleRuntimeCandidate> executable,
+            String runtimeReleaseId) {
         Set<String> matchedRuleCodes = new HashSet<>();
         List<RuleEvaluationItem> items = new ArrayList<>();
         for (RuleRuntimeCandidate entry : executable) {
@@ -1032,17 +1169,21 @@ public class RuleEngineService {
             RuleEvaluationItem item;
             if (!applicability.applicable()) {
                 item = recordNotApplicable(
-                    rule, version, tenantId, context, triggerPoint, eventId, applicability);
+                    rule, version, tenantId, context, triggerPoint, eventId,
+                    runtimeReleaseId, applicability);
             } else if (isSuppressed(rule, matchedRuleCodes)) {
                 item = recordSuppressed(
-                    rule, version, tenantId, context, triggerPoint, eventId);
+                    rule, version, tenantId, context, triggerPoint, eventId,
+                    runtimeReleaseId);
             } else {
                 item = evaluateApplicableAndLog(
                     rule, version, tenantId, context, triggerPoint, eventId,
-                    entry.mode() == RuleRuntimeMode.SHADOW);
+                    entry.mode() == RuleRuntimeMode.SHADOW, runtimeReleaseId);
             }
             items.add(item);
-            if (item.hit() && entry.mode() == RuleRuntimeMode.ACTIVE) {
+            if (item.hit()
+                    && (entry.mode() == RuleRuntimeMode.ACTIVE
+                        || entry.mode() == RuleRuntimeMode.CANARY)) {
                 matchedRuleCodes.add(rule.ruleCode());
             }
         }
@@ -1066,17 +1207,51 @@ public class RuleEngineService {
             RequestContext.currentTraceId());
     }
 
+    private List<RuleRuntimeCandidate> runtimeCandidates(
+            String tenantId,
+            RuleDefinition rule,
+            JsonNode context) {
+        String applicableScope = releaseApplicableScope(rule);
+        Optional<RuleRuntimeCandidate> active = effectiveVersions.resolve(
+                tenantId, rule, applicableScope)
+            .map(resolved -> runtimeCandidate(resolved.rule(), resolved.version()));
+        Optional<RuleRuntimeCandidate> staged =
+            governedPrePublicationCandidate(rule, applicableScope);
+        if (staged.isEmpty()) {
+            return active.stream().toList();
+        }
+        RuleRuntimeCandidate candidate = staged.get();
+        boolean sameVersion = active
+            .map(current -> current.version().versionId().equals(candidate.version().versionId()))
+            .orElse(false);
+        if (sameVersion) {
+            return List.of(candidate);
+        }
+        if (candidate.mode() == RuleRuntimeMode.SHADOW) {
+            List<RuleRuntimeCandidate> result = new ArrayList<>();
+            active.ifPresent(result::add);
+            result.add(candidate);
+            return List.copyOf(result);
+        }
+        if (candidate.mode() == RuleRuntimeMode.CANARY) {
+            return isCanaryEligible(candidate.rule(), context)
+                ? List.of(candidate)
+                : active.stream().toList();
+        }
+        return active.stream().toList();
+    }
+
     private RuleRuntimeCandidate runtimeCandidate(RuleDefinition rule, RuleVersion version) {
         RuleRuntimeMode mode = assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
                 rule.tenantId(),
                 VersionedAssetType.RULE,
                 rule.ruleCode(),
-                String.valueOf(version.versionNo()))
+                assetVersionNo(version))
             .map(assetVersion -> {
                 if (assetVersion.status() == AssetVersionStatus.PUBLISHED) {
                     return RuleRuntimeMode.ACTIVE;
                 }
-                if (assetVersion.status() == AssetVersionStatus.APPROVED
+                if (assetVersion.status() == AssetVersionStatus.DRAFT
                         && governanceService.requireGovernance(
                             rule.tenantId(), version.versionId()).state() == RuleGovernanceState.SHADOW) {
                     return RuleRuntimeMode.SHADOW;
@@ -1087,7 +1262,9 @@ public class RuleEngineService {
         return new RuleRuntimeCandidate(rule, version, mode);
     }
 
-    private Optional<RuleRuntimeCandidate> governedPrePublicationCandidate(RuleDefinition rule) {
+    private Optional<RuleRuntimeCandidate> governedPrePublicationCandidate(
+            RuleDefinition rule,
+            String applicableScope) {
         if (rule == null || rule.activeVersionId() == null || rule.activeVersionId().isBlank()) {
             return Optional.empty();
         }
@@ -1096,8 +1273,9 @@ public class RuleEngineService {
                     rule.tenantId(),
                     VersionedAssetType.RULE,
                     rule.ruleCode(),
-                    String.valueOf(version.versionNo()))
-                .filter(assetVersion -> assetVersion.status() == AssetVersionStatus.APPROVED)
+                    assetVersionNo(version))
+                .filter(assetVersion -> applicableScope.equals(assetVersion.applicableScope()))
+                .filter(assetVersion -> assetVersion.status() == AssetVersionStatus.DRAFT)
                 .map(assetVersion -> governanceService.requireGovernance(
                     rule.tenantId(), version.versionId()).state())
                 .map(state -> switch (state) {
@@ -1518,10 +1696,10 @@ public class RuleEngineService {
         RuleApplicabilityDecision applicability = evaluateApplicability(version, context);
         if (!applicability.applicable()) {
             return recordNotApplicable(
-                rule, version, executionTenantId, context, triggerPoint, eventId, applicability);
+                rule, version, executionTenantId, context, triggerPoint, eventId, null, applicability);
         }
         return evaluateApplicableAndLog(
-            rule, version, executionTenantId, context, triggerPoint, eventId, false);
+            rule, version, executionTenantId, context, triggerPoint, eventId, false, null);
     }
 
     private RuleEvaluationItem evaluateApplicableAndLog(
@@ -1531,8 +1709,14 @@ public class RuleEngineService {
             JsonNode context,
             String triggerPoint,
             String eventId,
-            boolean shadowMode) {
-        RuleDslEvaluation evaluation = evaluator.evaluate(readJson(version.dslJson()), context);
+            boolean shadowMode,
+            String runtimeReleaseId) {
+        RuleDslEvaluation evaluation = evaluator.evaluate(
+            readJson(version.dslJson()),
+            context,
+            executionTenantId,
+            runtimeReleaseId
+        );
         String executionId = "rex-" + UUID.randomUUID();
         Instant now = Instant.now();
         String patientId = patientId(context);
@@ -1551,7 +1735,7 @@ public class RuleEngineService {
             : evaluation.explanation();
         RuleExecutionLog log = executions.save(new RuleExecutionLog(
             null, executionId, executionTenantId, rule.ruleId(), version.versionId(),
-            triggerPoint, eventId, RequestContext.currentUserId().orElse(null),
+            runtimeReleaseId, triggerPoint, eventId, RequestContext.currentUserId().orElse(null),
             patientId, encounterId(context), semanticKey,
             digest(context), evaluation.hit(), evaluation.severity(), writeObject(evaluation.actions()),
             writeJson(explanation), status, null, null,
@@ -1564,7 +1748,7 @@ public class RuleEngineService {
             domainEvents.ruleFired(new RuleFiredEvent(
                 executionTenantId,
                 log.traceId(),
-                rule.packageVersion(),
+                runtimeReleaseId,
                 rule.ruleId(),
                 rule.ruleCode(),
                 version.versionId(),
@@ -1606,13 +1790,14 @@ public class RuleEngineService {
             JsonNode context,
             String triggerPoint,
             String eventId,
+            String runtimeReleaseId,
             RuleApplicabilityDecision applicability) {
         String executionId = "rex-" + UUID.randomUUID();
         Instant now = Instant.now();
         JsonNode explanation = applicabilityExplanation(applicability);
         RuleExecutionLog log = executions.save(new RuleExecutionLog(
             null, executionId, executionTenantId, rule.ruleId(), version.versionId(),
-            triggerPoint, eventId, RequestContext.currentUserId().orElse(null),
+            runtimeReleaseId, triggerPoint, eventId, RequestContext.currentUserId().orElse(null),
             patientId(context), encounterId(context), null, digest(context), false, null, "[]",
             writeJson(explanation), RuleExecutionStatus.NOT_APPLICABLE, null, null,
             null, now, now, RequestContext.currentTraceId()));
@@ -1656,7 +1841,8 @@ public class RuleEngineService {
             String executionTenantId,
             JsonNode context,
             String triggerPoint,
-            String eventId) {
+            String eventId,
+            String runtimeReleaseId) {
         String executionId = "rex-" + UUID.randomUUID();
         Instant now = Instant.now();
         JsonNode explanation = json.createObjectNode()
@@ -1665,7 +1851,7 @@ public class RuleEngineService {
             .put("suppressedBy", rule.suppressedBy());
         RuleExecutionLog log = executions.save(new RuleExecutionLog(
             null, executionId, executionTenantId, rule.ruleId(), version.versionId(),
-            triggerPoint, eventId, RequestContext.currentUserId().orElse(null),
+            runtimeReleaseId, triggerPoint, eventId, RequestContext.currentUserId().orElse(null),
             patientId(context), encounterId(context), null, digest(context), false, null, "[]",
             writeJson(explanation), RuleExecutionStatus.SUPPRESSED, null, null,
             null, now, now, RequestContext.currentTraceId()));
@@ -1776,7 +1962,7 @@ public class RuleEngineService {
         domainEvents.overrideCaptured(new OverrideCapturedEvent(
             tenantId,
             saved.traceId(),
-            rule.packageVersion(),
+            execution.runtimeReleaseId(),
             saved.overrideId(),
             saved.executionId(),
             saved.ruleId(),
@@ -1900,7 +2086,7 @@ public class RuleEngineService {
         List<RuleImpactObject> affectedRules = List.of(new RuleImpactObject(
             "RULE_DEFINITION", rule.ruleId(), rule.name(), "当前规则版本将被发布或替换"));
         List<String> referencedAssets =
-            PackageReferenceConsistency.referenceSummaries(readJson(version.dslJson()));
+            AssetReferenceConsistency.referenceSummaries(readJson(version.dslJson()));
         String status = unavailable.isEmpty() ? "COMPLETE" : "PARTIAL";
         String digest = impactDigest(
             rule, version, status, unavailable, affectedRules,
@@ -1922,23 +2108,15 @@ public class RuleEngineService {
         }
     }
 
-    private void ensureRuleReferencePackageConsistency(RuleDefinition rule, RuleVersion version) {
-        PackageReferenceConsistency.requireReferencesSamePackage(
-            rule.packageVersion(),
+    private void ensureRuleStableAssetReferences(RuleDefinition rule, RuleVersion version) {
+        AssetReferenceConsistency.requireStableAssetReferences(
             readJson(version.dslJson()),
             ErrorCode.ENG_RULE_004,
             "规则 " + rule.ruleCode());
     }
 
-    private void ensureRuleRuntimePackageConsistency(RuleDefinition rule, String contextPackageVersion) {
-        PackageReferenceConsistency.requireRuntimePackage(
-            rule.packageVersion(),
-            contextPackageVersion,
-            ErrorCode.ENG_RULE_006,
-            "规则运行包版本必须与上下文快照一致");
-    }
-
     private void ensureNoStaticConflicts(RuleDefinition candidate, RuleVersion candidateVersion) {
+        AssetVersion candidateAssetVersion = requireRuleAssetVersion(candidate, candidateVersion);
         LinkedHashMap<String, RuleDefinition> publishedByCode = new LinkedHashMap<>();
         definitions.findPublishedByTenantId(candidate.tenantId())
             .forEach(rule -> publishedByCode.put(rule.ruleCode(), rule));
@@ -1949,9 +2127,22 @@ public class RuleEngineService {
         List<RuleConflictTarget> targets = publishedByCode.values().stream()
             .filter(rule -> !rule.ruleCode().equals(candidate.ruleCode()))
             .filter(rule -> !hasExplicitSuppression(candidate, rule))
-            .map(rule -> new RuleConflictTarget(
-                rule.ruleCode(),
-                readJson(findVersion(rule.activeVersionId(), rule.tenantId()).dslJson())))
+            .flatMap(rule -> {
+                RuleVersion targetVersion =
+                    findVersion(rule.activeVersionId(), rule.tenantId());
+                AssetVersion targetAssetVersion =
+                    requireRuleAssetVersion(rule, targetVersion);
+                if (!triggerBindings.overlaps(
+                        candidateAssetVersion,
+                        targetAssetVersion,
+                        AssetTriggerPurpose.RULE_EXECUTION)) {
+                    return java.util.stream.Stream.empty();
+                }
+                return java.util.stream.Stream.of(new RuleConflictTarget(
+                    rule.ruleCode(),
+                    readJson(targetVersion.dslJson())
+                ));
+            })
             .toList();
         conflictDetector.detect(readJson(candidateVersion.dslJson()), targets)
             .ifPresent(conflict -> {
@@ -1984,11 +2175,13 @@ public class RuleEngineService {
                 "抑制来源规则 " + sourceCode + " 的优先级必须高于当前规则");
         }
         RuleVersion sourceVersion = findVersion(source.activeVersionId(), source.tenantId());
-        String trigger = readJson(candidateVersion.dslJson()).path("trigger").asText(null);
-        if (!triggerMatches(sourceVersion, trigger)) {
+        if (!triggerBindings.covers(
+                requireRuleAssetVersion(source, sourceVersion),
+                requireRuleAssetVersion(candidate, candidateVersion),
+                AssetTriggerPurpose.RULE_EXECUTION)) {
             throw new ApiException(
                 ErrorCode.ENG_RULE_004,
-                "抑制来源规则 " + sourceCode + " 必须与当前规则使用相同触发点");
+                "抑制来源规则 " + sourceCode + " 必须覆盖当前规则的全部触发点");
         }
         if (requirePublishedSource && !hasPublishedUnifiedVersion(source)) {
             throw new ApiException(
@@ -2041,9 +2234,49 @@ public class RuleEngineService {
         return rule.riskLevel() == RuleRiskLevel.HIGH || rule.riskLevel() == RuleRiskLevel.CRITICAL;
     }
 
-    private void ensureDraft(RuleDefinition rule) {
-        if (rule.status() != RuleDefinitionStatus.DRAFT) {
-            throw new ApiException(ErrorCode.ENG_RULE_006, "仅草稿规则允许当前操作: " + rule.ruleId());
+    private void ensureEditableDraft(RuleDefinition rule, RuleVersion version) {
+        boolean initialDraft = rule.status() == RuleDefinitionStatus.DRAFT;
+        boolean nextVersionDraft = rule.status() == RuleDefinitionStatus.PUBLISHED;
+        if ((!initialDraft && !nextVersionDraft)
+                || version == null
+                || version.status() != RuleVersionStatus.DRAFT
+                || !version.versionId().equals(rule.activeVersionId())) {
+            throw new ApiException(
+                ErrorCode.ENG_RULE_006,
+                "仅当前草稿版本允许修改: " + rule.ruleId()
+            );
+        }
+    }
+
+    private void ensurePublishedIdentityMetadataUnchanged(
+            RuleDefinition rule,
+            RuleUpdateRequest request) {
+        if (rule.status() != RuleDefinitionStatus.PUBLISHED) {
+            return;
+        }
+        RuleAuthoringMode requestedMode =
+            request.authoringMode() == null ? RuleAuthoringMode.DSL : request.authoringMode();
+        RuleRiskLevel requestedRisk =
+            request.riskLevel() == null ? RuleRiskLevel.MEDIUM : request.riskLevel();
+        int requestedPriority = request.priority() == null ? 100 : request.priority();
+        int requestedDedupe = request.dedupeWindowSeconds() == null
+            ? 0
+            : request.dedupeWindowSeconds();
+        boolean unchanged =
+            Objects.equals(rule.ruleCode(), request.ruleCode())
+                && Objects.equals(rule.name(), request.name())
+                && rule.ruleType() == request.ruleType()
+                && rule.authoringMode() == requestedMode
+                && rule.riskLevel() == requestedRisk
+                && rule.priority() == requestedPriority
+                && Objects.equals(trimToNull(rule.suppressedBy()), trimToNull(request.suppressedBy()))
+                && rule.dedupeWindowSeconds() == requestedDedupe
+                && Objects.equals(rule.applicableOrgUnitId(), request.applicableOrgUnitId());
+        if (!unchanged) {
+            throw new ApiException(
+                ErrorCode.ENG_RULE_006,
+                "规则稳定编码、风险和适用域元数据已发布，下一版本只能修改 DSL、解释和来源说明"
+            );
         }
     }
 
@@ -2054,21 +2287,92 @@ public class RuleEngineService {
         }
     }
 
-    private boolean triggerMatches(RuleVersion version, String triggerPoint) {
-        String trigger = readJson(version.dslJson()).path("trigger").asText(null);
-        return triggerPoint == null || triggerPoint.equals(trigger);
+    private List<RuleVersion> versionHistory(RuleDefinition rule, RuleVersion current) {
+        List<RuleVersion> history =
+            versions.findByRuleIdAndTenantIdOrderByVersionNoDesc(rule.ruleId(), rule.tenantId());
+        return history == null || history.isEmpty() ? List.of(current) : List.copyOf(history);
     }
 
     private void validateDsl(JsonNode dsl) {
-        evaluator.evaluate(dsl, json.createObjectNode());
+        AssetReferenceConsistency.requireStableAssetReferences(
+            dsl,
+            ErrorCode.ENG_RULE_001,
+            "规则 DSL"
+        );
+        rejectUnknownContextFields(dsl);
+        evaluator.evaluate(dslForStaticValidation(dsl), json.createObjectNode());
         applicabilityService.validateDsl(dsl);
-        String trigger = dsl.path("trigger").asText(null);
-        if (trigger == null || trigger.isBlank()) {
-            throw new ApiException(ErrorCode.ENG_RULE_001, "规则 DSL 缺少 trigger");
+        if (dsl.has("trigger")) {
+            throw new ApiException(
+                ErrorCode.ENG_RULE_001,
+                "规则 DSL 不得包含 trigger，触发点由资产版本多触发绑定维护");
         }
-        requireCanonicalTrigger(trigger);
         if (!dsl.has("then") || !dsl.has("explain")) {
             throw new ApiException(ErrorCode.ENG_RULE_001, "规则 DSL 缺少 then 或 explain");
+        }
+    }
+
+    private JsonNode dslForStaticValidation(JsonNode dsl) {
+        if (dsl == null || !dsl.isObject()) {
+            return dsl;
+        }
+        JsonNode then = dsl.path("then");
+        if (!then.isArray()) {
+            return dsl;
+        }
+        boolean hasActionCardReference = false;
+        for (JsonNode action : then) {
+            if (action.isObject() && action.has("actionCardRef")) {
+                hasActionCardReference = true;
+                break;
+            }
+        }
+        if (!hasActionCardReference) {
+            return dsl;
+        }
+
+        ObjectNode normalizedDsl = dsl.deepCopy();
+        ArrayNode normalizedThen = json.createArrayNode();
+        for (JsonNode action : then) {
+            if (!action.isObject() || !action.has("actionCardRef")) {
+                normalizedThen.add(action.deepCopy());
+                continue;
+            }
+            normalizedThen.add(staticActionCardReferencePlaceholder(action));
+        }
+        normalizedDsl.set("then", normalizedThen);
+        return normalizedDsl;
+    }
+
+    private ObjectNode staticActionCardReferencePlaceholder(JsonNode action) {
+        JsonNode rawRef = action.get("actionCardRef");
+        if (rawRef == null || !rawRef.isTextual() || trimToNull(rawRef.asText()) == null) {
+            throw new ApiException(ErrorCode.ENG_RULE_001, "规则动作卡引用 actionCardRef 必须是非空文本");
+        }
+        ObjectNode placeholder = json.createObjectNode();
+        placeholder.put("actionCardRef", trimToNull(rawRef.asText()));
+        placeholder.put("actionCode", RuleActionCode.REMIND.name());
+        placeholder.put("atSeverity", RuleRiskLevel.LOW.name());
+        placeholder.put("indicator", "info");
+        placeholder.put("summary", "动作卡引用静态校验占位");
+        placeholder.put("detail", "真实动作卡由医院运行修订统一物化后执行");
+        ObjectNode source = json.createObjectNode();
+        source.put("label", "动作卡引用");
+        placeholder.set("source", source);
+        placeholder.set("suggestions", json.createArrayNode());
+        placeholder.set("overrideReasons", json.createArrayNode());
+        placeholder.put("requiresPhysicianConfirmation", false);
+        return placeholder;
+    }
+
+    private void rejectUnknownContextFields(JsonNode dsl) {
+        List<String> unknown = ContextFieldPathPolicy.unknownFields(
+            ContextFieldPathPolicy.ruleDslFields(dsl));
+        if (!unknown.isEmpty()) {
+            throw new ApiException(
+                ErrorCode.ENG_RULE_001,
+                "字段目录不存在：" + String.join(", ", unknown)
+            );
         }
     }
 
@@ -2292,12 +2596,17 @@ public class RuleEngineService {
             throw new ApiException(ErrorCode.ENG_RULE_002, "当前组织未解析到有效规则版本");
         }
         AssetVersion assetVersion = resolved.version();
-        int versionNo = Integer.parseInt(assetVersion.versionNo());
+        int versionNo = AssetVersionNumbers.intSequence(
+            assetVersion.versionNo(), "规则统一版本号");
         return definitions.findByTenantIdAndRuleCode(assetVersion.tenantId(), candidate.ruleCode())
             .flatMap(rule -> versions.findByRuleIdAndTenantIdAndVersionNo(
                     rule.ruleId(), assetVersion.tenantId(), versionNo)
                 .map(version -> copyRule(rule, rule.status(), version.versionId(),
                     rule.updatedAt(), rule.updatedBy(), rule.traceId())));
+    }
+
+    private static String assetVersionNo(RuleVersion version) {
+        return AssetVersionNumbers.canonical(version.versionNo());
     }
 
     private Optional<RuleDefinition> findPlatformRuleForTenant(String ruleId, String tenantId) {
@@ -2417,7 +2726,7 @@ public class RuleEngineService {
             source.id(), source.ruleId(), source.tenantId(), source.ruleCode(),
             source.name(), source.ruleType(), source.authoringMode(), source.riskLevel(),
             source.priority(), source.suppressedBy(), source.dedupeWindowSeconds(),
-            status, activeVersionId, source.packageVersion(), source.applicableOrgUnitId(),
+            status, activeVersionId, source.applicableOrgUnitId(),
             source.createdAt(), source.createdBy(), updatedAt, updatedBy, traceId);
     }
 
@@ -2443,13 +2752,42 @@ public class RuleEngineService {
             RequestContext.currentTraceId());
     }
 
+    private RuleTestCase copyTestCaseToVersion(
+            RuleTestCase source,
+            String targetVersionId,
+            Instant now,
+            String actor,
+            String traceId) {
+        return new RuleTestCase(
+            null,
+            "rtc-" + UUID.randomUUID(),
+            source.tenantId(),
+            source.ruleId(),
+            targetVersionId,
+            source.caseType(),
+            source.contextSnapshotId(),
+            source.inputPayload(),
+            source.expectedHit(),
+            source.expectedSeverity(),
+            source.expectedActionCode(),
+            null,
+            RuleTestCaseStatus.NOT_RUN,
+            null,
+            null,
+            now,
+            actor,
+            now,
+            actor,
+            traceId
+        );
+    }
+
     private record RuleAssetContent(
         String ruleCode,
         String name,
         RuleType ruleType,
         RuleAuthoringMode authoringMode,
         RuleRiskLevel riskLevel,
-        String packageVersion,
         String applicableOrgUnitId,
         Integer versionNo,
         String sourceRef,

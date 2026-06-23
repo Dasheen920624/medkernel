@@ -55,13 +55,11 @@ const KNOWLEDGE_READINESS_LABEL: Record<string, string> = {
   EGRESS_GOVERNANCE: "出域白名单",
   MODEL_POLICY: "能力策略",
   VERSION_TRIPLE: "版本三元组",
-  P6_ACCEPTANCE: "P6 独立验收",
 };
 
 const KNOWLEDGE_READINESS_REPAIR_PATH: Record<string, string> = {
   LITERATURE_ROOT: "/security/baseline",
   DEPLOYMENT_FORM: "/security/baseline",
-  P6_ACCEPTANCE: "/security/baseline",
   MODEL_PROVIDER: "/system/providers",
   REGRESSION_BASELINE: "/advanced/ai-workflows",
   MODEL_EVALUATION: "/advanced/ai-workflows",

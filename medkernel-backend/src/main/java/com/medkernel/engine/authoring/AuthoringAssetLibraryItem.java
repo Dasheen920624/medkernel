@@ -17,9 +17,7 @@ public record AuthoringAssetLibraryItem(
     List<String> tags,
     String version,
     String status,
-    String packageVersion,
     boolean favorite,
-    boolean cloneable,
     Instant updatedAt
 ) {
     public AuthoringAssetLibraryItem {

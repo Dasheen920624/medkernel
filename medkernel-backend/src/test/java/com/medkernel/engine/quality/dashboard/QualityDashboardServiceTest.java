@@ -316,7 +316,7 @@ class QualityDashboardServiceTest {
         triggers.save(new RecommendationTrigger(
             null, triggerId, tenantId, "TRG." + triggerId, "order-sign",
             "event-1", "snapshot-1", "patient-1", "enc-1", "pathway-1",
-            "WARD_ORDER", "1.0.0", "sha256:trigger", RecommendationTriggerStatus.EVALUATED,
+            "WARD_ORDER", "runtime-release-test", "sha256:trigger", RecommendationTriggerStatus.EVALUATED,
             null, createdAt, createdAt, "tester", createdAt, "tester", "trace-recommendation"));
         cards.save(new RecommendationCard(
             null, cardId, tenantId, triggerId, "CARD." + cardId, RecommendationCardType.MEDICATION,

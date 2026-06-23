@@ -108,7 +108,7 @@ interface RegisterPluginFormValues {
 
 interface GrantPluginFormValues {
   capabilityKeys: string[];
-  approvalReason: string;
+  authorizationReason: string;
   clinicalSafetyConfirmed: boolean;
 }
 
@@ -253,7 +253,7 @@ export default function DevConsole() {
       await grantPlugin.mutateAsync({
         pluginId: grantTarget.pluginId,
         capabilityKeys: values.capabilityKeys,
-        approvalReason: values.approvalReason?.trim() ?? "",
+        authorizationReason: values.authorizationReason?.trim() ?? "",
         clinicalSafetyConfirmed: Boolean(values.clinicalSafetyConfirmed),
       });
       message.success("插件能力已授权");
@@ -814,7 +814,7 @@ export default function DevConsole() {
               capabilityKeys: grantTarget.capabilities.map(
                 (capability) => capability.capabilityKey,
               ),
-              approvalReason: "",
+              authorizationReason: "",
               clinicalSafetyConfirmed: false,
             });
           }
@@ -842,8 +842,8 @@ export default function DevConsole() {
             />
           </Form.Item>
           <Form.Item
-            name="approvalReason"
-            label="审批理由"
+            name="authorizationReason"
+            label="授权原因"
             rules={[
               {
                 validator: (_, value) => {
@@ -855,7 +855,7 @@ export default function DevConsole() {
                   );
                   return !requiresReason || value?.trim()
                     ? Promise.resolve()
-                    : Promise.reject(new Error("写能力授权必须填写审批理由"));
+                    : Promise.reject(new Error("写能力授权必须填写授权原因"));
                 },
               },
             ]}

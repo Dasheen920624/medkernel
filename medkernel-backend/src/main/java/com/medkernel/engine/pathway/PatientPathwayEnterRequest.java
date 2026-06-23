@@ -9,8 +9,8 @@ import jakarta.validation.constraints.NotBlank;
 /**
  * 患者入径请求。
  *
- * <p>指定 ACTIVE 标准上下文快照、路径模板和可选起始节点。患者与就诊由服务端从快照解析；
- * 路径包版本按统一入参复核，浏览器不提交可伪造的临床身份字段。
+ * <p>指定 ACTIVE 标准上下文快照、临床触发点、路径模板和可选起始节点。患者与就诊由服务端从快照解析；
+ * 路径运行版本由医院当前运行修订和模板发布状态解析，浏览器不提交可伪造的临床身份字段。
  */
 public record PatientPathwayEnterRequest(
     @JsonProperty("request_id") String requestId,
@@ -24,8 +24,8 @@ public record PatientPathwayEnterRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     @NotBlank String contextSnapshotId,
+    @NotBlank String triggerPoint,
     @NotBlank String templateId,
     String startNodeCode
 ) implements PathwayContextRequest {
@@ -34,17 +34,17 @@ public record PatientPathwayEnterRequest(
     }
 
     public PatientPathwayEnterRequest(String contextSnapshotId,
+                                      String triggerPoint,
                                       String templateId,
-                                      String startNodeCode,
-                                      String packageVersion) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), packageVersion,
-            contextSnapshotId, templateId, startNodeCode);
+                                      String startNodeCode) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(),
+            contextSnapshotId, triggerPoint, templateId, startNodeCode);
     }
 
     public PathwayApiContext apiContext() {
         return new PathwayApiContext(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }

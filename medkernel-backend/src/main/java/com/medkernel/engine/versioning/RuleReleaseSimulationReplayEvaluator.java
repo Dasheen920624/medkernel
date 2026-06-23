@@ -138,16 +138,8 @@ public class RuleReleaseSimulationReplayEvaluator implements ReleaseSimulationRe
             ErrorCode.NOT_FOUND,
             "规则资产缺少规则定义: " + assetVersion.assetIdentity()
         ));
-        int versionNo;
-        try {
-            versionNo = Integer.parseInt(assetVersion.versionNo());
-        } catch (NumberFormatException exception) {
-            throw new ApiException(
-                ErrorCode.VALIDATION_FAILED,
-                "规则统一资产版本号必须是整数: " + assetVersion.versionNo(),
-                exception
-            );
-        }
+        int versionNo = AssetVersionNumbers.intSequence(
+            assetVersion.versionNo(), "规则统一资产版本号");
         return versions.findByRuleIdAndTenantIdAndVersionNo(
             definition.ruleId(),
             assetVersion.tenantId(),

@@ -35,7 +35,8 @@ import com.medkernel.engine.context.ContextSnapshotRequest;
 import com.medkernel.engine.context.ContextSnapshotResources;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextValidator;
-import com.medkernel.engine.context.PackageVersionPort;
+import com.medkernel.engine.context.ClinicalRuntimeRelease;
+import com.medkernel.engine.context.CurrentClinicalRuntimeReleaseResolver;
 import com.medkernel.engine.context.QualityStatus;
 import com.medkernel.engine.context.TerminologyMappingPort;
 import com.medkernel.engine.context.canonical.CanonicalObservation;
@@ -77,6 +78,7 @@ class ThirdPartyProjectionRulePathwayEndToEndTest {
         FhirR4CanonicalMapper mapper = new FhirR4CanonicalMapper(json, terminologyReturning("VALID"));
         var mapping = mapper.fromR4(new FhirCanonicalMappingRequest(
             "tenant-A",
+            "runtime-release-1",
             "ctx-third-party",
             1,
             "trace-third-party",
@@ -137,7 +139,8 @@ class ThirdPartyProjectionRulePathwayEndToEndTest {
             List.of(),
             List.of(),
             List.of(),
-            List.of());
+            List.of(),
+            ContextSnapshotResources.emptyExtensions());
 
         var snapshot = snapshotService.create(new ContextSnapshotRequest(
             "req-third-party",
@@ -154,7 +157,6 @@ class ThirdPartyProjectionRulePathwayEndToEndTest {
             "MPI-THIRD",
             "ENC-THIRD",
             "ORG-THIRD",
-            "pkg-2026.06",
             resources), null);
 
         assertThat(snapshot.mappingStatus())
@@ -246,16 +248,20 @@ class ThirdPartyProjectionRulePathwayEndToEndTest {
         DiagnoseResponseAssembler diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
         when(snapshots.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(resources.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(terminology.evaluate(eq("tenant-A"), anyList()))
+        when(terminology.evaluate(
+            eq("tenant-A"), eq("runtime-release-test"), anyList()))
             .thenReturn(Map.of("OBSERVATION:obs-third-party-hb:code:HB", "CONFIRMED"));
-        PackageVersionPort packageVersions = mock(PackageVersionPort.class);
-        when(packageVersions.exists("tenant-A", "pkg-2026.06")).thenReturn(true);
+        CurrentClinicalRuntimeReleaseResolver runtimeReleases =
+            mock(CurrentClinicalRuntimeReleaseResolver.class);
+        when(runtimeReleases.resolve(any(OrgScope.class))).thenReturn(new ClinicalRuntimeRelease(
+            1L, "runtime-release-test", "tenant-A", "hospital-A", 1L, "baseline-1",
+            "a".repeat(64), null, Instant.now(), "tester", Instant.now(), "tester", "trace-third-party"));
         return new ContextSnapshotService(
             snapshots,
             resources,
             idemRepo,
             new ContextValidator(),
-            packageVersions,
+            runtimeReleases,
             terminology,
             auditRecorder,
             isolatedAudit,
@@ -370,7 +376,7 @@ class ThirdPartyProjectionRulePathwayEndToEndTest {
             "ENC-ORDER",
             com.medkernel.engine.context.canonical.ClinicalSetting.INPATIENT,
             "HIS",
-            "pkg-2026.06",
+            "runtime-release-test",
             "sha256:order",
             Instant.parse("2026-06-03T00:00:00Z"),
             Instant.parse("2026-06-03T00:00:01Z"),
@@ -441,7 +447,7 @@ class ThirdPartyProjectionRulePathwayEndToEndTest {
     }
 
     private static TerminologyMappingPort terminologyReturning(String status) {
-        return (tenantId, anchors) -> anchors.stream()
+        return (tenantId, runtimeReleaseId, anchors) -> anchors.stream()
             .collect(Collectors.toMap(anchor -> anchor.key(), anchor -> status, (left, right) -> left));
     }
 }

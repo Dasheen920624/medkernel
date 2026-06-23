@@ -32,8 +32,6 @@ public interface KnowledgeAcquisitionSourceRepository extends ListCrudRepository
         SELECT * FROM mk_knowledge_acquisition_source
         WHERE schedule_enabled_flag = 'Y'
           AND enabled_flag = 'Y'
-          AND approved_by IS NOT NULL
-          AND approved_at IS NOT NULL
           AND license_policy = 'PERMITTED'
           AND robots_policy = 'ALLOW_FETCH'
           AND schedule_interval_minutes > 0
@@ -57,8 +55,6 @@ public interface KnowledgeAcquisitionSourceRepository extends ListCrudRepository
           AND lock_version = :expectedVersion
           AND schedule_enabled_flag = 'Y'
           AND enabled_flag = 'Y'
-          AND approved_by IS NOT NULL
-          AND approved_at IS NOT NULL
           AND license_policy = 'PERMITTED'
           AND robots_policy = 'ALLOW_FETCH'
           AND schedule_interval_minutes > 0

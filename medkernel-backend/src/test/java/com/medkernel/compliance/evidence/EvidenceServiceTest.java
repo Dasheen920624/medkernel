@@ -64,7 +64,7 @@ class EvidenceServiceTest {
 
     private static final String TENANT_ID = "tenant-hospital-01";
     private static final String EVIDENCE_ID = "evd-compliance-001";
-    private static final String PAYLOAD = "{\"approvalId\":\"exp-001\",\"result\":\"APPROVED\"}";
+    private static final String PAYLOAD = "{\"confirmationId\":\"exp-001\",\"result\":\"CONFIRMED\"}";
 
     private SmCryptoService crypto;
     private EvidenceSnapshot validSnapshot;
@@ -79,9 +79,9 @@ class EvidenceServiceTest {
             "trace-001",
             "COMPLIANCE_EXPORT",
             "CREATE",
-            "export_approval",
+            "export_confirmation",
             "exp-001",
-            "合规导出审批证据",
+            "合规导出确认证据",
             PAYLOAD
         );
     }
@@ -93,8 +93,8 @@ class EvidenceServiceTest {
     void createSnapshot_success() {
         EvidenceCreateDto dto = new EvidenceCreateDto(
             EVIDENCE_ID, "trace-001", "COMPLIANCE_EXPORT", "CREATE",
-            "export_approval", "exp-001",
-            "合规导出审批证据", PAYLOAD
+            "export_confirmation", "exp-001",
+            "合规导出确认证据", PAYLOAD
         );
 
         when(repository.findByEvidenceId(EVIDENCE_ID)).thenReturn(Optional.empty());
@@ -138,8 +138,8 @@ class EvidenceServiceTest {
     void createSnapshot_duplicateId_throwsConflict() {
         EvidenceCreateDto dto = new EvidenceCreateDto(
             EVIDENCE_ID, "trace-001", "COMPLIANCE_EXPORT", "CREATE",
-            "export_approval", "exp-001",
-            "合规导出审批证据", PAYLOAD
+            "export_confirmation", "exp-001",
+            "合规导出确认证据", PAYLOAD
         );
         when(repository.findByEvidenceId(EVIDENCE_ID)).thenReturn(Optional.of(validSnapshot));
 
@@ -228,9 +228,9 @@ class EvidenceServiceTest {
         // 构建一个被篡改的快照：payload 被修改但 hash 保持原值
         EvidenceSnapshot tampered = new EvidenceSnapshot(
             1L, EVIDENCE_ID, TENANT_ID, "trace-001",
-            "COMPLIANCE_EXPORT", "CREATE", "export_approval", "exp-001",
-            "合规导出审批证据",
-            "{\"approvalId\":\"exp-001\",\"result\":\"TAMPERED\"}",
+            "COMPLIANCE_EXPORT", "CREATE", "export_confirmation", "exp-001",
+            "合规导出确认证据",
+            "{\"confirmationId\":\"exp-001\",\"result\":\"TAMPERED\"}",
             validSnapshot.payloadHash(),
             validSnapshot.fileUri(), validSnapshot.fileDigest(), validSnapshot.signatureAlgorithm(),
             validSnapshot.signatureValue(), validSnapshot.signerPublicKey(),
@@ -308,8 +308,8 @@ class EvidenceServiceTest {
     void exportEvidences_computesDeterministicRealHash() throws Exception {
         EvidenceSnapshot tempB = new EvidenceSnapshot(
             null, "evd-compliance-002", TENANT_ID, "trace-002",
-            "COMPLIANCE_EXPORT", "CREATE", "export_approval", "exp-002",
-            "合规导出复核证据", "{\"approvalId\":\"exp-002\",\"result\":\"APPROVED\"}",
+            "COMPLIANCE_EXPORT", "CREATE", "export_confirmation", "exp-002",
+            "合规导出完成证据", "{\"confirmationId\":\"exp-002\",\"result\":\"CONFIRMED\"}",
             "",
             "/api/v1/compliance/evidence/snapshots/evd-compliance-002/file",
             "",

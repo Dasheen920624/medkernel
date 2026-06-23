@@ -26,6 +26,8 @@ import com.medkernel.engine.rule.RuleActionCode;
 import com.medkernel.engine.rule.RuleAuthoringMode;
 import com.medkernel.engine.rule.RuleCreateRequest;
 import com.medkernel.engine.rule.RuleRiskLevel;
+import com.medkernel.engine.versioning.AssetTriggerBindingInput;
+import com.medkernel.engine.versioning.AssetTriggerPurpose;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.hash.Sha256ContentHash;
@@ -63,7 +65,7 @@ public class InteroperabilityMappingService {
             throw invalidRule("规则导出必须提供 DSL 对象");
         }
         JsonNode dsl = request.dsl();
-        ClinicalEventTriggerPoint hook = parseTrigger(requiredText(dsl, "trigger"));
+        ClinicalEventTriggerPoint hook = singleRuleTrigger(request.triggers());
         JsonNode condition = requiredObject(dsl, "when", "规则 DSL 缺少 when 条件");
         List<CdsHookCard> cards = exportCards(request.ruleCode(), requiredArray(dsl, "then"));
         ObjectNode cdsService = buildCdsService(request, hook, dsl);
@@ -71,7 +73,6 @@ public class InteroperabilityMappingService {
             hook,
             request.ruleCode(),
             request.name(),
-            request.packageVersion(),
             request.ruleType(),
             request.authoringMode(),
             request.riskLevel(),
@@ -100,7 +101,7 @@ public class InteroperabilityMappingService {
             mapping.ruleType(),
             mapping.authoringMode(),
             mapping.riskLevel(),
-            mapping.packageVersion(),
+            List.of(ruleTrigger(mapping.hook())),
             null,
             mapping.sourceRef(),
             "从 CDS Hooks 标准映射回导",
@@ -138,7 +139,6 @@ public class InteroperabilityMappingService {
         JsonNode condition = parseControlledCqlCondition(matcher.group(3));
 
         ObjectNode dsl = json.createObjectNode();
-        dsl.put("trigger", hook.wireValue());
         dsl.set("when", condition);
         dsl.putArray("then");
         ObjectNode explain = dsl.putObject("explain");
@@ -156,7 +156,7 @@ public class InteroperabilityMappingService {
             request.ruleType(),
             RuleAuthoringMode.DSL,
             request.riskLevel(),
-            request.packageVersion(),
+            List.of(ruleTrigger(hook)),
             request.applicableOrgUnitId(),
             sourceRef,
             "CQL 受控导入: " + library,
@@ -225,11 +225,32 @@ public class InteroperabilityMappingService {
         service.set("prefetch", json.createObjectNode());
         ObjectNode extension = service.putObject("extension");
         extension.set(RULE_DSL_EXTENSION, dsl.deepCopy());
-        extension.put("packageVersion", request.packageVersion());
         extension.put("sourceRef", request.sourceRef());
-        addExportProvenance(service, extension, "RULE", request.ruleCode(), null,
-            request.packageVersion(), request.sourceRef(), dsl);
+        addExportProvenance(service, extension, "RULE", request.ruleCode(), request.sourceRef(), dsl);
         return service;
+    }
+
+    private ClinicalEventTriggerPoint singleRuleTrigger(
+            List<AssetTriggerBindingInput> triggers) {
+        List<AssetTriggerBindingInput> executionTriggers = triggers == null
+            ? List.of()
+            : triggers.stream()
+                .filter(binding -> binding != null
+                    && binding.purpose() == AssetTriggerPurpose.RULE_EXECUTION)
+                .toList();
+        if (executionTriggers.size() != 1) {
+            throw invalidRule("单个 CDS Hooks 映射必须且只能选择一个规则执行触发点");
+        }
+        return parseTrigger(executionTriggers.getFirst().triggerPoint());
+    }
+
+    private static AssetTriggerBindingInput ruleTrigger(
+            ClinicalEventTriggerPoint triggerPoint) {
+        return new AssetTriggerBindingInput(
+            triggerPoint.wireValue(),
+            AssetTriggerPurpose.RULE_EXECUTION,
+            List.of()
+        );
     }
 
     private ObjectNode buildCql(RuleCreateRequest request, ClinicalEventTriggerPoint hook, JsonNode condition) {
@@ -261,15 +282,14 @@ public class InteroperabilityMappingService {
         plan.put("id", request.templateCode());
         plan.put("status", "draft");
         plan.put("title", request.name());
-        plan.put("version", String.valueOf(request.templateVersion()));
         plan.set("type", coding("http://terminology.hl7.org/CodeSystem/plan-definition-type", "clinical-pathway"));
         ArrayNode topic = plan.putArray("topic");
         topic.add(coding("https://medkernel.local/fhir/CodeSystem/disease", request.diseaseCode()));
         ObjectNode extension = plan.putObject("extension");
         extension.set(PATHWAY_DRAFT_EXTENSION, json.valueToTree(request));
         extension.put("mappingLevel", "CONCEPTUAL");
-        addExportProvenance(plan, extension, "PATHWAY", request.templateCode(), request.packageId(),
-            request.packageVersion(), request.sourceRef(), json.valueToTree(request));
+        addExportProvenance(plan, extension, "PATHWAY", request.templateCode(), request.sourceRef(),
+            json.valueToTree(request));
 
         ArrayNode goals = plan.putArray("goal");
         for (PathwayMilestoneRequest milestone : request.milestones()) {
@@ -348,8 +368,6 @@ public class InteroperabilityMappingService {
         provenance.put("content_hash", contentHash(json.valueToTree(request)));
         provenance.put("assetType", "PATHWAY");
         provenance.put("assetId", request.templateCode());
-        provenance.put("packageId", request.packageId());
-        provenance.put("packageVersion", request.packageVersion());
         provenance.put("sourceRef", request.sourceRef());
         ArrayNode phases = glif.putArray("phases");
         for (PathwayMilestoneRequest milestone : request.milestones()) {
@@ -390,8 +408,6 @@ public class InteroperabilityMappingService {
                                      ObjectNode extension,
                                      String assetType,
                                      String assetId,
-                                     String packageId,
-                                     String packageVersion,
                                      String sourceRef,
                                      JsonNode content) {
         String hash = contentHash(content);
@@ -399,10 +415,6 @@ public class InteroperabilityMappingService {
         provenance.put("content_hash", hash);
         provenance.put("assetType", assetType);
         provenance.put("assetId", assetId);
-        if (packageId != null && !packageId.isBlank()) {
-            provenance.put("packageId", packageId);
-        }
-        provenance.put("packageVersion", packageVersion);
         provenance.put("sourceRef", sourceRef);
 
         ObjectNode meta = standard.path("meta").isObject()

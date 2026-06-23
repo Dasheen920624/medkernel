@@ -1,122 +1,70 @@
-# MedKernel · 备份恢复 Runbook（GA-OPS-02）
+# 备份、恢复与清库发布 Runbook
 
-> 适用：v1.0 GA · 内外网双形态
-> 验收：每月演练 ≥ 1 次 + 连续 3 次完整链路通过 + 录像归档
+> 适用于 Docker Compose 与 `deploy/onprem` 单机部署。恢复会覆盖目标数据库和运行制品，必须先确认备份、摘要和目标环境。不得在未授权主机上执行清库或恢复。
 
----
-
-## 1. 备份策略
-
-当前 Docker 部署平台使用 `./deploy/docker/scripts/backup.sh` 生成 PostgreSQL 自定义格式备份。
-脚本会同步生成同名 `.sha256` 摘要文件；任何恢复动作必须先通过摘要校验，避免损坏备份覆盖当前数据库。
-
-| 数据 | 保留周期 | 频率 | 介质 | 加密 |
-|---|---|---|---|---|
-| 电子病历主库 | 30 年 | 每日全量 + 每 5 min 增量 | 异地灾备站 + 国密 SM4 加密磁带 | SM4 + KMS |
-| MPI 主索引 | 30 年 | 每日全量 + 每小时增量 | 同上 | SM4 + KMS |
-| CDSS 提醒日志 | 7 年 | 每日全量 | 同上 | SM4 |
-| 审计日志 | ≥ 6 个月（热）+ 10 年（冷） | 实时复制 | SM3 链 + TSA 时间戳 | SM3 验签 |
-| 配置包（路径/规则/字典） | 永久 | 每次发布 | Git LFS + S3 兼容对象存储 | TLS |
-| LLM Provider 调用记录 | 2 年 | 每日全量 | 冷存 | SM4 |
-
----
-
-## 2. 恢复演练步骤
-
-### A · 数据库恢复（Oracle 23ai · 主流程）
-
-当前未上线阶段的标准 Docker 恢复入口如下：
+## 备份
 
 ```bash
+./deploy/docker/scripts/healthcheck.sh full
 ./deploy/docker/scripts/backup.sh
+```
+
+备份脚本生成 PostgreSQL 自定义格式备份及同名 `.sha256` 摘要。应将二者复制到受控存储，记录：
+
+- 生成时间；
+- Git commit；
+- 数据库地址和环境；
+- 备份文件名；
+- SHA-256；
+- 操作者和用途。
+
+仓库不保存数据库备份、患者数据、密钥或历史演练截图。
+
+## 恢复前检查
+
+1. 确认目标是隔离验证环境或已经批准覆盖的运行环境；
+2. 停止对目标数据库的写入；
+3. 再执行一次当前状态备份；
+4. 确认备份文件与 `.sha256` 位于同一目录；
+5. 记录当前容器、Git commit 和数据库状态。
+
+## 恢复
+
+```bash
 ./deploy/docker/scripts/restore.sh /path/to/medkernel-YYYYMMDD-HHMMSS.dump
+./deploy/docker/scripts/healthcheck.sh full
 ```
 
-`restore.sh` 会查找 `/path/to/medkernel-YYYYMMDD-HHMMSS.dump.sha256` 并在恢复前校验。
-缺少摘要文件或摘要不匹配时必须停止恢复。
+`restore.sh` 必须在恢复前自动校验摘要。缺少摘要或摘要不一致时立即停止，不得绕过。
 
-```bash
-# 1. 切流量到只读副本（不停服）
-curl -X POST $API/v1/compliance/dr/switchover -d 'role=read-only'
+## 恢复后验证
 
-# 2. 选定恢复时间点
-RECOVER_POINT="2026-08-15T10:00:00Z"
+至少验证：
 
-# 3. 从冷备站还原 RMAN
-ssh dr-backup-site
-rman target / cmdfile=restore-rman.cmd
+1. Flyway 状态与目标版本一致；
+2. 登录、权限和组织隔离正常；
+3. 平台权威基线、机构扩展、医院当前运行修订及其精确知识、规则和路径版本可读；
+4. 临床推荐、反馈和审计链可追踪；
+5. 外部依赖断开时诚实降级；
+6. 服务重启后数据与当前版本保持一致。
 
-# 4. 应用归档日志直到目标时间点
-sqlplus / as sysdba <<EOF
-recover database until time 'TO_DATE('$RECOVER_POINT','YYYY-MM-DD"T"HH24:MI:SS')';
-alter database open resetlogs;
-EOF
+演练证据写入目标机受控运行目录，不提交仓库。仓库只保留不含敏感数据的摘要、测试结果和问题结论。
 
-# 5. 校验数据完整性
-psql -c "select count(*) from mpi_patient;"   # 应等于备份时点的行数
-psql -c "select * from medkernel_meta order by applied_at desc limit 1;"
+## 清库重部署
 
-# 6. 切流量回主库
-curl -X POST $API/v1/compliance/dr/switchover -d 'role=primary'
+项目未上线时允许在完成备份后清理目标库并从统一 V1 重建。步骤见
+[部署与演练](../../DEPLOYMENT_AND_REHEARSAL.md)。
 
-# 7. 录像归档到 docs/release/evidence/v1.0.0-drill-YYYYMMDD/
-```
+单机清库入口 `deploy/onprem/medkernel-fresh-deploy.sh` 必须满足以下顺序：
 
-### B · 配置包恢复（Git LFS）
+1. 严格 TLS 预检：验证可信证书链、SAN 主机/IP 匹配、证书有效期和外部 readiness；不得使用 `curl -k` 或 `--insecure`；
+2. 同时快照数据库、`conf/`、systemd 单元、Nginx 配置、后端 JAR、前端 `dist`、manifest、运行目录与发布脚本；
+3. 备份完成后立即生成 `SHA256SUMS` 并执行 `sha256sum -c`，摘要失败时不得停服或清库；
+4. 隔离恢复数据库备份通过后，才允许修改 systemd、执行 `dropdb` 或切换制品；
+5. 从开始修改 systemd 起注册强制恢复事务。`ERR`、`INT`、`TERM`，以及清库后、发布中、候选 readiness 任一点失败，都必须恢复发布前数据库、配置、systemd 和前后端制品；
+6. 恢复完成的判定不是“文件已复制”，而是旧 JAR 摘要一致，内部 readiness 与严格 TLS 外部 readiness 均返回 200；
+7. 只有候选版本全部验证通过后才能解除恢复事务。备份与恢复证据保留在本次 `fresh-preclear-*` 目录。
 
-```bash
-# 1. 找回任意历史版本
-cd configpack-repo
-git log --all --oneline configpack/胸痛AMI急诊路径.json
+`medkernel-deploy.sh` 的制品发布回滚不可关闭。发布前必须同时备份数据库与运行层，并立即生成、校验摘要。候选 JAR 启动时可能已经执行 Flyway，因此制品切换后的错误或信号必须先恢复发布前数据库，再恢复配置、Nginx、systemd、后端 JAR、前端 `dist` 和 manifest，并验证旧版本 readiness。
 
-# 2. checkout 历史版本
-git checkout <commit-hash> -- configpack/胸痛AMI急诊路径.json
-
-# 3. 重新发布（走 7 步流的灰度）
-curl -X POST $API/v1/tenant/pathways/p1/publish
-```
-
-### C · 审计链恢复
-
-```bash
-# 审计链验签恢复（每条事件用 SM3 + TSA 验签）
-java -jar medkernel-audit-tools.jar verify-chain --from 2026-08-15 --to 2026-08-16
-
-# 输出示例：
-# 2026-08-15 ~ 2026-08-16: 共 1,283,924 条审计事件
-# SM3 链验签: 1,283,924 / 1,283,924 全部通过
-# TSA 时间戳验签: 1,283,924 / 1,283,924 全部通过
-```
-
----
-
-## 3. 演练频率与录像
-
-| 演练 | 频率 | 录像归档 |
-|---|---|---|
-| 数据库恢复（A） | 每月 1 次 | `docs/release/evidence/v1.0.0-drill-monthly/db/` |
-| 配置包恢复（B） | 每季 1 次 | 同上 |
-| 审计链验签（C） | 每月 1 次 | 同上 |
-| 完整业务连续性演练 | 每年 ≥ 2 次 | 单独目录 + 院方信息中心签字 |
-
----
-
-## 4. 关键 SLA
-
-| 指标 | 目标 | 测量 |
-|---|---|---|
-| RPO（恢复点目标） | ≤ 1 小时 | 增量备份间隔 |
-| RTO（恢复时间目标） | ≤ 4 小时 | 演练实测均值 |
-| 备份成功率 | ≥ 99.5% | Prometheus alert |
-| 演练成功率 | ≥ 100%（连续 3 次） | 录像 + 院方签字 |
-
----
-
-## 5. 故障应急联络
-
-| 角色 | 联系方式 |
-|---|---|
-| 信息科主任 | （院方填） |
-| 乙方 SRE 24×7 | （销售填） |
-| 国密 KMS 厂商应急 | （KMS 厂商填） |
-| TSA / CA 厂商应急 | （CA 厂商填） |
+如自动恢复失败，禁止继续发布或清理备份。应保持流量隔离，使用日志中给出的本次备份目录人工恢复，并在恢复后重新执行摘要校验和旧版本 readiness 验证。

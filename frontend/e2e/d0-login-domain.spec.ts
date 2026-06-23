@@ -27,8 +27,8 @@ test.describe("D0 登录域真实验收", () => {
     });
   }
 
-  test("临床医生只看到临床协同菜单，并可从用户菜单退出登录", async ({ page }) => {
-    await ensureReadySession(page, "clinical-decision-user");
+  test("临床使用者只看到临床协同菜单，并可从用户菜单退出登录", async ({ page }) => {
+    await ensureReadySession(page, "clinical-user");
     await page.goto("/dashboard");
 
     await expect(page.getByText("临床协同").first()).toBeVisible();

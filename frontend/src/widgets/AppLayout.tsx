@@ -124,7 +124,7 @@ export function AppLayout() {
     routeRequiresAuth &&
       securityProfile.data &&
       (securityProfile.data.mustChangePwd ||
-        (securityProfile.data.mfaRequired && !securityProfile.data.mfaBound)),
+        (securityProfile.data.mfaRequired && !securityProfile.data.mfaVerified)),
   );
   const canViewCurrentRoute =
     !routeRequiresAuth ||
@@ -429,7 +429,7 @@ export function AppLayout() {
         <PageState
           state="forbidden"
           title="需要完成首次安全设置"
-          description="当前账号仍需完成首次改密或 MFA 绑定，完成前不能进入业务页面。"
+          description="当前账号仍需完成首次改密或本次 MFA 验证，完成前不能进入业务页面。"
           action={
             <Button
               type="primary"

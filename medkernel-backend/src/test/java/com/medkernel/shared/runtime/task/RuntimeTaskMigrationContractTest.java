@@ -10,7 +10,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * SYS-05 PR1 运行任务框架迁移合同。
+ * 全新 V1 基线中的运行任务框架合同。
  */
 class RuntimeTaskMigrationContractTest {
 
@@ -19,7 +19,7 @@ class RuntimeTaskMigrationContractTest {
     @Test
     void runtimeTaskMigrationExistsInEveryDialectWithChineseComments() throws IOException {
         for (String dialect : List.of("h2", "postgres", "oracle", "dm", "kingbase")) {
-            Path migration = migrationRoot.resolve(dialect).resolve("V41__runtime_task_framework.sql");
+            Path migration = migrationRoot.resolve(dialect).resolve("V1__baseline.sql");
             assertThat(migration).as(dialect + " runtime task migration").exists();
             String sql = Files.readString(migration);
             assertThat(sql)
@@ -29,19 +29,17 @@ class RuntimeTaskMigrationContractTest {
                 .contains("idx_sys_task_mode_ts")
                 .contains("idx_sys_task_org_ts")
                 .contains("任务运行框架");
-            if (List.of("postgres", "oracle", "dm", "kingbase").contains(dialect)) {
-                assertThat(sql)
-                    .contains("COMMENT ON TABLE sys_task")
-                    .contains("COMMENT ON COLUMN sys_task.task_id")
-                    .contains("COMMENT ON COLUMN sys_task.status");
-            }
+            assertThat(sql)
+                .contains("COMMENT ON TABLE sys_task")
+                .contains("COMMENT ON COLUMN sys_task.task_id")
+                .contains("COMMENT ON COLUMN sys_task.status");
         }
     }
 
     @Test
     void retryDeadLetterMigrationExistsInEveryDialectWithHonestStatusAndChineseComments() throws IOException {
         for (String dialect : List.of("h2", "postgres", "oracle", "dm", "kingbase")) {
-            Path migration = migrationRoot.resolve(dialect).resolve("V42__runtime_task_retry_dead_letter.sql");
+            Path migration = migrationRoot.resolve(dialect).resolve("V1__baseline.sql");
             assertThat(migration).as(dialect + " retry dead letter migration").exists();
             String sql = Files.readString(migration);
             assertThat(sql)
@@ -53,12 +51,10 @@ class RuntimeTaskMigrationContractTest {
                 .contains("NOT_CONNECTED")
                 .contains("DEAD_LETTER")
                 .contains("任务死信");
-            if (List.of("postgres", "oracle", "dm", "kingbase").contains(dialect)) {
-                assertThat(sql)
-                    .contains("COMMENT ON TABLE sys_task_dead_letter")
-                    .contains("COMMENT ON COLUMN sys_task_dead_letter.dead_letter_id")
-                    .contains("COMMENT ON COLUMN sys_task.retry_count");
-            }
+            assertThat(sql)
+                .contains("COMMENT ON TABLE sys_task_dead_letter")
+                .contains("COMMENT ON COLUMN sys_task_dead_letter.dead_letter_id")
+                .contains("COMMENT ON COLUMN sys_task.retry_count");
         }
     }
 }

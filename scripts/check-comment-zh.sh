@@ -6,7 +6,7 @@
 #   scripts/check-comment-zh.sh --mode=full  # 全量扫描，仅汇总，不影响退出码
 #   scripts/check-comment-zh.sh --self-test  # 跑 fixtures 自检
 #
-# 设计文档：docs/superpowers/specs/2026-05-27-engine-comment-language-design.md
+# 规范：AGENTS.md §1 与 docs/DOCUMENTATION_LANGUAGE_POLICY.md
 set -euo pipefail
 
 MODE="${1:-diff}"

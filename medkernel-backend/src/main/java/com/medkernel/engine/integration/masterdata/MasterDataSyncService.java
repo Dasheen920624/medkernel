@@ -444,7 +444,7 @@ public class MasterDataSyncService {
         return new UsernamePasswordAuthenticationToken(
             "integration:" + sourceSystem,
             null,
-            List.of(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN")));
+            List.of(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN")));
     }
 
     private void validateRequest(MasterDataSyncRequest request) {

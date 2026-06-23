@@ -9,7 +9,6 @@ import {
   Empty,
   Form,
   Input,
-  InputNumber,
   Modal,
   Select,
   Space,
@@ -35,9 +34,7 @@ import {
   useEvaluationIndicators,
   useGrayEvaluationIndicator,
   useOrgUnits,
-  usePackages,
   usePublishEvaluationIndicator,
-  useSecurityProfile,
   useSubmitEvaluationIndicator,
   type EvaluationIndicator,
   type EvaluationIndicatorStatus,
@@ -65,21 +62,19 @@ const { Text, Title } = Typography;
 
 interface IndicatorFormValues {
   indicatorCode: string;
-  versionNo: number;
   name: string;
   subjectType: EvaluationSubjectType;
   timeWindow: string;
   organizationScope: string;
   responsibleDepartmentId: string;
   sourceRef: string;
-  packageVersion?: string;
   scoringDefinition?: string;
 }
 
 type IndicatorReleaseAction = "PUBLISH" | "GRAY" | "ACTIVATE";
 
 const RELEASE_ACTION_TITLE: Record<IndicatorReleaseAction, string> = {
-  PUBLISH: "审核通过",
+  PUBLISH: "确认发布",
   GRAY: "开始 10% 床位灰度",
   ACTIVATE: "全量激活",
 };
@@ -91,7 +86,7 @@ const RELEASE_ACTION_OK_TEXT: Record<IndicatorReleaseAction, string> = {
 };
 
 const RELEASE_ACTION_SUCCESS: Record<IndicatorReleaseAction, string> = {
-  PUBLISH: "指标审核发布完成",
+  PUBLISH: "指标已确认发布",
   GRAY: "指标已进入 10% 床位灰度",
   ACTIVATE: "指标已全量激活",
 };
@@ -109,7 +104,7 @@ const SUBJECT_LABELS: Record<EvaluationSubjectType, string> = {
 
 const STATUS_LABELS: Record<EvaluationIndicatorStatus, string> = {
   DRAFT: "草稿",
-  PENDING_REVIEW: "待审核",
+  PENDING_REVIEW: "待技术验证",
   PUBLISHED: "已发布",
   GRAY: "灰度中",
   ACTIVE: "生效中",
@@ -127,7 +122,6 @@ const STATUS_COLORS: Record<EvaluationIndicatorStatus, string> = {
   ARCHIVED: "default",
 };
 const DEPARTMENT_REFERENCE_PAGE_SIZE = 20;
-const EVALUATION_PACKAGE_REFERENCE_PAGE_SIZE = 20;
 
 function optionalText(value?: string) {
   const normalized = value?.trim();
@@ -173,17 +167,13 @@ function parseDefinitionTree(definition?: string): RuleGroup | null {
 }
 
 function formatVersion(indicator: EvaluationIndicator) {
-  return `v${indicator.versionNo}${indicator.packageVersion ? ` · ${indicator.packageVersion}` : ""}`;
+  return `v${indicator.versionNo}`;
 }
 
 export default function QcEvalSets() {
   const { message } = App.useApp();
-  const security = useSecurityProfile();
-  const canReadPackages =
-    security.data?.permissions.some((permission) => permission.code === "package.read") ?? false;
   const [form] = Form.useForm<IndicatorFormValues>();
   const [departmentSearch, setDepartmentSearch] = useState("");
-  const [evaluationPackageSearch, setEvaluationPackageSearch] = useState("");
   const departmentKeyword = departmentSearch.trim();
   const departmentsQuery = useOrgUnits({
     page: 1,
@@ -193,26 +183,11 @@ export default function QcEvalSets() {
     status: "ACTIVE",
     ...(departmentKeyword ? { keyword: departmentKeyword } : {}),
   });
-  const evaluationPackagesQuery = usePackages(
-    {
-      page: 1,
-      size: EVALUATION_PACKAGE_REFERENCE_PAGE_SIZE,
-      assetType: "EVALUATION",
-      keyword: evaluationPackageSearch || undefined,
-    },
-    { enabled: canReadPackages },
-  );
   const departmentOptions = (departmentsQuery.data?.items ?? [])
     .filter((unit) => unit.level === "DEPARTMENT" && unit.status === "ACTIVE" && Boolean(unit.id))
     .map((unit) => ({
       value: unit.id as string,
       label: `${unit.name} · ${unit.code}`,
-    }));
-  const packageOptions = (evaluationPackagesQuery.data?.items ?? [])
-    .filter((item) => item.status !== "OFFLINE" && item.status !== "ARCHIVED")
-    .map((item) => ({
-      value: item.packageVersion,
-      label: `${item.packageVersion} · ${item.name}`,
     }));
   const [status, setStatus] = useState<EvaluationIndicatorStatus | undefined>();
   const [subjectType, setSubjectType] = useState<EvaluationSubjectType | undefined>();
@@ -229,7 +204,6 @@ export default function QcEvalSets() {
   const [snapshotEncounterId, setSnapshotEncounterId] = useState("");
   const [simulationSnapshotId, setSimulationSnapshotId] = useState("");
   const [simulationScenarioCode, setSimulationScenarioCode] = useState("DISCHARGE");
-  const [simulationPackageVersion, setSimulationPackageVersion] = useState("");
   const [simulationResult, setSimulationResult] = useState<EvaluationRunResponse | null>(null);
 
   const indicatorParams = useMemo(
@@ -340,9 +314,6 @@ export default function QcEvalSets() {
     form.resetFields();
     setDenominatorTree(createDefaultTree());
     setNumeratorTree(createDefaultTree());
-    if (packageOptions.length === 1) {
-      form.setFieldValue("packageVersion", packageOptions[0].value);
-    }
     setCreateOpen(true);
   }
 
@@ -358,7 +329,6 @@ export default function QcEvalSets() {
     try {
       await createMutation.mutateAsync({
         indicatorCode: values.indicatorCode.trim(),
-        versionNo: Number(values.versionNo),
         name: values.name.trim(),
         subjectType: values.subjectType,
         denominatorDefinition: JSON.stringify(nodeToDsl(denominatorTree)),
@@ -368,7 +338,6 @@ export default function QcEvalSets() {
         organizationScope: values.organizationScope.trim(),
         responsibleDepartmentId: values.responsibleDepartmentId.trim(),
         sourceRef: values.sourceRef.trim(),
-        packageVersion: optionalText(values.packageVersion),
       });
       message.success("评估指标草稿已创建");
       setCreateOpen(false);
@@ -383,10 +352,10 @@ export default function QcEvalSets() {
     try {
       const updated = await submitMutation.mutateAsync(indicatorId);
       setSelectedIndicator(updated);
-      message.success("指标已提交审核");
+      message.success("指标已提交技术验证");
       indicatorsQuery.refetch();
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "指标提交审核失败"));
+      message.error(getApiErrorMessage(error, "指标提交技术验证失败"));
     }
   }
 
@@ -432,7 +401,6 @@ export default function QcEvalSets() {
       const response = await evaluateSnapshotMutation.mutateAsync({
         contextSnapshotId,
         scenarioCode: simulationScenarioCode.trim(),
-        packageVersion: optionalText(simulationPackageVersion),
       });
       setSimulationResult(response);
       message.success("仿真评估已完成");
@@ -468,9 +436,11 @@ export default function QcEvalSets() {
         <Text type="secondary">暂无影响范围。</Text>
       ),
       submit_review: visibleIndicator ? (
-        <Text type="secondary">{STATUS_LABELS[visibleIndicator.status]} · 医务处审核流转。</Text>
+        <Text type="secondary">
+          {STATUS_LABELS[visibleIndicator.status]} · 当前授权责任人技术验证。
+        </Text>
       ) : (
-        <Text type="secondary">暂无审核对象。</Text>
+        <Text type="secondary">暂无待技术验证对象。</Text>
       ),
       canary_release: visibleIndicator ? (
         <Text type="secondary">发布版本 {formatVersion(visibleIndicator)}</Text>
@@ -624,7 +594,6 @@ export default function QcEvalSets() {
           layout="vertical"
           onFinish={createIndicator}
           initialValues={{
-            versionNo: 1,
             subjectType: "MEDICAL_RECORD",
             timeWindow: "DISCHARGE+24H",
             organizationScope: "全院",
@@ -638,13 +607,6 @@ export default function QcEvalSets() {
                 rules={[{ required: true, message: "请输入指标编码" }]}
               >
                 <Input />
-              </Form.Item>
-              <Form.Item
-                name="versionNo"
-                label="版本号"
-                rules={[{ required: true, message: "请输入版本号" }]}
-              >
-                <InputNumber min={1} className={styles.fullWidth} />
               </Form.Item>
               <Form.Item
                 name="name"
@@ -692,20 +654,12 @@ export default function QcEvalSets() {
               >
                 <Input />
               </Form.Item>
-              <Form.Item name="packageVersion" label="配置包版本">
-                <Select
-                  allowClear
-                  showSearch
-                  filterOption={false}
-                  onSearch={setEvaluationPackageSearch}
-                  placeholder="选择已存在的评估配置包版本"
-                  options={packageOptions}
-                  loading={evaluationPackagesQuery.isLoading}
-                  notFoundContent={
-                    evaluationPackagesQuery.isError ? "配置包版本读取失败" : "暂无评估配置包版本"
-                  }
-                />
-              </Form.Item>
+              <Alert
+                type="info"
+                showIcon
+                message="指标版本独立维护"
+                description="创建时只形成指标草稿版本；通过发布流程后，再由医院运行修订选择需要上线的精确版本。"
+              />
             </div>
             <Form.Item
               name="sourceRef"
@@ -745,22 +699,22 @@ export default function QcEvalSets() {
               <Space wrap>
                 {selectedIndicator.status === "DRAFT" && (
                   <Button
-                    aria-label="提交审核"
+                    aria-label="提交技术验证"
                     type="primary"
                     loading={submitMutation.isPending}
                     onClick={() => submitIndicator(selectedIndicator.indicatorId)}
                   >
-                    提交审核
+                    提交技术验证
                   </Button>
                 )}
                 {selectedIndicator.status === "PENDING_REVIEW" && (
                   <Button
-                    aria-label="审核通过"
+                    aria-label="确认发布"
                     type="primary"
                     loading={publishMutation.isPending}
                     onClick={() => openRelease("PUBLISH")}
                   >
-                    审核通过
+                    确认发布
                   </Button>
                 )}
                 {selectedIndicator.status === "PUBLISHED" && (
@@ -837,7 +791,7 @@ export default function QcEvalSets() {
           onChange={(event) => setReleaseReason(event.target.value)}
           maxLength={500}
           rows={4}
-          placeholder="填写审核结论、灰度依据或全量批准说明"
+          placeholder="填写技术验证结论、灰度依据或全量确认说明"
         />
       </Modal>
 
@@ -875,23 +829,6 @@ export default function QcEvalSets() {
                 id="eval-scenario-code"
                 value={simulationScenarioCode}
                 onChange={(event) => setSimulationScenarioCode(event.target.value)}
-              />
-            </Form.Item>
-            <Form.Item label="配置包版本" htmlFor="eval-package-version">
-              <Select
-                id="eval-package-version"
-                allowClear
-                showSearch
-                filterOption={false}
-                onSearch={setEvaluationPackageSearch}
-                placeholder="选择仿真使用的评估配置包版本"
-                value={simulationPackageVersion}
-                onChange={(value) => setSimulationPackageVersion(value ?? "")}
-                options={packageOptions}
-                loading={evaluationPackagesQuery.isLoading}
-                notFoundContent={
-                  evaluationPackagesQuery.isError ? "配置包版本读取失败" : "暂无评估配置包版本"
-                }
               />
             </Form.Item>
           </div>

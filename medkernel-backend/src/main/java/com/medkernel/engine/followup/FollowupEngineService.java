@@ -42,6 +42,7 @@ public class FollowupEngineService {
 
     private static final String SYSTEM = "system";
     private static final String FOLLOWUP_BACKFLOW_UNKNOWN_NAME = "随访回流未提供患者姓名";
+    private static final String FOLLOWUP_BACKFLOW_MAPPED_VERSION = "FOLLOWUP_RESULT";
     private static final String MODEL_DOWNGRADE_REASON = "MODEL_DISABLED_DETERMINISTIC_RULES";
     private static final long DEFAULT_TASK_DELAY_SECONDS = 86_400L * 7;
 
@@ -53,6 +54,7 @@ public class FollowupEngineService {
     private final ContextSnapshotRepository contextSnapshots;
     private final ClinicalClockRepository clinicalClockRepository;
     private final FollowupTemplateService templateService;
+    private final RuntimeReleaseFollowupTemplateSelector runtimeTemplates;
     private final ObjectMapper json = new ObjectMapper();
 
     public FollowupEngineService(
@@ -63,7 +65,8 @@ public class FollowupEngineService {
         ContextSnapshotService contextSnapshotService,
         ContextSnapshotRepository contextSnapshots,
         ClinicalClockRepository clinicalClockRepository,
-        FollowupTemplateService templateService
+        FollowupTemplateService templateService,
+        RuntimeReleaseFollowupTemplateSelector runtimeTemplates
     ) {
         this.planRepository = planRepository;
         this.taskRepository = taskRepository;
@@ -73,6 +76,7 @@ public class FollowupEngineService {
         this.contextSnapshots = contextSnapshots;
         this.clinicalClockRepository = clinicalClockRepository;
         this.templateService = templateService;
+        this.runtimeTemplates = runtimeTemplates;
     }
 
     /**
@@ -104,6 +108,7 @@ public class FollowupEngineService {
             null,
             diseaseCode,
             request.riskLevel(),
+            detail.runtimeReleaseId(),
             request.taskTypes(),
             request.idempotencyKey(),
             request.modelEnabled(),
@@ -144,6 +149,30 @@ public class FollowupEngineService {
             pathwayId,
             diseaseCode,
             riskLevel,
+            null,
+            taskTypes,
+            idempotencyKey,
+            modelEnabled,
+            null));
+    }
+
+    FollowupPlanDetailResponse generatePlanFromPathway(
+            String patientId,
+            String encounterId,
+            String pathwayId,
+            String diseaseCode,
+            String riskLevel,
+            String runtimeReleaseId,
+            List<String> taskTypes,
+            String idempotencyKey,
+            Boolean modelEnabled) {
+        return generatePlan(new FollowupPlanCommand(
+            patientId,
+            encounterId,
+            pathwayId,
+            diseaseCode,
+            riskLevel,
+            runtimeReleaseId,
             taskTypes,
             idempotencyKey,
             modelEnabled,
@@ -174,6 +203,7 @@ public class FollowupEngineService {
             request.pathwayId(),
             request.diseaseCode(),
             request.riskLevel(),
+            blankToNull(request.runtimeReleaseId()),
             FollowupPlanStatus.ACTIVE,
             blankToNull(request.idempotencyKey()),
             controlledPlan.sourceFactType(),
@@ -224,6 +254,7 @@ public class FollowupEngineService {
             plan.patientId(),
             plan.encounterId(),
             plan.diseaseCode(),
+            plan.runtimeReleaseId(),
             plan.status(),
             taskResponses,
             FollowupModelStatus.MODEL_DISABLED,
@@ -602,7 +633,10 @@ public class FollowupEngineService {
 
         Optional<ClinicalClock> clock = controlledClock(request.pathwayId(), tenantId);
         FollowupTemplate template = hasText(request.templateId())
-            ? templateService.requirePublished(request.templateId())
+            ? runtimeTemplates.requireByTemplateId(
+                tenantId,
+                requiredRuntimeRelease(request.runtimeReleaseId(), "随访模板"),
+                request.templateId())
             : null;
         List<ResolvedTask> tasks = resolveTasks(request, template);
         String riskBucket = "HIGH".equalsIgnoreCase(blankToNull(request.riskLevel())) ? "HIGH" : "STANDARD";
@@ -638,6 +672,13 @@ public class FollowupEngineService {
         if (!hasPathway && !hasDiagnosis && !hasRisk) {
             throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访计划生成缺少路径、诊断或风险分层受控事实");
         }
+    }
+
+    private String requiredRuntimeRelease(String runtimeReleaseId, String usage) {
+        if (!hasText(runtimeReleaseId)) {
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, usage + "必须绑定医院运行修订");
+        }
+        return runtimeReleaseId.trim();
     }
 
     private Optional<ClinicalClock> controlledClock(String pathwayId, String tenantId) {
@@ -726,6 +767,9 @@ public class FollowupEngineService {
         if (Boolean.TRUE.equals(request.modelEnabled())) {
             explanation.put("modelDowngradeReason", MODEL_DOWNGRADE_REASON);
         }
+        if (hasText(request.runtimeReleaseId())) {
+            explanation.put("runtimeReleaseId", request.runtimeReleaseId());
+        }
         if (hasText(request.diseaseCode())) {
             explanation.put("diseaseCode", request.diseaseCode());
         }
@@ -763,6 +807,7 @@ public class FollowupEngineService {
             plan.patientId(),
             plan.encounterId(),
             plan.diseaseCode(),
+            plan.runtimeReleaseId(),
             plan.status(),
             taskResponses,
             FollowupModelStatus.MODEL_DISABLED,
@@ -823,7 +868,7 @@ public class FollowupEngineService {
             List.of(),
             "FOLLOWUP",
             plan.patientId(),
-            request.packageVersion(),
+            FOLLOWUP_BACKFLOW_MAPPED_VERSION,
             now,
             now,
             QualityStatus.PARTIAL
@@ -836,7 +881,7 @@ public class FollowupEngineService {
             firstNonBlank(request.abnormalFlag(), "N"),
             "FOLLOWUP",
             questionnaire.questionnaireId(),
-            request.packageVersion(),
+            FOLLOWUP_BACKFLOW_MAPPED_VERSION,
             now,
             now,
             QualityStatus.VALID
@@ -854,7 +899,8 @@ public class FollowupEngineService {
             List.of(),
             List.of(),
             List.of(followUp),
-            List.of()
+            List.of(),
+            ContextSnapshotResources.emptyExtensions()
         );
         OrgScope scope = ctx.orgScope();
         return new ContextSnapshotRequest(
@@ -872,7 +918,6 @@ public class FollowupEngineService {
             plan.patientId(),
             plan.encounterId(),
             scope.nearestOrgUnitIdOrTenant(scope.tenantId()),
-            request.packageVersion(),
             resources
         );
     }

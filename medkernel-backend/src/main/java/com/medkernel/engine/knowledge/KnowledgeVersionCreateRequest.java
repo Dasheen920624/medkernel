@@ -24,7 +24,6 @@ public record KnowledgeVersionCreateRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     @NotBlank String versionNo,
     String versionLabel,
     @NotNull Long sourceDocumentId,
@@ -44,7 +43,7 @@ public record KnowledgeVersionCreateRequest(
     public KnowledgeApiContext context() {
         return KnowledgeApiContext.from(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 

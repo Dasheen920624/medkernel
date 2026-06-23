@@ -1,41 +1,21 @@
-# MedKernel · 实施工程师手册
+# 实施手册
 
-> 状态：骨架占位 · 待 E5 引擎全能力验收后正式填充
-> 适用：v1.0 GA · 现场实施工程师 / 解决方案架构师
+实施人员只负责环境、组织、接入、配置和交付，不在现场修改医疗引擎业务逻辑。
 
----
+## 标准顺序
 
-## 1. 文档定位
+1. 核对数据库、JDK、端口、域名、证书和系统用户。
+2. 使用 `deploy/onprem/medkernel-fresh-deploy.sh --validate-environment-only` 做环境预检。
+3. 备份并验证可恢复后执行全新部署。
+4. 完成内置超级管理员接管和首次改密。
+5. 创建四类职责账号并设置组织范围。
+6. 配置机构、人员、身份来源、外部系统和系统参数。
+7. 导入或登记权威来源，完成 13 类医疗资产的生产、校验和发布。
+8. 选择平台权威基线与机构扩展，创建医院当前运行修订。
+9. 用真实患者资源完成 S0–S40、全专业领域、四职责、模型增强与 B0 降级演练。
+10. 完成运行修订升级、回滚、重启和备份恢复。
+11. 移交运维、恢复流程和审计证据。
 
-本手册面向**现场实施工程师**，负责把已验收的引擎能力按 [业务服务包目录](../MEDKERNEL_FOUNDATION_AND_SERVICES.md#42-业务医疗服务包目录) 在客户医院/集团落地。
-
-实施工程师**不实现业务逻辑**，只做：
-
-- 租户开通与组织结构搭建（参考 [详细规范 S0-S3](../MEDKERNEL_BUSINESS_SCENARIO_DETAIL_SPEC.md)）
-- 适配器接入 HIS/EMR/LIS/PACS/医保/病案/随访/区域平台/监管与评级证据交换
-- 字典映射与映射包发布
-- 知识包/规则/路径配置上线（7 步流）
-- 灰度→全量→回滚演练
-- 现场培训与移交（联动 [training/](training/README.md)）
-
----
-
-## 2. 启用阶段
-
-| 阶段 | 触发条件 |
-|---|---|
-| 骨架占位（当前） | E0/E1 完成 |
-| 正式填充 | E5 引擎全能力验收通过后 |
-| 内容来源 | 不另起方案，所有实施细节直接引用 [MEDKERNEL_BUSINESS_SCENARIO_DETAIL_SPEC.md](../MEDKERNEL_BUSINESS_SCENARIO_DETAIL_SPEC.md) |
-
----
-
-## 3. 关联文档
-
-- [产品宪法](../CONSTITUTION.md)
-- [基础底座与引擎服务能力总览](../MEDKERNEL_FOUNDATION_AND_SERVICES.md)
-- [产品体验固定规范](../MEDKERNEL_PRODUCT_EXPERIENCE_RULES.md)
-- [实施落地方案](../MEDKERNEL_IMPLEMENTATION_LANDING_PLAN.md)
-- [全业务场景详细规范](../MEDKERNEL_BUSINESS_SCENARIO_DETAIL_SPEC.md)
-- [备份恢复 Runbook](runbooks/backup-restore.md)
-- [升级回滚 Runbook](runbooks/upgrade-rollback.md)
+完整产品边界见 [产品范围](../PRODUCT_SCOPE.md)，详细命令见
+[部署与演练](../DEPLOYMENT_AND_REHEARSAL.md) 和
+[`deploy/onprem/README.md`](../../deploy/onprem/README.md)。

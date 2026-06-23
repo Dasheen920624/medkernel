@@ -92,13 +92,13 @@ class KnowledgeAcquisitionSourceRepositoryTest {
             source.id(), source.tenantId(), source.sourceCode(), source.domain(), source.baseUrl(),
             source.sourceType(), source.authorityLevel(), source.authorityBasis(), title, source.publisher(),
             source.license(), source.licensePolicy(), source.robotsPolicy(), source.enabledFlag(),
-            source.approvedBy(), source.approvedAt(), source.scheduleEnabledFlag(), source.scheduleIntervalMinutes(),
+            source.scheduleEnabledFlag(), source.scheduleIntervalMinutes(),
             source.nextCheckAt(), source.lastCheckAt(), source.defaultFormat(), source.generationPlanJson(),
             source.createdAt(), source.createdBy(), Instant.now(), "concurrent-editor", source.version());
     }
 
     private KnowledgeAcquisitionSource scheduledSource() {
-        Instant approvedAt = Instant.parse("2026-06-17T00:00:00Z");
+        Instant configuredAt = Instant.parse("2026-06-17T00:00:00Z");
         return new KnowledgeAcquisitionSource(
             null,
             "tenant-A",
@@ -114,17 +114,15 @@ class KnowledgeAcquisitionSourceRepositoryTest {
             AcquisitionLicensePolicy.PERMITTED,
             AcquisitionRobotsPolicy.ALLOW_FETCH,
             "Y",
-            "super-admin",
-            approvedAt,
             "Y",
             60,
             Instant.parse("2026-06-17T02:00:00Z"),
             null,
             DocumentFormat.STRUCTURED_TEXT,
             null,
-            approvedAt,
+            configuredAt,
             "super-admin",
-            approvedAt,
+            configuredAt,
             "super-admin",
             null);
     }

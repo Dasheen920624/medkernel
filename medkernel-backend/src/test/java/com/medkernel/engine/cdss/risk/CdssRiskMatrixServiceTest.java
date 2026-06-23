@@ -13,6 +13,15 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
+import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
+import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
+import com.medkernel.engine.versioning.AssetVersionService;
+import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.VersionReleaseCommand;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -29,14 +38,23 @@ class CdssRiskMatrixServiceTest {
 
     private CdssRiskMatrixRepository matrixRepository;
     private AuditRecorder auditRecorder;
+    private AssetVersionService versionService;
+    private ReleasePort releasePort;
+    private RuntimeReleaseCdssRiskMatrixSelector runtimeSelector;
     private CdssRiskMatrixService service;
 
     @BeforeEach
     void setUp() {
         matrixRepository = mock(CdssRiskMatrixRepository.class);
         auditRecorder = mock(AuditRecorder.class);
-        service = new CdssRiskMatrixService(matrixRepository, auditRecorder);
+        versionService = mock(AssetVersionService.class);
+        releasePort = mock(ReleasePort.class);
+        runtimeSelector = mock(RuntimeReleaseCdssRiskMatrixSelector.class);
+        service = new CdssRiskMatrixService(
+            matrixRepository, auditRecorder, versionService, releasePort, runtimeSelector);
         when(matrixRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(versionService.registerDraft(any(AssetVersionRegisterCommand.class)))
+            .thenReturn(assetVersion("av-cdss-risk-v1", VersionedAssetType.CDSS_RISK, "CDSS.RISK.MATRIX"));
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-risk-matrix", OrgScope.tenant("tenant-A"), "medical-admin-1"));
     }
@@ -54,25 +72,49 @@ class CdssRiskMatrixServiceTest {
             RecommendationRiskLevel.LOW,
             CdssAutomationLevel.AUTOMATED,
             RecommendationRiskLevel.CRITICAL,
-            CdssReviewRequirement.DUAL_REVIEW,
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
             168,
             "OPT04_REDLINE_SILENT_TRIAL",
             false);
-        when(matrixRepository.findActiveRule(
-                "tenant-A", "order-sign", RecommendationRiskLevel.LOW, CdssAutomationLevel.AUTOMATED))
+        when(runtimeSelector.selectRule(
+                "tenant-A", "runtime-release-test", "order-sign",
+                RecommendationRiskLevel.LOW, CdssAutomationLevel.AUTOMATED))
             .thenReturn(Optional.of(activeRule));
 
         CdssRiskAssessment assessment = service.assess(
-            "order-sign", RecommendationRiskLevel.LOW, CdssAutomationLevel.AUTOMATED);
+            "runtime-release-test", "order-sign", RecommendationRiskLevel.LOW, CdssAutomationLevel.AUTOMATED);
 
         assertThat(assessment.riskLevel()).isEqualTo(RecommendationRiskLevel.CRITICAL);
-        assertThat(assessment.reviewRequirement()).isEqualTo(CdssReviewRequirement.DUAL_REVIEW);
+        assertThat(assessment.reviewRequirement()).isEqualTo(CdssReviewRequirement.PHYSICIAN_CONFIRMATION);
         assertThat(assessment.requiresPhysicianConfirmation()).isTrue();
         assertThat(assessment.silentRunHours()).isEqualTo(168);
         assertThat(assessment.autoExecutionAllowed()).isFalse();
         assertThat(assessment.samdClassification()).isEqualTo("NMPA_RESERVED");
         assertThat(assessment.regulatoryEvidence()).isEqualTo("RISK_ANALYSIS_REQUIRED");
         assertThat(assessment.riskMatrixVersion()).isEqualTo("3");
+    }
+
+    @Test
+    void criticalBuiltInBaselineRequiresOnePhysicianConfirmationWithoutDualSign() {
+        when(runtimeSelector.selectRule(
+                "tenant-A",
+                "runtime-release-test",
+                "order-sign",
+                RecommendationRiskLevel.CRITICAL,
+                CdssAutomationLevel.INTERRUPTIVE))
+            .thenReturn(Optional.empty());
+
+        CdssRiskAssessment assessment = service.assess(
+            "runtime-release-test",
+            "order-sign",
+            RecommendationRiskLevel.CRITICAL,
+            CdssAutomationLevel.INTERRUPTIVE
+        );
+
+        assertThat(assessment.reviewRequirement())
+            .isEqualTo(CdssReviewRequirement.PHYSICIAN_CONFIRMATION);
+        assertThat(assessment.requiresPhysicianConfirmation()).isTrue();
+        assertThat(assessment.explanation()).doesNotContain("双人");
     }
 
     @Test
@@ -186,6 +228,22 @@ class CdssRiskMatrixServiceTest {
         assertThat(saved.status()).isEqualTo(CdssRiskMatrixStatus.ACTIVE);
         assertThat(saved.silentRunHours()).isEqualTo(72);
         assertThat(response.rules()).containsExactly(saved);
+        ArgumentCaptor<AssetVersionRegisterCommand> assetVersionCaptor =
+            ArgumentCaptor.forClass(AssetVersionRegisterCommand.class);
+        verify(versionService).registerDraft(assetVersionCaptor.capture());
+        AssetVersionRegisterCommand command = assetVersionCaptor.getValue();
+        assertThat(command.assetType()).isEqualTo(VersionedAssetType.CDSS_RISK);
+        assertThat(command.assetIdentity()).isEqualTo("CDSS.RISK.MATRIX");
+        assertThat(command.content()).contains("\"matrixVersion\":\"4\"");
+        assertThat(command.content()).contains("高危检验结果复核必须人工确认");
+        assertThat(command.safetyPolicy()).isEqualTo(AssetVersionSafetyPolicy.SAFETY_REDLINE);
+        assertThat(command.overridePolicy()).isEqualTo(AssetVersionOverridePolicy.LOCKED);
+        verify(releasePort).publish(org.mockito.ArgumentMatchers.argThat(
+            (VersionReleaseCommand publish) ->
+                publish.assetType() == VersionedAssetType.CDSS_RISK
+                    && publish.assetIdentity().equals("CDSS.RISK.MATRIX")
+                    && publish.versionId().equals("av-cdss-risk-v1")
+                    && publish.impactDigest().contains("更新静默试运行门槛")));
         verify(auditRecorder).record(
             AuditAction.UPDATE,
             "mk_engine_cdss_risk_matrix",
@@ -295,6 +353,32 @@ class CdssRiskMatrixServiceTest {
             now,
             "tester",
             updatedAt,
+            "tester",
+            "trace-risk-matrix");
+    }
+
+    private AssetVersion assetVersion(String versionId, VersionedAssetType assetType, String assetIdentity) {
+        Instant now = Instant.parse("2026-06-01T00:00:00Z");
+        return new AssetVersion(
+            null,
+            versionId,
+            "tenant-A",
+            assetType,
+            assetIdentity,
+            "V1",
+            null,
+            "ALL",
+            "a".repeat(64),
+            AssetVersionSafetyPolicy.SAFETY_REDLINE,
+            AssetVersionOverridePolicy.LOCKED,
+            AssetVersionStatus.DRAFT,
+            null,
+            "test",
+            null,
+            null,
+            now,
+            "tester",
+            now,
             "tester",
             "trace-risk-matrix");
     }

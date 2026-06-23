@@ -47,7 +47,7 @@ function securityProfile(permissionCodes: string[]) {
     data: {
       userId: "user-1",
       username: "测试用户",
-      roles: [{ code: "implementation-operator", displayName: "实施运维员" }],
+      roles: [{ code: "platform-admin", displayName: "平台管理员" }],
       permissions: permissionCodes.map((code) => ({
         code,
         dimension: code.startsWith("menu.") ? "MENU" : "ACTION",

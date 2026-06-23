@@ -1,9 +1,7 @@
 package com.medkernel.engine.rule;
 
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -16,14 +14,6 @@ import com.medkernel.engine.pathway.PathwayNode;
 import com.medkernel.engine.pathway.PathwayNodeRepository;
 import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
-import com.medkernel.engine.integration.repository.IntegrationAdapterRepository;
-import com.medkernel.engine.pkg.PackageItem;
-import com.medkernel.engine.versioning.VersionedAssetType;
-import com.medkernel.engine.pkg.PackageItemRepository;
-import com.medkernel.engine.pkg.ReleasePlan;
-import com.medkernel.engine.pkg.ReleasePlanRepository;
-import com.medkernel.engine.pkg.SyncLog;
-import com.medkernel.engine.pkg.SyncLogRepository;
 import org.springframework.stereotype.Service;
 
 /**
@@ -36,29 +26,17 @@ class RelationalRuleImpactIndex implements RuleImpactIndex {
     private final PathwayNodeRepository nodes;
     private final PathwayEdgeRepository edges;
     private final PatientPathwayRepository patientPathways;
-    private final PackageItemRepository packageItems;
-    private final ReleasePlanRepository releasePlans;
-    private final SyncLogRepository syncLogs;
-    private final IntegrationAdapterRepository integrationAdapters;
     private final ObjectMapper json;
 
     RelationalRuleImpactIndex(PathwayTemplateRepository templates,
                               PathwayNodeRepository nodes,
                               PathwayEdgeRepository edges,
                               PatientPathwayRepository patientPathways,
-                              PackageItemRepository packageItems,
-                              ReleasePlanRepository releasePlans,
-                              SyncLogRepository syncLogs,
-                              IntegrationAdapterRepository integrationAdapters,
                               ObjectMapper json) {
         this.templates = templates;
         this.nodes = nodes;
         this.edges = edges;
         this.patientPathways = patientPathways;
-        this.packageItems = packageItems;
-        this.releasePlans = releasePlans;
-        this.syncLogs = syncLogs;
-        this.integrationAdapters = integrationAdapters;
         this.json = json;
     }
 
@@ -74,8 +52,7 @@ class RelationalRuleImpactIndex implements RuleImpactIndex {
                 .filter(this::isActiveRuntime)
                 .map(runtime -> patientImpact(template.template(), runtime)))
             .toList();
-        List<RuleImpactObject> adapters = integrationAdapterImpacts(tenantId, rule);
-        return new RuleImpactIndexSnapshot(pathways, patients, adapters, List.of());
+        return new RuleImpactIndexSnapshot(pathways, patients, List.of(), List.of());
     }
 
     private LinkedHashMap<String, ImpactedTemplate> impactedTemplates(String tenantId,
@@ -97,28 +74,6 @@ class RelationalRuleImpactIndex implements RuleImpactIndex {
                     template,
                     "路径模板流转条件引用规则 " + rule.ruleCode() + "（边 " + edge.edgeCode() + "）"))));
         return result;
-    }
-
-    private List<RuleImpactObject> integrationAdapterImpacts(String tenantId, RuleDefinition rule) {
-        List<PackageItem> items = packageItems.findByTenantIdAndAssetTypeAndAssetId(
-            tenantId, VersionedAssetType.RULE, rule.ruleId());
-        LinkedHashSet<String> packageIds = new LinkedHashSet<>(
-            items.stream().map(PackageItem::packageId).filter(Objects::nonNull).toList());
-        LinkedHashMap<String, RuleImpactObject> result = new LinkedHashMap<>();
-        for (String packageId : packageIds) {
-            for (ReleasePlan plan : releasePlans.findByTenantIdAndPackageIdOrderByCreatedAtDesc(tenantId, packageId)) {
-                for (SyncLog log : syncLogs.findByTenantIdAndPlanId(tenantId, plan.planId())) {
-                    integrationAdapters.findByAdapterIdAndTenantId(log.adapterId(), tenantId)
-                        .ifPresent(target -> result.putIfAbsent(target.adapterId(), new RuleImpactObject(
-                            "INTEGRATION_ADAPTER",
-                            target.adapterId(),
-                            target.name(),
-                            "规则已纳入配置包 " + packageId + " 的发布计划 " + plan.planId()
-                                + "，同步状态 " + log.status())));
-                }
-            }
-        }
-        return List.copyOf(result.values());
     }
 
     private RuleImpactObject patientImpact(PathwayTemplate template, PatientPathway runtime) {

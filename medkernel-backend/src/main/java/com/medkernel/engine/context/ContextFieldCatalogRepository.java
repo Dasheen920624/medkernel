@@ -7,7 +7,7 @@ import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 租户自定义上下文字段存储库（P2/P5）。多租户隔离，仅按 tenant_id 查询。
+ * 租户自定义上下文字段存储库。多租户隔离，仅按 tenant_id 查询。
  */
 @Repository
 public interface ContextFieldCatalogRepository

@@ -19,7 +19,6 @@ import com.medkernel.engine.versioning.InheritanceOverrideMode;
 import com.medkernel.engine.versioning.InheritanceOverrideRegisterCommand;
 import com.medkernel.engine.versioning.InheritanceOverrideService;
 import com.medkernel.engine.versioning.InheritancePropagation;
-import com.medkernel.engine.versioning.VersionPublishEvidence;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
@@ -194,7 +193,6 @@ public class KnowledgeCustomizationService {
             tenantId,
             VersionedAssetType.KNOWLEDGE,
             localIdentity.identityCode(),
-            localVersion.versionNo(),
             target.orgPath(),
             applicableScope,
             null,
@@ -264,7 +262,7 @@ public class KnowledgeCustomizationService {
     public KnowledgeCustomizationResponse publish(
             String customizationId,
             String reason,
-            VersionPublishEvidence publishEvidence) {
+            Long qualityGateRecordId) {
         String tenantId = tenantId();
         KnowledgeCustomization item = requireCustomization(customizationId);
         if (item.status() == KnowledgeCustomizationStatus.ACTIVE) {
@@ -292,7 +290,7 @@ public class KnowledgeCustomizationService {
             localIdentity.id(),
             localVersion.id(),
             required(reason, "发布原因"),
-            VersionPublishEvidence.orEmpty(publishEvidence));
+            qualityGateRecordId);
         var localAssetVersion = assetVersions
             .findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
                 tenantId,

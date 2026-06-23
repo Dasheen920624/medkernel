@@ -51,12 +51,11 @@ public class KnowgenSpecializedAssetSkeletonRegistry {
             BASE_CAPABILITIES),
         skeleton("KNOWGEN-30", "可复用执行构件",
             List.of(
-                VersionedAssetType.CONDITION_FRAGMENT,
                 VersionedAssetType.SAFETY,
                 VersionedAssetType.CDSS_RISK,
                 VersionedAssetType.ACTION_CARD,
                 VersionedAssetType.ORDER_SET,
-                VersionedAssetType.SUBPATHWAY),
+                VersionedAssetType.PATHWAY),
             List.of("asset_type", "canonical_id", "structure", "dependencies", "test_cases", "source"),
             BASE_CAPABILITIES)
     );

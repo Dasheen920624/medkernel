@@ -9,7 +9,9 @@ import java.util.UUID;
 
 import com.medkernel.engine.cdss.risk.CdssAutomationLevel;
 import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
+import com.medkernel.testsupport.ClinicalRuntimeReleaseFixture;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -17,6 +19,7 @@ import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 
 @DataJdbcTest
@@ -37,6 +40,13 @@ class RecommendationRepositoryTest {
     @Autowired RecommendationSourceRepository sources;
     @Autowired RecommendationFeedbackRepository feedback;
     @Autowired RecommendationFatigueSignalRepository fatigueSignals;
+    @Autowired JdbcTemplate jdbc;
+
+    @BeforeEach
+    void seedRuntimeRelease() {
+        ClinicalRuntimeReleaseFixture.insert(
+            jdbc, "tenant-A", "hospital-A", "runtime-release-test");
+    }
 
     @AfterEach
     void wipe() {
@@ -45,6 +55,7 @@ class RecommendationRepositoryTest {
         sources.deleteAll();
         cards.deleteAll();
         triggers.deleteAll();
+        ClinicalRuntimeReleaseFixture.delete(jdbc, "runtime-release-test");
     }
 
     @Test
@@ -202,7 +213,7 @@ class RecommendationRepositoryTest {
         return new RecommendationTrigger(
             null, triggerId, tenantId, "TRG." + triggerId, "order-sign",
             sourceEventId, "snapshot-1", "patient-1", "enc-1", "pathway-1",
-            "WARD_ORDER", "1.0.0", "sha256:trigger", RecommendationTriggerStatus.EVALUATED,
+            "WARD_ORDER", "runtime-release-test", "sha256:trigger", RecommendationTriggerStatus.EVALUATED,
             null, now, now, "tester", now, "tester", "trace-recommendation");
     }
 

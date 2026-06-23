@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 /**
  * OPT-05 互联互通测评映射服务。
  *
- * <p>服务只把已落库且可追溯的 EVID-01 快照或 EMR-LEVEL-02 证据包计为达标证据；
+ * <p>服务只把已落库且可追溯的 EVID-01 快照或 EMR-LEVEL-02 证据导出计为达标证据；
  * 仅有映射记录但源证据不存在时，测评项保持缺证据差距。
  */
 @Service
@@ -105,8 +105,8 @@ public class InteropAssessmentService {
         return switch (sourceType) {
             case EVIDENCE_SNAPSHOT ->
                 evidenceSnapshot(tenantId, mapId, sourceId, evidenceRef, evidenceSummary);
-            case EMR_LEVEL_EVIDENCE_PACKAGE ->
-                emrLevelPackage(tenantId, mapId, sourceId, evidenceRef, evidenceSummary);
+            case EMR_LEVEL_EVIDENCE_EXPORT ->
+                emrLevelExport(tenantId, mapId, sourceId, evidenceRef, evidenceSummary);
         };
     }
 
@@ -136,7 +136,7 @@ public class InteropAssessmentService {
         return rows.stream().findFirst();
     }
 
-    private Optional<InteropEvidenceResponse> emrLevelPackage(
+    private Optional<InteropEvidenceResponse> emrLevelExport(
             String tenantId,
             String mapId,
             String sourceId,
@@ -144,13 +144,13 @@ public class InteropAssessmentService {
             String evidenceSummary) {
         List<InteropEvidenceResponse> rows = jdbc.query("""
             SELECT payload_sha256, trace_id
-            FROM mk_emr_level_evidence_package
+            FROM mk_emr_level_evidence_export
             WHERE tenant_id = ?
-              AND package_id = ?
+              AND export_id = ?
               AND status = 'EXPORTED'
             """, (rs, rowNum) -> new InteropEvidenceResponse(
             mapId,
-            InteropEvidenceSourceType.EMR_LEVEL_EVIDENCE_PACKAGE,
+            InteropEvidenceSourceType.EMR_LEVEL_EVIDENCE_EXPORT,
             sourceId,
             evidenceRef,
             evidenceSummary,

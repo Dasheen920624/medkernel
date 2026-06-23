@@ -119,7 +119,7 @@ class AuthoringPreviewRunServiceTest {
             "ctx-draft",
             ContextSnapshotStatus.DRAFT,
             null,
-            "pkg-2026.06",
+            "runtime-release-test",
             QualityStatus.PARTIAL,
             List.of(),
             Map.of(),
@@ -209,7 +209,7 @@ class AuthoringPreviewRunServiceTest {
             List.of(),
             "HIS",
             "P-001",
-            "pkg-2026.06",
+            "HIS-2026.06",
             Instant.parse("2026-06-02T08:00:00Z"),
             Instant.parse("2026-06-02T08:01:00Z"),
             QualityStatus.VALID);
@@ -224,7 +224,7 @@ class AuthoringPreviewRunServiceTest {
             "HH",
             "LIS",
             "OBS-001",
-            "pkg-2026.06",
+            "LIS-2026.06",
             Instant.parse("2026-06-02T08:00:00Z"),
             Instant.parse("2026-06-02T08:01:00Z"),
             QualityStatus.VALID);
@@ -244,8 +244,9 @@ class AuthoringPreviewRunServiceTest {
                 List.of(),
                 List.of(),
                 List.of(),
-                List.of()),
-            "pkg-2026.06",
+                List.of(),
+                ContextSnapshotResources.emptyExtensions()),
+            "runtime-release-test",
             QualityStatus.PARTIAL,
             List.of(new MissingFieldEntry("OBSERVATION", "unit", "WARN")),
             Map.of(),
@@ -265,8 +266,7 @@ class AuthoringPreviewRunServiceTest {
             null,
             null,
             "author-1",
-            List.of("knowledge-governor"),
-            "pkg-2026.06"
+            List.of("engine-operator")
         );
     }
 }

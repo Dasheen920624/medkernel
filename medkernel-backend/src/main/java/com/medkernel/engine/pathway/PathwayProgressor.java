@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -19,6 +20,9 @@ import com.medkernel.engine.authoring.AuthoringFeatureGate;
 import com.medkernel.engine.rule.ConditionEvaluation;
 import com.medkernel.engine.rule.ConditionEvaluator;
 import com.medkernel.engine.rule.ConditionEvidence;
+import com.medkernel.engine.versioning.DeclarativeAssetRuntimePort;
+import com.medkernel.engine.versioning.ResolvedDeclarativeAsset;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.config.SystemConfigService;
@@ -26,8 +30,9 @@ import com.medkernel.shared.config.SystemConfigService;
 /**
  * 路径确定性推进器。
  *
- * <p>根据路径图、当前节点、推进事件和可选目标节点选择下一节点或终态，只做流程判断，
- * 不读取数据库、不写审计、不生成医疗诊断或医嘱。
+ * <p>根据路径图、当前节点、推进事件和可选目标节点选择下一节点或终态，只做流程判断。
+ * 内嵌条件在本地确定性执行；规则守卫通过单向端口解析当前有效发布版本。推进器本身不写审计，
+ * 不生成医疗诊断或医嘱。
  */
 @Component
 public class PathwayProgressor {
@@ -35,18 +40,47 @@ public class PathwayProgressor {
     private final ObjectMapper json;
     private final ConditionEvaluator conditionEvaluator;
     private final AuthoringFeatureGate featureGate;
+    private final PathwayRuleGuardEvaluator ruleGuardEvaluator;
+    private final DeclarativeAssetRuntimePort declarativeAssets;
 
     public PathwayProgressor(ObjectMapper json, ConditionEvaluator conditionEvaluator) {
-        this(json, conditionEvaluator, AuthoringFeatureGate.alwaysEnabled());
+        this(
+            json,
+            conditionEvaluator,
+            AuthoringFeatureGate.alwaysEnabled(),
+            PathwayRuleGuardEvaluator.unavailable(),
+            DeclarativeAssetRuntimePort.unavailable());
+    }
+
+    public PathwayProgressor(ObjectMapper json,
+                             ConditionEvaluator conditionEvaluator,
+                             AuthoringFeatureGate featureGate) {
+        this(json, conditionEvaluator, featureGate, PathwayRuleGuardEvaluator.unavailable(),
+            DeclarativeAssetRuntimePort.unavailable());
+    }
+
+    public PathwayProgressor(ObjectMapper json,
+                             ConditionEvaluator conditionEvaluator,
+                             AuthoringFeatureGate featureGate,
+                             PathwayRuleGuardEvaluator ruleGuardEvaluator) {
+        this(json, conditionEvaluator, featureGate, ruleGuardEvaluator, DeclarativeAssetRuntimePort.unavailable());
     }
 
     @Autowired
     public PathwayProgressor(ObjectMapper json,
                              ConditionEvaluator conditionEvaluator,
-                             AuthoringFeatureGate featureGate) {
+                             AuthoringFeatureGate featureGate,
+                             PathwayRuleGuardEvaluator ruleGuardEvaluator,
+                             DeclarativeAssetRuntimePort declarativeAssets) {
         this.json = json;
         this.conditionEvaluator = conditionEvaluator;
         this.featureGate = featureGate == null ? AuthoringFeatureGate.alwaysEnabled() : featureGate;
+        this.ruleGuardEvaluator = ruleGuardEvaluator == null
+            ? PathwayRuleGuardEvaluator.unavailable()
+            : ruleGuardEvaluator;
+        this.declarativeAssets = declarativeAssets == null
+            ? DeclarativeAssetRuntimePort.unavailable()
+            : declarativeAssets;
     }
 
     PathwayProgressor() {
@@ -96,7 +130,9 @@ public class PathwayProgressor {
         validateRichNode(current, command, evidence);
         boolean requestedTarget = !isBlank(command.requestedNextNodeCode());
         PathwayEdge selected = !requestedTarget
-            ? selectNextEdge(outgoing, command.facts(), evidence, canUseDefaultFallback(current), isWaitTimer(current), current)
+            ? selectNextEdge(
+                outgoing, command.facts(), evidence, canUseDefaultFallback(current),
+                isWaitTimer(current), current, command.runtimeReleaseId())
             : outgoing.stream()
                 .filter(edge -> Objects.equals(edge.toNodeCode(), command.requestedNextNodeCode()))
                 .findFirst()
@@ -104,7 +140,9 @@ public class PathwayProgressor {
                     ErrorCode.ENG_PATHWAY_006,
                     "目标节点不属于当前节点的可达出边: " + command.requestedNextNodeCode()));
         ensureTargetNodeExists(command.graph(), selected.toNodeCode());
-        validateSelectedEdge(command.graph(), current, selected, command.facts(), evidence, requestedTarget);
+        validateSelectedEdge(
+            command.graph(), current, selected, command.facts(), evidence,
+            requestedTarget, command.runtimeReleaseId());
         if (!evidence.containsKey("pathway.selectedEdgeCode")) {
             recordSelectedEdge(selected, evidence, null);
         }
@@ -118,7 +156,8 @@ public class PathwayProgressor {
                                        LinkedHashMap<String, Object> evidence,
                                        boolean allowDefaultFallback,
                                        boolean waitTimerNode,
-                                       PathwayNode current) {
+                                       PathwayNode current,
+                                       String runtimeReleaseId) {
         PathwayEdge fallback = null;
         for (PathwayEdge edge : outgoing) {
             if (!hasCondition(edge)) {
@@ -127,7 +166,7 @@ public class PathwayProgressor {
                 }
                 continue;
             }
-            if (matchesCondition(edge.conditionJson(), facts, evidence)) {
+            if (matchesCondition(edge, facts, evidence, runtimeReleaseId)) {
                 recordSelectedEdge(edge, evidence, true);
                 return edge;
             }
@@ -153,12 +192,78 @@ public class PathwayProgressor {
         switch (current.nodeType()) {
             case MANUAL_GATE -> validateManualGate(current, command, evidence);
             case WAIT_TIMER -> recordWaitTimerEvidence(current, evidence);
-            case ORDER_SET -> evidence.put("pathway.orderSetRef", requiredConfigText(current, "orderSetRef", "医嘱集节点缺少 orderSetRef"));
-            case SUBPATHWAY -> evidence.put("pathway.subPathwayRef", requiredConfigText(current, "subPathwayRef", "子路径节点缺少 subPathwayRef"));
+            case ORDER_SET -> recordOrderSetEvidence(current, command, evidence);
             default -> {
                 // 普通活动节点不需要额外语义。
             }
         }
+    }
+
+    private void recordOrderSetEvidence(PathwayNode current,
+                                        PathwayProgressCommand command,
+                                        LinkedHashMap<String, Object> evidence) {
+        String orderSetRef = requiredConfigText(current, "orderSetRef", "医嘱集节点缺少 orderSetRef");
+        evidence.put("pathway.orderSetRef", orderSetRef);
+        if (isBlank(command.tenantId()) || isBlank(command.runtimeReleaseId())) {
+            return;
+        }
+        ResolvedDeclarativeAsset resolved = declarativeAssets
+            .resolve(command.tenantId(), command.runtimeReleaseId(), VersionedAssetType.ORDER_SET, orderSetRef)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_PATHWAY_006,
+                "当前医院运行修订未包含医嘱套餐资产: " + orderSetRef + "@" + command.runtimeReleaseId()));
+        JsonNode content = parseOrderSetContent(resolved);
+        JsonNode items = content.path("items");
+        if (!items.isArray() || items.isEmpty()) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_006, "医嘱套餐正文缺少 items: " + orderSetRef);
+        }
+        if (!content.path("requiresPhysicianConfirmation").asBoolean(false)) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_006, "医嘱套餐必须由医师确认: " + orderSetRef);
+        }
+        evidence.put("pathway.orderSetVersion", resolved.assetVersion());
+        evidence.put("pathway.orderSetHash", resolved.contentHash());
+        evidence.put("pathway.orderSetName", requiredOrderSetText(content, "name", orderSetRef));
+        evidence.put("pathway.orderSetRequiresPhysicianConfirmation", true);
+        evidence.put("pathway.orderSetItemCount", items.size());
+        evidence.put("pathway.orderSetItems", orderSetItems(items));
+    }
+
+    private JsonNode parseOrderSetContent(ResolvedDeclarativeAsset resolved) {
+        try {
+            JsonNode content = json.readTree(resolved.contentJson());
+            if (content == null || !content.isObject()) {
+                throw new ApiException(ErrorCode.ENG_PATHWAY_006,
+                    "医嘱套餐正文必须是 JSON 对象: " + resolved.assetIdentity());
+            }
+            return content;
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(
+                ErrorCode.ENG_PATHWAY_006,
+                "医嘱套餐正文不是合法 JSON: " + resolved.assetIdentity(),
+                exception);
+        }
+    }
+
+    private String requiredOrderSetText(JsonNode content, String field, String identity) {
+        JsonNode value = content.path(field);
+        if (!value.isTextual() || value.asText().isBlank()) {
+            throw new ApiException(ErrorCode.ENG_PATHWAY_006, "医嘱套餐正文缺少 " + field + ": " + identity);
+        }
+        return value.asText().trim();
+    }
+
+    private List<Map<String, Object>> orderSetItems(JsonNode items) {
+        ArrayList<Map<String, Object>> result = new ArrayList<>();
+        for (JsonNode item : items) {
+            LinkedHashMap<String, Object> row = new LinkedHashMap<>();
+            row.put("itemType", requiredOrderSetText(item, "itemType", "items"));
+            row.put("codeSystem", requiredOrderSetText(item, "codeSystem", "items"));
+            row.put("code", requiredOrderSetText(item, "code", "items"));
+            row.put("display", requiredOrderSetText(item, "display", "items"));
+            row.put("required", item.path("required").asBoolean(false));
+            result.add(row);
+        }
+        return List.copyOf(result);
     }
 
     private void validateManualGate(PathwayNode current,
@@ -209,7 +314,7 @@ public class PathwayProgressor {
 
     private boolean isRichNode(PathwayNodeType nodeType) {
         return switch (nodeType) {
-            case DECISION, PARALLEL, WAIT_TIMER, SUBPATHWAY, MANUAL_GATE, ORDER_SET -> true;
+            case DECISION, PARALLEL, WAIT_TIMER, MANUAL_GATE, ORDER_SET -> true;
             default -> false;
         };
     }
@@ -219,13 +324,14 @@ public class PathwayProgressor {
                                       PathwayEdge selected,
                                       Map<String, Object> facts,
                                       LinkedHashMap<String, Object> evidence,
-                                      boolean requestedTarget) {
+                                      boolean requestedTarget,
+                                      String runtimeReleaseId) {
         if (requestedTarget && current.nodeType() == PathwayNodeType.DECISION
                 && selected.edgeType() == PathwayEdgeType.CONDITION) {
             if (!hasCondition(selected)) {
                 throw new ApiException(ErrorCode.ENG_PATHWAY_006, "目标决策分支缺少守卫条件: " + selected.edgeCode());
             }
-            if (!matchesCondition(selected.conditionJson(), facts, evidence)) {
+            if (!matchesCondition(selected, facts, evidence, runtimeReleaseId)) {
                 throw new ApiException(ErrorCode.ENG_PATHWAY_006, "目标决策分支守卫未命中: " + selected.edgeCode());
             }
             recordSelectedEdge(selected, evidence, true);
@@ -313,10 +419,20 @@ public class PathwayProgressor {
         return !isBlank(edge.conditionJson());
     }
 
-    private boolean matchesCondition(String conditionJson, Map<String, Object> facts,
-                                     LinkedHashMap<String, Object> evidence) {
+    private boolean matchesCondition(
+            PathwayEdge edge,
+            Map<String, Object> facts,
+            LinkedHashMap<String, Object> evidence,
+            String runtimeReleaseId) {
         try {
-            JsonNode condition = json.readTree(conditionJson);
+            JsonNode condition = json.readTree(edge.conditionJson());
+            if (condition.has("ruleRef")) {
+                PathwayRuleGuardEvaluation evaluation =
+                    ruleGuardEvaluator.evaluate(
+                        condition, factsToContext(facts), runtimeReleaseId);
+                recordRuleGuardEvidence(evaluation, evidence);
+                return evaluation.matched();
+            }
             ConditionEvaluation evaluation = conditionEvaluator.evaluate(toConditionGroup(condition), factsToContext(facts));
             recordConditionEvidence(evaluation.evidence(), evidence);
             return evaluation.matched();
@@ -328,6 +444,19 @@ public class PathwayProgressor {
         } catch (Exception exception) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_006, "路径条件 JSON 无法解析", exception);
         }
+    }
+
+    private void recordRuleGuardEvidence(
+            PathwayRuleGuardEvaluation evaluation,
+            LinkedHashMap<String, Object> evidence) {
+        evidence.put("pathway.ruleRef", evaluation.ruleCode());
+        evidence.put("pathway.ruleId", evaluation.ruleId());
+        evidence.put("pathway.ruleVersionId", evaluation.versionId());
+        evidence.put("pathway.ruleVersionNo", evaluation.versionNo());
+        evidence.put("pathway.runtimeReleaseId", evaluation.runtimeReleaseId());
+        evidence.put("pathway.ruleSourceTenantId", evaluation.sourceTenantId());
+        evidence.put("pathway.ruleSourceLayer", evaluation.sourceLayer().name());
+        evidence.put("pathway.ruleMatched", evaluation.matched());
     }
 
     private JsonNode toConditionGroup(JsonNode condition) {

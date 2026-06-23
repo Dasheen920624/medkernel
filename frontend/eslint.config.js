@@ -1,5 +1,5 @@
 // 前端 ESLint flat config（ESLint 9 风格）。
-// 与 docs/CONSTITUTION.md 和 docs/MEDKERNEL_PRODUCT_EXPERIENCE_RULES.md 对齐。
+// 与 docs/CONSTITUTION.md 和 docs/EXPERIENCE_CONTRACT.md 对齐。
 
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";

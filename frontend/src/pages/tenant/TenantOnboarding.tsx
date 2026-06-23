@@ -712,7 +712,7 @@ function CustomerTenantImplementation() {
                       )}
 
                       <Form.Item name="specialtyId" label="专病适用维度">
-                        <Input placeholder="可选；用于规则、路径、知识包的横切适用范围" />
+                        <Input placeholder="可选；用于规则、路径、知识资产的横切适用范围" />
                       </Form.Item>
 
                       <Button
@@ -782,7 +782,7 @@ function CustomerTenantImplementation() {
                         </div>
                       </Form.Item>
 
-                      <Form.Item name="expertMode" label="专家模式" valuePropName="checked">
+                      <Form.Item name="expertMode" label="默认展示高级信息" valuePropName="checked">
                         <Switch checkedChildren="开启" unCheckedChildren="关闭" />
                       </Form.Item>
 

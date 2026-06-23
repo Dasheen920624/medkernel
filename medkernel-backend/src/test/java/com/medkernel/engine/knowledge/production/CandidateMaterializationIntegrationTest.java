@@ -40,7 +40,7 @@ import com.medkernel.shared.hash.Sha256ContentHash;
  * 候选真实物化端到端集成测试（AIK-STD-13 PR4，真实 H2）。
  *
  * <p>验证 discovery-origin 候选经 {@link MaterializingCandidateIntake} 真实落 {@code KnowledgeAssetVersion}（待审）
- * + {@code CandidateClassification} + 据 PR3 路由建多角色 {@code ReviewAssignment}（归口 + 领域药事安全人员），
+ * + {@code CandidateClassification} + 建立医疗引擎运营员单负责人 {@code ReviewAssignment}，
  * 自动进现审核台审/发链。
  */
 @SpringBootTest
@@ -87,7 +87,7 @@ class CandidateMaterializationIntegrationTest {
             VersionedAssetType.KNOWLEDGE, KnowledgeProducer.MANUAL, TargetPipeline.TENANT_OVERLAY,
             KnowledgeDomain.PHARMACY, null, ProductionJobStatus.RUNNING, 0, null, now, "u", now, "u", "t");
         ReviewRoutingDecision routing = new ReviewRoutingDecision(
-            RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.MEDICATION_SAFETY_USER, true, KnowledgeDomain.PHARMACY);
+            RoleCode.ENGINE_OPERATOR, KnowledgeDomain.PHARMACY);
         MaterializationTarget target = new MaterializationTarget(null,
             new NewIdentitySpec(com.medkernel.engine.knowledge.KnowledgeDomain.DRUG, "二甲双胍说明书", "KN-MAT-METFORMIN"));
 
@@ -108,6 +108,6 @@ class CandidateMaterializationIntegrationTest {
         List<ReviewAssignment> assignments =
             reviewAssignments.findByTenantIdAndIdentityIdOrderByCreatedAtDescIdDesc(TENANT, identity.id());
         assertThat(assignments).extracting(ReviewAssignment::assignedTo)
-            .containsExactlyInAnyOrder(RoleCode.KNOWLEDGE_GOVERNOR.code(), RoleCode.MEDICATION_SAFETY_USER.code());
+            .containsExactly(RoleCode.ENGINE_OPERATOR.code());
     }
 }

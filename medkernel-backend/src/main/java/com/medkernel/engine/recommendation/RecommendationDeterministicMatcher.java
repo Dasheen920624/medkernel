@@ -189,7 +189,7 @@ public class RecommendationDeterministicMatcher {
         values.add(new RecommendationSourceRequest(
             RecommendationSourceType.CONTEXT,
             snapshot.snapshotId(),
-            snapshot.packageVersion(),
+            snapshot.runtimeReleaseId(),
             "标准临床上下文",
             "context_snapshot:" + snapshot.snapshotId(),
             null,
@@ -408,7 +408,7 @@ public class RecommendationDeterministicMatcher {
     }
 
     private static String releaseApplicableScope(RuleDefinition rule) {
-        return hasText(rule.packageVersion()) ? rule.packageVersion().trim() : "ALL";
+        return "ALL";
     }
 
     private static String resolutionContentHash(ResolvedAssetVersion resolution) {

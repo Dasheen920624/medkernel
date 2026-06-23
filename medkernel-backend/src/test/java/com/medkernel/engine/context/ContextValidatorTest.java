@@ -67,7 +67,8 @@ class ContextValidatorTest {
             Instant.now(), Instant.now(), QualityStatus.PARTIAL);
         var resources = new ContextSnapshotResources(patient,
             List.of(), List.of(enc), List.of(), List.of(), List.of(), List.of(),
-            List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            ContextSnapshotResources.emptyExtensions());
 
         List<MissingFieldEntry> missing = validator.findMissingFields(resources);
         assertThat(missing).anyMatch(m ->
@@ -79,6 +80,7 @@ class ContextValidatorTest {
     private ContextSnapshotResources emptyResources(CanonicalPatient patient) {
         return new ContextSnapshotResources(patient,
             List.of(), List.of(), List.of(), List.of(), List.of(),
-            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            ContextSnapshotResources.emptyExtensions());
     }
 }

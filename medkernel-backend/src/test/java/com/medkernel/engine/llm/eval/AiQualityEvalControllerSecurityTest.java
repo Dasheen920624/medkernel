@@ -47,32 +47,32 @@ class AiQualityEvalControllerSecurityTest {
         mockMvc.perform(post("/api/v1/ai-eval/runs")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON).content(runBody()))
             .andExpect(status().isForbidden());
     }
 
     @Test
-    void qualityGovernorCanRunAiQualityEvaluation() throws Exception {
+    void engineOperatorCanRunAiQualityEvaluation() throws Exception {
         mockMvc.perform(post("/api/v1/ai-eval/runs")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON).content(runBody()))
             .andExpect(status().isOk());
     }
 
     @Test
-    void qualityGovernorCanReadAiQualityTrend() throws Exception {
+    void engineOperatorCanReadAiQualityTrend() throws Exception {
         mockMvc.perform(get("/api/v1/ai-eval/trends")
                 .queryParam("capabilityCode", "recommendation.draft")
                 .queryParam("modelVersion", "B0-Deterministic-Baseline")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
             .andExpect(status().isOk());
     }
 

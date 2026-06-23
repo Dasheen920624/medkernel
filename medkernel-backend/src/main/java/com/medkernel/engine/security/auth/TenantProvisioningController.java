@@ -18,7 +18,7 @@ import jakarta.validation.Valid;
  * 平台租户开通 API（平台级，跨租户）。开通新医院租户 + 首个管理员账号。
  *
  * <p>读用 {@code tenant.read}，开通用 {@code tenant.write}（高风险，实际仅平台管理员具备）。
- * 全 profile 注册，由五维权限统一治理，不按构建 profile 裁剪：知识生产中心等真实部署
+ * 全 profile 注册，由固定职责权限包统一治理，不按构建 profile 裁剪：知识生产中心等真实部署
  * 在 govcloud profile 下以平台账号管理客户租户；院方如委托 IdP 登录，由 auth.mode
  * 运行时配置约束身份来源，与本接口的权限护栏互不冲突（2026-06-10 真实部署 404 教训）。
  */

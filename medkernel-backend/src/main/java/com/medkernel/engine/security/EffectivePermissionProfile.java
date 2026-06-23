@@ -5,7 +5,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /**
- * 当前用户有效权限画像，供前端菜单、按钮和专家模式使用。
+ * 当前用户有效权限画像，供前端菜单、按钮和高级信息使用。
  */
 public record EffectivePermissionProfile(
     String userId,
@@ -17,7 +17,8 @@ public record EffectivePermissionProfile(
     DataScopeView dataScope,
     boolean mustChangePwd,
     boolean mfaRequired,
-    boolean mfaBound
+    boolean mfaBound,
+    boolean mfaVerified
 ) {
 
     @JsonIgnore
@@ -36,7 +37,8 @@ public record EffectivePermissionProfile(
             dataScope,
             mustChangePwd,
             mfaRequired,
-            mfaBound);
+            mfaBound,
+            mfaVerified);
     }
 
     @JsonIgnore
@@ -47,7 +49,8 @@ public record EffectivePermissionProfile(
     public EffectivePermissionProfile withBootstrapSecurity(
             boolean mustChangePwd,
             boolean mfaRequired,
-            boolean mfaBound) {
+            boolean mfaBound,
+            boolean mfaVerified) {
         return new EffectivePermissionProfile(
             userId,
             username,
@@ -58,7 +61,8 @@ public record EffectivePermissionProfile(
             dataScope,
             mustChangePwd,
             mfaRequired,
-            mfaBound);
+            mfaBound,
+            mfaVerified);
     }
 
     public record RoleView(

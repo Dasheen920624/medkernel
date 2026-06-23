@@ -93,7 +93,7 @@ class ClinicalSafetyGuardTest {
     private PathwayTemplate template(String sourceRef) {
         Instant now = Instant.now();
         return new PathwayTemplate(
-            1L, "pt-1", "tenant-A", "sp-1", "TPL.COPD", "稳定期随访路径",
+            1L, "pt-1", "tenant-A", "TPL.COPD", "稳定期随访路径",
             "COPD", 1, PathwayTemplateLevel.STANDARD, PathwayTemplateStatus.PUBLISHED,
             PathwayEntryMode.AUTO_SUGGEST, "ASSESS",
             sourceRef, "路径引用知识版本", "{}", "{}", now, "tester", now, "tester", "trace-path");

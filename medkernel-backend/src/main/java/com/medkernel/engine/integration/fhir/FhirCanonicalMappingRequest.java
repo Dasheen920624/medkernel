@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.JsonNode;
  */
 public record FhirCanonicalMappingRequest(
     String tenantId,
+    String runtimeReleaseId,
     String snapshotId,
     Integer seqNo,
     String traceId,

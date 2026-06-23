@@ -33,8 +33,11 @@ import com.medkernel.engine.knowledge.KnowledgeCandidateReviewRequest;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.knowledge.KnowledgeVersionService;
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
+import com.medkernel.engine.knowledge.SourceDocument;
+import com.medkernel.engine.knowledge.SourceDocumentRepository;
 import com.medkernel.engine.knowledge.SourceFragment;
 import com.medkernel.engine.knowledge.SourceFragmentRepository;
+import com.medkernel.engine.knowledge.SourceType;
 import com.medkernel.engine.knowledge.SourceVersion;
 import com.medkernel.engine.knowledge.SourceVersionRepository;
 import com.medkernel.engine.knowledge.production.KnowledgeProducer;
@@ -44,6 +47,8 @@ import com.medkernel.engine.knowledge.production.KnowledgeProductionJob;
 import com.medkernel.engine.knowledge.production.KnowledgeProductionJobRepository;
 import com.medkernel.engine.knowledge.production.ProductionJobStatus;
 import com.medkernel.engine.knowledge.production.TargetPipeline;
+import com.medkernel.engine.knowledge.production.gate.PublicationQualityRecord;
+import com.medkernel.engine.knowledge.production.gate.PublicationQualityRecordService;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.shared.api.error.ApiException;
@@ -54,7 +59,7 @@ import com.medkernel.shared.context.RequestContext;
 class KnowledgeInitializationServiceTest {
 
     private final SourceVersionRepository sourceVersions = mock(SourceVersionRepository.class);
-    private final SourceVersionApprovalRepository sourceApprovals = mock(SourceVersionApprovalRepository.class);
+    private final SourceDocumentRepository sourceDocuments = mock(SourceDocumentRepository.class);
     private final SourceFragmentRepository sourceFragments = mock(SourceFragmentRepository.class);
     private final KnowledgeAssetVersionRepository versions = mock(KnowledgeAssetVersionRepository.class);
     private final CandidateClassificationRepository classifications = mock(CandidateClassificationRepository.class);
@@ -64,19 +69,24 @@ class KnowledgeInitializationServiceTest {
     private final KnowledgeInitializationBatchRepository batches = mock(KnowledgeInitializationBatchRepository.class);
     private final KnowledgeInitializationItemRepository items = mock(KnowledgeInitializationItemRepository.class);
     private final KnowledgeVersionService versionService = mock(KnowledgeVersionService.class);
+    private final PublicationQualityRecordService publicationQualityRecords =
+        mock(PublicationQualityRecordService.class);
     private final KnowledgeInitializationCatalog catalog = new KnowledgeInitializationCatalog();
     private final KnowledgeInitializationManifestValidator validator =
         new KnowledgeInitializationManifestValidator(catalog);
     private final KnowledgeInitializationService service = new KnowledgeInitializationService(
-        sourceVersions, sourceApprovals, sourceFragments, versions, classifications,
-        productionCandidates, productionJobs, batches, items, versionService, catalog, validator,
+        sourceVersions, sourceDocuments, sourceFragments, versions, classifications,
+        productionCandidates, productionJobs, batches, items, versionService, publicationQualityRecords,
+        catalog, validator,
         new ObjectMapper());
 
     @BeforeEach
     void bindContext() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "reviewer"));
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
-            "reviewer", "n/a", List.of(new SimpleGrantedAuthority(RoleCode.KNOWLEDGE_GOVERNOR.authority()))));
+            "reviewer", "n/a", List.of(new SimpleGrantedAuthority(RoleCode.ENGINE_OPERATOR.authority()))));
+        when(publicationQualityRecords.create(any(), any())).thenReturn(new PublicationQualityRecord(
+            900L, "job-1", "kv:1:v1", 1L, 10L, "a".repeat(64), Instant.now()));
     }
 
     @AfterEach
@@ -86,35 +96,28 @@ class KnowledgeInitializationServiceTest {
     }
 
     @Test
-    void previewRejectsCandidateWhoseSourceVersionIsNotIndependentlyApproved() {
+    void previewAcceptsCompleteCurrentSourceWithoutIndependentApproval() {
         seedCandidate();
-        when(sourceApprovals.findByTenantIdAndSourceVersionId("t-1", 9L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.preview(request()))
-            .isInstanceOf(ApiException.class)
-            .hasMessageContaining("来源版本未独立批准");
+        KnowledgeInitializationBatchPreview preview = service.preview(request());
+
+        assertThat(preview.sourceCount()).isEqualTo(1);
     }
 
     @Test
-    void previewRejectsSourceHashDriftAfterApproval() {
+    void previewRejectsIncompleteAuthoritativeSourceMetadata() {
         seedCandidate();
-        when(sourceApprovals.findByTenantIdAndSourceVersionId("t-1", 9L)).thenReturn(Optional.of(
-            new SourceVersionApproval(
-                1L, "t-1", 9L, "f".repeat(64), SourceVersionApprovalStatus.APPROVED,
-                "reviewer-a", Instant.EPOCH, "批准", Instant.EPOCH, "reviewer-a")));
+        when(sourceDocuments.findByTenantIdAndId("t-1", 7L))
+            .thenReturn(Optional.of(sourceDocument(" ")));
 
         assertThatThrownBy(() -> service.preview(request()))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("来源摘要漂移");
+            .hasMessageContaining("来源文档元数据不完整");
     }
 
     @Test
     void createPersistsServerResolvedManifestAndHashes() {
         seedCandidate();
-        when(sourceApprovals.findByTenantIdAndSourceVersionId("t-1", 9L)).thenReturn(Optional.of(
-            new SourceVersionApproval(
-                1L, "t-1", 9L, "a".repeat(64), SourceVersionApprovalStatus.APPROVED,
-                "reviewer-a", Instant.EPOCH, "批准", Instant.EPOCH, "reviewer-a")));
         when(batches.findByTenantIdAndIdempotencyKey("t-1", "init-foundation-f1-1.0.0"))
             .thenReturn(Optional.empty());
         when(batches.save(any())).thenAnswer(invocation -> {
@@ -235,13 +238,14 @@ class KnowledgeInitializationServiceTest {
     void lowBulkApprovalUsesOnlyAuthenticatedRoleCodesAndCompletesFoundationBatch() {
         KnowledgeInitializationBatch batch = batch(KnowledgeRiskLevel.LOW);
         KnowledgeInitializationItem item = batchItem(KnowledgeRiskLevel.LOW);
+        seedPublicationQualityRecordInputs();
         when(batches.findByTenantIdAndBatchCode("t-1", "foundation-f1-1.0.0"))
             .thenReturn(Optional.of(batch));
         when(items.findByTenantIdAndBatchIdOrderBySequenceNoAscIdAsc("t-1", 10L))
             .thenReturn(List.of(item));
         when(sourceVersions.findByTenantIdAndId("t-1", 9L)).thenReturn(Optional.of(sourceVersion("a")));
-        when(sourceApprovals.findByTenantIdAndSourceVersionId("t-1", 9L))
-            .thenReturn(Optional.of(sourceApproval("a")));
+        when(sourceDocuments.findByTenantIdAndId("t-1", 7L))
+            .thenReturn(Optional.of(sourceDocument("公开许可")));
         when(versionService.reviewCandidate(any(), any())).thenReturn(new KnowledgeCandidateResponse(
             1L, List.of(), List.of(), true, "APPROVED", "候选已批准"));
         when(items.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -256,7 +260,7 @@ class KnowledgeInitializationServiceTest {
             ArgumentCaptor.forClass(KnowledgeCandidateReviewRequest.class);
         verify(versionService).reviewCandidate(any(), reviewRequest.capture());
         assertThat(reviewRequest.getValue().roleCodes())
-            .containsExactly(RoleCode.KNOWLEDGE_GOVERNOR.code());
+            .containsExactly(RoleCode.ENGINE_OPERATOR.code());
         assertThat(approved.batch().status()).isEqualTo(KnowledgeInitializationBatchStatus.COMPLETE);
         verify(items).save(any(KnowledgeInitializationItem.class));
     }
@@ -267,13 +271,14 @@ class KnowledgeInitializationServiceTest {
             batch(KnowledgeRiskLevel.LOW),
             InitializationPhase.F1);
         KnowledgeInitializationItem item = batchItem(KnowledgeRiskLevel.LOW);
+        seedPublicationQualityRecordInputs();
         when(batches.findByTenantIdAndBatchCode("t-1", "foundation-f1-1.0.0"))
             .thenReturn(Optional.of(f1));
         when(items.findByTenantIdAndBatchIdOrderBySequenceNoAscIdAsc("t-1", 10L))
             .thenReturn(List.of(item));
         when(sourceVersions.findByTenantIdAndId("t-1", 9L)).thenReturn(Optional.of(sourceVersion("a")));
-        when(sourceApprovals.findByTenantIdAndSourceVersionId("t-1", 9L))
-            .thenReturn(Optional.of(sourceApproval("a")));
+        when(sourceDocuments.findByTenantIdAndId("t-1", 7L))
+            .thenReturn(Optional.of(sourceDocument("公开许可")));
         when(versionService.reviewCandidate(any(), any())).thenReturn(new KnowledgeCandidateResponse(
             1L, List.of(), List.of(), true, "APPROVED", "候选已批准"));
         when(items.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -291,6 +296,7 @@ class KnowledgeInitializationServiceTest {
     void lowBulkApprovalDoesNotHideAnAlreadyBlockedLowItem() {
         KnowledgeInitializationBatch batch = batch(KnowledgeRiskLevel.LOW);
         KnowledgeInitializationItem pending = batchItem(KnowledgeRiskLevel.LOW);
+        seedPublicationQualityRecordInputs();
         KnowledgeInitializationItem blocked = withItemStatus(
             new KnowledgeInitializationItem(
                 21L, pending.tenantId(), pending.batchId(), 2, pending.catalogCode(),
@@ -307,8 +313,8 @@ class KnowledgeInitializationServiceTest {
         when(items.findByTenantIdAndBatchIdOrderBySequenceNoAscIdAsc("t-1", 10L))
             .thenReturn(List.of(pending, blocked));
         when(sourceVersions.findByTenantIdAndId("t-1", 9L)).thenReturn(Optional.of(sourceVersion("a")));
-        when(sourceApprovals.findByTenantIdAndSourceVersionId("t-1", 9L))
-            .thenReturn(Optional.of(sourceApproval("a")));
+        when(sourceDocuments.findByTenantIdAndId("t-1", 7L))
+            .thenReturn(Optional.of(sourceDocument("公开许可")));
         when(versionService.reviewCandidate(any(), any())).thenReturn(new KnowledgeCandidateResponse(
             1L, List.of(), List.of(), true, "APPROVED", "候选已批准"));
         when(items.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -323,10 +329,8 @@ class KnowledgeInitializationServiceTest {
     }
 
     @Test
-    void previewRejectsCandidateWhoseDeclaredAnchorDoesNotExistInApprovedSource() {
+    void previewRejectsCandidateWhoseDeclaredAnchorDoesNotExistInCurrentSource() {
         seedCandidate();
-        when(sourceApprovals.findByTenantIdAndSourceVersionId("t-1", 9L))
-            .thenReturn(Optional.of(sourceApproval("a")));
         when(sourceFragments.findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc("t-1", 9L))
             .thenReturn(List.of());
 
@@ -338,8 +342,6 @@ class KnowledgeInitializationServiceTest {
     @Test
     void previewRejectsCanonicalIdThatDiffersFromProductionLineageIdentity() {
         seedCandidate();
-        when(sourceApprovals.findByTenantIdAndSourceVersionId("t-1", 9L))
-            .thenReturn(Optional.of(sourceApproval("a")));
         when(productionCandidates.findByTenantIdAndCandidateRefIn(
             "t-1", List.of("kv:1:1.0.0"))).thenReturn(List.of(
                 new KnowledgeProductionCandidate(
@@ -354,8 +356,6 @@ class KnowledgeInitializationServiceTest {
     @Test
     void previewRejectsRiskLevelDriftFromProductionLineage() {
         seedCandidate();
-        when(sourceApprovals.findByTenantIdAndSourceVersionId("t-1", 9L))
-            .thenReturn(Optional.of(sourceApproval("a")));
         when(productionCandidates.findByTenantIdAndCandidateRefIn(
             "t-1", List.of("kv:1:1.0.0"))).thenReturn(List.of(
                 new KnowledgeProductionCandidate(
@@ -370,8 +370,6 @@ class KnowledgeInitializationServiceTest {
     @Test
     void previewRejectsNewChangeTypeWhenCanonicalAlreadyCompleted() {
         seedCandidate();
-        when(sourceApprovals.findByTenantIdAndSourceVersionId("t-1", 9L))
-            .thenReturn(Optional.of(sourceApproval("a")));
         when(items.findCompletedHistory("t-1", "DATA_ELEMENT.BP"))
             .thenReturn(List.of(completedItem("urn:medkernel:data-element", "1.0.0")));
 
@@ -383,8 +381,6 @@ class KnowledgeInitializationServiceTest {
     @Test
     void previewRejectsNamespaceDriftAcrossCompletedCanonicalVersions() {
         seedCandidate();
-        when(sourceApprovals.findByTenantIdAndSourceVersionId("t-1", 9L))
-            .thenReturn(Optional.of(sourceApproval("a")));
         when(items.findCompletedHistory("t-1", "DATA_ELEMENT.BP"))
             .thenReturn(List.of(completedItem("urn:medkernel:legacy", "1.0.0")));
 
@@ -397,8 +393,6 @@ class KnowledgeInitializationServiceTest {
     @Test
     void previewRejectsSemanticVersionThatDoesNotMatchDeclaredChangeType() {
         seedCandidate();
-        when(sourceApprovals.findByTenantIdAndSourceVersionId("t-1", 9L))
-            .thenReturn(Optional.of(sourceApproval("a")));
         when(items.findCompletedHistory("t-1", "DATA_ELEMENT.BP"))
             .thenReturn(List.of(completedItem("urn:medkernel:data-element", "1.0.0")));
 
@@ -417,8 +411,8 @@ class KnowledgeInitializationServiceTest {
         when(items.findByTenantIdAndBatchIdOrderBySequenceNoAscIdAsc("t-1", 10L))
             .thenReturn(List.of(item));
         when(sourceVersions.findByTenantIdAndId("t-1", 9L)).thenReturn(Optional.of(sourceVersion("a")));
-        when(sourceApprovals.findByTenantIdAndSourceVersionId("t-1", 9L))
-            .thenReturn(Optional.of(sourceApproval("a")));
+        when(sourceDocuments.findByTenantIdAndId("t-1", 7L))
+            .thenReturn(Optional.of(sourceDocument("公开许可")));
         when(classifications.findByTenantIdAndId("t-1", 88L))
             .thenReturn(Optional.of(classification(CandidateReviewStatus.APPROVED)));
         when(items.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -433,7 +427,7 @@ class KnowledgeInitializationServiceTest {
     }
 
     @Test
-    void refreshBlocksWholeBatchWhenApprovedSourceHashDrifts() {
+    void refreshBlocksWholeBatchWhenCurrentSourceHashDrifts() {
         KnowledgeInitializationBatch batch = batch(KnowledgeRiskLevel.MEDIUM);
         KnowledgeInitializationItem item = batchItem(KnowledgeRiskLevel.MEDIUM);
         when(batches.findByTenantIdAndBatchCode("t-1", "foundation-f1-1.0.0"))
@@ -441,8 +435,8 @@ class KnowledgeInitializationServiceTest {
         when(items.findByTenantIdAndBatchIdOrderBySequenceNoAscIdAsc("t-1", 10L))
             .thenReturn(List.of(item));
         when(sourceVersions.findByTenantIdAndId("t-1", 9L)).thenReturn(Optional.of(sourceVersion("f")));
-        when(sourceApprovals.findByTenantIdAndSourceVersionId("t-1", 9L))
-            .thenReturn(Optional.of(sourceApproval("a")));
+        when(sourceDocuments.findByTenantIdAndId("t-1", 7L))
+            .thenReturn(Optional.of(sourceDocument("公开许可")));
         when(classifications.findByTenantIdAndId("t-1", 88L))
             .thenReturn(Optional.of(classification(CandidateReviewStatus.APPROVED)));
         when(items.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -482,12 +476,24 @@ class KnowledgeInitializationServiceTest {
             new SourceVersion(
                 9L, "t-1", 7L, "official-1", Instant.EPOCH, "a".repeat(64),
                 "file:///managed/source.pdf", "zh-CN", Instant.EPOCH, "steward")));
+        when(sourceDocuments.findByTenantIdAndId("t-1", 7L))
+            .thenReturn(Optional.of(sourceDocument("公开许可")));
         when(sourceFragments.findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc("t-1", 9L))
             .thenReturn(List.of(new SourceFragment(
                 11L, "t-1", 9L, "root/0", "根条款", "权威来源片段",
                 "d".repeat(64), Instant.EPOCH)));
         when(items.findCompletedCanonicalIds("t-1")).thenReturn(List.of());
         when(items.findCompletedHistory("t-1", "DATA_ELEMENT.BP")).thenReturn(List.of());
+    }
+
+    private void seedPublicationQualityRecordInputs() {
+        when(versions.findByTenantIdAndIdentityIdAndVersionNo("t-1", 1L, "1.0.0"))
+            .thenReturn(Optional.of(candidate()));
+        when(productionCandidates.findByTenantIdAndCandidateRefIn(
+            "t-1", List.of("kv:1:1.0.0"))).thenReturn(List.of(
+                new KnowledgeProductionCandidate(
+                    3L, "t-1", "job-1", "DATA_ELEMENT.BP", "b".repeat(64),
+                    "kv:1:1.0.0", KnowledgeRiskLevel.LOW, Instant.EPOCH, "steward")));
     }
 
     private KnowledgeAssetVersion candidate() {
@@ -506,10 +512,12 @@ class KnowledgeInitializationServiceTest {
             "file:///managed/source.pdf", "zh-CN", Instant.EPOCH, "steward");
     }
 
-    private SourceVersionApproval sourceApproval(String hashPrefix) {
-        return new SourceVersionApproval(
-            1L, "t-1", 9L, hashPrefix.repeat(64), SourceVersionApprovalStatus.APPROVED,
-            "reviewer-a", Instant.EPOCH, "批准", Instant.EPOCH, "reviewer-a");
+    private SourceDocument sourceDocument(String license) {
+        return new SourceDocument(
+            7L, "t-1", "official-source", SourceType.GUIDELINE,
+            SourceAuthorityLevel.A_REGULATION, "国家级权威发布", "权威指南",
+            "国家卫生主管部门", license, "zh-CN",
+            Instant.EPOCH, "steward", Instant.EPOCH, "steward");
     }
 
     private CandidateClassification classification(CandidateReviewStatus status) {
@@ -542,13 +550,13 @@ class KnowledgeInitializationServiceTest {
             Set.copyOf(Arrays.asList(FoundationCoverageDimension.values())),
             "template-v1",
             null,
-            "基础数据元首发",
+            "基础数据元上线",
             "init-foundation-f1-1.0.0",
             List.of(new KnowledgeInitializationEntryRequest(
                 "KNOWGEN-26", "DATA_ELEMENT.BP", namespace, assetVersion,
                 "kv:1:1.0.0", List.of(), null, null, null,
                 "APPROVED_SOURCE_ONLY", "RISK_TIERED_REVIEW", "golden:bp",
-                "platform-knowledge-governor", "context-and-rule-runtime", "rollback:foundation-1.0.0",
+                "engine-operator", "context-and-rule-runtime", "rollback:foundation-1.0.0",
                 changeType, null, null)));
     }
 

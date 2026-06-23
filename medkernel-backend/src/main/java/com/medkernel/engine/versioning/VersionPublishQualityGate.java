@@ -12,7 +12,6 @@ public record VersionPublishQualityGate(
     boolean dependencyIntegrityVerified,
     boolean safetyMonotonicityVerified,
     boolean impactSimulationPassed,
-    boolean peerReviewSigned,
     String summary
 ) {
     boolean passed() {
@@ -20,8 +19,7 @@ public record VersionPublishQualityGate(
             && terminologyBindingComplete
             && dependencyIntegrityVerified
             && safetyMonotonicityVerified
-            && impactSimulationPassed
-            && peerReviewSigned;
+            && impactSimulationPassed;
     }
 
     String summaryOrDefault() {
@@ -43,9 +41,6 @@ public record VersionPublishQualityGate(
         }
         if (impactSimulationPassed) {
             passedItems.add("影响模拟");
-        }
-        if (peerReviewSigned) {
-            passedItems.add("同行评审");
         }
         return String.join("、", passedItems) + "已通过";
     }

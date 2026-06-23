@@ -20,8 +20,8 @@ import jakarta.validation.Valid;
 /**
  * 模型 provider 接入治理控制器（LLM-08）。
  *
- * <p>由集成运维员（{@code llm.provider.manage}）配置 provider 接入；质量治理员（{@code llm.eval.manage}）
- * 可读取脱敏快照完成医学评测。运行侧内网禁启外部 provider（ENG-LLM-009）。全线 {@link DataScope} 强多租户隔离。
+ * <p>由医疗引擎运营员使用 {@code llm.provider.manage} 和 {@code llm.eval.manage} 完成接入、
+ * 脱敏快照核查与医学评测。运行侧内网禁启外部 provider（ENG-LLM-009）。全线 {@link DataScope} 强多租户隔离。
  */
 @RestController
 @RequestMapping("/api/v1/model-providers")

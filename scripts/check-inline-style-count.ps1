@@ -72,7 +72,7 @@ if ($total -gt $script:Baseline) {
     Write-Host "❌ FAIL：inline style 数量上升（$total > baseline $($script:Baseline)）。" -ForegroundColor Red
     Write-Host "   前端视觉债原则：『归零后不得新增』。" -ForegroundColor Red
     Write-Host "   请把新增的 style={{}} 抽取到同名 .module.css，或使用 var(--mk-*) className。" -ForegroundColor Red
-    Write-Host "   详见 docs/MEDKERNEL_PRODUCT_EXPERIENCE_RULES.md 和 frontend/README.md。" -ForegroundColor Red
+    Write-Host "   详见 docs/EXPERIENCE_CONTRACT.md 和 frontend/README.md。" -ForegroundColor Red
     exit 1
 } elseif ($total -lt $script:Baseline) {
     Write-Host "✅ PASS：inline style 减少 $($script:Baseline - $total) 处（$total < $($script:Baseline)）。" -ForegroundColor Green

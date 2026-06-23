@@ -58,7 +58,7 @@ class VersionReleaseServiceTest {
         assetDependencies = mock(AssetDependencyService.class);
         service = new VersionReleaseService(
             assetVersions, releasePlans, activationTransactions, permissionEvaluator, assetDependencies, CLOCK);
-        authenticate(RoleCode.ORGANIZATION_ADMIN);
+        authenticate(RoleCode.PLATFORM_ADMIN);
         when(permissionEvaluator.has(PermissionCode.TENANT_OVERRIDE)).thenReturn(true);
         when(permissionEvaluator.has(PermissionCode.PLATFORM_PUBLISH)).thenReturn(false);
     }
@@ -72,23 +72,11 @@ class VersionReleaseServiceTest {
     @Test
     void advancesReviewApprovalGrayAndPublishWithEvidenceAndAtomicActivation() {
         AssetVersion draft = version("av-v2", "2.0.0", AssetVersionStatus.DRAFT, AssetVersionSafetyPolicy.NORMAL);
-        AssetVersion pending = draft.withStatus(
-            AssetVersionStatus.IN_REVIEW,
-            "version:av-v2",
-            CLOCK.instant(),
-            "publisher-1"
-        );
-        AssetVersion approved = pending.withStatus(
-            AssetVersionStatus.APPROVED,
-            "version:av-v2",
-            CLOCK.instant(),
-            "publisher-1"
-        );
         AssetVersion oldActive = version("av-v1", "1.0.0", AssetVersionStatus.PUBLISHED, AssetVersionSafetyPolicy.NORMAL)
             .withStatus(AssetVersionStatus.PUBLISHED, activeScopeKey(), CLOCK.instant(), "publisher-1");
 
         when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A"))
-            .thenReturn(Optional.of(draft), Optional.of(pending), Optional.of(approved), Optional.of(approved));
+            .thenReturn(Optional.of(draft), Optional.of(draft), Optional.of(draft), Optional.of(draft));
         when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
             "tenant-A",
             VersionedAssetType.RULE,
@@ -142,7 +130,7 @@ class VersionReleaseServiceTest {
         verify(activationTransactions).save(any(VersionActivationTransaction.class));
         verify(assetVersions).save(org.mockito.ArgumentMatchers.argThat(saved ->
             saved.versionId().equals("av-v1")
-                && saved.status() == AssetVersionStatus.DEPRECATED
+                && saved.status() == AssetVersionStatus.WITHDRAWN
                 && saved.effectiveTo() != null
         ));
         verify(assetVersions).save(org.mockito.ArgumentMatchers.argThat(saved ->
@@ -154,17 +142,15 @@ class VersionReleaseServiceTest {
     }
 
     @Test
-    void rejectedReviewReturnsInReviewVersionToDraftWithEvidence() {
-        AssetVersion pending = version(
+    void rejectedReviewRecordsPlanWithoutChangingDraftVersion() {
+        AssetVersion draft = version(
             "av-v2",
             "2.0.0",
-            AssetVersionStatus.IN_REVIEW,
+            AssetVersionStatus.DRAFT,
             AssetVersionSafetyPolicy.NORMAL
         );
         when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A"))
-            .thenReturn(Optional.of(pending));
-        when(assetVersions.save(any(AssetVersion.class)))
-            .thenAnswer(invocation -> invocation.getArgument(0));
+            .thenReturn(Optional.of(draft));
         when(releasePlans.save(any(VersionReleasePlan.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -177,17 +163,13 @@ class VersionReleaseServiceTest {
 
         assertThat(rejected.status()).isEqualTo(VersionReleaseStatus.REJECTED);
         assertThat(rejected.evidenceSummary()).contains("评审拒绝").contains("审核结论");
-        verify(assetVersions).save(org.mockito.ArgumentMatchers.argThat(saved ->
-            saved.versionId().equals("av-v2")
-                && saved.status() == AssetVersionStatus.DRAFT
-                && saved.activeScopeKey().equals("version:av-v2")
-        ));
+        verify(assetVersions, never()).save(any(AssetVersion.class));
     }
 
     @Test
     void rejectsInvalidStagedRolloutBeforeSavingReleasePlan() {
-        AssetVersion approved = version("av-v2", "2.0.0", AssetVersionStatus.APPROVED, AssetVersionSafetyPolicy.NORMAL);
-        when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(approved));
+        AssetVersion draft = version("av-v2", "2.0.0", AssetVersionStatus.DRAFT, AssetVersionSafetyPolicy.NORMAL);
+        when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(draft));
 
         RolloutPolicy invalid = new RolloutPolicy(
             RolloutStrategy.STAGED,
@@ -209,8 +191,8 @@ class VersionReleaseServiceTest {
 
     @Test
     void persistsValidStagedRolloutAsStructuredConfiguration() {
-        AssetVersion approved = version("av-v2", "2.0.0", AssetVersionStatus.APPROVED, AssetVersionSafetyPolicy.NORMAL);
-        when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(approved));
+        AssetVersion draft = version("av-v2", "2.0.0", AssetVersionStatus.DRAFT, AssetVersionSafetyPolicy.NORMAL);
+        when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(draft));
         when(releasePlans.save(any(VersionReleasePlan.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         RolloutPolicy staged = new RolloutPolicy(
@@ -234,7 +216,7 @@ class VersionReleaseServiceTest {
     void rejectsTenantReleaseWithoutTenantOverridePermission() {
         AssetVersion published = version("av-v2", "2.0.0", AssetVersionStatus.PUBLISHED, AssetVersionSafetyPolicy.NORMAL);
         when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(published));
-        authenticate(RoleCode.INTEGRATION_OPERATOR);
+        authenticate(RoleCode.PLATFORM_ADMIN);
         when(permissionEvaluator.has(PermissionCode.TENANT_OVERRIDE)).thenReturn(false);
 
         assertThatThrownBy(() -> service.publish(releaseCommand(
@@ -301,7 +283,6 @@ class VersionReleaseServiceTest {
             "平台审核结论",
             "platform-publisher",
             "trace-platform",
-            null,
             null
         )))
             .isInstanceOf(ApiException.class)
@@ -314,11 +295,11 @@ class VersionReleaseServiceTest {
     }
 
     @Test
-    void publishesApprovedVersionThroughUnifiedLifecycleWithQualityGateAndSignature() {
-        AssetVersion approved = version("av-v2", "2.0.0", AssetVersionStatus.APPROVED, AssetVersionSafetyPolicy.NORMAL);
+    void publishesDraftVersionThroughUnifiedLifecycleWithQualityGate() {
+        AssetVersion draft = version("av-v2", "2.0.0", AssetVersionStatus.DRAFT, AssetVersionSafetyPolicy.NORMAL);
         AssetVersion previous = version("av-v1", "1.0.0", AssetVersionStatus.PUBLISHED, AssetVersionSafetyPolicy.NORMAL)
             .withStatus(AssetVersionStatus.PUBLISHED, activeScopeKey(), CLOCK.instant(), "publisher-1");
-        when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(approved));
+        when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(draft));
         when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
             "tenant-A",
             VersionedAssetType.RULE,
@@ -333,17 +314,14 @@ class VersionReleaseServiceTest {
         VersionReleasePlan result = service.publish(releaseCommandWithGovernance(
             "av-v2",
             "影响摘要 d1",
-            electronicSignature(),
             completeQualityGate()
         ));
 
         assertThat(result.status()).isEqualTo(VersionReleaseStatus.PUBLISHED);
-        assertThat(result.electronicSignatureId()).isEqualTo("sig-20260603-001");
-        assertThat(result.electronicSignatureSignedAt()).isEqualTo(CLOCK.instant());
         assertThat(result.qualityGateSummary()).contains("依赖完整性").contains("影响模拟");
         verify(assetVersions).save(org.mockito.ArgumentMatchers.argThat(saved ->
             saved.versionId().equals("av-v1")
-                && saved.status() == AssetVersionStatus.DEPRECATED
+                && saved.status() == AssetVersionStatus.WITHDRAWN
                 && saved.effectiveTo() != null
         ));
         verify(assetVersions).save(org.mockito.ArgumentMatchers.argThat(saved ->
@@ -360,50 +338,29 @@ class VersionReleaseServiceTest {
     }
 
     @Test
-    void rejectsHighRiskPublishWithoutElectronicSignature() {
-        AssetVersion locked = version("av-v2", "2.0.0", AssetVersionStatus.APPROVED, AssetVersionSafetyPolicy.NORMAL)
+    void allowsResponsiblePublisherToPublishHighRiskVersionWithoutSecondSigner() {
+        AssetVersion locked = version("av-v2", "2.0.0", AssetVersionStatus.DRAFT, AssetVersionSafetyPolicy.NORMAL)
             .withOverridePolicy(AssetVersionOverridePolicy.LOCKED);
         when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(locked));
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            "tenant-A",
+            VersionedAssetType.RULE,
+            activeScopeKey(),
+            AssetVersionStatus.PUBLISHED
+        )).thenReturn(List.of());
+        when(assetVersions.save(any(AssetVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(releasePlans.save(any(VersionReleasePlan.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(activationTransactions.save(any(VersionActivationTransaction.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertThatThrownBy(() -> service.publish(releaseCommandWithGovernance(
+        VersionReleasePlan result = service.publish(releaseCommandWithGovernance(
             "av-v2",
             "影响摘要 d1",
-            null,
             completeQualityGate()
-        )))
-            .isInstanceOf(ApiException.class)
-            .hasMessageContaining("电子签名")
-            .extracting("errorCode")
-            .isEqualTo(ErrorCode.VALIDATION_FAILED);
+        ));
 
-        verify(activationTransactions, never()).save(any(VersionActivationTransaction.class));
-        verify(releasePlans, never()).save(any(VersionReleasePlan.class));
-    }
-
-    @Test
-    void rejectsHighRiskPublishWhenReviewerAndPublisherAreSamePerson() {
-        AssetVersion locked = version("av-v2", "2.0.0", AssetVersionStatus.APPROVED, AssetVersionSafetyPolicy.NORMAL)
-            .withOverridePolicy(AssetVersionOverridePolicy.LOCKED);
-        when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(locked));
-
-        assertThatThrownBy(() -> service.publish(releaseCommandWithGovernance(
-            "av-v2",
-            "影响摘要 d1",
-            new VersionElectronicSignature(
-                "sig-self-review",
-                "publisher-1",
-                "发布人本人",
-                CLOCK.instant(),
-                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"),
-            completeQualityGate()
-        )))
-            .isInstanceOf(ApiException.class)
-            .hasMessageContaining("复核人与发布人必须为不同人员")
-            .extracting("errorCode")
-            .isEqualTo(ErrorCode.VALIDATION_FAILED);
-
-        verify(activationTransactions, never()).save(any(VersionActivationTransaction.class));
-        verify(releasePlans, never()).save(any(VersionReleasePlan.class));
+        assertThat(result.status()).isEqualTo(VersionReleaseStatus.PUBLISHED);
+        verify(activationTransactions).save(any(VersionActivationTransaction.class));
     }
 
     @Test
@@ -413,7 +370,7 @@ class VersionReleaseServiceTest {
             PlatformTenant.ID,
             "2.0.0",
             PlatformAuthority.PLATFORM_ORG_PATH,
-            AssetVersionStatus.APPROVED,
+            AssetVersionStatus.DRAFT,
             AssetVersionSafetyPolicy.NORMAL);
         when(assetVersions.findByVersionIdAndTenantId("av-platform-v2", PlatformTenant.ID))
             .thenReturn(Optional.of(target));
@@ -433,8 +390,7 @@ class VersionReleaseServiceTest {
             "平台审核结论",
             "platform-publisher",
             "trace-platform",
-            electronicSignature(),
-            new VersionPublishQualityGate(true, true, false, true, true, true, "依赖完整性未通过")
+            new VersionPublishQualityGate(true, true, false, true, true, "依赖完整性未通过")
         )))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("发布质量门")
@@ -452,7 +408,7 @@ class VersionReleaseServiceTest {
             PlatformTenant.ID,
             "2.0.0",
             PlatformAuthority.PLATFORM_ORG_PATH,
-            AssetVersionStatus.APPROVED,
+            AssetVersionStatus.DRAFT,
             AssetVersionSafetyPolicy.NORMAL);
         when(assetVersions.findByVersionIdAndTenantId("av-platform-v2", PlatformTenant.ID))
             .thenReturn(Optional.of(target));
@@ -482,7 +438,6 @@ class VersionReleaseServiceTest {
             "平台审核结论",
             "platform-publisher",
             "trace-platform",
-            electronicSignature(),
             completeQualityGate()
         ));
 
@@ -587,7 +542,7 @@ class VersionReleaseServiceTest {
         AssetVersion withdrawnRedline = version(
             "av-v1",
             "1.0.0",
-            AssetVersionStatus.RETIRED,
+            AssetVersionStatus.WITHDRAWN,
             AssetVersionSafetyPolicy.SAFETY_REDLINE
         );
         when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(current));
@@ -606,8 +561,8 @@ class VersionReleaseServiceTest {
     void rollsBackToOfflineVersionAndRecordsActivationTransaction() {
         AssetVersion current = version("av-v2", "2.0.0", AssetVersionStatus.PUBLISHED, AssetVersionSafetyPolicy.NORMAL)
             .withStatus(AssetVersionStatus.PUBLISHED, activeScopeKey(), CLOCK.instant(), "publisher-1");
-        AssetVersion target = version("av-v1", "1.0.0", AssetVersionStatus.DEPRECATED, AssetVersionSafetyPolicy.NORMAL)
-            .withStatus(AssetVersionStatus.DEPRECATED, "version:av-v1", CLOCK.instant(), "publisher-1");
+        AssetVersion target = version("av-v1", "1.0.0", AssetVersionStatus.WITHDRAWN, AssetVersionSafetyPolicy.NORMAL)
+            .withStatus(AssetVersionStatus.WITHDRAWN, "version:av-v1", CLOCK.instant(), "publisher-1");
         when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(current));
         when(assetVersions.findByVersionIdAndTenantId("av-v1", "tenant-A")).thenReturn(Optional.of(target));
         when(assetVersions.save(any(AssetVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -618,14 +573,14 @@ class VersionReleaseServiceTest {
         VersionReleasePlan rollback = service.rollback(rollbackCommand("av-v2", "av-v1", true));
 
         assertThat(rollback.status()).isEqualTo(VersionReleaseStatus.ROLLED_BACK);
-        assertThat(rollback.evidenceSummary()).contains("回滚").contains("临床专家确认");
+        assertThat(rollback.evidenceSummary()).contains("回滚").contains("授权责任人确认");
         verify(activationTransactions).save(org.mockito.ArgumentMatchers.argThat(saved ->
             saved.action() == VersionActivationAction.ROLLBACK
                 && saved.fromVersionId().equals("av-v2")
                 && saved.toVersionId().equals("av-v1")
         ));
         verify(assetVersions).save(org.mockito.ArgumentMatchers.argThat(saved ->
-            saved.versionId().equals("av-v2") && saved.status() == AssetVersionStatus.DEPRECATED
+            saved.versionId().equals("av-v2") && saved.status() == AssetVersionStatus.WITHDRAWN
         ));
         verify(assetVersions).save(org.mockito.ArgumentMatchers.argThat(saved ->
             saved.versionId().equals("av-v1") && saved.status() == AssetVersionStatus.PUBLISHED
@@ -634,21 +589,21 @@ class VersionReleaseServiceTest {
 
     @Test
     void returnsExistingRollbackEvidenceWhenRetryAlreadySwitched() {
-        AssetVersion current = version("av-v2", "2.0.0", AssetVersionStatus.DEPRECATED, AssetVersionSafetyPolicy.NORMAL)
-            .withStatus(AssetVersionStatus.DEPRECATED, "version:av-v2", CLOCK.instant(), "publisher-1");
+        AssetVersion current = version("av-v2", "2.0.0", AssetVersionStatus.WITHDRAWN, AssetVersionSafetyPolicy.NORMAL)
+            .withStatus(AssetVersionStatus.WITHDRAWN, "version:av-v2", CLOCK.instant(), "publisher-1");
         AssetVersion target = version("av-v1", "1.0.0", AssetVersionStatus.PUBLISHED, AssetVersionSafetyPolicy.NORMAL)
             .withStatus(AssetVersionStatus.PUBLISHED, activeScopeKey(), CLOCK.instant(), "publisher-1");
         VersionActivationTransaction transaction = activationTransaction(
             "av-v2",
             "av-v1",
             VersionActivationAction.ROLLBACK,
-            "ROLLBACK 回滚：回滚到 1.0.0；原因：临床专家确认回退到稳定版本"
+            "ROLLBACK 回滚：回滚到 1.0.0；原因：授权责任人确认回退到稳定版本"
         );
         VersionReleasePlan existingPlan = releasePlan(
             "av-v1",
             "av-v2",
             VersionReleaseStatus.ROLLED_BACK,
-            "ROLLBACK 回滚：回滚到 1.0.0；原因：临床专家确认回退到稳定版本"
+            "ROLLBACK 回滚：回滚到 1.0.0；原因：授权责任人确认回退到稳定版本"
         );
         when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A")).thenReturn(Optional.of(current));
         when(assetVersions.findByVersionIdAndTenantId("av-v1", "tenant-A")).thenReturn(Optional.of(target));
@@ -699,7 +654,6 @@ class VersionReleaseServiceTest {
             "审核结论：规则测试全绿",
             "publisher-1",
             "trace-sys04-pr3",
-            null,
             null
         );
     }
@@ -707,7 +661,6 @@ class VersionReleaseServiceTest {
     private VersionReleaseCommand releaseCommandWithGovernance(
             String versionId,
             String impactDigest,
-            VersionElectronicSignature electronicSignature,
             VersionPublishQualityGate qualityGate) {
         return new VersionReleaseCommand(
             "tenant-A",
@@ -723,7 +676,6 @@ class VersionReleaseServiceTest {
             "审核结论：规则测试全绿",
             "publisher-1",
             "trace-sys04-pr3",
-            electronicSignature,
             qualityGate
         );
     }
@@ -743,18 +695,7 @@ class VersionReleaseServiceTest {
             "审核结论：规则测试全绿",
             "publisher-1",
             "trace-sys04-pr3",
-            null,
             null
-        );
-    }
-
-    private VersionElectronicSignature electronicSignature() {
-        return new VersionElectronicSignature(
-            "sig-20260603-001",
-            "reviewer-1",
-            "独立复核人",
-            CLOCK.instant(),
-            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
         );
     }
 
@@ -765,12 +706,11 @@ class VersionReleaseServiceTest {
             true,
             true,
             true,
-            true,
-            "结构校验、术语字段绑定、依赖完整性、安全单调性、影响模拟、同行评审均通过"
+            "结构校验、术语字段绑定、依赖完整性、安全单调性、影响模拟均通过"
         );
     }
 
-    private VersionRollbackCommand rollbackCommand(String currentVersionId, String targetVersionId, boolean confirmedHighRisk) {
+    private VersionRollbackCommand rollbackCommand(String currentVersionId, String targetVersionId, boolean confirmedOperation) {
         return new VersionRollbackCommand(
             "tenant-A",
             VersionedAssetType.RULE,
@@ -779,8 +719,8 @@ class VersionReleaseServiceTest {
             targetVersionId,
             "2.0.0",
             "1.0.0",
-            "临床专家确认回退到稳定版本",
-            confirmedHighRisk,
+            "授权责任人确认回退到稳定版本",
+            confirmedOperation,
             "publisher-1",
             "trace-sys04-pr3"
         );

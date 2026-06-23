@@ -14,6 +14,7 @@ public record PathwayFollowupHandoffCommand(
     String templateId,
     String diseaseCode,
     String riskLevel,
+    String runtimeReleaseId,
     List<String> taskTypes
 ) {
     public PathwayFollowupHandoffCommand {

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Instant;
 import java.util.List;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
 import com.medkernel.engine.factory.ProfessionalAssetTemplateRegistry;
@@ -24,8 +25,9 @@ import org.junit.jupiter.api.Test;
 /** AIK-STD-04 B0 模板桩候选生成器单元测试。 */
 class SourceCandidateGeneratorTest {
 
+    private final ObjectMapper json = new ObjectMapper();
     private final SourceCandidateGenerator generator =
-        new SourceCandidateGenerator(new ProfessionalAssetTemplateRegistry(), new ObjectMapper());
+        new SourceCandidateGenerator(new ProfessionalAssetTemplateRegistry(), json);
 
     private SourceDocument document() {
         return new SourceDocument(7L, "t-1", "GL-2024", SourceType.GUIDELINE, SourceAuthorityLevel.B_GUIDELINE,
@@ -46,66 +48,77 @@ class SourceCandidateGeneratorTest {
     }
 
     @Test
-    void generatesRuleDraftStubWithRealAnchorsAndHash() {
+    void generatesRuleDraftTemplateFromControlledSource() throws Exception {
         KnowledgeAssetEnvelope envelope = generator.generate(
-            "t-1", document(), version(), fragments(), VersionedAssetType.RULE, null, "identity:42");
+            "t-1", document(), version(), fragments(), VersionedAssetType.RULE,
+            null, "RULE-HTN-1");
 
+        JsonNode payload = json.readTree(envelope.payload());
         assertThat(envelope.assetType()).isEqualTo(VersionedAssetType.RULE);
-        assertThat(envelope.assetIdentity()).isEqualTo("identity:42");
-        assertThat(envelope.subject()).isEqualTo("高血压基层诊疗指南");
-        assertThat(envelope.versionLabel()).isEqualTo("draft-from-v1");
         assertThat(envelope.lifecycleStatus()).isEqualTo(AssetVersionStatus.DRAFT);
-        assertThat(envelope.trustLevel()).isEqualTo(SourceAuthorityLevel.B_GUIDELINE);
-        assertThat(envelope.orgScope()).isEqualTo("t-1");
-        // sources≥1，第一条须 intake 可解析格式 sourceCode:versionNo:anchorPath
         assertThat(envelope.sources()).hasSize(2);
-        assertThat(envelope.sources().get(0).sourceRef()).isEqualTo("GL-2024:v1:section-1");
-        assertThat(envelope.sources().get(0).authorityLevel()).isEqualTo(SourceAuthorityLevel.B_GUIDELINE);
-        // 逻辑字段留白不伪造；来源摘要真实
+        assertThat(payload.path("schemaVersion").asText()).isEqualTo("1.0");
+        assertThat(payload.path("ruleCode").asText()).isEqualTo("RULE-HTN-1");
+        assertThat(payload.path("generationMode").asText()).isEqualTo("B0_TEMPLATE");
+        assertThat(payload.path("medicalContentStatus").asText()).isEqualTo("PENDING_AUTHORING");
+        assertThat(payload.path("fieldCatalogIdentity").asText())
+            .isEqualTo("FIELD.CATALOG.CLINICAL_CONTEXT");
+        assertThat(payload.path("triggerBindings").get(0).path("purpose").asText())
+            .isEqualTo("RULE_EXECUTION");
+        assertThat(payload.path("dsl").path("when").path("all").get(0).path("field").asText())
+            .isEqualTo("patient.age");
+        assertThat(payload.path("dsl").path("then").isArray()).isTrue();
+        assertThat(payload.path("dsl").path("then").get(0).path("actionCardRef").asText())
+            .isEqualTo("ACTION.AUTHORING_REVIEW");
+        assertThat(payload.path("sourceEvidence").get(0).path("excerpt").asText())
+            .contains("血压≥140/90");
         assertThat(envelope.payload())
-            .contains("待编著")
-            .contains("血压≥140/90")
-            .contains("\"generationMode\":\"B0_TEMPLATE\"")
-            .contains("\"medicalContentStatus\":\"PENDING_AUTHORING\"")
-            .contains("\"generatedByModel\":false")
-            .contains("\"contentHash\":\"" + "b".repeat(64) + "\"");
-        // contentHash 真实等于 sha256(payload)
-        assertThat(envelope.contentHash()).matches("^[0-9a-f]{64}$");
+            .doesNotContain("conditionFragment")
+            .doesNotContain("packageVersion")
+            .doesNotContain("versionNo");
         assertThat(Sha256ContentHash.sha256(envelope.payload(), "x")).isEqualTo(envelope.contentHash());
     }
 
     @Test
-    void generatesEachOfFiveAssetTypes() {
-        for (VersionedAssetType type : List.of(VersionedAssetType.RULE, VersionedAssetType.PATHWAY,
-            VersionedAssetType.RECOMMENDATION, VersionedAssetType.EVALUATION, VersionedAssetType.FOLLOWUP,
-            VersionedAssetType.FORMULA)) {
-            KnowledgeAssetEnvelope envelope = generator.generate(
-                "t-1", document(), version(), fragments(), type, null, "identity:1");
-            assertThat(envelope.assetType()).isEqualTo(type);
-            assertThat(envelope.sources()).isNotEmpty();
-            assertThat(envelope.lifecycleStatus()).isEqualTo(AssetVersionStatus.DRAFT);
-        }
-    }
-
-    @Test
-    void generatesFormulaCalculatorDraftWithExecutableStructureButNoMedicalConstants() {
+    void generatesPathwayDraftTemplateFromControlledSource() throws Exception {
         KnowledgeAssetEnvelope envelope = generator.generate(
-            "t-1", document(), version(), fragments(), VersionedAssetType.FORMULA, null, "formula:fixture");
+            "t-1", document(), version(), fragments(), VersionedAssetType.PATHWAY,
+            null, "PATHWAY-HTN-1");
 
+        JsonNode payload = json.readTree(envelope.payload());
+        assertThat(envelope.assetType()).isEqualTo(VersionedAssetType.PATHWAY);
+        assertThat(envelope.lifecycleStatus()).isEqualTo(AssetVersionStatus.DRAFT);
+        assertThat(payload.path("schemaVersion").asText()).isEqualTo("1.0");
+        assertThat(payload.path("pathwayCode").asText()).isEqualTo("PATHWAY-HTN-1");
+        assertThat(payload.path("startNodeCode").asText()).isEqualTo("start");
+        assertThat(payload.path("terminalNodeCodes").get(0).asText()).isEqualTo("end");
+        assertThat(payload.path("triggerBindings").get(0).path("purpose").asText())
+            .isEqualTo("PATHWAY_ENTRY_CANDIDATE");
+        assertThat(payload.path("nodes")).hasSize(2);
+        assertThat(payload.path("edges")).hasSize(1);
+        assertThat(payload.path("sourceEvidence").get(1).path("anchorPath").asText())
+            .isEqualTo("section-2");
         assertThat(envelope.payload())
-            .contains("\"template\":\"FORMULA\"")
-            .contains("\"inputs\"")
-            .contains("\"algorithm\"")
-            .contains("\"test_vectors\"")
-            .contains("待编著");
+            .doesNotContain("subPath")
+            .doesNotContain("conditionFragment")
+            .doesNotContain("packageVersion")
+            .doesNotContain("versionNo");
         assertThat(Sha256ContentHash.sha256(envelope.payload(), "x")).isEqualTo(envelope.contentHash());
     }
 
     @Test
-    void rejectsWhenNoStructuralTemplate() {
-        assertThatThrownBy(() -> generator.generate(
-            "t-1", document(), version(), fragments(), VersionedAssetType.PACKAGE, null, "identity:1"))
-            .isInstanceOf(ApiException.class);
+    void rejectsUnsupportedAssetTypes() {
+        for (VersionedAssetType type : List.of(
+            VersionedAssetType.ACTION_CARD,
+            VersionedAssetType.EVALUATION,
+            VersionedAssetType.FOLLOWUP,
+            VersionedAssetType.FORMULA,
+            VersionedAssetType.VALUE_SET)) {
+            assertThatThrownBy(() -> generator.generate(
+                "t-1", document(), version(), fragments(), type, null, "identity:1"))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("仅支持知识、规则和路径");
+        }
     }
 
     @Test
@@ -114,10 +127,17 @@ class SourceCandidateGeneratorTest {
             "t-1", document(), version(), fragments(), VersionedAssetType.KNOWLEDGE,
             KnowledgeDomain.DRUG, "identity:drug-1");
 
+        assertThat(envelope.assetType()).isEqualTo(VersionedAssetType.KNOWLEDGE);
+        assertThat(envelope.lifecycleStatus()).isEqualTo(AssetVersionStatus.DRAFT);
+        assertThat(envelope.sources()).hasSize(2);
+        assertThat(envelope.sources().get(0).sourceRef()).isEqualTo("GL-2024:v1:section-1");
         assertThat(envelope.payload())
             .contains("\"template\":\"DRUG\"")
             .contains("\"dosage\"")
+            .contains("\"generationMode\":\"B0_TEMPLATE\"")
+            .contains("血压≥140/90")
             .doesNotContain("\"recommendation\"");
+        assertThat(Sha256ContentHash.sha256(envelope.payload(), "x")).isEqualTo(envelope.contentHash());
     }
 
     @Test

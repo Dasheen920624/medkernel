@@ -2,15 +2,29 @@ package com.medkernel.engine.knowledge;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Arrays;
+
 import org.junit.jupiter.api.Test;
 
-/**
- * 诊断知识资产域枚举测试（Plan A Task 1：新增 DIAGNOSIS 域）。
- */
+/** 知识内容域边界测试。 */
 class KnowledgeDomainTest {
 
     @Test
-    void diagnosisDomainExists() {
-        assertThat(KnowledgeDomain.valueOf("DIAGNOSIS")).isNotNull();
+    void containsExactlyElevenContentDomainsWithoutPatientReportInterpretation() {
+        assertThat(Arrays.asList(KnowledgeDomain.values()))
+            .containsExactlyInAnyOrder(
+                KnowledgeDomain.GUIDELINE,
+                KnowledgeDomain.DRUG,
+                KnowledgeDomain.PATHWAY_KNOWLEDGE,
+                KnowledgeDomain.NURSING,
+                KnowledgeDomain.DIAGNOSTIC_ITEM,
+                KnowledgeDomain.TCM,
+                KnowledgeDomain.PROTOCOL,
+                KnowledgeDomain.POLICY,
+                KnowledgeDomain.LITERATURE,
+                KnowledgeDomain.OTHER,
+                KnowledgeDomain.DIAGNOSIS);
+        assertThat(Arrays.stream(KnowledgeDomain.values()).map(Enum::name))
+            .doesNotContain("REPORT", "REPORT_INTERPRETATION");
     }
 }

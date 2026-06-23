@@ -52,6 +52,7 @@ public final class ContextFactBridge {
         facts.put("carePlans", resourceList(resources.carePlans()));
         facts.put("followUps", resourceList(resources.followUps()));
         facts.put("claims", resourceList(resources.claims()));
+        facts.put("extensions", resources.extensions().deepCopy());
         for (CanonicalObservation observation : resources.observations()) {
             Object value = observation.valueNumeric() == null
                 ? observation.valueString()

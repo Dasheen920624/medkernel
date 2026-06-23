@@ -2,6 +2,8 @@ package com.medkernel.engine.context;
 
 import java.util.List;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.medkernel.engine.context.canonical.CanonicalAllergyIntolerance;
 import com.medkernel.engine.context.canonical.CanonicalCarePlan;
 import com.medkernel.engine.context.canonical.CanonicalClaim;
@@ -34,7 +36,8 @@ public record ContextSnapshotResources(
     @Valid List<CanonicalDocument> documents,
     @Valid List<CanonicalCarePlan> carePlans,
     @Valid List<CanonicalFollowUp> followUps,
-    @Valid List<CanonicalClaim> claims
+    @Valid List<CanonicalClaim> claims,
+    JsonNode extensions
 ) {
 
     public ContextSnapshotResources {
@@ -50,9 +53,36 @@ public record ContextSnapshotResources(
         carePlans = safeList(carePlans);
         followUps = safeList(followUps);
         claims = safeList(claims);
+        extensions = normalizeExtensions(extensions);
     }
 
     private static <T> List<T> safeList(List<T> values) {
         return values == null ? List.of() : List.copyOf(values);
+    }
+
+    /**
+     * 显式表达“本次快照无院内扩展事实”。
+     */
+    public static JsonNode emptyExtensions() {
+        return JsonNodeFactory.instance.objectNode();
+    }
+
+    private static JsonNode normalizeExtensions(JsonNode value) {
+        if (value == null || value.isNull() || value.isMissingNode()) {
+            return JsonNodeFactory.instance.objectNode();
+        }
+        if (!value.isObject()) {
+            throw new IllegalArgumentException("上下文扩展字段必须是 JSON 对象");
+        }
+        value.fieldNames().forEachRemaining(namespace -> {
+            if (!"local".equals(namespace)) {
+                throw new IllegalArgumentException("上下文扩展字段只允许 extensions.local 命名空间");
+            }
+        });
+        JsonNode local = value.path("local");
+        if (!local.isMissingNode() && !local.isObject()) {
+            throw new IllegalArgumentException("上下文 extensions.local 必须是 JSON 对象");
+        }
+        return value.deepCopy();
     }
 }

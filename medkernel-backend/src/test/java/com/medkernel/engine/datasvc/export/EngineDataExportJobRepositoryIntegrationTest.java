@@ -44,7 +44,7 @@ class EngineDataExportJobRepositoryIntegrationTest {
 
         assertThat(found.exportType()).isEqualTo(EngineDataExportType.RULE_USAGE);
         assertThat(found.status()).isEqualTo(ExportJobStatus.PENDING);
-        assertThat(found.approvalId()).isEqualTo("exp-engine-data-rule-usage-idem-it-1");
+        assertThat(found.confirmationId()).isEqualTo("exp-engine-data-rule-usage-idem-it-1");
         assertThat(found.requestSnapshot()).contains("RULE_USAGE");
     }
 

@@ -111,15 +111,8 @@ const securityProfile: SecurityProfile = {
   username: "chief",
   roles: [
     {
-      code: "security-admin",
-      displayName: "安全管理员",
-      source: "PLATFORM_SEED",
-      scopeLevel: "TENANT",
-      scopeCode: "t-hospital",
-    },
-    {
-      code: "identity-access-admin",
-      displayName: "身份访问管理员",
+      code: "platform-admin",
+      displayName: "平台管理员",
       source: "PLATFORM_SEED",
       scopeLevel: "TENANT",
       scopeCode: "t-hospital",
@@ -169,6 +162,7 @@ const securityProfile: SecurityProfile = {
   mustChangePwd: false,
   mfaRequired: true,
   mfaBound: true,
+  mfaVerified: true,
 };
 
 const runtimeSnapshot: RuntimeOperationsSnapshot = {
@@ -334,12 +328,12 @@ const developerContracts: DeveloperApiContractDirectory = {
       title: "第三方知识运行时服务",
       basePath: "/api/v1/engine/integration/knowledge-runtime",
       openApiPaths: ["/api/v1/engine/integration/knowledge-runtime/**"],
-      permissions: [{ code: "package.read", dimension: "ACTION", purpose: "查看配置包" }],
+      permissions: [{ code: "asset.read", dimension: "ACTION", purpose: "查看当前运行修订" }],
       auditPoints: [],
       publicEndpoints: [],
       contractVersion: "v1",
       openApiDocumentUrl: "/v3/api-docs/medkernel-third-party-integration",
-      fieldContractUrl: "/api/v1/engine/integration/data-contract?packageVersion={packageVersion}",
+      fieldContractUrl: "/api/v1/engine/integration/data-contract",
     },
   ],
 };
@@ -540,7 +534,7 @@ describe("operational control pages", () => {
     renderPage(<SecurityBaseline />);
 
     expect(screen.getByRole("heading", { name: "安全基线与系统配置" })).toBeInTheDocument();
-    expect(screen.getByText("安全管理员")).toBeInTheDocument();
+    expect(screen.getByText("平台管理员")).toBeInTheDocument();
     expect(screen.getAllByText("MFA 已绑定").length).toBeGreaterThan(0);
     expect(screen.getAllByText("高风险权限").length).toBeGreaterThan(0);
     expect(screen.getByText("用户写入")).toBeInTheDocument();

@@ -8,7 +8,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
- * 首发部署启动种子：仅登记显式提供的一次性 init token，不创建账号、不输出明文 token。
+ * 首次部署启动种子：仅登记显式提供的一次性 init token，不创建账号、不输出明文 token。
  */
 @Component
 public class BootstrapInitTokenSeeder implements ApplicationRunner {

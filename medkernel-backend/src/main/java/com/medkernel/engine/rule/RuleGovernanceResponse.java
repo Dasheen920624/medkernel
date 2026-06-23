@@ -9,12 +9,8 @@ public record RuleGovernanceResponse(
     String ruleId,
     String versionId,
     RuleGovernanceState state,
-    int requiredSignoffs,
-    int reviewRound,
-    int committeeApprovalCount,
     String authorId,
     String lastReason,
-    List<RuleSignoff> signoffs,
     List<RuleTestCaseResult> testResults,
     String impactDigest,
     String impactStatus,
@@ -22,7 +18,6 @@ public record RuleGovernanceResponse(
     String traceId
 ) {
     public RuleGovernanceResponse {
-        signoffs = signoffs == null ? List.of() : List.copyOf(signoffs);
         testResults = testResults == null ? List.of() : List.copyOf(testResults);
         releaseEvidence = releaseEvidence == null ? List.of() : List.copyOf(releaseEvidence);
     }

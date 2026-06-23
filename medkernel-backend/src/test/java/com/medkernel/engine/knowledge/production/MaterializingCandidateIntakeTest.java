@@ -93,7 +93,7 @@ class MaterializingCandidateIntakeTest {
     void materializesExistingIdentityWithRoutedAssignmentPlan() {
         when(identities.findByTenantIdAndId(TENANT, 5L)).thenReturn(Optional.of(identity(5L, "KN-X")));
         ReviewRoutingDecision routing = new ReviewRoutingDecision(
-            RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.MEDICATION_SAFETY_USER, true, KnowledgeDomain.PHARMACY);
+            RoleCode.ENGINE_OPERATOR, KnowledgeDomain.PHARMACY);
 
         String ref = intake.intake(overlayJob(), envelope(), new MaterializationTarget(5L, null), routing);
 
@@ -101,7 +101,7 @@ class MaterializingCandidateIntakeTest {
         ArgumentCaptor<ReviewAssignmentPlan> plan = ArgumentCaptor.forClass(ReviewAssignmentPlan.class);
         verify(versionService).classifyCandidate(eq(5L), any(KnowledgeVersionCreateRequest.class), plan.capture());
         assertThat(plan.getValue().reviewerRoleCodes())
-            .containsExactlyInAnyOrder(RoleCode.KNOWLEDGE_GOVERNOR.code(), RoleCode.MEDICATION_SAFETY_USER.code());
+            .containsExactly(RoleCode.ENGINE_OPERATOR.code());
     }
 
     @Test
@@ -109,7 +109,7 @@ class MaterializingCandidateIntakeTest {
         when(identities.findByTenantIdAndIdentityCode(TENANT, "KN-MET")).thenReturn(Optional.empty());
         when(identities.save(any())).thenReturn(identity(42L, "KN-MET"));
         ReviewRoutingDecision routing = new ReviewRoutingDecision(
-            RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.KNOWLEDGE_GOVERNOR, false, KnowledgeDomain.GENERAL);
+            RoleCode.ENGINE_OPERATOR, KnowledgeDomain.GENERAL);
 
         intake.intake(overlayJob(), envelope(),
             new MaterializationTarget(null,
@@ -119,36 +119,35 @@ class MaterializingCandidateIntakeTest {
         verify(identities).save(any(KnowledgeIdentity.class));
         ArgumentCaptor<ReviewAssignmentPlan> plan = ArgumentCaptor.forClass(ReviewAssignmentPlan.class);
         verify(versionService).classifyCandidate(eq(42L), any(), plan.capture());
-        // GENERAL：归口==领域，去重后单角色
-        assertThat(plan.getValue().reviewerRoleCodes()).containsExactly(RoleCode.KNOWLEDGE_GOVERNOR.code());
+        assertThat(plan.getValue().reviewerRoleCodes()).containsExactly(RoleCode.ENGINE_OPERATOR.code());
     }
 
     @Test
-    void nonHighRiskCreatesOnlyOwnerAssignment() {
+    void nonHighRiskCreatesSingleOperatorAssignment() {
         when(identities.findByTenantIdAndId(TENANT, 5L)).thenReturn(Optional.of(identity(5L, "KN-X")));
         ReviewRoutingDecision routing = new ReviewRoutingDecision(
-            RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.MEDICATION_SAFETY_USER, false, KnowledgeDomain.PHARMACY);
+            RoleCode.ENGINE_OPERATOR, KnowledgeDomain.PHARMACY);
 
         intake.intake(overlayJob(), envelope(), new MaterializationTarget(5L, null), routing);
 
         ArgumentCaptor<ReviewAssignmentPlan> plan = ArgumentCaptor.forClass(ReviewAssignmentPlan.class);
         verify(versionService).classifyCandidate(eq(5L), any(), plan.capture());
         assertThat(plan.getValue().reviewerRoleCodes())
-            .containsExactly(RoleCode.KNOWLEDGE_GOVERNOR.code());
+            .containsExactly(RoleCode.ENGINE_OPERATOR.code());
     }
 
     @Test
-    void highRiskGeneralDomainKeepsTwoSameRoleSeatsForDifferentPeople() {
+    void highRiskAlsoCreatesSingleOperatorAssignment() {
         when(identities.findByTenantIdAndId(TENANT, 5L)).thenReturn(Optional.of(identity(5L, "KN-X")));
         ReviewRoutingDecision routing = new ReviewRoutingDecision(
-            RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.KNOWLEDGE_GOVERNOR, true, KnowledgeDomain.GENERAL);
+            RoleCode.ENGINE_OPERATOR, KnowledgeDomain.GENERAL);
 
         intake.intake(overlayJob(), envelope(), new MaterializationTarget(5L, null), routing);
 
         ArgumentCaptor<ReviewAssignmentPlan> plan = ArgumentCaptor.forClass(ReviewAssignmentPlan.class);
         verify(versionService).classifyCandidate(eq(5L), any(), plan.capture());
         assertThat(plan.getValue().reviewerRoleCodes())
-            .containsExactly(RoleCode.KNOWLEDGE_GOVERNOR.code(), RoleCode.KNOWLEDGE_GOVERNOR.code());
+            .containsExactly(RoleCode.ENGINE_OPERATOR.code());
     }
 
     @Test
@@ -157,11 +156,40 @@ class MaterializingCandidateIntakeTest {
         when(sourceResolver.resolve(eq(TENANT), any()))
             .thenThrow(new ApiException(ErrorCode.ENG_KNOW_001, "受控来源不存在"));
         ReviewRoutingDecision routing = new ReviewRoutingDecision(
-            RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.KNOWLEDGE_GOVERNOR, false, KnowledgeDomain.GENERAL);
+            RoleCode.ENGINE_OPERATOR, KnowledgeDomain.GENERAL);
 
         assertThatThrownBy(() ->
             intake.intake(overlayJob(), envelope(), new MaterializationTarget(5L, null), routing))
             .isInstanceOf(ApiException.class);
+        verify(versionService, never()).classifyCandidate(any(), any(), any());
+    }
+
+    @Test
+    void rejectsNonKnowledgeEnvelopeBeforeCreatingKnowledgeIdentity() {
+        KnowledgeAssetEnvelope structural = new KnowledgeAssetEnvelope(
+            VersionedAssetType.RULE,
+            "rule:demo",
+            "规则候选",
+            "v1",
+            envelope().sources(),
+            SourceAuthorityLevel.A_REGULATION,
+            null,
+            null,
+            KnowledgeRiskLevel.MEDIUM,
+            TENANT,
+            envelope().contentHash(),
+            envelope().payload(),
+            AssetVersionStatus.DRAFT);
+        ReviewRoutingDecision routing = new ReviewRoutingDecision(
+            RoleCode.ENGINE_OPERATOR, KnowledgeDomain.CLINICAL);
+
+        assertThatThrownBy(() -> intake.intake(
+            overlayJob(), structural, new MaterializationTarget(5L, null), routing))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("只接收知识候选");
+
+        verify(identities, never()).findByTenantIdAndId(any(), any());
+        verify(identities, never()).save(any());
         verify(versionService, never()).classifyCandidate(any(), any(), any());
     }
 }

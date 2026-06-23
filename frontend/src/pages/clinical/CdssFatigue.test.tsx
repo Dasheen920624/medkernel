@@ -222,7 +222,7 @@ describe("CdssFatigue", () => {
                   snapshotId,
                   status: "ACTIVE",
                   resources: {},
-                  packageVersion: "pkg-rec-2026.1",
+                  runtimeReleaseId: "runtime-release-cdss",
                   qualityStatus: "VALID",
                   missingFields: [],
                   mappingStatus: {},
@@ -300,7 +300,6 @@ describe("CdssFatigue", () => {
           contextSnapshotId: "snapshot-rec-1",
           patientId: "patient-real-1",
           encounterId: "enc-real-1",
-          packageVersion: "pkg-rec-2026.1",
         }),
       );
     },

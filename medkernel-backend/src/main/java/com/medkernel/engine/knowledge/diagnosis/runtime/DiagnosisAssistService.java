@@ -11,8 +11,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
-import com.medkernel.engine.knowledge.KnowledgeAssetVersion;
-import com.medkernel.engine.knowledge.KnowledgeAssetVersionRepository;
 import com.medkernel.engine.knowledge.KnowledgeIdentity;
 import com.medkernel.engine.knowledge.KnowledgeIdentityRepository;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisConfidence;
@@ -21,6 +19,8 @@ import com.medkernel.engine.knowledge.diagnosis.DiagnosisConfidencePolicyReposit
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisCarePointerRepository;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisCriterion;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisCriterionRepository;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisDifferential;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisDifferentialRepository;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisMatchResult;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisMatcher;
 import com.medkernel.engine.recommendation.RecommendationCardRequest;
@@ -41,7 +41,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 运行时鉴别诊断编排：发现 → 命中各 ACTIVE 诊断版本 → 红线合流 → 排序 → 候选 → 复用推荐卡统一落库治理。
+ * 运行时鉴别诊断编排：发现 → 当前医院运行修订锁定诊断版本 → 红线合流 → 排序 → 候选 → 复用推荐卡统一落库治理。
  *
  * <p>置信仍是分级非概率；弱支持默认折叠避噪声；无候选返回空态明示"不是排除诊断"、不落库；
  * 候选恒 requiresPhysicianConfirmation=true、非自动诊断。落库走 CDS Hook patient-view + scenarioCode S16。
@@ -57,10 +57,11 @@ public class DiagnosisAssistService {
     private static final String SCENARIO_CODE = "S16";
 
     private final ContextSnapshotService snapshots;
-    private final KnowledgeAssetVersionRepository versions;
-    private final KnowledgeIdentityRepository identities;
+    private final RuntimeReleaseDiagnosisSelector runtimeDiagnoses;
     private final DiagnosisCriterionRepository criteria;
     private final DiagnosisCarePointerRepository carePointers;
+    private final DiagnosisDifferentialRepository differentials;
+    private final KnowledgeIdentityRepository identities;
     private final DiagnosisConfidencePolicyRepository policies;
     private final DiagnosisMatcher matcher;
     private final DiagnosisFindingExtractor extractor;
@@ -69,18 +70,23 @@ public class DiagnosisAssistService {
     private final ObjectMapper objectMapper;
     private final BusinessMetrics businessMetrics;
 
-    public DiagnosisAssistService(ContextSnapshotService snapshots, KnowledgeAssetVersionRepository versions,
-            KnowledgeIdentityRepository identities, DiagnosisCriterionRepository criteria,
-            DiagnosisCarePointerRepository carePointers, DiagnosisConfidencePolicyRepository policies,
+    public DiagnosisAssistService(ContextSnapshotService snapshots,
+            RuntimeReleaseDiagnosisSelector runtimeDiagnoses,
+            DiagnosisCriterionRepository criteria,
+            DiagnosisCarePointerRepository carePointers,
+            DiagnosisDifferentialRepository differentials,
+            KnowledgeIdentityRepository identities,
+            DiagnosisConfidencePolicyRepository policies,
             DiagnosisMatcher matcher,
             DiagnosisFindingExtractor extractor, DiagnosisRedlinePort redlinePort,
             RecommendationEngineService recommendationEngine, ObjectMapper objectMapper,
             BusinessMetrics businessMetrics) {
         this.snapshots = snapshots;
-        this.versions = versions;
-        this.identities = identities;
+        this.runtimeDiagnoses = runtimeDiagnoses;
         this.criteria = criteria;
         this.carePointers = carePointers;
+        this.differentials = differentials;
+        this.identities = identities;
         this.policies = policies;
         this.matcher = matcher;
         this.extractor = extractor;
@@ -95,34 +101,40 @@ public class DiagnosisAssistService {
         String tenant = tenant();
         // findById 自取当前租户；snapshot 不存在自抛 ENG-CONTEXT 错误，响应体含 resources。
         ContextSnapshotResponse snapshot = snapshots.findById(request.contextSnapshotId());
-        ExtractedFindings findings = extractor.extract(tenant, snapshot.resources());
+        ExtractedFindings findings = extractor.extract(
+            tenant, snapshot.runtimeReleaseId(), snapshot.resources());
+        List<RuntimeDiagnosisReference> runtimeDiagnosisVersions =
+            runtimeDiagnoses.select(tenant, snapshot.runtimeReleaseId());
         DiagnosisConfidencePolicy policy = resolvePolicy(tenant);
         // 红线合流：OPT-04 红线对结构化上下文求值，命中的致命病 / 危急值诊断身份码置顶且不可疲劳抑制。
         Set<String> redlinePinned = redlinePort.pinnedDiagnosisCodes(tenant, snapshot);
 
         List<DiagnosisCandidate> candidates = new ArrayList<>();
-        for (KnowledgeAssetVersion v : versions.findActiveDiagnosisVersions(tenant)) {
-            List<DiagnosisCriterion> versionCriteria = criteria.findByTenantIdAndDiagnosisVersionId(tenant, v.id());
+        for (RuntimeDiagnosisReference diagnosis : runtimeDiagnosisVersions) {
+            List<DiagnosisCriterion> versionCriteria =
+                criteria.findByTenantIdAndDiagnosisVersionId(diagnosis.sourceTenantId(), diagnosis.knowledgeVersionId());
             DiagnosisMatchResult result = matcher.match(findings.normalizedCodes(), versionCriteria, policy);
             if (result.confidence() == DiagnosisConfidence.WEAK && !result.hitExclusion()) {
                 continue; // 弱支持默认不并列呈现，避免低价值噪声（低打扰）
             }
-            KnowledgeIdentity identity = identities.findByTenantIdAndId(tenant, v.identityId()).orElse(null);
-            boolean redline = identity != null && redlinePinned.contains(identity.identityCode());
+            boolean redline = redlinePinned.contains(diagnosis.identityCode());
+            List<DiagnosisDifferentialSuggestion> differentialSuggestions =
+                differentialSuggestions(diagnosis.sourceTenantId(), diagnosis.knowledgeVersionId());
             List<DiagnosisCareSuggestion> careSuggestions = carePointers
-                .findByTenantIdAndDiagnosisVersionId(tenant, v.id()).stream()
+                .findByTenantIdAndDiagnosisVersionId(diagnosis.sourceTenantId(), diagnosis.knowledgeVersionId()).stream()
                 .map(pointer -> new DiagnosisCareSuggestion(
                     pointer.pointerType(), pointer.targetType(), pointer.targetRef(),
                     pointer.description(), true))
                 .toList();
             candidates.add(new DiagnosisCandidate(
-                v.identityId(),
-                identity == null ? null : identity.subject(),
-                identity == null ? null : identity.identityCode(),
+                diagnosis.identityId(),
+                diagnosis.diagnosisName(),
+                diagnosis.identityCode(),
                 result.confidence(),
                 result.supporting(), result.refuting(), result.missingRequired(),
+                differentialSuggestions,
                 careSuggestions,
-                v.authorityLevel() == null ? null : v.authorityLevel().name(), redline, v.id()));
+                diagnosis.authorityLevel(), redline, diagnosis.knowledgeVersionId()));
         }
         candidates.sort(rankComparator());
         // 可观测（设计 §4.8）：调用数 + 候选分级分布；采纳率由推荐卡反馈层覆盖（诊断卡即推荐卡）。
@@ -141,7 +153,7 @@ public class DiagnosisAssistService {
         List<RecommendationCardRequest> cards = candidates.stream().map(this::toCard).toList();
         recommendationEngine.trigger(new RecommendationTriggerRequest(
             "DX-" + snapshotId, TRIGGER_HOOK, null, snapshotId, null, null, null,
-            SCENARIO_CODE, null, inputDigest(findingCodes), null, cards, Boolean.FALSE));
+            SCENARIO_CODE, inputDigest(findingCodes), null, cards, Boolean.FALSE));
     }
 
     private RecommendationCardRequest toCard(DiagnosisCandidate c) {
@@ -175,6 +187,7 @@ public class DiagnosisAssistService {
                 "supporting", c.supporting(),
                 "refuting", c.refuting(),
                 "missingRequired", c.missingRequired(),
+                "differentials", c.differentials(),
                 "careSuggestions", c.careSuggestions(),
                 "confidence", c.confidence().name()));
         } catch (JsonProcessingException e) {
@@ -185,6 +198,36 @@ public class DiagnosisAssistService {
     private String inputDigest(Set<String> findingCodes) {
         // 发现集稳定摘要（排序后拼接），同输入同摘要，供推荐触发审计 / 幂等。
         return "dx:" + String.join(",", new TreeSet<>(findingCodes));
+    }
+
+    private List<DiagnosisDifferentialSuggestion> differentialSuggestions(
+            String sourceTenantId,
+            Long diagnosisVersionId) {
+        return differentials.findByTenantIdAndDiagnosisVersionId(sourceTenantId, diagnosisVersionId).stream()
+            .map(differential -> toDifferentialSuggestion(sourceTenantId, differential))
+            .toList();
+    }
+
+    private DiagnosisDifferentialSuggestion toDifferentialSuggestion(
+            String sourceTenantId,
+            DiagnosisDifferential differential) {
+        KnowledgeIdentity target = identities
+            .findByTenantIdAndId(sourceTenantId, differential.differentialIdentityId())
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_DX_001,
+                "鉴别诊断目标身份不存在：" + differential.differentialIdentityId()));
+        if (!target.isActive()) {
+            throw new ApiException(
+                ErrorCode.ENG_DX_001,
+                "鉴别诊断目标身份未激活：" + target.identityCode());
+        }
+        return new DiagnosisDifferentialSuggestion(
+            differential.differentialIdentityId(),
+            target.identityCode(),
+            target.subject(),
+            differential.keyPoint(),
+            differential.suggestedWorkup()
+        );
     }
 
     private DiagnosisConfidencePolicy resolvePolicy(String tenant) {

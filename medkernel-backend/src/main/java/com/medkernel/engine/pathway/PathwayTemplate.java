@@ -16,13 +16,11 @@ public record PathwayTemplate(
     @Id Long id,
     @Column("template_id") String templateId,
     @Column("tenant_id") String tenantId,
-    @Column("package_id") String packageId,
     @Column("template_code") String templateCode,
     String name,
     @Column("disease_code") String diseaseCode,
     @Column("template_version") Integer templateVersion,
     @Column("template_level") PathwayTemplateLevel templateLevel,
-    @Column("parent_template_id") String parentTemplateId,
     PathwayTemplateStatus status,
     @Column("entry_mode") PathwayEntryMode entryMode,
     @Column("start_node_code") String startNodeCode,
@@ -36,30 +34,4 @@ public record PathwayTemplate(
     @Column("updated_by") String updatedBy,
     @Column("trace_id") String traceId
 ) {
-    public PathwayTemplate(
-            Long id,
-            String templateId,
-            String tenantId,
-            String packageId,
-            String templateCode,
-            String name,
-            String diseaseCode,
-            Integer templateVersion,
-            PathwayTemplateLevel templateLevel,
-            PathwayTemplateStatus status,
-            PathwayEntryMode entryMode,
-            String startNodeCode,
-            String sourceRef,
-            String description,
-            String entryCriteriaJson,
-            String exitCriteriaJson,
-            Instant createdAt,
-            String createdBy,
-            Instant updatedAt,
-            String updatedBy,
-            String traceId) {
-        this(id, templateId, tenantId, packageId, templateCode, name, diseaseCode, templateVersion,
-            templateLevel, null, status, entryMode, startNodeCode, sourceRef, description,
-            entryCriteriaJson, exitCriteriaJson, createdAt, createdBy, updatedAt, updatedBy, traceId);
-    }
 }

@@ -11,6 +11,7 @@ const apiMocks = vi.hoisted(() => ({
   createAdmin: vi.fn(),
   changePassword: vi.fn(),
   bindMfa: vi.fn(),
+  verifyMfa: vi.fn(),
   bootstrapStatus: {
     data: { initialized: false },
     isLoading: false,
@@ -25,6 +26,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useCreateBootstrapAdmin: () => ({ mutateAsync: apiMocks.createAdmin, isPending: false }),
   useChangePassword: () => ({ mutateAsync: apiMocks.changePassword, isPending: false }),
   useBindBootstrapMfa: () => ({ mutateAsync: apiMocks.bindMfa, isPending: false }),
+  useVerifyMfa: () => ({ mutateAsync: apiMocks.verifyMfa, isPending: false }),
   useThemePreference: () => ({ data: undefined }),
   useSaveThemePreference: () => ({ mutateAsync: vi.fn() }),
 }));
@@ -63,6 +65,7 @@ describe("Bootstrap", () => {
     apiMocks.createAdmin.mockReset();
     apiMocks.changePassword.mockReset();
     apiMocks.bindMfa.mockReset();
+    apiMocks.verifyMfa.mockReset();
     apiMocks.bootstrapStatus.data = { initialized: false };
     apiMocks.bootstrapStatus.isLoading = false;
     apiMocks.bootstrapStatus.isError = false;
@@ -105,7 +108,7 @@ describe("Bootstrap", () => {
     renderBootstrap({
       phase: "change-password",
       login: {
-        userId: "organization-admin",
+        userId: "platform-admin",
         tenantId: "t-hospital",
         mustChangePwd: true,
         mfaRequired: false,
@@ -129,7 +132,7 @@ describe("Bootstrap", () => {
     expect(await screen.findByText("部署接管码已过期")).toBeInTheDocument();
   });
 
-  it("通过 token 后创建首发管理员，并提示返回登录完成改密", async () => {
+  it("通过 token 后创建初始管理员，并提示返回登录完成改密", async () => {
     apiMocks.checkInitToken.mockResolvedValue({
       valid: true,
       expiresAt: "2026-06-01T09:00:00Z",
@@ -138,14 +141,14 @@ describe("Bootstrap", () => {
       userId: "platform-owner",
       tenantId: "t-1",
       username: "platform-owner",
-      roles: ["platform-governance-admin"],
+      roles: ["platform-admin"],
       mustChangePwd: true,
     });
     const { container } = renderBootstrap();
 
     fireEvent.change(screen.getByLabelText("部署接管码"), { target: { value: "raw-init-token" } });
     fireEvent.click(screen.getByRole("button", { name: "继续接管" }));
-    expect(await screen.findByRole("heading", { name: "设置首发管理员" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "设置初始管理员" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "返回登录" })).toBeInTheDocument();
     expect(screen.queryByLabelText("租户标识")).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: /租户/ })).not.toBeInTheDocument();
@@ -158,9 +161,9 @@ describe("Bootstrap", () => {
     fireEvent.change(screen.getByLabelText("确认初始密码"), {
       target: { value: "Init@2026pw" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "创建首发管理员" }));
+    fireEvent.click(screen.getByRole("button", { name: "创建初始管理员" }));
 
-    expect(await screen.findByText(/请使用首发账号登录并完成首次改密/)).toBeInTheDocument();
+    expect(await screen.findByText(/请使用初始账号登录并完成首次改密/)).toBeInTheDocument();
     expect(apiMocks.createAdmin).toHaveBeenCalledWith({
       token: "raw-init-token",
       username: "platform-owner",
@@ -168,7 +171,7 @@ describe("Bootstrap", () => {
     });
   });
 
-  it("创建首发管理员成功后即使状态刷新为已初始化，也保留返回登录提示", async () => {
+  it("创建初始管理员成功后即使状态刷新为已初始化，也保留返回登录提示", async () => {
     apiMocks.checkInitToken.mockResolvedValue({
       valid: true,
       expiresAt: "2026-06-01T09:00:00Z",
@@ -187,24 +190,24 @@ describe("Bootstrap", () => {
 
     fireEvent.change(screen.getByLabelText("部署接管码"), { target: { value: "raw-init-token" } });
     fireEvent.click(screen.getByRole("button", { name: "继续接管" }));
-    expect(await screen.findByRole("heading", { name: "设置首发管理员" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "设置初始管理员" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("账号"), { target: { value: "platform-owner" } });
     fireEvent.change(screen.getByLabelText("初始密码"), { target: { value: "Init@2026pw" } });
     fireEvent.change(screen.getByLabelText("确认初始密码"), {
       target: { value: "Init@2026pw" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "创建首发管理员" }));
+    fireEvent.click(screen.getByRole("button", { name: "创建初始管理员" }));
 
-    expect(await screen.findByText(/请使用首发账号登录并完成首次改密/)).toBeInTheDocument();
+    expect(await screen.findByText(/请使用初始账号登录并完成首次改密/)).toBeInTheDocument();
     expect(screen.queryByText("系统已完成首次部署")).not.toBeInTheDocument();
   });
 
   it("客户租户首次登录只展示账号安全设置，不混入平台接管语义", () => {
     const { container } = renderBootstrap({
       phase: "change-password",
-      username: "organization-admin",
+      username: "platform-admin",
       login: {
-        userId: "organization-admin",
+        userId: "platform-admin",
         tenantId: "t-hospital",
         roles: ["tenant-admin"],
         mustChangePwd: true,
@@ -217,11 +220,19 @@ describe("Bootstrap", () => {
     expect(screen.getByRole("heading", { name: "完成账号安全设置" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "完成首次改密" })).toBeInTheDocument();
     expect(screen.getByText("改密")).toBeInTheDocument();
-    expect(screen.getByText("双因素")).toBeInTheDocument();
     expect(screen.getByText("完成")).toBeInTheDocument();
     expect(screen.getByText("进入机构工作台")).toBeInTheDocument();
-    expect(screen.getByText("按所在服务机构安全策略完成认证器绑定")).toBeInTheDocument();
-    expect(container).not.toHaveTextContent(/首次部署接管|平台接管|接管码|首发管理员/);
+    expect(screen.queryByText("双因素")).not.toBeInTheDocument();
+    expect(screen.queryByText("绑定双因素认证")).not.toBeInTheDocument();
+    expect(screen.queryByText("双因素认证")).not.toBeInTheDocument();
+    expect(container).not.toHaveTextContent(/首次部署接管|平台接管|接管码|初始管理员/);
+  });
+
+  it("默认接管流程不把 MFA 描述为必经步骤", () => {
+    renderBootstrap();
+
+    expect(screen.queryByText("绑定双因素认证")).not.toBeInTheDocument();
+    expect(screen.getAllByText(/MFA 默认关闭/).length).toBeGreaterThan(0);
   });
 
   it("登录后强制流程先改密，再按密钥生成和验证码校验绑定 MFA", async () => {
@@ -234,12 +245,13 @@ describe("Bootstrap", () => {
           "otpauth://totp/MedKernel:platform-owner?secret=JBSWY3DPEHPK3PXP&issuer=MedKernel",
       })
       .mockResolvedValueOnce({ mfaBound: true, recoveryCode: "RECOVERY-CODE-ONCE" });
+    apiMocks.verifyMfa.mockResolvedValue({ verified: true });
     renderBootstrap({
       phase: "change-password",
       login: {
         userId: "platform-owner",
         tenantId: "t-1",
-        roles: ["platform-governance-admin"],
+        roles: ["platform-admin"],
         mustChangePwd: true,
         mfaRequired: true,
         mfaBound: false,
@@ -247,7 +259,9 @@ describe("Bootstrap", () => {
     });
 
     expect(screen.getByText("进入平台治理")).toBeInTheDocument();
-    expect(screen.getByText("按平台治理安全策略完成认证器绑定")).toBeInTheDocument();
+    expect(
+      screen.getByText("当前部署已开启 MFA，按平台安全策略完成认证器验证"),
+    ).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("当前密码"), { target: { value: "Init@2026pw" } });
     fireEvent.change(screen.getByLabelText("新密码"), { target: { value: "Owner@2026pw" } });
     fireEvent.change(screen.getByLabelText("确认新密码"), { target: { value: "Owner@2026pw" } });
@@ -279,6 +293,31 @@ describe("Bootstrap", () => {
       secret: "JBSWY3DPEHPK3PXP",
       code: "123456",
     });
+    expect(apiMocks.verifyMfa).toHaveBeenCalledWith({ code: "123456" });
+  });
+
+  it("已绑定 MFA 的账号只验证当前动态码，不重复生成密钥", async () => {
+    apiMocks.verifyMfa.mockResolvedValue({ verified: true });
+    renderBootstrap({
+      phase: "mfa",
+      login: {
+        userId: "engine-operator",
+        tenantId: "t-1",
+        roles: ["engine-operator"],
+        mustChangePwd: false,
+        mfaRequired: true,
+        mfaBound: true,
+      },
+    });
+
+    expect(screen.getByRole("heading", { name: "验证双因素认证" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("设备名称")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("动态验证码"), { target: { value: "654321" } });
+    fireEvent.click(screen.getByRole("button", { name: "验证并进入系统" }));
+
+    expect(await screen.findByText("账号安全设置完成")).toBeInTheDocument();
+    expect(apiMocks.verifyMfa).toHaveBeenCalledWith({ code: "654321" });
+    expect(apiMocks.bindMfa).not.toHaveBeenCalled();
   });
 
   it("首次改密阶段也提供返回登录入口", () => {

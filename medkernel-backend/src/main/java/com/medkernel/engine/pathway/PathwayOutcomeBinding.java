@@ -20,7 +20,6 @@ public record PathwayOutcomeBinding(
     PathwayOutcomeScope scope,
     @Column("ref_code") String refCode,
     @Column("indicator_code") String indicatorCode,
-    @Column("package_version") String packageVersion,
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy,
     @Column("updated_at") Instant updatedAt,

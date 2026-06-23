@@ -6,6 +6,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.medkernel.engine.authoring.GeneratedAssetCandidateRequest;
+import com.medkernel.engine.authoring.GeneratedAssetCandidateService;
+import com.medkernel.engine.authoring.GeneratedAssetDraftResponse;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
 import com.medkernel.engine.knowledge.production.CandidateSubmissionResponse;
 import com.medkernel.engine.knowledge.production.KnowledgeProducer;
@@ -34,6 +37,7 @@ import com.medkernel.engine.llm.ModelGatewayService;
 import com.medkernel.engine.llm.ModelTaskRequest;
 import com.medkernel.engine.llm.ModelTaskResponse;
 import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
@@ -59,6 +63,7 @@ public class ModelKnowledgeProducer {
     private final CandidateSafetyGateService gateService;
     private final KnowledgeGenerationTriageService triageService;
     private final KnowledgeShadowEvaluationService shadowService;
+    private final GeneratedAssetCandidateService generatedAssets;
     private final ObjectMapper objectMapper;
 
     public ModelKnowledgeProducer(KnowledgeProductionJobRepository jobRepository,
@@ -68,6 +73,7 @@ public class ModelKnowledgeProducer {
                                   CandidateSafetyGateService gateService,
                                   KnowledgeGenerationTriageService triageService,
                                   KnowledgeShadowEvaluationService shadowService,
+                                  GeneratedAssetCandidateService generatedAssets,
                                   ObjectMapper objectMapper) {
         this.jobRepository = jobRepository;
         this.readinessService = readinessService;
@@ -76,6 +82,7 @@ public class ModelKnowledgeProducer {
         this.gateService = gateService;
         this.triageService = triageService;
         this.shadowService = shadowService;
+        this.generatedAssets = generatedAssets;
         this.objectMapper = objectMapper;
     }
 
@@ -86,6 +93,8 @@ public class ModelKnowledgeProducer {
         KnowledgeProductionJob job = jobRepository.findByTenantIdAndJobCode(tenantId, jobCode)
             .orElseThrow(() -> ApiException.notFound("知识生产 job=" + jobCode));
         guardModelProducer(job);
+        guardGeneratedAssetType(job);
+        guardCapability(request.capabilityCode());
         guardLocalModelPipeline(job);
 
         KnowledgeProductionReadinessResponse readiness = readinessService.evaluate(
@@ -139,6 +148,33 @@ public class ModelKnowledgeProducer {
                 List.of(new BlockedCandidate(job.assetType(), jobCode, List.of(GateItemResult.fail(
                     KnowledgeShadowEvaluationService.SHADOW_GATE_CODE, shadow.basis()))))));
         }
+        if (job.assetType() != VersionedAssetType.KNOWLEDGE) {
+            try {
+                GeneratedAssetDraftResponse draft = generatedAssets.materializeDraft(new GeneratedAssetCandidateRequest(
+                    tenantId,
+                    job.assetType(),
+                    request.assetIdentity(),
+                    tenantId,
+                    "ALL",
+                    job.sourceScope(),
+                    RequestContext.currentUserId().orElse("system"),
+                    RequestContext.currentTraceId(),
+                    generatedAssetContent(request, task, modelOutput),
+                    List.of()
+                ));
+                return result(jobCode, task, new GenerationSummary(
+                    List.of(new GeneratedCandidate(
+                        job.assetType(), jobCode, "asset-version:" + draft.versionId(), null)),
+                    List.of(),
+                    List.of()));
+            } catch (ApiException invalidGeneratedAsset) {
+                return result(jobCode, task, new GenerationSummary(
+                    List.of(),
+                    List.of(),
+                    List.of(new BlockedCandidate(job.assetType(), jobCode, List.of(GateItemResult.fail(
+                        MODEL_OUTPUT_SCHEMA_GATE, invalidGeneratedAsset.getMessage()))))));
+            }
+        }
         CandidateSubmissionResponse submitted = production.submitCandidate(jobCode, envelope, request.target());
         return result(jobCode, task, new GenerationSummary(
             List.of(new GeneratedCandidate(job.assetType(), jobCode, submitted.candidateRef(), submitted.routing())),
@@ -149,6 +185,27 @@ public class ModelKnowledgeProducer {
     private void guardModelProducer(KnowledgeProductionJob job) {
         if (job.producer() != KnowledgeProducer.API_MODEL && job.producer() != KnowledgeProducer.LOCAL_MODEL) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "job 生产器不是模型生产器，禁止调用模型生成");
+        }
+    }
+
+    private void guardGeneratedAssetType(KnowledgeProductionJob job) {
+        if (job.assetType() != VersionedAssetType.KNOWLEDGE
+                && job.assetType() != VersionedAssetType.RULE
+                && job.assetType() != VersionedAssetType.PATHWAY) {
+            throw new ApiException(
+                ErrorCode.BAD_REQUEST,
+                "模型生成只允许产生知识、规则或路径草稿，其他资产请使用对应维护入口"
+            );
+        }
+    }
+
+    private void guardCapability(String capabilityCode) {
+        if (capabilityCode == null
+            || !KnowledgeProductionReadinessService.DEFAULT_CAPABILITY_CODE.equalsIgnoreCase(capabilityCode.trim())) {
+            throw new ApiException(
+                ErrorCode.BAD_REQUEST,
+                "正式模型知识生产能力码必须为 " + KnowledgeProductionReadinessService.DEFAULT_CAPABILITY_CODE
+            );
         }
     }
 
@@ -249,6 +306,33 @@ public class ModelKnowledgeProducer {
         } catch (JsonProcessingException impossible) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "模型候选 payload 序列化失败");
         }
+    }
+
+    private JsonNode generatedAssetContent(ModelKnowledgeProductionRequest request,
+                                           ModelTaskResponse task,
+                                           JsonNode modelOutput) {
+        ObjectNode root = modelOutput == null || !modelOutput.isObject()
+            ? objectMapper.createObjectNode()
+            : modelOutput.deepCopy();
+        ObjectNode evidence = objectMapper.createObjectNode();
+        evidence.put("aiGenerated", true);
+        evidence.put("modelTaskId", task.taskId());
+        evidence.put("modelMode", task.modelMode());
+        evidence.put("modelVersion", task.modelVersion());
+        evidence.put("promptVersion", task.promptVersion());
+        evidence.put("toolVersion", task.toolVersion());
+        evidence.put("capabilityCode", request.capabilityCode());
+        evidence.put("promptInputHash", Sha256ContentHash.sha256(request.prompt(), "生产提示不能为空"));
+        evidence.put("fallbackUsed", task.fallbackUsed());
+        if (task.confidence() != null) {
+            evidence.put("confidence", task.confidence());
+        }
+        if (task.fallbackReason() != null && !task.fallbackReason().isBlank()) {
+            evidence.put("fallbackReason", task.fallbackReason());
+        }
+        evidence.set("sourceCitations", parseCitations(task.sourceCitations()));
+        root.set("generationEvidence", evidence);
+        return root;
     }
 
     private JsonNode parseCitations(String sourceCitations) {

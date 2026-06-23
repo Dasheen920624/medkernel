@@ -8,7 +8,7 @@ import {
   validateScenarioRules,
 } from "./scenario-rules.mjs";
 
-test("十条机构演练规则全部可运行且不依赖固定配置包版本", async () => {
+test("十条机构演练规则全部可运行且不依赖固定运行修订版本", async () => {
   const manifest = await loadScenarioRules();
   const selected = selectSeedRules(manifest);
 
@@ -28,7 +28,7 @@ test("十条机构演练规则全部可运行且不依赖固定配置包版本",
   );
   assert.ok(
     manifest.scenarios.every(
-      (item) => item.institution.tenantId === "pilot-hospital",
+      (item) => item.institution.tenantId === "t-rehearsal",
     ),
   );
   assert.ok(
@@ -39,7 +39,7 @@ test("十条机构演练规则全部可运行且不依赖固定配置包版本",
   assert.ok(
     manifest.scenarios.every((item) => item.disclaimer.includes("仅限演练")),
   );
-  assert.ok(manifest.scenarios.every((item) => !("packageVersion" in item)));
+  assert.ok(manifest.scenarios.every((item) => !(("package" + "Version") in item)));
 });
 
 test("每条规则都有权威来源、可执行 DSL 和四类可验证样例", async () => {

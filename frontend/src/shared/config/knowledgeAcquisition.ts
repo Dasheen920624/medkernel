@@ -27,6 +27,6 @@ export const KNOWLEDGE_ACQUISITION_LICENSE_OPTIONS = [
 
 export const KNOWLEDGE_ACQUISITION_ROBOTS_OPTIONS = [
   { value: "ALLOW_FETCH", label: "robots／ToS 明确允许" },
-  { value: "MANUAL_APPROVED", label: "治理审批允许定向获取" },
+  { value: "MANUAL_ALLOWED", label: "人工确认允许定向获取" },
   { value: "DISALLOW_FETCH", label: "明确禁止获取" },
 ];

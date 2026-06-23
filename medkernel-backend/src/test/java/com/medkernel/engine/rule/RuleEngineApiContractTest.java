@@ -2,6 +2,7 @@ package com.medkernel.engine.rule;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -91,8 +92,7 @@ class RuleEngineApiContractTest {
                       "trace_id": "trace-rule",
                       "tenant_id": "t-1",
                       "user_id": "api05-specialist",
-                      "role_codes": ["knowledge-governor"],
-                      "package_version": "1.0.0",
+                      "role_codes": ["engine-operator"],
                       "ruleCode": "RULE.CARDIOLOGY.HR",
                       "name": "心率质控复核",
                       "ruleType": "QUALITY",
@@ -115,6 +115,98 @@ class RuleEngineApiContractTest {
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.ruleId").value("rule-quality"));
+    }
+
+    @Test
+    void createRejectsLegacyPackageSelectionFieldsInsteadOfSilentlyIgnoringThem() throws Exception {
+        mvc.perform(post("/api/v1/engine/rule/rules")
+                .with(writeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "request_id": "req-quality",
+                      "trace_id": "trace-rule",
+                      "tenant_id": "t-1",
+                      "user_id": "api05-specialist",
+                      "role_codes": ["engine-operator"],
+                      "package_version": "1.0.0",
+                      "packageCode": "PKG.LEGACY",
+                      "ruleCode": "RULE.CARDIOLOGY.HR",
+                      "name": "心率质控复核",
+                      "ruleType": "QUALITY",
+                      "sourceRef": "院内心血管诊疗规范 2026",
+                      "dsl": {
+                        "when": {"all": []},
+                        "then": [],
+                        "explain": {"summary": "心率阈值质控"}
+                      }
+                    }
+                    """))
+            .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void createNextVersionUsesStableRuleIdentityRoute() throws Exception {
+        when(service.createNextVersion("rule-1")).thenReturn(new RuleVersionCreateResponse(
+            "rule-1", "version-2", 2, RuleVersionStatus.DRAFT, "trace-rule"));
+
+        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/versions")
+                .with(writeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "request_id": "req-v2",
+                      "trace_id": "trace-rule",
+                      "tenant_id": "t-1",
+                      "user_id": "api05-specialist",
+                      "role_codes": ["engine-operator"]
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.ruleId").value("rule-1"))
+            .andExpect(jsonPath("$.data.versionId").value("version-2"))
+            .andExpect(jsonPath("$.data.versionNo").value(2))
+            .andExpect(jsonPath("$.data.status").value("DRAFT"));
+    }
+
+    @Test
+    void operationRequestDoesNotCarryManualPackageVersion() {
+        org.assertj.core.api.Assertions.assertThat(
+            List.of(RuleOperationRequest.class.getRecordComponents()).stream()
+                .map(component -> component.getName())
+                .toList())
+            .doesNotContain("packageVersion");
+    }
+
+    @Test
+    void testCaseRequestDoesNotCarryManualPackageVersion() {
+        org.assertj.core.api.Assertions.assertThat(
+            List.of(RuleTestCaseRequest.class.getRecordComponents()).stream()
+                .map(component -> component.getName())
+                .toList())
+            .doesNotContain("packageVersion");
+    }
+
+    @Test
+    void governanceTransitionRequestDoesNotCarryManualPackageVersion() {
+        org.assertj.core.api.Assertions.assertThat(
+            List.of(RuleGovernanceTransitionRequest.class.getRecordComponents()).stream()
+                .map(component -> component.getName())
+                .toList())
+            .doesNotContain("packageVersion");
+    }
+
+    @Test
+    void simulationRequiresExplicitTriggerAndDoesNotCarryPackageVersion() {
+        org.assertj.core.api.Assertions.assertThat(
+            List.of(RuleSimulateRequest.class.getRecordComponents()).stream()
+                .map(component -> component.getName())
+                .toList())
+            .contains("triggerPoint", "context")
+            .doesNotContain("packageVersion");
     }
 
     @Test
@@ -178,8 +270,7 @@ class RuleEngineApiContractTest {
                       "trace_id": "trace-rule",
                       "tenant_id": "t-1",
                       "user_id": "api05-doctor",
-                      "role_codes": ["clinical-decision-user"],
-                      "package_version": "pkg-1",
+                      "role_codes": ["clinical-user"],
                       "triggerPoint": "order-sign",
                       "contextSnapshotId": "snapshot-1",
                       "eventId": "evt-1",
@@ -195,6 +286,29 @@ class RuleEngineApiContractTest {
             .andExpect(jsonPath("$.data.cards[0].suggestions[0].payload.department")
                 .value("CARDIOLOGY"))
             .andExpect(jsonPath("$.data.cards[0].requiresPhysicianConfirmation").value(true));
+    }
+
+    @Test
+    void evaluateEndpointDoesNotRequireClientSuppliedPackageVersion() throws Exception {
+        when(service.evaluate(any(RuleEvaluateRequest.class))).thenReturn(new RuleEvaluateResponse(
+            "req-runtime", List.of(), RuleRiskLevel.LOW, List.of(), "trace-rule"));
+
+        mvc.perform(post("/api/v1/engine/rule/rules/evaluate")
+                .with(readJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "request_id": "req-runtime",
+                      "trace_id": "trace-rule",
+                      "tenant_id": "t-1",
+                      "user_id": "api05-doctor",
+                      "role_codes": ["clinical-user"],
+                      "triggerPoint": "order-sign",
+                      "contextSnapshotId": "snapshot-1"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test
@@ -219,16 +333,16 @@ class RuleEngineApiContractTest {
         return jwt().jwt(token -> token
                 .subject("api05-doctor")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("clinical-decision-user")))
-            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"));
+                .claim("roles", List.of("clinical-user")))
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"));
     }
 
     private static RequestPostProcessor writeJwt() {
         return jwt().jwt(token -> token
                 .subject("api05-specialist")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("knowledge-governor")))
-            .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"));
+                .claim("roles", List.of("engine-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"));
     }
 
     private JsonNode evidenceExplanation() {

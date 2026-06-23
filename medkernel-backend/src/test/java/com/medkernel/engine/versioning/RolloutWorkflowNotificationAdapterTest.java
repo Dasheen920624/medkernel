@@ -42,7 +42,7 @@ class RolloutWorkflowNotificationAdapterTest {
         assertThat(saved.sourceType()).isEqualTo(WorkflowNotificationSourceType.RELEASE_ROLLOUT);
         assertThat(saved.level()).isEqualTo(WorkflowNotificationLevel.HIGH);
         assertThat(saved.status()).isEqualTo(WorkflowNotificationStatus.UNREAD);
-        assertThat(saved.recipientRole()).isEqualTo("ORGANIZATION_ADMIN");
+        assertThat(saved.recipientRole()).isEqualTo("ENGINE_OPERATOR");
         assertThat(saved.deepLink()).contains("releasePlanId=vrl-1");
     }
 
@@ -68,10 +68,6 @@ class RolloutWorkflowNotificationAdapterTest {
             "impact",
             "review",
             "evidence",
-            null,
-            null,
-            null,
-            null,
             null,
             now,
             "operator-1",

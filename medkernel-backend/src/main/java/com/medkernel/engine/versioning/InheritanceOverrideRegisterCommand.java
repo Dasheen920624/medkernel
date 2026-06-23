@@ -18,4 +18,5 @@ public record InheritanceOverrideRegisterCommand(
     String createdBy,
     String traceId,
     InheritancePropagation propagation
-) {}
+) {
+}

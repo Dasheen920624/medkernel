@@ -177,7 +177,7 @@ public class KnowledgeRetirementService {
                         "知识退役缺少统一已发布版本: "
                             + identity.identityCode() + "@" + version.versionNo()));
                 assetVersions.save(unified.withStatusAndWindow(
-                    AssetVersionStatus.DEPRECATED,
+                    AssetVersionStatus.WITHDRAWN,
                     "version:" + unified.versionId(),
                     unified.effectiveFrom(),
                     now,

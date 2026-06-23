@@ -49,6 +49,7 @@ public class ClinicalEventService {
     private final ObjectMapper json;
     private final ClinicalEventProperties properties;
     private final IntegrationWebhookConfigRepository webhookConfigRepository;
+    private final CurrentClinicalRuntimeReleaseResolver runtimeReleases;
 
     public ClinicalEventService(ClinicalEventRepository events,
                                 ClinicalEventPayloadRepository payloads,
@@ -59,7 +60,8 @@ public class ClinicalEventService {
                                 DiagnoseResponseAssembler diagnoseAssembler,
                                 ObjectMapper json,
                                 ClinicalEventProperties properties,
-                                IntegrationWebhookConfigRepository webhookConfigRepository) {
+                                IntegrationWebhookConfigRepository webhookConfigRepository,
+                                CurrentClinicalRuntimeReleaseResolver runtimeReleases) {
         this.events = events;
         this.payloads = payloads;
         this.outbox = outbox;
@@ -70,6 +72,7 @@ public class ClinicalEventService {
         this.json = json;
         this.properties = properties;
         this.webhookConfigRepository = webhookConfigRepository;
+        this.runtimeReleases = runtimeReleases;
     }
 
     @Transactional
@@ -92,7 +95,28 @@ public class ClinicalEventService {
 
     @Transactional
     public ClinicalEventAcceptedResponse receiveAsync(ClinicalEventRequest req) {
-        String tenantId = requireCurrentTenant();
+        OrgScope scope = requireCurrentOrgScope();
+        ClinicalRuntimeRelease runtimeRelease = runtimeReleases.resolve(scope);
+        return receiveAsync(req, scope, runtimeRelease.releaseId());
+    }
+
+    /**
+     * 接收上游已经锁定运行修订的事件，确保术语归一、事件持久化和后续快照始终消费同一清单。
+     */
+    @Transactional
+    public ClinicalEventAcceptedResponse receiveAsyncBound(
+            ClinicalEventRequest req,
+            String runtimeReleaseId) {
+        OrgScope scope = requireCurrentOrgScope();
+        ClinicalRuntimeRelease runtimeRelease = runtimeReleases.require(scope, runtimeReleaseId);
+        return receiveAsync(req, scope, runtimeRelease.releaseId());
+    }
+
+    private ClinicalEventAcceptedResponse receiveAsync(
+            ClinicalEventRequest req,
+            OrgScope scope,
+            String runtimeReleaseId) {
+        String tenantId = scope.tenantId();
         String traceId = RequestContext.currentTraceId();
         String payload = writePayload(req.payload());
         long size = payload.getBytes(StandardCharsets.UTF_8).length;
@@ -127,7 +151,7 @@ public class ClinicalEventService {
             req.triggerPoint(), req.idempotencyKey(), req.callbackWebhookId(),
             writeOrgScope(),
             req.patientId(), req.encounterId(), req.clinicalSetting(),
-            req.sourceSystem(), req.packageVersion(),
+            req.sourceSystem(), runtimeReleaseId,
             digest, req.occurredAt(), now, null, ClinicalEventStatus.RECEIVED,
             null, null, 0, null, traceId
         ));
@@ -251,7 +275,7 @@ public class ClinicalEventService {
             source.triggerPoint(), null, source.callbackWebhookId(),
             source.orgScopeJson(),
             source.patientId(), source.encounterId(), source.clinicalSetting(),
-            source.sourceSystem(), source.packageVersion(),
+            source.sourceSystem(), source.runtimeReleaseId(),
             payload.digest(), source.occurredAt(), now, null, ClinicalEventStatus.RECEIVED,
             null, null, 0, source.eventId(), RequestContext.currentTraceId()
         ));
@@ -303,7 +327,7 @@ public class ClinicalEventService {
     private ClinicalEventDetailResponse toDetail(ClinicalEvent event) {
         return new ClinicalEventDetailResponse(
             event.eventId(), event.eventType(), event.triggerPoint(), event.patientId(), event.encounterId(),
-            event.clinicalSetting(), event.sourceSystem(), event.packageVersion(),
+            event.clinicalSetting(), event.sourceSystem(), event.runtimeReleaseId(),
             event.callbackWebhookId(), event.processingStatus(),
             event.payloadDigest(), event.errorCode(), event.errorClass(),
             event.retryCount(), event.rootEventId(), event.occurredAt(),
@@ -322,7 +346,7 @@ public class ClinicalEventService {
             source.triggerPoint(), source.idempotencyKey(), source.callbackWebhookId(),
             source.orgScopeJson(),
             source.patientId(), source.encounterId(), source.clinicalSetting(),
-            source.sourceSystem(), source.packageVersion(),
+            source.sourceSystem(), source.runtimeReleaseId(),
             source.payloadDigest(), source.occurredAt(), source.receivedAt(), source.snapshotId(),
             status, source.errorCode(), source.errorClass(), source.retryCount(),
             source.rootEventId(), source.traceId());
@@ -385,11 +409,15 @@ public class ClinicalEventService {
     }
 
     private String requireCurrentTenant() {
+        return requireCurrentOrgScope().tenantId();
+    }
+
+    private OrgScope requireCurrentOrgScope() {
         OrgScope scope = RequestContext.currentOrgScope();
         if (scope == null || !scope.hasTenant()) {
             throw ApiException.tenantMissing();
         }
-        return scope.tenantId();
+        return scope;
     }
 
     private String blankToNull(String value) {

@@ -21,6 +21,11 @@ public interface FollowupTemplateRepository extends ListCrudRepository<FollowupT
         Integer versionNo
     );
 
+    Optional<FollowupTemplate> findTopByTenantIdAndTemplateCodeOrderByVersionNoDesc(
+        String tenantId,
+        String templateCode
+    );
+
     List<FollowupTemplate> findByTenantIdOrderByUpdatedAtDesc(String tenantId);
 
     @Query("""

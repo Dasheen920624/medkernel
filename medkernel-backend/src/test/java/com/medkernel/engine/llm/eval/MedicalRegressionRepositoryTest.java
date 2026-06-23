@@ -14,7 +14,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.TestPropertySource;
 
 /**
- * 医学回归评测运行、基准用例和逐例证据三表仓储回归测试（LLM-07，V151 五方言迁移）。
+ * 医学回归评测运行、基准用例和逐例证据三表仓储回归测试。
  */
 @DataJdbcTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
@@ -61,7 +61,7 @@ class MedicalRegressionRepositoryTest {
         caseRepo.save(new MedicalRegressionCase(null, "tenant-1", "rule.draft",
             "rule",
             "红线ID：redline-dose-limit\n证据引用：source-version:77#dose-limit",
-            "儿童用药剂量上限需双签", "[]", "[]", 100,
+            "儿童用药剂量上限必须阻断并人工确认", "[]", "[]", 100,
             "DOSE_LIMIT", "source-version:77#dose-limit", "Y",
             "2026.1", "Y", now, "system", now, "system"));
 
@@ -94,7 +94,7 @@ class MedicalRegressionRepositoryTest {
         runRepo.save(new ModelEvalRun(null, "tenant-1", "claude-prod", "claude-opus-4-8",
             "rule.draft", "prompt:v1", "tool:v1", "release-current",
             10, 10, 0, null, null, "N", "N", "N", "PASSED", "[]",
-            "逐例证据已核查并确认可放行。", "quality-001", now, now, "system", now, "system"));
+            now, "system", now, "system"));
 
         assertThat(runRepo.findFirstByTenantIdAndProviderCodeAndModelVersionAndStatusOrderByIdDesc(
                 "tenant-1", "claude-prod", "claude-opus-4-8", "PASSED"))
@@ -113,42 +113,13 @@ class MedicalRegressionRepositoryTest {
     }
 
     @Test
-    void pendingSignOffIsAtomicAndCannotOverwriteFirstReviewer() {
-        Instant createdAt = Instant.parse("2026-06-14T00:00:00Z");
-        ModelEvalRun pending = runRepo.save(new ModelEvalRun(
-            null, "tenant-1", "ollama-local", "qwen2.5:0.5b",
-            "rule.draft", "prompt:v1", "tool:v1", "release-current",
-            3, 3, 0, null, null, "N", "N", "N", "PENDING_REVIEW", "{}",
-            null, null, null, createdAt, "author", createdAt, "author"));
-        Instant firstSignedAt = Instant.parse("2026-06-14T00:01:00Z");
-        Instant secondSignedAt = Instant.parse("2026-06-14T00:02:00Z");
-
-        assertThat(runRepo.signOffPending(
-            pending.id(), "tenant-1", "reviewer-1", "逐例证据核查通过，准予放行。", firstSignedAt))
-            .isEqualTo(1);
-        assertThat(runRepo.signOffPending(
-            pending.id(), "tenant-1", "reviewer-2", "尝试覆盖首次复核意见。", secondSignedAt))
-            .isZero();
-
-        assertThat(runRepo.findById(pending.id()))
-            .isPresent()
-            .get()
-            .satisfies(run -> {
-                assertThat(run.status()).isEqualTo("PASSED");
-                assertThat(run.reviewer()).isEqualTo("reviewer-1");
-                assertThat(run.reviewComment()).isEqualTo("逐例证据核查通过，准予放行。");
-                assertThat(run.signedAt()).isEqualTo(firstSignedAt);
-            });
-    }
-
-    @Test
     void immutableCaseEvidenceIsTenantScopedAndRunListIsPaged() {
         Instant now = Instant.parse("2026-06-18T00:00:00Z");
         ModelEvalRun run = runRepo.save(new ModelEvalRun(
             null, "tenant-1", "mimo-external", "mimo-v2.5",
             "rule.draft", "prompt:v2", "tool:v3", "release-current",
-            1, 1, 0, null, null, "N", "N", "N", "PENDING_REVIEW", "{}",
-            null, null, null, now, "quality-001", now, "quality-001"));
+            1, 1, 0, null, null, "N", "N", "N", "PASSED", "{}",
+            now, "quality-001", now, "quality-001"));
         evidenceRepo.save(new ModelEvalCaseEvidence(
             null, "tenant-1", run.id(), 101L, "2026.1", "活动性出血患者是否可用药？",
             "活动性出血禁用", "CONTRAINDICATION", "source-version:88#contraindication",
@@ -164,9 +135,9 @@ class MedicalRegressionRepositoryTest {
             });
         assertThat(evidenceRepo.findByTenantIdAndRunIdOrderByIdAsc("tenant-2", run.id())).isEmpty();
         assertThat(runRepo.findByTenantIdAndStatusOrderByCreatedAtDesc(
-            "tenant-1", "PENDING_REVIEW", PageRequest.of(0, 1)))
+            "tenant-1", "PASSED", PageRequest.of(0, 1)))
             .extracting(ModelEvalRun::id)
             .containsExactly(run.id());
-        assertThat(runRepo.countByTenantIdAndStatus("tenant-1", "PENDING_REVIEW")).isEqualTo(1);
+        assertThat(runRepo.countByTenantIdAndStatus("tenant-1", "PASSED")).isEqualTo(1);
     }
 }

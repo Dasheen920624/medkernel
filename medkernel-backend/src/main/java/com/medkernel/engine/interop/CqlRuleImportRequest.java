@@ -16,7 +16,6 @@ public record CqlRuleImportRequest(
     @NotBlank String name,
     @NotNull RuleType ruleType,
     @NotNull RuleRiskLevel riskLevel,
-    String packageVersion,
     String applicableOrgUnitId,
     @NotBlank String sourceRef,
     @NotBlank String library,
@@ -25,7 +24,6 @@ public record CqlRuleImportRequest(
     public CqlRuleImportRequest {
         ruleCode = trim(ruleCode);
         name = trim(name);
-        packageVersion = trim(packageVersion);
         applicableOrgUnitId = trim(applicableOrgUnitId);
         sourceRef = trim(sourceRef);
         library = trim(library);

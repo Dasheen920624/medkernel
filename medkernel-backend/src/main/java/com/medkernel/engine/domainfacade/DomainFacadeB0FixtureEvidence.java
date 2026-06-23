@@ -12,16 +12,16 @@ import java.util.List;
  * @param status fixture 验证状态
  * @param fixtureId fixture 编号
  * @param b0Executable 是否具备无模型 B0 入口
- * @param modelRequired 是否依赖模型；T7.1 必须为 false
- * @param clinicalContentSeeded 是否预填真实医学内容；T7.1 必须为 false
- * @param newBusinessEngineRequired 是否需要新增领域专属引擎；T7.1 必须为 false
+ * @param modelRequired 是否依赖模型；B0 固定为 false
+ * @param clinicalContentSeeded 是否预填真实医学内容；B0 固定为 false
+ * @param newBusinessEngineRequired 是否需要新增领域专属引擎；固定为 false
  * @param honestEmptyWhenAssetsMissing 缺真实资产时是否诚实空态
- * @param servicePackageMembersResolvable 服务包成员是否全部可解析
+ * @param serviceCombinationMembersResolvable 业务组合成员是否全部可解析
  * @param assetSeedPolicy 资产种子策略
  * @param b0Workflows B0 工作流摘要
  * @param engineFixtures 共享引擎 fixture 证据
- * @param memberFacadeCodes 声明的服务包成员
- * @param verifiedMemberFacadeCodes 已解析的服务包成员
+ * @param memberFacadeCodes 声明的业务组合成员
+ * @param verifiedMemberFacadeCodes 已解析的业务组合成员
  */
 public record DomainFacadeB0FixtureEvidence(
     String code,
@@ -33,7 +33,7 @@ public record DomainFacadeB0FixtureEvidence(
     boolean clinicalContentSeeded,
     boolean newBusinessEngineRequired,
     boolean honestEmptyWhenAssetsMissing,
-    boolean servicePackageMembersResolvable,
+    boolean serviceCombinationMembersResolvable,
     String assetSeedPolicy,
     List<String> b0Workflows,
     List<DomainFacadeEngineFixtureEvidence> engineFixtures,

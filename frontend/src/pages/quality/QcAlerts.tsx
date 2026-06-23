@@ -146,13 +146,16 @@ export default function QcAlerts() {
       title="质量问题"
       description="按真实预警处置整改"
       extras={
-        <Button
-          aria-label="刷新质量问题"
-          icon={<ReloadOutlined />}
-          onClick={() => alertsQuery.refetch()}
-        >
-          刷新
-        </Button>
+        <Space wrap>
+          <Button href="/qc/eval/results">查看评价结果来源</Button>
+          <Button
+            aria-label="刷新质量问题"
+            icon={<ReloadOutlined />}
+            onClick={() => alertsQuery.refetch()}
+          >
+            刷新
+          </Button>
+        </Space>
       }
       state={resolvePageState(alertsQuery.isLoading, alertsQuery.isError, errorStatus, alertItems)}
       stateProps={{

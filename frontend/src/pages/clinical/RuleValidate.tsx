@@ -137,15 +137,8 @@ export default function RuleValidate() {
         message.error("请先选择 ACTIVE 临床快照");
         return;
       }
-      const packageVersion = snapshotDetailQuery.data?.packageVersion?.trim();
-      if (!packageVersion) {
-        message.error("所选临床快照缺少配置包版本，不能执行规则");
-        return;
-      }
-
       const res = await evaluateMutation.mutateAsync({
         triggerPoint,
-        packageVersion,
         contextSnapshotId: selectedSnapshotId,
       });
 
@@ -392,8 +385,8 @@ export default function RuleValidate() {
 
             {snapshotDetailQuery.data && (
               <Descriptions bordered size="small" column={1} className={styles.sectionGap}>
-                <Descriptions.Item label="配置包版本">
-                  {snapshotDetailQuery.data.packageVersion || "缺失"}
+                <Descriptions.Item label="快照运行标识">
+                  {snapshotDetailQuery.data.runtimeReleaseId || "由医院当前运行修订解析"}
                 </Descriptions.Item>
                 <Descriptions.Item label="质量状态">
                   {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}

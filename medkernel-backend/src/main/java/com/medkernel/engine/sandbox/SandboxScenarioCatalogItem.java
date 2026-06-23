@@ -5,7 +5,7 @@ package com.medkernel.engine.sandbox;
  */
 public record SandboxScenarioCatalogItem(
     String id,
-    String servicePackage,
+    String serviceLine,
     String engine,
     String playbook,
     String triggerPoint,
@@ -29,7 +29,7 @@ public record SandboxScenarioCatalogItem(
             : SandboxScenarioInput.orchestration();
         return new SandboxScenarioCatalogItem(
             scenario.id(),
-            scenario.servicePackage(),
+            scenario.serviceLine(),
             scenario.engine(),
             scenario.playbook(),
             scenario.triggerPoint(),
@@ -43,7 +43,7 @@ public record SandboxScenarioCatalogItem(
             scenario.expectedSeverity(),
             scenario.expectedAssetCode(),
             "runtime-check",
-            "运行时按演练机构绑定解析并校验资产；目录不固化配置包版本",
+            "运行时按演练机构绑定解析并校验资产；目录不固化运行修订版本",
             input
         );
     }

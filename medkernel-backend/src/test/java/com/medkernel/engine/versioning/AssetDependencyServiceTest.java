@@ -87,14 +87,64 @@ class AssetDependencyServiceTest {
         when(dependencies.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionIdOrderByDependsOnAssetTypeAscDependsOnIdentityAsc(
             "tenant-A", VersionedAssetType.RULE, "RULE.ANEMIA", "av-rule-v1"
         )).thenReturn(List.of(edge));
-        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
             PlatformAuthority.PLATFORM_TENANT_ID,
             VersionedAssetType.TERMINOLOGY,
-            "TERMINOLOGY.LOINC.718-7|" + PlatformAuthority.PLATFORM_ORG_PATH + "|adult|inpatient",
+            "TERMINOLOGY.LOINC.718-7",
             AssetVersionStatus.PUBLISHED
         )).thenReturn(List.of(platformTerm));
 
         assertThatCode(() -> service.assertDependenciesResolvable(owner)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void resolvesRuleDependencyByStableIdentityWhenPathwayAndRuleScopesDiffer() {
+        AssetVersion pathway = version(
+            "av-path-v1",
+            "tenant-A",
+            VersionedAssetType.PATHWAY,
+            "PATHWAY.STROKE",
+            "1.0.0",
+            HOSP_PATH,
+            AssetVersionStatus.PUBLISHED,
+            "disease:I63"
+        );
+        AssetVersion rule = version(
+            "av-rule-v1",
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.STROKE.ADMISSION",
+            "1.0.0",
+            HOSP_PATH,
+            AssetVersionStatus.PUBLISHED,
+            "PKG.STROKE@1.0.0"
+        );
+        AssetDependency edge = new AssetDependency(
+            1L,
+            "dep-path-rule",
+            pathway.tenantId(),
+            pathway.assetType(),
+            pathway.assetIdentity(),
+            pathway.versionId(),
+            VersionedAssetType.RULE,
+            rule.assetIdentity(),
+            null,
+            null,
+            AssetDependencyKind.RULE,
+            CLOCK.instant(),
+            "author-1",
+            CLOCK.instant(),
+            "author-1",
+            "trace-dep"
+        );
+        when(dependencies.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionIdOrderByDependsOnAssetTypeAscDependsOnIdentityAsc(
+            pathway.tenantId(), pathway.assetType(), pathway.assetIdentity(), pathway.versionId()
+        )).thenReturn(List.of(edge));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
+            "tenant-A", VersionedAssetType.RULE, "RULE.STROKE.ADMISSION", AssetVersionStatus.PUBLISHED
+        )).thenReturn(List.of(rule));
+
+        assertThatCode(() -> service.assertDependenciesResolvable(pathway)).doesNotThrowAnyException();
     }
 
     @Test
@@ -119,7 +169,7 @@ class AssetDependencyServiceTest {
 
     @Test
     void ignoresRetiredDependentWhenCheckingDisableDanglingReferences() {
-        AssetVersion retiredRule = ruleVersion("av-rule-retired", "RULE.ANEMIA", AssetVersionStatus.RETIRED);
+        AssetVersion retiredRule = ruleVersion("av-rule-retired", "RULE.ANEMIA", AssetVersionStatus.WITHDRAWN);
         AssetDependency edge = dependency(
             retiredRule, VersionedAssetType.TERMINOLOGY, "TERMINOLOGY.LOINC.718-7", null, null);
         when(dependencies.findByTenantIdAndDependsOnAssetTypeAndDependsOnIdentity(
@@ -182,6 +232,19 @@ class AssetDependencyServiceTest {
             String versionNo,
             String orgPath,
             AssetVersionStatus status) {
+        return version(
+            versionId, tenantId, assetType, identity, versionNo, orgPath, status, "adult|inpatient");
+    }
+
+    private AssetVersion version(
+            String versionId,
+            String tenantId,
+            VersionedAssetType assetType,
+            String identity,
+            String versionNo,
+            String orgPath,
+            AssetVersionStatus status,
+            String applicableScope) {
         return new AssetVersion(
             1L,
             versionId,
@@ -190,12 +253,14 @@ class AssetDependencyServiceTest {
             identity,
             versionNo,
             orgPath,
-            "adult|inpatient",
+            applicableScope,
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             AssetVersionSafetyPolicy.NORMAL,
             AssetVersionOverridePolicy.FREE,
             status,
-            status == AssetVersionStatus.PUBLISHED ? identity + "|" + orgPath + "|adult|inpatient" : "version:" + versionId,
+            status == AssetVersionStatus.PUBLISHED
+                ? identity + "|" + orgPath + "|" + applicableScope
+                : "version:" + versionId,
             assetType.name().toLowerCase() + "/" + identity,
             null,
             null,

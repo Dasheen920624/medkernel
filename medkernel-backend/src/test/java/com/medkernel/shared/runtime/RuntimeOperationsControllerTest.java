@@ -38,10 +38,10 @@ class RuntimeOperationsControllerTest {
     }
 
     /**
-     * 验证拥有 ROLE_INTEGRATION_OPERATOR 角色的受托用户，能够顺利穿透安全切面并获取不泄露密钥的运维快照。
+     * 验证拥有 ROLE_PLATFORM_ADMIN 角色的受托用户，能够顺利穿透安全切面并获取不泄露密钥的运维快照。
      */
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void operationsSnapshotExposesRuntimeContractWithoutSecrets() throws Exception {
         mvc.perform(get("/api/v1/system/operations"))
             .andExpect(status().isOk())
@@ -97,7 +97,7 @@ class RuntimeOperationsControllerTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void domesticReportExportsTheSameRuntimeCompatibilitySnapshot() throws Exception {
         mvc.perform(get("/api/v1/system/operations/domestic-report"))
             .andExpect(status().isOk())

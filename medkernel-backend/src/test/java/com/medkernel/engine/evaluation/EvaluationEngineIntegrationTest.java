@@ -15,17 +15,35 @@ import java.util.Optional;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.context.CanonicalResource;
 import com.medkernel.engine.context.CanonicalResourceType;
+import com.medkernel.engine.context.ClinicalRuntimeRelease;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseContentResolver;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseItem;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseItemRepository;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseRepository;
 import com.medkernel.engine.context.ContextSnapshot;
 import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.context.QualityStatus;
+import com.medkernel.engine.evaluation.runtime.RuntimeReleaseEvaluationSelector;
 import com.medkernel.engine.org.OrgAssignmentValidator;
+import com.medkernel.engine.org.OrgHierarchyRepository;
+import com.medkernel.engine.release.ReleaseEntryState;
+import com.medkernel.engine.release.ReleaseManifestHash;
+import com.medkernel.engine.release.PlatformBaselineRelease;
+import com.medkernel.engine.release.PlatformBaselineReleaseRepository;
+import com.medkernel.engine.release.ReleaseSourceLayer;
 import com.medkernel.engine.rule.RuleDslEvaluation;
 import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.engine.security.PermissionCode;
 import com.medkernel.engine.security.PermissionEvaluator;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.versioning.AssetDependencyService;
+import com.medkernel.engine.versioning.AssetIdentityService;
+import com.medkernel.engine.versioning.AssetScopeResolver;
+import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionNumbers;
+import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionService;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.engine.versioning.VersionReleaseService;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.error.ApiException;
@@ -48,6 +66,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -56,8 +75,13 @@ import org.springframework.test.context.TestPropertySource;
 @DataJdbcTest
 @Import({
     EvaluationEngineService.class,
+    RuntimeReleaseEvaluationSelector.class,
+    ClinicalRuntimeReleaseContentResolver.class,
     EvaluationVersionedAssetAdapter.class,
     AssetDependencyService.class,
+    AssetIdentityService.class,
+    AssetScopeResolver.class,
+    OrgHierarchyRepository.class,
     AssetVersionService.class,
     VersionReleaseService.class
 })
@@ -81,6 +105,11 @@ class EvaluationEngineIntegrationTest {
     @Autowired RectificationTaskRepository tasks;
     @Autowired RectificationReviewRepository reviews;
     @Autowired EvaluationIdempotencyKeyRepository idempotencyKeys;
+    @Autowired ClinicalRuntimeReleaseRepository runtimeReleases;
+    @Autowired ClinicalRuntimeReleaseItemRepository runtimeReleaseItems;
+    @Autowired PlatformBaselineReleaseRepository platformBaselineReleases;
+    @Autowired AssetVersionRepository assetVersions;
+    @Autowired JdbcTemplate jdbc;
 
     @MockBean AuditRecorder auditRecorder;
     @MockBean StateTransitionRecorder transitions;
@@ -99,10 +128,18 @@ class EvaluationEngineIntegrationTest {
             new UsernamePasswordAuthenticationToken(
                 "qa-1",
                 "n/a",
-                List.of(new SimpleGrantedAuthority(RoleCode.ORGANIZATION_ADMIN.authority()))
+                List.of(new SimpleGrantedAuthority(RoleCode.ENGINE_OPERATOR.authority()))
             )
         );
         when(permissionEvaluator.has(PermissionCode.TENANT_OVERRIDE)).thenReturn(true);
+        jdbc.update("""
+            INSERT INTO org_unit (
+                id, parent_id, tenant_id, org_path, level_code, code, name,
+                status, created_at, created_by, updated_at, updated_by
+            ) VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            "org-tenant-A", "tenant-A", "/tenant-A", "TENANT",
+            "TENANT-A", "测试租户", "ACTIVE", Instant.now(), "qa-1", Instant.now(), "qa-1");
     }
 
     @AfterEach
@@ -116,16 +153,20 @@ class EvaluationEngineIntegrationTest {
         results.deleteAll();
         runs.deleteAll();
         indicators.deleteAll();
+        runtimeReleaseItems.deleteAll();
+        runtimeReleases.deleteAll();
+        platformBaselineReleases.deleteAll();
+        jdbc.update("DELETE FROM org_unit WHERE tenant_id = ?", "tenant-A");
     }
 
     @Test
     void persistsIdempotentIndicatorRunRectificationAndReviewWorkflow() {
         EvaluationIndicator indicator = service.createIndicator(new EvaluationIndicatorCreateRequest(
-            "IND.VTE.PROPHYLAXIS", 1, "静脉血栓预防完成率", EvaluationSubjectType.MEDICAL_RECORD,
+            "IND.VTE.PROPHYLAXIS", "静脉血栓预防完成率", EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
             null, null,
-            "DISCHARGE+24H", "全院住院科室", "dept-1", "guideline-1", "1.0.0"));
+            "DISCHARGE+24H", "全院住院科室", "dept-1", "guideline-1"));
         service.submitIndicator(indicator.indicatorId());
         service.publishIndicator(
             indicator.indicatorId(),
@@ -141,8 +182,8 @@ class EvaluationEngineIntegrationTest {
         );
 
         EvaluationRunResponse run = service.run(new EvaluationRunRequest(
-            "RUN.VTE", EvaluationRunType.UPSTREAM_RESULT, "event-1", "snapshot-1",
-            "patient-1", "enc-1", "DISCHARGE", "1.0.0", "sha256:run", Instant.now(),
+            "RUN.VTE", EvaluationRunType.UPSTREAM_RESULT, "event-1", null,
+            "patient-1", "enc-1", "DISCHARGE", null, "sha256:run", Instant.now(),
             List.of(new EvaluationResultRequest(
                 indicator.indicatorId(), EvaluationSubjectType.MEDICAL_RECORD, "record-1",
                 new BigDecimal("70.5000"), EvaluationResultLevel.NON_COMPLIANT, true,
@@ -245,11 +286,11 @@ class EvaluationEngineIntegrationTest {
             .thenReturn(ruleEvaluation(false, "分子达标规则校验", "patient.completed", false));
 
         EvaluationIndicator indicator = service.createIndicator(new EvaluationIndicatorCreateRequest(
-            "IND.AUTO.REPLAY", 1, "出院质量自动评估复现率", EvaluationSubjectType.MEDICAL_RECORD,
+            "IND.AUTO.REPLAY", "出院质量自动评估复现率", EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
             null, "P1级严重质控缺陷",
-            "DISCHARGE+24H", "全院住院科室", "dept-1", "guideline-1", "1.0.0"));
+            "DISCHARGE+24H", "全院住院科室", "dept-1", "guideline-1"));
         service.submitIndicator(indicator.indicatorId());
         service.publishIndicator(
             indicator.indicatorId(),
@@ -263,11 +304,13 @@ class EvaluationEngineIntegrationTest {
             indicator.indicatorId(),
             new EvaluationIndicatorReleaseRequest("集成测试全量激活")
         );
+        saveRuntimeRelease(indicator);
 
         ContextSnapshot snapshot = new ContextSnapshot(
-            null, "snap-auto-1", "tenant-A", "dept-1", null, null, "1.0.0",
+            null, "snap-auto-1", "tenant-A", "dept-1", null, null, "runtime-release-test",
             "patient-1", "enc-1", ContextSnapshotStatus.ACTIVE,
-            "[]", "{}", QualityStatus.VALID, "trace-auto", "sig-auto", Instant.now(), "qa-1");
+            "[]", "{}",
+            "{}", QualityStatus.VALID, "trace-auto", "sig-auto", Instant.now(), "qa-1");
         CanonicalResource patient = new CanonicalResource(
             null, "res-auto-1", "snap-auto-1", "tenant-A", CanonicalResourceType.PATIENT,
             "{\"patientId\":\"patient-1\",\"qualityReady\":true,\"completed\":false}",
@@ -278,9 +321,9 @@ class EvaluationEngineIntegrationTest {
             .thenReturn(List.of(patient));
 
         EvaluationRunResponse first = service.evaluateSnapshot(
-            new EvaluationEvaluateSnapshotRequest("snap-auto-1", "DISCHARGE", "1.0.0"));
+            new EvaluationEvaluateSnapshotRequest("snap-auto-1", "DISCHARGE"));
         EvaluationRunResponse replay = service.evaluateSnapshot(
-            new EvaluationEvaluateSnapshotRequest("snap-auto-1", "DISCHARGE", "1.0.0"));
+            new EvaluationEvaluateSnapshotRequest("snap-auto-1", "DISCHARGE"));
 
         assertThat(replay).isEqualTo(first);
         assertThat(runs.count()).isEqualTo(1);
@@ -291,6 +334,68 @@ class EvaluationEngineIntegrationTest {
         assertThat(savedRun.runCode()).startsWith("ER_AUTO_").hasSize("ER_AUTO_".length() + 16);
         assertThat(savedRun.inputDigest()).startsWith("sha256:");
         verify(ruleEvaluator, times(4)).evaluateConditionTree(any(), any(), any());
+    }
+
+    private void saveRuntimeRelease(EvaluationIndicator indicator) {
+        AssetVersion version = assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+                indicator.tenantId(),
+                VersionedAssetType.EVALUATION,
+                indicator.indicatorCode(),
+                AssetVersionNumbers.canonical(indicator.versionNo()))
+            .orElseThrow();
+        ClinicalRuntimeReleaseItem item = new ClinicalRuntimeReleaseItem(
+            null,
+            "runtime-release-test",
+            indicator.tenantId(),
+            ReleaseSourceLayer.HOSPITAL,
+            VersionedAssetType.EVALUATION,
+            indicator.indicatorCode(),
+            ReleaseEntryState.ACTIVE,
+            version.versionId(),
+            version.versionNo(),
+            version.contentHash(),
+            Instant.now(),
+            "qa-1",
+            "trace-auto"
+        );
+        String manifestHash = ReleaseManifestHash.sha256(List.of(String.join(
+            "\u001f",
+            item.sourceTenantId(),
+            item.sourceLayer().name(),
+            item.assetType().name(),
+            item.assetIdentity(),
+            item.entryState().name(),
+            item.versionId(),
+            item.versionNo(),
+            item.contentHash()
+        )));
+        platformBaselineReleases.save(new PlatformBaselineRelease(
+            null,
+            "baseline-eval",
+            1L,
+            manifestHash,
+            Instant.now(),
+            "qa-1",
+            Instant.now(),
+            "qa-1",
+            "trace-auto"
+        ));
+        runtimeReleases.save(new ClinicalRuntimeRelease(
+            null,
+            "runtime-release-test",
+            "tenant-A",
+            "hospital-A",
+            1L,
+            "baseline-eval",
+            manifestHash,
+            null,
+            Instant.now(),
+            "qa-1",
+            Instant.now(),
+            "qa-1",
+            "trace-auto"
+        ));
+        runtimeReleaseItems.save(item);
     }
 
     private QualityFinding finding(

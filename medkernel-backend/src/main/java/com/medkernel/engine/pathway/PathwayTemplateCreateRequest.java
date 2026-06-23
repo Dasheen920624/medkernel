@@ -27,14 +27,10 @@ public record PathwayTemplateCreateRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
-    @NotBlank String packageId,
     @NotBlank String templateCode,
     @NotBlank String name,
     @NotBlank String diseaseCode,
-    @NotNull Integer templateVersion,
     @NotNull PathwayTemplateLevel templateLevel,
-    String parentTemplateId,
     @NotNull PathwayEntryMode entryMode,
     @NotBlank String startNodeCode,
     @NotBlank String sourceRef,
@@ -53,11 +49,9 @@ public record PathwayTemplateCreateRequest(
         outcomeBindings = outcomeBindings == null ? List.of() : List.copyOf(outcomeBindings);
     }
 
-    public PathwayTemplateCreateRequest(String packageId,
-                                        String templateCode,
+    public PathwayTemplateCreateRequest(String templateCode,
                                         String name,
                                         String diseaseCode,
-                                        Integer templateVersion,
                                         PathwayTemplateLevel templateLevel,
                                         PathwayEntryMode entryMode,
                                         String startNodeCode,
@@ -69,17 +63,15 @@ public record PathwayTemplateCreateRequest(
                                         List<PathwayNodeRequest> nodes,
                                         List<PathwayEdgeRequest> edges,
                                         List<SpecialtyMetricBindingRequest> metricBindings) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
-            packageId, templateCode, name, diseaseCode, templateVersion, templateLevel,
-            null, entryMode, startNodeCode, sourceRef, description, entryCriteria, exitCriteria,
+        this(null, null, null, null, null, null, null, null, null, null, List.of(),
+            templateCode, name, diseaseCode, templateLevel,
+            entryMode, startNodeCode, sourceRef, description, entryCriteria, exitCriteria,
             milestones, nodes, edges, metricBindings, List.of());
     }
 
-    public PathwayTemplateCreateRequest(String packageId,
-                                        String templateCode,
+    public PathwayTemplateCreateRequest(String templateCode,
                                         String name,
                                         String diseaseCode,
-                                        Integer templateVersion,
                                         PathwayTemplateLevel templateLevel,
                                         PathwayEntryMode entryMode,
                                         String startNodeCode,
@@ -90,7 +82,7 @@ public record PathwayTemplateCreateRequest(
                                         List<PathwayNodeRequest> nodes,
                                         List<PathwayEdgeRequest> edges,
                                         List<SpecialtyMetricBindingRequest> metricBindings) {
-        this(packageId, templateCode, name, diseaseCode, templateVersion, templateLevel,
+        this(templateCode, name, diseaseCode, templateLevel,
             entryMode, startNodeCode, sourceRef, description, entryCriteria, exitCriteria,
             List.of(), nodes, edges, metricBindings);
     }
@@ -98,7 +90,7 @@ public record PathwayTemplateCreateRequest(
     public PathwayApiContext apiContext() {
         return new PathwayApiContext(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }

@@ -20,7 +20,11 @@ import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.knowledge.KnowledgeVersionStatus;
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.AssetOwnershipScope;
+import com.medkernel.engine.versioning.AssetScopeResolver;
 import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.engine.release.ReleaseSourceLayer;
+import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.hash.Sha256ContentHash;
 
 class AuthorityConflictGateTest {
@@ -28,12 +32,16 @@ class AuthorityConflictGateTest {
     private static final String PAYLOAD = "{\"template\":\"RULE\",\"sections\":{}}";
 
     private KnowledgeAssetVersionRepository versions;
+    private AssetScopeResolver assetScopes;
     private AuthorityConflictGate gate;
 
     @BeforeEach
     void setUp() {
         versions = mock(KnowledgeAssetVersionRepository.class);
-        gate = new AuthorityConflictGate(versions);
+        assetScopes = mock(AssetScopeResolver.class);
+        when(assetScopes.resolve("t-1", OrgScope.tenant("t-1")))
+            .thenReturn(new AssetOwnershipScope(ReleaseSourceLayer.GROUP, "/t-1"));
+        gate = new AuthorityConflictGate(versions, assetScopes);
     }
 
     private KnowledgeAssetEnvelope envelope(SourceAuthorityLevel level) {
@@ -47,8 +55,8 @@ class AuthorityConflictGateTest {
         return new KnowledgeAssetVersion(5L, "t-1", 10L, "v0", "现行", 7L, 9L,
             "a".repeat(64), "a", KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.MEDIUM,
             level, GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.WEAK, null,
-            "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE,
-            KnowledgeAssetVersion.activeScopeKey(10L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE),
+            "/t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE,
+            KnowledgeAssetVersion.activeScopeKey(10L, "/t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE),
             now, null, null, null, now, null, null, null, now, "u", now, "u", 12, now);
     }
 
@@ -63,7 +71,7 @@ class AuthorityConflictGateTest {
     @Test
     void failsWhenLowAuthorityCandidateOverridesHighAuthorityActiveVersion() {
         when(versions.findActiveByEffectiveScope(
-            "t-1", 10L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
+            "t-1", 10L, "/t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
             .thenReturn(Optional.of(active(SourceAuthorityLevel.A_REGULATION)));
 
         GateItemResult result = gate.evaluate(envelope(SourceAuthorityLevel.E_FEEDBACK),
@@ -74,13 +82,13 @@ class AuthorityConflictGateTest {
             .contains("低阶来源覆盖高阶来源")
             .contains("targetIdentityId=10")
             .contains("activeVersionId=5")
-            .contains("scope=tenant:t-1");
+            .contains("scope=/t-1");
     }
 
     @Test
     void passesWhenCandidateAuthorityIsNotLowerThanActiveVersion() {
         when(versions.findActiveByEffectiveScope(
-            "t-1", 10L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
+            "t-1", 10L, "/t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
             .thenReturn(Optional.of(active(SourceAuthorityLevel.D_HOSPITAL)));
 
         GateItemResult result = gate.evaluate(envelope(SourceAuthorityLevel.B_GUIDELINE),

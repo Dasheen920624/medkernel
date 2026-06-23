@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 
 import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.engine.org.OrgUnitRepository;
-import com.medkernel.engine.security.MfaRequirementPolicy;
 import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.UserRoleAssignment;
@@ -23,6 +22,7 @@ import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.config.SystemConfigService;
 import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.security.MfaRuntimePolicy;
 
 /**
  * 平台账号登录服务：校验平台凭证 → 取激活角色 → 签发 JWT；成功/失败均留痕审计。
@@ -42,6 +42,7 @@ public class AuthService {
     private final PasswordPolicyService passwordPolicy;
     private final MfaSecretCodec mfaSecretCodec;
     private final OrgUnitRepository orgUnits;
+    private final MfaRuntimePolicy mfaRuntimePolicy;
 
     public AuthService(PlatformCredentialRepository credentials,
                        UserRoleAssignmentRepository roleAssignments,
@@ -53,7 +54,8 @@ public class AuthService {
                        LoginAttemptService loginAttempts,
                        PasswordPolicyService passwordPolicy,
                        MfaSecretCodec mfaSecretCodec,
-                       OrgUnitRepository orgUnits) {
+                       OrgUnitRepository orgUnits,
+                       MfaRuntimePolicy mfaRuntimePolicy) {
         this.credentials = credentials;
         this.roleAssignments = roleAssignments;
         this.credentialPasswords = credentialPasswords;
@@ -65,6 +67,7 @@ public class AuthService {
         this.passwordPolicy = passwordPolicy;
         this.mfaSecretCodec = mfaSecretCodec;
         this.orgUnits = orgUnits;
+        this.mfaRuntimePolicy = mfaRuntimePolicy;
     }
 
     public AuthResult login(String tenantId, String username, String rawPassword) {
@@ -104,14 +107,19 @@ public class AuthService {
         List<UserRoleAssignment> assignments = roleAssignments
             .findActiveByTenantIdAndUserId(tenantId, cred.userId());
         List<String> roles = assignments.stream().map(UserRoleAssignment::roleCode).distinct().toList();
+        boolean mfaRequired = mfaRuntimePolicy.enabled();
         JwtIssuer.IssuedJwt jwt = sessionService.issueInitialSession(
-            cred.userId(), tenantId, roles, primaryOrgScope(tenantId, assignments));
+            cred.userId(),
+            tenantId,
+            roles,
+            primaryOrgScope(tenantId, assignments),
+            !mfaRequired);
         // I3: 成功路径用 AuditRecorder.publish
         auditRecorder.record(AuditAction.LOGIN, "platform_credential", cred.userId(),
             "登录成功 username=" + username + " roles=" + roles);
         return new AuthResult(jwt,
             new LoginResponse(cred.userId(), tenantId, roles, "Y".equalsIgnoreCase(cred.mustChangePwd()),
-                MfaRequirementPolicy.requiresMfa(roles), mfaSecretCodec.isTotpBound(cred.mfaSecret())));
+                mfaRequired, mfaSecretCodec.isTotpBound(cred.mfaSecret())));
     }
 
     public void logout(String userId) {

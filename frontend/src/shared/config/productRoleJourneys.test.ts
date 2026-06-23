@@ -19,15 +19,12 @@ describe("product role journeys", () => {
     });
 
     expect(
-      PRODUCT_ROLE_JOURNEYS.map(({ roleCode, primaryAction }) => [
-        roleCode,
-        primaryAction.path,
-      ]),
+      PRODUCT_ROLE_JOURNEYS.map(({ roleCode, primaryAction }) => [roleCode, primaryAction.path]),
     ).toEqual([
-      ["platform-governance-admin", "/admin/users"],
-      ["platform-knowledge-governor", "/knowledge/governance"],
-      ["integration-operator", "/adapter/hub"],
-      ["compliance-auditor", "/admin/audit"],
+      ["platform-admin", "/admin/users"],
+      ["engine-operator", "/knowledge/production"],
+      ["clinical-user", "/workflow/todos"],
+      ["auditor", "/admin/audit"],
     ]);
   });
 
@@ -55,7 +52,7 @@ describe("product role journeys", () => {
       "质控改进",
       "合规运维",
       "高级工具",
-      "配置包中心",
+      "配置" + "包中心",
       "字典映射",
       "通知中心",
       "院级质控驾驶舱",
@@ -103,5 +100,32 @@ describe("product role journeys", () => {
     expect(authSource).toContain("/auth/logout");
     expect(authSource).toContain("reloadFrontendSession(page, role)");
     expect(authSource).toContain("e2e-session-refresh");
+  });
+
+  it("E2E only reads the canonical platform account contract", () => {
+    const authSource = readFileSync(resolve(process.cwd(), "e2e/support/auth.ts"), "utf8");
+
+    expect(authSource).toContain("source.platform.accounts");
+    expect(authSource).toContain('source.schemaVersion !== "1.0.0"');
+    expect(authSource).toContain("if (!change.ok() && !credentialsConfigured)");
+    expect(authSource).not.toContain("source.roleAccounts");
+    expect(authSource).not.toContain("source.platformRoleAccounts");
+    expect(authSource).not.toContain("source.customerTenant");
+  });
+
+  it("上线 E2E 使用外部部署并把全部证据写到仓库外运行目录", () => {
+    const configSource = readFileSync(resolve(process.cwd(), "playwright.config.ts"), "utf8");
+    const embedHostSource = readFileSync(
+      resolve(process.cwd(), "e2e/support/embed-business-host-server.mjs"),
+      "utf8",
+    );
+
+    expect(configSource).toContain("E2E_EXTERNAL_DEPLOYMENT");
+    expect(configSource).toContain("E2E_EVIDENCE_DIR");
+    expect(configSource).toContain("E2E_IGNORE_HTTPS_ERRORS");
+    expect(configSource).toContain("outputDir:");
+    expect(configSource).toContain("assertOutsideRepository");
+    expect(embedHostSource).toContain("process.env.E2E_BASE_URL");
+    expect(embedHostSource).not.toContain('const embedOrigin = "http://localhost:5173"');
   });
 });

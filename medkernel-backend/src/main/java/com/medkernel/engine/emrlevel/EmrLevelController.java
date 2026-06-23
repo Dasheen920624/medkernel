@@ -83,12 +83,12 @@ public class EmrLevelController {
     }
 
     /**
-     * 导出电子病历评级证据包。
+     * 导出电子病历评级证据。
      */
-    @PostMapping("/evidence-package:export")
+    @PostMapping("/evidence-exports")
     @PreAuthorize("@perm.has('audit.export')")
-    public ResponseEntity<ApiResult<EmrLevelEvidencePackageExportResponse>> exportEvidencePackage(
-            @RequestBody @Valid EmrLevelEvidencePackageExportRequest request) {
-        return ResponseEntity.ok(ApiResult.ok(service.exportEvidencePackage(request)));
+    public ResponseEntity<ApiResult<EmrLevelEvidenceExportResponse>> exportEvidence(
+            @RequestBody @Valid EmrLevelEvidenceExportRequest request) {
+        return ResponseEntity.ok(ApiResult.ok(service.exportEvidence(request)));
     }
 }

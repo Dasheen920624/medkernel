@@ -17,16 +17,10 @@ import java.util.Set;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
-import com.medkernel.engine.knowledge.GradeEvidenceQuality;
-import com.medkernel.engine.knowledge.GradeRecommendationStrength;
-import com.medkernel.engine.knowledge.KnowledgeAssetVersion;
-import com.medkernel.engine.knowledge.KnowledgeAssetVersionRepository;
 import com.medkernel.engine.knowledge.KnowledgeDomain;
 import com.medkernel.engine.knowledge.KnowledgeIdentity;
 import com.medkernel.engine.knowledge.KnowledgeIdentityRepository;
 import com.medkernel.engine.knowledge.KnowledgeIdentityStatus;
-import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
-import com.medkernel.engine.knowledge.KnowledgeVersionStatus;
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisConfidence;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisConfidenceEvaluator;
@@ -38,6 +32,8 @@ import com.medkernel.engine.knowledge.diagnosis.DiagnosisCarePointerType;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisCareTargetType;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisCriterion;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisCriterionRepository;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisDifferential;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisDifferentialRepository;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisDirection;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisMatcher;
 import com.medkernel.engine.knowledge.diagnosis.DiagnosisWeight;
@@ -58,10 +54,11 @@ import org.mockito.ArgumentCaptor;
 class DiagnosisAssistServiceTest {
 
     private ContextSnapshotService snapshots;
-    private KnowledgeAssetVersionRepository versions;
-    private KnowledgeIdentityRepository identities;
+    private RuntimeReleaseDiagnosisSelector runtimeDiagnoses;
     private DiagnosisCriterionRepository criteria;
     private DiagnosisCarePointerRepository carePointers;
+    private DiagnosisDifferentialRepository differentials;
+    private KnowledgeIdentityRepository identities;
     private DiagnosisConfidencePolicyRepository policies;
     private DiagnosisFindingExtractor extractor;
     private DiagnosisRedlinePort redlinePort;
@@ -75,21 +72,23 @@ class DiagnosisAssistServiceTest {
     @BeforeEach
     void setUp() {
         snapshots = mock(ContextSnapshotService.class);
-        versions = mock(KnowledgeAssetVersionRepository.class);
-        identities = mock(KnowledgeIdentityRepository.class);
+        runtimeDiagnoses = mock(RuntimeReleaseDiagnosisSelector.class);
         criteria = mock(DiagnosisCriterionRepository.class);
         carePointers = mock(DiagnosisCarePointerRepository.class);
+        differentials = mock(DiagnosisDifferentialRepository.class);
+        identities = mock(KnowledgeIdentityRepository.class);
         policies = mock(DiagnosisConfidencePolicyRepository.class);
         extractor = mock(DiagnosisFindingExtractor.class);
         redlinePort = mock(DiagnosisRedlinePort.class);
         recommendationEngine = mock(RecommendationEngineService.class);
         businessMetrics = mock(BusinessMetrics.class);
         DiagnosisMatcher matcher = new DiagnosisMatcher(new DiagnosisConfidenceEvaluator());
-        service = new DiagnosisAssistService(snapshots, versions, identities, criteria, carePointers, policies,
+        service = new DiagnosisAssistService(snapshots, runtimeDiagnoses, criteria, carePointers,
+            differentials, identities, policies,
             matcher, extractor, redlinePort, recommendationEngine, new ObjectMapper(), businessMetrics);
 
         when(snapshots.findById(any())).thenReturn(new ContextSnapshotResponse(
-            "snap-1", null, null, null, null, List.of(), Map.of(), Instant.now(), "trace-dx"));
+            "snap-1", null, null, "runtime-release-test", null, List.of(), Map.of(), Instant.now(), "trace-dx"));
         when(policies.findByTenantIdAndScopeKey("t-1", "DEFAULT")).thenReturn(Optional.of(policy));
         when(redlinePort.pinnedDiagnosisCodes(any(), any())).thenReturn(Set.of());
 
@@ -149,20 +148,43 @@ class DiagnosisAssistServiceTest {
     }
 
     @Test
+    void exposesDifferentialDiagnosisKeyPointsInResponseAndRecommendationExplanation() {
+        stubStrongHit();
+        when(differentials.findByTenantIdAndDiagnosisVersionId("t-1", 10L)).thenReturn(List.of(
+            differential(99L, "发热伴咳嗽需与肺结核鉴别", "胸片、痰涂片或结核感染 T 细胞检测")
+        ));
+        when(identities.findByTenantIdAndId("t-1", 99L))
+            .thenReturn(Optional.of(identity(99L, "DX.TB", "肺结核")));
+
+        DiagnosisAssistResponse response = service.assist(new DiagnosisAssistRequest("snap-1"));
+
+        assertThat(response.candidates()).singleElement().satisfies(candidate ->
+            assertThat(candidate.differentials()).singleElement().satisfies(differential -> {
+                assertThat(differential.differentialIdentityId()).isEqualTo(99L);
+                assertThat(differential.identityCode()).isEqualTo("DX.TB");
+                assertThat(differential.diagnosisName()).isEqualTo("肺结核");
+                assertThat(differential.keyPoint()).contains("肺结核鉴别");
+                assertThat(differential.suggestedWorkup()).contains("胸片");
+            }));
+        ArgumentCaptor<RecommendationTriggerRequest> cap = ArgumentCaptor.forClass(RecommendationTriggerRequest.class);
+        verify(recommendationEngine).trigger(cap.capture());
+        assertThat(cap.getValue().candidateCards()).singleElement().satisfies(card ->
+            assertThat(card.explanationJson()).contains("肺结核", "肺结核鉴别", "胸片"));
+    }
+
+    @Test
     void ranksStrongBeforeModerate() {
-        when(extractor.extract(eq("t-1"), any()))
+        when(extractor.extract(eq("t-1"), eq("runtime-release-test"), any()))
             .thenReturn(new ExtractedFindings(Set.of("FEVER", "COUGH", "RASH"), List.of()));
-        when(versions.findActiveDiagnosisVersions("t-1")).thenReturn(List.of(
-            version(20L, 200L, SourceAuthorityLevel.A_REGULATION),   // 故意先放 MODERATE
-            version(10L, 100L, SourceAuthorityLevel.B_GUIDELINE)));  // STRONG
+        when(runtimeDiagnoses.select("t-1", "runtime-release-test")).thenReturn(List.of(
+            runtimeDiagnosis(20L, 200L, "DX.MOD", "中候选", SourceAuthorityLevel.A_REGULATION),   // 故意先放 MODERATE
+            runtimeDiagnosis(10L, 100L, "DX.STRONG", "强候选", SourceAuthorityLevel.B_GUIDELINE)));  // STRONG
         when(criteria.findByTenantIdAndDiagnosisVersionId("t-1", 10L)).thenReturn(List.of(
             crit(10L, "FEVER", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR),
             crit(10L, "COUGH", DiagnosisDirection.SUPPORTING, DiagnosisWeight.MAJOR)));
         when(criteria.findByTenantIdAndDiagnosisVersionId("t-1", 20L)).thenReturn(List.of(
             crit(20L, "FEVER", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR),
             crit(20L, "RASH", DiagnosisDirection.SUPPORTING, DiagnosisWeight.MINOR)));
-        when(identities.findByTenantIdAndId("t-1", 100L)).thenReturn(Optional.of(identity(100L, "DX.STRONG", "强候选")));
-        when(identities.findByTenantIdAndId("t-1", 200L)).thenReturn(Optional.of(identity(200L, "DX.MOD", "中候选")));
 
         DiagnosisAssistResponse response = service.assist(new DiagnosisAssistRequest("snap-1"));
 
@@ -172,9 +194,9 @@ class DiagnosisAssistServiceTest {
 
     @Test
     void emptyStateIsAdvisoryNotExclusionAndDoesNotPersist() {
-        when(extractor.extract(eq("t-1"), any()))
+        when(extractor.extract(eq("t-1"), eq("runtime-release-test"), any()))
             .thenReturn(new ExtractedFindings(Set.of("FEVER"), List.of()));
-        when(versions.findActiveDiagnosisVersions("t-1")).thenReturn(List.of()); // 无 ACTIVE 诊断版本
+        when(runtimeDiagnoses.select("t-1", "runtime-release-test")).thenReturn(List.of()); // 运行修订未启用诊断版本
 
         DiagnosisAssistResponse response = service.assist(new DiagnosisAssistRequest("snap-1"));
 
@@ -184,6 +206,23 @@ class DiagnosisAssistServiceTest {
         verify(recommendationEngine, never()).trigger(any()); // 空态不落库
         verify(businessMetrics).incDiagnosisAssist(); // 调用数即便空态也计
         verify(businessMetrics, never()).incDiagnosisCandidate(any()); // 无候选不计分级分布
+    }
+
+    @Test
+    void activeDiagnosisVersionOutsideRuntimeReleaseDoesNotParticipate() {
+        // 即便知识版本本身 ACTIVE，只要未被当前医院运行修订启用，就不能进入临床辅助诊疗。
+        when(extractor.extract(eq("t-1"), eq("runtime-release-test"), any()))
+            .thenReturn(new ExtractedFindings(Set.of("FEVER", "COUGH"), List.of()));
+        when(runtimeDiagnoses.select("t-1", "runtime-release-test")).thenReturn(List.of());
+        when(criteria.findByTenantIdAndDiagnosisVersionId("t-1", 10L)).thenReturn(List.of(
+            crit(10L, "FEVER", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR),
+            crit(10L, "COUGH", DiagnosisDirection.SUPPORTING, DiagnosisWeight.MAJOR)));
+
+        DiagnosisAssistResponse response = service.assist(new DiagnosisAssistRequest("snap-1"));
+
+        assertThat(response.candidates()).isEmpty();
+        assertThat(response.advisoryNote()).contains("不是排除诊断");
+        verify(recommendationEngine, never()).trigger(any());
     }
 
     @Test
@@ -199,20 +238,17 @@ class DiagnosisAssistServiceTest {
     @Test
     void redlinePinnedCandidateSortsAboveStrongerEvidenceAndCardRiskIsHigh() {
         // STRONG 肺炎 vs 仅 MODERATE 但被红线置顶的夹层 → 夹层排第一、redline=true、卡风险 HIGH（高危先行压过证据充分）
-        when(extractor.extract(eq("t-1"), any()))
+        when(extractor.extract(eq("t-1"), eq("runtime-release-test"), any()))
             .thenReturn(new ExtractedFindings(Set.of("FEVER", "COUGH", "TEARING_PAIN"), List.of()));
-        when(versions.findActiveDiagnosisVersions("t-1")).thenReturn(List.of(
-            version(10L, 100L, SourceAuthorityLevel.B_GUIDELINE),    // STRONG 肺炎
-            version(20L, 200L, SourceAuthorityLevel.A_REGULATION))); // MODERATE 夹层（红线置顶）
+        when(runtimeDiagnoses.select("t-1", "runtime-release-test")).thenReturn(List.of(
+            runtimeDiagnosis(10L, 100L, "DX.PNEU", "肺炎", SourceAuthorityLevel.B_GUIDELINE),    // STRONG 肺炎
+            runtimeDiagnosis(20L, 200L, "DX.AORTIC", "主动脉夹层", SourceAuthorityLevel.A_REGULATION))); // MODERATE 夹层（红线置顶）
         when(criteria.findByTenantIdAndDiagnosisVersionId("t-1", 10L)).thenReturn(List.of(
             crit(10L, "FEVER", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR),
             crit(10L, "COUGH", DiagnosisDirection.SUPPORTING, DiagnosisWeight.MAJOR)));
         when(criteria.findByTenantIdAndDiagnosisVersionId("t-1", 20L)).thenReturn(List.of(
             crit(20L, "TEARING_PAIN", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR),
             crit(20L, "FEVER", DiagnosisDirection.SUPPORTING, DiagnosisWeight.MINOR)));
-        when(identities.findByTenantIdAndId("t-1", 100L)).thenReturn(Optional.of(identity(100L, "DX.PNEU", "肺炎")));
-        when(identities.findByTenantIdAndId("t-1", 200L))
-            .thenReturn(Optional.of(identity(200L, "DX.AORTIC", "主动脉夹层")));
         when(redlinePort.pinnedDiagnosisCodes(eq("t-1"), any())).thenReturn(Set.of("DX.AORTIC"));
 
         DiagnosisAssistResponse response = service.assist(new DiagnosisAssistRequest("snap-1"));
@@ -231,15 +267,13 @@ class DiagnosisAssistServiceTest {
     }
 
     private void stubStrongHit() {
-        when(extractor.extract(eq("t-1"), any()))
+        when(extractor.extract(eq("t-1"), eq("runtime-release-test"), any()))
             .thenReturn(new ExtractedFindings(Set.of("FEVER", "COUGH"), List.of("LOCALX")));
-        when(versions.findActiveDiagnosisVersions("t-1"))
-            .thenReturn(List.of(version(10L, 100L, SourceAuthorityLevel.A_REGULATION)));
+        when(runtimeDiagnoses.select("t-1", "runtime-release-test"))
+            .thenReturn(List.of(runtimeDiagnosis(10L, 100L, "DX.PNEU", "社区获得性肺炎", SourceAuthorityLevel.A_REGULATION)));
         when(criteria.findByTenantIdAndDiagnosisVersionId("t-1", 10L)).thenReturn(List.of(
             crit(10L, "FEVER", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR),
             crit(10L, "COUGH", DiagnosisDirection.SUPPORTING, DiagnosisWeight.MAJOR)));
-        when(identities.findByTenantIdAndId("t-1", 100L))
-            .thenReturn(Optional.of(identity(100L, "DX.PNEU", "社区获得性肺炎")));
     }
 
     private DiagnosisCriterion crit(Long versionId, String code, DiagnosisDirection dir, DiagnosisWeight w) {
@@ -257,18 +291,33 @@ class DiagnosisAssistServiceTest {
             "医师确认诊断后评估", now, "u", now, "u", "tr");
     }
 
+    private DiagnosisDifferential differential(Long identityId, String keyPoint, String suggestedWorkup) {
+        Instant now = Instant.now();
+        return new DiagnosisDifferential(
+            null, "t-1", 10L, identityId, keyPoint, suggestedWorkup,
+            now, "u", now, "u", "tr");
+    }
+
     private KnowledgeIdentity identity(Long id, String code, String subject) {
         Instant now = Instant.now();
         return new KnowledgeIdentity(id, "t-1", code, KnowledgeDomain.DIAGNOSIS, subject, null, null,
             KnowledgeIdentityStatus.ACTIVE, null, now, "system", now, "system");
     }
 
-    private KnowledgeAssetVersion version(Long id, Long identityId, SourceAuthorityLevel authority) {
-        Instant now = Instant.now();
-        return new KnowledgeAssetVersion(id, "t-1", identityId, "v1.0", null, null, null, "h" + id, "[]",
-            KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW, authority,
-            GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.WEAK, null,
-            "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE, "scope-" + id,
-            null, null, null, null, now, null, null, null, now, "system", now, "system", 12, null);
+    private RuntimeDiagnosisReference runtimeDiagnosis(
+            Long versionId,
+            Long identityId,
+            String identityCode,
+            String diagnosisName,
+            SourceAuthorityLevel authority) {
+        return new RuntimeDiagnosisReference(
+            "t-1",
+            identityId,
+            identityCode,
+            diagnosisName,
+            versionId,
+            "v1.0",
+            authority.name()
+        );
     }
 }

@@ -62,7 +62,7 @@ public class ModelGatewayController {
      * @return 保存后的目录项
      */
     @PutMapping("/catalog/{capabilityCode}")
-    @PreAuthorize("@perm.has('system.manage')")
+    @PreAuthorize("@perm.has('llm.manage')")
     public ApiResult<ModelCapabilityDefinitionResponse> saveCatalogEntry(
             @PathVariable String capabilityCode,
             @Valid @RequestBody ModelCapabilityDefinitionUpsertRequest request) {

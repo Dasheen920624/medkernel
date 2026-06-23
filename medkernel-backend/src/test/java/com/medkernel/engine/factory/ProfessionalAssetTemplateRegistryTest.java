@@ -36,7 +36,7 @@ class ProfessionalAssetTemplateRegistryTest {
     }
 
     @Test
-    void coversEveryIndependentlyProducedAssetTypeExceptPackage() {
+    void coversEveryIndependentlyProducedStructuralAssetType() {
         Set<VersionedAssetType> structuralTypes = registry.listAll().stream()
             .filter(template -> template.knowledgeDomain() == null)
             .map(ProfessionalAssetTemplate::assetType)
@@ -44,8 +44,21 @@ class ProfessionalAssetTemplateRegistryTest {
         assertThat(structuralTypes).containsExactlyInAnyOrder(
             java.util.Arrays.stream(VersionedAssetType.values())
                 .filter(type -> type != VersionedAssetType.KNOWLEDGE)
-                .filter(type -> type != VersionedAssetType.PACKAGE)
                 .toArray(VersionedAssetType[]::new));
+    }
+
+    @Test
+    void structuralAssetTypesHaveExactlyOneAuthoringTemplate() {
+        for (VersionedAssetType type : VersionedAssetType.values()) {
+            if (type == VersionedAssetType.KNOWLEDGE) {
+                continue;
+            }
+            assertThat(registry.listAll().stream()
+                    .filter(template -> template.knowledgeDomain() == null)
+                    .filter(template -> template.assetType() == type))
+                .as("结构资产 %s 只能有一套维护模板，避免编著入口和自动生成规范分裂", type)
+                .hasSize(1);
+        }
     }
 
     @Test
@@ -63,6 +76,20 @@ class ProfessionalAssetTemplateRegistryTest {
             registry.findByAssetTypeAndDomain(VersionedAssetType.KNOWLEDGE, KnowledgeDomain.NURSING);
         assertThat(nursing).isPresent();
         assertThat(nursing.get().sections()).anySatisfy(s -> assertThat(s.label()).contains("护理"));
+    }
+
+    @Test
+    void diagnosticItemTemplateDescribesReusableItemKnowledgeNotPatientInterpretation() {
+        ProfessionalAssetTemplate template = registry.findByAssetTypeAndDomain(
+                VersionedAssetType.KNOWLEDGE, KnowledgeDomain.DIAGNOSTIC_ITEM)
+            .orElseThrow();
+
+        assertThat(template.professionCode()).isEqualTo("DIAGNOSTIC_ITEM");
+        assertThat(template.displayName()).isEqualTo("医技项目说明书");
+        assertThat(template.sections())
+            .extracting(TemplateSection::key)
+            .contains("item_definition", "preparation", "reference_basis", "limitations", "clinical_meaning")
+            .doesNotContain("patient_result", "patient_diagnosis");
     }
 
     @Test

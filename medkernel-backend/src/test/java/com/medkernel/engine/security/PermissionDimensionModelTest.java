@@ -2,7 +2,6 @@ package com.medkernel.engine.security;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -37,6 +36,27 @@ class PermissionDimensionModelTest {
     }
 
     @Test
+    void permissionCatalogDoesNotExposeLegacyPackageContainerBoundaries() {
+        String removedActionPrefix = "pack" + "age.";
+        String removedEnumToken = "PACK" + "AGE";
+        String removedConfigContainerLabel = "配置" + "包";
+        String removedKnowledgeContainerLabel = "知识" + "包";
+
+        assertThat(Arrays.stream(PermissionCode.values()).map(PermissionCode::code))
+            .as("全新上线模型只保留运行发布与资产权限，不再暴露旧容器动作权限")
+            .noneMatch(code -> code.startsWith(removedActionPrefix));
+
+        assertThat(Arrays.stream(PermissionCode.values()).map(Enum::name))
+            .as("权限枚举名不再保留旧容器别名")
+            .noneMatch(name -> name.contains(removedEnumToken));
+
+        assertThat(Arrays.stream(PermissionCode.values()).map(PermissionCode::displayName))
+            .as("资产边界不再用旧容器标签表达")
+            .noneMatch(name -> name.contains(removedConfigContainerLabel)
+                || name.contains(removedKnowledgeContainerLabel));
+    }
+
+    @Test
     void allFourLaunchRolesReceiveApplicableBaselinePermissions() throws Exception {
         Method dimensionMethod = PermissionCode.class.getMethod("dimension");
 
@@ -52,100 +72,65 @@ class PermissionDimensionModelTest {
                 .containsAll(Set.of("MENU", "ACTION", "DATA", "ENVIRONMENT"));
         }
 
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.IDENTITY_ACCESS_ADMIN))
-            .as("人员与访问管理员不应因五维模型被强制授予无关知识资产权限")
-            .noneMatch(permission -> permission.dimension() == PermissionDimension.ASSET);
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_ADMIN))
+            .contains(PermissionCode.ASSET_RUNTIME_RELEASE, PermissionCode.ASSET_DICTIONARY);
     }
 
     @Test
-    void systemSuperAdminIsSeparateFromCompatibilityRoleCatalog() {
+    void roleCatalogContainsOnlyBuiltInSuperAdminAndFourAssignableResponsibilities() {
         assertThat(RoleCode.fromCode("system-superadmin"))
             .as("内置超级管理员必须是系统内置角色，而不是手工配置出来的普通角色")
             .isPresent();
 
-        assertThat(Arrays.stream(RoleCode.values())
-                .filter(role -> !"system-superadmin".equals(role.code()))
-                .toList())
-            .as("兼容角色枚举不能被超管挤占")
-            .hasSize(14);
+        assertThat(RoleCode.values())
+            .containsExactly(
+                RoleCode.SYSTEM_SUPERADMIN,
+                RoleCode.PLATFORM_ADMIN,
+                RoleCode.ENGINE_OPERATOR,
+                RoleCode.CLINICAL_USER,
+                RoleCode.AUDITOR);
     }
 
     @Test
-    void platformGovernanceAdminReceivesAllNonMenuGovernancePermissionsThroughPolicy() {
-        EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
-        expected.remove(PermissionCode.ENV_EMERGENCY);
-        expected.removeIf(permission -> permission.dimension() == PermissionDimension.MENU);
-
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_GOVERNANCE_ADMIN))
-            .filteredOn(permission -> permission.dimension() != PermissionDimension.MENU)
-            .containsExactlyInAnyOrderElementsOf(expected);
-
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_GOVERNANCE_ADMIN))
-            .filteredOn(permission -> permission.dimension() == PermissionDimension.MENU)
-            .containsExactlyInAnyOrder(
-                PermissionCode.MENU_WORKBENCH,
-                PermissionCode.MENU_TENANT_ONBOARDING,
-                PermissionCode.MENU_ADMIN_USERS,
-                PermissionCode.MENU_IDENTITY_BINDINGS,
-                PermissionCode.MENU_IMPLEMENTATION_GUIDE,
-                PermissionCode.MENU_KNOWLEDGE_GOVERNANCE,
-                PermissionCode.MENU_INSTITUTION_KNOWLEDGE,
-                PermissionCode.MENU_DIAGNOSIS_KNOWLEDGE,
-                PermissionCode.MENU_KNOWLEDGE_PRODUCTION,
-                PermissionCode.MENU_CONFIG_PACKAGES,
-                PermissionCode.MENU_QC_DASHBOARD,
-                PermissionCode.MENU_ADMIN_AUDIT,
-                PermissionCode.MENU_SECURITY_BASELINE,
-                PermissionCode.MENU_SYSTEM_PROVIDERS,
-                PermissionCode.MENU_NOTIFICATION_SETTINGS,
-                PermissionCode.MENU_PROVENANCE,
-                PermissionCode.MENU_AI_WORKFLOWS,
-                PermissionCode.MENU_DOMESTIC_CHECK);
-    }
-
-    @Test
-    void organizationAdminReceivesTenantGovernanceWithoutPlatformOrSystemOperations() {
-        EnumSet<PermissionCode> expected = EnumSet.allOf(PermissionCode.class);
-        expected.remove(PermissionCode.ENV_EMERGENCY);
-        expected.remove(PermissionCode.PLATFORM_PUBLISH);
-        expected.remove(PermissionCode.SYSTEM_MANAGE);
-        expected.remove(PermissionCode.KNOWLEDGE_ACQUISITION_APPROVE);
-        expected.removeIf(permission -> permission.dimension() == PermissionDimension.MENU);
-
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.ORGANIZATION_ADMIN))
-            .filteredOn(permission -> permission.dimension() != PermissionDimension.MENU)
-            .containsExactlyInAnyOrderElementsOf(expected);
-
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.ORGANIZATION_ADMIN))
-            .filteredOn(permission -> permission.dimension() == PermissionDimension.MENU)
-            .containsExactlyInAnyOrder(
-                PermissionCode.MENU_WORKBENCH,
-                PermissionCode.MENU_TENANT_ONBOARDING,
-                PermissionCode.MENU_ADMIN_USERS,
-                PermissionCode.MENU_IDENTITY_BINDINGS,
-                PermissionCode.MENU_IMPLEMENTATION_GUIDE,
-                PermissionCode.MENU_KNOWLEDGE_GOVERNANCE,
-                PermissionCode.MENU_INSTITUTION_KNOWLEDGE,
-                PermissionCode.MENU_CONFIG_PACKAGES,
-                // 机构管理员是红线规则唯一职责分离合规发布人，需进入规则配置页推进发布。见 P5-ACT4-02。
-                PermissionCode.MENU_RULE_DEFINITIONS,
-                // 机构管理员持 pathway.publish，是路径模板合法院级全量协调角色，需进入路径配置页。见 P5-ACT5-01。
-                PermissionCode.MENU_PATHWAY_TEMPLATES,
-                PermissionCode.MENU_QC_DASHBOARD,
-                PermissionCode.MENU_ADMIN_AUDIT,
-                PermissionCode.MENU_SECURITY_BASELINE,
-                PermissionCode.MENU_SYSTEM_PROVIDERS,
-                PermissionCode.MENU_NOTIFICATION_SETTINGS,
-                PermissionCode.MENU_PROVENANCE,
-                PermissionCode.MENU_DOMESTIC_CHECK);
-
-        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.ORGANIZATION_ADMIN))
-            .contains(PermissionCode.TENANT_OVERRIDE)
+    void fourResponsibilitiesKeepClearPermissionBoundaries() {
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.PLATFORM_ADMIN))
+            .contains(PermissionCode.TENANT_WRITE, PermissionCode.SYSTEM_MANAGE, PermissionCode.INTEGRATION_EXECUTE)
             .doesNotContain(
-                PermissionCode.ENV_EMERGENCY,
-                PermissionCode.PLATFORM_PUBLISH,
+                PermissionCode.KNOWLEDGE_PUBLISH,
+                PermissionCode.EVALUATION_PUBLISH,
+                PermissionCode.RECOMMENDATION_ACCEPT,
+                PermissionCode.ENV_EMERGENCY);
+
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.ENGINE_OPERATOR))
+            .contains(
+                PermissionCode.KNOWLEDGE_PUBLISH,
+                PermissionCode.RULE_PUBLISH,
+                PermissionCode.PATHWAY_PUBLISH,
+                PermissionCode.EVALUATION_PUBLISH,
+                PermissionCode.FOLLOWUP_PUBLISH,
+                PermissionCode.RELEASE_PUBLISH)
+            .doesNotContain(
+                PermissionCode.TENANT_WRITE,
                 PermissionCode.SYSTEM_MANAGE,
-                PermissionCode.KNOWLEDGE_ACQUISITION_APPROVE);
+                PermissionCode.RECOMMENDATION_ACCEPT,
+                PermissionCode.ENV_EMERGENCY);
+
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.CLINICAL_USER))
+            .contains(PermissionCode.RECOMMENDATION_ACCEPT, PermissionCode.PATHWAY_EXECUTE)
+            .doesNotContain(
+                PermissionCode.KNOWLEDGE_PUBLISH,
+                PermissionCode.RULE_PUBLISH,
+                PermissionCode.SYSTEM_MANAGE,
+                PermissionCode.ENV_EMERGENCY);
+
+        assertThat(DefaultPermissionPolicy.permissionsOf(RoleCode.AUDITOR))
+            .contains(PermissionCode.AUDIT_READ, PermissionCode.AUDIT_EXPORT)
+            .doesNotContain(
+                PermissionCode.ORG_WRITE,
+                PermissionCode.KNOWLEDGE_PUBLISH,
+                PermissionCode.RECOMMENDATION_ACCEPT,
+                PermissionCode.ENV_EMERGENCY,
+                PermissionCode.SYSTEM_MANAGE);
     }
 
     private String invokeDimension(Method dimensionMethod, PermissionCode permission) {

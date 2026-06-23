@@ -30,7 +30,7 @@ class InteroperabilityControllerSecurityTest {
           "sourceRef": "CKD-PACKAGE",
           "dsl": {
             "trigger": "order-sign",
-            "when": {"all": [{"fact": "order.drugClass", "operator": "equals", "value": "ACEI"}]},
+            "when": {"all": [{"fact": "medications[].code", "operator": "contains", "value": "ACEI"}]},
             "then": [{"actionCode": "BLOCK", "atSeverity": "HIGH", "indicator": "critical", "summary": "复核", "detail": "复核", "source": {"label": "测试来源"}, "suggestions": [], "overrideReasons": []}],
             "explain": {"summary": "CKD ACEI 安全用药"}
           }
@@ -43,10 +43,9 @@ class InteroperabilityControllerSecurityTest {
           "name": "CKD ACEI 开嘱复核",
           "ruleType": "ORDER",
           "riskLevel": "HIGH",
-          "packageVersion": "pkg-ckd-2026.06",
-          "sourceRef": "CKD-PACKAGE",
+          "sourceRef": "CKD-GUIDELINE-2026",
           "library": "RULE_CKD_ACEI",
-          "statement": "define \\"RULE-CKD-ACEI\\": hook = 'order-sign' and when = {\\"all\\":[{\\"fact\\":\\"order.drugClass\\",\\"operator\\":\\"equals\\",\\"value\\":\\"ACEI\\"}]}"
+          "statement": "define \\"RULE-CKD-ACEI\\": hook = 'order-sign' and when = {\\"all\\":[{\\"fact\\":\\"medications[].code\\",\\"operator\\":\\"contains\\",\\"value\\":\\"ACEI\\"}]}"
         }
         """;
 
@@ -62,7 +61,7 @@ class InteroperabilityControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCanExportRuleMappingButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/interoperability/rules/cds-hooks:export")
                 .contentType("application/json")
@@ -81,7 +80,7 @@ class InteroperabilityControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_GOVERNOR")
+    @WithMockUser(authorities = "ROLE_ENGINE_OPERATOR")
     void medicalAffairsCanImportControlledCqlButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/interoperability/rules/cql:import")
                 .contentType("application/json")

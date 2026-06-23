@@ -53,9 +53,18 @@ public class AuthSessionService {
             String tenantId,
             List<String> roles,
             OrgScope orgScope) {
+        return issueInitialSession(userId, tenantId, roles, orgScope, true);
+    }
+
+    public JwtIssuer.IssuedJwt issueInitialSession(
+            String userId,
+            String tenantId,
+            List<String> roles,
+            OrgScope orgScope,
+            boolean mfaVerified) {
         AuthSessionProperties policy = runtimePolicy();
         Instant now = Instant.now();
-        return issueWithinPolicy(userId, tenantId, roles, orgScope, now, now, policy);
+        return issueWithinPolicy(userId, tenantId, roles, orgScope, now, now, policy, mfaVerified);
     }
 
     public RenewedSession renew(Jwt jwt) {
@@ -66,7 +75,19 @@ public class AuthSessionService {
         List<String> roles = List.copyOf(JwtClaimsResolver.resolveRoles(jwt));
         OrgScope orgScope = JwtClaimsResolver.resolveOrgScope(jwt);
         JwtIssuer.IssuedJwt issued = issueWithinPolicy(
-            jwt.getSubject(), tenantId, roles, orgScope, sessionStartedAt, now, policy);
+            jwt.getSubject(), tenantId, roles, orgScope, sessionStartedAt, now, policy, mfaVerified(jwt));
+        return new RenewedSession(issued, status(issued.expiresAt(), sessionStartedAt, now, policy));
+    }
+
+    public RenewedSession completeMfa(Jwt jwt) {
+        AuthSessionProperties policy = runtimePolicy();
+        Instant now = Instant.now();
+        Instant sessionStartedAt = sessionStartedAt(jwt);
+        String tenantId = jwt.getClaimAsString(JwtClaimsResolver.CLAIM_TENANT_ID);
+        List<String> roles = List.copyOf(JwtClaimsResolver.resolveRoles(jwt));
+        OrgScope orgScope = JwtClaimsResolver.resolveOrgScope(jwt);
+        JwtIssuer.IssuedJwt issued = issueWithinPolicy(
+            jwt.getSubject(), tenantId, roles, orgScope, sessionStartedAt, now, policy, true);
         return new RenewedSession(issued, status(issued.expiresAt(), sessionStartedAt, now, policy));
     }
 
@@ -86,7 +107,8 @@ public class AuthSessionService {
             OrgScope orgScope,
             Instant sessionStartedAt,
             Instant now,
-            AuthSessionProperties policy) {
+            AuthSessionProperties policy,
+            boolean mfaVerified) {
         Instant maxExpiresAt = sessionStartedAt.plusSeconds(policy.maxDurationSeconds());
         if (!maxExpiresAt.isAfter(now)) {
             throw new ApiException(ErrorCode.ENG_AUTH_012);
@@ -98,7 +120,8 @@ public class AuthSessionService {
         if (!expiresAt.isAfter(now)) {
             throw new ApiException(ErrorCode.ENG_AUTH_012);
         }
-        return jwtIssuer.issueSession(userId, tenantId, roles, orgScope, sessionStartedAt, now, expiresAt);
+        return jwtIssuer.issueSession(
+            userId, tenantId, roles, orgScope, sessionStartedAt, now, expiresAt, mfaVerified);
     }
 
     private static SessionStatusResponse status(
@@ -139,6 +162,10 @@ public class AuthSessionService {
 
     private static Instant issuedAtOrNow(Jwt jwt) {
         return jwt.getIssuedAt() == null ? Instant.now() : jwt.getIssuedAt();
+    }
+
+    private static boolean mfaVerified(Jwt jwt) {
+        return Boolean.TRUE.equals(jwt.getClaim(AuthSessionClaims.MFA_VERIFIED));
     }
 
     public record RenewedSession(

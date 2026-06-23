@@ -5,10 +5,10 @@ import { ensureReadySession, loginFromPlatformPage } from "./support/auth";
 test.describe.configure({ mode: "serial" });
 
 test.describe("D6 AI 工作流真实验收", () => {
-  test("实施运维员从登录页查看真实能力状态且没有执行或管理入口", async ({ page }, testInfo) => {
+  test("医疗引擎运营员从登录页查看真实能力状态", async ({ page }, testInfo) => {
     const browserErrors = collectBrowserErrors(page);
-    await ensureReadySession(page, "implementation-operator");
-    await loginFromPlatformPage(page, "implementation-operator");
+    await ensureReadySession(page, "engine-operator");
+    await loginFromPlatformPage(page, "engine-operator");
 
     await page.goto("/advanced/ai-workflows");
     await expect(page.getByRole("heading", { name: "AI 工作流" })).toBeVisible();
@@ -38,10 +38,10 @@ test.describe("D6 AI 工作流真实验收", () => {
     expect(browserErrors).toEqual([]);
   });
 
-  test("实施运维员在移动端可读且宽表只在页面内部滚动", async ({ page }, testInfo) => {
+  test("医疗引擎运营员在移动端可读且宽表只在页面内部滚动", async ({ page }, testInfo) => {
     const browserErrors = collectBrowserErrors(page);
     await page.setViewportSize({ width: 390, height: 844 });
-    await ensureReadySession(page, "implementation-operator");
+    await ensureReadySession(page, "engine-operator");
     await page.goto("/advanced/ai-workflows");
 
     await expect(page.getByRole("heading", { name: "AI 工作流" })).toBeVisible();

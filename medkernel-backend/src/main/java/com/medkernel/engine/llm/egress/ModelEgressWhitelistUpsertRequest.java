@@ -13,7 +13,7 @@ public record ModelEgressWhitelistUpsertRequest(
     @NotEmpty List<String> allowedFields,
     @NotBlank String sensitivityLevel,
     Map<String, String> desensitizationRules,
-    String approvalThresholdLevel
+    String confirmationThresholdLevel
 ) {
 
     public ModelEgressWhitelistUpsertRequest(List<String> allowedFields, String sensitivityLevel) {
@@ -22,7 +22,7 @@ public record ModelEgressWhitelistUpsertRequest(
 
     public ModelEgressWhitelistUpsertRequest {
         desensitizationRules = desensitizationRules == null ? Map.of() : desensitizationRules;
-        approvalThresholdLevel = approvalThresholdLevel == null || approvalThresholdLevel.isBlank()
-            ? "HIGH" : approvalThresholdLevel;
+        confirmationThresholdLevel = confirmationThresholdLevel == null || confirmationThresholdLevel.isBlank()
+            ? "HIGH" : confirmationThresholdLevel;
     }
 }

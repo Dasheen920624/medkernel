@@ -7,6 +7,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -29,8 +33,6 @@ import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.ids.Ulid;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 随访模板资产服务。
@@ -67,14 +69,7 @@ public class FollowupTemplateService {
     public FollowupTemplateResponse create(FollowupTemplateCreateRequest request) {
         String tenantId = tenantId();
         String templateCode = required(request.templateCode(), "模板编码");
-        Integer versionNo = request.versionNo();
-        templates.findByTenantIdAndTemplateCodeAndVersionNo(tenantId, templateCode, versionNo)
-            .ifPresent(existing -> {
-                throw new ApiException(
-                    ErrorCode.CONFLICT,
-                    "随访模板编码和版本已存在: " + templateCode + "@" + versionNo
-                );
-            });
+        int versionNo = allocateNextVersion(tenantId, templateCode);
         validateTasks(request.tasks());
         JsonNode questionnaire = requireObject(request.questionnaireDefinition(), "问卷定义");
         JsonNode abnormalAction = requireObject(request.abnormalActionDefinition(), "异常处置定义");
@@ -86,47 +81,57 @@ public class FollowupTemplateService {
         String content = templateContent(
             templateId,
             request,
+            versionNo,
             tasksJson,
             questionnaireJson,
             abnormalActionJson
         );
         String actor = actor();
         String traceId = RequestContext.currentTraceId();
-        AssetVersion assetVersion = versionedAssets.registerDraft(new AssetVersionRegisterCommand(
-            tenantId,
-            VersionedAssetType.FOLLOWUP,
-            templateId,
-            String.valueOf(versionNo),
-            required(request.organizationScope(), "组织生效域"),
-            required(request.applicableScope(), "适用范围"),
-            content,
-            null,
-            required(request.sourceRef(), "来源引用"),
-            actor,
-            traceId
-        ));
-        Instant now = Instant.now();
-        FollowupTemplate saved = templates.save(new FollowupTemplate(
-            null,
-            templateId,
-            tenantId,
-            templateCode,
-            versionNo,
-            required(request.name(), "模板名称"),
-            normalize(request.description()),
-            request.organizationScope().trim(),
-            request.applicableScope().trim(),
-            tasksJson,
-            questionnaireJson,
-            abnormalActionJson,
-            request.sourceRef().trim(),
-            assetVersion.versionId(),
-            now,
-            actor,
-            now,
-            actor,
-            traceId
-        ));
+        AssetVersion assetVersion;
+        FollowupTemplate saved;
+        try {
+            assetVersion = versionedAssets.registerDraft(new AssetVersionRegisterCommand(
+                tenantId,
+                VersionedAssetType.FOLLOWUP,
+                templateCode,
+                null,
+                required(request.applicableScope(), "适用范围"),
+                content,
+                null,
+                required(request.sourceRef(), "来源引用"),
+                actor,
+                traceId
+            ));
+            Instant now = Instant.now();
+            saved = templates.save(new FollowupTemplate(
+                null,
+                templateId,
+                tenantId,
+                templateCode,
+                versionNo,
+                required(request.name(), "模板名称"),
+                normalize(request.description()),
+                request.organizationScope().trim(),
+                request.applicableScope().trim(),
+                tasksJson,
+                questionnaireJson,
+                abnormalActionJson,
+                request.sourceRef().trim(),
+                assetVersion.versionId(),
+                now,
+                actor,
+                now,
+                actor,
+                traceId
+            ));
+        } catch (DuplicateKeyException exception) {
+            throw new ApiException(
+                ErrorCode.CONFLICT,
+                "随访模板版本并发创建冲突，请刷新后重试: " + templateCode + "@" + versionNo,
+                exception
+            );
+        }
         auditRecorder.record(
             AuditAction.CREATE,
             "mk_followup_template",
@@ -174,11 +179,6 @@ public class FollowupTemplateService {
             releasePort.submitForReview(command);
             releasePort.approveReview(command);
             releasePort.publish(command);
-        } else if (version.status() == AssetVersionStatus.IN_REVIEW) {
-            releasePort.approveReview(command);
-            releasePort.publish(command);
-        } else if (version.status() == AssetVersionStatus.APPROVED) {
-            releasePort.publish(command);
         } else if (version.status() != AssetVersionStatus.PUBLISHED) {
             throw new ApiException(
                 ErrorCode.CONFLICT,
@@ -224,7 +224,7 @@ public class FollowupTemplateService {
         return new VersionReleaseCommand(
             template.tenantId(),
             VersionedAssetType.FOLLOWUP,
-            template.templateId(),
+            template.templateCode(),
             version.versionId(),
             template.organizationScope(),
             template.applicableScope(),
@@ -235,7 +235,6 @@ public class FollowupTemplateService {
             required(request.reason(), "审核说明"),
             actor(),
             RequestContext.currentTraceId(),
-            null,
             null
         );
     }
@@ -304,13 +303,14 @@ public class FollowupTemplateService {
     private String templateContent(
             String templateId,
             FollowupTemplateCreateRequest request,
+            int versionNo,
             String tasksJson,
             String questionnaireJson,
             String abnormalActionJson) {
         Map<String, Object> content = new LinkedHashMap<>();
         content.put("templateId", templateId);
         content.put("templateCode", request.templateCode().trim());
-        content.put("versionNo", request.versionNo());
+        content.put("versionNo", versionNo);
         content.put("name", request.name().trim());
         content.put("description", normalize(request.description()));
         content.put("organizationScope", request.organizationScope().trim());
@@ -320,6 +320,14 @@ public class FollowupTemplateService {
         content.put("abnormalActionDefinition", readTree(abnormalActionJson));
         content.put("sourceRef", request.sourceRef().trim());
         return writeJson(content);
+    }
+
+    private int allocateNextVersion(String tenantId, String templateCode) {
+        return templates.findTopByTenantIdAndTemplateCodeOrderByVersionNoDesc(
+                tenantId, templateCode
+            )
+            .map(FollowupTemplate::versionNo)
+            .orElse(0) + 1;
     }
 
     private JsonNode requireObject(String value, String label) {

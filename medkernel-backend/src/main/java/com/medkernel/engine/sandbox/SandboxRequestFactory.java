@@ -50,13 +50,13 @@ final class SandboxRequestFactory {
             SandboxRunRequest request,
             String traceId,
             ObjectMapper json,
-            String packageVersion) {
+            String runtimeRevisionLabel) {
         OrgScope scope = RequestContext.currentOrgScope();
         String tenantId = requireTenant(scope);
         String orgUnitId = scope.nearestOrgUnitIdOrTenant(tenantId);
         Instant occurredAt = request.occurredAt() == null ? Instant.now() : request.occurredAt();
         ContextSnapshotResources resources = request.contextOverride() == null
-            ? defaultResources(scenario, occurredAt, packageVersion)
+            ? defaultResources(scenario, occurredAt, runtimeRevisionLabel)
             : json.convertValue(request.contextOverride(), ContextSnapshotResources.class);
 
         return new ContextSnapshotRequest(
@@ -75,7 +75,6 @@ final class SandboxRequestFactory {
             scenario.patientId(),
             scenario.encounterId(),
             orgUnitId,
-            packageVersion,
             resources);
     }
 
@@ -85,7 +84,7 @@ final class SandboxRequestFactory {
             SandboxRunRequest request,
             String traceId,
             String patientPathwayId,
-            String packageVersion) {
+            String runtimeRevisionLabel) {
         Instant occurredAt = request.occurredAt() == null ? Instant.now() : request.occurredAt();
         String runSuffix = traceSuffix(traceId);
         return new RecommendationTriggerRequest(
@@ -97,10 +96,9 @@ final class SandboxRequestFactory {
             scenario.encounterId(),
             patientPathwayId,
             scenario.id(),
-            packageVersion,
             "sandbox:" + scenario.expectedRuleCode() + ":" + snapshotId,
             occurredAt,
-            recommendationCandidates(scenario, patientPathwayId, packageVersion),
+            recommendationCandidates(scenario, patientPathwayId, runtimeRevisionLabel),
             Boolean.FALSE);
     }
 
@@ -140,7 +138,7 @@ final class SandboxRequestFactory {
     private static List<RecommendationCardRequest> recommendationCandidates(
             SandboxScenario scenario,
             String patientPathwayId,
-            String packageVersion) {
+            String runtimeRevisionLabel) {
         if ("RULE_ONLY".equals(scenario.playbook())) {
             return List.of();
         }
@@ -178,7 +176,7 @@ final class SandboxRequestFactory {
                     ? RecommendationSourceType.PATHWAY
                     : RecommendationSourceType.CONTEXT,
                 sourceRefId,
-                packageVersion,
+                runtimeRevisionLabel,
                 "全真体验沙盘标准上下文",
                 "sandbox:" + scenario.id(),
                 null,
@@ -188,7 +186,7 @@ final class SandboxRequestFactory {
     private static ContextSnapshotResources defaultResources(
             SandboxScenario scenario,
             Instant occurredAt,
-            String packageVersion) {
+            String runtimeRevisionLabel) {
         CanonicalPatient patient = new CanonicalPatient(
             scenario.patientId(),
             "沙盘患者",
@@ -197,7 +195,7 @@ final class SandboxRequestFactory {
             List.of(),
             SOURCE_SYSTEM,
             scenario.patientId(),
-            packageVersion,
+            runtimeRevisionLabel,
             occurredAt,
             occurredAt,
             QualityStatus.VALID);
@@ -211,7 +209,7 @@ final class SandboxRequestFactory {
             null,
             SOURCE_SYSTEM,
             scenario.encounterId(),
-            packageVersion,
+            runtimeRevisionLabel,
             occurredAt,
             occurredAt,
             QualityStatus.VALID);
@@ -226,7 +224,7 @@ final class SandboxRequestFactory {
             "HIGH",
             SOURCE_SYSTEM,
             "SBX-LAB-K-RESULT-001",
-            packageVersion,
+            runtimeRevisionLabel,
             occurredAt,
             occurredAt,
             QualityStatus.VALID);
@@ -243,7 +241,8 @@ final class SandboxRequestFactory {
             List.of(),
             List.of(),
             List.of(),
-            List.of());
+            List.of(),
+            ContextSnapshotResources.emptyExtensions());
     }
 
     private static String requireTenant(OrgScope scope) {

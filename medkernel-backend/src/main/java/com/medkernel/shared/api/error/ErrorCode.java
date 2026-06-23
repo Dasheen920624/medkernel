@@ -45,7 +45,7 @@ public enum ErrorCode {
     MODEL_DEGRADED("ENG-SYS-003", 503, "AI 模型不可用，已降级到无模型基线", ErrorClass.EXTERNAL, true),
 
     ENG_CONTEXT_001("ENG-CONTEXT-001", 400, "上下文 schema 校验失败", ErrorClass.INPUT, false),
-    ENG_CONTEXT_002("ENG-CONTEXT-002", 400, "包版本不存在", ErrorClass.DATA, false),
+    ENG_CONTEXT_002("ENG-CONTEXT-002", 400, "医院运行修订不存在", ErrorClass.DATA, false),
     ENG_CONTEXT_003("ENG-CONTEXT-003", 400, "标准上下文 quality_status=INVALID 被拒绝", ErrorClass.DATA, false),
     ENG_CONTEXT_004("ENG-CONTEXT-004", 409, "幂等键冲突且 payload 不一致", ErrorClass.DATA, false),
 
@@ -75,7 +75,7 @@ public enum ErrorCode {
     ENG_PATHWAY_004("ENG-PATHWAY-004", 409, "路径模板发布门禁失败", ErrorClass.DATA, false),
     ENG_PATHWAY_005("ENG-PATHWAY-005", 409, "当前路径状态不允许该操作", ErrorClass.DATA, false),
     ENG_PATHWAY_006("ENG-PATHWAY-006", 400, "路径推进事件不合法", ErrorClass.INPUT, false),
-    ENG_PATHWAY_007("ENG-PATHWAY-007", 404, "路径知识包不存在", ErrorClass.DATA, false),
+    ENG_PATHWAY_007("ENG-PATHWAY-007", 404, "路径运行资产不存在", ErrorClass.DATA, false),
     PATHWAY_CLOCK_MISSING("PATHWAY_CLOCK_MISSING", 409, "路径关键时钟缺少质控指标绑定", ErrorClass.DATA, false),
 
     ENG_REC_001("ENG-REC-001", 400, "推荐触发请求校验失败", ErrorClass.INPUT, false),
@@ -95,14 +95,8 @@ public enum ErrorCode {
     ENG_EVAL_007("ENG-EVAL-007", 409, "整改或复核状态冲突", ErrorClass.DATA, false),
     ENG_EVAL_008("ENG-EVAL-008", 409, "整改或复核幂等键与请求内容冲突", ErrorClass.DATA, false),
 
-    ENG_PACKAGE_001("ENG-PACKAGE-001", 404, "知识包或同步目标不存在", ErrorClass.DATA, false),
-    ENG_PACKAGE_002("ENG-PACKAGE-002", 400, "包资产状态不合法", ErrorClass.DATA, false),
-    ENG_PACKAGE_003("ENG-PACKAGE-003", 400, "无效的发布灰度范围或发布策略", ErrorClass.INPUT, false),
-    ENG_PACKAGE_004("ENG-PACKAGE-004", 409, "包发布门禁校验失败", ErrorClass.DATA, false),
-    ENG_PACKAGE_005("ENG-PACKAGE-005", 500, "投影目标同步部分或全部失败", ErrorClass.EXTERNAL, true),
-    PACKAGE_ENTITLEMENT_EXPIRED(
-        "PACKAGE_ENTITLEMENT_EXPIRED", 409, "平台知识包授权已到期", ErrorClass.DATA, false),
-    PACKAGE_DEPENDENCY_MISSING("PACKAGE_DEPENDENCY_MISSING", 409, "配置包依赖资产缺失或未发布", ErrorClass.DATA, false),
+    ENG_ASSET_002("ENG-ASSET-002", 400, "运行资产状态不合法", ErrorClass.DATA, false),
+    ASSET_DEPENDENCY_MISSING("ASSET_DEPENDENCY_MISSING", 409, "资产依赖版本缺失或未发布", ErrorClass.DATA, false),
     INHERITANCE_SAFETY_DENIED("INHERITANCE_SAFETY_DENIED", 409, "高风险禁忌红线禁止下级关闭或降级覆盖", ErrorClass.DATA, false),
     ROLLBACK_SAFETY_DENIED("ROLLBACK_SAFETY_DENIED", 409, "高风险撤回版本禁止一键回滚", ErrorClass.DATA, false),
     

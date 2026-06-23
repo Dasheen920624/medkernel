@@ -31,9 +31,9 @@ describe("PageState", () => {
   });
 
   it("renders empty state with action", () => {
-    render(<PageState state="empty" title="暂无配置包" action={<Button>导入配置包</Button>} />);
-    expect(screen.getByText("暂无配置包")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "导入配置包" })).toBeInTheDocument();
+    render(<PageState state="empty" title="暂无运行发布" action={<Button>导入发布制品</Button>} />);
+    expect(screen.getByText("暂无运行发布")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "导入发布制品" })).toBeInTheDocument();
   });
 
   it("renders error tracking number and retry action", () => {
@@ -55,7 +55,8 @@ describe("PageState", () => {
   it("renders forbidden state without sensitive details", () => {
     render(<PageState state="forbidden" />);
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
-    expect(screen.getByText(/联系信息科主任/)).toBeInTheDocument();
+    expect(screen.getByText(/联系平台管理员/)).toBeInTheDocument();
+    expect(screen.queryByText(/信息科主任/)).not.toBeInTheDocument();
   });
 
   it("renders partial success counts", () => {

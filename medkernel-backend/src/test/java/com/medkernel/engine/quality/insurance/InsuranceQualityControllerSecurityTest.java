@@ -35,7 +35,6 @@ class InsuranceQualityControllerSecurityTest {
         {
           "contextSnapshotId": "snapshot-case",
           "scenarioCode": "A9",
-          "packageVersion": "pkg-quality-v1",
           "responsibleDepartmentId": "dept-records"
         }
         """;
@@ -55,7 +54,6 @@ class InsuranceQualityControllerSecurityTest {
         {
           "contextSnapshotId": "snapshot-ins",
           "scenarioCode": "A9",
-          "packageVersion": "pkg-quality-v1",
           "indicatorId": "indicator-insurance",
           "responsibleDepartmentId": "dept-insurance",
           "dueAt": "2026-06-12T00:00:00Z",
@@ -106,8 +104,8 @@ class InsuranceQualityControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
             .andExpect(status().isCreated());
 
         mvc.perform(post("/api/v1/engine/quality/drg-grouping")
@@ -116,8 +114,8 @@ class InsuranceQualityControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
             .andExpect(status().isCreated());
 
         mvc.perform(post("/api/v1/engine/quality/insurance-audit")
@@ -126,8 +124,8 @@ class InsuranceQualityControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
             .andExpect(status().isCreated());
     }
 
@@ -148,8 +146,8 @@ class InsuranceQualityControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
             .andExpect(status().isOk());
     }
 
@@ -161,8 +159,8 @@ class InsuranceQualityControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
             .andExpect(status().isForbidden());
     }
 }

@@ -26,12 +26,10 @@ class RealtimeCdsHookControllerSecurityTest {
           "hookInstance": "hook-order-001",
           "patientId": "MPI-1",
           "encounterId": "ENC-1",
-          "packageVersion": "pkg-2026.06",
           "sourceSystem": "HIS",
           "context": {
             "patientId": "MPI-1",
             "encounterId": "ENC-1",
-            "packageVersion": "pkg-2026.06",
             "contextSnapshotId": "ctx-active-001",
             "orders": [
               {"orderCode": "ORDER.ACEI", "display": "ACEI 药物医嘱"}
@@ -52,7 +50,7 @@ class RealtimeCdsHookControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCanEvaluateOrderSignCdsButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/cds-hooks:evaluate")
                 .contentType("application/json")

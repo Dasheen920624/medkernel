@@ -9,11 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;
 
 import com.medkernel.shared.api.error.ApiException;
-import com.medkernel.shared.audit.AuditAction;
-import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.AuditSafetyGuard;
-import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeBackupReadiness;
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeFeatureFlag;
 import com.medkernel.shared.runtime.RuntimeProperties;
@@ -22,11 +19,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -40,218 +34,16 @@ class SystemConfigServiceTest {
     private final SystemConfigRepository repository = mock(SystemConfigRepository.class);
     private final AuditSafetyGuard auditSafetyGuard = mock(AuditSafetyGuard.class);
     private final AuditRecorder auditRecorder = mock(AuditRecorder.class);
-    private final IsolatedAuditPublisher isolatedAuditPublisher = mock(IsolatedAuditPublisher.class);
     private final RuntimeLogLevelManager logLevelManager = mock(RuntimeLogLevelManager.class);
     private final HighRiskChangeGuard highRiskChangeGuard = mock(HighRiskChangeGuard.class);
-    private final PrivilegedConfigChangeGuard privilegedConfigChangeGuard = mock(PrivilegedConfigChangeGuard.class);
     private final SystemConfigSeedWriter seedWriter = new SystemConfigSeedWriter(repository);
     private final SystemConfigService service = new SystemConfigService(
         repository,
         auditSafetyGuard,
         auditRecorder,
-        isolatedAuditPublisher,
         logLevelManager,
         highRiskChangeGuard,
-        privilegedConfigChangeGuard,
         seedWriter);
-
-    @Test
-    void p6AcceptanceCannotBeEnabledByNonSystemSuperAdmin() {
-        String key = SystemConfigService.KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY;
-        SystemConfigItem before =
-            configItem(SystemConfigService.SYSTEM_TENANT, key, "false", "P6 正式知识生产独立验收", "PLATFORM_SEED", 1);
-        SystemConfigItem after =
-            configItem(SystemConfigService.SYSTEM_TENANT, key, "true", "P6 正式知识生产独立验收", "API", 2);
-        when(repository.findActive(SystemConfigService.SYSTEM_TENANT, key)).thenReturn(Optional.of(before));
-        when(repository.updateValue(
-            SystemConfigService.SYSTEM_TENANT,
-            key,
-            "true",
-            "integration-operator",
-            "完成 P6 独立验收",
-            1L)).thenReturn(after);
-        doThrow(ApiException.forbidden("当前账号缺少特权配置变更权限"))
-            .when(privilegedConfigChangeGuard)
-            .assertSystemSuperAdminAllowed("system_config", key);
-
-        assertThatThrownBy(() -> service.update(
-            key,
-            new SystemConfigUpdateRequest("true", "完成 P6 独立验收", 1L, true),
-            "integration-operator"))
-            .isInstanceOf(ApiException.class)
-            .hasMessageContaining("内置超级管理员");
-
-        verify(repository, never()).updateValue(
-            anyString(), anyString(), anyString(), anyString(), anyString(), eq(1L));
-        verify(isolatedAuditPublisher).publishInNewTx(argThat(event ->
-            AuditEvent.OUTCOME_FAILED.equals(event.outcome())
-                && "ENG-API-004".equals(event.errorCode())
-                && AuditAction.PERMISSION_CHANGE.equals(event.action())
-                && "system_config".equals(event.resourceType())
-                && key.equals(event.resourceId())));
-    }
-
-    @Test
-    void p6AcceptanceRejectsTenantOverrideBecauseRuntimeReadsOnlySystemFact() {
-        String key = SystemConfigService.KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY;
-        SystemConfigItem tenantItem =
-            configItem("tenant-A", key, "false", "P6 正式知识生产独立验收", "SYSTEM_INHERITED", 1);
-        SystemConfigItem updatedTenant =
-            configItem("tenant-A", key, "true", "P6 正式知识生产独立验收", "API", 2);
-        when(repository.findActive("tenant-A", key)).thenReturn(Optional.of(tenantItem));
-        when(repository.updateValue(
-            "tenant-A",
-            key,
-            "true",
-            "tenant-admin",
-            "租户尝试放行 P6",
-            1L)).thenReturn(updatedTenant);
-
-        assertThatThrownBy(() -> service.updateTenantOverride(
-            "tenant-A",
-            key,
-            new SystemConfigUpdateRequest("true", "租户尝试放行 P6", 1L, true),
-            "tenant-admin"))
-            .isInstanceOf(ApiException.class)
-            .hasMessageContaining("仅允许系统级维护");
-
-        verify(repository, never()).updateValue(
-            anyString(), anyString(), anyString(), anyString(), anyString(), eq(1L));
-    }
-
-    @Test
-    void p6AcceptanceRejectsTenantDefaultSeedingBecauseItIsASystemFact() {
-        String key = SystemConfigService.KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY;
-        SystemConfigSeed seed = new SystemConfigSeed(
-            "tenant-A",
-            key,
-            "false",
-            "BOOLEAN",
-            "P6 正式知识生产独立验收",
-            "HIGH",
-            "平台知识治理组",
-            "正式模型生成知识的独立验收放行标记。",
-            "SAFE_DEFAULT",
-            true,
-            Instant.parse("2026-06-18T10:00:00Z"));
-
-        assertThatThrownBy(() -> service.getOrSeedTenantConfig("tenant-A", key, seed, "tenant-admin"))
-            .isInstanceOf(ApiException.class)
-            .hasMessageContaining("仅允许系统级维护");
-
-        verify(repository, never()).insertSeedIfAbsent(any(SystemConfigSeed.class), anyString());
-    }
-
-    @Test
-    void p6AcceptanceRejectsDirectTenantSeedBecauseItIsASystemFact() {
-        String key = SystemConfigService.KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY;
-        SystemConfigSeed seed = new SystemConfigSeed(
-            "tenant-A",
-            key,
-            "false",
-            "BOOLEAN",
-            "P6 正式知识生产独立验收",
-            "HIGH",
-            "平台知识治理组",
-            "正式模型生成知识的独立验收放行标记。",
-            "SAFE_DEFAULT",
-            true,
-            Instant.parse("2026-06-18T10:00:00Z"));
-
-        assertThatThrownBy(() -> service.seed(seed, "system"))
-            .isInstanceOf(ApiException.class)
-            .hasMessageContaining("仅允许系统级维护");
-
-        verify(repository, never()).insertSeedIfAbsent(any(SystemConfigSeed.class), anyString());
-    }
-
-    @Test
-    void p6AcceptanceEnableUsesPrivilegedGuardBeforePersisting() {
-        String key = SystemConfigService.KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY;
-        SystemConfigItem before =
-            configItem(SystemConfigService.SYSTEM_TENANT, key, "false", "P6 正式知识生产独立验收", "PLATFORM_SEED", 1);
-        SystemConfigItem after =
-            configItem(SystemConfigService.SYSTEM_TENANT, key, "true", "P6 正式知识生产独立验收", "API", 2);
-        when(repository.findActive(SystemConfigService.SYSTEM_TENANT, key)).thenReturn(Optional.of(before));
-        when(repository.updateValue(
-            SystemConfigService.SYSTEM_TENANT,
-            key,
-            "true",
-            "system-superadmin",
-            "完成 P6 独立验收",
-            1L)).thenReturn(after);
-
-        SystemConfigItemResponse response = service.update(
-            key,
-            new SystemConfigUpdateRequest("true", "完成 P6 独立验收", 1L, true),
-            "system-superadmin");
-
-        assertThat(response.value()).isEqualTo("true");
-        verify(privilegedConfigChangeGuard).assertSystemSuperAdminAllowed("system_config", key);
-        verify(repository).updateValue(
-            SystemConfigService.SYSTEM_TENANT,
-            key,
-            "true",
-            "system-superadmin",
-            "完成 P6 独立验收",
-            1L);
-    }
-
-    @Test
-    void p6AcceptanceDisableKeepsFastFailClosedPathForMfaBoundOperator() {
-        String key = SystemConfigService.KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY;
-        SystemConfigItem before =
-            configItem(SystemConfigService.SYSTEM_TENANT, key, "true", "P6 正式知识生产独立验收", "API", 2);
-        SystemConfigItem after =
-            configItem(SystemConfigService.SYSTEM_TENANT, key, "false", "P6 正式知识生产独立验收", "API", 3);
-        when(repository.findActive(SystemConfigService.SYSTEM_TENANT, key)).thenReturn(Optional.of(before));
-        when(repository.updateValue(
-            SystemConfigService.SYSTEM_TENANT,
-            key,
-            "false",
-            "integration-operator",
-            "发现风险，立即关闭正式生产",
-            2L)).thenReturn(after);
-
-        SystemConfigItemResponse response = service.update(
-            key,
-            new SystemConfigUpdateRequest("false", "发现风险，立即关闭正式生产", 2L, true),
-            "integration-operator");
-
-        assertThat(response.value()).isEqualTo("false");
-        verify(privilegedConfigChangeGuard, never()).assertSystemSuperAdminAllowed(anyString(), anyString());
-    }
-
-    @Test
-    void p6RollbackToEnabledValueAlsoRequiresSystemSuperAdmin() {
-        String key = SystemConfigService.KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY;
-        SystemConfigItem before =
-            configItem(SystemConfigService.SYSTEM_TENANT, key, "false", "P6 正式知识生产独立验收", "API", 3);
-        when(repository.findActive(SystemConfigService.SYSTEM_TENANT, key)).thenReturn(Optional.of(before));
-        when(repository.findLatestHistory(SystemConfigService.SYSTEM_TENANT, key))
-            .thenReturn(Optional.of(new SystemConfigHistoryEntry(
-                SystemConfigService.SYSTEM_TENANT,
-                key,
-                "true",
-                "false",
-                "UPDATE",
-                3,
-                Instant.parse("2026-06-18T10:00:00Z"),
-                "integration-operator")));
-        doThrow(ApiException.forbidden("当前账号缺少特权配置变更权限"))
-            .when(privilegedConfigChangeGuard)
-            .assertSystemSuperAdminAllowed("system_config", key);
-
-        assertThatThrownBy(() -> service.rollback(
-            key,
-            new SystemConfigRollbackRequest("回滚到已放行状态", true),
-            "integration-operator"))
-            .isInstanceOf(ApiException.class)
-            .hasMessageContaining("内置超级管理员");
-
-        verify(repository, never()).rollbackValue(
-            anyString(), anyString(), anyString(), anyString(), anyString());
-    }
 
     @Test
     void tenantConfigurationIsSeededAndReadWithinItsOwnTenantBoundary() {

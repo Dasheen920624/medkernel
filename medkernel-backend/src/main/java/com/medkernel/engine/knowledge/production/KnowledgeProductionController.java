@@ -17,6 +17,9 @@ import com.medkernel.engine.factory.ProfessionalAssetTemplate;
 import com.medkernel.engine.factory.ProfessionalAssetTemplateRegistry;
 import com.medkernel.engine.knowledge.production.gate.AikGateResult;
 import com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService;
+import com.medkernel.engine.knowledge.production.gate.PublicationQualityRecord;
+import com.medkernel.engine.knowledge.production.gate.PublicationQualityRecordRequest;
+import com.medkernel.engine.knowledge.production.gate.PublicationQualityRecordService;
 import com.medkernel.engine.knowledge.production.generation.CandidateGenerationOrchestrationService;
 import com.medkernel.engine.knowledge.production.generation.CandidateGenerationRequest;
 import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
@@ -35,7 +38,7 @@ import com.medkernel.shared.datascope.DataScope;
  * 知识生产编排 API（AIK-STD-13）。
  *
  * <p>统一编排层：建生产 job（FR-1）+ 提交候选（FR-3，经校验闸 + §9 双形态隔离守卫）+ job 台账/进度。
- * 建 job / 提交候选走 {@code knowledge.write}，台账走 {@code knowledge.read}；隔离靠 t-1 守卫非权限（会签角色路由 PR2）。
+ * 建 job / 提交候选走 {@code knowledge.write}，台账走 {@code knowledge.read}；隔离由租户边界守卫负责。
  * 类级 {@link DataScope}：所有方法需租户上下文。
  */
 @RestController
@@ -48,6 +51,7 @@ public class KnowledgeProductionController {
     private final ProfessionalAssetTemplateRegistry templateRegistry;
     private final CandidateGenerationOrchestrationService generationService;
     private final CandidateSafetyGateService gateService;
+    private final PublicationQualityRecordService publicationQualityRecordService;
     private final KnowledgeGenerationTriageService triageService;
     private final KnowledgeShadowEvaluationService shadowService;
     private final CandidateCoexistenceService coexistenceService;
@@ -60,6 +64,7 @@ public class KnowledgeProductionController {
                                          ProfessionalAssetTemplateRegistry templateRegistry,
                                          CandidateGenerationOrchestrationService generationService,
                                          CandidateSafetyGateService gateService,
+                                         PublicationQualityRecordService publicationQualityRecordService,
                                          KnowledgeGenerationTriageService triageService,
                                          KnowledgeShadowEvaluationService shadowService,
                                          CandidateCoexistenceService coexistenceService,
@@ -71,6 +76,7 @@ public class KnowledgeProductionController {
         this.templateRegistry = templateRegistry;
         this.generationService = generationService;
         this.gateService = gateService;
+        this.publicationQualityRecordService = publicationQualityRecordService;
         this.triageService = triageService;
         this.shadowService = shadowService;
         this.coexistenceService = coexistenceService;
@@ -170,7 +176,7 @@ public class KnowledgeProductionController {
         return ApiResult.ok(templateRegistry.listAll());
     }
 
-    /** 从受控来源生成知识候选（AIK-STD-04）：逐资产类型建 job → 模板桩候选 → 既有审核链。 */
+    /** 从受控来源生成统一资产草稿（AIK-STD-04）：知识走候选审核链；规则/路径走统一版本草稿。 */
     @PostMapping("/generate")
     @PreAuthorize("@perm.has('knowledge.write')")
     public ApiResult<GenerationSummary> generate(@Valid @RequestBody CandidateGenerationRequest request) {
@@ -192,6 +198,15 @@ public class KnowledgeProductionController {
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<List<AikGateResult>> gateResults(@PathVariable String jobCode) {
         return ApiResult.ok(gateService.listResults(jobCode));
+    }
+
+    /** 汇总真实安全门、分流与影子评测，生成发布/激活唯一可接受的不可变质量记录。 */
+    @PostMapping("/jobs/{jobCode}/publication-quality-records")
+    @PreAuthorize("@perm.has('knowledge.publish')")
+    public ApiResult<PublicationQualityRecord> createPublicationQualityRecord(
+            @PathVariable String jobCode,
+            @Valid @RequestBody PublicationQualityRecordRequest request) {
+        return ApiResult.ok(publicationQualityRecordService.create(jobCode, request));
     }
 
     /** 生成期 8 态分流结果列表（AIK-STD-10 FR-5）：按 job 回溯身份识别、去重与处理去向。 */

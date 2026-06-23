@@ -34,7 +34,6 @@ public class KnowledgeVersionedAssetAdapter implements VersionedAssetPort {
             command.tenantId(),
             VersionedAssetType.KNOWLEDGE,
             command.assetIdentity(),
-            command.versionNo(),
             command.organizationScope(),
             command.applicableScope(),
             command.content(),

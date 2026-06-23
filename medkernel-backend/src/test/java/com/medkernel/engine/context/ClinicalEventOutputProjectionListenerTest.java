@@ -64,7 +64,7 @@ class ClinicalEventOutputProjectionListenerTest {
                 ClinicalSetting.INPATIENT,
                 "snap-order-1",
                 "HIS",
-                "pkg-2026.06",
+                "runtime-release-test",
                 "digest-order-1",
                 now,
                 "HIS:order-sign",
@@ -82,7 +82,8 @@ class ClinicalEventOutputProjectionListenerTest {
                     List.of(),
                     List.of(),
                     List.of(),
-                    List.of()),
+                    List.of(),
+                    ContextSnapshotResources.emptyExtensions()),
                 null,
                 List.of()));
     }

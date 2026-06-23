@@ -22,7 +22,7 @@ class RuleDslEvaluatorTest {
               "trigger": "order-sign",
               "when": {
                 "all": [
-                  {"fact": "order.riskLevel", "operator": "equals", "value": "HIGH"}
+                  {"fact": "nursingAssessments[].riskLevel", "operator": "contains", "value": "HIGH"}
                 ]
               },
               "then": [
@@ -62,7 +62,7 @@ class RuleDslEvaluatorTest {
               "explain": {"summary": "按风险级别输出动作卡"}
             }
             """), read("""
-            {"order": {"riskLevel": "HIGH"}}
+            {"nursingAssessments": [{"riskLevel": "HIGH", "status": "SIGNED"}]}
             """));
 
         assertThat(result.actions()).hasSize(2);
@@ -201,7 +201,7 @@ class RuleDslEvaluatorTest {
               "when": {
                 "all": [
                   {"fact": "patient.age", "operator": "gte", "value": 18},
-                  {"fact": "order.drugClass", "operator": "equals", "value": "ANTICOAGULANT"},
+                  {"fact": "medications[].code", "operator": "contains", "value": "ANTICOAGULANT"},
                   {"fact": "patient.diagnoses", "operator": "contains", "value": "AF"}
                 ]
               },
@@ -217,7 +217,7 @@ class RuleDslEvaluatorTest {
             """), read("""
             {
               "patient": {"age": 72, "diagnoses": ["AF", "HTN"]},
-              "order": {"drugClass": "ANTICOAGULANT"}
+              "medications": [{"code": "ANTICOAGULANT"}]
             }
             """));
 
@@ -236,7 +236,7 @@ class RuleDslEvaluatorTest {
         assertThat(evidence.get(0).path("actual").asInt()).isEqualTo(72);
         assertThat(evidence.get(0).path("matched").asBoolean()).isTrue();
         assertThat(evidence.get(0).path("missing").asBoolean()).isFalse();
-        assertThat(evidence.get(1).path("fact").asText()).isEqualTo("order.drugClass");
+        assertThat(evidence.get(1).path("fact").asText()).isEqualTo("medications[].code");
         assertThat(evidence.get(2).path("actual")).hasSize(2);
         assertThat(evidence.get(2).path("actual").get(0).asText()).isEqualTo("AF");
         assertThat(evidence.get(2).path("actual").get(1).asText()).isEqualTo("HTN");
@@ -362,7 +362,7 @@ class RuleDslEvaluatorTest {
               "trigger": "order-sign",
               "when": {
                 "all": [
-                  {"fact": "order.drugClass", "operator": "equals", "value": "ANTIBIOTIC"},
+                  {"fact": "medications[].code", "operator": "contains", "value": "ANTIBIOTIC"},
                   {"not": {"fact": "allergyIntolerances[].code", "operator": "contains", "value": "PENICILLIN"}}
                 ]
               },
@@ -374,7 +374,7 @@ class RuleDslEvaluatorTest {
             """), read("""
             {
               "allergyIntolerances": [{"code": "SULFA"}],
-              "order": {"drugClass": "ANTIBIOTIC"}
+              "medications": [{"code": "ANTIBIOTIC"}]
             }
             """));
 
@@ -394,7 +394,7 @@ class RuleDslEvaluatorTest {
               "when": {
                 "all": [
                   {"fact": "allergyIntolerances[].code", "operator": "contains", "value": "PEN"},
-                  {"fact": "order.drugCode", "operator": "equals", "value": "PEN"}
+                  {"fact": "medications[].code", "operator": "contains", "value": "PEN"}
                 ]
               },
               "then": [
@@ -412,7 +412,7 @@ class RuleDslEvaluatorTest {
                   "criticality": "HIGH"
                 }
               ],
-              "order": {"drugCode": "PEN"}
+              "medications": [{"code": "PEN"}]
             }
             """));
 

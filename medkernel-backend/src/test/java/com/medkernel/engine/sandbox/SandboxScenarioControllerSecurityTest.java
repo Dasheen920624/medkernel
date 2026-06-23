@@ -1,6 +1,5 @@
 package com.medkernel.engine.sandbox;
 
-import java.time.Instant;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -30,7 +29,7 @@ class SandboxScenarioControllerSecurityTest {
     private static final String RUN_PATH =
         "/api/v1/engine/sandbox/scenarios/sbx-lab-critical-k/run";
     private static final String CATALOG_PATH = "/api/v1/engine/sandbox/scenarios";
-    private static final String RUNTIME_BINDING_PATH = "/api/v1/engine/sandbox/runtime-binding";
+    private static final String RUNTIME_STATUS_PATH = "/api/v1/engine/sandbox/runtime-status";
 
     @Autowired
     private MockMvc mockMvc;
@@ -39,7 +38,7 @@ class SandboxScenarioControllerSecurityTest {
     private SandboxOrchestrationService service;
 
     @MockBean
-    private SandboxRuntimeBindingService runtimeBindings;
+    private SandboxRuntimeStatusService runtimeStatus;
 
     @Test
     void unauthenticatedRunReturnsUnauthorized() throws Exception {
@@ -52,16 +51,16 @@ class SandboxScenarioControllerSecurityTest {
     @Test
     void roleWithoutSandboxPermissionReturnsForbidden() throws Exception {
         mockMvc.perform(post(RUN_PATH)
-                .with(roleJwt("quality-governor", "ROLE_QUALITY_GOVERNOR"))
+                .with(roleJwt("auditor", "ROLE_AUDITOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
             .andExpect(status().isForbidden());
     }
 
     @Test
-    void clinicalDecisionUserCanReadBackendOwnedScenarioCatalog() throws Exception {
+    void clinicalUserCanReadBackendOwnedScenarioCatalog() throws Exception {
         mockMvc.perform(get(CATALOG_PATH)
-                .with(roleJwt("clinical-decision-user", "ROLE_CLINICAL_DECISION_USER")))
+                .with(roleJwt("clinical-user", "ROLE_CLINICAL_USER")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.length()").value(15))
             .andExpect(jsonPath("$.data[0].id").value("sbx-lab-critical-k"))
@@ -71,12 +70,12 @@ class SandboxScenarioControllerSecurityTest {
     }
 
     @Test
-    void clinicalDecisionUserCanRunOrdinarySandboxEntry() throws Exception {
+    void clinicalUserCanRunOrdinarySandboxEntry() throws Exception {
         when(service.run(eq("sbx-lab-critical-k"), any())).thenReturn(new SandboxRunResponse(
             "sbx-lab-critical-k", "trace-1", List.of(), null, null, 0, null, null, "PASS"));
 
         mockMvc.perform(post(RUN_PATH)
-                .with(roleJwt("clinical-decision-user", "ROLE_CLINICAL_DECISION_USER"))
+                .with(roleJwt("clinical-user", "ROLE_CLINICAL_USER"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -90,42 +89,16 @@ class SandboxScenarioControllerSecurityTest {
     }
 
     @Test
-    void sandboxUserCanReadHonestRuntimeReadinessButCannotActivateBinding() throws Exception {
-        when(runtimeBindings.currentStatus()).thenReturn(SandboxRuntimeStatusResponse.notReady(
-            "hospital-1", "SANDBOX_RUNTIME_BASELINE_MISSING", "演练机构未激活沙盘运行绑定"));
+    void sandboxUserCanReadHonestRuntimeReadinessFromCurrentHospitalRevision() throws Exception {
+        when(runtimeStatus.currentStatus()).thenReturn(SandboxRuntimeStatusResponse.notReady(
+            "hospital-1", "SANDBOX_RUNTIME_RELEASE_MISSING", "医院尚未发布运行修订"));
 
-        mockMvc.perform(get(RUNTIME_BINDING_PATH)
-                .with(roleJwt("clinical-decision-user", "ROLE_CLINICAL_DECISION_USER")))
+        mockMvc.perform(get(RUNTIME_STATUS_PATH)
+                .with(roleJwt("clinical-user", "ROLE_CLINICAL_USER")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.ready").value(false))
-            .andExpect(jsonPath("$.data.reasonCode").value("SANDBOX_RUNTIME_BASELINE_MISSING"))
+            .andExpect(jsonPath("$.data.reasonCode").value("SANDBOX_RUNTIME_RELEASE_MISSING"))
             .andExpect(jsonPath("$.data.externalSideEffects").value(false));
-
-        mockMvc.perform(post(RUNTIME_BINDING_PATH)
-                .with(roleJwt("clinical-decision-user", "ROLE_CLINICAL_DECISION_USER"))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                    {"packageOwnerTenantId":"tenant-1","packageId":"pkg-1"}
-                    """))
-            .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void knowledgeGovernorCanActivateRuntimeBinding() throws Exception {
-        when(runtimeBindings.activate(any())).thenReturn(new SandboxRuntimeStatusResponse(
-            true, null, null, "hospital-1", "binding-1", "tenant-1", "pkg-1",
-            "PKG.SANDBOX", "7.2.1", SandboxResolutionSource.TENANT_PACKAGE,
-            10, List.of(), Instant.parse("2026-06-19T00:00:00Z"), false));
-
-        mockMvc.perform(post(RUNTIME_BINDING_PATH)
-                .with(roleJwt("knowledge-governor", "ROLE_KNOWLEDGE_GOVERNOR"))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                    {"packageOwnerTenantId":"tenant-1","packageId":"pkg-1"}
-                    """))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.ready").value(true))
-            .andExpect(jsonPath("$.data.packageVersion").value("7.2.1"));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor roleJwt(

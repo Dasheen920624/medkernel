@@ -68,11 +68,9 @@ public class AuthoringAssetLibraryController {
         Set<VersionedAssetType> allowedTypes = new LinkedHashSet<>();
         if (permissions.has("rule.read")) {
             allowedTypes.add(VersionedAssetType.RULE);
-            allowedTypes.add(VersionedAssetType.CONDITION_FRAGMENT);
         }
         if (permissions.has("pathway.read")) {
             allowedTypes.add(VersionedAssetType.PATHWAY);
-            allowedTypes.add(VersionedAssetType.SUBPATHWAY);
         }
         if (permissions.has("followup.read")) {
             allowedTypes.add(VersionedAssetType.FOLLOWUP);
@@ -123,15 +121,4 @@ public class AuthoringAssetLibraryController {
         return ApiResult.ok(service.unfavorite(assetType, assetId));
     }
 
-    /**
-     * 克隆或另存为独立草稿。
-     */
-    @PostMapping("/{assetType}/{assetId}/clone")
-    @PreAuthorize("@perm.hasAny('rule.write','pathway.write')")
-    public ApiResult<AuthoringAssetCloneResponse> cloneAsset(
-            @PathVariable VersionedAssetType assetType,
-            @PathVariable String assetId,
-            @RequestBody @Valid AuthoringAssetCloneRequest request) {
-        return ApiResult.ok(service.cloneAsset(assetType, assetId, request));
-    }
 }

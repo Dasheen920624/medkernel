@@ -1,6 +1,7 @@
 package com.medkernel.engine.followup;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 
 @ExtendWith(MockitoExtension.class)
 class FollowupTemplateServiceTest {
@@ -66,16 +68,13 @@ class FollowupTemplateServiceTest {
 
     @Test
     void createTemplateRegistersImmutableVersionWithoutPatientRuntimeData() {
-        when(templates.findByTenantIdAndTemplateCodeAndVersionNo("tenant-1", "FUP.COPD", 1))
-            .thenReturn(Optional.empty());
         when(versionedAssets.registerDraft(any())).thenReturn(assetVersion(
-            "av-followup-1", "pending-template-id", "1", AssetVersionStatus.DRAFT
+            "av-followup-1", "FUP.COPD", "1", AssetVersionStatus.DRAFT
         ));
         when(templates.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         FollowupTemplateResponse response = service.create(new FollowupTemplateCreateRequest(
             "FUP.COPD",
-            1,
             "慢阻肺出院随访",
             "按院内受控事实生成随访任务",
             "tenant:tenant-1",
@@ -100,9 +99,49 @@ class FollowupTemplateServiceTest {
         assertThat(response.assetStatus()).isEqualTo(AssetVersionStatus.DRAFT);
         assertThat(response.tasks()).hasSize(1);
         assertThat(versionCaptor.getValue().assetType()).isEqualTo(VersionedAssetType.FOLLOWUP);
+        assertThat(versionCaptor.getValue().assetIdentity()).isEqualTo("FUP.COPD");
         assertThat(versionContent)
             .contains("FUP.COPD", "QUESTIONNAIRE.COPD.01", "RETURN_VISIT")
             .doesNotContain("patientId", "encounterId", "answerData");
+    }
+
+    @Test
+    void createTemplateAutomaticallyAllocatesNextBusinessVersion() {
+        when(templates.findTopByTenantIdAndTemplateCodeOrderByVersionNoDesc(
+            "tenant-1", "FUP.COPD"
+        )).thenReturn(Optional.of(template("ftpl-v3", "av-followup-v3", 3)));
+        when(versionedAssets.registerDraft(any())).thenReturn(assetVersion(
+            "av-followup-v4", "FUP.COPD", "4", AssetVersionStatus.DRAFT
+        ));
+        when(templates.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        FollowupTemplateResponse response = service.create(templateRequest());
+
+        assertThat(response.versionNo()).isEqualTo(4);
+        verify(versionedAssets).registerDraft(org.mockito.ArgumentMatchers.argThat(command ->
+            command.assetIdentity().equals("FUP.COPD")
+        ));
+    }
+
+    @Test
+    void createTemplateRequestDoesNotExposeBusinessVersionInput() {
+        assertThat(FollowupTemplateCreateRequest.class.getRecordComponents())
+            .extracting(component -> component.getName())
+            .doesNotContain("versionNo");
+    }
+
+    @Test
+    void createTemplateReportsConcurrentVersionAllocationConflictHonestly() {
+        when(versionedAssets.registerDraft(any()))
+            .thenThrow(new DuplicateKeyException("uk_version_asset_identity_version"));
+
+        assertThatThrownBy(() -> service.create(templateRequest()))
+            .isInstanceOf(com.medkernel.shared.api.error.ApiException.class)
+            .hasMessageContaining("版本并发创建冲突")
+            .extracting("errorCode")
+            .isEqualTo(com.medkernel.shared.api.error.ErrorCode.CONFLICT);
+
+        verify(templates, never()).save(any());
     }
 
     @Test
@@ -112,7 +151,7 @@ class FollowupTemplateServiceTest {
             .thenReturn(Optional.of(template));
         when(assetVersions.findByVersionIdAndTenantId("av-followup-1", "tenant-1"))
             .thenReturn(Optional.of(assetVersion(
-                "av-followup-1", "ftpl-1", "1", AssetVersionStatus.DRAFT
+                "av-followup-1", "FUP.COPD", "1", AssetVersionStatus.DRAFT
             )));
 
         FollowupTemplateResponse response = service.publish(
@@ -129,6 +168,7 @@ class FollowupTemplateServiceTest {
         verify(releasePort).approveReview(any(VersionReleaseCommand.class));
         verify(releasePort).publish(any(VersionReleaseCommand.class));
         assertThat(commandCaptor.getValue().assetType()).isEqualTo(VersionedAssetType.FOLLOWUP);
+        assertThat(commandCaptor.getValue().assetIdentity()).isEqualTo("FUP.COPD");
         assertThat(response.assetStatus()).isEqualTo(AssetVersionStatus.PUBLISHED);
     }
 
@@ -158,13 +198,17 @@ class FollowupTemplateServiceTest {
     }
 
     private FollowupTemplate template(String templateId, String versionId) {
+        return template(templateId, versionId, 1);
+    }
+
+    private FollowupTemplate template(String templateId, String versionId, int versionNo) {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         return new FollowupTemplate(
             null,
             templateId,
             "tenant-1",
             "FUP.COPD",
-            1,
+            versionNo,
             "慢阻肺出院随访",
             "按院内受控事实生成随访任务",
             "tenant:tenant-1",
@@ -185,6 +229,26 @@ class FollowupTemplateServiceTest {
             now,
             "user-1",
             "trace-followup-template"
+        );
+    }
+
+    private FollowupTemplateCreateRequest templateRequest() {
+        return new FollowupTemplateCreateRequest(
+            "FUP.COPD",
+            "慢阻肺出院随访",
+            "按院内受控事实生成随访任务",
+            "tenant:tenant-1",
+            "riskLevel in [MEDIUM,HIGH]",
+            List.of(new FollowupTemplateTaskInput(
+                FollowupTaskType.QUESTIONNAIRE, 7, "QUESTIONNAIRE.COPD.01"
+            )),
+            """
+                {"templateId":"QUESTIONNAIRE.COPD.01","fields":[{"code":"dyspnea","type":"INTEGER"}]}
+                """,
+            """
+                {"condition":"dyspnea >= 4","action":"RETURN_VISIT","notify":"FOLLOWUP_TEAM"}
+                """,
+            "hospital://followup/copd"
         );
     }
 

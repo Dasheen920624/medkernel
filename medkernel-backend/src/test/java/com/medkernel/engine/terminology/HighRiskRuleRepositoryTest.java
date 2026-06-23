@@ -5,12 +5,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.context.annotation.Import;
 
 @DataJdbcTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
@@ -23,10 +25,19 @@ import org.springframework.test.context.TestPropertySource;
     "spring.flyway.enabled=true",
     "spring.flyway.locations=classpath:db/migration/h2"
 })
+@Import(TerminologySafetyCatalogSeeder.class)
 class HighRiskRuleRepositoryTest {
 
     @Autowired
     HighRiskRuleRepository repository;
+
+    @Autowired
+    TerminologySafetyCatalogSeeder seeder;
+
+    @BeforeEach
+    void seedCatalog() {
+        seeder.seed();
+    }
 
     @Test
     void systemPotassiumSodiumRuleAppliesToLabTerminology() {
@@ -39,5 +50,15 @@ class HighRiskRuleRepositoryTest {
                 assertThat(rule.category()).isNull();
                 assertThat(rule.evidenceText()).contains("钾/钠");
             });
+    }
+
+    @Test
+    void repeatedSeedKeepsExactlyOneRulePerCode() {
+        seeder.seed();
+
+        assertThat(repository.findAll())
+            .extracting(HighRiskRule::ruleCode)
+            .doesNotHaveDuplicates()
+            .hasSize(5);
     }
 }

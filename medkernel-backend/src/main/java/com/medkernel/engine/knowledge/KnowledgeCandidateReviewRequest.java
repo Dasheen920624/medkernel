@@ -3,8 +3,6 @@ package com.medkernel.engine.knowledge;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.medkernel.engine.versioning.VersionPublishEvidence;
-
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -23,10 +21,9 @@ public record KnowledgeCandidateReviewRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     @NotNull KnowledgeCandidateReviewDecision decision,
     @Size(max = 500) String reason,
-    VersionPublishEvidence publishEvidence,
+    Long qualityGateRecordId,
     KnowledgeReviewFeedbackType feedbackType,
     KnowledgeReviewFollowupAction followupAction
 ) {
@@ -43,23 +40,21 @@ public record KnowledgeCandidateReviewRequest(
             String specialtyId,
             String userId,
             List<String> roleCodes,
-            String packageVersion,
             KnowledgeCandidateReviewDecision decision,
             String reason,
-            VersionPublishEvidence publishEvidence) {
+            Long qualityGateRecordId) {
         this(requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId, departmentId, specialtyId,
-            userId, roleCodes, packageVersion, decision, reason, publishEvidence, null, null);
+            userId, roleCodes, decision, reason, qualityGateRecordId, null, null);
     }
 
     public KnowledgeCandidateReviewRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
-        publishEvidence = VersionPublishEvidence.orEmpty(publishEvidence);
     }
 
     public KnowledgeApiContext context() {
         return KnowledgeApiContext.from(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }

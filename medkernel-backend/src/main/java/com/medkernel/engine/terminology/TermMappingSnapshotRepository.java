@@ -7,20 +7,21 @@ import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 术语映射不可变快照持久化仓库；写多读少，主要用于构包写入与运行时解析。
+ * 术语映射不可变快照持久化仓库；快照直接绑定术语资产版本。
  */
 @Repository
 public interface TermMappingSnapshotRepository extends ListCrudRepository<TermMappingSnapshotEntity, Long> {
-    List<TermMappingSnapshotEntity> findByTenantIdAndPackageItemId(String tenantId, String packageItemId);
+    List<TermMappingSnapshotEntity> findByTenantIdAndVersionId(String tenantId, String versionId);
 
     /**
-     * 查询当前组织编码锚点可见的全量激活映射快照；灰度、草稿和已下线版本均不参与运行时。
+     * 查询指定医院运行修订锁定的术语映射快照。
      */
     @Query("""
         SELECT DISTINCT
                item.mapping_id,
                item.standard_term_id,
                item.standard_code,
+               version.version_no,
                CASE
                    WHEN version.org_path = 'department:' || :departmentScope THEN 'DEPARTMENT'
                    WHEN version.org_path = 'campus:' || :campusScope THEN 'CAMPUS'
@@ -29,19 +30,23 @@ public interface TermMappingSnapshotRepository extends ListCrudRepository<TermMa
                    ELSE 'TENANT'
                END AS scope_level
           FROM mk_term_mapping_snapshot item
-          JOIN package_item package_item
-            ON package_item.item_id = item.package_item_id
-           AND package_item.tenant_id = item.tenant_id
-          JOIN knowledge_package kp
-            ON kp.package_id = package_item.package_id
-           AND kp.tenant_id = package_item.tenant_id
+          JOIN clinical_runtime_release runtime_release
+            ON runtime_release.release_id = :runtimeReleaseId
+           AND runtime_release.tenant_id = :tenantId
+          JOIN clinical_runtime_release_item runtime_item
+            ON runtime_item.release_id = runtime_release.release_id
+           AND runtime_item.source_tenant_id = item.tenant_id
+           AND runtime_item.asset_type = 'TERMINOLOGY'
+           AND runtime_item.entry_state = 'ACTIVE'
+           AND runtime_item.version_id = item.version_id
           JOIN mk_version_asset_version version
-            ON version.tenant_id = kp.tenant_id
-           AND version.asset_type = 'PACKAGE'
-           AND version.asset_identity = kp.package_code
-           AND version.version_no = kp.package_version
-         WHERE item.tenant_id = :tenantId
-           AND kp.status = 'ACTIVE'
+            ON version.version_id = runtime_item.version_id
+           AND version.tenant_id = runtime_item.source_tenant_id
+           AND version.asset_type = 'TERMINOLOGY'
+           AND version.asset_identity = runtime_item.asset_identity
+           AND version.version_no = runtime_item.version_no
+           AND version.content_hash = runtime_item.content_hash
+         WHERE 1 = 1
            AND version.status = 'PUBLISHED'
            AND item.local_code = :localCode
            AND (:sourceSystem IS NULL OR item.source_system = :sourceSystem)
@@ -58,6 +63,7 @@ public interface TermMappingSnapshotRepository extends ListCrudRepository<TermMa
         """)
     List<EffectiveTermMappingCandidate> findEffectiveByAnchor(
         String tenantId,
+        String runtimeReleaseId,
         String tenantScope,
         String regionScope,
         String facilityScope,
@@ -70,13 +76,14 @@ public interface TermMappingSnapshotRepository extends ListCrudRepository<TermMa
     );
 
     /**
-     * 按标准字典编码查询当前组织可见的全量激活映射快照，供覆盖率验收使用。
+     * 按标准字典编码查询指定医院运行修订中的映射快照，供覆盖率验收使用。
      */
     @Query("""
         SELECT DISTINCT
                item.mapping_id,
                item.standard_term_id,
                item.standard_code,
+               version.version_no,
                CASE
                    WHEN version.org_path = 'department:' || :departmentScope THEN 'DEPARTMENT'
                    WHEN version.org_path = 'campus:' || :campusScope THEN 'CAMPUS'
@@ -85,19 +92,23 @@ public interface TermMappingSnapshotRepository extends ListCrudRepository<TermMa
                    ELSE 'TENANT'
                END AS scope_level
           FROM mk_term_mapping_snapshot item
-          JOIN package_item package_item
-            ON package_item.item_id = item.package_item_id
-           AND package_item.tenant_id = item.tenant_id
-          JOIN knowledge_package kp
-            ON kp.package_id = package_item.package_id
-           AND kp.tenant_id = package_item.tenant_id
+          JOIN clinical_runtime_release runtime_release
+            ON runtime_release.release_id = :runtimeReleaseId
+           AND runtime_release.tenant_id = :tenantId
+          JOIN clinical_runtime_release_item runtime_item
+            ON runtime_item.release_id = runtime_release.release_id
+           AND runtime_item.source_tenant_id = item.tenant_id
+           AND runtime_item.asset_type = 'TERMINOLOGY'
+           AND runtime_item.entry_state = 'ACTIVE'
+           AND runtime_item.version_id = item.version_id
           JOIN mk_version_asset_version version
-            ON version.tenant_id = kp.tenant_id
-           AND version.asset_type = 'PACKAGE'
-           AND version.asset_identity = kp.package_code
-           AND version.version_no = kp.package_version
-         WHERE item.tenant_id = :tenantId
-           AND kp.status = 'ACTIVE'
+            ON version.version_id = runtime_item.version_id
+           AND version.tenant_id = runtime_item.source_tenant_id
+           AND version.asset_type = 'TERMINOLOGY'
+           AND version.asset_identity = runtime_item.asset_identity
+           AND version.version_no = runtime_item.version_no
+           AND version.content_hash = runtime_item.content_hash
+         WHERE 1 = 1
            AND version.status = 'PUBLISHED'
            AND item.target_dictionary_key = :targetDictionaryKey
            AND item.standard_code = :standardCode
@@ -112,6 +123,7 @@ public interface TermMappingSnapshotRepository extends ListCrudRepository<TermMa
         """)
     List<EffectiveTermMappingCandidate> findEffectiveByStandardCode(
         String tenantId,
+        String runtimeReleaseId,
         String tenantScope,
         String regionScope,
         String facilityScope,

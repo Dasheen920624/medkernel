@@ -20,7 +20,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * SVC-PILOT-01 租户开通与实施服务包 API。
+ * SVC-PILOT-01 租户开通与实施服务 API。
  */
 @RestController
 @RequestMapping("/api/v1/engine/tenant")

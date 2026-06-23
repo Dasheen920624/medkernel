@@ -1,0 +1,7 @@
+[
+  {"tenantId":"SYSTEM","ruleCode":"MED-C1-TROPONIN-TI","ruleType":"MUTUALLY_EXCLUSIVE_TERMS","category":"LAB","leftTerms":"肌钙蛋白t|ctnt|troponint|tnt","rightTerms":"肌钙蛋白i|ctni|troponini|tni","unitTerms":null,"scaleRatio":null,"evidenceText":"肌钙蛋白 T/I 高危近似"},
+  {"tenantId":"SYSTEM","ruleCode":"MED-C1-K-NA","ruleType":"MUTUALLY_EXCLUSIVE_TERMS","category":null,"leftTerms":"钾|k|k+|potassium|氯化钾|kcl","rightTerms":"钠|na|na+|sodium|氯化钠|nacl","unitTerms":null,"scaleRatio":null,"evidenceText":"钾/钠高危近似"},
+  {"tenantId":"SYSTEM","ruleCode":"MED-C1-LEFT-RIGHT","ruleType":"MUTUALLY_EXCLUSIVE_TERMS","category":null,"leftTerms":"左|left","rightTerms":"右|right","unitTerms":null,"scaleRatio":null,"evidenceText":"左/右部位高危近似"},
+  {"tenantId":"SYSTEM","ruleCode":"MED-C1-DOSE-10X","ruleType":"DOSE_MAGNITUDE","category":"DRUG","leftTerms":null,"rightTerms":null,"unitTerms":"mg|毫克","scaleRatio":10,"evidenceText":"剂量量级 10 倍高危近似"},
+  {"tenantId":"SYSTEM","ruleCode":"MED-C1-INSULIN-UML","ruleType":"UNIT_STRENGTH","category":"DRUG","leftTerms":"胰岛素|insulin","rightTerms":null,"unitTerms":"u/ml|iu/ml|单位/ml|单位每毫升","scaleRatio":null,"evidenceText":"胰岛素 U/mL 单位高危近似"}
+]

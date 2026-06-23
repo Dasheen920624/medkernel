@@ -7,7 +7,7 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 首发部署一次性 init token。数据库只保存 SHA-256 摘要，不保存明文 token。
+ * 首次部署一次性 init token。数据库只保存 SHA-256 摘要，不保存明文 token。
  */
 @Table("mk_security_bootstrap_init_token")
 public record BootstrapInitToken(

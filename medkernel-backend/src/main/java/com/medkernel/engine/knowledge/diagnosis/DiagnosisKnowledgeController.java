@@ -6,7 +6,6 @@ import com.medkernel.engine.knowledge.KnowledgeAssetVersion;
 import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.datascope.DataScope;
 import com.medkernel.shared.context.RequestContext;
-import com.medkernel.engine.versioning.VersionPublishEvidence;
 
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -121,18 +120,12 @@ public class DiagnosisKnowledgeController {
             @PathVariable Long versionId,
             @RequestBody(required = false) @Valid DiagnosisPublishRequest request) {
         String reason = request == null ? null : request.reason();
-        VersionPublishEvidence evidence = request == null
-            ? VersionPublishEvidence.empty()
-            : request.publishEvidence();
-        return ApiResult.ok(service.publishDiagnosis(identityId, versionId, reason, evidence));
+        Long qualityGateRecordId = request == null ? null : request.qualityGateRecordId();
+        return ApiResult.ok(service.publishDiagnosis(identityId, versionId, reason, qualityGateRecordId));
     }
 
     public record DiagnosisPublishRequest(
         String reason,
-        VersionPublishEvidence publishEvidence
-    ) {
-        public DiagnosisPublishRequest {
-            publishEvidence = VersionPublishEvidence.orEmpty(publishEvidence);
-        }
-    }
+        Long qualityGateRecordId
+    ) {}
 }

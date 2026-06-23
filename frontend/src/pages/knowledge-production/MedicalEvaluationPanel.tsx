@@ -7,8 +7,6 @@ import { useModelProviders } from "@/shared/api/modelProviders";
 import { MODEL_CAPABILITY_OPTIONS } from "@/shared/config/modelProduction";
 import { PageState } from "@/shared/ui/PageState";
 
-import IndependentMedicalReviewPanel from "./IndependentMedicalReviewPanel";
-
 const { Text } = Typography;
 
 type EvaluationFormValues = {
@@ -47,7 +45,7 @@ export default function MedicalEvaluationPanel() {
         modelVersion: provider.modelVersion,
         capabilityCode: values.capabilityCode,
       });
-      message.success("当前制品医学评测已运行，请由另一名质量治理专家逐例复核");
+      message.success("当前制品医学评测已完成，结果和逐例证据已留痕");
     } catch (error) {
       message.error(getApiErrorMessage(error, "医学评测运行失败"));
     }
@@ -73,7 +71,7 @@ export default function MedicalEvaluationPanel() {
         type="warning"
         showIcon
         message="当前职责仅可查看评测进度"
-        description="由质量治理专家运行当前制品评测，并由非运行人完成独立复核。"
+        description="由医疗引擎运营人员运行当前制品评测；通过结果直接作为模型放行证据。"
       />
     );
   } else if (healthyProviders.length === 0) {
@@ -81,7 +79,7 @@ export default function MedicalEvaluationPanel() {
       <PageState
         state="empty"
         title="暂无可评测的健康模型服务"
-        description="请先由集成运维员配置 Key 并完成真实健康检查。"
+        description="请先由医疗引擎运营员配置 Key 并完成真实健康检查。"
       />
     );
   } else {
@@ -134,13 +132,10 @@ export default function MedicalEvaluationPanel() {
           />
           {formContent}
           <Text type="secondary">
-            评测执行人与独立复核人必须分离；模型输出仅进入候选治理链，不会自动发布或开立医嘱。
+            评测通过后直接作为当前制品的模型放行证据；模型输出仍只进入候选治理链，不会自动发布或开立医嘱。
           </Text>
         </Space>
       </Card>
-      <div id="review">
-        <IndependentMedicalReviewPanel />
-      </div>
     </Space>
   );
 }

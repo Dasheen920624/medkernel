@@ -7,7 +7,7 @@ public record VersionRolloutRollbackCommand(
     String tenantId,
     String planId,
     String reason,
-    Boolean confirmedHighRisk,
+    Boolean confirmedOperation,
     String actor,
     String traceId
 ) {

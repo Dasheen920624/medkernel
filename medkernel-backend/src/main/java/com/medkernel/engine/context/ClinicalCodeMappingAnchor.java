@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotNull;
  * 标准临床对象编码字段的字典映射锚点。
  *
  * <p>它不直接判定映射是否正确，只把本地编码、来源记录和目标字典域固定下来，
- * 供 D2 TERM / DICTMAP 后续生成候选、冲突和发布包时追踪。
+ * 供术语映射后续生成候选、冲突和运行修订影响证据时追踪。
  */
 public record ClinicalCodeMappingAnchor(
     @NotNull CanonicalResourceType resourceType,

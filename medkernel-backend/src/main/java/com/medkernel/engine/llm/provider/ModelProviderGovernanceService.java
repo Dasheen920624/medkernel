@@ -24,7 +24,7 @@ import com.medkernel.shared.context.RequestContext;
 /**
  * 模型 provider 治理服务（LLM-08 T13）。
  *
- * <p>由集成运维员（{@code llm.provider.manage}）配置 provider 接入；运行时解析在 {@link ModelProviderRegistry}。
+ * <p>由医疗引擎运营员（{@code llm.provider.manage}）配置 provider 接入；运行时解析在 {@link ModelProviderRegistry}。
  * 配置写入与高危启停相互分离：本服务的配置入口始终保存为停用，避免编辑连接参数时意外上线。
  * 前台凭据使用独立用途密钥加密入库，模型调用只读取租户凭据库；配置与凭据分别使用
  * 关系库乐观锁，防止配置、轮换、探活与启停相互覆盖。
@@ -342,7 +342,7 @@ public class ModelProviderGovernanceService {
         if (request.capabilityCode() == null || request.capabilityCode().isBlank()) {
             throw new ApiException(
                 ErrorCode.VALIDATION_FAILED,
-                "启用模型 provider 必须指定已完成独立签署的 capabilityCode");
+                "启用模型 provider 必须指定已通过医学回归评测的 capabilityCode");
         }
         return request.capabilityCode().trim().toLowerCase(Locale.ROOT);
     }

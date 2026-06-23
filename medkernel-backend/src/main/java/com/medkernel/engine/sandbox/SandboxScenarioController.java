@@ -24,15 +24,15 @@ public class SandboxScenarioController {
 
     private final SandboxScenarioCatalog catalog;
     private final SandboxOrchestrationService service;
-    private final SandboxRuntimeBindingService runtimeBindings;
+    private final SandboxRuntimeStatusService runtimeStatus;
 
     public SandboxScenarioController(
             SandboxScenarioCatalog catalog,
             SandboxOrchestrationService service,
-            SandboxRuntimeBindingService runtimeBindings) {
+            SandboxRuntimeStatusService runtimeStatus) {
         this.catalog = catalog;
         this.service = service;
-        this.runtimeBindings = runtimeBindings;
+        this.runtimeStatus = runtimeStatus;
     }
 
     @GetMapping("/scenarios")
@@ -44,19 +44,11 @@ public class SandboxScenarioController {
             .toList());
     }
 
-    @GetMapping("/runtime-binding")
+    @GetMapping("/runtime-status")
     @PreAuthorize("@perm.has('sandbox.run')")
     @DataScope(requireTenant = true)
-    public ApiResult<SandboxRuntimeStatusResponse> runtimeBinding() {
-        return ApiResult.ok(runtimeBindings.currentStatus());
-    }
-
-    @PostMapping("/runtime-binding")
-    @PreAuthorize("@perm.has('package.publish')")
-    @DataScope(requireTenant = true)
-    public ApiResult<SandboxRuntimeStatusResponse> activateRuntimeBinding(
-            @Valid @RequestBody SandboxRuntimeBindingRequest request) {
-        return ApiResult.ok(runtimeBindings.activate(request));
+    public ApiResult<SandboxRuntimeStatusResponse> runtimeStatus() {
+        return ApiResult.ok(runtimeStatus.currentStatus());
     }
 
     @PostMapping("/scenarios/{scenarioId}/run")

@@ -224,7 +224,6 @@ export default function Followup() {
       const values = await templateForm.validateFields();
       await createTemplateMutation.mutateAsync({
         templateCode: values.templateCode,
-        versionNo: Number(values.versionNo),
         name: values.name,
         description: values.description,
         organizationScope: values.organizationScope,
@@ -753,8 +752,8 @@ export default function Followup() {
           />
           {snapshotDetailQuery.data ? (
             <Descriptions bordered size="small" column={2}>
-              <Descriptions.Item label="配置包版本">
-                {snapshotDetailQuery.data.packageVersion ?? "未标注"}
+              <Descriptions.Item label="快照运行标识">
+                {snapshotDetailQuery.data.runtimeReleaseId ?? "由医院当前运行修订解析"}
               </Descriptions.Item>
               <Descriptions.Item label="质量状态">
                 {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
@@ -1003,7 +1002,6 @@ export default function Followup() {
           layout="vertical"
           className={styles.formGap}
           initialValues={{
-            versionNo: 1,
             organizationScope: "p5-hospital",
             applicableScope: "COPD",
             questionnaireTemplateId: "FOLLOWUP_QUESTIONNAIRE_DEFAULT",
@@ -1034,16 +1032,7 @@ export default function Followup() {
             <TextArea rows={2} placeholder="说明适用场景、随访目标和触发条件" />
           </Form.Item>
           <Row gutter={12}>
-            <Col span={8}>
-              <Form.Item
-                name="versionNo"
-                label="版本"
-                rules={[{ required: true, message: "请输入版本号" }]}
-              >
-                <InputNumber min={1} className={styles.fullWidth} />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
+            <Col span={12}>
               <Form.Item
                 name="organizationScope"
                 label="组织范围"
@@ -1052,7 +1041,7 @@ export default function Followup() {
                 <Input />
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col span={12}>
               <Form.Item
                 name="applicableScope"
                 label="适用范围"

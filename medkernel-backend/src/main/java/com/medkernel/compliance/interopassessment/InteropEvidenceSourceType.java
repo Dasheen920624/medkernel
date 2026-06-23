@@ -5,5 +5,5 @@ package com.medkernel.compliance.interopassessment;
  */
 public enum InteropEvidenceSourceType {
     EVIDENCE_SNAPSHOT,
-    EMR_LEVEL_EVIDENCE_PACKAGE
+    EMR_LEVEL_EVIDENCE_EXPORT
 }

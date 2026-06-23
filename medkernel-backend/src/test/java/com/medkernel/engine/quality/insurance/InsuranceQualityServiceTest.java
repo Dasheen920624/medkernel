@@ -71,7 +71,7 @@ class InsuranceQualityServiceTest {
             EvaluationModelStatus.MODEL_DISABLED, "MODEL_DISABLED_DETERMINISTIC_RULES", "trace-case"));
 
         QualityCaseReviewResponse response = withTenant("tenant-A", () -> service.caseReview(
-            new QualityCaseReviewRequest("snapshot-case", "A9", "pkg-quality-v1", "dept-records")));
+            new QualityCaseReviewRequest("snapshot-case", "A9", "dept-records")));
 
         assertThat(response.reviewStatus()).isEqualTo(CaseReviewStatus.NON_COMPLIANT);
         assertThat(response.evaluationRunId()).isEqualTo("run-case-1");
@@ -112,7 +112,6 @@ class InsuranceQualityServiceTest {
             new InsuranceAuditRequest(
                 "snapshot-ins",
                 "A9",
-                "pkg-quality-v1",
                 "indicator-insurance",
                 "dept-insurance",
                 now.plusSeconds(604800),
@@ -144,6 +143,7 @@ class InsuranceQualityServiceTest {
         ArgumentCaptor<EvaluationRunRequest> run = ArgumentCaptor.forClass(EvaluationRunRequest.class);
         verify(evaluations).run(run.capture());
         assertThat(run.getValue().runCode()).startsWith("INSURANCE-AUDIT-");
+        assertThat(run.getValue().runtimeReleaseId()).isEqualTo("runtime-release-quality");
         assertThat(run.getValue().results()).singleElement().satisfies(result -> {
             assertThat(result.indicatorId()).isEqualTo("indicator-insurance");
             assertThat(result.subjectRefId()).isEqualTo("claim-ins");
@@ -168,7 +168,6 @@ class InsuranceQualityServiceTest {
             new InsuranceAuditRequest(
                 "snapshot-scope",
                 "A9",
-                "pkg-quality-v1",
                 "indicator-insurance",
                 "dept-insurance",
                 now.plusSeconds(604800),
@@ -199,7 +198,7 @@ class InsuranceQualityServiceTest {
 
         InsuranceAuditResponse response = withTenant("tenant-A", () -> service.insuranceAudit(
             new InsuranceAuditRequest(
-                "snapshot-empty", "A9", "pkg-quality-v1", "indicator-insurance", "dept-insurance",
+                "snapshot-empty", "A9", "indicator-insurance", "dept-insurance",
                 now.plusSeconds(604800),
                 List.of(new InsuranceAuditRuleRequest(
                     "RULE-FEE-A", "2026-A", InsuranceIssueType.FEE, QualityFindingSeverity.P1,
@@ -237,14 +236,46 @@ class InsuranceQualityServiceTest {
     }
 
     private void seedSnapshot(String tenantId, String snapshotId, String patientId, String encounterId, Instant createdAt) {
+        seedPlatformBaseline(createdAt);
+        seedRuntimeRelease(tenantId, createdAt);
         jdbc.update("""
             INSERT INTO context_snapshot (
-                snapshot_id, tenant_id, org_unit_id, request_id, org_path, package_version,
-                patient_id, encounter_id,
-                status, quality_status, trace_id, signature, created_at, created_by
-            ) VALUES (?, ?, 'dept-records', ?, '/platform/group/hospital/dept-records', 'pkg-quality-v1',
-                ?, ?, 'ACTIVE', 'VALID', 'trace-quality', 'sig', ?, 'tester')
-            """, snapshotId, tenantId, "req-" + snapshotId, patientId, encounterId, java.sql.Timestamp.from(createdAt));
+                snapshot_id, tenant_id, org_unit_id, patient_id, encounter_id,
+                runtime_release_id,
+                status, missing_fields, mapping_status, extensions_json, quality_status,
+                trace_id, signature, created_at, created_by, request_id, org_path
+            ) VALUES (?, ?, 'dept-records', ?, ?,
+                'runtime-release-quality',
+                'ACTIVE', '[]', '{}', '{}', 'VALID',
+                'trace-quality', 'sig', ?, 'tester', ?, '/platform/group/hospital/dept-records')
+            """, snapshotId, tenantId, patientId, encounterId, java.sql.Timestamp.from(createdAt),
+            "req-" + snapshotId);
+    }
+
+    private void seedRuntimeRelease(String tenantId, Instant createdAt) {
+        jdbc.update("""
+            MERGE INTO clinical_runtime_release (
+                release_id, tenant_id, hospital_id, revision_no, platform_baseline_release_id,
+                manifest_sha256, activated_at, activated_by, created_at, created_by, trace_id
+            ) KEY(release_id) VALUES (
+                'runtime-release-quality', ?, 'hospital-quality', 1, 'platform-baseline-quality',
+                '0000000000000000000000000000000000000000000000000000000000000000',
+                ?, 'tester', ?, 'tester', 'trace-quality'
+            )
+            """, tenantId, java.sql.Timestamp.from(createdAt), java.sql.Timestamp.from(createdAt));
+    }
+
+    private void seedPlatformBaseline(Instant createdAt) {
+        jdbc.update("""
+            MERGE INTO platform_baseline_release (
+                baseline_release_id, revision_no, manifest_sha256,
+                published_at, published_by, created_at, created_by, trace_id
+            ) KEY(baseline_release_id) VALUES (
+                'platform-baseline-quality', 1,
+                '0000000000000000000000000000000000000000000000000000000000000000',
+                ?, 'tester', ?, 'tester', 'trace-quality'
+            )
+            """, java.sql.Timestamp.from(createdAt), java.sql.Timestamp.from(createdAt));
     }
 
     private void seedClaim(

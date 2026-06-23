@@ -19,7 +19,7 @@ class MasterDataSyncMigrationContractTest {
             Path migration = Path.of(
                 "src/main/resources/db/migration",
                 dialect,
-                "V120__master_data_sync_contract.sql");
+                "V1__baseline.sql");
             assertThat(migration).as(dialect + " 主数据同步迁移").exists();
 
             String ddl = Files.readString(migration);

@@ -32,7 +32,7 @@ public class AuthoringBatchJobController {
      * 分页查询批量任务台账。
      */
     @GetMapping
-    @PreAuthorize("@perm.hasAny('rule.read','pathway.read','package.read')")
+    @PreAuthorize("@perm.has('rule.read')")
     public ApiResult<PageResponse<AuthoringBatchJobResponse>> listRecent(
             @RequestParam(required = false, defaultValue = "1") int page,
             @RequestParam(required = false, defaultValue = "20") int size) {
@@ -43,7 +43,7 @@ public class AuthoringBatchJobController {
      * 查询批量任务详情。
      */
     @GetMapping("/{jobId}")
-    @PreAuthorize("@perm.hasAny('rule.read','pathway.read','package.read')")
+    @PreAuthorize("@perm.has('rule.read')")
     public ApiResult<AuthoringBatchJobResponse> get(@PathVariable String jobId) {
         return ApiResult.ok(service.get(jobId));
     }
@@ -78,33 +78,4 @@ public class AuthoringBatchJobController {
         return ApiResult.ok(service.publishRules(request));
     }
 
-    /**
-     * 批量导入离线配置包。
-     */
-    @PostMapping("/packages/import")
-    @PreAuthorize("@perm.has('package.publish')")
-    public ApiResult<AuthoringBatchJobResponse> importPackages(
-            @RequestBody @Valid AuthoringBatchPackageImportRequest request) {
-        return ApiResult.ok(service.importPackages(request));
-    }
-
-    /**
-     * 批量导出离线配置包。
-     */
-    @PostMapping("/packages/export")
-    @PreAuthorize("@perm.has('package.read')")
-    public ApiResult<AuthoringBatchJobResponse> exportPackages(
-            @RequestBody @Valid AuthoringBatchPackageExportRequest request) {
-        return ApiResult.ok(service.exportPackages(request));
-    }
-
-    /**
-     * 批量向多个同步目标分发配置包。
-     */
-    @PostMapping("/packages/distribute")
-    @PreAuthorize("@perm.has('package.publish')")
-    public ApiResult<AuthoringBatchJobResponse> distributePackages(
-            @RequestBody @Valid AuthoringBatchPackageDistributeRequest request) {
-        return ApiResult.ok(service.distributePackages(request));
-    }
 }

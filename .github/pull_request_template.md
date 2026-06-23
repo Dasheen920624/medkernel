@@ -31,7 +31,7 @@
 ## 4. 产品与医疗安全
 
 - [ ] 已阅读并遵守 [`docs/CONSTITUTION.md`](../docs/CONSTITUTION.md)。
-- [ ] 已阅读并遵守 [`docs/MEDKERNEL_PRODUCT_EXPERIENCE_RULES.md`](../docs/MEDKERNEL_PRODUCT_EXPERIENCE_RULES.md)。
+- [ ] 已阅读并遵守 [`docs/EXPERIENCE_CONTRACT.md`](../docs/EXPERIENCE_CONTRACT.md)。
 - [ ] 未新增单病种硬编码、业务主链路 mock、无来源医学结论或未经审核的 AI 结论。
 - [ ] 涉及临床建议、规则、知识、质控或医保时，已保留来源、审核、人工确认、降级和审计路径。
 

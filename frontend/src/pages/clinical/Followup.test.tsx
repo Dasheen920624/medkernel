@@ -206,7 +206,7 @@ describe("Followup", () => {
           ? {
               snapshotId,
               status: "ACTIVE",
-              packageVersion: "2026.06",
+              runtimeReleaseId: "runtime-release-followup",
               qualityStatus: "VALID",
               missingFields: [],
               mappingStatus: {},
@@ -448,5 +448,15 @@ describe("Followup", () => {
         },
       }),
     );
+  });
+
+  it("创建随访模板时不要求人工填写内部版本号", async () => {
+    const user = userEvent.setup();
+    renderFollowup();
+
+    await user.click(screen.getByRole("tab", { name: "模板治理" }));
+    await user.click(screen.getByRole("button", { name: /新建模板/ }));
+
+    expect(screen.queryByLabelText("版本")).not.toBeInTheDocument();
   });
 });

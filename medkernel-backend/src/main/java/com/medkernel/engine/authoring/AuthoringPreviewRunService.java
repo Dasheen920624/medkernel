@@ -84,7 +84,7 @@ public class AuthoringPreviewRunService {
         return new AuthoringPreviewRunResponse(
             AuthoringPreviewSubject.RULE_CONDITION,
             snapshot.snapshotId(),
-            snapshot.packageVersion(),
+            snapshot.runtimeReleaseId(),
             evaluation.hit(),
             evaluation.hit(),
             evaluation.hit() ? "草稿规则命中真实快照" : "草稿规则未命中真实快照",
@@ -157,7 +157,7 @@ public class AuthoringPreviewRunService {
         return new AuthoringPreviewRunResponse(
             AuthoringPreviewSubject.PATHWAY_GUARD,
             snapshot.snapshotId(),
-            snapshot.packageVersion(),
+            snapshot.runtimeReleaseId(),
             selected != null,
             null,
             outcome,
@@ -181,11 +181,6 @@ public class AuthoringPreviewRunService {
                 || snapshot.status() != ContextSnapshotStatus.ACTIVE
                 || snapshot.resources() == null) {
             throw new ApiException(ErrorCode.ENG_CONTEXT_003, "即配即试只能使用 ACTIVE 真实上下文快照");
-        }
-        if (hasText(request.packageVersion())
-                && hasText(snapshot.packageVersion())
-                && !Objects.equals(request.packageVersion(), snapshot.packageVersion())) {
-            throw validation("草稿包版本必须与上下文快照一致");
         }
     }
 

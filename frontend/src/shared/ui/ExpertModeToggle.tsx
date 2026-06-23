@@ -27,9 +27,9 @@ export function ExpertModeToggle({
 
   return (
     <Space size="small">
-      <Text>专家模式</Text>
+      <Text>高级信息</Text>
       <Switch
-        aria-label="专家模式"
+        aria-label="高级信息"
         checked={effectiveExpertMode}
         onChange={handleExpertModeChange}
       />

@@ -39,7 +39,6 @@ public class ClinicalEventRecommendationEngineAdapter implements ClinicalEventEn
             context.encounterId(),
             patientPathwayId(context),
             context.triggerPoint(),
-            context.packageVersion(),
             context.payloadDigest(),
             context.occurredAt(),
             List.of()

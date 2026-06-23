@@ -11,7 +11,7 @@ public record ContextSnapshotResponse(
     String snapshotId,
     ContextSnapshotStatus status,
     ContextSnapshotResources resources,
-    String packageVersion,
+    String runtimeReleaseId,
     QualityStatus qualityStatus,
     List<MissingFieldEntry> missingFields,
     Map<String, String> mappingStatus,

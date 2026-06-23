@@ -9,7 +9,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 知识失效后的影响处置任务。
  *
- * <p>当前 B0 只在有真实索引时记录患者 / 路径目标；否则落知识版本、配置包和同步范围级任务，
+ * <p>当前 B0 只在有真实索引时记录患者 / 路径目标；否则落知识版本、运行资产依赖和同步范围级任务，
  * 避免编造病例清单，同时保证安全风险不会等到下一次自然触发才被处理。
  */
 @Table("mk_knowledge_affected_case_task")

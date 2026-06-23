@@ -28,7 +28,7 @@ import com.medkernel.shared.hash.Sha256ContentHash;
 public class InheritanceResolver {
 
     private static final List<AssetVersionStatus> RESOLVABLE_VERSION_STATUSES =
-        List.of(AssetVersionStatus.PUBLISHED, AssetVersionStatus.DEPRECATED, AssetVersionStatus.RETIRED);
+        List.of(AssetVersionStatus.PUBLISHED, AssetVersionStatus.WITHDRAWN);
     private static final List<InheritanceOverrideStatus> RESOLVABLE_OVERRIDE_STATUSES =
         List.of(InheritanceOverrideStatus.PUBLISHED, InheritanceOverrideStatus.RETIRED);
 
@@ -75,9 +75,10 @@ public class InheritanceResolver {
     }
 
     /**
-     * 在同一组织闭包和解析时点内批量解析资产，并把可适用的 ADD 独有资产并入结果。
+     * 在同一组织闭包和解析时点内批量解析显式声明的资产。
      *
      * <p>查询次数不随资产数量增长：一次组织闭包、一次覆盖集合、当前租户与平台各一次版本集合。
+     * 运行修订要上线哪些资产由发布清单显式声明；解析器不再按旧容器编码隐式拉入 ADD 独有资产。
      */
     public List<BatchResolvedAsset> resolveBatch(InheritanceBatchResolveQuery query) {
         String tenantId = required(query.tenantId(), "租户 ID");
@@ -97,16 +98,7 @@ public class InheritanceResolver {
             .filter(value -> orgPathSet.contains(value.orgPath()))
             .toList();
 
-        LinkedHashSet<VersionedAssetIdentity> added = candidateOverrides.stream()
-            .filter(value -> isApplicableAdd(value, path, scopes, effectiveAt))
-            .map(value -> new VersionedAssetIdentity(value.assetType(), value.assetIdentity()))
-            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
-
         LinkedHashSet<VersionedAssetIdentity> allIdentities = new LinkedHashSet<>(declared);
-        added.stream()
-            .sorted(Comparator.comparing((VersionedAssetIdentity value) -> value.assetType().name())
-                .thenComparing(VersionedAssetIdentity::assetIdentity))
-            .forEach(allIdentities::add);
         if (allIdentities.isEmpty()) {
             return List.of();
         }
@@ -148,11 +140,7 @@ public class InheritanceResolver {
                 }
             }
             if (resolution != null) {
-                resolved.add(new BatchResolvedAsset(identity, resolution, added.contains(identity)));
-            } else if (added.contains(identity)) {
-                throw new ApiException(
-                    ErrorCode.CONFLICT,
-                    "ADD 独有资产缺少可解析版本: " + identity.assetType() + ":" + identity.assetIdentity());
+                resolved.add(new BatchResolvedAsset(identity, resolution, false));
             }
         }
         return List.copyOf(resolved);
@@ -572,8 +560,7 @@ public class InheritanceResolver {
 
     private boolean versionEffectiveAt(AssetVersion version, Instant effectiveAt) {
         if (version.status() != AssetVersionStatus.PUBLISHED
-                && version.status() != AssetVersionStatus.DEPRECATED
-                && version.status() != AssetVersionStatus.RETIRED) {
+                && version.status() != AssetVersionStatus.WITHDRAWN) {
             return false;
         }
         return (version.effectiveFrom() == null || !effectiveAt.isBefore(version.effectiveFrom()))
@@ -720,26 +707,6 @@ public class InheritanceResolver {
                 required(value.assetIdentity(), "资产身份")));
         }
         return List.copyOf(normalized);
-    }
-
-    private boolean isApplicableAdd(
-            InheritanceOverride value,
-            List<OrgUnit> path,
-            List<String> scopes,
-            Instant effectiveAt) {
-        if (value.overrideMode() != InheritanceOverrideMode.ADD
-                || value.overrideVersionId() == null
-                || value.overrideVersionId().isBlank()
-                || !overrideEffectiveAt(value, effectiveAt)) {
-            return false;
-        }
-        OrgUnit target = path.get(path.size() - 1);
-        boolean inherited = !Objects.equals(value.orgPath(), target.orgPath());
-        if (inherited && value.propagation() == InheritancePropagation.EXCLUSIVE) {
-            return false;
-        }
-        return scopes.stream().anyMatch(scope ->
-            ApplicableScopeMatcher.matches(value.applicableScope(), scope));
     }
 
     private List<AssetVersion> filterVersionsForTenant(

@@ -1,5 +1,5 @@
 /**
- * 递归条件树编辑器（RULE-01 / PATH-01，OpenSpec pathway-rule-authoring-overhaul P1-2）。
+ * 递归条件树编辑器。
  *
  * <p>受控组件：`value` 为顶层 {@link RuleGroup}，`onChange` 回传新根。规则 `when` 与
  * 路径边 `guard` 共用本组件，支持任意深度「条件组(all/any/可取反)+叶子」嵌套，
@@ -123,31 +123,6 @@ export function ConditionTreeEditor({
   const canNest = currentDepth < maxDepth;
 
   const renderLeaf = (leaf: RuleLeaf) => {
-    if (leaf.fragment) {
-      return (
-        <div key={leaf.id} data-testid="condition-fragment-leaf" className={styles.fragmentLeaf}>
-          <Space wrap className="mk-full-width">
-            <Tag color="green">条件片段</Tag>
-            <span className={styles.nodeHint}>可复用条件，按引用或拷贝进入当前组</span>
-            <span className="font-medium">
-              {leaf.label || leaf.fragment.name || leaf.fragment.fragmentCode}
-            </span>
-            <span className="text-xs text-gray-500">
-              {leaf.fragment.fragmentCode} · v{leaf.fragment.version} ·{" "}
-              {leaf.fragment.packageVersion}
-            </span>
-            {!readOnly && (
-              <Button
-                aria-label="删除条件"
-                icon={<DeleteOutlined />}
-                size="small"
-                onClick={() => removeNode(leaf.id)}
-              />
-            )}
-          </Space>
-        </div>
-      );
-    }
     const needsValue = operatorNeedsValue(leaf.operator);
     const selectedField = fieldByPath.get(leaf.fact);
     const codeSystem = selectedField?.codeSystem;

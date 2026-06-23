@@ -11,8 +11,8 @@ import com.medkernel.shared.api.error.ErrorCode;
 /**
  * API-03 写入类请求的标准上下文字段。
  *
- * <p>字段对齐 D2 标准 API 入参：request/trace、租户与六层组织、用户、角色和资产包版本。
- * 旧 GET 查询继续由 JWT → {@code RequestContext} 提供上下文；写入类请求必须显式携带本上下文。
+ * <p>字段对齐 D2 标准 API 入参：request/trace、租户与六层组织、用户和角色。
+ * 知识版本、运行发布清单与导出制品由各自业务对象管理，不再混入通用上下文。
  */
 public record KnowledgeApiContext(
     @JsonProperty("request_id") String requestId,
@@ -25,8 +25,7 @@ public record KnowledgeApiContext(
     @JsonProperty("department_id") String departmentId,
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
-    @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion
+    @JsonProperty("role_codes") List<String> roleCodes
 ) {
 
     public KnowledgeApiContext {
@@ -39,7 +38,6 @@ public record KnowledgeApiContext(
         requireText(errors, "trace_id", traceId);
         requireText(errors, "tenant_id", tenantId);
         requireText(errors, "user_id", userId);
-        requireText(errors, "package_version", packageVersion);
         if (roleCodes == null || roleCodes.isEmpty()) {
             errors.add(new ApiError("role_codes", "NotEmpty", "标准上下文 role_codes 不能为空"));
         }
@@ -68,11 +66,10 @@ public record KnowledgeApiContext(
             String departmentId,
             String specialtyId,
             String userId,
-            List<String> roleCodes,
-            String packageVersion) {
+            List<String> roleCodes) {
         return new KnowledgeApiContext(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }

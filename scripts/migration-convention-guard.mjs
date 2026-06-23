@@ -84,6 +84,17 @@ function parseIndexes(content) {
   return indexes;
 }
 
+function hasTenantAlterConstraint(content, tableName) {
+  const escapedTableName = escapeRegExp(tableName);
+  const pattern = new RegExp(
+    `ALTER\\s+TABLE\\s+${escapedTableName}\\s+ADD\\s+CONSTRAINT\\s+` +
+      `[A-Za-z_][A-Za-z0-9_]*\\s+(?:PRIMARY\\s+KEY|UNIQUE)\\s*` +
+      `\\(\\s*tenant_id\\b`,
+    "i",
+  );
+  return pattern.test(content);
+}
+
 function migrationVersion(file) {
   const match = /\/V(\d+)__/.exec(file);
   return match ? Number.parseInt(match[1], 10) : Number.MAX_SAFE_INTEGER;
@@ -142,7 +153,13 @@ function scanMigrationContent(file, dialect, content) {
         .some((index) => /\btenant_id\b/i.test(index.columns));
       const hasTenantUniqueConstraint = /\bUNIQUE\s*\(\s*tenant_id\b/i.test(table.block);
       const hasTenantPrimaryKey = /\btenant_id\b[^,\n]*\bPRIMARY\s+KEY\b/i.test(table.block);
-      if (!hasTenantIndex && !hasTenantUniqueConstraint && !hasTenantPrimaryKey) {
+      const hasTenantAlterKey = hasTenantAlterConstraint(content, table.name);
+      if (
+        !hasTenantIndex &&
+        !hasTenantUniqueConstraint &&
+        !hasTenantPrimaryKey &&
+        !hasTenantAlterKey
+      ) {
         addViolation(
           violations,
           file,

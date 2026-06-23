@@ -145,6 +145,7 @@ class TerminologyRepositoryLargeScaleTest {
             localTerms,
             mappings,
             null,
+            null,
             candidates,
             conflicts,
             null,

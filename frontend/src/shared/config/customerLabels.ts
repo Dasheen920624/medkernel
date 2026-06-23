@@ -116,14 +116,14 @@ export const permissionDimensionLabels: LabelMap = {
 
 export const knowledgeDomainLabels: LabelMap = {
   GUIDELINE: "临床指南",
-  PATHWAY: "临床路径",
-  RULE: "临床规则",
+  PATHWAY_KNOWLEDGE: "路径性知识",
   DIAGNOSIS: "诊断知识",
-  DRUG: "药学知识",
+  DRUG: "药品说明书",
   NURSING: "护理知识",
-  LAB: "检验知识",
-  IMAGING: "影像知识",
+  DIAGNOSTIC_ITEM: "医技项目说明书",
   TCM: "中医药知识",
+  PROTOCOL: "院内制度",
+  POLICY: "政策",
   LITERATURE: "医学文献",
   OTHER: "其他知识",
 };
@@ -144,10 +144,9 @@ export const lifecycleStatusLabels: LabelMap = {
 export const sourceAuthorityLabels: LabelMap = {
   A_REGULATION: "法规与强制规范",
   B_GUIDELINE: "权威指南",
-  C_CONSENSUS: "专家共识",
+  C_CONSENSUS_LITERATURE: "共识与医学文献",
   D_HOSPITAL: "院内制度",
-  E_LITERATURE: "医学文献",
-  F_EXPERIENCE: "经验性知识",
+  E_FEEDBACK: "反馈与其他低阶来源",
 };
 
 export const customerEnumLabels: LabelMap = {
@@ -185,6 +184,8 @@ export const customerEnumLabels: LabelMap = {
   NOT_SYNCED: "尚未同步",
   WARN: "有警告",
   ERROR: "异常",
+  EMR_LEVEL_EVIDENCE_EXPORT: "电子病历评级证据导出",
+  EVIDENCE_SNAPSHOT: "证据快照",
   PASS: "通过",
   FAIL: "未通过",
   SUCCESS: "成功",
@@ -288,8 +289,6 @@ export const customerEnumLabels: LabelMap = {
   KNOWLEDGE: "医学知识",
   EVALUATION: "质量评估",
   FIELD_CATALOG: "字段目录",
-  PACKAGE: "配置包",
-  CONDITION_FRAGMENT: "条件片段",
   REPORT: "检查检验报告",
   PROTOCOL: "诊疗方案",
   POLICY: "政策法规",

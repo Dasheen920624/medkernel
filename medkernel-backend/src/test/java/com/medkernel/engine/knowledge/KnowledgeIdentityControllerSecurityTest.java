@@ -63,7 +63,7 @@ class KnowledgeIdentityControllerSecurityTest {
     // ─── knowledge.read 权限矩阵 ─────────────────────────────
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCanReadButDataScopeRejectsMissingTenant() throws Exception {
         when(identityService.page(any(), any())).thenReturn(null);
         mvc.perform(get("/api/v1/engine/knowledge/identities"))
@@ -90,7 +90,7 @@ class KnowledgeIdentityControllerSecurityTest {
                 .param("size", "20")
                 .with(jwt()
                     .jwt(token -> token.subject("doctor-1").claim("tenant_id", "tenant-A"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.items[0].id").value(10))
             .andExpect(jsonPath("$.data.page").value(1))
@@ -98,7 +98,7 @@ class KnowledgeIdentityControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
+    @WithMockUser(authorities = "ROLE_AUDITOR")
     void auditComplianceCanReadKnowledge() throws Exception {
         mvc.perform(get("/api/v1/engine/knowledge/identities"))
             .andExpect(status().isBadRequest()) // tenant 缺失 → 但权限验证已过
@@ -106,7 +106,7 @@ class KnowledgeIdentityControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCanReachProvenanceButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/knowledge/identities/1/provenance"))
             .andExpect(status().isBadRequest())
@@ -123,15 +123,15 @@ class KnowledgeIdentityControllerSecurityTest {
     // ─── knowledge.publish（activate）─────────────────────────
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCannotActivate() throws Exception {
         mvc.perform(post("/api/v1/engine/knowledge/identities/1/versions/10/activate"))
             .andExpect(status().isForbidden());
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_KNOWLEDGE_GOVERNOR")
-    void knowledgeGovernorCanReachActivateButDataScopeFails() throws Exception {
+    @WithMockUser(authorities = "ROLE_ENGINE_OPERATOR")
+    void engineOperatorCanReachActivateButDataScopeFails() throws Exception {
         when(versionService.activate(eq(1L), eq(10L), any(), any()))
             .thenReturn(null);
         mvc.perform(post("/api/v1/engine/knowledge/identities/1/versions/10/activate"))
@@ -142,7 +142,7 @@ class KnowledgeIdentityControllerSecurityTest {
     // ─── knowledge.withdraw ──────────────────────────────────
 
     @Test
-    @WithMockUser(authorities = "ROLE_NURSING_COLLABORATOR")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void nurseCannotWithdraw() throws Exception {
         mvc.perform(post("/api/v1/engine/knowledge/identities/1/versions/10/withdraw")
                 .contentType("application/json")
@@ -153,7 +153,7 @@ class KnowledgeIdentityControllerSecurityTest {
     // ─── knowledge.export ───────────────────────────────────
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCannotSubmitExport() throws Exception {
         mvc.perform(post("/api/v1/engine/knowledge/exports")
                 .contentType("application/json")
@@ -162,7 +162,7 @@ class KnowledgeIdentityControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
+    @WithMockUser(authorities = "ROLE_AUDITOR")
     void auditComplianceCanSubmitExportButDataScopeFails() throws Exception {
         when(exportService.submit(any(), any())).thenReturn(null);
         mvc.perform(post("/api/v1/engine/knowledge/exports")
@@ -185,8 +185,8 @@ class KnowledgeIdentityControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("u")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("compliance-auditor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_COMPLIANCE_AUDITOR"))))
+                    .claim("roles", List.of("auditor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_AUDITOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.items[0].jobCode").value("job-1"))
             .andExpect(jsonPath("$.data.page").value(1))

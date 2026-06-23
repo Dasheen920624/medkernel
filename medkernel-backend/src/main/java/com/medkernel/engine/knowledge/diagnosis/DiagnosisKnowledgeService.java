@@ -30,7 +30,6 @@ import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
-import com.medkernel.engine.versioning.VersionPublishEvidence;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -86,7 +85,7 @@ public class DiagnosisKnowledgeService {
         KnowledgeIdentity identity = knowledgeIdentities.createIdentity(new KnowledgeIdentityCreateRequest(
             context.requestId(), context.traceId(), context.tenantId(), context.groupId(),
             context.hospitalId(), context.campusId(), context.siteId(), context.departmentId(),
-            context.specialtyId(), context.userId(), context.roleCodes(), context.packageVersion(),
+            context.specialtyId(), context.userId(), context.roleCodes(),
             identityInput.identitySlug(), KnowledgeDomain.DIAGNOSIS, identityInput.subject(),
             identityInput.assetSpecialtyId(), identityInput.description()));
         DiagnosisAssetDraftResponse response = createEvidenceCompleteVersion(
@@ -125,7 +124,7 @@ public class DiagnosisKnowledgeService {
         SourceDocument source = knowledgeIdentities.registerSource(new KnowledgeSourceCreateRequest(
             context.requestId(), context.traceId(), context.tenantId(), context.groupId(),
             context.hospitalId(), context.campusId(), context.siteId(), context.departmentId(),
-            context.specialtyId(), context.userId(), context.roleCodes(), context.packageVersion(),
+            context.specialtyId(), context.userId(), context.roleCodes(),
             sourceInput.sourceCode(), sourceInput.sourceType(), sourceInput.authorityLevel(),
             sourceInput.authorityBasis(), sourceInput.title(), sourceInput.publisher(),
             sourceInput.license(), sourceInput.language()));
@@ -133,14 +132,14 @@ public class DiagnosisKnowledgeService {
             source.id(), new KnowledgeSourceVersionCreateRequest(
                 context.requestId(), context.traceId(), context.tenantId(), context.groupId(),
                 context.hospitalId(), context.campusId(), context.siteId(), context.departmentId(),
-                context.specialtyId(), context.userId(), context.roleCodes(), context.packageVersion(),
+                context.specialtyId(), context.userId(), context.roleCodes(),
                 sourceInput.versionNo(), sourceInput.publishedAt(), null, sourceInput.fileUri(),
                 sourceInput.language(), sourceInput.content()));
         KnowledgeCandidateResponse candidate = knowledgeVersions.classifyCandidate(
             identity.id(), new KnowledgeVersionCreateRequest(
                 context.requestId(), context.traceId(), context.tenantId(), context.groupId(),
                 context.hospitalId(), context.campusId(), context.siteId(), context.departmentId(),
-                context.specialtyId(), context.userId(), context.roleCodes(), context.packageVersion(),
+                context.specialtyId(), context.userId(), context.roleCodes(),
                 versionInput.versionNo(), versionInput.versionLabel(), source.id(), sourceVersion.id(),
                 sourceInput.content(), evidenceInput.anchorPath(), versionInput.riskLevel(),
                 versionInput.gradeQuality(), versionInput.gradeStrength(), versionInput.reviewCycleMonths()));
@@ -290,13 +289,13 @@ public class DiagnosisKnowledgeService {
             Long identityId,
             Long versionId,
             String reason,
-            VersionPublishEvidence publishEvidence) {
+            Long qualityGateRecordId) {
         publishGate(versionId);
         return knowledgeVersions.activate(
             identityId,
             versionId,
             reason,
-            VersionPublishEvidence.orEmpty(publishEvidence));
+            qualityGateRecordId);
     }
 
     /** 当前租户 DEFAULT 优先，未覆盖回退平台主源 t-1（V75 已种子）；都缺才诚实失败 ENG_DX_005。 */

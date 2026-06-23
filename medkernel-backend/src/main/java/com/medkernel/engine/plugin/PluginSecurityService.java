@@ -91,13 +91,13 @@ public class PluginSecurityService {
             throw ApiException.conflict("插件已禁用，不能授权");
         }
         List<PluginCapabilityResponse> selected = selectCapabilities(plugin, request.capabilityKeys());
-        boolean requiresApproval = selected.stream()
+        boolean requiresAuthorizationReason = selected.stream()
             .anyMatch(capability -> capability.capabilityType() == PluginCapabilityType.WRITE);
-        if (requiresApproval && isBlank(request.approvalReason())) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "受控写入授权必须填写审批理由");
+        if (requiresAuthorizationReason && isBlank(request.authorizationReason())) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "受控写入授权必须填写授权原因");
         }
         boolean touchesClinicalData = selected.stream().anyMatch(PluginCapabilityResponse::clinicalData);
-        if (requiresApproval && touchesClinicalData && !request.clinicalSafetyConfirmed()) {
+        if (requiresAuthorizationReason && touchesClinicalData && !request.clinicalSafetyConfirmed()) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "临床数据写能力必须完成临床安全确认");
         }
 
@@ -110,7 +110,7 @@ public class PluginSecurityService {
                     pluginId,
                     "grant-" + UUID.randomUUID(),
                     capability,
-                    trimToNull(request.approvalReason()),
+                    trimToNull(request.authorizationReason()),
                     request.clinicalSafetyConfirmed(),
                     actor,
                     RequestContext.currentTraceId()))

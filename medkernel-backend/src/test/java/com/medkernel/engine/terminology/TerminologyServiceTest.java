@@ -27,6 +27,8 @@ import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.engine.versioning.PlatformAuthority;
+import com.medkernel.engine.context.ClinicalRuntimeRelease;
+import com.medkernel.engine.context.CurrentClinicalRuntimeReleaseResolver;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
@@ -44,6 +46,7 @@ class TerminologyServiceTest {
     private LocalTermRepository localTermRepository;
     private TermMappingRepository mappingRepository;
     private EffectiveTermMappingResolver effectiveMappings;
+    private CurrentClinicalRuntimeReleaseResolver runtimeReleases;
     private MappingCandidateRepository candidateRepository;
     private MappingConflictRepository conflictRepository;
     private HighRiskRuleRepository highRiskRuleRepository;
@@ -57,6 +60,7 @@ class TerminologyServiceTest {
         localTermRepository = Mockito.mock(LocalTermRepository.class);
         mappingRepository = Mockito.mock(TermMappingRepository.class);
         effectiveMappings = Mockito.mock(EffectiveTermMappingResolver.class);
+        runtimeReleases = Mockito.mock(CurrentClinicalRuntimeReleaseResolver.class);
         candidateRepository = Mockito.mock(MappingCandidateRepository.class);
         conflictRepository = Mockito.mock(MappingConflictRepository.class);
         highRiskRuleRepository = Mockito.mock(HighRiskRuleRepository.class);
@@ -67,6 +71,7 @@ class TerminologyServiceTest {
             localTermRepository,
             mappingRepository,
             effectiveMappings,
+            runtimeReleases,
             candidateRepository,
             conflictRepository,
             highRiskRuleRepository,
@@ -85,7 +90,6 @@ class TerminologyServiceTest {
                 job.sourceSystem(),
                 job.minimumScore(),
                 job.semanticAssistEnabled(),
-                job.packageVersion(),
                 job.requestedBy(),
                 job.status(),
                 job.progress(),
@@ -97,9 +101,14 @@ class TerminologyServiceTest {
                 job.completedAt()
             );
         });
+        when(runtimeReleases.resolve(any())).thenReturn(new ClinicalRuntimeRelease(
+            null, "runtime-release-1", "t-1", "hospital-1", 1L,
+            "baseline-1", "a".repeat(64), null,
+            Instant.parse("2026-06-01T00:00:00Z"), "tester",
+            Instant.parse("2026-06-01T00:00:00Z"), "tester", "trace"));
         when(highRiskRuleRepository.findActiveByTenantIdAndCategory(any(), any())).thenReturn(List.of());
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-99"));
-        authenticate(RoleCode.ORGANIZATION_ADMIN);
+        authenticate(RoleCode.PLATFORM_ADMIN);
     }
 
     @AfterEach
@@ -126,7 +135,7 @@ class TerminologyServiceTest {
 
         StandardTerm saved = service.registerStandardTerm(new StandardTermRegistrationRequest(
             "req-term-standard", "trace-term-standard", "t-1", "g-1", "h-1", "c-1", "s-1",
-            "d-1", "sp-1", "u-99", List.of("integration-operator"), "pkg-2026.06",
+            "d-1", "sp-1", "u-99", List.of("platform-admin"),
             "LOINC", "2823-3", TermCategory.LAB, "血清钾", "血清钾|血钾|K",
             "2026.06", 88L, "演练标准字典登记"
         ));
@@ -154,7 +163,7 @@ class TerminologyServiceTest {
 
         LocalTerm saved = service.registerLocalTerm(new LocalTermRegistrationRequest(
             "req-term-local", "trace-term-local", "t-1", "g-1", "h-1", "c-1", "s-1",
-            "d-1", "sp-1", "u-99", List.of("integration-operator"), "pkg-2026.06",
+            "d-1", "sp-1", "u-99", List.of("platform-admin"),
             "LIS", "K001", TermCategory.LAB, "血钾", "血钾|K", "dept-lab"
         ));
 
@@ -250,7 +259,7 @@ class TerminologyServiceTest {
 
         TermMapping mapping = service.confirmCandidate(
             10L,
-            confirmRequest(true, "已逐条核对标准码与院内码")
+            confirmRequest()
         );
 
         assertThat(mapping.localTermId()).isEqualTo(1L);
@@ -264,7 +273,7 @@ class TerminologyServiceTest {
         ArgumentCaptor<MappingCandidate> savedCandidate = ArgumentCaptor.forClass(MappingCandidate.class);
         verify(candidateRepository).save(savedCandidate.capture());
         assertThat(savedCandidate.getValue().status()).isEqualTo(MappingCandidateStatus.CONFIRMED);
-        assertThat(savedCandidate.getValue().reviewNote()).isEqualTo("专家逐条确认");
+        assertThat(savedCandidate.getValue().reviewNote()).isEqualTo("授权责任人逐条确认");
         ArgumentCaptor<LocalTerm> savedLocalTerm = ArgumentCaptor.forClass(LocalTerm.class);
         verify(localTermRepository).save(savedLocalTerm.capture());
         assertThat(savedLocalTerm.getValue().status()).isEqualTo(LocalTermStatus.MAPPED);
@@ -294,7 +303,7 @@ class TerminologyServiceTest {
 
         TermMapping mapping = service.confirmCandidate(
             10L,
-            confirmRequest(false, null)
+            confirmRequest()
         );
 
         assertThat(mapping.tenantId()).isEqualTo("t-1");
@@ -317,7 +326,7 @@ class TerminologyServiceTest {
 
         assertThatThrownBy(() -> service.confirmCandidate(
                 10L,
-                confirmRequest(false, null)
+                confirmRequest()
             ))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("标准字典 id=2")
@@ -348,7 +357,7 @@ class TerminologyServiceTest {
         when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(conflictRepository.save(any(MappingConflict.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.confirmCandidate(10L, confirmRequest(false, null));
+        service.confirmCandidate(10L, confirmRequest());
 
         ArgumentCaptor<MappingConflict> conflictCaptor = ArgumentCaptor.forClass(MappingConflict.class);
         verify(conflictRepository, Mockito.times(2)).save(conflictCaptor.capture());
@@ -379,7 +388,7 @@ class TerminologyServiceTest {
 
         assertThatThrownBy(() -> service.confirmCandidate(
                 10L,
-                confirmRequest(true, "已逐条核对标准码与院内码")
+                confirmRequest()
             ))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
@@ -391,24 +400,28 @@ class TerminologyServiceTest {
         when(candidateRepository.findByTenantIdAndId("t-1", 10L))
             .thenReturn(Optional.of(candidate(10L, MappingCandidateStatus.CONFIRMED)));
 
-        assertThatThrownBy(() -> service.confirmCandidate(10L, confirmRequest(true, "重复确认前已核对")))
+        assertThatThrownBy(() -> service.confirmCandidate(10L, confirmRequest()))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.CONFLICT);
     }
 
     @Test
-    void confirmCandidateRejectsHighRiskWithoutSecondConfirmation() {
+    void confirmCandidateAllowsSingleAuthorizedReviewForHighRiskCandidate() {
         when(candidateRepository.findByTenantIdAndId("t-1", 10L))
             .thenReturn(Optional.of(candidate(10L, MappingCandidateStatus.PENDING)));
+        when(localTermRepository.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(localTerm(1L)));
+        when(standardTermRepository.findFirstByTenantIdsAndId(standardSources(), "t-1", 2L))
+            .thenReturn(Optional.of(standardTerm(2L, TermCategory.LAB)));
+        when(mappingRepository.findByTenantIdAndLocalTermIdAndStandardTermId("t-1", 1L, 2L))
+            .thenReturn(Optional.empty());
+        when(mappingRepository.save(any(TermMapping.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(candidateRepository.save(any(MappingCandidate.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertThatThrownBy(() -> service.confirmCandidate(
-                10L,
-                confirmRequest(false, null)
-            ))
-            .isInstanceOf(ApiException.class)
-            .extracting("errorCode")
-            .isEqualTo(ErrorCode.MAPPING_HIGH_RISK_AUTOCONFIRM_DENIED);
+        TermMapping mapping = service.confirmCandidate(10L, confirmRequest());
+
+        assertThat(mapping.riskLevel()).isEqualTo(TermRiskLevel.HIGH);
+        assertThat(mapping.status()).isEqualTo(TermMappingStatus.CONFIRMED);
     }
 
     @Test
@@ -546,7 +559,8 @@ class TerminologyServiceTest {
                 "血红蛋白",
                 "血红蛋白"
             )));
-        when(effectiveMappings.countByStandardCode("t-1", "LOINC", "718-7")).thenReturn(1);
+        when(effectiveMappings.countByStandardCode(
+            "t-1", "runtime-release-1", "LOINC", "718-7")).thenReturn(1);
 
         List<MappingCoverageItem> items = service.evaluateCoverage("LOINC", List.of("718-7"));
 
@@ -605,7 +619,6 @@ class TerminologyServiceTest {
             "LIS",
             null,
             true,
-            "pkg-2026.06",
             "u-99",
             status,
             0,
@@ -1171,23 +1184,23 @@ class TerminologyServiceTest {
     private TerminologyCandidateGenerationRequest candidateGenerationRequest(String tenantId, Boolean semanticAssistEnabled) {
         return new TerminologyCandidateGenerationRequest(
             "req-api04-001", "trace-api04-001", tenantId, "g-1", "h-1", "c-1", "s-1",
-            "d-1", "sp-1", "u-99", List.of("knowledge-governor"), "pkg-2026.06",
+            "d-1", "sp-1", "u-99", List.of("engine-operator"),
             "LIS", null, semanticAssistEnabled
         );
     }
 
-    private TerminologyCandidateConfirmRequest confirmRequest(Boolean acknowledged, String reason) {
+    private TerminologyCandidateConfirmRequest confirmRequest() {
         return new TerminologyCandidateConfirmRequest(
             "req-api04-confirm", "trace-api04-confirm", "t-1", "g-1", "h-1", "c-1", "s-1",
-            "d-1", "sp-1", "u-99", List.of("knowledge-governor"), "pkg-2026.06",
-            "专家逐条确认", null, acknowledged, reason
+            "d-1", "sp-1", "u-99", List.of("engine-operator"),
+            "授权责任人逐条确认", null
         );
     }
 
     private TerminologyCandidateRejectRequest rejectRequest(String reviewNote) {
         return new TerminologyCandidateRejectRequest(
             "req-api04-reject", "trace-api04-reject", "t-1", "g-1", "h-1", "c-1", "s-1",
-            "d-1", "sp-1", "u-99", List.of("diagnostic-service-user"), "pkg-2026.06",
+            "d-1", "sp-1", "u-99", List.of("clinical-user"),
             reviewNote
         );
     }
@@ -1195,7 +1208,7 @@ class TerminologyServiceTest {
     private TerminologyCandidateBatchConfirmRequest batchConfirmRequest(List<Long> candidateIds) {
         return new TerminologyCandidateBatchConfirmRequest(
             "req-api04-batch", "trace-api04-batch", "t-1", "g-1", "h-1", "c-1", "s-1",
-            "d-1", "sp-1", "u-99", List.of("knowledge-governor"), "pkg-2026.06",
+            "d-1", "sp-1", "u-99", List.of("engine-operator"),
             candidateIds, "批量确认"
         );
     }
@@ -1203,7 +1216,7 @@ class TerminologyServiceTest {
     private ResolveConflictRequest resolveConflictRequest(String resolutionNote) {
         return new ResolveConflictRequest(
             "req-api04-conflict", "trace-api04-conflict", "t-1", "g-1", "h-1", "c-1", "s-1",
-            "d-1", "sp-1", "u-99", List.of("knowledge-governor"), "pkg-2026.06",
+            "d-1", "sp-1", "u-99", List.of("engine-operator"),
             resolutionNote
         );
     }

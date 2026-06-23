@@ -6,8 +6,8 @@ package com.medkernel.engine.knowledge;
 public enum AffectedCaseTargetType {
     /** 知识版本本身，表示 scope 级复核而非伪造患者清单 */
     KNOWLEDGE_VERSION,
-    /** 配置包或离线包依赖范围 */
-    PACKAGE_DEPENDENCY,
+    /** 依赖该知识版本的运行资产或运行发布范围 */
+    ASSET_DEPENDENCY,
     /** 图谱 / 搜索 / 外部同步范围 */
     SYNC_TARGET,
     /** 已有真实索引命中的患者病例，当前 B0 不伪造该类目标 */

@@ -12,7 +12,7 @@ import com.medkernel.engine.knowledge.SourceType;
 import com.medkernel.engine.knowledge.parsing.DocumentFormat;
 
 /**
- * AIK-STD-14 公域资料来源白名单。只有启用、已审批、许可允许且 robots 策略允许的来源可被抓取。
+ * AIK-STD-14 公域资料来源白名单。只有启用、许可允许且 robots 策略允许的来源可被抓取。
  */
 @Table("mk_knowledge_acquisition_source")
 public record KnowledgeAcquisitionSource(
@@ -30,8 +30,6 @@ public record KnowledgeAcquisitionSource(
     @Column("license_policy") AcquisitionLicensePolicy licensePolicy,
     @Column("robots_policy") AcquisitionRobotsPolicy robotsPolicy,
     @Column("enabled_flag") String enabledFlag,
-    @Column("approved_by") String approvedBy,
-    @Column("approved_at") Instant approvedAt,
     @Column("schedule_enabled_flag") String scheduleEnabledFlag,
     @Column("schedule_interval_minutes") Integer scheduleIntervalMinutes,
     @Column("next_check_at") Instant nextCheckAt,
@@ -46,8 +44,6 @@ public record KnowledgeAcquisitionSource(
 ) {
     public boolean isEffective() {
         return "Y".equalsIgnoreCase(enabledFlag)
-            && approvedBy != null && !approvedBy.isBlank()
-            && approvedAt != null
             && licensePolicy != null && licensePolicy.isPermitted()
             && robotsPolicy != null && robotsPolicy.allowsFetch();
     }

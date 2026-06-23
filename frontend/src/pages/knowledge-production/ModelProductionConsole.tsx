@@ -8,7 +8,7 @@ import MedicalEvaluationPanel from "./MedicalEvaluationPanel";
 import ProductionReadinessPanel from "./ProductionReadinessPanel";
 import ProviderSetupPanel from "./ProviderSetupPanel";
 
-const STEP_IDS = ["provider", "evaluation", "review", "readiness", "production"] as const;
+const STEP_IDS = ["provider", "evaluation", "readiness", "production"] as const;
 
 export default function ModelProductionConsole() {
   useEffect(() => {
@@ -20,7 +20,7 @@ export default function ModelProductionConsole() {
   return (
     <PageShell
       title="模型生产控制台"
-      description="在同一页面完成模型服务配置、医学评测、独立复核、九项放行和大模型知识生产"
+      description="在同一页面完成模型服务配置、医学评测、八项技术放行和大模型知识生产"
     >
       <Space direction="vertical" size="large" className="mk-full-width">
         <Alert
@@ -35,8 +35,7 @@ export default function ModelProductionConsole() {
             items={[
               { title: "模型服务与 Key" },
               { title: "医学评测" },
-              { title: "独立复核" },
-              { title: "九项生产闸" },
+              { title: "八项生产闸" },
               { title: "开始生产" },
             ]}
           />
@@ -44,10 +43,10 @@ export default function ModelProductionConsole() {
         <section id="provider" aria-label="模型服务与 Key">
           <ProviderSetupPanel />
         </section>
-        <section id="evaluation" aria-label="医学评测与独立复核">
+        <section id="evaluation" aria-label="医学评测">
           <MedicalEvaluationPanel />
         </section>
-        <section id="readiness" aria-label="九项生产闸">
+        <section id="readiness" aria-label="八项生产闸">
           <ProductionReadinessPanel />
         </section>
         <section id="production" aria-label="开始生产">

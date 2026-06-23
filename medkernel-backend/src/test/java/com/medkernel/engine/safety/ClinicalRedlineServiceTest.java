@@ -13,6 +13,15 @@ import java.util.Optional;
 
 import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
 import com.medkernel.engine.recommendation.RecommendationRiskLevel;
+import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
+import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
+import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
+import com.medkernel.engine.versioning.AssetVersionService;
+import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.VersionReleaseCommand;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
@@ -28,6 +37,8 @@ class ClinicalRedlineServiceTest {
     private ClinicalRedlineRepository repository;
     private ClinicalRedlineTrialRepository trialRepository;
     private AuditRecorder auditRecorder;
+    private AssetVersionService versionService;
+    private ReleasePort releasePort;
     private ClinicalRedlineService service;
 
     @BeforeEach
@@ -35,7 +46,11 @@ class ClinicalRedlineServiceTest {
         repository = Mockito.mock(ClinicalRedlineRepository.class);
         trialRepository = Mockito.mock(ClinicalRedlineTrialRepository.class);
         auditRecorder = Mockito.mock(AuditRecorder.class);
-        service = new ClinicalRedlineService(repository, trialRepository, auditRecorder);
+        versionService = Mockito.mock(AssetVersionService.class);
+        releasePort = Mockito.mock(ReleasePort.class);
+        service = new ClinicalRedlineService(repository, trialRepository, auditRecorder, versionService, releasePort);
+        when(versionService.registerDraft(any(AssetVersionRegisterCommand.class)))
+            .thenReturn(assetVersion("av-safety-redline-v1", VersionedAssetType.SAFETY, "SAFETY.RDL-DDI-001"));
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-redline", OrgScope.tenant("tenant-A"), "medical-admin-1"));
     }
@@ -79,7 +94,7 @@ class ClinicalRedlineServiceTest {
             assertThat(item.hazardSeverity()).isEqualTo(RecommendationRiskLevel.CRITICAL);
             assertThat(item.riskMatrixId()).isEqualTo("risk-matrix-critical-ddi");
             assertThat(item.riskMatrixVersion()).isEqualTo("4");
-            assertThat(item.reviewRequirement()).isEqualTo(CdssReviewRequirement.DUAL_REVIEW);
+            assertThat(item.reviewRequirement()).isEqualTo(CdssReviewRequirement.PHYSICIAN_CONFIRMATION);
             assertThat(item.silentRunHours()).isEqualTo(168);
             assertThat(item.releaseGate()).isEqualTo("OPT04_REDLINE_SILENT_TRIAL");
             assertThat(item.conditionDsl()).contains("medications[].code");
@@ -177,7 +192,7 @@ class ClinicalRedlineServiceTest {
             RecommendationRiskLevel.CRITICAL,
             "",
             "",
-            CdssReviewRequirement.DUAL_REVIEW,
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
             168,
             "OPT04_REDLINE_SILENT_TRIAL",
             "剂量上限红线",
@@ -295,6 +310,22 @@ class ClinicalRedlineServiceTest {
         assertThat(response.status()).isEqualTo(ClinicalRedlineStatus.ACTIVE);
         assertThat(response.redlineVersion()).isEqualTo("2026.2");
         verify(repository).save(any(ClinicalRedlineRule.class));
+        org.mockito.ArgumentCaptor<AssetVersionRegisterCommand> assetVersionCaptor =
+            org.mockito.ArgumentCaptor.forClass(AssetVersionRegisterCommand.class);
+        verify(versionService).registerDraft(assetVersionCaptor.capture());
+        AssetVersionRegisterCommand command = assetVersionCaptor.getValue();
+        assertThat(command.assetType()).isEqualTo(VersionedAssetType.SAFETY);
+        assertThat(command.assetIdentity()).isEqualTo("SAFETY.RDL-DDI-001");
+        assertThat(command.content()).contains("\"redlineVersion\":\"2026.2\"");
+        assertThat(command.content()).contains("华法林合并非甾体抗炎药出血风险");
+        assertThat(command.safetyPolicy()).isEqualTo(AssetVersionSafetyPolicy.SAFETY_REDLINE);
+        assertThat(command.overridePolicy()).isEqualTo(AssetVersionOverridePolicy.LOCKED);
+        verify(releasePort).publish(org.mockito.ArgumentMatchers.argThat(
+            (VersionReleaseCommand publish) ->
+                publish.assetType() == VersionedAssetType.SAFETY
+                    && publish.assetIdentity().equals("SAFETY.RDL-DDI-001")
+                    && publish.versionId().equals("av-safety-redline-v1")
+                    && publish.impactDigest().contains("静默试运行达标")));
         verify(auditRecorder).record(
             AuditAction.PUBLISH,
             "mk_engine_clinical_redline",
@@ -334,7 +365,7 @@ class ClinicalRedlineServiceTest {
             RecommendationRiskLevel.CRITICAL,
             "risk-matrix-critical-ddi",
             "4",
-            CdssReviewRequirement.DUAL_REVIEW,
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
             168,
             "OPT04_REDLINE_SILENT_TRIAL",
             "华法林合并非甾体抗炎药出血风险",
@@ -393,6 +424,32 @@ class ClinicalRedlineServiceTest {
             "evidence://silent-trials/" + trialId,
             "试运行窗口来自真实临床事件回放统计",
             Instant.parse("2026-06-04T02:00:00Z"),
+            "tester",
+            "trace-redline");
+    }
+
+    private AssetVersion assetVersion(String versionId, VersionedAssetType assetType, String assetIdentity) {
+        Instant now = Instant.parse("2026-06-04T02:00:00Z");
+        return new AssetVersion(
+            null,
+            versionId,
+            "tenant-A",
+            assetType,
+            assetIdentity,
+            "V1",
+            null,
+            "ALL",
+            "b".repeat(64),
+            AssetVersionSafetyPolicy.SAFETY_REDLINE,
+            AssetVersionOverridePolicy.LOCKED,
+            AssetVersionStatus.DRAFT,
+            null,
+            "test",
+            null,
+            null,
+            now,
+            "tester",
+            now,
             "tester",
             "trace-redline");
     }

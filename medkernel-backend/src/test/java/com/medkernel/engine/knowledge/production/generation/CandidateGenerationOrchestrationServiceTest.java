@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.authoring.GeneratedAssetCandidateRequest;
+import com.medkernel.engine.authoring.GeneratedAssetCandidateService;
+import com.medkernel.engine.authoring.GeneratedAssetDraftResponse;
 import com.medkernel.engine.factory.ProfessionalAssetTemplateRegistry;
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.knowledge.SourceDocument;
@@ -57,12 +60,14 @@ import com.medkernel.engine.knowledge.production.triage.GenerationTriageDecision
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageState;
 import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
 import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 /** AIK-STD-04 候选生成编排服务单元测试。 */
 class CandidateGenerationOrchestrationServiceTest {
@@ -82,11 +87,12 @@ class CandidateGenerationOrchestrationServiceTest {
         gateResults);
     private final KnowledgeGenerationTriageService triageService = mock(KnowledgeGenerationTriageService.class);
     private final KnowledgeShadowEvaluationService shadowService = mock(KnowledgeShadowEvaluationService.class);
+    private final GeneratedAssetCandidateService generatedAssets = mock(GeneratedAssetCandidateService.class);
 
     private final CandidateGenerationOrchestrationService service =
         new CandidateGenerationOrchestrationService(
             versions, documents, fragments, identities, generator, production, gateService, triageService,
-            shadowService);
+            shadowService, generatedAssets);
 
     @BeforeEach
     void bindTenant() {
@@ -118,32 +124,54 @@ class CandidateGenerationOrchestrationServiceTest {
     }
 
     @Test
-    void generatesCandidatePerTypeViaSubmitCandidate() {
+    void materializesStructuralAssetsAsUnifiedDraftsInsteadOfKnowledgeCandidates() {
         seedVersionAndDocument();
         when(fragments.findByTenantIdAndSourceVersionIdOrderByAnchorPathAsc("t-1", 9L)).thenReturn(List.of(
             new SourceFragment(1L, "t-1", 9L, "section-1", "总则", "血压≥140/90。", "b".repeat(64),
                 Instant.EPOCH)));
         when(production.createJob(any(ProductionJobRequest.class))).thenAnswer(invocation ->
             ProductionJobResponse.from(new KnowledgeProductionJob(
-                1L, "t-1", "job-x", "s", invocation.<ProductionJobRequest>getArgument(0).assetType(),
+                1L, "t-1", "job-" + invocation.<ProductionJobRequest>getArgument(0).assetType(), "s",
+                invocation.<ProductionJobRequest>getArgument(0).assetType(),
                 KnowledgeProducer.MANUAL, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL, null,
                 ProductionJobStatus.PENDING, 0, "{}", Instant.EPOCH, "sys", Instant.EPOCH, "sys", "trace")));
-        when(production.submitCandidate(eq("job-x"), any(), any())).thenReturn(
-            new CandidateSubmissionResponse("kv:1:draft-from-v1",
-                new ReviewRoutingDecision(RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.KNOWLEDGE_GOVERNOR, false,
-                    KnowledgeDomain.CLINICAL)));
+        when(generatedAssets.materializeDraft(any())).thenAnswer(invocation -> {
+            GeneratedAssetCandidateRequest draft = invocation.getArgument(0);
+            return new GeneratedAssetDraftResponse(
+                "av-" + draft.assetType(), draft.assetType(), draft.assetIdentity(), "V1",
+                AssetVersionStatus.DRAFT, "d".repeat(64), "trace-1");
+        });
 
         GenerationSummary summary = service.generate(new CandidateGenerationRequest(
             9L, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL,
-            List.of(item(VersionedAssetType.RULE), item(VersionedAssetType.PATHWAY))));
+            List.of(
+                new GenerationItem(VersionedAssetType.RULE, new MaterializationTarget(null, new NewIdentitySpec(
+                    com.medkernel.engine.knowledge.KnowledgeDomain.GUIDELINE, "高血压规则", "RULE-HTN-1"))),
+                new GenerationItem(VersionedAssetType.PATHWAY, new MaterializationTarget(null, new NewIdentitySpec(
+                    com.medkernel.engine.knowledge.KnowledgeDomain.GUIDELINE, "高血压路径", "PATHWAY-HTN-1"))))));
 
         assertThat(summary.candidates()).hasSize(2);
-        assertThat(summary.candidates().get(0).candidateRef()).isEqualTo("kv:1:draft-from-v1");
-        assertThat(summary.candidates().get(0).jobCode()).isEqualTo("job-x");
-        assertThat(summary.skipped()).isEmpty();
-        verify(production, times(2)).createJob(any());
-        verify(production, times(2)).submitCandidate(eq("job-x"), any(), any());
-        verify(production, times(2)).completeJob("job-x");
+        assertThat(summary.candidates())
+            .extracting(GeneratedCandidate::candidateRef)
+            .containsExactly("asset-version:av-RULE", "asset-version:av-PATHWAY");
+        ArgumentCaptor<GeneratedAssetCandidateRequest> draftCaptor =
+            ArgumentCaptor.forClass(GeneratedAssetCandidateRequest.class);
+        verify(generatedAssets, times(2)).materializeDraft(draftCaptor.capture());
+        assertThat(draftCaptor.getAllValues())
+            .extracting(GeneratedAssetCandidateRequest::assetType)
+            .containsExactly(VersionedAssetType.RULE, VersionedAssetType.PATHWAY);
+        GeneratedAssetCandidateRequest ruleDraft = draftCaptor.getAllValues().get(0);
+        assertThat(ruleDraft.assetIdentity()).isEqualTo("RULE-HTN-1");
+        assertThat(ruleDraft.sourceRef()).isEqualTo("source-version:9");
+        assertThat(ruleDraft.createdBy()).isEqualTo("u-1");
+        assertThat(ruleDraft.content().path("ruleCode").asText()).isEqualTo("RULE-HTN-1");
+        assertThat(ruleDraft.content().has("packageVersion")).isFalse();
+        assertThat(ruleDraft.content().has("versionNo")).isFalse();
+        GeneratedAssetCandidateRequest pathwayDraft = draftCaptor.getAllValues().get(1);
+        assertThat(pathwayDraft.assetIdentity()).isEqualTo("PATHWAY-HTN-1");
+        assertThat(pathwayDraft.content().path("pathwayCode").asText()).isEqualTo("PATHWAY-HTN-1");
+        verify(production, never()).submitCandidate(any(), any(), any());
+        verify(production, times(2)).completeJob(any());
         verify(production, never()).cancelJob(any());
     }
 
@@ -155,7 +183,7 @@ class CandidateGenerationOrchestrationServiceTest {
 
         GenerationSummary summary = service.generate(new CandidateGenerationRequest(
             9L, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL,
-            List.of(item(VersionedAssetType.RULE))));
+            List.of(item(VersionedAssetType.KNOWLEDGE))));
 
         assertThat(summary.candidates()).isEmpty();
         assertThat(summary.skipped()).hasSize(1);
@@ -180,11 +208,11 @@ class CandidateGenerationOrchestrationServiceTest {
         CandidateGenerationOrchestrationService blockingService =
             new CandidateGenerationOrchestrationService(
                 versions, documents, fragments, identities, generator, production, blockingGate, triageService,
-                shadowService);
+                shadowService, generatedAssets);
 
         GenerationSummary summary = blockingService.generate(new CandidateGenerationRequest(
             9L, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL,
-            List.of(item(VersionedAssetType.RULE))));
+            List.of(item(VersionedAssetType.KNOWLEDGE))));
 
         assertThat(summary.candidates()).isEmpty();
         assertThat(summary.blocked()).hasSize(1);
@@ -210,7 +238,7 @@ class CandidateGenerationOrchestrationServiceTest {
 
         GenerationSummary summary = service.generate(new CandidateGenerationRequest(
             9L, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL,
-            List.of(item(VersionedAssetType.RULE))));
+            List.of(item(VersionedAssetType.KNOWLEDGE))));
 
         assertThat(summary.candidates()).isEmpty();
         assertThat(summary.blocked()).singleElement()
@@ -245,7 +273,7 @@ class CandidateGenerationOrchestrationServiceTest {
 
         GenerationSummary summary = service.generate(new CandidateGenerationRequest(
             9L, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL,
-            List.of(new GenerationItem(VersionedAssetType.RULE, new MaterializationTarget(10L, null)))));
+            List.of(new GenerationItem(VersionedAssetType.KNOWLEDGE, new MaterializationTarget(10L, null)))));
 
         assertThat(summary.candidates()).isEmpty();
         assertThat(summary.skipped()).singleElement()
@@ -274,8 +302,7 @@ class CandidateGenerationOrchestrationServiceTest {
                 ProductionJobStatus.PENDING, 0, "{}", Instant.EPOCH, "sys", Instant.EPOCH, "sys", "trace")));
         when(production.submitCandidate(eq("job-x"), any(), any())).thenReturn(
             new CandidateSubmissionResponse("kv:10:draft-from-v1",
-                new ReviewRoutingDecision(RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.KNOWLEDGE_GOVERNOR, false,
-                    KnowledgeDomain.CLINICAL)));
+                new ReviewRoutingDecision(RoleCode.ENGINE_OPERATOR, KnowledgeDomain.CLINICAL)));
 
         GenerationSummary summary = service.generate(new CandidateGenerationRequest(
             9L, TargetPipeline.PLATFORM_SOURCE, KnowledgeDomain.CLINICAL,
@@ -302,8 +329,7 @@ class CandidateGenerationOrchestrationServiceTest {
                 ProductionJobStatus.PENDING, 0, "{}", Instant.EPOCH, "sys", Instant.EPOCH, "sys", "trace")));
         when(production.submitCandidate(eq("job-x"), any(), any())).thenReturn(
             new CandidateSubmissionResponse("kv:11:draft-from-v1",
-                new ReviewRoutingDecision(RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.KNOWLEDGE_GOVERNOR, false,
-                    KnowledgeDomain.CLINICAL)));
+                new ReviewRoutingDecision(RoleCode.ENGINE_OPERATOR, KnowledgeDomain.CLINICAL)));
         MaterializationTarget target = new MaterializationTarget(null, new NewIdentitySpec(
             com.medkernel.engine.knowledge.KnowledgeDomain.NURSING, "护理知识", "NURSING-1"));
 

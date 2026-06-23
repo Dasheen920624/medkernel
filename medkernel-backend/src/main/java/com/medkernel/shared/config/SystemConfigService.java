@@ -18,11 +18,9 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditConfigChangeCommand;
-import com.medkernel.shared.audit.AuditEvent;
 import com.medkernel.shared.audit.AuditRecordCommand;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.AuditSafetyGuard;
-import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.audit.persistence.AuditFallbackProperties;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeBackupReadiness;
@@ -72,9 +70,6 @@ public class SystemConfigService {
     public static final String KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY =
         "medkernel.knowledge.literature.material-root-uri";
     public static final String DEFAULT_KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI = "";
-    public static final String KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY =
-        "medkernel.knowledge.production.p6-independent-acceptance";
-    public static final boolean DEFAULT_KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE = false;
     // 部署形态：PRODUCTION_CENTER=外网知识生产中心（公开资料，可用 B2 外部 provider）；
     // HOSPITAL_RUNTIME=内网医院运行侧（碰患者数据，禁外部 provider，仅 B1 本地/B0）。
     // 默认取最严格的 HOSPITAL_RUNTIME（安全默认），生产中心须显式配置 PRODUCTION_CENTER。
@@ -89,27 +84,21 @@ public class SystemConfigService {
     private final SystemConfigRepository repository;
     private final AuditSafetyGuard auditSafetyGuard;
     private final AuditRecorder auditRecorder;
-    private final IsolatedAuditPublisher isolatedAuditPublisher;
     private final RuntimeLogLevelManager logLevelManager;
     private final HighRiskChangeGuard highRiskChangeGuard;
-    private final PrivilegedConfigChangeGuard privilegedConfigChangeGuard;
     private final SystemConfigSeedWriter seedWriter;
 
     public SystemConfigService(SystemConfigRepository repository,
                                AuditSafetyGuard auditSafetyGuard,
                                AuditRecorder auditRecorder,
-                               IsolatedAuditPublisher isolatedAuditPublisher,
                                RuntimeLogLevelManager logLevelManager,
                                HighRiskChangeGuard highRiskChangeGuard,
-                               PrivilegedConfigChangeGuard privilegedConfigChangeGuard,
                                SystemConfigSeedWriter seedWriter) {
         this.repository = repository;
         this.auditSafetyGuard = auditSafetyGuard;
         this.auditRecorder = auditRecorder;
-        this.isolatedAuditPublisher = isolatedAuditPublisher;
         this.logLevelManager = logLevelManager;
         this.highRiskChangeGuard = highRiskChangeGuard;
-        this.privilegedConfigChangeGuard = privilegedConfigChangeGuard;
         this.seedWriter = seedWriter;
     }
 
@@ -146,7 +135,6 @@ public class SystemConfigService {
             String actor) {
         String normalizedTenantId = normalizeTenantId(tenantId);
         String normalizedKey = normalizeKey(key);
-        assertP6SystemScope(normalizedTenantId, normalizedKey);
         if (repository.findActive(normalizedTenantId, normalizedKey).isEmpty()) {
             SystemConfigItem systemItem = repository.findActive(SYSTEM_TENANT, normalizedKey)
                 .orElseThrow(() -> ApiException.notFound("配置项 " + normalizedKey));
@@ -183,7 +171,6 @@ public class SystemConfigService {
             String actor) {
         String normalizedTenantId = normalizeTenantId(tenantId);
         String normalizedKey = normalizeKey(key);
-        assertP6SystemScope(normalizedTenantId, normalizedKey);
         SystemConfigItem current = repository.findActive(normalizedTenantId, normalizedKey).orElse(null);
         if (current != null) {
             return SystemConfigItemResponse.from(current);
@@ -217,7 +204,6 @@ public class SystemConfigService {
             String actor) {
         String normalizedTenantId = normalizeTenantId(tenantId);
         String normalizedKey = normalizeKey(key);
-        assertP6SystemScope(normalizedTenantId, normalizedKey);
         String value = normalizeValue(request.value());
         SystemConfigItem before = repository.findActive(normalizedTenantId, normalizedKey)
             .orElseThrow(() -> ApiException.notFound("配置项 " + normalizedKey));
@@ -227,7 +213,6 @@ public class SystemConfigService {
         assertProtectedRuntimeDisableAllowed(before, value, request.reason());
         assertHighRiskChangeConfirmed(before, request.reason(), request.confirmedHighRisk());
         assertHighRiskMfaBound(before);
-        assertP6AcceptanceEnableAllowed(before, value);
         SystemConfigItem after = repository.updateValue(
             normalizedTenantId,
             normalizedKey,
@@ -265,7 +250,6 @@ public class SystemConfigService {
         assertProtectedRuntimeDisableAllowed(before, targetValue, reason);
         assertHighRiskChangeConfirmed(before, reason, request.confirmedHighRisk());
         assertHighRiskMfaBound(before);
-        assertP6AcceptanceEnableAllowed(before, targetValue);
         SystemConfigItem after = repository.rollbackValue(SYSTEM_TENANT, normalizedKey, targetValue, actor, reason);
         auditRecorder.record(new AuditRecordCommand(
             AuditAction.ROLLBACK,
@@ -281,7 +265,6 @@ public class SystemConfigService {
 
     @Transactional
     public void seed(SystemConfigSeed seed, String actor) {
-        assertP6SystemScope(normalizeTenantId(seed.tenantId()), normalizeKey(seed.key()));
         repository.insertSeedIfAbsent(seed, actor);
     }
 
@@ -469,12 +452,6 @@ public class SystemConfigService {
         return readRuntimeStringConfig(
             KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY,
             DEFAULT_KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI).value();
-    }
-
-    public boolean runtimeKnowledgeProductionP6IndependentAcceptance() {
-        return readRuntimeBooleanConfig(
-            KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY,
-            DEFAULT_KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE).value();
     }
 
     public String runtimeDeploymentForm() {
@@ -785,36 +762,6 @@ public class SystemConfigService {
     private void assertHighRiskMfaBound(SystemConfigItem item) {
         if (isHighRisk(item)) {
             highRiskChangeGuard.assertHighRiskAllowed("system_config", item.key());
-        }
-    }
-
-    private static void assertP6SystemScope(String tenantId, String key) {
-        if (KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY.equals(key)
-            && !SYSTEM_TENANT.equals(tenantId)) {
-            throw new ApiException(
-                ErrorCode.VALIDATION_FAILED,
-                "P6 独立验收是平台级运行事实，仅允许系统级维护，禁止服务机构覆盖");
-        }
-    }
-
-    private void assertP6AcceptanceEnableAllowed(SystemConfigItem before, String targetValue) {
-        if (!KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY.equals(before.key())
-            || parseBoolean(before.value(), false)
-            || !parseBoolean(targetValue, false)) {
-            return;
-        }
-        try {
-            privilegedConfigChangeGuard.assertSystemSuperAdminAllowed(
-                "system_config",
-                before.key());
-        } catch (ApiException exception) {
-            isolatedAuditPublisher.publishInNewTx(AuditEvent.failure(
-                AuditAction.PERMISSION_CHANGE,
-                "system_config",
-                before.key(),
-                exception.errorCode().code(),
-                "拒绝非内置超级管理员放行 P6 独立验收"));
-            throw ApiException.forbidden("P6 独立验收仅允许内置超级管理员放行");
         }
     }
 

@@ -118,11 +118,6 @@ function searchKeyword(value: string) {
 
 type DiagnosisPublishFormValues = {
   reason: string;
-  signatureId?: string;
-  signedAt?: string;
-  signerId?: string;
-  signerName?: string;
-  signatureHash?: string;
   qualityGates?: string[];
   qualitySummary?: string;
 };
@@ -270,33 +265,17 @@ export default function DiagnosisKnowledgePanel() {
   const pointerType = Form.useWatch("pointerType", pointerForm);
   const pointerTargetType = Form.useWatch("targetType", pointerForm);
   const publishReason = Form.useWatch("reason", publishForm);
-  const publishSignatureId = Form.useWatch("signatureId", publishForm);
-  const publishSignedAt = Form.useWatch("signedAt", publishForm);
-  const publishSignerId = Form.useWatch("signerId", publishForm);
-  const publishSignerName = Form.useWatch("signerName", publishForm);
-  const publishSignatureHash = Form.useWatch("signatureHash", publishForm);
   const publishQualityGates = Form.useWatch("qualityGates", publishForm);
   const platformPublishing = security.data?.dataScope.tenantId === platformTenantId;
   const canPublishSelected =
     can(security.data, "knowledge.publish") &&
     (!platformPublishing || can(security.data, "platform.publish"));
-  const publishEvidenceRequired = platformPublishing || selectedVersion?.riskLevel === "HIGH";
   const publishQualityGateComplete =
     !platformPublishing || publishQualityGates?.length === KNOWLEDGE_QUALITY_GATE_OPTIONS.length;
-  const publishEvidenceComplete =
-    !publishEvidenceRequired ||
-    Boolean(
-      publishSignatureId?.trim() &&
-        publishSignedAt?.trim() &&
-        publishSignerId?.trim() &&
-        publishSignerName?.trim() &&
-        publishSignatureHash?.trim(),
-    );
   const publishDisabled =
     testCases.length === 0 ||
     hasUnsupportedCriterionConstraints ||
     !publishReason?.trim() ||
-    !publishEvidenceComplete ||
     !publishQualityGateComplete;
 
   useEffect(() => {
@@ -415,45 +394,22 @@ export default function DiagnosisKnowledgePanel() {
     if (!identityId || !versionId) return;
     try {
       const fields = ["reason"];
-      if (publishEvidenceRequired) {
-        fields.push("signatureId", "signedAt", "signerId", "signerName", "signatureHash");
-      }
       if (platformPublishing) {
         fields.push("qualityGates", "qualitySummary");
       }
       const values = await publishForm.validateFields(fields);
       let publishEvidence: VersionPublishEvidence | undefined;
-      if (publishEvidenceRequired) {
-        const signatureId = values.signatureId?.trim();
-        const signedAt = values.signedAt?.trim();
-        const signerId = values.signerId?.trim();
-        const signerName = values.signerName?.trim();
-        const signatureHash = values.signatureHash?.trim();
-        if (!signatureId || !signedAt || !signerId || !signerName || !signatureHash) {
-          throw new Error("电子签名信息不完整");
-        }
+      if (platformPublishing) {
         const qualityGates = new Set(values.qualityGates ?? []);
         publishEvidence = {
-          electronicSignature: {
-            signatureId,
-            signerId,
-            signerName,
-            signedAt: new Date(signedAt).toISOString(),
-            signatureHash,
+          qualityGate: {
+            schemaValid: qualityGates.has("schemaValid"),
+            terminologyBindingComplete: qualityGates.has("terminologyBindingComplete"),
+            dependencyIntegrityVerified: qualityGates.has("dependencyIntegrityVerified"),
+            safetyMonotonicityVerified: qualityGates.has("safetyMonotonicityVerified"),
+            impactSimulationPassed: qualityGates.has("impactSimulationPassed"),
+            summary: values.qualitySummary?.trim() || undefined,
           },
-          ...(platformPublishing
-            ? {
-                qualityGate: {
-                  schemaValid: qualityGates.has("schemaValid"),
-                  terminologyBindingComplete: qualityGates.has("terminologyBindingComplete"),
-                  dependencyIntegrityVerified: qualityGates.has("dependencyIntegrityVerified"),
-                  safetyMonotonicityVerified: qualityGates.has("safetyMonotonicityVerified"),
-                  impactSimulationPassed: qualityGates.has("impactSimulationPassed"),
-                  peerReviewSigned: qualityGates.has("peerReviewSigned"),
-                  summary: values.qualitySummary?.trim() || undefined,
-                },
-              }
-            : {}),
         };
       }
       await publish.mutateAsync({
@@ -746,66 +702,6 @@ export default function DiagnosisKnowledgePanel() {
               >
                 <Input.TextArea rows={3} placeholder="填写来源核验、病例门禁和发布结论" />
               </Form.Item>
-              {publishEvidenceRequired && (
-                <>
-                  <Divider orientation="left">
-                    {platformPublishing ? "平台发布签名" : "高风险发布签名"}
-                  </Divider>
-                  <Alert
-                    type="warning"
-                    showIcon
-                    message={
-                      platformPublishing
-                        ? "平台权威知识发布必须提供真实电子签名证据。"
-                        : "高风险诊断知识必须提供真实电子签名证据。"
-                    }
-                  />
-                  <div className={styles.formGrid}>
-                    <Form.Item
-                      name="signatureId"
-                      label="签名 ID"
-                      rules={[{ required: true, message: "请填写签名 ID" }]}
-                    >
-                      <Input />
-                    </Form.Item>
-                    <Form.Item
-                      name="signedAt"
-                      label="签名时间"
-                      rules={[{ required: true, message: "请选择签名时间" }]}
-                    >
-                      <Input type="datetime-local" />
-                    </Form.Item>
-                    <Form.Item
-                      name="signerId"
-                      label="签名人 ID"
-                      rules={[{ required: true, message: "请填写签名人 ID" }]}
-                    >
-                      <Input />
-                    </Form.Item>
-                    <Form.Item
-                      name="signerName"
-                      label="签名人姓名"
-                      rules={[{ required: true, message: "请填写签名人姓名" }]}
-                    >
-                      <Input />
-                    </Form.Item>
-                    <Form.Item
-                      className={styles.fullRow}
-                      name="signatureHash"
-                      label="签名摘要"
-                      rules={[
-                        { required: true, message: "请填写签名摘要" },
-                        {
-                          pattern: /^[0-9a-f]{64}$/,
-                          message: "签名摘要必须是 64 位小写 SHA-256",
-                        },
-                      ]}
-                    >
-                      <Input />
-                    </Form.Item>
-                  </div>
-                </>
-              )}
               {platformPublishing && (
                 <>
                   <Divider orientation="left">平台发布质量门</Divider>

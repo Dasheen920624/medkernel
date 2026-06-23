@@ -1,10 +1,9 @@
 package com.medkernel.engine.versioning;
 
 /**
- * 统一配置资产类型枚举（归一）。
+ * 统一版本化资产类型枚举。
  *
- * <p>合并原 {@code VersionedAssetType} 与 {@code com.medkernel.engine.pkg.PackageItemAssetType} 为单一权威类型，
- * 使版本底座 {@link AssetVersion} 与知识包条目 {@code PackageItem} 的资产类型取值同源。
+ * <p>作为资产身份、内容版本、依赖图、平台权威基线和医院运行修订的单一资产类型来源。
  *
  * <p>仅登记已存在或规划中配置资产主链路的类型；患者运行数据不得伪装成配置资产入版。
  */
@@ -23,16 +22,10 @@ public enum VersionedAssetType {
     FOLLOWUP,
     /** 上下文字段目录 */
     FIELD_CATALOG,
-    /** 知识包 */
-    PACKAGE,
-    /** 推荐卡 */
-    RECOMMENDATION,
     /** 安全（红线 / 高危拦截） */
     SAFETY,
     /** CDSS 风险分级矩阵 */
     CDSS_RISK,
-    /** 条件片段 */
-    CONDITION_FRAGMENT,
     /** 值集 */
     VALUE_SET,
     /** 受控临床公式 */
@@ -40,7 +33,24 @@ public enum VersionedAssetType {
     /** 医嘱套餐 */
     ORDER_SET,
     /** 动作卡片 */
-    ACTION_CARD,
-    /** 子路径 */
-    SUBPATHWAY
+    ACTION_CARD;
+
+    /**
+     * 是否为最终可进入平台基线或医院运行修订的配置资产。
+     */
+    public boolean isRuntimeConfiguration() {
+        return true;
+    }
+
+    /**
+     * 是否由统一版本正文表承载完整可恢复内容。
+     *
+     * <p>这些资产没有其他领域实体作为正文权威源，因此禁止只保存版本元数据与哈希。
+     */
+    public boolean usesUnifiedContentStore() {
+        return switch (this) {
+            case FIELD_CATALOG, VALUE_SET, FORMULA, ORDER_SET, ACTION_CARD -> true;
+            default -> false;
+        };
+    }
 }

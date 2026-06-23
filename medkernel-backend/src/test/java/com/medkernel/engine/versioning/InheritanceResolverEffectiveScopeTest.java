@@ -71,7 +71,7 @@ class InheritanceResolverEffectiveScopeTest {
     @Test
     void historicalResolutionUsesVersionWhoseEffectiveWindowContainsRequestedTime() {
         AssetVersion historical = version(
-            "av-history", "specialty=AF", AssetVersionStatus.DEPRECATED,
+            "av-history", "specialty=AF", AssetVersionStatus.WITHDRAWN,
             "2026-01-01T00:00:00Z", "2026-03-01T00:00:00Z");
         AssetVersion current = version(
             "av-current", "specialty=AF", AssetVersionStatus.PUBLISHED,

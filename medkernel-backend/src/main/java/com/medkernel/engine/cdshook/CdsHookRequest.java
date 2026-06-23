@@ -18,7 +18,6 @@ public record CdsHookRequest(
     @NotBlank @Size(max = 128) String hookInstance,
     @NotBlank String patientId,
     String encounterId,
-    @NotBlank String packageVersion,
     String sourceSystem,
     @NotNull JsonNode context,
     JsonNode prefetch,
@@ -31,9 +30,8 @@ public record CdsHookRequest(
         hookInstance = trimToNull(hookInstance);
         patientId = trimToNull(patientId);
         encounterId = trimToNull(encounterId);
-        packageVersion = trimToNull(packageVersion);
         sourceSystem = trimToNull(sourceSystem);
-        context = normalizedContext(context, patientId, encounterId, packageVersion, sourceSystem);
+        context = normalizedContext(context, patientId, encounterId, sourceSystem);
         prefetch = prefetch == null ? NullNode.getInstance() : prefetch.deepCopy();
         cdsHookVersion = CdsHookContract.normalizeVersion(cdsHookVersion);
     }
@@ -41,7 +39,6 @@ public record CdsHookRequest(
     private static JsonNode normalizedContext(JsonNode context,
                                               String patientId,
                                               String encounterId,
-                                              String packageVersion,
                                               String sourceSystem) {
         ObjectNode normalized = JsonNodeFactory.instance.objectNode();
         if (context != null && context.isObject()) {
@@ -51,7 +48,6 @@ public record CdsHookRequest(
         }
         putIfPresent(normalized, "patientId", patientId);
         putIfPresent(normalized, "encounterId", encounterId);
-        putIfPresent(normalized, "packageVersion", packageVersion);
         putIfPresent(normalized, "sourceSystem", sourceSystem);
         return normalized;
     }

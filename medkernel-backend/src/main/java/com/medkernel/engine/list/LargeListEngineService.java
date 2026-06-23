@@ -22,6 +22,7 @@ import java.util.concurrent.Executor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +47,8 @@ import com.medkernel.shared.audit.persistence.AuditEventRepository;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.crypto.SmCryptoService;
+import com.medkernel.shared.export.ExportConfirmationGate;
+import com.medkernel.shared.export.ExportCompletionRequested;
 import com.medkernel.shared.export.ExportArtifact;
 import com.medkernel.shared.export.ExportArtifactProvider;
 
@@ -53,7 +56,7 @@ import com.medkernel.shared.export.ExportArtifactProvider;
  * 大规模数据列表检索与异步批量导出核心服务引擎。
  *
  * <p>提供高性能的列表检索（含游标分页、Total Estimate 行数近似优化）以及分批异步 CSV 导出。
- * 作为 {@link ExportArtifactProvider} 向导出审批提供 AUDIT_EVENT / TERMINOLOGY_MAPPING 资源类型的完成产物。
+ * 作为 {@link ExportArtifactProvider} 向导出确认服务提供 AUDIT_EVENT / TERMINOLOGY_MAPPING 完成产物。
  */
 @Service
 public class LargeListEngineService implements ExportArtifactProvider {
@@ -68,6 +71,8 @@ public class LargeListEngineService implements ExportArtifactProvider {
     private final Executor knowledgeExportExecutor;
     private final ObjectMapper objectMapper;
     private final SmCryptoService crypto;
+    private final ExportConfirmationGate confirmationGate;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     public LargeListEngineService(
         LargeListExportJobRepository jobRepository,
@@ -76,7 +81,9 @@ public class LargeListEngineService implements ExportArtifactProvider {
         IsolatedAuditPublisher isolatedAudit,
         JdbcTemplate jdbc,
         @Qualifier("knowledgeExportExecutor") Executor knowledgeExportExecutor,
-        SmCryptoService crypto
+        SmCryptoService crypto,
+        ExportConfirmationGate confirmationGate,
+        ApplicationEventPublisher applicationEventPublisher
     ) {
         this.jobRepository = jobRepository;
         this.auditRepository = auditRepository;
@@ -86,6 +93,8 @@ public class LargeListEngineService implements ExportArtifactProvider {
         this.knowledgeExportExecutor = knowledgeExportExecutor;
         this.objectMapper = new ObjectMapper();
         this.crypto = crypto;
+        this.confirmationGate = confirmationGate;
+        this.applicationEventPublisher = applicationEventPublisher;
     }
 
     /**
@@ -276,7 +285,8 @@ public class LargeListEngineService implements ExportArtifactProvider {
             resourceType,
             validatedFilters,
             request.selectedScope(),
-            request.idempotencyKey()
+            request.idempotencyKey(),
+            request.confirmationId()
         );
 
         if (!"CURRENT_PAGE".equals(normalizedRequest.selectedScope())
@@ -285,6 +295,13 @@ public class LargeListEngineService implements ExportArtifactProvider {
         }
 
         String requestSnapshot = buildRequestSnapshot(resourceType, normalizedRequest);
+        String confirmationId = requireConfirmationId(normalizedRequest.confirmationId());
+        confirmationGate.requireConfirmedForExport(
+            tenantId,
+            confirmationId,
+            resourceType,
+            requestSnapshot
+        );
         ExportSubmitResponse existingResponse =
             reuseExistingIdempotentJob(tenantId, normalizedRequest, requestSnapshot);
         if (existingResponse != null) {
@@ -384,7 +401,7 @@ public class LargeListEngineService implements ExportArtifactProvider {
     public ExportArtifact completedExportArtifact(String jobId) {
         LargeListExportJob job = getExportJob(jobId);
         if (!"SUCCESS".equals(job.status())) {
-            throw new ApiException(ErrorCode.ENG_LIST_003, "导出任务尚未成功，不能登记审批产物");
+            throw new ApiException(ErrorCode.ENG_LIST_003, "导出任务尚未成功，不能登记导出产物");
         }
         if (job.filePath() == null || job.filePath().isBlank()) {
             throw new ApiException(ErrorCode.ENG_LIST_004, "导出任务没有真实物理文件");
@@ -453,6 +470,13 @@ public class LargeListEngineService implements ExportArtifactProvider {
 
         // 成功状态变更并记录物理文件路径及大小
         updateJobStatus(job, "SUCCESS", csvFile.getName(), csvFile.getAbsolutePath(), csvFile.length(), costMs);
+        applicationEventPublisher.publishEvent(new ExportCompletionRequested(
+            tenantId,
+            job.idempotencyKey(),
+            job.jobId(),
+            "后台异步导出任务已生成真实文件",
+            job.createdBy()
+        ));
 
         // 发布成功物理审计事件
         auditPublisher.publish(AuditEvent.of(
@@ -588,6 +612,13 @@ public class LargeListEngineService implements ExportArtifactProvider {
             throw new ApiException(ErrorCode.ENG_LIST_001, "不支持的异步导出资源类型: " + resourceType);
         }
         return normalized;
+    }
+
+    private String requireConfirmationId(String confirmationId) {
+        if (confirmationId == null || confirmationId.isBlank()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "导出确认 ID 不能为空");
+        }
+        return confirmationId.trim();
     }
 
     private LargeListResourceDefinition exportDefinition(String resourceType) {

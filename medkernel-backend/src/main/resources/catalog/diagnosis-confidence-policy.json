@@ -1,0 +1,7 @@
+{
+  "tenantId": "t-1",
+  "scopeKey": "DEFAULT",
+  "strongMinMajor": 2,
+  "requireAllRequired": true,
+  "moderateMinHits": 1
+}

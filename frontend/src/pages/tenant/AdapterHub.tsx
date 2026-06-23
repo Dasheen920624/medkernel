@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   Alert,
@@ -45,14 +45,12 @@ import {
   useIntegrationLogs,
   useIntegrationOnboardings,
   useMasterDataReconciliation,
-  usePackages,
   useRegionalSources,
   useRegisterRegionalSource,
   useReplayDeadLetter,
   useRetryMessage,
   useSecurityProfile,
   useTestWebhookSignature,
-  useTerminologyMappings,
   useUpdateAdapter,
   useWebhooks,
   type AdapterHubSourceStatus,
@@ -63,7 +61,6 @@ import {
   type IntegrationMessageLog,
   type IntegrationOnboarding,
   type IntegrationWebhookConfig,
-  type KnowledgePackage,
   type MasterDataReconciliation,
   type RegionalSource,
   type SecurityProfile,
@@ -101,12 +98,12 @@ const PAGE_META: { title: string; experience: RouteExperience } = {
 const LOG_PAGE_SIZE = 10;
 const ADAPTER_PAGE_SIZE = 20;
 const INTEGRATION_MAINTENANCE_PAGE_SIZE = 20;
-const INTEGRATION_CONTRACT_PACKAGE_REFERENCE_PAGE_SIZE = 20;
 
 interface AdapterFieldMappingFormValue {
   sourcePath: string;
   targetPath: string;
-  termMappingId?: string;
+  targetDictionaryKey?: string;
+  category?: string;
 }
 
 interface AdapterFormValue {
@@ -148,8 +145,6 @@ const HEALTH_ALERT_MESSAGE: Record<string, string> = {
   ERROR: "外部系统当前不可达",
 };
 
-const TERMINOLOGY_MAPPING_REFERENCE_PAGE_SIZE = 20;
-
 const ADAPTER_STATUS_COLOR: Record<string, string> = {
   ACTIVE: "green",
   SUSPENDED: "orange",
@@ -185,6 +180,21 @@ const MASTER_DATA_RESOURCE_LABEL: Record<
   PERSON: "院内人员",
   LOCAL_TERM: "院内字典",
 };
+
+const TERM_CATEGORY_OPTIONS = [
+  { value: "DIAGNOSIS", label: "诊断" },
+  { value: "PROCEDURE", label: "手术/操作" },
+  { value: "DRUG", label: "药品" },
+  { value: "DEVICE", label: "器械" },
+  { value: "LAB", label: "检验" },
+  { value: "EXAM", label: "检查" },
+  { value: "ORDER", label: "医嘱" },
+  { value: "INSURANCE", label: "医保" },
+  { value: "DEPARTMENT", label: "科室" },
+  { value: "DOCUMENT", label: "文书" },
+  { value: "FOLLOWUP", label: "随访" },
+  { value: "OTHER", label: "其他" },
+] as const;
 
 function hasPermission(profile: SecurityProfile | undefined, code: string) {
   return profile?.permissions.some((permission) => permission.code === code) ?? false;
@@ -256,9 +266,6 @@ export default function AdapterHub() {
   const [onboardingModalOpen, setOnboardingModalOpen] = useState(false);
   const [webhookModalOpen, setWebhookModalOpen] = useState(false);
   const [regionalSourceModalOpen, setRegionalSourceModalOpen] = useState(false);
-  const [contractVersionInput, setContractVersionInput] = useState("");
-  const [contractPackageSearch, setContractPackageSearch] = useState("");
-  const [contractVersion, setContractVersion] = useState("");
   const [masterDataSourceInput, setMasterDataSourceInput] = useState("");
   const [masterDataSource, setMasterDataSource] = useState("");
   const [healthResult, setHealthResult] = useState<IntegrationAdapter | null>(null);
@@ -272,7 +279,6 @@ export default function AdapterHub() {
   const [webhookForm] = Form.useForm();
   const [signatureForm] = Form.useForm();
   const [regionalSourceForm] = Form.useForm();
-  const [terminologyMappingSearch, setTerminologyMappingSearch] = useState("");
   const selectedAdapterProtocol = Form.useWatch("protocolType", adapterForm);
   const usesHttpConnector = HTTP_PROTOCOLS.has(
     String(selectedAdapterProtocol ?? "REST").toUpperCase(),
@@ -281,12 +287,7 @@ export default function AdapterHub() {
   const security = useSecurityProfile();
   const adaptersQuery = useIntegrationAdapters({ page: adapterPage, size: ADAPTER_PAGE_SIZE });
   const statusQuery = useAdapterHubStatus();
-  const packagesQuery = usePackages({
-    page: 1,
-    size: INTEGRATION_CONTRACT_PACKAGE_REFERENCE_PAGE_SIZE,
-    keyword: contractPackageSearch || undefined,
-  });
-  const dataContractQuery = useIntegrationDataContract(contractVersion, contractVersion.length > 0);
+  const dataContractQuery = useIntegrationDataContract(true);
   const masterDataQuery = useMasterDataReconciliation(
     masterDataSource,
     masterDataSource.length > 0,
@@ -304,13 +305,6 @@ export default function AdapterHub() {
     page: regionalSourcePage,
     size: INTEGRATION_MAINTENANCE_PAGE_SIZE,
   });
-  const terminologyMappingsQuery = useTerminologyMappings({
-    status: "CONFIRMED",
-    page: 1,
-    size: TERMINOLOGY_MAPPING_REFERENCE_PAGE_SIZE,
-    sort: "updatedAt,desc",
-    ...(terminologyMappingSearch ? { keyword: terminologyMappingSearch } : {}),
-  });
   const createAdapterMutation = useCreateAdapter();
   const updateAdapterMutation = useUpdateAdapter();
   const healthCheckMutation = useCheckAdapterHealth();
@@ -322,19 +316,6 @@ export default function AdapterHub() {
   const createWebhookMutation = useCreateWebhook();
   const testWebhookSignatureMutation = useTestWebhookSignature();
   const registerRegionalSourceMutation = useRegisterRegionalSource();
-  const contractPackageOptions = useMemo(
-    () =>
-      (packagesQuery.data?.items ?? []).map((pkg: KnowledgePackage) => ({
-        value: pkg.packageVersion,
-        label: `${pkg.name}（${pkg.packageVersion}）`,
-      })),
-    [packagesQuery.data?.items],
-  );
-  const knownContractVersions = useMemo(
-    () => new Set(contractPackageOptions.map((option) => option.value)),
-    [contractPackageOptions],
-  );
-
   const profile = security.data;
   const globalExpertMode = useExpertModeStore((state) => state.enabled);
   const expertMode = canUseExpertMode(profile) && globalExpertMode;
@@ -400,7 +381,10 @@ export default function AdapterHub() {
             fieldMappings: (values.fieldMappings ?? []).map((mapping) => ({
               sourcePath: mapping.sourcePath,
               targetPath: mapping.targetPath,
-              ...(mapping.termMappingId ? { termMappingId: Number(mapping.termMappingId) } : {}),
+              ...(mapping.targetDictionaryKey?.trim()
+                ? { targetDictionaryKey: mapping.targetDictionaryKey.trim() }
+                : {}),
+              ...(mapping.category ? { category: mapping.category } : {}),
             })),
           });
       await createAdapterMutation.mutateAsync({
@@ -571,27 +555,6 @@ export default function AdapterHub() {
       if (applyApiFieldErrors(regionalSourceForm, error)) return;
       message.error(getApiErrorMessage(error, "登记区域来源失败"));
     }
-  }
-
-  function handleLoadDataContract() {
-    const nextVersion = contractVersionInput.trim();
-    if (!nextVersion) {
-      message.warning("请选择配置包版本。");
-      return;
-    }
-    if (packagesQuery.isLoading) {
-      message.warning("配置包版本列表加载中，请稍后再读取契约。");
-      return;
-    }
-    if (packagesQuery.isError) {
-      message.warning("配置包版本列表暂不可用，不能按手写版本读取契约。");
-      return;
-    }
-    if (!knownContractVersions.has(nextVersion)) {
-      message.warning("请选择已存在的配置包版本。");
-      return;
-    }
-    setContractVersion(nextVersion);
   }
 
   function handleLoadMasterDataReconciliation() {
@@ -954,16 +917,9 @@ export default function AdapterHub() {
           <div className={styles.operationGrid}>
             <RequiredSourcesPanel items={requiredSources} />
             <DataContractPanel
-              versionInput={contractVersionInput}
-              onVersionInputChange={setContractVersionInput}
-              onPackageSearch={setContractPackageSearch}
-              packageOptions={contractPackageOptions}
-              packageOptionsLoading={packagesQuery.isLoading}
-              packageOptionsError={packagesQuery.isError}
-              onLoad={handleLoadDataContract}
               loading={dataContractQuery.isFetching}
-              contract={contractVersion ? dataContractQuery.data : undefined}
-              error={contractVersion ? dataContractQuery.isError : false}
+              contract={dataContractQuery.data}
+              error={dataContractQuery.isError}
             />
           </div>
 
@@ -1546,21 +1502,24 @@ export default function AdapterHub() {
                         >
                           <Input placeholder="/patient/id" />
                         </Form.Item>
-                        <Form.Item {...field} name={[name, "termMappingId"]} label="术语映射">
+                        <Form.Item
+                          {...field}
+                          name={[name, "targetDictionaryKey"]}
+                          label="目标标准字典"
+                          extra="与术语分类同时填写；留空表示该字段无需术语归一"
+                        >
+                          <Input placeholder="ICD-10 / LOINC / 药品标准字典" />
+                        </Form.Item>
+                        <Form.Item
+                          {...field}
+                          name={[name, "category"]}
+                          label="术语分类"
+                          extra="按医院当前运行修订解析不可变映射快照"
+                        >
                           <Select
                             allowClear
-                            showSearch
-                            filterOption={false}
-                            placeholder="可选，选择已确认映射"
-                            options={(terminologyMappingsQuery.data?.items ?? []).map(
-                              (mapping) => ({
-                                value: String(mapping.id),
-                                label: `${mapping.sourceSystem} · ${mapping.category} · 映射 ${mapping.id}`,
-                              }),
-                            )}
-                            onSearch={setTerminologyMappingSearch}
-                            onClear={() => setTerminologyMappingSearch("")}
-                            notFoundContent="暂无已确认术语映射"
+                            placeholder="选择标准术语分类"
+                            options={[...TERM_CATEGORY_OPTIONS]}
                           />
                         </Form.Item>
                         {fields.length > 1 && (
@@ -1735,24 +1694,10 @@ function RequiredSourcesPanel({ items }: { items: AdapterHubRequiredSourceStatus
 }
 
 function DataContractPanel({
-  versionInput,
-  onVersionInputChange,
-  onPackageSearch,
-  packageOptions,
-  packageOptionsLoading,
-  packageOptionsError,
-  onLoad,
   loading,
   contract,
   error,
 }: {
-  versionInput: string;
-  onVersionInputChange: (value: string) => void;
-  onPackageSearch: (value: string) => void;
-  packageOptions: Array<{ value: string; label: string }>;
-  packageOptionsLoading: boolean;
-  packageOptionsError: boolean;
-  onLoad: () => void;
   loading: boolean;
   contract?: IntegrationDataContractResponse;
   error: boolean;
@@ -1785,31 +1730,7 @@ function DataContractPanel({
   return (
     <Card title="数据接入契约" className={styles.sectionCard}>
       <Space direction="vertical" size="middle" className="mk-full-width">
-        <Space align="end" wrap>
-          <Space direction="vertical" size={4}>
-            <label htmlFor="integration-contract-version">版本号</label>
-            <Select
-              id="integration-contract-version"
-              aria-label="版本号"
-              value={versionInput}
-              onChange={onVersionInputChange}
-              options={packageOptions}
-              loading={packageOptionsLoading}
-              placeholder="选择已存在配置包版本"
-              showSearch
-              filterOption={false}
-              onSearch={onPackageSearch}
-              status={packageOptionsError ? "warning" : undefined}
-              className={styles.contractVersionSelect}
-            />
-          </Space>
-          <Button loading={loading} onClick={onLoad}>
-            读取契约
-          </Button>
-        </Space>
-        {packageOptionsError && (
-          <Alert type="warning" showIcon message="配置包版本列表暂时不可用，契约读取已阻断" />
-        )}
+        {loading && !contract && <Text type="secondary">正在读取医院当前运行修订的字段契约…</Text>}
         {error && <Alert type="warning" showIcon message="数据接入契约暂时不可用" />}
         {contract ? (
           <Space direction="vertical" size="small">
@@ -1830,7 +1751,8 @@ function DataContractPanel({
             />
           </Space>
         ) : (
-          <Text type="secondary">选择已存在配置包版本后读取字段目录派生的外部接入契约。</Text>
+          !loading &&
+          !error && <Text type="secondary">当前医院尚无可读取的数据接入契约。</Text>
         )}
       </Space>
     </Card>

@@ -5,6 +5,5 @@ package com.medkernel.engine.authoring;
  */
 public enum AuthoringBatchItemStatus {
     SUCCEEDED,
-    FAILED,
-    NOT_CONNECTED
+    FAILED
 }

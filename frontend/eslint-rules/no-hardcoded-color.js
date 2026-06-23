@@ -63,7 +63,7 @@ export default {
     messages: {
       hardcodedColor:
         '禁止硬编码颜色 "{{value}}"。请改用 CSS 变量如 var(--mk-primary)。' +
-        '完整 token 见 docs/CONSTITUTION.md §8 与 docs/MEDKERNEL_PRODUCT_EXPERIENCE_RULES.md §11。',
+        '完整 token 见 docs/CONSTITUTION.md 与 docs/EXPERIENCE_CONTRACT.md。',
     },
     schema: [],
   },

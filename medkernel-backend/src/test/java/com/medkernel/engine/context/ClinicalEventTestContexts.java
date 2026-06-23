@@ -11,7 +11,7 @@ final class ClinicalEventTestContexts {
     }
 
     static ContextSnapshotResources resources(
-            String patientId, String sourceSystem, String packageVersion, Instant eventTime) {
+            String patientId, String sourceSystem, String mappedVersion, Instant eventTime) {
         return new ContextSnapshotResources(
             new CanonicalPatient(
                 patientId,
@@ -21,11 +21,12 @@ final class ClinicalEventTestContexts {
                 List.of(),
                 sourceSystem,
                 patientId,
-                packageVersion,
+                mappedVersion,
                 eventTime,
                 eventTime,
                 QualityStatus.VALID),
             List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-            List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            ContextSnapshotResources.emptyExtensions());
     }
 }

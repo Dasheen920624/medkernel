@@ -22,6 +22,13 @@ import com.medkernel.engine.knowledge.SourceFragment;
 import com.medkernel.engine.knowledge.SourceFragmentRepository;
 import com.medkernel.engine.knowledge.SourceVersion;
 import com.medkernel.engine.knowledge.SourceVersionRepository;
+import com.medkernel.engine.knowledge.KnowledgeDomain;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisCarePointer;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisCarePointerRepository;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisCriterion;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisCriterionRepository;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisDifferential;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisDifferentialRepository;
 
 /**
  * 从关系库知识资产权威表生成可重放的知识图与搜索投影事实。
@@ -32,6 +39,9 @@ public class KnowledgeProjectionSource {
     private static final String HAS_ACTIVE_VERSION = "HAS_ACTIVE_VERSION";
     private static final String CITES_FRAGMENT = "CITES_FRAGMENT";
     private static final String BELONGS_TO_SOURCE = "BELONGS_TO_SOURCE";
+    private static final String HAS_DIAGNOSIS_CRITERION = "HAS_DIAGNOSIS_CRITERION";
+    private static final String DIFFERENTIAL_DIAGNOSIS = "DIFFERENTIAL_DIAGNOSIS";
+    private static final String HAS_CARE_POINTER = "HAS_CARE_POINTER";
 
     private final KnowledgeIdentityRepository identities;
     private final KnowledgeAssetVersionRepository versions;
@@ -39,6 +49,9 @@ public class KnowledgeProjectionSource {
     private final SourceFragmentRepository fragments;
     private final SourceVersionRepository sourceVersions;
     private final SourceDocumentRepository documents;
+    private final DiagnosisCriterionRepository diagnosisCriteria;
+    private final DiagnosisDifferentialRepository diagnosisDifferentials;
+    private final DiagnosisCarePointerRepository diagnosisCarePointers;
 
     public KnowledgeProjectionSource(
             KnowledgeIdentityRepository identities,
@@ -46,13 +59,19 @@ public class KnowledgeProjectionSource {
             CitationRepository citations,
             SourceFragmentRepository fragments,
             SourceVersionRepository sourceVersions,
-            SourceDocumentRepository documents) {
+            SourceDocumentRepository documents,
+            DiagnosisCriterionRepository diagnosisCriteria,
+            DiagnosisDifferentialRepository diagnosisDifferentials,
+            DiagnosisCarePointerRepository diagnosisCarePointers) {
         this.identities = identities;
         this.versions = versions;
         this.citations = citations;
         this.fragments = fragments;
         this.sourceVersions = sourceVersions;
         this.documents = documents;
+        this.diagnosisCriteria = diagnosisCriteria;
+        this.diagnosisDifferentials = diagnosisDifferentials;
+        this.diagnosisCarePointers = diagnosisCarePointers;
     }
 
     public List<ProjectionFact> graphFactsForTenant(String tenantId) {
@@ -78,6 +97,9 @@ public class KnowledgeProjectionSource {
                     fragmentKey(resolved.fragment().id()), version.updatedAt()));
                 add(facts, edge(fragmentKey(resolved.fragment().id()), BELONGS_TO_SOURCE,
                     documentKey(resolved.document().id()), resolved.fragment().createdAt()));
+            }
+            if (identity.domain() == KnowledgeDomain.DIAGNOSIS) {
+                addDiagnosisFacts(facts, tenantId, version);
             }
         }
         return List.copyOf(facts.values());
@@ -213,16 +235,90 @@ public class KnowledgeProjectionSource {
             version.updatedAt());
     }
 
+    private void addDiagnosisFacts(
+            Map<String, ProjectionFact> facts,
+            String tenantId,
+            KnowledgeAssetVersion version) {
+        for (DiagnosisCriterion criterion :
+                diagnosisCriteria.findByTenantIdAndDiagnosisVersionId(tenantId, version.id())) {
+            add(facts, diagnosisCriterionNode(criterion));
+            add(facts, edge(
+                versionKey(version.id()),
+                HAS_DIAGNOSIS_CRITERION,
+                diagnosisCriterionKey(criterion.id()),
+                criterion.updatedAt()));
+        }
+        for (DiagnosisDifferential differential :
+                diagnosisDifferentials.findByTenantIdAndDiagnosisVersionId(tenantId, version.id())) {
+            identities.findByTenantIdAndId(tenantId, differential.differentialIdentityId())
+                .ifPresent(target -> {
+                    add(facts, identityNode(target));
+                    add(facts, edge(
+                        versionKey(version.id()),
+                        DIFFERENTIAL_DIAGNOSIS,
+                        identityKey(target.id()),
+                        differential.updatedAt(),
+                        "targetIdentityCode", target.identityCode(),
+                        "targetSubject", target.subject(),
+                        "keyPoint", differential.keyPoint(),
+                        "suggestedWorkup", differential.suggestedWorkup()));
+                });
+        }
+        for (DiagnosisCarePointer pointer :
+                diagnosisCarePointers.findByTenantIdAndDiagnosisVersionId(tenantId, version.id())) {
+            add(facts, diagnosisCarePointerNode(pointer));
+            add(facts, edge(
+                versionKey(version.id()),
+                HAS_CARE_POINTER,
+                diagnosisCarePointerKey(pointer.id()),
+                pointer.updatedAt()));
+        }
+    }
+
+    private ProjectionFact diagnosisCriterionNode(DiagnosisCriterion criterion) {
+        return node("DIAGNOSIS_CRITERION", criterion.id(), payload(
+            "tenantId", criterion.tenantId(),
+            "diagnosisVersionId", value(criterion.diagnosisVersionId()),
+            "findingTermCode", criterion.findingTermCode(),
+            "direction", value(criterion.direction()),
+            "weight", value(criterion.weight()),
+            "hasValueConstraint", value(criterion.valueConstraint() != null && !criterion.valueConstraint().isBlank()),
+            "hasTemporalConstraint", value(criterion.temporalConstraint() != null && !criterion.temporalConstraint().isBlank()),
+            "citationId", value(criterion.citationId()),
+            "updatedAt", value(criterion.updatedAt())), criterion.updatedAt());
+    }
+
+    private ProjectionFact diagnosisCarePointerNode(DiagnosisCarePointer pointer) {
+        return node("DIAGNOSIS_CARE_POINTER", pointer.id(), payload(
+            "tenantId", pointer.tenantId(),
+            "diagnosisVersionId", value(pointer.diagnosisVersionId()),
+            "pointerType", value(pointer.pointerType()),
+            "targetType", value(pointer.targetType()),
+            "targetRef", pointer.targetRef(),
+            "isSoft", value(pointer.isSoft()),
+            "description", pointer.description(),
+            "updatedAt", value(pointer.updatedAt())), pointer.updatedAt());
+    }
+
     private ProjectionFact node(String type, Long id, String payload, Instant updatedAt) {
         return ProjectionFact.node(ProjectionTargetType.KNOWLEDGE_GRAPH, type, String.valueOf(id), payload, updatedAt);
     }
 
     private ProjectionFact edge(String subjectKey, String predicate, String objectKey, Instant updatedAt) {
-        return ProjectionFact.edge(ProjectionTargetType.KNOWLEDGE_GRAPH, subjectKey, predicate, objectKey, payload(
+        return edge(subjectKey, predicate, objectKey, updatedAt, new String[0]);
+    }
+
+    private ProjectionFact edge(String subjectKey, String predicate, String objectKey, Instant updatedAt,
+            String... extraPairs) {
+        List<String> pairs = new ArrayList<>(List.of(
             "from", subjectKey,
             "predicate", predicate,
             "to", objectKey,
-            "updatedAt", value(updatedAt)), updatedAt);
+            "updatedAt", value(updatedAt)
+        ));
+        pairs.addAll(List.of(extraPairs));
+        return ProjectionFact.edge(ProjectionTargetType.KNOWLEDGE_GRAPH, subjectKey, predicate, objectKey, payload(
+            pairs.toArray(String[]::new)), updatedAt);
     }
 
     private void add(Map<String, ProjectionFact> facts, ProjectionFact fact) {
@@ -243,6 +339,14 @@ public class KnowledgeProjectionSource {
 
     private String documentKey(Long id) {
         return "SOURCE_DOCUMENT:" + id;
+    }
+
+    private String diagnosisCriterionKey(Long id) {
+        return "DIAGNOSIS_CRITERION:" + id;
+    }
+
+    private String diagnosisCarePointerKey(Long id) {
+        return "DIAGNOSIS_CARE_POINTER:" + id;
     }
 
     private String payload(String... pairs) {

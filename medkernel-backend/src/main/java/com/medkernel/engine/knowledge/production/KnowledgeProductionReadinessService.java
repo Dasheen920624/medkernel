@@ -43,7 +43,8 @@ import com.medkernel.shared.config.SystemConfigService;
 @Service
 public class KnowledgeProductionReadinessService {
 
-    public static final String DEFAULT_CAPABILITY_CODE = MedicalRegressionCase.DEFAULT_CAPABILITY_CODE;
+    /** 正式医学知识生产从就绪检查到影子评测共用的唯一模型能力码。 */
+    public static final String DEFAULT_CAPABILITY_CODE = "knowledge.production.knowledge";
 
     private final SystemConfigService configService;
     private final DeploymentFormService deploymentFormService;
@@ -90,16 +91,15 @@ public class KnowledgeProductionReadinessService {
         Optional<ModelProviderConfig> provider = resolveProvider(tenantId, targetProducer, providerCode);
         List<KnowledgeProductionReadinessItem> items = new ArrayList<>();
         items.add(literatureRootItem());
-        items.add(deploymentItem(targetProducer, deploymentForm));
+        items.add(deploymentItem(targetProducer, deploymentForm, provider));
         items.add(providerItem(tenantId, targetProducer, provider));
         List<MedicalRegressionCase> cases =
             regressionCaseRepository.findByTenantIdAndCapabilityCodeAndEnabledFlag(tenantId, capability, "Y");
         items.add(regressionBaselineItem(capability, cases));
         items.add(evaluationItem(tenantId, capability, provider, cases));
         items.add(egressItem(tenantId, capability, provider));
-        items.add(policyItem(tenantId, capability, targetProducer));
+        items.add(policyItem(tenantId, capability, targetProducer, provider.orElse(null)));
         items.add(versionTripleItem(tenantId, capability, provider.orElse(null)));
-        items.add(p6AcceptanceItem());
         return new KnowledgeProductionReadinessResponse(
             tenantId,
             targetProducer,
@@ -125,12 +125,25 @@ public class KnowledgeProductionReadinessService {
             rootUri.trim());
     }
 
-    private KnowledgeProductionReadinessItem deploymentItem(KnowledgeProducer producer, DeploymentForm form) {
+    private KnowledgeProductionReadinessItem deploymentItem(
+            KnowledgeProducer producer,
+            DeploymentForm form,
+            Optional<ModelProviderConfig> provider) {
         if (producer == KnowledgeProducer.LOCAL_MODEL) {
             return KnowledgeProductionReadinessItem.pass(
                 "DEPLOYMENT_FORM",
                 "本地模型生产器允许在当前部署形态下运行",
                 "deploymentForm=" + form);
+        }
+        boolean localProviderApi = provider
+            .flatMap(this::providerType)
+            .map(type -> !type.external())
+            .orElse(false);
+        if (producer == KnowledgeProducer.API_MODEL && localProviderApi) {
+            return KnowledgeProductionReadinessItem.pass(
+                "DEPLOYMENT_FORM",
+                "本地 Provider API 允许在当前部署形态下运行",
+                "deploymentForm=" + form + ", provider=" + provider.get().providerCode());
         }
         if (form == DeploymentForm.PRODUCTION_CENTER) {
             return KnowledgeProductionReadinessItem.pass(
@@ -162,7 +175,7 @@ public class KnowledgeProductionReadinessService {
                 config.providerCode() + "/" + config.providerType());
         }
         ProviderType providerType = type.get();
-        boolean typeMatches = producer == KnowledgeProducer.LOCAL_MODEL ? !providerType.external() : providerType.external();
+        boolean typeMatches = producer == KnowledgeProducer.API_MODEL || !providerType.external();
         if (!typeMatches) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_PROVIDER",
@@ -249,7 +262,7 @@ public class KnowledgeProductionReadinessService {
                 capability)) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_EVALUATION",
-                "当前制品尚无完整、有效且按需独立签署的医学回归评测",
+                "当前制品尚无完整且有效的医学回归评测",
                 "provider=" + config.providerCode()
                     + ", model=" + config.modelVersion()
                     + ", capability=" + capability);
@@ -275,7 +288,7 @@ public class KnowledgeProductionReadinessService {
         if (!policy.valid()) {
             return KnowledgeProductionReadinessItem.block(
                 "EGRESS_GOVERNANCE",
-                "外部模型生产的出域白名单不可执行；高敏 payload 审批仍由运行时逐次判定",
+                "外部模型生产的出域白名单不可执行；高敏载荷仍由运行时逐次责任确认",
                 "capabilityCode=" + capability + ", reason=" + policy.reason());
         }
         if (!policy.allowedFields().contains("prompt")) {
@@ -286,12 +299,15 @@ public class KnowledgeProductionReadinessService {
         }
         return KnowledgeProductionReadinessItem.pass(
             "EGRESS_GOVERNANCE",
-            "外部模型出域白名单已配置；高敏 payload 审批将由运行时逐次判定",
+            "外部模型出域白名单已配置；高敏载荷将由运行时逐次责任确认",
             "capabilityCode=" + capability);
     }
 
-    private KnowledgeProductionReadinessItem policyItem(String tenantId, String capability,
-                                                        KnowledgeProducer producer) {
+    private KnowledgeProductionReadinessItem policyItem(
+            String tenantId,
+            String capability,
+            KnowledgeProducer producer,
+            ModelProviderConfig provider) {
         Optional<ModelCapabilityPolicy> policy = resolvePolicy(tenantId, capability);
         if (policy.isEmpty()) {
             return KnowledgeProductionReadinessItem.block(
@@ -300,7 +316,11 @@ public class KnowledgeProductionReadinessService {
                 "capabilityCode=" + capability);
         }
         String strategy = normalize(policy.get().routeStrategy());
-        String expected = producer == KnowledgeProducer.LOCAL_MODEL ? "LOCAL_MODEL" : "EXTERNAL_MODEL";
+        boolean localProvider = provider != null
+            && providerType(provider).map(type -> !type.external()).orElse(false);
+        String expected = producer == KnowledgeProducer.LOCAL_MODEL || localProvider
+            ? "LOCAL_MODEL"
+            : "EXTERNAL_MODEL";
         if (!expected.equals(strategy)) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_POLICY",
@@ -355,25 +375,13 @@ public class KnowledgeProductionReadinessService {
                 + ", model=" + bundle.modelVersion());
     }
 
-    private KnowledgeProductionReadinessItem p6AcceptanceItem() {
-        if (!configService.runtimeKnowledgeProductionP6IndependentAcceptance()) {
-            return KnowledgeProductionReadinessItem.block(
-                "P6_ACCEPTANCE",
-                "P6 独立验收未放行，禁止正式模型生成知识",
-                SystemConfigService.KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY + "=false");
-        }
-        return KnowledgeProductionReadinessItem.pass(
-            "P6_ACCEPTANCE",
-            "P6 独立验收已放行",
-            SystemConfigService.KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY + "=true");
-    }
-
     private Optional<ModelProviderConfig> resolveProvider(String tenantId, KnowledgeProducer producer, String providerCode) {
         if (providerCode != null && !providerCode.isBlank()) {
             return providerRepository.findByTenantIdAndProviderCode(tenantId, providerCode.trim());
         }
         return providerRepository.findByTenantIdAndEnabledFlag(tenantId, "Y").stream()
-            .filter(provider -> providerMatchesProducer(provider, producer))
+            .filter(provider -> producer == KnowledgeProducer.API_MODEL
+                || providerMatchesProducer(provider, producer))
             .findFirst();
     }
 

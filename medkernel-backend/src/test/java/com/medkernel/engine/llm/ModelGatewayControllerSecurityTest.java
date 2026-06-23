@@ -78,8 +78,8 @@ class ModelGatewayControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(TASK_BODY))
                 .andExpect(status().isOk());
@@ -91,8 +91,8 @@ class ModelGatewayControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR")))
+                    .claim("roles", List.of("auditor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_AUDITOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(TASK_BODY))
                 .andExpect(status().isForbidden());
@@ -103,8 +103,8 @@ class ModelGatewayControllerSecurityTest {
         mockMvc.perform(post("/api/v1/model-capabilities/tasks")
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(TASK_BODY))
                 .andExpect(status().isBadRequest())
@@ -117,21 +117,21 @@ class ModelGatewayControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(POLICY_BODY))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void itOpsCanManageTenantModelPolicy() throws Exception {
+    void engineOperatorCanManageTenantModelPolicy() throws Exception {
         mockMvc.perform(put("/api/v1/model-capabilities/policies/knowledge.extract")
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(POLICY_BODY))
                 .andExpect(status().isOk());
@@ -143,21 +143,21 @@ class ModelGatewayControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(CATALOG_BODY))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void itOpsCanManageGlobalModelCapabilityCatalog() throws Exception {
+    void engineOperatorCanManageGlobalModelCapabilityCatalog() throws Exception {
         mockMvc.perform(put("/api/v1/model-capabilities/catalog/custom.summary")
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(CATALOG_BODY))
                 .andExpect(status().isOk());

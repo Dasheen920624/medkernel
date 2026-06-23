@@ -7,22 +7,32 @@ import AuthoringAssets from "./AuthoringAssets";
 
 const apiMocks = vi.hoisted(() => ({
   useAuthoringAssets: vi.fn(),
-  usePackages: vi.fn(),
   updateProfile: vi.fn(),
   favorite: vi.fn(),
   unfavorite: vi.fn(),
-  clone: vi.fn(),
+}));
+
+vi.mock("./DeclarativeAssetWorkbench", () => ({
+  default: () => <div>独立配置资产维护区</div>,
+}));
+
+vi.mock("@/shared/ui/condition/FieldCatalogManager", () => ({
+  default: ({ open }: { open: boolean }) => (open ? <div>字段目录维护抽屉</div> : null),
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
   useSecurityProfile: () => ({
     data: {
-      permissions: [{ code: "rule.write" }, { code: "pathway.write" }],
+      permissions: [
+        { code: "rule.write" },
+        { code: "pathway.write" },
+        { code: "asset.write" },
+        { code: "context.write" },
+      ],
       menuKeys: ["authoring-assets"],
     },
   }),
   useAuthoringAssets: (...args: unknown[]) => apiMocks.useAuthoringAssets(...args),
-  usePackages: (...args: unknown[]) => apiMocks.usePackages(...args),
   useUpdateAuthoringAssetProfile: () => ({
     mutateAsync: apiMocks.updateProfile,
     isPending: false,
@@ -33,10 +43,6 @@ vi.mock("@/shared/api/hooks", () => ({
   }),
   useUnfavoriteAuthoringAsset: () => ({
     mutateAsync: apiMocks.unfavorite,
-    isPending: false,
-  }),
-  useCloneAuthoringAsset: () => ({
-    mutateAsync: apiMocks.clone,
     isPending: false,
   }),
 }));
@@ -56,24 +62,20 @@ describe("AuthoringAssets", () => {
     apiMocks.updateProfile.mockReset();
     apiMocks.favorite.mockReset();
     apiMocks.unfavorite.mockReset();
-    apiMocks.clone.mockReset();
     apiMocks.useAuthoringAssets.mockReset();
-    apiMocks.usePackages.mockReset();
     apiMocks.useAuthoringAssets.mockReturnValue({
       data: {
         items: [
           {
-            assetType: "CONDITION_FRAGMENT",
-            assetId: "frag-ckd",
-            assetCode: "FRAG.CKD",
-            name: "CKD 条件片段",
+            assetType: "PATHWAY",
+            assetId: "path-ckd",
+            assetCode: "PATH.CKD",
+            name: "CKD 临床路径",
             category: "慢病",
-            tags: ["复用"],
-            version: "1",
-            status: "ACTIVE",
-            packageVersion: "pkg-2026.06",
+            tags: ["肾病"],
+            version: "pv-1",
+            status: "PUBLISHED",
             favorite: false,
-            cloneable: true,
             updatedAt: "2026-06-08T00:00:00Z",
           },
           {
@@ -85,9 +87,7 @@ describe("AuthoringAssets", () => {
             tags: [],
             version: "rv-1",
             status: "PUBLISHED",
-            packageVersion: "pkg-2026.06",
             favorite: true,
-            cloneable: false,
             updatedAt: "2026-06-07T00:00:00Z",
           },
         ],
@@ -96,40 +96,15 @@ describe("AuthoringAssets", () => {
       isError: false,
       refetch: vi.fn(),
     });
-    apiMocks.usePackages.mockReturnValue({
-      data: {
-        items: [
-          {
-            packageId: "pkg-rule-1",
-            tenantId: "t-1",
-            packageCode: "PKG.RULE",
-            packageVersion: "pkg-2026.06",
-            name: "规则配置包",
-            description: "",
-            accessPolicy: "OPEN",
-            status: "ACTIVE",
-            createdAt: "2026-06-01T00:00:00Z",
-            createdBy: "tester",
-            updatedAt: "2026-06-01T00:00:00Z",
-            updatedBy: "tester",
-            traceId: "trace-pkg",
-            assetTypes: ["CONDITION_FRAGMENT", "RULE"],
-            itemCount: 2,
-          },
-        ],
-      },
-      isLoading: false,
-      isError: false,
-    });
   });
 
   it("searches unified assets and saves category tags", async () => {
-    apiMocks.updateProfile.mockResolvedValue({ assetId: "frag-ckd" });
+    apiMocks.updateProfile.mockResolvedValue({ assetId: "path-ckd" });
 
     renderPage();
 
     expect(screen.getByRole("heading", { name: "统一资产库" })).toBeInTheDocument();
-    expect(screen.getByText("CKD 条件片段")).toBeInTheDocument();
+    expect(screen.getByText("CKD 临床路径")).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText("搜索资产编码或名称"), {
       target: { value: "CKD" },
@@ -146,24 +121,36 @@ describe("AuthoringAssets", () => {
 
     await waitFor(() => {
       expect(apiMocks.updateProfile).toHaveBeenCalledWith({
-        assetType: "CONDITION_FRAGMENT",
-        assetId: "frag-ckd",
+        assetType: "PATHWAY",
+        assetId: "path-ckd",
         request: { category: "肾病", tags: ["CKD", "复用"] },
       });
     });
   });
 
-  it("favorites and clones only cloneable assets", async () => {
+  it("surfaces independent maintenance without removing the existing asset library", async () => {
+    renderPage();
+
+    expect(screen.getByRole("tab", { name: "专业资产库" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "配置资产维护" })).toBeInTheDocument();
+    expect(screen.getByText("CKD 临床路径")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("tab", { name: "配置资产维护" }));
+    expect(screen.getByText("独立配置资产维护区")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "维护字段目录" }));
+    expect(screen.getByText("字段目录维护抽屉")).toBeInTheDocument();
+  });
+
+  it("favorites and unfavorites existing assets", async () => {
     apiMocks.favorite.mockResolvedValue({ favorite: true });
     apiMocks.unfavorite.mockResolvedValue({ favorite: false });
-    apiMocks.clone.mockResolvedValue({ clonedAssetId: "frag-copy" });
 
     renderPage();
 
     await userEvent.click(screen.getByRole("button", { name: "收藏" }));
     expect(apiMocks.favorite).toHaveBeenCalledWith({
-      assetType: "CONDITION_FRAGMENT",
-      assetId: "frag-ckd",
+      assetType: "PATHWAY",
+      assetId: "path-ckd",
     });
 
     await userEvent.click(screen.getByRole("button", { name: "取消收藏" }));
@@ -171,65 +158,5 @@ describe("AuthoringAssets", () => {
       assetType: "RULE",
       assetId: "rule-ckd",
     });
-
-    expect(screen.getByRole("button", { name: "克隆不可用" })).toBeDisabled();
-
-    await userEvent.click(screen.getByRole("button", { name: "克隆" }));
-    fireEvent.change(screen.getByLabelText("新编码"), {
-      target: { value: "FRAG.CKD.COPY" },
-    });
-    fireEvent.change(screen.getByLabelText("新名称"), {
-      target: { value: "CKD 条件片段副本" },
-    });
-    fireEvent.change(screen.getByLabelText("新版本"), { target: { value: "1" } });
-    expect(screen.getByText("pkg-2026.06 · 规则配置包")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "另存为草稿" }));
-
-    await waitFor(() => {
-      expect(apiMocks.usePackages).toHaveBeenCalledWith({
-        page: 1,
-        size: 20,
-        assetType: "CONDITION_FRAGMENT",
-        keyword: "pkg-2026.06",
-      });
-      expect(apiMocks.usePackages).not.toHaveBeenCalledWith({
-        page: 1,
-        size: 100,
-        assetType: "CONDITION_FRAGMENT",
-      });
-      expect(apiMocks.clone).toHaveBeenCalledWith({
-        assetType: "CONDITION_FRAGMENT",
-        assetId: "frag-ckd",
-        request: {
-          newCode: "FRAG.CKD.COPY",
-          newName: "CKD 条件片段副本",
-          newVersion: 1,
-          packageVersion: "pkg-2026.06",
-        },
-      });
-    });
-  });
-
-  it("blocks cloning when the selected package version is not loaded from package selector", async () => {
-    apiMocks.usePackages.mockReturnValue({
-      data: { items: [] },
-      isLoading: false,
-      isError: false,
-    });
-
-    renderPage();
-
-    await userEvent.click(screen.getByRole("button", { name: "克隆" }));
-    fireEvent.change(screen.getByLabelText("新编码"), {
-      target: { value: "FRAG.CKD.COPY" },
-    });
-    fireEvent.change(screen.getByLabelText("新名称"), {
-      target: { value: "CKD 条件片段副本" },
-    });
-    fireEvent.change(screen.getByLabelText("新版本"), { target: { value: "1" } });
-    await userEvent.click(screen.getByRole("button", { name: "另存为草稿" }));
-
-    expect(await screen.findByText("请选择已存在的配置包版本。")).toBeInTheDocument();
-    expect(apiMocks.clone).not.toHaveBeenCalled();
   });
 });

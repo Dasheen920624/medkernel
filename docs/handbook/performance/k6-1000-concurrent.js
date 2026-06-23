@@ -48,7 +48,7 @@ const SCENARIOS = [
 
   // 试点准备域：占 15%
   { weight: 8, name: 'pathway-list', run: () => pathwayList() },
-  { weight: 7, name: 'config-packages', run: () => configPackages() },
+  { weight: 7, name: 'runtime-releases', run: () => runtimeReleases() },
 
   // 质控改进域：占 12%
   { weight: 8, name: 'qc-dashboard', run: () => qcDashboard() },
@@ -106,8 +106,8 @@ function pathwayList() {
   const res = http.get(`${BASE_URL}/api/v1/tenant/pathways`);
   track(res);
 }
-function configPackages() {
-  const res = http.get(`${BASE_URL}/api/v1/quality/insurance/drg/rulesets`);
+function runtimeReleases() {
+  const res = http.get(`${BASE_URL}/api/v1/engine/releases/platform-baselines/current`);
   track(res);
 }
 function qcDashboard() {

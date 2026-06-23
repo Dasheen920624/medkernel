@@ -127,7 +127,7 @@ class KnowledgeIdentityServiceTest {
 
     @Test
     void pageMergesCustomerLocalOverridesWithPlatformActiveIdentities() {
-        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "clinical-decision-user"));
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "clinical-user"));
         KnowledgeIdentity localOverride = identityRow(200L, "t-hospital", "DRUG.X");
         KnowledgeIdentity platformOnly = identityRow(101L, "t-1", "DRUG.Y");
         when(identityRepo.countEffectiveByFilter(
@@ -155,7 +155,7 @@ class KnowledgeIdentityServiceTest {
 
     @Test
     void getFallsBackToPlatformIdentityWhenCustomerHasNoLocalOverride() {
-        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "clinical-decision-user"));
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "clinical-user"));
         KnowledgeIdentity platform = identityRow(100L, "t-1", "DRUG.X");
         when(identityRepo.findByTenantIdAndId("t-hospital", 100L)).thenReturn(Optional.empty());
         when(identityRepo.findByTenantIdAndId("t-1", 100L)).thenReturn(Optional.of(platform));
@@ -169,7 +169,7 @@ class KnowledgeIdentityServiceTest {
 
     @Test
     void getPrefersLocalIdentityWithSameCodeOverPlatformIdentity() {
-        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "clinical-decision-user"));
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "clinical-user"));
         KnowledgeIdentity platform = identityRow(100L, "t-1", "DRUG.X");
         KnowledgeIdentity local = identityRow(200L, "t-hospital", "DRUG.X");
         when(identityRepo.findByTenantIdAndId("t-hospital", 100L)).thenReturn(Optional.empty());
@@ -448,7 +448,7 @@ class KnowledgeIdentityServiceTest {
     void registerSourceVersionWithStandardRequestUsesPathSourceDocumentId() {
         KnowledgeSourceVersionCreateRequest request = new KnowledgeSourceVersionCreateRequest(
             "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
-            "u-99", List.of("knowledge.write"), "pkg-2026.06",
+            "u-99", List.of("knowledge.write"),
             "v1", Instant.parse("2026-06-01T00:00:00Z"), sha256("真实指南原文"), "s3://bucket/source.pdf", null,
             null
         );
@@ -679,7 +679,7 @@ class KnowledgeIdentityServiceTest {
     private KnowledgeIdentityCreateRequest identityCreateRequest(String tenantId, String identitySlug) {
         return new KnowledgeIdentityCreateRequest(
             "req-1", "trace-1", tenantId, null, "h-1", null, null, "d-1", "CARD",
-            "u-99", List.of("knowledge.write"), "pkg-2026.06",
+            "u-99", List.of("knowledge.write"),
             identitySlug, KnowledgeDomain.DRUG, " 高血压用药 ", " CARD ", "指南资产"
         );
     }

@@ -13,7 +13,6 @@ const EmbedLaunch = lazy(() => import("@/pages/clinical/EmbedLaunch"));
 // 机构与人员域
 const ImplementationGuide = lazy(() => import("@/pages/tenant/ImplementationGuide"));
 const TenantOnboarding = lazy(() => import("@/pages/tenant/TenantOnboarding"));
-const ConfigPackages = lazy(() => import("@/pages/tenant/ConfigPackages"));
 const ReleaseGovernance = lazy(() => import("@/pages/tenant/ReleaseGovernance"));
 const AuthoringAssets = lazy(() => import("@/pages/tenant/AuthoringAssets"));
 const PathwayTemplates = lazy(() => import("@/pages/tenant/PathwayTemplates"));
@@ -74,7 +73,6 @@ export function AppRouter() {
           {/* 机构与人员 */}
           <Route path="/onboarding/guide" element={<ImplementationGuide />} />
           <Route path="/tenant/onboarding" element={<TenantOnboarding />} />
-          <Route path="/config/packages" element={<ConfigPackages />} />
           <Route path="/config/releases" element={<ReleaseGovernance />} />
           <Route path="/authoring/assets" element={<AuthoringAssets />} />
           <Route path="/pathway/templates" element={<PathwayTemplates />} />

@@ -104,7 +104,7 @@ class PluginSecurityRepository {
                                   String pluginId,
                                   String grantId,
                                   PluginCapabilityResponse capability,
-                                  String approvalReason,
+                                  String authorizationReason,
                                   boolean clinicalSafetyConfirmed,
                                   String actor,
                                   String traceId) {
@@ -112,7 +112,7 @@ class PluginSecurityRepository {
         jdbc.update("""
             INSERT INTO mk_plugin_grant (
                 grant_id, plugin_id, tenant_id, capability_key, capability_type,
-                service_contract_id, status, approval_reason, clinical_safety_confirmed,
+                service_contract_id, status, authorization_reason, clinical_safety_confirmed,
                 version, granted_at, granted_by, updated_at, updated_by, trace_id
             ) VALUES (?, ?, ?, ?, ?, ?, 'AUTHORIZED', ?, ?, 1, ?, ?, ?, ?, ?)
             """,
@@ -122,7 +122,7 @@ class PluginSecurityRepository {
             capability.capabilityKey(),
             capability.capabilityType().name(),
             capability.serviceContractId(),
-            approvalReason,
+            authorizationReason,
             clinicalSafetyConfirmed ? "Y" : "N",
             Timestamp.from(now),
             actor,

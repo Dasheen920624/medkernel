@@ -11,13 +11,10 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -43,34 +40,15 @@ public class ConditionEvaluator {
     private final ObjectMapper json;
     private final ClinicalRuleOperatorSupport clinicalOperators;
     private final AuthoringFeatureGate featureGate;
-    private final ConditionFragmentResolver fragmentResolver;
 
     public ConditionEvaluator(ObjectMapper json) {
-        this(json, AuthoringFeatureGate.alwaysEnabled(), ConditionFragmentResolver.unavailable());
-    }
-
-    public ConditionEvaluator(ObjectMapper json, AuthoringFeatureGate featureGate) {
-        this(json, featureGate, ConditionFragmentResolver.unavailable());
+        this(json, AuthoringFeatureGate.alwaysEnabled());
     }
 
     @Autowired
-    public ConditionEvaluator(
-            ObjectMapper json,
-            AuthoringFeatureGate featureGate,
-            ObjectProvider<ConditionFragmentResolver> fragmentResolverProvider) {
-        this(json, featureGate,
-            fragmentResolverProvider == null
-                ? ConditionFragmentResolver.unavailable()
-                : fragmentResolverProvider.getIfAvailable(ConditionFragmentResolver::unavailable));
-    }
-
-    public ConditionEvaluator(
-            ObjectMapper json,
-            AuthoringFeatureGate featureGate,
-            ConditionFragmentResolver fragmentResolver) {
+    public ConditionEvaluator(ObjectMapper json, AuthoringFeatureGate featureGate) {
         this.json = json;
         this.featureGate = featureGate == null ? AuthoringFeatureGate.alwaysEnabled() : featureGate;
-        this.fragmentResolver = fragmentResolver == null ? ConditionFragmentResolver.unavailable() : fragmentResolver;
         this.clinicalOperators = new ClinicalRuleOperatorSupport(json);
     }
 
@@ -79,7 +57,7 @@ public class ConditionEvaluator {
             throw invalid("条件必须是 JSON 对象");
         }
         JsonNode evalContext = withDerivedFields(context == null ? json.createObjectNode() : context);
-        return evaluateConditionNode(condition, evalContext, 0, new LinkedHashSet<>());
+        return evaluateConditionNode(condition, evalContext, 0);
     }
 
     private JsonNode withDerivedFields(JsonNode context) {
@@ -137,25 +115,7 @@ public class ConditionEvaluator {
     private ConditionEvaluation evaluateConditionNode(
             JsonNode node,
             JsonNode context,
-            int depth,
-            Set<String> fragmentStack) {
-        if (isConditionFragmentReference(node)) {
-            requireFeatureEnabled(AuthoringFeatureFlag.CONDITION_FRAGMENT_LIBRARY);
-            ConditionFragmentReference reference = readFragmentReference(node);
-            String stackKey = referenceKey(reference);
-            if (!fragmentStack.add(stackKey)) {
-                throw invalid("条件片段循环引用: " + String.join(" -> ", fragmentStack) + " -> " + stackKey);
-            }
-            try {
-                JsonNode inlined = fragmentResolver.resolve(reference);
-                if (inlined == null || !inlined.isObject()) {
-                    throw invalid("条件片段必须解析为 JSON 对象: " + reference.fragmentCode());
-                }
-                return evaluateConditionNode(inlined, context, depth + 1, fragmentStack);
-            } finally {
-                fragmentStack.remove(stackKey);
-            }
-        }
+            int depth) {
         if (depth > 0 && isConditionGroup(node)) {
             requireFeatureEnabled(AuthoringFeatureFlag.RECURSIVE_CONDITION_TREE);
         }
@@ -166,7 +126,7 @@ public class ConditionEvaluator {
             }
             List<ConditionEvidence> evidence = new ArrayList<>();
             for (JsonNode child : all) {
-                ConditionEvaluation result = evaluateConditionNode(child, context, depth + 1, fragmentStack);
+                ConditionEvaluation result = evaluateConditionNode(child, context, depth + 1);
                 evidence.addAll(result.evidence());
                 if (!result.matched()) {
                     return new ConditionEvaluation(false, evidence);
@@ -182,7 +142,7 @@ public class ConditionEvaluator {
             }
             List<ConditionEvidence> evidence = new ArrayList<>();
             for (JsonNode child : any) {
-                ConditionEvaluation result = evaluateConditionNode(child, context, depth + 1, fragmentStack);
+                ConditionEvaluation result = evaluateConditionNode(child, context, depth + 1);
                 evidence.addAll(result.evidence());
                 if (result.matched()) {
                     return new ConditionEvaluation(true, evidence);
@@ -196,7 +156,7 @@ public class ConditionEvaluator {
             if (!not.isObject()) {
                 throw invalid("when.not 必须是对象");
             }
-            ConditionEvaluation result = evaluateConditionNode(not, context, depth + 1, fragmentStack);
+            ConditionEvaluation result = evaluateConditionNode(not, context, depth + 1);
             return new ConditionEvaluation(!result.matched(), result.evidence());
         }
 
@@ -342,8 +302,7 @@ public class ConditionEvaluator {
                 .filter(item -> evaluateConditionNode(
                     where,
                     singletonArrayContext(context, collection.arrayPath(), item.rawItem()),
-                    0,
-                    new LinkedHashSet<>())
+                    0)
                     .matched())
                 .toList();
         }
@@ -808,33 +767,6 @@ public class ConditionEvaluator {
 
     private boolean isConditionGroup(JsonNode node) {
         return node != null && node.isObject() && (node.has("all") || node.has("any") || node.has("not"));
-    }
-
-    private boolean isConditionFragmentReference(JsonNode node) {
-        return node != null && node.isObject() && optionalText(node, "fragmentRef") != null;
-    }
-
-    private ConditionFragmentReference readFragmentReference(JsonNode node) {
-        String fragmentCode = requiredText(node, "fragmentRef");
-        int version = requiredPositiveInt(node, "version");
-        String packageVersion = requiredText(node, "packageVersion");
-        return new ConditionFragmentReference(fragmentCode, version, packageVersion);
-    }
-
-    private int requiredPositiveInt(JsonNode node, String field) {
-        JsonNode value = node.path(field);
-        if (!value.isIntegralNumber()) {
-            throw invalid("条件片段引用字段 " + field + " 必须是正整数");
-        }
-        int number = value.asInt();
-        if (number <= 0) {
-            throw invalid("条件片段引用字段 " + field + " 必须大于 0");
-        }
-        return number;
-    }
-
-    private String referenceKey(ConditionFragmentReference reference) {
-        return reference.fragmentCode() + "@" + reference.version() + "@" + reference.packageVersion();
     }
 
     private boolean isClinicalOperator(String operator) {

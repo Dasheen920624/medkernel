@@ -7,13 +7,13 @@ import AcquisitionSourceGovernancePanel from "./AcquisitionSourceGovernancePanel
 
 const mockUseKnowledgeAcquisitionSources = vi.fn();
 const mockUseSaveKnowledgeAcquisitionSourceDraft = vi.fn();
-const mockUseApproveKnowledgeAcquisitionSource = vi.fn();
+const mockUseEnableKnowledgeAcquisitionSource = vi.fn();
 const mockUseDisableKnowledgeAcquisitionSource = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useKnowledgeAcquisitionSources: (params: unknown) => mockUseKnowledgeAcquisitionSources(params),
   useSaveKnowledgeAcquisitionSourceDraft: () => mockUseSaveKnowledgeAcquisitionSourceDraft(),
-  useApproveKnowledgeAcquisitionSource: () => mockUseApproveKnowledgeAcquisitionSource(),
+  useEnableKnowledgeAcquisitionSource: () => mockUseEnableKnowledgeAcquisitionSource(),
   useDisableKnowledgeAcquisitionSource: () => mockUseDisableKnowledgeAcquisitionSource(),
 }));
 
@@ -32,17 +32,17 @@ const source = {
   licensePolicy: "PERMITTED",
   robotsPolicy: "ALLOW_FETCH",
   enabledFlag: "N",
-  approvedBy: null,
-  approvedAt: null,
   scheduleEnabledFlag: "N",
+  updatedBy: "operator",
+  updatedAt: "2026-06-22T01:00:00Z",
   version: 0,
 };
 
-function renderPanel(canWrite = true, canApprove = true) {
+function renderPanel(canWrite = true) {
   return render(
     <ConfigProvider>
       <AntdApp>
-        <AcquisitionSourceGovernancePanel canWrite={canWrite} canApprove={canApprove} />
+        <AcquisitionSourceGovernancePanel canWrite={canWrite} />
       </AntdApp>
     </ConfigProvider>,
   );
@@ -50,14 +50,14 @@ function renderPanel(canWrite = true, canApprove = true) {
 
 describe("AcquisitionSourceGovernancePanel", () => {
   const saveDraft = vi.fn();
-  const approve = vi.fn();
+  const enable = vi.fn();
   const disable = vi.fn();
 
   beforeEach(() => {
     saveDraft.mockReset();
-    approve.mockReset();
+    enable.mockReset();
     disable.mockReset();
-    approve.mockResolvedValue({ ...source, enabledFlag: "Y" });
+    enable.mockResolvedValue({ ...source, enabledFlag: "Y" });
     disable.mockResolvedValue(source);
     mockUseKnowledgeAcquisitionSources.mockReturnValue({
       data: {
@@ -77,8 +77,8 @@ describe("AcquisitionSourceGovernancePanel", () => {
       mutateAsync: saveDraft,
       isPending: false,
     });
-    mockUseApproveKnowledgeAcquisitionSource.mockReturnValue({
-      mutateAsync: approve,
+    mockUseEnableKnowledgeAcquisitionSource.mockReturnValue({
+      mutateAsync: enable,
       isPending: false,
     });
     mockUseDisableKnowledgeAcquisitionSource.mockReturnValue({
@@ -87,16 +87,17 @@ describe("AcquisitionSourceGovernancePanel", () => {
     });
   });
 
-  it("shows governed source evidence and performs an explicit approval confirmation", async () => {
+  it("shows governed source evidence and performs an explicit enable confirmation", async () => {
     renderPanel();
 
     expect(screen.getByText("国家卫生健康委指南来源")).toBeInTheDocument();
-    expect(screen.getByText("待审批")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "审批启用 NHC-GUIDELINE" }));
-    expect(screen.getByText("确认审批并启用来源？")).toBeInTheDocument();
+    expect(screen.getByText("已停用")).toBeInTheDocument();
+    expect(screen.getByText("operator")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "启用来源 NHC-GUIDELINE" }));
+    expect(screen.getByText("确认启用来源？")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "确认启用" }));
 
-    await waitFor(() => expect(approve).toHaveBeenCalledWith("NHC-GUIDELINE"));
+    await waitFor(() => expect(enable).toHaveBeenCalledWith("NHC-GUIDELINE"));
   });
 
   it("opens a disabled draft form while keeping legal and robots decisions explicit", async () => {
@@ -111,10 +112,10 @@ describe("AcquisitionSourceGovernancePanel", () => {
   });
 
   it("does not expose mutation actions to read-only users", () => {
-    renderPanel(false, false);
+    renderPanel(false);
 
     expect(screen.queryByRole("button", { name: "登记来源草稿" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /审批启用/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /启用来源/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /编辑草稿/ })).not.toBeInTheDocument();
   });
 

@@ -110,11 +110,14 @@ public class RecommendationEngineService {
      */
     @Transactional
     public RecommendationTriggerResponse trigger(RecommendationTriggerRequest request) {
-        request = resolveSnapshotContext(request);
+        ResolvedRecommendationRequest resolved = resolveSnapshotContext(request);
+        request = resolved.request();
+        ContextSnapshotResponse snapshot = resolved.snapshot();
         List<AssessedCard> assessedCards;
         try {
             CdsHookContract.requireSupportedHook(request.triggerType());
-            assessedCards = assessCards(request.triggerType(), request.candidateCards());
+            assessedCards = assessCards(
+                snapshot.runtimeReleaseId(), request.triggerType(), request.candidateCards());
             validateCards(assessedCards);
         } catch (ApiException e) {
             // CDSS-M-01：来源缺失/高风险未确认/强打断非高风险等医疗安全校验失败，
@@ -136,7 +139,9 @@ public class RecommendationEngineService {
         RecommendationTrigger trigger = triggers.save(new RecommendationTrigger(
             null, triggerId, tenantId, request.triggerCode(), request.triggerType(),
             request.sourceEventId(), request.contextSnapshotId(), request.patientId(), request.encounterId(),
-            request.patientPathwayId(), request.scenarioCode(), request.packageVersion(), request.inputDigest(),
+            request.patientPathwayId(), request.scenarioCode(),
+            snapshot.runtimeReleaseId(),
+            request.inputDigest(),
             status, null, request.occurredAt() == null ? now : request.occurredAt(),
             now, actor, now, actor, traceId));
 
@@ -165,7 +170,9 @@ public class RecommendationEngineService {
      */
     @Transactional
     public RecommendationEvaluationResponse evaluate(RecommendationTriggerRequest request) {
-        request = resolveSnapshotContext(request);
+        ResolvedRecommendationRequest resolved = resolveSnapshotContext(request);
+        request = resolved.request();
+        ContextSnapshotResponse snapshot = resolved.snapshot();
         try {
             CdsHookContract.requireSupportedHook(request.triggerType());
         } catch (ApiException e) {
@@ -177,7 +184,8 @@ public class RecommendationEngineService {
         List<RecommendationCardRequest> deterministicCards = deterministicCards(request);
         List<AssessedCard> assessedCards;
         try {
-            assessedCards = assessCards(request.triggerType(), deterministicCards);
+            assessedCards = assessCards(
+                snapshot.runtimeReleaseId(), request.triggerType(), deterministicCards);
             validateCards(assessedCards);
         } catch (ApiException e) {
             isolatedAudit.publishInNewTx(AuditEvent.failure(
@@ -199,7 +207,9 @@ public class RecommendationEngineService {
         RecommendationTrigger trigger = triggers.save(new RecommendationTrigger(
             null, triggerId, tenantId, request.triggerCode(), request.triggerType(),
             request.sourceEventId(), request.contextSnapshotId(), request.patientId(), request.encounterId(),
-            request.patientPathwayId(), request.scenarioCode(), request.packageVersion(), request.inputDigest(),
+            request.patientPathwayId(), request.scenarioCode(),
+            snapshot.runtimeReleaseId(),
+            request.inputDigest(),
             status, null, request.occurredAt() == null ? now : request.occurredAt(),
             now, actor, now, actor, traceId));
 
@@ -241,7 +251,7 @@ public class RecommendationEngineService {
         return List.copyOf(byCode.values());
     }
 
-    private RecommendationTriggerRequest resolveSnapshotContext(RecommendationTriggerRequest request) {
+    private ResolvedRecommendationRequest resolveSnapshotContext(RecommendationTriggerRequest request) {
         ContextSnapshotResponse snapshot = contextSnapshots.findById(request.contextSnapshotId());
         if (snapshot.status() != ContextSnapshotStatus.ACTIVE || snapshot.resources() == null
                 || snapshot.resources().patient() == null) {
@@ -254,7 +264,7 @@ public class RecommendationEngineService {
             String inputDigest = "sha256:" + Sha256ContentHash.sha256(
                 json.writeValueAsString(snapshot.resources()),
                 "标准上下文快照内容不能为空");
-            return new RecommendationTriggerRequest(
+            RecommendationTriggerRequest normalized = new RecommendationTriggerRequest(
                 request.triggerCode(),
                 request.triggerType(),
                 request.sourceEventId(),
@@ -263,16 +273,21 @@ public class RecommendationEngineService {
                 encounterId,
                 request.patientPathwayId(),
                 request.scenarioCode(),
-                snapshot.packageVersion(),
                 inputDigest,
                 request.occurredAt(),
                 request.candidateCards(),
                 request.modelEnhancementEnabled()
             );
+            return new ResolvedRecommendationRequest(normalized, snapshot);
         } catch (JsonProcessingException e) {
             throw new ApiException(ErrorCode.ENG_REC_001, "标准上下文快照无法生成推荐评估摘要", e);
         }
     }
+
+    private record ResolvedRecommendationRequest(
+        RecommendationTriggerRequest request,
+        ContextSnapshotResponse snapshot
+    ) {}
 
     /**
      * 分页查询当前租户的推荐卡，按 status / riskLevel / scenarioCode / patientId / encounterId / triggerPoint 过滤。
@@ -475,10 +490,14 @@ public class RecommendationEngineService {
         }
     }
 
-    private List<AssessedCard> assessCards(String triggerType, List<RecommendationCardRequest> cardRequests) {
+    private List<AssessedCard> assessCards(
+            String runtimeReleaseId,
+            String triggerType,
+            List<RecommendationCardRequest> cardRequests) {
         return cardRequests.stream()
             .map(cardRequest -> new AssessedCard(cardRequest, redlineProtectedAssessment(cardRequest,
-                riskMatrixService.assess(triggerType, cardRequest.riskLevel(), cardRequest.automationLevel()))))
+                riskMatrixService.assess(
+                    runtimeReleaseId, triggerType, cardRequest.riskLevel(), cardRequest.automationLevel()))))
             .toList();
     }
 
@@ -492,7 +511,7 @@ public class RecommendationEngineService {
             assessment.riskMatrixId(),
             assessment.riskMatrixVersion(),
             RecommendationRiskLevel.CRITICAL,
-            CdssReviewRequirement.DUAL_REVIEW,
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
             Math.max(assessment.silentRunHours(), 0),
             "OPT04_REDLINE_RUNTIME_GUARD",
             false,

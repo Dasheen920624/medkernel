@@ -9,26 +9,8 @@ import type { RuleDefinition, RuleDetailResponse, SecurityProfile } from "@/shar
 const apiMocks = vi.hoisted(() => ({
   ruleListData: { items: [], total: 0 } as unknown,
   ruleDetailData: null as unknown,
-  conditionFragmentsData: { items: [], total: 0 } as unknown,
-  conditionFragmentRequests: [] as Array<Record<string, unknown> | undefined>,
   snapshotsData: { items: [], total: 0 } as unknown,
   snapshotDetailData: null as unknown,
-  packagesData: {
-    items: [
-      {
-        packageId: "package-rule",
-        packageCode: "PKG.RULE",
-        packageVersion: "pkg-2026.06",
-        name: "临床规则包",
-        status: "DRAFT",
-        assetTypes: ["RULE"],
-        itemCount: 0,
-      },
-    ],
-    total: 1,
-  } as unknown,
-  packageRequests: [] as Array<Record<string, unknown> | undefined>,
-  packageRequestOptions: [] as Array<{ enabled?: boolean } | undefined>,
   impactData: null as unknown,
   shadowStatsData: null as unknown,
   backtestData: null as unknown,
@@ -80,16 +62,11 @@ const apiMocks = vi.hoisted(() => ({
   refetchBacktest: vi.fn(),
   refetchDrift: vi.fn(),
   createRule: vi.fn(),
-  createConditionFragment: vi.fn(),
-  updateConditionFragment: vi.fn(),
-  conditionFragmentImpactData: null as unknown,
-  conditionFragmentImpactRequests: [] as Array<
-    { fragmentId: string; params?: Record<string, unknown> } | undefined
-  >,
+  createNextRuleVersion: vi.fn(),
+  updateRule: vi.fn(),
   addTestCase: vi.fn(),
   runRuleTests: vi.fn(),
   simulateRule: vi.fn(),
-  signoffRule: vi.fn(),
   transitionRuleGovernance: vi.fn(),
   runRuleBacktest: vi.fn(),
   captureRuleDriftSnapshot: vi.fn(),
@@ -99,14 +76,14 @@ const apiMocks = vi.hoisted(() => ({
     username: "admin",
     roles: [
       {
-        code: "organization-admin",
+        code: "platform-admin",
         displayName: "医院管理员",
         source: "DEFAULT",
         scopeLevel: "HOSPITAL",
         scopeCode: "HOSP-A",
       },
       {
-        code: "clinical-governor",
+        code: "engine-operator",
         displayName: "医务处",
         source: "DEFAULT",
         scopeLevel: "HOSPITAL",
@@ -136,10 +113,10 @@ const apiMocks = vi.hoisted(() => ({
         risk: "HIGH",
       },
       {
-        code: "package.read",
+        code: "runtime-release.read",
         dimension: "ACTION",
-        target: "package.read",
-        displayName: "读取配置包",
+        target: "runtime-release.read",
+        displayName: "读取运行修订",
         risk: "LOW",
       },
     ],
@@ -199,48 +176,10 @@ vi.mock("@/shared/api/hooks", () => ({
     isError: false,
   }),
   useContextFieldCatalog: () => ({ data: [], isLoading: false, isError: false }),
-  usePackages: (
-    params?: Record<string, unknown>,
-    options?: {
-      enabled?: boolean;
-    },
-  ) => {
-    apiMocks.packageRequests.push(params);
-    apiMocks.packageRequestOptions.push(options);
-    return { data: apiMocks.packagesData, isLoading: false, isError: false };
-  },
-  useConditionFragments: (params?: Record<string, unknown>) => {
-    apiMocks.conditionFragmentRequests.push(params);
-    return {
-      data: apiMocks.conditionFragmentsData,
-      isLoading: false,
-      isError: false,
-      error: null,
-    };
-  },
-  useCreateConditionFragment: () => ({
-    mutateAsync: apiMocks.createConditionFragment,
+  useSnapshotContextFieldCatalogDraft: () => ({
+    mutateAsync: vi.fn(),
     isPending: false,
   }),
-  useUpdateConditionFragment: () => ({
-    mutateAsync: apiMocks.updateConditionFragment,
-    isPending: false,
-  }),
-  useConditionFragmentImpact: (
-    fragmentId: string,
-    params?: Record<string, unknown>,
-    options?: { enabled?: boolean },
-  ) => {
-    if (fragmentId && (options?.enabled ?? true)) {
-      apiMocks.conditionFragmentImpactRequests.push({ fragmentId, params });
-    }
-    return {
-      data: apiMocks.conditionFragmentImpactData,
-      isLoading: false,
-      isError: false,
-      error: null,
-    };
-  },
   useOrgUnits: (params?: Record<string, unknown>) => {
     apiMocks.orgUnitRequests.push(params);
     return { data: apiMocks.orgUnitsData, isLoading: false, isError: false };
@@ -283,6 +222,14 @@ vi.mock("@/shared/api/hooks", () => ({
     mutateAsync: apiMocks.createRule,
     isPending: false,
   }),
+  useCreateNextRuleVersion: () => ({
+    mutateAsync: apiMocks.createNextRuleVersion,
+    isPending: false,
+  }),
+  useUpdateRule: () => ({
+    mutateAsync: apiMocks.updateRule,
+    isPending: false,
+  }),
   useAddTestCase: () => ({
     mutateAsync: apiMocks.addTestCase,
     isPending: false,
@@ -293,10 +240,6 @@ vi.mock("@/shared/api/hooks", () => ({
   }),
   useSimulateRule: () => ({
     mutateAsync: apiMocks.simulateRule,
-    isPending: false,
-  }),
-  useSignoffRule: () => ({
-    mutateAsync: apiMocks.signoffRule,
     isPending: false,
   }),
   useTransitionRuleGovernance: () => ({
@@ -337,7 +280,6 @@ const draftRule: RuleDefinition = {
   dedupeWindowSeconds: 0,
   status: "DRAFT",
   activeVersionId: "ver-1",
-  packageVersion: "pkg-2026.06",
   createdAt: "2026-06-02T00:00:00Z",
   createdBy: "u-1",
   updatedAt: "2026-06-02T00:00:00Z",
@@ -347,6 +289,17 @@ function createRuleDetail(): RuleDetailResponse {
   return {
     definition: draftRule,
     deploymentStatus: "DRAFT",
+    triggerBindings: [
+      {
+        triggerBindingId: "trigger-rule-1",
+        assetType: "RULE",
+        assetIdentity: "RULE.QC.REVIEW",
+        versionId: "ver-1",
+        triggerPoint: "result-review",
+        purpose: "RULE_EXECUTION",
+        requiredFieldsJson: "[]",
+      },
+    ],
     version: {
       id: 1,
       versionId: "ver-1",
@@ -355,7 +308,6 @@ function createRuleDetail(): RuleDetailResponse {
       sourceRef: "院内已审核制度",
       changeSummary: "补齐门禁",
       dslJson: JSON.stringify({
-        trigger: "result-review",
         applicability: {
           population: {},
           orgScope: {},
@@ -384,6 +336,7 @@ function createRuleDetail(): RuleDetailResponse {
       status: "DRAFT",
       createdAt: "2026-06-02T00:00:00Z",
     },
+    versions: [],
     testCases: ["POSITIVE", "NEGATIVE", "BOUNDARY", "CONFLICT"].map((caseType) => ({
       id: caseType.length,
       caseId: `case-${caseType}`,
@@ -405,12 +358,8 @@ function createRuleDetail(): RuleDetailResponse {
       ruleId: "rule-1",
       versionId: "ver-1",
       state: "DRAFT",
-      requiredSignoffs: 2,
-      reviewRound: 1,
-      committeeApprovalCount: 0,
       authorId: "u-1",
       lastReason: "规则草稿已创建",
-      signoffs: [],
       testResults: [],
       releaseEvidence: [],
       traceId: "trace-governance",
@@ -435,7 +384,7 @@ function setActiveSnapshotFixture() {
   apiMocks.snapshotDetailData = {
     snapshotId: "ctx-001",
     status: "ACTIVE",
-    packageVersion: "pkg-2026.06",
+    runtimeReleaseId: "release-runtime-1",
     qualityStatus: "COMPLETE",
     missingFields: [],
     mappingStatus: {},
@@ -471,8 +420,6 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   beforeEach(() => {
     apiMocks.ruleListData = { items: [], total: 0 };
     apiMocks.ruleDetailData = null;
-    apiMocks.conditionFragmentsData = { items: [], total: 0 };
-    apiMocks.conditionFragmentImpactData = null;
     apiMocks.snapshotsData = { items: [], total: 0 };
     apiMocks.snapshotDetailData = null;
     apiMocks.impactData = null;
@@ -481,21 +428,16 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     apiMocks.driftData = null;
     apiMocks.securityData = structuredClone(DEFAULT_SECURITY_DATA);
     apiMocks.orgUnitRequests = [];
-    apiMocks.packageRequests = [];
-    apiMocks.packageRequestOptions = [];
-    apiMocks.conditionFragmentRequests = [];
-    apiMocks.conditionFragmentImpactRequests = [];
     apiMocks.refetchList.mockReset();
     apiMocks.refetchDetail.mockReset();
     apiMocks.refetchBacktest.mockReset();
     apiMocks.refetchDrift.mockReset();
     apiMocks.createRule.mockReset();
-    apiMocks.createConditionFragment.mockReset();
-    apiMocks.updateConditionFragment.mockReset();
+    apiMocks.createNextRuleVersion.mockReset();
+    apiMocks.updateRule.mockReset();
     apiMocks.addTestCase.mockReset();
     apiMocks.runRuleTests.mockReset();
     apiMocks.simulateRule.mockReset();
-    apiMocks.signoffRule.mockReset();
     apiMocks.transitionRuleGovernance.mockReset();
     apiMocks.runRuleBacktest.mockReset();
     apiMocks.captureRuleDriftSnapshot.mockReset();
@@ -513,106 +455,15 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     });
   });
 
-  it("创建规则时从已存在配置包选择标准上下文包版本", async () => {
+  it("创建规则不绑定发布包，并允许一个版本绑定多个临床触发场景", async () => {
     renderRuleDefinitions();
 
     fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
 
     const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
-    fireEvent.focus(within(dialog).getByLabelText("标准上下文包版本"));
-    fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
-      target: { value: "pkg" },
-    });
-
-    expect(await screen.findByText("临床规则包（pkg-2026.06）")).toBeInTheDocument();
-  });
-
-  it("规则包版本选择器通过小页服务端搜索加载", async () => {
-    renderRuleDefinitions();
-
-    fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
-
-    const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
-    expect(apiMocks.packageRequestOptions).toContainEqual({ enabled: true });
-    expect(apiMocks.packageRequests).toContainEqual({
-      page: 1,
-      size: 20,
-      assetType: "RULE",
-      keyword: undefined,
-    });
-
-    fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
-      target: { value: "pkg" },
-    });
-
-    await waitFor(() =>
-      expect(apiMocks.packageRequests).toContainEqual({
-        page: 1,
-        size: 20,
-        assetType: "RULE",
-        keyword: "pkg",
-      }),
-    );
-    expect(apiMocks.packageRequests).not.toContainEqual({
-      page: 1,
-      size: 100,
-      assetType: "RULE",
-    });
-  });
-
-  it("无配置包读取权限时禁用规则包查询", () => {
-    apiMocks.securityData = {
-      ...DEFAULT_SECURITY_DATA,
-      permissions: DEFAULT_SECURITY_DATA.permissions.filter(
-        (permission) => permission.code !== "package.read",
-      ),
-    };
-
-    renderRuleDefinitions();
-
-    expect(apiMocks.packageRequestOptions).toContainEqual({ enabled: false });
-  });
-
-  it("条件片段库通过小页服务端搜索加载", async () => {
-    const user = userEvent.setup();
-    renderRuleDefinitions();
-
-    await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
-
-    const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
-    fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
-      target: { value: "pkg-2026.06" },
-    });
-    await user.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
-    await user.click(within(dialog).getByRole("button", { name: /片段库/ }));
-
-    const fragmentLibraryTitle = await screen.findByText("条件片段库");
-    const fragmentLibraryDrawer = fragmentLibraryTitle.closest(".ant-drawer");
-    expect(fragmentLibraryDrawer).not.toBeNull();
-    expect(apiMocks.conditionFragmentRequests).toContainEqual({
-      packageVersion: "pkg-2026.06",
-      page: 1,
-      size: 20,
-      sort: "fragmentCode,asc",
-    });
-
-    const fragmentLibrary = within(fragmentLibraryDrawer as HTMLElement);
-    fireEvent.change(fragmentLibrary.getByLabelText("检索条件片段"), {
-      target: { value: "renal" },
-    });
-
-    await waitFor(() =>
-      expect(apiMocks.conditionFragmentRequests).toContainEqual({
-        packageVersion: "pkg-2026.06",
-        keyword: "renal",
-        page: 1,
-        size: 20,
-        sort: "fragmentCode,asc",
-      }),
-    );
-    expect(apiMocks.conditionFragmentRequests).not.toContainEqual(
-      expect.objectContaining({ size: 100 }),
-    );
+    expect(within(dialog).queryByLabelText("标准上下文" + "包版本")).not.toBeInTheDocument();
+    expect(within(dialog).getByText("规则版本独立维护")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("临床触发场景")).toBeInTheDocument();
   });
 
   it(
@@ -626,14 +477,13 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       expect(within(dialog).getByRole("tab", { name: /L1 模板/ })).toBeInTheDocument();
       expect(within(dialog).getByRole("tab", { name: /L2 条件树/ })).toBeInTheDocument();
       expect(within(dialog).queryByRole("tab", { name: /L3 DSL/ })).not.toBeInTheDocument();
-      fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
-        target: { value: "pkg-2026.06" },
-      });
       fireEvent.click(within(dialog).getByRole("switch", { name: "L3 DSL 编辑模式" }));
       expect(within(dialog).getByRole("tab", { name: /L3 DSL/ })).toBeInTheDocument();
 
       fireEvent.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
       expect(within(dialog).getByText("临床算子")).toBeInTheDocument();
+      expect(within(dialog).queryByText("条件片段")).not.toBeInTheDocument();
+      expect(within(dialog).queryByRole("button", { name: /片段库/ })).not.toBeInTheDocument();
       expect(within(dialog).getByText("可读预览")).toBeInTheDocument();
       expect(within(dialog).getByText("当 年龄 大于等于 65。")).toBeInTheDocument();
       fireEvent.change(dialog.querySelector("#rule-condition-fact") as HTMLInputElement, {
@@ -649,237 +499,10 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
 
       fireEvent.click(within(dialog).getByRole("tab", { name: /L3 DSL/ }));
       const dslEditor = within(dialog).getByLabelText("规则 DSL JSON");
-      expect((dslEditor as HTMLTextAreaElement).value).toContain('"trigger": "result-review"');
+      expect((dslEditor as HTMLTextAreaElement).value).not.toContain('"trigger"');
       expect((dslEditor as HTMLTextAreaElement).value).toContain('"fact": "observations.0.value"');
       expect((dslEditor as HTMLTextAreaElement).value).toContain('"value": 6');
       expect((dslEditor as HTMLTextAreaElement).value).toContain('"summary": "同步记录规则命中"');
-    },
-    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
-  );
-
-  it(
-    "创建规则时可按引用复用同包版本条件片段",
-    async () => {
-      apiMocks.conditionFragmentsData = {
-        items: [
-          {
-            fragmentId: "frag-renal-v1",
-            tenantId: "tenant-hospital",
-            fragmentCode: "FRAG_RENAL_IMPAIRED",
-            name: "肾功能受限",
-            category: "肾病",
-            bodyJson: {
-              all: [
-                {
-                  fact: "observations[].eGfr",
-                  operator: "lt",
-                  value: 60,
-                  ui: { valueKind: "number" },
-                },
-              ],
-            },
-            versionNo: 1,
-            status: "ACTIVE",
-            packageVersion: "pkg-2026.06",
-            createdAt: "2026-06-08T00:00:00Z",
-            createdBy: "u-admin",
-            updatedAt: "2026-06-08T00:00:00Z",
-            updatedBy: "u-admin",
-            traceId: "trace-fragment",
-          },
-        ],
-        total: 1,
-      };
-      apiMocks.createRule.mockResolvedValue({ ruleId: "rule-fragment" });
-      const user = userEvent.setup();
-      renderRuleDefinitions();
-
-      await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
-      const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
-      fireEvent.change(within(dialog).getByLabelText("规则唯一业务编码"), {
-        target: { value: "RULE.RENAL.FRAGMENT" },
-      });
-      fireEvent.change(within(dialog).getByLabelText("规则显示名称"), {
-        target: { value: "肾功能片段复用提醒" },
-      });
-      fireEvent.change(within(dialog).getByLabelText("医学依据/来源"), {
-        target: { value: "院内肾病诊疗规范 2026" },
-      });
-      fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
-        target: { value: "pkg-2026.06" },
-      });
-
-      await user.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
-      fireEvent.change(dialog.querySelector("#rule-condition-fact") as HTMLInputElement, {
-        target: { value: "patient.age" },
-      });
-      fireEvent.mouseDown(within(dialog).getByRole("combobox", { name: "选择条件片段" }));
-      await user.click(
-        await screen.findByText("肾功能受限 · FRAG_RENAL_IMPAIRED · v1", {
-          selector: ".ant-select-item-option-content",
-        }),
-      );
-      await waitFor(() =>
-        expect(within(dialog).getByRole("button", { name: /引用/ })).toBeEnabled(),
-      );
-      await user.click(within(dialog).getByRole("button", { name: /引用/ }));
-      await waitFor(() =>
-        expect(
-          within(dialog).getAllByText((_, element) =>
-            Boolean(element?.textContent?.includes("FRAG_RENAL_IMPAIRED")),
-          ).length,
-        ).toBeGreaterThan(0),
-      );
-
-      await user.click(within(dialog).getByRole("button", { name: "创建草稿" }));
-
-      await waitFor(() => expect(apiMocks.createRule).toHaveBeenCalled());
-      const payload = apiMocks.createRule.mock.calls[0][0] as {
-        dslJson: {
-          when: {
-            all?: unknown[];
-          };
-        };
-      };
-      expect(payload.dslJson.when.all).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            fragmentRef: "FRAG_RENAL_IMPAIRED",
-            version: 1,
-            packageVersion: "pkg-2026.06",
-          }),
-        ]),
-      );
-    },
-    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
-  );
-
-  it(
-    "条件片段库可将当前 L2 条件树保存为可复用片段",
-    async () => {
-      apiMocks.createConditionFragment.mockResolvedValue({ fragmentId: "frag-created" });
-      const user = userEvent.setup();
-      renderRuleDefinitions();
-
-      await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
-      const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
-      fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
-        target: { value: "pkg-2026.06" },
-      });
-      await user.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
-      fireEvent.change(dialog.querySelector("#rule-condition-fact") as HTMLInputElement, {
-        target: { value: "observations[].eGfr" },
-      });
-      await user.click(within(dialog).getByRole("button", { name: /片段库/ }));
-
-      const fragmentLibraryTitle = await screen.findByText("条件片段库");
-      const fragmentLibraryDrawer = fragmentLibraryTitle.closest(".ant-drawer");
-      expect(fragmentLibraryDrawer).not.toBeNull();
-      const fragmentLibrary = within(fragmentLibraryDrawer as HTMLElement);
-      fireEvent.change(fragmentLibrary.getByLabelText("片段编码"), {
-        target: { value: "FRAG_RENAL_IMPAIRED" },
-      });
-      fireEvent.change(fragmentLibrary.getByLabelText("片段名称"), {
-        target: { value: "肾功能受限" },
-      });
-      await user.click(fragmentLibrary.getByRole("button", { name: "保存片段" }));
-
-      await waitFor(() => expect(apiMocks.createConditionFragment).toHaveBeenCalled());
-      const payload = apiMocks.createConditionFragment.mock.calls[0][0] as {
-        fragmentCode: string;
-        name: string;
-        packageVersion: string;
-        bodyJson: { all?: Array<{ fact?: string }> };
-      };
-      expect(payload).toMatchObject({
-        fragmentCode: "FRAG_RENAL_IMPAIRED",
-        name: "肾功能受限",
-        packageVersion: "pkg-2026.06",
-      });
-      expect(payload.bodyJson.all).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            fact: "observations[].eGfr",
-          }),
-        ]),
-      );
-    },
-    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
-  );
-
-  it(
-    "条件片段影响分析通过小页服务端分页加载受影响资产",
-    async () => {
-      apiMocks.conditionFragmentsData = {
-        items: [
-          {
-            fragmentId: "frag-renal-v1",
-            tenantId: "tenant-hospital",
-            fragmentCode: "FRAG_RENAL_IMPAIRED",
-            name: "肾功能受限",
-            category: "肾病",
-            bodyJson: { all: [] },
-            versionNo: 1,
-            status: "ACTIVE",
-            packageVersion: "pkg-2026.06",
-            createdAt: "2026-06-08T00:00:00Z",
-            createdBy: "u-admin",
-            updatedAt: "2026-06-08T00:00:00Z",
-            updatedBy: "u-admin",
-            traceId: "trace-fragment",
-          },
-        ],
-        total: 1,
-      };
-      apiMocks.conditionFragmentImpactData = {
-        fragmentId: "frag-renal-v1",
-        fragmentCode: "FRAG_RENAL_IMPAIRED",
-        versionNo: 1,
-        packageVersion: "pkg-2026.06",
-        affectedAssets: {
-          items: [
-            {
-              assetType: "RULE",
-              assetId: "rule-renal",
-              assetCode: "RULE.RENAL",
-              displayName: "肾病规则",
-              impactReason: "规则当前版本 when 引用条件片段",
-            },
-          ],
-          page: 1,
-          size: 20,
-          total: 21,
-          hasNext: true,
-          totalEstimated: false,
-        },
-        impactDigest: "sha256:fragment-impact",
-        traceId: "trace-fragment-impact",
-      };
-      const user = userEvent.setup();
-      renderRuleDefinitions();
-
-      await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
-      const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
-      fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
-        target: { value: "pkg-2026.06" },
-      });
-      await user.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
-      await user.click(within(dialog).getByRole("button", { name: /片段库/ }));
-
-      const fragmentLibraryTitle = await screen.findByText("条件片段库");
-      const fragmentLibraryDrawer = fragmentLibraryTitle.closest(".ant-drawer");
-      expect(fragmentLibraryDrawer).not.toBeNull();
-      await user.click(
-        within(fragmentLibraryDrawer as HTMLElement).getByRole("button", { name: /影响/ }),
-      );
-
-      await screen.findByText("条件片段影响分析");
-      expect(screen.getAllByText("FRAG_RENAL_IMPAIRED").length).toBeGreaterThan(0);
-      expect(screen.getByText("RULE.RENAL")).toBeInTheDocument();
-      expect(apiMocks.conditionFragmentImpactRequests).toContainEqual({
-        fragmentId: "frag-renal-v1",
-        params: { page: 1, size: 20 },
-      });
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
   );
@@ -891,7 +514,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       apiMocks.previewRun.mockResolvedValue({
         subject: "RULE_CONDITION",
         snapshotId: "ctx-001",
-        packageVersion: "pkg-2026.06",
+        runtimeReleaseId: "release-runtime-1",
         matched: true,
         hit: true,
         outcomeText: "草稿规则命中真实快照",
@@ -930,9 +553,6 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
 
       await user.click(within(dialog).getByLabelText("危急值回报"));
-      fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
-        target: { value: "pkg-2026.06" },
-      });
       fireEvent.change(within(dialog).getByLabelText("检验结果字段"), {
         target: { value: "observations[].valueNumeric" },
       });
@@ -951,7 +571,6 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         expect(apiMocks.previewRun).toHaveBeenCalledWith(
           expect.objectContaining({
             subject: "RULE_CONDITION",
-            packageVersion: "pkg-2026.06",
             snapshotId: "ctx-001",
             dsl: expect.objectContaining({
               when: expect.objectContaining({
@@ -1000,9 +619,6 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       fireEvent.change(within(dialog).getByLabelText("医学依据/来源"), {
         target: { value: "检验危急值管理制度 2026" },
       });
-      fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
-        target: { value: "pkg-2026.06" },
-      });
       fireEvent.change(within(dialog).getByLabelText("检验结果字段"), {
         target: { value: "observations[].valueNumeric" },
       });
@@ -1019,8 +635,12 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       const payload = apiMocks.createRule.mock.calls[0][0] as {
         riskLevel: string;
         parameterBindings?: Record<string, unknown>;
+        triggers: Array<{
+          trigger_point: string;
+          purpose: string;
+          required_fields: string[];
+        }>;
         dslJson: {
-          trigger: string;
           meta?: {
             parameters?: Array<{
               key: string;
@@ -1045,7 +665,14 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         criticalThreshold: 6.5,
         returnMinutes: 15,
       });
-      expect(payload.dslJson.trigger).toBe("result-review");
+      expect(payload.triggers).toEqual([
+        {
+          trigger_point: "result-review",
+          purpose: "RULE_EXECUTION",
+          required_fields: [],
+        },
+      ]);
+      expect(payload.dslJson).not.toHaveProperty("trigger");
       expect(payload.dslJson.meta?.parameters).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -1111,9 +738,6 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       fireEvent.change(within(dialog).getByLabelText("医学依据/来源"), {
         target: { value: "院内已审核心血管诊疗规范 2026" },
       });
-      fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
-        target: { value: "pkg-2026.06" },
-      });
       fireEvent.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
       fireEvent.click(within(dialog).getByText("适用域与生效"));
       fireEvent.change(within(dialog).getByLabelText("生效日期"), {
@@ -1164,9 +788,14 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
             priority: 100,
             suppressedBy: undefined,
             dedupeWindowSeconds: 0,
-            packageVersion: "pkg-2026.06",
+            triggers: [
+              {
+                trigger_point: "result-review",
+                purpose: "RULE_EXECUTION",
+                required_fields: [],
+              },
+            ],
             dslJson: expect.objectContaining({
-              trigger: "result-review",
               applicability: {
                 population: {
                   include: {
@@ -1194,6 +823,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
           }),
         ),
       );
+      expect(apiMocks.createRule.mock.calls[0][0].dslJson).not.toHaveProperty("trigger");
     },
     RULE_DEFINITION_SUBMISSION_TIMEOUT_MS,
   );
@@ -1266,7 +896,6 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         version: {
           ...createRuleDetail().version,
           dslJson: JSON.stringify({
-            trigger: "result-review",
             applicability: {
               population: {},
               orgScope: { hospitalIds: ["HOSP-A"], deptIds: ["DEPT-A"] },
@@ -1377,7 +1006,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
 
       await waitFor(() =>
         expect(apiMocks.simulateRule).toHaveBeenCalledWith({
-          packageVersion: "pkg-2026.06",
+          triggerPoint: "result-review",
           inputPayload: expect.objectContaining({
             observations: [expect.objectContaining({ code: "OBS.TEST", value: 6 })],
           }),
@@ -1489,9 +1118,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       await user.click(screen.getByRole("button", { name: /执行全部用例/ }));
 
       await waitFor(() =>
-        expect(apiMocks.runRuleTests).toHaveBeenCalledWith({
-          packageVersion: "pkg-2026.06",
-        }),
+        expect(apiMocks.runRuleTests).toHaveBeenCalledWith(),
       );
       expect(apiMocks.refetchDetail).toHaveBeenCalled();
     },
@@ -1499,7 +1126,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   );
 
   it(
-    "展示八阶段治理与影响摘要，并只推进到同行评审",
+    "展示七阶段治理与影响摘要，并完成技术验证",
     async () => {
       apiMocks.ruleListData = { items: [draftRule], total: 1 };
       apiMocks.ruleDetailData = createRuleDetail();
@@ -1538,7 +1165,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
             objectType: "INTEGRATION_ADAPTER",
             objectId: "target-clinical",
             displayName: "院内规则库",
-            impactReason: "配置包 pkg-1 同步状态 SUCCESS",
+            impactReason: "运行修订 release-H1 同步状态 SUCCESS",
           },
         ],
         unavailableScopes: [],
@@ -1547,15 +1174,11 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       apiMocks.transitionRuleGovernance.mockResolvedValue({
         ruleId: "rule-1",
         versionId: "ver-1",
-        state: "PEER_REVIEW",
-        requiredSignoffs: 2,
-        reviewRound: 1,
-        committeeApprovalCount: 0,
+        state: "REVIEWED",
         authorId: "u-1",
-        lastReason: "提交同行评审",
-        signoffs: [],
+        lastReason: "负责人确认技术验证",
         testResults: [],
-        releaseEvidence: ["IN_REVIEW 提交评审"],
+        releaseEvidence: ["REVIEWED 负责人确认"],
         traceId: "trace-governance",
         impactDigest: "sha256:impact-abc",
         impactStatus: "COMPLETE",
@@ -1564,8 +1187,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       const user = await openDraftRuleDrawer();
       await user.click(screen.getByRole("tab", { name: /治理与发布/ }));
 
-      expect(screen.getByText("同行评审")).toBeInTheDocument();
-      expect(screen.getAllByText("委员会会签").length).toBeGreaterThan(0);
+      expect(screen.getByText("技术验证")).toBeInTheDocument();
       expect(screen.getByText("影子运行")).toBeInTheDocument();
       expect(screen.getByText("退役")).toBeInTheDocument();
       expect(screen.getByText("sha256:impact-abc")).toBeInTheDocument();
@@ -1574,16 +1196,15 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       expect(screen.getByText(/患者 patient-1/)).toBeInTheDocument();
       expect(screen.getByText(/院内规则库/)).toBeInTheDocument();
 
-      await user.type(screen.getByLabelText("治理说明"), "已查看影响摘要并提交同行评审");
-      await user.click(screen.getByRole("button", { name: "提交同行评审" }));
+      await user.type(screen.getByLabelText("治理说明"), "已查看影响摘要并确认技术验证");
+      await user.click(screen.getByRole("button", { name: "确认技术验证" }));
 
       await waitFor(() =>
         expect(apiMocks.transitionRuleGovernance).toHaveBeenCalledWith({
           ruleId: "rule-1",
-          packageVersion: "pkg-2026.06",
-          targetState: "PEER_REVIEW",
+          targetState: "REVIEWED",
           impactDigest: "sha256:impact-abc",
-          reason: "已查看影响摘要并提交同行评审",
+          reason: "已查看影响摘要并确认技术验证",
         }),
       );
     },
@@ -1605,7 +1226,6 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         governance: {
           ...createRuleDetail().governance,
           state: "CANARY",
-          committeeApprovalCount: 2,
           lastReason: "影子验证达标，进入灰度",
         },
       };
@@ -1626,62 +1246,26 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         ruleId: "rule-1",
         versionId: "ver-1",
         state: "FULL",
-        requiredSignoffs: 2,
-        reviewRound: 1,
-        committeeApprovalCount: 2,
         authorId: "u-1",
         lastReason: "院级管理员确认全量激活",
-        signoffs: [],
         testResults: [],
         traceId: "trace-full",
         releaseEvidence: ["FULL 全量激活"],
       });
 
       const user = await openDraftRuleDrawer();
-      expect(screen.getAllByText("内容已审核").length).toBeGreaterThan(0);
-      expect(screen.getByText("已批准待发布")).toBeInTheDocument();
+      expect(screen.getAllByText("已发布").length).toBeGreaterThan(0);
+      expect(screen.getByText("已验证待激活")).toBeInTheDocument();
       await user.click(screen.getByRole("tab", { name: /治理与发布/ }));
       await user.type(screen.getByLabelText("治理说明"), "院级管理员确认全量激活");
       await user.click(screen.getByRole("button", { name: /院级全量激活/ }));
 
-      // 高风险规则院级全量激活须先采集独立电子签名，不再直接推进。
-      const signatureHash = "a".repeat(64);
-      const signatureModalTitle = await screen.findByText("院级全量激活 · 独立电子签名");
-      expect(signatureModalTitle).toBeInTheDocument();
-      expect(apiMocks.transitionRuleGovernance).not.toHaveBeenCalled();
-
-      // 用 fireEvent.change 即时填充（含 64 位摘要），避免逐字符输入在覆盖率插桩下超时。
-      fireEvent.change(screen.getByLabelText("电子签名 ID"), { target: { value: "esig-001" } });
-      fireEvent.change(screen.getByLabelText("签名时间"), {
-        target: { value: "2026-06-13T12:00:00Z" },
-      });
-      fireEvent.change(screen.getByLabelText("复核人 ID"), {
-        target: { value: "clinical-governor" },
-      });
-      fireEvent.change(screen.getByLabelText("复核人姓名"), {
-        target: { value: "临床治理负责人" },
-      });
-      fireEvent.change(screen.getByLabelText("电子签名摘要（SHA-256）"), {
-        target: { value: signatureHash },
-      });
-      await user.click(screen.getByRole("button", { name: "电子签名并全量激活" }));
-
       await waitFor(() =>
         expect(apiMocks.transitionRuleGovernance).toHaveBeenCalledWith({
           ruleId: "rule-1",
-          packageVersion: "pkg-2026.06",
           targetState: "FULL",
           impactDigest: "sha256:impact-full",
           reason: "院级管理员确认全量激活",
-          publishEvidence: {
-            electronicSignature: {
-              signatureId: "esig-001",
-              signerId: "clinical-governor",
-              signerName: "临床治理负责人",
-              signedAt: new Date("2026-06-13T12:00:00Z").toISOString(),
-              signatureHash,
-            },
-          },
         }),
       );
     },
@@ -1703,7 +1287,6 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         governance: {
           ...createRuleDetail().governance,
           state: "MONITOR",
-          committeeApprovalCount: 2,
           lastReason: "全量运行进入监测",
         },
       };
@@ -1718,6 +1301,134 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   );
 
   it(
+    "已全量运行规则可复制为同编码下一版草稿且旧版继续运行",
+    async () => {
+      const publishedRule = {
+        ...draftRule,
+        status: "PUBLISHED" as const,
+      };
+      apiMocks.ruleListData = { items: [publishedRule], total: 1 };
+      apiMocks.ruleDetailData = {
+        ...createRuleDetail(),
+        definition: publishedRule,
+        deploymentStatus: "PUBLISHED",
+        governance: {
+          ...createRuleDetail().governance,
+          state: "MONITOR",
+        },
+      };
+      apiMocks.createNextRuleVersion.mockResolvedValue({
+        ruleId: "rule-1",
+        versionId: "ver-2",
+        versionNo: 2,
+        status: "DRAFT",
+      });
+
+      const user = await openDraftRuleDrawer();
+      await user.click(screen.getByRole("button", { name: /复制为新版本/ }));
+
+      await waitFor(() =>
+        expect(apiMocks.createNextRuleVersion).toHaveBeenCalledWith({
+          ruleId: "rule-1",
+        }),
+      );
+      expect(await screen.findByText("已复制为 V2 草稿，旧版本继续运行")).toBeInTheDocument();
+      expect(apiMocks.refetchDetail).toHaveBeenCalled();
+      expect(apiMocks.refetchList).toHaveBeenCalled();
+    },
+    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
+  );
+
+  it("规则详情展示同一稳定编码的版本历史", async () => {
+    const current = createRuleDetail();
+    apiMocks.ruleListData = { items: [draftRule], total: 1 };
+    apiMocks.ruleDetailData = {
+      ...current,
+      version: { ...current.version, versionId: "ver-2", versionNo: 2 },
+      versions: [
+        { ...current.version, versionId: "ver-2", versionNo: 2, status: "DRAFT" },
+        { ...current.version, versionId: "ver-1", versionNo: 1, status: "PUBLISHED" },
+      ],
+    };
+
+    await openDraftRuleDrawer();
+
+    expect(screen.getByText("V2 · 草稿设计中")).toBeInTheDocument();
+    expect(screen.getByText("V1 · 已发布")).toBeInTheDocument();
+  });
+
+  it(
+    "复制出的下一版草稿可在三层编辑器修改并保存",
+    async () => {
+      const publishedRule = {
+        ...draftRule,
+        status: "PUBLISHED" as const,
+        activeVersionId: "ver-2",
+      };
+      apiMocks.ruleListData = { items: [publishedRule], total: 1 };
+      apiMocks.ruleDetailData = {
+        ...createRuleDetail(),
+        definition: publishedRule,
+        version: {
+          ...createRuleDetail().version,
+          versionId: "ver-2",
+          versionNo: 2,
+          sourceRef: "院内已审核制度 V1",
+          changeSummary: "复制 V1 创建 V2",
+        },
+        deploymentStatus: "DRAFT",
+        governance: {
+          ...createRuleDetail().governance,
+          versionId: "ver-2",
+          state: "DRAFT",
+        },
+      };
+      apiMocks.updateRule.mockResolvedValue(apiMocks.ruleDetailData);
+
+      const user = await openDraftRuleDrawer();
+      await user.click(screen.getByRole("button", { name: /编辑当前草稿/ }));
+
+      const dialog = await screen.findByRole("dialog", { name: "编辑 V2 规则草稿" });
+      expect(within(dialog).getByLabelText("规则唯一业务编码")).toBeDisabled();
+      expect(within(dialog).queryByLabelText("标准上下文" + "包版本")).not.toBeInTheDocument();
+      expect(within(dialog).getByLabelText("临床触发场景")).toBeInTheDocument();
+      expect(within(dialog).getByLabelText("医学依据/来源")).toHaveValue("院内已审核制度 V1");
+
+      await user.clear(within(dialog).getByLabelText("医学依据/来源"));
+      await user.type(within(dialog).getByLabelText("医学依据/来源"), "院内已审核制度 V2");
+      await user.clear(within(dialog).getByLabelText("本版变更内容说明"));
+      await user.type(within(dialog).getByLabelText("本版变更内容说明"), "调整判断阈值");
+      await user.click(within(dialog).getByRole("button", { name: "保存草稿" }));
+
+      await waitFor(() =>
+        expect(apiMocks.updateRule).toHaveBeenCalledWith(
+          expect.objectContaining({
+            ruleId: "rule-1",
+            ruleCode: "RULE.QC.REVIEW",
+            sourceRef: "院内已审核制度 V2",
+            changeSummary: "调整判断阈值",
+            triggers: [
+              {
+                trigger_point: "result-review",
+                purpose: "RULE_EXECUTION",
+                required_fields: [],
+              },
+            ],
+            dslJson: expect.objectContaining({
+              when: expect.any(Object),
+            }),
+          }),
+        ),
+      );
+      expect(apiMocks.updateRule.mock.calls[0][0].dslJson).not.toHaveProperty("trigger");
+      expect(await screen.findByText("V2 规则草稿已保存，运行中旧版本不受影响")).toBeInTheDocument();
+      expect(apiMocks.refetchDetail).toHaveBeenCalled();
+      expect(apiMocks.refetchList).toHaveBeenCalled();
+    },
+    RULE_DEFINITION_SUBMISSION_TIMEOUT_MS,
+  );
+
+  it(
     "只读账号仅查看治理证据且不显示不可执行动作",
     async () => {
       apiMocks.ruleListData = { items: [draftRule], total: 1 };
@@ -1725,10 +1436,10 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       apiMocks.securityData = {
         ...DEFAULT_SECURITY_DATA,
         userId: "u-doctor",
-        username: "clinical-decision-user",
+        username: "clinical-user",
         roles: [
           {
-            code: "clinical-decision-user",
+            code: "clinical-user",
             displayName: "临床医生",
             source: "DEFAULT",
             scopeLevel: "DEPARTMENT",
@@ -1750,7 +1461,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       await user.click(screen.getByText("治理与发布"));
 
       expect(screen.getByText("当前账号仅可查看本阶段证据")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "提交同行评审" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "确认技术验证" })).not.toBeInTheDocument();
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
   );
@@ -1770,7 +1481,6 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         governance: {
           ...createRuleDetail().governance,
           state: "SHADOW",
-          committeeApprovalCount: 2,
           lastReason: "进入影子运行",
         },
       };
@@ -1826,7 +1536,6 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         governance: {
           ...createRuleDetail().governance,
           state: "MONITOR",
-          committeeApprovalCount: 2,
           lastReason: "进入运行监测",
         },
       };
@@ -1967,9 +1676,6 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       });
       fireEvent.change(within(dialog).getByLabelText("医学依据/来源"), {
         target: { value: "院内已审核制度" },
-      });
-      fireEvent.change(within(dialog).getByLabelText("标准上下文包版本"), {
-        target: { value: "pkg-2026.06" },
       });
       fireEvent.change(within(dialog).getByLabelText("初始化变更内容说明"), {
         target: { value: "验证嵌套占位字段" },

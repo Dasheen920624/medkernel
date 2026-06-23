@@ -2,7 +2,9 @@ import { createServer } from "node:http";
 
 const host = "127.0.0.1";
 const port = 4174;
-const embedOrigin = "http://localhost:5173";
+const embedOrigin = new URL(
+  process.env.E2E_BASE_URL?.trim() || "http://localhost:5173",
+).origin;
 
 const html = `<!doctype html>
 <html lang="zh-CN">

@@ -58,15 +58,15 @@ class ModelVersionGovernanceControllerTest {
         """;
 
     @Test
-    void integrationOperatorCanPublishVersionBundle() throws Exception {
+    void engineOperatorCanPublishVersionBundle() throws Exception {
         when(service.publish(any(ModelVersionBundleRequest.class))).thenReturn(response("ACTIVE"));
 
         mockMvc.perform(post("/api/v1/model-versions/bundles")
                 .with(jwt().jwt(token -> token
                     .subject("ops")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(BODY))
             .andExpect(status().isOk())
@@ -82,8 +82,8 @@ class ModelVersionGovernanceControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(BODY))
             .andExpect(status().isForbidden());
@@ -99,8 +99,8 @@ class ModelVersionGovernanceControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("reader")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.modelHash").value("m-hash"));
 
@@ -108,8 +108,8 @@ class ModelVersionGovernanceControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("reader")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.bundles[0].promptHash").value("p-hash"));
 

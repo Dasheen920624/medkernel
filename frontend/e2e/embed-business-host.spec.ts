@@ -12,7 +12,7 @@ test("independent business host completes iframe launch and receives physician f
       body: JSON.stringify({
         data: {
           userId: "doctor-e2e",
-          roleCode: "clinical-decision-user",
+          roleCode: "clinical-user",
           tenantId: "tenant-e2e",
           patientId: "MPI-E2E-001",
           encounterId: "ENC-E2E-001",

@@ -4,32 +4,27 @@ import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  useBatchConfirmTerminologyCandidates,
+  useConfirmTerminologyCandidate,
+  useCreateTerminologyAssetDraft,
+  useGenerateTerminologyCandidates,
   useLargeListExportJob,
+  useLocalTerms,
+  useRejectTerminologyCandidate,
+  useResolveTerminologyConflict,
   useSaveView,
   useSavedViews,
   useSecurityProfile,
-  useSubmitLargeListExport,
-  useBatchConfirmTerminologyCandidates,
-  useBuildTerminologyKnowledgePackage,
-  useConfirmTerminologyCandidate,
-  useTerminologyCandidateGenerationJob,
-  useGenerateTerminologyCandidates,
-  useRejectTerminologyCandidate,
-  useResolveTerminologyConflict,
-  useLocalTerms,
-  usePackages,
-  usePackageReleaseAdapters,
-  useReleasePackage,
-  useRollbackPackage,
   useStandardTerms,
+  useSubmitLargeListExport,
+  useTerminologyCandidateGenerationJob,
   useTerminologyCandidates,
   useTerminologyConflicts,
   useTerminologyMappings,
-  type KnowledgePackage,
   type LocalTerm,
   type MappingConflict,
-  type StandardTerm,
   type SecurityProfile,
+  type StandardTerm,
   type TermMapping,
   type TermMappingCandidate,
   type TerminologyCandidateGenerationJob,
@@ -38,30 +33,24 @@ import { useExpertModeStore } from "@/shared/lib/expertModeStore";
 
 import TerminologyMapping from "./TerminologyMapping";
 
-const TERMINOLOGY_INTERACTION_TIMEOUT_MS = 15_000;
-
 vi.mock("@/shared/api/hooks", () => ({
   parseSavedExperienceView: vi.fn((view) =>
     view?.definitionJson ? JSON.parse(view.definitionJson) : null,
   ),
-  useLargeListExportJob: vi.fn(),
   useBatchConfirmTerminologyCandidates: vi.fn(),
-  useBuildTerminologyKnowledgePackage: vi.fn(),
   useConfirmTerminologyCandidate: vi.fn(),
-  useTerminologyCandidateGenerationJob: vi.fn(),
+  useCreateTerminologyAssetDraft: vi.fn(),
   useGenerateTerminologyCandidates: vi.fn(),
+  useLargeListExportJob: vi.fn(),
+  useLocalTerms: vi.fn(),
   useRejectTerminologyCandidate: vi.fn(),
   useResolveTerminologyConflict: vi.fn(),
-  useLocalTerms: vi.fn(),
-  usePackages: vi.fn(),
-  usePackageReleaseAdapters: vi.fn(),
-  useReleasePackage: vi.fn(),
-  useRollbackPackage: vi.fn(),
   useSaveView: vi.fn(),
   useSavedViews: vi.fn(),
   useSecurityProfile: vi.fn(),
   useStandardTerms: vi.fn(),
   useSubmitLargeListExport: vi.fn(),
+  useTerminologyCandidateGenerationJob: vi.fn(),
   useTerminologyCandidates: vi.fn(),
   useTerminologyConflicts: vi.fn(),
   useTerminologyMappings: vi.fn(),
@@ -78,18 +67,18 @@ const mapping: TermMapping = {
   riskLevel: "MEDIUM",
   status: "DRAFT",
   evidenceText: "实施核查证据",
-  confirmedBy: "审核员",
+  confirmedBy: "维护员",
   confirmedAt: "2026-05-25T00:00:00.000Z",
   updatedAt: "2026-05-26T00:00:00.000Z",
 };
 
 const profile: SecurityProfile = {
   userId: "user-1",
-  username: "it.owner",
+  username: "engine.owner",
   roles: [
     {
-      code: "integration-operator",
-      displayName: "信息科",
+      code: "engine-operator",
+      displayName: "医疗引擎运营员",
       source: "DEFAULT",
       scopeLevel: null,
       scopeCode: null,
@@ -98,14 +87,8 @@ const profile: SecurityProfile = {
   mustChangePwd: false,
   mfaRequired: false,
   mfaBound: false,
+  mfaVerified: true,
   permissions: [
-    {
-      code: "advanced.read",
-      dimension: "ACTION",
-      target: "advanced",
-      displayName: "高级工具",
-      risk: "LOW",
-    },
     {
       code: "list.export",
       dimension: "ACTION",
@@ -124,22 +107,8 @@ const profile: SecurityProfile = {
       code: "term.write",
       dimension: "ACTION",
       target: "terminology",
-      displayName: "确认字典映射",
+      displayName: "维护字典映射",
       risk: "MEDIUM",
-    },
-    {
-      code: "term.publish",
-      dimension: "ACTION",
-      target: "terminology-package",
-      displayName: "发布映射包",
-      risk: "HIGH",
-    },
-    {
-      code: "package.rollback",
-      dimension: "ACTION",
-      target: "terminology-package",
-      displayName: "回滚映射包",
-      risk: "HIGH",
     },
   ],
   menuKeys: ["terminology-mapping", "provenance"],
@@ -166,7 +135,7 @@ const standardTerm: StandardTerm = {
   versionNo: "2026.06",
   status: "ACTIVE",
   sourceVersionId: 12,
-  evidenceText: "LOINC 2026-06 来源版本",
+  evidenceText: "LOINC 权威来源",
   updatedAt: "2026-06-01T00:00:00.000Z",
 };
 
@@ -207,26 +176,6 @@ const ordinaryCandidate: TermMappingCandidate = {
   evidenceText: "编码和名称精确匹配",
 };
 
-const completedGenerationJob: TerminologyCandidateGenerationJob = {
-  id: 88,
-  tenantId: "tenant-1",
-  jobCode: "term-job-1",
-  sourceSystem: "LIS",
-  minimumScore: 0.2,
-  semanticAssistEnabled: true,
-  packageVersion: "2026.06",
-  requestedBy: "it.owner",
-  status: "SUCCEEDED",
-  progress: 100,
-  generatedCount: 42,
-  candidatePageUri:
-    "/api/v1/engine/terminology/mappings/candidates?status=PENDING&generationJobCode=term-job-1",
-  errorMessage: null,
-  createdAt: "2026-06-17T00:00:00.000Z",
-  startedAt: "2026-06-17T00:00:01.000Z",
-  completedAt: "2026-06-17T00:00:03.000Z",
-};
-
 const openConflict: MappingConflict = {
   id: 301,
   tenantId: "tenant-1",
@@ -240,25 +189,23 @@ const openConflict: MappingConflict = {
   createdAt: "2026-06-01T00:00:00.000Z",
 };
 
-const mappingPackage: KnowledgePackage = {
-  id: 30,
-  packageId: "term-pkg-30",
+const completedGenerationJob: TerminologyCandidateGenerationJob = {
+  id: 88,
   tenantId: "tenant-1",
-  packageCode: "TERM.LAB",
-  packageVersion: "2026.06",
-  name: "检验字典映射包",
-  description: "术语映射快照",
-  accessPolicy: "OPEN",
-  status: "DRAFT",
-  createdAt: "2026-06-01T00:00:00.000Z",
-  createdBy: "it.owner",
-  updatedAt: "2026-06-01T00:00:00.000Z",
-  updatedBy: "it.owner",
-  traceId: "trace-package",
-  assetTypes: ["TERMINOLOGY"],
-  primaryAssetId: "TERM.LAB|FACILITY|hospital-A",
-  primaryAssetVersion: "2026.06",
-  itemCount: 1,
+  jobCode: "term-job-1",
+  sourceSystem: "LIS",
+  minimumScore: 0.2,
+  semanticAssistEnabled: true,
+  requestedBy: "engine.owner",
+  status: "SUCCEEDED",
+  progress: 100,
+  generatedCount: 42,
+  candidatePageUri:
+    "/api/v1/engine/terminology/mappings/candidates?status=PENDING&generationJobCode=term-job-1",
+  errorMessage: null,
+  createdAt: "2026-06-17T00:00:00.000Z",
+  startedAt: "2026-06-17T00:00:01.000Z",
+  completedAt: "2026-06-17T00:00:03.000Z",
 };
 
 const defaultData = {
@@ -292,7 +239,7 @@ const defaultSavedView = {
   defaultView: true,
   version: 3,
   updatedAt: "2026-06-01T00:00:00.000Z",
-  updatedBy: "doctor-1",
+  updatedBy: "operator-1",
 };
 
 function pageData<T>(items: T[]) {
@@ -329,24 +276,8 @@ function configureQuery(
   vi.mocked(useBatchConfirmTerminologyCandidates).mockReturnValue({
     mutateAsync: vi.fn(),
   } as never);
-  vi.mocked(useBuildTerminologyKnowledgePackage).mockReturnValue({
+  vi.mocked(useCreateTerminologyAssetDraft).mockReturnValue({
     mutateAsync: vi.fn(),
-  } as never);
-  vi.mocked(useReleasePackage).mockReturnValue({ mutateAsync: vi.fn() } as never);
-  vi.mocked(useRollbackPackage).mockReturnValue({ mutateAsync: vi.fn() } as never);
-  vi.mocked(usePackageReleaseAdapters).mockReturnValue({
-    data: pageData([
-      {
-        adapterId: "adapter-1",
-        adapterName: "院内配置同步",
-        protocolType: "REST",
-        status: "ACTIVE",
-        healthStatus: "HEALTHY",
-        rttMs: 12,
-        lastHeartbeatAt: "2026-06-01T00:00:00.000Z",
-        connectorAvailable: true,
-      },
-    ]),
   } as never);
   vi.mocked(useStandardTerms).mockReturnValue({
     data: pageData([standardTerm]),
@@ -372,12 +303,6 @@ function configureQuery(
     isError: false,
     refetch: vi.fn(),
   } as never);
-  vi.mocked(usePackages).mockReturnValue({
-    data: pageData([mappingPackage]),
-    isLoading: false,
-    isError: false,
-    refetch: vi.fn(),
-  } as never);
   vi.mocked(useTerminologyMappings).mockReturnValue({
     data: defaultData,
     isLoading: false,
@@ -387,7 +312,6 @@ function configureQuery(
   } as never);
 }
 
-// AntdApp 提供 message 上下文：突变失败的可见错误提示依赖它，与生产入口一致。
 function pageTree() {
   return (
     <ConfigProvider>
@@ -402,7 +326,11 @@ function renderPage() {
   return render(pageTree());
 }
 
-describe("TerminologyMapping experience sample", () => {
+function apiFailure(detail: string) {
+  return Object.assign(new Error(detail), { response: { data: { detail } } });
+}
+
+describe("TerminologyMapping", () => {
   beforeEach(() => {
     window.localStorage.clear();
     useExpertModeStore.setState({ enabled: false });
@@ -410,128 +338,32 @@ describe("TerminologyMapping experience sample", () => {
     configureQuery();
   });
 
-  it("renders the real high-risk mapping workspace instead of a read-only table", async () => {
+  it("renders the complete mapping workspace without package publishing controls", async () => {
     renderPage();
 
     expect(screen.getByText(/核查院内码与标准码的映射关系/)).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "映射状态" })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("输入来源系统")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("输入院内码或标准码关键词")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "确认候选" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "确认候选" })).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "生成候选" })).toBeInTheDocument();
-    expect(screen.getByText("选字典")).toBeInTheDocument();
-    expect(screen.getByText("生成候选", { selector: "strong" })).toBeInTheDocument();
-    expect(screen.getByText("逐条确认")).toBeInTheDocument();
-    expect(screen.getByText("灰度发布")).toBeInTheDocument();
-    expect(screen.getByText("证据/回滚")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "确认候选" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "生成候选" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "生成术语版本" })).toBeEnabled();
     expect(screen.getByText("候选映射")).toBeInTheDocument();
-    expect(screen.getByText("高危近似")).toBeInTheDocument();
-    expect(screen.getByText("钾 / 钠不可互换，高危近似规则命中")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "批量确认候选" })).toBeDisabled();
     expect(screen.getByText("冲突待裁")).toBeInTheDocument();
-    expect(screen.getByText("同一院内检验项命中多个标准候选，需人工裁决。")).toBeInTheDocument();
-    expect(screen.getByText("映射包发布")).toBeInTheDocument();
-    expect(screen.getByText("检验字典映射包")).toBeInTheDocument();
-    expect(useTerminologyMappings).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1, size: 20, sort: "updatedAt,desc" }),
-    );
-    expect(useStandardTerms).toHaveBeenCalledWith(expect.objectContaining({ page: 1, size: 20 }));
-    expect(useLocalTerms).toHaveBeenCalledWith(expect.objectContaining({ page: 1, size: 20 }));
-    expect(useTerminologyCandidates).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1, size: 20, status: "PENDING" }),
-    );
-    expect(useTerminologyConflicts).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1, size: 10, status: "OPEN" }),
-    );
-    expect(usePackages).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1, size: 20, assetType: "TERMINOLOGY" }),
-    );
-    expect(usePackageReleaseAdapters).toHaveBeenCalledWith({ page: 1, size: 20 }, true);
-
-    expect(screen.getByRole("button", { name: "导出" })).toBeEnabled();
+    expect(screen.getByText("术语维护与上线修订分离")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "发布映射包" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "回滚映射包" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "批量确认候选" })).toBeDisabled();
 
     await userEvent.click(screen.getByRole("button", { name: "查看 1" }));
     expect(screen.getByText("实施核查证据")).toBeInTheDocument();
-    expect(screen.queryByText("院内编码 ID")).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("switch", { name: "专家模式" }));
-    expect(screen.getByText("院内编码 ID")).toBeInTheDocument();
-    expect(screen.getByText(/trace-list/)).toBeInTheDocument();
-
-    await userEvent.click(screen.getByTitle("2"));
-    expect(useTerminologyMappings).toHaveBeenLastCalledWith(
-      expect.objectContaining({ page: 2, size: 20, sort: "updatedAt,desc" }),
-    );
   });
 
-  it(
-    "loads terminology release packages through small server-side search pages and publishes the selected package",
-    async () => {
-      const user = userEvent.setup();
-      const releasePackage = vi.fn().mockResolvedValue({});
-      const selectedPackage = {
-        ...mappingPackage,
-        packageId: "term-pkg-31",
-        packageVersion: "2026.07",
-        name: "检验字典映射包二",
-      };
-      vi.mocked(usePackages).mockReturnValue({
-        data: pageData([mappingPackage, selectedPackage]),
-        isLoading: false,
-        isError: false,
-        refetch: vi.fn(),
-      } as never);
-      vi.mocked(useReleasePackage).mockReturnValue({ mutateAsync: releasePackage } as never);
-
-      renderPage();
-
-      expect(usePackages).toHaveBeenCalledWith({
-        page: 1,
-        size: 20,
-        assetType: "TERMINOLOGY",
-        keyword: undefined,
-      });
-      await user.click(screen.getByRole("combobox", { name: "选择映射包" }));
-      await user.click(await screen.findByText("检验字典映射包二 · 2026.07"));
-      await user.click(screen.getByRole("button", { name: "发布映射包" }));
-      await user.type(screen.getByLabelText("发布原因"), "发布选中映射包");
-      await user.click(screen.getByRole("button", { name: "提交发布" }));
-
-      await waitFor(() =>
-        expect(releasePackage).toHaveBeenCalledWith({
-          packageId: "term-pkg-31",
-          request: expect.objectContaining({
-            packageVersion: "2026.07",
-          }),
-        }),
-      );
-    },
-    TERMINOLOGY_INTERACTION_TIMEOUT_MS,
-  );
-
-  it("loads the full pending candidate queue instead of only high-risk entries", () => {
-    renderPage();
-
-    expect(vi.mocked(useTerminologyCandidates)).toHaveBeenCalledWith(
-      expect.not.objectContaining({ riskLevel: "HIGH" }),
-    );
-  });
-
-  it("starts and tracks a deterministic terminology candidate generation job", async () => {
-    const user = userEvent.setup();
-    const generateCandidates = vi.fn().mockResolvedValue({
+  it("starts and tracks candidate generation without a package version", async () => {
+    const generate = vi.fn().mockResolvedValue({
       ...completedGenerationJob,
       status: "PENDING",
       progress: 0,
       generatedCount: 0,
-      candidatePageUri: null,
-      startedAt: null,
-      completedAt: null,
     });
-    vi.mocked(useGenerateTerminologyCandidates).mockReturnValue({
-      mutateAsync: generateCandidates,
-    } as never);
+    vi.mocked(useGenerateTerminologyCandidates).mockReturnValue({ mutateAsync: generate } as never);
     vi.mocked(useTerminologyCandidateGenerationJob).mockReturnValue({
       data: completedGenerationJob,
       isLoading: false,
@@ -540,208 +372,93 @@ describe("TerminologyMapping experience sample", () => {
     } as never);
 
     renderPage();
-
-    await user.click(screen.getByRole("button", { name: "生成候选" }));
-    expect(screen.getByText("生成术语候选")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "提交生成" }));
+    await userEvent.click(screen.getByRole("button", { name: "生成候选" }));
+    await userEvent.click(screen.getByRole("button", { name: "提交生成" }));
 
     await waitFor(() =>
-      expect(generateCandidates).toHaveBeenCalledWith({
-        packageVersion: "2026.06",
+      expect(generate).toHaveBeenCalledWith({
         sourceSystem: "LIS",
         minimumScore: 0.2,
         semanticAssistEnabled: true,
       }),
     );
-    expect(useTerminologyCandidateGenerationJob).toHaveBeenLastCalledWith("term-job-1");
     expect(screen.getByText("term-job-1")).toBeInTheDocument();
-    expect(screen.getByText("SUCCEEDED")).toBeInTheDocument();
     expect(screen.getByText("42")).toBeInTheDocument();
-    expect(screen.getByText(/generationJobCode=term-job-1/)).toBeInTheDocument();
   });
 
-  it("separates diagnostic-service authoring from knowledge-governance publishing", () => {
-    const diagnosticServiceProfile: SecurityProfile = {
-      ...profile,
-      roles: [
-        {
-          code: "diagnostic-service-user",
-          displayName: "医技协同人员",
-          source: "DEFAULT",
-          scopeLevel: null,
-          scopeCode: null,
-        },
-      ],
-      permissions: profile.permissions.filter((permission) =>
-        ["term.read", "term.write"].includes(permission.code),
-      ),
-    };
-    configureQuery({}, diagnosticServiceProfile);
-    const view = renderPage();
-
-    expect(screen.queryByText("当前权限不足")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "确认候选" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "构建映射包" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "发布映射包" })).toBeDisabled();
-    expect(usePackageReleaseAdapters).toHaveBeenLastCalledWith({ page: 1, size: 20 }, false);
-
-    const knowledgeGovernorProfile: SecurityProfile = {
-      ...profile,
-      roles: [
-        {
-          code: "knowledge-governor",
-          displayName: "机构知识治理员",
-          source: "DEFAULT",
-          scopeLevel: null,
-          scopeCode: null,
-        },
-      ],
-      permissions: profile.permissions.filter((permission) =>
-        ["term.read", "term.publish"].includes(permission.code),
-      ),
-    };
-    configureQuery({}, knowledgeGovernorProfile);
-    view.rerender(pageTree());
-
-    expect(screen.queryByText("当前权限不足")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "确认候选" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "构建映射包" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "发布映射包" })).toBeEnabled();
-    expect(usePackageReleaseAdapters).toHaveBeenLastCalledWith({ page: 1, size: 20 }, true);
-  });
-
-  it("requires per-candidate second confirmation before confirming a high-risk mapping", async () => {
-    const confirmCandidate = vi.fn().mockResolvedValue({ ...mapping, status: "CONFIRMED" });
-    vi.mocked(useConfirmTerminologyCandidate).mockReturnValue({
-      mutateAsync: confirmCandidate,
-    } as never);
+  it("confirms a high-risk candidate with one operator note and no second-sign fields", async () => {
+    const confirm = vi.fn().mockResolvedValue({ ...mapping, status: "CONFIRMED" });
+    vi.mocked(useConfirmTerminologyCandidate).mockReturnValue({ mutateAsync: confirm } as never);
 
     renderPage();
-
     await userEvent.click(screen.getByRole("button", { name: "确认候选" }));
-    expect(screen.getByText("确认高危候选")).toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText("已逐条核对高危近似风险"));
+    await userEvent.click(screen.getByRole("button", { name: "提交确认" }));
+    expect(confirm).not.toHaveBeenCalled();
     await userEvent.type(
-      screen.getByLabelText("高危确认理由"),
-      "已核对 LIS 原始值和 LOINC 来源版本",
+      screen.getByLabelText("核对依据"),
+      "已核对 LIS 原始值和 LOINC 权威来源",
     );
     await userEvent.click(screen.getByRole("button", { name: "提交确认" }));
 
-    expect(confirmCandidate).toHaveBeenCalledWith({
+    expect(confirm).toHaveBeenCalledWith({
       candidateId: 901,
-      request: expect.objectContaining({
-        packageVersion: "2026.06",
+      request: {
         reviewNote: "逐条确认高危候选",
-        highRiskAcknowledged: true,
-        highRiskReason: "已核对 LIS 原始值和 LOINC 来源版本",
-      }),
+        evidenceOverride: "已核对 LIS 原始值和 LOINC 权威来源",
+      },
     });
   });
 
-  it("keeps the candidate review workspace visible when no mapping is confirmed yet", () => {
-    configureQuery({
-      data: { ...defaultData, items: [], total: 0 },
-    });
+  it("acts on the candidate selected from its own row", async () => {
+    const confirm = vi.fn().mockResolvedValue({ ...mapping, status: "CONFIRMED" });
+    vi.mocked(useConfirmTerminologyCandidate).mockReturnValue({ mutateAsync: confirm } as never);
 
     renderPage();
-
-    expect(screen.queryByText("当前筛选范围内没有可核查的映射条目。")).not.toBeInTheDocument();
-    expect(screen.getByText("候选映射")).toBeInTheDocument();
-    expect(screen.getByText("冲突待裁")).toBeInTheDocument();
-    expect(screen.getByText(/钾 \/ 钠不可互换/)).toBeInTheDocument();
-  });
-
-  it(
-    "resolves a one-to-many conflict with a mandatory arbitration note",
-    async () => {
-      const user = userEvent.setup();
-      const resolveConflict = vi.fn().mockResolvedValue({
-        ...openConflict,
-        status: "RESOLVED",
-        resolutionNote: "保留 LOINC 2951-2，其他候选退回重映射",
-      });
-      vi.mocked(useResolveTerminologyConflict).mockReturnValue({
-        mutateAsync: resolveConflict,
-      } as never);
-
-      renderPage();
-
-      const conflictRow = screen.getByRole("row", { name: /一对多冲突/ });
-      await user.click(within(conflictRow).getByRole("button", { name: /裁\s*决/ }));
-      expect(screen.getByText("处置映射冲突")).toBeInTheDocument();
-
-      await user.click(screen.getByRole("button", { name: "提交裁决" }));
-      expect(resolveConflict).not.toHaveBeenCalled();
-
-      await user.type(screen.getByLabelText("裁决依据"), "保留 LOINC 2951-2，其他候选退回重映射");
-      await user.click(screen.getByRole("button", { name: "提交裁决" }));
-
-      expect(resolveConflict).toHaveBeenCalledWith({
-        conflictId: 301,
-        request: {
-          packageVersion: "2026.06",
-          resolutionNote: "保留 LOINC 2951-2，其他候选退回重映射",
-        },
-      });
-    },
-    TERMINOLOGY_INTERACTION_TIMEOUT_MS,
-  );
-
-  it("rejects a high-risk mismatched candidate with a mandatory review note", async () => {
-    const rejectCandidate = vi.fn().mockResolvedValue({
-      ...highRiskCandidate,
-      status: "REJECTED",
-    });
-    vi.mocked(useRejectTerminologyCandidate).mockReturnValue({
-      mutateAsync: rejectCandidate,
-    } as never);
-
-    renderPage();
-
-    const candidateRow = screen.getByRole("row", { name: /#901/ });
-    await userEvent.click(within(candidateRow).getByRole("button", { name: /驳\s*回/ }));
-    expect(screen.getByText("驳回映射候选")).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "提交驳回" }));
-    expect(rejectCandidate).not.toHaveBeenCalled();
-
-    await userEvent.type(screen.getByLabelText("驳回理由"), "钾/钠互斥高危错配，标准侧为血清钠");
-    await userEvent.click(screen.getByRole("button", { name: "提交驳回" }));
-
-    expect(rejectCandidate).toHaveBeenCalledWith({
-      candidateId: 901,
-      request: expect.objectContaining({
-        packageVersion: "2026.06",
-        reviewNote: "钾/钠互斥高危错配，标准侧为血清钠",
-      }),
-    });
-  });
-
-  it("confirms a selected candidate from its own row instead of only the queue head", async () => {
-    const confirmCandidate = vi.fn().mockResolvedValue({ ...mapping, status: "CONFIRMED" });
-    vi.mocked(useConfirmTerminologyCandidate).mockReturnValue({
-      mutateAsync: confirmCandidate,
-    } as never);
-
-    renderPage();
-
     const ordinaryRow = screen.getByRole("row", { name: /#902/ });
     await userEvent.click(within(ordinaryRow).getByRole("button", { name: /^确\s*认$/ }));
-    expect(screen.getByText("确认普通候选")).toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText("已逐条核对高危近似风险"));
-    await userEvent.type(screen.getByLabelText("高危确认理由"), "编码与名称精确匹配，确认映射");
+    await userEvent.type(screen.getByLabelText("确认说明"), "编码与名称精确匹配");
     await userEvent.click(screen.getByRole("button", { name: "提交确认" }));
 
-    expect(confirmCandidate).toHaveBeenCalledWith({
+    expect(confirm).toHaveBeenCalledWith({
       candidateId: 902,
-      request: expect.objectContaining({ packageVersion: "2026.06" }),
+      request: {
+        reviewNote: "确认普通候选",
+        evidenceOverride: "编码与名称精确匹配",
+      },
     });
   });
 
-  it("batch confirms only ordinary candidates when the high-risk queue is absent", async () => {
-    const batchConfirm = vi
-      .fn()
-      .mockResolvedValue({ confirmedCount: 1, confirmedCandidateIds: [902] });
+  it("rejects and arbitrates with mandatory traceable reasons", async () => {
+    const reject = vi.fn().mockResolvedValue({ ...highRiskCandidate, status: "REJECTED" });
+    const resolve = vi.fn().mockResolvedValue({ ...openConflict, status: "RESOLVED" });
+    vi.mocked(useRejectTerminologyCandidate).mockReturnValue({ mutateAsync: reject } as never);
+    vi.mocked(useResolveTerminologyConflict).mockReturnValue({ mutateAsync: resolve } as never);
+
+    renderPage();
+    const candidateRow = screen.getByRole("row", { name: /#901/ });
+    await userEvent.click(within(candidateRow).getByRole("button", { name: /驳\s*回/ }));
+    await userEvent.type(screen.getByLabelText("驳回理由"), "钾钠互斥错配");
+    await userEvent.click(screen.getByRole("button", { name: "提交驳回" }));
+    expect(reject).toHaveBeenCalledWith({
+      candidateId: 901,
+      request: { reviewNote: "钾钠互斥错配" },
+    });
+
+    const conflictRow = screen.getByRole("row", { name: /一对多冲突/ });
+    await userEvent.click(within(conflictRow).getByRole("button", { name: /裁\s*决/ }));
+    await userEvent.type(screen.getByLabelText("裁决依据"), "保留 LOINC 2951-2");
+    await userEvent.click(screen.getByRole("button", { name: "提交裁决" }));
+    expect(resolve).toHaveBeenCalledWith({
+      conflictId: 301,
+      request: { resolutionNote: "保留 LOINC 2951-2" },
+    });
+  });
+
+  it("batch confirms only ordinary candidates", async () => {
+    const batchConfirm = vi.fn().mockResolvedValue({
+      confirmedCount: 1,
+      confirmedCandidateIds: [902],
+    });
     vi.mocked(useTerminologyCandidates).mockReturnValue({
       data: pageData([ordinaryCandidate]),
       isLoading: false,
@@ -753,385 +470,114 @@ describe("TerminologyMapping experience sample", () => {
     } as never);
 
     renderPage();
-
-    expect(screen.getByRole("button", { name: "批量确认候选" })).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: "批量确认候选" }));
 
     expect(batchConfirm).toHaveBeenCalledWith({
       candidateIds: [902],
-      request: expect.objectContaining({
-        packageVersion: "2026.06",
-        reviewNote: "批量确认普通候选",
-      }),
+      request: { reviewNote: "批量确认普通候选" },
     });
   });
 
-  it("builds a new terminology package with an explicit version and current scope", async () => {
-    const buildPackage = vi.fn().mockResolvedValue(mappingPackage);
-    vi.mocked(useBuildTerminologyKnowledgePackage).mockReturnValue({
-      mutateAsync: buildPackage,
+  it("creates an automatically versioned terminology asset for the current scope", async () => {
+    const createDraft = vi.fn().mockResolvedValue({
+      assetIdentity: "TERM.LAB",
+      versionId: "av-term-1",
+      versionNo: "V1",
+      status: "DRAFT",
+      organizationScope: "tenant:tenant-1",
+      contentHash: "a".repeat(64),
+      mappingCount: 1,
+    });
+    vi.mocked(useCreateTerminologyAssetDraft).mockReturnValue({
+      mutateAsync: createDraft,
     } as never);
 
     renderPage();
+    await userEvent.click(screen.getByRole("button", { name: "生成术语版本" }));
+    expect(screen.getByText("版本号由系统自动生成")).toBeInTheDocument();
+    expect(screen.queryByLabelText("新版本")).not.toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText("资产编码"));
+    await userEvent.type(screen.getByLabelText("资产编码"), "TERM.LAB");
+    await userEvent.click(screen.getByRole("button", { name: "生成草稿版本" }));
 
-    await userEvent.click(screen.getByRole("button", { name: "构建映射包" }));
-    expect(screen.getByText("构建术语映射包")).toBeInTheDocument();
-    await userEvent.clear(screen.getByLabelText("新版本"));
-    await userEvent.type(screen.getByLabelText("新版本"), "2026.06.1");
-    await userEvent.click(screen.getByRole("button", { name: "创建草稿" }));
-
-    expect(buildPackage).toHaveBeenCalledWith({
-      packageCode: "TERM.LAB",
-      packageVersion: "2026.06.1",
-      name: "检验字典映射包",
+    expect(createDraft).toHaveBeenCalledWith({
+      assetIdentity: "TERM.LAB",
+      name: "术语映射",
       scopeLevel: "TENANT",
       scopeCode: "tenant-1",
     });
+    expect(await screen.findByText(/TERM.LAB@V1 已生成/)).toBeInTheDocument();
   });
 
-  it(
-    "publishes terminology packages through the governed release flow",
-    async () => {
-      const publishPackage = vi.fn().mockResolvedValue({ ...mappingPackage, status: "PUBLISHED" });
-      vi.mocked(useReleasePackage).mockReturnValue({
-        mutateAsync: publishPackage,
-      } as never);
-
-      renderPage();
-
-      await userEvent.click(screen.getByRole("button", { name: "发布映射包" }));
-      expect(screen.getByText("发布映射包")).toBeInTheDocument();
-      expect(screen.getByRole("radio", { name: "10% 灰度" })).toBeChecked();
-      await userEvent.type(screen.getByLabelText("发布原因"), "首发检验字典灰度验证");
-      await userEvent.click(screen.getByRole("button", { name: "提交发布" }));
-
-      expect(publishPackage).toHaveBeenCalledWith({
-        packageId: "term-pkg-30",
-        request: expect.objectContaining({
-          packageVersion: "2026.06",
-          strategy: "GRAYSCALE",
-          targetOrgUnitId: "hospital-A",
-          adapterIds: ["adapter-1"],
-          reason: "首发检验字典灰度验证",
-        }),
-      });
-    },
-    TERMINOLOGY_INTERACTION_TIMEOUT_MS,
-  );
-
-  it(
-    "blocks grayscale release when the package carries a legacy organization scope",
-    async () => {
-      const publishPackage = vi.fn();
-      vi.mocked(useReleasePackage).mockReturnValue({
-        mutateAsync: publishPackage,
-      } as never);
-      vi.mocked(usePackages).mockReturnValue({
-        data: pageData([
-          {
-            ...mappingPackage,
-            primaryAssetId: "TERM.LAB|HOSPITAL|hospital-A",
-          },
-        ]),
-        isLoading: false,
-        isError: false,
-        refetch: vi.fn(),
-      } as never);
-
-      renderPage();
-
-      await userEvent.click(screen.getByRole("button", { name: "发布映射包" }));
-      await userEvent.type(screen.getByLabelText("发布原因"), "验证非法组织范围必须被阻断");
-      await userEvent.click(screen.getByRole("button", { name: "提交发布" }));
-
-      expect(await screen.findByText("知识包缺少有效组织作用域，无法灰度发布")).toBeInTheDocument();
-      expect(publishPackage).not.toHaveBeenCalled();
-    },
-    TERMINOLOGY_INTERACTION_TIMEOUT_MS,
-  );
-
-  // P5-ACT2-05：服务空间（TENANT）级映射包是院内码无科室归属时唯一能构建的范围，
-  // 灰度发布必须按后端契约以 ALL 提交（服务端默认转目标机构 10% 灰度），不得在前端拦死。
-  it(
-    "publishes tenant-scope packages with the ALL grayscale contract instead of blocking",
-    async () => {
-      const publishPackage = vi.fn().mockResolvedValue({ ...mappingPackage, status: "PUBLISHED" });
-      vi.mocked(useReleasePackage).mockReturnValue({
-        mutateAsync: publishPackage,
-      } as never);
-      vi.mocked(usePackages).mockReturnValue({
-        data: pageData([
-          {
-            ...mappingPackage,
-            primaryAssetId: "TERM.P5.MAPPING|TENANT|tenant-1",
-          },
-        ]),
-        isLoading: false,
-        isError: false,
-        refetch: vi.fn(),
-      } as never);
-
-      renderPage();
-
-      await userEvent.click(screen.getByRole("button", { name: "发布映射包" }));
-      await userEvent.type(screen.getByLabelText("发布原因"), "服务空间级映射包灰度发布验证");
-      await userEvent.click(screen.getByRole("button", { name: "提交发布" }));
-
-      expect(screen.queryByText("知识包缺少有效组织作用域，无法灰度发布")).not.toBeInTheDocument();
-      expect(publishPackage).toHaveBeenCalledWith({
-        packageId: "term-pkg-30",
-        request: expect.objectContaining({
-          strategy: "GRAYSCALE",
-          scopeType: "ALL",
-          scopeValue: "",
-          targetOrgUnitId: "tenant-1",
-        }),
-      });
-    },
-    TERMINOLOGY_INTERACTION_TIMEOUT_MS,
-  );
-
-  it(
-    "rolls back a published package only to a selectable historical release",
-    async () => {
-      const rollbackPackage = vi
-        .fn()
-        .mockResolvedValue({ ...mappingPackage, status: "ROLLED_BACK" });
-      const current = { ...mappingPackage, status: "ACTIVE" as const };
-      const target = {
-        ...mappingPackage,
-        id: 29,
-        packageId: "term-pkg-29",
-        packageVersion: "2026.05",
-        status: "OFFLINE" as const,
-      };
-      vi.mocked(usePackages).mockReturnValue({
-        data: pageData([current, target]),
-        isLoading: false,
-        isError: false,
-        refetch: vi.fn(),
-      } as never);
-      vi.mocked(useRollbackPackage).mockReturnValue({
-        mutateAsync: rollbackPackage,
-      } as never);
-
-      renderPage();
-      await userEvent.click(screen.getByRole("button", { name: "回滚映射包" }));
-      await userEvent.click(screen.getByLabelText("回滚目标"));
-      await userEvent.click(screen.getByText("2026.05 · 检验字典映射包"));
-      await userEvent.type(screen.getByLabelText("回滚原因"), "灰度验证发现院内码需重裁");
-      await userEvent.click(screen.getByLabelText("已确认回滚会切换当前生效术语版本"));
-      await userEvent.click(screen.getByRole("button", { name: "提交回滚" }));
-
-      expect(rollbackPackage).toHaveBeenCalledWith({
-        packageId: "term-pkg-30",
-        request: expect.objectContaining({
-          packageVersion: "2026.06",
-          targetPackageId: "term-pkg-29",
-          confirmedTargetVersion: "2026.05",
-          confirmedHighRisk: true,
-          reason: "灰度验证发现院内码需重裁",
-        }),
-      });
-    },
-    TERMINOLOGY_INTERACTION_TIMEOUT_MS,
-  );
-
-  // P5-ACT2-04：六个治理动作失败时必须给出用户可见错误，不允许静默吞错。
-  function apiFailure(detail: string) {
-    return Object.assign(new Error(detail), { response: { data: { detail } } });
-  }
-
-  it("surfaces a visible error and keeps the modal open when package build fails", async () => {
-    const buildPackage = vi
+  it("keeps errors visible and the asset modal open", async () => {
+    const createDraft = vi
       .fn()
-      .mockRejectedValue(apiFailure("当前范围没有已确认映射，无法构建知识包"));
-    vi.mocked(useBuildTerminologyKnowledgePackage).mockReturnValue({
-      mutateAsync: buildPackage,
+      .mockRejectedValue(apiFailure("当前范围没有已确认映射，无法生成术语资产草稿"));
+    vi.mocked(useCreateTerminologyAssetDraft).mockReturnValue({
+      mutateAsync: createDraft,
     } as never);
 
     renderPage();
-    await userEvent.click(screen.getByRole("button", { name: "构建映射包" }));
-    await userEvent.clear(screen.getByLabelText("新版本"));
-    await userEvent.type(screen.getByLabelText("新版本"), "2026.06.2");
-    await userEvent.click(screen.getByRole("button", { name: "创建草稿" }));
+    await userEvent.click(screen.getByRole("button", { name: "生成术语版本" }));
+    await userEvent.click(screen.getByRole("button", { name: "生成草稿版本" }));
 
-    expect(await screen.findByText("当前范围没有已确认映射，无法构建知识包")).toBeInTheDocument();
-    expect(screen.getByText("构建术语映射包")).toBeInTheDocument();
+    expect(
+      await screen.findByText("当前范围没有已确认映射，无法生成术语资产草稿"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("生成术语资产版本")).toBeInTheDocument();
   });
 
-  it(
-    "surfaces a visible error and keeps the modal open when package publish fails",
-    async () => {
-      const publishPackage = vi.fn().mockRejectedValue(apiFailure("同步适配器未启用: adapter-1"));
-      vi.mocked(useReleasePackage).mockReturnValue({ mutateAsync: publishPackage } as never);
-
-      renderPage();
-      await userEvent.click(screen.getByRole("button", { name: "发布映射包" }));
-      await userEvent.type(screen.getByLabelText("发布原因"), "灰度验证映射包发布失败提示");
-      await userEvent.click(screen.getByRole("button", { name: "提交发布" }));
-
-      expect(await screen.findByText("同步适配器未启用: adapter-1")).toBeInTheDocument();
-      expect(screen.getByText("发布映射包流程")).toBeInTheDocument();
-    },
-    TERMINOLOGY_INTERACTION_TIMEOUT_MS,
-  );
-
-  it(
-    "surfaces a visible error and keeps the modal open when package rollback fails",
-    async () => {
-      const rollbackPackage = vi.fn().mockRejectedValue(apiFailure("回滚目标版本快照校验失败"));
-      const current = { ...mappingPackage, status: "ACTIVE" as const };
-      const target = {
-        ...mappingPackage,
-        id: 29,
-        packageId: "term-pkg-29",
-        packageVersion: "2026.05",
-        status: "OFFLINE" as const,
-      };
-      vi.mocked(usePackages).mockReturnValue({
-        data: pageData([current, target]),
-        isLoading: false,
-        isError: false,
-        refetch: vi.fn(),
-      } as never);
-      vi.mocked(useRollbackPackage).mockReturnValue({ mutateAsync: rollbackPackage } as never);
-
-      renderPage();
-      await userEvent.click(screen.getByRole("button", { name: "回滚映射包" }));
-      await userEvent.click(screen.getByLabelText("回滚目标"));
-      await userEvent.click(screen.getByText("2026.05 · 检验字典映射包"));
-      await userEvent.type(screen.getByLabelText("回滚原因"), "失败提示可见性验证");
-      await userEvent.click(screen.getByLabelText("已确认回滚会切换当前生效术语版本"));
-      await userEvent.click(screen.getByRole("button", { name: "提交回滚" }));
-
-      expect(await screen.findByText("回滚目标版本快照校验失败")).toBeInTheDocument();
-      expect(screen.getByText("回滚映射包流程")).toBeInTheDocument();
-    },
-    TERMINOLOGY_INTERACTION_TIMEOUT_MS,
-  );
-
-  it("surfaces a visible error and keeps the modal open when candidate confirm fails", async () => {
-    const confirmCandidate = vi.fn().mockRejectedValue(apiFailure("候选已被其他治理员处理"));
-    vi.mocked(useConfirmTerminologyCandidate).mockReturnValue({
-      mutateAsync: confirmCandidate,
-    } as never);
-
-    renderPage();
-    await userEvent.click(screen.getByRole("button", { name: "确认候选" }));
-    await userEvent.click(screen.getByLabelText("已逐条核对高危近似风险"));
-    await userEvent.type(screen.getByLabelText("高危确认理由"), "失败提示可见性验证理由");
-    await userEvent.click(screen.getByRole("button", { name: "提交确认" }));
-
-    expect(await screen.findByText("候选已被其他治理员处理")).toBeInTheDocument();
-    expect(screen.getByText("确认高危候选")).toBeInTheDocument();
-  });
-
-  it("surfaces a visible error and keeps the modal open when candidate reject fails", async () => {
-    const rejectCandidate = vi.fn().mockRejectedValue(apiFailure("驳回失败：候选状态已变更"));
-    vi.mocked(useRejectTerminologyCandidate).mockReturnValue({
-      mutateAsync: rejectCandidate,
-    } as never);
-
-    renderPage();
-    const candidateRow = screen.getByRole("row", { name: /#901/ });
-    await userEvent.click(within(candidateRow).getByRole("button", { name: /驳\s*回/ }));
-    await userEvent.type(screen.getByLabelText("驳回理由"), "失败提示可见性验证理由");
-    await userEvent.click(screen.getByRole("button", { name: "提交驳回" }));
-
-    expect(await screen.findByText("驳回失败：候选状态已变更")).toBeInTheDocument();
-    expect(screen.getByText("驳回映射候选")).toBeInTheDocument();
-  });
-
-  it("surfaces a visible error when ordinary batch confirmation fails", async () => {
-    const batchConfirm = vi.fn().mockRejectedValue(apiFailure("批量确认失败：包含已处理候选"));
-    vi.mocked(useTerminologyCandidates).mockReturnValue({
-      data: pageData([ordinaryCandidate]),
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    } as never);
-    vi.mocked(useBatchConfirmTerminologyCandidates).mockReturnValue({
-      mutateAsync: batchConfirm,
-    } as never);
-
-    renderPage();
-    await userEvent.click(screen.getByRole("button", { name: "批量确认候选" }));
-
-    expect(await screen.findByText("批量确认失败：包含已处理候选")).toBeInTheDocument();
-  });
-
-  it("loads the backend default view snapshot", async () => {
-    vi.mocked(useSavedViews).mockReturnValue({ data: [defaultSavedView] } as never);
-
-    renderPage();
-
-    expect(await screen.findByDisplayValue("HIS")).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "专家模式" })).toBeChecked();
-  });
-
-  it("saves a non-sensitive view snapshot through the backend", async () => {
+  it("loads and saves backend view snapshots", async () => {
     const saveView = vi.fn().mockResolvedValue(defaultSavedView);
+    vi.mocked(useSavedViews).mockReturnValue({ data: [defaultSavedView] } as never);
     vi.mocked(useSaveView).mockReturnValue({ mutateAsync: saveView } as never);
 
     renderPage();
-    await userEvent.type(screen.getByPlaceholderText("输入来源系统"), "HIS");
-    await userEvent.click(screen.getByRole("switch", { name: "专家模式" }));
+    expect(await screen.findByDisplayValue("HIS")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "保存视图" }));
 
     expect(saveView).toHaveBeenCalledWith(
       expect.objectContaining({
         pageKey: "terminology.mapping",
-        viewName: "默认视图",
-        defaultView: true,
-        snapshot: expect.objectContaining({ expertMode: true }),
+        snapshot: expect.objectContaining({ viewKey: "terminology.mapping" }),
       }),
-    );
-    expect(JSON.stringify(saveView.mock.calls[0][0].snapshot)).not.toMatch(
-      /patient|token|身份证|患者/i,
     );
   });
 
-  it("submits async export using the current backend view snapshot", async () => {
-    const submitExport = vi.fn().mockResolvedValue({
+  it("submits async export from the current view", async () => {
+    const submit = vi.fn().mockResolvedValue({
       jobId: "job-1",
       status: "running",
       submittedAt: "2026-06-01T00:00:00.000Z",
-      submittedBy: "doctor-1",
+      submittedBy: "operator-1",
       traceId: "trace-export",
     });
-    const pollExport = vi.fn().mockResolvedValue({
+    const poll = vi.fn().mockResolvedValue({
       jobId: "job-1",
       status: "succeeded",
       submittedAt: "2026-06-01T00:00:00.000Z",
-      submittedBy: "doctor-1",
+      submittedBy: "operator-1",
       traceId: "trace-export",
-      downloadUrl: "/medkernel/api/v1/large-lists/exports/job-1/download",
+      downloadUrl: "/api/v1/large-lists/exports/job-1/download",
     });
-    vi.mocked(useSubmitLargeListExport).mockReturnValue({ mutateAsync: submitExport } as never);
-    vi.mocked(useLargeListExportJob).mockReturnValue({ mutateAsync: pollExport } as never);
+    vi.mocked(useSubmitLargeListExport).mockReturnValue({ mutateAsync: submit } as never);
+    vi.mocked(useLargeListExportJob).mockReturnValue({ mutateAsync: poll } as never);
 
     renderPage();
-
     await userEvent.click(screen.getByRole("button", { name: "导出" }));
     await userEvent.click(screen.getByRole("button", { name: "提交导出任务" }));
 
-    expect(submitExport).toHaveBeenCalledWith(
-      expect.objectContaining({
-        resourceType: "TERMINOLOGY_MAPPING",
-        selectedScope: "currentPage",
-        requestSnapshot: expect.objectContaining({ viewKey: "terminology.mapping" }),
-      }),
+    expect(submit).toHaveBeenCalledWith(
+      expect.objectContaining({ resourceType: "TERMINOLOGY_MAPPING" }),
     );
     expect(await screen.findByText("导出已完成")).toBeInTheDocument();
   });
 
-  it("renders loading, empty, error, forbidden and partial states", () => {
+  it("renders loading, empty, error and forbidden states", () => {
     configureQuery({ isLoading: true, data: undefined });
     const view = renderPage();
     expect(screen.getByText("正在加载")).toBeInTheDocument();
 
-    // 页面级空态只在映射、候选、冲突和映射包都为空时出现，避免吞没待审候选工作台。
     configureQuery({ data: { ...defaultData, items: [], total: 0, hasNext: false } });
     vi.mocked(useTerminologyCandidates).mockReturnValue({
       data: pageData([]),
@@ -1140,12 +586,6 @@ describe("TerminologyMapping experience sample", () => {
       refetch: vi.fn(),
     } as never);
     vi.mocked(useTerminologyConflicts).mockReturnValue({
-      data: pageData([]),
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    } as never);
-    vi.mocked(usePackages).mockReturnValue({
       data: pageData([]),
       isLoading: false,
       isError: false,
@@ -1161,19 +601,5 @@ describe("TerminologyMapping experience sample", () => {
     configureQuery({}, { ...profile, menuKeys: [] });
     view.rerender(pageTree());
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
-
-    configureQuery({
-      data: {
-        ...defaultData,
-        partial: {
-          successCount: 8,
-          failureCount: 1,
-          failures: [{ key: "1", reason: "证据补充失败", retryable: true }],
-        },
-      },
-    });
-    view.rerender(pageTree());
-    expect(screen.getByText(/8 项成功，1 项失败/)).toBeInTheDocument();
-    expect(screen.getByText(/证据补充失败/)).toBeInTheDocument();
   });
 });

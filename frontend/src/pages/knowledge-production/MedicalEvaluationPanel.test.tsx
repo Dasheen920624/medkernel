@@ -13,10 +13,6 @@ vi.mock("@/shared/api/hooks", () => ({
   useRunModelEvaluation: vi.fn(),
 }));
 vi.mock("@/shared/api/modelProviders", () => ({ useModelProviders: vi.fn() }));
-vi.mock("./IndependentMedicalReviewPanel", () => ({
-  default: () => <div>independent-review-panel</div>,
-}));
-
 const runEvaluation = vi.fn();
 
 describe("MedicalEvaluationPanel", () => {
@@ -70,6 +66,7 @@ describe("MedicalEvaluationPanel", () => {
         capabilityCode: "rule.draft",
       }),
     );
-    expect(screen.getByText("independent-review-panel")).toBeInTheDocument();
+    expect(screen.getByText(/评测通过后直接作为当前制品的模型放行证据/)).toBeInTheDocument();
+    expect(screen.queryByText("独立复核")).not.toBeInTheDocument();
   });
 });

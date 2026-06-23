@@ -301,7 +301,7 @@ export default function ProviderSetupPanel() {
             ) : null}
           </Space>
         ) : (
-          <Text type="secondary">由集成运维员处理</Text>
+          <Text type="secondary">由医疗引擎运营员处理</Text>
         ),
     },
   ];
@@ -329,7 +329,7 @@ export default function ProviderSetupPanel() {
         description={
           canManage
             ? "请先登记服务地址和模型版本，再安全配置 Key。"
-            : "请联系集成运维员登记模型服务。"
+            : "请联系医疗引擎运营员登记模型服务。"
         }
       />
     );
@@ -375,7 +375,7 @@ export default function ProviderSetupPanel() {
               type="warning"
               showIcon
               message="当前职责仅可查看"
-              description="由集成运维员维护模型服务、Key 与健康状态；完成后交由质量治理专家评测。"
+              description="由医疗引擎运营员维护模型服务、Key、健康检查和医学评测。"
             />
           ) : null}
           {content}
@@ -554,11 +554,11 @@ export default function ProviderSetupPanel() {
           {activation?.enabled ? (
             <Form.Item
               name="capabilityCode"
-              label="已签署医学能力"
-              rules={[{ required: true, message: "请选择已独立签署的医学能力" }]}
+              label="已通过评测的模型能力"
+              rules={[{ required: true, message: "请选择已通过医学评测的模型能力" }]}
             >
               <Select
-                aria-label="已签署医学能力"
+                aria-label="已通过评测的模型能力"
                 options={[...MODEL_CAPABILITY_OPTIONS]}
                 placeholder="选择与医学评测一致的能力"
               />

@@ -17,8 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
  * 控制器 profile 裁剪契约。
  *
  * <p>回归 2026-06-10 真实部署缺陷：租户开通控制器标 {@code @Profile({"dev","test"})}，
- * govcloud 生产 profile 下接口直接 404，而前端菜单与五维权限均认为该能力存在。
- * 平台 API 面不得随构建 profile 增减——能力可用性由五维权限与配置中心运行时治理；
+ * govcloud 生产 profile 下接口直接 404，而前端菜单与固定职责权限包均认为该能力存在。
+ * 平台 API 面不得随构建 profile 增减——能力可用性由固定职责权限包与配置中心运行时治理；
  * dev 专属种子器等非 API bean 不受本契约约束。
  */
 class ControllerProfileGateContractTest {

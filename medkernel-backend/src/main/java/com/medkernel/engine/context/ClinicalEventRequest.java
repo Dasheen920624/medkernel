@@ -22,7 +22,6 @@ public record ClinicalEventRequest(
     String encounterId,
     @NotNull ClinicalSetting clinicalSetting,
     String sourceSystem,
-    @NotBlank String packageVersion,
     @NotNull ClinicalEventTriggerPoint triggerPoint,
     @Size(max = 128) String idempotencyKey,
     @Size(max = 64) String callbackWebhookId,
@@ -41,9 +40,6 @@ public record ClinicalEventRequest(
         }
         if (sourceSystem != null) {
             sourceSystem = sourceSystem.isBlank() ? null : sourceSystem.trim();
-        }
-        if (packageVersion != null) {
-            packageVersion = packageVersion.trim();
         }
         if (idempotencyKey != null) {
             idempotencyKey = idempotencyKey.isBlank() ? null : idempotencyKey.trim();
@@ -70,7 +66,6 @@ public record ClinicalEventRequest(
             hookInstance,
             patientId,
             encounterId,
-            packageVersion,
             sourceSystem,
             context,
             null,

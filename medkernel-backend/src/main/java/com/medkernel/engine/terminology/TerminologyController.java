@@ -18,11 +18,11 @@ import com.medkernel.shared.datascope.DataScope;
 import jakarta.validation.Valid;
 
 /**
- * GA-ENG-API-04 字典映射 API（标准/院内字典查询、候选生成、高危确认、冲突处置、映射包发布/回滚）。
+ * GA-ENG-API-04 字典映射 API（标准/院内字典查询、候选生成、高危确认、冲突处置、映射版本发布/运行修订回滚）。
  *
  * <p>所有接口要求当前请求上下文携带租户（{@link DataScope#requireTenant}），
  * 读接口需要 {@code term.read}，写接口需要 {@code term.write}，
- * 发布/回滚为高风险操作分别需要 {@code term.publish} / {@code package.rollback}。
+ * 发布/回滚为高风险操作分别需要 {@code term.publish} / {@code release.rollback}。
  */
 @RestController
 @RequestMapping("/api/v1/engine/terminology")
@@ -30,9 +30,13 @@ import jakarta.validation.Valid;
 public class TerminologyController {
 
     private final TerminologyService service;
+    private final TerminologyAssetDraftService assetDrafts;
 
-    public TerminologyController(TerminologyService service) {
+    public TerminologyController(
+            TerminologyService service,
+            TerminologyAssetDraftService assetDrafts) {
         this.service = service;
+        this.assetDrafts = assetDrafts;
     }
 
     /**
@@ -115,7 +119,7 @@ public class TerminologyController {
     }
 
     /**
-     * 对照覆盖分析（P5，advisory）：给定标准字典与一组标准编码，返回每个编码的院内→标准
+     * 对照覆盖分析：给定标准字典与一组标准编码，返回每个编码的院内→标准
      * 对照覆盖情况，供规则/路径发布前提示缺对照编码。
      */
     @GetMapping("/mappings/coverage")
@@ -124,6 +128,16 @@ public class TerminologyController {
             @RequestParam String standardSystem,
             @RequestParam java.util.List<String> codes) {
         return ApiResult.ok(service.evaluateCoverage(standardSystem, codes));
+    }
+
+    /**
+     * 把当前组织范围的已确认映射固化为下一版术语资产草稿。
+     */
+    @PostMapping("/assets/drafts")
+    @PreAuthorize("@perm.has('term.write')")
+    public ApiResult<TerminologyAssetDraftResponse> createAssetDraft(
+            @Valid @RequestBody TerminologyAssetDraftRequest request) {
+        return ApiResult.ok(assetDrafts.createDraft(request));
     }
 
     /**

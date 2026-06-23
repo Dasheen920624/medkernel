@@ -12,7 +12,7 @@ import com.medkernel.engine.versioning.VersionedAssetType;
  * 全专业领域标准资产模板注册表（AIK-STD-12 FR-1）。
  *
  * <p>确定性代码态目录，不建表、不做租户自定义（无消费者需要）。覆盖术语/规则/路径/推荐/指标/随访/
- * 护理/报告/中医/医保 + 指南/药品/诊断 + 评分/计算器骨架。章节为既有专业文书结构标准，
+ * 护理/医技项目/中医/医保 + 指南/药品/诊断 + 评分/计算器骨架。章节为既有专业文书结构标准，
  * 供生产/审核对照完整性，不预填医学内容（守铁律 #1，正文须按真实来源填充）。
  */
 @Service
@@ -30,9 +30,11 @@ public class ProfessionalAssetTemplateRegistry {
         knowledge("NURSING", "护理", KnowledgeDomain.NURSING,
             req("assessment", "护理评估"), req("diagnosis", "护理诊断"), req("goal", "护理目标"),
             req("intervention", "护理措施"), req("evaluation", "护理评价")),
-        knowledge("REPORT", "报告解读", KnowledgeDomain.REPORT,
-            req("item", "检查项目"), req("reference_range", "参考区间"), req("interpretation", "异常判读"),
-            opt("clinical_meaning", "临床意义"), opt("recheck", "复查建议")),
+        knowledge("DIAGNOSTIC_ITEM", "医技项目说明书", KnowledgeDomain.DIAGNOSTIC_ITEM,
+            req("item_definition", "项目定义"), req("preparation", "检查前准备"),
+            req("reference_basis", "参考区间与方法学依据"), req("limitations", "局限与干扰因素"),
+            req("clinical_meaning", "临床意义"), opt("recheck", "复查注意事项"),
+            req("references", "参考来源")),
         knowledge("TCM", "中医药", KnowledgeDomain.TCM,
             req("syndrome", "病名证候"), req("differentiation", "辨证分型"), req("therapy", "治法"),
             req("prescription", "方药"), opt("technique", "适宜技术"), opt("regimen", "调护")),
@@ -66,9 +68,6 @@ public class ProfessionalAssetTemplateRegistry {
         structural("PATHWAY", "路径", VersionedAssetType.PATHWAY,
             req("admission", "准入标准"), req("branch", "分型分支"), req("stage", "阶段节点"),
             req("exit", "退出条件"), opt("variance", "变异处理")),
-        structural("RECOMMENDATION", "推荐", VersionedAssetType.RECOMMENDATION,
-            req("scenario", "推荐场景"), req("trigger", "触发条件"), req("content", "推荐内容"),
-            opt("evidence", "证据强度"), req("source", "来源")),
         structural("EVALUATION", "指标", VersionedAssetType.EVALUATION,
             req("definition", "指标定义"), req("formula", "计算口径"), req("data_source", "数据来源"),
             req("threshold", "阈值标准"), opt("cycle", "评价周期")),
@@ -94,21 +93,16 @@ public class ProfessionalAssetTemplateRegistry {
         structural("CDSS_RISK", "CDSS 风险矩阵", VersionedAssetType.CDSS_RISK,
             req("risk_level", "风险等级"), req("review_requirement", "审核要求"),
             req("response_sla", "响应时限"), req("escalation", "升级策略"), req("source", "来源依据")),
-        structural("CONDITION_FRAGMENT", "条件片段", VersionedAssetType.CONDITION_FRAGMENT,
-            req("inputs", "输入字段"), req("condition", "确定性条件"),
-            req("missing_policy", "缺失值策略"), req("output", "输出契约"),
-            req("test_cases", "测试病例"), req("source", "来源依据")),
         structural("ORDER_SET", "医嘱套餐", VersionedAssetType.ORDER_SET,
             req("indication", "适用指征"), req("orders", "医嘱项"), req("sequencing", "顺序与依赖"),
             req("contraindications", "禁忌"), req("confirmation", "医师确认要求"),
             req("source", "来源依据")),
         structural("ACTION_CARD", "动作卡", VersionedAssetType.ACTION_CARD,
-            req("trigger", "触发条件"), req("summary", "摘要"), req("detail", "详细说明"),
-            req("suggestions", "建议动作"), req("confirmation", "医师确认要求"),
-            req("source", "来源依据")),
-        structural("SUBPATHWAY", "子路径", VersionedAssetType.SUBPATHWAY,
-            req("entry", "进入条件"), req("nodes", "节点"), req("edges", "边"),
-            req("exit", "退出条件"), opt("variance", "变异处理"), req("source", "来源依据"))
+            req("scenario", "建议场景"), req("trigger", "触发条件"),
+            req("summary", "摘要"), req("detail", "详细说明"),
+            req("suggestions", "建议动作"), opt("evidence", "证据强度"),
+            req("confirmation", "医师确认要求"),
+            req("source", "来源依据"))
     );
 
     public List<ProfessionalAssetTemplate> listAll() {

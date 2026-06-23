@@ -56,7 +56,7 @@ class ReleaseSimulationServiceTest {
     @Test
     void blocksReleaseWhenLockedSafetyAndDependenciesFailAndReturnsSubtreeConflicts() {
         AssetVersion candidate = version(
-            "av-v2", "2", "hash-v2", AssetVersionOverridePolicy.REVIEW, AssetVersionStatus.APPROVED);
+            "av-v2", "2", "hash-v2", AssetVersionOverridePolicy.REVIEW, AssetVersionStatus.DRAFT);
         AssetVersion current = version(
             "av-v1", "1", "hash-v1", AssetVersionOverridePolicy.LOCKED, AssetVersionStatus.PUBLISHED);
         when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A"))
@@ -103,7 +103,7 @@ class ReleaseSimulationServiceTest {
     @Test
     void returnsReplayEvidenceAndAllowsConfirmationWhenAllSafetyChecksPass() {
         AssetVersion candidate = version(
-            "av-v2", "2", "hash-v2", AssetVersionOverridePolicy.REVIEW, AssetVersionStatus.APPROVED);
+            "av-v2", "2", "hash-v2", AssetVersionOverridePolicy.REVIEW, AssetVersionStatus.DRAFT);
         AssetVersion current = version(
             "av-v1", "1", "hash-v1", AssetVersionOverridePolicy.REVIEW, AssetVersionStatus.PUBLISHED);
         when(assetVersions.findByVersionIdAndTenantId("av-v2", "tenant-A"))
@@ -291,11 +291,12 @@ class ReleaseSimulationServiceTest {
             orgUnitId,
             "request-1",
             "/TENANT-A/HOSP-A",
-            "pkg-1",
+            "runtime-release-test",
             "patient-1",
             "encounter-1",
             ContextSnapshotStatus.ACTIVE,
             "[]",
+            "{}",
             "{}",
             QualityStatus.VALID,
             "trace",

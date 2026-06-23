@@ -15,7 +15,6 @@ class ModuleBoundaryArchTest {
     private static final String BUSINESS_PACKAGE = "com.medkernel.compliance..";
     private static final String VERSIONING_PACKAGE = "com.medkernel.engine.versioning..";
     private static final String[] VERSIONING_CONSUMER_PACKAGES = {
-        "com.medkernel.engine.pkg..",
         "com.medkernel.engine.knowledge..",
         "com.medkernel.engine.terminology..",
         "com.medkernel.engine.pathway..",

@@ -17,7 +17,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 首发部署 init token 服务：登记、校验和一次性消费均只处理 hash 后的 token。
+ * 首次部署 init token 服务：登记、校验和一次性消费均只处理 hash 后的 token。
  */
 @Service
 public class BootstrapInitTokenService {
@@ -74,6 +74,14 @@ public class BootstrapInitTokenService {
             throw new ApiException(ErrorCode.ENG_AUTH_008);
         }
         return token;
+    }
+
+    /**
+     * 获取首次接管互斥锁。首次部署 token 数量极少，统一按主键顺序锁定可避免并发创建两个超级管理员。
+     */
+    @Transactional
+    public void acquireBootstrapLock() {
+        tokens.lockActiveTokens();
     }
 
     @Transactional

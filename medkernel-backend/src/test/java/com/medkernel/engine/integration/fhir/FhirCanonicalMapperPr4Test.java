@@ -72,7 +72,7 @@ class FhirCanonicalMapperPr4Test {
             """);
 
         CanonicalResourceMappingResult result = mapper.fromR4(new FhirCanonicalMappingRequest(
-            "tenant-A", "snapshot-pr4", 1, "trace-pr4",
+            "tenant-A", "runtime-release-1", "snapshot-pr4", 1, "trace-pr4",
             Instant.parse("2026-06-03T00:00:01Z"), condition));
 
         assertThat(result.resource().resourceType()).isEqualTo(CanonicalResourceType.CONDITION);
@@ -264,7 +264,7 @@ class FhirCanonicalMapperPr4Test {
     }
 
     private static TerminologyMappingPort terminologyReturning(String status) {
-        return (tenantId, anchors) -> anchors.stream()
+        return (tenantId, runtimeReleaseId, anchors) -> anchors.stream()
             .collect(Collectors.toMap(anchor -> anchor.key(), anchor -> status, (left, right) -> left));
     }
 }

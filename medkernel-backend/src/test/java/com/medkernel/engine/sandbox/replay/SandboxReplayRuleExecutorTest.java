@@ -37,14 +37,14 @@ class SandboxReplayRuleExecutorTest {
                 1L, "binding-1", "tenant-1", "replay-1", VersionedAssetType.RULE,
                 "RULE.OLD.K", "version-id-1", "7", SourceTier.ORG,
                 "sha256:" + "5".repeat(64), content.toString(), "a".repeat(64),
-                AssetVersionStatus.RETIRED, Instant.now(), "governor-1", "trace-1")));
+                AssetVersionStatus.WITHDRAWN, Instant.now(), "governor-1", "trace-1")));
 
         List<SandboxReplayRuleResult> results = executor.execute(replay);
 
         assertThat(results).singleElement().satisfies(result -> {
             assertThat(result.ruleCode()).isEqualTo("RULE.OLD.K");
             assertThat(result.assetVersion()).isEqualTo("7");
-            assertThat(result.historicalStatus()).isEqualTo(AssetVersionStatus.RETIRED);
+            assertThat(result.historicalStatus()).isEqualTo(AssetVersionStatus.WITHDRAWN);
             assertThat(result.hit()).isTrue();
             assertThat(result.severity()).isEqualTo("CRITICAL");
             assertThat(result.actions()).hasSize(1);
@@ -57,7 +57,8 @@ class SandboxReplayRuleExecutorTest {
         return new SandboxReplayCase(
             1L, "replay-1", "tenant-1", "sha256:" + "1".repeat(64),
             "sha256:" + "2".repeat(64), "sha256:" + "3".repeat(64),
-            "sha256:" + "4".repeat(64), "{}", "b".repeat(64), "PKG.OLD", "old-1",
+            "sha256:" + "4".repeat(64), "{}", "b".repeat(64),
+            "sha256:" + "6".repeat(64), 4L,
             now, "c".repeat(64), SandboxReplayDeidentificationValidator.PROFILE,
             SandboxReplayStatus.IMPORTED, now, "governor-1", null, null, null,
             now, now, "trace-1");

@@ -17,23 +17,16 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.medkernel.engine.context.ClinicalRuntimeRelease;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseRepository;
 import com.medkernel.engine.integration.domain.IntegrationAdapter;
 import com.medkernel.engine.integration.repository.IntegrationAdapterRepository;
 import com.medkernel.engine.org.OrgFacilityType;
 import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.engine.org.OrgUnitStatus;
 import com.medkernel.engine.org.OrgUnitRepository;
-import com.medkernel.engine.pkg.KnowledgePackage;
-import com.medkernel.engine.pkg.KnowledgePackageRepository;
-import com.medkernel.engine.pkg.KnowledgePackageStatus;
-import com.medkernel.engine.pkg.ReleasePlan;
-import com.medkernel.engine.pkg.ReleasePlanRepository;
-import com.medkernel.engine.pkg.ReleasePlanStatus;
-import com.medkernel.engine.pkg.ReleaseScopeType;
-import com.medkernel.engine.pkg.ReleaseStrategy;
-import com.medkernel.engine.pkg.TenantPackageReference;
-import com.medkernel.engine.pkg.TenantPackageReferenceRepository;
-import com.medkernel.engine.pkg.TenantPackageReferenceStatus;
+import com.medkernel.engine.release.PlatformBaselineRelease;
+import com.medkernel.engine.release.PlatformBaselineReleaseRepository;
 import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.RoleCode;
@@ -43,7 +36,6 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.context.OrgScope;
-import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.StateTransitionHistory;
 import com.medkernel.shared.observability.StateTransitionHistoryRepository;
@@ -83,13 +75,10 @@ class TenantPilotServiceTest {
     private IntegrationAdapterRepository adapterRepo;
 
     @Autowired
-    private KnowledgePackageRepository packageRepo;
+    private PlatformBaselineReleaseRepository platformBaselineRepo;
 
     @Autowired
-    private TenantPackageReferenceRepository packageReferenceRepo;
-
-    @Autowired
-    private ReleasePlanRepository releasePlanRepo;
+    private ClinicalRuntimeReleaseRepository runtimeReleaseRepo;
 
     private final String tenantId = "tenant-pilot-smoke-01";
     private final String actor = "DOC-PILOT-88";
@@ -179,8 +168,8 @@ class TenantPilotServiceTest {
                 "USERS",
                 "PERMISSIONS",
                 "ADAPTERS",
-                "ASSETS",
-                "GRAYSCALE"
+                "PLATFORM_BASELINE",
+                "HOSPITAL_RUNTIME"
             );
         assertThat(readiness.steps())
             .extracting(ImplementationStep::status)
@@ -190,8 +179,8 @@ class TenantPilotServiceTest {
             .anyMatch(reason -> reason.contains("用户"))
             .anyMatch(reason -> reason.contains("权限"))
             .anyMatch(reason -> reason.contains("适配器"))
-            .anyMatch(reason -> reason.contains("资产"))
-            .anyMatch(reason -> reason.contains("灰度"));
+            .anyMatch(reason -> reason.contains("平台权威基线"))
+            .anyMatch(reason -> reason.contains("运行修订"));
 
         assertThatThrownBy(() -> service.assertOnboardingReady(tenantId))
             .isInstanceOf(ApiException.class)
@@ -216,26 +205,32 @@ class TenantPilotServiceTest {
                 "/tenant/onboarding",
                 "/admin/users",
                 "/integration/adapters",
-                "/config/packages"
+                "/config/releases"
             );
 
         service.assertOnboardingReady(tenantId);
     }
 
     @Test
-    void onboardingReadinessAllowsOpeningWhenTenantReleasedPackageExistsWithoutTenantSnapshot() {
-        seedReadinessPrerequisitesWithTenantReleasedPackage();
+    void onboardingReadinessRequiresHospitalRuntimeEvenWhenPlatformBaselineExists() {
+        seedReadinessPrerequisitesWithoutHospitalRuntime();
 
         OnboardingReadiness readiness = service.getOnboardingReadiness(tenantId);
 
-        assertThat(readiness.ready()).isTrue();
-        assertThat(readiness.blockers()).isEmpty();
+        assertThat(readiness.ready()).isFalse();
         assertThat(readiness.steps())
-            .filteredOn(step -> "ASSETS".equals(step.key()))
+            .filteredOn(step -> "PLATFORM_BASELINE".equals(step.key()))
             .singleElement()
             .satisfies(step -> {
                 assertThat(step.status()).isEqualTo("DONE");
-                assertThat(step.evidence()).contains("租户配置资产包");
+                assertThat(step.evidence()).contains("平台权威基线");
+            });
+        assertThat(readiness.steps())
+            .filteredOn(step -> "HOSPITAL_RUNTIME".equals(step.key()))
+            .singleElement()
+            .satisfies(step -> {
+                assertThat(step.status()).isEqualTo("BLOCKED");
+                assertThat(step.blockers()).anyMatch(reason -> reason.contains("运行修订"));
             });
     }
 
@@ -251,7 +246,7 @@ class TenantPilotServiceTest {
             now, actor, now, actor, traceId
         ));
         roleAssignmentRepo.save(new UserRoleAssignment(
-            null, tenantId, "doctor-1", RoleCode.CLINICAL_DECISION_USER.code(), OrgLevel.FACILITY.name(), hospital.id(),
+            null, tenantId, "doctor-1", RoleCode.CLINICAL_USER.code(), OrgLevel.FACILITY.name(), hospital.id(),
             "Y", now, actor, now, actor
         ));
         adapterRepo.save(new IntegrationAdapter(
@@ -259,52 +254,38 @@ class TenantPilotServiceTest {
             "ACTIVE", "{\"endpoint\":\"https://his.example.invalid\"}", "NOT_CONNECTED", 0L,
             null, now, actor, now, actor
         ));
-        packageRepo.save(new KnowledgePackage(
-            null, "pkg-platform-readiness-01", PlatformTenant.ID, "PKG.CHEST", "1.0.0",
-            "平台胸痛配置资产包", "平台配置资产", KnowledgePackageStatus.ACTIVE,
+        platformBaselineRepo.save(new PlatformBaselineRelease(
+            null, "baseline-A1", 1L, "a".repeat(64),
             now, actor, now, actor, traceId
         ));
-        packageReferenceRepo.save(new TenantPackageReference(
-            null, "ref-readiness-01", tenantId, PlatformTenant.ID, "pkg-platform-readiness-01",
-            "PKG.CHEST", "1.0.0", hospital.id(), "TPL.FIRST_RUN",
-            TenantPackageReferenceStatus.ACTIVE,
-            now, actor, now, actor, traceId
-        ));
-        releasePlanRepo.save(new ReleasePlan(
-            null, "plan-gray-01", tenantId, "pkg-platform-readiness-01", hospital.id(),
-            ReleaseStrategy.GRAYSCALE, ReleaseScopeType.FACILITY, hospital.id(), ReleasePlanStatus.SUCCESS,
-            now, actor, now, actor, traceId
+        runtimeReleaseRepo.save(new ClinicalRuntimeRelease(
+            null, "runtime-H1", tenantId, hospital.id(), 1L, "baseline-A1",
+            "b".repeat(64), null, now, actor, now, actor, traceId
         ));
     }
 
-    private void seedReadinessPrerequisitesWithTenantReleasedPackage() {
+    private void seedReadinessPrerequisitesWithoutHospitalRuntime() {
         Instant now = Instant.now();
         OrgUnit tenant = orgUnitRepo.save(org(null, OrgLevel.TENANT, "TENANT-PILOT", "/TENANT-PILOT"));
         OrgUnit group = orgUnitRepo.save(org(tenant.id(), OrgLevel.REGION, "GROUP-PILOT", "/TENANT-PILOT/GROUP-PILOT"));
         OrgUnit hospital = orgUnitRepo.save(org(group.id(), OrgLevel.FACILITY, "HOSP-PILOT", "/TENANT-PILOT/GROUP-PILOT/HOSP-PILOT"));
 
         credentialRepo.save(new PlatformCredential(
-            null, "cred-pilot-tenant-package", tenantId, "doctor-tenant-package", "doctor-tenant-package",
+            null, "cred-pilot-runtime", tenantId, "doctor-runtime", "doctor-runtime",
             "bcrypt:test", "ACTIVE", "N", null,
             now, actor, now, actor, traceId
         ));
         roleAssignmentRepo.save(new UserRoleAssignment(
-            null, tenantId, "doctor-tenant-package", RoleCode.CLINICAL_DECISION_USER.code(), OrgLevel.FACILITY.name(), hospital.id(),
+            null, tenantId, "doctor-runtime", RoleCode.CLINICAL_USER.code(), OrgLevel.FACILITY.name(), hospital.id(),
             "Y", now, actor, now, actor
         ));
         adapterRepo.save(new IntegrationAdapter(
-            null, "adapter-his-tenant-package", tenantId, "HIS 主数据接入", "HTTP",
+            null, "adapter-his-runtime", tenantId, "HIS 主数据接入", "HTTP",
             "ACTIVE", "{\"endpoint\":\"https://his.example.invalid\"}", "NOT_CONNECTED", 0L,
             null, now, actor, now, actor
         ));
-        packageRepo.save(new KnowledgePackage(
-            null, "pkg-tenant-readiness-01", tenantId, "PKG.TENANT", "1.0.0",
-            "租户自有配置资产包", "租户配置资产", KnowledgePackageStatus.ACTIVE,
-            now, actor, now, actor, traceId
-        ));
-        releasePlanRepo.save(new ReleasePlan(
-            null, "plan-gray-tenant-package", tenantId, "pkg-tenant-readiness-01", hospital.id(),
-            ReleaseStrategy.GRAYSCALE, ReleaseScopeType.FACILITY, hospital.id(), ReleasePlanStatus.SUCCESS,
+        platformBaselineRepo.save(new PlatformBaselineRelease(
+            null, "baseline-A2", 2L, "c".repeat(64),
             now, actor, now, actor, traceId
         ));
     }

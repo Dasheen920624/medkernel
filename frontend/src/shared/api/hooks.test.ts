@@ -4,21 +4,22 @@ import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "./client";
+import * as apiHooks from "./hooks";
 import {
-  downloadPackageOfflineExport,
-  downloadPackageSyncEvidenceExport,
   downloadDomesticCompatibilityReport,
   bindBootstrapMfa,
+  verifyMfa,
   changePassword,
   checkDataPermission,
   checkBootstrapInitToken,
-  completeApprovedExportJob,
+  completeConfirmedExportJob,
+  confirmExport,
   createIdentityBinding,
   createBootstrapAdmin,
   fetchBootstrapStatus,
   fetchDelegatedAuthStatus,
   fetchDataPermissionPolicies,
-  fetchExportApprovals,
+  fetchExportConfirmations,
   fetchInteropAssessment,
   fetchIdentityBindings,
   fetchMaskingRules,
@@ -26,12 +27,9 @@ import {
   fetchTenantSystemConfigs,
   fetchThemePreference,
   fetchSavedViews,
-  importPackageOfflinePackage,
   previewMasking,
   saveThemePreference,
   saveExperienceViewSnapshot,
-  requestExportApproval,
-  reviewExportApproval,
   submitLargeListExport,
   unbindIdentityBinding,
   updateSystemConfig,
@@ -39,27 +37,30 @@ import {
   upsertDataPermissionPolicy,
   upsertMaskingRule,
   useCompleteWorkflowTodo,
-  useCreatePackage,
   useDeveloperApiContracts,
   useDisablePlugin,
   useAdvanceIntegrationOnboarding,
   useBatchConfirmTerminologyCandidates,
-  useBuildTerminologyKnowledgePackage,
+  useCreateTerminologyAssetDraft,
   useActivateEvaluationIndicator,
   useAuthoringAssets,
   useAuthoringBatchJobs,
   useAnalyzeAuthoringBatchRuleImpacts,
   useConfirmTerminologyCandidate,
   useContextFieldCatalog,
+  useSnapshotContextFieldCatalogDraft,
   useCreateEvaluationIndicator,
   useCreateIntegrationOnboarding,
   useCreateRule,
-  useConditionFragmentImpact,
+  useCreateNextRuleVersion,
+  useUpdateRule,
   useCreateWebhook,
+  useAdvancePatientPathway,
   useDispatchRectification,
   useEvaluationIndicators,
   useEvaluationResults,
   useEvaluateRecommendations,
+  useEvaluateRules,
   useEvaluateSnapshot,
   useEnterPatientPathway,
   useGenerateDataQualityReport,
@@ -80,9 +81,6 @@ import {
   useSandboxRuntimeStatus,
   useSandboxScenarios,
   useImplementationSteps,
-  useApplyOverrideBatch,
-  useApplyPilotTemplateReferences,
-  useSignoffRule,
   useTransitionRuleGovernance,
   useKnowledgeCandidateDiff,
   useKnowledgeCandidates,
@@ -90,7 +88,7 @@ import {
   useKnowledgeCustomizations,
   useKnowledgeIdentities,
   useCreateKnowledgeProductionJob,
-  useApproveKnowledgeAcquisitionSource,
+  useEnableKnowledgeAcquisitionSource,
   useDisableKnowledgeAcquisitionSource,
   useKnowledgeAcquisitionSources,
   useSaveKnowledgeAcquisitionSourceDraft,
@@ -99,6 +97,7 @@ import {
   useKnowledgeProductionGateResults,
   useKnowledgeProductionJobs,
   useKnowledgeProductionReadiness,
+  useGenerateKnowledgeModelCandidate,
   useKnowledgeProductionShadowRuns,
   useKnowledgeProductionTriageResults,
   useKnowledgeInitializationBatches,
@@ -110,7 +109,6 @@ import {
   useModelEvaluationRunDetail,
   useModelEvaluationRuns,
   useRunModelEvaluation,
-  useSignOffModelEvaluation,
   useModelTask,
   useReplayModelTask,
   useSubmitModelTask,
@@ -127,24 +125,13 @@ import {
   useOnboardingReadiness,
   useOrgUnits,
   useOrgUsers,
-  useOverrideTemplates,
-  usePackageInheritanceImpact,
-  usePackageEntitlements,
-  useGrantPackageEntitlement,
-  useRevokePackageEntitlement,
-  usePackages,
   usePlugins,
   useProjectionConsistency,
   useProjectionFacts,
   useProjectionRuntimeStatus,
-  usePackageAssetReadiness,
-  usePackageReleaseAdapters,
-  usePackageSyncLogs,
+  useCreatePathwayTemplate,
+  usePathwayEntryCandidates,
   usePathwayTemplates,
-  usePilotPackageTemplates,
-  useReleasePackage,
-  useObserveReleaseRollout,
-  usePreviewOverrideBatch,
   usePublishDiagnosis,
   usePublishEvaluationIndicator,
   useQualityFindings,
@@ -157,8 +144,6 @@ import {
   useCaptureRuleShadowFeedback,
   useAuthoringPreview,
   useAuthoringPreviewRun,
-  useCloneAuthoringAsset,
-  useDistributeAuthoringBatchPackages,
   useGenerateAuthoringBatchRules,
   useFavoriteAuthoringAsset,
   usePublishAuthoringBatchRules,
@@ -169,19 +154,23 @@ import {
   useReviewRectification,
   useReviewKnowledgeCandidate,
   useResolveTerminologyConflict,
-  useRollbackPackage,
-  useReleaseSimulation,
-  useRevokeOverrideBatch,
-  useRollbackRollout,
   useRunDrgGrouping,
   useRunInsuranceAudit,
   useRunQualityCaseReview,
+  useAddTestCase,
   useRunRuleTests,
+  useSimulateRule,
   useSubmitRectification,
-  useSyncPackage,
   useStandardTerms,
   useSubmitEvaluationIndicator,
-  useStartReleaseRollout,
+  useActivateHospitalRuntime,
+  useCurrentHospitalRuntime,
+  useCurrentPlatformBaseline,
+  useHospitalRuntimeCandidates,
+  useHospitalRuntimeHistory,
+  usePlatformReleaseCandidates,
+  usePublishPlatformBaseline,
+  useRollbackHospitalRuntime,
   useTerminologyCandidates,
   useTerminologyConflicts,
   useMasterDataReconciliation,
@@ -215,10 +204,10 @@ vi.mock("./client", () => ({
 function securityProfile() {
   return {
     userId: "user-1",
-    username: "integration-operator",
+    username: "platform-admin",
     roles: [
       {
-        code: "integration-operator",
+        code: "platform-admin",
         displayName: "信息科",
         source: "DEFAULT",
         scopeLevel: null,
@@ -255,6 +244,15 @@ function renderApiHook<T>(hook: () => T) {
     createElement(QueryClientProvider, { client }, children);
   return renderHook(hook, { wrapper });
 }
+
+describe("pathway api contract", () => {
+  it("does not export legacy pathway-specific publish, rollout or rollback hooks", () => {
+    expect(apiHooks).not.toHaveProperty("usePublishPathwayTemplate");
+    expect(apiHooks).not.toHaveProperty("useFullRolloutPathwayTemplate");
+    expect(apiHooks).not.toHaveProperty("useRollbackPathwayTemplate");
+    expect(apiHooks).not.toHaveProperty("usePathwayTemplateImpact");
+  });
+});
 
 describe("developer console api hooks", () => {
   beforeEach(() => {
@@ -316,7 +314,7 @@ describe("developer console api hooks", () => {
     await grantHook.result.current.mutateAsync({
       pluginId: "plug/1",
       capabilityKeys: ["publish-rule"],
-      approvalReason: "插件委员会审批",
+      authorizationReason: "插件权限用途确认",
       clinicalSafetyConfirmed: true,
     });
 
@@ -337,7 +335,7 @@ describe("developer console api hooks", () => {
     });
     expect(apiClient.post).toHaveBeenNthCalledWith(2, "/plugins/plug%2F1/grants", {
       capabilityKeys: ["publish-rule"],
-      approvalReason: "插件委员会审批",
+      authorizationReason: "插件权限用途确认",
       clinicalSafetyConfirmed: true,
     });
     expect(apiClient.post).toHaveBeenNthCalledWith(3, "/plugins/plug%2F1:disable");
@@ -500,7 +498,7 @@ describe("model gateway api hooks", () => {
   });
 });
 
-describe("independent medical review api hooks", () => {
+describe("medical evaluation api hooks", () => {
   beforeEach(() => {
     vi.mocked(apiClient.get).mockReset();
     vi.mocked(apiClient.post).mockReset();
@@ -508,7 +506,7 @@ describe("independent medical review api hooks", () => {
 
   it("loads tenant-scoped paged runs and immutable case evidence", async () => {
     const page = {
-      items: [{ runId: 42, status: "PENDING_REVIEW" }],
+      items: [{ runId: 42, status: "PASSED" }],
       page: 2,
       size: 20,
       total: 21,
@@ -520,19 +518,18 @@ describe("independent medical review api hooks", () => {
       cases: [{ evidenceId: 501, outputContent: "真实模型输出" }],
       evidenceComplete: true,
       baselineCurrent: true,
-      reviewable: true,
-      reviewBlockReason: null,
+      releaseCurrent: true,
     };
     vi.mocked(apiClient.get)
       .mockResolvedValueOnce({ data: { data: page } })
       .mockResolvedValueOnce({ data: { data: detail } });
 
     const runsHook = renderApiHook(() =>
-      useModelEvaluationRuns({ status: "PENDING_REVIEW", page: 2, size: 20 }),
+      useModelEvaluationRuns({ status: "PASSED", page: 2, size: 20 }),
     );
     await waitFor(() => expect(runsHook.result.current.data).toEqual(page));
     expect(apiClient.get).toHaveBeenNthCalledWith(1, "/model-evaluations/runs", {
-      params: { status: "PENDING_REVIEW", page: 2, size: 20 },
+      params: { status: "PASSED", page: 2, size: 20 },
     });
 
     const detailHook = renderApiHook(() => useModelEvaluationRunDetail(42));
@@ -540,29 +537,9 @@ describe("independent medical review api hooks", () => {
     expect(apiClient.get).toHaveBeenNthCalledWith(2, "/model-evaluations/runs/42");
   });
 
-  it("submits explicit evidence acknowledgement and review comment", async () => {
-    vi.mocked(apiClient.post).mockResolvedValueOnce({
-      data: { data: { runId: 42, status: "PASSED" } },
-    });
-    const hook = renderApiHook(() => useSignOffModelEvaluation());
-
-    await act(async () => {
-      await hook.result.current.mutateAsync({
-        runId: 42,
-        evidenceAcknowledged: true,
-        reviewComment: "逐例证据已核查并确认可放行。",
-      });
-    });
-
-    expect(apiClient.post).toHaveBeenCalledWith("/model-evaluations/42/sign-off", {
-      evidenceAcknowledged: true,
-      reviewComment: "逐例证据已核查并确认可放行。",
-    });
-  });
-
   it("runs the current provider model against a governed medical capability", async () => {
     vi.mocked(apiClient.post).mockResolvedValueOnce({
-      data: { data: { runId: 43, status: "PENDING_REVIEW" } },
+      data: { data: { runId: 43, status: "PASSED" } },
     });
     const hook = renderApiHook(() => useRunModelEvaluation());
 
@@ -582,36 +559,11 @@ describe("independent medical review api hooks", () => {
   });
 });
 
-describe("package export api helpers", () => {
+describe("shared runtime api helpers", () => {
   beforeEach(() => {
     vi.mocked(apiClient.get).mockReset();
     vi.mocked(apiClient.post).mockReset();
     vi.mocked(apiClient.put).mockReset();
-  });
-
-  it("downloads an effective offline package for a target organization", async () => {
-    const offlineBlob = new Blob(["offline-package"]);
-    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: offlineBlob });
-
-    const result = await downloadPackageOfflineExport("pkg-1", "hospital-1");
-
-    expect(result).toBe(offlineBlob);
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-1/offline/export", {
-      params: { targetOrgUnitId: "hospital-1" },
-      responseType: "blob",
-    });
-  });
-
-  it("downloads sync evidence from the dedicated sync-log export endpoint", async () => {
-    const evidenceBlob = new Blob(['{"event":"PACKAGE_SYNC_EVIDENCE_SUMMARY"}\n']);
-    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: evidenceBlob });
-
-    const result = await downloadPackageSyncEvidenceExport("pkg-1");
-
-    expect(result).toBe(evidenceBlob);
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-1/sync-logs/export", {
-      responseType: "blob",
-    });
   });
 
   it("downloads the backend generated domestic compatibility report", async () => {
@@ -623,253 +575,6 @@ describe("package export api helpers", () => {
     expect(result).toBe(reportBlob);
     expect(apiClient.get).toHaveBeenCalledWith("/system/operations/domestic-report", {
       responseType: "blob",
-    });
-  });
-
-  it("imports an offline package through the integrity-checking endpoint", async () => {
-    const response = {
-      packageId: "pkg-imported",
-      packageCode: "PKG.IMPORT",
-      packageVersion: "2026.06.01",
-      status: "DRAFT",
-      itemCount: 2,
-      payloadSha256: "a".repeat(64),
-    };
-    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
-
-    const result = await importPackageOfflinePackage('{"format":"MEDKERNEL_PACKAGE_OFFLINE_V2"}');
-
-    expect(result).toBe(response);
-    expect(apiClient.post).toHaveBeenCalledWith("/engine/pkg/packages/offline/import", {
-      offlinePackageJson: '{"format":"MEDKERNEL_PACKAGE_OFFLINE_V2"}',
-    });
-  });
-
-  it("creates a package through the API-10 root with standard context fields", async () => {
-    vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000001");
-    vi.mocked(apiClient.post).mockResolvedValueOnce({
-      data: { data: { packageId: "pkg-1", packageCode: "PKG.COPD" } },
-    });
-
-    const { result } = renderApiHook(() => useCreatePackage());
-
-    await result.current.mutateAsync({
-      packageCode: "PKG.COPD",
-      packageVersion: "1.0.0",
-      name: "配置包",
-      description: "真实资产集合",
-      accessPolicy: "OPEN",
-    });
-
-    expect(apiClient.post).toHaveBeenCalledWith(
-      "/engine/pkg/packages",
-      expect.objectContaining({
-        request_id: "00000000-0000-4000-8000-000000000001",
-        trace_id: "00000000-0000-4000-8000-000000000001",
-        tenant_id: "tenant-A",
-        role_codes: ["integration-operator"],
-        package_version: "1.0.0",
-        packageCode: "PKG.COPD",
-        accessPolicy: "OPEN",
-      }),
-    );
-  });
-
-  it("uses the package entitlement ledger endpoints with standard context", async () => {
-    vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000003");
-    vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: {
-        data: {
-          items: [{ entitlementId: "entitlement-1", tenantId: "tenant-B", status: "ACTIVE" }],
-          page: 1,
-          size: 20,
-          total: 1,
-          hasNext: false,
-          totalEstimated: false,
-        },
-      },
-    });
-    vi.mocked(apiClient.post)
-      .mockResolvedValueOnce({
-        data: { data: { entitlementId: "entitlement-1", tenantId: "tenant-B", status: "ACTIVE" } },
-      })
-      .mockResolvedValueOnce({
-        data: { data: { entitlementId: "entitlement-1", tenantId: "tenant-B", status: "REVOKED" } },
-      });
-
-    const ledger = renderApiHook(() => usePackageEntitlements("pkg-commercial", true, 2));
-    await waitFor(() => expect(ledger.result.current.data?.total).toBe(1));
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-commercial/entitlements", {
-      params: { page: 2, size: 20 },
-    });
-
-    const grant = renderApiHook(() => useGrantPackageEntitlement());
-    await grant.result.current.mutateAsync({
-      packageId: "pkg-commercial",
-      packageVersion: "2026.06",
-      request: {
-        targetTenantId: "tenant-B",
-        expiresAt: "2026-12-31T15:59:00.000Z",
-        reason: "商业许可已审批",
-      },
-    });
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      1,
-      "/engine/pkg/packages/pkg-commercial/entitlements",
-      expect.objectContaining({
-        request_id: "00000000-0000-4000-8000-000000000003",
-        tenant_id: "tenant-A",
-        package_version: "2026.06",
-        targetTenantId: "tenant-B",
-        reason: "商业许可已审批",
-      }),
-    );
-
-    const revoke = renderApiHook(() => useRevokePackageEntitlement());
-    await revoke.result.current.mutateAsync({
-      packageId: "pkg-commercial",
-      packageVersion: "2026.06",
-      tenantId: "tenant/B",
-      reason: "商业许可已终止",
-    });
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      2,
-      "/engine/pkg/packages/pkg-commercial/entitlements/tenant%2FB:revoke",
-      expect.objectContaining({
-        tenant_id: "tenant-A",
-        package_version: "2026.06",
-        reason: "商业许可已终止",
-      }),
-    );
-  });
-
-  it("syncs a package through the API-10 root with standard context fields", async () => {
-    vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000002");
-    vi.mocked(apiClient.post).mockResolvedValueOnce({
-      data: { data: { planId: "plan-1", packageId: "pkg-1", status: "NOT_SYNCED", logs: [] } },
-    });
-
-    const { result } = renderApiHook(() => useSyncPackage());
-
-    await result.current.mutateAsync({
-      packageId: "pkg-1",
-      request: {
-        packageVersion: "1.0.0",
-        reason: "验证灰度发布",
-        targetOrgUnitId: "org-1",
-        strategy: "GRAYSCALE",
-        scopeType: "DEPARTMENT",
-        scopeValue: "dept-A",
-        adapterIds: ["target-1"],
-      },
-    });
-
-    expect(apiClient.post).toHaveBeenCalledWith(
-      "/engine/pkg/packages/pkg-1/sync",
-      expect.objectContaining({
-        request_id: "00000000-0000-4000-8000-000000000002",
-        trace_id: "00000000-0000-4000-8000-000000000002",
-        tenant_id: "tenant-A",
-        package_version: "1.0.0",
-        adapterIds: ["target-1"],
-      }),
-    );
-  });
-
-  it("loads persisted sync logs from the API-10 sync-log endpoint", async () => {
-    const page = {
-      items: [{ logId: "log-1", status: "NOT_SYNCED", syncEvidence: null }],
-      page: 2,
-      size: 10,
-      total: 21,
-      hasNext: true,
-      totalEstimated: false,
-    };
-    vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: { data: page },
-    });
-
-    const { result } = renderApiHook(() => usePackageSyncLogs("pkg-1", { page: 2, size: 10 }));
-
-    await waitFor(() => expect(result.current.data).toEqual(page));
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pkg-1/sync-logs", {
-      params: { page: 2, size: 10 },
-    });
-  });
-
-  it("loads package release adapters through server pagination", async () => {
-    const page = {
-      items: [{ adapterId: "target-his", adapterName: "HIS 同步通道" }],
-      page: 2,
-      size: 10,
-      total: 21,
-      hasNext: true,
-      totalEstimated: false,
-    };
-    vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: { data: page },
-    });
-
-    const { result } = renderApiHook(() => usePackageReleaseAdapters({ page: 2, size: 10 }));
-
-    await waitFor(() => expect(result.current.data).toEqual(page));
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/release-adapters", {
-      params: { page: 2, size: 10 },
-    });
-  });
-
-  it("loads package inheritance impact with the platform-first query contract", async () => {
-    const response = {
-      tenantId: "tenant-A",
-      assetType: "RULE",
-      assetIdentity: "RULE.VTE.RISK",
-      applicableScope: "adult|inpatient",
-      upstreamBaseVersion: "1.0.0",
-      upstreamTargetVersion: "2.0.0",
-      autoInheritedCount: 1,
-      rebaseRequiredCount: 1,
-      upstreamDiff: {
-        packageId: "RULE.VTE.RISK",
-        baseVersion: "1.0.0",
-        targetVersion: "2.0.0",
-        addedCount: 0,
-        updatedCount: 1,
-        removedCount: 0,
-        affectedDepartments: ["心内科"],
-        changes: [],
-      },
-      targets: [
-        {
-          orgUnitId: "hospital-1",
-          orgPath: "/TENANT-A/HOSPITAL-1",
-          impactType: "AUTO_INHERITS_UPSTREAM",
-          effectiveVersionId: "av-platform-v1",
-          effectiveVersionNo: "1.0.0",
-          sourceTier: "PLATFORM",
-          diffSummary: null,
-          rebasePrompt: "平台新版本激活后自动继承",
-        },
-      ],
-    };
-    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: response } });
-
-    const { result } = renderApiHook(() =>
-      usePackageInheritanceImpact({
-        assetType: "RULE",
-        assetIdentity: "RULE.VTE.RISK",
-        applicableScope: "adult|inpatient",
-        upstreamVersionId: "av-platform-v2",
-      }),
-    );
-
-    await waitFor(() => expect(result.current.data).toEqual(response));
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/inheritance-impact", {
-      params: {
-        assetType: "RULE",
-        assetIdentity: "RULE.VTE.RISK",
-        applicableScope: "adult|inpatient",
-        upstreamVersionId: "av-platform-v2",
-      },
     });
   });
 
@@ -1192,7 +897,6 @@ describe("package export api helpers", () => {
     const createHook = renderApiHook(() => useCreateFollowupTemplate());
     await createHook.result.current.mutateAsync({
       templateCode: "FUP.COPD",
-      versionNo: 1,
       name: "慢阻肺出院随访",
       organizationScope: "tenant:tenant-A",
       applicableScope: "riskLevel=HIGH",
@@ -1210,7 +914,7 @@ describe("package export api helpers", () => {
     expect(apiClient.post).toHaveBeenNthCalledWith(
       1,
       "/engine/followup/templates",
-      expect.objectContaining({ templateCode: "FUP.COPD", versionNo: 1 }),
+      expect.objectContaining({ templateCode: "FUP.COPD" }),
     );
 
     const publishHook = renderApiHook(() => usePublishFollowupTemplate());
@@ -1251,7 +955,6 @@ describe("package export api helpers", () => {
       useRuleDefinitions({ size: 100 }, { enabled: false });
       usePathwayTemplates({ size: 100 }, { enabled: false });
       useEvaluationIndicators({ size: 100 }, { enabled: false });
-      usePackages({ size: 20, assetType: "EVALUATION" }, { enabled: false });
     });
 
     expect(apiClient.get).not.toHaveBeenCalled();
@@ -1305,45 +1008,60 @@ describe("package export api helpers", () => {
     });
   });
 
-  it("loads condition fragment impact through paged authoring endpoint", async () => {
-    const response = {
-      fragmentId: "frag-renal-v1",
-      fragmentCode: "FRAG_RENAL_IMPAIRED",
-      versionNo: 1,
-      packageVersion: "pkg-2026.06",
-      affectedAssets: {
-        items: [
-          {
-            assetType: "RULE",
-            assetId: "rule-renal",
-            assetCode: "RULE.RENAL",
-            displayName: "肾病规则",
-            impactReason: "规则当前版本 when 引用条件片段",
+  it("creates a pathway draft without legacy package ownership or manual package version", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        data: {
+          template: {
+            templateId: "pathway-1",
+            templateCode: "PATH.CKD.REVIEW",
+            name: "慢性肾病复核路径",
+            diseaseCode: "CKD",
+            templateVersion: 1,
+            templateLevel: "HOSPITAL",
+            status: "DRAFT",
+            entryMode: "MANUAL_CONFIRM",
+            startNodeCode: "ASSESS",
+            sourceRef: "hospital://pathway/ckd",
+            description: "院内慢性肾病路径",
           },
-        ],
-        page: 2,
-        size: 20,
-        total: 21,
-        hasNext: true,
-        totalEstimated: false,
+          milestones: [],
+          nodes: [],
+          edges: [],
+          metricBindings: [],
+          outcomeBindings: [],
+          nextVersionNo: 2,
+          deploymentStatus: "DRAFT",
+          traceId: "trace-pathway-1",
+        },
       },
-      impactDigest: "sha256:fragment-impact",
-      traceId: "trace-fragment-impact",
-    };
-    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: response } });
+    });
 
-    const { result } = renderApiHook(() =>
-      useConditionFragmentImpact("frag-renal-v1", {
-        page: 2,
-        size: 20,
-        sort: "updatedAt,desc",
+    const hook = renderApiHook(() => useCreatePathwayTemplate());
+    await hook.result.current.mutateAsync({
+      templateCode: "PATH.CKD.REVIEW",
+      name: "慢性肾病复核路径",
+      diseaseCode: "CKD",
+      templateLevel: "HOSPITAL",
+      entryMode: "MANUAL_CONFIRM",
+      startNodeCode: "ASSESS",
+      sourceRef: "hospital://pathway/ckd",
+      description: "院内慢性肾病路径",
+      nodes: [],
+      edges: [],
+    });
+
+    const requestBody = vi.mocked(apiClient.post).mock.calls[0]?.[1];
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/pathway/pathway-templates",
+      expect.objectContaining({
+        templateCode: "PATH.CKD.REVIEW",
+        tenant_id: "tenant-A",
       }),
     );
-
-    await waitFor(() => expect(result.current.data?.affectedAssets.items).toHaveLength(1));
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/authoring/fragments/frag-renal-v1/impact", {
-      params: { page: 2, size: 20, sort: "updatedAt,desc" },
-    });
+    expect(requestBody).not.toHaveProperty("packageId");
+    expect(requestBody).not.toHaveProperty("packageVersion");
+    expect(requestBody).not.toHaveProperty("package_version");
   });
 
   it("renders rule and pathway authoring preview through the unified authoring endpoint", async () => {
@@ -1360,7 +1078,6 @@ describe("package export api helpers", () => {
     const hook = renderApiHook(() =>
       useAuthoringPreview({
         subject: "RULE_CONDITION",
-        packageVersion: "pkg-2026.06",
         dsl,
       }),
     );
@@ -1372,19 +1089,19 @@ describe("package export api helpers", () => {
         subject: "RULE_CONDITION",
         dsl,
         tenant_id: "tenant-A",
-        role_codes: ["integration-operator"],
-        package_version: "pkg-2026.06",
+        role_codes: ["platform-admin"],
         request_id: expect.any(String),
         trace_id: expect.any(String),
       }),
     );
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("package_version");
   });
 
   it("runs draft authoring preview against a real snapshot through the unified endpoint", async () => {
     const response = {
       subject: "PATHWAY_GUARD",
       snapshotId: "ctx-real-1",
-      packageVersion: "pkg-2026.06",
+      runtimeReleaseId: "runtime-release-authoring",
       matched: true,
       hit: null,
       outcomeText: "草稿路径推进到 REVIEW",
@@ -1406,7 +1123,6 @@ describe("package export api helpers", () => {
     await expect(
       result.current.mutateAsync({
         subject: "PATHWAY_GUARD",
-        packageVersion: "pkg-2026.06",
         snapshotId: "ctx-real-1",
         dsl,
         startNodeCode: "START",
@@ -1422,29 +1138,27 @@ describe("package export api helpers", () => {
         startNodeCode: "START",
         requestedNextNodeCodes: ["REVIEW"],
         tenant_id: "tenant-A",
-        role_codes: ["integration-operator"],
-        package_version: "pkg-2026.06",
+        role_codes: ["platform-admin"],
         request_id: expect.any(String),
         trace_id: expect.any(String),
       }),
     );
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("package_version");
   });
 
   it("loads reusable authoring assets from the unified asset library", async () => {
     const page = {
       items: [
         {
-          assetType: "CONDITION_FRAGMENT",
-          assetId: "frag-ckd",
-          assetCode: "FRAG.CKD",
-          name: "CKD 条件片段",
+          assetType: "RULE",
+          assetId: "rule-ckd",
+          assetCode: "RULE.CKD",
+          name: "CKD 阻断规则",
           category: "慢病",
           tags: ["复用"],
           version: "1",
           status: "ACTIVE",
-          packageVersion: "pkg-2026.06",
           favorite: true,
-          cloneable: true,
           updatedAt: "2026-06-08T00:00:00Z",
         },
       ],
@@ -1458,7 +1172,7 @@ describe("package export api helpers", () => {
 
     const { result } = renderApiHook(() =>
       useAuthoringAssets({
-        assetType: "CONDITION_FRAGMENT",
+        assetType: "RULE",
         keyword: "CKD",
         tag: "复用",
         favoriteOnly: true,
@@ -1470,7 +1184,7 @@ describe("package export api helpers", () => {
     await waitFor(() => expect(result.current.data).toBe(page));
     expect(apiClient.get).toHaveBeenCalledWith("/engine/authoring/assets", {
       params: {
-        assetType: "CONDITION_FRAGMENT",
+        assetType: "RULE",
         keyword: "CKD",
         tag: "复用",
         favoriteOnly: true,
@@ -1480,81 +1194,43 @@ describe("package export api helpers", () => {
     });
   });
 
-  it("updates profile, favorite state and clone draft through unified asset endpoints", async () => {
+  it("updates profile and favorite state through unified asset endpoints", async () => {
     vi.mocked(apiClient.put).mockResolvedValueOnce({
-      data: { data: { assetType: "CONDITION_FRAGMENT", assetId: "frag-ckd", tags: ["CKD"] } },
+      data: { data: { assetType: "RULE", assetId: "rule-ckd", tags: ["CKD"] } },
     });
-    vi.mocked(apiClient.post)
-      .mockResolvedValueOnce({
-        data: { data: { assetType: "CONDITION_FRAGMENT", assetId: "frag-ckd", favorite: true } },
-      })
-      .mockResolvedValueOnce({
-        data: {
-          data: {
-            sourceAssetType: "CONDITION_FRAGMENT",
-            sourceAssetId: "frag-ckd",
-            clonedAssetType: "CONDITION_FRAGMENT",
-            clonedAssetId: "frag-copy",
-            clonedAssetCode: "FRAG.CKD.COPY",
-            status: "DRAFT",
-          },
-        },
-      });
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { data: { assetType: "RULE", assetId: "rule-ckd", favorite: true } },
+    });
     vi.mocked(apiClient.delete).mockResolvedValueOnce({
-      data: { data: { assetType: "CONDITION_FRAGMENT", assetId: "frag-ckd", favorite: false } },
+      data: { data: { assetType: "RULE", assetId: "rule-ckd", favorite: false } },
     });
 
     const profile = renderApiHook(() => useUpdateAuthoringAssetProfile());
     await profile.result.current.mutateAsync({
-      assetType: "CONDITION_FRAGMENT",
-      assetId: "frag-ckd",
+      assetType: "RULE",
+      assetId: "rule-ckd",
       request: { category: "慢病", tags: ["CKD"] },
     });
 
     const favorite = renderApiHook(() => useFavoriteAuthoringAsset());
     await favorite.result.current.mutateAsync({
-      assetType: "CONDITION_FRAGMENT",
-      assetId: "frag-ckd",
+      assetType: "RULE",
+      assetId: "rule-ckd",
     });
 
     const unfavorite = renderApiHook(() => useUnfavoriteAuthoringAsset());
     await unfavorite.result.current.mutateAsync({
-      assetType: "CONDITION_FRAGMENT",
-      assetId: "frag-ckd",
+      assetType: "RULE",
+      assetId: "rule-ckd",
     });
 
-    const clone = renderApiHook(() => useCloneAuthoringAsset());
-    await clone.result.current.mutateAsync({
-      assetType: "CONDITION_FRAGMENT",
-      assetId: "frag-ckd",
-      request: {
-        newCode: "FRAG.CKD.COPY",
-        newName: "CKD 条件片段副本",
-        newVersion: 1,
-        packageVersion: "pkg-2026.06",
-      },
+    expect(apiClient.put).toHaveBeenCalledWith("/engine/authoring/assets/RULE/rule-ckd/profile", {
+      category: "慢病",
+      tags: ["CKD"],
     });
-
-    expect(apiClient.put).toHaveBeenCalledWith(
-      "/engine/authoring/assets/CONDITION_FRAGMENT/frag-ckd/profile",
-      { category: "慢病", tags: ["CKD"] },
-    );
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      1,
-      "/engine/authoring/assets/CONDITION_FRAGMENT/frag-ckd/favorite",
-    );
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/authoring/assets/RULE/rule-ckd/favorite");
     expect(apiClient.delete).toHaveBeenCalledWith(
-      "/engine/authoring/assets/CONDITION_FRAGMENT/frag-ckd/favorite",
-    );
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      2,
-      "/engine/authoring/assets/CONDITION_FRAGMENT/frag-ckd/clone",
-      {
-        newCode: "FRAG.CKD.COPY",
-        newName: "CKD 条件片段副本",
-        newVersion: 1,
-        packageVersion: "pkg-2026.06",
-      },
+      "/engine/authoring/assets/RULE/rule-ckd/favorite",
     );
   });
 
@@ -1566,7 +1242,6 @@ describe("package export api helpers", () => {
       totalCount: 1,
       successCount: 1,
       failureCount: 0,
-      retryableCount: 0,
       items: [],
       traceId: "trace-batch",
       createdAt: "2026-06-08T00:00:00Z",
@@ -1609,7 +1284,7 @@ describe("package export api helpers", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/engine/authoring/batch/rules/generate", request);
   });
 
-  it("analyzes high-risk rules before publishing and distributes packages through one batch API", async () => {
+  it("analyzes high-risk rules before publishing through the batch API", async () => {
     const impact = {
       totalCount: 1,
       highRiskCount: 1,
@@ -1634,7 +1309,6 @@ describe("package export api helpers", () => {
       totalCount: 1,
       successCount: 1,
       failureCount: 0,
-      retryableCount: 0,
       items: [],
       traceId: "trace-batch",
       createdAt: "2026-06-08T00:00:00Z",
@@ -1642,10 +1316,7 @@ describe("package export api helpers", () => {
     };
     vi.mocked(apiClient.post)
       .mockResolvedValueOnce({ data: { data: impact } })
-      .mockResolvedValueOnce({ data: { data: job } })
-      .mockResolvedValueOnce({
-        data: { data: { ...job, jobType: "PACKAGE_DISTRIBUTE", status: "NOT_CONNECTED" } },
-      });
+      .mockResolvedValueOnce({ data: { data: job } });
 
     const analyze = renderApiHook(() => useAnalyzeAuthoringBatchRuleImpacts());
     await analyze.result.current.mutateAsync(["rule-high"]);
@@ -1653,7 +1324,7 @@ describe("package export api helpers", () => {
     const publish = renderApiHook(() => usePublishAuthoringBatchRules());
     const publishRequest = {
       targetState: "FULL" as const,
-      reason: "委员会批准",
+      reason: "负责人已确认影响范围",
       items: [
         {
           itemId: "rule-high",
@@ -1665,23 +1336,6 @@ describe("package export api helpers", () => {
     };
     await publish.result.current.mutateAsync(publishRequest);
 
-    const distribute = renderApiHook(() => useDistributeAuthoringBatchPackages());
-    const distributeRequest = {
-      items: [
-        {
-          itemId: "package-1-hospital-1",
-          packageId: "package-1",
-          targetOrgUnitId: "hospital-1",
-          strategy: "FULL" as const,
-          scopeType: "FACILITY" as const,
-          scopeValue: "hospital-1",
-          adapterIds: ["fhir"],
-          reason: "批量分发",
-        },
-      ],
-    };
-    await distribute.result.current.mutateAsync(distributeRequest);
-
     expect(apiClient.post).toHaveBeenNthCalledWith(1, "/engine/authoring/batch/rules/impact", {
       ruleIds: ["rule-high"],
     });
@@ -1690,11 +1344,7 @@ describe("package export api helpers", () => {
       "/engine/authoring/batch/rules/publish",
       publishRequest,
     );
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      3,
-      "/engine/authoring/batch/packages/distribute",
-      distributeRequest,
-    );
+    expect(apiClient.post).toHaveBeenCalledTimes(2);
   });
 
   it("creates parameterized rules with standard context and parameter bindings", async () => {
@@ -1723,7 +1373,13 @@ describe("package export api helpers", () => {
         riskLevel: "CRITICAL",
         priority: 100,
         dedupeWindowSeconds: 900,
-        packageVersion: "pkg-2026.06",
+        triggers: [
+          {
+            trigger_point: "result-review",
+            purpose: "RULE_EXECUTION",
+            required_fields: ["observations[].valueNumeric"],
+          },
+        ],
         sourceRef: "检验危急值管理制度 2026",
         changeSummary: "按参数生成草稿",
         dslJson: dsl,
@@ -1743,10 +1399,135 @@ describe("package export api helpers", () => {
           criticalThreshold: 6.5,
         },
         tenant_id: "tenant-A",
-        role_codes: ["integration-operator"],
-        package_version: "pkg-2026.06",
+        role_codes: ["platform-admin"],
+        triggers: [
+          {
+            trigger_point: "result-review",
+            purpose: "RULE_EXECUTION",
+            required_fields: ["observations[].valueNumeric"],
+          },
+        ],
       }),
     );
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("package_version");
+  });
+
+  it("creates the next rule version with standard context", async () => {
+    const response = {
+      ruleId: "rule-1",
+      versionId: "version-2",
+      versionNo: 2,
+      status: "DRAFT",
+      traceId: "trace-1",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() => useCreateNextRuleVersion());
+
+    await expect(
+      result.current.mutateAsync({
+        ruleId: "rule-1",
+      }),
+    ).resolves.toEqual(response);
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/rule/rules/rule-1/versions",
+      expect.objectContaining({
+        tenant_id: "tenant-A",
+        user_id: "user-1",
+        role_codes: ["platform-admin"],
+      }),
+    );
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("package_version");
+  });
+
+  it("updates the current rule draft version with standard context", async () => {
+    const response = {
+      definition: { ruleId: "rule-1" },
+      version: { versionId: "version-2", versionNo: 2 },
+    };
+    vi.mocked(apiClient.put).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() => useUpdateRule());
+    const dsl = { trigger: "result-review", when: { all: [] } };
+    const explanation = { summary: "更新说明" };
+
+    await expect(
+      result.current.mutateAsync({
+        ruleId: "rule-1",
+        ruleCode: "RULE.LAB.CRITICAL.K",
+        name: "血钾危急值回报",
+        ruleType: "LAB",
+        authoringMode: "VISUAL",
+        riskLevel: "HIGH",
+        priority: 100,
+        dedupeWindowSeconds: 0,
+        triggers: [
+          {
+            trigger_point: "result-review",
+            purpose: "RULE_EXECUTION",
+            required_fields: [],
+          },
+        ],
+        sourceRef: "检验危急值制度 2026 修订版",
+        changeSummary: "更新阈值与说明",
+        dslJson: dsl,
+        explanationJson: explanation,
+      }),
+    ).resolves.toEqual(response);
+
+    expect(apiClient.put).toHaveBeenCalledWith(
+      "/engine/rule/rules/rule-1",
+      expect.objectContaining({
+        ruleCode: "RULE.LAB.CRITICAL.K",
+        dsl,
+        explanation,
+        tenant_id: "tenant-A",
+        user_id: "user-1",
+        role_codes: ["platform-admin"],
+        triggers: [
+          {
+            trigger_point: "result-review",
+            purpose: "RULE_EXECUTION",
+            required_fields: [],
+          },
+        ],
+      }),
+    );
+    expect(vi.mocked(apiClient.put).mock.calls[0]?.[1]).not.toHaveProperty("package_version");
+  });
+
+  it("adds rule test cases against the current draft without client supplied package version", async () => {
+    const response = {
+      caseId: "rtc-1",
+      caseType: "POSITIVE",
+      lastStatus: "NOT_RUN",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() => useAddTestCase("rule-real-1"));
+
+    await expect(
+      result.current.mutateAsync({
+        caseType: "POSITIVE",
+        contextSnapshotId: "snapshot-active-1",
+        expectedHit: true,
+        expectedSeverity: "HIGH",
+        expectedActionCode: "STRONG_REMINDER",
+      }),
+    ).resolves.toEqual(response);
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/rule/rules/rule-real-1/test-cases",
+      expect.objectContaining({
+        caseType: "POSITIVE",
+        contextSnapshotId: "snapshot-active-1",
+        expectedHit: true,
+        tenant_id: "tenant-A",
+        user_id: "user-1",
+      }),
+    );
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("package_version");
   });
 
   it("runs all rule cases through the canonical rule test endpoint with standard context", async () => {
@@ -1763,9 +1544,7 @@ describe("package export api helpers", () => {
 
     const { result } = renderApiHook(() => useRunRuleTests("rule-real-1"));
 
-    await expect(result.current.mutateAsync({ packageVersion: "pkg-2026.06" })).resolves.toEqual(
-      response,
-    );
+    await expect(result.current.mutateAsync()).resolves.toEqual(response);
     expect(apiClient.post).toHaveBeenCalledWith(
       "/engine/rule/rules/rule-real-1/test",
       expect.objectContaining({
@@ -1777,10 +1556,81 @@ describe("package export api helpers", () => {
         department_id: "dept-A",
         specialty_id: "specialty-A",
         user_id: "user-1",
-        role_codes: ["integration-operator"],
-        package_version: "pkg-2026.06",
+        role_codes: ["platform-admin"],
         request_id: expect.any(String),
         trace_id: expect.any(String),
+      }),
+    );
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("package_version");
+  });
+
+  it("simulates the selected rule against explicit input without client supplied package version", async () => {
+    const response = {
+      executionId: "rex-sim-1",
+      ruleId: "rule-real-1",
+      versionId: "version-1",
+      hit: true,
+      severity: "HIGH",
+      actions: [],
+      explanation: {},
+      status: "SUCCESS",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() => useSimulateRule("rule-real-1"));
+
+    await expect(
+      result.current.mutateAsync({
+        triggerPoint: "order-sign",
+        inputPayload: { patient: { age: 72 } },
+      }),
+    ).resolves.toEqual(response);
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/rule/rules/rule-real-1/simulate",
+      expect.objectContaining({
+        triggerPoint: "order-sign",
+        context: { patient: { age: 72 } },
+        tenant_id: "tenant-A",
+        user_id: "user-1",
+      }),
+    );
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("package_version");
+  });
+
+  it("evaluates clinical rules from the selected snapshot without client supplied package version", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000005");
+    const response = {
+      requestId: "req-runtime",
+      items: [],
+      highestSeverity: "LOW",
+      cards: [],
+      traceId: "trace-rule",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() => useEvaluateRules());
+
+    await expect(
+      result.current.mutateAsync({
+        triggerPoint: "order-sign",
+        contextSnapshotId: "snapshot-runtime-1",
+      }),
+    ).resolves.toEqual(response);
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/rule/rules/evaluate",
+      expect.not.objectContaining({
+        package_version: expect.anything(),
+      }),
+    );
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/rule/rules/evaluate",
+      expect.objectContaining({
+        tenant_id: "tenant-A",
+        role_codes: ["platform-admin"],
+        triggerPoint: "order-sign",
+        contextSnapshotId: "snapshot-runtime-1",
       }),
     );
   });
@@ -1793,12 +1643,8 @@ describe("package export api helpers", () => {
           ruleId: "rule-real-1",
           versionId: "version-1",
           state: "FULL",
-          requiredSignoffs: 2,
-          reviewRound: 1,
-          committeeApprovalCount: 2,
           authorId: "author-1",
           lastReason: "院级管理员确认全量激活",
-          signoffs: [],
           testResults: [],
           traceId: "trace-full",
           impactDigest: "sha256:impact",
@@ -1810,27 +1656,18 @@ describe("package export api helpers", () => {
 
     const { result } = renderApiHook(() => useTransitionRuleGovernance());
     const publishEvidence = {
-      electronicSignature: {
-        signatureId: "sig-rule-full",
-        signerId: "user-1",
-        signerName: "测试审核人",
-        signedAt: "2026-06-08T08:00:00Z",
-        signatureHash: "a".repeat(64),
-      },
       qualityGate: {
         schemaValid: true,
         terminologyBindingComplete: true,
         dependencyIntegrityVerified: true,
         safetyMonotonicityVerified: true,
         impactSimulationPassed: true,
-        peerReviewSigned: true,
         summary: "规则发布质量门全部通过",
       },
     };
 
     await result.current.mutateAsync({
       ruleId: "rule-real-1",
-      packageVersion: "1.0.0",
       targetState: "FULL",
       impactDigest: "sha256:impact",
       reason: "院级管理员确认全量激活",
@@ -1844,50 +1681,9 @@ describe("package export api helpers", () => {
         impactDigest: "sha256:impact",
         reason: "院级管理员确认全量激活",
         publishEvidence,
-        package_version: "1.0.0",
       }),
     );
-  });
-
-  it("records a committee signoff through the governance endpoint", async () => {
-    vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000004");
-    vi.mocked(apiClient.post).mockResolvedValueOnce({
-      data: {
-        data: {
-          ruleId: "rule-real-1",
-          versionId: "version-1",
-          state: "COMMITTEE",
-          requiredSignoffs: 2,
-          reviewRound: 1,
-          committeeApprovalCount: 1,
-          authorId: "author-1",
-          lastReason: "委员会会签已记录",
-          signoffs: [],
-          testResults: [],
-          releaseEvidence: [],
-          traceId: "trace-signoff",
-        },
-      },
-    });
-
-    const { result } = renderApiHook(() => useSignoffRule());
-    await result.current.mutateAsync({
-      ruleId: "rule-real-1",
-      packageVersion: "1.0.0",
-      stage: "COMMITTEE",
-      decision: "APPROVED",
-      reason: "同意进入影子验证",
-    });
-
-    expect(apiClient.post).toHaveBeenCalledWith(
-      "/engine/rule/rules/rule-real-1/governance/signoffs",
-      expect.objectContaining({
-        stage: "COMMITTEE",
-        decision: "APPROVED",
-        reason: "同意进入影子验证",
-        package_version: "1.0.0",
-      }),
-    );
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("package_version");
   });
 
   it("loads rule shadow stats from the governance stats endpoint", async () => {
@@ -2306,6 +2102,8 @@ describe("package export api helpers", () => {
       scenarioCode: "A9",
       packageVersion: "2026.1",
       responsibleDepartmentId: "dept-insurance",
+    } as Parameters<ReturnType<typeof useRunQualityCaseReview>["mutateAsync"]>[0] & {
+      packageVersion: string;
     });
 
     const drgGrouping = renderApiHook(() => useRunDrgGrouping());
@@ -2336,12 +2134,13 @@ describe("package export api helpers", () => {
           description: "费用超过版本化规则阈值",
         },
       ],
+    } as Parameters<ReturnType<typeof useRunInsuranceAudit>["mutateAsync"]>[0] & {
+      packageVersion: string;
     });
 
     expect(apiClient.post).toHaveBeenNthCalledWith(1, "/engine/quality/case-review", {
       contextSnapshotId: "snapshot-ins",
       scenarioCode: "A9",
-      packageVersion: "2026.1",
       responsibleDepartmentId: "dept-insurance",
     });
     expect(apiClient.post).toHaveBeenNthCalledWith(2, "/engine/quality/drg-grouping", {
@@ -2355,7 +2154,6 @@ describe("package export api helpers", () => {
     expect(apiClient.post).toHaveBeenNthCalledWith(3, "/engine/quality/insurance-audit", {
       contextSnapshotId: "snapshot-ins",
       scenarioCode: "A9",
-      packageVersion: "2026.1",
       indicatorId: "indicator-insurance",
       responsibleDepartmentId: "dept-insurance",
       dueAt: "2026-06-12T00:00:00Z",
@@ -2393,13 +2191,14 @@ describe("package export api helpers", () => {
       contextSnapshotId: "snapshot-1",
       scenarioCode: "DISCHARGE",
       packageVersion: "1.0.0",
+    } as Parameters<ReturnType<typeof useEvaluateSnapshot>["mutateAsync"]>[0] & {
+      packageVersion: string;
     });
 
     expect(response.modelStatus).toBe("MODEL_DISABLED");
     expect(apiClient.post).toHaveBeenCalledWith("/engine/evaluation:evaluate", {
       contextSnapshotId: "snapshot-1",
       scenarioCode: "DISCHARGE",
-      packageVersion: "1.0.0",
     });
   });
 
@@ -2456,38 +2255,13 @@ describe("package export api helpers", () => {
     );
   });
 
-  it("loads package list through API-13 style server-side paging and filters", async () => {
-    vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: {
-        data: {
-          items: [],
-          page: 1,
-          size: 10,
-          total: 0,
-          hasNext: false,
-          totalEstimated: false,
-        },
-      },
-    });
-
-    const { result } = renderApiHook(() =>
-      usePackages({ page: 0, size: 10, keyword: "COPD", status: "DRAFT" }),
-    );
-
-    await waitFor(() => expect(result.current.data?.items).toEqual([]));
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages", {
-      params: { page: 1, size: 10, keyword: "COPD", status: "DRAFT" },
-    });
-  });
-
-  it("loads context field catalog with package version params", async () => {
+  it("loads the context field working catalog without a legacy package selector", async () => {
     vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: [] } });
 
     const { result } = renderApiHook(() =>
       useContextFieldCatalog({
         resourceType: "Observation",
         keyword: "血糖",
-        packageVersion: "pkg-2026.06",
       }),
     );
 
@@ -2496,62 +2270,24 @@ describe("package export api helpers", () => {
       params: {
         resourceType: "Observation",
         keyword: "血糖",
-        packageVersion: "pkg-2026.06",
       },
     });
   });
 
-  it("loads pilot package templates from the dedicated API-10 endpoint", async () => {
-    const templates = [
-      {
-        templateId: "tpl-first-run",
-        templateCode: "TPL.FIRST_RUN",
-        tenantId: "t-1",
-        name: "首发模板",
-        description: "试点首发配置包",
-        packageCodePrefix: "PILOT.FIRST",
-        defaultPackageVersion: "2026.06.01",
-        itemCount: 1,
-        items: [
-          {
-            assetType: "KNOWLEDGE",
-            assetId: "KN.COPD",
-            assetVersion: "2026.06",
-            required: true,
-            sortOrder: 0,
-            dependencyNote: "首发知识库",
-          },
-        ],
-      },
-    ];
-    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: templates } });
-
-    const { result } = renderApiHook(() => usePilotPackageTemplates());
-
-    await waitFor(() => expect(result.current.data).toBe(templates));
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/pilot-templates");
-  });
-
-  it("loads asset readiness from the dedicated API-10 endpoint", async () => {
-    const readiness = {
-      tenantId: "tenant-A",
-      ready: true,
-      templateCount: 1,
-      draftPackageCount: 1,
-      releasedPackageCount: 1,
-      activePackageCount: 1,
-      activePackageReferenceCount: 1,
-      grayscaleReady: true,
-      readyPackageId: "pkg-ready",
-      blockers: [],
-      checkedAt: "2026-06-03T00:00:00Z",
+  it("snapshots the context field working catalog as an automatically versioned asset draft", async () => {
+    const response = {
+      versionId: "field-catalog-v2",
+      assetIdentity: "FIELD.CATALOG.CLINICAL_CONTEXT",
+      versionNo: "V2",
+      status: "DRAFT",
+      contentHash: "a".repeat(64),
     };
-    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: readiness } });
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
 
-    const { result } = renderApiHook(() => usePackageAssetReadiness());
+    const { result } = renderApiHook(() => useSnapshotContextFieldCatalogDraft());
 
-    await waitFor(() => expect(result.current.data).toBe(readiness));
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/pkg/packages/asset-readiness");
+    await expect(result.current.mutateAsync()).resolves.toEqual(response);
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/context/field-catalog/drafts");
   });
 
   it("loads implementation guide steps from the tenant engine readiness endpoint", async () => {
@@ -2690,55 +2426,6 @@ describe("package export api helpers", () => {
       params: { page: 1, size: 20 },
     });
   });
-
-  it("applies pilot template references through API-10 with standard context fields", async () => {
-    vi.spyOn(crypto, "randomUUID").mockReturnValue("00000000-0000-4000-8000-000000000003");
-    vi.mocked(apiClient.post).mockResolvedValueOnce({
-      data: {
-        data: {
-          templateCode: "TPL.FIRST_RUN",
-          references: [
-            {
-              referenceId: "ref-first",
-              tenantId: "tenant-A",
-              platformTenantId: "t-1",
-              platformPackageId: "pkg-first",
-              packageCode: "PKG.FIRST",
-              packageVersion: "2026.06.03",
-              targetOrgUnitId: "hospital-1",
-              sourceTemplateCode: "TPL.FIRST_RUN",
-              status: "ACTIVE",
-            },
-          ],
-          initialOverrides: [],
-        },
-      },
-    });
-
-    const { result } = renderApiHook(() => useApplyPilotTemplateReferences());
-
-    await result.current.mutateAsync({
-      templateCode: "TPL.FIRST_RUN",
-      packageVersion: "2026.06.03",
-      request: {
-        target_org_unit_id: "hospital-1",
-        initial_overrides: [],
-      },
-    });
-
-    expect(apiClient.post).toHaveBeenCalledWith(
-      "/engine/pkg/packages/pilot-templates/TPL.FIRST_RUN/references",
-      expect.objectContaining({
-        request_id: "00000000-0000-4000-8000-000000000003",
-        trace_id: "00000000-0000-4000-8000-000000000003",
-        tenant_id: "tenant-A",
-        role_codes: ["integration-operator"],
-        package_version: "2026.06.03",
-        target_org_unit_id: "hospital-1",
-        initial_overrides: [],
-      }),
-    );
-  });
 });
 
 describe("recommendation evaluation api hook", () => {
@@ -2754,7 +2441,6 @@ describe("recommendation evaluation api hook", () => {
       contextSnapshotId: "snapshot-active-1",
       patientId: "MPI-1",
       encounterId: "encounter-1",
-      packageVersion: "pkg-2026.06",
     };
     const response = {
       triggerId: "trigger-1",
@@ -2786,7 +2472,7 @@ describe("sandbox orchestration api hook", () => {
     const response = [
       {
         id: "scenario-1",
-        servicePackage: "clinical-collaboration",
+        serviceLine: "clinical-collaboration",
         title: "受控场景",
         input: { kind: "numeric", defaultValue: 1 },
       },
@@ -2799,18 +2485,16 @@ describe("sandbox orchestration api hook", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/engine/sandbox/scenarios");
   });
 
-  it("loads the runtime-resolved sandbox binding without a client package version", async () => {
+  it("loads the current hospital runtime status without a client package selector", async () => {
     const response = {
       ready: true,
       targetOrgUnitId: "hospital-sandbox-1",
-      bindingId: "binding-1",
-      packageOwnerTenantId: "tenant-sandbox-1",
-      packageId: "pkg-1",
-      packageCode: "PKG.SANDBOX",
-      packageVersion: "7.2.1",
-      resolutionSource: "TENANT_PACKAGE",
+      runtimeReleaseId: "runtime-sandbox-1",
+      runtimeRevisionNo: 7,
+      platformBaselineReleaseId: "platform-baseline-1",
+      manifestSha256: "a".repeat(64),
+      resolutionSource: "CURRENT_RUNTIME_RELEASE",
       assetCount: 10,
-      warnings: [],
       resolvedAt: "2026-06-19T03:00:00Z",
       externalSideEffects: false,
     };
@@ -2819,7 +2503,7 @@ describe("sandbox orchestration api hook", () => {
     const { result } = renderApiHook(() => useSandboxRuntimeStatus());
 
     await waitFor(() => expect(result.current.data).toEqual(response));
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/sandbox/runtime-binding");
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/sandbox/runtime-status");
   });
 
   it("runs the selected scenario through the backend orchestration endpoint", async () => {
@@ -2829,8 +2513,9 @@ describe("sandbox orchestration api hook", () => {
       runId: "run-1",
       baselineId: "baseline-1",
       mode: "CURRENT" as const,
-      resolvedPackageVersion: "7.2.1",
-      resolutionSource: "TENANT_PACKAGE" as const,
+      runtimeReleaseRef: "runtime-sandbox-1",
+      runtimeRevisionNo: 7,
+      resolutionSource: "CURRENT_RUNTIME_RELEASE" as const,
       externalSideEffects: false,
       steps: [],
       snapshotId: "snapshot-1",
@@ -2873,7 +2558,42 @@ describe("sandbox orchestration api hook", () => {
 
 describe("patient pathway entry api hook", () => {
   beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
     vi.mocked(apiClient.post).mockReset();
+  });
+
+  it("queries entry candidates by snapshot and clinical trigger only", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        data: {
+          contextSnapshotId: "ctx-active-1",
+          triggerPoint: "patient-view",
+          candidates: [
+            {
+              templateId: "pt-1",
+              templateCode: "TPL.COPD",
+              name: "稳定期随访路径",
+              diseaseCode: "COPD",
+            },
+          ],
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() =>
+      usePathwayEntryCandidates("ctx-active-1", "patient-view"),
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/engine/pathway/patient-pathways/entry-candidates",
+      {
+        params: {
+          contextSnapshotId: "ctx-active-1",
+          triggerPoint: "patient-view",
+        },
+      },
+    );
   });
 
   it("submits only the context snapshot reference and pathway choices", async () => {
@@ -2891,23 +2611,59 @@ describe("patient pathway entry api hook", () => {
     const { result } = renderApiHook(() => useEnterPatientPathway());
     await result.current.mutateAsync({
       contextSnapshotId: "ctx-active-1",
+      triggerPoint: "patient-view",
       templateId: "pt-1",
       startNodeCode: "ASSESS",
-      packageVersion: "pkg-2026.06",
     });
 
     expect(apiClient.post).toHaveBeenCalledWith(
       "/engine/pathway/patient-pathways/enter",
       expect.objectContaining({
         contextSnapshotId: "ctx-active-1",
+        triggerPoint: "patient-view",
         templateId: "pt-1",
         startNodeCode: "ASSESS",
-        package_version: "pkg-2026.06",
       }),
     );
     const request = vi.mocked(apiClient.post).mock.calls[0]?.[1] as Record<string, unknown>;
     expect(request).not.toHaveProperty("patientId");
     expect(request).not.toHaveProperty("encounterId");
+    expect(request).not.toHaveProperty("package_version");
+  });
+
+  it("advances a patient pathway without client supplied package version", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        data: {
+          patientPathwayId: "pp-1",
+          previousNodeCode: "ASSESS",
+          nextNodeCode: "FOLLOWUP",
+          status: "NODE_EXECUTING",
+          traceId: "trace-advance-1",
+        },
+      },
+    });
+
+    const { result } = renderApiHook(() => useAdvancePatientPathway());
+    await result.current.mutateAsync({
+      patientPathwayId: "pp-1",
+      triggerPoint: "patient-view",
+      eventType: "COMPLETE",
+      currentNodeCode: "ASSESS",
+      requestedNextNodeCode: "FOLLOWUP",
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/pathway/patient-pathways/pp-1/advance",
+      expect.objectContaining({
+        eventType: "COMPLETE",
+        triggerPoint: "patient-view",
+        currentNodeCode: "ASSESS",
+        requestedNextNodeCode: "FOLLOWUP",
+      }),
+    );
+    const request = vi.mocked(apiClient.post).mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(request).not.toHaveProperty("package_version");
   });
 });
 
@@ -3120,9 +2876,8 @@ describe("terminology mapping api helpers", () => {
     });
   });
 
-  it("loads candidates, conflicts and terminology knowledge packages from unified roots", async () => {
+  it("loads candidates and conflicts from terminology roots", async () => {
     vi.mocked(apiClient.get)
-      .mockResolvedValueOnce({ data: { data: { items: [], page: 1, size: 10, total: 0 } } })
       .mockResolvedValueOnce({ data: { data: { items: [], page: 1, size: 10, total: 0 } } })
       .mockResolvedValueOnce({ data: { data: { items: [], page: 1, size: 10, total: 0 } } });
 
@@ -3132,21 +2887,13 @@ describe("terminology mapping api helpers", () => {
     const conflicts = renderApiHook(() =>
       useTerminologyConflicts({ page: 0, size: 10, status: "OPEN" }),
     );
-    const packages = renderApiHook(() =>
-      usePackages({ page: 0, size: 10, status: "DRAFT", assetType: "TERMINOLOGY" }),
-    );
-
     await waitFor(() => expect(candidates.result.current.data?.items).toEqual([]));
     await waitFor(() => expect(conflicts.result.current.data?.items).toEqual([]));
-    await waitFor(() => expect(packages.result.current.data?.items).toEqual([]));
     expect(apiClient.get).toHaveBeenNthCalledWith(1, "/engine/terminology/mappings/candidates", {
       params: { page: 1, size: 10, status: "PENDING", riskLevel: "HIGH" },
     });
     expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/terminology/mappings/conflicts", {
       params: { page: 1, size: 10, status: "OPEN" },
-    });
-    expect(apiClient.get).toHaveBeenNthCalledWith(3, "/engine/pkg/packages", {
-      params: { page: 1, size: 10, status: "DRAFT", assetType: "TERMINOLOGY" },
     });
   });
 
@@ -3158,7 +2905,6 @@ describe("terminology mapping api helpers", () => {
             jobCode: "term-job-1",
             sourceSystem: "LIS",
             semanticAssistEnabled: false,
-            packageVersion: "2026.06",
             requestedBy: "u-1",
             status: "PENDING",
             progress: 0,
@@ -3177,7 +2923,6 @@ describe("terminology mapping api helpers", () => {
     const batchConfirm = renderApiHook(() => useBatchConfirmTerminologyCandidates());
 
     const generationJob = await generate.result.current.mutateAsync({
-      packageVersion: "2026.06",
       sourceSystem: "LIS",
       minimumScore: 0.6,
       semanticAssistEnabled: false,
@@ -3187,15 +2932,13 @@ describe("terminology mapping api helpers", () => {
     await confirm.result.current.mutateAsync({
       candidateId: 10,
       request: {
-        packageVersion: "2026.06",
         reviewNote: "逐条确认高危候选",
-        highRiskAcknowledged: true,
-        highRiskReason: "已核对来源版本",
+        evidenceOverride: "已核对来源版本",
       },
     });
     await batchConfirm.result.current.mutateAsync({
       candidateIds: [11],
-      request: { packageVersion: "2026.06", reviewNote: "批量确认普通候选" },
+      request: { reviewNote: "批量确认普通候选" },
     });
 
     expect(apiClient.post).toHaveBeenNthCalledWith(
@@ -3205,8 +2948,7 @@ describe("terminology mapping api helpers", () => {
         request_id: "00000000-0000-4000-8000-000000000004",
         trace_id: "00000000-0000-4000-8000-000000000004",
         tenant_id: "tenant-A",
-        role_codes: ["integration-operator"],
-        package_version: "2026.06",
+        role_codes: ["platform-admin"],
         sourceSystem: "LIS",
         semanticAssistEnabled: false,
       }),
@@ -3215,16 +2957,14 @@ describe("terminology mapping api helpers", () => {
       2,
       "/engine/terminology/mappings/10/confirm",
       expect.objectContaining({
-        package_version: "2026.06",
-        highRiskAcknowledged: true,
-        highRiskReason: "已核对来源版本",
+        reviewNote: "逐条确认高危候选",
+        evidenceOverride: "已核对来源版本",
       }),
     );
     expect(apiClient.post).toHaveBeenNthCalledWith(
       3,
       "/engine/terminology/mappings/batch-confirm",
       expect.objectContaining({
-        package_version: "2026.06",
         candidateIds: [11],
       }),
     );
@@ -3237,7 +2977,6 @@ describe("terminology mapping api helpers", () => {
           jobCode: "term-job-1",
           sourceSystem: "LIS",
           semanticAssistEnabled: true,
-          packageVersion: "2026.06",
           requestedBy: "u-1",
           status: "SUCCEEDED",
           progress: 100,
@@ -3257,74 +2996,37 @@ describe("terminology mapping api helpers", () => {
     );
   });
 
-  it("builds, publishes and rolls back terminology through the unified package API", async () => {
-    vi.mocked(apiClient.post)
-      .mockResolvedValueOnce({ data: { data: { id: 30, status: "DRAFT" } } })
-      .mockResolvedValueOnce({ data: { data: { id: 30, status: "GRAY" } } })
-      .mockResolvedValueOnce({ data: { data: { id: 30, status: "ROLLED_BACK" } } });
+  it("creates the next terminology asset version without package or manual version fields", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        data: {
+          assetIdentity: "TERM.LAB",
+          versionId: "av-term-1",
+          versionNo: "V1",
+          status: "DRAFT",
+        },
+      },
+    });
 
-    const build = renderApiHook(() => useBuildTerminologyKnowledgePackage());
-    const publish = renderApiHook(() => useReleasePackage());
-    const rollback = renderApiHook(() => useRollbackPackage());
+    const create = renderApiHook(() => useCreateTerminologyAssetDraft());
 
-    await build.result.current.mutateAsync({
-      packageCode: "TERM.LAB",
-      packageVersion: "2026.06",
+    await create.result.current.mutateAsync({
+      assetIdentity: "TERM.LAB",
       scopeLevel: "FACILITY",
       scopeCode: "hospital-A",
-      name: "检验字典映射包",
-    });
-    await publish.result.current.mutateAsync({
-      packageId: "pkg-30",
-      request: {
-        packageVersion: "2026.06",
-        strategy: "GRAYSCALE",
-        targetOrgUnitId: "hospital-A",
-        scopeType: "FACILITY",
-        scopeValue: "hospital-A",
-        adapterIds: ["adapter-1"],
-        reason: "首发检验字典灰度验证",
-      },
-    });
-    await rollback.result.current.mutateAsync({
-      packageId: "pkg-30",
-      request: {
-        packageVersion: "2026.06",
-        targetPackageId: "pkg-29",
-        confirmedCurrentVersion: "2026.06",
-        confirmedTargetVersion: "2026.05",
-        reason: "灰度验证失败",
-        confirmedHighRisk: true,
-      },
+      name: "检验字典映射",
     });
 
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      1,
-      "/engine/pkg/packages/terminology",
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/terminology/assets/drafts",
       expect.objectContaining({
-        packageCode: "TERM.LAB",
-        packageVersion: "2026.06",
-        package_version: "2026.06",
+        assetIdentity: "TERM.LAB",
+        scopeLevel: "FACILITY",
+        scopeCode: "hospital-A",
       }),
     );
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      2,
-      "/engine/pkg/packages/pkg-30/release",
-      expect.objectContaining({
-        strategy: "GRAYSCALE",
-        adapterIds: ["adapter-1"],
-        reason: "首发检验字典灰度验证",
-      }),
-    );
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      3,
-      "/engine/pkg/packages/pkg-30/rollback",
-      expect.objectContaining({
-        targetPackageId: "pkg-29",
-        confirmedHighRisk: true,
-        reason: "灰度验证失败",
-      }),
-    );
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("packageVersion");
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("versionNo");
   });
 
   it("resolves terminology conflicts through the governed arbitration endpoint", async () => {
@@ -3336,7 +3038,6 @@ describe("terminology mapping api helpers", () => {
     await resolveConflict.result.current.mutateAsync({
       conflictId: 19,
       request: {
-        packageVersion: "CURRENT",
         resolutionNote: "保留当前标准映射，拒绝重复目标",
       },
     });
@@ -3349,8 +3050,7 @@ describe("terminology mapping api helpers", () => {
         trace_id: "00000000-0000-4000-8000-000000000004",
         tenant_id: "tenant-A",
         user_id: "user-1",
-        role_codes: ["integration-operator"],
-        package_version: "CURRENT",
+        role_codes: ["platform-admin"],
       }),
     );
   });
@@ -3388,128 +3088,121 @@ describe("master data reconciliation api hooks", () => {
   });
 });
 
-describe("release governance api hooks", () => {
+describe("runtime release api hooks", () => {
   beforeEach(() => {
     vi.mocked(apiClient.get).mockReset();
     vi.mocked(apiClient.post).mockReset();
   });
 
-  it("loads override templates through server pagination", async () => {
-    const page = {
-      items: [
-        {
-          templateId: "template-a",
-          templateName: "儿科模板",
-          description: "儿科本地覆盖",
-          applicableScope: "ALL",
-          status: "ACTIVE",
-          updatedAt: "2026-06-09T00:00:00Z",
-        },
-      ],
-      page: 2,
-      size: 10,
-      total: 12,
-      hasNext: true,
+  it("loads platform and hospital release state without any package selector", async () => {
+    const baseline = { release: { baselineReleaseId: "baseline-A8", revisionNo: 8 }, items: [] };
+    const runtime = { release: { releaseId: "runtime-H9", revisionNo: 9 }, items: [] };
+    const candidates = {
+      items: [],
+      page: 1,
+      size: 20,
+      total: 0,
+      hasNext: false,
       totalEstimated: false,
     };
-    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: page } });
+    const history = {
+      ...candidates,
+      items: [{ releaseId: "runtime-H9", revisionNo: 9 }],
+      total: 1,
+    };
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { data: baseline } })
+      .mockResolvedValueOnce({ data: { data: candidates } })
+      .mockResolvedValueOnce({ data: { data: runtime } })
+      .mockResolvedValueOnce({ data: { data: candidates } })
+      .mockResolvedValueOnce({ data: { data: history } });
 
-    const { result } = renderApiHook(() => useOverrideTemplates({ page: 2, size: 10 }));
+    const baselineHook = renderApiHook(() => useCurrentPlatformBaseline());
+    await waitFor(() => expect(baselineHook.result.current.data).toEqual(baseline));
+    const platformCandidatesHook = renderApiHook(() =>
+      usePlatformReleaseCandidates({ assetType: "RULE", keyword: "肾病", page: 1, size: 20 }),
+    );
+    await waitFor(() => expect(platformCandidatesHook.result.current.data).toEqual(candidates));
+    const runtimeHook = renderApiHook(() => useCurrentHospitalRuntime("hospital-A"));
+    await waitFor(() => expect(runtimeHook.result.current.data).toEqual(runtime));
+    const localCandidatesHook = renderApiHook(() =>
+      useHospitalRuntimeCandidates("hospital-A", {
+        assetType: "PATHWAY",
+        keyword: "肾病",
+        page: 1,
+        size: 20,
+      }),
+    );
+    await waitFor(() => expect(localCandidatesHook.result.current.data).toEqual(candidates));
+    const historyHook = renderApiHook(() =>
+      useHospitalRuntimeHistory("hospital-A", { page: 1, size: 20 }),
+    );
+    await waitFor(() => expect(historyHook.result.current.data).toEqual(history));
 
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual(page);
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/versioning/releases/override-templates", {
-      params: { page: 2, size: 10 },
-    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/engine/releases/platform-baselines/current");
+    expect(apiClient.get).toHaveBeenNthCalledWith(
+      2,
+      "/engine/releases/platform-baselines/candidates",
+      { params: { assetType: "RULE", keyword: "肾病", page: 1, size: 20 } },
+    );
+    expect(apiClient.get).toHaveBeenNthCalledWith(
+      3,
+      "/engine/releases/hospitals/hospital-A/runtime-releases/current",
+    );
+    expect(apiClient.get).toHaveBeenNthCalledWith(
+      4,
+      "/engine/releases/hospitals/hospital-A/runtime-candidates",
+      { params: { assetType: "PATHWAY", keyword: "肾病", page: 1, size: 20 } },
+    );
+    expect(apiClient.get).toHaveBeenNthCalledWith(
+      5,
+      "/engine/releases/hospitals/hospital-A/runtime-releases",
+      { params: { page: 1, size: 20 } },
+    );
   });
 
-  it("uses the canonical simulation, rollout, rollback and override operation endpoints", async () => {
+  it("publishes immutable A and H revisions without package ids or manual revision numbers", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ data: { data: {} } });
-    const simulation = {
-      assetType: "RULE" as const,
-      assetIdentity: "RULE.VTE.RISK",
-      candidateVersionId: "version-a",
-      targetOrgUnitIds: ["org-a"],
-      targetOrgPath: "/tenant-a/org-a",
-      applicableScope: "ALL",
-      rolloutPolicy: {
-        strategy: "CANARY_BED_PERCENT" as const,
-        orgUnitIds: [],
-        bedPercent: 10,
-        stages: [],
-      },
-      replayDays: 30,
-      replayLimit: 100,
-    };
-    const preview = {
-      templateId: "template-a",
-      targetOrgUnitIds: ["org-a"],
-      targetVersionIds: {},
-    };
 
-    await renderApiHook(() => useReleaseSimulation()).result.current.mutateAsync(simulation);
-    await renderApiHook(() => useStartReleaseRollout()).result.current.mutateAsync({
-      simulation,
-      confirmedSimulationDigest: "simulation-digest",
-      reviewConclusion: "已完成临床与依赖复核",
+    await renderApiHook(() => usePublishPlatformBaseline()).result.current.mutateAsync({
+      publishVersionIds: ["rule-v2", "path-v1"],
+      disabledAssets: [{ assetType: "RULE", assetIdentity: "RULE.OLD" }],
     });
-    await renderApiHook(() => useObserveReleaseRollout()).result.current.mutateAsync({
-      planId: "plan-a",
+    await renderApiHook(() => useActivateHospitalRuntime()).result.current.mutateAsync({
+      hospitalId: "hospital-A",
       request: {
-        stageIndex: 0,
-        sampleCount: 100,
-        hitCount: 20,
-        blockCount: 1,
-        manualRejectionCount: 2,
-        anomalyCount: 0,
-        observedAt: "2026-06-09T00:00:00Z",
+        platformBaselineReleaseId: "baseline-A8",
+        expectedCurrentReleaseId: "runtime-H9",
+        activeAssets: [
+          { assetType: "RULE", assetIdentity: "RULE.CKD", versionId: null },
+          { assetType: "PATHWAY", assetIdentity: "PATH.CKD.LOCAL", versionId: "path-v3" },
+        ],
       },
     });
-    await renderApiHook(() => useRollbackRollout()).result.current.mutateAsync({
-      planId: "plan-a",
-      reason: "灰度观察异常",
-      confirmedHighRisk: true,
+    await renderApiHook(() => useRollbackHospitalRuntime()).result.current.mutateAsync({
+      hospitalId: "hospital-A",
+      targetReleaseId: "runtime-H7",
     });
-    await renderApiHook(() => usePreviewOverrideBatch()).result.current.mutateAsync(preview);
-    await renderApiHook(() => useApplyOverrideBatch()).result.current.mutateAsync({
-      preview,
-      confirmedPreviewDigest: "preview-digest",
-    });
-    await renderApiHook(() => useRevokeOverrideBatch()).result.current.mutateAsync("operation-a");
 
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      1,
-      "/engine/versioning/releases/simulations",
-      simulation,
-    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/engine/releases/platform-baselines", {
+      publishVersionIds: ["rule-v2", "path-v1"],
+      disabledAssets: [{ assetType: "RULE", assetIdentity: "RULE.OLD" }],
+    });
     expect(apiClient.post).toHaveBeenNthCalledWith(
       2,
-      "/engine/versioning/releases/rollouts",
-      expect.objectContaining({ confirmedSimulationDigest: "simulation-digest" }),
+      "/engine/releases/hospitals/hospital-A/runtime-releases",
+      expect.objectContaining({
+        platformBaselineReleaseId: "baseline-A8",
+        expectedCurrentReleaseId: "runtime-H9",
+        activeAssets: expect.arrayContaining([
+          { assetType: "RULE", assetIdentity: "RULE.CKD", versionId: null },
+        ]),
+      }),
     );
     expect(apiClient.post).toHaveBeenNthCalledWith(
       3,
-      "/engine/versioning/releases/rollouts/plan-a/observations",
-      expect.objectContaining({ stageIndex: 0, sampleCount: 100 }),
-    );
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      4,
-      "/engine/versioning/releases/rollouts/plan-a:rollback",
-      expect.objectContaining({ reason: "灰度观察异常", confirmedHighRisk: true }),
-    );
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      5,
-      "/engine/versioning/releases/override-batches:preview",
-      preview,
-    );
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      6,
-      "/engine/versioning/releases/override-batches:apply",
-      expect.objectContaining({ confirmedPreviewDigest: "preview-digest" }),
-    );
-    expect(apiClient.post).toHaveBeenNthCalledWith(
-      7,
-      "/engine/versioning/releases/override-batches/operation-a:revoke",
+      "/engine/releases/hospitals/hospital-A/runtime-releases:rollback",
+      { targetReleaseId: "runtime-H7" },
     );
   });
 });
@@ -3587,12 +3280,12 @@ describe("integration adapter api helpers", () => {
     });
   });
 
-  it("loads versioned integration data contracts from the canonical endpoint", async () => {
+  it("loads the current hospital runtime integration contract without a caller version", async () => {
     const contract = {
-      contractId: "context-field-contract:pkg-2026.06",
-      packageVersion: "pkg-2026.06",
+      contractId: "context-field-contract:runtime-H7",
+      runtimeReleaseId: "runtime-H7",
       schemaVersion: "medkernel.context-field-contract.v1",
-      accessGuide: ["调用时必须显式传入 packageVersion=pkg-2026.06"],
+      accessGuide: ["字段契约由医院当前运行修订 runtime-H7 自动确定"],
       resources: {
         Patient: {
           resourceType: "Patient",
@@ -3620,13 +3313,11 @@ describe("integration adapter api helpers", () => {
     };
     vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: contract } });
 
-    const { result } = renderApiHook(() => useIntegrationDataContract(" pkg-2026.06 ", true));
+    const { result } = renderApiHook(() => useIntegrationDataContract(true));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(contract);
-    expect(apiClient.get).toHaveBeenCalledWith("/engine/integration/data-contract", {
-      params: { packageVersion: "pkg-2026.06" },
-    });
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/integration/data-contract");
   });
 
   it("creates and advances integration onboarding records without inventing endpoints", async () => {
@@ -4026,7 +3717,7 @@ describe("knowledge review api helpers", () => {
       deploymentForm: "EXTERNAL",
       ready: false,
       modelInvocationAllowed: false,
-      items: [{ code: "P6_ACCEPTANCE", ready: false, required: true, message: "P6 未放行" }],
+      items: [{ code: "MODEL_PROVIDER", ready: false, required: true, message: "provider 未就绪" }],
     };
     const jobPage = {
       items: [{ jobCode: "job-ai-1", producer: "API_MODEL", status: "RUNNING", candidateCount: 1 }],
@@ -4171,6 +3862,68 @@ describe("knowledge review api helpers", () => {
     });
   });
 
+  it("runs the selected production job through the real model candidate endpoint", async () => {
+    const generated = {
+      jobCode: "job-ai-1",
+      modelTaskId: "task-model-1",
+      modelMode: "B2",
+      modelVersion: "claude-opus-4",
+      promptVersion: "prompt:aikstd13-v1",
+      toolVersion: "tool:submit-candidate-v1",
+      summary: {
+        candidates: [{ assetType: "KNOWLEDGE", jobCode: "job-ai-1", candidateRef: "kv:42:v1" }],
+        skipped: [],
+        blocked: [],
+      },
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: generated } });
+
+    const { result } = renderApiHook(() => useGenerateKnowledgeModelCandidate());
+    await act(async () => {
+      await result.current.mutateAsync({
+        jobCode: "job-ai-1",
+        request: {
+          capabilityCode: "knowledge.discovery",
+          prompt: "请依据来源锚点生成结构化候选知识。",
+          providerCode: "provider-openai",
+          timeoutSeconds: 90,
+          assetIdentity: "KNOW.VTE.GUIDE",
+          subject: "VTE 防治指南",
+          sources: [
+            {
+              sourceRef: "GL-VTE-2026:v1:section-2",
+              authorityLevel: "B_GUIDELINE",
+            },
+          ],
+          trustLevel: "B_GUIDELINE",
+          riskLevel: "HIGH",
+          target: { targetIdentityId: 42 },
+        },
+      });
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/knowledge-production/jobs/job-ai-1/model-candidates",
+      {
+        capabilityCode: "knowledge.discovery",
+        prompt: "请依据来源锚点生成结构化候选知识。",
+        providerCode: "provider-openai",
+        timeoutSeconds: 90,
+        assetIdentity: "KNOW.VTE.GUIDE",
+        subject: "VTE 防治指南",
+        sources: [
+          {
+            sourceRef: "GL-VTE-2026:v1:section-2",
+            authorityLevel: "B_GUIDELINE",
+          },
+        ],
+        trustLevel: "B_GUIDELINE",
+        riskLevel: "HIGH",
+        target: { targetIdentityId: 42 },
+      },
+    );
+  });
+
   it("cancels a running knowledge production job through the governed lifecycle endpoint", async () => {
     const cancelledJob = {
       jobCode: "job-ai-1",
@@ -4303,8 +4056,8 @@ describe("knowledge review api helpers", () => {
       },
     });
 
-    const approveHook = renderApiHook(() => useApproveKnowledgeAcquisitionSource());
-    await approveHook.result.current.mutateAsync("NHC-GUIDELINE");
+    const enableHook = renderApiHook(() => useEnableKnowledgeAcquisitionSource());
+    await enableHook.result.current.mutateAsync("NHC-GUIDELINE");
     const disableHook = renderApiHook(() => useDisableKnowledgeAcquisitionSource());
     await disableHook.result.current.mutateAsync("NHC-GUIDELINE");
 
@@ -4317,7 +4070,7 @@ describe("knowledge review api helpers", () => {
     );
     expect(apiClient.post).toHaveBeenNthCalledWith(
       1,
-      "/engine/knowledge/acquisition/sources/NHC-GUIDELINE/approval",
+      "/engine/knowledge/acquisition/sources/NHC-GUIDELINE/enable",
     );
     expect(apiClient.post).toHaveBeenNthCalledWith(
       2,
@@ -4381,19 +4134,9 @@ describe("knowledge review api helpers", () => {
 
     await hook.result.current.mutateAsync({
       candidateId: 2002,
-      packageVersion: "PKG.KNOW.2026.06",
       request: {
         decision: "APPROVE",
         reason: "已核对来源锚点和差异。",
-        publishEvidence: {
-          electronicSignature: {
-            signatureId: "sig-knowledge-2002",
-            signerId: "expert-1",
-            signerName: "审核专家",
-            signedAt: "2026-06-09T08:00:00.000Z",
-            signatureHash: "a".repeat(64),
-          },
-        },
       },
       idempotencyKey: "idem-knowledge-review-2002",
     });
@@ -4405,50 +4148,29 @@ describe("knowledge review api helpers", () => {
         trace_id: "00000000-0000-4000-8000-000000000005",
         tenant_id: "tenant-A",
         user_id: "user-1",
-        role_codes: ["integration-operator"],
-        package_version: "PKG.KNOW.2026.06",
+        role_codes: ["platform-admin"],
         decision: "APPROVE",
         reason: "已核对来源锚点和差异。",
-        publishEvidence: {
-          electronicSignature: {
-            signatureId: "sig-knowledge-2002",
-            signerId: "expert-1",
-            signerName: "审核专家",
-            signedAt: "2026-06-09T08:00:00.000Z",
-            signatureHash: "a".repeat(64),
-          },
-        },
       }),
       { headers: { "Idempotency-Key": "idem-knowledge-review-2002" } },
     );
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("package_version");
   });
 
   it("publishes diagnosis knowledge with the governed request body", async () => {
     const published = { id: 10, status: "ACTIVE" };
     vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: published } });
     const hook = renderApiHook(() => usePublishDiagnosis());
-    const publishEvidence = {
-      electronicSignature: {
-        signatureId: "sig-diagnosis-10",
-        signerId: "expert-1",
-        signerName: "审核专家",
-        signedAt: "2026-06-09T08:00:00.000Z",
-        signatureHash: "a".repeat(64),
-      },
-    };
-
     await hook.result.current.mutateAsync({
       identityId: 42,
       versionId: 10,
       reason: "已核对来源、回归病例和发布范围。",
-      publishEvidence,
     });
 
     expect(apiClient.post).toHaveBeenCalledWith(
       "/engine/knowledge/diagnosis/identities/42/versions/10/publish",
       {
         reason: "已核对来源、回归病例和发布范围。",
-        publishEvidence,
       },
     );
   });
@@ -4505,9 +4227,19 @@ describe("experience foundation api helpers", () => {
   });
 
   it("submits large-list export with idempotency key and filters", async () => {
-    vi.mocked(apiClient.post).mockResolvedValueOnce({
-      data: { data: { jobId: "job-1", status: "PENDING", message: "ok" } },
-    });
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            confirmationId: "exp-terminology-idem-from-action",
+            status: "CONFIRMED",
+            version: 1,
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: { data: { jobId: "job-1", status: "PENDING", message: "ok" } },
+      });
 
     const result = await submitLargeListExport({
       resourceType: "TERMINOLOGY_MAPPING",
@@ -4525,13 +4257,25 @@ describe("experience foundation api helpers", () => {
     });
 
     expect(result).toEqual(expect.objectContaining({ jobId: "job-1", status: "pending" }));
-    expect(apiClient.post).toHaveBeenCalledWith(
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/compliance/exports:confirm", {
+      resourceType: "TERMINOLOGY_MAPPING",
+      exportScope: {
+        resourceType: "TERMINOLOGY_MAPPING",
+        filters: { status: "DRAFT", sourceSystem: "HIS" },
+        selectedScope: "CURRENT_PAGE",
+      },
+      reason: "导出字典映射核查结果",
+      idempotencyKey: "idem-from-action",
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
       "/large-lists/exports",
       expect.objectContaining({
         resourceType: "TERMINOLOGY_MAPPING",
         filters: { status: "DRAFT", sourceSystem: "HIS" },
         selectedScope: "CURRENT_PAGE",
         idempotencyKey: "idem-from-action",
+        confirmationId: "exp-terminology-idem-from-action",
       }),
       { headers: { "Idempotency-Key": "idem-from-action" } },
     );
@@ -4556,8 +4300,8 @@ describe("experience foundation api helpers", () => {
       totalEstimated: false,
     };
     const assessment = { standardVersion: "IOT-2026", totalItems: 1, items: [] };
-    const approvals = {
-      items: [{ approvalId: "exp-audit-1", status: "REQUESTED" }],
+    const confirmations = {
+      items: [{ confirmationId: "exp-audit-1", status: "CONFIRMED" }],
       page: 1,
       size: 20,
       total: 1,
@@ -4570,7 +4314,7 @@ describe("experience foundation api helpers", () => {
       .mockResolvedValueOnce({ data: { data: policies } })
       .mockResolvedValueOnce({ data: { data: maskingRules } })
       .mockResolvedValueOnce({ data: { data: assessment } })
-      .mockResolvedValueOnce({ data: { data: approvals } });
+      .mockResolvedValueOnce({ data: { data: confirmations } });
 
     expect(await fetchSystemConfigs("medkernel.auth.")).toBe(systemConfigs);
     expect(await fetchTenantSystemConfigs("tenant-A", "medkernel.runtime.")).toBe(systemConfigs);
@@ -4587,13 +4331,13 @@ describe("experience foundation api helpers", () => {
     );
     expect(await fetchInteropAssessment("IOT-2026")).toBe(assessment);
     expect(
-      await fetchExportApprovals({
+      await fetchExportConfirmations({
         resourceType: "AUDIT_EVENT",
-        status: "REQUESTED",
+        status: "CONFIRMED",
         page: 1,
         size: 20,
       }),
-    ).toBe(approvals);
+    ).toBe(confirmations);
 
     expect(apiClient.get).toHaveBeenNthCalledWith(1, "/system/configs", {
       params: { prefix: "medkernel.auth." },
@@ -4611,32 +4355,32 @@ describe("experience foundation api helpers", () => {
       params: { standardVersion: "IOT-2026" },
     });
     expect(apiClient.get).toHaveBeenNthCalledWith(6, "/compliance/exports", {
-      params: { resourceType: "AUDIT_EVENT", status: "REQUESTED", page: 1, size: 20 },
+      params: { resourceType: "AUDIT_EVENT", status: "CONFIRMED", page: 1, size: 20 },
     });
   });
 
-  it("loads export approvals through server pagination", async () => {
-    const approvals = {
-      items: [{ approvalId: "exp-audit-1", status: "REQUESTED" }],
+  it("loads export confirmations through server pagination", async () => {
+    const confirmations = {
+      items: [{ confirmationId: "exp-audit-1", status: "CONFIRMED" }],
       page: 2,
       size: 20,
       total: 21,
       hasNext: false,
       totalEstimated: false,
     };
-    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: approvals } });
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: confirmations } });
 
     await expect(
-      fetchExportApprovals({
+      fetchExportConfirmations({
         resourceType: "AUDIT_EVENT",
-        status: "REQUESTED",
+        status: "CONFIRMED",
         page: 2,
         size: 20,
       }),
-    ).resolves.toBe(approvals);
+    ).resolves.toBe(confirmations);
 
     expect(apiClient.get).toHaveBeenCalledWith("/compliance/exports", {
-      params: { resourceType: "AUDIT_EVENT", status: "REQUESTED", page: 2, size: 20 },
+      params: { resourceType: "AUDIT_EVENT", status: "CONFIRMED", page: 2, size: 20 },
     });
   });
 
@@ -4717,13 +4461,10 @@ describe("experience foundation api helpers", () => {
       .mockResolvedValueOnce({ data: { data: { ruleId: "mask-1" } } });
     vi.mocked(apiClient.post)
       .mockResolvedValueOnce({
-        data: { data: { approvalId: "exp-audit-1", status: "REQUESTED" } },
+        data: { data: { confirmationId: "exp-audit-1", status: "CONFIRMED", version: 1 } },
       })
       .mockResolvedValueOnce({
-        data: { data: { approvalId: "exp-audit-1", status: "APPROVED", version: 2 } },
-      })
-      .mockResolvedValueOnce({
-        data: { data: { approvalId: "exp-audit-1", status: "EXPORTED", version: 3 } },
+        data: { data: { confirmationId: "exp-audit-1", status: "EXPORTED", version: 2 } },
       });
 
     await updateSystemConfig("medkernel.auth.password.min-length", {
@@ -4760,23 +4501,17 @@ describe("experience foundation api helpers", () => {
       status: "ACTIVE",
       reason: "默认隐藏患者姓名",
     });
-    await requestExportApproval({
+    await confirmExport({
       resourceType: "AUDIT_EVENT",
       exportScope: { filters: {}, selectedScope: "FILTERED_RESULT" },
       reason: "合规复核",
       idempotencyKey: "audit-export-1",
     });
-    await reviewExportApproval({
-      approvalId: "exp-audit-1",
-      decision: "APPROVE",
-      comment: "批准当前筛选范围",
-      expectedVersion: 1,
-    });
-    await completeApprovedExportJob({
-      approvalId: "exp-audit-1",
+    await completeConfirmedExportJob({
+      confirmationId: "exp-audit-1",
       jobId: "job-audit-1",
       reason: "后端任务已生成真实文件",
-      expectedVersion: 2,
+      expectedVersion: 1,
     });
 
     expect(apiClient.patch).toHaveBeenCalledWith(
@@ -4798,19 +4533,15 @@ describe("experience foundation api helpers", () => {
       expect.objectContaining({ fieldName: "patientName" }),
     );
     expect(apiClient.post).toHaveBeenCalledWith(
-      "/compliance/exports:request",
+      "/compliance/exports:confirm",
       expect.objectContaining({ idempotencyKey: "audit-export-1" }),
-    );
-    expect(apiClient.post).toHaveBeenCalledWith(
-      "/compliance/exports/exp-audit-1:approve",
-      expect.objectContaining({ decision: "APPROVE", expectedVersion: 1 }),
     );
     expect(apiClient.post).toHaveBeenCalledWith(
       "/compliance/exports/exp-audit-1:complete-from-job",
       {
         jobId: "job-audit-1",
         reason: "后端任务已生成真实文件",
-        expectedVersion: 2,
+        expectedVersion: 1,
       },
     );
   });
@@ -4885,7 +4616,7 @@ describe("bootstrap identity api helpers", () => {
       userId: "platform-owner",
       tenantId: "t-1",
       username: "platform-owner",
-      roles: ["platform-governance-admin"],
+      roles: ["platform-admin"],
       mustChangePwd: true,
     };
     vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
@@ -4924,6 +4655,13 @@ describe("bootstrap identity api helpers", () => {
             recoveryCode: "RECOVERY-CODE-ONCE",
           },
         },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            verified: true,
+          },
+        },
       });
 
     await changePassword({ oldPassword: "Init@2026pw", newPassword: "Owner@2026pw" });
@@ -4933,6 +4671,7 @@ describe("bootstrap identity api helpers", () => {
       secret: "JBSWY3DPEHPK3PXP",
       code: "123456",
     });
+    const verified = await verifyMfa({ code: "123456" });
 
     expect(apiClient.post).toHaveBeenNthCalledWith(1, "/auth/change-password", {
       oldPassword: "Init@2026pw",
@@ -4946,9 +4685,13 @@ describe("bootstrap identity api helpers", () => {
       secret: "JBSWY3DPEHPK3PXP",
       code: "123456",
     });
+    expect(apiClient.post).toHaveBeenNthCalledWith(4, "/auth/mfa/verify", {
+      code: "123456",
+    });
     expect(setup.mfaBound).toBe(false);
     expect(setup.secret).toBe("JBSWY3DPEHPK3PXP");
     expect(mfa.recoveryCode).toBe("RECOVERY-CODE-ONCE");
+    expect(verified.verified).toBe(true);
   });
 });
 

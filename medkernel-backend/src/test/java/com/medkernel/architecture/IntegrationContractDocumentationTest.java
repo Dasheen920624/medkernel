@@ -34,20 +34,6 @@ import com.medkernel.engine.integration.controller.IntegrationController;
 class IntegrationContractDocumentationTest {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Path CONTRACT_DIR = Path.of("..", "docs", "contracts", "integration");
-    private static final Set<String> STANDARD_CONTEXT_RESOURCES = Set.of(
-        "Patient",
-        "Encounter",
-        "Condition",
-        "Observation",
-        "Medication",
-        "Procedure",
-        "DiagnosticReport",
-        "Document",
-        "NursingAssessment",
-        "CarePlan",
-        "FollowUp",
-        "Claim"
-    );
 
     @Test
     void integrationOpenApiPathSnapshotMirrorsControllerWithoutGhostEndpoints() throws Exception {
@@ -80,7 +66,7 @@ class IntegrationContractDocumentationTest {
             .as("6.6 第三方知识运行时文档必须与控制器真实端点一致")
             .containsExactlyElementsOf(thirdPartyKnowledgeRuntimeControllerEndpoints());
         assertThat(document.path("knowledgeRuntime").path("fieldContract").asText())
-            .isEqualTo("/api/v1/engine/integration/data-contract?packageVersion={packageVersion}");
+            .isEqualTo("/api/v1/engine/integration/data-contract");
 
         Set<String> actualEndpoints = integrationControllerEndpoints();
         Set<String> documentedEndpoints = new TreeSet<>();
@@ -129,62 +115,62 @@ class IntegrationContractDocumentationTest {
             .contains("FHIR_PHYSICIAN_CONFIRMATION")
             .contains("Bundle")
             .contains("OperationOutcome")
-            .contains("/api/v1/engine/integration/knowledge-runtime/effective-package")
+            .contains("/api/v1/engine/integration/knowledge-runtime/runtime-release/current")
             .contains("/api/v1/engine/integration/knowledge-runtime/context-snapshots")
-            .contains("/api/v1/engine/integration/knowledge-runtime/overrides")
-            .contains("/api/v1/engine/integration/knowledge-runtime/packages/{packageId}:distribute")
-            .contains("/api/v1/engine/integration/knowledge-runtime/packages/{packageId}/reconciliation")
-            .contains("specialty")
-            .contains("scenario")
-            .contains("effectiveAt")
-            .contains("sourceTier")
-            .contains("contentHash");
+            .contains("认证租户和医院")
+            .contains("完整不可变清单")
+            .doesNotContain("effective-package")
+            .doesNotContain("packages/{packageId}");
         assertThat(guide)
             .as("FHIR 门面挂 INTEG-01 总线，不得回流旧式裸 /api/v1/fhir 幽灵端点")
             .doesNotContain("/api/v1/fhir");
     }
 
     @Test
-    void fieldMappingTemplateAndExampleMapExternalFieldsToStandardContextWithTerminologyEvidence()
+    void fieldMappingTemplateAndExampleUseTheExactRuntimeAdapterSyntax()
         throws IOException {
         JsonNode template = readJson("field-mapping-template.json");
         JsonNode example = readJson("field-mapping-example-his-adt.json");
 
-        assertThat(template.path("schemaVersion").asText()).isEqualTo("medkernel.integration.field-mapping.v1");
-        assertThat(template.path("requiredColumns"))
-            .extracting(JsonNode::asText)
-            .contains(
-                "externalField",
-                "standardResource",
-                "standardPath",
-                "terminologyStrategy",
-                "required",
-                "sourceEvidence"
-            );
+        assertThat(template.path("baseUrl").asText()).isNotBlank();
+        assertThat(template.path("healthPath").asText()).startsWith("/");
+        assertThat(template.path("outboundPath").asText()).startsWith("/");
+        assertThat(template.path("connectTimeoutMs").asInt()).isPositive();
+        assertThat(template.path("requestTimeoutMs").asInt()).isPositive();
 
-        JsonNode mappings = example.path("mappings");
+        JsonNode mappings = example.path("fieldMappings");
         assertThat(mappings.isArray()).isTrue();
         assertThat(mappings).isNotEmpty();
 
-        Set<String> coveredResources = new LinkedHashSet<>();
+        Set<String> coveredRoots = new LinkedHashSet<>();
         boolean hasTerminologyMapping = false;
+        boolean hasTenantExtension = false;
         for (JsonNode mapping : mappings) {
-            assertThat(mapping.path("externalField").asText()).isNotBlank();
-            assertThat(mapping.path("standardPath").asText()).isNotBlank();
-            assertThat(mapping.path("sourceEvidence").asBoolean()).isTrue();
-            String standardResource = mapping.path("standardResource").asText();
-            assertThat(STANDARD_CONTEXT_RESOURCES).contains(standardResource);
-            coveredResources.add(standardResource);
-            if (mapping.path("terminology").path("mappingRequired").asBoolean()) {
+            String sourcePath = mapping.path("sourcePath").asText();
+            String targetPath = mapping.path("targetPath").asText();
+            assertThat(sourcePath).startsWith("/");
+            assertThat(targetPath).startsWith("/");
+            coveredRoots.add(targetPath.substring(1).split("/")[0]);
+            assertThat(mapping.has("termMappingId")).isFalse();
+            boolean hasDictionary = mapping.hasNonNull("targetDictionaryKey");
+            boolean hasCategory = mapping.hasNonNull("category");
+            assertThat(hasDictionary).isEqualTo(hasCategory);
+            if (hasDictionary) {
                 hasTerminologyMapping = true;
-                assertThat(mapping.path("terminology").path("ownerCard").asText()).isEqualTo("TERM-01");
+                assertThat(mapping.path("targetDictionaryKey").asText()).isNotBlank();
+                assertThat(mapping.path("category").asText()).isNotBlank();
+            }
+            if (targetPath.startsWith("/extensions/local/")) {
+                hasTenantExtension = true;
             }
         }
 
-        assertThat(coveredResources)
-            .contains("Patient", "Encounter", "Observation");
+        assertThat(coveredRoots).contains("patient", "admission", "diagnoses", "results", "extensions");
         assertThat(hasTerminologyMapping)
-            .as("至少一个外部编码字段必须声明经 TERM-01 归一")
+            .as("至少一个外部编码字段必须声明按发布包精确归一")
+            .isTrue();
+        assertThat(hasTenantExtension)
+            .as("样例必须覆盖有真实运行落点的院内扩展字段")
             .isTrue();
     }
 

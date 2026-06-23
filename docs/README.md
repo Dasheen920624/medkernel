@@ -1,70 +1,45 @@
 # MedKernel 文档中心
 
-> 版本：10.0 · 2026-05-30（文档体系重构为自包含施工卡）
-> 当前执行以 **核心 CONSTITUTION（11 视角不变量）+ 施工卡 cards/ + 共享体验契约 + 任务台账 + 质量基线** 为准。
-> 工程节奏：按业务域纵向推进、两波（D0~D6 第一波 B0 真实；第二波 AI 加深）。
+项目尚未正式上线，只维护当前系统真相，不保留旧卡、旧方案、旧迁移说明或历史演练截图。
+原始方案中的有效产品诉求已经合并到 `PRODUCT_SCOPE.md` 及其下游契约，不另建历史追溯文档。
 
-AI 开发"读最少、拿最全"：建任一任务只读 **核心 + 该域简报 + 该任务的施工卡**（页面卡另读体验契约），不再通读巨物。
+## 阅读顺序
 
----
-
-## 0. 阅读顺序（按 [AGENTS.md](../AGENTS.md) 权威序）
-
-| 顺序 | 文档 | 一句话 | 受众 |
-|---|---|---|---|
-| 1 | [CONSTITUTION.md](CONSTITUTION.md) | 核心 — 11 视角全局不变量（恒读）| 所有人 |
-| 2 | `cards/<域>/_brief.md` | 域简报 — 本域角色 / 数据 / 依赖 / 域级验收 | 领该域卡的人 |
-| 3 | `cards/<域>/<TASK-ID>.md` | 施工卡 — 单个交付物的完整合同（功能/契约/11视角/验收）| 领卡的人 |
-| + | [EXPERIENCE_CONTRACT.md](EXPERIENCE_CONTRACT.md) | 共享体验与组件契约（页面卡读）| 前端 / 产品 |
-
-辅助：找卡 [cards/_index.md](cards/_index.md) · 验收方法论 [audit/质量基线.md](audit/质量基线.md) · 名词 [glossary.md](glossary.md) · 任务状态 [backlog.md](backlog.md)。
-
-冲突裁决：核心 > 域简报 > 卡。
-
----
-
-## 1. 目录结构
-
-```
-docs/
-├─ CONSTITUTION.md            ← 核心 CORE（11 视角不变量，恒读）
-├─ EXPERIENCE_CONTRACT.md     ← 共享体验与组件契约（页面卡读）
-├─ AI_DEVELOPMENT_RESTART_PLAN.md ← AI 研发重启执行闸门（开工流程 / 阶段门 / PR 证据）
-├─ BUSINESS_IMPLEMENTATION_SCOPE_AUDIT.md ← 业务实现范围核查（S0-S40 / 菜单 / 卡到代码 / B0）
-├─ glossary.md                ← 术语表
-├─ backlog.md                 ← 任务台账（行→卡链接 / 状态 / 派单）
-├─ cards/                     ← 施工卡（一卡 = 一 backlog 可交付物）
-│   ├─ _index.md              # 场景 S0–S40 → 卡 + 全卡目录
-│   ├─ _template.md           # 施工卡模板（合同）
-│   ├─ _brief-template.md     # 域简报模板
-│   ├─ _coverage-matrix.md    # 旧锚点 → 新卡 覆盖矩阵（迁移神谕）
-│   ├─ D0/ … D6/              # 各域简报 + 该域卡
-│   ├─ wave2/                 # 第二波卡（AIK/LLM/KNOWGEN/领域门面）
-│   └─ ga/                    # GA 验收卡
-├─ audit/质量基线.md           ← 验收方法论 + 门禁 + A1–A9 + 13 角色矩阵
-├─ handbook/ adr/ legal/ release/   ← 实施手册 / 决策 / 法务 / 发布证据（不变）
-└─ superpowers/               ← 设计/计划证据，不作为并行事实源
-```
-
-> **迁移过渡期**：旧巨物 `MEDKERNEL_BUSINESS_SCENARIO_DETAIL_SPEC.md`、`MEDKERNEL_IMPLEMENTATION_LANDING_PLAN.md`、`MEDKERNEL_FOUNDATION_AND_SERVICES.md`、`MEDKERNEL_PRODUCT_EXPERIENCE_RULES.md` 物理保留但**不再权威**，按域搬迁进卡；全部域搬完后（P8）删除。权威以核心 + 卡为准。
-
----
-
-## 2. 命名与协作
-
-| 维度 | 口径 |
+| 文档 | 内容 |
 |---|---|
-| 卡 ID | = backlog 任务 ID（领一卡 = 领一任务）|
-| 分支模型 | trunk-based：远程长期分支只 `main`；日常 `codex/*` 短分支（≤3 天）|
-| PR base | 一律 → `main` |
-| 文档登记 | 文档与代码改动**同 PR** |
-| 细节维护 | 任务级细节进对应施工卡；全局不变量进核心；可复用体验模式进体验契约。不新增并行事实源 |
+| [CONSTITUTION.md](CONSTITUTION.md) | 产品定位、医疗安全和全局不变量 |
+| [_HANDOFF.md](_HANDOFF.md) | 当前任务、分支、进度和下一步 |
+| [PRODUCT_SCOPE.md](PRODUCT_SCOPE.md) | S0–S40、全医疗专业领域、完整功能和统一验收范围 |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | 六层架构、运行结构和医疗资产生产主链 |
+| [功能目录](audit/product-function-catalog.md) | 全部页面、菜单、接口和任务承载 |
+| [职责矩阵](audit/product-role-journeys.md) | 四个可分配职责及完整菜单覆盖 |
+| [EXPERIENCE_CONTRACT.md](EXPERIENCE_CONTRACT.md) | 页面和交互约束 |
+| [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) | 单一模式源、五方言部署产物与递增迁移规则 |
+| [部署与演练](DEPLOYMENT_AND_REHEARSAL.md) | 备份、清库、部署和全流程演练 |
+| [质量基线](audit/质量基线.md) | 测试、T-GATE 和上线验收 |
+| [待处理问题](audit/deferred-issues.md) | 仅记录当前不能在仓库内关闭的外部事项 |
+| [术语表](glossary.md) | 产品和技术术语 |
 
----
+## 当前契约与手册
 
-## 3. 关联文档
-- [项目根 README](../README.md) · [后端 README](../medkernel-backend/README.md) · [前端 README](../frontend/README.md)
+| 目录 | 当前内容 |
+|---|---|
+| `contracts/events/` | 与当前 Java 事件模型一致的事件 JSON Schema |
+| `contracts/integration/` | 第三方接入指南、字段映射模板、OpenAPI 路径快照和验收清单 |
+| `handbook/implementation.md` | 当前实施配置与交付说明 |
+| `handbook/operations.md` | 当前运维操作说明 |
+| `handbook/performance/` | 当前性能基线和受测压测脚本 |
+| `handbook/runbooks/` | 当前备份恢复、升级与回滚手册 |
+| `legal/README.md` | 当前法律、许可与第三方依赖交付边界 |
 
----
+## 文档原则
 
-**End of docs README v10.0.**
+- 功能事实以代码和自动化契约为准，文档同 PR 更新。
+- 产品范围以 `CONSTITUTION.md` 和 `PRODUCT_SCOPE.md` 为准；审计状态不得反向缩小产品范围。
+- 不新增阶段总结、重复计划、截图归档或工具私有记忆。
+- 不在仓库保留已被当前总纲吸收的需求原文、临时设计稿、实施计划和阶段审计。
+- `docs/` 只允许保留本页列出的权威文档、当前契约与当前手册；其他资料必须删除或并入上述文件。
+- API 以运行时 OpenAPI 为准：`/medkernel/swagger-ui.html`。
+- 部署命令以 `deploy/` 内受测脚本为准。
+- 当前演练原始证据只允许放在目标机
+  `${MEDKERNEL_RUNTIME_ROOT}/evidence/current-launch/`；仓库不提交截图、凭据或原始运行数据。

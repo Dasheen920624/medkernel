@@ -39,7 +39,7 @@ import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 身份安全服务包的用户管理编排：统一用户主体、凭证、角色、状态和有效权限。
+ * 身份安全服务的用户管理编排：统一用户主体、凭证、角色、状态和有效权限。
  */
 @Service
 public class ComplianceUserService {
@@ -511,7 +511,7 @@ public class ComplianceUserService {
             .orElseThrow(() -> new ApiException(ErrorCode.BAD_REQUEST, "非法的系统角色编码: " + roleCode));
         SystemSuperAdminGuard.assertTenantManagedRole(role.code());
         if (!role.customerAssignable()) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "该角色仅用于兼容，不属于首发职责: " + role.code());
+            throw new ApiException(ErrorCode.BAD_REQUEST, "该角色不可由租户管理员分配: " + role.code());
         }
         return role;
     }
@@ -533,10 +533,8 @@ public class ComplianceUserService {
 
     private int managementLevel(RoleCode role) {
         return switch (role) {
-            case SYSTEM_SUPERADMIN -> 4;
-            case PLATFORM_GOVERNANCE_ADMIN, PLATFORM_KNOWLEDGE_GOVERNOR -> 3;
-            case ORGANIZATION_ADMIN -> 2;
-            case IDENTITY_ACCESS_ADMIN -> 1;
+            case SYSTEM_SUPERADMIN -> 2;
+            case PLATFORM_ADMIN -> 1;
             default -> 0;
         };
     }

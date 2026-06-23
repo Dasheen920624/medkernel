@@ -1,5 +1,7 @@
 package com.medkernel.engine.authoring;
 
+import java.util.List;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,6 +12,8 @@ import com.medkernel.engine.rule.RuleEngineService;
 import com.medkernel.engine.rule.RuleGovernanceResponse;
 import com.medkernel.engine.rule.RuleGovernanceTransitionRequest;
 import com.medkernel.engine.rule.RuleImpactResponse;
+import com.medkernel.engine.versioning.AssetTriggerBinding;
+import com.medkernel.engine.versioning.AssetTriggerBindingInput;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import org.springframework.stereotype.Component;
@@ -39,7 +43,7 @@ public class RuleEngineAuthoringBatchAdapter implements AuthoringBatchRulePort {
             detail.definition().priority(),
             detail.definition().suppressedBy(),
             detail.definition().dedupeWindowSeconds(),
-            detail.definition().packageVersion(),
+            detail.triggerBindings().stream().map(this::triggerInput).toList(),
             detail.definition().applicableOrgUnitId(),
             detail.version().sourceRef(),
             readJson(detail.version().dslJson(), "规则模板 DSL 无法解析"),
@@ -52,7 +56,9 @@ public class RuleEngineAuthoringBatchAdapter implements AuthoringBatchRulePort {
         return rules.createRule(new RuleCreateRequest(
             null, null, null, null, null, null, null, null, null, null,
             java.util.List.of(),
-            command.packageVersion() == null ? template.packageVersion() : command.packageVersion(),
+            command.triggers() == null || command.triggers().isEmpty()
+                ? template.triggers()
+                : command.triggers(),
             command.ruleCode(),
             command.name(),
             template.ruleType(),
@@ -69,6 +75,23 @@ public class RuleEngineAuthoringBatchAdapter implements AuthoringBatchRulePort {
             template.dsl().deepCopy(),
             template.explanation() == null ? null : template.explanation().deepCopy(),
             command.parameterBindings()));
+    }
+
+    private AssetTriggerBindingInput triggerInput(AssetTriggerBinding binding) {
+        try {
+            List<String> requiredFields = json.readValue(
+                binding.requiredFieldsJson(),
+                json.getTypeFactory().constructCollectionType(List.class, String.class)
+            );
+            return new AssetTriggerBindingInput(
+                binding.triggerPoint(), binding.purpose(), requiredFields);
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(
+                ErrorCode.INTERNAL_ERROR,
+                "规则模板触发绑定必需字段无法解析",
+                exception
+            );
+        }
     }
 
     @Override

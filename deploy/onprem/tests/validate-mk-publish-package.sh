@@ -8,21 +8,39 @@ TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
 grep -q 'COPYFILE_DISABLE=1 tar --no-xattrs -czf "\$DIST_TAR"' "$SCRIPT"
-! grep -q 'COPYFILE_DISABLE=1 tar -czf "\$DIST_TAR"' "$SCRIPT"
-! grep -q '^[[:space:]]*tar -czf "\$DIST_TAR"' "$SCRIPT"
+if grep -q 'COPYFILE_DISABLE=1 tar -czf "\$DIST_TAR"' "$SCRIPT"; then
+  printf 'macOS publish package omitted --no-xattrs\n' >&2
+  exit 1
+fi
+if grep -q '^[[:space:]]*tar -czf "\$DIST_TAR"' "$SCRIPT"; then
+  printf 'publish package used non-portable tar command\n' >&2
+  exit 1
+fi
 
 # 发布来源必须是当前干净工作树的完整提交哈希；禁止复用无法证明来源的旧制品。
 grep -q 'rev-parse HEAD' "$SCRIPT"
-! grep -q 'rev-parse --short HEAD' "$SCRIPT"
+if grep -q 'rev-parse --short HEAD' "$SCRIPT"; then
+  printf 'shell publisher accepted abbreviated source hash\n' >&2
+  exit 1
+fi
 grep -q '工作树存在未提交改动' "$SCRIPT"
 grep -q '发布来源必须是当前 HEAD 的完整 40 位提交哈希' "$SCRIPT"
-! grep -q -- '--skip-build' "$SCRIPT"
+if grep -q -- '--skip-build' "$SCRIPT"; then
+  printf 'shell publisher exposed forbidden skip-build option\n' >&2
+  exit 1
+fi
 
 grep -q 'rev-parse HEAD' "$POWERSHELL_SCRIPT"
-! grep -q 'rev-parse --short HEAD' "$POWERSHELL_SCRIPT"
+if grep -q 'rev-parse --short HEAD' "$POWERSHELL_SCRIPT"; then
+  printf 'PowerShell publisher accepted abbreviated source hash\n' >&2
+  exit 1
+fi
 grep -q '工作树存在未提交改动' "$POWERSHELL_SCRIPT"
 grep -q '发布来源必须是当前 HEAD 的完整 40 位提交哈希' "$POWERSHELL_SCRIPT"
-! grep -q 'SkipBuild' "$POWERSHELL_SCRIPT"
+if grep -q 'SkipBuild' "$POWERSHELL_SCRIPT"; then
+  printf 'PowerShell publisher exposed forbidden skip-build option\n' >&2
+  exit 1
+fi
 
 mkdir -p "$TMP_ROOT/repo/medkernel-backend"
 printf '<project/>\n' > "$TMP_ROOT/repo/medkernel-backend/pom.xml"

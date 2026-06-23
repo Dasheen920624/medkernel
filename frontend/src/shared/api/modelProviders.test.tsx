@@ -156,7 +156,7 @@ describe("model provider api hooks", () => {
         providerCode: "medical-model",
         enabled: true,
         capabilityCode: "rule.draft",
-        reason: "当前制品医学评测已独立签署",
+        reason: "当前制品医学评测已经通过",
         expectedVersion: 4,
         confirmedHighRisk: true,
       });
@@ -168,7 +168,7 @@ describe("model provider api hooks", () => {
     );
     expect(apiClient.post).toHaveBeenNthCalledWith(2, "/model-providers/medical-model/enable", {
       capabilityCode: "rule.draft",
-      reason: "当前制品医学评测已独立签署",
+      reason: "当前制品医学评测已经通过",
       expectedVersion: 4,
       confirmedHighRisk: true,
     });

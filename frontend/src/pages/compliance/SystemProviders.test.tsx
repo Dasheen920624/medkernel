@@ -121,8 +121,8 @@ describe("SystemProviders", () => {
     vi.mocked(useSecurityProfile).mockReturnValue({
       data: {
         userId: "u-ops",
-        username: "integration-operator",
-        roles: [{ code: "integration-operator" }],
+        username: "platform-admin",
+        roles: [{ code: "platform-admin" }],
         permissions: [
           {
             code: "system.read",
@@ -234,8 +234,8 @@ describe("SystemProviders", () => {
     vi.mocked(useSecurityProfile).mockReturnValue({
       data: {
         userId: "u-doctor",
-        username: "clinical-decision-user",
-        roles: [{ code: "clinical-decision-user" }],
+        username: "clinical-user",
+        roles: [{ code: "clinical-user" }],
         permissions: [],
         menuKeys: [],
       },
@@ -262,7 +262,7 @@ describe("SystemProviders", () => {
       </ConfigProvider>,
     );
 
-    fireEvent.click(screen.getByRole("switch", { name: "专家模式" }));
+    fireEvent.click(screen.getByRole("switch", { name: "高级信息" }));
 
     expect(screen.getByText("docker-core")).toBeInTheDocument();
     expect(screen.getByText("postgres")).toBeInTheDocument();

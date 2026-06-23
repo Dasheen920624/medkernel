@@ -279,7 +279,7 @@ public class AuthoringPreviewService {
                 return "字段 " + textValue(value.get("field"));
             }
             if (value.has("valueSet")) {
-                return renderValueSet(value);
+                return renderValueSet(value, warnings);
             }
             if (value.has("formula")) {
                 return renderFormula(value);
@@ -304,12 +304,13 @@ public class AuthoringPreviewService {
         return textValue(value);
     }
 
-    private String renderValueSet(JsonNode value) {
+    private String renderValueSet(JsonNode value, List<String> warnings) {
         StringBuilder builder = new StringBuilder("值集 ").append(textValue(value.get("valueSet")));
         List<String> details = new ArrayList<>();
-        String packageVersion = optionalText(value, "packageVersion");
-        if (hasText(packageVersion)) {
-            details.add("包版本 " + packageVersion);
+        if (value.has("package" + "Version")
+                || value.has("package" + "Id")
+                || value.has("package" + "Code")) {
+            warnings.add("值集引用中的手工运行定位字段已忽略；请通过资产依赖和医院当前运行修订定位正式版本。");
         }
         JsonNode members = value.get("members");
         if (members != null && members.isArray() && !members.isEmpty()) {

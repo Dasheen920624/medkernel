@@ -77,7 +77,6 @@ public class SystemConfigSeeder implements ApplicationRunner {
         seedLoggingPolicy(seededAt);
         seedRuntimeBoundaryPolicy(seededAt);
         seedKnowledgeLiteraturePolicy(seededAt);
-        seedKnowledgeProductionP6AcceptancePolicy(seededAt);
         seedDeploymentFormPolicy(seededAt);
         seedCdssPolicy(seededAt);
         service.applyRuntimeLogLevels();
@@ -162,7 +161,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
     private void seedPasswordPolicy(Instant seededAt) {
         seedConfigValue(SystemConfigService.AUTH_PASSWORD_PREFIX + "min-length", "12",
             "INTEGER", "口令最小长度", "HIGH", "安全组",
-            "控制平台账号、自助改密和首发账号的最小口令长度。", true, seededAt);
+            "控制平台账号、自助改密和初始账号的最小口令长度。", true, seededAt);
         seedConfigValue(SystemConfigService.AUTH_PASSWORD_PREFIX + "require-uppercase", "true",
             "BOOLEAN", "口令必须包含大写字母", "HIGH", "安全组",
             "控制平台账号口令是否必须包含至少一个大写字母。", true, seededAt);
@@ -258,20 +257,6 @@ public class SystemConfigSeeder implements ApplicationRunner {
             seededAt);
     }
 
-    private void seedKnowledgeProductionP6AcceptancePolicy(Instant seededAt) {
-        seedConfigValue(
-            SystemConfigService.KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY,
-            String.valueOf(SystemConfigService.DEFAULT_KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE),
-            "BOOLEAN",
-            "P6 正式知识生产独立验收",
-            "HIGH",
-            "平台知识治理组 / 医务处 / 信息科",
-            "正式模型生成知识的独立验收放行标记；默认 false。该项仅作为 readiness 阻断事实源，不能替代文献库、provider、评测、出域与审核证据。",
-            true,
-            "PLATFORM_SEED",
-            seededAt);
-    }
-
     private void seedDeploymentFormPolicy(Instant seededAt) {
         seedConfigValue(
             SystemConfigService.DEPLOYMENT_FORM_KEY,
@@ -279,7 +264,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
             "STRING",
             "部署形态",
             "HIGH",
-            "平台治理管理员 / 信息科",
+            "平台管理员",
             "控制本实例部署形态：PRODUCTION_CENTER=外网知识生产中心（只吃公开资料，可用 B2 外部大模型 API）；"
                 + "HOSPITAL_RUNTIME=内网医院运行侧（碰患者数据，禁外部 provider，仅本地模型 B1/B0）。"
                 + "默认最严格的 HOSPITAL_RUNTIME，生产中心须在配置中心显式切换。",

@@ -8,7 +8,7 @@ public enum AssetDependencyKind {
     TERMINOLOGY,
     RULE,
     PATHWAY,
-    PACKAGE_ITEM,
+    RUNTIME_ASSET,
     EVALUATION,
     FOLLOWUP,
     OTHER

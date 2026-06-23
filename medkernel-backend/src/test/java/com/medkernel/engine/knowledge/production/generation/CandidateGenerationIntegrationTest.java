@@ -98,38 +98,34 @@ class CandidateGenerationIntegrationTest {
 
         GenerationSummary summary = service.generate(new CandidateGenerationRequest(
             version.id(), TargetPipeline.TENANT_OVERLAY, KnowledgeDomain.CLINICAL,
-            List.of(
-                new GenerationItem(VersionedAssetType.RULE, new MaterializationTarget(null,
-                    new NewIdentitySpec(com.medkernel.engine.knowledge.KnowledgeDomain.GUIDELINE,
-                        "高血压诊断规则", "KN-AIK04-RULE"))),
-                new GenerationItem(VersionedAssetType.PATHWAY, new MaterializationTarget(null,
-                    new NewIdentitySpec(com.medkernel.engine.knowledge.KnowledgeDomain.GUIDELINE,
-                        "高血压管理路径", "KN-AIK04-PATH"))))));
+            List.of(new GenerationItem(VersionedAssetType.KNOWLEDGE, new MaterializationTarget(null,
+                new NewIdentitySpec(com.medkernel.engine.knowledge.KnowledgeDomain.GUIDELINE,
+                    "高血压诊疗知识", "KN-AIK04-HTN"))))));
 
         assertThat(summary.skipped()).isEmpty();
-        assertThat(summary.candidates()).hasSize(2);
+        assertThat(summary.candidates()).hasSize(1);
         assertThat(summary.candidates()).allSatisfy(candidate ->
             assertThat(candidate.candidateRef()).startsWith("kv:"));
 
         // 候选真实落既有版本/审核链（候选态不入库直接成权威）
-        KnowledgeIdentity ruleIdentity =
-            identities.findByTenantIdAndIdentityCode(TENANT, "KN-AIK04-RULE").orElseThrow();
-        List<KnowledgeAssetVersion> ruleVersions =
-            versions.findByTenantIdAndIdentityIdOrderByCreatedAtDesc(TENANT, ruleIdentity.id());
-        assertThat(ruleVersions).hasSize(1);
-        assertThat(ruleVersions.get(0).status()).isEqualTo(KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW);
-        assertThat(ruleVersions.get(0).sourceDocumentId()).isEqualTo(doc.id());
+        KnowledgeIdentity knowledgeIdentity =
+            identities.findByTenantIdAndIdentityCode(TENANT, "KN-AIK04-HTN").orElseThrow();
+        List<KnowledgeAssetVersion> knowledgeVersions =
+            versions.findByTenantIdAndIdentityIdOrderByCreatedAtDesc(TENANT, knowledgeIdentity.id());
+        assertThat(knowledgeVersions).hasSize(1);
+        assertThat(knowledgeVersions.get(0).status()).isEqualTo(KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW);
+        assertThat(knowledgeVersions.get(0).sourceDocumentId()).isEqualTo(doc.id());
 
         List<GenerationTriage> firstTriages = summary.candidates().stream()
             .flatMap(candidate -> triages.findByTenantIdAndJobCodeOrderByIdAsc(TENANT, candidate.jobCode()).stream())
             .toList();
-        assertThat(firstTriages).hasSize(2);
+        assertThat(firstTriages).hasSize(1);
         assertThat(firstTriages).allSatisfy(row ->
             assertThat(row.triageState()).isEqualTo(GenerationTriageState.NEW_ASSET));
         List<KnowledgeShadowRun> firstShadowRuns = summary.candidates().stream()
             .flatMap(candidate -> shadowRuns.findByTenantIdAndJobCodeOrderByIdAsc(TENANT, candidate.jobCode()).stream())
             .toList();
-        assertThat(firstShadowRuns).hasSize(2);
+        assertThat(firstShadowRuns).hasSize(1);
         assertThat(firstShadowRuns).allSatisfy(run -> {
             assertThat(run.status()).isEqualTo(KnowledgeShadowRunStatus.PENDING_REVIEW);
             assertThat(run.readyForReview()).isTrue();
@@ -139,14 +135,14 @@ class CandidateGenerationIntegrationTest {
 
         GenerationSummary duplicate = service.generate(new CandidateGenerationRequest(
             version.id(), TargetPipeline.TENANT_OVERLAY, KnowledgeDomain.CLINICAL,
-            List.of(new GenerationItem(VersionedAssetType.RULE,
-                new MaterializationTarget(ruleIdentity.id(), null)))));
+            List.of(new GenerationItem(VersionedAssetType.KNOWLEDGE,
+                new MaterializationTarget(knowledgeIdentity.id(), null)))));
 
         assertThat(duplicate.candidates()).isEmpty();
         assertThat(duplicate.skipped()).singleElement()
             .satisfies(skipped -> assertThat(skipped.reason()).contains("重复"));
         List<GenerationTriage> duplicateTriages =
-            triages.findByTenantIdAndTargetIdentityIdOrderByCreatedAtDescIdDesc(TENANT, ruleIdentity.id());
+            triages.findByTenantIdAndTargetIdentityIdOrderByCreatedAtDescIdDesc(TENANT, knowledgeIdentity.id());
         assertThat(duplicateTriages).anySatisfy(row ->
             assertThat(row.triageState()).isEqualTo(GenerationTriageState.DUPLICATE));
     }
@@ -158,7 +154,7 @@ class CandidateGenerationIntegrationTest {
                 "medication-prescribe", "TENANT", TENANT,
                 TENANT + "|" + category.name() + "|medication-prescribe|" + key,
                 key, "v1", ClinicalRedlineStatus.ACTIVE, RecommendationRiskLevel.CRITICAL,
-                "risk-matrix", "v1", CdssReviewRequirement.DUAL_REVIEW, 168,
+                "risk-matrix", "v1", CdssReviewRequirement.PHYSICIAN_CONFIRMATION, 168,
                 "OPT04_REDLINE_SILENT_TRIAL", "红线 " + category.name(), "安全危害",
                 "{\"field\":\"medications[].code\",\"operator\":\"in\"}", "依据", "ref", 42L,
                 false, now, "tester", now, "tester", "trace"));

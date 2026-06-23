@@ -52,7 +52,7 @@ public class AcquisitionController {
         return ApiResult.ok(service.listSources(page, size));
     }
 
-    /** 登记或更新来源待审批草稿；服务层强制停用并撤销旧审批。 */
+    /** 登记或更新来源停用配置；服务层强制停用，等待操作者显式启用。 */
     @PutMapping("/sources/{sourceCode}")
     @PreAuthorize("@perm.has('knowledge.write')")
     public ApiResult<KnowledgeAcquisitionSource> saveSourceDraft(
@@ -61,16 +61,16 @@ public class AcquisitionController {
         return ApiResult.ok(sourceGovernanceService.saveDraft(sourceCode, request));
     }
 
-    /** 经 MFA 和职责分离校验后审批并启用来源。 */
-    @PostMapping("/sources/{sourceCode}/approval")
-    @PreAuthorize("@perm.has('knowledge.acquisition.approve')")
-    public ApiResult<KnowledgeAcquisitionSource> approveSource(@PathVariable String sourceCode) {
-        return ApiResult.ok(sourceGovernanceService.approve(sourceCode));
+    /** 启用已经完成来源真实性、许可和 robots 技术核验的资料来源。 */
+    @PostMapping("/sources/{sourceCode}/enable")
+    @PreAuthorize("@perm.has('knowledge.write')")
+    public ApiResult<KnowledgeAcquisitionSource> enableSource(@PathVariable String sourceCode) {
+        return ApiResult.ok(sourceGovernanceService.enable(sourceCode));
     }
 
-    /** 高权限停用来源及其自动调度，保留历史审批证据。 */
+    /** 停用来源及其自动调度。 */
     @PostMapping("/sources/{sourceCode}/disable")
-    @PreAuthorize("@perm.has('knowledge.acquisition.approve')")
+    @PreAuthorize("@perm.has('knowledge.write')")
     public ApiResult<KnowledgeAcquisitionSource> disableSource(@PathVariable String sourceCode) {
         return ApiResult.ok(sourceGovernanceService.disable(sourceCode));
     }

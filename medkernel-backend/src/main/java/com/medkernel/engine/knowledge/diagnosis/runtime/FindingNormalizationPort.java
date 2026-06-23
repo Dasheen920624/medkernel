@@ -11,5 +11,11 @@ import com.medkernel.engine.context.CanonicalResourceType;
  */
 @FunctionalInterface
 public interface FindingNormalizationPort {
-    Optional<String> normalize(String tenantId, CanonicalResourceType type, String localCode, String codeSystem);
+    Optional<String> normalize(
+        String tenantId,
+        String runtimeReleaseId,
+        CanonicalResourceType type,
+        String localCode,
+        String codeSystem
+    );
 }

@@ -38,7 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class EmrLevelService {
     private static final ObjectMapper EXPORT_MAPPER = new ObjectMapper();
-    private static final String EVIDENCE_PACKAGE_STATUS = "EXPORTED";
+    private static final String EVIDENCE_EXPORT_STATUS = "EXPORTED";
 
     private final JdbcTemplate jdbc;
     private final EmrLevelRectificationBridge rectifications;
@@ -154,16 +154,16 @@ public class EmrLevelService {
     }
 
     /**
-     * 导出电子病历评级证据包；同一目标和幂等键重复导出返回同一份已落库证据。
+     * 导出电子病历评级证据；同一目标和幂等键重复导出返回同一份已落库证据。
      */
     @Transactional
-    public EmrLevelEvidencePackageExportResponse exportEvidencePackage(
-            EmrLevelEvidencePackageExportRequest request) {
+    public EmrLevelEvidenceExportResponse exportEvidence(
+            EmrLevelEvidenceExportRequest request) {
         requireExportRequest(request);
         TargetRow row = targetRow(request.hospitalOrgId(), request.standardVersion());
         String tenantId = tenantId();
-        String packageId = evidencePackageId(tenantId, row.targetId(), request.idempotencyKey());
-        List<EmrLevelEvidencePackageExportResponse> existing = existingPackage(
+        String exportId = evidenceExportId(tenantId, row.targetId(), request.idempotencyKey());
+        List<EmrLevelEvidenceExportResponse> existing = existingEvidenceExport(
             tenantId, row.targetId(), request.idempotencyKey());
         if (!existing.isEmpty()) {
             return existing.get(0);
@@ -175,28 +175,28 @@ public class EmrLevelService {
         Instant now = Instant.now();
         String traceId = traceId();
         jdbc.update("""
-            INSERT INTO mk_emr_level_evidence_package (
-                package_id, tenant_id, target_id, hospital_org_id, standard_version,
+            INSERT INTO mk_emr_level_evidence_export (
+                export_id, tenant_id, target_id, hospital_org_id, standard_version,
                 idempotency_key, status, evidence_line_count, payload_sha256, payload_ndjson,
                 requested_by, created_at, created_by, updated_at, updated_by, completed_at, trace_id
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            packageId, tenantId, row.targetId(), row.hospitalOrgId(), row.standardVersion(),
-            request.idempotencyKey(), EVIDENCE_PACKAGE_STATUS, payload.evidenceLineCount(),
+            exportId, tenantId, row.targetId(), row.hospitalOrgId(), row.standardVersion(),
+            request.idempotencyKey(), EVIDENCE_EXPORT_STATUS, payload.evidenceLineCount(),
             payloadSha256, payload.payload(), actor(), ts(now), actor(), ts(now), actor(), ts(now), traceId);
         auditRecorder.record(
             AuditAction.EXPORT,
-            "mk_emr_level_evidence_package",
-            packageId,
-            "导出电子病历评级证据包 targetId=" + row.targetId()
+            "mk_emr_level_evidence_export",
+            exportId,
+            "导出电子病历评级证据 targetId=" + row.targetId()
                 + " evidenceLineCount=" + payload.evidenceLineCount()
                 + " sha256=" + payloadSha256);
-        return evidencePackageResponse(
-            packageId,
+        return evidenceExportResponse(
+            exportId,
             row.targetId(),
             row.hospitalOrgId(),
             row.standardVersion(),
-            EVIDENCE_PACKAGE_STATUS,
+            EVIDENCE_EXPORT_STATUS,
             payloadSha256,
             payload.payload(),
             payload.evidenceLineCount(),
@@ -339,7 +339,7 @@ public class EmrLevelService {
                 'mk_emr_level_target',
                 'mk_emr_level_item',
                 'mk_emr_level_gap',
-                'mk_emr_level_evidence_package'
+                'mk_emr_level_evidence_export'
               )
               AND resource_id = ?
             """, tenantId, targetId);
@@ -384,7 +384,7 @@ public class EmrLevelService {
                         'mk_emr_level_target',
                         'mk_emr_level_item',
                         'mk_emr_level_gap',
-                        'mk_emr_level_evidence_package'
+                        'mk_emr_level_evidence_export'
                       )
                       AND resource_id = ?
                     ORDER BY occurred_at DESC
@@ -410,7 +410,7 @@ public class EmrLevelService {
 
     private Map<String, Object> summaryLine(EmrLevelDataQualityResponse quality) {
         Map<String, Object> line = new LinkedHashMap<>();
-        line.put("recordType", "EMR_LEVEL_PACKAGE_SUMMARY");
+        line.put("recordType", "EMR_LEVEL_EXPORT_SUMMARY");
         line.put("targetId", quality.targetId());
         line.put("hospitalOrgId", quality.hospitalOrgId());
         line.put("targetLevel", quality.targetLevel());
@@ -472,22 +472,22 @@ public class EmrLevelService {
         try {
             ndjson.append(EXPORT_MAPPER.writeValueAsString(line)).append('\n');
         } catch (JsonProcessingException ex) {
-            throw new ApiException(ErrorCode.INTERNAL_ERROR, "电子病历评级证据包序列化失败", ex);
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "电子病历评级证据导出序列化失败", ex);
         }
     }
 
-    private List<EmrLevelEvidencePackageExportResponse> existingPackage(
+    private List<EmrLevelEvidenceExportResponse> existingEvidenceExport(
             String tenantId,
             String targetId,
             String idempotencyKey) {
         return jdbc.query("""
-            SELECT package_id, target_id, hospital_org_id, standard_version, status,
+            SELECT export_id, target_id, hospital_org_id, standard_version, status,
                    payload_sha256, payload_ndjson, evidence_line_count, trace_id
-            FROM mk_emr_level_evidence_package
+            FROM mk_emr_level_evidence_export
             WHERE tenant_id = ? AND target_id = ? AND idempotency_key = ?
             ORDER BY created_at ASC
-            """, (rs, rowNum) -> evidencePackageResponse(
-                rs.getString("package_id"),
+            """, (rs, rowNum) -> evidenceExportResponse(
+                rs.getString("export_id"),
                 rs.getString("target_id"),
                 rs.getString("hospital_org_id"),
                 rs.getString("standard_version"),
@@ -498,8 +498,8 @@ public class EmrLevelService {
                 rs.getString("trace_id")), tenantId, targetId, idempotencyKey);
     }
 
-    private EmrLevelEvidencePackageExportResponse evidencePackageResponse(
-            String packageId,
+    private EmrLevelEvidenceExportResponse evidenceExportResponse(
+            String exportId,
             String targetId,
             String hospitalOrgId,
             String standardVersion,
@@ -508,14 +508,14 @@ public class EmrLevelService {
             String payload,
             int evidenceLineCount,
             String traceId) {
-        return new EmrLevelEvidencePackageExportResponse(
-            packageId,
+        return new EmrLevelEvidenceExportResponse(
+            exportId,
             targetId,
             hospitalOrgId,
             standardVersion,
             status,
             "application/x-ndjson",
-            targetId + "-evidence-package.ndjson",
+            targetId + "-evidence-export.ndjson",
             payloadSha256,
             payload,
             evidenceLineCount,
@@ -729,10 +729,10 @@ public class EmrLevelService {
         }
     }
 
-    private void requireExportRequest(EmrLevelEvidencePackageExportRequest request) {
+    private void requireExportRequest(EmrLevelEvidenceExportRequest request) {
         if (request == null || !hasText(request.hospitalOrgId()) || !hasText(request.standardVersion())
                 || !hasText(request.idempotencyKey())) {
-            throw new ApiException(ErrorCode.ENG_EVAL_001, "电子病历评级证据包导出请求缺少必要字段");
+            throw new ApiException(ErrorCode.ENG_EVAL_001, "电子病历评级证据导出请求缺少必要字段");
         }
     }
 
@@ -768,8 +768,8 @@ public class EmrLevelService {
         return "rct-emr-" + shortDigest(tenantId, targetId, itemCode, capabilityCode);
     }
 
-    private String evidencePackageId(String tenantId, String targetId, String idempotencyKey) {
-        return "emr-evidence-package-" + shortDigest(tenantId, targetId, idempotencyKey);
+    private String evidenceExportId(String tenantId, String targetId, String idempotencyKey) {
+        return "emr-evidence-export-" + shortDigest(tenantId, targetId, idempotencyKey);
     }
 
     private long count(String sql, Object... args) {

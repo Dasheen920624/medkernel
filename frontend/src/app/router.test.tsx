@@ -86,8 +86,8 @@ function authenticatedProfile() {
     username: "implementation.engineer",
     roles: [
       {
-        code: "implementation-operator",
-        displayName: "实施运维员",
+        code: "platform-admin",
+        displayName: "医疗引擎运营员",
         source: "DEFAULT",
         scopeLevel: null,
         scopeCode: null,
@@ -126,6 +126,24 @@ function authenticatedProfile() {
   };
 }
 
+function runtimeReleaseProfile() {
+  const profile = authenticatedProfile();
+  return {
+    ...profile,
+    permissions: [
+      ...profile.permissions,
+      {
+        code: "asset.read",
+        dimension: "ACTION",
+        target: "asset.read",
+        displayName: "查看资产",
+        risk: "LOW",
+      },
+    ],
+    menuKeys: [...profile.menuKeys, "runtime-releases"],
+  };
+}
+
 vi.mock("@/pages/Dashboard", () => ({
   default: () => <div>本周建议动作</div>,
 }));
@@ -149,6 +167,10 @@ vi.mock("@/pages/Bootstrap", () => ({
 
 vi.mock("@/pages/workbench/ReadinessValidation", () => ({
   default: () => <div>运行验收自检</div>,
+}));
+
+vi.mock("@/pages/tenant/ReleaseGovernance", () => ({
+  default: () => <div>运行发布</div>,
 }));
 
 function renderRouter(initialPath: string) {
@@ -196,12 +218,19 @@ describe("AppRouter", () => {
     expect(screen.queryByText("本周建议动作")).toBeNull();
   });
 
-  it("routes the removed StepFlow demo URL to the 404 fallback for authenticated users", async () => {
+  it("routes a removed StepFlow demo URL to the 404 fallback for authenticated users", async () => {
     securityProfileState.value = { data: authenticatedProfile(), isError: false };
-    renderRouter("/config/packages/demo");
+    renderRouter("/demo/step-flow");
 
     expect(await screen.findByText("此功能待 W3 业务域任务实装")).toBeInTheDocument();
     expect(screen.queryByText("暂时无法核验权限")).toBeNull();
+  });
+
+  it("exposes only the canonical runtime release route", async () => {
+    securityProfileState.value = { data: runtimeReleaseProfile(), isError: false };
+    renderRouter("/config/releases");
+
+    expect((await screen.findAllByText("运行发布")).length).toBeGreaterThanOrEqual(2);
   });
 
   it("routes the WORKBENCH-02 readiness validation page through the protected layout", async () => {

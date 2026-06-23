@@ -47,7 +47,7 @@ function providerQuery(status: "HEALTHY" | "NOT_CONNECTED" = "NOT_CONNECTED") {
           credentialLast4: "1234",
           credentialVersion: 2,
           credentialUpdatedAt: "2026-06-20T05:00:00Z",
-          credentialUpdatedBy: "integration-operator",
+          credentialUpdatedBy: "platform-admin",
           modelVersion: "medical-v1",
           enabled: false,
           status,
@@ -73,7 +73,7 @@ describe("ProviderSetupPanel", () => {
     vi.mocked(useSecurityProfile).mockReturnValue({
       data: {
         permissions: [{ code: "llm.provider.manage" }],
-        roles: [{ code: "integration-operator" }],
+        roles: [{ code: "platform-admin" }],
       },
       isLoading: false,
       isError: false,
@@ -210,7 +210,7 @@ describe("ProviderSetupPanel", () => {
 
   it("shows the responsible role instead of disabled mutation controls without permission", () => {
     vi.mocked(useSecurityProfile).mockReturnValue({
-      data: { permissions: [], roles: [{ code: "platform-knowledge-governor" }] },
+      data: { permissions: [], roles: [{ code: "engine-operator" }] },
       isLoading: false,
       isError: false,
     } as never);
@@ -221,7 +221,9 @@ describe("ProviderSetupPanel", () => {
       </ConfigProvider>,
     );
 
-    expect(screen.getByText(/由集成运维员维护模型服务、Key 与健康状态/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/由医疗引擎运营员维护模型服务、Key、健康检查和医学评测/),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "轮换 Key" })).not.toBeInTheDocument();
   });
 
@@ -287,9 +289,9 @@ describe("ProviderSetupPanel", () => {
     );
 
     await user.click(screen.getByRole("button", { name: /启\s*用/ }));
-    await user.click(screen.getByRole("combobox", { name: "已签署医学能力" }));
+    await user.click(screen.getByRole("combobox", { name: "已通过评测的模型能力" }));
     await user.click(screen.getByText("临床规则草案拟定"));
-    await user.type(screen.getByLabelText("启停原因"), "当前制品医学评测与独立复核均已完成");
+    await user.type(screen.getByLabelText("启停原因"), "当前制品医学评测已通过");
     await user.click(screen.getByRole("checkbox", { name: /我确认本操作受医学评测/ }));
     await user.click(screen.getByRole("button", { name: "确认启用" }));
 
@@ -298,11 +300,12 @@ describe("ProviderSetupPanel", () => {
         providerCode: "medical-model",
         enabled: true,
         capabilityCode: "rule.draft",
-        reason: "当前制品医学评测与独立复核均已完成",
+        reason: "当前制品医学评测已通过",
         expectedVersion: 4,
         confirmedHighRisk: true,
       }),
     );
+    expect(screen.queryByText(/独立签署|质量治理专家|集成运维员/)).not.toBeInTheDocument();
   });
 
   it("blocks a vague provider activation reason before calling the backend", async () => {
@@ -315,7 +318,7 @@ describe("ProviderSetupPanel", () => {
     );
 
     await user.click(screen.getByRole("button", { name: /启\s*用/ }));
-    await user.click(screen.getByRole("combobox", { name: "已签署医学能力" }));
+    await user.click(screen.getByRole("combobox", { name: "已通过评测的模型能力" }));
     await user.click(screen.getByText("临床规则草案拟定"));
     await user.type(screen.getByLabelText("启停原因"), "启用");
     await user.click(screen.getByRole("checkbox", { name: /我确认本操作受医学评测/ }));

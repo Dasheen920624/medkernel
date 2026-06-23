@@ -209,7 +209,7 @@ public class KnowledgeProductionOrchestrationService {
         );
     }
 
-    /** 列某 job 的候选生产血缘 + 会签路由决策（FR-5/6 可回溯，路由只读 resolve）。 */
+    /** 列某 job 的候选生产血缘与审核归口决策。 */
     @Transactional(readOnly = true)
     public PageResponse<ProductionCandidateView> listCandidates(String jobCode, int page, int size) {
         String tenantId = requireCurrentTenant();

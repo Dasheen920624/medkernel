@@ -7,25 +7,24 @@ import { PageState } from "@/shared/ui/PageState";
 const { Text } = Typography;
 
 const GATES = [
-  { code: "LITERATURE_ROOT", label: "文献资料库", step: "readiness", owner: "系统超级管理员" },
-  { code: "DEPLOYMENT_FORM", label: "部署形态", step: "readiness", owner: "实施运维员" },
-  { code: "MODEL_PROVIDER", label: "模型服务", step: "provider", owner: "集成运维员" },
+  { code: "LITERATURE_ROOT", label: "文献资料库", step: "readiness", owner: "医疗引擎运营员" },
+  { code: "DEPLOYMENT_FORM", label: "部署形态", step: "readiness", owner: "医疗引擎运营员" },
+  { code: "MODEL_PROVIDER", label: "模型服务", step: "provider", owner: "医疗引擎运营员" },
   {
     code: "REGRESSION_BASELINE",
     label: "医学回归基准",
     step: "evaluation",
-    owner: "质量治理专家",
+    owner: "医疗引擎运营员",
   },
   {
     code: "MODEL_EVALUATION",
     label: "医学评测",
     step: "evaluation",
-    owner: "质量治理专家",
+    owner: "医疗引擎运营员",
   },
-  { code: "EGRESS_GOVERNANCE", label: "出域治理", step: "readiness", owner: "系统超级管理员" },
-  { code: "MODEL_POLICY", label: "模型策略", step: "readiness", owner: "平台治理管理员" },
-  { code: "VERSION_TRIPLE", label: "版本三元组", step: "readiness", owner: "平台治理管理员" },
-  { code: "P6_ACCEPTANCE", label: "P6 独立验收", step: "readiness", owner: "系统超级管理员" },
+  { code: "EGRESS_GOVERNANCE", label: "出域治理", step: "readiness", owner: "医疗引擎运营员" },
+  { code: "MODEL_POLICY", label: "模型策略", step: "readiness", owner: "医疗引擎运营员" },
+  { code: "VERSION_TRIPLE", label: "版本三元组", step: "readiness", owner: "医疗引擎运营员" },
 ] as const;
 
 export default function ProductionReadinessPanel() {
@@ -34,7 +33,7 @@ export default function ProductionReadinessPanel() {
 
   let content;
   if (readiness.isLoading) {
-    content = <PageState state="loading" title="正在核查九项生产闸" />;
+    content = <PageState state="loading" title="正在核查八项生产闸" />;
   } else if (readiness.isError) {
     content = (
       <PageState
@@ -75,12 +74,12 @@ export default function ProductionReadinessPanel() {
   }
 
   return (
-    <Card title="九项生产闸">
+    <Card title="八项生产闸">
       <Space direction="vertical" size="middle" className="mk-full-width">
         <Alert
           type={readiness.data?.ready ? "success" : "warning"}
           showIcon
-          message={readiness.data?.ready ? "九项生产闸已满足" : "正式生产仍有阻断项"}
+          message={readiness.data?.ready ? "八项生产闸已满足" : "正式生产仍有阻断项"}
           description="所有门禁均读取关系库真实状态；历史评测、仅有前端勾选或脚本输出不能代替当前证据。"
         />
         {content}

@@ -67,19 +67,19 @@ class ComplianceUserCredentialFlowTest {
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor admin() {
         return jwt().jwt(t -> t.subject("admin-1").claim("tenant_id", "t-1"))
-            .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"));
+            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor member(String userId) {
         return jwt().jwt(t -> t.subject(userId).claim("tenant_id", "t-1"))
-            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"));
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"));
     }
 
     @Test
     void createMember_generatesTempPassword_andListsWithoutHash() throws Exception {
         mvc.perform(post("/api/v1/compliance/users").with(admin())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"credentialManaged\":true,\"username\":\"drwang\",\"roleCode\":\"integration-operator\"}"))
+                .content("{\"credentialManaged\":true,\"username\":\"drwang\",\"roleCode\":\"clinical-user\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.user.username").value("drwang"))
             .andExpect(jsonPath("$.data.user.userId").value("drwang"))
@@ -95,7 +95,7 @@ class ComplianceUserCredentialFlowTest {
 
     @Test
     void createMember_duplicateUsername_conflict() throws Exception {
-        String body = "{\"credentialManaged\":true,\"username\":\"drwang\",\"roleCode\":\"integration-operator\"}";
+        String body = "{\"credentialManaged\":true,\"username\":\"drwang\",\"roleCode\":\"clinical-user\"}";
         mvc.perform(post("/api/v1/compliance/users").with(admin())
                 .contentType(MediaType.APPLICATION_JSON).content(body))
             .andExpect(status().isOk());
@@ -258,18 +258,18 @@ class ComplianceUserCredentialFlowTest {
     }
 
     @Test
-    void createMemberCannotAssignCompatibilityOnlyRole() throws Exception {
+    void createMemberRejectsRetiredRoleCode() throws Exception {
         mvc.perform(post("/api/v1/compliance/users").with(admin())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "credentialManaged": true,
                       "username": "legacy-doctor",
-                      "roleCode": "clinical-decision-user"
+                      "roleCode": "doctor"
                     }
                     """))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("首发职责")));
+            .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("非法的系统角色编码")));
     }
 
     @Test

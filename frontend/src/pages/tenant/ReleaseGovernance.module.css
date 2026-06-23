@@ -75,6 +75,23 @@
   margin-top: calc(var(--mk-unit) * 12);
 }
 
+.assetTypeSelect {
+  min-width: calc(var(--mk-unit) * 40);
+}
+
+.keywordInput {
+  width: calc(var(--mk-unit) * 60);
+}
+
+.hospitalSelect {
+  width: min(100%, calc(var(--mk-unit) * 100));
+}
+
+.primaryAction {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .rollbackSummary {
   margin-bottom: calc(var(--mk-unit) * 16);
 }

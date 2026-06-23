@@ -8,8 +8,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.medkernel.shared.api.error.ApiException;
@@ -21,29 +21,27 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 上下文字段目录服务（P2/P5）：合并平台派生字段（{@link ContextFieldCatalog}）与租户自定义
+ * 上下文字段目录服务：合并平台派生字段（{@link ContextFieldCatalog}）与租户自定义
  * 字段（{@link ContextFieldCatalogRepository}），按当前租户隔离。平台字段优先，租户字段补充。
  */
 @Service
 public class ContextFieldCatalogService {
 
     private static final String AUDIT_TARGET_TYPE = "context_field_catalog";
-
+    private static final String EXTENSION_RESOURCE_TYPE = "Extension";
+    private static final Pattern EXTENSION_FIELD_PATH = Pattern.compile(
+        "^extensions\\.local\\.[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*){0,2}$");
     private final ContextFieldCatalog systemCatalog;
     private final ContextFieldCatalogRepository repository;
     private final AuditRecorder auditRecorder;
-    private final PackageVersionPort versions;
 
-    @Autowired
     public ContextFieldCatalogService(
         ContextFieldCatalog systemCatalog,
         ContextFieldCatalogRepository repository,
-        AuditRecorder auditRecorder,
-        PackageVersionPort versions) {
+        AuditRecorder auditRecorder) {
         this.systemCatalog = systemCatalog;
         this.repository = repository;
         this.auditRecorder = auditRecorder;
-        this.versions = versions;
     }
 
     private static final Set<String> DATA_TYPES =
@@ -53,7 +51,7 @@ public class ContextFieldCatalogService {
     public ContextFieldDescriptor create(ContextFieldCatalogUpsertRequest request) {
         String tenantId = requireTenant();
         String fieldPath = request.fieldPath() == null ? "" : request.fieldPath().trim();
-        ContextFieldDescriptor systemField = requireSystemField(fieldPath);
+        ContextFieldDescriptor systemField = catalogBase(fieldPath);
         if (repository.findByTenantIdAndFieldPath(tenantId, fieldPath).isPresent()) {
             throw new ApiException(ErrorCode.ENG_CONTEXT_001, "字段路径已存在：" + fieldPath);
         }
@@ -74,7 +72,10 @@ public class ContextFieldCatalogService {
         if (!existing.fieldPath().equals(fieldPath)) {
             throw new ApiException(ErrorCode.ENG_CONTEXT_001, "字段路径不能修改：" + existing.fieldPath());
         }
-        ContextFieldDescriptor systemField = requireSystemField(fieldPath);
+        ContextFieldDescriptor systemField = catalogBase(fieldPath);
+        if (systemField == null) {
+            systemField = existing.toDescriptor();
+        }
         ContextFieldCatalogEntry entry = buildEntry(
             request, systemField, tenantId, existing.fieldId(), existing.id(), existing.createdAt(), existing.createdBy(),
             RequestContext.currentUserId().orElse("system"), RequestContext.currentTraceId());
@@ -121,10 +122,18 @@ public class ContextFieldCatalogService {
         if (fieldPath.isBlank()) {
             throw new ApiException(ErrorCode.ENG_CONTEXT_001, "字段路径不能为空");
         }
+        Instant now = Instant.now();
+        if (isExtensionPath(fieldPath)) {
+            return buildExtensionEntry(
+                request, systemField, tenantId, fieldId, id, createdAt, createdBy, updatedBy, traceId, now, dataType);
+        }
+        if (systemField == null) {
+            throw new ApiException(ErrorCode.ENG_CONTEXT_001,
+                "字段路径不属于 canonical 或 extensions.local 字段目录：" + fieldPath);
+        }
         requireSame("字段路径", fieldPath, systemField.fieldPath());
         requireSame("资源类型", request.resourceType(), systemField.resourceType());
         requireSame("字段数据类型", dataType, systemField.dataType());
-        Instant now = Instant.now();
         return new ContextFieldCatalogEntry(
             id, fieldId, tenantId, systemField.category(),
             systemField.group(), systemField.resourceType(), systemField.fieldPath(),
@@ -135,37 +144,73 @@ public class ContextFieldCatalogService {
             now, updatedBy, traceId);
     }
 
+    private static ContextFieldCatalogEntry buildExtensionEntry(
+            ContextFieldCatalogUpsertRequest request,
+            ContextFieldDescriptor existing,
+            String tenantId,
+            String fieldId,
+            Long id,
+            Instant createdAt,
+            String createdBy,
+            String updatedBy,
+            String traceId,
+            Instant now,
+            String dataType) {
+        requireSame("扩展字段资源类型", request.resourceType(), EXTENSION_RESOURCE_TYPE);
+        if (existing != null) {
+            requireSame("字段路径", request.fieldPath().trim(), existing.fieldPath());
+            requireSame("字段数据类型", dataType, existing.dataType());
+        }
+        String category = requireValue(request.category(), "扩展字段业务域不能为空");
+        String group = requireValue(request.group(), "扩展字段分组不能为空");
+        String displayName = requireValue(request.displayName(), "扩展字段展示名不能为空");
+        String unit = blankToNull(request.unit());
+        String codeSystem = blankToNull(request.codeSystem());
+        if (!"number".equals(dataType) && unit != null) {
+            throw new ApiException(ErrorCode.ENG_CONTEXT_001, "只有 number 扩展字段可以配置单位");
+        }
+        if ("code".equals(dataType) && codeSystem == null) {
+            throw new ApiException(ErrorCode.ENG_CONTEXT_001, "code 扩展字段必须绑定标准字典");
+        }
+        if (!"code".equals(dataType) && codeSystem != null) {
+            throw new ApiException(ErrorCode.ENG_CONTEXT_001, "只有 code 扩展字段可以绑定标准字典");
+        }
+        return new ContextFieldCatalogEntry(
+            id,
+            fieldId,
+            tenantId,
+            category,
+            group,
+            EXTENSION_RESOURCE_TYPE,
+            request.fieldPath().trim(),
+            displayName,
+            dataType,
+            unit,
+            codeSystem,
+            blankToNull(request.description()),
+            "ACTIVE",
+            createdAt == null ? now : createdAt,
+            createdBy == null ? updatedBy : createdBy,
+            now,
+            updatedBy,
+            traceId
+        );
+    }
+
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
     /** 查询当前租户可见的字段目录（平台派生 + 本租户自定义），按资源类型/关键词过滤。 */
     public List<ContextFieldDescriptor> query(String resourceType, String keyword) {
-        return query(resourceType, keyword, null);
-    }
-
-    /** 查询当前租户可见的字段目录，可选按包版本上下文校验。 */
-    public List<ContextFieldDescriptor> query(String resourceType, String keyword, String packageVersion) {
-        ensurePackageVersion(packageVersion);
         List<ContextFieldDescriptor> systemFields = systemCatalog.query(null, null);
         OrgScope scope = RequestContext.currentOrgScope();
         if (scope == null || !scope.hasTenant()) {
-            return systemCatalog.query(resourceType, keyword);
+            return filter(systemFields, resourceType, keyword);
         }
         List<ContextFieldCatalogEntry> tenantEntries =
             repository.findAllByTenantIdAndStatus(scope.tenantId(), "ACTIVE");
         return merge(systemFields, tenantEntries, resourceType, keyword);
-    }
-
-    private void ensurePackageVersion(String packageVersion) {
-        String version = blankToNull(packageVersion);
-        if (version == null) {
-            return;
-        }
-        String tenantId = requireTenant();
-        if (!versions.exists(tenantId, version)) {
-            throw new ApiException(ErrorCode.ENG_CONTEXT_002, "字段目录包版本不存在：" + version);
-        }
     }
 
     /**
@@ -187,6 +232,10 @@ public class ContextFieldCatalogService {
         for (ContextFieldCatalogEntry entry : tenantEntries) {
             Integer index = indexByPath.get(entry.fieldPath());
             if (index == null) {
+                if (isExtensionEntry(entry)) {
+                    indexByPath.put(entry.fieldPath(), result.size());
+                    result.add(entry.toDescriptor());
+                }
                 continue;
             }
             result.set(index, overlay(result.get(index), entry));
@@ -197,12 +246,27 @@ public class ContextFieldCatalogService {
             .toList();
     }
 
-    private ContextFieldDescriptor requireSystemField(String fieldPath) {
+    private static List<ContextFieldDescriptor> filter(
+            List<ContextFieldDescriptor> fields,
+            String resourceType,
+            String keyword) {
+        String type = resourceType == null ? "" : resourceType.trim().toLowerCase(Locale.ROOT);
+        String kw = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
+        return fields.stream()
+            .filter(field -> type.isEmpty() || field.resourceType().toLowerCase(Locale.ROOT).equals(type))
+            .filter(field -> kw.isEmpty() || matchesKeyword(field, kw))
+            .toList();
+    }
+
+    private ContextFieldDescriptor catalogBase(String fieldPath) {
+        if (isExtensionPath(fieldPath)) {
+            return null;
+        }
         return systemCatalog.query(null, null).stream()
             .filter(field -> field.fieldPath().equals(fieldPath))
             .findFirst()
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_CONTEXT_001,
-                "字段路径不属于 canonical 字段目录：" + fieldPath));
+                "字段路径不属于 canonical 或 extensions.local 字段目录：" + fieldPath));
     }
 
     private static ContextFieldDescriptor overlay(ContextFieldDescriptor system, ContextFieldCatalogEntry entry) {
@@ -240,6 +304,25 @@ public class ContextFieldCatalogService {
     private static String firstNonBlank(String preferred, String fallback) {
         String value = blankToNull(preferred);
         return value == null ? fallback : value;
+    }
+
+    private static boolean isExtensionEntry(ContextFieldCatalogEntry entry) {
+        return entry != null
+            && EXTENSION_RESOURCE_TYPE.equals(entry.resourceType())
+            && isExtensionPath(entry.fieldPath())
+            && DATA_TYPES.contains(entry.dataType());
+    }
+
+    private static boolean isExtensionPath(String fieldPath) {
+        return fieldPath != null && EXTENSION_FIELD_PATH.matcher(fieldPath.trim()).matches();
+    }
+
+    private static String requireValue(String value, String message) {
+        String normalized = blankToNull(value);
+        if (normalized == null) {
+            throw new ApiException(ErrorCode.ENG_CONTEXT_001, message);
+        }
+        return normalized;
     }
 
     private void recordAudit(

@@ -56,7 +56,7 @@ public class RolloutWorkflowNotificationAdapter implements RolloutPauseNotifier 
             WorkflowNotificationLevel.HIGH,
             WorkflowNotificationStatus.UNREAD,
             null,
-            "ORGANIZATION_ADMIN",
+            "ENGINE_OPERATOR",
             null,
             null,
             "/tenant/packages?releasePlanId=" + plan.planId(),

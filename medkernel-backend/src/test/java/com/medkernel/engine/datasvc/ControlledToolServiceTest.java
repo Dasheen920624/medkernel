@@ -330,8 +330,7 @@ class ControlledToolServiceTest {
             .thenReturn(PageResponse.empty(PageRequest.defaults()));
         when(productionService.submitCandidate(eq("job-agent"), any(), any())).thenReturn(
             new CandidateSubmissionResponse("candidate:agent:1",
-                new ReviewRoutingDecision(RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.CLINICAL_GOVERNOR,
-                    false, KnowledgeDomain.CLINICAL)));
+                new ReviewRoutingDecision(RoleCode.ENGINE_OPERATOR, KnowledgeDomain.CLINICAL)));
 
         ToolExecutionEnvelope envelope =
             service.execute("submitProductionCandidate", agentReq(agentPayload(validSubmission())));
@@ -359,8 +358,8 @@ class ControlledToolServiceTest {
                 KnowledgeRiskLevel.MEDIUM,
                 Instant.parse("2026-06-14T00:00:00Z"),
                 "agent",
-                new ReviewRoutingDecision(RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.CLINICAL_GOVERNOR,
-                    false, KnowledgeDomain.CLINICAL))), PageRequest.defaults(), 1L));
+                new ReviewRoutingDecision(RoleCode.ENGINE_OPERATOR, KnowledgeDomain.CLINICAL))),
+            PageRequest.defaults(), 1L));
 
         ToolExecutionEnvelope envelope =
             service.execute("submitProductionCandidate", agentReq(agentPayload(submission)));
@@ -387,7 +386,7 @@ class ControlledToolServiceTest {
     @Test
     void execute_explainRule_wrapsRuleMetadataInEnvelopeAtD1() {
         when(ruleExplanationService.explainRule("R-7")).thenReturn(new RuleExplanation(
-            "R-7", "CODE-7", "高危药物配伍规则", "ORDER", "HIGH", "PUBLISHED", "v9", "pkg-1.0",
+            "R-7", "CODE-7", "高危药物配伍规则", "ORDER", "HIGH", "PUBLISHED", "v9",
             EngineDataLevel.D1, Instant.parse("2026-06-14T00:00:00Z"), false, null));
 
         ToolExecutionEnvelope envelope = service.execute("explainRule", reqTarget("R-7"));
@@ -484,7 +483,7 @@ class ControlledToolServiceTest {
     @Test
     void execute_getClinicalContextExplanation_wrapsMaskedContextAtD4WithMaskedPolicy() {
         when(clinicalContextService.explainContext("tok-1", "AI 解释临床会话授权范围"))
-            .thenReturn(new ClinicalContextExplanation(true, "已校验", "order-sign", "clinical-decision-user",
+            .thenReturn(new ClinicalContextExplanation(true, "已校验", "order-sign", "clinical-user",
                 "IFRAME", "ref:abc123def456", "ref:999000aaa111",
                 Instant.parse("2026-06-14T01:00:00Z"), EngineDataLevel.D4,
                 Instant.parse("2026-06-14T00:00:00Z"), false, null));

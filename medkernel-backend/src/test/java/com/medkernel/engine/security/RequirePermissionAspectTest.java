@@ -22,14 +22,11 @@ class RequirePermissionAspectTest {
 
     @BeforeEach
     void setUp() {
-        var rolePermissionRepository = Mockito.mock(RolePermissionOverrideRepository.class);
         var userRoleAssignmentRepository = Mockito.mock(UserRoleAssignmentRepository.class);
-        Mockito.when(rolePermissionRepository.findByTenantIdAndRoleCodes(Mockito.anyString(), Mockito.anyCollection()))
-            .thenReturn(List.of());
         Mockito.when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId(Mockito.anyString(), Mockito.anyString()))
             .thenReturn(List.of());
         aspect = new RequirePermissionAspect(
-            new PermissionEvaluator(new EffectivePermissionService(rolePermissionRepository, userRoleAssignmentRepository)));
+            new PermissionEvaluator(new EffectivePermissionService(userRoleAssignmentRepository)));
     }
 
     @AfterEach
@@ -41,12 +38,12 @@ class RequirePermissionAspectTest {
     void annotatedMethodIsAllowedOnlyWhenEffectivePermissionExists() throws Exception {
         RequirePermission annotation = annotatedPermission();
 
-        authenticate(RoleCode.CLINICAL_DECISION_USER);
+        authenticate(RoleCode.CLINICAL_USER);
         assertThatThrownBy(() -> aspect.enforce(annotation))
             .isInstanceOf(PermissionDeniedException.class)
             .hasMessageContaining(PermissionCode.RULE_PUBLISH.code());
 
-        authenticate(RoleCode.CLINICAL_GOVERNOR);
+        authenticate(RoleCode.ENGINE_OPERATOR);
         assertThatCode(() -> aspect.enforce(annotation)).doesNotThrowAnyException();
     }
 

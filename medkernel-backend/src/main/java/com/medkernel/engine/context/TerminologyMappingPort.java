@@ -19,5 +19,9 @@ public interface TerminologyMappingPort {
      * @param anchors           每个标准资源编码字段的可追踪锚点
      * @return                  anchor.key → "VALID" / "PARTIAL" / "UNKNOWN"
      */
-    Map<String, String> evaluate(String tenantId, List<ClinicalCodeMappingAnchor> anchors);
+    Map<String, String> evaluate(
+        String tenantId,
+        String runtimeReleaseId,
+        List<ClinicalCodeMappingAnchor> anchors
+    );
 }

@@ -27,6 +27,9 @@ import com.medkernel.engine.recommendation.RecommendationModelStatus;
 import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
 import com.medkernel.engine.recommendation.RecommendationTriggerStatus;
+import com.medkernel.engine.rule.RuntimeReleaseRuleSelector;
+import com.medkernel.engine.rule.RuntimeRuleReference;
+import com.medkernel.engine.rule.RuntimeRuleSelection;
 import com.medkernel.engine.rule.RuleEngineService;
 import com.medkernel.engine.rule.RuleEvaluateResponse;
 import com.medkernel.shared.context.OrgScope;
@@ -38,10 +41,16 @@ class ClinicalEventEngineAdapterTest {
     @Test
     void ruleAdapterCallsRuleEngineWithSameEventContext() {
         RuleEngineService service = mock(RuleEngineService.class);
-        when(service.evaluateContext(
+        RuntimeReleaseRuleSelector selector = mock(RuntimeReleaseRuleSelector.class);
+        when(selector.select("tenant-A", "runtime-release-test", "patient-view"))
+            .thenReturn(new RuntimeRuleSelection(
+                "runtime-release-test", "baseline-A8",
+                List.of(new RuntimeRuleReference(
+                    "tenant-A", "rule-1", "rule-version-1"))));
+        when(service.evaluatePinnedContext(
             any(String.class), any(JsonNode.class), any(String.class), any(List.class), any(String.class)))
             .thenReturn(new RuleEvaluateResponse("eval-1", List.of(), null, List.of(), "trace-1"));
-        var adapter = new ClinicalEventRuleEngineAdapter(service, json);
+        var adapter = new ClinicalEventRuleEngineAdapter(service, json, selector);
 
         ClinicalEventEngineDispatchResult result = adapter.dispatch(context());
 
@@ -51,12 +60,20 @@ class ClinicalEventEngineAdapterTest {
         ArgumentCaptor<String> triggerCap = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<JsonNode> contextCap = ArgumentCaptor.forClass(JsonNode.class);
         ArgumentCaptor<String> eventCap = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> packageVersionCap = ArgumentCaptor.forClass(String.class);
-        verify(service).evaluateContext(
-            triggerCap.capture(), contextCap.capture(), eventCap.capture(), any(), packageVersionCap.capture());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<RuntimeRuleReference>> rulesCap = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<String> releaseCap = ArgumentCaptor.forClass(String.class);
+        verify(service).evaluatePinnedContext(
+            triggerCap.capture(), contextCap.capture(), eventCap.capture(), rulesCap.capture(),
+            releaseCap.capture());
         assertThat(eventCap.getValue()).isEqualTo("evt-1");
         assertThat(triggerCap.getValue()).isEqualTo("patient-view");
-        assertThat(packageVersionCap.getValue()).isEqualTo("pkg-2026.06");
+        assertThat(rulesCap.getValue())
+            .extracting(RuntimeRuleReference::versionId)
+            .containsExactly("rule-version-1");
+        assertThat(releaseCap.getValue()).isEqualTo("runtime-release-test");
+        assertThat(contextCap.getValue().path("event").path("runtimeReleaseId").asText())
+            .isEqualTo("runtime-release-test");
         assertThat(contextCap.getValue().path("event").path("eventId").asText()).isEqualTo("evt-1");
         assertThat(contextCap.getValue().path("event").path("triggerPoint").asText()).isEqualTo("patient-view");
         assertThat(contextCap.getValue().path("patient").path("patientId").asText()).isEqualTo("MPI-1");
@@ -82,12 +99,12 @@ class ClinicalEventEngineAdapterTest {
             ClinicalSetting.INPATIENT,
             "ctx-order",
             "HIS",
-            "pkg-2026.06",
+            "runtime-release-test",
             "sha256:payload",
             Instant.parse("2026-06-01T01:00:00Z"),
             "HIS:order-sign",
             "trace-1",
-            ClinicalEventTestContexts.resources("MPI-1", "HIS", "pkg-2026.06",
+            ClinicalEventTestContexts.resources("MPI-1", "HIS", "TERM-2026.06",
                 Instant.parse("2026-06-01T01:00:00Z")),
             json.readTree("""
                 {
@@ -174,12 +191,12 @@ class ClinicalEventEngineAdapterTest {
             ClinicalSetting.INPATIENT,
             "ctx-1",
             "LIS",
-            "pkg-2026.06",
+            "runtime-release-test",
             "sha256:payload",
             Instant.parse("2026-06-01T01:00:00Z"),
             "LIS:result-review",
             "trace-1",
-            ClinicalEventTestContexts.resources("MPI-1", "LIS", "pkg-2026.06",
+            ClinicalEventTestContexts.resources("MPI-1", "LIS", "TERM-2026.06",
                 Instant.parse("2026-06-01T01:00:00Z")),
             json.readTree("""
                 {
@@ -213,12 +230,12 @@ class ClinicalEventEngineAdapterTest {
             ClinicalSetting.INPATIENT,
             "ctx-1",
             "HIS",
-            "pkg-2026.06",
+            "runtime-release-test",
             "sha256:payload",
             Instant.parse("2026-06-01T01:00:00Z"),
             "HIS:patient-view",
             "trace-1",
-            ClinicalEventTestContexts.resources("MPI-1", "HIS", "pkg-2026.06",
+            ClinicalEventTestContexts.resources("MPI-1", "HIS", "TERM-2026.06",
                 Instant.parse("2026-06-01T01:00:00Z")),
             json.createObjectNode().put("diagnosisCode", "I10"),
             List.of());

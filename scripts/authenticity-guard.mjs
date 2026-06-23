@@ -192,7 +192,7 @@ const BACKEND_RULES = [
   {
     ruleId: "backend.fake-impact-department",
     message:
-      "后端生产代码禁止用默认科室伪造包影响分析；缺真实归属字段时必须诚实空缺或显式建模。",
+      "后端生产代码禁止用默认科室伪造资产影响分析；缺真实归属字段时必须诚实空缺或显式建模。",
     pattern: /\bdept-default\b|模拟受影响的责任科室/im,
   },
   {

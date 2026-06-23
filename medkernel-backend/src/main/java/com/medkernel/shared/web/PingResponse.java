@@ -8,7 +8,7 @@ import java.time.Instant;
  *
  * @param product    产品名（固定 "MedKernel"）
  * @param version    版本号
- * @param stage      当前阶段口径（v1.0 GA / 引擎全能力上线 / 业务服务包装）
+ * @param stage      当前阶段口径（v1.0 GA / 引擎全能力上线 / 业务服务组合）
  * @param serverTime 服务端时间戳
  */
 public record PingResponse(

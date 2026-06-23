@@ -7,11 +7,11 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 租户自定义上下文字段（P2/P5 持久化扩展）。
+ * 租户自定义上下文字段持久化扩展。
  *
  * <p>平台字段目录由 {@link ContextFieldCatalog} 从 canonical 派生（代码内、只读）；
- * 本表只存租户在前台维护的自定义/补充字段，与平台字段在读取时合并。沿用业务层级
- * {@code category}（一级）/{@code groupName}（二级）。
+ * 本表保存平台字段元数据覆盖，以及统一落在 {@code extensions.local.*} 命名空间的租户扩展字段。
+ * 沿用业务层级 {@code category}（一级）/{@code groupName}（二级）。
  */
 @Table("mk_context_field_catalog")
 public record ContextFieldCatalogEntry(

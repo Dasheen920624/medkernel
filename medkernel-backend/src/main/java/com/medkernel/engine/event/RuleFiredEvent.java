@@ -10,7 +10,7 @@ import java.util.Objects;
 public record RuleFiredEvent(
     String tenantId,
     String traceId,
-    String packageVersion,
+    String runtimeReleaseId,
     String ruleId,
     String ruleCode,
     String versionId,
@@ -26,7 +26,6 @@ public record RuleFiredEvent(
     public RuleFiredEvent {
         tenantId = Objects.requireNonNull(tenantId, "规则命中事件租户不能为空");
         traceId = Objects.requireNonNull(traceId, "规则命中事件 trace 不能为空");
-        packageVersion = Objects.requireNonNull(packageVersion, "规则命中事件包版本不能为空");
         ruleId = Objects.requireNonNull(ruleId, "规则命中事件规则 ID 不能为空");
         ruleCode = Objects.requireNonNull(ruleCode, "规则命中事件规则编码不能为空");
         versionId = Objects.requireNonNull(versionId, "规则命中事件版本 ID 不能为空");

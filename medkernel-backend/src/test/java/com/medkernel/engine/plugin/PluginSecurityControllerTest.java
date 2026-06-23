@@ -47,7 +47,7 @@ class PluginSecurityControllerTest {
 
         mvc.perform(post("/api/v1/plugins/register")
                 .with(jwt().jwt(token -> token.subject("doctor-1").claim("tenant_id", "t-1"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -111,7 +111,7 @@ class PluginSecurityControllerTest {
                 .content("""
                     {
                       "capabilityKeys": ["publish-rule"],
-                      "approvalReason": "",
+                      "authorizationReason": "",
                       "clinicalSafetyConfirmed": false
                     }
                     """))
@@ -123,7 +123,7 @@ class PluginSecurityControllerTest {
                 .content("""
                     {
                       "capabilityKeys": ["publish-rule"],
-                      "approvalReason": "院内插件委员会审批通过",
+                      "authorizationReason": "院内插件权限用途已确认",
                       "clinicalSafetyConfirmed": true
                     }
                     """))
@@ -143,7 +143,7 @@ class PluginSecurityControllerTest {
                 .content("""
                     {
                       "capabilityKeys": ["publish-rule"],
-                      "approvalReason": "跨租户授权不应生效",
+                      "authorizationReason": "跨租户授权不应生效",
                       "clinicalSafetyConfirmed": true
                     }
                     """))
@@ -192,6 +192,6 @@ class PluginSecurityControllerTest {
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor ops(String tenantId) {
         return jwt().jwt(token -> token.subject("ops-1").claim("tenant_id", tenantId))
-            .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"));
+            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
     }
 }

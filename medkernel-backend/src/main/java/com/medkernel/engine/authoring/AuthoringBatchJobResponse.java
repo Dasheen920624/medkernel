@@ -13,7 +13,6 @@ public record AuthoringBatchJobResponse(
     int totalCount,
     int successCount,
     int failureCount,
-    int retryableCount,
     String resultSummaryJson,
     List<AuthoringBatchItemResponse> items,
     String traceId,

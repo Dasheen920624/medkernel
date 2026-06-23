@@ -1,8 +1,0 @@
-{
-  "method": "GET",
-  "path": "/actuator/health/readiness",
-  "status": 200,
-  "response": {
-    "status": "UP"
-  }
-}

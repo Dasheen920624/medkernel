@@ -224,7 +224,7 @@ export default function Login() {
         password: values.password,
         tenantId: activeTenant.tenantId,
       });
-      if (result.mustChangePwd || (result.mfaRequired && !result.mfaBound)) {
+      if (result.mustChangePwd || result.mfaRequired) {
         navigate("/bootstrap", {
           state: {
             phase: result.mustChangePwd ? "change-password" : "mfa",

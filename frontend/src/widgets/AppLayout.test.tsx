@@ -37,6 +37,7 @@ const securityProfileState = vi.hoisted(() => ({
           mustChangePwd?: boolean;
           mfaRequired?: boolean;
           mfaBound?: boolean;
+          mfaVerified?: boolean;
         }
       | undefined,
   },
@@ -175,9 +176,9 @@ function permissionProfile(menuKeys: string[]) {
     username: "chen.ming",
     menuKeys,
     roles: [
-      { code: "clinical-decision-user", displayName: "临床医生" },
-      ...(hasTerminologyMapping ? [{ code: "integration-operator", displayName: "信息科" }] : []),
-      ...(hasAdapterHub ? [{ code: "integration-operator", displayName: "信息科" }] : []),
+      { code: "clinical-user", displayName: "临床医生" },
+      ...(hasTerminologyMapping ? [{ code: "platform-admin", displayName: "信息科" }] : []),
+      ...(hasAdapterHub ? [{ code: "platform-admin", displayName: "信息科" }] : []),
     ],
     permissions: [
       ...menuKeys.map(menuPermission),
@@ -219,7 +220,7 @@ const allMenuKeys = [
   "workbench",
   "implementation-guide",
   "tenant-onboarding",
-  "config-packages",
+  "runtime-releases",
   "pathway-templates",
   "rule-definitions",
   "terminology-mapping",
@@ -390,6 +391,24 @@ describe("AppLayout", () => {
         mustChangePwd: true,
         mfaRequired: true,
         mfaBound: false,
+      },
+    };
+    mockViewport(1280);
+    await renderLayout("/dashboard");
+
+    expect(screen.queryByText("工作台内容")).toBeNull();
+    expect(screen.getByText("需要完成首次安全设置")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "继续设置" })).toBeInTheDocument();
+  });
+
+  it("blocks direct business route entry when MFA is bound but this session is unverified", async () => {
+    securityProfileState.value = {
+      data: {
+        ...permissionProfile(["workbench"]),
+        mustChangePwd: false,
+        mfaRequired: true,
+        mfaBound: true,
+        mfaVerified: false,
       },
     };
     mockViewport(1280);

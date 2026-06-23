@@ -14,7 +14,9 @@ public record PathwayProgressCommand(
     String currentNodeCode,
     PathwayAdvanceEventType eventType,
     String requestedNextNodeCode,
-    Map<String, Object> facts
+    Map<String, Object> facts,
+    String runtimeReleaseId,
+    String tenantId
 ) {
 
     public PathwayProgressCommand {
@@ -24,7 +26,24 @@ public record PathwayProgressCommand(
     public PathwayProgressCommand(PathwayGraph graph,
                                   String currentNodeCode,
                                   PathwayAdvanceEventType eventType,
+                                  String requestedNextNodeCode,
+                                  Map<String, Object> facts,
+                                  String runtimeReleaseId) {
+        this(graph, currentNodeCode, eventType, requestedNextNodeCode, facts, runtimeReleaseId, null);
+    }
+
+    public PathwayProgressCommand(PathwayGraph graph,
+                                  String currentNodeCode,
+                                  PathwayAdvanceEventType eventType,
+                                  String requestedNextNodeCode,
+                                  Map<String, Object> facts) {
+        this(graph, currentNodeCode, eventType, requestedNextNodeCode, facts, null, null);
+    }
+
+    public PathwayProgressCommand(PathwayGraph graph,
+                                  String currentNodeCode,
+                                  PathwayAdvanceEventType eventType,
                                   String requestedNextNodeCode) {
-        this(graph, currentNodeCode, eventType, requestedNextNodeCode, Map.of());
+        this(graph, currentNodeCode, eventType, requestedNextNodeCode, Map.of(), null, null);
     }
 }

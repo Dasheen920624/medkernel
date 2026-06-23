@@ -13,7 +13,7 @@ import java.util.List;
  * @param controllerClassName 控制器类全名
  * @param basePath 控制器基础路径
  * @param openApiPaths OpenAPI 匹配路径
- * @param permissions 五维权限声明
+ * @param permissions 权限声明
  * @param auditPoints 审计点声明
  * @param publicEndpoints 允许匿名访问的端点键，格式为 {@code METHOD /path}
  */

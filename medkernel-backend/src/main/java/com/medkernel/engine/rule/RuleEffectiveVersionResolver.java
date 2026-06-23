@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionNumbers;
 import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.InheritanceResolveQuery;
@@ -169,11 +170,7 @@ public class RuleEffectiveVersionResolver {
     }
 
     private static int parseVersionNo(String versionNo) {
-        try {
-            return Integer.parseInt(versionNo);
-        } catch (NumberFormatException exception) {
-            throw new ApiException(ErrorCode.CONFLICT, "规则统一版本号不是有效整数: " + versionNo);
-        }
+        return AssetVersionNumbers.intSequence(versionNo, "规则统一版本号");
     }
 
     private static String normalize(String value, String fallback) {

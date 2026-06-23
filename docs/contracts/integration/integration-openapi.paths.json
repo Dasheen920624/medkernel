@@ -36,8 +36,7 @@
     "securityHeaders": [
       "X-MedKernel-Fhir-Adapter",
       "X-MedKernel-Timestamp",
-      "X-MedKernel-Signature",
-      "X-MedKernel-Package-Version"
+      "X-MedKernel-Signature"
     ],
     "signatureCredential": "Adapter config must reference fhir.signatureWebhookId; it must not store shared secrets inline.",
     "degradation": {
@@ -51,15 +50,11 @@
     "status": "RUNTIME_AVAILABLE",
     "contractVersion": "v1",
     "documentedRuntimePaths": [
-      "GET /api/v1/engine/integration/knowledge-runtime/effective-package",
-      "GET /api/v1/engine/integration/knowledge-runtime/packages/{packageId}/reconciliation",
-      "POST /api/v1/engine/integration/knowledge-runtime/context-snapshots",
-      "POST /api/v1/engine/integration/knowledge-runtime/overrides",
-      "POST /api/v1/engine/integration/knowledge-runtime/overrides/{overrideId}:retire",
-      "POST /api/v1/engine/integration/knowledge-runtime/packages/{packageId}:distribute"
+      "GET /api/v1/engine/integration/knowledge-runtime/runtime-release/current",
+      "POST /api/v1/engine/integration/knowledge-runtime/context-snapshots"
     ],
-    "fieldContract": "/api/v1/engine/integration/data-contract?packageVersion={packageVersion}",
-    "note": "第三方只通过 v1 稳定门面调用有效解析、标准上下文、组织覆盖和包分发能力；领域逻辑仍由唯一主流程负责。"
+    "fieldContract": "/api/v1/engine/integration/data-contract",
+    "note": "第三方只通过 v1 稳定门面读取认证医院当前不可变运行修订并写入标准临床上下文；不得选择发布容器、领域或资产版本。"
   },
   "commonHeaders": [
     {
@@ -85,7 +80,7 @@
     {
       "name": "X-MedKernel-Fhir-Adapter",
       "required": "FHIR read/search/create",
-      "purpose": "tenant-scoped FHIR adapter id that references signing webhook, whitelist, and default package version"
+      "purpose": "tenant-scoped FHIR adapter id that references signing webhook and whitelist"
     }
   ],
   "paths": {
@@ -135,7 +130,7 @@
     "/api/v1/engine/integration/data-contract": {
       "get": {
         "operationId": "getIntegrationDataContract",
-        "summary": "Read the third-party integration field contract for one package version.",
+        "summary": "Read the third-party integration field contract for the current hospital runtime release.",
         "permission": "integration.read",
         "auditTarget": "read-only",
         "idempotency": {
@@ -324,7 +319,7 @@
     "/api/v1/engine/integration/webhooks/{id}/inbound": {
       "post": {
         "operationId": "ingestIntegrationWebhook",
-        "summary": "Receive signed inbound webhook message.",
+        "summary": "Receive a signed inbound webhook, map it with the exact release-train version, and create a clinical event.",
         "permission": "integration.execute",
         "auditTarget": "integration_webhook",
         "idempotency": {
@@ -332,7 +327,7 @@
         },
         "degradation": {
           "disconnectedStatus": "NOT_CONNECTED",
-          "note": "Invalid signature, unknown webhook, or missing mapping is rejected and audited."
+          "note": "Invalid signature, unknown webhook, missing field mapping, mutable termMappingId, or unresolved runtime-release terminology snapshot is rejected and audited."
         }
       }
     },

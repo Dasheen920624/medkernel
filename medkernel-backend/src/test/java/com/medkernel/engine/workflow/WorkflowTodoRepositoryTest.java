@@ -123,7 +123,7 @@ class WorkflowTodoRepositoryTest {
 
     @Test
     void visibleAssigneeScopeIncludesCurrentUserAndUnassignedRowsOnly() {
-        seedRoleAssignment("doctor-1", "clinical-decision-user");
+        seedRoleAssignment("doctor-1", "clinical-user");
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         repository.save(sample(
             "todo-own",
@@ -179,7 +179,7 @@ class WorkflowTodoRepositoryTest {
     @Test
     void visibleAssigneeScopeUsesOrgClosureForUnassignedRows() {
         seedOrgTree();
-        seedRoleAssignment("doctor-1", "clinical-decision-user");
+        seedRoleAssignment("doctor-1", "clinical-user");
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         repository.save(sample(
             "todo-own",
@@ -256,21 +256,20 @@ class WorkflowTodoRepositoryTest {
     @Test
     void visibleAssigneeScopeHonorsRoleScopedPathwayNodeTodos() {
         seedOrgTree();
-        seedRoleAssignment("doctor-1", "clinical-decision-user");
-        seedRoleAssignment("doctor-1", "clinical-governor");
+        seedRoleAssignment("doctor-1", "clinical-user");
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         repository.save(sampleWithRole(
-            "todo-pathway-doctor",
+            "todo-pathway-clinical",
             WorkflowTodoSourceType.PATHWAY_NODE,
             "pp-1:ASSESS",
-            "clinical-decision-user",
+            "clinical-user",
             "dept-a",
             now.plusSeconds(300)));
         repository.save(sampleWithRole(
-            "todo-pathway-nurse",
+            "todo-pathway-operation",
             WorkflowTodoSourceType.PATHWAY_NODE,
             "pp-1:NURSING",
-            "nursing-collaborator",
+            "engine-operator",
             "dept-a",
             now.plusSeconds(200)));
 
@@ -297,13 +296,13 @@ class WorkflowTodoRepositoryTest {
 
         assertThat(total).isEqualTo(1);
         assertThat(page).extracting(WorkflowTodo::todoId)
-            .containsExactly("todo-pathway-doctor");
+            .containsExactly("todo-pathway-clinical");
     }
 
     @Test
     void selectedOrganizationFilterNarrowsVisibleTodosToSelectedSubtree() {
         seedOrgTree();
-        seedRoleAssignment("doctor-1", "clinical-decision-user");
+        seedRoleAssignment("doctor-1", "clinical-user");
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         repository.save(sample(
             "todo-own-selected",
@@ -604,7 +603,7 @@ class WorkflowTodoRepositoryTest {
             priority,
             WorkflowTodoStatus.PENDING,
             assigneeId,
-            "clinical-decision-user",
+            "clinical-user",
             patientId,
             "enc-1",
             dueAt,

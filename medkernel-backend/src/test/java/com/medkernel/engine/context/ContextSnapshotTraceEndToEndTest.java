@@ -13,9 +13,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
-import com.medkernel.engine.pkg.KnowledgePackage;
-import com.medkernel.engine.pkg.KnowledgePackageRepository;
-import com.medkernel.engine.pkg.KnowledgePackageStatus;
+import com.medkernel.engine.release.PlatformBaselineRelease;
+import com.medkernel.engine.release.PlatformBaselineReleaseRepository;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponse;
@@ -24,7 +23,7 @@ import com.medkernel.shared.observability.DiagnoseResponse;
  * MedKernel v1.0 GA · GA-ENG-API-01b 端到端验收测试（spec §6.2）。
  *
  * <p>覆盖 spec 表头六项验收的核心三项（其余三项在单测：失败 audit / 子事务 /
- * PackageVersionPort 已覆盖）：
+ * 医院运行修订解析器已覆盖）：
  * <ol>
  *   <li>mk_obs_state_transition 写入 INITIAL_CREATE 一行</li>
  *   <li>canonical_resource 持久化当前 trace_id</li>
@@ -42,19 +41,25 @@ class ContextSnapshotTraceEndToEndTest {
 
     @Autowired ContextSnapshotService service;
     @Autowired JdbcTemplate jdbc;
-    @Autowired KnowledgePackageRepository packages;
+    @Autowired PlatformBaselineReleaseRepository platformBaselines;
+    @Autowired ClinicalRuntimeReleaseRepository runtimeReleases;
 
     @BeforeEach
     void cleanDb() {
         jdbc.update("DELETE FROM mk_obs_state_transition");
         jdbc.update("DELETE FROM canonical_resource");
         jdbc.update("DELETE FROM context_snapshot");
-        packages.deleteAll();
+        runtimeReleases.deleteAll();
+        platformBaselines.deleteAll();
         Instant now = Instant.parse("2026-06-06T08:00:00Z");
-        packages.save(new KnowledgePackage(
-            null, "pkg-e2e", "tenant-e2e", "MEDKERNEL.DEFAULT", "pkg-1",
-            "上下文端到端配置包", null, KnowledgePackageStatus.ACTIVE,
-            now, "e2e-user", now, "e2e-user", "trace-package-e2e"));
+        String emptyManifest = "0".repeat(64);
+        platformBaselines.save(new PlatformBaselineRelease(
+            null, "baseline-e2e", 1L, emptyManifest,
+            now, "e2e-user", now, "e2e-user", "trace-runtime-e2e"));
+        runtimeReleases.save(new ClinicalRuntimeRelease(
+            null, "runtime-e2e", "tenant-e2e", "hospital-e2e", 1L,
+            "baseline-e2e", emptyManifest, null,
+            now, "e2e-user", now, "e2e-user", "trace-runtime-e2e"));
         RequestContext.clear();
     }
 
@@ -67,7 +72,11 @@ class ContextSnapshotTraceEndToEndTest {
     void createWritesStateHistoryAndCanonicalTraceIdAndDiagnoseAssemblesAll() {
         String traceId = "trace-e2e-" + System.nanoTime();
         RequestContext.restore(new RequestContext.Snapshot(
-            traceId, OrgScope.tenant("tenant-e2e"), "e2e-user"));
+            traceId,
+            new OrgScope(
+                "tenant-e2e", null, "hospital-e2e", null,
+                null, null, null, null),
+            "e2e-user"));
 
         ContextSnapshotResponse resp = service.create(ContextSnapshotServiceFixtures.sampleRequest(), null);
         assertThat(resp.snapshotId()).startsWith("ctx-");

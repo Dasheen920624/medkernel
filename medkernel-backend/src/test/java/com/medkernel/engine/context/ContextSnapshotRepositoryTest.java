@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -15,9 +16,11 @@ import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 
 import com.medkernel.engine.context.canonical.ClinicalSetting;
+import com.medkernel.testsupport.ClinicalRuntimeReleaseFixture;
 
 /**
  * 上下文模块仓储集成测试：H2 + Flyway V1..V7 + Spring Data JDBC。
@@ -39,6 +42,13 @@ class ContextSnapshotRepositoryTest {
     @Autowired CanonicalResourceRepository resources;
     @Autowired ClinicalEventRepository events;
     @Autowired ContextIdempotencyKeyRepository idem;
+    @Autowired JdbcTemplate jdbc;
+
+    @BeforeEach
+    void seedRuntimeRelease() {
+        ClinicalRuntimeReleaseFixture.insert(
+            jdbc, "tenant-A", "hospital-A", "runtime-release-test");
+    }
 
     @AfterEach
     void wipe() {
@@ -46,6 +56,7 @@ class ContextSnapshotRepositoryTest {
         events.deleteAll();
         resources.deleteAll();
         snapshots.deleteAll();
+        ClinicalRuntimeReleaseFixture.delete(jdbc, "runtime-release-test");
     }
 
     @Test
@@ -66,9 +77,10 @@ class ContextSnapshotRepositoryTest {
         String snapshotId = "ctx-" + UUID.randomUUID();
         ContextSnapshot saved = snapshots.save(new ContextSnapshot(
             null, snapshotId, "tenant-A", "ORG-1",
-            "req-ctx-1", "group-1/hospital-1/campus-1/site-1/DEPT-A/stroke", "pkg-2026.06",
+            "req-ctx-1", "group-1/hospital-1/campus-1/site-1/DEPT-A/stroke", "runtime-release-test",
             "MPI-100", "ENC-1",
             ContextSnapshotStatus.ACTIVE, "[]", "{}",
+            "{}",
             QualityStatus.VALID, "trace", null, Instant.now(), "tester"
         ));
 
@@ -77,7 +89,7 @@ class ContextSnapshotRepositoryTest {
         assertThat(found).isPresent();
         assertThat(found.get().requestId()).isEqualTo("req-ctx-1");
         assertThat(found.get().orgPath()).isEqualTo("group-1/hospital-1/campus-1/site-1/DEPT-A/stroke");
-        assertThat(found.get().packageVersion()).isEqualTo("pkg-2026.06");
+        assertThat(found.get().runtimeReleaseId()).isEqualTo("runtime-release-test");
     }
 
     @Test
@@ -167,7 +179,7 @@ class ContextSnapshotRepositoryTest {
             ClinicalEventTriggerPoint.PATIENT_VIEW, "idem-evt-1", null,
             "{\"tenantId\":\"tenant-A\"}",
             "patient-1", "enc-1", ClinicalSetting.INPATIENT,
-            "HIS", "kpv-1", "digest-x", Instant.now(), Instant.now(), null,
+            "HIS", "runtime-release-test", "digest-x", Instant.now(), Instant.now(), null,
             ClinicalEventStatus.RECEIVED, null, null, 0, null, "trace-1"));
         assertThat(saved.id()).isNotNull();
 
@@ -185,8 +197,9 @@ class ContextSnapshotRepositoryTest {
                                           String encounterId, ContextSnapshotStatus status,
                                           QualityStatus quality, Instant createdAt) {
         return new ContextSnapshot(
-            null, snapshotId, tenantId, "ORG-1", null, null, "pkg-1", patientId, encounterId,
+            null, snapshotId, tenantId, "ORG-1", null, null, "runtime-release-test", patientId, encounterId,
             status, "[]", "{}",
+            "{}",
             quality, "trace", null, createdAt, "tester"
         );
     }

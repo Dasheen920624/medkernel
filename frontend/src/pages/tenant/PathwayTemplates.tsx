@@ -26,23 +26,18 @@ import {
   Tabs,
   Tag,
   Timeline,
-  Typography,
 } from "antd";
 import type { BadgeProps, RadioChangeEvent, TableProps, TabsProps } from "antd";
 import {
   ApartmentOutlined,
-  CheckCircleOutlined,
   CopyOutlined,
   DeleteOutlined,
-  DeploymentUnitOutlined,
-  FolderOpenOutlined,
   PlusOutlined,
   PlayCircleOutlined,
   SearchOutlined,
   SwapOutlined,
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
-import { StepFlow } from "@/shared/ui/StepFlow";
 import { FieldCatalogManager } from "@/shared/ui/condition/FieldCatalogManager";
 import { AuthoringReadablePreview } from "@/shared/ui/condition/AuthoringReadablePreview";
 import { StandardTermValueAutoComplete } from "@/shared/ui/condition/StandardTermValueAutoComplete";
@@ -63,32 +58,22 @@ import {
   useContextSnapshotDetail,
   useContextSnapshots,
   useCreatePathwayTemplate,
-  useBuildPathwayKnowledgePackage,
-  useConditionFragments,
   useAuthoringPreviewRun,
   useEvaluationIndicators,
-  useFullRolloutPathwayTemplate,
   usePathwayTemplateDetail,
-  usePathwayTemplateInheritanceDiff,
-  usePathwayTemplateImpact,
   usePathwayTemplates,
-  usePublishPathwayTemplate,
-  useRollbackPathwayTemplate,
+  useRuleDefinitions,
   useSimulatePathway,
-  usePackages,
 } from "@/shared/api/hooks";
 import type {
   ContextSnapshotSummary,
   AuthoringPreviewRunEvidence,
   AuthoringPreviewRunResponse,
-  ConditionFragmentResponse,
   EvaluationIndicator,
   PathwayEdge,
   PathwayEdgeType,
   PathwayEntryMode,
-  PathwayInheritanceChangeType,
   PathwayMilestone,
-  PathwayMergedNode,
   PathwayNode,
   PathwayNodeType,
   PathwayOutcomeBinding,
@@ -97,11 +82,9 @@ import type {
   PathwaySimulationMode,
   PathwayTemplate,
   PathwayTemplateDetailResponse,
-  PathwayTemplateImpactResponse,
-  PathwayTemplateInheritanceDiffItem,
   PathwayTemplateLevel,
   PathwayTemplateStatus,
-  KnowledgePackage,
+  RuleDefinition,
   SpecialtyMetricBinding,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
@@ -117,11 +100,9 @@ import styles from "./RulePathwayAuthoring.module.css";
 
 const { TextArea } = Input;
 const { Option } = Select;
-const { Text } = Typography;
 
-const PATHWAY_PACKAGE_REFERENCE_PAGE_SIZE = 20;
-const PATHWAY_ROLLBACK_TARGET_PAGE_SIZE = 20;
 const PATHWAY_OUTCOME_REFERENCE_PAGE_SIZE = 20;
+const PATHWAY_RULE_REFERENCE_PAGE_SIZE = 20;
 
 type PathwayBadgeStatus = Exclude<BadgeProps["status"], undefined>;
 
@@ -130,14 +111,14 @@ const PATHWAY_CONTENT_STATUS: Record<
   { status: PathwayBadgeStatus; text: string }
 > = {
   DRAFT: { status: "warning", text: "设计中" },
-  PUBLISHED: { status: "processing", text: "内容已审核" },
+  PUBLISHED: { status: "processing", text: "已发布" },
   OFFLINE: { status: "default", text: "已下线" },
 };
 
 const PATHWAY_DEPLOYMENT_STATUS: Record<string, { status: PathwayBadgeStatus; text: string }> = {
   DRAFT: { status: "warning", text: "待提交" },
-  IN_REVIEW: { status: "processing", text: "审核中" },
-  APPROVED: { status: "processing", text: "已批准待发布" },
+  IN_REVIEW: { status: "processing", text: "技术验证中" },
+  APPROVED: { status: "processing", text: "已验证待激活" },
   PUBLISHED: { status: "success", text: "运行中" },
   DEPRECATED: { status: "default", text: "已弃用" },
   RETIRED: { status: "default", text: "已退役" },
@@ -162,32 +143,6 @@ function pathwayDeploymentStatus(status: string) {
 function pathwayEntryModeText(mode: PathwayEntryMode | string | undefined) {
   if (mode === "MANUAL_CONFIRM") return "人工确认入径";
   return "自动建议入径";
-}
-
-function inheritanceChangeText(type: PathwayInheritanceChangeType | string | undefined) {
-  if (type === "OVERRIDDEN") return "覆盖";
-  if (type === "ADDED") return "新增";
-  if (type === "DISABLED") return "禁用";
-  return type ? customerEnumLabel(type) : "-";
-}
-
-function inheritanceChangeColor(type: PathwayInheritanceChangeType | string | undefined) {
-  if (type === "DISABLED") return "red";
-  if (type === "ADDED") return "green";
-  return "orange";
-}
-
-function inheritanceOriginText(origin: string | undefined) {
-  if (origin === "INHERITED") return "继承";
-  if (origin === "OVERRIDDEN") return "覆盖";
-  if (origin === "ADDED") return "新增";
-  return origin ?? "-";
-}
-
-function inheritanceOriginColor(origin: string | undefined) {
-  if (origin === "INHERITED") return "blue";
-  if (origin === "ADDED") return "green";
-  return "orange";
 }
 
 type PathwayNodeDraft = {
@@ -236,14 +191,12 @@ type PathwayOutcomeBindingDraft = {
   scope: PathwayOutcomeScope;
   refCode?: string;
   indicatorCode: string;
-  packageVersion?: string;
 };
 
 type PathwayOutcomeBindingInput = {
   scope?: PathwayOutcomeScope;
   refCode?: string | null;
   indicatorCode?: string;
-  packageVersion?: string | null;
 };
 
 type PathwayDslPayload = {
@@ -296,7 +249,9 @@ type PathwayEdgeFormValue = {
   fromNodeCode?: string;
   toNodeCode?: string;
   edgeType?: PathwayEdgeType;
-  conditionFragmentId?: string;
+  guardMode?: "INLINE" | "RULE";
+  ruleRef?: string;
+  ruleAssetId?: string;
   conditionTree?: RuleGroup;
   conditionFact?: string;
   conditionOperator?: "equals" | "not_equals" | "gt" | "gte" | "lt" | "lte";
@@ -312,13 +267,10 @@ type PathwayCriteriaFormValue = {
 };
 
 type PathwayTemplateFormValue = {
-  packageId: string;
   templateCode: string;
   name: string;
   diseaseCode: string;
   templateLevel: PathwayTemplateLevel;
-  parentTemplateId?: string;
-  templateVersion: number;
   entryMode: PathwayEntryMode;
   startNodeCode: string;
   sourceRef: string;
@@ -368,7 +320,6 @@ const nodeTypeOptions: Array<{ value: PathwayNodeType; label: string }> = [
   { value: "DECISION", label: "决策分支" },
   { value: "PARALLEL", label: "并行或汇合" },
   { value: "WAIT_TIMER", label: "等待计时" },
-  { value: "SUBPATHWAY", label: "子路径" },
   { value: "MANUAL_GATE", label: "人工确认节点" },
   { value: "ORDER_SET", label: "医嘱集" },
 ];
@@ -437,11 +388,6 @@ const pathwayConditionValueKindOptions = [
 function cleanText(value?: string | null) {
   const normalized = value?.trim();
   return normalized || undefined;
-}
-
-function pathwayPackageDiseaseCode(pack: KnowledgePackage) {
-  const scope = pack.applicableScope?.trim();
-  return scope?.startsWith("disease:") ? scope.slice("disease:".length) : "全部病种";
 }
 
 function parseConditionJson(value?: string) {
@@ -521,6 +467,20 @@ function inferPathwayConditionValueKind(
 }
 
 function normalizeEdgeCondition(edge: PathwayEdgeFormValue) {
+  if (edge.guardMode === "RULE" || cleanText(edge.ruleRef)) {
+    const ruleRef = cleanText(edge.ruleRef);
+    const ruleAssetId = cleanText(edge.ruleAssetId);
+    if (!ruleRef) {
+      throw new Error("规则守卫必须选择已发布规则。");
+    }
+    if (!ruleAssetId) {
+      throw new Error("规则守卫缺少稳定规则资产标识。");
+    }
+    return {
+      ruleRef,
+      ruleAssetId,
+    };
+  }
   if (
     edge.conditionTree &&
     countLeaves(edge.conditionTree) > 0 &&
@@ -551,24 +511,6 @@ function createDefaultEdgeConditionTree(): RuleGroup {
         valueKind: "string",
       }),
     ],
-  });
-}
-
-function conditionFragmentToPathwayTree(
-  fragment: ConditionFragmentResponse,
-  mode: "reference" | "copy",
-): RuleGroup {
-  if (mode === "copy") {
-    return dslToRootGroup(fragment.bodyJson);
-  }
-  return dslToRootGroup({
-    fragmentRef: fragment.fragmentCode,
-    version: fragment.versionNo,
-    packageVersion: fragment.packageVersion,
-    ui: {
-      label: fragment.name,
-      fragmentId: fragment.fragmentId,
-    },
   });
 }
 
@@ -809,9 +751,6 @@ function validateRichNodeContracts(nodes: PathwayNodeDraft[], edges: PathwayEdge
     }
     const clockError = clockSlaError(node);
     if (clockError) return clockError;
-    if (node.nodeType === "SUBPATHWAY" && !configText(node.config, "subPathwayRef")) {
-      return `子路径节点 ${node.nodeCode} 必须填写子路径引用`;
-    }
     if (!node.responsibleRole) {
       return `节点 ${node.nodeCode} 必须填写责任角色`;
     }
@@ -829,8 +768,6 @@ function richNodeConfigSummary(node: PathwayNode) {
   const config = parseLooseJson(node.configJson);
   const orderSetRef = configText(config, "orderSetRef");
   if (orderSetRef) return `医嘱集 ${orderSetRef}`;
-  const subPathwayRef = configText(config, "subPathwayRef");
-  if (subPathwayRef) return `子路径 ${subPathwayRef}`;
   const clock = configText(config, "clock");
   if (clock) return `计时 ${clock}`;
   const clockSla = configObject(config, "clockSla");
@@ -873,7 +810,6 @@ function normalizeOutcomeBindings(bindings?: PathwayOutcomeBindingInput[]) {
       scope: binding.scope ?? "TEMPLATE",
       refCode: binding.scope === "TEMPLATE" ? undefined : cleanText(binding.refCode),
       indicatorCode: cleanText(binding.indicatorCode) ?? "",
-      packageVersion: cleanText(binding.packageVersion),
     }));
 }
 
@@ -935,7 +871,6 @@ function buildDetailDslPreview(detail: PathwayTemplateDetailResponse) {
       templateCode: detail.template.templateCode,
       diseaseCode: detail.template.diseaseCode,
       templateLevel: detail.template.templateLevel,
-      parentTemplateId: detail.template.parentTemplateId,
       templateVersion: detail.template.templateVersion,
       entryMode: detail.template.entryMode,
       startNodeCode: detail.template.startNodeCode,
@@ -984,7 +919,6 @@ function buildDetailDslPreview(detail: PathwayTemplateDetailResponse) {
       scope: binding.scope,
       refCode: binding.scope === "TEMPLATE" ? undefined : binding.refCode,
       indicatorCode: binding.indicatorCode,
-      packageVersion: binding.packageVersion,
     })),
   });
 }
@@ -1053,8 +987,23 @@ function formValuesFromDsl(payload: PathwayDslPayload) {
       fromNodeCode: cleanText(edge.fromNodeCode),
       toNodeCode: cleanText(edge.toNodeCode),
       edgeType: edge.edgeType ?? "DEFAULT",
+      guardMode: "INLINE",
       priority: Number(edge.priority ?? index + 1),
     };
+    if (
+      condition &&
+      typeof condition === "object" &&
+      !Array.isArray(condition) &&
+      typeof (condition as Record<string, unknown>).ruleRef === "string"
+    ) {
+      const conditionRecord = condition as Record<string, unknown>;
+      return {
+        ...base,
+        guardMode: "RULE",
+        ruleRef: cleanText(conditionRecord.ruleRef as string),
+        ruleAssetId: cleanText(conditionRecord.ruleAssetId as string),
+      };
+    }
     if (
       condition &&
       typeof condition === "object" &&
@@ -1154,11 +1103,25 @@ function edgeFormValueFromDetail(edge: PathwayEdge): PathwayEdgeFormValue {
     fromNodeCode: edge.fromNodeCode,
     toNodeCode: edge.toNodeCode,
     edgeType: edge.edgeType,
+    guardMode: "INLINE",
     priority: edge.priority,
   };
   const condition = parseLooseJson(edge.conditionJson);
   if (!condition) {
     return base;
+  }
+  if (
+    typeof condition === "object" &&
+    !Array.isArray(condition) &&
+    typeof (condition as Record<string, unknown>).ruleRef === "string"
+  ) {
+    const record = condition as Record<string, unknown>;
+    return {
+      ...base,
+      guardMode: "RULE",
+      ruleRef: cleanText(record.ruleRef as string),
+      ruleAssetId: cleanText(record.ruleAssetId as string),
+    };
   }
   try {
     const conditionTree = dslToRootGroup(condition);
@@ -1199,13 +1162,10 @@ function formValuesFromDetailCopy(detail: PathwayTemplateDetailResponse): Pathwa
       .map((binding) => [binding.nodeCode, binding.metricCode]),
   );
   return {
-    packageId: detail.template.packageId,
     templateCode: detail.template.templateCode,
     name: detail.template.name,
     diseaseCode: detail.template.diseaseCode,
     templateLevel: detail.template.templateLevel,
-    parentTemplateId: detail.template.templateId,
-    templateVersion: Number(detail.template.templateVersion ?? 0) + 1,
     entryMode: detail.template.entryMode,
     startNodeCode: detail.template.startNodeCode ?? detail.nodes[0]?.nodeCode ?? "",
     sourceRef: detail.template.sourceRef,
@@ -1310,7 +1270,7 @@ function findPathwayTopologyIssues(
 }
 
 export default function PathwayTemplates() {
-  const { message: messageApi, modal } = App.useApp();
+  const { message: messageApi } = App.useApp();
   const screens = Grid.useBreakpoint();
   const isWideViewport =
     screens.md ?? (typeof window === "undefined" ? true : window.innerWidth >= 768);
@@ -1320,12 +1280,8 @@ export default function PathwayTemplates() {
 
   const [statusFilter, setStatusFilter] = useState<PathwayTemplateStatus | undefined>(undefined);
   const [diseaseFilter, setDiseaseFilter] = useState<string>("");
-  const [packageFilter, setPackageFilter] = useState<string>("");
-  const [packageSearch, setPackageSearch] = useState<string>("");
   const [outcomeIndicatorSearch, setOutcomeIndicatorSearch] = useState<string>("");
-  const [outcomePackageSearch, setOutcomePackageSearch] = useState<string>("");
 
-  const [packageDrawerVisible, setPackageDrawerVisible] = useState<boolean>(false);
   const [createTemplateVisible, setCreateTemplateVisible] = useState<boolean>(false);
   const [fieldManagerOpen, setFieldManagerOpen] = useState<boolean>(false);
   const [createExpertMode, setCreateExpertMode] = useState<boolean>(false);
@@ -1334,10 +1290,6 @@ export default function PathwayTemplates() {
     useState<PathwayPrototypeKey>("blank");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [detailActiveTab, setDetailActiveTab] = useState<string>("l1");
-  const [releaseReason, setReleaseReason] = useState<string>("");
-  const [rollbackTargetTemplateId, setRollbackTargetTemplateId] = useState<string | undefined>(
-    undefined,
-  );
 
   const [simulateStartNode, setSimulateStartNode] = useState<string>("");
   const [snapshotPatientId, setSnapshotPatientId] = useState<string>("");
@@ -1362,7 +1314,6 @@ export default function PathwayTemplates() {
   } = usePathwayTemplates({
     status: statusFilter,
     diseaseCode: diseaseFilter || undefined,
-    packageId: packageFilter || undefined,
     page,
     size,
   });
@@ -1370,46 +1321,8 @@ export default function PathwayTemplates() {
   const {
     data: detailData,
     isLoading: detailLoading,
-    refetch: refetchDetail,
   } = usePathwayTemplateDetail(selectedTemplateId || "");
 
-  const impactQuery = usePathwayTemplateImpact(selectedTemplateId || "", {
-    enabled: !!selectedTemplateId,
-  });
-  const inheritanceDiffQuery = usePathwayTemplateInheritanceDiff(selectedTemplateId || "", {
-    enabled: !!selectedTemplateId,
-  });
-  const { data: rollbackTargetsData } = usePathwayTemplates(
-    {
-      status: "OFFLINE",
-      templateCode: detailData?.template.templateCode,
-      page: 1,
-      size: PATHWAY_ROLLBACK_TARGET_PAGE_SIZE,
-    },
-    {
-      enabled: detailData?.template.status === "PUBLISHED" && !!detailData.template.templateCode,
-    },
-  );
-
-  const packageSearchKeyword =
-    cleanText(packageSearch) ?? cleanText(detailData?.template.packageId) ?? undefined;
-  const { data: packagesData, refetch: refetchPackages } = usePackages({
-    page: 1,
-    size: PATHWAY_PACKAGE_REFERENCE_PAGE_SIZE,
-    assetType: "PATHWAY",
-    ...(packageSearchKeyword ? { keyword: packageSearchKeyword } : {}),
-  });
-  const outcomePackageKeyword = cleanText(outcomePackageSearch);
-  const {
-    data: evaluationPackagesData,
-    isLoading: evaluationPackagesLoading,
-    isError: evaluationPackagesError,
-  } = usePackages({
-    page: 1,
-    size: PATHWAY_OUTCOME_REFERENCE_PAGE_SIZE,
-    assetType: "EVALUATION",
-    ...(outcomePackageKeyword ? { keyword: outcomePackageKeyword } : {}),
-  });
   const outcomeIndicatorKeyword = cleanText(outcomeIndicatorSearch);
   const { data: evaluationIndicatorsData } = useEvaluationIndicators(
     {
@@ -1421,26 +1334,6 @@ export default function PathwayTemplates() {
     { enabled: createTemplateVisible || !!selectedTemplateId },
   );
 
-  const fieldCatalogQuery = useContextFieldCatalog();
-  const fieldCatalogList = fieldCatalogQuery.data ?? [];
-  const fieldCatalogOptions = buildFieldCatalogOptions(fieldCatalogList);
-  const fieldByPath = new Map(fieldCatalogList.map((field) => [field.fieldPath, field]));
-  // 选中字段时按目录 dataType 自动带出边条件值类型（路径仅 string/number/boolean）。
-  const pathwayValueKindFor = (dataType?: string) => {
-    if (dataType === "number") return "number";
-    if (dataType === "boolean") return "boolean";
-    return "string";
-  };
-  const handleEdgeFactSelect = (edgeIndex: number, fieldPath: string) => {
-    const descriptor = fieldByPath.get(fieldPath);
-    templateForm.setFieldValue(["edges", edgeIndex, "conditionFact"], fieldPath);
-    if (descriptor) {
-      templateForm.setFieldValue(
-        ["edges", edgeIndex, "conditionValueKind"],
-        pathwayValueKindFor(descriptor.dataType),
-      );
-    }
-  };
   const { data: snapshotsData, isLoading: snapshotsLoading } = useContextSnapshots(
     snapshotQuery ?? undefined,
     { enabled: !!snapshotQuery },
@@ -1450,22 +1343,16 @@ export default function PathwayTemplates() {
     useContextSnapshotDetail(selectedSnapshotId || "", { enabled: !!selectedSnapshotId });
   const snapshotList = snapshotsData?.items ?? [];
 
-  const createPackageMutation = useBuildPathwayKnowledgePackage();
   const createTemplateMutation = useCreatePathwayTemplate();
-  const publishTemplateMutation = usePublishPathwayTemplate();
-  const fullRolloutMutation = useFullRolloutPathwayTemplate();
-  const rollbackMutation = useRollbackPathwayTemplate();
   const simulateMutation = useSimulatePathway(selectedTemplateId || "");
   const previewRunMutation = useAuthoringPreviewRun();
 
-  const [packageForm] = Form.useForm();
   const [templateForm] = Form.useForm<PathwayTemplateFormValue>();
   const watchedMilestones = Form.useWatch("milestones", templateForm);
   const watchedNodes = Form.useWatch("nodes", templateForm);
   const watchedEdges = Form.useWatch("edges", templateForm);
   const watchedOutcomeBindings = Form.useWatch("outcomeBindings", templateForm);
   const watchedStartNodeCode = Form.useWatch("startNodeCode", templateForm);
-  const watchedPackageId = Form.useWatch("packageId", templateForm);
 
   const canvasNodes = useMemo(
     () => normalizeNodes(watchedNodes).filter((node) => !node.disabled),
@@ -1516,6 +1403,7 @@ export default function PathwayTemplates() {
       ...edges,
       {
         ...createConnectedEdge(edges, sourceNodeCode, targetNodeCode),
+        guardMode: "INLINE",
         conditionTree: createDefaultEdgeConditionTree(),
         conditionOperator: "equals",
         conditionValueKind: "string",
@@ -1557,17 +1445,6 @@ export default function PathwayTemplates() {
     [canvasNodes],
   );
 
-  const parentTemplateOptions = useMemo(
-    () =>
-      (listData?.items ?? [])
-        .filter((template: PathwayTemplate) => template.status !== "OFFLINE")
-        .map((template: PathwayTemplate) => ({
-          value: template.templateId,
-          label: `${template.templateCode} v${template.templateVersion}.0 / ${template.templateLevel}`,
-        })),
-    [listData?.items],
-  );
-
   const milestoneSelectOptions = useMemo(
     () =>
       normalizeMilestones(watchedMilestones)
@@ -1600,92 +1477,46 @@ export default function PathwayTemplates() {
       })),
     [evaluationIndicatorsData?.items],
   );
-  const outcomeIndicatorByCode = useMemo(
-    () =>
-      new Map(
-        (evaluationIndicatorsData?.items ?? []).map((indicator: EvaluationIndicator) => [
-          indicator.indicatorCode,
-          indicator,
-        ]),
-      ),
-    [evaluationIndicatorsData?.items],
-  );
-  const outcomeIndicatorPackageOptions = useMemo(() => {
-    const byVersion = new Map<string, string>();
-    for (const item of evaluationPackagesData?.items ?? []) {
-      if (item.status === "OFFLINE" || item.status === "ARCHIVED") continue;
-      byVersion.set(item.packageVersion, `${item.packageVersion} · ${item.name}`);
-    }
-    for (const indicator of evaluationIndicatorsData?.items ?? []) {
-      if (indicator.packageVersion && !byVersion.has(indicator.packageVersion)) {
-        byVersion.set(indicator.packageVersion, `${indicator.packageVersion} · 指标来源包`);
-      }
-    }
-    return [...byVersion.entries()].map(([value, label]) => ({ value, label }));
-  }, [evaluationIndicatorsData?.items, evaluationPackagesData?.items]);
-  const packageVersionFor = (packageId?: string | null) =>
-    cleanText(packagesData?.items?.find((pkg) => pkg.packageId === packageId)?.packageVersion);
-  const selectedTemplatePackageVersion =
-    typeof watchedPackageId === "string" ? packageVersionFor(watchedPackageId) : undefined;
-  const createTemplatePackageVersion = selectedTemplatePackageVersion ?? "";
-  const conditionFragmentPackageVersion = selectedTemplatePackageVersion ?? "";
-  const requirePathwayPackageVersion = (
-    packageId: string | null | undefined,
-    errorMessage: string,
-  ) => {
-    const packageVersion = packageVersionFor(packageId);
-    if (!packageVersion) {
-      messageApi.error(errorMessage);
-      return undefined;
-    }
-    return packageVersion;
-  };
-  const activeConditionFragmentsQuery = useConditionFragments(
+  const { data: publishedRulesData, isLoading: publishedRulesLoading } = useRuleDefinitions(
     {
-      status: "ACTIVE",
-      packageVersion: conditionFragmentPackageVersion,
+      status: "PUBLISHED",
+      ruleType: "PATHWAY",
       page: 1,
-      size: 50,
+      size: PATHWAY_RULE_REFERENCE_PAGE_SIZE,
     },
-    {
-      enabled: createTemplateVisible && Boolean(conditionFragmentPackageVersion),
-    },
+    { enabled: createTemplateVisible },
   );
-  const activeConditionFragments = useMemo(
-    () => activeConditionFragmentsQuery.data?.items ?? [],
-    [activeConditionFragmentsQuery.data?.items],
-  );
-  const conditionFragmentById = useMemo(
-    () => new Map(activeConditionFragments.map((fragment) => [fragment.fragmentId, fragment])),
-    [activeConditionFragments],
-  );
-  const conditionFragmentOptions = useMemo(
+  const pathwayRuleOptions = useMemo(
     () =>
-      activeConditionFragments.map((fragment) => ({
-        value: fragment.fragmentId,
-        label: `${fragment.name} · ${fragment.fragmentCode} · v${fragment.versionNo}`,
+      (publishedRulesData?.items ?? []).map((rule: RuleDefinition) => ({
+        value: rule.ruleCode,
+        label: `${rule.name} · ${rule.ruleCode}`,
+        ruleAssetId: rule.ruleId,
       })),
-    [activeConditionFragments],
+    [publishedRulesData?.items],
   );
-  const applyEdgeConditionFragment = (edgeIndex: number, mode: "reference" | "copy") => {
-    const fragmentId = templateForm.getFieldValue(["edges", edgeIndex, "conditionFragmentId"]);
-    const fragment =
-      typeof fragmentId === "string" ? conditionFragmentById.get(fragmentId) : undefined;
-    if (!fragment) {
-      messageApi.warning("请选择条件片段。");
-      return;
-    }
-    try {
+  const fieldCatalogQuery = useContextFieldCatalog(undefined, {
+    enabled: createTemplateVisible || Boolean(selectedTemplateId),
+  });
+  const fieldCatalogList = fieldCatalogQuery.data ?? [];
+  const fieldCatalogOptions = buildFieldCatalogOptions(fieldCatalogList);
+  const fieldByPath = new Map(fieldCatalogList.map((field) => [field.fieldPath, field]));
+  // 选中字段时按目录 dataType 自动带出边条件值类型（路径仅 string/number/boolean）。
+  const pathwayValueKindFor = (dataType?: string) => {
+    if (dataType === "number") return "number";
+    if (dataType === "boolean") return "boolean";
+    return "string";
+  };
+  const handleEdgeFactSelect = (edgeIndex: number, fieldPath: string) => {
+    const descriptor = fieldByPath.get(fieldPath);
+    templateForm.setFieldValue(["edges", edgeIndex, "conditionFact"], fieldPath);
+    if (descriptor) {
       templateForm.setFieldValue(
-        ["edges", edgeIndex, "conditionTree"],
-        conditionFragmentToPathwayTree(fragment, mode),
+        ["edges", edgeIndex, "conditionValueKind"],
+        pathwayValueKindFor(descriptor.dataType),
       );
-      messageApi.success(mode === "reference" ? "已引用条件片段" : "已拷贝条件片段正文");
-    } catch {
-      messageApi.error("条件片段正文无法转成当前路径边条件。");
     }
   };
-
   // 自动生成不重复的顺序编码（节点 N1/N2…，边 E1/E2…），可改但默认不必手填。
   const nextSeqCode = (
     listName: "nodes" | "edges" | "milestones",
@@ -1729,7 +1560,6 @@ export default function PathwayTemplates() {
     templateForm.resetFields();
     templateForm.setFieldsValue({
       templateLevel: "STANDARD",
-      templateVersion: 1,
       entryMode: "AUTO_SUGGEST",
       nodes: [],
       edges: [],
@@ -1756,7 +1586,9 @@ export default function PathwayTemplates() {
     resetSimulation();
     setCreateExpertMode(false);
     setCreateTemplateVisible(true);
-    messageApi.success(`已复制为 v${nextValues.templateVersion}.0 草稿，请核查后提交。`);
+    messageApi.success(
+      `已复制当前内容，提交时系统将自动创建 v${detailData.nextVersionNo}.0 草稿。`,
+    );
   };
 
   const applyPathwayPrototype = (prototypeKey: PathwayPrototypeKey) => {
@@ -1766,7 +1598,6 @@ export default function PathwayTemplates() {
       return;
     }
 
-    const packageId = packagesData?.items?.[0]?.packageId;
     const milestones: PathwayMilestoneFormValue[] = [
       {
         phaseCode: "ED",
@@ -1810,13 +1641,10 @@ export default function PathwayTemplates() {
     ];
 
     templateForm.setFieldsValue({
-      packageId,
       name: "急诊处置路径",
       templateCode: "PATH.ED.DISPOSITION",
       diseaseCode: "ED",
       templateLevel: "STANDARD",
-      parentTemplateId: undefined,
-      templateVersion: 1,
       entryMode: "AUTO_SUGGEST",
       startNodeCode: "ASSESS",
       sourceRef: "院内已审核急诊处置制度",
@@ -1841,7 +1669,6 @@ export default function PathwayTemplates() {
     return (
       <AuthoringReadablePreview
         subject="PATHWAY_GUARD"
-        packageVersion={createTemplatePackageVersion}
         dsl={{
           guard,
           edgeCode: cleanText(edge.edgeCode) ?? `E${edgeIndex + 1}`,
@@ -1871,19 +1698,6 @@ export default function PathwayTemplates() {
     setDetailExpertMode(checked);
     if (!checked && detailActiveTab === "l3") {
       setDetailActiveTab("l2");
-    }
-  };
-
-  const handleCreatePackage = async () => {
-    try {
-      const values = await packageForm.validateFields();
-      await createPackageMutation.mutateAsync(values);
-      messageApi.success("路径知识包草稿创建成功");
-      packageForm.resetFields();
-      refetchPackages();
-    } catch (error: unknown) {
-      if (applyApiFieldErrors(packageForm, error)) return;
-      messageApi.error(getApiErrorMessage(error, "创建路径知识包失败，请检查参数"));
     }
   };
 
@@ -1977,21 +1791,11 @@ export default function PathwayTemplates() {
       const entryCriteria = normalizePathwayCriteria(values.entryCriteria, "入径");
       const exitCriteria = normalizePathwayCriteria(values.exitCriteria, "出径");
 
-      const packageVersion = requirePathwayPackageVersion(
-        values.packageId,
-        "无法确认路径模板所属的配置包版本，暂不能创建或复制路径。",
-      );
-      if (!packageVersion) return;
-
       await createTemplateMutation.mutateAsync({
-        packageId: values.packageId,
         templateCode: values.templateCode,
         name: values.name,
         diseaseCode: values.diseaseCode,
-        packageVersion,
         templateLevel: values.templateLevel,
-        parentTemplateId: cleanText(values.parentTemplateId),
-        templateVersion: Number(values.templateVersion),
         entryMode: values.entryMode,
         startNodeCode: values.startNodeCode,
         sourceRef: values.sourceRef,
@@ -2059,122 +1863,6 @@ export default function PathwayTemplates() {
     }
   };
 
-  const handlePublishTemplate = async () => {
-    if (!selectedTemplateId) return;
-    const impactDigest = impactQuery.data?.impactDigest;
-    const reason = cleanText(releaseReason);
-    if (!impactDigest) {
-      messageApi.error("请先读取发布影响摘要后再提交审核。");
-      return;
-    }
-    if (!reason) {
-      messageApi.error("请填写发布审核说明。");
-      return;
-    }
-    const packageVersion = requirePathwayPackageVersion(
-      detailData?.template.packageId,
-      "无法确认当前路径模板所属的配置包版本，暂不能发布路径。",
-    );
-    if (!packageVersion) return;
-    try {
-      await publishTemplateMutation.mutateAsync({
-        templateId: selectedTemplateId,
-        packageVersion,
-        impactDigest,
-        reason,
-      });
-      messageApi.success("路径模板已通过门禁，进入 10% 灰度发布并保留回滚证据");
-      setReleaseReason("");
-      refetchDetail();
-      refetchList();
-    } catch (error: unknown) {
-      modal.error({
-        title: "路径发布门禁拒绝",
-        content: getApiErrorMessage(error, "未通过路径闭环或时窗门禁核查，禁止上线。"),
-      });
-    }
-  };
-
-  const releasePackageVersion = () => packageVersionFor(detailData?.template.packageId) ?? "";
-
-  const handleFullRolloutTemplate = async () => {
-    if (!selectedTemplateId) return;
-    const impactDigest = impactQuery.data?.impactDigest;
-    const reason = cleanText(releaseReason);
-    if (!impactDigest) {
-      messageApi.error("请先读取发布影响摘要后再全量确认。");
-      return;
-    }
-    if (!reason) {
-      messageApi.error("请填写全量确认说明。");
-      return;
-    }
-    const packageVersion = requirePathwayPackageVersion(
-      detailData?.template.packageId,
-      "无法确认当前路径模板所属的配置包版本，暂不能发布路径。",
-    );
-    if (!packageVersion) return;
-    try {
-      await fullRolloutMutation.mutateAsync({
-        templateId: selectedTemplateId,
-        packageVersion,
-        impactDigest,
-        reason,
-      });
-      messageApi.success("路径模板已完成院级全量确认");
-      setReleaseReason("");
-      refetchDetail();
-      refetchList();
-    } catch (error: unknown) {
-      modal.error({
-        title: "全量发布门禁拒绝",
-        content: getApiErrorMessage(error, "未通过院级管理员确认或影响摘要核查。"),
-      });
-    }
-  };
-
-  const handleRollbackTemplate = async () => {
-    if (!selectedTemplateId) return;
-    const impactDigest = impactQuery.data?.impactDigest;
-    const reason = cleanText(releaseReason);
-    if (!impactDigest) {
-      messageApi.error("请先读取发布影响摘要后再回滚。");
-      return;
-    }
-    if (!reason) {
-      messageApi.error("请填写回滚说明。");
-      return;
-    }
-    if (!rollbackTargetTemplateId) {
-      messageApi.error("请选择回滚目标模板版本。");
-      return;
-    }
-    const packageVersion = requirePathwayPackageVersion(
-      detailData?.template.packageId,
-      "无法确认当前路径模板所属的配置包版本，暂不能回滚路径。",
-    );
-    if (!packageVersion) return;
-    try {
-      await rollbackMutation.mutateAsync({
-        templateId: selectedTemplateId,
-        packageVersion,
-        rollbackTargetTemplateId,
-        impactDigest,
-        reason,
-      });
-      messageApi.success("路径模板已回滚到目标版本并保留审计证据");
-      setReleaseReason("");
-      setRollbackTargetTemplateId(undefined);
-      refetchDetail();
-      refetchList();
-    } catch (error: unknown) {
-      modal.error({
-        title: "路径回滚门禁拒绝",
-        content: getApiErrorMessage(error, "未通过回滚目标、院级确认或影响摘要核查。"),
-      });
-    }
-  };
-
   const handleSnapshotSearch = () => {
     const patientId = cleanText(snapshotPatientId);
     const encounterId = cleanText(snapshotEncounterId);
@@ -2195,11 +1883,6 @@ export default function PathwayTemplates() {
   };
 
   const handleRunCreatePreview = async () => {
-    const packageVersion = cleanText(createTemplatePackageVersion);
-    if (!packageVersion) {
-      messageApi.error("请先选择可解析配置包版本的路径知识包。");
-      return;
-    }
     if (!selectedSnapshotId) {
       messageApi.error("请先选择一个 ACTIVE 上下文快照。");
       return;
@@ -2230,7 +1913,6 @@ export default function PathwayTemplates() {
       }
       const result = await previewRunMutation.mutateAsync({
         subject: "PATHWAY_GUARD",
-        packageVersion,
         snapshotId: selectedSnapshotId,
         startNodeCode,
         dsl: {
@@ -2269,16 +1951,8 @@ export default function PathwayTemplates() {
       messageApi.error("请先选择路径试运行起点节点");
       return;
     }
-    const simulationPackageVersion =
-      cleanText(selectedSnapshotDetail?.packageVersion) ??
-      packageVersionFor(detailData?.template.packageId);
-    if (!simulationPackageVersion) {
-      messageApi.error("无法确认当前路径模板所属的配置包版本，暂不能试运行路径。");
-      return;
-    }
     try {
       const result = await simulateMutation.mutateAsync({
-        packageVersion: simulationPackageVersion,
         ...(simulationMode === "SINGLE_SNAPSHOT" ? {} : { simulationMode }),
         ...(simulationMode === "QUEUE_REPLAY"
           ? { replaySnapshotIds: replayIds }
@@ -2345,8 +2019,6 @@ export default function PathwayTemplates() {
             setSelectedTemplateId(record.templateId);
             setDetailActiveTab("l1");
             setDetailExpertMode(false);
-            setReleaseReason("");
-            setRollbackTargetTemplateId(undefined);
             setSimulateStartNode(record.startNodeCode ?? "");
             resetSimulation();
           }}
@@ -2471,50 +2143,6 @@ export default function PathwayTemplates() {
       render: (_value, binding) => outcomeRefText(binding),
     },
     { title: "指标编码", dataIndex: "indicatorCode" },
-    {
-      title: "包版本",
-      dataIndex: "packageVersion",
-      render: (value?: string | null) => value ?? "-",
-    },
-  ];
-
-  const inheritanceDiffColumns: TableProps<PathwayTemplateInheritanceDiffItem>["columns"] = [
-    { title: "对象", dataIndex: "itemCode", render: (code: string) => <Tag>{code}</Tag> },
-    {
-      title: "类型",
-      dataIndex: "changeType",
-      render: (type: PathwayInheritanceChangeType) => {
-        const color = inheritanceChangeColor(type);
-        return <Tag color={color}>{inheritanceChangeText(type)}</Tag>;
-      },
-    },
-    { title: "字段", dataIndex: "fieldName", render: (value?: string | null) => value ?? "-" },
-    { title: "父级值", dataIndex: "parentValue", render: (value?: string | null) => value ?? "-" },
-    { title: "当前值", dataIndex: "childValue", render: (value?: string | null) => value ?? "-" },
-  ];
-
-  const mergedNodeColumns: TableProps<PathwayMergedNode>["columns"] = [
-    { title: "节点代码", dataIndex: "nodeCode", render: (code: string) => <Tag>{code}</Tag> },
-    { title: "名称", dataIndex: "name", className: styles.textStrong },
-    { title: "类型", dataIndex: "nodeType" },
-    {
-      title: "来源",
-      dataIndex: "origin",
-      render: (origin: string) => {
-        const color = inheritanceOriginColor(origin);
-        return <Tag color={color}>{inheritanceOriginText(origin)}</Tag>;
-      },
-    },
-    {
-      title: "时窗",
-      dataIndex: "timeWindowMinutes",
-      render: (minutes?: number | null) => (typeof minutes === "number" ? minutes : "-"),
-    },
-    {
-      title: "终止",
-      dataIndex: "terminalFlag",
-      render: (terminal?: boolean | null) => (terminal ? "是" : "否"),
-    },
   ];
 
   const renderPreviewRunEvidence = (evidence: AuthoringPreviewRunEvidence[]) => (
@@ -2572,9 +2200,6 @@ export default function PathwayTemplates() {
           </Descriptions.Item>
           <Descriptions.Item label="质量">
             {customerDisplayText(selectedSnapshotDetail.qualityStatus)}
-          </Descriptions.Item>
-          <Descriptions.Item label="路径包版本">
-            {selectedSnapshotDetail.packageVersion || createTemplatePackageVersion || "-"}
           </Descriptions.Item>
         </Descriptions>
         <Button
@@ -2649,23 +2274,7 @@ export default function PathwayTemplates() {
             </Radio.Group>
           </Form.Item>
           <Row gutter={16}>
-            <Col xs={24} md={12}>
-              <Form.Item name="packageId" label="归属路径知识包" rules={[{ required: true }]}>
-                <Select
-                  showSearch
-                  filterOption={false}
-                  onSearch={setPackageSearch}
-                  placeholder="选择路径知识包"
-                >
-                  {packagesData?.items?.map((pkg: KnowledgePackage) => (
-                    <Option key={pkg.packageId} value={pkg.packageId}>
-                      {pkg.name} (v{pkg.packageVersion})
-                    </Option>
-                  ))}
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
+            <Col xs={24}>
               <Form.Item name="name" label="路径模型名称" rules={[{ required: true }]}>
                 <Input placeholder="如 心血管路径复核" />
               </Form.Item>
@@ -2676,7 +2285,7 @@ export default function PathwayTemplates() {
               <Form.Item
                 name="templateCode"
                 label="路径模型代码"
-                tooltip="稳定业务编码，发布后用于包内引用与版本追踪"
+                tooltip="稳定业务编码；同编码修改时由系统自动创建下一版本"
                 rules={[{ required: true }]}
               >
                 <Input placeholder="如 PATH.CARDIO.REVIEW" />
@@ -2699,32 +2308,6 @@ export default function PathwayTemplates() {
             </Col>
           </Row>
           <Row gutter={16}>
-            <Col xs={24} sm={12} lg={6}>
-              <Form.Item
-                name="templateVersion"
-                label="模板版本号"
-                tooltip="同一路径模型代码下递增，用于发布、回滚和影响分析"
-                rules={[{ required: true }]}
-              >
-                <InputNumber
-                  min={1}
-                  precision={0}
-                  placeholder="如 1"
-                  className={styles.fullWidth}
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12} lg={6}>
-              <Form.Item name="parentTemplateId" label="父级模板">
-                <Select
-                  allowClear
-                  showSearch
-                  optionFilterProp="label"
-                  placeholder="不继承"
-                  options={parentTemplateOptions}
-                />
-              </Form.Item>
-            </Col>
             <Col xs={24} sm={12} lg={6}>
               <Form.Item
                 name="entryMode"
@@ -3008,7 +2591,7 @@ export default function PathwayTemplates() {
                             </Form.Item>
                           </Col>
                         )}
-                        <Col xs={24} sm={12} lg={currentScope === "TEMPLATE" ? 10 : 6}>
+                        <Col xs={24} sm={12} lg={currentScope === "TEMPLATE" ? 18 : 10}>
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "indicatorCode"]}
@@ -3023,40 +2606,7 @@ export default function PathwayTemplates() {
                               options={outcomeIndicatorOptions}
                               onSearch={setOutcomeIndicatorSearch}
                               onClear={() => setOutcomeIndicatorSearch("")}
-                              onChange={(indicatorCode) => {
-                                const indicator = outcomeIndicatorByCode.get(indicatorCode);
-                                if (indicator?.packageVersion) {
-                                  templateForm.setFieldValue(
-                                    ["outcomeBindings", field.name, "packageVersion"],
-                                    indicator.packageVersion,
-                                  );
-                                }
-                              }}
                               notFoundContent="暂无 ACTIVE 评估指标"
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={12} lg={currentScope === "TEMPLATE" ? 8 : 4}>
-                          <Form.Item
-                            {...fieldProps}
-                            name={[field.name, "packageVersion"]}
-                            label="指标包版本"
-                            rules={[{ required: true, message: "请选择评估指标所属包版本" }]}
-                          >
-                            <Select
-                              showSearch
-                              allowClear
-                              loading={evaluationPackagesLoading}
-                              filterOption={false}
-                              options={outcomeIndicatorPackageOptions}
-                              onSearch={setOutcomePackageSearch}
-                              onClear={() => setOutcomePackageSearch("")}
-                              placeholder="选择评估指标所属配置包版本"
-                              notFoundContent={
-                                evaluationPackagesError
-                                  ? "评估指标包版本读取失败"
-                                  : "暂无评估指标包版本"
-                              }
                             />
                           </Form.Item>
                         </Col>
@@ -3349,7 +2899,7 @@ export default function PathwayTemplates() {
                           </Col>
                         </Row>
                       )}
-                      {["ORDER_SET", "SUBPATHWAY", "WAIT_TIMER"].includes(
+                      {["ORDER_SET", "WAIT_TIMER"].includes(
                         currentNodeType ?? "",
                       ) && (
                         <Row gutter={12}>
@@ -3362,18 +2912,6 @@ export default function PathwayTemplates() {
                                 rules={[{ required: true, message: "请填写医嘱集引用" }]}
                               >
                                 <Input placeholder="如 sepsis-order-set" />
-                              </Form.Item>
-                            </Col>
-                          )}
-                          {currentNodeType === "SUBPATHWAY" && (
-                            <Col xs={24} sm={12} lg={8}>
-                              <Form.Item
-                                {...fieldProps}
-                                name={[field.name, "config", "subPathwayRef"]}
-                                label="子路径引用"
-                                rules={[{ required: true, message: "请填写子路径引用" }]}
-                              >
-                                <Input placeholder="如 icu-transfer" />
                               </Form.Item>
                             </Col>
                           )}
@@ -3424,10 +2962,7 @@ export default function PathwayTemplates() {
                 {fields.map((field) => {
                   const { key, ...fieldProps } = field;
                   const edgeValue = watchedEdges?.[field.name];
-                  const selectedEdgeFragment =
-                    typeof edgeValue?.conditionFragmentId === "string"
-                      ? conditionFragmentById.get(edgeValue.conditionFragmentId)
-                      : undefined;
+                  const guardMode = edgeValue?.guardMode ?? "INLINE";
                   return (
                     <div key={key} className={styles.editorList}>
                       <Space align="start" className="mk-flex-between mk-full-width">
@@ -3517,164 +3052,180 @@ export default function PathwayTemplates() {
                         <Col xs={24} sm={12} lg={6}>
                           <Form.Item
                             {...fieldProps}
-                            name={[field.name, "conditionFact"]}
-                            label="条件字段路径"
-                          >
-                            <AutoComplete
-                              options={fieldCatalogOptions}
-                              onSelect={(value) => handleEdgeFactSelect(field.name, value)}
-                              filterOption={(input, option) => {
-                                const leaf = option as
-                                  | { value?: string; label?: string }
-                                  | undefined;
-                                return `${leaf?.value ?? ""} ${leaf?.label ?? ""}`
-                                  .toLowerCase()
-                                  .includes(input.toLowerCase());
-                              }}
-                            >
-                              <Input placeholder="如 observations[].valueNumeric" />
-                            </AutoComplete>
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={12} lg={5}>
-                          <Form.Item
-                            {...fieldProps}
-                            name={[field.name, "conditionOperator"]}
-                            label="条件算子"
+                            name={[field.name, "guardMode"]}
+                            label="守卫来源"
+                            rules={[{ required: true }]}
                           >
                             <Select
-                              placeholder="选择算子"
-                              options={pathwayConditionOperatorOptions}
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={12} lg={4}>
-                          <Form.Item
-                            {...fieldProps}
-                            name={[field.name, "conditionValueKind"]}
-                            label="值类型"
-                          >
-                            <Select
-                              placeholder="选择值类型"
-                              options={pathwayConditionValueKindOptions}
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={12} lg={3}>
-                          <Form.Item
-                            {...fieldProps}
-                            name={[field.name, "conditionValue"]}
-                            label="条件值"
-                          >
-                            {(() => {
-                              const edgeFact = watchedEdges?.[field.name]?.conditionFact;
-                              const edgeCodeSystem = edgeFact
-                                ? fieldByPath.get(edgeFact)?.codeSystem
-                                : undefined;
-                              return edgeCodeSystem ? (
-                                <StandardTermValueAutoComplete codeSystem={edgeCodeSystem} />
-                              ) : (
-                                <Input placeholder="如 true / 90 / ATC-J01C" />
-                              );
-                            })()}
-                          </Form.Item>
-                        </Col>
-                      </Row>
-                      <div className={styles.conditionCard}>
-                        <div className={styles.conditionHeader}>
-                          <Space direction="vertical" size={0}>
-                            <Text strong>条件片段</Text>
-                            <Text type="secondary">
-                              使用同包版本片段作为路径守卫，可引用联动或拷贝后细调。
-                            </Text>
-                          </Space>
-                          <Tag color={conditionFragmentPackageVersion ? "green" : "default"}>
-                            {conditionFragmentPackageVersion || "待选择路径知识包"}
-                          </Tag>
-                        </div>
-                        <Space wrap className="mk-full-width">
-                          <Form.Item
-                            {...fieldProps}
-                            name={[field.name, "conditionFragmentId"]}
-                            className={styles.zeroBottom}
-                          >
-                            <Select
-                              aria-label="选择条件片段"
-                              showSearch
-                              allowClear
-                              loading={activeConditionFragmentsQuery.isLoading}
-                              disabled={
-                                !conditionFragmentPackageVersion ||
-                                activeConditionFragmentsQuery.isError
-                              }
-                              options={conditionFragmentOptions}
-                              optionFilterProp="label"
-                              placeholder={
-                                conditionFragmentPackageVersion
-                                  ? "选择可复用条件片段"
-                                  : "先选择路径知识包"
-                              }
-                              className={styles.fragmentSelect}
-                            />
-                          </Form.Item>
-                          <Button
-                            icon={<SwapOutlined />}
-                            disabled={!selectedEdgeFragment}
-                            onClick={() => applyEdgeConditionFragment(field.name, "reference")}
-                          >
-                            引用
-                          </Button>
-                          <Button
-                            icon={<PlusOutlined />}
-                            disabled={!selectedEdgeFragment}
-                            onClick={() => applyEdgeConditionFragment(field.name, "copy")}
-                          >
-                            拷贝
-                          </Button>
-                        </Space>
-                        {activeConditionFragmentsQuery.isError && (
-                          <Alert
-                            className={styles.marginTopSm}
-                            type="error"
-                            showIcon
-                            message="条件片段暂不可用"
-                            description={getApiErrorMessage(
-                              activeConditionFragmentsQuery.error,
-                              "条件片段列表加载失败，请稍后重试。",
-                            )}
-                          />
-                        )}
-                        {conditionFragmentPackageVersion &&
-                          !activeConditionFragmentsQuery.isLoading &&
-                          !activeConditionFragmentsQuery.isError &&
-                          conditionFragmentOptions.length === 0 && (
-                            <Empty
-                              className={styles.marginTopSm}
-                              image={Empty.PRESENTED_IMAGE_SIMPLE}
-                              description="当前包版本暂无可用条件片段"
-                            />
-                          )}
-                      </div>
-                      <Card size="small" className={styles.marginTopMd} title="条件树构建器">
-                        <Form.Item noStyle shouldUpdate>
-                          {({ getFieldValue, setFieldValue }) => {
-                            const tree =
-                              (getFieldValue(["edges", field.name, "conditionTree"]) as
-                                | RuleGroup
-                                | undefined) ?? createDefaultEdgeConditionTree();
-                            return (
-                              <ConditionTreeEditor
-                                value={tree}
-                                fieldCatalog={fieldCatalogList}
-                                fieldCatalogError={fieldCatalogQuery.isError}
-                                onChange={(next) =>
-                                  setFieldValue(["edges", field.name, "conditionTree"], next)
+                              options={[
+                                { value: "INLINE", label: "内嵌条件树" },
+                                { value: "RULE", label: "引用已发布规则" },
+                              ]}
+                              onChange={(value: "INLINE" | "RULE") => {
+                                templateForm.setFieldValue(
+                                  ["edges", field.name, "guardMode"],
+                                  value,
+                                );
+                                if (value === "RULE") {
+                                  templateForm.setFieldValue(
+                                    ["edges", field.name, "conditionTree"],
+                                    undefined,
+                                  );
+                                  templateForm.setFieldValue(
+                                    ["edges", field.name, "conditionFact"],
+                                    undefined,
+                                  );
+                                } else {
+                                  templateForm.setFieldValue(
+                                    ["edges", field.name, "ruleRef"],
+                                    undefined,
+                                  );
+                                  templateForm.setFieldValue(
+                                    ["edges", field.name, "ruleAssetId"],
+                                    undefined,
+                                  );
+                                  templateForm.setFieldValue(
+                                    ["edges", field.name, "conditionTree"],
+                                    createDefaultEdgeConditionTree(),
+                                  );
                                 }
+                              }}
+                            />
+                          </Form.Item>
+                        </Col>
+                        {guardMode === "RULE" && (
+                          <Col xs={24} lg={12}>
+                            <Form.Item
+                              {...fieldProps}
+                              name={[field.name, "ruleRef"]}
+                              label="已发布规则"
+                              rules={[{ required: true, message: "请选择已发布规则" }]}
+                            >
+                              <Select
+                                showSearch
+                                optionFilterProp="label"
+                                loading={publishedRulesLoading}
+                                placeholder="选择已发布规则"
+                                options={pathwayRuleOptions}
+                                notFoundContent="暂无可引用的已发布路径规则"
+                                onChange={(ruleCode) => {
+                                  const selectedRule = pathwayRuleOptions.find(
+                                    (option) => option.value === ruleCode,
+                                  );
+                                  templateForm.setFieldValue(
+                                    ["edges", field.name, "ruleAssetId"],
+                                    selectedRule?.ruleAssetId || undefined,
+                                  );
+                                }}
                               />
-                            );
-                          }}
-                        </Form.Item>
-                      </Card>
+                            </Form.Item>
+                            <Form.Item {...fieldProps} name={[field.name, "ruleAssetId"]} hidden>
+                              <Input />
+                            </Form.Item>
+                          </Col>
+                        )}
+                      </Row>
+                      {guardMode === "RULE" ? (
+                        <Alert
+                          type="info"
+                          showIcon
+                          message="路径仅读取规则命中结果；运行时由同一医院运行修订解析精确规则版本，规则不能反向调用路径。"
+                        />
+                      ) : (
+                        <>
+                          <Row gutter={12}>
+                            <Col xs={24} sm={12} lg={7}>
+                              <Form.Item
+                                {...fieldProps}
+                                name={[field.name, "conditionFact"]}
+                                label="条件字段路径"
+                              >
+                                <AutoComplete
+                                  options={fieldCatalogOptions}
+                                  onSelect={(value) => handleEdgeFactSelect(field.name, value)}
+                                  filterOption={(input, option) => {
+                                    const leaf = option as
+                                      | { value?: string; label?: string }
+                                      | undefined;
+                                    return `${leaf?.value ?? ""} ${leaf?.label ?? ""}`
+                                      .toLowerCase()
+                                      .includes(input.toLowerCase());
+                                  }}
+                                >
+                                  <Input placeholder="如 observations[].valueNumeric" />
+                                </AutoComplete>
+                              </Form.Item>
+                            </Col>
+                            <Col xs={24} sm={12} lg={6}>
+                              <Form.Item
+                                {...fieldProps}
+                                name={[field.name, "conditionOperator"]}
+                                label="条件算子"
+                              >
+                                <Select
+                                  placeholder="选择算子"
+                                  options={pathwayConditionOperatorOptions}
+                                />
+                              </Form.Item>
+                            </Col>
+                            <Col xs={24} sm={12} lg={5}>
+                              <Form.Item
+                                {...fieldProps}
+                                name={[field.name, "conditionValueKind"]}
+                                label="值类型"
+                              >
+                                <Select
+                                  placeholder="选择值类型"
+                                  options={pathwayConditionValueKindOptions}
+                                />
+                              </Form.Item>
+                            </Col>
+                            <Col xs={24} sm={12} lg={6}>
+                              <Form.Item
+                                {...fieldProps}
+                                name={[field.name, "conditionValue"]}
+                                label="条件值"
+                              >
+                                {(() => {
+                                  const edgeFact = watchedEdges?.[field.name]?.conditionFact;
+                                  const edgeCodeSystem = edgeFact
+                                    ? fieldByPath.get(edgeFact)?.codeSystem
+                                    : undefined;
+                                  return edgeCodeSystem ? (
+                                    <StandardTermValueAutoComplete codeSystem={edgeCodeSystem} />
+                                  ) : (
+                                    <Input placeholder="如 true / 90 / ATC-J01C" />
+                                  );
+                                })()}
+                              </Form.Item>
+                            </Col>
+                          </Row>
+                          <Card
+                            size="small"
+                            className={styles.marginTopMd}
+                            title="条件树构建器"
+                          >
+                            <Form.Item noStyle shouldUpdate>
+                              {({ getFieldValue, setFieldValue }) => {
+                                const tree =
+                                  (getFieldValue(["edges", field.name, "conditionTree"]) as
+                                    | RuleGroup
+                                    | undefined) ?? createDefaultEdgeConditionTree();
+                                return (
+                                  <ConditionTreeEditor
+                                    value={tree}
+                                    fieldCatalog={fieldCatalogList}
+                                    fieldCatalogError={fieldCatalogQuery.isError}
+                                    onChange={(next) =>
+                                      setFieldValue(["edges", field.name, "conditionTree"], next)
+                                    }
+                                  />
+                                );
+                              }}
+                            </Form.Item>
+                          </Card>
+                        </>
+                      )}
                       {renderEdgeReadablePreview(edgeValue, field.name)}
                     </div>
                   );
@@ -3685,6 +3236,7 @@ export default function PathwayTemplates() {
                     add({
                       edgeCode: nextSeqCode("edges", "edgeCode", "E"),
                       edgeType: "DEFAULT",
+                      guardMode: "INLINE",
                       conditionTree: createDefaultEdgeConditionTree(),
                       conditionOperator: "equals",
                       conditionValueKind: "string",
@@ -3826,7 +3378,6 @@ export default function PathwayTemplates() {
                       <AuthoringReadablePreview
                         key={`create-l3-edge-preview-${edge.edgeCode || index}`}
                         subject="PATHWAY_GUARD"
-                        packageVersion={createTemplatePackageVersion}
                         dsl={{
                           guard: edge.condition,
                           edgeCode: edge.edgeCode || `E${index + 1}`,
@@ -3861,209 +3412,20 @@ export default function PathwayTemplates() {
   const simulationMapping = mappingEntries(
     simulationResponse?.mappingStatus ?? selectedSnapshotDetail?.mappingStatus,
   );
-  const releaseImpact: PathwayTemplateImpactResponse | null = impactQuery.data ?? null;
-  const releaseEvidenceItems = releaseImpact?.releaseEvidence ?? [];
-  const rollbackTargetOptions =
-    rollbackTargetsData?.items?.filter(
-      (item: PathwayTemplate) =>
-        item.templateId !== selectedTemplateId &&
-        item.templateCode === detailData?.template.templateCode &&
-        item.status === "OFFLINE",
-    ) ?? [];
-  const activeDeployment = detailData?.deploymentStatus === "PUBLISHED";
-  const reviewedContent = detailData?.template.status === "PUBLISHED";
-  const releaseCurrentStep = activeDeployment || reviewedContent ? "full_rollout" : "submit_review";
-  let releaseFlowStatus: "process" | "finish" | "error" = "error";
-  if (activeDeployment) {
-    releaseFlowStatus = "finish";
-  } else if (releaseImpact?.impactDigest) {
-    releaseFlowStatus = "process";
-  }
+  const activeInRuntime = detailData?.deploymentStatus === "PUBLISHED";
+  const immutableVersion = detailData?.template.status !== "DRAFT";
   let detailAlertMessage =
-    "当前临床路径处于设计中，可核查三层模型并使用真实上下文快照试运行后申请发布。";
+    "当前路径处于草稿状态，可继续完善三层模型并使用真实上下文快照试运行。";
   let detailAlertType: "success" | "warning" | "info" = "info";
-  if (activeDeployment) {
-    detailAlertMessage = "当前路径版本已全量生效，拓扑结构写保护；修改需创建新版本。";
+  if (activeInRuntime) {
+    detailAlertMessage =
+      "当前精确路径版本已进入医院运行修订；内容不可原地修改，调整请复制为下一版本草稿。";
     detailAlertType = "success";
-  } else if (reviewedContent) {
-    detailAlertMessage = "路径内容已审核并完成灰度，需由医院管理员确认后全量激活。";
+  } else if (immutableVersion) {
+    detailAlertMessage =
+      "当前内容版本已发布但未必进入医院运行修订；启停、升级和回滚统一在运行版本页面完成。";
     detailAlertType = "warning";
   }
-  let releaseImpactSummary = <Alert type="warning" showIcon message="尚未返回路径发布影响摘要。" />;
-  if (impactQuery.isLoading) {
-    releaseImpactSummary = <Alert type="info" showIcon message="正在读取路径发布影响摘要..." />;
-  } else if (impactQuery.isError) {
-    releaseImpactSummary = (
-      <Alert
-        type="error"
-        showIcon
-        message="影响摘要读取失败"
-        description="发布门禁需要真实影响摘要，请稍后重试。"
-      />
-    );
-  } else if (releaseImpact) {
-    releaseImpactSummary = (
-      <Descriptions bordered column={detailDescriptionColumn} size="small">
-        <Descriptions.Item label="影响分析状态">
-          <Tag color={releaseImpact.analysisStatus === "COMPLETE" ? "green" : "orange"}>
-            {releaseImpact.analysisStatus}
-          </Tag>
-        </Descriptions.Item>
-        <Descriptions.Item label="影响摘要">{releaseImpact.impactDigest}</Descriptions.Item>
-        <Descriptions.Item label="关联患者路径">
-          {releaseImpact.affectedPatientPathways}
-        </Descriptions.Item>
-        <Descriptions.Item label="拓扑规模">
-          {releaseImpact.nodeCount} 节点 / {releaseImpact.edgeCount} 边
-        </Descriptions.Item>
-        <Descriptions.Item label="关键时钟节点">{releaseImpact.timedNodeCount}</Descriptions.Item>
-        <Descriptions.Item label="终止节点">{releaseImpact.terminalNodeCount}</Descriptions.Item>
-        <Descriptions.Item label="结局指标绑定">
-          {releaseImpact.outcomeBindingCount ?? 0}
-        </Descriptions.Item>
-        <Descriptions.Item label="灰度比例">灰度发布默认 10%</Descriptions.Item>
-        <Descriptions.Item label="回滚凭据">保留本次 impactDigest</Descriptions.Item>
-      </Descriptions>
-    );
-  }
-
-  const releaseStepPanel = (
-    <Space direction="vertical" size="middle" className="mk-full-width">
-      <Alert
-        type={activeDeployment ? "success" : "info"}
-        showIcon
-        message={
-          activeDeployment
-            ? "当前路径版本已全量生效"
-            : "路径发布将先进入 10% 灰度，并保留回滚证据。"
-        }
-        description={
-          activeDeployment
-            ? "运行态来自统一版本底座；仍可基于影响摘要和审计证据执行受控回滚。"
-            : "全量发布必须基于本次影响摘要和审计记录继续推进，不能跳过影响核查。"
-        }
-      />
-      {releaseImpactSummary}
-      {releaseEvidenceItems.length > 0 && (
-        <Timeline
-          items={releaseEvidenceItems.map((evidence, index) => ({
-            key: `${index}-${evidence}`,
-            color: index === releaseEvidenceItems.length - 1 ? "green" : "blue",
-            children: evidence,
-          }))}
-        />
-      )}
-      <Form layout="vertical">
-        <Form.Item label="发布审核说明" htmlFor="pathway-release-reason">
-          <TextArea
-            id="pathway-release-reason"
-            rows={3}
-            value={releaseReason}
-            onChange={(event) => setReleaseReason(event.target.value)}
-            placeholder="填写已核查影响摘要、灰度范围、随访交接和回滚安排。"
-          />
-        </Form.Item>
-        {detailData?.template.status === "DRAFT" ? (
-          <Button
-            type="primary"
-            icon={<CheckCircleOutlined />}
-            onClick={handlePublishTemplate}
-            loading={publishTemplateMutation.isPending}
-            disabled={!releaseImpact?.impactDigest || !cleanText(releaseReason)}
-          >
-            提交审核并进入灰度发布
-          </Button>
-        ) : (
-          <Space direction="vertical" size="small" className="mk-full-width">
-            {!activeDeployment && (
-              <Button
-                type="primary"
-                icon={<CheckCircleOutlined />}
-                onClick={handleFullRolloutTemplate}
-                loading={fullRolloutMutation.isPending}
-                disabled={!releaseImpact?.impactDigest || !cleanText(releaseReason)}
-              >
-                院级确认全量激活
-              </Button>
-            )}
-            <Form.Item label="回滚目标版本" className={styles.zeroBottom}>
-              <Select
-                aria-label="回滚目标版本"
-                placeholder="选择已下线历史版本"
-                value={rollbackTargetTemplateId}
-                onChange={setRollbackTargetTemplateId}
-                options={rollbackTargetOptions.map((item: PathwayTemplate) => ({
-                  value: item.templateId,
-                  label: `${item.templateCode} v${item.templateVersion}.0`,
-                }))}
-              />
-            </Form.Item>
-            <Button
-              danger
-              onClick={handleRollbackTemplate}
-              loading={rollbackMutation.isPending}
-              disabled={
-                !releaseImpact?.impactDigest ||
-                !cleanText(releaseReason) ||
-                !rollbackTargetTemplateId
-              }
-            >
-              回滚到目标版本
-            </Button>
-          </Space>
-        )}
-      </Form>
-    </Space>
-  );
-
-  const inheritanceDiff = inheritanceDiffQuery.data;
-  const inheritanceSummaryMessage = inheritanceDiff?.parentTemplateId
-    ? `父级模板：${inheritanceDiff.parentTemplateId}`
-    : "未继承父级模板";
-  const inheritancePanelContent = (() => {
-    if (inheritanceDiffQuery.isLoading) {
-      return <Alert type="info" showIcon message="正在读取继承差异..." />;
-    }
-    if (inheritanceDiffQuery.isError) {
-      return <Alert type="error" showIcon message="继承差异读取失败" />;
-    }
-    return (
-      <>
-        <Alert
-          type={inheritanceDiff?.parentTemplateId ? "info" : "success"}
-          showIcon
-          message={inheritanceSummaryMessage}
-        />
-        <Table
-          title={() => "差异项"}
-          dataSource={inheritanceDiff?.diffItems ?? []}
-          rowKey={(item) =>
-            `${item.itemType}-${item.itemCode}-${item.changeType}-${item.fieldName ?? ""}`
-          }
-          pagination={false}
-          size="small"
-          columns={inheritanceDiffColumns}
-          locale={{ emptyText: "暂无差异" }}
-          className="medkernel-table"
-        />
-        <Table
-          title={() => "有效节点"}
-          dataSource={inheritanceDiff?.mergedNodes ?? []}
-          rowKey="nodeCode"
-          pagination={false}
-          size="small"
-          columns={mergedNodeColumns}
-          locale={{ emptyText: "暂无有效节点" }}
-          className="medkernel-table"
-        />
-      </>
-    );
-  })();
-  const inheritancePanel = (
-    <Space direction="vertical" size="middle" className={`mk-full-width ${styles.marginTopMd}`}>
-      {inheritancePanelContent}
-    </Space>
-  );
 
   const detailLayerItems: TabsProps["items"] = detailData
     ? [
@@ -4084,9 +3446,6 @@ export default function PathwayTemplates() {
               </Descriptions.Item>
               <Descriptions.Item label="层级">
                 {customerEnumLabel(detailData.template.templateLevel)}
-              </Descriptions.Item>
-              <Descriptions.Item label="父级模板">
-                {detailData.template.parentTemplateId ?? "无"}
               </Descriptions.Item>
               <Descriptions.Item label="状态">
                 {pathwayContentStatus(detailData.template.status)}
@@ -4118,11 +3477,6 @@ export default function PathwayTemplates() {
               </Descriptions.Item>
             </Descriptions>
           ),
-        },
-        {
-          key: "inheritance",
-          label: "继承差异",
-          children: inheritancePanel,
         },
         {
           key: "l2",
@@ -4185,7 +3539,6 @@ export default function PathwayTemplates() {
                   <AuthoringReadablePreview
                     key={`edge-preview-${edge.edgeId}`}
                     subject="PATHWAY_GUARD"
-                    packageVersion={releasePackageVersion()}
                     dsl={{
                       guard,
                       edgeCode: edge.edgeCode,
@@ -4238,7 +3591,6 @@ export default function PathwayTemplates() {
                         <AuthoringReadablePreview
                           key={`edge-l3-preview-${edge.edgeId}`}
                           subject="PATHWAY_GUARD"
-                          packageVersion={releasePackageVersion()}
                           dsl={{
                             guard,
                             edgeCode: edge.edgeCode,
@@ -4410,9 +3762,6 @@ export default function PathwayTemplates() {
                         <Descriptions.Item label="质量">
                           {customerDisplayText(selectedSnapshotDetail.qualityStatus)}
                         </Descriptions.Item>
-                        <Descriptions.Item label="路径包版本">
-                          {selectedSnapshotDetail.packageVersion ?? "未返回"}
-                        </Descriptions.Item>
                       </Descriptions>
                     )}
                   </div>
@@ -4497,34 +3846,13 @@ export default function PathwayTemplates() {
             </Row>
           ),
         },
-        {
-          key: "release",
-          label: (
-            <span>
-              <DeploymentUnitOutlined /> 7 步流发布
-            </span>
-          ),
-          children: (
-            <div className={styles.marginTopMd}>
-              <StepFlow
-                currentStep={releaseCurrentStep}
-                panelByStep={
-                  releaseCurrentStep === "full_rollout"
-                    ? { full_rollout: releaseStepPanel }
-                    : { submit_review: releaseStepPanel }
-                }
-                status={releaseFlowStatus}
-              />
-            </div>
-          ),
-        },
       ]
     : [];
 
   return (
     <PageShell
       title="路径中枢"
-      description="配置并维护专病临床路径标准，设定生命周期节点与变异流转边拓扑，提供真实快照试运行与时窗门禁发布验证。"
+      description="配置并维护专病临床路径，使用统一条件树、规则引用和真实快照试运行；运行生效由医院运行修订统一管理。"
     >
       <div className={`${styles.surface} ${styles.filterSurface}`}>
         <Form layout="inline" className={styles.inlineForm}>
@@ -4537,7 +3865,7 @@ export default function PathwayTemplates() {
               className={styles.controlSm}
             >
               <Option value="DRAFT">设计中</Option>
-              <Option value="PUBLISHED">内容已审核</Option>
+              <Option value="PUBLISHED">已发布</Option>
               <Option value="OFFLINE">已下线</Option>
             </Select>
           </Form.Item>
@@ -4550,28 +3878,7 @@ export default function PathwayTemplates() {
               className={styles.controlSm}
             />
           </Form.Item>
-          <Form.Item label="归属路径知识包">
-            <Select
-              showSearch
-              filterOption={false}
-              onSearch={setPackageSearch}
-              placeholder="全部路径知识包"
-              allowClear
-              value={packageFilter}
-              onChange={setPackageFilter}
-              className={styles.controlLg}
-            >
-              {packagesData?.items?.map((pkg: KnowledgePackage) => (
-                <Option key={pkg.packageId} value={pkg.packageId}>
-                  {pkg.name} ({pkg.packageVersion})
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
           <Form.Item className={styles.toolbarActions}>
-            <Button icon={<FolderOpenOutlined />} onClick={() => setPackageDrawerVisible(true)}>
-              管理路径知识包
-            </Button>
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -4606,78 +3913,6 @@ export default function PathwayTemplates() {
         />
       </div>
 
-      <Drawer
-        title="路径知识包"
-        width="min(560px, 100vw)"
-        onClose={() => setPackageDrawerVisible(false)}
-        open={packageDrawerVisible}
-        destroyOnClose
-      >
-        <Card title="新建路径知识包" className={styles.marginBottomLg}>
-          <Form form={packageForm} layout="vertical" onFinish={handleCreatePackage}>
-            <Row gutter={12}>
-              <Col xs={24} md={12}>
-                <Form.Item name="packageCode" label="包编码" rules={[{ required: true }]}>
-                  <Input placeholder="输入包编码" />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12}>
-                <Form.Item name="diseaseCode" label="病种代码 (ICD)" rules={[{ required: true }]}>
-                  <Input placeholder="输入真实病种代码" />
-                </Form.Item>
-              </Col>
-            </Row>
-            <Form.Item name="name" label="名称" rules={[{ required: true }]}>
-              <Input placeholder="输入路径知识包名称" />
-            </Form.Item>
-            <Row gutter={12}>
-              <Col xs={24} md={12}>
-                <Form.Item name="packageVersion" label="版本" rules={[{ required: true }]}>
-                  <Input placeholder="输入版本号" />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12}>
-                <Form.Item name="sourceRef" label="知识来源" rules={[{ required: true }]}>
-                  <Input placeholder="输入已审核指南、院内制度或配置包来源" />
-                </Form.Item>
-              </Col>
-            </Row>
-            <Form.Item name="description" label="功能说明与收治摘要">
-              <TextArea rows={2} placeholder="输入路径知识包功能说明与收治摘要" />
-            </Form.Item>
-            <Button
-              type="primary"
-              htmlType="submit"
-              icon={<PlusOutlined />}
-              loading={createPackageMutation.isPending}
-              className={`${styles.fullWidth} ${styles.marginTopSm}`}
-            >
-              创建草稿
-            </Button>
-          </Form>
-        </Card>
-
-        <div className={`${styles.textStrong} ${styles.marginBottomMd}`}>已有路径知识包</div>
-        <Space direction="vertical" className={`mk-full-width ${styles.packageList}`}>
-          {packagesData?.items?.map((pkg: KnowledgePackage) => (
-            <Card key={pkg.packageId} size="small" className={styles.packageCard}>
-              <Descriptions size="small" column={1} bordered={false}>
-                <Descriptions.Item label="名称">
-                  <span className={styles.textStrong}>{pkg.name}</span>
-                </Descriptions.Item>
-                <Descriptions.Item label="包编码">
-                  <span className={styles.codeText}>{pkg.packageCode}</span>
-                </Descriptions.Item>
-                <Descriptions.Item label="病种/版本">
-                  <Tag color="cyan">{pathwayPackageDiseaseCode(pkg)}</Tag>
-                  <Tag color="purple">{pkg.packageVersion}</Tag>
-                </Descriptions.Item>
-              </Descriptions>
-            </Card>
-          ))}
-        </Space>
-      </Drawer>
-
       <Modal
         title="新建路径模板模型"
         open={createTemplateVisible}
@@ -4709,31 +3944,12 @@ export default function PathwayTemplates() {
       </Modal>
 
       <Drawer
-        title={
-          <div className={styles.drawerTitle}>
-            <span>路径配置与真实快照试运行控制台</span>
-            {detailData &&
-              detailData.deploymentStatus !== "PUBLISHED" &&
-              (detailData.template.status === "DRAFT" ||
-                detailData.template.status === "PUBLISHED") && (
-                <Button
-                  type="primary"
-                  icon={<CheckCircleOutlined />}
-                  onClick={() => setDetailActiveTab("release")}
-                  className={styles.marginRightLg}
-                >
-                  进入 7 步流发布
-                </Button>
-              )}
-          </div>
-        }
+        title="路径配置与真实快照试运行控制台"
         width="min(1080px, 100vw)"
         onClose={() => {
           setSelectedTemplateId(null);
           setDetailActiveTab("l1");
           setDetailExpertMode(false);
-          setReleaseReason("");
-          setRollbackTargetTemplateId(undefined);
           setSimulateStartNode("");
           resetSimulation();
         }}
@@ -4749,10 +3965,10 @@ export default function PathwayTemplates() {
               showIcon
               className={styles.marginBottomLg}
             />
-            {activeDeployment && (
+            {immutableVersion && (
               <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`} wrap>
                 <span className={`${styles.textSmall} ${styles.textSecondary}`}>
-                  维护已全量生效拓扑时先复制为下一版草稿，再走影响预览、灰度发布和回滚证据。
+                  已发布内容版本不可原地修改；复制后由系统自动分配下一版本号。
                 </span>
                 <Button
                   type="primary"
@@ -4765,7 +3981,7 @@ export default function PathwayTemplates() {
             )}
             <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
               <span className={`${styles.textSmall} ${styles.textSecondary}`}>
-                路径拓扑、试运行和发布为普通主流程；完整 DSL 仅在 L3 技术视图显示。
+                路径拓扑与真实快照试运行是本页主流程；运行启停统一由医院运行修订管理。
               </span>
               <Space>
                 <span>L3 技术视图</span>
@@ -4785,7 +4001,10 @@ export default function PathwayTemplates() {
         )}
       </Drawer>
 
-      <FieldCatalogManager open={fieldManagerOpen} onClose={() => setFieldManagerOpen(false)} />
+      <FieldCatalogManager
+        open={fieldManagerOpen}
+        onClose={() => setFieldManagerOpen(false)}
+      />
     </PageShell>
   );
 }

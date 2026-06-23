@@ -13,10 +13,10 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 解析当前组织真正可消费的术语映射。
+ * 解析指定医院运行修订真正可消费的术语映射。
  *
- * <p>仅查询统一资产版本与领域包状态均为 PUBLISHED 的不可变包条目；
- * 同一编码锚点同时命中多层组织包时，仅保留最具体层级，避免上级基线与下级覆盖形成伪冲突。
+ * <p>只读取运行清单锁定的 PUBLISHED 术语资产版本；同一编码锚点命中多层组织版本时，
+ * 仅保留最具体层级，避免平台基线与医院覆盖形成伪冲突。
  */
 @Service
 public class EffectiveTermMappingResolver {
@@ -37,13 +37,16 @@ public class EffectiveTermMappingResolver {
 
     public List<EffectiveTermMapping> resolve(
             String tenantId,
+            String runtimeReleaseId,
             String sourceSystem,
             String localCode,
             String targetDictionaryKey,
             String category) {
         OrgScope scope = effectiveScope(tenantId);
+        String releaseId = required(runtimeReleaseId, "术语映射解析必须指定医院运行修订");
         List<EffectiveTermMappingCandidate> candidates = snapshots.findEffectiveByAnchor(
             tenantId,
+            releaseId,
             scope.tenantId(),
             scope.groupId(),
             facilityId(scope),
@@ -57,10 +60,15 @@ public class EffectiveTermMappingResolver {
         return resolveMostSpecific(candidates);
     }
 
-    public int countByStandardCode(String tenantId, String targetDictionaryKey, String standardCode) {
+    public int countByStandardCode(
+            String tenantId,
+            String runtimeReleaseId,
+            String targetDictionaryKey,
+            String standardCode) {
         OrgScope scope = effectiveScope(tenantId);
         return resolveMostSpecific(snapshots.findEffectiveByStandardCode(
             tenantId,
+            required(runtimeReleaseId, "术语覆盖率评估必须指定医院运行修订"),
             scope.tenantId(),
             scope.groupId(),
             facilityId(scope),
@@ -89,7 +97,8 @@ public class EffectiveTermMappingResolver {
                 new EffectiveTermMapping(
                     candidate.mappingId(),
                     candidate.standardTermId(),
-                    candidate.standardCode()
+                    candidate.standardCode(),
+                    candidate.versionNo()
                 )
             ));
         return List.copyOf(distinctTargets.values());
@@ -128,5 +137,12 @@ public class EffectiveTermMappingResolver {
             return "id:" + candidate.standardTermId();
         }
         return "code:" + candidate.standardCode();
+    }
+
+    private static String required(String value, String message) {
+        if (value == null || value.isBlank()) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, message);
+        }
+        return value.trim();
     }
 }

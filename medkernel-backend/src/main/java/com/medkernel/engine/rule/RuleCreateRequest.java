@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.medkernel.engine.versioning.AssetTriggerBindingInput;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Max;
@@ -29,7 +30,7 @@ public record RuleCreateRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
+    @NotNull List<AssetTriggerBindingInput> triggers,
     @NotBlank String ruleCode,
     @NotBlank String name,
     @NotNull RuleType ruleType,
@@ -47,6 +48,7 @@ public record RuleCreateRequest(
 ) implements RuleContextRequest {
     public RuleCreateRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
+        triggers = triggers == null ? List.of() : List.copyOf(triggers);
     }
 
     public RuleCreateRequest(String ruleCode,
@@ -54,13 +56,13 @@ public record RuleCreateRequest(
                              RuleType ruleType,
                              RuleAuthoringMode authoringMode,
                              RuleRiskLevel riskLevel,
-                             String packageVersion,
+                             List<AssetTriggerBindingInput> triggers,
                              String applicableOrgUnitId,
                              String sourceRef,
                              String changeSummary,
                              JsonNode dsl,
                              JsonNode explanation) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), packageVersion,
+        this(null, null, null, null, null, null, null, null, null, null, List.of(), triggers,
             ruleCode, name, ruleType, authoringMode, riskLevel, 100, null, 0, applicableOrgUnitId,
             sourceRef, changeSummary, dsl, explanation, null);
     }
@@ -70,14 +72,14 @@ public record RuleCreateRequest(
                              RuleType ruleType,
                              RuleAuthoringMode authoringMode,
                              RuleRiskLevel riskLevel,
-                             String packageVersion,
+                             List<AssetTriggerBindingInput> triggers,
                              String applicableOrgUnitId,
                              String sourceRef,
                              String changeSummary,
                              JsonNode dsl,
                              JsonNode explanation,
                              JsonNode parameterBindings) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), packageVersion,
+        this(null, null, null, null, null, null, null, null, null, null, List.of(), triggers,
             ruleCode, name, ruleType, authoringMode, riskLevel, 100, null, 0, applicableOrgUnitId,
             sourceRef, changeSummary, dsl, explanation, parameterBindings);
     }
@@ -85,7 +87,7 @@ public record RuleCreateRequest(
     public RuleApiContext apiContext() {
         return new RuleApiContext(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }

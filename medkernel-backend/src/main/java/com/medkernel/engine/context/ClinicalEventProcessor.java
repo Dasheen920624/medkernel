@@ -108,7 +108,7 @@ public class ClinicalEventProcessor {
                 event.triggerPoint(), event.idempotencyKey(), event.callbackWebhookId(),
                 event.orgScopeJson(),
                 event.patientId(), event.encounterId(), event.clinicalSetting(),
-                event.sourceSystem(), event.packageVersion(),
+                event.sourceSystem(), event.runtimeReleaseId(),
                 event.payloadDigest(), event.occurredAt(), event.receivedAt(), event.snapshotId(),
                 ClinicalEventStatus.FAILED, errorCode.code(), errorCode.errorClass().name(),
                 retryCount, event.rootEventId(), event.traceId());
@@ -133,7 +133,7 @@ public class ClinicalEventProcessor {
             source.triggerPoint(), source.idempotencyKey(), source.callbackWebhookId(),
             source.orgScopeJson(),
             source.patientId(), source.encounterId(), source.clinicalSetting(),
-            source.sourceSystem(), source.packageVersion(),
+            source.sourceSystem(), source.runtimeReleaseId(),
             source.payloadDigest(), source.occurredAt(), source.receivedAt(), snapshotId,
             status, null, null, source.retryCount(), source.rootEventId(), source.traceId());
     }
@@ -142,8 +142,10 @@ public class ClinicalEventProcessor {
         if (hasText(context.contextSnapshotId())) {
             return context.contextSnapshotId();
         }
-        ContextSnapshotResponse snapshot = contextSnapshots.create(snapshotRequest(context),
-            "clinical-event:" + context.eventId());
+        ContextSnapshotResponse snapshot = contextSnapshots.createBound(
+            snapshotRequest(context),
+            "clinical-event:" + context.eventId(),
+            context.runtimeReleaseId());
         return snapshot.snapshotId();
     }
 
@@ -164,7 +166,6 @@ public class ClinicalEventProcessor {
             context.patientId(),
             context.encounterId(),
             orgUnitId(scope, context.tenantId()),
-            context.packageVersion(),
             context.resources()
         );
     }
@@ -189,7 +190,7 @@ public class ClinicalEventProcessor {
             source.triggerPoint(), source.idempotencyKey(), source.callbackWebhookId(),
             source.orgScopeJson(),
             source.patientId(), source.encounterId(), source.clinicalSetting(),
-            source.sourceSystem(), source.packageVersion(),
+            source.sourceSystem(), source.runtimeReleaseId(),
             source.payloadDigest(), source.occurredAt(), source.receivedAt(), source.snapshotId(),
             ClinicalEventStatus.FAILED, errorCode.code(), errorCode.errorClass().name(),
             source.retryCount(), source.rootEventId(), source.traceId());

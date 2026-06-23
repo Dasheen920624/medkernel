@@ -156,7 +156,7 @@ class RecommendationDeterministicMatcherTest {
         when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
         when(ruleDefinitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(ruleDefinition()));
         when(effectiveRuleVersions.resolve(
-            "tenant-A", "RISK_GENDER", ruleDefinition().packageVersion()))
+            "tenant-A", "RISK_GENDER", "ALL"))
             .thenReturn(Optional.empty());
 
         List<RecommendationCardRequest> matches = matcher.match(triggerRequestWithoutPathway());
@@ -257,7 +257,7 @@ class RecommendationDeterministicMatcherTest {
             .contains("\"sourceOrgPath\":\"dept-A\"")
             .contains("\"contentHash\":\"sha256:tenant-rule-v2\"");
         verify(effectiveRuleVersions).resolve(
-            "tenant-A", "RISK_GENDER", ruleDefinition().packageVersion());
+            "tenant-A", "RISK_GENDER", "ALL");
     }
 
     @Test
@@ -285,14 +285,14 @@ class RecommendationDeterministicMatcherTest {
         return new RecommendationTriggerRequest(
             "TRG.ORDER", "order-sign", "event-1", "snapshot-1",
             "patient-1", "enc-1", "pathway-1", "WARD_ORDER",
-            "1.0.0", "sha256:trigger", Instant.now(), List.of());
+            "sha256:trigger", Instant.now(), List.of());
     }
 
     private RecommendationTriggerRequest triggerRequestWithoutPathway() {
         return new RecommendationTriggerRequest(
             "TRG.ORDER", "order-sign", "event-1", "snapshot-1",
             "patient-1", "enc-1", null, "WARD_ORDER",
-            "1.0.0", "sha256:trigger", Instant.now(), List.of());
+            "sha256:trigger", Instant.now(), List.of());
     }
 
     private ContextSnapshotResponse snapshot() {
@@ -305,8 +305,9 @@ class RecommendationDeterministicMatcherTest {
         return new ContextSnapshotResponse(
             "snapshot-1", ContextSnapshotStatus.ACTIVE,
             new ContextSnapshotResources(patient, List.of(), List.of(encounter), List.of(), List.of(), List.of(),
-                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of()),
-            "1.0.0",
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                ContextSnapshotResources.emptyExtensions()),
+            "runtime-release-test",
             QualityStatus.VALID, List.of(), java.util.Map.of(), Instant.now(), "trace-cdss");
     }
 
@@ -429,7 +430,7 @@ class RecommendationDeterministicMatcherTest {
         return new RuleDefinition(
             1L, "rule-risk", "tenant-A", "RISK_GENDER", "性别风险评估",
             RuleType.DIAGNOSIS, RuleAuthoringMode.DSL, RuleRiskLevel.MEDIUM,
-            100, null, 0, RuleDefinitionStatus.PUBLISHED, "rv-risk-v1", "rule-1", "dept-1",
+            100, null, 0, RuleDefinitionStatus.PUBLISHED, "rv-risk-v1", "dept-1",
             now, "tester", now, "tester", "trace-cdss");
     }
 
@@ -482,7 +483,7 @@ class RecommendationDeterministicMatcherTest {
         return new RuleDefinition(
             2L, "rule-platform-risk", "t-1", "RISK_GENDER", "性别风险评估",
             RuleType.DIAGNOSIS, RuleAuthoringMode.DSL, RuleRiskLevel.MEDIUM,
-            100, null, 0, RuleDefinitionStatus.PUBLISHED, "rv-platform-risk-v1", "rule-platform-package", "dept-1",
+            100, null, 0, RuleDefinitionStatus.PUBLISHED, "rv-platform-risk-v1", "dept-1",
             now, "tester", now, "tester", "trace-cdss");
     }
 
@@ -551,7 +552,8 @@ class RecommendationDeterministicMatcherTest {
         Instant now = Instant.now();
         return new PatientPathway(
             1L, "pathway-1", "tenant-A", "patient-1", "enc-1",
-            "template-1", "START", PatientPathwayStatus.ENTERED,
+            "template-1", "release-H1", "av-pathway-v1",
+            "START", PatientPathwayStatus.ENTERED,
             now.minusSeconds(60), null, null, null, "event-1",
             now, "tester", now, "tester", "trace-cdss");
     }
@@ -559,7 +561,7 @@ class RecommendationDeterministicMatcherTest {
     private PathwayTemplate pathwayTemplate() {
         Instant now = Instant.now();
         return new PathwayTemplate(
-            1L, "template-1", "tenant-A", "pkg-1", "PATH.RISK", "风险评估路径",
+            1L, "template-1", "tenant-A", "PATH.RISK", "风险评估路径",
             "RISK", 3, PathwayTemplateLevel.DEPARTMENT, PathwayTemplateStatus.PUBLISHED,
             PathwayEntryMode.AUTO_SUGGEST, "START", "source:pathway", "路径说明", "{}", "{}",
             now, "tester", now, "tester", "trace-cdss");

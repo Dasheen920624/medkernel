@@ -17,7 +17,7 @@ import com.medkernel.engine.rule.RuleActionResult;
 public record AuthoringPreviewRunResponse(
     AuthoringPreviewSubject subject,
     String snapshotId,
-    String packageVersion,
+    String runtimeReleaseId,
     boolean matched,
     Boolean hit,
     String outcomeText,

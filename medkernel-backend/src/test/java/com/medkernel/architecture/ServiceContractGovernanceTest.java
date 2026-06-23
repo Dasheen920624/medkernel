@@ -32,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.medkernel.engine.security.PermissionCode;
 import com.medkernel.engine.contract.ServiceContract;
 import com.medkernel.engine.contract.ServiceContractCatalog;
+import com.medkernel.shared.audit.AuditAction;
 
 class ServiceContractGovernanceTest {
     private static final Pattern PERMISSION_CODE = Pattern.compile("@perm\\.has\\('([^']+)'\\)");
@@ -111,6 +112,24 @@ class ServiceContractGovernanceTest {
     }
 
     @Test
+    void declarativeAssetControllerMustDeclarePermissionsOpenApiAndAuditContract() {
+        ServiceContract contract = ServiceContractCatalog.contractOfController(
+                "com.medkernel.engine.authoring.DeclarativeAssetController")
+            .orElseThrow(() -> new AssertionError("声明式资产控制器缺少服务契约"));
+
+        assertThat(contract.id()).isEqualTo("authoring-declarative-assets");
+        assertThat(contract.basePath()).isEqualTo("/api/v1/engine/authoring/declarative-assets");
+        assertThat(contract.openApiPaths())
+            .containsExactly("/api/v1/engine/authoring/declarative-assets/**");
+        assertThat(contract.permissions())
+            .extracting(permission -> permission.code())
+            .containsExactlyInAnyOrder("asset.read", "asset.write");
+        assertThat(contract.auditPoints())
+            .extracting(audit -> audit.action())
+            .contains(AuditAction.CREATE, AuditAction.UPDATE);
+    }
+
+    @Test
     void controllersMustExposeSingleCanonicalBasePath() {
         assertThat(apiControllers())
             .allSatisfy(controller -> assertThat(classPaths(controller))
@@ -126,6 +145,7 @@ class ServiceContractGovernanceTest {
                 "/api/v1/platform/success/lifecycle/**",
                 "/api/v1/tenant/org-units/**",
                 "/api/v1/engine/events/**",
+                "/api/v1/engine/authoring/fragments/**",
                 "/api/v1/clinical/mpi/**");
     }
 

@@ -214,7 +214,7 @@ class BootstrapControllerTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.mustChangePwd").value(true))
-            .andExpect(jsonPath("$.data.mfaRequired").value(true))
+            .andExpect(jsonPath("$.data.mfaRequired").value(false))
             .andExpect(jsonPath("$.data.mfaBound").value(false))
             .andExpect(jsonPath("$.data.roles", contains("system-superadmin")));
 
@@ -234,7 +234,7 @@ class BootstrapControllerTest {
                 .with(jwt().jwt(t -> t.subject("platform-owner").claim("tenant_id", "t-1"))
                     .authorities(new SimpleGrantedAuthority("ROLE_SYSTEM_SUPERADMIN")))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"label\":\"首发管理员\"}"))
+                .content("{\"label\":\"初始管理员\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.mfaBound").value(false))
             .andExpect(jsonPath("$.data.secret").isNotEmpty())
@@ -252,7 +252,7 @@ class BootstrapControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
-                      "label": "首发管理员",
+                      "label": "初始管理员",
                       "secret": "%s",
                       "code": "%s"
                     }
@@ -272,7 +272,7 @@ class BootstrapControllerTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.mustChangePwd").value(false))
-            .andExpect(jsonPath("$.data.mfaRequired").value(true))
+            .andExpect(jsonPath("$.data.mfaRequired").value(false))
             .andExpect(jsonPath("$.data.mfaBound").value(true));
 
         mvc.perform(post("/api/v1/bootstrap/password")

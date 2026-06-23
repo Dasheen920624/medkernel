@@ -9,8 +9,8 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 高危近似术语规则。
  *
- * <p>规则由迁移种子写入，可按租户覆盖；运行时只解释规则类型，不在代码里散落临床常量。
- * 命中后候选强制 HIGH，后续沿用既有批量拒绝与逐条二次确认门禁。
+ * <p>规则由版本化医学资源经应用播种，可按租户覆盖；运行时只解释规则类型，不在代码里散落临床常量。
+ * 命中后候选标记为 HIGH 并进入人工核查，不要求双签或专家会签。
  */
 @Table("mk_term_high_risk_rule")
 public record HighRiskRule(

@@ -20,6 +20,28 @@ class FormalKnowledgeProductionPolicyTest {
     }
 
     @Test
+    void acceptsKnowledgeRuleAndPathwayForFormalModelProduction() {
+        for (VersionedAssetType type : java.util.List.of(
+            VersionedAssetType.KNOWLEDGE,
+            VersionedAssetType.RULE,
+            VersionedAssetType.PATHWAY)) {
+            assertThatCode(() -> policy.requireApiModel(request(KnowledgeProducer.API_MODEL, type)))
+                .doesNotThrowAnyException();
+        }
+    }
+
+    @Test
+    void rejectsOtherAssetTypesFromFormalModelProduction() {
+        ProductionJobRequest unsupported = request(KnowledgeProducer.API_MODEL, VersionedAssetType.FORMULA);
+
+        assertThatThrownBy(() -> policy.requireApiModel(unsupported))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("知识、规则或路径")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.BAD_REQUEST);
+    }
+
+    @Test
     void rejectsEveryNonApiModelProducerForFormalProduction() {
         for (KnowledgeProducer producer : KnowledgeProducer.values()) {
             if (producer == KnowledgeProducer.API_MODEL) {
@@ -36,13 +58,17 @@ class FormalKnowledgeProductionPolicyTest {
     void rejectsLegacyB0GenerationFromFormalApi() {
         assertThatThrownBy(policy::rejectB0Generation)
             .isInstanceOf(ApiException.class)
-            .hasMessage("正式知识生产不再接受 B0 候选生成，请使用 API_MODEL 模型生产任务");
+            .hasMessage("正式知识生产不再接受 B0 候选生成，请使用统一 Provider API 模型生产任务");
     }
 
     private ProductionJobRequest request(KnowledgeProducer producer) {
+        return request(producer, VersionedAssetType.KNOWLEDGE);
+    }
+
+    private ProductionJobRequest request(KnowledgeProducer producer, VersionedAssetType assetType) {
         return new ProductionJobRequest(
             "source-version:1",
-            VersionedAssetType.KNOWLEDGE,
+            assetType,
             producer,
             TargetPipeline.TENANT_OVERLAY,
             KnowledgeDomain.GENERAL,

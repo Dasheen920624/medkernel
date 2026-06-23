@@ -149,7 +149,7 @@ class KnowledgeShadowEvaluationServiceTest {
     }
 
     @Test
-    void redlineBenchmarkPassedStillRequiresManualReviewButNotBlocked() {
+    void redlineBenchmarkPassesWhenAllSafetyExpectationsAreMet() {
         when(cases.findByTenantIdAndCapabilityCodeAndEnabledFlag(
             "tenant-a", "knowledge.production.rule", "Y")).thenReturn(List.of(
             regressionCase("knowledge.production.rule", "避免禁忌用药", "CONTRAINDICATION", "Y")));
@@ -158,8 +158,8 @@ class KnowledgeShadowEvaluationServiceTest {
             new KnowledgeShadowContext("tenant-a", "job-1", 10L, VersionedAssetType.RULE));
 
         assertThat(decision.readyForReview()).isTrue();
-        assertThat(decision.status()).isEqualTo(KnowledgeShadowRunStatus.PENDING_REVIEW);
-        assertThat(savedRun().basis()).contains("高风险");
+        assertThat(decision.status()).isEqualTo(KnowledgeShadowRunStatus.PASSED);
+        assertThat(savedRun().basis()).contains("影子评测通过");
     }
 
     @Test

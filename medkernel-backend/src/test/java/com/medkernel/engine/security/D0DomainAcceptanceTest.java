@@ -69,7 +69,7 @@ class D0DomainAcceptanceTest {
         }
 
         assertThat(observedDimensions)
-            .as("整套职责角色必须完整覆盖五维权限模型")
+            .as("整套职责角色必须完整覆盖权限原子")
             .containsExactlyInAnyOrder("MENU", "ACTION", "DATA", "ASSET", "ENVIRONMENT");
     }
 

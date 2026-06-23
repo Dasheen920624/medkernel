@@ -35,8 +35,8 @@ public final class ModelEgressPolicyValidator {
         if (!validLevel(whitelist.sensitivityLevel())) {
             return Validation.invalid("出域敏感级别无效");
         }
-        if (!validLevel(whitelist.approvalThresholdLevel())) {
-            return Validation.invalid("出域审批阈值无效");
+        if (!validLevel(whitelist.confirmationThresholdLevel())) {
+            return Validation.invalid("出域责任确认阈值无效");
         }
 
         Set<String> allowedFields = new LinkedHashSet<>();

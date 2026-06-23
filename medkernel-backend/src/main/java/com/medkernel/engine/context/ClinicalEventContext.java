@@ -26,7 +26,7 @@ public record ClinicalEventContext(
     @NotNull ClinicalSetting clinicalSetting,
     String contextSnapshotId,
     String sourceSystem,
-    @NotBlank String packageVersion,
+    @NotBlank String runtimeReleaseId,
     @NotBlank String payloadDigest,
     @NotNull Instant occurredAt,
     @NotBlank String triggerSource,
@@ -58,7 +58,8 @@ public record ClinicalEventContext(
     public ClinicalEventContext withContextSnapshotId(String snapshotId) {
         return new ClinicalEventContext(
             eventId, tenantId, orgScope, eventType, clinicalTriggerPoint, patientId,
-            encounterId, clinicalSetting, snapshotId, sourceSystem, packageVersion, payloadDigest,
+            encounterId, clinicalSetting, snapshotId, sourceSystem,
+            runtimeReleaseId, payloadDigest,
             occurredAt, triggerSource, traceId, resources, payload, codeMappingAnchors);
     }
 

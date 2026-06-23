@@ -40,7 +40,7 @@ const DEFAULT_DESCRIPTION: Record<NonReadyPageStateKind, ReactNode> = {
   loading: "正在读取当前组织范围内的数据。",
   empty: "当前筛选条件下没有结果，可调整筛选或创建第一条记录。",
   error: "请稍后重试；如果持续失败，请凭追踪号联系信息科。",
-  forbidden: "该页面包含受控数据，请联系信息科主任调整角色或数据范围。",
+  forbidden: "该页面包含受控数据，请联系平台管理员调整职责或数据范围。",
   partial: "部分项目已完成，其余项目需要查看原因后重试或转人工处理。",
 };
 

@@ -51,7 +51,7 @@ class ComplianceUserExternalRoleSyncTest {
                 1L, TENANT, USER, "王医生", "ACTIVE", 1L,
                 Instant.now(), ACTOR, Instant.now(), ACTOR, "trace")));
         when(assignments.findByTenantIdAndUserIdAndRoleCodeAndScopeLevelAndScopeCode(
-            TENANT, USER, "quality-governor", "DEPARTMENT", "dept-1"))
+            TENANT, USER, "engine-operator", "DEPARTMENT", "dept-1"))
             .thenReturn(Optional.empty());
         when(assignments.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         service = new ComplianceUserService(
@@ -74,19 +74,19 @@ class ComplianceUserExternalRoleSyncTest {
     @Test
     void replacesOnlyRolesOwnedByCurrentExternalSource() {
         UserRoleAssignment sourceOwned = assignment(
-            11L, "clinical-decision-user", "DEPARTMENT", "dept-1", ACTOR);
+            11L, "clinical-user", "DEPARTMENT", "dept-1", ACTOR);
         UserRoleAssignment manuallyOwned = assignment(
-            12L, "medication-safety-user", "DEPARTMENT", "dept-1", "admin-1");
+            12L, "auditor", "DEPARTMENT", "dept-1", "admin-1");
         when(assignments.findActiveByTenantIdAndUserId(TENANT, USER))
             .thenReturn(List.of(sourceOwned, manuallyOwned));
 
         service.syncExternalRole(
             USER,
             new ComplianceUserRoleRequest(
-                "quality-governor", "DEPARTMENT", "dept-1"),
+                "engine-operator", "DEPARTMENT", "dept-1"),
             new UsernamePasswordAuthenticationToken(
                 ACTOR, null,
-                List.of(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"))));
+                List.of(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"))));
 
         ArgumentCaptor<UserRoleAssignment> captor =
             ArgumentCaptor.forClass(UserRoleAssignment.class);
@@ -95,7 +95,7 @@ class ComplianceUserExternalRoleSyncTest {
             assertThat(saved.id()).isEqualTo(11L);
             assertThat(saved.active()).isFalse();
         }).anySatisfy(saved -> {
-            assertThat(saved.roleCode()).isEqualTo("quality-governor");
+            assertThat(saved.roleCode()).isEqualTo("engine-operator");
             assertThat(saved.active()).isTrue();
             assertThat(saved.createdBy()).isEqualTo(ACTOR);
         });
@@ -106,7 +106,7 @@ class ComplianceUserExternalRoleSyncTest {
     @Test
     void nullDesiredRoleRemovesAllRolesOwnedByCurrentExternalSource() {
         UserRoleAssignment sourceOwned = assignment(
-            11L, "clinical-decision-user", "DEPARTMENT", "dept-1", ACTOR);
+            11L, "clinical-user", "DEPARTMENT", "dept-1", ACTOR);
         when(assignments.findActiveByTenantIdAndUserId(TENANT, USER))
             .thenReturn(List.of(sourceOwned));
 
@@ -115,7 +115,7 @@ class ComplianceUserExternalRoleSyncTest {
             null,
             new UsernamePasswordAuthenticationToken(
                 ACTOR, null,
-                List.of(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"))));
+                List.of(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"))));
 
         ArgumentCaptor<UserRoleAssignment> captor =
             ArgumentCaptor.forClass(UserRoleAssignment.class);

@@ -337,7 +337,7 @@ class ModelProviderGovernanceServiceTest {
             "external",
             new ModelProviderActivationRequest(
                 CAPABILITY,
-                "独立专家评测已签署，按 T9.8 受控启用",
+                "医学回归评测通过并已核查，受控启用",
                 5L,
                 true));
 
@@ -348,7 +348,7 @@ class ModelProviderGovernanceServiceTest {
             AuditAction.UPDATE,
             "mk_llm_provider",
             "external",
-            "启用模型 provider external（capability=rule.draft）：独立专家评测已签署，按 T9.8 受控启用");
+            "启用模型 provider external（capability=rule.draft）：医学回归评测通过并已核查，受控启用");
     }
 
     @Test

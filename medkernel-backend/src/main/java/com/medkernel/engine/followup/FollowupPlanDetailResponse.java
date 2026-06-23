@@ -11,6 +11,7 @@ public record FollowupPlanDetailResponse(
     String patientId,
     String encounterId,
     String diseaseCode,
+    String runtimeReleaseId,
     FollowupPlanStatus status,
     List<FollowupTaskDetailResponse> tasks,
     FollowupModelStatus modelStatus,
@@ -34,7 +35,7 @@ public record FollowupPlanDetailResponse(
             String diseaseCode,
             FollowupPlanStatus status,
             List<FollowupTaskDetailResponse> tasks) {
-        this(planId, tenantId, patientId, encounterId, diseaseCode, status, tasks, FollowupModelStatus.MODEL_DISABLED,
+        this(planId, tenantId, patientId, encounterId, diseaseCode, null, status, tasks, FollowupModelStatus.MODEL_DISABLED,
             null, null, null, null, null, null);
     }
 
@@ -47,7 +48,7 @@ public record FollowupPlanDetailResponse(
             FollowupPlanStatus status,
             List<FollowupTaskDetailResponse> tasks,
             FollowupModelStatus modelStatus) {
-        this(planId, tenantId, patientId, encounterId, diseaseCode, status, tasks, modelStatus,
+        this(planId, tenantId, patientId, encounterId, diseaseCode, null, status, tasks, modelStatus,
             null, null, null, null, null, null);
     }
 
@@ -65,7 +66,7 @@ public record FollowupPlanDetailResponse(
             String generationRuleCode,
             String generationExplanation) {
         this(
-            planId, tenantId, patientId, encounterId, diseaseCode, status, tasks, modelStatus,
+            planId, tenantId, patientId, encounterId, diseaseCode, null, status, tasks, modelStatus,
             sourceFactType, sourceFactId, generationRuleCode, generationExplanation, null, null
         );
     }

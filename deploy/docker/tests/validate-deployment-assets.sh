@@ -62,7 +62,10 @@ grep -q 'ensure_setting "MEDKERNEL_RUNTIME_RELEASE_FINGERPRINT"' \
 grep -q 'release-fingerprint: ${MEDKERNEL_RUNTIME_RELEASE_FINGERPRINT:development}' \
   "$ROOT/medkernel-backend/src/main/resources/application.yml"
 grep -q 'SPRING_NEO4J_URI: bolt://neo4j:7687' "$ROOT/deploy/docker/compose.yml"
-! grep -q '^      NEO4J_PASSWORD:' "$ROOT/deploy/docker/compose.yml"
+if grep -q '^      NEO4J_PASSWORD:' "$ROOT/deploy/docker/compose.yml"; then
+  printf 'compose file contains forbidden direct Neo4j password key\n' >&2
+  exit 1
+fi
 grep -q 'MEDKERNEL_NEO4J_PASSWORD' "$ROOT/medkernel-backend/src/main/resources/application-container.yml"
 grep -q 'MEDKERNEL_NEO4J_HEALTH_ENABLED:false' "$ROOT/medkernel-backend/src/main/resources/application-container.yml"
 grep -q 'v1.14.0' "$ROOT/deploy/docker/scripts/bootstrap-runtime.sh"
@@ -76,9 +79,15 @@ grep -q 'checksum_file' "$ROOT/deploy/docker/scripts/common.sh"
 grep -q 'verify_checksum' "$ROOT/deploy/docker/scripts/common.sh"
 grep -q 'nginx@sha256:' "$ROOT/deploy/docker/dify/compose.lock.yml"
 grep -q 'ubuntu/squid@sha256:' "$ROOT/deploy/docker/dify/compose.lock.yml"
-! grep -q ':latest' "$ROOT/deploy/docker/dify/compose.lock.yml"
+if grep -q ':latest' "$ROOT/deploy/docker/dify/compose.lock.yml"; then
+  printf 'Dify compose lock contains mutable latest tag\n' >&2
+  exit 1
+fi
 grep -q -- '--mount=type=cache,target=/root/.m2' "$ROOT/deploy/docker/backend/Dockerfile"
-! grep -q 'mvn -B -q' "$ROOT/deploy/docker/backend/Dockerfile"
+if grep -q 'mvn -B -q' "$ROOT/deploy/docker/backend/Dockerfile"; then
+  printf 'backend container build suppresses Maven diagnostics\n' >&2
+  exit 1
+fi
 grep -q 'maven.test.skip=true' "$ROOT/deploy/docker/backend/Dockerfile"
 grep -A4 'location = /healthz' "$ROOT/deploy/docker/frontend/nginx.conf" | grep -q 'proxy_set_header Host \$host;'
 
@@ -115,12 +124,19 @@ grep -q 'Domestic crypto smoke passed' "$ROOT/deploy/docker/scripts/govcloud-smo
 grep -q 'backend:18080' "$ROOT/deploy/docker/monitoring/prometheus.yml"
 grep -q '/opt/medkernel/dashboards:ro' "$ROOT/deploy/docker/compose.monitoring.yml"
 grep -q 'path: /opt/medkernel/dashboards' "$ROOT/deploy/monitoring/grafana/provisioning/dashboards/medkernel.yml"
-! grep -q ':/etc/grafana/provisioning/dashboards/medkernel:ro' "$ROOT/deploy/docker/compose.monitoring.yml"
+if grep -q ':/etc/grafana/provisioning/dashboards/medkernel:ro' "$ROOT/deploy/docker/compose.monitoring.yml"; then
+  printf 'monitoring compose retains obsolete Grafana dashboard mount\n' >&2
+  exit 1
+fi
 grep -q 'dify_compose exec -T api curl -fsS http://localhost:5001/health' "$ROOT/deploy/docker/scripts/healthcheck.sh"
 grep -q 'DIFY_REQUIRED_SERVICES=' "$ROOT/deploy/docker/scripts/healthcheck.sh"
 grep -q 'DIFY_HEALTHY_SERVICES=' "$ROOT/deploy/docker/scripts/healthcheck.sh"
 grep -q 'dify_compose ps --services --status running' "$ROOT/deploy/docker/scripts/healthcheck.sh"
 grep -q 'docker inspect --format' "$ROOT/deploy/docker/scripts/healthcheck.sh"
-! grep -R -q 'host.docker.internal:5001' "$ROOT/deploy/docker" "$ROOT/medkernel-backend/src/main/resources/application-container.yml"
+if grep -R -q --exclude-dir=tests 'host.docker.internal:5001' "$ROOT/deploy/docker" \
+  "$ROOT/medkernel-backend/src/main/resources/application-container.yml"; then
+  printf 'container deployment retains host-only Dify endpoint\n' >&2
+  exit 1
+fi
 
 printf 'deployment asset contract passed\n'

@@ -24,7 +24,7 @@ class ComplianceMasterDataPersonnelAdapterTest {
     void convertsNeutralMasterDataCommandToComplianceEnums() {
         MasterDataPersonCommand command = new MasterDataPersonCommand(
             "EMP-001", "王医生", "HOSP-A", "CARDIO", "CARDIO-W1",
-            "INTERNAL", "主治医师", "EMP-001", "clinical-decision-user",
+            "INTERNAL", "主治医师", "EMP-001", "clinical-user",
             "EMPLOYEE_NO", "EMP-001", "ACTIVE");
         when(personnel.syncFromExternal(any(), any())).thenReturn("person-internal");
 

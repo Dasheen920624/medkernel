@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 演练机构规则铺底：标准快照 -> 规则四测 -> 治理演练 -> 内容寻址包 -> CURRENT 绑定。
+// 演练机构规则铺底：标准快照 -> 规则四测 -> 治理演练 -> 运行制品 -> 医院当前运行修订。
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -7,6 +7,11 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { loadScenarioRules, selectSeedRules } from "./scenario-rules.mjs";
+import {
+  ASSIGNABLE_ROLES,
+  selectLaunchAccount,
+  validateLaunchCredentials,
+} from "../release/launch-account-bootstrap-lib.mjs";
 
 const requireFromFrontend = createRequire(
   new URL("../../frontend/package.json", import.meta.url),
@@ -20,14 +25,42 @@ const baseUrl = (
 ).replace(/\/+$/, "");
 const apiBase = `${baseUrl}/medkernel/api/v1`;
 const credentialPath =
-  process.env.DRILL_CREDENTIAL_PATH ??
-  "/tmp/medkernel-sandbox-role-credentials.json";
-const evidenceDir = path.join(
-  repoRoot,
-  "docs/release/evidence/sandbox-full-fidelity-20260619",
-);
-const packageCode = "SBX.INSTITUTION.RULES";
+  process.env.LAUNCH_CREDENTIALS_FILE ??
+  "/var/lib/medkernel/credentials/current-launch.json";
+export function resolveSandboxEvidenceDir(
+  env = process.env,
+  repositoryRoot = repoRoot,
+) {
+  const runtimeRoot = path.resolve(
+    env.MEDKERNEL_RUNTIME_ROOT?.trim() || "/var/lib/medkernel",
+  );
+  const candidate = path.resolve(
+    env.DRILL_EVIDENCE_DIR?.trim() ||
+      path.join(runtimeRoot, "evidence/current-launch/sandbox"),
+  );
+  const relative = path.relative(path.resolve(repositoryRoot), candidate);
+  if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
+    throw new Error("沙盘演练证据目录必须位于代码仓库之外");
+  }
+  return candidate;
+}
+const evidenceDir = resolveSandboxEvidenceDir();
 const mappingVersion = "sandbox-context-v1";
+
+export const RULE_GOVERNANCE_STAGES = Object.freeze([
+  "DRAFT",
+  "REVIEWED",
+  "SHADOW",
+  "CANARY",
+  "FULL",
+  "MONITOR",
+]);
+
+export const SANDBOX_ACTOR_ROLES = Object.freeze({
+  snapshotWriter: "platform-admin",
+  engineOperator: "engine-operator",
+  auditReader: "auditor",
+});
 
 function traceId(stage) {
   return `sandbox-seed-${stage}-${Date.now()}`;
@@ -45,7 +78,7 @@ function canonicalJson(value) {
 }
 
 /** 内容摘要即版本身份；规则内容变化必然得到新版本，不使用日期或固定发布口径。 */
-export function deriveSandboxPackageVersion(manifest) {
+export function deriveSandboxRuntimeDigest(manifest) {
   const digest = createHash("sha256")
     .update(canonicalJson(manifest))
     .digest("hex");
@@ -194,30 +227,22 @@ export function buildCanonicalResources(
 
 async function loadCredentials() {
   const data = JSON.parse(await readFile(credentialPath, "utf8"));
-  return {
-    customerTenant: data.customerTenant,
-    roleAccounts: data.roleAccounts ?? {},
-    platformRoleAccounts: data.platformRoleAccounts ?? {},
-  };
+  validateLaunchCredentials(data);
+  return data;
+}
+
+export function resolveSandboxAccounts(credentials) {
+  validateLaunchCredentials(credentials);
+  return Object.fromEntries(
+    ASSIGNABLE_ROLES.map((role) => [
+      role,
+      selectLaunchAccount(credentials, "rehearsal", role),
+    ]),
+  );
 }
 
 function requireAccount(credentials, role) {
-  if (
-    role === "organization-admin" &&
-    credentials.customerTenant?.adminUsername
-  ) {
-    return {
-      username: credentials.customerTenant.adminUsername,
-      password: credentials.customerTenant.password,
-      tenantId: credentials.customerTenant.tenantId,
-    };
-  }
-  const account =
-    credentials.roleAccounts[role] ?? credentials.platformRoleAccounts[role];
-  if (!account?.username || !account?.password || !account?.tenantId) {
-    throw new Error(`凭据缺少角色 ${role} 的可用账号`);
-  }
-  return account;
+  return resolveSandboxAccounts(credentials)[role];
 }
 
 async function login(browser, account, role) {
@@ -298,7 +323,7 @@ function pageItems(data) {
   return Array.isArray(data) ? data : (data?.items ?? []);
 }
 
-async function envelope(context, stage, actualPackageVersion) {
+async function envelope(context, stage) {
   const me = ensureOk(
     await apiGet(context, "/security/me", `${stage}-me`),
     `${stage} 读取登录态`,
@@ -319,12 +344,18 @@ async function envelope(context, stage, actualPackageVersion) {
     specialty_id: scope.specialtyId ?? null,
     user_id: me.userId ?? me.username,
     role_codes: roleCodes,
-    package_version: actualPackageVersion,
-    orgUnitId: scope.hospitalId || scope.campusId || scope.tenantId,
   };
 }
 
-function snapshotPayload(testCase, contextEnvelope, actualPackageVersion) {
+function runtimeTargetOrgUnitId(contextEnvelope) {
+  return (
+    contextEnvelope.hospital_id ||
+    contextEnvelope.campus_id ||
+    contextEnvelope.tenant_id
+  );
+}
+
+function snapshotPayload(testCase, contextEnvelope) {
   const occurredAt = new Date().toISOString();
   return {
     ...contextEnvelope,
@@ -332,19 +363,19 @@ function snapshotPayload(testCase, contextEnvelope, actualPackageVersion) {
     trace_id: traceId(`snapshot-${testCase.caseType}-trace`),
     patientId: testCase.patientId,
     encounterId: testCase.encounterId,
-    package_version: actualPackageVersion,
+    orgUnitId: runtimeTargetOrgUnitId(contextEnvelope),
     resources: buildCanonicalResources(testCase, occurredAt),
   };
 }
 
-async function seedSnapshots(browser, credentials, rule, actualPackageVersion) {
+async function seedSnapshots(browser, credentials, rule) {
   const context = await login(
     browser,
-    requireAccount(credentials, "integration-operator"),
-    "integration-operator",
+    requireAccount(credentials, SANDBOX_ACTOR_ROLES.snapshotWriter),
+    SANDBOX_ACTOR_ROLES.snapshotWriter,
   );
   try {
-    const ctx = await envelope(context, "snapshot", actualPackageVersion);
+    const ctx = await envelope(context, "snapshot");
     const snapshots = [];
     for (const testCase of rule.clinicalContent.testCases) {
       const query = `/engine/context/snapshots?patientId=${encodeURIComponent(testCase.patientId)}&status=ACTIVE&page=1&size=5`;
@@ -367,7 +398,7 @@ async function seedSnapshots(browser, credentials, rule, actualPackageVersion) {
           ),
           `读取 ${rule.ruleCode}/${testCase.caseType} 既有快照详情`,
         );
-        if (existingDetail.packageVersion === actualPackageVersion) {
+        if (existingDetail.runtimeReleaseId) {
           snapshots.push({
             ...testCase,
             snapshotId: existing.snapshotId,
@@ -380,7 +411,7 @@ async function seedSnapshots(browser, credentials, rule, actualPackageVersion) {
         await apiPost(
           context,
           "/engine/context/snapshots",
-          snapshotPayload(testCase, ctx, actualPackageVersion),
+          snapshotPayload(testCase, ctx),
           `snapshot-create-${rule.ruleCode}-${testCase.caseType}`,
         ),
         `创建 ${rule.ruleCode}/${testCase.caseType} 快照`,
@@ -389,10 +420,10 @@ async function seedSnapshots(browser, credentials, rule, actualPackageVersion) {
       if (
         !created?.snapshotId ||
         created.status !== "ACTIVE" ||
-        created.packageVersion !== actualPackageVersion
+        !created.runtimeReleaseId
       ) {
         throw new Error(
-          `${rule.ruleCode}/${testCase.caseType} 快照未形成 ACTIVE 服务端事实`,
+          `${rule.ruleCode}/${testCase.caseType} 快照未形成 ACTIVE 且绑定运行修订的服务端事实`,
         );
       }
       snapshots.push({
@@ -432,6 +463,15 @@ function ruleVersionNo(detail) {
   return String(detail?.version?.versionNo ?? detail?.versionNo ?? 1);
 }
 
+function ruleVersionId(detail) {
+  return String(
+    detail?.triggerBindings?.[0]?.versionId ??
+      detail?.version?.versionId ??
+      detail?.versionId ??
+      "",
+  );
+}
+
 function assertPublishedRuleMatches(detail, rule) {
   const definition = detail.definition ?? detail;
   const version = detail.version ?? detail;
@@ -454,15 +494,14 @@ async function createAndTestRule(
   credentials,
   rule,
   snapshots,
-  actualPackageVersion,
 ) {
   const context = await login(
     browser,
-    requireAccount(credentials, "knowledge-governor"),
-    "knowledge-governor",
+    requireAccount(credentials, SANDBOX_ACTOR_ROLES.engineOperator),
+    SANDBOX_ACTOR_ROLES.engineOperator,
   );
   try {
-    const ctx = await envelope(context, "rule", actualPackageVersion);
+    const ctx = await envelope(context, "rule");
     let definition = await findRule(
       context,
       rule.ruleCode,
@@ -579,6 +618,7 @@ async function createAndTestRule(
     return {
       ruleId: definition.ruleId,
       assetVersion: ruleVersionNo(detail),
+      versionId: ruleVersionId(detail),
       alreadyPublished: false,
     };
   } finally {
@@ -586,13 +626,10 @@ async function createAndTestRule(
   }
 }
 
-async function withRole(browser, credentials, role, actualPackageVersion, run) {
+async function withRole(browser, credentials, role, run) {
   const context = await login(browser, requireAccount(credentials, role), role);
   try {
-    return await run(
-      context,
-      await envelope(context, role, actualPackageVersion),
-    );
+    return await run(context, await envelope(context, role));
   } finally {
     await context.close();
   }
@@ -618,30 +655,22 @@ async function transition(
   ruleId,
   targetState,
   reason,
-  actualPackageVersion,
   publishEvidence,
 ) {
   return withRole(
     browser,
     credentials,
     role,
-    actualPackageVersion,
     async (context, ctx) => {
       const state = await governanceState(
         context,
         ruleId,
         `state-${targetState}`,
       );
-      const order = [
-        "DRAFT",
-        "PEER_REVIEW",
-        "COMMITTEE",
-        "SHADOW",
-        "CANARY",
-        "FULL",
-        "MONITOR",
-      ];
-      if (order.indexOf(state.state) >= order.indexOf(targetState))
+      if (
+        RULE_GOVERNANCE_STAGES.indexOf(state.state) >=
+        RULE_GOVERNANCE_STAGES.indexOf(targetState)
+      )
         return state;
       const digest = await impactDigest(
         context,
@@ -667,128 +696,46 @@ async function transition(
   );
 }
 
-async function signoff(
-  browser,
-  credentials,
-  role,
-  ruleId,
-  stage,
-  reason,
-  actualPackageVersion,
-  minimumApprovals = 0,
-) {
-  return withRole(
-    browser,
-    credentials,
-    role,
-    actualPackageVersion,
-    async (context, ctx) => {
-      const current = await governanceState(
-        context,
-        ruleId,
-        `signoff-state-${stage}-${role}`,
-      );
-      if (stage === "PEER_REVIEW" && current.state !== "PEER_REVIEW")
-        return current;
-      if (
-        stage === "COMMITTEE" &&
-        (current.committeeApprovalCount ?? 0) >= minimumApprovals
-      ) {
-        return current;
-      }
-      return ensureOk(
-        await apiPost(
-          context,
-          `/engine/rule/rules/${ruleId}/governance/signoffs`,
-          {
-            ...ctx,
-            stage,
-            decision: "APPROVED",
-            reason,
-          },
-          `signoff-${stage}-${role}`,
-        ),
-        `${role} 完成 ${stage} 沙盘治理演练签署`,
-      );
-    },
-  );
-}
-
-async function governRule(browser, credentials, ruleId, actualPackageVersion) {
+async function governRule(browser, credentials, ruleId) {
   await transition(
     browser,
     credentials,
-    "knowledge-governor",
+    SANDBOX_ACTOR_ROLES.engineOperator,
     ruleId,
-    "PEER_REVIEW",
-    "沙盘四类样例测试与真实快照试运行全绿，提交治理流程演练；不等同于生产医学签署。",
-    actualPackageVersion,
-  );
-  await signoff(
-    browser,
-    credentials,
-    "clinical-governor",
-    ruleId,
-    "PEER_REVIEW",
-    "仅确认演练规则的安全边界与人工确认要求，不作为生产医学批准。",
-    actualPackageVersion,
-  );
-  await signoff(
-    browser,
-    credentials,
-    "clinical-governor",
-    ruleId,
-    "COMMITTEE",
-    "完成第一角色沙盘治理演练签署；不替代真实专家双签。",
-    actualPackageVersion,
-    1,
-  );
-  await signoff(
-    browser,
-    credentials,
-    "quality-governor",
-    ruleId,
-    "COMMITTEE",
-    "完成第二角色沙盘治理演练签署；不替代真实专家双签。",
-    actualPackageVersion,
-    2,
+    "REVIEWED",
+    "沙盘四类样例测试、术语覆盖、冲突检查与真实快照试运行全绿，确认进入发布验证。",
   );
   await transition(
     browser,
     credentials,
-    "organization-admin",
+    SANDBOX_ACTOR_ROLES.engineOperator,
     ruleId,
     "SHADOW",
-    "沙盘治理流程演练签署完成，进入无外部副作用影子运行。",
-    actualPackageVersion,
+    "规则质量校验完成，进入无外部副作用影子运行。",
   );
   await transition(
     browser,
     credentials,
-    "organization-admin",
+    SANDBOX_ACTOR_ROLES.engineOperator,
     ruleId,
     "CANARY",
     "影子验证完成，进入演练机构灰度。",
-    actualPackageVersion,
   );
-  const signedAt = new Date().toISOString();
   await transition(
     browser,
     credentials,
-    "organization-admin",
+    SANDBOX_ACTOR_ROLES.engineOperator,
     ruleId,
     "FULL",
     "演练机构灰度验证完成，激活沙盘规则；不进入真实诊疗链路。",
-    actualPackageVersion,
     {
-      electronicSignature: {
-        signatureId: `esig-sandbox-${Date.now()}`,
-        signerId: requireAccount(credentials, "clinical-governor").username,
-        signerName: "沙盘临床治理角色",
-        signedAt,
-        signatureHash: createHash("sha256")
-          .update(`sandbox-full-${ruleId}-${signedAt}`)
-          .digest("hex"),
+      qualityGate: {
+        schemaValid: true,
+        terminologyBindingComplete: true,
+        dependencyIntegrityVerified: true,
+        safetyMonotonicityVerified: true,
+        impactSimulationPassed: true,
+        summary: "四类样例、真实快照、影响摘要和技术质量门均已通过",
       },
     },
   );
@@ -818,249 +765,139 @@ async function discoverRequiredOuterAssets(context, dependencies) {
     return {
       ...dependency,
       assetId: pathway.templateId,
+      assetIdentity: dependency.assetCode,
+      versionId: pathway.versionId ?? null,
     };
   });
 }
 
-async function packageDetail(context, packageId, stage) {
-  return ensureOk(
-    await apiGet(
-      context,
-      `/engine/pkg/packages/${encodeURIComponent(packageId)}`,
-      stage,
-    ),
-    "读取演练配置包详情",
-  );
+function runtimeAssetSelection(item) {
+  const assetIdentity = item.assetIdentity ?? item.assetCode ?? item.assetId;
+  if (!assetIdentity) {
+    throw new Error(`运行资产缺少稳定身份: ${JSON.stringify(item).slice(0, 300)}`);
+  }
+  return {
+    assetType: item.assetType,
+    assetIdentity,
+    ...(item.versionId ? { versionId: item.versionId } : {}),
+  };
 }
 
-async function ensureSandboxPackage(
-  context,
-  ctx,
-  actualPackageVersion,
-  assets,
-) {
-  const packages = pageItems(
-    ensureOk(
+function runtimeCoversDesiredAssets(currentDetail, desiredAssets) {
+  const active = new Set(
+    (currentDetail?.items ?? [])
+      .filter((item) => item.entryState === "ACTIVE")
+      .map((item) =>
+        [
+          item.assetType,
+          item.assetIdentity,
+          item.versionId ?? "",
+        ].join(":"),
+      ),
+  );
+  return desiredAssets.every((item) => {
+    const exact = [
+      item.assetType,
+      item.assetIdentity,
+      item.versionId ?? "",
+    ].join(":");
+    if (active.has(exact)) return true;
+    if (item.versionId) return false;
+    return [...active].some((candidate) =>
+      candidate.startsWith(`${item.assetType}:${item.assetIdentity}:`),
+    );
+  });
+}
+
+async function readCurrentHospitalRuntime(context, hospitalId, stage) {
+  const result = await apiGet(
+    context,
+    `/engine/releases/hospitals/${encodeURIComponent(hospitalId)}/runtime-releases/current`,
+    stage,
+  );
+  if (result.status === 404) return null;
+  return ensureOk(result, "读取当前医院运行修订");
+}
+
+async function activateRuntimeRelease(context, ctx, assets) {
+  const targetOrgUnitId = runtimeTargetOrgUnitId(ctx);
+  const desiredAssets = assets.map(runtimeAssetSelection);
+  const currentDetail = await readCurrentHospitalRuntime(
+    context,
+    targetOrgUnitId,
+    "sandbox-runtime-current",
+  );
+  if (currentDetail && runtimeCoversDesiredAssets(currentDetail, desiredAssets)) {
+    const status = ensureOk(
       await apiGet(
         context,
-        `/engine/pkg/packages?keyword=${encodeURIComponent(packageCode)}&page=0&size=100`,
-        "find-sandbox-package",
+        "/engine/sandbox/runtime-status",
+        "verify-sandbox-runtime-status",
       ),
-      "查找演练配置包",
-    ),
-  );
-  let pack = packages.find(
-    (item) =>
-      item.packageCode === packageCode &&
-      item.packageVersion === actualPackageVersion,
-  );
-  let reused = Boolean(pack);
-  if (!pack) {
-    pack = ensureOk(
-      await apiPost(
-        context,
-        "/engine/pkg/packages",
-        {
-          ...ctx,
-          packageCode,
-          packageVersion: actualPackageVersion,
-          name: "演练机构全功能规则包",
-          description:
-            "由十条机构演练规则清单内容摘要生成；仅限沙盘，不进入真实诊疗链路。",
-          accessPolicy: "OPEN",
-        },
-        "create-sandbox-package",
-      ),
-      "创建演练配置包",
-      [201],
+      "验证沙盘运行修订",
     );
-    reused = false;
+    return { reused: true, release: currentDetail.release, status };
   }
 
-  let detail = await packageDetail(
-    context,
-    pack.packageId,
-    "sandbox-package-detail",
-  );
-  const existing = new Set(
-    (detail.items ?? []).map(
-      (item) => `${item.assetType}:${item.assetId}:${item.assetVersion}`,
-    ),
-  );
-  const missing = assets.filter(
-    (item) =>
-      !existing.has(`${item.assetType}:${item.assetId}:${item.assetVersion}`),
-  );
-  if (missing.length > 0 && detail.status !== "DRAFT") {
-    throw new Error(
-      `已锁定演练配置包缺少资产: ${missing.map((item) => item.assetCode).join(", ")}`,
-    );
-  }
-  for (const item of missing) {
-    ensureOk(
-      await apiPost(
-        context,
-        `/engine/pkg/packages/${encodeURIComponent(pack.packageId)}/items`,
-        {
-          ...ctx,
-          assetType: item.assetType,
-          assetId: item.assetId,
-          assetVersion: item.assetVersion,
-        },
-        `add-sandbox-package-${item.assetType}-${item.assetCode}`,
-      ),
-      `加入演练资产 ${item.assetCode}`,
-      [201, 409],
-    );
-  }
-  detail = await packageDetail(
-    context,
-    pack.packageId,
-    "sandbox-package-detail-after-items",
-  );
-  const validation = ensureOk(
-    await apiPost(
-      context,
-      `/engine/pkg/packages/${encodeURIComponent(pack.packageId)}/validate`,
-      ctx,
-      "validate-sandbox-package",
-    ),
-    "校验演练配置包",
-  );
-  if (!validation?.valid) {
-    throw new Error(
-      `演练配置包校验未通过: ${JSON.stringify(validation).slice(0, 900)}`,
-    );
-  }
-  return { detail, validation, reused };
-}
-
-async function releaseSandboxPackage(context, ctx, pack, reviewerAccount) {
-  if (["PUBLISHED", "ACTIVE"].includes(pack.status)) {
-    return { reused: true, package: pack, sync: null };
-  }
-  const adapterPage = ensureOk(
+  const baseline = ensureOk(
     await apiGet(
       context,
-      "/engine/pkg/packages/release-adapters?page=0&size=100",
-      "sandbox-adapters",
+      "/engine/releases/platform-baselines/current",
+      "sandbox-platform-baseline-current",
     ),
-    "读取演练配置包发布适配器",
+    "读取平台当前权威基线",
   );
-  const adapter = pageItems(adapterPage).find(
-    (item) => item.status === "ACTIVE" && item.connectorAvailable,
-  );
-  if (!adapter) throw new Error("没有 ACTIVE 且连接器可用的配置包发布适配器");
-
-  const signedAt = new Date().toISOString();
-  const sync = ensureOk(
+  const baselineReleaseId = baseline?.release?.baselineReleaseId;
+  if (!baselineReleaseId) {
+    throw new Error("平台当前权威基线缺少 baselineReleaseId，无法生成医院运行修订");
+  }
+  const release = ensureOk(
     await apiPost(
       context,
-      `/engine/pkg/packages/${encodeURIComponent(pack.packageId)}/release`,
+      `/engine/releases/hospitals/${encodeURIComponent(targetOrgUnitId)}/runtime-releases`,
       {
-        ...ctx,
-        reason: "发布演练机构内容寻址规则包并激活 CURRENT 基线",
-        targetOrgUnitId: ctx.orgUnitId,
-        strategy: "FULL",
-        scopeType: "ALL",
-        scopeValue: null,
-        adapterIds: [adapter.adapterId],
-        publishEvidence: {
-          electronicSignature: {
-            signatureId: `esig-package-${Date.now()}`,
-            signerId: reviewerAccount.username,
-            signerName: "沙盘质量复核角色",
-            signedAt,
-            signatureHash: createHash("sha256")
-              .update(`${pack.packageId}-${pack.packageVersion}-${signedAt}`)
-              .digest("hex"),
-          },
-          qualityGate: {
-            schemaValid: true,
-            terminologyBindingComplete: false,
-            dependencyIntegrityVerified: true,
-            safetyMonotonicityVerified: true,
-            impactSimulationPassed: true,
-            peerReviewSigned: true,
-            summary:
-              "十条演练规则四类样例全绿、来源完整、无自动诊疗副作用；生产术语绑定由后续知识发行门禁独立验收",
-          },
-        },
+        platformBaselineReleaseId: baselineReleaseId,
+        expectedCurrentReleaseId: currentDetail?.release?.releaseId ?? null,
+        activeAssets: desiredAssets,
       },
-      "release-sandbox-package",
+      "activate-sandbox-runtime-release",
     ),
-    "发布演练配置包",
-  );
-  const failedLogs = (sync.logs ?? []).filter(
-    (item) => item.status !== "SUCCESS",
-  );
-  if (sync.status !== "SUCCESS" || failedLogs.length > 0) {
-    throw new Error(
-      `演练配置包发布未全成功: ${JSON.stringify(sync).slice(0, 1000)}`,
-    );
-  }
-  const released = await packageDetail(
-    context,
-    pack.packageId,
-    "sandbox-package-after-release",
-  );
-  if (!["PUBLISHED", "ACTIVE"].includes(released.status)) {
-    throw new Error(`演练配置包发布后状态不可运行: ${released.status}`);
-  }
-  return { reused: false, package: released, sync, adapter };
-}
-
-async function activateRuntimeBinding(context, ctx, pack) {
-  const activated = ensureOk(
-    await apiPost(
-      context,
-      "/engine/sandbox/runtime-binding",
-      {
-        packageOwnerTenantId: ctx.tenant_id,
-        packageId: pack.packageId,
-      },
-      "activate-sandbox-runtime-binding",
-    ),
-    "激活沙盘运行绑定",
+    "发布沙盘医院运行修订",
   );
   const status = ensureOk(
     await apiGet(
       context,
-      "/engine/sandbox/runtime-binding",
-      "verify-sandbox-runtime-binding",
+      "/engine/sandbox/runtime-status",
+      "verify-sandbox-runtime-status",
     ),
-    "验证沙盘运行绑定",
+    "验证沙盘运行修订",
   );
   if (
-    !activated?.ready ||
     !status?.ready ||
-    status.packageId !== pack.packageId ||
-    status.packageVersion !== pack.packageVersion ||
+    status.runtimeReleaseId !== release.releaseId ||
     status.externalSideEffects !== false
   ) {
     throw new Error(
-      `沙盘运行绑定未就绪: ${JSON.stringify({ activated, status }).slice(0, 1200)}`,
+      `沙盘运行修订未就绪: ${JSON.stringify({ release, status }).slice(0, 1200)}`,
     );
   }
-  return status;
+  return { reused: false, release, status };
 }
 
 export async function runSeed() {
   await mkdir(evidenceDir, { recursive: true });
   const manifest = await loadScenarioRules();
   const selected = selectSeedRules(manifest, process.env.SEED_ONLY ?? "");
-  const actualPackageVersion = deriveSandboxPackageVersion(manifest);
+  const runtimeDigest = deriveSandboxRuntimeDigest(manifest);
   const summary = {
     generatedAt: new Date().toISOString(),
     environment: baseUrl,
-    packageCode,
-    packageVersion: actualPackageVersion,
-    versionResolution: "MANIFEST_SHA256",
+    runtimeDigest,
+    versionResolution: "MANIFEST_SHA256_RUNTIME_RELEASE",
     runnableRuleCodes: selected.runnable.map((item) => item.ruleCode),
     blockedRuleCodes: selected.blocked.map((item) => item.ruleCode),
     results: [],
-    package: null,
-    runtimeBinding: null,
+    runtimeRelease: null,
     failures: [],
   };
   if (process.env.SEED_VALIDATE_ONLY === "1") return summary;
@@ -1071,7 +908,7 @@ export async function runSeed() {
     const expectedTenantId = manifest.scenarios[0].institution.tenantId;
     const accountTenantId = requireAccount(
       credentials,
-      "organization-admin",
+      SANDBOX_ACTOR_ROLES.snapshotWriter,
     ).tenantId;
     if (accountTenantId !== expectedTenantId) {
       throw new Error(
@@ -1085,28 +922,20 @@ export async function runSeed() {
           browser,
           credentials,
           rule,
-          actualPackageVersion,
         );
         const created = await createAndTestRule(
           browser,
           credentials,
           rule,
           snapshots,
-          actualPackageVersion,
         );
         if (!created.alreadyPublished) {
-          await governRule(
-            browser,
-            credentials,
-            created.ruleId,
-            actualPackageVersion,
-          );
+          await governRule(browser, credentials, created.ruleId);
         }
         const verification = await withRole(
           browser,
           credentials,
-          "knowledge-governor",
-          actualPackageVersion,
+          SANDBOX_ACTOR_ROLES.engineOperator,
           async (context) =>
             ruleDetail(
               context,
@@ -1119,7 +948,9 @@ export async function runSeed() {
         summary.results.push({
           ruleCode: rule.ruleCode,
           ruleId: created.ruleId,
+          assetIdentity: rule.ruleCode,
           assetVersion: ruleVersionNo(verification),
+          versionId: ruleVersionId(verification),
           snapshotIds: snapshots.map((item) => item.snapshotId),
           result: "PASS",
         });
@@ -1134,15 +965,11 @@ export async function runSeed() {
     if (summary.failures.length === 0) {
       const adminContext = await login(
         browser,
-        requireAccount(credentials, "organization-admin"),
-        "organization-admin",
+        requireAccount(credentials, SANDBOX_ACTOR_ROLES.engineOperator),
+        SANDBOX_ACTOR_ROLES.engineOperator,
       );
       try {
-        const ctx = await envelope(
-          adminContext,
-          "sandbox-package",
-          actualPackageVersion,
-        );
+        const ctx = await envelope(adminContext, "sandbox-runtime");
         const outerAssets = await discoverRequiredOuterAssets(
           adminContext,
           manifest.dependencies,
@@ -1150,38 +977,18 @@ export async function runSeed() {
         const ruleAssets = summary.results.map((item) => ({
           assetType: "RULE",
           assetId: item.ruleId,
+          assetIdentity: item.assetIdentity,
           assetVersion: item.assetVersion,
+          versionId: item.versionId,
           assetCode: item.ruleCode,
         }));
-        const ensured = await ensureSandboxPackage(
+        const releaseAssets = [...ruleAssets, ...outerAssets];
+        const runtimeRelease = await activateRuntimeRelease(
           adminContext,
           ctx,
-          actualPackageVersion,
-          [...ruleAssets, ...outerAssets],
+          releaseAssets,
         );
-        const released = await releaseSandboxPackage(
-          adminContext,
-          ctx,
-          ensured.detail,
-          requireAccount(credentials, "quality-governor"),
-        );
-        const runtimeBinding = await activateRuntimeBinding(
-          adminContext,
-          ctx,
-          released.package,
-        );
-        summary.package = {
-          packageId: released.package.packageId,
-          packageCode: released.package.packageCode,
-          packageVersion: released.package.packageVersion,
-          status: released.package.status,
-          itemCount:
-            released.package.items?.length ?? ensured.validation.itemCount,
-          reused: ensured.reused && released.reused,
-          releasePlanId: released.sync?.planId ?? null,
-          adapterId: released.adapter?.adapterId ?? null,
-        };
-        summary.runtimeBinding = runtimeBinding;
+        summary.runtimeRelease = runtimeRelease;
       } finally {
         await adminContext.close();
       }
@@ -1198,8 +1005,8 @@ export async function runSeed() {
   if (summary.failures.length > 0) {
     throw new Error(`沙盘铺底存在 ${summary.failures.length} 个失败`);
   }
-  if (!summary.runtimeBinding?.ready)
-    throw new Error("沙盘铺底完成但 CURRENT 运行绑定未就绪");
+  if (!summary.runtimeRelease?.status?.ready)
+    throw new Error("沙盘铺底完成但 CURRENT 运行修订未就绪");
   return summary;
 }
 

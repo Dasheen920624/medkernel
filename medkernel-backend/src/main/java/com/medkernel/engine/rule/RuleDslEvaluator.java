@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -28,14 +29,27 @@ public class RuleDslEvaluator {
 
     private final ObjectMapper json;
     private final ConditionEvaluator conditionEvaluator;
+    private final RuleDslAssetMaterializer assetMaterializer;
 
     /**
      * 注入 JSON 处理器，用于缺省上下文、缺失节点与 DSL 条件树解析。
      */
     @Autowired
+    public RuleDslEvaluator(
+            ObjectMapper json,
+            ConditionEvaluator conditionEvaluator,
+            ObjectProvider<RuleDslAssetMaterializer> assetMaterializerProvider) {
+        this.json = json;
+        this.conditionEvaluator = conditionEvaluator == null ? new ConditionEvaluator(json) : conditionEvaluator;
+        this.assetMaterializer = assetMaterializerProvider == null
+            ? null
+            : assetMaterializerProvider.getIfAvailable();
+    }
+
     public RuleDslEvaluator(ObjectMapper json, ConditionEvaluator conditionEvaluator) {
         this.json = json;
         this.conditionEvaluator = conditionEvaluator == null ? new ConditionEvaluator(json) : conditionEvaluator;
+        this.assetMaterializer = null;
     }
 
     public RuleDslEvaluator(ObjectMapper json) {
@@ -80,6 +94,20 @@ public class RuleDslEvaluator {
             .map(RuleActionResult::severity)
             .reduce(null, RuleRiskLevel::max);
         return new RuleDslEvaluation(true, highest, actions, explanation);
+    }
+
+    /**
+     * 使用指定运行包物化值集和公式后执行规则。
+     */
+    public RuleDslEvaluation evaluate(
+        JsonNode dsl,
+        JsonNode context,
+        String tenantId,
+        String runtimeReleaseId) {
+        if (assetMaterializer == null) {
+            return evaluate(dsl, context);
+        }
+        return evaluate(assetMaterializer.materialize(tenantId, runtimeReleaseId, dsl), context);
     }
 
     /**

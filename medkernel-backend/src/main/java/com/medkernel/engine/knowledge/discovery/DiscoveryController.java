@@ -19,8 +19,8 @@ import com.medkernel.shared.datascope.DataScope;
 /**
  * 可信来源探索 API（LLM-06）。
  *
- * <p>探索＝从受控来源（KNOW-01）确定性检索产出带源 DRAFT 候选（走 {@code knowledge.write}，等同新增知识候选草稿），
- * 候选交 AIK-STD-13 落审核链，不写权威库；运行台账供复查「当时看到什么」（走 {@code knowledge.read}）。
+ * <p>探索＝从受控来源（KNOW-01）确定性检索产出带源 DRAFT 探索候选信封（走 {@code knowledge.write}），
+ * 候选可交 AIK-STD-13 后续物化，不写权威库；运行台账供复查「当时看到什么」（走 {@code knowledge.read}）。
  * 类级 {@link DataScope}：所有方法需租户上下文。
  */
 @RestController

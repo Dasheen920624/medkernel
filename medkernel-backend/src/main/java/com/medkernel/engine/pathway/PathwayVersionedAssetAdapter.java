@@ -15,7 +15,7 @@ import com.medkernel.shared.api.error.ErrorCode;
  * 路径域接入统一资产版本底座的薄适配器。
  *
  * <p>路径模板、路径包外观下的可发布路径资产统一登记为 {@link VersionedAssetType#PATHWAY}；
- * 生命周期动作委托 SYS-04，避免路径域与知识包各自维护发布规则。
+ * 生命周期动作委托 SYS-04，避免路径域与知识资产各自维护发布规则。
  */
 @Service
 public class PathwayVersionedAssetAdapter implements VersionedAssetPort {
@@ -35,7 +35,6 @@ public class PathwayVersionedAssetAdapter implements VersionedAssetPort {
             command.tenantId(),
             VersionedAssetType.PATHWAY,
             command.assetIdentity(),
-            command.versionNo(),
             command.organizationScope(),
             command.applicableScope(),
             command.content(),
@@ -44,7 +43,8 @@ public class PathwayVersionedAssetAdapter implements VersionedAssetPort {
             command.createdBy(),
             command.traceId(),
             command.safetyPolicy(),
-            command.overridePolicy()
+            command.overridePolicy(),
+            command.dependencies()
         ));
     }
 

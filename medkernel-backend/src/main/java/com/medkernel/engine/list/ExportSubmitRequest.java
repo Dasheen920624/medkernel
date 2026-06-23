@@ -9,12 +9,14 @@ import java.util.Map;
  * @param filters        多字段动态筛选条件字典
  * @param selectedScope  导出范围：CURRENT_PAGE 或 FILTERED_RESULT
  * @param idempotencyKey 幂等键，可由前端用 Idempotency-Key 透传
+ * @param confirmationId 已冻结范围的导出确认 ID
  */
 public record ExportSubmitRequest(
     String resourceType,
     Map<String, String> filters,
     String selectedScope,
-    String idempotencyKey
+    String idempotencyKey,
+    String confirmationId
 ) {
 
     public ExportSubmitRequest {
@@ -23,16 +25,19 @@ public record ExportSubmitRequest(
             ? "FILTERED_RESULT"
             : selectedScope.trim().toUpperCase();
         idempotencyKey = idempotencyKey == null || idempotencyKey.isBlank() ? null : idempotencyKey.trim();
-    }
-
-    public ExportSubmitRequest(String resourceType, Map<String, String> filters) {
-        this(resourceType, filters, "FILTERED_RESULT", null);
+        confirmationId = confirmationId == null || confirmationId.isBlank() ? null : confirmationId.trim();
     }
 
     public ExportSubmitRequest withIdempotencyKey(String fallbackIdempotencyKey) {
         if (idempotencyKey != null) {
             return this;
         }
-        return new ExportSubmitRequest(resourceType, filters, selectedScope, fallbackIdempotencyKey);
+        return new ExportSubmitRequest(
+            resourceType,
+            filters,
+            selectedScope,
+            fallbackIdempotencyKey,
+            confirmationId
+        );
     }
 }

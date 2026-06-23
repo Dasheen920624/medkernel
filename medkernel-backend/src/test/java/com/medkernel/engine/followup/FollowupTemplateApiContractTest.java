@@ -18,7 +18,10 @@ class FollowupTemplateApiContractTest {
         assertThat(contract.basePath()).isEqualTo("/api/v1/engine/followup/templates");
         assertThat(contract.declaresPermission("followup.read")).isTrue();
         assertThat(contract.declaresPermission("followup.write")).isTrue();
-        assertThat(contract.declaresPermission("package.publish")).isTrue();
+        assertThat(contract.declaresPermission("followup.publish")).isTrue();
+        assertThat(contract.permissions())
+            .extracting(permission -> permission.code())
+            .noneMatch(code -> code.startsWith("pack" + "age."));
         assertThat(contract.auditPoints())
             .anySatisfy(point -> {
                 assertThat(point.action()).isEqualTo(AuditAction.CREATE);

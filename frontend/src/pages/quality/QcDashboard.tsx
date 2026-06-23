@@ -485,7 +485,7 @@ function EvidenceDrawer({
           <Alert
             type="info"
             showIcon
-            message={`证据包 ${query.data.evidencePackage.packageId}`}
+            message={`证据导出 ${query.data.evidencePackage.exportId}`}
             description={`生成时间：${formatDateTime(query.data.evidencePackage.generatedAt)}；scopeDigest：${query.data.evidencePackage.scopeDigest}`}
           />
         )}
@@ -611,7 +611,7 @@ function downloadEvidencePackage(data: ReturnType<typeof useQualityDashboardDril
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${data.evidencePackage.packageId}.json`;
+  link.download = `${data.evidencePackage.exportId}.json`;
   link.click();
   URL.revokeObjectURL(url);
 }

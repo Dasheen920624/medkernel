@@ -33,7 +33,6 @@ public record DiagnosisAssetCreateRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     @Valid @NotNull IdentityInput identity,
     @Valid @NotNull SourceInput source,
     @Valid @NotNull VersionInput version,
@@ -46,7 +45,7 @@ public record DiagnosisAssetCreateRequest(
     public KnowledgeApiContext context() {
         return new KnowledgeApiContext(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion);
+            departmentId, specialtyId, userId, roleCodes);
     }
 
     /** 诊断知识身份。 */

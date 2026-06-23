@@ -6,7 +6,6 @@ package com.medkernel.engine.authoring;
 public enum AuthoringFeatureFlag {
     RECURSIVE_CONDITION_TREE("authoring-recursive-condition-tree", "递归条件树"),
     CLINICAL_OPERATORS("authoring-clinical-operators", "临床算子"),
-    CONDITION_FRAGMENT_LIBRARY("authoring-condition-fragment-library", "条件片段库"),
     BATCH_AUTHORING("authoring-batch-authoring", "批量创作"),
     PATHWAY_RICH_NODES("authoring-pathway-rich-nodes", "路径富节点");
 

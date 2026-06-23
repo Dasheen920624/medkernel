@@ -30,14 +30,14 @@ import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.rule.RuleDslEvaluator;
 import com.medkernel.engine.safety.ClinicalRedlineCategory;
-import com.medkernel.engine.safety.ClinicalRedlineRepository;
 import com.medkernel.engine.safety.ClinicalRedlineRule;
 import com.medkernel.engine.safety.ClinicalRedlineStatus;
+import com.medkernel.engine.safety.RuntimeReleaseClinicalRedlineSelector;
 
 import org.junit.jupiter.api.Test;
 
 /**
- * 红线合流端口：对 OPT-04 ACTIVE 红线按患者结构化上下文求值，命中且红线经 source_version_id
+ * 红线合流端口：对运行修订锁定的 OPT-04 红线按患者结构化上下文求值，命中且红线经 source_version_id
  * 关联到 DIAGNOSIS 身份时返回该诊断身份码（置顶）；非诊断来源 / 未命中 / 无来源 / 无红线均诚实返回空集。
  */
 class DefaultDiagnosisRedlinePortTest {
@@ -45,25 +45,24 @@ class DefaultDiagnosisRedlinePortTest {
     private static final String TENANT = "tenant-A";
     private static final String PLATFORM = "t-1";
 
-    private final ClinicalRedlineRepository redlines = mock(ClinicalRedlineRepository.class);
+    private final RuntimeReleaseClinicalRedlineSelector runtimeRedlines =
+        mock(RuntimeReleaseClinicalRedlineSelector.class);
     private final KnowledgeAssetVersionRepository versions = mock(KnowledgeAssetVersionRepository.class);
     private final KnowledgeIdentityRepository identities = mock(KnowledgeIdentityRepository.class);
     private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
     private final DefaultDiagnosisRedlinePort port = new DefaultDiagnosisRedlinePort(
-        redlines, versions, identities, new RuleDslEvaluator(json), json);
+        runtimeRedlines, versions, identities, new RuleDslEvaluator(json), json);
 
     @Test
     void noActiveRedlinesYieldsEmpty() {
-        stubActive(PLATFORM, List.of());
-        stubActive(TENANT, List.of());
+        stubRuntime(List.of());
 
         assertThat(port.pinnedDiagnosisCodes(TENANT, snapshot("FEMALE"))).isEmpty();
     }
 
     @Test
     void diagnosisSourcedRedlineHitPinsItsDiagnosisCode() {
-        stubActive(PLATFORM, List.of());
-        stubActive(TENANT, List.of(redline(TENANT, "rdl-aortic", 42L, "FEMALE")));
+        stubRuntime(List.of(redline(TENANT, "rdl-aortic", 42L, "FEMALE")));
         stubDiagnosis(TENANT, 42L, 100L, "DX.AORTIC");
 
         assertThat(port.pinnedDiagnosisCodes(TENANT, snapshot("FEMALE")))
@@ -72,8 +71,7 @@ class DefaultDiagnosisRedlinePortTest {
 
     @Test
     void nonDiagnosisSourcedRedlineNeverPins() {
-        stubActive(PLATFORM, List.of());
-        stubActive(TENANT, List.of(redline(TENANT, "rdl-guideline", 99L, "FEMALE")));
+        stubRuntime(List.of(redline(TENANT, "rdl-guideline", 99L, "FEMALE")));
         // source 指向非 DIAGNOSIS 域（指南），即便 DSL 命中也不置顶任何诊断候选
         when(versions.findByTenantIdAndId(TENANT, 99L)).thenReturn(Optional.of(version(TENANT, 99L, 300L)));
         when(identities.findByTenantIdAndId(TENANT, 300L))
@@ -84,9 +82,8 @@ class DefaultDiagnosisRedlinePortTest {
 
     @Test
     void diagnosisSourcedRedlineMissIsNotPinned() {
-        stubActive(PLATFORM, List.of());
         // 红线 DSL 要求 gender=MALE，但患者为 FEMALE → 未命中 → 不置顶
-        stubActive(TENANT, List.of(redline(TENANT, "rdl-aortic", 42L, "MALE")));
+        stubRuntime(List.of(redline(TENANT, "rdl-aortic", 42L, "MALE")));
         stubDiagnosis(TENANT, 42L, 100L, "DX.AORTIC");
 
         assertThat(port.pinnedDiagnosisCodes(TENANT, snapshot("FEMALE"))).isEmpty();
@@ -94,25 +91,22 @@ class DefaultDiagnosisRedlinePortTest {
 
     @Test
     void redlineWithoutSourceVersionNeverPins() {
-        stubActive(PLATFORM, List.of());
-        stubActive(TENANT, List.of(redline(TENANT, "rdl-nosource", null, "FEMALE")));
+        stubRuntime(List.of(redline(TENANT, "rdl-nosource", null, "FEMALE")));
 
         assertThat(port.pinnedDiagnosisCodes(TENANT, snapshot("FEMALE"))).isEmpty();
     }
 
     @Test
     void platformDiagnosisRedlinePinsForTenantWithoutLocalRedline() {
-        stubActive(TENANT, List.of());
-        stubActive(PLATFORM, List.of(redline(PLATFORM, "platform-rdl-aortic", 42L, "FEMALE")));
+        stubRuntime(List.of(redline(PLATFORM, "platform-rdl-aortic", 42L, "FEMALE")));
         stubDiagnosis(PLATFORM, 42L, 100L, "DX.AORTIC");
 
         assertThat(port.pinnedDiagnosisCodes(TENANT, snapshot("FEMALE")))
             .containsExactly("DX.AORTIC");
     }
 
-    private void stubActive(String tenantId, List<ClinicalRedlineRule> rules) {
-        when(redlines.findByTenantIdAndStatusOrderByCategoryAscRedlineKeyAscUpdatedAtDesc(
-            tenantId, ClinicalRedlineStatus.ACTIVE)).thenReturn(rules);
+    private void stubRuntime(List<ClinicalRedlineRule> rules) {
+        when(runtimeRedlines.select(TENANT, "runtime-release-test")).thenReturn(rules);
     }
 
     private void stubDiagnosis(String tenantId, Long versionId, Long identityId, String code) {
@@ -128,10 +122,11 @@ class DefaultDiagnosisRedlinePortTest {
             "HIS", "patient-1", "v1", Instant.now(), Instant.now(), QualityStatus.VALID);
         ContextSnapshotResources resources = new ContextSnapshotResources(
             patient, List.of(), List.of(), List.of(), List.of(), List.of(),
-            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            ContextSnapshotResources.emptyExtensions());
         return new ContextSnapshotResponse(
             "snapshot-1", ContextSnapshotStatus.ACTIVE, resources,
-            "1.0.0",
+            "runtime-release-test",
             QualityStatus.VALID, List.of(), Map.of(), Instant.now(), "trace-redline-port");
     }
 
@@ -146,7 +141,7 @@ class DefaultDiagnosisRedlinePortTest {
             ClinicalRedlineStatus.ACTIVE,
             RecommendationRiskLevel.CRITICAL,
             "risk-matrix-critical", "4",
-            CdssReviewRequirement.DUAL_REVIEW, 0, "OPT04_REDLINE_RUNTIME_GUARD",
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION, 0, "OPT04_REDLINE_RUNTIME_GUARD",
             "致命病不可漏：主动脉夹层", "漏诊致命",
             """
             {

@@ -12,9 +12,8 @@ import {
   usePatientPathwayDetail,
   usePatientPathways,
   usePatientPathwayVariances,
+  usePathwayEntryCandidates,
   usePathwayTemplateDetail,
-  usePathwayTemplates,
-  usePackages,
 } from "@/shared/api/hooks";
 
 import PatientPathways from "./PatientPathways";
@@ -28,9 +27,8 @@ vi.mock("@/shared/api/hooks", () => ({
   usePatientPathwayDetail: vi.fn(),
   usePatientPathways: vi.fn(),
   usePatientPathwayVariances: vi.fn(),
+  usePathwayEntryCandidates: vi.fn(),
   usePathwayTemplateDetail: vi.fn(),
-  usePathwayTemplates: vi.fn(),
-  usePackages: vi.fn(),
 }));
 
 const mockUseAdvancePatientPathway = vi.mocked(useAdvancePatientPathway);
@@ -41,9 +39,8 @@ const mockUsePatientPathwayClocks = vi.mocked(usePatientPathwayClocks);
 const mockUsePatientPathwayDetail = vi.mocked(usePatientPathwayDetail);
 const mockUsePatientPathways = vi.mocked(usePatientPathways);
 const mockUsePatientPathwayVariances = vi.mocked(usePatientPathwayVariances);
+const mockUsePathwayEntryCandidates = vi.mocked(usePathwayEntryCandidates);
 const mockUsePathwayTemplateDetail = vi.mocked(usePathwayTemplateDetail);
-const mockUsePathwayTemplates = vi.mocked(usePathwayTemplates);
-const mockUsePackages = vi.mocked(usePackages);
 
 function renderPatientPathways() {
   return render(
@@ -65,57 +62,22 @@ describe("PatientPathways", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUsePathwayTemplates.mockReturnValue({
+    mockUsePathwayEntryCandidates.mockReturnValue({
       data: {
-        items: [
+        contextSnapshotId: "ctx-active-1",
+        triggerPoint: "patient-view",
+        candidates: [
           {
             templateId: "pt-1",
-            packageId: "sp-1",
             templateCode: "TPL.STROKE",
             name: "卒中急诊路径",
             diseaseCode: "STROKE",
-            templateVersion: 1,
-            templateLevel: "STANDARD",
-            status: "PUBLISHED",
-            entryMode: "MANUAL_CONFIRM",
-            startNodeCode: "ASSESS",
-            sourceRef: "卒中路径指南 2026",
-            description: "卒中急诊路径",
           },
         ],
-        total: 1,
       },
-    } as unknown as ReturnType<typeof usePathwayTemplates>);
-    mockUsePackages.mockReturnValue({
-      data: {
-        items: [
-          {
-            id: 1,
-            packageId: "sp-1",
-            tenantId: "tenant-A",
-            packageCode: "PKG.STROKE",
-            name: "卒中路径知识包",
-            packageVersion: "2026.06",
-            status: "PUBLISHED",
-            description: "卒中路径知识包",
-            accessPolicy: "OPEN",
-            createdAt: "2026-06-01T00:00:00Z",
-            createdBy: "tester",
-            updatedAt: "2026-06-01T00:00:00Z",
-            updatedBy: "tester",
-            traceId: "trace-package",
-            assetTypes: ["PATHWAY"],
-            primaryAssetId: "PKG.STROKE",
-            primaryAssetVersion: "2026.06",
-            itemCount: 1,
-            organizationScope: "tenant:tenant-A",
-            applicableScope: "disease:STROKE",
-            sourceRef: "卒中路径指南 2026",
-          },
-        ],
-        total: 1,
-      },
-    } as unknown as ReturnType<typeof usePackages>);
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof usePathwayEntryCandidates>);
     mockUseContextSnapshots.mockReturnValue({
       data: {
         items: [
@@ -139,7 +101,7 @@ describe("PatientPathways", () => {
       data: {
         snapshotId: "ctx-active-1",
         status: "ACTIVE",
-        packageVersion: "2026.06",
+        runtimeReleaseId: "runtime-release-2026-06",
         qualityStatus: "VALID",
         missingFields: [],
         mappingStatus: {},
@@ -241,7 +203,6 @@ describe("PatientPathways", () => {
       data: {
         template: {
           templateId: "pt-1",
-          packageId: "sp-1",
           templateCode: "TPL.STROKE",
           name: "卒中急诊路径",
           diseaseCode: "STROKE",
@@ -373,28 +334,18 @@ describe("PatientPathways", () => {
     expect(screen.queryByText("暂无患者路径实例")).not.toBeInTheDocument();
   });
 
-  it("loads published pathway references through small server-side search pages", () => {
+  it("loads only runtime-release pathway candidates for the selected snapshot", async () => {
+    const user = userEvent.setup();
     renderPatientPathways();
 
-    expect(mockUsePathwayTemplates).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: "PUBLISHED",
-        keyword: undefined,
-        page: 1,
-        size: 20,
-      }),
+    await user.click(screen.getByRole("button", { name: /办理患者入径/ }));
+    await user.type(screen.getByPlaceholderText("按患者 ID 查询快照"), "mpi-1");
+    await user.click(screen.getByRole("button", { name: "选择 ctx-active-1" }));
+
+    expect(mockUsePathwayEntryCandidates).toHaveBeenLastCalledWith(
+      "ctx-active-1",
+      "patient-view",
     );
-    expect(mockUsePackages).toHaveBeenCalledWith(
-      expect.objectContaining({
-        assetType: "PATHWAY",
-        status: "PUBLISHED",
-        keyword: "sp-1",
-        page: 1,
-        size: 20,
-      }),
-    );
-    expect(mockUsePathwayTemplates.mock.calls.some(([params]) => params?.size === 100)).toBe(false);
-    expect(mockUsePackages.mock.calls.some(([params]) => params?.size === 100)).toBe(false);
   });
 
   it("enters a pathway from an ACTIVE context snapshot without manual patient identifiers", async () => {
@@ -407,17 +358,17 @@ describe("PatientPathways", () => {
 
     await user.type(screen.getByPlaceholderText("按患者 ID 查询快照"), "mpi-1");
     await user.click(screen.getByRole("button", { name: "选择 ctx-active-1" }));
-    await user.click(screen.getByRole("combobox", { name: "选择受控专病路径模板" }));
-    await user.click(await screen.findByText("卒中急诊路径 (v1.0) · 人工确认入径"));
-    expect(screen.getByText("入径模式：人工确认入径")).toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "选择当前运行候选路径" }));
+    await user.click(await screen.findByText("卒中急诊路径 · STROKE"));
+    expect(screen.getByText("候选来自当前医院运行修订，确认后才会入径。")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "OK" }));
 
     await waitFor(() => {
       expect(enterPathway).toHaveBeenCalledWith({
         contextSnapshotId: "ctx-active-1",
+        triggerPoint: "patient-view",
         templateId: "pt-1",
         startNodeCode: undefined,
-        packageVersion: "2026.06",
       });
     });
   }, 15_000);
@@ -476,7 +427,7 @@ describe("PatientPathways", () => {
     await waitFor(() => {
       expect(advancePathway).toHaveBeenCalledWith({
         patientPathwayId: "pp-real-1",
-        packageVersion: "2026.06",
+        triggerPoint: "patient-view",
         eventType: "COMPLETE",
         currentNodeCode: "ASSESS",
         requestedNextNodeCode: "FOLLOWUP",
@@ -486,22 +437,6 @@ describe("PatientPathways", () => {
     expect(refetchClocks).toHaveBeenCalled();
     expect(refetchVariances).toHaveBeenCalled();
     expect(refetchPathways).toHaveBeenCalled();
-  });
-
-  it("blocks pathway advancement when the template package version cannot be resolved", async () => {
-    const user = userEvent.setup();
-    mockUsePackages.mockReturnValue({
-      data: { items: [], total: 0 },
-    } as unknown as ReturnType<typeof usePackages>);
-
-    renderPatientPathways();
-
-    await user.click(screen.getByRole("button", { name: /办理推进与解释追溯/ }));
-    await user.click(screen.getByRole("combobox", { name: "指定流转目标节点" }));
-    await user.click(await screen.findByText("随访复评 (FOLLOWUP)"));
-    await user.click(screen.getByRole("button", { name: /完成当前节点并推进/ }));
-
-    expect(advancePathway).not.toHaveBeenCalled();
   });
 
   it("records a variance reason through the backend mutation", async () => {
@@ -528,7 +463,7 @@ describe("PatientPathways", () => {
     await waitFor(() => {
       expect(advancePathway).toHaveBeenCalledWith({
         patientPathwayId: "pp-real-1",
-        packageVersion: "2026.06",
+        triggerPoint: "patient-view",
         eventType: "VARIANCE",
         currentNodeCode: "ASSESS",
         requestedNextNodeCode: "FOLLOWUP",

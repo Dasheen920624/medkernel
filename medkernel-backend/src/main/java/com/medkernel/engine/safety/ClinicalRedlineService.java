@@ -3,9 +3,23 @@ package com.medkernel.engine.safety;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
+import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
+import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
+import com.medkernel.engine.versioning.AssetVersionService;
+import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.RolloutPolicy;
+import com.medkernel.engine.versioning.VersionReleaseCommand;
+import com.medkernel.engine.versioning.VersionReleaseScopeType;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -22,17 +36,26 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ClinicalRedlineService {
 
+    private static final String SCHEMA_VERSION = "1.0";
+    private static final JsonMapper JSON = JsonMapper.builder().findAndAddModules().build();
+
     private final ClinicalRedlineRepository repository;
     private final ClinicalRedlineTrialRepository trialRepository;
     private final AuditRecorder auditRecorder;
+    private final AssetVersionService versionService;
+    private final ReleasePort releasePort;
 
     public ClinicalRedlineService(
             ClinicalRedlineRepository repository,
             ClinicalRedlineTrialRepository trialRepository,
-            AuditRecorder auditRecorder) {
+            AuditRecorder auditRecorder,
+            AssetVersionService versionService,
+            ReleasePort releasePort) {
         this.repository = repository;
         this.trialRepository = trialRepository;
         this.auditRecorder = auditRecorder;
+        this.versionService = versionService;
+        this.releasePort = releasePort;
     }
 
     @Transactional(readOnly = true)
@@ -155,6 +178,8 @@ public class ClinicalRedlineService {
         String traceId = traceId();
         ClinicalRedlineRule activated = repository.save(rule.withStatus(
             ClinicalRedlineStatus.ACTIVE, now, actor, traceId));
+        AssetVersion assetVersion = registerUnifiedSafetyAsset(activated, trial, request.promotionReason(), actor, traceId);
+        publishUnifiedSafetyAsset(assetVersion, request.promotionReason(), actor, traceId);
         auditRecorder.record(AuditAction.PUBLISH, "mk_engine_clinical_redline",
             activated.redlineId(), "临床安全红线静默试运行达标后上线");
         return activated.toResponse();
@@ -172,6 +197,96 @@ public class ClinicalRedlineService {
                 || !hasText(rule.releaseGate())) {
             throw new ApiException(ErrorCode.CONFLICT, "红线危害分析、证据来源和风险矩阵绑定不能为空");
         }
+    }
+
+    private AssetVersion registerUnifiedSafetyAsset(
+            ClinicalRedlineRule rule,
+            ClinicalRedlineTrial trial,
+            String promotionReason,
+            String actor,
+            String traceId) {
+        String assetIdentity = safetyAssetIdentity(rule);
+        return versionService.registerDraft(new AssetVersionRegisterCommand(
+            rule.tenantId(),
+            VersionedAssetType.SAFETY,
+            assetIdentity,
+            null,
+            "ALL",
+            writeContent(safetyAssetContent(rule, trial, promotionReason)),
+            null,
+            "clinical-redline:" + rule.redlineId() + ":" + rule.redlineVersion(),
+            actor,
+            traceId,
+            AssetVersionSafetyPolicy.SAFETY_REDLINE,
+            AssetVersionOverridePolicy.LOCKED
+        ));
+    }
+
+    private void publishUnifiedSafetyAsset(
+            AssetVersion assetVersion,
+            String promotionReason,
+            String actor,
+            String traceId) {
+        releasePort.publish(new VersionReleaseCommand(
+            assetVersion.tenantId(),
+            VersionedAssetType.SAFETY,
+            assetVersion.assetIdentity(),
+            assetVersion.versionId(),
+            assetVersion.organizationScope(),
+            assetVersion.applicableScope(),
+            VersionReleaseScopeType.ALL,
+            null,
+            RolloutPolicy.all(),
+            "临床安全红线静默试运行达标：" + requireText(promotionReason, "红线上线原因不能为空"),
+            null,
+            actor,
+            traceId,
+            null
+        ));
+    }
+
+    private Map<String, Object> safetyAssetContent(
+            ClinicalRedlineRule rule,
+            ClinicalRedlineTrial trial,
+            String promotionReason) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("schemaVersion", SCHEMA_VERSION);
+        value.put("redlineId", rule.redlineId());
+        value.put("category", rule.category());
+        value.put("triggerPoint", rule.triggerPoint());
+        value.put("scopeType", rule.scopeType());
+        value.put("scopeRef", rule.scopeRef());
+        value.put("redlineKey", rule.redlineKey());
+        value.put("redlineVersion", rule.redlineVersion());
+        value.put("hazardSeverity", rule.hazardSeverity());
+        value.put("riskMatrixId", rule.riskMatrixId());
+        value.put("riskMatrixVersion", rule.riskMatrixVersion());
+        value.put("reviewRequirement", rule.reviewRequirement());
+        value.put("silentRunHours", rule.silentRunHours());
+        value.put("releaseGate", rule.releaseGate());
+        value.put("title", rule.title());
+        value.put("clinicalHazard", rule.clinicalHazard());
+        value.put("conditionDsl", rule.conditionDsl());
+        value.put("evidenceSource", rule.evidenceSource());
+        value.put("evidenceReference", rule.evidenceReference());
+        value.put("sourceVersionId", rule.sourceVersionId());
+        value.put("lowerTenantOverrideAllowed", rule.lowerTenantOverrideAllowed());
+        value.put("trialId", trial.trialId());
+        value.put("trialEvidenceReference", trial.evidenceReference());
+        value.put("promotionReason", promotionReason.trim());
+        return value;
+    }
+
+    private String writeContent(Map<String, Object> content) {
+        try {
+            return JSON.writeValueAsString(content);
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "临床安全红线资产正文序列化失败", exception);
+        }
+    }
+
+    private String safetyAssetIdentity(ClinicalRedlineRule rule) {
+        return "SAFETY." + requireText(rule.redlineKey(), "红线编码不能为空").trim();
     }
 
     private void validateTrialWindowAndCounts(ClinicalRedlineDryRunRequest request) {

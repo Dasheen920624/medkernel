@@ -271,7 +271,7 @@ class InheritanceResolverTest {
             hospitalAdd.versionId(),
             HOSP_PATH,
             "本院新增专有规则",
-            "本院首发需要本地宣教提醒",
+            "本院上线需要本地宣教提醒",
             "仅 HOSP-A 本级",
             InheritancePropagation.EXCLUSIVE,
             InheritanceOverrideStatus.PUBLISHED,

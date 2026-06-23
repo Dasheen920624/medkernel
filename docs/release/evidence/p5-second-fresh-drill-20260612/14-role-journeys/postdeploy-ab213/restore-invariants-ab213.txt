@@ -1,7 +1,0 @@
-restore_db|restore_p5_ab213_flyway_recheck_230251
-public_base_tables|178
-flyway|118|118|118
-knowledge_counts|0|0|0|0|0|0
-material_root|0|PLATFORM_SEED|Y|Y|1
-p5_counts|2|17|15|15
-platform_target_counts|1|1

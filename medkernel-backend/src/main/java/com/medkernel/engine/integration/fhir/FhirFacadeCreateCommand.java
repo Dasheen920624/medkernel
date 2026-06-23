@@ -15,6 +15,5 @@ public record FhirFacadeCreateCommand(
     String signature,
     String sourceIp,
     String snapshotId,
-    String packageVersion,
     ClinicalSetting clinicalSetting
 ) {}

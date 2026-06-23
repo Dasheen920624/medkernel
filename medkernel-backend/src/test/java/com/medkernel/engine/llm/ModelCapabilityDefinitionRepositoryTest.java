@@ -5,12 +5,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.context.annotation.Import;
 
 @DataJdbcTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
@@ -23,10 +25,19 @@ import org.springframework.test.context.TestPropertySource;
     "spring.flyway.enabled=true",
     "spring.flyway.locations=classpath:db/migration/h2"
 })
+@Import(ModelCatalogSeeder.class)
 class ModelCapabilityDefinitionRepositoryTest {
 
     @Autowired
     ModelCapabilityDefinitionRepository repository;
+
+    @Autowired
+    ModelCatalogSeeder seeder;
+
+    @BeforeEach
+    void seedCatalog() {
+        seeder.seed();
+    }
 
     @Test
     void save_insertsBrandNewCapabilityCode() {
@@ -46,12 +57,14 @@ class ModelCapabilityDefinitionRepositoryTest {
     }
 
     @Test
-    void migratedCatalogLoadsInStableOrderAndSupportsUpdates() {
+    void applicationCatalogLoadsInStableOrderAndSupportsUpdates() {
         assertThat(repository.findAllByOrderBySortOrderAscCapabilityCodeAsc())
-            .hasSize(8)
+            .hasSize(9)
             .first()
             .extracting(ModelCapabilityDefinition::capabilityCode)
             .isEqualTo("knowledge.discovery");
+        assertThat(repository.findById("knowledge.production.knowledge"))
+            .isPresent();
 
         ModelCapabilityDefinition existing = repository.findById("knowledge.extract").orElseThrow();
         Instant updatedAt = existing.updatedAt().plusSeconds(60);
@@ -74,6 +87,23 @@ class ModelCapabilityDefinitionRepositoryTest {
                 assertThat(saved.displayName()).isEqualTo("结构化病历提取");
                 assertThat(saved.enabled()).isFalse();
                 assertThat(saved.updatedBy()).isEqualTo("tester");
+            });
+    }
+
+    @Test
+    void repeatedSeedDoesNotOverwriteOperatorChanges() {
+        ModelCapabilityDefinition existing = repository.findById("knowledge.extract").orElseThrow();
+        repository.save(new ModelCapabilityDefinition(
+            existing.capabilityCode(), existing.displayName(), existing.description(), existing.category(),
+            "N", existing.sortOrder(), existing.createdAt(), existing.createdBy(),
+            existing.updatedAt().plusSeconds(1), "operator"));
+
+        seeder.seed();
+
+        assertThat(repository.findById("knowledge.extract")).get()
+            .satisfies(saved -> {
+                assertThat(saved.enabled()).isFalse();
+                assertThat(saved.updatedBy()).isEqualTo("operator");
             });
     }
 }

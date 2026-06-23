@@ -38,8 +38,8 @@ class TerminologyControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IMPLEMENTATION_OPERATOR")
-    void implementationEngineerCanReadButDataScopeRejectsMissingTenant() throws Exception {
+    @WithMockUser(authorities = "ROLE_ENGINE_OPERATOR")
+    void engineOperatorCanReadButDataScopeRejectsMissingTenant() throws Exception {
         when(terminologyService.pageLocalTerms(any(PageRequest.class), any(LocalTermFilter.class)))
             .thenReturn(PageResponse.empty(PageRequest.defaults()));
 
@@ -56,17 +56,17 @@ class TerminologyControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_KNOWLEDGE_GOVERNOR")
-    void specialistCanReachCandidateConfirmationButStillNeedsTenant() throws Exception {
+    @WithMockUser(authorities = "ROLE_ENGINE_OPERATOR")
+    void engineOperatorCanReachCandidateConfirmationButStillNeedsTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/terminology/mappings/10/confirm")
                 .contentType("application/json")
-                .content("{\"reviewNote\":\"专家确认\",\"highRiskAcknowledged\":true,\"highRiskReason\":\"已逐条核对\"}"))
+                .content("{\"reviewNote\":\"逐条确认\"}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void oldMappingPackagePublishRouteIsRemoved() throws Exception {
         mvc.perform(post("/api/v1/engine/terminology/mapping-packages/30/publish")
                 .contentType("application/json")
@@ -75,7 +75,7 @@ class TerminologyControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void oldMappingPackageRollbackRouteIsRemoved() throws Exception {
         mvc.perform(post("/api/v1/engine/terminology/mapping-packages/30/rollback")
                 .contentType("application/json")

@@ -38,7 +38,7 @@ class KnowledgeEffectiveVersionResolverTest {
     @Test
     void unifiedPublishedVersionOverridesLegacyCurrentVersionPointer() {
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace", OrgScope.tenant("tenant-A"), "clinical-decision-user"));
+            "trace", OrgScope.tenant("tenant-A"), "clinical-user"));
         KnowledgeIdentity identity = identity("tenant-A", 100L);
         KnowledgeAssetVersion content = version("tenant-A", 2L, "v2");
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
@@ -59,7 +59,7 @@ class KnowledgeEffectiveVersionResolverTest {
     @Test
     void tenantWithoutLocalVersionUsesPlatformAuthorityPath() {
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace", OrgScope.tenant("tenant-A"), "clinical-decision-user"));
+            "trace", OrgScope.tenant("tenant-A"), "clinical-user"));
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
             "tenant-A", VersionedAssetType.KNOWLEDGE, "KNOW.A", AssetVersionStatus.PUBLISHED))
             .thenReturn(List.of());
@@ -92,7 +92,7 @@ class KnowledgeEffectiveVersionResolverTest {
 
     @Test
     void missingOrgContextRejectsAmbiguousOrganizationVersions() {
-        RequestContext.restore(new RequestContext.Snapshot("trace", null, "clinical-decision-user"));
+        RequestContext.restore(new RequestContext.Snapshot("trace", null, "clinical-user"));
         KnowledgeIdentity identity = identity("tenant-A", null);
         KnowledgeAssetVersion content = version("tenant-A", 2L, "v2");
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(

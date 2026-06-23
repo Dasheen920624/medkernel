@@ -8,6 +8,8 @@ import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
 import com.medkernel.engine.knowledge.KnowledgeAssetVersion;
 import com.medkernel.engine.knowledge.KnowledgeAssetVersionRepository;
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
+import com.medkernel.engine.versioning.AssetScopeResolver;
+import com.medkernel.shared.context.OrgScope;
 
 /**
  * 门禁：可信级冲突仲裁（AIK-STD-05，FR-3）。
@@ -21,9 +23,13 @@ public class AuthorityConflictGate implements CandidateGate {
     public static final String CODE = "AUTHORITY_CONFLICT";
 
     private final KnowledgeAssetVersionRepository versions;
+    private final AssetScopeResolver assetScopes;
 
-    public AuthorityConflictGate(KnowledgeAssetVersionRepository versions) {
+    public AuthorityConflictGate(
+            KnowledgeAssetVersionRepository versions,
+            AssetScopeResolver assetScopes) {
         this.versions = versions;
+        this.assetScopes = assetScopes;
     }
 
     @Override
@@ -63,9 +69,15 @@ public class AuthorityConflictGate implements CandidateGate {
 
     private String normalizeOrganizationScope(String organizationScope, String tenantId) {
         if (organizationScope == null || organizationScope.isBlank()) {
-            return "tenant:" + tenantId;
+            return assetScopes.resolve(
+                tenantId, OrgScope.tenant(tenantId)).organizationPath();
         }
         String trimmed = organizationScope.trim();
-        return trimmed.equals(tenantId) ? "tenant:" + tenantId : trimmed;
+        if (trimmed.equals(tenantId)) {
+            return assetScopes.resolve(
+                tenantId, OrgScope.tenant(tenantId)).organizationPath();
+        }
+        return assetScopes.resolveOrganizationPath(
+            tenantId, trimmed).organizationPath();
     }
 }

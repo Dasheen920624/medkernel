@@ -22,36 +22,37 @@
 1. 信息科登记适配器或 Webhook 订阅，配置租户、组织作用域、协议类型和字段映射。
 2. 外部系统发送入站消息或 MedKernel 登记出站同步消息。
 3. 服务端校验租户、权限、签名、幂等键和字段映射。
-4. 字段映射进入 API-01 标准上下文；临床编码经 TERM-01 字典映射归一，无法确定时进入人工待裁或质量告警。
-5. 对接日志、traceId、审计事件和死信证据保留；外部断连时返回 `NOT_CONNECTED` 或 `NOT_SYNCED`，不得伪造成功。
+4. 服务端锁定医院当前运行修订，字段映射按其中的不可变术语资产生成标准患者载荷。
+5. 验签和映射成功后创建可追溯临床事件；异步处理器据此生成上下文快照并触发规则、路径、推荐等真实主链路。
+6. 对接日志、traceId、临床事件 ID、审计事件和死信证据保留；外部断连时返回 `NOT_CONNECTED` 或 `NOT_SYNCED`，不得伪造成功。
 
 ## 知识运行时稳定契约
 
-第三方知识调用统一使用版本化入口 `/api/v1/engine/integration/knowledge-runtime`，不绕过门面直接拼接规则、路径、评估、术语或知识包内部接口。
+第三方临床调用统一使用版本化入口 `/api/v1/engine/integration/knowledge-runtime`，不绕过门面直接拼接规则、路径、评估、术语或资产版本接口。
 
 | 能力 | 端点 | 权限 | 契约要点 |
 | --- | --- | --- | --- |
-| 有效解析 | `GET /api/v1/engine/integration/knowledge-runtime/effective-package` | `package.read` | 必传包编码、版本和目标组织；可传 `specialty`、`scenario`、`careSetting`、`cohort`、`role` 与 `effectiveAt`。返回统一快照、`sourceTier` 和 `contentHash`。 |
+| 当前运行修订 | `GET /api/v1/engine/integration/knowledge-runtime/runtime-release/current` | `asset.read` | 不接收包、领域或版本参数；服务端按认证租户和医院返回完整不可变清单、摘要、修订号和精确资产版本。 |
 | 标准上下文写入 | `POST /api/v1/engine/integration/knowledge-runtime/context-snapshots` | `context.write` | 使用标准上下文资源；术语不能确定时保留映射告警，不猜测医学编码。 |
-| 覆盖登记 | `POST /api/v1/engine/integration/knowledge-runtime/overrides` | `tenant.override` | 只接受 `REPLACE`、`DISABLE`、`ADD` 语义，复用唯一组织继承与安全门禁。 |
-| 覆盖退役 | `POST /api/v1/engine/integration/knowledge-runtime/overrides/{overrideId}:retire` | `tenant.override` | 关闭覆盖生命周期并保留审计证据，不物理删除历史。 |
-| 包分发 | `POST /api/v1/engine/integration/knowledge-runtime/packages/{packageId}:distribute` | `package.publish` | 复用包发布同步主链路；未连接真实通道时返回诚实状态。 |
-| 对账查询 | `GET /api/v1/engine/integration/knowledge-runtime/packages/{packageId}/reconciliation` | `package.read` | 状态只取 `NOT_DISTRIBUTED`、`IN_PROGRESS`、`NOT_SYNCED`、`FAILED`、`SUCCESS`，并返回真实同步日志。 |
 
-契约版本固定为 `v1`。所有 POST 必须携带 `Idempotency-Key`，平台级幂等过滤器会拒绝同键异文并重放首次成功结果。作用域维度采用严格键值语义，未知维度或畸形值直接拒绝；同一查询优先选择维度更具体且在 `effectiveAt` 生效窗口内的版本。字段契约从 `/api/v1/engine/integration/data-contract?packageVersion={packageVersion}` 获取，OpenAPI 从 `/v3/api-docs/medkernel-third-party-integration` 获取。
+契约版本固定为 `v1`。所有 POST 必须携带 `Idempotency-Key`，平台级幂等过滤器会拒绝同键异文并重放首次成功结果。字段契约从 `/api/v1/engine/integration/data-contract` 获取，由服务端自动绑定医院当前运行修订；OpenAPI 从 `/v3/api-docs/medkernel-third-party-integration` 获取。机构覆盖、资产启停和升级只在平台管理面完成，外部临床系统没有运行资产选择权。
 
 ## 标准输入与院内字典对照
 
-第三方写入上下文前必须先读取对应 `packageVersion` 的字段契约。资源类型、字段路径和目标字典以平台契约为准，不允许自行扩展同义字段或把院内编码冒充平台标准编码。
+第三方写入上下文前必须先读取当前医院运行修订的字段契约。资源类型、字段路径和目标字典以平台契约为准，不允许自行扩展同义字段或把院内编码冒充平台标准编码。
 
 | 输入情况 | 必传内容 | 系统行为 |
 | --- | --- | --- |
 | 已使用平台标准编码 | 标准字段路径、编码系统、标准编码、显示名称 | 按标准上下文写入，并在响应 `mappingStatus` 中保留核验结果 |
-| 仍使用院内编码 | `localCode`、`localCodeSystem`、`sourceSystem`、目标标准字典和来源记录 | 只使用当前租户已确认并发布的 `TermMapping` 归一；不得跨租户借用对照 |
+| 仍使用院内编码 | `sourceSystem`、目标标准字典、术语分类和来源记录 | 服务端只使用医院当前运行修订中的不可变映射资产归一；不得跨租户借用对照，也不得读取当前可变映射 |
 | 标准码存在但院内未对照 | 完整原始编码与来源证据 | 标记 `UNMAPPED`，进入映射治理和就绪度告警，不猜测目标编码 |
 | 标准字典不存在该编码 | 完整原始编码与来源证据 | 标记 `NO_STANDARD_TERM`；高风险必填字段拒绝，其他字段诚实降级 |
 
-联调前通过 `GET /api/v1/engine/terminology/mappings/coverage?standardSystem={system}&codes={code}` 检查标准编码覆盖度；只有 `COVERED` 表示当前租户存在已确认院内对照。标准字典由平台空间 `__platform__` 统一维护，`LocalTerm` 与 `TermMapping` 只表达当前租户差异；映射包物理归入统一 `KnowledgePackage`，发布、回滚、组织继承和有效版本解析不再走独立容器。
+联调前通过 `GET /api/v1/engine/terminology/mappings/coverage?standardSystem={system}&codes={code}` 检查标准编码覆盖度；只有 `COVERED` 表示当前租户存在已确认院内对照。标准字典由平台主空间统一维护，`LocalTerm` 与 `TermMapping` 只表达当前租户差异；正式映射版本由医院运行修订锁定后参与临床归一。
+
+术语与字典页面独立负责标准术语、本地术语、映射确认和下一版本快照的维护。适配器配置不得保存
+`termMappingId`；运行配置只声明 `targetDictionaryKey` 与 `category`，由临床事件携带的
+实际映射版本由服务端锁定的 `runtimeReleaseId` 及其中精确资产版本决定，调用方不得自行选择。
 
 ## 接入生命周期
 
@@ -73,7 +74,7 @@
 - `GET /api/v1/engine/integration/fhir/{version}/metadata` 返回真实 `CapabilityStatement`，只声明当前已落地的 R4/R5 能力范围。
 - `GET /api/v1/engine/integration/fhir/{version}/{resourceType}/{id}` 按 `mk_fhir_resource_mapping` 读取已登记映射并返回对应 FHIR resource；未登记映射返回 `OperationOutcome`，不得临时拼装或编造资源。
 - `GET /api/v1/engine/integration/fhir/{version}/{resourceType}` 返回 FHIR `Bundle` searchset；当前只返回已登记映射的标准资源，不把请求中的患者标识回显到响应。
-- `POST /api/v1/engine/integration/fhir/{version}/{resourceType}` 接收原始 FHIR JSON resource，请求头必须带 `X-MedKernel-Fhir-Adapter`、`X-MedKernel-Timestamp`、`X-MedKernel-Signature`；可选 `X-MedKernel-Package-Version`。适配器配置只能写 `fhir.signatureWebhookId` 引用，禁止内联 `secretKey`。
+- `POST /api/v1/engine/integration/fhir/{version}/{resourceType}` 接收原始 FHIR JSON resource，请求头必须带 `X-MedKernel-Fhir-Adapter`、`X-MedKernel-Timestamp`、`X-MedKernel-Signature`。适配器配置只能写 `fhir.signatureWebhookId` 引用，禁止内联 `secretKey`；调用方不得选择包或版本。
 - 当前受控 create 支持 Patient、Encounter、Condition、Observation、Medication、Procedure、CarePlan、DiagnosticReport、DocumentReference 等标准资源，写入会映射为 `CanonicalResource`、登记 FHIR 映射证据、回流临床事件入口，并把出站补偿交给 INTEG-01；无真实连接器时返回 `NOT_CONNECTED` 证据。
 - MedicationRequest / ServiceRequest 属高风险资源，门面只创建 `FHIR_PHYSICIAN_CONFIRMATION` 医师确认任务，不自动写医嘱、不直写申请单、不直写病历、不绕引擎。
 - 未连接适配器、签名错误、白名单不匹配或未实现资源均返回 FHIR `OperationOutcome`；响应不回显患者原始 resource。
@@ -94,13 +95,33 @@
 
 ## 字段映射
 
-字段映射模板见 `field-mapping-template.json`，样例见 `field-mapping-example-his-adt.json`。所有映射必须写明：
+字段映射模板见 `field-mapping-template.json`，样例见
+`field-mapping-example-his-adt.json`。文档、管理页面和运行服务统一使用同一种配置语法：
 
-- 外部字段路径和外部字段名；
-- API-01 标准资源与标准路径；
-- 是否必填、缺失行为和原始字段证据；
-- 临床编码是否经 TERM-01 归一；
-- 无法确认的高风险编码不得自动猜测，必须进入人工复核。
+| 字段 | 规则 |
+| --- | --- |
+| `sourcePath` | 必填，外部 JSON 载荷中的 JSON Pointer，例如 `/diagnoses/0/code` |
+| `targetPath` | 必填，标准患者载荷中的 JSON Pointer，例如 `/diagnoses/0`；数组使用非负整数下标 |
+| `targetDictionaryKey` | 可选，目标标准字典稳定键，例如 `ICD-10`、`LOINC` |
+| `category` | 可选，术语分类；与 `targetDictionaryKey` 必须同时填写 |
+
+不需要术语归一的字段只填写来源和目标路径。需要归一的字段必须同时填写目标标准字典和术语
+分类；运行时用请求的 `sourceSystem`、本地编码和服务端确定的医院当前运行修订定位唯一不可变映射。
+无法唯一定位时拒绝该临床事件，不猜测编码。配置中出现 `termMappingId` 将直接返回
+`ENG-INTEG-001`。
+
+院内新增字段必须先在“上下文字段目录维护”中定义，并随 `FIELD_CATALOG` 资产发布；接入映射
+统一写入 `/extensions/local/<字段键>`。运行时将其保存到不可变患者上下文快照，并以
+`extensions.local.<字段键>` 暴露给规则和路径。未发布字段不得临时写入 canonical 资源。
+
+## Webhook 临床事件契约
+
+入站请求除 `payload` 外必须携带 `messageId`、`adapterId`、`sourceSystem`、`eventType`、
+`patientId`、`clinicalSetting`、`triggerPoint` 和 `occurredAt`；有就诊时
+携带 `encounterId`。签名覆盖完整请求体。
+
+成功响应返回标准化 `mappedPayload`、映射计数、编码归一计数、`clinicalEventId` 和
+`clinicalEventStatus`。相同 `messageId` 重放返回原临床事件，不重复生成患者数据或运行副作用。
 
 ## 鉴权与签名
 
@@ -140,10 +161,11 @@
 | 类别 | 检查项 | 通过标准 |
 | --- | --- | --- |
 | 连通 | 适配器登记后健康检查 | 无真实连接器时为 `NOT_CONNECTED`，不得伪造 `HEALTHY` |
-| 字段 | 按模板映射到 API-01 标准上下文 | 必填字段有来源证据，编码经 TERM-01 或进入人工待裁 |
+| 字段 | 按统一 JSON Pointer 语法映射到标准患者载荷 | 数组路径可落地；编码按医院当前运行修订锁定的精确映射归一；配置不含可变映射 ID |
 | 鉴权 | 缺权限访问管理端点 | 返回 403 ProblemDetail，带 traceId |
 | 签名 | Webhook 缺签名或签名错误 | 拒绝入站并保留失败审计 |
 | 幂等 | 重放同一 `messageId` | 不重复写副作用，返回原处理状态或幂等冲突 |
+| 临床事件 | 验签和映射成功 | 返回并持久化同一个 `clinicalEventId`，后续可追溯到上下文快照和引擎运行 |
 | 回调 | 回调测试目标不可达 | 返回失败或 `NOT_CONNECTED` |
 | 接入 | 业务接口接入生命周期推进 | 阶段证据完整；字段映射缺失时拒绝进入映射完成或上线；上线仍不伪造外部连接 |
 | 区域 | 区域协同来源可信分级 | 未完成 OPT-07 分级返回 `REGIONAL_SOURCE_UNGRADED`；已分级来源保留组织和证据 |

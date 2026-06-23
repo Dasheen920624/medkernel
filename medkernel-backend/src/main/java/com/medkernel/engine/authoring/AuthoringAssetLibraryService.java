@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -40,7 +39,6 @@ public class AuthoringAssetLibraryService {
     private final ObjectMapper json;
     private final RuleDefinitionRepository rules;
     private final PathwayTemplateRepository pathways;
-    private final ConditionFragmentRepository fragments;
     private final FollowupTemplateRepository followupTemplates;
     private final AssetVersionRepository assetVersions;
     private final AuthoringAssetProfileRepository profiles;
@@ -50,7 +48,6 @@ public class AuthoringAssetLibraryService {
             ObjectMapper json,
             RuleDefinitionRepository rules,
             PathwayTemplateRepository pathways,
-            ConditionFragmentRepository fragments,
             FollowupTemplateRepository followupTemplates,
             AssetVersionRepository assetVersions,
             AuthoringAssetProfileRepository profiles,
@@ -58,7 +55,6 @@ public class AuthoringAssetLibraryService {
         this.json = json;
         this.rules = rules;
         this.pathways = pathways;
-        this.fragments = fragments;
         this.followupTemplates = followupTemplates;
         this.assetVersions = assetVersions;
         this.profiles = profiles;
@@ -66,7 +62,7 @@ public class AuthoringAssetLibraryService {
     }
 
     /**
-     * 合并规则、路径、条件片段到统一资产库。
+     * 合并规则、路径和随访模板到统一资产库。
      */
     @Transactional(readOnly = true)
     public PageResponse<AuthoringAssetLibraryItem> list(AuthoringAssetLibraryQuery query) {
@@ -159,7 +155,6 @@ public class AuthoringAssetLibraryService {
         return List.of(
             VersionedAssetType.RULE,
             VersionedAssetType.PATHWAY,
-            VersionedAssetType.CONDITION_FRAGMENT,
             VersionedAssetType.FOLLOWUP
         );
     }
@@ -180,16 +175,10 @@ public class AuthoringAssetLibraryService {
                 rules.countByFilter(tenantId, null, null, null, likeKeyword)
             );
             case PATHWAY -> new RepositoryAssetPage(
-                pathways.pageByFilter(tenantId, null, null, null, null, likeKeyword, offset, limit).stream()
+                pathways.pageByFilter(tenantId, null, null, null, likeKeyword, offset, limit).stream()
                     .map(pathway -> pathwayItem(tenantId, userId, pathway))
                     .toList(),
-                pathways.countByFilter(tenantId, null, null, null, null, likeKeyword)
-            );
-            case CONDITION_FRAGMENT -> new RepositoryAssetPage(
-                fragments.pageByFilter(tenantId, null, null, keyword, offset, limit).stream()
-                    .map(fragment -> fragmentItem(tenantId, userId, fragment))
-                    .toList(),
-                fragments.countByFilter(tenantId, null, null, keyword)
+                pathways.countByFilter(tenantId, null, null, null, likeKeyword)
             );
             case FOLLOWUP -> new RepositoryAssetPage(
                 followupTemplates.pageByFilter(tenantId, likeKeyword, null, offset, limit).stream()
@@ -222,12 +211,6 @@ public class AuthoringAssetLibraryService {
                     .map(pathway -> pathwayItem(tenantId, userId, pathway))
                     .toList(),
                 pathways.countForAuthoringLibrary(tenantId, keyword, tagPattern, favoriteUserId)
-            );
-            case CONDITION_FRAGMENT -> new RepositoryAssetPage(
-                fragments.pageForAuthoringLibrary(tenantId, keyword, tagPattern, favoriteUserId, offset, limit).stream()
-                    .map(fragment -> fragmentItem(tenantId, userId, fragment))
-                    .toList(),
-                fragments.countForAuthoringLibrary(tenantId, keyword, tagPattern, favoriteUserId)
             );
             case FOLLOWUP -> new RepositoryAssetPage(
                 followupTemplates.pageForAuthoringLibrary(tenantId, keyword, tagPattern, favoriteUserId, offset, limit)
@@ -271,58 +254,6 @@ public class AuthoringAssetLibraryService {
         boolean requested = requestedType == null || requestedType == candidateType;
         boolean allowed = allowedTypes == null || allowedTypes.contains(candidateType);
         return requested && allowed;
-    }
-
-    /**
-     * 将资产另存为可独立编辑的新草稿。
-     */
-    @Transactional
-    public AuthoringAssetCloneResponse cloneAsset(
-            VersionedAssetType assetType,
-            String assetId,
-            AuthoringAssetCloneRequest request) {
-        if (assetType != VersionedAssetType.CONDITION_FRAGMENT) {
-            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "当前资产类型尚未接入可克隆草稿: " + assetType);
-        }
-        String tenantId = currentTenant();
-        ConditionFragment source = fragments.findByFragmentIdAndTenantId(required(assetId, "源资产 ID"), tenantId)
-            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "条件片段不存在: " + assetId));
-        String newCode = required(request.newCode(), "新资产编码");
-        String newName = required(request.newName(), "新资产名称");
-        Integer newVersion = request.newVersion();
-        if (newVersion == null || newVersion <= 0) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "新资产版本号必须大于 0");
-        }
-        String packageVersion = required(request.packageVersion(), "新资产包版本");
-        fragments.findByTenantIdAndFragmentCodeAndVersionNo(tenantId, newCode, newVersion)
-            .ifPresent(existing -> {
-                throw new ApiException(ErrorCode.CONFLICT, "条件片段编码和版本已存在: " + newCode + " v" + newVersion);
-            });
-        Instant now = Instant.now();
-        String actor = RequestContext.currentUserId().orElse("system");
-        ConditionFragment saved = fragments.save(new ConditionFragment(
-            null,
-            "cf-" + UUID.randomUUID(),
-            tenantId,
-            newCode,
-            newName,
-            source.category(),
-            source.bodyJson(),
-            newVersion,
-            ConditionFragmentStatus.DRAFT,
-            packageVersion,
-            now,
-            actor,
-            now,
-            actor,
-            RequestContext.currentTraceId()));
-        return new AuthoringAssetCloneResponse(
-            assetType,
-            source.fragmentId(),
-            assetType,
-            saved.fragmentId(),
-            saved.fragmentCode(),
-            saved.status().name());
     }
 
     /**
@@ -412,9 +343,7 @@ public class AuthoringAssetLibraryService {
             tags(profile),
             rule.activeVersionId(),
             rule.status().name(),
-            rule.packageVersion(),
             favorite(tenantId, userId, VersionedAssetType.RULE, rule.ruleId()),
-            false,
             rule.updatedAt());
     }
 
@@ -429,28 +358,8 @@ public class AuthoringAssetLibraryService {
             tags(profile),
             String.valueOf(pathway.templateVersion()),
             pathway.status().name(),
-            pathway.packageId(),
             favorite(tenantId, userId, VersionedAssetType.PATHWAY, pathway.templateId()),
-            false,
             pathway.updatedAt());
-    }
-
-    private AuthoringAssetLibraryItem fragmentItem(String tenantId, String userId, ConditionFragment fragment) {
-        AuthoringAssetProfile profile = profile(
-            tenantId, VersionedAssetType.CONDITION_FRAGMENT, fragment.fragmentId()).orElse(null);
-        return new AuthoringAssetLibraryItem(
-            VersionedAssetType.CONDITION_FRAGMENT,
-            fragment.fragmentId(),
-            fragment.fragmentCode(),
-            fragment.name(),
-            category(profile, fragment.category()),
-            tags(profile),
-            String.valueOf(fragment.versionNo()),
-            fragment.status().name(),
-            fragment.packageVersion(),
-            favorite(tenantId, userId, VersionedAssetType.CONDITION_FRAGMENT, fragment.fragmentId()),
-            true,
-            fragment.updatedAt());
     }
 
     private AuthoringAssetLibraryItem followupItem(
@@ -471,9 +380,7 @@ public class AuthoringAssetLibraryService {
             tags(profile),
             String.valueOf(template.versionNo()),
             status,
-            null,
             favorite(tenantId, userId, VersionedAssetType.FOLLOWUP, template.templateId()),
-            false,
             template.updatedAt()
         );
     }
@@ -505,7 +412,7 @@ public class AuthoringAssetLibraryService {
                 .distinct()
                 .toList();
         } catch (JsonProcessingException exception) {
-            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "资产标签 JSON 解析失败", exception);
+            throw new ApiException(ErrorCode.ENG_ASSET_002, "资产标签 JSON 解析失败", exception);
         }
     }
 
@@ -557,11 +464,9 @@ public class AuthoringAssetLibraryService {
                 .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "规则资产不存在: " + assetId));
             case PATHWAY -> pathways.findByTemplateIdAndTenantId(assetId, tenantId)
                 .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "路径资产不存在: " + assetId));
-            case CONDITION_FRAGMENT -> fragments.findByFragmentIdAndTenantId(assetId, tenantId)
-                .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "条件片段资产不存在: " + assetId));
             case FOLLOWUP -> followupTemplates.findByTemplateIdAndTenantId(assetId, tenantId)
                 .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "随访模板资产不存在: " + assetId));
-            default -> throw new ApiException(ErrorCode.ENG_PACKAGE_002, "当前资产类型尚未接入资产库: " + assetType);
+            default -> throw new ApiException(ErrorCode.ENG_ASSET_002, "当前资产类型尚未接入资产库: " + assetType);
         }
     }
 
@@ -584,7 +489,7 @@ public class AuthoringAssetLibraryService {
         try {
             return json.writeValueAsString(tags);
         } catch (JsonProcessingException exception) {
-            throw new ApiException(ErrorCode.ENG_PACKAGE_002, "资产标签 JSON 写入失败", exception);
+            throw new ApiException(ErrorCode.ENG_ASSET_002, "资产标签 JSON 写入失败", exception);
         }
     }
 }

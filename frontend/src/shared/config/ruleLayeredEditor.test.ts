@@ -134,7 +134,6 @@ describe("RULE-01 三层规则编辑模型", () => {
     const dsl = conditionTreeToDsl(tree);
 
     expect(dsl).toEqual({
-      trigger: "result-review",
       applicability: tree.applicability,
       when: {
         all: [
@@ -202,7 +201,8 @@ describe("RULE-01 三层规则编辑模型", () => {
         },
       },
     });
-    expectFlatTreeRoundTrip(dslToConditionTree(dsl), tree);
+    expect(dsl).not.toHaveProperty("trigger");
+    expectFlatTreeRoundTrip(dslToConditionTree(dsl, tree.triggerPoint), tree);
   });
 
   it("递归根组通过统一转换保留 A 且非(B 或 C) 结构", () => {
@@ -217,8 +217,8 @@ describe("RULE-01 三层规则编辑模型", () => {
         children: [
           {
             id: "condition-a",
-            label: "医嘱类别",
-            fact: "order.drugClass",
+            label: "用药编码",
+            fact: "medications[].code",
             operator: "equals",
             value: "ANTIBIOTIC",
             valueKind: "string",
@@ -268,7 +268,7 @@ describe("RULE-01 三层规则编辑模型", () => {
 
     expect(dsl.when).toMatchObject({
       all: [
-        { fact: "order.drugClass", operator: "equals" },
+        { fact: "medications[].code", operator: "equals" },
         {
           not: {
             any: [
@@ -281,7 +281,7 @@ describe("RULE-01 三层规则编辑模型", () => {
     });
     expect(dsl.explain.authoring.conditionCount).toBe(3);
 
-    const restored = dslToConditionTree(dsl);
+    const restored = dslToConditionTree(dsl, tree.triggerPoint);
 
     expect(restored.root).toBeDefined();
     expect(restored.root?.logic).toBe("all");
@@ -393,7 +393,7 @@ describe("RULE-01 三层规则编辑模型", () => {
       formula: "CKD_EPI_2021_EGFR",
       parameters: { creatinine: "labs.creatinine" },
     });
-    expectFlatTreeRoundTrip(dslToConditionTree(dsl), tree);
+    expectFlatTreeRoundTrip(dslToConditionTree(dsl, tree.triggerPoint), tree);
   });
 
   it("L2 条件树可配置表达式聚合并保留 where 与 over", () => {
@@ -456,12 +456,11 @@ describe("RULE-01 三层规则编辑模型", () => {
       value: 1.2,
     });
     expect(JSON.stringify(conditions[0].expr)).toContain("CREATININE");
-    expectFlatTreeRoundTrip(dslToConditionTree(dsl), tree);
+    expectFlatTreeRoundTrip(dslToConditionTree(dsl, tree.triggerPoint), tree);
   });
 
   it("L3 DSL 回填时保留后端已实现的临床算子，不静默降级为 exists", () => {
     const dsl = {
-      trigger: "result-review",
       applicability: createDefaultRuleApplicability(),
       when: {
         all: [
@@ -502,7 +501,7 @@ describe("RULE-01 三层规则编辑模型", () => {
       explain: { summary: "保留临床算子" },
     };
 
-    const tree = dslToConditionTree(dsl);
+    const tree = dslToConditionTree(dsl, "result-review");
 
     expect(tree.conditions.map((condition) => condition.operator)).toEqual([
       "not_between",
@@ -528,11 +527,10 @@ describe("RULE-01 三层规则编辑模型", () => {
   it("L3 DSL 包含未知算子时直接报错，避免错误规则被伪装成存在性判断", () => {
     expect(() =>
       dslToConditionTree({
-        trigger: "result-review",
         when: { all: [{ fact: "lab.potassium", operator: "unknown_operator" }] },
         then: [],
         explain: { summary: "未知算子" },
-      }),
+      }, "result-review"),
     ).toThrow("不支持的规则算子");
   });
 
@@ -541,7 +539,7 @@ describe("RULE-01 三层规则编辑模型", () => {
     const invalid = { ...dsl } as Record<string, unknown>;
     delete invalid.applicability;
 
-    expect(() => dslToConditionTree(invalid)).toThrow("缺少 applicability");
+    expect(() => dslToConditionTree(invalid, "result-review")).toThrow("缺少 applicability");
   });
 
   it("L3 DSL 动作缺少后端必填数组时直接报错，避免提交后才失败", () => {
@@ -555,7 +553,6 @@ describe("RULE-01 三层规则编辑模型", () => {
       requiresPhysicianConfirmation: false,
     };
     const baseDsl = {
-      trigger: "result-review",
       applicability: createDefaultRuleApplicability(),
       when: { all: [{ fact: "lab.potassium", operator: "exists" }] },
       explain: { summary: "校验动作契约" },
@@ -565,13 +562,13 @@ describe("RULE-01 三层规则编辑模型", () => {
       dslToConditionTree({
         ...baseDsl,
         then: [{ ...action, overrideReasons: [] }],
-      }),
+      }, "result-review"),
     ).toThrow("suggestions 必须是数组");
     expect(() =>
       dslToConditionTree({
         ...baseDsl,
         then: [{ ...action, suggestions: [] }],
-      }),
+      }, "result-review"),
     ).toThrow("overrideReasons 必须是数组");
   });
 
