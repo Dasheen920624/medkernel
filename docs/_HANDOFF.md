@@ -66,6 +66,13 @@
   `config-boundary-guard --mode=all` 扫描 1902 个文件，
   `migration-convention-guard --mode=all` 扫描 5 份迁移文件。
 - 部署资产、单机部署、发布包、Ollama 生产模型定义和 Shell 断言语义契约均通过。
+- 旧 package/兼容语义收口定向红灯已复现后修复：
+  `KnowledgeInitializationCatalogTest` 先失败于“知识金标回归与发行兼容”；
+  `InheritanceResolverBatchTest` 先失败于 `BatchResolvedAsset` 仍暴露恒为 `false` 的 `added` 标志；
+  `RulePathwayCleanliness.test.ts` 先失败于规则/路径样式表残留 `.packageList/.packageCard`。
+- 修复后 `mvn -q -Dtest=KnowledgeInitializationCatalogTest,InheritanceResolverBatchTest test`、
+  `npm test -- --run src/pages/tenant/RulePathwayCleanliness.test.ts -t "uses the current rule and pathway customer API roots"`、
+  `mvn -q -DskipTests compile`、`npm run lint` 均通过。
 
 ## 本轮落地内容
 
@@ -74,6 +81,8 @@
 - 134 已安装当前 `deploy/onprem/medkernel-fresh-deploy.sh` 到
   `/zoesoft/medkernel/bin/medkernel-fresh-deploy.sh`，远端 SHA-256 为
   `8dfd8e872ef4ab0856289567bb6ee2056c7daeb5a564891e4df2cc3e4e4dccac`，与本地候选脚本一致。
+- 生产代码继续清理旧 package/兼容残留：移除未使用的 `.packageList/.packageCard` 样式；`BatchResolvedAsset`
+  去掉恒为 `false` 的 `added` 标志；`KNOWGEN-32` 标题改为“知识金标回归与发行验收”。
 
 后续改动必须继续使用 TDD 或先复现后修复，完成声明前重新跑与改动相关的门禁。
 

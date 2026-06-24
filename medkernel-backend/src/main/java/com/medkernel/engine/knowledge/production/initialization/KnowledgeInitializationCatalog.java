@@ -47,7 +47,7 @@ public class KnowledgeInitializationCatalog {
         item(34, "联合照护", InitializationReleaseType.CLINICAL_CONTENT, InitializationPhase.F6),
         item(31, "机构临床参数与本地化模板", InitializationReleaseType.COMPOSITE, InitializationPhase.F7),
         item(15, "基础知识资产总验收", InitializationReleaseType.FOUNDATION, InitializationPhase.F8),
-        item(32, "知识金标回归与发行兼容", InitializationReleaseType.FOUNDATION, InitializationPhase.F8)
+        item(32, "知识金标回归与发行验收", InitializationReleaseType.FOUNDATION, InitializationPhase.F8)
     );
 
     public List<KnowledgeInitializationCatalogItem> listAll() {

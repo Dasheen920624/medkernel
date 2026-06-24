@@ -76,6 +76,7 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     const hooksSource = readSource("src/shared/api/hooks.ts");
     const pathwaySource = readSource("src/pages/tenant/PathwayTemplates.tsx");
     const patientPathwaysSource = readSource("src/pages/clinical/PatientPathways.tsx");
+    const authoringStyles = readSource("src/pages/tenant/RulePathwayAuthoring.module.css");
 
     expect(hooksSource).not.toContain('"/engine/rules');
     expect(hooksSource).not.toContain("`/engine/rules");
@@ -93,6 +94,8 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(pathwaySource).not.toContain("usePackages");
     expect(pathwaySource).not.toContain("useBuildPathwayKnowledgePackage");
     expect(patientPathwaysSource).not.toContain("usePackages");
+    expect(authoringStyles).not.toContain(".packageList");
+    expect(authoringStyles).not.toContain(".packageCard");
   });
 
   it("uses the engine tenant API roots for onboarding service package hooks", () => {
