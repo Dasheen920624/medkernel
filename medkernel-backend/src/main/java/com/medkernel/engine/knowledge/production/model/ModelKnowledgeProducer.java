@@ -108,7 +108,8 @@ public class ModelKnowledgeProducer {
 
         ModelTaskResponse task = modelGateway.submitTask(new ModelTaskRequest(
             request.capabilityCode(), request.prompt(), request.timeoutSeconds(),
-            requiredRouteStrategy(job, readiness), request.providerCode()));
+            requiredRouteStrategy(job, readiness), request.providerCode(),
+            authoritativeOutputContext(request)));
         if (isB0Fallback(task)) {
             return result(jobCode, task, new GenerationSummary(
                 List.of(),
@@ -224,6 +225,30 @@ public class ModelKnowledgeProducer {
             return "LOCAL_MODEL";
         }
         return "EXTERNAL_MODEL";
+    }
+
+    private String authoritativeOutputContext(ModelKnowledgeProductionRequest request) {
+        ObjectNode root = objectMapper.createObjectNode();
+        if (request.target().newIdentity() != null) {
+            root.put("domain", request.target().newIdentity().domain().name());
+            root.put("subject", request.target().newIdentity().subject());
+        } else {
+            root.put("subject", request.subject());
+        }
+        root.put("clinicalActionable", false);
+        var sourceReferences = root.putArray("sourceReferences");
+        for (var source : request.sources()) {
+            ObjectNode sourceNode = sourceReferences.addObject();
+            sourceNode.put("sourceRef", source.sourceRef());
+            if (source.authorityLevel() != null) {
+                sourceNode.put("authorityLevel", source.authorityLevel().name());
+            }
+        }
+        try {
+            return objectMapper.writeValueAsString(root);
+        } catch (JsonProcessingException impossible) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "模型权威输出上下文序列化失败");
+        }
     }
 
     private List<GateItemResult> readinessFailures(List<KnowledgeProductionReadinessItem> items) {

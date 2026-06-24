@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -291,7 +292,7 @@ public class ModelGatewayService {
         String schemaConstraint = policy.expectedSchema();
         RouteOutcome outcome = route(
             tenantId, capabilityCode, strategy, fallbackConfig, desensitizedInput, taskId, versionPlan,
-            schemaConstraint, req.providerCode());
+            schemaConstraint, req.providerCode(), req.authoritativeOutputContext());
 
         // 结构化输出规则校验：真实解析结构化文本并确认必填字段存在（GA-ENG-LLM-01）。
         // 校验对象为本次实际产出；B1/B2 结构化失败先诚实降级 B0，再校验 B0 信封。
@@ -822,6 +823,59 @@ public class ModelGatewayService {
         }
     }
 
+    private SchemaRepairResult repairAuthoritativeRequiredFields(
+            String content,
+            String schema,
+            String authoritativeOutputContext) {
+        if (authoritativeOutputContext == null || authoritativeOutputContext.isBlank()) {
+            return new SchemaRepairResult(content, List.of());
+        }
+        JsonNode output;
+        JsonNode context;
+        try {
+            output = OBJECT_MAPPER.readTree(content);
+            context = OBJECT_MAPPER.readTree(authoritativeOutputContext);
+        } catch (Exception parseError) {
+            throw new ApiException(ErrorCode.ENG_LLM_002, "模型输出或权威输出上下文不是合法 JSON");
+        }
+        if (output == null || !output.isObject()) {
+            return new SchemaRepairResult(content, List.of());
+        }
+        if (context == null || !context.isObject()) {
+            throw new ApiException(ErrorCode.ENG_LLM_002, "权威输出上下文必须是 JSON 对象");
+        }
+        ObjectNode repaired = ((ObjectNode) output).deepCopy();
+        List<String> repairedFields = new ArrayList<>();
+        for (String required : extractRequiredFields(schema)) {
+            JsonNode contextValue = context.get(required);
+            if (!repaired.has(required) && usableAuthoritativeValue(contextValue)) {
+                repaired.set(required, contextValue.deepCopy());
+                repairedFields.add(required);
+            }
+        }
+        if (repairedFields.isEmpty()) {
+            return new SchemaRepairResult(content, List.of());
+        }
+        try {
+            return new SchemaRepairResult(OBJECT_MAPPER.writeValueAsString(repaired), repairedFields);
+        } catch (Exception impossible) {
+            throw new ApiException(ErrorCode.ENG_LLM_002, "权威字段补齐后模型输出无法序列化");
+        }
+    }
+
+    private boolean usableAuthoritativeValue(JsonNode value) {
+        if (value == null || value.isNull() || value.isMissingNode()) {
+            return false;
+        }
+        if (value.isTextual()) {
+            return !value.asText().isBlank();
+        }
+        if (value.isArray() || value.isObject()) {
+            return !value.isEmpty();
+        }
+        return true;
+    }
+
     /**
      * 从标准输出规则对象提取必填字段名。
      */
@@ -877,6 +931,8 @@ public class ModelGatewayService {
         String sourceCitations, Double confidence, String riskLevel,
         boolean fallbackUsed, String fallbackReason, String taskStatus) {}
 
+    private record SchemaRepairResult(String content, List<String> fields) {}
+
     private record ModelFallbackConfig(
         List<String> fallbackOrder,
         int timeoutMs,
@@ -905,7 +961,7 @@ public class ModelGatewayService {
     private RouteOutcome route(String tenantId, String capabilityCode, String strategy,
                                ModelFallbackConfig fallbackConfig, String desensitizedInput,
                                String taskId, ActiveVersionPlan versionPlan, String expectedSchema,
-                               String providerCode) {
+                               String providerCode, String authoritativeOutputContext) {
         if (!versionPlan.executable() && !"BASELINE".equalsIgnoreCase(strategy)) {
             return b0Outcome(capabilityCode, versionPlan.reason());
         }
@@ -924,7 +980,8 @@ public class ModelGatewayService {
             String attemptProviderCode = attemptStrategy.equalsIgnoreCase(strategy) ? providerCode : null;
             ProviderAttempt attempt = tryProvider(
                 tenantId, capabilityCode, attemptStrategy, desensitizedInput,
-                taskId, plannedTriple, expectedSchema, fallbackConfig, attemptProviderCode);
+                taskId, plannedTriple, expectedSchema, authoritativeOutputContext,
+                fallbackConfig, attemptProviderCode);
             if (attempt.outcome().isPresent()) {
                 RouteOutcome successful = attempt.outcome().get();
                 if (reasons.isEmpty()) {
@@ -956,7 +1013,8 @@ public class ModelGatewayService {
     private ProviderAttempt tryProvider(String tenantId, String capabilityCode, String strategy,
                                         String desensitizedInput, String taskId,
                                         ModelVersionTriple plannedTriple, String expectedSchema,
-                                        ModelFallbackConfig fallbackConfig, String providerCode) {
+                                        String authoritativeOutputContext, ModelFallbackConfig fallbackConfig,
+                                        String providerCode) {
         var resolved = providerCode == null || providerCode.isBlank()
             ? providerRegistry.resolve(tenantId, strategy)
             : providerRegistry.resolve(tenantId, strategy, providerCode);
@@ -1015,11 +1073,19 @@ public class ModelGatewayService {
                 return ProviderAttempt.failure(ModelFallbackTrigger.PROVIDER_ERROR,
                     "模型服务返回内容为空");
             }
+            String outputContent = completion.content();
             if (expectedSchema != null && !expectedSchema.isBlank()) {
-                validateSchema(completion.content(), expectedSchema);
+                SchemaRepairResult repair = repairAuthoritativeRequiredFields(
+                    outputContent, expectedSchema, authoritativeOutputContext);
+                outputContent = repair.content();
+                if (!repair.fields().isEmpty()) {
+                    log.info("模型输出补齐权威上下文字段 capabilityCode={} fields={}",
+                        capabilityCode, repair.fields());
+                }
+                validateSchema(outputContent, expectedSchema);
             }
             return ProviderAttempt.success(new RouteOutcome(
-                completion.content(), provider.modelMode(), configuredModelVersion,
+                outputContent, provider.modelMode(), configuredModelVersion,
                 plannedTriple.promptVersion(), plannedTriple.toolVersion(),
                 completion.sourceCitations(), completion.confidence(), "LOW", false, null, "SUCCEEDED"));
         } catch (ApiException providerFailed) {

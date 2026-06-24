@@ -31,6 +31,7 @@ import com.medkernel.engine.knowledge.production.KnowledgeProductionReadinessIte
 import com.medkernel.engine.knowledge.production.KnowledgeProductionReadinessResponse;
 import com.medkernel.engine.knowledge.production.KnowledgeProductionReadinessService;
 import com.medkernel.engine.knowledge.production.MaterializationTarget;
+import com.medkernel.engine.knowledge.production.NewIdentitySpec;
 import com.medkernel.engine.knowledge.production.ProductionJobStatus;
 import com.medkernel.engine.knowledge.production.ReviewRoutingDecision;
 import com.medkernel.engine.knowledge.production.TargetPipeline;
@@ -259,6 +260,22 @@ class ModelKnowledgeProducerTest {
     }
 
     @Test
+    void newIdentityGenerationCarriesAuthoritativeOutputContextToGateway() {
+        when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(successfulModelTask());
+        ArgumentCaptor<ModelTaskRequest> taskCaptor = ArgumentCaptor.forClass(ModelTaskRequest.class);
+
+        producer.generate(JOB_CODE, requestWithNewIdentity());
+
+        verify(modelGateway).submitTask(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().authoritativeOutputContext())
+            .contains(
+                "\"domain\":\"DIAGNOSTIC_ITEM\"",
+                "\"subject\":\"检验项目说明书来源与使用边界\"",
+                "\"sourceRef\":\"GL-HTN-2024:v1:section-1\"",
+                "\"clinicalActionable\":false");
+    }
+
+    @Test
     void localFallbackSuccessStillSubmitsCandidateWithFallbackEvidence() {
         when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(successfulLocalFallbackModelTask());
         ArgumentCaptor<KnowledgeAssetEnvelope> envelopeCaptor = ArgumentCaptor.forClass(KnowledgeAssetEnvelope.class);
@@ -401,6 +418,23 @@ class ModelKnowledgeProducerTest {
             SourceAuthorityLevel.B_GUIDELINE,
             KnowledgeRiskLevel.MEDIUM,
             target());
+    }
+
+    private ModelKnowledgeProductionRequest requestWithNewIdentity() {
+        return new ModelKnowledgeProductionRequest(
+            CAPABILITY,
+            "请基于来源锚点生成检验项目说明书来源边界",
+            PROVIDER,
+            60,
+            "launch.diagnostic-item.source-boundary",
+            "检验项目说明书来源与使用边界",
+            List.of(sourceRef()),
+            SourceAuthorityLevel.B_GUIDELINE,
+            KnowledgeRiskLevel.LOW,
+            new MaterializationTarget(null, new NewIdentitySpec(
+                com.medkernel.engine.knowledge.KnowledgeDomain.DIAGNOSTIC_ITEM,
+                "检验项目说明书来源与使用边界",
+                "launch.diagnostic-item.source-boundary")));
     }
 
     private ModelKnowledgeProductionRequest ruleRequest() {
