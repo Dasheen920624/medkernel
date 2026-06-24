@@ -18,6 +18,7 @@ public record ReleaseCandidateAsset(
     String versionNo,
     AssetVersionStatus status,
     String organizationScope,
+    String applicableScope,
     String contentHash,
     String sourceRef,
     Instant updatedAt

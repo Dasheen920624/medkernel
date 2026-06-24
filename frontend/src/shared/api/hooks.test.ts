@@ -169,6 +169,7 @@ import {
   useHospitalRuntimeCandidates,
   useHospitalRuntimeHistory,
   usePlatformReleaseCandidates,
+  useSimulateReleaseImpact,
   usePublishPlatformBaseline,
   useRollbackHospitalRuntime,
   useTerminologyCandidates,
@@ -3098,10 +3099,24 @@ describe("release governance api hooks", () => {
     const baseline = { release: { baselineReleaseId: "baseline-A8", revisionNo: 8 }, items: [] };
     const runtime = { release: { releaseId: "runtime-H9", revisionNo: 9 }, items: [] };
     const candidates = {
-      items: [],
+      items: [
+        {
+          sourceLayer: "HOSPITAL",
+          assetType: "PATHWAY",
+          assetIdentity: "PATH.CKD",
+          versionId: "path-v3",
+          versionNo: "V3",
+          status: "PUBLISHED",
+          organizationScope: "/tenant-a/hospital-A",
+          applicableScope: "adult|inpatient",
+          contentHash: "a".repeat(64),
+          sourceRef: "本院路径",
+          updatedAt: "2026-06-23T09:00:00Z",
+        },
+      ],
       page: 1,
       size: 20,
-      total: 0,
+      total: 1,
       hasNext: false,
       totalEstimated: false,
     };
@@ -3134,6 +3149,9 @@ describe("release governance api hooks", () => {
       }),
     );
     await waitFor(() => expect(localCandidatesHook.result.current.data).toEqual(candidates));
+    expect(localCandidatesHook.result.current.data?.items[0]).toMatchObject({
+      applicableScope: "adult|inpatient",
+    });
     const historyHook = renderApiHook(() =>
       useHospitalRuntimeHistory("hospital-A", { page: 1, size: 20 }),
     );
@@ -3204,6 +3222,62 @@ describe("release governance api hooks", () => {
       "/engine/releases/hospitals/hospital-A/runtime-releases:rollback",
       { targetReleaseId: "runtime-H7" },
     );
+  });
+
+  it("simulates release impact through the versioning governance endpoint", async () => {
+    const result = {
+      simulationDigest: "d".repeat(64),
+      generatedAt: "2026-06-23T10:00:00Z",
+      candidateVersionId: "path-v3",
+      currentVersionId: "path-v2",
+      affectedOrganizations: [{ orgUnitId: "hospital-A", orgPath: "/tenant-a/hospital-A" }],
+      applicableDimensions: ["adult|inpatient"],
+      diff: { changeType: "MODIFIED", currentVersionNo: "V2", candidateVersionNo: "V3" },
+      replay: {
+        status: "SUPPORTED",
+        sampledCases: 12,
+        changedCases: 2,
+        triggerIncreases: 1,
+        triggerDecreases: 0,
+        severityIncreases: 0,
+        severityDecreases: 0,
+        highRiskSnapshotIds: [],
+        impactedAssets: [],
+        reason: null,
+      },
+      safety: { passed: true, issues: [] },
+      dependencies: { passed: true, issues: [] },
+      conflicts: [],
+      releasable: true,
+    };
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { data: result } });
+
+    const response = await renderApiHook(() =>
+      useSimulateReleaseImpact(),
+    ).result.current.mutateAsync({
+      assetType: "PATHWAY",
+      assetIdentity: "PATH.CKD",
+      candidateVersionId: "path-v3",
+      targetOrgUnitIds: ["hospital-A"],
+      targetOrgPath: "/tenant-a/hospital-A",
+      applicableScope: "adult|inpatient",
+      rolloutPolicy: { strategy: "ORG_LIST", orgUnitIds: ["hospital-A"] },
+      replayDays: 30,
+      replayLimit: 100,
+    });
+
+    expect(response).toEqual(result);
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/versioning/releases/simulations", {
+      assetType: "PATHWAY",
+      assetIdentity: "PATH.CKD",
+      candidateVersionId: "path-v3",
+      targetOrgUnitIds: ["hospital-A"],
+      targetOrgPath: "/tenant-a/hospital-A",
+      applicableScope: "adult|inpatient",
+      rolloutPolicy: { strategy: "ORG_LIST", orgUnitIds: ["hospital-A"] },
+      replayDays: 30,
+      replayLimit: 100,
+    });
   });
 });
 

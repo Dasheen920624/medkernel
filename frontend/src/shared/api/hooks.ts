@@ -7237,6 +7237,7 @@ export interface ReleaseCandidateAsset {
   versionNo: string;
   status: "DRAFT" | "PUBLISHED";
   organizationScope: string;
+  applicableScope: string;
   contentHash: string;
   sourceRef?: string | null;
   updatedAt: string;
@@ -7268,6 +7269,85 @@ export interface ClinicalRuntimeActivateRequest {
   platformBaselineReleaseId: string;
   expectedCurrentReleaseId?: string | null;
   activeAssets: ClinicalRuntimeAssetSelection[];
+}
+
+export type ReleaseRolloutStrategy =
+  | "ALL"
+  | "ORG_SUBTREE"
+  | "ORG_LIST"
+  | "CANARY_BED_PERCENT"
+  | "STAGED";
+
+export interface ReleaseRolloutThresholds {
+  maxBlockRate?: number | null;
+  maxManualRejectionRate?: number | null;
+  maxAnomalyCount?: number | null;
+}
+
+export interface ReleaseRolloutPolicy {
+  strategy: ReleaseRolloutStrategy;
+  orgUnitIds?: string[];
+  bedPercent?: number | null;
+  stages?: number[];
+  observationMinutes?: number | null;
+  thresholds?: ReleaseRolloutThresholds | null;
+}
+
+export interface ReleaseImpactSimulationRequest extends ReleaseAssetRef {
+  candidateTenantId?: string | null;
+  candidateVersionId: string;
+  targetOrgUnitIds: string[];
+  targetOrgPath: string;
+  applicableScope: string;
+  rolloutPolicy: ReleaseRolloutPolicy;
+  replayDays: number;
+  replayLimit: number;
+}
+
+export interface ReleaseImpactSimulationResult {
+  simulationDigest: string;
+  generatedAt: string;
+  candidateVersionId: string;
+  currentVersionId?: string | null;
+  affectedOrganizations: Array<{
+    orgUnitId: string;
+    orgPath?: string | null;
+    orgName?: string | null;
+  }>;
+  applicableDimensions: string[];
+  diff: {
+    changeType: string;
+    currentVersionNo?: string | null;
+    candidateVersionNo?: string | null;
+    currentContentHash?: string | null;
+    candidateContentHash?: string | null;
+  };
+  replay: {
+    status: string;
+    sampledCases: number;
+    changedCases: number;
+    triggerIncreases: number;
+    triggerDecreases: number;
+    severityIncreases: number;
+    severityDecreases: number;
+    highRiskSnapshotIds: string[];
+    impactedAssets: Array<{
+      assetType: RuntimeAssetType;
+      assetIdentity: string;
+      versionId: string;
+      versionNo: string;
+    }>;
+    reason?: string | null;
+  };
+  safety: { passed: boolean; issues: string[] };
+  dependencies: { passed: boolean; issues: string[] };
+  conflicts: Array<{
+    overrideId?: string | null;
+    orgPath?: string | null;
+    overrideMode?: string | null;
+    resultingSource?: string | null;
+  }>;
+  releasable: boolean;
 }
 
 function releaseCandidateParams(params: ReleaseCandidateQuery) {
@@ -7420,6 +7500,18 @@ export function useRollbackHospitalRuntime() {
       await queryClient.invalidateQueries({
         queryKey: ["runtime-releases", "hospital", variables.hospitalId],
       });
+    },
+  });
+}
+
+export function useSimulateReleaseImpact() {
+  return useMutation({
+    mutationFn: async (request: ReleaseImpactSimulationRequest) => {
+      const { data } = await apiClient.post<{ data: ReleaseImpactSimulationResult }>(
+        "/engine/versioning/releases/simulations",
+        request,
+      );
+      return data.data;
     },
   });
 }

@@ -79,6 +79,9 @@
 - 发布模拟对没有专门病例级回放执行器的版本化资产已不再返回阻断式 `UNSUPPORTED`；现在基于资产依赖图返回
   目标组织和适用范围内的在用依赖资产，并以“依赖影响评估”说明该类资产不执行病例级重算，避免术语、
   字段目录、值集、公式等基础资产在有历史快照时被旧“仅规则回放”模型卡住。
+- 发布治理页已接入真实发布影响评估：候选资产列表带出适用人群或上下文，机构运营员选择集团/本院内容后可在
+  生成机构生效版本前调用 `/engine/versioning/releases/simulations`，并用“可发布/需处理、病例回放、
+  依赖影响、阻断原因”等医疗产品语言展示结果，不再让前台猜测评估域。
 - 前台产品语言门禁已扩展到启动凭证、来源允许范围、模型版本组合、运行环境、无模型规则链路、
   多因素认证、生产前校验、生产安全校验、发布质量校验、发布验证用例、开通条件和时窗校验等
   医疗引擎中枢语言。
@@ -211,6 +214,15 @@
   36 个用例通过；
 - 清库部署文档已同步 `--external-base-url`，单机手册的业务表数改为从候选 schema 读取；
   当前候选 schema 为 207 张业务表，`node scripts/db/generate-migrations.mjs --check` 通过。
+- 发布治理页影响评估红灯/绿灯：
+  `npm test -- --run src/pages/tenant/ReleaseGovernance.test.tsx src/shared/api/hooks.test.ts` 先失败于页面没有
+  “评估发布影响”按钮；`mvn -q -Dtest=ReleaseCandidateQueryServiceTest test` 先失败于候选资产响应缺少
+  `applicableScope()`；修复后前端 2 个文件 / 126 个用例通过，后端候选查询测试通过，并补齐“未评估的集团/
+  本院内容不能直接生成机构生效版本”的前台安全门禁；
+  `mvn -q -Dtest=ReleaseCandidateQueryServiceTest,RuntimeReleaseControllerTest,ReleaseGovernanceControllerTest,ReleaseSimulationServiceTest test`
+  通过；`mvn -q -DskipTests compile` 通过；`npm run verify` 通过，前端汇总 107 个测试文件 / 767 个测试通过；
+  `npm run build` 通过；`git diff --check` 通过。本轮 `npm run verify` 中曾暴露 Hook 依赖稳定性与 Prettier
+  格式问题，已修复后复跑通过。
 
 ## 2026-06-23 阶段检查点
 
@@ -284,7 +296,7 @@
 - 患者报告解读只有部分数据骨架，尚未形成完整运行闭环；
 - 字段目录已补第三方接入契约的机构生效版本消费证据，规则/路径字段引用也已登记字段目录资产依赖；但术语
   覆盖门禁、评价、随访、质量和知识仍需继续按机构生效版本复核；
-- 离线交付文件、前端发布治理页、集成契约、CLI 和 MCP 尚未完全切换到新模型；
+- 离线交付文件、集成契约、CLI 和 MCP 尚未完全切换到新模型；
 - 最终五方言 V1 和 134 真实清库重部署演练尚未完成；本地后端全量 `mvn -q test` 与前端全量
   `npm run verify` 最新已通过，但不能替代 134 环境验收。
 

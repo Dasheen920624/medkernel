@@ -62,6 +62,7 @@ class ReleaseCandidateQueryServiceTest {
         assertThat(result.items().getFirst().sourceLayer())
             .isEqualTo(ReleaseSourceLayer.PLATFORM);
         assertThat(result.items().getFirst().versionId()).isEqualTo("rule-v2");
+        assertThat(result.items().getFirst().applicableScope()).isEqualTo("ALL");
     }
 
     @Test
@@ -104,6 +105,7 @@ class ReleaseCandidateQueryServiceTest {
             assertThat(candidate.sourceLayer()).isEqualTo(ReleaseSourceLayer.HOSPITAL);
             assertThat(candidate.assetIdentity()).isEqualTo("PATH.CKD");
             assertThat(candidate.versionNo()).isEqualTo("V3");
+            assertThat(candidate.applicableScope()).isEqualTo("adult|inpatient");
         });
     }
 
@@ -117,7 +119,7 @@ class ReleaseCandidateQueryServiceTest {
             String orgPath) {
         return new AssetVersion(
             1L, versionId, tenantId, type, identity, versionNo,
-            orgPath, "ALL", "a".repeat(64),
+            orgPath, type == VersionedAssetType.PATHWAY ? "adult|inpatient" : "ALL", "a".repeat(64),
             AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE,
             status, "version:" + versionId, "source",
             null, null, NOW, "operator", NOW, "operator", "trace");

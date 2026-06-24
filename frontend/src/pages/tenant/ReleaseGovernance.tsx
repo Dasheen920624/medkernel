@@ -1,4 +1,9 @@
-import { ReloadOutlined, RocketOutlined, RollbackOutlined } from "@ant-design/icons";
+import {
+  ReloadOutlined,
+  RocketOutlined,
+  RollbackOutlined,
+  SafetyCertificateOutlined,
+} from "@ant-design/icons";
 import {
   Alert,
   App as AntdApp,
@@ -28,8 +33,10 @@ import {
   usePlatformReleaseCandidates,
   usePublishPlatformBaseline,
   useRollbackHospitalRuntime,
+  useSimulateReleaseImpact,
   type ClinicalRuntimeAssetSelection,
   type ClinicalRuntimeRelease,
+  type ReleaseImpactSimulationResult,
   type PlatformBaselineItem,
   type ReleaseCandidateAsset,
   type ReleaseAssetRef,
@@ -63,6 +70,32 @@ function stateTag(state: string) {
   );
 }
 
+function replaySummary(result: ReleaseImpactSimulationResult) {
+  if (result.replay.status === "NO_DATA") {
+    return result.replay.reason || "暂无可回放病例";
+  }
+  if (result.replay.status === "UNSUPPORTED") {
+    return result.replay.reason || "暂不能完成病例回放";
+  }
+  return `回放病例 ${result.replay.sampledCases} 例，变化 ${result.replay.changedCases} 例`;
+}
+
+function dependencyImpactSummary(result: ReleaseImpactSimulationResult) {
+  const count = result.replay.impactedAssets.length;
+  return count > 0 ? `影响 ${count} 项在用资产` : "未发现已启用依赖资产";
+}
+
+function impactIssueSummary(result: ReleaseImpactSimulationResult) {
+  const issues = [
+    ...result.safety.issues,
+    ...result.dependencies.issues,
+    ...(result.replay.status === "UNSUPPORTED" ? [result.replay.reason || "病例回放暂不可用"] : []),
+    ...(result.conflicts.length > 0 ? [`${result.conflicts.length} 个机构覆盖冲突`] : []),
+  ].filter((value): value is string => Boolean(value));
+  if (issues.length > 0) return issues.join("；");
+  return result.releasable ? "未发现阻断项" : "需复核评估结果";
+}
+
 export default function ReleaseGovernance() {
   const { message } = AntdApp.useApp();
   const [activeTab, setActiveTab] = useState("platform");
@@ -75,6 +108,8 @@ export default function ReleaseGovernance() {
   const [hospitalSelections, setHospitalSelections] = useState<
     Map<string, ClinicalRuntimeAssetSelection>
   >(new Map());
+  const [impactResults, setImpactResults] = useState<ReleaseImpactSimulationResult[]>([]);
+  const [impactError, setImpactError] = useState<string>();
   const initializedHospitalRevision = useRef<string>();
 
   const hospitalsQuery = useOrgUnits({
@@ -107,10 +142,14 @@ export default function ReleaseGovernance() {
   const publishPlatform = usePublishPlatformBaseline();
   const activateHospital = useActivateHospitalRuntime();
   const rollbackHospital = useRollbackHospitalRuntime();
+  const simulateReleaseImpact = useSimulateReleaseImpact();
 
   const baseline = baselineQuery.data;
   const platformCandidates = platformCandidatesQuery.data?.items ?? [];
-  const localCandidates = localCandidatesQuery.data?.items ?? [];
+  const localCandidates = useMemo(
+    () => localCandidatesQuery.data?.items ?? [],
+    [localCandidatesQuery.data?.items],
+  );
   const currentRuntime = runtimeQuery.data;
   const history = historyQuery.data?.items ?? [];
 
@@ -121,14 +160,30 @@ export default function ReleaseGovernance() {
         .map((item) => ({
           value: item.id as string,
           label: `${item.name} · ${item.code}`,
+          orgPath: item.orgPath ?? null,
         })),
     [hospitalsQuery.data?.items],
+  );
+  const selectedHospital = useMemo(
+    () => hospitals.find((item) => item.value === hospitalId),
+    [hospitalId, hospitals],
   );
 
   const activeBaselineItems = useMemo(
     () => (baseline?.items ?? []).filter((item) => item.entryState === "ACTIVE"),
     [baseline?.items],
   );
+  const selectedLocalCandidates = useMemo(() => {
+    const selectedVersionIds = new Set(
+      Array.from(hospitalSelections.values())
+        .map((selection) => selection.versionId)
+        .filter((value): value is string => Boolean(value)),
+    );
+    return localCandidates.filter((candidate) => selectedVersionIds.has(candidate.versionId));
+  }, [hospitalSelections, localCandidates]);
+  const selectedLocalCandidateKey = selectedLocalCandidates
+    .map((candidate) => candidate.versionId)
+    .join("|");
 
   useEffect(() => {
     if (!hospitalId) {
@@ -159,6 +214,11 @@ export default function ReleaseGovernance() {
     initializedHospitalRevision.current = initializationKey;
     setHospitalSelections(next);
   }, [activeBaselineItems, currentRuntime, hospitalId]);
+
+  useEffect(() => {
+    setImpactResults([]);
+    setImpactError(undefined);
+  }, [hospitalId, selectedLocalCandidateKey]);
 
   function togglePlatformCandidate(candidate: ReleaseCandidateAsset, checked: boolean) {
     setPlatformPublishIds((current) =>
@@ -241,6 +301,20 @@ export default function ReleaseGovernance() {
       message.warning("请先选择机构并确认平台标准版本");
       return;
     }
+    if (selectedLocalCandidates.length > 0) {
+      const passedImpactResults = new Map(
+        impactResults
+          .filter((result) => result.releasable)
+          .map((result) => [result.candidateVersionId, result]),
+      );
+      const hasUnassessedLocalContent = selectedLocalCandidates.some(
+        (candidate) => !passedImpactResults.has(candidate.versionId),
+      );
+      if (hasUnassessedLocalContent) {
+        message.warning("请先完成发布影响评估，并处理所有阻断项");
+        return;
+      }
+    }
     try {
       const result = await activateHospital.mutateAsync({
         hospitalId,
@@ -253,6 +327,51 @@ export default function ReleaseGovernance() {
       message.success(`机构生效版本 ${revision("H", result.revisionNo)} 已生成`);
     } catch (error) {
       message.error(getApiErrorMessage(error, "机构生效版本生成失败"));
+    }
+  }
+
+  async function simulateSelectedReleaseImpact() {
+    if (!hospitalId || !selectedHospital?.orgPath) {
+      message.warning("请先选择组织路径完整的目标医院");
+      return;
+    }
+    if (selectedLocalCandidates.length === 0) {
+      message.warning("请先选择需要进入机构生效版本的集团或本院内容");
+      return;
+    }
+    try {
+      setImpactError(undefined);
+      const results = await Promise.all(
+        selectedLocalCandidates.map((candidate) =>
+          simulateReleaseImpact.mutateAsync({
+            assetType: candidate.assetType,
+            assetIdentity: candidate.assetIdentity,
+            candidateVersionId: candidate.versionId,
+            targetOrgUnitIds: [hospitalId],
+            targetOrgPath: selectedHospital.orgPath as string,
+            applicableScope: candidate.applicableScope,
+            rolloutPolicy: {
+              strategy: "ORG_LIST",
+              orgUnitIds: [hospitalId],
+            },
+            replayDays: 30,
+            replayLimit: 100,
+          }),
+        ),
+      );
+      setImpactResults(results);
+      const blocked = results.filter((result) => !result.releasable).length;
+      if (blocked > 0) {
+        message.warning(`${blocked} 项内容需要处理后再生成机构生效版本`);
+      } else {
+        message.success("发布影响评估通过");
+      }
+    } catch (error) {
+      const fallback = "发布影响评估失败";
+      const reason = getApiErrorMessage(error, fallback);
+      setImpactResults([]);
+      setImpactError(reason);
+      message.error(reason);
     }
   }
 
@@ -554,6 +673,95 @@ export default function ReleaseGovernance() {
               ]}
             />
           </Card>
+
+          {selectedLocalCandidates.length > 0 && (
+            <Card
+              title="发布影响评估"
+              extra={
+                <Button
+                  aria-label="评估发布影响"
+                  icon={<SafetyCertificateOutlined />}
+                  loading={simulateReleaseImpact.isPending}
+                  onClick={() => void simulateSelectedReleaseImpact()}
+                >
+                  评估发布影响
+                </Button>
+              }
+            >
+              <Space direction="vertical" className={styles.fullWidth}>
+                {impactError && (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message="发布影响评估未完成"
+                    description={impactError}
+                  />
+                )}
+                <Table
+                  rowKey="candidateVersionId"
+                  size="small"
+                  pagination={false}
+                  dataSource={impactResults}
+                  locale={{ emptyText: "尚未评估本次机构内容变更" }}
+                  columns={[
+                    {
+                      title: "内容",
+                      render: (_value, result) => {
+                        const candidate = localCandidates.find(
+                          (item) => item.versionId === result.candidateVersionId,
+                        );
+                        return (
+                          <Space direction="vertical" size={0}>
+                            <Text strong>
+                              {candidate?.assetIdentity ?? result.candidateVersionId}
+                            </Text>
+                            <Text type="secondary">
+                              {candidate ? ENGINE_ASSET_LABELS[candidate.assetType] : "运行资产"} ·{" "}
+                              {result.diff.candidateVersionNo ?? candidate?.versionNo ?? "候选版本"}
+                            </Text>
+                          </Space>
+                        );
+                      },
+                    },
+                    {
+                      title: "结论",
+                      width: 100,
+                      render: (_value, result) => (
+                        <Tag color={result.releasable ? "success" : "error"}>
+                          {result.releasable ? "可发布" : "需处理"}
+                        </Tag>
+                      ),
+                    },
+                    {
+                      title: "病例回放",
+                      render: (_value, result) => replaySummary(result),
+                    },
+                    {
+                      title: "依赖影响",
+                      render: (_value, result) => (
+                        <Space direction="vertical" size={0}>
+                          <Text>{dependencyImpactSummary(result)}</Text>
+                          {result.replay.impactedAssets.map((asset) => (
+                            <Text
+                              key={`${asset.assetType}|${asset.assetIdentity}|${asset.versionId}`}
+                              type="secondary"
+                            >
+                              {ENGINE_ASSET_LABELS[asset.assetType]} · {asset.assetIdentity} ·{" "}
+                              {asset.versionNo}
+                            </Text>
+                          ))}
+                        </Space>
+                      ),
+                    },
+                    {
+                      title: "阻断原因",
+                      render: (_value, result) => impactIssueSummary(result),
+                    },
+                  ]}
+                />
+              </Space>
+            </Card>
+          )}
 
           <div className={styles.primaryAction}>
             <Button

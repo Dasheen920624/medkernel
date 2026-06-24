@@ -9,6 +9,7 @@ import ReleaseGovernance from "./ReleaseGovernance";
 const publishPlatformAsync = vi.fn();
 const activateHospitalAsync = vi.fn();
 const rollbackHospitalAsync = vi.fn();
+const simulateReleaseImpactAsync = vi.fn();
 const useOrgUnitsMock = vi.fn();
 
 vi.mock("@/shared/api/hooks", async () => {
@@ -86,6 +87,7 @@ vi.mock("@/shared/api/hooks", async () => {
             versionNo: "V2",
             status: "DRAFT",
             organizationScope: "/platform",
+            applicableScope: "ALL",
             contentHash: "3".repeat(64),
             sourceRef: "指南 2026",
             updatedAt: "2026-06-23T09:00:00Z",
@@ -144,6 +146,7 @@ vi.mock("@/shared/api/hooks", async () => {
             versionNo: "V3",
             status: "PUBLISHED",
             organizationScope: "/tenant-a/hospital-a",
+            applicableScope: "adult|inpatient",
             contentHash: "4".repeat(64),
             sourceRef: "本院路径",
             updatedAt: "2026-06-23T09:30:00Z",
@@ -193,6 +196,10 @@ vi.mock("@/shared/api/hooks", async () => {
       mutateAsync: rollbackHospitalAsync,
       isPending: false,
     }),
+    useSimulateReleaseImpact: () => ({
+      mutateAsync: simulateReleaseImpactAsync,
+      isPending: false,
+    }),
   };
 });
 
@@ -213,10 +220,55 @@ describe("ReleaseGovernance", () => {
     publishPlatformAsync.mockReset();
     activateHospitalAsync.mockReset();
     rollbackHospitalAsync.mockReset();
+    simulateReleaseImpactAsync.mockReset();
     useOrgUnitsMock.mockReset();
     publishPlatformAsync.mockResolvedValue({ revisionNo: 9 });
     activateHospitalAsync.mockResolvedValue({ revisionNo: 10 });
     rollbackHospitalAsync.mockResolvedValue({ revisionNo: 10 });
+    simulateReleaseImpactAsync.mockResolvedValue({
+      simulationDigest: "d".repeat(64),
+      generatedAt: "2026-06-23T10:00:00Z",
+      candidateVersionId: "path-v3",
+      currentVersionId: "path-v2",
+      affectedOrganizations: [
+        {
+          orgUnitId: "hospital-a",
+          orgPath: "/tenant-a/hospital-a",
+          orgName: "中心医院",
+        },
+      ],
+      applicableDimensions: ["adult|inpatient"],
+      diff: {
+        changeType: "MODIFIED",
+        currentVersionNo: "V2",
+        candidateVersionNo: "V3",
+        currentContentHash: "1".repeat(64),
+        candidateContentHash: "4".repeat(64),
+      },
+      replay: {
+        status: "SUPPORTED",
+        sampledCases: 12,
+        changedCases: 2,
+        triggerIncreases: 1,
+        triggerDecreases: 0,
+        severityIncreases: 0,
+        severityDecreases: 0,
+        highRiskSnapshotIds: [],
+        impactedAssets: [
+          {
+            assetType: "RULE",
+            assetIdentity: "RULE.ANEMIA",
+            versionId: "rule-active",
+            versionNo: "V3",
+          },
+        ],
+        reason: null,
+      },
+      safety: { passed: true, issues: [] },
+      dependencies: { passed: true, issues: [] },
+      conflicts: [],
+      releasable: true,
+    });
   });
 
   it("publishes the selected platform draft and explicit tombstone as the next platform standard version", async () => {
@@ -249,6 +301,8 @@ describe("ReleaseGovernance", () => {
     expect(await screen.findByText("当前机构生效版本 第 9 版")).toBeInTheDocument();
     expect(screen.getByLabelText("启用平台内容 RULE.CKD")).toBeChecked();
     fireEvent.click(screen.getByLabelText("启用本地内容 PATH.CKD.LOCAL V3"));
+    fireEvent.click(screen.getByRole("button", { name: "评估发布影响" }));
+    await screen.findByText("可发布");
     fireEvent.click(screen.getByRole("button", { name: "生成新机构生效版本" }));
 
     await waitFor(() =>
@@ -268,6 +322,47 @@ describe("ReleaseGovernance", () => {
         },
       }),
     );
+  });
+
+  it("does not create an institution effective version with unassessed local content", async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
+    fireEvent.click(await screen.findByText(/中心医院/));
+    fireEvent.click(screen.getByLabelText("启用本地内容 PATH.CKD.LOCAL V3"));
+    fireEvent.click(screen.getByRole("button", { name: "生成新机构生效版本" }));
+
+    expect(activateHospitalAsync).not.toHaveBeenCalled();
+  });
+
+  it("runs release impact assessment for selected local assets before creating the institution effective version", async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
+    fireEvent.click(await screen.findByText(/中心医院/));
+    fireEvent.click(screen.getByLabelText("启用本地内容 PATH.CKD.LOCAL V3"));
+    fireEvent.click(screen.getByRole("button", { name: "评估发布影响" }));
+
+    await waitFor(() =>
+      expect(simulateReleaseImpactAsync).toHaveBeenCalledWith({
+        assetType: "PATHWAY",
+        assetIdentity: "PATH.CKD.LOCAL",
+        candidateVersionId: "path-v3",
+        targetOrgUnitIds: ["hospital-a"],
+        targetOrgPath: "/tenant-a/hospital-a",
+        applicableScope: "adult|inpatient",
+        rolloutPolicy: {
+          strategy: "ORG_LIST",
+          orgUnitIds: ["hospital-a"],
+        },
+        replayDays: 30,
+        replayLimit: 100,
+      }),
+    );
+    expect(await screen.findByText("可发布")).toBeInTheDocument();
+    expect(screen.getByText("回放病例 12 例，变化 2 例")).toBeInTheDocument();
+    expect(screen.getByText("影响 1 项在用资产")).toBeInTheDocument();
+    expect(screen.getByText("规则 · RULE.ANEMIA · V3")).toBeInTheDocument();
   });
 
   it("rolls back only by selecting a real historical institution effective version", async () => {

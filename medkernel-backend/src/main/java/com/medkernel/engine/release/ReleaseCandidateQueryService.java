@@ -137,6 +137,7 @@ public class ReleaseCandidateQueryService {
             version.versionNo(),
             version.status(),
             version.organizationScope(),
+            version.applicableScope(),
             version.contentHash(),
             version.sourceRef(),
             version.updatedAt()
