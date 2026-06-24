@@ -123,6 +123,8 @@ describe("product role journeys", () => {
     expect(configSource).toContain("E2E_EXTERNAL_DEPLOYMENT");
     expect(configSource).toContain("E2E_EVIDENCE_DIR");
     expect(configSource).toContain("E2E_IGNORE_HTTPS_ERRORS");
+    expect(configSource).toContain("MEDKERNEL_PLAYWRIGHT_CHROMIUM_EXECUTABLE");
+    expect(configSource).toContain("MEDKERNEL_PLAYWRIGHT_NO_SANDBOX");
     expect(configSource).toContain("outputDir:");
     expect(configSource).toContain("assertOutsideRepository");
     expect(embedHostSource).toContain("process.env.E2E_BASE_URL");

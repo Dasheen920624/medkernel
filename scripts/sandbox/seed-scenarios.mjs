@@ -47,6 +47,16 @@ export function resolveSandboxEvidenceDir(
 const evidenceDir = resolveSandboxEvidenceDir();
 const mappingVersion = "sandbox-context-v1";
 
+export function resolveChromiumLaunchOptions(env = process.env) {
+  const executablePath =
+    env.MEDKERNEL_PLAYWRIGHT_CHROMIUM_EXECUTABLE?.trim() || "";
+  if (!executablePath) return {};
+  return {
+    executablePath,
+    args: env.MEDKERNEL_PLAYWRIGHT_NO_SANDBOX === "1" ? ["--no-sandbox"] : [],
+  };
+}
+
 export const RULE_GOVERNANCE_STAGES = Object.freeze([
   "DRAFT",
   "REVIEWED",
@@ -902,7 +912,7 @@ export async function runSeed() {
   };
   if (process.env.SEED_VALIDATE_ONLY === "1") return summary;
 
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(resolveChromiumLaunchOptions());
   try {
     const credentials = await loadCredentials();
     const expectedTenantId = manifest.scenarios[0].institution.tenantId;

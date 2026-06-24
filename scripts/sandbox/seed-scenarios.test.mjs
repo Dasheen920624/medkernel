@@ -6,6 +6,7 @@ import { loadScenarioRules } from "./scenario-rules.mjs";
 import {
   buildCanonicalResources,
   deriveSandboxRuntimeDigest,
+  resolveChromiumLaunchOptions,
   resolveSandboxEvidenceDir,
   resolveSandboxAccounts,
   RULE_GOVERNANCE_STAGES,
@@ -47,6 +48,22 @@ test("沙盘证据只写运行时目录且拒绝回写仓库", () => {
         "/workspace/medkernel",
       ),
     /必须位于代码仓库之外/u,
+  );
+});
+
+test("沙盘浏览器可显式使用受信演练环境中的 Chromium 可执行文件", () => {
+  assert.deepEqual(resolveChromiumLaunchOptions({}), {});
+  assert.deepEqual(
+    resolveChromiumLaunchOptions({
+      MEDKERNEL_PLAYWRIGHT_CHROMIUM_EXECUTABLE:
+        "/root/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome",
+      MEDKERNEL_PLAYWRIGHT_NO_SANDBOX: "1",
+    }),
+    {
+      executablePath:
+        "/root/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome",
+      args: ["--no-sandbox"],
+    },
   );
 });
 

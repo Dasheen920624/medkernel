@@ -88,7 +88,7 @@ public class CredentialAdminService {
         passwordPolicy.assertCompliant(rawPassword);
         Instant now = Instant.now();
         credentials.save(new PlatformCredential(
-            null, "cred-" + userId, tenantId, userId, username,
+            null, credentialId(tenantId, userId), tenantId, userId, username,
             credentialPasswords.encode(rawPassword), "ACTIVE", "Y", null,
             now, actor, now, actor, traceId()));
         String roleCode = normalizedRoleCode(roleCodeValue);
@@ -151,6 +151,10 @@ public class CredentialAdminService {
     private boolean hasRole(String tenantId, String userId, String roleCode) {
         return roleAssignments.findActiveByTenantIdAndUserId(tenantId, userId).stream()
             .anyMatch(a -> roleCode.equals(a.roleCode()));
+    }
+
+    private String credentialId(String tenantId, String userId) {
+        return "cred-" + tenantId + "-" + userId;
     }
 
     private PlatformCredential find(String userId) {
