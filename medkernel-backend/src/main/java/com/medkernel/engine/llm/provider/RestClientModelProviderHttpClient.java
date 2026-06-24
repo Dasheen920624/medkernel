@@ -1,5 +1,6 @@
 package com.medkernel.engine.llm.provider;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
 
@@ -18,21 +19,23 @@ public class RestClientModelProviderHttpClient implements ModelProviderHttpClien
 
     @Override
     public String post(String url, Map<String, String> headers, String body, int timeoutMs) {
-        return restClient(timeoutMs).post()
+        byte[] response = restClient(timeoutMs).post()
             .uri(url)
             .headers(h -> headers.forEach(h::set))
             .body(body)
             .retrieve()
-            .body(String.class);
+            .body(byte[].class);
+        return decode(response);
     }
 
     @Override
     public String get(String url, Map<String, String> headers, int timeoutMs) {
-        return restClient(timeoutMs).get()
+        byte[] response = restClient(timeoutMs).get()
             .uri(url)
             .headers(h -> headers.forEach(h::set))
             .retrieve()
-            .body(String.class);
+            .body(byte[].class);
+        return decode(response);
     }
 
     private RestClient restClient(int timeoutMs) {
@@ -41,5 +44,9 @@ public class RestClientModelProviderHttpClient implements ModelProviderHttpClien
         factory.setConnectTimeout(Duration.ofMillis(Math.min(5_000, boundedTimeoutMs)));
         factory.setReadTimeout(Duration.ofMillis(boundedTimeoutMs));
         return RestClient.builder().requestFactory(factory).build();
+    }
+
+    private String decode(byte[] response) {
+        return response == null ? "" : new String(response, StandardCharsets.UTF_8);
     }
 }

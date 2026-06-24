@@ -19,6 +19,9 @@ import com.medkernel.engine.authoring.GeneratedAssetCandidateService;
 import com.medkernel.engine.authoring.GeneratedAssetDraftResponse;
 import com.medkernel.engine.factory.AssetSourceRef;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
+import com.medkernel.engine.knowledge.KnowledgeIdentity;
+import com.medkernel.engine.knowledge.KnowledgeIdentityRepository;
+import com.medkernel.engine.knowledge.KnowledgeIdentityStatus;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.knowledge.production.CandidateSubmissionResponse;
@@ -83,6 +86,7 @@ class ModelKnowledgeProducerTest {
     private final KnowledgeGenerationTriageService triageService = mock(KnowledgeGenerationTriageService.class);
     private final KnowledgeShadowEvaluationService shadowService = mock(KnowledgeShadowEvaluationService.class);
     private final GeneratedAssetCandidateService generatedAssets = mock(GeneratedAssetCandidateService.class);
+    private final KnowledgeIdentityRepository identityRepository = mock(KnowledgeIdentityRepository.class);
 
     private final ModelKnowledgeProducer producer = new ModelKnowledgeProducer(
         jobRepository,
@@ -93,6 +97,7 @@ class ModelKnowledgeProducerTest {
         triageService,
         shadowService,
         generatedAssets,
+        identityRepository,
         new ObjectMapper());
 
     @BeforeEach
@@ -111,6 +116,9 @@ class ModelKnowledgeProducerTest {
         when(production.submitCandidate(eq(JOB_CODE), any(), any())).thenReturn(new CandidateSubmissionResponse(
             "candidate:model:1",
             new ReviewRoutingDecision(RoleCode.ENGINE_OPERATOR, KnowledgeDomain.CLINICAL)));
+        when(identityRepository.findByTenantIdAndId(TENANT, 101L))
+            .thenReturn(Optional.of(identity(101L, "knowledge:htn:model",
+                com.medkernel.engine.knowledge.KnowledgeDomain.GUIDELINE, "高血压知识候选")));
     }
 
     @AfterEach
@@ -271,6 +279,22 @@ class ModelKnowledgeProducerTest {
             .contains(
                 "\"domain\":\"DIAGNOSTIC_ITEM\"",
                 "\"subject\":\"检验项目说明书来源与使用边界\"",
+                "\"sourceRef\":\"GL-HTN-2024:v1:section-1\"",
+                "\"clinicalActionable\":false");
+    }
+
+    @Test
+    void existingIdentityGenerationCarriesIdentityDomainInAuthoritativeOutputContext() {
+        when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(successfulModelTask());
+        ArgumentCaptor<ModelTaskRequest> taskCaptor = ArgumentCaptor.forClass(ModelTaskRequest.class);
+
+        producer.generate(JOB_CODE, request());
+
+        verify(modelGateway).submitTask(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().authoritativeOutputContext())
+            .contains(
+                "\"domain\":\"GUIDELINE\"",
+                "\"subject\":\"高血压知识候选\"",
                 "\"sourceRef\":\"GL-HTN-2024:v1:section-1\"",
                 "\"clinicalActionable\":false");
     }
@@ -457,6 +481,26 @@ class ModelKnowledgeProducerTest {
 
     private AssetSourceRef sourceRef() {
         return new AssetSourceRef("GL-HTN-2024:v1:section-1", SourceAuthorityLevel.B_GUIDELINE);
+    }
+
+    private KnowledgeIdentity identity(Long id, String identityCode,
+                                       com.medkernel.engine.knowledge.KnowledgeDomain domain,
+                                       String subject) {
+        Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        return new KnowledgeIdentity(
+            id,
+            TENANT,
+            identityCode,
+            domain,
+            subject,
+            null,
+            null,
+            KnowledgeIdentityStatus.ACTIVE,
+            null,
+            now,
+            "tester",
+            now,
+            "tester");
     }
 
     private KnowledgeProductionJob job(KnowledgeProducer jobProducer) {

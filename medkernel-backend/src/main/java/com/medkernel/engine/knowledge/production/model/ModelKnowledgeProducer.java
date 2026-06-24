@@ -10,6 +10,8 @@ import com.medkernel.engine.authoring.GeneratedAssetCandidateRequest;
 import com.medkernel.engine.authoring.GeneratedAssetCandidateService;
 import com.medkernel.engine.authoring.GeneratedAssetDraftResponse;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
+import com.medkernel.engine.knowledge.KnowledgeIdentity;
+import com.medkernel.engine.knowledge.KnowledgeIdentityRepository;
 import com.medkernel.engine.knowledge.production.CandidateSubmissionResponse;
 import com.medkernel.engine.knowledge.production.KnowledgeProducer;
 import com.medkernel.engine.knowledge.production.KnowledgeProductionJob;
@@ -65,6 +67,7 @@ public class ModelKnowledgeProducer {
     private final KnowledgeGenerationTriageService triageService;
     private final KnowledgeShadowEvaluationService shadowService;
     private final GeneratedAssetCandidateService generatedAssets;
+    private final KnowledgeIdentityRepository identityRepository;
     private final ObjectMapper objectMapper;
 
     public ModelKnowledgeProducer(KnowledgeProductionJobRepository jobRepository,
@@ -75,6 +78,7 @@ public class ModelKnowledgeProducer {
                                   KnowledgeGenerationTriageService triageService,
                                   KnowledgeShadowEvaluationService shadowService,
                                   GeneratedAssetCandidateService generatedAssets,
+                                  KnowledgeIdentityRepository identityRepository,
                                   ObjectMapper objectMapper) {
         this.jobRepository = jobRepository;
         this.readinessService = readinessService;
@@ -84,6 +88,7 @@ public class ModelKnowledgeProducer {
         this.triageService = triageService;
         this.shadowService = shadowService;
         this.generatedAssets = generatedAssets;
+        this.identityRepository = identityRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -109,7 +114,7 @@ public class ModelKnowledgeProducer {
         ModelTaskResponse task = modelGateway.submitTask(new ModelTaskRequest(
             request.capabilityCode(), request.prompt(), request.timeoutSeconds(),
             requiredRouteStrategy(job, readiness), request.providerCode(),
-            authoritativeOutputContext(request)));
+            authoritativeOutputContext(tenantId, request)));
         if (isB0Fallback(task)) {
             return result(jobCode, task, new GenerationSummary(
                 List.of(),
@@ -227,13 +232,17 @@ public class ModelKnowledgeProducer {
         return "EXTERNAL_MODEL";
     }
 
-    private String authoritativeOutputContext(ModelKnowledgeProductionRequest request) {
+    private String authoritativeOutputContext(String tenantId, ModelKnowledgeProductionRequest request) {
         ObjectNode root = objectMapper.createObjectNode();
         if (request.target().newIdentity() != null) {
             root.put("domain", request.target().newIdentity().domain().name());
             root.put("subject", request.target().newIdentity().subject());
         } else {
-            root.put("subject", request.subject());
+            KnowledgeIdentity identity = identityRepository
+                .findByTenantIdAndId(tenantId, request.target().targetIdentityId())
+                .orElseThrow(() -> ApiException.notFound("知识身份 id=" + request.target().targetIdentityId()));
+            root.put("domain", identity.domain().name());
+            root.put("subject", identity.subject());
         }
         root.put("clinicalActionable", false);
         var sourceReferences = root.putArray("sourceReferences");
