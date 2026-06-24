@@ -71,6 +71,9 @@
 
 - `frontend/src/pages/tenant/PathwayTemplates.test.tsx`：字段目录不可用时阻断路径条件同步的交互测试沿用
   页面内既有 `PATHWAY_INTERACTION_TIMEOUT_MS`，避免全量 Vitest 资源压力下误超时；业务断言未放宽。
+- 134 已安装当前 `deploy/onprem/medkernel-fresh-deploy.sh` 到
+  `/zoesoft/medkernel/bin/medkernel-fresh-deploy.sh`，远端 SHA-256 为
+  `8dfd8e872ef4ab0856289567bb6ee2056c7daeb5a564891e4df2cc3e4e4dccac`，与本地候选脚本一致。
 
 后续改动必须继续使用 TDD 或先复现后修复，完成声明前重新跑与改动相关的门禁。
 
@@ -79,21 +82,19 @@
 - 目标主机：`193.112.107.134`，hostname 为 `VM-0-13-opencloudos`。
 - 当前远端 `medkernel`、`nginx`、`postgresql` 均 active；内部 readiness 返回 `{"status":"UP"}`。
 - 当前远端运行旧部署提交 `2c502f1e547a185dc5ab95a76d7a3329c4d1f724`，不是本轮候选。
-- `/zoesoft/medkernel/bin` 当前只有 `medkernel-backup.sh`、`medkernel-deploy.sh`、历史
-  `medkernel-deploy.sh.pre-codex-` 和 `mk-publish.sh`，尚未安装当前
-  `medkernel-fresh-deploy.sh`。
+- `/zoesoft/medkernel/bin` 已安装当前 `medkernel-fresh-deploy.sh`，权限为 `0750 root:root`。
 - `/zoesoft/medkernel/conf/medkernel.env` 权限为 `600 medkernel:medkernel`。
-- 2026-06-24 将当前仓库 `medkernel-fresh-deploy.sh` 临时传到远端 `/tmp` 后执行
-  `--validate-environment-only`，失败于 `MEDKERNEL_BOOTSTRAP_INIT_TOKEN` 未配置；未读取或输出密钥值。
+- 2026-06-24 使用远端正式目录脚本执行 `--validate-environment-only`，失败于
+  `MEDKERNEL_BOOTSTRAP_INIT_TOKEN` 未配置；远端不存在 `/zoesoft/medkernel/conf/bootstrap-init-token.txt`；
+  未读取或输出密钥值。
 - 134 公网 HTTPS 证书仍为自签 `CN=193.112.107.134`，无 Subject Alternative Name；
   严格 `curl` 失败于 `self signed certificate`，`openssl s_client` 返回 verify error 18。
-- 严格 TLS、可信 SAN 证书、首次接管令牌和清库部署脚本安装未完成前，不得执行上线通过声明，也不得把
-  本地演练或历史截图替代 134 真实证据。
+- 严格 TLS、可信 SAN 证书和首次接管令牌未完成前，不得执行上线通过声明，也不得把本地演练或历史截图
+  替代 134 真实证据。
 
 ## 下一步
 
-1. 待 134 配置可信 SAN 证书、首次接管令牌，并安装当前清库部署脚本后，重新执行环境预检和严格 TLS
-   验证。
+1. 待 134 配置可信 SAN 证书和首次接管令牌后，重新执行环境预检和严格 TLS 验证。
 2. 134 预检通过后，再按
    [DEPLOYMENT_AND_REHEARSAL](DEPLOYMENT_AND_REHEARSAL.md) 执行清库 V1、首次接管、八段全系统演练、
    全知识演练、重启和备份恢复复核。
