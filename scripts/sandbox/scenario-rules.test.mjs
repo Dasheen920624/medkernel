@@ -95,6 +95,22 @@ test("每条规则的 DSL 适用域满足后端规则契约", async () => {
   }
 });
 
+test("非急诊单场景规则的四类样例显式提供匹配就诊场景", async () => {
+  const manifest = await loadScenarioRules();
+
+  for (const scenario of manifest.scenarios) {
+    const settings = scenario.clinicalContent.dsl.applicability.settings;
+    if (settings.includes("ED")) continue;
+    for (const testCase of scenario.clinicalContent.testCases) {
+      const encounters = testCase.facts.encounters ?? [];
+      assert.ok(
+        encounters.some((item) => settings.includes(item.encounterType)),
+        `${scenario.ruleCode}/${testCase.caseType} 缺少 ${settings.join("|")} 场景`,
+      );
+    }
+  }
+});
+
 test("每条规则的 DSL 不再内嵌触发点", async () => {
   const manifest = await loadScenarioRules();
 
@@ -189,4 +205,14 @@ test("缺来源、缺机构归属或缺四类样例会被清单校验拒绝", as
   const missingOrgScope = structuredClone(manifest);
   delete missingOrgScope.scenarios[0].clinicalContent.dsl.applicability.orgScope;
   assert.throws(() => validateScenarioRules(missingOrgScope), /orgScope/);
+
+  const missingSingleSettingEncounter = structuredClone(manifest);
+  const followupRule = missingSingleSettingEncounter.scenarios.find(
+    (item) => item.ruleCode === "SBX.FOLLOWUP.INR",
+  );
+  delete followupRule.clinicalContent.testCases[0].facts.encounters;
+  assert.throws(
+    () => validateScenarioRules(missingSingleSettingEncounter),
+    /匹配适用场景/,
+  );
 });

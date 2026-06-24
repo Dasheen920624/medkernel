@@ -798,8 +798,17 @@
                 "operator": "exists"
               },
               {
-                "expr": { "field": "followUps[].planType" },
-                "operator": "is_missing"
+                "any": [
+                  {
+                    "expr": { "field": "followUps[].planType" },
+                    "operator": "is_missing"
+                  },
+                  {
+                    "expr": { "field": "followUps[].planType" },
+                    "operator": "in",
+                    "value": ["UNCLASSIFIED"]
+                  }
+                ]
               }
             ]
           },
@@ -970,6 +979,7 @@
             "patientId": "SBX-FU-001",
             "encounterId": "SBX-FU-ENC-001",
             "facts": {
+              "encounters": [{ "encounterType": "FOLLOWUP" }],
               "followUps": [
                 { "planType": "ANTICOAGULATION", "abnormalFlag": "HIGH" }
               ],
@@ -991,6 +1001,7 @@
             "patientId": "SBX-INR-NEG",
             "encounterId": "SBX-INR-ENC-NEG",
             "facts": {
+              "encounters": [{ "encounterType": "FOLLOWUP" }],
               "followUps": [
                 { "planType": "ANTICOAGULATION", "abnormalFlag": "NORMAL" }
               ],
@@ -1010,6 +1021,7 @@
             "patientId": "SBX-INR-BND",
             "encounterId": "SBX-INR-ENC-BND",
             "facts": {
+              "encounters": [{ "encounterType": "FOLLOWUP" }],
               "followUps": [
                 { "planType": "ANTICOAGULATION", "abnormalFlag": "HIGH" }
               ],
@@ -1031,6 +1043,7 @@
             "patientId": "SBX-INR-MIS",
             "encounterId": "SBX-INR-ENC-MIS",
             "facts": {
+              "encounters": [{ "encounterType": "FOLLOWUP" }],
               "followUps": [
                 { "planType": "ANTICOAGULATION", "abnormalFlag": "HIGH" }
               ],
@@ -1118,6 +1131,7 @@
             "patientId": "SBX-INS-001",
             "encounterId": "SBX-INS-ENC-001",
             "facts": {
+              "encounters": [{ "encounterType": "INPATIENT" }],
               "claims": [{ "drgCode": "SBX-DRG-A", "totalCost": 12000 }]
             },
             "expectedHit": true,
@@ -1129,6 +1143,7 @@
             "patientId": "SBX-DRG-NEG",
             "encounterId": "SBX-DRG-ENC-NEG",
             "facts": {
+              "encounters": [{ "encounterType": "INPATIENT" }],
               "claims": [
                 {
                   "drgCode": "SBX-DRG-A",
@@ -1144,6 +1159,7 @@
             "patientId": "SBX-DRG-BND",
             "encounterId": "SBX-DRG-ENC-BND",
             "facts": {
+              "encounters": [{ "encounterType": "INPATIENT" }],
               "claims": [
                 { "drgCode": "SBX-DRG-A", "totalCost": 0, "insurancePaid": 0 }
               ]
@@ -1154,7 +1170,10 @@
             "caseType": "CONFLICT",
             "patientId": "SBX-DRG-MIS",
             "encounterId": "SBX-DRG-ENC-MIS",
-            "facts": { "claims": [{ "totalCost": 12000 }] },
+            "facts": {
+              "encounters": [{ "encounterType": "INPATIENT" }],
+              "claims": [{ "totalCost": 12000 }]
+            },
             "expectedHit": false
           }
         ]
@@ -1235,6 +1254,7 @@
             "patientId": "SBX-QC-001",
             "encounterId": "SBX-QC-ENC-001",
             "facts": {
+              "encounters": [{ "encounterType": "INPATIENT" }],
               "documents": [
                 {
                   "documentType": "DISCHARGE_SUMMARY",
@@ -1251,6 +1271,7 @@
             "patientId": "SBX-QC-NEG",
             "encounterId": "SBX-QC-ENC-NEG",
             "facts": {
+              "encounters": [{ "encounterType": "INPATIENT" }],
               "documents": [
                 {
                   "documentType": "DISCHARGE_SUMMARY",
@@ -1266,6 +1287,7 @@
             "patientId": "SBX-QC-BND",
             "encounterId": "SBX-QC-ENC-BND",
             "facts": {
+              "encounters": [{ "encounterType": "INPATIENT" }],
               "documents": [
                 {
                   "documentType": "DISCHARGE_SUMMARY",
@@ -1283,6 +1305,7 @@
             "patientId": "SBX-QC-MIS",
             "encounterId": "SBX-QC-ENC-MIS",
             "facts": {
+              "encounters": [{ "encounterType": "INPATIENT" }],
               "documents": [{ "contentDigest": "sha256:sbx-qc-mis" }]
             },
             "expectedHit": false

@@ -182,6 +182,11 @@ function validateClinicalContent(scenario) {
         `沙盘规则 ${scenario.ruleCode}/${testCase.caseType} 测试数据不完整`,
       );
     }
+    validateTestCaseApplicability(
+      scenario,
+      testCase,
+      content.dsl.applicability.settings,
+    );
   }
   for (const action of content.dsl.then) {
     if (!new Set(["info", "warning", "critical"]).has(action.indicator)) {
@@ -204,6 +209,19 @@ function validateClinicalContent(scenario) {
     if (!action.detail?.includes("不自动")) {
       throw new Error(`沙盘规则 ${scenario.ruleCode} 未声明不自动执行临床动作`);
     }
+  }
+}
+
+function validateTestCaseApplicability(scenario, testCase, settings) {
+  if (settings.includes("ED")) return;
+  const encounters = testCase.facts.encounters;
+  if (
+    !Array.isArray(encounters) ||
+    !encounters.some((item) => settings.includes(item?.encounterType))
+  ) {
+    throw new Error(
+      `沙盘规则 ${scenario.ruleCode}/${testCase.caseType} 缺少匹配适用场景 ${settings.join("|")}`,
+    );
   }
 }
 

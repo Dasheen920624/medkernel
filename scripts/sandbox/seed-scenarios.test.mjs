@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { loadScenarioRules } from "./scenario-rules.mjs";
+import { evaluateScenarioCase, loadScenarioRules } from "./scenario-rules.mjs";
 import {
   buildCanonicalResources,
   deriveSandboxRuntimeDigest,
@@ -232,6 +232,25 @@ test("缺字段样例使用非匹配占位值通过 DTO 校验且不伪造医学
     "UNASSIGNED",
   );
   assert.equal(buildCanonicalResources(recordCase).patient.birthDate, null);
+});
+
+test("出院随访空类型边界在标准资源规范化后仍触发缺随访提醒", () => {
+  const rule = manifest.scenarios.find(
+    (item) => item.ruleCode === "SBX.DISCHARGE.CHECK",
+  );
+  const boundary = rule.clinicalContent.testCases.find(
+    (item) => item.caseType === "BOUNDARY",
+  );
+  const resources = buildCanonicalResources(
+    boundary,
+    "2026-06-19T03:00:00.000Z",
+  );
+
+  assert.equal(resources.followUps[0].planType, "UNCLASSIFIED");
+  assert.equal(
+    evaluateScenarioCase(rule, { ...boundary, facts: resources }),
+    true,
+  );
 });
 
 function canonicalCredentials() {
