@@ -235,6 +235,11 @@ function canonicalCredentials() {
     rehearsal: {
       tenantId: "t-rehearsal",
       tenantName: "完整上线演练机构",
+      hospital: {
+        code: "REHEARSAL-HOSPITAL",
+        name: "完整上线演练医院",
+        facilityType: "HOSPITAL",
+      },
       accounts: accounts("t-rehearsal"),
     },
   });

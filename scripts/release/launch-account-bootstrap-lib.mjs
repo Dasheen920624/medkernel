@@ -17,6 +17,11 @@ export const ASSIGNABLE_ROLES = Object.freeze([
   "auditor",
 ]);
 
+const REHEARSAL_HOSPITAL = Object.freeze({
+  code: "REHEARSAL-HOSPITAL",
+  name: "完整上线演练医院",
+  facilityType: "HOSPITAL",
+});
 const ROLE_SET = new Set(ASSIGNABLE_ROLES);
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -35,7 +40,10 @@ const ALLOWED_PATHS = Object.freeze([
   ["POST", /^\/auth\/login$/u],
   ["POST", /^\/auth\/change-password$/u],
   ["POST", /^\/compliance\/users$/u],
+  ["POST", /^\/compliance\/users\/[^/]+\/roles$/u],
   ["POST", /^\/admin\/tenants$/u],
+  ["GET", /^\/engine\/org\/org-units\/by-level\?level=TENANT$/u],
+  ["POST", /^\/engine\/org\/org-units$/u],
   ["GET", /^\/security\/me$/u],
 ]);
 
@@ -63,6 +71,7 @@ export function buildLaunchCredentialPlan(options = {}) {
     rehearsal: {
       tenantId: rehearsalTenantId,
       tenantName: "完整上线演练机构",
+      hospital: { ...REHEARSAL_HOSPITAL },
       accounts: roleAccounts(rehearsalTenantId, "rehearsal", passwordFactory),
     },
   };
@@ -85,6 +94,7 @@ export function validateLaunchCredentials(credentials) {
   validateScope(credentials.platform, "platform", "t-1");
   validateScope(credentials.rehearsal, "rehearsal", "t-rehearsal");
   requireText(credentials.rehearsal.tenantName, "rehearsal.tenantName");
+  validateRehearsalHospital(credentials.rehearsal.hospital);
   validateAccount(
     credentials.platform.takeover,
     "platform.takeover",
@@ -245,12 +255,38 @@ export async function runLaunchAccountBootstrap(options) {
     },
     label: "开通完整上线演练机构",
   });
-  const rehearsalAdminSession = await finalizeAccount({
+  let rehearsalAdminSession = await finalizeAccount({
     apiBaseUrl,
     fetchImpl,
     requests,
     account: rehearsalAdmin,
     expectedRole: "platform-admin",
+  });
+  const rehearsalHospital = await provisionRehearsalHospital({
+    apiBaseUrl,
+    fetchImpl,
+    requests,
+    session: rehearsalAdminSession,
+    hospital: plan.rehearsal.hospital,
+  });
+  await assignFacilityRole({
+    apiBaseUrl,
+    fetchImpl,
+    requests,
+    session: rehearsalAdminSession,
+    account: rehearsalAdmin,
+    hospitalId: rehearsalHospital.id,
+  });
+  rehearsalAdminSession = await verifyFinalAccount({
+    apiBaseUrl,
+    fetchImpl,
+    requests,
+    account: rehearsalAdmin,
+    expectedRole: "platform-admin",
+    expectedScope: {
+      tenantId: rehearsalAdmin.tenantId,
+      hospitalId: rehearsalHospital.id,
+    },
   });
 
   for (const role of ASSIGNABLE_ROLES.filter((value) => value !== "platform-admin")) {
@@ -262,12 +298,24 @@ export async function runLaunchAccountBootstrap(options) {
       session: rehearsalAdminSession,
       account: target,
     });
+    await assignFacilityRole({
+      apiBaseUrl,
+      fetchImpl,
+      requests,
+      session: rehearsalAdminSession,
+      account: target,
+      hospitalId: rehearsalHospital.id,
+    });
     await finalizeAccount({
       apiBaseUrl,
       fetchImpl,
       requests,
       account: target,
       expectedRole: role,
+      expectedScope: {
+        tenantId: target.tenantId,
+        hospitalId: rehearsalHospital.id,
+      },
     });
   }
 
@@ -282,6 +330,7 @@ export async function runLaunchAccountBootstrap(options) {
       finishedAt: now(options?.now),
       platformTenantId: credentials.platform.tenantId,
       rehearsalTenantId: credentials.rehearsal.tenantId,
+      rehearsalHospitalId: rehearsalHospital.id,
       verifiedRoles: [...ASSIGNABLE_ROLES],
       verifiedAccountCount: 9,
       mfaRequired: false,
@@ -322,6 +371,53 @@ async function createMember(context) {
   });
 }
 
+async function provisionRehearsalHospital(context) {
+  const tenantRoots = await requestJson({
+    ...context,
+    method: "GET",
+    path: "/engine/org/org-units/by-level?level=TENANT",
+    label: "读取完整上线演练机构根组织",
+  });
+  const root = Array.isArray(tenantRoots.data)
+    ? tenantRoots.data.find((item) => item?.level === "TENANT")
+    : null;
+  if (!root?.id) {
+    throw new Error("完整上线演练机构缺少租户根组织，无法创建演练医院");
+  }
+  const created = await requestJson({
+    ...context,
+    method: "POST",
+    path: "/engine/org/org-units",
+    body: {
+      parentId: root.id,
+      level: "FACILITY",
+      code: context.hospital.code,
+      name: context.hospital.name,
+      facilityType: context.hospital.facilityType,
+      status: "ACTIVE",
+    },
+    label: "创建完整上线演练医院",
+  });
+  if (!created.data?.id) {
+    throw new Error("完整上线演练医院创建成功但响应缺少组织 ID");
+  }
+  return created.data;
+}
+
+async function assignFacilityRole(context) {
+  await requestJson({
+    ...context,
+    method: "POST",
+    path: `/compliance/users/${encodeURIComponent(context.account.userId)}/roles`,
+    body: {
+      roleCode: context.account.role,
+      scopeLevel: "FACILITY",
+      scopeCode: context.hospitalId,
+    },
+    label: `绑定 ${context.account.tenantId}/${context.account.role} 演练医院范围`,
+  });
+}
+
 async function finalizeAccount(context) {
   const initial = await login(context, context.account.initialPassword);
   assertLogin(initial.data, context.account, context.expectedRole, true);
@@ -337,6 +433,10 @@ async function finalizeAccount(context) {
     },
     label: `${context.account.tenantId}/${context.account.username} 首登改密`,
   });
+  return verifyFinalAccount(context);
+}
+
+async function verifyFinalAccount(context) {
   const finalLogin = await login(context, context.account.password);
   assertLogin(finalLogin.data, context.account, context.expectedRole, false);
   const finalSession = authenticatedSession(finalLogin.headers);
@@ -347,7 +447,7 @@ async function finalizeAccount(context) {
     path: "/security/me",
     label: `${context.account.tenantId}/${context.account.username} 权限画像`,
   });
-  assertProfile(profile.data, context.expectedRole);
+  assertProfile(profile.data, context.expectedRole, context.expectedScope);
   return finalSession;
 }
 
@@ -380,7 +480,7 @@ function assertLogin(data, accountValue, expectedRole, mustChangePwd) {
   }
 }
 
-function assertProfile(data, expectedRole) {
+function assertProfile(data, expectedRole, expectedScope) {
   const roles = Array.isArray(data?.roles) ? data.roles.map((item) => item?.code) : [];
   if (roles.length !== 1 || roles[0] !== expectedRole) {
     throw new Error(`权限画像必须且只能包含职责 ${expectedRole}`);
@@ -390,6 +490,12 @@ function assertProfile(data, expectedRole) {
   }
   if (!Array.isArray(data.menuKeys) || !data.menuKeys.includes("workbench")) {
     throw new Error(`${expectedRole} 权限画像缺少工作台入口`);
+  }
+  if (expectedScope?.tenantId && data?.dataScope?.tenantId !== expectedScope.tenantId) {
+    throw new Error(`${expectedRole} 权限画像缺少租户范围 ${expectedScope.tenantId}`);
+  }
+  if (expectedScope?.hospitalId && data?.dataScope?.hospitalId !== expectedScope.hospitalId) {
+    throw new Error(`${expectedRole} 权限画像缺少医院范围 ${expectedScope.hospitalId}`);
   }
 }
 
@@ -511,6 +617,15 @@ function validateScope(scope, name, expectedTenantId) {
   }
   for (const role of ASSIGNABLE_ROLES) {
     validateAccount(scope.accounts[role], `${name}.accounts.${role}`, expectedTenantId, role);
+  }
+}
+
+function validateRehearsalHospital(value) {
+  requireObject(value, "rehearsal.hospital");
+  requireText(value.code, "rehearsal.hospital.code");
+  requireText(value.name, "rehearsal.hospital.name");
+  if (value.facilityType !== "HOSPITAL") {
+    throw new Error("rehearsal.hospital.facilityType 必须为 HOSPITAL");
   }
 }
 
