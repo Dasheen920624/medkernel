@@ -143,6 +143,11 @@ function validateClinicalContent(scenario) {
       `沙盘规则 ${scenario.ruleCode} DSL 不得包含 trigger`,
     );
   }
+  if (Object.hasOwn(content.dsl.meta ?? {}, "parameters")) {
+    throw new Error(
+      `沙盘规则 ${scenario.ruleCode} DSL 不得声明未绑定 meta.parameters`,
+    );
+  }
   if (!content.dsl.when) {
     throw new Error(`沙盘规则 ${scenario.ruleCode} DSL 条件无效`);
   }

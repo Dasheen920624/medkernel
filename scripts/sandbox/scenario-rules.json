@@ -41,20 +41,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "meta": {
-            "parameters": [
-              {
-                "key": "observationCode",
-                "valueType": "CODE",
-                "required": true
-              },
-              {
-                "key": "criticalThreshold",
-                "valueType": "DECIMAL",
-                "required": true
-              }
-            ]
-          },
           "applicability": {
             "population": {},
             "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
@@ -193,12 +179,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "meta": {
-            "parameters": [
-              { "key": "warfarinAtc", "valueType": "CODE", "required": true },
-              { "key": "aspirinAtc", "valueType": "CODE", "required": true }
-            ]
-          },
           "applicability": {
             "population": {},
             "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
@@ -350,17 +330,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "meta": {
-            "parameters": [
-              { "key": "egfrCode", "valueType": "CODE", "required": true },
-              {
-                "key": "egfrRiskBoundary",
-                "valueType": "DECIMAL",
-                "required": true
-              },
-              { "key": "contrastAtc", "valueType": "CODE", "required": true }
-            ]
-          },
           "applicability": {
             "population": {},
             "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
@@ -526,20 +495,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "meta": {
-            "parameters": [
-              {
-                "key": "chestPainCodes",
-                "valueType": "CODE_LIST",
-                "required": true
-              },
-              {
-                "key": "troponinCodes",
-                "valueType": "CODE_LIST",
-                "required": true
-              }
-            ]
-          },
           "applicability": {
             "population": {},
             "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
@@ -689,15 +644,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "meta": {
-            "parameters": [
-              {
-                "key": "criticalReportTypes",
-                "valueType": "CODE_LIST",
-                "required": true
-              }
-            ]
-          },
           "applicability": {
             "population": {},
             "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
@@ -834,15 +780,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "meta": {
-            "parameters": [
-              {
-                "key": "requiredFollowupPlan",
-                "valueType": "STRING",
-                "required": true
-              }
-            ]
-          },
           "applicability": {
             "population": {},
             "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
@@ -984,16 +921,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "meta": {
-            "parameters": [
-              { "key": "inrCode", "valueType": "CODE", "required": true },
-              {
-                "key": "abnormalFlags",
-                "valueType": "CODE_LIST",
-                "required": true
-              }
-            ]
-          },
           "applicability": {
             "population": {},
             "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
@@ -1148,15 +1075,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "meta": {
-            "parameters": [
-              {
-                "key": "requiredClaimFields",
-                "valueType": "FIELD_LIST",
-                "required": true
-              }
-            ]
-          },
           "applicability": {
             "population": {},
             "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
@@ -1274,15 +1192,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "meta": {
-            "parameters": [
-              {
-                "key": "requiredSignedDocuments",
-                "valueType": "CODE_LIST",
-                "required": true
-              }
-            ]
-          },
           "applicability": {
             "population": {},
             "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
@@ -1413,15 +1322,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "meta": {
-            "parameters": [
-              {
-                "key": "requiredPatientFields",
-                "valueType": "FIELD_LIST",
-                "required": true
-              }
-            ]
-          },
           "applicability": {
             "population": {},
             "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },

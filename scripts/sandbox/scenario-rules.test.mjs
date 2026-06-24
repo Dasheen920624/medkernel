@@ -108,6 +108,20 @@ test("每条规则的 DSL 不再内嵌触发点", async () => {
   assert.throws(() => validateScenarioRules(embeddedTrigger), /不得包含 trigger/);
 });
 
+test("每条规则的 DSL 不声明未绑定参数 schema", async () => {
+  const manifest = await loadScenarioRules();
+
+  for (const scenario of manifest.scenarios) {
+    assert.equal(scenario.clinicalContent.dsl.meta?.parameters, undefined);
+  }
+
+  const withParameters = structuredClone(manifest);
+  withParameters.scenarios[0].clinicalContent.dsl.meta = {
+    parameters: [{ key: "threshold", valueType: "DECIMAL", required: true }],
+  };
+  assert.throws(() => validateScenarioRules(withParameters), /meta.parameters/);
+});
+
 test("显式选择任一机构规则都可进入铺底", async () => {
   const manifest = await loadScenarioRules();
   const selected = selectSeedRules(
