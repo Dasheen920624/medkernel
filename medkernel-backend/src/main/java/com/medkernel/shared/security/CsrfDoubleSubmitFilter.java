@@ -131,7 +131,7 @@ public class CsrfDoubleSubmitFilter extends OncePerRequestFilter {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
         problem.setType(URI.create("urn:medkernel:error:" + ErrorCode.FORBIDDEN.code()));
         problem.setTitle(ErrorCode.FORBIDDEN.defaultMessage());
-        problem.setDetail("缺少或不匹配的 CSRF 双提交令牌");
+        problem.setDetail("缺少或不匹配的页面安全凭证");
         problem.setProperty("code", ErrorCode.FORBIDDEN.code());
         problem.setProperty("errorClass", ErrorCode.FORBIDDEN.errorClass().name());
         problem.setProperty("retryable", ErrorCode.FORBIDDEN.retryable());

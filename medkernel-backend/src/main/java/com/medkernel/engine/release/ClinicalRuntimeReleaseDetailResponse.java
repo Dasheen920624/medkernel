@@ -6,7 +6,7 @@ import com.medkernel.engine.context.ClinicalRuntimeRelease;
 import com.medkernel.engine.context.ClinicalRuntimeReleaseItem;
 
 /**
- * 医院运行修订及其完整物化条目。
+ * 机构生效版本及其完整物化条目。
  */
 public record ClinicalRuntimeReleaseDetailResponse(
     ClinicalRuntimeRelease release,

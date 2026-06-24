@@ -116,7 +116,7 @@ class SandboxRuntimeRepositoryTest {
             preparing.id(), preparing.runId(), preparing.tenantId(), preparing.scenarioId(),
             preparing.mode(), null, null, null, null, null, null, null, null, null,
             SandboxExternalSideEffectStatus.SUPPRESSED, SandboxRunStatus.FAILED,
-            "SANDBOX_RUNTIME_RELEASE_MISSING", "医院尚未启用运行修订",
+            "SANDBOX_RUNTIME_RELEASE_MISSING", "医院尚未启用机构生效版本",
             now, now, preparing.traceId(), preparing.createdAt(), preparing.createdBy(),
             now, "doctor-1"));
 

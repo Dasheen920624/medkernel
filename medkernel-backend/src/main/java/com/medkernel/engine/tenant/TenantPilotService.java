@@ -65,7 +65,7 @@ public class TenantPilotService {
     /**
      * 获取租户定制品牌信息，不存在时自动物理落库初始化默认配置。
      *
-     * @param tenantId 租户 ID
+     * @param tenantId 机构 ID
      * @return 品牌配置
      */
     @Transactional
@@ -227,9 +227,9 @@ public class TenantPilotService {
     }
 
     /**
-     * 复算租户开通就绪门。
+     * 复算服务机构开通条件。
      *
-     * @param tenantId 租户 ID
+     * @param tenantId 服务机构 ID
      * @return 开通就绪结果
      */
     public OnboardingReadiness getOnboardingReadiness(String tenantId) {
@@ -257,7 +257,7 @@ public class TenantPilotService {
         if (!readiness.ready()) {
             throw new ApiException(
                 ErrorCode.TENANT_ONBOARD_NOT_READY,
-                "租户开通未就绪：" + String.join("；", readiness.blockers())
+                "机构开通未就绪：" + String.join("；", readiness.blockers())
             );
         }
     }
@@ -317,16 +317,16 @@ public class TenantPilotService {
         if (platformBaselineRepository.findFirstByOrderByRevisionNoDesc().isPresent()) {
             return done(
                 "PLATFORM_BASELINE",
-                "平台基线",
+                "平台标准版本",
                 "/config/releases",
-                "已发布平台权威基线"
+                "已发布平台标准版本"
             );
         }
         return blocked(
             "PLATFORM_BASELINE",
-            "平台基线",
+            "平台标准版本",
             "/config/releases",
-            "尚未发布平台权威基线"
+            "尚未发布平台标准版本"
         );
     }
 
@@ -343,16 +343,16 @@ public class TenantPilotService {
         if (hospitalCount > 0 && releasedHospitalCount >= hospitalCount) {
             return done(
                 "HOSPITAL_RUNTIME",
-                "医院运行修订",
+                "机构生效版本",
                 "/config/releases",
-                "每家启用医院均已建立运行修订"
+                "每家启用医院均已建立机构生效版本"
             );
         }
         return blocked(
             "HOSPITAL_RUNTIME",
-            "医院运行修订",
+            "机构生效版本",
             "/config/releases",
-            "仍有启用医院尚未建立运行修订"
+            "仍有启用医院尚未建立机构生效版本"
         );
     }
 

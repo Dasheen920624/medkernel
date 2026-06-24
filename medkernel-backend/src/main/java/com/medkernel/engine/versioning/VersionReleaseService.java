@@ -320,7 +320,7 @@ public class VersionReleaseService implements ReleasePort {
         if (platformPublish) {
             VersionPublishQualityGate qualityGate = command.qualityGate();
             if (qualityGate == null || !qualityGate.passed()) {
-                throw new ApiException(ErrorCode.VALIDATION_FAILED, "平台发布质量门未全部通过");
+                throw new ApiException(ErrorCode.VALIDATION_FAILED, "平台发布质量校验未全部通过");
             }
         }
     }

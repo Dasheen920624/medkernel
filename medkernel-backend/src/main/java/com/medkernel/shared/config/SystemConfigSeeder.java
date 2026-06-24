@@ -178,8 +178,8 @@ public class SystemConfigSeeder implements ApplicationRunner {
             "STRING", "口令哈希算法", "HIGH", "安全组",
             "控制平台账号口令哈希算法；默认 BCrypt，国产化形态可切换 SM3。", true, seededAt);
         seedConfigValue(SystemConfigService.AUTH_PASSWORD_PREFIX + "reset-token-ttl-seconds", "900",
-            "INTEGER", "重置 token 有效期", "HIGH", "安全组",
-            "控制受控密码重置一次性 token 的有效秒数。", true, seededAt);
+            "INTEGER", "重置一次性凭证有效期", "HIGH", "安全组",
+            "控制受控密码重置一次性凭证的有效秒数。", true, seededAt);
     }
 
     private void seedLoginAttemptPolicy(Instant seededAt) {
@@ -191,7 +191,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
             "控制连续失败锁定的建议锁定秒数，解除需满足锁定窗口或管理员处理。", true, seededAt);
         seedConfigValue(SystemConfigService.AUTH_LOGIN_PREFIX + "rate-limit-attempts", "10",
             "INTEGER", "登录限流阈值", "HIGH", "安全组",
-            "控制同一租户用户名在限流窗口内允许的失败次数，用于防爆破。", true, seededAt);
+            "控制同一机构用户名在限流窗口内允许的失败次数，用于防爆破。", true, seededAt);
         seedConfigValue(SystemConfigService.AUTH_LOGIN_PREFIX + "rate-limit-window-seconds", "60",
             "INTEGER", "登录限流窗口", "HIGH", "安全组",
             "控制登录失败限流的统计时间窗口。", true, seededAt);
@@ -200,8 +200,8 @@ public class SystemConfigSeeder implements ApplicationRunner {
     private void seedLoggingPolicy(Instant seededAt) {
         seedConfigValue(SystemConfigService.LOGGING_LEVEL_PREFIX + "root",
             environment.getProperty("logging.level.root", "INFO"),
-            "STRING", "Root 日志级别", "MEDIUM", "信息科 / 运维组",
-            "控制应用 Root Logger 运行级别。", false, seededAt);
+            "STRING", "基础日志级别", "MEDIUM", "信息科 / 运维组",
+            "控制应用基础日志运行级别。", false, seededAt);
         seedConfigValue(SystemConfigService.LOGGING_LEVEL_PREFIX + "com.medkernel",
             environment.getProperty("logging.level.com.medkernel", "INFO"),
             "STRING", "MedKernel 日志级别", "MEDIUM", "信息科 / 运维组",
@@ -228,7 +228,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
         seedConfigValue(SystemConfigService.CLINICAL_EVENT_WORKER_POLL_INTERVAL_MS_KEY,
             Long.toString(clinicalEventProperties.workerPollIntervalMs()),
             "INTEGER", "临床事件轮询间隔", "MEDIUM", "信息科 / 运维组",
-            "控制临床事件 outbox worker 的轮询间隔，变更后下一轮调度生效。", false, seededAt);
+            "控制临床事件后台任务的轮询间隔，变更后下一轮调度生效。", false, seededAt);
         seedConfigValue(SystemConfigService.INTEGRATION_HEALTH_PROBE_INTERVAL_MS_KEY,
             Long.toString(integrationHealthProbeSettings.healthProbeIntervalMs()),
             "INTEGER", "第三方适配器周期探活间隔", "MEDIUM", "信息科 / 集成组",
@@ -251,7 +251,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
             "平台知识文献资料库根地址",
             "HIGH",
             "平台知识治理组 / 信息科",
-            "主平台知识管理服务器使用的正式文献资料库根地址；初始状态未配置，正式知识生产前必须在配置中心维护 file/COS/S3/OSS/OBS/MinIO/HTTPS 网关等受管 URI，不得回退未配置的 tmp 或工作目录。",
+            "主平台知识管理服务器使用的正式文献资料库根地址；初始状态未配置，正式知识生产前必须在配置中心维护受管文件、对象存储或安全网关地址，不得回退未配置的临时目录或工作目录。",
             true,
             "PLATFORM_SEED",
             seededAt);
@@ -265,9 +265,9 @@ public class SystemConfigSeeder implements ApplicationRunner {
             "部署形态",
             "HIGH",
             "平台管理员",
-            "控制本实例部署形态：PRODUCTION_CENTER=外网知识生产中心（只吃公开资料，可用 B2 外部大模型 API）；"
-                + "HOSPITAL_RUNTIME=内网医院运行侧（碰患者数据，禁外部 provider，仅本地模型 B1/B0）。"
-                + "默认最严格的 HOSPITAL_RUNTIME，生产中心须在配置中心显式切换。",
+            "控制本实例部署形态：知识生产中心仅使用公开资料，可用外部大模型服务；"
+                + "院内运行环境可处理患者数据，禁止外部模型服务，仅允许本地模型或无模型主链路。"
+                + "默认最严格的院内运行环境，生产中心须在配置中心显式切换。",
             true,
             "PLATFORM_SEED",
             seededAt);

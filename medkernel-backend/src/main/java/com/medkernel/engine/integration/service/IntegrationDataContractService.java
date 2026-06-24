@@ -21,7 +21,7 @@ import com.medkernel.shared.context.RequestContext;
 /**
  * 第三方数据接入契约生成器。
  *
- * <p>字段只从医院当前运行修订中的字段目录资产恢复，避免当前工作区草稿污染已发布契约。
+ * <p>字段只从当前机构生效版本中的字段目录资产恢复，避免当前工作区草稿污染已发布契约。
  */
 @Service
 public class IntegrationDataContractService {
@@ -116,8 +116,8 @@ public class IntegrationDataContractService {
 
     private static List<String> accessGuide(String runtimeReleaseId) {
         return List.of(
-            "字段契约由医院当前运行修订 " + runtimeReleaseId
-                + " 自动确定；第三方请求不得提交发布制品、领域或版本。",
+            "字段契约由当前机构生效版本 " + runtimeReleaseId
+                + " 自动确定；第三方请求不得提交离线交付文件、领域或版本。",
             "外部数据先按 resources 下的 payloadKey 投影为 canonical 资源，再经术语对照归一。",
             "规则/路径只消费归一后的 canonical 字段；缺失、未对照或低质量字段会进入质量状态与人工复核证据。"
         );

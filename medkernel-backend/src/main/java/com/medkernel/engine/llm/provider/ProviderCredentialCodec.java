@@ -10,7 +10,7 @@ import com.medkernel.engine.datasvc.FieldEncryptionKeyResolver;
 import com.medkernel.shared.crypto.SmCryptoService;
 
 /**
- * 模型 Provider 凭据专用编解码器。
+ * 模型服务凭据专用编解码器。
  *
  * <p>从字段加密主密钥派生独立用途的 SM4 密钥，与 D3/D4 字段加密上下文隔离。异常、返回值和
  * {@code toString()} 均不得包含凭据明文。

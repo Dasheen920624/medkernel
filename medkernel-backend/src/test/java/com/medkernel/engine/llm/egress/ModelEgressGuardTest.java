@@ -78,7 +78,7 @@ class ModelEgressGuardTest {
 
         assertThatThrownBy(() -> guard.prepareEgress(
                 "tenant-1", "knowledge.extract",
-                "{\"prompt\":\"不得绕过白名单的原始文本\"}",
+                "{\"prompt\":\"不得绕过允许范围的原始文本\"}",
                 "task-empty", "claude"))
             .isInstanceOf(ApiException.class)
             .extracting(error -> ((ApiException) error).errorCode())

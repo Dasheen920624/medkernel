@@ -3,7 +3,7 @@ package com.medkernel.engine.versioning;
 import java.util.Optional;
 
 /**
- * 按医院运行修订解析声明式资产不可变正文的端口。
+ * 按机构生效版本解析声明式资产不可变正文的端口。
  */
 @FunctionalInterface
 public interface DeclarativeAssetRuntimePort {

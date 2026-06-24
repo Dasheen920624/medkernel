@@ -6,7 +6,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
-/** 读取医院当前运行修订的沙盘就绪状态，不维护第二套激活绑定。 */
+/** 读取当前机构生效版本的沙盘就绪状态，不维护第二套激活绑定。 */
 @Service
 public class SandboxRuntimeStatusService {
 

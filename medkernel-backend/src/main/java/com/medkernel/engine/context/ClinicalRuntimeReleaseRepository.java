@@ -5,7 +5,7 @@ import java.util.Optional;
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
 
-/** 医院临床运行发布记录仓储。 */
+/** 机构生效版本记录仓储。 */
 public interface ClinicalRuntimeReleaseRepository
         extends ListCrudRepository<ClinicalRuntimeRelease, Long> {
 

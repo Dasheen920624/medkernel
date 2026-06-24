@@ -36,7 +36,7 @@ public class ThirdPartyKnowledgeRuntimeController {
     }
 
     /**
-     * 查询认证医院当前不可变运行修订。
+     * 查询认证医院当前不可变机构生效版本。
      */
     @GetMapping("/runtime-release/current")
     @PreAuthorize("@perm.has('asset.read')")
@@ -45,7 +45,7 @@ public class ThirdPartyKnowledgeRuntimeController {
     }
 
     /**
-     * 写入临床上下文；调用方不得携带运行修订、发布容器或资产版本选择。
+     * 写入临床上下文；调用方不得携带机构生效版本、离线交付文件或资产版本选择。
      */
     @PostMapping("/context-snapshots")
     @PreAuthorize("@perm.has('context.write')")

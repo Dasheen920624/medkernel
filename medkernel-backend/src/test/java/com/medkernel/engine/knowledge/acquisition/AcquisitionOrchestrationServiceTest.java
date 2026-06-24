@@ -143,13 +143,13 @@ class AcquisitionOrchestrationServiceTest {
         KnowledgeAcquisitionRunResponse response = service.run(request("https://guideline.example.org/htn.txt"));
 
         assertThat(response.status()).isEqualTo(KnowledgeAcquisitionRunStatus.BLOCKED);
-        assertThat(response.failureReason()).contains("PRODUCTION_CENTER");
+        assertThat(response.failureReason()).contains("知识生产中心");
         verify(fetcher, never()).fetch(any());
 
         ArgumentCaptor<KnowledgeAcquisitionRun> saved = ArgumentCaptor.forClass(KnowledgeAcquisitionRun.class);
         verify(runRepository).save(saved.capture());
         assertThat(saved.getValue().status()).isEqualTo(KnowledgeAcquisitionRunStatus.BLOCKED);
-        assertThat(saved.getValue().failureReason()).contains("PRODUCTION_CENTER");
+        assertThat(saved.getValue().failureReason()).contains("知识生产中心");
     }
 
     @Test
@@ -165,7 +165,7 @@ class AcquisitionOrchestrationServiceTest {
         ArgumentCaptor<KnowledgeAcquisitionRun> saved = ArgumentCaptor.forClass(KnowledgeAcquisitionRun.class);
         verify(runRepository).save(saved.capture());
         assertThat(saved.getValue().triggerType()).isEqualTo(AcquisitionTriggerType.SCHEDULED);
-        assertThat(saved.getValue().failureReason()).contains("PRODUCTION_CENTER");
+        assertThat(saved.getValue().failureReason()).contains("知识生产中心");
     }
 
     @Test
@@ -187,7 +187,7 @@ class AcquisitionOrchestrationServiceTest {
         KnowledgeAcquisitionRunResponse response = service.run(request("https://evil.example.net/htn.txt"));
 
         assertThat(response.status()).isEqualTo(KnowledgeAcquisitionRunStatus.BLOCKED);
-        assertThat(response.failureReason()).contains("白名单");
+        assertThat(response.failureReason()).contains("允许清单");
         verify(fetcher, never()).fetch(any());
     }
 
@@ -200,7 +200,7 @@ class AcquisitionOrchestrationServiceTest {
         KnowledgeAcquisitionRunResponse response = service.run(request("https://guideline.example.org/htn.txt"));
 
         assertThat(response.status()).isEqualTo(KnowledgeAcquisitionRunStatus.BLOCKED);
-        assertThat(response.failureReason()).contains("白名单");
+        assertThat(response.failureReason()).contains("允许清单");
         verify(fetcher, never()).fetch(any());
     }
 
@@ -229,7 +229,7 @@ class AcquisitionOrchestrationServiceTest {
         KnowledgeAcquisitionRunResponse response = service.run(request("https://guideline.example.org/redirect"));
 
         assertThat(response.status()).isEqualTo(KnowledgeAcquisitionRunStatus.BLOCKED);
-        assertThat(response.failureReason()).contains("重定向域名不在来源白名单");
+        assertThat(response.failureReason()).contains("重定向域名不在来源允许清单");
         verify(parseService, never()).submit(any());
     }
 

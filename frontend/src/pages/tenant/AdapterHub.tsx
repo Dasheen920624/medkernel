@@ -640,12 +640,12 @@ export default function AdapterHub() {
 
   const logColumns: ColumnsType<IntegrationMessageLog> = [
     {
-      title: "消息与 trace",
+      title: "消息与追踪号",
       key: "messageId",
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{record.messageId}</Text>
-          <Text className={styles.identifier}>{record.traceId}</Text>
+          <Text className={styles.identifier}>追踪号：{record.traceId}</Text>
         </Space>
       ),
     },
@@ -800,7 +800,7 @@ export default function AdapterHub() {
         <Space direction="vertical" size={0}>
           <Text strong>{record.regionalNetworkName}</Text>
           <Text type="secondary">{record.sourceOrganizationName}</Text>
-          <Text className={styles.identifier}>{record.sourceId}</Text>
+          <Text className={styles.identifier}>来源编号：{record.sourceId}</Text>
         </Space>
       ),
     },
@@ -1421,7 +1421,7 @@ export default function AdapterHub() {
           {expertMode ? (
             <Form.Item
               name="configJson"
-              label="连接与字段映射 JSON"
+              label="连接与字段映射配置"
               rules={[
                 {
                   validator: async (_, value?: string) => {
@@ -1429,13 +1429,13 @@ export default function AdapterHub() {
                     try {
                       JSON.parse(value);
                     } catch {
-                      throw new Error("请输入合法 JSON");
+                      throw new Error("请输入合法配置文本");
                     }
                   },
                 },
               ]}
             >
-              <Input.TextArea rows={6} placeholder="输入后端契约支持的适配器配置 JSON" />
+              <Input.TextArea rows={6} placeholder="输入后端契约支持的适配器配置文本" />
             </Form.Item>
           ) : (
             <>
@@ -1514,7 +1514,7 @@ export default function AdapterHub() {
                           {...field}
                           name={[name, "category"]}
                           label="术语分类"
-                          extra="按医院当前运行修订解析不可变映射快照"
+                          extra="按当前机构生效版本确认映射结果"
                         >
                           <Select
                             allowClear
@@ -1704,14 +1704,14 @@ function DataContractPanel({
 }) {
   const resourceCount = contract ? Object.keys(contract.resources).length : 0;
   const fieldColumns: ColumnsType<IntegrationDataContractResponse["fields"][number]> = [
-    { title: "canonical 字段", dataIndex: "fieldPath", key: "fieldPath", width: 180 },
+    { title: "标准字段", dataIndex: "fieldPath", key: "fieldPath", width: 180 },
     {
       title: "接入字段",
       key: "payload",
       width: 160,
       render: (_value, field) => `${field.payloadKey}.${field.propertyName}`,
     },
-    { title: "Schema", dataIndex: "jsonSchemaType", key: "jsonSchemaType", width: 96 },
+    { title: "字段结构", dataIndex: "jsonSchemaType", key: "jsonSchemaType", width: 96 },
     { title: "类型", dataIndex: "dataType", key: "dataType", width: 96 },
     {
       title: "接入",
@@ -1730,7 +1730,7 @@ function DataContractPanel({
   return (
     <Card title="数据接入契约" className={styles.sectionCard}>
       <Space direction="vertical" size="middle" className="mk-full-width">
-        {loading && !contract && <Text type="secondary">正在读取医院当前运行修订的字段契约…</Text>}
+        {loading && !contract && <Text type="secondary">正在读取当前机构生效版本的字段要求…</Text>}
         {error && <Alert type="warning" showIcon message="数据接入契约暂时不可用" />}
         {contract ? (
           <Space direction="vertical" size="small">

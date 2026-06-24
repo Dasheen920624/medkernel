@@ -20,9 +20,9 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 从医院运行修订中选择本次临床可用的诊断知识版本。
+ * 从机构生效版本中选择本次临床可用的诊断知识版本。
  *
- * <p>诊断知识仍以关系库领域表为权威正文；运行修订只保存资产身份和版本锁定。
+ * <p>诊断知识仍以关系库领域表为权威正文；机构生效版本只保存资产身份和版本锁定。
  */
 @Component
 public class RuntimeReleaseDiagnosisSelector {
@@ -50,7 +50,7 @@ public class RuntimeReleaseDiagnosisSelector {
             }
             KnowledgeIdentity identity = identities
                 .findByTenantIdAndIdentityCode(item.sourceTenantId(), item.assetIdentity())
-                .orElseThrow(() -> invalid("运行修订锁定知识身份不存在：" + item.assetIdentity()));
+                .orElseThrow(() -> invalid("机构生效版本锁定知识身份不存在：" + item.assetIdentity()));
             if (identity.domain() != KnowledgeDomain.DIAGNOSIS) {
                 continue;
             }
@@ -60,11 +60,11 @@ public class RuntimeReleaseDiagnosisSelector {
                     identity.id(),
                     requireText(item.versionNo(), "诊断知识版本"))
                 .orElseThrow(() -> invalid(
-                    "运行修订锁定诊断知识版本不存在："
+                    "机构生效版本锁定诊断知识版本不存在："
                         + item.assetIdentity() + "@" + item.versionNo()));
             if (version.status() != KnowledgeVersionStatus.ACTIVE) {
                 throw invalid(
-                    "运行修订锁定诊断知识版本未激活："
+                    "机构生效版本锁定诊断知识版本未激活："
                         + item.assetIdentity() + "@" + item.versionNo());
             }
             selected.add(new RuntimeDiagnosisReference(

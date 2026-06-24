@@ -7,12 +7,12 @@ import com.medkernel.engine.context.ClinicalRuntimeAssetSelection;
 import jakarta.validation.constraints.NotBlank;
 
 /**
- * 医院运行修订启用请求。
+ * 机构生效版本启用请求。
  *
  * <p>{@code activeAssets} 是完整期望启用集合，可混合任意领域、类型和来源。
  */
 public record ClinicalRuntimeActivateRequest(
-    @NotBlank(message = "平台基线不能为空")
+    @NotBlank(message = "平台标准版本不能为空")
     String platformBaselineReleaseId,
     String expectedCurrentReleaseId,
     List<ClinicalRuntimeAssetSelection> activeAssets

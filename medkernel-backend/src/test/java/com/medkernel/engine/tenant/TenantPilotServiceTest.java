@@ -148,7 +148,7 @@ class TenantPilotServiceTest {
         assertEquals("PREPARATION", auditRecord.fromStatus(), "起步审计状态完全对齐");
         assertEquals("PILOT", auditRecord.toStatus(), "目标审计状态完全对齐");
         assertEquals(actor, auditRecord.actor(), "审计操作人指纹完全对齐");
-        assertEquals(traceId, auditRecord.traceId(), "全链路追踪 ID 对齐");
+        assertEquals(traceId, auditRecord.traceId(), "全追踪号 对齐");
 
         assertThatThrownBy(() -> service.transitionStage(tenantId, "ILLEGAL_STAGE_CODE"))
             .isInstanceOf(ApiException.class)
@@ -179,8 +179,8 @@ class TenantPilotServiceTest {
             .anyMatch(reason -> reason.contains("用户"))
             .anyMatch(reason -> reason.contains("权限"))
             .anyMatch(reason -> reason.contains("适配器"))
-            .anyMatch(reason -> reason.contains("平台权威基线"))
-            .anyMatch(reason -> reason.contains("运行修订"));
+            .anyMatch(reason -> reason.contains("平台标准版本"))
+            .anyMatch(reason -> reason.contains("机构生效版本"));
 
         assertThatThrownBy(() -> service.assertOnboardingReady(tenantId))
             .isInstanceOf(ApiException.class)
@@ -223,14 +223,14 @@ class TenantPilotServiceTest {
             .singleElement()
             .satisfies(step -> {
                 assertThat(step.status()).isEqualTo("DONE");
-                assertThat(step.evidence()).contains("平台权威基线");
+                assertThat(step.evidence()).contains("平台标准版本");
             });
         assertThat(readiness.steps())
             .filteredOn(step -> "HOSPITAL_RUNTIME".equals(step.key()))
             .singleElement()
             .satisfies(step -> {
                 assertThat(step.status()).isEqualTo("BLOCKED");
-                assertThat(step.blockers()).anyMatch(reason -> reason.contains("运行修订"));
+                assertThat(step.blockers()).anyMatch(reason -> reason.contains("机构生效版本"));
             });
     }
 

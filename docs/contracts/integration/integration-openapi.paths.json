@@ -54,7 +54,7 @@
       "POST /api/v1/engine/integration/knowledge-runtime/context-snapshots"
     ],
     "fieldContract": "/api/v1/engine/integration/data-contract",
-    "note": "第三方只通过 v1 稳定门面读取认证医院当前不可变运行修订并写入标准临床上下文；不得选择发布容器、领域或资产版本。"
+    "note": "第三方只通过 v1 稳定门面读取当前机构生效版本并写入标准临床上下文；不得选择离线交付文件、领域或资产版本。"
   },
   "commonHeaders": [
     {

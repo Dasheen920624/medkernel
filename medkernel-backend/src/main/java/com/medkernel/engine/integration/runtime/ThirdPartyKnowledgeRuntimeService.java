@@ -14,8 +14,8 @@ import com.medkernel.shared.context.RequestContext;
 /**
  * 第三方临床运行门面。
  *
- * <p>调用方只提交患者上下文；运行资产由认证医院的当前不可变运行修订唯一确定，
- * 禁止外部系统选择发布容器、领域或资产版本。
+ * <p>调用方只提交患者上下文；运行资产由认证医院的当前不可变机构生效版本唯一确定，
+ * 禁止外部系统选择离线交付文件、领域或资产版本。
  */
 @Service
 public class ThirdPartyKnowledgeRuntimeService {
@@ -36,7 +36,7 @@ public class ThirdPartyKnowledgeRuntimeService {
     }
 
     /**
-     * 返回认证医院当前完整运行修订，并再次校验不可变清单摘要。
+     * 返回认证医院当前完整机构生效版本，并再次校验不可变明细校验码。
      */
     public ThirdPartyRuntimeReleaseResponse resolveCurrentRuntimeRelease() {
         ClinicalRuntimeRelease release =

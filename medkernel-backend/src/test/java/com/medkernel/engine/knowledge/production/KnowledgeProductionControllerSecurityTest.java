@@ -159,7 +159,7 @@ class KnowledgeProductionControllerSecurityTest {
                     .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(NON_MODEL_JOB_BODY))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.detail").value("正式知识生产仅允许统一 Provider API 大模型生产器"));
+            .andExpect(jsonPath("$.detail").value("正式知识生产仅允许通过受控模型服务生产"));
 
         verify(service, never()).createJob(any());
     }
@@ -189,7 +189,7 @@ class KnowledgeProductionControllerSecurityTest {
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(GENERATE_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.detail")
-                .value("正式知识生产不再接受 B0 候选生成，请使用统一 Provider API 模型生产任务"));
+                .value("正式知识生产不再接受无模型候选生成，请使用受控模型服务生产任务"));
 
         verify(generationService, never()).generate(any());
     }

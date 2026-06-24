@@ -13,6 +13,7 @@ import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
 import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionService;
+import com.medkernel.engine.versioning.RemovedRuntimeSelectorFields;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -30,12 +31,6 @@ public class AssetAuthoringRegistry {
 
     private static final Set<VersionedAssetType> GENERATED_TYPES =
         Set.of(VersionedAssetType.KNOWLEDGE, VersionedAssetType.RULE, VersionedAssetType.PATHWAY);
-    private static final Set<String> REMOVED_RUNTIME_SELECTOR_FIELDS =
-        Set.of(
-            "package" + "Id",
-            "package" + "Version",
-            "knowledge" + "PackageId",
-            "release" + "PackageId");
     private static final Set<String> MANUAL_VERSION_FIELDS =
         Set.of("versionNo", "manualVersionNo", "assetVersionNo");
 
@@ -103,11 +98,7 @@ public class AssetAuthoringRegistry {
     private void rejectLegacyInputs(JsonNode content) {
         List<String> removedRuntimeSelectorFields = new ArrayList<>();
         List<String> manualVersionFields = new ArrayList<>();
-        for (String field : REMOVED_RUNTIME_SELECTOR_FIELDS) {
-            if (content.has(field)) {
-                removedRuntimeSelectorFields.add(field);
-            }
-        }
+        removedRuntimeSelectorFields.addAll(RemovedRuntimeSelectorFields.presentIn(content));
         for (String field : MANUAL_VERSION_FIELDS) {
             if (content.has(field)) {
                 manualVersionFields.add(field);

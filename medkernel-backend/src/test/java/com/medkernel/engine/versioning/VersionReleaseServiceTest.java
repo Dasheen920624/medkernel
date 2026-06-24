@@ -393,7 +393,7 @@ class VersionReleaseServiceTest {
             new VersionPublishQualityGate(true, true, false, true, true, "依赖完整性未通过")
         )))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("发布质量门")
+            .hasMessageContaining("发布质量校验")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.VALIDATION_FAILED);
 

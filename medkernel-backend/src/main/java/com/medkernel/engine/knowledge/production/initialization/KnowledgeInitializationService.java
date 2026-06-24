@@ -510,7 +510,7 @@ public class KnowledgeInitializationService {
         if (!validation.sourceManifestHash().equals(request.expectedSourceManifestHash())
                 || !validation.candidateManifestHash().equals(request.expectedCandidateManifestHash())
                 || !validation.overallHash().equals(request.expectedOverallHash())) {
-            throw new ApiException(ErrorCode.CONFLICT, "初始化发行清单摘要与预览不一致");
+            throw new ApiException(ErrorCode.CONFLICT, "初始化发行明细校验码与预览不一致");
         }
     }
 

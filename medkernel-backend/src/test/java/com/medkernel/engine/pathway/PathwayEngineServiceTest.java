@@ -955,7 +955,7 @@ class PathwayEngineServiceTest {
                 "tenant-A", "runtime-release-test", "patient-view", "pt-1"))
             .thenThrow(new ApiException(
                 ErrorCode.ENG_PATHWAY_006,
-                "所选路径不是当前运行修订与触发点下的入径候选：pt-1"));
+                "所选路径不是当前机构生效版本与触发点下的入径候选：pt-1"));
 
         assertThatThrownBy(() -> service.enterPatientPathway(new PatientPathwayEnterRequest(
                 "ctx-active-1", "patient-view", "pt-1", null)))
@@ -1033,12 +1033,12 @@ class PathwayEngineServiceTest {
                 "tenant-A", "runtime-release-test", "patient-view", "pt-v2"))
             .thenThrow(new ApiException(
                 ErrorCode.ENG_PATHWAY_006,
-                "运行修订锁定路径版本未发布：TPL.COPD@V2"));
+                "机构生效版本锁定路径版本未发布：TPL.COPD@V2"));
 
         assertThatThrownBy(() -> service.enterPatientPathway(new PatientPathwayEnterRequest(
                 "ctx-active-1", "patient-view", "pt-v2", null)))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("运行修订锁定路径版本未发布");
+            .hasMessageContaining("机构生效版本锁定路径版本未发布");
 
         verify(patientPathways, never()).save(any());
         verify(inheritanceResolver, never()).resolve(any());

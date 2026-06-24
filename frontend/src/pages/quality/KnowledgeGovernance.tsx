@@ -162,7 +162,7 @@ const RISK_COLORS: Record<string, "default" | "success" | "warning" | "error"> =
 
 // AIK-STD-12：AI 工厂生产器中文标识（aiGenerated 据 producer≠MANUAL，由后端判定）
 const PRODUCER_LABELS: Record<string, string> = {
-  API_MODEL: "统一模型 API",
+  API_MODEL: "统一模型接口",
   AGENT_TOOL: "Agent 工具",
   LOCAL_MODEL: "本地模型",
   MANUAL: "人工录入",
@@ -183,14 +183,14 @@ const PIPELINE_META: Record<
     color: "blue",
     boundaryLabel: "平台主源只读",
     summary: "平台主源只读发布账本",
-    description: "归属 t-1 平台主租户，机构只能订阅和派生，不允许直接编辑或反写。",
+    description: "归属平台主源，机构只能订阅和派生，不允许直接编辑或反写。",
   },
   TENANT_OVERLAY: {
     label: "院内覆盖",
     color: "green",
     boundaryLabel: "院内覆盖可治理",
     summary: "院内覆盖本机构治理",
-    description: "归属当前机构租户，只影响本机构继承范围，禁止污染平台主源。",
+    description: "归属当前机构，只影响本机构继承范围，禁止污染平台主源。",
   },
 };
 const PIPELINE_KEYS = ["PLATFORM_SOURCE", "TENANT_OVERLAY"] as const;
@@ -775,7 +775,7 @@ export default function KnowledgeGovernance({
   function requestCancelProductionJob(job: KnowledgeProductionJob) {
     modal.confirm({
       title: `中止生产任务 ${job.jobCode}`,
-      content: "仅中止 PENDING/RUNNING job；已入审核的候选仍按治理链路留痕处理，不会伪造发布成功。",
+      content: "仅中止待处理或运行中的生产任务；已入审核的候选仍按治理链路留痕处理，不会伪造发布成功。",
       okText: "确认中止",
       cancelText: "取消",
       okButtonProps: { danger: true },
@@ -868,7 +868,7 @@ export default function KnowledgeGovernance({
         modelGenerationForm.resetFields();
         setModelGenerationJob(undefined);
       } else if (result.summary.blocked.length > 0) {
-        message.warning("模型结果被技术门禁阻断，未生成候选");
+        message.warning("模型结果被生产安全校验阻断，未生成候选");
       } else {
         message.warning(result.summary.skipped[0]?.reason || "模型未生成可提交候选");
       }
@@ -1207,7 +1207,7 @@ export default function KnowledgeGovernance({
             {expertMode ? (
               <>
                 {provenance.modelMode ? <Tag color="geekblue">{provenance.modelMode}</Tag> : null}
-                <Text type="secondary">job：{provenance.jobCode}</Text>
+                <Text type="secondary">生产任务：{provenance.jobCode}</Text>
                 {provenance.modelVersion ? (
                   <Text type="secondary">模型：{provenance.modelVersion}</Text>
                 ) : null}
@@ -1349,7 +1349,7 @@ export default function KnowledgeGovernance({
 
   const productionGateColumns: ColumnsType<AikGateResult> = [
     {
-      title: "门禁",
+      title: "生产安全校验",
       dataIndex: "gateCode",
     },
     {
@@ -1664,7 +1664,7 @@ export default function KnowledgeGovernance({
             </Col>
             <Col xs={24} sm={12} lg={4}>
               <Form.Item label="生产方式">
-                <Input value="统一模型 API（本地或外部 Provider）" disabled />
+                <Input value="统一模型接口（本地或外部模型服务）" disabled />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} lg={4}>
@@ -1741,7 +1741,7 @@ export default function KnowledgeGovernance({
         {productionAcquisitionGovernance}
         {productionPipelinePartition}
         {initializationBatchCard}
-        <Card title="模型生产 readiness">
+        <Card title="模型生产上线准备">
           <Table
             rowKey="code"
             columns={[
@@ -1763,7 +1763,7 @@ export default function KnowledgeGovernance({
         </Card>
         <PageState
           state="empty"
-          title="暂无生产 job"
+          title="暂无生产任务"
           description="尚未有知识生产任务进入统一候选流水线。"
         />
       </Space>
@@ -1784,7 +1784,7 @@ export default function KnowledgeGovernance({
         ? `候选血缘：${getApiErrorMessage(productionCandidatesQuery.error, "候选血缘读取失败")}`
         : null,
       productionGateResultsQuery.isError
-        ? `门禁结果：${getApiErrorMessage(productionGateResultsQuery.error, "门禁结果读取失败")}`
+        ? `生产安全校验结果：${getApiErrorMessage(productionGateResultsQuery.error, "生产安全校验结果读取失败")}`
         : null,
       productionTriageResultsQuery.isError
         ? `8 态分流：${getApiErrorMessage(productionTriageResultsQuery.error, "8 态分流读取失败")}`
@@ -1845,7 +1845,7 @@ export default function KnowledgeGovernance({
         {productionWorkbench}
         {productionAcquisitionGovernance}
         {productionPipelinePartition}
-        <Card title="模型生产 readiness">
+        <Card title="模型生产上线准备">
           <Space direction="vertical" size="middle" className="mk-full-width">
             <Alert
               type={readiness?.ready ? "success" : "warning"}
@@ -1853,8 +1853,8 @@ export default function KnowledgeGovernance({
               message={readiness?.ready ? "模型生产前置已满足" : "模型生产前置仍有阻断"}
               description={
                 readiness?.modelInvocationAllowed
-                  ? "模型生产器可进入候选生产，但候选仍必须走门禁、评测、分流和审核。"
-                  : "readiness 未通过时不得调用外部模型或伪造候选。"
+                  ? "模型生产器可进入候选生产，但候选仍必须走生产安全校验、评测、分流和审核。"
+                  : "上线准备未通过时不得调用外部模型或伪造候选。"
               }
             />
             <Table
@@ -1882,7 +1882,7 @@ export default function KnowledgeGovernance({
           </Space>
         </Card>
 
-        <Card title="生产 job">
+        <Card title="生产任务">
           <Space direction="vertical" size="middle" className="mk-full-width">
             {selectedProductionJob ? (
               <Alert
@@ -1897,7 +1897,7 @@ export default function KnowledgeGovernance({
                   <Space direction="vertical" size={4}>
                     <Space size="middle" wrap>
                       <Text>生成候选 {selectedProductionJob.candidateCount} 条</Text>
-                      <Text>门禁 {productionGateResults.length} 项</Text>
+                      <Text>生产安全校验 {productionGateResults.length} 项</Text>
                       <Text>8 态 {productionTriageResults.length} 条</Text>
                       <Text>影子评测 {productionShadowRuns.length} 次</Text>
                     </Space>
@@ -1966,7 +1966,7 @@ export default function KnowledgeGovernance({
             <Card title="候选血缘">{productionCandidateLineageContent}</Card>
           </Col>
           <Col xs={24} xl={12}>
-            <Card title="门禁结果">
+            <Card title="生产安全校验结果">
               <Table
                 rowKey={(record) => `${record.gateCode}-${record.contentHash ?? ""}`}
                 columns={productionGateColumns}
@@ -2018,7 +2018,7 @@ export default function KnowledgeGovernance({
           {selectedProductionJob ? (
             <Space direction="vertical" size="middle" className="mk-full-width">
               <Descriptions column={1} bordered size="small">
-                <Descriptions.Item label="当前 job">
+                <Descriptions.Item label="当前生产任务">
                   {selectedProductionJob.jobCode}
                 </Descriptions.Item>
                 <Descriptions.Item label="候选执行状态">
@@ -2121,7 +2121,7 @@ export default function KnowledgeGovernance({
               />
             </Space>
           ) : (
-            <PageState state="empty" title="未选择生产 job" />
+            <PageState state="empty" title="未选择生产任务" />
           )}
         </Card>
 
@@ -2392,7 +2392,7 @@ export default function KnowledgeGovernance({
     },
     production: {
       title: "知识生产",
-      description: "核查生产流水线 readiness、job、门禁、8 态分流和影子证据",
+      description: "核查生产流水线的上线准备、生产任务、生产安全校验、8 态分流和影子证据",
     },
   }[mode];
 
@@ -2485,7 +2485,7 @@ export default function KnowledgeGovernance({
             type="info"
             showIcon
             message={`生产任务 ${modelGenerationJob?.jobCode ?? ""}`}
-            description="大模型只生成待审核候选；来源锚点、目标身份、门禁、分流和影子评测全部通过后才进入审核，绝不直接生效。"
+            description="大模型只生成待审核候选；来源锚点、目标身份、生产安全校验、分流和影子评测全部通过后才进入审核，绝不直接生效。"
           />
           <Form
             form={modelGenerationForm}
@@ -2822,7 +2822,7 @@ export default function KnowledgeGovernance({
                 </Descriptions.Item>
                 {expertMode ? (
                   <>
-                    <Descriptions.Item label="生产任务 job">{provenance.jobCode}</Descriptions.Item>
+                    <Descriptions.Item label="生产任务编号">{provenance.jobCode}</Descriptions.Item>
                     <Descriptions.Item label="模型任务 ID">
                       {provenance.modelTaskId || "未返回"}
                     </Descriptions.Item>
@@ -2893,7 +2893,7 @@ export default function KnowledgeGovernance({
               type="info"
               showIcon
               message="审核对象已锁定为当前候选版本"
-              description="审核结论只作用于当前精确知识版本；正式上线时由平台权威基线或医院运行修订选择该版本，不在审核环节绑定运行修订或发布制品。"
+              description="审核结论只作用于当前知识版本；正式上线时由平台标准版本或机构生效版本选择该版本，审核环节不绑定上线范围或离线交付文件。"
             />
             <Form.Item
               name="reason"
@@ -2914,22 +2914,22 @@ export default function KnowledgeGovernance({
             </Form.Item>
             {platformPublishing && (
               <>
-                <Divider orientation="left">平台发布质量门</Divider>
+                <Divider orientation="left">平台发布质量校验</Divider>
                 <Form.Item
                   name="qualityGates"
-                  label="质量门"
+                  label="发布质量校验"
                   rules={[
                     {
                       validator: (_, value?: string[]) =>
                         value?.length === KNOWLEDGE_QUALITY_GATE_OPTIONS.length
                           ? Promise.resolve()
-                          : Promise.reject(new Error("请确认全部平台发布质量门")),
+                          : Promise.reject(new Error("请确认全部平台发布质量校验")),
                     },
                   ]}
                 >
                   <Checkbox.Group options={KNOWLEDGE_QUALITY_GATE_OPTIONS} />
                 </Form.Item>
-                <Form.Item name="qualitySummary" label="质量门摘要">
+                <Form.Item name="qualitySummary" label="校验说明">
                   <Input.TextArea rows={2} />
                 </Form.Item>
               </>

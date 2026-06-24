@@ -36,7 +36,7 @@
 | 灰度发布 | Canary Release | 先在限定组织范围运行，再决定扩大范围 |
 | 撤回 | Withdrawal | 因安全、质量或来源问题停止已发布内容继续生效 |
 | 回滚 | Rollback | 恢复到已验证的上一版本或部署快照 |
-| 模型网关 | Model Gateway | 统一管理 Provider、模型能力、调用策略、版本和出域边界 |
+| 模型网关 | Model Gateway | 统一管理模型服务、模型能力、调用策略、版本和外调边界 |
 | B0 | Deterministic Baseline | 无外部模型时仍可运行的确定性规则、路径、知识和人工流程 |
 | 诚实降级 | Honest Degradation | 外部模型或系统不可用时明确返回受限状态，不伪造结果或成功 |
 
@@ -47,10 +47,10 @@
 | 辅助诊疗 | Clinical Decision Support / CDSS | 统筹诊断支持、检查检验建议、用药安全、治疗建议、患者路径和风险预警等临床决策支持的上位能力 |
 | 推荐诊断 | Diagnostic Recommendation | 根据患者事实产生候选诊断、置信依据和支持/反驳/缺失证据的诊断子能力 |
 | 鉴别诊断 | Differential Diagnosis | 比较候选诊断并给出区分要点、支持/排除证据和下一步检查建议的诊断子能力 |
-| 平台权威基线 | Platform Authority Baseline | 平台主源发布的不可变精确资产版本清单 |
+| 平台标准版本 | Platform Standard Version | 平台主源发布的不可变精确版本明细 |
 | 机构扩展 | Institution Extension | 机构对平台稳定资产身份的同源覆盖，或仅归本机构的新增资产 |
-| 医院运行修订 | Clinical Runtime Revision | 某医院一次实际启用的完整精确资产版本清单；临床运行唯一读取对象 |
-| 发布制品 | Release Artifact | 平台基线或医院运行修订的离线传输与完整性校验文件，不是医疗资产 |
+| 机构生效版本 | Institution Effective Version | 某机构一次实际启用的完整精确版本明细；临床调用只读取这个版本 |
+| 离线交付文件 | Offline Delivery File | 平台标准版本或机构生效版本的离线传输与完整性校验文件，不是医疗资产 |
 | 标准术语 | Standard Term | ICD、LOINC、ATC 等行业认可的标准编码和名称 |
 | 院内术语 | Local Term | HIS、LIS、药房等院内系统使用的原始编码和名称 |
 | 字典映射 | Terminology Mapping | 院内术语与标准术语之间经确认的对应关系 |
@@ -74,7 +74,7 @@
 | 适配器 | Adapter | 协议、地址、字段映射、健康检查和重试策略的接入配置 |
 | 联调单 | Onboarding Ticket | 记录一个外部系统的场景、范围、配置和验收结果 |
 | 死信 | Dead Letter | 多次重试失败后保留、可人工复核和重放的消息 |
-| 嵌入启动令牌 | Embed Launch Token | 院内系统嵌入临床页面时使用的一次性短效令牌 |
+| 嵌入启动凭证 | Embed Launch Token | 院内系统嵌入临床页面时使用的一次性短效访问凭证 |
 | 审计链 | Audit Chain | 从操作者、请求、业务对象到结果和证据的连续记录 |
 | 数据脱敏 | Data Masking | 对患者和人员敏感字段按权限遮罩 |
 | 敏感导出 | Sensitive Export | 由具备权限的操作者说明用途、确认范围并留下完整审计的异步导出 |

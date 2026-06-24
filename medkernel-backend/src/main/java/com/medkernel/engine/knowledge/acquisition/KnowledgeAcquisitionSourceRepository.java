@@ -10,7 +10,7 @@ import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 公域资料来源白名单仓储。业务查询强制带 tenantId；系统调度跨租户扫描后按来源租户提交 SYS-05 任务。
+ * 公域资料来源允许清单仓储。业务查询强制带 tenantId；系统调度跨服务机构扫描后按来源服务机构提交 SYS-05 任务。
  */
 @Repository
 public interface KnowledgeAcquisitionSourceRepository extends ListCrudRepository<KnowledgeAcquisitionSource, Long> {

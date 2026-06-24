@@ -87,7 +87,7 @@ class TenantContextEnricherFilterTest {
             new MockHttpServletResponse(), chain);
 
         assertThat(seen.get().hasTenant())
-            .as("白名单 / 匿名端点不应注入组织上下文")
+            .as("匿名允许入口不应注入组织上下文")
             .isFalse();
     }
 }

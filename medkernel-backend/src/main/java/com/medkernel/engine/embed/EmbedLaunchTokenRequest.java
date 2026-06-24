@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * 嵌入启动令牌生成请求数据契约 (GA-ENG-API-11)。
+ * 嵌入启动凭证生成请求数据契约 (GA-ENG-API-11)。
  */
 public record EmbedLaunchTokenRequest(
     @NotBlank String roleCode,

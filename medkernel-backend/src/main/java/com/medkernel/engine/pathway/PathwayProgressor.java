@@ -211,7 +211,7 @@ public class PathwayProgressor {
             .resolve(command.tenantId(), command.runtimeReleaseId(), VersionedAssetType.ORDER_SET, orderSetRef)
             .orElseThrow(() -> new ApiException(
                 ErrorCode.ENG_PATHWAY_006,
-                "当前医院运行修订未包含医嘱套餐资产: " + orderSetRef + "@" + command.runtimeReleaseId()));
+                "当前机构生效版本未包含医嘱套餐资产: " + orderSetRef + "@" + command.runtimeReleaseId()));
         JsonNode content = parseOrderSetContent(resolved);
         JsonNode items = content.path("items");
         if (!items.isArray() || items.isEmpty()) {

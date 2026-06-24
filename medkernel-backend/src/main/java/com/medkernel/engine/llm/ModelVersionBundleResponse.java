@@ -3,7 +3,7 @@ package com.medkernel.engine.llm;
 import java.time.Instant;
 
 /**
- * prompt/tool/model 版本包响应。
+ * 提示词、工具和模型版本组合响应。
  */
 public record ModelVersionBundleResponse(
     Long id,

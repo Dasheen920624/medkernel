@@ -12,7 +12,7 @@ import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 
 /**
- * 平台基线和医院运行修订只读查询服务。
+ * 平台标准版本和机构生效版本只读查询服务。
  */
 @Service
 public class RuntimeReleaseQueryService {
@@ -34,14 +34,14 @@ public class RuntimeReleaseQueryService {
     }
 
     /**
-     * 返回当前完整平台权威基线。
+     * 返回当前完整平台标准版本。
      */
     @Transactional(readOnly = true)
     public PlatformBaselineDetailResponse currentPlatformBaseline() {
         PlatformBaselineRelease release = baselines
             .findFirstByOrderByRevisionNoDesc()
             .orElseThrow(() -> new ApiException(
-                ErrorCode.NOT_FOUND, "平台尚未发布权威基线"));
+                ErrorCode.NOT_FOUND, "平台尚未发布标准版本"));
         return new PlatformBaselineDetailResponse(
             release,
             baselineItems.findByBaselineReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
@@ -50,7 +50,7 @@ public class RuntimeReleaseQueryService {
     }
 
     /**
-     * 返回指定医院当前完整运行修订。
+     * 返回指定医院当前完整机构生效版本。
      */
     @Transactional(readOnly = true)
     public ClinicalRuntimeReleaseDetailResponse currentHospitalRuntime(
@@ -61,7 +61,7 @@ public class RuntimeReleaseQueryService {
                 required(tenantId, "租户"),
                 required(hospitalId, "医院"))
             .orElseThrow(() -> new ApiException(
-                ErrorCode.NOT_FOUND, "医院尚未生成运行修订"));
+                ErrorCode.NOT_FOUND, "医院尚未生成机构生效版本"));
         return new ClinicalRuntimeReleaseDetailResponse(
             release,
             runtimeItems.findByReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
@@ -70,7 +70,7 @@ public class RuntimeReleaseQueryService {
     }
 
     /**
-     * 分页返回指定医院的不可变运行修订历史。
+     * 分页返回指定医院的不可变机构生效版本历史。
      */
     @Transactional(readOnly = true)
     public PageResponse<ClinicalRuntimeRelease> hospitalRuntimeHistory(

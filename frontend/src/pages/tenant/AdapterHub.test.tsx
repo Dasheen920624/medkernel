@@ -278,7 +278,7 @@ const dataContract: IntegrationDataContractResponse = {
   contractId: "context-field-contract:runtime-H7",
   runtimeReleaseId: "runtime-H7",
   schemaVersion: "medkernel.context-field-contract.v1",
-  accessGuide: ["字段契约由医院当前运行修订 runtime-H7 自动确定"],
+  accessGuide: ["字段要求由当前机构生效版本 runtime-H7 自动确定"],
   resources: {
     Patient: {
       resourceType: "Patient",
@@ -587,7 +587,7 @@ describe("AdapterHub", () => {
       renderPage();
       await user.click(screen.getByRole("button", { name: "新增适配器" }));
 
-      expect(screen.queryByLabelText("连接与字段映射 JSON")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("连接与字段映射配置")).not.toBeInTheDocument();
       fireEvent.change(screen.getByLabelText("适配器标识"), {
         target: { value: "his-outpatient" },
       });

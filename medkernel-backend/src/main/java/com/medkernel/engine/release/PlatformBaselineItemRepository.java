@@ -6,7 +6,7 @@ import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 平台基线精确资产版本条目仓储。
+ * 平台标准版本精确资产版本条目仓储。
  */
 @Repository
 public interface PlatformBaselineItemRepository

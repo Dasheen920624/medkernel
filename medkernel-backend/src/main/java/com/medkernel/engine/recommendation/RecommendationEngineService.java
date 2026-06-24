@@ -255,7 +255,7 @@ public class RecommendationEngineService {
         ContextSnapshotResponse snapshot = contextSnapshots.findById(request.contextSnapshotId());
         if (snapshot.status() != ContextSnapshotStatus.ACTIVE || snapshot.resources() == null
                 || snapshot.resources().patient() == null) {
-            throw new ApiException(ErrorCode.ENG_REC_001, "推荐评估只能使用 ACTIVE 标准上下文快照");
+            throw new ApiException(ErrorCode.ENG_REC_001, "推荐评估只能使用已生效标准上下文");
         }
         String encounterId = snapshot.resources().encounters().isEmpty()
             ? null

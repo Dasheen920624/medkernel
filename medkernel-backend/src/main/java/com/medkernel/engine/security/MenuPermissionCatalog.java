@@ -59,7 +59,7 @@ public final class MenuPermissionCatalog {
             MENU_INSTITUTION_KNOWLEDGE, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "diagnosis-knowledge", "诊断知识维护",
             MENU_DIAGNOSIS_KNOWLEDGE, MenuPlacement.PRIMARY),
-        menu("knowledge-governance", "runtime-releases", "运行发布",
+        menu("knowledge-governance", "runtime-releases", "发布治理",
             MENU_RUNTIME_RELEASES, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "terminology-mapping", "术语与字典",
             MENU_TERMINOLOGY_MAPPING, MenuPlacement.PRIMARY),

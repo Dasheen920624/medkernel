@@ -14,7 +14,7 @@ import styles from "./Sandbox.module.css";
 const stageLabels: Record<string, string> = {
   CONTEXT: "上下文快照",
   RECOMMENDATION: "推荐评估",
-  TOKEN: "嵌入令牌",
+  TOKEN: "访问凭证",
 };
 
 const stageIcons: Record<string, ReactNode> = {
@@ -56,16 +56,16 @@ export default function SandboxPathInspector({ steps }: { steps: SandboxStepTrac
     children: (
       <div className={styles.traceDetails}>
         <div>
-          <Typography.Text type="secondary">端点</Typography.Text>
+          <Typography.Text type="secondary">调用地址</Typography.Text>
           <Typography.Text code>{step.endpoint}</Typography.Text>
         </div>
         <div className={styles.traceGrid}>
           <div>
-            <Typography.Text strong>请求</Typography.Text>
+            <Typography.Text strong>输入内容</Typography.Text>
             <pre>{formatted(step.request)}</pre>
           </div>
           <div>
-            <Typography.Text strong>响应</Typography.Text>
+            <Typography.Text strong>返回结果</Typography.Text>
             <pre>{formatted(step.response)}</pre>
           </div>
           <div>

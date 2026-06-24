@@ -46,11 +46,11 @@ describe("ProductionReadinessPanel", () => {
       "1. 文献资料库",
       "2. 部署形态",
       "3. 模型服务",
-      "4. 医学回归基准",
+      "4. 医学验证用例",
       "5. 医学评测",
-      "6. 出域治理",
+      "6. 外调允许范围",
       "7. 模型策略",
-      "8. 版本三元组",
+      "8. 提示词、工具与模型版本",
     ];
     labels.forEach((label) => expect(screen.getByText(label)).toBeInTheDocument());
     expect(screen.getByText(/file:\/\/\/medkernel-data\//)).toBeInTheDocument();

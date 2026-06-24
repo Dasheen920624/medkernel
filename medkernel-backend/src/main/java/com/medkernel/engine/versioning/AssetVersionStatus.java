@@ -3,7 +3,7 @@ package com.medkernel.engine.versioning;
 /**
  * 配置类资产内容版本生命周期。
  *
- * <p>评审、批准、灰度、回滚等过程状态属于发布计划或运行修订，不写入内容版本。
+ * <p>评审、批准、灰度、回滚等过程状态属于发布计划或机构生效版本，不写入内容版本。
  */
 public enum AssetVersionStatus {
     DRAFT,

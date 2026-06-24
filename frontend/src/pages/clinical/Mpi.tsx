@@ -384,9 +384,9 @@ export default function Mpi() {
         key: "status",
         render: (currStatus: string) => {
           if (currStatus === "ACTIVE") {
-            return <Tag color="success">活跃 (ACTIVE)</Tag>;
+            return <Tag color="success">当前有效</Tag>;
           }
-          return <Tag color="default">已合并 (MERGED_INTO)</Tag>;
+          return <Tag color="default">已合并</Tag>;
         },
       },
       {
@@ -552,8 +552,8 @@ export default function Mpi() {
                 className={styles.statusSelect}
                 allowClear
               >
-                <Option value="ACTIVE">活跃 (ACTIVE)</Option>
-                <Option value="MERGED_INTO">已合并 (MERGED_INTO)</Option>
+                <Option value="ACTIVE">当前有效</Option>
+                <Option value="MERGED_INTO">已合并</Option>
               </Select>
             </div>
 

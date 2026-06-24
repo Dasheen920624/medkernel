@@ -20,7 +20,7 @@ import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.knowledge.SourceType;
 import com.medkernel.engine.knowledge.parsing.DocumentFormat;
 
-/** 公域资料来源仓储切片测试：真实 H2 + Flyway，验证调度原子 claim 不拿过期白名单快照。 */
+/** 公域资料来源仓储切片测试：真实 H2 + Flyway，验证调度原子 claim 不拿过期允许清单快照。 */
 @DataJdbcTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

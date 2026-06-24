@@ -858,7 +858,7 @@ export default function TerminologyMapping() {
               type="info"
               showIcon
               message="术语维护与上线修订分离"
-              description="本页只维护院内字典、标准字典、映射及其独立版本；平台基线或医院运行修订在发布中心选择精确术语版本。"
+              description="本页维护院内字典、标准字典和映射版本；正式上线时由发布治理选择进入平台标准版本或机构生效版本。"
             />
           </Space>
         )}

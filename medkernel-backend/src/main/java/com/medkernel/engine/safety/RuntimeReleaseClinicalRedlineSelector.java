@@ -17,9 +17,9 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 从医院运行修订中选择本次临床运行可用的安全红线版本。
+ * 从机构生效版本中选择本次临床运行可用的安全红线版本。
  *
- * <p>红线维护表是创作与审计界面；临床运行只消费运行修订清单里锁定的 SAFETY 资产。
+ * <p>红线维护表是创作与审计界面；临床运行只消费机构生效版本清单里锁定的 SAFETY 资产。
  */
 @Component
 public class RuntimeReleaseClinicalRedlineSelector {
@@ -51,11 +51,11 @@ public class RuntimeReleaseClinicalRedlineSelector {
             SourceRef source = parseSource(version.sourceRef());
             ClinicalRedlineRule redline = redlines
                 .findByTenantIdAndRedlineId(version.tenantId(), source.redlineId())
-                .orElseThrow(() -> invalid("运行修订锁定安全红线不存在：" + source.redlineId()));
+                .orElseThrow(() -> invalid("机构生效版本锁定安全红线不存在：" + source.redlineId()));
             if (!Objects.equals(redline.redlineVersion(), source.redlineVersion())
                     || redline.status() != ClinicalRedlineStatus.ACTIVE) {
                 throw invalid(
-                    "运行修订锁定安全红线版本未激活："
+                    "机构生效版本锁定安全红线版本未激活："
                         + redline.redlineKey() + "@" + source.redlineVersion());
             }
             selected.add(redline);
@@ -78,11 +78,11 @@ public class RuntimeReleaseClinicalRedlineSelector {
             .findByVersionIdAndTenantId(
                 requireText(item.versionId(), "安全红线资产版本"),
                 requireText(item.sourceTenantId(), "安全红线来源租户"))
-            .orElseThrow(() -> invalid("运行修订锁定安全红线资产版本不存在：" + item.versionId()));
+            .orElseThrow(() -> invalid("机构生效版本锁定安全红线资产版本不存在：" + item.versionId()));
         if (version.assetType() != VersionedAssetType.SAFETY
                 || !Objects.equals(version.assetIdentity(), item.assetIdentity())
                 || !Objects.equals(version.contentHash(), item.contentHash())) {
-            throw invalid("运行修订安全红线资产与版本正文不一致：" + item.assetIdentity());
+            throw invalid("机构生效版本安全红线资产与版本正文不一致：" + item.assetIdentity());
         }
         return version;
     }

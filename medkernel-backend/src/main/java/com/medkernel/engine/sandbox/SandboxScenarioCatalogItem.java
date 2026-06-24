@@ -43,7 +43,7 @@ public record SandboxScenarioCatalogItem(
             scenario.expectedSeverity(),
             scenario.expectedAssetCode(),
             "runtime-check",
-            "运行时按演练机构绑定解析并校验资产；目录不固化运行修订版本",
+            "运行时按演练机构绑定解析并校验资产；目录不固化机构生效版本",
             input
         );
     }

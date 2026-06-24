@@ -1,7 +1,7 @@
 package com.medkernel.engine.pathway;
 
 /**
- * 医院运行修订锁定的精确路径版本。
+ * 机构生效版本锁定的精确路径版本。
  */
 public record RuntimePathwayReference(
     String sourceTenantId,

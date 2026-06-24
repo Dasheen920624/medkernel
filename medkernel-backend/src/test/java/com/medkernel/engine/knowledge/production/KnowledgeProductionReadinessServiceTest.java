@@ -37,7 +37,7 @@ import com.medkernel.shared.context.RequestContext;
 /**
  * 知识生产模型 readiness 闸测试。
  *
- * <p>readiness 只聚合真实前置事实；缺文献根、缺 provider、缺评测、缺出域白名单或缺版本三元组均阻断模型生成。
+ * <p>上线准备只聚合真实前置事实；缺文献根、缺模型服务、缺评测、缺外调允许范围或缺提示词、工具和模型版本组合均阻断模型生成。
  */
 class KnowledgeProductionReadinessServiceTest {
 
@@ -186,7 +186,7 @@ class KnowledgeProductionReadinessServiceTest {
             .singleElement()
             .satisfies(item -> {
                 assertThat(item.ready()).isFalse();
-                assertThat(item.message()).contains("版本包");
+                assertThat(item.message()).contains("版本组合");
             });
     }
 
@@ -208,7 +208,7 @@ class KnowledgeProductionReadinessServiceTest {
             .singleElement()
             .satisfies(item -> {
                 assertThat(item.ready()).isFalse();
-                assertThat(item.message()).contains("白名单");
+                assertThat(item.message()).contains("外调允许范围");
             });
     }
 
@@ -335,7 +335,7 @@ class KnowledgeProductionReadinessServiceTest {
             .singleElement()
             .satisfies(item -> {
                 assertThat(item.ready()).isFalse();
-                assertThat(item.message()).contains("当前制品");
+                assertThat(item.message()).contains("当前交付内容");
             });
     }
 

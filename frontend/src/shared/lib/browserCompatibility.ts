@@ -41,63 +41,63 @@ interface BrowserCapabilityDefinition {
 const CAPABILITY_DEFINITIONS: BrowserCapabilityDefinition[] = [
   {
     key: "esModules",
-    displayName: "ES Modules",
+    displayName: "页面模块加载能力",
     required: true,
-    recommendation: "升级到支持 ES Modules 的现代 Chromium 内核浏览器。",
+    recommendation: "升级到支持页面模块加载的现代 Chromium 内核浏览器。",
   },
   {
     key: "fetch",
-    displayName: "Fetch API",
+    displayName: "网络请求能力",
     required: true,
-    recommendation: "启用浏览器 Fetch API，或升级浏览器内核。",
+    recommendation: "启用浏览器网络请求能力，或升级浏览器内核。",
   },
   {
     key: "abortController",
-    displayName: "AbortController",
+    displayName: "请求取消与超时控制",
     required: true,
     recommendation: "升级浏览器内核以支持请求取消和超时控制。",
   },
   {
     key: "url",
-    displayName: "URL API",
+    displayName: "地址解析能力",
     required: true,
-    recommendation: "升级浏览器内核以支持标准 URL 解析。",
+    recommendation: "升级浏览器内核以支持标准地址解析。",
   },
   {
     key: "textEncoder",
-    displayName: "TextEncoder",
+    displayName: "文本编码能力",
     required: true,
     recommendation: "升级浏览器内核以支持标准文本编码。",
   },
   {
     key: "webCrypto",
-    displayName: "Web Crypto",
+    displayName: "安全加密能力",
     required: true,
-    recommendation: "确认浏览器处于安全上下文并启用 Web Crypto。",
+    recommendation: "确认浏览器处于安全上下文并启用安全加密能力。",
   },
   {
     key: "matchMedia",
-    displayName: "matchMedia",
+    displayName: "系统主题识别能力",
     required: false,
     recommendation: "升级浏览器以完整支持系统主题与媒体查询联动。",
   },
   {
     key: "resizeObserver",
-    displayName: "ResizeObserver",
+    displayName: "布局变化监听能力",
     required: false,
     recommendation: "升级浏览器以获得更稳定的响应式布局体验。",
   },
   {
     key: "cssGrid",
-    displayName: "CSS Grid",
+    displayName: "网格布局能力",
     required: true,
-    recommendation: "升级浏览器内核以支持 CSS Grid 布局。",
+    recommendation: "升级浏览器内核以支持网格布局。",
   },
   {
     key: "cssVariables",
-    displayName: "CSS Variables",
+    displayName: "主题变量能力",
     required: true,
-    recommendation: "升级浏览器内核以支持 CSS 自定义属性和主题 token。",
+    recommendation: "升级浏览器内核以支持主题变量。",
   },
 ];
 
@@ -124,7 +124,7 @@ function compatibilitySummary(
   warningCount: number,
 ): string {
   if (status === "PASS") {
-    return "关键与增强 Web 能力均可用。";
+    return "关键与增强浏览器能力均可用。";
   }
   if (status === "FAIL") {
     return `有 ${failedCount} 项关键能力不可用，当前浏览器不满足上线使用要求。`;
@@ -195,7 +195,7 @@ export function formatBrowserCompatibilityEvidence(report: BrowserCompatibilityR
   return [
     "当前浏览器能力预检",
     `检查时间：${report.checkedAt}`,
-    "证据依据：客户端 Web 能力探测",
+    "证据依据：客户端浏览器能力探测",
     `整体状态：${report.overallStatus}`,
     `结论：${report.summary}`,
     ...lines,

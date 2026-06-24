@@ -87,18 +87,18 @@ function diagnosisPublishAlert(testCaseCount: number, hasUnsupportedCriterionCon
   if (testCaseCount === 0) {
     return {
       type: "error" as const,
-      message: "至少需要一个回归病例，当前版本不可发布。",
+      message: "至少需要一个验证病例，当前版本不可发布。",
     };
   }
   if (hasUnsupportedCriterionConstraints) {
     return {
       type: "error" as const,
-      message: "当前版本包含数值或时序约束，B0 运行门禁尚未求值，暂不可发布。",
+      message: "当前版本包含数值或时序约束，无模型规则链路尚未支持这些约束，暂不可发布。",
     };
   }
   return {
     type: "warning" as const,
-    message: "发布前将复算全部回归病例；任一置信分级不一致都会阻断。",
+    message: "发布前将复算全部验证病例；任一置信分级不一致都会阻断。",
   };
 }
 
@@ -418,7 +418,7 @@ export default function DiagnosisKnowledgePanel() {
         reason: values.reason.trim(),
         publishEvidence,
       });
-      message.success("诊断知识已通过病例门禁并生效");
+      message.success("诊断知识已通过验证病例复算并生效");
       publishForm.resetFields();
     } catch (error) {
       message.error(getApiErrorMessage(error, "发布诊断知识失败"));
@@ -596,10 +596,10 @@ export default function DiagnosisKnowledgePanel() {
     },
     {
       key: "tests",
-      label: `回归病例 ${testCases.length}`,
+      label: `验证病例 ${testCases.length}`,
       children: (
         <Card
-          title="发布门禁病例"
+          title="验证病例"
           extra={
             <Button
               icon={<PlusOutlined />}
@@ -656,7 +656,7 @@ export default function DiagnosisKnowledgePanel() {
             <Statistic title="诊断标准" value={criteria.length} />
             <Statistic title="鉴别诊断" value={differentials.length} />
             <Statistic title="诊疗建议" value={pointers.length} />
-            <Statistic title="回归病例" value={testCases.length} />
+            <Statistic title="验证病例" value={testCases.length} />
           </div>
         </Card>
         <Card>
@@ -700,26 +700,26 @@ export default function DiagnosisKnowledgePanel() {
                 label="发布说明"
                 rules={[{ required: true, message: "请填写发布说明" }]}
               >
-                <Input.TextArea rows={3} placeholder="填写来源核验、病例门禁和发布结论" />
+                <Input.TextArea rows={3} placeholder="填写来源核验、验证病例复算和发布结论" />
               </Form.Item>
               {platformPublishing && (
                 <>
-                  <Divider orientation="left">平台发布质量门</Divider>
+                  <Divider orientation="left">平台发布质量校验</Divider>
                   <Form.Item
                     name="qualityGates"
-                    label="质量门"
+                    label="发布质量校验"
                     rules={[
                       {
                         validator: (_, value?: string[]) =>
                           value?.length === KNOWLEDGE_QUALITY_GATE_OPTIONS.length
                             ? Promise.resolve()
-                            : Promise.reject(new Error("请确认全部平台发布质量门")),
+                            : Promise.reject(new Error("请确认全部平台发布质量校验")),
                       },
                     ]}
                   >
                     <Checkbox.Group options={KNOWLEDGE_QUALITY_GATE_OPTIONS} />
                   </Form.Item>
-                  <Form.Item name="qualitySummary" label="质量门摘要">
+                  <Form.Item name="qualitySummary" label="校验说明">
                     <Input.TextArea rows={2} />
                   </Form.Item>
                 </>
@@ -738,7 +738,7 @@ export default function DiagnosisKnowledgePanel() {
                   loading={publish.isPending}
                   disabled={publishDisabled}
                 >
-                  通过门禁并发布
+                  通过校验并发布
                 </Button>
               </Popconfirm>
             </Form>
@@ -1194,7 +1194,7 @@ export default function DiagnosisKnowledgePanel() {
       </Modal>
 
       <Modal
-        title="新增发布门禁病例"
+        title="新增验证病例"
         open={testCaseOpen}
         onCancel={() => setTestCaseOpen(false)}
         confirmLoading={addTestCase.isPending}
@@ -1203,7 +1203,7 @@ export default function DiagnosisKnowledgePanel() {
             testCaseForm,
             addTestCase as never,
             setTestCaseOpen,
-            "回归病例已新增",
+            "验证病例已新增",
           )
         }
       >
@@ -1227,14 +1227,14 @@ export default function DiagnosisKnowledgePanel() {
             <Select
               showSearch
               filterOption={false}
-              placeholder="选择 ACTIVE 诊断身份"
+              placeholder="选择当前有效诊断身份"
               options={diagnosisReferenceOptions.map((item) => ({
                 value: item.id,
                 label: `${item.subject} · ${item.identityCode}`,
               }))}
               onSearch={setDiagnosisReferenceSearch}
               onChange={() => setDiagnosisReferenceSearch("")}
-              notFoundContent="暂无 ACTIVE 诊断身份"
+              notFoundContent="暂无当前有效诊断身份"
             />
           </Form.Item>
           <Form.Item name="expectedConfidence" label="期望置信分级" rules={[{ required: true }]}>

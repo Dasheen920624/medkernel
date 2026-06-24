@@ -7,10 +7,10 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 医院临床运行发布记录。
+ * 机构生效版本记录。
  *
- * <p>记录只追加、不修改。每次启用或回滚都生成新的医院修订号，锁定平台基线与完整资产清单摘要；
- * 当前运行版本就是医院修订号最大的记录。
+ * <p>记录只追加、不修改。每次启用或回退都生成新的机构版本号，锁定平台标准版本与完整版本明细校验码；
+ * 当前版本定位就是医院修订号最大的记录。
  */
 @Table("clinical_runtime_release")
 public record ClinicalRuntimeRelease(

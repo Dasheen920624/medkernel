@@ -4,7 +4,7 @@
 
 ## 接入边界
 
-所有 HIS、EMR、LIS、PACS、医保、病案、护理、手麻、区域平台和 Provider 接入都必须走统一对接链路：适配器、标准上下文、临床事件、嵌入、回调、包发布同步和审计证据。外部系统不绕引擎直写医疗结论、医嘱、病历、法定上报、支付或设备控制。
+所有 HIS、EMR、LIS、PACS、医保、病案、护理、手麻、区域平台和模型服务接入都必须走统一对接链路：适配器、标准上下文、临床事件、嵌入、回调、机构生效版本同步和审计证据。外部系统不绕引擎直写医疗结论、医嘱、病历、法定上报、支付或设备控制。
 
 ## 协议矩阵
 
@@ -19,10 +19,10 @@
 
 ## 数据流
 
-1. 信息科登记适配器或 Webhook 订阅，配置租户、组织作用域、协议类型和字段映射。
+1. 信息科登记适配器或 Webhook 订阅，配置服务机构、组织作用域、协议类型和字段映射。
 2. 外部系统发送入站消息或 MedKernel 登记出站同步消息。
-3. 服务端校验租户、权限、签名、幂等键和字段映射。
-4. 服务端锁定医院当前运行修订，字段映射按其中的不可变术语资产生成标准患者载荷。
+3. 服务端校验服务机构、权限、签名、幂等键和字段映射。
+4. 服务端锁定当前机构生效版本，字段映射按其中的不可变术语资产生成标准患者载荷。
 5. 验签和映射成功后创建可追溯临床事件；异步处理器据此生成上下文快照并触发规则、路径、推荐等真实主链路。
 6. 对接日志、traceId、临床事件 ID、审计事件和死信证据保留；外部断连时返回 `NOT_CONNECTED` 或 `NOT_SYNCED`，不得伪造成功。
 
@@ -32,23 +32,23 @@
 
 | 能力 | 端点 | 权限 | 契约要点 |
 | --- | --- | --- | --- |
-| 当前运行修订 | `GET /api/v1/engine/integration/knowledge-runtime/runtime-release/current` | `asset.read` | 不接收包、领域或版本参数；服务端按认证租户和医院返回完整不可变清单、摘要、修订号和精确资产版本。 |
+| 当前机构生效版本 | `GET /api/v1/engine/integration/knowledge-runtime/runtime-release/current` | `asset.read` | 不接收离线交付文件、领域或版本参数；服务端按认证服务机构和医院返回完整不可变版本明细、完整性校验码、版本号和精确资产版本。 |
 | 标准上下文写入 | `POST /api/v1/engine/integration/knowledge-runtime/context-snapshots` | `context.write` | 使用标准上下文资源；术语不能确定时保留映射告警，不猜测医学编码。 |
 
-契约版本固定为 `v1`。所有 POST 必须携带 `Idempotency-Key`，平台级幂等过滤器会拒绝同键异文并重放首次成功结果。字段契约从 `/api/v1/engine/integration/data-contract` 获取，由服务端自动绑定医院当前运行修订；OpenAPI 从 `/v3/api-docs/medkernel-third-party-integration` 获取。机构覆盖、资产启停和升级只在平台管理面完成，外部临床系统没有运行资产选择权。
+契约版本固定为 `v1`。所有 POST 必须携带 `Idempotency-Key`，平台级幂等过滤器会拒绝同键异文并重放首次成功结果。字段契约从 `/api/v1/engine/integration/data-contract` 获取，由服务端自动绑定当前机构生效版本；OpenAPI 从 `/v3/api-docs/medkernel-third-party-integration` 获取。机构覆盖、资产启停和升级只在平台管理面完成，外部临床系统没有运行资产选择权。
 
 ## 标准输入与院内字典对照
 
-第三方写入上下文前必须先读取当前医院运行修订的字段契约。资源类型、字段路径和目标字典以平台契约为准，不允许自行扩展同义字段或把院内编码冒充平台标准编码。
+第三方写入上下文前必须先读取当前机构生效版本的字段契约。资源类型、字段路径和目标字典以平台契约为准，不允许自行扩展同义字段或把院内编码冒充平台标准编码。
 
 | 输入情况 | 必传内容 | 系统行为 |
 | --- | --- | --- |
 | 已使用平台标准编码 | 标准字段路径、编码系统、标准编码、显示名称 | 按标准上下文写入，并在响应 `mappingStatus` 中保留核验结果 |
-| 仍使用院内编码 | `sourceSystem`、目标标准字典、术语分类和来源记录 | 服务端只使用医院当前运行修订中的不可变映射资产归一；不得跨租户借用对照，也不得读取当前可变映射 |
+| 仍使用院内编码 | `sourceSystem`、目标标准字典、术语分类和来源记录 | 服务端只使用当前机构生效版本中的不可变映射资产归一；不得跨服务机构借用对照，也不得读取当前可变映射 |
 | 标准码存在但院内未对照 | 完整原始编码与来源证据 | 标记 `UNMAPPED`，进入映射治理和就绪度告警，不猜测目标编码 |
 | 标准字典不存在该编码 | 完整原始编码与来源证据 | 标记 `NO_STANDARD_TERM`；高风险必填字段拒绝，其他字段诚实降级 |
 
-联调前通过 `GET /api/v1/engine/terminology/mappings/coverage?standardSystem={system}&codes={code}` 检查标准编码覆盖度；只有 `COVERED` 表示当前租户存在已确认院内对照。标准字典由平台主空间统一维护，`LocalTerm` 与 `TermMapping` 只表达当前租户差异；正式映射版本由医院运行修订锁定后参与临床归一。
+联调前通过 `GET /api/v1/engine/terminology/mappings/coverage?standardSystem={system}&codes={code}` 检查标准编码覆盖度；只有 `COVERED` 表示当前服务机构存在已确认院内对照。标准字典由平台主空间统一维护，`LocalTerm` 与 `TermMapping` 只表达当前服务机构差异；正式映射版本由机构生效版本锁定后参与临床归一。
 
 术语与字典页面独立负责标准术语、本地术语、映射确认和下一版本快照的维护。适配器配置不得保存
 `termMappingId`；运行配置只声明 `targetDictionaryKey` 与 `category`，由临床事件携带的
@@ -56,7 +56,7 @@
 
 ## 接入生命周期
 
-- `POST /api/v1/engine/integration/onboardings` 创建第三方业务接口接入申请，`accessMode=ADAPTER` 时必须绑定租户内真实适配器，`accessMode=FHIR` 时必须声明 `R4` 或 `R5`。
+- `POST /api/v1/engine/integration/onboardings` 创建第三方业务接口接入申请，`accessMode=ADAPTER` 时必须绑定服务机构内真实适配器，`accessMode=FHIR` 时必须声明 `R4` 或 `R5`。
 - `POST /api/v1/engine/integration/onboardings/{id}/advance` 只能按 `REQUESTED` → `AUTH_CONFIGURED` → `MAPPING_CONFIGURED` → `ONLINE` 推进，`OFFLINE` 可用于下线；每次推进必须带阶段证据。
 - 适配器路线进入 `MAPPING_CONFIGURED` 或 `ONLINE` 前必须已有字段映射；缺字段映射返回 `ENG-INTEG-001`，不得用空映射绕过。
 - `ONLINE` 只表示接入配置链路完成，不等于外部系统真实可达；未接入真实连接器时响应仍显示 `NOT_CONNECTED` 阻塞项。
@@ -67,7 +67,7 @@
 - `POST /api/v1/engine/integration/regional-sources` 登记区域平台、上级医院、医联体等跨组织来源，必须包含来源组织 ID、来源组织名称、组织作用域和证据说明。
 - `trustLevel` 只能为 `LOW`、`MEDIUM`、`HIGH`，且必须来自 OPT-07 可信分级证据；空分级返回 `REGIONAL_SOURCE_UNGRADED`，不得默认高可信。
 - 来源可关联适配器或接入申请；关联对象不存在时拒绝保存，避免形成无法追溯的区域数据入口。
-- `GET /api/v1/engine/integration/regional-sources` 返回当前租户来源清单，跨租户来源必须隔离。
+- `GET /api/v1/engine/integration/regional-sources` 返回当前服务机构来源清单，跨服务机构来源必须隔离。
 
 ## FHIR 运行门面
 
@@ -77,7 +77,7 @@
 - `POST /api/v1/engine/integration/fhir/{version}/{resourceType}` 接收原始 FHIR JSON resource，请求头必须带 `X-MedKernel-Fhir-Adapter`、`X-MedKernel-Timestamp`、`X-MedKernel-Signature`。适配器配置只能写 `fhir.signatureWebhookId` 引用，禁止内联 `secretKey`；调用方不得选择包或版本。
 - 当前受控 create 支持 Patient、Encounter、Condition、Observation、Medication、Procedure、CarePlan、DiagnosticReport、DocumentReference 等标准资源，写入会映射为 `CanonicalResource`、登记 FHIR 映射证据、回流临床事件入口，并把出站补偿交给 INTEG-01；无真实连接器时返回 `NOT_CONNECTED` 证据。
 - MedicationRequest / ServiceRequest 属高风险资源，门面只创建 `FHIR_PHYSICIAN_CONFIRMATION` 医师确认任务，不自动写医嘱、不直写申请单、不直写病历、不绕引擎。
-- 未连接适配器、签名错误、白名单不匹配或未实现资源均返回 FHIR `OperationOutcome`；响应不回显患者原始 resource。
+- 未连接适配器、签名错误、允许清单不匹配或未实现资源均返回 FHIR `OperationOutcome`；响应不回显患者原始 resource。
 
 ## 标准互操作映射
 
@@ -106,7 +106,7 @@
 | `category` | 可选，术语分类；与 `targetDictionaryKey` 必须同时填写 |
 
 不需要术语归一的字段只填写来源和目标路径。需要归一的字段必须同时填写目标标准字典和术语
-分类；运行时用请求的 `sourceSystem`、本地编码和服务端确定的医院当前运行修订定位唯一不可变映射。
+分类；运行时用请求的 `sourceSystem`、本地编码和服务端确定的当前机构生效版本定位唯一不可变映射。
 无法唯一定位时拒绝该临床事件，不猜测编码。配置中出现 `termMappingId` 将直接返回
 `ENG-INTEG-001`。
 
@@ -127,9 +127,9 @@
 
 - 平台账号或受委托身份完成认证后访问管理端点；接口权限由 `integration.read`、`integration.write`、`integration.execute` 控制。
 - Webhook 入站和 FHIR create 必须带 `X-MedKernel-Timestamp` 与 `X-MedKernel-Signature`。
-- 签名基于租户内 Webhook 密钥和原始 payload 计算 HMAC-SHA256；服务端常量时间比较，失败拒绝并审计。
-- FHIR create 签名基于适配器引用的 Webhook 签名密钥、时间戳和原始 resource 计算；适配器可配置来源 IP 白名单，但不得在配置 JSON 内存放明文密钥。
-- 密钥、令牌、患者原始 payload 不得写入适配器配置、日志或文档样例。
+- 签名基于服务机构内 Webhook 密钥和原始请求载荷计算 HMAC-SHA256；服务端常量时间比较，失败拒绝并审计。
+- FHIR create 签名基于适配器引用的 Webhook 签名密钥、时间戳和原始 resource 计算；适配器可配置来源 IP 允许清单，但不得在配置 JSON 内存放明文密钥。
+- 密钥、访问凭证、患者原始请求载荷不得写入适配器配置、日志或文档样例。
 
 ## 幂等
 
@@ -148,20 +148,20 @@
 ## 降级
 
 - 外部系统断连：`NOT_CONNECTED`。
-- 包发布或同步无真实通道：`NOT_SYNCED`。
+- 机构生效版本同步无真实通道：`NOT_SYNCED`。
 - 字段映射缺失但可留待质量治理：返回部分成功或质量告警；高风险必填字段缺失必须拒绝。
 - 降级不阻断院内主流程，但必须留下日志、traceId、审计和可重试证据。
 
 ## 审计
 
-所有创建、更新、健康检查、Webhook 测试、入站消息、出站消息、重试和死信重放都必须写审计。审计记录至少包含租户、组织作用域、用户、traceId、动作、目标对象、结果、错误码和时间。读操作通过日志与 traceId 支撑问题定位。
+所有创建、更新、健康检查、Webhook 测试、入站消息、出站消息、重试和死信重放都必须写审计。审计记录至少包含服务机构、组织作用域、用户、traceId、动作、目标对象、结果、错误码和时间。读操作通过日志与 traceId 支撑问题定位。
 
 ## 验收清单
 
 | 类别 | 检查项 | 通过标准 |
 | --- | --- | --- |
 | 连通 | 适配器登记后健康检查 | 无真实连接器时为 `NOT_CONNECTED`，不得伪造 `HEALTHY` |
-| 字段 | 按统一 JSON Pointer 语法映射到标准患者载荷 | 数组路径可落地；编码按医院当前运行修订锁定的精确映射归一；配置不含可变映射 ID |
+| 字段 | 按统一 JSON Pointer 语法映射到标准患者载荷 | 数组路径可落地；编码按当前机构生效版本锁定的精确映射归一；配置不含可变映射 ID |
 | 鉴权 | 缺权限访问管理端点 | 返回 403 ProblemDetail，带 traceId |
 | 签名 | Webhook 缺签名或签名错误 | 拒绝入站并保留失败审计 |
 | 幂等 | 重放同一 `messageId` | 不重复写副作用，返回原处理状态或幂等冲突 |

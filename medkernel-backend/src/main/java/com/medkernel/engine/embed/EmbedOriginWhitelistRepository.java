@@ -5,26 +5,26 @@ import java.util.Optional;
 import org.springframework.data.repository.CrudRepository;
 
 /**
- * 嵌入Origin安全域名白名单存储库。
+ * 嵌入 Origin 来源域名允许清单存储库。
  *
- * <p>管理租户级别 Origin 域白名单的持久化及安全阻断校验。
+ * <p>管理服务机构级别 Origin 来源域名允许清单的持久化及安全阻断校验。
  */
 public interface EmbedOriginWhitelistRepository extends CrudRepository<EmbedOriginWhitelist, Long> {
 
     /**
-     * 根据租户ID拉取所有的授权域名白名单列表。
+     * 根据服务机构 ID 拉取所有的授权来源域名列表。
      *
      * @param tenantId 租户ID
-     * @return 租户域名白名单列表
+     * @return 服务机构来源域名允许清单
      */
     List<EmbedOriginWhitelist> findByTenantId(String tenantId);
 
     /**
-     * 根据租户ID与域名Origin查询白名单是否存在。
+     * 根据服务机构 ID 与域名 Origin 查询来源域名是否允许。
      *
      * @param tenantId 租户ID
      * @param origin 域名Origin（如 https://his.hospital.com）
-     * @return 域名白名单实例包装
+     * @return 来源域名允许清单实例包装
      */
     Optional<EmbedOriginWhitelist> findByTenantIdAndOrigin(String tenantId, String origin);
 }

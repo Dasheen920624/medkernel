@@ -222,20 +222,19 @@ describe("Bootstrap", () => {
     expect(screen.getByText("改密")).toBeInTheDocument();
     expect(screen.getByText("完成")).toBeInTheDocument();
     expect(screen.getByText("进入机构工作台")).toBeInTheDocument();
-    expect(screen.queryByText("双因素")).not.toBeInTheDocument();
-    expect(screen.queryByText("绑定双因素认证")).not.toBeInTheDocument();
-    expect(screen.queryByText("双因素认证")).not.toBeInTheDocument();
+    expect(screen.queryByText("多因素认证")).not.toBeInTheDocument();
+    expect(screen.queryByText("绑定多因素认证")).not.toBeInTheDocument();
     expect(container).not.toHaveTextContent(/首次部署接管|平台接管|接管码|初始管理员/);
   });
 
-  it("默认接管流程不把 MFA 描述为必经步骤", () => {
+  it("默认接管流程不把多因素认证描述为必经步骤", () => {
     renderBootstrap();
 
-    expect(screen.queryByText("绑定双因素认证")).not.toBeInTheDocument();
-    expect(screen.getAllByText(/MFA 默认关闭/).length).toBeGreaterThan(0);
+    expect(screen.queryByText("绑定多因素认证")).not.toBeInTheDocument();
+    expect(screen.getAllByText(/多因素认证默认关闭/).length).toBeGreaterThan(0);
   });
 
-  it("登录后强制流程先改密，再按密钥生成和验证码校验绑定 MFA", async () => {
+  it("登录后强制流程先改密，再按密钥生成和验证码校验绑定多因素认证", async () => {
     apiMocks.changePassword.mockResolvedValue(undefined);
     apiMocks.bindMfa
       .mockResolvedValueOnce({
@@ -260,20 +259,20 @@ describe("Bootstrap", () => {
 
     expect(screen.getByText("进入平台治理")).toBeInTheDocument();
     expect(
-      screen.getByText("当前部署已开启 MFA，按平台安全策略完成认证器验证"),
+      screen.getByText("当前部署已开启多因素认证，按平台安全策略完成认证器验证"),
     ).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("当前密码"), { target: { value: "Init@2026pw" } });
     fireEvent.change(screen.getByLabelText("新密码"), { target: { value: "Owner@2026pw" } });
     fireEvent.change(screen.getByLabelText("确认新密码"), { target: { value: "Owner@2026pw" } });
     fireEvent.click(screen.getByRole("button", { name: "完成首次改密" }));
 
-    expect(await screen.findByRole("heading", { name: "绑定双因素认证" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "绑定多因素认证" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "返回登录" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("设备名称"), { target: { value: "值班安全终端" } });
     fireEvent.click(screen.getByRole("button", { name: "生成认证密钥" }));
 
     expect(await screen.findByText("JBSWY3DPEHPK3PXP")).toBeInTheDocument();
-    expect(screen.getByLabelText("离线双因素认证二维码")).toBeInTheDocument();
+    expect(screen.getByLabelText("离线多因素认证二维码")).toBeInTheDocument();
     expect(screen.getByText(/二维码由本页面生成，不访问外网/)).toBeInTheDocument();
     expect(screen.getByText(/内网不可扫码时选择“手动输入密钥”/)).toBeInTheDocument();
     expect(screen.getByText(/每 30 秒生成 6 位动态验证码/)).toBeInTheDocument();
@@ -296,7 +295,7 @@ describe("Bootstrap", () => {
     expect(apiMocks.verifyMfa).toHaveBeenCalledWith({ code: "123456" });
   });
 
-  it("已绑定 MFA 的账号只验证当前动态码，不重复生成密钥", async () => {
+  it("已绑定多因素认证的账号只验证当前动态码，不重复生成密钥", async () => {
     apiMocks.verifyMfa.mockResolvedValue({ verified: true });
     renderBootstrap({
       phase: "mfa",
@@ -310,7 +309,7 @@ describe("Bootstrap", () => {
       },
     });
 
-    expect(screen.getByRole("heading", { name: "验证双因素认证" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "验证多因素认证" })).toBeInTheDocument();
     expect(screen.queryByLabelText("设备名称")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("动态验证码"), { target: { value: "654321" } });
     fireEvent.click(screen.getByRole("button", { name: "验证并进入系统" }));

@@ -5,7 +5,7 @@ import java.time.Instant;
 import com.medkernel.engine.context.ClinicalRuntimeReleaseContent;
 import com.medkernel.engine.sandbox.replay.SandboxReplayResolvedCase;
 
-/** 单次沙盘运行开始时冻结的运行修订或历史重放清单；执行过程中不得再次解析。 */
+/** 单次沙盘运行开始时冻结的机构生效版本或历史重放清单；执行过程中不得再次解析。 */
 public record SandboxRuntimeBaseline(
     String baselineId,
     SandboxRunMode mode,
@@ -21,7 +21,7 @@ public record SandboxRuntimeBaseline(
     String replayCaseId,
     SandboxReplayResolvedCase historicalReplay
 ) {
-    /** 当前运行修订返回真实 ID；历史重放只返回不可逆来源引用。 */
+    /** 当前机构生效版本返回真实 ID；历史重放只返回不可逆来源引用。 */
     public String runtimeReleaseRef() {
         if (runtimeReleaseId != null) {
             return runtimeReleaseId;

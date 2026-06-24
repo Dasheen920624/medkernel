@@ -219,17 +219,17 @@ describe("ReleaseGovernance", () => {
     rollbackHospitalAsync.mockResolvedValue({ revisionNo: 10 });
   });
 
-  it("publishes the selected platform draft and explicit tombstone as the next A revision", async () => {
+  it("publishes the selected platform draft and explicit tombstone as the next platform standard version", async () => {
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "运行发布" })).toBeInTheDocument();
-    expect(screen.getByText("当前平台基线 A8")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "发布治理" })).toBeInTheDocument();
+    expect(screen.getByText("当前平台标准版本 第 8 版")).toBeInTheDocument();
     expect(screen.queryByText(new RegExp(`灰度|覆盖模板|配置${"包"}版本|候选版本 ID`)))
       .not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText("发布 RULE.CKD V2"));
     fireEvent.click(screen.getByLabelText("停用 PATH.OLD"));
-    fireEvent.click(screen.getByRole("button", { name: "发布新平台基线" }));
+    fireEvent.click(screen.getByRole("button", { name: "发布新平台标准版本" }));
 
     await waitFor(() =>
       expect(publishPlatformAsync).toHaveBeenCalledWith({
@@ -239,16 +239,16 @@ describe("ReleaseGovernance", () => {
     );
   });
 
-  it("builds one hospital runtime revision from platform and local asset selections", async () => {
+  it("builds one institution effective version from platform and local asset selections", async () => {
     renderPage();
-    fireEvent.click(screen.getByRole("tab", { name: "医院运行修订" }));
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
     fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
     fireEvent.click(await screen.findByText(/中心医院/));
 
-    expect(await screen.findByText("当前医院运行修订 H9")).toBeInTheDocument();
-    expect(screen.getByLabelText("启用平台资产 RULE.CKD")).toBeChecked();
-    fireEvent.click(screen.getByLabelText("启用本地资产 PATH.CKD.LOCAL V3"));
-    fireEvent.click(screen.getByRole("button", { name: "生成新医院运行修订" }));
+    expect(await screen.findByText("当前机构生效版本 第 9 版")).toBeInTheDocument();
+    expect(screen.getByLabelText("启用平台内容 RULE.CKD")).toBeChecked();
+    fireEvent.click(screen.getByLabelText("启用本地内容 PATH.CKD.LOCAL V3"));
+    fireEvent.click(screen.getByRole("button", { name: "生成新机构生效版本" }));
 
     await waitFor(() =>
       expect(activateHospitalAsync).toHaveBeenCalledWith({
@@ -269,12 +269,12 @@ describe("ReleaseGovernance", () => {
     );
   });
 
-  it("rolls back only by selecting a real historical H revision", async () => {
+  it("rolls back only by selecting a real historical institution effective version", async () => {
     renderPage();
-    fireEvent.click(screen.getByRole("tab", { name: "医院运行修订" }));
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
     fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
     fireEvent.click(await screen.findByText(/中心医院/));
-    fireEvent.click(await screen.findByRole("button", { name: "回滚到 H7" }));
+    fireEvent.click(await screen.findByRole("button", { name: "回滚到 第 7 版" }));
     fireEvent.click(await screen.findByRole("button", { name: "确认回滚" }));
 
     await waitFor(() =>

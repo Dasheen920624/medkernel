@@ -221,7 +221,7 @@ public class DeclarativeAssetService {
         try {
             return json.readTree(value);
         } catch (JsonProcessingException exception) {
-            throw new ApiException(ErrorCode.INTERNAL_ERROR, "声明式资产正文不是合法 JSON", exception);
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "声明式资产正文结构不合法", exception);
         }
     }
 

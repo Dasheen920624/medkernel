@@ -360,7 +360,7 @@ describe("PatientPathways", () => {
     await user.click(screen.getByRole("button", { name: "选择 ctx-active-1" }));
     await user.click(screen.getByRole("combobox", { name: "选择当前运行候选路径" }));
     await user.click(await screen.findByText("卒中急诊路径 · STROKE"));
-    expect(screen.getByText("候选来自当前医院运行修订，确认后才会入径。")).toBeInTheDocument();
+    expect(screen.getByText("候选来自当前机构生效版本，确认后才会入径。")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "OK" }));
 
     await waitFor(() => {

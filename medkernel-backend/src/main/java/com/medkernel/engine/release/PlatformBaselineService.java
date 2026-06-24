@@ -27,7 +27,7 @@ import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.ids.Ulid;
 
 /**
- * 平台权威基线发布服务。
+ * 平台标准版本发布服务。
  *
  * <p>每次发布都复制上一完整清单，应用本次跨类型资产变更，再生成只追加的新修订。
  */
@@ -73,7 +73,7 @@ public class PlatformBaselineService {
     }
 
     /**
-     * 发布任意数量、任意类型的草稿变更为一个完整平台基线。
+     * 发布任意数量、任意类型的草稿变更为一个完整平台标准版本。
      */
     @Transactional
     public PlatformBaselineRelease publish(PlatformBaselinePublishCommand command) {
@@ -113,7 +113,7 @@ public class PlatformBaselineService {
             requireRuntimeType(version.assetType());
             if (version.status() != AssetVersionStatus.DRAFT) {
                 throw new ApiException(
-                        ErrorCode.CONFLICT, "只有草稿版本可以进入新的平台基线: " + version.versionId());
+                        ErrorCode.CONFLICT, "只有草稿版本可以进入新的平台标准版本: " + version.versionId());
             }
             AssetKey key = new AssetKey(version.assetType(), version.assetIdentity());
             AssetIdentity identity = knownIdentities.get(key);
@@ -235,7 +235,7 @@ public class PlatformBaselineService {
 
     private static VersionedAssetType requireRuntimeType(VersionedAssetType assetType) {
         if (assetType == null || !assetType.isRuntimeConfiguration()) {
-            throw validation("发布清单只允许正式运行配置资产");
+            throw validation("版本明细只允许正式运行配置资产");
         }
         return assetType;
     }

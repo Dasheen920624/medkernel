@@ -7,7 +7,7 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * prompt/tool/model 版本包。
+ * 提示词、工具和模型版本组合。
  *
  * <p>只保存版本号与内容指纹，不保存提示词正文或工具密钥，便于审计导出且避免敏感内容扩散。
  */

@@ -18,7 +18,7 @@ import com.medkernel.shared.datascope.DataScope;
 import jakarta.validation.Valid;
 
 /**
- * GA-ENG-API-04 字典映射 API（标准/院内字典查询、候选生成、高危确认、冲突处置、映射版本发布/运行修订回滚）。
+ * GA-ENG-API-04 字典映射 API（标准/院内字典查询、候选生成、高危确认、冲突处置、映射版本发布/机构生效版本回滚）。
  *
  * <p>所有接口要求当前请求上下文携带租户（{@link DataScope#requireTenant}），
  * 读接口需要 {@code term.read}，写接口需要 {@code term.write}，

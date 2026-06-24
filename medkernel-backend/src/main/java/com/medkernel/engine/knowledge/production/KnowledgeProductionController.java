@@ -138,7 +138,7 @@ public class KnowledgeProductionController {
         return ApiResult.ok(coexistenceService.resolve(candidateRef));
     }
 
-    /** 正式模型生成知识 readiness 闸（AIK-STD-13/LLM-01/02/04）：只读返回阻断项，不调用模型。 */
+    /** 正式模型生成知识上线准备闸（AIK-STD-13/LLM-01/02/04）：只读返回阻断项，不调用模型。 */
     @GetMapping("/readiness")
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<KnowledgeProductionReadinessResponse> readiness(
@@ -184,7 +184,7 @@ public class KnowledgeProductionController {
         return ApiResult.ok(generationService.generate(request));
     }
 
-    /** 模型生产器生成知识候选（AIK-STD-13 FR2）：readiness → 模型网关 → 同一候选流水线。 */
+    /** 模型生产器生成知识候选（AIK-STD-13 FR2）：上线准备 → 模型网关 → 同一候选流水线。 */
     @PostMapping("/jobs/{jobCode}/model-candidates")
     @PreAuthorize("@perm.has('knowledge.write')")
     public ApiResult<ModelKnowledgeProductionResult> generateModelCandidate(

@@ -51,7 +51,7 @@ public class MfaPolicyService implements HighRiskChangeGuard {
             return;
         }
         if (!currentSessionMfaVerified()) {
-            throw new ApiException(ErrorCode.ENG_AUTH_010, "当前会话尚未完成 MFA 验证");
+            throw new ApiException(ErrorCode.ENG_AUTH_010, "当前会话尚未完成多因素认证");
         }
         String tenantId = RequestContext.currentOrgScope().tenantId();
         String userId = RequestContext.currentUserId().orElse(null);
@@ -96,7 +96,7 @@ public class MfaPolicyService implements HighRiskChangeGuard {
         }
         String secret = normalizeSecret(request.secret());
         if (!totpService.verify(secret, request.code())) {
-            throw new ApiException(ErrorCode.ENG_AUTH_010, "MFA 验证码不正确");
+            throw new ApiException(ErrorCode.ENG_AUTH_010, "验证码不正确");
         }
         String recoveryCode = generateRecoveryCode();
         Instant now = Instant.now();
@@ -120,7 +120,7 @@ public class MfaPolicyService implements HighRiskChangeGuard {
         String secret = secretCodec.decodeTotpSecret(credential.mfaSecret())
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_AUTH_010));
         if (!totpService.verify(secret, request.code())) {
-            throw new ApiException(ErrorCode.ENG_AUTH_010, "MFA 验证码不正确");
+            throw new ApiException(ErrorCode.ENG_AUTH_010, "验证码不正确");
         }
         return new BootstrapMfaVerifyResponse(true);
     }

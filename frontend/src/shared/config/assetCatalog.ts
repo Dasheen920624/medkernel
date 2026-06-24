@@ -86,7 +86,7 @@ export const AUTHORING_ASSET_TYPES = [
 /** 发布治理必须能识别统一版本底座的全部资产类型。 */
 export const RELEASE_ASSET_TYPES = ENGINE_ASSET_TYPES;
 
-/** 可进入平台基线或医院运行修订的正式配置资产。 */
+/** 可进入平台标准版本或机构生效版本的正式配置资产。 */
 export const RUNTIME_ASSET_TYPES = ENGINE_ASSET_TYPES;
 
 export const RUNTIME_ASSET_OPTIONS = RUNTIME_ASSET_TYPES.map((value) => ({

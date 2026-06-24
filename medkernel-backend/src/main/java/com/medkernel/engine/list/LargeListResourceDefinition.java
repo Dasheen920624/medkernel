@@ -10,7 +10,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 大规模列表资源定义：集中声明排序与过滤白名单。
+ * 大规模列表资源定义：集中声明排序与过滤允许范围。
  */
 record LargeListResourceDefinition(
     Set<String> sortFields,

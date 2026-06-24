@@ -10,7 +10,7 @@ import org.springframework.stereotype.Repository;
 /**
  * 标准术语字典持久化仓库。
  *
- * <p>写入仍由 tenant_id 归属隔离；租户读路径通过平台基线 + 租户覆盖联合查询，
+ * <p>写入仍由 tenant_id 归属隔离；租户读路径通过平台标准版本 + 租户覆盖联合查询，
  * 保证院内映射可以引用平台标准词。
  */
 @Repository
@@ -55,7 +55,7 @@ public interface StandardTermRepository extends ListCrudRepository<StandardTerm,
     );
 
     /**
-     * 平台标准 + 租户覆盖联合分页。先展示租户覆盖，再展示平台基线，保证本地覆盖更容易被人工看见。
+     * 平台标准 + 租户覆盖联合分页。先展示租户覆盖，再展示平台标准版本，保证本地覆盖更容易被人工看见。
      */
     @Query("""
         SELECT * FROM standard_term

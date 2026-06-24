@@ -267,7 +267,7 @@ public class ReleaseSimulationService {
                 command.tenantId(),
                 command.assetType(),
                 command.assetIdentity(),
-                InheritanceOverrideStatus.PUBLISHED
+                InheritanceOverrideStatus.ACTIVE
             ).stream()
             .filter(override -> Objects.equals(override.applicableScope(), command.applicableScope()))
             .filter(override -> isAtOrBelow(override.orgPath(), command.targetOrgPath()))

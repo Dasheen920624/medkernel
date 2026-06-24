@@ -148,7 +148,7 @@ describe("WorkflowTodos", () => {
     expect(screen.getByText("随访异常复核")).toBeInTheDocument();
     expect(screen.getByText("patient-real-1")).toBeInTheDocument();
     expect(screen.getByText("来源对象 return-task-1")).toBeInTheDocument();
-    expect(screen.getByText("追踪链路 trace-workflow")).toBeInTheDocument();
+    expect(screen.getByText("追踪号 trace-workflow")).toBeInTheDocument();
     expect(screen.getByText("随访任务")).toBeInTheDocument();
     expect(screen.queryByText("FOLLOWUP_TASK")).not.toBeInTheDocument();
     expect(screen.queryByText("待办接口尚未接入")).not.toBeInTheDocument();
@@ -424,8 +424,8 @@ describe("WorkflowTodos", () => {
     renderWorkflowTodos();
 
     expect(screen.getByText("来源对象 return-task-no-trace")).toBeInTheDocument();
-    expect(screen.getByText("追踪链路未提供")).toBeInTheDocument();
-    expect(screen.queryByText(/^追踪链路 trace-/)).not.toBeInTheDocument();
+    expect(screen.getByText("追踪号未提供")).toBeInTheDocument();
+    expect(screen.queryByText(/^追踪号 trace-/)).not.toBeInTheDocument();
   });
 
   it("persists completion through the backend and refreshes the server-side list", async () => {

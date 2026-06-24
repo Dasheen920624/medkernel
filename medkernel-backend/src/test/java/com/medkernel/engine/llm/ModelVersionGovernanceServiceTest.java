@@ -77,7 +77,7 @@ class ModelVersionGovernanceServiceTest {
         assertThat(savedBundle.getValue().activeScopeKey()).isEqualTo("tenant-1|rule.draft");
         verify(repository).retireActive("tenant-1", "rule.draft", "ops", response.effectiveAt());
         verify(auditRecorder).record(AuditAction.UPDATE, "mk_llm_model_version_bundle", "7",
-            "发布模型版本三元组 rule.draft");
+            "发布提示词、工具和模型版本组合 rule.draft");
     }
 
     @Test

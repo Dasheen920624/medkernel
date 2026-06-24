@@ -199,10 +199,10 @@ class EvidenceControllerSecurityTest {
             .andExpect(status().isForbidden());
     }
 
-    // ── GET /snapshots/export/{digest}/download（证据包下载）─────
+    // ── GET /snapshots/export/{digest}/download（证据导出下载）─────
 
     @Test
-    @DisplayName("审计角色下载证据包，缺租户上下文被 DataScope 拦截")
+    @DisplayName("审计角色下载证据导出，缺租户上下文被 DataScope 拦截")
     @WithMockUser(authorities = "ROLE_AUDITOR")
     void downloadExportFile_auditRole_noTenant_returns400() throws Exception {
         mvc.perform(get("/api/v1/compliance/evidence/snapshots/export/"
@@ -212,7 +212,7 @@ class EvidenceControllerSecurityTest {
     }
 
     @Test
-    @DisplayName("医生角色下载证据包直接 403")
+    @DisplayName("医生角色下载证据导出直接 403")
     @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void downloadExportFile_doctorRole_returns403() throws Exception {
         mvc.perform(get("/api/v1/compliance/evidence/snapshots/export/"

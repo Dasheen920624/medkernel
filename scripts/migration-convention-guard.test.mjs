@@ -84,7 +84,7 @@ test("合规迁移通过中文注释、命名规约和租户索引门禁", async
   );
 });
 
-test("V30 及以前的权威基线表名不被后续 mk 命名规则误判", async () => {
+test("V30 及以前的标准版本表名不被后续 mk 命名规则误判", async () => {
   await withFixture(
     {
       "medkernel-backend/src/main/resources/db/migration/postgres/V30__legacy_authority.sql": `

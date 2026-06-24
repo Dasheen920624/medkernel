@@ -13,10 +13,10 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 解析指定医院运行修订真正可消费的术语映射。
+ * 解析指定机构生效版本真正可消费的术语映射。
  *
  * <p>只读取运行清单锁定的 PUBLISHED 术语资产版本；同一编码锚点命中多层组织版本时，
- * 仅保留最具体层级，避免平台基线与医院覆盖形成伪冲突。
+ * 仅保留最具体层级，避免平台标准版本与医院覆盖形成伪冲突。
  */
 @Service
 public class EffectiveTermMappingResolver {
@@ -43,7 +43,7 @@ public class EffectiveTermMappingResolver {
             String targetDictionaryKey,
             String category) {
         OrgScope scope = effectiveScope(tenantId);
-        String releaseId = required(runtimeReleaseId, "术语映射解析必须指定医院运行修订");
+        String releaseId = required(runtimeReleaseId, "术语映射解析必须指定机构生效版本");
         List<EffectiveTermMappingCandidate> candidates = snapshots.findEffectiveByAnchor(
             tenantId,
             releaseId,
@@ -68,7 +68,7 @@ public class EffectiveTermMappingResolver {
         OrgScope scope = effectiveScope(tenantId);
         return resolveMostSpecific(snapshots.findEffectiveByStandardCode(
             tenantId,
-            required(runtimeReleaseId, "术语覆盖率评估必须指定医院运行修订"),
+            required(runtimeReleaseId, "术语覆盖率评估必须指定机构生效版本"),
             scope.tenantId(),
             scope.groupId(),
             facilityId(scope),

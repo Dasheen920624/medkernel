@@ -10,7 +10,7 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 医院运行修订中的精确资产版本条目。
+ * 机构生效版本中的精确资产版本条目。
  */
 @Table("clinical_runtime_release_item")
 public record ClinicalRuntimeReleaseItem(

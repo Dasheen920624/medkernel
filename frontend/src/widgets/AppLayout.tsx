@@ -429,7 +429,7 @@ export function AppLayout() {
         <PageState
           state="forbidden"
           title="需要完成首次安全设置"
-          description="当前账号仍需完成首次改密或本次 MFA 验证，完成前不能进入业务页面。"
+          description="当前账号仍需完成首次改密或本次多因素认证，完成前不能进入业务页面。"
           action={
             <Button
               type="primary"

@@ -6,7 +6,7 @@ import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 平台权威基线发布仓储。
+ * 平台标准版本发布仓储。
  */
 @Repository
 public interface PlatformBaselineReleaseRepository

@@ -45,7 +45,7 @@ public class IntegrationController {
         this.isolatedAuditPublisher = isolatedAuditPublisher;
     }
 
-    /** 读取当前医院运行修订对应的第三方数据接入字段契约。 */
+    /** 读取当前机构生效版本对应的第三方数据接入字段契约。 */
     @GetMapping("/data-contract")
     @PreAuthorize("@perm.has('integration.read')")
     public ApiResult<IntegrationDataContractResponse> getDataContract() {

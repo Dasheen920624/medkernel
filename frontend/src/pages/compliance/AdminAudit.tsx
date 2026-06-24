@@ -474,7 +474,7 @@ export default function AdminAudit() {
               rowKey={(record) => record.digest}
               dataSource={traceDiagnosis.data.payloads}
               pagination={false}
-              locale={{ emptyText: "无 Payload 摘要" }}
+              locale={{ emptyText: "无输入内容摘要" }}
               scroll={{ x: "max-content" }}
               columns={[
                 { title: "摘要", dataIndex: "digest" },
@@ -618,7 +618,7 @@ export default function AdminAudit() {
           showIcon
           icon={<SafetyCertificateOutlined />}
           message="审计链已启用"
-          description="事件按服务空间隔离并保留摘要、签名和追踪标识；有权操作者逐次确认准确筛选范围后，由后端异步生成文件并自动登记摘要与证据。"
+          description="事件按服务空间隔离并保留摘要、签名和追踪号；有权操作者逐次确认准确筛选范围后，由后端异步生成文件并自动登记摘要与证据。"
         />
         <Tabs
           defaultActiveKey="events"

@@ -16,7 +16,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
-/** 只从认证医院当前运行修订或不可变历史重放清单解析沙盘基线。 */
+/** 只从认证当前机构生效版本或不可变历史重放清单解析沙盘基线。 */
 @Service
 public class SandboxRuntimeBaselineResolver {
 
@@ -33,7 +33,7 @@ public class SandboxRuntimeBaselineResolver {
         this.replayCases = replayCases;
     }
 
-    /** 冻结认证医院当前不可变运行修订及其已校验完整清单。 */
+    /** 冻结认证医院当前不可变机构生效版本及其已校验完整清单。 */
     public SandboxRuntimeBaseline resolveCurrent() {
         OrgScope scope = currentScope();
         ClinicalRuntimeRelease release = runtimeReleases.resolve(scope);
@@ -65,7 +65,7 @@ public class SandboxRuntimeBaselineResolver {
             replay);
     }
 
-    /** 冻结当前运行修订和历史清单，两侧只共享历史清单中的脱敏上下文。 */
+    /** 冻结当前机构生效版本和历史清单，两侧只共享历史清单中的脱敏上下文。 */
     public SandboxRuntimeBaseline resolveCompare(String replayCaseId) {
         OrgScope scope = currentScope();
         ClinicalRuntimeRelease release = runtimeReleases.resolve(scope);

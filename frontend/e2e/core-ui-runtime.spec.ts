@@ -17,7 +17,7 @@ type RuntimeRecord = RuntimeCollectors & {
 test.describe.configure({ mode: "serial" });
 
 test.describe("核心 UI 运行旅程", () => {
-  test("登录、用户菜单、规则维护与运行发布页面均可运行且无系统错误", async ({
+  test("登录、用户菜单、规则维护与发布治理页面均可运行且无系统错误", async ({
     page,
   }, testInfo) => {
     test.setTimeout(300_000);
@@ -61,12 +61,12 @@ test.describe("核心 UI 运行旅程", () => {
       await page.setViewportSize({ width: 1440, height: 960 });
       clearRuntime(runtime);
       await page.goto("/config/releases", { waitUntil: "networkidle" });
-      await expect(page.getByRole("heading", { name: "运行发布" })).toBeVisible();
-      await expect(page.getByRole("tab", { name: "平台权威基线" })).toBeVisible();
-      await expect(page.getByRole("tab", { name: "医院运行修订" })).toBeVisible();
-      await expectNoRootOverflow(page, "运行发布桌面");
+      await expect(page.getByRole("heading", { name: "发布治理" })).toBeVisible();
+      await expect(page.getByRole("tab", { name: "平台标准版本" })).toBeVisible();
+      await expect(page.getByRole("tab", { name: "机构生效版本" })).toBeVisible();
+      await expectNoRootOverflow(page, "发布治理桌面");
       await captureEvidence(page, testInfo, "core-runtime-releases-desktop");
-      recordCleanRuntime(page, "运行发布桌面", runtime, records);
+      recordCleanRuntime(page, "发布治理桌面", runtime, records);
     } finally {
       await attachRuntimeRecords(testInfo, records);
     }

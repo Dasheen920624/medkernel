@@ -68,7 +68,7 @@ class H2BaselineMigrationTest {
             WHERE TABLE_NAME = 'MK_LLM_MODEL_VERSION_BUNDLE'
               AND COLUMN_NAME IN ('PROMPT_VERSION', 'TOOL_VERSION', 'MODEL_VERSION', 'PROMPT_HASH', 'TOOL_HASH', 'MODEL_HASH')
             """, Integer.class);
-        assertThat(modelVersionBundleColumns).as("LLM-04 版本三元组版本包列").isEqualTo(6);
+        assertThat(modelVersionBundleColumns).as("LLM-04 提示词、工具和模型版本组合列").isEqualTo(6);
 
         Integer providerLockVersionColumns = jdbc.queryForObject("""
             SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
@@ -76,7 +76,7 @@ class H2BaselineMigrationTest {
               AND COLUMN_NAME = 'LOCK_VERSION'
               AND IS_NULLABLE = 'NO'
             """, Integer.class);
-        assertThat(providerLockVersionColumns).as("模型 provider 乐观锁列").isEqualTo(1);
+        assertThat(providerLockVersionColumns).as("模型服务乐观锁列").isEqualTo(1);
 
         Integer providerCredentialColumns = jdbc.queryForObject("""
             SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
@@ -121,7 +121,7 @@ class H2BaselineMigrationTest {
                 'RESOLUTION_SOURCE'
               )
             """, Integer.class);
-        assertThat(sandboxRuntimeReleaseColumns).as("沙盘运行修订冻结字段").isEqualTo(6);
+        assertThat(sandboxRuntimeReleaseColumns).as("沙盘机构生效版本冻结字段").isEqualTo(6);
 
         Integer sandboxReplayTables = jdbc.queryForObject("""
             SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
@@ -134,7 +134,7 @@ class H2BaselineMigrationTest {
             WHERE TABLE_NAME = 'MK_SANDBOX_REPLAY_CASE'
               AND COLUMN_NAME IN ('SOURCE_RUNTIME_RELEASE_REF', 'SOURCE_RUNTIME_REVISION_NO')
             """, Integer.class);
-        assertThat(sandboxReplayRuntimeColumns).as("历史重放来源运行修订字段").isEqualTo(2);
+        assertThat(sandboxReplayRuntimeColumns).as("历史重放来源机构生效版本字段").isEqualTo(2);
 
         Integer knowledgeInitializationTables = jdbc.queryForObject("""
             SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
@@ -160,7 +160,7 @@ class H2BaselineMigrationTest {
             """,
             "tenant-version", "knowledge.extract", "prompt:v1", hash,
             "tool:v1", hash, "model:v1", hash, "ACTIVE", "tenant-version|knowledge.extract");
-        assertThat(activeBundleInserted).as("首个 ACTIVE 模型版本包可写入").isEqualTo(1);
+        assertThat(activeBundleInserted).as("首个已生效模型版本组合可写入").isEqualTo(1);
 
         assertThatThrownBy(() -> jdbc.update("""
             INSERT INTO mk_llm_model_version_bundle (
@@ -170,7 +170,7 @@ class H2BaselineMigrationTest {
             """,
             "tenant-version", "knowledge.extract", "prompt:v2", hash,
             "tool:v2", hash, "model:v2", hash, "ACTIVE", "tenant-version|knowledge.extract"))
-            .as("同租户同能力不得并存两个 ACTIVE 模型版本包")
+            .as("同服务机构同能力不得并存两个已生效模型版本组合")
             .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
 
         assertThatThrownBy(() -> jdbc.update("""
@@ -181,7 +181,7 @@ class H2BaselineMigrationTest {
             """,
             "tenant-version-2", "knowledge.extract", "prompt:v1", hash,
             "tool:v1", hash, "model:v1", hash, "ACTIVE"))
-            .as("ACTIVE 模型版本包不得绕过作用域唯一键")
+            .as("已生效模型版本组合不得绕过作用域唯一键")
             .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
 
         assertThatThrownBy(() -> jdbc.update("""

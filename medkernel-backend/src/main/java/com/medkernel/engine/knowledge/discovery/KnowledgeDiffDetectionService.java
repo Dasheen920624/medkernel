@@ -98,7 +98,7 @@ public class KnowledgeDiffDetectionService {
         if (active.isEmpty()) {
             KnowledgeDiff diff = persistDiff(
                 tenantId, context, candidate, null, KnowledgeDiffType.NEW,
-                "目标身份缺少 ACTIVE 权威基线，按新增差异留痕并等待人工复核", sourceRef, now, actor);
+                "目标身份缺少 ACTIVE 标准版本，按新增差异留痕并等待人工复核", sourceRef, now, actor);
             return detection(true, diff.diffType(), context.targetIdentityId(), null, null, null, diff.basis());
         }
 
@@ -126,7 +126,7 @@ public class KnowledgeDiffDetectionService {
     private KnowledgeAssetVersion requireActive(Optional<KnowledgeAssetVersion> active, Long identityId) {
         return active.orElseThrow(() -> new ApiException(
             ErrorCode.CONFLICT,
-            "知识身份 id=" + identityId + " 缺少 ACTIVE 权威基线，不能登记废止过期任务"));
+            "知识身份 id=" + identityId + " 缺少 ACTIVE 标准版本，不能登记废止过期任务"));
     }
 
     private KnowledgeDiff persistDiff(

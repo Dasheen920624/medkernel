@@ -73,7 +73,7 @@ public class CdssRiskMatrixService {
         RecommendationRiskLevel severity = severityLevel == null ? RecommendationRiskLevel.LOW : severityLevel;
         CdssAutomationLevel automation = automationLevel == null ? CdssAutomationLevel.INFORM_ONLY : automationLevel;
         return runtimeSelector.selectRule(
-                tenantId(), requireText(runtimeReleaseId, "临床运行修订不能为空"),
+                tenantId(), requireText(runtimeReleaseId, "机构生效版本不能为空"),
                 normalizedTrigger, severity, automation)
             .map(CdssRiskMatrixRule::toAssessment)
             .orElseGet(() -> builtInBaseline(normalizedTrigger, severity, automation));

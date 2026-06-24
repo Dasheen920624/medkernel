@@ -49,8 +49,8 @@ function shortHash(value: string | null | undefined) {
   return value ? `${value.slice(0, 12)}…` : "—";
 }
 
-function revision(prefix: "A" | "H", value: number | null | undefined) {
-  return value ? `${prefix}${value}` : "尚未建立";
+function revision(_prefix: "A" | "H", value: number | null | undefined) {
+  return value ? `第 ${value} 版` : "尚未建立";
 }
 
 function stateTag(state: string) {
@@ -230,15 +230,15 @@ export default function ReleaseGovernance() {
       });
       setPlatformPublishIds([]);
       setPlatformDisabled([]);
-      message.success(`平台基线 ${revision("A", result.revisionNo)} 已发布`);
+      message.success(`平台标准版本 ${revision("A", result.revisionNo)} 已发布`);
     } catch (error) {
-      message.error(getApiErrorMessage(error, "平台基线发布失败"));
+      message.error(getApiErrorMessage(error, "平台标准版本发布失败"));
     }
   }
 
   async function activateHospitalRuntime() {
     if (!hospitalId || !baseline?.release.baselineReleaseId) {
-      message.warning("请先选择医院并确认平台基线");
+      message.warning("请先选择机构并确认平台标准版本");
       return;
     }
     try {
@@ -250,9 +250,9 @@ export default function ReleaseGovernance() {
           activeAssets: Array.from(hospitalSelections.values()),
         },
       });
-      message.success(`医院运行修订 ${revision("H", result.revisionNo)} 已生成`);
+      message.success(`机构生效版本 ${revision("H", result.revisionNo)} 已生成`);
     } catch (error) {
-      message.error(getApiErrorMessage(error, "医院运行修订生成失败"));
+      message.error(getApiErrorMessage(error, "机构生效版本生成失败"));
     }
   }
 
@@ -263,9 +263,9 @@ export default function ReleaseGovernance() {
         hospitalId,
         targetReleaseId: target.releaseId,
       });
-      message.success(`已生成回滚修订 ${revision("H", result.revisionNo)}`);
+      message.success(`已生成回滚版本 ${revision("H", result.revisionNo)}`);
     } catch (error) {
-      message.error(getApiErrorMessage(error, "医院运行修订回滚失败"));
+      message.error(getApiErrorMessage(error, "机构生效版本回滚失败"));
     }
   }
 
@@ -273,15 +273,15 @@ export default function ReleaseGovernance() {
   if (hospitalId && currentRuntime) {
     hospitalRuntimeSummary = (
       <Card>
-        <Title level={5}>当前医院运行修订 {revision("H", currentRuntime.release.revisionNo)}</Title>
+        <Title level={5}>当前机构生效版本 {revision("H", currentRuntime.release.revisionNo)}</Title>
         <Descriptions size="small" column={3}>
-          <Descriptions.Item label="平台基线">
+          <Descriptions.Item label="平台标准版本">
             {revision("A", baseline?.release.revisionNo)}
           </Descriptions.Item>
-          <Descriptions.Item label="启用资产">
+          <Descriptions.Item label="启用内容">
             {currentRuntime.items.filter((item) => item.entryState === "ACTIVE").length} 项
           </Descriptions.Item>
-          <Descriptions.Item label="清单摘要">
+          <Descriptions.Item label="完整性校验码">
             <Text code>{shortHash(currentRuntime.release.manifestSha256)}</Text>
           </Descriptions.Item>
         </Descriptions>
@@ -292,8 +292,8 @@ export default function ReleaseGovernance() {
       <Alert
         type="info"
         showIcon
-        message="该医院尚未建立运行修订"
-        description="默认从当前平台基线开始选择，也可加入集团或本院资产。"
+        message="该机构尚未建立生效版本"
+        description="默认沿用当前平台标准版本，也可加入集团或本院内容。"
       />
     );
   }
@@ -302,13 +302,13 @@ export default function ReleaseGovernance() {
     <Space direction="vertical" size="large" className={styles.fullWidth}>
       {baseline ? (
         <Card>
-          <Title level={5}>当前平台基线 {revision("A", baseline.release.revisionNo)}</Title>
+          <Title level={5}>当前平台标准版本 {revision("A", baseline.release.revisionNo)}</Title>
           <Descriptions size="small" column={3}>
-            <Descriptions.Item label="完整清单">{baseline.items.length} 项</Descriptions.Item>
+            <Descriptions.Item label="启用内容">{baseline.items.length} 项</Descriptions.Item>
             <Descriptions.Item label="发布时间">
               {new Date(baseline.release.publishedAt).toLocaleString()}
             </Descriptions.Item>
-            <Descriptions.Item label="清单摘要">
+            <Descriptions.Item label="完整性校验码">
               <Text code>{shortHash(baseline.release.manifestSha256)}</Text>
             </Descriptions.Item>
           </Descriptions>
@@ -317,8 +317,8 @@ export default function ReleaseGovernance() {
         <Alert
           type="info"
           showIcon
-          message="平台尚未建立权威基线"
-          description="选择已完成技术校验的草稿资产后发布首个 A 修订。"
+          message="平台尚未建立标准版本"
+          description="选择已完成校验的草稿内容后发布首个平台标准版本。"
         />
       )}
 
@@ -328,7 +328,7 @@ export default function ReleaseGovernance() {
           <Space>
             <Select
               allowClear
-              placeholder="全部资产类型"
+              placeholder="全部内容类型"
               value={assetType}
               options={RUNTIME_ASSET_OPTIONS}
               onChange={setAssetType}
@@ -336,7 +336,7 @@ export default function ReleaseGovernance() {
             />
             <Input.Search
               allowClear
-              placeholder="搜索资产编码或来源"
+              placeholder="搜索内容编码或来源"
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
               className={styles.keywordInput}
@@ -364,7 +364,7 @@ export default function ReleaseGovernance() {
               ),
             },
             {
-              title: "资产",
+              title: "内容",
               render: (_value, candidate) => (
                 <Space direction="vertical" size={0}>
                   <Text strong>{candidate.assetIdentity}</Text>
@@ -372,7 +372,7 @@ export default function ReleaseGovernance() {
                 </Space>
               ),
             },
-            { title: "资产版本", dataIndex: "versionNo", width: 110 },
+            { title: "内容版本", dataIndex: "versionNo", width: 110 },
             {
               title: "状态",
               dataIndex: "status",
@@ -390,7 +390,7 @@ export default function ReleaseGovernance() {
           size="small"
           pagination={false}
           dataSource={activeBaselineItems}
-          locale={{ emptyText: "当前基线没有启用资产" }}
+          locale={{ emptyText: "当前标准版本没有启用内容" }}
           columns={[
             {
               title: "停用",
@@ -407,7 +407,7 @@ export default function ReleaseGovernance() {
                 />
               ),
             },
-            { title: "资产编码", dataIndex: "assetIdentity" },
+            { title: "内容编码", dataIndex: "assetIdentity" },
             {
               title: "类型",
               dataIndex: "assetType",
@@ -421,12 +421,12 @@ export default function ReleaseGovernance() {
       <div className={styles.primaryAction}>
         <Button
           type="primary"
-          aria-label="发布新平台基线"
+          aria-label="发布新平台标准版本"
           icon={<RocketOutlined />}
           loading={publishPlatform.isPending}
           onClick={() => void publishPlatformBaseline()}
         >
-          发布新平台基线
+          发布新平台标准版本
         </Button>
       </div>
     </Space>
@@ -461,7 +461,7 @@ export default function ReleaseGovernance() {
 
       {hospitalId && (
         <>
-          <Card title="平台基线资产">
+          <Card title="平台标准内容">
             <Table
               rowKey={(item) => assetKey(item.assetType, item.assetIdentity)}
               size="small"
@@ -477,7 +477,7 @@ export default function ReleaseGovernance() {
                     );
                     return (
                       <Checkbox
-                        aria-label={`启用平台资产 ${item.assetIdentity}`}
+                        aria-label={`启用平台内容 ${item.assetIdentity}`}
                         checked={Boolean(selected) && !selected?.versionId}
                         onChange={(event) =>
                           toggleHospitalSelection(
@@ -493,7 +493,7 @@ export default function ReleaseGovernance() {
                     );
                   },
                 },
-                { title: "资产编码", dataIndex: "assetIdentity" },
+                { title: "内容编码", dataIndex: "assetIdentity" },
                 {
                   title: "类型",
                   dataIndex: "assetType",
@@ -504,14 +504,14 @@ export default function ReleaseGovernance() {
             />
           </Card>
 
-          <Card title="集团与本院资产">
+          <Card title="集团与本院内容">
             <Table
               rowKey="versionId"
               size="small"
               loading={localCandidatesQuery.isLoading}
               pagination={false}
               dataSource={localCandidates}
-              locale={{ emptyText: "没有适用于该医院的本地资产" }}
+              locale={{ emptyText: "没有适用于该机构的本地内容" }}
               columns={[
                 {
                   title: "启用",
@@ -522,7 +522,7 @@ export default function ReleaseGovernance() {
                     );
                     return (
                       <Checkbox
-                        aria-label={`启用本地资产 ${candidate.assetIdentity} ${candidate.versionNo}`}
+                        aria-label={`启用本地内容 ${candidate.assetIdentity} ${candidate.versionNo}`}
                         checked={selected?.versionId === candidate.versionId}
                         onChange={(event) =>
                           toggleHospitalSelection(
@@ -538,13 +538,13 @@ export default function ReleaseGovernance() {
                     );
                   },
                 },
-                { title: "资产编码", dataIndex: "assetIdentity" },
+                { title: "内容编码", dataIndex: "assetIdentity" },
                 {
                   title: "来源",
                   dataIndex: "sourceLayer",
                   render: (value: string) => (value === "GROUP" ? "集团" : "本院"),
                 },
-                { title: "资产版本", dataIndex: "versionNo", width: 110 },
+                { title: "内容版本", dataIndex: "versionNo", width: 110 },
                 {
                   title: "状态",
                   dataIndex: "status",
@@ -558,17 +558,17 @@ export default function ReleaseGovernance() {
           <div className={styles.primaryAction}>
             <Button
               type="primary"
-              aria-label="生成新医院运行修订"
+              aria-label="生成新机构生效版本"
               icon={<RocketOutlined />}
               loading={activateHospital.isPending}
               onClick={() => void activateHospitalRuntime()}
             >
-              生成新医院运行修订
+              生成新机构生效版本
             </Button>
           </div>
 
           <Card
-            title="医院运行历史"
+            title="机构版本历史"
             extra={
               <Button icon={<ReloadOutlined />} onClick={() => void historyQuery.refetch?.()}>
                 刷新
@@ -588,7 +588,7 @@ export default function ReleaseGovernance() {
                   render: (value: number) => revision("H", value),
                 },
                 {
-                  title: "平台基线",
+                  title: "平台标准版本",
                   dataIndex: "platformBaselineReleaseId",
                 },
                 {
@@ -605,7 +605,7 @@ export default function ReleaseGovernance() {
                     ) : (
                       <Popconfirm
                         title={`回滚到 ${revision("H", item.revisionNo)}`}
-                        description="系统会复制该完整清单并生成更高编号的新修订。"
+                        description="系统会复制当前内容组合并生成新的生效版本。"
                         okText="确认回滚"
                         cancelText="取消"
                         onConfirm={() => rollback(item)}
@@ -630,13 +630,13 @@ export default function ReleaseGovernance() {
   );
 
   return (
-    <PageShell title="运行发布" description="平台维护权威基线，医院维护自己的完整运行修订。">
+    <PageShell title="发布治理" description="发布平台标准版本，并为机构确认当前生效版本。">
       {baselineQuery.isError && (
         <Alert
           type="warning"
           showIcon
-          message="当前平台基线不可用"
-          description="若这是全新环境，可直接从平台草稿发布首个基线。"
+          message="当前平台标准版本不可用"
+          description="若这是全新环境，可直接从平台草稿发布首个标准版本。"
           className={styles.statusAlert}
         />
       )}
@@ -644,8 +644,8 @@ export default function ReleaseGovernance() {
         activeKey={activeTab}
         onChange={setActiveTab}
         items={[
-          { key: "platform", label: "平台权威基线", children: platformContent },
-          { key: "hospital", label: "医院运行修订", children: hospitalContent },
+          { key: "platform", label: "平台标准版本", children: platformContent },
+          { key: "hospital", label: "机构生效版本", children: hospitalContent },
         ]}
       />
     </PageShell>

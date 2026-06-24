@@ -18,7 +18,7 @@ import com.medkernel.shared.datascope.DataScope;
 import jakarta.validation.Valid;
 
 /**
- * 模型 provider 接入治理控制器（LLM-08）。
+ * 模型服务接入治理控制器（LLM-08）。
  *
  * <p>由医疗引擎运营员使用 {@code llm.provider.manage} 和 {@code llm.eval.manage} 完成接入、
  * 脱敏快照核查与医学评测。运行侧内网禁启外部 provider（ENG-LLM-009）。全线 {@link DataScope} 强多租户隔离。

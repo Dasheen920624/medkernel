@@ -441,7 +441,7 @@ class ClinicalRuntimeReleaseServiceTest {
             "trace-A"
         )))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("旧平台基线")
+            .hasMessageContaining("旧平台标准版本")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.CONFLICT);
     }

@@ -183,9 +183,9 @@ update_runtime_release_fingerprint(){
   local fingerprint="$1" tmp
   [ -f "$ENV_FILE" ] || { err "未找到运行环境文件：$ENV_FILE"; return 1; }
   [ -n "$fingerprint" ] && [ "${#fingerprint}" -le 128 ] \
-    || { err "运行制品指纹必须为 1–128 个字符"; return 1; }
+    || { err "交付内容指纹必须为 1–128 个字符"; return 1; }
   printf '%s' "$fingerprint" | grep -Eq '^[A-Za-z0-9._:-]+$' \
-    || { err "运行制品指纹仅允许字母、数字、点、下划线、冒号和连字符"; return 1; }
+    || { err "交付内容指纹仅允许字母、数字、点、下划线、冒号和连字符"; return 1; }
 
   tmp="$(mktemp "$APP_HOME/conf/.medkernel-env.XXXXXX")"
   awk -v value="$fingerprint" '
@@ -206,7 +206,7 @@ update_runtime_release_fingerprint(){
   ' "$ENV_FILE" > "$tmp" || { rm -f "$tmp"; return 1; }
   install_for_app_user "$tmp" "$ENV_FILE" 600 || { rm -f "$tmp"; return 1; }
   rm -f "$tmp"
-  ok "运行制品指纹已绑定本次发布来源"
+  ok "交付内容指纹已绑定本次发布来源"
 }
 
 install_for_app_user(){
@@ -441,7 +441,7 @@ DATABASE_RESTORE_REQUIRED=true
 if [ "$NEW_JAR" = 1 ]; then
   RELEASE_FINGERPRINT="${SRC_TXT:-sha256:$(sha256sum "$LIB" | awk '{print $1}')}"
   update_runtime_release_fingerprint "$RELEASE_FINGERPRINT" \
-    || { do_rollback "$BK"; die "写入运行制品指纹失败，已回滚"; }
+    || { do_rollback "$BK"; die "写入交付内容指纹失败，已回滚"; }
   update_manifest "$SRC_TXT"
 fi
 

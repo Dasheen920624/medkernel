@@ -91,7 +91,7 @@ class SandboxScenarioControllerSecurityTest {
     @Test
     void sandboxUserCanReadHonestRuntimeReadinessFromCurrentHospitalRevision() throws Exception {
         when(runtimeStatus.currentStatus()).thenReturn(SandboxRuntimeStatusResponse.notReady(
-            "hospital-1", "SANDBOX_RUNTIME_RELEASE_MISSING", "医院尚未发布运行修订"));
+            "hospital-1", "SANDBOX_RUNTIME_RELEASE_MISSING", "医院尚未发布机构生效版本"));
 
         mockMvc.perform(get(RUNTIME_STATUS_PATH)
                 .with(roleJwt("clinical-user", "ROLE_CLINICAL_USER")))

@@ -21,11 +21,11 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 模型外调出域数据最小化与安全闸（LLM-03）。
+ * 模型外调数据最小化与安全闸（LLM-03）。
  *
- * <p>B2 外部调用出域前置拦截：① 仅保留能力码白名单声明的允许字段，其余剥离（FR-1）；
- * ② 保留字段强制脱敏后才出域；③ 达到阈值的出域须由当前获授权操作者确认用途，否则诚实阻断；
- * ④ 出域留证（FR-5）。任一不满足均诚实报错，由网关降级 B0，绝不静默放行裸数据。
+ * <p>B2 外部调用前置拦截：① 仅保留能力码允许范围声明的字段，其余剥离（FR-1）；
+ * ② 保留字段强制脱敏后才允许外调；③ 达到阈值的外调须由当前获授权操作者确认用途，否则诚实阻断；
+ * ④ 外调留证（FR-5）。任一不满足均诚实报错，由网关降级 B0，绝不静默放行裸数据。
  */
 @Component
 public class ModelEgressGuard {
@@ -50,12 +50,12 @@ public class ModelEgressGuard {
     }
 
     /**
-     * 出域前置处理结果：最小化+脱敏后的载荷、实际出域字段清单、脱敏后内容 hash。
+     * 外调前置处理结果：最小化+脱敏后的内容、实际外调字段清单、脱敏后内容 hash。
      */
     public record EgressPreparation(String payload, List<String> egressFields, String desensitizedHash) {}
 
     /**
-     * 对外调载荷执行字段白名单最小化（脱敏/审批/留证在后续条目接入）。
+     * 对外调内容执行允许字段最小化（脱敏/审批/留证在后续条目接入）。
      */
     public EgressPreparation prepareEgress(String tenantId,
                                            String capabilityCode,
@@ -68,7 +68,7 @@ public class ModelEgressGuard {
         ModelEgressPolicyValidator.Validation policy = ModelEgressPolicyValidator.validate(whitelist);
         if (!policy.valid()) {
             throw new ApiException(ErrorCode.ENG_LLM_006,
-                "能力 " + capabilityCode + " 出域策略不可执行：" + policy.reason());
+                "能力 " + capabilityCode + " 外调策略不可执行：" + policy.reason());
         }
 
         ObjectNode source = parsePayloadObject(payloadJson);
@@ -83,24 +83,24 @@ public class ModelEgressGuard {
         });
         if (egressFields.isEmpty()) {
             throw new ApiException(ErrorCode.ENG_LLM_006,
-                "能力 " + capabilityCode + " 的载荷未命中任何允许出域字段，外调被阻断");
+                "能力 " + capabilityCode + " 的外调内容未命中任何允许字段，外调被阻断");
         }
 
         String payload = minimized.toString();
         String desensitizedHash = sha256(payload);
 
-        // 达到阈值的出域须命中当前操作者留下的责任确认，否则诚实阻断。
+        // 达到阈值的外调须命中当前操作者留下的责任确认，否则诚实阻断。
         Long confirmationId = null;
         if (requiresConfirmation(whitelist.sensitivityLevel(), whitelist.confirmationThresholdLevel())) {
             ModelEgressConfirmation confirmation = confirmationRepo
                 .findFirstByTenantIdAndCapabilityCodeAndPayloadHashOrderByIdDesc(
                     tenantId, capabilityCode, desensitizedHash)
                 .orElseThrow(() -> new ApiException(ErrorCode.ENG_LLM_007,
-                    "能力 " + capabilityCode + " 高敏数据外调出域未经责任确认，已阻断"));
+                    "能力 " + capabilityCode + " 高敏数据外调未经责任确认，已阻断"));
             confirmationId = confirmation.id();
         }
 
-        // 出域留证（字段清单 + 脱敏后 hash + 责任确认引用 + 目标 provider）。
+        // 外调留证（字段清单 + 脱敏后 hash + 责任确认引用 + 目标模型服务）。
         Instant now = Instant.now();
         evidenceRepo.save(new ModelEgressEvidence(
             null, tenantId, capabilityCode, taskId,
@@ -117,7 +117,7 @@ public class ModelEgressGuard {
     }
 
     /**
-     * 出域字段强制脱敏：默认采用最严格 {@code MASK_ALL}；OPT-09 允许按字段配置掩码、泛化、置空或保留。
+     * 外调字段强制脱敏：默认采用最严格 {@code MASK_ALL}；OPT-09 允许按字段配置掩码、泛化、置空或保留。
      */
     private JsonNode desensitizeNode(JsonNode value, String operator) {
         String normalized = operator == null ? "MASK_ALL" : operator.trim().toUpperCase(Locale.ROOT);

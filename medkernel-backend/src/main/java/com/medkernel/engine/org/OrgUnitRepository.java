@@ -63,7 +63,7 @@ public interface OrgUnitRepository extends ListCrudRepository<OrgUnit, String> {
     List<OrgUnit> findByTenantIdAndLevelOrderByCodeAsc(String tenantId, OrgLevel level);
 
     /**
-     * 按租户、层级和状态统计组织单元，用于就绪门禁等存在性判断。
+     * 按租户、层级和状态统计组织单元，用于就绪条件等存在性判断。
      *
      * @param tenantId 租户标识
      * @param level 组织层级

@@ -26,7 +26,7 @@ import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
-/** 按当前冻结医院运行修订中的精确版本执行规则，不再次解析当前状态。 */
+/** 按当前冻结机构生效版本中的精确版本执行规则，不再次解析当前状态。 */
 @Component
 public class SandboxCurrentRuleExecutor {
 
@@ -53,7 +53,7 @@ public class SandboxCurrentRuleExecutor {
             ClinicalRuntimeReleaseContent runtimeContent,
             JsonNode immutableContext) {
         if (runtimeContent == null) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "当前冻结运行修订不能为空");
+            throw new ApiException(ErrorCode.BAD_REQUEST, "当前冻结机构生效版本不能为空");
         }
         List<SandboxComparableRuleResult> results = new ArrayList<>();
         for (ClinicalRuntimeReleaseItem item : runtimeContent.items()) {
@@ -92,7 +92,7 @@ public class SandboxCurrentRuleExecutor {
     private AssetVersion exactAsset(ClinicalRuntimeReleaseItem item) {
         if (item.sourceTenantId() == null || item.sourceTenantId().isBlank()
                 || item.versionId() == null || item.versionId().isBlank()) {
-            throw conflict("当前运行修订规则缺少精确来源版本：" + item.assetIdentity());
+            throw conflict("当前机构生效版本规则缺少精确来源版本：" + item.assetIdentity());
         }
         AssetVersion asset = assets.findByVersionIdAndTenantId(
                 item.versionId(), item.sourceTenantId())

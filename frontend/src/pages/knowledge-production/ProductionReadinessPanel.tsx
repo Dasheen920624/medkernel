@@ -12,7 +12,7 @@ const GATES = [
   { code: "MODEL_PROVIDER", label: "模型服务", step: "provider", owner: "医疗引擎运营员" },
   {
     code: "REGRESSION_BASELINE",
-    label: "医学回归基准",
+    label: "医学验证用例",
     step: "evaluation",
     owner: "医疗引擎运营员",
   },
@@ -22,9 +22,9 @@ const GATES = [
     step: "evaluation",
     owner: "医疗引擎运营员",
   },
-  { code: "EGRESS_GOVERNANCE", label: "出域治理", step: "readiness", owner: "医疗引擎运营员" },
+  { code: "EGRESS_GOVERNANCE", label: "外调允许范围", step: "readiness", owner: "医疗引擎运营员" },
   { code: "MODEL_POLICY", label: "模型策略", step: "readiness", owner: "医疗引擎运营员" },
-  { code: "VERSION_TRIPLE", label: "版本三元组", step: "readiness", owner: "医疗引擎运营员" },
+  { code: "VERSION_TRIPLE", label: "提示词、工具与模型版本", step: "readiness", owner: "医疗引擎运营员" },
 ] as const;
 
 export default function ProductionReadinessPanel() {
@@ -33,12 +33,12 @@ export default function ProductionReadinessPanel() {
 
   let content;
   if (readiness.isLoading) {
-    content = <PageState state="loading" title="正在核查八项生产闸" />;
+    content = <PageState state="loading" title="正在核查生产前校验条件" />;
   } else if (readiness.isError) {
     content = (
       <PageState
         state="error"
-        title="生产闸读取失败"
+        title="生产前校验读取失败"
         description={getApiErrorMessage(readiness.error, "请重试，或凭追踪号联系系统管理员。")}
         onRetry={() => void readiness.refetch()}
       />
@@ -74,13 +74,13 @@ export default function ProductionReadinessPanel() {
   }
 
   return (
-    <Card title="八项生产闸">
+    <Card title="生产前校验">
       <Space direction="vertical" size="middle" className="mk-full-width">
         <Alert
           type={readiness.data?.ready ? "success" : "warning"}
           showIcon
-          message={readiness.data?.ready ? "八项生产闸已满足" : "正式生产仍有阻断项"}
-          description="所有门禁均读取关系库真实状态；历史评测、仅有前端勾选或脚本输出不能代替当前证据。"
+          message={readiness.data?.ready ? "生产前校验已满足" : "正式生产仍有阻断项"}
+          description="所有校验项均读取关系库真实状态；历史评测、仅有前端勾选或脚本输出不能代替当前证据。"
         />
         {content}
       </Space>

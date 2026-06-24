@@ -94,7 +94,7 @@ export default function DomesticCheck() {
         <PageState
           state="error"
           title="暂时无法读取国产化自检"
-          description="请稍后重试，或让信息科检查 /api/v1/system/operations。"
+          description="请稍后重试，或让信息科检查系统运行接口。"
           action={
             <Button icon={<ReloadOutlined />} onClick={() => runtime.refetch()}>
               重读自检快照
@@ -205,7 +205,7 @@ export default function DomesticCheck() {
               pagination={false}
               scroll={{ x: "max-content" }}
               columns={[
-                { title: "Web 能力", dataIndex: "displayName" },
+                { title: "浏览器能力", dataIndex: "displayName" },
                 {
                   title: "状态",
                   dataIndex: "status",

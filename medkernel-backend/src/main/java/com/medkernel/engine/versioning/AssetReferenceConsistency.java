@@ -14,17 +14,12 @@ import com.medkernel.shared.api.error.ErrorCode;
  * 版本化资产正文中的稳定引用一致性护栏。
  */
 public final class AssetReferenceConsistency {
-    private static final String REMOVED_CODE_FIELD = "package" + "Code";
-    private static final String REMOVED_CODE_SNAKE_FIELD = "package" + "_code";
-    private static final String REMOVED_VERSION_FIELD = "package" + "Version";
-    private static final String REMOVED_VERSION_SNAKE_FIELD = "package" + "_version";
-
     private AssetReferenceConsistency() {}
 
     /**
      * 校验资产正文只保存稳定引用身份，不把调用方手工运行定位写入规则与路径语法。
      *
-     * <p>具体执行版本由医院运行修订统一锁定；正文重复声明会形成第二套版本真相源。
+     * <p>具体执行版本由机构生效版本统一锁定；正文重复声明会形成第二套版本真相源。
      */
     public static void requireStableAssetReferences(
             JsonNode root,
@@ -44,7 +39,7 @@ public final class AssetReferenceConsistency {
                     errorCode,
                     ownerLabel + " 的资产引用不得手工携带运行定位字段："
                         + reference.path() + " -> " + reference.label()
-                        + "；具体版本由医院运行修订统一决定");
+                        + "；具体版本由机构生效版本统一决定");
             }
         }
     }
@@ -61,7 +56,7 @@ public final class AssetReferenceConsistency {
     }
 
     /**
-     * 提取必须由当前运行修订锁定版本的稳定资产引用。
+     * 提取必须由当前机构生效版本锁定版本的稳定资产引用。
      *
      * <p>字段路径统一折叠到临床上下文字段目录资产；单个字段路径不是独立资产身份。
      * 编码体系由术语门禁校验，不伪装成独立资产身份。
@@ -152,8 +147,8 @@ public final class AssetReferenceConsistency {
             type,
             referenceLabel(node, type),
             text(node, "ruleAssetId"),
-            firstNonBlank(text(node, REMOVED_CODE_FIELD), text(node, REMOVED_CODE_SNAKE_FIELD)),
-            removedRuntimeSelectorVersion(node),
+            RemovedRuntimeSelectorFields.removedCode(node),
+            RemovedRuntimeSelectorFields.removedVersion(node),
             path)));
         node.fields().forEachRemaining(entry ->
             collectReferences(entry.getValue(), path + "." + entry.getKey(), result));
@@ -202,10 +197,6 @@ public final class AssetReferenceConsistency {
         };
     }
 
-    private static String removedRuntimeSelectorVersion(JsonNode node) {
-        return firstNonBlank(text(node, REMOVED_VERSION_FIELD), text(node, REMOVED_VERSION_SNAKE_FIELD));
-    }
-
     private static String text(JsonNode node, String field) {
         JsonNode value = node.get(field);
         if (value == null || value.isNull()) {
@@ -242,7 +233,7 @@ public final class AssetReferenceConsistency {
         String path
     ) {}
 
-    /** 当前运行修订必须锁定的稳定资产引用；规则额外携带其物理资产 ID。 */
+    /** 当前机构生效版本必须锁定的稳定资产引用；规则额外携带其物理资产 ID。 */
     public record AssetReference(
         VersionedAssetType assetType,
         String assetIdentity,

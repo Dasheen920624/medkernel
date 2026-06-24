@@ -6,9 +6,9 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 嵌入Origin安全域名白名单实体。
+ * 嵌入 Origin 来源域名允许清单实体。
  *
- * <p>用于存储和校验允许加载 MedKernel 嵌入式 iframe 或是执行 SDK 通信的安全域名白名单。
+ * <p>用于存储和校验允许加载 MedKernel 嵌入式 iframe 或是执行 SDK 通信的来源域名允许清单。
  */
 @Table("embed_origin_whitelist")
 public record EmbedOriginWhitelist(

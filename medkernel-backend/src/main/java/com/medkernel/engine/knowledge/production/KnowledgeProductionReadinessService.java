@@ -35,7 +35,7 @@ import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.config.SystemConfigService;
 
 /**
- * 正式模型生成知识前置 readiness 闸（AIK-STD-13/LLM-01/02/04）。
+ * 正式模型生成知识前置上线准备闸（AIK-STD-13/LLM-01/02/04）。
  *
  * <p>本服务只聚合关系库和配置中心事实，不调用模型、不创建候选。任一强前置缺失时返回结构化阻断，
  * 模型生产器必须据此停止真实模型调用并返回诚实阻断，禁止静默回退为非模型候选。
@@ -117,7 +117,7 @@ public class KnowledgeProductionReadinessService {
             return KnowledgeProductionReadinessItem.block(
                 "LITERATURE_ROOT",
                 "平台知识文献资料库根地址未配置，禁止正式模型生成知识",
-                SystemConfigService.KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY + "=<empty>");
+                "文献资料库地址未填写");
         }
         return KnowledgeProductionReadinessItem.pass(
             "LITERATURE_ROOT",
@@ -133,7 +133,7 @@ public class KnowledgeProductionReadinessService {
             return KnowledgeProductionReadinessItem.pass(
                 "DEPLOYMENT_FORM",
                 "本地模型生产器允许在当前部署形态下运行",
-                "deploymentForm=" + form);
+                "部署形态：" + deploymentFormLabel(form));
         }
         boolean localProviderApi = provider
             .flatMap(this::providerType)
@@ -142,19 +142,19 @@ public class KnowledgeProductionReadinessService {
         if (producer == KnowledgeProducer.API_MODEL && localProviderApi) {
             return KnowledgeProductionReadinessItem.pass(
                 "DEPLOYMENT_FORM",
-                "本地 Provider API 允许在当前部署形态下运行",
-                "deploymentForm=" + form + ", provider=" + provider.get().providerCode());
+                "本地模型服务允许在当前部署形态下运行",
+                "部署形态：" + deploymentFormLabel(form) + "；模型服务：" + provider.get().providerCode());
         }
         if (form == DeploymentForm.PRODUCTION_CENTER) {
             return KnowledgeProductionReadinessItem.pass(
                 "DEPLOYMENT_FORM",
-                "外部 API 模型生产仅在知识生产中心形态启用",
-                "deploymentForm=" + form);
+                "外部模型服务生产仅在知识生产中心形态启用",
+                "部署形态：" + deploymentFormLabel(form));
         }
         return KnowledgeProductionReadinessItem.block(
             "DEPLOYMENT_FORM",
-            "当前不是 PRODUCTION_CENTER，禁止外部 API 模型生产知识",
-            "deploymentForm=" + form);
+            "当前不是知识生产中心形态，禁止外部模型服务生产知识",
+            "部署形态：" + deploymentFormLabel(form));
     }
 
     private KnowledgeProductionReadinessItem providerItem(String tenantId,
@@ -163,30 +163,30 @@ public class KnowledgeProductionReadinessService {
         if (provider.isEmpty()) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_PROVIDER",
-                "未找到匹配的模型 provider",
-                "producer=" + producer);
+                "未找到匹配的模型服务",
+                "生产方式：" + producerLabel(producer));
         }
         ModelProviderConfig config = provider.get();
         Optional<ProviderType> type = providerType(config);
         if (type.isEmpty()) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_PROVIDER",
-                "provider 类型无效，不能进入模型知识生产",
-                config.providerCode() + "/" + config.providerType());
+                "模型服务类型无效，不能进入模型知识生产",
+                "模型服务：" + config.providerCode() + "；服务类型：" + config.providerType());
         }
         ProviderType providerType = type.get();
         boolean typeMatches = producer == KnowledgeProducer.API_MODEL || !providerType.external();
         if (!typeMatches) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_PROVIDER",
-                "provider 类型与生产器不匹配",
-                config.providerCode() + "/" + config.providerType());
+                "模型服务类型与生产方式不匹配",
+                "模型服务：" + config.providerCode() + "；服务类型：" + providerTypeLabel(providerType));
         }
         if (!config.enabled() || !"HEALTHY".equalsIgnoreCase(config.status())) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_PROVIDER",
-                "模型 provider 未启用或健康状态不是 HEALTHY",
-                config.providerCode() + " status=" + config.status());
+                "模型服务未启用或连接状态不是连接正常",
+                "模型服务：" + config.providerCode() + "；连接状态：" + providerStatusLabel(config.status()));
         }
         boolean vaultCredentialConfigured = credentialRepository
             .findByTenantIdAndProviderCode(tenantId, config.providerCode())
@@ -196,14 +196,14 @@ public class KnowledgeProductionReadinessService {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_PROVIDER",
                 providerType.external()
-                    ? "外部模型 provider 缺端点、租户凭据或模型版本"
-                    : "本地模型 provider 缺端点或模型版本",
-                config.providerCode());
+                    ? "外部模型服务缺调用地址、机构凭据或模型版本"
+                    : "本地模型服务缺调用地址或模型版本",
+                "模型服务：" + config.providerCode());
         }
         return KnowledgeProductionReadinessItem.pass(
             "MODEL_PROVIDER",
-            "模型 provider 已启用且健康",
-            config.providerCode() + "/" + config.modelVersion());
+            "模型服务已启用且连接正常",
+            "模型服务：" + config.providerCode() + "；模型版本：" + config.modelVersion());
     }
 
     private KnowledgeProductionReadinessItem regressionBaselineItem(String capability,
@@ -211,13 +211,13 @@ public class KnowledgeProductionReadinessService {
         if (cases == null || cases.isEmpty()) {
             return KnowledgeProductionReadinessItem.block(
                 "REGRESSION_BASELINE",
-                "医学回归基准集为空，禁止正式模型生成知识",
-                "capabilityCode=" + capability);
+                "医学验证用例为空，禁止正式模型生成知识",
+                "能力：" + capability);
         }
         return KnowledgeProductionReadinessItem.pass(
             "REGRESSION_BASELINE",
-            "医学回归基准集已配置",
-            "caseCount=" + cases.size());
+            "医学验证用例已配置",
+            "用例数：" + cases.size());
     }
 
     private KnowledgeProductionReadinessItem evaluationItem(String tenantId,
@@ -227,8 +227,8 @@ public class KnowledgeProductionReadinessService {
         if (provider.isEmpty()) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_EVALUATION",
-                "无 provider，无法确认医学回归评测通过",
-                "provider=<missing>");
+                "无模型服务，无法确认医学验证评测通过",
+                "模型服务未选择");
         }
         ModelProviderConfig config = provider.get();
         Optional<ModelEvalRun> run = evalRunRepository
@@ -239,21 +239,23 @@ public class KnowledgeProductionReadinessService {
             || run.get().totalCases() < 1) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_EVALUATION",
-                "provider/模型版本未找到当前能力的 PASSED 医学回归评测",
-                config.providerCode() + "/" + config.modelVersion() + "/" + capability);
+                "模型服务与模型版本未找到当前能力的已通过医学验证评测",
+                "模型服务：" + config.providerCode()
+                    + "；模型版本：" + config.modelVersion()
+                    + "；能力：" + capability);
         }
         int expectedCases = cases == null ? 0 : cases.size();
         if (expectedCases > 0 && run.get().totalCases() < expectedCases) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_EVALUATION",
-                "最近 PASSED 评测覆盖用例数少于当前启用基准集",
-                "passedRunCases=" + run.get().totalCases() + ", currentCases=" + expectedCases);
+                "最近已通过评测覆盖用例数少于当前启用基准集",
+                "已通过用例数：" + run.get().totalCases() + "；当前用例数：" + expectedCases);
         }
         if (!RegressionBaselineEvidence.matches(run.get().caseSummaryJson(), cases)) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_EVALUATION",
-                "最近 PASSED 评测绑定的医学基准集已变化，必须重新评测",
-                "runId=" + run.get().id() + ", currentCases=" + expectedCases);
+                "最近已通过评测绑定的医学验证用例已变化，必须重新评测",
+                "评测记录：" + run.get().id() + "；当前用例数：" + expectedCases);
         }
         if (!evalService.isClearedForGoLive(
                 tenantId,
@@ -262,15 +264,15 @@ public class KnowledgeProductionReadinessService {
                 capability)) {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_EVALUATION",
-                "当前制品尚无完整且有效的医学回归评测",
-                "provider=" + config.providerCode()
-                    + ", model=" + config.modelVersion()
-                    + ", capability=" + capability);
+                "当前交付内容尚无完整且有效的医学验证评测",
+                "模型服务：" + config.providerCode()
+                    + "；模型版本：" + config.modelVersion()
+                    + "；能力：" + capability);
         }
         return KnowledgeProductionReadinessItem.pass(
             "MODEL_EVALUATION",
-            "provider/模型版本已通过医学回归评测",
-            "runId=" + run.get().id());
+            "模型服务与模型版本已通过医学验证评测",
+            "评测记录：" + run.get().id());
     }
 
     private KnowledgeProductionReadinessItem egressItem(String tenantId, String capability,
@@ -278,8 +280,8 @@ public class KnowledgeProductionReadinessService {
         if (provider.isPresent() && providerType(provider.get()).map(type -> !type.external()).orElse(false)) {
             return KnowledgeProductionReadinessItem.pass(
                 "EGRESS_GOVERNANCE",
-                "本地模型不外调，出域白名单不作为前置",
-                provider.get().providerCode());
+                "本地模型不外调，外调允许范围不作为前置",
+                "模型服务：" + provider.get().providerCode());
         }
         Optional<ModelEgressWhitelist> whitelist =
             egressWhitelistRepository.findByTenantIdAndCapabilityCode(tenantId, capability);
@@ -288,19 +290,19 @@ public class KnowledgeProductionReadinessService {
         if (!policy.valid()) {
             return KnowledgeProductionReadinessItem.block(
                 "EGRESS_GOVERNANCE",
-                "外部模型生产的出域白名单不可执行；高敏载荷仍由运行时逐次责任确认",
-                "capabilityCode=" + capability + ", reason=" + policy.reason());
+                "外部模型生产的外调允许范围不可执行；高敏内容仍由运行时逐次责任确认",
+                "能力：" + capability + "；原因：" + policy.reason());
         }
         if (!policy.allowedFields().contains("prompt")) {
             return KnowledgeProductionReadinessItem.block(
                 "EGRESS_GOVERNANCE",
-                "知识生产外调白名单必须显式允许经脱敏的 prompt 字段",
-                "capabilityCode=" + capability);
+                "知识生产外调允许范围必须包含经脱敏的提示词内容",
+                "能力：" + capability);
         }
         return KnowledgeProductionReadinessItem.pass(
             "EGRESS_GOVERNANCE",
-            "外部模型出域白名单已配置；高敏载荷将由运行时逐次责任确认",
-            "capabilityCode=" + capability);
+            "外部模型外调允许范围已配置；高敏内容将由运行时逐次责任确认",
+            "能力：" + capability);
     }
 
     private KnowledgeProductionReadinessItem policyItem(
@@ -313,7 +315,7 @@ public class KnowledgeProductionReadinessService {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_POLICY",
                 "模型能力策略未配置，不能进入正式模型生产",
-                "capabilityCode=" + capability);
+                "能力：" + capability);
         }
         String strategy = normalize(policy.get().routeStrategy());
         boolean localProvider = provider != null
@@ -325,12 +327,13 @@ public class KnowledgeProductionReadinessService {
             return KnowledgeProductionReadinessItem.block(
                 "MODEL_POLICY",
                 "模型能力策略与生产器不匹配",
-                "routeStrategy=" + policy.get().routeStrategy() + ", expected=" + expected);
+                "当前策略：" + strategyLabel(policy.get().routeStrategy())
+                    + "；期望策略：" + strategyLabel(expected));
         }
         return KnowledgeProductionReadinessItem.pass(
             "MODEL_POLICY",
             "模型能力策略与生产器匹配",
-            "routeStrategy=" + strategy + ", scope=" + policy.get().scopeType() + ":" + policy.get().scopeRef());
+            "策略：" + strategyLabel(strategy) + "；适用范围：" + policy.get().scopeType() + ":" + policy.get().scopeRef());
     }
 
     private Optional<ModelCapabilityPolicy> resolvePolicy(String tenantId, String capability) {
@@ -355,24 +358,24 @@ public class KnowledgeProductionReadinessService {
         if (!validation.valid()) {
             return KnowledgeProductionReadinessItem.block(
                 "VERSION_TRIPLE",
-                "ACTIVE 模型版本包不可执行",
-                "capabilityCode=" + capability + ", reason=" + validation.reason());
+                "已生效模型版本组合不可执行",
+                "能力：" + capability + "；原因：" + validation.reason());
         }
         ModelVersionBundle bundle = validation.bundle();
         if (provider == null || !bundle.modelVersion().equals(provider.modelVersion())) {
             return KnowledgeProductionReadinessItem.block(
                 "VERSION_TRIPLE",
-                "模型版本三元组与 provider 当前模型版本不一致",
-                "bundleModel=" + bundle.modelVersion()
-                    + ", providerModel=" + (provider == null ? "<missing>" : provider.modelVersion()));
+                "模型版本组合与模型服务当前版本不一致",
+                "版本组合模型：" + bundle.modelVersion()
+                    + "；模型服务版本：" + (provider == null ? "未选择模型服务" : provider.modelVersion()));
         }
         return KnowledgeProductionReadinessItem.pass(
             "VERSION_TRIPLE",
-            "当前能力的 ACTIVE prompt/tool/model 版本包与 provider 一致",
-            "bundleId=" + bundle.id()
-                + ", prompt=" + bundle.promptVersion()
-                + ", tool=" + bundle.toolVersion()
-                + ", model=" + bundle.modelVersion());
+            "当前能力的已生效提示词、工具与模型版本一致",
+            "版本组合：" + bundle.id()
+                + "；提示词：" + bundle.promptVersion()
+                + "；工具：" + bundle.toolVersion()
+                + "；模型：" + bundle.modelVersion());
     }
 
     private Optional<ModelProviderConfig> resolveProvider(String tenantId, KnowledgeProducer producer, String providerCode) {
@@ -416,6 +419,31 @@ public class KnowledgeProductionReadinessService {
 
     private static String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private static String deploymentFormLabel(DeploymentForm form) {
+        return form == DeploymentForm.PRODUCTION_CENTER ? "知识生产中心" : "院内运行";
+    }
+
+    private static String producerLabel(KnowledgeProducer producer) {
+        return switch (producer) {
+            case API_MODEL -> "模型服务生产";
+            case AGENT_TOOL -> "工具协助生产";
+            case LOCAL_MODEL -> "本地模型生产";
+            case MANUAL -> "人工录入或批量导入";
+        };
+    }
+
+    private static String providerTypeLabel(ProviderType type) {
+        return type.external() ? "外部模型服务" : "本地模型服务";
+    }
+
+    private static String providerStatusLabel(String status) {
+        return "HEALTHY".equalsIgnoreCase(status) ? "连接正常" : "未验证连接";
+    }
+
+    private static String strategyLabel(String strategy) {
+        return "LOCAL_MODEL".equalsIgnoreCase(strategy) ? "本地模型" : "外部模型";
     }
 
     private static boolean blank(String value) {

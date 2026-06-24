@@ -246,7 +246,7 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
     private ModelProviderActivationRequest activation(String capabilityCode, Long expectedVersion) {
         return new ModelProviderActivationRequest(
             capabilityCode,
-            "当前制品医学评测通过，按正式状态机受控启用",
+            "当前交付内容医学评测通过，按正式状态机受控启用",
             expectedVersion,
             true);
     }

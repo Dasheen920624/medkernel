@@ -296,7 +296,7 @@ function parseSuggestionPayload(payloadJson: string | undefined): Record<string,
   }
   const parsed = JSON.parse(source) as unknown;
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error("动作卡建议 payload 必须是 JSON 对象");
+    throw new Error("动作卡建议内容必须是配置对象");
   }
   return { payload: parsed as Record<string, unknown> };
 }
@@ -552,7 +552,7 @@ function ActionCardFields() {
                 >
                   <Select options={ACTION_OPTIONS} className="mk-select-md" />
                 </Form.Item>
-                <Form.Item {...field} name={[field.name, "payloadJson"]} label="建议载荷 JSON">
+                <Form.Item {...field} name={[field.name, "payloadJson"]} label="建议补充内容">
                   <Input.TextArea rows={2} placeholder='例如 {"orderSetRef":"ORDER.CKD.REVIEW"}' />
                 </Form.Item>
                 <ArrayRemoveButton onClick={() => remove(field.name)} />

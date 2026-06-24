@@ -23,7 +23,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 引擎数据服务层 · 临床上下文服务单元测试（DATASVC-01 PR2-d，D4 须绑临床 launch 令牌）。
+ * 引擎数据服务层 · 临床上下文服务单元测试（DATASVC-01 PR2-d，D4 须绑临床启动凭证）。
  *
  * <p>验证：有效令牌返回 D4 授权上下文且**患者引用经不可逆 hash 脱敏不泄漏原始患者字段**（视角 11 / FR-2）；
  * 令牌无效/过期/越租户＝诚实拒绝不返回临床数据；上游不可用诚实降级不以「未授权」伪装（FR-7/铁律 #1）。

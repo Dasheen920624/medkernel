@@ -306,7 +306,7 @@ class EngineEndToEndIntegrationTest {
 
 
         System.out.println("====== [7. 合规证据快照打包、验签与防篡改对账] ======");
-        // 合规证据打包，对上述全流程产生的数据快照打包为 ZIP 安全压缩证据包
+        // 合规证据打包，对上述全流程产生的数据快照打包为 ZIP 安全压缩证据导出
         String evidenceId = "evd-e2e-stroke-888";
         EvidenceCreateDto evidenceDto = new EvidenceCreateDto(
             evidenceId, traceId, "CDSS_DECISION", "EXECUTE",

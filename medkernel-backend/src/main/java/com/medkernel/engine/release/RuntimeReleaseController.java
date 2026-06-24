@@ -26,7 +26,7 @@ import com.medkernel.engine.versioning.VersionedAssetType;
 import jakarta.validation.Valid;
 
 /**
- * 平台权威基线与医院运行修订的唯一发布入口。
+ * 平台标准版本与机构生效版本的唯一发布入口。
  *
  * <p>平台只能生成 A 基线，机构只能生成或回滚本医院 H 修订；领域和页面筛选不会进入运行合同。
  */
@@ -52,7 +52,7 @@ public class RuntimeReleaseController {
     }
 
     /**
-     * 查询当前完整平台权威基线。
+     * 查询当前完整平台标准版本。
      */
     @GetMapping("/platform-baselines/current")
     @PreAuthorize("@perm.has('asset.read')")
@@ -61,7 +61,7 @@ public class RuntimeReleaseController {
     }
 
     /**
-     * 分页查询可进入下一平台基线的草稿资产。
+     * 分页查询可进入下一平台标准版本的草稿资产。
      */
     @GetMapping("/platform-baselines/candidates")
     @PreAuthorize("@perm.has('platform.publish')")
@@ -77,7 +77,7 @@ public class RuntimeReleaseController {
     }
 
     /**
-     * 查询指定医院当前完整运行修订。
+     * 查询指定医院当前完整机构生效版本。
      */
     @GetMapping("/hospitals/{hospitalId}/runtime-releases/current")
     @PreAuthorize("@perm.has('asset.read')")
@@ -108,7 +108,7 @@ public class RuntimeReleaseController {
     }
 
     /**
-     * 分页查询指定医院全部不可变运行修订。
+     * 分页查询指定医院全部不可变机构生效版本。
      */
     @GetMapping("/hospitals/{hospitalId}/runtime-releases")
     @PreAuthorize("@perm.has('asset.read')")
@@ -122,7 +122,7 @@ public class RuntimeReleaseController {
     }
 
     /**
-     * 发布新的完整平台权威基线。
+     * 发布新的完整平台标准版本。
      */
     @PostMapping("/platform-baselines")
     @PreAuthorize("@perm.has('platform.publish')")
@@ -138,7 +138,7 @@ public class RuntimeReleaseController {
     }
 
     /**
-     * 以完整期望启用集合原子生成医院运行修订。
+     * 以完整期望启用集合原子生成机构生效版本。
      */
     @PostMapping("/hospitals/{hospitalId}/runtime-releases")
     @PreAuthorize("@perm.has('tenant.override')")
@@ -176,7 +176,7 @@ public class RuntimeReleaseController {
     private void requirePlatformContext() {
         if (!PlatformTenant.isPlatformTenant(tenantId())) {
             throw new ApiException(
-                ErrorCode.FORBIDDEN, "只有平台权威空间可以发布平台基线");
+                ErrorCode.FORBIDDEN, "只有平台权威空间可以发布平台标准版本");
         }
     }
 

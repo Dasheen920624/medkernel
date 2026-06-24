@@ -130,7 +130,7 @@ describe("AcquisitionSourceGovernancePanel", () => {
 
     renderPanel();
 
-    expect(screen.getByText("来源白名单读取失败")).toBeInTheDocument();
+    expect(screen.getByText("来源允许清单读取失败")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "重试" }));
   });
 });

@@ -3,7 +3,7 @@ package com.medkernel.testsupport;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 为依赖医院运行修订外键的仓储测试建立最小真实父记录。
+ * 为依赖机构生效版本外键的仓储测试建立最小真实父记录。
  */
 public final class ClinicalRuntimeReleaseFixture {
 

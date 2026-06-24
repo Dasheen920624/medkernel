@@ -371,7 +371,7 @@ public class LargeListEngineService implements ExportArtifactProvider {
         try {
             return objectMapper.readTree(existingSnapshot).equals(objectMapper.readTree(requestSnapshot));
         } catch (JsonProcessingException e) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "导出任务请求快照不是合法 JSON", e);
+            throw new ApiException(ErrorCode.BAD_REQUEST, "导出任务请求快照结构不合法", e);
         }
     }
 
@@ -659,7 +659,7 @@ public class LargeListEngineService implements ExportArtifactProvider {
             });
             return parsed;
         } catch (JsonProcessingException e) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "导出任务请求快照不是合法 JSON", e);
+            throw new ApiException(ErrorCode.BAD_REQUEST, "导出任务请求快照结构不合法", e);
         }
     }
 

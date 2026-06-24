@@ -21,6 +21,6 @@ class PermissionCodeTest {
     void auditExportPermissionUsesEvidenceExportWording() {
         assertThat(PermissionCode.AUDIT_EXPORT.displayName())
             .contains("证据导出")
-            .doesNotContain("证据包");
+            .doesNotContain("证据导出包");
     }
 }

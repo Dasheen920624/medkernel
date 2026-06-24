@@ -63,7 +63,7 @@ test("沙盘只读取统一上线凭据中的演练机构四职责", () => {
   );
 });
 
-test("医院运行修订清单摘要由演练规则清单内容稳定派生", () => {
+test("机构生效版本明细校验码由演练规则清单内容稳定派生", () => {
   const first = deriveSandboxRuntimeDigest(manifest);
   const second = deriveSandboxRuntimeDigest(structuredClone(manifest));
 

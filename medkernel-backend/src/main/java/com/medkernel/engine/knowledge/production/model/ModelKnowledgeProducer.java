@@ -121,7 +121,7 @@ public class ModelKnowledgeProducer {
                 List.of(),
                 List.of(),
                 List.of(new BlockedCandidate(job.assetType(), jobCode, List.of(GateItemResult.fail(
-                    MODEL_OUTPUT_SCHEMA_GATE, "模型输出不是合法 JSON 对象，禁止进入候选链"))))));
+                    MODEL_OUTPUT_SCHEMA_GATE, "模型输出结构不符合候选要求，禁止进入候选链"))))));
         }
 
         KnowledgeAssetEnvelope envelope = toEnvelope(tenantId, job, request, task, modelOutput);
@@ -242,7 +242,7 @@ public class ModelKnowledgeProducer {
             ? "模型网关未返回可用模型输出"
             : task.fallbackReason();
         if ("B0".equalsIgnoreCase(task.modelMode())) {
-            return "模型网关降级 B0，未生成模型候选：" + reason;
+            return "模型服务退回无模型规则链路，未生成模型候选：" + reason;
         }
         return "模型网关未成功(status=" + task.status() + ", mode=" + task.modelMode()
             + ")，未生成模型候选：" + reason;

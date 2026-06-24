@@ -10,7 +10,7 @@ import com.medkernel.engine.release.ReleaseSourceLayer;
  * @param ruleId         实际生效规则 ID
  * @param versionId      实际生效规则版本 ID
  * @param versionNo      实际生效规则版本号
- * @param runtimeReleaseId 医院运行修订 ID
+ * @param runtimeReleaseId 机构生效版本 ID
  * @param sourceTenantId   规则正文来源租户
  * @param sourceLayer      规则实际来源层
  */

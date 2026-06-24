@@ -138,7 +138,7 @@ const runtimeSnapshot: RuntimeOperationsSnapshot = {
     },
     {
       key: "provider-his",
-      displayName: "HIS Provider",
+      displayName: "HIS 连接",
       status: "NOT_CONNECTED",
       detail: "未接入真实 HIS 连接器",
     },
@@ -146,7 +146,7 @@ const runtimeSnapshot: RuntimeOperationsSnapshot = {
       key: "graph-projection",
       displayName: "图谱投影",
       status: "MODEL_DISABLED",
-      detail: "图谱投影 Feature Flag 已关闭",
+      detail: "图谱投影能力开关已关闭",
     },
     {
       key: "terminology-sync",
@@ -177,7 +177,7 @@ const runtimeSnapshot: RuntimeOperationsSnapshot = {
     targetJdk: "JDK 21",
     databaseVendors: ["PostgreSQL", "Oracle"],
     cryptoAlgorithms: ["SM2", "SM3", "SM4"],
-    evidence: "运行底座快照",
+    evidence: "运行环境快照",
   },
   domesticCompatibility: {
     overallStatus: "WARN",
@@ -202,56 +202,56 @@ const knowledgeReadiness = {
       ready: false,
       required: true,
       message: "平台知识文献资料库根地址未配置",
-      evidence: "medkernel.knowledge.literature.material-root-uri=<empty>",
+      evidence: "文献资料库地址未填写",
     },
     {
       code: "DEPLOYMENT_FORM",
       ready: false,
       required: true,
-      message: "当前不是 PRODUCTION_CENTER，禁止外部 API 模型生产知识",
-      evidence: "deploymentForm=HOSPITAL_RUNTIME",
+      message: "当前不是知识生产中心形态，禁止外部模型服务生产知识",
+      evidence: "部署形态：院内运行",
     },
     {
       code: "MODEL_PROVIDER",
       ready: false,
       required: true,
-      message: "未找到匹配且启用的模型 provider",
-      evidence: "producer=API_MODEL",
+      message: "未找到匹配的模型服务",
+      evidence: "生产方式：模型服务生产",
     },
     {
       code: "REGRESSION_BASELINE",
       ready: true,
       required: true,
-      message: "医学回归基准集已配置",
-      evidence: "caseCount=3",
+      message: "医学验证用例已配置",
+      evidence: "用例数：3",
     },
     {
       code: "MODEL_EVALUATION",
       ready: false,
       required: true,
-      message: "provider/模型版本未找到 PASSED 医学回归评测",
-      evidence: "provider=<missing>",
+      message: "模型服务与模型版本未找到当前能力的已通过医学验证评测",
+      evidence: "模型服务未选择",
     },
     {
       code: "EGRESS_GOVERNANCE",
       ready: false,
       required: true,
-      message: "外部模型生产缺少出域字段白名单",
-      evidence: "capabilityCode=rule.draft",
+      message: "外部模型生产缺少外调允许范围",
+      evidence: "能力：rule.draft",
     },
     {
       code: "MODEL_POLICY",
       ready: false,
       required: true,
       message: "模型能力策略未配置，不能进入正式模型生产",
-      evidence: "capabilityCode=rule.draft",
+      evidence: "能力：rule.draft",
     },
     {
       code: "VERSION_TRIPLE",
       ready: false,
       required: true,
-      message: "模型生产任务必须声明 prompt/tool/model 版本三元组",
-      evidence: "<empty>",
+      message: "模型生产任务必须声明提示词、工具与模型版本组合",
+      evidence: "版本组合未填写",
     },
   ],
 };
@@ -289,7 +289,7 @@ describe("ReadinessValidation", () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "验收自检" })).toBeInTheDocument();
-    expect(screen.getByText("3 PASS / 10 BLOCK / 2 未启用")).toBeInTheDocument();
+    expect(screen.getByText("3 通过 / 10 阻塞 / 2 未启用")).toBeInTheDocument();
     expect(screen.getByText("存在阻塞项，验收前需处理")).toBeInTheDocument();
     expect(screen.getByTestId("readiness-validation-tabs")).toBeInTheDocument();
     expect(screen.getAllByTestId(/^readiness-validation-filter-/)).toHaveLength(3);
@@ -302,7 +302,7 @@ describe("ReadinessValidation", () => {
     renderPage();
 
     expect(screen.queryByText("当前权限不足")).not.toBeInTheDocument();
-    expect(screen.getByText("3 PASS / 10 BLOCK / 2 未启用")).toBeInTheDocument();
+    expect(screen.getByText("3 通过 / 10 阻塞 / 2 未启用")).toBeInTheDocument();
     expect(hookState.runtimeEnabledCalls.at(-1)).toBe(true);
     expect(hookState.knowledgeReadinessEnabledCalls.at(-1)).toBe(true);
   });
@@ -311,10 +311,10 @@ describe("ReadinessValidation", () => {
     renderPage();
 
     const providerRow = screen.getByTestId("readiness-validation-item-provider-his");
-    expect(within(providerRow).getByText("BLOCK")).toBeInTheDocument();
+    expect(within(providerRow).getByText("阻塞")).toBeInTheDocument();
     expect(within(providerRow).getByText(/未接入真实 HIS 连接器/)).toBeInTheDocument();
     const backupRow = screen.getByTestId("readiness-validation-item-backup-readiness");
-    expect(within(backupRow).getByText("BLOCK")).toBeInTheDocument();
+    expect(within(backupRow).getByText("阻塞")).toBeInTheDocument();
     expect(within(backupRow).getByText(/尚未提供隔离恢复演练证据/)).toBeInTheDocument();
 
     fireEvent.click(within(providerRow).getByRole("button", { name: "去修复" }));
@@ -328,16 +328,16 @@ describe("ReadinessValidation", () => {
     const literatureRoot = screen.getByTestId(
       "readiness-validation-item-knowledge-LITERATURE_ROOT",
     );
-    expect(within(literatureRoot).getByText("文献资料库根 URI")).toBeInTheDocument();
-    expect(within(literatureRoot).getByText("BLOCK")).toBeInTheDocument();
+    expect(within(literatureRoot).getByText("文献资料库地址")).toBeInTheDocument();
+    expect(within(literatureRoot).getByText("阻塞")).toBeInTheDocument();
     expect(within(literatureRoot).getByText(/平台知识文献资料库根地址未配置/)).toBeInTheDocument();
 
     const regressionBaseline = screen.getByTestId(
       "readiness-validation-item-knowledge-REGRESSION_BASELINE",
     );
-    expect(within(regressionBaseline).getByText("医学回归基准集")).toBeInTheDocument();
-    expect(within(regressionBaseline).getByText("PASS")).toBeInTheDocument();
-    expect(within(regressionBaseline).getByText(/caseCount=3/)).toBeInTheDocument();
+    expect(within(regressionBaseline).getByText("医学验证用例")).toBeInTheDocument();
+    expect(within(regressionBaseline).getByText("通过")).toBeInTheDocument();
+    expect(within(regressionBaseline).getByText(/用例数：3/)).toBeInTheDocument();
 
     const policy = screen.getByTestId("readiness-validation-item-knowledge-MODEL_POLICY");
     expect(within(policy).getByText("能力策略")).toBeInTheDocument();
@@ -388,7 +388,7 @@ describe("ReadinessValidation", () => {
       error: {
         response: {
           data: {
-            detail: "运行底座暂时不可用",
+            detail: "运行环境暂时不可用",
             traceId: "trace-demo-001",
           },
         },
@@ -398,7 +398,7 @@ describe("ReadinessValidation", () => {
 
     renderPage();
 
-    expect(screen.getByText("运行底座暂时不可用")).toBeInTheDocument();
+    expect(screen.getByText("运行环境暂时不可用")).toBeInTheDocument();
     expect(screen.getByText(/trace-demo-001/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "重新自检" }));
     expect(hookState.runtime.refetch).toHaveBeenCalledTimes(1);

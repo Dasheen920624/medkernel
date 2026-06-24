@@ -6,7 +6,7 @@ package com.medkernel.engine.versioning;
  * @see ResolvedAssetVersion
  */
 public enum SourceTier {
-    /** 平台权威基线：未被客户租户或机构覆盖遮蔽时，解析回退到平台主租户的 PUBLISHED 版本。 */
+    /** 平台标准版本：未被客户租户或机构覆盖遮蔽时，解析回退到平台主租户的 PUBLISHED 版本。 */
     PLATFORM,
     /** 组织覆盖：版本或覆盖取自当前租户组织闭包内某节点（本级命中或继承上级组织）。 */
     ORG

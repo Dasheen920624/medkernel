@@ -7,9 +7,9 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 平台权威基线发布记录。
+ * 平台标准版本发布记录。
  *
- * <p>每个修订只追加且不可修改，清单摘要对应全部精确资产版本。
+ * <p>每个修订只追加且不可修改，明细校验码对应全部精确资产版本。
  */
 @Table("platform_baseline_release")
 public record PlatformBaselineRelease(

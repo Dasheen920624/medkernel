@@ -37,7 +37,7 @@ import com.medkernel.engine.safety.RuntimeReleaseClinicalRedlineSelector;
 import org.junit.jupiter.api.Test;
 
 /**
- * 红线合流端口：对运行修订锁定的 OPT-04 红线按患者结构化上下文求值，命中且红线经 source_version_id
+ * 红线合流端口：对机构生效版本锁定的 OPT-04 红线按患者结构化上下文求值，命中且红线经 source_version_id
  * 关联到 DIAGNOSIS 身份时返回该诊断身份码（置顶）；非诊断来源 / 未命中 / 无来源 / 无红线均诚实返回空集。
  */
 class DefaultDiagnosisRedlinePortTest {

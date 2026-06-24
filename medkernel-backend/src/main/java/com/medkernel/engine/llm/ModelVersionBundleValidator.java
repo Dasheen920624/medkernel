@@ -1,35 +1,35 @@
 package com.medkernel.engine.llm;
 
 /**
- * ACTIVE 模型版本包的统一可执行性校验器。
+ * 已生效模型版本组合的统一可执行性校验器。
  *
- * <p>readiness 与模型网关共用同一规则，确保版本号、三份内容指纹及租户能力作用域完整一致。
+ * <p>上线准备检查与模型网关共用同一规则，确保版本号、三份内容指纹及机构能力作用域完整一致。
  */
 public final class ModelVersionBundleValidator {
 
     private ModelVersionBundleValidator() {
     }
 
-    /** 校验指定租户能力下的 ACTIVE 版本包，不返回任何版本正文。 */
+    /** 校验指定机构能力下的已生效版本组合，不返回任何版本正文。 */
     public static Validation validateActive(ModelVersionBundle bundle, String tenantId, String capabilityCode) {
         if (bundle == null) {
-            return Validation.invalid("当前能力未发布 ACTIVE prompt/tool/model 版本包");
+            return Validation.invalid("当前能力未发布已生效提示词、工具与模型版本组合");
         }
         if (!"ACTIVE".equals(bundle.status())) {
-            return Validation.invalid("模型版本包状态不是 ACTIVE");
+            return Validation.invalid("模型版本组合尚未生效");
         }
         if (!same(tenantId, bundle.tenantId()) || !same(capabilityCode, bundle.capabilityCode())) {
-            return Validation.invalid("ACTIVE 模型版本包作用域与当前租户能力不一致");
+            return Validation.invalid("已生效模型版本组合与当前机构能力不一致");
         }
         if (blank(bundle.promptVersion()) || blank(bundle.toolVersion()) || blank(bundle.modelVersion())) {
-            return Validation.invalid("ACTIVE 模型版本包的版本三元组不完整");
+            return Validation.invalid("已生效提示词、工具与模型版本组合不完整");
         }
         if (!sha256(bundle.promptHash()) || !sha256(bundle.toolHash()) || !sha256(bundle.modelHash())) {
-            return Validation.invalid("ACTIVE 模型版本包的内容指纹不完整");
+            return Validation.invalid("已生效模型版本组合的内容指纹不完整");
         }
         String expectedScopeKey = tenantId + "|" + capabilityCode;
         if (!expectedScopeKey.equals(bundle.activeScopeKey())) {
-            return Validation.invalid("ACTIVE 模型版本包作用域键不一致");
+            return Validation.invalid("已生效模型版本组合适用范围不一致");
         }
         return Validation.valid(bundle);
     }
@@ -46,7 +46,7 @@ public final class ModelVersionBundleValidator {
         return value != null && value.matches("[0-9a-fA-F]{64}");
     }
 
-    /** ACTIVE 版本包校验结果。 */
+    /** 已生效版本组合校验结果。 */
     public record Validation(boolean valid, ModelVersionBundle bundle, String reason) {
 
         private static Validation valid(ModelVersionBundle bundle) {

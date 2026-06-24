@@ -103,16 +103,16 @@ public class PublicationQualityRecordService {
     public VersionPublishEvidence requirePublishEvidence(
             Long recordId,
             Long identityId,
-            KnowledgeAssetVersion version) {
+        KnowledgeAssetVersion version) {
         if (recordId == null) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "缺少服务端发布质量门记录ID");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "缺少服务端发布质量校验记录ID");
         }
         String tenantId = requireCurrentTenant();
         AikGateResult record = gateResults.findById(recordId)
             .filter(row -> tenantId.equals(row.tenantId()))
-            .orElseThrow(() -> ApiException.notFound("发布质量门记录 id=" + recordId));
+            .orElseThrow(() -> ApiException.notFound("发布质量校验记录 id=" + recordId));
         if (!RECORD_GATE_CODE.equals(record.gateCode()) || !record.passed()) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "发布质量门记录不存在或未通过");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "发布质量校验记录不存在或未通过");
         }
         RecordMetadata metadata = readMetadata(record.reason());
         if (!identityId.equals(metadata.identityId())
@@ -120,11 +120,11 @@ public class PublicationQualityRecordService {
                 || !version.versionNo().equals(metadata.versionNo())
                 || !version.contentHash().equals(metadata.contentHash())
                 || !record.contentHash().equals(metadata.contentHash())) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "发布质量门记录不属于当前候选或版本");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "发布质量校验记录不属于当前候选或版本");
         }
         return new VersionPublishEvidence(new VersionPublishQualityGate(
             true, true, true, true, true,
-            "服务端发布质量门记录 id=" + record.id()));
+            "服务端发布质量校验记录 id=" + record.id()));
     }
 
     private void requireCompletePassedGates(String tenantId, String jobCode, String contentHash) {
@@ -137,13 +137,13 @@ public class PublicationQualityRecordService {
             .filter(code -> !latest.containsKey(code))
             .collect(Collectors.toSet());
         if (!missing.isEmpty()) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "缺少质量门：" + String.join("、", missing));
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "缺少发布校验项：" + String.join("、", missing));
         }
         List<String> failed = requiredGateCodes.stream()
             .filter(code -> !latest.get(code).passed())
             .toList();
         if (!failed.isEmpty()) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "质量门未通过：" + String.join("、", failed));
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "发布校验未通过：" + String.join("、", failed));
         }
     }
 
@@ -185,7 +185,7 @@ public class PublicationQualityRecordService {
         try {
             return objectMapper.writeValueAsString(metadata);
         } catch (JsonProcessingException exception) {
-            throw new ApiException(ErrorCode.INTERNAL_ERROR, "发布质量门记录序列化失败");
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "发布质量校验记录序列化失败");
         }
     }
 
@@ -193,7 +193,7 @@ public class PublicationQualityRecordService {
         try {
             return objectMapper.readValue(json, RecordMetadata.class);
         } catch (Exception exception) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "发布质量门记录内容非法");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "发布质量校验记录内容非法");
         }
     }
 

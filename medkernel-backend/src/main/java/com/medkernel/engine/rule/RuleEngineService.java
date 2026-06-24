@@ -621,7 +621,7 @@ public class RuleEngineService {
         ensureGovernanceDraft(tenantId, version.versionId());
         ContextSnapshotResponse snapshot = contextSnapshots.findById(request.contextSnapshotId());
         if (snapshot.status() != ContextSnapshotStatus.ACTIVE || snapshot.resources() == null) {
-            throw new ApiException(ErrorCode.ENG_RULE_006, "规则测试用例只能固化 ACTIVE 标准上下文快照");
+            throw new ApiException(ErrorCode.ENG_RULE_006, "规则测试用例只能基于已生效标准上下文生成");
         }
         String caseId = "rtc-" + UUID.randomUUID();
         RuleTestCase saved = testCases.save(new RuleTestCase(
@@ -1039,7 +1039,7 @@ public class RuleEngineService {
     public RuleEvaluateResponse evaluate(RuleEvaluateRequest request) {
         ContextSnapshotResponse snapshot = contextSnapshots.findById(request.contextSnapshotId());
         if (snapshot.status() != ContextSnapshotStatus.ACTIVE || snapshot.resources() == null) {
-            throw new ApiException(ErrorCode.ENG_RULE_006, "规则执行只能使用 ACTIVE 标准上下文快照");
+            throw new ApiException(ErrorCode.ENG_RULE_006, "规则执行只能使用已生效标准上下文");
         }
         return evaluateContext(
             request.triggerPoint(),
@@ -1060,7 +1060,7 @@ public class RuleEngineService {
     }
 
     /**
-     * 执行服务内已经完成真实性校验的上下文，可携带运行修订 ID 留证。
+     * 执行服务内已经完成真实性校验的上下文，可携带机构生效版本 ID 留证。
      */
     @Transactional
     public RuleEvaluateResponse evaluateContext(String triggerPoint, JsonNode context,
@@ -1094,7 +1094,7 @@ public class RuleEngineService {
     }
 
     /**
-     * 只执行医院运行发布锁定的确切规则版本，不再读取可变的当前激活版本。
+     * 只执行机构生效版本锁定的确切规则版本，不再读取可变的当前激活版本。
      */
     @Transactional
     public RuleEvaluateResponse evaluatePinnedContext(
@@ -1106,7 +1106,7 @@ public class RuleEngineService {
         requireCanonicalTrigger(triggerPoint);
         String tenantId = requireCurrentTenant();
         if (runtimeReleaseId == null || runtimeReleaseId.isBlank()) {
-            throw new ApiException(ErrorCode.ENG_RULE_006, "医院运行发布 ID 不能为空");
+            throw new ApiException(ErrorCode.ENG_RULE_006, "机构生效版本 ID 不能为空");
         }
         List<RuleRuntimeCandidate> executable = (selectedRules == null
                 ? List.<RuntimeRuleReference>of()
@@ -1129,25 +1129,25 @@ public class RuleEngineService {
                 || reference.tenantId() == null || reference.tenantId().isBlank()
                 || reference.ruleId() == null || reference.ruleId().isBlank()
                 || reference.versionId() == null || reference.versionId().isBlank()) {
-            throw new ApiException(ErrorCode.ENG_RULE_006, "运行发布中的规则引用不完整");
+            throw new ApiException(ErrorCode.ENG_RULE_006, "机构生效版本中的规则引用不完整");
         }
         if (!executionTenantId.equals(reference.tenantId())
                 && !PlatformTenant.isPlatformTenant(reference.tenantId())) {
-            throw new ApiException(ErrorCode.ENG_RULE_006, "运行发布引用了其他租户的规则");
+            throw new ApiException(ErrorCode.ENG_RULE_006, "机构生效版本引用了其他租户的规则");
         }
         RuleDefinition rule = definitions
             .findByRuleIdAndTenantId(reference.ruleId(), reference.tenantId())
             .orElseThrow(() -> new ApiException(
-                ErrorCode.ENG_RULE_006, "运行发布中的规则不存在：" + reference.ruleId()));
+                ErrorCode.ENG_RULE_006, "机构生效版本中的规则不存在：" + reference.ruleId()));
         RuleVersion version = versions
             .findByVersionIdAndTenantId(reference.versionId(), reference.tenantId())
             .filter(candidate -> rule.ruleId().equals(candidate.ruleId()))
             .orElseThrow(() -> new ApiException(
                 ErrorCode.ENG_RULE_006,
-                "运行发布中的规则版本不存在：" + reference.versionId()));
+                "机构生效版本中的规则版本不存在：" + reference.versionId()));
         if (rule.status() != RuleDefinitionStatus.PUBLISHED
                 || version.status() != RuleVersionStatus.PUBLISHED) {
-            throw new ApiException(ErrorCode.ENG_RULE_006, "运行发布只能执行已发布规则版本");
+            throw new ApiException(ErrorCode.ENG_RULE_006, "机构生效版本只能执行已发布规则版本");
         }
         return new RuleRuntimeCandidate(rule, version, RuleRuntimeMode.ACTIVE);
     }
@@ -2355,7 +2355,7 @@ public class RuleEngineService {
         placeholder.put("atSeverity", RuleRiskLevel.LOW.name());
         placeholder.put("indicator", "info");
         placeholder.put("summary", "动作卡引用静态校验占位");
-        placeholder.put("detail", "真实动作卡由医院运行修订统一物化后执行");
+        placeholder.put("detail", "真实动作卡由机构生效版本统一物化后执行");
         ObjectNode source = json.createObjectNode();
         source.put("label", "动作卡引用");
         placeholder.set("source", source);

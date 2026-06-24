@@ -26,7 +26,7 @@ public final class TerminologyRequests {
 /**
  * API-04 写入类请求的标准上下文字段。
  *
- * <p>标准上下文只校验操作者和组织范围；字典映射快照、发布清单和导出制品不再通过通用运行版本门槛传递。
+ * <p>标准上下文只校验操作者和组织范围；字典映射快照、版本明细和导出文件不再通过通用版本定位门槛传递。
  */
 record TerminologyApiContext(
     @JsonProperty("request_id") String requestId,
@@ -123,7 +123,7 @@ record TerminologyCandidateGenerationRequest(
 }
 
 /**
- * 标准术语登记请求体；用于把试点所需标准字典条目登记为当前租户覆盖或平台基线。
+ * 标准术语登记请求体；用于把试点所需标准字典条目登记为当前租户覆盖或平台标准版本。
  */
 record StandardTermRegistrationRequest(
     @JsonProperty("request_id") String requestId,

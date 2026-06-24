@@ -67,7 +67,7 @@ class RuntimeReleaseFollowupTemplateSelectorTest {
         assertThatThrownBy(() -> selector.requireByTemplateId(
             "tenant-A", "runtime-H9", "ftpl-copd-v3"))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("当前医院运行修订未启用随访模板");
+            .hasMessageContaining("当前机构生效版本未启用随访模板");
     }
 
     private ClinicalRuntimeRelease release() {

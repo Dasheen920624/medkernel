@@ -240,7 +240,7 @@ public class ModelEvalService {
         return PageResponse.of(items, page, total);
     }
 
-    /** 读取单次运行、逐例证据及当前制品有效性。 */
+    /** 读取单次运行、逐例证据及当前交付内容有效性。 */
     @Transactional(readOnly = true)
     public ModelEvalRunDetailResponse getRunDetail(Long runId) {
         String tenantId = requireCurrentTenant();
@@ -422,12 +422,12 @@ public class ModelEvalService {
         String raw = runtimeProperties.getReleaseFingerprint();
         String normalized = raw == null ? "" : raw.trim();
         if (normalized.isEmpty() || normalized.length() > 128) {
-            throw new ApiException(ErrorCode.ENG_LLM_008, "当前运行制品指纹未正确配置");
+            throw new ApiException(ErrorCode.ENG_LLM_008, "当前交付内容指纹未正确配置");
         }
         if (deploymentFormService.currentForm() == DeploymentForm.PRODUCTION_CENTER
             && Set.of("development", "dev", "unset", "unknown").contains(
                 normalized.toLowerCase(Locale.ROOT))) {
-            throw new ApiException(ErrorCode.ENG_LLM_008, "生产中心禁止使用占位运行制品指纹");
+            throw new ApiException(ErrorCode.ENG_LLM_008, "生产中心禁止使用占位交付内容指纹");
         }
         return normalized;
     }

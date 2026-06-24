@@ -6,7 +6,7 @@ import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 医院运行修订精确资产版本条目仓储。
+ * 机构生效版本精确资产版本条目仓储。
  */
 @Repository
 public interface ClinicalRuntimeReleaseItemRepository

@@ -92,7 +92,7 @@ class InheritanceOverrideServiceTest {
         assertThat(saved.impactScope()).isEqualTo("仅 HOSP-A 成人住院");
         assertThat(saved.createdAt()).isEqualTo(CLOCK.instant());
         assertThat(saved.propagation()).isEqualTo(InheritancePropagation.INHERITABLE);
-        assertThat(saved.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.PUBLISHED);
+        assertThat(saved.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.ACTIVE);
     }
 
     @Test
@@ -125,7 +125,7 @@ class InheritanceOverrideServiceTest {
         ));
 
         assertThat(saved.propagation()).isEqualTo(InheritancePropagation.EXCLUSIVE);
-        assertThat(saved.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.PUBLISHED);
+        assertThat(saved.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.ACTIVE);
     }
 
     @Test
@@ -230,7 +230,7 @@ class InheritanceOverrideServiceTest {
     }
 
     @Test
-    void reviewPolicyOverrideIsRegisteredAsInReviewInsteadOfPublished() {
+    void reviewPolicyOverrideIsActivatedAfterCurrentResponsibleActorConfirmation() {
         OrgUnit group = org("group-1", null, "/TENANT-A/GROUP-A", OrgLevel.REGION, "GROUP-A");
         OrgUnit hospital = org("hospital-a", "group-1", "/TENANT-A/GROUP-A/HOSP-A", OrgLevel.FACILITY, "HOSP-A");
         AssetVersion inherited = version(
@@ -253,15 +253,15 @@ class InheritanceOverrideServiceTest {
             "adult|inpatient",
             InheritanceOverrideMode.REPLACE,
             "给药剂量阈值更严格",
-            "本院药事会评审前置",
+            "本院药事当前责任人已确认",
             "HOSP-A 成人住院",
             "publisher-1",
             "trace-sys04",
             InheritancePropagation.INHERITABLE
         ));
 
-        assertThat(saved.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.IN_REVIEW);
-        assertThat(saved.overrideReason()).contains("本院药事会");
+        assertThat(saved.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.ACTIVE);
+        assertThat(saved.overrideReason()).contains("当前责任人已确认");
     }
 
     @Test
@@ -303,7 +303,7 @@ class InheritanceOverrideServiceTest {
 
         assertThat(saved.inheritedVersionId()).isEqualTo(platformBaseline.versionId());
         assertThat(saved.tenantId()).isEqualTo("tenant-A");
-        assertThat(saved.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.PUBLISHED);
+        assertThat(saved.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.ACTIVE);
     }
 
     @Test
@@ -413,7 +413,7 @@ class InheritanceOverrideServiceTest {
         assertThat(saved.overrideVersionId()).isEqualTo(localAdded.versionId());
         assertThat(saved.orgPath()).isEqualTo(hospital.orgPath());
         assertThat(saved.propagation()).isEqualTo(InheritancePropagation.EXCLUSIVE);
-        assertThat(saved.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.PUBLISHED);
+        assertThat(saved.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.ACTIVE);
     }
 
     @Test
@@ -464,7 +464,7 @@ class InheritanceOverrideServiceTest {
             "av-local-v1",
             InheritanceOverrideMode.REPLACE,
             InheritancePropagation.INHERITABLE,
-            InheritanceOverrideStatus.PUBLISHED,
+            InheritanceOverrideStatus.ACTIVE,
             "/TENANT-A/HOSP-A",
             "adult|inpatient",
             "本地阈值",

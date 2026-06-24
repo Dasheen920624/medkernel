@@ -234,13 +234,13 @@ export default function AcquisitionSourceGovernancePanel({
 
   let content;
   if (sourcesQuery.isLoading) {
-    content = <PageState state="loading" title="正在读取来源白名单" />;
+    content = <PageState state="loading" title="正在读取来源允许清单" />;
   } else if (sourcesQuery.isError) {
     content = (
       <PageState
         state="error"
-        title="来源白名单读取失败"
-        description={getApiErrorMessage(sourcesQuery.error, "无法读取来源白名单")}
+        title="来源允许清单读取失败"
+        description={getApiErrorMessage(sourcesQuery.error, "无法读取来源允许清单")}
         onRetry={() => void sourcesQuery.refetch()}
       />
     );
@@ -277,7 +277,7 @@ export default function AcquisitionSourceGovernancePanel({
       extra={
         <Space>
           <Button
-            aria-label="刷新来源白名单"
+            aria-label="刷新来源允许清单"
             icon={<ReloadOutlined />}
             onClick={() => void sourcesQuery.refetch()}
           >

@@ -1,7 +1,7 @@
 package com.medkernel.engine.versioning;
 
 /**
- * 医院运行修订中解析出的声明式资产正文。
+ * 机构生效版本中解析出的声明式资产正文。
  */
 public record ResolvedDeclarativeAsset(
     VersionedAssetType assetType,

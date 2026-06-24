@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 演练机构规则铺底：标准快照 -> 规则四测 -> 治理演练 -> 运行制品 -> 医院当前运行修订。
+// 演练机构规则铺底：标准快照 -> 规则四测 -> 治理演练 -> 交付内容 -> 当前机构生效版本。
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -423,7 +423,7 @@ async function seedSnapshots(browser, credentials, rule) {
         !created.runtimeReleaseId
       ) {
         throw new Error(
-          `${rule.ruleCode}/${testCase.caseType} 快照未形成 ACTIVE 且绑定运行修订的服务端事实`,
+          `${rule.ruleCode}/${testCase.caseType} 快照未形成 ACTIVE 且绑定机构生效版本的服务端事实`,
         );
       }
       snapshots.push({
@@ -816,7 +816,7 @@ async function readCurrentHospitalRuntime(context, hospitalId, stage) {
     stage,
   );
   if (result.status === 404) return null;
-  return ensureOk(result, "读取当前医院运行修订");
+  return ensureOk(result, "读取当前机构生效版本");
 }
 
 async function activateRuntimeRelease(context, ctx, assets) {
@@ -834,7 +834,7 @@ async function activateRuntimeRelease(context, ctx, assets) {
         "/engine/sandbox/runtime-status",
         "verify-sandbox-runtime-status",
       ),
-      "验证沙盘运行修订",
+      "验证沙盘机构生效版本",
     );
     return { reused: true, release: currentDetail.release, status };
   }
@@ -845,11 +845,11 @@ async function activateRuntimeRelease(context, ctx, assets) {
       "/engine/releases/platform-baselines/current",
       "sandbox-platform-baseline-current",
     ),
-    "读取平台当前权威基线",
+    "读取平台当前标准版本",
   );
   const baselineReleaseId = baseline?.release?.baselineReleaseId;
   if (!baselineReleaseId) {
-    throw new Error("平台当前权威基线缺少 baselineReleaseId，无法生成医院运行修订");
+    throw new Error("平台当前标准版本缺少 baselineReleaseId，无法生成机构生效版本");
   }
   const release = ensureOk(
     await apiPost(
@@ -862,7 +862,7 @@ async function activateRuntimeRelease(context, ctx, assets) {
       },
       "activate-sandbox-runtime-release",
     ),
-    "发布沙盘医院运行修订",
+    "发布沙盘机构生效版本",
   );
   const status = ensureOk(
     await apiGet(
@@ -870,7 +870,7 @@ async function activateRuntimeRelease(context, ctx, assets) {
       "/engine/sandbox/runtime-status",
       "verify-sandbox-runtime-status",
     ),
-    "验证沙盘运行修订",
+    "验证沙盘机构生效版本",
   );
   if (
     !status?.ready ||
@@ -878,7 +878,7 @@ async function activateRuntimeRelease(context, ctx, assets) {
     status.externalSideEffects !== false
   ) {
     throw new Error(
-      `沙盘运行修订未就绪: ${JSON.stringify({ release, status }).slice(0, 1200)}`,
+      `沙盘机构生效版本未就绪: ${JSON.stringify({ release, status }).slice(0, 1200)}`,
     );
   }
   return { reused: false, release, status };
@@ -1006,7 +1006,7 @@ export async function runSeed() {
     throw new Error(`沙盘铺底存在 ${summary.failures.length} 个失败`);
   }
   if (!summary.runtimeRelease?.status?.ready)
-    throw new Error("沙盘铺底完成但 CURRENT 运行修订未就绪");
+    throw new Error("沙盘铺底完成但 CURRENT 机构生效版本未就绪");
   return summary;
 }
 

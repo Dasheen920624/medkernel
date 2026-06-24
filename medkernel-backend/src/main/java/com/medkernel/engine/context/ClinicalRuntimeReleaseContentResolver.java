@@ -8,7 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.medkernel.engine.release.ReleaseManifestHash;
 
 /**
- * 由医院运行修订 ID 唯一解析并校验本次临床运行的完整物化资产清单。
+ * 由机构生效版本 ID 唯一解析并校验本次临床运行的完整物化版本明细。
  */
 @Service
 public class ClinicalRuntimeReleaseContentResolver {
@@ -27,14 +27,14 @@ public class ClinicalRuntimeReleaseContentResolver {
     public ClinicalRuntimeReleaseContent resolve(String tenantId, String releaseId) {
         String normalizedTenantId = requireText(tenantId, "租户");
         ClinicalRuntimeRelease release = releases.findByTenantIdAndReleaseId(
-                normalizedTenantId, requireText(releaseId, "运行修订"))
-            .orElseThrow(() -> new IllegalArgumentException("运行修订不存在"));
+                normalizedTenantId, requireText(releaseId, "机构生效版本"))
+            .orElseThrow(() -> new IllegalArgumentException("机构生效版本不存在"));
         List<ClinicalRuntimeReleaseItem> materialized =
             items.findByReleaseIdOrderByAssetTypeAscAssetIdentityAsc(release.releaseId());
         String actualHash = ReleaseManifestHash.sha256(
             materialized.stream().map(ClinicalRuntimeReleaseContentResolver::canonicalLine).toList());
         if (!actualHash.equals(release.manifestSha256())) {
-            throw new IllegalStateException("医院运行修订清单摘要不一致，禁止继续执行");
+            throw new IllegalStateException("机构生效版本明细校验码不一致，禁止继续执行");
         }
         return new ClinicalRuntimeReleaseContent(release, materialized);
     }

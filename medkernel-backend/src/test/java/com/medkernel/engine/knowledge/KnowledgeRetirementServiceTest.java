@@ -104,7 +104,7 @@ class KnowledgeRetirementServiceTest {
             "av-platform", "av-local-b",
             com.medkernel.engine.versioning.InheritanceOverrideMode.REPLACE,
             com.medkernel.engine.versioning.InheritancePropagation.INHERITABLE,
-            InheritanceOverrideStatus.PUBLISHED, "/hospital-b", "ALL", "本地差异", null,
+            InheritanceOverrideStatus.ACTIVE, "/hospital-b", "ALL", "本地差异", null,
             "医院范围", NOW.minusSeconds(86400), "tenant-admin", NOW.minusSeconds(86400),
             "tenant-admin", "trace-b");
         when(supersessions.findDueDeprecations(NOW)).thenReturn(List.of(due));
@@ -114,7 +114,7 @@ class KnowledgeRetirementServiceTest {
             "t-1", VersionedAssetType.KNOWLEDGE, current.identityCode(), active.versionNo()))
             .thenReturn(Optional.of(unified(current, active)));
         when(overrides.findByAssetTypeAndAssetIdentityAndLifecycleStatus(
-            VersionedAssetType.KNOWLEDGE, "plat:drug:old-guide", InheritanceOverrideStatus.PUBLISHED))
+            VersionedAssetType.KNOWLEDGE, "plat:drug:old-guide", InheritanceOverrideStatus.ACTIVE))
             .thenReturn(List.of(published, publishedWithoutReason));
 
         int finalized = service.finalizeDueRetirements();
@@ -135,7 +135,7 @@ class KnowledgeRetirementServiceTest {
         verify(overrides, Mockito.times(2)).save(override.capture());
         assertThat(override.getAllValues())
             .allSatisfy(item -> {
-                assertThat(item.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.DEPRECATED);
+                assertThat(item.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.RETIRED);
                 assertThat(item.overrideReason()).contains("请迁移到新版指南");
             });
         assertThat(override.getAllValues().get(1).overrideReason()).doesNotStartWith("null");
@@ -158,7 +158,7 @@ class KnowledgeRetirementServiceTest {
         when(supersessions.findDueDeprecations(NOW)).thenReturn(List.of(due));
         when(identities.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(current));
         when(overrides.findByAssetTypeAndAssetIdentityAndLifecycleStatus(
-            VersionedAssetType.KNOWLEDGE, "plat:drug:old-guide", InheritanceOverrideStatus.PUBLISHED))
+            VersionedAssetType.KNOWLEDGE, "plat:drug:old-guide", InheritanceOverrideStatus.ACTIVE))
             .thenReturn(List.of());
         AtomicReference<String> auditTenant = new AtomicReference<>();
         AtomicReference<String> auditActor = new AtomicReference<>();
@@ -199,7 +199,7 @@ class KnowledgeRetirementServiceTest {
             7L, "io-7", tenantId, VersionedAssetType.KNOWLEDGE, identityCode, "av-platform", "av-local",
             com.medkernel.engine.versioning.InheritanceOverrideMode.REPLACE,
             com.medkernel.engine.versioning.InheritancePropagation.INHERITABLE,
-            InheritanceOverrideStatus.PUBLISHED, "/hospital-a", "ALL", "本地差异", "本地适配",
+            InheritanceOverrideStatus.ACTIVE, "/hospital-a", "ALL", "本地差异", "本地适配",
             "医院范围", NOW.minusSeconds(86400), "tenant-admin", NOW.minusSeconds(86400), "tenant-admin", "trace");
     }
 

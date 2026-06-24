@@ -42,7 +42,7 @@ public interface EvaluationIndicatorRepository extends ListCrudRepository<Evalua
         String tenantId, String indicatorCode, EvaluationIndicatorStatus status);
 
     /**
-     * 按稳定指标编码与业务版本号定位运行修订锁定的精确指标版本。
+     * 按稳定指标编码与业务版本号定位机构生效版本锁定的精确指标版本。
      */
     Optional<EvaluationIndicator> findByTenantIdAndIndicatorCodeAndVersionNo(
         String tenantId, String indicatorCode, int versionNo);

@@ -122,7 +122,7 @@ public class ControlledToolService {
             new ControlledToolDescriptor(TOOL_VALIDATE_PRIVACY_POLICY,
                 "判定数据分级是否准入数据服务/CLI/MCP", EngineDataLevel.D0, REQUIRED_PERMISSION),
             new ControlledToolDescriptor(TOOL_GET_CLINICAL_CONTEXT_EXPLANATION,
-                "解释临床 launch 令牌授权的最小会话上下文（患者引用脱敏）", EngineDataLevel.D4, REQUIRED_PERMISSION),
+                "解释临床启动凭证授权的最小会话上下文（患者引用脱敏）", EngineDataLevel.D4, REQUIRED_PERMISSION),
             new ControlledToolDescriptor(TOOL_SUBMIT_PRODUCTION_CANDIDATE,
                 "Agent 受控回写候选到知识生产流水线", EngineDataLevel.D1, WRITE_PERMISSION),
             new ControlledToolDescriptor(TOOL_FETCH_PUBLIC_MATERIAL,

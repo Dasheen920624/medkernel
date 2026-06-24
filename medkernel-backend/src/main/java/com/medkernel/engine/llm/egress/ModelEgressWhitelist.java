@@ -6,11 +6,11 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 模型外调出域字段白名单实体（LLM-03 FR-1）。
+ * 模型外调允许范围实体（LLM-03 FR-1）。
  *
- * <p>声明指定租户、指定能力码在 B2 外调时允许出域的字段清单（JSON 字符串数组）与出域敏感级别。
- * 达到确认阈值的出域须由当前获授权操作者确认用途后方可放行（{@link ModelEgressConfirmation}）。
- * OPT-09 在同一策略记录上集中维护字段级脱敏规则、确认阈值和不可关闭护栏，避免各出域点重复实现。
+ * <p>声明指定服务机构、指定能力码在 B2 外调时允许发送的字段清单（JSON 字符串数组）与外调敏感级别。
+ * 达到确认阈值的外调须由当前获授权操作者确认用途后方可放行（{@link ModelEgressConfirmation}）。
+ * OPT-09 在同一策略记录上集中维护字段级脱敏规则、确认阈值和不可关闭护栏，避免各外调点重复实现。
  */
 @Table("mk_llm_egress_whitelist")
 public record ModelEgressWhitelist(

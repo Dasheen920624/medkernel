@@ -12,7 +12,7 @@ import com.medkernel.shared.api.error.ErrorCode;
  * API-03 写入类请求的标准上下文字段。
  *
  * <p>字段对齐 D2 标准 API 入参：request/trace、租户与六层组织、用户和角色。
- * 知识版本、运行发布清单与导出制品由各自业务对象管理，不再混入通用上下文。
+     * 知识版本、机构生效版本明细与导出文件由各自业务对象管理，不再混入通用上下文。
  */
 public record KnowledgeApiContext(
     @JsonProperty("request_id") String requestId,

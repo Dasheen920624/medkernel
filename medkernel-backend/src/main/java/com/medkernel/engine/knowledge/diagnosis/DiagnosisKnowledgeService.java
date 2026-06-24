@@ -266,7 +266,7 @@ public class DiagnosisKnowledgeService {
         DiagnosisConfidencePolicy policy = resolvePolicy(tenant);
         List<DiagnosisTestCase> cases = testCases.findByTenantIdAndDiagnosisVersionId(tenant, versionId);
         if (cases.isEmpty()) {
-            throw new ApiException(ErrorCode.ENG_DX_006, "诊断知识至少需要一个回归病例才可发布");
+            throw new ApiException(ErrorCode.ENG_DX_006, "诊断知识至少需要一个验证病例才可发布");
         }
         for (DiagnosisTestCase tc : cases) {
             if (!version.identityId().equals(tc.expectedIdentityId())) {
@@ -332,7 +332,7 @@ public class DiagnosisKnowledgeService {
             if (hasText(criterion.valueConstraint()) || hasText(criterion.temporalConstraint())) {
                 throw new ApiException(ErrorCode.ENG_DX_006,
                     "诊断标准 " + criterion.findingTermCode()
-                        + " 含数值或时序约束，B0 运行门禁尚未求值，暂不可发布");
+                        + " 含数值或时序约束，无模型规则链路尚未支持这些约束，暂不可发布");
             }
         }
     }

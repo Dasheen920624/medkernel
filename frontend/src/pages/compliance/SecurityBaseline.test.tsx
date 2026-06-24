@@ -437,7 +437,7 @@ describe("SecurityBaseline", () => {
     expect(screen.getByText("电子病历评级证据导出")).toBeInTheDocument();
   }, 15_000);
 
-  it("treats globally disabled MFA as a valid passing configuration", () => {
+  it("treats globally disabled multi-factor authentication as a valid passing configuration", () => {
     const currentProfile = vi.mocked(useSecurityProfile)().data;
     vi.mocked(useSecurityProfile).mockReturnValue(
       query({
@@ -449,8 +449,8 @@ describe("SecurityBaseline", () => {
 
     renderPage();
 
-    expect(screen.getAllByText("MFA 全局配置已关闭").length).toBeGreaterThan(0);
-    expect(screen.getByRole("row", { name: /MFA 通过 MFA 全局配置已关闭/ })).toBeInTheDocument();
+    expect(screen.getAllByText("多因素认证全局配置已关闭").length).toBeGreaterThan(0);
+    expect(screen.getByRole("row", { name: /多因素认证 通过 多因素认证全局配置已关闭/ })).toBeInTheDocument();
   });
 
   it("updates a real config item with version and high-risk confirmation", async () => {

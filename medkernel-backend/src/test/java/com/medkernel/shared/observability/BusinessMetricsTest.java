@@ -18,7 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * GA-CORE-04 / W1-G6 smoke：
  * <ul>
  *   <li>5 个业务指标已注册到 Micrometer Registry
- *   <li>/actuator/prometheus 公开端点可匿名访问（SecurityConfig 白名单）
+ *   <li>/actuator/prometheus 公开端点可匿名访问（SecurityConfig 匿名允许入口）
  *   <li>Prometheus 格式 scrape 输出包含业务指标名
  * </ul>
  */

@@ -70,13 +70,13 @@ function dataScopeText(profile: SecurityProfile): string {
 }
 
 function mfaEvidence(profile: SecurityProfile): string {
-  if (!profile.mfaRequired) return "MFA 全局配置已关闭";
-  return profile.mfaBound ? "MFA 已绑定" : "MFA 必需但未绑定";
+  if (!profile.mfaRequired) return "多因素认证全局配置已关闭";
+  return profile.mfaBound ? "多因素认证已绑定" : "多因素认证必需但未绑定";
 }
 
 function mfaStatusText(profile: SecurityProfile): string {
   if (!profile.mfaRequired) return "已关闭";
-  return profile.mfaBound ? "MFA 已绑定" : "未绑定";
+  return profile.mfaBound ? "多因素认证已绑定" : "未绑定";
 }
 
 function hasPermission(profile: SecurityProfile, code: string) {
@@ -98,7 +98,7 @@ function BaselineOverview({
   const baselineRows: BaselineRow[] = [
     {
       key: "mfa",
-      item: "MFA",
+      item: "多因素认证",
       status: !profile.mfaRequired || profile.mfaBound ? "PASS" : "WARN",
       evidence: mfaEvidence(profile),
     },
@@ -138,7 +138,7 @@ function BaselineOverview({
           <Statistic title="当前账号" value={profile.username} />
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Statistic title="MFA" value={mfaStatusText(profile)} />
+          <Statistic title="多因素认证" value={mfaStatusText(profile)} />
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Statistic title="高风险权限" value={highRiskPermissions.length} />
@@ -154,7 +154,7 @@ function BaselineOverview({
       <Alert
         type={profile.mfaRequired && !profile.mfaBound ? "warning" : "success"}
         showIcon
-        message={profile.mfaRequired ? "MFA 全局配置已开启" : "MFA 全局配置已关闭"}
+        message={profile.mfaRequired ? "多因素认证全局配置已开启" : "多因素认证全局配置已关闭"}
         description={`数据范围：${dataScopeText(profile) || "未返回范围"}；运行环境：${snapshot.environment} / ${snapshot.deploymentMode}`}
       />
 
@@ -228,7 +228,7 @@ export default function SecurityBaseline() {
 
   if (security.isLoading || runtime.isLoading) {
     return (
-      <PageShell title="安全基线与系统配置" description="正在读取安全画像与运行底座">
+      <PageShell title="安全基线与系统配置" description="正在读取安全画像与运行环境">
         <PageState state="loading" />
       </PageShell>
     );
@@ -240,13 +240,13 @@ export default function SecurityBaseline() {
         <PageState
           state="error"
           title="暂时无法读取安全基线"
-          description="请稍后重试，或让信息科检查安全画像与运行底座。"
+          description="请稍后重试，或让信息科检查安全画像与运行环境。"
           action={
             <Space wrap>
               <Button icon={<ReloadOutlined />} onClick={() => security.refetch()}>
                 重读安全画像
               </Button>
-              <Button onClick={() => runtime.refetch()}>重读运行底座</Button>
+              <Button onClick={() => runtime.refetch()}>重读运行环境</Button>
             </Space>
           }
         />

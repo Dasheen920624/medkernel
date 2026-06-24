@@ -94,6 +94,6 @@ class RuntimeReleaseFieldCatalogResolverTest {
             .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> resolver.resolve("tenant-A", "runtime-missing"))
-            .hasMessageContaining("医院运行修订缺少字段目录资产");
+            .hasMessageContaining("机构生效版本缺少字段目录资产");
     }
 }

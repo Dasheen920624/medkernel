@@ -31,7 +31,7 @@ const { Text, Title } = Typography;
 const targetLabelByPath: Record<string, string> = {
   "/tenant/onboarding": "机构实施配置",
   "/adapter/hub": "系统接入",
-  "/config/releases": "运行发布",
+  "/config/releases": "发布治理",
   "/terminology/mapping": "术语与字典",
 };
 
@@ -96,7 +96,7 @@ export default function ImplementationGuide() {
         state="error"
         stateProps={{
           title: "实施步骤读取失败",
-          description: "请重试；若持续失败，请带追踪标识联系信息科排查服务空间接口。",
+          description: "请重试；若持续失败，请带追踪号联系信息科排查服务空间接口。",
           onRetry: () => refetch(),
         }}
       >

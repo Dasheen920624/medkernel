@@ -126,7 +126,7 @@ class EffectivePathwayRuleGuardEvaluatorTest {
             json.createObjectNode(),
             "release-hospital-7"))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("规则未包含在医院运行修订中");
+            .hasMessageContaining("规则未包含在机构生效版本中");
     }
 
     @Test

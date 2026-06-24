@@ -13,7 +13,7 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.test.context.TestPropertySource;
 
 /**
- * 出域治理三表（白名单 / 责任确认 / 证据）数据访问回归测试（LLM-03）。
+ * 外调治理三表（允许范围 / 责任确认 / 证据）数据访问回归测试（LLM-03）。
  *
  * <p>验证 V125 迁移在 H2(PostgreSQL 模式) 下建表成功，三仓储读写与按租户+能力码的唯一检索口径正确。
  */

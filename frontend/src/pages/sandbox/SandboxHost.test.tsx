@@ -212,7 +212,7 @@ describe("SandboxHost", () => {
     expect(screen.getByText("trace-sandbox-host-1")).toBeInTheDocument();
     expect(screen.getByText("run-sandbox-host-1")).toBeInTheDocument();
     expect(screen.getByText("baseline-sandbox-host-1")).toBeInTheDocument();
-    expect(screen.getAllByText("医院当前运行修订").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("当前机构生效版本").length).toBeGreaterThan(0);
     expect(screen.getAllByText("外部副作用已关闭")).toHaveLength(2);
   });
 
@@ -231,7 +231,7 @@ describe("SandboxHost", () => {
       data: {
         ready: false,
         reasonCode: "SANDBOX_RUNTIME_BASELINE_MISSING",
-        reason: "演练机构尚未发布沙盘运行修订",
+        reason: "演练机构尚未发布沙盘生效版本",
         targetOrgUnitId: "hospital-sandbox-1",
         assetCount: 0,
         externalSideEffects: false,
@@ -244,12 +244,12 @@ describe("SandboxHost", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /抗菌药物处方复核/ }));
 
-    expect(await screen.findByText(/演练机构尚未发布沙盘运行修订/)).toBeInTheDocument();
+    expect(await screen.findByText(/演练机构尚未发布沙盘生效版本/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "运行真实引擎链路" })).not.toBeInTheDocument();
     expect(sandboxHookMocks.run).not.toHaveBeenCalled();
   });
 
-  it("shows the current hospital runtime revision without exposing package selectors", () => {
+  it("shows the current institution effective version without exposing package selectors", () => {
     sandboxHookMocks.useSandboxRuntimeStatus.mockReturnValue({
       data: {
         ready: true,
@@ -270,8 +270,8 @@ describe("SandboxHost", () => {
 
     renderSandboxHost();
 
-    expect(screen.getByText("医院当前运行修订")).toBeInTheDocument();
-    expect(screen.getByText("修订 #9 · runtime-platform-1")).toBeInTheDocument();
+    expect(screen.getByText("当前机构生效版本")).toBeInTheDocument();
+    expect(screen.getByText("第 9 版 · runtime-platform-1")).toBeInTheDocument();
   });
 
   it("runs an outer-engine playbook without fabricated clinical input", async () => {

@@ -80,8 +80,8 @@ const routeDecisions = {
   "/config/releases": {
     decision: "MERGE",
     targetDomain: "知识治理",
-    targetEntry: "运行发布",
-    task: "维护平台权威基线、医院运行修订、发布影响和回滚证据",
+    targetEntry: "机构生效版本",
+    task: "维护平台标准版本、机构生效版本、发布影响和回滚证据",
   },
   "/authoring/assets": {
     decision: "MERGE",

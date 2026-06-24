@@ -10,6 +10,7 @@ import java.util.StringJoiner;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.versioning.RemovedRuntimeSelectorFields;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import org.springframework.stereotype.Service;
@@ -307,10 +308,8 @@ public class AuthoringPreviewService {
     private String renderValueSet(JsonNode value, List<String> warnings) {
         StringBuilder builder = new StringBuilder("值集 ").append(textValue(value.get("valueSet")));
         List<String> details = new ArrayList<>();
-        if (value.has("package" + "Version")
-                || value.has("package" + "Id")
-                || value.has("package" + "Code")) {
-            warnings.add("值集引用中的手工运行定位字段已忽略；请通过资产依赖和医院当前运行修订定位正式版本。");
+        if (RemovedRuntimeSelectorFields.hasAny(value, RemovedRuntimeSelectorFields.valueSetFields())) {
+            warnings.add("值集引用中的手工运行定位字段已忽略；请通过资产依赖和当前机构生效版本定位正式版本。");
         }
         JsonNode members = value.get("members");
         if (members != null && members.isArray() && !members.isEmpty()) {

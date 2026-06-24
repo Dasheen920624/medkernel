@@ -30,6 +30,11 @@ class MigrationBaselineContractTest {
         "(?im)^CREATE TABLE\\s+([a-z][a-z0-9_]*)\\s*\\(");
     private static final Pattern TABLE_COMMENT = Pattern.compile("(?im)^COMMENT ON TABLE\\s+");
     private static final Pattern COLUMN_COMMENT = Pattern.compile("(?im)^COMMENT ON COLUMN\\s+");
+    private static final List<String> LEGACY_PRODUCT_TERMS = List.of(
+        "运行修订", "运行发布", "发布制品", "运行制品", "运行快照", "清单摘要", "资产清单",
+        "平台基线", "权威基线", "运行版本", "冻结基线", "快照运行标识", "运行标识",
+        "医院当前运行", "医院运行", "发布包", "运行包", "证据包", "知识包", "配置包");
+    private static final String[] LEGACY_PRODUCT_TERM_ARRAY = LEGACY_PRODUCT_TERMS.toArray(String[]::new);
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -76,6 +81,18 @@ class MigrationBaselineContractTest {
                 .isEqualTo(canonicalTables.size());
             assertThat(count(COLUMN_COMMENT, ddl)).as("%s 每个字段都有中文注释", dialect)
                 .isEqualTo(columnCount);
+        }
+    }
+
+    @Test
+    void generatedDatabaseCommentsUseCustomerUnderstandableReleaseTerms() throws IOException {
+        assertThat(objectMapper.writeValueAsString(schema()))
+            .as("数据库模式注释不得继续使用旧发布容器或运行修订口径")
+            .doesNotContain(LEGACY_PRODUCT_TERM_ARRAY);
+        for (String dialect : DIALECTS) {
+            assertThat(readBaseline(dialect))
+                .as("%s 数据库注释不得继续使用旧发布容器或运行修订口径", dialect)
+                .doesNotContain(LEGACY_PRODUCT_TERM_ARRAY);
         }
     }
 
@@ -156,7 +173,7 @@ class MigrationBaselineContractTest {
     void clinicalRuntimeTablesPersistOnlyTheHospitalRuntimeReleaseReference() throws IOException {
         for (String tableName : List.of("clinical_event", "context_snapshot", "recommendation_trigger")) {
             assertThat(columnNames(table(schema(), tableName)))
-                .as("%s 临床运行事实只绑定服务端锁定的医院运行修订", tableName)
+                .as("%s 临床运行事实只绑定服务端锁定的机构生效版本", tableName)
                 .contains("runtime_release_id")
                 .doesNotContain("package_id", "package_code", "package_version");
         }
@@ -177,7 +194,7 @@ class MigrationBaselineContractTest {
             String foreignKeyName = "fk_" + tableName + "_runtime_release";
             JsonNode foreignKey = foreignKey(table(schema(), tableName), foreignKeyName);
             assertThat(textList(foreignKey.path("columns")))
-                .as("%s 必须通过运行发布 ID 固化实际生效组合", tableName)
+                .as("%s 必须通过机构生效版本 ID 固化实际生效组合", tableName)
                 .containsExactly("runtime_release_id");
             assertThat(foreignKey.path("referencedTable").asText())
                 .isEqualTo("clinical_runtime_release");
@@ -187,7 +204,7 @@ class MigrationBaselineContractTest {
 
         for (String dialect : DIALECTS) {
             assertThat(readBaseline(dialect))
-                .as("%s 临床运行证据必须引用医院运行发布账本", dialect)
+                .as("%s 临床运行证据必须引用机构生效版本账本", dialect)
                 .contains(
                     "ALTER TABLE clinical_event ADD CONSTRAINT fk_clinical_event_runtime_release "
                         + "FOREIGN KEY (runtime_release_id) REFERENCES clinical_runtime_release (release_id);",
@@ -255,7 +272,7 @@ class MigrationBaselineContractTest {
                 "asset_identity", "entry_state", "version_id", "version_no", "content_hash");
         for (String dialect : DIALECTS) {
             assertThat(readBaseline(dialect))
-                .as("%s 医院运行发布账本", dialect)
+                .as("%s 机构生效版本账本", dialect)
                 .contains(
                     "CREATE TABLE clinical_runtime_release",
                     "CREATE TABLE clinical_runtime_release_item",
@@ -298,6 +315,44 @@ class MigrationBaselineContractTest {
                     "ck_mk_version_asset_version_status CHECK (status IN('DRAFT', 'IN_REVIEW', 'APPROVED', 'PUBLISHED', 'DEPRECATED', 'RETIRED'))",
                     "ck_mk_sandbox_replay_asset_status CHECK (historical_status IN('PUBLISHED', 'DEPRECATED', 'RETIRED'))",
                     "统一生命周期：DRAFT 草稿、IN_REVIEW 评审中、APPROVED 已批准");
+        }
+    }
+
+    @Test
+    void inheritanceOverrideLifecycleUsesOnlyActiveAndRetiredCoverageFacts() throws IOException {
+        JsonNode override = table(schema(), "mk_version_inheritance_override");
+        assertThat(checkExpression(override, "ck_mk_version_inheritance_override_lifecycle"))
+            .as("机构覆盖只表达启用或退役事实，不再保留额外审核态")
+            .isEqualTo("lifecycle_status IN('ACTIVE', 'RETIRED')");
+        assertThat(columnComment(override, "lifecycle_status"))
+            .contains("ACTIVE 已启用", "RETIRED 已退役")
+            .doesNotContain("DRAFT", "IN_REVIEW", "APPROVED", "PUBLISHED 已发布", "DEPRECATED");
+
+        for (String dialect : DIALECTS) {
+            String ddl = readBaseline(dialect);
+            assertThat(ddl)
+                .as("%s 机构覆盖生命周期必须是最小启用/退役事实", dialect)
+                .contains(
+                    "ck_mk_version_inheritance_override_lifecycle CHECK (lifecycle_status IN('ACTIVE', 'RETIRED'))",
+                    "COMMENT ON COLUMN mk_version_inheritance_override.lifecycle_status IS '覆盖状态：ACTIVE 已启用 / RETIRED 已退役；ACTIVE 参与解析，RETIRED 仅用于历史重放窗口'")
+                .doesNotContain(
+                    "ck_mk_version_inheritance_override_lifecycle CHECK (lifecycle_status IN('DRAFT', 'IN_REVIEW', 'APPROVED', 'PUBLISHED', 'DEPRECATED', 'RETIRED'))",
+                    "覆盖生命周期：DRAFT 草稿 / IN_REVIEW 待评审 / APPROVED 已通过");
+        }
+    }
+
+    @Test
+    void interopEvidenceSourcesUseEvidenceExportNamingInsteadOfEvidencePackage() throws IOException {
+        String serialized = objectMapper.writeValueAsString(schema());
+        assertThat(serialized)
+            .as("证据来源类型不得继续暴露旧证据导出口径")
+            .doesNotContain("EMR_LEVEL_EVIDENCE_PACKAGE")
+            .contains("EMR_LEVEL_EVIDENCE_EXPORT");
+        for (String dialect : DIALECTS) {
+            assertThat(readBaseline(dialect))
+                .as("%s 证据来源注释不得继续使用旧证据导出口径", dialect)
+                .doesNotContain("EMR_LEVEL_EVIDENCE_PACKAGE")
+                .contains("EMR_LEVEL_EVIDENCE_EXPORT");
         }
     }
 

@@ -52,8 +52,8 @@ const handoverSignals = [
     value: "只创建第一个接管账号，后续账号进工作台开通",
   },
   {
-    label: "按需启用 MFA",
-    value: "MFA 默认关闭，需要时由部署配置显式开启",
+    label: "按需启用多因素认证",
+    value: "多因素认证默认关闭，需要时由部署配置显式开启",
   },
 ];
 
@@ -66,10 +66,10 @@ function buildAccountSecuritySignals(platformSetup: boolean, mfaRequired: boolea
   ];
   if (mfaRequired) {
     signals.push({
-      label: "完成双因素验证",
+      label: "完成多因素认证",
       value: platformSetup
-        ? "当前部署已开启 MFA，按平台安全策略完成认证器验证"
-        : "当前部署已开启 MFA，按服务机构安全策略完成认证器验证",
+        ? "当前部署已开启多因素认证，按平台安全策略完成认证器验证"
+        : "当前部署已开启多因素认证，按服务机构安全策略完成认证器验证",
     });
   }
   signals.push({
@@ -86,7 +86,7 @@ function buildStepItems(accountSecuritySetup: boolean, mfaRequired: boolean) {
     return [{ title: "接管码" }, { title: "账号" }, { title: "完成" }];
   }
   if (mfaRequired) {
-    return [{ title: "改密" }, { title: "双因素" }, { title: "完成" }];
+    return [{ title: "改密" }, { title: "多因素认证" }, { title: "完成" }];
   }
   return [{ title: "改密" }, { title: "完成" }];
 }
@@ -94,21 +94,21 @@ function buildStepItems(accountSecuritySetup: boolean, mfaRequired: boolean) {
 function buildAccountSecurityLead(platformSetup: boolean, mfaRequired: boolean) {
   if (mfaRequired) {
     return platformSetup
-      ? "首次登录需要修改临时密码，并完成当前部署已开启的 MFA 验证。完成后进入平台治理工作台。"
-      : "首次登录需要修改临时密码，并完成当前部署已开启的 MFA 验证。完成后进入机构工作台。";
+      ? "首次登录需要修改临时密码，并完成当前部署已开启的多因素认证。完成后进入平台治理工作台。"
+      : "首次登录需要修改临时密码，并完成当前部署已开启的多因素认证。完成后进入机构工作台。";
   }
   return platformSetup
-    ? "首次登录只需修改临时密码，MFA 当前关闭。完成后进入平台治理工作台。"
-    : "首次登录只需修改临时密码，MFA 当前关闭。完成后进入机构工作台。";
+    ? "首次登录只需修改临时密码，多因素认证当前关闭。完成后进入平台治理工作台。"
+    : "首次登录只需修改临时密码，多因素认证当前关闭。完成后进入机构工作台。";
 }
 
 function buildGuardRailText(accountSecuritySetup: boolean, mfaRequired: boolean) {
   if (!accountSecuritySetup) {
-    return "接管码只校验和消费一次；MFA 默认关闭，需要时可在部署配置中统一开启。";
+    return "接管码只校验和消费一次；多因素认证默认关闭，需要时可在部署配置中统一开启。";
   }
   return mfaRequired
-    ? "临时密码不得复用；当前会话完成 MFA 验证前不能进入业务页面。"
-    : "临时密码不得复用；MFA 当前关闭，不会阻塞账号进入业务页面。";
+    ? "临时密码不得复用；当前会话完成多因素认证前不能进入业务页面。"
+    : "临时密码不得复用；多因素认证当前关闭，不会阻塞账号进入业务页面。";
 }
 
 function buildMfaSubmitLabel(mfaBound: boolean, hasMfaSetup: boolean) {
@@ -318,7 +318,7 @@ export default function Bootstrap() {
         }
         const verified = await verifyMfa.mutateAsync({ code });
         if (!verified.verified) {
-          throw new Error("双因素认证验证未完成，请重新输入验证码。");
+          throw new Error("多因素认证未完成，请重新输入验证码。");
         }
         setPhase("done");
         return;
@@ -333,7 +333,7 @@ export default function Bootstrap() {
           return;
         }
         if (!result.secret) {
-          throw new Error("双因素认证密钥生成失败，请重试。");
+          throw new Error("多因素认证密钥生成失败，请重试。");
         }
         setMfaSetup({
           label,
@@ -354,16 +354,16 @@ export default function Bootstrap() {
         code,
       });
       if (!result.mfaBound || !result.recoveryCode) {
-        throw new Error("双因素认证验证未完成，请重新输入验证码。");
+        throw new Error("多因素认证未完成，请重新输入验证码。");
       }
       const verified = await verifyMfa.mutateAsync({ code });
       if (!verified.verified) {
-        throw new Error("双因素认证验证未完成，请重新输入验证码。");
+        throw new Error("多因素认证未完成，请重新输入验证码。");
       }
       setRecoveryCode(result.recoveryCode);
       setPhase("done");
     } catch (err) {
-      const errorMessage = getApiErrorMessage(err, "双因素认证绑定失败");
+      const errorMessage = getApiErrorMessage(err, "多因素认证绑定失败");
       if (!applyApiFieldErrors(mfaForm, err)) {
         mfaForm.setFields([{ name: mfaSetup ? "code" : "label", errors: [errorMessage] }]);
       }
@@ -465,7 +465,7 @@ export default function Bootstrap() {
               <>
                 <Tag color="processing">账号安全</Tag>
                 <Tag>首次改密</Tag>
-                {accountMfaRequired && <Tag>双因素认证</Tag>}
+                {accountMfaRequired && <Tag>多因素认证</Tag>}
               </>
             ) : (
               <>
@@ -481,7 +481,7 @@ export default function Bootstrap() {
           <Text className={styles.lead}>
             {accountSecuritySetup
               ? accountSecurityLead
-              : "使用部署接管码创建平台初始管理员。首登只要求改密；MFA 默认关闭，需要时再由部署配置开启。"}
+              : "使用部署接管码创建平台初始管理员。首登只要求改密；多因素认证默认关闭，需要时再由部署配置开启。"}
           </Text>
           <ul
             className={styles.signalList}
@@ -732,17 +732,17 @@ export default function Bootstrap() {
             {phase === "mfa" && (
               <section className={styles.stepSection}>
                 <Title level={2} className={styles.stepTitle}>
-                  {state.login?.mfaBound ? "验证双因素认证" : "绑定双因素认证"}
+                  {state.login?.mfaBound ? "验证多因素认证" : "绑定多因素认证"}
                 </Title>
                 <Paragraph type="secondary">
                   {state.login?.mfaBound
                     ? "请输入认证器中的动态验证码，验证成功后进入系统。"
-                    : "当前部署已启用双因素登录，请先绑定认证器并完成本次验证。"}
+                    : "当前部署已启用多因素认证，请先绑定认证器并完成本次验证。"}
                 </Paragraph>
                 {mfaSetup && (
                   <div className={styles.mfaSetupGrid}>
                     {mfaSetup.otpauthUri && (
-                      <div className={styles.qrPanel} aria-label="离线双因素认证二维码">
+                      <div className={styles.qrPanel} aria-label="离线多因素认证二维码">
                         <Text strong>
                           <QrcodeOutlined aria-hidden="true" /> 扫码绑定
                         </Text>

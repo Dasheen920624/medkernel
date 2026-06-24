@@ -19,7 +19,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 从医院运行修订中选择本次推荐评估使用的 CDSS 风险矩阵版本。
+ * 从机构生效版本中选择本次推荐评估使用的 CDSS 风险矩阵版本。
  */
 @Component
 public class RuntimeReleaseCdssRiskMatrixSelector {
@@ -86,11 +86,11 @@ public class RuntimeReleaseCdssRiskMatrixSelector {
             .findByVersionIdAndTenantId(
                 requireText(item.versionId(), "CDSS 风险矩阵资产版本"),
                 requireText(item.sourceTenantId(), "CDSS 风险矩阵来源租户"))
-            .orElseThrow(() -> invalid("运行修订锁定 CDSS 风险矩阵资产版本不存在：" + item.versionId()));
+            .orElseThrow(() -> invalid("机构生效版本锁定 CDSS 风险矩阵资产版本不存在：" + item.versionId()));
         if (version.assetType() != VersionedAssetType.CDSS_RISK
                 || !Objects.equals(version.assetIdentity(), item.assetIdentity())
                 || !Objects.equals(version.contentHash(), item.contentHash())) {
-            throw invalid("运行修订 CDSS 风险矩阵资产与版本正文不一致：" + item.assetIdentity());
+            throw invalid("机构生效版本 CDSS 风险矩阵资产与版本正文不一致：" + item.assetIdentity());
         }
         return version;
     }

@@ -44,7 +44,7 @@ export function validateScenarioRules(manifest) {
     validateSources(scenario);
     validateClinicalContent(scenario);
     if (hasKeyDeep(scenario, REMOVED_FIXED_RUNTIME_VERSION_FIELD)) {
-      throw new Error(`沙盘规则 ${scenario.ruleCode} 不得固化运行修订版本`);
+      throw new Error(`沙盘规则 ${scenario.ruleCode} 不得固化机构生效版本`);
     }
   }
   return manifest;

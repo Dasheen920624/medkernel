@@ -368,7 +368,7 @@ public class FhirFacadeService {
         if (!config.allowedSourceIps().isEmpty()
             && (sourceIp == null || !config.allowedSourceIps().contains(sourceIp))) {
             return SecurityDecision.denied(HttpStatus.FORBIDDEN, "forbidden",
-                "FHIR 来源 IP 不在白名单内");
+                "FHIR 来源 IP 不在允许清单内");
         }
         return SecurityDecision.allowed(found);
     }

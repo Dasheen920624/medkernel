@@ -79,7 +79,7 @@ public class CredentialBootstrapGuardInterceptor implements HandlerInterceptor {
         }
         if (mfaRuntimePolicy.enabled()
                 && (jwt == null || !Boolean.TRUE.equals(jwt.getClaim(AuthSessionClaims.MFA_VERIFIED)))) {
-            throw new ApiException(ErrorCode.ENG_AUTH_010, "当前会话尚未完成 MFA 验证");
+            throw new ApiException(ErrorCode.ENG_AUTH_010, "当前会话尚未完成多因素认证");
         }
         return true;
     }

@@ -43,7 +43,7 @@ class PermissionDimensionModelTest {
         String removedKnowledgeContainerLabel = "知识" + "包";
 
         assertThat(Arrays.stream(PermissionCode.values()).map(PermissionCode::code))
-            .as("全新上线模型只保留运行发布与资产权限，不再暴露旧容器动作权限")
+            .as("全新上线模型只保留机构生效版本与资产权限，不再暴露旧容器动作权限")
             .noneMatch(code -> code.startsWith(removedActionPrefix));
 
         assertThat(Arrays.stream(PermissionCode.values()).map(Enum::name))

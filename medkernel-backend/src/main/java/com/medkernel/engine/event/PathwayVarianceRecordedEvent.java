@@ -24,7 +24,7 @@ public record PathwayVarianceRecordedEvent(
     public PathwayVarianceRecordedEvent {
         tenantId = Objects.requireNonNull(tenantId, "路径变异事件租户不能为空");
         traceId = Objects.requireNonNull(traceId, "路径变异事件 trace 不能为空");
-        runtimeReleaseId = Objects.requireNonNull(runtimeReleaseId, "路径变异事件运行修订不能为空");
+        runtimeReleaseId = Objects.requireNonNull(runtimeReleaseId, "路径变异事件机构生效版本不能为空");
         patientPathwayId = Objects.requireNonNull(patientPathwayId, "路径变异事件患者路径 ID 不能为空");
         varianceId = Objects.requireNonNull(varianceId, "路径变异事件 ID 不能为空");
         nodeCode = Objects.requireNonNull(nodeCode, "路径变异事件节点编码不能为空");

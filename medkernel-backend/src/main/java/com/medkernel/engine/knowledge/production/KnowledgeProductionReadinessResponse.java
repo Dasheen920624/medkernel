@@ -5,7 +5,7 @@ import java.util.List;
 import com.medkernel.engine.llm.provider.DeploymentForm;
 
 /**
- * 知识生产模型 readiness 聚合响应。
+ * 知识生产模型上线准备聚合响应。
  *
  * <p>{@code ready=true} 才允许进入真实模型生产器；否则调用方必须停止模型调用并展示阻断项。
  */

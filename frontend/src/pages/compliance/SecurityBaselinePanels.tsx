@@ -236,7 +236,7 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
             aria-label="服务空间标识"
             value={tenantId}
             onChange={(event) => setTenantId(event.target.value)}
-            placeholder="tenant id"
+            placeholder="请输入服务空间标识"
             className="mk-config-tenant-input"
           />
         )}

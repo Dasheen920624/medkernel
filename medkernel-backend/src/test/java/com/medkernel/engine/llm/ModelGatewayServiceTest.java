@@ -331,15 +331,15 @@ class ModelGatewayServiceTest {
         ModelTaskResponse resp = service.submitTask(req);
 
         assertNotNull(resp);
-        // 未发布 ACTIVE 版本包 → 在 provider 解析前诚实降级 B0，绝不伪造 B1 元数据（宪法 #9/#13）
+        // 未发布已生效版本组合 → 在模型服务解析前诚实降级 B0，绝不伪造 B1 元数据（宪法 #9/#13）
         assertEquals("DEGRADED", resp.status());
         assertEquals("B0", resp.modelMode());
         assertTrue(resp.fallbackUsed());
         assertEquals("B0-Deterministic-Baseline", resp.modelVersion());
         assertNull(resp.confidence());
         assertEquals("[]", resp.sourceCitations());
-        assertTrue(resp.fallbackReason().contains("ACTIVE"));
-        assertTrue(resp.fallbackReason().contains("版本包"));
+        assertTrue(resp.fallbackReason().contains("已生效"));
+        assertTrue(resp.fallbackReason().contains("版本组合"));
         verify(providerRegistry, never()).resolve(anyString(), anyString());
         // 反例：杜绝旧实现伪造的本地模型版本与字段
         assertNotEquals("MedKernel-Local-Cognitive-v1", resp.modelVersion());
@@ -358,7 +358,7 @@ class ModelGatewayServiceTest {
             "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
             .thenReturn(Optional.of(modelPolicy));
 
-        // EXTERNAL_MODEL 配置但无 ACTIVE 版本包：诚实降级 B0，并验证手机号脱敏写入摘要
+        // EXTERNAL_MODEL 配置但无已生效版本组合：诚实降级 B0，并验证手机号脱敏写入摘要
         ModelTaskRequest req = new ModelTaskRequest("knowledge.extract", "张医生的手机是13988888888", 60);
 
         ModelTaskResponse resp = service.submitTask(req);
@@ -368,8 +368,8 @@ class ModelGatewayServiceTest {
         assertTrue(resp.fallbackUsed());
         assertNull(resp.confidence());
         assertEquals("[]", resp.sourceCitations());
-        assertTrue(resp.fallbackReason().contains("ACTIVE"));
-        assertTrue(resp.fallbackReason().contains("版本包"));
+        assertTrue(resp.fallbackReason().contains("已生效"));
+        assertTrue(resp.fallbackReason().contains("版本组合"));
         verify(providerRegistry, never()).resolve(anyString(), anyString());
 
         // 反例（医疗安全红线）：绝不出现伪造的外部模型版本 / 编造引文 / 编造患者
@@ -704,7 +704,7 @@ class ModelGatewayServiceTest {
                 "不应被调用", "claude-opus-4-8", null, "[]"));
 
         ModelTaskResponse response = service.submitTask(
-            new ModelTaskRequest("knowledge.extract", "不得绕过白名单的原始文本", 60));
+            new ModelTaskRequest("knowledge.extract", "不得绕过允许范围的原始文本", 60));
 
         assertEquals("DEGRADED", response.status());
         assertEquals("B0", response.modelMode());
@@ -725,7 +725,7 @@ class ModelGatewayServiceTest {
 
         assertEquals("DEGRADED", response.status());
         assertEquals("B0", response.modelMode());
-        assertTrue(response.fallbackReason().contains("模型版本"));
+        assertTrue(response.fallbackReason().contains("返回版本"));
     }
 
     @Test
@@ -742,7 +742,7 @@ class ModelGatewayServiceTest {
 
         assertEquals("DEGRADED", response.status());
         assertEquals("B0", response.modelMode());
-        assertTrue(response.fallbackReason().contains("补全内容"));
+        assertTrue(response.fallbackReason().contains("内容为空"));
     }
 
     @Test
@@ -781,8 +781,8 @@ class ModelGatewayServiceTest {
 
         assertEquals("DEGRADED", response.status());
         assertEquals("B0", response.modelMode());
-        assertTrue(response.fallbackReason().contains("ACTIVE"));
-        assertTrue(response.fallbackReason().contains("版本包"));
+        assertTrue(response.fallbackReason().contains("已生效"));
+        assertTrue(response.fallbackReason().contains("版本组合"));
         verify(providerRegistry, never()).resolve(anyString(), anyString());
         verify(adapter, never()).complete(any(), any());
     }
@@ -809,7 +809,7 @@ class ModelGatewayServiceTest {
 
         assertEquals("DEGRADED", response.status());
         assertEquals("B0", response.modelMode());
-        assertTrue(response.fallbackReason().contains("ACTIVE 版本包不可执行"));
+        assertTrue(response.fallbackReason().contains("已生效模型版本组合不可执行"));
         verify(providerRegistry, never()).resolve(anyString(), anyString());
         verify(adapter, never()).complete(any(), any());
     }
@@ -820,7 +820,7 @@ class ModelGatewayServiceTest {
         var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
         resolveProvider("EXTERNAL_MODEL", adapter);
         when(egressGuard.prepareEgress(any(), any(), anyString(), anyString(), any()))
-            .thenThrow(new ApiException(ErrorCode.ENG_LLM_006, "未配置白名单"));
+            .thenThrow(new ApiException(ErrorCode.ENG_LLM_006, "未配置外调允许范围"));
 
         ModelTaskResponse resp = service.submitTask(new ModelTaskRequest("knowledge.extract", "提取病史", 60));
 
@@ -990,7 +990,7 @@ class ModelGatewayServiceTest {
 
     private static String b0Output(String capabilityCode) {
         return "{\"status\":\"NO_MODEL_PROVIDER\",\"capability\":\"" + capabilityCode
-            + "\",\"candidates\":[],\"message\":\"当前未接入可用模型 provider，未生成候选内容\"}";
+            + "\",\"candidates\":[],\"message\":\"当前未接入可用模型服务，未生成候选内容\"}";
     }
 
     private static ModelCapabilityTask storedTask(String taskId, String tenantId) {

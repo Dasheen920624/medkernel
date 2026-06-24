@@ -117,8 +117,8 @@ class IntegrationContractDocumentationTest {
             .contains("OperationOutcome")
             .contains("/api/v1/engine/integration/knowledge-runtime/runtime-release/current")
             .contains("/api/v1/engine/integration/knowledge-runtime/context-snapshots")
-            .contains("认证租户和医院")
-            .contains("完整不可变清单")
+            .contains("认证服务机构和医院")
+            .contains("完整不可变版本明细")
             .doesNotContain("effective-package")
             .doesNotContain("packages/{packageId}");
         assertThat(guide)
@@ -167,7 +167,7 @@ class IntegrationContractDocumentationTest {
 
         assertThat(coveredRoots).contains("patient", "admission", "diagnoses", "results", "extensions");
         assertThat(hasTerminologyMapping)
-            .as("至少一个外部编码字段必须声明按发布包精确归一")
+            .as("至少一个外部编码字段必须声明按发布文件精确归一")
             .isTrue();
         assertThat(hasTenantExtension)
             .as("样例必须覆盖有真实运行落点的院内扩展字段")

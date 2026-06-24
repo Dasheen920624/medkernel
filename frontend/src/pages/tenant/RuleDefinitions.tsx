@@ -913,7 +913,7 @@ export default function RuleDefinitions() {
       }
       const parsedDsl = parseStoredJson(detailData.version.dslJson);
       if (!isRecord(parsedDsl) || !("when" in parsedDsl)) {
-        throw new Error("规则 DSL 缺少 when");
+        throw new Error("规则技术配置缺少触发条件");
       }
       const nextTree = withStableRoot(
         dslToConditionTree(parsedDsl, selectedRulePrimaryTrigger),
@@ -954,7 +954,7 @@ export default function RuleDefinitions() {
     } catch {
       modal.error({
         title: "无法编辑当前规则草稿",
-        content: "当前版本 DSL 无法还原为条件树，请先核查规则版本数据。",
+        content: "当前版本的技术配置无法还原为条件树，请先核查规则版本数据。",
       });
     }
   };
@@ -1056,8 +1056,8 @@ export default function RuleDefinitions() {
         ),
       ),
     );
-    // 仅静默同步，不强制切到 L3 / 不强开 L3 DSL 编辑模式（修复「同步即跳 L3」）。
-    message.success("已从 L2 条件树同步到 L3 DSL");
+    // 仅静默同步，不强制切到 L3 / 不强开 L3 技术配置模式（修复「同步即跳 L3」）。
+    message.success("已从 L2 条件树同步到 L3 技术配置");
   };
 
   const syncDslToTree = () => {
@@ -1077,9 +1077,9 @@ export default function RuleDefinitions() {
       );
       createForm.setFieldValue("triggerPoints", [nextTree.triggerPoint]);
       setActiveCreateLayer("l2");
-      message.success("已从 L3 DSL 回填到 L2 条件树");
+      message.success("已从 L3 技术配置回填到 L2 条件树");
     } catch {
-      message.error("L3 DSL JSON 不合法，无法回填到条件树。");
+      message.error("L3 技术配置文本不合法，无法回填到条件树。");
     }
   };
 
@@ -1351,7 +1351,7 @@ export default function RuleDefinitions() {
       updateConditionExpression(condition, { where: undefined });
       return;
     }
-    const parsed = parseJsonInput(text, "where 条件 JSON 不合法。", message.error);
+    const parsed = parseJsonInput(text, "附加条件配置不合法。", message.error);
     if (isRecord(parsed)) {
       updateConditionExpression(condition, { where: parsed });
     }
@@ -1703,7 +1703,7 @@ export default function RuleDefinitions() {
         <Space direction="vertical" size="small" className="mk-full-width">
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item label="白名单公式">
+              <Form.Item label="可选医学公式">
                 <Select
                   value={formula}
                   options={[...DERIVED_FORMULA_OPTIONS]}
@@ -2334,7 +2334,7 @@ export default function RuleDefinitions() {
         submitTree = dslToConditionTree(parsedDsl, primaryTrigger);
         submitRoot = submitTree.root ?? dslWhenToRootGroup((parsedDsl as { when: unknown }).when);
       } catch {
-        message.error("L3 DSL JSON 不合法，请先从 L2 同步或修正后再提交。");
+        message.error("L3 技术配置文本不合法，请先从 L2 同步或修正后再提交。");
         setCreateExpertMode(true);
         setActiveCreateLayer("l3");
         return;
@@ -2426,11 +2426,11 @@ export default function RuleDefinitions() {
       const values = await caseForm.validateFields();
       const snapshot = snapshotDetailQuery.data;
       if (!selectedSnapshotId || !snapshot) {
-        message.error("请先检索并选择一份 ACTIVE 标准上下文快照。");
+        message.error("请先检索并选择一份已生效的标准上下文。");
         return;
       }
       if (snapshot.status !== "ACTIVE" || !snapshot.resources) {
-        message.error("所选快照不是可用的 ACTIVE 标准上下文快照，请重新选择。");
+        message.error("所选上下文尚未生效或不可用，请重新选择。");
         return;
       }
 
@@ -2470,7 +2470,7 @@ export default function RuleDefinitions() {
     try {
       const result = await runRuleTestsMutation.mutateAsync();
       if (result.allPassed) {
-        message.success("全部发布门禁用例执行通过");
+        message.success("全部发布验证用例执行通过");
       } else {
         message.warning("用例执行完成，存在未通过项，请核对期望与规则配置。");
       }
@@ -2498,12 +2498,12 @@ export default function RuleDefinitions() {
 
   const handleRunCreatePreview = async () => {
     if (!selectedSnapshotId) {
-      message.warning("请先选择一个 ACTIVE 快照。");
+      message.warning("请先选择一个已生效快照。");
       return;
     }
     const snapshot = snapshotDetailQuery.data;
     if (!snapshot || snapshot.status !== "ACTIVE" || !snapshot.resources) {
-      message.error("所选快照不是可用的 ACTIVE 标准上下文快照，请重新选择。");
+      message.error("所选快照不是可用的已生效标准上下文快照，请重新选择。");
       return;
     }
     let draftDsl: unknown;
@@ -2526,7 +2526,7 @@ export default function RuleDefinitions() {
         return;
       }
     } catch {
-      message.error("草稿 DSL 不合法，请先修正 L2 条件树或 L3 JSON。");
+      message.error("草稿技术配置不合法，请先修正 L2 条件树或 L3 配置文本。");
       return;
     }
 
@@ -2545,7 +2545,7 @@ export default function RuleDefinitions() {
 
   const handleSimulateSelectedSnapshot = async () => {
     if (!selectedSnapshotId) {
-      message.warning("请先选择一个 ACTIVE 快照。");
+      message.warning("请先选择一个已生效快照。");
       return;
     }
     const snapshot = snapshotDetailQuery.data;
@@ -2584,7 +2584,7 @@ export default function RuleDefinitions() {
     } catch (error: unknown) {
       modal.error({
         title: "历史回测未完成",
-        content: getApiErrorMessage(error, "请核查金标准样本和规则 DSL 后重试。"),
+        content: getApiErrorMessage(error, "请核查金标准样本和规则技术配置后重试。"),
       });
     }
   };
@@ -2646,7 +2646,7 @@ export default function RuleDefinitions() {
     } catch (error: unknown) {
       modal.error({
         title: "规则治理推进被拒绝",
-        content: getApiErrorMessage(error, "当前阶段门禁未满足，请核查页面中的真实证据。"),
+        content: getApiErrorMessage(error, "当前阶段检查未满足，请核查页面中的真实证据。"),
       });
       return false;
     }
@@ -2767,7 +2767,7 @@ export default function RuleDefinitions() {
 
   const renderSnapshotChoices = () => {
     if (!snapshotSearchParams) {
-      return <Empty description="输入患者 ID 或就诊 ID 后读取 ACTIVE 快照" />;
+      return <Empty description="输入患者 ID 或就诊 ID 后读取已生效快照" />;
     }
     if (snapshotsQuery.isLoading) {
       return <Alert type="info" showIcon message="正在读取真实上下文快照列表..." />;
@@ -2783,7 +2783,7 @@ export default function RuleDefinitions() {
       );
     }
     if (snapshots.length === 0) {
-      return <Empty description="当前患者或就诊下暂无 ACTIVE 临床快照" />;
+      return <Empty description="当前患者或就诊下暂无已生效临床快照" />;
     }
     return (
       <Space direction="vertical" size="small" className="mk-full-width">
@@ -2827,13 +2827,13 @@ export default function RuleDefinitions() {
           <Descriptions.Item label="质量状态">
             {customerDisplayText(snapshot.qualityStatus)}
           </Descriptions.Item>
-          <Descriptions.Item label="运行修订">
+          <Descriptions.Item label="机构生效版本">
             {snapshot.runtimeReleaseId || "-"}
           </Descriptions.Item>
           <Descriptions.Item label="缺失字段">
             {snapshot.missingFields?.length ? `${snapshot.missingFields.length} 项` : "无"}
           </Descriptions.Item>
-          <Descriptions.Item label="Trace">{snapshot.traceId || "-"}</Descriptions.Item>
+          <Descriptions.Item label="追踪号">{snapshot.traceId || "-"}</Descriptions.Item>
         </Descriptions>
         <Button
           type="primary"
@@ -2906,8 +2906,8 @@ export default function RuleDefinitions() {
         <Descriptions bordered column={1} size="small">
           <Descriptions.Item label="试运行结果">{result.outcomeText}</Descriptions.Item>
           <Descriptions.Item label="快照 ID">{result.snapshotId}</Descriptions.Item>
-          <Descriptions.Item label="运行修订">{result.runtimeReleaseId}</Descriptions.Item>
-          <Descriptions.Item label="Trace">{result.traceId || "-"}</Descriptions.Item>
+          <Descriptions.Item label="机构生效版本">{result.runtimeReleaseId}</Descriptions.Item>
+          <Descriptions.Item label="追踪号">{result.traceId || "-"}</Descriptions.Item>
         </Descriptions>
         {renderPreviewRunEvidence(result.conditionEvidence ?? [])}
       </Space>
@@ -2933,7 +2933,7 @@ export default function RuleDefinitions() {
           <Descriptions.Item label="质量状态">
             {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
           </Descriptions.Item>
-          <Descriptions.Item label="运行修订">
+          <Descriptions.Item label="机构生效版本">
             {snapshotDetailQuery.data.runtimeReleaseId || "-"}
           </Descriptions.Item>
           <Descriptions.Item label="缺失字段">
@@ -2971,10 +2971,10 @@ export default function RuleDefinitions() {
         <Descriptions.Item label="质量状态">
           {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
         </Descriptions.Item>
-        <Descriptions.Item label="运行修订">
+        <Descriptions.Item label="机构生效版本">
           {snapshotDetailQuery.data.runtimeReleaseId || "-"}
         </Descriptions.Item>
-        <Descriptions.Item label="Trace">
+        <Descriptions.Item label="追踪号">
           {snapshotDetailQuery.data.traceId || "-"}
         </Descriptions.Item>
       </Descriptions>
@@ -3043,7 +3043,7 @@ export default function RuleDefinitions() {
         type="error"
         showIcon
         message="影响摘要读取失败"
-        description="发布门禁需要真实影响摘要，请稍后重试。"
+        description="发布校验需要真实影响摘要，请稍后重试。"
       />
     );
   }
@@ -3416,7 +3416,7 @@ export default function RuleDefinitions() {
             <Alert
               type="warning"
               showIcon
-              message="该版本 DSL 无法无损还原为当前 L2 条件树，请在 L3 技术视图核查。"
+              message="该版本的技术配置无法无损还原为当前 L2 条件树，请在 L3 技术视图核查。"
             />
           ),
         },
@@ -3426,7 +3426,7 @@ export default function RuleDefinitions() {
                 key: "l3",
                 label: (
                   <span>
-                    <CodeOutlined /> L3 DSL
+                    <CodeOutlined /> L3 技术配置
                   </span>
                 ),
                 children: (
@@ -3434,7 +3434,7 @@ export default function RuleDefinitions() {
                     <Row gutter={16}>
                       <Col span={12}>
                         <div className={`${styles.codePanel} ${styles.codeText}`}>
-                          {detailDsl ? formatRuleJson(detailDsl) : "当前版本 DSL 无法解析"}
+                          {detailDsl ? formatRuleJson(detailDsl) : "当前版本技术配置无法解析"}
                         </div>
                       </Col>
                       <Col span={12}>
@@ -3460,7 +3460,7 @@ export default function RuleDefinitions() {
           key: "cases",
           label: (
             <span>
-              <InfoCircleOutlined /> 发布门禁测试用例 ({detailData.testCases.length})
+              <InfoCircleOutlined /> 发布验证用例 ({detailData.testCases.length})
             </span>
           ),
           children: (
@@ -3981,7 +3981,7 @@ export default function RuleDefinitions() {
             type="info"
             showIcon
             message="临床算子"
-            description="区间比较、单位换算、时间窗持续/趋势和 eGFR/CrCl/BSA 受控公式均可在 L2 结构化配置；支持任意层级「具体条件 + 子条件组」嵌套；L3 JSON 仅保留给 L3 技术核查。"
+            description="区间比较、单位换算、时间窗持续/趋势和 eGFR/CrCl/BSA 受控公式均可在 L2 结构化配置；支持任意层级「具体条件 + 子条件组」嵌套；L3 配置文本仅保留给 L3 技术核查。"
           />
 
           {renderConditionGroup(conditionRoot, 0)}
@@ -4307,10 +4307,10 @@ export default function RuleDefinitions() {
             <Button
               type="primary"
               icon={<SyncOutlined />}
-              aria-label="同步到 DSL"
+              aria-label="同步到技术配置"
               onClick={syncTreeToDsl}
             >
-              同步到 DSL
+              同步到技术配置
             </Button>
             <Button
               icon={<ApartmentOutlined />}
@@ -4385,7 +4385,7 @@ export default function RuleDefinitions() {
             key: "l3",
             label: (
               <span>
-                <CodeOutlined /> L3 DSL
+                <CodeOutlined /> L3 技术配置
               </span>
             ),
             children: (
@@ -4393,10 +4393,10 @@ export default function RuleDefinitions() {
                 <Alert
                   type="warning"
                   showIcon
-                  message="L3 是受控 DSL 编辑层，保存前必须能回填到 L2 条件树；不允许提交无法解释的裸 DSL。"
+                  message="L3 是受控技术配置层，保存前必须能回填到 L2 条件树；不允许提交无法解释的配置文本。"
                   className={styles.marginBottomMd}
                 />
-                <Form.Item label="规则 DSL JSON" htmlFor="ruleDslJson">
+                <Form.Item label="规则配置文本" htmlFor="ruleDslJson">
                   <TextArea
                     id="ruleDslJson"
                     rows={16}
@@ -4419,10 +4419,10 @@ export default function RuleDefinitions() {
                   </Button>
                   <Button
                     icon={<FileSearchOutlined />}
-                    aria-label="重新生成 DSL"
+                    aria-label="重新生成技术配置"
                     onClick={syncTreeToDsl}
                   >
-                    重新生成 DSL
+                    重新生成技术配置
                   </Button>
                 </Space>
               </>
@@ -4446,7 +4446,7 @@ export default function RuleDefinitions() {
       state={pageState}
       stateProps={{
         title: "规则列表读取失败",
-        description: getApiErrorMessage(listError, "请稍后重试，或联系信息科核查规则 API。"),
+        description: getApiErrorMessage(listError, "请稍后重试，或联系信息科核查规则接口。"),
         onRetry: refetchList,
       }}
     >
@@ -4590,7 +4590,7 @@ export default function RuleDefinitions() {
             </Descriptions>
 
             <Space className="mk-flex-between mk-full-width">
-              <Text type="secondary">技术 DSL 与解释模板默认隐藏，需要进入 L3 技术视图。</Text>
+              <Text type="secondary">技术配置与解释模板默认隐藏，需要进入 L3 技术视图。</Text>
               <Space>
                 {canWriteRule &&
                   detailData.version.status === "DRAFT" &&
@@ -4736,7 +4736,7 @@ export default function RuleDefinitions() {
                 showIcon
                 type="info"
                 message="规则版本独立维护"
-                description="规则发布时由平台基线或医院运行修订选择精确版本；创作阶段不绑定运行修订或发布制品。"
+                description="规则发布时由平台标准版本或机构生效版本选择上线版本；创作阶段不绑定上线范围或离线交付文件。"
               />
             </Col>
           </Row>
@@ -4806,11 +4806,11 @@ export default function RuleDefinitions() {
           </Row>
 
           <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
-            <Text type="secondary">普通配置只展示 L1/L2；L3 DSL 需显式进入 L3 DSL 编辑模式。</Text>
+            <Text type="secondary">普通配置只展示 L1/L2；L3 技术配置需显式进入技术配置模式。</Text>
             <Space>
-              <Text>L3 DSL 编辑模式</Text>
+              <Text>L3 技术配置模式</Text>
               <Switch
-                aria-label="L3 DSL 编辑模式"
+                aria-label="L3 技术配置模式"
                 checked={createExpertMode}
                 onChange={toggleCreateExpertMode}
               />
@@ -4849,8 +4849,8 @@ export default function RuleDefinitions() {
             type="info"
             showIcon
             className={styles.marginBottomMd}
-            message="从 ACTIVE 标准上下文快照固化回归用例"
-            description="服务端校验快照状态并保存来源 ID 与资源副本，不接受人工粘贴的上下文 JSON。"
+            message="从已生效标准上下文生成验证用例"
+            description="服务端校验快照状态并保存来源 ID 与资源副本，不接受人工粘贴的上下文配置文本。"
           />
           <Row gutter={12}>
             <Col span={12}>
@@ -4878,10 +4878,10 @@ export default function RuleDefinitions() {
           </Row>
           <Button
             icon={<FileSearchOutlined />}
-            aria-label="读取 ACTIVE 快照"
+            aria-label="读取已生效快照"
             onClick={handleSnapshotSearch}
           >
-            读取 ACTIVE 快照
+            读取已生效快照
           </Button>
           <div className={styles.marginTopMd}>{renderSnapshotChoices()}</div>
           {selectedSnapshotId && (

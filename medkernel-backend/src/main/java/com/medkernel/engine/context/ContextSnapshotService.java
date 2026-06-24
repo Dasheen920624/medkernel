@@ -48,7 +48,7 @@ import com.medkernel.shared.context.RequestContext;
  * 标准上下文核心业务编排。
  *
  * <p>承担 GA-ENG-API-01 三接口（创建 / 按 ID 查 / 按患者或就诊列表）的业务规则：
- * 当前医院运行修订锁定、schema 缺失字段分级、quality_status 聚合、字典映射端口调用、
+ * 当前机构生效版本锁定、schema 缺失字段分级、quality_status 聚合、字典映射端口调用、
  * 幂等键命中复用与失败兜底。
  *
  * <p>所有方法从 {@link RequestContext} 取 tenantId / userId / traceId，
@@ -103,7 +103,7 @@ public class ContextSnapshotService {
     }
 
     /**
-     * 使用上游事件已经锁定的运行修订创建快照，避免发布切换发生在事件接收与异步处理之间时串版。
+     * 使用上游事件已经锁定的机构生效版本创建快照，避免发布切换发生在事件接收与异步处理之间时串版。
      */
     @Transactional
     public ContextSnapshotResponse createBound(
@@ -132,8 +132,8 @@ public class ContextSnapshotService {
 
         if (!hasText(runtimeReleaseId)) {
             publishFailureAudit(ErrorCode.ENG_CONTEXT_002, req,
-                "当前医院尚未生成临床运行修订 patient=" + req.patientId());
-            throw new ApiException(ErrorCode.ENG_CONTEXT_002, "当前医院尚未生成临床运行修订");
+                "当前医院尚未生成机构生效版本 patient=" + req.patientId());
+            throw new ApiException(ErrorCode.ENG_CONTEXT_002, "当前医院尚未生成机构生效版本");
         }
 
         List<MissingFieldEntry> missing = validator.findMissingFields(req.resources());

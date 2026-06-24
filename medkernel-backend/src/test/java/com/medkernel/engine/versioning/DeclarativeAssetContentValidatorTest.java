@@ -87,7 +87,7 @@ class DeclarativeAssetContentValidatorTest {
                   "output": {"dataType": "number", "unit": "1"}
                 }
                 """)))
-            .hasMessageContaining("受控白名单");
+            .hasMessageContaining("受控允许范围");
     }
 
     @Test

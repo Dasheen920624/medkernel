@@ -20,10 +20,10 @@ import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.context.PlatformTenant;
 
 /**
- * 平台基线和医院运行修订的可选择资产查询。
+ * 平台标准版本和机构生效版本的可选择资产查询。
  *
  * <p>平台只看到平台草稿；医院只看到真实组织祖先范围内的本地草稿或正式版本。
- * 平台基线资产由当前基线清单提供，不在本地候选中重复返回。
+ * 平台标准版本资产由当前基线清单提供，不在本地候选中重复返回。
  */
 @Service
 public class ReleaseCandidateQueryService {
@@ -42,7 +42,7 @@ public class ReleaseCandidateQueryService {
     }
 
     /**
-     * 查询可进入下一平台权威基线的草稿资产版本。
+     * 查询可进入下一平台标准版本的草稿资产版本。
      */
     @Transactional(readOnly = true)
     public PageResponse<ReleaseCandidateAsset> platformCandidates(
@@ -86,7 +86,7 @@ public class ReleaseCandidateQueryService {
         if (hospital.level() != OrgLevel.FACILITY
                 || hospital.facilityType() != OrgFacilityType.HOSPITAL
                 || !hospital.isActive()) {
-            throw validation("运行修订目标必须是启用的医院");
+            throw validation("机构生效版本目标必须是启用的医院");
         }
         List<String> scopes = hierarchy
             .findAncestorsAndSelf(normalizedTenant, normalizedHospital)

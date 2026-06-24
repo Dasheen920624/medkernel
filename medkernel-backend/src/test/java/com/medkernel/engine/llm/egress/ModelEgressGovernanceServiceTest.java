@@ -23,7 +23,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 出域治理管理服务单元测试（LLM-03 白名单/责任确认维护）。
+ * 外调治理管理服务单元测试（LLM-03 允许范围/责任确认维护）。
  */
 class ModelEgressGovernanceServiceTest {
 
@@ -59,7 +59,7 @@ class ModelEgressGovernanceServiceTest {
         assertThat(saved.allowedFields()).isEqualTo("[\"clinicalText\",\"ageYears\"]");
         assertThat(saved.sensitivityLevel()).isEqualTo("HIGH");
         verify(auditRecorder).record(AuditAction.UPDATE, "mk_llm_egress_whitelist", "knowledge.extract",
-            "保存模型出域白名单 knowledge.extract");
+            "保存模型外调允许范围 knowledge.extract");
     }
 
     @Test
@@ -79,7 +79,7 @@ class ModelEgressGovernanceServiceTest {
         assertThat(saved.confirmationThresholdLevel()).isEqualTo("MEDIUM");
         assertThat(saved.guardrailLockedFlag()).isEqualTo("Y");
         verify(auditRecorder).record(AuditAction.UPDATE, "mk_llm_egress_whitelist", "knowledge.extract",
-            "保存模型出域白名单 knowledge.extract");
+            "保存模型外调允许范围 knowledge.extract");
     }
 
     @Test

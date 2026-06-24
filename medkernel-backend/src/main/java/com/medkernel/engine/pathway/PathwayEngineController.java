@@ -116,7 +116,7 @@ public class PathwayEngineController {
     /**
      * 查询当前患者快照和临床触发点下可供医师确认的入径候选。
      *
-     * <p>权限：{@code pathway.execute}；调用方不提交包、领域、运行修订或资产版本。
+     * <p>权限：{@code pathway.execute}；调用方不提交包、领域、机构生效版本或资产版本。
      */
     @GetMapping("/patient-pathways/entry-candidates")
     @PreAuthorize("@perm.has('pathway.execute')")

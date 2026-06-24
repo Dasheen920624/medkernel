@@ -349,12 +349,12 @@ export default function CdssFatigue() {
     ? getRecommendationJourneySteps(detailData, sourcesData ?? detailData.sources, diagnoseData)
     : [];
 
-  // ACTIVE 临床快照是评估上下文的唯一来源；运行资产由医院当前运行修订在服务端解析。
+  // 已生效临床快照是评估上下文的唯一来源；生效内容由服务端按机构当前版本解析。
   const handleTriggerCdss = async () => {
     try {
       const values = await triggerForm.validateFields();
       if (!selectedSnapshot) {
-        message.error("请先选择 ACTIVE 临床快照");
+        message.error("请先选择已生效临床快照");
         return;
       }
 
@@ -586,7 +586,7 @@ export default function CdssFatigue() {
       <div className={`${styles.surface} ${styles.filterSurface}`}>
         <div className={`${styles.sectionTitle} ${styles.sectionGap}`}>
           <SearchOutlined className={styles.iconInfo} />
-          <span>按患者标识 / 追踪号 / 来源对象查推荐</span>
+          <span>按患者标识 / 追踪号 / 来源编号查推荐</span>
         </div>
         <Form layout="vertical" className={styles.inlineForm}>
           <Form.Item label="状态">
@@ -695,7 +695,7 @@ export default function CdssFatigue() {
         destroyOnClose
       >
         <Alert
-          message="推荐引擎将读取所选 ACTIVE 临床快照，执行已激活规则与红线检查；模型不可用时保持确定性规则链路。"
+          message="推荐引擎将读取所选已生效临床快照，执行已激活规则与红线检查；模型不可用时保持确定性规则链路。"
           type="info"
           showIcon
           className={styles.sectionGap}
@@ -711,7 +711,7 @@ export default function CdssFatigue() {
               <Form.Item label="患者 ID" htmlFor="cdss-snapshot-patient">
                 <Input
                   id="cdss-snapshot-patient"
-                  placeholder="输入患者 ID 检索 ACTIVE 快照"
+                  placeholder="输入患者 ID 检索已生效快照"
                   value={snapshotPatientId}
                   onChange={(event) => {
                     setSnapshotPatientId(event.target.value);
@@ -753,8 +753,8 @@ export default function CdssFatigue() {
           />
           {snapshotDetailQuery.data && (
             <Descriptions bordered size="small" column={3} className={styles.sectionGap}>
-              <Descriptions.Item label="快照运行标识">
-                {snapshotDetailQuery.data.runtimeReleaseId || "由医院当前运行修订解析"}
+              <Descriptions.Item label="机构生效版本">
+                {snapshotDetailQuery.data.runtimeReleaseId || "由当前机构生效版本确认"}
               </Descriptions.Item>
               <Descriptions.Item label="质量">
                 {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
@@ -1080,7 +1080,7 @@ export default function CdssFatigue() {
                             className={`${styles.compactCard} ${styles.sectionGap}`}
                           >
                             <Descriptions size="small" column={2}>
-                              <Descriptions.Item label="疲劳 Key">
+                              <Descriptions.Item label="疲劳标识">
                                 <span className={`${styles.codeText} ${styles.textStrong}`}>
                                   {signal.fatigueKey}
                                 </span>
@@ -1168,19 +1168,19 @@ export default function CdssFatigue() {
             />
 
             <Descriptions
-              title="求值Trace元数据"
+              title="评估追踪信息"
               bordered
               column={1}
               size="small"
               className={styles.sectionGapLg}
             >
-              <Descriptions.Item label="推荐 Trigger ID">
+              <Descriptions.Item label="推荐触发编号">
                 <span className={styles.codeText}>{diagnoseData.executionId}</span>
               </Descriptions.Item>
-              <Descriptions.Item label="链路 追踪号">
+              <Descriptions.Item label="追踪号">
                 <span className={styles.codeText}>{diagnoseData.traceId}</span>
               </Descriptions.Item>
-              <Descriptions.Item label="输入 Payload 摘要 (SHA-256)">
+              <Descriptions.Item label="输入内容校验码">
                 <span className={styles.codeText}>{diagnoseData.inputPayloadSummary || "—"}</span>
               </Descriptions.Item>
               <Descriptions.Item label="提醒卡风险定级">

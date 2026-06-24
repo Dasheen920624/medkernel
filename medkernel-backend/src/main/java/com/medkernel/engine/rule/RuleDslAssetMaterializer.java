@@ -11,16 +11,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medkernel.engine.versioning.DeclarativeAssetRuntimePort;
+import com.medkernel.engine.versioning.RemovedRuntimeSelectorFields;
 import com.medkernel.engine.versioning.ResolvedDeclarativeAsset;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 将规则 DSL 中的值集和公式引用物化为当前医院运行修订锁定的不可变内容。
+ * 将规则 DSL 中的值集和公式引用物化为当前机构生效版本锁定的不可变内容。
  *
  * <p>编著正文只保存精确引用，禁止复制值集成员或把可变公式实现写进规则；执行器仍只接收
- * 确定性、无外部查询的完整 DSL，因此一次执行全程使用同一运行修订快照。
+ * 确定性、无外部查询的完整 DSL，因此一次执行全程使用同一机构生效版本快照。
  */
 @Component
 public class RuleDslAssetMaterializer {
@@ -43,7 +44,7 @@ public class RuleDslAssetMaterializer {
             throw invalid("规则资产物化缺少租户");
         }
         if (runtimeReleaseId == null || runtimeReleaseId.isBlank()) {
-            throw invalid("规则资产物化缺少医院运行发布 ID");
+            throw invalid("规则资产物化缺少机构生效版本 ID");
         }
         JsonNode copy = dsl.deepCopy();
         visit(copy, tenantId.trim(), runtimeReleaseId.trim());
@@ -64,8 +65,8 @@ public class RuleDslAssetMaterializer {
             return;
         }
         ObjectNode object = (ObjectNode) node;
-        if (object.has("package" + "Version")) {
-            throw invalid("规则资产引用不得手工携带运行版本，由医院运行发布统一锁定版本");
+        if (RemovedRuntimeSelectorFields.hasAny(object, RemovedRuntimeSelectorFields.versionFields())) {
+            throw invalid("规则资产引用不得手工携带版本定位，由机构生效版本统一锁定版本");
         }
         String valueSet = text(object, "valueSet");
         if (valueSet != null) {
@@ -164,7 +165,7 @@ public class RuleDslAssetMaterializer {
             String label) {
         return assets.resolve(tenantId, runtimeReleaseId, type, identity)
             .orElseThrow(() -> invalid(
-                "当前医院运行发布未解析到" + label + "：" + identity + "@" + runtimeReleaseId
+                "当前机构生效版本未解析到" + label + "：" + identity + "@" + runtimeReleaseId
             ));
     }
 

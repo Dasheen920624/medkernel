@@ -246,7 +246,7 @@ class InheritanceResolverBatchTest {
             overrideVersionId,
             mode,
             InheritancePropagation.INHERITABLE,
-            InheritanceOverrideStatus.PUBLISHED,
+            InheritanceOverrideStatus.ACTIVE,
             orgPath,
             "ALL",
             "批量解析测试差异",

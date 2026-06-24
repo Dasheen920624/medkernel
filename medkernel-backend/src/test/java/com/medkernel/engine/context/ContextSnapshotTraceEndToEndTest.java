@@ -23,7 +23,7 @@ import com.medkernel.shared.observability.DiagnoseResponse;
  * MedKernel v1.0 GA · GA-ENG-API-01b 端到端验收测试（spec §6.2）。
  *
  * <p>覆盖 spec 表头六项验收的核心三项（其余三项在单测：失败 audit / 子事务 /
- * 医院运行修订解析器已覆盖）：
+ * 机构生效版本解析器已覆盖）：
  * <ol>
  *   <li>mk_obs_state_transition 写入 INITIAL_CREATE 一行</li>
  *   <li>canonical_resource 持久化当前 trace_id</li>

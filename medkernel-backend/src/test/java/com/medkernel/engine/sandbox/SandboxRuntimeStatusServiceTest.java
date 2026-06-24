@@ -60,7 +60,7 @@ class SandboxRuntimeStatusServiceTest {
     @Test
     void reportsMissingRuntimeReleaseAsHonestNotReadyState() {
         when(baselines.resolveCurrent())
-            .thenThrow(new IllegalStateException("SANDBOX_RUNTIME_RELEASE_MISSING：医院尚未发布运行修订"));
+            .thenThrow(new IllegalStateException("SANDBOX_RUNTIME_RELEASE_MISSING：医院尚未发布机构生效版本"));
 
         SandboxRuntimeStatusResponse status = service.currentStatus();
 

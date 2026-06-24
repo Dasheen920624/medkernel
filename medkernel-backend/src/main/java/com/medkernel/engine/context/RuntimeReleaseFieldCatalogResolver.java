@@ -15,7 +15,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 按医院运行修订恢复不可变字段目录正文。
+ * 按机构生效版本恢复不可变字段目录正文。
  */
 @Component
 public class RuntimeReleaseFieldCatalogResolver {
@@ -34,7 +34,7 @@ public class RuntimeReleaseFieldCatalogResolver {
 
     public List<ContextFieldDescriptor> resolve(String tenantId, String runtimeReleaseId) {
         String tenant = required(tenantId, "租户");
-        String releaseId = required(runtimeReleaseId, "医院运行修订 ID");
+        String releaseId = required(runtimeReleaseId, "机构生效版本 ID");
         ResolvedDeclarativeAsset asset = assets.resolve(
             tenant,
             releaseId,
@@ -42,7 +42,7 @@ public class RuntimeReleaseFieldCatalogResolver {
             ContextFieldCatalogAssets.CLINICAL_CONTEXT_IDENTITY
         ).orElseThrow(() -> new ApiException(
             ErrorCode.ENG_ASSET_002,
-            "医院运行修订缺少字段目录资产：" + releaseId));
+            "机构生效版本缺少字段目录资产：" + releaseId));
         return parse(releaseId, asset.contentJson());
     }
 
@@ -61,7 +61,7 @@ public class RuntimeReleaseFieldCatalogResolver {
         } catch (JsonProcessingException exception) {
             throw new ApiException(
                 ErrorCode.ENG_ASSET_002,
-                "医院运行修订字段目录正文不是合法 JSON：" + releaseId,
+                "机构生效版本字段目录正文不是合法 JSON：" + releaseId,
                 exception);
         }
     }
@@ -121,6 +121,6 @@ public class RuntimeReleaseFieldCatalogResolver {
     private ApiException invalid(String releaseId, String message) {
         return new ApiException(
             ErrorCode.ENG_ASSET_002,
-            "医院运行修订字段目录正文不合法：" + releaseId + "，" + message);
+            "机构生效版本字段目录正文不合法：" + releaseId + "，" + message);
     }
 }

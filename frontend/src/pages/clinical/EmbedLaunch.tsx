@@ -159,7 +159,7 @@ export default function EmbedLaunch() {
     return (
       <div className={styles.centerState}>
         <Spin size="large" />
-        <div className={styles.loadingText}>正在兑换一次性启动令牌并核查当前就诊上下文</div>
+        <div className={styles.loadingText}>正在校验一次性启动凭证并核查当前就诊上下文</div>
       </div>
     );
   }
@@ -173,9 +173,9 @@ export default function EmbedLaunch() {
           <div className={styles.stateBody}>
             当前会话无法继续：
             <ul className={styles.bulletList}>
-              <li>启动令牌仅允许兑换一次。</li>
+              <li>一次性启动凭证仅允许使用一次。</li>
               <li>当前嵌入会话已结案或失效。</li>
-              <li>父业务系统未通过当前服务空间的来源白名单校验。</li>
+              <li>来源系统未通过当前服务空间的允许清单校验。</li>
             </ul>
           </div>
           <Alert
@@ -228,7 +228,7 @@ export default function EmbedLaunch() {
               </div>
             )}
             <Alert
-              message="已向通过白名单校验的父工作站发送浏览器交互事件"
+                message="已向通过允许清单校验的来源工作站发送浏览器交互事件"
               description={
                 feedbackDelivery?.callbackDelivered
                   ? "服务端回调已送达，当前会话可以安全退出。"
@@ -367,7 +367,7 @@ export default function EmbedLaunch() {
         <span className={styles.auditLabel}>
           <AuditOutlined /> 嵌入式交互合规审计追踪号
         </span>
-        <span className={styles.auditTrace}>{launchContext?.traceId || "暂无追踪链路"}</span>
+        <span className={styles.auditTrace}>{launchContext?.traceId || "暂无追踪号"}</span>
       </div>
 
       <Modal

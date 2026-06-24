@@ -312,7 +312,7 @@ export default function AuthoringBatchDrawer({
         type="info"
         showIcon
         message="批量生成独立规则草稿"
-        description="每行创建一个独立规则版本，自动继承模板的触发绑定；上线版本由后续运行修订统一选择。"
+        description="每行创建一个独立规则版本，自动继承模板的触发绑定；真正上线的版本由发布治理统一选择。"
       />
       <Form.Item label="模板规则 ID" required>
         <Input

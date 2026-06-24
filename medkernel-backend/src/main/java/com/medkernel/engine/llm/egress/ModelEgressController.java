@@ -13,10 +13,10 @@ import com.medkernel.shared.datascope.DataScope;
 import jakarta.validation.Valid;
 
 /**
- * 模型外调出域治理接口控制器（LLM-03）。
+ * 模型外调治理接口控制器（LLM-03）。
  *
- * <p>由引擎运营员（{@code llm.egress.manage}）维护出域字段白名单并确认高敏出域用途；
- * 全线 {@link DataScope} 强多租户隔离。运行时出域拦截在 {@code ModelEgressGuard}。
+ * <p>由引擎运营员（{@code llm.egress.manage}）维护外调允许范围并确认高敏外调用途；
+ * 全线 {@link DataScope} 强服务机构隔离。运行时外调拦截在 {@code ModelEgressGuard}。
  */
 @RestController
 @RequestMapping("/api/v1/model-egress")
@@ -30,7 +30,7 @@ public class ModelEgressController {
     }
 
     /**
-     * 新增或更新指定能力码的出域字段白名单。
+     * 新增或更新指定能力码的外调允许范围。
      */
     @PutMapping("/whitelist/{capabilityCode}")
     @PreAuthorize("@perm.has('llm.egress.manage')")
@@ -41,7 +41,7 @@ public class ModelEgressController {
     }
 
     /**
-     * 确认一条脱敏后高敏载荷的出域用途。
+     * 确认一条脱敏后高敏载荷的外调用途。
      */
     @PostMapping("/confirmations")
     @PreAuthorize("@perm.has('llm.egress.manage')")

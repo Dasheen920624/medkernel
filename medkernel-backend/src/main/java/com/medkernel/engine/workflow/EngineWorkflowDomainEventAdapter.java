@@ -80,7 +80,7 @@ public class EngineWorkflowDomainEventAdapter implements EngineDomainEventPort {
             WorkflowTodoSourceType.PATHWAY_EVENT,
             event.varianceId(),
             "路径变异待处理",
-            "运行修订 " + event.runtimeReleaseId() + " / 节点 " + event.nodeCode()
+            "机构生效版本 " + event.runtimeReleaseId() + " / 节点 " + event.nodeCode()
                 + " / 原因 " + nullToDash(event.reasonCode()) + " / 决策 " + event.resolutionDecision(),
             priorityForDecision(event.resolutionDecision()),
             null,
@@ -98,7 +98,7 @@ public class EngineWorkflowDomainEventAdapter implements EngineDomainEventPort {
             event.varianceId(),
             "pathway-variance:" + event.varianceId(),
             "路径变异已登记",
-            "运行修订 " + event.runtimeReleaseId() + " 的患者路径 "
+            "机构生效版本 " + event.runtimeReleaseId() + " 的患者路径 "
                 + event.patientPathwayId() + " 已登记变异",
             WorkflowNotificationLevel.HIGH,
             event.responsibleRole(),
@@ -116,7 +116,7 @@ public class EngineWorkflowDomainEventAdapter implements EngineDomainEventPort {
             severityForDecision(event.resolutionDecision()),
             "PATHWAY_VARIANCE",
             "路径变异已登记",
-            "运行修订 " + event.runtimeReleaseId() + " / 患者路径 " + event.patientPathwayId()
+            "机构生效版本 " + event.runtimeReleaseId() + " / 患者路径 " + event.patientPathwayId()
                 + " / 节点 " + event.nodeCode() + " / 原因 " + nullToDash(event.reasonCode())
                 + " / 决策 " + event.resolutionDecision(),
             event.traceId(),
@@ -130,7 +130,7 @@ public class EngineWorkflowDomainEventAdapter implements EngineDomainEventPort {
             WorkflowTodoSourceType.PATHWAY_EVENT,
             "clock-sla:" + event.clockId(),
             "路径时钟 SLA 已超时",
-            "运行修订 " + event.runtimeReleaseId() + " / 节点 " + event.nodeCode()
+            "机构生效版本 " + event.runtimeReleaseId() + " / 节点 " + event.nodeCode()
                 + " / 指标 " + nullToDash(event.metricCode()) + " / 升级 " + event.escalationLevel(),
             priorityForEscalation(event.escalationLevel()),
             null,
@@ -148,7 +148,7 @@ public class EngineWorkflowDomainEventAdapter implements EngineDomainEventPort {
             event.clockId(),
             "clock-sla:" + event.clockId(),
             "路径时钟 SLA 已超时",
-            "运行修订 " + event.runtimeReleaseId() + " 的节点 " + event.nodeCode()
+            "机构生效版本 " + event.runtimeReleaseId() + " 的节点 " + event.nodeCode()
                 + " 已升级至 " + event.escalationLevel(),
             levelForEscalation(event.escalationLevel()),
             null,
@@ -166,7 +166,7 @@ public class EngineWorkflowDomainEventAdapter implements EngineDomainEventPort {
             severityForEscalation(event.escalationLevel()),
             "CLOCK_SLA",
             "路径关键时钟 SLA 超时",
-            "运行修订 " + event.runtimeReleaseId() + " / 患者路径 " + event.patientPathwayId()
+            "机构生效版本 " + event.runtimeReleaseId() + " / 患者路径 " + event.patientPathwayId()
                 + " / 节点 " + event.nodeCode() + " / 指标 " + nullToDash(event.metricCode())
                 + " / 升级 " + event.escalationLevel(),
             event.traceId(),
@@ -310,8 +310,8 @@ public class EngineWorkflowDomainEventAdapter implements EngineDomainEventPort {
 
     private static String runtimeReleaseLabel(String runtimeReleaseId) {
         return runtimeReleaseId == null || runtimeReleaseId.isBlank()
-            ? "未绑定运行修订"
-            : "运行修订 " + runtimeReleaseId;
+            ? "未绑定机构生效版本"
+            : "机构生效版本 " + runtimeReleaseId;
     }
 
     private static String severityForRuleAction(String actionCode) {

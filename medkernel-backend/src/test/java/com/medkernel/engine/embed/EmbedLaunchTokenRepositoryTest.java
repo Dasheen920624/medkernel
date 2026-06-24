@@ -15,7 +15,7 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.test.context.TestPropertySource;
 
 /**
- * 嵌入启动令牌仓储测试。
+ * 嵌入启动凭证仓储测试。
  *
  * <p>覆盖一次性消费 SQL 的真实参数绑定，避免兑换接口到现场才暴露 500。
  */

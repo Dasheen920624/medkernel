@@ -1114,7 +1114,7 @@
     },
     {
       "name": "clinical_runtime_release",
-      "comment": "医院临床运行修订账本：只追加修订，锁定平台基线和完整物化资产清单摘要",
+      "comment": "机构生效版本账本：只追加，锁定平台标准版本和完整精确版本明细校验码",
       "columns": [
         {
           "name": "id",
@@ -1131,7 +1131,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "不可变运行发布 ID"
+          "comment": "不可变机构生效版本 ID"
         },
         {
           "name": "tenant_id",
@@ -1149,7 +1149,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "运行发布适用医院"
+          "comment": "机构生效版本适用医院"
         },
         {
           "name": "revision_no",
@@ -1157,7 +1157,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "医院内自动递增运行修订号"
+          "comment": "医院内自动递增生效版本号"
         },
         {
           "name": "platform_baseline_release_id",
@@ -1166,7 +1166,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "采用的平台权威基线发布标识"
+          "comment": "采用的平台标准版本标识"
         },
         {
           "name": "manifest_sha256",
@@ -1175,7 +1175,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "完整物化资产清单 SHA-256 摘要"
+          "comment": "完整精确版本明细 SHA-256 校验码"
         },
         {
           "name": "rollback_from_release_id",
@@ -1184,7 +1184,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "回滚时复制的历史运行发布 ID"
+          "comment": "回滚时复制的历史机构生效版本 ID"
         },
         {
           "name": "activated_at",
@@ -1412,7 +1412,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "医院临床运行发布 ID"
+          "comment": "机构生效版本 ID"
         },
         {
           "name": "error_code",
@@ -2126,7 +2126,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "医院临床运行发布 ID"
+          "comment": "机构生效版本 ID"
         },
         {
           "name": "status",
@@ -3693,7 +3693,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "本次评估事实锁定的医院运行修订；无患者上下文的人工抽检可为空"
+          "comment": "本次评估事实锁定的机构生效版本；无患者上下文的人工抽检可为空"
         },
         {
           "name": "input_digest",
@@ -4348,7 +4348,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "随访计划生成时锁定的医院运行修订 ID；使用随访模板时必填"
+          "comment": "随访计划生成时锁定的机构生效版本 ID；使用随访模板时必填"
         },
         {
           "name": "status",
@@ -10902,7 +10902,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "真实证据来源类型：EVIDENCE_SNAPSHOT 或 EMR_LEVEL_EVIDENCE_PACKAGE"
+          "comment": "真实证据来源类型：EVIDENCE_SNAPSHOT 或 EMR_LEVEL_EVIDENCE_EXPORT"
         },
         {
           "name": "source_id",
@@ -20864,7 +20864,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "派生时记录的平台基线版本主键"
+          "comment": "派生时记录的平台标准版本主键"
         },
         {
           "name": "platform_version_no",
@@ -24594,7 +24594,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "生成医学评测时冻结的运行制品指纹，必须与当前部署一致方可作为放行证据"
+          "comment": "生成医学评测时锁定的交付内容指纹，必须与当前部署一致方可作为放行证据"
         }
       ],
       "primaryKey": {
@@ -27068,7 +27068,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "病案上下文快照锁定的医院运行修订"
+          "comment": "病案上下文快照锁定的机构生效版本"
         },
         {
           "name": "review_status",
@@ -28280,7 +28280,7 @@
     },
     {
       "name": "mk_sandbox_replay_case",
-      "comment": "沙盘历史重放不可变清单：保存 D4 脱敏上下文、来源运行修订引用和精确资产清单摘要",
+      "comment": "沙盘历史重放不可变明细：保存 D4 脱敏上下文、来源机构生效版本引用和精确版本明细校验码",
       "columns": [
         {
           "name": "id",
@@ -28368,7 +28368,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "来源医院运行修订的 SHA-256 不可逆引用，禁止保存可反查现场的真实标识"
+          "comment": "来源机构生效版本的 SHA-256 不可逆引用，禁止保存可反查现场的真实标识"
         },
         {
           "name": "source_runtime_revision_no",
@@ -28376,7 +28376,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "来源医院当时使用的运行修订号"
+          "comment": "来源医院当时使用的生效版本号"
         },
         {
           "name": "occurred_at",
@@ -28393,7 +28393,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "上下文与全部精确资产绑定共同计算的历史重放清单摘要"
+          "comment": "上下文与全部精确版本绑定共同计算的历史重放校验码"
         },
         {
           "name": "deidentification_profile",
@@ -28591,7 +28591,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "单次沙盘运行冻结基线标识"
+          "comment": "单次沙盘运行锁定的标准版本标识"
         },
         {
           "name": "runtime_release_ref",
@@ -28600,7 +28600,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "当前模式保存医院运行发布 ID；历史模式保存来源运行修订不可逆引用"
+          "comment": "当前模式保存机构生效版本 ID；历史模式保存来源机构生效版本不可逆引用"
         },
         {
           "name": "runtime_revision_no",
@@ -28608,7 +28608,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "本次冻结的医院运行修订号"
+          "comment": "本次锁定的机构生效版本号"
         },
         {
           "name": "platform_baseline_release_id",
@@ -28617,7 +28617,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "CURRENT 与 COMPARE 模式锁定的平台权威基线发布 ID"
+          "comment": "CURRENT 与 COMPARE 模式锁定的平台标准版本 ID"
         },
         {
           "name": "manifest_sha256",
@@ -28626,7 +28626,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "医院运行修订或历史重放清单的 SHA-256 摘要"
+          "comment": "机构生效版本或历史重放明细的 SHA-256 校验码"
         },
         {
           "name": "resolution_source",
@@ -28643,7 +28643,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "本次冻结的精确资产清单，不得在执行中重新解析"
+          "comment": "本次锁定的精确版本明细，不得在执行中重新解析"
         },
         {
           "name": "baseline_hash",
@@ -29405,7 +29405,7 @@
     },
     {
       "name": "mk_term_mapping_snapshot",
-      "comment": "术语资产版本不可变映射快照：运行时仅通过医院运行修订锁定的精确版本读取",
+      "comment": "术语资产版本不可变映射快照：运行时仅通过机构生效版本锁定的精确版本读取",
       "columns": [
         {
           "name": "id",
@@ -30679,9 +30679,9 @@
           "type": "string",
           "length": 32,
           "nullable": false,
-          "default": "'PUBLISHED'",
+          "default": "'ACTIVE'",
           "identity": false,
-          "comment": "覆盖生命周期：DRAFT 草稿 / IN_REVIEW 待评审 / APPROVED 已通过 / PUBLISHED 已发布 / DEPRECATED 已弃用 / RETIRED 已退役；仅 PUBLISHED 参与解析"
+          "comment": "覆盖状态：ACTIVE 已启用 / RETIRED 已退役；ACTIVE 参与解析，RETIRED 仅用于历史重放窗口"
         }
       ],
       "primaryKey": {
@@ -30711,7 +30711,7 @@
       "checkConstraints": [
         {
           "name": "ck_mk_version_inheritance_override_lifecycle",
-          "expression": "lifecycle_status IN('DRAFT', 'IN_REVIEW', 'APPROVED', 'PUBLISHED', 'DEPRECATED', 'RETIRED')"
+          "expression": "lifecycle_status IN('ACTIVE', 'RETIRED')"
         },
         {
           "name": "ck_mk_version_inheritance_override_mode",
@@ -33802,7 +33802,7 @@
     },
     {
       "name": "pathway_template",
-      "comment": "路径模板版本表，模板独立维护并由运行修订选择启用版本",
+      "comment": "路径模板版本表，模板独立维护并由机构生效版本选择启用版本",
       "columns": [
         {
           "name": "id",
@@ -34310,7 +34310,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "患者入径时固定的医院运行修订 ID"
+          "comment": "患者入径时固定的机构生效版本 ID"
         },
         {
           "name": "pathway_version_id",
@@ -36112,7 +36112,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "医院临床运行发布 ID"
+          "comment": "机构生效版本 ID"
         },
         {
           "name": "input_digest",
@@ -37700,7 +37700,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "医院临床运行时锁定的不可变运行修订 ID；创作试运行可为空"
+          "comment": "医院临床运行时锁定的不可变机构生效版本 ID；创作试运行可为空"
         },
         {
           "name": "trigger_point",
@@ -42622,7 +42622,7 @@
     },
     {
       "name": "platform_baseline_release",
-      "comment": "平台权威基线发布账本：只追加修订并锁定完整资产清单摘要",
+      "comment": "平台标准版本账本：只追加并锁定完整精确版本明细校验码",
       "columns": [
         {
           "name": "id",
@@ -42639,7 +42639,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "不可变平台基线发布标识"
+          "comment": "不可变平台标准版本标识"
         },
         {
           "name": "revision_no",
@@ -42656,7 +42656,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "完整资产清单 SHA-256 摘要"
+          "comment": "完整精确版本明细 SHA-256 校验码"
         },
         {
           "name": "published_at",
@@ -42664,7 +42664,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "平台基线发布时间"
+          "comment": "平台标准版本发布时间"
         },
         {
           "name": "published_by",
@@ -42673,7 +42673,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "平台基线发布操作人"
+          "comment": "平台标准版本发布操作人"
         },
         {
           "name": "created_at",
@@ -42737,7 +42737,7 @@
     },
     {
       "name": "platform_baseline_item",
-      "comment": "平台基线物化条目：每个稳定资产身份锁定一个精确已发布版本",
+      "comment": "平台标准版本明细条目：每个稳定资产身份锁定一个精确已发布版本",
       "columns": [
         {
           "name": "id",
@@ -42754,7 +42754,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "所属平台基线发布标识"
+          "comment": "所属平台标准版本标识"
         },
         {
           "name": "source_tenant_id",
@@ -42937,7 +42937,7 @@
     },
     {
       "name": "clinical_runtime_release_item",
-      "comment": "医院运行修订物化条目：锁定平台、集团或医院来源的精确资产版本",
+      "comment": "机构生效版本明细条目：锁定平台、集团或医院来源的精确资产版本",
       "columns": [
         {
           "name": "id",
@@ -42954,7 +42954,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "所属医院运行修订标识"
+          "comment": "所属机构生效版本标识"
         },
         {
           "name": "source_tenant_id",

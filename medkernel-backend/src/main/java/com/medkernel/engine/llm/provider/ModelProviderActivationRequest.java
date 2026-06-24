@@ -6,7 +6,7 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 /**
- * 模型 provider 高危启停请求。
+ * 模型服务高危启停请求。
  *
  * @param capabilityCode 启用时必须精确匹配已通过医学评测的模型能力码；停用时可为空
  * @param reason 可审计的启停原因

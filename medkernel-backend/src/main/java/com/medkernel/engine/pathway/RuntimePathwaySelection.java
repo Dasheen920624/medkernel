@@ -3,7 +3,7 @@ package com.medkernel.engine.pathway;
 import java.util.List;
 
 /**
- * 指定医院运行修订与触发点下的候选路径集合。
+ * 指定机构生效版本与触发点下的候选路径集合。
  */
 public record RuntimePathwaySelection(
     String runtimeReleaseId,

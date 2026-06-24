@@ -326,7 +326,7 @@ class ModelKnowledgeProducerTest {
             .satisfies(blocked -> assertThat(blocked.failedGates()).singleElement()
                 .satisfies(gate -> {
                     assertThat(gate.code()).isEqualTo("MODEL_OUTPUT_SCHEMA");
-                    assertThat(gate.reason()).contains("JSON");
+                    assertThat(gate.reason()).contains("候选要求");
                 }));
         verify(gateService, never()).evaluate(any(), any());
         verify(production, never()).submitCandidate(any(), any(), any());
@@ -337,13 +337,13 @@ class ModelKnowledgeProducerTest {
         when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(new ModelTaskResponse(
             "task-b0", "DEGRADED", "{\"status\":\"B0_BASELINE\"}", "B0", "B0-Deterministic-Baseline",
             "baseline", "gateway-default", "[]", null, null, true,
-            "EGRESS_BLOCKED：出域白名单缺失，已降级 B0", 25L, "trace-model"));
+            "EGRESS_BLOCKED：外调允许范围缺失，已降级 B0", 25L, "trace-model"));
 
         ModelKnowledgeProductionResult result = producer.generate(JOB_CODE, request());
 
         assertThat(result.summary().candidates()).isEmpty();
         assertThat(result.summary().skipped()).singleElement()
-            .satisfies(skipped -> assertThat(skipped.reason()).contains("B0", "出域"));
+            .satisfies(skipped -> assertThat(skipped.reason()).contains("B0", "外调"));
         verify(gateService, never()).evaluate(any(), any());
         verify(production, never()).submitCandidate(any(), any(), any());
     }
@@ -431,7 +431,7 @@ class ModelKnowledgeProducerTest {
                 KnowledgeProductionReadinessItem.pass("LITERATURE_ROOT", "已配置", "s3://mk/lit"),
                 KnowledgeProductionReadinessItem.pass("MODEL_PROVIDER", "provider 已健康", PROVIDER),
                 KnowledgeProductionReadinessItem.pass("MODEL_EVALUATION", "评测通过", "runId=1"),
-                KnowledgeProductionReadinessItem.pass("EGRESS_GOVERNANCE", "白名单已配置", CAPABILITY),
+                KnowledgeProductionReadinessItem.pass("EGRESS_GOVERNANCE", "外调允许范围已配置", CAPABILITY),
                 KnowledgeProductionReadinessItem.pass("VERSION_TRIPLE", "三元组已声明", MODEL_STRATEGY)));
     }
 

@@ -12,7 +12,7 @@ import com.medkernel.shared.api.error.ErrorCode;
  * API-05 写入和执行类请求的标准上下文字段。
  *
  * <p>字段与 D2 统一入参保持一致；控制器在进入服务层前校验租户、用户与角色。
- * 运行时资产范围由医院当前运行修订和患者快照解析，前端不再传入手工运行版本作为执行门槛。
+ * 运行时资产范围由当前机构生效版本和患者快照解析，前端不再传入手工版本定位作为执行门槛。
  */
 public record RuleApiContext(
     @JsonProperty("request_id") String requestId,

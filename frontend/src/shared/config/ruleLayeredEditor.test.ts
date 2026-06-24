@@ -341,7 +341,7 @@ describe("RULE-01 三层规则编辑模型", () => {
         },
         {
           id: "condition-derived",
-          label: "eGFR 白名单公式",
+          label: "eGFR 可选医学公式",
           fact: "derived.egfr",
           operator: "derived",
           value: {

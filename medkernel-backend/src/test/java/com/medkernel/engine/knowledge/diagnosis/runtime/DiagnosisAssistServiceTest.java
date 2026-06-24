@@ -196,7 +196,7 @@ class DiagnosisAssistServiceTest {
     void emptyStateIsAdvisoryNotExclusionAndDoesNotPersist() {
         when(extractor.extract(eq("t-1"), eq("runtime-release-test"), any()))
             .thenReturn(new ExtractedFindings(Set.of("FEVER"), List.of()));
-        when(runtimeDiagnoses.select("t-1", "runtime-release-test")).thenReturn(List.of()); // 运行修订未启用诊断版本
+        when(runtimeDiagnoses.select("t-1", "runtime-release-test")).thenReturn(List.of()); // 机构生效版本未启用诊断版本
 
         DiagnosisAssistResponse response = service.assist(new DiagnosisAssistRequest("snap-1"));
 
@@ -210,7 +210,7 @@ class DiagnosisAssistServiceTest {
 
     @Test
     void activeDiagnosisVersionOutsideRuntimeReleaseDoesNotParticipate() {
-        // 即便知识版本本身 ACTIVE，只要未被当前医院运行修订启用，就不能进入临床辅助诊疗。
+        // 即便知识版本本身 ACTIVE，只要未被当前机构生效版本启用，就不能进入临床辅助诊疗。
         when(extractor.extract(eq("t-1"), eq("runtime-release-test"), any()))
             .thenReturn(new ExtractedFindings(Set.of("FEVER", "COUGH"), List.of()));
         when(runtimeDiagnoses.select("t-1", "runtime-release-test")).thenReturn(List.of());

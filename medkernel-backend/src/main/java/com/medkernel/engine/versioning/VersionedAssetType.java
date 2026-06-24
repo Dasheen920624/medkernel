@@ -3,7 +3,7 @@ package com.medkernel.engine.versioning;
 /**
  * 统一版本化资产类型枚举。
  *
- * <p>作为资产身份、内容版本、依赖图、平台权威基线和医院运行修订的单一资产类型来源。
+ * <p>作为资产身份、内容版本、依赖图、平台标准版本和机构生效版本的单一资产类型来源。
  *
  * <p>仅登记已存在或规划中配置资产主链路的类型；患者运行数据不得伪装成配置资产入版。
  */
@@ -36,7 +36,7 @@ public enum VersionedAssetType {
     ACTION_CARD;
 
     /**
-     * 是否为最终可进入平台基线或医院运行修订的配置资产。
+     * 是否为最终可进入平台标准版本或机构生效版本的配置资产。
      */
     public boolean isRuntimeConfiguration() {
         return true;

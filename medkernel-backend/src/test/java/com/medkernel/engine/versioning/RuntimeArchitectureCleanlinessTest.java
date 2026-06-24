@@ -11,6 +11,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class RuntimeArchitectureCleanlinessTest {
 
+    private static final Path REMOVED_RUNTIME_SELECTOR_GUARD =
+        Path.of("src/main/java/com/medkernel/engine/versioning/RemovedRuntimeSelectorFields.java");
+
     @Test
     void productionRuntimeCodeDoesNotDependOnRetiredPackageNamespace() throws IOException {
         Path sourceRoot = Path.of("src/main/java/com/medkernel");
@@ -62,7 +65,7 @@ class RuntimeArchitectureCleanlinessTest {
         }
 
         assertThat(offenders)
-            .as("旧 /api/v1/engine/pkg 发布容器接口必须由平台基线、医院运行修订和发布制品接口替代")
+            .as("旧 /api/v1/engine/pkg 发布容器接口必须由平台标准版本、机构生效版本和离线交付文件接口替代")
             .isEmpty();
     }
 
@@ -82,6 +85,7 @@ class RuntimeArchitectureCleanlinessTest {
         try (var files = Files.walk(sourceRoot)) {
             offenders = files
                 .filter(Files::isRegularFile)
+                .filter(path -> !path.equals(REMOVED_RUNTIME_SELECTOR_GUARD))
                 .flatMap(path -> retiredTerms.stream()
                     .filter(term -> sourceContains(path, term))
                     .map(term -> path + " 包含旧运行定位词 " + term))
@@ -89,7 +93,31 @@ class RuntimeArchitectureCleanlinessTest {
         }
 
         assertThat(offenders)
-            .as("生产代码不得继续暴露旧发布容器选择词；运行事实必须来自医院当前运行修订")
+            .as("生产代码不得继续暴露旧发布容器选择词；运行事实必须来自当前机构生效版本")
+            .isEmpty();
+    }
+
+    @Test
+    void productionSourcesDoNotHideRetiredRuntimePackageSelectionTermsWithStringConcatenation() throws IOException {
+        Path sourceRoot = Path.of("src/main/java");
+        List<String> hiddenTerms = List.of(
+            "\"package\" + \"Id\"",
+            "\"package\" + \"Version\"",
+            "\"knowledge\" + \"PackageId\"",
+            "\"release\" + \"PackageId\"");
+
+        List<String> offenders;
+        try (var files = Files.walk(sourceRoot)) {
+            offenders = files
+                .filter(Files::isRegularFile)
+                .flatMap(path -> hiddenTerms.stream()
+                    .filter(term -> sourceContains(path, term))
+                    .map(term -> path + " 用字符串拼接隐藏旧运行定位词 " + term))
+                .toList();
+        }
+
+        assertThat(offenders)
+            .as("禁止通过字符串拼接绕过旧发布容器字段扫描；需要拒绝旧输入时只能使用专门护栏")
             .isEmpty();
     }
 

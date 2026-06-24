@@ -160,9 +160,9 @@ function renderPage(page: React.ReactElement) {
 }
 
 describe("page smoke coverage", () => {
-  it("renders the unified runtime release console", () => {
+  it("renders the unified release governance console", () => {
     renderPage(<ReleaseGovernance />);
-    expect(screen.getByRole("heading", { name: "运行发布" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "发布治理" })).toBeInTheDocument();
     expect(screen.queryByText("配置" + "包与发布")).not.toBeInTheDocument();
   });
 
@@ -336,7 +336,7 @@ describe("page smoke coverage", () => {
 
     expect(screen.getByText("患者 ID")).toBeInTheDocument();
     expect(screen.getByText("就诊 ID")).toBeInTheDocument();
-    expect(screen.getByText(/输入患者 ID 或就诊 ID 后读取 ACTIVE 临床快照/)).toBeInTheDocument();
+    expect(screen.getByText(/输入患者 ID 或就诊 ID 后读取已生效临床快照/)).toBeInTheDocument();
   });
 
   it("renders the knowledge governance page through the real candidate loading state", () => {

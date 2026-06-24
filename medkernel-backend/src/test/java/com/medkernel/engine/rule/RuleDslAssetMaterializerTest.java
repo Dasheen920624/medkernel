@@ -21,6 +21,23 @@ class RuleDslAssetMaterializerTest {
     private final ObjectMapper json = new ObjectMapper();
 
     @Test
+    void rejectsMissingRuntimeRevisionIdWithCurrentTerminology() throws Exception {
+        RuleDslAssetMaterializer materializer = new RuleDslAssetMaterializer(
+            json,
+            (tenantId, runtimeReleaseId, assetType, assetIdentity) -> Optional.empty()
+        );
+        JsonNode dsl = json.readTree("""
+            {
+              "when": {"field": "patient.age", "op": "present"},
+              "then": []
+            }
+            """);
+
+        assertThatThrownBy(() -> materializer.materialize("tenant-A", " ", dsl))
+            .hasMessageContaining("机构生效版本 ID");
+    }
+
+    @Test
     void expandsValueSetFromExactRuntimeReleaseAndRemovesAuthoredMemberCopies() throws Exception {
         DeclarativeAssetRuntimePort assets = (tenantId, runtimeReleaseId, assetType, assetIdentity) ->
             Optional.of(new ResolvedDeclarativeAsset(
@@ -180,7 +197,7 @@ class RuleDslAssetMaterializerTest {
             }
             """);
         assertThatThrownBy(() -> materializer.materialize("tenant-A", "release-4", missing))
-            .hasMessageContaining("未解析到值集");
+            .hasMessageContaining("当前机构生效版本未解析到值集");
 
         JsonNode legacyManualVersion = json.readTree("""
             {
@@ -194,6 +211,6 @@ class RuleDslAssetMaterializerTest {
             """);
         assertThatThrownBy(() -> materializer.materialize(
             "tenant-A", "release-4", legacyManualVersion))
-            .hasMessageContaining("不得手工携带运行版本");
+            .hasMessageContaining("由机构生效版本统一锁定版本");
     }
 }

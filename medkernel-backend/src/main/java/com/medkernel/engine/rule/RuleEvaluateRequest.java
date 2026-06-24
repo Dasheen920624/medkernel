@@ -9,7 +9,7 @@ import jakarta.validation.constraints.NotBlank;
 /**
  * 规则真实执行入参（GA-ENG-API-05 {@code POST /api/v1/engine/rule/rules/evaluate}）。
  *
- * <p>{@code triggerPoint} 与精确资产版本触发绑定匹配且已进入运行修订的规则参与本次评估；
+ * <p>{@code triggerPoint} 与精确资产版本触发绑定匹配且已进入机构生效版本的规则参与本次评估；
  * {@code ruleIds} 留空表示使用当前有效规则集合，否则限定到给定规则列表。
  */
 public record RuleEvaluateRequest(

@@ -3,7 +3,7 @@ package com.medkernel.engine.release;
 import java.util.List;
 
 /**
- * 平台权威基线发布请求。
+ * 平台标准版本发布请求。
  *
  * <p>调用方只提交本次版本替换和停用集合；租户、操作者、追踪标识均取认证上下文。
  */

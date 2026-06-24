@@ -18,9 +18,9 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 按医院运行修订、触发用途和触发点选择精确路径版本。
+ * 按机构生效版本、触发用途和触发点选择精确路径版本。
  *
- * <p>选择结果只来自不可变运行修订条目，不读取当前模板指针，也不接受调用方指定版本或领域作为运行路由。
+ * <p>选择结果只来自不可变机构生效版本条目，不读取当前模板指针，也不接受调用方指定版本或领域作为运行路由。
  */
 @Component
 public class RuntimeReleasePathwaySelector {
@@ -74,7 +74,7 @@ public class RuntimeReleasePathwaySelector {
             .filter(candidate -> requiredTemplateId.equals(candidate.templateId()))
             .findFirst()
             .orElseThrow(() -> invalid(
-                "所选路径不是当前运行修订与触发点下的入径候选：" + requiredTemplateId));
+                "所选路径不是当前机构生效版本与触发点下的入径候选：" + requiredTemplateId));
     }
 
     /**
@@ -95,7 +95,7 @@ public class RuntimeReleasePathwaySelector {
             .filter(candidate -> requiredVersionId.equals(candidate.versionId()))
             .findFirst()
             .orElseThrow(() -> invalid(
-                "在途路径版本未包含在医院运行修订中：" + requiredVersionId));
+                "在途路径版本未包含在机构生效版本中：" + requiredVersionId));
         if (!isBound(item, AssetTriggerPurpose.PATHWAY_PROGRESS, requiredTrigger)) {
             throw invalid(
                 "在途路径版本未绑定推进触发点："
@@ -135,7 +135,7 @@ public class RuntimeReleasePathwaySelector {
                 binding.assetType() != VersionedAssetType.PATHWAY
                     || !item.assetIdentity().equals(binding.assetIdentity()))) {
             throw invalid(
-                "运行修订路径触发绑定与资产身份不一致：" + item.assetIdentity());
+                "机构生效版本路径触发绑定与资产身份不一致：" + item.assetIdentity());
         }
         return !matching.isEmpty();
     }
@@ -149,11 +149,11 @@ public class RuntimeReleasePathwaySelector {
                 versionNo
             )
             .orElseThrow(() -> invalid(
-                "运行修订锁定路径版本不存在："
+                "机构生效版本锁定路径版本不存在："
                     + item.assetIdentity() + "@" + item.versionNo()));
         if (template.status() != PathwayTemplateStatus.PUBLISHED) {
             throw invalid(
-                "运行修订锁定路径版本未发布："
+                "机构生效版本锁定路径版本未发布："
                     + item.assetIdentity() + "@" + item.versionNo());
         }
         return new RuntimePathwayReference(
@@ -184,7 +184,7 @@ public class RuntimeReleasePathwaySelector {
             return AssetVersionNumbers.intSequence(item.versionNo(), "路径版本");
         } catch (ApiException exception) {
             throw invalid(
-                "运行修订中的路径版本号无效："
+                "机构生效版本中的路径版本号无效："
                     + item.assetIdentity() + "@" + item.versionNo(),
                 exception
             );

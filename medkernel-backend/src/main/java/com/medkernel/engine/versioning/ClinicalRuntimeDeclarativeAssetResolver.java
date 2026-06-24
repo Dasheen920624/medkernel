@@ -17,7 +17,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 从医院运行发布解析声明式资产的精确版本正文。
+ * 从机构生效版本解析声明式资产的精确版本正文。
  */
 @Component
 public class ClinicalRuntimeDeclarativeAssetResolver implements DeclarativeAssetRuntimePort {
@@ -42,7 +42,7 @@ public class ClinicalRuntimeDeclarativeAssetResolver implements DeclarativeAsset
             VersionedAssetType assetType,
             String assetIdentity) {
         String tenant = required(tenantId, "租户");
-        String releaseId = required(runtimeReleaseId, "医院运行发布 ID");
+        String releaseId = required(runtimeReleaseId, "机构生效版本 ID");
         String identity = required(assetIdentity, "资产编码");
         if (assetType == null || !assetType.usesUnifiedContentStore()) {
             throw new ApiException(
@@ -62,7 +62,7 @@ public class ClinicalRuntimeDeclarativeAssetResolver implements DeclarativeAsset
         if (candidates.size() != 1) {
             throw new ApiException(
                 ErrorCode.ENG_ASSET_002,
-                "同一医院运行发布中的声明式资产只能绑定一次："
+                "同一机构生效版本中的声明式资产只能绑定一次："
                     + assetType + ":" + identity + "@" + releaseId
             );
         }

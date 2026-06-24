@@ -212,12 +212,12 @@ public class KnowledgeRetirementService {
 
     private void suspendOverrides(KnowledgeIdentity identity, KnowledgeSupersession due, Instant now) {
         List<InheritanceOverride> published = overrides.findByAssetTypeAndAssetIdentityAndLifecycleStatus(
-            VersionedAssetType.KNOWLEDGE, identity.identityCode(), InheritanceOverrideStatus.PUBLISHED);
+            VersionedAssetType.KNOWLEDGE, identity.identityCode(), InheritanceOverrideStatus.ACTIVE);
         for (InheritanceOverride item : safeList(published)) {
             overrides.save(new InheritanceOverride(
                 item.id(), item.overrideId(), item.tenantId(), item.assetType(), item.assetIdentity(),
                 item.inheritedVersionId(), item.overrideVersionId(), item.overrideMode(), item.propagation(),
-                InheritanceOverrideStatus.DEPRECATED, item.orgPath(), item.applicableScope(), item.diffSummary(),
+                InheritanceOverrideStatus.RETIRED, item.orgPath(), item.applicableScope(), item.diffSummary(),
                 appendMigrationGuidance(item.overrideReason(), due.migrationGuidance()),
                 item.impactScope(), item.createdAt(), item.createdBy(), now, SYSTEM_ACTOR, item.traceId()));
         }

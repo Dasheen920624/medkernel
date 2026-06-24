@@ -371,8 +371,8 @@ beforeEach(() => {
           code: "MODEL_PROVIDER",
           ready: false,
           required: true,
-          message: "模型 provider 未就绪",
-          evidence: "provider 未配置",
+          message: "模型服务未就绪",
+          evidence: "模型服务未配置",
         },
       ],
     },
@@ -889,7 +889,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.queryByRole("tab", { name: "机构知识" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "知识生产" })).not.toBeInTheDocument();
     expect(screen.queryByText("机构知识血缘")).not.toBeInTheDocument();
-    expect(screen.queryByText("模型生产 readiness")).not.toBeInTheDocument();
+    expect(screen.queryByText("模型生产上线准备")).not.toBeInTheDocument();
   });
 
   it("renders institution knowledge as a standalone maintenance entry", () => {
@@ -922,7 +922,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getAllByText("院内覆盖可治理").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /定制为本机构版本/ })).toBeInTheDocument();
     expect(screen.queryByText("待审核候选总数")).not.toBeInTheDocument();
-    expect(screen.queryByText("模型生产 readiness")).not.toBeInTheDocument();
+    expect(screen.queryByText("模型生产上线准备")).not.toBeInTheDocument();
   });
 
   it("separates platform-source and tenant-overlay production lanes with visible ownership labels", () => {
@@ -987,12 +987,12 @@ describe("KnowledgeGovernance", () => {
     expect(mockUseKnowledgeAcquisitionSources).toHaveBeenCalledWith({ page: 1, size: 20 });
 
     expect(screen.getByText("公域来源治理")).toBeInTheDocument();
-    expect(screen.getByText("模型生产 readiness")).toBeInTheDocument();
-    expect(screen.getByText("模型 provider 未就绪")).toBeInTheDocument();
-    expect(screen.getByText("生产 job")).toBeInTheDocument();
+    expect(screen.getByText("模型生产上线准备")).toBeInTheDocument();
+    expect(screen.getByText("模型服务未就绪")).toBeInTheDocument();
+    expect(screen.getAllByText("生产任务").length).toBeGreaterThan(0);
     expect(screen.getAllByText("job-ai-1").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("统一模型 API").length).toBeGreaterThan(0);
-    expect(screen.getByText("门禁结果")).toBeInTheDocument();
+    expect(screen.getAllByText("统一模型接口").length).toBeGreaterThan(0);
+    expect(screen.getByText("生产安全校验结果")).toBeInTheDocument();
     expect(screen.getByText("SOURCE_ANCHOR")).toBeInTheDocument();
     expect(screen.getByText("8 态分流")).toBeInTheDocument();
     expect(screen.getByText("CONFLICT")).toBeInTheDocument();
@@ -1051,7 +1051,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getAllByText("审候选").length).toBeGreaterThan(0);
     expect(screen.getAllByText("影响").length).toBeGreaterThan(0);
     expect(screen.getAllByText("结论").length).toBeGreaterThan(0);
-    expect(screen.getByDisplayValue("统一模型 API（本地或外部 Provider）")).toBeDisabled();
+    expect(screen.getByDisplayValue("统一模型接口（本地或外部模型服务）")).toBeDisabled();
     expect(screen.getByDisplayValue("医学知识")).toBeDisabled();
     expect(screen.queryByRole("option", { name: "规则" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("生产器")).not.toBeInTheDocument();
@@ -1189,7 +1189,7 @@ describe("KnowledgeGovernance", () => {
 
     renderPage(<KnowledgeProduction />);
 
-    expect(screen.getByText("暂无生产 job")).toBeInTheDocument();
+    expect(screen.getByText("暂无生产任务")).toBeInTheDocument();
     expect(screen.getByText("初始化发行批次")).toBeInTheDocument();
     expect(screen.getAllByText("foundation-f1-1.0.0").length).toBeGreaterThan(0);
   });
@@ -1199,7 +1199,7 @@ describe("KnowledgeGovernance", () => {
       data: undefined,
       isLoading: false,
       isError: true,
-      error: new Error("门禁接口断开"),
+      error: new Error("生产安全校验接口断开"),
     });
     mockUseKnowledgeProductionShadowRuns.mockReturnValue({
       data: undefined,
@@ -1210,9 +1210,9 @@ describe("KnowledgeGovernance", () => {
 
     renderPage(<KnowledgeProduction />);
 
-    expect(screen.getByText("模型生产 readiness")).toBeInTheDocument();
+    expect(screen.getByText("模型生产上线准备")).toBeInTheDocument();
     expect(screen.getByText("生产证据部分读取失败")).toBeInTheDocument();
-    expect(screen.getByText(/门禁结果：门禁接口断开/)).toBeInTheDocument();
+    expect(screen.getByText(/生产安全校验结果：生产安全校验接口断开/)).toBeInTheDocument();
     expect(screen.getByText(/影子评测：影子评测接口断开/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
   });
@@ -1394,7 +1394,7 @@ describe("KnowledgeGovernance", () => {
           sourceCitations: '[{"anchor":"source-fragment-candidate","version":"sv-2026"}]',
           confidence: 0.87,
           fallbackUsed: true,
-          fallbackReason: "B2 -> B1：外部 provider 限流，本地模型成功",
+          fallbackReason: "B2 -> B1：外部模型服务限流，本地模型成功",
           riskLevel: "HIGH",
           producedAt: "2026-06-06T01:05:00Z",
           producedBy: "ai-factory",
@@ -1415,7 +1415,7 @@ describe("KnowledgeGovernance", () => {
     });
     // AI 生成候选须带 AI 标识（Tag 非按钮，不触发生成）+ 生产器来源
     expect(await screen.findByText("AI 生成")).toBeInTheDocument();
-    expect(screen.getByText(/统一模型 API/)).toBeInTheDocument();
+    expect(screen.getByText(/统一模型接口/)).toBeInTheDocument();
     // 仍不得出现 AI 生成按钮（本页只审不生成，B0 / AIREVIEW-01 边界）
     expect(screen.queryByRole("button", { name: /AI 生成|创建候选/ })).not.toBeInTheDocument();
   });
@@ -1456,7 +1456,7 @@ describe("KnowledgeGovernance", () => {
           sourceCitations: '[{"anchor":"source-fragment-candidate","version":"sv-2026"}]',
           confidence: 0.87,
           fallbackUsed: true,
-          fallbackReason: "B2 -> B1：外部 provider 限流，本地模型成功",
+          fallbackReason: "B2 -> B1：外部模型服务限流，本地模型成功",
           riskLevel: "HIGH",
           producedAt: "2026-06-06T01:05:00Z",
           producedBy: "ai-factory",
@@ -1483,7 +1483,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.queryByText("prompt:aikstd13-v1")).not.toBeInTheDocument();
     expect(screen.queryByText("tool:submit-candidate-v1")).not.toBeInTheDocument();
     expect(
-      screen.queryByText("降级：B2 -> B1：外部 provider 限流，本地模型成功"),
+      screen.queryByText("降级：B2 -> B1：外部模型服务限流，本地模型成功"),
     ).not.toBeInTheDocument();
   });
 
@@ -1514,7 +1514,7 @@ describe("KnowledgeGovernance", () => {
           sourceCitations: '[{"anchor":"source-fragment-candidate","version":"sv-2026"}]',
           confidence: 0.87,
           fallbackUsed: true,
-          fallbackReason: "B2 -> B1：外部 provider 限流，本地模型成功",
+          fallbackReason: "B2 -> B1：外部模型服务限流，本地模型成功",
           riskLevel: "HIGH",
           producedAt: "2026-06-06T01:05:00Z",
           producedBy: "ai-factory",
@@ -1539,7 +1539,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("prompt:aikstd13-v1")).toBeInTheDocument();
     expect(screen.getByText("tool:submit-candidate-v1")).toBeInTheDocument();
     expect(
-      screen.getAllByText("降级：B2 -> B1：外部 provider 限流，本地模型成功").length,
+      screen.getAllByText("降级：B2 -> B1：外部模型服务限流，本地模型成功").length,
     ).toBeGreaterThan(0);
   });
 

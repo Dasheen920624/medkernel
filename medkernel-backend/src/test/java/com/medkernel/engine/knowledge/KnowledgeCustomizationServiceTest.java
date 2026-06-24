@@ -220,7 +220,7 @@ class KnowledgeCustomizationServiceTest {
         assertThat(versions.findByTenantIdAndId("tenant-a", active.localVersionId())
             .orElseThrow().status()).isEqualTo(KnowledgeVersionStatus.ACTIVE);
         assertThat(overrides.findByTenantIdAndOverrideId("tenant-a", active.overrideId())
-            .orElseThrow().lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.PUBLISHED);
+            .orElseThrow().lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.ACTIVE);
 
         KnowledgeCustomizationResponse restored = service.restorePlatformStandard(
             draft.customizationId(),

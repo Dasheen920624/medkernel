@@ -107,7 +107,7 @@ describe("Login", () => {
     });
   });
 
-  it("登录成功后若仍需改密或 MFA，强制进入首次部署引导", async () => {
+  it("登录成功后若仍需改密或多因素认证，强制进入首次部署引导", async () => {
     mutateAsyncMock.mockResolvedValue({
       userId: "platform-owner",
       tenantId: "t-1",
@@ -131,7 +131,7 @@ describe("Login", () => {
     );
   });
 
-  it("MFA 已绑定但本次尚未验证时进入验证码步骤", async () => {
+  it("多因素认证已绑定但本次尚未验证时进入验证码步骤", async () => {
     mutateAsyncMock.mockResolvedValue({
       userId: "engine-operator",
       tenantId: "t-1",

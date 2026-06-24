@@ -92,7 +92,7 @@ public class DeclarativeAssetContentValidator {
         requiredText(root, "name");
         String runtimeFunction = requiredText(root, "runtimeFunction");
         if (!ClinicalFunctionRegistry.isSupported(runtimeFunction)) {
-            throw invalid("公式 runtimeFunction 不在受控白名单：" + runtimeFunction);
+            throw invalid("公式 runtimeFunction 不在受控允许范围：" + runtimeFunction);
         }
         JsonNode inputs = requiredArray(root, "inputs");
         if (inputs.isEmpty()) {

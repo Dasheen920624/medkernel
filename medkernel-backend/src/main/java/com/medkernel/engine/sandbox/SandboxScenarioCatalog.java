@@ -7,7 +7,7 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 /**
- * 全真体验沙盘场景目录。只登记场景意图，不固化运行修订版本或运行就绪状态。
+ * 全真体验沙盘场景目录。只登记场景意图，不固化机构生效版本或运行就绪状态。
  */
 @Component
 public class SandboxScenarioCatalog {

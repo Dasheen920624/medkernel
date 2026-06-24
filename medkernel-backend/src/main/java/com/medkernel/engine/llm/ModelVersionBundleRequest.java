@@ -3,7 +3,7 @@ package com.medkernel.engine.llm;
 import jakarta.validation.constraints.NotBlank;
 
 /**
- * 发布 prompt/tool/model 版本包请求。
+ * 发布提示词、工具和模型版本组合请求。
  */
 public record ModelVersionBundleRequest(
     @NotBlank String capabilityCode,

@@ -400,7 +400,7 @@ public class EvaluationEngineService {
         contextJson.set("followUps", followUps);
         contextJson.set("claims", claims);
 
-        // 3. 从当前医院运行修订加载本次可执行的指标库
+        // 3. 从当前机构生效版本加载本次可执行的指标库
         List<EvaluationIndicator> activeIndicators = new ArrayList<>(
             runtimeEvaluations.select(tenantId, snapshot.runtimeReleaseId()));
         activeIndicators.sort(Comparator
@@ -408,7 +408,7 @@ public class EvaluationEngineService {
             .thenComparingInt(EvaluationIndicator::versionNo)
             .thenComparing(EvaluationIndicator::indicatorId));
         if (activeIndicators.isEmpty()) {
-            throw new ApiException(ErrorCode.ENG_EVAL_004, "当前医院运行修订未包含生效质控评估指标，无法执行扫描");
+            throw new ApiException(ErrorCode.ENG_EVAL_004, "当前机构生效版本未包含生效质控评估指标，无法执行扫描");
         }
 
         String inputDigest = automaticEvaluationInputDigest(request, snapshot, resourceList, activeIndicators);
@@ -926,7 +926,7 @@ public class EvaluationEngineService {
     /**
      * 按运行 ID 装配可解释诊断响应。
      *
-     * <p>诊断响应包含运行快照、关联结果 ID、问题 ID、整改任务 ID 与 traceId；运行不存在抛出 {@code ENG-EVAL-001}。
+     * <p>诊断响应包含运行状态快照、关联结果 ID、问题 ID、整改任务 ID 与 traceId；运行不存在抛出 {@code ENG-EVAL-001}。
      */
     @Transactional(readOnly = true)
     public DiagnoseResponse diagnose(String runId) {
@@ -991,12 +991,12 @@ public class EvaluationEngineService {
                 ErrorCode.ENG_EVAL_001, "评估运行引用的上下文快照不存在"));
         if (!hasText(snapshot.runtimeReleaseId())) {
             throw new ApiException(
-                ErrorCode.ENG_EVAL_001, "评估运行引用的上下文快照缺少医院运行修订");
+                ErrorCode.ENG_EVAL_001, "评估运行引用的上下文快照缺少机构生效版本");
         }
         if (hasText(request.runtimeReleaseId())
                 && !snapshot.runtimeReleaseId().equals(request.runtimeReleaseId().trim())) {
             throw new ApiException(
-                ErrorCode.ENG_EVAL_001, "评估运行修订与上下文快照锁定修订不一致");
+                ErrorCode.ENG_EVAL_001, "评估机构生效版本与上下文快照锁定的机构生效版本不一致");
         }
         return snapshot.runtimeReleaseId();
     }

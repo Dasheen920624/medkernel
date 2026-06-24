@@ -792,7 +792,7 @@ function commonColumnComment(name) {
     created_by: "创建人",
     updated_at: "更新时间",
     updated_by: "更新人",
-    trace_id: "链路追踪标识",
+    trace_id: "追踪号",
     version: "并发版本号",
     lock_version: "并发锁版本号",
   };

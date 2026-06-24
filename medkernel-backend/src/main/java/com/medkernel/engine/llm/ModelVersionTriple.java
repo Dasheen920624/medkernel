@@ -1,7 +1,7 @@
 package com.medkernel.engine.llm;
 
 /**
- * LLM-04 prompt/tool/model 版本三元组。
+ * LLM-04 提示词、工具和模型版本组合。
  */
 public record ModelVersionTriple(
     String promptVersion,

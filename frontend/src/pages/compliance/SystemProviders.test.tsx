@@ -69,13 +69,13 @@ const snapshot = {
       key: "graph-projection",
       displayName: "知识图谱投影",
       status: "NOT_CONNECTED",
-      detail: "Feature Flag 关闭，未连接图谱投影",
+      detail: "能力开关关闭，未连接图谱投影",
     },
     {
       key: "dify-workflow",
       displayName: "Dify 工作流",
       status: "MODEL_DISABLED",
-      detail: "Feature Flag 关闭，模型工作流未启用",
+      detail: "能力开关关闭，模型工作流未启用",
     },
   ],
   backup: {

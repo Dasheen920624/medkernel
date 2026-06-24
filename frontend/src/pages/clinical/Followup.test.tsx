@@ -393,7 +393,7 @@ describe("Followup", () => {
 
     expect(await screen.findByText("回院任务 return-task-1")).toBeInTheDocument();
     expect(screen.getByText("通知事件 notify-event-1")).toBeInTheDocument();
-    expect(screen.getByText("追踪链路 trace-followup-1")).toBeInTheDocument();
+    expect(screen.getByText("追踪号 trace-followup-1")).toBeInTheDocument();
     expect(screen.getByText("异常事件 event-return-1")).toBeInTheDocument();
   });
 

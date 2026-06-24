@@ -538,8 +538,8 @@ function EvidenceItem({
           </Tag>
           <Tag>{customerEnumLabel(item.status)}</Tag>
           <Tag>{customerEnumLabel(item.sourceType)}</Tag>
-          <Text type="secondary">sourceId: {item.sourceId}</Text>
-          {item.traceId && <Text type="secondary">{item.traceId}</Text>}
+          <Text type="secondary">来源编号：{item.sourceId}</Text>
+          {item.traceId && <Text type="secondary">追踪号：{item.traceId}</Text>}
         </Space>
       </Space>
     </List.Item>

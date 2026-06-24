@@ -132,7 +132,7 @@ public class DomainFacadeB0FixtureService {
         fixtures.put(DomainFacadeEngine.RELEASE, fixture(
             "com.medkernel.engine.release.PlatformBaselineService",
             "/api/v1/engine/releases/platform-baselines",
-            "复用平台权威基线与医院运行修订发布入口"));
+            "复用平台标准版本与机构生效版本发布入口"));
         fixtures.put(DomainFacadeEngine.INTEGRATION, fixture(
             "com.medkernel.engine.integration.service.IntegrationService",
             "/api/v1/engine/integration/adapters",
@@ -144,7 +144,7 @@ public class DomainFacadeB0FixtureService {
         fixtures.put(DomainFacadeEngine.SAFETY, fixture(
             "com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService",
             "/api/v1/engine/knowledge-production/jobs/{jobCode}/candidates",
-            "复用红线/门禁/高危审核候选安全入口"));
+            "复用红线、生产安全校验和高危审核候选安全入口"));
         fixtures.put(DomainFacadeEngine.ORGANIZATION, fixture(
             "com.medkernel.engine.org.OrgUnitService",
             "/api/v1/engine/org/org-units",

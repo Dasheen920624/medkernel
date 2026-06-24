@@ -112,7 +112,7 @@ class PublicationQualityRecordServiceTest {
         assertThatThrownBy(() -> service.create(
             JOB, new PublicationQualityRecordRequest(CANDIDATE_REF, 11L, 101L)))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("缺少质量门")
+            .hasMessageContaining("缺少发布校验项")
             .hasMessageContaining("CONTENT_FORMAT");
         verify(gateResults, never()).save(any());
     }
@@ -127,7 +127,7 @@ class PublicationQualityRecordServiceTest {
         assertThatThrownBy(() -> service.create(
             JOB, new PublicationQualityRecordRequest(CANDIDATE_REF, 11L, 101L)))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("质量门未通过")
+            .hasMessageContaining("发布校验未通过")
             .hasMessageContaining("CONTENT_FORMAT");
         verify(gateResults, never()).save(any());
     }
@@ -138,7 +138,7 @@ class PublicationQualityRecordServiceTest {
 
         assertThatThrownBy(() -> service.requirePublishEvidence(404L, 11L, version(101L, 11L, "v1", HASH)))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("发布质量门记录")
+            .hasMessageContaining("发布质量校验记录")
             .hasMessageContaining("不存在");
     }
 

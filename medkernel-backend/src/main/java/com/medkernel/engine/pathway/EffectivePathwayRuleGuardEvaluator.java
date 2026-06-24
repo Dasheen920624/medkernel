@@ -25,10 +25,10 @@ import com.medkernel.shared.context.RequestContext;
 import org.springframework.stereotype.Component;
 
 /**
- * 按医院运行修订锁定的确切规则版本执行路径分支守卫。
+ * 按机构生效版本锁定的确切规则版本执行路径分支守卫。
  *
- * <p>路径正文只保存规则稳定编码和稳定资产 ID。具体来源层和版本全部来自不可变运行修订，
- * 不读取规则当前编辑指针，也不接受正文手工指定运行版本。
+ * <p>路径正文只保存规则稳定编码和稳定资产 ID。具体来源层和版本全部来自不可变机构生效版本，
+ * 不读取规则当前编辑指针，也不接受正文手工指定版本定位。
  */
 @Component
 public class EffectivePathwayRuleGuardEvaluator implements PathwayRuleGuardEvaluator {
@@ -71,13 +71,13 @@ public class EffectivePathwayRuleGuardEvaluator implements PathwayRuleGuardEvalu
             .filter(candidate -> ruleCode.equals(candidate.assetIdentity()))
             .findFirst()
             .orElseThrow(() -> invalid(
-                "规则未包含在医院运行修订中: " + ruleCode + " (" + ruleAssetId + ")"));
+                "规则未包含在机构生效版本中: " + ruleCode + " (" + ruleAssetId + ")"));
         RuleDefinition rule = definitions
             .findByTenantIdAndRuleCode(item.sourceTenantId(), ruleCode)
-            .orElseThrow(() -> invalid("医院运行修订中的规则不存在: " + ruleAssetId));
+            .orElseThrow(() -> invalid("机构生效版本中的规则不存在: " + ruleAssetId));
         if (!ruleAssetId.equals(rule.ruleId())) {
             throw invalid(
-                "路径规则 ID 与运行修订资产不一致: 声明 " + ruleAssetId
+                "路径规则 ID 与机构生效版本资产不一致: 声明 " + ruleAssetId
                     + "，实际 " + rule.ruleId());
         }
         RuleVersion version = versions
@@ -86,11 +86,11 @@ public class EffectivePathwayRuleGuardEvaluator implements PathwayRuleGuardEvalu
                 item.sourceTenantId(),
                 parseVersionNo(item))
             .orElseThrow(() -> invalid(
-                "医院运行修订中的规则版本不存在: "
+                "机构生效版本中的规则版本不存在: "
                     + ruleAssetId + "@" + item.versionNo()));
         if (rule.status() != RuleDefinitionStatus.PUBLISHED
                 || version.status() != RuleVersionStatus.PUBLISHED) {
-            throw invalid("路径只能调用医院运行修订中的已发布规则: " + ruleCode);
+            throw invalid("路径只能调用机构生效版本中的已发布规则: " + ruleCode);
         }
 
         try {
@@ -122,7 +122,7 @@ public class EffectivePathwayRuleGuardEvaluator implements PathwayRuleGuardEvalu
         try {
             return releases.resolve(tenantId, releaseId);
         } catch (RuntimeException exception) {
-            throw invalid("医院运行修订无法解析: " + releaseId + "；" + exception.getMessage(), exception);
+            throw invalid("机构生效版本无法解析: " + releaseId + "；" + exception.getMessage(), exception);
         }
     }
 
@@ -131,7 +131,7 @@ public class EffectivePathwayRuleGuardEvaluator implements PathwayRuleGuardEvalu
             return AssetVersionNumbers.intSequence(item.versionNo(), "规则版本");
         } catch (ApiException exception) {
             throw invalid(
-                "医院运行修订中的规则版本号不是整数: "
+                "机构生效版本中的规则版本号不是整数: "
                     + item.assetIdentity() + "@" + item.versionNo(),
                 exception);
         }
@@ -148,7 +148,7 @@ public class EffectivePathwayRuleGuardEvaluator implements PathwayRuleGuardEvalu
 
     private String requireRuntimeReleaseId(String runtimeReleaseId) {
         if (runtimeReleaseId == null || runtimeReleaseId.isBlank()) {
-            throw invalid("路径规则守卫缺少医院运行修订 ID");
+            throw invalid("路径规则守卫缺少机构生效版本 ID");
         }
         return runtimeReleaseId.trim();
     }

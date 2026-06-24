@@ -8,7 +8,7 @@ import com.medkernel.engine.context.ClinicalRuntimeReleaseContent;
 import com.medkernel.engine.context.ClinicalRuntimeReleaseItem;
 
 /**
- * 第三方可读取的医院当前运行修订快照。
+ * 第三方可读取的当前机构生效版本快照。
  */
 public record ThirdPartyRuntimeReleaseResponse(
     String contractVersion,

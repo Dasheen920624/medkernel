@@ -44,7 +44,7 @@ public class CandidateSafetyGateService {
             try {
                 result = gate.evaluate(candidate, context);
             } catch (RuntimeException exception) {
-                result = GateItemResult.fail(gate.code(), "门禁执行异常：" + exception.getMessage());
+                result = GateItemResult.fail(gate.code(), "生产安全校验执行异常：" + exception.getMessage());
             }
             items.add(result);
             if (!result.passed()) {

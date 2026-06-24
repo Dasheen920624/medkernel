@@ -396,7 +396,7 @@ function parseConditionJson(value?: string) {
   try {
     return JSON.parse(normalized) as unknown;
   } catch {
-    throw new Error("条件 DSL JSON 格式不合法，请检查后再提交。");
+    throw new Error("条件配置格式不合法，请检查后再提交。");
   }
 }
 
@@ -969,7 +969,7 @@ function parsePathwayDslJson(value: string): PathwayDslPayload {
     }
     return payload;
   } catch {
-    throw new Error("L3 DSL JSON 格式不合法，请检查 nodes、edges 与 metricBindings。");
+    throw new Error("L3 技术配置格式不合法，请检查节点、连线与指标绑定。");
   }
 }
 
@@ -1828,7 +1828,7 @@ export default function PathwayTemplates() {
 
   const syncCanvasToDsl = () => {
     if (fieldCatalogQuery.isError) {
-      messageApi.error("字段目录暂不可用，路径条件不能同步到 DSL。");
+      messageApi.error("字段目录暂不可用，路径条件不能同步到技术配置。");
       return;
     }
     try {
@@ -1839,9 +1839,9 @@ export default function PathwayTemplates() {
         ),
       );
       setCreateExpertMode(true);
-      messageApi.success("已从 L2 节点画布同步到 L3 DSL");
+      messageApi.success("已从 L2 节点画布同步到 L3 技术配置");
     } catch (error: unknown) {
-      messageApi.error(error instanceof Error ? error.message : "L2 节点画布无法生成 DSL");
+      messageApi.error(error instanceof Error ? error.message : "L2 节点画布无法生成技术配置");
     }
   };
 
@@ -1857,9 +1857,9 @@ export default function PathwayTemplates() {
           formValues.outcomeBindings,
         ),
       );
-      messageApi.success("已将 L3 DSL 回填到 L2 节点画布");
+      messageApi.success("已将 L3 技术配置回填到 L2 节点画布");
     } catch (error: unknown) {
-      messageApi.error(error instanceof Error ? error.message : "L3 DSL 回填失败");
+      messageApi.error(error instanceof Error ? error.message : "L3 技术配置回填失败");
     }
   };
 
@@ -1884,7 +1884,7 @@ export default function PathwayTemplates() {
 
   const handleRunCreatePreview = async () => {
     if (!selectedSnapshotId) {
-      messageApi.error("请先选择一个 ACTIVE 上下文快照。");
+      messageApi.error("请先选择一个已生效上下文。");
       return;
     }
     if (
@@ -1938,8 +1938,8 @@ export default function PathwayTemplates() {
     if (replayIds.length === 0) {
       messageApi.error(
         simulationMode === "QUEUE_REPLAY"
-          ? "请选择至少一个 ACTIVE 上下文快照用于队列回放"
-          : "请先选择一个 ACTIVE 上下文快照",
+          ? "请选择至少一个已生效上下文用于队列回放"
+          : "请先选择一个已生效上下文",
       );
       return;
     }
@@ -2117,7 +2117,7 @@ export default function PathwayTemplates() {
       render: (type: PathwayEdgeType) => <Tag color="cyan">{type}</Tag>,
     },
     {
-      title: "条件 DSL",
+      title: "流转条件配置",
       dataIndex: "conditionJson",
       render: (condition?: string) => (
         <span className={styles.codeText}>{cleanText(condition) ?? "默认流转"}</span>
@@ -2241,7 +2241,7 @@ export default function PathwayTemplates() {
           <Descriptions.Item label="节点轨迹">
             {result.nodeTrajectory?.join(" → ") || "-"}
           </Descriptions.Item>
-          <Descriptions.Item label="Trace">{result.traceId || "-"}</Descriptions.Item>
+          <Descriptions.Item label="追踪号">{result.traceId || "-"}</Descriptions.Item>
         </Descriptions>
         {renderPreviewRunEvidence(result.conditionEvidence ?? [])}
       </Space>
@@ -2363,7 +2363,7 @@ export default function PathwayTemplates() {
                   disabled={fieldCatalogQuery.isError}
                   onClick={syncCanvasToDsl}
                 >
-                  同步到 DSL
+                  同步到技术配置
                 </Button>
                 <Button
                   icon={<ApartmentOutlined />}
@@ -2378,8 +2378,8 @@ export default function PathwayTemplates() {
               <Alert
                 type="error"
                 showIcon
-                message="字段目录暂不可用，路径条件不能同步到 DSL。"
-                description="路径纳入、排除和流转条件必须绑定 canonical 字段目录；恢复字段目录接口后再同步或保存。"
+                message="字段目录暂不可用，路径条件不能同步到技术配置。"
+                description="路径纳入、排除和流转条件必须绑定标准字段目录；恢复字段目录接口后再同步或保存。"
               />
             ) : null}
             <Row gutter={[16, 16]} className="mk-full-width">
@@ -2602,11 +2602,11 @@ export default function PathwayTemplates() {
                               showSearch
                               allowClear
                               filterOption={false}
-                              placeholder="选择 ACTIVE 评估指标"
+                              placeholder="选择已生效评估指标"
                               options={outcomeIndicatorOptions}
                               onSearch={setOutcomeIndicatorSearch}
                               onClear={() => setOutcomeIndicatorSearch("")}
-                              notFoundContent="暂无 ACTIVE 评估指标"
+                              notFoundContent="暂无已生效评估指标"
                             />
                           </Form.Item>
                         </Col>
@@ -2782,7 +2782,7 @@ export default function PathwayTemplates() {
                             {...fieldProps}
                             name={[field.name, "metricCode"]}
                             label="时钟指标编码"
-                            tooltip="设置时窗分钟后必填，用于时窗门禁与质控时钟"
+                            tooltip="设置时窗分钟后必填，用于时窗校验与质控时钟"
                             rules={[
                               ({ getFieldValue }) => ({
                                 validator(_rule, value) {
@@ -3129,7 +3129,7 @@ export default function PathwayTemplates() {
                         <Alert
                           type="info"
                           showIcon
-                          message="路径仅读取规则命中结果；运行时由同一医院运行修订解析精确规则版本，规则不能反向调用路径。"
+                          message="路径仅读取规则命中结果；运行时由同一机构生效版本确认规则版本，规则不能反向调用路径。"
                         />
                       ) : (
                         <>
@@ -3313,7 +3313,7 @@ export default function PathwayTemplates() {
                     image={Empty.PRESENTED_IMAGE_SIMPLE}
                     description={
                       snapshotQuery
-                        ? "未读取到 ACTIVE 快照"
+                        ? "未读取到已生效快照"
                         : "请输入患者 ID 或就诊 ID 读取真实快照"
                     }
                   />
@@ -3334,12 +3334,12 @@ export default function PathwayTemplates() {
       ? [
           {
             key: "l3",
-            label: "L3 DSL",
+            label: "L3 技术配置",
             children: (
               <div className={styles.editorSection}>
                 <Space direction="vertical" size="middle" className="mk-full-width">
                   <Space className="mk-flex-between mk-full-width">
-                    <div className={styles.textStrong}>路径 DSL JSON</div>
+                    <div className={styles.textStrong}>路径配置文本</div>
                     <Space>
                       <Button icon={<SwapOutlined />} onClick={syncCanvasToDsl}>
                         重新从 L2 生成
@@ -3352,10 +3352,10 @@ export default function PathwayTemplates() {
                   <Alert
                     type="warning"
                     showIcon
-                    message="L3 是受控 DSL 编辑层，普通路径配置请优先使用 L2 节点画布。"
+                    message="L3 是受控技术配置层，普通路径配置请优先使用 L2 节点画布。"
                   />
                   <Form.Item
-                    label="路径 DSL JSON"
+                    label="路径配置文本"
                     htmlFor="pathway-dsl-json"
                     className={styles.zeroBottom}
                   >
@@ -3419,11 +3419,11 @@ export default function PathwayTemplates() {
   let detailAlertType: "success" | "warning" | "info" = "info";
   if (activeInRuntime) {
     detailAlertMessage =
-      "当前精确路径版本已进入医院运行修订；内容不可原地修改，调整请复制为下一版本草稿。";
+      "当前路径版本已纳入机构生效版本；内容不可原地修改，调整请复制为下一版本草稿。";
     detailAlertType = "success";
   } else if (immutableVersion) {
     detailAlertMessage =
-      "当前内容版本已发布但未必进入医院运行修订；启停、升级和回滚统一在运行版本页面完成。";
+      "当前内容版本已发布但未必正在机构生效；启停、升级和回滚统一在发布治理页面完成。";
     detailAlertType = "warning";
   }
 
@@ -3573,7 +3573,7 @@ export default function PathwayTemplates() {
           ? [
               {
                 key: "l3",
-                label: "L3 DSL",
+                label: "L3 技术配置",
                 children: (
                   <Space direction="vertical" className={`mk-full-width ${styles.marginTopMd}`}>
                     <TextArea
@@ -3678,7 +3678,7 @@ export default function PathwayTemplates() {
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                         description={
                           snapshotQuery
-                            ? "未读取到 ACTIVE 快照"
+                            ? "未读取到已生效快照"
                             : "请输入患者 ID 或就诊 ID 读取真实快照"
                         }
                       />
@@ -3837,7 +3837,7 @@ export default function PathwayTemplates() {
                     ) : (
                       <Empty
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description="选择 ACTIVE 快照后可试运行路径"
+                        description="选择已生效快照后可试运行路径"
                       />
                     )}
                   </div>
@@ -3852,7 +3852,7 @@ export default function PathwayTemplates() {
   return (
     <PageShell
       title="路径中枢"
-      description="配置并维护专病临床路径，使用统一条件树、规则引用和真实快照试运行；运行生效由医院运行修订统一管理。"
+      description="配置并维护专病临床路径，使用统一条件树、规则引用和真实快照试运行；上线生效由发布治理统一管理。"
     >
       <div className={`${styles.surface} ${styles.filterSurface}`}>
         <Form layout="inline" className={styles.inlineForm}>
@@ -3928,12 +3928,12 @@ export default function PathwayTemplates() {
         <Form form={templateForm} layout="vertical" className={styles.marginTopMd}>
           <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
             <span className={`${styles.textSmall} ${styles.textSecondary}`}>
-              普通配置只展示 L1/L2；L3 DSL 需显式进入 L3 DSL 编辑模式。
+              普通配置只展示 L1/L2；L3 技术配置需显式进入技术配置模式。
             </span>
             <Space>
-              <span>L3 DSL 编辑模式</span>
+              <span>L3 技术配置模式</span>
               <Switch
-                aria-label="L3 DSL 编辑模式"
+                aria-label="L3 技术配置模式"
                 checked={createExpertMode}
                 onChange={toggleCreateExpertMode}
               />
@@ -3981,7 +3981,7 @@ export default function PathwayTemplates() {
             )}
             <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
               <span className={`${styles.textSmall} ${styles.textSecondary}`}>
-                路径拓扑与真实快照试运行是本页主流程；运行启停统一由医院运行修订管理。
+                  路径拓扑与真实快照试运行是本页主流程；上线启停统一由发布治理管理。
               </span>
               <Space>
                 <span>L3 技术视图</span>

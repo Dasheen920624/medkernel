@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
 /**
  * 自动生成规则候选的结构校验。
  *
- * <p>规则候选必须是完整 DSL、字段目录、系统字典和多触发绑定，不允许再携带手工运行版本。
+ * <p>规则候选必须是完整 DSL、字段目录、系统字典和多触发绑定，不允许再携带手工版本定位。
  */
 @Component
 public class GeneratedRuleCandidateValidator implements GeneratedAssetCandidateValidator {

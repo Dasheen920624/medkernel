@@ -14,7 +14,7 @@ public interface TermMappingSnapshotRepository extends ListCrudRepository<TermMa
     List<TermMappingSnapshotEntity> findByTenantIdAndVersionId(String tenantId, String versionId);
 
     /**
-     * 查询指定医院运行修订锁定的术语映射快照。
+     * 查询指定机构生效版本锁定的术语映射快照。
      */
     @Query("""
         SELECT DISTINCT
@@ -76,7 +76,7 @@ public interface TermMappingSnapshotRepository extends ListCrudRepository<TermMa
     );
 
     /**
-     * 按标准字典编码查询指定医院运行修订中的映射快照，供覆盖率验收使用。
+     * 按标准字典编码查询指定机构生效版本中的映射快照，供覆盖率验收使用。
      */
     @Query("""
         SELECT DISTINCT

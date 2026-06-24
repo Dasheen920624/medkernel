@@ -170,7 +170,7 @@ vi.mock("@/pages/workbench/ReadinessValidation", () => ({
 }));
 
 vi.mock("@/pages/tenant/ReleaseGovernance", () => ({
-  default: () => <div>运行发布</div>,
+  default: () => <div>发布治理</div>,
 }));
 
 function renderRouter(initialPath: string) {
@@ -226,11 +226,11 @@ describe("AppRouter", () => {
     expect(screen.queryByText("暂时无法核验权限")).toBeNull();
   });
 
-  it("exposes only the canonical runtime release route", async () => {
+  it("exposes only the canonical release governance route", async () => {
     securityProfileState.value = { data: runtimeReleaseProfile(), isError: false };
     renderRouter("/config/releases");
 
-    expect((await screen.findAllByText("运行发布")).length).toBeGreaterThanOrEqual(2);
+    expect((await screen.findAllByText("发布治理")).length).toBeGreaterThanOrEqual(2);
   });
 
   it("routes the WORKBENCH-02 readiness validation page through the protected layout", async () => {

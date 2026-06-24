@@ -7,10 +7,10 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 模型 provider 接入配置实体（LLM-08）。
+ * 模型服务接入配置实体（LLM-08）。
  *
- * <p>登记租户可用的真实模型 provider：类型（B1 本地 OLLAMA / B2 外部 OPENAI_COMPATIBLE·CLAUDE / DIFY）、
- * 端点、服务的模型版本、启停与健康状态。凭据由租户加密凭据库独立维护。
+ * <p>登记机构可用的真实模型服务：类型（B1 本地 OLLAMA / B2 外部 OPENAI_COMPATIBLE·CLAUDE / DIFY）、
+ * 调用地址、服务的模型版本、启停与健康状态。凭据由机构加密凭据库独立维护。
  */
 @Table("mk_llm_provider")
 public record ModelProviderConfig(

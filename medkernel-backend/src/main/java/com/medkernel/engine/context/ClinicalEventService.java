@@ -101,7 +101,7 @@ public class ClinicalEventService {
     }
 
     /**
-     * 接收上游已经锁定运行修订的事件，确保术语归一、事件持久化和后续快照始终消费同一清单。
+     * 接收上游已经锁定机构生效版本的事件，确保术语归一、事件持久化和后续快照始终消费同一清单。
      */
     @Transactional
     public ClinicalEventAcceptedResponse receiveAsyncBound(
@@ -398,7 +398,7 @@ public class ClinicalEventService {
         webhookConfigRepository.findByWebhookIdAndTenantId(callbackWebhookId, tenantId)
             .filter(config -> "ACTIVE".equalsIgnoreCase(config.status()))
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_INTEG_003,
-                "临床事件回调 Webhook 未在当前租户白名单中: " + callbackWebhookId));
+                "临床事件回调 Webhook 未在当前服务机构允许清单中: " + callbackWebhookId));
     }
 
     private ClinicalEventBatchStatus batchStatus(int acceptedCount, int failureCount) {

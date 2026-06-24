@@ -857,7 +857,7 @@ class EvaluationEngineServiceTest {
                 "res-1", "{\"patientId\":\"patient-1\",\"qualityReady\":true,\"completed\":true}")));
 
         EvaluationIndicator included = new EvaluationIndicator(
-            null, "ei-runtime", "tenant-A", "IND.QC.RUNTIME", 2, "运行修订内指标",
+            null, "ei-runtime", "tenant-A", "IND.QC.RUNTIME", 2, "机构生效版本内指标",
             EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),

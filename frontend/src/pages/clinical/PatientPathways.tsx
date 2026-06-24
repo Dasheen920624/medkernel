@@ -418,7 +418,7 @@ export default function PatientPathways() {
     try {
       const values = await enterForm.validateFields();
       if (!selectedContextSnapshot) {
-        message.error("请先选择 ACTIVE 临床快照");
+        message.error("请先选择已生效临床快照");
         return;
       }
       const res = await enterPathwayMutation.mutateAsync({
@@ -742,7 +742,7 @@ export default function PatientPathways() {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item label="ACTIVE 临床快照" required>
+          <Form.Item label="已生效临床快照" required>
             <ContextSnapshotSelector
               enabled={hasEnterSnapshotFilter}
               loading={enterSnapshotsQuery.isLoading}
@@ -760,10 +760,10 @@ export default function PatientPathways() {
             <Select
               showSearch
               optionFilterProp="label"
-              placeholder="选择当前医院运行修订允许的路径"
+              placeholder="选择当前机构生效版本允许的路径"
               loading={entryCandidatesQuery.isLoading}
               notFoundContent={
-                selectedContextSnapshotId ? "当前运行修订无可用候选路径" : "请先选择临床快照"
+                selectedContextSnapshotId ? "当前机构生效版本无可用候选路径" : "请先选择临床快照"
               }
             >
               {(entryCandidatesQuery.data?.candidates ?? []).map((candidate) => (
@@ -787,7 +787,7 @@ export default function PatientPathways() {
             <Alert
               type="info"
               showIcon
-              message="候选来自当前医院运行修订，确认后才会入径。"
+              message="候选来自当前机构生效版本，确认后才会入径。"
             />
           )}
           <Form.Item name="startNodeCode" label="起始临床推进节点 (可选，留空使用模板起点)">

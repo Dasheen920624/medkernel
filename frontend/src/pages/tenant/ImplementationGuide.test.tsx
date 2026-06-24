@@ -82,7 +82,7 @@ describe("ImplementationGuide", () => {
         status: "DONE",
         blockers: [],
         targetPath: "/config/releases",
-        evidence: "医院运行修订已启用",
+        evidence: "机构生效版本已启用",
       },
     ];
     apiMocks.implementationStepsLoading = false;

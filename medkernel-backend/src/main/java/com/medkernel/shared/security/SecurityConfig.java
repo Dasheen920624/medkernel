@@ -49,7 +49,7 @@ import com.medkernel.shared.idempotency.IdempotencyRepository;
  *   <li>JWT bearer token 由身份服务（OIDC / SAML / 国密 CA）签发；本应用作为 Resource Server 验签
  *   <li>无状态会话（不使用 HttpSession）
  *   <li>浏览器 cookie 会话走 CSRF 双提交；Bearer API 客户端不受影响
- *   <li>白名单：系统心跳、认证引导、健康检查、指标与接口文档；其余系统接口必须鉴权
+ *   <li>匿名允许入口：系统心跳、认证引导、健康检查、指标与接口文档；其余系统接口必须鉴权
  *   <li>dev/test 可用 HS256 本地密钥；生产禁止使用 dev 默认密钥
  * </ul>
  *

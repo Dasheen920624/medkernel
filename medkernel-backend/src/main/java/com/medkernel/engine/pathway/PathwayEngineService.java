@@ -267,7 +267,7 @@ public class PathwayEngineService {
         this.versionedAssets = Objects.requireNonNull(versionedAssets, "路径统一版本适配器不能为空");
         this.assetVersions = Objects.requireNonNull(assetVersions, "统一资产版本仓库不能为空");
         this.inheritanceResolver = Objects.requireNonNull(inheritanceResolver, "继承解析器不能为空");
-        this.runtimePathways = Objects.requireNonNull(runtimePathways, "运行修订路径选择器不能为空");
+        this.runtimePathways = Objects.requireNonNull(runtimePathways, "机构生效版本路径选择器不能为空");
     }
 
     PathwayEngineService(PathwayTemplateRepository templates,
@@ -434,7 +434,7 @@ public class PathwayEngineService {
         }
         throw new ApiException(
             ErrorCode.ENG_PATHWAY_005,
-            "路径模板尚未进入当前医院运行修订，不能入径: "
+            "路径模板尚未进入当前机构生效版本，不能入径: "
                 + template.templateCode() + "@" + template.templateVersion()
         );
     }
@@ -662,7 +662,7 @@ public class PathwayEngineService {
     /**
      * 查询当前患者快照和临床触发点下可供医师确认的入径候选。
      *
-     * <p>候选只来自快照锁定的医院运行修订；响应不提供运行修订或版本选择参数，
+     * <p>候选只来自快照锁定的机构生效版本；响应不提供机构生效版本或版本选择参数，
      * 入径时会重新执行同一选择校验，避免页面缓存绕过运行真相。
      */
     public PathwayEntryCandidateResponse entryCandidates(
@@ -675,13 +675,13 @@ public class PathwayEngineService {
                 || snapshot.resources().patient() == null) {
             throw new ApiException(
                 ErrorCode.ENG_PATHWAY_001,
-                "路径候选只能基于包含标准患者资源的 ACTIVE 上下文快照"
+                "路径候选只能基于包含标准患者资源的已生效上下文"
             );
         }
         if (isBlank(snapshot.runtimeReleaseId())) {
             throw new ApiException(
                 ErrorCode.ENG_PATHWAY_001,
-                "路径候选快照缺少医院运行修订，不能确定路径版本"
+                "路径候选快照缺少机构生效版本，不能确定路径版本"
             );
         }
         RuntimePathwaySelection selection = runtimePathways.selectEntryCandidates(
@@ -717,7 +717,7 @@ public class PathwayEngineService {
         if (snapshot.status() != ContextSnapshotStatus.ACTIVE || snapshot.resources() == null
                 || snapshot.resources().patient() == null) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_001,
-                "患者入径只能使用包含标准患者资源的 ACTIVE 上下文快照");
+                "患者入径只能使用包含标准患者资源的已生效上下文");
         }
         String patientId = snapshot.resources().patient().mpi();
         String encounterId = snapshot.resources().encounters().isEmpty()
@@ -726,7 +726,7 @@ public class PathwayEngineService {
         if (isBlank(snapshot.runtimeReleaseId())) {
             throw new ApiException(
                 ErrorCode.ENG_PATHWAY_001,
-                "患者入径快照缺少医院运行修订，不能确定路径版本"
+                "患者入径快照缺少机构生效版本，不能确定路径版本"
             );
         }
         RuntimePathwayReference selected = runtimePathways.requireEntryCandidate(
@@ -2262,13 +2262,13 @@ public class PathwayEngineService {
             .findByTemplateIdAndTenantId(selected.templateId(), selected.sourceTenantId())
             .orElseThrow(() -> new ApiException(
                 ErrorCode.ENG_PATHWAY_002,
-                "运行修订锁定的路径模板不存在: " + selected.templateId()
+                "机构生效版本锁定的路径模板不存在: " + selected.templateId()
             ));
         if (!selected.templateCode().equals(template.templateCode())
                 || selected.versionNo() != template.templateVersion()) {
             throw new ApiException(
                 ErrorCode.ENG_PATHWAY_006,
-                "运行修订路径版本与模板正文不一致: " + selected.pathwayVersionId()
+                "机构生效版本路径版本与模板正文不一致: " + selected.pathwayVersionId()
             );
         }
         return new EffectivePathwayTemplate(template, selected.sourceTenantId());

@@ -20,7 +20,7 @@ import com.medkernel.shared.api.error.ErrorCode;
  * 规则 DSL 临床算子支持库。
  *
  * <p>集中承载单位安全换算、时间窗判定和受控临床公式，保持 {@link RuleDslEvaluator}
- * 只负责条件树调度与解释拼装。当前白名单为确定性代码，不落库；如后续接 TERM-01 字典，
+ * 只负责条件树调度与解释拼装。当前允许范围为确定性代码，不落库；如后续接 TERM-01 字典，
  * 仍需保持无换算关系时诚实拒绝。
  */
 final class ClinicalRuleOperatorSupport {
@@ -267,14 +267,14 @@ final class ClinicalRuleOperatorSupport {
         JsonNode parameters = expected.path("parameters");
         requireObject(parameters, "derived.value.parameters");
         if (!ClinicalFunctionRegistry.isSupported(formulaName)) {
-            throw operatorInvalid("derived 公式不在白名单: " + formulaName);
+            throw operatorInvalid("derived 公式不在允许范围: " + formulaName);
         }
         DerivedResult result = switch (formulaName) {
             case ClinicalFunctionRegistry.CKD_EPI_2021_EGFR -> calculateEgfr(context, parameters);
             case ClinicalFunctionRegistry.COCKCROFT_GAULT_CRCL -> calculateCrcl(context, parameters);
             case ClinicalFunctionRegistry.MOSTELLER_BSA -> calculateBsa(context, parameters);
             case ClinicalFunctionRegistry.BMI -> calculateBmi(context, parameters);
-            default -> throw operatorInvalid("derived 公式不在白名单: " + formulaName);
+            default -> throw operatorInvalid("derived 公式不在允许范围: " + formulaName);
         };
 
         String expectedUnit = optionalText(expected, "unit");

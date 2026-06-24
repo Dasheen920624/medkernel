@@ -76,7 +76,7 @@ class ReleaseSimulationServiceTest {
             "tenant-A",
             VersionedAssetType.RULE,
             "RULE.VTE.RISK",
-            InheritanceOverrideStatus.PUBLISHED
+            InheritanceOverrideStatus.ACTIVE
         )).thenReturn(List.of(override("/TENANT-A/HOSP-A/DEPT-A")));
         doThrow(new ApiException(ErrorCode.CONFLICT, "引用完整性校验失败：术语版本不可解析"))
             .when(dependencies).assertDependenciesResolvable(candidate);
@@ -269,7 +269,7 @@ class ReleaseSimulationServiceTest {
             "av-local",
             InheritanceOverrideMode.REPLACE,
             InheritancePropagation.INHERITABLE,
-            InheritanceOverrideStatus.PUBLISHED,
+            InheritanceOverrideStatus.ACTIVE,
             orgPath,
             "adult|inpatient",
             "本地阈值更严格",

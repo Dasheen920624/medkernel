@@ -9,7 +9,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 /**
  * 正式知识生产入口策略。
  *
- * <p>公共生产控制台只允许经统一 Provider API 的大模型创建正式生产任务；Provider 可为本地或外部。
+ * <p>公共生产控制台只允许经受控模型服务创建正式生产任务；模型服务可为本地或外部。
  * B0、人工维护和内部初始化继续保留各自的内部服务边界，
  * 不得从公共正式入口混入模型生产审核池。
  */
@@ -18,7 +18,7 @@ public class FormalKnowledgeProductionPolicy {
 
     public void requireApiModel(ProductionJobRequest request) {
         if (request.producer() != KnowledgeProducer.API_MODEL) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "正式知识生产仅允许统一 Provider API 大模型生产器");
+            throw new ApiException(ErrorCode.BAD_REQUEST, "正式知识生产仅允许通过受控模型服务生产");
         }
         if (request.assetType() != VersionedAssetType.KNOWLEDGE
                 && request.assetType() != VersionedAssetType.RULE
@@ -33,7 +33,7 @@ public class FormalKnowledgeProductionPolicy {
     public void rejectB0Generation() {
         throw new ApiException(
             ErrorCode.BAD_REQUEST,
-            "正式知识生产不再接受 B0 候选生成，请使用统一 Provider API 模型生产任务"
+            "正式知识生产不再接受无模型候选生成，请使用受控模型服务生产任务"
         );
     }
 }

@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.engine.org.OrgUnitRepository;
+import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
 import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
 import com.medkernel.engine.versioning.AssetVersionRepository;
@@ -34,7 +35,7 @@ import com.medkernel.shared.ids.Ulid;
  * 平台知识按需派生服务。
  *
  * <p>默认读取平台版本时不复制数据；只有客户明确发起定制时，才复制知识身份、
- * 当前平台版本及其完整证据链，并固化平台基线血缘。
+ * 当前平台版本及其完整证据链，并固化平台标准版本血缘。
  */
 @Service
 public class KnowledgeCustomizationService {
@@ -139,8 +140,24 @@ public class KnowledgeCustomizationService {
                 actor)));
 
         ClonedEvidence evidence = cloneEvidence(platformVersion, tenantId, actor, now);
-        String localVersionNo = nextLocalVersionNo(
-            tenantId, localIdentity.id(), platformVersion.versionNo());
+        AssetVersion localAssetDraft = versionedAssets.registerDraft(new AssetVersionRegisterCommand(
+            tenantId,
+            VersionedAssetType.KNOWLEDGE,
+            localIdentity.identityCode(),
+            target.orgPath(),
+            applicableScope,
+            null,
+            platformVersion.contentHash(),
+            "platform-knowledge:" + platformVersion.id(),
+            actor,
+            traceId(),
+            platformVersion.isHighRisk()
+                ? AssetVersionSafetyPolicy.SAFETY_REDLINE
+                : AssetVersionSafetyPolicy.NORMAL,
+            platformVersion.isHighRisk()
+                ? AssetVersionOverridePolicy.REVIEW
+                : AssetVersionOverridePolicy.FREE));
+        String localVersionNo = localAssetDraft.versionNo();
         KnowledgeAssetVersion localVersion = versions.save(new KnowledgeAssetVersion(
             null,
             tenantId,
@@ -189,23 +206,6 @@ public class KnowledgeCustomizationService {
             localIdentity.createdBy(),
             now,
             actor));
-        versionedAssets.registerDraft(new AssetVersionRegisterCommand(
-            tenantId,
-            VersionedAssetType.KNOWLEDGE,
-            localIdentity.identityCode(),
-            target.orgPath(),
-            applicableScope,
-            null,
-            localVersion.contentHash(),
-            "platform-knowledge:" + platformVersion.id(),
-            actor,
-            traceId(),
-            localVersion.isHighRisk()
-                ? AssetVersionSafetyPolicy.SAFETY_REDLINE
-                : AssetVersionSafetyPolicy.NORMAL,
-            localVersion.isHighRisk()
-                ? AssetVersionOverridePolicy.REVIEW
-                : AssetVersionOverridePolicy.FREE));
 
         KnowledgeCustomization saved = customizations.save(new KnowledgeCustomization(
             existing.map(KnowledgeCustomization::customizationId)
@@ -496,11 +496,6 @@ public class KnowledgeCustomizationService {
                     now,
                     actor));
             });
-    }
-
-    private String nextLocalVersionNo(String tenantId, Long identityId, String platformVersionNo) {
-        long next = versions.countByTenantIdAndIdentityId(tenantId, identityId) + 1L;
-        return platformVersionNo + "-local-" + next;
     }
 
     private KnowledgeCustomizationResponse response(

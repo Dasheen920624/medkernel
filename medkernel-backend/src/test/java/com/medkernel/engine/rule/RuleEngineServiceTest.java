@@ -461,7 +461,7 @@ class RuleEngineServiceTest {
         authenticate(RoleCode.ENGINE_OPERATOR);
         RuleDefinition rule = existingRule(
             "rule-platform", PlatformTenant.ID, "RULE.PLATFORM.BASELINE",
-            "平台基线规则", "version-platform", RuleDefinitionStatus.DRAFT);
+            "平台标准版本规则", "version-platform", RuleDefinitionStatus.DRAFT);
         RuleVersion version = existingVersion(
             "version-platform", PlatformTenant.ID, "rule-platform", RuleVersionStatus.DRAFT);
         RuleGovernance draft = governance(
@@ -1064,7 +1064,7 @@ class RuleEngineServiceTest {
         authenticate(RoleCode.ENGINE_OPERATOR);
         RuleImpactResponse impact = service.impact("rule-1");
         VersionPublishQualityGate qualityGate = new VersionPublishQualityGate(
-            true, true, true, true, true, "规则发布质量门全部通过"
+            true, true, true, true, true, "规则发布质量校验全部通过"
         );
 
         RuleGovernanceResponse response = service.transitionGovernance(
@@ -1092,7 +1092,7 @@ class RuleEngineServiceTest {
             "trace-platform-rule", OrgScope.tenant(PlatformTenant.ID), "platform-publisher"));
         RuleDefinition rule = existingRule(
             "rule-platform", PlatformTenant.ID, "RULE.PLATFORM.BASELINE",
-            "平台基线规则", "version-platform", RuleDefinitionStatus.PUBLISHED);
+            "平台标准版本规则", "version-platform", RuleDefinitionStatus.PUBLISHED);
         RuleVersion version = existingVersion(
             "version-platform", PlatformTenant.ID, "rule-platform", RuleVersionStatus.PUBLISHED);
         RuleGovernance canary = governance(
@@ -1121,7 +1121,7 @@ class RuleEngineServiceTest {
             "平台管理员确认全量激活",
             new VersionPublishEvidence(
                 new VersionPublishQualityGate(
-                    true, true, true, true, true, "平台规则发布质量门全部通过"
+                    true, true, true, true, true, "平台规则发布质量校验全部通过"
                 )
             )
         );

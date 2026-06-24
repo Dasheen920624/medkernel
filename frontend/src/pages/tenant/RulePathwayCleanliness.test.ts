@@ -32,7 +32,7 @@ const forbiddenBusinessExamples = [
 ];
 
 const forbiddenBypassLanguage = [
-  "规避门禁",
+  "规避检查",
   "防止 ESLint",
   "AST 扫描",
   "模拟传入",
@@ -222,12 +222,12 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     );
   });
 
-  it("keeps one clean runtime release center without the retired package state machine", () => {
+  it("发布治理中心不再保留旧上线容器生命周期", () => {
     const releaseSource = readSource("src/pages/tenant/ReleaseGovernance.tsx");
     const hooksSource = readSource("src/shared/api/hooks.ts");
 
-    expect(releaseSource).toContain("平台权威基线");
-    expect(releaseSource).toContain("医院运行修订");
+    expect(releaseSource).toContain("平台标准版本");
+    expect(releaseSource).toContain("机构生效版本");
     expect(releaseSource).not.toContain("usePackages");
     expect(releaseSource).not.toContain("useReleasePackage");
     expect(releaseSource).not.toContain("配置" + "包");

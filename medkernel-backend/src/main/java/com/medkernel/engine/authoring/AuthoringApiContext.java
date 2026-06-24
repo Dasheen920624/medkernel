@@ -11,8 +11,8 @@ import com.medkernel.shared.api.error.ErrorCode;
 /**
  * 创作体验接口的标准上下文字段。
  *
- * <p>标准上下文只表达操作者和组织范围；预览所需的资产范围由草稿正文、运行修订或显式业务参数解析，
- * 不再把手工运行版本作为通用门槛。
+ * <p>标准上下文只表达操作者和组织范围；预览所需的资产范围由草稿正文、机构生效版本或显式业务参数解析，
+ * 不再把手工版本定位作为通用门槛。
  */
 public record AuthoringApiContext(
     @JsonProperty("request_id") String requestId,

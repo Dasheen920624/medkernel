@@ -2,7 +2,7 @@ package com.medkernel.engine.sandbox;
 
 import java.time.Instant;
 
-/** 当前认证医院沙盘运行修订的动态就绪状态。 */
+/** 当前认证医院沙盘机构生效版本的动态就绪状态。 */
 public record SandboxRuntimeStatusResponse(
     boolean ready,
     String reasonCode,

@@ -65,7 +65,7 @@ class SandboxReplayRuleExecutorTest {
             """);
         var actionCardContent = json.readTree("""
             {"actionCode":"REMIND","atSeverity":"HIGH","indicator":"warning",
-             "summary":"历史高钾复核提醒","detail":"按历史运行修订复核。",
+             "summary":"历史高钾复核提醒","detail":"按历史机构生效版本复核。",
              "source":{"label":"历史检验危急值制度","evidenceLevel":"院内制度"},
              "suggestions":[],"overrideReasons":["已复核标本"],"requiresPhysicianConfirmation":true}
             """);

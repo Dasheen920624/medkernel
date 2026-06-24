@@ -301,7 +301,7 @@ function WorkbenchCards({
             description="治理平台主源、机构派生、版本差异、审核发布和恢复平台标准，全程保留不可变血缘。"
             actions={[
               { label: "知识审核与发布", path: "/knowledge/governance" },
-              { label: "运行发布", path: "/config/releases" },
+              { label: "发布治理", path: "/config/releases" },
             ]}
             onNavigate={onNavigate}
           />
@@ -588,7 +588,7 @@ function KnowledgeSyncCard({
           return (
             <Space direction="vertical" size="small">
               <Tag>未接入</Tag>
-              <Text type="secondary">当前运行快照未返回知识同步来源。</Text>
+              <Text type="secondary">当前状态未返回知识同步来源。</Text>
             </Space>
           );
         }
@@ -652,7 +652,7 @@ function TodoCard({ onNavigate }: { onNavigate: (path: string) => void }) {
       <PageState
         state="empty"
         title="当前组织暂无待办"
-        description="当前组织暂无待办，可查看运行发布状态或切换组织。"
+        description="当前组织暂无待办，可查看发布治理状态或切换组织。"
         action={
           <Button type="link" onClick={() => onNavigate("/workflow/todos")}>
             查看待办
@@ -749,7 +749,7 @@ function SourceCard<T>({
           <Text>
             {customerSafeDisplayText(parsed.message, `${title}暂时不可用，请重试或联系信息科。`)}
           </Text>
-          {parsed.traceId ? <Text type="secondary">{parsed.traceId}</Text> : null}
+          {parsed.traceId ? <Text type="secondary">追踪号：{parsed.traceId}</Text> : null}
           {drilldownAction}
         </Space>
       </Card>
@@ -918,7 +918,7 @@ function PartialSourceAlert({
                 failure.message,
                 `${failure.name}暂时不可用，请重试或联系信息科。`,
               )}
-              {failure.traceId ? `（${failure.traceId}）` : ""}
+              {failure.traceId ? `（追踪号：${failure.traceId}）` : ""}
             </Text>
           ))}
         </Space>
@@ -1014,13 +1014,13 @@ function resolveWeeklyActions(
       {
         key: "implementation",
         title: "核对实施进度",
-        description: "查看实施阶段、运行修订与上线准备项。",
+        description: "查看实施阶段、机构生效版本与上线准备项。",
         path: "/onboarding/guide",
       },
       {
         key: "runtime-releases",
-        title: "复核运行修订",
-        description: "确认当前医院启用的平台基线和完整运行修订。",
+        title: "复核生效版本",
+        description: "确认当前机构启用的平台标准版本和完整内容组合。",
         path: "/config/releases",
       },
     );
@@ -1032,7 +1032,7 @@ function resolveWeeklyActions(
       actions.push({
         key: "providers",
         title: disconnected ? "核对未连接依赖" : "核对外部依赖",
-        description: "查看运行底座返回的依赖连通状态。",
+        description: "查看运行环境返回的依赖连通状态。",
         path: "/system/providers",
       });
     }

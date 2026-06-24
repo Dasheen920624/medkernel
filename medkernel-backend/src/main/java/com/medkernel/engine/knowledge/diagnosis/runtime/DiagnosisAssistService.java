@@ -41,7 +41,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 运行时鉴别诊断编排：发现 → 当前医院运行修订锁定诊断版本 → 红线合流 → 排序 → 候选 → 复用推荐卡统一落库治理。
+ * 运行时鉴别诊断编排：发现 → 当前机构生效版本锁定诊断版本 → 红线合流 → 排序 → 候选 → 复用推荐卡统一落库治理。
  *
  * <p>置信仍是分级非概率；弱支持默认折叠避噪声；无候选返回空态明示"不是排除诊断"、不落库；
  * 候选恒 requiresPhysicianConfirmation=true、非自动诊断。落库走 CDS Hook patient-view + scenarioCode S16。

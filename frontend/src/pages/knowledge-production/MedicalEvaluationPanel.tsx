@@ -45,7 +45,7 @@ export default function MedicalEvaluationPanel() {
         modelVersion: provider.modelVersion,
         capabilityCode: values.capabilityCode,
       });
-      message.success("当前制品医学评测已完成，结果和逐例证据已留痕");
+      message.success("当前交付文件医学评测已完成，结果和逐例证据已留痕");
     } catch (error) {
       message.error(getApiErrorMessage(error, "医学评测运行失败"));
     }
@@ -71,7 +71,7 @@ export default function MedicalEvaluationPanel() {
         type="warning"
         showIcon
         message="当前职责仅可查看评测进度"
-        description="由医疗引擎运营人员运行当前制品评测；通过结果直接作为模型放行证据。"
+        description="由医疗引擎运营人员运行当前交付内容评测；通过结果直接作为模型放行证据。"
       />
     );
   } else if (healthyProviders.length === 0) {
@@ -79,7 +79,7 @@ export default function MedicalEvaluationPanel() {
       <PageState
         state="empty"
         title="暂无可评测的健康模型服务"
-        description="请先由医疗引擎运营员配置 Key 并完成真实健康检查。"
+        description="请先由医疗引擎运营员配置密钥并完成真实健康检查。"
       />
     );
   } else {
@@ -112,7 +112,7 @@ export default function MedicalEvaluationPanel() {
           </Form.Item>
           <Form.Item label=" ">
             <Button type="primary" htmlType="submit" loading={runEvaluation.isPending}>
-              运行当前制品评测
+              运行当前交付文件评测
             </Button>
           </Form.Item>
         </Space>
@@ -127,12 +127,12 @@ export default function MedicalEvaluationPanel() {
           <Alert
             type="info"
             showIcon
-            message="评测绑定当前运行制品、Provider、模型版本和医学能力"
-            description="历史制品通过记录只保留审计，不能替代当前制品评测。"
+            message="评测绑定当前交付文件、模型服务、模型版本和医学能力"
+            description="历史交付文件的通过记录只保留审计，不能替代当前交付文件评测。"
           />
           {formContent}
           <Text type="secondary">
-            评测通过后直接作为当前制品的模型放行证据；模型输出仍只进入候选治理链，不会自动发布或开立医嘱。
+            评测通过后直接作为当前交付文件的模型放行证据；模型输出仍只进入候选治理链，不会自动发布或开立医嘱。
           </Text>
         </Space>
       </Card>

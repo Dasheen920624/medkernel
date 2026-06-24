@@ -11,9 +11,9 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * KNOWGEN 专用 payload 结构校验器。
+ * KNOWGEN 专用候选内容结构校验器。
  *
- * <p>校验必备结构是否存在，并阻断任何声明已预填医学内容的 payload。真实医学值必须来自后续真实来源导入。
+ * <p>校验必备结构是否存在，并阻断任何声明已预填医学内容的候选内容。真实医学值必须来自后续真实来源导入。
  */
 @Service
 public class KnowgenSpecializedPayloadValidator {
@@ -26,7 +26,7 @@ public class KnowgenSpecializedPayloadValidator {
         this.json = json;
     }
 
-    /** 校验指定 KNOWGEN 卡的专用 payload 结构。 */
+    /** 校验指定 KNOWGEN 卡的专用候选内容结构。 */
     public void validate(String cardCode, String payload) {
         KnowgenSpecializedAssetSkeleton skeleton = registry.require(cardCode);
         List<String> violations = new ArrayList<>();
@@ -47,18 +47,18 @@ public class KnowgenSpecializedPayloadValidator {
         }
         if (!violations.isEmpty()) {
             throw new ApiException(ErrorCode.BAD_REQUEST,
-                "KNOWGEN 专用 payload 校验不合格：" + String.join("；", violations));
+                "KNOWGEN 专用候选内容校验不合格：" + String.join("；", violations));
         }
     }
 
     private JsonNode parse(String payload) {
         if (payload == null || payload.isBlank()) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "KNOWGEN 专用 payload 不能为空");
+            throw new ApiException(ErrorCode.BAD_REQUEST, "KNOWGEN 专用候选内容不能为空");
         }
         try {
             return json.readTree(payload);
         } catch (Exception exception) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "KNOWGEN 专用 payload 不是合法 JSON");
+            throw new ApiException(ErrorCode.BAD_REQUEST, "KNOWGEN 专用候选内容结构不合法");
         }
     }
 

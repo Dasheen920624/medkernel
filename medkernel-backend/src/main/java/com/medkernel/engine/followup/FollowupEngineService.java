@@ -85,7 +85,7 @@ public class FollowupEngineService {
     @Transactional
     public FollowupPlanDetailResponse generatePlan(FollowupPlanGenerateRequest request) {
         if (request == null || !hasText(request.contextSnapshotId())) {
-            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访计划必须选择 ACTIVE 标准上下文快照");
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访计划必须选择已生效标准上下文");
         }
         RequestContext.Snapshot ctx = requireContext();
         String tenantId = ctx.orgScope().tenantId();
@@ -93,7 +93,7 @@ public class FollowupEngineService {
             .findBySnapshotIdAndTenantId(request.contextSnapshotId(), tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_FOLLOW_004, "标准上下文快照不存在"));
         if (snapshot.status() != ContextSnapshotStatus.ACTIVE) {
-            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访计划仅允许使用 ACTIVE 标准上下文快照");
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访计划仅允许使用已生效标准上下文");
         }
         ContextSnapshotResponse detail = contextSnapshotService.findById(request.contextSnapshotId());
         ContextSnapshotResources resources = detail.resources();
@@ -676,7 +676,7 @@ public class FollowupEngineService {
 
     private String requiredRuntimeRelease(String runtimeReleaseId, String usage) {
         if (!hasText(runtimeReleaseId)) {
-            throw new ApiException(ErrorCode.ENG_FOLLOW_004, usage + "必须绑定医院运行修订");
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, usage + "必须绑定机构生效版本");
         }
         return runtimeReleaseId.trim();
     }

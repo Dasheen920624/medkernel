@@ -1,7 +1,7 @@
 package com.medkernel.engine.knowledge.production;
 
 /**
- * 知识生产模型 readiness 单项裁决。
+ * 知识生产模型上线准备单项裁决。
  *
  * @param code 前置项代码
  * @param ready 该项是否满足

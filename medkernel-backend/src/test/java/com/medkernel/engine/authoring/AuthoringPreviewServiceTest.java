@@ -131,7 +131,7 @@ class AuthoringPreviewServiceTest {
             .contains("ATC:B01AA03")
             .doesNotContain("包版本", "pkg-2026.1");
         assertThat(response.warnings())
-            .contains("值集引用中的手工运行定位字段已忽略；请通过资产依赖和医院当前运行修订定位正式版本。");
+            .contains("值集引用中的手工运行定位字段已忽略；请通过资产依赖和当前机构生效版本定位正式版本。");
     }
 
     @Test

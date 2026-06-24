@@ -51,7 +51,7 @@ export function AuthoringReadablePreview({
         <Text strong>{title}</Text>
         <Space size="small" wrap>
           {previewQuery.isFetching && <Tag color="processing">更新中</Tag>}
-          {previewQuery.data?.traceId && <Tag>{previewQuery.data.traceId}</Tag>}
+          {previewQuery.data?.traceId && <Tag>追踪号：{previewQuery.data.traceId}</Tag>}
         </Space>
       </div>
       <Paragraph className={styles.text}>{previewQuery.data?.previewText ?? "暂无预览"}</Paragraph>

@@ -5,6 +5,29 @@ const label = (value: string | null | undefined, labels: LabelMap, fallback = "�
 const DEFAULT_CUSTOMER_SAFE_FALLBACK = "当前数据读取失败，请重试或联系信息科。";
 const TECHNICAL_DETAIL_PATTERN =
   /(?:\bECONN[A-Z_]*\b|\bSQL(?:Exception)?\b|\b[A-Za-z]+Exception\b|\bstack(?:\s+trace)?\b|\/api\/|https?:\/\/|127\.0\.0\.1|localhost|traceId|Trace ID|\b\d{1,3}(?:\.\d{1,3}){3}:\d+\b)/i;
+const customerTextReplacements: ReadonlyArray<readonly [RegExp, string]> = [
+  [/系统\s*B0\s*基线/g, "系统无模型规则链路"],
+  [/B0\s*主链路/g, "无模型规则主链路"],
+  [/B0\s*路径/g, "无模型规则路径"],
+  [/B0/g, "无模型规则链路"],
+  [/\s*ACTIVE\s*/g, "已生效"],
+  [/MFA/g, "多因素认证"],
+  [/运行底座/g, "运行环境"],
+  [/运行修订/g, "运行版本"],
+  [/回归病例/g, "验证病例"],
+  [/回归用例/g, "验证用例"],
+  [/医学回归/g, "医学验证"],
+  [/质量门/g, "发布质量校验"],
+  [/生产闸/g, "生产前校验"],
+  [/发布门禁/g, "发布校验"],
+  [/安全门禁/g, "安全校验"],
+  [/候选门禁/g, "候选安全校验"],
+  [/三元组/g, "提示词、工具与模型版本"],
+  [/白名单/g, "允许清单"],
+  [/令牌/g, "凭证"],
+  [/出域/g, "外调"],
+  [/租户/g, "服务机构"],
+];
 
 export const orgLevelLabels: LabelMap = {
   PLATFORM: "平台治理层",
@@ -355,6 +378,11 @@ export const customerDisplayText = (value?: string | null) => {
   if (!value) return "未设置";
   if (!/[\u3400-\u9fff]/.test(value)) return customerEnumLabel(value);
 
+  const replacedText = customerTextReplacements.reduce(
+    (text, [pattern, translated]) => text.replace(pattern, translated),
+    value,
+  );
+
   return Object.entries(customerEnumLabels)
     .sort(([left], [right]) => right.length - left.length)
     .reduce((text, [token, translated]) => {
@@ -363,7 +391,7 @@ export const customerDisplayText = (value?: string | null) => {
         new RegExp(`(^|[^A-Za-z0-9_])${escaped}(?=$|[^A-Za-z0-9_])`, "g"),
         `$1${translated}`,
       );
-    }, value);
+    }, replacedText);
 };
 export const hasTechnicalDetailText = (value?: string | null) =>
   Boolean(value && TECHNICAL_DETAIL_PATTERN.test(value));

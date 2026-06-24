@@ -18,7 +18,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 按医院运行修订与临床触发点选择确切规则版本。
+ * 按机构生效版本与临床触发点选择确切规则版本。
  */
 @Component
 public class RuntimeReleaseRuleSelector {
@@ -73,13 +73,13 @@ public class RuntimeReleaseRuleSelector {
                         || !item.assetIdentity().equals(binding.assetIdentity()))) {
                 throw new ApiException(
                     ErrorCode.ENG_RULE_006,
-                    "运行修订规则触发绑定与资产身份不一致：" + item.assetIdentity());
+                    "机构生效版本规则触发绑定与资产身份不一致：" + item.assetIdentity());
             }
             RuleDefinition rule = definitions
                 .findByTenantIdAndRuleCode(item.sourceTenantId(), item.assetIdentity())
                 .orElseThrow(() -> new ApiException(
                     ErrorCode.ENG_RULE_006,
-                    "运行修订内规则不存在：" + item.assetIdentity()
+                    "机构生效版本内规则不存在：" + item.assetIdentity()
                 ));
             RuleVersion pinnedVersion = versions
                 .findByRuleIdAndTenantIdAndVersionNo(
@@ -87,14 +87,14 @@ public class RuntimeReleaseRuleSelector {
                     parseVersionNo(item.versionNo(), item.assetIdentity()))
                 .orElseThrow(() -> new ApiException(
                     ErrorCode.ENG_RULE_006,
-                    "运行修订锁定规则版本不存在："
+                    "机构生效版本锁定规则版本不存在："
                         + item.assetIdentity() + "@" + item.versionNo()
                 ));
             if (rule.status() != RuleDefinitionStatus.PUBLISHED
                     || pinnedVersion.status() != RuleVersionStatus.PUBLISHED) {
                 throw new ApiException(
                     ErrorCode.ENG_RULE_006,
-                    "运行修订锁定规则版本未发布："
+                    "机构生效版本锁定规则版本未发布："
                         + item.assetIdentity() + "@" + item.versionNo()
                 );
             }

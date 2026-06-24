@@ -5,7 +5,7 @@
 ## 治理边界（不绕治理）
 
 - **走后端 API 鉴权**：仅经 `MEDKERNEL_API_BASE` + `MEDKERNEL_API_TOKEN` 调后端受控合同。
-- **不直连数据库、不读本地库连接串**：配置只读 API 基址与令牌，JDBC/DATASOURCE/DATABASE_URL 等一律不读不用。
+- **不直连数据库、不读本地库连接串**：配置只读 API 基址与访问凭证，JDBC/DATASOURCE/DATABASE_URL 等一律不读不用。
 - **不绕治理**：工具清单/权限/脱敏/审计/降级全由后端裁决；CLI 只是薄客户端。
 - **导出范围确认**：CLI 只使用后端冻结并留证的范围，提交、查询和登记真实导出任务。
 
@@ -14,7 +14,7 @@
 | 环境变量 | 说明 |
 |---|---|
 | `MEDKERNEL_API_BASE` | 后端 API 基址，如 `https://medkernel.example.org` |
-| `MEDKERNEL_API_TOKEN` | 后端鉴权令牌（Bearer）；读工具须 `engine-data.read`，Agent 取数/回写须 `knowledge.write`，导出动作须相应导出权限 |
+| `MEDKERNEL_API_TOKEN` | 后端访问凭证（Bearer）；读工具须 `engine-data.read`，Agent 取数/回写须 `knowledge.write`，导出动作须相应导出权限 |
 
 ## 用法
 
@@ -30,13 +30,13 @@ medkernel <命令域> <动作> [参数] [--purpose 用途]
 | `clinical-signals` | `list` / `summary` | `GET /clinical-signals` / 工具 `summarizeEngineSignals` |
 | `agent` | `submit-candidate <payloadJson>` / `fetch-public-material <payloadJson>` | 工具 `submitProductionCandidate` / `fetchPublicMaterial` |
 | `privacy` | `validate <D0-D5>` | 工具 `validatePrivacyPolicy` |
-| `exports` | `submit <exportType> <confirmationId> <idempotencyKey>` / `status <jobCode>` / `list` / `cancel <jobCode>` / `complete <confirmationId> <jobCode>` | 范围确认后的导出任务与真实产物登记端点 |
+| `exports` | `submit <exportType> <confirmationId> <idempotencyKey>` / `status <jobCode>` / `list` / `cancel <jobCode>` / `complete <confirmationId> <jobCode>` | 范围确认后的导出任务与真实产物登记入口 |
 
 示例：
 
 ```
 medkernel diagnostics
-medkernel knowledge search 糖尿病 --purpose "交付前知识包核查"
+medkernel knowledge search 糖尿病 --purpose "交付前知识资产核查"
 medkernel agent fetch-public-material '{"sourceCode":"NHC-HTN","url":"https://guideline.example.org/htn.txt","versionNo":"v2026","format":"STRUCTURED_TEXT","dataLevel":"D1"}' --purpose "Agent 受控获取公域资料"
 medkernel privacy validate D5
 ```

@@ -31,7 +31,7 @@ import com.medkernel.shared.context.RequestContext;
 /**
  * 页面嵌入引擎服务实现类 (GA-ENG-API-11)。
  *
- * <p>提供嵌入 Launch Token 的生命周期管理（短时生成、原子锁定校验）、Origin安全域名过滤以及医生反馈决策闭环子事务留痕能力。
+ * <p>提供嵌入启动凭证的生命周期管理（短时生成、原子锁定校验）、来源域名允许清单校验以及医生反馈决策闭环子事务留痕能力。
  */
 @Service
 public class EmbedEngineService {
@@ -63,10 +63,10 @@ public class EmbedEngineService {
     }
 
     /**
-     * 生成一次性嵌入启动令牌。
+     * 生成一次性嵌入启动凭证。
      *
-     * @param req 令牌申请请求信息，含用户、就诊和触发位置点
-     * @return 启动令牌及拼接好的嵌入URL
+     * @param req 启动凭证申请请求信息，含用户、就诊和触发位置点
+     * @return 启动凭证及拼接好的嵌入URL
      */
     @Transactional
     public EmbedLaunchTokenResponse generateToken(EmbedLaunchTokenRequest req) {
@@ -75,9 +75,9 @@ public class EmbedEngineService {
         String roleCode = requireAuthenticatedRole(req.roleCode());
         String traceId = RequestContext.currentTraceId();
 
-        String triggerPoint = requireSupportedCdsHook(req.triggerPoint(), "签发嵌入令牌触发点");
-        String hook = requireSupportedCdsHook(req.hook(), "签发嵌入令牌 CDS Hook");
-        requireSameCdsHook(triggerPoint, hook, "签发嵌入令牌");
+        String triggerPoint = requireSupportedCdsHook(req.triggerPoint(), "签发嵌入凭证触发点");
+        String hook = requireSupportedCdsHook(req.hook(), "签发嵌入凭证 CDS Hook");
+        requireSameCdsHook(triggerPoint, hook, "签发嵌入凭证");
         String parentOrigin = requireTokenOrigin(tenantId, req.integrationMode(), req.parentOrigin());
 
         String tokenValue = "tkn-" + UUID.randomUUID().toString().replace("-", "");
@@ -115,34 +115,34 @@ public class EmbedEngineService {
         String embedUrl = "/embed/launch?token=" + tokenValue;
 
         auditRecorder.record(AuditAction.CREATE, "embed_launch_token", tokenValue,
-            "生成嵌入启动令牌 triggerPoint=" + triggerPoint + " patientId=" + req.patientId());
+            "生成嵌入启动凭证 triggerPoint=" + triggerPoint + " patientId=" + req.patientId());
 
         return new EmbedLaunchTokenResponse(tokenValue, expiredAt, embedUrl,
             req.integrationMode(), LAUNCH_ENDPOINT, hook, hookInstance);
     }
 
     /**
-     * 校验并原子性消费启动令牌，获取当前嵌入会话上下文。
+     * 校验并原子性使用启动凭证，获取当前嵌入会话上下文。
      *
-     * @param request 启动令牌兑换请求
+     * @param request 启动凭证兑换请求
      * @return 会话及关联的临床上下文
      */
     @Transactional
     public EmbedLaunchContextResponse validateAndExchange(EmbedLaunchRequest request) {
         EmbedLaunchToken entity = tokenRepo.findByToken(request.token())
             .orElseThrow(() -> {
-                publishFailureAudit(ErrorCode.ENG_EMBED_004, "启动令牌不存在 token=" + request.token());
-                return new ApiException(ErrorCode.ENG_EMBED_004, "启动令牌不存在");
+                publishFailureAudit(ErrorCode.ENG_EMBED_004, "启动凭证不存在 凭证编号=" + request.token());
+                return new ApiException(ErrorCode.ENG_EMBED_004, "启动凭证不存在");
             });
 
         String tenantId = entity.tenantId();
         String parentOrigin = requirePersistedOrigin(entity);
         LaunchContract contract = validateLaunchContract(request, entity);
 
-        // 2. 令牌状态与时效性校验
+        // 2. 凭证状态与时效性校验
         if (EmbedLaunchTokenStatus.USED.name().equalsIgnoreCase(entity.status())) {
-            publishFailureAudit(ErrorCode.ENG_EMBED_003, "启动令牌已被使用 token=" + request.token());
-            throw new ApiException(ErrorCode.ENG_EMBED_003, "启动令牌已被使用");
+            publishFailureAudit(ErrorCode.ENG_EMBED_003, "启动凭证已被使用 凭证编号=" + request.token());
+            throw new ApiException(ErrorCode.ENG_EMBED_003, "启动凭证已被使用");
         }
 
         Instant now = Instant.now();
@@ -157,13 +157,13 @@ public class EmbedEngineService {
                 );
                 tokenRepo.save(expired);
             }
-            publishFailureAudit(ErrorCode.ENG_EMBED_001, "启动令牌已过期 token=" + request.token());
-            throw new ApiException(ErrorCode.ENG_EMBED_001, "启动令牌已过期");
+            publishFailureAudit(ErrorCode.ENG_EMBED_001, "启动凭证已过期 凭证编号=" + request.token());
+            throw new ApiException(ErrorCode.ENG_EMBED_001, "启动凭证已过期");
         }
 
         if (!EmbedLaunchTokenStatus.UNUSED.name().equalsIgnoreCase(entity.status())) {
-            publishFailureAudit(ErrorCode.ENG_EMBED_005, "启动令牌状态不允许消费 token=" + request.token());
-            throw new ApiException(ErrorCode.ENG_EMBED_005, "启动令牌状态不允许消费");
+            publishFailureAudit(ErrorCode.ENG_EMBED_005, "启动凭证状态不允许使用 凭证编号=" + request.token());
+            throw new ApiException(ErrorCode.ENG_EMBED_005, "启动凭证状态不允许使用");
         }
 
         // 3. 原子标记为已使用，实现一次性物理消费
@@ -174,7 +174,7 @@ public class EmbedEngineService {
         }
 
         auditRecorder.record(AuditAction.EXECUTE, "embed_launch_token", request.token(),
-            "消费嵌入令牌成功 userId=" + entity.userId() + " triggerPoint=" + entity.triggerPoint());
+            "使用嵌入启动凭证成功 userId=" + entity.userId() + " triggerPoint=" + entity.triggerPoint());
 
         return new EmbedLaunchContextResponse(
             entity.userId(),
@@ -196,7 +196,7 @@ public class EmbedEngineService {
     }
 
     /**
-     * 按令牌绑定的临床上下文读取可处置建议，不依赖浏览器登录 Cookie。
+     * 按启动凭证绑定的临床上下文读取可处置建议，不依赖浏览器登录 Cookie。
      */
     @Transactional(readOnly = true)
     public EmbedRecommendationCardsResponse listCards(EmbedRecommendationCardsRequest req) {
@@ -232,7 +232,7 @@ public class EmbedEngineService {
                     || !same(entity.encounterId(), detail.trigger().encounterId())
                     || !same(entity.triggerPoint(), detail.trigger().triggerType())) {
                 publishFailureAudit(ErrorCode.ENG_EMBED_005,
-                    "嵌入反馈卡片超出令牌临床上下文 token=" + req.token() + " cardId=" + req.cardId());
+                    "嵌入反馈卡片超出当前会话授权范围 凭证编号=" + req.token() + " cardId=" + req.cardId());
                 throw new ApiException(ErrorCode.ENG_EMBED_005, "反馈卡片不属于当前嵌入会话");
             }
             var feedback = recommendations.feedback(
@@ -254,7 +254,7 @@ public class EmbedEngineService {
     }
 
     /**
-     * 为当前租户添加允许嵌入 Origin 白名单。
+     * 为当前服务机构添加允许嵌入的 Origin 来源域名。
      *
      * @param req 域名Origin配置
      */
@@ -281,13 +281,13 @@ public class EmbedEngineService {
         originRepo.save(entity);
 
         auditRecorder.record(AuditAction.CREATE, "embed_origin_whitelist", req.origin(),
-            "添加Origin安全域名白名单 origin=" + req.origin());
+            "添加 Origin 来源域名允许清单 origin=" + req.origin());
     }
 
     /**
-     * 获取当前租户下配置的所有 Origin 白名单列表。
+     * 获取当前服务机构下配置的所有 Origin 来源域名允许清单。
      *
-     * @return Origin域名白名单列表
+     * @return Origin 来源域名允许清单
      */
     @Transactional(readOnly = true)
     public List<String> getOrigins() {
@@ -312,7 +312,7 @@ public class EmbedEngineService {
     private String requireCurrentUser() {
         return RequestContext.currentUserId()
             .filter(this::hasText)
-            .orElseThrow(() -> new ApiException(ErrorCode.ENG_EMBED_005, "签发嵌入令牌缺少认证用户"));
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_EMBED_005, "签发嵌入凭证缺少认证用户"));
     }
 
     private String requireAuthenticatedRole(String value) {
@@ -331,13 +331,13 @@ public class EmbedEngineService {
             publishFailureAudit(ErrorCode.ENG_EMBED_005,
                 "嵌入方式不匹配 token=" + request.token() + " expected=" + tokenMode
                     + " actual=" + request.integrationMode());
-            throw new ApiException(ErrorCode.ENG_EMBED_005, "嵌入方式与启动令牌不匹配");
+            throw new ApiException(ErrorCode.ENG_EMBED_005, "嵌入方式与启动凭证不匹配");
         }
-        String tokenTriggerPoint = requireSupportedCdsHook(entity.triggerPoint(), "启动令牌触发点");
+        String tokenTriggerPoint = requireSupportedCdsHook(entity.triggerPoint(), "启动凭证触发点");
         String tokenHook = hasText(entity.hook())
-            ? requireSupportedCdsHook(entity.hook(), "启动令牌 CDS Hook")
+            ? requireSupportedCdsHook(entity.hook(), "启动凭证 CDS Hook")
             : tokenTriggerPoint;
-        requireSameCdsHook(tokenTriggerPoint, tokenHook, "启动令牌");
+        requireSameCdsHook(tokenTriggerPoint, tokenHook, "启动凭证");
         String requestHook = hasText(request.hook())
             ? requireSupportedCdsHook(request.hook(), "兑换请求 CDS Hook")
             : tokenHook;
@@ -345,13 +345,13 @@ public class EmbedEngineService {
             publishFailureAudit(ErrorCode.ENG_EMBED_005,
                 "CDS Hook 不匹配 token=" + request.token() + " expected=" + tokenHook
                     + " actual=" + requestHook);
-            throw new ApiException(ErrorCode.ENG_EMBED_005, "CDS Hook 与启动令牌不匹配");
+            throw new ApiException(ErrorCode.ENG_EMBED_005, "CDS Hook 与启动凭证不匹配");
         }
         if (hasText(request.hookInstance()) && hasText(entity.hookInstance())
                 && !request.hookInstance().equals(entity.hookInstance())) {
             publishFailureAudit(ErrorCode.ENG_EMBED_005,
                 "CDS Hook 实例不匹配 token=" + request.token());
-            throw new ApiException(ErrorCode.ENG_EMBED_005, "CDS Hook 实例与启动令牌不匹配");
+            throw new ApiException(ErrorCode.ENG_EMBED_005, "CDS Hook 实例与启动凭证不匹配");
         }
         String hookInstance = hasText(entity.hookInstance()) ? entity.hookInstance() : request.hookInstance();
         return new LaunchContract(tokenTriggerPoint, tokenHook, hookInstance);
@@ -362,7 +362,7 @@ public class EmbedEngineService {
             return null;
         }
         if (!hasText(requestedOrigin)) {
-            publishFailureAudit(ErrorCode.ENG_EMBED_002, "签发嵌入令牌缺少父系统 Origin");
+            publishFailureAudit(ErrorCode.ENG_EMBED_002, "签发嵌入凭证缺少父系统 Origin");
             throw new ApiException(ErrorCode.ENG_EMBED_002, "父系统 Origin 不能为空");
         }
         String origin = requestedOrigin.trim();
@@ -380,8 +380,8 @@ public class EmbedEngineService {
             return entity.parentOrigin();
         }
         if (!hasText(entity.parentOrigin())) {
-            publishFailureAudit(ErrorCode.ENG_EMBED_002, "启动令牌未绑定父系统 Origin token=" + entity.token());
-            throw new ApiException(ErrorCode.ENG_EMBED_002, "启动令牌未绑定父系统 Origin");
+            publishFailureAudit(ErrorCode.ENG_EMBED_002, "启动凭证未绑定父系统 Origin 凭证编号=" + entity.token());
+            throw new ApiException(ErrorCode.ENG_EMBED_002, "启动凭证未绑定父系统 Origin");
         }
         return entity.parentOrigin();
     }
@@ -389,12 +389,12 @@ public class EmbedEngineService {
     private EmbedLaunchToken requireActiveSession(String token) {
         EmbedLaunchToken entity = tokenRepo.findByToken(token)
             .orElseThrow(() -> {
-                publishFailureAudit(ErrorCode.ENG_EMBED_004, "嵌入会话令牌不存在 token=" + token);
-                return new ApiException(ErrorCode.ENG_EMBED_004, "嵌入会话令牌不存在");
+                publishFailureAudit(ErrorCode.ENG_EMBED_004, "嵌入会话凭证不存在 凭证编号=" + token);
+                return new ApiException(ErrorCode.ENG_EMBED_004, "嵌入会话凭证不存在");
             });
         if (!EmbedLaunchTokenStatus.USED.name().equalsIgnoreCase(entity.status())) {
-            publishFailureAudit(ErrorCode.ENG_EMBED_005, "嵌入会话令牌未完成消费 token=" + token);
-            throw new ApiException(ErrorCode.ENG_EMBED_005, "嵌入会话令牌未完成消费");
+            publishFailureAudit(ErrorCode.ENG_EMBED_005, "嵌入会话凭证未完成使用 凭证编号=" + token);
+            throw new ApiException(ErrorCode.ENG_EMBED_005, "嵌入会话凭证未完成使用");
         }
         if (!Instant.now().isBefore(entity.expiredAt())) {
             publishFailureAudit(ErrorCode.ENG_EMBED_001, "嵌入会话已过期 token=" + token);
@@ -457,15 +457,15 @@ public class EmbedEngineService {
         Optional<EmbedLaunchToken> current = tokenRepo.findByToken(token)
             .filter(t -> tenantId.equals(t.tenantId()));
         if (current.isPresent() && EmbedLaunchTokenStatus.USED.name().equalsIgnoreCase(current.get().status())) {
-            publishFailureAudit(ErrorCode.ENG_EMBED_003, "启动令牌已被并发使用 token=" + token);
-            return new ApiException(ErrorCode.ENG_EMBED_003, "启动令牌已被使用");
+            publishFailureAudit(ErrorCode.ENG_EMBED_003, "启动凭证已被并发使用 凭证编号=" + token);
+            return new ApiException(ErrorCode.ENG_EMBED_003, "启动凭证已被使用");
         }
         if (current.isPresent() && Instant.now().isAfter(current.get().expiredAt())) {
-            publishFailureAudit(ErrorCode.ENG_EMBED_001, "启动令牌并发消费时已过期 token=" + token);
-            return new ApiException(ErrorCode.ENG_EMBED_001, "启动令牌已过期");
+            publishFailureAudit(ErrorCode.ENG_EMBED_001, "启动凭证并发使用时已过期 凭证编号=" + token);
+            return new ApiException(ErrorCode.ENG_EMBED_001, "启动凭证已过期");
         }
-        publishFailureAudit(ErrorCode.ENG_EMBED_005, "启动令牌原子消费失败 token=" + token);
-        return new ApiException(ErrorCode.ENG_EMBED_005, "启动令牌无法完成原子消费");
+        publishFailureAudit(ErrorCode.ENG_EMBED_005, "启动凭证原子使用失败 凭证编号=" + token);
+        return new ApiException(ErrorCode.ENG_EMBED_005, "启动凭证无法完成原子使用");
     }
 
     private EmbedIntegrationMode parseIntegrationMode(String value) {

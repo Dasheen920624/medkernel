@@ -312,14 +312,14 @@ describe("route metadata", () => {
     ).toBe(false);
   });
 
-  it("uses one runtime release entry without retaining the old package route", () => {
+  it("uses one release governance entry without retaining the old package route", () => {
     const route = findRouteByPath("/config/releases");
 
     expect(route?.requiredPermissions).toEqual([
       "menu.runtime-releases",
       "asset.read",
     ]);
-    expect(route?.menuLabel).toBe("运行发布");
+    expect(route?.menuLabel).toBe("发布治理");
     expect(
       canAccessRoute(route, {
         roles: [{ code: "platform-admin" }],

@@ -31,9 +31,9 @@ describe("PageState", () => {
   });
 
   it("renders empty state with action", () => {
-    render(<PageState state="empty" title="暂无运行发布" action={<Button>导入发布制品</Button>} />);
-    expect(screen.getByText("暂无运行发布")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "导入发布制品" })).toBeInTheDocument();
+    render(<PageState state="empty" title="暂无发布记录" action={<Button>导入离线交付文件</Button>} />);
+    expect(screen.getByText("暂无发布记录")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "导入离线交付文件" })).toBeInTheDocument();
   });
 
   it("renders error tracking number and retry action", () => {

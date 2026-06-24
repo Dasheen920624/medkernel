@@ -61,7 +61,7 @@ class IntegrationDataContractServiceTest {
         assertThat(contract.runtimeReleaseId()).isEqualTo("runtime-H7");
         assertThat(contract.schemaVersion()).isEqualTo("medkernel.context-field-contract.v1");
         assertThat(String.join("\n", contract.accessGuide()))
-            .contains("医院当前运行修订", "runtime-H7", "投影", "规则/路径")
+            .contains("当前机构生效版本", "runtime-H7", "投影", "规则/路径")
             .doesNotContain("packageVersion", "packageId");
         assertThat(contract.fields()).extracting("fieldPath")
             .containsExactly(

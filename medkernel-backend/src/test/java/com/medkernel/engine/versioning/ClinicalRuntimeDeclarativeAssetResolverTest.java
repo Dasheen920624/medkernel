@@ -119,6 +119,13 @@ class ClinicalRuntimeDeclarativeAssetResolverTest {
             .hasMessageContaining("清单不一致");
     }
 
+    @Test
+    void reportsMissingRuntimeRevisionWithCurrentTerminology() {
+        assertThatThrownBy(() -> resolver.resolve(
+            "tenant-A", " ", VersionedAssetType.VALUE_SET, "VS.ANTICOAGULANT"))
+            .hasMessageContaining("机构生效版本 ID");
+    }
+
     private ClinicalRuntimeReleaseContent content(ClinicalRuntimeReleaseItem item) {
         ClinicalRuntimeRelease release = new ClinicalRuntimeRelease(
             4L, "release-4", "tenant-A", "hospital-A", 4L,

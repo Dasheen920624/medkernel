@@ -23,7 +23,7 @@ public record ClockSlaBreachedEvent(
     public ClockSlaBreachedEvent {
         tenantId = Objects.requireNonNull(tenantId, "关键时钟事件租户不能为空");
         traceId = Objects.requireNonNull(traceId, "关键时钟事件 trace 不能为空");
-        runtimeReleaseId = Objects.requireNonNull(runtimeReleaseId, "关键时钟事件运行修订不能为空");
+        runtimeReleaseId = Objects.requireNonNull(runtimeReleaseId, "关键时钟事件机构生效版本不能为空");
         patientPathwayId = Objects.requireNonNull(patientPathwayId, "关键时钟事件患者路径 ID 不能为空");
         clockId = Objects.requireNonNull(clockId, "关键时钟事件时钟 ID 不能为空");
         nodeCode = Objects.requireNonNull(nodeCode, "关键时钟事件节点编码不能为空");

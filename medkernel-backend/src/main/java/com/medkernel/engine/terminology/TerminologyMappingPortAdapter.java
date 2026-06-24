@@ -13,7 +13,7 @@ import com.medkernel.engine.context.TerminologyMappingPort;
 import com.medkernel.engine.versioning.PlatformAuthority;
 
 /**
- * 医院运行修订锁定术语版本对标准上下文 / FHIR 门面的字典状态端口实现。
+ * 机构生效版本锁定术语版本对标准上下文 / FHIR 门面的字典状态端口实现。
  */
 @Component
 public class TerminologyMappingPortAdapter implements TerminologyMappingPort {

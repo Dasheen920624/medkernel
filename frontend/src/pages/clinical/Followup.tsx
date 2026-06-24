@@ -721,7 +721,7 @@ export default function Followup() {
             <Form.Item label="患者 ID">
               <Input
                 aria-label="随访快照患者 ID"
-                placeholder="输入患者 ID 检索 ACTIVE 快照"
+                placeholder="输入患者 ID 检索已生效快照"
                 value={snapshotPatientId}
                 onChange={(event) => {
                   setSnapshotPatientId(event.target.value);
@@ -752,8 +752,8 @@ export default function Followup() {
           />
           {snapshotDetailQuery.data ? (
             <Descriptions bordered size="small" column={2}>
-              <Descriptions.Item label="快照运行标识">
-                {snapshotDetailQuery.data.runtimeReleaseId ?? "由医院当前运行修订解析"}
+              <Descriptions.Item label="机构生效版本">
+                {snapshotDetailQuery.data.runtimeReleaseId ?? "由当前机构生效版本确认"}
               </Descriptions.Item>
               <Descriptions.Item label="质量状态">
                 {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
@@ -767,7 +767,7 @@ export default function Followup() {
               {
                 validator: async () => {
                   if (!selectedSnapshotId) {
-                    throw new Error("请选择 ACTIVE 随访上下文快照");
+                    throw new Error("请选择已生效随访上下文快照");
                   }
                 },
               },
@@ -975,7 +975,7 @@ export default function Followup() {
                       <Tag color="red">异常事件 {abnormalEvidence.eventId}</Tag>
                       <Tag color="orange">回院任务 {abnormalEvidence.returnTaskId}</Tag>
                       <Tag color="gold">通知事件 {abnormalEvidence.notificationEventId}</Tag>
-                      <Tag>追踪链路 {abnormalEvidence.traceId}</Tag>
+                      <Tag>追踪号 {abnormalEvidence.traceId}</Tag>
                     </Space>
                   }
                 />

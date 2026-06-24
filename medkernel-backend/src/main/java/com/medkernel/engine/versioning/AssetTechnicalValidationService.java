@@ -15,7 +15,7 @@ import com.medkernel.shared.ids.Ulid;
  * 发布前同步技术验证服务。
  *
  * <p>每次发布都重新校验稳定身份、可恢复正文和内容哈希，并保存绑定精确版本的证据。
- * 依赖闭包必须由平台或医院的完整发布清单统一校验，避免原子发布中的多个新版本被逐项误判。
+     * 依赖闭包必须由平台或医院的完整版本明细统一校验，避免原子发布中的多个新版本被逐项误判。
  * 医学内容本身仍由各资产类型的正文校验器负责，本服务不建立第二套审核状态机。
  */
 @Service
@@ -81,7 +81,7 @@ public class AssetTechnicalValidationService {
             version.versionId(),
             version.contentHash(),
             true,
-            "同步技术验证通过：稳定身份和正文哈希有效；依赖闭包由完整发布清单校验",
+            "同步技术验证通过：稳定身份和正文哈希有效；依赖闭包由完整版本明细校验",
             now,
             required(actor, "验证人"),
             blankToNull(traceId)

@@ -25,7 +25,7 @@ describe("ModelProductionConsole", () => {
     render(<ModelProductionConsole />);
 
     expect(screen.getByRole("heading", { name: "模型生产控制台" })).toBeInTheDocument();
-    const labels = ["模型服务与 Key", "医学评测", "八项生产闸", "开始生产"];
+    const labels = ["模型服务与密钥", "医学评测", "生产前校验", "开始生产"];
     for (let index = 1; index < labels.length; index += 1) {
       const previous = screen.getAllByText(labels[index - 1], { exact: true })[0];
       const current = screen.getAllByText(labels[index], { exact: true })[0];

@@ -1517,7 +1517,7 @@ class RuleDslEvaluatorTest {
                 ]
               },
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "体表面积与肌酐清除率提醒", "detail": "体表面积与肌酐清除率提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
-              "explain": {"title": "受控公式", "reason": "校验白名单公式"}
+              "explain": {"title": "受控公式", "reason": "校验允许范围公式"}
             }
             """), read("""
             {

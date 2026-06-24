@@ -120,7 +120,7 @@ export function buildFullSystemStagePlan(config) {
     },
     {
       id: "sandbox",
-      label: "演练机构十规则四十用例与运行修订",
+      label: "演练机构十规则四十用例与机构生效版本",
       command: process.execPath,
       args: ["scripts/sandbox/seed-scenarios.mjs"],
       cwd: config.repoRoot,

@@ -15,9 +15,9 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 从医院运行修订中解析本次临床可使用的随访模板版本。
+ * 从机构生效版本中解析本次临床可使用的随访模板版本。
  *
- * <p>随访计划生成不得按模板 ID 直接读取全租户已发布模板；必须由运行修订锁定
+ * <p>随访计划生成不得按模板 ID 直接读取全租户已发布模板；必须由机构生效版本锁定
  * {@code FOLLOWUP} 资产身份、版本号和内容摘要后，再反查对应模板实体。
  */
 @Component
@@ -52,7 +52,7 @@ public class RuntimeReleaseFollowupTemplateSelector {
                 return template;
             }
         }
-        throw invalid("当前医院运行修订未启用随访模板: " + requestedTemplateId);
+        throw invalid("当前机构生效版本未启用随访模板: " + requestedTemplateId);
     }
 
     private FollowupTemplate resolveTemplate(ClinicalRuntimeReleaseItem item) {
@@ -61,21 +61,21 @@ public class RuntimeReleaseFollowupTemplateSelector {
                 required(item.versionId(), "随访资产版本 ID"),
                 required(item.sourceTenantId(), "随访资产来源租户"))
             .orElseThrow(() -> invalid(
-                "运行修订锁定随访资产版本不存在：" + item.assetIdentity() + "@" + item.versionNo()));
+                "机构生效版本锁定随访资产版本不存在：" + item.assetIdentity() + "@" + item.versionNo()));
         if (version.status() != AssetVersionStatus.PUBLISHED
                 || version.assetType() != VersionedAssetType.FOLLOWUP
                 || !version.assetIdentity().equals(item.assetIdentity())
                 || !version.versionNo().equals(item.versionNo())
                 || !version.contentHash().equals(item.contentHash())) {
             throw invalid(
-                "运行修订锁定随访资产版本不一致：" + item.assetIdentity() + "@" + item.versionNo());
+                "机构生效版本锁定随访资产版本不一致：" + item.assetIdentity() + "@" + item.versionNo());
         }
         int versionNo = parseVersionNo(item.versionNo(), item.assetIdentity());
         FollowupTemplate template = templates
             .findByTenantIdAndTemplateCodeAndVersionNo(
                 item.sourceTenantId(), item.assetIdentity(), versionNo)
             .orElseThrow(() -> invalid(
-                "运行修订锁定随访模板实体不存在：" + item.assetIdentity() + "@" + item.versionNo()));
+                "机构生效版本锁定随访模板实体不存在：" + item.assetIdentity() + "@" + item.versionNo()));
         if (!version.versionId().equals(template.assetVersionId())) {
             throw invalid(
                 "随访模板实体与运行资产版本不一致：" + template.templateId());
@@ -87,7 +87,7 @@ public class RuntimeReleaseFollowupTemplateSelector {
         try {
             return runtime.resolve(
                 required(tenantId, "租户"),
-                required(runtimeReleaseId, "医院运行修订"));
+                required(runtimeReleaseId, "机构生效版本"));
         } catch (IllegalArgumentException | IllegalStateException exception) {
             throw invalid(exception.getMessage(), exception);
         }

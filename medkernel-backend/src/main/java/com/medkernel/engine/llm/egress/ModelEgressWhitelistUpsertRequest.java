@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotBlank;
 
 /**
- * 出域白名单与数据最小化策略维护请求（LLM-03 / OPT-09）。
+ * 外调允许范围与数据最小化策略维护请求（LLM-03 / OPT-09）。
  */
 public record ModelEgressWhitelistUpsertRequest(
     @NotEmpty List<String> allowedFields,

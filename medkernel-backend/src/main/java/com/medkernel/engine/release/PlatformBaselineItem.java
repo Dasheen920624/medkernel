@@ -8,7 +8,7 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 平台基线中的精确资产版本条目。
+ * 平台标准版本中的精确资产版本条目。
  */
 @Table("platform_baseline_item")
 public record PlatformBaselineItem(

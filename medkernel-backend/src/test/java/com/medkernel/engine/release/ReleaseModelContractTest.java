@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 领域、资产身份和不可变发布清单的数据库模型契约。
+ * 领域、资产身份和不可变版本明细的数据库模型契约。
  */
 class ReleaseModelContractTest {
 

@@ -68,7 +68,7 @@ public class SandboxReplayService {
             null, request.replayCaseId().trim(), tenantId, request.sourceTenantRef(),
             request.sourceEventRef(), request.sourceTraceRef(), request.sourceContextRef(),
             hashing.canonicalJson(request.contextSnapshot()), request.contextSnapshotHash(),
-            requiredAlias(request.sourceRuntimeReleaseRef(), "来源运行修订"),
+            requiredAlias(request.sourceRuntimeReleaseRef(), "来源机构生效版本"),
             request.sourceRuntimeRevisionNo(), request.occurredAt(),
             request.manifestHash(), request.deidentificationProfile(), SandboxReplayStatus.IMPORTED,
             now, actor, null, null, null, now, now, traceId));
@@ -113,7 +113,7 @@ public class SandboxReplayService {
                 "资产内容摘要");
         }
         SandboxReplayImportRequest reconstructed = reconstruct(replayCase, context, bindings);
-        ensureHash(replayCase.manifestHash(), hashing.manifestHash(reconstructed), "清单摘要");
+        ensureHash(replayCase.manifestHash(), hashing.manifestHash(reconstructed), "明细校验码");
         return new SandboxReplayResolvedCase(replayCase, context, bindings);
     }
 
@@ -153,9 +153,9 @@ public class SandboxReplayService {
         deidentification.validate(request.contextSnapshot());
         ensureHash(request.contextSnapshotHash(), hashing.contentHash(request.contextSnapshot()),
             "上下文内容摘要");
-        requireAlias(request.sourceRuntimeReleaseRef(), "来源运行修订");
+        requireAlias(request.sourceRuntimeReleaseRef(), "来源机构生效版本");
         if (request.sourceRuntimeRevisionNo() <= 0) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "来源运行修订号必须大于零");
+            throw new ApiException(ErrorCode.BAD_REQUEST, "来源机构生效版本号必须大于零");
         }
         if (request.occurredAt() == null) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "历史事件发生时间不能为空");
@@ -167,7 +167,7 @@ public class SandboxReplayService {
         for (SandboxReplayAssetImportRequest asset : request.assets()) {
             validateAsset(asset, uniqueAssets);
         }
-        ensureHash(request.manifestHash(), hashing.manifestHash(request), "清单摘要");
+        ensureHash(request.manifestHash(), hashing.manifestHash(request), "明细校验码");
     }
 
     private void validateAsset(SandboxReplayAssetImportRequest asset, Set<String> uniqueAssets) {

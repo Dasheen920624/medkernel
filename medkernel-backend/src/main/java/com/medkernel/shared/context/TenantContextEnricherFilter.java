@@ -22,7 +22,7 @@ import jakarta.servlet.http.HttpServletResponse;
  * 本过滤器读取它，调用 {@link JwtClaimsResolver} 解析 OrgScope + userId，
  * 并将 RequestContext 升级为带组织/用户的完整 snapshot。
  *
- * <p>未携带 JWT 的请求（白名单端点如 /api/v1/system/ping、/actuator/health）保持 traceId-only snapshot，
+ * <p>未携带 JWT 的请求（匿名允许入口如 /api/v1/system/ping、/actuator/health）保持 traceId-only snapshot，
  * 是否进一步要求 tenantId 由业务层显式抛 {@code ApiException.tenantMissing()} 控制。
  *
  * <p>注册位置：由 {@code SecurityConfig} 调用 {@code addFilterAfter(this, BearerTokenAuthenticationFilter.class)}。

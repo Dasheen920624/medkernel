@@ -58,7 +58,7 @@ class FormalKnowledgeProductionPolicyTest {
     void rejectsLegacyB0GenerationFromFormalApi() {
         assertThatThrownBy(policy::rejectB0Generation)
             .isInstanceOf(ApiException.class)
-            .hasMessage("正式知识生产不再接受 B0 候选生成，请使用统一 Provider API 模型生产任务");
+            .hasMessage("正式知识生产不再接受无模型候选生成，请使用受控模型服务生产任务");
     }
 
     private ProductionJobRequest request(KnowledgeProducer producer) {

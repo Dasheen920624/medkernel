@@ -204,7 +204,7 @@ class OverrideTemplateServiceTest {
         when(overrides.findByTenantIdAndOrgPathAndLifecycleStatus(
             "tenant-A",
             "/TENANT-A/HOSP-SOURCE",
-            InheritanceOverrideStatus.PUBLISHED
+            InheritanceOverrideStatus.ACTIVE
         )).thenReturn(List.of(registeredOverride("io-source")));
         when(overrides.findByTenantIdAndAssetTypeAndAssetIdentityAndOrgPathAndApplicableScopeAndLifecycleStatus(
             any(), any(), any(), any(), any(), any()
@@ -368,7 +368,7 @@ class OverrideTemplateServiceTest {
             "av-target-v2",
             InheritanceOverrideMode.REPLACE,
             InheritancePropagation.INHERITABLE,
-            InheritanceOverrideStatus.PUBLISHED,
+            InheritanceOverrideStatus.ACTIVE,
             "/TENANT-A/HOSP-1",
             "pediatric|inpatient",
             "差异",

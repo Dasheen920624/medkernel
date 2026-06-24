@@ -47,7 +47,8 @@ export default function SandboxEmbedFrame({
 
   const maskedToken = embedToken
     ? `${embedToken.slice(0, Math.min(embedToken.length, 8))}...`
-    : "<launch-token>";
+    : "等待生成";
+  const launchAddress = embedUrl ?? "等待场景运行结果";
   let embedContent;
   if (mode === "IFRAME" && embedUrl) {
     embedContent = (
@@ -67,24 +68,23 @@ export default function SandboxEmbedFrame({
     );
   } else if (mode === "SDK") {
     embedContent = (
-      <div className={styles.contractView} aria-label="SDK 接入契约">
-        <Typography.Text strong>SDK 接入</Typography.Text>
+      <div className={styles.contractView} aria-label="脚本接入说明">
+        <Typography.Text strong>脚本接入</Typography.Text>
         <pre className={styles.contractCode}>
-          <code>{`MedKernelCDSS.launch({
-  token: "${maskedToken}",
-  endpoint: "/api/v1/engine/embed/launch"
-});`}</code>
+          <code>{`访问凭证：${maskedToken}
+接入地址：${launchAddress}
+用途：在院内系统中打开临床嵌入终端`}</code>
         </pre>
       </div>
     );
   } else {
     embedContent = (
-      <div className={styles.contractView} aria-label="API 接入契约">
-        <Typography.Text strong>API 接入</Typography.Text>
+      <div className={styles.contractView} aria-label="接口接入说明">
+        <Typography.Text strong>接口接入</Typography.Text>
         <pre className={styles.contractCode}>
-          <code>{`POST /api/v1/engine/embed/launch
-Authorization: Bearer ${maskedToken}
-Content-Type: application/json`}</code>
+          <code>{`接入地址：${launchAddress}
+访问凭证：${maskedToken}
+用途：由信息科系统发起受控嵌入访问`}</code>
         </pre>
       </div>
     );
@@ -99,7 +99,11 @@ Content-Type: application/json`}</code>
         <Segmented<SandboxEmbedMode>
           aria-label="嵌入方式"
           value={mode}
-          options={["IFRAME", "SDK", "API"]}
+          options={[
+            { label: "页面嵌入", value: "IFRAME" },
+            { label: "脚本接入", value: "SDK" },
+            { label: "接口接入", value: "API" },
+          ]}
           onChange={onModeChange}
         />
       </div>

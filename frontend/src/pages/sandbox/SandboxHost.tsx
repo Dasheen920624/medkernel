@@ -44,7 +44,7 @@ const SERVICE_LINE_LABELS = {
 } as const;
 
 const RESOLUTION_SOURCE_LABELS: Record<SandboxResolutionSource, string> = {
-  CURRENT_RUNTIME_RELEASE: "医院当前运行修订",
+  CURRENT_RUNTIME_RELEASE: "当前机构生效版本",
   REPLAY_MANIFEST: "历史重放清单",
 } as const;
 
@@ -111,8 +111,8 @@ export default function SandboxHost() {
     ? RESOLUTION_SOURCE_LABELS[runtimeStatus.resolutionSource]
     : "尚未解析";
   const currentRuntimeLabel = runtimeStatus?.ready
-    ? `修订 #${runtimeStatus.runtimeRevisionNo ?? "?"} · ${
-        runtimeStatus.runtimeReleaseId ?? "未知运行发布"
+    ? `第 ${runtimeStatus.runtimeRevisionNo ?? "?"} 版 · ${
+        runtimeStatus.runtimeReleaseId ?? "未知生效版本"
       }`
     : "未就绪";
   const selectedRuntimeLabel = runtimeLabel(runMode, replayCaseId, currentRuntimeLabel);
@@ -331,8 +331,8 @@ export default function SandboxHost() {
               <Alert
                 type="warning"
                 showIcon
-                message="运行基线未就绪"
-                description={runtimeStatus.reason || "演练机构尚未发布可运行修订。"}
+                message="机构生效版本未就绪"
+                description={runtimeStatus.reason || "演练机构尚未发布可用版本。"}
               />
             )}
           {scenariosQuery.isError && (
@@ -347,8 +347,8 @@ export default function SandboxHost() {
           {result && (
             <section className={styles.runSummary} aria-label="运行证据摘要">
               <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 4 }}>
-                <Descriptions.Item label="运行标识">{result.runId}</Descriptions.Item>
-                <Descriptions.Item label="冻结基线">{result.baselineId}</Descriptions.Item>
+                <Descriptions.Item label="演练编号">{result.runId}</Descriptions.Item>
+                <Descriptions.Item label="当前标准版本">{result.baselineId}</Descriptions.Item>
                 <Descriptions.Item label="运行模式">{result.mode}</Descriptions.Item>
                 <Descriptions.Item label="规则来源">
                   {RESOLUTION_SOURCE_LABELS[result.resolutionSource]}
@@ -356,17 +356,17 @@ export default function SandboxHost() {
                 {result.replayCaseId && (
                   <Descriptions.Item label="重放清单">{result.replayCaseId}</Descriptions.Item>
                 )}
-                <Descriptions.Item label="运行修订">
+                <Descriptions.Item label="机构生效版本">
                   {result.runtimeReleaseRef
                     ? `${result.runtimeReleaseRef}${
-                        result.runtimeRevisionNo ? ` · #${result.runtimeRevisionNo}` : ""
+                        result.runtimeRevisionNo ? ` · 第 ${result.runtimeRevisionNo} 版` : ""
                       }`
                     : "未记录"}
                 </Descriptions.Item>
                 <Descriptions.Item label="安全边界">
                   {result.externalSideEffects ? "外部副作用未关闭" : "外部副作用已关闭"}
                 </Descriptions.Item>
-                <Descriptions.Item label="追踪链路">{result.traceId}</Descriptions.Item>
+                <Descriptions.Item label="追踪号">{result.traceId}</Descriptions.Item>
                 <Descriptions.Item label="上下文快照">
                   {result.snapshotId || "未生成"}
                 </Descriptions.Item>
@@ -477,7 +477,7 @@ export default function SandboxHost() {
               </Typography.Title>
               <Typography.Paragraph type="secondary">
                 {runMode === "COMPARE"
-                  ? "以不可变清单中的 D4 脱敏上下文，同时执行历史精确版本与当前冻结基线；只生成差异证据，不产生业务写回。"
+                  ? "以不可变清单中的 D4 脱敏上下文，同时执行历史精确版本与当前冻结标准版本；只生成差异证据，不产生业务写回。"
                   : "按不可变清单装载 D4 脱敏上下文与精确历史规则版本；不读取当前规则，不产生业务写回。"}
               </Typography.Paragraph>
               <Space direction="vertical">
@@ -564,7 +564,7 @@ export default function SandboxHost() {
                 <Space size="large" wrap>
                   <span>卡片：{latestDecision.cardId || "未返回"}</span>
                   <span>状态：{latestDecision.recommendationStatus || "已记录"}</span>
-                  <span>追踪链路：{latestDecision.traceId || result?.traceId || "未返回"}</span>
+                  <span>追踪号：{latestDecision.traceId || result?.traceId || "未返回"}</span>
                 </Space>
               }
             />

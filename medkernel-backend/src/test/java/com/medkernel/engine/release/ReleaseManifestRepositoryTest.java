@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace.NONE;
 
 /**
- * 平台基线与医院运行修订物化清单仓储测试。
+ * 平台标准版本与机构生效版本物化清单仓储测试。
  */
 @DataJdbcTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)

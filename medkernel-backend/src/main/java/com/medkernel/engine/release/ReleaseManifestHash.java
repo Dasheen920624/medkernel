@@ -6,7 +6,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
 
 /**
- * 不可变发布清单的确定性 SHA-256 摘要。
+ * 不可变版本明细的完整性校验码。
  */
 public final class ReleaseManifestHash {
 

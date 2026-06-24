@@ -63,7 +63,7 @@ class ClinicalRuntimeReleaseContentResolverTest {
             .thenReturn(Optional.empty());
         assertThatThrownBy(() -> resolver.resolve("tenant-A", "missing"))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("运行修订不存在");
+            .hasMessageContaining("机构生效版本不存在");
 
         when(releases.findByTenantIdAndReleaseId("tenant-A", "release-4"))
             .thenReturn(Optional.of(release("0".repeat(64))));
@@ -74,7 +74,7 @@ class ClinicalRuntimeReleaseContentResolverTest {
 
         assertThatThrownBy(() -> resolver.resolve("tenant-A", "release-4"))
             .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("清单摘要不一致");
+            .hasMessageContaining("明细校验码不一致");
     }
 
     private ClinicalRuntimeRelease release(String manifestHash) {

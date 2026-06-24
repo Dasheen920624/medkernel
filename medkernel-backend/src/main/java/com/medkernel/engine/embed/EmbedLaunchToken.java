@@ -6,9 +6,9 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 嵌入启动令牌实体。
+ * 嵌入启动凭证实体。
  *
- * <p>表示为集成系统进入 MedKernel 嵌入组件时生成的一次性、短失效启动令牌。
+ * <p>表示为集成系统进入 MedKernel 嵌入组件时生成的一次性、短失效启动凭证。
  */
 @Table("embed_launch_token")
 public record EmbedLaunchToken(

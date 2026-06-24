@@ -36,7 +36,7 @@ import com.medkernel.shared.context.RequestContext;
 /**
  * 公域知识获取控制器权限测试（AIK-STD-14）。
  *
- * <p>触发获取会写受控来源解析链路，走 {@code knowledge.write}；来源白名单和运行台账只读查询走
+ * <p>触发获取会写受控来源解析链路，走 {@code knowledge.write}；来源允许清单和运行台账只读查询走
  * {@code knowledge.read}。临床用户和 GUEST 不得触发外网获取。
  */
 @SpringBootTest

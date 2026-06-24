@@ -8,7 +8,7 @@ import {
   validateScenarioRules,
 } from "./scenario-rules.mjs";
 
-test("十条机构演练规则全部可运行且不依赖固定运行修订版本", async () => {
+test("十条机构演练规则全部可运行且不依赖固定机构生效版本", async () => {
   const manifest = await loadScenarioRules();
   const selected = selectSeedRules(manifest);
 

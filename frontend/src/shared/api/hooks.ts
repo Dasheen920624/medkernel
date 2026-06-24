@@ -7206,7 +7206,7 @@ export function useSaveWorkflowSystemNotificationSettings() {
 }
 
 // ──────────────────────────────────────────
-// 平台基线与医院运行修订
+// 平台标准版本与机构生效版本
 // ──────────────────────────────────────────
 const RUNTIME_RELEASE_API_ROOT = "/engine/releases";
 
@@ -7455,7 +7455,7 @@ export function useRollbackHospitalRuntime() {
 }
 
 // ──────────────────────────────────────────
-// 页面嵌入与安全白名单引擎 (GA-ENG-EMBED-01)
+// 页面嵌入与来源允许清单引擎 (GA-ENG-EMBED-01)
 // ──────────────────────────────────────────
 
 export interface EmbedLaunchTokenRequest {
@@ -7541,7 +7541,7 @@ export interface EmbedOriginRequest {
   origin: string;
 }
 
-// 1. 生成嵌入一次性启动令牌
+// 1. 生成嵌入一次性启动凭证
 export function useGenerateEmbedToken() {
   return useMutation({
     mutationFn: async (payload: EmbedLaunchTokenRequest) => {
@@ -7554,7 +7554,7 @@ export function useGenerateEmbedToken() {
   });
 }
 
-// 2. 兑换启动令牌获取就诊上下文事实
+// 2. 校验启动凭证获取就诊上下文事实
 export function useEmbedLaunch(token: string) {
   return useQuery({
     queryKey: ["embed", "launch", token],
@@ -7571,7 +7571,7 @@ export function useEmbedLaunch(token: string) {
   });
 }
 
-// 3. 使用已兑换令牌读取当前就诊范围内的可处置建议
+// 3. 使用已校验凭证读取当前就诊范围内的可处置建议
 export function useEmbedRecommendationCards(token: string, enabled: boolean) {
   return useQuery({
     queryKey: ["embed", "recommendations", token],
@@ -7600,7 +7600,7 @@ export function useSubmitEmbedFeedback() {
   });
 }
 
-// 5. 获取当前租户的安全 Origin 域名白名单列表
+// 5. 获取当前服务机构的安全 Origin 域名允许清单
 export function useEmbedOrigins() {
   return useQuery({
     queryKey: ["embed", "origins"],
@@ -7611,7 +7611,7 @@ export function useEmbedOrigins() {
   });
 }
 
-// 6. 添加跨域嵌入 Origin 安全白名单
+// 6. 添加跨域嵌入 Origin 安全允许项
 export function useAddEmbedOrigin() {
   return useMutation({
     mutationFn: async (payload: EmbedOriginRequest) => {
@@ -8110,7 +8110,7 @@ export function useRetryModelTask() {
   });
 }
 
-// 12. 按 task_id 重放 B0 确定性任务，供审计复现版本三元组
+// 12. 按 task_id 重放 B0 确定性任务，供审计复现提示词、工具和模型版本
 export function useReplayModelTask() {
   return useMutation({
     mutationFn: async (taskId: string) => {

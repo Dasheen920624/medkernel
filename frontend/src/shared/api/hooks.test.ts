@@ -1662,7 +1662,7 @@ describe("shared runtime api helpers", () => {
         dependencyIntegrityVerified: true,
         safetyMonotonicityVerified: true,
         impactSimulationPassed: true,
-        summary: "规则发布质量门全部通过",
+        summary: "规则发布质量校验全部通过",
       },
     };
 
@@ -3088,7 +3088,7 @@ describe("master data reconciliation api hooks", () => {
   });
 });
 
-describe("runtime release api hooks", () => {
+describe("release governance api hooks", () => {
   beforeEach(() => {
     vi.mocked(apiClient.get).mockReset();
     vi.mocked(apiClient.post).mockReset();
@@ -3161,7 +3161,7 @@ describe("runtime release api hooks", () => {
     );
   });
 
-  it("publishes immutable A and H revisions without package ids or manual revision numbers", async () => {
+  it("publishes platform standard versions and institution effective versions without package ids or manual revision numbers", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ data: { data: {} } });
 
     await renderApiHook(() => usePublishPlatformBaseline()).result.current.mutateAsync({
@@ -3285,7 +3285,7 @@ describe("integration adapter api helpers", () => {
       contractId: "context-field-contract:runtime-H7",
       runtimeReleaseId: "runtime-H7",
       schemaVersion: "medkernel.context-field-contract.v1",
-      accessGuide: ["字段契约由医院当前运行修订 runtime-H7 自动确定"],
+      accessGuide: ["字段要求由当前机构生效版本 runtime-H7 自动确定"],
       resources: {
         Patient: {
           resourceType: "Patient",

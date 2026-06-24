@@ -9,7 +9,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 可发布配置资产的跨版本稳定身份。
  *
- * <p>领域归类、内容版本和运行发布均引用该身份；版本号由服务端按
+ * <p>领域归类、内容版本和机构生效版本均引用该身份；版本号由服务端按
  * {@code latestVersionSequence} 单调分配。
  */
 @Table("asset_identity")

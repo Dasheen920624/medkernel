@@ -45,7 +45,7 @@ import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.ids.Ulid;
 
 /**
- * 医院不可变临床运行修订服务。
+ * 医院不可变机构生效版本服务。
  *
  * <p>机构可选择任意领域、任意类型、任意数量的正式资产；服务端展开必需依赖并物化完整清单。
  */
@@ -108,12 +108,12 @@ public class ClinicalRuntimeReleaseService {
     }
 
     /**
-     * 原子生成一个新的医院运行修订。
+     * 原子生成一个新的机构生效版本。
      */
     @Transactional
     public ClinicalRuntimeRelease activate(ClinicalRuntimeReleaseCommand command) {
         if (command == null) {
-            throw validation("运行修订命令不能为空");
+            throw validation("机构生效版本命令不能为空");
         }
         String tenantId = required(command.tenantId(), "租户");
         String hospitalId = required(command.hospitalId(), "医院");
@@ -121,8 +121,8 @@ public class ClinicalRuntimeReleaseService {
         OrgUnit hospital = requireHospital(tenantId, hospitalId);
         PlatformBaselineRelease baseline = baselines
             .findByBaselineReleaseId(required(
-                command.platformBaselineReleaseId(), "平台基线发布"))
-            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "平台基线不存在"));
+                command.platformBaselineReleaseId(), "平台标准版本发布"))
+            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "平台标准版本不存在"));
         ClinicalRuntimeRelease current = releases
             .findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(tenantId, hospitalId)
             .orElse(null);
@@ -202,10 +202,10 @@ public class ClinicalRuntimeReleaseService {
         requireHospital(normalizedTenant, normalizedHospital);
         ClinicalRuntimeRelease target = releases
             .findByTenantIdAndReleaseId(
-                normalizedTenant, required(targetReleaseId, "目标运行修订"))
-            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "目标运行修订不存在"));
+                normalizedTenant, required(targetReleaseId, "目标机构生效版本"))
+            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "目标机构生效版本不存在"));
         if (!normalizedHospital.equals(target.hospitalId())) {
-            throw new ApiException(ErrorCode.CONFLICT, "不能回滚到其他医院的运行修订");
+            throw new ApiException(ErrorCode.CONFLICT, "不能回滚到其他医院的机构生效版本");
         }
         long nextRevision = releases
             .findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
@@ -351,7 +351,7 @@ public class ClinicalRuntimeReleaseService {
                 RuntimeEntry baseline = platform.get(key);
                 if (baseline == null || baseline.state() != ReleaseEntryState.ACTIVE) {
                     throw new ApiException(
-                        ErrorCode.CONFLICT, "平台基线未提供可启用资产: " + key.identity());
+                        ErrorCode.CONFLICT, "平台标准版本未提供可启用资产: " + key.identity());
                 }
                 resolved = baseline;
             } else {
@@ -518,7 +518,7 @@ public class ClinicalRuntimeReleaseService {
         }
         if (current == null || expected == null || !current.releaseId().equals(expected)) {
             throw new ApiException(
-                ErrorCode.CONFLICT, "医院当前运行修订已变化，请刷新后重新确认");
+                ErrorCode.CONFLICT, "当前机构生效版本已变化，请刷新后重新确认");
         }
     }
 
@@ -531,11 +531,11 @@ public class ClinicalRuntimeReleaseService {
         PlatformBaselineRelease currentBaseline = baselines
             .findByBaselineReleaseId(current.platformBaselineReleaseId())
             .orElseThrow(() -> new ApiException(
-                ErrorCode.INTERNAL_ERROR, "当前运行修订引用的平台基线不存在"));
+                ErrorCode.INTERNAL_ERROR, "当前机构生效版本引用的平台标准版本不存在"));
         if (target.revisionNo() < currentBaseline.revisionNo()) {
             throw new ApiException(
                 ErrorCode.CONFLICT,
-                "普通启用不能切换到旧平台基线，请使用运行修订回滚");
+                "普通启用不能切换到旧平台标准版本，请使用机构生效版本回滚");
         }
     }
 
@@ -545,7 +545,7 @@ public class ClinicalRuntimeReleaseService {
         if (hospital.level() != OrgLevel.FACILITY
                 || hospital.facilityType() != OrgFacilityType.HOSPITAL
                 || !hospital.isActive()) {
-            throw validation("运行修订目标必须是启用的医院");
+            throw validation("机构生效版本目标必须是启用的医院");
         }
         return hospital;
     }

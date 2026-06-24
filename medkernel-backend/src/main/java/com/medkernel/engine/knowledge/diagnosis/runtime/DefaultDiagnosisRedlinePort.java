@@ -20,11 +20,11 @@ import com.medkernel.shared.api.error.ErrorCode;
 import org.springframework.stereotype.Component;
 
 /**
- * 红线合流默认实现：对医院运行修订锁定的 OPT-04 红线 DSL 按患者结构化上下文求值，命中且红线经
+ * 红线合流默认实现：对机构生效版本锁定的 OPT-04 红线 DSL 按患者结构化上下文求值，命中且红线经
  * {@code source_version_id} 关联到 DIAGNOSIS 身份时，返回该诊断身份码（编排侧据此置顶且不可疲劳抑制）。
  *
- * <p>跨域只读复用 OPT-04 运行选择器与规则 DSL 执行器，不改红线表、不写其数据。平台基线、
- * 集团/医院覆盖和停用状态均由运行修订清单决定。
+ * <p>跨域只读复用 OPT-04 运行选择器与规则 DSL 执行器，不改红线表、不写其数据。平台标准版本、
+ * 集团/医院覆盖和停用状态均由机构生效版本清单决定。
  * 红线未关联诊断来源（DDI / 剂量 / 危急值等纯安全红线归推荐主链路 ClinicalRedlineMatcher 处理）、
  * 未命中、无红线时返回空集，诚实降级不阻断主链路。
  */

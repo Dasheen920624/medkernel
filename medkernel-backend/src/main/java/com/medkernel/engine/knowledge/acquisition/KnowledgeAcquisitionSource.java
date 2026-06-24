@@ -12,7 +12,7 @@ import com.medkernel.engine.knowledge.SourceType;
 import com.medkernel.engine.knowledge.parsing.DocumentFormat;
 
 /**
- * AIK-STD-14 公域资料来源白名单。只有启用、许可允许且 robots 策略允许的来源可被抓取。
+ * AIK-STD-14 公域资料来源允许清单。只有启用、许可允许且 robots 策略允许的来源可被抓取。
  */
 @Table("mk_knowledge_acquisition_source")
 public record KnowledgeAcquisitionSource(

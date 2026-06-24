@@ -1,7 +1,7 @@
 package com.medkernel.engine.release;
 
 /**
- * 医院运行修订中资产的来源层级。
+ * 机构生效版本中资产的来源层级。
  */
 public enum ReleaseSourceLayer {
     /** 平台权威资产。 */

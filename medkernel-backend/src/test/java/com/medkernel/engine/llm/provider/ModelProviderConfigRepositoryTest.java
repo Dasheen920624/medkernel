@@ -15,7 +15,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.test.context.TestPropertySource;
 
 /**
- * 模型 provider 配置仓储回归测试（LLM-08，V125 五方言迁移）。
+ * 模型服务配置仓储回归测试（LLM-08，V125 五方言迁移）。
  */
 @DataJdbcTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)

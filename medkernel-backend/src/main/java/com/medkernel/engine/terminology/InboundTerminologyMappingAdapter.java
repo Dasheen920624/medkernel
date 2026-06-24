@@ -10,7 +10,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 从指定医院运行修订锁定的术语资产版本中解析第三方入站编码。
+ * 从指定机构生效版本锁定的术语资产版本中解析第三方入站编码。
  */
 @Component
 public class InboundTerminologyMappingAdapter implements InboundTerminologyMappingPort {
@@ -40,13 +40,13 @@ public class InboundTerminologyMappingAdapter implements InboundTerminologyMappi
         if (resolved.isEmpty()) {
             throw new ApiException(
                 ErrorCode.ENG_INTEG_001,
-                "当前运行修订没有可用术语映射: " + sourceSystem + "/" + localCode
+                "当前机构生效版本没有可用术语映射: " + sourceSystem + "/" + localCode
             );
         }
         if (resolved.size() > 1) {
             throw new ApiException(
                 ErrorCode.ENG_INTEG_001,
-                "当前运行修订存在歧义术语映射: " + sourceSystem + "/" + localCode
+                "当前机构生效版本存在歧义术语映射: " + sourceSystem + "/" + localCode
             );
         }
         EffectiveTermMapping mapping = resolved.get(0);

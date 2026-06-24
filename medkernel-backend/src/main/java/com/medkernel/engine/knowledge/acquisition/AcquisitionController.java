@@ -19,7 +19,7 @@ import com.medkernel.shared.datascope.DataScope;
 /**
  * 公域知识资料获取 API（AIK-STD-14）。
  *
- * <p>触发获取仅登记候选来源资料并进入解析链路，不直接发布权威知识；来源白名单和运行账本用于追溯许可、
+ * <p>触发获取仅登记候选来源资料并进入解析链路，不直接发布权威知识；来源允许清单和运行账本用于追溯许可、
  * robots 策略、真实 URL、原文指纹和资料 URI。类级 {@link DataScope}：所有方法需租户上下文。
  */
 @RestController
@@ -36,14 +36,14 @@ public class AcquisitionController {
         this.sourceGovernanceService = sourceGovernanceService;
     }
 
-    /** 触发一次公域资料获取：白名单门禁 → 真实抓取 → 解析入受控来源。 */
+    /** 触发一次公域资料获取：来源允许清单门禁 → 真实抓取 → 解析入受控来源。 */
     @PostMapping("/runs")
     @PreAuthorize("@perm.has('knowledge.write')")
     public ApiResult<KnowledgeAcquisitionRunResponse> run(@Valid @RequestBody KnowledgeAcquisitionRunRequest request) {
         return ApiResult.ok(service.run(request));
     }
 
-    /** 分页查询公域资料来源白名单。 */
+    /** 分页查询公域资料来源允许清单。 */
     @GetMapping("/sources")
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<PageResponse<KnowledgeAcquisitionSource>> listSources(
