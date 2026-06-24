@@ -125,7 +125,7 @@ class ReleaseSimulationServiceTest {
         when(evaluator.supports(VersionedAssetType.RULE)).thenReturn(true);
         when(evaluator.replay(any(), eq(current), eq(candidate), any())).thenReturn(
             new ReleaseSimulationResult.Replay(
-                "SUPPORTED", 40, 6, 4, 2, 1, 0, List.of("ctx-high-risk"), null));
+                "SUPPORTED", 40, 6, 4, 2, 1, 0, List.of("ctx-high-risk"), List.of(), null));
         SafetyMonotonicityCheck safetyCheck = mock(SafetyMonotonicityCheck.class);
         when(safetyCheck.supports(VersionedAssetType.RULE)).thenReturn(true);
         when(safetyCheck.isAtLeastAsStrict(current, candidate)).thenReturn(true);
@@ -141,6 +141,71 @@ class ReleaseSimulationServiceTest {
         assertThat(result.replay().sampledCases()).isEqualTo(40);
         assertThat(result.replay().changedCases()).isEqualTo(6);
         assertThat(result.diff().changeType()).isEqualTo("MODIFIED");
+        assertThat(result.releasable()).isTrue();
+    }
+
+    @Test
+    void usesDependencyImpactReplayForAssetsWithoutDedicatedCaseEvaluator() {
+        AssetVersion candidate = version(
+            "av-term-v2",
+            VersionedAssetType.TERMINOLOGY,
+            "TERMINOLOGY.LOINC.718-7",
+            "2",
+            "hash-term-v2",
+            AssetVersionOverridePolicy.REVIEW,
+            AssetVersionStatus.DRAFT);
+        AssetVersion dependentRule = version(
+            "av-rule-active",
+            VersionedAssetType.RULE,
+            "RULE.ANEMIA",
+            "3",
+            "hash-rule-v3",
+            AssetVersionOverridePolicy.REVIEW,
+            AssetVersionStatus.PUBLISHED);
+        when(assetVersions.findByVersionIdAndTenantId("av-term-v2", "tenant-A"))
+            .thenReturn(Optional.of(candidate));
+        when(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            eq("tenant-A"),
+            eq(VersionedAssetType.TERMINOLOGY),
+            any(),
+            eq(AssetVersionStatus.PUBLISHED)
+        )).thenReturn(List.of());
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
+            eq("tenant-A"),
+            eq(VersionedAssetType.TERMINOLOGY),
+            eq("TERMINOLOGY.LOINC.718-7"),
+            eq(AssetVersionStatus.PUBLISHED)
+        )).thenReturn(List.of());
+        when(orgHierarchy.findDescendantsAndSelf("tenant-A", "hospital-A"))
+            .thenReturn(List.of(org("hospital-A", "/TENANT-A/HOSP-A", "中心医院", OrgLevel.FACILITY)));
+        when(overrides.findByTenantIdAndAssetTypeAndAssetIdentityAndLifecycleStatus(
+            any(), any(), any(), any()
+        )).thenReturn(List.of());
+        when(snapshots.findRecentActiveByTenantId(eq("tenant-A"), any(), eq(100)))
+            .thenReturn(List.of(snapshot("ctx-1", "hospital-A"), snapshot("ctx-2", "hospital-A")));
+        when(dependencies.activeDependentsOf(
+            "tenant-A",
+            VersionedAssetType.TERMINOLOGY,
+            "TERMINOLOGY.LOINC.718-7",
+            "/TENANT-A/HOSP-A",
+            "adult|inpatient"
+        )).thenReturn(List.of(dependentRule));
+
+        ReleaseSimulationResult result = service(List.of(), List.of()).simulate(command(
+            VersionedAssetType.TERMINOLOGY,
+            "TERMINOLOGY.LOINC.718-7",
+            "av-term-v2"));
+
+        assertThat(result.replay().status()).isEqualTo("SUPPORTED");
+        assertThat(result.replay().sampledCases()).isEqualTo(2);
+        assertThat(result.replay().changedCases()).isZero();
+        assertThat(result.replay().impactedAssets()).singleElement().satisfies(impact -> {
+            assertThat(impact.assetType()).isEqualTo(VersionedAssetType.RULE);
+            assertThat(impact.assetIdentity()).isEqualTo("RULE.ANEMIA");
+            assertThat(impact.versionId()).isEqualTo("av-rule-active");
+            assertThat(impact.versionNo()).isEqualTo("3");
+        });
+        assertThat(result.replay().reason()).contains("依赖影响评估").contains("不执行病例级重算");
         assertThat(result.releasable()).isTrue();
     }
 
@@ -185,12 +250,16 @@ class ReleaseSimulationServiceTest {
     }
 
     private ReleaseSimulationCommand command() {
+        return command(VersionedAssetType.RULE, "RULE.VTE.RISK", "av-v2");
+    }
+
+    private ReleaseSimulationCommand command(VersionedAssetType assetType, String assetIdentity, String versionId) {
         return new ReleaseSimulationCommand(
             "tenant-A",
             "tenant-A",
-            VersionedAssetType.RULE,
-            "RULE.VTE.RISK",
-            "av-v2",
+            assetType,
+            assetIdentity,
+            versionId,
             List.of("hospital-A"),
             "/TENANT-A/HOSP-A",
             "adult|inpatient",
@@ -209,6 +278,8 @@ class ReleaseSimulationServiceTest {
 
     private AssetVersion version(
             String versionId,
+            VersionedAssetType assetType,
+            String assetIdentity,
             String versionNo,
             String hash,
             AssetVersionOverridePolicy overridePolicy,
@@ -217,8 +288,8 @@ class ReleaseSimulationServiceTest {
             1L,
             versionId,
             "tenant-A",
-            VersionedAssetType.RULE,
-            "RULE.VTE.RISK",
+            assetType,
+            assetIdentity,
             versionNo,
             "/TENANT-A/HOSP-A",
             "adult|inpatient",
@@ -236,6 +307,15 @@ class ReleaseSimulationServiceTest {
             "author",
             "trace"
         );
+    }
+
+    private AssetVersion version(
+            String versionId,
+            String versionNo,
+            String hash,
+            AssetVersionOverridePolicy overridePolicy,
+            AssetVersionStatus status) {
+        return version(versionId, VersionedAssetType.RULE, "RULE.VTE.RISK", versionNo, hash, overridePolicy, status);
     }
 
     private OrgUnit org(String id, String path, String name, OrgLevel level) {

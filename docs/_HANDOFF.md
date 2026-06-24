@@ -76,6 +76,9 @@
 - 手工规则/路径 DSL 中的 `field` / `fact` 引用已统一折叠为
   `FIELD.CATALOG.CLINICAL_CONTEXT` 资产依赖；同一条件对象同时引用字段和值集/公式时会同时登记字段目录与
   对应运行资产依赖，避免机构生效版本装配时漏激活字段目录。
+- 发布模拟对没有专门病例级回放执行器的版本化资产已不再返回阻断式 `UNSUPPORTED`；现在基于资产依赖图返回
+  目标组织和适用范围内的在用依赖资产，并以“依赖影响评估”说明该类资产不执行病例级重算，避免术语、
+  字段目录、值集、公式等基础资产在有历史快照时被旧“仅规则回放”模型卡住。
 - 前台产品语言门禁已扩展到启动凭证、来源允许范围、模型版本组合、运行环境、无模型规则链路、
   多因素认证、生产前校验、生产安全校验、发布质量校验、发布验证用例、开通条件和时窗校验等
   医疗引擎中枢语言。
@@ -141,6 +144,12 @@
 - 资产依赖与机构生效版本装配回归：
   `mvn -q -Dtest=AssetReferenceConsistencyTest,RuleEngineServiceTest,AssetDependencyServiceTest,RuleVersionedAssetAdapterTest,PathwayVersionedAssetAdapterTest,ClinicalRuntimeReleaseServiceTest,AssetAuthoringRegistryTest test`
   通过。
+- 非规则类资产发布模拟红灯/绿灯：
+  `mvn -q -Dtest=ReleaseSimulationServiceTest#usesDependencyImpactReplayForAssetsWithoutDedicatedCaseEvaluator,AssetDependencyServiceTest#listsPublishedDependentsInTargetScopeForReleaseImpact test`
+  先失败于缺少 `activeDependentsOf` 和 `impactedAssets`；修复后通过；
+  `mvn -q -Dtest=ReleaseSimulationServiceTest,AssetDependencyServiceTest,RuleReleaseSimulationReplayEvaluatorTest,ReleaseGovernanceControllerTest,VersioningCommandContractTest test`
+  通过；`mvn -q -DskipTests compile` 通过；`git diff --check` 通过。生产代码已无
+  `尚未接入确定性历史回放执行器` 默认提示残留。
 - 产品语言门禁红灯/绿灯：
   `npm test -- --run src/shared/config/customerLanguageGate.test.ts` 先失败于启动凭证、来源允许清单、医学公式和生产前校验等
   前台可见旧技术文案；修复后 4 个测试通过；

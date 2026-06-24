@@ -1,5 +1,6 @@
 package com.medkernel.engine.versioning;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -182,6 +183,45 @@ class AssetDependencyServiceTest {
             "tenant-A", VersionedAssetType.TERMINOLOGY, "TERMINOLOGY.LOINC.718-7", HOSP_PATH, "adult|inpatient"))
             .doesNotThrowAnyException();
         verify(assetVersions).findByVersionIdAndTenantId("av-rule-retired", "tenant-A");
+    }
+
+    @Test
+    void listsPublishedDependentsInTargetScopeForReleaseImpact() {
+        AssetVersion activeRule = ruleVersion("av-rule-active", "RULE.ANEMIA", AssetVersionStatus.PUBLISHED);
+        AssetVersion retiredRule = ruleVersion("av-rule-retired", "RULE.OLD", AssetVersionStatus.WITHDRAWN);
+        AssetVersion otherScopeRule = version(
+            "av-rule-other",
+            "tenant-A",
+            VersionedAssetType.RULE,
+            "RULE.PEDS",
+            "1.0.0",
+            HOSP_PATH,
+            AssetVersionStatus.PUBLISHED,
+            "pediatric|outpatient"
+        );
+        when(dependencies.findByTenantIdAndDependsOnAssetTypeAndDependsOnIdentity(
+            "tenant-A", VersionedAssetType.TERMINOLOGY, "TERMINOLOGY.LOINC.718-7"
+        )).thenReturn(List.of(
+            dependency(activeRule, VersionedAssetType.TERMINOLOGY, "TERMINOLOGY.LOINC.718-7", null, null),
+            dependency(retiredRule, VersionedAssetType.TERMINOLOGY, "TERMINOLOGY.LOINC.718-7", null, null),
+            dependency(otherScopeRule, VersionedAssetType.TERMINOLOGY, "TERMINOLOGY.LOINC.718-7", null, null)
+        ));
+        when(assetVersions.findByVersionIdAndTenantId("av-rule-active", "tenant-A"))
+            .thenReturn(Optional.of(activeRule));
+        when(assetVersions.findByVersionIdAndTenantId("av-rule-retired", "tenant-A"))
+            .thenReturn(Optional.of(retiredRule));
+        when(assetVersions.findByVersionIdAndTenantId("av-rule-other", "tenant-A"))
+            .thenReturn(Optional.of(otherScopeRule));
+
+        List<AssetVersion> result = service.activeDependentsOf(
+            "tenant-A",
+            VersionedAssetType.TERMINOLOGY,
+            "TERMINOLOGY.LOINC.718-7",
+            HOSP_PATH,
+            "adult|inpatient"
+        );
+
+        assertThat(result).extracting(AssetVersion::assetIdentity).containsExactly("RULE.ANEMIA");
     }
 
     private AssetDependency dependency(

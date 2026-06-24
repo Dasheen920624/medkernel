@@ -128,6 +128,7 @@ public class RuleReleaseSimulationReplayEvaluator implements ReleaseSimulationRe
             severityIncreases,
             severityDecreases,
             highRiskSnapshotIds,
+            List.of(),
             null
         );
     }

@@ -135,6 +135,31 @@ public class AssetDependencyService {
         }
     }
 
+    public List<AssetVersion> activeDependentsOf(
+            String tenantId,
+            VersionedAssetType assetType,
+            String assetIdentity,
+            String targetOrgPath,
+            String applicableScope) {
+        List<AssetDependency> dependentEdges = dependencies.findByTenantIdAndDependsOnAssetTypeAndDependsOnIdentity(
+            required(tenantId, "租户 ID"),
+            required(assetType, "资产类型"),
+            required(assetIdentity, "资产身份")
+        );
+        List<AssetVersion> activeDependents = new ArrayList<>();
+        for (AssetDependency edge : dependentEdges) {
+            assetVersions.findByVersionIdAndTenantId(edge.versionId(), edge.tenantId())
+                .filter(this::isInUse)
+                .filter(version -> overlapsDisableScope(version, targetOrgPath, applicableScope))
+                .ifPresent(activeDependents::add);
+        }
+        activeDependents.sort(Comparator
+            .comparing(AssetVersion::assetType)
+            .thenComparing(AssetVersion::assetIdentity)
+            .thenComparing(AssetVersion::versionNo));
+        return List.copyOf(activeDependents);
+    }
+
     private List<AssetVersion> resolvableCandidates(AssetVersion owner, AssetDependency edge) {
         List<AssetVersion> candidates = new ArrayList<>();
         candidates.addAll(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
