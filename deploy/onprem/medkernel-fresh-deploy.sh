@@ -9,6 +9,8 @@ ENV_FILE="$APP_HOME/conf/medkernel.env"
 SERVICE="${MEDKERNEL_SERVICE:-medkernel}"
 DATABASE="${MEDKERNEL_DATABASE:-medkernel}"
 DATABASE_OWNER="${MEDKERNEL_DATABASE_OWNER:-medkernel}"
+APP_USER="${MEDKERNEL_DEPLOY_APP_USER:-medkernel}"
+APP_GROUP="${MEDKERNEL_DEPLOY_APP_GROUP:-$APP_USER}"
 DEPLOY_COMMAND="${MEDKERNEL_DEPLOY_COMMAND:-/usr/local/bin/medkernel-deploy}"
 PORT=""
 
@@ -483,6 +485,17 @@ purge_old_runtime() {
   fi
 }
 
+prepare_managed_runtime_directories() {
+  local literature_root="$APP_HOME/var/platform-knowledge/t-1/literature-materials"
+  info "创建正式知识文献受管资料库目录：$literature_root"
+  mkdir -p "$literature_root"
+  chmod 750 "$APP_HOME/var" "$APP_HOME/var/platform-knowledge" \
+    "$APP_HOME/var/platform-knowledge/t-1" "$literature_root"
+  if id "$APP_USER" >/dev/null 2>&1; then
+    chown -R "$APP_USER:$APP_GROUP" "$APP_HOME/var/platform-knowledge"
+  fi
+}
+
 publish_candidate() {
   info "发布显式候选：$SOURCE"
   RECOVERY_REASON="publish:artifacts"
@@ -496,6 +509,7 @@ verify_deployment() {
   local candidate_jar_sha running_jar_sha manifest_source manifest_commit
   local service_status http_code https_code bootstrap_code
   local flyway_version public_tables database_owner expected_public_tables
+  local managed_literature_root
   candidate_jar_sha="$(sha256sum "$STAGED_JAR" | awk '{print $1}')"
   running_jar_sha="$(sha256sum "$APP_HOME/lib/medkernel.jar" | awk '{print $1}')"
   manifest_source="$(sed -n 's/^source=//p' "$APP_HOME/manifest.properties")"
@@ -524,6 +538,7 @@ verify_deployment() {
     database_query postgres \
       "select pg_get_userbyid(datdba) from pg_database where datname='$DATABASE';"
   )"
+  managed_literature_root="$APP_HOME/var/platform-knowledge/t-1/literature-materials"
 
   [ "$candidate_jar_sha" = "$running_jar_sha" ] || die "运行 jar 与候选 SHA-256 不一致"
   [ "$manifest_source" = "$SOURCE" ] || die "manifest source 与候选提交不一致"
@@ -540,6 +555,7 @@ verify_deployment() {
   [ "$public_tables" -eq "$expected_public_tables" ] ||
     die "发布后表数量不匹配：期望 ${expected_public_tables}（业务表 ${EXPECTED_BUSINESS_TABLES} + Flyway 1），实际 ${public_tables}"
   [ "$database_owner" = "$DATABASE_OWNER" ] || die "数据库 owner 不匹配"
+  [ -d "$managed_literature_root" ] || die "正式知识文献受管资料库目录不存在"
 
   {
     printf 'source=%s\n' "$SOURCE"
@@ -559,6 +575,7 @@ verify_deployment() {
     printf 'flyway_version=%s\n' "$flyway_version"
     printf 'public_base_tables=%s\n' "$public_tables"
     printf 'database_owner=%s\n' "$database_owner"
+    printf 'managed_literature_material_root=%s\n' "$managed_literature_root"
     printf 'destructive_action_performed=%s\n' "$DESTRUCTIVE_ACTION_PERFORMED"
   } > "$BACKUP_DIR/evidence/post-deploy.properties"
   sha256sum "$BACKUP_DIR"/evidence/* > "$BACKUP_DIR/evidence/SHA256SUMS"
@@ -743,6 +760,7 @@ main() {
   stop_service
   recreate_database
   purge_old_runtime
+  prepare_managed_runtime_directories
   publish_candidate
   verify_deployment
   RECOVERY_ARMED=false
