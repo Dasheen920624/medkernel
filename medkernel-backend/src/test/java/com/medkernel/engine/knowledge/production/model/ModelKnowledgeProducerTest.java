@@ -298,6 +298,25 @@ class ModelKnowledgeProducerTest {
     }
 
     @Test
+    void apiModelJobUsesLocalRouteWhenReadinessConfirmsHospitalRuntimeLocalProvider() {
+        String localProvider = "ollama-launch";
+        when(readinessService.evaluate(KnowledgeProducer.API_MODEL, CAPABILITY, localProvider))
+            .thenReturn(apiModelHospitalRuntimeReady(localProvider));
+        when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(successfulLocalModelTask());
+        ArgumentCaptor<ModelTaskRequest> taskCaptor = ArgumentCaptor.forClass(ModelTaskRequest.class);
+
+        ModelKnowledgeProductionResult result = producer.generate(JOB_CODE, request(localProvider));
+
+        assertThat(result.modelMode()).isEqualTo("B1");
+        assertThat(result.summary().candidates()).singleElement()
+            .satisfies(candidate -> assertThat(candidate.candidateRef()).isEqualTo("candidate:model:1"));
+        verify(modelGateway).submitTask(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().requiredRouteStrategy()).isEqualTo("LOCAL_MODEL");
+        assertThat(taskCaptor.getValue().providerCode()).isEqualTo(localProvider);
+        verify(production).submitCandidate(eq(JOB_CODE), any(KnowledgeAssetEnvelope.class), eq(target()));
+    }
+
+    @Test
     void localModelJobRejectsPlatformSourcePipelineBeforeModelInvocation() {
         when(jobRepository.findByTenantIdAndJobCode(TENANT, JOB_CODE))
             .thenReturn(Optional.of(job(KnowledgeProducer.LOCAL_MODEL, TargetPipeline.PLATFORM_SOURCE)));
@@ -450,6 +469,25 @@ class ModelKnowledgeProducerTest {
                 KnowledgeProductionReadinessItem.pass("MODEL_PROVIDER", "本地 provider 已健康", providerCode),
                 KnowledgeProductionReadinessItem.pass("MODEL_EVALUATION", "评测通过", "runId=1"),
                 KnowledgeProductionReadinessItem.pass("EGRESS_GOVERNANCE", "本地模型不外调", providerCode),
+                KnowledgeProductionReadinessItem.pass("MODEL_POLICY", "策略匹配", "LOCAL_MODEL"),
+                KnowledgeProductionReadinessItem.pass("VERSION_TRIPLE", "三元组已声明", MODEL_STRATEGY)));
+    }
+
+    private KnowledgeProductionReadinessResponse apiModelHospitalRuntimeReady(String providerCode) {
+        return new KnowledgeProductionReadinessResponse(
+            TENANT,
+            KnowledgeProducer.API_MODEL,
+            CAPABILITY,
+            providerCode,
+            DeploymentForm.HOSPITAL_RUNTIME,
+            false,
+            false,
+            List.of(
+                KnowledgeProductionReadinessItem.pass("LITERATURE_ROOT", "已配置", "s3://mk/lit"),
+                KnowledgeProductionReadinessItem.pass("DEPLOYMENT_FORM", "院内运行态仅允许本地模型调用", "HOSPITAL_RUNTIME"),
+                KnowledgeProductionReadinessItem.pass("MODEL_PROVIDER", "本地 provider 已健康", providerCode),
+                KnowledgeProductionReadinessItem.pass("MODEL_EVALUATION", "评测通过", "runId=1"),
+                KnowledgeProductionReadinessItem.pass("EGRESS_GOVERNANCE", "院内运行态禁止外调", providerCode),
                 KnowledgeProductionReadinessItem.pass("MODEL_POLICY", "策略匹配", "LOCAL_MODEL"),
                 KnowledgeProductionReadinessItem.pass("VERSION_TRIPLE", "三元组已声明", MODEL_STRATEGY)));
     }

@@ -36,6 +36,7 @@ import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriag
 import com.medkernel.engine.llm.ModelGatewayService;
 import com.medkernel.engine.llm.ModelTaskRequest;
 import com.medkernel.engine.llm.ModelTaskResponse;
+import com.medkernel.engine.llm.provider.DeploymentForm;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
@@ -107,7 +108,7 @@ public class ModelKnowledgeProducer {
 
         ModelTaskResponse task = modelGateway.submitTask(new ModelTaskRequest(
             request.capabilityCode(), request.prompt(), request.timeoutSeconds(),
-            requiredRouteStrategy(job.producer()), request.providerCode()));
+            requiredRouteStrategy(job, readiness), request.providerCode()));
         if (isB0Fallback(task)) {
             return result(jobCode, task, new GenerationSummary(
                 List.of(),
@@ -217,8 +218,12 @@ public class ModelKnowledgeProducer {
         }
     }
 
-    private String requiredRouteStrategy(KnowledgeProducer producer) {
-        return producer == KnowledgeProducer.LOCAL_MODEL ? "LOCAL_MODEL" : "EXTERNAL_MODEL";
+    private String requiredRouteStrategy(KnowledgeProductionJob job, KnowledgeProductionReadinessResponse readiness) {
+        if (job.producer() == KnowledgeProducer.LOCAL_MODEL
+            || readiness.deploymentForm() == DeploymentForm.HOSPITAL_RUNTIME) {
+            return "LOCAL_MODEL";
+        }
+        return "EXTERNAL_MODEL";
     }
 
     private List<GateItemResult> readinessFailures(List<KnowledgeProductionReadinessItem> items) {
