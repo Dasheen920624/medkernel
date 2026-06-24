@@ -93,6 +93,17 @@ test("机构生效版本明细校验码由演练规则清单内容稳定派生",
   assert.notEqual(deriveSandboxRuntimeDigest(changed), first);
 });
 
+test("沙盘创建快照前先激活含平台基线资产的当前医院机构生效版本", async () => {
+  const source = await readFile(new URL("./seed-scenarios.mjs", import.meta.url), "utf8");
+  const runSeed = source.slice(source.indexOf("export async function runSeed"));
+
+  assert.ok(
+    runSeed.indexOf("ensureInitialRuntimeRelease(") >= 0 &&
+      runSeed.indexOf("ensureInitialRuntimeRelease(") < runSeed.indexOf("seedSnapshots("),
+  );
+  assert.match(runSeed, /activePlatformBaselineAssets/u);
+});
+
 test("沙盘演练脚本不再创建或发布旧容器", async () => {
   const source = await readFile(new URL("./seed-scenarios.mjs", import.meta.url), "utf8");
 

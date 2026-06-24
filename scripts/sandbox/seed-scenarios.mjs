@@ -793,6 +793,28 @@ function runtimeAssetSelection(item) {
   };
 }
 
+function runtimeAssetKey(item) {
+  return `${item.assetType}:${item.assetIdentity}`;
+}
+
+function uniqueRuntimeAssets(assets) {
+  const selected = new Map();
+  for (const item of assets) {
+    const normalized = runtimeAssetSelection(item);
+    selected.set(runtimeAssetKey(normalized), normalized);
+  }
+  return [...selected.values()];
+}
+
+function activePlatformBaselineAssets(baseline) {
+  return (baseline?.items ?? [])
+    .filter((item) => item.entryState === "ACTIVE")
+    .map((item) => ({
+      assetType: item.assetType,
+      assetIdentity: item.assetIdentity,
+    }));
+}
+
 function runtimeCoversDesiredAssets(currentDetail, desiredAssets) {
   const active = new Set(
     (currentDetail?.items ?? [])
@@ -829,34 +851,42 @@ async function readCurrentHospitalRuntime(context, hospitalId, stage) {
   return ensureOk(result, "读取当前机构生效版本");
 }
 
-async function activateRuntimeRelease(context, ctx, assets) {
+async function readCurrentPlatformBaseline(context, stage) {
+  return ensureOk(
+    await apiGet(
+      context,
+      "/engine/releases/platform-baselines/current",
+      stage,
+    ),
+    "读取平台当前标准版本",
+  );
+}
+
+async function activateRuntimeRelease(context, ctx, assets, options = {}) {
   const targetOrgUnitId = runtimeTargetOrgUnitId(ctx);
-  const desiredAssets = assets.map(runtimeAssetSelection);
+  const desiredAssets = uniqueRuntimeAssets(assets);
   const currentDetail = await readCurrentHospitalRuntime(
     context,
     targetOrgUnitId,
-    "sandbox-runtime-current",
+    options.currentStage ?? "sandbox-runtime-current",
   );
   if (currentDetail && runtimeCoversDesiredAssets(currentDetail, desiredAssets)) {
     const status = ensureOk(
       await apiGet(
         context,
         "/engine/sandbox/runtime-status",
-        "verify-sandbox-runtime-status",
+        options.verifyStage ?? "verify-sandbox-runtime-status",
       ),
       "验证沙盘机构生效版本",
     );
     return { reused: true, release: currentDetail.release, status };
   }
 
-  const baseline = ensureOk(
-    await apiGet(
+  const baseline = options.baseline ??
+    (await readCurrentPlatformBaseline(
       context,
-      "/engine/releases/platform-baselines/current",
-      "sandbox-platform-baseline-current",
-    ),
-    "读取平台当前标准版本",
-  );
+      options.baselineStage ?? "sandbox-platform-baseline-current",
+    ));
   const baselineReleaseId = baseline?.release?.baselineReleaseId;
   if (!baselineReleaseId) {
     throw new Error("平台当前标准版本缺少 baselineReleaseId，无法生成机构生效版本");
@@ -870,7 +900,7 @@ async function activateRuntimeRelease(context, ctx, assets) {
         expectedCurrentReleaseId: currentDetail?.release?.releaseId ?? null,
         activeAssets: desiredAssets,
       },
-      "activate-sandbox-runtime-release",
+      options.activateStage ?? "activate-sandbox-runtime-release",
     ),
     "发布沙盘机构生效版本",
   );
@@ -878,7 +908,7 @@ async function activateRuntimeRelease(context, ctx, assets) {
     await apiGet(
       context,
       "/engine/sandbox/runtime-status",
-      "verify-sandbox-runtime-status",
+      options.verifyStage ?? "verify-sandbox-runtime-status",
     ),
     "验证沙盘机构生效版本",
   );
@@ -894,6 +924,23 @@ async function activateRuntimeRelease(context, ctx, assets) {
   return { reused: false, release, status };
 }
 
+async function ensureInitialRuntimeRelease(context, ctx) {
+  const baseline = await readCurrentPlatformBaseline(
+    context,
+    "sandbox-initial-platform-baseline-current",
+  );
+  const platformAssets = activePlatformBaselineAssets(baseline);
+  if (platformAssets.length === 0) {
+    throw new Error("平台当前标准版本没有 ACTIVE 运行资产，无法创建沙盘快照");
+  }
+  return activateRuntimeRelease(context, ctx, platformAssets, {
+    baseline,
+    currentStage: "sandbox-initial-runtime-current",
+    activateStage: "activate-sandbox-initial-runtime-release",
+    verifyStage: "verify-sandbox-initial-runtime-status",
+  });
+}
+
 export async function runSeed() {
   await mkdir(evidenceDir, { recursive: true });
   const manifest = await loadScenarioRules();
@@ -907,6 +954,7 @@ export async function runSeed() {
     runnableRuleCodes: selected.runnable.map((item) => item.ruleCode),
     blockedRuleCodes: selected.blocked.map((item) => item.ruleCode),
     results: [],
+    initialRuntimeRelease: null,
     runtimeRelease: null,
     failures: [],
   };
@@ -924,6 +972,21 @@ export async function runSeed() {
       throw new Error(
         `演练机构凭据租户 ${accountTenantId} 与规则归属 ${expectedTenantId} 不一致`,
       );
+    }
+
+    const initialRuntimeContext = await login(
+      browser,
+      requireAccount(credentials, SANDBOX_ACTOR_ROLES.engineOperator),
+      SANDBOX_ACTOR_ROLES.engineOperator,
+    );
+    try {
+      const ctx = await envelope(initialRuntimeContext, "sandbox-initial-runtime");
+      summary.initialRuntimeRelease = await ensureInitialRuntimeRelease(
+        initialRuntimeContext,
+        ctx,
+      );
+    } finally {
+      await initialRuntimeContext.close();
     }
 
     for (const rule of selected.runnable) {
@@ -980,6 +1043,14 @@ export async function runSeed() {
       );
       try {
         const ctx = await envelope(adminContext, "sandbox-runtime");
+        const baseline = await readCurrentPlatformBaseline(
+          adminContext,
+          "sandbox-final-platform-baseline-current",
+        );
+        const platformAssets = activePlatformBaselineAssets(baseline);
+        if (platformAssets.length === 0) {
+          throw new Error("平台当前标准版本没有 ACTIVE 运行资产，无法生成最终机构生效版本");
+        }
         const outerAssets = await discoverRequiredOuterAssets(
           adminContext,
           manifest.dependencies,
@@ -992,11 +1063,21 @@ export async function runSeed() {
           versionId: item.versionId,
           assetCode: item.ruleCode,
         }));
-        const releaseAssets = [...ruleAssets, ...outerAssets];
+        const releaseAssets = uniqueRuntimeAssets([
+          ...platformAssets,
+          ...ruleAssets,
+          ...outerAssets,
+        ]);
         const runtimeRelease = await activateRuntimeRelease(
           adminContext,
           ctx,
           releaseAssets,
+          {
+            baseline,
+            currentStage: "sandbox-final-runtime-current",
+            activateStage: "activate-sandbox-final-runtime-release",
+            verifyStage: "verify-sandbox-final-runtime-status",
+          },
         );
         summary.runtimeRelease = runtimeRelease;
       } finally {
