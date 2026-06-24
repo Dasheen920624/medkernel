@@ -66,8 +66,8 @@
   `config-boundary-guard --mode=all` 扫描 1902 个文件，
   `migration-convention-guard --mode=all` 扫描 5 份迁移文件。
 - 部署资产、单机部署、发布包、Ollama 生产模型定义和 Shell 断言语义契约均通过。
-- 旧 package/兼容语义收口定向红灯已复现后修复：
-  `KnowledgeInitializationCatalogTest` 先失败于“知识金标回归与发行兼容”；
+- 旧 package/旧发布语义收口定向红灯已复现后修复：
+  `KnowledgeInitializationCatalogTest` 先失败于 `KNOWGEN-32` 标题仍含旧兼容发布语义；
   `InheritanceResolverBatchTest` 先失败于 `BatchResolvedAsset` 仍暴露恒为 `false` 的 `added` 标志；
   `RulePathwayCleanliness.test.ts` 先失败于规则/路径样式表残留 `.packageList/.packageCard`。
 - 修复后 `mvn -q -Dtest=KnowledgeInitializationCatalogTest,InheritanceResolverBatchTest test`、
