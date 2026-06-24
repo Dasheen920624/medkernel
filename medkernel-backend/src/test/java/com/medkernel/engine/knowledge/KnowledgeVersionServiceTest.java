@@ -1082,6 +1082,81 @@ class KnowledgeVersionServiceTest {
     }
 
     @Test
+    void approveCandidateUsesSourceRefLinkedCanonicalUnifiedVersionWhenVersionNoDiffers() {
+        KnowledgeIdentity identity = identity(1L, 5L);
+        KnowledgeAssetVersion active = version(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
+        KnowledgeAssetVersion candidate = version(22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.LOW);
+        CandidateClassification classification = classification(
+            88L,
+            1L,
+            22L,
+            5L,
+            CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        stubPendingAssignment(classification, candidate, "u-99");
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE)).thenReturn(Optional.of(active));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 22L))
+            .thenReturn(List.of(citation(22L)));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "t-1", VersionedAssetType.KNOWLEDGE, identity.identityCode(), candidate.versionNo()))
+            .thenReturn(Optional.empty());
+        String sourceRef = "knowledge-version:" + identity.identityCode() + ":" + candidate.versionNo();
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndSourceRef(
+            "t-1", VersionedAssetType.KNOWLEDGE, identity.identityCode(), sourceRef))
+            .thenReturn(Optional.of(unifiedVersion(
+                identity.identityCode(), "V1", candidate.contentHash(), sourceRef, AssetVersionStatus.DRAFT)));
+
+        KnowledgeCandidateResponse response = service.reviewCandidate(88L, candidateReviewRequest("t-1"));
+
+        assertThat(response.reasonCode()).isEqualTo("APPROVED");
+        verify(assetVersions).findByTenantIdAndAssetTypeAndAssetIdentityAndSourceRef(
+            "t-1", VersionedAssetType.KNOWLEDGE, identity.identityCode(), sourceRef);
+        verify(releasePort).publish(any());
+        verify(projectionRefreshPort).refreshPublishedVersion("t-1", 1L, 22L, "u-99", "trace");
+    }
+
+    @Test
+    void approveCandidateRejectsSourceRefLinkedUnifiedVersionWhenContentHashDiffers() {
+        KnowledgeIdentity identity = identity(1L, 5L);
+        KnowledgeAssetVersion active = version(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
+        KnowledgeAssetVersion candidate = version(22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.LOW);
+        CandidateClassification classification = classification(
+            88L,
+            1L,
+            22L,
+            5L,
+            CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        stubPendingAssignment(classification, candidate, "u-99");
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE)).thenReturn(Optional.of(active));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 22L))
+            .thenReturn(List.of(citation(22L)));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "t-1", VersionedAssetType.KNOWLEDGE, identity.identityCode(), candidate.versionNo()))
+            .thenReturn(Optional.empty());
+        String sourceRef = "knowledge-version:" + identity.identityCode() + ":" + candidate.versionNo();
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndSourceRef(
+            "t-1", VersionedAssetType.KNOWLEDGE, identity.identityCode(), sourceRef))
+            .thenReturn(Optional.of(unifiedVersion(
+                identity.identityCode(), "V1", sha256("被串线的统一资产内容"), sourceRef, AssetVersionStatus.DRAFT)));
+
+        assertThatThrownBy(() -> service.reviewCandidate(88L, candidateReviewRequest("t-1")))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+        verify(releasePort, never()).publish(any());
+        verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
+    }
+
+    @Test
     void rejectCandidateMarksVersionRejectedWithoutActivationSideEffects() {
         KnowledgeAssetVersion candidate = version(22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.LOW);
         CandidateClassification classification = classification(
@@ -1645,6 +1720,21 @@ class KnowledgeVersionServiceTest {
             String identityCode,
             String versionNo,
             AssetVersionStatus status) {
+        return unifiedVersion(
+            identityCode,
+            versionNo,
+            sha256(identityCode + ":" + versionNo),
+            "knowledge-version:" + identityCode + ":" + versionNo,
+            status
+        );
+    }
+
+    private AssetVersion unifiedVersion(
+            String identityCode,
+            String versionNo,
+            String contentHash,
+            String sourceRef,
+            AssetVersionStatus status) {
         Instant now = Instant.now();
         return new AssetVersion(
             null,
@@ -1655,12 +1745,12 @@ class KnowledgeVersionServiceTest {
             versionNo,
             "tenant:t-1",
             KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE,
-            sha256(identityCode + ":" + versionNo),
+            contentHash,
             AssetVersionSafetyPolicy.NORMAL,
             AssetVersionOverridePolicy.FREE,
             status,
             "version:av-" + identityCode + "-" + versionNo,
-            "knowledge-version:" + identityCode + ":" + versionNo,
+            sourceRef,
             null,
             null,
             now,

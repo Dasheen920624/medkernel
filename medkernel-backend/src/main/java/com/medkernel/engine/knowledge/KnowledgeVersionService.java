@@ -396,7 +396,7 @@ public class KnowledgeVersionService {
             candidate.effectiveApplicableScope(),
             null,
             candidate.contentHash(),
-            "knowledge-version:" + identity.identityCode() + ":" + candidate.versionNo(),
+            knowledgeVersionSourceRef(identity.identityCode(), candidate.versionNo()),
             actor,
             RequestContext.currentTraceId(),
             AssetVersionSafetyPolicy.NORMAL,
@@ -817,15 +817,35 @@ public class KnowledgeVersionService {
     private AssetVersion requireUnifiedAssetVersion(
             KnowledgeIdentity identity,
             KnowledgeAssetVersion version) {
-        return assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+        Optional<AssetVersion> direct = assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
                 identity.tenantId(),
                 VersionedAssetType.KNOWLEDGE,
                 identity.identityCode(),
-                version.versionNo())
+                version.versionNo());
+        if (direct.isPresent()) {
+            return direct.get();
+        }
+        String sourceRef = knowledgeVersionSourceRef(identity.identityCode(), version.versionNo());
+        AssetVersion linked = assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndSourceRef(
+                identity.tenantId(),
+                VersionedAssetType.KNOWLEDGE,
+                identity.identityCode(),
+                sourceRef)
             .orElseThrow(() -> new ApiException(
                 ErrorCode.CONFLICT,
                 "知识版本缺少统一资产版本登记: "
                     + identity.identityCode() + "@" + version.versionNo()));
+        if (!version.contentHash().equals(linked.contentHash())) {
+            throw new ApiException(
+                ErrorCode.CONFLICT,
+                "知识版本统一资产登记内容指纹不一致: "
+                    + identity.identityCode() + "@" + version.versionNo());
+        }
+        return linked;
+    }
+
+    private String knowledgeVersionSourceRef(String identityCode, String versionNo) {
+        return "knowledge-version:" + identityCode + ":" + versionNo;
     }
 
     private VersionReleaseCommand knowledgeReleaseCommand(
