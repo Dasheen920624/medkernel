@@ -19,7 +19,7 @@ export const RULE_OPERATOR_OPTIONS = [
   { value: "is_stale", label: "结果陈旧" },
   { value: "unit_compare", label: "单位换算比较" },
   { value: "temporal", label: "时间窗/连续/趋势" },
-  { value: "derived", label: "受控公式" },
+  { value: "derived", label: "计算公式" },
 ] as const;
 
 export type RuleOperator = (typeof RULE_OPERATOR_OPTIONS)[number]["value"];
@@ -71,7 +71,7 @@ export const RULE_VALUE_KIND_OPTIONS = [
   { value: "range", label: "区间" },
   { value: "measurement", label: "带单位阈值" },
   { value: "temporal", label: "时间窗" },
-  { value: "derived", label: "受控公式" },
+  { value: "derived", label: "计算公式" },
   { value: "critical_flag", label: "危急标记集合" },
   { value: "staleness", label: "结果时效" },
 ] as const;

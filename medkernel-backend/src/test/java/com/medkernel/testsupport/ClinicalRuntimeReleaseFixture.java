@@ -1,5 +1,8 @@
 package com.medkernel.testsupport;
 
+import java.util.List;
+
+import com.medkernel.engine.release.ReleaseManifestHash;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -16,6 +19,7 @@ public final class ClinicalRuntimeReleaseFixture {
             String hospitalId,
             String releaseId) {
         String baselineId = baselineId(releaseId);
+        String emptyManifest = ReleaseManifestHash.sha256(List.of());
         Long baselineRevision = jdbc.queryForObject(
             "SELECT COALESCE(MAX(revision_no), 0) + 1 FROM platform_baseline_release",
             Long.class);
@@ -29,13 +33,13 @@ public final class ClinicalRuntimeReleaseFixture {
                 (baseline_release_id, revision_no, manifest_sha256, published_at,
                  published_by, created_by, trace_id)
             VALUES (?, ?, ?, CURRENT_TIMESTAMP, 'test', 'test', 'test-runtime-release')
-            """, baselineId, baselineRevision, "a".repeat(64));
+            """, baselineId, baselineRevision, emptyManifest);
         jdbc.update("""
             INSERT INTO clinical_runtime_release
                 (release_id, tenant_id, hospital_id, revision_no, platform_baseline_release_id,
                  manifest_sha256, activated_at, activated_by, created_by, trace_id)
             VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'test', 'test', 'test-runtime-release')
-            """, releaseId, tenantId, hospitalId, runtimeRevision, baselineId, "b".repeat(64));
+            """, releaseId, tenantId, hospitalId, runtimeRevision, baselineId, emptyManifest);
     }
 
     public static void delete(

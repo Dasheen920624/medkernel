@@ -224,8 +224,9 @@ describe("ReleaseGovernance", () => {
 
     expect(screen.getByRole("heading", { name: "发布治理" })).toBeInTheDocument();
     expect(screen.getByText("当前平台标准版本 第 8 版")).toBeInTheDocument();
-    expect(screen.queryByText(new RegExp(`灰度|覆盖模板|配置${"包"}版本|候选版本 ID`)))
-      .not.toBeInTheDocument();
+    expect(
+      screen.queryByText(new RegExp(`灰度|覆盖模板|配置${"包"}版本|候选版本 ID`)),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText("发布 RULE.CKD V2"));
     fireEvent.click(screen.getByLabelText("停用 PATH.OLD"));

@@ -202,7 +202,7 @@ public class PathwayProgressor {
     private void recordOrderSetEvidence(PathwayNode current,
                                         PathwayProgressCommand command,
                                         LinkedHashMap<String, Object> evidence) {
-        String orderSetRef = requiredConfigText(current, "orderSetRef", "医嘱集节点缺少 orderSetRef");
+        String orderSetRef = requiredConfigText(current, "orderSetRef", "医嘱套餐节点缺少引用");
         evidence.put("pathway.orderSetRef", orderSetRef);
         if (isBlank(command.tenantId()) || isBlank(command.runtimeReleaseId())) {
             return;

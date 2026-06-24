@@ -32,6 +32,7 @@ import com.medkernel.engine.llm.ModelGatewayService;
 import com.medkernel.engine.llm.ModelTaskRequest;
 import com.medkernel.engine.llm.ModelTaskResponse;
 import com.medkernel.engine.recommendation.*;
+import com.medkernel.engine.release.ReleaseManifestHash;
 import com.medkernel.engine.release.PlatformBaselineRelease;
 import com.medkernel.engine.release.PlatformBaselineReleaseRepository;
 import com.medkernel.shared.api.error.ApiException;
@@ -101,7 +102,7 @@ class EngineEndToEndIntegrationTest {
             new OrgScope(tenantId, "GROUP-1", hospitalId, "CAMPUS-1", "SITE-1", "DEPT-01", null, "NEURO"),
             doctorId));
         Instant now = Instant.now();
-        String emptyManifest = "0".repeat(64);
+        String emptyManifest = ReleaseManifestHash.sha256(List.of());
         platformBaselineReleases.save(new PlatformBaselineRelease(
             null, "baseline-e2e", 1L, emptyManifest,
             now, doctorId, now, doctorId, traceId));

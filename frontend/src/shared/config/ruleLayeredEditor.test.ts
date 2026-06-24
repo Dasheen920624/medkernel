@@ -526,11 +526,14 @@ describe("RULE-01 三层规则编辑模型", () => {
 
   it("L3 DSL 包含未知算子时直接报错，避免错误规则被伪装成存在性判断", () => {
     expect(() =>
-      dslToConditionTree({
-        when: { all: [{ fact: "lab.potassium", operator: "unknown_operator" }] },
-        then: [],
-        explain: { summary: "未知算子" },
-      }, "result-review"),
+      dslToConditionTree(
+        {
+          when: { all: [{ fact: "lab.potassium", operator: "unknown_operator" }] },
+          then: [],
+          explain: { summary: "未知算子" },
+        },
+        "result-review",
+      ),
     ).toThrow("不支持的规则算子");
   });
 
@@ -559,16 +562,22 @@ describe("RULE-01 三层规则编辑模型", () => {
     };
 
     expect(() =>
-      dslToConditionTree({
-        ...baseDsl,
-        then: [{ ...action, overrideReasons: [] }],
-      }, "result-review"),
+      dslToConditionTree(
+        {
+          ...baseDsl,
+          then: [{ ...action, overrideReasons: [] }],
+        },
+        "result-review",
+      ),
     ).toThrow("suggestions 必须是数组");
     expect(() =>
-      dslToConditionTree({
-        ...baseDsl,
-        then: [{ ...action, suggestions: [] }],
-      }, "result-review"),
+      dslToConditionTree(
+        {
+          ...baseDsl,
+          then: [{ ...action, suggestions: [] }],
+        },
+        "result-review",
+      ),
     ).toThrow("overrideReasons 必须是数组");
   });
 

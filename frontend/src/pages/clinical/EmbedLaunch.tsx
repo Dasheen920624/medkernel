@@ -228,7 +228,7 @@ export default function EmbedLaunch() {
               </div>
             )}
             <Alert
-                message="已向通过允许清单校验的来源工作站发送浏览器交互事件"
+              message="已向通过允许清单校验的来源工作站发送浏览器交互事件"
               description={
                 feedbackDelivery?.callbackDelivered
                   ? "服务端回调已送达，当前会话可以安全退出。"

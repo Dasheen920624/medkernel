@@ -354,7 +354,7 @@ export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
   {
     key: "clinical_operator_review",
     title: "临床算子复核",
-    description: "适合配置 MED-C2 已实现的区间、单位换算、时间窗或受控公式判断。",
+    description: "适合配置 MED-C2 已实现的区间、单位换算、时间窗或计算公式判断。",
     ruleType: "QUALITY",
     riskLevel: "HIGH",
     tree: {
@@ -806,7 +806,7 @@ function parseAction(source: unknown): RuleActionDraft {
     "AUTO_DOCUMENT",
   ];
   if (!actionCodes.includes(actionCode as RuleActionCode)) {
-    throw new Error(`不支持的规则动作码: ${actionCode || "未填写"}`);
+    throw new Error(`不支持的命中后处理: ${actionCode || "未填写"}`);
   }
   const atSeverity = readSeverity(source, "atSeverity", "" as RuleSeverity);
   if (!atSeverity) {
@@ -814,7 +814,7 @@ function parseAction(source: unknown): RuleActionDraft {
   }
   const indicator = readString(source, "indicator", "");
   if (indicator !== "info" && indicator !== "warning" && indicator !== "critical") {
-    throw new Error(`不支持的卡片指示级别: ${indicator || "未填写"}`);
+    throw new Error(`不支持的提醒等级: ${indicator || "未填写"}`);
   }
   const summary = readString(source, "summary", "").trim();
   const detail = readString(source, "detail", "").trim();

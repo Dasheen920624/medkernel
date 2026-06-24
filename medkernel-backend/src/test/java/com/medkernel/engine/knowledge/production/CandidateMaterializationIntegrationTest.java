@@ -29,9 +29,13 @@ import com.medkernel.engine.knowledge.SourceDocumentRepository;
 import com.medkernel.engine.knowledge.SourceType;
 import com.medkernel.engine.knowledge.SourceVersion;
 import com.medkernel.engine.knowledge.SourceVersionRepository;
+import com.medkernel.engine.org.OrgUnit;
+import com.medkernel.engine.org.OrgUnitRepository;
+import com.medkernel.engine.org.OrgUnitStatus;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.hash.Sha256ContentHash;
@@ -63,6 +67,8 @@ class CandidateMaterializationIntegrationTest {
     private CandidateClassificationRepository classifications;
     @Autowired
     private ReviewAssignmentRepository reviewAssignments;
+    @Autowired
+    private OrgUnitRepository organizations;
 
     @AfterEach
     void tearDown() {
@@ -73,6 +79,7 @@ class CandidateMaterializationIntegrationTest {
     void materializesDiscoveryCandidateIntoReviewChainWithRoutedAssignments() {
         RequestContext.restore(new RequestContext.Snapshot("trace-it", OrgScope.tenant(TENANT), "user-it"));
         Instant now = Instant.now();
+        seedTenantRoot(now);
         SourceDocument doc = sourceDocuments.save(new SourceDocument(null, TENANT, "SRC-MAT", SourceType.GUIDELINE,
             SourceAuthorityLevel.A_REGULATION, "依据", "标题", "出版者", "lic", "zh", now, "u", now, "u"));
         sourceVersions.save(new SourceVersion(null, TENANT, doc.id(), "v1", now, "vh", "uri", "zh", now, "u"));
@@ -109,5 +116,28 @@ class CandidateMaterializationIntegrationTest {
             reviewAssignments.findByTenantIdAndIdentityIdOrderByCreatedAtDescIdDesc(TENANT, identity.id());
         assertThat(assignments).extracting(ReviewAssignment::assignedTo)
             .containsExactly(RoleCode.ENGINE_OPERATOR.code());
+    }
+
+    private void seedTenantRoot(Instant now) {
+        if (organizations.findByTenantIdAndParentIdIsNull(TENANT).isPresent()) {
+            return;
+        }
+        organizations.save(new OrgUnit(
+            null,
+            null,
+            TENANT,
+            "/" + TENANT,
+            OrgLevel.TENANT,
+            "TENANT-MAT-IT",
+            "候选物化测试租户",
+            null,
+            null,
+            null,
+            OrgUnitStatus.ACTIVE,
+            now,
+            "user-it",
+            now,
+            "user-it"
+        ));
     }
 }

@@ -140,7 +140,6 @@ class MaskingRuleControllerSecurityTest {
                 .content("""
                     {
                       "resourceType": "act10_patient_export",
-                      "tenantId": "evil-tenant",
                       "scenarioCode": "DEFAULT",
                       "values": {
                         "patientName": "张建国",

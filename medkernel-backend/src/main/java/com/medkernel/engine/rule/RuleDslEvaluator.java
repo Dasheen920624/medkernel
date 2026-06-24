@@ -21,7 +21,7 @@ import com.medkernel.shared.api.error.ErrorCode;
  *
  * <p>负责把 {@code when} 条件树（all/any/leaf）按上下文求值，命中后解析 {@code then} 动作并计算最高严重度。
  * 覆盖基础比较、集合判断以及 between/unit_compare/temporal/derived 临床算子。
- * 缺失普通字段不抛内部异常，而是产生未命中；受控公式缺少必需参数时返回
+ * 缺失普通字段不抛内部异常，而是产生未命中；计算公式缺少必需参数时返回
  * {@code INSUFFICIENT_DATA}，避免临床计算臆测默认值。
  */
 @Component
@@ -113,7 +113,7 @@ public class RuleDslEvaluator {
     /**
      * 仅执行条件树，用于评估指标等“规则条件复用”场景。
      *
-     * <p>完整规则 DSL 仍必须通过 {@link #evaluate(JsonNode, JsonNode)} 校验 {@code then} 动作卡；
+     * <p>完整规则 DSL 仍必须通过 {@link #evaluate(JsonNode, JsonNode)} 校验 {@code then} 临床提示卡；
      * 本入口只接受 {@code all/any/not/leaf} 条件树，不生成动作，避免评估指标为了复用条件求值而构造空动作规则。
      */
     public RuleDslEvaluation evaluateConditionTree(JsonNode condition, JsonNode context, JsonNode explain) {
@@ -133,7 +133,7 @@ public class RuleDslEvaluator {
             throw invalid("then 必须是数组");
         }
         if (then.isEmpty()) {
-            throw invalid("then 至少包含一个动作卡");
+            throw invalid("then 至少包含一个临床提示卡");
         }
         List<RuleActionResult> actions = new ArrayList<>();
         for (JsonNode action : then) {
@@ -306,7 +306,7 @@ public class RuleDslEvaluator {
         try {
             return RuleActionCode.valueOf(value);
         } catch (IllegalArgumentException exception) {
-            throw invalid("规则动作码无效: " + value);
+            throw invalid("命中后处理类型无效: " + value);
         }
     }
 

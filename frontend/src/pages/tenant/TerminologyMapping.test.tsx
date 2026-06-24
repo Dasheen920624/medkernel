@@ -394,10 +394,7 @@ describe("TerminologyMapping", () => {
     await userEvent.click(screen.getByRole("button", { name: "确认候选" }));
     await userEvent.click(screen.getByRole("button", { name: "提交确认" }));
     expect(confirm).not.toHaveBeenCalled();
-    await userEvent.type(
-      screen.getByLabelText("核对依据"),
-      "已核对 LIS 原始值和 LOINC 权威来源",
-    );
+    await userEvent.type(screen.getByLabelText("核对依据"), "已核对 LIS 原始值和 LOINC 权威来源");
     await userEvent.click(screen.getByRole("button", { name: "提交确认" }));
 
     expect(confirm).toHaveBeenCalledWith({

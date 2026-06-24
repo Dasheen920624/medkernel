@@ -521,13 +521,13 @@ class RecommendationDeterministicMatcherTest {
               },
               "then": [{"actionCardRef": "CARD.K.RECHECK"}],
               "explain": {
-                "summary": "规则命中动作卡引用"
+                "summary": "规则命中临床提示卡引用"
               }
             }
             """;
         return new RuleVersion(
             12L, "rv-risk-action-card", "tenant-A", "rule-risk", 1,
-            "manual:action-card", "发布动作卡引用规则", dsl, "{\"summary\":\"规则解释\"}",
+            "manual:action-card", "发布临床提示卡引用规则", dsl, "{\"summary\":\"规则解释\"}",
             RuleVersionStatus.PUBLISHED, now, "reviewer", null,
             now, "tester", now, "tester", "trace-cdss");
     }

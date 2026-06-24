@@ -775,7 +775,8 @@ export default function KnowledgeGovernance({
   function requestCancelProductionJob(job: KnowledgeProductionJob) {
     modal.confirm({
       title: `中止生产任务 ${job.jobCode}`,
-      content: "仅中止待处理或运行中的生产任务；已入审核的候选仍按治理链路留痕处理，不会伪造发布成功。",
+      content:
+        "仅中止待处理或运行中的生产任务；已入审核的候选仍按治理链路留痕处理，不会伪造发布成功。",
       okText: "确认中止",
       cancelText: "取消",
       okButtonProps: { danger: true },

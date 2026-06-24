@@ -492,8 +492,8 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       fireEvent.change(dialog.querySelector("#rule-condition-value") as HTMLInputElement, {
         target: { value: "6" },
       });
-      fireEvent.click(within(dialog).getByRole("button", { name: "添加动作" }));
-      const summaries = within(dialog).getAllByLabelText("卡片摘要");
+      fireEvent.click(within(dialog).getByRole("button", { name: "添加提示" }));
+      const summaries = within(dialog).getAllByLabelText("提示摘要");
       fireEvent.change(summaries[1], { target: { value: "同步记录规则命中" } });
       fireEvent.click(within(dialog).getByRole("button", { name: "同步到技术配置" }));
 
@@ -1117,9 +1117,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
 
       await user.click(screen.getByRole("button", { name: /执行全部用例/ }));
 
-      await waitFor(() =>
-        expect(apiMocks.runRuleTests).toHaveBeenCalledWith(),
-      );
+      await waitFor(() => expect(apiMocks.runRuleTests).toHaveBeenCalledWith());
       expect(apiMocks.refetchDetail).toHaveBeenCalled();
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
@@ -1421,7 +1419,9 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         ),
       );
       expect(apiMocks.updateRule.mock.calls[0][0].dslJson).not.toHaveProperty("trigger");
-      expect(await screen.findByText("V2 规则草稿已保存，运行中旧版本不受影响")).toBeInTheDocument();
+      expect(
+        await screen.findByText("V2 规则草稿已保存，运行中旧版本不受影响"),
+      ).toBeInTheDocument();
       expect(apiMocks.refetchDetail).toHaveBeenCalled();
       expect(apiMocks.refetchList).toHaveBeenCalled();
     },

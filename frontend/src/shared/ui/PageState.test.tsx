@@ -31,7 +31,9 @@ describe("PageState", () => {
   });
 
   it("renders empty state with action", () => {
-    render(<PageState state="empty" title="暂无发布记录" action={<Button>导入离线交付文件</Button>} />);
+    render(
+      <PageState state="empty" title="暂无发布记录" action={<Button>导入离线交付文件</Button>} />,
+    );
     expect(screen.getByText("暂无发布记录")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "导入离线交付文件" })).toBeInTheDocument();
   });

@@ -38,10 +38,6 @@ describe("医疗内容与版本资产单一目录", () => {
   });
 
   it("统一编著库只列出已有真实工作台且不重复维护条件语法", () => {
-    expect(AUTHORING_ASSET_TYPES).toEqual([
-      "RULE",
-      "PATHWAY",
-      "FOLLOWUP",
-    ]);
+    expect(AUTHORING_ASSET_TYPES).toEqual(["RULE", "PATHWAY", "FOLLOWUP"]);
   });
 });

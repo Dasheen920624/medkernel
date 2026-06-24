@@ -321,7 +321,7 @@ const nodeTypeOptions: Array<{ value: PathwayNodeType; label: string }> = [
   { value: "PARALLEL", label: "并行或汇合" },
   { value: "WAIT_TIMER", label: "等待计时" },
   { value: "MANUAL_GATE", label: "人工确认节点" },
-  { value: "ORDER_SET", label: "医嘱集" },
+  { value: "ORDER_SET", label: "医嘱套餐" },
 ];
 
 const clockBaselineEventOptions = [
@@ -758,7 +758,7 @@ function validateRichNodeContracts(nodes: PathwayNodeDraft[], edges: PathwayEdge
       return `节点 ${node.nodeCode} 必须填写签责角色`;
     }
     if (node.nodeType === "ORDER_SET" && !configText(node.config, "orderSetRef")) {
-      return `医嘱集节点 ${node.nodeCode} 必须填写医嘱集引用`;
+      return `医嘱套餐节点 ${node.nodeCode} 必须填写医嘱套餐引用`;
     }
   }
   return undefined;
@@ -767,7 +767,7 @@ function validateRichNodeContracts(nodes: PathwayNodeDraft[], edges: PathwayEdge
 function richNodeConfigSummary(node: PathwayNode) {
   const config = parseLooseJson(node.configJson);
   const orderSetRef = configText(config, "orderSetRef");
-  if (orderSetRef) return `医嘱集 ${orderSetRef}`;
+  if (orderSetRef) return `医嘱套餐 ${orderSetRef}`;
   const clock = configText(config, "clock");
   if (clock) return `计时 ${clock}`;
   const clockSla = configObject(config, "clockSla");
@@ -1318,10 +1318,9 @@ export default function PathwayTemplates() {
     size,
   });
 
-  const {
-    data: detailData,
-    isLoading: detailLoading,
-  } = usePathwayTemplateDetail(selectedTemplateId || "");
+  const { data: detailData, isLoading: detailLoading } = usePathwayTemplateDetail(
+    selectedTemplateId || "",
+  );
 
   const outcomeIndicatorKeyword = cleanText(outcomeIndicatorSearch);
   const { data: evaluationIndicatorsData } = useEvaluationIndicators(
@@ -2899,17 +2898,15 @@ export default function PathwayTemplates() {
                           </Col>
                         </Row>
                       )}
-                      {["ORDER_SET", "WAIT_TIMER"].includes(
-                        currentNodeType ?? "",
-                      ) && (
+                      {["ORDER_SET", "WAIT_TIMER"].includes(currentNodeType ?? "") && (
                         <Row gutter={12}>
                           {currentNodeType === "ORDER_SET" && (
                             <Col xs={24} sm={12} lg={8}>
                               <Form.Item
                                 {...fieldProps}
                                 name={[field.name, "config", "orderSetRef"]}
-                                label="医嘱集引用"
-                                rules={[{ required: true, message: "请填写医嘱集引用" }]}
+                                label="医嘱套餐引用"
+                                rules={[{ required: true, message: "请填写医嘱套餐引用" }]}
                               >
                                 <Input placeholder="如 sepsis-order-set" />
                               </Form.Item>
@@ -3200,11 +3197,7 @@ export default function PathwayTemplates() {
                               </Form.Item>
                             </Col>
                           </Row>
-                          <Card
-                            size="small"
-                            className={styles.marginTopMd}
-                            title="条件树构建器"
-                          >
+                          <Card size="small" className={styles.marginTopMd} title="条件树构建器">
                             <Form.Item noStyle shouldUpdate>
                               {({ getFieldValue, setFieldValue }) => {
                                 const tree =
@@ -3312,9 +3305,7 @@ export default function PathwayTemplates() {
                   <Empty
                     image={Empty.PRESENTED_IMAGE_SIMPLE}
                     description={
-                      snapshotQuery
-                        ? "未读取到已生效快照"
-                        : "请输入患者 ID 或就诊 ID 读取真实快照"
+                      snapshotQuery ? "未读取到已生效快照" : "请输入患者 ID 或就诊 ID 读取真实快照"
                     }
                   />
                 )}
@@ -3414,8 +3405,7 @@ export default function PathwayTemplates() {
   );
   const activeInRuntime = detailData?.deploymentStatus === "PUBLISHED";
   const immutableVersion = detailData?.template.status !== "DRAFT";
-  let detailAlertMessage =
-    "当前路径处于草稿状态，可继续完善三层模型并使用真实上下文快照试运行。";
+  let detailAlertMessage = "当前路径处于草稿状态，可继续完善三层模型并使用真实上下文快照试运行。";
   let detailAlertType: "success" | "warning" | "info" = "info";
   if (activeInRuntime) {
     detailAlertMessage =
@@ -3981,7 +3971,7 @@ export default function PathwayTemplates() {
             )}
             <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
               <span className={`${styles.textSmall} ${styles.textSecondary}`}>
-                  路径拓扑与真实快照试运行是本页主流程；上线启停统一由发布治理管理。
+                路径拓扑与真实快照试运行是本页主流程；上线启停统一由发布治理管理。
               </span>
               <Space>
                 <span>L3 技术视图</span>
@@ -4001,10 +3991,7 @@ export default function PathwayTemplates() {
         )}
       </Drawer>
 
-      <FieldCatalogManager
-        open={fieldManagerOpen}
-        onClose={() => setFieldManagerOpen(false)}
-      />
+      <FieldCatalogManager open={fieldManagerOpen} onClose={() => setFieldManagerOpen(false)} />
     </PageShell>
   );
 }

@@ -28,6 +28,7 @@ import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.recommendation.RecommendationTrigger;
 import com.medkernel.engine.recommendation.RecommendationTriggerRepository;
 import com.medkernel.engine.recommendation.RecommendationTriggerStatus;
+import com.medkernel.testsupport.ClinicalRuntimeReleaseFixture;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
@@ -72,6 +73,7 @@ class QualityDashboardServiceTest {
         findings.deleteAll();
         cards.deleteAll();
         triggers.deleteAll();
+        ClinicalRuntimeReleaseFixture.delete(jdbc, "runtime-release-test");
     }
 
     @Test
@@ -312,6 +314,7 @@ class QualityDashboardServiceTest {
 
     private void seedRecommendation(
             String tenantId, String cardId, RecommendationCardStatus status, Instant createdAt) {
+        seedRuntimeRelease(tenantId);
         String triggerId = "rt-" + UUID.randomUUID();
         triggers.save(new RecommendationTrigger(
             null, triggerId, tenantId, "TRG." + triggerId, "order-sign",
@@ -328,6 +331,18 @@ class QualityDashboardServiceTest {
             "builtin-risk-baseline", "baseline", CdssAutomationLevel.INTERRUPTIVE,
             CdssReviewRequirement.PHYSICIAN_CONFIRMATION, 72, "OPT04_SILENT_TRIAL",
             false, "NMPA_RESERVED", "TRACEABLE_EVIDENCE_REQUIRED", "高危 CDSS 输出必须医师确认"));
+    }
+
+    private void seedRuntimeRelease(String tenantId) {
+        Long count = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM clinical_runtime_release WHERE release_id = ?",
+            Long.class,
+            "runtime-release-test"
+        );
+        if (count == null || count == 0L) {
+            ClinicalRuntimeReleaseFixture.insert(
+                jdbc, tenantId, "hospital-" + tenantId, "runtime-release-test");
+        }
     }
 
     private static <T> T withTenant(String tenantId, ThrowingSupplier<T> supplier) {

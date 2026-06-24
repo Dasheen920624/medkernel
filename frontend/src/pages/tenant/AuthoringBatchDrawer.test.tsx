@@ -197,5 +197,4 @@ describe("AuthoringBatchDrawer", () => {
       });
     });
   });
-
 });

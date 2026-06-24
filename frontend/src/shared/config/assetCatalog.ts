@@ -68,7 +68,7 @@ export const ENGINE_ASSET_LABELS: Readonly<Record<EngineAssetType, string>> = {
   VALUE_SET: "值集",
   FORMULA: "公式与量表",
   ORDER_SET: "医嘱套餐",
-  ACTION_CARD: "动作卡",
+  ACTION_CARD: "临床提示卡",
 };
 
 export const ENGINE_ASSET_OPTIONS = ENGINE_ASSET_TYPES.map((value) => ({

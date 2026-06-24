@@ -42,7 +42,7 @@ public class AuthoringPreviewService {
         Map.entry("is_stale", "结果陈旧"),
         Map.entry("unit_compare", "单位换算后比较"),
         Map.entry("temporal", "满足时间窗条件"),
-        Map.entry("derived", "受控公式")
+        Map.entry("derived", "计算公式")
     );
 
     private static final Map<String, String> SELECT_LABELS = Map.of(

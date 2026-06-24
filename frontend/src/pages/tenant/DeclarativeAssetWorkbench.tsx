@@ -26,57 +26,15 @@ import {
   type DeclarativeAssetUpsertPayload,
 } from "@/shared/api/hooks";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
-
-const ASSET_TYPES: Array<{ value: DeclarativeAssetType; label: string }> = [
-  { value: "VALUE_SET", label: "值集" },
-  { value: "FORMULA", label: "公式与量表" },
-  { value: "ORDER_SET", label: "医嘱套餐" },
-  { value: "ACTION_CARD", label: "动作卡" },
-];
-
-const FORMULA_OPTIONS = [
-  "CKD_EPI_2021_EGFR",
-  "COCKCROFT_GAULT_CRCL",
-  "MOSTELLER_BSA",
-  "BMI",
-].map((value) => ({ value, label: value }));
-
-const ORDER_ITEM_OPTIONS = [
-  { value: "MEDICATION", label: "药品" },
-  { value: "LAB", label: "检验" },
-  { value: "IMAGING", label: "影像" },
-  { value: "PROCEDURE", label: "操作/治疗" },
-  { value: "NURSING", label: "护理" },
-];
-
-const ACTION_OPTIONS = [
-  { value: "NAVIGATE", label: "页面导航" },
-  { value: "OPEN_FORM", label: "打开表单" },
-  { value: "SUGGEST_ORDER", label: "建议医嘱" },
-  { value: "ACKNOWLEDGE", label: "确认知晓" },
-];
-
-const ACTION_CODE_OPTIONS = [
-  { value: "INFO", label: "信息提示" },
-  { value: "REMIND", label: "提醒" },
-  { value: "STRONG_REMINDER", label: "强提醒" },
-  { value: "BLOCK", label: "阻断建议" },
-  { value: "SUGGEST_ORDER", label: "建议医嘱" },
-  { value: "AUTO_DOCUMENT", label: "辅助记录" },
-];
-
-const ACTION_SEVERITY_OPTIONS = [
-  { value: "LOW", label: "低" },
-  { value: "MEDIUM", label: "中" },
-  { value: "HIGH", label: "高" },
-  { value: "CRITICAL", label: "红线" },
-];
-
-const ACTION_INDICATOR_OPTIONS = [
-  { value: "info", label: "信息" },
-  { value: "warning", label: "警示" },
-  { value: "critical", label: "严重" },
-];
+import {
+  ACTION_CARD_ACTION_OPTIONS,
+  ACTION_CARD_INDICATOR_OPTIONS,
+  ACTION_CARD_RISK_LEVEL_OPTIONS,
+  ACTION_CARD_SUGGESTION_TYPE_OPTIONS,
+  DECLARATIVE_ASSET_TYPE_OPTIONS,
+  DECLARATIVE_FORMULA_OPTIONS,
+  ORDER_SET_ITEM_TYPE_OPTIONS,
+} from "@/shared/config/declarativeAssetAuthoring";
 
 interface FormValues {
   assetIdentity: string;
@@ -165,7 +123,9 @@ function valuesFromContent(
     sourceRef: asset.sourceRef,
     name: typeof content.name === "string" ? content.name : undefined,
     codeSystem: typeof content.codeSystem === "string" ? content.codeSystem : undefined,
-    members: Array.isArray(content.members) ? (content.members as FormValues["members"]) : undefined,
+    members: Array.isArray(content.members)
+      ? (content.members as FormValues["members"])
+      : undefined,
     runtimeFunction:
       typeof content.runtimeFunction === "string" ? content.runtimeFunction : undefined,
     inputs: Array.isArray(content.inputs) ? (content.inputs as FormValues["inputs"]) : undefined,
@@ -203,7 +163,8 @@ function valuesFromContent(
     suggestions: Array.isArray(content.suggestions)
       ? (content.suggestions as Array<Record<string, unknown>>).map((suggestion) => ({
           label: typeof suggestion.label === "string" ? suggestion.label : "",
-          actionType: typeof suggestion.actionType === "string" ? suggestion.actionType : "ACKNOWLEDGE",
+          actionType:
+            typeof suggestion.actionType === "string" ? suggestion.actionType : "ACKNOWLEDGE",
           payloadJson:
             typeof suggestion.payload === "object" && suggestion.payload !== null
               ? JSON.stringify(suggestion.payload)
@@ -296,7 +257,7 @@ function parseSuggestionPayload(payloadJson: string | undefined): Record<string,
   }
   const parsed = JSON.parse(source) as unknown;
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error("动作卡建议内容必须是配置对象");
+    throw new Error("临床提示卡的可选操作参数必须是配置对象");
   }
   return { payload: parsed as Record<string, unknown> };
 }
@@ -314,13 +275,7 @@ function shouldRequirePhysicianConfirmation(values: FormValues): boolean {
 
 function ArrayRemoveButton({ onClick }: { onClick: () => void }) {
   return (
-    <Button
-      type="text"
-      danger
-      icon={<DeleteOutlined />}
-      aria-label="删除条目"
-      onClick={onClick}
-    />
+    <Button type="text" danger icon={<DeleteOutlined />} aria-label="删除条目" onClick={onClick} />
   );
 }
 
@@ -373,8 +328,8 @@ function FormulaFields() {
       <Form.Item name="name" label="名称" rules={[{ required: true }]}>
         <Input />
       </Form.Item>
-      <Form.Item name="runtimeFunction" label="受控公式" rules={[{ required: true }]}>
-        <Select options={FORMULA_OPTIONS} />
+      <Form.Item name="runtimeFunction" label="计算公式" rules={[{ required: true }]}>
+        <Select options={DECLARATIVE_FORMULA_OPTIONS} />
       </Form.Item>
       <Form.Item name="outputUnit" label="输出单位" rules={[{ required: true }]}>
         <Input />
@@ -441,7 +396,7 @@ function OrderSetFields() {
                   label="项目类型"
                   rules={[{ required: true }]}
                 >
-                  <Select options={ORDER_ITEM_OPTIONS} className="mk-select-md" />
+                  <Select options={ORDER_SET_ITEM_TYPE_OPTIONS} className="mk-select-md" />
                 </Form.Item>
                 <Form.Item
                   {...field}
@@ -501,14 +456,14 @@ function ActionCardFields() {
         <Input />
       </Form.Item>
       <Space wrap className="mk-full-width">
-        <Form.Item name="actionCode" label="动作码" rules={[{ required: true }]}>
-          <Select options={ACTION_CODE_OPTIONS} className="mk-select-md" />
+        <Form.Item name="actionCode" label="命中后处理" rules={[{ required: true }]}>
+          <Select options={ACTION_CARD_ACTION_OPTIONS} className="mk-select-md" />
         </Form.Item>
-        <Form.Item name="atSeverity" label="风险级别" rules={[{ required: true }]}>
-          <Select options={ACTION_SEVERITY_OPTIONS} className="mk-select-md" />
+        <Form.Item name="atSeverity" label="风险等级" rules={[{ required: true }]}>
+          <Select options={ACTION_CARD_RISK_LEVEL_OPTIONS} className="mk-select-md" />
         </Form.Item>
-        <Form.Item name="indicator" label="卡片级别" rules={[{ required: true }]}>
-          <Select options={ACTION_INDICATOR_OPTIONS} className="mk-select-md" />
+        <Form.Item name="indicator" label="提醒等级" rules={[{ required: true }]}>
+          <Select options={ACTION_CARD_INDICATOR_OPTIONS} className="mk-select-md" />
         </Form.Item>
         <Form.Item name="requiresPhysicianConfirmation" valuePropName="checked">
           <Checkbox>需医师确认</Checkbox>
@@ -521,13 +476,13 @@ function ActionCardFields() {
         <Input.TextArea rows={3} />
       </Form.Item>
       <Space wrap className="mk-full-width">
-        <Form.Item name="sourceLabel" label="来源标签" rules={[{ required: true }]}>
+        <Form.Item name="sourceLabel" label="依据名称" rules={[{ required: true }]}>
           <Input />
         </Form.Item>
-        <Form.Item name="sourceEvidenceLevel" label="证据等级">
-          <Input placeholder="例如 GUIDELINE、CONSENSUS" />
+        <Form.Item name="sourceEvidenceLevel" label="证据类型">
+          <Input placeholder="例如指南、专家共识" />
         </Form.Item>
-        <Form.Item name="sourceUrl" label="来源链接">
+        <Form.Item name="sourceUrl" label="依据链接">
           <Input />
         </Form.Item>
       </Space>
@@ -539,7 +494,7 @@ function ActionCardFields() {
                 <Form.Item
                   {...field}
                   name={[field.name, "label"]}
-                  label="建议名称"
+                  label="可选操作名称"
                   rules={[{ required: true }]}
                 >
                   <Input />
@@ -547,12 +502,12 @@ function ActionCardFields() {
                 <Form.Item
                   {...field}
                   name={[field.name, "actionType"]}
-                  label="建议类型"
+                  label="可选操作类型"
                   rules={[{ required: true }]}
                 >
-                  <Select options={ACTION_OPTIONS} className="mk-select-md" />
+                  <Select options={ACTION_CARD_SUGGESTION_TYPE_OPTIONS} className="mk-select-md" />
                 </Form.Item>
-                <Form.Item {...field} name={[field.name, "payloadJson"]} label="建议补充内容">
+                <Form.Item {...field} name={[field.name, "payloadJson"]} label="操作参数">
                   <Input.TextArea rows={2} placeholder='例如 {"orderSetRef":"ORDER.CKD.REVIEW"}' />
                 </Form.Item>
                 <ArrayRemoveButton onClick={() => remove(field.name)} />
@@ -568,7 +523,7 @@ function ActionCardFields() {
                 })
               }
             >
-              添加建议
+              添加可选操作
             </Button>
           </Space>
         )}
@@ -581,7 +536,7 @@ function ActionCardFields() {
                 <Form.Item
                   {...field}
                   name={[field.name, "reason"]}
-                  label="可覆盖原因"
+                  label="允许改用其他方案的原因"
                   rules={[{ required: true }]}
                 >
                   <Input />
@@ -590,7 +545,7 @@ function ActionCardFields() {
               </Space>
             ))}
             <Button icon={<PlusOutlined />} onClick={() => add({ reason: "" })}>
-              添加可覆盖原因
+              添加改用方案原因
             </Button>
           </Space>
         )}
@@ -603,9 +558,7 @@ export interface DeclarativeAssetWorkbenchProps {
   canWrite: boolean;
 }
 
-export default function DeclarativeAssetWorkbench({
-  canWrite,
-}: DeclarativeAssetWorkbenchProps) {
+export default function DeclarativeAssetWorkbench({ canWrite }: DeclarativeAssetWorkbenchProps) {
   const { message } = App.useApp();
   const [assetType, setAssetType] = useState<DeclarativeAssetType>("VALUE_SET");
   const [editing, setEditing] = useState<DeclarativeAssetSummary | null>(null);
@@ -615,7 +568,8 @@ export default function DeclarativeAssetWorkbench({
   const detail = useDeclarativeAsset(editing?.versionId, open && Boolean(editing));
   const create = useCreateDeclarativeAsset();
   const update = useUpdateDeclarativeAsset();
-  const typeLabel = ASSET_TYPES.find((item) => item.value === assetType)?.label ?? assetType;
+  const typeLabel =
+    DECLARATIVE_ASSET_TYPE_OPTIONS.find((item) => item.value === assetType)?.label ?? assetType;
 
   useEffect(() => {
     if (!open || !editing || !detail.data) return;
@@ -699,13 +653,16 @@ export default function DeclarativeAssetWorkbench({
       <Alert
         type="info"
         showIcon
-        message="配置资产独立维护"
-        description="正文按类型校验，版本号自动递增；发布修订在上线时选取精确版本。已发布内容不可原地修改。字段目录与完整路径分别由各自工作台维护。"
+        message="医疗配置资产独立维护"
+        description="每类资产按结构校验，版本号自动递增；发布时会选择值集、公式、医嘱套餐和临床提示卡的精确版本。已发布内容不可原地修改。字段目录与完整路径分别由各自工作台维护。"
       />
       <Tabs
         activeKey={assetType}
         onChange={(key) => setAssetType(key as DeclarativeAssetType)}
-        items={ASSET_TYPES.map((item) => ({ key: item.value, label: item.label }))}
+        items={DECLARATIVE_ASSET_TYPE_OPTIONS.map((item) => ({
+          key: item.value,
+          label: item.label,
+        }))}
       />
       <Button
         type="primary"

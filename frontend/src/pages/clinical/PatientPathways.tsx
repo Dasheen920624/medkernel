@@ -784,11 +784,7 @@ export default function PatientPathways() {
               message={getApiErrorMessage(entryCandidatesQuery.error, "运行候选路径读取失败")}
             />
           ) : (
-            <Alert
-              type="info"
-              showIcon
-              message="候选来自当前机构生效版本，确认后才会入径。"
-            />
+            <Alert type="info" showIcon message="候选来自当前机构生效版本，确认后才会入径。" />
           )}
           <Form.Item name="startNodeCode" label="起始临床推进节点 (可选，留空使用模板起点)">
             <Input placeholder="留空使用已发布模板的起始节点" />

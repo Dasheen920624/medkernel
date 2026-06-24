@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 临床受控公式允许范围。
+ * 临床计算公式允许范围。
  *
  * <p>规则 DSL 只允许调用本注册表声明的确定性公式，禁止运行期任意表达式注入。
  */

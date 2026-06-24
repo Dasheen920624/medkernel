@@ -494,7 +494,7 @@ public class InteroperabilityMappingService {
         try {
             return RuleActionCode.valueOf(value);
         } catch (IllegalArgumentException exception) {
-            throw invalidRule("规则动作码无效: " + value);
+            throw invalidRule("命中后处理类型无效: " + value);
         }
     }
 

@@ -19,7 +19,7 @@ import com.medkernel.shared.datascope.DataScope;
 import jakarta.validation.Valid;
 
 /**
- * 值集、公式、医嘱套餐和动作卡的独立维护入口。
+ * 值集、计算公式、医嘱套餐和临床提示卡的独立维护入口。
  */
 @RestController
 @RequestMapping("/api/v1/engine/authoring/declarative-assets")

@@ -368,7 +368,7 @@ class KnowledgeProductionReadinessServiceTest {
             .singleElement()
             .satisfies(item -> {
                 assertThat(item.ready()).isFalse();
-                assertThat(item.message()).contains("基准集");
+                assertThat(item.message()).contains("医学验证用例已变化");
             });
     }
 

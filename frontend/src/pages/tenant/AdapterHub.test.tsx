@@ -523,7 +523,6 @@ describe("AdapterHub", () => {
 
   it("does not load a package selector for the current runtime data contract", () => {
     renderPage();
-
   });
 
   it("loads adapter hub maintenance ledgers through small server-side pages", () => {

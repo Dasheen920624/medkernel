@@ -15,10 +15,7 @@ import {
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import {
-  PlayCircleOutlined,
-  SafetyCertificateOutlined,
-} from "@ant-design/icons";
+import { PlayCircleOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { customerSafeDisplayText } from "@/shared/config/customerLabels";
@@ -445,8 +442,7 @@ export default function AuthoringBatchDrawer({
     {
       title: "进度",
       key: "progress",
-      render: (_value, job) =>
-        `${job.successCount + job.failureCount}/${job.totalCount}`,
+      render: (_value, job) => `${job.successCount + job.failureCount}/${job.totalCount}`,
     },
     { title: "更新时间", dataIndex: "updatedAt", key: "updatedAt" },
   ];

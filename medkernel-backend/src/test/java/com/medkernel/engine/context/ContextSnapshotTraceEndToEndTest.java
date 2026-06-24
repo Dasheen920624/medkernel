@@ -3,6 +3,7 @@ package com.medkernel.engine.context;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +16,7 @@ import org.springframework.test.context.TestPropertySource;
 
 import com.medkernel.engine.release.PlatformBaselineRelease;
 import com.medkernel.engine.release.PlatformBaselineReleaseRepository;
+import com.medkernel.engine.release.ReleaseManifestHash;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponse;
@@ -52,7 +54,7 @@ class ContextSnapshotTraceEndToEndTest {
         runtimeReleases.deleteAll();
         platformBaselines.deleteAll();
         Instant now = Instant.parse("2026-06-06T08:00:00Z");
-        String emptyManifest = "0".repeat(64);
+        String emptyManifest = ReleaseManifestHash.sha256(List.of());
         platformBaselines.save(new PlatformBaselineRelease(
             null, "baseline-e2e", 1L, emptyManifest,
             now, "e2e-user", now, "e2e-user", "trace-runtime-e2e"));

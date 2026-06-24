@@ -71,11 +71,7 @@ interface DslLeaf {
 }
 
 /** DSL 节点：`{all:[...]}` | `{any:[...]}` | `{not:节点}` | 叶子。 */
-export type DslNode =
-  | { all: DslNode[] }
-  | { any: DslNode[] }
-  | { not: DslNode }
-  | DslLeaf;
+export type DslNode = { all: DslNode[] } | { any: DslNode[] } | { not: DslNode } | DslLeaf;
 
 let idSeq = 0;
 

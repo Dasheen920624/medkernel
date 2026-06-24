@@ -884,7 +884,7 @@ public class PathwayEngineService {
                     otherTemplate.templateId(),
                     otherNode.nodeCode(),
                     currentOrderSetRef,
-                    "患者存在并行路径共享医嘱集 " + currentOrderSetRef + "，仅提示协调，不自动改医嘱"));
+                    "患者存在并行路径共享医嘱套餐 " + currentOrderSetRef + "，仅提示协调，不自动改医嘱"));
             }
         }
     }
@@ -1596,7 +1596,7 @@ public class PathwayEngineService {
                             "人工闸门节点 " + node.nodeCode() + " 缺少责任角色");
                     }
                 }
-                case ORDER_SET -> requireNodeConfigText(node, "orderSetRef", "医嘱集节点 " + node.nodeCode() + " 缺少 orderSetRef");
+                case ORDER_SET -> requireNodeConfigText(node, "orderSetRef", "医嘱套餐节点 " + node.nodeCode() + " 缺少引用");
                 default -> {
                     // 临床活动节点仅使用通用拓扑与时钟校验。
                 }

@@ -59,7 +59,7 @@ class RuleDslEvaluatorTest {
                   "requiresPhysicianConfirmation": false
                 }
               ],
-              "explain": {"summary": "按风险级别输出动作卡"}
+              "explain": {"summary": "按风险级别输出临床提示卡"}
             }
             """), read("""
             {"nursingAssessments": [{"riskLevel": "HIGH", "status": "SIGNED"}]}
@@ -153,7 +153,7 @@ class RuleDslEvaluatorTest {
             {"patient": {"present": true}}
             """)))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("至少包含一个动作");
+            .hasMessageContaining("至少包含一个临床提示卡");
     }
 
     @Test
@@ -1517,7 +1517,7 @@ class RuleDslEvaluatorTest {
                 ]
               },
               "then": [{"actionCode": "REMIND", "atSeverity": "LOW", "indicator": "info", "summary": "体表面积与肌酐清除率提醒", "detail": "体表面积与肌酐清除率提醒", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}],
-              "explain": {"title": "受控公式", "reason": "校验允许范围公式"}
+              "explain": {"title": "计算公式", "reason": "校验允许范围公式"}
             }
             """), read("""
             {

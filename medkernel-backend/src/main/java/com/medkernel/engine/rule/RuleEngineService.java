@@ -2347,17 +2347,17 @@ public class RuleEngineService {
     private ObjectNode staticActionCardReferencePlaceholder(JsonNode action) {
         JsonNode rawRef = action.get("actionCardRef");
         if (rawRef == null || !rawRef.isTextual() || trimToNull(rawRef.asText()) == null) {
-            throw new ApiException(ErrorCode.ENG_RULE_001, "规则动作卡引用 actionCardRef 必须是非空文本");
+            throw new ApiException(ErrorCode.ENG_RULE_001, "临床提示卡引用 actionCardRef 必须是非空文本");
         }
         ObjectNode placeholder = json.createObjectNode();
         placeholder.put("actionCardRef", trimToNull(rawRef.asText()));
         placeholder.put("actionCode", RuleActionCode.REMIND.name());
         placeholder.put("atSeverity", RuleRiskLevel.LOW.name());
         placeholder.put("indicator", "info");
-        placeholder.put("summary", "动作卡引用静态校验占位");
-        placeholder.put("detail", "真实动作卡由机构生效版本统一物化后执行");
+        placeholder.put("summary", "临床提示卡引用静态校验占位");
+        placeholder.put("detail", "真实临床提示卡由机构生效版本统一物化后执行");
         ObjectNode source = json.createObjectNode();
-        source.put("label", "动作卡引用");
+        source.put("label", "临床提示卡引用");
         placeholder.set("source", source);
         placeholder.set("suggestions", json.createArrayNode());
         placeholder.set("overrideReasons", json.createArrayNode());

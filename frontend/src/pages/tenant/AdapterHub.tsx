@@ -1751,8 +1751,7 @@ function DataContractPanel({
             />
           </Space>
         ) : (
-          !loading &&
-          !error && <Text type="secondary">当前医院尚无可读取的数据接入契约。</Text>
+          !loading && !error && <Text type="secondary">当前医院尚无可读取的数据接入契约。</Text>
         )}
       </Space>
     </Card>

@@ -207,7 +207,7 @@ describe("QcDashboard", () => {
     );
     expect(screen.getByText("真实下钻证据")).toBeInTheDocument();
     expect(screen.getByText("病例 A 质控缺陷")).toBeInTheDocument();
-    expect(screen.getByText("trace-finding")).toBeInTheDocument();
+    expect(screen.getByText("追踪号：trace-finding")).toBeInTheDocument();
     expect(screen.getByText("证据导出 SVC-QUALITY-01.FINDING.0.20")).toBeInTheDocument();
 
     await userEvent.click(screen.getByTitle("2"));

@@ -450,7 +450,9 @@ describe("SecurityBaseline", () => {
     renderPage();
 
     expect(screen.getAllByText("多因素认证全局配置已关闭").length).toBeGreaterThan(0);
-    expect(screen.getByRole("row", { name: /多因素认证 通过 多因素认证全局配置已关闭/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("row", { name: /多因素认证 通过 多因素认证全局配置已关闭/ }),
+    ).toBeInTheDocument();
   });
 
   it("updates a real config item with version and high-risk confirmation", async () => {

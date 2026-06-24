@@ -36,10 +36,7 @@ import type {
   KnowledgeIdentityStatus,
   KnowledgeSourceEvidence,
 } from "@/shared/api/hooks";
-import {
-  KNOWLEDGE_DOMAIN_OPTIONS,
-  type KnowledgeDomain,
-} from "@/shared/config/assetCatalog";
+import { KNOWLEDGE_DOMAIN_OPTIONS, type KnowledgeDomain } from "@/shared/config/assetCatalog";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";

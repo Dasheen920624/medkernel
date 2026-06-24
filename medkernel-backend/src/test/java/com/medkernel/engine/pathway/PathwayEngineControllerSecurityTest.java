@@ -27,7 +27,6 @@ class PathwayEngineControllerSecurityTest {
           "templateCode": "TPL.COPD",
           "name": "稳定期随访路径",
           "diseaseCode": "COPD",
-          "templateVersion": 1,
           "templateLevel": "STANDARD",
           "entryMode": "AUTO_SUGGEST",
           "startNodeCode": "ASSESS",

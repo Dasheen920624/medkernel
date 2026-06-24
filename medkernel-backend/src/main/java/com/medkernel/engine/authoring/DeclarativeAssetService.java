@@ -30,7 +30,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 值集、公式、医嘱套餐和动作卡的独立维护服务。
+ * 值集、计算公式、医嘱套餐和临床提示卡的独立维护服务。
  *
  * <p>四类资产共享统一的自动版本与审计底座，正文按类型严格校验。发布修订只选取
  * 精确资产版本，不在维护期绑定包或手工版本号。字段目录使用专用服务；路径使用完整

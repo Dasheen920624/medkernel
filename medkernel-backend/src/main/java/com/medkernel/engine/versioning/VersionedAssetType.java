@@ -32,7 +32,7 @@ public enum VersionedAssetType {
     FORMULA,
     /** 医嘱套餐 */
     ORDER_SET,
-    /** 动作卡片 */
+    /** 临床提示卡 */
     ACTION_CARD;
 
     /**

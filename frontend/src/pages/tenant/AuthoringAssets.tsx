@@ -14,12 +14,7 @@ import {
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import {
-  AppstoreAddOutlined,
-  EditOutlined,
-  StarFilled,
-  StarOutlined,
-} from "@ant-design/icons";
+import { AppstoreAddOutlined, EditOutlined, StarFilled, StarOutlined } from "@ant-design/icons";
 
 import {
   useAuthoringAssets,
@@ -87,10 +82,7 @@ function canWriteAssets(profile: ReturnType<typeof useSecurityProfile>["data"]) 
   );
 }
 
-function hasPermission(
-  profile: ReturnType<typeof useSecurityProfile>["data"],
-  permission: string,
-) {
+function hasPermission(profile: ReturnType<typeof useSecurityProfile>["data"], permission: string) {
   return profile?.permissions.some((item) => item.code === permission) ?? false;
 }
 
@@ -272,45 +264,45 @@ export default function AuthoringAssets() {
             children: (
               <Space direction="vertical" size="middle" className="mk-full-width">
                 <Space wrap className={styles.filterBar}>
-          <Select
-            value={assetType}
-            onChange={setAssetType}
-            className={styles.assetTypeSelect}
-            optionFilterProp="label"
-          >
-            {assetTypeOptions.map((option) => (
-              <Option key={option.value} value={option.value} label={option.label}>
-                {option.label}
-              </Option>
-            ))}
-          </Select>
-          <Input
-            allowClear
-            placeholder="搜索资产编码或名称"
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            className={styles.keywordInput}
-          />
-          <Input
-            allowClear
-            placeholder="标签"
-            value={tag}
-            onChange={(event) => setTag(event.target.value)}
-            className={styles.tagInput}
-          />
-          <Checkbox
-            checked={favoriteOnly}
-            onChange={(event) => setFavoriteOnly(event.target.checked)}
-          >
-            仅收藏
-          </Checkbox>
-          <Button
-            icon={<AppstoreAddOutlined />}
-            disabled={!canWrite}
-            onClick={() => setBatchOpen(true)}
-          >
-            批量处理
-          </Button>
+                  <Select
+                    value={assetType}
+                    onChange={setAssetType}
+                    className={styles.assetTypeSelect}
+                    optionFilterProp="label"
+                  >
+                    {assetTypeOptions.map((option) => (
+                      <Option key={option.value} value={option.value} label={option.label}>
+                        {option.label}
+                      </Option>
+                    ))}
+                  </Select>
+                  <Input
+                    allowClear
+                    placeholder="搜索资产编码或名称"
+                    value={keyword}
+                    onChange={(event) => setKeyword(event.target.value)}
+                    className={styles.keywordInput}
+                  />
+                  <Input
+                    allowClear
+                    placeholder="标签"
+                    value={tag}
+                    onChange={(event) => setTag(event.target.value)}
+                    className={styles.tagInput}
+                  />
+                  <Checkbox
+                    checked={favoriteOnly}
+                    onChange={(event) => setFavoriteOnly(event.target.checked)}
+                  >
+                    仅收藏
+                  </Checkbox>
+                  <Button
+                    icon={<AppstoreAddOutlined />}
+                    disabled={!canWrite}
+                    onClick={() => setBatchOpen(true)}
+                  >
+                    批量处理
+                  </Button>
                 </Space>
                 <Table
                   rowKey={(asset) => `${asset.assetType}-${asset.assetId}-${asset.version}`}
@@ -361,10 +353,7 @@ export default function AuthoringAssets() {
       {batchOpen && (
         <AuthoringBatchDrawer open canWrite={canWrite} onClose={() => setBatchOpen(false)} />
       )}
-      <FieldCatalogManager
-        open={fieldCatalogOpen}
-        onClose={() => setFieldCatalogOpen(false)}
-      />
+      <FieldCatalogManager open={fieldCatalogOpen} onClose={() => setFieldCatalogOpen(false)} />
     </PageShell>
   );
 }

@@ -342,10 +342,7 @@ describe("PatientPathways", () => {
     await user.type(screen.getByPlaceholderText("按患者 ID 查询快照"), "mpi-1");
     await user.click(screen.getByRole("button", { name: "选择 ctx-active-1" }));
 
-    expect(mockUsePathwayEntryCandidates).toHaveBeenLastCalledWith(
-      "ctx-active-1",
-      "patient-view",
-    );
+    expect(mockUsePathwayEntryCandidates).toHaveBeenLastCalledWith("ctx-active-1", "patient-view");
   });
 
   it("enters a pathway from an ACTIVE context snapshot without manual patient identifiers", async () => {

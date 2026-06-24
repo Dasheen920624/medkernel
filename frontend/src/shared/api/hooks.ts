@@ -2597,10 +2597,7 @@ export function useResolveTerminologyConflict() {
   const security = useSecurityProfile();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: {
-      conflictId: number;
-      request: { resolutionNote: string };
-    }) => {
+    mutationFn: async (payload: { conflictId: number; request: { resolutionNote: string } }) => {
       const { data } = await apiClient.post<{ data: MappingConflict }>(
         `${TERMINOLOGY_API_ROOT}/mappings/conflicts/${payload.conflictId}/resolve`,
         withStandardApiContext(payload.request, security.data),
@@ -2666,10 +2663,7 @@ export function useRejectTerminologyCandidate() {
   const security = useSecurityProfile();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: {
-      candidateId: number;
-      request: { reviewNote: string };
-    }) => {
+    mutationFn: async (payload: { candidateId: number; request: { reviewNote: string } }) => {
       const { data } = await apiClient.post<{ data: TermMappingCandidate }>(
         `${TERMINOLOGY_API_ROOT}/mappings/${payload.candidateId}/reject`,
         withStandardApiContext(payload.request, security.data),
@@ -2687,10 +2681,7 @@ export function useBatchConfirmTerminologyCandidates() {
   const security = useSecurityProfile();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: {
-      candidateIds: number[];
-      request: { reviewNote?: string };
-    }) => {
+    mutationFn: async (payload: { candidateIds: number[]; request: { reviewNote?: string } }) => {
       const { data } = await apiClient.post<{ data: TerminologyBatchConfirmResponse }>(
         `${TERMINOLOGY_API_ROOT}/mappings/batch-confirm`,
         withStandardApiContext(
@@ -3515,10 +3506,7 @@ export interface RuleDefinition {
   updatedAt: string;
 }
 
-export type AssetTriggerPurpose =
-  | "RULE_EXECUTION"
-  | "PATHWAY_ENTRY_CANDIDATE"
-  | "PATHWAY_PROGRESS";
+export type AssetTriggerPurpose = "RULE_EXECUTION" | "PATHWAY_ENTRY_CANDIDATE" | "PATHWAY_PROGRESS";
 
 export interface AssetTriggerBindingInput {
   trigger_point: string;
@@ -4122,11 +4110,7 @@ export function useUpdateDeclarativeAsset() {
 
 export type AuthoringBatchJobType = "RULE_GENERATE" | "RULE_PUBLISH";
 
-export type AuthoringBatchJobStatus =
-  | "RUNNING"
-  | "SUCCEEDED"
-  | "PARTIAL_SUCCESS"
-  | "FAILED";
+export type AuthoringBatchJobStatus = "RUNNING" | "SUCCEEDED" | "PARTIAL_SUCCESS" | "FAILED";
 
 export type AuthoringBatchItemStatus = "SUCCEEDED" | "FAILED";
 
@@ -4520,10 +4504,7 @@ export function useRunRuleTests(ruleId: string) {
 export function useSimulateRule(ruleId: string) {
   const security = useSecurityProfile();
   return useMutation({
-    mutationFn: async (payload: {
-      triggerPoint: ClinicalTriggerPoint;
-      inputPayload: unknown;
-    }) => {
+    mutationFn: async (payload: { triggerPoint: ClinicalTriggerPoint; inputPayload: unknown }) => {
       const { triggerPoint, inputPayload } = payload;
       const { data } = await apiClient.post<{ data: RuleEvaluationItem }>(
         `/engine/rule/rules/${ruleId}/simulate`,
@@ -5172,17 +5153,9 @@ export function useSimulatePathway(templateId: string) {
 }
 
 // 3. PatientPathway Hooks
-export function usePathwayEntryCandidates(
-  contextSnapshotId: string,
-  triggerPoint: string,
-) {
+export function usePathwayEntryCandidates(contextSnapshotId: string, triggerPoint: string) {
   return useQuery({
-    queryKey: [
-      "pathways",
-      "entry-candidates",
-      contextSnapshotId,
-      triggerPoint,
-    ],
+    queryKey: ["pathways", "entry-candidates", contextSnapshotId, triggerPoint],
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PathwayEntryCandidateResponse }>(
         "/engine/pathway/patient-pathways/entry-candidates",
@@ -6409,10 +6382,7 @@ export function useReviewRectification(findingId: string) {
 // 4. Quality Audit Run & Sandbox calculations
 export function useEvaluateSnapshot() {
   return useMutation({
-    mutationFn: async (payload: {
-      contextSnapshotId: string;
-      scenarioCode: string;
-    }) => {
+    mutationFn: async (payload: { contextSnapshotId: string; scenarioCode: string }) => {
       const request = {
         contextSnapshotId: payload.contextSnapshotId,
         scenarioCode: payload.scenarioCode,

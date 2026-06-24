@@ -50,7 +50,7 @@ public class GeneratedRuleCandidateValidator implements GeneratedAssetCandidateV
         requiredObject(dsl, "when");
         JsonNode then = requiredArray(dsl, "then");
         if (then.isEmpty()) {
-            throw invalid("then 至少包含一个动作卡");
+            throw invalid("then 至少包含一个临床提示卡");
         }
         validateThenActions(then);
         requiredObject(dsl, "explain");
@@ -125,7 +125,7 @@ public class GeneratedRuleCandidateValidator implements GeneratedAssetCandidateV
 
     private void validateThenActions(JsonNode then) {
         for (JsonNode action : then) {
-            requireObject(action, "规则动作卡");
+            requireObject(action, "规则临床提示卡");
             if (text(action, "actionCardRef") == null && text(action, "actionCode") == null) {
                 throw invalid("规则 then 动作必须包含 actionCardRef 或完整 actionCode");
             }

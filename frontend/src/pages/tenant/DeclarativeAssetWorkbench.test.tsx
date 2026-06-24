@@ -68,7 +68,7 @@ describe("DeclarativeAssetWorkbench", () => {
     expect(screen.getByRole("tab", { name: "值集" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "公式与量表" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "医嘱套餐" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "动作卡" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "临床提示卡" })).toBeInTheDocument();
     expect(screen.getByText("VS.NEPHROTOXIC")).toBeInTheDocument();
     expect(screen.getByText("V1")).toBeInTheDocument();
 
@@ -111,15 +111,21 @@ describe("DeclarativeAssetWorkbench", () => {
     apiMocks.create.mockResolvedValue({ versionId: "av-action-1" });
     renderWorkbench();
 
-    await userEvent.click(screen.getByRole("tab", { name: "动作卡" }));
-    await userEvent.click(screen.getByRole("button", { name: "新建动作卡" }));
+    await userEvent.click(screen.getByRole("tab", { name: "临床提示卡" }));
+    await userEvent.click(screen.getByRole("button", { name: "新建临床提示卡" }));
     await userEvent.type(screen.getByLabelText("资产编码"), "ACTION.CKD.REVIEW");
     await userEvent.type(screen.getByLabelText("来源依据"), "CKD 用药安全指南");
     await userEvent.type(screen.getByLabelText("标题"), "肾功能异常处置");
+    expect(screen.getByLabelText("命中后处理")).toBeInTheDocument();
+    expect(screen.getByLabelText("风险等级")).toBeInTheDocument();
+    expect(screen.getByLabelText("提醒等级")).toBeInTheDocument();
+    expect(screen.queryByLabelText("动作码")).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("摘要"), "复核肾功能并调整方案");
     await userEvent.type(screen.getByLabelText("详细说明"), "命中后提示医生复核，不自动开立医嘱。");
-    await userEvent.type(screen.getByLabelText("来源标签"), "CKD 指南");
-    await userEvent.type(screen.getByLabelText("建议名称"), "记录已人工复核");
+    await userEvent.type(screen.getByLabelText("依据名称"), "CKD 指南");
+    await userEvent.type(screen.getByLabelText("可选操作名称"), "记录已人工复核");
+    await userEvent.click(screen.getByRole("button", { name: /添加改用方案原因/ }));
+    await userEvent.type(screen.getByLabelText("允许改用其他方案的原因"), "医生已确认更优处置方案");
     await userEvent.click(screen.getByRole("button", { name: "保存草稿" }));
 
     await waitFor(() => {
@@ -138,7 +144,7 @@ describe("DeclarativeAssetWorkbench", () => {
           detail: "命中后提示医生复核，不自动开立医嘱。",
           source: { label: "CKD 指南" },
           suggestions: [{ label: "记录已人工复核", actionType: "ACKNOWLEDGE" }],
-          overrideReasons: [],
+          overrideReasons: ["医生已确认更优处置方案"],
           requiresPhysicianConfirmation: false,
         },
       });

@@ -51,7 +51,7 @@
 | `/tenant/onboarding` | 服务机构 | organization-people | tenant-onboarding | primary | MOVE | 机构与人员 | 服务机构 | 维护服务机构、稳定组织层级和机构类型 |
 <!-- capability:route:route@%2Fconfig%2Freleases decision=MERGE -->
 <!-- route:/config/releases -->
-| `/config/releases` | 发布治理 | knowledge-governance | runtime-releases | primary | MERGE | 知识治理 | 发布治理 | 维护平台标准版本、机构生效版本、发布影响和回滚证据 |
+| `/config/releases` | 发布治理 | knowledge-governance | runtime-releases | primary | MERGE | 知识治理 | 机构生效版本 | 维护平台标准版本、机构生效版本、发布影响和回滚证据 |
 <!-- capability:route:route@%2Fauthoring%2Fassets decision=MERGE -->
 <!-- route:/authoring/assets -->
 | `/authoring/assets` | 知识资产 | knowledge-governance | — | hidden | MERGE | 知识治理 | 知识资产 | 在统一知识资产页内编目、复用和批量处理资产 |
@@ -185,7 +185,7 @@
 | `diagnosis-knowledge` | 诊断知识维护 | `knowledge-governance` | primary | `MENU_DIAGNOSIS_KNOWLEDGE` | SPLIT | 知识治理 | 诊断知识维护 |
 <!-- capability:menu:menu@runtime-releases decision=MERGE -->
 <!-- menu:runtime-releases -->
-| `runtime-releases` | 发布治理 | `knowledge-governance` | primary | `MENU_RUNTIME_RELEASES` | MERGE | 知识治理 | 发布治理 |
+| `runtime-releases` | 发布治理 | `knowledge-governance` | primary | `MENU_RUNTIME_RELEASES` | MERGE | 知识治理 | 机构生效版本 |
 <!-- capability:menu:menu@terminology-mapping decision=MOVE -->
 <!-- menu:terminology-mapping -->
 | `terminology-mapping` | 术语与字典 | `knowledge-governance` | primary | `MENU_TERMINOLOGY_MAPPING` | MOVE | 知识治理 | 术语与字典 |
@@ -366,7 +366,7 @@
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Ftenant%2FPathwayTemplates.tsx decision=MOVE -->
 | `frontend/src/pages/tenant/PathwayTemplates.tsx` | `/pathway/templates` | MOVE | 知识治理 | 路径配置 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Ftenant%2FReleaseGovernance.tsx decision=MERGE -->
-| `frontend/src/pages/tenant/ReleaseGovernance.tsx` | `/config/releases` | MERGE | 知识治理 | 发布治理 |
+| `frontend/src/pages/tenant/ReleaseGovernance.tsx` | `/config/releases` | MERGE | 知识治理 | 机构生效版本 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Ftenant%2FRuleDefinitions.tsx decision=MOVE -->
 | `frontend/src/pages/tenant/RuleDefinitions.tsx` | `/rule/definitions` | MOVE | 知识治理 | 规则配置 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Ftenant%2FTenantOnboarding.tsx decision=MOVE -->

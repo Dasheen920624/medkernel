@@ -7726,7 +7726,7 @@ COMMENT ON TABLE mk_version_asset_version IS '通用配置资产版本：登记�
 COMMENT ON COLUMN mk_version_asset_version.id IS '数据库主键';
 COMMENT ON COLUMN mk_version_asset_version.version_id IS '版本业务 ID，跨方言唯一';
 COMMENT ON COLUMN mk_version_asset_version.tenant_id IS '租户 ID';
-COMMENT ON COLUMN mk_version_asset_version.asset_type IS '资产类型（统一枚举）：知识、术语、规则、路径、评估、随访、字段目录、包、推荐、安全、CDSS风险、值集、受控公式、医嘱集、动作卡';
+COMMENT ON COLUMN mk_version_asset_version.asset_type IS '资产类型（统一枚举）：知识、术语、规则、路径、评估、随访、字段目录、包、推荐、安全、CDSS风险、值集、计算公式、医嘱套餐、临床提示卡';
 COMMENT ON COLUMN mk_version_asset_version.asset_identity IS '资产身份编码，同一身份下版本号单调演进';
 COMMENT ON COLUMN mk_version_asset_version.version_no IS '资产版本号，租户与资产身份内唯一';
 COMMENT ON COLUMN mk_version_asset_version.org_path IS '组织树生效域，记录组织继承中的发布范围';
@@ -8782,4 +8782,3 @@ COMMENT ON COLUMN clinical_runtime_release_item.content_hash IS '精确资产正
 COMMENT ON COLUMN clinical_runtime_release_item.created_at IS '条目创建时间';
 COMMENT ON COLUMN clinical_runtime_release_item.created_by IS '条目创建人';
 COMMENT ON COLUMN clinical_runtime_release_item.trace_id IS '链路追踪标识';
-

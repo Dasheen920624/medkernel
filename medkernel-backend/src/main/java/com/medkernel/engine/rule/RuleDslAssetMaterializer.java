@@ -134,7 +134,7 @@ public class RuleDslAssetMaterializer {
             String runtimeReleaseId,
             String identity) {
         ResolvedDeclarativeAsset resolved = resolve(
-            tenantId, runtimeReleaseId, VersionedAssetType.ACTION_CARD, identity, "动作卡");
+            tenantId, runtimeReleaseId, VersionedAssetType.ACTION_CARD, identity, "临床提示卡");
         JsonNode content = parseContent(resolved);
         copyRequired(content, target, "actionCode", identity);
         copyRequired(content, target, "atSeverity", identity);
@@ -152,7 +152,7 @@ public class RuleDslAssetMaterializer {
     private void copyRequired(JsonNode content, ObjectNode target, String field, String identity) {
         JsonNode value = content.get(field);
         if (value == null || value.isNull() || value.isMissingNode()) {
-            throw invalid("动作卡正文缺少 " + field + "：" + identity);
+            throw invalid("临床提示卡正文缺少 " + field + "：" + identity);
         }
         target.set(field, value.deepCopy());
     }

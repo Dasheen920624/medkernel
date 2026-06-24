@@ -97,10 +97,10 @@ public class ProfessionalAssetTemplateRegistry {
             req("indication", "适用指征"), req("orders", "医嘱项"), req("sequencing", "顺序与依赖"),
             req("contraindications", "禁忌"), req("confirmation", "医师确认要求"),
             req("source", "来源依据")),
-        structural("ACTION_CARD", "动作卡", VersionedAssetType.ACTION_CARD,
+        structural("ACTION_CARD", "临床提示卡", VersionedAssetType.ACTION_CARD,
             req("scenario", "建议场景"), req("trigger", "触发条件"),
             req("summary", "摘要"), req("detail", "详细说明"),
-            req("suggestions", "建议动作"), opt("evidence", "证据强度"),
+            req("suggestions", "医生可选操作"), opt("evidence", "证据强度"),
             req("confirmation", "医师确认要求"),
             req("source", "来源依据"))
     );

@@ -66,9 +66,7 @@ describe("MedicalEvaluationPanel", () => {
         capabilityCode: "rule.draft",
       }),
     );
-    expect(
-      screen.getByText(/评测通过后直接作为当前交付文件的模型放行证据/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/评测通过后直接作为当前交付文件的模型放行证据/)).toBeInTheDocument();
     expect(screen.queryByText("独立复核")).not.toBeInTheDocument();
   });
 });

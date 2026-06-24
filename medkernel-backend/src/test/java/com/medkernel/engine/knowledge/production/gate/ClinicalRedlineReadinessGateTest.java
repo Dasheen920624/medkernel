@@ -245,7 +245,7 @@ class ClinicalRedlineReadinessGateTest {
         GateItemResult result = gate.evaluate(envelope(payload), new GateContext("t-1", "job-1"));
 
         assertThat(result.passed()).isFalse();
-        assertThat(result.reason()).contains("未匹配 ACTIVE 红线").contains("UNKNOWN-DDI");
+        assertThat(result.reason()).contains("未匹配已生效红线").contains("UNKNOWN-DDI");
     }
 
     @Test

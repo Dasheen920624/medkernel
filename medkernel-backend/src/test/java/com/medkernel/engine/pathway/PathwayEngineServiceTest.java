@@ -501,7 +501,7 @@ class PathwayEngineServiceTest {
             List.of(
                 new PathwayNodeRequest("ASSESS", "入径评估", PathwayNodeType.ASSESSMENT,
                     10, "医生", null, null, false, null),
-                new PathwayNodeRequest("ORDER", "医嘱集", PathwayNodeType.ORDER_SET,
+                new PathwayNodeRequest("ORDER", "医嘱套餐", PathwayNodeType.ORDER_SET,
                     20, "医生", null, null, false, null),
                 new PathwayNodeRequest("FOLLOWUP", "随访", PathwayNodeType.FOLLOWUP,
                     30, "护士", null, null, true, null)
@@ -514,7 +514,7 @@ class PathwayEngineServiceTest {
 
         assertThatThrownBy(() -> service.createTemplate(request))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("医嘱集节点 ORDER 缺少 orderSetRef")
+            .hasMessageContaining("医嘱套餐节点 ORDER 缺少引用")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_PATHWAY_004);
         verify(versionedAssets, never()).registerDraft(any());
@@ -555,7 +555,7 @@ class PathwayEngineServiceTest {
             List.of(
                 new PathwayNodeRequest("ASSESS", "入径评估", PathwayNodeType.ASSESSMENT,
                     10, "医生", null, null, false, null),
-                new PathwayNodeRequest("ORDER", "医嘱集", PathwayNodeType.ORDER_SET,
+                new PathwayNodeRequest("ORDER", "医嘱套餐", PathwayNodeType.ORDER_SET,
                     20, "医生", null, null, false,
                     json("{\"orderSetRef\":\"OS.COPD\",\"packageVersion\":\"pkg-2026.07\"}")),
                 new PathwayNodeRequest("FOLLOWUP", "随访", PathwayNodeType.FOLLOWUP,
@@ -918,7 +918,7 @@ class PathwayEngineServiceTest {
         assertThatThrownBy(() -> service.enterPatientPathway(new PatientPathwayEnterRequest(
                 "ctx-revoked-1", "patient-view", "pt-1", null)))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("ACTIVE")
+            .hasMessageContaining("已生效上下文")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_PATHWAY_001);
 

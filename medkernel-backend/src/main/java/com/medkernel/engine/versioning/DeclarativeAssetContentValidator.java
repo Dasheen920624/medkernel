@@ -15,7 +15,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 /**
  * 独立声明式配置资产正文校验器。
  *
- * <p>值集、公式、医嘱套餐和动作卡没有其他领域表作为正文权威源，因此在登记版本前必须
+ * <p>值集、计算公式、医嘱套餐和临床提示卡没有其他领域表作为正文权威源，因此在登记版本前必须
  * 完成类型化结构校验并规范化 JSON。完整路径已有专用模型，不允许另存第二份通用正文。
  */
 @Component
@@ -144,15 +144,15 @@ public class DeclarativeAssetContentValidator {
         requiredText(root, "title");
         String actionCode = requiredText(root, "actionCode");
         if (!ACTION_CODES.contains(actionCode)) {
-            throw invalid("动作卡 actionCode 不受支持：" + actionCode);
+            throw invalid("临床提示卡的命中后处理不受支持：" + actionCode);
         }
         String severity = requiredText(root, "atSeverity");
         if (!SEVERITIES.contains(severity)) {
-            throw invalid("动作卡 atSeverity 不受支持：" + severity);
+            throw invalid("临床提示卡的风险等级不受支持：" + severity);
         }
         String indicator = requiredText(root, "indicator");
         if (!INDICATORS.contains(indicator)) {
-            throw invalid("动作卡 indicator 不受支持：" + indicator);
+            throw invalid("临床提示卡的提醒等级不受支持：" + indicator);
         }
         requiredText(root, "summary");
         requiredText(root, "detail");
@@ -162,30 +162,30 @@ public class DeclarativeAssetContentValidator {
         optionalText(source, "evidenceLevel");
         JsonNode suggestions = requiredArray(root, "suggestions");
         if (suggestions.isEmpty()) {
-            throw invalid("动作卡 suggestions 不能为空");
+            throw invalid("临床提示卡必须至少配置一个医生可选操作");
         }
         boolean hasSuggestOrder = "SUGGEST_ORDER".equals(actionCode);
         for (JsonNode suggestion : suggestions) {
-            requireObject(suggestion, "动作卡建议项");
+            requireObject(suggestion, "临床提示卡医生可选操作");
             requiredText(suggestion, "label");
             String actionType = requiredText(suggestion, "actionType");
             if (!ACTION_TYPES.contains(actionType)) {
-                throw invalid("动作卡 actionType 不受支持：" + actionType);
+                throw invalid("临床提示卡的可选操作类型不受支持：" + actionType);
             }
             if (suggestion.has("payload") && !suggestion.path("payload").isObject()) {
-                throw invalid("动作卡建议项 payload 必须是 JSON 对象");
+                throw invalid("临床提示卡的可选操作参数必须是配置对象");
             }
             hasSuggestOrder = hasSuggestOrder || "SUGGEST_ORDER".equals(actionType);
         }
         JsonNode overrideReasons = requiredArray(root, "overrideReasons");
         for (JsonNode reason : overrideReasons) {
             if (!reason.isTextual() || reason.asText().isBlank()) {
-                throw invalid("动作卡 overrideReasons 仅允许非空文本");
+                throw invalid("临床提示卡允许改用其他方案的原因必须是非空文本");
             }
         }
         boolean confirmation = requiredBoolean(root, "requiresPhysicianConfirmation");
         if ((hasSuggestOrder || requiresPhysicianConfirmation(actionCode, severity)) && !confirmation) {
-            throw invalid("动作卡建议医嘱必须由医师确认");
+            throw invalid("临床提示卡建议医嘱必须由医师确认");
         }
     }
 

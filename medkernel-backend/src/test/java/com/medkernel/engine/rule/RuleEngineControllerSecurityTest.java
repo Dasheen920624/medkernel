@@ -154,7 +154,12 @@ class RuleEngineControllerSecurityTest {
 
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/simulate")
                 .contentType("application/json")
-                .content("{\"context\":{\"patient\":{\"age\":72}}}"))
+                .content("""
+                    {
+                      "triggerPoint": "patient-view",
+                      "context": {"patient": {"age": 72}}
+                    }
+                    """))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }

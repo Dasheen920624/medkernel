@@ -915,9 +915,7 @@ export default function RuleDefinitions() {
       if (!isRecord(parsedDsl) || !("when" in parsedDsl)) {
         throw new Error("规则技术配置缺少触发条件");
       }
-      const nextTree = withStableRoot(
-        dslToConditionTree(parsedDsl, selectedRulePrimaryTrigger),
-      );
+      const nextTree = withStableRoot(dslToConditionTree(parsedDsl, selectedRulePrimaryTrigger));
       setEditingRuleId(selectedRuleId);
       setEditingRuleMeta(
         isRecord(parsedDsl.meta) ? (parsedDsl.meta as RuleDsl["meta"]) : undefined,
@@ -1011,15 +1009,15 @@ export default function RuleDefinitions() {
     return meta ? { ...dsl, meta } : dsl;
   };
 
-  const createRuleMeta = useMemo<RuleDsl["meta"] | undefined>(
-    () =>
-      editingRuleId
-        ? editingRuleMeta
-        : selectedTemplateKey === "critical_value_report"
-        ? { parameters: createCriticalValueParameterDefinitions() }
-        : undefined,
-    [editingRuleId, editingRuleMeta, selectedTemplateKey],
-  );
+  const createRuleMeta = useMemo<RuleDsl["meta"] | undefined>(() => {
+    if (editingRuleId) {
+      return editingRuleMeta;
+    }
+    if (selectedTemplateKey === "critical_value_report") {
+      return { parameters: createCriticalValueParameterDefinitions() };
+    }
+    return undefined;
+  }, [editingRuleId, editingRuleMeta, selectedTemplateKey]);
 
   const createActionsWithSource = (sourceRef?: string) =>
     conditionTree.actions.map((action) => ({
@@ -2367,7 +2365,7 @@ export default function RuleDefinitions() {
         name: values.name,
         ruleType: values.ruleType,
         authoringMode: editingRuleId
-          ? detailData?.definition.authoringMode ?? "VISUAL"
+          ? (detailData?.definition.authoringMode ?? "VISUAL")
           : "VISUAL",
         riskLevel: values.riskLevel,
         priority: values.priority ?? 100,
@@ -3363,10 +3361,7 @@ export default function RuleDefinitions() {
                 <Alert type="warning" showIcon message="条件结构无法解析，请在 L3 技术视图核查。" />
               )}
               {Boolean(detailDsl) && (
-                <AuthoringReadablePreview
-                  subject="RULE_CONDITION"
-                  dsl={detailDsl}
-                />
+                <AuthoringReadablePreview subject="RULE_CONDITION" dsl={detailDsl} />
               )}
               <Descriptions bordered column={1} size="small">
                 <Descriptions.Item label="适用场景">
@@ -3446,10 +3441,7 @@ export default function RuleDefinitions() {
                       </Col>
                     </Row>
                     {Boolean(detailDsl) && (
-                      <AuthoringReadablePreview
-                        subject="RULE_CONDITION"
-                        dsl={detailDsl}
-                      />
+                      <AuthoringReadablePreview subject="RULE_CONDITION" dsl={detailDsl} />
                     )}
                   </Space>
                 ),
@@ -3622,7 +3614,7 @@ export default function RuleDefinitions() {
                     </Descriptions.Item>
                     {simulateResult.hit && (
                       <>
-                        <Descriptions.Item label="动作卡">
+                        <Descriptions.Item label="临床提示卡">
                           <Space wrap>
                             {simulateResult.actions.map((action, index) => (
                               <Tag key={`${action.actionCode}-${index}`} color={action.indicator}>
@@ -3981,7 +3973,7 @@ export default function RuleDefinitions() {
             type="info"
             showIcon
             message="临床算子"
-            description="区间比较、单位换算、时间窗持续/趋势和 eGFR/CrCl/BSA 受控公式均可在 L2 结构化配置；支持任意层级「具体条件 + 子条件组」嵌套；L3 配置文本仅保留给 L3 技术核查。"
+            description="区间比较、单位换算、时间窗持续/趋势和 eGFR/CrCl/BSA 计算公式均可在 L2 结构化配置；支持任意层级「具体条件 + 子条件组」嵌套；L3 配置文本仅保留给 L3 技术核查。"
           />
 
           {renderConditionGroup(conditionRoot, 0)}
@@ -3989,11 +3981,11 @@ export default function RuleDefinitions() {
           <Space direction="vertical" size="middle" className="mk-full-width">
             <div className={styles.conditionHeader}>
               <Space direction="vertical" size={0}>
-                <Text strong>命中动作卡</Text>
-                <Text type="secondary">按风险级别输出可审阅卡片，不直接执行医嘱。</Text>
+                <Text strong>命中临床提示卡</Text>
+                <Text type="secondary">按风险等级输出医生可审阅提醒，不直接执行医嘱。</Text>
               </Space>
-              <Button icon={<PlusOutlined />} aria-label="添加动作" onClick={addAction}>
-                添加动作
+              <Button icon={<PlusOutlined />} aria-label="添加提示" onClick={addAction}>
+                添加提示
               </Button>
             </div>
 
@@ -4005,17 +3997,17 @@ export default function RuleDefinitions() {
               >
                 <div className={styles.conditionHeader}>
                   <Space>
-                    <Tag color={action.indicator}>动作 {actionIndex + 1}</Tag>
-                    <Text strong>{action.summary || "待填写动作摘要"}</Text>
+                    <Tag color={action.indicator}>提示 {actionIndex + 1}</Tag>
+                    <Text strong>{action.summary || "待填写提示摘要"}</Text>
                   </Space>
                   <Tooltip
-                    title={conditionTree.actions.length === 1 ? "至少保留一个动作" : "删除动作"}
+                    title={conditionTree.actions.length === 1 ? "至少保留一个提示" : "删除提示"}
                   >
                     <Button
                       type="text"
                       danger
                       icon={<DeleteOutlined />}
-                      aria-label={`删除动作 ${actionIndex + 1}`}
+                      aria-label={`删除提示 ${actionIndex + 1}`}
                       disabled={conditionTree.actions.length === 1}
                       onClick={() => removeAction(actionIndex)}
                     />
@@ -4024,7 +4016,7 @@ export default function RuleDefinitions() {
 
                 <Row gutter={12}>
                   <Col xs={24} md={8}>
-                    <Form.Item label="动作类型" htmlFor={`action-code-${actionIndex}`}>
+                    <Form.Item label="命中后处理" htmlFor={`action-code-${actionIndex}`}>
                       <Select
                         id={`action-code-${actionIndex}`}
                         value={action.actionCode}
@@ -4036,14 +4028,14 @@ export default function RuleDefinitions() {
                         <Option value="INFO">信息提示</Option>
                         <Option value="REMIND">一般提醒</Option>
                         <Option value="STRONG_REMINDER">强提醒</Option>
-                        <Option value="BLOCK">阻断确认</Option>
+                        <Option value="BLOCK">红线拦截</Option>
                         <Option value="SUGGEST_ORDER">建议医嘱</Option>
-                        <Option value="AUTO_DOCUMENT">自动留痕</Option>
+                        <Option value="AUTO_DOCUMENT">辅助记录</Option>
                       </Select>
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={8}>
-                    <Form.Item label="风险级别" htmlFor={`action-severity-${actionIndex}`}>
+                    <Form.Item label="风险等级" htmlFor={`action-severity-${actionIndex}`}>
                       <Select
                         id={`action-severity-${actionIndex}`}
                         value={action.atSeverity}
@@ -4055,12 +4047,12 @@ export default function RuleDefinitions() {
                         <Option value="LOW">低风险</Option>
                         <Option value="MEDIUM">中风险</Option>
                         <Option value="HIGH">高风险</Option>
-                        <Option value="CRITICAL">红线</Option>
+                        <Option value="CRITICAL">红线风险</Option>
                       </Select>
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={8}>
-                    <Form.Item label="卡片指示" htmlFor={`action-indicator-${actionIndex}`}>
+                    <Form.Item label="提醒等级" htmlFor={`action-indicator-${actionIndex}`}>
                       <Select
                         id={`action-indicator-${actionIndex}`}
                         value={action.indicator}
@@ -4069,9 +4061,9 @@ export default function RuleDefinitions() {
                         }
                         className="mk-full-width"
                       >
-                        <Option value="info">信息</Option>
-                        <Option value="warning">警示</Option>
-                        <Option value="critical">严重</Option>
+                        <Option value="info">信息提示</Option>
+                        <Option value="warning">需要关注</Option>
+                        <Option value="critical">必须处理</Option>
                       </Select>
                     </Form.Item>
                   </Col>
@@ -4079,7 +4071,7 @@ export default function RuleDefinitions() {
 
                 <Row gutter={12}>
                   <Col xs={24} md={10}>
-                    <Form.Item label="卡片摘要" htmlFor={`action-summary-${actionIndex}`}>
+                    <Form.Item label="提示摘要" htmlFor={`action-summary-${actionIndex}`}>
                       <Input
                         id={`action-summary-${actionIndex}`}
                         value={action.summary}
@@ -4130,7 +4122,7 @@ export default function RuleDefinitions() {
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={6}>
-                    <Form.Item label="证据等级" htmlFor={`action-evidence-${actionIndex}`}>
+                    <Form.Item label="证据类型" htmlFor={`action-evidence-${actionIndex}`}>
                       <Input
                         id={`action-evidence-${actionIndex}`}
                         value={action.source.evidenceLevel}
@@ -4149,7 +4141,10 @@ export default function RuleDefinitions() {
 
                 <Row gutter={12} align="middle">
                   <Col xs={24} md={18}>
-                    <Form.Item label="可覆盖理由" htmlFor={`action-reasons-${actionIndex}`}>
+                    <Form.Item
+                      label="允许改用其他方案的原因"
+                      htmlFor={`action-reasons-${actionIndex}`}
+                    >
                       <Select
                         id={`action-reasons-${actionIndex}`}
                         mode="tags"
@@ -4181,18 +4176,18 @@ export default function RuleDefinitions() {
                 </Row>
 
                 <div className={styles.conditionHeader}>
-                  <Text strong>建议项</Text>
+                  <Text strong>医生可选操作</Text>
                   <Button
                     size="small"
                     icon={<PlusOutlined />}
-                    aria-label={`为动作 ${actionIndex + 1} 添加建议`}
+                    aria-label={`为提示 ${actionIndex + 1} 添加可选操作`}
                     onClick={() => addSuggestion(actionIndex)}
                   >
-                    添加建议
+                    添加可选操作
                   </Button>
                 </div>
                 {action.suggestions.length === 0 ? (
-                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无建议项" />
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无可选操作" />
                 ) : (
                   <Space direction="vertical" size="small" className="mk-full-width">
                     {action.suggestions.map((suggestion, suggestionIndex) => (
@@ -4201,20 +4196,20 @@ export default function RuleDefinitions() {
                         className={styles.suggestionSection}
                       >
                         <div className={styles.conditionHeader}>
-                          <Text strong>建议 {suggestionIndex + 1}</Text>
-                          <Tooltip title="删除建议">
+                          <Text strong>可选操作 {suggestionIndex + 1}</Text>
+                          <Tooltip title="删除可选操作">
                             <Button
                               type="text"
                               danger
                               icon={<DeleteOutlined />}
-                              aria-label={`删除建议 ${suggestionIndex + 1}`}
+                              aria-label={`删除可选操作 ${suggestionIndex + 1}`}
                               onClick={() => removeSuggestion(actionIndex, suggestionIndex)}
                             />
                           </Tooltip>
                         </div>
                         <Row gutter={12}>
                           <Col xs={24} md={12}>
-                            <Form.Item label="建议名称">
+                            <Form.Item label="可选操作名称">
                               <Input
                                 value={suggestion.label}
                                 onChange={(event) =>
@@ -4226,7 +4221,7 @@ export default function RuleDefinitions() {
                             </Form.Item>
                           </Col>
                           <Col xs={24} md={12}>
-                            <Form.Item label="建议类型">
+                            <Form.Item label="可选操作类型">
                               <Input
                                 value={suggestion.actionType}
                                 onChange={(event) =>
@@ -4239,7 +4234,7 @@ export default function RuleDefinitions() {
                           </Col>
                         </Row>
                         <div className={styles.conditionHeader}>
-                          <Text type="secondary">建议参数</Text>
+                          <Text type="secondary">操作参数</Text>
                           <Button
                             type="text"
                             size="small"
@@ -4298,10 +4293,7 @@ export default function RuleDefinitions() {
             ))}
           </Space>
 
-          <AuthoringReadablePreview
-            subject="RULE_CONDITION"
-            dsl={createRulePreviewDsl}
-          />
+          <AuthoringReadablePreview subject="RULE_CONDITION" dsl={createRulePreviewDsl} />
 
           <Space>
             <Button
@@ -4628,9 +4620,7 @@ export default function RuleDefinitions() {
 
       <Modal
         title={
-          editingRuleId
-            ? `编辑 V${detailData?.version.versionNo ?? ""} 规则草稿`
-            : "创建新临床规则"
+          editingRuleId ? `编辑 V${detailData?.version.versionNo ?? ""} 规则草稿` : "创建新临床规则"
         }
         open={createModalVisible}
         onOk={handleCreateRule}
@@ -4694,11 +4684,7 @@ export default function RuleDefinitions() {
                 label="临床触发场景"
                 rules={[{ required: true, message: "请至少选择一个临床触发场景" }]}
               >
-                <Select
-                  mode="multiple"
-                  maxTagCount="responsive"
-                  onChange={updateTriggerPoints}
-                >
+                <Select mode="multiple" maxTagCount="responsive" onChange={updateTriggerPoints}>
                   {CLINICAL_TRIGGER_POINT_OPTIONS.map((option) => (
                     <Option key={option.value} value={option.value}>
                       {option.label}
@@ -4939,10 +4925,7 @@ export default function RuleDefinitions() {
         </Form>
       </Modal>
 
-      <FieldCatalogManager
-        open={fieldManagerOpen}
-        onClose={() => setFieldManagerOpen(false)}
-      />
+      <FieldCatalogManager open={fieldManagerOpen} onClose={() => setFieldManagerOpen(false)} />
     </PageShell>
   );
 }

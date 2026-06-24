@@ -132,7 +132,6 @@ class BootstrapControllerTest {
                 .content("""
                     {
                       "token": "mk-init-token",
-                      "tenantId": "customer-tenant",
                       "username": "platform-owner",
                       "password": "StrongPwd@2026"
                     }
@@ -181,7 +180,6 @@ class BootstrapControllerTest {
                 .content("""
                     {
                       "token": "mk-init-token",
-                      "tenantId": "t-1",
                       "username": "platform-owner",
                       "password": "StrongPwd@2026"
                     }
@@ -280,7 +278,6 @@ class BootstrapControllerTest {
                 .content("""
                     {
                       "token": "mk-init-token",
-                      "tenantId": "t-1",
                       "username": "platform-owner-2",
                       "password": "StrongPwd@2026"
                     }

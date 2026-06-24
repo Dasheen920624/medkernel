@@ -18,11 +18,7 @@ import {
   Tag,
   Typography,
 } from "antd";
-import {
-  CheckCircleOutlined,
-  SafetyCertificateOutlined,
-  SyncOutlined,
-} from "@ant-design/icons";
+import { CheckCircleOutlined, SafetyCertificateOutlined, SyncOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 
 import {
@@ -389,11 +385,7 @@ export default function TerminologyMapping() {
   else if (query.isLoading) pageState = "loading";
   else if (query.isError) pageState = "error";
   // 只要还有待审候选或待裁冲突，维护工作台必须保持可见，不得被映射空态吞没。
-  else if (
-    mappingItems.length === 0 &&
-    candidateItems.length === 0 &&
-    conflictItems.length === 0
-  )
+  else if (mappingItems.length === 0 && candidateItems.length === 0 && conflictItems.length === 0)
     pageState = "empty";
 
   const exportRequest = buildAsyncExportRequest({

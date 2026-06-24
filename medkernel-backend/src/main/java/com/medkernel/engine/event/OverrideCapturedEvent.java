@@ -30,7 +30,7 @@ public record OverrideCapturedEvent(
         ruleId = Objects.requireNonNull(ruleId, "越权事件规则 ID 不能为空");
         ruleCode = Objects.requireNonNull(ruleCode, "越权事件规则编码不能为空");
         versionId = Objects.requireNonNull(versionId, "越权事件版本 ID 不能为空");
-        actionCode = Objects.requireNonNull(actionCode, "越权事件动作码不能为空");
+        actionCode = Objects.requireNonNull(actionCode, "越权事件命中后处理不能为空");
         occurredAt = Objects.requireNonNull(occurredAt, "越权事件发生时间不能为空");
     }
 }

@@ -139,7 +139,7 @@ describe("Notifications", () => {
     expect(screen.getByText("随访异常通知")).toBeInTheDocument();
     expect(screen.getByText("患者报告呼吸困难，需要处理。")).toBeInTheDocument();
     expect(screen.getByText("patient-real-1")).toBeInTheDocument();
-    expect(screen.getByText("来源对象 event-real-1")).toBeInTheDocument();
+    expect(screen.getByText("来源编号 event-real-1")).toBeInTheDocument();
     expect(screen.getByText("追踪号 trace-notify")).toBeInTheDocument();
     expect(screen.queryByText("通知接口尚未接入")).not.toBeInTheDocument();
   });
@@ -371,7 +371,7 @@ describe("Notifications", () => {
 
     renderNotifications();
 
-    expect(screen.getByText("来源对象 event-no-trace")).toBeInTheDocument();
+    expect(screen.getByText("来源编号 event-no-trace")).toBeInTheDocument();
     expect(screen.getByText("追踪号未提供")).toBeInTheDocument();
     expect(screen.queryByText(/^追踪号 trace-/)).not.toBeInTheDocument();
   });

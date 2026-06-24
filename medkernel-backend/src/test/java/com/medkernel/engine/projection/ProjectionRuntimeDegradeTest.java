@@ -41,7 +41,7 @@ class ProjectionRuntimeDegradeTest {
         ProjectionRebuildResponse response = service.rebuildClinicalGraph("tenant-A", "tester", "trace-1");
 
         assertThat(response.status()).isEqualTo(ProjectionSyncStatus.NOT_SYNCED);
-        assertThat(response.message()).contains("graph-projection");
+        assertThat(response.message()).contains("图投影能力开关关闭");
         verify(source, never()).factsForTenant(anyString());
         verify(snapshots, never()).deleteByTenantIdAndTargetType(anyString(), any());
         verify(snapshots, never()).saveAll(anyIterable());

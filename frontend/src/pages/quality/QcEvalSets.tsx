@@ -452,9 +452,7 @@ export default function QcEvalSets() {
       ) : (
         <Text type="secondary">暂无生效版本。</Text>
       ),
-      evidence_rollback: (
-        <Text type="secondary">{visibleIndicator?.traceId ?? "暂无追踪号"}</Text>
-      ),
+      evidence_rollback: <Text type="secondary">{visibleIndicator?.traceId ?? "暂无追踪号"}</Text>,
     }),
     [total, visibleIndicator],
   );

@@ -102,7 +102,9 @@ function capabilityDetails(item: ModelCapabilityStatusResponse) {
       <Descriptions.Item label="结构约束">
         {item.expectedSchema ? "已配置输出格式" : "未配置"}
       </Descriptions.Item>
-      <Descriptions.Item label="状态说明">{customerDisplayText(item.fallbackReason)}</Descriptions.Item>
+      <Descriptions.Item label="状态说明">
+        {customerDisplayText(item.fallbackReason)}
+      </Descriptions.Item>
       {item.expectedSchema ? (
         <Descriptions.Item label="输出格式明细" span={3}>
           <Text code className={styles.schemaText}>

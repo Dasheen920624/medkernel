@@ -49,8 +49,7 @@ class ModelGatewayControllerSecurityTest {
         {
           "routeStrategy": "BASELINE",
           "desensitizeStrategy": "MASK_ALL",
-          "expectedSchema": "{\\"type\\":\\"object\\",\\"required\\":[\\"status\\"]}",
-          "enabled": true
+          "expectedSchema": "{\\"type\\":\\"object\\",\\"required\\":[\\"status\\"]}"
         }
         """;
 

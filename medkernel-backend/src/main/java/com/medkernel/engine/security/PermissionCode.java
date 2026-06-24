@@ -29,8 +29,8 @@ public enum PermissionCode {
     RELEASE_ROLLBACK("release.rollback", Risk.HIGH, "从历史机构生效版本生成回退版本"),
 
     // ─── 通用配置资产 ────────────────────────────────────────────
-    ASSET_READ("asset.read", Risk.LOW, "查看值集、公式、医嘱套餐与动作卡"),
-    ASSET_WRITE("asset.write", Risk.MEDIUM, "新增 / 修改值集、公式、医嘱套餐与动作卡草稿"),
+    ASSET_READ("asset.read", Risk.LOW, "查看值集、计算公式、医嘱套餐与临床提示卡"),
+    ASSET_WRITE("asset.write", Risk.MEDIUM, "新增 / 修改值集、计算公式、医嘱套餐与临床提示卡草稿"),
 
     // ─── 知识资产（GA-ENG-API-03 / GA-ENG-KNOW-01/02）─────────
     KNOWLEDGE_READ("knowledge.read", Risk.LOW, "查看知识资产 / 来源 / 候选"),

@@ -12,14 +12,7 @@ import {
 } from "./customerLabels";
 
 const sourceRoot = resolve(process.cwd(), "src");
-const scanRoots = [
-  "features",
-  "pages",
-  "shared/config",
-  "shared/lib",
-  "shared/ui",
-  "widgets",
-];
+const scanRoots = ["features", "pages", "shared/config", "shared/lib", "shared/ui", "widgets"];
 const visibleAttributeNames = new Set([
   "aria-label",
   "content",
@@ -56,7 +49,9 @@ describe("customer language gate", () => {
     expect(customerDisplayText("未配置专属策略，使用系统 B0 基线")).toBe(
       "未配置专属策略，使用系统无模型规则链路",
     );
-    expect(customerDisplayText("请先选择一个 ACTIVE 上下文快照")).toBe("请先选择一个已生效上下文快照");
+    expect(customerDisplayText("请先选择一个 ACTIVE 上下文快照")).toBe(
+      "请先选择一个已生效上下文快照",
+    );
     expect(customerDisplayText("MEDIUM")).toBe("中风险");
   });
 

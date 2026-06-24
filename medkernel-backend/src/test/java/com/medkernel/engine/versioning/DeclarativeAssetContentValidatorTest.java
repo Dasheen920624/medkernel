@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.shared.api.error.ApiException;
 
 /**
- * 独立配置资产正文契约测试：值集、公式、医嘱套餐和动作卡必须保存可运行结构，
+ * 独立配置资产正文契约测试：值集、计算公式、医嘱套餐和临床提示卡必须保存可运行结构，
  * 子路径由真实路径模板维护，不允许再登记第二份通用 JSON 正文。
  */
 class DeclarativeAssetContentValidatorTest {
@@ -160,7 +160,7 @@ class DeclarativeAssetContentValidatorTest {
             json.readTree("""
                 {
                   "schemaVersion": "1.0",
-                  "title": "错误自动动作卡",
+                  "title": "错误自动临床提示卡",
                   "actionCode": "SUGGEST_ORDER",
                   "atSeverity": "HIGH",
                   "indicator": "critical",
@@ -176,7 +176,7 @@ class DeclarativeAssetContentValidatorTest {
                   "requiresPhysicianConfirmation": false
                 }
                 """)))
-            .hasMessageContaining("动作卡建议医嘱必须由医师确认");
+            .hasMessageContaining("临床提示卡建议医嘱必须由医师确认");
     }
 
     @Test

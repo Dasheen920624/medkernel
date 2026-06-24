@@ -24,7 +24,7 @@ describe("ruleOperatorCatalog temporal modes", () => {
     expect(() => normalizeTemporalMode("legacy-mode")).toThrow("时间窗模式不在受控选项内");
   });
 
-  it("声明受控公式允许范围与参数，包含 BMI", () => {
+  it("声明计算公式允许范围与参数，包含 BMI", () => {
     expect(DERIVED_FORMULA_OPTIONS.map((option) => option.value)).toEqual([
       "CKD_EPI_2021_EGFR",
       "COCKCROFT_GAULT_CRCL",

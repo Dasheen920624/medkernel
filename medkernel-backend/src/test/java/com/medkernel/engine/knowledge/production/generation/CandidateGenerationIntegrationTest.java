@@ -35,12 +35,16 @@ import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowRunStatus
 import com.medkernel.engine.knowledge.production.triage.GenerationTriage;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageRepository;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageState;
+import com.medkernel.engine.org.OrgUnit;
+import com.medkernel.engine.org.OrgUnitRepository;
+import com.medkernel.engine.org.OrgUnitStatus;
 import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.safety.ClinicalRedlineCategory;
 import com.medkernel.engine.safety.ClinicalRedlineRepository;
 import com.medkernel.engine.safety.ClinicalRedlineRule;
 import com.medkernel.engine.safety.ClinicalRedlineStatus;
 import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
@@ -75,6 +79,8 @@ class CandidateGenerationIntegrationTest {
     private GenerationTriageRepository triages;
     @Autowired
     private KnowledgeShadowRunRepository shadowRuns;
+    @Autowired
+    private OrgUnitRepository organizations;
 
     @AfterEach
     void tearDown() {
@@ -85,6 +91,7 @@ class CandidateGenerationIntegrationTest {
     void generatesCandidatesFromSourceIntoReviewChain() {
         RequestContext.restore(new RequestContext.Snapshot("trace-gen-it", OrgScope.tenant(TENANT), "user-it"));
         Instant now = Instant.now();
+        seedTenantRoot(now);
         SourceDocument doc = sourceDocuments.save(new SourceDocument(null, TENANT, "SRC-AIK04",
             SourceType.GUIDELINE, SourceAuthorityLevel.B_GUIDELINE, "依据", "高血压基层诊疗指南",
             "卫健委", "lic", "zh", now, "u", now, "u"));
@@ -159,6 +166,29 @@ class CandidateGenerationIntegrationTest {
                 "{\"field\":\"medications[].code\",\"operator\":\"in\"}", "依据", "ref", 42L,
                 false, now, "tester", now, "tester", "trace"));
         }
+    }
+
+    private void seedTenantRoot(Instant now) {
+        if (organizations.findByTenantIdAndParentIdIsNull(TENANT).isPresent()) {
+            return;
+        }
+        organizations.save(new OrgUnit(
+            null,
+            null,
+            TENANT,
+            "/" + TENANT,
+            OrgLevel.TENANT,
+            "TENANT-GEN-IT",
+            "候选生成测试租户",
+            null,
+            null,
+            null,
+            OrgUnitStatus.ACTIVE,
+            now,
+            "user-it",
+            now,
+            "user-it"
+        ));
     }
 
 }

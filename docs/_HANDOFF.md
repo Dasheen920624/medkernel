@@ -58,7 +58,7 @@
 - `RuleReleaseSimulationReplayEvaluator` 已按每个真实上下文快照的 `runtimeReleaseId` 做发布模拟回放；
 - `AuthoringPreviewRunService` 已按请求机构 + 所选真实快照 `runtimeReleaseId` 做草稿规则即配即试；
 - `RecommendationDeterministicMatcher` 已按请求机构 + 快照 `runtimeReleaseId` 生成确定性推荐卡，平台主源规则也
-  通过当前机构生效版本叠层解析动作卡；
+  通过当前机构生效版本叠层解析临床提示卡；
 - 复扫生产代码后，正式运行入口已不再裸跑 `RuleDslEvaluator.evaluate(dsl, context)`；剩余两参调用仅用于
   规则测试/回放样例和静态 DSL 校验，不代表临床运行链路。
 - 灰度暂停通知深链已从旧 `/tenant/packages` 切到发布治理页 `/config/releases`；
@@ -81,10 +81,24 @@
   保留医疗与治理专业性，隐藏实现代号；按用户任务表达条件、风险、校验和结果。
 - 模型服务、知识生产、诊断知识发布、规则/路径发布、机构开通、安全设置和国产化自检的前后台文案已按
   “用户可理解且专业准确”口径同步；技术枚举可留在专家模式、日志、测试数据和工程契约，不应直接进入前台。
+- 用户最新反馈已明确：MedKernel 是医疗引擎中枢系统，前台字典和页面语言必须从医疗产品体验师视角优化，
+  不是机械替换同义词，更不能为了“通俗”损失临床、治理和机构运行含义。后续前台表达默认采用医生、
+  医疗引擎运营员、机构管理员和审计员能理解的业务语言；如“机构生效版本”“发布质量校验”
+  “生产安全校验”“红线风险”“临床提示卡”等可作为专业产品词保留，内部枚举和实现代号只放专家模式或工程契约。
+- 声明式资产工作台和规则 L2 编辑器已把旧“动作卡/动作码/建议/卡片动作”等泛化技术词收敛为
+  “临床提示卡”“命中后处理”“医生可选操作”“风险等级”“提醒等级”“依据名称/链接”等面向用户的医疗业务词；
+  值集、计算公式、医嘱套餐和临床提示卡的作者选项抽到
+  `frontend/src/shared/config/declarativeAssetAuthoring.ts`，避免页面内散落重复字典。
+- 前台与外部可见字典已继续按医疗引擎中枢产品语境扩展到“计算公式”“医嘱套餐”“临床提示卡”
+  “命中后处理”等业务词；前端页面、共享字典、后端校验/权限/模板/错误消息和五方言 V1 注释已同步，
+  旧技术词仅允许出现在翻译兜底、语言门禁、负向测试和历史接力说明中。
+- 领域归属契约已补齐 `engine-domaincatalog` 以及资产身份、资产验证记录、资产触发绑定表归属；候选生成、
+  候选物化、价值指标、质控看板和全链路 E2E 的测试前置数据已对齐真实租户根组织、机构生效版本外键和
+  清单哈希算法，不再靠裸字符串或占位哈希绕过关系库权威。
 
 本阶段新鲜验证证据：
 
-- 红灯已分别复现动作卡引用未物化时的 `规则 DSL 缺少字段: atSeverity`：
+- 红灯已分别复现临床提示卡引用未物化时的 `规则 DSL 缺少字段: atSeverity`：
   `SandboxCurrentRuleExecutorTest#materializesActionCardReferenceFromTheFrozenRuntimeRelease`、
   `SandboxReplayRuleExecutorTest#materializesActionCardReferenceFromHistoricalReplayAssetSnapshot`、
   `AuthoringPreviewRunServiceTest#previewRunsDraftRuleWithActionCardFromSnapshotRuntimeRelease`、
@@ -142,6 +156,21 @@
 - 构建与迁移轻量核查：
   `npm run build` 通过；`mvn -q -DskipTests compile` 通过；
   `node scripts/db/generate-migrations.mjs --check` 通过；`git diff --check` 通过。
+- 本轮医疗产品语言与真实约束收口定向验证：
+  `npm test -- DeclarativeAssetWorkbench.test.tsx declarativeAssetAuthoring.test.ts RuleDefinitions.test.tsx ruleLayeredEditor.test.ts`
+  通过，4 个文件 / 40 个测试通过；
+  `mvn -q -Dtest=CandidateMaterializationIntegrationTest,CandidateGenerationIntegrationTest,QualityDashboardServiceTest,ValueMetricsServiceTest,EngineEndToEndIntegrationTest,ContextSnapshotTraceEndToEndTest test`
+  通过；
+  `mvn -q -Dtest=DomainOwnershipContractTest test` 通过；
+- 本轮全量门禁：
+  `mvn -q test` 通过（本机 Docker 不可用导致 Testcontainers 输出环境检测错误日志，但 Maven 退出码为 0）；
+  `npm run verify` 通过，前端 lint / stylelint / 真实性规则 / format / typecheck / Vitest 全部完成，
+  Vitest 汇总为 106 个测试文件、763 个测试通过。
+- 医疗产品语言扩展后的后端定向回归：
+  `mvn -q -Dtest=DeclarativeAssetContentValidatorTest,RecommendationDeterministicMatcherTest,PathwayEngineServiceTest,RuleDslEvaluatorTest test`
+  先暴露规则断言仍期望旧动作表述，修正为临床提示卡口径后通过；
+- 收口核查：`git diff --check` 通过；残留旧前台词扫描只命中翻译兜底、语言门禁、负向测试断言和历史接力说明，
+  未发现生产前台页面或后端外部消息继续直接暴露旧技术词。
 - 部署与演练脚本本地契约核查：
   `bash deploy/onprem/tests/validate-medkernel-fresh-deploy.sh` 通过；
   `bash deploy/onprem/tests/validate-medkernel-post-rehearsal-verify.sh` 通过；
@@ -162,13 +191,13 @@
 - 旧 `servicePackage/package` 业务表达继续收缩到服务线、服务组合、机构生效版本和离线交付文件边界；
 - 规则生成器、模型候选和规则草稿入口统一使用 `then: [{ actionCardRef: "..." }]`，废弃
   `then.actions` 包裹形态；
-- 规则运行时可以从当前机构生效版本物化动作卡，生成完整 CDS 动作卡字段，保留
+- 规则运行时可以从当前机构生效版本物化临床提示卡，生成完整 CDS 卡片字段，保留
   `actionCardRef`、物化版本和正文摘要作为证据；
 - 规则维护端已允许稳定 `actionCardRef` 草稿引用，并登记 `ACTION_CARD` 运行资产依赖；内联动作仍走
   完整字段严格校验；
-- 动作卡资产正文从泛化 `actions[]` 空壳改为可执行 CDS 卡结构（动作码、严重度、indicator、摘要、
-  明细、来源、建议、覆盖原因、医师确认要求）；
-- 前端声明式资产工作台的动作卡维护表单已切换到新结构，不再生成旧 `actions[]`；
+- 临床提示卡资产正文从泛化 `actions[]` 空壳改为可执行 CDS 卡结构（命中后处理、风险等级、提醒等级、
+  摘要、明细、来源、医生可选操作、改用方案原因、医师确认要求）；
+- 前端声明式资产工作台的临床提示卡维护表单已切换到新结构，不再生成旧 `actions[]`；
 - 路径 `ORDER_SET` 节点已能在运行时从机构生效版本解析医嘱套餐正文，并只记录证据和建议项，
   不自动开医嘱；
 - 医嘱套餐高风险/建议医嘱场景必须保留医师确认要求；
@@ -218,13 +247,14 @@
 ## 已知阻断或缺口
 
 - 生产用户可见旧 Package 文案/深链已清一轮，但类名级历史命名仍需结合证据导出边界逐项评估；
-- 值集、公式、医嘱套餐和动作卡的规则/路径核心消费者已切到机构生效版本语义，但更多资产类型的真实
+- 值集、计算公式、医嘱套餐和临床提示卡的规则/路径核心消费者已切到机构生效版本语义，但更多资产类型的真实
   消费者闭环仍需逐项补证；
 - 患者报告解读只有部分数据骨架，尚未形成完整运行闭环；
 - 字段目录已补第三方接入契约的机构生效版本消费证据，规则/路径字段引用也已登记字段目录资产依赖；但术语
   覆盖门禁、评价、随访、质量和知识仍需继续按机构生效版本复核；
 - 离线交付文件、前端发布治理页、集成契约、CLI 和 MCP 尚未完全切换到新模型；
-- 最终五方言 V1、全量测试和 134 演练尚未完成。
+- 最终五方言 V1 和 134 真实清库重部署演练尚未完成；本地后端全量 `mvn -q test` 与前端全量
+  `npm run verify` 最新已通过，但不能替代 134 环境验收。
 
 ## 134 外部事实
 

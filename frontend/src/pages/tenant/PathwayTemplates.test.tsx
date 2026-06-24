@@ -400,13 +400,15 @@ describe("PathwayTemplates 上线路径维护契约", () => {
   it("路径维护不再展示旧归属、手工版本与路径专属发布入口", async () => {
     const { user, dialog } = await openCreateDialog();
 
-    expect(screen.queryByRole("button", { name: new RegExp(`管理路径知识${"包"}`) }))
-      .not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: new RegExp(`管理路径知识${"包"}`) }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/7 步流发布/)).not.toBeInTheDocument();
     expect(screen.queryByText(/灰度发布|全量激活|回滚目标/)).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText("归属路径知识" + "包")).not.toBeInTheDocument();
-    expect(within(dialog).queryByPlaceholderText("默认使用路径知识" + "包版本"))
-      .not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByPlaceholderText("默认使用路径知识" + "包版本"),
+    ).not.toBeInTheDocument();
 
     await user.click(within(dialog).getByRole("button", { name: /OK|确 定|确定/ }));
     await waitFor(() => expect(apiMocks.createTemplate).not.toHaveBeenCalled());
@@ -498,9 +500,7 @@ describe("PathwayTemplates 上线路径维护契约", () => {
       await selectAntdOption(user, dialog, "守卫来源", "引用已发布规则");
       await selectAntdOption(user, dialog, "已发布规则", /低血压路径分流/);
 
-      expect(
-        within(dialog).getByText(/运行时由同一机构生效版本确认规则版本/),
-      ).toBeInTheDocument();
+      expect(within(dialog).getByText(/运行时由同一机构生效版本确认规则版本/)).toBeInTheDocument();
 
       await user.click(within(dialog).getByRole("button", { name: /同步到技术配置/ }));
       await user.click(within(dialog).getByRole("tab", { name: /L3 技术配置/ }));
