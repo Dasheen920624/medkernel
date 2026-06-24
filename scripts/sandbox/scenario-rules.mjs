@@ -6,7 +6,7 @@ const REQUIRED_CASES = new Set([
   "POSITIVE",
   "NEGATIVE",
   "BOUNDARY",
-  "MISSING_FIELD",
+  "CONFLICT",
 ]);
 const REQUIRED_SOURCE_FIELDS = new Set([
   "sourceType",

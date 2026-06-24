@@ -171,12 +171,12 @@ test("缺字段样例使用非匹配占位值通过 DTO 校验且不伪造医学
   const medicationCase = manifest.scenarios
     .find((item) => item.ruleCode === "SBX.MED.WARFARIN.ASA")
     .clinicalContent.testCases.find(
-      (item) => item.caseType === "MISSING_FIELD",
+      (item) => item.caseType === "CONFLICT",
     );
   const claimCase = manifest.scenarios
     .find((item) => item.ruleCode === "SBX.INSURANCE.DRG")
     .clinicalContent.testCases.find(
-      (item) => item.caseType === "MISSING_FIELD",
+      (item) => item.caseType === "CONFLICT",
     );
   const recordCase = manifest.scenarios
     .find((item) => item.ruleCode === "SBX.RECORD.COMPLETENESS")

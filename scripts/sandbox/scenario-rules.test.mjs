@@ -65,7 +65,7 @@ test("每条规则都有权威来源、可执行 DSL 和四类可验证样例", 
     );
     assert.deepEqual(
       [...caseTypes].sort(),
-      ["BOUNDARY", "MISSING_FIELD", "NEGATIVE", "POSITIVE"],
+      ["BOUNDARY", "CONFLICT", "NEGATIVE", "POSITIVE"],
       scenario.ruleCode,
     );
     for (const testCase of scenario.clinicalContent.testCases) {
@@ -172,7 +172,7 @@ test("缺来源、缺机构归属或缺四类样例会被清单校验拒绝", as
 
   const missingCase = structuredClone(manifest);
   missingCase.scenarios[0].clinicalContent.testCases.pop();
-  assert.throws(() => validateScenarioRules(missingCase), /MISSING_FIELD/);
+  assert.throws(() => validateScenarioRules(missingCase), /CONFLICT/);
 
   const missingDependencyVersion = structuredClone(manifest);
   delete missingDependencyVersion.dependencies[0].assetVersion;

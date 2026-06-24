@@ -136,7 +136,7 @@
             "expectedActionCode": "STRONG_REMINDER"
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-K-MIS",
             "encounterId": "SBX-K-ENC-MIS",
             "facts": {
@@ -283,7 +283,7 @@
             "expectedActionCode": "STRONG_REMINDER"
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-WA-MIS",
             "encounterId": "SBX-WA-ENC-MIS",
             "facts": {
@@ -446,7 +446,7 @@
             "expectedHit": false
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-CT-MIS",
             "encounterId": "SBX-CT-ENC-MIS",
             "facts": {
@@ -598,7 +598,7 @@
             "expectedActionCode": "REMIND"
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-ACS-MIS",
             "encounterId": "SBX-ACS-ENC-MIS",
             "facts": {
@@ -732,7 +732,7 @@
             "expectedActionCode": "STRONG_REMINDER"
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-RPT-MIS",
             "encounterId": "SBX-RPT-ENC-MIS",
             "facts": {
@@ -877,7 +877,7 @@
             "expectedActionCode": "REMIND"
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-DC-MIS",
             "encounterId": "SBX-DC-ENC-MIS",
             "facts": {
@@ -1027,7 +1027,7 @@
             "expectedActionCode": "STRONG_REMINDER"
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-INR-MIS",
             "encounterId": "SBX-INR-ENC-MIS",
             "facts": {
@@ -1151,7 +1151,7 @@
             "expectedHit": false
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-DRG-MIS",
             "encounterId": "SBX-DRG-ENC-MIS",
             "facts": { "claims": [{ "totalCost": 12000 }] },
@@ -1279,7 +1279,7 @@
             "expectedActionCode": "REMIND"
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-QC-MIS",
             "encounterId": "SBX-QC-ENC-MIS",
             "facts": {
@@ -1394,7 +1394,7 @@
             "expectedActionCode": "INFO"
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-REC-MIS",
             "encounterId": "SBX-REC-ENC-MIS",
             "facts": { "patient": { "name": "沙盘患者" }, "encounters": [] },
