@@ -8,7 +8,7 @@ import SandboxDataEntry from "./SandboxDataEntry";
 
 const numericScenario: NumericSandboxScenario = {
   id: "sbx-lab-critical-k",
-  servicePackage: "clinical-collaboration",
+  serviceLine: "clinical-collaboration",
   engine: "rule",
   playbook: "RULE_ONLY",
   triggerPoint: "result-review",

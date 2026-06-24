@@ -209,7 +209,7 @@ class DiagnosisKnowledgeServiceTest {
         DiagnosisAssetCreateRequest request = new DiagnosisAssetCreateRequest(
             valid.requestId(), valid.traceId(), valid.tenantId(), valid.groupId(),
             valid.hospitalId(), valid.campusId(), valid.siteId(), valid.departmentId(),
-            valid.specialtyId(), valid.userId(), valid.roleCodes(), valid.packageVersion(),
+            valid.specialtyId(), valid.userId(), valid.roleCodes(),
             valid.identity(), valid.source(), valid.version(),
             new DiagnosisAssetCreateRequest.EvidenceInput(
                 "section-1", "诊断标准", "原文中不存在的证据片段"));
@@ -229,7 +229,7 @@ class DiagnosisKnowledgeServiceTest {
             assetRequest.requestId(), assetRequest.traceId(), assetRequest.tenantId(),
             assetRequest.groupId(), assetRequest.hospitalId(), assetRequest.campusId(),
             assetRequest.siteId(), assetRequest.departmentId(), assetRequest.specialtyId(),
-            assetRequest.userId(), assetRequest.roleCodes(), assetRequest.packageVersion(),
+            assetRequest.userId(), assetRequest.roleCodes(),
             assetRequest.source(), assetRequest.version(), assetRequest.evidence());
         SourceDocument source = sourceDocument(30L);
         SourceVersion sourceVersion = sourceVersion(31L, source.id());
@@ -261,7 +261,7 @@ class DiagnosisKnowledgeServiceTest {
             assetRequest.requestId(), assetRequest.traceId(), assetRequest.tenantId(),
             assetRequest.groupId(), assetRequest.hospitalId(), assetRequest.campusId(),
             assetRequest.siteId(), assetRequest.departmentId(), assetRequest.specialtyId(),
-            assetRequest.userId(), assetRequest.roleCodes(), assetRequest.packageVersion(),
+            assetRequest.userId(), assetRequest.roleCodes(),
             assetRequest.source(), assetRequest.version(), assetRequest.evidence());
         KnowledgeIdentity guideline = new KnowledgeIdentity(
             8L, "t-dept", "GUIDE.CKD", KnowledgeDomain.GUIDELINE, "慢性肾脏病指南",
@@ -372,7 +372,7 @@ class DiagnosisKnowledgeServiceTest {
             .thenReturn(List.of(testCase("CASE-1", "FEVER,COUGH", DiagnosisConfidence.WEAK)));
 
         assertThatThrownBy(() -> service.publishDiagnosis(
-            1L, 10L, "上线", com.medkernel.engine.versioning.VersionPublishEvidence.empty()))
+            1L, 10L, "上线", 900L))
             .isInstanceOf(ApiException.class)
             .extracting(e -> ((ApiException) e).errorCode())
             .isEqualTo(ErrorCode.ENG_DX_006);
@@ -407,7 +407,7 @@ class DiagnosisKnowledgeServiceTest {
     private DiagnosisAssetCreateRequest diagnosisAssetRequest() {
         return new DiagnosisAssetCreateRequest(
             "req-1", "trace-dx", "t-dept", null, null, null, null, null, null,
-            "doctor-1", List.of("clinical-governor"), "pkg-2026.06",
+            "doctor-1", List.of("engine-operator"),
             new DiagnosisAssetCreateRequest.IdentityInput(
                 "chronic-kidney-disease", "慢性肾脏病", "NEPH", "结构化诊断知识"),
             new DiagnosisAssetCreateRequest.SourceInput(

@@ -2,6 +2,7 @@ package com.medkernel.engine.authoring;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -9,6 +10,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.context.ContextSnapshotResponse;
@@ -20,13 +22,17 @@ import com.medkernel.engine.context.QualityStatus;
 import com.medkernel.engine.context.canonical.CanonicalObservation;
 import com.medkernel.engine.context.canonical.CanonicalPatient;
 import com.medkernel.engine.rule.ConditionEvaluator;
+import com.medkernel.engine.rule.RuleDslAssetMaterializer;
 import com.medkernel.engine.rule.RuleDslEvaluator;
+import com.medkernel.engine.versioning.ResolvedDeclarativeAsset;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.beans.factory.ObjectProvider;
 
 class AuthoringPreviewRunServiceTest {
 
@@ -114,12 +120,52 @@ class AuthoringPreviewRunServiceTest {
     }
 
     @Test
+    void previewRunsDraftRuleWithActionCardFromSnapshotRuntimeRelease() throws Exception {
+        when(snapshots.findById("ctx-001")).thenReturn(activeSnapshot());
+        ConditionEvaluator conditionEvaluator = new ConditionEvaluator(json);
+        AuthoringPreviewRunService materializingService = new AuthoringPreviewRunService(
+            json,
+            snapshots,
+            materializingRuleEvaluator(conditionEvaluator),
+            conditionEvaluator);
+
+        AuthoringPreviewRunResponse response = materializingService.run(new AuthoringPreviewRunRequest(
+            apiContext(),
+            AuthoringPreviewSubject.RULE_CONDITION,
+            "ctx-001",
+            json.readTree("""
+                {
+                  "when": {
+                    "all": [
+                      {
+                        "expr": {"field": "observations[].valueNumeric", "select": "latest"},
+                        "operator": "gte",
+                        "value": 6.5
+                      }
+                    ]
+                  },
+                  "then": [{"actionCardRef": "CARD.K.RECHECK"}]
+                }
+                """),
+            null,
+            List.of()
+        ));
+
+        assertThat(response.hit()).isTrue();
+        assertThat(response.severity()).isEqualTo("HIGH");
+        assertThat(response.actions()).singleElement().satisfies(action -> {
+            assertThat(action.summary()).isEqualTo("草稿高钾复核提醒");
+            assertThat(action.requiresPhysicianConfirmation()).isTrue();
+        });
+    }
+
+    @Test
     void previewRunRejectsNonActiveSnapshotInsteadOfFallingBackToFakeData() throws Exception {
         when(snapshots.findById("ctx-draft")).thenReturn(new ContextSnapshotResponse(
             "ctx-draft",
             ContextSnapshotStatus.DRAFT,
             null,
-            "pkg-2026.06",
+            "runtime-release-test",
             QualityStatus.PARTIAL,
             List.of(),
             Map.of(),
@@ -209,7 +255,7 @@ class AuthoringPreviewRunServiceTest {
             List.of(),
             "HIS",
             "P-001",
-            "pkg-2026.06",
+            "HIS-2026.06",
             Instant.parse("2026-06-02T08:00:00Z"),
             Instant.parse("2026-06-02T08:01:00Z"),
             QualityStatus.VALID);
@@ -224,7 +270,7 @@ class AuthoringPreviewRunServiceTest {
             "HH",
             "LIS",
             "OBS-001",
-            "pkg-2026.06",
+            "LIS-2026.06",
             Instant.parse("2026-06-02T08:00:00Z"),
             Instant.parse("2026-06-02T08:01:00Z"),
             QualityStatus.VALID);
@@ -244,13 +290,42 @@ class AuthoringPreviewRunServiceTest {
                 List.of(),
                 List.of(),
                 List.of(),
-                List.of()),
-            "pkg-2026.06",
+                List.of(),
+                ContextSnapshotResources.emptyExtensions()),
+            "runtime-release-test",
             QualityStatus.PARTIAL,
             List.of(new MissingFieldEntry("OBSERVATION", "unit", "WARN")),
             Map.of(),
             Instant.parse("2026-06-02T08:00:00Z"),
             "trace-ctx");
+    }
+
+    @SuppressWarnings("unchecked")
+    private RuleDslEvaluator materializingRuleEvaluator(ConditionEvaluator conditionEvaluator) {
+        RuleDslAssetMaterializer materializer = new RuleDslAssetMaterializer(
+            json,
+            (tenantId, runtimeReleaseId, assetType, assetIdentity) -> {
+                assertThat(tenantId).isEqualTo("tenant-A");
+                assertThat(runtimeReleaseId).isEqualTo("runtime-release-test");
+                assertThat(assetType).isEqualTo(VersionedAssetType.ACTION_CARD);
+                assertThat(assetIdentity).isEqualTo("CARD.K.RECHECK");
+                return Optional.of(new ResolvedDeclarativeAsset(
+                    VersionedAssetType.ACTION_CARD,
+                    assetIdentity,
+                    "4",
+                    runtimeReleaseId,
+                    """
+                    {"actionCode":"REMIND","atSeverity":"HIGH","indicator":"warning",
+                     "summary":"草稿高钾复核提醒","detail":"请结合标本状态复核。",
+                     "source":{"label":"检验危急值制度","evidenceLevel":"院内制度"},
+                     "suggestions":[],"overrideReasons":["已复核标本"],"requiresPhysicianConfirmation":true}
+                    """,
+                    "hash-card"
+                ));
+            });
+        ObjectProvider<RuleDslAssetMaterializer> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(materializer);
+        return new RuleDslEvaluator(json, conditionEvaluator, provider);
     }
 
     private static AuthoringApiContext apiContext() {
@@ -265,8 +340,7 @@ class AuthoringPreviewRunServiceTest {
             null,
             null,
             "author-1",
-            List.of("knowledge-governor"),
-            "pkg-2026.06"
+            List.of("engine-operator")
         );
     }
 }

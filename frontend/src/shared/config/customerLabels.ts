@@ -5,6 +5,33 @@ const label = (value: string | null | undefined, labels: LabelMap, fallback = "�
 const DEFAULT_CUSTOMER_SAFE_FALLBACK = "当前数据读取失败，请重试或联系信息科。";
 const TECHNICAL_DETAIL_PATTERN =
   /(?:\bECONN[A-Z_]*\b|\bSQL(?:Exception)?\b|\b[A-Za-z]+Exception\b|\bstack(?:\s+trace)?\b|\/api\/|https?:\/\/|127\.0\.0\.1|localhost|traceId|Trace ID|\b\d{1,3}(?:\.\d{1,3}){3}:\d+\b)/i;
+const customerTextReplacements: ReadonlyArray<readonly [RegExp, string]> = [
+  [/系统\s*B0\s*基线/g, "系统无模型规则链路"],
+  [/B0\s*主链路/g, "无模型规则主链路"],
+  [/B0\s*路径/g, "无模型规则路径"],
+  [/B0/g, "无模型规则链路"],
+  [/\s*ACTIVE\s*/g, "已生效"],
+  [/MFA/g, "多因素认证"],
+  [/运行底座/g, "运行环境"],
+  [/运行修订/g, "运行版本"],
+  [/回归病例/g, "验证病例"],
+  [/回归用例/g, "验证用例"],
+  [/医学回归/g, "医学验证"],
+  [/质量门/g, "发布质量校验"],
+  [/生产闸/g, "生产前校验"],
+  [/发布门禁/g, "发布校验"],
+  [/安全门禁/g, "安全校验"],
+  [/候选门禁/g, "候选安全校验"],
+  [/受控公式/g, "计算公式"],
+  [/医嘱集/g, "医嘱套餐"],
+  [/动作卡/g, "临床提示卡"],
+  [/动作码/g, "命中后处理"],
+  [/三元组/g, "提示词、工具与模型版本"],
+  [/白名单/g, "允许清单"],
+  [/令牌/g, "凭证"],
+  [/出域/g, "外调"],
+  [/租户/g, "服务机构"],
+];
 
 export const orgLevelLabels: LabelMap = {
   PLATFORM: "平台治理层",
@@ -116,14 +143,14 @@ export const permissionDimensionLabels: LabelMap = {
 
 export const knowledgeDomainLabels: LabelMap = {
   GUIDELINE: "临床指南",
-  PATHWAY: "临床路径",
-  RULE: "临床规则",
+  PATHWAY_KNOWLEDGE: "路径性知识",
   DIAGNOSIS: "诊断知识",
-  DRUG: "药学知识",
+  DRUG: "药品说明书",
   NURSING: "护理知识",
-  LAB: "检验知识",
-  IMAGING: "影像知识",
+  DIAGNOSTIC_ITEM: "医技项目说明书",
   TCM: "中医药知识",
+  PROTOCOL: "院内制度",
+  POLICY: "政策",
   LITERATURE: "医学文献",
   OTHER: "其他知识",
 };
@@ -144,10 +171,9 @@ export const lifecycleStatusLabels: LabelMap = {
 export const sourceAuthorityLabels: LabelMap = {
   A_REGULATION: "法规与强制规范",
   B_GUIDELINE: "权威指南",
-  C_CONSENSUS: "专家共识",
+  C_CONSENSUS_LITERATURE: "共识与医学文献",
   D_HOSPITAL: "院内制度",
-  E_LITERATURE: "医学文献",
-  F_EXPERIENCE: "经验性知识",
+  E_FEEDBACK: "反馈与其他低阶来源",
 };
 
 export const customerEnumLabels: LabelMap = {
@@ -185,6 +211,8 @@ export const customerEnumLabels: LabelMap = {
   NOT_SYNCED: "尚未同步",
   WARN: "有警告",
   ERROR: "异常",
+  EMR_LEVEL_EVIDENCE_EXPORT: "电子病历评级证据导出",
+  EVIDENCE_SNAPSHOT: "证据快照",
   PASS: "通过",
   FAIL: "未通过",
   SUCCESS: "成功",
@@ -288,8 +316,6 @@ export const customerEnumLabels: LabelMap = {
   KNOWLEDGE: "医学知识",
   EVALUATION: "质量评估",
   FIELD_CATALOG: "字段目录",
-  PACKAGE: "配置包",
-  CONDITION_FRAGMENT: "条件片段",
   REPORT: "检查检验报告",
   PROTOCOL: "诊疗方案",
   POLICY: "政策法规",
@@ -356,6 +382,11 @@ export const customerDisplayText = (value?: string | null) => {
   if (!value) return "未设置";
   if (!/[\u3400-\u9fff]/.test(value)) return customerEnumLabel(value);
 
+  const replacedText = customerTextReplacements.reduce(
+    (text, [pattern, translated]) => text.replace(pattern, translated),
+    value,
+  );
+
   return Object.entries(customerEnumLabels)
     .sort(([left], [right]) => right.length - left.length)
     .reduce((text, [token, translated]) => {
@@ -364,7 +395,7 @@ export const customerDisplayText = (value?: string | null) => {
         new RegExp(`(^|[^A-Za-z0-9_])${escaped}(?=$|[^A-Za-z0-9_])`, "g"),
         `$1${translated}`,
       );
-    }, value);
+    }, replacedText);
 };
 export const hasTechnicalDetailText = (value?: string | null) =>
   Boolean(value && TECHNICAL_DETAIL_PATTERN.test(value));

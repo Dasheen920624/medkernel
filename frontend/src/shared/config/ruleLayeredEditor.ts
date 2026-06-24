@@ -54,14 +54,6 @@ export interface RuleParameterDefinition {
   description?: string;
 }
 
-export interface RuleConditionFragmentReference {
-  fragmentId?: string;
-  fragmentCode: string;
-  name?: string;
-  version: number;
-  packageVersion: string;
-}
-
 export interface RuleCondition {
   id: string;
   label: string;
@@ -70,7 +62,6 @@ export interface RuleCondition {
   operator: RuleOperator;
   value?: RuleConditionValue;
   valueKind: RuleValueKind;
-  fragment?: RuleConditionFragmentReference;
 }
 
 export interface RuleExpressionDraft {
@@ -205,19 +196,7 @@ type RuleDslCondition = {
   };
 };
 
-type RuleDslConditionFragment = {
-  fragmentRef: string;
-  version: number;
-  packageVersion: string;
-  ui?: {
-    id?: string;
-    label?: string;
-    fragmentId?: string;
-  };
-};
-
 export type RuleDsl = {
-  trigger: ClinicalTriggerPoint;
   applicability: RuleApplicability;
   when: Partial<Record<RuleLogic, RuleDslNode[]>> & { not?: RuleDslNode };
   then: RuleActionDraft[];
@@ -375,7 +354,7 @@ export const RULE_LAYER_TEMPLATES: RuleLayerTemplate[] = [
   {
     key: "clinical_operator_review",
     title: "临床算子复核",
-    description: "适合配置 MED-C2 已实现的区间、单位换算、时间窗或受控公式判断。",
+    description: "适合配置 MED-C2 已实现的区间、单位换算、时间窗或计算公式判断。",
     ruleType: "QUALITY",
     riskLevel: "HIGH",
     tree: {
@@ -419,7 +398,6 @@ export function instantiateRuleTemplate(key: RuleTemplateKey): RuleConditionTree
 export function conditionTreeToDsl(tree: RuleConditionTree): RuleDsl {
   const root = tree.root ?? flatToRootGroup(tree);
   return {
-    trigger: tree.triggerPoint,
     applicability: cloneApplicability(tree.applicability),
     when: conditionNodeToDsl(root) as RuleDsl["when"],
     then: tree.actions.map(cloneAction),
@@ -433,12 +411,15 @@ export function conditionTreeToDsl(tree: RuleConditionTree): RuleDsl {
   };
 }
 
-export function dslToConditionTree(dsl: unknown): RuleConditionTree {
+export function dslToConditionTree(
+  dsl: unknown,
+  triggerPoint: ClinicalTriggerPoint,
+): RuleConditionTree {
   if (!isRecord(dsl) || !isRecord(dsl.when)) {
     throw new Error("规则 DSL 缺少 when 条件");
   }
-  if (!isClinicalTriggerPoint(dsl.trigger)) {
-    throw new Error("规则 DSL 缺少或包含不支持的 trigger");
+  if (!isClinicalTriggerPoint(triggerPoint)) {
+    throw new Error("规则缺少或包含不支持的临床触发场景");
   }
 
   const root = dslWhenToRootGroup(dsl.when);
@@ -456,7 +437,7 @@ export function dslToConditionTree(dsl: unknown): RuleConditionTree {
   const applicability = parseRuleApplicability(dsl.applicability);
 
   return {
-    triggerPoint: dsl.trigger,
+    triggerPoint,
     applicability,
     logic,
     conditions: collectConditionLeaves(root),
@@ -473,11 +454,7 @@ export function createExplanationTemplate(tree: RuleConditionTree) {
   const variables: Record<string, string> = {};
   const root = tree.root ?? flatToRootGroup(tree);
   for (const condition of collectConditionLeaves(root)) {
-    if (condition.fragment) {
-      variables[`fragment:${condition.fragment.fragmentCode}`] = "由条件片段库引用的命名条件组";
-    } else {
-      variables[condition.expr?.field ?? condition.fact] = "由 L2 条件树选择的真实上下文字段";
-    }
+    variables[condition.expr?.field ?? condition.fact] = "由 L2 条件树选择的真实上下文字段";
   }
 
   return {
@@ -548,7 +525,6 @@ export type RuleDslNode =
   | { all: RuleDslNode[] }
   | { any: RuleDslNode[] }
   | { not: RuleDslNode }
-  | RuleDslConditionFragment
   | RuleDslCondition;
 
 let nestedNodeSeq = 0;
@@ -572,9 +548,6 @@ export function conditionNodeToDsl(node: RuleConditionNode): RuleDslNode {
 export function dslToConditionNode(dsl: unknown, index = 0): RuleConditionNode {
   if (!isRecord(dsl)) {
     throw new Error("规则 DSL 条件节点必须为对象");
-  }
-  if (typeof dsl.fragmentRef === "string") {
-    return dslFragmentToTree(dsl, index);
   }
   if (Array.isArray(dsl.all)) {
     return {
@@ -632,19 +605,7 @@ function collectConditionLeaves(node: RuleConditionNode): RuleCondition[] {
   return node.children.flatMap((child) => collectConditionLeaves(child));
 }
 
-function conditionToDsl(condition: RuleCondition): RuleDslCondition | RuleDslConditionFragment {
-  if (condition.fragment) {
-    return {
-      fragmentRef: condition.fragment.fragmentCode,
-      version: condition.fragment.version,
-      packageVersion: condition.fragment.packageVersion,
-      ui: {
-        id: condition.id,
-        label: condition.label,
-        fragmentId: condition.fragment.fragmentId,
-      },
-    };
-  }
+function conditionToDsl(condition: RuleCondition): RuleDslCondition {
   const expr = normalizeConditionExpression(condition.expr);
   const node: RuleDslCondition = {
     operator: condition.operator,
@@ -689,36 +650,6 @@ function dslConditionToTree(condition: unknown, index: number): RuleCondition {
   };
 }
 
-function dslFragmentToTree(condition: Record<string, unknown>, index: number): RuleCondition {
-  const ui = isRecord(condition.ui) ? condition.ui : undefined;
-  const fragmentCode = readString(condition, "fragmentRef", "").trim();
-  const packageVersion = readString(condition, "packageVersion", "").trim();
-  const version = condition.version;
-  if (
-    !fragmentCode ||
-    !packageVersion ||
-    typeof version !== "number" ||
-    !Number.isInteger(version)
-  ) {
-    throw new Error("条件片段引用必须包含 fragmentRef、version 与 packageVersion");
-  }
-  const label = readString(ui, "label", `片段 ${fragmentCode}`);
-  return {
-    id: readString(ui, "id", `condition-${index + 1}`),
-    label,
-    fact: "",
-    operator: "exists",
-    valueKind: "empty",
-    fragment: {
-      fragmentId: optionalString(ui, "fragmentId"),
-      fragmentCode,
-      name: label,
-      version,
-      packageVersion,
-    },
-  };
-}
-
 function cloneTree(tree: RuleConditionTree): RuleConditionTree {
   return {
     triggerPoint: tree.triggerPoint,
@@ -728,7 +659,6 @@ function cloneTree(tree: RuleConditionTree): RuleConditionTree {
       ...condition,
       value: Array.isArray(condition.value) ? [...condition.value] : condition.value,
       expr: condition.expr ? normalizeConditionExpression(condition.expr) : undefined,
-      fragment: condition.fragment ? { ...condition.fragment } : undefined,
     })),
     root: tree.root ? cloneConditionGroup(tree.root) : undefined,
     actions: tree.actions.map(cloneAction),
@@ -876,7 +806,7 @@ function parseAction(source: unknown): RuleActionDraft {
     "AUTO_DOCUMENT",
   ];
   if (!actionCodes.includes(actionCode as RuleActionCode)) {
-    throw new Error(`不支持的规则动作码: ${actionCode || "未填写"}`);
+    throw new Error(`不支持的命中后处理: ${actionCode || "未填写"}`);
   }
   const atSeverity = readSeverity(source, "atSeverity", "" as RuleSeverity);
   if (!atSeverity) {
@@ -884,7 +814,7 @@ function parseAction(source: unknown): RuleActionDraft {
   }
   const indicator = readString(source, "indicator", "");
   if (indicator !== "info" && indicator !== "warning" && indicator !== "critical") {
-    throw new Error(`不支持的卡片指示级别: ${indicator || "未填写"}`);
+    throw new Error(`不支持的提醒等级: ${indicator || "未填写"}`);
   }
   const summary = readString(source, "summary", "").trim();
   const detail = readString(source, "detail", "").trim();
@@ -985,7 +915,6 @@ function cloneConditionGroup(group: RuleConditionGroup): RuleConditionGroup {
             ...child,
             value: cloneConditionValue(child.value),
             expr: child.expr ? normalizeConditionExpression(child.expr) : undefined,
-            fragment: child.fragment ? { ...child.fragment } : undefined,
           },
     ),
   };

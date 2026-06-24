@@ -37,32 +37,22 @@ class ThirdPartyKnowledgeRuntimeControllerSecurityTest {
     }
 
     @Test
-    void anonymousCannotResolveEffectivePackage() throws Exception {
-        mvc.perform(get("/api/v1/engine/integration/knowledge-runtime/effective-package")
-                .param("packageCode", "PKG.AF")
-                .param("packageVersion", "2026.06")
-                .param("targetOrgUnitId", "dept-1"))
+    void anonymousCannotResolveCurrentRuntimeRelease() throws Exception {
+        mvc.perform(get("/api/v1/engine/integration/knowledge-runtime/runtime-release/current"))
             .andExpect(status().isUnauthorized());
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_ENGINE_OPERATOR")
     void authenticatedRequestStillRequiresTenantScope() throws Exception {
-        mvc.perform(get("/api/v1/engine/integration/knowledge-runtime/effective-package")
-                .param("packageCode", "PKG.AF")
-                .param("packageVersion", "2026.06")
-                .param("targetOrgUnitId", "dept-1"))
+        mvc.perform(get("/api/v1/engine/integration/knowledge-runtime/runtime-release/current"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
 
     @Test
-    void anonymousCannotWriteContextOrManageOverridesOrDistributePackages() throws Exception {
+    void anonymousCannotWriteContext() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/knowledge-runtime/context-snapshots"))
-            .andExpect(status().isUnauthorized());
-        mvc.perform(post("/api/v1/engine/integration/knowledge-runtime/overrides"))
-            .andExpect(status().isUnauthorized());
-        mvc.perform(post("/api/v1/engine/integration/knowledge-runtime/packages/pkg-1:distribute"))
             .andExpect(status().isUnauthorized());
     }
 

@@ -7,10 +7,20 @@ import org.junit.jupiter.api.Test;
 class PermissionCodeTest {
 
     @Test
-    void sandboxRunPermissionIsRegistered() {
-        PermissionCode code = PermissionCode.valueOf("SANDBOX_RUN");
+    void sandboxRunAndGovernancePermissionsAreRegisteredSeparately() {
+        PermissionCode run = PermissionCode.valueOf("SANDBOX_RUN");
+        PermissionCode manage = PermissionCode.valueOf("SANDBOX_MANAGE");
 
-        assertThat(code.code()).isEqualTo("sandbox.run");
-        assertThat(code.risk()).isEqualTo(PermissionCode.Risk.MEDIUM);
+        assertThat(run.code()).isEqualTo("sandbox.run");
+        assertThat(run.risk()).isEqualTo(PermissionCode.Risk.MEDIUM);
+        assertThat(manage.code()).isEqualTo("sandbox.manage");
+        assertThat(manage.risk()).isEqualTo(PermissionCode.Risk.MEDIUM);
+    }
+
+    @Test
+    void auditExportPermissionUsesEvidenceExportWording() {
+        assertThat(PermissionCode.AUDIT_EXPORT.displayName())
+            .contains("证据导出")
+            .doesNotContain("证据导出包");
     }
 }

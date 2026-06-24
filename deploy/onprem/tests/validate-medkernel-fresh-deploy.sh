@@ -9,6 +9,8 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 
 test -f "$SCRIPT"
 bash -n "$SCRIPT"
+bash "$SCRIPT" --help > "$TMP_ROOT/help.log"
+grep -q 'ERR/INT/TERM' "$TMP_ROOT/help.log"
 grep -q '^MEDKERNEL_FIELD_ENCRYPTION_KEY=<RANDOM_32B_BASE64URL>$' "$ENV_TEMPLATE"
 
 mkdir -p "$TMP_ROOT/app/conf"
@@ -51,7 +53,10 @@ sed -i.bak \
 MEDKERNEL_APP_HOME="$TMP_ROOT/app" \
   bash "$SCRIPT" --validate-environment-only >"$TMP_ROOT/valid-env.log" 2>&1
 grep -q '生产运行环境预检通过' "$TMP_ROOT/valid-env.log"
-! grep -Fq "$valid_field_secret" "$TMP_ROOT/valid-env.log"
+if grep -Fq "$valid_field_secret" "$TMP_ROOT/valid-env.log"; then
+  printf 'field encryption key leaked to validation log\n' >&2
+  exit 1
+fi
 
 printf -v duplicate_field_secret 'b2%.0s' {1..16}
 printf 'MEDKERNEL_FIELD_ENCRYPTION_KEY=%s\n' "$duplicate_field_secret" \
@@ -76,30 +81,67 @@ chmod 600 "$TMP_ROOT/app/conf/medkernel.env"
 grep -q -- '--confirm-fresh' "$SCRIPT"
 grep -q -- '--confirm-database' "$SCRIPT"
 grep -q -- '--expected-host' "$SCRIPT"
+grep -q -- '--expected-business-tables' "$SCRIPT"
+grep -q -- '--external-base-url' "$SCRIPT"
 grep -q -- '--confirm-prune-backups' "$SCRIPT"
 grep -q -- '--service-unit' "$SCRIPT"
 grep -q -- '--deploy-script' "$SCRIPT"
 grep -q 'pg_dump.*--format=custom' "$SCRIPT"
+grep -q 'sha256sum.*SHA256SUMS' "$SCRIPT"
+grep -q 'sha256sum -c.*SHA256SUMS' "$SCRIPT"
 grep -q 'pg_restore.*--exit-on-error' "$SCRIPT"
 grep -q -- '--dbname "\$RESTORE_DATABASE" < "\$BACKUP_DIR/database/medkernel.dump"' "$SCRIPT"
 grep -q "grep -c '\\^dist/index.html\\$'" "$SCRIPT"
-! grep -q "grep -q.*dist/index.html" "$SCRIPT"
+if grep -q "grep -q.*dist/index.html" "$SCRIPT"; then
+  printf 'frontend artifact validation accepted ambiguous path match\n' >&2
+  exit 1
+fi
 grep -q 'systemctl stop "\$SERVICE"' "$SCRIPT"
 grep -q 'systemctl reset-failed "\$SERVICE"' "$SCRIPT"
 grep -q 'MainPID' "$SCRIPT"
 grep -q 'dropdb --if-exists "\$DATABASE"' "$SCRIPT"
 grep -q 'createdb --owner="\$DATABASE_OWNER" "\$DATABASE"' "$SCRIPT"
 grep -q '"\$DEPLOY_COMMAND"' "$SCRIPT"
-grep -q -- '--no-rollback' "$SCRIPT"
+if grep -q -- '--no-rollback' "$SCRIPT"; then
+  printf 'fresh deployment disabled mandatory rollback\n' >&2
+  exit 1
+fi
+grep -q '^restore_previous_release()' "$SCRIPT"
+grep -q "trap .*ERR" "$SCRIPT"
+grep -q "trap .*INT" "$SCRIPT"
+grep -q "trap .*TERM" "$SCRIPT"
+grep -q -- '--dbname "\$DATABASE" < "\$BACKUP_DIR/database/medkernel.dump"' "$SCRIPT"
+grep -q 'frontend-dist.tar.gz' "$SCRIPT"
+grep -q 'medkernel.service' "$SCRIPT"
+grep -q 'verify_previous_release_readiness' "$SCRIPT"
+grep -q 'openssl s_client' "$SCRIPT"
+grep -q 'openssl x509.*-checkend' "$SCRIPT"
+grep -q 'openssl x509.*-checkhost\|openssl x509.*-checkip' "$SCRIPT"
+grep -q 'subjectAltName' "$SCRIPT"
+if grep -Eq 'curl.*([[:space:]]--insecure|[[:space:]]-[[:alpha:]]*k[[:alpha:]]*)' "$SCRIPT"; then
+  printf 'fresh deployment may not bypass TLS validation\n' >&2
+  exit 1
+fi
+if rg -nP '\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7F]' "$SCRIPT"; then
+  printf 'fresh deployment has an unbraced variable adjacent to non-ASCII text under set -u\n' >&2
+  exit 1
+fi
 grep -q 'destructive_action_performed=true' "$SCRIPT"
 grep -q 'bootstrap_initialized=false' "$SCRIPT"
 grep -q 'runtime-var.tar.gz' "$SCRIPT"
 grep -q 'rm -rf "\$APP_HOME/mock-third-party"' "$SCRIPT"
+grep -q 'EXPECTED_BUSINESS_TABLES + 1' "$SCRIPT"
+grep -q 'fresh-preclear-' "$SCRIPT"
+if grep -q 'p9-fresh-preclear-' "$SCRIPT"; then
+  printf 'legacy P9 backup naming remained in fresh deployment\n' >&2
+  exit 1
+fi
 
 if MEDKERNEL_APP_HOME="$TMP_ROOT/app" \
   bash "$SCRIPT" \
     --source 1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17 \
-    --expected-flyway-version 152 \
+    --expected-flyway-version 1 \
+    --expected-business-tables 207 \
     --confirm-fresh \
     --confirm-database medkernel \
     >"$TMP_ROOT/missing-host.log" 2>&1; then
@@ -116,7 +158,8 @@ if MEDKERNEL_APP_HOME="$TMP_ROOT/app" \
     --service-unit "$TMP_ROOT/missing.service" \
     --deploy-script "$TMP_ROOT/missing-deploy.sh" \
     --source 1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17 \
-    --expected-flyway-version 152 \
+    --expected-flyway-version 1 \
+    --expected-business-tables 207 \
     --confirm-fresh \
     --confirm-database medkernel \
     >"$TMP_ROOT/host-mismatch.log" 2>&1; then

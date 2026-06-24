@@ -24,6 +24,7 @@ final class FhirTerminologyMapper {
     }
 
     FhirCodingMappingResult mapObservationCode(String tenantId,
+                                               String runtimeReleaseId,
                                                String observationId,
                                                String codeSystem,
                                                String code,
@@ -32,6 +33,7 @@ final class FhirTerminologyMapper {
                                                String mappedVersion) {
         return mapCode(
             tenantId,
+            runtimeReleaseId,
             CanonicalResourceType.OBSERVATION,
             observationId,
             "code",
@@ -44,6 +46,7 @@ final class FhirTerminologyMapper {
     }
 
     FhirCodingMappingResult mapCode(String tenantId,
+                                    String runtimeReleaseId,
                                     CanonicalResourceType resourceType,
                                     String resourceId,
                                     String fieldName,
@@ -64,7 +67,8 @@ final class FhirTerminologyMapper {
             "FHIR",
             sourceRecordId,
             mappedVersion);
-        Map<String, String> status = terminology.evaluate(tenantId, List.of(anchor));
+        Map<String, String> status = terminology.evaluate(
+            tenantId, runtimeReleaseId, List.of(anchor));
         String mappingStatus = status.getOrDefault(anchor.key(), "UNKNOWN");
         if ("VALID".equals(mappingStatus)) {
             return new FhirCodingMappingResult(mappingStatus, List.of(), FULL_RATE);

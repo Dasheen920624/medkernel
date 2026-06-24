@@ -46,7 +46,7 @@ class InteropAssessmentServiceTest {
         RequestContext.clear();
         jdbc.update("DELETE FROM mk_compliance_interop_evidence_map");
         jdbc.update("DELETE FROM mk_compliance_interop_assessment_item");
-        jdbc.update("DELETE FROM mk_emr_level_evidence_package WHERE tenant_id = 'tenant-A'");
+        jdbc.update("DELETE FROM mk_emr_level_evidence_export WHERE tenant_id = 'tenant-A'");
         jdbc.update("DELETE FROM evidence_snapshot WHERE tenant_id = 'tenant-A'");
     }
 
@@ -56,11 +56,11 @@ class InteropAssessmentServiceTest {
         seedAssessmentItem("interop-item-rating", "APPLICATION_EFFECT", "APP-001", "评级证据复用");
         seedAssessmentItem("interop-item-missing", "STANDARDIZATION", "STD-001", "标准化映射缺口");
         seedEvidenceSnapshot("evd-interop-data");
-        seedEmrEvidencePackage("emr-pkg-001");
+        seedEmrEvidenceExport("emr-export-001");
         seedEvidenceMap("map-data", "interop-item-data", "EVIDENCE_SNAPSHOT", "evd-interop-data",
             "evidence_snapshot:evd-interop-data", "EVID-01 真实存证快照");
-        seedEvidenceMap("map-rating", "interop-item-rating", "EMR_LEVEL_EVIDENCE_PACKAGE", "emr-pkg-001",
-            "emr_level_package:emr-pkg-001", "复用 EMR-LEVEL-02 评级证据包");
+        seedEvidenceMap("map-rating", "interop-item-rating", "EMR_LEVEL_EVIDENCE_EXPORT", "emr-export-001",
+            "emr_level_export:emr-export-001", "复用 EMR-LEVEL-02 评级证据导出");
 
         InteropAssessmentResponse response = withTenant("tenant-A",
             () -> service.assessment("IOT-2026"));
@@ -96,7 +96,7 @@ class InteropAssessmentServiceTest {
                 assertThat(item.evidences()).singleElement()
                     .satisfies(evidence -> {
                         assertThat(evidence.sourceType())
-                            .isEqualTo(InteropEvidenceSourceType.EMR_LEVEL_EVIDENCE_PACKAGE);
+                            .isEqualTo(InteropEvidenceSourceType.EMR_LEVEL_EVIDENCE_EXPORT);
                         assertThat(evidence.payloadDigest()).isEqualTo(
                             "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
                     });
@@ -170,7 +170,7 @@ class InteropAssessmentServiceTest {
                 file_digest, signature_algorithm, signature_value, signer_public_key,
                 created_at, created_by, updated_at, updated_by
             ) VALUES (?, 'tenant-A', 'trace-evidence', 'COMPLIANCE_EXPORT', 'EXPORT',
-                'mk_compliance_export_approval', 'exp-interop-001',
+                'mk_compliance_export_confirmation', 'exp-interop-001',
                 '互联互通测评真实证据快照', '{"evidence":"real"}',
                 'sm3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
                 ?, 'sm3:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
@@ -181,18 +181,18 @@ class InteropAssessmentServiceTest {
             Timestamp.from(Instant.parse("2026-06-05T00:00:00Z")));
     }
 
-    private void seedEmrEvidencePackage(String packageId) {
+    private void seedEmrEvidenceExport(String exportId) {
         jdbc.update("""
-            INSERT INTO mk_emr_level_evidence_package (
-                package_id, tenant_id, target_id, hospital_org_id, standard_version,
+            INSERT INTO mk_emr_level_evidence_export (
+                export_id, tenant_id, target_id, hospital_org_id, standard_version,
                 idempotency_key, status, evidence_line_count, payload_sha256, payload_ndjson,
                 requested_by, created_at, created_by, updated_at, updated_by, completed_at, trace_id
             ) VALUES (?, 'tenant-A', 'emr-target-001', 'hospital-A', 'EMR-RATING-2026',
                 'idem-emr-001', 'EXPORTED', 2,
                 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-                '{"recordType":"EMR_LEVEL_PACKAGE_SUMMARY"}',
-                'qa-1', ?, 'qa-1', ?, 'qa-1', ?, 'trace-emr-pkg')
-            """, packageId,
+                '{"recordType":"EMR_LEVEL_EXPORT_SUMMARY"}',
+                'qa-1', ?, 'qa-1', ?, 'qa-1', ?, 'trace-emr-export')
+            """, exportId,
             Timestamp.from(Instant.parse("2026-06-05T00:00:00Z")),
             Timestamp.from(Instant.parse("2026-06-05T00:00:00Z")),
             Timestamp.from(Instant.parse("2026-06-05T00:00:00Z")));

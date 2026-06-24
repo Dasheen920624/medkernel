@@ -21,9 +21,9 @@ import com.medkernel.shared.hash.Sha256ContentHash;
 @Service
 public class KnowledgeAssetSchemaValidator {
 
-    /** 生产器允许的候选态（铁律 #5：AI 只产候选不产事实，禁直接 PUBLISHED/APPROVED/ACTIVE）。 */
+    /** 生产器允许的候选态（铁律 #5：AI 只产候选不产事实，禁直接 PUBLISHED/ACTIVE）。 */
     private static final Set<AssetVersionStatus> CANDIDATE_STATUSES =
-        Set.of(AssetVersionStatus.DRAFT, AssetVersionStatus.IN_REVIEW);
+        Set.of(AssetVersionStatus.DRAFT);
 
     private static final String SHA256_HEX = "^[0-9a-f]{64}$";
 
@@ -91,7 +91,7 @@ public class KnowledgeAssetSchemaValidator {
         if (status == null) {
             violations.add("生命周期状态不能为空");
         } else if (!CANDIDATE_STATUSES.contains(status)) {
-            violations.add("生命周期状态只能是候选态（DRAFT / IN_REVIEW），生产器不得直接产已发布事实");
+            violations.add("生命周期状态只能是候选态（DRAFT），生产器不得直接产已发布事实");
         }
     }
 

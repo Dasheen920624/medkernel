@@ -87,7 +87,7 @@ public record LargeListExportJob(
      * @param resourceType 导出的列表资源类型
      * @param requestSnapshot 导出请求快照 JSON
      * @param selectedScope 导出范围
-     * @param traceId 请求链路追踪ID
+     * @param traceId 请求追踪号ID
      * @param idempotencyKey 幂等键
      * @param creator 创建人账号或系统标识
      * @return 初始的导出任务实体

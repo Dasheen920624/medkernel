@@ -111,15 +111,8 @@ const securityProfile: SecurityProfile = {
   username: "chief",
   roles: [
     {
-      code: "security-admin",
-      displayName: "安全管理员",
-      source: "PLATFORM_SEED",
-      scopeLevel: "TENANT",
-      scopeCode: "t-hospital",
-    },
-    {
-      code: "identity-access-admin",
-      displayName: "身份访问管理员",
+      code: "platform-admin",
+      displayName: "平台管理员",
       source: "PLATFORM_SEED",
       scopeLevel: "TENANT",
       scopeCode: "t-hospital",
@@ -169,6 +162,7 @@ const securityProfile: SecurityProfile = {
   mustChangePwd: false,
   mfaRequired: true,
   mfaBound: true,
+  mfaVerified: true,
 };
 
 const runtimeSnapshot: RuntimeOperationsSnapshot = {
@@ -334,12 +328,12 @@ const developerContracts: DeveloperApiContractDirectory = {
       title: "第三方知识运行时服务",
       basePath: "/api/v1/engine/integration/knowledge-runtime",
       openApiPaths: ["/api/v1/engine/integration/knowledge-runtime/**"],
-      permissions: [{ code: "package.read", dimension: "ACTION", purpose: "查看配置包" }],
+      permissions: [{ code: "asset.read", dimension: "ACTION", purpose: "查看当前生效版本" }],
       auditPoints: [],
       publicEndpoints: [],
       contractVersion: "v1",
       openApiDocumentUrl: "/v3/api-docs/medkernel-third-party-integration",
-      fieldContractUrl: "/api/v1/engine/integration/data-contract?packageVersion={packageVersion}",
+      fieldContractUrl: "/api/v1/engine/integration/data-contract",
     },
   ],
 };
@@ -540,8 +534,8 @@ describe("operational control pages", () => {
     renderPage(<SecurityBaseline />);
 
     expect(screen.getByRole("heading", { name: "安全基线与系统配置" })).toBeInTheDocument();
-    expect(screen.getByText("安全管理员")).toBeInTheDocument();
-    expect(screen.getAllByText("MFA 已绑定").length).toBeGreaterThan(0);
+    expect(screen.getByText("平台管理员")).toBeInTheDocument();
+    expect(screen.getAllByText("多因素认证已绑定").length).toBeGreaterThan(0);
     expect(screen.getAllByText("高风险权限").length).toBeGreaterThan(0);
     expect(screen.getByText("用户写入")).toBeInTheDocument();
     expect(screen.getAllByText("关系数据库").length).toBeGreaterThan(0);
@@ -602,9 +596,9 @@ describe("operational control pages", () => {
     expect(screen.getByText("国产浏览器")).toBeInTheDocument();
     expect(screen.getByText(/国产化自检、五方言迁移合同/)).toBeInTheDocument();
     expect(screen.getByText("当前浏览器能力预检")).toBeInTheDocument();
-    expect(screen.getByText("关键与增强 Web 能力均可用。")).toBeInTheDocument();
+    expect(screen.getByText("关键与增强浏览器能力均可用。")).toBeInTheDocument();
     expect(screen.getByText("自动化能力预检不替代目标国产浏览器现场确认。")).toBeInTheDocument();
-    expect(screen.getByText("Web Crypto")).toBeInTheDocument();
+    expect(screen.getByText("安全加密能力")).toBeInTheDocument();
     expect(screen.queryByText("入口暂未激活")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /导出报告/ }));
@@ -615,12 +609,12 @@ describe("operational control pages", () => {
     consoleError.mockRestore();
   });
 
-  it("renders API contracts, trace diagnosis and plugin management tools", async () => {
+  it("展示接口目录、追踪诊断和插件管理工具", async () => {
     const user = userEvent.setup();
     renderPage(<DevConsole />);
 
     expect(screen.getByRole("heading", { name: "开发者控制台" })).toBeInTheDocument();
-    expect(screen.getByText("系统运行快照")).toBeInTheDocument();
+    expect(screen.getByText("系统运行概况")).toBeInTheDocument();
     expect(screen.getAllByText("medkernel").length).toBeGreaterThan(0);
     expect(screen.getByText("docker-core")).toBeInTheDocument();
     expect(screen.getByText("Java 21")).toBeInTheDocument();
@@ -629,13 +623,13 @@ describe("operational control pages", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("运行状态服务")).toBeInTheDocument();
     expect(screen.getByText("rule.publish")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "OpenAPI" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "接口说明" })).toHaveAttribute(
       "href",
       "/v3/api-docs/medkernel-third-party-integration",
     );
     expect(screen.getByText("字段契约")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "Trace 诊断" }));
+    await user.click(screen.getByRole("tab", { name: "追踪诊断" }));
     expect(screen.getByPlaceholderText("输入 追踪号")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "插件管理" }));
@@ -668,7 +662,7 @@ describe("operational control pages", () => {
 
     try {
       renderPage(<DevConsole />);
-      fireEvent.click(screen.getByRole("tab", { name: "Trace 诊断" }));
+      fireEvent.click(screen.getByRole("tab", { name: "追踪诊断" }));
       const traceInput = screen.getByPlaceholderText("输入 追踪号");
       fireEvent.change(traceInput, { target: { value: "trace-console" } });
       fireEvent.keyDown(traceInput, { key: "Enter", code: "Enter" });

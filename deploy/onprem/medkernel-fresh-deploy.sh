@@ -18,7 +18,10 @@ SERVICE_UNIT=""
 DEPLOY_SCRIPT=""
 SOURCE=""
 EXPECTED_HOST=""
+EXTERNAL_BASE_URL=""
+TLS_CA_FILE="${MEDKERNEL_TLS_CA_FILE:-}"
 EXPECTED_FLYWAY_VERSION=""
+EXPECTED_BUSINESS_TABLES=""
 CONFIRM_FRESH=0
 CONFIRM_DATABASE=""
 PRUNE_OLD_BACKUPS=0
@@ -32,11 +35,27 @@ STAGED_SERVICE_UNIT=""
 STAGED_DEPLOY_SCRIPT=""
 RESTORE_DATABASE=""
 DESTRUCTIVE_ACTION_PERFORMED=false
+DATABASE_MUTATION_STARTED=false
+ARTIFACT_MUTATION_STARTED=false
+RECOVERY_ARMED=false
+RECOVERY_IN_PROGRESS=false
+RECOVERY_REASON=""
 ACTUAL_HOST=""
+TLS_HOST=""
+TLS_PORT=""
+TLS_CERT_FILE=""
+SYSTEMD_UNIT_PATH="${MEDKERNEL_SYSTEMD_UNIT_PATH:-/etc/systemd/system/medkernel.service}"
+NGINX_CONF_PATH="${MEDKERNEL_NGINX_CONF_PATH:-/etc/nginx/conf.d/medkernel.conf}"
 
 info() { printf '[*] %s\n' "$*"; }
 ok() { printf '[OK] %s\n' "$*"; }
-die() { printf '[X] %s\n' "$*" >&2; exit 1; }
+die() {
+  printf '[X] %s\n' "$*" >&2
+  if [ "$RECOVERY_ARMED" = true ]; then
+    handle_failure "ERROR:$*" 1
+  fi
+  exit 1
+}
 
 usage() {
   cat <<'USAGE'
@@ -53,7 +72,9 @@ MedKernel PostgreSQL 全新发布
     --deploy-script /path/to/medkernel-deploy.sh \
     --source <完整提交哈希> \
     --expected-host <目标机 hostname> \
+    --external-base-url https://<正式域名或具备 SAN 的地址>/medkernel \
     --expected-flyway-version <版本> \
+    --expected-business-tables <业务表数量> \
     --confirm-fresh \
     --confirm-database medkernel \
     [--prune-old-backups --confirm-prune-backups]
@@ -62,7 +83,8 @@ MedKernel PostgreSQL 全新发布
   1. 未显式确认数据库名时拒绝运行。
   2. 先完成数据库备份与隔离恢复验证，之后才允许停服和清库。
   3. 清库后只发布显式指定候选，不从 incoming 自动发现旧包。
-  4. 不自动回滚旧程序包或旧数据库；失败时保留本次备份与证据。
+  4. dropdb、制品切换、readiness 或 ERR/INT/TERM 失败时强制恢复旧数据库、配置、systemd 与前后端制品。
+  5. 外部 HTTPS 必须通过可信链、SAN、有效期与严格 curl 校验，禁止跳过证书验证。
 USAGE
 }
 
@@ -74,7 +96,9 @@ while [ "$#" -gt 0 ]; do
     --deploy-script) DEPLOY_SCRIPT="${2:-}"; shift 2 ;;
     --source) SOURCE="${2:-}"; shift 2 ;;
     --expected-host) EXPECTED_HOST="${2:-}"; shift 2 ;;
+    --external-base-url) EXTERNAL_BASE_URL="${2:-}"; shift 2 ;;
     --expected-flyway-version) EXPECTED_FLYWAY_VERSION="${2:-}"; shift 2 ;;
+    --expected-business-tables) EXPECTED_BUSINESS_TABLES="${2:-}"; shift 2 ;;
     --confirm-fresh) CONFIRM_FRESH=1; shift ;;
     --confirm-database) CONFIRM_DATABASE="${2:-}"; shift 2 ;;
     --prune-old-backups) PRUNE_OLD_BACKUPS=1; shift ;;
@@ -87,6 +111,68 @@ done
 
 require_command() {
   command -v "$1" >/dev/null 2>&1 || die "缺少命令：$1"
+}
+
+parse_tls_endpoint() {
+  local authority
+  [[ "$EXTERNAL_BASE_URL" =~ ^https://[^/?#@]+(/[^?#]*)?/medkernel$ ]] ||
+    die "--external-base-url 必须是无凭据、查询和片段且以 /medkernel 结尾的 HTTPS 地址"
+  authority="${EXTERNAL_BASE_URL#https://}"
+  authority="${authority%%/*}"
+  if [[ "$authority" =~ ^([A-Za-z0-9.-]+):([0-9]+)$ ]]; then
+    TLS_HOST="${BASH_REMATCH[1]}"
+    TLS_PORT="${BASH_REMATCH[2]}"
+  else
+    TLS_HOST="$authority"
+    TLS_PORT=443
+  fi
+  [[ "$TLS_HOST" =~ ^[A-Za-z0-9.-]+$ ]] || die "TLS 主机名只允许 DNS 名称或 IPv4 地址"
+  [[ "$TLS_PORT" =~ ^[0-9]+$ ]] || die "TLS 端口非法"
+}
+
+strict_tls_preflight() {
+  local tls_dir san_text
+  local -a s_client_args curl_args
+  parse_tls_endpoint
+  tls_dir="$(mktemp -d)"
+  TLS_CERT_FILE="$tls_dir/leaf.pem"
+  s_client_args=(-connect "${TLS_HOST}:${TLS_PORT}" -servername "$TLS_HOST" -verify_return_error -showcerts)
+  curl_args=(--fail --silent --show-error)
+  if [ -n "$TLS_CA_FILE" ]; then
+    [ -f "$TLS_CA_FILE" ] || die "TLS CA 文件不存在：$TLS_CA_FILE"
+    s_client_args+=(-CAfile "$TLS_CA_FILE")
+    curl_args+=(--cacert "$TLS_CA_FILE")
+  fi
+  if ! openssl s_client "${s_client_args[@]}" </dev/null > "$tls_dir/chain.pem" 2> "$tls_dir/verify.log"; then
+    rm -rf "$tls_dir"
+    die "TLS 证书链验证失败"
+  fi
+  awk '
+    /-----BEGIN CERTIFICATE-----/ { capture=1 }
+    capture { print }
+    /-----END CERTIFICATE-----/ { exit }
+  ' "$tls_dir/chain.pem" > "$TLS_CERT_FILE"
+  [ -s "$TLS_CERT_FILE" ] || { rm -rf "$tls_dir"; die "未获取 TLS 叶子证书"; }
+  openssl x509 -in "$TLS_CERT_FILE" -noout -checkend 0 >/dev/null ||
+    { rm -rf "$tls_dir"; die "TLS 证书不在有效期内"; }
+  san_text="$(openssl x509 -in "$TLS_CERT_FILE" -noout -ext subjectAltName 2>/dev/null || true)"
+  printf '%s\n' "$san_text" | grep -Eq 'DNS:|IP Address:' ||
+    { rm -rf "$tls_dir"; die "TLS 证书缺少 SAN"; }
+  if [[ "$TLS_HOST" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    openssl x509 -in "$TLS_CERT_FILE" -noout -checkip "$TLS_HOST" >/dev/null ||
+      { rm -rf "$tls_dir"; die "TLS 证书 SAN 不包含目标 IP"; }
+  else
+    openssl x509 -in "$TLS_CERT_FILE" -noout -checkhost "$TLS_HOST" >/dev/null ||
+      { rm -rf "$tls_dir"; die "TLS 证书 SAN 不包含目标主机名"; }
+  fi
+  curl "${curl_args[@]}" --output /dev/null \
+    "$EXTERNAL_BASE_URL/actuator/health/readiness" || {
+      rm -rf "$tls_dir"
+      die "严格 TLS readiness 预检失败"
+    }
+  rm -rf "$tls_dir"
+  TLS_CERT_FILE=""
+  ok "TLS 可信链、SAN、有效期与严格 readiness 预检通过"
 }
 
 run_as_postgres() {
@@ -181,11 +267,14 @@ validate_inputs() {
   [ "$CONFIRM_FRESH" -eq 1 ] || die "缺少 --confirm-fresh"
   [ "$CONFIRM_DATABASE" = "$DATABASE" ] || die "--confirm-database 必须精确等于 $DATABASE"
   [ -n "$SOURCE" ] || die "缺少 --source"
+  [ -n "$EXTERNAL_BASE_URL" ] || die "缺少 --external-base-url"
   [ -n "$EXPECTED_FLYWAY_VERSION" ] || die "缺少 --expected-flyway-version"
+  [ -n "$EXPECTED_BUSINESS_TABLES" ] || die "缺少 --expected-business-tables"
   [[ "$DATABASE" =~ ^[a-zA-Z0-9_]+$ ]] || die "数据库名包含非法字符"
   [[ "$DATABASE_OWNER" =~ ^[a-zA-Z0-9_]+$ ]] || die "数据库 owner 包含非法字符"
   [[ "$SOURCE" =~ ^[a-fA-F0-9]{40}$ ]] || die "--source 必须是 40 位提交哈希"
   [[ "$EXPECTED_FLYWAY_VERSION" =~ ^[0-9]+$ ]] || die "Flyway 版本必须是正整数"
+  [[ "$EXPECTED_BUSINESS_TABLES" =~ ^[1-9][0-9]*$ ]] || die "业务表数量必须是正整数"
   [ -f "$JAR" ] || die "后端候选不存在：$JAR"
   [ -f "$FRONTEND" ] || die "前端候选不存在：$FRONTEND"
   [ -f "$SERVICE_UNIT" ] || die "systemd 单元候选不存在：$SERVICE_UNIT"
@@ -204,19 +293,20 @@ validate_inputs() {
   if [ "$PRUNE_OLD_BACKUPS" -eq 1 ] && [ "$CONFIRM_PRUNE_BACKUPS" -ne 1 ]; then
     die "清理旧备份还需要 --confirm-prune-backups"
   fi
-  for command_name in pg_dump pg_restore psql createdb dropdb sha256sum tar curl systemctl; do
+  for command_name in pg_dump pg_restore psql createdb dropdb sha256sum tar curl systemctl openssl; do
     require_command "$command_name"
   done
   PORT="$(sed -n 's/^SERVER_PORT=//p' "$ENV_FILE" | head -1 | tr -d '\r')"
   PORT="${PORT:-18080}"
   [[ "$PORT" =~ ^[0-9]+$ ]] || die "SERVER_PORT 不是有效端口"
+  strict_tls_preflight
 }
 
 prepare_backup_directory() {
   local timestamp safe_source
   timestamp="$(date '+%Y%m%d-%H%M%S')"
   safe_source="${SOURCE:0:12}"
-  BACKUP_DIR="$BACKUP_ROOT/p9-fresh-preclear-${safe_source}-${timestamp}"
+  BACKUP_DIR="$BACKUP_ROOT/fresh-preclear-${safe_source}-${timestamp}"
   mkdir -p "$BACKUP_DIR"/{artifacts,database,evidence,staged}
   chmod 700 "$BACKUP_DIR"
   STAGED_JAR="$BACKUP_DIR/staged/medkernel.jar"
@@ -245,10 +335,12 @@ create_backup() {
   [ -d "$APP_HOME/mock-third-party" ] &&
     tar --xattrs --acls -czf "$BACKUP_DIR/artifacts/mock-third-party.tar.gz" \
       -C "$APP_HOME" mock-third-party
-  [ -f /etc/nginx/conf.d/medkernel.conf ] &&
-    install -m 600 /etc/nginx/conf.d/medkernel.conf "$BACKUP_DIR/artifacts/medkernel.nginx.conf"
-  [ -f /etc/systemd/system/medkernel.service ] &&
-    install -m 600 /etc/systemd/system/medkernel.service "$BACKUP_DIR/artifacts/medkernel.service"
+  [ -f "$NGINX_CONF_PATH" ] &&
+    install -m 600 "$NGINX_CONF_PATH" "$BACKUP_DIR/artifacts/medkernel.nginx.conf"
+  [ -f "$SYSTEMD_UNIT_PATH" ] &&
+    install -m 600 "$SYSTEMD_UNIT_PATH" "$BACKUP_DIR/artifacts/medkernel.service"
+  [ -f "$APP_HOME/bin/medkernel-deploy.sh" ] &&
+    install -m 700 "$APP_HOME/bin/medkernel-deploy.sh" "$BACKUP_DIR/artifacts/medkernel-deploy.sh"
 
   run_as_postgres pg_dump --format=custom --no-owner --no-acl "$DATABASE" \
     > "$BACKUP_DIR/database/medkernel.dump"
@@ -261,6 +353,17 @@ create_backup() {
     printf 'created_at=%s\n' "$(date -Iseconds)"
     printf 'database=%s\n' "$DATABASE"
     printf 'database_owner=%s\n' "$DATABASE_OWNER"
+    printf 'jar_present=%s\n' "$([ -f "$APP_HOME/lib/medkernel.jar" ] && printf true || printf false)"
+    printf 'frontend_present=%s\n' "$([ -d "$APP_HOME/frontend/dist" ] && printf true || printf false)"
+    printf 'manifest_present=%s\n' "$([ -f "$APP_HOME/manifest.properties" ] && printf true || printf false)"
+    printf 'runtime_var_present=%s\n' "$([ -d "$APP_HOME/var" ] && printf true || printf false)"
+    printf 'mock_third_party_present=%s\n' "$([ -d "$APP_HOME/mock-third-party" ] && printf true || printf false)"
+    printf 'nginx_present=%s\n' "$([ -f "$NGINX_CONF_PATH" ] && printf true || printf false)"
+    printf 'service_unit_present=%s\n' "$([ -f "$SYSTEMD_UNIT_PATH" ] && printf true || printf false)"
+    printf 'deploy_script_present=%s\n' "$([ -f "$APP_HOME/bin/medkernel-deploy.sh" ] && printf true || printf false)"
+    printf 'service_active=%s\n' "$(systemctl is-active "$SERVICE" 2>/dev/null || true)"
+    printf 'service_enabled=%s\n' "$(systemctl is-enabled "$SERVICE" 2>/dev/null || true)"
+    printf 'old_jar_sha256=%s\n' "$(sha256sum "$APP_HOME/lib/medkernel.jar" 2>/dev/null | awk '{print $1}')"
     printf 'database_dump_sha256=%s\n' \
       "$(sha256sum "$BACKUP_DIR/database/medkernel.dump" | awk '{print $1}')"
     printf 'candidate_jar_sha256=%s\n' "$(sha256sum "$STAGED_JAR" | awk '{print $1}')"
@@ -272,7 +375,16 @@ create_backup() {
       "$(sha256sum "$STAGED_DEPLOY_SCRIPT" | awk '{print $1}')"
     printf 'destructive_action_performed=false\n'
   } > "$BACKUP_DIR/evidence/pre-clear.properties"
-  ok "清库前备份完成"
+  (
+    cd "$BACKUP_DIR"
+    find artifacts database staged evidence -type f ! -name SHA256SUMS -print0 |
+      sort -z |
+      while IFS= read -r -d '' file; do
+        sha256sum "$file"
+      done > SHA256SUMS
+    sha256sum -c SHA256SUMS >/dev/null
+  ) || die "清库前备份摘要生成或校验失败"
+  ok "清库前备份与摘要校验完成"
 }
 
 verify_backup_restore() {
@@ -309,7 +421,9 @@ verify_backup_restore() {
 
 apply_runtime_contracts() {
   info "同步 systemd 单元与服务端发布脚本"
-  install -m 644 "$STAGED_SERVICE_UNIT" /etc/systemd/system/medkernel.service
+  ARTIFACT_MUTATION_STARTED=true
+  RECOVERY_REASON="publish:runtime-contracts"
+  install -m 644 "$STAGED_SERVICE_UNIT" "$SYSTEMD_UNIT_PATH"
   install -m 755 "$STAGED_DEPLOY_SCRIPT" "$APP_HOME/bin/medkernel-deploy.sh"
   ln -sfn "$APP_HOME/bin/medkernel-deploy.sh" "$DEPLOY_COMMAND"
   systemctl daemon-reload
@@ -325,7 +439,7 @@ stop_service() {
     main_pid="$(systemctl show "$SERVICE" -p MainPID --value)"
     if { [ "$state" = "inactive" ] || [ "$state" = "failed" ]; } && [ "$main_pid" = "0" ]; then
       systemctl reset-failed "$SERVICE" 2>/dev/null || true
-      ok "服务已停止（原状态 $state，MainPID=0）"
+      ok "服务已停止（原状态 ${state}，MainPID=0）"
       return 0
     fi
     sleep 1
@@ -336,6 +450,8 @@ stop_service() {
 
 recreate_database() {
   info "终止连接并重建空数据库：$DATABASE"
+  DATABASE_MUTATION_STARTED=true
+  RECOVERY_REASON="drop:database"
   database_query postgres \
     "select pg_terminate_backend(pid) from pg_stat_activity where datname='$DATABASE' and pid <> pg_backend_pid();" \
     >/dev/null
@@ -369,28 +485,32 @@ purge_old_runtime() {
 
 publish_candidate() {
   info "发布显式候选：$SOURCE"
+  RECOVERY_REASON="publish:artifacts"
   "$DEPLOY_COMMAND" \
     --jar "$STAGED_JAR" \
     --frontend "$STAGED_FRONTEND" \
-    --source "$SOURCE" \
-    --no-rollback
+    --source "$SOURCE"
 }
 
 verify_deployment() {
   local candidate_jar_sha running_jar_sha manifest_source manifest_commit
   local service_status http_code https_code bootstrap_code
-  local flyway_version public_tables database_owner
+  local flyway_version public_tables database_owner expected_public_tables
   candidate_jar_sha="$(sha256sum "$STAGED_JAR" | awk '{print $1}')"
   running_jar_sha="$(sha256sum "$APP_HOME/lib/medkernel.jar" | awk '{print $1}')"
   manifest_source="$(sed -n 's/^source=//p' "$APP_HOME/manifest.properties")"
   manifest_commit="$(sed -n 's/^commit=//p' "$APP_HOME/manifest.properties")"
   service_status="$(systemctl is-active "$SERVICE")"
-  http_code="$(curl -sS -o "$BACKUP_DIR/evidence/readiness-internal.json" -w '%{http_code}' \
+  RECOVERY_REASON="readiness:candidate"
+  http_code="$(curl --silent --show-error -o "$BACKUP_DIR/evidence/readiness-internal.json" -w '%{http_code}' \
     "http://127.0.0.1:${PORT}/medkernel/actuator/health/readiness")"
-  https_code="$(curl -ksS -o "$BACKUP_DIR/evidence/readiness-https.json" -w '%{http_code}' \
-    https://127.0.0.1/medkernel/actuator/health/readiness)"
-  bootstrap_code="$(curl -ksS -o "$BACKUP_DIR/evidence/bootstrap-status.json" -w '%{http_code}' \
-    https://127.0.0.1/medkernel/api/v1/bootstrap/status)"
+  local -a curl_args
+  curl_args=(--fail --silent --show-error)
+  [ -n "$TLS_CA_FILE" ] && curl_args+=(--cacert "$TLS_CA_FILE")
+  https_code="$(curl "${curl_args[@]}" -o "$BACKUP_DIR/evidence/readiness-https.json" -w '%{http_code}' \
+    "$EXTERNAL_BASE_URL/actuator/health/readiness")"
+  bootstrap_code="$(curl "${curl_args[@]}" -o "$BACKUP_DIR/evidence/bootstrap-status.json" -w '%{http_code}' \
+    "$EXTERNAL_BASE_URL/api/v1/bootstrap/status")"
   flyway_version="$(
     database_query "$DATABASE" \
       "select version from flyway_schema_history where success order by installed_rank desc limit 1;"
@@ -399,6 +519,7 @@ verify_deployment() {
     database_query "$DATABASE" \
       "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE';"
   )"
+  expected_public_tables=$((EXPECTED_BUSINESS_TABLES + 1))
   database_owner="$(
     database_query postgres \
       "select pg_get_userbyid(datdba) from pg_database where datname='$DATABASE';"
@@ -415,8 +536,9 @@ verify_deployment() {
     "$BACKUP_DIR/evidence/bootstrap-status.json" ||
     die "全新数据库不应处于已接管状态"
   [ "$flyway_version" = "$EXPECTED_FLYWAY_VERSION" ] ||
-    die "Flyway 版本不匹配：期望 $EXPECTED_FLYWAY_VERSION，实际 $flyway_version"
-  [ "$public_tables" -gt 0 ] || die "发布后 public 业务表为空"
+    die "Flyway 版本不匹配：期望 ${EXPECTED_FLYWAY_VERSION}，实际 ${flyway_version}"
+  [ "$public_tables" -eq "$expected_public_tables" ] ||
+    die "发布后表数量不匹配：期望 ${expected_public_tables}（业务表 ${EXPECTED_BUSINESS_TABLES} + Flyway 1），实际 ${public_tables}"
   [ "$database_owner" = "$DATABASE_OWNER" ] || die "数据库 owner 不匹配"
 
   {
@@ -443,6 +565,170 @@ verify_deployment() {
   ok "全新发布独立核验通过，证据：$BACKUP_DIR/evidence"
 }
 
+read_previous_state() {
+  local key="$1"
+  sed -n "s/^${key}=//p" "$BACKUP_DIR/evidence/pre-clear.properties" | head -1
+}
+
+verify_backup_checksums() {
+  [ -s "$BACKUP_DIR/SHA256SUMS" ] || return 1
+  (cd "$BACKUP_DIR" && sha256sum -c SHA256SUMS >/dev/null)
+}
+
+restore_previous_database() {
+  [ "$DATABASE_MUTATION_STARTED" = true ] || return 0
+  info "恢复发布前数据库：$DATABASE"
+  database_query postgres \
+    "select pg_terminate_backend(pid) from pg_stat_activity where datname='$DATABASE' and pid <> pg_backend_pid();" \
+    >/dev/null 2>&1 || true
+  run_as_postgres dropdb --if-exists "$DATABASE" || return 1
+  run_as_postgres createdb --owner="$DATABASE_OWNER" "$DATABASE" || return 1
+  run_as_postgres pg_restore --exit-on-error --no-owner --no-acl \
+    --dbname "$DATABASE" < "$BACKUP_DIR/database/medkernel.dump" || return 1
+  ok "发布前数据库已恢复"
+}
+
+restore_optional_directory() {
+  local present="$1" archive="$2" parent="$3" name="$4"
+  rm -rf "$parent/$name"
+  if [ "$present" = true ]; then
+    tar --xattrs --acls -xzf "$archive" -C "$parent" || return 1
+  fi
+}
+
+verify_previous_release_readiness() {
+  local expected_jar_sha waited internal_code external_code
+  local -a curl_args
+  expected_jar_sha="$(read_previous_state old_jar_sha256)"
+  [ -n "$expected_jar_sha" ] || { printf '[X] 发布前 jar 摘要缺失\n' >&2; return 1; }
+  [ "$(sha256sum "$APP_HOME/lib/medkernel.jar" | awk '{print $1}')" = "$expected_jar_sha" ] ||
+    { printf '[X] 发布前 jar 摘要恢复不一致\n' >&2; return 1; }
+  curl_args=(--fail --silent --show-error)
+  [ -n "$TLS_CA_FILE" ] && curl_args+=(--cacert "$TLS_CA_FILE")
+  waited=0
+  while [ "$waited" -lt 90 ]; do
+    internal_code="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+      "http://127.0.0.1:${PORT}/medkernel/actuator/health/readiness" 2>/dev/null || true)"
+    external_code="$(curl "${curl_args[@]}" --output /dev/null --write-out '%{http_code}' \
+      "$EXTERNAL_BASE_URL/actuator/health/readiness" 2>/dev/null || true)"
+    if [ "$internal_code" = 200 ] && [ "$external_code" = 200 ]; then
+      ok "旧版本内部与严格 TLS readiness 已恢复"
+      return 0
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  printf '[X] 旧版本未在 90 秒内恢复 readiness\n' >&2
+  return 1
+}
+
+restore_previous_release() {
+  local service_active service_enabled
+  [ -n "$BACKUP_DIR" ] && [ -d "$BACKUP_DIR" ] || {
+    printf '[X] 缺少清库前备份目录\n' >&2
+    return 1
+  }
+  verify_backup_checksums || {
+    printf '[X] 清库前备份摘要校验失败\n' >&2
+    return 1
+  }
+  systemctl stop "$SERVICE" >/dev/null 2>&1 || true
+  restore_previous_database || return 1
+
+  rm -rf "$APP_HOME/conf"
+  mkdir -p "$APP_HOME"
+  tar --xattrs --acls -xzf "$BACKUP_DIR/artifacts/conf.tar.gz" -C "$APP_HOME" || return 1
+
+  if [ "$(read_previous_state jar_present)" = true ]; then
+    install -m 644 "$BACKUP_DIR/artifacts/medkernel.jar" "$APP_HOME/lib/medkernel.jar" || return 1
+  else
+    rm -f "$APP_HOME/lib/medkernel.jar"
+  fi
+  restore_optional_directory "$(read_previous_state frontend_present)" \
+    "$BACKUP_DIR/artifacts/frontend-dist.tar.gz" "$APP_HOME/frontend" dist || return 1
+  restore_optional_directory "$(read_previous_state runtime_var_present)" \
+    "$BACKUP_DIR/artifacts/runtime-var.tar.gz" "$APP_HOME" var || return 1
+  restore_optional_directory "$(read_previous_state mock_third_party_present)" \
+    "$BACKUP_DIR/artifacts/mock-third-party.tar.gz" "$APP_HOME" mock-third-party || return 1
+
+  if [ "$(read_previous_state manifest_present)" = true ]; then
+    install -m 644 "$BACKUP_DIR/artifacts/manifest.properties" "$APP_HOME/manifest.properties" || return 1
+  else
+    rm -f "$APP_HOME/manifest.properties"
+  fi
+  if [ "$(read_previous_state nginx_present)" = true ]; then
+    install -m 644 "$BACKUP_DIR/artifacts/medkernel.nginx.conf" "$NGINX_CONF_PATH" || return 1
+  else
+    rm -f "$NGINX_CONF_PATH"
+  fi
+  if [ "$(read_previous_state service_unit_present)" = true ]; then
+    install -m 644 "$BACKUP_DIR/artifacts/medkernel.service" "$SYSTEMD_UNIT_PATH" || return 1
+  else
+    rm -f "$SYSTEMD_UNIT_PATH"
+  fi
+  if [ "$(read_previous_state deploy_script_present)" = true ]; then
+    install -m 755 "$BACKUP_DIR/artifacts/medkernel-deploy.sh" "$APP_HOME/bin/medkernel-deploy.sh" ||
+      return 1
+    ln -sfn "$APP_HOME/bin/medkernel-deploy.sh" "$DEPLOY_COMMAND" || return 1
+  else
+    rm -f "$APP_HOME/bin/medkernel-deploy.sh"
+    [ -L "$DEPLOY_COMMAND" ] && rm -f "$DEPLOY_COMMAND"
+  fi
+
+  systemctl daemon-reload || return 1
+  service_enabled="$(read_previous_state service_enabled)"
+  if [ "$service_enabled" = enabled ]; then
+    systemctl enable "$SERVICE" >/dev/null || return 1
+  else
+    systemctl disable "$SERVICE" >/dev/null 2>&1 || true
+  fi
+  systemctl reload nginx >/dev/null 2>&1 || true
+  service_active="$(read_previous_state service_active)"
+  [ "$service_active" = active ] || {
+    printf '[X] 发布前服务不是 active，无法满足旧版 readiness 恢复合同\n' >&2
+    return 1
+  }
+  systemctl reset-failed "$SERVICE" >/dev/null 2>&1 || true
+  systemctl restart "$SERVICE" || return 1
+  verify_previous_release_readiness || return 1
+  {
+    printf 'recovery_status=PASSED\n'
+    printf 'recovery_reason=%s\n' "$RECOVERY_REASON"
+    printf 'recovered_at=%s\n' "$(date -Iseconds)"
+    printf 'database_restored=%s\n' "$DATABASE_MUTATION_STARTED"
+    printf 'old_readiness_verified=true\n'
+  } > "$BACKUP_DIR/evidence/recovery.properties"
+  return 0
+}
+
+handle_failure() {
+  local reason="${1:-ERR}" status="${2:-1}"
+  [ "$RECOVERY_ARMED" = true ] || return "$status"
+  [ "$RECOVERY_IN_PROGRESS" = false ] || exit "$status"
+  RECOVERY_IN_PROGRESS=true
+  RECOVERY_REASON="${RECOVERY_REASON:-$reason}"
+  trap - ERR INT TERM
+  printf '[X] 清库发布事务失败（%s），开始强制恢复\n' "$RECOVERY_REASON" >&2
+  if restore_previous_release; then
+    RECOVERY_ARMED=false
+    printf '[X] 候选发布失败，旧版本已恢复并通过 readiness\n' >&2
+    exit "$status"
+  fi
+  printf '[X] 自动恢复未完成，必须立即使用备份 %s 人工处置\n' "$BACKUP_DIR" >&2
+  exit 2
+}
+
+handle_signal() {
+  local signal="$1" status=128
+  [ "$signal" = INT ] && status=130
+  [ "$signal" = TERM ] && status=143
+  handle_failure "SIGNAL:$signal" "$status"
+}
+
+trap 'handle_failure ERR $?' ERR
+trap 'handle_signal INT' INT
+trap 'handle_signal TERM' TERM
+
 main() {
   if [ "$VALIDATE_ENVIRONMENT_ONLY" -eq 1 ]; then
     validate_runtime_environment
@@ -452,12 +738,14 @@ main() {
   prepare_backup_directory
   create_backup
   verify_backup_restore
+  RECOVERY_ARMED=true
   apply_runtime_contracts
   stop_service
   recreate_database
   purge_old_runtime
   publish_candidate
   verify_deployment
+  RECOVERY_ARMED=false
 }
 
 main "$@"

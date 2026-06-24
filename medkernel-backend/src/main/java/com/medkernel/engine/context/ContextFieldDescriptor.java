@@ -1,7 +1,7 @@
 package com.medkernel.engine.context;
 
 /**
- * 上下文字段目录条目（RULE-01 / PATH-01 字段选择器数据源，OpenSpec pathway-rule-authoring-overhaul P2/P5）。
+ * 上下文字段目录条目，供规则与路径字段选择器消费。
  *
  * <p>从 {@code com.medkernel.engine.context.canonical.*} 标准资源的真实记录字段派生，
  * 供规则条件与路径守卫的「上下文字段路径」可视化选择，替代手敲。仅描述字段元数据，

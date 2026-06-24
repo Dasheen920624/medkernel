@@ -11,6 +11,7 @@ record FollowupPlanCommand(
     String pathwayId,
     String diseaseCode,
     String riskLevel,
+    String runtimeReleaseId,
     List<String> taskTypes,
     String idempotencyKey,
     Boolean modelEnabled,

@@ -11,6 +11,5 @@ public record FollowupResultBackflowRequest(
     @NotBlank String questionnaireId,
     @NotBlank String resultPayload,
     String abnormalFlag,
-    String packageVersion,
     @NotBlank String idempotencyKey
 ) {}

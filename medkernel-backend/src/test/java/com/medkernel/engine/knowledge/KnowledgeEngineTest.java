@@ -15,7 +15,13 @@ import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.engine.versioning.AssetVersionRepository;
+import com.medkernel.engine.versioning.AssetOwnershipScope;
+import com.medkernel.engine.versioning.AssetScopeResolver;
 import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.VersionPublishEvidence;
+import com.medkernel.engine.versioning.VersionPublishQualityGate;
+import com.medkernel.engine.knowledge.production.gate.PublicationQualityRecordService;
+import com.medkernel.engine.release.ReleaseSourceLayer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -53,6 +59,8 @@ class KnowledgeEngineTest {
     private KnowledgeVersionedAssetAdapter versionedAssets;
     private AssetVersionRepository assetVersions;
     private ReleasePort releasePort;
+    private PublicationQualityRecordService publicationQualityRecords;
+    private AssetScopeResolver assetScopes;
     private KnowledgeEffectiveVersionResolver effectiveVersions;
 
     private KnowledgeIdentityService identityService;
@@ -75,6 +83,8 @@ class KnowledgeEngineTest {
         versionedAssets = Mockito.mock(KnowledgeVersionedAssetAdapter.class);
         assetVersions = Mockito.mock(AssetVersionRepository.class);
         releasePort = Mockito.mock(ReleasePort.class);
+        publicationQualityRecords = Mockito.mock(PublicationQualityRecordService.class);
+        assetScopes = Mockito.mock(AssetScopeResolver.class);
         effectiveVersions = Mockito.mock(KnowledgeEffectiveVersionResolver.class);
 
         identityService = new KnowledgeIdentityService(
@@ -85,8 +95,14 @@ class KnowledgeEngineTest {
         versionService = new KnowledgeVersionService(
             identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, sourceVerRepo, projectionRefreshPort,
             candidateClassificationRepo, reviewAssignmentRepo, invalidationRepo, affectedCaseTaskRepo,
-            versionedAssets, assetVersions, releasePort
+            versionedAssets, assetVersions, releasePort, publicationQualityRecords, assetScopes
         );
+        when(assetScopes.resolve(any(), any(OrgScope.class)))
+            .thenReturn(new AssetOwnershipScope(
+                ReleaseSourceLayer.PLATFORM, "/__platform__"));
+        when(publicationQualityRecords.requirePublishEvidence(any(), any(), any()))
+            .thenReturn(new VersionPublishEvidence(new VersionPublishQualityGate(
+                true, true, true, true, true, "服务端质量门测试记录")));
 
         // 初始化租户与用户上下文环境
         RequestContext.restore(new RequestContext.Snapshot("trace-123", OrgScope.tenant("t-1"), "u-admin"));
@@ -320,7 +336,7 @@ class KnowledgeEngineTest {
     private KnowledgeVersionCreateRequest versionCreateRequest(String versionNo, String content) {
         return new KnowledgeVersionCreateRequest(
             "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
-            "u-admin", List.of("knowledge.write"), "pkg-2026.06",
+            "u-admin", List.of("knowledge.write"),
             versionNo, "测试标签", 1L, 2L, content, "anchors", KnowledgeRiskLevel.MEDIUM,
             GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.WEAK, 12
         );

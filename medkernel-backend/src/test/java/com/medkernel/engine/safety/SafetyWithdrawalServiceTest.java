@@ -93,7 +93,7 @@ class SafetyWithdrawalServiceTest {
         when(affectedTasks.findByTenantIdAndTaskKey(any(), any())).thenReturn(Optional.empty());
         when(affectedTasks.save(any())).thenAnswer(inv -> inv.getArgument(0));
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace-safety", OrgScope.tenant("tenant-A"), "clinical-governor"));
+            "trace-safety", OrgScope.tenant("tenant-A"), "engine-operator"));
     }
 
     @AfterEach
@@ -216,22 +216,22 @@ class SafetyWithdrawalServiceTest {
             "anchors", status, KnowledgeRiskLevel.HIGH, SourceAuthorityLevel.B_GUIDELINE,
             null, null, null, "tenant:tenant-A", "ALL", "version:" + id,
             now.minusSeconds(3600), now, "reviewer", now.minusSeconds(1800), now.minusSeconds(1200),
-            null, now, "上游说明书新增禁忌", now.minusSeconds(7200), "creator", now, "clinical-governor", 12, null);
+            null, now, "上游说明书新增禁忌", now.minusSeconds(7200), "creator", now, "engine-operator", 12, null);
     }
 
     private KnowledgeInvalidation invalidation(Long id, Long identityId, Long versionId) {
         Instant now = Instant.now();
         return new KnowledgeInvalidation(id, "tenant-A", identityId, versionId,
             KnowledgeInvalidationType.EMERGENCY_WITHDRAW, KnowledgeInvalidationStatus.OPEN, KnowledgeRiskLevel.HIGH,
-            "上游说明书新增禁忌", "tenant:tenant-A", "ALL", "clinical-governor", now, true,
-            "trace-safety", now, "clinical-governor", now, "clinical-governor");
+            "上游说明书新增禁忌", "tenant:tenant-A", "ALL", "engine-operator", now, true,
+            "trace-safety", now, "engine-operator", now, "engine-operator");
     }
 
     private RecommendationSource recommendationSource(String sourceId, String cardId, String sourceRefId) {
         Instant now = Instant.now();
         return new RecommendationSource(1L, sourceId, "tenant-A", cardId, RecommendationSourceType.KNOWLEDGE,
             sourceRefId, "v1", "抗凝禁忌指南", "§禁忌", "sha256:source",
-            "旧版知识命中", now, "clinical-decision-user", now, "clinical-decision-user", "trace-rec");
+            "旧版知识命中", now, "clinical-user", now, "clinical-user", "trace-rec");
     }
 
     private RecommendationCard recommendationCard(String cardId, String triggerId) {
@@ -240,7 +240,7 @@ class SafetyWithdrawalServiceTest {
             RecommendationCardType.MEDICATION, "禁忌提醒", "命中旧版禁忌", "请复核",
             RecommendationRiskLevel.HIGH, RecommendationInterruptLevel.WEAK_INTERRUPTIVE,
             RecommendationCardStatus.PENDING, true, false, "旧版知识", "{}",
-            "PATIENT:ANTICOAG", now.plusSeconds(3600), now, "clinical-decision-user", now, "clinical-decision-user", "trace-rec",
+            "PATIENT:ANTICOAG", now.plusSeconds(3600), now, "clinical-user", now, "clinical-user", "trace-rec",
             "builtin-risk-baseline", "baseline", CdssAutomationLevel.INTERRUPTIVE,
             CdssReviewRequirement.PHYSICIAN_CONFIRMATION, 72, "OPT04_SILENT_TRIAL",
             false, "NMPA_RESERVED", "TRACEABLE_EVIDENCE_REQUIRED", "高危 CDSS 输出必须医师确认");
@@ -249,14 +249,14 @@ class SafetyWithdrawalServiceTest {
     private RecommendationTrigger recommendationTrigger(String triggerId, String patientId, String encounterId) {
         Instant now = Instant.now();
         return new RecommendationTrigger(1L, triggerId, "tenant-A", "TRG.ORDER", "order-sign",
-            "event-1", "snapshot-1", patientId, encounterId, "pp-1", "WARD_ORDER", "1.0.0",
-            "sha256:trigger", RecommendationTriggerStatus.EVALUATED, null, now, now, "clinical-decision-user", now, "clinical-decision-user",
+            "event-1", "snapshot-1", patientId, encounterId, "pp-1", "WARD_ORDER", "runtime-release-test",
+            "sha256:trigger", RecommendationTriggerStatus.EVALUATED, null, now, now, "clinical-user", now, "clinical-user",
             "trace-rec");
     }
 
     private PathwayTemplate pathwayTemplate(String templateId, String sourceRef) {
         Instant now = Instant.now();
-        return new PathwayTemplate(1L, templateId, "tenant-A", "sp-1", "TPL.COPD",
+        return new PathwayTemplate(1L, templateId, "tenant-A", "TPL.COPD",
             "稳定期路径", "COPD", 1, PathwayTemplateLevel.STANDARD, PathwayTemplateStatus.PUBLISHED,
             PathwayEntryMode.AUTO_SUGGEST, "ASSESS", sourceRef, "路径引用知识版本", "{}", "{}",
             now, "planner", now, "planner", "trace-path");
@@ -265,15 +265,16 @@ class SafetyWithdrawalServiceTest {
     private PatientPathway patientPathway(String patientPathwayId, PatientPathwayStatus status) {
         Instant now = Instant.now();
         return new PatientPathway(1L, patientPathwayId, "tenant-A", "patient-1", "enc-1", "pt-1",
-            "ASSESS", status, now.minusSeconds(3600), null, null, null, "event-1",
-            now.minusSeconds(3600), "clinical-decision-user", now, "clinical-decision-user", "trace-path");
+            "release-H1", "av-pathway-v1", "ASSESS", status,
+            now.minusSeconds(3600), null, null, null, "event-1",
+            now.minusSeconds(3600), "clinical-user", now, "clinical-user", "trace-path");
     }
 
     private AffectedCaseTask task(AffectedCaseTaskType taskType, AffectedCaseTargetType targetType, String targetRef) {
         Instant now = Instant.now();
         return new AffectedCaseTask(1L, "tenant-A", "task-key-" + targetRef, 90L, 1L, 5L,
             taskType, AffectedCaseTaskStatus.OPEN, targetType, targetRef, "上游说明书新增禁忌",
-            now.plusSeconds(86_400), "clinical-governor", "trace-safety", now, "clinical-governor", now,
-            "clinical-governor");
+            now.plusSeconds(86_400), "engine-operator", "trace-safety", now, "engine-operator", now,
+            "engine-operator");
     }
 }

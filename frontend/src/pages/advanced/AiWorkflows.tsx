@@ -16,7 +16,7 @@ import { ReloadOutlined } from "@ant-design/icons";
 
 import { useModelCapabilitiesStatus, useSecurityProfile } from "@/shared/api/hooks";
 import type { ModelCapabilityStatusResponse } from "@/shared/api/hooks";
-import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 
 import styles from "./AiWorkflows.module.css";
@@ -37,7 +37,7 @@ const desensitizeStrategyView: Record<string, string> = {
 };
 
 const policyScopeView: Record<string, string> = {
-  TENANT: "租户",
+  TENANT: "服务机构",
   GROUP: "集团",
   HOSPITAL: "医院",
   CAMPUS: "院区",
@@ -100,11 +100,13 @@ function capabilityDetails(item: ModelCapabilityStatusResponse) {
         {item.rateLimitPerMinute ? ` / ${item.rateLimitPerMinute} 次每分钟` : ""}
       </Descriptions.Item>
       <Descriptions.Item label="结构约束">
-        {item.expectedSchema ? "已配置 JSON Schema" : "未配置"}
+        {item.expectedSchema ? "已配置输出格式" : "未配置"}
       </Descriptions.Item>
-      <Descriptions.Item label="状态说明">{item.fallbackReason}</Descriptions.Item>
+      <Descriptions.Item label="状态说明">
+        {customerDisplayText(item.fallbackReason)}
+      </Descriptions.Item>
       {item.expectedSchema ? (
-        <Descriptions.Item label="JSON Schema" span={3}>
+        <Descriptions.Item label="输出格式明细" span={3}>
           <Text code className={styles.schemaText}>
             {item.expectedSchema}
           </Text>
@@ -217,7 +219,7 @@ export default function AiWorkflows() {
         return (
           <div className={styles.statusCell}>
             <Tag color={view.color}>{view.label}</Tag>
-            <Text type="secondary">{item.fallbackReason}</Text>
+            <Text type="secondary">{customerDisplayText(item.fallbackReason)}</Text>
           </div>
         );
       },

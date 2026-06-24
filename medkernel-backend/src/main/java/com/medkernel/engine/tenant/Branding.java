@@ -9,7 +9,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 租户定制品牌信息实体。
  *
- * <p>用于 GA-SVC-PILOT-01 业务服务包的医院个性化品牌界面定制。
+ * <p>用于 GA-SVC-PILOT-01 业务服务组合的医院个性化品牌界面定制。
  */
 @Table("tenant_branding")
 public record Branding(

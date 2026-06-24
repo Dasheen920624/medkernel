@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import {
   App as AntdApp,
   Button,
@@ -9,23 +9,16 @@ import {
   Select,
   Space,
   Table,
+  Tabs,
   Tag,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import {
-  AppstoreAddOutlined,
-  CopyOutlined,
-  EditOutlined,
-  StarFilled,
-  StarOutlined,
-} from "@ant-design/icons";
+import { AppstoreAddOutlined, EditOutlined, StarFilled, StarOutlined } from "@ant-design/icons";
 
 import {
   useAuthoringAssets,
-  useCloneAuthoringAsset,
   useFavoriteAuthoringAsset,
-  usePackages,
   useSecurityProfile,
   useUnfavoriteAuthoringAsset,
   useUpdateAuthoringAssetProfile,
@@ -33,31 +26,32 @@ import {
 import type { AuthoringAssetLibraryItem, EngineAssetType } from "@/shared/api/hooks";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
+import FieldCatalogManager from "@/shared/ui/condition/FieldCatalogManager";
 import AuthoringBatchDrawer from "./AuthoringBatchDrawer";
+import DeclarativeAssetWorkbench from "./DeclarativeAssetWorkbench";
 import styles from "./AuthoringAssets.module.css";
 
 const { Option } = Select;
 const { Text } = Typography;
-const CLONE_PACKAGE_REFERENCE_PAGE_SIZE = 20;
 
 const assetTypeOptions: Array<{ value: EngineAssetType | "ALL"; label: string }> = [
   { value: "ALL", label: "全部资产" },
   { value: "RULE", label: "规则" },
   { value: "PATHWAY", label: "路径" },
-  { value: "CONDITION_FRAGMENT", label: "条件片段" },
+  { value: "FOLLOWUP", label: "随访模板" },
 ];
 
 const assetTypeLabels: Record<string, string> = {
   RULE: "规则",
   PATHWAY: "路径",
-  CONDITION_FRAGMENT: "条件片段",
+  FOLLOWUP: "随访模板",
 };
 
 function assetTypeColor(type: string) {
   const colors: Record<string, string> = {
     RULE: "blue",
     PATHWAY: "purple",
-    CONDITION_FRAGMENT: "geekblue",
+    FOLLOWUP: "cyan",
   };
   return colors[type] || "default";
 }
@@ -81,28 +75,31 @@ function splitTags(value: string | undefined) {
 
 function canWriteAssets(profile: ReturnType<typeof useSecurityProfile>["data"]) {
   const permissions = new Set(profile?.permissions.map((permission) => permission.code) ?? []);
-  return permissions.has("rule.write") || permissions.has("pathway.write");
+  return (
+    permissions.has("rule.write") ||
+    permissions.has("pathway.write") ||
+    permissions.has("followup.write")
+  );
+}
+
+function hasPermission(profile: ReturnType<typeof useSecurityProfile>["data"], permission: string) {
+  return profile?.permissions.some((item) => item.code === permission) ?? false;
 }
 
 export default function AuthoringAssets() {
   const { message } = AntdApp.useApp();
   const security = useSecurityProfile();
   const canWrite = canWriteAssets(security.data);
+  const canWriteDeclarative = hasPermission(security.data, "asset.write");
+  const canWriteFields = hasPermission(security.data, "context.write");
   const [assetType, setAssetType] = useState<EngineAssetType | "ALL">("ALL");
   const [keyword, setKeyword] = useState("");
   const [tag, setTag] = useState("");
   const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [profileAsset, setProfileAsset] = useState<AuthoringAssetLibraryItem | null>(null);
-  const [cloneAsset, setCloneAsset] = useState<AuthoringAssetLibraryItem | null>(null);
-  const [clonePackageSearch, setClonePackageSearch] = useState("");
   const [batchOpen, setBatchOpen] = useState(false);
+  const [fieldCatalogOpen, setFieldCatalogOpen] = useState(false);
   const [profileForm] = Form.useForm<{ category: string; tags: string }>();
-  const [cloneForm] = Form.useForm<{
-    newCode: string;
-    newName: string;
-    newVersion: number;
-    packageVersion: string;
-  }>();
 
   const assetsQuery = useAuthoringAssets(
     {
@@ -117,61 +114,7 @@ export default function AuthoringAssets() {
   const updateProfileMutation = useUpdateAuthoringAssetProfile();
   const favoriteMutation = useFavoriteAuthoringAsset();
   const unfavoriteMutation = useUnfavoriteAuthoringAsset();
-  const cloneMutation = useCloneAuthoringAsset();
-  const clonePackagesQuery = usePackages({
-    page: 1,
-    size: CLONE_PACKAGE_REFERENCE_PAGE_SIZE,
-    keyword: clonePackageSearch || cloneAsset?.packageVersion || undefined,
-    ...(cloneAsset ? { assetType: cloneAsset.assetType } : {}),
-  });
-  const clonePackageOptions = useMemo(
-    () =>
-      (clonePackagesQuery.data?.items ?? [])
-        .filter((item) => item.status !== "OFFLINE" && item.status !== "ARCHIVED")
-        .map((item) => ({
-          value: item.packageVersion,
-          label: `${item.packageVersion} · ${item.name}`,
-        })),
-    [clonePackagesQuery.data?.items],
-  );
-  const knownClonePackageVersions = useMemo(
-    () => new Set(clonePackageOptions.map((option) => option.value.trim())),
-    [clonePackageOptions],
-  );
-  const clonePackageVersionRules = [
-    { required: true, message: "请选择克隆草稿所属配置包版本" },
-    {
-      validator: async (_: unknown, value: unknown) => {
-        const packageVersion = typeof value === "string" ? value.trim() : "";
-        if (!packageVersion) return;
-        if (clonePackagesQuery.isLoading) {
-          throw new Error("配置包版本仍在加载，请稍后再试。");
-        }
-        if (clonePackagesQuery.isError) {
-          throw new Error("配置包列表不可用，暂不能克隆资产。");
-        }
-        if (knownClonePackageVersions.size === 0) {
-          throw new Error("请选择已存在的配置包版本。");
-        }
-        if (!knownClonePackageVersions.has(packageVersion)) {
-          throw new Error("请选择已存在的配置包版本。");
-        }
-      },
-    },
-  ];
   const assets = assetsQuery.data?.items ?? [];
-
-  useEffect(() => {
-    if (!cloneAsset || clonePackageOptions.length !== 1) return;
-    const currentPackageVersion = cloneForm.getFieldValue("packageVersion")?.trim();
-    if (
-      currentPackageVersion &&
-      clonePackageOptions.some((option) => option.value === currentPackageVersion)
-    ) {
-      return;
-    }
-    cloneForm.setFieldValue("packageVersion", clonePackageOptions[0].value);
-  }, [cloneAsset, cloneForm, clonePackageOptions]);
 
   const openProfileModal = (asset: AuthoringAssetLibraryItem) => {
     setProfileAsset(asset);
@@ -204,39 +147,6 @@ export default function AuthoringAssets() {
     }
     await favoriteMutation.mutateAsync({ assetType: asset.assetType, assetId: asset.assetId });
     message.success("已收藏");
-  };
-
-  const openCloneModal = (asset: AuthoringAssetLibraryItem) => {
-    setCloneAsset(asset);
-    setClonePackageSearch("");
-    cloneForm.setFieldsValue({
-      newCode: `${asset.assetCode}.COPY`,
-      newName: `${asset.name}副本`,
-      newVersion: 1,
-      packageVersion: asset.packageVersion ?? "",
-    });
-  };
-
-  const saveClone = async () => {
-    if (!cloneAsset) return;
-    try {
-      const values = await cloneForm.validateFields();
-      await cloneMutation.mutateAsync({
-        assetType: cloneAsset.assetType,
-        assetId: cloneAsset.assetId,
-        request: {
-          newCode: values.newCode.trim(),
-          newName: values.newName.trim(),
-          newVersion: Number(values.newVersion),
-          packageVersion: values.packageVersion.trim(),
-        },
-      });
-      message.success("资产副本已保存为草稿");
-      setCloneAsset(null);
-    } catch (error: unknown) {
-      if (Array.isArray((error as { errorFields?: unknown[] }).errorFields)) return;
-      message.error("资产副本保存失败，请稍后重试。");
-    }
   };
 
   const columns: ColumnsType<AuthoringAssetLibraryItem> = [
@@ -308,14 +218,6 @@ export default function AuthoringAssets() {
           >
             {asset.favorite ? "取消收藏" : "收藏"}
           </Button>
-          <Button
-            icon={<CopyOutlined />}
-            aria-label={asset.cloneable ? "克隆" : "克隆不可用"}
-            disabled={!canWrite || !asset.cloneable}
-            onClick={() => openCloneModal(asset)}
-          >
-            {asset.cloneable ? "克隆" : "克隆不可用"}
-          </Button>
         </Space>
       ),
     },
@@ -327,7 +229,7 @@ export default function AuthoringAssets() {
         title="统一资产库"
         description="检索、收藏和复用创作资产"
         state="loading"
-        stateProps={{ title: "正在加载统一资产库", description: "正在读取规则、路径和条件片段。" }}
+        stateProps={{ title: "正在加载统一资产库", description: "正在读取规则、路径和随访模板。" }}
       >
         <></>
       </PageShell>
@@ -352,57 +254,80 @@ export default function AuthoringAssets() {
   }
 
   return (
-    <PageShell title="统一资产库" description="检索、收藏和复用创作资产">
-      <Space direction="vertical" size="middle" className="mk-full-width">
-        <Space wrap className={styles.filterBar}>
-          <Select
-            value={assetType}
-            onChange={setAssetType}
-            className={styles.assetTypeSelect}
-            optionFilterProp="label"
-          >
-            {assetTypeOptions.map((option) => (
-              <Option key={option.value} value={option.value} label={option.label}>
-                {option.label}
-              </Option>
-            ))}
-          </Select>
-          <Input
-            allowClear
-            placeholder="搜索资产编码或名称"
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            className={styles.keywordInput}
-          />
-          <Input
-            allowClear
-            placeholder="标签"
-            value={tag}
-            onChange={(event) => setTag(event.target.value)}
-            className={styles.tagInput}
-          />
-          <Checkbox
-            checked={favoriteOnly}
-            onChange={(event) => setFavoriteOnly(event.target.checked)}
-          >
-            仅收藏
-          </Checkbox>
-          <Button
-            icon={<AppstoreAddOutlined />}
-            disabled={!canWrite}
-            onClick={() => setBatchOpen(true)}
-          >
-            批量处理
-          </Button>
-        </Space>
-        <Table
-          rowKey={(asset) => `${asset.assetType}-${asset.assetId}-${asset.version}`}
-          dataSource={assets}
-          columns={columns}
-          pagination={{ pageSize: 10, showSizeChanger: false }}
-          size="middle"
-        />
-      </Space>
+    <PageShell title="统一资产库" description="检索、收藏、维护和复用全部引擎资产">
+      <Tabs
+        defaultActiveKey="library"
+        items={[
+          {
+            key: "library",
+            label: "专业资产库",
+            children: (
+              <Space direction="vertical" size="middle" className="mk-full-width">
+                <Space wrap className={styles.filterBar}>
+                  <Select
+                    value={assetType}
+                    onChange={setAssetType}
+                    className={styles.assetTypeSelect}
+                    optionFilterProp="label"
+                  >
+                    {assetTypeOptions.map((option) => (
+                      <Option key={option.value} value={option.value} label={option.label}>
+                        {option.label}
+                      </Option>
+                    ))}
+                  </Select>
+                  <Input
+                    allowClear
+                    placeholder="搜索资产编码或名称"
+                    value={keyword}
+                    onChange={(event) => setKeyword(event.target.value)}
+                    className={styles.keywordInput}
+                  />
+                  <Input
+                    allowClear
+                    placeholder="标签"
+                    value={tag}
+                    onChange={(event) => setTag(event.target.value)}
+                    className={styles.tagInput}
+                  />
+                  <Checkbox
+                    checked={favoriteOnly}
+                    onChange={(event) => setFavoriteOnly(event.target.checked)}
+                  >
+                    仅收藏
+                  </Checkbox>
+                  <Button
+                    icon={<AppstoreAddOutlined />}
+                    disabled={!canWrite}
+                    onClick={() => setBatchOpen(true)}
+                  >
+                    批量处理
+                  </Button>
+                </Space>
+                <Table
+                  rowKey={(asset) => `${asset.assetType}-${asset.assetId}-${asset.version}`}
+                  dataSource={assets}
+                  columns={columns}
+                  pagination={{ pageSize: 10, showSizeChanger: false }}
+                  size="middle"
+                />
+              </Space>
+            ),
+          },
+          {
+            key: "configuration",
+            label: "配置资产维护",
+            children: (
+              <Space direction="vertical" size="middle" className="mk-full-width">
+                <Button disabled={!canWriteFields} onClick={() => setFieldCatalogOpen(true)}>
+                  维护字段目录
+                </Button>
+                <DeclarativeAssetWorkbench canWrite={canWriteDeclarative} />
+              </Space>
+            ),
+          },
+        ]}
+      />
 
       <Modal
         title="编辑资产标签"
@@ -425,44 +350,10 @@ export default function AuthoringAssets() {
         </Form>
       </Modal>
 
-      <Modal
-        title="克隆资产为草稿"
-        open={Boolean(cloneAsset)}
-        onCancel={() => setCloneAsset(null)}
-        onOk={saveClone}
-        okText="另存为草稿"
-        cancelText="取消"
-        okButtonProps={{ "aria-label": "另存为草稿" }}
-        confirmLoading={cloneMutation.isPending}
-        destroyOnClose
-      >
-        <Form form={cloneForm} layout="vertical">
-          <Form.Item name="newCode" label="新编码" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="newName" label="新名称" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="newVersion" label="新版本" rules={[{ required: true }]}>
-            <Input type="number" min={1} />
-          </Form.Item>
-          <Form.Item name="packageVersion" label="包版本" rules={clonePackageVersionRules}>
-            <Select
-              showSearch
-              loading={clonePackagesQuery.isLoading}
-              options={clonePackageOptions}
-              filterOption={false}
-              onSearch={setClonePackageSearch}
-              placeholder="选择克隆草稿所属配置包版本"
-              notFoundContent={clonePackagesQuery.isError ? "包版本读取失败" : "暂无可用包版本"}
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
-
       {batchOpen && (
         <AuthoringBatchDrawer open canWrite={canWrite} onClose={() => setBatchOpen(false)} />
       )}
+      <FieldCatalogManager open={fieldCatalogOpen} onClose={() => setFieldCatalogOpen(false)} />
     </PageShell>
   );
 }

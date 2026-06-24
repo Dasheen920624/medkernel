@@ -10,6 +10,9 @@ import com.medkernel.shared.api.error.ErrorCode;
 
 /**
  * 创作体验接口的标准上下文字段。
+ *
+ * <p>标准上下文只表达操作者和组织范围；预览所需的资产范围由草稿正文、机构生效版本或显式业务参数解析，
+ * 不再把手工版本定位作为通用门槛。
  */
 public record AuthoringApiContext(
     @JsonProperty("request_id") String requestId,
@@ -22,8 +25,7 @@ public record AuthoringApiContext(
     @JsonProperty("department_id") String departmentId,
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
-    @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion
+    @JsonProperty("role_codes") List<String> roleCodes
 ) {
     public AuthoringApiContext {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
@@ -35,7 +37,6 @@ public record AuthoringApiContext(
         requireText(errors, "trace_id", traceId);
         requireText(errors, "tenant_id", tenantId);
         requireText(errors, "user_id", userId);
-        requireText(errors, "package_version", packageVersion);
         if (roleCodes.isEmpty()) {
             errors.add(new ApiError("role_codes", "NotEmpty", "标准上下文 role_codes 不能为空"));
         }

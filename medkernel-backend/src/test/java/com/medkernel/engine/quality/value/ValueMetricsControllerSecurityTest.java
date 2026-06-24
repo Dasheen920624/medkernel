@@ -50,16 +50,16 @@ class ValueMetricsControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
             .andExpect(status().isOk());
 
         mvc.perform(get("/api/v1/engine/value-metrics/MISSED_CASE_RETROSPECTIVE/drilldown")
                 .with(jwt().jwt(token -> token
                     .subject("qa-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
             .andExpect(status().isOk());
     }
 
@@ -69,8 +69,8 @@ class ValueMetricsControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "tenant-A")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
             .andExpect(status().isForbidden());
     }
 }

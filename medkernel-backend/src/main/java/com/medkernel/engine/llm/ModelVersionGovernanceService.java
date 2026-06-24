@@ -19,7 +19,7 @@ import com.medkernel.shared.context.RequestContext;
 /**
  * LLM-04 prompt/tool/model 版本治理服务。
  *
- * <p>版本包发布、回滚和导出均只处理版本元数据与 hash，不保存正文或密钥。
+ * <p>模型版本发布、回滚和导出均只处理版本元数据与 hash，不保存正文或密钥。
  */
 @Service
 public class ModelVersionGovernanceService {
@@ -65,7 +65,7 @@ public class ModelVersionGovernanceService {
             now,
             actor));
         auditRecorder.record(AuditAction.UPDATE, "mk_llm_model_version_bundle",
-            String.valueOf(saved.id()), "发布模型版本三元组 " + capability);
+            String.valueOf(saved.id()), "发布提示词、工具和模型版本组合 " + capability);
         return ModelVersionBundleResponse.from(saved);
     }
 
@@ -76,16 +76,16 @@ public class ModelVersionGovernanceService {
         String capability = normalizeCapability(capabilityCode);
         ModelVersionBundle target = repository.findById(bundleId)
             .filter(bundle -> tenantId.equals(bundle.tenantId()) && capability.equals(bundle.capabilityCode()))
-            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "模型版本包不存在"));
+            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "模型版本组合不存在"));
         Instant now = Instant.now();
         repository.retireActive(tenantId, capability, actor, now);
         String activeScopeKey = activeScopeKey(tenantId, capability);
         int activated = repository.activateBundle(bundleId, tenantId, capability, activeScopeKey, actor, now);
         if (activated != 1) {
-            throw new ApiException(ErrorCode.CONFLICT, "模型版本包状态已变化，请刷新后重试");
+            throw new ApiException(ErrorCode.CONFLICT, "模型版本组合状态已变化，请刷新后重试");
         }
         auditRecorder.record(AuditAction.UPDATE, "mk_llm_model_version_bundle",
-            String.valueOf(bundleId), "回滚模型版本三元组 " + capability);
+            String.valueOf(bundleId), "回滚提示词、工具和模型版本组合 " + capability);
         return ModelVersionBundleResponse.activeFrom(new ModelVersionBundle(
             target.id(), target.tenantId(), target.capabilityCode(), target.promptVersion(), target.promptHash(),
             target.toolVersion(), target.toolHash(), target.modelVersion(), target.modelHash(), "ACTIVE",
@@ -98,7 +98,7 @@ public class ModelVersionGovernanceService {
         String capability = normalizeCapability(capabilityCode);
         return repository.findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(tenantId, capability, "ACTIVE")
             .map(ModelVersionBundleResponse::from)
-            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "模型版本包不存在"));
+            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "模型版本组合不存在"));
     }
 
     @Transactional(readOnly = true)

@@ -112,8 +112,6 @@ class AcquisitionScheduleWorkerTest {
             AcquisitionLicensePolicy.PERMITTED,
             AcquisitionRobotsPolicy.ALLOW_FETCH,
             "Y",
-            "super-admin",
-            Instant.parse("2026-06-17T00:00:00Z"),
             "Y",
             60,
             Instant.parse("2026-06-17T02:00:00Z"),

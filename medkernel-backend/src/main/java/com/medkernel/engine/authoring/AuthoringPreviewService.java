@@ -10,6 +10,7 @@ import java.util.StringJoiner;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.versioning.RemovedRuntimeSelectorFields;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import org.springframework.stereotype.Service;
@@ -41,7 +42,7 @@ public class AuthoringPreviewService {
         Map.entry("is_stale", "结果陈旧"),
         Map.entry("unit_compare", "单位换算后比较"),
         Map.entry("temporal", "满足时间窗条件"),
-        Map.entry("derived", "受控公式")
+        Map.entry("derived", "计算公式")
     );
 
     private static final Map<String, String> SELECT_LABELS = Map.of(
@@ -279,7 +280,7 @@ public class AuthoringPreviewService {
                 return "字段 " + textValue(value.get("field"));
             }
             if (value.has("valueSet")) {
-                return renderValueSet(value);
+                return renderValueSet(value, warnings);
             }
             if (value.has("formula")) {
                 return renderFormula(value);
@@ -304,12 +305,11 @@ public class AuthoringPreviewService {
         return textValue(value);
     }
 
-    private String renderValueSet(JsonNode value) {
+    private String renderValueSet(JsonNode value, List<String> warnings) {
         StringBuilder builder = new StringBuilder("值集 ").append(textValue(value.get("valueSet")));
         List<String> details = new ArrayList<>();
-        String packageVersion = optionalText(value, "packageVersion");
-        if (hasText(packageVersion)) {
-            details.add("包版本 " + packageVersion);
+        if (RemovedRuntimeSelectorFields.hasAny(value, RemovedRuntimeSelectorFields.valueSetFields())) {
+            warnings.add("值集引用中的手工运行定位字段已忽略；请通过资产依赖和当前机构生效版本定位正式版本。");
         }
         JsonNode members = value.get("members");
         if (members != null && members.isArray() && !members.isEmpty()) {

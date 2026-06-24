@@ -34,7 +34,7 @@ import jakarta.validation.Valid;
  * <p>四入口（临床端嵌入 / 管理质控端 / CLI / MCP）共用同一后端受控合同；三组读模型：规则使用统计
  * {@code /api/v1/engine-data/rule-usage}、知识使用统计 {@code /api/v1/engine-data/knowledge-usage}
  * 与临床信号统计 {@code /api/v1/engine-data/clinical-signals}（均 D2 去标识聚合），CLI/MCP 共用的
- * 受控工具入口 {@code /api/v1/engine-data/tools}（目录 + 执行，FR-4 治理信封），以及经 SYS-06 导出审批闸
+ * 受控工具入口 {@code /api/v1/engine-data/tools}（目录 + 执行，FR-4 治理信封），以及经导出确认门禁
  * 控制的异步 CSV 导出 {@code /api/v1/engine-data/exports/*}（{@code engine-data.export}，FR-1）。读侧统一
  * {@code engine-data.read}，全线 {@link DataScope} 强多租户隔离；后端脱敏 + 数据分级 + 审计 + 诚实降级。
  */
@@ -130,13 +130,13 @@ public class EngineDataController {
     }
 
     /**
-     * 提交异步导出作业（FR-1，须先有 APPROVED 的 SYS-06 导出审批，不绕审批）。立即返回 PENDING；轮询状态。
+     * 提交异步导出作业。须先确认导出范围，立即返回 PENDING，随后轮询状态。
      */
     @PostMapping("/exports")
     @PreAuthorize("@perm.has('engine-data.export')")
     public ApiResult<EngineDataExportJob> submitExport(@Valid @RequestBody EngineDataExportSubmitRequest request) {
         return ApiResult.ok(engineDataExportService.submit(
-            request.exportType(), request.windowDays(), request.approvalId(), request.idempotencyKey()));
+            request.exportType(), request.windowDays(), request.confirmationId(), request.idempotencyKey()));
     }
 
     /**

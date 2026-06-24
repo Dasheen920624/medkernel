@@ -56,7 +56,7 @@ class RuleExplanationServiceTest {
     private RuleDefinition rule(String ruleId) {
         return new RuleDefinition(1L, ruleId, "tenant-1", "RULE-CODE-1", "高危药物配伍规则",
             RuleType.ORDER, RuleAuthoringMode.TEMPLATE, RuleRiskLevel.HIGH, 10, null, 0,
-            RuleDefinitionStatus.PUBLISHED, "ver-9", "pkg-1.0", null,
+            RuleDefinitionStatus.PUBLISHED, "ver-9", null,
             Instant.parse("2026-06-01T00:00:00Z"), "author",
             Instant.parse("2026-06-10T00:00:00Z"), "editor", "trace-1");
     }

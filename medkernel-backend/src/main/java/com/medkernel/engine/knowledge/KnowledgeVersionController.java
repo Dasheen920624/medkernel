@@ -16,7 +16,6 @@ import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.context.RequestContext;
-import com.medkernel.engine.versioning.VersionPublishEvidence;
 import com.medkernel.shared.datascope.DataScope;
 
 /**
@@ -83,9 +82,8 @@ public class KnowledgeVersionController {
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<KnowledgeReplayResponse> replay(@PathVariable Long identityId,
                                                      @PathVariable Long versionId,
-                                                     @RequestParam(required = false) String packageVersion,
                                                      @RequestParam(required = false) String snapshotId) {
-        return ApiResult.ok(versionService.replayVersion(identityId, versionId, packageVersion, snapshotId));
+        return ApiResult.ok(versionService.replayVersion(identityId, versionId, snapshotId));
     }
 
     @GetMapping("/identities/{identityId}/candidates")
@@ -124,10 +122,8 @@ public class KnowledgeVersionController {
                                                      @PathVariable Long versionId,
                                                      @Valid @RequestBody(required = false) ActivateVersionRequest req) {
         String reason = req == null ? null : req.reason();
-        VersionPublishEvidence evidence = req == null
-            ? VersionPublishEvidence.empty()
-            : req.publishEvidence();
-        return ApiResult.ok(versionService.activate(identityId, versionId, reason, evidence));
+        Long qualityGateRecordId = req == null ? null : req.qualityGateRecordId();
+        return ApiResult.ok(versionService.activate(identityId, versionId, reason, qualityGateRecordId));
     }
 
     /**
@@ -144,12 +140,8 @@ public class KnowledgeVersionController {
     /** 版本激活请求体。reason 是激活说明，平台或高风险发布还须携带治理证据。 */
     public record ActivateVersionRequest(
         @Size(max = 500) String reason,
-        VersionPublishEvidence publishEvidence
-    ) {
-        public ActivateVersionRequest {
-            publishEvidence = VersionPublishEvidence.orEmpty(publishEvidence);
-        }
-    }
+        Long qualityGateRecordId
+    ) {}
 
     /** 版本撤回请求体。reason 永远必填。 */
     public record WithdrawVersionRequest(@Size(min = 1, max = 500) String reason) {}

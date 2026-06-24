@@ -15,8 +15,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.medkernel.engine.pkg.PackageSyncResponse;
-import com.medkernel.engine.pkg.ReleasePlanStatus;
 import com.medkernel.engine.rule.RuleAuthoringMode;
 import com.medkernel.engine.rule.RuleCreateResponse;
 import com.medkernel.engine.rule.RuleDefinitionStatus;
@@ -24,6 +22,8 @@ import com.medkernel.engine.rule.RuleGovernanceState;
 import com.medkernel.engine.rule.RuleImpactResponse;
 import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.engine.rule.RuleType;
+import com.medkernel.engine.versioning.AssetTriggerBindingInput;
+import com.medkernel.engine.versioning.AssetTriggerPurpose;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.audit.AuditRecorder;
@@ -34,7 +34,6 @@ import com.medkernel.shared.context.RequestContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
 class AuthoringBatchJobServiceTest {
 
@@ -42,14 +41,12 @@ class AuthoringBatchJobServiceTest {
     private final AuthoringBatchJobRepository jobs = mock(AuthoringBatchJobRepository.class);
     private final AuthoringBatchItemRepository items = mock(AuthoringBatchItemRepository.class);
     private final AuthoringBatchRulePort rules = mock(AuthoringBatchRulePort.class);
-    private final AuthoringBatchPackagePort packages = mock(AuthoringBatchPackagePort.class);
     private final AuditRecorder auditRecorder = mock(AuditRecorder.class);
     private final AuthoringBatchJobService service = new AuthoringBatchJobService(
         objectMapper,
         jobs,
         items,
         rules,
-        packages,
         AuthoringFeatureGate.alwaysEnabled(),
         auditRecorder);
 
@@ -90,7 +87,8 @@ class AuthoringBatchJobServiceTest {
                 100,
                 null,
                 0,
-                "pkg-2026.06",
+                List.of(new AssetTriggerBindingInput(
+                    "order-sign", AssetTriggerPurpose.RULE_EXECUTION, List.of())),
                 "dept-1",
                 "指南 2026",
                 templateDsl,
@@ -130,7 +128,7 @@ class AuthoringBatchJobServiceTest {
         assertThatThrownBy(() -> service.publishRules(
             new AuthoringBatchRulePublishRequest(
                 RuleGovernanceState.FULL,
-                "委员会批准",
+                "负责人已确认影响范围",
                 List.of(new AuthoringBatchRulePublishItem(
                     "row-high", "rule-high", "impact-rule-high", false)))))
             .isInstanceOf(ApiException.class)
@@ -138,34 +136,6 @@ class AuthoringBatchJobServiceTest {
 
         verify(rules, never()).transition(any(), any());
         verify(jobs, never()).save(any());
-    }
-
-    @Test
-    void recordsUnreachableDistributionTargetAsNotConnected() {
-        when(packages.distribute(any())).thenReturn(new PackageSyncResponse(
-            "plan-1", "package-1", ReleasePlanStatus.NOT_SYNCED, List.of()));
-
-        AuthoringBatchJobResponse response = service.distributePackages(
-            new AuthoringBatchPackageDistributeRequest(List.of(
-                new AuthoringBatchPackageDistributeItem(
-                    "row-1",
-                    "package-1",
-                    "hospital-offline",
-                    com.medkernel.engine.pkg.ReleaseStrategy.FULL,
-                    com.medkernel.engine.pkg.ReleaseScopeType.FACILITY,
-                    "hospital-offline",
-                    List.of("fhir"),
-                    "批量分发"))));
-
-        assertThat(response.status()).isEqualTo(AuthoringBatchJobStatus.NOT_CONNECTED);
-        assertThat(response.retryableCount()).isEqualTo(1);
-        assertThat(response.items()).singleElement()
-            .extracting(AuthoringBatchItemResponse::status)
-            .isEqualTo(AuthoringBatchItemStatus.NOT_CONNECTED);
-        ArgumentCaptor<AuthoringBatchItem> itemCaptor = ArgumentCaptor.forClass(AuthoringBatchItem.class);
-        verify(items).save(itemCaptor.capture());
-        assertThat(itemCaptor.getValue().targetId()).isEqualTo("hospital-offline");
-        assertThat(itemCaptor.getValue().rollbackRef()).isEqualTo("plan-1");
     }
 
     @Test
@@ -210,7 +180,6 @@ class AuthoringBatchJobServiceTest {
             AuthoringBatchJobStatus.SUCCEEDED,
             1,
             1,
-            0,
             0,
             "{}",
             null,

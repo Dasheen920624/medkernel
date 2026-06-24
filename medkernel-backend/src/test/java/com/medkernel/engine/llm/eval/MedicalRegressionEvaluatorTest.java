@@ -91,13 +91,12 @@ class MedicalRegressionEvaluatorTest {
     }
 
     @Test
-    void highRiskAllPass_pendingReviewUntilSignOff() {
-        // 含红线用例且全部通过 → 高风险，需专家复核签字才放行（PENDING_REVIEW）
+    void highRiskAllPass_isPassedWithoutIndependentSignOff() {
         var verdict = evaluator.evaluate(
             List.of(regCase("活动性出血禁用", "CONTRAINDICATION", false)),
             answer("活动性出血禁用，建议替代方案", "[]"));
 
-        assertThat(verdict.status()).isEqualTo("PENDING_REVIEW");
+        assertThat(verdict.status()).isEqualTo("PASSED");
         assertThat(verdict.redLineBreach()).isFalse();
         assertThat(verdict.failed()).isZero();
     }

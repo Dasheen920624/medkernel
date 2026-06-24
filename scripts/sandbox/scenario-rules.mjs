@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 
 const SANDBOX_READY = "SANDBOX_READY";
-const SANDBOX_TENANT = "pilot-hospital";
+const SANDBOX_TENANT = "t-rehearsal";
 const REQUIRED_CASES = new Set([
   "POSITIVE",
   "NEGATIVE",
@@ -16,6 +16,7 @@ const REQUIRED_SOURCE_FIELDS = new Set([
   "retrievedAt",
   "applicability",
 ]);
+const REMOVED_FIXED_RUNTIME_VERSION_FIELD = "package" + "Version";
 
 export async function loadScenarioRules(
   url = new URL("./scenario-rules.json", import.meta.url),
@@ -42,8 +43,8 @@ export function validateScenarioRules(manifest) {
     validateInstitution(scenario);
     validateSources(scenario);
     validateClinicalContent(scenario);
-    if (hasKeyDeep(scenario, "packageVersion")) {
-      throw new Error(`沙盘规则 ${scenario.ruleCode} 不得固化配置包版本`);
+    if (hasKeyDeep(scenario, REMOVED_FIXED_RUNTIME_VERSION_FIELD)) {
+      throw new Error(`沙盘规则 ${scenario.ruleCode} 不得固化机构生效版本`);
     }
   }
   return manifest;

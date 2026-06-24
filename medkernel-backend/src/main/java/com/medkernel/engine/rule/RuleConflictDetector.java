@@ -13,8 +13,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 /**
  * 发布前规则静态冲突检测器。
  *
- * <p>仅在同触发点、同数值事实、条件区间重叠且一方阻断另一方非阻断时报告冲突，
- * 避免把普通的规则覆盖关系误判为医疗处置冲突。
+ * <p>触发点重叠由资产版本绑定层预先筛选；本检测器仅在同数值事实、条件区间重叠且
+ * 一方阻断另一方非阻断时报告冲突，避免把普通的规则覆盖关系误判为医疗处置冲突。
  */
 public final class RuleConflictDetector {
 
@@ -25,13 +25,11 @@ public final class RuleConflictDetector {
         if (candidate == null || targets == null || targets.isEmpty()) {
             return Optional.empty();
         }
-        String trigger = candidate.path("trigger").asText(null);
         List<NumericCondition> candidateConditions = numericConditions(candidate.path("when"));
         boolean candidateBlocks = hasBlockingAction(candidate.path("then"));
 
         for (RuleConflictTarget target : targets) {
-            if (target == null || target.dsl() == null
-                    || !sameText(trigger, target.dsl().path("trigger").asText(null))) {
+            if (target == null || target.dsl() == null) {
                 continue;
             }
             if (!applicabilityMayOverlap(
@@ -209,10 +207,6 @@ public final class RuleConflictDetector {
             }
         }
         return false;
-    }
-
-    private static boolean sameText(String left, String right) {
-        return left != null && left.equals(right);
     }
 
     private record NumericCondition(String fact, NumericRange range) {}

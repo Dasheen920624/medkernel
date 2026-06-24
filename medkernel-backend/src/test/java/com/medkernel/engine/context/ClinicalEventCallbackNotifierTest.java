@@ -88,7 +88,7 @@ class ClinicalEventCallbackNotifierTest {
             1L, "evt-1", "tenant-A", ClinicalEventType.DIAGNOSIS,
             ClinicalEventTriggerPoint.PATIENT_VIEW, "idem-1", callbackWebhookId,
             "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\"}",
-            "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, "HIS", "kpv-1", "digest",
+            "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, "HIS", "runtime-release-test", "digest",
             Instant.parse("2026-05-27T01:00:00Z"), Instant.parse("2026-05-27T01:00:01Z"),
             null, ClinicalEventStatus.PROCESSED, null, null, 0, null, "trace-1");
     }
@@ -106,9 +106,9 @@ class ClinicalEventCallbackNotifierTest {
                 "tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
             ClinicalEventType.DIAGNOSIS, ClinicalEventTriggerPoint.PATIENT_VIEW,
             "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, null, "HIS",
-            "kpv-1", "digest", Instant.parse("2026-05-27T01:00:00Z"),
+            "runtime-release-test", "digest", Instant.parse("2026-05-27T01:00:00Z"),
             "HIS:patient-view", "trace-1",
-            ClinicalEventTestContexts.resources("MPI-1", "HIS", "kpv-1",
+            ClinicalEventTestContexts.resources("MPI-1", "HIS", "TERM-2026.06",
                 Instant.parse("2026-05-27T01:00:00Z")),
             null, List.of());
     }

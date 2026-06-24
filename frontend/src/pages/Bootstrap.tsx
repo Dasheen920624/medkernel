@@ -33,6 +33,7 @@ import {
   useChangePassword,
   useCheckBootstrapInitToken,
   useCreateBootstrapAdmin,
+  useVerifyMfa,
   type BootstrapAdminResult,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
@@ -47,34 +48,73 @@ const handoverSignals = [
     value: "由部署包生成，现场离线也能校验",
   },
   {
-    label: "创建首发管理员",
+    label: "创建初始管理员",
     value: "只创建第一个接管账号，后续账号进工作台开通",
   },
   {
-    label: "绑定双因素认证",
-    value: "二维码本页生成，不访问外网",
+    label: "按需启用多因素认证",
+    value: "多因素认证默认关闭，需要时由部署配置显式开启",
   },
 ];
 
-function buildAccountSecuritySignals(platformSetup: boolean) {
-  return [
+function buildAccountSecuritySignals(platformSetup: boolean, mfaRequired: boolean) {
+  const signals = [
     {
       label: "修改临时密码",
       value: "首次登录先建立仅本人掌握的长期凭据",
     },
-    {
-      label: "绑定双因素认证",
-      value: platformSetup
-        ? "按平台治理安全策略完成认证器绑定"
-        : "按所在服务机构安全策略完成认证器绑定",
-    },
-    {
-      label: platformSetup ? "进入平台治理" : "进入机构工作台",
-      value: platformSetup
-        ? "安全设置完成后返回平台治理空间继续工作"
-        : "安全设置完成后返回所在服务机构继续工作",
-    },
   ];
+  if (mfaRequired) {
+    signals.push({
+      label: "完成多因素认证",
+      value: platformSetup
+        ? "当前部署已开启多因素认证，按平台安全策略完成认证器验证"
+        : "当前部署已开启多因素认证，按服务机构安全策略完成认证器验证",
+    });
+  }
+  signals.push({
+    label: platformSetup ? "进入平台治理" : "进入机构工作台",
+    value: platformSetup
+      ? "安全设置完成后返回平台治理空间继续工作"
+      : "安全设置完成后返回所在服务机构继续工作",
+  });
+  return signals;
+}
+
+function buildStepItems(accountSecuritySetup: boolean, mfaRequired: boolean) {
+  if (!accountSecuritySetup) {
+    return [{ title: "接管码" }, { title: "账号" }, { title: "完成" }];
+  }
+  if (mfaRequired) {
+    return [{ title: "改密" }, { title: "多因素认证" }, { title: "完成" }];
+  }
+  return [{ title: "改密" }, { title: "完成" }];
+}
+
+function buildAccountSecurityLead(platformSetup: boolean, mfaRequired: boolean) {
+  if (mfaRequired) {
+    return platformSetup
+      ? "首次登录需要修改临时密码，并完成当前部署已开启的多因素认证。完成后进入平台治理工作台。"
+      : "首次登录需要修改临时密码，并完成当前部署已开启的多因素认证。完成后进入机构工作台。";
+  }
+  return platformSetup
+    ? "首次登录只需修改临时密码，多因素认证当前关闭。完成后进入平台治理工作台。"
+    : "首次登录只需修改临时密码，多因素认证当前关闭。完成后进入机构工作台。";
+}
+
+function buildGuardRailText(accountSecuritySetup: boolean, mfaRequired: boolean) {
+  if (!accountSecuritySetup) {
+    return "接管码只校验和消费一次；多因素认证默认关闭，需要时可在部署配置中统一开启。";
+  }
+  return mfaRequired
+    ? "临时密码不得复用；当前会话完成多因素认证前不能进入业务页面。"
+    : "临时密码不得复用；多因素认证当前关闭，不会阻塞账号进入业务页面。";
+}
+
+function buildMfaSubmitLabel(mfaBound: boolean, hasMfaSetup: boolean) {
+  if (mfaBound) return "验证并进入系统";
+  if (hasMfaSetup) return "验证并完成绑定";
+  return "生成认证密钥";
 }
 
 type BootstrapPhase =
@@ -118,6 +158,7 @@ export default function Bootstrap() {
   const location = useLocation();
   const state = (location.state ?? {}) as BootstrapLocationState;
   const accountSecuritySetup = state.phase === "change-password" || state.phase === "mfa";
+  const accountMfaRequired = Boolean(state.login?.mfaRequired);
   const platformSecuritySetup =
     accountSecuritySetup && (state.login?.tenantId ?? state.tenantId) === platformTenantId;
   const [phase, setPhase] = useState<BootstrapPhase>(() => normalizePhase(state.phase));
@@ -147,6 +188,7 @@ export default function Bootstrap() {
   const createAdmin = useCreateBootstrapAdmin();
   const changePassword = useChangePassword();
   const bindMfa = useBindBootstrapMfa();
+  const verifyMfa = useVerifyMfa();
   const bootstrapStatus = useBootstrapStatus(!accountSecuritySetup);
   const { token } = theme.useToken();
   const shouldGateByBootstrapStatus = !accountSecuritySetup && phase === "init-token";
@@ -173,34 +215,24 @@ export default function Bootstrap() {
   const currentStep = useMemo(() => {
     if (accountSecuritySetup) {
       if (phase === "change-password") return 0;
-      if (phase === "mfa") return 1;
-      return 2;
+      if (accountMfaRequired && phase === "mfa") return 1;
+      return accountMfaRequired ? 2 : 1;
     }
     if (phase === "init-token") return 0;
-    if (phase === "password" || phase === "login-required") return 1;
-    if (phase === "change-password") return 2;
-    if (phase === "mfa") return 3;
-    return 4;
-  }, [accountSecuritySetup, phase]);
+    if (phase === "password") return 1;
+    return 2;
+  }, [accountMfaRequired, accountSecuritySetup, phase]);
 
-  const stepItems = accountSecuritySetup
-    ? [{ title: "改密" }, { title: "双因素" }, { title: "完成" }]
-    : [
-        { title: "接管码" },
-        { title: "账号" },
-        { title: "改密" },
-        { title: "双因素" },
-        { title: "完成" },
-      ];
+  const stepItems = buildStepItems(accountSecuritySetup, accountMfaRequired);
   const signals = accountSecuritySetup
-    ? buildAccountSecuritySignals(platformSecuritySetup)
+    ? buildAccountSecuritySignals(platformSecuritySetup, accountMfaRequired)
     : handoverSignals;
-  const accountSecurityLead = platformSecuritySetup
-    ? "首次登录需要修改临时密码；如平台治理策略要求，再绑定双因素认证。完成后进入平台治理工作台。"
-    : "首次登录需要修改临时密码；如所在服务机构策略要求，再绑定双因素认证。完成后进入机构工作台。";
+  const accountSecurityLead = buildAccountSecurityLead(platformSecuritySetup, accountMfaRequired);
   const accountSecurityDoneDescription = platformSecuritySetup
     ? "当前账号已完成首次安全设置，可以进入平台治理工作台。"
     : "当前账号已完成首次安全设置，可以进入机构工作台。";
+  const guardRailText = buildGuardRailText(accountSecuritySetup, accountMfaRequired);
+  const mfaSubmitLabel = buildMfaSubmitLabel(Boolean(state.login?.mfaBound), Boolean(mfaSetup));
 
   const goLogin = () => navigate("/login");
 
@@ -242,7 +274,7 @@ export default function Bootstrap() {
       setAdmin(result);
       setPhase("login-required");
     } catch (err) {
-      const errorMessage = getApiErrorMessage(err, "首发管理员创建失败");
+      const errorMessage = getApiErrorMessage(err, "初始管理员创建失败");
       if (!applyApiFieldErrors(adminForm, err)) {
         adminForm.setFields([{ name: "username", errors: [errorMessage] }]);
       }
@@ -261,7 +293,7 @@ export default function Bootstrap() {
         oldPassword: values.oldPassword,
         newPassword: values.newPassword,
       });
-      if (state.login?.mfaRequired && !state.login.mfaBound) {
+      if (state.login?.mfaRequired) {
         setPhase("mfa");
       } else {
         setPhase("done");
@@ -278,6 +310,20 @@ export default function Bootstrap() {
   async function submitMfa(values: { label: string; code?: string }) {
     setGlobalError(null);
     try {
+      const code = values.code?.trim();
+      if (state.login?.mfaBound && !mfaSetup) {
+        if (!code) {
+          mfaForm.setFields([{ name: "code", errors: ["请输入认证器中的动态验证码"] }]);
+          return;
+        }
+        const verified = await verifyMfa.mutateAsync({ code });
+        if (!verified.verified) {
+          throw new Error("多因素认证未完成，请重新输入验证码。");
+        }
+        setPhase("done");
+        return;
+      }
+
       const label = (mfaSetup?.label ?? values.label).trim();
       if (!mfaSetup) {
         const result = await bindMfa.mutateAsync({ label });
@@ -287,7 +333,7 @@ export default function Bootstrap() {
           return;
         }
         if (!result.secret) {
-          throw new Error("双因素认证密钥生成失败，请重试。");
+          throw new Error("多因素认证密钥生成失败，请重试。");
         }
         setMfaSetup({
           label,
@@ -298,7 +344,6 @@ export default function Bootstrap() {
         return;
       }
 
-      const code = values.code?.trim();
       if (!code) {
         mfaForm.setFields([{ name: "code", errors: ["请输入认证器中的动态验证码"] }]);
         return;
@@ -309,12 +354,16 @@ export default function Bootstrap() {
         code,
       });
       if (!result.mfaBound || !result.recoveryCode) {
-        throw new Error("双因素认证验证未完成，请重新输入验证码。");
+        throw new Error("多因素认证未完成，请重新输入验证码。");
+      }
+      const verified = await verifyMfa.mutateAsync({ code });
+      if (!verified.verified) {
+        throw new Error("多因素认证未完成，请重新输入验证码。");
       }
       setRecoveryCode(result.recoveryCode);
       setPhase("done");
     } catch (err) {
-      const errorMessage = getApiErrorMessage(err, "双因素认证绑定失败");
+      const errorMessage = getApiErrorMessage(err, "多因素认证绑定失败");
       if (!applyApiFieldErrors(mfaForm, err)) {
         mfaForm.setFields([{ name: mfaSetup ? "code" : "label", errors: [errorMessage] }]);
       }
@@ -379,7 +428,7 @@ export default function Bootstrap() {
           <Result
             status="success"
             title="系统已完成首次部署"
-            subTitle="首发管理员已经建立，请返回登录。后续账号与服务空间统一在工作台内维护。"
+            subTitle="初始管理员已经建立，请返回登录。后续账号与服务空间统一在工作台内维护。"
             extra={[
               <Button
                 aria-label="返回登录"
@@ -416,13 +465,13 @@ export default function Bootstrap() {
               <>
                 <Tag color="processing">账号安全</Tag>
                 <Tag>首次改密</Tag>
-                <Tag>双因素认证</Tag>
+                {accountMfaRequired && <Tag>多因素认证</Tag>}
               </>
             ) : (
               <>
                 <Tag color="processing">平台接管</Tag>
                 <Tag>离线可用</Tag>
-                <Tag>只初始化首发身份</Tag>
+                <Tag>只初始化初始身份</Tag>
               </>
             )}
           </Space>
@@ -432,7 +481,7 @@ export default function Bootstrap() {
           <Text className={styles.lead}>
             {accountSecuritySetup
               ? accountSecurityLead
-              : "使用部署接管码创建平台首发管理员，再完成首次改密与双因素认证。集团、医院及其他服务机构进入平台治理后再开通。"}
+              : "使用部署接管码创建平台初始管理员。首登只要求改密；多因素认证默认关闭，需要时再由部署配置开启。"}
           </Text>
           <ul
             className={styles.signalList}
@@ -447,11 +496,7 @@ export default function Bootstrap() {
           </ul>
           <div className={styles.guardRail}>
             <SafetyCertificateOutlined aria-hidden="true" />
-            <Text>
-              {accountSecuritySetup
-                ? "临时密码不得复用；恢复码只展示一次；高危动作会继续要求双因素认证。"
-                : "接管码只校验和消费一次；恢复码只展示一次；高危动作会继续要求双因素认证。"}
-            </Text>
+            <Text>{guardRailText}</Text>
           </div>
         </section>
 
@@ -510,11 +555,11 @@ export default function Bootstrap() {
             {phase === "password" && (
               <section className={styles.stepSection}>
                 <Title level={2} className={styles.stepTitle}>
-                  设置首发管理员
+                  设置初始管理员
                 </Title>
                 <Paragraph type="secondary">
                   接管码有效期：{formatTime(expiresAt) ?? "以部署配置为准"}
-                  。首发管理员属于平台治理空间（唯一内置），集团和医院服务空间进入平台治理后开通。
+                  。初始管理员属于平台治理空间（唯一内置），集团和医院服务空间进入平台治理后开通。
                 </Paragraph>
                 <div className={styles.bootstrapTenantContext}>
                   <SafetyCertificateOutlined aria-hidden="true" />
@@ -532,7 +577,7 @@ export default function Bootstrap() {
                   <Form.Item
                     label="账号"
                     name="username"
-                    rules={[{ required: true, message: "请输入首发管理员账号" }]}
+                    rules={[{ required: true, message: "请输入初始管理员账号" }]}
                   >
                     <Input prefix={<UserOutlined />} size="large" autoComplete="username" />
                   </Form.Item>
@@ -571,7 +616,7 @@ export default function Bootstrap() {
                   <Form.Item className={styles.lastItem}>
                     <div className={styles.formActions}>
                       <Button
-                        aria-label="创建首发管理员"
+                        aria-label="创建初始管理员"
                         type="primary"
                         htmlType="submit"
                         block
@@ -579,7 +624,7 @@ export default function Bootstrap() {
                         loading={createAdmin.isPending}
                         icon={<UserOutlined />}
                       >
-                        创建首发管理员
+                        创建初始管理员
                       </Button>
                       {returnLoginButton}
                     </div>
@@ -591,8 +636,8 @@ export default function Bootstrap() {
             {phase === "login-required" && (
               <Result
                 status="success"
-                title="首发管理员已创建"
-                subTitle={`请使用首发账号登录并完成首次改密：${admin?.username ?? "首发管理员"}`}
+                title="初始管理员已创建"
+                subTitle={`请使用初始账号登录并完成首次改密：${admin?.username ?? "初始管理员"}`}
                 extra={[
                   <Button
                     aria-label="返回登录"
@@ -687,15 +732,17 @@ export default function Bootstrap() {
             {phase === "mfa" && (
               <section className={styles.stepSection}>
                 <Title level={2} className={styles.stepTitle}>
-                  绑定双因素认证
+                  {state.login?.mfaBound ? "验证多因素认证" : "绑定多因素认证"}
                 </Title>
                 <Paragraph type="secondary">
-                  当前账号必须完成双因素认证后才能执行高危配置、服务机构管理和应急操作。
+                  {state.login?.mfaBound
+                    ? "请输入认证器中的动态验证码，验证成功后进入系统。"
+                    : "当前部署已启用多因素认证，请先绑定认证器并完成本次验证。"}
                 </Paragraph>
                 {mfaSetup && (
                   <div className={styles.mfaSetupGrid}>
                     {mfaSetup.otpauthUri && (
-                      <div className={styles.qrPanel} aria-label="离线双因素认证二维码">
+                      <div className={styles.qrPanel} aria-label="离线多因素认证二维码">
                         <Text strong>
                           <QrcodeOutlined aria-hidden="true" /> 扫码绑定
                         </Text>
@@ -751,18 +798,20 @@ export default function Bootstrap() {
                   initialValues={{ label: state.username || "账号安全设备" }}
                   onFinish={submitMfa}
                 >
-                  <Form.Item
-                    label="设备名称"
-                    name="label"
-                    rules={[{ required: true, message: "请输入设备名称" }]}
-                  >
-                    <Input
-                      prefix={<SafetyCertificateOutlined />}
-                      size="large"
-                      disabled={Boolean(mfaSetup)}
-                    />
-                  </Form.Item>
-                  {mfaSetup && (
+                  {!state.login?.mfaBound && (
+                    <Form.Item
+                      label="设备名称"
+                      name="label"
+                      rules={[{ required: true, message: "请输入设备名称" }]}
+                    >
+                      <Input
+                        prefix={<SafetyCertificateOutlined />}
+                        size="large"
+                        disabled={Boolean(mfaSetup)}
+                      />
+                    </Form.Item>
+                  )}
+                  {(mfaSetup || state.login?.mfaBound) && (
                     <Form.Item
                       label="动态验证码"
                       name="code"
@@ -782,15 +831,15 @@ export default function Bootstrap() {
                   <Form.Item className={styles.lastItem}>
                     <div className={styles.formActions}>
                       <Button
-                        aria-label={mfaSetup ? "验证并完成绑定" : "生成认证密钥"}
+                        aria-label={mfaSubmitLabel}
                         type="primary"
                         htmlType="submit"
                         block
                         size="large"
-                        loading={bindMfa.isPending}
+                        loading={bindMfa.isPending || verifyMfa.isPending}
                         icon={<SafetyCertificateOutlined />}
                       >
-                        {mfaSetup ? "验证并完成绑定" : "生成认证密钥"}
+                        {mfaSubmitLabel}
                       </Button>
                       {returnLoginButton}
                     </div>
@@ -802,7 +851,7 @@ export default function Bootstrap() {
             {phase === "done" && (
               <Result
                 status="success"
-                title={accountSecuritySetup ? "账号安全设置完成" : "首发身份接管完成"}
+                title={accountSecuritySetup ? "账号安全设置完成" : "初始身份接管完成"}
                 subTitle={
                   accountSecuritySetup
                     ? accountSecurityDoneDescription

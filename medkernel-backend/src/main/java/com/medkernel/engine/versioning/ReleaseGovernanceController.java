@@ -54,14 +54,14 @@ public class ReleaseGovernanceController {
     }
 
     @PostMapping("/simulations")
-    @PreAuthorize("@perm.has('package.read')")
+    @PreAuthorize("@perm.has('release.read')")
     public ApiResult<ReleaseSimulationResult> simulate(
             @Valid @RequestBody SimulationRequest request) {
         return ApiResult.ok(simulations.simulate(simulationCommand(request)));
     }
 
     @PostMapping("/rollouts")
-    @PreAuthorize("@perm.has('package.publish')")
+    @PreAuthorize("@perm.has('release.publish')")
     public ApiResult<VersionReleasePlan> startRollout(
             @Valid @RequestBody StartRolloutRequest request) {
         if (request == null || request.simulation() == null) {
@@ -90,7 +90,6 @@ public class ReleaseGovernanceController {
             request.reviewConclusion(),
             actor(),
             RequestContext.currentTraceId(),
-            request.electronicSignature(),
             request.qualityGate()
         )));
     }
@@ -116,7 +115,7 @@ public class ReleaseGovernanceController {
     }
 
     @PostMapping("/rollouts/{planId}/observations")
-    @PreAuthorize("@perm.has('package.publish')")
+    @PreAuthorize("@perm.has('release.publish')")
     public ApiResult<VersionRolloutObservationResult> observeRollout(
             @PathVariable String planId,
             @Valid @RequestBody RolloutObservationRequest request) {
@@ -136,7 +135,7 @@ public class ReleaseGovernanceController {
     }
 
     @PostMapping("/rollouts/{planId}:rollback")
-    @PreAuthorize("@perm.has('package.rollback')")
+    @PreAuthorize("@perm.has('release.rollback')")
     public ApiResult<VersionReleasePlan> rollbackRollout(
             @PathVariable String planId,
             @Valid @RequestBody RolloutRollbackRequest request) {
@@ -144,14 +143,14 @@ public class ReleaseGovernanceController {
             tenantId(),
             planId,
             request.reason(),
-            request.confirmedHighRisk(),
+            request.confirmedOperation(),
             actor(),
             RequestContext.currentTraceId()
         )));
     }
 
     @GetMapping("/override-templates")
-    @PreAuthorize("@perm.has('package.read')")
+    @PreAuthorize("@perm.has('release.read')")
     public ApiResult<PageResponse<OverrideTemplate>> listTemplates(
             @RequestParam(value = "page", defaultValue = "1") int page,
             @RequestParam(value = "size", defaultValue = "20") int size,
@@ -175,7 +174,7 @@ public class ReleaseGovernanceController {
     }
 
     @PostMapping("/override-batches:preview")
-    @PreAuthorize("@perm.has('package.read')")
+    @PreAuthorize("@perm.has('release.read')")
     public ApiResult<OverrideBatchPreviewResult> previewOverrides(
             @Valid @RequestBody OverridePreviewRequest request) {
         return ApiResult.ok(overrideTemplates.preview(previewCommand(request)));
@@ -245,7 +244,6 @@ public class ReleaseGovernanceController {
         @NotNull @Valid SimulationRequest simulation,
         @NotBlank @Size(max = 128) String confirmedSimulationDigest,
         @NotBlank @Size(max = 2000) String reviewConclusion,
-        VersionElectronicSignature electronicSignature,
         VersionPublishQualityGate qualityGate
     ) {
     }
@@ -263,7 +261,7 @@ public class ReleaseGovernanceController {
 
     public record RolloutRollbackRequest(
         @NotBlank @Size(max = 2000) String reason,
-        @NotNull Boolean confirmedHighRisk
+        @NotNull Boolean confirmedOperation
     ) {
     }
 

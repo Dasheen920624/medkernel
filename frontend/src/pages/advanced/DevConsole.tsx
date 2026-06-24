@@ -108,7 +108,7 @@ interface RegisterPluginFormValues {
 
 interface GrantPluginFormValues {
   capabilityKeys: string[];
-  approvalReason: string;
+  authorizationReason: string;
   clinicalSafetyConfirmed: boolean;
 }
 
@@ -253,7 +253,7 @@ export default function DevConsole() {
       await grantPlugin.mutateAsync({
         pluginId: grantTarget.pluginId,
         capabilityKeys: values.capabilityKeys,
-        approvalReason: values.approvalReason?.trim() ?? "",
+        authorizationReason: values.authorizationReason?.trim() ?? "",
         clinicalSafetyConfirmed: Boolean(values.clinicalSafetyConfirmed),
       });
       message.success("插件能力已授权");
@@ -290,7 +290,7 @@ export default function DevConsole() {
     apiDirectory = (
       <PageState
         state="error"
-        title="API 契约目录读取失败"
+        title="接口目录读取失败"
         action={
           <Button icon={<ReloadOutlined />} onClick={() => apiContracts.refetch()}>
             重试
@@ -355,11 +355,11 @@ export default function DevConsole() {
                         type="link"
                         size="small"
                         icon={<ApiOutlined />}
-                        aria-label="OpenAPI"
+                        aria-label="接口说明"
                         href={record.openApiDocumentUrl}
                         target="_blank"
                       >
-                        OpenAPI
+                        接口说明
                       </Button>
                     ) : null}
                     {record.fieldContractUrl ? (
@@ -378,11 +378,11 @@ export default function DevConsole() {
 
   let traceContent: ReactNode = null;
   if (!submittedTraceId) {
-    traceContent = <PageState state="empty" title="尚未查询 Trace" />;
+    traceContent = <PageState state="empty" title="尚未查询追踪号" />;
   } else if (trace.isLoading) {
     traceContent = <PageState state="loading" />;
   } else if (trace.isError) {
-    traceContent = <PageState state="error" title="未找到该 Trace 或无权查看" />;
+    traceContent = <PageState state="error" title="未找到该追踪号或无权查看" />;
   } else if (trace.data) {
     traceContent = (
       <Space direction="vertical" size="middle" className="mk-full-width">
@@ -440,7 +440,7 @@ export default function DevConsole() {
           rowKey={(record) => record.digest}
           dataSource={trace.data.payloads}
           pagination={false}
-          locale={{ emptyText: "无 Payload 摘要" }}
+          locale={{ emptyText: "无输入内容摘要" }}
           scroll={{ x: "max-content" }}
           columns={[
             { title: "摘要", dataIndex: "digest" },
@@ -581,7 +581,7 @@ export default function DevConsole() {
   return (
     <PageShell
       title="开发者控制台"
-      description="API 契约、Trace 诊断与插件边界"
+      description="接口契约、追踪诊断与插件边界"
       extras={
         <Button
           icon={<ReloadOutlined />}
@@ -628,7 +628,7 @@ export default function DevConsole() {
           </Col>
         </Row>
 
-        <Card title="系统运行快照">
+        <Card title="系统运行概况">
           <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
             <Descriptions.Item label="服务名">{serviceName}</Descriptions.Item>
             <Descriptions.Item label="运行时">{runtimeValue}</Descriptions.Item>
@@ -667,12 +667,12 @@ export default function DevConsole() {
                 label: (
                   <Space size={6}>
                     <ApiOutlined />
-                    API 目录
+                    接口目录
                   </Space>
                 ),
                 children: apiDirectory,
               },
-              { key: "trace", label: "Trace 诊断", children: traceDiagnosis },
+              { key: "trace", label: "追踪诊断", children: traceDiagnosis },
               { key: "plugins", label: "插件管理", children: pluginManagement },
             ]}
           />
@@ -814,7 +814,7 @@ export default function DevConsole() {
               capabilityKeys: grantTarget.capabilities.map(
                 (capability) => capability.capabilityKey,
               ),
-              approvalReason: "",
+              authorizationReason: "",
               clinicalSafetyConfirmed: false,
             });
           }
@@ -842,8 +842,8 @@ export default function DevConsole() {
             />
           </Form.Item>
           <Form.Item
-            name="approvalReason"
-            label="审批理由"
+            name="authorizationReason"
+            label="授权原因"
             rules={[
               {
                 validator: (_, value) => {
@@ -855,7 +855,7 @@ export default function DevConsole() {
                   );
                   return !requiresReason || value?.trim()
                     ? Promise.resolve()
-                    : Promise.reject(new Error("写能力授权必须填写审批理由"));
+                    : Promise.reject(new Error("写能力授权必须填写授权原因"));
                 },
               },
             ]}

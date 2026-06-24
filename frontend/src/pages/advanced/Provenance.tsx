@@ -32,11 +32,11 @@ import {
 } from "@/shared/api/hooks";
 import type {
   KnowledgeAssetVersion,
-  KnowledgeDomain,
   KnowledgeIdentity,
   KnowledgeIdentityStatus,
   KnowledgeSourceEvidence,
 } from "@/shared/api/hooks";
+import { KNOWLEDGE_DOMAIN_OPTIONS, type KnowledgeDomain } from "@/shared/config/assetCatalog";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
@@ -45,19 +45,7 @@ import styles from "./Advanced.module.css";
 
 const { Paragraph, Text, Title } = Typography;
 
-const domainOptions: Array<{ value: KnowledgeDomain; label: string }> = [
-  { value: "GUIDELINE", label: "指南" },
-  { value: "DRUG", label: "药品说明书" },
-  { value: "PATHWAY_KNOWLEDGE", label: "路径知识" },
-  { value: "NURSING", label: "护理" },
-  { value: "REPORT", label: "检查检验报告" },
-  { value: "TCM", label: "中医药知识" },
-  { value: "PROTOCOL", label: "诊疗方案" },
-  { value: "POLICY", label: "政策法规" },
-  { value: "LITERATURE", label: "文献" },
-  { value: "DIAGNOSIS", label: "诊断知识" },
-  { value: "OTHER", label: "其他" },
-];
+const domainOptions = KNOWLEDGE_DOMAIN_OPTIONS;
 
 const domainLabels = new Map(domainOptions.map((option) => [option.value, option.label]));
 const identityStatusLabels = new Map<KnowledgeIdentityStatus, string>([
@@ -164,7 +152,7 @@ export default function Provenance() {
   }, [searchParams]);
   const [keywordInput, setKeywordInput] = useState("");
   const [keyword, setKeyword] = useState("");
-  const [domain, setDomain] = useState<string>();
+  const [domain, setDomain] = useState<KnowledgeDomain>();
   const [page, setPage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
   const [selectedIdentityId, setSelectedIdentityId] = useState<number | undefined>(

@@ -3,6 +3,7 @@ package com.medkernel.engine.integration.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
@@ -12,6 +13,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -22,17 +24,20 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.integration.domain.*;
 import com.medkernel.engine.integration.dto.*;
+import com.medkernel.engine.integration.inbound.InboundClinicalEventAccepted;
+import com.medkernel.engine.integration.inbound.InboundClinicalEventCommand;
+import com.medkernel.engine.integration.inbound.InboundClinicalEventPort;
+import com.medkernel.engine.integration.inbound.InboundTerminologyMapping;
+import com.medkernel.engine.integration.inbound.InboundTerminologyMappingPort;
 import com.medkernel.engine.integration.repository.*;
-import com.medkernel.engine.terminology.StandardTerm;
-import com.medkernel.engine.terminology.StandardTermRepository;
-import com.medkernel.engine.terminology.TermMapping;
-import com.medkernel.engine.terminology.TermMappingRepository;
-import com.medkernel.engine.versioning.PlatformAuthority;
+import com.medkernel.engine.context.ClinicalRuntimeRelease;
+import com.medkernel.engine.context.CurrentClinicalRuntimeReleaseResolver;
 import com.medkernel.engine.mpi.MpiPatientRepository;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
@@ -72,8 +77,6 @@ public class IntegrationService {
     private static final String DIRECTION_INBOUND = "INBOUND";
     private static final String DIRECTION_OUTBOUND = "OUTBOUND";
     private static final String PROTOCOL_WEBHOOK = "Webhook";
-    private static final String MAPPING_CONFIRMED = "CONFIRMED";
-    private static final String STANDARD_ACTIVE = "ACTIVE";
     private static final long WEBHOOK_SIGNATURE_MAX_SKEW_SECONDS = 300L;
     private static final List<String> REQUIRED_SOURCE_SYSTEMS = List.of("HIS", "EMR", "LIS");
 
@@ -83,13 +86,14 @@ public class IntegrationService {
     private final DataQualityReportRepository dataQualityReportRepository;
     private final IntegrationOnboardingRepository onboardingRepository;
     private final RegionalSourceRepository regionalSourceRepository;
-    private final TermMappingRepository termMappingRepository;
-    private final StandardTermRepository standardTermRepository;
     private final MpiPatientRepository mpiPatientRepository;
     private final ObjectMapper objectMapper;
     private final WebhookSecretCodec webhookSecretCodec;
     private final List<IntegrationConnector> connectors;
     private final ApplicationEventPublisher applicationEvents;
+    private final ObjectProvider<InboundClinicalEventPort> inboundClinicalEvents;
+    private final InboundTerminologyMappingPort inboundTerminologyMappings;
+    private final CurrentClinicalRuntimeReleaseResolver runtimeReleases;
 
     /**
      * 构造器注入适配器、Webhook 订阅及流日志的持久化存储库。
@@ -100,26 +104,28 @@ public class IntegrationService {
                               DataQualityReportRepository dataQualityReportRepository,
                               IntegrationOnboardingRepository onboardingRepository,
                               RegionalSourceRepository regionalSourceRepository,
-                              TermMappingRepository termMappingRepository,
-                              StandardTermRepository standardTermRepository,
                               MpiPatientRepository mpiPatientRepository,
                               ObjectMapper objectMapper,
                               WebhookSecretCodec webhookSecretCodec,
                               List<IntegrationConnector> connectors,
-                              ApplicationEventPublisher applicationEvents) {
+                              ApplicationEventPublisher applicationEvents,
+                              ObjectProvider<InboundClinicalEventPort> inboundClinicalEvents,
+                              InboundTerminologyMappingPort inboundTerminologyMappings,
+                              CurrentClinicalRuntimeReleaseResolver runtimeReleases) {
         this.adapterRepository = adapterRepository;
         this.webhookRepository = webhookRepository;
         this.logRepository = logRepository;
         this.dataQualityReportRepository = dataQualityReportRepository;
         this.onboardingRepository = onboardingRepository;
         this.regionalSourceRepository = regionalSourceRepository;
-        this.termMappingRepository = termMappingRepository;
-        this.standardTermRepository = standardTermRepository;
         this.mpiPatientRepository = mpiPatientRepository;
         this.objectMapper = objectMapper;
         this.webhookSecretCodec = webhookSecretCodec;
         this.connectors = List.copyOf(connectors);
         this.applicationEvents = applicationEvents;
+        this.inboundClinicalEvents = inboundClinicalEvents;
+        this.inboundTerminologyMappings = inboundTerminologyMappings;
+        this.runtimeReleases = runtimeReleases;
     }
 
     // ==========================================
@@ -633,7 +639,8 @@ public class IntegrationService {
      * 接收第三方 Webhook 入站消息，先验签再按 messageId 做租户内幂等处理。
      *
      * <p>验签失败必须拒绝并写入失败日志；验签成功后按适配器配置执行字段映射，
-     * 带 {@code termMappingId} 的字段必须经 TERM-01 已确认映射归一，不能猜测标准码。
+     * 术语字段必须按服务端确定的当前机构生效版本解析不可变映射快照，不能由调用方选版本，
+     * 也不能读取可变映射或猜测标准码。
      */
     @Transactional
     public WebhookInboundResultDto ingestWebhook(String tenantId,
@@ -659,7 +666,27 @@ public class IntegrationService {
         try {
             IntegrationAdapter adapter = adapterRepository.findByAdapterIdAndTenantId(request.adapterId(), tenantId)
                 .orElseThrow(() -> new ApiException(ErrorCode.ENG_INTEG_002, "适配器不存在: " + request.adapterId()));
-            MappingResult mapped = mapInboundPayload(tenantId, adapter, request.payload());
+            List<FieldMappingRule> mappingRules = fieldMappingRules(adapter);
+            ClinicalRuntimeRelease runtimeRelease = runtimeReleases.resolve(
+                RequestContext.currentOrgScope());
+            MappingResult mapped = mapInboundPayload(
+                tenantId, request, runtimeRelease.releaseId(), mappingRules);
+            InboundClinicalEventAccepted clinicalEvent = inboundClinicalEvents.getObject().accept(
+                tenantId,
+                new InboundClinicalEventCommand(
+                    stableInboundEventId(tenantId, webhookId, request.messageId()),
+                    request.eventType(),
+                    request.patientId(),
+                    blankToNull(request.encounterId()),
+                    request.clinicalSetting(),
+                    request.sourceSystem(),
+                    request.triggerPoint(),
+                    request.messageId(),
+                    runtimeRelease.releaseId(),
+                    mapped.payload(),
+                    request.occurredAt()
+                )
+            );
 
             ObjectNode stored = objectMapper.createObjectNode();
             stored.put("webhookId", webhookId);
@@ -668,6 +695,8 @@ public class IntegrationService {
             stored.set("mappedPayload", mapped.payload());
             stored.put("mappedFieldCount", mapped.mappedFieldCount());
             stored.put("normalizedCodeCount", mapped.normalizedCodeCount());
+            stored.put("clinicalEventId", clinicalEvent.eventId());
+            stored.put("clinicalEventStatus", clinicalEvent.status());
             stored.set("warnings", objectMapper.valueToTree(mapped.warnings()));
 
             IntegrationMessageLog log = new IntegrationMessageLog(
@@ -701,6 +730,8 @@ public class IntegrationService {
                 mapped.payload(),
                 mapped.mappedFieldCount(),
                 mapped.normalizedCodeCount(),
+                clinicalEvent.eventId(),
+                clinicalEvent.status(),
                 false,
                 mapped.warnings()
             );
@@ -1457,6 +1488,8 @@ public class IntegrationService {
         JsonNode mappedPayload = objectMapper.createObjectNode();
         int mappedFieldCount = 0;
         int normalizedCodeCount = 0;
+        String clinicalEventId = null;
+        String clinicalEventStatus = null;
         List<String> warnings = List.of();
         if (existing.payload() != null && !existing.payload().isBlank()) {
             try {
@@ -1467,6 +1500,8 @@ public class IntegrationService {
                 }
                 mappedFieldCount = stored.path("mappedFieldCount").asInt(0);
                 normalizedCodeCount = stored.path("normalizedCodeCount").asInt(0);
+                clinicalEventId = textOrNull(stored.path("clinicalEventId"));
+                clinicalEventStatus = textOrNull(stored.path("clinicalEventStatus"));
                 warnings = readWarnings(stored.path("warnings"));
             } catch (JsonProcessingException ignored) {
                 warnings = List.of("历史入站日志载荷不是标准 JSON，已按幂等结果返回状态");
@@ -1481,6 +1516,8 @@ public class IntegrationService {
             mappedPayload,
             mappedFieldCount,
             normalizedCodeCount,
+            clinicalEventId,
+            clinicalEventStatus,
             true,
             warnings
         );
@@ -1515,21 +1552,32 @@ public class IntegrationService {
         ));
     }
 
-    private MappingResult mapInboundPayload(String tenantId, IntegrationAdapter adapter, JsonNode rawPayload) {
+    private MappingResult mapInboundPayload(
+            String tenantId,
+            WebhookInboundRequestDto request,
+            String runtimeReleaseId,
+            List<FieldMappingRule> mappingRules) {
         ObjectNode mappedPayload = objectMapper.createObjectNode();
         List<String> warnings = new ArrayList<>();
         int mappedFieldCount = 0;
         int normalizedCodeCount = 0;
 
-        for (FieldMappingRule rule : fieldMappingRules(adapter)) {
-            JsonNode sourceValue = rawPayload.at(rule.sourcePath());
+        for (FieldMappingRule rule : mappingRules) {
+            JsonNode sourceValue = request.payload().at(rule.sourcePath());
             if (sourceValue.isMissingNode() || sourceValue.isNull()) {
                 warnings.add("字段缺失，未映射: " + rule.sourcePath());
                 continue;
             }
             JsonNode targetValue = sourceValue.deepCopy();
-            if (rule.termMappingId() != null) {
-                targetValue = normalizeCodeByTermMapping(tenantId, rule.termMappingId(), sourceValue);
+            if (rule.requiresTerminologyMapping()) {
+                targetValue = normalizeCodeByRuntimeRelease(
+                    tenantId,
+                    request.sourceSystem(),
+                    runtimeReleaseId,
+                    rule.targetDictionaryKey(),
+                    rule.category(),
+                    sourceValue
+                );
                 normalizedCodeCount++;
             }
             writeJsonPointer(mappedPayload, rule.targetPath(), targetValue);
@@ -1557,65 +1605,163 @@ public class IntegrationService {
         for (JsonNode mapping : mappings) {
             String sourcePath = requiredText(mapping, "sourcePath", adapter.adapterId());
             String targetPath = requiredText(mapping, "targetPath", adapter.adapterId());
-            Long termMappingId = mapping.hasNonNull("termMappingId") ? mapping.path("termMappingId").asLong() : null;
+            if (mapping.has("termMappingId")) {
+                throw new ApiException(
+                    ErrorCode.ENG_INTEG_001,
+                    "适配器字段映射不得引用可变 termMappingId，请配置 targetDictionaryKey 与 category"
+                );
+            }
+            String targetDictionaryKey = optionalText(mapping, "targetDictionaryKey");
+            String category = optionalText(mapping, "category");
+            if ((targetDictionaryKey == null) != (category == null)) {
+                throw new ApiException(
+                    ErrorCode.ENG_INTEG_001,
+                    "术语字段映射必须同时配置 targetDictionaryKey 与 category: " + adapter.adapterId()
+                );
+            }
             validateJsonPointer(sourcePath, "sourcePath");
             validateJsonPointer(targetPath, "targetPath");
-            rules.add(new FieldMappingRule(sourcePath, targetPath, termMappingId));
+            rules.add(new FieldMappingRule(sourcePath, targetPath, targetDictionaryKey, category));
         }
         return List.copyOf(rules);
     }
 
-    private JsonNode normalizeCodeByTermMapping(String tenantId, Long termMappingId, JsonNode sourceValue) {
-        TermMapping mapping = termMappingRepository.findByTenantIdAndId(tenantId, termMappingId)
-            .orElseThrow(() -> new ApiException(ErrorCode.ENG_INTEG_001, "术语映射不存在: " + termMappingId));
-        if (!MAPPING_CONFIRMED.equals(mapping.statusName())) {
-            throw new ApiException(ErrorCode.ENG_INTEG_001, "术语映射尚未确认，禁止入站归一: " + termMappingId);
+    private JsonNode normalizeCodeByRuntimeRelease(
+            String tenantId,
+            String sourceSystem,
+            String runtimeReleaseId,
+            String targetDictionaryKey,
+            String category,
+            JsonNode sourceValue) {
+        if (!sourceValue.isValueNode() || sourceValue.asText().isBlank()) {
+            throw new ApiException(ErrorCode.ENG_INTEG_001, "术语字段必须是非空标量编码");
         }
-        StandardTerm standard = standardTermRepository.findFirstByTenantIdsAndId(
-                standardTermSources(tenantId), tenantId, mapping.standardTermId())
-            .orElseThrow(() -> new ApiException(ErrorCode.ENG_INTEG_001, "标准术语不存在: " + mapping.standardTermId()));
-        if (!STANDARD_ACTIVE.equals(standard.statusName())) {
-            throw new ApiException(ErrorCode.ENG_INTEG_001, "标准术语已禁用，禁止入站归一: " + standard.termCode());
-        }
+        String localCode = sourceValue.asText().trim();
+        InboundTerminologyMapping mapping = inboundTerminologyMappings.resolve(
+            tenantId,
+            runtimeReleaseId,
+            blankToNull(sourceSystem),
+            localCode,
+            targetDictionaryKey,
+            category
+        );
 
         ObjectNode normalized = objectMapper.createObjectNode();
-        normalized.put("system", standard.standardSystem());
-        normalized.put("code", standard.termCode());
-        normalized.put("display", standard.displayName());
-        normalized.put("version", standard.versionNo());
-        normalized.put("sourceValue", sourceValue.isValueNode() ? sourceValue.asText() : sourceValue.toString());
-        normalized.put("termMappingId", termMappingId);
+        normalized.put("standardCode", mapping.standardCode());
+        normalized.put("codeSystem", targetDictionaryKey);
+        normalized.put("localCode", localCode);
+        normalized.put("localCodeSystem", sourceSystem);
+        normalized.put("sourceSystem", sourceSystem);
+        normalized.put("runtimeReleaseId", runtimeReleaseId);
+        normalized.put("mappingId", mapping.mappingId());
+        normalized.put("standardTermId", mapping.standardTermId());
+        normalized.put("mappedVersion", mapping.versionNo());
         return normalized;
-    }
-
-    private List<String> standardTermSources(String tenantId) {
-        String current = tenantId == null ? "" : tenantId.trim();
-        if (PlatformAuthority.PLATFORM_TENANT_ID.equals(current)) {
-            return List.of(PlatformAuthority.PLATFORM_TENANT_ID);
-        }
-        if (current.isBlank()) {
-            return List.of(PlatformAuthority.PLATFORM_TENANT_ID);
-        }
-        return List.of(PlatformAuthority.PLATFORM_TENANT_ID, current);
     }
 
     private void writeJsonPointer(ObjectNode root, String targetPath, JsonNode value) {
         String[] parts = targetPath.substring(1).split("/");
-        ObjectNode current = root;
+        JsonNode current = root;
         for (int i = 0; i < parts.length - 1; i++) {
             String part = decodeJsonPointerPart(parts[i]);
-            JsonNode child = current.get(part);
+            String nextPart = decodeJsonPointerPart(parts[i + 1]);
+            current = childContainer(current, part, nextPart, targetPath);
+        }
+        String finalPart = decodeJsonPointerPart(parts[parts.length - 1]);
+        if (current.isObject()) {
+            ((ObjectNode) current).set(finalPart, value.deepCopy());
+            return;
+        }
+        if (current.isArray()) {
+            int index = arrayIndex(finalPart, targetPath);
+            ArrayNode array = (ArrayNode) current;
+            ensureArraySize(array, index);
+            array.set(index, value.deepCopy());
+            return;
+        }
+        throw new ApiException(ErrorCode.ENG_INTEG_001, "字段映射目标路径冲突: " + targetPath);
+    }
+
+    private JsonNode childContainer(JsonNode current, String part, String nextPart, String targetPath) {
+        if (current.isObject()) {
+            ObjectNode object = (ObjectNode) current;
+            JsonNode child = object.get(part);
             if (child == null || child.isNull()) {
-                ObjectNode created = objectMapper.createObjectNode();
-                current.set(part, created);
-                current = created;
-            } else if (child.isObject()) {
-                current = (ObjectNode) child;
-            } else {
-                throw new ApiException(ErrorCode.ENG_INTEG_001, "字段映射目标路径冲突: " + targetPath);
+                JsonNode created = newContainer(nextPart);
+                object.set(part, created);
+                return created;
+            }
+            if (child.isContainerNode()) {
+                return child;
+            }
+            throw new ApiException(ErrorCode.ENG_INTEG_001, "字段映射目标路径冲突: " + targetPath);
+        }
+        if (current.isArray()) {
+            int index = arrayIndex(part, targetPath);
+            ArrayNode array = (ArrayNode) current;
+            ensureArraySize(array, index);
+            JsonNode child = array.get(index);
+            if (child == null || child.isNull()) {
+                JsonNode created = newContainer(nextPart);
+                array.set(index, created);
+                return created;
+            }
+            if (child.isContainerNode()) {
+                return child;
             }
         }
-        current.set(decodeJsonPointerPart(parts[parts.length - 1]), value.deepCopy());
+        throw new ApiException(ErrorCode.ENG_INTEG_001, "字段映射目标路径冲突: " + targetPath);
+    }
+
+    private JsonNode newContainer(String nextPart) {
+        return isArrayIndex(nextPart) ? objectMapper.createArrayNode() : objectMapper.createObjectNode();
+    }
+
+    private boolean isArrayIndex(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (!Character.isDigit(value.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private int arrayIndex(String value, String targetPath) {
+        if (!isArrayIndex(value)) {
+            throw new ApiException(ErrorCode.ENG_INTEG_001, "字段映射数组路径必须使用非负整数下标: " + targetPath);
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException exception) {
+            throw new ApiException(ErrorCode.ENG_INTEG_001, "字段映射数组下标超出范围: " + targetPath);
+        }
+    }
+
+    private void ensureArraySize(ArrayNode array, int index) {
+        while (array.size() <= index) {
+            array.addNull();
+        }
+    }
+
+    private String stableInboundEventId(String tenantId, String webhookId, String messageId) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                .digest((tenantId + "|" + webhookId + "|" + messageId).getBytes(StandardCharsets.UTF_8));
+            return "evt-wh-" + HexFormat.of().formatHex(digest).substring(0, 56);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "无法生成入站临床事件标识", exception);
+        }
+    }
+
+    private String textOrNull(JsonNode value) {
+        if (value == null || value.isMissingNode() || value.isNull()) {
+            return null;
+        }
+        String text = value.asText(null);
+        return text == null || text.isBlank() ? null : text;
     }
 
     private String requiredText(JsonNode node, String fieldName, String adapterId) {
@@ -1624,6 +1770,11 @@ public class IntegrationService {
             throw new ApiException(ErrorCode.ENG_INTEG_001, "适配器字段映射缺少 " + fieldName + ": " + adapterId);
         }
         return value;
+    }
+
+    private String optionalText(JsonNode node, String fieldName) {
+        String value = node.path(fieldName).asText(null);
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private void validateJsonPointer(String path, String fieldName) {
@@ -1761,7 +1912,15 @@ public class IntegrationService {
         return hexString.toString();
     }
 
-    private record FieldMappingRule(String sourcePath, String targetPath, Long termMappingId) {
+    private record FieldMappingRule(
+            String sourcePath,
+            String targetPath,
+            String targetDictionaryKey,
+            String category) {
+
+        private boolean requiresTerminologyMapping() {
+            return targetDictionaryKey != null;
+        }
     }
 
     private record MappingResult(JsonNode payload, int mappedFieldCount, int normalizedCodeCount, List<String> warnings) {

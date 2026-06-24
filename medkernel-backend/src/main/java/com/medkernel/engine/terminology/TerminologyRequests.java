@@ -17,7 +17,7 @@ import jakarta.validation.constraints.Size;
 /**
  * 术语映射模块写操作请求对象。
  *
- * <p>聚合确认候选、候选生成、冲突处置、映射包构建、发布及回滚等入参契约。
+ * <p>聚合确认候选、候选生成、冲突处置、映射版本构建、发布及回滚等入参契约。
  */
 public final class TerminologyRequests {
     private TerminologyRequests() {}
@@ -25,6 +25,8 @@ public final class TerminologyRequests {
 
 /**
  * API-04 写入类请求的标准上下文字段。
+ *
+ * <p>标准上下文只校验操作者和组织范围；字典映射快照、版本明细和导出文件不再通过通用版本定位门槛传递。
  */
 record TerminologyApiContext(
     @JsonProperty("request_id") String requestId,
@@ -37,8 +39,7 @@ record TerminologyApiContext(
     @JsonProperty("department_id") String departmentId,
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
-    @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion
+    @JsonProperty("role_codes") List<String> roleCodes
 ) {
     TerminologyApiContext {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
@@ -50,7 +51,6 @@ record TerminologyApiContext(
         requireText(errors, "trace_id", traceId);
         requireText(errors, "tenant_id", tenantId);
         requireText(errors, "user_id", userId);
-        requireText(errors, "package_version", packageVersion);
         if (roleCodes == null || roleCodes.isEmpty()) {
             errors.add(new ApiError("role_codes", "NotEmpty", "标准上下文 role_codes 不能为空"));
         }
@@ -79,11 +79,10 @@ record TerminologyApiContext(
             String departmentId,
             String specialtyId,
             String userId,
-            List<String> roleCodes,
-            String packageVersion) {
+            List<String> roleCodes) {
         return new TerminologyApiContext(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }
@@ -107,7 +106,6 @@ record TerminologyCandidateGenerationRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     @NotBlank @Size(max = 64) String sourceSystem,
     Double minimumScore,
     Boolean semanticAssistEnabled
@@ -119,13 +117,13 @@ record TerminologyCandidateGenerationRequest(
     public TerminologyApiContext context() {
         return TerminologyApiContext.from(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }
 
 /**
- * 标准术语登记请求体；用于把试点所需标准字典条目登记为当前租户覆盖或平台基线。
+ * 标准术语登记请求体；用于把试点所需标准字典条目登记为当前租户覆盖或平台标准版本。
  */
 record StandardTermRegistrationRequest(
     @JsonProperty("request_id") String requestId,
@@ -139,7 +137,6 @@ record StandardTermRegistrationRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     @NotBlank @Size(max = 64) String standardSystem,
     @NotBlank @Size(max = 128) String termCode,
     @NotNull TermCategory category,
@@ -156,7 +153,7 @@ record StandardTermRegistrationRequest(
     public TerminologyApiContext context() {
         return TerminologyApiContext.from(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }
@@ -176,7 +173,6 @@ record LocalTermRegistrationRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     @NotBlank @Size(max = 64) String sourceSystem,
     @NotBlank @Size(max = 128) String localCode,
     @NotNull TermCategory category,
@@ -191,15 +187,13 @@ record LocalTermRegistrationRequest(
     public TerminologyApiContext context() {
         return TerminologyApiContext.from(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }
 
 /**
- * 确认候选映射请求体。
- *
- * <p>高危候选必须逐条提交 highRiskAcknowledged 与 highRiskReason。
+ * 确认候选映射请求体。高危候选必须逐条确认，但不再设置额外双签字段。
  */
 record TerminologyCandidateConfirmRequest(
     @JsonProperty("request_id") String requestId,
@@ -213,11 +207,8 @@ record TerminologyCandidateConfirmRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     @Size(max = 500) String reviewNote,
-    @Size(max = 1024) String evidenceOverride,
-    Boolean highRiskAcknowledged,
-    @Size(max = 500) String highRiskReason
+    @Size(max = 1024) String evidenceOverride
 ) implements TerminologyContextRequest {
     TerminologyCandidateConfirmRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
@@ -226,7 +217,7 @@ record TerminologyCandidateConfirmRequest(
     public TerminologyApiContext context() {
         return TerminologyApiContext.from(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }
@@ -248,7 +239,6 @@ record TerminologyCandidateRejectRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     @NotBlank @Size(max = 500) String reviewNote
 ) implements TerminologyContextRequest {
     TerminologyCandidateRejectRequest {
@@ -258,7 +248,7 @@ record TerminologyCandidateRejectRequest(
     public TerminologyApiContext context() {
         return TerminologyApiContext.from(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }
@@ -278,7 +268,6 @@ record TerminologyCandidateBatchConfirmRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     @NotEmpty List<Long> candidateIds,
     @Size(max = 500) String reviewNote
 ) implements TerminologyContextRequest {
@@ -290,7 +279,7 @@ record TerminologyCandidateBatchConfirmRequest(
     public TerminologyApiContext context() {
         return TerminologyApiContext.from(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }
@@ -310,7 +299,6 @@ record ResolveConflictRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     @NotBlank @Size(max = 500) String resolutionNote
 ) implements TerminologyContextRequest {
     ResolveConflictRequest {
@@ -320,7 +308,7 @@ record ResolveConflictRequest(
     public TerminologyApiContext context() {
         return TerminologyApiContext.from(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }

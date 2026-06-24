@@ -29,10 +29,15 @@ import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
 import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.AssetOwnershipScope;
+import com.medkernel.engine.versioning.AssetScopeResolver;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.VersionPublishEvidence;
+import com.medkernel.engine.versioning.VersionPublishQualityGate;
 import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.engine.release.ReleaseSourceLayer;
 import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.knowledge.production.gate.PublicationQualityRecordService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -63,6 +68,8 @@ class KnowledgeVersionServiceTest {
     private KnowledgeVersionedAssetAdapter versionedAssets;
     private AssetVersionRepository assetVersions;
     private ReleasePort releasePort;
+    private PublicationQualityRecordService publicationQualityRecords;
+    private AssetScopeResolver assetScopes;
     private KnowledgeVersionService service;
 
     @BeforeEach
@@ -81,10 +88,24 @@ class KnowledgeVersionServiceTest {
         versionedAssets = Mockito.mock(KnowledgeVersionedAssetAdapter.class);
         assetVersions = Mockito.mock(AssetVersionRepository.class);
         releasePort = Mockito.mock(ReleasePort.class);
+        publicationQualityRecords = Mockito.mock(PublicationQualityRecordService.class);
+        assetScopes = Mockito.mock(AssetScopeResolver.class);
         service = new KnowledgeVersionService(
             identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, sourceVersionRepo, projectionRefreshPort,
             candidateClassificationRepo, reviewAssignmentRepo, invalidationRepo, affectedCaseTaskRepo,
-            versionedAssets, assetVersions, releasePort);
+            versionedAssets, assetVersions, releasePort, publicationQualityRecords, assetScopes);
+        when(assetScopes.resolve(any(), any(OrgScope.class)))
+            .thenAnswer(invocation -> {
+                String tenantId = invocation.getArgument(0);
+                return "t-1".equals(tenantId)
+                    ? new AssetOwnershipScope(
+                        ReleaseSourceLayer.PLATFORM, "/__platform__")
+                    : new AssetOwnershipScope(
+                        ReleaseSourceLayer.HOSPITAL, "/" + tenantId + "/h-1");
+            });
+        when(publicationQualityRecords.requirePublishEvidence(any(), any(), any()))
+            .thenReturn(new VersionPublishEvidence(new VersionPublishQualityGate(
+                true, true, true, true, true, "服务端质量门测试记录")));
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "u-99"));
 
         // 默认 save 返回参数，方便断言保留字段
@@ -128,6 +149,28 @@ class KnowledgeVersionServiceTest {
     }
 
     @Test
+    void knowledgeAssetVersionNeverFabricatesAMissingOrganizationOwner() {
+        KnowledgeAssetVersion invalid = version(
+            10L,
+            "tenant-A",
+            1L,
+            KnowledgeVersionStatus.CANDIDATE,
+            KnowledgeRiskLevel.LOW,
+            SourceAuthorityLevel.B_GUIDELINE,
+            null,
+            KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE
+        );
+
+        assertThatThrownBy(invalid::effectiveOrganizationScope)
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("组织归属");
+        assertThatThrownBy(() -> KnowledgeAssetVersion.activeScopeKey(
+            1L, null, KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("组织归属");
+    }
+
+    @Test
     void activateFirstVersionTransitionsToActiveAndWritesSupersession() {
         // 给一个无 active 版本的身份 + 一个 UNDER_REVIEW 候选版本
         KnowledgeIdentity identity = identity(1L, null);
@@ -140,7 +183,7 @@ class KnowledgeVersionServiceTest {
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 10L))
             .thenReturn(List.of(citation(10L)));
 
-        KnowledgeAssetVersion activated = service.activate(1L, 10L, null, VersionPublishEvidence.empty());
+        KnowledgeAssetVersion activated = service.activate(1L, 10L, null, 900L);
 
         // 1) 目标版本变 ACTIVE
         assertThat(activated.status()).isEqualTo(KnowledgeVersionStatus.ACTIVE);
@@ -186,7 +229,7 @@ class KnowledgeVersionServiceTest {
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 11L))
             .thenReturn(List.of(citation(11L)));
 
-        service.activate(1L, 11L, "新版指南更新", VersionPublishEvidence.empty());
+        service.activate(1L, 11L, "新版指南更新", 900L);
 
         ArgumentCaptor<KnowledgeAssetVersion> vCap = ArgumentCaptor.forClass(KnowledgeAssetVersion.class);
         verify(versionRepo, times(2)).save(vCap.capture());
@@ -225,7 +268,7 @@ class KnowledgeVersionServiceTest {
         assertThat(task.getAllValues()).extracting(AffectedCaseTask::taskType)
             .containsExactlyInAnyOrder(
                 AffectedCaseTaskType.PHYSICIAN_REVIEW,
-                AffectedCaseTaskType.PACKAGE_RESYNC,
+                AffectedCaseTaskType.ASSET_DEPENDENCY_REVIEW,
                 AffectedCaseTaskType.SYNC_ALERT);
         assertThat(task.getAllValues()).extracting(AffectedCaseTask::reason)
             .allSatisfy(reason -> assertThat(reason).contains("新版指南更新").contains("newVersionId=11"));
@@ -247,7 +290,7 @@ class KnowledgeVersionServiceTest {
             .thenReturn(List.of(citation(5L)));
 
         KnowledgeAssetVersion activated = service.activate(
-            1L, 5L, "回滚到上一版权威知识", VersionPublishEvidence.empty());
+            1L, 5L, "回滚到上一版权威知识", 900L);
 
         assertThat(activated.id()).isEqualTo(5L);
         assertThat(activated.status()).isEqualTo(KnowledgeVersionStatus.ACTIVE);
@@ -284,7 +327,7 @@ class KnowledgeVersionServiceTest {
             .thenReturn(List.of(citation(11L)));
 
         KnowledgeAssetVersion activated = service.activate(
-            1L, 11L, "心内科专项版本", VersionPublishEvidence.empty());
+            1L, 11L, "心内科专项版本", 900L);
 
         verify(versionRepo, times(1)).save(any(KnowledgeAssetVersion.class));
         assertThat(activated.status()).isEqualTo(KnowledgeVersionStatus.ACTIVE);
@@ -308,7 +351,7 @@ class KnowledgeVersionServiceTest {
             .thenReturn(List.of(citation(10L)));
 
         KnowledgeAssetVersion activated = service.activate(
-            1L, 10L, "发布新版知识资产", VersionPublishEvidence.empty());
+            1L, 10L, "发布新版知识资产", 900L);
 
         assertThat(activated.status()).isEqualTo(KnowledgeVersionStatus.ACTIVE);
         verify(projectionRefreshPort).refreshPublishedVersion("t-1", 1L, 10L, "u-99", "trace");
@@ -329,7 +372,7 @@ class KnowledgeVersionServiceTest {
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 11L))
             .thenReturn(List.of(citation(11L)));
 
-        service.activate(1L, 11L, null, VersionPublishEvidence.empty());
+        service.activate(1L, 11L, null, 900L);
 
         ArgumentCaptor<KnowledgeAssetVersion> vCap = ArgumentCaptor.forClass(KnowledgeAssetVersion.class);
         verify(versionRepo, times(2)).save(vCap.capture());
@@ -362,7 +405,7 @@ class KnowledgeVersionServiceTest {
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 11L))
             .thenReturn(List.of(citation(11L)));
 
-        service.activate(1L, 11L, null, VersionPublishEvidence.empty());
+        service.activate(1L, 11L, null, 900L);
 
         ArgumentCaptor<KnowledgeAssetVersion> vCap = ArgumentCaptor.forClass(KnowledgeAssetVersion.class);
         verify(versionRepo, times(2)).save(vCap.capture());
@@ -407,7 +450,7 @@ class KnowledgeVersionServiceTest {
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 11L))
             .thenReturn(List.of(citation(11L)));
 
-        assertThatThrownBy(() -> service.activate(1L, 11L, "  ", VersionPublishEvidence.empty()))
+        assertThatThrownBy(() -> service.activate(1L, 11L, "  ", 900L))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.AUTHORITY_OVERRIDE_DENIED);
@@ -432,7 +475,7 @@ class KnowledgeVersionServiceTest {
             .thenReturn(List.of(citation(11L)));
 
         service.activate(
-            1L, 11L, "院内药事会已审核本院禁忌证差异", VersionPublishEvidence.empty());
+            1L, 11L, "院内药事会已审核本院禁忌证差异", 900L);
 
         ArgumentCaptor<KnowledgeAssetVersion> vCap = ArgumentCaptor.forClass(KnowledgeAssetVersion.class);
         verify(versionRepo, times(2)).save(vCap.capture());
@@ -452,7 +495,7 @@ class KnowledgeVersionServiceTest {
         when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
         when(versionRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(draft));
 
-        assertThatThrownBy(() -> service.activate(1L, 10L, null, VersionPublishEvidence.empty()))
+        assertThatThrownBy(() -> service.activate(1L, 10L, null, 900L))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.CONFLICT);
@@ -467,7 +510,7 @@ class KnowledgeVersionServiceTest {
         when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
         when(versionRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(otherIdentityVersion));
 
-        assertThatThrownBy(() -> service.activate(1L, 10L, null, VersionPublishEvidence.empty()))
+        assertThatThrownBy(() -> service.activate(1L, 10L, null, 900L))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.CONFLICT);
@@ -480,7 +523,7 @@ class KnowledgeVersionServiceTest {
         when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
         when(versionRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(highRisk));
 
-        assertThatThrownBy(() -> service.activate(1L, 10L, "  ", VersionPublishEvidence.empty()))
+        assertThatThrownBy(() -> service.activate(1L, 10L, "  ", 900L))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.VALIDATION_FAILED);
@@ -493,7 +536,7 @@ class KnowledgeVersionServiceTest {
         when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
         when(versionRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(candidate));
 
-        assertThatThrownBy(() -> service.activate(1L, 10L, null, VersionPublishEvidence.empty()))
+        assertThatThrownBy(() -> service.activate(1L, 10L, null, 900L))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.KNOWLEDGE_CITATION_REQUIRED);
@@ -509,7 +552,7 @@ class KnowledgeVersionServiceTest {
         );
         when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
 
-        assertThatThrownBy(() -> service.activate(1L, 99L, null, VersionPublishEvidence.empty()))
+        assertThatThrownBy(() -> service.activate(1L, 99L, null, 900L))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.CONFLICT);
@@ -544,7 +587,7 @@ class KnowledgeVersionServiceTest {
 
         ArgumentCaptor<AssetVersion> unifiedCap = ArgumentCaptor.forClass(AssetVersion.class);
         verify(assetVersions).save(unifiedCap.capture());
-        assertThat(unifiedCap.getValue().status()).isEqualTo(AssetVersionStatus.DEPRECATED);
+        assertThat(unifiedCap.getValue().status()).isEqualTo(AssetVersionStatus.WITHDRAWN);
         assertThat(unifiedCap.getValue().effectiveTo()).isNotNull();
     }
 
@@ -574,7 +617,7 @@ class KnowledgeVersionServiceTest {
         assertThat(task.getAllValues()).extracting(AffectedCaseTask::taskType)
             .containsExactlyInAnyOrder(
                 AffectedCaseTaskType.PHYSICIAN_REVIEW,
-                AffectedCaseTaskType.PACKAGE_RESYNC,
+                AffectedCaseTaskType.ASSET_DEPENDENCY_REVIEW,
                 AffectedCaseTaskType.SYNC_ALERT);
         assertThat(task.getAllValues()).extracting(AffectedCaseTask::status)
             .containsOnly(AffectedCaseTaskStatus.OPEN);
@@ -591,7 +634,7 @@ class KnowledgeVersionServiceTest {
         when(versionRepo.findByTenantIdAndId("t-1", 5L)).thenReturn(Optional.of(withdrawn));
 
         assertThatThrownBy(() -> service.activate(
-            1L, 5L, "尝试回滚旧版", VersionPublishEvidence.empty()))
+            1L, 5L, "尝试回滚旧版", 900L))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ROLLBACK_SAFETY_DENIED);
@@ -696,6 +739,30 @@ class KnowledgeVersionServiceTest {
         ArgumentCaptor<ReviewAssignment> assignment = ArgumentCaptor.forClass(ReviewAssignment.class);
         verify(reviewAssignmentRepo).save(assignment.capture());
         assertThat(assignment.getValue().orgPath()).isEqualTo("tenant:t-1");
+    }
+
+    @Test
+    void classifyInstitutionCandidateUsesTheRealFacilityOwnerPath() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace",
+            new OrgScope(
+                "tenant-A", null, "h-1", null, null,
+                "d-1", null, "CARD"),
+            "u-99"
+        ));
+        when(identityRepo.findByTenantIdAndId("tenant-A", 1L))
+            .thenReturn(Optional.of(identity(1L, "tenant-A", "DRUG.X", null)));
+        when(sourceDocRepo.findByTenantIdAndId("tenant-A", 7L))
+            .thenReturn(Optional.of(sourceDocument(
+                "tenant-A", 7L, SourceAuthorityLevel.B_GUIDELINE)));
+
+        KnowledgeAssetVersion created = service.classifyCandidate(
+            1L,
+            versionCreateRequestWithTenant(
+                "tenant-A", 7L, 8L, "v2", "院内真实指南内容")
+        ).candidates().items().getFirst();
+
+        assertThat(created.organizationScope()).isEqualTo("/tenant-A/h-1");
     }
 
     @Test
@@ -811,7 +878,7 @@ class KnowledgeVersionServiceTest {
         when(versionRepo.findByTenantIdAndId("t-1", 10L))
             .thenReturn(Optional.of(version(10L, 2L, KnowledgeVersionStatus.SUPERSEDED, KnowledgeRiskLevel.LOW)));
 
-        assertThatThrownBy(() -> service.replayVersion(1L, 10L, "pkg-2026.06", "snap-1"))
+        assertThatThrownBy(() -> service.replayVersion(1L, 10L, "snap-1"))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.CONFLICT);
@@ -823,13 +890,12 @@ class KnowledgeVersionServiceTest {
         when(identityRepo.findByTenantIdAndId("t-1", 1L)).thenReturn(Optional.of(identity(1L, null)));
         when(versionRepo.findByTenantIdAndId("t-1", 10L)).thenReturn(Optional.of(superseded));
 
-        KnowledgeReplayResponse replay = service.replayVersion(1L, 10L, "pkg-2026.06", "snap-1");
+        KnowledgeReplayResponse replay = service.replayVersion(1L, 10L, "snap-1");
 
         assertThat(replay.identityId()).isEqualTo(1L);
         assertThat(replay.versionId()).isEqualTo(10L);
         assertThat(replay.historicalVersion()).isTrue();
         assertThat(replay.status()).isEqualTo(KnowledgeVersionStatus.SUPERSEDED);
-        assertThat(replay.packageVersion()).isEqualTo("pkg-2026.06");
         assertThat(replay.snapshotId()).isEqualTo("snap-1");
     }
 
@@ -965,7 +1031,6 @@ class KnowledgeVersionServiceTest {
         verify(versionedAssets).registerDraft(registered.capture());
         assertThat(registered.getValue().assetType()).isEqualTo(VersionedAssetType.KNOWLEDGE);
         assertThat(registered.getValue().assetIdentity()).isEqualTo(identity.identityCode());
-        assertThat(registered.getValue().versionNo()).isEqualTo("regulation-v2");
         assertThat(registered.getValue().contentHash())
             .isEqualTo(response.candidates().items().getFirst().contentHash());
     }
@@ -1025,9 +1090,9 @@ class KnowledgeVersionServiceTest {
 
         KnowledgeCandidateReviewRequest rejectRequest = new KnowledgeCandidateReviewRequest(
             "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
-            "u-99", List.of("knowledge.review"), "pkg-2026.06",
+            "u-99", List.of("knowledge.review"),
             KnowledgeCandidateReviewDecision.REJECT, "来源冲突，退回补证",
-            VersionPublishEvidence.empty()
+            900L
         );
         KnowledgeCandidateResponse response = service.reviewCandidate(88L, rejectRequest);
 
@@ -1060,9 +1125,9 @@ class KnowledgeVersionServiceTest {
 
         KnowledgeCandidateReviewRequest returnRequest = new KnowledgeCandidateReviewRequest(
             "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
-            "u-99", List.of("knowledge.review"), "pkg-2026.06",
+            "u-99", List.of("knowledge.review"),
             KnowledgeCandidateReviewDecision.RETURN, "请补充禁忌章节后重提",
-            VersionPublishEvidence.empty()
+            900L
         );
         KnowledgeCandidateResponse response = service.reviewCandidate(88L, returnRequest);
 
@@ -1099,9 +1164,9 @@ class KnowledgeVersionServiceTest {
 
         KnowledgeCandidateReviewRequest returnRequest = new KnowledgeCandidateReviewRequest(
             "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
-            "u-99", List.of("knowledge.review"), "pkg-2026.06",
+            "u-99", List.of("knowledge.review"),
             KnowledgeCandidateReviewDecision.RETURN, "AI 生成内容缺少关键禁忌章节，需回流生产台补齐",
-            VersionPublishEvidence.empty(),
+            900L,
             KnowledgeReviewFeedbackType.CONTENT_GAP,
             KnowledgeReviewFollowupAction.CREATE_REVISION_CANDIDATE
         );
@@ -1129,9 +1194,9 @@ class KnowledgeVersionServiceTest {
 
         KnowledgeCandidateReviewRequest blankReason = new KnowledgeCandidateReviewRequest(
             "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
-            "u-99", List.of("knowledge.review"), "pkg-2026.06",
+            "u-99", List.of("knowledge.review"),
             KnowledgeCandidateReviewDecision.RETURN, "   ",
-            VersionPublishEvidence.empty()
+            900L
         );
         assertThatThrownBy(() -> service.reviewCandidate(88L, blankReason))
             .isInstanceOf(ApiException.class)
@@ -1151,9 +1216,9 @@ class KnowledgeVersionServiceTest {
         when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
         when(reviewAssignmentRepo.findByTenantIdAndCandidateClassificationIdOrderByCreatedAtAscIdAsc("t-1", 88L))
             .thenReturn(List.of(assignment(
-                101L, classification, RoleCode.KNOWLEDGE_GOVERNOR.code(),
+                101L, classification, "reviewer-else",
                 CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW, null, null)));
-        authenticate(RoleCode.CLINICAL_GOVERNOR);
+        authenticate(RoleCode.ENGINE_OPERATOR);
 
         assertThatThrownBy(() -> service.reviewCandidate(88L, candidateReviewRequest("t-1")))
             .isInstanceOf(ApiException.class)
@@ -1164,66 +1229,7 @@ class KnowledgeVersionServiceTest {
     }
 
     @Test
-    void highRiskFirstSignatureStaysPendingWithoutActivation() {
-        KnowledgeAssetVersion candidate = version(
-            22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.HIGH);
-        CandidateClassification classification = classification(
-            88L, 1L, 22L, 5L, CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
-            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
-        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
-        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity(1L, 5L)));
-        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
-        when(reviewAssignmentRepo.findByTenantIdAndCandidateClassificationIdOrderByCreatedAtAscIdAsc("t-1", 88L))
-            .thenReturn(List.of(
-                assignment(101L, classification, RoleCode.KNOWLEDGE_GOVERNOR.code(),
-                    CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW, null, null),
-                assignment(102L, classification, RoleCode.MEDICATION_SAFETY_USER.code(),
-                    CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW, null, null)));
-        authenticate(RoleCode.KNOWLEDGE_GOVERNOR);
-
-        KnowledgeCandidateResponse response = service.reviewCandidate(88L, candidateReviewRequest("t-1"));
-
-        assertThat(response.reasonCode()).isEqualTo("PENDING_DUAL_SIGN");
-        assertThat(response.classifications()).singleElement()
-            .satisfies(item -> assertThat(item.reviewStatus())
-                .isEqualTo(CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW));
-        ArgumentCaptor<ReviewAssignment> saved = ArgumentCaptor.forClass(ReviewAssignment.class);
-        verify(reviewAssignmentRepo).save(saved.capture());
-        assertThat(saved.getValue().id()).isEqualTo(101L);
-        assertThat(saved.getValue().reviewStatus()).isEqualTo(CandidateReviewStatus.APPROVED);
-        assertThat(saved.getValue().decidedBy()).isEqualTo("u-99");
-        verify(supersessionRepo, never()).save(any());
-        verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
-    }
-
-    @Test
-    void highRiskRejectsSamePersonCompletingSecondSignature() {
-        KnowledgeAssetVersion candidate = version(
-            22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.HIGH);
-        CandidateClassification classification = classification(
-            88L, 1L, 22L, 5L, CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
-            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
-        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
-        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity(1L, 5L)));
-        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
-        when(reviewAssignmentRepo.findByTenantIdAndCandidateClassificationIdOrderByCreatedAtAscIdAsc("t-1", 88L))
-            .thenReturn(List.of(
-                assignment(101L, classification, RoleCode.KNOWLEDGE_GOVERNOR.code(),
-                    CandidateReviewStatus.APPROVED, KnowledgeCandidateReviewDecision.APPROVE, "u-99"),
-                assignment(102L, classification, RoleCode.MEDICATION_SAFETY_USER.code(),
-                    CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW, null, null)));
-        authenticate(RoleCode.MEDICATION_SAFETY_USER);
-
-        assertThatThrownBy(() -> service.reviewCandidate(88L, candidateReviewRequest("t-1")))
-            .isInstanceOf(ApiException.class)
-            .hasMessageContaining("同一人员不能完成高风险双签");
-
-        verify(reviewAssignmentRepo, never()).save(any());
-        verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
-    }
-
-    @Test
-    void highRiskActivatesOnlyAfterSecondDistinctAssignedSignature() {
+    void highRiskActivatesAfterSingleAssignedApproval() {
         KnowledgeIdentity identity = identity(1L, 5L);
         KnowledgeAssetVersion active = version(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
         KnowledgeAssetVersion candidate = version(
@@ -1239,12 +1245,10 @@ class KnowledgeVersionServiceTest {
         when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 22L))
             .thenReturn(List.of(citation(22L)));
         when(reviewAssignmentRepo.findByTenantIdAndCandidateClassificationIdOrderByCreatedAtAscIdAsc("t-1", 88L))
-            .thenReturn(List.of(
-                assignment(101L, classification, RoleCode.KNOWLEDGE_GOVERNOR.code(),
-                    CandidateReviewStatus.APPROVED, KnowledgeCandidateReviewDecision.APPROVE, "reviewer-a"),
-                assignment(102L, classification, RoleCode.MEDICATION_SAFETY_USER.code(),
-                    CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW, null, null)));
-        authenticate(RoleCode.MEDICATION_SAFETY_USER);
+            .thenReturn(List.of(assignment(
+                101L, classification, RoleCode.ENGINE_OPERATOR.code(),
+                CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW, null, null)));
+        authenticate(RoleCode.ENGINE_OPERATOR);
 
         KnowledgeCandidateResponse response = service.reviewCandidate(88L, candidateReviewRequest("t-1"));
 
@@ -1266,16 +1270,16 @@ class KnowledgeVersionServiceTest {
         when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
         when(reviewAssignmentRepo.findByTenantIdAndCandidateClassificationIdOrderByCreatedAtAscIdAsc("t-1", 88L))
             .thenReturn(List.of(
-                assignment(101L, classification, RoleCode.KNOWLEDGE_GOVERNOR.code(),
+                assignment(101L, classification, RoleCode.ENGINE_OPERATOR.code(),
                     CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW, null, null),
-                assignment(102L, classification, RoleCode.MEDICATION_SAFETY_USER.code(),
+                assignment(102L, classification, RoleCode.ENGINE_OPERATOR.code(),
                     CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW, null, null)));
-        authenticate(RoleCode.KNOWLEDGE_GOVERNOR);
+        authenticate(RoleCode.ENGINE_OPERATOR);
         KnowledgeCandidateReviewRequest returnRequest = new KnowledgeCandidateReviewRequest(
             "req-1", "trace-1", "t-1", null, "h-1", null, null, "d-1", "CARD",
-            "u-99", List.of("knowledge.review"), "pkg-2026.06",
+            "u-99", List.of("knowledge.review"),
             KnowledgeCandidateReviewDecision.RETURN, "补充禁忌来源后重提",
-            VersionPublishEvidence.empty());
+            900L);
 
         KnowledgeCandidateResponse response = service.reviewCandidate(88L, returnRequest);
 
@@ -1362,7 +1366,7 @@ class KnowledgeVersionServiceTest {
     @Test
     void requiresTenantContext() {
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.empty(), null));
-        assertThatThrownBy(() -> service.activate(1L, 10L, null, VersionPublishEvidence.empty()))
+        assertThatThrownBy(() -> service.activate(1L, 10L, null, 900L))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.TENANT_CONTEXT_MISSING);
@@ -1370,11 +1374,11 @@ class KnowledgeVersionServiceTest {
 
     @Test
     void classifyCandidateInCustomerTenantDoesNotWriteBackToPlatformTenant() {
-        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "organization-admin"));
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "platform-admin"));
         KnowledgeIdentity identity = new KnowledgeIdentity(
             1L, "t-hospital", "DRUG.X", KnowledgeDomain.DRUG, "医院定制主题", null, null,
             KnowledgeIdentityStatus.ACTIVE, null,
-            Instant.now(), "organization-admin", Instant.now(), "organization-admin"
+            Instant.now(), "platform-admin", Instant.now(), "platform-admin"
         );
         when(identityRepo.findByTenantIdAndId("t-hospital", 1L)).thenReturn(Optional.of(identity));
         when(sourceDocRepo.findByTenantIdAndId("t-hospital", 10L)).thenReturn(Optional.of(sourceDocument("t-hospital", 10L, SourceAuthorityLevel.D_HOSPITAL)));
@@ -1390,14 +1394,14 @@ class KnowledgeVersionServiceTest {
             .get(0);
 
         assertThat(saved.tenantId()).isEqualTo("t-hospital");
-        assertThat(saved.createdBy()).isEqualTo("organization-admin");
+        assertThat(saved.createdBy()).isEqualTo("platform-admin");
         verify(identityRepo, never()).findByTenantIdAndId("t-1", 1L);
         verify(versionRepo, never()).findByTenantIdAndIdentityIdOrderByCreatedAtDesc("t-1", 1L);
     }
 
     @Test
     void classifyCandidateInCustomerTenantTreatsPlatformIdentityAsReadOnly() {
-        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "organization-admin"));
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "platform-admin"));
         KnowledgeIdentity platformIdentity = new KnowledgeIdentity(
             1L, "t-1", "DRUG.X", KnowledgeDomain.DRUG, "平台主源主题", null, null,
             KnowledgeIdentityStatus.ACTIVE, null,
@@ -1419,7 +1423,7 @@ class KnowledgeVersionServiceTest {
 
     @Test
     void listByIdentityFallsBackToPlatformIdentityWhenCustomerHasNoLocalOverride() {
-        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "clinical-decision-user"));
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "clinical-user"));
         KnowledgeIdentity platformIdentity = identity(100L, "t-1", "DRUG.X", null);
         KnowledgeAssetVersion platformVersion =
             version(900L, "t-1", 100L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
@@ -1442,7 +1446,7 @@ class KnowledgeVersionServiceTest {
 
     @Test
     void listByIdentityPrefersLocalIdentityWithSameCodeOverPlatformIdentity() {
-        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "clinical-decision-user"));
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-hospital"), "clinical-user"));
         KnowledgeIdentity platformIdentity = identity(100L, "t-1", "DRUG.X", null);
         KnowledgeIdentity localIdentity = identity(200L, "t-hospital", "DRUG.X", null);
         KnowledgeAssetVersion localVersion =
@@ -1577,7 +1581,7 @@ class KnowledgeVersionServiceTest {
             Long sourceVersionId, String versionNo, String content) {
         return new KnowledgeVersionCreateRequest(
             "req-1", "trace-1", tenantId, null, "h-1", null, null, "d-1", "CARD",
-            "u-99", List.of("knowledge.write"), "pkg-2026.06",
+            "u-99", List.of("knowledge.write"),
             versionNo, "2026 版", sourceDocumentId, sourceVersionId, content, "[]", KnowledgeRiskLevel.LOW,
             GradeEvidenceQuality.HIGH, GradeRecommendationStrength.STRONG, 12
         );
@@ -1586,16 +1590,16 @@ class KnowledgeVersionServiceTest {
     private KnowledgeActionRequest actionRequest(String tenantId) {
         return new KnowledgeActionRequest(
             "req-1", "trace-1", tenantId, null, "h-1", null, null, "d-1", "CARD",
-            "u-99", List.of("knowledge.review"), "pkg-2026.06", "提交审核"
+            "u-99", List.of("knowledge.review"), "提交审核"
         );
     }
 
     private KnowledgeCandidateReviewRequest candidateReviewRequest(String tenantId) {
         return new KnowledgeCandidateReviewRequest(
             "req-1", "trace-1", tenantId, null, "h-1", null, null, "d-1", "CARD",
-            "u-99", List.of("knowledge.review"), "pkg-2026.06",
+            "u-99", List.of("knowledge.review"),
             KnowledgeCandidateReviewDecision.APPROVE, "同意",
-            VersionPublishEvidence.empty()
+            900L
         );
     }
 

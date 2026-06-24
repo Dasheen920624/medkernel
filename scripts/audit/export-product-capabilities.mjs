@@ -77,17 +77,11 @@ const routeDecisions = {
     targetEntry: "服务机构",
     task: "维护服务机构、稳定组织层级和机构类型",
   },
-  "/config/packages": {
-    decision: "MOVE",
-    targetDomain: "知识治理",
-    targetEntry: "配置包与发布",
-    task: "组装、审核、灰度、全量、同步和回滚配置包",
-  },
   "/config/releases": {
     decision: "MERGE",
     targetDomain: "知识治理",
-    targetEntry: "配置包与发布",
-    task: "作为配置包详情中的影响、发布和回滚步骤",
+    targetEntry: "机构生效版本",
+    task: "维护平台标准版本、机构生效版本、发布影响和回滚证据",
   },
   "/authoring/assets": {
     decision: "MERGE",
@@ -685,7 +679,7 @@ ${batchRows}
 2. \`MOVE\`、\`RENAME\`、\`MERGE\` 和 \`REMOVE\` 必须同步修改菜单、路由、权限、面包屑、页面、客户手册和自动化测试。
 3. \`API_ONLY\` 能力不得进入客户菜单，只能出现在第三方接口、嵌入契约、实施联调或专业诊断材料中。
 4. 页面组件不是独立客户能力；没有独立任务的组件统一 \`MERGE\` 到父页面。
-5. 目录通过不等于产品门禁通过；必须继续完成 14 角色旅程、全中文、六态、桌面与移动端、八视角评审和全量测试。
+5. 目录通过不等于产品门禁通过；必须继续完成 四职责旅程、全中文、六态、桌面与移动端、八视角评审和全量测试。
 `;
 }
 

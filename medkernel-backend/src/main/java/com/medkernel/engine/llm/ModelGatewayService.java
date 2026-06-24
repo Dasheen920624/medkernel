@@ -39,8 +39,8 @@ import com.medkernel.engine.llm.provider.ProviderRequest;
 /**
  * 模型能力网关核心领域服务实现类 (GA-ENG-API-12)。
  *
- * <p>统一管控模型能力调用：能力阻断、正则数据脱敏、期待结构 Schema 校验，并通过物理子事务强隔离记录审计日志。
- * 当前经 provider 注册表解析 B1/B2；provider 缺位、出域阻断、结构化失败或调用失败时按 LLM-02
+     * <p>统一管控模型能力调用：能力阻断、正则数据脱敏、期待输出结构校验，并通过物理子事务强隔离记录审计日志。
+     * 当前经模型服务注册表解析 B1/B2；模型服务缺位、出域阻断、结构化失败或调用失败时按 LLM-02
  * 降级矩阵如实返回 B0（无模型确定性基线），禁止伪造 B2 模型名、置信度或来源引文。
  */
 @Service
@@ -283,7 +283,7 @@ public class ModelGatewayService {
         String inputHash = computeSha256(req.inputData());
         String inputSummary = desensitizedInput.length() > 500 ? desensitizedInput.substring(0, 500) : desensitizedInput;
 
-        // 4. 路由与推理：按策略解析真实 provider（B1 本地 / B2 外部）。有健康 provider 且（B2）过出域闸
+        // 4. 路由与推理：按策略解析真实模型服务（B1 本地 / B2 外部）。有健康模型服务且（B2）过出域闸
         //    → 真实增强产出；缺位/断连/形态禁外部/出域阻断/调用失败 → 诚实降级 B0。
         //    据铁律 #1/#2/#4，绝不伪造 B1/B2 模型名、置信度、来源引文或患者数据。
         ModelFallbackConfig fallbackConfig = fallbackConfig(policy);
@@ -293,7 +293,7 @@ public class ModelGatewayService {
             tenantId, capabilityCode, strategy, fallbackConfig, desensitizedInput, taskId, versionPlan,
             schemaConstraint, req.providerCode());
 
-        // 结构化输出 Schema 校验：真实解析 JSON + required 字段存在性校验（GA-ENG-LLM-01）。
+        // 结构化输出规则校验：真实解析结构化文本并确认必填字段存在（GA-ENG-LLM-01）。
         // 校验对象为本次实际产出；B1/B2 结构化失败先诚实降级 B0，再校验 B0 信封。
         if (schemaConstraint != null && !schemaConstraint.isBlank()) {
             try {
@@ -307,10 +307,10 @@ public class ModelGatewayService {
                     outcome = b0Outcome(capabilityCode, decision.reason());
                     validateSchema(outcome.outputContent(), schemaConstraint);
                 } else {
-                    log.warn("结构化输出 Schema 校验失败 capabilityCode={}：{}",
+                    log.warn("结构化输出规则校验失败 capabilityCode={}：{}",
                         capabilityCode, schemaError.getMessage());
                     publishFailureAudit(schemaError.errorCode(),
-                        "结构化输出 Schema 校验失败 capabilityCode=" + capabilityCode + "：" + schemaError.getMessage());
+                        "结构化输出规则校验失败 capabilityCode=" + capabilityCode + "：" + schemaError.getMessage());
                     throw schemaError;
                 }
             }
@@ -450,7 +450,7 @@ public class ModelGatewayService {
     /**
      * 按任务 ID 做审计重放复现。
      *
-     * <p>LLM-04 的可复现重放只对 B0 确定性任务成立；B1/B2 provider 结果受外部模型状态影响，
+         * <p>LLM-04 的可复现重放只对 B0 确定性任务成立；B1/B2 模型服务结果受外部模型状态影响，
      * 不能伪装为可逐字复现，必须由真实评测/审计链另行举证。
      *
      * @param taskId 原任务 ID
@@ -468,7 +468,7 @@ public class ModelGatewayService {
             throw new ApiException(ErrorCode.TENANT_FORBIDDEN, "无权访问此任务");
         }
         if (!"B0".equalsIgnoreCase(task.modelMode())) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "仅支持 B0 确定性任务按 task_id 重放复现");
+            throw new ApiException(ErrorCode.BAD_REQUEST, "仅支持 B0 确定性任务按任务号重放复现");
         }
 
         String promptVersion = requireReplayVersion(task.promptVersion(), "prompt_version");
@@ -509,7 +509,7 @@ public class ModelGatewayService {
         );
         taskRepo.save(replay);
         auditRecorder.record(AuditAction.EXECUTE, "model_capability_task", replayTaskId,
-            "按 task_id 重放模型版本三元组 " + task.taskId());
+            "按任务号重放提示词、工具和模型版本 " + task.taskId());
 
         return new ModelTaskResponse(
             replayTaskId,
@@ -759,12 +759,12 @@ public class ModelGatewayService {
         try {
             JsonNode node = OBJECT_MAPPER.readTree(fallbackOrderJson);
             if (!node.isArray()) {
-                throw new ApiException(ErrorCode.ENG_LLM_002, "fallback_order：必须是 JSON 字符串数组");
+                throw new ApiException(ErrorCode.ENG_LLM_002, "模型兜底顺序必须是文本列表");
             }
             List<String> order = new ArrayList<>();
             for (JsonNode item : node) {
                 if (!item.isTextual()) {
-                    throw new ApiException(ErrorCode.ENG_LLM_002, "fallback_order：必须是 JSON 字符串数组");
+                    throw new ApiException(ErrorCode.ENG_LLM_002, "模型兜底顺序必须是文本列表");
                 }
                 order.add(item.asText());
             }
@@ -772,7 +772,7 @@ public class ModelGatewayService {
         } catch (ApiException invalid) {
             throw invalid;
         } catch (Exception invalidJson) {
-            throw new ApiException(ErrorCode.ENG_LLM_002, "fallback_order：必须是合法 JSON 字符串数组");
+            throw new ApiException(ErrorCode.ENG_LLM_002, "模型兜底顺序配置文本不合法");
         }
     }
 
@@ -800,30 +800,30 @@ public class ModelGatewayService {
     }
 
     /**
-     * 结构化输出 Schema 校验：用 Jackson 将输出解析为 JSON（对象/数组），
-     * 再按 expectedSchema 声明的 required 字段集做存在性校验；任一不满足抛 {@code ENG_LLM_002}。
+     * 结构化输出规则校验：用 Jackson 将输出解析为对象/数组，
+     * 再按 expectedSchema 声明的必填字段集做存在性校验；任一不满足抛 {@code ENG_LLM_002}。
      *
-     * <p>相较旧实现的字符串 {@code contains}，此处对输出做真实 JSON 解析，杜绝"看起来含某关键字即通过"的伪校验。
+     * <p>相较旧实现的字符串 {@code contains}，此处对输出做真实结构解析，杜绝"看起来含某关键字即通过"的伪校验。
      */
     private void validateSchema(String content, String schema) {
         JsonNode output;
         try {
             output = OBJECT_MAPPER.readTree(content);
         } catch (Exception parseError) {
-            throw new ApiException(ErrorCode.ENG_LLM_002, "模型输出无法解析为合法 JSON，结构化 Schema 校验失败");
+            throw new ApiException(ErrorCode.ENG_LLM_002, "模型输出结构不合法，无法完成结构化输出校验");
         }
         if (output == null || !(output.isObject() || output.isArray())) {
-            throw new ApiException(ErrorCode.ENG_LLM_002, "模型输出不是 JSON 对象或数组，无法满足结构化 Schema");
+            throw new ApiException(ErrorCode.ENG_LLM_002, "模型输出不是可校验的对象或列表，无法满足结构化输出规则");
         }
         for (String required : extractRequiredFields(schema)) {
             if (!hasField(output, required)) {
-                throw new ApiException(ErrorCode.ENG_LLM_002, "模型输出字段缺失 Schema 指定 required: " + required);
+                throw new ApiException(ErrorCode.ENG_LLM_002, "模型输出缺少必填字段：" + required);
             }
         }
     }
 
     /**
-     * 从标准 JSON Schema 对象提取 {@code required} 字段名。
+     * 从标准输出规则对象提取必填字段名。
      */
     private Set<String> extractRequiredFields(String schema) {
         Set<String> fields = new LinkedHashSet<>();
@@ -831,28 +831,28 @@ public class ModelGatewayService {
         try {
             schemaNode = OBJECT_MAPPER.readTree(schema);
         } catch (Exception parseError) {
-            throw new ApiException(ErrorCode.ENG_LLM_002, "期待 Schema 必须是合法 JSON 对象");
+            throw new ApiException(ErrorCode.ENG_LLM_002, "期待输出规则配置文本不合法");
         }
         if (schemaNode == null || !schemaNode.isObject()) {
-            throw new ApiException(ErrorCode.ENG_LLM_002, "期待 Schema 必须是合法 JSON 对象");
+            throw new ApiException(ErrorCode.ENG_LLM_002, "期待输出规则必须是配置对象");
         }
         JsonNode requiredNode = schemaNode.get("required");
         if (requiredNode == null || !requiredNode.isArray()) {
-            throw new ApiException(ErrorCode.ENG_LLM_002, "期待 Schema 必须声明 required 字符串数组");
+            throw new ApiException(ErrorCode.ENG_LLM_002, "期待输出规则必须声明必填字段列表");
         }
         for (JsonNode node : requiredNode) {
             if (!node.isTextual() || node.asText().isBlank()) {
-                throw new ApiException(ErrorCode.ENG_LLM_002, "期待 Schema 的 required 只能包含非空字段名");
+                throw new ApiException(ErrorCode.ENG_LLM_002, "期待输出规则的必填字段只能包含非空字段名");
             }
             fields.add(node.asText().trim());
         }
         if (fields.isEmpty()) {
-            throw new ApiException(ErrorCode.ENG_LLM_002, "期待 Schema 的 required 不能为空");
+            throw new ApiException(ErrorCode.ENG_LLM_002, "期待输出规则的必填字段不能为空");
         }
         return fields;
     }
 
-    /** 判断 JSON 节点是否含某字段：对象看自身键，数组要求每个对象元素均含该字段。 */
+    /** 判断结构节点是否含某字段：对象看自身键，数组要求每个对象元素均含该字段。 */
     private boolean hasField(JsonNode node, String field) {
         if (node.isObject()) {
             return node.has(field);
@@ -900,7 +900,7 @@ public class ModelGatewayService {
     }
 
     /**
-     * 按 fallback_order 逐级解析真实 provider 并产出；所有失败均先记录稳定归因，最终必须可落 B0。
+     * 按模型兜底顺序逐级解析真实模型服务并产出；所有失败均先记录稳定归因，最终必须可落 B0。
      */
     private RouteOutcome route(String tenantId, String capabilityCode, String strategy,
                                ModelFallbackConfig fallbackConfig, String desensitizedInput,
@@ -962,24 +962,24 @@ public class ModelGatewayService {
             : providerRegistry.resolve(tenantId, strategy, providerCode);
         if (resolved.isEmpty()) {
             return ProviderAttempt.failure(ModelFallbackTrigger.PROVIDER_UNAVAILABLE,
-                "未解析到健康 provider 或部署形态不允许");
+                "未找到可用模型服务，或当前部署形态不允许调用");
         }
         ModelProviderRegistry.ResolvedProvider provider = resolved.get();
         String configuredModelVersion = normalizeOptional(provider.config().modelVersion());
         if (configuredModelVersion == null) {
             return ProviderAttempt.failure(ModelFallbackTrigger.PROVIDER_ERROR,
-                "provider 未配置模型版本");
+                "模型服务未配置模型版本");
         }
         if (!configuredModelVersion.equals(plannedTriple.modelVersion())) {
             return ProviderAttempt.failure(ModelFallbackTrigger.PROVIDER_ERROR,
-                "ACTIVE 版本包模型与 provider 配置不一致：bundle=" + plannedTriple.modelVersion()
-                    + ", provider=" + configuredModelVersion);
+                "已生效模型版本与模型服务配置不一致：生效版本=" + plannedTriple.modelVersion()
+                    + "，服务配置=" + configuredModelVersion);
         }
         if (!reserveProviderBudget(
                 tenantId, capabilityCode, strategy, fallbackConfig, provider.config().providerCode())) {
             return ProviderAttempt.failure(
                 ModelFallbackTrigger.PROVIDER_RATE_LIMITED,
-                "策略 rate_limit_per_minute=" + fallbackConfig.rateLimitPerMinute() + " 已达到");
+                "每分钟模型调用上限已达到：" + fallbackConfig.rateLimitPerMinute());
         }
 
         String prompt = desensitizedInput;
@@ -990,13 +990,13 @@ public class ModelGatewayService {
                     tenantId, capabilityCode, egressJson, taskId, provider.config().providerCode());
                 if (prep.egressFields() == null || !prep.egressFields().contains("prompt")) {
                     throw new ApiException(ErrorCode.ENG_LLM_006,
-                        "出域最小化结果未包含允许的 prompt 字段");
+                        "外调最小化结果未包含允许的提示内容");
                 }
                 prompt = readPromptField(prep.payload());
             } catch (ApiException egressBlocked) {
-                log.warn("外调出域闸阻断 capabilityCode={}：{}", capabilityCode, egressBlocked.getMessage());
+                log.warn("模型外调安全闸阻断 capabilityCode={}：{}", capabilityCode, egressBlocked.getMessage());
                 publishFailureAudit(egressBlocked.errorCode(),
-                    "外调出域闸阻断 capabilityCode=" + capabilityCode + "：" + egressBlocked.getMessage());
+                    "模型外调安全闸阻断，能力=" + capabilityCode + "：" + egressBlocked.getMessage());
                 return ProviderAttempt.failure(ModelFallbackTrigger.EGRESS_BLOCKED, egressBlocked.getMessage());
             }
         }
@@ -1008,12 +1008,12 @@ public class ModelGatewayService {
                 || completion.modelVersion() == null
                 || !configuredModelVersion.equals(completion.modelVersion().trim())) {
                 return ProviderAttempt.failure(ModelFallbackTrigger.PROVIDER_ERROR,
-                    "provider 返回模型版本与配置不一致：expected=" + configuredModelVersion
-                        + ", actual=" + (completion == null ? "<missing>" : completion.modelVersion()));
+                    "模型服务返回版本与已配置版本不一致：期望=" + configuredModelVersion
+                        + "，实际=" + (completion == null ? "未返回" : completion.modelVersion()));
             }
             if (completion.content() == null || completion.content().isBlank()) {
                 return ProviderAttempt.failure(ModelFallbackTrigger.PROVIDER_ERROR,
-                    "provider 返回空补全内容");
+                    "模型服务返回内容为空");
             }
             if (expectedSchema != null && !expectedSchema.isBlank()) {
                 validateSchema(completion.content(), expectedSchema);
@@ -1023,7 +1023,7 @@ public class ModelGatewayService {
                 plannedTriple.promptVersion(), plannedTriple.toolVersion(),
                 completion.sourceCitations(), completion.confidence(), "LOW", false, null, "SUCCEEDED"));
         } catch (ApiException providerFailed) {
-            log.warn("provider 调用失败 capabilityCode={}：{}", capabilityCode, providerFailed.getMessage());
+            log.warn("模型服务调用失败 capabilityCode={}：{}", capabilityCode, providerFailed.getMessage());
             return ProviderAttempt.failure(fallbackTrigger(providerFailed), providerFailed.getMessage());
         }
     }
@@ -1086,14 +1086,14 @@ public class ModelGatewayService {
             JsonNode prompt = OBJECT_MAPPER.readTree(json).get("prompt");
             if (prompt == null || !prompt.isTextual() || prompt.asText().isBlank()) {
                 throw new ApiException(ErrorCode.ENG_LLM_006,
-                    "出域最小化后的 prompt 为空或非文本，禁止回退原始载荷");
+                    "外调最小化后的提示内容为空或非文本，禁止回退原始内容");
             }
             return prompt.asText();
         } catch (ApiException blocked) {
             throw blocked;
         } catch (Exception parseFailed) {
             throw new ApiException(ErrorCode.ENG_LLM_006,
-                "出域最小化结果不是合法 JSON，禁止回退原始载荷");
+                "外调最小化结果结构不合法，禁止回退原始内容");
         }
     }
 
@@ -1112,7 +1112,7 @@ public class ModelGatewayService {
         ModelVersionBundleValidator.Validation validation =
             ModelVersionBundleValidator.validateActive(bundle, tenantId, capabilityCode);
         if (!validation.valid()) {
-            String prefix = bundle == null ? "" : "ACTIVE 版本包不可执行：";
+            String prefix = bundle == null ? "" : "已生效模型版本组合不可执行：";
             return new ActiveVersionPlan(ModelVersionTriple.baseline(), false, prefix + validation.reason());
         }
         ModelVersionBundle active = validation.bundle();
@@ -1127,14 +1127,14 @@ public class ModelGatewayService {
     /**
      * B0 级确定性基线回退处理器（B0 Fallback Processor）。
      *
-     * <p>无模型 provider 时只返回统一空候选信封，不生成任何医学事实或业务草案。
+     * <p>无模型服务时只返回统一空候选信封，不生成任何医学事实或业务草案。
      */
     private String executeB0Fallback(String capabilityCode) {
         var output = OBJECT_MAPPER.createObjectNode();
         output.put("status", "NO_MODEL_PROVIDER");
         output.put("capability", capabilityCode);
         output.putArray("candidates");
-        output.put("message", "当前未接入可用模型 provider，未生成候选内容");
+        output.put("message", "当前未接入可用模型服务，未生成候选内容");
         return output.toString();
     }
 }

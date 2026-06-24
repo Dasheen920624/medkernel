@@ -117,7 +117,7 @@ class CandidateSafetyGateIntegrationTest {
             "medication-prescribe", "TENANT", TENANT,
             TENANT + "|" + category.name() + "|medication-prescribe|" + key,
             key, "v1", ClinicalRedlineStatus.ACTIVE, RecommendationRiskLevel.CRITICAL,
-            "risk-matrix", "v1", CdssReviewRequirement.DUAL_REVIEW, 168,
+            "risk-matrix", "v1", CdssReviewRequirement.PHYSICIAN_CONFIRMATION, 168,
             "OPT04_REDLINE_SILENT_TRIAL", "红线 " + category.name(), "安全危害",
             "{\"field\":\"medications[].code\",\"operator\":\"in\"}", "依据", "ref", 42L,
             false, now, "tester", now, "tester", "trace");

@@ -1,6 +1,5 @@
 package com.medkernel.migration;
 
-import java.util.stream.IntStream;
 import javax.sql.DataSource;
 
 import com.zaxxer.hikari.HikariConfig;
@@ -21,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 五方言 Flyway 完整基线运行门禁。
  *
- * <p>验证 Flyway 能正确发现并应用当前全部权威迁移：
+ * <p>验证 Flyway 能正确发现并应用由统一规范模型生成的单一 V1 基线：
  * <ul>
  *   <li>postgres + oracle 通过 Testcontainers 起真实容器跑（@Tag("docker")，CI 默认跑）
  *   <li>h2 通过内嵌进程跑（无 docker 依赖，CI 永远跑）
@@ -29,8 +28,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  * </ul>
  */
 class FlywayMultiDialectSmokeTest {
-
-    private static final int LATEST_MIGRATION_VERSION = 159;
 
     @Test
     @Tag("docker")
@@ -105,16 +102,13 @@ class FlywayMultiDialectSmokeTest {
 
         var result = flyway.migrate();
         assertThat(result.success).as("%s migrate success", vendorName).isTrue();
-        assertThat(result.migrationsExecuted).as("%s 当前全部基线迁移执行", vendorName)
-            .isEqualTo(LATEST_MIGRATION_VERSION);
+        assertThat(result.migrationsExecuted).as("%s 单一 V1 基线执行", vendorName)
+            .isEqualTo(1);
 
         MigrationInfo[] applied = flyway.info().applied();
-        var expectedVersions = IntStream.rangeClosed(1, LATEST_MIGRATION_VERSION)
-            .mapToObj(String::valueOf)
-            .toList();
         assertThat(applied).extracting(info -> info.getVersion().getVersion())
-            .as("%s 完整迁移版本序列", vendorName)
-            .containsExactlyElementsOf(expectedVersions);
+            .as("%s 只应用 V1", vendorName)
+            .containsExactly("1");
 
         var repeated = flyway.migrate();
         assertThat(repeated.success).as("%s 重复执行 migrate 成功", vendorName).isTrue();

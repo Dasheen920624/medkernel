@@ -54,7 +54,7 @@ class KnowledgeRetirementServiceTest {
         service = new KnowledgeRetirementService(
             identities, versions, supersessions, overrides, effectiveVersions, assetVersions,
             Clock.fixed(NOW, ZoneOffset.UTC));
-        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "platform-governance-admin"));
+        RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "platform-admin"));
         when(identities.save(any(KnowledgeIdentity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(versions.save(any(KnowledgeAssetVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(supersessions.save(any(KnowledgeSupersession.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -95,7 +95,7 @@ class KnowledgeRetirementServiceTest {
     void finalizationWithdrawsVersionAndSuspendsPublishedTenantOverridesForMigration() {
         KnowledgeSupersession due = new KnowledgeSupersession(
             100L, "t-1", 1L, 10L, null, SupersessionType.DEPRECATE, "计划弃用",
-            NOW.minusSeconds(86400), "platform-governance-admin", 2L, NOW.minusSeconds(1), "请迁移到新版指南");
+            NOW.minusSeconds(86400), "platform-admin", 2L, NOW.minusSeconds(1), "请迁移到新版指南");
         KnowledgeIdentity current = identity(1L, "plat:drug:old-guide", KnowledgeIdentityStatus.DEPRECATED, 10L);
         KnowledgeAssetVersion active = version(10L, 1L);
         InheritanceOverride published = override("tenant-a", "plat:drug:old-guide");
@@ -104,7 +104,7 @@ class KnowledgeRetirementServiceTest {
             "av-platform", "av-local-b",
             com.medkernel.engine.versioning.InheritanceOverrideMode.REPLACE,
             com.medkernel.engine.versioning.InheritancePropagation.INHERITABLE,
-            InheritanceOverrideStatus.PUBLISHED, "/hospital-b", "ALL", "本地差异", null,
+            InheritanceOverrideStatus.ACTIVE, "/hospital-b", "ALL", "本地差异", null,
             "医院范围", NOW.minusSeconds(86400), "tenant-admin", NOW.minusSeconds(86400),
             "tenant-admin", "trace-b");
         when(supersessions.findDueDeprecations(NOW)).thenReturn(List.of(due));
@@ -114,7 +114,7 @@ class KnowledgeRetirementServiceTest {
             "t-1", VersionedAssetType.KNOWLEDGE, current.identityCode(), active.versionNo()))
             .thenReturn(Optional.of(unified(current, active)));
         when(overrides.findByAssetTypeAndAssetIdentityAndLifecycleStatus(
-            VersionedAssetType.KNOWLEDGE, "plat:drug:old-guide", InheritanceOverrideStatus.PUBLISHED))
+            VersionedAssetType.KNOWLEDGE, "plat:drug:old-guide", InheritanceOverrideStatus.ACTIVE))
             .thenReturn(List.of(published, publishedWithoutReason));
 
         int finalized = service.finalizeDueRetirements();
@@ -126,7 +126,7 @@ class KnowledgeRetirementServiceTest {
         assertThat(version.getValue().withdrawnReason()).contains("请迁移到新版指南");
         ArgumentCaptor<AssetVersion> unified = ArgumentCaptor.forClass(AssetVersion.class);
         verify(assetVersions).save(unified.capture());
-        assertThat(unified.getValue().status()).isEqualTo(AssetVersionStatus.DEPRECATED);
+        assertThat(unified.getValue().status()).isEqualTo(AssetVersionStatus.WITHDRAWN);
         ArgumentCaptor<KnowledgeIdentity> identity = ArgumentCaptor.forClass(KnowledgeIdentity.class);
         verify(identities).save(identity.capture());
         assertThat(identity.getValue().status()).isEqualTo(KnowledgeIdentityStatus.WITHDRAWN);
@@ -135,7 +135,7 @@ class KnowledgeRetirementServiceTest {
         verify(overrides, Mockito.times(2)).save(override.capture());
         assertThat(override.getAllValues())
             .allSatisfy(item -> {
-                assertThat(item.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.DEPRECATED);
+                assertThat(item.lifecycleStatus()).isEqualTo(InheritanceOverrideStatus.RETIRED);
                 assertThat(item.overrideReason()).contains("请迁移到新版指南");
             });
         assertThat(override.getAllValues().get(1).overrideReason()).doesNotStartWith("null");
@@ -152,13 +152,13 @@ class KnowledgeRetirementServiceTest {
             Clock.fixed(NOW, ZoneOffset.UTC));
         KnowledgeSupersession due = new KnowledgeSupersession(
             100L, "t-1", 1L, null, 20L, SupersessionType.DEPRECATE, "计划弃用",
-            NOW.minusSeconds(86400), "platform-governance-admin", 2L, NOW.minusSeconds(1), "请迁移到新版指南");
+            NOW.minusSeconds(86400), "platform-admin", 2L, NOW.minusSeconds(1), "请迁移到新版指南");
         KnowledgeIdentity current =
             identity(1L, "plat:drug:old-guide", KnowledgeIdentityStatus.DEPRECATED, null);
         when(supersessions.findDueDeprecations(NOW)).thenReturn(List.of(due));
         when(identities.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(current));
         when(overrides.findByAssetTypeAndAssetIdentityAndLifecycleStatus(
-            VersionedAssetType.KNOWLEDGE, "plat:drug:old-guide", InheritanceOverrideStatus.PUBLISHED))
+            VersionedAssetType.KNOWLEDGE, "plat:drug:old-guide", InheritanceOverrideStatus.ACTIVE))
             .thenReturn(List.of());
         AtomicReference<String> auditTenant = new AtomicReference<>();
         AtomicReference<String> auditActor = new AtomicReference<>();
@@ -178,7 +178,7 @@ class KnowledgeRetirementServiceTest {
     private KnowledgeIdentity identity(Long id, String code, KnowledgeIdentityStatus status, Long currentVersionId) {
         return new KnowledgeIdentity(
             id, "t-1", code, KnowledgeDomain.DRUG, "测试知识", null, null, status, currentVersionId,
-            NOW.minusSeconds(86400), "platform-governance-admin", NOW.minusSeconds(86400), "platform-governance-admin");
+            NOW.minusSeconds(86400), "platform-admin", NOW.minusSeconds(86400), "platform-admin");
     }
 
     private KnowledgeAssetVersion version(Long id, Long identityId) {
@@ -190,7 +190,7 @@ class KnowledgeRetirementServiceTest {
             KnowledgeAssetVersion.activeScopeKey(identityId, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE),
             NOW.minusSeconds(86400), null, "reviewer", NOW.minusSeconds(86400),
             NOW.minusSeconds(86400), null, null, null,
-            NOW.minusSeconds(86400), "platform-governance-admin", NOW.minusSeconds(86400), "platform-governance-admin",
+            NOW.minusSeconds(86400), "platform-admin", NOW.minusSeconds(86400), "platform-admin",
             12, NOW.plusSeconds(86400L * 365));
     }
 
@@ -199,7 +199,7 @@ class KnowledgeRetirementServiceTest {
             7L, "io-7", tenantId, VersionedAssetType.KNOWLEDGE, identityCode, "av-platform", "av-local",
             com.medkernel.engine.versioning.InheritanceOverrideMode.REPLACE,
             com.medkernel.engine.versioning.InheritancePropagation.INHERITABLE,
-            InheritanceOverrideStatus.PUBLISHED, "/hospital-a", "ALL", "本地差异", "本地适配",
+            InheritanceOverrideStatus.ACTIVE, "/hospital-a", "ALL", "本地差异", "本地适配",
             "医院范围", NOW.minusSeconds(86400), "tenant-admin", NOW.minusSeconds(86400), "tenant-admin", "trace");
     }
 
@@ -221,7 +221,7 @@ class KnowledgeRetirementServiceTest {
             identity.identityCode() + "|/__platform__|" + version.applicableScope(),
             "knowledge-version:" + identity.identityCode() + ":" + version.versionNo(),
             NOW.minusSeconds(86400), null,
-            NOW.minusSeconds(86400), "platform-governance-admin",
-            NOW.minusSeconds(86400), "platform-governance-admin", "trace");
+            NOW.minusSeconds(86400), "platform-admin",
+            NOW.minusSeconds(86400), "platform-admin", "trace");
     }
 }

@@ -11,6 +11,5 @@ import jakarta.validation.constraints.NotNull;
 public record PathwayOutcomeBindingRequest(
     @NotNull PathwayOutcomeScope scope,
     String refCode,
-    @NotBlank String indicatorCode,
-    String packageVersion
+    @NotBlank String indicatorCode
 ) {}

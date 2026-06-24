@@ -158,8 +158,19 @@ public class AuthController {
 
     @PostMapping("/mfa/verify")
     @PreAuthorize("isAuthenticated()")
-    public ApiResult<BootstrapMfaVerifyResponse> verifyMfa(@Valid @RequestBody BootstrapMfaVerifyRequest request) {
-        return ApiResult.ok(mfaPolicyService.verifyForCurrentUser(request));
+    public ResponseEntity<ApiResult<BootstrapMfaVerifyResponse>> verifyMfa(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody BootstrapMfaVerifyRequest request) {
+        BootstrapMfaVerifyResponse response = mfaPolicyService.verifyForCurrentUser(request);
+        AuthSessionService.RenewedSession renewed = sessionService.completeMfa(jwt);
+        AuthCookieProperties runtimeCookie = configService.runtimeCookieProperties(cookieProps);
+        ResponseCookie cookie = buildCookie(
+            renewed.issuedJwt().token(),
+            runtimeCookie,
+            sessionService.cookieMaxAgeSeconds(renewed.issuedJwt(), runtimeCookie));
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, cookie.toString())
+            .body(ApiResult.ok(response));
     }
 
     @PostMapping("/password-reset")

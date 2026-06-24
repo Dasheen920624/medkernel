@@ -7,16 +7,16 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 统一知识包术语条目下的单条映射快照（构包时定格）。
+ * 术语资产版本下的单条不可变映射快照。
  *
  * <p>每条快照对应一条 {@link TermMapping}。业务键列用于高效解析当前生效映射，
- * {@code mapping_snapshot} 保留构包时的完整不可变 JSON，确保映射后续改动或回滚时仍可复现。
+ * {@code mapping_snapshot} 保留版本创建时的完整不可变 JSON，确保映射后续改动或回滚时仍可复现。
  */
 @Table("mk_term_mapping_snapshot")
 public record TermMappingSnapshotEntity(
     @Id Long id,
     @Column("tenant_id") String tenantId,
-    @Column("package_item_id") String packageItemId,
+    @Column("version_id") String versionId,
     @Column("mapping_id") Long mappingId,
     @Column("local_term_id") Long localTermId,
     @Column("standard_term_id") Long standardTermId,
@@ -32,7 +32,7 @@ public record TermMappingSnapshotEntity(
 
     public static TermMappingSnapshotEntity fromSnapshot(
             String tenantId,
-            String packageItemId,
+            String versionId,
             Long persistedMappingId,
             TermMappingSnapshot snapshot,
             String mappingSnapshot,
@@ -41,7 +41,7 @@ public record TermMappingSnapshotEntity(
         return new TermMappingSnapshotEntity(
             null,
             tenantId,
-            packageItemId,
+            versionId,
             persistedMappingId,
             snapshot.localTermId(),
             snapshot.standardTermId(),

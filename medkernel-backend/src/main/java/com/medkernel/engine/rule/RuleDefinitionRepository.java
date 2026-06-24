@@ -26,7 +26,7 @@ public interface RuleDefinitionRepository extends ListCrudRepository<RuleDefinit
     Optional<RuleDefinition> findByTenantIdAndRuleCode(String tenantId, String ruleCode);
 
     /**
-     * 按租户查询内容已审核的规则定义，按更新时间倒序。
+     * 按租户查询已发布的规则定义，按更新时间倒序。
      *
      * <p>运行入口还必须校验对应统一资产版本为 {@code ACTIVE}，本查询不能单独证明规则可执行。
      */
@@ -222,39 +222,4 @@ public interface RuleDefinitionRepository extends ListCrudRepository<RuleDefinit
         String tagPattern,
         String favoriteUserId);
 
-    /**
-     * 条件片段影响分析按当前激活规则版本 DSL 预过滤候选规则，避免全量规则扫描。
-     */
-    @Query("""
-        SELECT r.*
-        FROM rule_definition r
-        JOIN rule_version rv
-          ON rv.tenant_id = r.tenant_id
-         AND rv.version_id = r.active_version_id
-        WHERE r.tenant_id = :tenantId
-          AND r.active_version_id IS NOT NULL
-          AND LOWER(rv.dsl_json) LIKE :fragmentPattern
-        ORDER BY r.updated_at DESC, r.id DESC
-        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
-        """)
-    List<RuleDefinition> pageActiveRuleImpactsByFragmentPattern(
-        String tenantId,
-        String fragmentPattern,
-        int offset,
-        int limit);
-
-    /**
-     * 与 {@link #pageActiveRuleImpactsByFragmentPattern} 同口径统计规则影响候选数。
-     */
-    @Query("""
-        SELECT COUNT(*)
-        FROM rule_definition r
-        JOIN rule_version rv
-          ON rv.tenant_id = r.tenant_id
-         AND rv.version_id = r.active_version_id
-        WHERE r.tenant_id = :tenantId
-          AND r.active_version_id IS NOT NULL
-          AND LOWER(rv.dsl_json) LIKE :fragmentPattern
-        """)
-    long countActiveRuleImpactsByFragmentPattern(String tenantId, String fragmentPattern);
 }

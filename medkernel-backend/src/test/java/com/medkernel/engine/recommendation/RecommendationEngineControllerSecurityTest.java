@@ -30,7 +30,6 @@ class RecommendationEngineControllerSecurityTest {
           "patientId": "patient-1",
           "encounterId": "enc-1",
           "scenarioCode": "WARD_ORDER",
-          "packageVersion": "1.0.0",
           "inputDigest": "sha256:trigger",
           "candidateCards": [
             {
@@ -73,7 +72,7 @@ class RecommendationEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCanReadAndFeedbackButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/recommendations/cards/card-1"))
             .andExpect(status().isBadRequest())
@@ -91,7 +90,7 @@ class RecommendationEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void legacyRootRecommendationCardRoutesAreNotMounted() throws Exception {
         mvc.perform(get("/api/v1/engine/recommendations"))
             .andExpect(status().isNotFound());
@@ -106,22 +105,8 @@ class RecommendationEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
-    void doctorCannotCreateRecommendationTrigger() throws Exception {
-        mvc.perform(post("/api/v1/engine/recommendations:evaluate")
-                .contentType("application/json")
-                .content(TRIGGER_BODY))
-            .andExpect(status().isForbidden());
-
-        mvc.perform(post("/api/v1/engine/recommendations/triggers")
-                .contentType("application/json")
-                .content(TRIGGER_BODY))
-            .andExpect(status().isForbidden());
-    }
-
-    @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
-    void itOpsCanCreateTriggerButDataScopeRejectsMissingTenant() throws Exception {
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
+    void clinicalUserCanCreateRecommendationTriggerButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/recommendations:evaluate")
                 .contentType("application/json")
                 .content(TRIGGER_BODY))
@@ -136,8 +121,22 @@ class RecommendationEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_GOVERNOR")
-    void medicalAffairsCanQueryFatigueSignalsButDataScopeRejectsMissingTenant() throws Exception {
+    @WithMockUser(authorities = "ROLE_AUDITOR")
+    void auditorCannotCreateRecommendationTrigger() throws Exception {
+        mvc.perform(post("/api/v1/engine/recommendations:evaluate")
+                .contentType("application/json")
+                .content(TRIGGER_BODY))
+            .andExpect(status().isForbidden());
+
+        mvc.perform(post("/api/v1/engine/recommendations/triggers")
+                .contentType("application/json")
+                .content(TRIGGER_BODY))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_ENGINE_OPERATOR")
+    void engineOperatorCanQueryFatigueSignalsButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/recommendations/fatigue-signals"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));

@@ -65,7 +65,7 @@ class RuleReleaseSimulationReplayEvaluatorTest {
         when(contextSnapshots.findById("ctx-3")).thenReturn(snapshotResponse("p3"));
         when(applicability.evaluate(any(), any(), any(), any()))
             .thenReturn(new RuleApplicabilityDecision(true, "APPLICABLE", "适用", json.createObjectNode()));
-        when(dslEvaluator.evaluate(any(), any())).thenAnswer(invocation -> {
+        when(dslEvaluator.evaluate(any(), any(), eq("tenant-A"), eq("runtime-release-test"))).thenAnswer(invocation -> {
             JsonNode dsl = invocation.getArgument(0);
             JsonNode context = invocation.getArgument(1);
             String marker = dsl.path("marker").asText();
@@ -166,7 +166,6 @@ class RuleReleaseSimulationReplayEvaluatorTest {
             0,
             RuleDefinitionStatus.PUBLISHED,
             "rv-1",
-            "pkg-1",
             "hospital-A",
             NOW,
             "author",
@@ -207,11 +206,12 @@ class RuleReleaseSimulationReplayEvaluatorTest {
             "hospital-A",
             "request-" + snapshotId,
             "/TENANT-A/HOSP-A",
-            "pkg-1",
+            "runtime-release-test",
             "patient",
             "encounter",
             ContextSnapshotStatus.ACTIVE,
             "[]",
+            "{}",
             "{}",
             QualityStatus.VALID,
             "trace",
@@ -248,13 +248,14 @@ class RuleReleaseSimulationReplayEvaluatorTest {
             List.of(),
             List.of(),
             List.of(),
-            List.of()
+            List.of(),
+            ContextSnapshotResources.emptyExtensions()
         );
         return new ContextSnapshotResponse(
             "ctx-" + patientId,
             ContextSnapshotStatus.ACTIVE,
             resources,
-            "pkg-1",
+            "runtime-release-test",
             QualityStatus.VALID,
             List.of(),
             Map.of(),

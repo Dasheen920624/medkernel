@@ -4,20 +4,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 
 /**
- * X-DOMAIN 17 张领域门面卡的组合目录测试。
+ * 全医疗领域门面组合目录测试。
  *
- * <p>本测试只约束「复用哪些既有引擎链路」和服务包聚合关系，不允许在 T7.1 预填真实医学内容。
+ * <p>本测试只约束「复用哪些既有引擎链路」和业务组合聚合关系，不预填虚构医学内容。
  */
 class DomainFacadeCatalogServiceTest {
 
     private final DomainFacadeCatalogService service = new DomainFacadeCatalogService();
 
     @Test
-    void listDefinitions_coversAllXDomainCardsWithoutClinicalContentSeeds() {
+    void definitionDoesNotExposeDeletedConstructionCardDependencies() {
+        assertThat(Stream.of(DomainFacadeDefinition.class.getRecordComponents())
+            .map(component -> component.getName()))
+            .doesNotContain("dependencyCards");
+    }
+
+    @Test
+    void listDefinitions_coversAllMedicalDomainsWithoutClinicalContentSeeds() {
         List<DomainFacadeDefinition> definitions = service.listDefinitions();
 
         assertThat(definitions)
@@ -47,12 +55,11 @@ class DomainFacadeCatalogServiceTest {
                 assertThat(definition.clinicalContentSeeded()).isFalse();
                 assertThat(definition.newBusinessEngineRequired()).isFalse();
                 assertThat(definition.engineChain()).isNotEmpty();
-                assertThat(definition.dependencyCards()).isNotEmpty();
             });
     }
 
     @Test
-    void definitions_onlyUseSharedEngineCapabilitiesAndKeepServicePackagesAsAggregation() {
+    void definitions_onlyUseSharedEngineCapabilitiesAndKeepServiceCombinationsAsAggregation() {
         Set<DomainFacadeEngine> allowedSharedEngines = Set.of(
             DomainFacadeEngine.RULE,
             DomainFacadeEngine.PATHWAY,
@@ -61,7 +68,7 @@ class DomainFacadeCatalogServiceTest {
             DomainFacadeEngine.EMBED,
             DomainFacadeEngine.EVALUATION,
             DomainFacadeEngine.FOLLOWUP,
-            DomainFacadeEngine.PACKAGE,
+            DomainFacadeEngine.RELEASE,
             DomainFacadeEngine.INTEGRATION,
             DomainFacadeEngine.DATA_SERVICE,
             DomainFacadeEngine.SAFETY,
@@ -73,9 +80,9 @@ class DomainFacadeCatalogServiceTest {
             .allSatisfy(definition -> assertThat(definition.engineChain())
                 .allMatch(allowedSharedEngines::contains));
 
-        DomainFacadeDefinition diseasePackage = service.requireDefinition("SVC-DOMAIN-01");
-        assertThat(diseasePackage.kind()).isEqualTo(DomainFacadeKind.SERVICE_PACKAGE);
-        assertThat(diseasePackage.memberFacadeCodes()).containsExactly(
+        DomainFacadeDefinition diseaseCombination = service.requireDefinition("SVC-DOMAIN-01");
+        assertThat(diseaseCombination.kind()).isEqualTo(DomainFacadeKind.SERVICE_COMBINATION);
+        assertThat(diseaseCombination.memberFacadeCodes()).containsExactly(
             "CRITICAL-01",
             "PERIOP-01",
             "ONCO-RENAL-01",
@@ -83,11 +90,11 @@ class DomainFacadeCatalogServiceTest {
             "TCM-HEALTH-01",
             "PRIMARY-CARE-01",
             "INFECTION-PH-01");
-        assertThat(diseasePackage.engineChain()).containsExactly(DomainFacadeEngine.PACKAGE);
+        assertThat(diseaseCombination.engineChain()).containsExactly(DomainFacadeEngine.RELEASE);
 
-        DomainFacadeDefinition collaborationPackage = service.requireDefinition("SVC-DOMAIN-02");
-        assertThat(collaborationPackage.kind()).isEqualTo(DomainFacadeKind.SERVICE_PACKAGE);
-        assertThat(collaborationPackage.memberFacadeCodes()).containsExactly(
+        DomainFacadeDefinition collaborationCombination = service.requireDefinition("SVC-DOMAIN-02");
+        assertThat(collaborationCombination.kind()).isEqualTo(DomainFacadeKind.SERVICE_COMBINATION);
+        assertThat(collaborationCombination.memberFacadeCodes()).containsExactly(
             "NURSING-01",
             "PHARMACY-01",
             "REPORT-01",
@@ -95,7 +102,7 @@ class DomainFacadeCatalogServiceTest {
             "ALLIED-CARE-01",
             "RWD-01",
             "REGION-COLLAB-01");
-        assertThat(collaborationPackage.engineChain()).containsExactly(DomainFacadeEngine.PACKAGE);
+        assertThat(collaborationCombination.engineChain()).containsExactly(DomainFacadeEngine.RELEASE);
     }
 
     @Test

@@ -1,226 +1,358 @@
 # 会话接力
 
-> **开工先读本文件续接，别考古。** 本文件只保留会影响下一步执行的当前事实；历史复盘查 git、卡片、计划或审计文档。
+> 开工先读本文件。这里只保留当前执行事实；产品范围见
+> [PRODUCT_SCOPE](PRODUCT_SCOPE.md)，历史过程使用 Git 追溯。
 
-## 🚩 最新方向（2026-06-21）：集团医疗智能中枢 · 从零重启（规则引擎为核心 · 决策 A · 本线最高优先，覆盖下方旧口径）
+## 当前主线
 
-**一句话**：把 MedKernel **集团医疗智能中枢**从零重启（核心=**规则引擎+赋能**、**不是 SaaS 平台**）——一条全自动管道从公域网+权威医疗网探索生成**全领域**医疗知识与规则，以规则引擎为核心的能力经 API+嵌入+知识包赋能业务系统；唯一人工 = 上线前一次**旁路审批、不卡管道**。下方「当前真相 / 本地已完成 / 下一步」里关于 **九项生产闸 / Provider 专家签字 / 逐条审核 / B0-vs-全大模型 / 运行 7 待签 / 不清库前向发布** 的口径**已被推翻**，只作 134 现状的历史事实。
+- 基线：PR #647 合并提交 `acd511c0`；
+- 分支：`codex/647-launch-simplification`；
+- worktree：`/Users/zhikunzheng/.config/superpowers/worktrees/codex3/647-launch-simplification`；
+- 不继承 #648、#649 内容；当前分支已按本线产品树覆盖最新 `origin/main`；
+- 用户已授权本阶段推送当前分支并创建临时 PR；仍不得合并远程 `main`；
+- 项目尚未上线，不兼容旧角色、旧迁移、旧包发布链路、旧接口或旧文档；
+- 目标是完整上线，保留真实页面与业务能力，不把用户举例缩成产品边界。
+- 原始 #647 的有效诉求已经统一吸收到 `PRODUCT_SCOPE.md`：五种交付形态、完整组织拓扑、七类
+  业务组合、完整医疗语义、专病十阶段、全中枢模型赋能、第三方系统矩阵和中国医院落地约束；
+  旧原文、旧卡、旧计划、阶段审计和历史截图不再保留。
 
-**唯一锚点（必读，别再造文档）**：[`docs/superpowers/specs/2026-06-21-engine-core-restart-design.md`](superpowers/specs/2026-06-21-engine-core-restart-design.md)（v3）—— 任何 AI 照它实现、零偏差。设计已与用户**逐段确认完毕**。v2（2026-06-20 重定位）已废、已删。
+## 当前唯一模型
 
-**已定核心决策（细节全在 spec）**：
-- 定位＝**集团医疗智能中枢**，核心=**规则引擎+赋能**，**不是 SaaS 平台**（"引擎核心"=内部能力名，不是产品名；宪法 §0 定位不改）：自动探索生成全领域知识与规则 + 以规则引擎为核心的能力（规则拦截/推荐辅助诊疗/查阅/字典/路径/质控/随访/报告/来源追溯/包分发）经 **API + 嵌入 + 知识包**赋能业务系统(HIS/EMR/CDSS)；临床人员不登录、走 API/嵌入消费；平台自带极小管理控制台(生产+治理)+**完整演示台(核心功能·无真实患者也能演示全部能力)**。
-- **决策 A：全部从零重启（全新轻量代码、零历史技术债）**。现有代码**只读作借鉴**（学逻辑/边界/不变量），**不搬文件、不带旧依赖、不在旧库上改**。病根=过度实现（95 控制器/795 迁移/15 角色/九闸/临床 SaaS 页）卡死上线。
-- **生产全自动 + 上线旁路审批**：候选→**确定性自动质量闸**（schema/红线结构/来源齐/去重/可复现 hash/引用真实性）→直接 ACTIVE；**唯一人工**=真实上线前(=院内部署 或 外网租户启用)专家对发布包**点一次批准**(`expertReviewed`)，**异步、不阻塞生产/探索/生成**。删旧逐条审/双签/九闸。运行期纯辅助、打扰 5 档逐规则可配。
-- **知识库=单一主版本+多层级机构覆盖**（用户补充·重要）：平台主版本 `t-1`=唯一权威核心基底；机构**不派生独立副本**（多层级会爆炸），只叠就近覆盖层(overlay，科室→院区→医院→集团→主版本逐级回落)，覆盖优先、不反写主源。
-- **极简底座**：登录只账户密码+SSO（删 MFA 强制/bootstrap 复杂流）；角色 15→**5 预设**（超级管理员/知识工程师/医学专家/运维工程师/审计员）× 范围(平台 t-1/机构) × 环境(内/外网)；**机构自管**（机构登录、自管本机构覆盖与本机构上线审批、不反写主源）；国产化本轮只管国产 DB+国产服务器；关系库权威+图投影；5 方言迁移重置 V1 基线。
-- **能力封顶十大引擎（规则引擎为核心、其余赋能延伸）**，全领域(S0–S40 矩阵)当「内容」复用同一管道+同一引擎，不另起第二套引擎/页面/状态机。宪法 **§0 不改定位(只内补核心澄清)**，改 **§2/§6/§8/§15**（见 spec §13）。
+- 产品按六层、S0–S40 和全医疗专业领域验收；
+- 客户可分配职责只有平台管理员、医疗引擎运营员、临床使用者和审计员；
+- 13 类标准患者资源承接院内真实数据；
+- 13 类版本化资产共用稳定身份、自动版本、精确依赖和最小发布流；
+- 资产稳定身份状态为 `ACTIVE/RETIRED`，内容版本状态为
+  `DRAFT/PUBLISHED/WITHDRAWN`；
+- 平台发布不可变平台标准版本，机构生成不可变机构生效版本，离线交付文件只负责传输和恢复；
+- 临床调用方不提交包、领域或版本，服务端锁定当前机构生效版本；
+- 大模型只生成候选和解释，关系库是权威源，图只是可重建投影；
+- 辅助诊疗是上位能力，推荐诊断与鉴别诊断是并列、可组合的诊断子能力。
 
-**当前状态**：v3 spec + **执行总计划**[`2026-06-21-engine-core-restart-execution.md`](superpowers/plans/2026-06-21-engine-core-restart-execution.md) 均已写入分支 `claude/engine-core-restart`，v2 已删；**设计已逐字深审、与用户逐段确认、内部一致无残留旧口径**。执行计划＝程序级总清单(S0–S5 + 横切 X1–X5)，**S0 已细化到可立即开工**(6 任务/TDD)，S1–S5 为 work package(开工前即时细化)。**尚无代码改动、134 未动**，可交实现 AI 团队开工。
+## 已完成并有定向证据
 
-**下一步（交付实现 AI 团队 · 精确照做、零偏差）**：
-1. **读两个锚点**：[v3 spec](superpowers/specs/2026-06-21-engine-core-restart-design.md)（设计·唯一真相）+ [执行计划](superpowers/plans/2026-06-21-engine-core-restart-execution.md)（任务）。冲突以 spec 为准；**不新增设计决策、不搬旧代码**。
-2. **从 S0 开工**（执行计划 §4 的 6 任务，TDD 红→绿→提交）：新库骨架+五方言 V1 基线 → 5 预设 RBAC → 密码/SSO 登录 → 4 入口前端外壳六态 → T-GATE CI → 文档收口。同期做 X1（改宪法：§0 内补核心澄清·定位不改 + §2/§6/§8/§15）、X2（旧文档挂横幅）。
-3. **过 S0 验收门后**，S1–S5 各片**开工前用 `writing-plans` 即时细化**为 bite-sized TDD；每片基于最新 `main`、一逻辑单元一 PR、过 spec §14 验收门 + 真实性 T-GATE，回写本文件。
-4. **硬边界**：全新轻量代码、不搬旧文件/旧依赖（决策 A）；**合并 PR、停用 134 旧实例（X3）须逐次显式授权**。
+- 44 条路由、54 个页面组件和 34 个菜单保留；
+- 三产品空间和四职责已建立，旧角色兼容、机构权限覆盖和主要人员分离门阀已移除；
+- 多因素认证默认关闭，开启后使用真实 TOTP 和受限绑定会话；
+- 双签、委员会、独立专家签字及模型跨角色等待门槛已移除；
+- 条件片段、子路径、路径继承和循环引用已删除；路径只单向调用规则；
+- 规则与路径已支持稳定身份、服务端自动 V1/V2/V3、发布版本不可变和独立下一版草稿；
+- 规则、路径、诊断、临床事件、上下文快照和互操作证据已切到机构生效版本/证据导出模型；
+- 大模型知识、规则和路径候选已统一进入正式草稿入口并执行类型校验；
+- 诊断支持只消费机构生效版本锁定的诊断知识，响应包含鉴别诊断依据；
+- 数据库已由一份模式源生成 PostgreSQL、Kingbase、Oracle、达梦和 H2 的单一 V1；
+- 当前模式模型为 207 张表；H2、PostgreSQL 和 Oracle 迁移验证曾通过，最终结构变更后必须重跑；
+- 前端与后端多组定向测试曾通过，具体结果只作为阶段证据，不能代替最终全量门禁。
 
-**协作注意**：① 用大白话 + 具体例子、回复精简（用户强偏好）。② spec 是**唯一锚点**，别再造计划 / 总结副本（多文档打架正是旧乱因）。③ 别恢复已删的闸（逐条审 / 双签 / 九闸）。④ 保留的医疗安全底线只有：AI 标识 / 来源可溯 / 上线前一次旁路审批 / 引擎不自动写 / 不伪造。⑤ 决策 A=全新轻量代码、零历史技术债；借鉴=学现有逻辑新写、**不搬旧文件/旧依赖**，更别"在旧库上改"。
+## 2026-06-24 阶段检查点
 
----
+本阶段是本地检查点，不是上线完成声明；长任务目标继续保持 active，下一会话从本文件续接即可。
 
-## 当前真相
+已完成的新增收口：
 
-- 134 当前运行代码为 `2c502f1e547a185dc5ab95a76d7a3329c4d1f724`（[#645](https://github.com/Dasheen920624/medkernel/pull/645)）。统一模型生产控制台、租户级 Provider 加密凭据库和“模型服务与 Key → 医学评测 → 独立复核 → 九项生产闸 → 正式生产”已上线；旧医学回归复核路由/权限/页面、环境变量凭据回退及 `credential_ref` 列均已删除，不保留兼容入口。P6 保持 `true`，Provider 共 2 个且均停用，尚未发生正式模型知识生产。
-- 隔离 worktree 为 `.worktrees/full-fidelity-sandbox`，部署证据 PR 合并后回到 `main`。既有 MiMo Key 只保存在租户加密凭据库，真实健康检查为 `VAULT / HEALTHY / enabled=false`，环境文件和当前进程环境无旧 Key。PR #645 已把 readiness 改为与 Provider 启用共用 `ModelEvalService.isClearedForGoLive` 唯一门禁；新制品现场复核为 7/9，明确阻断 `MODEL_PROVIDER` 与 `MODEL_EVALUATION`，不再复用历史制品的 `PASSED` 运行。
-- 当前切片已实现：沙盘 `CURRENT`、`HISTORICAL_EXACT`、`COMPARE` 三模式；10 条演练机构规则全部达到 `SANDBOX_READY`；场景不再固定配置包版本；运行时仍可按“机构优先、平台补充、同编码机构覆盖平台”解析平台主源规则；历史重放冻结精确版本与 hash；初始化批次、稳定 canonical/语义版本、低风险原子批审、中风险逐条审核、高风险真实双签及前端审核面已落地。
-- 基础知识初始化曾采用“权威来源注册表 + B0 待编著骨架”而不是伪造官方数据：134 生成过首批 8 个 `generatedByModel=false`、`MEDIUM`、`PENDING_AUTHORING` 基础候选。用户明确要求正式知识必须全部由大模型生产后，这 8 个候选及 WHO B0 小样均已通过审核状态机永久拒绝并归档；知识激活数仍为 0，也不宣称基础发行版已完成。
-- #638 的源提交依次为 `0a412512`、`e3251319`、`f8567116`、`3fc3795d`、`65d164a7`、`b8f69103`、`ff4f04b6`、`9a567d27`、`a79434cb`、`21a1d401`，最终 squash 为 `b1eb6de3b264ade02459e512465ef947de2ab75f`；其中修复 Oracle V153/V154 的 LOB CHECK 与 `MODE` 保留字问题，并以五方言 V157 前向统一为 `run_mode`，不改 PostgreSQL 已执行历史迁移。最终独立后端验证为 481 份 Surefire XML / 3097 tests / 0 failures / 0 errors / 7 skipped；前端 `npm run verify` 为 101 个测试文件 / 810 tests，ESLint 零 warning、Stylelint、格式和类型检查均通过；B0、中文注释、产品目录、迁移规约、部署合同和 `git diff --check` 均通过。
-- 当前主线口径：仍属于 B0 第一阶段全功能核查与完美化的知识生产到上线长线整改；每个切片必须保留测试、T-GATE 和接力证据。
-- 国产化边界：软件侧已完成只读浏览器能力预检与国产 Chromium 内核仿真，明确不以 User-Agent 冒充认证；国产化真实环境本轮暂不处理，不属于本轮完成口径，真实目标国产浏览器、国产 OS/JDK、达梦、金仓、真实国产数据和现场环境仍在 P9/P11 留现场证据。
-- 134 发布口径：已按全新项目执行最终清库；此后只做不清库前向发布。当前运行提交为 `2c502f1e547a185dc5ab95a76d7a3329c4d1f724`、JAR SHA-256=`97f7dc10bf38599f13a4628a932fc5a8048cbcd59a5be9db206be73479d04a0e`，部署时间 `2026-06-20 18:14:18+08:00`，备份 `/zoesoft/medkernel/backups/deploy-20260620-181417`；Flyway V159，`medkernel.service` active/enabled、MainPID=`311379`、`NRestarts=0`，内部与 nginx HTTPS 健康检查均为 200。V159 实测旧权限 0、旧角色权限 0、`credential_ref` 列 0、凭据库表存在。上线后不再清库。
-- 资料库口径：134 正式文献根已于 `2026-06-20 00:32:37+08:00` 从系统盘迁移为大容量 COSFS 挂载 `file:///medkernel-data/platform-knowledge/t-1/literature-materials/`，配置版本 3；目标目录 `0750 medkernel:medkernel`、WHO PDF `0640 medkernel:medkernel`，源/目标 SHA-256 一致且服务账号读写探针通过。旧目录暂只作回滚副本，不再承接新写入。受管 `file://`、对象存储或 HTTPS 网关均是正式后端，不得把任一种资料后端写成唯一选项。
-- 小样本缺陷与重跑：`2026-06-20 10:18+08:00` 首次获取 WHO PDF 时，同页重复编号章节生成两个 `p46/§3/¶1`，触发唯一约束并完整回滚；孤儿文件已按 SHA 精确删除。`7573284b` 部署后同一 PDF 重跑成功，获取运行 `acq:4c3701be-eba4-4651-af08-032806e9e333`、解析 job `dpj:6aa4acc7-652f-4c72-98ad-b1bdcce12212`、来源版本 `11`，共 8141 个片段且 8141 个唯一锚点，资料 SHA-256=`e44231194db4a3c7378b9949752c2b1cf1fdb7629793a543a92792cdda0e785c`。旧 B0 job `f85a1842-7bb0-4b24-a7df-568d24ec8331` 因错误要求模型影子基准而取消；`1074f2bb` 修复部署后，job `c1358725-501f-4df4-8036-a4a489542716` 生成的身份/版本 `9` 从未批准或激活，现已随其他非模型候选永久拒绝归档。证据见 `formal-sample/01-*` 至 `formal-sample/03-*`。
-- 安全纠偏：现场核查发现 P6 曾于 `2026-06-20 00:18:05+08:00` 被 `platform-owner` 从 `false` 改为 `true`，但当前两条 `PASSED` 运行均为 V156 前历史签署、`release_fingerprint=NULL`，不满足当前制品放行条件；已于 `00:32:37+08:00` 经正式配置 API 恢复 `false`（版本 3）并保留审计。Provider 仍为 2 个、启用 0 个；不得依据曾短暂打开的 P6 冒领正式生产开放。
-- 浏览器 TLS 边界：134 当前证书为自签 `CN=193.112.107.134`，issuer 与 subject 相同且无 Subject Alternative Name；in-app Chromium 真实访问 `/login` 返回 `ERR_CERT_AUTHORITY_INVALID`。内部/脚本健康检查可通过固定证书或受控校验继续执行，但普通浏览器信任链未通过，已登记 `DEFER-026`，不得据此宣称公网浏览器正式验收完成。
-- 当前执行清单：[`docs/superpowers/plans/2026-06-20-full-system-medical-product-usability.md`](superpowers/plans/2026-06-20-full-system-medical-product-usability.md)；发布指纹见 [`docs/superpowers/plans/2026-06-19-model-evaluation-release-fingerprint.md`](superpowers/plans/2026-06-19-model-evaluation-release-fingerprint.md)；沙盘与初始化切片见 [`docs/superpowers/plans/2026-06-19-full-fidelity-sandbox-replay-and-knowledge-init.md`](superpowers/plans/2026-06-19-full-fidelity-sandbox-replay-and-knowledge-init.md)；产品 Phase 9–11 总计划仍为 [`docs/superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md`](superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md)。
+- `SandboxCurrentRuleExecutor` 已按冻结机构生效版本 `releaseId` 物化规则 DSL 中的
+  `VALUE_SET` / `FORMULA` / `ACTION_CARD` 引用；
+- `SandboxReplayRuleExecutor` 已改为只从不可变历史重放清单的资产绑定快照物化引用，缺失资产或重复资产
+  诚实报错，不查询当前激活资产；
+- `RuleReleaseSimulationReplayEvaluator` 已按每个真实上下文快照的 `runtimeReleaseId` 做发布模拟回放；
+- `AuthoringPreviewRunService` 已按请求机构 + 所选真实快照 `runtimeReleaseId` 做草稿规则即配即试；
+- `RecommendationDeterministicMatcher` 已按请求机构 + 快照 `runtimeReleaseId` 生成确定性推荐卡，平台主源规则也
+  通过当前机构生效版本叠层解析临床提示卡；
+- 复扫生产代码后，正式运行入口已不再裸跑 `RuleDslEvaluator.evaluate(dsl, context)`；剩余两参调用仅用于
+  规则测试/回放样例和静态 DSL 校验，不代表临床运行链路。
+- 灰度暂停通知深链已从旧 `/tenant/packages` 切到发布治理页 `/config/releases`；
+- 整套上线演练沙盘阶段已从旧“上线容器”改为“机构生效版本”，全知识演练夹具同步到当前 11 个知识域
+  `DIAGNOSTIC_ITEM`；
+- 审计导出、质控导出和产品范围里的用户可见旧“证据导出包”口径已收敛为“证据导出”；
+- 质控驾驶舱下钻响应已从旧 `QualityEvidencePackage/evidencePackage` 收敛为
+  `QualityEvidenceExport/evidenceExport`；证据导出载荷补齐真实 SHA-256 证据范围摘要，前台显示为
+  “证据范围摘要”，不再把 `scopeDigest` 字段名直接展示给用户。
+- 复扫生产源码、前端源码、脚本和契约文档后，旧 `packageId/packageVersion`、旧 `/engine/pkg/packages`
+  路径和旧上线容器词只保留在历史负向护栏说明中。
+- `ClinicalRuntimeDeclarativeAssetResolver` 已允许 `FIELD_CATALOG` 按机构生效版本解析不可变正文；
+- 新增 `RuntimeReleaseFieldCatalogResolver`，将字段目录资产正文恢复为 `ContextFieldDescriptor`；
+- 第三方数据接入契约已改为只从当前机构生效版本的字段目录资产生成，不再读取当前字段目录工作区。
+- 手工规则/路径 DSL 中的 `field` / `fact` 引用已统一折叠为
+  `FIELD.CATALOG.CLINICAL_CONTEXT` 资产依赖；同一条件对象同时引用字段和值集/公式时会同时登记字段目录与
+  对应运行资产依赖，避免机构生效版本装配时漏激活字段目录。
+- 发布模拟对没有专门病例级回放执行器的版本化资产已不再返回阻断式 `UNSUPPORTED`；现在基于资产依赖图返回
+  目标组织和适用范围内的在用依赖资产，并以“依赖影响评估”说明该类资产不执行病例级重算，避免术语、
+  字段目录、值集、公式等基础资产在有历史快照时被旧“仅规则回放”模型卡住。
+- 发布治理页已接入真实发布影响评估：候选资产列表带出适用人群或上下文，机构运营员选择集团/本院内容后可在
+  生成机构生效版本前调用 `/engine/versioning/releases/simulations`，并用“可发布/需处理、病例回放、
+  依赖影响、阻断原因”等医疗产品语言展示结果，不再让前台猜测评估域。
+- 医技报告解读已从“部分数据骨架”补成运行闭环：服务端只接收已生效标准上下文快照，按快照锁定的
+  `runtimeReleaseId` 读取机构生效版本中的 `DIAGNOSTIC_ITEM` 医技项目说明书，输出辅助解读与复核建议；
+  解读结果会通过推荐引擎生成临床提示卡，不改写已签发报告、不自动开立医嘱。前台“提醒与推荐中枢”
+  已新增“生成报告解读”入口，共用快照选择器，不暴露包、版本或知识域选择器。
+- 前台产品语言门禁已扩展到启动凭证、来源允许范围、模型版本组合、运行环境、无模型规则链路、
+  多因素认证、生产前校验、生产安全校验、发布质量校验、发布验证用例、开通条件和时窗校验等
+  医疗引擎中枢语言。
+- 2026-06-24 已纠偏一次过度通俗化：前台不再把专业治理词机械替成“检查”，也不再把 MFA 写成
+  “安全验证码”或把 B0 写成“基础规则模式”。后续表达按医疗产品体验师视角处理：
+  保留医疗与治理专业性，隐藏实现代号；按用户任务表达条件、风险、校验和结果。
+- 模型服务、知识生产、诊断知识发布、规则/路径发布、机构开通、安全设置和国产化自检的前后台文案已按
+  “用户可理解且专业准确”口径同步；技术枚举可留在专家模式、日志、测试数据和工程契约，不应直接进入前台。
+- 用户最新反馈已明确：MedKernel 是医疗引擎中枢系统，前台字典和页面语言必须从医疗产品体验师视角优化，
+  不是机械替换同义词，更不能为了“通俗”损失临床、治理和机构运行含义。后续前台表达默认采用医生、
+  医疗引擎运营员、机构管理员和审计员能理解的业务语言；如“机构生效版本”“发布质量校验”
+  “生产安全校验”“红线风险”“临床提示卡”等可作为专业产品词保留，内部枚举和实现代号只放专家模式或工程契约。
+- 声明式资产工作台和规则 L2 编辑器已把旧“动作卡/动作码/建议/卡片动作”等泛化技术词收敛为
+  “临床提示卡”“命中后处理”“医生可选操作”“风险等级”“提醒等级”“依据名称/链接”等面向用户的医疗业务词；
+  值集、计算公式、医嘱套餐和临床提示卡的作者选项抽到
+  `frontend/src/shared/config/declarativeAssetAuthoring.ts`，避免页面内散落重复字典。
+- 前台与外部可见字典已继续按医疗引擎中枢产品语境扩展到“计算公式”“医嘱套餐”“临床提示卡”
+  “命中后处理”等业务词；前端页面、共享字典、后端校验/权限/模板/错误消息和五方言 V1 注释已同步，
+  旧技术词仅允许出现在翻译兜底、语言门禁、负向测试和历史接力说明中。
+- 当前上线候选明确为简体中文产品体验，不提供多语言版本或语言切换入口；已移除前端未落地的
+  `i18next` / `i18next-browser-languagedetector` / `react-i18next` 运行依赖，并新增护栏避免依赖层
+  继续暗示已支持多语言。
+- 领域归属契约已补齐 `engine-domaincatalog` 以及资产身份、资产验证记录、资产触发绑定表归属；候选生成、
+  候选物化、价值指标、质控看板和全链路 E2E 的测试前置数据已对齐真实租户根组织、机构生效版本外键和
+  清单哈希算法，不再靠裸字符串或占位哈希绕过关系库权威。
+- 整套上线演练已新增第七个 `launch-coverage` 覆盖审计阶段：前六阶段证据必须全部通过统一门禁后，
+  才生成 `launch-coverage.json` 并写入总索引覆盖矩阵；矩阵覆盖六层产品能力、13 类患者资源、
+  13 类版本化资产、11 类知识内容、完整医疗语义族、全医疗专业领域、S0–S40、五种交付形态、
+  七类业务组合、第三方系统族、组织层级、专病十阶段和模型赋能矩阵，任何 `SKIPPED`、
+  `UNKNOWN` 或前置阶段失败都阻断整套通过结论。
 
-## 本地已完成
+本阶段新鲜验证证据：
 
-- Phase 1：文档原件资料库存储层。
-  - `ManagedDocumentMaterialStorage` 支持显式配置的受管 `file://` 本地根；未配置或协议未接入时结构化阻断，不回退临时目录。
-  - `mk_knowledge_material_object` 已入五方言基线；解析成功后 `SourceVersion.file_uri` 指向受管 URI；支持原件审计读取和成功 job 重解析。
-- Phase 2：真实医学回归基线与 readiness。
-  - 启动期从 OPT-04 ACTIVE 已审红线投影回归基线，不编医学题/答案；`mk_llm_regression_case.source_reference`、维护端点和前端 readiness 已补。
-  - `MODEL_EVALUATION` 仍要求真实 `PASSED` 评测，种子只补真实基线，不绕过闸门。
-  - T9 上线核查已补严评测证据链：普通评测运行持久化真实 `capabilityCode` 与完整启用基准集 SHA-256 指纹，请求模型版本必须等于 provider 当前配置，provider 返回模型版本漂移则整次评测失败；provider 启用门和 readiness 均复核当前能力/基准指纹，其他能力或同题数旧基准的 `PASSED` 不能串线。
-  - 引用从“非空即真”改为逐用例精确匹配已登记 `sourceReference`；本地 provider 只有在正文真实输出该精确引用时才提取为证据，其他来源仍判假引用。高风险 `sign-off` 仅质量与医保治理员可执行，服务层强制签字人与评测执行人分离、签字账号已绑定 MFA，并以状态条件更新阻断并发覆盖；平台管理员不能替代专家复核。真实专家身份仍须现场提供，自动化不得冒充。
-  - V151 已在 134 加固逐例复核闭环：评测运行与逐例输入/期望/输出/来源引用/红线裁决同事务保存；证据不全、基准漂移、假引用、红线命中、同人复核、无 MFA、未确认或意见不足均禁止签字，上线门禁也重新核验同一份逐例证据。V156 进一步为每次评测冻结当前部署制品指纹；历史空指纹或异指纹运行不可再次签署、不可用于 Provider/P6 放行。本地新控制台已将医学评测与独立复核收敛到 `/knowledge/production`，删除旧 `/qc/model-evaluations` 路由、旧菜单权限和页面包装；V159 同步清理数据库旧权限与环境变量凭据引用列，技术指纹仍仅授权专家模式可见。
-  - 2026-06-19 22:34 的运行 `1`、`2` 已由 `quality-governor` 签为 `PASSED`，该签署事实保留且不篡改；但两行生成于 V156 之前，`release_fingerprint` 均为空，因此部署 `65d164a7` 后只属于历史审计，不满足当前制品放行。原页面把已签署 `PASSED` 误提示为“当前不是待复核状态”已修复，历史签署现显示明确警告。
-  - 2026-06-19 22:48 `/knowledge/governance` 白屏根因是前端把后端候选分页 `PageResponse` 当数组调用 `.find`；现已按 `.items` 读取并补服务端分页。审核入口不再预取生产中心任务/就绪数据，配置包查询仅在选中候选且具 `package.read` 时启用；规则定义和评价指标页同步消除无权限配置包预取。应用级错误边界会保留登录态并显示中文恢复页，不再让未处理渲染异常直接白屏。
-- Phase 3：AI 工厂收口。
-  - AIK-STD-05/08/09/10/11/03/07 关键后端与前端证据面已补：结构化红线、8 态分流、差异/过期任务、原子替换影响任务、知识包装配、术语候选生成入口、Agent 进度/中止和共存对照。
-  - `KnowledgeVersionService.activate` 替换 ACTIVE 时落 `SUPERSEDED_REPLACEMENT` 失效证据并派医师复核、包补同步、同步告警三类任务；高危 `WITHDRAWN` 仍禁止一键回滚。
-- Phase 4 当前：自主公域知识获取后端闭环。
-  - 新增 `engine.knowledge.acquisition`：`AcquisitionOrchestrationService` 仅允许 `PRODUCTION_CENTER` 手动触发；URL 必须命中已审批 allowlist、HTTPS、许可 `PERMITTED` 且 robots 策略允许。
-  - V142 五方言新增 `mk_knowledge_acquisition_source` / `mk_knowledge_acquisition_run`，记录域名、A-E 权威、许可、robots 策略、审批人、真实 URL、抓取时点、sha256、资料 URI、解析 job 和状态。
-  - `WebContentFetcher` / `RestWebContentFetcher` 真实抓取公开资料；获取内容进入既有 AIK-STD-02 解析链路和 P1 受管资料库，不新造存储。
-  - 新增 `POST /api/v1/engine/knowledge/acquisition/runs`、`GET /api/v1/engine/knowledge/acquisition/{sources,runs}`，服务契约、产品功能目录和领域表归属已同步；请求可携带可选 `generation` 计划，把成功解析或重复复用的 `SourceVersion` 接入统一候选生成/审核池。
-  - V143 五方言新增调度字段：`schedule_enabled_flag`、`schedule_interval_minutes`、`next_check_at`、`last_check_at`、`default_format`、`generation_plan_json`；默认关闭，不做旧数据回填。
-  - `AcquisitionScheduleScheduler` / `AcquisitionScheduleWorker` 已接配置中心动态间隔，按到期白名单来源提交 SYS-05 `KNOWLEDGE_ACQUISITION_DISCOVERY` 批任务；任务 handler 调 `runScheduled`，失败项进入 SYS-05 失败明细、重试和死信闭环，不另建队列表。
-  - DATASVC 新增 `fetchPublicMaterial` 受控工具（D1 / `knowledge.write`），只把 Agent/MCP/CLI 的结构化公域资料载荷转入既有获取编排；CLI 已接 `agent fetch-public-material`，MCP 沿动态工具目录暴露；D3/D4/D5 入参拒绝。
-  - T9.5 本地切片已补来源治理闭环：`knowledge.write` 只保存停用草稿，专用高风险权限 `knowledge.acquisition.approve` 经 MFA 与职责分离审批/停用；任何编辑撤销旧审批。知识生产页同步提供来源清单、显式许可/robots 裁决和分权操作面。
-  - 抓取边界已加固：请求前拒绝任一私网/保留 DNS 解析地址，禁止自动重定向，响应上限 32 MiB；V149 五方言增加 `lock_version`，治理写入和调度 claim 共用版本栅栏，陈旧快照不能覆盖最新决策。
-- Phase 5 已收口：LLM-01/LLM-02/LLM-04 模型网关、降级矩阵、版本三元组、质量评测、出域最小化、候选真实化与降级路径预验。
-  - 模型 Provider 治理已补独立安全入口：V152 五方言为 `mk_llm_provider` 增加 `lock_version`；本地新控制台进一步以租户加密凭据库取代环境变量引用，配置 PUT 永远保存为停用并拒绝危险 URL，所有治理响应只返回凭据来源、尾四位、版本等脱敏快照。启停只改变 `enabled_flag`，要求 MFA、二次确认、原因、当前版本；启用还必须满足真实 `HEALTHY`、部署形态允许和已签署医学评测，重复启停在版本匹配时幂等、版本漂移仍冲突。134 当前已有两个 `HEALTHY` Provider 行且均停用；当前 P6 为 `true`（SYSTEM 版本 6），但本分支部署会改变制品指纹，必须重新评测和独立复核后才能启用 Provider。
-  - Task 4 工程预演已达到 `REHEARSAL_READY`：新增 `p9-pre-signoff-rehearsal.mjs`，请求白名单只允许登录、Provider 脱敏读取/健康检查、评测创建/读取与 readiness，发网前阻断 enable/disable/sign-off/P6 写入；预演时兼容 134 V151 无 Provider GET 的 405 合同，仅使用健康检查保持的 `enabled_flag` 与 readiness `MODEL_PROVIDER=false` 双重证明停用。
-  - 134 在 `2026-06-18T13:25:52Z`–`13:26:08Z` 以最终收紧脚本新生成运行 `9`（Ollama）与 `10`（外部 MIMO），均真实 1/1、`PENDING_REVIEW`、逐例证据完整、基准当前、可复核、无 reviewer / signedAt；两个 Provider 均 HEALTHY 且预演前后停用，readiness 精确为 5/9、P6=false。证据仅保留计数、裁决和原文 SHA-256。
-  - 11 类工程证据已归档至 `docs/release/evidence/p9-production-golive-20260618/01-*.json` 至 `11-*.json`；`node scripts/drill/p9-engineering-rehearsal-check.mjs` 返回 `status=PASSED`、`stage=REHEARSAL_READY`、安全边界两项均 false。该结论只允许进入候选冻结，不代表正式上线。
-  - 冻结前依赖复核发现 `form-data` 生产 high 漏洞和开发工具链审计债，已以本地提交 `13b69304` 升级到安全版本并完成 Vite 6.4.3 / Vitest 3.2.6 兼容回归；前端 99 文件 / 795 tests、typecheck、eslint 零 warning、stylelint、格式、build、生产与开发依赖审计均通过，`DEFER-002` 已关闭。
-  - Task 6 安全复核发现最终清库脚本缺少目标主机强制匹配；已以 TDD 在 `c70787c9` 增加 `--expected-host` 精确校验，缺失或不匹配必须在 root、停服和任何破坏性检查前退出。修复后后端 465 份 Surefire / 2999 tests、前端 99 文件 / 795 tests、CLI 30 tests、MCP 16 tests、迁移合同、部署合同、T-GATE 与两类前端依赖审计全部重跑通过。
-  - Task 5 已从新候选 `95b53321c7baeb4e05e70b62834074fc59df323e` 重新达到 `RELEASE_FROZEN`，未 push；同提交后端 `clean package` 465 份 Surefire / 2999 tests、前端 `npm ci && npm run build` 均退出 0。JAR SHA-256 `ead024428eb79095729565a678a6eeded83d5ac5665706e0cbfe4e26ee0c5b9a`，前端清单 SHA-256 `26a200ab214ed482f10450ff34583c3f610bc25553124c9b4cb432dff8ac1742`，五方言迁移清单 SHA-256 `33af80dc0e1c4b969076aeb3aac882997c5f8fd9c29ff92ac2cc21ebafe806a3`。正式清库前发现首次手工归档带 macOS provenance 扩展头，未执行部署；已从同一 276 文件内容用受控命令重新生成零 xattr、Linux 解包零 warning 的归档，前端内容清单不变，归档 SHA-256 `fca2008f2dc3f512632b1971ee25587426139e88f3c2cf27c9acad768208285c`，五文件冻结包清单更新为 `e16e4bd3ba855d437d7bc32331a4c3a7a7c904a736012078fea9c1ccdebdd3bc`。
-  - 新精确候选字节以 0600 权限保存在 git 忽略的 `runtime/release-freeze/95b53321c7baeb4e05e70b62834074fc59df323e/`；历史 `1603b5a7` 候选仍明确失效、禁止部署。后续只能使用新冻结字节，不得从包含冻结证据提交在内的后续 HEAD 临时重建。
-  - 134 清库前非破坏性备份已生成并通过隔离恢复：`/zoesoft/medkernel/backups/p9-final-preclear-20260618-214927`，dump SHA-256 `166655c57369195848a896b932cc4de5f58898ed5ed99eae61ce45d943f8831e`，恢复库 Flyway V151、207 张 public 基表且关键计数一致，临时库已删除。按最终清库口径已删除其余 7 个历史备份目录，当前备份根只保留该恢复锚点，删除后 dump 哈希复核不变。
-  - `DEFER-025` 的 PostgreSQL 项已关闭：冻结 JAR 在 134 独立空库两次启动至 readiness 200，均迁移到 V152 / 207 张 public 基表 / 152 条成功迁移，迁移清单哈希一致且第二次 no-op；临时库、JAR、环境文件和 transient units 已删除。Oracle 实跑项仍 open，不得宣称通过。
-  - 必须保留的现场偏差：首次空库尝试因 systemd 的生产 EnvironmentFile 覆盖临时数据库 URL，候选进程在正式端口冲突退出前误将正式库从 V151 前向迁移到 V152。V152 只新增 `mk_llm_provider.lock_version` 默认 0，未删除业务数据、未替换运行制品、未重启正式服务；偏差后即时核验仍为旧 JAR `67ae7820...`、MainPID `526720`、`NRestarts=0`、readiness 200，三条 Provider 全停用、P6=false。纠正后使用唯一隔离的 0600 环境文件完成真实空库验证；不得把本次事实写成“正式库未修改”。
-  - Task 7 已达到 `FRESH_DEPLOYED`：`2026-06-18T22:43:31+08:00` 即时备份与隔离恢复通过后，唯一一次正式执行停服、重建空库、清旧运行物和历史备份并安装 `95b53321c7baeb4e05e70b62834074fc59df323e` 冻结候选。运行 JAR SHA-256 `ead024428eb79095729565a678a6eeded83d5ac5665706e0cbfe4e26ee0c5b9a`，内部/HTTPS/公网 readiness 200，Flyway V152 / 207 张 public 基表、owner=`medkernel`，服务 active/enabled、`NRestarts=0`。知识、候选、获取、评测、Provider、版本包关键表均为 0，P6=false，bootstrap `initialized=false`；当前只保留本次清库前备份 `p9-fresh-preclear-95b53321c7ba-20260618-224330`，dump SHA-256 `6cb33efcfdbbf617127e50d03621e70b8951ddeeb3a566191cbbaa8cb544cff2`。
-  - Task 8 Step 1 已完成：134 以正式受控账号 `platform-owner` 完成首次接管、强制改密、TOTP MFA 绑定、独立重登录与 MFA 再验证；`security/me` 确认唯一 `system-superadmin`、`mustChangePwd=false`、`mfaRequired=true`、`mfaBound=true`。凭据只保存在 134 的 `0600 root:root` 受控文件，未进入仓库或证据；bootstrap token 投递文件和环境键均已销毁。接管前后 MainPID 均为 `595415`、`NRestarts=0`、readiness 200，Provider 仍为 0、P6=false、备份仍仅 1 份，未触发专家签署。
-  - Task 8 Step 3–5 已完成：WHO 正式 PDF 当前完整下载为 3,515,427 bytes，SHA-256=`e44231194db4a3c7378b9949752c2b1cf1fdb7629793a543a92792cdda0e785c`，并对第 36 页来源原文做提取和渲染目视核验；干净正式库来源化高风险用例绑定 `rule.draft` / `medication-safety` / `who-chb-2024-v1` / `WHO IRIS 10665/376353`。运行 `1`（Ollama）与 `2`（外部 MIMO）最初均真实 1/1、证据完整并进入人工复核，后于 2026-06-19 22:34 被签为 `PASSED`；因产生于 V156 之前且 `release_fingerprint=NULL`，当前只能保留历史审计。后续旧制品运行 `3`、`4` 也已有签署事件，但锚点修复再次要求按新制品重跑。
-  - `model_capability_policy` 已按 134 全新清库口径改为 `scope_type/scope_ref` clean baseline；唯一键为 `tenant_id+capability_code+scope_type+scope_ref`，不保留旧租户唯一策略过渡层。
-  - `ModelGatewayService` / `KnowledgeProductionReadinessService` 统一按当前组织链由近到远继承策略到租户；`getStatus` 返回策略来源与是否继承，前端 AI 工作流页展示策略来源。
-  - T5.2 已补 `fallback_order_json`、`timeout_ms`、`rate_limit_per_minute` clean baseline；`ModelFallbackMatrix` 校验 B2→B1→B0 / B1→B0 顺序，运行时按顺序尝试 provider，并在 provider 调用前执行策略限流，失败归因串联到 `fallbackReason`，前端展示降级顺序和调用预算。
-  - T5.3 已补 `mk_llm_model_version_bundle` V139 clean baseline、`model_capability_task.tool_version`、ACTIVE 版本包发布/回滚/hash-only 导出、B0 脱敏摘要重放、provider 成功任务真实 prompt/tool/model 三元组记录，以及服务层发布前载荷校验；空版本或空正文不再能先退役旧 ACTIVE。
-  - T5.4 已补 OPT-06 AI 质量评测中心：V126 clean baseline 复用 `mk_llm_regression_case`/`mk_llm_eval_run` 增加质量维度、术语期望、禁用断言、最低分、质量/术语分、幻觉标记、case summary 与 prompt/tool/model 版本趋势；新增 `/api/v1/ai-eval/runs`、`/api/v1/ai-eval/trends`，支持离线 B0 输出或真实 provider 输出评测；真实领域题库只允许由真实来源导入，不预置伪医学题。
-  - T5.5 已补 OPT-09 数据最小化策略引擎：V144 五方言在 `mk_llm_egress_whitelist` 扩展 `desensitization_rules`、`approval_threshold_level`、锁定式 `guardrail_locked_flag`；新增 `/api/v1/data-minimization/policies/model-egress/{capabilityCode}` 与 `/model-egress/approvals` 管理入口，统一复用 `llm.egress.manage` 权限和出域审计表。
-  - T5.5 运行时护栏已接入 `ModelEgressGuard`：字段白名单外继续阻断，字段级 `MASK`/`MASK_ALL`/`GENERALIZE`/`NULLIFY`/`NONE` 策略在出域前执行；缺省或异常规则按最严 `MASK_ALL` 处理；审批门槛按 `LOW/MEDIUM/HIGH` 可配置，命中门槛且无有效审批时仍返回 `ENG_LLM_007`，不绕过既有证据链。
-  - T5.6 已收口 API-12/LLM-01：模型能力网关 `status/catalog/tasks/retry/replay/policies` 端点、权限、OpenAPI、前端共享 hook 与 prompt/tool/model 三元组消费口径一致；补齐任务查询/重试跨租户拒绝证据，前端接入 B0 replay hook；`API-12` 与 `LLM-01` backlog 均为 done。
-  - T5.7 已补候选真实化语义：`ModelKnowledgeProducer` 成功模型输出只产 DRAFT 候选并走同一门禁/分流/影子/提交链；payload 不落生产提示正文，仅落 `promptInputHash`、AI 标识、任务 ID、模型模式、prompt/tool/model 三元组、来源引用、模型输出和真实内容 hash；B2→B1 本地模型真实成功可入链并保留 fallback 证据，B0/非成功/readiness 未齐/schema 不合格仍跳过或阻断不产伪候选。
-  - T5.8 已补降级路径预验证：非成功 B2/B1 模型任务返回诚实 `status/mode` 跳过原因，不再误写成 B0 降级；真正 B0 仍明确标注 B0。知识生产中心 readiness/job 主证据可见时，候选血缘、门禁、8 态、影子评测、共存提醒任一下游 evidence 读取失败会显示“生产证据部分读取失败”与分项错误，不用空表掩盖断连。
-- Phase 6 已收口：院内覆盖管道全实现。
-  - T6.1 已补院内上传增强：`DocumentParseController` 新增 multipart `POST /api/v1/engine/knowledge/documents:upload-parse`；上传原件复用 AIK-STD-02 解析与 P1 受管资料库存储，`DocumentMaterialStoreRequest.scopeKey=tenantId`，不落临时目录；可选生成计划只声明领域与物化目标，服务端用解析出的真实 `SourceVersion` 固定构造 `TENANT_OVERLAY` 候选生成请求，继续走门禁、8 态、影子评测和审核链，不新增平台主源写入口。
-  - T6.2 已补本地模型生产器：`ModelKnowledgeProducer` 对 `LOCAL_MODEL` job 强制 `TENANT_OVERLAY` 院内覆盖，发现平台主源管道在 readiness/模型调用前即拒；模型网关 `ModelTaskRequest` 支持 `requiredRouteStrategy/providerCode`，知识生产器传入 `LOCAL_MODEL`/指定本地 provider，网关在 provider 解析前校验策略匹配并按指定 provider 走本地健康检查，策略漂移时不落任务、不外调、不伪造候选。
-  - T6.3 已补双形态隔离强化测试：平台主源 job 收到客户候选时返回 `KNOWLEDGE_PRODUCTION_PIPELINE_VIOLATION`，不再落泛化 BAD_REQUEST；`t-1` 候选进入平台主源保持平台归属并路由平台知识治理员；客户租户不能把平台 `identityId` 当写入目标提交候选，只能读 effective 主源或走本租户覆盖。
-  - T6.4 已补 DATASVC-01 D3/D4 字段级加密与分级元数据：V145 五方言新增 `mk_engine_data_encrypted_field` / `mk_engine_data_field_policy`，后端通过 `FieldLevelEncryptionService` 使用独立字段级密钥派生 SM4 密文、SM3 检索 hash、字段策略和审计凭证；`PrivacyPolicyService` 对 D3/D4 返回 `allowed=true` 且 `requiresFieldEncryption=true`，D5 仍禁入；Agent 写工具继续拒绝 D3/D4/D5，CLI/MCP 测试确认不绕治理。
-- Phase 7 已收口：领域门面代码 + KNOWGEN 资产类型专用代码。
-  - 新增 `engine.domainfacade` 只读目录：17 张 X-DOMAIN 卡按总计划顺序声明共享引擎链路、依赖卡、B0 工作流摘要、服务包成员、模型可选、不预填真实医学内容、不新增领域专属业务引擎。
-  - 新增 `/api/v1/engine/domain-facades`、`/{code}`、`/b0-fixtures` 与 `/{code}/b0-fixture`，受 `knowledge.read` 与租户 DataScope 约束；B0 fixture 证据逐门面返回共享处理器、确定性路由、模型非必需、未预填医学内容、服务包成员可解析和扩展专科诚实空态；服务契约和产品功能目录已同步。
-  - T7.2 已补 KNOWGEN 资产类型专用代码骨架：`FORMULA` 评分/计算器模板接入 `SourceCandidateGenerator` B0 候选生成；RULE 模板新增测试病例结构；新增 `KnowgenSpecializedAssetSkeletonRegistry` / `KnowgenSpecializedPayloadValidator` 覆盖 KNOWGEN-16/04/18/20/19；`ClinicalFormulaCalculatorService` 用传入公式定义确定性复算，不内置医学常量、不预填真实医学内容。
-- Phase 8 已完成 T8.1–T8.6：菜单 IA 双产品面 + 生产者工作台 + 双形态一眼可辨 + AI 产物可信解释贯穿 + 审核反馈回流 + 上线体验收口。
-  - 审核台 `/knowledge/governance` 只保留候选审核/发布边界，要求 `knowledge.review`；实施运维员不再进入审核台。
-  - 机构知识独立为 `/knowledge/institution`，承载从平台标准派生机构版本、机构覆盖血缘和恢复平台标准；不再藏在审核页签里。
-  - 知识生产独立为一级域 `/knowledge/production`，模型能力 `/advanced/ai-workflows` 改名并迁入“知识生产”；临床运行角色不可见，实施/集成运维员通过生产面查看 readiness/job/模型能力。
-  - 后端同步 `MENU_INSTITUTION_KNOWLEDGE`、`MENU_KNOWLEDGE_PRODUCTION`、`menu.ai-workflows=查看模型能力`、V146 五方言迁移、14 角色菜单快照、产品功能目录、角色旅程和 IA 矩阵。
-  - T8.2 已补 `useCreateKnowledgeProductionJob` 与知识生产入口“生产者工作台”：下任务表单真实调用既有 `/engine/knowledge-production/jobs`，看进度沿用 job/readiness/evidence，候选队列可单选并驱动左右对照与影响区，结论区只给批处置预案；高风险/双签候选批量通过锁定，最终通过/退修/驳回仍归审核台。
-  - T8.3 已补双形态可辨边界：平台主源/院内覆盖统一走 `PIPELINE_META`，机构知识页常驻显示“平台主源只读 / 院内覆盖可治理”，生产中心常驻显示“双形态生产分区”，job 管道、候选溯源和机构血缘表格同步颜色与边界标签；空数据、失败和就绪态均不再只靠表格行解释归属。
-  - T8.4 已补 AI 产物可信解释贯穿：模型候选 payload 的任务 ID、模型模式、prompt/tool/model 版本、来源引用、置信和降级原因在提交候选时白名单抽取到 `mk_knowledge_production_candidate.explain_json`；溯源接口解析并返回解释字段，坏 JSON 诚实降级为空解释；审核台候选来源列和“AI 生产来源溯源”抽屉展示 AI 标识、模型模式、模型版本、提示词/工具版本、来源引用、置信和降级状态。迁移 V147 五方言新增 `explain_json`，COMMENT 明确不保存提示词原文或候选正文。
-  - T8.5 已补审核反馈回流闭环：审核台只登记 `feedback_type` 与 `followup_action`，不直接创建新知识；采纳默认 `ACCEPTED/NONE`，退修默认 `CONTENT_GAP/CREATE_REVISION_CANDIDATE`，驳回默认 `NOT_ADOPTED/ARCHIVE_REJECTED`，并支持来源空白 `SOURCE_BLANK/REQUEST_SOURCE_EVIDENCE`、误报 `FALSE_POSITIVE/MARK_FALSE_POSITIVE`。V148 五方言为 `mk_knowledge_review_assignment` 新增结构化反馈列与 CHECK，前端审核抽屉提交结构化反馈。
-  - T8.6 首片已推进：知识审核 AI 溯源默认改为医院语言，不再暴露 job、模型任务、策略、模型模式、prompt/tool/model 版本、来源引用原文和技术降级原因；授权专家模式下才展示技术字段。新增全局 `useExpertModeStore` 与共享 `ExpertModeToggle`，`PageExperienceShell`、知识审核、系统依赖、审计、术语映射和适配器中心共用一个专家模式偏好。
-  - T8.6 二片已推进：规则/路径编辑器内 L3 入口按语义拆名为“L3 DSL 编辑模式”（创建/编辑）与“L3 技术视图”（详情只读），不再混用全局“专家模式”；规则编辑器与路径共享条件树统一展示“条件根组 · 第 1 层 / 子条件组 · 第 N 层 / 具体条件”，新增具体条件按钮和蓝/绿层级边界，窄屏取消子组横向缩进以保留移动端可读性。全局“专家模式”剩余入口仅保留在共享 `ExpertModeToggle` 及其消费页；`TenantOnboarding.branding.expertMode` 属于租户品牌/配置字段，不并入个人全局可见性偏好。
-  - T8.6 三片已推进：共享六态错误、部分成功、异步导出、工作台部分来源、服务机构生命周期和批量创作抽屉统一接入 `customerSafeDisplayText` / `getApiErrorMessage` 医院语言兜底；界面不再暴露 `/api`、`ECONNREFUSED`、本机地址、SQL/Exception/stack 等技术细节，追踪号统一以“追踪号”展示；中文业务校验仍保留原文。
-  - T8.6 最终片已完成：前端 lint 固化 `--max-warnings=0`，4 处嵌套三元重构为顺序分支；Stylelint 与视觉债门禁覆盖全部生产 CSS，全局固定字号/间距改用 Ant Design 与 `--mk-unit` token。elder 实测基础字号不低于 21.333px、小字号不低于 20px、表单实际字号不低于 16pt；5 主题均可达，390px 登录页无根节点横向溢出且无 console error。
-  - 国产化自检新增只读浏览器能力预检：检查 ES modules、Fetch、AbortController、URL、TextEncoder、Web Crypto、matchMedia、ResizeObserver、CSS Grid/CSS variables，报告不携带凭据、Cookie、令牌或患者数据；自动化新增“国产 Chromium 内核仿真（非现场认证）”，只验证内核能力，不把 User-Agent 当作国产浏览器认证。
-  - 上线前迁移命名门禁修复：V140/V141 的 `knowledge_diff`、`expiry_task`、`aik_pack_job` 统一为 `mk_knowledge_diff`、`mk_knowledge_expiry_task`、`mk_aik_pack_job`，五方言、Java 实体、审计资源、服务/领域契约、测试和卡片同改。项目尚未部署且 P9 明确清库全新初始化，因此不增加兼容迁移或旧表回填。
-  - 同类问题审计结论：知识域产品入口已拆出审核台 / 机构知识 / 诊断知识维护 / 知识生产；当前剩余是代码层 `KnowledgeGovernance.tsx` 多模式复用，可后续按组件 ownership 拆细。跨域 `/clinical/followup` 仍混有运行侧随访协同与治理侧模板治理，属于临床协同与配置治理 IA 拆分任务，不并入本次知识生产链路提交；后续应按“运行只做运行，模板治理独立归知识/配置治理”拆分。
-- Phase 9 T9.0/T9.1 此前在 134 完成过全新清库初始化与受管资料库配置；该运行库与 `09306b...` 程序已被本次最终清库取代，不得把旧配置或旧业务数据视为当前事实。
-- T9.2 此前在 134 验证过两个真实 Provider：固定版本 Ollama `0.30.9` / `medkernel-qwen25:1.5b-v1` 与外部 `external-mimo-v25`。主机模型与受控环境凭据仍可作为 Task 8 重建输入，但数据库 Provider 行已随最终清库归零；重新配置后仍必须保持停用，待独立医学专家签署后再启用。
+- 红灯已分别复现临床提示卡引用未物化时的 `规则 DSL 缺少字段: atSeverity`：
+  `SandboxCurrentRuleExecutorTest#materializesActionCardReferenceFromTheFrozenRuntimeRelease`、
+  `SandboxReplayRuleExecutorTest#materializesActionCardReferenceFromHistoricalReplayAssetSnapshot`、
+  `AuthoringPreviewRunServiceTest#previewRunsDraftRuleWithActionCardFromSnapshotRuntimeRelease`、
+  `RecommendationDeterministicMatcherTest#materializesActionCardFromSnapshotRuntimeReleaseWhenBuildingRecommendation`；
+- 发布模拟护栏先改为只接受
+  `evaluate(dsl, context, "tenant-A", "runtime-release-test")`，旧实现红灯为空评估结果；
+- 后端消费者闭环：
+  `mvn -q -Dtest=SandboxCurrentRuleExecutorTest,SandboxReplayRuleExecutorTest,RuleReleaseSimulationReplayEvaluatorTest,AuthoringPreviewRunServiceTest,RecommendationDeterministicMatcherTest test`
+  通过；
+- 规则服务相关回归：
+  `mvn -q -Dtest=RuleEngineServiceTest,RuleDslAssetMaterializerTest,RuleDslEvaluatorTest,RecommendationDeterministicMatcherTest,SandboxCurrentRuleExecutorTest,SandboxReplayRuleExecutorTest,RuleReleaseSimulationReplayEvaluatorTest,AuthoringPreviewRunServiceTest test`
+  通过。
+- 灰度通知旧深链红灯：
+  `RolloutWorkflowNotificationAdapterTest` 先失败于实际值 `/tenant/packages?releasePlanId=vrl-1`，修复后
+  `mvn -q -Dtest=RolloutWorkflowNotificationAdapterTest test` 通过；
+- 上线演练旧“上线容器”红灯：
+  `node --test scripts/release/full-system-rehearsal.test.mjs` 先失败于沙盘阶段仍显示旧上线容器口径，修复后
+  5 个测试通过；
+- 审计权限旧“证据导出包”红灯：
+  `PermissionCodeTest` 先失败于显示名仍显示旧证据导出口径，修复后
+  `mvn -q -Dtest=PermissionCodeTest test` 通过。
+- 字段目录运行正文红灯：
+  `mvn -q -Dtest=ClinicalRuntimeDeclarativeAssetResolverTest,RuntimeReleaseFieldCatalogResolverTest,IntegrationDataContractServiceTest test`
+  先失败于缺少 `RuntimeReleaseFieldCatalogResolver`；修复后通过；
+- 字段目录相关回归：
+  `mvn -q -Dtest=ContextFieldCatalogDraftServiceTest,ContextFieldCatalogServiceMergeTest,ContextFieldCatalogControllerTest,ClinicalRuntimeReleaseServiceTest,ClinicalRuntimeDeclarativeAssetResolverTest,RuntimeReleaseFieldCatalogResolverTest,IntegrationDataContractServiceTest,TerminologyCoverageGateTest,RuleDslAssetMaterializerTest test`
+  通过。
+- 手工规则字段目录依赖红灯：
+  `mvn -q -Dtest=AssetReferenceConsistencyTest,RuleEngineServiceTest#createRuleRegistersStableRuntimeAssetDependenciesFromDsl+createRuleAcceptsActionCardReferenceAndRegistersRuntimeDependency test`
+  先失败于规则资产只登记 `VALUE_SET` / `ACTION_CARD`、未登记字段目录；修复后通过；
+- 同节点字段 + 值集引用红灯：
+  `mvn -q -Dtest=AssetReferenceConsistencyTest#extractsTypedRuntimeAssetReferencesFromNestedDefinitions test`
+  先失败于只抽取 `VALUE_SET`、未抽取 `FIELD_CATALOG`；修复后通过；
+- 资产依赖与机构生效版本装配回归：
+  `mvn -q -Dtest=AssetReferenceConsistencyTest,RuleEngineServiceTest,AssetDependencyServiceTest,RuleVersionedAssetAdapterTest,PathwayVersionedAssetAdapterTest,ClinicalRuntimeReleaseServiceTest,AssetAuthoringRegistryTest test`
+  通过。
+- 非规则类资产发布模拟红灯/绿灯：
+  `mvn -q -Dtest=ReleaseSimulationServiceTest#usesDependencyImpactReplayForAssetsWithoutDedicatedCaseEvaluator,AssetDependencyServiceTest#listsPublishedDependentsInTargetScopeForReleaseImpact test`
+  先失败于缺少 `activeDependentsOf` 和 `impactedAssets`；修复后通过；
+  `mvn -q -Dtest=ReleaseSimulationServiceTest,AssetDependencyServiceTest,RuleReleaseSimulationReplayEvaluatorTest,ReleaseGovernanceControllerTest,VersioningCommandContractTest test`
+  通过；`mvn -q -DskipTests compile` 通过；`git diff --check` 通过。生产代码已无
+  `尚未接入确定性历史回放执行器` 默认提示残留。
+- 产品语言门禁红灯/绿灯：
+  `npm test -- --run src/shared/config/customerLanguageGate.test.ts` 先失败于启动凭证、来源允许清单、医学公式和生产前校验等
+  前台可见旧技术文案；修复后 4 个测试通过；
+- 模型与发布治理相关回归：
+  `mvn -q -Dtest=KnowledgeProductionReadinessServiceTest,KnowledgeProductionReleaseStateMachineIntegrationTest,ReleaseModelContractTest,RuntimeArchitectureCleanlinessTest,RuleDslAssetMaterializerTest,ClinicalRuntimeDeclarativeAssetResolverTest,MigrationBaselineContractTest,FormalKnowledgeProductionPolicyTest,ModelGatewayServiceTest,ModelProviderGovernanceServiceTest,ModelVersionGovernanceServiceTest,H2BaselineMigrationTest test`
+  通过。
+- 用户可理解语言扩展回归：
+  `npm test -- --run src/shared/config/customerLanguageGate.test.ts src/pages/quality/KnowledgeGovernance.test.tsx src/pages/quality/DiagnosisKnowledgePanel.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/RulePathwayCleanliness.test.ts src/pages/knowledge-production/ProductionReadinessPanel.test.tsx src/pages/knowledge-production/ModelProductionConsole.test.tsx src/pages/knowledge-production/ProviderSetupPanel.test.tsx src/pages/workbench/ReadinessValidation.test.tsx`
+  9 个文件 / 105 个用例通过；
+- 医疗产品语言纠偏回归：
+  `npm test -- --run src/shared/config/customerLanguageGate.test.ts src/pages/advanced/AiWorkflows.test.tsx src/pages/knowledge-production/ModelProductionConsole.test.tsx src/pages/knowledge-production/ProductionReadinessPanel.test.tsx src/pages/quality/KnowledgeGovernance.test.tsx src/pages/quality/DiagnosisKnowledgePanel.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/TenantOnboarding.test.tsx src/pages/tenant/PathwayTemplates.test.tsx src/pages/Bootstrap.test.tsx src/pages/Login.test.tsx src/pages/compliance/SecurityBaseline.test.tsx src/pages/operationalControlPages.test.tsx src/widgets/AppLayout.test.tsx src/shared/api/hooks.test.ts src/shared/lib/browserCompatibility.test.ts`
+  16 个文件 / 289 个用例通过；
+- 后端产品语言与契约回归：
+  `mvn -q -Dtest=EmbedEngineServiceTest,EmbedEngineControllerTest,EmbedEngineExternalHostTest,EmbedLaunchTokenRepositoryTest,ClinicalContextServiceTest,AcquisitionOrchestrationServiceTest,KnowledgeProductionReadinessServiceTest,ModelKnowledgeProducerTest,CandidateSafetyGateServiceTest,CandidateSafetyGateIntegrationTest,ModelEgressGovernanceServiceTest,ModelEgressGuardTest,ModelEgressGovernanceRepositoryTest,ModelGatewayServiceTest,ModelProviderGovernanceServiceTest,ModelProviderRegistryTest,ModelFallbackMatrixTest,DiagnosisKnowledgeServiceTest,DiagnosisKnowledgeApiContractTest,H2BaselineMigrationTest,IntegrationContractDocumentationTest,PermissionCodeTest test`
+  通过。
+- 后端医疗产品语言纠偏回归：
+  `mvn -q -Dtest=DiagnosisKnowledgeServiceTest,ModelKnowledgeProducerTest,PublicationQualityRecordServiceTest,VersionReleaseServiceTest,RuleEngineServiceTest,SystemConfigControllerTest,SecurityMeControllerTest,AuthControllerTest test`
+  通过。
+- 构建与迁移轻量核查：
+  `npm run build` 通过；`mvn -q -DskipTests compile` 通过；
+  `node scripts/db/generate-migrations.mjs --check` 通过；`git diff --check` 通过。
+- 本轮医疗产品语言与真实约束收口定向验证：
+  `npm test -- DeclarativeAssetWorkbench.test.tsx declarativeAssetAuthoring.test.ts RuleDefinitions.test.tsx ruleLayeredEditor.test.ts`
+  通过，4 个文件 / 40 个测试通过；
+  `mvn -q -Dtest=CandidateMaterializationIntegrationTest,CandidateGenerationIntegrationTest,QualityDashboardServiceTest,ValueMetricsServiceTest,EngineEndToEndIntegrationTest,ContextSnapshotTraceEndToEndTest test`
+  通过；
+  `mvn -q -Dtest=DomainOwnershipContractTest test` 通过；
+- 本轮全量门禁：
+  `mvn -q test` 通过（本机 Docker 不可用导致 Testcontainers 输出环境检测错误日志，但 Maven 退出码为 0）；
+  `npm run verify` 通过，前端 lint / stylelint / 真实性规则 / format / typecheck / Vitest 全部完成，
+  Vitest 汇总为 106 个测试文件、763 个测试通过。
+- 医疗产品语言扩展后的后端定向回归：
+  `mvn -q -Dtest=DeclarativeAssetContentValidatorTest,RecommendationDeterministicMatcherTest,PathwayEngineServiceTest,RuleDslEvaluatorTest test`
+  先暴露规则断言仍期望旧动作表述，修正为临床提示卡口径后通过；
+- 收口核查：`git diff --check` 通过；残留旧前台词扫描只命中翻译兜底、语言门禁、负向测试断言和历史接力说明，
+  未发现生产前台页面或后端外部消息继续直接暴露旧技术词。
+- 简体中文产品版边界红灯/绿灯：
+  `npm test -- --run src/shared/config/i18nLaunchBoundary.test.ts` 先失败于仍声明未使用的
+  `i18next` / `i18next-browser-languagedetector` / `react-i18next`；移除依赖并更新体验契约后通过；
+  `npm test -- --run src/shared/config/i18nLaunchBoundary.test.ts src/shared/config/customerLanguageGate.test.ts src/widgets/AppLayout.test.tsx`
+  3 个文件 / 29 个测试通过；`npm run verify` 通过，前端汇总 107 个测试文件 / 764 个测试通过；
+  `npm run build` 通过；`git diff --check` 通过。
+- 质控证据导出契约红灯/绿灯：
+  `mvn -q -Dtest=QualityDashboardServiceTest#drilldownReturnsTraceableEvidencePackageForFindings test`
+  先失败于响应仍序列化旧 `evidencePackage` 字段；
+  `mvn -q -Dtest=QualityDashboardServiceTest#drilldownReturnsTraceableEvidenceExportForFindings test`
+  又暴露证据导出缺少真实 `scopeDigest`；
+  修复后 `mvn -q -Dtest=QualityDashboardServiceTest#drilldownReturnsTraceableEvidenceExportForFindings,QualityDashboardControllerSecurityTest test`
+  通过，`mvn -q -Dtest=QualityDashboardServiceTest,QualityDashboardControllerSecurityTest,MigrationBaselineContractTest test`
+  通过；`npm test -- --run src/pages/quality/QcDashboard.test.tsx src/shared/api/hooks.test.ts`
+  2 个文件 / 122 个测试通过；`mvn -q -DskipTests compile` 通过；`npm run verify` 通过，前端汇总
+  107 个测试文件 / 764 个测试通过；`git diff --check` 通过。生产源码已无旧 `evidencePackage`
+  字段或用户可见 `scopeDigest：` 标签，旧词只留历史说明和负向护栏。
+- 部署与演练脚本本地契约核查：
+  `bash deploy/onprem/tests/validate-medkernel-fresh-deploy.sh` 通过；
+  `bash deploy/onprem/tests/validate-medkernel-post-rehearsal-verify.sh` 通过；
+  `bash deploy/onprem/tests/validate-medkernel-failure-recovery.sh` 通过；
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/runtime-resilience-rehearsal.test.mjs scripts/release/launch-account-bootstrap.test.mjs scripts/release/model-provider-launch.test.mjs scripts/knowledge/full-knowledge-rehearsal.test.mjs scripts/sandbox/seed-scenarios.test.mjs`
+  36 个用例通过；
+- 清库部署文档已同步 `--external-base-url`，单机手册的业务表数改为从候选 schema 读取；
+  当前候选 schema 为 207 张业务表，`node scripts/db/generate-migrations.mjs --check` 通过。
+- 发布治理页影响评估红灯/绿灯：
+  `npm test -- --run src/pages/tenant/ReleaseGovernance.test.tsx src/shared/api/hooks.test.ts` 先失败于页面没有
+  “评估发布影响”按钮；`mvn -q -Dtest=ReleaseCandidateQueryServiceTest test` 先失败于候选资产响应缺少
+  `applicableScope()`；修复后前端 2 个文件 / 126 个用例通过，后端候选查询测试通过，并补齐“未评估的集团/
+  本院内容不能直接生成机构生效版本”的前台安全门禁；
+  `mvn -q -Dtest=ReleaseCandidateQueryServiceTest,RuntimeReleaseControllerTest,ReleaseGovernanceControllerTest,ReleaseSimulationServiceTest test`
+  通过；`mvn -q -DskipTests compile` 通过；`npm run verify` 通过，前端汇总 107 个测试文件 / 767 个测试通过；
+  `npm run build` 通过；`git diff --check` 通过。本轮 `npm run verify` 中曾暴露 Hook 依赖稳定性与 Prettier
+  格式问题，已修复后复跑通过。
+- 医技报告解读运行闭环红灯/绿灯：
+  `mvn -q -Dtest=RuntimeReleaseDiagnosticItemSelectorTest,ReportInterpretationServiceTest test` 先失败于缺少
+  运行选择器、解读服务和请求/响应契约；补齐后又暴露检验报告类型被小写归一后误归为检查类，修复后通过；
+  `mvn -q -Dtest=RuntimeReleaseDiagnosticItemSelectorTest,ReportInterpretationServiceTest,ReportInterpretationControllerSecurityTest test`
+  通过，覆盖机构生效版本医技项目说明书选择、未激活版本拒绝、空态不误判无风险、临床提示卡持久化、
+  未认证/审计员/访客/缺租户安全门；
+  `npm test -- --run src/pages/clinical/CdssFatigue.test.tsx src/shared/api/hooks.test.ts` 通过，
+  2 个文件 / 127 个测试通过，覆盖前台从已生效快照生成报告解读且不显示触发时点或版本选择器；
+  `mvn -q -Dtest=RuntimeReleaseDiagnosticItemSelectorTest,ReportInterpretationServiceTest,ReportInterpretationControllerSecurityTest,RecommendationEngineControllerSecurityTest test`
+  通过；`mvn -q -DskipTests compile` 通过；`npm run lint` 通过；`npm run format:check` 通过；
+  `npm run build` 通过。
+- 完整上线覆盖审计红灯/绿灯：
+  `node --test scripts/release/full-system-rehearsal.test.mjs` 先失败于缺少
+  `assertCompleteLaunchCoverage`；补齐覆盖矩阵与第七阶段后通过；
+  `node --test scripts/release/launch-coverage-audit.test.mjs` 先失败于沙盘阶段误判和浏览器失败未阻断；
+  改为复用统一阶段证据门禁后通过；
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`
+  8 个用例通过。
 
-## 最新验证
+## 2026-06-23 阶段检查点
 
-- PR #636 首轮 CI 的 `frontend-build-test` 在 coverage 并行负载下有 7 个既有交互测试撞上 Vitest 固定 5 秒用例上限，本地无 coverage 的 795 用例此前全绿；失败均为超时而非断言或业务错误。已按 TDD 新增 Vitest 运行时预算契约：本地保持 5 秒快速失败，`CI=true` 使用有界 15 秒预算；本地 `CI=true npm run test:coverage` 为 100 files / 796 tests 全绿，PR 第二轮 8 项 CI 全绿。#636 于 `2026-06-19T00:57:47+08:00` squash 合并为 `89f207017da26706f26dee759d62073c2ce53dd5`，远程功能分支已删除。该修复只影响测试运行器，不改变生产代码、134 状态、Provider 或 P6。
-- Phase 9 最终远程集成前复核：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean test` 为 465 份 Surefire / 2999 tests，0 failures、0 errors、7 skipped，H2 从空库完整迁移到 V152；`mvn -q -DskipTests package` 通过。前端 `npm ci && npm run verify && npm run build` 为 99 files / 795 tests，lint/stylelint/format/typecheck/build 全绿，两轮依赖审计均为 0 漏洞；CLI 30/30、MCP 16/16、生产预演脚本 24/24、B0、产品目录、部署/新装/发布包/Ollama 合同、证据 JSON、差异和敏感信息扫描均通过。
-- Phase 9 T9.0 脚本预验证：`bash deploy/onprem/tests/validate-medkernel-fresh-deploy.sh`、`bash deploy/onprem/tests/validate-medkernel-deploy.sh`、`bash deploy/onprem/tests/validate-mk-publish-package.sh` 和三份发布脚本 `bash -n` 均退出 0；本机未安装 ShellCheck，未把该项写成通过。当时 134 只读探测运行 `e7392c8f`、HTTP/HTTPS readiness 200、PostgreSQL 数据库 29 MB / 181 张 public 基表 / Flyway V123，未发生停服、清库或制品替换。
-- Phase 9 T9.0 首次执行留痕：候选上传后三份 SHA-256 与本地一致，缺 `--confirm-fresh` 的负向预检按预期拒绝。第一次正式执行在“清库前备份完成→隔离恢复”阶段因备份目录 700、`postgres` 进程无法直接打开 dump 而退出；服务和数据库始终 active/readiness 200，`destructive_action_performed=false`，未停服、清库、删备份或替换制品。修复为 root 打开 dump 后经标准输入交给 `pg_restore`，不放宽备份目录权限；真实 134 临时库恢复验证已通过（181 张表、Flyway V123），临时库已删除。
-- Phase 9 T9.0 第二次执行留痕：备份与隔离恢复均通过，随后 `systemctl stop` 已终止 MainPID，但远端陈旧 systemd 单元缺少仓库模板已有的 `SuccessExitStatus=143`，把 Java 正常 SIGTERM 退出码 143 记为 failed；脚本在数据库重建前退出，`destructive_action_performed=false`，旧服务已重新启动并恢复 readiness 200、181 张表未变。修复为全新发布显式携带并安装当前 systemd 单元与服务端发布脚本，停服用 30 秒有上限轮询确认 MainPID=0，并兼容清理陈旧单元产生的 failed 假状态。
-- Phase 9 T9.0 第三次执行留痕：备份与隔离恢复、停服、空库重建、旧运行物/旧备份清理和候选安装均成功，空库从 V1 迁移至 V148；启动随后被 `EnvironmentFieldEncryptionKeyResolver` 正确阻断，因为部署环境模板漏列 `MEDKERNEL_FIELD_ENCRYPTION_KEY`。服务端生成 64 位随机独立密钥并原子写入 `600 medkernel:medkernel` 环境文件后，真实 `/medkernel/actuator/health/readiness` 在第 12 次条件探测恢复 200；错误的 `/api/v1/readiness` 会被 nginx 前端回退成 `text/html 200`，不得再作为健康证据。仓库已补模板键和 `--validate-environment-only` 前置校验，覆盖文件权限、缺失、重复、短值、带引号占位符与日志不泄密。
-- Phase 9 T9.0 独立验收：`/zoesoft/medkernel/backups/p9-fresh-preclear-8ef5103d6227-20260618-094000/evidence/` 已记录候选/运行/manifest JAR SHA-256 一致、manifest source/commit 全哈希一致、HTTP/HTTPS readiness 200、bootstrap `initialized=false`、Flyway V148、206 张 public 基表、数据库 owner=`medkernel`、旧活动数据为 0、历史运行文件为 0 和 `destructive_action_performed=true`；证据目录已生成 `SHA256SUMS`。
-- Phase 9 T9.1 已完成并迁移到大容量存储：134 的 `/medkernel-data` 为 `cosfs/fuse.cosfs` 挂载，容量 256 TiB；正式根为 `/medkernel-data/platform-knowledge/t-1/literature-materials/`，目录 `0750 medkernel:medkernel`，WHO PDF `0640 medkernel:medkernel`。配置中心已通过真实高危 API 把 `medkernel.knowledge.literature.material-root-uri` 更新为 `file:///medkernel-data/platform-knowledge/t-1/literature-materials/`（SYSTEM 版本 3），源/目标清单与 PDF SHA-256 `e44231194db4a3c7378b9949752c2b1cf1fdb7629793a543a92792cdda0e785c` 一致，服务用户读写探针及 readiness `LITERATURE_ROOT` 均通过；旧系统盘目录暂保留作回滚，不再写入。
-- Phase 9 T9.2 真实运行证据：Ollama 基础权重 `qwen2.5:1.5b` digest=`65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b`，确定性派生模型 `medkernel-qwen25:1.5b-v1` digest=`5207e5b813aa2da7ffffce45269665b83220e576636fd5b9a3641fef2756c9eb`；同一 WHO 精确短语与引用连续 5/5 一致。外部 `mimo-v2.5` 在 134 上连续 3/3 返回精确短语、精确引用与非空模型标识。模型凭据未进入仓库、证据或日志。
-- Phase 9 T9.3 已导入来源化高风险回归用例 `1`（`rule.draft` / `medication-safety` / `WHO IRIS 10665/376353` / `who-chb-2024-v1`）。旧运行 `1`、`2` 因无发布指纹被阻断复用；旧制品运行 `3`、`4` 均为 1/1、无假引用或红线突破，各有 1 条完整逐例证据并已签为 `PASSED`。锚点修复后必须按新发布指纹重跑；同人自签 409、错误角色签署 403，自动化不得冒充真实医学专家。
-- Phase 9 T9.4 已完成：部署形态为 `PRODUCTION_CENTER`；出域仅允许 `prompt`，敏感级别 MEDIUM，脱敏 `MASK_ALL` 且护栏锁定；`rule.draft` 策略为 `EXTERNAL_MODEL → LOCAL_MODEL → BASELINE`、超时 60000 ms、每分钟 10 次；ACTIVE 版本包 `2` 绑定 `mimo-v2.5` 和 64 位 prompt/tool/model hash。
-- Phase 9 T9.5 清库前曾完成：WHO IRIS `10665/376353` PDF SHA-256=`e44231194db4a3c7378b9949752c2b1cf1fdb7629793a543a92792cdda0e785c`，许可 `CC BY-NC-SA 3.0 IGO`、robots 允许受控 bitstream。知识治理员登记停用草稿，同人审批 403；平台治理管理员经 MFA 独立审批。停用抓取被结构化阻断且未产生抓取副作用，重新编辑后再次独立审批；该来源记录已随最终清库归零，Task 8 必须在干净正式库重新登记和审批。
-- Phase 9 T9.5 提交前验证：前端 `npm run verify` 退出 0（98 files / 788 tests，lint、stylelint、格式和类型检查全绿）；后端先以全量测试命中迁移烟测版本哨兵仍为 148，修正为 149 后 `mvn -q -Dtest=FlywayMultiDialectSmokeTest test` 与 `MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test` 均退出 0（2919 tests，0 failures、0 errors、7 skipped，H2 空库迁移至 V149）。真实性全量 1944 文件、配置边界全量 1840 文件、迁移 changed 70 文件、中文注释、B0、产品目录一致性和 `git diff --check` 均退出 0。
-- Phase 9 T9.5 发布验证：`bf2fa6dd351e6d369c9043040874a0d8f0e2bbcc` 经 `mk-publish.sh --strict-host-key` 完整重建并发布；manifest source/commit 均为该全哈希，运行 JAR SHA-256=`57f9bd1c4b673977430d890514d02334225b8d699241427278a399eadf97f9e5`，服务 active、`NRestarts=0`、HTTP/HTTPS readiness 均为 `UP`，Flyway 当前/最新均为 149。
-- Phase 9 T9.3 门禁加固验证：先以失败测试复现同人自签、无 MFA、非质量治理角色签字、服务层绕过角色门禁、并发签字覆盖、普通评测不落能力码、跨能力 `PASSED` 串线、同题数基准内容变化仍复用旧结果、请求模型版本冒名、provider 返回模型版本漂移，以及任意非空/其他来源引用冒充真实引用；实现后相关定向套件退出 0。`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean test` 全量 2939 tests，0 failures、0 errors、7 skipped；H2 空库迁移至 V149。真实性全量 1945 文件、配置边界全量 1841 文件、迁移规约全量 745 文件、中文注释、B0、产品目录一致性和 `git diff --check` 均退出 0。
-- Phase 9 T9.4 上线门禁核查已完成代码加固与全量验证：readiness 不再信任自由文本版本策略，只接受当前租户/能力唯一 ACTIVE 版本包及 64 位 SHA-256 三元组，并要求版本包模型与 provider 配置一致；网关调用前后分别复核 ACTIVE 版本包、provider 配置、响应实际模型和非空补全内容，版本包缺失或状态、租户、能力、版本、hash、作用域键任一畸形时均在解析 provider 前走 B0。外部知识生产出域策略改由统一校验器验证 JSON、审批阈值和锁定护栏，必须显式允许 `prompt`；剥离后禁止回退原输入，空/非文本最小化结果阻断，`MASK_ALL` 递归处理结构化内容并清空直接标识字段。三类 provider 适配器与网关双层拒绝缺少实际 `model`、版本漂移或空补全；版本回滚影响行数不是 1 时以冲突失败并由事务恢复原 ACTIVE。V150 五方言要求 ACTIVE 的 `active_scope_key` 精确等于 `tenant_id|capability_code`，并以状态 CHECK 与唯一约束在关系库层阻断空值、伪造作用域键及同租户同能力多个 ACTIVE；前端 `npm run verify` 为 98 files / 788 tests 全绿，后端 `MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean test` 为 2955 tests、0 failures、0 errors、7 skipped，H2 空库迁移至 V150。
-- Phase 9 T9.7 发布制品追溯已加固：macOS/Linux 与 Windows 发布入口均只接受当前干净工作树 `HEAD` 的完整 40 位哈希，移除复用既有 `target`/`dist` 的跳过构建分支，所选前后端必须从该提交重新构建；短哈希和脏工作树负向测试均按预期拒绝，三套 on-prem 发布合同与脚本语法通过。
-- Phase 9 T9.3 逐例复核闭环本地验证：后端 `MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test` 汇总 2967 tests、0 failures、0 errors、7 skipped，H2 从空库迁移至 V151；前端 `npm run verify` 的 lint/stylelint/格式/typecheck 与 99 files / 794 tests 全绿；前后端生产构建、B0、配置边界、迁移规约、产品目录一致性、`git diff --check` 和新增行高置信敏感信息扫描均退出 0。全量验证额外发现并修复 V151 权威迁移序列/表/索引/约束快照遗漏，以及审计页高负载测试的非确定性异步交互。
-- V151 医学回归逐例复核闭环、旧 134 发布证据与全仓修复已通过 #635 合入 `main=89337fcf`；其 `09306b...` manifest、旧 JAR 与 V151 运行事实已被最终清库部署取代，只作历史证据。
-- V151 发布后当时分别重跑固定本地模型和用户提供的外网模型：运行 `3`、`4` 均为 1/1、`PENDING_REVIEW`，各有 1 条逐例不可变证据，`evidenceComplete=true`、`baselineCurrent=true`、`reviewable=true`；该条只记录当时状态，后续签署与当前失败关闭状态以文件顶部为准。
-- WHO 起步源、医学基准与运行 `3`、`4` 曾进入旧 134 治理链，但已随最终清库归零；不得复用旧运行签署，必须在干净正式库重建来源、基准和评测，且仍禁止自动化冒充医学专家。
-- 134 权威目标为公网 `193.112.107.134`。Task 7 当时的 manifest 为 `95b53321c7baeb4e05e70b62834074fc59df323e`、Flyway V152；该历史部署已被文件顶部记录的 `b1eb6de3...` / V157 取代，不得当作当前运行事实。
-- Task 8 Step 2 当时完成：`SYSTEM` 作用域受管资料根和 `PRODUCTION_CENTER` 均为配置版本 2；独立来源治理员 `knowledge-source-steward` 完成改密/MFA/独立重登录，登记的 `WHO-CHB-GUIDELINE-2024` 由 `platform-owner` 独立审批。该步骤的 4/9 与下载中状态只作历史留痕，当前配置、文件和 readiness 以顶部事实为准。
-- T9.8 只读预检提交前验证：10 项预检单测、24 项真实性门禁自测与 changed 扫描、B0、中文注释、产品目录、Prettier、Node 语法、`git diff --check`、TLS/HTTP 方法边界和新增脚本高置信敏感信息扫描均退出 0；新增 URL 边界拒绝内嵌凭据、查询串与片段，HTTP 非 2xx 与坏 JSON 均诚实阻断且不回显响应正文或登录凭据。
-- 模型 provider 受控启停提交前验证：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q clean test` 重新执行并 exit 0，464 份 Surefire 报告共 2998 tests、0 failures、0 errors、7 skipped，H2 从空库迁移至 V152；7 个跳过项均为显式环境假设，其中 3 个首发空 PostgreSQL 用例与 PostgreSQL/Oracle 真实迁移烟测因 Docker 不可用跳过，2 个 10 万级真实方言压测因开关未启用跳过。`mvn -q -DskipTests package` exit 0，候选 JAR SHA-256=`aa44d20ec9d030aa444f546c7af7ef5e24ba4520f84839397f8bcb4961ef6dcd`。真实性 24 项自测、配置边界 2 项自测、迁移规约 12 项自测、三项 changed 扫描、B0、中文注释、产品目录和 `git diff --check` 均 exit 0；自审确认 PUT 不含直接启用字段、治理响应不暴露 `credentialRef`、外部 provider 强制 HTTPS、无 TLS 绕过，且本切片未连接或修改 134、未签专家、未启用 provider、未翻 P6。
-- 正式放行状态机已在隔离 H2 以跨服务集成测试锁定：`PENDING_REVIEW`、能力不匹配、基准漂移、版本漂移均 fail-closed；真实持久化逐例证据由独立 `QUALITY_GOVERNOR` 签署后，仅精确匹配 tenant、provider、modelVersion、capability 与当前基准指纹的启用请求可通过；P6=false 时严格为 8/9，仅内置 `SYSTEM_SUPERADMIN` 可放行为 9/9。TDD 红灯确认旧启用合同缺少 `capabilityCode` 且评测门会错误复用其他能力的签署结果，现已改为能力级精确查询。目标集成与相关单测、安全测试均通过；后端全量 `clean test` 为 465 份报告 / 2999 tests、0 failures、0 errors、7 skipped，生产 JAR SHA-256=`7f2c04cbd2910c17dd33c8b9dfe2459fc30172ad6bfc5cc15b14a3aa8b8bde19`，38 项守卫自测、三项 changed 扫描、中文注释、B0、产品目录与差异门禁均退出 0。测试未连接或修改 134，未代签、未启用 provider、未翻 P6。
-- 工程预演总门禁已按 TDD 本地实现：红测先因聚合器缺失以 `ERR_MODULE_NOT_FOUND` 失败，实现后 7 项单测全绿；聚合器仅读取 manifest 显式列出的 `BACKEND_TESTS`、`FRONTEND_GATES`、`CLI_TESTS`、`MCP_TESTS`、`MIGRATIONS`、`T_GATE`、`FRESH_DEPLOY_DRILL`、`BACKUP_RESTORE`、`MODEL_PROVIDER`、`EVALUATION_CASE_EVIDENCE`、`READINESS_PREFLIGHT` 11 类 JSON，缺项、重复、未知、读取失败、非 `PASSED` 或安全数据边界未显式为 false 均输出 `BLOCKED/ENGINEERING`；全绿时只输出 `PASSED/REHEARSAL_READY`，不会输出 `LIVE_ACCEPTED`。默认入口已实跑，因当前尚无完整 `engineering-rehearsal-manifest.json` 诚实返回 `BLOCKED`；该脚本无网络和写入能力，未触碰 134。
-- P6 独立验收授权门已完成实现、代码审查、全量验证和本地提交：通用 `system.manage` 不再足以把 P6 从 `false` 放行为 `true`，必须由已验签的内置 `SYSTEM_SUPERADMIN` authority 执行；MFA、二次确认、原因、乐观锁和审计保持不变。租户级 P6 覆盖、默认种子与直接种子均被服务层拒绝，回滚到 `true` 同样复核超管；关闭为 `false` 保留给完成 MFA 的运维作为快速失败关闭路径。非超管拒绝通过独立子事务写 `outcome=FAILED` 审计，不随业务事务回滚丢失；前端对非超管和租户覆盖均禁用伪编辑入口。该门禁不代表 P6 已放行，134 当前值仍为 `false`。
-- P6 切片最终验证：后端 464 份报告 / 2975 tests，0 failures、0 errors、7 skipped，H2 空库应用并复核 V151，生产 JAR 构建通过；前端 `npm run verify` 与 `npm run test:coverage` 均为 99 files / 795 tests，全量生产构建通过。真实性 24 项自测及 1957 文件全量扫描、B0 96 项自测、配置边界 2 项自测及 1852 文件全量扫描、迁移规约 12 项自测及 755 文件全量扫描、中文注释、产品目录和差异门禁均通过。覆盖率插桩下的诊断资产创建用例保持真实表单校验与条件等待，仅收敛两个按钮交互后连续三轮定向及全量覆盖率通过。
-- Phase 9 生产模型与证据收口验证：Ollama 定义先以缺文件红灯失败，再补受控 Modelfile 与校验脚本转绿并接入 CI；三套 on-prem 发布合同和脚本语法通过。前端 `npm run verify` 为 98 files / 788 tests 全绿；后端 `MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test` 为 2955 tests、0 failures、0 errors、7 skipped；真实性全量 1948 文件、配置边界全量 1844 文件、迁移规约全量 750 文件、中文注释、B0、产品目录、证据 JSON 与 `git diff --check` 均通过。
-- Phase 8 T8.6 最终收口验证：`cd frontend && npm run verify && npm run build` 退出 0，前端 97 files / 783 tests 全绿且 lint warning=0；`npx playwright test e2e/theme-mobile-browser-compatibility.spec.ts --project=chromium --project='国产 Chromium 内核仿真（非现场认证）'` 4 tests 通过，覆盖 5 主题、elder ≥16pt、390px 无根节点横向溢出和 console error=0。`cd medkernel-backend && MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test` 460 suites / 2892 tests，0 failures、0 errors、7 skipped；H2 从空库成功应用并验证 148 版迁移。`cd cli && npm test` 30 tests、`cd mcp-server && npm test` 16 tests 通过。部署合同、发布包合同、真实性全量扫描、配置清单、迁移 changed 扫描、中文 Javadoc/迁移注释、B0、产品目录导出检查和 `git diff --check` 均退出 0。
-- Phase 8 T8.6 三片验证：TDD 红灯先命中 `ServerDataTable` 整页错误/部分失败、`PageState` 部分失败、`AsyncExportAction` 导出失败、`TenantLifecyclePanel` 生命周期读取失败、`WorkbenchPanel` 部分来源失败、`AuthoringBatchDrawer` 批量 API 失败和 `getApiErrorMessage` 原始接口/连接错误直出后转绿；`cd frontend && npm test -- --run src/shared/api/errors.test.ts src/shared/api/mutation.test.tsx src/pages/tenant/AuthoringBatchDrawer.test.tsx src/shared/config/customerLanguageGate.test.ts src/shared/ui/PageState.test.tsx src/shared/ui/AsyncExportAction.test.tsx src/shared/ui/ServerDataTable.test.tsx src/features/tenant-lifecycle/TenantLifecyclePanel.test.tsx src/widgets/WorkbenchPanel.test.tsx` 50 tests 通过；`cd frontend && npm test -- --run` 96 files / 778 tests 通过；`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`cd frontend && npm run stylelint`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；lint 仅保留既有 4 个嵌套三元 warning。浏览器烟测 `/workbench`、`/terminology/mapping` 和 390px `/terminology/mapping` 在无后端授权态均非空渲染医院语言“暂时无法核验权限”，UI 无原始接口/连接文本、console error=0；Vite 代理日志按预期记录本机后端未启动的 `ECONNREFUSED`，未泄露到页面。
-- Phase 8 T8.6 二片验证：`cd frontend && npm test -- --run src/shared/ui/condition/ConditionTreeEditor.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/PathwayTemplates.test.tsx`、`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`cd frontend && npm run stylelint`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；lint 仅保留既有 `AiWorkflows.tsx`、`DiagnosisKnowledgePanel.tsx`、`ReadinessValidation.tsx` 嵌套三元 warning。TDD 红灯先命中缺少“条件根组 · 第 1 层 / 具体条件 / 新增具体条件”和旧 `专家模式` 开关名后转绿；浏览器烟测 `/rule/definitions` 与 `/pathway/templates` 在桌面与 390px 窄屏无后端授权态均非空渲染“暂时无法核验权限”，console error=0。
-- Phase 8 T8.6 首片验证：`cd frontend && npm test -- --run src/shared/api/hooks.test.ts src/shared/lib/browserStorage.test.ts src/shared/lib/expertModeStore.test.ts src/shared/ui/PageExperienceShell.test.tsx src/pages/quality/KnowledgeGovernance.test.tsx src/pages/compliance/SystemProviders.test.tsx src/pages/compliance/AdminAudit.test.tsx src/pages/tenant/TerminologyMapping.test.tsx src/pages/tenant/AdapterHub.test.tsx`、`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；lint 仅保留既有 `AiWorkflows.tsx`、`DiagnosisKnowledgePanel.tsx`、`ReadinessValidation.tsx` 嵌套三元 warning；浏览器烟测 `/knowledge/governance` 在无后端授权态非空渲染“知识审核与发布/权限”且 console error=0。
-- Phase 8 T8.5 目标验证：`cd medkernel-backend && mvn -q -Dtest=KnowledgeVersionServiceTest test`、`cd medkernel-backend && mvn -q -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDialectSmokeTest test`、`cd medkernel-backend && mvn -q -Dtest=KnowledgeVersionServiceTest,MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDialectSmokeTest test`、`cd frontend && npm test -- --run src/shared/api/hooks.test.ts src/pages/quality/KnowledgeGovernance.test.tsx`、`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check` 均退出 0；lint 仅保留既有 `AiWorkflows.tsx`、`DiagnosisKnowledgePanel.tsx`、`ReadinessValidation.tsx` 嵌套三元 warning；`FlywayMultiDialectSmokeTest` 因本机无 Docker socket 跳过 postgres/oracle，H2 从空库跑到 v148 且重复 migrate 为 0；浏览器烟测 `/knowledge/governance` 在无后端授权态非空渲染“知识审核与发布/权限读取失败”且 console error=0。
-- Phase 8 T8.4 目标验证：`cd medkernel-backend && mvn -q -Dtest=CandidateProvenanceServiceTest,KnowledgeProductionOrchestrationServiceTest,ModelKnowledgeProducerTest test`、`cd medkernel-backend && mvn -q -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest,CandidateProvenanceServiceTest,KnowledgeProductionOrchestrationServiceTest,ModelKnowledgeProducerTest test`、`cd medkernel-backend && mvn -q -Dtest=FlywayMultiDialectSmokeTest test`、`cd frontend && npm test -- --run src/shared/api/hooks.test.ts src/pages/quality/KnowledgeGovernance.test.tsx`、`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；lint 仅保留既有 `AiWorkflows.tsx`、`DiagnosisKnowledgePanel.tsx`、`ReadinessValidation.tsx` 嵌套三元 warning；`FlywayMultiDialectSmokeTest` 因本机无 Docker socket 跳过 postgres/oracle，H2 从空库跑到 v147 且重复 migrate 为 0；浏览器烟测 `/knowledge/governance` 在无后端授权态非空渲染“权限读取失败”且 console error=0。
-- Phase 8 T8.3 目标验证：`cd frontend && npm test -- --run src/pages/quality/KnowledgeGovernance.test.tsx` 红灯先命中机构知识页空数据态缺少“院内覆盖可治理”边界与重复 `jobCode` 断言后转绿；`cd frontend && npm test -- --run src/shared/api/hooks.test.ts src/pages/quality/KnowledgeGovernance.test.tsx`、`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；lint 仅保留既有 `AiWorkflows.tsx`、`DiagnosisKnowledgePanel.tsx`、`ReadinessValidation.tsx` 嵌套三元 warning；浏览器烟测 `/knowledge/institution` 与 `/knowledge/production` 在无后端授权态非空渲染诚实权限失败态且无 console error。
-- Phase 8 T8.2 目标验证：`cd frontend && npm test -- --run src/shared/api/hooks.test.ts src/pages/quality/KnowledgeGovernance.test.tsx`、`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；lint 仅保留既有 `AiWorkflows.tsx`、`DiagnosisKnowledgePanel.tsx`、`ReadinessValidation.tsx` 嵌套三元 warning；浏览器烟测 `/knowledge/production` 在无后端授权态非空渲染诚实权限失败态且无 console error。
-- Phase 8 T8.1 提交前验证：`cd frontend && npm test -- --run src/shared/config/routes.test.ts src/shared/config/menu.test.ts src/shared/config/productRoleJourneys.test.ts src/widgets/AppLayout.test.tsx src/pages/quality/KnowledgeGovernance.test.tsx`、`cd frontend && npm run typecheck`、`cd frontend && npm run lint`、`cd medkernel-backend && mvn -q -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest,DefaultPermissionPolicyTest,PermissionDimensionModelTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；浏览器烟测 `/knowledge/institution`、`/knowledge/production`、`/advanced/ai-workflows`、`/knowledge/governance` 均非空渲染诚实权限失败态且无 console error。前端 lint 仅保留既有 warning。
-- Phase 3 收口后：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`git diff --check` 均曾退出 0。
-- Phase 4 首片目标验证：`mvn -q -Dtest=AcquisitionOrchestrationServiceTest,AcquisitionControllerSecurityTest,CandidateGenerationOrchestrationServiceTest,CandidateGenerationIntegrationTest,MigrationBaselineContractTest,H2BaselineMigrationTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,DomainOwnershipContractTest test` 已退出 0。
-- Phase 4 调度目标验证：`mvn -q -Dtest=DefaultRuntimeTaskExecutorTest,AcquisitionRuntimeTaskHandlerTest,AcquisitionScheduleWorkerTest,AcquisitionScheduleSchedulerTest,KnowledgeAcquisitionSourceRepositoryTest,AcquisitionOrchestrationServiceTest,AcquisitionControllerSecurityTest,SystemConfigServiceTest#runtimeKnowledgeAcquisitionScheduleIntervalReadsConfigCenterAndFallsBackSafely,MigrationBaselineContractTest,H2BaselineMigrationTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,DomainOwnershipContractTest test` 已退出 0。
-- Phase 4 调度提交前全量验证：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；旧状态扫描无命中。
-- Phase 4 Agent 取数提交前全量验证：`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check`、`cd cli && npm test`、`cd mcp-server && npm test` 均退出 0；旧状态扫描无命中。
-- Phase 5 T5.1 目标验证：`mvn -q -Dtest=ModelGatewayServiceTest,KnowledgeProductionReadinessServiceTest,ModelGatewayControllerTest,MigrationBaselineContractTest,H2BaselineMigrationTest test`、`cd frontend && npm test -- AiWorkflows.test.tsx` 均退出 0。
-- Phase 5 T5.2 提交前验证：`mvn -q -Dtest=ModelGatewayServiceTest#submitTask_policyRateLimitExceededSkipsProviderAndFallsBackToB0 test` 红→绿；`mvn -q -Dtest=ModelGatewayServiceTest,ModelGatewayControllerTest,KnowledgeProductionReadinessServiceTest,MigrationBaselineContractTest,H2BaselineMigrationTest,OllamaProviderTest,ExternalProviderTest,ModelFallbackMatrixTest test`、`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`cd frontend && npm test -- AiWorkflows.test.tsx`、`cd frontend && npm run typecheck`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；旧状态扫描无命中。
-- Phase 5 T5.3 提交前验证：`mvn -q -Dtest=ModelVersionGovernanceServiceTest#publishBundleRejectsBlankVersionPayloadBeforeRetiringActiveBundle test` 红→绿；`mvn -q -Dtest=ModelVersionGovernanceServiceTest,ModelVersionGovernanceControllerTest,ModelGatewayServiceTest,ModelGatewayControllerTest,KnowledgeProductionReadinessServiceTest,MigrationBaselineContractTest,H2BaselineMigrationTest,ServiceContractGovernanceTest test`、`cd medkernel-backend && MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；旧状态扫描无命中。
-- Phase 5 T5.4 提交前验证：AI 质量评测目标测试、V126 五方言迁移契约、`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；T5.4 范围旧构造器、旧表名、legacy/backfill/ROLLBACK 扫描无命中。
-- Phase 5 T5.5 提交前验证：`mvn -q -Dtest=ModelEgressGuardTest,ModelEgressGovernanceServiceTest,ModelEgressGovernanceRepositoryTest,ModelEgressControllerSecurityTest,MigrationBaselineContractTest,H2BaselineMigrationTest,FlywayMultiDialectSmokeTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`、`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；OPT-09 旧 pending 口径、T5.5 未完成勾选、旧迁移版本哨兵、旧 data-min-policy 路径扫描无命中。
-- Phase 5 T5.6 提交前验证：`cd frontend && npm test -- hooks.test.ts` 红灯命中缺失 `useReplayModelTask` 后转绿；`cd frontend && npm run typecheck`、`mvn -q -Dtest=ModelGatewayServiceTest test`、`mvn -q -Dtest=ModelGatewayServiceTest,ModelGatewayControllerTest,ModelGatewayControllerSecurityTest,ModelCapabilityDefinitionRepositoryTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；API-12/LLM-01 pending 口径和前端缺失 `toolVersion` 扫描无命中。
-- Phase 5 T5.7 提交前验证：`mvn -q -Dtest=ModelKnowledgeProducerTest test` 红灯命中 prompt 原文落 payload 与 B1 fallback 被跳过后转绿；`mvn -q -Dtest=ModelKnowledgeProducerTest,KnowledgeProductionReadinessServiceTest,KnowledgeProductionControllerSecurityTest,KnowledgeProductionOrchestrationServiceTest,CandidateMaterializationIntegrationTest,CandidateProvenanceServiceTest,SourceCandidateGeneratorTest,CandidateGenerationOrchestrationServiceTest,CandidateGenerationIntegrationTest,KnowledgeGenerationTriageServiceTest,KnowledgeShadowEvaluationServiceTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；T5.7 未勾、prompt 原文落候选 payload、B1 fallback 误跳过旧口径扫描无命中。
-- Phase 5 T5.8 提交前验证：`mvn -q -Dtest=ModelKnowledgeProducerTest test` 红灯命中 provider 非成功 B2 被误写 B0 降级后转绿；`cd frontend && npm test -- KnowledgeGovernance.test.tsx` 红灯命中下游 evidence 失败无局部告警后转绿；`mvn -q -Dtest=ModelKnowledgeProducerTest,KnowledgeProductionReadinessServiceTest,KnowledgeProductionControllerSecurityTest,KnowledgeProductionOrchestrationServiceTest,CandidateMaterializationIntegrationTest,CandidateProvenanceServiceTest,SourceCandidateGeneratorTest,CandidateGenerationOrchestrationServiceTest,CandidateGenerationIntegrationTest,KnowledgeGenerationTriageServiceTest,KnowledgeShadowEvaluationServiceTest,ModelGatewayServiceTest,ModelFallbackMatrixTest test`、`cd frontend && npm test -- KnowledgeGovernance.test.tsx AiWorkflows.test.tsx`、`cd frontend && npm run typecheck`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check` 均退出 0。
-- Phase 6 T6.1 提交前验证：`mvn -q -Dtest=DocumentParseOrchestrationServiceTest test` 红灯命中缺失院内上传响应/生成计划/服务方法后转绿；`mvn -q -Dtest=DocumentParseControllerSecurityTest test` 红灯命中缺失 multipart 上传端点后转绿；`mvn -q -Dtest=DocumentParseIntegrationTest,CandidateGenerationIntegrationTest test`、`mvn -q -Dtest=DocumentParseOrchestrationServiceTest,DocumentParseControllerSecurityTest,CandidateGenerationOrchestrationServiceTest test`、`mvn -q -Dtest=DocumentParseOrchestrationServiceTest,DocumentParseControllerSecurityTest,DocumentParseIntegrationTest,CandidateGenerationOrchestrationServiceTest,CandidateGenerationIntegrationTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,DomainOwnershipContractTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0。
-- Phase 6 T6.2 提交前验证：`mvn -q -Dtest=ModelKnowledgeProducerTest,ModelGatewayServiceTest test` 红灯命中 `ModelTaskRequest` 缺失路由/provider 约束字段后转绿；`mvn -q -Dtest=ModelKnowledgeProducerTest,ModelGatewayServiceTest,ModelProviderRegistryTest test`、`mvn -q -Dtest=ModelKnowledgeProducerTest,ModelGatewayServiceTest,ModelProviderRegistryTest,KnowledgeProductionReadinessServiceTest,ModelGatewayControllerTest,ModelGatewayControllerSecurityTest,OpenApiContractConfigurationTest,ServiceContractGovernanceTest,DomainOwnershipContractTest test`、`cd frontend && npm test -- hooks.test.ts`、`cd frontend && npm run typecheck`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check` 均退出 0。
-- Phase 6 T6.3 提交前验证：`mvn -q -Dtest=KnowledgeProductionOrchestrationServiceTest#submitCandidateRejectsCustomerCandidateIntoPlatformSourcePipelineAsReadOnlyViolation test` 红灯命中平台主源客户候选仅返回 BAD_REQUEST 后转绿；`mvn -q -Dtest=KnowledgeVersionServiceTest#classifyCandidateInCustomerTenantTreatsPlatformIdentityAsReadOnly test`、`mvn -q -Dtest=KnowledgeProductionOrchestrationServiceTest,KnowledgeVersionServiceTest,CandidateReviewRouterTest test`、`mvn -q -Dtest=KnowledgeProductionOrchestrationServiceTest,KnowledgeVersionServiceTest,CandidateReviewRouterTest,CandidateGenerationOrchestrationServiceTest,DocumentParseOrchestrationServiceTest,ModelKnowledgeProducerTest,ControlledToolServiceTest,CandidateMaterializationIntegrationTest,DomainOwnershipContractTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test` 均退出 0。
-- Phase 6 T6.4 提交前验证：`mvn -q -Dtest=PrivacyPolicyServiceTest,FieldLevelEncryptionServiceTest,ControlledToolServiceTest#execute_submitProductionCandidate_rejectsD4PatientDataBeforeSubmit test` 红灯命中 D3/D4 隐私策略与字段级加密服务/实体缺口后转绿；`mvn -q -Dtest=PrivacyPolicyServiceTest,FieldLevelEncryptionServiceTest,FieldLevelEncryptionRepositoryIntegrationTest,ControlledToolServiceTest#execute_submitProductionCandidate_rejectsD4PatientDataBeforeSubmit test`、`mvn -q -Dtest=MigrationBaselineContractTest,H2BaselineMigrationTest test`、`mvn -q -Dtest=PrivacyPolicyServiceTest,FieldLevelEncryptionServiceTest,FieldLevelEncryptionRepositoryIntegrationTest,ControlledToolServiceTest,ClinicalContextServiceTest,MigrationBaselineContractTest,H2BaselineMigrationTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,DomainOwnershipContractTest test`、`cd cli && npm test`、`cd mcp-server && npm test`、`MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0；字段级加密旧 pending 口径扫描无命中。
-- Phase 7 T7.1 验证：`mvn -q -Dtest=DomainFacadeCatalogServiceTest,DomainFacadeControllerSecurityTest test` 红灯命中领域门面目录服务/定义/引擎枚举缺失后转绿；`mvn -q -Dtest=DomainFacadeB0FixtureServiceTest,DomainFacadeApiContractTest test` 红灯命中 B0 fixture 服务/证据缺失后转绿；`mvn -q -Dtest=DomainFacadeCatalogServiceTest,DomainFacadeB0FixtureServiceTest,DomainFacadeControllerSecurityTest,DomainFacadeApiContractTest,ServiceContractGovernanceTest,OpenApiContractConfigurationTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0。
-- Phase 7 T7.2 验证：`mvn -q -Dtest=ProfessionalAssetTemplateRegistryTest,SourceCandidateGeneratorTest,KnowgenSpecializedAssetSkeletonRegistryTest,KnowgenSpecializedPayloadValidatorTest,ClinicalFormulaCalculatorServiceTest test` 红灯命中 FORMULA 模板、专用骨架、payload 校验器和公式计算服务缺失后转绿；补结构化 `inputs`/`test_vectors` 回归后该命令仍退出 0；`mvn -q -Dtest=ProfessionalAssetTemplateRegistryTest,KnowledgeAssetSchemaValidatorTest,SourceCandidateGeneratorTest,KnowgenSpecializedAssetSkeletonRegistryTest,KnowgenSpecializedPayloadValidatorTest,ClinicalFormulaCalculatorServiceTest,CandidateGenerationOrchestrationServiceTest,CandidateGenerationIntegrationTest,KnowledgeProductionControllerSecurityTest test`、`node scripts/b0-perfect-check.mjs`、`node scripts/audit/export-product-capabilities.mjs --check`、`git diff --check` 均退出 0。
+本阶段是本地检查点，不是上线完成声明；长任务目标继续保持 active，下一会话从本文件续接即可。
 
-- 平台主源上线最小角色基础账号已在 134 通过受控超管 `platform-owner` 经 `POST /compliance/users` + `/roles` 正路创建，全部 `scopeLevel=TENANT / scopeCode=t-1`、`mustChangePwd=true`、`status=ACTIVE`：`integration-operator`(`llm.provider.manage`)、`platform-knowledge-governor`(`platform.publish`)、`quality-governor`(`llm.eval.manage`)、`medication-safety-user`(`knowledge.review`) 四签名权限均实测为 true；`integration-operator` 临时密码实测登录返回 200 且强制改密；`quality-governor`/`medication-safety-user` 凭据须转交真实独立专家本人。本切片只建号未绑 MFA、未签任何评测、未启用 Provider、未碰 P6；MainPID/readiness/Provider/P6 状态不变。
-- 134 `conf` 目录已收口：当前有效的 6 个账号（`platform-owner` 超管、`knowledge-source-steward`、`integration-operator`、`platform-knowledge-governor`、`quality-governor`、`medication-safety-user`）已合并为**唯一总表** `/zoesoft/medkernel/conf/medkernel-accounts.json`（`0600 root`，实测 platform-owner+临时密码账号均可登录）。清库前演练/历史凭据（drill/p4/p5-2026061x、`p9-production-admin`=`platform-owner-134`、`p9-governance-actors`=`p9-*` 均已不在库）共 13 个文件已删；删前整目录备份 `backups/conf-cleanup-20260619-091637/conf-before-cleanup.tar.gz`。保留运行配置 `medkernel.env`（及旧 `*.env.bak`），未动。建号/合并临时脚本已从 134 `/tmp` 清理。
+已完成的新增收口：
 
-- 演练试点 Phase 0–2 已在 134 完成：补建平台治理账号、开通真实演练租户 `pilot-hospital`，并建齐 12 个机构/临床角色账号。跨租户同名角色使用租户前缀内部 `userId`，登录用户名保持原样；API 已实测租户、角色和 `clinical-decision-user` 的 `sandbox.run` 权限。当前重构后的本地工具已改为幂等、失败关闭、凭据文件 `0600` 且不输出敏感信息。
-- 沙盘正确口径：演练定制规则归属演练机构；CURRENT 运行继续复用正式“机构优先、平台补充、同编码机构覆盖平台”解析逻辑。平台主源规则可以参与沙盘，但不得复制成机构规则或被机构静默修改。场景模板不再固定配置包版本，每次运行从机构明确绑定解析并冻结真实基线；第三方显式版本合同和历史重放清单仍保存精确版本。
-- 10 条规则场景已补成真实、可执行、可测试、可审计的演练机构资产；不再用静态目录状态长期阻断。医学阈值来自权威来源或机构参数边界，无法证明的值不伪装为全国统一标准。沙盘已支持 CURRENT、HISTORICAL_EXACT 和 COMPARE，路径、推荐、随访、评估和嵌入继续调用正式领域服务，外部副作用一律抑制。专项计划见 [`docs/superpowers/plans/2026-06-19-full-fidelity-sandbox-replay-and-knowledge-init.md`](superpowers/plans/2026-06-19-full-fidelity-sandbox-replay-and-knowledge-init.md)。
-- 生产知识首发范围已扩展为 KNOWGEN-01～35：34 类资产分装为稳定基础包与临床包，另由 KNOWGEN-15 总验收。KNOWGEN-33～35 是后续知识内容，不新增专用引擎；统一复用现有资产信封、版本、来源、审核、包和运行服务。模板覆盖、候选领域选择、高风险真实双签和初始化发行清单四个通用断点已补齐；后续只生产真实内容，不为每个医学领域复制状态机、表或页面。
-- 134 当前运行制品提交为 `2c502f1e547a185dc5ab95a76d7a3329c4d1f724`：部署清单与运行环境指纹精确匹配，实际 JAR SHA-256 为 `97f7dc10bf38599f13a4628a932fc5a8048cbcd59a5be9db206be73479d04a0e`，部署完成时间 `2026-06-20 18:14:18+08:00`，自动备份为 `/zoesoft/medkernel/backups/deploy-20260620-181417`；Flyway V159，服务 active/enabled、`NRestarts=0`、MainPID `311379`，内部和 nginx HTTPS 健康检查均为 200。对应 PR #645 CI 运行 `27867753331` 的 8 项检查全部通过。
-- 基础知识运行事实：`f8567116` 首次创建 `MK-FND-B0-1.0.0`，`3fc3795d` 部署后幂等复跑返回 `REUSED`。数据库有 8 个来源文档、9 个来源版本与 9 条 `APPROVED` 来源批准；8 个候选/分类/审核任务均待逐条审核，8 个初始化条目均 `PENDING_REVIEW`，0 个模型生成、0 个 ACTIVE、8 个 identity 的 `current_version_id` 均为空。当前 8 个成功 job 已 `COMPLETED` 且门禁 72/72 通过；早先失败尝试保留为 1 个 `CANCELLED` job 和 9 条门禁历史留痕（8 通过、1 失败），不得把全历史 81 条误写为全部通过。
-- 最终安全边界：Provider 共 2 个、启用 0 个；外部 MIMO 当前为 `VAULT / HEALTHY`。P6 独立验收为 `true`（SYSTEM 版本 6）；当前制品运行 `7` 已完成真实 MiMo 评测但仍为 `PENDING_REVIEW`，所以 Provider、模型调用和正式知识生产继续失败关闭。自动化可登记技术审查和工程放行，不得冒充真人医学专家。
-- 2026-06-20 当前即时复核：文献根为 `file:///medkernel-data/platform-knowledge/t-1/literature-materials/`；Key 只存在租户加密凭据库，旧环境副本已清除；当前制品运行 `7` 为 1/1 通过，逐例证据完整、基准与 release fingerprint 当前、可复核、无 reviewer / signedAt。readiness 实测 7/9，`MODEL_PROVIDER=false`、`MODEL_EVALUATION=false`，其余七闸为 true；真实独立复核完成后才可启用精确 Provider 并重查九闸。
-- 非模型候选已安全处置：`2026-06-20 14:21+08:00`，`knowledge-source-steward` 以真实 `platform-knowledge-governor` 角色通过正式审核接口将 WHO B0 候选 `9` 与基础初始化候选 `10`–`17` 全部永久拒绝并归档，主追踪号 `codex-reject-non-model-1781936499602`。复核结果为 9 个版本全部 `REJECTED`、9 个身份 `currentVersionId=null`、ACTIVE=0；未物理删除来源、版本、生产血缘或审计记录。
-- 统一模型生产控制台提交前验证：前端 `npm run verify` 为 106 个测试文件 / 830 tests，ESLint 零 warning、Stylelint、格式和类型检查全部通过，`npm run build` 成功构建 3424 个模块；后端 `MEDKERNEL_EVENTS_WORKER_ENABLED=false mvn -q test` 生成 485 份 Surefire XML / 3129 tests / 0 failures / 0 errors / 7 个既有 Testcontainers 跳过。V159 五方言迁移合同与 H2 空库 159 版迁移通过；真实性、配置边界、B0、迁移规约、中文注释（0 fail / 0 warn）、产品目录和 `git diff --check` 均通过。中文注释门禁同时修复了已删除 Java 文件被误报为修改文件的问题。
-- 当前 B0 影子门禁修复验证：失败测试先复现严格 B0 被错误返回 `NOT_READY`；修复后统一 `StrictB0TemplatePolicy` 供临床红线与影子门禁复用，严格 B0 以零用例 `PENDING_REVIEW` 留痕并进入人工编著审核，模型标记或非严格 payload 仍要求真实基准。定向单元与真实 H2 集成通过；后端全量 481 份报告 / 3100 tests / 0 failures / 0 errors / 7 skipped，前端 `npm run verify` 101 files / 810 tests，B0、产品能力目录、中文注释、证据 JSON 和 `git diff --check` 均通过。生产重跑进一步确认 job `c1358725-501f-4df4-8036-a4a489542716` 为 `COMPLETED`、9/9 门禁通过、候选审核 API 可用且 ACTIVE=0；Codex 技术审查见 `expert-signoff/02-*` 与 `03-*`，均不是医学专家签署。
+- 规则/路径字段引用统一到字段目录允许范围，普通字段只能来自标准上下文目录，院内扩展只能落在
+  `extensions.local.*`；
+- 旧 `servicePackage/package` 业务表达继续收缩到服务线、服务组合、机构生效版本和离线交付文件边界；
+- 规则生成器、模型候选和规则草稿入口统一使用 `then: [{ actionCardRef: "..." }]`，废弃
+  `then.actions` 包裹形态；
+- 规则运行时可以从当前机构生效版本物化临床提示卡，生成完整 CDS 卡片字段，保留
+  `actionCardRef`、物化版本和正文摘要作为证据；
+- 规则维护端已允许稳定 `actionCardRef` 草稿引用，并登记 `ACTION_CARD` 运行资产依赖；内联动作仍走
+  完整字段严格校验；
+- 临床提示卡资产正文从泛化 `actions[]` 空壳改为可执行 CDS 卡结构（命中后处理、风险等级、提醒等级、
+  摘要、明细、来源、医生可选操作、改用方案原因、医师确认要求）；
+- 前端声明式资产工作台的临床提示卡维护表单已切换到新结构，不再生成旧 `actions[]`；
+- 路径 `ORDER_SET` 节点已能在运行时从机构生效版本解析医嘱套餐正文，并只记录证据和建议项，
+  不自动开医嘱；
+- 医嘱套餐高风险/建议医嘱场景必须保留医师确认要求；
+- 条件片段、子路径、旧包发布链路、旧独立审核证据等历史概念继续删除，不留兼容层。
 
-## 仍不可宣称
+本阶段新鲜验证证据：
 
-- 不得宣称正式模型知识生产已开放：当前 134 的 Provider 仍全部停用；运行 `7` 还必须由独立真实专家复核签署，再启用精确 Provider 并确认九闸全部满足。
-- 不得把运行 `5` 或 `6` 用于当前制品放行：它们只保留为各自历史 release fingerprint 的审计事实；当前只可复核运行 `7`，自动化技术审查不得冒充真人医学签署。
-- 不得宣称 KNOWGEN 首发知识包或试点医院上线完成：这些属于 P10/P11，必须发生在生产中心真实上线之后。
-- 不得宣称 Phase 4 现场验收全部完成：手动/调度/MCP/CLI 公域获取→解析→可选候选生成触发已完成；真实生产中心联调和更细出域审批证据仍待 P5/P9 验证。
+- 后端关键闭环：
+  `mvn -q -Dtest='com.medkernel.engine.rule.RuleEngineServiceTest,com.medkernel.engine.rule.RuleDslAssetMaterializerTest,com.medkernel.engine.versioning.DeclarativeAssetContentValidatorTest,com.medkernel.engine.versioning.AssetReferenceConsistencyTest,com.medkernel.engine.pathway.PathwayProgressorTest,com.medkernel.engine.authoring.AssetAuthoringRegistryTest,com.medkernel.engine.knowledge.production.generation.SourceCandidateGeneratorTest,com.medkernel.engine.knowledge.production.model.ModelKnowledgeProducerTest' test`
+  通过；
+- 后端编译打包：
+  `mvn -q -DskipTests package` 通过；
+- 前端定向回归：
+  `npm test -- --run src/pages/tenant/DeclarativeAssetWorkbench.test.tsx src/shared/config/ruleLayeredEditor.test.ts src/features/sandbox/sandboxScenarios.test.ts src/features/sandbox/SandboxDataEntry.test.tsx src/pages/sandbox/SandboxHost.test.tsx src/shared/api/hooks.test.ts src/pages/quality/InsuranceAudit.test.tsx`
+  通过，7 个文件、148 个测试通过；
+- 前端构建：
+  `npm run build` 通过。
 
-## 下一步（⚠️ 旧 · 已废）
+## 正在迁移的旧实现
 
-> 以下旧方向（九闸 / Provider / 运行 7 待签 / 上线）已被**顶部「引擎核心重定位 · 推翻重建」**覆盖，仅作历史。**新下一步见本文件顶部 🚩 段。**
+旧包发布表、领域模型、临床包组合和主要包选择器已删除或切到机构生效版本；生产用户可见的旧包深链、
+旧上线容器文案和旧证据导出包文案已清一轮。当前剩余风险集中在：负向测试护栏里的旧字段字面量、类名级历史
+命名、沙箱服务组合字段，以及尚未逐项补证的资产运行消费者。它们不是目标产品模型，不能继续扩展。
+下一轮清理顺序固定为：
 
-1. 由运行 `7` 执行人以外的真实质量治理专家逐例核查当前证据、绑定 MFA 并签署；不得由自动化冒充。
-2. 签署后精确启用 `external-mimo-v25`，确认九项生产闸全绿。
-3. 归档当前制品的 Provider、评测、独立复核和九闸证据。
-4. 仅在九闸全绿后启动真实大模型知识生产长任务，持续到候选生成完成；候选仍须来源核查、审核和医疗安全门禁，禁止自动激活或开立医嘱。
-5. 处理 `DEFER-026`：为公网浏览器配置可验证的证书信任链与 SAN，并完成真实浏览器复验。
+```text
+13 类资产真实消费者闭环
+→ 规则发布模拟、沙箱当前生效版本、历史回放等直接 evaluator 消费者
+→ 前端/API/CLI/MCP 和沙箱场景
+→ 质量/合规证据导出命名边界
+→ 重新生成并校验五方言单一 V1
+```
 
-## 常用指针
+删除旧模型前必须先迁移真实消费者；不得通过兼容字段、双写或第二套状态机保留历史包袱。
 
-- 协作规则：`AGENTS.md`
-- 产品红线：[`docs/CONSTITUTION.md`](CONSTITUTION.md)
-- 体验契约：[`docs/EXPERIENCE_CONTRACT.md`](EXPERIENCE_CONTRACT.md)
-- 质量基线：[`docs/audit/质量基线.md`](audit/质量基线.md)
-- 当前计划：[`docs/superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md`](superpowers/plans/2026-06-16-autonomous-knowledge-production-golive-master-plan.md)
-- backlog Phase 对照：[`docs/backlog.md`](backlog.md)
+## 当前最高优先级
+
+1. 继续完成 13 类资产“身份—版本—正文—校验—发布—生效—证据—撤回/回滚”闭环，优先从仍缺完整生效
+   消费证据的术语、字段目录、评价、随访、质量和知识开始；
+2. 复扫生产代码和前端页面，继续消除旧包发布命名、包选择器和接口残留；
+3. 只保留 `runtimeReleaseId`、精确资产版本和内容摘要作为机构生效事实；
+4. 继续把全系统演练脚本从“覆盖矩阵门禁”推进到 134 真实执行数据：当前本地脚本已能阻断缺项、
+   跳过和前置失败，但仍需在真实部署中产生全部矩阵证据；
+5. 完成前后端、CLI、MCP、T-GATE、构建和部署资产全量验证；
+6. 在 134 完成备份恢复预演、清库 V1、重部署、八段全系统演练、重启和再次恢复。
+
+## 已知阻断或缺口
+
+- 生产用户可见旧 Package 文案/深链已清一轮，但类名级历史命名仍需结合证据导出边界逐项评估；
+- 值集、计算公式、医嘱套餐和临床提示卡的规则/路径核心消费者已切到机构生效版本语义，但更多资产类型的真实
+  消费者闭环仍需逐项补证；
+- 医技报告解读已补齐本地运行闭环和前台入口，但尚未在 134 清库环境完成真实病例与全知识演练；
+- 字段目录已补第三方接入契约的机构生效版本消费证据，规则/路径字段引用也已登记字段目录资产依赖；但术语
+  覆盖门禁、评价、随访、质量和知识仍需继续按机构生效版本复核；
+- 离线交付文件、集成契约、CLI 和 MCP 尚未完全切换到新模型；
+- 最终五方言 V1 和 134 真实清库重部署演练尚未完成；本地后端全量 `mvn -q test` 与前端全量
+  `npm run verify` 最新已通过，但不能替代 134 环境验收。
+
+## 134 外部事实
+
+- 当前仍运行旧部署提交 `2c502f1e547a185dc5ab95a76d7a3329c4d1f724`；
+- 当前数据库属于清洁 V1 基线以前的历史链，必须先备份并在隔离库恢复成功后再清库；
+- 2026-06-24 只读探测：`medkernel`、`nginx`、`postgresql` 均 active，内部 readiness 为
+  `{"status":"UP"}`；数据库最新 Flyway 为 `159`，public base tables 为 `215`；
+- 2026-06-24 使用当前 `medkernel-fresh-deploy.sh --validate-environment-only` 远程预检失败于
+  `MEDKERNEL_BOOTSTRAP_INIT_TOKEN` 未配置；未读取或输出任何密钥值；
+- 模型服务已登记但停用，尚无正式模型知识激活；
+- 文献根目录为 `file:///medkernel-data/platform-knowledge/t-1/literature-materials/`；
+- 134 当前 HTTPS 证书仍为自签 `CN=193.112.107.134`，无 Subject Alternative Name；
+  `curl` 严格校验失败于 self-signed certificate，`openssl s_client` 返回 verify code 18。
+  必须先配置可信且具备 SAN 的证书；严格 TLS 和浏览器验收通过前不得宣称上线通过。
+
+## 2026-06-24 PR #650 门禁修复
+
+- 已按当前分支权威覆盖 `origin/main` 的 #648/#649 后续差异，保留 `codex/647-launch-simplification`
+  作为 PR #650 的唯一审查分支；
+- 修复 PR 红灯根因：补齐 `ReportInterpretationController` 服务契约、重新生成产品功能目录、收敛五方言
+  baseline 生成器的 EOF 规则并加入回归测试；
+- 优化 PR 门禁耗时：前端统一 `npm ci` 与 npm cache，JDK matrix 改为 Maven cache +
+  关键烟测组合，完整后端测试仍由 backend-build-test 单独执行；
+- 本地复验证据：`node scripts/db/generate-migrations.mjs --check`、`CI=true npm run test:coverage`、
+  `npm run lint`、`npm run test:lint-rules`、`npm run stylelint`、`npm run format:check`、
+  `mvn -q test`、`mvn -q package -DskipTests`、guard-rules 同构脚本、部署脚本校验均已通过。
+
+## 完成边界
+
+本地工作只有在完整产品矩阵、全量质量门和 134 真实演练都通过后才可称为上线候选。当前允许为阶段切片
+创建临时 PR 供审查，但不得合并远程 `main`；PR 不代表 134 上线完成。

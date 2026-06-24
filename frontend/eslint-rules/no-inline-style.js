@@ -1,7 +1,7 @@
 /**
  * ESLint 规则：禁止 JSX 内联 style={{}}。
  *
- * 上下文：产品宪法和产品体验固定规范要求页面使用统一 token、CSS Modules 和组件外壳。
+ * 上下文：产品宪法和体验契约要求页面使用统一 token、CSS Modules 和组件外壳。
  * `style={{ ... }}` 是 UI 风格杂乱的核心来源。
  * 新代码必须把静态样式放进同名 `.module.css` 或统一 `mk-*` 样式类。
  *
@@ -38,7 +38,7 @@ export default {
         'JSX 内联 style={{}} 被禁止。' +
         '请把静态样式抽取到同名 `.module.css`（CSS Modules）或使用 `var(--mk-*)` 类名。' +
         '若必须动态（transform / motion），请添加 `// eslint-disable-next-line medkernel/no-inline-style` 并说明理由。' +
-        '详见 docs/MEDKERNEL_PRODUCT_EXPERIENCE_RULES.md §11。',
+        '详见 docs/EXPERIENCE_CONTRACT.md。',
     },
     schema: [],
   },

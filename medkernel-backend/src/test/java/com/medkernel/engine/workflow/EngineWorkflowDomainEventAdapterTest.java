@@ -50,9 +50,9 @@ class EngineWorkflowDomainEventAdapterTest {
     }
 
     @Test
-    void ruleFiredCreatesActionNotificationWithPackageVersion() {
+    void ruleFiredCreatesActionNotificationWithRuntimeRelease() {
         adapter.ruleFired(new RuleFiredEvent(
-            "tenant-A", "trace-rule", "rpv-1", "rule-1", "RULE.ANTICOAG", "version-1",
+            "tenant-A", "trace-rule", "runtime-H7", "rule-1", "RULE.ANTICOAG", "version-1",
             "rex-1", "order-sign", "evt-1", "patient-1", "enc-1",
             "HIGH", List.of("STRONG_REMINDER"), Instant.parse("2026-06-08T08:00:00Z")));
 
@@ -62,14 +62,14 @@ class EngineWorkflowDomainEventAdapterTest {
         assertThat(notificationCap.getValue().sourceType()).isEqualTo(WorkflowNotificationSourceType.RULE_EVENT);
         assertThat(notificationCap.getValue().sourceId()).isEqualTo("rex-1");
         assertThat(notificationCap.getValue().dedupeKey()).isEqualTo("rule-fired:rex-1");
-        assertThat(notificationCap.getValue().message()).contains("rpv-1", "STRONG_REMINDER");
+        assertThat(notificationCap.getValue().message()).contains("runtime-H7", "STRONG_REMINDER");
         assertThat(notificationCap.getValue().patientId()).isEqualTo("patient-1");
     }
 
     @Test
     void overrideCapturedCreatesQualityAlertWithExecutionEvidence() {
         adapter.overrideCaptured(new OverrideCapturedEvent(
-            "tenant-A", "trace-rule", "rpv-1", "rov-1", "rex-1",
+            "tenant-A", "trace-rule", "runtime-H7", "rov-1", "rex-1",
             "rule-1", "RULE.ANTICOAG", "version-1", "patient-1", "enc-1",
             "BLOCK", "已完成临床复核", "doctor-1", Instant.parse("2026-06-08T08:05:00Z")));
 
@@ -80,7 +80,7 @@ class EngineWorkflowDomainEventAdapterTest {
         assertThat(alertCap.getValue().sourceType()).isEqualTo("rule_override_log");
         assertThat(alertCap.getValue().sourceId()).isEqualTo("rov-1");
         assertThat(alertCap.getValue().severity()).isEqualTo("P0");
-        assertThat(alertCap.getValue().evidenceSummary()).contains("rex-1", "rpv-1", "BLOCK");
+        assertThat(alertCap.getValue().evidenceSummary()).contains("rex-1", "runtime-H7", "BLOCK");
     }
 
     @Test

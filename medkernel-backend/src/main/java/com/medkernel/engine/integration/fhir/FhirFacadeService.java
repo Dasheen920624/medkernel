@@ -31,6 +31,8 @@ import com.medkernel.engine.context.ClinicalEventRequest;
 import com.medkernel.engine.context.ClinicalEventService;
 import com.medkernel.engine.context.ClinicalEventTriggerPoint;
 import com.medkernel.engine.context.ClinicalEventType;
+import com.medkernel.engine.context.ClinicalRuntimeRelease;
+import com.medkernel.engine.context.CurrentClinicalRuntimeReleaseResolver;
 import com.medkernel.engine.context.QualityStatus;
 import com.medkernel.engine.context.canonical.ClinicalSetting;
 import com.medkernel.engine.integration.domain.IntegrationAdapter;
@@ -72,6 +74,7 @@ public class FhirFacadeService {
     private final IntegrationAdapterRepository adapters;
     private final IntegrationWebhookConfigRepository webhookSecrets;
     private final ClinicalEventService events;
+    private final CurrentClinicalRuntimeReleaseResolver runtimeReleases;
     private final IntegrationService integration;
     private final RuntimeTaskService tasks;
     private final ObjectMapper json;
@@ -86,6 +89,7 @@ public class FhirFacadeService {
                              IntegrationAdapterRepository adapters,
                              IntegrationWebhookConfigRepository webhookSecrets,
                              ClinicalEventService events,
+                             CurrentClinicalRuntimeReleaseResolver runtimeReleases,
                              IntegrationService integration,
                              RuntimeTaskService tasks,
                              ObjectMapper json,
@@ -99,6 +103,7 @@ public class FhirFacadeService {
         this.adapters = adapters;
         this.webhookSecrets = webhookSecrets;
         this.events = events;
+        this.runtimeReleases = runtimeReleases;
         this.integration = integration;
         this.tasks = tasks;
         this.json = json;
@@ -202,11 +207,6 @@ public class FhirFacadeService {
         } catch (IllegalArgumentException ex) {
             return error(HttpStatus.BAD_REQUEST, "invalid", ex.getMessage());
         }
-        String packageVersion = firstNonBlank(command.packageVersion(), fhirConfig(adapter).defaultPackageVersion());
-        if (packageVersion.isBlank()) {
-            return error(HttpStatus.BAD_REQUEST, "invalid",
-                "FHIR " + resourceType + " create 必须提供 packageVersion 或适配器默认包版本");
-        }
         Optional<FhirResourceMapping> existing = mappings.findByTenantIdAndFhirVersionAndFhirResourceTypeAndFhirId(
             tenantId, command.version(), resourceType, fhirId);
         if (existing.isPresent()) {
@@ -219,9 +219,12 @@ public class FhirFacadeService {
         }
 
         CanonicalResourceMappingResult mapped;
+        ClinicalRuntimeRelease runtimeRelease;
         try {
+            runtimeRelease = runtimeReleases.resolve(RequestContext.currentOrgScope());
             mapped = mapper(command.version()).from(new FhirCanonicalMappingRequest(
-                tenantId, snapshotId, 0, traceId, Instant.now(), command.resource()));
+                tenantId, runtimeRelease.releaseId(),
+                snapshotId, 0, traceId, Instant.now(), command.resource()));
         } catch (RuntimeException ex) {
             return error(HttpStatus.BAD_REQUEST, "invalid", ex.getMessage());
         }
@@ -253,19 +256,19 @@ public class FhirFacadeService {
             RequestContext.currentUserId().orElse("system")
         ));
 
-        events.receiveAsync(new ClinicalEventRequest(
+        events.receiveAsyncBound(new ClinicalEventRequest(
             "evt-" + stableId(command.version(), resourceType, fhirId),
             eventTypeFor(saved.resourceType()),
             patientId,
             encounterId,
             clinicalSetting,
             "FHIR_" + command.version().name(),
-            packageVersion,
             triggerPointFor(saved.resourceType()),
             null,
             null,
             eventPayload(saved, mapping, command),
-            mapped.resource().eventTime() == null ? Instant.now() : mapped.resource().eventTime()));
+            mapped.resource().eventTime() == null ? Instant.now() : mapped.resource().eventTime()),
+            runtimeRelease.releaseId());
 
         IntegrationOutboundResultDto outbound = integration.enqueueOutboundMessage(tenantId, new IntegrationOutboundRequestDto(
             stableId(command.version(), resourceType, fhirId),
@@ -365,7 +368,7 @@ public class FhirFacadeService {
         if (!config.allowedSourceIps().isEmpty()
             && (sourceIp == null || !config.allowedSourceIps().contains(sourceIp))) {
             return SecurityDecision.denied(HttpStatus.FORBIDDEN, "forbidden",
-                "FHIR 来源 IP 不在白名单内");
+                "FHIR 来源 IP 不在允许清单内");
         }
         return SecurityDecision.allowed(found);
     }
@@ -396,7 +399,6 @@ public class FhirFacadeService {
                 fhir.path("enabled").asBoolean(true),
                 signatureWebhookId,
                 List.copyOf(allowedIps),
-                text(fhir.path("defaultPackageVersion")),
                 fhir.path("desensitizeResponse").asBoolean(true));
         } catch (JsonProcessingException ex) {
             throw new IllegalArgumentException("FHIR 适配器配置不是合法 JSON", ex);
@@ -757,7 +759,6 @@ public class FhirFacadeService {
         boolean enabled,
         String signatureWebhookId,
         List<String> allowedSourceIps,
-        String defaultPackageVersion,
         boolean desensitizeResponse
     ) {}
 

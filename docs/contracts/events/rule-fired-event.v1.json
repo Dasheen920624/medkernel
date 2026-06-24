@@ -7,7 +7,7 @@
   "required": [
     "tenantId",
     "traceId",
-    "packageVersion",
+    "runtimeReleaseId",
     "ruleId",
     "ruleCode",
     "versionId",
@@ -23,7 +23,7 @@
   "properties": {
     "tenantId": { "type": ["string", "null"] },
     "traceId": { "type": ["string", "null"] },
-    "packageVersion": { "type": ["string", "null"] },
+    "runtimeReleaseId": { "type": "string", "minLength": 1 },
     "ruleId": { "type": ["string", "null"] },
     "ruleCode": { "type": ["string", "null"] },
     "versionId": { "type": ["string", "null"] },

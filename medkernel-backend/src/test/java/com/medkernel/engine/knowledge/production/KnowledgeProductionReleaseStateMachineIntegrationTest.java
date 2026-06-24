@@ -35,7 +35,6 @@ import com.medkernel.engine.llm.eval.ModelEvalCaseEvidenceRepository;
 import com.medkernel.engine.llm.eval.ModelEvalRun;
 import com.medkernel.engine.llm.eval.ModelEvalRunRepository;
 import com.medkernel.engine.llm.eval.ModelEvalService;
-import com.medkernel.engine.llm.eval.ModelEvalSignOffRequest;
 import com.medkernel.engine.llm.eval.RegressionBaselineEvidence;
 import com.medkernel.engine.llm.provider.DeploymentForm;
 import com.medkernel.engine.llm.provider.DeploymentFormService;
@@ -48,18 +47,15 @@ import com.medkernel.engine.llm.provider.ModelProviderGovernanceView;
 import com.medkernel.engine.llm.provider.ModelProviderRegistry;
 import com.medkernel.engine.llm.provider.ProviderCredentialCodec;
 import com.medkernel.engine.security.RoleCode;
-import com.medkernel.engine.security.SpringSecurityPrivilegedConfigChangeGuard;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.AuditSafetyGuard;
-import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.config.HighRiskChangeGuard;
 import com.medkernel.shared.config.RuntimeLogLevelManager;
 import com.medkernel.shared.config.SystemConfigRepository;
 import com.medkernel.shared.config.SystemConfigSeed;
 import com.medkernel.shared.config.SystemConfigSeedWriter;
 import com.medkernel.shared.config.SystemConfigService;
-import com.medkernel.shared.config.SystemConfigUpdateRequest;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.runtime.RuntimeProperties;
@@ -67,8 +63,8 @@ import com.medkernel.shared.runtime.RuntimeProperties;
 /**
  * 正式知识生产放行状态机集成测试。
  *
- * <p>测试只使用隔离 H2 数据库，锁定评测逐例证据、独立签署、能力级 provider 启用、
- * P6 特权放行与九项 readiness 的真实关系库状态迁移，不连接或修改任何部署环境。
+ * <p>测试只使用隔离 H2 数据库，锁定评测逐例证据、能力级 provider 启用与八项 readiness
+ * 的真实关系库状态迁移，不连接或修改任何部署环境。
  */
 @DataJdbcTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
@@ -87,7 +83,7 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
     private static final String TENANT = "tenant-release-it";
     private static final String PROVIDER = "ollama-release-it";
     private static final String MODEL_VERSION = "qwen-release-v1";
-    private static final String CAPABILITY = "rule.draft";
+    private static final String CAPABILITY = "knowledge.production.knowledge";
     private static final String OTHER_CAPABILITY = "pathway.draft";
 
     @Autowired
@@ -142,7 +138,6 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
             mock(MedicalRegressionEvaluator.class),
             providerRegistry,
             auditRecorder,
-            highRiskChangeGuard,
             runtimeProperties,
             deploymentFormService);
         providerGovernanceService = new ModelProviderGovernanceService(
@@ -159,10 +154,8 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
             systemConfigRepository,
             mock(AuditSafetyGuard.class),
             auditRecorder,
-            mock(IsolatedAuditPublisher.class),
             mock(RuntimeLogLevelManager.class),
             highRiskChangeGuard,
-            new SpringSecurityPrivilegedConfigChangeGuard(),
             new SystemConfigSeedWriter(systemConfigRepository));
         readinessService = new KnowledgeProductionReadinessService(
             configService,
@@ -183,14 +176,7 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
             "平台知识文献资料库根地址",
             "MEDIUM",
             false);
-        seedConfig(
-            SystemConfigService.KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY,
-            "false",
-            "BOOLEAN",
-            "P6 正式知识生产独立验收",
-            "HIGH",
-            true);
-        authenticate("ops-release-it", RoleCode.INTEGRATION_OPERATOR);
+        authenticate("ops-release-it", RoleCode.PLATFORM_ADMIN);
     }
 
     @AfterEach
@@ -200,32 +186,17 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
     }
 
     @Test
-    void signedEvaluationProviderP6AndReadinessFollowFailClosedStateMachine() {
+    void passedEvaluationProviderAndReadinessFollowFailClosedStateMachine() {
         Instant now = Instant.parse("2026-06-18T12:00:00Z");
         MedicalRegressionCase baseline = caseRepository.save(regressionCase(null, "必须保持人工复核", now));
         ModelProviderConfig provider = providerRepository.save(provider(now));
         ModelVersionBundle activeBundle = versionBundleRepository.save(versionBundle(MODEL_VERSION, now));
         policyRepository.save(policy(now));
 
-        ModelEvalRun pending = evalRunRepository.save(pendingRun(baseline, now));
-        evidenceRepository.save(passedEvidence(pending.id(), baseline, now));
+        ModelEvalRun passed = evalRunRepository.save(passedRun(baseline, now));
+        evidenceRepository.save(passedEvidence(passed.id(), baseline, now));
 
-        assertThatThrownBy(() -> providerGovernanceService.enableProvider(
-            PROVIDER,
-            activation(CAPABILITY, provider.version())))
-            .isInstanceOf(ApiException.class)
-            .extracting(error -> ((ApiException) error).errorCode())
-            .isEqualTo(com.medkernel.shared.api.error.ErrorCode.ENG_LLM_008);
-
-        authenticate("independent-medical-reviewer", RoleCode.QUALITY_GOVERNOR);
-        ModelEvalRun signed = evalService.signOff(
-            pending.id(),
-            new ModelEvalSignOffRequest(true, "已逐例核对真实输出、来源引用、红线裁决及基准指纹，同意放行。"));
-        assertThat(signed.status()).isEqualTo("PASSED");
-        assertThat(evalRunRepository.findById(pending.id()).orElseThrow().reviewer())
-            .isEqualTo("independent-medical-reviewer");
-
-        authenticate("ops-release-it", RoleCode.INTEGRATION_OPERATOR);
+        authenticate("ops-release-it", RoleCode.PLATFORM_ADMIN);
         assertThatThrownBy(() -> providerGovernanceService.enableProvider(
             PROVIDER,
             activation(OTHER_CAPABILITY, provider.version())))
@@ -234,7 +205,7 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
             .isEqualTo(com.medkernel.shared.api.error.ErrorCode.ENG_LLM_008);
 
         MedicalRegressionCase drifted = caseRepository.save(
-            regressionCase(baseline.id(), "基准内容已变化，旧签署不得复用", now.plusSeconds(60)));
+            regressionCase(baseline.id(), "基准内容已变化，旧评测不得复用", now.plusSeconds(60)));
         assertThatThrownBy(() -> providerGovernanceService.enableProvider(
             PROVIDER,
             activation(CAPABILITY, provider.version())))
@@ -249,41 +220,13 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
             activation(CAPABILITY, provider.version()));
         assertThat(enabled.enabled()).isTrue();
 
-        KnowledgeProductionReadinessResponse beforeP6 = readinessService.evaluate(
-            KnowledgeProducer.LOCAL_MODEL,
-            CAPABILITY,
-            PROVIDER);
-        assertThat(beforeP6.ready()).isFalse();
-        assertThat(beforeP6.items()).filteredOn(KnowledgeProductionReadinessItem::ready).hasSize(8);
-        assertThat(beforeP6.items()).filteredOn(item -> !item.ready())
-            .extracting(KnowledgeProductionReadinessItem::code)
-            .containsExactly("P6_ACCEPTANCE");
-
-        long p6Version = systemConfigRepository.findActive(
-            SYSTEM_TENANT,
-            SystemConfigService.KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY)
-            .orElseThrow()
-            .version();
-        assertThatThrownBy(() -> configService.update(
-            SystemConfigService.KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY,
-            new SystemConfigUpdateRequest("true", "独立验收完成，申请正式放行", p6Version, true),
-            "ops-release-it"))
-            .isInstanceOf(ApiException.class)
-            .hasMessageContaining("内置超级管理员");
-
-        authenticate("system-superadmin-release-it", RoleCode.SYSTEM_SUPERADMIN);
-        configService.update(
-            SystemConfigService.KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY,
-            new SystemConfigUpdateRequest("true", "独立验收完成，内置超管正式放行", p6Version, true),
-            "system-superadmin-release-it");
-
         KnowledgeProductionReadinessResponse released = readinessService.evaluate(
             KnowledgeProducer.LOCAL_MODEL,
             CAPABILITY,
             PROVIDER);
         assertThat(released.ready()).isTrue();
         assertThat(released.modelInvocationAllowed()).isTrue();
-        assertThat(released.items()).hasSize(9).allMatch(KnowledgeProductionReadinessItem::ready);
+        assertThat(released.items()).hasSize(8).allMatch(KnowledgeProductionReadinessItem::ready);
 
         caseRepository.save(
             regressionCase(baseline.id(), "上线后基准再次变化", now.plusSeconds(180)));
@@ -303,7 +246,7 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
     private ModelProviderActivationRequest activation(String capabilityCode, Long expectedVersion) {
         return new ModelProviderActivationRequest(
             capabilityCode,
-            "独立医学专家已签署，按正式状态机受控启用",
+            "当前交付内容医学评测通过，按正式状态机受控启用",
             expectedVersion,
             true);
     }
@@ -372,7 +315,7 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
             "quality-author");
     }
 
-    private ModelEvalRun pendingRun(MedicalRegressionCase baseline, Instant now) {
+    private ModelEvalRun passedRun(MedicalRegressionCase baseline, Instant now) {
         return new ModelEvalRun(
             null,
             TENANT,
@@ -390,11 +333,8 @@ class KnowledgeProductionReleaseStateMachineIntegrationTest {
             "N",
             "N",
             "N",
-            "PENDING_REVIEW",
+            "PASSED",
             RegressionBaselineEvidence.toJson(List.of(baseline)),
-            null,
-            null,
-            null,
             now,
             "quality-author",
             now,

@@ -9,15 +9,36 @@ import org.junit.jupiter.api.Test;
 class ContextSnapshotContractTest {
 
     @Test
-    void requestEntityAndResponseExposeOneUnifiedPackageVersion() {
-        assertUnifiedPackageContract(ContextSnapshotRequest.class);
-        assertUnifiedPackageContract(ContextSnapshot.class);
-        assertUnifiedPackageContract(ContextSnapshotResponse.class);
+    void clinicalRuntimeContractsExposeOnlyRuntimeReleaseIdentity() {
+        assertLiveRequestHasNoPackageSelection(ContextSnapshotRequest.class);
+        assertLiveRequestHasNoPackageSelection(ClinicalEventRequest.class);
+        assertRuntimeReleaseContract(ContextSnapshot.class);
+        assertRuntimeReleaseContract(ContextSnapshotResponse.class);
+        assertRuntimeReleaseContract(ClinicalEvent.class);
+        assertRuntimeReleaseContract(ClinicalEventDetailResponse.class);
+        assertRuntimeReleaseContract(ClinicalEventContext.class);
     }
 
-    private void assertUnifiedPackageContract(Class<?> recordType) {
+    @Test
+    void liveRequestDoesNotForceClinicalClientsToTrackPackageReleases() {
+        assertLiveRequestHasNoPackageSelection(ContextSnapshotRequest.class);
+        assertLiveRequestHasNoPackageSelection(ClinicalEventRequest.class);
+    }
+
+    private void assertRuntimeReleaseContract(Class<?> recordType) {
         assertThat(Arrays.stream(recordType.getRecordComponents()).map(component -> component.getName()))
-            .contains("packageVersion")
-            .doesNotContain("knowledgePackageVersion", "rulePackageVersion", "pathwayPackageVersion");
+            .contains("runtimeReleaseId")
+            .doesNotContain(
+                "packageId",
+                "packageCode",
+                "packageVersion",
+                "knowledgePackageVersion",
+                "rulePackageVersion",
+                "pathwayPackageVersion");
+    }
+
+    private void assertLiveRequestHasNoPackageSelection(Class<?> recordType) {
+        assertThat(Arrays.stream(recordType.getRecordComponents()).map(component -> component.getName()))
+            .doesNotContain("packageId", "packageCode", "packageVersion", "knowledgePackageVersion");
     }
 }

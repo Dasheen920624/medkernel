@@ -29,7 +29,7 @@ public class DomainFacadeController {
         this.fixtureService = fixtureService;
     }
 
-    /** 列举 X-DOMAIN 17 张领域门面和服务包组合目录。 */
+    /** 列举 X-DOMAIN 17 张领域门面和业务服务组合目录。 */
     @GetMapping
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<List<DomainFacadeDefinition>> list() {
@@ -43,14 +43,14 @@ public class DomainFacadeController {
         return ApiResult.ok(fixtureService.listFixtureEvidence());
     }
 
-    /** 查询单个领域门面或服务包的复用链路。 */
+    /** 查询单个领域门面或业务组合的复用链路。 */
     @GetMapping("/{code}")
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<DomainFacadeDefinition> get(@PathVariable String code) {
         return ApiResult.ok(service.requireDefinition(code));
     }
 
-    /** 查询单个领域门面或服务包的 B0 主链路 fixture 证据。 */
+    /** 查询单个领域门面或业务组合的 B0 主链路 fixture 证据。 */
     @GetMapping("/{code}/b0-fixture")
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<DomainFacadeB0FixtureEvidence> getB0Fixture(@PathVariable String code) {

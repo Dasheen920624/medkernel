@@ -22,13 +22,14 @@ import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.engine.security.AuthenticatedRoleGuard;
 import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.knowledge.production.gate.PublicationQualityRecordService;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
 import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
 import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
-import com.medkernel.engine.versioning.PlatformAuthority;
+import com.medkernel.engine.versioning.AssetScopeResolver;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.RolloutPolicy;
 import com.medkernel.engine.versioning.VersionPublishEvidence;
@@ -73,6 +74,8 @@ public class KnowledgeVersionService {
     private final KnowledgeVersionedAssetAdapter versionedAssets;
     private final AssetVersionRepository assetVersions;
     private final ReleasePort releasePort;
+    private final PublicationQualityRecordService publicationQualityRecords;
+    private final AssetScopeResolver assetScopes;
 
     public KnowledgeVersionService(KnowledgeIdentityRepository identityRepository,
                                    KnowledgeAssetVersionRepository versionRepository,
@@ -87,7 +90,9 @@ public class KnowledgeVersionService {
                                    AffectedCaseTaskRepository affectedCaseTaskRepository,
                                    KnowledgeVersionedAssetAdapter versionedAssets,
                                    AssetVersionRepository assetVersions,
-                                   ReleasePort releasePort) {
+                                   ReleasePort releasePort,
+                                   PublicationQualityRecordService publicationQualityRecords,
+                                   AssetScopeResolver assetScopes) {
         this.identityRepository = identityRepository;
         this.versionRepository = versionRepository;
         this.supersessionRepository = supersessionRepository;
@@ -102,6 +107,8 @@ public class KnowledgeVersionService {
         this.versionedAssets = versionedAssets;
         this.assetVersions = assetVersions;
         this.releasePort = releasePort;
+        this.publicationQualityRecords = publicationQualityRecords;
+        this.assetScopes = assetScopes;
     }
 
     public PageResponse<KnowledgeAssetVersion> listByIdentity(Long identityId, PageRequest request) {
@@ -213,7 +220,7 @@ public class KnowledgeVersionService {
     /**
      * 历史版本重放。返回指定版本本身，显式标记 historicalVersion，绝不混入当前 ACTIVE。
      */
-    public KnowledgeReplayResponse replayVersion(Long identityId, Long versionId, String packageVersion, String snapshotId) {
+    public KnowledgeReplayResponse replayVersion(Long identityId, Long versionId, String snapshotId) {
         String tenantId = requireCurrentTenant();
         identityRepository.findByTenantIdAndId(tenantId, identityId)
             .orElseThrow(() -> ApiException.notFound("知识身份 id=" + identityId));
@@ -228,7 +235,6 @@ public class KnowledgeVersionService {
             version.versionNo(),
             version.status(),
             true,
-            packageVersion,
             snapshotId,
             version.contentHash(),
             version.anchors(),
@@ -287,8 +293,8 @@ public class KnowledgeVersionService {
     /**
      * 对新进入的知识版本候选做 B0 新旧识别与审核分流（AIK-STD-13 PR4）。
      *
-     * <p>{@code assignmentPlan} 非空时据 PR3 会签路由建多角色 {@link ReviewAssignment}（归口 ∪ 领域）；
-     * 为 null 时沿用既有默认（{@code assignedTo}=提交人，单行），既有调用方零回归。
+     * <p>{@code assignmentPlan} 非空时按固定运营职责建立 {@link ReviewAssignment}；
+     * 为 null 时使用提交人建立单行分派。
      */
     @Transactional
     public KnowledgeCandidateResponse classifyCandidate(Long identityId, KnowledgeVersionCreateRequest request,
@@ -380,8 +386,7 @@ public class KnowledgeVersionService {
             tenantId,
             VersionedAssetType.KNOWLEDGE,
             identity.identityCode(),
-            candidate.versionNo(),
-            candidate.effectiveOrganizationScope(),
+            null,
             candidate.effectiveApplicableScope(),
             null,
             candidate.contentHash(),
@@ -461,26 +466,16 @@ public class KnowledgeVersionService {
         if (assignments.isEmpty()) {
             throw new ApiException(ErrorCode.CONFLICT, "候选缺少审核分派，不得直接作出结论");
         }
-        boolean actorAlreadyApproved = assignments.stream()
-            .anyMatch(assignment -> assignment.reviewStatus() == CandidateReviewStatus.APPROVED
-                && KnowledgeCandidateReviewDecision.APPROVE == assignment.decision()
-                && actor.equals(assignment.decidedBy()));
         List<ReviewAssignment> matchingPending = assignments.stream()
             .filter(assignment -> assignment.reviewStatus() == CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW)
             .filter(assignment -> matchesAssignment(assignment, actor))
             .toList();
-        if (candidate.isHighRisk() && actorAlreadyApproved && !matchingPending.isEmpty()) {
-            throw new ApiException(ErrorCode.CONFLICT, "同一人员不能完成高风险双签");
-        }
         ReviewAssignment selectedAssignment = matchingPending.stream()
             .findFirst()
             .orElseThrow(() -> new ApiException(
                 ErrorCode.CONFLICT, "当前操作者未命中待审核分派，不能代替他人签署"));
 
         if (request.decision() == KnowledgeCandidateReviewDecision.APPROVE) {
-            if (candidate.isHighRisk() && assignments.size() < 2) {
-                throw new ApiException(ErrorCode.CONFLICT, "高风险候选缺少两个签署席位，不得激活");
-            }
             ReviewAssignment approvedAssignment = decidedAssignment(
                 selectedAssignment,
                 CandidateReviewStatus.APPROVED,
@@ -496,29 +491,18 @@ public class KnowledgeVersionService {
                     ? approvedAssignment
                     : assignment)
                 .toList();
-            if (candidate.isHighRisk() && !dualSignComplete(updatedAssignments)) {
-                return new KnowledgeCandidateResponse(
-                    classification.identityId(),
-                    candidatePage(List.of(candidate)),
-                    List.of(classification),
-                    true,
-                    "PENDING_DUAL_SIGN",
-                    "高风险候选首签已记录，仍需另一名分派人员完成签署");
-            }
-            if (!candidate.isHighRisk()) {
-                closeRemainingAssignments(
-                    updatedAssignments,
-                    approvedAssignment.id(),
-                    CandidateReviewStatus.APPROVED,
-                    "单签候选已由归口分派通过，其他历史席位关闭",
-                    actor,
-                    now);
-            }
+            closeRemainingAssignments(
+                updatedAssignments,
+                approvedAssignment.id(),
+                CandidateReviewStatus.APPROVED,
+                "候选已由医疗引擎运营职责确认，其他历史席位关闭",
+                actor,
+                now);
             KnowledgeAssetVersion activated = activate(
                 classification.identityId(),
                 classification.candidateVersionId(),
                 request.reason(),
-                request.publishEvidence());
+                request.qualityGateRecordId());
             CandidateClassification approved = candidateClassificationRepository.save(classificationWithStatus(
                 classification,
                 CandidateReviewStatus.APPROVED,
@@ -669,7 +653,7 @@ public class KnowledgeVersionService {
             Long identityId,
             Long versionId,
             String reason,
-            VersionPublishEvidence publishEvidence) {
+            Long qualityGateRecordId) {
         String tenantId = requireCurrentTenant();
         String actor = currentActor();
         Instant now = Instant.now();
@@ -704,11 +688,13 @@ public class KnowledgeVersionService {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "高风险版本激活必须填写说明");
         }
         requireCitation(tenantId, target.id());
+        VersionPublishEvidence publishEvidence = publicationQualityRecords.requirePublishEvidence(
+            qualityGateRecordId, identityId, target);
         publishUnifiedVersion(
             identity,
             target,
             normalizedReason,
-            VersionPublishEvidence.orEmpty(publishEvidence));
+            publishEvidence);
 
         // 3) 同一完整适用域内的当前 ACTIVE 版本（如有）→ SUPERSEDED
         String organizationScope = target.effectiveOrganizationScope();
@@ -814,16 +800,11 @@ public class KnowledgeVersionService {
                 releasePort.approveReview(command);
                 releasePort.publish(command);
             }
-            case IN_REVIEW -> {
-                releasePort.approveReview(command);
-                releasePort.publish(command);
-            }
-            case APPROVED -> releasePort.publish(command);
             case PUBLISHED -> {
                 // 已发布版本重复激活保持幂等，领域内容状态随后对齐。
             }
-            case DEPRECATED, RETIRED ->
-                throw new ApiException(ErrorCode.CONFLICT, "统一知识版本已下线，不能直接激活");
+            case WITHDRAWN ->
+                throw new ApiException(ErrorCode.CONFLICT, "统一知识版本已撤回，不能直接激活");
         }
     }
 
@@ -865,7 +846,6 @@ public class KnowledgeVersionService {
             conclusion,
             currentActor(),
             RequestContext.currentTraceId(),
-            publishEvidence.electronicSignature(),
             publishEvidence.qualityGate()
         );
     }
@@ -990,20 +970,6 @@ public class KnowledgeVersionService {
         return RoleCode.fromCode(assignment.assignedTo())
             .map(AuthenticatedRoleGuard::has)
             .orElseGet(() -> actor.equals(assignment.assignedTo()));
-    }
-
-    private boolean dualSignComplete(List<ReviewAssignment> assignments) {
-        if (assignments.size() < 2 || assignments.stream()
-            .anyMatch(assignment -> assignment.reviewStatus() != CandidateReviewStatus.APPROVED
-                || assignment.decision() != KnowledgeCandidateReviewDecision.APPROVE
-                || assignment.decidedBy() == null
-                || assignment.decidedBy().isBlank())) {
-            return false;
-        }
-        return assignments.stream()
-            .map(ReviewAssignment::decidedBy)
-            .distinct()
-            .count() == assignments.size();
     }
 
     private void closeRemainingAssignments(
@@ -1132,7 +1098,7 @@ public class KnowledgeVersionService {
         );
         KnowledgeAssetVersion saved = versionRepository.save(withdrawn);
         assetVersions.save(unified.withStatusAndWindow(
-            AssetVersionStatus.DEPRECATED,
+            AssetVersionStatus.WITHDRAWN,
             "version:" + unified.versionId(),
             unified.effectiveFrom(),
             now,
@@ -1190,8 +1156,8 @@ public class KnowledgeVersionService {
         saveAffectedTask(invalidation, version, AffectedCaseTaskType.PHYSICIAN_REVIEW,
             AffectedCaseTargetType.KNOWLEDGE_VERSION, "identity:" + version.identityId() + "/version:" + version.id(),
             reason, now, actor);
-        saveAffectedTask(invalidation, version, AffectedCaseTaskType.PACKAGE_RESYNC,
-            AffectedCaseTargetType.PACKAGE_DEPENDENCY, "package-dependency/version:" + version.id(),
+        saveAffectedTask(invalidation, version, AffectedCaseTaskType.ASSET_DEPENDENCY_REVIEW,
+            AffectedCaseTargetType.ASSET_DEPENDENCY, "asset-dependency/version:" + version.id(),
             reason, now, actor);
         saveAffectedTask(invalidation, version, AffectedCaseTaskType.SYNC_ALERT,
             AffectedCaseTargetType.SYNC_TARGET,
@@ -1284,9 +1250,6 @@ public class KnowledgeVersionService {
     }
 
     private String organizationScope(KnowledgeApiContext context, String tenantId) {
-        if (PlatformTenant.isPlatformTenant(tenantId)) {
-            return PlatformAuthority.PLATFORM_ORG_PATH;
-        }
         OrgScope scope = new OrgScope(
             tenantId,
             context.groupId(),
@@ -1295,8 +1258,7 @@ public class KnowledgeVersionService {
             context.siteId(),
             context.departmentId(),
             context.specialtyId());
-        String orgPath = AuditEvent.orgPath(scope);
-        return orgPath == null || orgPath.isBlank() ? "tenant:" + tenantId : orgPath;
+        return assetScopes.resolve(tenantId, scope).organizationPath();
     }
 
     private String applicableScope(KnowledgeApiContext context) {

@@ -25,7 +25,7 @@ public class SandboxReplayController {
     }
 
     @PostMapping
-    @PreAuthorize("@perm.has('package.publish')")
+    @PreAuthorize("@perm.has('sandbox.manage')")
     @DataScope(requireTenant = true)
     public ApiResult<SandboxReplayCaseResponse> importCase(
             @Valid @RequestBody SandboxReplayImportRequest request) {
@@ -40,7 +40,7 @@ public class SandboxReplayController {
     }
 
     @PostMapping("/{replayCaseId}/revoke")
-    @PreAuthorize("@perm.has('package.publish')")
+    @PreAuthorize("@perm.has('sandbox.manage')")
     @DataScope(requireTenant = true)
     public ApiResult<SandboxReplayCaseResponse> revoke(
             @PathVariable String replayCaseId,

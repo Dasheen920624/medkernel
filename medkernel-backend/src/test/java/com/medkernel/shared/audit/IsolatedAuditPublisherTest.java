@@ -84,7 +84,7 @@ class IsolatedAuditPublisherTest {
 
         isolated.publishInNewTx(AuditEvent.failure(
             AuditAction.EXECUTE, "context_snapshot", "ctx-iso-2",
-            "ENG-CONTEXT-002", "包版本不存在"));
+            "ENG-CONTEXT-002", "机构生效版本不存在"));
 
         Integer found = jdbc.queryForObject(
             "SELECT COUNT(*) FROM audit_event WHERE trace_id = ? AND outcome = 'FAILED'",

@@ -7,6 +7,5 @@ public enum AuthoringBatchJobStatus {
     RUNNING,
     SUCCEEDED,
     PARTIAL_SUCCESS,
-    FAILED,
-    NOT_CONNECTED
+    FAILED
 }

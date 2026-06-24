@@ -7,12 +7,12 @@ import java.util.Locale;
 import org.springframework.stereotype.Component;
 
 /**
- * 上下文字段目录（P2/P5）。从 canonical 标准资源真实记录字段派生的只读字段清单，按业务层级
+ * 上下文字段目录。从 canonical 标准资源真实记录字段派生的只读字段清单，按业务层级
  * （一级业务域 → 二级分组 → 字段）组织，供规则 / 路径创作时的字段选择器消费，解决
  * 「上下文没有字典 / 数据源可选」并贴合临床认知。
  *
  * <p>当前为平台派生的权威清单（与 {@code engine.context.canonical.*} 记录字段一一对应），
- * 不内置任何业务数据；租户自定义扩展字段后续以持久化表叠加（见 OpenSpec 设计附录 B）。
+ * 不内置任何业务数据；租户自定义扩展字段以持久化表叠加。
  */
 @Component
 public class ContextFieldCatalog {

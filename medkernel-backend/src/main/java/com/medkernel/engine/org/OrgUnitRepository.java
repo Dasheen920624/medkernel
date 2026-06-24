@@ -37,6 +37,15 @@ public interface OrgUnitRepository extends ListCrudRepository<OrgUnit, String> {
     Optional<OrgUnit> findByTenantIdAndId(String tenantId, String id);
 
     /**
+     * 按租户和规范组织路径读取组织单元。
+     *
+     * @param tenantId 租户标识
+     * @param orgPath 组织树规范路径
+     * @return 匹配的组织单元
+     */
+    Optional<OrgUnit> findByTenantIdAndOrgPath(String tenantId, String orgPath);
+
+    /**
      * 读取当前租户的根组织单元。
      *
      * @param tenantId 租户标识
@@ -54,7 +63,7 @@ public interface OrgUnitRepository extends ListCrudRepository<OrgUnit, String> {
     List<OrgUnit> findByTenantIdAndLevelOrderByCodeAsc(String tenantId, OrgLevel level);
 
     /**
-     * 按租户、层级和状态统计组织单元，用于就绪门禁等存在性判断。
+     * 按租户、层级和状态统计组织单元，用于就绪条件等存在性判断。
      *
      * @param tenantId 租户标识
      * @param level 组织层级
@@ -62,6 +71,22 @@ public interface OrgUnitRepository extends ListCrudRepository<OrgUnit, String> {
      * @return 匹配组织单元数量
      */
     long countByTenantIdAndLevelAndStatus(String tenantId, OrgLevel level, OrgUnitStatus status);
+
+    /**
+     * 按租户、层级、状态和机构类型统计组织单元。
+     *
+     * @param tenantId 租户标识
+     * @param level 组织层级
+     * @param status 组织状态
+     * @param facilityType 机构类型
+     * @return 匹配组织单元数量
+     */
+    long countByTenantIdAndLevelAndStatusAndFacilityType(
+        String tenantId,
+        OrgLevel level,
+        OrgUnitStatus status,
+        OrgFacilityType facilityType
+    );
 
     /**
      * 按租户和专科标识读取挂载该专科的组织单元。

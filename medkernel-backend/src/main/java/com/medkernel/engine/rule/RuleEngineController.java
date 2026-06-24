@@ -98,6 +98,19 @@ public class RuleEngineController {
     }
 
     /**
+     * 将已全量运行的规则复制为同一稳定编码的下一版草稿。
+     */
+    @PostMapping("/rules/{ruleId}/versions")
+    @PreAuthorize("@perm.has('rule.write')")
+    public ResponseEntity<ApiResult<RuleVersionCreateResponse>> createNextVersion(
+            @PathVariable String ruleId,
+            @RequestBody @Valid RuleOperationRequest request) {
+        validateContext(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(ApiResult.ok(service.createNextVersion(ruleId)));
+    }
+
+    /**
      * 新增规则测试用例（仅草稿状态可加）。
      *
      * <p>权限：{@code rule.write}；规则状态不为 {@code DRAFT} 时抛错误码 {@code ENG-RULE-006}。
@@ -147,19 +160,7 @@ public class RuleEngineController {
     }
 
     /**
-     * 记录规则同行评审或临床委员会会签。
-     */
-    @PostMapping("/rules/{ruleId}/governance/signoffs")
-    @PreAuthorize("@perm.hasAny('rule.publish','rule.write','evaluation.publish')")
-    public ApiResult<RuleGovernanceResponse> signoffGovernance(
-            @PathVariable String ruleId,
-            @RequestBody @Valid RuleSignoffRequest request) {
-        validateContext(request);
-        return ApiResult.ok(service.signoffGovernance(ruleId, request));
-    }
-
-    /**
-     * 按八阶段闭集推进规则治理状态。
+     * 按七阶段闭集推进规则治理状态。
      */
     @PostMapping("/rules/{ruleId}/governance/transitions")
     @PreAuthorize("@perm.hasAny('rule.publish','rule.write')")

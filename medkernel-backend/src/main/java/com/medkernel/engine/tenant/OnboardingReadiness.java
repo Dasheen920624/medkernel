@@ -4,9 +4,9 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * 租户开通就绪门结果。
+ * 服务机构开通条件结果。
  *
- * @param tenantId 租户标识
+ * @param tenantId 服务机构标识
  * @param ready 是否满足开通前置条件
  * @param steps 实施向导各步骤真实状态
  * @param blockers 全局阻塞原因清单

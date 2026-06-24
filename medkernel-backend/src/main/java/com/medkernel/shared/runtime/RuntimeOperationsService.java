@@ -190,35 +190,35 @@ public class RuntimeOperationsService {
                 "graph-projection",
                 "知识图谱投影",
                 graphEnabled ? STATUS_DEGRADED : STATUS_NOT_CONNECTED,
-                graphEnabled ? "Feature Flag 已开启；真实图谱探活未接入，不标记 UP" : "Feature Flag 关闭，未连接图谱投影"
+                graphEnabled ? "能力开关已开启；真实图谱探活未接入，暂不判定通过" : "能力开关关闭，未连接图谱投影"
             ),
             new RuntimeDependencyStatus(
                 "search-projection",
                 "知识搜索投影",
                 searchEnabled ? STATUS_DEGRADED : STATUS_NOT_CONNECTED,
-                searchEnabled ? "Feature Flag 已开启；真实搜索探活未接入，不标记 UP" : "Feature Flag 关闭，未连接搜索投影"
+                searchEnabled ? "能力开关已开启；真实搜索探活未接入，暂不判定通过" : "能力开关关闭，未连接搜索投影"
             ),
             new RuntimeDependencyStatus(
                 "dify-workflow",
-                "Dify 工作流",
+                "模型工作流",
                 difyEnabled ? STATUS_DEGRADED : STATUS_MODEL_DISABLED,
-                difyEnabled ? "Feature Flag 已开启；真实模型工作流探活未接入，不标记 UP" : "Feature Flag 关闭，模型工作流未启用"
+                difyEnabled ? "能力开关已开启；真实模型工作流探活未接入，暂不判定通过" : "能力开关关闭，模型工作流未启用"
             ),
             new RuntimeDependencyStatus(
                 "model-gateway",
-                "模型 Provider",
+                "模型服务",
                 externalProviderEnabled ? STATUS_DEGRADED : STATUS_MODEL_DISABLED,
                 externalProviderEnabled
-                    ? "外部 Provider 开关已开启；真实模型 Provider 探活未接入，不标记 UP"
-                    : "外部 Provider 开关关闭，模型能力按 B0 主链路降级"
+                    ? "外部模型服务开关已开启；真实模型服务探活未接入，暂不判定通过"
+                    : "外部模型服务开关关闭，模型能力按无模型规则主链路运行"
             ),
             new RuntimeDependencyStatus(
                 "external-provider",
-                "外部系统 Provider",
+                "外部系统连接",
                 externalProviderEnabled ? STATUS_DEGRADED : STATUS_NOT_CONNECTED,
                 externalProviderEnabled
-                    ? "外部 Provider 开关已开启；真实外部系统探活未接入，不标记 UP"
-                    : "外部 Provider 开关关闭，未连接 HIS/EMR/时间戳等外部系统"
+                    ? "外部系统连接开关已开启；真实外部系统探活未接入，暂不判定通过"
+                    : "外部系统连接开关关闭，未连接 HIS/EMR/时间戳等外部系统"
             )
         );
     }
@@ -383,16 +383,16 @@ public class RuntimeOperationsService {
         return domesticItem(
             "crypto-provider",
             "CRYPTO",
-            "国密算法 Provider",
+            "国密算法组件",
             allRequired ? CHECK_PASS : CHECK_WARN,
             actual,
             String.join(" / ", profile.cryptoAlgorithms()),
             allRequired
-                ? "当前 JVM 已注册所需国密算法 Provider。"
-                : "国密算法 Provider 未全部注册，不标记通过。",
+                ? "当前运行环境已注册所需国密算法组件。"
+                : "国密算法组件未全部注册，暂不判定通过。",
             allRequired
-                ? "保留国密 smoke 与 Provider 版本证据。"
-                : "确认 BouncyCastle 或院方国密 Provider 已加载，并运行 SM2/SM3/SM4 smoke。",
+                ? "保留国密自检与组件版本证据。"
+                : "确认 BouncyCastle 或院方国密组件已加载，并运行 SM2/SM3/SM4 自检。",
             "java.security.Security.getAlgorithms"
         );
     }
@@ -439,7 +439,7 @@ public class RuntimeOperationsService {
             CHECK_UNKNOWN,
             "未检测到院方国密 CA 连接器",
             "院方国密 CA / OIDC / SAML 证书链",
-            "当前运行快照未发现真实院方国密 CA 连接器，不标记通过。",
+            "当前运行状态快照未发现真实院方国密 CA 连接器，不标记通过。",
             "配置真实 IdP/CA 连接器并完成证书链探活后重新导出报告。",
             "运行时依赖与身份委托配置"
         );

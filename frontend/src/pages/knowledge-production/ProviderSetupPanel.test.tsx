@@ -47,7 +47,7 @@ function providerQuery(status: "HEALTHY" | "NOT_CONNECTED" = "NOT_CONNECTED") {
           credentialLast4: "1234",
           credentialVersion: 2,
           credentialUpdatedAt: "2026-06-20T05:00:00Z",
-          credentialUpdatedBy: "integration-operator",
+          credentialUpdatedBy: "platform-admin",
           modelVersion: "medical-v1",
           enabled: false,
           status,
@@ -73,7 +73,7 @@ describe("ProviderSetupPanel", () => {
     vi.mocked(useSecurityProfile).mockReturnValue({
       data: {
         permissions: [{ code: "llm.provider.manage" }],
-        roles: [{ code: "integration-operator" }],
+        roles: [{ code: "platform-admin" }],
       },
       isLoading: false,
       isError: false,
@@ -92,14 +92,14 @@ describe("ProviderSetupPanel", () => {
     setProviderEnabled.mockResolvedValue(undefined);
   });
 
-  it("shows only safe key metadata and never renders a stored key", () => {
+  it("shows only safe credential metadata and never renders a stored secret", () => {
     render(
       <ConfigProvider>
         <ProviderSetupPanel />
       </ConfigProvider>,
     );
 
-    expect(screen.getByText("模型服务与 Key")).toBeInTheDocument();
+    expect(screen.getByText("模型服务与密钥")).toBeInTheDocument();
     expect(screen.getByText("尾号 1234")).toBeInTheDocument();
     expect(screen.getByText("待健康检查")).toBeInTheDocument();
     expect(screen.queryByText(/sk-/)).not.toBeInTheDocument();
@@ -167,14 +167,14 @@ describe("ProviderSetupPanel", () => {
       </ConfigProvider>,
     );
 
-    await user.click(screen.getByRole("button", { name: "轮换 Key" }));
-    const credential = screen.getByLabelText("模型 Key");
+    await user.click(screen.getByRole("button", { name: "轮换密钥" }));
+    const credential = screen.getByLabelText("模型密钥");
     expect(credential).toHaveAttribute("type", "password");
     expect(credential).toHaveAttribute("autocomplete", "new-password");
 
     await user.type(credential, "sk-fake-medical-key-5678");
     await user.type(screen.getByLabelText("变更原因"), "轮换生产模型凭据");
-    await user.click(screen.getByRole("checkbox", { name: /我确认 Key 变更将强制停用/ }));
+    await user.click(screen.getByRole("checkbox", { name: /我确认密钥变更将强制停用/ }));
     await user.click(screen.getByRole("button", { name: "保存并停用" }));
 
     await waitFor(() =>
@@ -198,10 +198,10 @@ describe("ProviderSetupPanel", () => {
     );
 
     await screen.findByText("medical-model");
-    await user.click(screen.getByRole("button", { name: "轮换 Key" }));
-    await user.type(screen.getByLabelText("模型 Key"), "sk-fake-provider-key-1234");
+    await user.click(screen.getByRole("button", { name: "轮换密钥" }));
+    await user.type(screen.getByLabelText("模型密钥"), "sk-fake-provider-key-1234");
     await user.type(screen.getByLabelText("变更原因"), "轮换");
-    await user.click(screen.getByText("我确认 Key 变更将强制停用模型服务并要求重新验证"));
+    await user.click(screen.getByText("我确认密钥变更将强制停用模型服务并要求重新验证"));
     await user.click(screen.getByRole("button", { name: "保存并停用" }));
 
     expect(await screen.findByText("请填写至少 8 个字符的具体原因")).toBeInTheDocument();
@@ -210,7 +210,7 @@ describe("ProviderSetupPanel", () => {
 
   it("shows the responsible role instead of disabled mutation controls without permission", () => {
     vi.mocked(useSecurityProfile).mockReturnValue({
-      data: { permissions: [], roles: [{ code: "platform-knowledge-governor" }] },
+      data: { permissions: [], roles: [{ code: "engine-operator" }] },
       isLoading: false,
       isError: false,
     } as never);
@@ -221,8 +221,10 @@ describe("ProviderSetupPanel", () => {
       </ConfigProvider>,
     );
 
-    expect(screen.getByText(/由集成运维员维护模型服务、Key 与健康状态/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "轮换 Key" })).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/由医疗引擎运营员维护模型服务、密钥、健康检查和医学评测/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "轮换密钥" })).not.toBeInTheDocument();
   });
 
   it("edits an existing provider with optimistic locking", async () => {
@@ -262,7 +264,7 @@ describe("ProviderSetupPanel", () => {
       </ConfigProvider>,
     );
 
-    await user.click(screen.getByRole("button", { name: "移除 Key" }));
+    await user.click(screen.getByRole("button", { name: "移除密钥" }));
     await user.type(screen.getByLabelText("移除原因"), "供应商凭据已作废，执行受控撤销");
     await user.click(screen.getByRole("checkbox", { name: /我确认移除后将强制停用/ }));
     await user.click(screen.getByRole("button", { name: "确认移除" }));
@@ -287,9 +289,9 @@ describe("ProviderSetupPanel", () => {
     );
 
     await user.click(screen.getByRole("button", { name: /启\s*用/ }));
-    await user.click(screen.getByRole("combobox", { name: "已签署医学能力" }));
+    await user.click(screen.getByRole("combobox", { name: "已通过评测的模型能力" }));
     await user.click(screen.getByText("临床规则草案拟定"));
-    await user.type(screen.getByLabelText("启停原因"), "当前制品医学评测与独立复核均已完成");
+    await user.type(screen.getByLabelText("启停原因"), "当前交付内容医学评测已通过");
     await user.click(screen.getByRole("checkbox", { name: /我确认本操作受医学评测/ }));
     await user.click(screen.getByRole("button", { name: "确认启用" }));
 
@@ -298,11 +300,12 @@ describe("ProviderSetupPanel", () => {
         providerCode: "medical-model",
         enabled: true,
         capabilityCode: "rule.draft",
-        reason: "当前制品医学评测与独立复核均已完成",
+        reason: "当前交付内容医学评测已通过",
         expectedVersion: 4,
         confirmedHighRisk: true,
       }),
     );
+    expect(screen.queryByText(/独立签署|质量治理专家|集成运维员/)).not.toBeInTheDocument();
   });
 
   it("blocks a vague provider activation reason before calling the backend", async () => {
@@ -315,7 +318,7 @@ describe("ProviderSetupPanel", () => {
     );
 
     await user.click(screen.getByRole("button", { name: /启\s*用/ }));
-    await user.click(screen.getByRole("combobox", { name: "已签署医学能力" }));
+    await user.click(screen.getByRole("combobox", { name: "已通过评测的模型能力" }));
     await user.click(screen.getByText("临床规则草案拟定"));
     await user.type(screen.getByLabelText("启停原因"), "启用");
     await user.click(screen.getByRole("checkbox", { name: /我确认本操作受医学评测/ }));

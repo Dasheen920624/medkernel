@@ -22,7 +22,6 @@ public record AuthoringPreviewRunRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     AuthoringPreviewSubject subject,
     @JsonProperty("snapshot_id") String snapshotId,
     JsonNode dsl,
@@ -53,7 +52,6 @@ public record AuthoringPreviewRunRequest(
             context.specialtyId(),
             context.userId(),
             context.roleCodes(),
-            context.packageVersion(),
             subject,
             snapshotId,
             dsl,
@@ -74,8 +72,7 @@ public record AuthoringPreviewRunRequest(
             departmentId,
             specialtyId,
             userId,
-            roleCodes,
-            packageVersion
+            roleCodes
         );
     }
 }

@@ -3,12 +3,14 @@ package com.medkernel.engine.integration;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -19,6 +21,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.medkernel.engine.context.ClinicalEvent;
+import com.medkernel.engine.context.ClinicalEventPayload;
+import com.medkernel.engine.context.ClinicalEventPayloadRepository;
+import com.medkernel.engine.context.ClinicalEventRepository;
+import com.medkernel.engine.context.ClinicalEventTriggerPoint;
+import com.medkernel.engine.context.ClinicalEventType;
+import com.medkernel.engine.context.canonical.ClinicalSetting;
 import com.medkernel.engine.integration.domain.*;
 import com.medkernel.engine.integration.dto.*;
 import com.medkernel.engine.integration.repository.*;
@@ -27,9 +36,26 @@ import com.medkernel.engine.integration.service.IntegrationService;
 import com.medkernel.engine.integration.service.WebhookSecretCodec;
 import com.medkernel.engine.mpi.MpiPatient;
 import com.medkernel.engine.mpi.MpiPatientRepository;
+import com.medkernel.engine.terminology.TermMappingSnapshot;
+import com.medkernel.engine.terminology.TermMappingSnapshotCodec;
+import com.medkernel.engine.terminology.TermMappingSnapshotEntity;
+import com.medkernel.engine.terminology.TermMappingSnapshotRepository;
+import com.medkernel.engine.release.ReleaseEntryState;
+import com.medkernel.engine.release.ReleaseSourceLayer;
+import com.medkernel.engine.versioning.AssetIdentity;
+import com.medkernel.engine.versioning.AssetIdentityRepository;
+import com.medkernel.engine.versioning.AssetIdentityStatus;
+import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
+import com.medkernel.engine.versioning.AssetVersionRepository;
+import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
+import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.RequestContext;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -65,6 +91,21 @@ class IntegrationServiceTest {
 
     @Autowired
     private MpiPatientRepository mpiPatientRepository;
+
+    @Autowired
+    private ClinicalEventRepository clinicalEventRepository;
+
+    @Autowired
+    private ClinicalEventPayloadRepository clinicalEventPayloadRepository;
+
+    @Autowired
+    private TermMappingSnapshotRepository termMappingSnapshotRepository;
+
+    @Autowired
+    private AssetIdentityRepository assetIdentityRepository;
+
+    @Autowired
+    private AssetVersionRepository assetVersionRepository;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -612,44 +653,112 @@ class IntegrationServiceTest {
         Long standardTermId = insertStandardTerm("ICD-10", "A00", "霍乱");
         Long localTermId = insertLocalTerm("HIS", "DIA-A00", "本院霍乱诊断");
         Long mappingId = insertConfirmedTermMapping(localTermId, standardTermId, "HIS");
+        TerminologyRuntimeAsset terminologyV1 = insertPublishedTerminologyAssetVersion(
+            "TERM.DIAGNOSIS.V1", "H1", mappingId, localTermId, standardTermId, "A00");
+        insertPublishedTerminologyAssetVersion(
+            "TERM.DIAGNOSIS.V2", "H2", mappingId + 1000, localTermId, standardTermId, "B00");
+        String runtimeReleaseId = "runtime-release-terminology-v1";
+        insertCurrentRuntimeRelease(runtimeReleaseId, terminologyV1);
 
         service.createAdapter(tenantId, new AdapterCreateDto("lis-adapter", "LIS 入站适配器", "Webhook",
             """
             {
               "fieldMappings": [
-                {"sourcePath": "/patientId", "targetPath": "/patient/id"},
-                {"sourcePath": "/diagnosisCode", "targetPath": "/diagnosis/code", "termMappingId": %d}
+                {"sourcePath": "/patientId", "targetPath": "/patient/mpi"},
+                {
+                  "sourcePath": "/dialysisAccessType",
+                  "targetPath": "/extensions/local/dialysis_access_type"
+                },
+                {
+                  "sourcePath": "/diagnosisCode",
+                  "targetPath": "/diagnoses/0",
+                  "targetDictionaryKey": "ICD-10",
+                  "category": "DIAGNOSIS"
+                }
               ]
             }
-            """.formatted(mappingId)));
+            """));
         service.createWebhook(tenantId,
             new WebhookCreateDto("whk-map", "LIS 入站", "http://localhost/inbound", "LAB_RESULT"));
         IntegrationWebhookConfig webhook = webhookRepository.findByWebhookIdAndTenantId("whk-map", tenantId)
             .orElseThrow();
-        WebhookInboundRequestDto inbound = inboundRequest("msg-map-1", "trace-map-1", "lis-adapter",
-            "{\"patientId\":\"P-100\",\"diagnosisCode\":\"DIA-A00\"}");
+        WebhookInboundRequestDto inbound = inboundRequest(
+            "msg-map-1", "trace-map-1", "lis-adapter",
+            """
+            {
+              "patientId": "P-100",
+              "dialysisAccessType": "AV_FISTULA",
+              "diagnosisCode": "DIA-A00"
+            }
+            """);
         String timestamp = currentTimestamp();
         String signature = signInbound(webhookSecretCodec.decode(webhook.secretCipher()), timestamp, inbound);
 
-        WebhookInboundResultDto result = service.ingestWebhook(tenantId, "whk-map", timestamp, signature, inbound);
+        WebhookInboundResultDto result;
+        try {
+            result = RequestContext.callWith(
+                new RequestContext.Snapshot(
+                    "trace-map-1",
+                    new OrgScope(tenantId, null, "hospital-001", null, null, null, null, null),
+                    "integration-test"),
+                () -> service.ingestWebhook(tenantId, "whk-map", timestamp, signature, inbound));
+        } catch (Exception exception) {
+            throw new AssertionError(exception);
+        }
 
         assertEquals("SUCCESS", result.status());
         assertFalse(result.idempotentReplay());
-        assertEquals(2, result.mappedFieldCount());
+        assertEquals(3, result.mappedFieldCount());
         assertEquals(1, result.normalizedCodeCount());
-        assertEquals("P-100", result.mappedPayload().at("/patient/id").asText());
-        assertEquals("ICD-10", result.mappedPayload().at("/diagnosis/code/system").asText());
-        assertEquals("A00", result.mappedPayload().at("/diagnosis/code/code").asText());
-        assertEquals("霍乱", result.mappedPayload().at("/diagnosis/code/display").asText());
+        assertEquals("P-100", result.mappedPayload().at("/patient/mpi").asText());
+        assertEquals(
+            "AV_FISTULA",
+            result.mappedPayload().at("/extensions/local/dialysis_access_type").asText());
+        assertEquals("ICD-10", result.mappedPayload().at("/diagnoses/0/codeSystem").asText());
+        assertEquals("A00", result.mappedPayload().at("/diagnoses/0/standardCode").asText());
+        assertEquals("DIA-A00", result.mappedPayload().at("/diagnoses/0/localCode").asText());
+        assertEquals("H1", result.mappedPayload().at("/diagnoses/0/mappedVersion").asText());
+        assertNotNull(result.clinicalEventId());
+        assertEquals("RECEIVED", result.clinicalEventStatus());
+
+        ClinicalEvent clinicalEvent = clinicalEventRepository
+            .findByEventIdAndTenantId(result.clinicalEventId(), tenantId)
+            .orElseThrow();
+        assertEquals(ClinicalEventType.REPORT, clinicalEvent.eventType());
+        assertEquals(ClinicalEventTriggerPoint.RESULT_REVIEW, clinicalEvent.triggerPoint());
+        assertEquals("P-100", clinicalEvent.patientId());
+        assertEquals("encounter-100", clinicalEvent.encounterId());
+        assertEquals(ClinicalSetting.OUTPATIENT, clinicalEvent.clinicalSetting());
+        assertEquals(runtimeReleaseId, clinicalEvent.runtimeReleaseId());
+
+        ClinicalEventPayload clinicalPayload = clinicalEventPayloadRepository
+            .findByEventIdAndTenantId(result.clinicalEventId(), tenantId)
+            .orElseThrow();
+        JsonNode persistedPayload = objectMapper.readTree(clinicalPayload.payload());
+        assertEquals("P-100", persistedPayload.at("/patient/mpi").asText());
+        assertEquals(
+            "AV_FISTULA",
+            persistedPayload.at("/extensions/local/dialysis_access_type").asText());
+        assertEquals("A00", persistedPayload.at("/diagnoses/0/standardCode").asText());
 
         IntegrationMessageLog log = logRepository.findByMessageIdAndTenantId("msg-map-1", tenantId).orElseThrow();
         assertEquals("SUCCESS", log.status());
         assertTrue(log.payload().contains("\"mappedPayload\""));
-        assertTrue(log.payloadSummary().contains("映射字段 2"));
+        assertTrue(log.payload().contains("\"clinicalEventId\""));
+        assertTrue(log.payloadSummary().contains("映射字段 3"));
 
-        WebhookInboundResultDto replay = service.ingestWebhook(tenantId, "whk-map", timestamp, signature, inbound);
+        WebhookInboundResultDto replay;
+        try {
+            replay = RequestContext.callWith(
+                new RequestContext.Snapshot("trace-map-1", OrgScope.tenant(tenantId), "integration-test"),
+                () -> service.ingestWebhook(tenantId, "whk-map", timestamp, signature, inbound));
+        } catch (Exception exception) {
+            throw new AssertionError(exception);
+        }
         assertEquals("SUCCESS", replay.status());
         assertTrue(replay.idempotentReplay());
+        assertEquals(result.clinicalEventId(), replay.clinicalEventId());
+        assertEquals("RECEIVED", replay.clinicalEventStatus());
         assertEquals(1, logRepository.countByTenantId(tenantId));
     }
 
@@ -691,6 +800,50 @@ class IntegrationServiceTest {
         IntegrationMessageLog log = logRepository.findByMessageIdAndTenantId("msg-bad-map", tenantId).orElseThrow();
         assertEquals("FAILED", log.status());
         assertTrue(log.errorMessage().contains("适配器未配置字段映射"));
+    }
+
+    @Test
+    void inboundWebhookRejectsMutableTermMappingReference() throws Exception {
+        service.createAdapter(tenantId, new AdapterCreateDto(
+            "lis-mutable-term-map",
+            "LIS 可变术语映射适配器",
+            "Webhook",
+            """
+            {
+              "fieldMappings": [
+                {
+                  "sourcePath": "/diagnosisCode",
+                  "targetPath": "/diagnoses/0",
+                  "termMappingId": 501
+                }
+              ]
+            }
+            """
+        ));
+        service.createWebhook(tenantId,
+            new WebhookCreateDto("whk-mutable-term-map", "LIS 入站", "http://localhost/inbound", "LAB_RESULT"));
+        IntegrationWebhookConfig webhook = webhookRepository
+            .findByWebhookIdAndTenantId("whk-mutable-term-map", tenantId)
+            .orElseThrow();
+        WebhookInboundRequestDto inbound = inboundRequest(
+            "msg-mutable-term-map",
+            "trace-mutable-term-map",
+            "lis-mutable-term-map",
+            "{\"diagnosisCode\":\"DIA-A00\"}"
+        );
+        String timestamp = currentTimestamp();
+        String signature = signInbound(webhookSecretCodec.decode(webhook.secretCipher()), timestamp, inbound);
+
+        ApiException error = assertThrows(ApiException.class, () ->
+            service.ingestWebhook(tenantId, "whk-mutable-term-map", timestamp, signature, inbound));
+
+        assertEquals("ENG-INTEG-001", error.errorCode().code());
+        assertTrue(error.getMessage().contains("不得引用可变 termMappingId"));
+        IntegrationMessageLog log = logRepository
+            .findByMessageIdAndTenantId("msg-mutable-term-map", tenantId)
+            .orElseThrow();
+        assertEquals("FAILED", log.status());
+        assertTrue(log.errorMessage().contains("不得引用可变 termMappingId"));
     }
 
     @Test
@@ -816,7 +969,12 @@ class IntegrationServiceTest {
             traceId,
             adapterId,
             "LIS",
-            "LAB_RESULT",
+            ClinicalEventType.REPORT,
+            "P-100",
+            "encounter-100",
+            ClinicalSetting.OUTPATIENT,
+            ClinicalEventTriggerPoint.RESULT_REVIEW,
+            Instant.parse("2026-06-22T08:00:00Z"),
             objectMapper.readTree(payload)
         );
     }
@@ -840,6 +998,123 @@ class IntegrationServiceTest {
         }
         return signature.toString();
     }
+
+    private TerminologyRuntimeAsset insertPublishedTerminologyAssetVersion(
+            String assetIdentity,
+            String versionNo,
+            Long mappingId,
+            Long localTermId,
+            Long standardTermId,
+            String standardCode) {
+        Instant now = Instant.parse("2026-06-22T08:00:00Z");
+        String versionId = "term-version-" + UUID.randomUUID();
+        String contentHash = "a".repeat(64);
+        TermMappingSnapshot snapshot = new TermMappingSnapshot(
+            mappingId,
+            localTermId,
+            standardTermId,
+            "LIS",
+            "DIA-A00",
+            "ICD-10",
+            standardCode,
+            "DIAGNOSIS",
+            1.0D,
+            "LOW",
+            "CONFIRMED",
+            "构包时确认",
+            "integration-test",
+            now.toString()
+        );
+        assetIdentityRepository.findByTenantIdAndAssetTypeAndAssetIdentity(
+            tenantId,
+            VersionedAssetType.TERMINOLOGY,
+            assetIdentity
+        ).orElseGet(() -> assetIdentityRepository.save(new AssetIdentity(
+            null,
+            tenantId,
+            VersionedAssetType.TERMINOLOGY,
+            assetIdentity,
+            AssetIdentityStatus.ACTIVE,
+            Long.parseLong(versionNo.substring(1)),
+            now,
+            "integration-test",
+            now,
+            "integration-test",
+            "trace-map-1"
+        )));
+        assetVersionRepository.save(new AssetVersion(
+            null,
+            versionId,
+            tenantId,
+            VersionedAssetType.TERMINOLOGY,
+            assetIdentity,
+            versionNo,
+            "tenant:" + tenantId,
+            "ALL",
+            contentHash,
+            AssetVersionSafetyPolicy.NORMAL,
+            AssetVersionOverridePolicy.FREE,
+            AssetVersionStatus.PUBLISHED,
+            assetIdentity + "|tenant:" + tenantId + "|ALL",
+            "terminology-version:" + versionId,
+            now,
+            null,
+            now,
+            "integration-test",
+            now,
+            "integration-test",
+            "trace-map-1"
+        ));
+        termMappingSnapshotRepository.save(TermMappingSnapshotEntity.fromSnapshot(
+            tenantId,
+            versionId,
+            mappingId,
+            snapshot,
+            TermMappingSnapshotCodec.write(snapshot),
+            now,
+            "integration-test"
+        ));
+        return new TerminologyRuntimeAsset(assetIdentity, versionId, versionNo, contentHash);
+    }
+
+    private void insertCurrentRuntimeRelease(String releaseId, TerminologyRuntimeAsset asset) {
+        jdbcTemplate.update("""
+            INSERT INTO platform_baseline_release
+                (baseline_release_id, revision_no, manifest_sha256, published_at,
+                 published_by, created_by, trace_id)
+            VALUES ('baseline-integration-1', 1, ?, CURRENT_TIMESTAMP,
+                    'integration-test', 'integration-test', 'trace-map-1')
+            """, "b".repeat(64));
+        jdbcTemplate.update("""
+            INSERT INTO clinical_runtime_release
+                (release_id, tenant_id, hospital_id, revision_no, platform_baseline_release_id,
+                 manifest_sha256, activated_at, activated_by, created_by, trace_id)
+            VALUES (?, ?, 'hospital-001', 1, 'baseline-integration-1',
+                    ?, CURRENT_TIMESTAMP, 'integration-test', 'integration-test', 'trace-map-1')
+            """, releaseId, tenantId, "c".repeat(64));
+        jdbcTemplate.update("""
+            INSERT INTO clinical_runtime_release_item
+                (release_id, source_tenant_id, source_layer, asset_type, asset_identity,
+                 entry_state, version_id, version_no, content_hash, created_at, created_by, trace_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'integration-test', 'trace-map-1')
+            """,
+            releaseId,
+            tenantId,
+            ReleaseSourceLayer.HOSPITAL.name(),
+            VersionedAssetType.TERMINOLOGY.name(),
+            asset.assetIdentity(),
+            ReleaseEntryState.ACTIVE.name(),
+            asset.versionId(),
+            asset.versionNo(),
+            asset.contentHash());
+    }
+
+    private record TerminologyRuntimeAsset(
+        String assetIdentity,
+        String versionId,
+        String versionNo,
+        String contentHash
+    ) {}
 
     private Long insertStandardTerm(String standardSystem, String termCode, String displayName) {
         jdbcTemplate.update("""

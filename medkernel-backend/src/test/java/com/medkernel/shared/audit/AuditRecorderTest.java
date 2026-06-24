@@ -36,8 +36,8 @@ class AuditRecorderTest {
             "doctor-1",
             "n/a",
             List.of(
-                new SimpleGrantedAuthority("ROLE_COMPLIANCE_AUDITOR"),
-                new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))));
+                new SimpleGrantedAuthority("ROLE_AUDITOR"),
+                new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))));
 
         List<AuditEvent> captured = new ArrayList<>();
         ApplicationEventPublisher capturingBus = event -> {
@@ -62,7 +62,7 @@ class AuditRecorderTest {
         assertThat(captured).containsExactly(event);
         assertThat(event.traceId()).isEqualTo("trace-recorder");
         assertThat(event.actorUserId()).isEqualTo("doctor-1");
-        assertThat(event.actorRoles()).isEqualTo("ROLE_CLINICAL_DECISION_USER,ROLE_COMPLIANCE_AUDITOR");
+        assertThat(event.actorRoles()).isEqualTo("ROLE_AUDITOR,ROLE_CLINICAL_USER");
         assertThat(event.orgPath()).isEqualTo("tenant:t-1/group:g-1/hospital:h-1/department:d-1");
         assertThat(event.environmentKey()).isEqualTo("dev-local");
         assertThat(event.resourceType()).isEqualTo("rule");
@@ -89,13 +89,13 @@ class AuditRecorderTest {
 
         AuditEvent event = recorder.record(
             AuditAction.CREATE,
-            "knowledge_package",
-            "pkg-1",
-            "创建配置包");
+            "knowledge_asset_version",
+            "asset-version-1",
+            "创建知识资产草稿");
 
         assertThat(captured).containsExactly(event);
         assertThat(event.traceId()).isEqualTo("trace-convenience");
-        assertThat(event.resourceType()).isEqualTo("knowledge_package");
+        assertThat(event.resourceType()).isEqualTo("knowledge_asset_version");
         assertThat(event.payloadDigest()).startsWith("sm3:");
     }
 }

@@ -24,7 +24,7 @@ import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 
 /**
- * 首发身份应急命令：只在显式启动参数下执行 MFA 重置或账号解锁，必须本机 + 二次确认。
+ * 初始身份应急命令：只在显式启动参数下执行 MFA 重置或账号解锁，必须本机 + 二次确认。
  *
  * <p>救命通道以非 Web 模式（{@code web-application-type=none}）旁路启动，不绑定业务端口。
  * 命令执行（{@code @Transactional} 写入并提交）完成后，本组件在 {@link ApplicationReadyEvent}

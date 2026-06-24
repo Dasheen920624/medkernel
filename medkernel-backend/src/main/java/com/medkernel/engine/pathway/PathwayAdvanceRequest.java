@@ -4,12 +4,13 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 /**
  * 患者路径推进请求。
  *
- * <p>携带患者路径实例、事件类型、当前节点、目标节点、变异说明或退出原因等流程事实。
+ * <p>携带临床触发点、患者路径实例、事件类型、当前节点、目标节点、变异说明或退出原因等流程事实。
  */
 public record PathwayAdvanceRequest(
     @JsonProperty("request_id") String requestId,
@@ -23,8 +24,8 @@ public record PathwayAdvanceRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     String snapshotId,
+    @NotBlank String triggerPoint,
     String patientPathwayId,
     @NotNull PathwayAdvanceEventType eventType,
     String currentNodeCode,
@@ -50,9 +51,10 @@ public record PathwayAdvanceRequest(
                                  String varianceReason,
                                  String resolutionAction,
                                  String exitReason,
-                                 String eventId) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
-            null, patientPathwayId, eventType, currentNodeCode, requestedNextNodeCode, varianceType,
+                                 String eventId,
+                                 String triggerPoint) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(),
+            null, triggerPoint, patientPathwayId, eventType, currentNodeCode, requestedNextNodeCode, varianceType,
             null, varianceReason, null, null, resolutionAction, exitReason, eventId);
     }
 
@@ -67,9 +69,10 @@ public record PathwayAdvanceRequest(
                                  VarianceResolutionDecision resolutionDecision,
                                  String resolutionAction,
                                  String exitReason,
-                                 String eventId) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
-            null, patientPathwayId, eventType, currentNodeCode, requestedNextNodeCode, varianceType,
+                                 String eventId,
+                                 String triggerPoint) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(),
+            null, triggerPoint, patientPathwayId, eventType, currentNodeCode, requestedNextNodeCode, varianceType,
             varianceReasonCode, varianceReason, responsibleRole, resolutionDecision,
             resolutionAction, exitReason, eventId);
     }
@@ -83,9 +86,10 @@ public record PathwayAdvanceRequest(
                                  String resolutionAction,
                                  String exitReason,
                                  String eventId,
-                                 String snapshotId) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
-            snapshotId, patientPathwayId, eventType, currentNodeCode, requestedNextNodeCode, varianceType,
+                                 String snapshotId,
+                                 String triggerPoint) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(),
+            snapshotId, triggerPoint, patientPathwayId, eventType, currentNodeCode, requestedNextNodeCode, varianceType,
             null, varianceReason, null, null, resolutionAction, exitReason, eventId);
     }
 
@@ -101,9 +105,10 @@ public record PathwayAdvanceRequest(
                                  String resolutionAction,
                                  String exitReason,
                                  String eventId,
-                                 String snapshotId) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
-            snapshotId, patientPathwayId, eventType, currentNodeCode, requestedNextNodeCode, varianceType,
+                                 String snapshotId,
+                                 String triggerPoint) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(),
+            snapshotId, triggerPoint, patientPathwayId, eventType, currentNodeCode, requestedNextNodeCode, varianceType,
             varianceReasonCode, varianceReason, responsibleRole, resolutionDecision,
             resolutionAction, exitReason, eventId);
     }
@@ -111,7 +116,7 @@ public record PathwayAdvanceRequest(
     public PathwayAdvanceRequest withPatientPathwayId(String id) {
         return new PathwayAdvanceRequest(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion, snapshotId, id,
+            departmentId, specialtyId, userId, roleCodes, snapshotId, triggerPoint, id,
             eventType, currentNodeCode, requestedNextNodeCode, varianceType,
             varianceReasonCode, varianceReason, responsibleRole, resolutionDecision,
             resolutionAction, exitReason, eventId
@@ -121,7 +126,7 @@ public record PathwayAdvanceRequest(
     public PathwayApiContext apiContext() {
         return new PathwayApiContext(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }

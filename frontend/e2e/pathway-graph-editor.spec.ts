@@ -4,7 +4,7 @@ import { ensureReadySession } from "./support/auth";
 
 test.describe("线2路径图编辑器真实验收", () => {
   test("桌面端完成连线、删除、拖拽与布局持久化", async ({ page }) => {
-    await ensureReadySession(page, "platform-knowledge-governor");
+    await ensureReadySession(page, "engine-operator");
     await page.goto("/pathway/templates");
 
     const dialog = await openCreatePathwayDialog(page);
@@ -73,7 +73,7 @@ test.describe("线2路径图编辑器真实验收", () => {
 
   test("390px 窄屏仍可阅读画布且页面不横向溢出", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await ensureReadySession(page, "platform-knowledge-governor");
+    await ensureReadySession(page, "engine-operator");
     await page.goto("/pathway/templates");
 
     const dialog = await openCreatePathwayDialog(page);
@@ -92,7 +92,7 @@ test.describe("线2路径图编辑器真实验收", () => {
   });
 
   test("关键时钟节点显示并填写临床时钟 SLA 字段", async ({ page }) => {
-    await ensureReadySession(page, "platform-knowledge-governor");
+    await ensureReadySession(page, "engine-operator");
     await page.goto("/pathway/templates");
 
     const dialog = await openCreatePathwayDialog(page);

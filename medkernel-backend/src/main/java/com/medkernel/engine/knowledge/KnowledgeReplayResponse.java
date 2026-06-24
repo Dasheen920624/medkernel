@@ -13,7 +13,6 @@ public record KnowledgeReplayResponse(
     String versionNo,
     KnowledgeVersionStatus status,
     boolean historicalVersion,
-    String packageVersion,
     String snapshotId,
     String contentHash,
     String anchors,

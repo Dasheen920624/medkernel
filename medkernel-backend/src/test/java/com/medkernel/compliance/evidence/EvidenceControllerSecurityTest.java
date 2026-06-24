@@ -55,7 +55,7 @@ class EvidenceControllerSecurityTest {
 
     @Test
     @DisplayName("审计合规角色可到达列表端点，但缺租户上下文被 DataScope 拦截")
-    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
+    @WithMockUser(authorities = "ROLE_AUDITOR")
     void listSnapshots_auditRole_noTenant_returns400() throws Exception {
         mvc.perform(get("/api/v1/compliance/evidence/snapshots"))
             .andExpect(status().isBadRequest())
@@ -64,7 +64,7 @@ class EvidenceControllerSecurityTest {
 
     @Test
     @DisplayName("普通医生角色无 audit.read 权限，直接 403")
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void listSnapshots_doctorRole_returns403() throws Exception {
         mvc.perform(get("/api/v1/compliance/evidence/snapshots"))
             .andExpect(status().isForbidden());
@@ -82,7 +82,7 @@ class EvidenceControllerSecurityTest {
 
     @Test
     @DisplayName("审计角色查询详情，缺租户上下文被 DataScope 拦截")
-    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
+    @WithMockUser(authorities = "ROLE_AUDITOR")
     void getSnapshot_auditRole_noTenant_returns400() throws Exception {
         mvc.perform(get("/api/v1/compliance/evidence/snapshots/evd-test-001"))
             .andExpect(status().isBadRequest())
@@ -91,7 +91,7 @@ class EvidenceControllerSecurityTest {
 
     @Test
     @DisplayName("医生角色查询详情直接 403")
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void getSnapshot_doctorRole_returns403() throws Exception {
         mvc.perform(get("/api/v1/compliance/evidence/snapshots/evd-test-001"))
             .andExpect(status().isForbidden());
@@ -101,7 +101,7 @@ class EvidenceControllerSecurityTest {
 
     @Test
     @DisplayName("审计角色下载证据文件，缺租户上下文被 DataScope 拦截")
-    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
+    @WithMockUser(authorities = "ROLE_AUDITOR")
     void downloadSnapshotFile_auditRole_noTenant_returns400() throws Exception {
         mvc.perform(get("/api/v1/compliance/evidence/snapshots/evd-test-001/file"))
             .andExpect(status().isBadRequest())
@@ -110,7 +110,7 @@ class EvidenceControllerSecurityTest {
 
     @Test
     @DisplayName("医生角色下载证据文件直接 403")
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void downloadSnapshotFile_doctorRole_returns403() throws Exception {
         mvc.perform(get("/api/v1/compliance/evidence/snapshots/evd-test-001/file"))
             .andExpect(status().isForbidden());
@@ -120,7 +120,7 @@ class EvidenceControllerSecurityTest {
 
     @Test
     @DisplayName("审计角色创建存证，缺租户上下文被 DataScope 拦截")
-    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
+    @WithMockUser(authorities = "ROLE_AUDITOR")
     void createSnapshot_auditRole_noTenant_returns400() throws Exception {
         String body = """
             {
@@ -142,7 +142,7 @@ class EvidenceControllerSecurityTest {
 
     @Test
     @DisplayName("医生角色无 audit.export 权限，创建存证直接 403")
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void createSnapshot_doctorRole_returns403() throws Exception {
         String body = """
             {
@@ -165,7 +165,7 @@ class EvidenceControllerSecurityTest {
 
     @Test
     @DisplayName("审计角色验签请求，缺租户上下文被 DataScope 拦截")
-    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
+    @WithMockUser(authorities = "ROLE_AUDITOR")
     void verifySnapshot_auditRole_noTenant_returns400() throws Exception {
         mvc.perform(post("/api/v1/compliance/evidence/snapshots/evd-test-001/verify"))
             .andExpect(status().isBadRequest())
@@ -174,7 +174,7 @@ class EvidenceControllerSecurityTest {
 
     @Test
     @DisplayName("医生角色验签直接 403")
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void verifySnapshot_doctorRole_returns403() throws Exception {
         mvc.perform(post("/api/v1/compliance/evidence/snapshots/evd-test-001/verify"))
             .andExpect(status().isForbidden());
@@ -184,7 +184,7 @@ class EvidenceControllerSecurityTest {
 
     @Test
     @DisplayName("审计角色导出请求，缺租户上下文被 DataScope 拦截")
-    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
+    @WithMockUser(authorities = "ROLE_AUDITOR")
     void exportSnapshots_auditRole_noTenant_returns400() throws Exception {
         mvc.perform(post("/api/v1/compliance/evidence/snapshots/export"))
             .andExpect(status().isBadRequest())
@@ -193,17 +193,17 @@ class EvidenceControllerSecurityTest {
 
     @Test
     @DisplayName("医生角色无 audit.export 权限，导出直接 403")
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void exportSnapshots_doctorRole_returns403() throws Exception {
         mvc.perform(post("/api/v1/compliance/evidence/snapshots/export"))
             .andExpect(status().isForbidden());
     }
 
-    // ── GET /snapshots/export/{digest}/download（证据包下载）─────
+    // ── GET /snapshots/export/{digest}/download（证据导出下载）─────
 
     @Test
-    @DisplayName("审计角色下载证据包，缺租户上下文被 DataScope 拦截")
-    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
+    @DisplayName("审计角色下载证据导出，缺租户上下文被 DataScope 拦截")
+    @WithMockUser(authorities = "ROLE_AUDITOR")
     void downloadExportFile_auditRole_noTenant_returns400() throws Exception {
         mvc.perform(get("/api/v1/compliance/evidence/snapshots/export/"
                 + "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/download"))
@@ -212,8 +212,8 @@ class EvidenceControllerSecurityTest {
     }
 
     @Test
-    @DisplayName("医生角色下载证据包直接 403")
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @DisplayName("医生角色下载证据导出直接 403")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void downloadExportFile_doctorRole_returns403() throws Exception {
         mvc.perform(get("/api/v1/compliance/evidence/snapshots/export/"
                 + "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/download"))

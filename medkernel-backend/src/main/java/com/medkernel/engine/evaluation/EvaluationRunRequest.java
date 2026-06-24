@@ -21,7 +21,7 @@ public record EvaluationRunRequest(
     String patientId,
     String encounterId,
     @NotBlank String scenarioCode,
-    String packageVersion,
+    String runtimeReleaseId,
     @NotBlank String inputDigest,
     Instant occurredAt,
     @NotEmpty List<@Valid EvaluationResultRequest> results

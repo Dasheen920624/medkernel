@@ -52,14 +52,14 @@ class DomainFacadeControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanReadDomainFacadeCatalog() throws Exception {
+    void engineOperatorCanReadDomainFacadeCatalog() throws Exception {
         when(service.listDefinitions()).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/engine/domain-facades")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
                 .andExpect(status().isOk());
     }
 }

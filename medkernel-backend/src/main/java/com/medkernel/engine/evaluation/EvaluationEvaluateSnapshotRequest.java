@@ -7,6 +7,5 @@ import jakarta.validation.constraints.NotBlank;
  */
 public record EvaluationEvaluateSnapshotRequest(
     @NotBlank String contextSnapshotId,
-    @NotBlank String scenarioCode,
-    String packageVersion
+    @NotBlank String scenarioCode
 ) {}

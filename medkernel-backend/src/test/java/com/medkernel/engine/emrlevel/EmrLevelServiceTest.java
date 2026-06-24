@@ -48,7 +48,7 @@ class EmrLevelServiceTest {
     @AfterEach
     void clear() {
         RequestContext.clear();
-        jdbc.update("DELETE FROM mk_emr_level_evidence_package");
+        jdbc.update("DELETE FROM mk_emr_level_evidence_export");
         jdbc.update("DELETE FROM recommendation_feedback WHERE tenant_id = 'tenant-A'");
         jdbc.update("DELETE FROM recommendation_card WHERE tenant_id = 'tenant-A'");
         jdbc.update("DELETE FROM audit_event WHERE tenant_id = 'tenant-A'");
@@ -201,7 +201,7 @@ class EmrLevelServiceTest {
     }
 
     @Test
-    void exportEvidencePackagePersistsDeterministicNdjsonAndPublishesAuditOncePerIdempotencyKey() {
+    void exportEvidencePersistsDeterministicNdjsonAndPublishesAuditOncePerIdempotencyKey() {
         Instant dueAt = Instant.parse("2026-06-15T00:00:00Z");
         EmrLevelTargetResponse target = withTenant("tenant-A", () -> service.upsertTarget(
             new EmrLevelTargetUpsertRequest(
@@ -217,20 +217,20 @@ class EmrLevelServiceTest {
                         "dept-quality", dueAt)))));
         seedCdssClosedLoopEvidence();
 
-        EmrLevelEvidencePackageExportRequest request =
-            new EmrLevelEvidencePackageExportRequest("hospital-A", "EMR-RATING-2026", "idem-emr-2026-001");
-        EmrLevelEvidencePackageExportResponse first = withTenant("tenant-A",
-            () -> service.exportEvidencePackage(request));
-        EmrLevelEvidencePackageExportResponse second = withTenant("tenant-A",
-            () -> service.exportEvidencePackage(request));
+        EmrLevelEvidenceExportRequest request =
+            new EmrLevelEvidenceExportRequest("hospital-A", "EMR-RATING-2026", "idem-emr-2026-001");
+        EmrLevelEvidenceExportResponse first = withTenant("tenant-A",
+            () -> service.exportEvidence(request));
+        EmrLevelEvidenceExportResponse second = withTenant("tenant-A",
+            () -> service.exportEvidence(request));
 
-        assertThat(first.packageId()).isEqualTo(second.packageId());
+        assertThat(first.exportId()).isEqualTo(second.exportId());
         assertThat(first.payloadSha256()).isEqualTo(second.payloadSha256());
         assertThat(first.payload()).isEqualTo(second.payload());
         assertThat(first.targetId()).isEqualTo(target.targetId());
         assertThat(first.contentType()).isEqualTo("application/x-ndjson");
-        assertThat(first.fileName()).isEqualTo(target.targetId() + "-evidence-package.ndjson");
-        assertThat(first.payload()).contains("\"recordType\":\"EMR_LEVEL_PACKAGE_SUMMARY\"");
+        assertThat(first.fileName()).isEqualTo(target.targetId() + "-evidence-export.ndjson");
+        assertThat(first.payload()).contains("\"recordType\":\"EMR_LEVEL_EXPORT_SUMMARY\"");
         assertThat(first.payload()).contains("\"recordType\":\"EMR_LEVEL_STANDARD_ITEM\"");
         assertThat(first.payload()).contains("\"itemCode\":\"EMR-5-002\"");
         assertThat(first.payload()).contains("\"capabilityStatus\":\"GAP\"");
@@ -238,7 +238,7 @@ class EmrLevelServiceTest {
         assertThat(first.evidenceLineCount()).isEqualTo(6);
         assertThat(jdbc.queryForObject("""
             SELECT COUNT(*)
-            FROM mk_emr_level_evidence_package
+            FROM mk_emr_level_evidence_export
             WHERE tenant_id = 'tenant-A'
               AND target_id = ?
               AND idempotency_key = 'idem-emr-2026-001'
@@ -246,9 +246,9 @@ class EmrLevelServiceTest {
             """, Long.class, target.targetId(), first.payloadSha256())).isEqualTo(1L);
         verify(auditRecorder).record(
             eq(AuditAction.EXPORT),
-            eq("mk_emr_level_evidence_package"),
-            eq(first.packageId()),
-            eq("导出电子病历评级证据包 targetId=" + target.targetId()
+            eq("mk_emr_level_evidence_export"),
+            eq(first.exportId()),
+            eq("导出电子病历评级证据 targetId=" + target.targetId()
                 + " evidenceLineCount=6 sha256=" + first.payloadSha256()));
     }
 

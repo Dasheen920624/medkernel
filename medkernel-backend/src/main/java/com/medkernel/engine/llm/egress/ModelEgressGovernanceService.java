@@ -20,33 +20,32 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 出域治理管理服务（LLM-03）：维护能力码出域字段白名单与高敏出域审批决定。
+ * 外调治理管理服务：维护能力码外调允许字段与高敏外调责任确认。
  *
- * <p>运行时拦截在 {@link ModelEgressGuard}；本服务是管理面，由集成运维员（{@code llm.egress.manage}）
- * 配置白名单与裁定审批，全程租户隔离 + 审计留痕。
+ * <p>运行时拦截在 {@link ModelEgressGuard}；本服务是管理面，由医疗引擎运营员（{@code llm.egress.manage}）
+ * 配置外调允许范围并确认当前操作用途，全程机构隔离 + 审计留痕。
  */
 @Service
 public class ModelEgressGovernanceService {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Set<String> SENSITIVITY_LEVELS = Set.of("LOW", "MEDIUM", "HIGH");
-    private static final Set<String> APPROVAL_DECISIONS = Set.of("APPROVED", "REJECTED");
     private static final Set<String> DESENSITIZATION_OPERATORS = Set.of("MASK", "MASK_ALL", "GENERALIZE", "NULLIFY", "NONE");
 
     private final ModelEgressWhitelistRepository whitelistRepo;
-    private final ModelEgressApprovalRepository approvalRepo;
+    private final ModelEgressConfirmationRepository confirmationRepo;
     private final AuditRecorder auditRecorder;
 
     public ModelEgressGovernanceService(ModelEgressWhitelistRepository whitelistRepo,
-                                        ModelEgressApprovalRepository approvalRepo,
+                                        ModelEgressConfirmationRepository confirmationRepo,
                                         AuditRecorder auditRecorder) {
         this.whitelistRepo = whitelistRepo;
-        this.approvalRepo = approvalRepo;
+        this.confirmationRepo = confirmationRepo;
         this.auditRecorder = auditRecorder;
     }
 
     /**
-     * 新增或更新指定能力码的出域字段白名单。
+     * 新增或更新指定能力码的外调允许字段。
      */
     @Transactional
     public ModelEgressWhitelist upsertWhitelist(String capabilityCode, ModelEgressWhitelistUpsertRequest request) {
@@ -55,12 +54,14 @@ public class ModelEgressGovernanceService {
         String sensitivity = request.sensitivityLevel() == null
             ? "" : request.sensitivityLevel().trim().toUpperCase(Locale.ROOT);
         if (!SENSITIVITY_LEVELS.contains(sensitivity)) {
-            throw new ApiException(ErrorCode.ENG_LLM_006, "非法的出域敏感级别: " + request.sensitivityLevel());
+            throw new ApiException(ErrorCode.ENG_LLM_006, "非法的外调敏感级别: " + request.sensitivityLevel());
         }
-        String approvalThreshold = request.approvalThresholdLevel() == null
-            ? "HIGH" : request.approvalThresholdLevel().trim().toUpperCase(Locale.ROOT);
-        if (!SENSITIVITY_LEVELS.contains(approvalThreshold)) {
-            throw new ApiException(ErrorCode.ENG_LLM_007, "非法的出域审批阈值: " + request.approvalThresholdLevel());
+        String confirmationThreshold = request.confirmationThresholdLevel() == null
+            ? "HIGH" : request.confirmationThresholdLevel().trim().toUpperCase(Locale.ROOT);
+        if (!SENSITIVITY_LEVELS.contains(confirmationThreshold)) {
+            throw new ApiException(
+                ErrorCode.ENG_LLM_007,
+                "非法的外调责任确认阈值: " + request.confirmationThresholdLevel());
         }
 
         Instant now = Instant.now();
@@ -74,37 +75,43 @@ public class ModelEgressGovernanceService {
             toJsonArray(allowedFields),
             sensitivity,
             toRulesJson(request.desensitizationRules(), allowedFields),
-            approvalThreshold,
+            confirmationThreshold,
             "Y",
             existing.map(ModelEgressWhitelist::createdAt).orElse(now),
             existing.map(ModelEgressWhitelist::createdBy).orElse(actor),
             now,
             actor));
         auditRecorder.record(AuditAction.UPDATE, "mk_llm_egress_whitelist", code,
-            "保存模型出域白名单 " + code);
+            "保存模型外调允许范围 " + code);
         return saved;
     }
 
     /**
-     * 记录一条高敏出域审批裁定（APPROVED / REJECTED）。
+     * 记录当前获授权操作者对脱敏后载荷用途的责任确认。
      */
     @Transactional
-    public ModelEgressApproval decideApproval(ModelEgressApprovalRequest request) {
+    public ModelEgressConfirmation confirmEgress(ModelEgressConfirmationRequest request) {
         String tenantId = requireCurrentTenant();
         String code = normalize(request.capabilityCode());
-        String decision = request.decision() == null
-            ? "" : request.decision().trim().toUpperCase(Locale.ROOT);
-        if (!APPROVAL_DECISIONS.contains(decision)) {
-            throw new ApiException(ErrorCode.ENG_LLM_007, "非法的出域审批裁定: " + request.decision());
-        }
-
         Instant now = Instant.now();
         String actor = RequestContext.currentUserId().orElse("system");
-        ModelEgressApproval saved = approvalRepo.save(new ModelEgressApproval(
-            null, tenantId, code, request.payloadHash().trim(), decision,
-            actor, now, now, actor, now, actor));
-        auditRecorder.record(AuditAction.UPDATE, "mk_llm_egress_approval", request.payloadHash().trim(),
-            "裁定模型出域审批 " + code + " -> " + decision);
+        ModelEgressConfirmation saved = confirmationRepo.save(new ModelEgressConfirmation(
+            null,
+            tenantId,
+            code,
+            request.payloadHash().trim(),
+            request.purpose().trim(),
+            actor,
+            now,
+            now,
+            actor,
+            now,
+            actor));
+        auditRecorder.record(
+            AuditAction.UPDATE,
+            "mk_llm_egress_confirmation",
+            request.payloadHash().trim(),
+            "确认模型外调用途 " + code);
         return saved;
     }
 
@@ -122,7 +129,7 @@ public class ModelEgressGovernanceService {
 
     private List<String> normalizeFields(List<String> fields) {
         if (fields == null) {
-            throw new ApiException(ErrorCode.ENG_LLM_006, "出域字段白名单不能为空");
+            throw new ApiException(ErrorCode.ENG_LLM_006, "外调允许字段不能为空");
         }
         List<String> normalized = fields.stream()
             .filter(field -> field != null && !field.isBlank())
@@ -130,7 +137,7 @@ public class ModelEgressGovernanceService {
             .distinct()
             .toList();
         if (normalized.isEmpty()) {
-            throw new ApiException(ErrorCode.ENG_LLM_006, "出域字段白名单不能为空");
+            throw new ApiException(ErrorCode.ENG_LLM_006, "外调允许字段不能为空");
         }
         return normalized;
     }
@@ -148,7 +155,7 @@ public class ModelEgressGovernanceService {
             for (Map.Entry<String, String> entry : rules.entrySet()) {
                 String field = entry.getKey() == null ? "" : entry.getKey().trim();
                 if (field.isBlank() || !allowed.contains(field)) {
-                    throw new ApiException(ErrorCode.ENG_LLM_006, "脱敏规则字段不在出域白名单内: " + entry.getKey());
+                    throw new ApiException(ErrorCode.ENG_LLM_006, "脱敏规则字段不在外调允许范围内: " + entry.getKey());
                 }
                 String operator = entry.getValue() == null ? "" : entry.getValue().trim().toUpperCase(Locale.ROOT);
                 if (!DESENSITIZATION_OPERATORS.contains(operator)) {

@@ -5,14 +5,20 @@ import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.medkernel.engine.pkg.EffectiveKnowledgePackageResponse;
-import com.medkernel.engine.pkg.EffectivePackageItem;
+import com.medkernel.engine.context.ClinicalRuntimeRelease;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseContent;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseItem;
+import com.medkernel.engine.release.ReleaseEntryState;
+import com.medkernel.engine.release.ReleaseSourceLayer;
+import com.medkernel.engine.rule.ConditionEvaluator;
 import com.medkernel.engine.rule.RuleAuthoringMode;
 import com.medkernel.engine.rule.RuleDefinition;
 import com.medkernel.engine.rule.RuleDefinitionRepository;
 import com.medkernel.engine.rule.RuleDefinitionStatus;
+import com.medkernel.engine.rule.RuleDslAssetMaterializer;
 import com.medkernel.engine.rule.RuleDslEvaluator;
 import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.engine.rule.RuleType;
@@ -22,6 +28,7 @@ import com.medkernel.engine.rule.RuleVersionStatus;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.ResolvedDeclarativeAsset;
 import com.medkernel.engine.versioning.SourceTier;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
@@ -42,7 +49,7 @@ class SandboxCurrentRuleExecutorTest {
 
     @Test
     void executesTheExactFrozenCurrentRuleVersionAgainstProvidedImmutableContext() throws Exception {
-        EffectivePackageItem item = item("hash-2");
+        ClinicalRuntimeReleaseItem item = item("hash-2");
         when(assets.findByVersionIdAndTenantId("asset-version-2", "tenant-A"))
             .thenReturn(Optional.of(asset("hash-2")));
         when(definitions.findByTenantIdAndRuleCode("tenant-A", "RULE.K"))
@@ -78,16 +85,49 @@ class SandboxCurrentRuleExecutorTest {
             .hasMessageContaining("摘要漂移");
     }
 
-    private static EffectiveKnowledgePackageResponse effective(EffectivePackageItem item) {
-        return new EffectiveKnowledgePackageResponse(
-            "tenant-A", "hospital-A", "pkg-1", "PKG.SANDBOX", "current",
-            List.of(item), List.of(), List.of());
+    @Test
+    void materializesActionCardReferenceFromTheFrozenRuntimeRelease() throws Exception {
+        SandboxCurrentRuleExecutor materializingExecutor = new SandboxCurrentRuleExecutor(
+            json, materializingEvaluator(), assets, definitions, versions);
+        ClinicalRuntimeReleaseItem item = item("hash-2");
+        when(assets.findByVersionIdAndTenantId("asset-version-2", "tenant-A"))
+            .thenReturn(Optional.of(asset("hash-2")));
+        when(definitions.findByTenantIdAndRuleCode("tenant-A", "RULE.K"))
+            .thenReturn(Optional.of(rule()));
+        when(versions.findByRuleIdAndTenantIdAndVersionNo("rule-id", "tenant-A", 2))
+            .thenReturn(Optional.of(versionWithActionCardRef()));
+        var context = json.readTree("""
+            {"resources":{"patient":{"mpi":"DEID-P-1"},
+             "observations":[{"code":"K","value":6.8}]}}
+            """);
+
+        List<SandboxComparableRuleResult> results = materializingExecutor.execute(
+            effective(item), context);
+
+        assertThat(results).singleElement().satisfies(result -> {
+            assertThat(result.hit()).isTrue();
+            assertThat(result.severity()).isEqualTo("HIGH");
+            assertThat(result.actions()).singleElement().satisfies(action -> {
+                assertThat(action.summary()).isEqualTo("高钾复核提醒");
+                assertThat(action.requiresPhysicianConfirmation()).isTrue();
+            });
+        });
     }
 
-    private static EffectivePackageItem item(String hash) {
-        return new EffectivePackageItem(
-            VersionedAssetType.RULE, "rule-id", "2", "2", "tenant-A", "/tenant-A",
-            SourceTier.ORG, false, false, true, "asset-version-2", hash);
+    private static ClinicalRuntimeReleaseContent effective(ClinicalRuntimeReleaseItem item) {
+        Instant now = Instant.parse("2026-06-19T00:00:00Z");
+        return new ClinicalRuntimeReleaseContent(new ClinicalRuntimeRelease(
+            null, "runtime-release-7", "tenant-A", "hospital-A", 7L,
+            "platform-baseline-3", "a".repeat(64), null, now, "governor",
+            now, "governor", "trace"), List.of(item));
+    }
+
+    private static ClinicalRuntimeReleaseItem item(String hash) {
+        Instant now = Instant.parse("2026-06-19T00:00:00Z");
+        return new ClinicalRuntimeReleaseItem(
+            null, "runtime-release-7", "tenant-A", ReleaseSourceLayer.HOSPITAL,
+            VersionedAssetType.RULE, "RULE.K", ReleaseEntryState.ACTIVE,
+            "asset-version-2", "2", hash, now, "governor", "trace");
     }
 
     private static AssetVersion asset(String hash) {
@@ -103,7 +143,7 @@ class SandboxCurrentRuleExecutorTest {
         return new RuleDefinition(
             1L, "rule-id", "tenant-A", "RULE.K", "高钾规则", RuleType.LAB,
             RuleAuthoringMode.DSL, RuleRiskLevel.CRITICAL, 100, null, 0,
-            RuleDefinitionStatus.PUBLISHED, "rule-version-2", "current", "hospital-A",
+            RuleDefinitionStatus.PUBLISHED, "rule-version-2", "hospital-A",
             now, "governor", now, "governor", "trace");
     }
 
@@ -119,5 +159,39 @@ class SandboxCurrentRuleExecutorTest {
             """,
             "{}", RuleVersionStatus.PUBLISHED, now, "governor", null,
             now, "governor", now, "governor", "trace");
+    }
+
+    private static RuleVersion versionWithActionCardRef() {
+        Instant now = Instant.parse("2026-06-19T00:00:00Z");
+        return new RuleVersion(
+            1L, "rule-version-2", "tenant-A", "rule-id", 2, "src", "调整阈值",
+            """
+            {"when":{"all":[{"expr":{"field":"observations[].value"},"operator":"gte","value":6.5}]},
+             "then":[{"actionCardRef":"CARD.K.RECHECK"}]}
+            """,
+            "{}", RuleVersionStatus.PUBLISHED, now, "governor", null,
+            now, "governor", now, "governor", "trace");
+    }
+
+    @SuppressWarnings("unchecked")
+    private RuleDslEvaluator materializingEvaluator() {
+        RuleDslAssetMaterializer materializer = new RuleDslAssetMaterializer(
+            json,
+            (tenantId, runtimeReleaseId, assetType, assetIdentity) -> Optional.of(new ResolvedDeclarativeAsset(
+                VersionedAssetType.ACTION_CARD,
+                assetIdentity,
+                "3",
+                runtimeReleaseId,
+                """
+                {"actionCode":"REMIND","atSeverity":"HIGH","indicator":"warning",
+                 "summary":"高钾复核提醒","detail":"请结合标本状态和心电图复核。",
+                 "source":{"label":"检验危急值制度","evidenceLevel":"院内制度"},
+                 "suggestions":[],"overrideReasons":["已复核标本"],"requiresPhysicianConfirmation":true}
+                """,
+                "hash-card"
+            )));
+        ObjectProvider<RuleDslAssetMaterializer> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(materializer);
+        return new RuleDslEvaluator(json, new ConditionEvaluator(json), provider);
     }
 }

@@ -16,7 +16,6 @@ public record RuleExplanation(
     String riskLevel,
     String status,
     String activeVersionId,
-    String packageVersion,
     EngineDataLevel dataLevel,
     Instant generatedAt,
     boolean degraded,

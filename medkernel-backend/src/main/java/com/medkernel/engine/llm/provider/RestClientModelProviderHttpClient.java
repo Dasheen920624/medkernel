@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 /**
- * 基于 Spring {@link RestClient} 的 provider HTTP 出站实现（LLM-08）。
+ * 基于 Spring {@link RestClient} 的模型服务出站调用实现（LLM-08）。
  *
  * <p>带连接/读取超时；非 2xx 与传输错误抛 {@code RestClient} 运行时异常，由适配器转 NOT_CONNECTED 或上抛降级。
  * 单测用 {@link ModelProviderHttpClient} 假实现，本类不在单测连真实外网。

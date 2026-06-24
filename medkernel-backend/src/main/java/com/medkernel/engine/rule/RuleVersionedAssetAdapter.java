@@ -35,7 +35,6 @@ public class RuleVersionedAssetAdapter implements VersionedAssetPort {
             command.tenantId(),
             VersionedAssetType.RULE,
             command.assetIdentity(),
-            command.versionNo(),
             command.organizationScope(),
             command.applicableScope(),
             command.content(),
@@ -44,7 +43,8 @@ public class RuleVersionedAssetAdapter implements VersionedAssetPort {
             command.createdBy(),
             command.traceId(),
             command.safetyPolicy(),
-            command.overridePolicy()
+            command.overridePolicy(),
+            command.dependencies()
         ));
     }
 

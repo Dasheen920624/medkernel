@@ -216,8 +216,8 @@ export default function WorkflowTodos() {
           <span className={styles.textStrong}>{record.title}</span>
           <span className={styles.textSmall}>{record.summary}</span>
           <Space wrap size={8} className={styles.textSmall}>
-            <span>来源对象 {record.sourceId}</span>
-            <span>{record.traceId ? `追踪链路 ${record.traceId}` : SOURCE_TRACE_MISSING_TEXT}</span>
+            <span>来源编号 {record.sourceId}</span>
+            <span>{record.traceId ? `追踪号 ${record.traceId}` : SOURCE_TRACE_MISSING_TEXT}</span>
           </Space>
         </Space>
       ),

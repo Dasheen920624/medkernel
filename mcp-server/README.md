@@ -1,7 +1,8 @@
 # MedKernel MCP 服务（`@medkernel/mcp-server`）
 
 把后端**受控工具**经 **MCP 协议（stdio JSON-RPC）**暴露给外部 Agent（DATASVC-01 FR-4）。
-是 [AIK-STD-14](../docs/cards/wave2/AIK-STD-14.md) 第三方 Agent 协助知识生产的技术底座。**初版传输层骨架**。
+是 MedKernel 第三方 Agent 协助知识生产的标准接入层，能力边界以
+[功能目录](../docs/audit/product-function-catalog.md) 和运行时工具清单为准。
 
 ## 治理边界（不绕治理）
 

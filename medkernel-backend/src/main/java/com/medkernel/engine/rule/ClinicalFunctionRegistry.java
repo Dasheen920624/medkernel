@@ -4,11 +4,11 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 临床受控公式白名单。
+ * 临床计算公式允许范围。
  *
  * <p>规则 DSL 只允许调用本注册表声明的确定性公式，禁止运行期任意表达式注入。
  */
-final class ClinicalFunctionRegistry {
+public final class ClinicalFunctionRegistry {
 
     static final String CKD_EPI_2021_EGFR = "CKD_EPI_2021_EGFR";
     static final String COCKCROFT_GAULT_CRCL = "COCKCROFT_GAULT_CRCL";
@@ -25,11 +25,11 @@ final class ClinicalFunctionRegistry {
     private ClinicalFunctionRegistry() {
     }
 
-    static boolean isSupported(String formulaName) {
+    public static boolean isSupported(String formulaName) {
         return SUPPORTED.contains(formulaName);
     }
 
-    static List<String> supportedFormulaNames() {
+    public static List<String> supportedFormulaNames() {
         return List.copyOf(SUPPORTED);
     }
 }

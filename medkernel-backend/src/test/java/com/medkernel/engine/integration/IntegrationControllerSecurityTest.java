@@ -43,7 +43,7 @@ class IntegrationControllerSecurityTest {
     private static final String ADAPTER_BODY = "{\"adapterId\":\"adp-9\",\"name\":\"HIS连接\",\"protocolType\":\"HL7\",\"configJson\":\"{}\"}";
     private static final String WEBHOOK_BODY = "{\"webhookId\":\"whk-9\",\"name\":\"诊断订阅\",\"callbackUrl\":\"http://domain/cb\",\"eventsSubscribed\":\"OUTPATIENT_DIAGNOSIS\"}";
     private static final String INBOUND_BODY = """
-        {"messageId":"msg-9","traceId":"trace-9","adapterId":"adp-9","sourceSystem":"HIS","eventType":"DIAGNOSIS","payload":{"patientId":"P-9"}}
+        {"messageId":"msg-9","traceId":"trace-9","adapterId":"adp-9","sourceSystem":"HIS","eventType":"DIAGNOSIS","patientId":"P-9","encounterId":"E-9","clinicalSetting":"OUTPATIENT","triggerPoint":"patient-view","occurredAt":"2026-06-22T08:00:00Z","payload":{"patientId":"P-9"}}
         """;
     private static final String OUTBOUND_BODY = """
         {"messageId":"out-9","traceId":"trace-out-9","adapterId":"adp-9","targetSystem":"HIS","protocolType":"REST","payloadSummary":"异步同步 HIS","payload":{"patientId":"P-9"},"maxRetries":3}
@@ -84,8 +84,7 @@ class IntegrationControllerSecurityTest {
 
     @Test
     void anonymousCannotReadDataContract() throws Exception {
-        mvc.perform(get("/api/v1/engine/integration/data-contract")
-                .param("packageVersion", "pkg-2026.06"))
+        mvc.perform(get("/api/v1/engine/integration/data-contract"))
             .andExpect(status().isUnauthorized());
     }
 
@@ -108,7 +107,7 @@ class IntegrationControllerSecurityTest {
     // ==========================================
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void authenticatedItOpsCanReachGetButFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/adapters"))
             .andExpect(status().isBadRequest())
@@ -116,7 +115,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void healthSummaryFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/health"))
             .andExpect(status().isBadRequest())
@@ -124,7 +123,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void adapterHubStatusFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/adapter-hub/status"))
             .andExpect(status().isBadRequest())
@@ -132,16 +131,15 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void dataContractFailsOnMissingTenant() throws Exception {
-        mvc.perform(get("/api/v1/engine/integration/data-contract")
-                .param("packageVersion", "pkg-2026.06"))
+        mvc.perform(get("/api/v1/engine/integration/data-contract"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void dataQualityReportGenerationFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/data-quality/reports"))
             .andExpect(status().isBadRequest())
@@ -149,7 +147,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IMPLEMENTATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void authenticatedEngineerCanReachCreateButFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/adapters")
                 .contentType("application/json")
@@ -159,7 +157,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void webhookCreationFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/webhooks")
                 .contentType("application/json")
@@ -179,7 +177,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void inboundWebhookFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/webhooks/whk-9/inbound")
                 .contentType("application/json")
@@ -227,7 +225,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void outboundMessageFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/messages/outbound")
                 .contentType("application/json")
@@ -237,7 +235,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_IMPLEMENTATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void onboardingCreationFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/onboardings")
                 .contentType("application/json")
@@ -247,7 +245,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void regionalSourceListFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/regional-sources"))
             .andExpect(status().isBadRequest())
@@ -298,7 +296,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void callbackDeadLetterReplayFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/callbacks/dead-letter/msg-9/replay"))
             .andExpect(status().isBadRequest())
@@ -306,7 +304,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void logsListFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/logs"))
             .andExpect(status().isBadRequest())
@@ -314,7 +312,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void deadLetterListFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/integration/dead-letter"))
             .andExpect(status().isBadRequest())
@@ -322,7 +320,7 @@ class IntegrationControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void deadLetterReplayFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/integration/dead-letter/msg-9/replay"))
             .andExpect(status().isBadRequest())
@@ -331,9 +329,9 @@ class IntegrationControllerSecurityTest {
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor ops(String tenantId) {
         return jwt().jwt(token -> token
-                .subject("integration-operator")
+                .subject("platform-admin")
                 .claim("tenant_id", tenantId)
-                .claim("roles", List.of("integration-operator")))
-            .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"));
+                .claim("roles", List.of("platform-admin")))
+            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
     }
 }

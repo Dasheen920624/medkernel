@@ -32,57 +32,71 @@ class DefaultFindingNormalizationPortTest {
     @Test
     void resolvesSingleActivePackageSnapshotToStandardCode() {
         when(effectiveMappings.resolve(
-                "t-1", "HIS", "LOCAL-PNEU", "TERM.DIAGNOSIS", null))
-            .thenReturn(List.of(new EffectiveTermMapping(1L, 5L, "ICD-PNEU")));
+                "t-1", "runtime-release-1",
+                "HIS", "LOCAL-PNEU", "TERM.DIAGNOSIS", null))
+            .thenReturn(List.of(new EffectiveTermMapping(1L, 5L, "ICD-PNEU", "V1")));
 
-        assertThat(port.normalize("t-1", CanonicalResourceType.CONDITION, "LOCAL-PNEU", "HIS"))
+        assertThat(port.normalize(
+            "t-1", "runtime-release-1",
+            CanonicalResourceType.CONDITION, "LOCAL-PNEU", "HIS"))
             .contains("ICD-PNEU");
     }
 
     @Test
     void ambiguousActivePackageMappingsAreUnmapped() {
-        when(effectiveMappings.resolve(any(), any(), any(), any(), any()))
+        when(effectiveMappings.resolve(any(), any(), any(), any(), any(), any()))
             .thenReturn(List.of(
-                new EffectiveTermMapping(1L, 5L, "ICD-A"),
-                new EffectiveTermMapping(2L, 6L, "ICD-B")));
+                new EffectiveTermMapping(1L, 5L, "ICD-A", "V1"),
+                new EffectiveTermMapping(2L, 6L, "ICD-B", "V1")));
 
-        assertThat(port.normalize("t-1", CanonicalResourceType.OBSERVATION, "LOCAL-X", "HIS")).isEmpty();
+        assertThat(port.normalize(
+            "t-1", "runtime-release-1",
+            CanonicalResourceType.OBSERVATION, "LOCAL-X", "HIS")).isEmpty();
     }
 
     @Test
     void confirmedButUnreleasedMappingIsUnmapped() {
-        when(effectiveMappings.resolve(any(), any(), any(), any(), any()))
+        when(effectiveMappings.resolve(any(), any(), any(), any(), any(), any()))
             .thenReturn(List.of());
 
-        assertThat(port.normalize("t-1", CanonicalResourceType.MEDICATION, "LOCAL-Y", "HIS")).isEmpty();
+        assertThat(port.normalize(
+            "t-1", "runtime-release-1",
+            CanonicalResourceType.MEDICATION, "LOCAL-Y", "HIS")).isEmpty();
     }
 
     @Test
     void blankCodeIsUnmapped() {
-        assertThat(port.normalize("t-1", CanonicalResourceType.CONDITION, "   ", "HIS")).isEmpty();
+        assertThat(port.normalize(
+            "t-1", "runtime-release-1",
+            CanonicalResourceType.CONDITION, "   ", "HIS")).isEmpty();
     }
 
     @Test
     void passesThroughLocalCodeThatIsItselfActiveStandardTerm() {
         // 院内直接用标准字典编码：无本地→标准映射，但 localCode 本身是该字典 ACTIVE 标准码 → 透传
         List<String> standardSources = List.of(PlatformAuthority.PLATFORM_TENANT_ID);
-        when(effectiveMappings.resolve(any(), any(), any(), any(), any()))
+        when(effectiveMappings.resolve(any(), any(), any(), any(), any(), any()))
             .thenReturn(List.of());
         when(standardTerms.findFirstActiveByTenantIdsAndStandardSystemAndTermCode(
                 standardSources, "t-1", "TERM.DIAGNOSIS", "ICD-PNEU"))
             .thenReturn(Optional.of(std("ICD-PNEU")));
 
-        assertThat(port.normalize("t-1", CanonicalResourceType.CONDITION, "ICD-PNEU", "ICD-10"))
+        assertThat(port.normalize(
+            "t-1", "runtime-release-1",
+            CanonicalResourceType.CONDITION, "ICD-PNEU", "ICD-10"))
             .contains("ICD-PNEU");
     }
 
     @Test
     void activePackageMappingTakesPrecedenceOverPassthrough() {
         when(effectiveMappings.resolve(
-                "t-1", "HIS", "LOCAL-PNEU", "TERM.DIAGNOSIS", null))
-            .thenReturn(List.of(new EffectiveTermMapping(1L, 5L, "ICD-MAPPED")));
+                "t-1", "runtime-release-1",
+                "HIS", "LOCAL-PNEU", "TERM.DIAGNOSIS", null))
+            .thenReturn(List.of(new EffectiveTermMapping(1L, 5L, "ICD-MAPPED", "V2")));
 
-        assertThat(port.normalize("t-1", CanonicalResourceType.CONDITION, "LOCAL-PNEU", "HIS"))
+        assertThat(port.normalize(
+            "t-1", "runtime-release-1",
+            CanonicalResourceType.CONDITION, "LOCAL-PNEU", "HIS"))
             .contains("ICD-MAPPED");
         verify(standardTerms, never())
             .findFirstActiveByTenantIdsAndStandardSystemAndTermCode(any(), any(), any(), any());

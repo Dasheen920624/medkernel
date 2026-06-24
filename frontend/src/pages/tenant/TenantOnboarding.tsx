@@ -215,7 +215,7 @@ function PlatformTenantProvisioning() {
         state="error"
         stateProps={{
           title: "机构空间台账读取失败",
-          description: "请重试；若持续失败，请带追踪标识联系平台运维排查开通接口。",
+          description: "请重试；若持续失败，请带追踪号联系平台运维排查开通接口。",
           onRetry: () => refetch(),
         }}
       >
@@ -477,7 +477,7 @@ function CustomerTenantImplementation() {
         state="loading"
         stateProps={{
           title: "正在加载机构实施状态",
-          description: "正在读取组织树、开通就绪门和当前品牌信息。",
+          description: "正在读取组织树、开通条件和当前品牌信息。",
         }}
       >
         <></>
@@ -493,7 +493,7 @@ function CustomerTenantImplementation() {
         state="error"
         stateProps={{
           title: "机构实施状态读取失败",
-          description: "请重试；若持续失败，请带追踪标识联系信息科排查机构空间与组织接口。",
+          description: "请重试；若持续失败，请带追踪号联系信息科排查机构空间与组织接口。",
           onRetry: () => {
             void refetchOrgs();
             void refetchReadiness();
@@ -596,7 +596,7 @@ function CustomerTenantImplementation() {
                     {stepTag(step)}
                   </div>
                   <Text type={step.status === "DONE" ? "success" : "secondary"}>
-                    {step.evidence ?? "阻塞原因见上方就绪门清单"}
+                    {step.evidence ?? "阻塞原因见上方开通条件清单"}
                   </Text>
                 </Space>
               </Card>
@@ -609,7 +609,7 @@ function CustomerTenantImplementation() {
             type="warning"
             showIcon
             message="品牌信息暂未读取"
-            description="组织树和开通门禁仍可继续处理；品牌信息保存前请先重试读取。"
+            description="组织树和开通条件仍可继续处理；品牌信息保存前请先重试读取。"
             action={<Button onClick={() => refetchBranding()}>重试品牌信息</Button>}
           />
         )}
@@ -712,7 +712,7 @@ function CustomerTenantImplementation() {
                       )}
 
                       <Form.Item name="specialtyId" label="专病适用维度">
-                        <Input placeholder="可选；用于规则、路径、知识包的横切适用范围" />
+                        <Input placeholder="可选；用于规则、路径、知识资产的横切适用范围" />
                       </Form.Item>
 
                       <Button
@@ -782,7 +782,7 @@ function CustomerTenantImplementation() {
                         </div>
                       </Form.Item>
 
-                      <Form.Item name="expertMode" label="专家模式" valuePropName="checked">
+                      <Form.Item name="expertMode" label="默认展示高级信息" valuePropName="checked">
                         <Switch checkedChildren="开启" unCheckedChildren="关闭" />
                       </Form.Item>
 

@@ -9,7 +9,6 @@ import {
   routeSections,
   customerRouteMetas,
 } from "./routes";
-import { ROLE_OPTIONS } from "./roleCatalog";
 
 function backendDefaultMenuSnapshots(): Map<string, string[]> {
   const source = readFileSync(
@@ -20,9 +19,9 @@ function backendDefaultMenuSnapshots(): Map<string, string[]> {
     "utf8",
   );
   const snapshots = new Map<string, string[]>();
-  const entryPattern = /Map\.entry\(RoleCode\.([A-Z_]+), List\.of\(([\s\S]*?)\)\)/g;
+  const entryPattern = /"([a-z-]+)", List\.of\(([\s\S]*?)\)(?=,\n\s*"[a-z-]+"|\n\s*\);)/g;
   for (const match of source.matchAll(entryPattern)) {
-    const roleCode = match[1].toLowerCase().replace(/_/g, "-");
+    const roleCode = match[1];
     const menuKeys = Array.from(match[2].matchAll(/"([^"]+)"/g), (quoted) => quoted[1]);
     snapshots.set(roleCode, menuKeys);
   }
@@ -64,7 +63,7 @@ describe("route metadata", () => {
 
   it("removes duplicate menu permissions from merged pages", () => {
     // /rule/validate 是临床执行侧（医师确认危急值提醒），守卫只需 rule.read；
-    // 不应要求 menu.rule-definitions（治理侧菜单），否则 clinical-decision-user 被拦死无法完成医师确认。
+    // 不应要求 menu.rule-definitions（治理侧菜单），否则 clinical-user 被拦死无法完成医师确认。
     expect(findRouteByPath("/rule/validate")).toMatchObject({
       sectionKey: "knowledge-governance",
       placement: "hidden",
@@ -115,25 +114,40 @@ describe("route metadata", () => {
     expect(new Set(paths).size).toBe(paths.length);
   });
 
-  it("uses only canonical role codes in route access rules", () => {
-    const canonicalRoleCodes = new Set<string>([
-      ...ROLE_OPTIONS.map((role) => role.code),
-      "system-superadmin",
-    ]);
+  it("uses permissions as the only frontend route gate", () => {
+    const route = findRouteByPath("/config/releases");
+    const permissionProfile = {
+      permissions: [{ code: "asset.read" }],
+      menuKeys: ["runtime-releases"],
+    };
+
+    expect(canAccessRoute(route, permissionProfile)).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        ...permissionProfile,
+        roles: [{ code: "auditor" }],
+      }),
+    ).toBe(true);
+    expect(
+      canAccessRoute(route, {
+        permissions: [],
+        menuKeys: ["runtime-releases"],
+      }),
+    ).toBe(false);
+  });
+
+  it("只使用四个上线职责描述页面责任，不泄漏已废弃的岗位角色", () => {
+    const allowedRoles = new Set(["平台管理员", "医疗引擎运营员", "临床使用者", "审计员"]);
 
     routeMetas.forEach((route) => {
-      expect(new Set(route.requiredRoles).size, `${route.path} 不得重复登记职责角色`).toBe(
-        route.requiredRoles.length,
-      );
-      expect(
-        route.requiredRoles.filter((roleCode) => !canonicalRoleCodes.has(roleCode)),
-        route.path,
-      ).toEqual([]);
+      route.experience?.primaryRole.split(" / ").forEach((role) => {
+        expect(allowedRoles.has(role), `${route.path} 使用了非上线职责：${role}`).toBe(true);
+      });
     });
   });
 
   it("does not keep hidden demo-only routes in the production router metadata", () => {
-    expect(routeMetas.map((route) => route.path)).not.toContain("/config/packages/demo");
+    expect(routeMetas.map((route) => route.path)).not.toContain("/demo/step-flow");
     expect(routeMetas.some((route) => route.title.includes("StepFlow"))).toBe(false);
   });
 
@@ -150,31 +164,18 @@ describe("route metadata", () => {
     expect(route?.menuKey).toBeUndefined();
     expect(route?.menuLabel).toBeUndefined();
     expect(route?.requiredPermissions).toEqual(["menu.workbench", "workbench:readiness:view"]);
-    expect(route?.requiredRoles).toEqual([
-      "implementation-operator",
-      "integration-operator",
-      "organization-admin",
-      "platform-governance-admin",
-      "system-superadmin",
-    ]);
   });
 
-  it("makes the dashboard an explicit default landing route for customer roles and system superadmin", () => {
+  it("makes the dashboard an explicit default landing route for any account with its menu", () => {
     const route = findRouteByPath("/dashboard");
-    const customerRoleCodes = ROLE_OPTIONS.map((role) => role.code);
-    const dashboardRoleCodes = [...customerRoleCodes, "system-superadmin"];
 
     expect(route?.requiredPermissions).toEqual(["menu.workbench"]);
-    expect(route?.requiredRoles).toEqual(dashboardRoleCodes);
-    dashboardRoleCodes.forEach((roleCode) => {
-      expect(
-        canAccessRoute(route, {
-          roles: [{ code: roleCode }],
-          permissions: [],
-          menuKeys: ["workbench"],
-        }),
-      ).toBe(true);
-    });
+    expect(
+      canAccessRoute(route, {
+        permissions: [],
+        menuKeys: ["workbench"],
+      }),
+    ).toBe(true);
   });
 
   it("requires evaluation read permission for every primary quality workspace", () => {
@@ -190,7 +191,7 @@ describe("route metadata", () => {
       expect(route?.requiredPermissions).toEqual([`menu.${menuKey}`, "evaluation.read"]);
       expect(
         canAccessRoute(route, {
-          roles: [{ code: "integration-operator" }],
+          roles: [{ code: "platform-admin" }],
           permissions: [],
           menuKeys: [menuKey],
         }),
@@ -209,7 +210,7 @@ describe("route metadata", () => {
     expect(route?.requiredPermissions).toEqual(["menu.admin-audit", "audit.read"]);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "integration-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [],
         menuKeys: ["admin-audit"],
       }),
@@ -236,66 +237,56 @@ describe("route metadata", () => {
     });
   });
 
-  it("limits the implementation guide to implementation and administrator roles", () => {
+  it("requires the implementation menu and tenant read permission", () => {
     const route = findRouteByPath("/onboarding/guide");
 
     expect(route?.requiredPermissions).toEqual(["menu.implementation-guide", "tenant.read"]);
-    expect(route?.requiredRoles).toEqual([
-      "implementation-operator",
-      "platform-governance-admin",
-      "organization-admin",
-    ]);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "implementation-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "tenant.read" }],
         menuKeys: ["implementation-guide"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "organization-admin" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "tenant.read" }],
         menuKeys: ["implementation-guide"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "integration-operator" }],
-        permissions: [{ code: "tenant.read" }],
+        roles: [{ code: "clinical-user" }],
+        permissions: [],
         menuKeys: ["implementation-guide"],
       }),
     ).toBe(false);
   });
 
-  it("limits tenant onboarding to tenant readers in implementation and administrator roles", () => {
+  it("requires the tenant onboarding menu and tenant read permission", () => {
     const route = findRouteByPath("/tenant/onboarding");
 
     expect(route?.title).toBe("服务机构");
     expect(route?.requiredPermissions).toEqual(["menu.tenant-onboarding", "tenant.read"]);
-    expect(route?.requiredRoles).toEqual([
-      "implementation-operator",
-      "platform-governance-admin",
-      "organization-admin",
-    ]);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "organization-admin" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "tenant.read" }],
         menuKeys: ["tenant-onboarding"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "organization-admin" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "tenant.read" }],
         menuKeys: ["tenant-onboarding"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "integration-operator" }],
-        permissions: [{ code: "tenant.read" }],
+        roles: [{ code: "clinical-user" }],
+        permissions: [],
         menuKeys: ["tenant-onboarding"],
       }),
     ).toBe(false);
@@ -307,54 +298,44 @@ describe("route metadata", () => {
     expect(route?.requiredPermissions).toEqual(["menu.system-providers", "system.read"]);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "integration-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "system.read" }],
         menuKeys: ["system-providers"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "compliance-auditor" }],
+        roles: [{ code: "auditor" }],
         permissions: [],
         menuKeys: ["system-providers"],
       }),
     ).toBe(false);
   });
 
-  it("limits config packages to package publishers with the pilot setup menu", () => {
-    const route = findRouteByPath("/config/packages");
+  it("uses one release governance entry without retaining the old package route", () => {
+    const route = findRouteByPath("/config/releases");
 
-    expect(route?.requiredPermissions).toEqual([
-      "menu.config-packages",
-      "package.read",
-      "package.publish",
-    ]);
-    expect(route?.requiredRoles).toEqual([
-      "implementation-operator",
-      "platform-knowledge-governor",
-      "knowledge-governor",
-      "platform-governance-admin",
-      "organization-admin",
-    ]);
+    expect(route?.requiredPermissions).toEqual(["menu.runtime-releases", "asset.read"]);
+    expect(route?.menuLabel).toBe("发布治理");
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "implementation-operator" }],
-        permissions: [{ code: "package.read" }, { code: "package.publish" }],
-        menuKeys: ["config-packages"],
+        roles: [{ code: "platform-admin" }],
+        permissions: [{ code: "asset.read" }],
+        menuKeys: ["runtime-releases"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "platform-knowledge-governor" }],
-        permissions: [{ code: "package.read" }, { code: "package.publish" }],
-        menuKeys: ["config-packages"],
+        roles: [{ code: "engine-operator" }],
+        permissions: [{ code: "asset.read" }],
+        menuKeys: ["runtime-releases"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "clinical-governor" }],
-        permissions: [{ code: "package.read" }, { code: "package.publish" }],
-        menuKeys: ["config-packages"],
+        roles: [{ code: "clinical-user" }],
+        permissions: [],
+        menuKeys: ["runtime-releases"],
       }),
     ).toBe(false);
   });
@@ -403,9 +384,9 @@ describe("route metadata", () => {
     expect(route?.requiredPermissions).toEqual(["rule.read", "pathway.read"]);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "integration-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "rule.read" }, { code: "pathway.read" }],
-        menuKeys: ["config-packages"],
+        menuKeys: ["runtime-releases"],
       }),
     ).toBe(true);
   });
@@ -414,65 +395,58 @@ describe("route metadata", () => {
     const route = findRouteByPath("/terminology/mapping");
 
     expect(route?.requiredPermissions).toEqual(["menu.terminology-mapping", "term.read"]);
-    expect(route?.requiredRoles).toEqual([
-      "integration-operator",
-      "implementation-operator",
-      "platform-knowledge-governor",
-      "knowledge-governor",
-      "diagnostic-service-user",
-    ]);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "integration-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "term.read" }],
         menuKeys: ["terminology-mapping"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "knowledge-governor" }],
+        roles: [{ code: "engine-operator" }],
         permissions: [{ code: "term.read" }, { code: "term.write" }],
         menuKeys: ["terminology-mapping"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "diagnostic-service-user" }],
+        roles: [{ code: "clinical-user" }],
         permissions: [{ code: "term.read" }, { code: "term.write" }],
         menuKeys: ["terminology-mapping"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "implementation-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "term.read" }],
         menuKeys: ["terminology-mapping"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "platform-governance-admin" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "term.read" }],
         menuKeys: ["terminology-mapping"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "clinical-decision-user" }],
+        roles: [{ code: "clinical-user" }],
         permissions: [{ code: "term.read" }, { code: "term.write" }, { code: "term.publish" }],
         menuKeys: ["terminology-mapping"],
       }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "integration-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [],
         menuKeys: ["terminology-mapping"],
       }),
     ).toBe(false);
   });
 
-  it("limits adapter hub to integration operators with read/write/execute permissions", () => {
+  it("requires integration read write and execute permissions for adapter hub", () => {
     const route = findRouteByPath("/adapter/hub");
     const protocolFilter = route?.experience?.defaultFilters.find(
       (filter) => filter.key === "protocolType",
@@ -484,7 +458,6 @@ describe("route metadata", () => {
       "integration.write",
       "integration.execute",
     ]);
-    expect(route?.requiredRoles).toEqual(["integration-operator", "implementation-operator"]);
     expect(protocolFilter?.label).toBe("接入协议");
     expect(protocolFilter?.options?.map((option) => option.value)).toEqual([
       "HL7",
@@ -495,7 +468,7 @@ describe("route metadata", () => {
     ]);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "integration-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [
           { code: "integration.read" },
           { code: "integration.write" },
@@ -506,7 +479,7 @@ describe("route metadata", () => {
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "implementation-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [
           { code: "integration.read" },
           { code: "integration.write" },
@@ -517,7 +490,7 @@ describe("route metadata", () => {
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "organization-admin" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [
           { code: "integration.read" },
           { code: "integration.write" },
@@ -528,7 +501,7 @@ describe("route metadata", () => {
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "clinical-decision-user" }],
+        roles: [{ code: "clinical-user" }],
         permissions: [
           { code: "integration.read" },
           { code: "integration.write" },
@@ -536,10 +509,10 @@ describe("route metadata", () => {
         ],
         menuKeys: ["adapter-hub"],
       }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "integration-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "integration.read" }],
         menuKeys: ["adapter-hub"],
       }),
@@ -560,9 +533,7 @@ describe("route metadata", () => {
       .filter((route) => route.requireAuth)
       .forEach((route) => {
         expect(route.requiredPermissions, `${route.path} 缺少 requiredPermissions`).toBeDefined();
-        expect(route.requiredRoles, `${route.path} 缺少 requiredRoles`).toBeDefined();
         expect(Array.isArray(route.requiredPermissions)).toBe(true);
-        expect(Array.isArray(route.requiredRoles)).toBe(true);
       });
   });
 
@@ -583,14 +554,14 @@ describe("route metadata", () => {
   it("accepts backend menuKeys as the route authorization source for second-level menus", () => {
     expect(
       canAccessRoute(findRouteByPath("/qc/eval/results"), {
-        roles: [{ code: "quality-governor" }],
+        roles: [{ code: "engine-operator" }],
         permissions: [{ code: "evaluation.read" }],
         menuKeys: ["qc-alerts"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(findRouteByPath("/advanced/provenance"), {
-        roles: [{ code: "compliance-auditor" }],
+        roles: [{ code: "auditor" }],
         permissions: [{ code: "knowledge.read" }],
         menuKeys: ["provenance"],
       }),
@@ -603,14 +574,14 @@ describe("route metadata", () => {
     expect(route?.requiredPermissions).toEqual(["menu.provenance", "knowledge.read"]);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "knowledge-governor" }],
+        roles: [{ code: "engine-operator" }],
         permissions: [{ code: "knowledge.read" }],
         menuKeys: ["provenance"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "implementation-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [],
         menuKeys: ["provenance"],
       }),
@@ -622,7 +593,7 @@ describe("route metadata", () => {
 
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "platform-governance-admin" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "knowledge.review" }],
         menuKeys: ["knowledge-governance"],
       }),
@@ -635,7 +606,7 @@ describe("route metadata", () => {
     const usersRoute = findRouteByPath("/admin/users");
     const identityRoute = findRouteByPath("/security/identity-binding");
 
-    for (const roleCode of ["platform-knowledge-governor", "knowledge-governor"]) {
+    for (const roleCode of ["engine-operator", "engine-operator"]) {
       expect(
         canAccessRoute(knowledgeRoute, {
           roles: [{ code: roleCode }],
@@ -646,35 +617,35 @@ describe("route metadata", () => {
     }
     expect(
       canAccessRoute(productionRoute, {
-        roles: [{ code: "implementation-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "knowledge.read" }],
         menuKeys: ["knowledge-production"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(usersRoute, {
-        roles: [{ code: "identity-access-admin" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "org.read" }],
         menuKeys: ["admin-users"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(usersRoute, {
-        roles: [{ code: "implementation-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "org.read" }],
         menuKeys: ["admin-users"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(identityRoute, {
-        roles: [{ code: "identity-access-admin" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "org.read" }],
         menuKeys: ["identity-bindings"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(identityRoute, {
-        roles: [{ code: "implementation-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "org.read" }],
         menuKeys: ["identity-bindings"],
       }),
@@ -690,7 +661,7 @@ describe("route metadata", () => {
     const snapshots = backendDefaultMenuSnapshots();
     const mismatches: string[] = [];
 
-    expect(snapshots.size).toBe(14);
+    expect(snapshots.size).toBe(4);
     snapshots.forEach((menuKeys, roleCode) => {
       menuKeys.forEach((menuKey) => {
         const route = routeByMenuKey.get(menuKey);
@@ -711,33 +682,25 @@ describe("route metadata", () => {
     expect(mismatches).toEqual([]);
   });
 
-  it("limits graph exploration to projection readers in advanced technical roles", () => {
+  it("requires graph menu and projection read permission", () => {
     const route = findRouteByPath("/advanced/graph");
 
     expect(route?.placement).toBe("primary");
     expect(route?.requiredPermissions).toEqual(["menu.graph-explore", "projection.read"]);
-    expect(route?.requiredRoles).toEqual([
-      "implementation-operator",
-      "integration-operator",
-      "platform-knowledge-governor",
-      "knowledge-governor",
-      "platform-governance-admin",
-      "organization-admin",
-    ]);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "knowledge-governor" }],
+        roles: [{ code: "engine-operator" }],
         permissions: [{ code: "projection.read" }],
         menuKeys: ["graph-explore"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "clinical-decision-user" }],
+        roles: [{ code: "clinical-user" }],
         permissions: [{ code: "projection.read" }],
         menuKeys: ["graph-explore"],
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("splits review, institution maintenance and production into separate lifecycle entries", () => {
@@ -764,64 +727,41 @@ describe("route metadata", () => {
     });
   });
 
-  it("keeps knowledge production invisible to clinical runtime roles", () => {
+  it("requires the knowledge production menu and knowledge read permission", () => {
     const route = findRouteByPath("/knowledge/production");
 
-    expect(route?.requiredRoles).toEqual([
-      "platform-governance-admin",
-      "platform-knowledge-governor",
-      "knowledge-governor",
-      "quality-governor",
-      "implementation-operator",
-      "integration-operator",
-    ]);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "knowledge-governor" }],
+        roles: [{ code: "engine-operator" }],
         permissions: [{ code: "knowledge.read" }],
         menuKeys: ["knowledge-production"],
       }),
     ).toBe(true);
-    for (const roleCode of [
-      "clinical-governor",
-      "clinical-decision-user",
-      "nursing-collaborator",
-      "medication-safety-user",
-    ]) {
-      expect(
-        canAccessRoute(route, {
-          roles: [{ code: roleCode }],
-          permissions: [{ code: "knowledge.read" }, { code: "llm.read" }],
-          menuKeys: ["knowledge-production", "ai-workflows"],
-        }),
-        `${roleCode} 不应进入知识生产面`,
-      ).toBe(false);
-    }
+    expect(
+      canAccessRoute(route, {
+        roles: [{ code: "clinical-user" }],
+        permissions: [{ code: "knowledge.read" }],
+        menuKeys: [],
+      }),
+    ).toBe(false);
   });
 
-  it("limits model capability status to production-surface roles with read permission", () => {
+  it("requires model capability menu and llm read permission", () => {
     const route = findRouteByPath("/advanced/ai-workflows");
 
     expect(route?.placement).toBe("primary");
     expect(route?.requiredPermissions).toEqual(["menu.ai-workflows", "llm.read"]);
-    expect(route?.requiredRoles).toEqual([
-      "platform-governance-admin",
-      "platform-knowledge-governor",
-      "knowledge-governor",
-      "implementation-operator",
-      "integration-operator",
-    ]);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "implementation-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "llm.read" }],
         menuKeys: ["ai-workflows"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "clinical-governor" }],
-        permissions: [{ code: "llm.read" }],
+        roles: [{ code: "clinical-user" }],
+        permissions: [],
         menuKeys: ["ai-workflows"],
       }),
     ).toBe(false);
@@ -830,21 +770,21 @@ describe("route metadata", () => {
   it("requires the WORKBENCH-02 readiness action permission in addition to the workbench menu", () => {
     expect(
       canAccessRoute(findRouteByPath("/workbench/readiness-validation"), {
-        roles: [{ code: "implementation-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [{ code: "workbench:readiness:view" }],
         menuKeys: ["workbench"],
       }),
     ).toBe(true);
     expect(
       canAccessRoute(findRouteByPath("/workbench/readiness-validation"), {
-        roles: [{ code: "clinical-decision-user" }],
+        roles: [{ code: "clinical-user" }],
         permissions: [{ code: "workbench:readiness:view" }],
         menuKeys: ["workbench"],
       }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       canAccessRoute(findRouteByPath("/workbench/readiness-validation"), {
-        roles: [{ code: "implementation-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [],
         menuKeys: ["workbench"],
       }),
@@ -854,14 +794,14 @@ describe("route metadata", () => {
   it("rejects legacy first-level section menuKeys for second-level routes", () => {
     expect(
       canAccessRoute(findRouteByPath("/terminology/mapping"), {
-        roles: [{ code: "implementation-operator" }],
+        roles: [{ code: "platform-admin" }],
         permissions: [],
         menuKeys: ["pilot-setup"],
       }),
     ).toBe(false);
     expect(
       canAccessRoute(findRouteByPath("/qc/eval/results"), {
-        roles: [{ code: "quality-governor" }],
+        roles: [{ code: "engine-operator" }],
         permissions: [],
         menuKeys: ["quality-improve"],
       }),
@@ -924,13 +864,6 @@ describe("route metadata", () => {
         pageType: "system",
         stateMachine: "change",
         requiredPermissions: ["menu.identity-bindings", "org.read"],
-        requiredRoles: [
-          "identity-access-admin",
-          "integration-operator",
-          "implementation-operator",
-          "platform-governance-admin",
-          "organization-admin",
-        ],
       }),
     );
     expect(route?.experience?.goal).toContain("管理");
@@ -949,7 +882,7 @@ describe("route metadata", () => {
     expect(getRouteBreadcrumb("/missing")).toEqual(["未找到页面"]);
   });
 
-  it("allows clinical-decision-user to reach /rule/validate for physician confirmation", () => {
+  it("allows clinical users with rule permission to reach physician confirmation", () => {
     const route = findRouteByPath("/rule/validate");
     if (!route) {
       throw new Error("缺少 /rule/validate 路由元数据");
@@ -957,7 +890,7 @@ describe("route metadata", () => {
     // 医师需要在此页完成危急值提醒的人工确认（override），守卫只需 rule.read。
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "clinical-decision-user" }],
+        roles: [{ code: "clinical-user" }],
         permissions: [{ code: "rule.read" }, { code: "rule.override" }],
         menuKeys: ["patient-pathways"],
       }),
@@ -965,7 +898,7 @@ describe("route metadata", () => {
     // 无 rule.read 的角色仍被拦截。
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "nursing-collaborator" }],
+        roles: [{ code: "clinical-user" }],
         permissions: [],
         menuKeys: ["patient-pathways"],
       }),
@@ -980,20 +913,9 @@ describe("route metadata", () => {
       sectionKey: "clinical-collaboration",
       menuKey: "sandbox",
       placement: "primary",
-      requiredRoles: [
-        "clinical-decision-user",
-        "implementation-operator",
-        "clinical-governor",
-        "integration-operator",
-      ],
       requiredPermissions: ["menu.sandbox", "sandbox.run"],
     });
-    for (const roleCode of [
-      "clinical-decision-user",
-      "implementation-operator",
-      "clinical-governor",
-      "integration-operator",
-    ]) {
+    for (const roleCode of ["clinical-user", "engine-operator"]) {
       expect(
         canAccessRoute(route, {
           roles: [{ code: roleCode }],
@@ -1005,8 +927,8 @@ describe("route metadata", () => {
     }
     expect(
       canAccessRoute(route, {
-        roles: [{ code: "nursing-collaborator" }],
-        permissions: [{ code: "sandbox.run" }],
+        roles: [{ code: "clinical-user" }],
+        permissions: [],
         menuKeys: ["sandbox"],
       }),
     ).toBe(false);

@@ -85,13 +85,13 @@ class DiagnosisKnowledgeApiContractTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorForbiddenFromPublish() throws Exception {
         mockMvc.perform(post(PUBLISH)).andExpect(status().isForbidden());
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCanReachReadButDataScopeRejectsMissingTenant() throws Exception {
         mockMvc.perform(get(CRITERIA))
             .andExpect(status().isBadRequest())
@@ -99,7 +99,7 @@ class DiagnosisKnowledgeApiContractTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_GOVERNOR")
+    @WithMockUser(authorities = "ROLE_ENGINE_OPERATOR")
     void medicalAffairsCanReachWriteButDataScopeRejectsMissingTenant() throws Exception {
         mockMvc.perform(post(CRITERIA).contentType(MediaType.APPLICATION_JSON).content(CRITERION_JSON))
             .andExpect(status().isBadRequest())
@@ -114,7 +114,7 @@ class DiagnosisKnowledgeApiContractTest {
             100L, "t-1", 10L, "FEVER", DiagnosisDirection.REQUIRED, DiagnosisWeight.MAJOR,
             null, null, null, Instant.now(), "u", Instant.now(), "u", "tr"));
 
-        mockMvc.perform(post(CRITERIA).with(tenantJwt("ROLE_CLINICAL_GOVERNOR"))
+        mockMvc.perform(post(CRITERIA).with(tenantJwt("ROLE_ENGINE_OPERATOR"))
                 .contentType(MediaType.APPLICATION_JSON).content(CRITERION_JSON))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.findingTermCode").value("FEVER"));
@@ -122,7 +122,7 @@ class DiagnosisKnowledgeApiContractTest {
 
     @Test
     void medicalAffairsWithTenantCanCreateEvidenceCompleteAsset() throws Exception {
-        mockMvc.perform(post(ASSETS).with(tenantJwt("ROLE_CLINICAL_GOVERNOR"))
+        mockMvc.perform(post(ASSETS).with(tenantJwt("ROLE_ENGINE_OPERATOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -130,8 +130,7 @@ class DiagnosisKnowledgeApiContractTest {
                       "trace_id": "trace-dx-1",
                       "tenant_id": "t-1",
                       "user_id": "u-1",
-                      "role_codes": ["clinical-governor"],
-                      "package_version": "pkg-2026.06",
+                      "role_codes": ["engine-operator"],
                       "identity": {
                         "identitySlug": "chronic-kidney-disease",
                         "subject": "慢性肾脏病"
@@ -164,7 +163,7 @@ class DiagnosisKnowledgeApiContractTest {
 
     @Test
     void medicalAffairsWithTenantCanCreateEvidenceCompleteVersion() throws Exception {
-        mockMvc.perform(post(NEW_VERSION).with(tenantJwt("ROLE_CLINICAL_GOVERNOR"))
+        mockMvc.perform(post(NEW_VERSION).with(tenantJwt("ROLE_ENGINE_OPERATOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -172,8 +171,7 @@ class DiagnosisKnowledgeApiContractTest {
                       "trace_id": "trace-dx-v2",
                       "tenant_id": "t-1",
                       "user_id": "u-1",
-                      "role_codes": ["clinical-governor"],
-                      "package_version": "pkg-2026.06",
+                      "role_codes": ["engine-operator"],
                       "source": {
                         "sourceCode": "SRC.CKD.2027",
                         "sourceType": "GUIDELINE",
@@ -205,7 +203,7 @@ class DiagnosisKnowledgeApiContractTest {
         when(service.publishDiagnosis(eq(1L), eq(10L), any(), any()))
             .thenThrow(new ApiException(ErrorCode.ENG_DX_006, "测试病例 CASE-1 期望 WEAK 实得 STRONG"));
 
-        mockMvc.perform(post(PUBLISH).with(tenantJwt("ROLE_KNOWLEDGE_GOVERNOR")))
+        mockMvc.perform(post(PUBLISH).with(tenantJwt("ROLE_ENGINE_OPERATOR")))
             .andExpect(status().isConflict())
             .andExpect(jsonPath("$.code").value("ENG-DX-006"));
     }

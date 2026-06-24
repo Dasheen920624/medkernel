@@ -26,7 +26,6 @@ public record RuleTestCaseRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     @NotNull RuleTestCaseType caseType,
     @NotBlank String contextSnapshotId,
     boolean expectedHit,
@@ -42,14 +41,14 @@ public record RuleTestCaseRequest(
                                boolean expectedHit,
                                RuleRiskLevel expectedSeverity,
                                String expectedActionCode) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
+        this(null, null, null, null, null, null, null, null, null, null, List.of(),
             caseType, contextSnapshotId, expectedHit, expectedSeverity, expectedActionCode);
     }
 
     public RuleApiContext apiContext() {
         return new RuleApiContext(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }

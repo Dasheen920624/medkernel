@@ -10,7 +10,7 @@ import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * prompt/tool/model 版本包数据访问存储库。
+ * 提示词、工具和模型版本组合数据访问存储库。
  */
 @Repository
 public interface ModelVersionBundleRepository extends CrudRepository<ModelVersionBundle, Long> {

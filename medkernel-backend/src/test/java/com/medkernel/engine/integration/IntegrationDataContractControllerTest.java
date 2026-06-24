@@ -29,24 +29,25 @@ class IntegrationDataContractControllerTest {
         integrationService, auditEventPublisher, isolatedAuditPublisher, dataContractService);
 
     @Test
-    void dataContractRouteDelegatesToVersionedContractService() {
+    void dataContractRouteDelegatesToCurrentRuntimeContractService() {
         var response = new IntegrationDataContractResponse(
-            "context-field-contract:pkg-2026.06",
-            "pkg-2026.06",
+            "context-field-contract:runtime-H7",
+            "runtime-H7",
             "medkernel.context-field-contract.v1",
             List.of("接入说明"),
             Map.of(),
             List.of());
-        when(dataContractService.generate("pkg-2026.06")).thenReturn(response);
+        when(dataContractService.generate()).thenReturn(response);
 
-        assertThat(controller.getDataContract("pkg-2026.06").data()).isEqualTo(response);
+        assertThat(controller.getDataContract().data()).isEqualTo(response);
 
-        verify(dataContractService).generate("pkg-2026.06");
+        verify(dataContractService).generate();
     }
 
     @Test
     void declaresIntegrationDataContractRoute() throws Exception {
-        Method method = IntegrationController.class.getMethod("getDataContract", String.class);
+        Method method = IntegrationController.class.getMethod("getDataContract");
         assertThat(method.getAnnotation(GetMapping.class).value()).containsExactly("/data-contract");
+        assertThat(method.getParameterCount()).isZero();
     }
 }

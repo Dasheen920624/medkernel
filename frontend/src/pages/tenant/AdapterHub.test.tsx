@@ -17,14 +17,12 @@ import {
   useIntegrationOnboardings,
   useMasterDataReconciliation,
   useOrgUnits,
-  usePackages,
   useRegionalSources,
   useRegisterRegionalSource,
   useReplayDeadLetter,
   useRetryMessage,
   useSecurityProfile,
   useTestWebhookSignature,
-  useTerminologyMappings,
   useUpdateAdapter,
   useWebhooks,
   type AdapterHubStatus,
@@ -58,14 +56,12 @@ vi.mock("@/shared/api/hooks", () => ({
   useIntegrationOnboardings: vi.fn(),
   useMasterDataReconciliation: vi.fn(),
   useOrgUnits: vi.fn(),
-  usePackages: vi.fn(),
   useRegionalSources: vi.fn(),
   useRegisterRegionalSource: vi.fn(),
   useReplayDeadLetter: vi.fn(),
   useRetryMessage: vi.fn(),
   useSecurityProfile: vi.fn(),
   useTestWebhookSignature: vi.fn(),
-  useTerminologyMappings: vi.fn(),
   useUpdateAdapter: vi.fn(),
   useWebhooks: vi.fn(),
 }));
@@ -75,7 +71,7 @@ const profile: SecurityProfile = {
   username: "it.owner",
   roles: [
     {
-      code: "integration-operator",
+      code: "platform-admin",
       displayName: "信息科",
       source: "DEFAULT",
       scopeLevel: null,
@@ -85,6 +81,7 @@ const profile: SecurityProfile = {
   mustChangePwd: false,
   mfaRequired: false,
   mfaBound: false,
+  mfaVerified: true,
   permissions: [
     {
       code: "integration.read",
@@ -278,10 +275,10 @@ const qualityReport: DataQualityReport = {
 };
 
 const dataContract: IntegrationDataContractResponse = {
-  contractId: "context-field-contract:pkg-2026.06",
-  packageVersion: "pkg-2026.06",
+  contractId: "context-field-contract:runtime-H7",
+  runtimeReleaseId: "runtime-H7",
   schemaVersion: "medkernel.context-field-contract.v1",
-  accessGuide: ["调用时必须显式传入 packageVersion=pkg-2026.06"],
+  accessGuide: ["字段要求由当前机构生效版本 runtime-H7 自动确定"],
   resources: {
     Patient: {
       resourceType: "Patient",
@@ -322,19 +319,6 @@ const dataContract: IntegrationDataContractResponse = {
       description: "由出生日期计算",
     },
   ],
-};
-
-const packagesData = {
-  items: [
-    {
-      packageId: "package-rule",
-      packageCode: "PKG.RULE",
-      packageVersion: "pkg-2026.06",
-      name: "临床规则包",
-      status: "ACTIVE",
-    },
-  ],
-  total: 1,
 };
 
 const webhook: IntegrationWebhookConfig = {
@@ -429,7 +413,6 @@ function setupMocks() {
   );
   vi.mocked(useIntegrationAdapters).mockReturnValue(query(adapterPage([hisAdapter])) as never);
   vi.mocked(useAdapterHubStatus).mockReturnValue(query(status) as never);
-  vi.mocked(usePackages).mockReturnValue(query(packagesData) as never);
   vi.mocked(useIntegrationDataContract).mockReturnValue(query(undefined) as never);
   vi.mocked(useIntegrationLogs).mockReturnValue(
     query({ items: [failedLog, deadLetterLog], total: 2 }) as never,
@@ -437,29 +420,6 @@ function setupMocks() {
   vi.mocked(useIntegrationOnboardings).mockReturnValue(query(pageData([onboarding])) as never);
   vi.mocked(useMasterDataReconciliation).mockReturnValue(query(masterDataReconciliation) as never);
   vi.mocked(useWebhooks).mockReturnValue(query(pageData([webhook])) as never);
-  vi.mocked(useTerminologyMappings).mockReturnValue(
-    query({
-      items: [
-        {
-          id: 501,
-          tenantId: "tenant-1",
-          localTermId: 101,
-          standardTermId: 201,
-          sourceSystem: "HIS",
-          category: "DIAGNOSIS",
-          confidence: 0.99,
-          riskLevel: "LOW",
-          status: "CONFIRMED",
-          evidenceText: "术语委员会确认",
-        },
-      ],
-      page: 1,
-      size: 20,
-      total: 1,
-      hasNext: false,
-      totalEstimated: false,
-    }) as never,
-  );
   vi.mocked(useRegionalSources).mockReturnValue(query(pageData([regionalSource])) as never);
   vi.mocked(useCreateAdapter).mockReturnValue(mutation(hisAdapter) as never);
   vi.mocked(useUpdateAdapter).mockReturnValue(mutation(hisAdapter) as never);
@@ -561,23 +521,8 @@ describe("AdapterHub", () => {
     expect(screen.getByText("860")).toBeInTheDocument();
   });
 
-  it("loads data contract package selector through small server-side pages", () => {
+  it("does not load a package selector for the current runtime data contract", () => {
     renderPage();
-
-    expect(usePackages).toHaveBeenCalledWith(expect.objectContaining({ page: 1, size: 20 }));
-    expect(usePackages).not.toHaveBeenCalledWith(expect.objectContaining({ size: 100 }));
-  });
-
-  it("loads terminology mapping selector through small server-side pages", () => {
-    renderPage();
-
-    expect(useTerminologyMappings).toHaveBeenCalledWith({
-      status: "CONFIRMED",
-      page: 1,
-      size: 20,
-      sort: "updatedAt,desc",
-    });
-    expect(useTerminologyMappings).not.toHaveBeenCalledWith(expect.objectContaining({ size: 100 }));
   });
 
   it("loads adapter hub maintenance ledgers through small server-side pages", () => {
@@ -588,19 +533,14 @@ describe("AdapterHub", () => {
     expect(useRegionalSources).toHaveBeenCalledWith({ page: 1, size: 20 });
   });
 
-  it("loads the data contract summary with an explicit package version", async () => {
-    const user = userEvent.setup();
+  it("loads the data contract summary from the current hospital runtime", () => {
     vi.mocked(useIntegrationDataContract).mockReturnValue(query(dataContract) as never);
 
     renderPage();
 
-    await user.click(screen.getByRole("combobox", { name: "版本号" }));
-    await user.click(await screen.findByText("临床规则包（pkg-2026.06）"));
-    await user.click(screen.getByRole("button", { name: "读取契约" }));
-
-    expect(usePackages).toHaveBeenCalledWith(expect.objectContaining({ page: 1, size: 20 }));
-    expect(useIntegrationDataContract).toHaveBeenCalledWith("pkg-2026.06", true);
-    expect(screen.getByText("context-field-contract:pkg-2026.06")).toBeInTheDocument();
+    expect(useIntegrationDataContract).toHaveBeenCalledWith(true);
+    expect(screen.queryByRole("combobox", { name: "版本号" })).not.toBeInTheDocument();
+    expect(screen.getByText("context-field-contract:runtime-H7")).toBeInTheDocument();
     expect(screen.getByText("资源 1 类")).toBeInTheDocument();
     expect(screen.getByText("字段 2 项")).toBeInTheDocument();
     expect(screen.getAllByText("patient.id").length).toBeGreaterThanOrEqual(1);
@@ -646,7 +586,7 @@ describe("AdapterHub", () => {
       renderPage();
       await user.click(screen.getByRole("button", { name: "新增适配器" }));
 
-      expect(screen.queryByLabelText("连接与字段映射 JSON")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("连接与字段映射配置")).not.toBeInTheDocument();
       fireEvent.change(screen.getByLabelText("适配器标识"), {
         target: { value: "his-outpatient" },
       });
@@ -662,8 +602,11 @@ describe("AdapterHub", () => {
       fireEvent.change(screen.getByLabelText("标准字段路径"), {
         target: { value: "/patient/id" },
       });
-      await user.click(screen.getByRole("combobox", { name: "术语映射" }));
-      await user.click(await screen.findByText("HIS · DIAGNOSIS · 映射 501"));
+      fireEvent.change(screen.getByLabelText("目标标准字典"), {
+        target: { value: "ICD-10" },
+      });
+      await user.click(screen.getByRole("combobox", { name: "术语分类" }));
+      await user.click(await screen.findByText("诊断"));
       await user.click(screen.getByRole("button", { name: "提交适配器" }));
 
       await waitFor(() => {
@@ -678,7 +621,12 @@ describe("AdapterHub", () => {
             connectTimeoutMs: 2000,
             requestTimeoutMs: 5000,
             fieldMappings: [
-              { sourcePath: "/patient/id", targetPath: "/patient/id", termMappingId: 501 },
+              {
+                sourcePath: "/patient/id",
+                targetPath: "/patient/id",
+                targetDictionaryKey: "ICD-10",
+                category: "DIAGNOSIS",
+              },
             ],
           }),
         });

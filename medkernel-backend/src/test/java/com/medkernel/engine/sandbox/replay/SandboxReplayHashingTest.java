@@ -40,10 +40,11 @@ class SandboxReplayHashingTest {
         return new SandboxReplayImportRequest(
             "replay-1", "sha256:" + "1".repeat(64), "sha256:" + "2".repeat(64),
             "sha256:" + "3".repeat(64), "sha256:" + "4".repeat(64), context,
-            hashing.contentHash(context), "PKG.OLD", "old-1", Instant.parse("2025-01-01T00:00:00Z"),
+            hashing.contentHash(context), "sha256:" + "6".repeat(64), 4L,
+            Instant.parse("2025-01-01T00:00:00Z"),
             manifestHash, "MEDKERNEL_D4_STRICT_V1", List.of(new SandboxReplayAssetImportRequest(
                 VersionedAssetType.RULE, "RULE.OLD", "rv-old-1", "1", SourceTier.ORG,
                 "sha256:" + "5".repeat(64), content, hashing.contentHash(content),
-                AssetVersionStatus.RETIRED)));
+                AssetVersionStatus.WITHDRAWN)));
     }
 }

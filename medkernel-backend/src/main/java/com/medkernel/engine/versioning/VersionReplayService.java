@@ -93,8 +93,8 @@ public class VersionReplayService implements ReplayPort {
                 || !Objects.equals(version.assetIdentity(), command.assetIdentity())) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "版本与重放绑定的资产域不一致");
         }
-        if (version.status() == AssetVersionStatus.DRAFT || version.status() == AssetVersionStatus.IN_REVIEW) {
-            throw new ApiException(ErrorCode.CONFLICT, "未审核版本不得绑定历史重放");
+        if (version.status() == AssetVersionStatus.DRAFT) {
+            throw new ApiException(ErrorCode.CONFLICT, "草稿版本不得绑定历史重放");
         }
         return version;
     }

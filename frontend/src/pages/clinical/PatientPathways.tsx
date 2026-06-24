@@ -32,10 +32,8 @@ import {
 } from "@ant-design/icons";
 import { PageShell } from "@/shared/ui/PageShell";
 import {
-  usePackages,
-  useContextSnapshotDetail,
   useContextSnapshots,
-  usePathwayTemplates,
+  usePathwayEntryCandidates,
   usePathwayTemplateDetail,
   useEnterPatientPathway,
   usePatientPathways,
@@ -45,7 +43,6 @@ import {
   usePatientPathwayVariances,
 } from "@/shared/api/hooks";
 import type {
-  PathwayTemplate,
   PatientPathway,
   PatientPathwayStatus,
   PathwayMilestoneRuntimeStatus,
@@ -63,7 +60,7 @@ import styles from "./Clinical.module.css";
 
 const { TextArea } = Input;
 const { Option } = Select;
-const PATHWAY_REFERENCE_PAGE_SIZE = 20;
+const PATHWAY_RUNTIME_TRIGGER = "patient-view";
 
 type PathwayBadgeStatus = Exclude<BadgeProps["status"], undefined>;
 
@@ -77,11 +74,6 @@ const FORBIDDEN_ERROR_CODES = new Set([
 
 function isForbiddenApiError(code?: string) {
   return Boolean(code && FORBIDDEN_ERROR_CODES.has(code));
-}
-
-function pathwayEntryModeText(mode?: string) {
-  if (mode === "MANUAL_CONFIRM") return "人工确认入径";
-  return "自动建议入径";
 }
 
 function milestoneStatusColor(status?: string) {
@@ -156,7 +148,6 @@ function pathwayNodeTypeText(type?: string) {
     DECISION: "分支决策",
     PARALLEL: "并行节点",
     WAIT_TIMER: "等待时钟",
-    SUBPATHWAY: "子路径",
     MANUAL_GATE: "人工确认",
     ORDER_SET: "医嘱组",
   };
@@ -231,10 +222,6 @@ function firstClockForNode(clocks: ClinicalClock[], nodeCode: string) {
   return clocks.find((clock) => clock.nodeCode === nodeCode);
 }
 
-function searchKeyword(value: string) {
-  return value.trim() || undefined;
-}
-
 export default function PatientPathways() {
   const [selectedPathwayId, setSelectedPathwayId] = useState<string | null>(null);
   const [enterModalVisible, setEnterModalVisible] = useState<boolean>(false);
@@ -250,15 +237,8 @@ export default function PatientPathways() {
   const [patientFilter, setPatientFilter] = useState<string>("");
   const [enterPatientFilter, setEnterPatientFilter] = useState<string>("");
   const [enterEncounterFilter, setEnterEncounterFilter] = useState<string>("");
-  const [enterTemplateSearch, setEnterTemplateSearch] = useState<string>("");
   const [selectedContextSnapshotId, setSelectedContextSnapshotId] = useState<string>("");
 
-  const { data: templatesData } = usePathwayTemplates({
-    status: "PUBLISHED",
-    keyword: searchKeyword(enterTemplateSearch),
-    page: 1,
-    size: PATHWAY_REFERENCE_PAGE_SIZE,
-  });
   const hasEnterSnapshotFilter = Boolean(enterPatientFilter.trim() || enterEncounterFilter.trim());
   const enterSnapshotsQuery = useContextSnapshots(
     {
@@ -271,11 +251,12 @@ export default function PatientPathways() {
     },
     { enabled: enterModalVisible && hasEnterSnapshotFilter },
   );
-  const selectedSnapshotDetailQuery = useContextSnapshotDetail(selectedContextSnapshotId, {
-    enabled: enterModalVisible && Boolean(selectedContextSnapshotId),
-  });
   const selectedContextSnapshot = enterSnapshotsQuery.data?.items.find(
     (snapshot) => snapshot.snapshotId === selectedContextSnapshotId,
+  );
+  const entryCandidatesQuery = usePathwayEntryCandidates(
+    selectedContextSnapshotId,
+    PATHWAY_RUNTIME_TRIGGER,
   );
 
   const {
@@ -300,14 +281,6 @@ export default function PatientPathways() {
   const { data: templateDetail } = usePathwayTemplateDetail(
     detailData?.patientPathway.templateId || "",
   );
-  const { data: packagesData } = usePackages({
-    page: 1,
-    size: PATHWAY_REFERENCE_PAGE_SIZE,
-    assetType: "PATHWAY",
-    status: "PUBLISHED",
-    keyword: templateDetail?.template.packageId || undefined,
-  });
-
   const { data: clocksData, refetch: refetchClocks } = usePatientPathwayClocks(
     selectedPathwayId || "",
   );
@@ -325,33 +298,7 @@ export default function PatientPathways() {
   const [advanceForm] = Form.useForm();
   const [varianceForm] = Form.useForm();
   const [exitForm] = Form.useForm();
-  const selectedEnterTemplateId = Form.useWatch("templateId", enterForm);
   const varianceResolutionDecision = Form.useWatch("resolutionDecision", varianceForm);
-  const selectedEnterTemplate = templatesData?.items?.find(
-    (item) => item.templateId === selectedEnterTemplateId,
-  );
-
-  const packageVersionForTemplate = (templateId?: string | null) => {
-    const selectedTemplate = templateDetail?.template;
-    const template =
-      selectedTemplate?.templateId === templateId
-        ? selectedTemplate
-        : templatesData?.items?.find((item) => item.templateId === templateId);
-    const knowledgePackage = packagesData?.items?.find(
-      (item) => item.packageId === template?.packageId,
-    );
-    return knowledgePackage?.packageVersion ?? "";
-  };
-
-  const selectedTemplatePackageVersion = () =>
-    packageVersionForTemplate(templateDetail?.template.templateId);
-
-  const requireSelectedTemplatePackageVersion = () => {
-    const packageVersion = selectedTemplatePackageVersion().trim();
-    if (packageVersion) return packageVersion;
-    message.error("无法确认当前路径模板所属的配置包版本，暂不能推进路径。");
-    return undefined;
-  };
 
   const isPathwayMutable = (status?: PatientPathwayStatus) =>
     status === "ENTERED" || status === "NODE_EXECUTING" || status === "VARIANCE";
@@ -470,16 +417,15 @@ export default function PatientPathways() {
   const handleEnterPathway = async () => {
     try {
       const values = await enterForm.validateFields();
-      const packageVersion = selectedSnapshotDetailQuery.data?.packageVersion?.trim();
-      if (!selectedContextSnapshot || !packageVersion) {
-        message.error("请先选择包含配置包版本的 ACTIVE 临床快照");
+      if (!selectedContextSnapshot) {
+        message.error("请先选择已生效临床快照");
         return;
       }
       const res = await enterPathwayMutation.mutateAsync({
         contextSnapshotId: selectedContextSnapshot.snapshotId,
         templateId: values.templateId,
+        triggerPoint: PATHWAY_RUNTIME_TRIGGER,
         startNodeCode: values.startNodeCode?.trim() || undefined,
-        packageVersion,
       });
 
       message.success(
@@ -488,7 +434,6 @@ export default function PatientPathways() {
       setEnterModalVisible(false);
       setEnterPatientFilter("");
       setEnterEncounterFilter("");
-      setEnterTemplateSearch("");
       setSelectedContextSnapshotId("");
       enterForm.resetFields();
       refetchPathways();
@@ -503,12 +448,10 @@ export default function PatientPathways() {
     if (!selectedPathwayId || !detailData) return;
     try {
       const values = await advanceForm.validateFields();
-      const packageVersion = requireSelectedTemplatePackageVersion();
-      if (!packageVersion) return;
       await advancePathwayMutation.mutateAsync({
         patientPathwayId: selectedPathwayId,
-        packageVersion,
         eventType: "COMPLETE",
+        triggerPoint: PATHWAY_RUNTIME_TRIGGER,
         currentNodeCode: detailData.patientPathway.currentNodeCode,
         requestedNextNodeCode: values.requestedNextNodeCode,
       });
@@ -531,12 +474,10 @@ export default function PatientPathways() {
     if (!selectedPathwayId || !detailData) return;
     try {
       const values = await varianceForm.validateFields();
-      const packageVersion = requireSelectedTemplatePackageVersion();
-      if (!packageVersion) return;
       await advancePathwayMutation.mutateAsync({
         patientPathwayId: selectedPathwayId,
-        packageVersion,
         eventType: "VARIANCE",
+        triggerPoint: PATHWAY_RUNTIME_TRIGGER,
         currentNodeCode: detailData.patientPathway.currentNodeCode,
         requestedNextNodeCode:
           values.resolutionDecision === "REENTER" ? values.continueNodeCode : undefined,
@@ -567,12 +508,10 @@ export default function PatientPathways() {
     if (!selectedPathwayId || !detailData) return;
     try {
       const values = await exitForm.validateFields();
-      const packageVersion = requireSelectedTemplatePackageVersion();
-      if (!packageVersion) return;
       await advancePathwayMutation.mutateAsync({
         patientPathwayId: selectedPathwayId,
-        packageVersion,
         eventType: "EXIT",
+        triggerPoint: PATHWAY_RUNTIME_TRIGGER,
         currentNodeCode: detailData.patientPathway.currentNodeCode,
         exitReason: values.exitReason,
       });
@@ -728,7 +667,6 @@ export default function PatientPathways() {
               onClick={() => {
                 setEnterPatientFilter("");
                 setEnterEncounterFilter("");
-                setEnterTemplateSearch("");
                 setSelectedContextSnapshotId("");
                 enterForm.resetFields();
                 setEnterModalVisible(true);
@@ -768,7 +706,6 @@ export default function PatientPathways() {
           setEnterModalVisible(false);
           setEnterPatientFilter("");
           setEnterEncounterFilter("");
-          setEnterTemplateSearch("");
           setSelectedContextSnapshotId("");
           enterForm.resetFields();
         }}
@@ -805,7 +742,7 @@ export default function PatientPathways() {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item label="ACTIVE 临床快照" required>
+          <Form.Item label="已生效临床快照" required>
             <ContextSnapshotSelector
               enabled={hasEnterSnapshotFilter}
               loading={enterSnapshotsQuery.isLoading}
@@ -815,28 +752,39 @@ export default function PatientPathways() {
               onSelect={setSelectedContextSnapshotId}
             />
           </Form.Item>
-          <Form.Item name="templateId" label="选择受控专病路径模板" rules={[{ required: true }]}>
+          <Form.Item
+            name="templateId"
+            label="选择当前运行候选路径"
+            rules={[{ required: true, message: "请选择当前运行候选路径" }]}
+          >
             <Select
               showSearch
-              filterOption={false}
-              placeholder="选择已发布上线的临床路径模型"
-              notFoundContent="暂无已发布路径模板"
-              onSearch={setEnterTemplateSearch}
-              onChange={() => setEnterTemplateSearch("")}
+              optionFilterProp="label"
+              placeholder="选择当前机构生效版本允许的路径"
+              loading={entryCandidatesQuery.isLoading}
+              notFoundContent={
+                selectedContextSnapshotId ? "当前机构生效版本无可用候选路径" : "请先选择临床快照"
+              }
             >
-              {templatesData?.items?.map((t: PathwayTemplate) => (
-                <Option key={t.templateId} value={t.templateId}>
-                  {t.name} (v{t.templateVersion}.0) · {pathwayEntryModeText(t.entryMode)}
+              {(entryCandidatesQuery.data?.candidates ?? []).map((candidate) => (
+                <Option
+                  key={candidate.templateId}
+                  value={candidate.templateId}
+                  label={`${candidate.name} ${candidate.diseaseCode}`}
+                >
+                  {candidate.name} · {candidate.diseaseCode}
                 </Option>
               ))}
             </Select>
           </Form.Item>
-          {selectedEnterTemplate && (
+          {entryCandidatesQuery.isError ? (
             <Alert
-              type="info"
+              type="error"
               showIcon
-              message={`入径模式：${pathwayEntryModeText(selectedEnterTemplate.entryMode)}`}
+              message={getApiErrorMessage(entryCandidatesQuery.error, "运行候选路径读取失败")}
             />
+          ) : (
+            <Alert type="info" showIcon message="候选来自当前机构生效版本，确认后才会入径。" />
           )}
           <Form.Item name="startNodeCode" label="起始临床推进节点 (可选，留空使用模板起点)">
             <Input placeholder="留空使用已发布模板的起始节点" />

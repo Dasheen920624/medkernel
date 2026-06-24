@@ -31,6 +31,16 @@ import com.medkernel.engine.knowledge.SourceFragmentRepository;
 import com.medkernel.engine.knowledge.SourceType;
 import com.medkernel.engine.knowledge.SourceVersion;
 import com.medkernel.engine.knowledge.SourceVersionRepository;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisCarePointer;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisCarePointerRepository;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisCarePointerType;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisCareTargetType;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisCriterion;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisCriterionRepository;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisDifferential;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisDifferentialRepository;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisDirection;
+import com.medkernel.engine.knowledge.diagnosis.DiagnosisWeight;
 
 class KnowledgeProjectionSourceTest {
 
@@ -40,13 +50,19 @@ class KnowledgeProjectionSourceTest {
     private final SourceFragmentRepository fragments = mock(SourceFragmentRepository.class);
     private final SourceVersionRepository sourceVersions = mock(SourceVersionRepository.class);
     private final SourceDocumentRepository documents = mock(SourceDocumentRepository.class);
+    private final DiagnosisCriterionRepository diagnosisCriteria = mock(DiagnosisCriterionRepository.class);
+    private final DiagnosisDifferentialRepository diagnosisDifferentials = mock(DiagnosisDifferentialRepository.class);
+    private final DiagnosisCarePointerRepository diagnosisCarePointers = mock(DiagnosisCarePointerRepository.class);
     private final KnowledgeProjectionSource source = new KnowledgeProjectionSource(
         identities,
         versions,
         citations,
         fragments,
         sourceVersions,
-        documents);
+        documents,
+        diagnosisCriteria,
+        diagnosisDifferentials,
+        diagnosisCarePointers);
 
     @Test
     void graphFactsUseOnlyActiveRelationalKnowledgeAndCitationAnchorsWithoutRawExcerpt() {
@@ -98,6 +114,59 @@ class KnowledgeProjectionSourceTest {
             .contains("activeScopeKey=1\\|tenant:t-1\\|ALL")
             .contains("citationCount=1")
             .doesNotContain("完整条文原文");
+    }
+
+    @Test
+    void graphFactsProjectDiagnosisCriteriaDifferentialsAndCarePointersFromRelationalAuthority() {
+        KnowledgeIdentity diagnosis = new KnowledgeIdentity(
+            2L, "t-1", "DX.PNEU", KnowledgeDomain.DIAGNOSIS, "社区获得性肺炎",
+            "RESP", "诊断知识", KnowledgeIdentityStatus.ACTIVE, 20L,
+            now(), "tester", now(), "tester");
+        KnowledgeIdentity tuberculosis = new KnowledgeIdentity(
+            3L, "t-1", "DX.TB", KnowledgeDomain.DIAGNOSIS, "肺结核",
+            "RESP", "鉴别诊断", KnowledgeIdentityStatus.ACTIVE, 30L,
+            now(), "tester", now(), "tester");
+        KnowledgeAssetVersion version = new KnowledgeAssetVersion(
+            20L, "t-1", 2L, "v1.0", "CAP", 7L, 8L,
+            "d".repeat(64), "anchors", KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW,
+            SourceAuthorityLevel.B_GUIDELINE, GradeEvidenceQuality.MODERATE, GradeRecommendationStrength.STRONG,
+            null, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE,
+            KnowledgeAssetVersion.activeScopeKey(2L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE),
+            now(), null, "reviewer", now(), now(), null, null, null,
+            now(), "tester", now(), "tester", 12, null);
+        when(versions.findByTenantIdAndStatusOrderByUpdatedAtDescIdDesc("t-1", KnowledgeVersionStatus.ACTIVE))
+            .thenReturn(List.of(version));
+        when(identities.findByTenantIdAndId("t-1", 2L)).thenReturn(Optional.of(diagnosis));
+        when(identities.findByTenantIdAndId("t-1", 3L)).thenReturn(Optional.of(tuberculosis));
+        when(diagnosisCriteria.findByTenantIdAndDiagnosisVersionId("t-1", 20L)).thenReturn(List.of(
+            new DiagnosisCriterion(101L, "t-1", 20L, "FEVER", DiagnosisDirection.REQUIRED,
+                DiagnosisWeight.MAJOR, null, null, null, now(), "tester", now(), "tester", "trace")
+        ));
+        when(diagnosisDifferentials.findByTenantIdAndDiagnosisVersionId("t-1", 20L)).thenReturn(List.of(
+            new DiagnosisDifferential(201L, "t-1", 20L, 3L,
+                "发热咳嗽需与肺结核鉴别", "胸片/痰涂片", now(), "tester", now(), "tester", "trace")
+        ));
+        when(diagnosisCarePointers.findByTenantIdAndDiagnosisVersionId("t-1", 20L)).thenReturn(List.of(
+            new DiagnosisCarePointer(301L, "t-1", 20L, DiagnosisCarePointerType.WORKUP,
+                DiagnosisCareTargetType.RULE, "RULE.CAP.WORKUP", true,
+                "医师确认后评估检查建议", now(), "tester", now(), "tester", "trace")
+        ));
+
+        List<ProjectionFact> facts = source.graphFactsForTenant("t-1");
+
+        assertThat(facts).extracting(ProjectionFact::factKey)
+            .contains(
+                "NODE:DIAGNOSIS_CRITERION:101",
+                "EDGE:KNOWLEDGE_VERSION:20:HAS_DIAGNOSIS_CRITERION:DIAGNOSIS_CRITERION:101",
+                "EDGE:KNOWLEDGE_VERSION:20:DIFFERENTIAL_DIAGNOSIS:KNOWLEDGE_IDENTITY:3",
+                "NODE:DIAGNOSIS_CARE_POINTER:301",
+                "EDGE:KNOWLEDGE_VERSION:20:HAS_CARE_POINTER:DIAGNOSIS_CARE_POINTER:301"
+            );
+        assertThat(joinPayloads(facts))
+            .contains("findingTermCode=FEVER")
+            .contains("predicate=DIFFERENTIAL_DIAGNOSIS")
+            .contains("keyPoint=发热咳嗽需与肺结核鉴别")
+            .contains("targetRef=RULE.CAP.WORKUP");
     }
 
     private void wireOneActiveKnowledgeAsset() {

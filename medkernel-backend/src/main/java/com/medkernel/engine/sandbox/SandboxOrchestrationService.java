@@ -129,7 +129,6 @@ public class SandboxOrchestrationService {
             throw ApiException.tenantMissing();
         }
         String tenantId = scope.tenantId();
-        String targetOrgUnitId = scope.nearestOrgUnitIdOrTenant(tenantId);
         String actor = RequestContext.currentUserId().orElse("sandbox-system");
         Instant startedAt = Instant.now();
         String runId = "sandbox-run-" + UUID.randomUUID();
@@ -139,11 +138,10 @@ public class SandboxOrchestrationService {
         SandboxRuntimeBaseline baseline;
         try {
             baseline = switch (effectiveRequest.mode()) {
-                case CURRENT -> baselines.resolveCurrent(tenantId, targetOrgUnitId);
-                case HISTORICAL_EXACT -> baselines.resolveHistorical(
-                    tenantId, targetOrgUnitId, effectiveRequest.replayCaseId());
-                case COMPARE -> baselines.resolveCompare(
-                    tenantId, targetOrgUnitId, effectiveRequest.replayCaseId());
+                case CURRENT -> baselines.resolveCurrent();
+                case HISTORICAL_EXACT ->
+                    baselines.resolveHistorical(effectiveRequest.replayCaseId());
+                case COMPARE -> baselines.resolveCompare(effectiveRequest.replayCaseId());
             };
             ledger = runs.save(resolvedRun(ledger, baseline, actor));
         } catch (RuntimeException exception) {
@@ -176,8 +174,8 @@ public class SandboxOrchestrationService {
             "/api/v1/engine/sandbox/replay-cases/" + baseline.replayCaseId(),
             json.valueToTree(Map.of("replayCaseId", baseline.replayCaseId())),
             json.valueToTree(Map.of(
-                "packageCode", baseline.packageCode(),
-                "packageVersion", baseline.packageVersion(),
+                "sourceRuntimeReleaseRef", baseline.runtimeReleaseRef(),
+                "sourceRuntimeRevisionNo", baseline.runtimeRevisionNo(),
                 "assetCount", baseline.historicalReplay().assets().size(),
                 "deidentificationProfile",
                 baseline.historicalReplay().replayCase().deidentificationProfile())),
@@ -198,7 +196,8 @@ public class SandboxOrchestrationService {
                 facts("ruleCount", results.size(), "hitCount", hitCount, "writeBack", false)));
             return audited(new SandboxRunResponse(
                 scenario.id(), traceId, null, null, SandboxRunMode.HISTORICAL_EXACT,
-                baseline.packageVersion(), SandboxResolutionSource.REPLAY_MANIFEST, false,
+                baseline.runtimeReleaseRef(), baseline.runtimeRevisionNo(),
+                SandboxResolutionSource.REPLAY_MANIFEST, false,
                 steps, null, null, 0, null, null, null, null, null, null, List.of(),
                 "PASS", baseline.replayCaseId(), results, null));
         } catch (RuntimeException exception) {
@@ -209,7 +208,8 @@ public class SandboxOrchestrationService {
                 messageOf(exception)));
             return audited(new SandboxRunResponse(
                 scenario.id(), traceId, null, null, SandboxRunMode.HISTORICAL_EXACT,
-                baseline.packageVersion(), SandboxResolutionSource.REPLAY_MANIFEST, false,
+                baseline.runtimeReleaseRef(), baseline.runtimeRevisionNo(),
+                SandboxResolutionSource.REPLAY_MANIFEST, false,
                 steps, null, null, 0, null, null, null, null, null, null, List.of(),
                 "FAIL", baseline.replayCaseId(), List.of(), null));
         }
@@ -225,10 +225,12 @@ public class SandboxOrchestrationService {
             "/api/v1/engine/sandbox/replay-cases/" + baseline.replayCaseId(),
             json.valueToTree(Map.of("replayCaseId", baseline.replayCaseId())),
             json.valueToTree(Map.of(
-                "historicalPackageCode", baseline.historicalReplay().replayCase().packageCode(),
-                "historicalPackageVersion", baseline.historicalReplay().replayCase().packageVersion(),
-                "currentPackageCode", baseline.packageCode(),
-                "currentPackageVersion", baseline.packageVersion())),
+                "historicalRuntimeReleaseRef",
+                baseline.historicalReplay().replayCase().sourceRuntimeReleaseRef(),
+                "historicalRuntimeRevisionNo",
+                baseline.historicalReplay().replayCase().sourceRuntimeRevisionNo(),
+                "currentRuntimeReleaseId", baseline.runtimeReleaseId(),
+                "currentRuntimeRevisionNo", baseline.runtimeRevisionNo())),
             facts(
                 "contextHash", baseline.historicalReplay().replayCase().contextSnapshotHash(),
                 "manifestHash", baseline.historicalReplay().replayCase().manifestHash(),
@@ -254,19 +256,19 @@ public class SandboxOrchestrationService {
         List<SandboxComparableRuleResult> current;
         try {
             current = currentRules.execute(
-                baseline.effectivePackage(), baseline.historicalReplay().contextSnapshot());
+                baseline.runtimeContent(), baseline.historicalReplay().contextSnapshot());
             steps.add(SandboxStepTrace.ok(
                 "CURRENT_RULES",
                 "/internal/engine/rules/dsl-evaluator",
                 json.valueToTree(Map.of(
-                    "packageCode", baseline.packageCode(),
-                    "packageVersion", baseline.packageVersion())),
+                    "runtimeReleaseId", baseline.runtimeReleaseId(),
+                    "runtimeRevisionNo", baseline.runtimeRevisionNo())),
                 json.valueToTree(current),
                 facts("ruleCount", current.size(), "writeBack", false)));
         } catch (RuntimeException exception) {
             steps.add(SandboxStepTrace.fail(
                 "CURRENT_RULES", "/internal/engine/rules/dsl-evaluator",
-                json.valueToTree(Map.of("packageCode", baseline.packageCode())),
+                json.valueToTree(Map.of("runtimeReleaseId", baseline.runtimeReleaseId())),
                 messageOf(exception)));
             return audited(compareFailure(scenario, traceId, baseline, steps));
         }
@@ -287,7 +289,8 @@ public class SandboxOrchestrationService {
                     "writeBack", false)));
             return audited(new SandboxRunResponse(
                 scenario.id(), traceId, null, null, SandboxRunMode.COMPARE,
-                baseline.packageVersion(), baseline.resolutionSource(), false,
+                baseline.runtimeReleaseRef(), baseline.runtimeRevisionNo(),
+                baseline.resolutionSource(), false,
                 steps, null, null, 0, null, null, null, null, null, null, List.of(),
                 "PASS", baseline.replayCaseId(), List.of(), comparison));
         } catch (RuntimeException exception) {
@@ -306,7 +309,8 @@ public class SandboxOrchestrationService {
             List<SandboxStepTrace> steps) {
         return new SandboxRunResponse(
             scenario.id(), traceId, null, null, SandboxRunMode.COMPARE,
-            baseline.packageVersion(), baseline.resolutionSource(), false,
+            baseline.runtimeReleaseRef(), baseline.runtimeRevisionNo(),
+            baseline.resolutionSource(), false,
             steps, null, null, 0, null, null, null, null, null, null, List.of(),
             "FAIL", baseline.replayCaseId(), List.of(), null);
     }
@@ -326,7 +330,8 @@ public class SandboxOrchestrationService {
         ContextSnapshotRequest snapshotRequest;
         try {
             snapshotRequest = SandboxRequestFactory.snapshot(
-                scenario, effectiveRequest, traceId, json, baseline.packageVersion());
+                scenario, effectiveRequest, traceId, json,
+                String.valueOf(baseline.runtimeRevisionNo()));
         } catch (RuntimeException exception) {
             steps.add(SandboxStepTrace.fail(
                 "CONTEXT", CONTEXT_ENDPOINT, json.valueToTree(effectiveRequest), messageOf(exception)));
@@ -336,9 +341,10 @@ public class SandboxOrchestrationService {
 
         ContextSnapshotResponse snapshotResponse;
         try {
-            snapshotResponse = snapshots.create(
+            snapshotResponse = snapshots.createBound(
                 snapshotRequest,
-                "sandbox:" + scenario.id() + ":" + traceId);
+                "sandbox:" + scenario.id() + ":" + traceId,
+                baseline.runtimeReleaseId());
             snapshotId = snapshotResponse.snapshotId();
             steps.add(SandboxStepTrace.ok(
                 "CONTEXT",
@@ -357,7 +363,7 @@ public class SandboxOrchestrationService {
         }
 
         playbookOutcome = runPlaybook(
-            scenario, snapshotId, traceId, steps, baseline.packageVersion());
+            scenario, snapshotId, traceId, steps);
         if (!playbookOutcome.passed()) {
             return audited(fail(
                 scenario.id(), traceId, steps, snapshotId, null, 0, playbookOutcome, embedModes));
@@ -365,7 +371,7 @@ public class SandboxOrchestrationService {
 
         RecommendationTriggerRequest recommendationRequest = SandboxRequestFactory.trigger(
             scenario, snapshotId, effectiveRequest, traceId, playbookOutcome.patientPathwayId(),
-            baseline.packageVersion());
+            String.valueOf(baseline.runtimeRevisionNo()));
         RecommendationEvaluationResponse recommendationResponse;
         try {
             recommendationResponse = recommendations.evaluate(recommendationRequest);
@@ -434,13 +440,12 @@ public class SandboxOrchestrationService {
             SandboxScenario scenario,
             String snapshotId,
             String traceId,
-            List<SandboxStepTrace> steps,
-            String packageVersion) {
+            List<SandboxStepTrace> steps) {
         return switch (scenario.playbook()) {
             case "RULE_ONLY", "RECOMMENDATION_COMPOSITE", "EMBED" -> PlaybookOutcome.ready();
-            case "PATHWAY" -> runPathway(scenario, snapshotId, steps, packageVersion);
+            case "PATHWAY" -> runPathway(scenario, snapshotId, steps);
             case "FOLLOWUP" -> runFollowup(scenario, snapshotId, traceId, steps);
-            case "EVALUATION" -> runEvaluation(scenario, snapshotId, steps, packageVersion);
+            case "EVALUATION" -> runEvaluation(scenario, snapshotId, steps);
             default -> {
                 steps.add(SandboxStepTrace.fail(
                     "PLAYBOOK",
@@ -455,8 +460,7 @@ public class SandboxOrchestrationService {
     private PlaybookOutcome runPathway(
             SandboxScenario scenario,
             String snapshotId,
-            List<SandboxStepTrace> steps,
-            String packageVersion) {
+            List<SandboxStepTrace> steps) {
         JsonNode enterRequestNode = json.valueToTree(Map.of(
             "contextSnapshotId", snapshotId,
             "templateCode", scenario.expectedAssetCode()));
@@ -464,7 +468,7 @@ public class SandboxOrchestrationService {
         String patientPathwayId;
         try {
             PathwayTemplateFilter filter = new PathwayTemplateFilter(
-                PathwayTemplateStatus.PUBLISHED, null, null, scenario.expectedAssetCode(), null);
+                PathwayTemplateStatus.PUBLISHED, null, scenario.expectedAssetCode(), null);
             PathwayTemplate template = pathways.listTemplates(filter, PageRequest.defaults())
                 .items()
                 .stream()
@@ -472,7 +476,7 @@ public class SandboxOrchestrationService {
                 .orElseThrow(() -> new IllegalStateException(
                     "未找到已发布路径模板 " + scenario.expectedAssetCode()));
             PatientPathwayEnterRequest request = new PatientPathwayEnterRequest(
-                snapshotId, template.templateId(), template.startNodeCode(), packageVersion);
+                snapshotId, "patient-view", template.templateId(), template.startNodeCode());
             enterRequestNode = json.valueToTree(request);
             enterResponse = pathways.enterPatientPathway(request);
             patientPathwayId = enterResponse.patientPathway().patientPathwayId();
@@ -566,10 +570,9 @@ public class SandboxOrchestrationService {
     private PlaybookOutcome runEvaluation(
             SandboxScenario scenario,
             String snapshotId,
-            List<SandboxStepTrace> steps,
-            String packageVersion) {
+            List<SandboxStepTrace> steps) {
         EvaluationEvaluateSnapshotRequest request = new EvaluationEvaluateSnapshotRequest(
-            snapshotId, scenario.id(), packageVersion);
+            snapshotId, scenario.id());
         try {
             EvaluationRunResponse response = evaluations.evaluateSnapshot(request);
             steps.add(SandboxStepTrace.ok(
@@ -601,7 +604,7 @@ public class SandboxOrchestrationService {
             Instant startedAt) {
         return new SandboxRun(
             null, runId, tenantId, scenarioId, mode, null, null, null, null, null, null, null,
-            null, null, null, SandboxExternalSideEffectStatus.SUPPRESSED,
+            null, null, SandboxExternalSideEffectStatus.SUPPRESSED,
             SandboxRunStatus.PREPARING, null, null, startedAt, null, traceId,
             startedAt, actor, startedAt, actor);
     }
@@ -610,7 +613,14 @@ public class SandboxOrchestrationService {
             SandboxRun ledger,
             SandboxRuntimeBaseline baseline,
             String actor) {
-        String assetBindingsJson = writeJson(baseline.effectivePackage());
+        Map<String, Object> frozenManifest = new LinkedHashMap<>();
+        if (baseline.runtimeContent() != null) {
+            frozenManifest.put("currentRuntime", baseline.runtimeContent());
+        }
+        if (baseline.historicalReplay() != null) {
+            frozenManifest.put("historicalReplay", baseline.historicalReplay());
+        }
+        String assetManifestJson = writeJson(frozenManifest);
         Map<String, Object> fingerprint = new LinkedHashMap<>();
         fingerprint.put("mode", baseline.mode());
         fingerprint.put("replayCaseId", baseline.replayCaseId());
@@ -621,21 +631,20 @@ public class SandboxOrchestrationService {
                 : baseline.historicalReplay().replayCase().manifestHash());
         fingerprint.put("tenantId", baseline.tenantId());
         fingerprint.put("targetOrgUnitId", baseline.targetOrgUnitId());
-        fingerprint.put("bindingId", baseline.bindingId());
-        fingerprint.put("packageOwnerTenantId", baseline.packageOwnerTenantId());
-        fingerprint.put("packageId", baseline.packageId());
-        fingerprint.put("packageCode", baseline.packageCode());
-        fingerprint.put("packageVersion", baseline.packageVersion());
+        fingerprint.put("runtimeReleaseRef", baseline.runtimeReleaseRef());
+        fingerprint.put("runtimeRevisionNo", baseline.runtimeRevisionNo());
+        fingerprint.put("platformBaselineReleaseId", baseline.platformBaselineReleaseId());
+        fingerprint.put("manifestSha256", baseline.manifestSha256());
         fingerprint.put("resolutionSource", baseline.resolutionSource());
-        fingerprint.put("assetBindings", baseline.effectivePackage());
+        fingerprint.put("assetManifest", frozenManifest);
         String baselineHash = Sha256ContentHash.sha256(
             writeJson(fingerprint), "沙盘运行基线不能为空");
         Instant now = Instant.now();
         return new SandboxRun(
             ledger.id(), ledger.runId(), ledger.tenantId(), ledger.scenarioId(), baseline.mode(),
-            baseline.replayCaseId(), baseline.bindingId(), baseline.baselineId(), baseline.packageOwnerTenantId(),
-            baseline.packageId(), baseline.packageCode(), baseline.packageVersion(),
-            baseline.resolutionSource(), assetBindingsJson, baselineHash,
+            baseline.replayCaseId(), baseline.baselineId(), baseline.runtimeReleaseRef(),
+            baseline.runtimeRevisionNo(), baseline.platformBaselineReleaseId(),
+            baseline.manifestSha256(), baseline.resolutionSource(), assetManifestJson, baselineHash,
             SandboxExternalSideEffectStatus.SUPPRESSED, SandboxRunStatus.RUNNING,
             null, null, ledger.startedAt(), null, ledger.traceId(), ledger.createdAt(),
             ledger.createdBy(), now, actor);
@@ -682,9 +691,10 @@ public class SandboxOrchestrationService {
             String actor) {
         return new SandboxRun(
             ledger.id(), ledger.runId(), ledger.tenantId(), ledger.scenarioId(), ledger.mode(),
-            ledger.replayCaseId(), ledger.bindingId(), ledger.baselineId(), ledger.packageOwnerTenantId(), ledger.packageId(),
-            ledger.packageCode(), ledger.packageVersion(), ledger.resolutionSource(),
-            ledger.assetBindingsJson(), ledger.baselineHash(), ledger.externalSideEffectStatus(),
+            ledger.replayCaseId(), ledger.baselineId(), ledger.runtimeReleaseRef(),
+            ledger.runtimeRevisionNo(), ledger.platformBaselineReleaseId(),
+            ledger.manifestSha256(), ledger.resolutionSource(),
+            ledger.assetManifestJson(), ledger.baselineHash(), ledger.externalSideEffectStatus(),
             status, failureCode, truncate(failureMessage, 1024), ledger.startedAt(), completedAt,
             ledger.traceId(), ledger.createdAt(), ledger.createdBy(), completedAt, actor);
     }

@@ -3,7 +3,7 @@ package com.medkernel.engine.datasvc.export;
 /**
  * 引擎数据服务层异步导出类型（DATASVC-01，三组 D2 去标识聚合读模型）。
  *
- * <p>每个类型携其在导出审批中的资源类型标识（小写下划线），用于与 SYS-06 导出审批申请的资源类型对齐；
+ * <p>每个类型携其导出确认资源类型标识（小写下划线），用于校验冻结范围；
  * 导出内容由 {@code EngineDataExportService} 按类型路由到既有读模型仓储分页拉取。
  */
 public enum EngineDataExportType {
@@ -20,7 +20,7 @@ public enum EngineDataExportType {
         this.resourceType = resourceType;
     }
 
-    /** 导出审批资源类型标识（规范化小写下划线）。 */
+    /** 导出确认资源类型标识（规范化小写下划线）。 */
     public String resourceType() {
         return resourceType;
     }

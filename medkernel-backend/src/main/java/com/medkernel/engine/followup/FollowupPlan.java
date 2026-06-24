@@ -19,6 +19,7 @@ public record FollowupPlan(
     @Column("pathway_id") String pathwayId,
     @Column("disease_code") String diseaseCode,
     @Column("risk_level") String riskLevel,
+    @Column("runtime_release_id") String runtimeReleaseId,
     FollowupPlanStatus status,
     @Column("idempotency_key") String idempotencyKey,
     @Column("source_fact_type") String sourceFactType,
@@ -48,7 +49,7 @@ public record FollowupPlan(
             Instant updatedAt,
             String updatedBy,
             String traceId) {
-        this(id, planId, tenantId, patientId, encounterId, pathwayId, diseaseCode, riskLevel, status, null,
+        this(id, planId, tenantId, patientId, encounterId, pathwayId, diseaseCode, riskLevel, null, status, null,
             null, null, null, null, null, null,
             createdAt, createdBy, updatedAt, updatedBy, traceId);
     }
@@ -69,7 +70,7 @@ public record FollowupPlan(
             Instant updatedAt,
             String updatedBy,
             String traceId) {
-        this(id, planId, tenantId, patientId, encounterId, pathwayId, diseaseCode, riskLevel, status, idempotencyKey,
+        this(id, planId, tenantId, patientId, encounterId, pathwayId, diseaseCode, riskLevel, null, status, idempotencyKey,
             null, null, null, null, null, null,
             createdAt, createdBy, updatedAt, updatedBy, traceId);
     }
@@ -95,7 +96,7 @@ public record FollowupPlan(
             String updatedBy,
             String traceId) {
         this(
-            id, planId, tenantId, patientId, encounterId, pathwayId, diseaseCode, riskLevel, status,
+            id, planId, tenantId, patientId, encounterId, pathwayId, diseaseCode, riskLevel, null, status,
             idempotencyKey, sourceFactType, sourceFactId, generationRuleCode, generationExplanation,
             null, null, createdAt, createdBy, updatedAt, updatedBy, traceId
         );

@@ -34,8 +34,7 @@
   border-inline-start: 0.25rem solid var(--ant-color-success);
 }
 
-.conditionLeaf,
-.fragmentLeaf {
+.conditionLeaf {
   padding: 0.75rem;
   background: var(--ant-color-bg-container);
   border: var(--mk-line-width) solid var(--ant-color-border-secondary);
@@ -44,10 +43,6 @@
 
 .conditionLeaf {
   border-inline-start: 0.25rem solid var(--ant-color-info);
-}
-
-.fragmentLeaf {
-  border-inline-start: 0.25rem solid var(--ant-color-success);
 }
 
 .nodeHint {

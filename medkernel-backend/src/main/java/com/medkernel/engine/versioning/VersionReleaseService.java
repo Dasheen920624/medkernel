@@ -72,14 +72,8 @@ public class VersionReleaseService implements ReleasePort {
         AssetVersion version = requireVersion(command);
         requireStatus(version, AssetVersionStatus.DRAFT, "只有草稿版本可以提交审核");
         Instant now = clock.instant();
-        assetVersions.save(version.withStatus(
-            AssetVersionStatus.IN_REVIEW,
-            inactiveScopeKey(version),
-            now,
-            required(command.actor(), "操作人")
-        ));
         return savePlan(command, version, null, VersionReleaseStatus.IN_REVIEW,
-            VersionReleaseScopeType.ALL, null, "IN_REVIEW 提交评审：" + required(command.impactDigest(), "影响摘要"), now);
+            VersionReleaseScopeType.ALL, null, "提交评审：" + required(command.impactDigest(), "影响摘要"), now);
     }
 
     @Override
@@ -87,14 +81,8 @@ public class VersionReleaseService implements ReleasePort {
     public VersionReleasePlan rejectReview(VersionReleaseCommand command) {
         requireReleasePermission(command.tenantId());
         AssetVersion version = requireVersion(command);
-        requireStatus(version, AssetVersionStatus.IN_REVIEW, "只有评审中版本可以驳回到草稿");
+        requireStatus(version, AssetVersionStatus.DRAFT, "只有草稿版本可以登记驳回结论");
         Instant now = clock.instant();
-        assetVersions.save(version.withStatus(
-            AssetVersionStatus.DRAFT,
-            inactiveScopeKey(version),
-            now,
-            required(command.actor(), "操作人")
-        ));
         String evidence = "REJECTED 评审拒绝："
             + required(command.reviewConclusion(), "审核结论")
             + "；" + required(command.impactDigest(), "影响摘要");
@@ -107,14 +95,8 @@ public class VersionReleaseService implements ReleasePort {
     public VersionReleasePlan approveReview(VersionReleaseCommand command) {
         requireReleasePermission(command.tenantId());
         AssetVersion version = requireVersion(command);
-        requireStatus(version, AssetVersionStatus.IN_REVIEW, "只有评审中版本可以批准");
+        requireStatus(version, AssetVersionStatus.DRAFT, "只有草稿版本可以登记批准结论");
         Instant now = clock.instant();
-        assetVersions.save(version.withStatus(
-            AssetVersionStatus.APPROVED,
-            inactiveScopeKey(version),
-            now,
-            required(command.actor(), "操作人")
-        ));
         String evidence = "APPROVED 评审通过："
             + required(command.reviewConclusion(), "审核结论")
             + "；" + required(command.impactDigest(), "影响摘要");
@@ -127,8 +109,8 @@ public class VersionReleaseService implements ReleasePort {
     public VersionReleasePlan releaseGray(VersionReleaseCommand command) {
         requireReleasePermission(command.tenantId());
         AssetVersion version = requireVersion(command);
-        if (version.status() != AssetVersionStatus.APPROVED && version.status() != AssetVersionStatus.PUBLISHED) {
-            throw new ApiException(ErrorCode.CONFLICT, "只有已批准或已发布版本可以进入灰度");
+        if (version.status() != AssetVersionStatus.DRAFT && version.status() != AssetVersionStatus.PUBLISHED) {
+            throw new ApiException(ErrorCode.CONFLICT, "只有草稿或已发布版本可以进入灰度计划");
         }
         requireGrayRolloutPolicy(command.rolloutPolicy());
         Instant now = clock.instant();
@@ -154,8 +136,8 @@ public class VersionReleaseService implements ReleasePort {
     public VersionReleasePlan publish(VersionReleaseCommand command) {
         requireReleasePermission(command.tenantId());
         AssetVersion target = requireVersion(command);
-        if (target.status() != AssetVersionStatus.APPROVED && target.status() != AssetVersionStatus.PUBLISHED) {
-            throw new ApiException(ErrorCode.CONFLICT, "只有已批准版本可以发布");
+        if (target.status() != AssetVersionStatus.DRAFT && target.status() != AssetVersionStatus.PUBLISHED) {
+            throw new ApiException(ErrorCode.CONFLICT, "只有草稿版本可以发布；已发布版本仅用于幂等确认");
         }
         requirePublishGovernance(command, target);
         assertDependenciesResolvable(target);
@@ -183,7 +165,7 @@ public class VersionReleaseService implements ReleasePort {
         for (AssetVersion published : publishedVersions) {
             if (!published.versionId().equals(target.versionId())) {
                 assetVersions.save(published.withStatusAndWindow(
-                    AssetVersionStatus.DEPRECATED,
+                    AssetVersionStatus.WITHDRAWN,
                     inactiveScopeKey(published),
                     published.effectiveFrom(),
                     now,
@@ -235,7 +217,7 @@ public class VersionReleaseService implements ReleasePort {
             VersionActivationAction.ROLLBACK,
             activeScopeKey
         );
-        if (current.status() == AssetVersionStatus.DEPRECATED
+        if (current.status() == AssetVersionStatus.WITHDRAWN
                 && target.status() == AssetVersionStatus.PUBLISHED
                 && existingActivation.isPresent()) {
             VersionActivationTransaction transaction = existingActivation.get();
@@ -246,19 +228,19 @@ public class VersionReleaseService implements ReleasePort {
                     command, target, current.versionId(), transaction.evidenceSummary(), now, actor));
         }
         requireStatus(current, AssetVersionStatus.PUBLISHED, "当前版本必须是 PUBLISHED 才能回滚");
-        if (target.status() == AssetVersionStatus.RETIRED
+        if (target.status() == AssetVersionStatus.WITHDRAWN
                 && target.safetyPolicy() == AssetVersionSafetyPolicy.SAFETY_REDLINE) {
             throw new ApiException(
                 ErrorCode.ROLLBACK_SAFETY_DENIED,
-                "ROLLBACK_SAFETY_DENIED：已退役的高风险版本禁止一键回滚"
+                "ROLLBACK_SAFETY_DENIED：已撤回的高风险版本禁止一键回滚"
             );
         }
-        requireStatus(target, AssetVersionStatus.DEPRECATED, "回滚目标必须是已弃用历史版本");
+        requireStatus(target, AssetVersionStatus.WITHDRAWN, "回滚目标必须是已撤回历史版本");
 
         Instant now = clock.instant();
         String actor = required(command.actor(), "操作人");
         assetVersions.save(current.withStatusAndWindow(
-            AssetVersionStatus.DEPRECATED,
+            AssetVersionStatus.WITHDRAWN,
             inactiveScopeKey(current),
             current.effectiveFrom(),
             now,
@@ -335,41 +317,11 @@ public class VersionReleaseService implements ReleasePort {
 
     private void requirePublishGovernance(VersionReleaseCommand command, AssetVersion version) {
         boolean platformPublish = PlatformAuthority.PLATFORM_TENANT_ID.equals(command.tenantId());
-        boolean highRisk = version.overridePolicy() == AssetVersionOverridePolicy.REVIEW
-            || version.overridePolicy() == AssetVersionOverridePolicy.LOCKED
-            || version.safetyPolicy() == AssetVersionSafetyPolicy.SAFETY_REDLINE;
         if (platformPublish) {
             VersionPublishQualityGate qualityGate = command.qualityGate();
             if (qualityGate == null || !qualityGate.passed()) {
-                throw new ApiException(ErrorCode.VALIDATION_FAILED, "平台发布质量门未全部通过");
+                throw new ApiException(ErrorCode.VALIDATION_FAILED, "平台发布质量校验未全部通过");
             }
-        }
-        if (platformPublish || highRisk) {
-            requireIndependentElectronicSignature(
-                command.electronicSignature(), command.actor());
-        }
-    }
-
-    private void requireIndependentElectronicSignature(
-            VersionElectronicSignature signature,
-            String publisherId) {
-        if (signature == null) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "高风险或平台发布必须提供电子签名");
-        }
-        required(signature.signatureId(), "电子签名 ID");
-        String reviewerId = required(signature.signerId(), "签名人 ID");
-        required(signature.signerName(), "签名人姓名");
-        if (signature.signedAt() == null) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "电子签名时间不能为空");
-        }
-        String hash = required(signature.signatureHash(), "电子签名摘要");
-        if (!hash.matches("[0-9a-f]{64}")) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "电子签名摘要必须是 64 位小写 SHA-256");
-        }
-        if (reviewerId.equalsIgnoreCase(required(publisherId, "发布人 ID"))) {
-            throw new ApiException(
-                ErrorCode.VALIDATION_FAILED,
-                "高风险或平台发布的复核人与发布人必须为不同人员");
         }
     }
 
@@ -410,8 +362,8 @@ public class VersionReleaseService implements ReleasePort {
                 || !Objects.equals(command.confirmedTargetVersion(), target.versionNo())) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "回滚必须确认当前版本与目标版本号");
         }
-        if (!Boolean.TRUE.equals(command.confirmedHighRisk())) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "回滚必须完成高风险二次确认");
+        if (!Boolean.TRUE.equals(command.confirmedOperation())) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "执行回滚前必须核对版本与影响");
         }
         required(command.reason(), "回滚原因");
     }
@@ -530,7 +482,6 @@ public class VersionReleaseService implements ReleasePort {
             String evidence,
             Instant now) {
         String actor = required(command.actor(), "操作人");
-        VersionElectronicSignature signature = command.electronicSignature();
         VersionPublishQualityGate qualityGate = command.qualityGate();
         RolloutPolicy rolloutPolicy = status == VersionReleaseStatus.GRAY
             ? command.rolloutPolicy()
@@ -555,10 +506,6 @@ public class VersionReleaseService implements ReleasePort {
             command.impactDigest(),
             command.reviewConclusion(),
             evidence,
-            signature == null ? null : signature.signatureId(),
-            signature == null ? null : signature.signerId() + "|" + signature.signerName(),
-            signature == null ? null : signature.signatureHash(),
-            signature == null ? null : signature.signedAt(),
             qualityGate == null ? null : qualityGate.summaryOrDefault(),
             now,
             actor,

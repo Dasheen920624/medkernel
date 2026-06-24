@@ -7,6 +7,10 @@ import java.util.Locale;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 import com.medkernel.engine.security.PlatformCredential;
 import com.medkernel.engine.security.PlatformCredentialRepository;
@@ -14,6 +18,8 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.config.HighRiskChangeGuard;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.security.AuthSessionClaims;
+import com.medkernel.shared.security.MfaRuntimePolicy;
 
 /**
  * 高危操作 MFA 策略：当前用户必须已完成 TOTP 绑定，secret 加密保存，恢复码只保存摘要。
@@ -26,18 +32,27 @@ public class MfaPolicyService implements HighRiskChangeGuard {
     private final PlatformCredentialRepository credentials;
     private final TotpService totpService;
     private final MfaSecretCodec secretCodec;
+    private final MfaRuntimePolicy runtimePolicy;
 
     public MfaPolicyService(PlatformCredentialRepository credentials,
                             TotpService totpService,
-                            MfaSecretCodec secretCodec) {
+                            MfaSecretCodec secretCodec,
+                            MfaRuntimePolicy runtimePolicy) {
         this.credentials = credentials;
         this.totpService = totpService;
         this.secretCodec = secretCodec;
+        this.runtimePolicy = runtimePolicy;
     }
 
     @Transactional(readOnly = true)
     @Override
     public void assertHighRiskAllowed(String resourceType, String resourceId) {
+        if (!runtimePolicy.enabled()) {
+            return;
+        }
+        if (!currentSessionMfaVerified()) {
+            throw new ApiException(ErrorCode.ENG_AUTH_010, "当前会话尚未完成多因素认证");
+        }
         String tenantId = RequestContext.currentOrgScope().tenantId();
         String userId = RequestContext.currentUserId().orElse(null);
         if (tenantId == null || tenantId.isBlank() || userId == null || userId.isBlank()) {
@@ -48,6 +63,17 @@ public class MfaPolicyService implements HighRiskChangeGuard {
         if (!secretCodec.isTotpBound(credential.mfaSecret())) {
             throw new ApiException(ErrorCode.ENG_AUTH_010);
         }
+    }
+
+    private boolean currentSessionMfaVerified() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Jwt jwt = null;
+        if (authentication instanceof JwtAuthenticationToken token) {
+            jwt = token.getToken();
+        } else if (authentication != null && authentication.getPrincipal() instanceof Jwt principal) {
+            jwt = principal;
+        }
+        return jwt != null && Boolean.TRUE.equals(jwt.getClaim(AuthSessionClaims.MFA_VERIFIED));
     }
 
     @Transactional
@@ -70,7 +96,7 @@ public class MfaPolicyService implements HighRiskChangeGuard {
         }
         String secret = normalizeSecret(request.secret());
         if (!totpService.verify(secret, request.code())) {
-            throw new ApiException(ErrorCode.ENG_AUTH_010, "MFA 验证码不正确");
+            throw new ApiException(ErrorCode.ENG_AUTH_010, "验证码不正确");
         }
         String recoveryCode = generateRecoveryCode();
         Instant now = Instant.now();
@@ -94,7 +120,7 @@ public class MfaPolicyService implements HighRiskChangeGuard {
         String secret = secretCodec.decodeTotpSecret(credential.mfaSecret())
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_AUTH_010));
         if (!totpService.verify(secret, request.code())) {
-            throw new ApiException(ErrorCode.ENG_AUTH_010, "MFA 验证码不正确");
+            throw new ApiException(ErrorCode.ENG_AUTH_010, "验证码不正确");
         }
         return new BootstrapMfaVerifyResponse(true);
     }

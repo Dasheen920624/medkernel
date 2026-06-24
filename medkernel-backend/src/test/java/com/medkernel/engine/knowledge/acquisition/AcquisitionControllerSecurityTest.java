@@ -36,7 +36,7 @@ import com.medkernel.shared.context.RequestContext;
 /**
  * 公域知识获取控制器权限测试（AIK-STD-14）。
  *
- * <p>触发获取会写受控来源解析链路，走 {@code knowledge.write}；来源白名单和运行台账只读查询走
+ * <p>触发获取会写受控来源解析链路，走 {@code knowledge.write}；来源允许清单和运行台账只读查询走
  * {@code knowledge.read}。临床用户和 GUEST 不得触发外网获取。
  */
 @SpringBootTest
@@ -113,8 +113,6 @@ class AcquisitionControllerSecurityTest {
             AcquisitionLicensePolicy.PERMITTED,
             AcquisitionRobotsPolicy.ALLOW_FETCH,
             "Y",
-            "super-admin",
-            Instant.EPOCH,
             "N",
             null,
             null,
@@ -158,7 +156,7 @@ class AcquisitionControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void clinicalUserCannotTriggerAcquisitionRun() throws Exception {
         mockMvc.perform(post("/api/v1/engine/knowledge/acquisition/runs")
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(BODY))
@@ -174,13 +172,13 @@ class AcquisitionControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanTriggerAcquisitionRun() throws Exception {
+    void engineOperatorCanTriggerAcquisitionRun() throws Exception {
         when(service.run(any())).thenReturn(runResponse());
 
         mockMvc.perform(post("/api/v1/engine/knowledge/acquisition/runs")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(BODY))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.status").value("SUCCEEDED"))
@@ -193,8 +191,8 @@ class AcquisitionControllerSecurityTest {
         String invalid = "{\"sourceCode\":\"NHC-HTN\",\"url\":\"\",\"versionNo\":\"v2026\",\"format\":\"STRUCTURED_TEXT\"}";
         mockMvc.perform(post("/api/v1/engine/knowledge/acquisition/runs")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(invalid))
             .andExpect(status().isBadRequest());
     }
@@ -207,14 +205,14 @@ class AcquisitionControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanListAcquisitionSources() throws Exception {
+    void engineOperatorCanListAcquisitionSources() throws Exception {
         when(service.listSources(anyInt(), anyInt()))
             .thenReturn(PageResponse.of(List.of(source()), new PageRequest(1, 20, null), 1L));
 
         mockMvc.perform(get("/api/v1/engine/knowledge/acquisition/sources")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.items[0].sourceCode").value("NHC-HTN"))
             .andExpect(jsonPath("$.data.items[0].domain").value("guideline.example.org"));
@@ -228,25 +226,25 @@ class AcquisitionControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanListAcquisitionRuns() throws Exception {
+    void engineOperatorCanListAcquisitionRuns() throws Exception {
         when(service.listRuns(anyInt(), anyInt()))
             .thenReturn(PageResponse.of(List.of(run()), new PageRequest(1, 20, null), 1L));
 
         mockMvc.perform(get("/api/v1/engine/knowledge/acquisition/runs")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.items[0].runCode").value("acq:x"))
             .andExpect(jsonPath("$.data.items[0].status").value("SUCCEEDED"));
     }
 
     @Test
-    void knowledgeGovernorCanSaveSourceDraft() throws Exception {
+    void engineOperatorCanSaveSourceDraft() throws Exception {
         mockMvc.perform(put("/api/v1/engine/knowledge/acquisition/sources/NHC-GUIDELINE")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON).content(SOURCE_DRAFT_BODY))
             .andExpect(status().isOk());
     }
@@ -255,19 +253,19 @@ class AcquisitionControllerSecurityTest {
     void clinicalUserCannotSaveSourceDraft() throws Exception {
         mockMvc.perform(put("/api/v1/engine/knowledge/acquisition/sources/NHC-GUIDELINE")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON).content(SOURCE_DRAFT_BODY))
             .andExpect(status().isForbidden());
     }
 
     @Test
-    void knowledgeGovernorCannotApproveOrDisableSource() throws Exception {
+    void clinicalUserCannotEnableOrDisableSource() throws Exception {
         var authentication = jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                .claim("roles", List.of("knowledge-governor")))
-            .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"));
+                .claim("roles", List.of("clinical-user")))
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"));
 
-        mockMvc.perform(post("/api/v1/engine/knowledge/acquisition/sources/NHC-GUIDELINE/approval")
+        mockMvc.perform(post("/api/v1/engine/knowledge/acquisition/sources/NHC-GUIDELINE/enable")
                 .with(authentication))
             .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/v1/engine/knowledge/acquisition/sources/NHC-GUIDELINE/disable")
@@ -276,12 +274,26 @@ class AcquisitionControllerSecurityTest {
     }
 
     @Test
-    void systemSuperadminCanApproveAndDisableSource() throws Exception {
+    void engineOperatorCanEnableAndDisableSource() throws Exception {
+        var authentication = jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
+                .claim("roles", List.of("engine-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"));
+
+        mockMvc.perform(post("/api/v1/engine/knowledge/acquisition/sources/NHC-GUIDELINE/enable")
+                .with(authentication))
+            .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/engine/knowledge/acquisition/sources/NHC-GUIDELINE/disable")
+                .with(authentication))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void systemSuperadminCanEnableAndDisableSource() throws Exception {
         var authentication = jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
                 .claim("roles", List.of("system-superadmin")))
             .authorities(new SimpleGrantedAuthority("ROLE_SYSTEM_SUPERADMIN"));
 
-        mockMvc.perform(post("/api/v1/engine/knowledge/acquisition/sources/NHC-GUIDELINE/approval")
+        mockMvc.perform(post("/api/v1/engine/knowledge/acquisition/sources/NHC-GUIDELINE/enable")
                 .with(authentication))
             .andExpect(status().isOk());
         mockMvc.perform(post("/api/v1/engine/knowledge/acquisition/sources/NHC-GUIDELINE/disable")

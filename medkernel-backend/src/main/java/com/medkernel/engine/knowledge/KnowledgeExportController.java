@@ -95,7 +95,6 @@ public class KnowledgeExportController {
         @JsonProperty("specialty_id") String specialtyId,
         @JsonProperty("user_id") String userId,
         @JsonProperty("role_codes") List<String> roleCodes,
-        @JsonProperty("package_version") String packageVersion,
         @NotNull ExportType type,
         @Size(max = 2000) String filterJson
     ) {
@@ -107,7 +106,7 @@ public class KnowledgeExportController {
         KnowledgeApiContext context() {
             return KnowledgeApiContext.from(
                 requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-                departmentId, specialtyId, userId, roleCodes, packageVersion
+                departmentId, specialtyId, userId, roleCodes
             );
         }
     }

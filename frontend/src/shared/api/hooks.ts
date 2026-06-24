@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiClient } from "./client";
+import type { EngineAssetType, KnowledgeDomain } from "@/shared/config/assetCatalog";
+import type { ClinicalTriggerPoint } from "@/shared/config/clinicalTriggerPoints";
 import { isThemeMode, type ThemeMode } from "@/shared/config/theme";
 import type { RuleType } from "@/shared/config/ruleTypes";
 import type {
@@ -55,6 +57,7 @@ export interface SecurityProfile {
   mustChangePwd: boolean;
   mfaRequired: boolean;
   mfaBound: boolean;
+  mfaVerified: boolean;
 }
 
 type SecurityProfileEnvelope = {
@@ -85,24 +88,19 @@ type StandardApiContextFields = {
   specialty_id?: string | null;
   user_id: string;
   role_codes: string[];
-  package_version: string;
 };
 
-function standardApiContext(
-  profile: SecurityProfile | undefined,
-  packageVersion: string | undefined,
-): StandardApiContextFields {
+function standardApiContext(profile: SecurityProfile | undefined): StandardApiContextFields {
   if (!profile) {
     throw new Error("缺少当前用户安全画像，无法提交标准上下文请求。");
   }
   const tenantId = profile.dataScope?.tenantId;
   const roleCodes = profile.roles.map((role) => role.code).filter(Boolean);
-  const version = packageVersion?.trim();
-  if (!tenantId || roleCodes.length === 0 || !version) {
-    throw new Error("标准上下文缺少服务空间、角色或包版本，请刷新用户状态后重试。");
+  if (!tenantId || roleCodes.length === 0) {
+    throw new Error("标准上下文缺少服务空间或角色，请刷新用户状态后重试。");
   }
   const traceId = crypto.randomUUID();
-  return {
+  const context: StandardApiContextFields = {
     request_id: crypto.randomUUID(),
     trace_id: traceId,
     tenant_id: tenantId,
@@ -115,18 +113,17 @@ function standardApiContext(
     specialty_id: profile.dataScope.specialtyId,
     user_id: profile.userId,
     role_codes: roleCodes,
-    package_version: version,
   };
+  return context;
 }
 
 function withStandardApiContext<T extends object>(
   payload: T,
   profile: SecurityProfile | undefined,
-  packageVersion: string | undefined,
 ): T & StandardApiContextFields {
   return {
     ...payload,
-    ...standardApiContext(profile, packageVersion),
+    ...standardApiContext(profile),
   };
 }
 
@@ -510,7 +507,7 @@ export interface PluginRegisterPayload {
 export interface PluginGrantPayload {
   pluginId: string;
   capabilityKeys: string[];
-  approvalReason: string;
+  authorizationReason: string;
   clinicalSafetyConfirmed: boolean;
 }
 
@@ -883,7 +880,6 @@ export interface TerminologyCandidateGenerationJob {
   sourceSystem: string;
   minimumScore?: number | null;
   semanticAssistEnabled: boolean;
-  packageVersion: string;
   requestedBy: string;
   status: "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED";
   progress: number;
@@ -972,10 +968,8 @@ export interface KnowledgeAcquisitionSource {
   publisher: string;
   license: string;
   licensePolicy: "PERMITTED" | "RESTRICTED" | "FORBIDDEN" | string;
-  robotsPolicy: "ALLOW_FETCH" | "MANUAL_APPROVED" | "DISALLOW_FETCH" | string;
+  robotsPolicy: "ALLOW_FETCH" | "MANUAL_ALLOWED" | "DISALLOW_FETCH" | string;
   enabledFlag: "Y" | "N" | string;
-  approvedBy?: string | null;
-  approvedAt?: string | null;
   scheduleEnabledFlag: "Y" | "N" | string;
   scheduleIntervalMinutes?: number | null;
   nextCheckAt?: string | null;
@@ -999,7 +993,7 @@ export interface KnowledgeAcquisitionSourceDraftRequest {
   publisher: string;
   license: string;
   licensePolicy: "PERMITTED" | "RESTRICTED" | "FORBIDDEN";
-  robotsPolicy: "ALLOW_FETCH" | "MANUAL_APPROVED" | "DISALLOW_FETCH";
+  robotsPolicy: "ALLOW_FETCH" | "MANUAL_ALLOWED" | "DISALLOW_FETCH";
   scheduleEnabled: boolean;
   scheduleIntervalMinutes?: number;
   defaultFormat?: string;
@@ -1050,7 +1044,7 @@ export function useSaveKnowledgeAcquisitionSourceDraft() {
   });
 }
 
-function useKnowledgeAcquisitionSourceStatusMutation(action: "approval" | "disable") {
+function useKnowledgeAcquisitionSourceStatusMutation(action: "enable" | "disable") {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (sourceCode: string) => {
@@ -1065,27 +1059,15 @@ function useKnowledgeAcquisitionSourceStatusMutation(action: "approval" | "disab
   });
 }
 
-export function useApproveKnowledgeAcquisitionSource() {
-  return useKnowledgeAcquisitionSourceStatusMutation("approval");
+export function useEnableKnowledgeAcquisitionSource() {
+  return useKnowledgeAcquisitionSourceStatusMutation("enable");
 }
 
 export function useDisableKnowledgeAcquisitionSource() {
   return useKnowledgeAcquisitionSourceStatusMutation("disable");
 }
 
-export type KnowledgeDomain =
-  | "GUIDELINE"
-  | "DRUG"
-  | "PATHWAY_KNOWLEDGE"
-  | "NURSING"
-  | "REPORT"
-  | "TCM"
-  | "PROTOCOL"
-  | "POLICY"
-  | "LITERATURE"
-  | "OTHER"
-  | "DIAGNOSIS"
-  | string;
+export type { KnowledgeDomain } from "@/shared/config/assetCatalog";
 
 export type KnowledgeIdentityStatus = "ACTIVE" | "DEPRECATED" | "WITHDRAWN" | "ARCHIVED" | string;
 
@@ -1568,16 +1550,73 @@ export interface KnowledgeProductionJobsParams {
 
 export interface CreateKnowledgeProductionJobRequest {
   sourceScope: string;
-  assetType: string;
+  assetType: "KNOWLEDGE";
   targetPipeline: KnowledgeProductionJob["targetPipeline"];
   domain: string;
   modelStrategy?: string;
 }
 
+export type KnowledgeSourceAuthorityLevel =
+  | "A_REGULATION"
+  | "B_GUIDELINE"
+  | "C_CONSENSUS_LITERATURE"
+  | "D_HOSPITAL"
+  | "E_FEEDBACK";
+
+export interface KnowledgeModelCandidateRequest {
+  capabilityCode: string;
+  prompt: string;
+  providerCode?: string;
+  timeoutSeconds?: number;
+  assetIdentity: string;
+  subject: string;
+  sources: Array<{
+    sourceRef: string;
+    authorityLevel: KnowledgeSourceAuthorityLevel;
+  }>;
+  trustLevel: KnowledgeSourceAuthorityLevel;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  target:
+    | { targetIdentityId: number; newIdentity?: never }
+    | {
+        targetIdentityId?: never;
+        newIdentity: {
+          domain: KnowledgeDomain;
+          subject: string;
+          identityCode: string;
+        };
+      };
+}
+
+export interface KnowledgeModelProductionResult {
+  jobCode: string;
+  modelTaskId?: string | null;
+  modelMode?: string | null;
+  modelVersion?: string | null;
+  promptVersion?: string | null;
+  toolVersion?: string | null;
+  summary: {
+    candidates: Array<{
+      assetType?: string | null;
+      jobCode: string;
+      candidateRef: string;
+    }>;
+    skipped: Array<{ assetType?: string | null; reason: string }>;
+    blocked: Array<{
+      assetType?: string | null;
+      jobCode?: string | null;
+      failedGates?: Array<{ code: string; reason: string }>;
+    }>;
+  };
+}
+
+export interface GenerateKnowledgeModelCandidateCommand {
+  jobCode: string;
+  request: KnowledgeModelCandidateRequest;
+}
+
 export interface ReviewRoutingDecision {
-  ownerReviewerRole?: string | null;
-  domainReviewerRole?: string | null;
-  requiresDualSign: boolean;
+  reviewerRole: string;
   domain?: string | null;
 }
 
@@ -1790,6 +1829,38 @@ export function useCreateKnowledgeProductionJob() {
   });
 }
 
+export function useGenerateKnowledgeModelCandidate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ jobCode, request }: GenerateKnowledgeModelCandidateCommand) => {
+      const { data } = await apiClient.post<{ data: KnowledgeModelProductionResult }>(
+        `${KNOWLEDGE_PRODUCTION_API_ROOT}/jobs/${encodeURIComponent(jobCode)}/model-candidates`,
+        compactParams(request),
+      );
+      return data.data;
+    },
+    onSuccess: async (_data, command) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["knowledge-production", "jobs"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["knowledge-production", "job-candidates", command.jobCode],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["knowledge-production", "gate-results", command.jobCode],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["knowledge-production", "triage-results", command.jobCode],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["knowledge-production", "shadow-runs", command.jobCode],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["knowledge", "identities"] }),
+        queryClient.invalidateQueries({ queryKey: ["knowledge", "candidates"] }),
+      ]);
+    },
+  });
+}
+
 export function useCancelKnowledgeProductionJob() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -1961,7 +2032,6 @@ export function useReviewKnowledgeCandidate() {
   return useMutation({
     mutationFn: async (payload: {
       candidateId: number;
-      packageVersion: string;
       request: {
         decision: KnowledgeCandidateReviewDecision;
         reason?: string;
@@ -1977,7 +2047,7 @@ export function useReviewKnowledgeCandidate() {
       const config = headers ? { headers } : undefined;
       const { data } = await apiClient.post<{ data: KnowledgeCandidateResponse }>(
         `${KNOWLEDGE_API_ROOT}/candidates/${payload.candidateId}/review`,
-        withStandardApiContext(payload.request, security.data, payload.packageVersion),
+        withStandardApiContext(payload.request, security.data),
         config,
       );
       return data.data;
@@ -2229,7 +2299,7 @@ export function useCreateDiagnosisAsset() {
     mutationFn: async (payload: DiagnosisAssetCreatePayload) => {
       const { data } = await apiClient.post<{ data: DiagnosisAssetDraftResponse }>(
         `${DIAGNOSIS_API_ROOT}/assets`,
-        withStandardApiContext(payload, profile, "AUTHORING"),
+        withStandardApiContext(payload, profile),
       );
       return data.data;
     },
@@ -2252,7 +2322,7 @@ export function useCreateDiagnosisVersion() {
     }) => {
       const { data } = await apiClient.post<{ data: DiagnosisAssetDraftResponse }>(
         `${DIAGNOSIS_API_ROOT}/identities/${identityId}/versions`,
-        withStandardApiContext(payload, profile, "AUTHORING"),
+        withStandardApiContext(payload, profile),
       );
       return data.data;
     },
@@ -2420,7 +2490,7 @@ export interface MappingCoverageItem {
   mappedLocalCount: number;
 }
 
-/** 对照覆盖分析（P5）：给定标准字典与标准编码集合，返回每个编码的院内→标准对照覆盖。 */
+/** 对照覆盖分析：给定标准字典与标准编码集合，返回每个编码的院内→标准对照覆盖。 */
 export function useMappingCoverage(
   params: { standardSystem?: string; codes: string[] },
   options?: { enabled?: boolean },
@@ -2527,14 +2597,10 @@ export function useResolveTerminologyConflict() {
   const security = useSecurityProfile();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: {
-      conflictId: number;
-      request: { packageVersion: string; resolutionNote: string };
-    }) => {
-      const { packageVersion, ...requestPayload } = payload.request;
+    mutationFn: async (payload: { conflictId: number; request: { resolutionNote: string } }) => {
       const { data } = await apiClient.post<{ data: MappingConflict }>(
         `${TERMINOLOGY_API_ROOT}/mappings/conflicts/${payload.conflictId}/resolve`,
-        withStandardApiContext(requestPayload, security.data, packageVersion),
+        withStandardApiContext(payload.request, security.data),
       );
       return data.data;
     },
@@ -2551,15 +2617,13 @@ export function useGenerateTerminologyCandidates() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: {
-      packageVersion: string;
       sourceSystem: string;
       minimumScore?: number;
       semanticAssistEnabled?: boolean;
     }) => {
-      const { packageVersion, ...requestPayload } = payload;
       const { data } = await apiClient.post<{ data: TerminologyCandidateGenerationJob }>(
         `${TERMINOLOGY_API_ROOT}/mappings/candidates`,
-        withStandardApiContext(requestPayload, security.data, packageVersion),
+        withStandardApiContext(payload, security.data),
       );
       return data.data;
     },
@@ -2577,17 +2641,13 @@ export function useConfirmTerminologyCandidate() {
     mutationFn: async (payload: {
       candidateId: number;
       request: {
-        packageVersion: string;
         reviewNote?: string;
         evidenceOverride?: string;
-        highRiskAcknowledged?: boolean;
-        highRiskReason?: string;
       };
     }) => {
-      const { packageVersion, ...requestPayload } = payload.request;
       const { data } = await apiClient.post<{ data: TermMapping }>(
         `${TERMINOLOGY_API_ROOT}/mappings/${payload.candidateId}/confirm`,
-        withStandardApiContext(requestPayload, security.data, packageVersion),
+        withStandardApiContext(payload.request, security.data),
       );
       return data.data;
     },
@@ -2603,14 +2663,10 @@ export function useRejectTerminologyCandidate() {
   const security = useSecurityProfile();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: {
-      candidateId: number;
-      request: { packageVersion: string; reviewNote: string };
-    }) => {
-      const { packageVersion, ...requestPayload } = payload.request;
+    mutationFn: async (payload: { candidateId: number; request: { reviewNote: string } }) => {
       const { data } = await apiClient.post<{ data: TermMappingCandidate }>(
         `${TERMINOLOGY_API_ROOT}/mappings/${payload.candidateId}/reject`,
-        withStandardApiContext(requestPayload, security.data, packageVersion),
+        withStandardApiContext(payload.request, security.data),
       );
       return data.data;
     },
@@ -2625,17 +2681,15 @@ export function useBatchConfirmTerminologyCandidates() {
   const security = useSecurityProfile();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: {
-      candidateIds: number[];
-      request: { packageVersion: string; reviewNote?: string };
-    }) => {
-      const { packageVersion, ...requestPayload } = payload.request;
+    mutationFn: async (payload: { candidateIds: number[]; request: { reviewNote?: string } }) => {
       const { data } = await apiClient.post<{ data: TerminologyBatchConfirmResponse }>(
         `${TERMINOLOGY_API_ROOT}/mappings/batch-confirm`,
         withStandardApiContext(
-          { ...requestPayload, candidateIds: payload.candidateIds },
+          {
+            ...payload.request,
+            candidateIds: payload.candidateIds,
+          },
           security.data,
-          packageVersion,
         ),
       );
       return data.data;
@@ -2647,25 +2701,34 @@ export function useBatchConfirmTerminologyCandidates() {
   });
 }
 
-export function useBuildTerminologyKnowledgePackage() {
+export interface TerminologyAssetDraft {
+  assetIdentity: string;
+  versionId: string;
+  versionNo: string;
+  status: "DRAFT";
+  organizationScope: string;
+  contentHash: string;
+  mappingCount: number;
+}
+
+export function useCreateTerminologyAssetDraft() {
   const security = useSecurityProfile();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: {
-      packageCode: string;
-      packageVersion: string;
+      assetIdentity: string;
       scopeLevel: string;
       scopeCode: string;
       name: string;
     }) => {
-      const { data } = await apiClient.post<{ data: PackageResponse }>(
-        `${PACKAGE_API_ROOT}/terminology`,
-        withStandardApiContext(payload, security.data, payload.packageVersion),
+      const { data } = await apiClient.post<{ data: TerminologyAssetDraft }>(
+        `${TERMINOLOGY_API_ROOT}/assets/drafts`,
+        withStandardApiContext(payload, security.data),
       );
       return data.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["packages", "list"] });
+      queryClient.invalidateQueries({ queryKey: ["authoring", "assets"] });
     },
   });
 }
@@ -2817,13 +2880,30 @@ export function useSaveThemePreference() {
 
 export async function submitLargeListExport(request: AsyncExportRequest): Promise<AsyncExportJob> {
   const idempotencyKey = request.idempotencyKey ?? crypto.randomUUID();
+  const filters = exportFilters(request);
+  const selectedScope = toBackendExportScope(request.selectedScope);
+  const confirmationId =
+    request.confirmationId ??
+    (
+      await confirmExport({
+        resourceType: request.resourceType,
+        exportScope: {
+          resourceType: request.resourceType,
+          filters,
+          selectedScope,
+        },
+        reason: request.reason,
+        idempotencyKey,
+      })
+    ).confirmationId;
   const { data } = await apiClient.post<LargeListExportSubmitEnvelope>(
     "/large-lists/exports",
     {
       resourceType: request.resourceType,
-      filters: exportFilters(request),
-      selectedScope: toBackendExportScope(request.selectedScope),
+      filters,
+      selectedScope,
       idempotencyKey,
+      confirmationId,
     },
     { headers: { "Idempotency-Key": idempotencyKey } },
   );
@@ -3017,7 +3097,7 @@ export interface MaskingPreviewResult {
 
 export interface InteropEvidence {
   mapId: string;
-  sourceType: "EVIDENCE_SNAPSHOT" | "EMR_LEVEL_EVIDENCE_PACKAGE";
+  sourceType: "EVIDENCE_SNAPSHOT" | "EMR_LEVEL_EVIDENCE_EXPORT";
   sourceId: string;
   evidenceRef: string;
   evidenceSummary: string;
@@ -3053,54 +3133,43 @@ export interface InteropAssessment {
   traceId?: string | null;
 }
 
-export type ExportApprovalStatus = "REQUESTED" | "APPROVED" | "REJECTED" | "EXPORTED";
+export type ExportConfirmationStatus = "CONFIRMED" | "EXPORTED";
 
-export interface ExportApproval {
-  approvalId: string;
+export interface ExportConfirmation {
+  confirmationId: string;
   resourceType: string;
   exportScopeSnapshot: string;
   idempotencyKey: string;
-  requestReason: string;
-  status: ExportApprovalStatus;
-  requestedBy: string;
-  reviewerId?: string | null;
-  reviewDecision?: "APPROVE" | "REJECT" | null;
-  reviewComment?: string | null;
-  approvalEvidenceId?: string | null;
-  approvalEvidenceFileUri?: string | null;
+  reason: string;
+  status: ExportConfirmationStatus;
+  confirmedBy: string;
+  confirmationEvidenceId?: string | null;
+  confirmationEvidenceFileUri?: string | null;
   exportUri?: string | null;
   exportDigest?: string | null;
   exportEvidenceId?: string | null;
   exportEvidenceFileUri?: string | null;
   version: number;
-  requestedAt: string;
-  reviewedAt?: string | null;
+  confirmedAt: string;
 }
 
-export interface ExportApprovalsParams {
+export interface ExportConfirmationsParams {
   resourceType?: string;
-  status?: ExportApprovalStatus;
+  status?: ExportConfirmationStatus;
   page?: number;
   size?: number;
   sort?: string;
 }
 
-export interface ExportApprovalRequestPayload {
+export interface ExportConfirmationRequestPayload {
   resourceType: string;
   exportScope: Record<string, unknown>;
   reason: string;
   idempotencyKey: string;
 }
 
-export interface ExportApprovalReviewPayload {
-  approvalId: string;
-  decision: "APPROVE" | "REJECT";
-  comment: string;
-  expectedVersion: number;
-}
-
-export interface ExportApprovalCompletionPayload {
-  approvalId: string;
+export interface ExportConfirmationCompletionPayload {
+  confirmationId: string;
   jobId: string;
   reason: string;
   expectedVersion: number;
@@ -3214,10 +3283,10 @@ export async function fetchInteropAssessment(standardVersion: string): Promise<I
   return data.data;
 }
 
-export async function fetchExportApprovals(
-  params: ExportApprovalsParams = {},
-): Promise<PageResponse<ExportApproval>> {
-  const { data } = await apiClient.get<{ data: PageResponse<ExportApproval> }>(
+export async function fetchExportConfirmations(
+  params: ExportConfirmationsParams = {},
+): Promise<PageResponse<ExportConfirmation>> {
+  const { data } = await apiClient.get<{ data: PageResponse<ExportConfirmation> }>(
     "/compliance/exports",
     {
       params,
@@ -3226,33 +3295,22 @@ export async function fetchExportApprovals(
   return data.data;
 }
 
-export async function requestExportApproval(
-  payload: ExportApprovalRequestPayload,
-): Promise<ExportApproval> {
-  const { data } = await apiClient.post<{ data: ExportApproval }>(
-    "/compliance/exports:request",
+export async function confirmExport(
+  payload: ExportConfirmationRequestPayload,
+): Promise<ExportConfirmation> {
+  const { data } = await apiClient.post<{ data: ExportConfirmation }>(
+    "/compliance/exports:confirm",
     payload,
   );
   return data.data;
 }
 
-export async function reviewExportApproval(
-  payload: ExportApprovalReviewPayload,
-): Promise<ExportApproval> {
-  const { approvalId, ...request } = payload;
-  const { data } = await apiClient.post<{ data: ExportApproval }>(
-    `/compliance/exports/${encodeURIComponent(approvalId)}:approve`,
-    request,
-  );
-  return data.data;
-}
-
-export async function completeApprovedExportJob(
-  payload: ExportApprovalCompletionPayload,
-): Promise<ExportApproval> {
-  const { approvalId, ...request } = payload;
-  const { data } = await apiClient.post<{ data: ExportApproval }>(
-    `/compliance/exports/${encodeURIComponent(approvalId)}:complete-from-job`,
+export async function completeConfirmedExportJob(
+  payload: ExportConfirmationCompletionPayload,
+): Promise<ExportConfirmation> {
+  const { confirmationId, ...request } = payload;
+  const { data } = await apiClient.post<{ data: ExportConfirmation }>(
+    `/compliance/exports/${encodeURIComponent(confirmationId)}:complete-from-job`,
     request,
   );
   return data.data;
@@ -3345,38 +3403,29 @@ export function useInteropAssessment(standardVersion: string) {
   });
 }
 
-export function useExportApprovals(params: ExportApprovalsParams = {}, enabled = true) {
+export function useExportConfirmations(params: ExportConfirmationsParams = {}, enabled = true) {
   return useQuery({
-    queryKey: ["compliance", "export-approvals", params],
-    queryFn: () => fetchExportApprovals(params),
+    queryKey: ["compliance", "export-confirmations", params],
+    queryFn: () => fetchExportConfirmations(params),
     enabled,
   });
 }
 
-export function useRequestExportApproval() {
+export function useConfirmExport() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: requestExportApproval,
+    mutationFn: confirmExport,
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["compliance", "export-approvals"] }),
+      queryClient.invalidateQueries({ queryKey: ["compliance", "export-confirmations"] }),
   });
 }
 
-export function useReviewExportApproval() {
+export function useCompleteConfirmedExportJob() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: reviewExportApproval,
+    mutationFn: completeConfirmedExportJob,
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["compliance", "export-approvals"] }),
-  });
-}
-
-export function useCompleteApprovedExportJob() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: completeApprovedExportJob,
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["compliance", "export-approvals"] }),
+      queryClient.invalidateQueries({ queryKey: ["compliance", "export-confirmations"] }),
   });
 }
 
@@ -3424,26 +3473,16 @@ export type VersionedAssetStatus =
   | "DEPRECATED"
   | "RETIRED";
 
-export interface VersionElectronicSignature {
-  signatureId: string;
-  signerId: string;
-  signerName: string;
-  signedAt: string;
-  signatureHash: string;
-}
-
 export interface VersionPublishQualityGate {
   schemaValid: boolean;
   terminologyBindingComplete: boolean;
   dependencyIntegrityVerified: boolean;
   safetyMonotonicityVerified: boolean;
   impactSimulationPassed: boolean;
-  peerReviewSigned: boolean;
   summary?: string;
 }
 
 export interface VersionPublishEvidence {
-  electronicSignature?: VersionElectronicSignature;
   qualityGate?: VersionPublishQualityGate;
 }
 
@@ -3461,11 +3500,28 @@ export interface RuleDefinition {
   dedupeWindowSeconds: number;
   status: "DRAFT" | "PUBLISHED" | "OFFLINE" | "ARCHIVED" | string;
   activeVersionId: string | null;
-  packageVersion?: string | null;
   applicableOrgUnitId?: string | null;
   createdAt: string;
   createdBy: string;
   updatedAt: string;
+}
+
+export type AssetTriggerPurpose = "RULE_EXECUTION" | "PATHWAY_ENTRY_CANDIDATE" | "PATHWAY_PROGRESS";
+
+export interface AssetTriggerBindingInput {
+  trigger_point: string;
+  purpose: AssetTriggerPurpose;
+  required_fields: string[];
+}
+
+export interface AssetTriggerBinding {
+  triggerBindingId: string;
+  assetType: string;
+  assetIdentity: string;
+  versionId: string;
+  triggerPoint: string;
+  purpose: AssetTriggerPurpose;
+  requiredFieldsJson: string;
 }
 
 export interface RuleVersion {
@@ -3481,6 +3537,14 @@ export interface RuleVersion {
   publishedAt?: string | null;
   publishedBy?: string | null;
   createdAt: string;
+}
+
+export interface RuleVersionCreateResponse {
+  ruleId: string;
+  versionId: string;
+  versionNo: number;
+  status: "DRAFT";
+  traceId: string;
 }
 
 export interface RuleTestCase {
@@ -3504,7 +3568,9 @@ export interface RuleTestCase {
 export interface RuleDetailResponse {
   definition: RuleDefinition;
   version: RuleVersion;
+  versions: RuleVersion[];
   testCases: RuleTestCase[];
+  triggerBindings: AssetTriggerBinding[];
   deploymentStatus: VersionedAssetStatus;
   governance: RuleGovernanceResponse;
 }
@@ -3599,40 +3665,21 @@ export interface RuleImpactResponse {
 
 export type RuleGovernanceState =
   | "DRAFT"
-  | "PEER_REVIEW"
-  | "COMMITTEE"
+  | "REVIEWED"
   | "SHADOW"
   | "CANARY"
   | "FULL"
   | "MONITOR"
   | "RETIRED";
 
-export type RuleSignoffStage = "PEER_REVIEW" | "COMMITTEE";
-export type RuleSignoffDecision = "APPROVED" | "REJECTED";
 export type RuleShadowFeedbackDecision = "TRUE_POSITIVE" | "FALSE_POSITIVE";
-
-export interface RuleSignoff {
-  signoffId: string;
-  ruleVersionId: string;
-  stage: RuleSignoffStage;
-  reviewRound: number;
-  signerRole: string;
-  signerId: string;
-  decision: RuleSignoffDecision;
-  reason: string;
-  signedAt: string;
-}
 
 export interface RuleGovernanceResponse {
   ruleId: string;
   versionId: string;
   state: RuleGovernanceState;
-  requiredSignoffs: number;
-  reviewRound: number;
-  committeeApprovalCount: number;
   authorId: string;
   lastReason: string;
-  signoffs: RuleSignoff[];
   testResults: RuleTestCaseResult[];
   impactDigest?: string | null;
   impactStatus?: string | null;
@@ -3798,23 +3845,7 @@ export function useRuleDefinitions(
   });
 }
 
-export type EngineAssetType =
-  | "KNOWLEDGE"
-  | "TERMINOLOGY"
-  | "RULE"
-  | "PATHWAY"
-  | "EVALUATION"
-  | "FOLLOWUP"
-  | "FIELD_CATALOG"
-  | "PACKAGE"
-  | "RECOMMENDATION"
-  | "SAFETY"
-  | "CDSS_RISK"
-  | "CONDITION_FRAGMENT"
-  | "VALUE_SET"
-  | "ORDER_SET"
-  | "ACTION_CARD"
-  | "SUBPATHWAY";
+export type { EngineAssetType } from "@/shared/config/assetCatalog";
 
 export type AuthoringPreviewSubject = "RULE_CONDITION" | "PATHWAY_GUARD";
 
@@ -3834,7 +3865,6 @@ export interface AuthoringPreviewResponse {
 
 export interface AuthoringPreviewPayload {
   subject: AuthoringPreviewSubject;
-  packageVersion: string;
   dsl: unknown;
 }
 
@@ -3857,7 +3887,7 @@ export interface AuthoringPreviewRunEvidence {
 export interface AuthoringPreviewRunResponse {
   subject: AuthoringPreviewSubject;
   snapshotId: string;
-  packageVersion: string;
+  runtimeReleaseId: string;
   matched: boolean;
   hit?: boolean | null;
   outcomeText: string;
@@ -3877,7 +3907,6 @@ export interface AuthoringPreviewRunResponse {
 
 export interface AuthoringPreviewRunPayload {
   subject: AuthoringPreviewSubject;
-  packageVersion: string;
   snapshotId: string;
   dsl: unknown;
   startNodeCode?: string;
@@ -3893,7 +3922,7 @@ export function useAuthoringPreview(
   const security = useSecurityProfile();
   const dslKey = payload ? JSON.stringify(payload.dsl) : "";
   return useQuery({
-    queryKey: ["authoring", "preview", payload?.subject, payload?.packageVersion, dslKey],
+    queryKey: ["authoring", "preview", payload?.subject, dslKey],
     enabled: (options?.enabled ?? true) && Boolean(payload) && Boolean(security.data),
     queryFn: async () => {
       if (!payload) {
@@ -3907,7 +3936,6 @@ export function useAuthoringPreview(
             dsl: payload.dsl,
           },
           security.data,
-          payload.packageVersion,
         ),
       );
       return data.data;
@@ -3933,7 +3961,6 @@ export function useAuthoringPreviewRun() {
             requestedNextNodeCodes: payload.requestedNextNodeCodes ?? [],
           },
           security.data,
-          payload.packageVersion,
         ),
       );
       return data.data;
@@ -3950,9 +3977,7 @@ export interface AuthoringAssetLibraryItem {
   tags: string[];
   version: string;
   status: string;
-  packageVersion?: string | null;
   favorite: boolean;
-  cloneable: boolean;
   updatedAt?: string | null;
 }
 
@@ -3986,40 +4011,108 @@ export interface AuthoringAssetFavoriteResponse {
   traceId?: string | null;
 }
 
-export interface AuthoringAssetClonePayload {
-  newCode: string;
-  newName: string;
-  newVersion: number;
-  packageVersion: string;
-}
-
-export interface AuthoringAssetCloneResponse {
-  sourceAssetType: EngineAssetType;
-  sourceAssetId: string;
-  clonedAssetType: EngineAssetType;
-  clonedAssetId: string;
-  clonedAssetCode: string;
-  status: string;
-}
-
 const AUTHORING_ASSET_API_ROOT = "/engine/authoring/assets";
 const AUTHORING_BATCH_API_ROOT = "/engine/authoring/batch";
+const DECLARATIVE_ASSET_API_ROOT = "/engine/authoring/declarative-assets";
 
-export type AuthoringBatchJobType =
-  | "RULE_GENERATE"
-  | "RULE_PUBLISH"
-  | "PACKAGE_IMPORT"
-  | "PACKAGE_EXPORT"
-  | "PACKAGE_DISTRIBUTE";
+export type DeclarativeAssetType = "VALUE_SET" | "FORMULA" | "ORDER_SET" | "ACTION_CARD";
 
-export type AuthoringBatchJobStatus =
-  | "RUNNING"
-  | "SUCCEEDED"
-  | "PARTIAL_SUCCESS"
-  | "FAILED"
-  | "NOT_CONNECTED";
+export interface DeclarativeAssetSummary {
+  versionId: string;
+  assetType: DeclarativeAssetType;
+  assetIdentity: string;
+  versionNo: string;
+  status: "DRAFT" | "PUBLISHED" | "WITHDRAWN" | string;
+  organizationScope: string;
+  applicableScope: string;
+  sourceRef: string;
+  updatedAt: string;
+}
 
-export type AuthoringBatchItemStatus = "SUCCEEDED" | "FAILED" | "NOT_CONNECTED";
+export interface DeclarativeAssetDetail extends DeclarativeAssetSummary {
+  contentHash: string;
+  content: Record<string, unknown>;
+  traceId: string;
+}
+
+export interface DeclarativeAssetUpsertPayload {
+  assetType: DeclarativeAssetType;
+  assetIdentity: string;
+  applicableScope: string;
+  sourceRef: string;
+  content: Record<string, unknown>;
+}
+
+export function useDeclarativeAssets(
+  assetType: DeclarativeAssetType,
+  params: { page?: number; size?: number; sort?: string } = {},
+) {
+  const requestParams = {
+    assetType,
+    page: Math.max(params.page ?? 1, 1),
+    size: Math.max(params.size ?? 20, 1),
+    ...(params.sort ? { sort: params.sort } : {}),
+  };
+  return useQuery({
+    queryKey: ["authoring", "declarative-assets", requestParams],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<DeclarativeAssetSummary> }>(
+        DECLARATIVE_ASSET_API_ROOT,
+        { params: requestParams },
+      );
+      return data.data ?? emptyPage<DeclarativeAssetSummary>();
+    },
+  });
+}
+
+export function useDeclarativeAsset(versionId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ["authoring", "declarative-assets", versionId],
+    enabled: enabled && Boolean(versionId),
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: DeclarativeAssetDetail }>(
+        `${DECLARATIVE_ASSET_API_ROOT}/${encodeURIComponent(versionId ?? "")}`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useCreateDeclarativeAsset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: DeclarativeAssetUpsertPayload) => {
+      const { data } = await apiClient.post<{ data: DeclarativeAssetDetail }>(
+        DECLARATIVE_ASSET_API_ROOT,
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["authoring", "declarative-assets"] }),
+  });
+}
+
+export function useUpdateDeclarativeAsset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { versionId: string; request: DeclarativeAssetUpsertPayload }) => {
+      const { data } = await apiClient.put<{ data: DeclarativeAssetDetail }>(
+        `${DECLARATIVE_ASSET_API_ROOT}/${encodeURIComponent(payload.versionId)}`,
+        payload.request,
+      );
+      return data.data;
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["authoring", "declarative-assets"] }),
+  });
+}
+
+export type AuthoringBatchJobType = "RULE_GENERATE" | "RULE_PUBLISH";
+
+export type AuthoringBatchJobStatus = "RUNNING" | "SUCCEEDED" | "PARTIAL_SUCCESS" | "FAILED";
+
+export type AuthoringBatchItemStatus = "SUCCEEDED" | "FAILED";
 
 export interface AuthoringBatchItemResponse {
   itemId: string;
@@ -4040,7 +4133,6 @@ export interface AuthoringBatchJobResponse {
   totalCount: number;
   successCount: number;
   failureCount: number;
-  retryableCount: number;
   resultSummaryJson?: string | null;
   items: AuthoringBatchItemResponse[];
   traceId: string;
@@ -4053,7 +4145,7 @@ export interface AuthoringBatchRuleGenerateRow {
   ruleCode: string;
   name: string;
   parameterBindings: Record<string, unknown>;
-  packageVersion?: string;
+  triggers?: AssetTriggerBindingInput[];
   applicableOrgUnitId?: string;
   changeSummary?: string;
 }
@@ -4089,21 +4181,6 @@ export interface AuthoringBatchRulePublishRequest {
     ruleId: string;
     impactDigest: string;
     highRiskConfirmed: boolean;
-  }>;
-}
-
-export type ReleaseScopeType = "ALL" | "REGION" | "FACILITY" | "CAMPUS" | "DEPARTMENT" | "WARD";
-
-export interface AuthoringBatchPackageDistributeRequest {
-  items: Array<{
-    itemId: string;
-    packageId: string;
-    targetOrgUnitId: string;
-    strategy: "GRAYSCALE" | "FULL";
-    scopeType: ReleaseScopeType;
-    scopeValue?: string;
-    adapterIds: string[];
-    reason: string;
   }>;
 }
 
@@ -4194,29 +4271,6 @@ export function useUnfavoriteAuthoringAsset() {
   });
 }
 
-export function useCloneAuthoringAsset() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: {
-      assetType: EngineAssetType;
-      assetId: string;
-      request: AuthoringAssetClonePayload;
-    }) => {
-      const { data } = await apiClient.post<{ data: AuthoringAssetCloneResponse }>(
-        `${AUTHORING_ASSET_API_ROOT}/${payload.assetType}/${encodeURIComponent(
-          payload.assetId,
-        )}/clone`,
-        payload.request,
-      );
-      return data.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["authoring", "assets"] });
-      queryClient.invalidateQueries({ queryKey: ["authoring", "condition-fragments"] });
-    },
-  });
-}
-
 export function useAuthoringBatchJobs(options?: {
   enabled?: boolean;
   page?: number;
@@ -4251,7 +4305,6 @@ function useAuthoringBatchMutation<TRequest>(path: string) {
       queryClient.invalidateQueries({ queryKey: ["authoring", "batch-jobs"] });
       queryClient.invalidateQueries({ queryKey: ["authoring", "assets"] });
       queryClient.invalidateQueries({ queryKey: ["rules"] });
-      queryClient.invalidateQueries({ queryKey: ["packages"] });
     },
   });
 }
@@ -4274,149 +4327,6 @@ export function useAnalyzeAuthoringBatchRuleImpacts() {
 
 export function usePublishAuthoringBatchRules() {
   return useAuthoringBatchMutation<AuthoringBatchRulePublishRequest>("/rules/publish");
-}
-
-export function useImportAuthoringBatchPackages() {
-  return useAuthoringBatchMutation<{
-    items: Array<{ itemId: string; offlinePackageJson: string }>;
-  }>("/packages/import");
-}
-
-export function useExportAuthoringBatchPackages() {
-  return useAuthoringBatchMutation<{
-    items: Array<{ itemId: string; packageId: string; targetOrgUnitId: string }>;
-  }>("/packages/export");
-}
-
-export function useDistributeAuthoringBatchPackages() {
-  return useAuthoringBatchMutation<AuthoringBatchPackageDistributeRequest>("/packages/distribute");
-}
-
-export type ConditionFragmentStatus = "DRAFT" | "ACTIVE" | "RETIRED";
-
-export interface ConditionFragmentResponse {
-  fragmentId: string;
-  tenantId: string;
-  fragmentCode: string;
-  name: string;
-  category?: string | null;
-  bodyJson: unknown;
-  versionNo: number;
-  status: ConditionFragmentStatus;
-  packageVersion: string;
-  createdAt: string;
-  createdBy: string;
-  updatedAt: string;
-  updatedBy: string;
-  traceId?: string | null;
-}
-
-export interface ConditionFragmentUpsertPayload {
-  fragmentCode: string;
-  name: string;
-  category?: string;
-  bodyJson: unknown;
-  versionNo: number;
-  packageVersion: string;
-  status?: ConditionFragmentStatus;
-}
-
-export interface ConditionFragmentAffectedAsset {
-  assetType: string;
-  assetId: string;
-  assetCode: string;
-  displayName: string;
-  impactReason: string;
-}
-
-export interface ConditionFragmentImpactResponse {
-  fragmentId: string;
-  fragmentCode: string;
-  versionNo: number;
-  packageVersion: string;
-  affectedAssets: PageResponse<ConditionFragmentAffectedAsset>;
-  impactDigest: string;
-  traceId?: string | null;
-}
-
-export function useConditionFragments(
-  params?: {
-    status?: ConditionFragmentStatus;
-    packageVersion?: string;
-    keyword?: string;
-    page?: number;
-    size?: number;
-    sort?: string;
-  },
-  options?: {
-    enabled?: boolean;
-  },
-) {
-  return useQuery({
-    queryKey: ["authoring", "condition-fragments", params ?? {}],
-    enabled: options?.enabled ?? true,
-    queryFn: async () => {
-      const { data } = await apiClient.get<{ data: PageResponse<ConditionFragmentResponse> }>(
-        "/engine/authoring/fragments",
-        { params },
-      );
-      return data.data;
-    },
-  });
-}
-
-export function useCreateConditionFragment() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: ConditionFragmentUpsertPayload) => {
-      const { data } = await apiClient.post<{ data: ConditionFragmentResponse }>(
-        "/engine/authoring/fragments",
-        payload,
-      );
-      return data.data;
-    },
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["authoring", "condition-fragments"] }),
-  });
-}
-
-export function useUpdateConditionFragment() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: { fragmentId: string; body: ConditionFragmentUpsertPayload }) => {
-      const { data } = await apiClient.put<{ data: ConditionFragmentResponse }>(
-        `/engine/authoring/fragments/${payload.fragmentId}`,
-        payload.body,
-      );
-      return data.data;
-    },
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["authoring", "condition-fragments"] }),
-  });
-}
-
-export function useConditionFragmentImpact(
-  fragmentId: string,
-  params?: {
-    page?: number;
-    size?: number;
-    sort?: string;
-  },
-  options?: {
-    enabled?: boolean;
-  },
-) {
-  return useQuery({
-    queryKey: ["authoring", "condition-fragment-impact", fragmentId, params ?? {}],
-    enabled: (options?.enabled ?? true) && !!fragmentId,
-    queryFn: async () => {
-      const { data } = await apiClient.get<{ data: ConditionFragmentImpactResponse }>(
-        `/engine/authoring/fragments/${fragmentId}/impact`,
-        { params },
-      );
-      return data.data;
-    },
-  });
 }
 
 export function useRuleDetail(ruleId: string) {
@@ -4445,23 +4355,88 @@ export function useCreateRule() {
       priority: number;
       suppressedBy?: string;
       dedupeWindowSeconds: number;
-      packageVersion: string;
+      triggers: AssetTriggerBindingInput[];
       sourceRef: string;
       changeSummary: string;
       dslJson: unknown;
       explanationJson: unknown;
       parameterBindings?: Record<string, unknown>;
     }) => {
-      const { packageVersion, dslJson, explanationJson, ...rulePayload } = payload;
+      const { dslJson, explanationJson, ...rulePayload } = payload;
       const { data } = await apiClient.post<{ data: { ruleId: string } }>(
         "/engine/rule/rules",
         withStandardApiContext(
-          { ...rulePayload, dsl: dslJson, explanation: explanationJson },
+          {
+            ...rulePayload,
+            dsl: dslJson,
+            explanation: explanationJson,
+          },
           security.data,
-          packageVersion,
         ),
       );
       return data.data;
+    },
+  });
+}
+
+export function useCreateNextRuleVersion() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { ruleId: string }) => {
+      const { data } = await apiClient.post<{ data: RuleVersionCreateResponse }>(
+        `/engine/rule/rules/${payload.ruleId}/versions`,
+        withStandardApiContext({}, security.data),
+      );
+      return data.data;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["rules"] });
+      queryClient.invalidateQueries({ queryKey: ["rules", "detail", result.ruleId] });
+    },
+  });
+}
+
+export function useUpdateRule() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      ruleId: string;
+      ruleCode: string;
+      name: string;
+      ruleType: RuleType;
+      authoringMode: string;
+      riskLevel: string;
+      priority: number;
+      suppressedBy?: string;
+      dedupeWindowSeconds: number;
+      triggers: AssetTriggerBindingInput[];
+      applicableOrgUnitId?: string;
+      sourceRef: string;
+      changeSummary: string;
+      dslJson: unknown;
+      explanationJson: unknown;
+    }) => {
+      const { ruleId, dslJson, explanationJson, ...rulePayload } = payload;
+      const { data } = await apiClient.put<{ data: RuleDetailResponse }>(
+        `/engine/rule/rules/${ruleId}`,
+        withStandardApiContext(
+          {
+            ...rulePayload,
+            dsl: dslJson,
+            explanation: explanationJson,
+          },
+          security.data,
+        ),
+      );
+      return data.data;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["rules"] });
+      queryClient.invalidateQueries({
+        queryKey: ["rules", "detail", result.definition.ruleId],
+      });
     },
   });
 }
@@ -4498,17 +4473,15 @@ export function useAddTestCase(ruleId: string) {
   const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: {
-      packageVersion: string;
       caseType: string;
       contextSnapshotId: string;
       expectedHit: boolean;
       expectedSeverity?: string;
       expectedActionCode?: string;
     }) => {
-      const { packageVersion, ...casePayload } = payload;
       const { data } = await apiClient.post<{ data: RuleTestCase }>(
         `/engine/rule/rules/${ruleId}/test-cases`,
-        withStandardApiContext(casePayload, security.data, packageVersion),
+        withStandardApiContext(payload, security.data),
       );
       return data.data;
     },
@@ -4518,10 +4491,10 @@ export function useAddTestCase(ruleId: string) {
 export function useRunRuleTests(ruleId: string) {
   const security = useSecurityProfile();
   return useMutation({
-    mutationFn: async (payload: { packageVersion: string }) => {
+    mutationFn: async () => {
       const { data } = await apiClient.post<{ data: RuleTestRunResponse }>(
         `/engine/rule/rules/${ruleId}/test`,
-        withStandardApiContext({}, security.data, payload.packageVersion),
+        withStandardApiContext({}, security.data),
       );
       return data.data;
     },
@@ -4531,11 +4504,11 @@ export function useRunRuleTests(ruleId: string) {
 export function useSimulateRule(ruleId: string) {
   const security = useSecurityProfile();
   return useMutation({
-    mutationFn: async (payload: { packageVersion: string; inputPayload: unknown }) => {
-      const { packageVersion, inputPayload } = payload;
+    mutationFn: async (payload: { triggerPoint: ClinicalTriggerPoint; inputPayload: unknown }) => {
+      const { triggerPoint, inputPayload } = payload;
       const { data } = await apiClient.post<{ data: RuleEvaluationItem }>(
         `/engine/rule/rules/${ruleId}/simulate`,
-        withStandardApiContext({ context: inputPayload }, security.data, packageVersion),
+        withStandardApiContext({ triggerPoint, context: inputPayload }, security.data),
       );
       return data.data;
     },
@@ -4560,39 +4533,11 @@ export function useRuleImpact(
   });
 }
 
-export function useSignoffRule() {
-  const security = useSecurityProfile();
-  return useMutation({
-    mutationFn: async (payload: {
-      ruleId: string;
-      packageVersion: string;
-      stage: RuleSignoffStage;
-      decision: RuleSignoffDecision;
-      reason: string;
-    }) => {
-      const { data } = await apiClient.post<{ data: RuleGovernanceResponse }>(
-        `/engine/rule/rules/${payload.ruleId}/governance/signoffs`,
-        withStandardApiContext(
-          {
-            stage: payload.stage,
-            decision: payload.decision,
-            reason: payload.reason,
-          },
-          security.data,
-          payload.packageVersion,
-        ),
-      );
-      return data.data;
-    },
-  });
-}
-
 export function useTransitionRuleGovernance() {
   const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: {
       ruleId: string;
-      packageVersion: string;
       targetState: RuleGovernanceState;
       impactDigest?: string;
       reason: string;
@@ -4608,7 +4553,6 @@ export function useTransitionRuleGovernance() {
             ...(payload.publishEvidence ? { publishEvidence: payload.publishEvidence } : {}),
           },
           security.data,
-          payload.packageVersion,
         ),
       );
       return data.data;
@@ -4619,11 +4563,7 @@ export function useTransitionRuleGovernance() {
 export function useEvaluateRules() {
   const security = useSecurityProfile();
   return useMutation({
-    mutationFn: async (payload: {
-      triggerPoint: string;
-      packageVersion: string;
-      contextSnapshotId: string;
-    }) => {
+    mutationFn: async (payload: { triggerPoint: string; contextSnapshotId: string }) => {
       const { data } = await apiClient.post<{ data: RuleEvaluateResponse }>(
         "/engine/rule/rules/evaluate",
         withStandardApiContext(
@@ -4633,7 +4573,6 @@ export function useEvaluateRules() {
             eventId: crypto.randomUUID(),
           },
           security.data,
-          payload.packageVersion,
         ),
       );
       return data.data;
@@ -4802,7 +4741,6 @@ export type PathwayNodeType =
   | "DECISION"
   | "PARALLEL"
   | "WAIT_TIMER"
-  | "SUBPATHWAY"
   | "MANUAL_GATE"
   | "ORDER_SET";
 export type PathwayEdgeType =
@@ -4834,13 +4772,11 @@ export type PathwayCoordinationWarningType = "ORDER_SET_CONFLICT" | "CLOCK_WINDO
 export interface PathwayTemplate {
   id?: number;
   templateId: string;
-  packageId: string;
   templateCode: string;
   name: string;
   diseaseCode: string;
   templateVersion: number;
   templateLevel: PathwayTemplateLevel;
-  parentTemplateId?: string;
   status: PathwayTemplateStatus;
   entryMode: PathwayEntryMode;
   startNodeCode?: string;
@@ -4921,7 +4857,6 @@ export interface PathwayOutcomeBinding {
   scope: PathwayOutcomeScope;
   refCode: string;
   indicatorCode: string;
-  packageVersion?: string | null;
   createdAt?: string;
 }
 
@@ -4932,71 +4867,8 @@ export interface PathwayTemplateDetailResponse {
   edges: PathwayEdge[];
   metricBindings: SpecialtyMetricBinding[];
   outcomeBindings?: PathwayOutcomeBinding[];
+  nextVersionNo: number;
   deploymentStatus: VersionedAssetStatus;
-  traceId: string;
-}
-
-export interface PathwayTemplatePublishResponse {
-  templateId: string;
-  status: PathwayTemplateStatus;
-  releaseStep: string;
-  canaryPercent: number;
-  impactDigest?: string | null;
-  analysisStatus?: string | null;
-  releaseEvidence: string[];
-  traceId: string;
-}
-
-export interface PathwayTemplateImpactResponse {
-  templateId: string;
-  analysisStatus: "COMPLETE" | "PARTIAL" | string;
-  affectedPatientPathways: number;
-  nodeCount: number;
-  edgeCount: number;
-  timedNodeCount: number;
-  terminalNodeCount: number;
-  outcomeBindingCount?: number;
-  canaryPercent: number;
-  impactDigest: string;
-  releaseEvidence: string[];
-  traceId: string;
-}
-
-export type PathwayInheritanceOrigin = "INHERITED" | "OVERRIDDEN" | "ADDED";
-export type PathwayInheritanceChangeType = "OVERRIDDEN" | "ADDED" | "DISABLED";
-
-export interface PathwayTemplateInheritanceDiffItem {
-  itemType: string;
-  itemCode: string;
-  changeType: PathwayInheritanceChangeType;
-  fieldName?: string | null;
-  parentValue?: string | null;
-  childValue?: string | null;
-}
-
-export interface PathwayMergedNode {
-  nodeCode: string;
-  name: string;
-  nodeType: PathwayNodeType;
-  milestoneCode?: string | null;
-  sortOrder?: number | null;
-  responsibleRole?: string | null;
-  accountableRole?: string | null;
-  consultedRolesJson?: string | null;
-  informedRolesJson?: string | null;
-  dependencyJson?: string | null;
-  timeWindowMinutes?: number | null;
-  terminalFlag?: boolean | null;
-  configJson?: string | null;
-  origin: PathwayInheritanceOrigin;
-}
-
-export interface PathwayTemplateInheritanceDiffResponse {
-  templateId: string;
-  parentTemplateId?: string | null;
-  diffItems: PathwayTemplateInheritanceDiffItem[];
-  mergedNodes: PathwayMergedNode[];
-  mergedEdges: PathwayEdge[];
   traceId: string;
 }
 
@@ -5023,6 +4895,19 @@ export interface PathwaySimulationReplayStep {
   missingFields?: Array<Record<string, unknown>>;
   mappingStatus?: Record<string, string>;
   contextResourceCounts?: Record<string, number>;
+}
+
+export interface PathwayEntryCandidate {
+  templateId: string;
+  templateCode: string;
+  name: string;
+  diseaseCode: string;
+}
+
+export interface PathwayEntryCandidateResponse {
+  contextSnapshotId: string;
+  triggerPoint: string;
+  candidates: PathwayEntryCandidate[];
 }
 
 export interface PatientPathway {
@@ -5143,7 +5028,6 @@ export function usePathwayTemplates(
   params?: {
     status?: PathwayTemplateStatus;
     diseaseCode?: string;
-    packageId?: string;
     templateCode?: string;
     keyword?: string;
     page?: number;
@@ -5181,54 +5065,14 @@ export function usePathwayTemplateDetail(templateId: string) {
   });
 }
 
-export function usePathwayTemplateImpact(
-  templateId: string,
-  options?: {
-    enabled?: boolean;
-  },
-) {
-  return useQuery({
-    queryKey: ["pathways", "template-impact", templateId],
-    enabled: (options?.enabled ?? true) && !!templateId,
-    queryFn: async () => {
-      const { data } = await apiClient.get<{ data: PathwayTemplateImpactResponse }>(
-        `/engine/pathway/pathway-templates/${templateId}/impact`,
-      );
-      return data.data;
-    },
-  });
-}
-
-export function usePathwayTemplateInheritanceDiff(
-  templateId: string,
-  options?: {
-    enabled?: boolean;
-  },
-) {
-  return useQuery({
-    queryKey: ["pathways", "template-inheritance-diff", templateId],
-    enabled: (options?.enabled ?? true) && !!templateId,
-    queryFn: async () => {
-      const { data } = await apiClient.get<{ data: PathwayTemplateInheritanceDiffResponse }>(
-        `/engine/pathway/pathway-templates/${templateId}/inheritance-diff`,
-      );
-      return data.data;
-    },
-  });
-}
-
 export function useCreatePathwayTemplate() {
   const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: {
-      packageId: string;
       templateCode: string;
       name: string;
       diseaseCode: string;
-      packageVersion: string;
       templateLevel: PathwayTemplateLevel;
-      parentTemplateId?: string;
-      templateVersion: number;
       entryMode: PathwayEntryMode;
       startNodeCode: string;
       sourceRef: string;
@@ -5277,99 +5121,11 @@ export function useCreatePathwayTemplate() {
         scope: PathwayOutcomeScope;
         refCode?: string;
         indicatorCode: string;
-        packageVersion?: string;
       }>;
     }) => {
-      const { packageVersion, ...templatePayload } = payload;
       const { data } = await apiClient.post<{ data: PathwayTemplateDetailResponse }>(
         "/engine/pathway/pathway-templates",
-        withStandardApiContext(templatePayload, security.data, packageVersion),
-      );
-      return data.data;
-    },
-  });
-}
-
-export function usePublishPathwayTemplate() {
-  const security = useSecurityProfile();
-  return useMutation({
-    mutationFn: async (payload: {
-      templateId: string;
-      packageVersion: string;
-      impactDigest?: string;
-      reason?: string;
-      publishEvidence?: VersionPublishEvidence;
-    }) => {
-      const { data } = await apiClient.post<{ data: PathwayTemplatePublishResponse }>(
-        `/engine/pathway/pathway-templates/${payload.templateId}/publish`,
-        withStandardApiContext(
-          {
-            impactDigest: payload.impactDigest,
-            reason: payload.reason,
-            releaseStep: "submit_review",
-            directFullRollout: false,
-            ...(payload.publishEvidence ? { publishEvidence: payload.publishEvidence } : {}),
-          },
-          security.data,
-          payload.packageVersion,
-        ),
-      );
-      return data.data;
-    },
-  });
-}
-
-export function useFullRolloutPathwayTemplate() {
-  const security = useSecurityProfile();
-  return useMutation({
-    mutationFn: async (payload: {
-      templateId: string;
-      packageVersion: string;
-      impactDigest?: string;
-      reason?: string;
-      publishEvidence?: VersionPublishEvidence;
-    }) => {
-      const { data } = await apiClient.post<{ data: PathwayTemplatePublishResponse }>(
-        `/engine/pathway/pathway-templates/${payload.templateId}/rollout/full`,
-        withStandardApiContext(
-          {
-            impactDigest: payload.impactDigest,
-            reason: payload.reason,
-            releaseStep: "full_rollout",
-            directFullRollout: true,
-            ...(payload.publishEvidence ? { publishEvidence: payload.publishEvidence } : {}),
-          },
-          security.data,
-          payload.packageVersion,
-        ),
-      );
-      return data.data;
-    },
-  });
-}
-
-export function useRollbackPathwayTemplate() {
-  const security = useSecurityProfile();
-  return useMutation({
-    mutationFn: async (payload: {
-      templateId: string;
-      packageVersion: string;
-      rollbackTargetTemplateId: string;
-      impactDigest?: string;
-      reason?: string;
-    }) => {
-      const { data } = await apiClient.post<{ data: PathwayTemplatePublishResponse }>(
-        `/engine/pathway/pathway-templates/${payload.templateId}/rollback`,
-        withStandardApiContext(
-          {
-            impactDigest: payload.impactDigest,
-            reason: payload.reason,
-            releaseStep: "evidence_rollback",
-            rollbackTargetTemplateId: payload.rollbackTargetTemplateId,
-          },
-          security.data,
-          payload.packageVersion,
-        ),
+        withStandardApiContext(payload, security.data),
       );
       return data.data;
     },
@@ -5380,7 +5136,6 @@ export function useSimulatePathway(templateId: string) {
   const security = useSecurityProfile();
   return useMutation({
     mutationFn: async (payload: {
-      packageVersion: string;
       simulationMode?: PathwaySimulationMode;
       replaySnapshotIds?: string[];
       timeMachineAt?: string;
@@ -5388,10 +5143,9 @@ export function useSimulatePathway(templateId: string) {
       startNodeCode?: string;
       requestedNextNodeCodes?: string[];
     }) => {
-      const { packageVersion, ...simulatePayload } = payload;
       const { data } = await apiClient.post<{ data: PathwaySimulationResponse }>(
         `/engine/pathway/pathway-templates/${templateId}/simulate`,
-        withStandardApiContext(simulatePayload, security.data, packageVersion),
+        withStandardApiContext(payload, security.data),
       );
       return data.data;
     },
@@ -5399,6 +5153,25 @@ export function useSimulatePathway(templateId: string) {
 }
 
 // 3. PatientPathway Hooks
+export function usePathwayEntryCandidates(contextSnapshotId: string, triggerPoint: string) {
+  return useQuery({
+    queryKey: ["pathways", "entry-candidates", contextSnapshotId, triggerPoint],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PathwayEntryCandidateResponse }>(
+        "/engine/pathway/patient-pathways/entry-candidates",
+        {
+          params: {
+            contextSnapshotId,
+            triggerPoint,
+          },
+        },
+      );
+      return data.data;
+    },
+    enabled: Boolean(contextSnapshotId && triggerPoint),
+  });
+}
+
 export function usePatientPathways(
   params: {
     patientId?: string;
@@ -5425,14 +5198,13 @@ export function useEnterPatientPathway() {
   return useMutation({
     mutationFn: async (payload: {
       contextSnapshotId: string;
+      triggerPoint: string;
       templateId: string;
       startNodeCode?: string;
-      packageVersion: string;
     }) => {
-      const { packageVersion, ...enterPayload } = payload;
       const { data } = await apiClient.post<{ data: PatientPathwayDetailResponse }>(
         "/engine/pathway/patient-pathways/enter",
-        withStandardApiContext(enterPayload, security.data, packageVersion),
+        withStandardApiContext(payload, security.data),
       );
       return data.data;
     },
@@ -5458,7 +5230,7 @@ export function useAdvancePatientPathway() {
   return useMutation({
     mutationFn: async (payload: {
       patientPathwayId: string;
-      packageVersion: string;
+      triggerPoint: string;
       eventType: PathwayAdvanceEventType;
       currentNodeCode?: string;
       requestedNextNodeCode?: string;
@@ -5472,10 +5244,10 @@ export function useAdvancePatientPathway() {
       exitReason?: string;
       eventId?: string;
     }) => {
-      const { patientPathwayId, packageVersion, ...advancePayload } = payload;
+      const { patientPathwayId, ...advancePayload } = payload;
       const { data } = await apiClient.post<{ data: PathwayAdvanceResponse }>(
         `/engine/pathway/patient-pathways/${patientPathwayId}/advance`,
-        withStandardApiContext(advancePayload, security.data, packageVersion),
+        withStandardApiContext(advancePayload, security.data),
       );
       return data.data;
     },
@@ -5609,7 +5381,7 @@ export interface RecommendationTrigger {
   encounterId?: string;
   patientPathwayId?: string;
   scenarioCode?: string;
-  packageVersion?: string;
+  runtimeReleaseId?: string;
   occurredAt?: string;
   traceId?: string;
 }
@@ -5621,7 +5393,7 @@ export interface ClinicalRecommendationCard extends RecommendationCard {
   scenarioCode: string;
   triggerType: string;
   contextSnapshotId?: string;
-  packageVersion?: string;
+  runtimeReleaseId?: string;
   occurredAt?: string;
 }
 
@@ -5658,6 +5430,28 @@ export interface RecommendationEvaluationResponse {
   traceId: string;
 }
 
+export interface ReportInterpretationItem {
+  reportId: string;
+  reportType: string;
+  conclusion?: string | null;
+  itemCode: string;
+  itemName: string;
+  sourceVersionId: number;
+  versionNo: string;
+  criticalRisk: boolean;
+  summary: string;
+  abnormalHighlights: string[];
+  recommendations: string[];
+}
+
+export interface ReportInterpretationResponse {
+  contextSnapshotId: string;
+  runtimeReleaseId: string;
+  interpretations: ReportInterpretationItem[];
+  advisoryNote: string;
+  traceId: string;
+}
+
 export interface RecommendationFeedbackResponse {
   cardId: string;
   status: RecommendationCardStatus;
@@ -5674,7 +5468,6 @@ export function useEvaluateRecommendations() {
       contextSnapshotId: string;
       patientId: string;
       encounterId?: string;
-      packageVersion: string;
       sourceEventId?: string;
       patientPathwayId?: string;
       occurredAt?: string;
@@ -5682,6 +5475,19 @@ export function useEvaluateRecommendations() {
     }) => {
       const { data } = await apiClient.post<{ data: RecommendationEvaluationResponse }>(
         "/engine/recommendations:evaluate",
+        payload,
+      );
+      return data.data;
+    },
+  });
+}
+
+// 医技报告解读：前台只提交已生效标准上下文快照，机构生效版本由服务端锁定。
+export function useInterpretDiagnosticReport() {
+  return useMutation({
+    mutationFn: async (payload: { contextSnapshotId: string }) => {
+      const { data } = await apiClient.post<{ data: ReportInterpretationResponse }>(
+        "/engine/recommendations/report-interpretation",
         payload,
       );
       return data.data;
@@ -5901,7 +5707,6 @@ export interface EvaluationIndicator {
   organizationScope: string;
   responsibleDepartmentId: string;
   sourceRef: string;
-  packageVersion?: string;
   status: EvaluationIndicatorStatus;
   publishedAt?: string;
   publishedBy?: string;
@@ -6102,8 +5907,8 @@ export interface QualityDashboardDrilldownItem {
   traceId: string | null;
 }
 
-export interface QualityEvidencePackage {
-  packageId: string;
+export interface QualityEvidenceExport {
+  exportId: string;
   generatedAt: string;
   scopeDigest: string;
   itemCount: number;
@@ -6113,7 +5918,7 @@ export interface QualityEvidencePackage {
 export interface QualityDashboardDrilldownResponse {
   type: QualityDashboardDrilldownType;
   items: QualityDashboardDrilldownItem[];
-  evidencePackage: QualityEvidencePackage | null;
+  evidenceExport: QualityEvidenceExport | null;
   offset: number;
   limit: number;
   total: number;
@@ -6175,7 +5980,6 @@ export interface InsuranceIssuesQueryParams {
 export interface QualityCaseReviewRequest {
   contextSnapshotId: string;
   scenarioCode: string;
-  packageVersion?: string;
   responsibleDepartmentId: string;
 }
 
@@ -6224,7 +6028,6 @@ export interface InsuranceAuditRuleRequest {
 export interface InsuranceAuditRequest {
   contextSnapshotId: string;
   scenarioCode: string;
-  packageVersion?: string;
   indicatorId: string;
   responsibleDepartmentId: string;
   dueAt: string;
@@ -6298,7 +6101,6 @@ export function useCreateEvaluationIndicator() {
   return useMutation({
     mutationFn: async (payload: {
       indicatorCode: string;
-      versionNo: number;
       name: string;
       subjectType: EvaluationSubjectType;
       denominatorDefinition: string;
@@ -6309,7 +6111,6 @@ export function useCreateEvaluationIndicator() {
       organizationScope: string;
       responsibleDepartmentId: string;
       sourceRef: string;
-      packageVersion?: string;
     }) => {
       const { data } = await apiClient.post<{ data: EvaluationIndicator }>(
         "/engine/evaluation/indicators",
@@ -6446,9 +6247,14 @@ export function useInsuranceIssues(params?: InsuranceIssuesQueryParams) {
 export function useRunQualityCaseReview() {
   return useMutation({
     mutationFn: async (request: QualityCaseReviewRequest) => {
+      const requestPayload = {
+        contextSnapshotId: request.contextSnapshotId,
+        scenarioCode: request.scenarioCode,
+        responsibleDepartmentId: request.responsibleDepartmentId,
+      };
       const { data } = await apiClient.post<{ data: QualityCaseReviewResponse }>(
         "/engine/quality/case-review",
-        request,
+        requestPayload,
       );
       return data.data;
     },
@@ -6470,9 +6276,17 @@ export function useRunDrgGrouping() {
 export function useRunInsuranceAudit() {
   return useMutation({
     mutationFn: async (request: InsuranceAuditRequest) => {
+      const requestPayload = {
+        contextSnapshotId: request.contextSnapshotId,
+        scenarioCode: request.scenarioCode,
+        indicatorId: request.indicatorId,
+        responsibleDepartmentId: request.responsibleDepartmentId,
+        dueAt: request.dueAt,
+        rules: request.rules,
+      };
       const { data } = await apiClient.post<{ data: InsuranceAuditResponse }>(
         "/engine/quality/insurance-audit",
-        request,
+        requestPayload,
       );
       return data.data;
     },
@@ -6603,14 +6417,14 @@ export function useReviewRectification(findingId: string) {
 // 4. Quality Audit Run & Sandbox calculations
 export function useEvaluateSnapshot() {
   return useMutation({
-    mutationFn: async (payload: {
-      contextSnapshotId: string;
-      scenarioCode: string;
-      packageVersion?: string;
-    }) => {
+    mutationFn: async (payload: { contextSnapshotId: string; scenarioCode: string }) => {
+      const request = {
+        contextSnapshotId: payload.contextSnapshotId,
+        scenarioCode: payload.scenarioCode,
+      };
       const { data } = await apiClient.post<{ data: EvaluationRunResponse }>(
         "/engine/evaluation:evaluate",
-        payload,
+        request,
       );
       return data.data;
     },
@@ -6646,7 +6460,7 @@ export interface ContextSnapshotResponse {
   snapshotId: string;
   status: ContextSnapshotStatus;
   resources?: Record<string, unknown> | null;
-  packageVersion?: string | null;
+  runtimeReleaseId: string;
   qualityStatus: string;
   missingFields: Array<Record<string, unknown>>;
   mappingStatus: Record<string, string>;
@@ -6700,9 +6514,9 @@ export interface ContextFieldDescriptor {
   externalWritable?: boolean;
 }
 
-/** 上下文字段目录（P2）：供规则条件与路径守卫的字段选择器消费，替代手敲字段路径。 */
+/** 上下文字段目录工作区，供规则、路径等资产的创作界面选择真实临床字段。 */
 export function useContextFieldCatalog(
-  params?: { resourceType?: string; keyword?: string; packageVersion?: string },
+  params?: { resourceType?: string; keyword?: string },
   options?: { enabled?: boolean },
 ) {
   return useQuery({
@@ -6714,6 +6528,33 @@ export function useContextFieldCatalog(
         { params },
       );
       return data.data;
+    },
+  });
+}
+
+export interface ContextFieldCatalogDraft {
+  versionId: string;
+  assetIdentity: string;
+  versionNo: string;
+  status: string;
+  contentHash: string;
+}
+
+/** 将当前工作目录固化为自动编号的统一字段目录资产草稿。 */
+export function useSnapshotContextFieldCatalogDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await apiClient.post<{ data: ContextFieldCatalogDraft }>(
+        "/engine/context/field-catalog/drafts",
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["context", "field-catalog"] }),
+        queryClient.invalidateQueries({ queryKey: ["runtime-releases"] }),
+      ]);
     },
   });
 }
@@ -6730,7 +6571,7 @@ export interface ContextFieldUpsertPayload {
   description?: string;
 }
 
-/** 保存租户上下文字段元数据覆盖（P2/P5 前台维护）。 */
+/** 保存平台字段元数据覆盖或 {@code extensions.local.*} 院内扩展字段。 */
 export function useCreateContextField() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -6747,7 +6588,7 @@ export function useCreateContextField() {
   });
 }
 
-/** 更新租户上下文字段元数据覆盖（P2/P5 前台维护）。 */
+/** 更新平台字段元数据覆盖或院内扩展字段定义。 */
 export function useUpdateContextField() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -6770,7 +6611,7 @@ export function useUpdateContextField() {
   });
 }
 
-/** 删除租户上下文字段元数据覆盖（P2/P5 前台维护）。 */
+/** 删除平台字段元数据覆盖或院内扩展字段定义；已固化的发布版本不受影响。 */
 export function useDeleteContextField() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -6872,7 +6713,6 @@ export interface FollowupTemplateResponse {
 
 export interface FollowupTemplateCreateRequest {
   templateCode: string;
-  versionNo: number;
   name: string;
   description?: string;
   organizationScope: string;
@@ -7371,741 +7211,154 @@ export function useSaveWorkflowSystemNotificationSettings() {
 }
 
 // ──────────────────────────────────────────
-// 智能包发布与同步引擎 (GA-ENG-PKG-01)
+// 平台标准版本与机构生效版本
 // ──────────────────────────────────────────
+const RUNTIME_RELEASE_API_ROOT = "/engine/releases";
 
-const PACKAGE_API_ROOT = "/engine/pkg/packages";
+export type RuntimeAssetType = EngineAssetType;
+export type ReleaseEntryState = "ACTIVE" | "DISABLED";
+export type ReleaseSourceLayer = "PLATFORM" | "GROUP" | "HOSPITAL";
 
-export type PackageAccessPolicy = "OPEN" | "ENTITLED";
-
-export interface PackageReleaseAdapter {
-  adapterId: string;
-  adapterName: string;
-  protocolType: string;
-  status: "ACTIVE" | string;
-  healthStatus: "HEALTHY" | "NOT_CONNECTED" | "MISCONFIGURED" | string;
-  rttMs: number;
-  lastHeartbeatAt: string | null;
-  connectorAvailable: boolean;
+export interface PlatformBaselineRelease {
+  baselineReleaseId: string;
+  revisionNo: number;
+  manifestSha256: string;
+  publishedAt: string;
+  publishedBy: string;
 }
 
-export interface PackageCreateRequest {
-  packageCode: string;
-  packageVersion: string;
-  name: string;
-  description: string;
-  accessPolicy: PackageAccessPolicy;
-}
-
-export interface PackageResponse {
-  packageId: string;
-  packageCode: string;
-  packageVersion: string;
-  name: string;
-  description: string;
-  accessPolicy: PackageAccessPolicy;
-  status: "DRAFT" | "PUBLISHED" | "ACTIVE" | "OFFLINE" | string;
-}
-
-export interface KnowledgePackage {
-  id?: number;
-  packageId: string;
-  tenantId: string;
-  packageCode: string;
-  packageVersion: string;
-  name: string;
-  description: string;
-  accessPolicy: PackageAccessPolicy;
-  status: "DRAFT" | "PUBLISHED" | "ACTIVE" | "OFFLINE" | string;
-  createdAt: string;
-  createdBy: string;
-  updatedAt: string;
-  updatedBy: string;
-  traceId: string;
-  assetTypes: EngineAssetType[];
-  primaryAssetId?: string | null;
-  primaryAssetVersion?: string | null;
-  itemCount: number;
-  organizationScope?: string | null;
-  applicableScope?: string | null;
-  sourceRef?: string | null;
-}
-
-export interface PackageItem {
-  id?: number;
-  itemId: string;
-  tenantId: string;
-  packageId: string;
-  assetType: EngineAssetType;
-  assetId: string;
-  assetVersion: string;
-  createdAt: string;
-  createdBy: string;
-}
-
-export interface PackageDetailResponse {
-  packageId: string;
-  packageCode: string;
-  packageVersion: string;
-  name: string;
-  description: string;
-  accessPolicy: PackageAccessPolicy;
-  status: string;
-  items: PackageItem[];
-}
-
-export type PackageEntitlementStatus = "ACTIVE" | "EXPIRED" | "REVOKED";
-
-export interface PackageEntitlement {
-  entitlementId: string;
-  tenantId: string;
-  platformPackageId: string;
-  packageIdentity: string;
-  status: PackageEntitlementStatus;
-  grantedAt: string;
-  expiresAt: string;
-  reason: string;
-  updatedAt: string;
-  updatedBy: string;
-}
-
-export interface PackageEntitlementGrantRequest {
-  targetTenantId: string;
-  expiresAt: string;
-  reason: string;
-}
-
-export interface PackageItemRequest {
-  packageVersion: string;
-  assetType: EngineAssetType;
-  assetId: string;
-  assetVersion: string;
-}
-
-export interface PackageItemResponse {
-  itemId: string;
-  packageId: string;
-  assetType: string;
-  assetId: string;
-  assetVersion: string;
-}
-
-export interface PackageDiffResponse {
-  packageId: string;
-  baseVersion: string;
-  targetVersion: string;
-  addedCount: number;
-  updatedCount: number;
-  removedCount: number;
-  affectedDepartments: string[];
-  changes: PackageDiffChange[];
-}
-
-export interface PackageDiffChange {
-  changeType: "ADDED" | "UPDATED" | "REMOVED" | string;
-  assetType: PackageItem["assetType"];
-  assetId: string;
-  baseVersion: string | null;
-  targetVersion: string | null;
-}
-
-export interface PackageOfflineImportResponse {
-  packageId: string;
-  packageCode: string;
-  packageVersion: string;
-  status: "DRAFT" | "PUBLISHED" | "ACTIVE" | "OFFLINE" | string;
-  itemCount: number;
-  payloadSha256: string;
-}
-
-export interface PackageSyncRequest {
-  packageVersion: string;
-  reason: string;
-  targetOrgUnitId: string;
-  strategy: "GRAYSCALE" | "FULL" | string;
-  scopeType: ReleaseScopeType;
-  scopeValue: string;
-  adapterIds: string[];
-  publishEvidence?: VersionPublishEvidence;
-}
-
-export interface PackageRollbackRequest {
-  packageVersion: string;
-  targetPackageId: string;
-  confirmedCurrentVersion: string;
-  confirmedTargetVersion: string;
-  reason: string;
-  confirmedHighRisk: boolean;
-}
-
-export interface PackageValidateIssue {
-  field: string;
-  severity: "BLOCKING" | "WARNING" | "INFO" | string;
-  message: string;
-}
-
-export interface PackageValidateResponse {
-  packageId: string;
-  status: KnowledgePackage["status"];
-  itemCount: number;
-  contentSha256: string;
-  valid: boolean;
-  issues: PackageValidateIssue[];
-}
-
-export interface SyncLogResponse {
-  logId: string;
-  planId?: string;
-  adapterId: string;
-  status: "RUNNING" | "SUCCESS" | "FAILED" | "NOT_SYNCED" | string;
-  errorCode: string | null;
-  errorMessage: string | null;
-  retryCount: number;
-  syncEvidence: string | null;
-}
-
-export interface PackageSyncLogParams {
-  page?: number;
-  size?: number;
-}
-
-export interface PackageSyncResponse {
-  planId: string;
-  packageId: string;
-  status: "EXECUTING" | "SUCCESS" | "FAILED" | "NOT_SYNCED" | string;
-  logs: SyncLogResponse[];
-}
-
-export interface PilotPackageTemplateItem {
-  assetType: PackageItem["assetType"];
-  assetId: string;
-  assetVersion: string;
-  required: boolean;
-  sortOrder: number | null;
-  dependencyNote: string | null;
-}
-
-export interface PilotPackageTemplate {
-  templateId: string;
-  templateCode: string;
-  tenantId: string;
-  name: string;
-  description: string | null;
-  packageCodePrefix: string;
-  defaultPackageVersion: string;
-  itemCount: number;
-  items: PilotPackageTemplateItem[];
-}
-
-export interface PackageAssetReadiness {
-  tenantId: string;
-  ready: boolean;
-  templateCount: number;
-  draftPackageCount: number;
-  releasedPackageCount: number;
-  activePackageCount: number;
-  activePackageReferenceCount: number;
-  grayscaleReady: boolean;
-  readyPackageId: string | null;
-  blockers: string[];
-  checkedAt: string;
-}
-
-export interface PilotPackageInitialOverrideRequest {
-  asset_type: PackageItem["assetType"];
-  asset_identity: string;
-  inherited_version_id?: string;
-  override_version_id?: string;
-  target_org_unit_id: string;
-  applicable_scope?: string;
-  override_mode: "REPLACE" | "ADD" | "DISABLE" | string;
-  propagation: "INHERITABLE" | "EXCLUSIVE" | string;
-  diff_summary?: string;
-  override_reason?: string;
-  impact_scope?: string;
-}
-
-export interface PilotPackageTemplateApplyRequest {
-  target_org_unit_id: string;
-  initial_overrides?: PilotPackageInitialOverrideRequest[];
-}
-
-export interface TenantPackageReference {
-  referenceId: string;
-  tenantId: string;
-  platformTenantId: string;
-  platformPackageId: string;
-  packageCode: string;
-  packageVersion: string;
-  targetOrgUnitId: string;
-  sourceTemplateCode: string;
-  status: "ACTIVE" | "INACTIVE" | string;
-}
-
-export interface PilotPackageTemplateApplyResult {
-  templateCode: string;
-  references: TenantPackageReference[];
-  initialOverrides: Array<Record<string, unknown>>;
-}
-
-export type PackageInheritanceImpactType =
-  | "AUTO_INHERITS_UPSTREAM"
-  | "REBASE_RECOMMENDED"
-  | "DISABLE_REVIEW_RECOMMENDED"
-  | "UNAFFECTED"
-  | string;
-
-export interface PackageInheritanceImpactTarget {
-  orgUnitId: string;
-  orgPath: string;
-  impactType: PackageInheritanceImpactType;
-  effectiveVersionId: string | null;
-  effectiveVersionNo: string | null;
-  sourceTier: string | null;
-  diffSummary: string | null;
-  rebasePrompt: string | null;
-}
-
-export interface PackageInheritanceImpactResponse {
-  tenantId: string;
-  assetType: PackageItem["assetType"];
+export interface PlatformBaselineItem {
+  sourceTenantId: string;
+  assetType: RuntimeAssetType;
   assetIdentity: string;
+  entryState: ReleaseEntryState;
+  versionId?: string | null;
+  versionNo?: string | null;
+  contentHash?: string | null;
+}
+
+export interface PlatformBaselineDetail {
+  release: PlatformBaselineRelease;
+  items: PlatformBaselineItem[];
+}
+
+export interface ClinicalRuntimeRelease {
+  releaseId: string;
+  tenantId: string;
+  hospitalId: string;
+  revisionNo: number;
+  platformBaselineReleaseId: string;
+  manifestSha256: string;
+  rollbackFromReleaseId?: string | null;
+  activatedAt: string;
+  activatedBy: string;
+}
+
+export interface ClinicalRuntimeReleaseItem extends PlatformBaselineItem {
+  releaseId: string;
+  sourceLayer: ReleaseSourceLayer;
+}
+
+export interface ClinicalRuntimeReleaseDetail {
+  release: ClinicalRuntimeRelease;
+  items: ClinicalRuntimeReleaseItem[];
+}
+
+export interface ReleaseCandidateAsset {
+  sourceLayer: ReleaseSourceLayer;
+  assetType: RuntimeAssetType;
+  assetIdentity: string;
+  versionId: string;
+  versionNo: string;
+  status: "DRAFT" | "PUBLISHED";
+  organizationScope: string;
   applicableScope: string;
-  upstreamBaseVersion: string;
-  upstreamTargetVersion: string;
-  autoInheritedCount: number;
-  rebaseRequiredCount: number;
-  upstreamDiff: PackageDiffResponse;
-  targets: PackageInheritanceImpactTarget[];
+  contentHash: string;
+  sourceRef?: string | null;
+  updatedAt: string;
 }
 
-export interface PackageInheritanceImpactQuery {
-  assetType?: PackageItem["assetType"] | string;
-  assetIdentity?: string;
-  applicableScope?: string;
-  upstreamVersionId?: string;
-}
-
-export interface PackageReleaseAdaptersParams {
-  page?: number;
-  size?: number;
-}
-
-// 1. 获取配置包发布可用的统一集成适配器
-export function usePackageReleaseAdapters(
-  params: PackageReleaseAdaptersParams = {},
-  enabled = true,
-) {
-  return useQuery({
-    queryKey: ["packages", "release-adapters", params],
-    queryFn: async () => {
-      const { data } = await apiClient.get<{ data: PageResponse<PackageReleaseAdapter> }>(
-        `${PACKAGE_API_ROOT}/release-adapters`,
-        { params },
-      );
-      return data.data ?? emptyPage<PackageReleaseAdapter>();
-    },
-    enabled,
-  });
-}
-
-// 2. 创建知识包草稿
-export function useCreatePackage() {
-  const security = useSecurityProfile();
-  return useMutation({
-    mutationFn: async (payload: PackageCreateRequest) => {
-      const { data } = await apiClient.post<{ data: PackageResponse }>(
-        PACKAGE_API_ROOT,
-        withStandardApiContext(payload, security.data, payload.packageVersion),
-      );
-      return data.data;
-    },
-  });
-}
-
-export interface PathwayPackageBuildRequest {
-  packageCode: string;
-  diseaseCode: string;
-  name: string;
-  packageVersion: string;
-  sourceRef: string;
-  description: string;
-  profiles?: Array<{
-    profileCode: string;
-    name: string;
-    stratification?: Record<string, unknown>;
-    entryCriteria?: Record<string, unknown>;
-    exitCriteria?: Record<string, unknown>;
-    followupPlan?: Record<string, unknown>;
-  }>;
-}
-
-export function useBuildPathwayKnowledgePackage() {
-  const security = useSecurityProfile();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: PathwayPackageBuildRequest) => {
-      const { data } = await apiClient.post<{ data: PackageResponse }>(
-        `${PACKAGE_API_ROOT}/pathway`,
-        withStandardApiContext(payload, security.data, payload.packageVersion),
-      );
-      return data.data;
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["packages", "list"] });
-    },
-  });
-}
-
-// 3. 分页查询知识包列表
-export interface PackageListParams {
-  page?: number;
-  size?: number;
+export interface ReleaseCandidateQuery {
+  assetType?: RuntimeAssetType;
   keyword?: string;
-  status?: string;
-  assetType?: EngineAssetType;
+  page?: number;
+  size?: number;
+  sort?: string;
 }
 
-export function usePackages(
-  params: PackageListParams = {},
-  options?: {
-    enabled?: boolean;
-  },
-) {
-  const requestParams = {
-    page: Math.max(params.page ?? 1, 1),
-    size: Math.max(params.size ?? 10, 1),
-    ...(params.keyword ? { keyword: params.keyword } : {}),
-    ...(params.status ? { status: params.status } : {}),
-    ...(params.assetType ? { assetType: params.assetType } : {}),
-  };
-  return useQuery({
-    queryKey: ["packages", "list", requestParams],
-    enabled: options?.enabled ?? true,
-    queryFn: async () => {
-      const { data } = await apiClient.get<{ data: PageResponse<KnowledgePackage> }>(
-        PACKAGE_API_ROOT,
-        { params: requestParams },
-      );
-      return (
-        data.data ?? {
-          items: [],
-          page: requestParams.page + 1,
-          size: requestParams.size,
-          total: 0,
-          hasNext: false,
-          totalEstimated: false,
-        }
-      );
-    },
-  });
-}
-
-export function usePackageEntitlements(packageId: string, enabled = true, page = 1, size = 20) {
-  return useQuery({
-    queryKey: ["packages", packageId, "entitlements", page, size],
-    queryFn: async () => {
-      const { data } = await apiClient.get<{ data: PageResponse<PackageEntitlement> }>(
-        `${PACKAGE_API_ROOT}/${packageId}/entitlements`,
-        { params: { page, size } },
-      );
-      return data.data;
-    },
-    enabled: enabled && Boolean(packageId),
-  });
-}
-
-export function useGrantPackageEntitlement() {
-  const security = useSecurityProfile();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: {
-      packageId: string;
-      packageVersion: string;
-      request: PackageEntitlementGrantRequest;
-    }) => {
-      const { data } = await apiClient.post<{ data: PackageEntitlement }>(
-        `${PACKAGE_API_ROOT}/${payload.packageId}/entitlements`,
-        withStandardApiContext(payload.request, security.data, payload.packageVersion),
-      );
-      return data.data;
-    },
-    onSuccess: async (_result, payload) => {
-      await queryClient.invalidateQueries({
-        queryKey: ["packages", payload.packageId, "entitlements"],
-      });
-    },
-  });
-}
-
-export function useRevokePackageEntitlement() {
-  const security = useSecurityProfile();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: {
-      packageId: string;
-      packageVersion: string;
-      tenantId: string;
-      reason: string;
-    }) => {
-      const { data } = await apiClient.post<{ data: PackageEntitlement }>(
-        `${PACKAGE_API_ROOT}/${payload.packageId}/entitlements/${encodeURIComponent(
-          payload.tenantId,
-        )}:revoke`,
-        withStandardApiContext({ reason: payload.reason }, security.data, payload.packageVersion),
-      );
-      return data.data;
-    },
-    onSuccess: async (_result, payload) => {
-      await queryClient.invalidateQueries({
-        queryKey: ["packages", payload.packageId, "entitlements"],
-      });
-    },
-  });
-}
-
-export function usePilotPackageTemplates() {
-  return useQuery({
-    queryKey: ["packages", "pilot-templates"],
-    queryFn: async () => {
-      const { data } = await apiClient.get<{ data: PilotPackageTemplate[] }>(
-        `${PACKAGE_API_ROOT}/pilot-templates`,
-      );
-      return data.data ?? [];
-    },
-  });
-}
-
-export function usePackageAssetReadiness() {
-  return useQuery({
-    queryKey: ["packages", "asset-readiness"],
-    queryFn: async () => {
-      const { data } = await apiClient.get<{ data: PackageAssetReadiness }>(
-        `${PACKAGE_API_ROOT}/asset-readiness`,
-      );
-      return data.data;
-    },
-  });
-}
-
-export function usePackageInheritanceImpact(
-  query: PackageInheritanceImpactQuery,
-  options?: { enabled?: boolean },
-) {
-  const params = {
-    assetType: query.assetType?.trim(),
-    assetIdentity: query.assetIdentity?.trim(),
-    applicableScope: query.applicableScope?.trim(),
-    upstreamVersionId: query.upstreamVersionId?.trim(),
-  };
-  const enabled =
-    (options?.enabled ?? true) &&
-    Boolean(params.assetType) &&
-    Boolean(params.assetIdentity) &&
-    Boolean(params.applicableScope) &&
-    Boolean(params.upstreamVersionId);
-  return useQuery({
-    queryKey: ["packages", "inheritance-impact", params],
-    queryFn: async () => {
-      const { data } = await apiClient.get<{ data: PackageInheritanceImpactResponse }>(
-        `${PACKAGE_API_ROOT}/inheritance-impact`,
-        { params },
-      );
-      return data.data;
-    },
-    enabled,
-  });
-}
-
-export function useApplyPilotTemplateReferences() {
-  const security = useSecurityProfile();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: {
-      templateCode: string;
-      packageVersion: string;
-      request: PilotPackageTemplateApplyRequest;
-    }) => {
-      const requestPayload = {
-        ...payload.request,
-        initial_overrides: payload.request.initial_overrides ?? [],
-      };
-      const { data } = await apiClient.post<{ data: PilotPackageTemplateApplyResult }>(
-        `${PACKAGE_API_ROOT}/pilot-templates/${encodeURIComponent(payload.templateCode)}/references`,
-        withStandardApiContext(requestPayload, security.data, payload.packageVersion),
-      );
-      return data.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["packages", "asset-readiness"] });
-    },
-  });
-}
-
-// 4. 获取包详细条目
-export function usePackageDetail(packageId: string) {
-  return useQuery({
-    queryKey: ["packages", "detail", packageId],
-    queryFn: async () => {
-      if (!packageId) return null;
-      const { data } = await apiClient.get<{ data: PackageDetailResponse }>(
-        `${PACKAGE_API_ROOT}/${packageId}`,
-      );
-      return data.data;
-    },
-    enabled: !!packageId,
-  });
-}
-
-// 5. 添加资产条目到草稿
-export function useAddPackageItem() {
-  const security = useSecurityProfile();
-  return useMutation({
-    mutationFn: async (payload: { packageId: string; request: PackageItemRequest }) => {
-      const { packageVersion, ...requestPayload } = payload.request;
-      const { data } = await apiClient.post<{ data: PackageItemResponse }>(
-        `${PACKAGE_API_ROOT}/${payload.packageId}/items`,
-        withStandardApiContext(requestPayload, security.data, packageVersion),
-      );
-      return data.data;
-    },
-  });
-}
-
-// 6. 计算变动差异与临床影响分析
-export function useCalculateDiff(packageId: string, basePackageId?: string) {
-  return useQuery({
-    queryKey: ["packages", "diff", packageId, basePackageId],
-    queryFn: async () => {
-      if (!packageId) return null;
-      const { data } = await apiClient.get<{ data: PackageDiffResponse }>(
-        `${PACKAGE_API_ROOT}/${packageId}/diff`,
-        { params: { basePackageId } },
-      );
-      return data.data;
-    },
-    enabled: !!packageId,
-  });
-}
-
-export async function downloadPackageDiffExport(packageId: string, basePackageId?: string) {
-  const { data } = await apiClient.get<Blob>(`${PACKAGE_API_ROOT}/${packageId}/diff/export`, {
-    params: { basePackageId },
-    responseType: "blob",
-  });
-  return data;
-}
-
-export async function downloadPackageOfflineExport(packageId: string, targetOrgUnitId: string) {
-  const { data } = await apiClient.get<Blob>(`${PACKAGE_API_ROOT}/${packageId}/offline/export`, {
-    params: { targetOrgUnitId },
-    responseType: "blob",
-  });
-  return data;
-}
-
-export async function downloadPackageSyncEvidenceExport(packageId: string) {
-  const { data } = await apiClient.get<Blob>(`${PACKAGE_API_ROOT}/${packageId}/sync-logs/export`, {
-    responseType: "blob",
-  });
-  return data;
-}
-
-export async function importPackageOfflinePackage(offlinePackageJson: string) {
-  const { data } = await apiClient.post<{ data: PackageOfflineImportResponse }>(
-    `${PACKAGE_API_ROOT}/offline/import`,
-    { offlinePackageJson },
-  );
-  return data.data;
-}
-
-export function useImportOfflinePackage() {
-  return useMutation({
-    mutationFn: importPackageOfflinePackage,
-  });
-}
-
-// 7. 触发多通道真实同步发布
-export function useSyncPackage() {
-  const security = useSecurityProfile();
-  return useMutation({
-    mutationFn: async (payload: { packageId: string; request: PackageSyncRequest }) => {
-      const { packageVersion, ...requestPayload } = payload.request;
-      const { data } = await apiClient.post<{ data: PackageSyncResponse }>(
-        `${PACKAGE_API_ROOT}/${payload.packageId}/sync`,
-        withStandardApiContext(requestPayload, security.data, packageVersion),
-      );
-      return data.data;
-    },
-  });
-}
-
-export function useReleasePackage() {
-  const security = useSecurityProfile();
-  return useMutation({
-    mutationFn: async (payload: { packageId: string; request: PackageSyncRequest }) => {
-      const { packageVersion, ...requestPayload } = payload.request;
-      const { data } = await apiClient.post<{ data: PackageSyncResponse }>(
-        `${PACKAGE_API_ROOT}/${payload.packageId}/release`,
-        withStandardApiContext(requestPayload, security.data, packageVersion),
-      );
-      return data.data;
-    },
-  });
-}
-
-// ──────────────────────────────────────────
-// 统一发布治理 · 影响模拟 / 灰度 / 覆盖复用
-// ──────────────────────────────────────────
-const RELEASE_GOVERNANCE_API_ROOT = "/engine/versioning/releases";
-
-export type RolloutStrategy = "ALL" | "ORG_SUBTREE" | "ORG_LIST" | "CANARY_BED_PERCENT" | "STAGED";
-
-export interface RolloutThresholds {
-  maxHitRate?: number;
-  maxBlockRate?: number;
-  maxManualRejectionRate?: number;
-  maxAnomalyRate?: number;
-}
-
-export interface RolloutPolicy {
-  strategy: RolloutStrategy;
-  orgUnitIds: string[];
-  bedPercent?: number;
-  stages: number[];
-  observationMinutes?: number;
-  thresholds?: RolloutThresholds;
-}
-
-export interface ReleaseSimulationRequest {
-  candidateTenantId?: string;
-  assetType: EngineAssetType;
+export interface ReleaseAssetRef {
+  assetType: RuntimeAssetType;
   assetIdentity: string;
+}
+
+export interface PlatformBaselinePublishRequest {
+  publishVersionIds: string[];
+  disabledAssets: ReleaseAssetRef[];
+}
+
+export interface ClinicalRuntimeAssetSelection extends ReleaseAssetRef {
+  versionId?: string | null;
+}
+
+export interface ClinicalRuntimeActivateRequest {
+  platformBaselineReleaseId: string;
+  expectedCurrentReleaseId?: string | null;
+  activeAssets: ClinicalRuntimeAssetSelection[];
+}
+
+export type ReleaseRolloutStrategy =
+  | "ALL"
+  | "ORG_SUBTREE"
+  | "ORG_LIST"
+  | "CANARY_BED_PERCENT"
+  | "STAGED";
+
+export interface ReleaseRolloutThresholds {
+  maxBlockRate?: number | null;
+  maxManualRejectionRate?: number | null;
+  maxAnomalyCount?: number | null;
+}
+
+export interface ReleaseRolloutPolicy {
+  strategy: ReleaseRolloutStrategy;
+  orgUnitIds?: string[];
+  bedPercent?: number | null;
+  stages?: number[];
+  observationMinutes?: number | null;
+  thresholds?: ReleaseRolloutThresholds | null;
+}
+
+export interface ReleaseImpactSimulationRequest extends ReleaseAssetRef {
+  candidateTenantId?: string | null;
   candidateVersionId: string;
   targetOrgUnitIds: string[];
   targetOrgPath: string;
   applicableScope: string;
-  rolloutPolicy: RolloutPolicy;
+  rolloutPolicy: ReleaseRolloutPolicy;
   replayDays: number;
   replayLimit: number;
 }
 
-export interface ReleaseSimulationResult {
+export interface ReleaseImpactSimulationResult {
   simulationDigest: string;
   generatedAt: string;
   candidateVersionId: string;
   currentVersionId?: string | null;
-  affectedOrganizations: Array<{ orgUnitId: string; orgPath: string; orgName: string }>;
+  affectedOrganizations: Array<{
+    orgUnitId: string;
+    orgPath?: string | null;
+    orgName?: string | null;
+  }>;
   applicableDimensions: string[];
   diff: {
-    changeType: "ADDED" | "UNCHANGED" | "MODIFIED" | string;
+    changeType: string;
     currentVersionNo?: string | null;
-    candidateVersionNo: string;
+    candidateVersionNo?: string | null;
     currentContentHash?: string | null;
-    candidateContentHash: string;
+    candidateContentHash?: string | null;
   };
   replay: {
-    status: "SUPPORTED" | "NO_DATA" | "UNSUPPORTED" | string;
+    status: string;
     sampledCases: number;
     changedCases: number;
     triggerIncreases: number;
@@ -8113,278 +7366,185 @@ export interface ReleaseSimulationResult {
     severityIncreases: number;
     severityDecreases: number;
     highRiskSnapshotIds: string[];
+    impactedAssets: Array<{
+      assetType: RuntimeAssetType;
+      assetIdentity: string;
+      versionId: string;
+      versionNo: string;
+    }>;
     reason?: string | null;
   };
   safety: { passed: boolean; issues: string[] };
   dependencies: { passed: boolean; issues: string[] };
   conflicts: Array<{
-    overrideId: string;
-    orgPath: string;
-    overrideMode: string;
-    resultingSource: string;
+    overrideId?: string | null;
+    orgPath?: string | null;
+    overrideMode?: string | null;
+    resultingSource?: string | null;
   }>;
   releasable: boolean;
 }
 
-export interface VersionReleasePlan {
-  planId: string;
-  assetType: EngineAssetType;
-  assetIdentity: string;
-  versionId: string;
-  fromVersionId?: string | null;
-  rolloutStrategy: RolloutStrategy;
-  rolloutStageIndex: number;
-  rolloutPausedReason?: string | null;
-  status: "GRAY" | "PAUSED" | "PUBLISHED" | "ROLLED_BACK" | string;
-  impactDigest: string;
+function releaseCandidateParams(params: ReleaseCandidateQuery) {
+  return {
+    ...(params.assetType ? { assetType: params.assetType } : {}),
+    ...(params.keyword ? { keyword: params.keyword.trim() } : {}),
+    ...(typeof params.page === "number" ? { page: params.page } : {}),
+    ...(typeof params.size === "number" ? { size: params.size } : {}),
+    ...(params.sort ? { sort: params.sort } : {}),
+  };
 }
 
-export interface VersionRolloutObservationResult {
-  plan: VersionReleasePlan;
-  paused: boolean;
-  readyForFullRelease: boolean;
-  currentStagePercent: number;
-}
-
-export interface OverrideTemplateItemInput {
-  assetType: EngineAssetType;
-  assetIdentity: string;
-  inheritedVersionId?: string;
-  sourceOverrideVersionId?: string;
-  overrideMode: "REPLACE" | "DISABLE" | "ADD";
-  propagation: "INHERITABLE" | "EXCLUSIVE";
-  applicableScope: string;
-  diffSummary: string;
-  overrideReason: string;
-}
-
-export interface OverrideTemplate {
-  templateId: string;
-  templateName: string;
-  description?: string | null;
-  applicableScope: string;
-  status: "ACTIVE" | "RETIRED" | string;
-  updatedAt: string;
-}
-
-export interface OverrideTemplatesParams {
-  page?: number;
-  size?: number;
-}
-
-export interface OverrideBatchPreviewRequest {
-  templateId?: string;
-  sourceOrgUnitId?: string;
-  targetOrgUnitIds: string[];
-  targetVersionIds: Record<string, string>;
-}
-
-export interface OverrideBatchPreviewResult {
-  previewDigest: string;
-  operationType: "TEMPLATE_APPLY" | "CLONE" | string;
-  rows: Array<{
-    targetOrgUnitId: string;
-    assetType: EngineAssetType;
-    assetIdentity: string;
-    overrideMode: string;
-    propagation: string;
-    targetVersionId?: string | null;
-    status: string;
-    issue?: string | null;
-  }>;
-  releasable: boolean;
-}
-
-export interface OverrideBatchOperationResult {
-  operationId: string;
-  status: "APPLIED" | "REVOKED" | "FAILED" | string;
-  overrideIds: string[];
-  previewDigest: string;
-}
-
-export function useReleaseSimulation() {
-  return useMutation({
-    mutationFn: async (request: ReleaseSimulationRequest) => {
-      const { data } = await apiClient.post<{ data: ReleaseSimulationResult }>(
-        `${RELEASE_GOVERNANCE_API_ROOT}/simulations`,
-        request,
+export function useCurrentPlatformBaseline() {
+  return useQuery({
+    queryKey: ["runtime-releases", "platform-baseline", "current"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PlatformBaselineDetail }>(
+        `${RUNTIME_RELEASE_API_ROOT}/platform-baselines/current`,
       );
       return data.data;
+    },
+    retry: false,
+  });
+}
+
+export function usePlatformReleaseCandidates(params: ReleaseCandidateQuery = {}) {
+  const requestParams = releaseCandidateParams(params);
+  return useQuery({
+    queryKey: ["runtime-releases", "platform-baseline", "candidates", requestParams],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<ReleaseCandidateAsset> }>(
+        `${RUNTIME_RELEASE_API_ROOT}/platform-baselines/candidates`,
+        { params: requestParams },
+      );
+      return data.data ?? emptyPage<ReleaseCandidateAsset>();
     },
   });
 }
 
-export function useStartReleaseRollout() {
+export function usePublishPlatformBaseline() {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (request: {
-      simulation: ReleaseSimulationRequest;
-      confirmedSimulationDigest: string;
-      reviewConclusion: string;
-      electronicSignature?: VersionElectronicSignature;
-      qualityGate?: VersionPublishQualityGate;
-    }) => {
-      const { data } = await apiClient.post<{ data: VersionReleasePlan }>(
-        `${RELEASE_GOVERNANCE_API_ROOT}/rollouts`,
+    mutationFn: async (request: PlatformBaselinePublishRequest) => {
+      const { data } = await apiClient.post<{ data: PlatformBaselineRelease }>(
+        `${RUNTIME_RELEASE_API_ROOT}/platform-baselines`,
         request,
       );
       return data.data;
     },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["runtime-releases", "platform-baseline"],
+      });
+    },
   });
 }
 
-export function useObserveReleaseRollout() {
+export function useCurrentHospitalRuntime(hospitalId: string | undefined) {
+  return useQuery({
+    queryKey: ["runtime-releases", "hospital", hospitalId, "current"],
+    enabled: Boolean(hospitalId),
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: ClinicalRuntimeReleaseDetail }>(
+        `${RUNTIME_RELEASE_API_ROOT}/hospitals/${encodeURIComponent(
+          hospitalId ?? "",
+        )}/runtime-releases/current`,
+      );
+      return data.data;
+    },
+    retry: false,
+  });
+}
+
+export function useHospitalRuntimeCandidates(
+  hospitalId: string | undefined,
+  params: ReleaseCandidateQuery = {},
+) {
+  const requestParams = releaseCandidateParams(params);
+  return useQuery({
+    queryKey: ["runtime-releases", "hospital", hospitalId, "candidates", requestParams],
+    enabled: Boolean(hospitalId),
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<ReleaseCandidateAsset> }>(
+        `${RUNTIME_RELEASE_API_ROOT}/hospitals/${encodeURIComponent(
+          hospitalId ?? "",
+        )}/runtime-candidates`,
+        { params: requestParams },
+      );
+      return data.data ?? emptyPage<ReleaseCandidateAsset>();
+    },
+  });
+}
+
+export function useHospitalRuntimeHistory(
+  hospitalId: string | undefined,
+  params: Pick<ReleaseCandidateQuery, "page" | "size" | "sort"> = {},
+) {
+  const requestParams = releaseCandidateParams(params);
+  return useQuery({
+    queryKey: ["runtime-releases", "hospital", hospitalId, "history", requestParams],
+    enabled: Boolean(hospitalId),
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PageResponse<ClinicalRuntimeRelease> }>(
+        `${RUNTIME_RELEASE_API_ROOT}/hospitals/${encodeURIComponent(
+          hospitalId ?? "",
+        )}/runtime-releases`,
+        { params: requestParams },
+      );
+      return data.data ?? emptyPage<ClinicalRuntimeRelease>();
+    },
+  });
+}
+
+export function useActivateHospitalRuntime() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: {
-      planId: string;
-      request: {
-        stageIndex: number;
-        sampleCount: number;
-        hitCount: number;
-        blockCount: number;
-        manualRejectionCount: number;
-        anomalyCount: number;
-        observedAt: string;
-      };
+      hospitalId: string;
+      request: ClinicalRuntimeActivateRequest;
     }) => {
-      const { data } = await apiClient.post<{ data: VersionRolloutObservationResult }>(
-        `${RELEASE_GOVERNANCE_API_ROOT}/rollouts/${payload.planId}/observations`,
+      const { data } = await apiClient.post<{ data: ClinicalRuntimeRelease }>(
+        `${RUNTIME_RELEASE_API_ROOT}/hospitals/${encodeURIComponent(
+          payload.hospitalId,
+        )}/runtime-releases`,
         payload.request,
       );
       return data.data;
     },
-  });
-}
-
-export function useRollbackRollout() {
-  return useMutation({
-    mutationFn: async (request: { planId: string; reason: string; confirmedHighRisk: boolean }) => {
-      const { planId, ...body } = request;
-      const { data } = await apiClient.post<{ data: VersionReleasePlan }>(
-        `${RELEASE_GOVERNANCE_API_ROOT}/rollouts/${planId}:rollback`,
-        body,
-      );
-      return data.data;
+    onSuccess: async (_data, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: ["runtime-releases", "hospital", variables.hospitalId],
+      });
     },
   });
 }
 
-export function useOverrideTemplates(params: OverrideTemplatesParams = {}) {
-  return useQuery({
-    queryKey: ["release-governance", "override-templates", params],
-    queryFn: async () => {
-      const { data } = await apiClient.get<{ data: PageResponse<OverrideTemplate> }>(
-        `${RELEASE_GOVERNANCE_API_ROOT}/override-templates`,
-        { params },
-      );
-      return (
-        data.data ?? {
-          items: [],
-          page: params.page ?? 1,
-          size: params.size ?? 20,
-          total: 0,
-          hasNext: false,
-          totalEstimated: false,
-        }
-      );
-    },
-  });
-}
-
-export function useCreateOverrideTemplate() {
+export function useRollbackHospitalRuntime() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (request: {
-      templateName: string;
-      description?: string;
-      applicableScope: string;
-      items: OverrideTemplateItemInput[];
-    }) => {
-      const { data } = await apiClient.post<{ data: unknown }>(
-        `${RELEASE_GOVERNANCE_API_ROOT}/override-templates`,
+    mutationFn: async (payload: { hospitalId: string; targetReleaseId: string }) => {
+      const { data } = await apiClient.post<{ data: ClinicalRuntimeRelease }>(
+        `${RUNTIME_RELEASE_API_ROOT}/hospitals/${encodeURIComponent(
+          payload.hospitalId,
+        )}/runtime-releases:rollback`,
+        { targetReleaseId: payload.targetReleaseId },
+      );
+      return data.data;
+    },
+    onSuccess: async (_data, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: ["runtime-releases", "hospital", variables.hospitalId],
+      });
+    },
+  });
+}
+
+export function useSimulateReleaseImpact() {
+  return useMutation({
+    mutationFn: async (request: ReleaseImpactSimulationRequest) => {
+      const { data } = await apiClient.post<{ data: ReleaseImpactSimulationResult }>(
+        "/engine/versioning/releases/simulations",
         request,
-      );
-      return data.data;
-    },
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["release-governance", "override-templates"] }),
-  });
-}
-
-export function usePreviewOverrideBatch() {
-  return useMutation({
-    mutationFn: async (request: OverrideBatchPreviewRequest) => {
-      const { data } = await apiClient.post<{ data: OverrideBatchPreviewResult }>(
-        `${RELEASE_GOVERNANCE_API_ROOT}/override-batches:preview`,
-        request,
-      );
-      return data.data;
-    },
-  });
-}
-
-export function useApplyOverrideBatch() {
-  return useMutation({
-    mutationFn: async (request: {
-      preview: OverrideBatchPreviewRequest;
-      confirmedPreviewDigest: string;
-    }) => {
-      const { data } = await apiClient.post<{ data: OverrideBatchOperationResult }>(
-        `${RELEASE_GOVERNANCE_API_ROOT}/override-batches:apply`,
-        request,
-      );
-      return data.data;
-    },
-  });
-}
-
-export function useRevokeOverrideBatch() {
-  return useMutation({
-    mutationFn: async (operationId: string) => {
-      const { data } = await apiClient.post<{ data: OverrideBatchOperationResult }>(
-        `${RELEASE_GOVERNANCE_API_ROOT}/override-batches/${operationId}:revoke`,
-      );
-      return data.data;
-    },
-  });
-}
-
-export function useValidatePackage() {
-  const security = useSecurityProfile();
-  return useMutation({
-    mutationFn: async (payload: { packageId: string; packageVersion: string }) => {
-      const { data } = await apiClient.post<{ data: PackageValidateResponse }>(
-        `${PACKAGE_API_ROOT}/${payload.packageId}/validate`,
-        withStandardApiContext({}, security.data, payload.packageVersion),
-      );
-      return data.data;
-    },
-  });
-}
-
-export function usePackageSyncLogs(packageId: string, params: PackageSyncLogParams = {}) {
-  return useQuery({
-    queryKey: ["packages", "sync-logs", packageId, params],
-    queryFn: async () => {
-      if (!packageId) return emptyPage<SyncLogResponse>();
-      const { data } = await apiClient.get<{ data: PageResponse<SyncLogResponse> }>(
-        `${PACKAGE_API_ROOT}/${packageId}/sync-logs`,
-        { params },
-      );
-      return data.data ?? emptyPage<SyncLogResponse>();
-    },
-    enabled: !!packageId,
-  });
-}
-
-// 8. 一键快速回滚在用包版本至历史点
-export function useRollbackPackage() {
-  const security = useSecurityProfile();
-  return useMutation({
-    mutationFn: async (payload: { packageId: string; request: PackageRollbackRequest }) => {
-      const { packageVersion, ...requestPayload } = payload.request;
-      const { data } = await apiClient.post<{ data: PackageResponse }>(
-        `${PACKAGE_API_ROOT}/${payload.packageId}/rollback`,
-        withStandardApiContext(requestPayload, security.data, packageVersion),
       );
       return data.data;
     },
@@ -8392,7 +7552,7 @@ export function useRollbackPackage() {
 }
 
 // ──────────────────────────────────────────
-// 页面嵌入与安全白名单引擎 (GA-ENG-EMBED-01)
+// 页面嵌入与来源允许清单引擎 (GA-ENG-EMBED-01)
 // ──────────────────────────────────────────
 
 export interface EmbedLaunchTokenRequest {
@@ -8478,7 +7638,7 @@ export interface EmbedOriginRequest {
   origin: string;
 }
 
-// 1. 生成嵌入一次性启动令牌
+// 1. 生成嵌入一次性启动凭证
 export function useGenerateEmbedToken() {
   return useMutation({
     mutationFn: async (payload: EmbedLaunchTokenRequest) => {
@@ -8491,7 +7651,7 @@ export function useGenerateEmbedToken() {
   });
 }
 
-// 2. 兑换启动令牌获取就诊上下文事实
+// 2. 校验启动凭证获取就诊上下文事实
 export function useEmbedLaunch(token: string) {
   return useQuery({
     queryKey: ["embed", "launch", token],
@@ -8508,7 +7668,7 @@ export function useEmbedLaunch(token: string) {
   });
 }
 
-// 3. 使用已兑换令牌读取当前就诊范围内的可处置建议
+// 3. 使用已校验凭证读取当前就诊范围内的可处置建议
 export function useEmbedRecommendationCards(token: string, enabled: boolean) {
   return useQuery({
     queryKey: ["embed", "recommendations", token],
@@ -8537,7 +7697,7 @@ export function useSubmitEmbedFeedback() {
   });
 }
 
-// 5. 获取当前租户的安全 Origin 域名白名单列表
+// 5. 获取当前服务机构的安全 Origin 域名允许清单
 export function useEmbedOrigins() {
   return useQuery({
     queryKey: ["embed", "origins"],
@@ -8548,7 +7708,7 @@ export function useEmbedOrigins() {
   });
 }
 
-// 6. 添加跨域嵌入 Origin 安全白名单
+// 6. 添加跨域嵌入 Origin 安全允许项
 export function useAddEmbedOrigin() {
   return useMutation({
     mutationFn: async (payload: EmbedOriginRequest) => {
@@ -8582,7 +7742,7 @@ export interface SandboxRunRequest {
 }
 
 export type SandboxRunMode = "CURRENT" | "HISTORICAL_EXACT" | "COMPARE";
-export type SandboxResolutionSource = "TENANT_PACKAGE" | "PLATFORM_PACKAGE" | "REPLAY_MANIFEST";
+export type SandboxResolutionSource = "CURRENT_RUNTIME_RELEASE" | "REPLAY_MANIFEST";
 
 export interface SandboxReplayRuleResult {
   ruleCode: string;
@@ -8656,7 +7816,8 @@ export interface SandboxRunResponse {
   runId: string;
   baselineId: string;
   mode: SandboxRunMode;
-  resolvedPackageVersion: string;
+  runtimeReleaseRef?: string | null;
+  runtimeRevisionNo?: number | null;
   resolutionSource: SandboxResolutionSource;
   externalSideEffects: boolean;
   steps: SandboxStepTrace[];
@@ -8681,14 +7842,12 @@ export interface SandboxRuntimeStatus {
   reasonCode?: string | null;
   reason?: string | null;
   targetOrgUnitId: string;
-  bindingId?: string | null;
-  packageOwnerTenantId?: string | null;
-  packageId?: string | null;
-  packageCode?: string | null;
-  packageVersion?: string | null;
+  runtimeReleaseId?: string | null;
+  runtimeRevisionNo?: number | null;
+  platformBaselineReleaseId?: string | null;
+  manifestSha256?: string | null;
   resolutionSource?: SandboxResolutionSource | null;
   assetCount: number;
-  warnings: string[];
   resolvedAt?: string | null;
   externalSideEffects: boolean;
 }
@@ -8709,7 +7868,7 @@ export interface SandboxScenarioCatalogInput {
 
 export interface SandboxScenarioCatalogItem {
   id: string;
-  servicePackage: string;
+  serviceLine: string;
   engine: string;
   playbook: string;
   triggerPoint: string;
@@ -8741,10 +7900,10 @@ export function useSandboxScenarios() {
 
 export function useSandboxRuntimeStatus() {
   return useQuery({
-    queryKey: ["sandbox", "runtime-binding"],
+    queryKey: ["sandbox", "runtime-status"],
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: SandboxRuntimeStatus }>(
-        "/engine/sandbox/runtime-binding",
+        "/engine/sandbox/runtime-status",
       );
       return data.data;
     },
@@ -8763,8 +7922,8 @@ export function useRunSandboxScenario() {
   });
 }
 
-// ─── 医学回归独立专家复核（LLM-07 / V151）───
-export type ModelEvaluationStatus = "PENDING_REVIEW" | "PASSED" | "FAILED";
+// ─── 医学回归评测 ───
+export type ModelEvaluationStatus = "PASSED" | "FAILED";
 
 export interface ModelEvaluationRunSummary {
   runId: number;
@@ -8781,9 +7940,6 @@ export interface ModelEvaluationRunSummary {
   redLineBreach: boolean;
   hallucinationDetected: boolean;
   status: ModelEvaluationStatus;
-  reviewer?: string | null;
-  signedAt?: string | null;
-  reviewComment?: string | null;
   createdAt: string;
   createdBy: string;
 }
@@ -8813,8 +7969,6 @@ export interface ModelEvaluationRunDetail {
   evidenceComplete: boolean;
   baselineCurrent: boolean;
   releaseCurrent: boolean;
-  reviewable: boolean;
-  reviewBlockReason?: string | null;
 }
 
 export interface ModelEvaluationRunsParams {
@@ -8869,35 +8023,6 @@ export function useModelEvaluationRunDetail(runId?: number | null, enabled = tru
       return data.data;
     },
     enabled: enabled && typeof runId === "number",
-  });
-}
-
-export function useSignOffModelEvaluation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      runId,
-      evidenceAcknowledged,
-      reviewComment,
-    }: {
-      runId: number;
-      evidenceAcknowledged: boolean;
-      reviewComment: string;
-    }) => {
-      const { data } = await apiClient.post<{ data: ModelEvaluationRunSummary }>(
-        `/model-evaluations/${runId}/sign-off`,
-        { evidenceAcknowledged, reviewComment },
-      );
-      return data.data;
-    },
-    onSuccess: async (_data, variables) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["model-evaluations", "runs"] }),
-        queryClient.invalidateQueries({
-          queryKey: ["model-evaluations", "runs", variables.runId],
-        }),
-      ]);
-    },
   });
 }
 
@@ -9082,7 +8207,7 @@ export function useRetryModelTask() {
   });
 }
 
-// 12. 按 task_id 重放 B0 确定性任务，供审计复现版本三元组
+// 12. 按 task_id 重放 B0 确定性任务，供审计复现提示词、工具和模型版本
 export function useReplayModelTask() {
   return useMutation({
     mutationFn: async (taskId: string) => {
@@ -9263,7 +8388,7 @@ export interface IntegrationDataContractField {
 
 export interface IntegrationDataContractResponse {
   contractId: string;
-  packageVersion: string;
+  runtimeReleaseId: string;
   schemaVersion: string;
   accessGuide: string[];
   resources: Record<string, IntegrationDataContractResource>;
@@ -9551,15 +8676,13 @@ export function useMasterDataReconciliation(sourceSystem: string, enabled = fals
   });
 }
 
-export function useIntegrationDataContract(packageVersion: string, enabled = false) {
-  const normalizedVersion = packageVersion.trim();
+export function useIntegrationDataContract(enabled = true) {
   return useQuery({
-    queryKey: ["integration", "data-contract", normalizedVersion],
-    enabled: enabled && normalizedVersion.length > 0,
+    queryKey: ["integration", "data-contract", "current-runtime"],
+    enabled,
     queryFn: async () => {
       const { data } = await apiClient.get<IntegrationEnvelope<IntegrationDataContractResponse>>(
         "/engine/integration/data-contract",
-        { params: { packageVersion: normalizedVersion } },
       );
       return data.data;
     },
@@ -10071,7 +9194,7 @@ export function useCreateOrgUnit() {
 }
 
 // ──────────────────────────────────────────
-// 临床服务包装 · 患者主索引 MPI（GA-SVC-CLINICAL-01）
+// 临床服务组合 · 患者主索引 MPI（GA-SVC-CLINICAL-01）
 // ──────────────────────────────────────────
 export interface MpiPatient {
   id?: number;
@@ -10223,7 +9346,7 @@ export function useSplitMpiPatient() {
 }
 
 // ──────────────────────────────────────────
-// 身份安全服务包 · 统一用户管理（SVC-COMPLIANCE-01）
+// 身份安全服务 · 统一用户管理（SVC-COMPLIANCE-01）
 // ──────────────────────────────────────────
 export interface ComplianceUserRole {
   code: string;
@@ -10566,7 +9689,7 @@ export async function downloadPersonnelImportTemplate() {
 }
 
 // ──────────────────────────────────────────
-// 身份安全服务包 · 外部身份绑定（SVC-COMPLIANCE-01）
+// 身份安全服务 · 外部身份绑定（SVC-COMPLIANCE-01）
 // ──────────────────────────────────────────
 export type IdentityProviderType = "OIDC" | "CAS" | "SAML" | "EMPLOYEE_NO" | "SM_CA";
 
@@ -10771,6 +9894,17 @@ export function useBindBootstrapMfa() {
   });
 }
 
+export async function verifyMfa(payload: { code: string }) {
+  const resp = await apiClient.post<{ data: { verified: boolean } }>("/auth/mfa/verify", payload);
+  return resp.data.data;
+}
+
+export function useVerifyMfa() {
+  return useMutation({
+    mutationFn: verifyMfa,
+  });
+}
+
 // ──────────────────────────────────────────
 // 鉴权 · 登录 / 登出
 // ──────────────────────────────────────────
@@ -10891,7 +10025,7 @@ export function useRenewSession() {
 }
 
 // ──────────────────────────────────────────
-// 鉴权 · 平台租户开通（平台治理管理员）
+// 鉴权 · 平台租户开通（平台管理员）
 // ──────────────────────────────────────────
 export interface TenantSummary {
   tenantId: string;

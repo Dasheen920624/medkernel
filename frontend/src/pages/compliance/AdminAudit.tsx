@@ -1,6 +1,4 @@
 import {
-  CheckOutlined,
-  CloseOutlined,
   EyeOutlined,
   ExportOutlined,
   FileProtectOutlined,
@@ -29,19 +27,17 @@ import { useState } from "react";
 
 import { getApiErrorMessage } from "@/shared/api/errors";
 import {
-  useCompleteApprovedExportJob,
-  useExportApprovals,
+  useConfirmExport,
+  useExportConfirmations,
   useLargeAuditEvents,
   useLargeListExportJob,
-  useRequestExportApproval,
-  useReviewExportApproval,
   useSecurityProfile,
   useSubmitLargeListExport,
   useTraceDiagnosis,
   useVerifyEvidence,
   type AuditEventRow,
   type EvidenceVerifyResult,
-  type ExportApproval,
+  type ExportConfirmation,
   type TracePayloadSummary,
   type TraceStateTransition,
 } from "@/shared/api/hooks";
@@ -63,7 +59,7 @@ import { buildAuditEventQuery } from "./auditQuery";
 
 const { Text } = Typography;
 const PAGE_SIZE = 20;
-const APPROVAL_PAGE_SIZE = 20;
+const CONFIRMATION_PAGE_SIZE = 20;
 const VIEW_KEY = "compliance.audit";
 const route = findRouteByPath("/admin/audit");
 
@@ -109,25 +105,21 @@ function outcomeTag(outcome?: string | null) {
   return <Tag>未知</Tag>;
 }
 
-function approvalStatusTag(status: ExportApproval["status"]) {
+function confirmationStatusTag(status: ExportConfirmation["status"]) {
   const labels = {
-    REQUESTED: "待审批",
-    APPROVED: "已批准",
-    REJECTED: "已驳回",
+    CONFIRMED: "已确认",
     EXPORTED: "已导出",
   };
   const colors = {
-    REQUESTED: "warning",
-    APPROVED: "processing",
-    REJECTED: "error",
+    CONFIRMED: "processing",
     EXPORTED: "success",
   };
   return <Tag color={colors[status]}>{labels[status]}</Tag>;
 }
 
-function parseApprovalScope(approval: ExportApproval) {
+function parseConfirmationScope(confirmation: ExportConfirmation) {
   try {
-    const parsed = JSON.parse(approval.exportScopeSnapshot) as {
+    const parsed = JSON.parse(confirmation.exportScopeSnapshot) as {
       resourceType?: unknown;
       filters?: unknown;
       selectedScope?: unknown;
@@ -156,15 +148,16 @@ function parseApprovalScope(approval: ExportApproval) {
   }
 }
 
-function approvalExportRequest(approval: ExportApproval): AsyncExportRequest | null {
-  const scope = parseApprovalScope(approval);
+function confirmationExportRequest(confirmation: ExportConfirmation): AsyncExportRequest | null {
+  const scope = parseConfirmationScope(confirmation);
   if (!scope) return null;
   const selectedScope = scope.selectedScope === "CURRENT_PAGE" ? "currentPage" : "filteredResult";
   return {
     resourceType: scope.resourceType,
     selectedScope,
-    reason: approval.requestReason,
-    idempotencyKey: approval.idempotencyKey,
+    reason: confirmation.reason,
+    idempotencyKey: confirmation.idempotencyKey,
+    confirmationId: confirmation.confirmationId,
     requestSnapshot: {
       viewKey: VIEW_KEY,
       filters: Object.entries(scope.filters).map(([key, value]) => ({ key, value })),
@@ -176,13 +169,13 @@ function approvalExportRequest(approval: ExportApproval): AsyncExportRequest | n
       },
       visibleColumnKeys: ["occurredAt", "actorUserId", "actionCode", "summary", "outcome"],
       expertMode: false,
-      capturedAt: approval.requestedAt,
+      capturedAt: confirmation.confirmedAt,
     },
   };
 }
 
-function approvalScopeLabel(approval: ExportApproval) {
-  const scope = parseApprovalScope(approval);
+function confirmationScopeLabel(confirmation: ExportConfirmation) {
+  const scope = parseConfirmationScope(confirmation);
   if (!scope) return "范围快照不可解析";
   const filters = Object.entries(scope.filters);
   if (filters.length === 0) return "全部审计事件";
@@ -194,24 +187,18 @@ export default function AdminAudit() {
   const [cursorHistory, setCursorHistory] = useState<Array<string | undefined>>([undefined]);
   const [selectedAuditEvent, setSelectedAuditEvent] = useState<AuditEventRow>();
   const [diagnosisTraceId, setDiagnosisTraceId] = useState("");
-  const [requestOpen, setRequestOpen] = useState(false);
-  const [reviewTarget, setReviewTarget] = useState<{
-    approval: ExportApproval;
-    decision: "APPROVE" | "REJECT";
-  }>();
-  const [evidenceTarget, setEvidenceTarget] = useState<ExportApproval>();
+  const [confirmationOpen, setConfirmationOpen] = useState(false);
+  const [evidenceTarget, setEvidenceTarget] = useState<ExportConfirmation>();
   const [verifyTargetId, setVerifyTargetId] = useState<string>();
   const [verifyResult, setVerifyResult] = useState<EvidenceVerifyResult>();
   const [verifyError, setVerifyError] = useState<string>();
-  const [approvalPage, setApprovalPage] = useState(1);
-  const [requestForm] = Form.useForm<{ reason: string }>();
-  const [reviewForm] = Form.useForm<{ comment: string }>();
+  const [confirmationPage, setConfirmationPage] = useState(1);
+  const [confirmationForm] = Form.useForm<{ reason: string }>();
 
   const security = useSecurityProfile();
   const globalExpertMode = useExpertModeStore((state) => state.enabled);
   const expertMode = canUseExpertMode(security.data) && globalExpertMode;
   const canExport = hasPermission(security.data, "list.export");
-  const canApproveExport = hasPermission(security.data, "audit.export");
   const currentCursor = cursorHistory[cursorHistory.length - 1];
   const auditQuery = buildAuditEventQuery(filters);
   const events = useLargeAuditEvents({
@@ -222,13 +209,11 @@ export default function AdminAudit() {
   });
   const submitExport = useSubmitLargeListExport();
   const pollExport = useLargeListExportJob();
-  const approvals = useExportApprovals(
-    { resourceType: "AUDIT_EVENT", page: approvalPage, size: APPROVAL_PAGE_SIZE },
-    canApproveExport,
+  const confirmations = useExportConfirmations(
+    { resourceType: "AUDIT_EVENT", page: confirmationPage, size: CONFIRMATION_PAGE_SIZE },
+    canExport,
   );
-  const requestApproval = useRequestExportApproval();
-  const reviewApproval = useReviewExportApproval();
-  const completeApproval = useCompleteApprovedExportJob();
+  const confirmExport = useConfirmExport();
   const verifyEvidence = useVerifyEvidence();
   const traceDiagnosis = useTraceDiagnosis(diagnosisTraceId, Boolean(diagnosisTraceId));
 
@@ -345,9 +330,9 @@ export default function AdminAudit() {
     setCursorHistory((history) => (history.length > 1 ? history.slice(0, -1) : history));
   }
 
-  async function submitApprovalRequest() {
-    const values = await requestForm.validateFields();
-    await requestApproval.mutateAsync({
+  async function submitExportConfirmation() {
+    const values = await confirmationForm.validateFields();
+    await confirmExport.mutateAsync({
       resourceType: "AUDIT_EVENT",
       exportScope: {
         resourceType: "AUDIT_EVENT",
@@ -357,45 +342,12 @@ export default function AdminAudit() {
       reason: values.reason.trim(),
       idempotencyKey: crypto.randomUUID(),
     });
-    setRequestOpen(false);
-    requestForm.resetFields();
+    setConfirmationOpen(false);
+    confirmationForm.resetFields();
   }
 
-  function openReview(approval: ExportApproval, decision: "APPROVE" | "REJECT") {
-    setReviewTarget({ approval, decision });
-    reviewForm.resetFields();
-  }
-
-  async function submitReview() {
-    if (!reviewTarget) return;
-    const values = await reviewForm.validateFields();
-    await reviewApproval.mutateAsync({
-      approvalId: reviewTarget.approval.approvalId,
-      decision: reviewTarget.decision,
-      comment: values.comment.trim(),
-      expectedVersion: reviewTarget.approval.version,
-    });
-    setReviewTarget(undefined);
-    reviewForm.resetFields();
-  }
-
-  async function finalizeApprovedJob(
-    approval: ExportApproval,
-    job: Awaited<ReturnType<typeof pollExport.mutateAsync>>,
-  ) {
-    if (job.status === "succeeded") {
-      await completeApproval.mutateAsync({
-        approvalId: approval.approvalId,
-        jobId: job.jobId,
-        reason: approval.requestReason,
-        expectedVersion: approval.version,
-      });
-    }
-    return job;
-  }
-
-  function openEvidence(approval: ExportApproval) {
-    setEvidenceTarget(approval);
+  function openEvidence(confirmation: ExportConfirmation) {
+    setEvidenceTarget(confirmation);
     setVerifyTargetId(undefined);
     setVerifyResult(undefined);
     setVerifyError(undefined);
@@ -419,13 +371,13 @@ export default function AdminAudit() {
     }
   }
 
-  function evidenceButton(approval: ExportApproval) {
-    if (!approval.approvalEvidenceId && !approval.exportEvidenceId) return null;
+  function evidenceButton(confirmation: ExportConfirmation) {
+    if (!confirmation.confirmationEvidenceId && !confirmation.exportEvidenceId) return null;
     return (
       <Button
-        aria-label={`查看证据 ${approval.approvalId}`}
+        aria-label={`查看证据 ${confirmation.confirmationId}`}
         icon={<FileProtectOutlined />}
-        onClick={() => openEvidence(approval)}
+        onClick={() => openEvidence(confirmation)}
       >
         证据
       </Button>
@@ -522,7 +474,7 @@ export default function AdminAudit() {
               rowKey={(record) => record.digest}
               dataSource={traceDiagnosis.data.payloads}
               pagination={false}
-              locale={{ emptyText: "无 Payload 摘要" }}
+              locale={{ emptyText: "无输入内容摘要" }}
               scroll={{ x: "max-content" }}
               columns={[
                 { title: "摘要", dataIndex: "digest" },
@@ -541,123 +493,100 @@ export default function AdminAudit() {
     );
   }
 
-  const approvalColumns = [
+  const confirmationColumns = [
     {
-      title: "申请",
-      render: (_value: unknown, approval: ExportApproval) => (
+      title: "导出",
+      render: (_value: unknown, confirmation: ExportConfirmation) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{approval.requestReason}</Text>
-          <Text type="secondary">{approval.approvalId}</Text>
+          <Text strong>{confirmation.reason}</Text>
+          <Text type="secondary">{confirmation.confirmationId}</Text>
         </Space>
       ),
     },
     {
       title: "范围",
-      render: (_value: unknown, approval: ExportApproval) => approvalScopeLabel(approval),
+      render: (_value: unknown, confirmation: ExportConfirmation) =>
+        confirmationScopeLabel(confirmation),
     },
-    { title: "申请人", dataIndex: "requestedBy" },
+    { title: "确认人", dataIndex: "confirmedBy" },
     {
       title: "状态",
       dataIndex: "status",
-      render: (status: ExportApproval["status"]) => approvalStatusTag(status),
+      render: (status: ExportConfirmation["status"]) => confirmationStatusTag(status),
     },
     {
       title: "操作",
-      render: (_value: unknown, approval: ExportApproval) => {
-        const selfRequested = approval.requestedBy === security.data?.userId;
-        if (approval.status === "REQUESTED") {
-          return (
-            <Space>
-              <Button
-                aria-label={`批准 ${approval.approvalId}`}
-                icon={<CheckOutlined />}
-                disabled={!canApproveExport || selfRequested}
-                onClick={() => openReview(approval, "APPROVE")}
-              />
-              <Button
-                danger
-                aria-label={`驳回 ${approval.approvalId}`}
-                icon={<CloseOutlined />}
-                disabled={!canApproveExport || selfRequested}
-                onClick={() => openReview(approval, "REJECT")}
-              />
-            </Space>
-          );
-        }
-        if (approval.status === "APPROVED") {
-          const request = approvalExportRequest(approval);
+      render: (_value: unknown, confirmation: ExportConfirmation) => {
+        if (confirmation.status === "CONFIRMED") {
+          const request = confirmationExportRequest(confirmation);
           return (
             <Space wrap>
               <AsyncExportAction
                 enabled={Boolean(request)}
-                disabledReason="审批范围快照不可解析"
+                disabledReason="确认范围快照不可解析"
                 permissionGranted={canExport}
                 request={
                   request ?? {
                     resourceType: "AUDIT_EVENT",
                     requestSnapshot,
                     selectedScope: "filteredResult",
-                    reason: approval.requestReason,
+                    reason: confirmation.reason,
+                    confirmationId: confirmation.confirmationId,
                   }
                 }
                 buttonLabel="生成文件"
-                buttonAriaLabel={`生成导出文件 ${approval.approvalId}`}
-                modalTitle="生成已审批导出文件"
+                buttonAriaLabel={`生成导出文件 ${confirmation.confirmationId}`}
+                modalTitle="生成已确认导出文件"
                 submitLabel="确认生成导出文件"
-                onSubmit={async (payload) =>
-                  finalizeApprovedJob(approval, await submitExport.mutateAsync(payload))
-                }
-                onPoll={async (jobId) =>
-                  finalizeApprovedJob(approval, await pollExport.mutateAsync(jobId))
-                }
+                onSubmit={submitExport.mutateAsync}
+                onPoll={pollExport.mutateAsync}
               />
-              {evidenceButton(approval)}
+              {evidenceButton(confirmation)}
             </Space>
           );
         }
-        if (approval.status === "EXPORTED") {
+        if (confirmation.status === "EXPORTED") {
           return (
             <Space wrap>
-              {approval.exportUri && (
-                <Button type="link" href={approval.exportUri}>
+              {confirmation.exportUri && (
+                <Button type="link" href={confirmation.exportUri}>
                   下载文件
                 </Button>
               )}
-              {evidenceButton(approval)}
+              {evidenceButton(confirmation)}
             </Space>
           );
         }
-        if (approval.status === "REJECTED") return evidenceButton(approval);
         return <Text type="secondary">无需操作</Text>;
       },
     },
   ];
 
-  function renderApprovalContent() {
-    if (approvals.isLoading) {
+  function renderConfirmationContent() {
+    if (confirmations.isLoading) {
       return <PageState state="loading" />;
     }
-    if (approvals.isError) {
+    if (confirmations.isError) {
       return (
         <PageState
           state="error"
-          title="导出审批读取失败"
-          onRetry={() => void approvals.refetch()}
+          title="导出记录读取失败"
+          onRetry={() => void confirmations.refetch()}
         />
       );
     }
     return (
-      <Table<ExportApproval>
-        rowKey="approvalId"
-        dataSource={approvals.data?.items ?? []}
-        columns={approvalColumns}
+      <Table<ExportConfirmation>
+        rowKey="confirmationId"
+        dataSource={confirmations.data?.items ?? []}
+        columns={confirmationColumns}
         pagination={{
-          current: approvals.data?.page ?? approvalPage,
-          pageSize: APPROVAL_PAGE_SIZE,
-          total: approvals.data?.total ?? 0,
+          current: confirmations.data?.page ?? confirmationPage,
+          pageSize: CONFIRMATION_PAGE_SIZE,
+          total: confirmations.data?.total ?? 0,
           hideOnSinglePage: true,
           showSizeChanger: false,
-          onChange: (nextPage) => setApprovalPage(nextPage),
+          onChange: (nextPage) => setConfirmationPage(nextPage),
         }}
         scroll={{ x: "max-content" }}
       />
@@ -669,16 +598,16 @@ export default function AdminAudit() {
       meta={PAGE_META}
       securityProfile={security.data}
       extras={
-        canApproveExport ? (
+        canExport ? (
           <Button
-            aria-label="申请导出"
+            aria-label="确认导出范围"
             icon={<ExportOutlined />}
             onClick={() => {
-              requestForm.setFieldsValue({ reason: "导出当前审计与证据筛选结果" });
-              setRequestOpen(true);
+              confirmationForm.setFieldsValue({ reason: "导出当前审计与证据筛选结果" });
+              setConfirmationOpen(true);
             }}
           >
-            申请导出
+            确认导出范围
           </Button>
         ) : undefined
       }
@@ -689,7 +618,7 @@ export default function AdminAudit() {
           showIcon
           icon={<SafetyCertificateOutlined />}
           message="审计链已启用"
-          description="事件按服务空间隔离并保留摘要、签名和追踪标识；敏感导出必须先申请、由他人审批，再由后端生成并登记真实文件摘要。"
+          description="事件按服务空间隔离并保留摘要、签名和追踪号；有权操作者逐次确认准确筛选范围后，由后端异步生成文件并自动登记摘要与证据。"
         />
         <Tabs
           defaultActiveKey="events"
@@ -786,12 +715,12 @@ export default function AdminAudit() {
                 </Space>
               ),
             },
-            ...(canApproveExport
+            ...(canExport
               ? [
                   {
-                    key: "approvals",
-                    label: "导出审批",
-                    children: renderApprovalContent(),
+                    key: "confirmations",
+                    label: "导出记录",
+                    children: renderConfirmationContent(),
                   },
                 ]
               : []),
@@ -876,45 +805,26 @@ export default function AdminAudit() {
         )}
       </Drawer>
       <Modal
-        title="申请导出审批"
-        open={requestOpen}
-        okText="提交导出申请"
-        okButtonProps={{ "aria-label": "提交导出申请" }}
-        confirmLoading={requestApproval.isPending}
-        onOk={() => void submitApprovalRequest()}
-        onCancel={() => setRequestOpen(false)}
+        title="确认导出范围"
+        open={confirmationOpen}
+        okText="确认范围"
+        okButtonProps={{ "aria-label": "确认范围" }}
+        confirmLoading={confirmExport.isPending}
+        onOk={() => void submitExportConfirmation()}
+        onCancel={() => setConfirmationOpen(false)}
       >
-        <Form form={requestForm} layout="vertical">
+        <Form form={confirmationForm} layout="vertical">
           <Form.Item
             name="reason"
-            label="申请理由"
-            rules={[{ required: true, whitespace: true, message: "请填写导出申请理由" }]}
+            label="导出原因"
+            rules={[{ required: true, whitespace: true, message: "请填写导出原因" }]}
           >
             <Input.TextArea rows={3} maxLength={512} showCount />
           </Form.Item>
         </Form>
       </Modal>
       <Modal
-        title={reviewTarget?.decision === "REJECT" ? "驳回导出申请" : "批准导出申请"}
-        open={Boolean(reviewTarget)}
-        okText="确认审批"
-        okButtonProps={{ "aria-label": "确认审批", danger: reviewTarget?.decision === "REJECT" }}
-        confirmLoading={reviewApproval.isPending}
-        onOk={() => void submitReview()}
-        onCancel={() => setReviewTarget(undefined)}
-      >
-        <Form form={reviewForm} layout="vertical">
-          <Form.Item
-            name="comment"
-            label="审批意见"
-            rules={[{ required: true, whitespace: true, message: "请填写审批意见" }]}
-          >
-            <Input.TextArea rows={3} maxLength={512} showCount />
-          </Form.Item>
-        </Form>
-      </Modal>
-      <Modal
-        title="导出审批证据"
+        title="导出证据"
         open={Boolean(evidenceTarget)}
         footer={
           <Button type="primary" onClick={closeEvidence}>
@@ -926,35 +836,35 @@ export default function AdminAudit() {
         {evidenceTarget && (
           <Space direction="vertical" size="middle" className="mk-full-width">
             <Descriptions bordered size="small" column={1}>
-              <Descriptions.Item label="审批证据">
-                {evidenceTarget.approvalEvidenceId ? (
+              <Descriptions.Item label="确认证据">
+                {evidenceTarget.confirmationEvidenceId ? (
                   <Space wrap>
                     <Text code copyable>
-                      {evidenceTarget.approvalEvidenceId}
+                      {evidenceTarget.confirmationEvidenceId}
                     </Text>
                     <Button
                       size="small"
-                      aria-label="验签审批证据"
+                      aria-label="验签确认证据"
                       icon={<SafetyCertificateOutlined />}
                       loading={
                         verifyEvidence.isPending &&
-                        verifyTargetId === evidenceTarget.approvalEvidenceId
+                        verifyTargetId === evidenceTarget.confirmationEvidenceId
                       }
                       onClick={() => {
-                        const evidenceId = evidenceTarget.approvalEvidenceId;
+                        const evidenceId = evidenceTarget.confirmationEvidenceId;
                         if (evidenceId) void verifyEvidenceById(evidenceId);
                       }}
                     >
-                      验签审批证据
+                      验签确认证据
                     </Button>
                   </Space>
                 ) : (
                   "未生成"
                 )}
               </Descriptions.Item>
-              <Descriptions.Item label="审批证据文件">
-                {evidenceTarget.approvalEvidenceFileUri ? (
-                  <Typography.Link href={evidenceTarget.approvalEvidenceFileUri}>
+              <Descriptions.Item label="确认证据文件">
+                {evidenceTarget.confirmationEvidenceFileUri ? (
+                  <Typography.Link href={evidenceTarget.confirmationEvidenceFileUri}>
                     下载证据文件
                   </Typography.Link>
                 ) : (

@@ -6,7 +6,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.authoring.AuthoringFeatureGate;
+import com.medkernel.engine.rule.ConditionEvaluator;
+import com.medkernel.engine.versioning.ResolvedDeclarativeAsset;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import org.junit.jupiter.api.Test;
 
 import com.medkernel.shared.api.error.ApiException;
@@ -180,6 +186,111 @@ class PathwayProgressorTest {
         assertThat(decision.nextNodeCode()).isEqualTo("FOLLOWUP");
         assertThat(decision.edgeType()).isEqualTo(PathwayEdgeType.CONDITION);
         assertThat(decision.evidence()).containsKey("allergyIntolerances[].code");
+    }
+
+    @Test
+    void decisionNodeUsesPublishedRuleGuardAndRecordsActualRuleVersion() {
+        ObjectMapper json = new ObjectMapper();
+        PathwayProgressor ruleProgressor = new PathwayProgressor(
+            json,
+            new ConditionEvaluator(json),
+            AuthoringFeatureGate.alwaysEnabled(),
+            (reference, context, runtimeReleaseId) -> new PathwayRuleGuardEvaluation(
+                true,
+                reference.path("ruleRef").asText(),
+                "rule-high-risk",
+                "rv-high-risk-v2",
+                2,
+                runtimeReleaseId,
+                "tenant-A",
+                com.medkernel.engine.release.ReleaseSourceLayer.HOSPITAL));
+        String tenantId = "tenant-A";
+        String templateId = "pt-" + tenantId;
+        PathwayGraph graph = new PathwayGraph(
+            List.of(
+                node("DECIDE", PathwayNodeType.DECISION, 10, false, null, null, 120),
+                node("HIGH", PathwayNodeType.NURSING, 20, true),
+                node("ROUTINE", PathwayNodeType.NURSING, 30, true)
+            ),
+            List.of(
+                edge("e-rule", tenantId, templateId, "DECIDE", "HIGH",
+                    PathwayEdgeType.CONDITION, 1,
+                    """
+                    {
+                      "ruleRef": "RULE.CKD.HIGH_RISK",
+                      "ruleAssetId": "rule-high-risk"
+                    }
+                    """),
+                edge("e-default", tenantId, templateId, "DECIDE", "ROUTINE",
+                    PathwayEdgeType.DEFAULT, 2)
+            )
+        );
+
+        PathwayProgressDecision decision = ruleProgressor.advance(new PathwayProgressCommand(
+            graph, "DECIDE", PathwayAdvanceEventType.COMPLETE, null,
+            Map.of("patient.riskLevel", "HIGH"), "release-hospital-7"));
+
+        assertThat(decision.nextNodeCode()).isEqualTo("HIGH");
+        assertThat(decision.evidence())
+            .containsEntry("pathway.ruleRef", "RULE.CKD.HIGH_RISK")
+            .containsEntry("pathway.ruleId", "rule-high-risk")
+            .containsEntry("pathway.ruleVersionId", "rv-high-risk-v2")
+            .containsEntry("pathway.ruleVersionNo", 2)
+            .containsEntry("pathway.runtimeReleaseId", "release-hospital-7")
+            .containsEntry("pathway.ruleSourceTenantId", "tenant-A")
+            .containsEntry("pathway.ruleSourceLayer", "HOSPITAL")
+            .containsEntry("pathway.ruleMatched", true);
+    }
+
+    @Test
+    void decisionNodeFallsBackToDefaultWhenPublishedRuleGuardDoesNotMatch() {
+        ObjectMapper json = new ObjectMapper();
+        PathwayProgressor ruleProgressor = new PathwayProgressor(
+            json,
+            new ConditionEvaluator(json),
+            AuthoringFeatureGate.alwaysEnabled(),
+            (reference, context, runtimeReleaseId) -> new PathwayRuleGuardEvaluation(
+                false,
+                reference.path("ruleRef").asText(),
+                "rule-high-risk",
+                "rv-high-risk-v3",
+                3,
+                runtimeReleaseId,
+                "platform",
+                com.medkernel.engine.release.ReleaseSourceLayer.PLATFORM));
+        String tenantId = "tenant-A";
+        String templateId = "pt-" + tenantId;
+        PathwayGraph graph = new PathwayGraph(
+            List.of(
+                node("DECIDE", PathwayNodeType.DECISION, 10, false, null, null, 120),
+                node("HIGH", PathwayNodeType.NURSING, 20, true),
+                node("ROUTINE", PathwayNodeType.NURSING, 30, true)
+            ),
+            List.of(
+                edge("e-rule", tenantId, templateId, "DECIDE", "HIGH",
+                    PathwayEdgeType.CONDITION, 1,
+                    """
+                    {
+                      "ruleRef": "RULE.CKD.HIGH_RISK",
+                      "ruleAssetId": "rule-high-risk"
+                    }
+                    """),
+                edge("e-default", tenantId, templateId, "DECIDE", "ROUTINE",
+                    PathwayEdgeType.DEFAULT, 2)
+            )
+        );
+
+        PathwayProgressDecision decision = ruleProgressor.advance(new PathwayProgressCommand(
+            graph, "DECIDE", PathwayAdvanceEventType.COMPLETE, null,
+            Map.of("patient.riskLevel", "LOW"), "release-hospital-7"));
+
+        assertThat(decision.nextNodeCode()).isEqualTo("ROUTINE");
+        assertThat(decision.edgeType()).isEqualTo(PathwayEdgeType.DEFAULT);
+        assertThat(decision.evidence())
+            .containsEntry("pathway.ruleVersionId", "rv-high-risk-v3")
+            .containsEntry("pathway.ruleVersionNo", 3)
+            .containsEntry("pathway.ruleMatched", false)
+            .containsEntry("pathway.selectedEdgeCode", "e-default");
     }
 
     @Test
@@ -373,28 +484,80 @@ class PathwayProgressorTest {
     }
 
     @Test
-    void orderSetAndSubPathwayNodesRequireConfigReferencesAndRecordEvidence() {
+    void orderSetNodeRequiresConfigReferenceAndRecordsEvidence() {
         String tenantId = "tenant-A";
         String templateId = "pt-" + tenantId;
         PathwayGraph graph = new PathwayGraph(
             List.of(
                 node("ORDER", PathwayNodeType.ORDER_SET, 10, false, "{\"orderSetRef\":\"sepsis-order-set\"}", "医生", 120),
-                node("SUB", PathwayNodeType.SUBPATHWAY, 20, false, "{\"subPathwayRef\":\"icu-transfer\"}", "医生", 120),
-                node("DONE", PathwayNodeType.FOLLOWUP, 30, true)
+                node("DONE", PathwayNodeType.FOLLOWUP, 20, true)
             ),
             List.of(
-                edge("e-order-sub", tenantId, templateId, "ORDER", "SUB", PathwayEdgeType.DEFAULT, 1),
-                edge("e-sub-done", tenantId, templateId, "SUB", "DONE", PathwayEdgeType.DEFAULT, 1)
+                edge("e-order-done", tenantId, templateId, "ORDER", "DONE", PathwayEdgeType.DEFAULT, 1)
             )
         );
 
         PathwayProgressDecision orderDecision = progressor.advance(new PathwayProgressCommand(
             graph, "ORDER", PathwayAdvanceEventType.COMPLETE, null));
-        PathwayProgressDecision subDecision = progressor.advance(new PathwayProgressCommand(
-            graph, "SUB", PathwayAdvanceEventType.COMPLETE, null));
 
         assertThat(orderDecision.evidence()).containsEntry("pathway.orderSetRef", "sepsis-order-set");
-        assertThat(subDecision.evidence()).containsEntry("pathway.subPathwayRef", "icu-transfer");
+    }
+
+    @Test
+    void orderSetNodeResolvesRuntimeOrderSetBodyAndRecordsExecutableEvidence() {
+        ObjectMapper mapper = new ObjectMapper();
+        PathwayProgressor resolvingProgressor = new PathwayProgressor(
+            mapper,
+            new ConditionEvaluator(mapper),
+            AuthoringFeatureGate.alwaysEnabled(),
+            PathwayRuleGuardEvaluator.unavailable(),
+            (tenantId, runtimeReleaseId, assetType, assetIdentity) -> {
+                assertThat(tenantId).isEqualTo("tenant-A");
+                assertThat(runtimeReleaseId).isEqualTo("release-4");
+                assertThat(assetType).isEqualTo(VersionedAssetType.ORDER_SET);
+                assertThat(assetIdentity).isEqualTo("ORDER.CKD.REVIEW");
+                return Optional.of(new ResolvedDeclarativeAsset(
+                    assetType,
+                    assetIdentity,
+                    "V2",
+                    runtimeReleaseId,
+                    """
+                        {
+                          "schemaVersion":"1.0",
+                          "name":"肾功能复核医嘱套餐",
+                          "requiresPhysicianConfirmation":true,
+                          "items":[{
+                            "itemType":"LAB",
+                            "codeSystem":"LOINC",
+                            "code":"2160-0",
+                            "display":"血肌酐",
+                            "required":true
+                          }]
+                        }
+                        """,
+                    "d".repeat(64)
+                ));
+            });
+        String tenantId = "tenant-A";
+        String templateId = "pt-" + tenantId;
+        PathwayGraph graph = new PathwayGraph(
+            List.of(
+                node("ORDER", PathwayNodeType.ORDER_SET, 10, false, "{\"orderSetRef\":\"ORDER.CKD.REVIEW\"}", "医生", 120),
+                node("DONE", PathwayNodeType.FOLLOWUP, 20, true)
+            ),
+            List.of(edge("e-order-done", tenantId, templateId, "ORDER", "DONE", PathwayEdgeType.DEFAULT, 1))
+        );
+
+        PathwayProgressDecision decision = resolvingProgressor.advance(new PathwayProgressCommand(
+            graph, "ORDER", PathwayAdvanceEventType.COMPLETE, null,
+            Map.of(), "release-4", "tenant-A"));
+
+        assertThat(decision.evidence()).containsEntry("pathway.orderSetRef", "ORDER.CKD.REVIEW");
+        assertThat(decision.evidence()).containsEntry("pathway.orderSetVersion", "V2");
+        assertThat(decision.evidence()).containsEntry("pathway.orderSetName", "肾功能复核医嘱套餐");
+        assertThat(decision.evidence()).containsEntry("pathway.orderSetRequiresPhysicianConfirmation", true);
+        assertThat(decision.evidence()).containsEntry("pathway.orderSetItemCount", 1);
+        assertThat(decision.evidence()).containsKey("pathway.orderSetItems");
     }
 
     @Test

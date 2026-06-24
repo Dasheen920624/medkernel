@@ -24,7 +24,7 @@ describe("ruleOperatorCatalog temporal modes", () => {
     expect(() => normalizeTemporalMode("legacy-mode")).toThrow("时间窗模式不在受控选项内");
   });
 
-  it("声明受控公式白名单与参数，包含 BMI", () => {
+  it("声明计算公式允许范围与参数，包含 BMI", () => {
     expect(DERIVED_FORMULA_OPTIONS.map((option) => option.value)).toEqual([
       "CKD_EPI_2021_EGFR",
       "COCKCROFT_GAULT_CRCL",
@@ -35,7 +35,7 @@ describe("ruleOperatorCatalog temporal modes", () => {
     expect(parameterKeysForDerivedFormula("UNKNOWN")).toEqual(["creatinine", "age", "sex"]);
   });
 
-  it("声明表达式聚合函数白名单，拒绝未知 select", () => {
+  it("声明表达式聚合函数允许范围，拒绝未知 select", () => {
     expect(RULE_EXPRESSION_SELECT_OPTIONS.map((option) => option.value)).toEqual([
       "latest",
       "first",

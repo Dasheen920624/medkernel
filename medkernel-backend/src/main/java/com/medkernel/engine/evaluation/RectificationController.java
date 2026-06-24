@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * SVC-QUALITY-03 整改闭环服务包入口。
+ * SVC-QUALITY-03 整改闭环服务入口。
  *
  * <p>提供派发、整改提交、复核、豁免和报告接口；全部复用评估质控闭环主链路，
  * 以当前租户数据范围为边界。
@@ -69,7 +69,7 @@ public class RectificationController {
     }
 
     /**
-     * 按专用动作豁免整改任务，要求提交审批引用。
+     * 按专用动作豁免整改任务，要求提交决定依据。
      */
     @PostMapping("/{taskId}/waive")
     @PreAuthorize("@perm.has('evaluation.review')")

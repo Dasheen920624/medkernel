@@ -69,7 +69,7 @@ type RemovalFormValues = {
 function credentialLabel(provider: ModelProviderGovernanceView) {
   if (!provider.credentialConfigured) return <Tag>未配置</Tag>;
   if (provider.credentialLast4) return <Tag color="blue">尾号 {provider.credentialLast4}</Tag>;
-  return <Tag color="blue">Key 已配置</Tag>;
+  return <Tag color="blue">密钥已配置</Tag>;
 }
 
 function formatDateTime(value?: string | null) {
@@ -162,9 +162,9 @@ export default function ProviderSetupPanel() {
         confirmedHighRisk: values.confirmedHighRisk,
       });
       closeCredentialModal();
-      message.success("模型 Key 已加密保存；服务已停用，需重新健康检查");
+      message.success("模型密钥已加密保存；服务已停用，需重新健康检查");
     } catch (error) {
-      message.error(getApiErrorMessage(error, "模型 Key 保存失败"));
+      message.error(getApiErrorMessage(error, "模型密钥保存失败"));
     }
   };
 
@@ -209,9 +209,9 @@ export default function ProviderSetupPanel() {
         confirmedHighRisk: values.confirmedHighRisk,
       });
       closeRemovalModal();
-      message.success("模型 Key 已移除，服务保持停用");
+      message.success("模型密钥已移除，服务保持停用");
     } catch (error) {
-      message.error(getApiErrorMessage(error, "模型 Key 移除失败"));
+      message.error(getApiErrorMessage(error, "模型密钥移除失败"));
     }
   };
 
@@ -227,7 +227,7 @@ export default function ProviderSetupPanel() {
       ),
     },
     {
-      title: "Key",
+      title: "密钥",
       key: "credential",
       render: (_: unknown, provider: ModelProviderGovernanceView) => (
         <Space direction="vertical" size={0}>
@@ -267,7 +267,7 @@ export default function ProviderSetupPanel() {
           <Space wrap>
             <Button onClick={() => openEditProviderModal(provider)}>编辑配置</Button>
             <Button onClick={() => setCredentialProvider(provider)}>
-              {provider.credentialConfigured ? "轮换 Key" : "配置 Key"}
+              {provider.credentialConfigured ? "轮换密钥" : "配置密钥"}
             </Button>
             <Button
               loading={checkHealth.isPending}
@@ -296,12 +296,12 @@ export default function ProviderSetupPanel() {
             </Button>
             {provider.credentialConfigured ? (
               <Button danger onClick={() => setRemovalProvider(provider)}>
-                移除 Key
+                移除密钥
               </Button>
             ) : null}
           </Space>
         ) : (
-          <Text type="secondary">由集成运维员处理</Text>
+          <Text type="secondary">由医疗引擎运营员处理</Text>
         ),
     },
   ];
@@ -328,8 +328,8 @@ export default function ProviderSetupPanel() {
         title="尚未登记模型服务"
         description={
           canManage
-            ? "请先登记服务地址和模型版本，再安全配置 Key。"
-            : "请联系集成运维员登记模型服务。"
+            ? "请先登记服务地址和模型版本，再安全配置密钥。"
+            : "请联系医疗引擎运营员登记模型服务。"
         }
       />
     );
@@ -354,7 +354,7 @@ export default function ProviderSetupPanel() {
   return (
     <>
       <Card
-        title="模型服务与 Key"
+        title="模型服务与密钥"
         extra={
           canManage ? (
             <Button type="primary" onClick={openNewProviderModal}>
@@ -367,15 +367,15 @@ export default function ProviderSetupPanel() {
           <Alert
             type="info"
             showIcon
-            message="Key 只加密保存，保存后不再回显"
-            description="配置或轮换 Key 会强制停用服务并清除旧健康结论；必须重新探活、评测并受控启用。"
+            message="密钥只加密保存，保存后不再回显"
+            description="配置或轮换密钥会强制停用服务并清除旧健康结论；必须重新探活、评测并受控启用。"
           />
           {!canManage && security.data ? (
             <Alert
               type="warning"
               showIcon
               message="当前职责仅可查看"
-              description="由集成运维员维护模型服务、Key 与健康状态；完成后交由质量治理专家评测。"
+              description="由医疗引擎运营员维护模型服务、密钥、健康检查和医学评测。"
             />
           ) : null}
           {content}
@@ -429,7 +429,7 @@ export default function ProviderSetupPanel() {
       </Modal>
 
       <Modal
-        title="移除模型 Key"
+        title="移除模型密钥"
         open={Boolean(removalProvider)}
         okText="确认移除"
         cancelText="取消"
@@ -443,7 +443,7 @@ export default function ProviderSetupPanel() {
           type="warning"
           showIcon
           message="本操作会清除当前凭据"
-          description="模型服务将被强制停用并失去旧健康结论；如需恢复，必须重新配置 Key、探活、评测和受控启用。"
+          description="模型服务将被强制停用并失去旧健康结论；如需恢复，必须重新配置密钥、探活、评测和受控启用。"
         />
         <Form
           form={removalForm}
@@ -477,7 +477,7 @@ export default function ProviderSetupPanel() {
       </Modal>
 
       <Modal
-        title={`${credentialProvider?.credentialConfigured ? "轮换" : "配置"}模型 Key`}
+        title={`${credentialProvider?.credentialConfigured ? "轮换" : "配置"}模型密钥`}
         open={Boolean(credentialProvider)}
         okText="保存并停用"
         cancelText="取消"
@@ -494,15 +494,15 @@ export default function ProviderSetupPanel() {
         >
           <Form.Item
             name="credential"
-            label="模型 Key"
+            label="模型密钥"
             rules={[
-              { required: true, message: "请输入模型 Key" },
-              { min: 8, message: "模型 Key 至少 8 个字符" },
+              { required: true, message: "请输入模型密钥" },
+              { min: 8, message: "模型密钥至少 8 个字符" },
             ]}
           >
             <Input
               type="password"
-              aria-label="模型 Key"
+              aria-label="模型密钥"
               autoComplete="new-password"
               maxLength={2048}
             />
@@ -527,7 +527,7 @@ export default function ProviderSetupPanel() {
               },
             ]}
           >
-            <Checkbox>我确认 Key 变更将强制停用模型服务并要求重新验证</Checkbox>
+            <Checkbox>我确认密钥变更将强制停用模型服务并要求重新验证</Checkbox>
           </Form.Item>
         </Form>
       </Modal>
@@ -554,11 +554,11 @@ export default function ProviderSetupPanel() {
           {activation?.enabled ? (
             <Form.Item
               name="capabilityCode"
-              label="已签署医学能力"
-              rules={[{ required: true, message: "请选择已独立签署的医学能力" }]}
+              label="已通过评测的模型能力"
+              rules={[{ required: true, message: "请选择已通过医学评测的模型能力" }]}
             >
               <Select
-                aria-label="已签署医学能力"
+                aria-label="已通过评测的模型能力"
                 options={[...MODEL_CAPABILITY_OPTIONS]}
                 placeholder="选择与医学评测一致的能力"
               />
@@ -584,7 +584,7 @@ export default function ProviderSetupPanel() {
               },
             ]}
           >
-            <Checkbox>我确认本操作受医学评测、部署形态和审计门禁约束</Checkbox>
+            <Checkbox>我确认本操作受医学评测、部署形态和审计检查约束</Checkbox>
           </Form.Item>
         </Form>
       </Modal>

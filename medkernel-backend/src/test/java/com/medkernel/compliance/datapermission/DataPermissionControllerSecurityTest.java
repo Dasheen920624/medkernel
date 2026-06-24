@@ -53,7 +53,7 @@ class DataPermissionControllerSecurityTest {
 
     @Test
     @DisplayName("合规审计角色可到达数据权限列表，但缺租户上下文被 DataScope 拦截")
-    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
+    @WithMockUser(authorities = "ROLE_AUDITOR")
     void listPolicies_auditRoleWithoutTenant_returns400() throws Exception {
         mvc.perform(get("/api/v1/compliance/data-permissions"))
             .andExpect(status().isBadRequest())
@@ -62,7 +62,7 @@ class DataPermissionControllerSecurityTest {
 
     @Test
     @DisplayName("普通医生无 audit.read 权限，读取数据权限策略直接 403")
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void listPolicies_doctorRole_returns403() throws Exception {
         mvc.perform(get("/api/v1/compliance/data-permissions"))
             .andExpect(status().isForbidden());
@@ -76,13 +76,13 @@ class DataPermissionControllerSecurityTest {
 
         mvc.perform(get("/api/v1/compliance/data-permissions")
                 .with(jwt().jwt(token -> token
-                    .subject("auditor-1")
+                    .subject("data-permission-auditor")
                     .claim("tenant_id", "t-1")
                     .claim("group_id", "g-1")
                     .claim("hospital_id", "h-1")
                     .claim("department_id", "cardiology")
-                    .claim("roles", List.of("audit_compliance")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_COMPLIANCE_AUDITOR"))))
+                    .claim("roles", List.of("auditor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_AUDITOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.items").isArray())
             .andExpect(jsonPath("$.data.page").value(1))
@@ -91,7 +91,7 @@ class DataPermissionControllerSecurityTest {
 
     @Test
     @DisplayName("信息科可到达数据权限写接口，但缺租户上下文被 DataScope 拦截")
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void putPolicy_itOpsWithoutTenant_returns400() throws Exception {
         mvc.perform(put("/api/v1/compliance/data-permissions")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -102,7 +102,7 @@ class DataPermissionControllerSecurityTest {
 
     @Test
     @DisplayName("合规审计角色无 system.manage 权限，不能写数据权限策略")
-    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
+    @WithMockUser(authorities = "ROLE_AUDITOR")
     void putPolicy_auditRole_returns403() throws Exception {
         mvc.perform(put("/api/v1/compliance/data-permissions")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -136,8 +136,8 @@ class DataPermissionControllerSecurityTest {
                     .claim("tenant_id", "t-1")
                     .claim("hospital_id", "h-1")
                     .claim("department_id", "cardiology")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {

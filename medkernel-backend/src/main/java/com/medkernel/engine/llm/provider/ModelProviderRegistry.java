@@ -9,7 +9,7 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 
 /**
- * 模型 provider 注册表（LLM-08 FR-1/2/3）。
+ * 模型服务注册表（LLM-08 FR-1/2/3）。
  *
  * <p>按路由策略与部署形态解析一个健康的真实 provider：{@code LOCAL_MODEL}→B1 本地 Ollama；
  * {@code EXTERNAL_MODEL}→B2 外部（仅外网生产中心形态放行，运行侧内网一律不解析）。

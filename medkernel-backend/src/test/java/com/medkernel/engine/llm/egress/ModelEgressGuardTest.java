@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -25,16 +24,16 @@ import com.medkernel.shared.api.error.ErrorCode;
 class ModelEgressGuardTest {
 
     private ModelEgressWhitelistRepository whitelistRepo;
-    private ModelEgressApprovalRepository approvalRepo;
+    private ModelEgressConfirmationRepository confirmationRepo;
     private ModelEgressEvidenceRepository evidenceRepo;
     private ModelEgressGuard guard;
 
     @BeforeEach
     void setUp() {
         whitelistRepo = mock(ModelEgressWhitelistRepository.class);
-        approvalRepo = mock(ModelEgressApprovalRepository.class);
+        confirmationRepo = mock(ModelEgressConfirmationRepository.class);
         evidenceRepo = mock(ModelEgressEvidenceRepository.class);
-        guard = new ModelEgressGuard(whitelistRepo, approvalRepo, evidenceRepo);
+        guard = new ModelEgressGuard(whitelistRepo, confirmationRepo, evidenceRepo);
     }
 
     private void whitelist(String allowedFields, String sensitivity) {
@@ -45,12 +44,16 @@ class ModelEgressGuardTest {
                 now, "system", now, "system")));
     }
 
-    private void policy(String allowedFields, String sensitivity, String desensitizationRules, String approvalThreshold) {
+    private void policy(
+            String allowedFields,
+            String sensitivity,
+            String desensitizationRules,
+            String confirmationThreshold) {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         when(whitelistRepo.findByTenantIdAndCapabilityCode("tenant-1", "knowledge.extract"))
             .thenReturn(Optional.of(new ModelEgressWhitelist(
                 1L, "tenant-1", "knowledge.extract", allowedFields, sensitivity,
-                desensitizationRules, approvalThreshold, "Y",
+                desensitizationRules, confirmationThreshold, "Y",
                 now, "system", now, "system")));
     }
 
@@ -75,7 +78,7 @@ class ModelEgressGuardTest {
 
         assertThatThrownBy(() -> guard.prepareEgress(
                 "tenant-1", "knowledge.extract",
-                "{\"prompt\":\"不得绕过白名单的原始文本\"}",
+                "{\"prompt\":\"不得绕过允许范围的原始文本\"}",
                 "task-empty", "claude"))
             .isInstanceOf(ApiException.class)
             .extracting(error -> ((ApiException) error).errorCode())
@@ -175,10 +178,10 @@ class ModelEgressGuardTest {
     }
 
     @Test
-    void highSensitivityWithoutApproval_blocksWithEngLlm007() {
+    void highSensitivityWithoutConfirmation_blocksWithEngLlm007() {
         whitelist("[\"clinicalText\"]", "HIGH");
-        when(approvalRepo.findFirstByTenantIdAndCapabilityCodeAndPayloadHashAndStatusOrderByIdDesc(
-                any(), any(), any(), eq("APPROVED")))
+        when(confirmationRepo.findFirstByTenantIdAndCapabilityCodeAndPayloadHashOrderByIdDesc(
+                any(), any(), any()))
             .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> guard.prepareEgress(
@@ -189,10 +192,10 @@ class ModelEgressGuardTest {
     }
 
     @Test
-    void configuredMediumApprovalThresholdRequiresApproval() {
+    void configuredMediumConfirmationThresholdRequiresConfirmation() {
         policy("[\"clinicalText\"]", "MEDIUM", "{\"clinicalText\":\"MASK_ALL\"}", "MEDIUM");
-        when(approvalRepo.findFirstByTenantIdAndCapabilityCodeAndPayloadHashAndStatusOrderByIdDesc(
-                any(), any(), any(), eq("APPROVED")))
+        when(confirmationRepo.findFirstByTenantIdAndCapabilityCodeAndPayloadHashOrderByIdDesc(
+                any(), any(), any()))
             .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> guard.prepareEgress(
@@ -203,7 +206,7 @@ class ModelEgressGuardTest {
     }
 
     @Test
-    void lowSensitivity_passesWithoutApproval() {
+    void lowSensitivity_passesWithoutConfirmation() {
         whitelist("[\"clinicalText\"]", "LOW");
 
         ModelEgressGuard.EgressPreparation prep = guard.prepareEgress(
@@ -213,14 +216,15 @@ class ModelEgressGuardTest {
     }
 
     @Test
-    void approvedHighSensitivity_passes() {
+    void confirmedHighSensitivity_passes() {
         whitelist("[\"clinicalText\"]", "HIGH");
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
-        when(approvalRepo.findFirstByTenantIdAndCapabilityCodeAndPayloadHashAndStatusOrderByIdDesc(
-                any(), any(), any(), eq("APPROVED")))
-            .thenReturn(Optional.of(new ModelEgressApproval(
-                9L, "tenant-1", "knowledge.extract", "hash-x", "APPROVED",
-                "compliance-001", now, now, "compliance-001", now, "compliance-001")));
+        when(confirmationRepo.findFirstByTenantIdAndCapabilityCodeAndPayloadHashOrderByIdDesc(
+                any(), any(), any()))
+            .thenReturn(Optional.of(new ModelEgressConfirmation(
+                9L, "tenant-1", "knowledge.extract", "hash-x",
+                "生成机构知识草稿", "operator-001", now,
+                now, "operator-001", now, "operator-001")));
 
         ModelEgressGuard.EgressPreparation prep = guard.prepareEgress(
             "tenant-1", "knowledge.extract", "{\"clinicalText\":\"主诉发热\"}", "task-1", "claude");
@@ -242,6 +246,7 @@ class ModelEgressGuardTest {
                 && "task-77".equals(e.taskId())
                 && "ollama-local".equals(e.providerCode())
                 && "[\"clinicalText\"]".equals(e.egressFields())
+                && e.confirmationId() == null
                 && prep.desensitizedHash().equals(e.desensitizedHash())));
     }
 }

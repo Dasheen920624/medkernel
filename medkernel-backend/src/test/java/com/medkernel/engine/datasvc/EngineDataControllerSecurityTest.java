@@ -95,13 +95,13 @@ class EngineDataControllerSecurityTest {
         mockMvc.perform(get("/api/v1/engine-data/rule-usage")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void qualityGovernorCanQueryRuleUsage() throws Exception {
+    void engineOperatorCanQueryRuleUsage() throws Exception {
         when(service.queryRuleUsage(any(), any(), anyInt(), anyInt()))
             .thenReturn(new RuleUsageStatsResponse(EngineDataLevel.D2, 0L, 0, 20, List.of(),
                 Instant.parse("2026-06-14T00:00:00Z"), false, null));
@@ -109,8 +109,8 @@ class EngineDataControllerSecurityTest {
         mockMvc.perform(get("/api/v1/engine-data/rule-usage")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
                 .andExpect(status().isOk());
     }
 
@@ -119,13 +119,13 @@ class EngineDataControllerSecurityTest {
         mockMvc.perform(get("/api/v1/engine-data/knowledge-usage")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void qualityGovernorCanQueryKnowledgeUsage() throws Exception {
+    void engineOperatorCanQueryKnowledgeUsage() throws Exception {
         when(knowledgeUsageStatsService.queryKnowledgeUsage(any(), any(), anyInt(), anyInt()))
             .thenReturn(new KnowledgeUsageStatsResponse(EngineDataLevel.D2, 0L, 0, 20, List.of(),
                 Instant.parse("2026-06-14T00:00:00Z"), false, null));
@@ -133,8 +133,8 @@ class EngineDataControllerSecurityTest {
         mockMvc.perform(get("/api/v1/engine-data/knowledge-usage")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
                 .andExpect(status().isOk());
     }
 
@@ -143,13 +143,13 @@ class EngineDataControllerSecurityTest {
         mockMvc.perform(get("/api/v1/engine-data/clinical-signals")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void qualityGovernorCanQueryClinicalSignals() throws Exception {
+    void engineOperatorCanQueryClinicalSignals() throws Exception {
         when(clinicalSignalsService.queryClinicalSignals(any(), any(), anyInt(), anyInt()))
             .thenReturn(new ClinicalSignalsResponse(EngineDataLevel.D2, 0L, 0, 20, List.of(),
                 Instant.parse("2026-06-14T00:00:00Z"), false, null));
@@ -157,8 +157,8 @@ class EngineDataControllerSecurityTest {
         mockMvc.perform(get("/api/v1/engine-data/clinical-signals")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
                 .andExpect(status().isOk());
     }
 
@@ -170,13 +170,13 @@ class EngineDataControllerSecurityTest {
                 .content("{\"purpose\":\"探测\"}")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void knowledgeGovernorCanExecuteSubmitProductionCandidateTool() throws Exception {
+    void engineOperatorCanExecuteSubmitProductionCandidateTool() throws Exception {
         when(controlledToolService.execute(any(), any()))
             .thenReturn(new ToolExecutionEnvelope("submitProductionCandidate", EngineDataLevel.D1,
                 "D1_PUBLISHED_ASSET_METADATA", "2026-06-14T00:00:00Z", true,
@@ -188,20 +188,20 @@ class EngineDataControllerSecurityTest {
                 .content(AGENT_CANDIDATE_TOOL_BODY)
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
                 .andExpect(status().isOk());
     }
 
     @Test
-    void qualityGovernorCanListControlledTools() throws Exception {
+    void engineOperatorCanListControlledTools() throws Exception {
         when(controlledToolService.listTools()).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/engine-data/tools")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
                 .andExpect(status().isOk());
     }
 
@@ -210,16 +210,16 @@ class EngineDataControllerSecurityTest {
         mockMvc.perform(post("/api/v1/engine-data/exports")
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"exportType\":\"RULE_USAGE\",\"windowDays\":90,\"approvalId\":\"exp-1\",\"idempotencyKey\":\"idem-1\"}")
+                .content("{\"exportType\":\"RULE_USAGE\",\"windowDays\":90,\"confirmationId\":\"exp-1\",\"idempotencyKey\":\"idem-1\"}")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void qualityGovernorCanSubmitExport() throws Exception {
+    void engineOperatorCanSubmitExport() throws Exception {
         when(engineDataExportService.submit(any(), anyInt(), any(), any()))
             .thenReturn(new EngineDataExportJob(1L, "tenant-1", "job-1", "u",
                 EngineDataExportType.RULE_USAGE, ExportJobStatus.PENDING, 0, null, null, null,
@@ -228,16 +228,16 @@ class EngineDataControllerSecurityTest {
         mockMvc.perform(post("/api/v1/engine-data/exports")
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"exportType\":\"RULE_USAGE\",\"windowDays\":90,\"approvalId\":\"exp-1\",\"idempotencyKey\":\"idem-1\"}")
+                .content("{\"exportType\":\"RULE_USAGE\",\"windowDays\":90,\"confirmationId\":\"exp-1\",\"idempotencyKey\":\"idem-1\"}")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("quality-governor")))
-                .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
                 .andExpect(status().isOk());
     }
 
     @Test
-    void qualityGovernorCanListExportsAsPage() throws Exception {
+    void engineOperatorCanListExportsAsPage() throws Exception {
         when(engineDataExportService.listRecent(any(PageRequest.class)))
             .thenReturn(PageResponse.of(List.of(new EngineDataExportJob(1L, "tenant-1", "job-1", "u",
                 EngineDataExportType.RULE_USAGE, ExportJobStatus.PENDING, 0, null, null, null,
@@ -247,8 +247,8 @@ class EngineDataControllerSecurityTest {
         mockMvc.perform(get("/api/v1/engine-data/exports?page=1&size=20")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("quality-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_QUALITY_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.items[0].jobCode").value("job-1"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.page").value(1))

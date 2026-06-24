@@ -36,8 +36,7 @@ public record CdssRiskAssessment(
     public boolean requiresPhysicianConfirmation() {
         return riskLevel == RecommendationRiskLevel.HIGH
             || riskLevel == RecommendationRiskLevel.CRITICAL
-            || reviewRequirement == CdssReviewRequirement.PHYSICIAN_CONFIRMATION
-            || reviewRequirement == CdssReviewRequirement.DUAL_REVIEW;
+            || reviewRequirement == CdssReviewRequirement.PHYSICIAN_CONFIRMATION;
     }
 
     private static boolean hasText(String value) {

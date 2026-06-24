@@ -42,20 +42,20 @@ import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.crypto.SmCryptoService;
-import com.medkernel.shared.export.ExportApprovalGate;
+import com.medkernel.shared.export.ExportConfirmationGate;
 import com.medkernel.shared.export.ExportArtifact;
 import com.medkernel.shared.export.ExportArtifactProvider;
 
 /**
- * 引擎数据服务层异步导出服务（DATASVC-01，FR-1 异步导出 / FR-3 不绕审批 / FR-6 全审计）。
+ * 引擎数据服务层异步导出服务（DATASVC-01，FR-1 异步导出 / FR-3 脱敏与导出限制 / FR-6 全审计）。
  *
- * <p>把三组 D2 去标识聚合读模型（规则/知识/临床信号使用统计）经 SYS-06 导出审批闸控制后异步导出为 CSV：
+ * <p>把三组去标识聚合读模型（规则、知识、临床信号使用统计）经导出确认门禁控制后异步导出为 CSV：
  * <ul>
- *   <li>{@code submit}：校验已有 APPROVED 导出审批（资源类型 + 范围一致）→ 写 PENDING + 事务提交后投递 worker；幂等键去重。</li>
+ *   <li>{@code submit}：校验导出确认（资源类型 + 范围一致）→ 写 PENDING + 事务提交后投递 worker；幂等键去重。</li>
  *   <li>{@code executeJob}：worker PENDING → RUNNING → 分页拉读模型 + 小样本抑制 + 写 CSV → SUCCEEDED；上游不可用诚实 FAILED。</li>
- *   <li>{@code completedExportArtifact}（{@link ExportArtifactProvider}）：按真实 CSV 文件字节计算 SM3 摘要供导出审批登记完成。</li>
+ *   <li>{@code completedExportArtifact}（{@link ExportArtifactProvider}）：按真实 CSV 文件字节计算 SM3 摘要供导出登记完成。</li>
  * </ul>
- * 作为 {@link ExportArtifactProvider} 被导出审批服务按资源类型解析；本服务只读既有读模型，不直连原始病历、不绕治理。
+ * 作为 {@link ExportArtifactProvider} 被导出确认服务按资源类型解析；本服务只读既有读模型，不直连原始病历。
  */
 @Service
 public class EngineDataExportService implements ExportArtifactProvider {
@@ -73,7 +73,7 @@ public class EngineDataExportService implements ExportArtifactProvider {
     private final RuleUsageStatsRepository ruleUsageRepository;
     private final KnowledgeUsageStatsRepository knowledgeUsageRepository;
     private final ClinicalSignalsRepository clinicalSignalsRepository;
-    private final ExportApprovalGate approvalGate;
+    private final ExportConfirmationGate confirmationGate;
     private final SmCryptoService crypto;
     private final AuditRecorder auditRecorder;
     private final ObjectMapper json;
@@ -85,7 +85,7 @@ public class EngineDataExportService implements ExportArtifactProvider {
             RuleUsageStatsRepository ruleUsageRepository,
             KnowledgeUsageStatsRepository knowledgeUsageRepository,
             ClinicalSignalsRepository clinicalSignalsRepository,
-            ExportApprovalGate approvalGate,
+            ExportConfirmationGate confirmationGate,
             SmCryptoService crypto,
             AuditRecorder auditRecorder,
             ObjectMapper json,
@@ -94,7 +94,7 @@ public class EngineDataExportService implements ExportArtifactProvider {
         this.ruleUsageRepository = ruleUsageRepository;
         this.knowledgeUsageRepository = knowledgeUsageRepository;
         this.clinicalSignalsRepository = clinicalSignalsRepository;
-        this.approvalGate = approvalGate;
+        this.confirmationGate = confirmationGate;
         this.crypto = crypto;
         this.auditRecorder = auditRecorder;
         this.json = json;
@@ -103,34 +103,42 @@ public class EngineDataExportService implements ExportArtifactProvider {
     }
 
     /**
-     * 提交异步导出作业。须先有 APPROVED 导出审批（资源类型 + 范围一致），否则结构化拒绝（不绕审批）。
+     * 提交异步导出作业。须先确认资源类型和导出范围，否则结构化拒绝。
      */
     @Transactional
-    public EngineDataExportJob submit(EngineDataExportType type, int windowDays, String approvalId, String idempotencyKey) {
+    public EngineDataExportJob submit(
+            EngineDataExportType type,
+            int windowDays,
+            String confirmationId,
+            String idempotencyKey) {
         String tenantId = requireCurrentTenant();
         String actor = currentActor();
-        String safeApprovalId = requireText(approvalId, "导出审批 ID 不能为空");
+        String safeConfirmationId = requireText(confirmationId, "导出确认 ID 不能为空");
         String safeIdem = requireText(idempotencyKey, "导出幂等键不能为空");
         int safeWindow = windowDays > 0 ? windowDays : DEFAULT_WINDOW_DAYS;
         String requestSnapshot = buildRequestSnapshot(type, safeWindow);
 
-        // 幂等：同租户同幂等键已存在则返回既有作业（不重复建、不重复审批）。
+        // 幂等：同租户同幂等键已存在则返回既有作业。
         Optional<EngineDataExportJob> existing = jobRepository.findByTenantIdAndIdempotencyKey(tenantId, safeIdem);
         if (existing.isPresent()) {
             return existing.get();
         }
 
-        // 不绕审批：必须有 APPROVED 导出审批，且资源类型与范围一致（委托 shared 审批闸，依赖方向 引擎→shared）。
-        approvalGate.requireApprovedForExport(tenantId, safeApprovalId, type.resourceType(), requestSnapshot);
+        confirmationGate.requireConfirmedForExport(
+            tenantId,
+            safeConfirmationId,
+            type.resourceType(),
+            requestSnapshot
+        );
 
         Instant now = Instant.now();
         EngineDataExportJob job = new EngineDataExportJob(
             null, tenantId, UUID.randomUUID().toString(), actor, type,
             ExportJobStatus.PENDING, 0, null, null, null,
-            safeApprovalId, safeIdem, requestSnapshot, now, null, null, null);
+            safeConfirmationId, safeIdem, requestSnapshot, now, null, null, null);
         EngineDataExportJob saved = jobRepository.save(job);
         auditRecorder.record(AuditAction.EXPORT, AUDIT_TARGET, saved.jobCode(),
-            "提交引擎数据导出作业 type=" + type + " 审批=" + safeApprovalId + " tenant=" + tenantId);
+            "提交引擎数据导出作业 type=" + type + " 确认=" + safeConfirmationId + " tenant=" + tenantId);
         // 等提交事务成功后再投递 worker；snapshot 让 worker 在线程池中恢复租户上下文。
         RequestContext.Snapshot snapshot = RequestContext.snapshot();
         dispatchAfterCommit(saved.jobCode(), snapshot);
@@ -180,7 +188,7 @@ public class EngineDataExportService implements ExportArtifactProvider {
         return Files.newInputStream(path);
     }
 
-    // ─── ExportArtifactProvider（导出审批登记完成时按资源类型解析本来源）──────────
+    // ─── ExportArtifactProvider（导出登记完成时按资源类型解析本来源）──────────
 
     @Override
     public boolean supports(String resourceType) {
@@ -197,7 +205,7 @@ public class EngineDataExportService implements ExportArtifactProvider {
     public ExportArtifact completedExportArtifact(String jobCode) {
         EngineDataExportJob job = get(jobCode);
         if (job.status() != ExportJobStatus.SUCCEEDED) {
-            throw new ApiException(ErrorCode.CONFLICT, "导出作业尚未成功，不能登记审批产物");
+            throw new ApiException(ErrorCode.CONFLICT, "导出作业尚未成功，不能登记导出产物");
         }
         Path path = physicalExportPath(jobCode);
         if (!Files.isRegularFile(path)) {
@@ -471,7 +479,7 @@ public class EngineDataExportService implements ExportArtifactProvider {
         return new EngineDataExportJob(
             b.id, b.tenantId, b.jobCode, b.requestedBy, b.exportType,
             b.status, b.progress, b.resultUri, b.itemCount, b.errorMessage,
-            b.approvalId, b.idempotencyKey, b.requestSnapshot,
+            b.confirmationId, b.idempotencyKey, b.requestSnapshot,
             b.createdAt, b.startedAt, b.completedAt, b.expiresAt);
     }
 
@@ -486,7 +494,7 @@ public class EngineDataExportService implements ExportArtifactProvider {
         String resultUri;
         Long itemCount;
         String errorMessage;
-        String approvalId;
+        String confirmationId;
         String idempotencyKey;
         String requestSnapshot;
         Instant createdAt;
@@ -505,7 +513,7 @@ public class EngineDataExportService implements ExportArtifactProvider {
             this.resultUri = j.resultUri();
             this.itemCount = j.itemCount();
             this.errorMessage = j.errorMessage();
-            this.approvalId = j.approvalId();
+            this.confirmationId = j.confirmationId();
             this.idempotencyKey = j.idempotencyKey();
             this.requestSnapshot = j.requestSnapshot();
             this.createdAt = j.createdAt();

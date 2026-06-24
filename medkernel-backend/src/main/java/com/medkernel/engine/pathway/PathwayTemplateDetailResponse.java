@@ -16,6 +16,7 @@ public record PathwayTemplateDetailResponse(
     List<PathwayEdge> edges,
     List<SpecialtyMetricBinding> metricBindings,
     List<PathwayOutcomeBinding> outcomeBindings,
+    int nextVersionNo,
     AssetVersionStatus deploymentStatus,
     String traceId
 ) {
@@ -37,8 +38,10 @@ public record PathwayTemplateDetailResponse(
             List<PathwayNode> nodes,
             List<PathwayEdge> edges,
             List<SpecialtyMetricBinding> metricBindings,
+            int nextVersionNo,
             AssetVersionStatus deploymentStatus,
             String traceId) {
-        this(template, milestones, nodes, edges, metricBindings, List.of(), deploymentStatus, traceId);
+        this(template, milestones, nodes, edges, metricBindings, List.of(), nextVersionNo,
+            deploymentStatus, traceId);
     }
 }

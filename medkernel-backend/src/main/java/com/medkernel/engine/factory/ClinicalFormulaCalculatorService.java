@@ -15,7 +15,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 /**
  * 评分量表/计算器确定性算子。
  *
- * <p>算法完全来自传入的受控公式定义；本服务不内置任何医学评分量表常量。
+ * <p>算法完全来自传入的计算公式定义；本服务不内置任何医学评分量表常量。
  */
 @Service
 public class ClinicalFormulaCalculatorService {

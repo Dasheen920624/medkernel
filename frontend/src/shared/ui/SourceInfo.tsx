@@ -44,7 +44,7 @@ export function SourceInfo({
 
   return (
     <Descriptions title="来源与审核" size="small" bordered column={1}>
-      <Descriptions.Item label="来源对象">
+      <Descriptions.Item label="来源编号">
         <Space size={4} split="·" wrap>
           <Text>
             {sourceDocumentId !== null && sourceDocumentId !== undefined

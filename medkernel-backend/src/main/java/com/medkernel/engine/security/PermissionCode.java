@@ -7,7 +7,7 @@ import java.util.Optional;
  * MedKernel v1.0 GA · 统一权限编码枚举。
  *
  * <p>命名约定：{@code <域>.<动作>}，小写点号分隔。
- * 域大致对应一级业务模块（org/tenant/rule/pathway/knowledge/recommendation/evaluation/followup/package/audit/system 等）。
+ * 域大致对应一级业务模块（org/tenant/release/rule/pathway/knowledge/recommendation/evaluation/followup/audit/system 等）。
  *
  * <p>项目上线前权限目录保持单一有效集合，不保留已淘汰权限别名。
  *
@@ -21,12 +21,16 @@ public enum PermissionCode {
     ORG_WRITE("org.write", Risk.MEDIUM, "新增 / 修改组织单元"),
     ORG_PUBLISH("org.publish", Risk.HIGH, "激活 / 暂停 / 归档组织单元"),
 
-    // ─── 租户与配置包（GA-ENG-API-10）────────────────────────────
-    TENANT_READ("tenant.read", Risk.LOW, "查看租户与生命周期"),
-    TENANT_WRITE("tenant.write", Risk.HIGH, "开通 / 关闭租户"),
-    PACKAGE_READ("package.read", Risk.LOW, "查看配置包 / 知识包"),
-    PACKAGE_PUBLISH("package.publish", Risk.HIGH, "灰度 / 全量发布配置包"),
-    PACKAGE_ROLLBACK("package.rollback", Risk.HIGH, "回滚配置包"),
+    // ─── 服务机构与发布治理（GA-ENG-API-10）────────────────────────────
+    TENANT_READ("tenant.read", Risk.LOW, "查看服务机构与生命周期"),
+    TENANT_WRITE("tenant.write", Risk.HIGH, "开通 / 关闭服务机构"),
+    RELEASE_READ("release.read", Risk.LOW, "查看平台标准版本与机构生效版本"),
+    RELEASE_PUBLISH("release.publish", Risk.HIGH, "发布平台标准版本或激活机构生效版本"),
+    RELEASE_ROLLBACK("release.rollback", Risk.HIGH, "从历史机构生效版本生成回退版本"),
+
+    // ─── 通用配置资产 ────────────────────────────────────────────
+    ASSET_READ("asset.read", Risk.LOW, "查看值集、计算公式、医嘱套餐与临床提示卡"),
+    ASSET_WRITE("asset.write", Risk.MEDIUM, "新增 / 修改值集、计算公式、医嘱套餐与临床提示卡草稿"),
 
     // ─── 知识资产（GA-ENG-API-03 / GA-ENG-KNOW-01/02）─────────
     KNOWLEDGE_READ("knowledge.read", Risk.LOW, "查看知识资产 / 来源 / 候选"),
@@ -39,7 +43,7 @@ public enum PermissionCode {
     // ─── 字典（GA-ENG-TERM-01）─────────────────────────────────
     TERM_READ("term.read", Risk.LOW, "查看标准字典 / 院内映射"),
     TERM_WRITE("term.write", Risk.MEDIUM, "修改字典 / 映射"),
-    TERM_PUBLISH("term.publish", Risk.HIGH, "发布字典映射包"),
+    TERM_PUBLISH("term.publish", Risk.HIGH, "发布字典映射版本"),
 
     // ─── 规则（GA-ENG-RULE-01）─────────────────────────────────
     RULE_READ("rule.read", Risk.LOW, "查看规则"),
@@ -64,7 +68,7 @@ public enum PermissionCode {
 
     // ─── 审计与证据（GA-ENG-EVID-01）──────────────────────────
     AUDIT_READ("audit.read", Risk.LOW, "查看审计日志"),
-    AUDIT_EXPORT("audit.export", Risk.MEDIUM, "导出审计快照 / 证据包"),
+    AUDIT_EXPORT("audit.export", Risk.MEDIUM, "导出审计快照 / 证据导出"),
 
     // ─── 标准上下文（GA-ENG-API-01）────────────────────────────
     CONTEXT_READ("context.read", Risk.LOW, "查看标准上下文 snapshot"),
@@ -75,10 +79,10 @@ public enum PermissionCode {
     EVENT_WRITE("event.write", Risk.MEDIUM, "创建 / 重放临床事件"),
 
     // ─── 系统运维（GA-ENG-BASE-07）─────────────────────────────
-    SYSTEM_READ("system.read", Risk.LOW, "查看系统状态 / Provider"),
+    SYSTEM_READ("system.read", Risk.LOW, "查看系统状态 / 外部连接"),
     SYSTEM_MANAGE("system.manage", Risk.HIGH, "运维操作（重启、密钥轮换、降级开关）"),
     PLATFORM_PUBLISH("platform.publish", Risk.HIGH, "发布 / 激活平台权威资产版本"),
-    TENANT_OVERRIDE("tenant.override", Risk.HIGH, "发布租户 / 机构资产覆盖"),
+    TENANT_OVERRIDE("tenant.override", Risk.HIGH, "发布服务机构资产覆盖"),
 
     // ─── 追加权限（保持已发布枚举顺序稳定）──────────────────────────
     RECOMMENDATION_WRITE("recommendation.write", Risk.MEDIUM, "创建推荐触发和候选提醒事实"),
@@ -87,17 +91,18 @@ public enum PermissionCode {
     EVALUATION_REVIEW("evaluation.review", Risk.HIGH, "复核质控整改并关闭问题"),
     FOLLOWUP_READ("followup.read", Risk.LOW, "查看随访计划与任务列表"),
     FOLLOWUP_WRITE("followup.write", Risk.MEDIUM, "智能生成随访计划、触发任务、提交问卷与回传异常事件"),
+    FOLLOWUP_PUBLISH("followup.publish", Risk.HIGH, "发布随访模板版本"),
     EMBED_READ("embed.read", Risk.LOW, "验证和查看嵌入上下文"),
-    EMBED_WRITE("embed.write", Risk.MEDIUM, "生成嵌入启动令牌和记录反馈"),
+    EMBED_WRITE("embed.write", Risk.MEDIUM, "生成嵌入启动凭证和记录反馈"),
     SANDBOX_RUN("sandbox.run", Risk.MEDIUM, "运行全真体验沙盘场景编排"),
+    SANDBOX_MANAGE("sandbox.manage", Risk.MEDIUM, "导入或撤销脱敏历史重放清单"),
     LLM_READ("llm.read", Risk.LOW, "查看模型能力状态和调用记录"),
     LLM_EXECUTE("llm.execute", Risk.MEDIUM, "提交和重试模型任务"),
-    LLM_MANAGE("llm.manage", Risk.HIGH, "管理租户模型路由、脱敏和输出结构策略"),
-    LLM_EGRESS_MANAGE("llm.egress.manage", Risk.HIGH, "管理模型外调出域字段白名单与高敏出域审批"),
-    LLM_PROVIDER_MANAGE("llm.provider.manage", Risk.HIGH, "配置模型 provider 接入（端点/加密凭据/启停）"),
-    LLM_EVAL_MANAGE("llm.eval.manage", Risk.HIGH, "维护医学回归基准集、运行评测与专家复核签字"),
-    LLM_ENHANCEMENT_MANAGE("llm.enhancement.manage", Risk.HIGH, "维护全业务模型增强接入矩阵（业务点↔能力码↔B0 路径↔接入状态）"),
-    KNOWLEDGE_ACQUISITION_APPROVE("knowledge.acquisition.approve", Risk.HIGH, "独立审批、启用或停用公域资料来源"),
+    LLM_MANAGE("llm.manage", Risk.HIGH, "管理机构模型路由、脱敏和输出结构策略"),
+    LLM_EGRESS_MANAGE("llm.egress.manage", Risk.HIGH, "管理模型外调允许范围与高敏用途确认"),
+    LLM_PROVIDER_MANAGE("llm.provider.manage", Risk.HIGH, "配置模型服务接入（调用地址/加密凭据/启停）"),
+    LLM_EVAL_MANAGE("llm.eval.manage", Risk.HIGH, "维护医学验证用例、运行评测并核查证据"),
+    LLM_ENHANCEMENT_MANAGE("llm.enhancement.manage", Risk.HIGH, "维护全业务模型增强接入矩阵（业务点、能力码、基础规则路径、接入状态）"),
     ENGINE_DATA_READ("engine-data.read", Risk.LOW, "查询引擎数据服务层只读统计（规则/知识使用聚合，按数据分级与权限脱敏）"),
     ENGINE_DATA_EXPORT("engine-data.export", Risk.MEDIUM, "提交与下载引擎数据服务层异步导出（D2 去标识聚合，审批闸控、字段脱敏、小样本抑制）"),
     LIST_EXPORT("list.export", Risk.MEDIUM, "创建和下载大规模列表异步导出文件"),
@@ -123,10 +128,10 @@ public enum PermissionCode {
     DATA_GROUP("data.group", PermissionDimension.DATA, Risk.HIGH, "访问集团跨院数据"),
     DATA_DESENSITIZED("data.desensitized", PermissionDimension.DATA, Risk.LOW, "访问脱敏数据"),
 
-    // ─── 资产维度（知识、字典、规则、路径、配置包的授权边界）──────────────────
-    ASSET_CONFIG_PACKAGE("asset.config-package", PermissionDimension.ASSET, Risk.MEDIUM, "访问配置包资产"),
+    // ─── 资产维度（知识、字典、规则、路径和机构生效版本的授权边界）──────────────────
+    ASSET_RUNTIME_RELEASE("asset.runtime-release", PermissionDimension.ASSET, Risk.MEDIUM, "访问机构生效版本明细"),
     ASSET_DICTIONARY("asset.dictionary", PermissionDimension.ASSET, Risk.MEDIUM, "访问字典映射资产"),
-    ASSET_KNOWLEDGE_PACKAGE("asset.knowledge-package", PermissionDimension.ASSET, Risk.MEDIUM, "访问知识包资产"),
+    ASSET_KNOWLEDGE("asset.knowledge", PermissionDimension.ASSET, Risk.MEDIUM, "访问知识资产"),
     ASSET_RULE("asset.rule", PermissionDimension.ASSET, Risk.MEDIUM, "访问规则资产"),
     ASSET_PATHWAY("asset.pathway", PermissionDimension.ASSET, Risk.MEDIUM, "访问路径资产"),
 
@@ -139,7 +144,7 @@ public enum PermissionCode {
     // ─── INFRA-05 入口维度：32 主导航 + 1 页头 + 1 个人入口 ─────────
     MENU_IMPLEMENTATION_GUIDE("menu.implementation-guide", PermissionDimension.MENU, Risk.LOW, "查看实施与验收"),
     MENU_TENANT_ONBOARDING("menu.tenant-onboarding", PermissionDimension.MENU, Risk.LOW, "查看服务机构"),
-    MENU_CONFIG_PACKAGES("menu.config-packages", PermissionDimension.MENU, Risk.LOW, "查看配置包与发布"),
+    MENU_RUNTIME_RELEASES("menu.runtime-releases", PermissionDimension.MENU, Risk.LOW, "查看发布治理"),
     MENU_PATHWAY_TEMPLATES("menu.pathway-templates", PermissionDimension.MENU, Risk.LOW, "查看路径配置"),
     MENU_RULE_DEFINITIONS("menu.rule-definitions", PermissionDimension.MENU, Risk.LOW, "查看规则配置"),
     MENU_TERMINOLOGY_MAPPING("menu.terminology-mapping", PermissionDimension.MENU, Risk.LOW, "查看术语与字典"),

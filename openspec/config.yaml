@@ -8,21 +8,21 @@ context: |
   当前所有有效文档必须使用简体中文书写。英文仅用于代码标识符、接口路径、命令、配置键、
   第三方产品名、标准缩写和必要原文引用，并且需要中文解释。
 
-  主要权威文档：
+  当前权威文档：
   - README.md
   - AGENTS.md
   - docs/README.md
-  - docs/DOCUMENTATION_LANGUAGE_POLICY.md
   - docs/CONSTITUTION.md
-  - docs/MEDKERNEL_FOUNDATION_AND_SERVICES.md
-  - docs/MEDKERNEL_IMPLEMENTATION_LANDING_PLAN.md
-  - docs/MEDKERNEL_BUSINESS_SCENARIO_DETAIL_SPEC.md
-  - docs/MEDKERNEL_PRODUCT_EXPERIENCE_RULES.md
-  - docs/backlog.md
+  - docs/ARCHITECTURE.md
+  - docs/DATABASE_SCHEMA.md
+  - docs/EXPERIENCE_CONTRACT.md
+  - docs/audit/product-function-catalog.md
+  - docs/audit/product-role-journeys.md
+  - docs/audit/质量基线.md
 
 rules:
   proposal:
-    - 提案必须与 v1.0 GA 当前「0 业务引擎全能力上线」方向一致。
+    - 提案必须与完整上线和医疗引擎中枢边界一致。
     - 不得替换既有后端、前端或部署技术栈，除非用户明确要求。
     - 实施前必须说明影响的文档、API、数据表、迁移脚本、测试和部署入口。
     - 提案正文必须使用中文；保留英文代码名时必须解释业务含义。

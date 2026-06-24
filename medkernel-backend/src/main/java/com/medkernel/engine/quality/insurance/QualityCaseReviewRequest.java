@@ -8,6 +8,5 @@ import jakarta.validation.constraints.NotBlank;
 public record QualityCaseReviewRequest(
     @NotBlank String contextSnapshotId,
     @NotBlank String scenarioCode,
-    String packageVersion,
     @NotBlank String responsibleDepartmentId
 ) {}

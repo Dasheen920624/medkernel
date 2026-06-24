@@ -128,9 +128,7 @@ public class InheritanceOverrideService {
         InheritancePropagation propagation = command.propagation() == null
             ? InheritancePropagation.INHERITABLE
             : command.propagation();
-        InheritanceOverrideStatus lifecycleStatus = requiresReview(inherited, overrideVersion)
-            ? InheritanceOverrideStatus.IN_REVIEW
-            : InheritanceOverrideStatus.PUBLISHED;
+        InheritanceOverrideStatus lifecycleStatus = InheritanceOverrideStatus.ACTIVE;
         Instant now = Instant.now(clock);
         return overrides.save(new InheritanceOverride(
             null,
@@ -197,18 +195,6 @@ public class InheritanceOverrideService {
         if (!hierarchy.isDescendant(tenantId, actorOrgUnitId, targetOrgUnitId)) {
             throw new ApiException(ErrorCode.FORBIDDEN, "tenant.override 只能作用于自身组织闭包");
         }
-    }
-
-    private boolean requiresReview(AssetVersion inherited) {
-        return requiresReview(inherited, null);
-    }
-
-    private boolean requiresReview(AssetVersion inherited, AssetVersion overrideVersion) {
-        AssetVersion policySource = inherited == null ? overrideVersion : inherited;
-        return policySource != null
-            && (policySource.overridePolicy() == AssetVersionOverridePolicy.REVIEW
-                || policySource.overridePolicy() == AssetVersionOverridePolicy.LOCKED
-                || policySource.safetyPolicy() == AssetVersionSafetyPolicy.SAFETY_REDLINE);
     }
 
     private void denyUnsafeLowerOverride(

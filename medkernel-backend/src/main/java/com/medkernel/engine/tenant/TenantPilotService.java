@@ -6,16 +6,13 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.medkernel.engine.context.ClinicalRuntimeReleaseRepository;
 import com.medkernel.engine.integration.repository.IntegrationAdapterRepository;
+import com.medkernel.engine.org.OrgFacilityType;
 import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.engine.org.OrgUnitStatus;
 import com.medkernel.engine.org.OrgUnitRepository;
-import com.medkernel.engine.pkg.KnowledgePackageRepository;
-import com.medkernel.engine.pkg.ReleasePlanRepository;
-import com.medkernel.engine.pkg.ReleasePlanStatus;
-import com.medkernel.engine.pkg.ReleaseStrategy;
-import com.medkernel.engine.pkg.TenantPackageReferenceRepository;
-import com.medkernel.engine.pkg.TenantPackageReferenceStatus;
+import com.medkernel.engine.release.PlatformBaselineReleaseRepository;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
 import com.medkernel.shared.api.error.ApiException;
@@ -42,9 +39,8 @@ public class TenantPilotService {
     private final PlatformCredentialRepository credentialRepository;
     private final UserRoleAssignmentRepository roleAssignmentRepository;
     private final IntegrationAdapterRepository adapterRepository;
-    private final KnowledgePackageRepository packageRepository;
-    private final TenantPackageReferenceRepository packageReferenceRepository;
-    private final ReleasePlanRepository releasePlanRepository;
+    private final PlatformBaselineReleaseRepository platformBaselineRepository;
+    private final ClinicalRuntimeReleaseRepository runtimeReleaseRepository;
 
     public TenantPilotService(BrandingRepository brandingRepository,
                               SuccessPlanRepository successPlanRepository,
@@ -53,9 +49,8 @@ public class TenantPilotService {
                               PlatformCredentialRepository credentialRepository,
                               UserRoleAssignmentRepository roleAssignmentRepository,
                               IntegrationAdapterRepository adapterRepository,
-                              KnowledgePackageRepository packageRepository,
-                              TenantPackageReferenceRepository packageReferenceRepository,
-                              ReleasePlanRepository releasePlanRepository) {
+                              PlatformBaselineReleaseRepository platformBaselineRepository,
+                              ClinicalRuntimeReleaseRepository runtimeReleaseRepository) {
         this.brandingRepository = brandingRepository;
         this.successPlanRepository = successPlanRepository;
         this.transitionRecorder = transitionRecorder;
@@ -63,15 +58,14 @@ public class TenantPilotService {
         this.credentialRepository = credentialRepository;
         this.roleAssignmentRepository = roleAssignmentRepository;
         this.adapterRepository = adapterRepository;
-        this.packageRepository = packageRepository;
-        this.packageReferenceRepository = packageReferenceRepository;
-        this.releasePlanRepository = releasePlanRepository;
+        this.platformBaselineRepository = platformBaselineRepository;
+        this.runtimeReleaseRepository = runtimeReleaseRepository;
     }
 
     /**
      * 获取租户定制品牌信息，不存在时自动物理落库初始化默认配置。
      *
-     * @param tenantId 租户 ID
+     * @param tenantId 机构 ID
      * @return 品牌配置
      */
     @Transactional
@@ -227,15 +221,15 @@ public class TenantPilotService {
             usersStep(normalizedTenantId),
             permissionsStep(normalizedTenantId),
             adaptersStep(normalizedTenantId),
-            assetsStep(normalizedTenantId),
-            grayscaleStep(normalizedTenantId)
+            platformBaselineStep(),
+            hospitalRuntimeStep(normalizedTenantId)
         );
     }
 
     /**
-     * 复算租户开通就绪门。
+     * 复算服务机构开通条件。
      *
-     * @param tenantId 租户 ID
+     * @param tenantId 服务机构 ID
      * @return 开通就绪结果
      */
     public OnboardingReadiness getOnboardingReadiness(String tenantId) {
@@ -263,7 +257,7 @@ public class TenantPilotService {
         if (!readiness.ready()) {
             throw new ApiException(
                 ErrorCode.TENANT_ONBOARD_NOT_READY,
-                "租户开通未就绪：" + String.join("；", readiness.blockers())
+                "机构开通未就绪：" + String.join("；", readiness.blockers())
             );
         }
     }
@@ -319,26 +313,47 @@ public class TenantPilotService {
         return blocked("ADAPTERS", "适配器", "/integration/adapters", "适配器未登记或未启用");
     }
 
-    private ImplementationStep assetsStep(String tenantId) {
-        boolean hasActiveReference = packageReferenceRepository.countByTenantIdAndStatus(
-            tenantId, TenantPackageReferenceStatus.ACTIVE) > 0;
-        boolean hasReleasedAssets = packageRepository.countReleasedByTenantId(tenantId) > 0;
-        if (hasActiveReference) {
-            return done("ASSETS", "资产", "/config/packages", "已引用平台配置资产包");
+    private ImplementationStep platformBaselineStep() {
+        if (platformBaselineRepository.findFirstByOrderByRevisionNoDesc().isPresent()) {
+            return done(
+                "PLATFORM_BASELINE",
+                "平台标准版本",
+                "/config/releases",
+                "已发布平台标准版本"
+            );
         }
-        if (hasReleasedAssets) {
-            return done("ASSETS", "资产", "/config/packages", "已存在发布或启用的租户配置资产包");
-        }
-        return blocked("ASSETS", "资产", "/config/packages", "尚未引用平台配置资产包");
+        return blocked(
+            "PLATFORM_BASELINE",
+            "平台标准版本",
+            "/config/releases",
+            "尚未发布平台标准版本"
+        );
     }
 
-    private ImplementationStep grayscaleStep(String tenantId) {
-        boolean hasSuccessfulGrayscale = releasePlanRepository.countByTenantIdAndStrategyAndStatus(
-            tenantId, ReleaseStrategy.GRAYSCALE, ReleasePlanStatus.SUCCESS) > 0;
-        if (hasSuccessfulGrayscale) {
-            return done("GRAYSCALE", "灰度", "/config/packages", "已存在成功的灰度发布计划");
+    private ImplementationStep hospitalRuntimeStep(String tenantId) {
+        long hospitalCount = orgUnitRepository
+            .countByTenantIdAndLevelAndStatusAndFacilityType(
+                tenantId,
+                OrgLevel.FACILITY,
+                OrgUnitStatus.ACTIVE,
+                OrgFacilityType.HOSPITAL
+            );
+        long releasedHospitalCount =
+            runtimeReleaseRepository.countDistinctHospitalsByTenantId(tenantId);
+        if (hospitalCount > 0 && releasedHospitalCount >= hospitalCount) {
+            return done(
+                "HOSPITAL_RUNTIME",
+                "机构生效版本",
+                "/config/releases",
+                "每家启用医院均已建立机构生效版本"
+            );
         }
-        return blocked("GRAYSCALE", "灰度", "/config/packages", "灰度发布尚未成功");
+        return blocked(
+            "HOSPITAL_RUNTIME",
+            "机构生效版本",
+            "/config/releases",
+            "仍有启用医院尚未建立机构生效版本"
+        );
     }
 
     private ImplementationStep done(String key, String title, String targetPath, String evidence) {

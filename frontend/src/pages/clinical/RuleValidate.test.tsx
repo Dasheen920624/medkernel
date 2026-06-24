@@ -126,7 +126,7 @@ describe("RuleValidate", () => {
                   snapshotId,
                   status: "ACTIVE",
                   resources: { patient: { patientId: "patient-real-1" } },
-                  packageVersion: "pkg-2026.1",
+                  runtimeReleaseId: "runtime-release-rule",
                   qualityStatus: "VALID",
                   missingFields: [],
                   mappingStatus: {},
@@ -182,10 +182,10 @@ describe("RuleValidate", () => {
     await waitFor(() => {
       expect(evaluate).toHaveBeenCalledWith({
         triggerPoint: "order-sign",
-        packageVersion: "pkg-2026.1",
         contextSnapshotId: "snapshot-real-1",
       });
     });
+    expect(screen.getByText("runtime-release-rule")).toBeInTheDocument();
     expect(await screen.findByText("rule-real-1")).toBeInTheDocument();
     expect(screen.getByText("rv-real-1")).toBeInTheDocument();
     expect(screen.getByText("BLOCK")).toBeInTheDocument();

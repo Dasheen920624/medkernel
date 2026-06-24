@@ -9,8 +9,6 @@ import java.util.List;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.medkernel.engine.integration.domain.IntegrationAdapter;
-import com.medkernel.engine.integration.repository.IntegrationAdapterRepository;
 import com.medkernel.engine.pathway.PatientPathway;
 import com.medkernel.engine.pathway.PatientPathwayRepository;
 import com.medkernel.engine.pathway.PatientPathwayStatus;
@@ -23,17 +21,6 @@ import com.medkernel.engine.pathway.PathwayTemplate;
 import com.medkernel.engine.pathway.PathwayTemplateLevel;
 import com.medkernel.engine.pathway.PathwayTemplateRepository;
 import com.medkernel.engine.pathway.PathwayTemplateStatus;
-import com.medkernel.engine.pkg.PackageItem;
-import com.medkernel.engine.versioning.VersionedAssetType;
-import com.medkernel.engine.pkg.PackageItemRepository;
-import com.medkernel.engine.pkg.ReleasePlan;
-import com.medkernel.engine.pkg.ReleasePlanRepository;
-import com.medkernel.engine.pkg.ReleasePlanStatus;
-import com.medkernel.engine.pkg.ReleaseScopeType;
-import com.medkernel.engine.pkg.ReleaseStrategy;
-import com.medkernel.engine.pkg.SyncLog;
-import com.medkernel.engine.pkg.SyncLogRepository;
-import com.medkernel.engine.pkg.SyncLogStatus;
 import org.junit.jupiter.api.Test;
 
 class RelationalRuleImpactIndexTest {
@@ -42,19 +29,13 @@ class RelationalRuleImpactIndexTest {
     private final PathwayNodeRepository nodes = mock(PathwayNodeRepository.class);
     private final PathwayEdgeRepository edges = mock(PathwayEdgeRepository.class);
     private final PatientPathwayRepository patientPathways = mock(PatientPathwayRepository.class);
-    private final PackageItemRepository packageItems = mock(PackageItemRepository.class);
-    private final ReleasePlanRepository releasePlans = mock(ReleasePlanRepository.class);
-    private final SyncLogRepository syncLogs = mock(SyncLogRepository.class);
-    private final IntegrationAdapterRepository integrationAdapters = mock(IntegrationAdapterRepository.class);
 
     @Test
-    void analyzesRealPathwayRuntimeAndIntegrationAdapterReferencesForRule() {
+    void analyzesRealPathwayRuntimeReferencesWithoutLegacyPackageDerivedAdapterImpactsForRule() {
         RuleDefinition rule = rule();
         RuleVersion version = version();
         RelationalRuleImpactIndex index = new RelationalRuleImpactIndex(
-            templates, nodes, edges, patientPathways,
-            packageItems, releasePlans, syncLogs, integrationAdapters,
-            new ObjectMapper());
+            templates, nodes, edges, patientPathways, new ObjectMapper());
 
         when(nodes.findByTenantIdAndRuleReference("tenant-A", "rule-1", "RULE.ANTICOAG", "version-1"))
             .thenReturn(List.of(pathwayNodeReferencingRule()));
@@ -66,15 +47,6 @@ class RelationalRuleImpactIndexTest {
             .thenReturn(List.of(
                 patientPathway("ppath-active", PatientPathwayStatus.NODE_EXECUTING),
                 patientPathway("ppath-done", PatientPathwayStatus.COMPLETED)));
-
-        when(packageItems.findByTenantIdAndAssetTypeAndAssetId("tenant-A", VersionedAssetType.RULE, "rule-1"))
-            .thenReturn(List.of(packageItem()));
-        when(releasePlans.findByTenantIdAndPackageIdOrderByCreatedAtDesc("tenant-A", "pkg-1"))
-            .thenReturn(List.of(releasePlan()));
-        when(syncLogs.findByTenantIdAndPlanId("tenant-A", "plan-1"))
-            .thenReturn(List.of(syncLog()));
-        when(integrationAdapters.findByAdapterIdAndTenantId("target-clinical", "tenant-A"))
-            .thenReturn(Optional.of(integrationAdapter()));
 
         RuleImpactIndexSnapshot snapshot = index.analyze("tenant-A", rule, version);
 
@@ -91,12 +63,7 @@ class RelationalRuleImpactIndexTest {
             assertThat(patient.displayName()).isEqualTo("患者 patient-1 / 就诊 enc-1");
             assertThat(patient.impactReason()).contains("当前节点 ASSESS");
         });
-        assertThat(snapshot.integrationAdapters()).singleElement().satisfies(adapter -> {
-            assertThat(adapter.objectType()).isEqualTo("INTEGRATION_ADAPTER");
-            assertThat(adapter.objectId()).isEqualTo("target-clinical");
-            assertThat(adapter.displayName()).isEqualTo("院内规则库");
-            assertThat(adapter.impactReason()).contains("配置包 pkg-1", "同步状态 SUCCESS");
-        });
+        assertThat(snapshot.integrationAdapters()).isEmpty();
     }
 
     private RuleDefinition rule() {
@@ -104,7 +71,7 @@ class RelationalRuleImpactIndexTest {
         return new RuleDefinition(
             1L, "rule-1", "tenant-A", "RULE.ANTICOAG", "抗凝风险提示",
             RuleType.ORDER, RuleAuthoringMode.DSL, RuleRiskLevel.HIGH,
-            100, null, 0, RuleDefinitionStatus.DRAFT, "version-1", "rpv-1", "dept-1",
+            100, null, 0, RuleDefinitionStatus.DRAFT, "version-1", "dept-1",
             now, "tester", now, "tester", "trace-rule");
     }
 
@@ -122,7 +89,7 @@ class RelationalRuleImpactIndexTest {
         Instant now = Instant.now();
         return new PathwayNode(
             1L, "node-1", "tenant-A", "pt-1", "ASSESS", "抗凝风险评估",
-            PathwayNodeType.ASSESSMENT, null, 10, "knowledge-governor", null, 240, false,
+            PathwayNodeType.ASSESSMENT, null, 10, "engine-operator", null, 240, false,
             "{\"ruleRefs\":[{\"ruleId\":\"rule-1\",\"ruleCode\":\"RULE.ANTICOAG\",\"versionId\":\"version-1\"}]}",
             now, "tester", now, "tester", "trace-path");
     }
@@ -130,7 +97,7 @@ class RelationalRuleImpactIndexTest {
     private PathwayTemplate pathwayTemplate() {
         Instant now = Instant.now();
         return new PathwayTemplate(
-            1L, "pt-1", "tenant-A", "spkg-1", "TPL.COPD", "慢阻肺抗凝路径",
+            1L, "pt-1", "tenant-A", "TPL.COPD", "慢阻肺抗凝路径",
             "J44", 2, PathwayTemplateLevel.HOSPITAL, PathwayTemplateStatus.PUBLISHED,
             PathwayEntryMode.AUTO_SUGGEST, "ASSESS", "院内路径 2026", "含抗凝风险评估", "{}", "{}",
             now, "tester", now, "tester", "trace-path");
@@ -140,38 +107,9 @@ class RelationalRuleImpactIndexTest {
         Instant now = Instant.now();
         return new PatientPathway(
             1L, id, "tenant-A", "patient-1", "enc-1", "pt-1",
-            "ASSESS", status, now, null, null, null, "evt-1",
+            "release-H1", "av-pathway-v1", "ASSESS", status,
+            now, null, null, null, "evt-1",
             now, "tester", now, "tester", "trace-runtime");
     }
 
-    private PackageItem packageItem() {
-        Instant now = Instant.now();
-        return new PackageItem(
-            1L, "item-1", "tenant-A", "pkg-1", VersionedAssetType.RULE,
-            "rule-1", "1", now, "tester", now, "tester", "trace-pkg");
-    }
-
-    private ReleasePlan releasePlan() {
-        Instant now = Instant.now();
-        return new ReleasePlan(
-            1L, "plan-1", "tenant-A", "pkg-1", "hospital-1",
-            ReleaseStrategy.FULL, ReleaseScopeType.ALL, null, ReleasePlanStatus.SUCCESS,
-            now, "tester", now, "tester", "trace-plan");
-    }
-
-    private SyncLog syncLog() {
-        Instant now = Instant.now();
-        return new SyncLog(
-            1L, "log-1", "tenant-A", "plan-1", "target-clinical",
-            SyncLogStatus.SUCCESS, null, null, 0, "sha256:sync",
-            now, "tester", now, "tester", "trace-sync");
-    }
-
-    private IntegrationAdapter integrationAdapter() {
-        Instant now = Instant.now();
-        return new IntegrationAdapter(
-            1L, "target-clinical", "tenant-A", "院内规则库",
-            "REST", "ACTIVE", "config-ref", "HEALTHY", 5L, now,
-            now, "tester", now, "tester");
-    }
 }

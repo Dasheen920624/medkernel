@@ -22,15 +22,12 @@ import com.medkernel.shared.datascope.DataScope;
 public class KnowledgeInitializationController {
 
     private final KnowledgeInitializationCatalog catalog;
-    private final SourceVersionApprovalService sourceApprovalService;
     private final KnowledgeInitializationService initializationService;
 
     public KnowledgeInitializationController(
             KnowledgeInitializationCatalog catalog,
-            SourceVersionApprovalService sourceApprovalService,
             KnowledgeInitializationService initializationService) {
         this.catalog = catalog;
-        this.sourceApprovalService = sourceApprovalService;
         this.initializationService = initializationService;
     }
 
@@ -39,15 +36,6 @@ public class KnowledgeInitializationController {
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<List<KnowledgeInitializationCatalogItem>> catalog() {
         return ApiResult.ok(catalog.listAll());
-    }
-
-    /** 独立批准已经完成官方版本、许可和受管原件核验的来源版本。 */
-    @PostMapping("/source-versions/{sourceVersionId}/approval")
-    @PreAuthorize("@perm.has('knowledge.acquisition.approve')")
-    public ApiResult<SourceVersionApproval> approveSourceVersion(
-            @PathVariable Long sourceVersionId,
-            @Valid @RequestBody SourceVersionApprovalRequest request) {
-        return ApiResult.ok(sourceApprovalService.approve(sourceVersionId, request));
     }
 
     /** 服务端解析候选、来源和摘要，形成创建前不可篡改预览。 */
@@ -80,7 +68,7 @@ public class KnowledgeInitializationController {
         return ApiResult.ok(initializationService.get(batchCode));
     }
 
-    /** 只批量批准批次内待审 LOW 候选；MEDIUM/HIGH 继续走逐条审核与真实双签。 */
+    /** 只批量批准批次内待审 LOW 候选；MEDIUM/HIGH 继续由医疗引擎运营人员逐条确认。 */
     @PostMapping("/batches/{batchCode}/approve-low")
     @PreAuthorize("@perm.has('knowledge.review')")
     public ApiResult<KnowledgeInitializationBatchView> approveLow(

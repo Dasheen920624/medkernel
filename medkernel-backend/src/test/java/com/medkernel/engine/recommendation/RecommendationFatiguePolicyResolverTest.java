@@ -98,7 +98,7 @@ class RecommendationFatiguePolicyResolverTest {
         return new RecommendationTriggerRequest(
             "TRG.ORDER", "order-sign", "event-1", "snapshot-1",
             "patient-1", "enc-1", "pathway-1", "WARD_ORDER",
-            "1.0.0", "sha256:trigger", Instant.now(), List.of(),
+            "sha256:trigger", Instant.now(), List.of(),
             false);
     }
 

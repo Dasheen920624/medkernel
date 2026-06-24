@@ -135,21 +135,45 @@ public class AssetDependencyService {
         }
     }
 
+    public List<AssetVersion> activeDependentsOf(
+            String tenantId,
+            VersionedAssetType assetType,
+            String assetIdentity,
+            String targetOrgPath,
+            String applicableScope) {
+        List<AssetDependency> dependentEdges = dependencies.findByTenantIdAndDependsOnAssetTypeAndDependsOnIdentity(
+            required(tenantId, "租户 ID"),
+            required(assetType, "资产类型"),
+            required(assetIdentity, "资产身份")
+        );
+        List<AssetVersion> activeDependents = new ArrayList<>();
+        for (AssetDependency edge : dependentEdges) {
+            assetVersions.findByVersionIdAndTenantId(edge.versionId(), edge.tenantId())
+                .filter(this::isInUse)
+                .filter(version -> overlapsDisableScope(version, targetOrgPath, applicableScope))
+                .ifPresent(activeDependents::add);
+        }
+        activeDependents.sort(Comparator
+            .comparing(AssetVersion::assetType)
+            .thenComparing(AssetVersion::assetIdentity)
+            .thenComparing(AssetVersion::versionNo));
+        return List.copyOf(activeDependents);
+    }
+
     private List<AssetVersion> resolvableCandidates(AssetVersion owner, AssetDependency edge) {
         List<AssetVersion> candidates = new ArrayList<>();
-        candidates.addAll(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+        candidates.addAll(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
             owner.tenantId(),
             edge.dependsOnAssetType(),
-            InheritanceResolver.activeScopeKey(edge.dependsOnIdentity(), owner.organizationScope(), owner.applicableScope()),
+            edge.dependsOnIdentity(),
             AssetVersionStatus.PUBLISHED
         ));
         if (!PlatformAuthority.PLATFORM_TENANT_ID.equals(owner.tenantId())
                 || !PlatformAuthority.PLATFORM_ORG_PATH.equals(owner.organizationScope())) {
-            candidates.addAll(assetVersions.findByTenantIdAndAssetTypeAndActiveScopeKeyAndStatus(
+            candidates.addAll(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
                 PlatformAuthority.PLATFORM_TENANT_ID,
                 edge.dependsOnAssetType(),
-                InheritanceResolver.activeScopeKey(
-                    edge.dependsOnIdentity(), PlatformAuthority.PLATFORM_ORG_PATH, owner.applicableScope()),
+                edge.dependsOnIdentity(),
                 AssetVersionStatus.PUBLISHED
             ));
         }
@@ -171,7 +195,7 @@ public class AssetDependencyService {
             || orgPath.startsWith(version.organizationScope() + "/");
     }
 
-    static boolean isCompatible(String versionNo, AssetDependency edge) {
+    public static boolean isCompatible(String versionNo, AssetDependency edge) {
         String value = required(versionNo, "依赖版本号");
         if (edge.minVersionNo() != null && compareVersionNo(value, edge.minVersionNo()) < 0) {
             return false;

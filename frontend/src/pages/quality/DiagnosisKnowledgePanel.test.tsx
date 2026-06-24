@@ -193,7 +193,7 @@ describe("DiagnosisKnowledgePanel", () => {
     expect(screen.queryByLabelText("诊断名称")).not.toBeInTheDocument();
   });
 
-  it("blocks publishing an editable version until at least one regression case exists", async () => {
+  it("blocks publishing an editable version until at least one validation case exists", async () => {
     const user = userEvent.setup();
     hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([editableVersion])));
 
@@ -201,11 +201,11 @@ describe("DiagnosisKnowledgePanel", () => {
 
     await user.type(screen.getByLabelText("发布说明"), "已核对来源和结构化标准");
 
-    expect(screen.getByText(/至少需要一个回归病例/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /通过门禁并发布/ })).toBeDisabled();
+    expect(screen.getByText(/至少需要一个验证病例/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /通过校验并发布/ })).toBeDisabled();
   });
 
-  it("blocks publishing when criteria contain constraints the B0 matcher cannot evaluate", async () => {
+  it("blocks publishing when criteria contain constraints the basic rule check cannot evaluate", async () => {
     const user = userEvent.setup();
     hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([editableVersion])));
     hooks.useDiagnosisCriteria.mockReturnValue(
@@ -236,10 +236,10 @@ describe("DiagnosisKnowledgePanel", () => {
     await user.type(screen.getByLabelText("发布说明"), "已核对来源和结构化标准");
 
     expect(screen.getByText(/包含数值或时序约束/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /通过门禁并发布/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /通过校验并发布/ })).toBeDisabled();
   });
 
-  it("requires real electronic signature evidence for a high-risk diagnosis release", async () => {
+  it("allows the responsible operator to release high-risk diagnosis knowledge", async () => {
     const user = userEvent.setup();
     const publish = mutation();
     hooks.useKnowledgeVersions.mockReturnValue(
@@ -260,29 +260,15 @@ describe("DiagnosisKnowledgePanel", () => {
 
     renderPanel();
 
-    fillField("发布说明", "已核对来源和回归病例");
-    fillField("签名 ID", "sig-diagnosis-11");
-    fillField("签名时间", "2026-06-10T01:00");
-    fillField("签名人 ID", "expert-1");
-    fillField("签名人姓名", "审核专家");
-    fillField("签名摘要", "a".repeat(64));
-    await user.click(screen.getByRole("button", { name: /通过门禁并发布/ }));
+    fillField("发布说明", "已核对来源和验证病例");
+    await user.click(screen.getByRole("button", { name: /通过校验并发布/ }));
     await user.click(await screen.findByRole("button", { name: "确认发布" }));
 
     await waitFor(() => {
       expect(publish.mutateAsync).toHaveBeenCalledWith({
         identityId: 7,
         versionId: 11,
-        reason: "已核对来源和回归病例",
-        publishEvidence: {
-          electronicSignature: {
-            signatureId: "sig-diagnosis-11",
-            signerId: "expert-1",
-            signerName: "审核专家",
-            signedAt: new Date("2026-06-10T01:00").toISOString(),
-            signatureHash: "a".repeat(64),
-          },
-        },
+        reason: "已核对来源和验证病例",
       });
     });
   });
@@ -340,27 +326,15 @@ describe("DiagnosisKnowledgePanel", () => {
 
     renderPanel();
 
-    fillField("发布说明", "平台质量门全部通过");
-    fillField("签名 ID", "sig-platform-11");
-    fillField("签名时间", "2026-06-10T01:00");
-    fillField("签名人 ID", "platform-admin-1");
-    fillField("签名人姓名", "平台治理管理员");
-    fillField("签名摘要", "b".repeat(64));
+    fillField("发布说明", "平台发布质量校验全部通过");
 
-    const publishButton = screen.getByRole("button", { name: /通过门禁并发布/ });
+    const publishButton = screen.getByRole("button", { name: /通过校验并发布/ });
     expect(publishButton).toBeDisabled();
 
-    for (const gate of [
-      "结构校验",
-      "术语绑定",
-      "依赖完整性",
-      "安全单调性",
-      "影响模拟",
-      "同行复核",
-    ]) {
+    for (const gate of ["结构校验", "术语绑定", "依赖完整性", "安全单调性", "影响模拟"]) {
       fireEvent.click(screen.getByRole("checkbox", { name: gate }));
     }
-    fillField("质量门摘要", "结构、术语、依赖、安全、模拟和同行复核均通过");
+    fillField("校验说明", "结构、术语、依赖、安全和模拟均通过");
     expect(publishButton).toBeEnabled();
 
     await user.click(publishButton);
@@ -370,23 +344,15 @@ describe("DiagnosisKnowledgePanel", () => {
       expect(publish.mutateAsync).toHaveBeenCalledWith({
         identityId: 7,
         versionId: 11,
-        reason: "平台质量门全部通过",
+        reason: "平台发布质量校验全部通过",
         publishEvidence: {
-          electronicSignature: {
-            signatureId: "sig-platform-11",
-            signerId: "platform-admin-1",
-            signerName: "平台治理管理员",
-            signedAt: new Date("2026-06-10T01:00").toISOString(),
-            signatureHash: "b".repeat(64),
-          },
           qualityGate: {
             schemaValid: true,
             terminologyBindingComplete: true,
             dependencyIntegrityVerified: true,
             safetyMonotonicityVerified: true,
             impactSimulationPassed: true,
-            peerReviewSigned: true,
-            summary: "结构、术语、依赖、安全、模拟和同行复核均通过",
+            summary: "结构、术语、依赖、安全和模拟均通过",
           },
         },
       });
@@ -440,7 +406,7 @@ describe("DiagnosisKnowledgePanel", () => {
     hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([editableVersion])));
 
     renderPanel();
-    await user.click(screen.getByRole("tab", { name: /回归病例/ }));
+    await user.click(screen.getByRole("tab", { name: /验证病例/ }));
     await user.click(screen.getByRole("button", { name: /新增病例/ }));
 
     expect(screen.queryByRole("spinbutton", { name: /期望诊断/ })).not.toBeInTheDocument();

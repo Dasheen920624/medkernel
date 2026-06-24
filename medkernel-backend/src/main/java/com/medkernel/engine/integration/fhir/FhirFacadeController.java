@@ -82,8 +82,6 @@ public class FhirFacadeController {
                                            String signature,
                                            @RequestHeader(value = "X-Forwarded-For", required = false) String forwardedFor,
                                            @RequestHeader(value = "X-Real-IP", required = false) String realIp,
-                                           @RequestHeader(value = "X-MedKernel-Package-Version", required = false)
-                                           String packageVersion,
                                            @RequestHeader("X-MedKernel-Clinical-Setting")
                                            ClinicalSetting clinicalSetting,
                                            @RequestParam(value = "snapshotId", required = false) String snapshotId,
@@ -97,7 +95,6 @@ public class FhirFacadeController {
             signature,
             sourceIp(forwardedFor, realIp),
             snapshotId,
-            packageVersion,
             clinicalSetting
         ));
         return ResponseEntity.status(response.status())

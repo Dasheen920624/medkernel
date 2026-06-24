@@ -55,7 +55,7 @@ public record DeveloperApiContractDirectoryResponse(
      * API 权限声明。
      *
      * @param code 权限编码
-     * @param dimension 五维权限维度
+     * @param dimension 权限分类
      * @param purpose 中文用途
      */
     public record DeveloperApiPermissionResponse(

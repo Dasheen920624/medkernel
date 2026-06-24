@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 /** 导入沙盘历史原样重放清单的请求。 */
@@ -19,8 +20,8 @@ public record SandboxReplayImportRequest(
     @NotBlank @Size(max = 71) String sourceContextRef,
     @NotNull JsonNode contextSnapshot,
     @NotBlank @Size(min = 64, max = 64) String contextSnapshotHash,
-    @NotBlank @Size(max = 128) String packageCode,
-    @NotBlank @Size(max = 64) String packageVersion,
+    @NotBlank @Size(max = 71) String sourceRuntimeReleaseRef,
+    @Positive long sourceRuntimeRevisionNo,
     @NotNull Instant occurredAt,
     @NotBlank @Size(min = 64, max = 64) String manifestHash,
     @NotBlank @Size(max = 64) String deidentificationProfile,
@@ -48,7 +49,8 @@ public record SandboxReplayImportRequest(
             List<SandboxReplayAssetImportRequest> nextAssets) {
         return new SandboxReplayImportRequest(
             replayCaseId, nextSourceTenantRef, sourceEventRef, sourceTraceRef, sourceContextRef,
-            contextSnapshot, contextSnapshotHash, packageCode, packageVersion, occurredAt,
+            contextSnapshot, contextSnapshotHash, sourceRuntimeReleaseRef,
+            sourceRuntimeRevisionNo, occurredAt,
             nextManifestHash, deidentificationProfile, nextAssets);
     }
 }

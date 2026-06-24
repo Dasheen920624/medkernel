@@ -13,7 +13,7 @@ MAJOR.MINOR.PATCH[-prerelease][+build]
 
 | 段 | 含义 | 变更示例 |
 |---|---|---|
-| MAJOR | 不兼容变更 | API 删除、数据库表删除、字段含义变更、Provider 接口签名 break |
+| MAJOR | 不兼容变更 | API 删除、数据库表删除、字段含义变更、模型服务接口签名 break |
 | MINOR | 向后兼容新增 | 新模块、新接口、新字段、新页面、新规则场景 |
 | PATCH | bug 修复 / 内部优化 | 不改 API 与 DDL 的修复 |
 | `-rc.N` / `-beta.N` | 预发布 | UAT 阶段 |
@@ -58,7 +58,7 @@ git tag -a v1.2.3 -m "v1.2.3 - 病历质控样例 + FE-003 演示工作台"
 # 5) 推送 tag
 git push origin main --tags
 
-# CI 监听 tag 自动构建发布包，产物归档到 nexus/oss
+# CI 监听 tag 自动构建离线交付文件，产物归档到 nexus/oss
 ```
 
 ## 4. 何时升 MAJOR / MINOR / PATCH
@@ -68,7 +68,7 @@ git push origin main --tags
 - `/api/xxx` 端点删除或 path 变更
 - ApiResult 字段命名变更
 - DDL 删表 / 删列 / 列类型缩小
-- Provider 接口签名删除方法或改参数
+- 模型服务接口签名删除方法或改参数
 - 配置文件字段含义变更（旧值不再被读取）
 - 数据库主键策略变更
 
@@ -145,7 +145,7 @@ define: {
 
 页面页脚显示 `v1.2.3-a1b2c3d`。
 
-### 5.3 发布包
+### 5.3 离线交付文件
 
 `manifest.json`：
 

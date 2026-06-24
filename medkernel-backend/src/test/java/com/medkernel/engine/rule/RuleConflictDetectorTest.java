@@ -76,7 +76,6 @@ class RuleConflictDetectorTest {
     private JsonNode dsl(String operator, int value, String actionCode) throws Exception {
         return json.readTree("""
             {
-              "trigger": "order-sign",
               "applicability": {
                 "population": {},
                 "orgScope": {},

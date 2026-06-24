@@ -10,14 +10,14 @@ import com.medkernel.engine.versioning.AssetVersionStatus;
 /**
  * 门禁：审核要素（AIK-STD-05，FR-1 审核要素）。
  *
- * <p>候选须为候选态（{@code DRAFT}/{@code IN_REVIEW}，铁律 #5 只产候选）且主题与版本标签非空，确保可进审核台。
+ * <p>候选须为候选态（{@code DRAFT}，铁律 #5 只产候选）且主题与版本标签非空，确保可进审核台。
  */
 @Component
 public class ReviewElementsGate implements CandidateGate {
 
     public static final String CODE = "REVIEW_ELEMENTS";
     private static final Set<AssetVersionStatus> CANDIDATE_STATUSES =
-        Set.of(AssetVersionStatus.DRAFT, AssetVersionStatus.IN_REVIEW);
+        Set.of(AssetVersionStatus.DRAFT);
 
     @Override
     public String code() {
@@ -27,7 +27,7 @@ public class ReviewElementsGate implements CandidateGate {
     @Override
     public GateItemResult evaluate(KnowledgeAssetEnvelope candidate, GateContext context) {
         if (candidate.lifecycleStatus() == null || !CANDIDATE_STATUSES.contains(candidate.lifecycleStatus())) {
-            return GateItemResult.fail(CODE, "生命周期状态须候选态（DRAFT/IN_REVIEW）");
+            return GateItemResult.fail(CODE, "生命周期状态须候选态（DRAFT）");
         }
         if (candidate.subject() == null || candidate.subject().isBlank()) {
             return GateItemResult.fail(CODE, "资产主题缺失");

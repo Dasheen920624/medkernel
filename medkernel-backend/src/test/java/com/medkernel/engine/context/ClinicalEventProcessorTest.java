@@ -3,6 +3,7 @@ package com.medkernel.engine.context;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -65,14 +66,15 @@ class ClinicalEventProcessorTest {
             new ClinicalEventEngineDispatcher(List.of(ruleAdapter, pathwayAdapter, cdssAdapter)),
             contextSnapshots);
         when(events.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(contextSnapshots.create(any(ContextSnapshotRequest.class), any()))
+        when(contextSnapshots.createBound(
+                any(ContextSnapshotRequest.class), any(), anyString()))
             .thenAnswer(inv -> {
                 ContextSnapshotRequest req = inv.getArgument(0);
                 return new ContextSnapshotResponse(
                     "ctx-event-" + req.requestId().replace("clinical-event:", ""),
                     ContextSnapshotStatus.ACTIVE,
                     req.resources(),
-                    req.packageVersion(),
+                    "runtime-release-test",
                     QualityStatus.VALID,
                     List.of(),
                     Map.of(),
@@ -119,11 +121,15 @@ class ClinicalEventProcessorTest {
         assertThat(context.encounterId()).isEqualTo("ENC-1");
         assertThat(context.orgScope().departmentId()).isEqualTo("dept-A");
         assertThat(context.contextSnapshotId()).isEqualTo("ctx-event-evt-1");
+        assertThat(context.runtimeReleaseId()).isEqualTo("runtime-release-test");
         assertThat(context.payload().path("eventPayload").path("a").asInt()).isEqualTo(1);
         assertThat(context.payloadDigest()).isEqualTo("digest");
         ArgumentCaptor<ContextSnapshotRequest> snapshotCap = ArgumentCaptor.forClass(ContextSnapshotRequest.class);
-        verify(contextSnapshots).create(snapshotCap.capture(), eq("clinical-event:evt-1"));
+        ArgumentCaptor<String> releaseIdCap = ArgumentCaptor.forClass(String.class);
+        verify(contextSnapshots).createBound(
+            snapshotCap.capture(), eq("clinical-event:evt-1"), releaseIdCap.capture());
         assertThat(snapshotCap.getValue().orgUnitId()).isEqualTo("dept-A");
+        assertThat(releaseIdCap.getValue()).isEqualTo("runtime-release-test");
     }
 
     @Test
@@ -165,7 +171,8 @@ class ClinicalEventProcessorTest {
         assertThat(context.triggerPoint()).isEqualTo("order-sign");
         assertThat(context.contextSnapshotId()).isEqualTo("ctx-event-evt-order");
         ArgumentCaptor<ContextSnapshotRequest> snapshotCap = ArgumentCaptor.forClass(ContextSnapshotRequest.class);
-        verify(contextSnapshots).create(snapshotCap.capture(), eq("clinical-event:evt-order"));
+        verify(contextSnapshots).createBound(
+            snapshotCap.capture(), eq("clinical-event:evt-order"), anyString());
         assertThat(snapshotCap.getValue().resources().medications())
             .singleElement()
             .satisfies(medication ->
@@ -264,7 +271,7 @@ class ClinicalEventProcessorTest {
             1L, eventId, "tenant-A", eventType,
             triggerPoint, null, null,
             "{\"tenantId\":\"tenant-A\",\"departmentId\":\"dept-A\",\"specialtyId\":\"specialty-A\"}",
-            "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, "HIS", "kpv-1", "digest",
+            "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, "HIS", "runtime-release-test", "digest",
             Instant.parse("2026-05-27T01:00:00Z"), Instant.parse("2026-05-27T01:00:01Z"),
             null, status, null, null, 0, null, "trace-1");
     }

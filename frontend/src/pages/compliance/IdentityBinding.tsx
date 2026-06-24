@@ -62,19 +62,8 @@ type CreateBindingForm = {
 
 type UnbindForm = { reason: string };
 
-const PERSONNEL_GOVERNANCE_ROLES = new Set([
-  "system-superadmin",
-  "platform-governance-admin",
-  "organization-admin",
-  "identity-access-admin",
-]);
-
 function hasPermission(profile: SecurityProfile | undefined, code: string) {
   return profile?.permissions.some((permission) => permission.code === code) ?? false;
-}
-
-function hasPersonnelGovernanceRole(profile: SecurityProfile | undefined) {
-  return profile?.roles.some((role) => PERSONNEL_GOVERNANCE_ROLES.has(role.code)) ?? false;
 }
 
 function formatTime(value: string) {
@@ -97,9 +86,8 @@ export default function IdentityBinding() {
   const [bindingPage, setBindingPage] = useState(1);
   const bindings = useIdentityBindings({ page: bindingPage, size: IDENTITY_BINDING_PAGE_SIZE });
   const [userSearch, setUserSearch] = useState("");
-  const hasPersonnelRole = hasPersonnelGovernanceRole(security.data);
-  const canReadPersonnel = hasPersonnelRole && hasPermission(security.data, "org.read");
-  const canManage = hasPersonnelRole && hasPermission(security.data, "org.write");
+  const canReadPersonnel = hasPermission(security.data, "org.read");
+  const canManage = hasPermission(security.data, "org.write");
   const personnel = usePersonnel(
     { page: 1, size: PERSONNEL_REFERENCE_PAGE_SIZE, keyword: userSearch || undefined },
     { enabled: canReadPersonnel },
@@ -283,7 +271,7 @@ export default function IdentityBinding() {
               type="info"
               showIcon
               message="当前为只读视图"
-              description="只有机构管理员或人员与访问管理员可以新增、批量匹配或解除身份来源。"
+              description="只有平台管理员可以新增、批量匹配或解除身份来源。"
             />
           )}
           <Alert

@@ -12,7 +12,7 @@ import org.springframework.data.relational.core.mapping.Table;
  * <p>平台全局「模型网关全局目录」的增强接入图谱：登记每个可增强业务点 ↔ 能力码 ↔ B0 路径 ↔ 接入状态。
  * {@code accessStatus}：{@code ACTIVE} 已接入（须同时具备已登记能力码与 B0 路径，过 {@code ENG-LLM-010} 门禁）、
  * {@code PENDING} 待接入（缺口诚实标注，能力码/ B0 可空）、{@code DISABLED} 停用。仿 {@link ModelCapabilityDefinition}
- * 为平台全局目录（无 {@code tenant_id}），由平台治理管理员维护。
+ * 为平台全局目录（无 {@code tenant_id}），由医疗引擎运营员维护。
  */
 @Table("mk_llm_enhancement_matrix")
 public record ModelEnhancementMatrix(

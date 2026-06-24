@@ -3,8 +3,8 @@ package com.medkernel.engine.terminology;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -16,12 +16,13 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 
-import com.medkernel.engine.pkg.KnowledgePackageRepository;
-import com.medkernel.engine.pkg.KnowledgePackage;
-import com.medkernel.engine.pkg.KnowledgePackageStatus;
-import com.medkernel.engine.pkg.PackageAccessPolicy;
-import com.medkernel.engine.pkg.PackageItem;
-import com.medkernel.engine.pkg.PackageItemRepository;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseItem;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseItemRepository;
+import com.medkernel.engine.release.ReleaseEntryState;
+import com.medkernel.engine.release.ReleaseSourceLayer;
+import com.medkernel.engine.versioning.AssetIdentity;
+import com.medkernel.engine.versioning.AssetIdentityRepository;
+import com.medkernel.engine.versioning.AssetIdentityStatus;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
 import com.medkernel.engine.versioning.AssetVersionRepository;
@@ -30,6 +31,7 @@ import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.testsupport.ClinicalRuntimeReleaseFixture;
 
 @DataJdbcTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
@@ -51,10 +53,10 @@ class EffectiveTermMappingRepositoryIntegrationTest {
     AssetVersionRepository versions;
 
     @Autowired
-    PackageItemRepository packageItems;
+    ClinicalRuntimeReleaseItemRepository runtimeItems;
 
     @Autowired
-    KnowledgePackageRepository knowledgePackages;
+    AssetIdentityRepository identities;
 
     @Autowired
     TermMappingRepository mappings;
@@ -68,50 +70,68 @@ class EffectiveTermMappingRepositoryIntegrationTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    private final List<String> releaseIds = new ArrayList<>();
+
     @AfterEach
     void clearContext() {
         items.deleteAll();
-        packageItems.deleteAll();
+        runtimeItems.deleteAll();
         versions.deleteAll();
-        knowledgePackages.deleteAll();
+        identities.deleteAll();
+        releaseIds.forEach(releaseId -> ClinicalRuntimeReleaseFixture.delete(jdbc, releaseId));
+        releaseIds.clear();
         RequestContext.clear();
     }
 
     @Test
-    void resolvesOnlyPublishedPackageAndPrefersMostSpecificOrganizationScope() {
+    void resolvesOnlyVersionsInLockedRuntimeReleaseAndPrefersMostSpecificScope() {
         EffectiveTermMappingResolver resolver = new EffectiveTermMappingResolver(items);
         Instant now = Instant.parse("2026-06-06T08:00:00Z");
-        savePackage("TERM.LAB.FACILITY", "1", "FACILITY", "hospital-1", "718-7", 201L, now);
-        versions.save(version(
-            "av-facility", "TERM.LAB.FACILITY", "1", "facility:hospital-1",
-            AssetVersionStatus.PUBLISHED, now
-        ));
-        savePackage("TERM.LAB.DEPARTMENT", "1", "DEPARTMENT", "department-1", "4548-4", 202L, now);
-        AssetVersion departmentVersion = versions.save(version(
-            "av-department", "TERM.LAB.DEPARTMENT", "1", "department:department-1",
-            AssetVersionStatus.APPROVED, now
-        ));
+        String releaseId = insertRuntimeRelease("release-scope", "hospital-1");
+        saveTerminologyVersion(
+            releaseId, "av-facility", "TERM.LAB.FACILITY", "V1",
+            "facility:hospital-1", "718-7", 201L, now);
+        saveTerminologyVersion(
+            releaseId, "av-department", "TERM.LAB.DEPARTMENT", "V1",
+            "department:department-1", "4548-4", 202L, now);
         RequestContext.restore(new RequestContext.Snapshot(
             "trace",
             new OrgScope("tenant-A", null, "hospital-1", null, null, "department-1", null),
             "doctor-1"
         ));
 
-        assertThat(resolver.resolve("tenant-A", "LIS", "HB", "LOINC", "LAB"))
-            .extracting(EffectiveTermMapping::standardCode)
-            .containsExactly("718-7");
-        assertThat(resolver.countByStandardCode("tenant-A", "LOINC", "718-7")).isEqualTo(1);
-
-        versions.save(departmentVersion.withStatus(
-            AssetVersionStatus.PUBLISHED,
-            "TERM.LAB.DEPARTMENT|department:department-1|ALL",
-            now.plusSeconds(60),
-            "admin-1"
-        ));
-
-        assertThat(resolver.resolve("tenant-A", "LIS", "HB", "LOINC", "LAB"))
+        assertThat(resolver.resolve(
+            "tenant-A", releaseId, "LIS", "HB", "LOINC", "LAB"))
             .extracting(EffectiveTermMapping::standardCode)
             .containsExactly("4548-4");
+        assertThat(resolver.countByStandardCode(
+            "tenant-A", releaseId, "LOINC", "4548-4")).isEqualTo(1);
+    }
+
+    @Test
+    void sameAssetIdentityCanResolveDifferentImmutableVersionsAcrossRuntimeReleases() {
+        EffectiveTermMappingResolver resolver = new EffectiveTermMappingResolver(items);
+        Instant now = Instant.parse("2026-06-22T08:00:00Z");
+        String firstRelease = insertRuntimeRelease("release-v1", "hospital-1");
+        String secondRelease = insertRuntimeRelease("release-v2", "hospital-1");
+        saveTerminologyVersion(
+            firstRelease, "av-v1", "TERM.LAB", "V1",
+            "tenant:tenant-A", "718-7", 301L, now);
+        saveTerminologyVersion(
+            secondRelease, "av-v2", "TERM.LAB", "V2",
+            "tenant:tenant-A", "4548-4", 302L, now.plusSeconds(60));
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace",
+            new OrgScope("tenant-A", null, "hospital-1", null, null, null, null),
+            "operator-1"
+        ));
+
+        assertThat(resolver.resolve(
+            "tenant-A", firstRelease, "LIS", "HB", "LOINC", "LAB"
+        )).extracting(EffectiveTermMapping::standardCode).containsExactly("718-7");
+        assertThat(resolver.resolve(
+            "tenant-A", secondRelease, "LIS", "HB", "LOINC", "LAB"
+        )).extracting(EffectiveTermMapping::standardCode).containsExactly("4548-4");
     }
 
     @Test
@@ -179,45 +199,39 @@ class EffectiveTermMappingRepositoryIntegrationTest {
         );
     }
 
-    private void savePackage(
-            String packageCode,
-            String packageVersion,
-            String scopeLevel,
-            String scopeCode,
+    private String insertRuntimeRelease(String releaseId, String hospitalId) {
+        ClinicalRuntimeReleaseFixture.insert(jdbc, "tenant-A", hospitalId, releaseId);
+        releaseIds.add(releaseId);
+        return releaseId;
+    }
+
+    private void saveTerminologyVersion(
+            String releaseId,
+            String versionId,
+            String assetIdentity,
+            String versionNo,
+            String organizationScope,
             String standardCode,
             long standardTermId,
             Instant now) {
-        String packageId = UUID.randomUUID().toString();
-        KnowledgePackage pack = knowledgePackages.save(new KnowledgePackage(
+        identities.findByTenantIdAndAssetTypeAndAssetIdentity(
+            "tenant-A", VersionedAssetType.TERMINOLOGY, assetIdentity
+        ).orElseGet(() -> identities.save(new AssetIdentity(
             null,
-            packageId,
             "tenant-A",
-            packageCode,
-            packageVersion,
-            packageCode,
-            "术语映射快照",
-            PackageAccessPolicy.OPEN,
-            KnowledgePackageStatus.ACTIVE,
-            now,
-            "admin-1",
-            now,
-            "admin-1",
-            "trace"
-        ));
-        PackageItem packageItem = packageItems.save(new PackageItem(
-            null,
-            UUID.randomUUID().toString(),
-            "tenant-A",
-            pack.packageId(),
             VersionedAssetType.TERMINOLOGY,
-            packageCode + "|" + scopeLevel + "|" + scopeCode,
-            packageVersion,
+            assetIdentity,
+            AssetIdentityStatus.ACTIVE,
+            Long.parseLong(versionNo.substring(1)),
             now,
             "admin-1",
             now,
             "admin-1",
             "trace"
-        ));
+        )));
+        AssetVersion version = versions.save(version(
+            versionId, assetIdentity, versionNo, organizationScope,
+            AssetVersionStatus.PUBLISHED, now));
         TermMappingSnapshot snapshot = new TermMappingSnapshot(
             standardTermId,
             101L,
@@ -236,12 +250,27 @@ class EffectiveTermMappingRepositoryIntegrationTest {
         );
         items.save(TermMappingSnapshotEntity.fromSnapshot(
             "tenant-A",
-            packageItem.itemId(),
+            version.versionId(),
             snapshot.mappingId(),
             snapshot,
             TermMappingSnapshotCodec.write(snapshot),
             now,
             "admin-1"
+        ));
+        runtimeItems.save(new ClinicalRuntimeReleaseItem(
+            null,
+            releaseId,
+            "tenant-A",
+            ReleaseSourceLayer.HOSPITAL,
+            VersionedAssetType.TERMINOLOGY,
+            assetIdentity,
+            ReleaseEntryState.ACTIVE,
+            version.versionId(),
+            version.versionNo(),
+            version.contentHash(),
+            now,
+            "admin-1",
+            "trace"
         ));
     }
 
@@ -252,14 +281,12 @@ class EffectiveTermMappingRepositoryIntegrationTest {
             String orgScope,
             AssetVersionStatus status,
             Instant now) {
-        String activeScopeKey = status == AssetVersionStatus.PUBLISHED
-            ? assetIdentity + "|" + orgScope + "|ALL"
-            : "version:" + versionId;
+        String activeScopeKey = "version:" + versionId;
         return new AssetVersion(
             null,
             versionId,
             "tenant-A",
-            VersionedAssetType.PACKAGE,
+            VersionedAssetType.TERMINOLOGY,
             assetIdentity,
             versionNo,
             orgScope,
@@ -269,7 +296,7 @@ class EffectiveTermMappingRepositoryIntegrationTest {
             AssetVersionOverridePolicy.FREE,
             status,
             activeScopeKey,
-            "knowledge-package:" + assetIdentity + ":" + versionNo,
+            "terminology:" + assetIdentity + ":" + versionNo,
             status == AssetVersionStatus.PUBLISHED ? now : null,
             null,
             now,

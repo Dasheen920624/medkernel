@@ -1,5 +1,4 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createHash } from "node:crypto";
 
 import {
   apiBase,
@@ -13,28 +12,28 @@ import {
 test.describe.configure({ mode: "serial" });
 
 test.describe("D6 图谱查询真实验收", () => {
-  test("实施运维员重建后，平台知识治理员可从登录页探索真实投影且不能重建", async ({
+  test("医疗引擎运营员可重建并探索真实知识投影", async ({
     page,
   }, testInfo) => {
     const browserErrors = collectBrowserErrors(page);
 
     await enableGraphProjection(page);
     await seedActiveKnowledge(page);
-    await ensureReadySession(page, "implementation-operator");
+    await ensureReadySession(page, "engine-operator");
     const rebuild = await postApi(page, "/projections/knowledge-graph/rebuild", {});
     await expectOk(rebuild, "重建知识关系投影");
     const rebuilt = (await rebuild.json()).data;
     expect(rebuilt.sourceCount).toBeGreaterThan(0);
     expect(rebuilt.projectionCount).toBe(rebuilt.sourceCount);
 
-    await ensureReadySession(page, "platform-knowledge-governor");
-    await loginFromPlatformPage(page, "platform-knowledge-governor");
+    await ensureReadySession(page, "engine-operator");
+    await loginFromPlatformPage(page, "engine-operator");
 
     await page.goto("/advanced/graph");
     await expect(page.getByRole("heading", { name: "图谱查询" })).toBeVisible();
     await selectKnowledgeProjection(page);
     await expect(page.getByRole("group", { name: "投影关系图" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "重建投影" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "重建投影" })).toBeVisible();
 
     const nodes = page.locator('svg[aria-label="投影关系图"] g[role="button"]');
     expect(await nodes.count()).toBeGreaterThan(0);
@@ -54,10 +53,10 @@ test.describe("D6 图谱查询真实验收", () => {
     expect(browserErrors).toEqual([]);
   });
 
-  test("平台知识治理员在移动端可查询图谱且页面无根级横向溢出", async ({ page }, testInfo) => {
+  test("医疗引擎运营员在移动端可查询图谱且页面无根级横向溢出", async ({ page }, testInfo) => {
     const browserErrors = collectBrowserErrors(page);
     await page.setViewportSize({ width: 390, height: 844 });
-    await ensureReadySession(page, "platform-knowledge-governor");
+    await ensureReadySession(page, "engine-operator");
     await page.goto("/advanced/graph");
 
     await expect(page.getByRole("heading", { name: "图谱查询" })).toBeVisible();
@@ -78,7 +77,7 @@ test.describe("D6 图谱查询真实验收", () => {
 });
 
 async function enableGraphProjection(page: Page) {
-  await ensureReadySession(page, "integration-operator");
+  await ensureReadySession(page, "platform-admin");
   const key = "medkernel.runtime.feature-flags.graph-projection.enabled";
   const response = await page.request.get(
     `${apiBase}/system/configs?prefix=${encodeURIComponent("medkernel.runtime.feature-flags")}`,
@@ -103,14 +102,14 @@ async function enableGraphProjection(page: Page) {
 }
 
 async function seedActiveKnowledge(page: Page) {
-  await ensureReadySession(page, "clinical-governor");
+  await ensureReadySession(page, "engine-operator");
   const suffix = Date.now();
   const create = await postApi(page, "/engine/knowledge/diagnosis/assets", {
     request_id: `e2e-graph-${suffix}`,
     trace_id: `e2e-graph-${suffix}`,
     tenant_id: "t-1",
-    user_id: "clinical-governor",
-    role_codes: ["clinical-governor"],
+    user_id: "engine-operator",
+    role_codes: ["engine-operator"],
     package_version: "2026.06",
     identity: {
       identitySlug: `e2e-graph-${suffix}`,
@@ -176,31 +175,20 @@ async function seedActiveKnowledge(page: Page) {
   await expectOk(testCase, "新增知识发布回归病例");
 
   const publishReason = "真实图谱链路验收";
-  await ensureReadySession(page, "platform-governance-admin");
-  const reviewerId = "platform-knowledge-governor-1";
+  await ensureReadySession(page, "engine-operator");
   const publish = await postApi(
     page,
     `/engine/knowledge/diagnosis/identities/${identityId}/versions/${versionId}/publish`,
     {
       reason: publishReason,
       publishEvidence: {
-        electronicSignature: {
-          signatureId: `sig-e2e-graph-${suffix}`,
-          signerId: reviewerId,
-          signerName: "平台知识治理员验收账号",
-          signedAt: new Date().toISOString(),
-          signatureHash: createHash("sha256")
-            .update(`${identityId}|${versionId}|${publishReason}|${reviewerId}`)
-            .digest("hex"),
-        },
         qualityGate: {
           schemaValid: true,
           terminologyBindingComplete: true,
           dependencyIntegrityVerified: true,
           safetyMonotonicityVerified: true,
           impactSimulationPassed: true,
-          peerReviewSigned: true,
-          summary: "E2E 已完成结构、术语、依赖、安全、影响模拟与同行复核门禁",
+          summary: "E2E 已完成结构、术语、依赖、安全与影响模拟门禁",
         },
       },
     },

@@ -102,7 +102,8 @@ class ClinicalCodeMappingAnchorRegistryTest {
             List.of(new CanonicalFollowUp("follow-1", "PHONE", now, "Q-A", "ABNORMAL",
                 "FOLLOW", "follow-rec-1", "v1", now, now, QualityStatus.VALID)),
             List.of(new CanonicalClaim("claim-1", "DRG-A", BigDecimal.TEN, BigDecimal.ONE,
-                "CLAIM", "claim-rec-1", "v1", now, now, QualityStatus.VALID))
+                "CLAIM", "claim-rec-1", "v1", now, now, QualityStatus.VALID)),
+            ContextSnapshotResources.emptyExtensions()
         );
     }
 }

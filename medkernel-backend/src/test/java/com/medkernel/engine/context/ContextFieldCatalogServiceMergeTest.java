@@ -23,7 +23,8 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 字段目录合并逻辑单测（P2/P5）：平台字段是唯一真实字段集，租户只能覆盖展示元数据。
+ * 字段目录合并逻辑单测（P2/P5）：平台字段保持 canonical 形状，租户扩展统一落在
+ * {@code extensions.local.*} 命名空间。
  */
 class ContextFieldCatalogServiceMergeTest {
 
@@ -43,11 +44,29 @@ class ContextFieldCatalogServiceMergeTest {
     }
 
     @Test
-    void tenantUnknownFieldIsIgnoredInsteadOfBecomingUnusableFact() {
+    void tenantFieldOutsideExtensionNamespaceIsIgnoredInsteadOfBecomingUnusableFact() {
         var merged = ContextFieldCatalogService.merge(
             systemFields, List.of(tenant("medications[].customFlag", "Medication", "医嘱信息")), null, null);
         assertThat(merged).hasSize(systemFields.size());
         assertThat(merged).noneMatch(f -> f.fieldPath().equals("medications[].customFlag"));
+    }
+
+    @Test
+    void tenantNamespacedExtensionIsAddedAsRealWritableField() {
+        var merged = ContextFieldCatalogService.merge(
+            systemFields,
+            List.of(tenant("extensions.local.dialysis_access_type", "Extension", "院内扩展")),
+            null,
+            "院内");
+
+        assertThat(merged).anySatisfy(field -> {
+            assertThat(field.fieldPath()).isEqualTo("extensions.local.dialysis_access_type");
+            assertThat(field.resourceType()).isEqualTo("Extension");
+            assertThat(field.source()).isEqualTo("TENANT");
+            assertThat(field.payloadKey()).isEqualTo("extensions");
+            assertThat(field.propertyName()).isEqualTo("dialysis_access_type");
+            assertThat(field.externalWritable()).isTrue();
+        });
     }
 
     @Test
@@ -102,20 +121,61 @@ class ContextFieldCatalogServiceMergeTest {
     }
 
     @Test
-    void createRejectsUnknownFieldPathBeforeSaving() {
+    void createRejectsUnknownFieldPathOutsideExtensionNamespaceBeforeSaving() {
         RequestContext.restore(new RequestContext.Snapshot("trace-1", OrgScope.tenant("tenant-A"), "u-1"));
         ContextFieldCatalogRepository repository = mock(ContextFieldCatalogRepository.class);
         AuditRecorder auditRecorder = mock(AuditRecorder.class);
         ContextFieldCatalogService service =
             new ContextFieldCatalogService(
-                new ContextFieldCatalog(), repository, auditRecorder, mock(PackageVersionPort.class));
+                new ContextFieldCatalog(), repository, auditRecorder);
         var req = new ContextFieldCatalogUpsertRequest(
             "医嘱信息", "用药医嘱", "Medication", "medications[].customFlag", "院内自定义",
             "string", null, null, "不可用字段");
 
-        assertThatThrownBy(() -> service.create(req)).hasMessageContaining("字段路径不属于 canonical 字段目录");
+        assertThatThrownBy(() -> service.create(req))
+            .hasMessageContaining("字段路径不属于 canonical 或 extensions.local 字段目录");
         verify(repository, never()).save(any());
         verify(auditRecorder, never()).record(any());
+    }
+
+    @Test
+    void createAcceptsNamespacedTenantExtensionWithDeclaredShape() {
+        RequestContext.restore(new RequestContext.Snapshot("trace-1", OrgScope.tenant("tenant-A"), "u-1"));
+        ContextFieldCatalogRepository repository = mock(ContextFieldCatalogRepository.class);
+        AuditRecorder auditRecorder = mock(AuditRecorder.class);
+        when(repository.findByTenantIdAndFieldPath(
+            "tenant-A", "extensions.local.dialysis_access_type")).thenReturn(Optional.empty());
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        ContextFieldCatalogService service =
+            new ContextFieldCatalogService(
+                new ContextFieldCatalog(), repository, auditRecorder);
+        var request = new ContextFieldCatalogUpsertRequest(
+            "院内扩展", "肾脏替代治疗", "Extension",
+            "extensions.local.dialysis_access_type",
+            "透析通路类型", "code", null, "LOCAL_DIALYSIS_ACCESS", "院内结构化扩展字段");
+
+        ContextFieldDescriptor created = service.create(request);
+
+        assertThat(created.fieldPath()).isEqualTo("extensions.local.dialysis_access_type");
+        assertThat(created.resourceType()).isEqualTo("Extension");
+        assertThat(created.dataType()).isEqualTo("code");
+        assertThat(created.source()).isEqualTo("TENANT");
+        assertThat(created.payloadKey()).isEqualTo("extensions");
+        assertThat(created.propertyName()).isEqualTo("dialysis_access_type");
+        verify(repository).save(any());
+        verify(auditRecorder).record(any());
+    }
+
+    @Test
+    void createRejectsDictionaryOnNonCodeExtension() {
+        var request = new ContextFieldCatalogUpsertRequest(
+            "院内扩展", "肾脏替代治疗", "Extension",
+            "extensions.local.dialysis_access_type",
+            "透析通路类型", "string", null, "LOCAL_DIALYSIS_ACCESS", "非法字典绑定");
+
+        assertThatThrownBy(() ->
+            ContextFieldCatalogService.buildEntry(request, null, "tenant-A", "u-1", "trace-1"))
+            .hasMessageContaining("只有 code 扩展字段可以绑定标准字典");
     }
 
     @Test
@@ -131,7 +191,7 @@ class ContextFieldCatalogServiceMergeTest {
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         ContextFieldCatalogService service =
             new ContextFieldCatalogService(
-                new ContextFieldCatalog(), repository, auditRecorder, mock(PackageVersionPort.class));
+                new ContextFieldCatalog(), repository, auditRecorder);
 
         ContextFieldDescriptor updated = service.update("f1", new ContextFieldCatalogUpsertRequest(
             "诊断信息", "诊断", "Condition", "conditions[].code", "院内诊断编码",
@@ -152,7 +212,7 @@ class ContextFieldCatalogServiceMergeTest {
         AuditRecorder auditRecorder = mock(AuditRecorder.class);
         ContextFieldCatalogService service =
             new ContextFieldCatalogService(
-                new ContextFieldCatalog(), repository, auditRecorder, mock(PackageVersionPort.class));
+                new ContextFieldCatalog(), repository, auditRecorder);
         ContextFieldCatalogEntry existing = new ContextFieldCatalogEntry(
             1L, "f1", "tenant-A", "诊断信息", "诊断", "Condition", "conditions[].code",
             "诊断编码", "code", null, "ICD-10", null, "ACTIVE", now, "u-1", now, "u-1", "trace-old");
@@ -199,20 +259,4 @@ class ContextFieldCatalogServiceMergeTest {
                 && "院内药品编码".equals(f.displayName())); // 关键词命中覆盖元数据
     }
 
-    @Test
-    void queryWithPackageVersionChecksVersionPortBeforeReturningCatalog() {
-        RequestContext.restore(new RequestContext.Snapshot("trace-query", OrgScope.tenant("tenant-A"), "u-query"));
-        ContextFieldCatalogRepository repository = mock(ContextFieldCatalogRepository.class);
-        AuditRecorder auditRecorder = mock(AuditRecorder.class);
-        PackageVersionPort versions = mock(PackageVersionPort.class);
-        when(versions.exists("tenant-A", "pkg-2026.06")).thenReturn(true);
-        ContextFieldCatalogService service =
-            new ContextFieldCatalogService(new ContextFieldCatalog(), repository, auditRecorder, versions);
-
-        List<ContextFieldDescriptor> fields = service.query("Observation", "编码", "pkg-2026.06");
-
-        assertThat(fields).isNotEmpty();
-        assertThat(fields).allMatch(field -> field.resourceType().equals("Observation"));
-        verify(versions).exists("tenant-A", "pkg-2026.06");
-    }
 }

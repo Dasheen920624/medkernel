@@ -1,10 +1,15 @@
 package com.medkernel.engine.security.auth;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.ByteBuffer;
+import java.security.GeneralSecurityException;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +30,7 @@ import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.security.UserRoleAssignment;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
+import com.medkernel.engine.security.bootstrap.MfaSecretCodec;
 
 import jakarta.servlet.http.Cookie;
 
@@ -67,6 +73,9 @@ class AuthControllerTest {
     @Autowired
     JwtIssuer jwtIssuer;
 
+    @Autowired
+    MfaSecretCodec mfaSecretCodec;
+
     private static final String TENANT = "t-1";
     private static final String USERNAME = "doctor-test";
     private static final String USER_ID = "doctor-1";
@@ -79,6 +88,7 @@ class AuthControllerTest {
     private static final String SESSION_MAX_DURATION_KEY = "medkernel.auth.session.max-duration-seconds";
     private static final String JWT_TTL_KEY = "medkernel.auth.jwt.ttl-seconds";
     private static final String AUTH_MODE_KEY = "medkernel.auth.mode";
+    private static final String MFA_ENABLED_KEY = "medkernel.auth.mfa.enabled";
     private static final String LOGIN_MAX_FAILED_ATTEMPTS_KEY = "medkernel.auth.login.max-failed-attempts";
     private static final String LOGIN_LOCKOUT_SECONDS_KEY = "medkernel.auth.login.lockout-seconds";
     private static final String LOGIN_RATE_LIMIT_ATTEMPTS_KEY = "medkernel.auth.login.rate-limit-attempts";
@@ -107,10 +117,10 @@ class AuthControllerTest {
 
         // 插入角色分配（仅当不存在时）
         boolean hasRole = roleAssignmentRepository.findActiveByTenantIdAndUserId(TENANT, USER_ID)
-            .stream().anyMatch(a -> RoleCode.CLINICAL_DECISION_USER.code().equals(a.roleCode()));
+            .stream().anyMatch(a -> RoleCode.CLINICAL_USER.code().equals(a.roleCode()));
         if (!hasRole) {
             roleAssignmentRepository.save(new UserRoleAssignment(
-                null, TENANT, USER_ID, RoleCode.CLINICAL_DECISION_USER.code(), "TENANT", TENANT,
+                null, TENANT, USER_ID, RoleCode.CLINICAL_USER.code(), "TENANT", TENANT,
                 "Y", now, "test", now, "test"
             ));
         }
@@ -152,7 +162,7 @@ class AuthControllerTest {
             "/" + TENANT + "/" + AUTH_TEST_HOSPITAL + "/" + AUTH_TEST_DEPARTMENT,
             AUTH_TEST_DEPARTMENT);
         roleAssignmentRepository.save(new UserRoleAssignment(
-            null, TENANT, USER_ID, RoleCode.CLINICAL_DECISION_USER.code(), "DEPARTMENT", AUTH_TEST_DEPARTMENT,
+            null, TENANT, USER_ID, RoleCode.CLINICAL_USER.code(), "DEPARTMENT", AUTH_TEST_DEPARTMENT,
             "Y", Instant.now(), "test", Instant.now(), "test"
         ));
 
@@ -225,6 +235,7 @@ class AuthControllerTest {
         upsertConfig(LOGIN_LOCKOUT_SECONDS_KEY, "900");
         upsertConfig(LOGIN_RATE_LIMIT_ATTEMPTS_KEY, "10");
         upsertConfig(LOGIN_RATE_LIMIT_WINDOW_SECONDS_KEY, "60");
+        upsertConfig(MFA_ENABLED_KEY, "false");
         upsertAuthMode("PLATFORM");
     }
 
@@ -245,7 +256,55 @@ class AuthControllerTest {
             .andExpect(cookie().path(XSRF_COOKIE, "/"))
             .andExpect(jsonPath("$.data.userId").value(USER_ID))
             .andExpect(jsonPath("$.data.tenantId").value(TENANT))
-            .andExpect(jsonPath("$.data.mustChangePwd").value(false));
+            .andExpect(jsonPath("$.data.mustChangePwd").value(false))
+            .andExpect(jsonPath("$.data.mfaRequired").value(false));
+    }
+
+    @Test
+    void enabledMfaRequiresVerifiedTotpBeforeBusinessSessionIsUsable() throws Exception {
+        String secret = "JBSWY3DPEHPK3PXP";
+        PlatformCredential active = credentialRepository.findByTenantIdAndUsername(TENANT, USERNAME).orElseThrow();
+        credentialRepository.save(new PlatformCredential(
+            active.id(), active.credentialId(), active.tenantId(), active.userId(), active.username(),
+            active.passwordHash(), active.status(), active.mustChangePwd(),
+            mfaSecretCodec.encode(secret, "Recovery@2026"),
+            active.createdAt(), active.createdBy(), Instant.now(), "test", active.traceId()));
+        upsertConfig(MFA_ENABLED_KEY, "true");
+
+        var login = mvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new LoginRequest(USERNAME, RAW_PASSWORD, TENANT))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.mfaRequired").value(true))
+            .andExpect(jsonPath("$.data.mfaBound").value(true))
+            .andReturn();
+
+        Cookie restrictedCookie = login.getResponse().getCookie("mk_access");
+        String payload = new String(
+            Base64.getUrlDecoder().decode(restrictedCookie.getValue().split("\\.")[1]),
+            StandardCharsets.UTF_8);
+        Map<?, ?> claims = objectMapper.readValue(payload, Map.class);
+        assertThat(claims.get("mfa_verified")).isEqualTo(false);
+
+        mvc.perform(get("/api/v1/security/menu-permissions/visible").cookie(restrictedCookie))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("ENG-AUTH-010"));
+
+        Cookie xsrf = login.getResponse().getCookie(XSRF_COOKIE);
+        var verified = mvc.perform(post("/api/v1/auth/mfa/verify")
+                .cookie(restrictedCookie)
+                .cookie(xsrf)
+                .header(XSRF_HEADER, xsrf.getValue())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("code", currentTotpCode(secret)))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.verified").value(true))
+            .andExpect(cookie().exists("mk_access"))
+            .andReturn();
+
+        Cookie verifiedCookie = verified.getResponse().getCookie("mk_access");
+        mvc.perform(get("/api/v1/security/menu-permissions/visible").cookie(verifiedCookie))
+            .andExpect(status().isOk());
     }
 
     @Test
@@ -427,7 +486,7 @@ class AuthControllerTest {
         JwtIssuer.IssuedJwt issued = jwtIssuer.issueSession(
             USER_ID,
             TENANT,
-            List.of(RoleCode.CLINICAL_DECISION_USER.code()),
+            List.of(RoleCode.CLINICAL_USER.code()),
             now.minusSeconds(20),
             now.minusSeconds(10),
             now.plusSeconds(120));
@@ -572,5 +631,42 @@ class AuthControllerTest {
                 1, CURRENT_TIMESTAMP, 'test', CURRENT_TIMESTAMP, 'test'
             )
             """, "cfg-test-" + key.replaceAll("[^a-zA-Z0-9]", "-"), key, value);
+    }
+
+    private static String currentTotpCode(String secret) {
+        try {
+            byte[] key = base32Decode(secret);
+            long counter = Instant.now().getEpochSecond() / 30;
+            byte[] message = ByteBuffer.allocate(Long.BYTES).putLong(counter).array();
+            Mac mac = Mac.getInstance("HmacSHA1");
+            mac.init(new SecretKeySpec(key, "HmacSHA1"));
+            byte[] hash = mac.doFinal(message);
+            int offset = hash[hash.length - 1] & 0x0f;
+            int binary = ((hash[offset] & 0x7f) << 24)
+                | ((hash[offset + 1] & 0xff) << 16)
+                | ((hash[offset + 2] & 0xff) << 8)
+                | (hash[offset + 3] & 0xff);
+            return String.format(java.util.Locale.ROOT, "%06d", binary % 1_000_000);
+        } catch (GeneralSecurityException exception) {
+            throw new AssertionError("无法生成测试 TOTP", exception);
+        }
+    }
+
+    private static byte[] base32Decode(String text) {
+        String normalized = text.replace("=", "").replace(" ", "").toUpperCase(java.util.Locale.ROOT);
+        int buffer = 0;
+        int bitsLeft = 0;
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        for (int index = 0; index < normalized.length(); index++) {
+            char current = normalized.charAt(index);
+            int value = current >= 'A' && current <= 'Z' ? current - 'A' : current - '2' + 26;
+            buffer = (buffer << 5) | value;
+            bitsLeft += 5;
+            if (bitsLeft >= 8) {
+                out.write((buffer >> (bitsLeft - 8)) & 0xff);
+                bitsLeft -= 8;
+            }
+        }
+        return out.toByteArray();
     }
 }

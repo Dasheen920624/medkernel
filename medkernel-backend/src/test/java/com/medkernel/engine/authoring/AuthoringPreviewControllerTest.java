@@ -60,8 +60,7 @@ class AuthoringPreviewControllerTest {
                       "trace_id": "trace-preview",
                       "tenant_id": "t-1",
                       "user_id": "api-author",
-                      "role_codes": ["clinical-decision-user"],
-                      "package_version": "pkg-2026.1",
+                      "role_codes": ["clinical-user"],
                       "subject": "RULE_CONDITION",
                       "dsl": {
                         "when": {"all": [{"fact": "patient.age", "operator": "gte", "value": 65}]},
@@ -95,7 +94,7 @@ class AuthoringPreviewControllerTest {
             .thenReturn(new AuthoringPreviewRunResponse(
                 AuthoringPreviewSubject.RULE_CONDITION,
                 "ctx-001",
-                "pkg-2026.1",
+                "runtime-release-test",
                 true,
                 true,
                 "草稿规则命中真实快照",
@@ -121,8 +120,7 @@ class AuthoringPreviewControllerTest {
                       "trace_id": "trace-preview-run",
                       "tenant_id": "t-1",
                       "user_id": "api-author",
-                      "role_codes": ["clinical-decision-user"],
-                      "package_version": "pkg-2026.1",
+                      "role_codes": ["clinical-user"],
                       "subject": "RULE_CONDITION",
                       "snapshot_id": "ctx-001",
                       "dsl": {
@@ -155,7 +153,6 @@ class AuthoringPreviewControllerTest {
                       "tenant_id": "t-1",
                       "user_id": "api-guest",
                       "role_codes": ["guest"],
-                      "package_version": "pkg-2026.1",
                       "subject": "RULE_CONDITION",
                       "dsl": {"when": {"fact": "patient.age", "operator": "gte", "value": 65}}
                     }
@@ -167,7 +164,7 @@ class AuthoringPreviewControllerTest {
         return jwt().jwt(token -> token
                 .subject("api-author")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("clinical-decision-user")))
-            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"));
+                .claim("roles", List.of("clinical-user")))
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"));
     }
 }

@@ -80,7 +80,7 @@ class MasterDataSyncControllerSecurityTest {
     }
 
     @Test
-    void integrationOperatorCanReadTenantReconciliation() throws Exception {
+    void platformAdminCanReadTenantReconciliation() throws Exception {
         when(service.reconciliation("HIS")).thenReturn(
             new MasterDataReconciliationResponse(
                 "HIS", "batch-1", "cursor-1", Instant.now(), List.of()));
@@ -88,9 +88,9 @@ class MasterDataSyncControllerSecurityTest {
         mvc.perform(get("/api/v1/engine/integration/master-data/reconciliation")
                 .param("sourceSystem", "HIS")
                 .with(jwt().jwt(token -> token
-                    .subject("integration-operator")
+                    .subject("platform-admin")
                     .claim("tenant_id", "tenant-1"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.sourceSystem").value("HIS"));
     }

@@ -47,19 +47,29 @@ public record ReleaseSimulationResult(
         long severityIncreases,
         long severityDecreases,
         List<String> highRiskSnapshotIds,
+        List<ImpactedAsset> impactedAssets,
         String reason
     ) {
         public Replay {
             highRiskSnapshotIds = highRiskSnapshotIds == null ? List.of() : List.copyOf(highRiskSnapshotIds);
+            impactedAssets = impactedAssets == null ? List.of() : List.copyOf(impactedAssets);
         }
 
         public static Replay unsupported(String reason) {
-            return new Replay("UNSUPPORTED", 0, 0, 0, 0, 0, 0, List.of(), reason);
+            return new Replay("UNSUPPORTED", 0, 0, 0, 0, 0, 0, List.of(), List.of(), reason);
         }
 
         public static Replay noData(String reason) {
-            return new Replay("NO_DATA", 0, 0, 0, 0, 0, 0, List.of(), reason);
+            return new Replay("NO_DATA", 0, 0, 0, 0, 0, 0, List.of(), List.of(), reason);
         }
+    }
+
+    public record ImpactedAsset(
+        VersionedAssetType assetType,
+        String assetIdentity,
+        String versionId,
+        String versionNo
+    ) {
     }
 
     public record Check(boolean passed, List<String> issues) {

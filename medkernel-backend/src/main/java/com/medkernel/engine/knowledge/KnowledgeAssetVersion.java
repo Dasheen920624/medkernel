@@ -62,7 +62,7 @@ public record KnowledgeAssetVersion(
     }
 
     public String effectiveOrganizationScope() {
-        return normalize(organizationScope, "tenant:" + tenantId);
+        return requiredOrganizationScope(organizationScope);
     }
 
     public String effectiveApplicableScope() {
@@ -85,8 +85,15 @@ public record KnowledgeAssetVersion(
     }
 
     public static String activeScopeKey(Long identityId, String organizationScope, String applicableScope) {
-        return identityId + "|" + normalize(organizationScope, "tenant:unknown")
+        return identityId + "|" + requiredOrganizationScope(organizationScope)
             + "|" + normalize(applicableScope, DEFAULT_APPLICABLE_SCOPE);
+    }
+
+    private static String requiredOrganizationScope(String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException("知识版本缺少真实组织归属路径");
+        }
+        return value.trim();
     }
 
     private static String normalize(String value, String fallback) {

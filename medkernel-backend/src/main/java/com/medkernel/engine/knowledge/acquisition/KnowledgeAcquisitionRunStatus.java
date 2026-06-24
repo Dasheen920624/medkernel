@@ -8,7 +8,7 @@ public enum KnowledgeAcquisitionRunStatus {
     SUCCEEDED,
     /** 内容指纹已存在，复用既有来源版本。 */
     DUPLICATE,
-    /** 触发前被部署形态、白名单、许可或 robots 门禁阻断。 */
+    /** 触发前被部署形态、来源允许清单、许可或 robots 门禁阻断。 */
     BLOCKED,
     /** 抓取或解析失败，已记录真实原因。 */
     FAILED

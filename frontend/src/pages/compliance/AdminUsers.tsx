@@ -456,7 +456,7 @@ export default function AdminUsers() {
             appointmentType: "INTERNAL",
             openAccount: true,
             bindIdentity: false,
-            roleCode: "clinical-decision-user",
+            roleCode: "clinical-user",
             providerType: "EMPLOYEE_NO",
           }}
           onFinish={submitCreate}
@@ -542,9 +542,10 @@ export default function AdminUsers() {
               </Form.Item>
               <Form.Item name="roleCode" label="初始角色">
                 <Select
-                  options={ROLE_OPTIONS.filter(
-                    (role) => role.code !== "platform-governance-admin",
-                  ).map((role) => ({ value: role.code, label: role.name }))}
+                  options={ROLE_OPTIONS.map((role) => ({
+                    value: role.code,
+                    label: role.name,
+                  }))}
                 />
               </Form.Item>
             </Space>
@@ -806,16 +807,17 @@ export default function AdminUsers() {
                   <Form<RoleFormValues>
                     form={roleForm}
                     layout="vertical"
-                    initialValues={{ roleCode: "clinical-decision-user" }}
+                    initialValues={{ roleCode: "engine-operator" }}
                     onFinish={assignRole}
                   >
                     <Space align="start" wrap>
                       <Form.Item name="roleCode" label="新增角色" rules={[{ required: true }]}>
                         <Select
                           className="mk-select-medium"
-                          options={ROLE_OPTIONS.filter(
-                            (role) => role.code !== "platform-governance-admin",
-                          ).map((role) => ({ value: role.code, label: role.name }))}
+                          options={ROLE_OPTIONS.map((role) => ({
+                            value: role.code,
+                            label: role.name,
+                          }))}
                         />
                       </Form.Item>
                       <Form.Item

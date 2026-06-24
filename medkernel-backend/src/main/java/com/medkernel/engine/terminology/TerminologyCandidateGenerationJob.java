@@ -20,7 +20,6 @@ public record TerminologyCandidateGenerationJob(
     @Column("source_system") String sourceSystem,
     @Column("minimum_score") Double minimumScore,
     @Column("semantic_assist_enabled") Boolean semanticAssistEnabled,
-    @Column("package_version") String packageVersion,
     @Column("requested_by") String requestedBy,
     @Column("status") TerminologyCandidateGenerationJobStatus status,
     @Column("progress") Integer progress,

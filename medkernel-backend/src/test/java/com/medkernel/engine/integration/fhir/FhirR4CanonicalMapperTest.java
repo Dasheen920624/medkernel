@@ -95,6 +95,7 @@ class FhirR4CanonicalMapperTest {
 
         CanonicalResourceMappingResult result = mapper.fromR4(new FhirCanonicalMappingRequest(
             "tenant-A",
+            "runtime-release-1",
             "snapshot-fhir-1",
             2,
             "trace-fhir",
@@ -160,6 +161,7 @@ class FhirR4CanonicalMapperTest {
 
         CanonicalResourceMappingResult result = confirmedMapper.fromR4(new FhirCanonicalMappingRequest(
             "tenant-A",
+            "runtime-release-1",
             "snapshot-fhir-2",
             3,
             "trace-fhir-confirmed",
@@ -202,6 +204,7 @@ class FhirR4CanonicalMapperTest {
 
         CanonicalResourceMappingResult result = mapper.fromR4(new FhirCanonicalMappingRequest(
             "tenant-A",
+            "runtime-release-1",
             "snapshot-fhir-allergy",
             4,
             "trace-fhir-allergy",
@@ -229,7 +232,7 @@ class FhirR4CanonicalMapperTest {
     }
 
     private static TerminologyMappingPort terminologyReturning(String status) {
-        return (tenantId, anchors) -> anchors.stream()
+        return (tenantId, runtimeReleaseId, anchors) -> anchors.stream()
             .collect(Collectors.toMap(anchor -> anchor.key(), anchor -> status, (left, right) -> left));
     }
 }

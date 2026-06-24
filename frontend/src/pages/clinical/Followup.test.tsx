@@ -206,7 +206,7 @@ describe("Followup", () => {
           ? {
               snapshotId,
               status: "ACTIVE",
-              packageVersion: "2026.06",
+              runtimeReleaseId: "runtime-release-followup",
               qualityStatus: "VALID",
               missingFields: [],
               mappingStatus: {},
@@ -393,7 +393,7 @@ describe("Followup", () => {
 
     expect(await screen.findByText("回院任务 return-task-1")).toBeInTheDocument();
     expect(screen.getByText("通知事件 notify-event-1")).toBeInTheDocument();
-    expect(screen.getByText("追踪链路 trace-followup-1")).toBeInTheDocument();
+    expect(screen.getByText("追踪号 trace-followup-1")).toBeInTheDocument();
     expect(screen.getByText("异常事件 event-return-1")).toBeInTheDocument();
   });
 
@@ -448,5 +448,15 @@ describe("Followup", () => {
         },
       }),
     );
+  });
+
+  it("创建随访模板时不要求人工填写内部版本号", async () => {
+    const user = userEvent.setup();
+    renderFollowup();
+
+    await user.click(screen.getByRole("tab", { name: "模板治理" }));
+    await user.click(screen.getByRole("button", { name: /新建模板/ }));
+
+    expect(screen.queryByLabelText("版本")).not.toBeInTheDocument();
   });
 });

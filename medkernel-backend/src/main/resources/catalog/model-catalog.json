@@ -1,0 +1,26 @@
+{
+  "capabilities": [
+    {"capabilityCode":"knowledge.discovery","displayName":"临床知识关联发现","description":"从临床事实中检索并关联可信知识依据。","category":"知识资产","sortOrder":10},
+    {"capabilityCode":"knowledge.production.knowledge","displayName":"正式医学知识生产","description":"基于已登记权威来源生成待人工核查的医学知识候选。","category":"知识资产","sortOrder":15},
+    {"capabilityCode":"knowledge.extract","displayName":"电子病历语义实体提取","description":"从病历文本中提取结构化临床事实。","category":"语义抽取","sortOrder":20},
+    {"capabilityCode":"terminology.map","displayName":"标准术语字典匹配映射","description":"将院内术语映射到标准医学术语。","category":"字典映射","sortOrder":30},
+    {"capabilityCode":"rule.draft","displayName":"临床规则草案拟定","description":"基于可信依据生成待核查的规则草案。","category":"规则引擎","sortOrder":40},
+    {"capabilityCode":"pathway.draft","displayName":"临床路径草案拟定","description":"生成待核查的路径节点与变异草案。","category":"路径引擎","sortOrder":50},
+    {"capabilityCode":"cdss.explain","displayName":"临床决策解释","description":"将确定性决策依据转换为可追溯说明。","category":"解释追溯","sortOrder":60},
+    {"capabilityCode":"quality.semantic-check","displayName":"病历内涵质控","description":"识别病历中的逻辑缺项与质控风险。","category":"质控改进","sortOrder":70},
+    {"capabilityCode":"followup.draft","displayName":"随访草案拟定","description":"生成待核查的随访计划与问卷草案。","category":"智能随访","sortOrder":80}
+  ],
+  "enhancementMatrix": [
+    {"businessPoint":"knowledge-discovery","businessName":"临床知识关联发现","capabilityCode":"knowledge.discovery","b0Path":"确定性知识检索与关联基线","accessStatus":"ACTIVE","sortOrder":10},
+    {"businessPoint":"knowledge-production","businessName":"正式医学知识生产","capabilityCode":"knowledge.production.knowledge","b0Path":"受控来源登记与人工知识编著链","accessStatus":"ACTIVE","sortOrder":15},
+    {"businessPoint":"knowledge-extract","businessName":"电子病历语义实体提取","capabilityCode":"knowledge.extract","b0Path":"规则化结构实体抽取基线","accessStatus":"ACTIVE","sortOrder":20},
+    {"businessPoint":"terminology","businessName":"标准术语字典匹配映射","capabilityCode":"terminology.map","b0Path":"确定性术语映射基线","accessStatus":"ACTIVE","sortOrder":30},
+    {"businessPoint":"rule","businessName":"临床规则草案拟定","capabilityCode":"rule.draft","b0Path":"确定性规则模板基线","accessStatus":"ACTIVE","sortOrder":40},
+    {"businessPoint":"pathway","businessName":"临床路径草案拟定","capabilityCode":"pathway.draft","b0Path":"确定性路径模板基线","accessStatus":"ACTIVE","sortOrder":50},
+    {"businessPoint":"cdss","businessName":"临床决策解释","capabilityCode":"cdss.explain","b0Path":"确定性决策依据解释基线","accessStatus":"ACTIVE","sortOrder":60},
+    {"businessPoint":"quality","businessName":"病历内涵质控","capabilityCode":"quality.semantic-check","b0Path":"确定性质控规则基线","accessStatus":"ACTIVE","sortOrder":70},
+    {"businessPoint":"followup","businessName":"随访草案拟定","capabilityCode":"followup.draft","b0Path":"确定性随访模板基线","accessStatus":"ACTIVE","sortOrder":80},
+    {"businessPoint":"nursing","businessName":"护理知识增强","capabilityCode":null,"b0Path":null,"accessStatus":"PENDING","sortOrder":90},
+    {"businessPoint":"report","businessName":"报告解读增强","capabilityCode":null,"b0Path":null,"accessStatus":"PENDING","sortOrder":100}
+  ]
+}

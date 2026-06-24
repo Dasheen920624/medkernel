@@ -50,7 +50,7 @@ public class FollowupTemplateController {
     }
 
     @PostMapping("/{templateId}/publish")
-    @PreAuthorize("@perm.has('package.publish')")
+    @PreAuthorize("@perm.has('followup.publish')")
     public ApiResult<FollowupTemplateResponse> publish(
             @PathVariable String templateId,
             @Valid @RequestBody FollowupTemplatePublishRequest request) {

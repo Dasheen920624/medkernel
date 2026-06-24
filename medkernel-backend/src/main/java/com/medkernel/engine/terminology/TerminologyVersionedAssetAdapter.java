@@ -32,7 +32,6 @@ public class TerminologyVersionedAssetAdapter implements VersionedAssetPort {
             command.tenantId(),
             VersionedAssetType.TERMINOLOGY,
             command.assetIdentity(),
-            command.versionNo(),
             command.organizationScope(),
             command.applicableScope(),
             command.content(),

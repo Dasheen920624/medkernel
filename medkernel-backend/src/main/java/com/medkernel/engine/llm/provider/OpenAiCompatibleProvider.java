@@ -15,7 +15,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * OpenAI 兼容 API provider 适配器（LLM-08 B2，仅外网生产中心可用）。
+ * OpenAI 兼容模型服务适配器（LLM-08 B2，仅外网生产中心可用）。
  *
  * <p>调 {@code {endpoint}/v1/chat/completions}；密钥经 {@link ProviderCredentialResolver} 解析，缺失即不可用。
  */
@@ -61,7 +61,7 @@ public class OpenAiCompatibleProvider implements ModelProvider {
         String secret = credentials.resolveSecret(
                 config.tenantId(), config.providerCode())
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_LLM_003,
-                "OpenAI 兼容 provider 凭据未配置 code=" + config.providerCode()));
+                "OpenAI 兼容模型服务未配置密钥，服务编码=" + config.providerCode()));
 
         ObjectNode payload = OBJECT_MAPPER.createObjectNode();
         payload.put("model", config.modelVersion());
@@ -78,7 +78,7 @@ public class OpenAiCompatibleProvider implements ModelProvider {
                 request.timeoutMs());
         } catch (RuntimeException callFailed) {
             throw new ApiException(ErrorCode.ENG_LLM_003,
-                "OpenAI 兼容 provider 调用失败 code=" + config.providerCode() + "：" + callFailed.getMessage());
+                "OpenAI 兼容模型服务调用失败，服务编码=" + config.providerCode() + "：" + callFailed.getMessage());
         }
 
         try {
@@ -92,7 +92,7 @@ public class OpenAiCompatibleProvider implements ModelProvider {
             throw protocolInvalid;
         } catch (Exception parseFailed) {
             throw new ApiException(ErrorCode.ENG_LLM_002,
-                "OpenAI 兼容 provider 返回无法解析 code=" + config.providerCode());
+                "OpenAI 兼容模型服务返回内容无法解析，服务编码=" + config.providerCode());
         }
     }
 

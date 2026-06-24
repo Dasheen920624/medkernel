@@ -64,7 +64,7 @@ describe("ImplementationGuide", () => {
         key: "users",
         title: "用户与角色",
         status: "BLOCKED",
-        blockers: ["尚未创建院级管理员", "实施运维员未分配医院作用域"],
+        blockers: ["尚未创建平台管理员", "医疗引擎运营员未分配医院作用域"],
         targetPath: "/tenant/onboarding",
         evidence: null,
       },
@@ -81,8 +81,8 @@ describe("ImplementationGuide", () => {
         title: "配置资产",
         status: "DONE",
         blockers: [],
-        targetPath: "/config/packages",
-        evidence: "首发配置包已生成草稿",
+        targetPath: "/config/releases",
+        evidence: "机构生效版本已启用",
       },
     ];
     apiMocks.implementationStepsLoading = false;
@@ -99,8 +99,8 @@ describe("ImplementationGuide", () => {
     const organizationStep = screen.getByTestId("implementation-step-organization");
     expect(within(organizationStep).getByText("组织树")).toBeInTheDocument();
     expect(within(organizationStep).getByText("已存在集团、医院和科室组织")).toBeInTheDocument();
-    expect(screen.getByText("尚未创建院级管理员")).toBeInTheDocument();
-    expect(screen.getByText("实施运维员未分配医院作用域")).toBeInTheDocument();
+    expect(screen.getByText("尚未创建平台管理员")).toBeInTheDocument();
+    expect(screen.getByText("医疗引擎运营员未分配医院作用域")).toBeInTheDocument();
     expect(screen.getByText("HIS 适配器仍为 NOT_CONNECTED")).toBeInTheDocument();
 
     const adapterStep = screen.getByTestId("implementation-step-adapters");

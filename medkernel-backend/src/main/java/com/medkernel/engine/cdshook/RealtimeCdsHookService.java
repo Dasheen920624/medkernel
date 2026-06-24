@@ -55,7 +55,7 @@ public class RealtimeCdsHookService {
         Duration budget = budgetFor(request.hook());
         RecommendationTriggerRequest triggerRequest = toRecommendationTrigger(request);
         if (triggerRequest.contextSnapshotId() == null) {
-            return unavailable(request, budget, "上下文缺少 contextSnapshotId，无法读取 ACTIVE 标准上下文快照");
+            return unavailable(request, budget, "上下文缺少标准上下文标识，无法读取已生效标准上下文");
         }
         Future<CdsHookResponse> future = taskExecutor.submit(TraceIdPropagator.wrap(() ->
             CdsHookResponse.fromRecommendationEvaluation(recommendations.evaluate(triggerRequest))));
@@ -84,7 +84,6 @@ public class RealtimeCdsHookService {
             request.encounterId(),
             text(context, "patientPathwayId"),
             textOrDefault(context, "scenarioCode", request.hook().wireValue()),
-            request.packageVersion(),
             text(context, "inputDigest"),
             instant(context, "occurredAt"),
             List.of(),

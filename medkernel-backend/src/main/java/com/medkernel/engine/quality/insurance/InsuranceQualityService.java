@@ -37,7 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * SVC-QUALITY-02 病案医保服务包。
+ * SVC-QUALITY-02 病案医保服务。
  *
  * <p>服务读取关系库中的上下文快照与医保结算事实，执行确定性病案内涵、DRG/DIP 与医保审核。
  * 未接入模型时仍返回 {@link EvaluationModelStatus#MODEL_DISABLED} 的真实 B0 结果；无结算事实时返回
@@ -81,7 +81,7 @@ public class InsuranceQualityService {
     }
 
     /**
-     * 复用评估引擎执行病案内涵质控，并保存本服务包审计结果。
+     * 复用评估引擎执行病案内涵质控，并保存本服务审计结果。
      */
     @Transactional
     public QualityCaseReviewResponse caseReview(QualityCaseReviewRequest request) {
@@ -89,7 +89,7 @@ public class InsuranceQualityService {
         String tenantId = tenantId();
         ContextSnapshot snapshot = snapshot(tenantId, request.contextSnapshotId());
         String reviewId = "case-" + shortDigest(tenantId, request.contextSnapshotId(),
-            request.scenarioCode(), request.packageVersion());
+            request.scenarioCode(), snapshot.runtimeReleaseId());
         List<QualityCaseReviewResponse> existing = jdbc.query("""
             SELECT * FROM mk_quality_case_review
             WHERE tenant_id = ? AND review_id = ?
@@ -99,7 +99,7 @@ public class InsuranceQualityService {
         }
 
         EvaluationRunResponse run = evaluations.evaluateSnapshot(new EvaluationEvaluateSnapshotRequest(
-            request.contextSnapshotId(), request.scenarioCode(), request.packageVersion()));
+            request.contextSnapshotId(), request.scenarioCode()));
         CaseReviewStatus status = run.findingCount() > 0
             ? CaseReviewStatus.NON_COMPLIANT
             : CaseReviewStatus.PASS;
@@ -107,14 +107,14 @@ public class InsuranceQualityService {
         jdbc.update("""
             INSERT INTO mk_quality_case_review (
                 review_id, tenant_id, context_snapshot_id, patient_id, encounter_id,
-                department_id, scenario_code, package_version, review_status,
+                department_id, scenario_code, runtime_release_id, review_status,
                 evaluation_run_id, result_count, finding_count, task_count,
                 model_status, model_downgrade_reason, evidence_summary,
                 created_at, created_by, updated_at, updated_by, trace_id
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             reviewId, tenantId, snapshot.snapshotId(), snapshot.patientId(), snapshot.encounterId(),
-            request.responsibleDepartmentId(), request.scenarioCode(), request.packageVersion(),
+            request.responsibleDepartmentId(), request.scenarioCode(), snapshot.runtimeReleaseId(),
             status.name(), run.runId(), run.resultCount(), run.findingCount(), run.taskCount(),
             run.modelStatus().name(), run.modelDowngradeReason(),
             "病案内涵质控复用评估运行 " + run.runId() + "，问题数 " + run.findingCount(),
@@ -225,7 +225,7 @@ public class InsuranceQualityService {
             snapshot.patientId(),
             snapshot.encounterId(),
             request.scenarioCode(),
-            request.packageVersion(),
+            snapshot.runtimeReleaseId(),
             "sha256:" + digestHex(tenantId, snapshot.snapshotId(), rulesDigest(request.rules())),
             now,
             results));

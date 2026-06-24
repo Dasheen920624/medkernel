@@ -153,7 +153,7 @@ class ClinicalRedlineRepositoryTest {
             RecommendationRiskLevel.CRITICAL,
             "risk-matrix-critical-ddi",
             "4",
-            CdssReviewRequirement.DUAL_REVIEW,
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
             168,
             "OPT04_REDLINE_SILENT_TRIAL",
             "华法林合并非甾体抗炎药出血风险",

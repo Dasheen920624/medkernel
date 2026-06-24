@@ -32,8 +32,8 @@ type SelfCheckItem = {
 const { Text } = Typography;
 
 const STATUS_LABEL: Record<ReadinessStatus, string> = {
-  blocked: "BLOCK",
-  ready: "PASS",
+  blocked: "阻塞",
+  ready: "通过",
   disabled: "未启用",
 };
 
@@ -47,21 +47,19 @@ const STATUS_FILTERS: ReadinessStatus[] = ["blocked", "ready", "disabled"];
 const READINESS_ROUTE = findRouteByPath("/workbench/readiness-validation");
 
 const KNOWLEDGE_READINESS_LABEL: Record<string, string> = {
-  LITERATURE_ROOT: "文献资料库根 URI",
+  LITERATURE_ROOT: "文献资料库地址",
   DEPLOYMENT_FORM: "部署形态",
-  MODEL_PROVIDER: "模型 Provider",
-  REGRESSION_BASELINE: "医学回归基准集",
-  MODEL_EVALUATION: "医学回归评测",
-  EGRESS_GOVERNANCE: "出域白名单",
+  MODEL_PROVIDER: "模型服务",
+  REGRESSION_BASELINE: "医学验证用例",
+  MODEL_EVALUATION: "医学验证评测",
+  EGRESS_GOVERNANCE: "外调允许范围",
   MODEL_POLICY: "能力策略",
-  VERSION_TRIPLE: "版本三元组",
-  P6_ACCEPTANCE: "P6 独立验收",
+  VERSION_TRIPLE: "提示词、工具与模型版本",
 };
 
 const KNOWLEDGE_READINESS_REPAIR_PATH: Record<string, string> = {
   LITERATURE_ROOT: "/security/baseline",
   DEPLOYMENT_FORM: "/security/baseline",
-  P6_ACCEPTANCE: "/security/baseline",
   MODEL_PROVIDER: "/system/providers",
   REGRESSION_BASELINE: "/advanced/ai-workflows",
   MODEL_EVALUATION: "/advanced/ai-workflows",
@@ -144,7 +142,7 @@ export default function ReadinessValidation() {
     return (
       <PageShell
         title="验收自检"
-        description="正在读取运行底座与知识生产闸"
+        description="正在读取运行环境与知识生产检查"
         primary={retryButton}
         state="loading"
       >
@@ -185,12 +183,12 @@ export default function ReadinessValidation() {
     return (
       <PageShell
         title="验收自检"
-        description="运行底座暂无自检项"
+        description="运行环境暂无自检项"
         primary={retryButton}
         state="empty"
         stateProps={{
           title: "暂无验收自检项",
-          description: "当前运行底座未返回依赖、能力开关或备份恢复状态。",
+          description: "当前运行环境未返回依赖、能力开关或备份恢复状态。",
         }}
       >
         <></>
@@ -206,7 +204,7 @@ export default function ReadinessValidation() {
           showIcon
           type={summary.blocked > 0 ? "warning" : "success"}
           message={summary.conclusion}
-          description={`${summary.ready} PASS / ${summary.blocked} BLOCK / ${summary.disabled} 未启用`}
+          description={`${summary.ready} 通过 / ${summary.blocked} 阻塞 / ${summary.disabled} 未启用`}
         />
         {partialItems.length > 0 ? (
           <Alert
@@ -311,8 +309,8 @@ function buildRuntimeHealthItem(snapshot: RuntimeOperationsSnapshot): SelfCheckI
   const status = statusToReadiness(snapshot.healthStatus);
   return {
     key: "runtime-health",
-    item: "运行底座",
-    source: "/system/operations",
+    item: "运行环境",
+    source: "运行保障",
     status: status.status,
     reason:
       status.status === "ready"
@@ -328,7 +326,7 @@ function buildKnowledgeReadinessItem(item: KnowledgeProductionReadinessItem): Se
   return {
     key: `knowledge-${code}`,
     item: KNOWLEDGE_READINESS_LABEL[code] ?? code,
-    source: "知识生产 readiness",
+    source: "知识生产上线准备",
     status: knowledgeReadinessStatus(item),
     reason: item.evidence ? `${item.message}（${item.evidence}）` : item.message,
     repairPath: KNOWLEDGE_READINESS_REPAIR_PATH[code] ?? "/security/baseline",
@@ -344,13 +342,13 @@ function knowledgeReadinessStatus(item: KnowledgeProductionReadinessItem): SelfC
 }
 
 function buildKnowledgeReadinessUnavailableItem(error: unknown): SelfCheckItem {
-  const parsed = parseApiError(error, "知识生产 readiness 暂时无法读取");
+  const parsed = parseApiError(error, "知识生产上线准备暂时无法读取");
   return {
     key: "knowledge-readiness",
-    item: "知识生产 readiness",
-    source: "/engine/knowledge-production/readiness",
+    item: "知识生产上线准备",
+    source: "知识生产上线准备",
     status: "blocked",
-    reason: parsed.traceId ? `${parsed.message}（traceId：${parsed.traceId}）` : parsed.message,
+    reason: parsed.traceId ? `${parsed.message}（追踪号：${parsed.traceId}）` : parsed.message,
     repairPath: "/security/baseline",
     partial: true,
   };
@@ -373,7 +371,7 @@ function buildFeatureFlagItem(flag: RuntimeFeatureFlag): SelfCheckItem {
   return {
     key: `flag-${flag.key}`,
     item: flag.displayName,
-    source: "Feature Flag",
+    source: "能力开关",
     status: flag.enabled ? "ready" : "disabled",
     reason: flag.enabled
       ? `${flag.displayName}已开启`
@@ -399,7 +397,7 @@ function buildBackupItem(snapshot: RuntimeOperationsSnapshot): SelfCheckItem {
   return {
     key: "backup-readiness",
     item: "备份恢复",
-    source: "运行底座",
+    source: "运行环境",
     status,
     reason,
     repairPath: "/system/providers",

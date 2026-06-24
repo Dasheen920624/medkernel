@@ -226,7 +226,7 @@ describe("Mpi", () => {
 
       await user.type(screen.getByPlaceholderText("支持按姓名或 MPI ID 检索..."), "mpi-real-1");
       await user.click(screen.getByRole("combobox", { name: "索引状态" }));
-      const activeOptions = await screen.findAllByText("活跃 (ACTIVE)");
+      const activeOptions = await screen.findAllByText("当前有效");
       await user.click(activeOptions[activeOptions.length - 1]);
       await user.click(screen.getByRole("button", { name: /检索过滤/ }));
 

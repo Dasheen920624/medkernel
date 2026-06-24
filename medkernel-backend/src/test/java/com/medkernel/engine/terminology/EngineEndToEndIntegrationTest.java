@@ -20,6 +20,8 @@ import com.medkernel.engine.cdss.risk.CdssAutomationLevel;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotRequest;
 import com.medkernel.engine.context.ContextSnapshotResources;
+import com.medkernel.engine.context.ClinicalRuntimeRelease;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseRepository;
 import com.medkernel.engine.context.QualityStatus;
 import com.medkernel.engine.followup.FollowupEngineService;
 import com.medkernel.engine.followup.FollowupPlanDetailResponse;
@@ -29,10 +31,10 @@ import com.medkernel.engine.knowledge.SourceFragment;
 import com.medkernel.engine.llm.ModelGatewayService;
 import com.medkernel.engine.llm.ModelTaskRequest;
 import com.medkernel.engine.llm.ModelTaskResponse;
-import com.medkernel.engine.pkg.KnowledgePackage;
-import com.medkernel.engine.pkg.KnowledgePackageRepository;
-import com.medkernel.engine.pkg.KnowledgePackageStatus;
 import com.medkernel.engine.recommendation.*;
+import com.medkernel.engine.release.ReleaseManifestHash;
+import com.medkernel.engine.release.PlatformBaselineRelease;
+import com.medkernel.engine.release.PlatformBaselineReleaseRepository;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
@@ -82,7 +84,10 @@ class EngineEndToEndIntegrationTest {
     private LocalTermRepository localTermRepo;
 
     @Autowired
-    private KnowledgePackageRepository packageRepo;
+    private PlatformBaselineReleaseRepository platformBaselineReleases;
+
+    @Autowired
+    private ClinicalRuntimeReleaseRepository runtimeReleases;
 
     private final String tenantId = "tenant-hospital-01";
     private final String doctorId = "DOC-STROKE-101";
@@ -91,11 +96,19 @@ class EngineEndToEndIntegrationTest {
     @BeforeEach
     void setUp() {
         // 初始化当前线程的强多租户及角色动作授权上下文 (GA-ENG-BASE-01/02)
-        RequestContext.restore(new RequestContext.Snapshot(traceId, OrgScope.tenant(tenantId), doctorId));
+        String hospitalId = "HOSP-1";
+        RequestContext.restore(new RequestContext.Snapshot(
+            traceId,
+            new OrgScope(tenantId, "GROUP-1", hospitalId, "CAMPUS-1", "SITE-1", "DEPT-01", null, "NEURO"),
+            doctorId));
         Instant now = Instant.now();
-        packageRepo.save(new KnowledgePackage(
-            null, "pkg-stroke", tenantId, "STROKE.DEFAULT", "pkg-stroke-2026",
-            "卒中端到端配置包", null, KnowledgePackageStatus.ACTIVE,
+        String emptyManifest = ReleaseManifestHash.sha256(List.of());
+        platformBaselineReleases.save(new PlatformBaselineRelease(
+            null, "baseline-e2e", 1L, emptyManifest,
+            now, doctorId, now, doctorId, traceId));
+        runtimeReleases.save(new ClinicalRuntimeRelease(
+            null, "runtime-release-e2e", tenantId, hospitalId, 1L,
+            "baseline-e2e", emptyManifest, null,
             now, doctorId, now, doctorId, traceId));
     }
 
@@ -149,7 +162,7 @@ class EngineEndToEndIntegrationTest {
         // 提交确定性候选生成任务：标准字典 normalized_name 提供真实别名，禁止靠字符相似度误配。
         TerminologyCandidateGenerationJob generation = terminologyService.generateCandidates(new TerminologyCandidateGenerationRequest(
             "req-e2e-term-001", "tr-e2e-stroke-999", tenantId, "GROUP-1", "HOSP-1", "CAMPUS-1",
-            "SITE-1", "DEPT-01", "NEURO", "DOC-STROKE-101", List.of("knowledge-governor"), "pkg-stroke-2026",
+            "SITE-1", "DEPT-01", "NEURO", "DOC-STROKE-101", List.of("engine-operator"),
             "HIS", null, null
         ));
         assertEquals(TerminologyCandidateGenerationJobStatus.PENDING, generation.status(), "候选生成先返回任务而非同步明细");
@@ -166,13 +179,13 @@ class EngineEndToEndIntegrationTest {
         assertEquals(1, candidatesPage.total());
         var candidate = candidatesPage.items().get(0);
         
-        // 专家人工确认推荐映射
+        // 医疗引擎运营员人工确认推荐映射
         TermMapping mapping = terminologyService.confirmCandidate(
             candidate.id(),
             new TerminologyCandidateConfirmRequest(
                 "req-e2e-term-confirm", "tr-e2e-stroke-999", tenantId, "GROUP-1", "HOSP-1", "CAMPUS-1",
-                "SITE-1", "DEPT-01", "NEURO", "DOC-STROKE-101", List.of("knowledge-governor"), "pkg-stroke-2026",
-                "专家组最终确认", "医生人工确认", true, "已核对诊断编码和院内词条"
+                "SITE-1", "DEPT-01", "NEURO", "DOC-STROKE-101", List.of("engine-operator"),
+                "医疗引擎运营员最终确认", "医生人工确认"
             )
         );
         assertNotNull(mapping.id(), "已成功建立映射关系");
@@ -184,7 +197,7 @@ class EngineEndToEndIntegrationTest {
         String patientPayload = "{\"patientName\":\"李建国\",\"systolicBP\":185,\"diastolicBP\":105,\"diagnosis\":\"脑卒中\"}";
         ContextSnapshotRequest contextReq = new ContextSnapshotRequest(
             null, null, null, null, null, null, null, null, null, null, List.of(),
-            "PAT-777", "enc-stroke-888", "ORG-1", "pkg-stroke-2026",
+            "PAT-777", "enc-stroke-888", "ORG-1",
             new ContextSnapshotResources(
                 new com.medkernel.engine.context.canonical.CanonicalPatient(
                     "PAT-777", "李建国", java.time.LocalDate.of(1958, 5, 12), "M",
@@ -197,7 +210,8 @@ class EngineEndToEndIntegrationTest {
                         "DEPT-01", doctorId, null, "HIS", "enc-rec-id", "v1.0", Instant.now(), Instant.now(), QualityStatus.VALID
                     )
                 ),
-                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of()
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                ContextSnapshotResources.emptyExtensions()
             )
         );
         
@@ -234,7 +248,7 @@ class EngineEndToEndIntegrationTest {
         );
         RecommendationTriggerRequest triggerReq = new RecommendationTriggerRequest(
             "TR-STROKE-101", "order-sign", "evt-id-123", snapshotResult.snapshotId(),
-            "PAT-777", "enc-stroke-888", "pathway-99", "EMERGENCY", "v1.0",
+            "PAT-777", "enc-stroke-888", "pathway-99", "EMERGENCY",
             "input-digest-abc", Instant.now(), recCards
         );
 
@@ -293,7 +307,7 @@ class EngineEndToEndIntegrationTest {
 
 
         System.out.println("====== [7. 合规证据快照打包、验签与防篡改对账] ======");
-        // 合规证据打包，对上述全流程产生的数据快照打包为 ZIP 安全压缩证据包
+        // 合规证据打包，对上述全流程产生的数据快照打包为 ZIP 安全压缩证据导出
         String evidenceId = "evd-e2e-stroke-888";
         EvidenceCreateDto evidenceDto = new EvidenceCreateDto(
             evidenceId, traceId, "CDSS_DECISION", "EXECUTE",

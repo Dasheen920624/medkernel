@@ -17,19 +17,6 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
 import org.springframework.test.context.TestPropertySource;
 
-import com.medkernel.engine.pkg.KnowledgePackage;
-import com.medkernel.engine.pkg.KnowledgePackageRepository;
-import com.medkernel.engine.pkg.KnowledgePackageStatus;
-import com.medkernel.engine.pkg.PackageAccessPolicy;
-import com.medkernel.engine.pkg.PackageItem;
-import com.medkernel.engine.pkg.PackageItemRepository;
-import com.medkernel.engine.versioning.AssetVersion;
-import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
-import com.medkernel.engine.versioning.AssetVersionRepository;
-import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
-import com.medkernel.engine.versioning.AssetVersionStatus;
-import com.medkernel.engine.versioning.VersionedAssetType;
-
 @DataJdbcTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @AutoConfigureTestDatabase(replace = Replace.NONE)
@@ -43,10 +30,6 @@ import com.medkernel.engine.versioning.VersionedAssetType;
 })
 class PathwayRepositoryTest {
 
-    @Autowired KnowledgePackageRepository knowledgePackages;
-    @Autowired PackageItemRepository packageItems;
-    @Autowired AssetVersionRepository assetVersions;
-    @Autowired SpecialtyProfileRepository profiles;
     @Autowired PathwayTemplateRepository templates;
     @Autowired PathwayNodeRepository nodes;
     @Autowired PathwayEdgeRepository edges;
@@ -64,32 +47,22 @@ class PathwayRepositoryTest {
         edges.deleteAll();
         nodes.deleteAll();
         templates.deleteAll();
-        profiles.deleteAll();
-        packageItems.deleteAll();
-        assetVersions.deleteAll();
-        knowledgePackages.deleteAll();
     }
 
     @Test
     void persistsPathwayAssetsAndRuntimeFacts() {
-        String packageId = "sp-" + UUID.randomUUID();
         String templateId = "pt-" + UUID.randomUUID();
         String patientPathwayId = "pp-" + UUID.randomUUID();
 
-        KnowledgePackage savedPackage = knowledgePackages.save(samplePackage(packageId, "tenant-A", "COPD"));
-        savePackageMarker(savedPackage, "COPD");
-        SpecialtyProfile savedProfile = profiles.save(sampleProfile("profile-" + UUID.randomUUID(), "tenant-A", packageId));
-        PathwayTemplate savedTemplate = templates.save(sampleTemplate(templateId, "tenant-A", packageId, "COPD"));
+        PathwayTemplate savedTemplate = templates.save(sampleTemplate(templateId, "tenant-A", "COPD"));
         PathwayNode start = nodes.save(sampleNode("pn-1", "tenant-A", templateId, "ASSESS", 10, false));
         PathwayNode finish = nodes.save(sampleNode("pn-2", "tenant-A", templateId, "FOLLOWUP", 20, true));
         PathwayEdge savedEdge = edges.save(sampleEdge("pe-" + UUID.randomUUID(), "tenant-A", templateId));
         PatientPathway savedPathway = patientPathways.save(samplePatientPathway(patientPathwayId, "tenant-A", templateId));
         PathwayVariance savedVariance = variances.save(sampleVariance("pv-" + UUID.randomUUID(), "tenant-A", patientPathwayId));
         ClinicalClock savedClock = clocks.save(sampleClock("cc-" + UUID.randomUUID(), "tenant-A", patientPathwayId));
-        SpecialtyMetricBinding savedBinding = metricBindings.save(sampleBinding("smb-" + UUID.randomUUID(), "tenant-A", packageId, templateId));
+        SpecialtyMetricBinding savedBinding = metricBindings.save(sampleBinding("smb-" + UUID.randomUUID(), "tenant-A", templateId));
 
-        assertThat(savedPackage.id()).isNotNull();
-        assertThat(savedProfile.id()).isNotNull();
         assertThat(savedTemplate.id()).isNotNull();
         assertThat(start.id()).isNotNull();
         assertThat(finish.id()).isNotNull();
@@ -99,10 +72,6 @@ class PathwayRepositoryTest {
         assertThat(savedClock.id()).isNotNull();
         assertThat(savedBinding.id()).isNotNull();
 
-        assertThat(knowledgePackages.findByPackageIdAndTenantId(packageId, "tenant-A")).isPresent();
-        assertThat(profiles.findByPackageIdAndTenantIdOrderByProfileCodeAsc(packageId, "tenant-A"))
-            .extracting(SpecialtyProfile::profileCode)
-            .containsExactly("DEFAULT");
         assertThat(templates.findByTemplateIdAndTenantId(templateId, "tenant-A")).isPresent();
         assertThat(nodes.findByTemplateIdAndTenantIdOrderBySortOrderAsc(templateId, "tenant-A"))
             .extracting(PathwayNode::nodeCode)
@@ -125,7 +94,7 @@ class PathwayRepositoryTest {
     @Test
     void repositoryQueriesDoNotLeakAcrossTenants() {
         String templateId = "pt-" + UUID.randomUUID();
-        templates.save(sampleTemplate(templateId, "tenant-A", "sp-a", "COPD"));
+        templates.save(sampleTemplate(templateId, "tenant-A", "COPD"));
 
         Optional<PathwayTemplate> wrongTenant = templates.findByTemplateIdAndTenantId(templateId, "tenant-B");
 
@@ -133,45 +102,20 @@ class PathwayRepositoryTest {
     }
 
     @Test
-    void knowledgePackageQueriesDoNotLeakAcrossTenants() {
-        KnowledgePackage tenantA = knowledgePackages.save(samplePackage(
-            "sp-" + UUID.randomUUID(), "tenant-A", "COPD"));
+    void pagesTemplatesByStatusDiseaseCodeAndKeyword() {
+        templates.save(sampleTemplate("pt-a", "tenant-A", "COPD", "慢阻肺稳定期路径"));
+        templates.save(sampleTemplate("pt-b", "tenant-A", "COPD", "慢阻肺急性期路径"));
+        templates.save(sampleTemplate("pt-c", "tenant-A", "STROKE"));
+        templates.save(sampleTemplate("pt-d", "tenant-B", "COPD"));
 
-        assertThat(knowledgePackages.findByPackageIdAndTenantId(
-            tenantA.packageId(), "tenant-B")).isEmpty();
-    }
-
-    @Test
-    void packageFilterFindsPathwayPackageByPackageIdKeyword() {
-        KnowledgePackage pack = knowledgePackages.save(samplePackage(
-            "sp-clinical-pathway-only-id", "tenant-A", "COPD"));
-        savePackageMarker(pack, "COPD");
-
-        List<KnowledgePackage> rows = knowledgePackages.pageByFilter(
-            "tenant-A", "%sp-clinical-pathway-only-id%", null, "PATHWAY", 0, 10);
-        long total = knowledgePackages.countByFilter(
-            "tenant-A", "%sp-clinical-pathway-only-id%", null, "PATHWAY");
-
-        assertThat(total).isEqualTo(1);
-        assertThat(rows).extracting(KnowledgePackage::packageId)
-            .containsExactly("sp-clinical-pathway-only-id");
-    }
-
-    @Test
-    void pagesTemplatesByStatusDiseaseAndPackage() {
-        templates.save(sampleTemplate("pt-a", "tenant-A", "sp-a", "COPD", "慢阻肺稳定期路径"));
-        templates.save(sampleTemplate("pt-b", "tenant-A", "sp-a", "COPD", "慢阻肺急性期路径"));
-        templates.save(sampleTemplate("pt-c", "tenant-A", "sp-b", "STROKE"));
-        templates.save(sampleTemplate("pt-d", "tenant-B", "sp-a", "COPD"));
-
-        long total = templates.countByFilter("tenant-A", "DRAFT", "COPD", "sp-a", null, null);
-        List<PathwayTemplate> rows = templates.pageByFilter("tenant-A", "DRAFT", "COPD", "sp-a", null, null, 0, 10);
-        long codeTotal = templates.countByFilter("tenant-A", "DRAFT", "COPD", "sp-a", "TPL.pt-a", null);
+        long total = templates.countByFilter("tenant-A", "DRAFT", "COPD", null, null);
+        List<PathwayTemplate> rows = templates.pageByFilter("tenant-A", "DRAFT", "COPD", null, null, 0, 10);
+        long codeTotal = templates.countByFilter("tenant-A", "DRAFT", "COPD", "TPL.pt-a", null);
         List<PathwayTemplate> codeRows = templates.pageByFilter(
-            "tenant-A", "DRAFT", "COPD", "sp-a", "TPL.pt-a", null, 0, 10);
-        long keywordTotal = templates.countByFilter("tenant-A", "DRAFT", "COPD", "sp-a", null, "%稳定%");
+            "tenant-A", "DRAFT", "COPD", "TPL.pt-a", null, 0, 10);
+        long keywordTotal = templates.countByFilter("tenant-A", "DRAFT", "COPD", null, "%稳定%");
         List<PathwayTemplate> keywordRows = templates.pageByFilter(
-            "tenant-A", "DRAFT", "COPD", "sp-a", null, "%稳定%", 0, 10);
+            "tenant-A", "DRAFT", "COPD", null, "%稳定%", 0, 10);
 
         assertThat(total).isEqualTo(2);
         assertThat(rows).extracting(PathwayTemplate::tenantId).containsOnly("tenant-A");
@@ -185,19 +129,19 @@ class PathwayRepositoryTest {
     @Test
     void pagesEffectiveTemplatesWithoutMaterializingTenantAndPlatformSnapshots() {
         PathwayTemplate platformShadowed = templates.save(sampleTemplate(
-            "pt-platform-shadowed", "t-1", "sp-platform", "COPD",
+            "pt-platform-shadowed", "t-1", "COPD",
             "平台慢阻肺路径", PathwayTemplateStatus.PUBLISHED));
         PathwayTemplate platformOnly = templates.save(sampleTemplate(
-            "pt-platform-stroke", "t-1", "sp-platform", "STROKE",
+            "pt-platform-stroke", "t-1", "STROKE",
             "平台卒中路径", PathwayTemplateStatus.PUBLISHED));
         PathwayTemplate localOverride = templates.save(sampleTemplate(
-            "pt-platform-shadowed", "tenant-A", "sp-local", "COPD",
+            "pt-platform-shadowed", "tenant-A", "COPD",
             "本院慢阻肺路径", PathwayTemplateStatus.PUBLISHED));
 
         long total = templates.countEffectiveByFilter(
-            "tenant-A", "t-1", null, "PUBLISHED", null, null, null, null);
+            "tenant-A", "t-1", null, "PUBLISHED", null, null, null);
         List<PathwayTemplate> rows = templates.pageEffectiveByFilter(
-            "tenant-A", "t-1", null, "PUBLISHED", null, null, null, null, 0, 20);
+            "tenant-A", "t-1", null, "PUBLISHED", null, null, null, 0, 20);
 
         assertThat(total).isEqualTo(2L);
         assertThat(rows).extracting(PathwayTemplate::id)
@@ -230,87 +174,27 @@ class PathwayRepositoryTest {
             .containsExactly("pp-active-a");
     }
 
-    private KnowledgePackage samplePackage(String packageId, String tenantId, String diseaseCode) {
-        Instant now = Instant.now();
-        return new KnowledgePackage(
-            null, packageId, tenantId, "PKG." + diseaseCode, "1.0.0",
-            diseaseCode + " 专病包", "用于路径 API 测试",
-            PackageAccessPolicy.OPEN, KnowledgePackageStatus.DRAFT,
-            now, "tester", now, "tester", "trace-pathway");
-    }
-
-    private void savePackageMarker(KnowledgePackage pack, String diseaseCode) {
-        Instant now = Instant.now();
-        assetVersions.save(new AssetVersion(
-            null,
-            "av-" + pack.packageId(),
-            pack.tenantId(),
-            VersionedAssetType.PACKAGE,
-            pack.packageCode(),
-            pack.packageVersion(),
-            "tenant:" + pack.tenantId(),
-            "disease:" + diseaseCode,
-            "0".repeat(64),
-            AssetVersionSafetyPolicy.NORMAL,
-            AssetVersionOverridePolicy.FREE,
-            AssetVersionStatus.DRAFT,
-            "draft:av-" + pack.packageId(),
-            "专病路径专家共识 2026",
-            null,
-            null,
-            now,
-            "tester",
-            now,
-            "tester",
-            "trace-pathway"
-        ));
-        packageItems.save(new PackageItem(
-            null,
-            "pi-" + pack.packageId(),
-            pack.tenantId(),
-            pack.packageId(),
-            VersionedAssetType.PATHWAY,
-            pack.packageCode(),
-            pack.packageVersion(),
-            now,
-            "tester",
-            now,
-            "tester",
-            "trace-pathway"
-        ));
-    }
-
-    private SpecialtyProfile sampleProfile(String profileId, String tenantId, String packageId) {
-        Instant now = Instant.now();
-        return new SpecialtyProfile(
-            null, profileId, tenantId, packageId, "DEFAULT", "默认画像",
-            "{\"risk\":\"medium\"}", "{\"diagnosis\":\"COPD\"}", "{\"status\":\"stable\"}",
-            "{\"days\":30}", now, "tester", now, "tester", "trace-pathway");
-    }
-
-    private PathwayTemplate sampleTemplate(String templateId, String tenantId, String packageId, String diseaseCode) {
-        return sampleTemplate(templateId, tenantId, packageId, diseaseCode, "稳定期随访路径");
+    private PathwayTemplate sampleTemplate(String templateId, String tenantId, String diseaseCode) {
+        return sampleTemplate(templateId, tenantId, diseaseCode, "稳定期随访路径");
     }
 
     private PathwayTemplate sampleTemplate(
             String templateId,
             String tenantId,
-            String packageId,
             String diseaseCode,
             String name) {
-        return sampleTemplate(templateId, tenantId, packageId, diseaseCode, name, PathwayTemplateStatus.DRAFT);
+        return sampleTemplate(templateId, tenantId, diseaseCode, name, PathwayTemplateStatus.DRAFT);
     }
 
     private PathwayTemplate sampleTemplate(
             String templateId,
             String tenantId,
-            String packageId,
             String diseaseCode,
             String name,
             PathwayTemplateStatus status) {
         Instant now = Instant.now();
         return new PathwayTemplate(
-            null, templateId, tenantId, packageId, "TPL." + templateId, name,
+            null, templateId, tenantId, "TPL." + templateId, name,
             diseaseCode, 1, PathwayTemplateLevel.STANDARD, status,
             PathwayEntryMode.AUTO_SUGGEST, "ASSESS", "专病路径专家共识 2026", "用于路径 API 测试",
             "{\"diagnosis\":\"COPD\"}", "{\"completed\":true}",
@@ -345,7 +229,7 @@ class PathwayRepositoryTest {
         Instant now = Instant.now();
         return new PatientPathway(
             null, patientPathwayId, tenantId, patientId, "enc-1", templateId,
-            "ASSESS", status, now, null, null, null, null,
+            "release-H1", "av-pathway-v1", "ASSESS", status, now, null, null, null, null,
             now, "tester", now, "tester", "trace-pathway");
     }
 
@@ -367,10 +251,10 @@ class PathwayRepositoryTest {
             now, "tester", now, "tester", "trace-pathway");
     }
 
-    private SpecialtyMetricBinding sampleBinding(String bindingId, String tenantId, String packageId, String templateId) {
+    private SpecialtyMetricBinding sampleBinding(String bindingId, String tenantId, String templateId) {
         Instant now = Instant.now();
         return new SpecialtyMetricBinding(
-            null, bindingId, tenantId, packageId, templateId, "ASSESS",
+            null, bindingId, tenantId, templateId, "ASSESS",
             "COPD.TIME_TO_FOLLOWUP", true, now, "tester", now, "tester", "trace-pathway");
     }
 }

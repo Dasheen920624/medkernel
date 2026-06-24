@@ -62,7 +62,7 @@ public class JwtIssuer {
 
     public IssuedJwt issueSession(String userId, String tenantId, List<String> roles, OrgScope orgScope) {
         Instant now = Instant.now();
-        return issueSession(userId, tenantId, roles, orgScope, now, now, now.plusSeconds(ttlSeconds()));
+        return issueSession(userId, tenantId, roles, orgScope, now, now, now.plusSeconds(ttlSeconds()), true);
     }
 
     public IssuedJwt issueSession(
@@ -102,11 +102,25 @@ public class JwtIssuer {
             Instant sessionStartedAt,
             Instant issuedAt,
             Instant expiresAt) {
+        return issueSession(
+            userId, tenantId, roles, orgScope, sessionStartedAt, issuedAt, expiresAt, true);
+    }
+
+    public IssuedJwt issueSession(
+            String userId,
+            String tenantId,
+            List<String> roles,
+            OrgScope orgScope,
+            Instant sessionStartedAt,
+            Instant issuedAt,
+            Instant expiresAt,
+            boolean mfaVerified) {
         try {
             JWTClaimsSet.Builder builder = new JWTClaimsSet.Builder()
                 .subject(userId)
                 .claim(JwtClaimsResolver.CLAIM_ROLES, roles)
                 .claim(CLAIM_SESSION_STARTED_AT, sessionStartedAt.getEpochSecond())
+                .claim(AuthSessionClaims.MFA_VERIFIED, mfaVerified)
                 .issueTime(Date.from(issuedAt))
                 .expirationTime(Date.from(expiresAt));
             addOrgClaims(builder, tenantId, orgScope);

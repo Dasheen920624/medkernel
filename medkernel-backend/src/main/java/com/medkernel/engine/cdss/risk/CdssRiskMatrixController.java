@@ -31,7 +31,7 @@ public class CdssRiskMatrixController {
     }
 
     @PutMapping
-    @PreAuthorize("@perm.has('recommendation.write')")
+    @PreAuthorize("@perm.has('rule.write')")
     public ApiResult<CdssRiskMatrixResponse> updateMatrix(
             @RequestBody @Valid CdssRiskMatrixUpdateRequest request) {
         return ApiResult.ok(service.updateMatrix(request));

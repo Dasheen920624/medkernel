@@ -22,11 +22,11 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 模型 provider 治理服务（LLM-08 T13）。
+ * 模型服务治理服务（LLM-08 T13）。
  *
- * <p>由集成运维员（{@code llm.provider.manage}）配置 provider 接入；运行时解析在 {@link ModelProviderRegistry}。
+ * <p>由医疗引擎运营员（{@code llm.provider.manage}）配置模型服务接入；运行时解析在 {@link ModelProviderRegistry}。
  * 配置写入与高危启停相互分离：本服务的配置入口始终保存为停用，避免编辑连接参数时意外上线。
- * 前台凭据使用独立用途密钥加密入库，模型调用只读取租户凭据库；配置与凭据分别使用
+ * 前台凭据使用独立用途密钥加密入库，模型调用只读取机构凭据库；配置与凭据分别使用
  * 关系库乐观锁，防止配置、轮换、探活与启停相互覆盖。
  */
 @Service
@@ -67,7 +67,7 @@ public class ModelProviderGovernanceService {
     @Transactional
     public ModelProviderConfig upsertProvider(String providerCode, ModelProviderUpsertRequest request) {
         String tenantId = requireCurrentTenant();
-        String code = requireText(providerCode, "provider 编码");
+        String code = requireText(providerCode, "模型服务编码");
         ModelProviderConfig current = repository.findByTenantIdAndProviderCode(tenantId, code)
             .orElse(null);
         assertExpectedVersion(current, request.expectedVersion());
@@ -94,24 +94,24 @@ public class ModelProviderGovernanceService {
             now,
             actor,
             current == null ? null : current.version()));
-        auditRecorder.record(AuditAction.UPDATE, "mk_llm_provider", code, "保存模型 provider " + code);
+        auditRecorder.record(AuditAction.UPDATE, "mk_llm_provider", code, "保存模型服务 " + code);
         return saved;
     }
 
     /**
-     * 返回当前租户指定 provider 的脱敏治理快照。
+     * 返回当前机构指定模型服务的脱敏治理快照。
      */
     @Transactional(readOnly = true)
     public ModelProviderGovernanceView getProvider(String providerCode) {
         String tenantId = requireCurrentTenant();
-        String code = requireText(providerCode, "provider 编码");
+        String code = requireText(providerCode, "模型服务编码");
         ModelProviderConfig config = repository.findByTenantIdAndProviderCode(tenantId, code)
-            .orElseThrow(() -> ApiException.notFound("模型 provider " + code));
+            .orElseThrow(() -> ApiException.notFound("模型服务 " + code));
         return toView(config);
     }
 
     /**
-     * 返回当前租户 Provider 的服务端分页脱敏列表。
+     * 返回当前机构模型服务的服务端分页脱敏列表。
      */
     @Transactional(readOnly = true)
     public PageResponse<ModelProviderGovernanceView> listProviders(PageRequest pageRequest) {
@@ -129,7 +129,7 @@ public class ModelProviderGovernanceService {
     }
 
     /**
-     * 登记或轮换租户 Provider 凭据，并使连接状态重新进入待验证。
+     * 登记或轮换机构模型服务凭据，并使连接状态重新进入待验证。
      */
     @Transactional
     public ModelProviderGovernanceView saveCredential(
@@ -139,7 +139,7 @@ public class ModelProviderGovernanceService {
             request == null ? null : request.reason(),
             request != null && request.confirmedHighRisk());
         String tenantId = requireCurrentTenant();
-        String code = requireText(providerCode, "provider 编码");
+        String code = requireText(providerCode, "模型服务编码");
         highRiskGuard.assertHighRiskAllowed(CREDENTIAL_HIGH_RISK_RESOURCE_TYPE, code);
         ModelProviderConfig current = requireProvider(tenantId, code);
         ModelProviderCredential existing = credentialRepository
@@ -171,14 +171,14 @@ public class ModelProviderGovernanceService {
             AuditAction.UPDATE,
             "mk_llm_provider_credential",
             code,
-            "保存模型 provider 凭据 " + code
+            "保存模型服务凭据 " + code
                 + "（尾标=" + savedCredential.credentialLast4()
                 + "，版本=" + savedCredential.version() + "）：" + reason);
         return ModelProviderGovernanceView.from(disconnected, savedCredential);
     }
 
     /**
-     * 移除租户 Provider 凭据并强制断开连接。
+     * 移除机构模型服务凭据并强制断开连接。
      */
     @Transactional
     public ModelProviderGovernanceView removeCredential(
@@ -188,19 +188,19 @@ public class ModelProviderGovernanceService {
             request == null ? null : request.reason(),
             request != null && request.confirmedHighRisk());
         String tenantId = requireCurrentTenant();
-        String code = requireText(providerCode, "provider 编码");
+        String code = requireText(providerCode, "模型服务编码");
         highRiskGuard.assertHighRiskAllowed(CREDENTIAL_HIGH_RISK_RESOURCE_TYPE, code);
         ModelProviderConfig current = requireProvider(tenantId, code);
         ModelProviderCredential existing = credentialRepository
             .findByTenantIdAndProviderCode(tenantId, code)
-            .orElseThrow(() -> ApiException.notFound("模型 provider 凭据 " + code));
+            .orElseThrow(() -> ApiException.notFound("模型服务凭据 " + code));
         assertExpectedCredentialVersion(existing, request.expectedVersion());
 
         try {
             credentialRepository.delete(existing);
         } catch (OptimisticLockingFailureException conflict) {
             throw new ApiException(
-                ErrorCode.CONFLICT, "provider 凭据版本已变化，请刷新后重试", conflict);
+                ErrorCode.CONFLICT, "模型服务凭据版本已变化，请刷新后重试", conflict);
         }
         Instant now = Instant.now();
         String actor = RequestContext.currentUserId().orElse("system");
@@ -210,14 +210,14 @@ public class ModelProviderGovernanceService {
             AuditAction.DELETE,
             "mk_llm_provider_credential",
             code,
-            "移除模型 provider 凭据 " + code
+            "移除模型服务凭据 " + code
                 + "（原尾标=" + existing.credentialLast4()
                 + "，版本=" + existing.version() + "）：" + reason);
         return ModelProviderGovernanceView.from(disconnected, null);
     }
 
     /**
-     * 经高危门禁启用指定 provider。
+     * 经高危门禁启用指定模型服务。
      */
     @Transactional
     public ModelProviderGovernanceView enableProvider(
@@ -227,7 +227,7 @@ public class ModelProviderGovernanceService {
     }
 
     /**
-     * 经高危门禁停用指定 provider。
+     * 经高危门禁停用指定模型服务。
      */
     @Transactional
     public ModelProviderGovernanceView disableProvider(
@@ -237,20 +237,20 @@ public class ModelProviderGovernanceService {
     }
 
     /**
-     * 对已登记 provider 执行真实连通性探测并持久化健康状态。
+     * 对已登记模型服务执行真实连通性探测并持久化健康状态。
      *
      * <p>探活不改变启停状态，也不绕过医学回归评测门禁；它只把适配器实时结果写回唯一状态源，
-     * 供 readiness 和运维界面一致读取。
+     * 供上线准备检查和运维界面一致读取。
      */
     @Transactional
     public ModelProviderConfig checkHealth(String providerCode) {
         String tenantId = requireCurrentTenant();
         String code = providerCode == null ? "" : providerCode.trim();
         ModelProviderConfig current = repository.findByTenantIdAndProviderCode(tenantId, code)
-            .orElseThrow(() -> ApiException.notFound("模型 provider " + code));
+            .orElseThrow(() -> ApiException.notFound("模型服务 " + code));
         ModelProviderRegistry.ResolvedProvider resolved = registry.resolveByCode(tenantId, code)
             .orElseThrow(() -> new ApiException(
-                ErrorCode.BAD_REQUEST, "模型 provider 类型未注册: " + current.providerType()));
+                ErrorCode.BAD_REQUEST, "模型服务类型未注册: " + current.providerType()));
         ProviderHealth health = resolved.adapter().checkHealth(current);
         Instant now = Instant.now();
         String actor = RequestContext.currentUserId().orElse("system");
@@ -269,7 +269,7 @@ public class ModelProviderGovernanceService {
             actor,
             current.version()));
         auditRecorder.record(AuditAction.UPDATE, "mk_llm_provider", code,
-            "探测模型 provider " + code + " status=" + health.name());
+            "探测模型服务 " + code + "，连接状态=" + healthLabel(health));
         return checked;
     }
 
@@ -280,10 +280,10 @@ public class ModelProviderGovernanceService {
         String reason = assertActivationConfirmed(request);
         String capabilityCode = enabled ? requireActivationCapability(request) : null;
         String tenantId = requireCurrentTenant();
-        String code = requireText(providerCode, "provider 编码");
+        String code = requireText(providerCode, "模型服务编码");
         highRiskGuard.assertHighRiskAllowed(HIGH_RISK_RESOURCE_TYPE, code);
         ModelProviderConfig current = repository.findByTenantIdAndProviderCode(tenantId, code)
-            .orElseThrow(() -> ApiException.notFound("模型 provider " + code));
+            .orElseThrow(() -> ApiException.notFound("模型服务 " + code));
         assertExpectedVersion(current, request.expectedVersion());
 
         if (current.enabled() == enabled) {
@@ -313,15 +313,15 @@ public class ModelProviderGovernanceService {
             AuditAction.UPDATE,
             "mk_llm_provider",
             code,
-            (enabled ? "启用" : "停用") + "模型 provider " + code
-                + (enabled ? "（capability=" + capabilityCode + "）" : "")
+            (enabled ? "启用" : "停用") + "模型服务 " + code
+                + (enabled ? "（能力=" + capabilityCode + "）" : "")
                 + "：" + reason);
         return toView(saved);
     }
 
     private String assertActivationConfirmed(ModelProviderActivationRequest request) {
         if (request == null || !Boolean.TRUE.equals(request.confirmedHighRisk())) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "必须明确确认模型 provider 启停的高危影响");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "必须明确确认模型服务启停的高危影响");
         }
         if (request.reason() == null || request.reason().isBlank()) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "启停原因不能为空");
@@ -342,7 +342,7 @@ public class ModelProviderGovernanceService {
         if (request.capabilityCode() == null || request.capabilityCode().isBlank()) {
             throw new ApiException(
                 ErrorCode.VALIDATION_FAILED,
-                "启用模型 provider 必须指定已完成独立签署的 capabilityCode");
+                "启用模型服务必须指定已通过医学验证评测的能力编码");
         }
         return request.capabilityCode().trim().toLowerCase(Locale.ROOT);
     }
@@ -353,7 +353,7 @@ public class ModelProviderGovernanceService {
             ModelProviderConfig current,
             String capabilityCode) {
         if (!ProviderHealth.HEALTHY.name().equals(current.status())) {
-            throw ApiException.conflict("provider 未通过当前真实健康检查，禁止启用");
+            throw ApiException.conflict("模型服务未通过当前真实健康检查，禁止启用");
         }
         ProviderType type = parseType(current.providerType());
         if (type.external() && !deploymentForm.allowsExternalProvider()) {
@@ -381,13 +381,13 @@ public class ModelProviderGovernanceService {
         try {
             return ProviderType.valueOf(raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException unknown) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "不支持的 provider 类型: " + raw);
+            throw new ApiException(ErrorCode.BAD_REQUEST, "不支持的模型服务类型: " + raw);
         }
     }
 
     private String normalizeEndpoint(ProviderType type, String raw) {
         try {
-            URI uri = URI.create(requireText(raw, "provider 端点"));
+            URI uri = URI.create(requireText(raw, "模型服务调用地址"));
             String scheme = uri.getScheme() == null
                 ? ""
                 : uri.getScheme().toLowerCase(Locale.ROOT);
@@ -400,7 +400,7 @@ public class ModelProviderGovernanceService {
             }
             if (type.external() && !"https".equals(scheme)) {
                 throw new ApiException(
-                    ErrorCode.BAD_REQUEST, "外部 provider 端点必须使用 HTTPS");
+                    ErrorCode.BAD_REQUEST, "外部模型服务调用地址必须使用 HTTPS");
             }
             return uri.toString().replaceAll("/+$", "");
         } catch (IllegalArgumentException invalid) {
@@ -410,10 +410,10 @@ public class ModelProviderGovernanceService {
 
     private void assertExpectedVersion(ModelProviderConfig current, Long expectedVersion) {
         if (current == null && expectedVersion != null) {
-            throw ApiException.conflict("新建 provider 不能携带 expectedVersion");
+            throw ApiException.conflict("新建模型服务不能携带旧版本号");
         }
         if (current != null && !Objects.equals(current.version(), expectedVersion)) {
-            throw ApiException.conflict("provider 配置版本已变化，请刷新后重试");
+            throw ApiException.conflict("模型服务配置版本已变化，请刷新后重试");
         }
     }
 
@@ -421,7 +421,7 @@ public class ModelProviderGovernanceService {
         if (!confirmed) {
             throw new ApiException(
                 ErrorCode.VALIDATION_FAILED,
-                "必须明确确认模型 provider 凭据变更的高危影响");
+                "必须明确确认模型服务凭据变更的高危影响");
         }
         if (rawReason == null || rawReason.isBlank()) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "凭据变更原因不能为空");
@@ -442,16 +442,16 @@ public class ModelProviderGovernanceService {
             ModelProviderCredential current,
             Long expectedVersion) {
         if (current == null && expectedVersion != null) {
-            throw ApiException.conflict("新建 provider 凭据不能携带 expectedVersion");
+            throw ApiException.conflict("新建模型服务凭据不能携带旧版本号");
         }
         if (current != null && !Objects.equals(current.version(), expectedVersion)) {
-            throw ApiException.conflict("provider 凭据版本已变化，请刷新后重试");
+            throw ApiException.conflict("模型服务凭据版本已变化，请刷新后重试");
         }
     }
 
     private ModelProviderConfig requireProvider(String tenantId, String code) {
         return repository.findByTenantIdAndProviderCode(tenantId, code)
-            .orElseThrow(() -> ApiException.notFound("模型 provider " + code));
+            .orElseThrow(() -> ApiException.notFound("模型服务 " + code));
     }
 
     private ModelProviderConfig disconnectedProvider(
@@ -486,7 +486,7 @@ public class ModelProviderGovernanceService {
             return repository.save(config);
         } catch (OptimisticLockingFailureException conflict) {
             throw new ApiException(
-                ErrorCode.CONFLICT, "provider 配置版本已变化，请刷新后重试", conflict);
+                ErrorCode.CONFLICT, "模型服务配置版本已变化，请刷新后重试", conflict);
         }
     }
 
@@ -496,13 +496,13 @@ public class ModelProviderGovernanceService {
             return credentialRepository.save(credential);
         } catch (OptimisticLockingFailureException conflict) {
             throw new ApiException(
-                ErrorCode.CONFLICT, "provider 凭据版本已变化，请刷新后重试", conflict);
+                ErrorCode.CONFLICT, "模型服务凭据版本已变化，请刷新后重试", conflict);
         }
     }
 
     private ApiException invalidEndpoint() {
         return new ApiException(
-            ErrorCode.BAD_REQUEST, "provider 端点必须是纯净 HTTP(S) 绝对 URL");
+            ErrorCode.BAD_REQUEST, "模型服务调用地址必须是完整且不带账号、查询参数或片段的 HTTP(S) 地址");
     }
 
     private String requireCurrentTenant() {
@@ -518,6 +518,10 @@ public class ModelProviderGovernanceService {
             throw new ApiException(ErrorCode.BAD_REQUEST, label + "不能为空");
         }
         return value.trim();
+    }
+
+    private static String healthLabel(ProviderHealth health) {
+        return health == ProviderHealth.HEALTHY ? "连接正常" : "未验证连接";
     }
 
 }

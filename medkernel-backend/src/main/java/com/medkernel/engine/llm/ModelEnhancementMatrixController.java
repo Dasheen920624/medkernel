@@ -18,7 +18,7 @@ import jakarta.validation.Valid;
  * 全业务模型增强接入矩阵治理控制器（LLM-05）。
  *
  * <p>「模型网关全局目录」的增强接入图谱：读侧（{@code llm.read}）查矩阵台账与覆盖核查，
- * 写侧（{@code llm.enhancement.manage}，§9 平台治理管理员职责）登记/更新业务点接入——上线过
+ * 写侧（{@code llm.enhancement.manage}，医疗引擎运营员职责）登记/更新业务点接入——上线过
  * B0 前置门禁与统一网关接入校验。全线 {@link DataScope} 强多租户隔离。
  */
 @RestController

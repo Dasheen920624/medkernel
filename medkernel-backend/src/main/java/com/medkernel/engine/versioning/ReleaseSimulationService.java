@@ -267,7 +267,7 @@ public class ReleaseSimulationService {
                 command.tenantId(),
                 command.assetType(),
                 command.assetIdentity(),
-                InheritanceOverrideStatus.PUBLISHED
+                InheritanceOverrideStatus.ACTIVE
             ).stream()
             .filter(override -> Objects.equals(override.applicableScope(), command.applicableScope()))
             .filter(override -> isAtOrBelow(override.orgPath(), command.targetOrgPath()))
@@ -312,9 +312,43 @@ public class ReleaseSimulationService {
             .filter(evaluator -> evaluator.supports(command.assetType()))
             .findFirst()
             .map(evaluator -> evaluator.replay(command, current, candidate, historicalSnapshots))
-            .orElseGet(() -> ReleaseSimulationResult.Replay.unsupported(
-                command.assetType() + " 尚未接入确定性历史回放执行器"
-            ));
+            .orElseGet(() -> dependencyImpactReplay(command, historicalSnapshots));
+    }
+
+    private ReleaseSimulationResult.Replay dependencyImpactReplay(
+            ReleaseSimulationCommand command,
+            List<ContextSnapshot> historicalSnapshots) {
+        List<ReleaseSimulationResult.ImpactedAsset> impactedAssets = dependencies.activeDependentsOf(
+                command.tenantId(),
+                command.assetType(),
+                command.assetIdentity(),
+                command.targetOrgPath(),
+                command.applicableScope()
+            ).stream()
+            .map(version -> new ReleaseSimulationResult.ImpactedAsset(
+                version.assetType(),
+                version.assetIdentity(),
+                version.versionId(),
+                version.versionNo()
+            ))
+            .toList();
+        String impactSummary = impactedAssets.isEmpty()
+            ? "未发现目标范围内在用资产依赖本次变更"
+            : impactedAssets.size() + " 个在用资产依赖本次变更";
+        String reason = "依赖影响评估：" + impactSummary
+            + "；已纳入 " + historicalSnapshots.size() + " 个历史上下文快照作为目标范围样本，不执行病例级重算。";
+        return new ReleaseSimulationResult.Replay(
+            "SUPPORTED",
+            historicalSnapshots.size(),
+            0,
+            0,
+            0,
+            0,
+            0,
+            List.of(),
+            impactedAssets,
+            reason
+        );
     }
 
     private ReleaseSimulationResult.Diff diff(AssetVersion current, AssetVersion candidate) {

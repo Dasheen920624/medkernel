@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
  * 规则适用域唯一应用服务。
  *
  * <p>DSL 中的 {@code applicability} 是权威数据；本服务统一承担结构校验、运行期判定和
- * 关系库检索镜像写入，避免规则创建、配置包导入和推荐执行各自实现一套边界。
+ * 关系库检索镜像写入，避免规则创建、资产导入和推荐执行各自实现一套边界。
  */
 @Service
 public class RuleApplicabilityService {

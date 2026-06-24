@@ -22,7 +22,6 @@ public record PathwaySimulateRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     PathwaySimulationMode simulationMode,
     List<String> replaySnapshotIds,
     Instant timeMachineAt,
@@ -43,29 +42,29 @@ public record PathwaySimulateRequest(
     }
 
     public PathwaySimulateRequest(String startNodeCode, List<String> requestedNextNodeCodes) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
+        this(null, null, null, null, null, null, null, null, null, null, List.of(),
             PathwaySimulationMode.SINGLE_SNAPSHOT, List.of(), null, null, startNodeCode, requestedNextNodeCodes);
     }
 
     public PathwaySimulateRequest(String snapshotId, String startNodeCode, List<String> requestedNextNodeCodes) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
+        this(null, null, null, null, null, null, null, null, null, null, List.of(),
             PathwaySimulationMode.SINGLE_SNAPSHOT, List.of(), null, snapshotId, startNodeCode, requestedNextNodeCodes);
     }
 
     public PathwaySimulateRequest(PathwaySimulationMode simulationMode,
                                   List<String> replaySnapshotIds,
                                   Instant timeMachineAt,
-                                  String startNodeCode,
-                                  List<String> requestedNextNodeCodes,
-                                  String snapshotId) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
+                                 String startNodeCode,
+                                 List<String> requestedNextNodeCodes,
+                                 String snapshotId) {
+        this(null, null, null, null, null, null, null, null, null, null, List.of(),
             simulationMode, replaySnapshotIds, timeMachineAt, snapshotId, startNodeCode, requestedNextNodeCodes);
     }
 
     public PathwayApiContext apiContext() {
         return new PathwayApiContext(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }

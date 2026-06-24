@@ -124,7 +124,7 @@ class KnowledgeProductionControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void clinicalUserCannotCreateJob() throws Exception {
         mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs")
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(JOB_BODY))
@@ -140,32 +140,32 @@ class KnowledgeProductionControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanCreateJob() throws Exception {
+    void engineOperatorCanCreateJob() throws Exception {
         when(service.createJob(any())).thenReturn(jobResponse());
 
         mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(JOB_BODY))
             .andExpect(status().isOk());
     }
 
     @Test
-    void knowledgeGovernorCannotCreateNonModelJobThroughFormalEndpoint() throws Exception {
+    void engineOperatorCannotCreateNonModelJobThroughFormalEndpoint() throws Exception {
         mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(NON_MODEL_JOB_BODY))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.detail").value("正式知识生产仅允许 API_MODEL 大模型生产器"));
+            .andExpect(jsonPath("$.detail").value("正式知识生产仅允许通过受控模型服务生产"));
 
         verify(service, never()).createJob(any());
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void clinicalUserCannotGenerateCandidates() throws Exception {
         mockMvc.perform(post("/api/v1/engine/knowledge-production/generate")
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(GENERATE_BODY))
@@ -181,21 +181,21 @@ class KnowledgeProductionControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCannotGenerateB0CandidatesThroughFormalEndpoint() throws Exception {
+    void engineOperatorCannotGenerateB0CandidatesThroughFormalEndpoint() throws Exception {
         mockMvc.perform(post("/api/v1/engine/knowledge-production/generate")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(GENERATE_BODY))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.detail")
-                .value("正式知识生产不再接受 B0 候选生成，请使用 API_MODEL 模型生产任务"));
+                .value("正式知识生产不再接受无模型候选生成，请使用受控模型服务生产任务"));
 
         verify(generationService, never()).generate(any());
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void clinicalUserCannotGenerateModelCandidates() throws Exception {
         mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs/job-1/model-candidates")
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(MODEL_GENERATE_BODY))
@@ -203,7 +203,7 @@ class KnowledgeProductionControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanGenerateModelCandidates() throws Exception {
+    void engineOperatorCanGenerateModelCandidates() throws Exception {
         when(modelKnowledgeProducer.generate(anyString(), any()))
             .thenReturn(new ModelKnowledgeProductionResult(
                 "job-1", "task-model-1", "B2", "claude-opus-4",
@@ -212,8 +212,8 @@ class KnowledgeProductionControllerSecurityTest {
 
         mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs/job-1/model-candidates")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(MODEL_GENERATE_BODY))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.modelTaskId").value("task-model-1"));
@@ -227,13 +227,13 @@ class KnowledgeProductionControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanReadGateResults() throws Exception {
+    void engineOperatorCanReadGateResults() throws Exception {
         when(gateService.listResults(anyString())).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs/job-1/gate-results")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
             .andExpect(status().isOk());
     }
 
@@ -245,13 +245,13 @@ class KnowledgeProductionControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanReadTriageResults() throws Exception {
+    void engineOperatorCanReadTriageResults() throws Exception {
         when(triageService.listResults(anyString())).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs/job-1/triage-results")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
             .andExpect(status().isOk());
     }
 
@@ -263,32 +263,32 @@ class KnowledgeProductionControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanReadShadowRuns() throws Exception {
+    void engineOperatorCanReadShadowRuns() throws Exception {
         when(shadowService.listResults(anyString())).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs/job-1/shadow-runs")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
             .andExpect(status().isOk());
     }
 
     @Test
-    void knowledgeGovernorCanSubmitCandidate() throws Exception {
+    void engineOperatorCanSubmitCandidate() throws Exception {
         when(service.submitCandidate(anyString(), any(), any())).thenReturn(
             new CandidateSubmissionResponse("staged:id", new ReviewRoutingDecision(
-                RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.KNOWLEDGE_GOVERNOR, false, KnowledgeDomain.GENERAL)));
+                RoleCode.ENGINE_OPERATOR, KnowledgeDomain.GENERAL)));
 
         mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs/job-1/candidates")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(CANDIDATE_BODY))
             .andExpect(status().isOk());
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void clinicalUserCannotSubmitCandidate() throws Exception {
         mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs/job-1/candidates")
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(CANDIDATE_BODY))
@@ -303,13 +303,13 @@ class KnowledgeProductionControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanListJobs() throws Exception {
+    void engineOperatorCanListJobs() throws Exception {
         when(service.listJobs(anyInt(), anyInt())).thenReturn(PageResponse.empty(PageRequest.defaults()));
 
         mockMvc.perform(get("/api/v1/engine/knowledge-production/jobs")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.items").isArray())
             .andExpect(jsonPath("$.data.page").value(1))
@@ -320,12 +320,12 @@ class KnowledgeProductionControllerSecurityTest {
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor governor() {
         return jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-            .claim("roles", List.of("knowledge-governor")))
-            .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"));
+            .claim("roles", List.of("engine-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"));
     }
 
     @Test
-    void knowledgeGovernorCanListCandidates() throws Exception {
+    void engineOperatorCanListCandidates() throws Exception {
         when(service.listCandidates(anyString(), anyInt(), anyInt()))
             .thenReturn(PageResponse.empty(PageRequest.defaults()));
 
@@ -338,7 +338,7 @@ class KnowledgeProductionControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanCompleteJob() throws Exception {
+    void engineOperatorCanCompleteJob() throws Exception {
         when(service.completeJob(anyString())).thenReturn(jobResponse());
 
         mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs/job-1/complete")
@@ -347,7 +347,7 @@ class KnowledgeProductionControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanReplayJob() throws Exception {
+    void engineOperatorCanReplayJob() throws Exception {
         when(service.replayJob(anyString())).thenReturn(jobResponse());
 
         mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs/job-1/replay")
@@ -356,7 +356,7 @@ class KnowledgeProductionControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void clinicalUserCannotCancelJob() throws Exception {
         mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs/job-1/cancel").with(csrf()))
             .andExpect(status().isForbidden());

@@ -1,5 +1,5 @@
 /**
- * 标准字典比较值选择器（RULE-01 P5-b）。
+ * 标准字典比较值选择器。
  *
  * <p>编码类字段（绑定 codeSystem，如 ICD-10/ATC/LOINC）的比较值从标准字典候选选择，
  * 复用 {@link useStandardTerms} 按字典与关键词检索；同时保留手输（AutoComplete 非破坏）。

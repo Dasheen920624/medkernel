@@ -47,7 +47,7 @@ function securityProfile(permissionCodes: string[]) {
     data: {
       userId: "user-1",
       username: "测试用户",
-      roles: [{ code: "implementation-operator", displayName: "实施运维员" }],
+      roles: [{ code: "platform-admin", displayName: "平台管理员" }],
       permissions: permissionCodes.map((code) => ({
         code,
         dimension: code.startsWith("menu.") ? "MENU" : "ACTION",
@@ -154,7 +154,7 @@ describe("AiWorkflows", () => {
     expect(screen.getByText("全量掩码")).toBeInTheDocument();
     expect(screen.getByText("医院:hospital-a")).toBeInTheDocument();
     expect(screen.getByText("继承配置")).toBeInTheDocument();
-    expect(screen.getByText("未配置专属策略，使用系统 B0 基线")).toBeInTheDocument();
+    expect(screen.getByText("未配置专属策略，使用系统无模型规则链路")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /提交|运行|重试|配置|编辑|新增|保存/ })).toBeNull();
     expect(requests).toEqual(["get /security/me", "get /model-capabilities/status"]);
   });

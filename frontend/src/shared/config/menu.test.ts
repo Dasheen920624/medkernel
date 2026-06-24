@@ -80,7 +80,7 @@ describe("menu config", () => {
           "knowledge-governance",
           "institution-knowledge",
           "diagnosis-knowledge",
-          "config-packages",
+          "runtime-releases",
           "terminology-mapping",
           "rule-definitions",
           "pathway-templates",

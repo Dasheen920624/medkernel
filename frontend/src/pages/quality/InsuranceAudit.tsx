@@ -165,7 +165,7 @@ export default function InsuranceAudit() {
     setDrgResult(null);
     setAuditResult(null);
     if (!selectedSnapshotId) {
-      setAuditFeedback({ type: "error", text: "请先选择 ACTIVE 病案快照。" });
+      setAuditFeedback({ type: "error", text: "请先选择已生效病案快照。" });
       return;
     }
     try {
@@ -174,11 +174,9 @@ export default function InsuranceAudit() {
         responsibleDepartmentId: values.responsibleDepartmentId.trim(),
       };
       const scenarioCode = values.scenarioCode.trim();
-      const packageVersion = optionalText(snapshotDetailQuery.data?.packageVersion);
       const caseReview = await caseReviewMutation.mutateAsync({
         ...base,
         scenarioCode,
-        packageVersion,
       });
       const drgGrouping = await drgMutation.mutateAsync({
         ...base,
@@ -190,7 +188,6 @@ export default function InsuranceAudit() {
       const audit = await auditMutation.mutateAsync({
         ...base,
         scenarioCode,
-        packageVersion,
         indicatorId: values.indicatorId.trim(),
         dueAt: values.dueAt.trim(),
         rules: [
@@ -214,7 +211,7 @@ export default function InsuranceAudit() {
         text:
           audit.auditStatus === "INSUFFICIENT_DATA"
             ? "后端未找到当前快照对应的真实医保结算事实，未生成违规。"
-            : "医保审核已基于真实结算事实执行，命中问题已由服务包联动整改闭环。",
+            : "医保审核已基于真实结算事实执行，命中问题已由服务联动整改闭环。",
       });
       issuesQuery.refetch();
     } catch (error: unknown) {
@@ -322,7 +319,7 @@ export default function InsuranceAudit() {
                   <Input
                     id="insurance-snapshot-patient"
                     value={snapshotPatientId}
-                    placeholder="输入患者 ID 检索 ACTIVE 病案快照"
+                    placeholder="输入患者 ID 检索已生效病案快照"
                     onChange={(event) => {
                       setSnapshotPatientId(event.target.value);
                       setSelectedSnapshotId("");
@@ -354,8 +351,8 @@ export default function InsuranceAudit() {
 
               {snapshotDetailQuery.data && (
                 <Descriptions bordered size="small" column={3}>
-                  <Descriptions.Item label="配置包版本">
-                    {snapshotDetailQuery.data.packageVersion || "由服务端按快照解析"}
+                  <Descriptions.Item label="机构生效版本">
+                    {snapshotDetailQuery.data.runtimeReleaseId || "由服务端按快照确认"}
                   </Descriptions.Item>
                   <Descriptions.Item label="质量状态">
                     {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
@@ -603,7 +600,7 @@ export default function InsuranceAudit() {
                           {formatAmount(issue.claimAmount)} / {formatAmount(issue.thresholdAmount)}
                         </Text>
                         <Text type="secondary">追踪号</Text>
-                        <Text>{issue.traceId ?? "未生成追踪标识"}</Text>
+                        <Text>{issue.traceId ?? "未生成追踪号"}</Text>
                       </Space>
                     </Space>
                   }
@@ -642,7 +639,7 @@ export default function InsuranceAudit() {
               {selectedIssue.evaluationRunId ?? "未生成评估运行"}
             </Descriptions.Item>
             <Descriptions.Item label="追踪号">
-              {selectedIssue.traceId ?? "未生成追踪标识"}
+              {selectedIssue.traceId ?? "未生成追踪号"}
             </Descriptions.Item>
           </Descriptions>
         ) : null}

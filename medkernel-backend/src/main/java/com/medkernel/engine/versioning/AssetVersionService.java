@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
+import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.ids.Ulid;
 
 /**
@@ -19,24 +20,33 @@ public class AssetVersionService implements VersionedAssetPort {
 
     private final AssetVersionRepository repository;
     private final AssetDependencyService dependencies;
+    private final AssetVersionContentRepository contents;
+    private final AssetIdentityService identities;
+    private final AssetScopeResolver scopes;
     private final Clock clock;
 
     @Autowired
-    public AssetVersionService(AssetVersionRepository repository, AssetDependencyService dependencies) {
-        this(repository, dependencies, Clock.systemUTC());
+    public AssetVersionService(
+            AssetVersionRepository repository,
+            AssetDependencyService dependencies,
+            AssetVersionContentRepository contents,
+            AssetIdentityService identities,
+            AssetScopeResolver scopes) {
+        this(repository, dependencies, contents, identities, scopes, Clock.systemUTC());
     }
 
-    public AssetVersionService(AssetVersionRepository repository) {
-        this(repository, null, Clock.systemUTC());
-    }
-
-    AssetVersionService(AssetVersionRepository repository, Clock clock) {
-        this(repository, null, clock);
-    }
-
-    AssetVersionService(AssetVersionRepository repository, AssetDependencyService dependencies, Clock clock) {
+    AssetVersionService(
+            AssetVersionRepository repository,
+            AssetDependencyService dependencies,
+            AssetVersionContentRepository contents,
+            AssetIdentityService identities,
+            AssetScopeResolver scopes,
+            Clock clock) {
         this.repository = repository;
         this.dependencies = dependencies;
+        this.contents = contents;
+        this.identities = identities;
+        this.scopes = scopes;
         this.clock = clock;
     }
 
@@ -46,11 +56,22 @@ public class AssetVersionService implements VersionedAssetPort {
         String tenantId = required(command.tenantId(), "租户 ID");
         VersionedAssetType assetType = required(command.assetType(), "资产类型");
         String assetIdentity = required(command.assetIdentity(), "资产身份");
-        String versionNo = required(command.versionNo(), "版本号");
-        String organizationScope = required(command.organizationScope(), "组织生效域");
+        String organizationScope = resolveOrganizationScope(
+            tenantId,
+            command.organizationScope());
         String applicableScope = ApplicableScopeMatcher.validateDeclaration(
             required(command.applicableScope(), "适用人群或上下文"));
         String createdBy = required(command.createdBy(), "创建人");
+        requireRecoverableContent(assetType, command.content());
+        String contentHash = VersionContentHash.resolve(command.content(), command.contentHash());
+        AssetVersionAllocation allocation = identities.allocateNextVersion(
+            tenantId,
+            assetType,
+            assetIdentity,
+            createdBy,
+            command.traceId()
+        );
+        String versionNo = allocation.versionNo();
 
         repository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
             tenantId, assetType, assetIdentity, versionNo
@@ -69,7 +90,7 @@ public class AssetVersionService implements VersionedAssetPort {
             versionNo,
             organizationScope,
             applicableScope,
-            VersionContentHash.resolve(command.content(), command.contentHash()),
+            contentHash,
             command.safetyPolicy() == null ? AssetVersionSafetyPolicy.NORMAL : command.safetyPolicy(),
             command.overridePolicy() == null ? AssetVersionOverridePolicy.FREE : command.overridePolicy(),
             AssetVersionStatus.DRAFT,
@@ -84,6 +105,7 @@ public class AssetVersionService implements VersionedAssetPort {
             blankToNull(command.traceId())
         );
         AssetVersion saved = repository.save(version);
+        saveContent(saved, command.content(), createdBy, command.traceId(), now);
         registerDependencies(saved, command.dependencies(), createdBy, command.traceId());
         return saved;
     }
@@ -92,9 +114,28 @@ public class AssetVersionService implements VersionedAssetPort {
     @Transactional
     public AssetVersion updateDraft(AssetVersionDraftUpdateCommand command) {
         AssetVersion version = findOwnedVersion(command.tenantId(), command.versionId());
-        if (version.status() != AssetVersionStatus.DRAFT && version.status() != AssetVersionStatus.IN_REVIEW) {
-            throw new ApiException(ErrorCode.CONFLICT, "已发布版本不可原地修改，必须登记新版本");
+        if (version.status() == AssetVersionStatus.PUBLISHED
+                || version.status() == AssetVersionStatus.WITHDRAWN) {
+            return registerDraft(new AssetVersionRegisterCommand(
+                version.tenantId(),
+                version.assetType(),
+                required(command.assetIdentity(), "资产身份"),
+                command.organizationScope(),
+                command.applicableScope(),
+                command.content(),
+                command.contentHash(),
+                command.sourceRef(),
+                required(command.actor(), "操作人"),
+                command.traceId(),
+                command.safetyPolicy(),
+                command.overridePolicy(),
+                command.dependencies()
+            ));
         }
+        if (version.status() != AssetVersionStatus.DRAFT) {
+            throw new ApiException(ErrorCode.CONFLICT, "只有草稿版本可以原地修改");
+        }
+        requireRecoverableContent(version.assetType(), command.content());
         String assetIdentity = required(command.assetIdentity(), "资产身份");
         repository.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
             version.tenantId(), version.assetType(), assetIdentity, version.versionNo()
@@ -102,9 +143,12 @@ public class AssetVersionService implements VersionedAssetPort {
             .ifPresent(existing -> {
                 throw new ApiException(ErrorCode.CONFLICT, "同一资产版本号已存在，禁止覆盖旧版本");
             });
+        String organizationScope = resolveOrganizationScope(
+            version.tenantId(),
+            command.organizationScope());
         AssetVersion saved = repository.save(version.withDraftRegistration(
             assetIdentity,
-            required(command.organizationScope(), "组织生效域"),
+            organizationScope,
             ApplicableScopeMatcher.validateDeclaration(
                 required(command.applicableScope(), "适用人群或上下文")),
             VersionContentHash.resolve(command.content(), command.contentHash()),
@@ -114,8 +158,53 @@ public class AssetVersionService implements VersionedAssetPort {
             Instant.now(clock),
             required(command.actor(), "操作人")
         ));
+        saveContent(
+            saved,
+            command.content(),
+            required(command.actor(), "操作人"),
+            command.traceId(),
+            Instant.now(clock));
         registerDependencies(saved, command.dependencies(), command.actor(), command.traceId());
         return saved;
+    }
+
+    private void saveContent(
+            AssetVersion version,
+            String content,
+            String actor,
+            String traceId,
+            Instant now) {
+        if (content == null || content.isBlank() || contents == null) {
+            return;
+        }
+        AssetVersionContent existing = contents
+            .findByTenantIdAndVersionId(version.tenantId(), version.versionId())
+            .orElse(null);
+        contents.save(new AssetVersionContent(
+            existing == null ? null : existing.id(),
+            version.versionId(),
+            version.tenantId(),
+            content,
+            version.contentHash(),
+            existing == null ? now : existing.createdAt(),
+            existing == null ? actor : existing.createdBy(),
+            now,
+            actor,
+            blankToNull(traceId)
+        ));
+    }
+
+    private void requireRecoverableContent(VersionedAssetType assetType, String content) {
+        if (assetType.usesUnifiedContentStore() && (content == null || content.isBlank())) {
+            throw new ApiException(
+                ErrorCode.VALIDATION_FAILED,
+                assetType + " 资产正文不能为空，禁止登记只有哈希的不可恢复版本");
+        }
+        if (assetType.usesUnifiedContentStore() && contents == null) {
+            throw new ApiException(
+                ErrorCode.INTERNAL_ERROR,
+                assetType + " 资产正文仓库未配置，禁止登记不可恢复版本");
+        }
     }
 
     private AssetVersion findOwnedVersion(String tenantId, String versionId) {
@@ -138,6 +227,15 @@ public class AssetVersionService implements VersionedAssetPort {
         if (dependencies != null) {
             dependencies.registerDependencies(version, declarations, actor, traceId);
         }
+    }
+
+    private String resolveOrganizationScope(String tenantId, String requestedPath) {
+        if (requestedPath == null || requestedPath.isBlank()) {
+            return scopes.resolve(tenantId, RequestContext.currentOrgScope())
+                .organizationPath();
+        }
+        return scopes.resolveOrganizationPath(tenantId, requestedPath)
+            .organizationPath();
     }
 
     private static <T> T required(T value, String label) {

@@ -26,8 +26,8 @@ import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.crypto.SmCryptoService;
-import com.medkernel.shared.export.ExportApprovalGate;
 import com.medkernel.shared.export.ExportArtifact;
+import com.medkernel.shared.export.ExportConfirmationGate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -39,7 +39,7 @@ import static org.mockito.Mockito.when;
 /**
  * 引擎数据服务层异步导出服务测试（DATASVC-01）。
  *
- * <p>覆盖：审批闸（不绕审批）/ 幂等 / worker 写 CSV / 小样本抑制 / 取消终态 / 完成产物 SM3 / provider 支持判定。
+ * <p>覆盖：确认门禁、幂等、worker 写 CSV、小样本抑制、取消终态、完成产物 SM3 和 provider 支持判定。
  */
 class EngineDataExportServiceTest {
 
@@ -50,7 +50,7 @@ class EngineDataExportServiceTest {
     private RuleUsageStatsRepository ruleRepo;
     private KnowledgeUsageStatsRepository knowledgeRepo;
     private ClinicalSignalsRepository clinicalRepo;
-    private ExportApprovalGate approvalGate;
+    private ExportConfirmationGate confirmationGate;
     private SmCryptoService crypto;
     private AuditRecorder auditRecorder;
     private EngineDataExportService service;
@@ -61,11 +61,11 @@ class EngineDataExportServiceTest {
         ruleRepo = Mockito.mock(RuleUsageStatsRepository.class);
         knowledgeRepo = Mockito.mock(KnowledgeUsageStatsRepository.class);
         clinicalRepo = Mockito.mock(ClinicalSignalsRepository.class);
-        approvalGate = Mockito.mock(ExportApprovalGate.class);
+        confirmationGate = Mockito.mock(ExportConfirmationGate.class);
         crypto = Mockito.mock(SmCryptoService.class);
         auditRecorder = Mockito.mock(AuditRecorder.class);
         service = new EngineDataExportService(jobRepo, ruleRepo, knowledgeRepo, clinicalRepo,
-            approvalGate, crypto, auditRecorder, new ObjectMapper(), command -> { });
+            confirmationGate, crypto, auditRecorder, new ObjectMapper(), command -> { });
         RequestContext.restore(new RequestContext.Snapshot("trace", OrgScope.tenant("t-1"), "quality-1"));
 
         when(jobRepo.save(any(EngineDataExportJob.class))).thenAnswer(inv -> {
@@ -80,7 +80,7 @@ class EngineDataExportServiceTest {
     }
 
     @Test
-    void submitCreatesPendingJobWhenApprovalGatePasses() {
+    void submitCreatesPendingJobWhenConfirmationGatePasses() {
         when(jobRepo.findByTenantIdAndIdempotencyKey("t-1", "idem-1")).thenReturn(Optional.empty());
 
         EngineDataExportJob saved = service.submit(EngineDataExportType.RULE_USAGE, 90, "exp-1", "idem-1");
@@ -89,18 +89,17 @@ class EngineDataExportServiceTest {
         assertThat(saved.tenantId()).isEqualTo("t-1");
         assertThat(saved.requestedBy()).isEqualTo("quality-1");
         assertThat(saved.jobCode()).matches("[0-9a-f-]{36}");
-        assertThat(saved.approvalId()).isEqualTo("exp-1");
+        assertThat(saved.confirmationId()).isEqualTo("exp-1");
         assertThat(saved.requestSnapshot()).contains("RULE_USAGE").contains("90");
-        // 不绕审批：submit 须以正确资源类型 + 范围调审批闸。
-        Mockito.verify(approvalGate).requireApprovedForExport(
+        Mockito.verify(confirmationGate).requireConfirmedForExport(
             eq("t-1"), eq("exp-1"), eq("engine_data_rule_usage"), any());
     }
 
     @Test
-    void submitPropagatesGateForbiddenWhenNotApproved() {
+    void submitPropagatesGateForbiddenWhenNotConfirmed() {
         when(jobRepo.findByTenantIdAndIdempotencyKey("t-1", "idem-2")).thenReturn(Optional.empty());
-        Mockito.doThrow(ApiException.forbidden("导出审批未通过"))
-            .when(approvalGate).requireApprovedForExport(any(), any(), any(), any());
+        Mockito.doThrow(ApiException.forbidden("导出未经确认"))
+            .when(confirmationGate).requireConfirmedForExport(any(), any(), any(), any());
 
         assertThatThrownBy(() -> service.submit(EngineDataExportType.RULE_USAGE, 90, "exp-2", "idem-2"))
             .isInstanceOf(ApiException.class)
@@ -111,8 +110,8 @@ class EngineDataExportServiceTest {
     @Test
     void submitPropagatesGateConflictWhenScopeMismatch() {
         when(jobRepo.findByTenantIdAndIdempotencyKey("t-1", "idem-4")).thenReturn(Optional.empty());
-        Mockito.doThrow(ApiException.conflict("导出审批范围与作业不一致"))
-            .when(approvalGate).requireApprovedForExport(any(), any(), any(), any());
+        Mockito.doThrow(ApiException.conflict("导出确认范围与作业不一致"))
+            .when(confirmationGate).requireConfirmedForExport(any(), any(), any(), any());
 
         assertThatThrownBy(() -> service.submit(EngineDataExportType.RULE_USAGE, 90, "exp-4", "idem-4"))
             .isInstanceOf(ApiException.class)
@@ -127,7 +126,8 @@ class EngineDataExportServiceTest {
         EngineDataExportJob saved = service.submit(EngineDataExportType.RULE_USAGE, 90, "exp-x", "idem-dup");
 
         assertThat(saved.jobCode()).isEqualTo("job-existing");
-        Mockito.verify(approvalGate, Mockito.never()).requireApprovedForExport(any(), any(), any(), any());
+        Mockito.verify(confirmationGate, Mockito.never())
+            .requireConfirmedForExport(any(), any(), any(), any());
         Mockito.verify(jobRepo, Mockito.never()).save(any());
     }
 
@@ -267,7 +267,7 @@ class EngineDataExportServiceTest {
     private EngineDataExportJob withId(EngineDataExportJob j, long id) {
         return new EngineDataExportJob(id, j.tenantId(), j.jobCode(), j.requestedBy(),
             j.exportType(), j.status(), j.progress(), j.resultUri(), j.itemCount(), j.errorMessage(),
-            j.approvalId(), j.idempotencyKey(), j.requestSnapshot(),
+            j.confirmationId(), j.idempotencyKey(), j.requestSnapshot(),
             j.createdAt(), j.startedAt(), j.completedAt(), j.expiresAt());
     }
 }

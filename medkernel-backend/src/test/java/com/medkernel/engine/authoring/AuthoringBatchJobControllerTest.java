@@ -70,12 +70,9 @@ class AuthoringBatchJobControllerTest {
     }
 
     @Test
-    void distributeEndpointReturnsNotConnectedTruthfully() throws Exception {
-        when(service.distributePackages(any(AuthoringBatchPackageDistributeRequest.class)))
-            .thenReturn(job(AuthoringBatchJobType.PACKAGE_DISTRIBUTE, AuthoringBatchJobStatus.NOT_CONNECTED));
-
+    void legacyPackageDistributionEndpointIsRetired() throws Exception {
         mvc.perform(post("/api/v1/engine/authoring/batch/packages/distribute")
-                .with(packageAuthorJwt())
+                .with(authorJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -93,8 +90,7 @@ class AuthoringBatchJobControllerTest {
                       ]
                     }
                     """))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.status").value("NOT_CONNECTED"));
+            .andExpect(status().isNotFound());
     }
 
     @Test
@@ -131,15 +127,12 @@ class AuthoringBatchJobControllerTest {
             type,
             status,
             1,
-            status == AuthoringBatchJobStatus.NOT_CONNECTED ? 0 : 1,
+            1,
             0,
-            status == AuthoringBatchJobStatus.NOT_CONNECTED ? 1 : 0,
             "{}",
             List.of(new AuthoringBatchItemResponse(
                 "row-1",
-                status == AuthoringBatchJobStatus.NOT_CONNECTED
-                    ? AuthoringBatchItemStatus.NOT_CONNECTED
-                    : AuthoringBatchItemStatus.SUCCEEDED,
+                AuthoringBatchItemStatus.SUCCEEDED,
                 "RULE",
                 "rule-1",
                 "{}",
@@ -156,15 +149,8 @@ class AuthoringBatchJobControllerTest {
         return jwt().jwt(token -> token
                 .subject("batch-author")
                 .claim("tenant_id", "tenant-A")
-                .claim("roles", List.of("medical_affairs")))
-            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR"));
+                .claim("roles", List.of("engine-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"));
     }
 
-    private static RequestPostProcessor packageAuthorJwt() {
-        return jwt().jwt(token -> token
-                .subject("package-author")
-                .claim("tenant_id", "tenant-A")
-                .claim("roles", List.of("implementation-operator")))
-            .authorities(new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_OPERATOR"));
-    }
 }

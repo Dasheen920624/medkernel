@@ -20,6 +20,8 @@ import com.medkernel.engine.rule.RuleAuthoringMode;
 import com.medkernel.engine.rule.RuleCreateRequest;
 import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.engine.rule.RuleType;
+import com.medkernel.engine.versioning.AssetTriggerBindingInput;
+import com.medkernel.engine.versioning.AssetTriggerPurpose;
 import com.medkernel.shared.api.error.ApiException;
 import org.junit.jupiter.api.Test;
 
@@ -32,10 +34,9 @@ class InteroperabilityMappingServiceTest {
     void ruleDslExportsToCdsHooksAndOptionalCqlArdenWithoutLosingRoundTripSemantics() throws Exception {
         JsonNode dsl = json.readTree("""
             {
-              "trigger": "order-sign",
               "when": {
                 "all": [
-                  {"fact": "order.drugClass", "operator": "equals", "value": "ACEI"}
+                  {"fact": "medications[].code", "operator": "contains", "value": "ACEI"}
                 ]
               },
               "then": [
@@ -66,7 +67,7 @@ class InteroperabilityMappingServiceTest {
             RuleType.ORDER,
             RuleAuthoringMode.VISUAL,
             RuleRiskLevel.HIGH,
-            "pkg-ckd-2026.06",
+            List.of(ruleTrigger("order-sign")),
             "HOSPITAL-1",
             "CKD-PACKAGE",
             "导出标准 CDS Hooks 映射",
@@ -90,14 +91,14 @@ class InteroperabilityMappingServiceTest {
         assertThat(mapping.cdsService().path("hook").asText()).isEqualTo("order-sign");
         assertThat(mapping.cdsService().path("extension").path("medkernelRuleDsl")).isEqualTo(dsl);
         assertThat(mapping.cql().path("library").asText()).isEqualTo("RULE_CKD_ACEI");
-        assertThat(mapping.cql().path("statement").asText()).contains("order-sign", "order.drugClass");
+        assertThat(mapping.cql().path("statement").asText()).contains("order-sign", "medications[].code");
         assertThat(mapping.arden().path("mlm").asText()).contains("RULE-CKD-ACEI", "ACEI 医嘱需复核肾功能");
 
         RuleCreateRequest roundTrip = service.importRuleFromCdsHooks(mapping);
 
         assertThat(roundTrip.ruleCode()).isEqualTo(request.ruleCode());
         assertThat(roundTrip.name()).isEqualTo(request.name());
-        assertThat(roundTrip.packageVersion()).isEqualTo(request.packageVersion());
+        assertThat(roundTrip.triggers()).isEqualTo(request.triggers());
         assertThat(roundTrip.dsl()).isEqualTo(dsl);
     }
 
@@ -105,7 +106,6 @@ class InteroperabilityMappingServiceTest {
     void ruleExportRejectsUnsupportedTriggerAsRuleDomainError() throws Exception {
         JsonNode dsl = json.readTree("""
             {
-              "trigger": "unsupported-trigger",
               "when": {"all": []},
               "then": []
             }
@@ -116,7 +116,7 @@ class InteroperabilityMappingServiceTest {
             RuleType.ORDER,
             RuleAuthoringMode.DSL,
             RuleRiskLevel.LOW,
-            "pkg-ckd-2026.06",
+            List.of(ruleTrigger("unsupported-trigger")),
             null,
             "CKD-PACKAGE",
             "非法触发点应返回规则域错误",
@@ -134,11 +134,9 @@ class InteroperabilityMappingServiceTest {
             {"all": [{"fact": "patient.egfr", "operator": "lt", "value": 30}]}
             """);
         PathwayTemplateCreateRequest request = new PathwayTemplateCreateRequest(
-            "PKG-CKD",
             "PATH-CKD",
             "CKD 分层诊疗路径",
             "N18",
-            3,
             PathwayTemplateLevel.STANDARD,
             PathwayEntryMode.AUTO_SUGGEST,
             "N1",
@@ -191,8 +189,8 @@ class InteroperabilityMappingServiceTest {
             .isEqualTo("PATHWAY");
         assertThat(plan.path("extension").path("medkernelProvenance").path("assetId").asText())
             .isEqualTo("PATH-CKD");
-        assertThat(plan.path("extension").path("medkernelProvenance").path("packageId").asText())
-            .isEqualTo("PKG-CKD");
+        assertThat(plan.path("extension").path("medkernelProvenance").has("packageId")).isFalse();
+        assertThat(plan.path("extension").path("medkernelProvenance").has("packageVersion")).isFalse();
         assertThat(plan.path("extension").path("medkernelProvenance").path("sourceRef").asText())
             .isEqualTo("CKD-PACKAGE");
         assertThat(plan.path("meta").path("tag").findValuesAsText("code"))
@@ -215,14 +213,13 @@ class InteroperabilityMappingServiceTest {
     @Test
     void controlledCqlImportMapsRuleDraftDslAndKeepsReplaySource() throws Exception {
         JsonNode condition = json.readTree("""
-            {"all": [{"fact": "order.drugClass", "operator": "equals", "value": "ACEI"}]}
+            {"all": [{"fact": "medications[].code", "operator": "contains", "value": "ACEI"}]}
             """);
         CqlRuleImportRequest request = new CqlRuleImportRequest(
             "RULE-CKD-ACEI",
             "CKD ACEI 开嘱复核",
             RuleType.ORDER,
             RuleRiskLevel.HIGH,
-            "pkg-ckd-2026.06",
             "HOSPITAL-1",
             "CKD-PACKAGE",
             "RULE_CKD_ACEI",
@@ -234,11 +231,11 @@ class InteroperabilityMappingServiceTest {
         assertThat(draft.name()).isEqualTo("CKD ACEI 开嘱复核");
         assertThat(draft.authoringMode()).isEqualTo(RuleAuthoringMode.DSL);
         assertThat(draft.riskLevel()).isEqualTo(RuleRiskLevel.HIGH);
-        assertThat(draft.packageVersion()).isEqualTo("pkg-ckd-2026.06");
+        assertThat(draft.triggers()).containsExactly(ruleTrigger("order-sign"));
         assertThat(draft.applicableOrgUnitId()).isEqualTo("HOSPITAL-1");
         assertThat(draft.sourceRef()).isEqualTo("CKD-PACKAGE");
         assertThat(draft.changeSummary()).contains("CQL 受控导入");
-        assertThat(draft.dsl().path("trigger").asText()).isEqualTo("order-sign");
+        assertThat(draft.dsl().has("trigger")).isFalse();
         assertThat(draft.dsl().path("when")).isEqualTo(condition);
         assertThat(draft.dsl().path("then")).isEmpty();
         assertThat(draft.dsl().path("explain").path("summary").asText()).contains("RULE_CKD_ACEI");
@@ -252,7 +249,6 @@ class InteroperabilityMappingServiceTest {
             "非法 CQL",
             RuleType.ORDER,
             RuleRiskLevel.LOW,
-            "pkg-ckd-2026.06",
             null,
             "CKD-PACKAGE",
             "RULE_BAD_CQL",
@@ -261,5 +257,13 @@ class InteroperabilityMappingServiceTest {
         assertThatThrownBy(() -> service.importRuleFromCql(request))
             .isInstanceOf(ApiException.class)
             .hasMessageContaining("CQL 受控导入仅支持");
+    }
+
+    private static AssetTriggerBindingInput ruleTrigger(String triggerPoint) {
+        return new AssetTriggerBindingInput(
+            triggerPoint,
+            AssetTriggerPurpose.RULE_EXECUTION,
+            List.of()
+        );
     }
 }

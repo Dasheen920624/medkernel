@@ -94,28 +94,11 @@ type SystemConfigScope = "system" | "tenant";
 
 const KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY =
   "medkernel.knowledge.literature.material-root-uri";
-const KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY =
-  "medkernel.knowledge.production.p6-independent-acceptance";
-
 function isHardLockedConfig(item: SystemConfigItem) {
   return [
     "medkernel.runtime.feature-flags.audit-persistence.enabled",
     "medkernel.runtime.feature-flags.domestic-crypto.enabled",
   ].includes(item.key);
-}
-
-function isP6AcceptanceConfig(item: SystemConfigItem) {
-  return item.key === KNOWLEDGE_PRODUCTION_P6_INDEPENDENT_ACCEPTANCE_KEY;
-}
-
-function isP6AcceptanceEditLocked(
-  item: SystemConfigItem,
-  scope: SystemConfigScope,
-  canReleaseP6: boolean,
-) {
-  if (!isP6AcceptanceConfig(item)) return false;
-  if (scope === "tenant") return true;
-  return item.value !== "true" && !canReleaseP6;
 }
 
 function configValueLabel(value: string) {
@@ -139,13 +122,7 @@ function configInput(item: SystemConfigItem | null) {
   return <Input />;
 }
 
-export function SystemConfigPanel({
-  canManage,
-  canReleaseP6,
-}: {
-  canManage: boolean;
-  canReleaseP6: boolean;
-}) {
+export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
   const { message } = App.useApp();
   const [scope, setScope] = useState<SystemConfigScope>("system");
   const [tenantId, setTenantId] = useState("default");
@@ -259,7 +236,7 @@ export function SystemConfigPanel({
             aria-label="服务空间标识"
             value={tenantId}
             onChange={(event) => setTenantId(event.target.value)}
-            placeholder="tenant id"
+            placeholder="请输入服务空间标识"
             className="mk-config-tenant-input"
           />
         )}
@@ -277,9 +254,6 @@ export function SystemConfigPanel({
               <Space direction="vertical" size={0}>
                 <Text strong>{item.displayName}</Text>
                 <Text type="secondary">{item.key}</Text>
-                {isP6AcceptanceConfig(item) && (
-                  <Tag color="gold">{scope === "tenant" ? "仅系统级维护" : "仅内置超管放行"}</Tag>
-                )}
               </Space>
             ),
           },
@@ -327,10 +301,7 @@ export function SystemConfigPanel({
                 aria-label={`编辑 ${item.displayName}`}
                 icon={<EditOutlined />}
                 disabled={
-                  !canManage ||
-                  isHardLockedConfig(item) ||
-                  (scope === "tenant" && !tenantId.trim()) ||
-                  isP6AcceptanceEditLocked(item, scope, canReleaseP6)
+                  !canManage || isHardLockedConfig(item) || (scope === "tenant" && !tenantId.trim())
                 }
                 onClick={() => openEdit(item)}
               />

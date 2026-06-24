@@ -146,13 +146,16 @@ export default function QcAlerts() {
       title="质量问题"
       description="按真实预警处置整改"
       extras={
-        <Button
-          aria-label="刷新质量问题"
-          icon={<ReloadOutlined />}
-          onClick={() => alertsQuery.refetch()}
-        >
-          刷新
-        </Button>
+        <Space wrap>
+          <Button href="/qc/eval/results">查看评价结果来源</Button>
+          <Button
+            aria-label="刷新质量问题"
+            icon={<ReloadOutlined />}
+            onClick={() => alertsQuery.refetch()}
+          >
+            刷新
+          </Button>
+        </Space>
       }
       state={resolvePageState(alertsQuery.isLoading, alertsQuery.isError, errorStatus, alertItems)}
       stateProps={{
@@ -257,7 +260,7 @@ export default function QcAlerts() {
                         <Text type="secondary">来源</Text>
                         <Text>{customerEnumLabel(alert.sourceType)}</Text>
                         <Text type="secondary">追踪号</Text>
-                        <Text>{alert.traceId ?? "未生成追踪标识"}</Text>
+                        <Text>{alert.traceId ?? "未生成追踪号"}</Text>
                       </Space>
                     </Space>
                   }
@@ -307,9 +310,9 @@ export default function QcAlerts() {
                   ? (departmentNames.get(selectedAlert.departmentId) ?? selectedAlert.departmentId)
                   : "未指定"}
               </Descriptions.Item>
-              <Descriptions.Item label="来源对象">{selectedAlert.sourceId}</Descriptions.Item>
+              <Descriptions.Item label="来源编号">{selectedAlert.sourceId}</Descriptions.Item>
               <Descriptions.Item label="追踪号">
-                {selectedAlert.traceId ?? "未生成追踪标识"}
+                {selectedAlert.traceId ?? "未生成追踪号"}
               </Descriptions.Item>
             </Descriptions>
 

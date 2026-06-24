@@ -38,18 +38,17 @@ class FollowupTemplateControllerSecurityTest {
     }
 
     @Test
-    void nursingCollaboratorCanReadAndCreateTemplateDraft() throws Exception {
+    void clinicalUserCanReadAndCreateTemplateDraft() throws Exception {
         mockMvc.perform(get(BASE_PATH)
-                .with(roleJwt("nursing-collaborator", "ROLE_NURSING_COLLABORATOR")))
+                .with(roleJwt("clinical-user", "ROLE_CLINICAL_USER")))
             .andExpect(status().isOk());
 
         mockMvc.perform(post(BASE_PATH)
-                .with(roleJwt("nursing-collaborator", "ROLE_NURSING_COLLABORATOR"))
+                .with(roleJwt("clinical-user", "ROLE_CLINICAL_USER"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "templateCode": "FUP.COPD",
-                      "versionNo": 1,
                       "name": "慢阻肺出院随访",
                       "description": "出院后问卷与复诊随访",
                       "organizationScope": "hospital-1",
@@ -70,28 +69,28 @@ class FollowupTemplateControllerSecurityTest {
     }
 
     @Test
-    void nursingCollaboratorCannotPublishTemplate() throws Exception {
+    void clinicalUserCannotPublishTemplate() throws Exception {
         mockMvc.perform(post(BASE_PATH + "/ftpl-1/publish")
-                .with(roleJwt("nursing-collaborator", "ROLE_NURSING_COLLABORATOR"))
+                .with(roleJwt("clinical-user", "ROLE_CLINICAL_USER"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "impactDigest": "仅影响新生成计划",
-                      "reason": "随访委员会审核通过"
+                      "reason": "随访负责人已确认影响范围"
                     }
                     """))
             .andExpect(status().isForbidden());
     }
 
     @Test
-    void knowledgeGovernorCanPublishTemplate() throws Exception {
+    void engineOperatorCanPublishTemplate() throws Exception {
         mockMvc.perform(post(BASE_PATH + "/ftpl-1/publish")
-                .with(roleJwt("knowledge-governor", "ROLE_KNOWLEDGE_GOVERNOR"))
+                .with(roleJwt("engine-operator", "ROLE_ENGINE_OPERATOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "impactDigest": "仅影响新生成计划",
-                      "reason": "随访委员会审核通过"
+                      "reason": "随访负责人已确认影响范围"
                     }
                     """))
             .andExpect(status().isOk());

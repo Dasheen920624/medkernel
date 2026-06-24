@@ -11,7 +11,7 @@ import java.time.Instant;
  * @param action       动作过滤；null 表示不过滤
  * @param resourceType 资源类型过滤；null 表示不过滤
  * @param actorUserId  操作人过滤；null 表示不过滤
- * @param traceId      链路追踪ID过滤；null 表示不过滤
+ * @param traceId      追踪号ID过滤；null 表示不过滤
  * @param orgPathPrefix 组织路径前缀过滤；null 表示不过滤
  * @param environmentKey 环境过滤；null 表示不过滤
  * @param outcome      成功/失败结果过滤；null 表示不过滤
@@ -21,7 +21,7 @@ import java.time.Instant;
  * @param cursor       上一页末行的 id；null 表示首次请求
  * @param size         请求页大小；由调用方在进入仓库前完成上限校验
  * @param offset       浅分页偏移量；深翻页应使用 cursor
- * @param sortField    白名单排序字段
+ * @param sortField    允许范围内的排序字段
  * @param sortDirection 排序方向：ASC 或 DESC
  */
 public record AuditEventQuery(

@@ -13,7 +13,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 本地 Ollama provider 适配器（LLM-08 B1，内网可用）。
+ * 本地 Ollama 模型服务适配器（LLM-08 B1，内网可用）。
  *
  * <p>调 {@code {endpoint}/api/generate} 真实补全：产出真实 {@code model} 版本，
  * 无置信度/引文则诚实置 {@code null}/{@code "[]"}（铁律 #1，绝不伪造）。
@@ -60,7 +60,7 @@ public class OllamaProvider implements ModelProvider {
                 Map.of("Content-Type", "application/json"), payload.toString(), request.timeoutMs());
         } catch (RuntimeException callFailed) {
             throw new ApiException(ErrorCode.ENG_LLM_003,
-                "Ollama provider 调用失败 code=" + config.providerCode() + "：" + callFailed.getMessage());
+                "Ollama 模型服务调用失败，服务编码=" + config.providerCode() + "：" + callFailed.getMessage());
         }
 
         try {
@@ -74,7 +74,7 @@ public class OllamaProvider implements ModelProvider {
             throw protocolInvalid;
         } catch (Exception parseFailed) {
             throw new ApiException(ErrorCode.ENG_LLM_002,
-                "Ollama provider 返回无法解析 code=" + config.providerCode());
+                "Ollama 模型服务返回内容无法解析，服务编码=" + config.providerCode());
         }
     }
 

@@ -35,7 +35,7 @@ class VersionReplayServiceTest {
 
     @Test
     void bindsRuntimeResultToHistoricalVersionForReplay() {
-        AssetVersion historical = version("av-v1", "1.0.0", AssetVersionStatus.DEPRECATED);
+        AssetVersion historical = version("av-v1", "1.0.0", AssetVersionStatus.WITHDRAWN);
         when(assetVersions.findByVersionIdAndTenantId("av-v1", "tenant-A")).thenReturn(Optional.of(historical));
         when(bindings.save(org.mockito.ArgumentMatchers.any(VersionReplayBinding.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
@@ -76,7 +76,7 @@ class VersionReplayServiceTest {
             "trace-replay"
         )))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("未审核版本不得绑定历史重放")
+            .hasMessageContaining("草稿版本不得绑定历史重放")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.CONFLICT);
 
@@ -85,7 +85,7 @@ class VersionReplayServiceTest {
 
     @Test
     void rejectsNonSha256ResultHashForReplayBinding() {
-        AssetVersion historical = version("av-v1", "1.0.0", AssetVersionStatus.DEPRECATED);
+        AssetVersion historical = version("av-v1", "1.0.0", AssetVersionStatus.WITHDRAWN);
         when(assetVersions.findByVersionIdAndTenantId("av-v1", "tenant-A")).thenReturn(Optional.of(historical));
 
         assertThatThrownBy(() -> service.bindRuntimeResult(new VersionReplayBindingCommand(
@@ -109,7 +109,7 @@ class VersionReplayServiceTest {
 
     @Test
     void replaysBoundHistoricalVersionWithoutChangingCurrentResolution() {
-        AssetVersion historical = version("av-v1", "1.0.0", AssetVersionStatus.DEPRECATED);
+        AssetVersion historical = version("av-v1", "1.0.0", AssetVersionStatus.WITHDRAWN);
         VersionReplayBinding binding = binding("vrb-1", historical.versionId());
         when(bindings.findByTenantIdAndBindingId("tenant-A", binding.bindingId())).thenReturn(Optional.of(binding));
         when(assetVersions.findByVersionIdAndTenantId(historical.versionId(), "tenant-A")).thenReturn(Optional.of(historical));

@@ -19,7 +19,7 @@ public enum KnowledgeVersionStatus {
     CANDIDATE,
     /** 新旧识别后的替换候选，仅供人工对照审核，不参与临床执行 */
     PENDING_REPLACEMENT_REVIEW,
-    /** 提交审核中（医务处/科主任/专科专家审核） */
+    /** 发布依据核对中。 */
     UNDER_REVIEW,
     /** 当前权威版本：临床决策、规则校验、推荐均以此版本为准 */
     ACTIVE,

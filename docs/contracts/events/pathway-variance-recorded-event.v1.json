@@ -7,7 +7,7 @@
   "required": [
     "tenantId",
     "traceId",
-    "packageVersion",
+    "runtimeReleaseId",
     "patientPathwayId",
     "patientId",
     "encounterId",
@@ -22,7 +22,7 @@
   "properties": {
     "tenantId": { "type": ["string", "null"] },
     "traceId": { "type": ["string", "null"] },
-    "packageVersion": { "type": ["string", "null"] },
+    "runtimeReleaseId": { "type": "string", "minLength": 1 },
     "patientPathwayId": { "type": ["string", "null"] },
     "patientId": { "type": ["string", "null"] },
     "encounterId": { "type": ["string", "null"] },

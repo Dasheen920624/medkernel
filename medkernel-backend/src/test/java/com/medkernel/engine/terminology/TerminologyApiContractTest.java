@@ -133,7 +133,7 @@ class TerminologyApiContractTest {
     void generateCandidatesReturnsAsyncJobInsteadOfCandidateRows() throws Exception {
         when(terminologyService.generateCandidates(any(TerminologyCandidateGenerationRequest.class)))
             .thenReturn(new TerminologyCandidateGenerationJob(
-                1L, "t-1", "term-job-1", "LIS", 0.6, false, "pkg-2026.06", "u-99",
+                1L, "t-1", "term-job-1", "LIS", 0.6, false, "u-99",
                 TerminologyCandidateGenerationJobStatus.PENDING, 0, 0, null, null,
                 java.time.Instant.parse("2026-06-15T08:00:00Z"), null, null
             ));
@@ -158,7 +158,7 @@ class TerminologyApiContractTest {
     void candidateGenerationJobStatusUsesDedicatedApi04Route() throws Exception {
         when(terminologyService.getCandidateGenerationJob("term-job-1"))
             .thenReturn(new TerminologyCandidateGenerationJob(
-                1L, "t-1", "term-job-1", "LIS", null, true, "pkg-2026.06", "u-99",
+                1L, "t-1", "term-job-1", "LIS", null, true, "u-99",
                 TerminologyCandidateGenerationJobStatus.SUCCEEDED, 100, 42,
                 "/api/v1/engine/terminology/mappings/candidates?status=PENDING&generationJobCode=term-job-1",
                 null, java.time.Instant.parse("2026-06-15T08:00:00Z"),
@@ -201,9 +201,7 @@ class TerminologyApiContractTest {
                 .with(writeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(standardContextJson("""
-                    ,"reviewNote": "专家逐条确认",
-                      "highRiskAcknowledged": true,
-                      "highRiskReason": "已核对标准码与院内码"
+                    ,"reviewNote": "授权责任人逐条确认"
                     """)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.status").value("CONFIRMED"));
@@ -229,26 +227,26 @@ class TerminologyApiContractTest {
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor readJwt() {
         return jwt().jwt(token -> token
-                .subject("api04-implementation-engineer")
+                .subject("api04-engine-operator")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("implementation-operator")))
-            .authorities(new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_OPERATOR"));
+                .claim("roles", List.of("engine-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor writeJwt() {
         return jwt().jwt(token -> token
                 .subject("api04-specialist")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("knowledge-governor")))
-            .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"));
+                .claim("roles", List.of("engine-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor publishJwt() {
         return jwt().jwt(token -> token
-                .subject("api04-it-ops")
+                .subject("api04-engine-operator")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("integration-operator")))
-            .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"));
+                .claim("roles", List.of("engine-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"));
     }
 
     private static String standardContextJson(String bodyTail) {
@@ -264,8 +262,7 @@ class TerminologyApiContractTest {
               "department_id": "d-1",
               "specialty_id": "sp-1",
               "user_id": "u-99",
-              "role_codes": ["knowledge-governor"],
-              "package_version": "pkg-2026.06"
+              "role_codes": ["engine-operator"]
               %s
             }
             """.formatted(bodyTail);

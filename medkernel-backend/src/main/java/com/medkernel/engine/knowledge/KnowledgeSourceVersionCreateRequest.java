@@ -22,7 +22,6 @@ public record KnowledgeSourceVersionCreateRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     @NotBlank String versionNo,
     Instant publishedAt,
     String contentHash,
@@ -38,7 +37,7 @@ public record KnowledgeSourceVersionCreateRequest(
     public KnowledgeApiContext context() {
         return KnowledgeApiContext.from(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 

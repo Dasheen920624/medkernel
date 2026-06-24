@@ -27,10 +27,12 @@ public class CredentialBootstrapGuardInterceptor implements HandlerInterceptor {
         "/api/v1/auth/change-password",
         "/api/v1/auth/logout",
         "/api/v1/auth/session",
+        "/api/v1/auth/mfa",
         "/api/v1/security/me",
         "/api/v1/bootstrap/status",
         "/api/v1/bootstrap/init-token",
         "/api/v1/bootstrap/password",
+        "/api/v1/bootstrap/mfa",
         "/api/v1/auth/login",
         "/api/v1/auth/login-tenants",
         "/api/v1/auth/delegated/status",
@@ -42,9 +44,13 @@ public class CredentialBootstrapGuardInterceptor implements HandlerInterceptor {
     );
 
     private final CredentialBootstrapStatusProvider statusProvider;
+    private final MfaRuntimePolicy mfaRuntimePolicy;
 
-    public CredentialBootstrapGuardInterceptor(CredentialBootstrapStatusProvider statusProvider) {
+    public CredentialBootstrapGuardInterceptor(
+            CredentialBootstrapStatusProvider statusProvider,
+            MfaRuntimePolicy mfaRuntimePolicy) {
         this.statusProvider = statusProvider;
+        this.mfaRuntimePolicy = mfaRuntimePolicy;
     }
 
     @Override
@@ -70,6 +76,10 @@ public class CredentialBootstrapGuardInterceptor implements HandlerInterceptor {
         }
         if (statusProvider.mustChangePassword(tenantId, userId)) {
             throw new ApiException(ErrorCode.ENG_AUTH_015, "首次登录或密码重置后必须先完成密码修改");
+        }
+        if (mfaRuntimePolicy.enabled()
+                && (jwt == null || !Boolean.TRUE.equals(jwt.getClaim(AuthSessionClaims.MFA_VERIFIED)))) {
+            throw new ApiException(ErrorCode.ENG_AUTH_010, "当前会话尚未完成多因素认证");
         }
         return true;
     }

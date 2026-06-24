@@ -3,6 +3,11 @@ package com.medkernel.engine.knowledge.production.generation;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.authoring.GeneratedAssetCandidateRequest;
+import com.medkernel.engine.authoring.GeneratedAssetCandidateService;
+import com.medkernel.engine.authoring.GeneratedAssetDraftResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,16 +37,19 @@ import com.medkernel.engine.knowledge.production.shadow.KnowledgeShadowEvaluatio
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageContext;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageDecision;
 import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 从受控来源生成知识候选的编排服务（AIK-STD-04，FR-1~5）。
+ * 从受控来源生成统一资产草稿的编排服务（AIK-STD-04，FR-1~5）。
  *
- * <p>载入解析后来源版本的带锚点片段，按申报资产类型逐类各建一个确定性（{@link KnowledgeProducer#MANUAL}/B0）
- * 生产 job，调 {@link SourceCandidateGenerator} 产模板桩候选，喂既有 {@code submitCandidate}（经 AIK-STD-01
- * 校验闸 + §9 双形态隔离守卫 + PR3 会签路由 + intake 物化）。来源无片段则全类型诚实跳过、不建 job（铁律 #1）。
+ * <p>载入解析后来源版本的带锚点片段，为知识、规则、路径建立确定性
+ * （{@link KnowledgeProducer#MANUAL}/B0）生产 job，调 {@link SourceCandidateGenerator}
+ * 产模板桩候选，经 AIK-STD-01 校验闸、分流与影子验证后物化：
+ * 知识继续进入知识候选审核链；规则/路径直接进入统一资产版本草稿，不再伪装成知识版本。
+ * 来源无片段则诚实跳过、不建 job。
  */
 @Service
 public class CandidateGenerationOrchestrationService {
@@ -55,6 +63,8 @@ public class CandidateGenerationOrchestrationService {
     private final CandidateSafetyGateService gateService;
     private final KnowledgeGenerationTriageService triageService;
     private final KnowledgeShadowEvaluationService shadowService;
+    private final GeneratedAssetCandidateService generatedAssets;
+    private final ObjectMapper json = new ObjectMapper();
 
     public CandidateGenerationOrchestrationService(SourceVersionRepository versions,
                                                    SourceDocumentRepository documents,
@@ -64,7 +74,8 @@ public class CandidateGenerationOrchestrationService {
                                                    KnowledgeProductionOrchestrationService production,
                                                    CandidateSafetyGateService gateService,
                                                    KnowledgeGenerationTriageService triageService,
-                                                   KnowledgeShadowEvaluationService shadowService) {
+                                                   KnowledgeShadowEvaluationService shadowService,
+                                                   GeneratedAssetCandidateService generatedAssets) {
         this.versions = versions;
         this.documents = documents;
         this.fragments = fragments;
@@ -74,6 +85,7 @@ public class CandidateGenerationOrchestrationService {
         this.gateService = gateService;
         this.triageService = triageService;
         this.shadowService = shadowService;
+        this.generatedAssets = generatedAssets;
     }
 
     @Transactional
@@ -99,6 +111,11 @@ public class CandidateGenerationOrchestrationService {
 
         for (GenerationItem item : request.items()) {
             item.target().validate();
+            if (!supportsSourceGeneration(item.assetType())) {
+                skipped.add(new SkippedType(item.assetType(),
+                    "受控来源模板生成仅支持知识、规则和路径草稿，其他资产请使用对应维护入口"));
+                continue;
+            }
             KnowledgeIdentity targetIdentity = resolveTargetIdentity(tenantId, item.target());
             ProductionJobResponse job = production.createJob(new ProductionJobRequest(
                 "source-version:" + version.id(), item.assetType(), KnowledgeProducer.MANUAL,
@@ -131,6 +148,18 @@ public class CandidateGenerationOrchestrationService {
                 production.cancelJob(job.jobCode());
                 continue;
             }
+            if (item.assetType() != VersionedAssetType.KNOWLEDGE) {
+                GeneratedAssetDraftResponse draft = materializeGeneratedDraft(
+                    tenantId, version, item, job, envelope, targetIdentity, blocked);
+                if (draft == null) {
+                    production.cancelJob(job.jobCode());
+                    continue;
+                }
+                generated.add(new GeneratedCandidate(
+                    item.assetType(), job.jobCode(), "asset-version:" + draft.versionId(), null));
+                production.completeJob(job.jobCode());
+                continue;
+            }
             CandidateSubmissionResponse response =
                 production.submitCandidate(job.jobCode(), envelope, item.target());
             generated.add(new GeneratedCandidate(
@@ -138,6 +167,40 @@ public class CandidateGenerationOrchestrationService {
             production.completeJob(job.jobCode());
         }
         return new GenerationSummary(generated, skipped, blocked);
+    }
+
+    private GeneratedAssetDraftResponse materializeGeneratedDraft(
+            String tenantId,
+            SourceVersion version,
+            GenerationItem item,
+            ProductionJobResponse job,
+            KnowledgeAssetEnvelope envelope,
+            KnowledgeIdentity targetIdentity,
+            List<BlockedCandidate> blocked) {
+        try {
+            return generatedAssets.materializeDraft(new GeneratedAssetCandidateRequest(
+                tenantId,
+                item.assetType(),
+                deriveIdentity(item.target(), targetIdentity),
+                tenantId,
+                "ALL",
+                "source-version:" + version.id(),
+                RequestContext.currentUserId().orElse("system"),
+                RequestContext.currentTraceId(),
+                json.readTree(envelope.payload()),
+                List.of()
+            ));
+        } catch (JsonProcessingException | ApiException invalidDraft) {
+            blocked.add(new BlockedCandidate(item.assetType(), job.jobCode(), List.of(
+                GateItemResult.fail("GENERATED_ASSET_SCHEMA", invalidDraft.getMessage()))));
+            return null;
+        }
+    }
+
+    private boolean supportsSourceGeneration(VersionedAssetType assetType) {
+        return assetType == VersionedAssetType.KNOWLEDGE
+            || assetType == VersionedAssetType.RULE
+            || assetType == VersionedAssetType.PATHWAY;
     }
 
     private String deriveIdentity(MaterializationTarget target, KnowledgeIdentity targetIdentity) {

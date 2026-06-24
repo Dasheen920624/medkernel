@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -20,7 +21,7 @@ import com.medkernel.shared.api.error.ErrorCode;
  *
  * <p>负责把 {@code when} 条件树（all/any/leaf）按上下文求值，命中后解析 {@code then} 动作并计算最高严重度。
  * 覆盖基础比较、集合判断以及 between/unit_compare/temporal/derived 临床算子。
- * 缺失普通字段不抛内部异常，而是产生未命中；受控公式缺少必需参数时返回
+ * 缺失普通字段不抛内部异常，而是产生未命中；计算公式缺少必需参数时返回
  * {@code INSUFFICIENT_DATA}，避免临床计算臆测默认值。
  */
 @Component
@@ -28,14 +29,27 @@ public class RuleDslEvaluator {
 
     private final ObjectMapper json;
     private final ConditionEvaluator conditionEvaluator;
+    private final RuleDslAssetMaterializer assetMaterializer;
 
     /**
      * 注入 JSON 处理器，用于缺省上下文、缺失节点与 DSL 条件树解析。
      */
     @Autowired
+    public RuleDslEvaluator(
+            ObjectMapper json,
+            ConditionEvaluator conditionEvaluator,
+            ObjectProvider<RuleDslAssetMaterializer> assetMaterializerProvider) {
+        this.json = json;
+        this.conditionEvaluator = conditionEvaluator == null ? new ConditionEvaluator(json) : conditionEvaluator;
+        this.assetMaterializer = assetMaterializerProvider == null
+            ? null
+            : assetMaterializerProvider.getIfAvailable();
+    }
+
     public RuleDslEvaluator(ObjectMapper json, ConditionEvaluator conditionEvaluator) {
         this.json = json;
         this.conditionEvaluator = conditionEvaluator == null ? new ConditionEvaluator(json) : conditionEvaluator;
+        this.assetMaterializer = null;
     }
 
     public RuleDslEvaluator(ObjectMapper json) {
@@ -83,9 +97,23 @@ public class RuleDslEvaluator {
     }
 
     /**
+     * 使用指定机构生效版本物化值集和公式后执行规则。
+     */
+    public RuleDslEvaluation evaluate(
+        JsonNode dsl,
+        JsonNode context,
+        String tenantId,
+        String runtimeReleaseId) {
+        if (assetMaterializer == null) {
+            return evaluate(dsl, context);
+        }
+        return evaluate(assetMaterializer.materialize(tenantId, runtimeReleaseId, dsl), context);
+    }
+
+    /**
      * 仅执行条件树，用于评估指标等“规则条件复用”场景。
      *
-     * <p>完整规则 DSL 仍必须通过 {@link #evaluate(JsonNode, JsonNode)} 校验 {@code then} 动作卡；
+     * <p>完整规则 DSL 仍必须通过 {@link #evaluate(JsonNode, JsonNode)} 校验 {@code then} 临床提示卡；
      * 本入口只接受 {@code all/any/not/leaf} 条件树，不生成动作，避免评估指标为了复用条件求值而构造空动作规则。
      */
     public RuleDslEvaluation evaluateConditionTree(JsonNode condition, JsonNode context, JsonNode explain) {
@@ -105,7 +133,7 @@ public class RuleDslEvaluator {
             throw invalid("then 必须是数组");
         }
         if (then.isEmpty()) {
-            throw invalid("then 至少包含一个动作卡");
+            throw invalid("then 至少包含一个临床提示卡");
         }
         List<RuleActionResult> actions = new ArrayList<>();
         for (JsonNode action : then) {
@@ -278,7 +306,7 @@ public class RuleDslEvaluator {
         try {
             return RuleActionCode.valueOf(value);
         } catch (IllegalArgumentException exception) {
-            throw invalid("规则动作码无效: " + value);
+            throw invalid("命中后处理类型无效: " + value);
         }
     }
 

@@ -15,20 +15,22 @@ import org.junit.jupiter.api.Test;
 class DiagnosisFindingExtractorTest {
 
     // stub 端口：FEVER 能标准化，其余未映射（不猜不补）
-    private final FindingNormalizationPort port = (tenant, type, code, system) ->
+    private final FindingNormalizationPort port = (tenant, release, type, code, system) ->
         "FEVER".equals(code) ? Optional.of("STD-FEVER") : Optional.empty();
     private final DiagnosisFindingExtractor extractor = new DiagnosisFindingExtractor(port);
 
     @Test
     void mapsKnownAndCollectsUnmapped() {
-        var findings = extractor.extract("t-1", conditionResources("FEVER", "LOCALX"));
+        var findings = extractor.extract(
+            "t-1", "runtime-release-1", conditionResources("FEVER", "LOCALX"));
         assertThat(findings.normalizedCodes()).containsExactly("STD-FEVER");
         assertThat(findings.unmappedFindings()).containsExactly("LOCALX");
     }
 
     @Test
     void blankCodesAreIgnored() {
-        var findings = extractor.extract("t-1", conditionResources("FEVER", "", "  "));
+        var findings = extractor.extract(
+            "t-1", "runtime-release-1", conditionResources("FEVER", "", "  "));
         assertThat(findings.normalizedCodes()).containsExactly("STD-FEVER");
         assertThat(findings.unmappedFindings()).isEmpty();
     }
@@ -40,6 +42,6 @@ class DiagnosisFindingExtractorTest {
                 null, null, null, null, null, null, null, null));
         }
         return new ContextSnapshotResources(null, null, null, conditions, null, null,
-            null, null, null, null, null, null, null);
+            null, null, null, null, null, null, null, ContextSnapshotResources.emptyExtensions());
     }
 }

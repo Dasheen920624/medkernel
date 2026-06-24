@@ -5,8 +5,7 @@ package com.medkernel.engine.rule;
  */
 public enum RuleGovernanceState {
     DRAFT,
-    PEER_REVIEW,
-    COMMITTEE,
+    REVIEWED,
     SHADOW,
     CANARY,
     FULL,

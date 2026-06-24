@@ -1,7 +1,6 @@
 package com.medkernel.engine.safety;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -24,31 +23,30 @@ import com.medkernel.engine.rule.RuleDslEvaluator;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.OrgScope;
-import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import org.springframework.stereotype.Component;
 
 /**
  * OPT-04 临床安全红线确定性命中器。
  *
- * <p>只读取已经 ACTIVE 的红线规则，按标准上下文执行 B0 条件 DSL，并把命中结果转换为强打断、
+ * <p>只读取机构生效版本锁定的红线规则，按标准上下文执行 B0 条件 DSL，并把命中结果转换为强打断、
  * 不可疲劳抑制、可追溯的推荐候选卡；持久化、审计、疲劳信号由推荐服务统一处理。
  */
 @Component
 public class ClinicalRedlineMatcher {
 
     private final ContextSnapshotService snapshots;
-    private final ClinicalRedlineRepository redlines;
+    private final RuntimeReleaseClinicalRedlineSelector runtimeRedlines;
     private final RuleDslEvaluator evaluator;
     private final ObjectMapper json;
 
     public ClinicalRedlineMatcher(
             ContextSnapshotService snapshots,
-            ClinicalRedlineRepository redlines,
+            RuntimeReleaseClinicalRedlineSelector runtimeRedlines,
             RuleDslEvaluator evaluator,
             ObjectMapper json) {
         this.snapshots = snapshots;
-        this.redlines = redlines;
+        this.runtimeRedlines = runtimeRedlines;
         this.evaluator = evaluator;
         this.json = json;
     }
@@ -70,7 +68,7 @@ public class ClinicalRedlineMatcher {
         }
         String tenantId = tenantId();
         List<RecommendationCardRequest> matches = new ArrayList<>();
-        for (ClinicalRedlineRule redline : effectiveActiveRedlines(tenantId)) {
+        for (ClinicalRedlineRule redline : runtimeRedlines.select(tenantId, snapshot.runtimeReleaseId())) {
             if (!triggerMatches(request, redline)) {
                 continue;
             }
@@ -81,19 +79,6 @@ public class ClinicalRedlineMatcher {
             }
         }
         return List.copyOf(matches);
-    }
-
-    private List<ClinicalRedlineRule> effectiveActiveRedlines(String tenantId) {
-        LinkedHashMap<String, ClinicalRedlineRule> byRuntimeKey = new LinkedHashMap<>();
-        if (!PlatformTenant.isPlatformTenant(tenantId)) {
-            redlines.findByTenantIdAndStatusOrderByCategoryAscRedlineKeyAscUpdatedAtDesc(
-                    PlatformTenant.ID, ClinicalRedlineStatus.ACTIVE)
-                .forEach(redline -> byRuntimeKey.put(runtimeKey(redline), redline));
-        }
-        redlines.findByTenantIdAndStatusOrderByCategoryAscRedlineKeyAscUpdatedAtDesc(
-                tenantId, ClinicalRedlineStatus.ACTIVE)
-            .forEach(redline -> byRuntimeKey.putIfAbsent(runtimeKey(redline), redline));
-        return List.copyOf(byRuntimeKey.values());
     }
 
     private boolean triggerMatches(RecommendationTriggerRequest request, ClinicalRedlineRule redline) {
@@ -156,7 +141,7 @@ public class ClinicalRedlineMatcher {
         values.add(new RecommendationSourceRequest(
             RecommendationSourceType.CONTEXT,
             snapshot.snapshotId(),
-            snapshot.packageVersion(),
+            snapshot.runtimeReleaseId(),
             "标准临床上下文",
             "context_snapshot:" + snapshot.snapshotId(),
             null,
@@ -216,10 +201,6 @@ public class ClinicalRedlineMatcher {
             .filter(ClinicalRedlineMatcher::hasText)
             .findFirst()
             .orElse("命中临床安全红线：" + redline.title());
-    }
-
-    private String runtimeKey(ClinicalRedlineRule redline) {
-        return redline.category().name() + "|" + redline.triggerPoint() + "|" + redline.redlineKey();
     }
 
     private String tenantId() {

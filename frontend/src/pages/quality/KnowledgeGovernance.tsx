@@ -37,6 +37,7 @@ import {
   useDeprecateKnowledgeIdentity,
   useCreateKnowledgeCustomization,
   useCreateKnowledgeProductionJob,
+  useGenerateKnowledgeModelCandidate,
   useKnowledgeCustomizations,
   useKnowledgeCandidateDiff,
   useKnowledgeCandidates,
@@ -54,7 +55,6 @@ import {
   useCandidateCoexistence,
   useAssetTemplates,
   useKnowledgeIdentities,
-  usePackages,
   usePublishKnowledgeCustomization,
   useRestorePlatformKnowledge,
   useReviewKnowledgeCandidate,
@@ -64,6 +64,8 @@ import {
   type CandidateCoexistenceView,
   type CandidateCoexistenceVersionSnapshot,
   type CreateKnowledgeProductionJobRequest,
+  type KnowledgeModelCandidateRequest,
+  type KnowledgeSourceAuthorityLevel,
   type GenerationTriage,
   type CandidateProvenanceView,
   type KnowledgeProductionCandidateView,
@@ -149,7 +151,6 @@ const VERSION_STATUS_LABELS: Record<string, string> = {
   WITHDRAWN: "已撤回",
   REJECTED: "已驳回",
 };
-const KNOWLEDGE_REVIEW_PACKAGE_REFERENCE_PAGE_SIZE = 20;
 const KNOWLEDGE_CUSTOMIZATION_PAGE_SIZE = 20;
 const KNOWLEDGE_CANDIDATE_PAGE_SIZE = 20;
 
@@ -161,7 +162,7 @@ const RISK_COLORS: Record<string, "default" | "success" | "warning" | "error"> =
 
 // AIK-STD-12：AI 工厂生产器中文标识（aiGenerated 据 producer≠MANUAL，由后端判定）
 const PRODUCER_LABELS: Record<string, string> = {
-  API_MODEL: "API 大模型",
+  API_MODEL: "统一模型接口",
   AGENT_TOOL: "Agent 工具",
   LOCAL_MODEL: "本地模型",
   MANUAL: "人工录入",
@@ -182,14 +183,14 @@ const PIPELINE_META: Record<
     color: "blue",
     boundaryLabel: "平台主源只读",
     summary: "平台主源只读发布账本",
-    description: "归属 t-1 平台主租户，机构只能订阅和派生，不允许直接编辑或反写。",
+    description: "归属平台主源，机构只能订阅和派生，不允许直接编辑或反写。",
   },
   TENANT_OVERLAY: {
     label: "院内覆盖",
     color: "green",
     boundaryLabel: "院内覆盖可治理",
     summary: "院内覆盖本机构治理",
-    description: "归属当前机构租户，只影响本机构继承范围，禁止污染平台主源。",
+    description: "归属当前机构，只影响本机构继承范围，禁止污染平台主源。",
   },
 };
 const PIPELINE_KEYS = ["PLATFORM_SOURCE", "TENANT_OVERLAY"] as const;
@@ -336,13 +337,7 @@ function booleanGateLabel(passed: boolean) {
 }
 
 type ReviewFormValues = {
-  packageVersion: string;
   reason: string;
-  signatureId?: string;
-  signerId?: string;
-  signerName?: string;
-  signedAt?: string;
-  signatureHash?: string;
   feedbackType?: KnowledgeReviewFeedbackType;
   qualityGates?: string[];
   qualitySummary?: string;
@@ -352,6 +347,22 @@ type RetirementFormValues = {
   successorIdentityId?: number;
   gracePeriodEnd: string;
   migrationGuidance: string;
+};
+
+type ModelGenerationFormValues = {
+  capabilityCode: string;
+  prompt: string;
+  providerCode?: string;
+  timeoutSeconds: number;
+  assetIdentity: string;
+  subject: string;
+  sourceRef: string;
+  trustLevel: KnowledgeSourceAuthorityLevel;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  targetMode: "EXISTING" | "NEW";
+  targetIdentityId?: number;
+  newIdentityCode?: string;
+  newIdentityDomain?: KnowledgeDomain;
 };
 
 const EMPTY_RETIREMENT_FORM: RetirementFormValues = {
@@ -379,6 +390,10 @@ function versionSubtitle(version?: KnowledgeAssetVersion) {
   )} · ${sourceAuthorityLabel(version.authorityLevel)}`;
 }
 
+function defaultCapabilityFor(_assetType?: string | null) {
+  return "knowledge.production.knowledge";
+}
+
 function classificationFor(
   classifications: CandidateClassification[],
   candidateVersionId?: number,
@@ -400,9 +415,9 @@ function customizationStatusColor(status: string) {
   return "default";
 }
 
-function candidateReviewRouteDescription(riskLevel?: string | null, requiresDualSign = false) {
-  if (riskLevel === "HIGH" || requiresDualSign) {
-    return "高风险必须由两名不同签署人完成双签";
+function candidateReviewRouteDescription(riskLevel?: string | null) {
+  if (riskLevel === "HIGH") {
+    return "高风险必须逐条确认并保留完整证据";
   }
   if (riskLevel === "MEDIUM") {
     return "中风险必须逐条审核";
@@ -478,7 +493,7 @@ export default function KnowledgeGovernance({
   const [customizationPage, setCustomizationPage] = useState(1);
   const [productionJobCode, setProductionJobCode] = useState<string>();
   const [productionCandidateRef, setProductionCandidateRef] = useState<string>();
-  const [reviewPackageSearch, setReviewPackageSearch] = useState("");
+  const [modelGenerationJob, setModelGenerationJob] = useState<KnowledgeProductionJob>();
   const [selectedIdentityId, setSelectedIdentityId] = useState<number>();
   const [selectedCandidateId, setSelectedCandidateId] = useState<number>();
   const [retirementIdentity, setRetirementIdentity] = useState<KnowledgeIdentity>();
@@ -496,31 +511,13 @@ export default function KnowledgeGovernance({
     applicableScope: string;
     reason: string;
   }>();
-  const [customizationActionForm] = Form.useForm<{
-    reason: string;
-    signatureId?: string;
-    signerId?: string;
-    signerName?: string;
-    signedAt?: string;
-    signatureHash?: string;
-  }>();
+  const [customizationActionForm] = Form.useForm<{ reason: string }>();
   const [productionJobForm] = Form.useForm<CreateKnowledgeProductionJobRequest>();
+  const [modelGenerationForm] = Form.useForm<ModelGenerationFormValues>();
   const security = useSecurityProfile();
   const globalExpertMode = useExpertModeStore((state) => state.enabled);
   const mayUseExpertMode = canUseExpertMode(security.data);
   const expertMode = mayUseExpertMode && globalExpertMode;
-  const canReadPackages =
-    security.data?.permissions.some((permission) => permission.code === "package.read") ?? false;
-  const knowledgePackagesQuery = usePackages(
-    {
-      page: 1,
-      size: KNOWLEDGE_REVIEW_PACKAGE_REFERENCE_PAGE_SIZE,
-      assetType: "KNOWLEDGE",
-      keyword: reviewPackageSearch || undefined,
-    },
-    { enabled: mode === "review" && Boolean(selectedCandidateId) && canReadPackages },
-  );
-
   const identitiesQuery = useKnowledgeIdentities({
     domain,
     status,
@@ -572,16 +569,13 @@ export default function KnowledgeGovernance({
   const publishCustomization = usePublishKnowledgeCustomization();
   const restorePlatformKnowledge = useRestorePlatformKnowledge();
   const createProductionJobMutation = useCreateKnowledgeProductionJob();
+  const generateModelCandidateMutation = useGenerateKnowledgeModelCandidate();
   const cancelProductionJobMutation = useCancelKnowledgeProductionJob();
   const canCustomize =
     !isPlatformTenant &&
     security.data?.permissions.some((permission) => permission.code === "knowledge.write");
   const canWriteKnowledge =
     security.data?.permissions.some((permission) => permission.code === "knowledge.write") ?? false;
-  const canApproveAcquisitionSource =
-    security.data?.permissions.some(
-      (permission) => permission.code === "knowledge.acquisition.approve",
-    ) ?? false;
   const canReviewKnowledge =
     security.data?.permissions.some((permission) => permission.code === "knowledge.review") ??
     false;
@@ -704,25 +698,15 @@ export default function KnowledgeGovernance({
     diffCandidates.find((version) => version.status === "ACTIVE");
   const candidateVersion =
     diffCandidates.find((version) => version.id === selectedCandidateId) ?? selectedCandidate;
-  const reviewPackageOptions = (knowledgePackagesQuery.data?.items ?? [])
-    .filter((item) => item.status !== "OFFLINE" && item.status !== "ARCHIVED")
-    .map((item) => ({
-      value: item.packageVersion,
-      label: `${item.packageVersion} · ${item.name}`,
-    }));
-  const defaultReviewPackageVersion =
-    reviewPackageOptions.length === 1 ? reviewPackageOptions[0].value : undefined;
   useEffect(() => {
     if (!selectedCandidateId) return;
     reviewForm.setFieldsValue({
-      packageVersion: defaultReviewPackageVersion,
       reason: "",
       feedbackType: undefined,
       qualityGates: [],
     });
-  }, [defaultReviewPackageVersion, reviewForm, selectedCandidateId]);
+  }, [reviewForm, selectedCandidateId]);
   const platformPublishing = security.data?.dataScope.tenantId === platformTenantId;
-  const publishEvidenceRequired = platformPublishing || candidateVersion?.riskLevel === "HIGH";
 
   const pendingCount = candidatePageData?.total ?? 0;
   const conflictCount = useMemo(
@@ -746,10 +730,7 @@ export default function KnowledgeGovernance({
     }
     const classificationReviewId = selectedClassification.id;
     try {
-      const fields = ["packageVersion", "reason"];
-      if (decision === "APPROVE" && publishEvidenceRequired) {
-        fields.push("signatureId", "signerId", "signerName", "signedAt", "signatureHash");
-      }
+      const fields = ["reason"];
       if (decision === "APPROVE" && platformPublishing) {
         fields.push("qualityGates");
       }
@@ -760,42 +741,21 @@ export default function KnowledgeGovernance({
       const feedbackType = feedbackTypeForDecision(decision, selectedFeedbackType);
       const followupAction = REVIEW_FOLLOWUP_BY_FEEDBACK[feedbackType];
       let publishEvidence: VersionPublishEvidence | undefined;
-      if (decision === "APPROVE" && publishEvidenceRequired) {
-        const signatureId = values.signatureId?.trim();
-        const signerId = values.signerId?.trim();
-        const signerName = values.signerName?.trim();
-        const signedAt = values.signedAt?.trim();
-        const signatureHash = values.signatureHash?.trim();
-        if (!signatureId || !signerId || !signerName || !signedAt || !signatureHash) {
-          throw new Error("电子签名信息不完整");
-        }
+      if (decision === "APPROVE" && platformPublishing) {
         const gates = new Set(values.qualityGates ?? []);
         publishEvidence = {
-          electronicSignature: {
-            signatureId,
-            signerId,
-            signerName,
-            signedAt: new Date(signedAt).toISOString(),
-            signatureHash,
+          qualityGate: {
+            schemaValid: gates.has("schemaValid"),
+            terminologyBindingComplete: gates.has("terminologyBindingComplete"),
+            dependencyIntegrityVerified: gates.has("dependencyIntegrityVerified"),
+            safetyMonotonicityVerified: gates.has("safetyMonotonicityVerified"),
+            impactSimulationPassed: gates.has("impactSimulationPassed"),
+            summary: values.qualitySummary?.trim() || undefined,
           },
-          ...(platformPublishing
-            ? {
-                qualityGate: {
-                  schemaValid: gates.has("schemaValid"),
-                  terminologyBindingComplete: gates.has("terminologyBindingComplete"),
-                  dependencyIntegrityVerified: gates.has("dependencyIntegrityVerified"),
-                  safetyMonotonicityVerified: gates.has("safetyMonotonicityVerified"),
-                  impactSimulationPassed: gates.has("impactSimulationPassed"),
-                  peerReviewSigned: gates.has("peerReviewSigned"),
-                  summary: values.qualitySummary?.trim() || undefined,
-                },
-              }
-            : {}),
         };
       }
       await reviewMutation.mutateAsync({
         candidateId: classificationReviewId,
-        packageVersion: values.packageVersion,
         request: {
           decision,
           reason: values.reason.trim(),
@@ -815,7 +775,8 @@ export default function KnowledgeGovernance({
   function requestCancelProductionJob(job: KnowledgeProductionJob) {
     modal.confirm({
       title: `中止生产任务 ${job.jobCode}`,
-      content: "仅中止 PENDING/RUNNING job；已入审核的候选仍按治理链路留痕处理，不会伪造发布成功。",
+      content:
+        "仅中止待处理或运行中的生产任务；已入审核的候选仍按治理链路留痕处理，不会伪造发布成功。",
       okText: "确认中止",
       cancelText: "取消",
       okButtonProps: { danger: true },
@@ -847,6 +808,84 @@ export default function KnowledgeGovernance({
     }
   }
 
+  function openModelGeneration(job: KnowledgeProductionJob) {
+    const targetIdentity =
+      identities.find((identity) => identity.id === selectedIdentityId) ?? identities[0];
+    setProductionJobCode(job.jobCode);
+    setModelGenerationJob(job);
+    modelGenerationForm.setFieldsValue({
+      capabilityCode:
+        productionReadinessQuery.data?.capabilityCode || defaultCapabilityFor(job.assetType),
+      prompt: "",
+      providerCode: productionReadinessQuery.data?.providerCode || undefined,
+      timeoutSeconds: 90,
+      assetIdentity: targetIdentity?.identityCode || "",
+      subject: targetIdentity?.subject || "",
+      sourceRef: "",
+      trustLevel: "B_GUIDELINE",
+      riskLevel: "MEDIUM",
+      targetMode: targetIdentity ? "EXISTING" : "NEW",
+      targetIdentityId: targetIdentity?.id,
+      newIdentityCode: targetIdentity ? undefined : "",
+      newIdentityDomain: (targetIdentity?.domain ?? job.domain ?? "OTHER") as KnowledgeDomain,
+    });
+  }
+
+  async function submitModelGeneration(values: ModelGenerationFormValues) {
+    if (!modelGenerationJob) return;
+    const target: KnowledgeModelCandidateRequest["target"] =
+      values.targetMode === "EXISTING"
+        ? { targetIdentityId: values.targetIdentityId as number }
+        : {
+            newIdentity: {
+              domain: values.newIdentityDomain ?? "OTHER",
+              subject: values.subject.trim(),
+              identityCode: values.newIdentityCode?.trim() ?? "",
+            },
+          };
+    try {
+      const result = await generateModelCandidateMutation.mutateAsync({
+        jobCode: modelGenerationJob.jobCode,
+        request: {
+          capabilityCode: values.capabilityCode.trim(),
+          prompt: values.prompt.trim(),
+          providerCode: values.providerCode?.trim() || undefined,
+          timeoutSeconds: values.timeoutSeconds,
+          assetIdentity: values.assetIdentity.trim(),
+          subject: values.subject.trim(),
+          sources: [
+            {
+              sourceRef: values.sourceRef.trim(),
+              authorityLevel: values.trustLevel,
+            },
+          ],
+          trustLevel: values.trustLevel,
+          riskLevel: values.riskLevel,
+          target,
+        },
+      });
+      if (result.summary.candidates.length > 0) {
+        message.success(`已生成 ${result.summary.candidates.length} 条待审核知识候选`);
+        modelGenerationForm.resetFields();
+        setModelGenerationJob(undefined);
+      } else if (result.summary.blocked.length > 0) {
+        message.warning("模型结果被生产安全校验阻断，未生成候选");
+      } else {
+        message.warning(result.summary.skipped[0]?.reason || "模型未生成可提交候选");
+      }
+      await Promise.all([
+        productionJobsQuery.refetch(),
+        productionCandidatesQuery.refetch(),
+        productionGateResultsQuery.refetch(),
+        productionTriageResultsQuery.refetch(),
+        productionShadowRunsQuery.refetch(),
+        identitiesQuery.refetch(),
+      ]);
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "大模型知识生成失败"));
+    }
+  }
+
   function requestApproveLowInitializationBatch(batch: KnowledgeInitializationBatch) {
     modal.confirm({
       title: "确认批量批准低风险候选",
@@ -856,9 +895,7 @@ export default function KnowledgeGovernance({
           <Text type="secondary">
             发行摘要：{expertMode ? batch.overallHash : "已由服务端冻结并校验"}
           </Text>
-          <Text>
-            仅处理服务端冻结清单中的低风险条目；中风险仍须逐条审核，高风险仍须由两名不同签署人完成双签。
-          </Text>
+          <Text>仅处理服务端冻结清单中的低风险条目；中高风险仍须由医疗引擎运营人员逐条确认。</Text>
         </Space>
       ),
       okText: "确认批准",
@@ -949,42 +986,13 @@ export default function KnowledgeGovernance({
     }
   }
 
-  async function submitCustomizationAction(values: {
-    reason: string;
-    signatureId?: string;
-    signerId?: string;
-    signerName?: string;
-    signedAt?: string;
-    signatureHash?: string;
-  }) {
+  async function submitCustomizationAction(values: { reason: string }) {
     if (!customizationAction) return;
     try {
       if (customizationAction.type === "publish") {
-        const requiresIndependentReview = customizationAction.item.riskLevel === "HIGH";
-        let publishEvidence: VersionPublishEvidence | undefined;
-        if (requiresIndependentReview) {
-          const signatureId = values.signatureId?.trim();
-          const signerId = values.signerId?.trim();
-          const signerName = values.signerName?.trim();
-          const signedAt = values.signedAt?.trim();
-          const signatureHash = values.signatureHash?.trim();
-          if (!signatureId || !signerId || !signerName || !signedAt || !signatureHash) {
-            throw new Error("高风险知识发布必须填写完整电子签名");
-          }
-          publishEvidence = {
-            electronicSignature: {
-              signatureId,
-              signerId,
-              signerName,
-              signedAt: new Date(signedAt).toISOString(),
-              signatureHash,
-            },
-          };
-        }
         await publishCustomization.mutateAsync({
           customizationId: customizationAction.item.customizationId,
           reason: values.reason.trim(),
-          ...(publishEvidence ? { publishEvidence } : {}),
         });
         message.success("机构定制已发布并在目标组织生效");
       } else {
@@ -1200,7 +1208,7 @@ export default function KnowledgeGovernance({
             {expertMode ? (
               <>
                 {provenance.modelMode ? <Tag color="geekblue">{provenance.modelMode}</Tag> : null}
-                <Text type="secondary">job：{provenance.jobCode}</Text>
+                <Text type="secondary">生产任务：{provenance.jobCode}</Text>
                 {provenance.modelVersion ? (
                   <Text type="secondary">模型：{provenance.modelVersion}</Text>
                 ) : null}
@@ -1327,16 +1335,14 @@ export default function KnowledgeGovernance({
       ),
     },
     {
-      title: "风险 / 会签",
+      title: "风险 / 审核",
       key: "routing",
       render: (_, record) => (
         <Space direction="vertical" size={2}>
           <Tag color={RISK_COLORS[record.riskLevel ?? ""] ?? "default"}>
             {riskLabel(record.riskLevel)}
           </Tag>
-          <Text type="secondary">
-            {candidateReviewRouteDescription(record.riskLevel, record.routing?.requiresDualSign)}
-          </Text>
+          <Text type="secondary">{candidateReviewRouteDescription(record.riskLevel)}</Text>
         </Space>
       ),
     },
@@ -1344,7 +1350,7 @@ export default function KnowledgeGovernance({
 
   const productionGateColumns: ColumnsType<AikGateResult> = [
     {
-      title: "门禁",
+      title: "生产安全校验",
       dataIndex: "gateCode",
     },
     {
@@ -1459,7 +1465,7 @@ export default function KnowledgeGovernance({
         <Space direction="vertical" size={0}>
           <Text>低风险 {record.lowCount} · 可原子批审</Text>
           <Text>中风险 {record.mediumCount} · 必须逐条审核</Text>
-          <Text>高风险 {record.highCount} · 必须真实双签</Text>
+          <Text>高风险 {record.highCount} · 必须逐条确认并保留证据</Text>
         </Space>
       ),
     },
@@ -1599,8 +1605,8 @@ export default function KnowledgeGovernance({
           <Alert
             type="warning"
             showIcon
-            message="九项生产闸尚未全部满足，暂不能创建正式生产任务"
-            description="请先在模型生产控制台处理服务、医学评测、独立复核和其余阻断项。"
+            message="八项技术闸尚未全部满足，暂不能创建正式生产任务"
+            description="请先在模型生产控制台处理模型服务、医学评测和其余技术阻断项。"
           />
         ) : null}
         <Space direction="vertical" size={4}>
@@ -1640,17 +1646,11 @@ export default function KnowledgeGovernance({
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} lg={4}>
-              <Form.Item label="资产类型" name="assetType">
-                <Select
-                  options={[
-                    { value: "KNOWLEDGE", label: "知识" },
-                    { value: "RULE", label: "规则" },
-                    { value: "PATHWAY", label: "路径" },
-                    { value: "RECOMMENDATION", label: "推荐" },
-                    { value: "METRIC", label: "指标" },
-                    { value: "FOLLOWUP", label: "随访" },
-                  ]}
-                />
+              <Form.Item name="assetType" hidden>
+                <Input />
+              </Form.Item>
+              <Form.Item label="资产类型">
+                <Input value="医学知识" disabled />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} lg={4}>
@@ -1665,7 +1665,7 @@ export default function KnowledgeGovernance({
             </Col>
             <Col xs={24} sm={12} lg={4}>
               <Form.Item label="生产方式">
-                <Input value="API 大模型（正式生产固定）" disabled />
+                <Input value="统一模型接口（本地或外部模型服务）" disabled />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} lg={4}>
@@ -1699,10 +1699,7 @@ export default function KnowledgeGovernance({
   );
   const productionPipelinePartition = <PipelineBoundaryCard title="双形态生产分区" />;
   const productionAcquisitionGovernance = (
-    <AcquisitionSourceGovernancePanel
-      canWrite={canWriteKnowledge}
-      canApprove={canApproveAcquisitionSource}
-    />
+    <AcquisitionSourceGovernancePanel canWrite={canWriteKnowledge} />
   );
   const initializationBatchCard = <Card title="初始化发行批次">{initializationBatchContent}</Card>;
 
@@ -1745,7 +1742,7 @@ export default function KnowledgeGovernance({
         {productionAcquisitionGovernance}
         {productionPipelinePartition}
         {initializationBatchCard}
-        <Card title="模型生产 readiness">
+        <Card title="模型生产上线准备">
           <Table
             rowKey="code"
             columns={[
@@ -1767,7 +1764,7 @@ export default function KnowledgeGovernance({
         </Card>
         <PageState
           state="empty"
-          title="暂无生产 job"
+          title="暂无生产任务"
           description="尚未有知识生产任务进入统一候选流水线。"
         />
       </Space>
@@ -1788,7 +1785,7 @@ export default function KnowledgeGovernance({
         ? `候选血缘：${getApiErrorMessage(productionCandidatesQuery.error, "候选血缘读取失败")}`
         : null,
       productionGateResultsQuery.isError
-        ? `门禁结果：${getApiErrorMessage(productionGateResultsQuery.error, "门禁结果读取失败")}`
+        ? `生产安全校验结果：${getApiErrorMessage(productionGateResultsQuery.error, "生产安全校验结果读取失败")}`
         : null,
       productionTriageResultsQuery.isError
         ? `8 态分流：${getApiErrorMessage(productionTriageResultsQuery.error, "8 态分流读取失败")}`
@@ -1849,7 +1846,7 @@ export default function KnowledgeGovernance({
         {productionWorkbench}
         {productionAcquisitionGovernance}
         {productionPipelinePartition}
-        <Card title="模型生产 readiness">
+        <Card title="模型生产上线准备">
           <Space direction="vertical" size="middle" className="mk-full-width">
             <Alert
               type={readiness?.ready ? "success" : "warning"}
@@ -1857,8 +1854,8 @@ export default function KnowledgeGovernance({
               message={readiness?.ready ? "模型生产前置已满足" : "模型生产前置仍有阻断"}
               description={
                 readiness?.modelInvocationAllowed
-                  ? "模型生产器可进入候选生产，但候选仍必须走门禁、评测、分流和审核。"
-                  : "readiness 未通过时不得调用外部模型或伪造候选。"
+                  ? "模型生产器可进入候选生产，但候选仍必须走生产安全校验、评测、分流和审核。"
+                  : "上线准备未通过时不得调用外部模型或伪造候选。"
               }
             />
             <Table
@@ -1886,7 +1883,7 @@ export default function KnowledgeGovernance({
           </Space>
         </Card>
 
-        <Card title="生产 job">
+        <Card title="生产任务">
           <Space direction="vertical" size="middle" className="mk-full-width">
             {selectedProductionJob ? (
               <Alert
@@ -1901,7 +1898,7 @@ export default function KnowledgeGovernance({
                   <Space direction="vertical" size={4}>
                     <Space size="middle" wrap>
                       <Text>生成候选 {selectedProductionJob.candidateCount} 条</Text>
-                      <Text>门禁 {productionGateResults.length} 项</Text>
+                      <Text>生产安全校验 {productionGateResults.length} 项</Text>
                       <Text>8 态 {productionTriageResults.length} 条</Text>
                       <Text>影子评测 {productionShadowRuns.length} 次</Text>
                     </Space>
@@ -1913,17 +1910,30 @@ export default function KnowledgeGovernance({
                   </Space>
                 }
                 action={
-                  selectedJobCanBeCancelled ? (
-                    <Button
-                      danger
-                      aria-label="中止生产任务"
-                      icon={<StopOutlined />}
-                      loading={cancelProductionJobMutation.isPending}
-                      onClick={() => requestCancelProductionJob(selectedProductionJob)}
-                    >
-                      中止生产任务
-                    </Button>
-                  ) : undefined
+                  <Space wrap>
+                    {canWriteKnowledge &&
+                    readiness?.modelInvocationAllowed &&
+                    canCancelProductionJob(selectedProductionJob.status) ? (
+                      <Button
+                        type="primary"
+                        aria-label="启动大模型生成"
+                        onClick={() => openModelGeneration(selectedProductionJob)}
+                      >
+                        启动大模型生成
+                      </Button>
+                    ) : null}
+                    {selectedJobCanBeCancelled ? (
+                      <Button
+                        danger
+                        aria-label="中止生产任务"
+                        icon={<StopOutlined />}
+                        loading={cancelProductionJobMutation.isPending}
+                        onClick={() => requestCancelProductionJob(selectedProductionJob)}
+                      >
+                        中止生产任务
+                      </Button>
+                    ) : null}
+                  </Space>
                 }
               />
             ) : null}
@@ -1957,7 +1967,7 @@ export default function KnowledgeGovernance({
             <Card title="候选血缘">{productionCandidateLineageContent}</Card>
           </Col>
           <Col xs={24} xl={12}>
-            <Card title="门禁结果">
+            <Card title="生产安全校验结果">
               <Table
                 rowKey={(record) => `${record.gateCode}-${record.contentHash ?? ""}`}
                 columns={productionGateColumns}
@@ -2009,7 +2019,7 @@ export default function KnowledgeGovernance({
           {selectedProductionJob ? (
             <Space direction="vertical" size="middle" className="mk-full-width">
               <Descriptions column={1} bordered size="small">
-                <Descriptions.Item label="当前 job">
+                <Descriptions.Item label="当前生产任务">
                   {selectedProductionJob.jobCode}
                 </Descriptions.Item>
                 <Descriptions.Item label="候选执行状态">
@@ -2112,7 +2122,7 @@ export default function KnowledgeGovernance({
               />
             </Space>
           ) : (
-            <PageState state="empty" title="未选择生产 job" />
+            <PageState state="empty" title="未选择生产任务" />
           )}
         </Card>
 
@@ -2123,10 +2133,7 @@ export default function KnowledgeGovernance({
                 当前候选 {selectedProductionCandidate ? 1 : 0} 条
               </Tag>
               <Tag color={candidateReviewRouteColor(selectedProductionCandidate)}>
-                {candidateReviewRouteDescription(
-                  selectedProductionCandidate?.riskLevel,
-                  selectedProductionCandidate?.routing?.requiresDualSign,
-                )}
+                {candidateReviewRouteDescription(selectedProductionCandidate?.riskLevel)}
               </Tag>
             </Space>
             <Text type="secondary">
@@ -2372,10 +2379,7 @@ export default function KnowledgeGovernance({
 
   let customizationActionMessage = "恢复后新请求将重新使用平台标准";
   if (customizationAction?.type === "publish") {
-    customizationActionMessage =
-      customizationAction.item.riskLevel === "HIGH"
-        ? "高风险知识必须完成电子签名"
-        : "发布后将接管所选机构的知识解析";
+    customizationActionMessage = "发布后将接管所选机构的知识解析";
   }
 
   const pageMeta = {
@@ -2389,7 +2393,7 @@ export default function KnowledgeGovernance({
     },
     production: {
       title: "知识生产",
-      description: "核查生产流水线 readiness、job、门禁、8 态分流和影子证据",
+      description: "核查生产流水线的上线准备、生产任务、生产安全校验、8 态分流和影子证据",
     },
   }[mode];
 
@@ -2464,6 +2468,176 @@ export default function KnowledgeGovernance({
       )}
 
       <Modal
+        title="生成正式知识候选"
+        open={Boolean(modelGenerationJob)}
+        okText="开始生成候选"
+        cancelText="取消"
+        confirmLoading={generateModelCandidateMutation.isPending}
+        onOk={() => modelGenerationForm.submit()}
+        onCancel={() => {
+          modelGenerationForm.resetFields();
+          setModelGenerationJob(undefined);
+        }}
+        destroyOnClose
+        width={760}
+      >
+        <Space direction="vertical" size="middle" className="mk-full-width">
+          <Alert
+            type="info"
+            showIcon
+            message={`生产任务 ${modelGenerationJob?.jobCode ?? ""}`}
+            description="大模型只生成待审核候选；来源锚点、目标身份、生产安全校验、分流和影子评测全部通过后才进入审核，绝不直接生效。"
+          />
+          <Form
+            form={modelGenerationForm}
+            layout="vertical"
+            onFinish={submitModelGeneration}
+            preserve={false}
+          >
+            <Row gutter={16}>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  name="capabilityCode"
+                  label="模型能力"
+                  rules={[{ required: true, whitespace: true, message: "请填写模型能力代码" }]}
+                >
+                  <Input placeholder="knowledge.production.knowledge" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="providerCode" label="模型服务">
+                  <Input placeholder="留空则由服务端策略选择" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item
+              name="prompt"
+              label="生成提示"
+              rules={[{ required: true, whitespace: true, message: "请填写生成提示" }]}
+            >
+              <Input.TextArea
+                rows={4}
+                placeholder="说明要生成的知识结构、适用范围和必须遵循的来源约束"
+              />
+            </Form.Item>
+            <Row gutter={16}>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  name="assetIdentity"
+                  label="资产身份"
+                  rules={[{ required: true, whitespace: true, message: "请填写资产身份" }]}
+                >
+                  <Input placeholder="例如 KNOW.VTE.GUIDE" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item
+                  name="subject"
+                  label="知识主题"
+                  rules={[{ required: true, whitespace: true, message: "请填写知识主题" }]}
+                >
+                  <Input placeholder="例如 VTE 防治指南" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item
+              name="sourceRef"
+              label="来源锚点"
+              rules={[{ required: true, whitespace: true, message: "请填写可解析的来源锚点" }]}
+            >
+              <Input placeholder="例如 GL-VTE-2026:v1:section-2" />
+            </Form.Item>
+            <Row gutter={16}>
+              <Col xs={24} md={8}>
+                <Form.Item name="trustLevel" label="来源权威" rules={[{ required: true }]}>
+                  <Select
+                    options={[
+                      { value: "A_REGULATION", label: "A 法规" },
+                      { value: "B_GUIDELINE", label: "B 权威指南" },
+                      { value: "C_CONSENSUS_LITERATURE", label: "C 共识文献" },
+                      { value: "D_HOSPITAL", label: "D 院内制度" },
+                      { value: "E_FEEDBACK", label: "E 反馈资料" },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item name="riskLevel" label="候选风险" rules={[{ required: true }]}>
+                  <Select
+                    options={[
+                      { value: "LOW", label: "低风险" },
+                      { value: "MEDIUM", label: "中风险" },
+                      { value: "HIGH", label: "高风险" },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item
+                  name="timeoutSeconds"
+                  label="超时秒数"
+                  rules={[{ required: true, type: "number", min: 10, max: 300 }]}
+                >
+                  <Input type="number" min={10} max={300} />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item name="targetMode" label="目标知识身份" rules={[{ required: true }]}>
+              <Radio.Group>
+                <Radio value="EXISTING">写入现有身份候选</Radio>
+                <Radio value="NEW">创建新身份候选</Radio>
+              </Radio.Group>
+            </Form.Item>
+            <Form.Item
+              noStyle
+              shouldUpdate={(previous, current) => previous.targetMode !== current.targetMode}
+            >
+              {({ getFieldValue }) =>
+                getFieldValue("targetMode") === "NEW" ? (
+                  <Row gutter={16}>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        name="newIdentityCode"
+                        label="新身份编码"
+                        rules={[{ required: true, whitespace: true, message: "请填写新身份编码" }]}
+                      >
+                        <Input placeholder="例如 KNOW.NEW.001" />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        name="newIdentityDomain"
+                        label="新身份领域"
+                        rules={[{ required: true, message: "请选择新身份领域" }]}
+                      >
+                        <Select options={KNOWLEDGE_DOMAIN_OPTIONS} />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                ) : (
+                  <Form.Item
+                    name="targetIdentityId"
+                    label="现有知识身份"
+                    rules={[{ required: true, message: "请选择目标知识身份" }]}
+                  >
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      options={identities.map((identity) => ({
+                        value: identity.id,
+                        label: `${identity.subject} · ${identity.identityCode}`,
+                      }))}
+                      placeholder="选择知识身份"
+                    />
+                  </Form.Item>
+                )
+              }
+            </Form.Item>
+          </Form>
+        </Space>
+      </Modal>
+
+      <Modal
         title={`定制机构知识${customizeIdentity ? ` · ${customizeIdentity.subject}` : ""}`}
         open={Boolean(customizeIdentity)}
         okText="创建定制草稿"
@@ -2529,11 +2703,7 @@ export default function KnowledgeGovernance({
           type={customizationAction?.type === "publish" ? "warning" : "info"}
           showIcon
           message={customizationActionMessage}
-          description={
-            customizationAction?.type === "publish" && customizationAction.item.riskLevel === "HIGH"
-              ? "当前登录人负责发布，电子签名必须由另一位具备资质的复核人完成；历史版本、证据、差异和审计记录都会保留。"
-              : "历史版本、证据、差异和审计记录都会保留。"
-          }
+          description="当前操作人核对发布依据；历史版本、证据、差异和审计记录都会保留。"
         />
         <Form form={customizationActionForm} layout="vertical" onFinish={submitCustomizationAction}>
           <Form.Item
@@ -2546,64 +2716,6 @@ export default function KnowledgeGovernance({
           >
             <Input.TextArea rows={4} maxLength={1000} showCount />
           </Form.Item>
-          {customizationAction?.type === "publish" &&
-            customizationAction.item.riskLevel === "HIGH" && (
-              <>
-                <Divider orientation="left">独立复核签名</Divider>
-                <Row gutter={12}>
-                  <Col xs={24} md={12}>
-                    <Form.Item
-                      name="signatureId"
-                      label="签名编号"
-                      rules={[{ required: true, whitespace: true, message: "请填写签名编号" }]}
-                    >
-                      <Input />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item
-                      name="signedAt"
-                      label="签名时间"
-                      rules={[{ required: true, message: "请选择签名时间" }]}
-                    >
-                      <Input type="datetime-local" />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item
-                      name="signerId"
-                      label="复核人工号"
-                      rules={[{ required: true, whitespace: true, message: "请填写复核人工号" }]}
-                    >
-                      <Input />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item
-                      name="signerName"
-                      label="复核人姓名"
-                      rules={[{ required: true, whitespace: true, message: "请填写复核人姓名" }]}
-                    >
-                      <Input />
-                    </Form.Item>
-                  </Col>
-                </Row>
-                <Form.Item
-                  name="signatureHash"
-                  label="签名摘要"
-                  extra="由院内电子签名服务生成的 64 位小写 SHA-256 摘要"
-                  rules={[
-                    { required: true, message: "请填写签名摘要" },
-                    {
-                      pattern: /^[0-9a-f]{64}$/,
-                      message: "签名摘要必须是 64 位小写 SHA-256",
-                    },
-                  ]}
-                >
-                  <Input />
-                </Form.Item>
-              </>
-            )}
         </Form>
       </Modal>
 
@@ -2711,7 +2823,7 @@ export default function KnowledgeGovernance({
                 </Descriptions.Item>
                 {expertMode ? (
                   <>
-                    <Descriptions.Item label="生产任务 job">{provenance.jobCode}</Descriptions.Item>
+                    <Descriptions.Item label="生产任务编号">{provenance.jobCode}</Descriptions.Item>
                     <Descriptions.Item label="模型任务 ID">
                       {provenance.modelTaskId || "未返回"}
                     </Descriptions.Item>
@@ -2774,28 +2886,16 @@ export default function KnowledgeGovernance({
             form={reviewForm}
             layout="vertical"
             initialValues={{
-              packageVersion: defaultReviewPackageVersion,
               reason: "",
               qualityGates: [],
             }}
           >
-            <Form.Item
-              name="packageVersion"
-              label="审核上下文包版本"
-              rules={[{ required: true, message: "请选择审核上下文包版本" }]}
-            >
-              <Select
-                showSearch
-                filterOption={false}
-                onSearch={setReviewPackageSearch}
-                placeholder="选择已存在的知识配置包版本"
-                options={reviewPackageOptions}
-                loading={knowledgePackagesQuery.isLoading}
-                notFoundContent={
-                  knowledgePackagesQuery.isError ? "配置包版本读取失败" : "暂无知识配置包版本"
-                }
-              />
-            </Form.Item>
+            <Alert
+              type="info"
+              showIcon
+              message="审核对象已锁定为当前候选版本"
+              description="审核结论只作用于当前知识版本；正式上线时由平台标准版本或机构生效版本选择该版本，审核环节不绑定上线范围或离线交付文件。"
+            />
             <Form.Item
               name="reason"
               label="审核理由"
@@ -2813,80 +2913,24 @@ export default function KnowledgeGovernance({
                 </Space>
               </Radio.Group>
             </Form.Item>
-            {publishEvidenceRequired && (
-              <>
-                <Divider orientation="left">发布签名</Divider>
-                <Row gutter={12}>
-                  <Col xs={24} md={12}>
-                    <Form.Item
-                      name="signatureId"
-                      label="签名 ID"
-                      rules={[{ required: true, message: "请填写签名 ID" }]}
-                    >
-                      <Input />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item
-                      name="signedAt"
-                      label="签名时间"
-                      rules={[{ required: true, message: "请选择签名时间" }]}
-                    >
-                      <Input type="datetime-local" />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item
-                      name="signerId"
-                      label="签名人 ID"
-                      rules={[{ required: true, message: "请填写签名人 ID" }]}
-                    >
-                      <Input />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12}>
-                    <Form.Item
-                      name="signerName"
-                      label="签名人姓名"
-                      rules={[{ required: true, message: "请填写签名人姓名" }]}
-                    >
-                      <Input />
-                    </Form.Item>
-                  </Col>
-                </Row>
-                <Form.Item
-                  name="signatureHash"
-                  label="签名摘要"
-                  rules={[
-                    { required: true, message: "请填写签名摘要" },
-                    {
-                      pattern: /^[0-9a-f]{64}$/,
-                      message: "签名摘要必须是 64 位小写 SHA-256",
-                    },
-                  ]}
-                >
-                  <Input />
-                </Form.Item>
-              </>
-            )}
             {platformPublishing && (
               <>
-                <Divider orientation="left">平台发布质量门</Divider>
+                <Divider orientation="left">平台发布质量校验</Divider>
                 <Form.Item
                   name="qualityGates"
-                  label="质量门"
+                  label="发布质量校验"
                   rules={[
                     {
                       validator: (_, value?: string[]) =>
                         value?.length === KNOWLEDGE_QUALITY_GATE_OPTIONS.length
                           ? Promise.resolve()
-                          : Promise.reject(new Error("请确认全部平台发布质量门")),
+                          : Promise.reject(new Error("请确认全部平台发布质量校验")),
                     },
                   ]}
                 >
                   <Checkbox.Group options={KNOWLEDGE_QUALITY_GATE_OPTIONS} />
                 </Form.Item>
-                <Form.Item name="qualitySummary" label="质量门摘要">
+                <Form.Item name="qualitySummary" label="校验说明">
                   <Input.TextArea rows={2} />
                 </Form.Item>
               </>

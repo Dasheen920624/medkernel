@@ -39,11 +39,11 @@ describe("AsyncExportAction", () => {
     const onSubmit = vi.fn();
     const { rerender } = renderAction({
       enabled: false,
-      disabledReason: "导出任务接口待引擎包发布任务接入",
+      disabledReason: "导出任务接口待引擎离线交付任务接入",
       onSubmit,
     });
 
-    expect(screen.getByText("导出任务接口待引擎包发布任务接入")).toBeInTheDocument();
+    expect(screen.getByText("导出任务接口待引擎离线交付任务接入")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "导出" })).toBeDisabled();
 
     rerender(

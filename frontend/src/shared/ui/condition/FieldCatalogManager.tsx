@@ -1,18 +1,21 @@
 /**
- * 上下文字段目录维护抽屉（RULE-01 / PATH-01，P2/P5 前台可维护）。
+ * 上下文字段目录维护抽屉。
  *
- * <p>信息科按业务层级浏览字段目录（平台派生只读 + 租户元数据覆盖），并维护展示名/字典/说明。
- * 字段路径、资源类型和数据类型由 canonical 目录派生，前台不允许手写，避免配置出规则引擎不可读路径。
+ * <p>具备 {@code context.write} 权限的当前授权责任人维护工作字段目录：平台字段只允许覆盖展示元数据，院内新增字段统一进入
+ * {@code extensions.local.*} 命名空间并形成真实运行数据落点。当前维护结果显式固化为统一资产草稿后，
+ * 才可进入平台标准版本或机构生效版本；当前已生效版本始终保持不可变。
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, App, Button, Drawer, Form, Input, Select, Space, Table, Tag } from "antd";
 import type { TableProps } from "antd";
-import { DeleteOutlined, SaveOutlined } from "@ant-design/icons";
+import { DeleteOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
 
 import {
   useContextFieldCatalog,
   useCreateContextField,
   useDeleteContextField,
+  useSecurityProfile,
+  useSnapshotContextFieldCatalogDraft,
   useUpdateContextField,
   type ContextFieldDescriptor,
   type ContextFieldUpsertPayload,
@@ -24,21 +27,54 @@ export interface FieldCatalogManagerProps {
 }
 
 interface FieldOverrideFormValues {
-  selectedFieldPath: string;
+  selectedFieldPath?: string;
+  extensionKey?: string;
+  category?: string;
+  group?: string;
   displayName: string;
+  dataType?: string;
+  unit?: string;
   codeSystem?: string;
   description?: string;
 }
 
+type MaintenanceMode = "override" | "extension";
+
+const EXTENSION_PREFIX = "extensions.local.";
+
+function isExtensionField(field: ContextFieldDescriptor): boolean {
+  return field.resourceType === "Extension" || field.fieldPath.startsWith(EXTENSION_PREFIX);
+}
+
 export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps) {
   const { message } = App.useApp();
-  const catalog = useContextFieldCatalog();
+  const security = useSecurityProfile();
+  const canManage =
+    security.data?.permissions.some((permission) => permission.code === "context.write") ?? false;
+  const catalog = useContextFieldCatalog(undefined, { enabled: open });
   const createField = useCreateContextField();
   const updateField = useUpdateContextField();
   const deleteField = useDeleteContextField();
+  const snapshotDraft = useSnapshotContextFieldCatalogDraft();
   const [form] = Form.useForm<FieldOverrideFormValues>();
+  const dataType = Form.useWatch("dataType", form);
   const [keyword, setKeyword] = useState("");
   const [selectedField, setSelectedField] = useState<ContextFieldDescriptor | null>(null);
+  const [mode, setMode] = useState<MaintenanceMode>("override");
+  let saveButtonText = "保存覆盖";
+  if (mode === "extension") {
+    saveButtonText = selectedField ? "更新扩展字段" : "保存扩展字段";
+  }
+
+  useEffect(() => {
+    if (mode !== "extension") return;
+    if (dataType !== "number" && form.getFieldValue("unit")) {
+      form.setFieldValue("unit", undefined);
+    }
+    if (dataType !== "code" && form.getFieldValue("codeSystem")) {
+      form.setFieldValue("codeSystem", undefined);
+    }
+  }, [dataType, form, mode]);
 
   const rows = useMemo(() => {
     const list = catalog.data ?? [];
@@ -57,15 +93,36 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
     const field = (catalog.data ?? []).find((item) => item.fieldPath === fieldPath);
     if (!field) return;
     setSelectedField(field);
+    if (isExtensionField(field)) {
+      setMode("extension");
+      form.setFieldsValue({
+        selectedFieldPath: undefined,
+        extensionKey: field.fieldPath.slice(EXTENSION_PREFIX.length),
+        category: field.category,
+        group: field.group,
+        displayName: field.displayName,
+        dataType: field.dataType,
+        unit: field.unit ?? undefined,
+        codeSystem: field.codeSystem ?? undefined,
+        description: field.description ?? undefined,
+      });
+      return;
+    }
+    setMode("override");
     form.setFieldsValue({
       selectedFieldPath: field.fieldPath,
+      extensionKey: undefined,
+      category: undefined,
+      group: undefined,
       displayName: field.displayName,
+      dataType: undefined,
+      unit: undefined,
       codeSystem: field.codeSystem ?? undefined,
       description: field.description ?? undefined,
     });
   };
 
-  const buildPayload = (
+  const buildOverridePayload = (
     field: ContextFieldDescriptor,
     values: FieldOverrideFormValues,
   ): ContextFieldUpsertPayload => ({
@@ -80,9 +137,50 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
     description: values.description || undefined,
   });
 
+  const beginExtension = () => {
+    if (!canManage) return;
+    setMode("extension");
+    setSelectedField(null);
+    form.resetFields();
+    form.setFieldsValue({
+      category: "院内扩展",
+      dataType: "string",
+    });
+  };
+
+  const beginOverride = () => {
+    if (!canManage) return;
+    setMode("override");
+    setSelectedField(null);
+    form.resetFields();
+  };
+
   const handleSave = async () => {
+    if (!canManage) return;
     try {
       const values = await form.validateFields();
+      if (mode === "extension") {
+        const extensionKey = values.extensionKey?.trim();
+        if (!extensionKey) return;
+        const payload: ContextFieldUpsertPayload = {
+          category: values.category?.trim() ?? "",
+          group: values.group?.trim() ?? "",
+          resourceType: "Extension",
+          fieldPath: `${EXTENSION_PREFIX}${extensionKey}`,
+          displayName: values.displayName.trim(),
+          dataType: values.dataType ?? "string",
+          unit: values.unit?.trim() || undefined,
+          codeSystem: values.codeSystem?.trim() || undefined,
+          description: values.description?.trim() || undefined,
+        };
+        if (selectedField?.source === "TENANT" && selectedField.fieldId) {
+          await updateField.mutateAsync({ fieldId: selectedField.fieldId, payload });
+        } else {
+          await createField.mutateAsync(payload);
+        }
+        message.success(selectedField ? "已更新院内扩展字段" : "已新增院内扩展字段");
+        return;
+      }
       const field =
         selectedField ??
         (catalog.data ?? []).find((item) => item.fieldPath === values.selectedFieldPath) ??
@@ -91,7 +189,7 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
         message.warning("请先选择字段");
         return;
       }
-      const payload = buildPayload(field, values);
+      const payload = buildOverridePayload(field, values);
       if (field.source === "TENANT" && field.fieldId) {
         await updateField.mutateAsync({ fieldId: field.fieldId, payload });
       } else {
@@ -100,21 +198,31 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
       message.success("已保存字段覆盖");
     } catch (error) {
       if ((error as { errorFields?: unknown }).errorFields) return;
-      message.error("保存字段覆盖失败");
+      message.error(mode === "extension" ? "保存院内扩展字段失败" : "保存字段覆盖失败");
     }
   };
 
   const handleDelete = async (record: ContextFieldDescriptor) => {
-    if (!record.fieldId) return;
+    if (!canManage || !record.fieldId) return;
     try {
       await deleteField.mutateAsync(record.fieldId);
       if (selectedField?.fieldId === record.fieldId) {
         setSelectedField(null);
         form.resetFields();
       }
-      message.success("已删除字段覆盖");
+      message.success(isExtensionField(record) ? "已删除院内扩展字段" : "已删除字段覆盖");
     } catch {
-      message.error("删除字段覆盖失败");
+      message.error(isExtensionField(record) ? "删除院内扩展字段失败" : "删除字段覆盖失败");
+    }
+  };
+
+  const handleSnapshotDraft = async () => {
+    if (!canManage) return;
+    try {
+      const draft = await snapshotDraft.mutateAsync();
+      message.success(`字段目录草稿 ${draft.versionNo} 已固化`);
+    } catch {
+      message.error("固化字段目录草稿失败");
     }
   };
 
@@ -144,7 +252,7 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
           : "—",
     },
     {
-      title: "Schema",
+      title: "字段结构",
       dataIndex: "jsonSchemaType",
       width: 90,
       render: (type?: string | null) => type || "—",
@@ -176,10 +284,14 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
           <Button
             size="small"
             danger
-            aria-label={`删除覆盖 ${record.fieldPath}`}
+            aria-label={`${isExtensionField(record) ? "删除扩展" : "删除覆盖"} ${record.fieldPath}`}
             icon={<DeleteOutlined />}
             loading={deleteField.isPending}
-            onClick={() => handleDelete(record)}
+            disabled={!canManage}
+            onClick={(event) => {
+              event.stopPropagation();
+              handleDelete(record);
+            }}
           />
         ) : (
           <span className="text-gray-400 text-xs">只读</span>
@@ -190,30 +302,154 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
   return (
     <Drawer title="上下文字段目录维护" width={920} open={open} onClose={onClose} destroyOnClose>
       <Space direction="vertical" size="large" className="mk-full-width">
-        <Form form={form} layout="inline" className="flex flex-wrap gap-2">
-          <Form.Item
-            label="选择字段"
-            name="selectedFieldPath"
-            rules={[{ required: true, message: "请选择字段" }]}
+        <Alert
+          showIcon
+          type="info"
+          message="这里维护下一版本的字段工作目录"
+          description="维护结果需固化为自动编号的字段目录草稿，才可进入平台标准版本或机构生效版本；当前已激活版本不会被直接修改。"
+        />
+        {!canManage ? (
+          <Alert
+            showIcon
+            type="info"
+            message="当前账号仅可查看字段目录"
+            description="覆盖平台字段、新增院内扩展字段和删除机构字段均需要字段写入权限。"
+          />
+        ) : null}
+        <Space wrap>
+          <Button
+            type={mode === "override" ? "primary" : "default"}
+            disabled={!canManage}
+            onClick={beginOverride}
           >
-            <Select
-              className="min-w-72"
-              showSearch
-              disabled={catalog.isError}
-              placeholder="选择 canonical 字段"
-              optionFilterProp="label"
-              onChange={handleSelectField}
-              options={(catalog.data ?? []).map((field) => ({
-                value: field.fieldPath,
-                label: `${field.displayName} ${field.fieldPath}`,
-              }))}
-            />
-          </Form.Item>
+            维护平台字段覆盖
+          </Button>
+          <Button
+            type={mode === "extension" ? "primary" : "default"}
+            icon={<PlusOutlined />}
+            aria-label="新增院内扩展字段"
+            disabled={!canManage}
+            onClick={beginExtension}
+          >
+            新增院内扩展字段
+          </Button>
+          <Button
+            icon={<SaveOutlined />}
+            aria-label="固化为字段目录草稿"
+            disabled={!canManage || catalog.isError}
+            loading={snapshotDraft.isPending}
+            onClick={handleSnapshotDraft}
+          >
+            固化为字段目录草稿
+          </Button>
+        </Space>
+        <Form form={form} layout="inline" className="flex flex-wrap gap-2">
+          {mode === "override" ? (
+            <Form.Item
+              label="选择字段"
+              name="selectedFieldPath"
+              rules={[{ required: true, message: "请选择字段" }]}
+            >
+              <Select
+                className="min-w-72"
+                showSearch
+                disabled={catalog.isError}
+                placeholder="选择平台字段"
+                optionFilterProp="label"
+                onChange={handleSelectField}
+                options={(catalog.data ?? [])
+                  .filter((field) => !isExtensionField(field))
+                  .map((field) => ({
+                    value: field.fieldPath,
+                    label: `${field.displayName} ${field.fieldPath}`,
+                  }))}
+              />
+            </Form.Item>
+          ) : (
+            <>
+              <Form.Item
+                label="扩展字段键"
+                name="extensionKey"
+                rules={[
+                  { required: true, message: "请输入扩展字段键" },
+                  {
+                    pattern: /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*){0,2}$/,
+                    message: "仅支持小写字母、数字、下划线，最多三级",
+                  },
+                ]}
+              >
+                <Input
+                  aria-label="扩展字段键"
+                  addonBefore={EXTENSION_PREFIX}
+                  disabled={Boolean(selectedField?.fieldId)}
+                  placeholder="dialysis_access_type"
+                />
+              </Form.Item>
+              <Form.Item
+                label="业务域"
+                name="category"
+                rules={[{ required: true, message: "请输入业务域" }]}
+              >
+                <Input aria-label="业务域" placeholder="院内扩展" />
+              </Form.Item>
+              <Form.Item
+                label="字段分组"
+                name="group"
+                rules={[{ required: true, message: "请输入字段分组" }]}
+              >
+                <Input aria-label="字段分组" placeholder="专科数据" />
+              </Form.Item>
+            </>
+          )}
           <Form.Item name="displayName" rules={[{ required: true, message: "字段名" }]}>
             <Input aria-label="展示名" placeholder="展示名" />
           </Form.Item>
-          <Form.Item name="codeSystem">
-            <Input aria-label="绑定字典" placeholder="绑定字典，如 ICD-10" />
+          {mode === "extension" ? (
+            <>
+              <Form.Item
+                label="数据类型"
+                name="dataType"
+                rules={[{ required: true, message: "请选择数据类型" }]}
+              >
+                <Select
+                  className="min-w-28"
+                  options={[
+                    { value: "string", label: "文本" },
+                    { value: "number", label: "数值" },
+                    { value: "boolean", label: "布尔" },
+                    { value: "date", label: "日期" },
+                    { value: "code", label: "编码" },
+                    { value: "list", label: "列表" },
+                  ]}
+                />
+              </Form.Item>
+              <Form.Item name="unit">
+                <Input
+                  aria-label="单位"
+                  placeholder="仅数值字段可填"
+                  disabled={dataType !== "number"}
+                />
+              </Form.Item>
+            </>
+          ) : null}
+          <Form.Item
+            name="codeSystem"
+            dependencies={["dataType"]}
+            rules={[
+              ({ getFieldValue }) => ({
+                validator: async (_rule, value) => {
+                  if (mode === "extension" && getFieldValue("dataType") === "code" && !value) {
+                    throw new Error("编码字段必须绑定字典");
+                  }
+                },
+              }),
+            ]}
+          >
+            <Input
+              aria-label="绑定字典"
+              placeholder="绑定字典，如 ICD-10"
+              disabled={mode === "extension" && dataType !== "code"}
+            />
           </Form.Item>
           <Form.Item name="description">
             <Input aria-label="说明" placeholder="说明(可空)" />
@@ -223,10 +459,10 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
               type="primary"
               icon={<SaveOutlined />}
               loading={createField.isPending || updateField.isPending}
-              disabled={catalog.isError}
+              disabled={catalog.isError || !canManage}
               onClick={handleSave}
             >
-              保存覆盖
+              {saveButtonText}
             </Button>
           </Form.Item>
         </Form>

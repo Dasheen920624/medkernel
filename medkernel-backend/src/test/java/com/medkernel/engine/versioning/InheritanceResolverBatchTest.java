@@ -137,13 +137,15 @@ class InheritanceResolverBatchTest {
     }
 
     @Test
-    void includesApplicableTenantAddAndExcludesForeignAdd() {
+    void doesNotImplicitlyIncludeTenantAddAssetsOutsideDeclaredRuntimeList() {
         VersionedAssetIdentity declared =
             new VersionedAssetIdentity(VersionedAssetType.RULE, "RULE.BASELINE");
         VersionedAssetIdentity localAdd =
             new VersionedAssetIdentity(VersionedAssetType.PATHWAY, "PATH.LOCAL.ADD");
         VersionedAssetIdentity foreignAdd =
             new VersionedAssetIdentity(VersionedAssetType.PATHWAY, "PATH.FOREIGN.ADD");
+        VersionedAssetIdentity anotherLocalAdd =
+            new VersionedAssetIdentity(VersionedAssetType.PATHWAY, "PATH.ANOTHER.LOCAL.ADD");
         AssetVersion baseline = version(
             PlatformAuthority.PLATFORM_TENANT_ID,
             declared,
@@ -151,14 +153,16 @@ class InheritanceResolverBatchTest {
             PlatformAuthority.PLATFORM_ORG_PATH);
         AssetVersion local = version(TENANT_ID, localAdd, "local-v1", HOSPITAL_PATH);
         AssetVersion foreign = version("tenant-B", foreignAdd, "foreign-v1", HOSPITAL_PATH);
+        AssetVersion anotherLocal = version(TENANT_ID, anotherLocalAdd, "another-local-v1", HOSPITAL_PATH);
         when(overrides.findByTenantIdAndOrgPathInAndLifecycleStatusIn(
                 eq(TENANT_ID), anyCollection(), anyCollection()))
             .thenReturn(List.of(
                 override(TENANT_ID, localAdd, "local-v1", InheritanceOverrideMode.ADD, HOSPITAL_PATH),
+                override(TENANT_ID, anotherLocalAdd, "another-local-v1", InheritanceOverrideMode.ADD, HOSPITAL_PATH),
                 override("tenant-B", foreignAdd, "foreign-v1", InheritanceOverrideMode.ADD, HOSPITAL_PATH)));
         when(assetVersions.findByTenantIdAndAssetIdentityInAndStatusIn(
                 eq(TENANT_ID), anyCollection(), anyCollection()))
-            .thenReturn(List.of(local, foreign));
+            .thenReturn(List.of(local, anotherLocal, foreign));
         when(assetVersions.findByTenantIdAndAssetIdentityInAndStatusIn(
                 eq(PlatformAuthority.PLATFORM_TENANT_ID), anyCollection(), anyCollection()))
             .thenReturn(List.of(baseline));
@@ -171,10 +175,11 @@ class InheritanceResolverBatchTest {
             EFFECTIVE_AT));
 
         assertThat(resolved).extracting(BatchResolvedAsset::identity)
-            .containsExactly(declared, localAdd);
-        assertThat(resolved.get(1).added()).isTrue();
-        assertThat(resolved.get(1).resolution().version()).isEqualTo(local);
-        assertThat(resolved).noneMatch(item -> item.identity().equals(foreignAdd));
+            .containsExactly(declared);
+        assertThat(resolved).noneMatch(item ->
+            item.identity().equals(foreignAdd)
+                || item.identity().equals(localAdd)
+                || item.identity().equals(anotherLocalAdd));
     }
 
     private OrgUnit org(String id, String parentId, String path, OrgLevel level) {
@@ -241,7 +246,7 @@ class InheritanceResolverBatchTest {
             overrideVersionId,
             mode,
             InheritancePropagation.INHERITABLE,
-            InheritanceOverrideStatus.PUBLISHED,
+            InheritanceOverrideStatus.ACTIVE,
             orgPath,
             "ALL",
             "批量解析测试差异",

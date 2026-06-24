@@ -9,7 +9,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 医学回归评测逐用例不可变证据。
  *
- * <p>保存评测时的用例快照、模型真实输出、来源引用核验和红线裁决，供独立专家据证复核。
+ * <p>保存评测时的用例快照、模型真实输出、来源引用核验和红线裁决，供负责人核查。
  * 不保存 provider 凭据、提示词正文或患者身份数据。
  */
 @Table("mk_llm_eval_case_evidence")

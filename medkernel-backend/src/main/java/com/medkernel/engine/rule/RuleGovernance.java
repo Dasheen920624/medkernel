@@ -17,8 +17,6 @@ public record RuleGovernance(
     @Column("tenant_id") String tenantId,
     @Column("rule_version_id") String ruleVersionId,
     RuleGovernanceState state,
-    @Column("required_signoffs") int requiredSignoffs,
-    @Column("review_round") int reviewRound,
     @Column("author_id") String authorId,
     @Column("last_reason") String lastReason,
     @Column("created_at") Instant createdAt,
@@ -40,32 +38,6 @@ public record RuleGovernance(
             tenantId,
             ruleVersionId,
             target,
-            requiredSignoffs,
-            reviewRound,
-            authorId,
-            reason,
-            createdAt,
-            createdBy,
-            now,
-            actor,
-            currentTraceId,
-            lockVersion
-        );
-    }
-
-    RuleGovernance reject(
-            String reason,
-            Instant now,
-            String actor,
-            String currentTraceId) {
-        return new RuleGovernance(
-            id,
-            governanceId,
-            tenantId,
-            ruleVersionId,
-            RuleGovernanceState.DRAFT,
-            requiredSignoffs,
-            reviewRound + 1,
             authorId,
             reason,
             createdAt,

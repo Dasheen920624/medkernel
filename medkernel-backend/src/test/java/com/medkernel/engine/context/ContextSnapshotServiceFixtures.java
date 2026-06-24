@@ -17,7 +17,7 @@ public final class ContextSnapshotServiceFixtures {
     public static ContextSnapshotRequest sampleRequest() {
         return new ContextSnapshotRequest(
             null, null, null, null, null, null, null, null, null, null, List.of(),
-            "MPI-1", "ENC-1", "ORG-1", "pkg-1", validResources());
+            "MPI-1", "ENC-1", "ORG-1", validResources());
     }
 
     public static ContextSnapshotResources validResources() {
@@ -30,6 +30,7 @@ public final class ContextSnapshotServiceFixtures {
             Instant.now(), Instant.now(), QualityStatus.VALID);
         return new ContextSnapshotResources(patient,
             List.of(), List.of(enc), List.of(), List.of(), List.of(), List.of(),
-            List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            ContextSnapshotResources.emptyExtensions());
     }
 }

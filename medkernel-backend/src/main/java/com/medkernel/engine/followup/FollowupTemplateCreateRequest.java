@@ -5,7 +5,6 @@ import java.util.List;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -13,7 +12,6 @@ import jakarta.validation.constraints.Size;
  */
 public record FollowupTemplateCreateRequest(
     @NotBlank @Size(max = 128) String templateCode,
-    @Positive Integer versionNo,
     @NotBlank @Size(max = 200) String name,
     @Size(max = 1000) String description,
     @NotBlank @Size(max = 1000) String organizationScope,

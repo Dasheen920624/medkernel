@@ -7,7 +7,7 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 /**
- * 全真体验沙盘场景目录。只登记场景意图，不固化配置包版本或运行就绪状态。
+ * 全真体验沙盘场景目录。只登记场景意图，不固化机构生效版本或运行就绪状态。
  */
 @Component
 public class SandboxScenarioCatalog {
@@ -105,7 +105,7 @@ public class SandboxScenarioCatalog {
 
     private static SandboxScenario ruleScenario(
             String id,
-            String servicePackage,
+            String serviceLine,
             String triggerPoint,
             String ruleType,
             String title,
@@ -115,7 +115,7 @@ public class SandboxScenarioCatalog {
             String expectedAction,
             String expectedSeverity) {
         return new SandboxScenario(
-            id, servicePackage, "rule", triggerPoint, ruleType, title, patientId, encounterId,
+            id, serviceLine, "rule", triggerPoint, ruleType, title, patientId, encounterId,
             expectedRuleCode, expectedAction, expectedSeverity, "RULE_ONLY", null);
     }
 

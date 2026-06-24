@@ -34,7 +34,7 @@ class DeveloperConsoleControllerTest {
 
         mvc.perform(get("/api/v1/system/dev-console/api-contracts")
                 .with(jwt().jwt(token -> token.subject("doctor-1").claim("tenant_id", "t-1"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
             .andExpect(status().isForbidden());
     }
 
@@ -42,7 +42,7 @@ class DeveloperConsoleControllerTest {
     void apiContractDirectoryReturnsSanitizedServiceContracts() throws Exception {
         mvc.perform(get("/api/v1/system/dev-console/api-contracts")
                 .with(jwt().jwt(token -> token.subject("ops-1").claim("tenant_id", "t-1"))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR"))))
+                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.contracts[*].id", hasItem("runtime-operations")))
             .andExpect(jsonPath("$.data.contracts[*].id", hasItem("observability-diagnose")))
@@ -55,7 +55,7 @@ class DeveloperConsoleControllerTest {
                 hasItem("/v3/api-docs/medkernel-third-party-integration")))
             .andExpect(jsonPath(
                 "$.data.contracts[?(@.id == 'third-party-knowledge-runtime')].fieldContractUrl",
-                hasItem("/api/v1/engine/integration/data-contract?packageVersion={packageVersion}")))
+                hasItem("/api/v1/engine/integration/data-contract")))
             .andExpect(jsonPath("$.data.contracts[*].basePath", hasItem("/api/v1/system")))
             .andExpect(jsonPath("$.data.contracts[*].permissions[*].code", hasItem("system.read")))
             .andExpect(jsonPath("$.data.contracts[*].controllerClassName").doesNotExist())

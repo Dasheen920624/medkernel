@@ -1,6 +1,7 @@
 package com.medkernel.engine.llm.egress;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -41,6 +42,13 @@ class ModelEgressControllerSecurityTest {
           "sensitivityLevel": "HIGH"
         }
         """;
+    private static final String CONFIRMATION_BODY = """
+        {
+          "capabilityCode": "knowledge.extract",
+          "payloadHash": "hash-abc",
+          "purpose": "生成机构知识草稿"
+        }
+        """;
 
     @Test
     void clinicalUserCannotManageEgressWhitelist() throws Exception {
@@ -48,21 +56,21 @@ class ModelEgressControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(WHITELIST_BODY))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void integrationOperatorCanManageEgressWhitelist() throws Exception {
+    void engineOperatorCanManageEgressWhitelist() throws Exception {
         mockMvc.perform(put("/api/v1/model-egress/whitelist/knowledge.extract")
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(WHITELIST_BODY))
                 .andExpect(status().isOk());
@@ -74,23 +82,49 @@ class ModelEgressControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(WHITELIST_BODY))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void integrationOperatorCanManageDataMinimizationPolicy() throws Exception {
+    void engineOperatorCanManageDataMinimizationPolicy() throws Exception {
         mockMvc.perform(put("/api/v1/data-minimization/policies/model-egress/knowledge.extract")
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(WHITELIST_BODY))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void engineOperatorCanConfirmDesensitizedEgressPayload() throws Exception {
+        mockMvc.perform(post("/api/v1/model-egress/confirmations")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(CONFIRMATION_BODY))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void clinicalUserCannotConfirmDesensitizedEgressPayload() throws Exception {
+        mockMvc.perform(post("/api/v1/data-minimization/policies/model-egress/confirmations")
+                .with(jwt().jwt(token -> token
+                    .subject("test-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(CONFIRMATION_BODY))
+                .andExpect(status().isForbidden());
     }
 }

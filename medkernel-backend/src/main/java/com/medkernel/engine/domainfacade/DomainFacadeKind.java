@@ -5,5 +5,5 @@ package com.medkernel.engine.domainfacade;
  */
 public enum DomainFacadeKind {
     DOMAIN,
-    SERVICE_PACKAGE
+    SERVICE_COMBINATION
 }

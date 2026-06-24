@@ -54,7 +54,7 @@ public class PermissionEvaluator {
     }
 
     /**
-     * 当前线程的 Authentication 是否拥有某个五维权限目标。
+     * 当前线程的 Authentication 是否拥有某个权限目标。
      */
     public boolean can(PermissionDimension dimension, String target) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -68,7 +68,7 @@ public class PermissionEvaluator {
     }
 
     /**
-     * 指定 Authentication 是否拥有某个五维权限目标，供非当前线程场景复用。
+     * 指定 Authentication 是否拥有某个权限目标，供非当前线程场景复用。
      */
     public boolean can(Authentication auth,
                        PermissionDimension dimension,

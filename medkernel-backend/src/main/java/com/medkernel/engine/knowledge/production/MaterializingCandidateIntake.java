@@ -16,14 +16,16 @@ import com.medkernel.engine.knowledge.KnowledgeVersionService;
 import com.medkernel.engine.knowledge.ResolvedSource;
 import com.medkernel.engine.knowledge.ReviewAssignmentPlan;
 import com.medkernel.engine.knowledge.SourceReferenceResolver;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.RequestContext;
 
 /**
  * 候选真实物化实现（AIK-STD-13 PR4，替换 PR1 暂存桩）。
  *
  * <p>解析受控源 FK（{@link SourceReferenceResolver}）+ 目标知识身份（现有 / find-or-create 身份壳）→ 构造标准版本请求
- * → 经 {@link KnowledgeVersionService#classifyCandidate} 落版本/审核链 + 据 PR3 路由决策建会签分派；返回真实物化版本引用。
+ * → 经 {@link KnowledgeVersionService#classifyCandidate} 落版本/审核链并建立固定职责分派；返回真实物化版本引用。
  * 仅覆盖可解析受控源（discovery-origin），解析不出经 resolver 诚实拒收（铁律 #1）。
  */
 @Component
@@ -46,6 +48,12 @@ public class MaterializingCandidateIntake implements KnowledgeCandidateIntake {
     @Override
     public String intake(KnowledgeProductionJob job, KnowledgeAssetEnvelope candidate,
                          MaterializationTarget target, ReviewRoutingDecision routing) {
+        if (job.assetType() != VersionedAssetType.KNOWLEDGE
+                || candidate.assetType() != VersionedAssetType.KNOWLEDGE) {
+            throw new ApiException(
+                ErrorCode.BAD_REQUEST,
+                "知识候选物化器只接收知识候选，结构资产不得写入知识版本");
+        }
         target.validate();
         String tenantId = job.tenantId();
         String actor = RequestContext.currentUserId().orElse(null);
@@ -54,10 +62,10 @@ public class MaterializingCandidateIntake implements KnowledgeCandidateIntake {
         String versionNo = candidate.versionLabel() == null || candidate.versionLabel().isBlank()
             ? "kv-" + candidate.contentHash().substring(0, 12) : candidate.versionLabel();
 
-        // 服务端编排物化：合成标准 API-03 上下文（request 关联 id / 归口治理角色 / package=job 编码真实溯源）。
+        // 服务端编排物化：合成标准 API-03 上下文；生产任务溯源由候选和作业实体自身保存。
         KnowledgeVersionCreateRequest request = new KnowledgeVersionCreateRequest(
             "kpm:" + UUID.randomUUID(), RequestContext.currentTraceId(), tenantId, null, null, null, null,
-            null, null, actor, List.of(routing.ownerReviewerRole().code()), job.jobCode(), versionNo,
+            null, null, actor, List.of(routing.reviewerRole().code()), versionNo,
             candidate.versionLabel(), source.sourceDocumentId(), source.sourceVersionId(), candidate.payload(),
             source.anchorPath(), candidate.riskLevel(),
             candidate.gradeQuality() == null ? GradeEvidenceQuality.VERY_LOW : candidate.gradeQuality(),
@@ -85,18 +93,8 @@ public class MaterializingCandidateIntake implements KnowledgeCandidateIntake {
             });
     }
 
-    /**
-     * 据 PR3 路由建立实际签署席位。
-     *
-     * <p>LOW/MEDIUM 只需归口单签；HIGH 固定保留归口与领域两个席位。
-     * 两个角色相同时仍保留两个席位，由审核状态机强制不同人员完成。
-     */
+    /** 为候选建立唯一审核职责，不按风险派生额外签署席位。 */
     private ReviewAssignmentPlan assignmentPlan(ReviewRoutingDecision routing) {
-        if (!routing.requiresDualSign()) {
-            return new ReviewAssignmentPlan(List.of(routing.ownerReviewerRole().code()));
-        }
-        return new ReviewAssignmentPlan(List.of(
-            routing.ownerReviewerRole().code(),
-            routing.domainReviewerRole().code()));
+        return new ReviewAssignmentPlan(List.of(routing.reviewerRole().code()));
     }
 }

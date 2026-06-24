@@ -17,8 +17,8 @@ import jakarta.validation.constraints.Min;
  * @param cursor  上一页返回的游标；首次请求为空
  * @param size    每页条数，默认 50，最大 500；超过上限直接拒绝，禁止静默截断
  * @param offset  浅分页偏移量；深翻页应使用 cursor
- * @param sort    排序表达式，如 id,desc；字段必须由资源白名单校验
- * @param filters 过滤字段；字段必须由资源白名单校验
+ * @param sort    排序表达式，如 id,desc；字段必须由资源允许范围校验
+ * @param filters 过滤字段；字段必须由资源允许范围校验
  */
 public record PageQuery(
     String cursor,

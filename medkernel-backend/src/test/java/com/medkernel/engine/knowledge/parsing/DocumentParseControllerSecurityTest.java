@@ -69,7 +69,7 @@ class DocumentParseControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void clinicalUserCannotParse() throws Exception {
         mockMvc.perform(post("/api/v1/engine/knowledge/documents:parse")
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(BODY))
@@ -85,19 +85,19 @@ class DocumentParseControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanParse() throws Exception {
+    void engineOperatorCanParse() throws Exception {
         when(service.submit(any())).thenReturn(stubJob());
 
         mockMvc.perform(post("/api/v1/engine/knowledge/documents:parse")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(BODY))
             .andExpect(status().isOk());
     }
 
     @Test
-    void knowledgeGovernorCanUploadParseIntoTenantOverlayGeneration() throws Exception {
+    void engineOperatorCanUploadParseIntoTenantOverlayGeneration() throws Exception {
         when(service.submitTenantUpload(any(), any())).thenReturn(
             new DocumentParseResponse(stubJob(), new GenerationSummary(List.of(), List.of(), List.of())));
         MockMultipartFile file = new MockMultipartFile(
@@ -127,8 +127,8 @@ class DocumentParseControllerSecurityTest {
                 .param("versionNo", "v1")
                 .param("format", "STRUCTURED_TEXT")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .with(csrf()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.parseJob.jobCode").value("dpj:x"));
@@ -159,13 +159,13 @@ class DocumentParseControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanReparse() throws Exception {
+    void engineOperatorCanReparse() throws Exception {
         when(service.reparse("dpj:x")).thenReturn(stubJob());
 
         mockMvc.perform(post("/api/v1/engine/knowledge/documents/parse-jobs/dpj:x:reparse")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .with(csrf()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.jobCode").value("dpj:x"));
@@ -177,8 +177,8 @@ class DocumentParseControllerSecurityTest {
             + "\"fileName\":\"g.txt\",\"format\":\"STRUCTURED_TEXT\",\"content\":\"\"}";
         mockMvc.perform(post("/api/v1/engine/knowledge/documents:parse")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(invalid))
             .andExpect(status().isBadRequest());
     }
@@ -191,14 +191,14 @@ class DocumentParseControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanListJobs() throws Exception {
+    void engineOperatorCanListJobs() throws Exception {
         when(service.listJobs(anyInt(), anyInt()))
             .thenReturn(PageResponse.of(List.of(stubJob()), new PageRequest(2, 20, null), 41L));
 
         mockMvc.perform(get("/api/v1/engine/knowledge/documents/parse-jobs?page=2&size=20")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.items[0].jobCode").value("dpj:x"))
             .andExpect(jsonPath("$.data.page").value(2))
@@ -206,13 +206,13 @@ class DocumentParseControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanGetJob() throws Exception {
+    void engineOperatorCanGetJob() throws Exception {
         when(service.getJob(anyString())).thenReturn(stubJob());
 
         mockMvc.perform(get("/api/v1/engine/knowledge/documents/parse-jobs/dpj:x")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
             .andExpect(status().isOk());
     }
 
@@ -224,7 +224,7 @@ class DocumentParseControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanReadMaterial() throws Exception {
+    void engineOperatorCanReadMaterial() throws Exception {
         when(materialService.getMaterial(12L)).thenReturn(new DocumentMaterialResponse(
             12L,
             "file:///zoesoft/medkernel/platform-knowledge/t-1/literature-materials/tenant-1/a/doc.txt",
@@ -239,8 +239,8 @@ class DocumentParseControllerSecurityTest {
 
         mockMvc.perform(get("/api/v1/engine/knowledge/materials/12")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.id").value(12))
             .andExpect(jsonPath("$.data.storageBackend").value("LOCAL_FILE"))

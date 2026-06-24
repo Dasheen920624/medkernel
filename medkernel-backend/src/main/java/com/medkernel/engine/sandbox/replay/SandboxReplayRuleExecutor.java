@@ -2,14 +2,17 @@ package com.medkernel.engine.sandbox.replay;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
+import com.medkernel.engine.rule.RuleDslAssetMaterializer;
 import com.medkernel.engine.rule.RuleDslEvaluation;
 import com.medkernel.engine.rule.RuleDslEvaluator;
+import com.medkernel.engine.versioning.ResolvedDeclarativeAsset;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
@@ -31,6 +34,7 @@ public class SandboxReplayRuleExecutor {
             throw new ApiException(ErrorCode.BAD_REQUEST, "历史重放清单不能为空");
         }
         List<SandboxReplayRuleResult> results = new ArrayList<>();
+        RuleDslAssetMaterializer materializer = replayMaterializer(replay);
         for (SandboxReplayAssetBinding asset : replay.assets()) {
             if (asset.assetType() != VersionedAssetType.RULE) {
                 continue;
@@ -42,10 +46,14 @@ public class SandboxReplayRuleExecutor {
                     ErrorCode.ENG_RULE_001,
                     "历史规则 " + asset.assetIdentity() + " 缺少可执行 DSL");
             }
+            JsonNode materializedDsl = materializer.materialize(
+                replay.replayCase().sandboxTenantId(),
+                replay.replayCase().sourceRuntimeReleaseRef(),
+                dsl);
             JsonNode canonicalContext = replay.contextSnapshot().path("resources").isObject()
                 ? replay.contextSnapshot().path("resources")
                 : replay.contextSnapshot();
-            RuleDslEvaluation evaluation = evaluator.evaluate(dsl, canonicalContext);
+            RuleDslEvaluation evaluation = evaluator.evaluate(materializedDsl, canonicalContext);
             results.add(new SandboxReplayRuleResult(
                 text(content, "ruleCode", asset.assetIdentity()),
                 text(content, "name", asset.assetIdentity()),
@@ -54,6 +62,42 @@ public class SandboxReplayRuleExecutor {
                 evaluation.actions(), evaluation.explanation()));
         }
         return List.copyOf(results);
+    }
+
+    private RuleDslAssetMaterializer replayMaterializer(SandboxReplayResolvedCase replay) {
+        return new RuleDslAssetMaterializer(
+            json,
+            (tenantId, runtimeReleaseId, assetType, assetIdentity) ->
+                resolveReplayAsset(replay, tenantId, runtimeReleaseId, assetType, assetIdentity));
+    }
+
+    private Optional<ResolvedDeclarativeAsset> resolveReplayAsset(
+            SandboxReplayResolvedCase replay,
+            String tenantId,
+            String runtimeReleaseId,
+            VersionedAssetType assetType,
+            String assetIdentity) {
+        List<SandboxReplayAssetBinding> matches = replay.assets().stream()
+            .filter(asset -> asset.assetType() == assetType)
+            .filter(asset -> asset.assetIdentity().equals(assetIdentity))
+            .filter(asset -> asset.sandboxTenantId().equals(tenantId))
+            .toList();
+        if (matches.isEmpty()) {
+            return Optional.empty();
+        }
+        if (matches.size() > 1) {
+            throw new ApiException(
+                ErrorCode.CONFLICT,
+                "历史重放清单存在重复资产快照：" + assetType + ":" + assetIdentity);
+        }
+        SandboxReplayAssetBinding match = matches.get(0);
+        return Optional.of(new ResolvedDeclarativeAsset(
+            match.assetType(),
+            match.assetIdentity(),
+            match.assetVersion(),
+            runtimeReleaseId,
+            match.contentJson(),
+            match.contentHash()));
     }
 
     private JsonNode read(String content, String identity) {

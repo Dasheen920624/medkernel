@@ -47,7 +47,12 @@ public class DefaultFindingNormalizationPort implements FindingNormalizationPort
     }
 
     @Override
-    public Optional<String> normalize(String tenantId, CanonicalResourceType type, String localCode, String codeSystem) {
+    public Optional<String> normalize(
+            String tenantId,
+            String runtimeReleaseId,
+            CanonicalResourceType type,
+            String localCode,
+            String codeSystem) {
         if (localCode == null || localCode.isBlank()) {
             return Optional.empty();
         }
@@ -58,7 +63,9 @@ public class DefaultFindingNormalizationPort implements FindingNormalizationPort
         String sourceSystem = codeSystem == null ? "" : codeSystem.trim();
         List<String> standardSources = standardTermSources(tenantId);
         List<EffectiveTermMapping> confirmed = effectiveMappings.resolve(
-            tenantId, sourceSystem.isBlank() ? null : sourceSystem, localCode, targetDictionary, null);
+            tenantId, runtimeReleaseId,
+            sourceSystem.isBlank() ? null : sourceSystem,
+            localCode, targetDictionary, null);
         if (confirmed.size() == 1) {
             return Optional.ofNullable(confirmed.get(0).standardCode());
         }

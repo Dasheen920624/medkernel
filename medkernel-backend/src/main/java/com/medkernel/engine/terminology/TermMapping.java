@@ -11,7 +11,7 @@ import org.springframework.data.relational.core.mapping.Table;
  *
  * <p>租户隔离；同 (tenant_id, local_term_id, standard_term_id) 仅保留一条；
  * 状态字段 {@link TermMappingStatus} 反映生命周期（DRAFT/CONFIRMED/SUPERSEDED/ROLLED_BACK），
- * 仅 CONFIRMED 状态参与统一术语知识包构建。
+ * 仅 CONFIRMED 状态参与统一术语运行资产构建。
  */
 @Table("term_mapping")
 public record TermMapping(

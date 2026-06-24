@@ -23,7 +23,7 @@ import com.medkernel.shared.context.RequestContext;
 /**
  * 平台成员账号（凭证）管理服务：租户管理员开通成员、重置临时密码、启用/停用。
  *
- * <p>仅 dev/test profile（与平台登录一致）；内网 govcloud 走院方 IdP，不在此管理凭证。
+ * <p>全 profile 注册，用于平台托管账号；院方采用统一身份源时则由身份同步链维护用户主体。
  * 所有操作按当前请求租户隔离；成功走 {@code AuditRecorder}，失败走 {@code IsolatedAuditPublisher}。
  */
 @Service
@@ -142,6 +142,9 @@ public class CredentialAdminService {
         RoleCode role = RoleCode.fromCode(roleCode)
             .orElseThrow(() -> new ApiException(ErrorCode.BAD_REQUEST, "非法的系统角色编码: " + roleCode));
         SystemSuperAdminGuard.assertTenantManagedRole(role.code());
+        if (!role.customerAssignable()) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "该职责为系统内置职责，不允许租户分配: " + role.code());
+        }
         return role.code();
     }
 

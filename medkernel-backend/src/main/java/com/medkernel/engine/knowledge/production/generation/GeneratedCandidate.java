@@ -6,7 +6,7 @@ import com.medkernel.engine.versioning.VersionedAssetType;
 /**
  * 已生成并提交的候选结果（AIK-STD-04）。
  *
- * <p>承载资产类型 + 归属生产 job 编码 + intake 返回的候选引用 + PR3 会签路由决策，供调用方回溯与审核分派。
+ * <p>承载资产类型、生产 job、候选引用与审核归口，供调用方回溯。
  */
 public record GeneratedCandidate(
     VersionedAssetType assetType,

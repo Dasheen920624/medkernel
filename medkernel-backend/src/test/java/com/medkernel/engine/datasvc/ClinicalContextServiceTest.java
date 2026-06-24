@@ -23,7 +23,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 引擎数据服务层 · 临床上下文服务单元测试（DATASVC-01 PR2-d，D4 须绑临床 launch 令牌）。
+ * 引擎数据服务层 · 临床上下文服务单元测试（DATASVC-01 PR2-d，D4 须绑临床启动凭证）。
  *
  * <p>验证：有效令牌返回 D4 授权上下文且**患者引用经不可逆 hash 脱敏不泄漏原始患者字段**（视角 11 / FR-2）；
  * 令牌无效/过期/越租户＝诚实拒绝不返回临床数据；上游不可用诚实降级不以「未授权」伪装（FR-7/铁律 #1）。
@@ -48,7 +48,7 @@ class ClinicalContextServiceTest {
     }
 
     private EmbedLaunchToken token(String tenantId, String status, Instant expiredAt) {
-        return new EmbedLaunchToken(1L, "tok-1", tenantId, "user-9", "clinical-decision-user",
+        return new EmbedLaunchToken(1L, "tok-1", tenantId, "user-9", "clinical-user",
             "P-123456", "E-999", "order-sign", status, expiredAt,
             Instant.parse("2026-06-14T00:00:00Z"), "creator",
             Instant.parse("2026-06-14T00:00:00Z"), "editor", "trace-1",
@@ -65,7 +65,7 @@ class ClinicalContextServiceTest {
         assertThat(result.authorized()).isTrue();
         assertThat(result.dataLevel()).isEqualTo(EngineDataLevel.D4);
         assertThat(result.triggerPoint()).isEqualTo("order-sign");
-        assertThat(result.roleCode()).isEqualTo("clinical-decision-user");
+        assertThat(result.roleCode()).isEqualTo("clinical-user");
         assertThat(result.degraded()).isFalse();
         // 患者/就诊引用须脱敏：不得出现原始标识。
         assertThat(result.patientRef()).isNotBlank().doesNotContain("P-123456");

@@ -24,7 +24,6 @@ public record RuleGovernanceTransitionRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     @NotNull RuleGovernanceState targetState,
     @Size(max = 128) String impactDigest,
     @NotBlank @Size(max = 500) String reason,
@@ -47,13 +46,12 @@ public record RuleGovernanceTransitionRequest(
             String specialtyId,
             String userId,
             List<String> roleCodes,
-            String packageVersion,
             RuleGovernanceState targetState,
             String impactDigest,
             String reason) {
         this(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion,
+            departmentId, specialtyId, userId, roleCodes,
             targetState, impactDigest, reason, VersionPublishEvidence.empty()
         );
     }
@@ -70,14 +68,14 @@ public record RuleGovernanceTransitionRequest(
             String impactDigest,
             String reason,
             VersionPublishEvidence publishEvidence) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), null,
+        this(null, null, null, null, null, null, null, null, null, null, List.of(),
             targetState, impactDigest, reason, publishEvidence);
     }
 
     public RuleApiContext apiContext() {
         return new RuleApiContext(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }

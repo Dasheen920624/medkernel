@@ -8,7 +8,7 @@ import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 模型 provider 配置数据访问存储库（LLM-08）。
+ * 模型服务配置数据访问存储库（LLM-08）。
  */
 @Repository
 public interface ModelProviderConfigRepository extends CrudRepository<ModelProviderConfig, Long> {

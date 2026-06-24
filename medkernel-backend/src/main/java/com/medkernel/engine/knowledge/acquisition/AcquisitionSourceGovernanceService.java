@@ -17,40 +17,34 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
-import com.medkernel.shared.config.HighRiskChangeGuard;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.engine.knowledge.production.generation.GenerationItem;
 
 /**
- * AIK-STD-14 公域来源治理：知识治理员只登记待审批草稿，系统管理员经 MFA 独立审批后方可启用。
+ * AIK-STD-14 公域来源治理：运营员登记停用配置，技术校验通过后显式启用。
  *
- * <p>草稿更新一律撤销旧审批并停用，避免已批准域名、许可或调度参数被静默替换。停用保留历史审批人和
- * 时间作为审计证据，但关闭来源和调度；再次启用仍须重新审批。
+ * <p>配置更新一律停用来源，避免域名、许可或调度参数被静默替换；启用不要求第二操作人或 MFA，
+ * 但仍强制校验 HTTPS、公开域名、许可、robots 策略和生成计划，并保留完整审计记录。
  */
 @Service
 public class AcquisitionSourceGovernanceService {
 
     private static final Pattern SOURCE_CODE = Pattern.compile("[A-Z0-9][A-Z0-9._-]{1,127}");
     private static final Pattern HOST_LABEL = Pattern.compile("[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?");
-    private static final String RESOURCE_TYPE = "knowledge_acquisition_source";
-
     private final KnowledgeAcquisitionSourceRepository repository;
-    private final HighRiskChangeGuard highRiskGuard;
     private final AuditRecorder auditRecorder;
     private final ObjectMapper objectMapper;
 
     public AcquisitionSourceGovernanceService(KnowledgeAcquisitionSourceRepository repository,
-                                              HighRiskChangeGuard highRiskGuard,
                                               AuditRecorder auditRecorder,
                                               ObjectMapper objectMapper) {
         this.repository = repository;
-        this.highRiskGuard = highRiskGuard;
         this.auditRecorder = auditRecorder;
         this.objectMapper = objectMapper;
     }
 
-    /** 保存待审批草稿；无论请求或旧状态如何，返回值都保持停用且无审批。 */
+    /** 保存停用配置；任何配置变化都要求操作者重新显式启用。 */
     @Transactional
     public KnowledgeAcquisitionSource saveDraft(String sourceCode, AcquisitionSourceDraftRequest request) {
         String tenantId = requireCurrentTenant();
@@ -74,8 +68,6 @@ public class AcquisitionSourceGovernanceService {
             requireNonNull(request.licensePolicy(), "许可裁决"),
             requireNonNull(request.robotsPolicy(), "robots 策略"),
             "N",
-            null,
-            null,
             request.scheduleRequested() ? "Y" : "N",
             request.scheduleRequested() ? request.scheduleIntervalMinutes() : null,
             null,
@@ -89,60 +81,51 @@ public class AcquisitionSourceGovernanceService {
             existing.map(KnowledgeAcquisitionSource::version).orElse(null)));
         if (existing.isPresent()) {
             auditRecorder.record(AuditAction.UPDATE, "mk_knowledge_acquisition_source", code,
-                "更新公域来源并撤销旧审批 " + code);
+                "更新公域来源停用配置 " + code);
         } else {
             auditRecorder.record(AuditAction.CREATE, "mk_knowledge_acquisition_source", code,
-                "登记公域来源待审批草稿 " + code);
+                "登记公域来源停用配置 " + code);
         }
         return saved;
     }
 
-    /** 独立高权限审批并启用来源；审批人不得是最后编辑人。 */
+    /** 技术校验通过后由当前运营员显式启用来源。 */
     @Transactional
-    public KnowledgeAcquisitionSource approve(String sourceCode) {
+    public KnowledgeAcquisitionSource enable(String sourceCode) {
         String tenantId = requireCurrentTenant();
         String actor = requireCurrentActor();
         String code = normalizeSourceCode(sourceCode);
-        highRiskGuard.assertHighRiskAllowed(RESOURCE_TYPE, code);
         KnowledgeAcquisitionSource current = find(tenantId, code);
         if ("Y".equalsIgnoreCase(current.enabledFlag())) {
             return current;
         }
-        if (actor.equals(current.updatedBy())) {
-            throw ApiException.conflict("公域来源审批人与最后编辑人必须分离");
-        }
-        validateApprovable(current);
+        validateEnableable(current);
         Instant now = Instant.now();
         KnowledgeAcquisitionSource saved = repository.save(copyWithStatus(
             current,
             "Y",
             current.scheduleEnabledFlag(),
-            actor,
-            now,
             "Y".equals(current.scheduleEnabledFlag()) ? now : null,
             current.lastCheckAt(),
             actor,
             now));
-        auditRecorder.record(AuditAction.REVIEW, "mk_knowledge_acquisition_source", code,
-            "审批并启用公域来源 " + code);
+        auditRecorder.record(AuditAction.UPDATE, "mk_knowledge_acquisition_source", code,
+            "启用公域来源 " + code);
         return saved;
     }
 
-    /** 高权限停用来源和自动调度，保留历史审批证据。 */
+    /** 停用来源和自动调度。 */
     @Transactional
     public KnowledgeAcquisitionSource disable(String sourceCode) {
         String tenantId = requireCurrentTenant();
         String actor = requireCurrentActor();
         String code = normalizeSourceCode(sourceCode);
-        highRiskGuard.assertHighRiskAllowed(RESOURCE_TYPE, code);
         KnowledgeAcquisitionSource current = find(tenantId, code);
         Instant now = Instant.now();
         KnowledgeAcquisitionSource saved = repository.save(copyWithStatus(
             current,
             "N",
             "N",
-            current.approvedBy(),
-            current.approvedAt(),
             null,
             current.lastCheckAt(),
             actor,
@@ -183,17 +166,17 @@ public class AcquisitionSourceGovernanceService {
         return new ValidatedDraft(domain, canonicalBaseUri(baseUri));
     }
 
-    private void validateApprovable(KnowledgeAcquisitionSource source) {
+    private void validateEnableable(KnowledgeAcquisitionSource source) {
         validateDraft(new AcquisitionSourceDraftRequest(
             source.domain(), source.baseUrl(), source.sourceType(), source.authorityLevel(),
             source.authorityBasis(), source.title(), source.publisher(), source.license(),
             source.licensePolicy(), source.robotsPolicy(), "Y".equals(source.scheduleEnabledFlag()),
             source.scheduleIntervalMinutes(), source.defaultFormat(), null));
         if (source.licensePolicy() != AcquisitionLicensePolicy.PERMITTED) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "来源许可未确认允许，禁止审批启用");
+            throw new ApiException(ErrorCode.BAD_REQUEST, "来源许可未确认允许，禁止启用");
         }
         if (source.robotsPolicy() == null || !source.robotsPolicy().allowsFetch()) {
-            throw new ApiException(ErrorCode.BAD_REQUEST, "来源 robots 策略不允许抓取，禁止审批启用");
+            throw new ApiException(ErrorCode.BAD_REQUEST, "来源 robots 策略不允许抓取，禁止启用");
         }
         if ("Y".equals(source.scheduleEnabledFlag()) && source.generationPlanJson() != null) {
             validateGenerationPlan(deserializeGenerationPlan(source.generationPlanJson()));
@@ -230,8 +213,6 @@ public class AcquisitionSourceGovernanceService {
     private KnowledgeAcquisitionSource copyWithStatus(KnowledgeAcquisitionSource source,
                                                        String enabledFlag,
                                                        String scheduleEnabledFlag,
-                                                       String approvedBy,
-                                                       Instant approvedAt,
                                                        Instant nextCheckAt,
                                                        Instant lastCheckAt,
                                                        String updatedBy,
@@ -240,7 +221,7 @@ public class AcquisitionSourceGovernanceService {
             source.id(), source.tenantId(), source.sourceCode(), source.domain(), source.baseUrl(),
             source.sourceType(), source.authorityLevel(), source.authorityBasis(), source.title(),
             source.publisher(), source.license(), source.licensePolicy(), source.robotsPolicy(),
-            enabledFlag, approvedBy, approvedAt, scheduleEnabledFlag, source.scheduleIntervalMinutes(),
+            enabledFlag, scheduleEnabledFlag, source.scheduleIntervalMinutes(),
             nextCheckAt, lastCheckAt, source.defaultFormat(), source.generationPlanJson(),
             source.createdAt(), source.createdBy(), updatedAt, updatedBy, source.version());
     }

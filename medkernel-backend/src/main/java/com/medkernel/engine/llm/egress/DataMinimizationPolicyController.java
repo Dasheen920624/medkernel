@@ -15,7 +15,7 @@ import jakarta.validation.Valid;
 /**
  * OPT-09 数据最小化策略正式入口。
  *
- * <p>当前模型出域策略复用 LLM-03 的白名单、脱敏规则、审批阈值和证据账本；本控制器提供
+ * <p>当前模型外调策略复用统一的允许范围、脱敏规则、责任确认阈值和证据账本；本控制器提供
  * {@code /data-minimization/policies/*} 卡片契约入口，避免调用方绑定模型出域内部路径。
  */
 @RestController
@@ -41,12 +41,12 @@ public class DataMinimizationPolicyController {
     }
 
     /**
-     * 裁定一条模型高敏出域审批。
+     * 确认一条脱敏后高敏载荷的外调用途。
      */
-    @PostMapping("/model-egress/approvals")
+    @PostMapping("/model-egress/confirmations")
     @PreAuthorize("@perm.has('llm.egress.manage')")
-    public ApiResult<ModelEgressApproval> decideModelEgressApproval(
-            @Valid @RequestBody ModelEgressApprovalRequest request) {
-        return ApiResult.ok(service.decideApproval(request));
+    public ApiResult<ModelEgressConfirmation> confirmModelEgress(
+            @Valid @RequestBody ModelEgressConfirmationRequest request) {
+        return ApiResult.ok(service.confirmEgress(request));
     }
 }

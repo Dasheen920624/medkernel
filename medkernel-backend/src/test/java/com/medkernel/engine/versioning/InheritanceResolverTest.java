@@ -163,29 +163,29 @@ class InheritanceResolverTest {
     }
 
     @Test
-    void ignoresInReviewOverrideAndFallsBackToPublishedAncestor() {
+    void ignoresRetiredOverrideAndFallsBackToActiveAncestor() {
         OrgUnit group = org("group-1", null, GROUP_PATH, OrgLevel.REGION, "GROUP-A");
         OrgUnit hospital = org("hospital-a", "group-1", HOSP_PATH, OrgLevel.FACILITY, "HOSP-A");
         AssetVersion groupV1 = version("av-group-v1", "1.0.0", GROUP_PATH, AssetVersionSafetyPolicy.NORMAL);
-        AssetVersion pendingHospitalOverride =
-            version("av-hosp-pending", "1.0.0-hosp-review", HOSP_PATH, AssetVersionSafetyPolicy.NORMAL);
-        InheritanceOverride pendingRecord = override(
-            "io-hosp-review",
+        AssetVersion retiredHospitalOverride =
+            version("av-hosp-retired", "1.0.0-hosp-retired", HOSP_PATH, AssetVersionSafetyPolicy.NORMAL);
+        InheritanceOverride retiredRecord = override(
+            "io-hosp-retired",
             groupV1.versionId(),
-            pendingHospitalOverride.versionId(),
+            retiredHospitalOverride.versionId(),
             HOSP_PATH,
-            "给药剂量阈值待评审",
-            "药事会未完成",
+            "给药剂量阈值已退役",
+            "上游机构生效版本已替换",
             "HOSP-A",
             InheritancePropagation.INHERITABLE,
-            InheritanceOverrideStatus.IN_REVIEW
+            InheritanceOverrideStatus.RETIRED
         );
 
         when(hierarchy.findAncestorsAndSelf("tenant-A", hospital.id())).thenReturn(List.of(group, hospital));
-        stubActiveAt(HOSP_PATH, pendingHospitalOverride);
+        stubActiveAt(HOSP_PATH, retiredHospitalOverride);
         stubActiveAt(GROUP_PATH, groupV1);
-        when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", pendingHospitalOverride.versionId()))
-            .thenReturn(Optional.of(pendingRecord));
+        when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", retiredHospitalOverride.versionId()))
+            .thenReturn(Optional.of(retiredRecord));
         when(overrides.findByTenantIdAndOverrideVersionId("tenant-A", groupV1.versionId()))
             .thenReturn(Optional.empty());
 
@@ -271,10 +271,10 @@ class InheritanceResolverTest {
             hospitalAdd.versionId(),
             HOSP_PATH,
             "本院新增专有规则",
-            "本院首发需要本地宣教提醒",
+            "本院上线需要本地宣教提醒",
             "仅 HOSP-A 本级",
             InheritancePropagation.EXCLUSIVE,
-            InheritanceOverrideStatus.PUBLISHED,
+            InheritanceOverrideStatus.ACTIVE,
             InheritanceOverrideMode.ADD
         );
 
@@ -612,7 +612,7 @@ class InheritanceResolverTest {
         assertThat(resolved.overridden()).isFalse();
         assertThat(resolved.disabled()).isFalse();
         assertThat(resolved.sourceOrgPath()).isEqualTo(PlatformAuthority.PLATFORM_ORG_PATH);
-        assertThat(resolved.explanation().resolutionSummary()).contains("平台权威基线");
+        assertThat(resolved.explanation().resolutionSummary()).contains("平台标准版本");
         assertThat(resolved.explanation().inheritancePath())
             .containsExactly(PlatformAuthority.PLATFORM_ORG_PATH, GROUP_PATH, HOSP_PATH);
     }
@@ -656,7 +656,7 @@ class InheritanceResolverTest {
             .hasMessageContaining("未找到");
     }
 
-    // —— 解析矩阵（1.5）：模式(REPLACE/DISABLE) × 传播(INHERITABLE/EXCLUSIVE) × 组织层 × 平台基线 的交互组合，
+    // —— 解析矩阵（1.5）：模式(REPLACE/DISABLE) × 传播(INHERITABLE/EXCLUSIVE) × 组织层 × 平台标准版本 的交互组合，
     //    重点锁定 1.3 平台前置基线与 1.2 传播/停用判定的接缝，防止后续 P1 各域接入回归 ——
 
     @Test
@@ -679,7 +679,7 @@ class InheritanceResolverTest {
         ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
             "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", dept.id()));
 
-        // 祖先 EXCLUSIVE 覆盖不下沉到科室，集团无版本 → 前置回退平台权威基线
+        // 祖先 EXCLUSIVE 覆盖不下沉到科室，集团无版本 → 前置回退平台标准版本
         assertThat(resolved.version()).isEqualTo(platformV0);
         assertThat(resolved.sourceTier()).isEqualTo(SourceTier.PLATFORM);
         assertThat(resolved.inherited()).isTrue();
@@ -703,7 +703,7 @@ class InheritanceResolverTest {
         ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
             "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", dept.id()));
 
-        // 祖先 EXCLUSIVE 停用不下沉，科室不被停用 → 回退平台权威基线
+        // 祖先 EXCLUSIVE 停用不下沉，科室不被停用 → 回退平台标准版本
         assertThat(resolved.disabled()).isFalse();
         assertThat(resolved.version()).isEqualTo(platformV0);
         assertThat(resolved.sourceTier()).isEqualTo(SourceTier.PLATFORM);
@@ -728,7 +728,7 @@ class InheritanceResolverTest {
         ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
             "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", hospital.id()));
 
-        // 集团 INHERITABLE 覆盖下沉到医院，遮蔽平台基线（ORG 经继承优先于平台）
+        // 集团 INHERITABLE 覆盖下沉到医院，遮蔽平台标准版本（ORG 经继承优先于平台）
         assertThat(resolved.version()).isEqualTo(groupOverride);
         assertThat(resolved.sourceTier()).isEqualTo(SourceTier.ORG);
         assertThat(resolved.inherited()).isTrue();
@@ -750,7 +750,7 @@ class InheritanceResolverTest {
         ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
             "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", hospital.id()));
 
-        // 集团 INHERITABLE 停用下沉到医院，停用优先于回退平台基线（资产在该机构被关闭）
+        // 集团 INHERITABLE 停用下沉到医院，停用优先于回退平台标准版本（资产在该机构被关闭）
         assertThat(resolved.disabled()).isTrue();
         assertThat(resolved.version()).isNull();
         assertThat(resolved.inherited()).isTrue();
@@ -784,7 +784,7 @@ class InheritanceResolverTest {
         ResolvedAssetVersion resolved = resolver.resolve(new InheritanceResolveQuery(
             "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", "adult|inpatient", dept.id()));
 
-        // 最具体优先：科室回溯先命中医院 INHERITABLE 覆盖，集团与平台基线均被遮蔽
+        // 最具体优先：科室回溯先命中医院 INHERITABLE 覆盖，集团与平台标准版本均被遮蔽
         assertThat(resolved.version()).isEqualTo(hospitalOverride);
         assertThat(resolved.sourceTier()).isEqualTo(SourceTier.ORG);
         assertThat(resolved.inherited()).isTrue();
@@ -832,7 +832,7 @@ class InheritanceResolverTest {
         when(overrides.findByTenantIdAndAssetTypeAndAssetIdentityAndOrgPathAndApplicableScopeAndOverrideModeAndLifecycleStatus(
             "tenant-A", VersionedAssetType.TERMINOLOGY, assetIdentity, sitePath, applicableScope,
             InheritanceOverrideMode.DISABLE,
-            InheritanceOverrideStatus.PUBLISHED
+            InheritanceOverrideStatus.ACTIVE
         )).thenReturn(List.of(siteDisable));
 
         ResolvedAssetVersion atGroup = resolver.resolve(new InheritanceResolveQuery(
@@ -981,7 +981,7 @@ class InheritanceResolverTest {
             overrideVersionId,
             mode,
             propagation,
-            InheritanceOverrideStatus.PUBLISHED,
+            InheritanceOverrideStatus.ACTIVE,
             orgPath,
             applicableScope,
             "术语覆盖",
@@ -1079,7 +1079,7 @@ class InheritanceResolverTest {
         when(overrides.findByTenantIdAndAssetTypeAndAssetIdentityAndOrgPathAndApplicableScopeAndOverrideModeAndLifecycleStatus(
             "tenant-A", VersionedAssetType.RULE, "RULE.VTE.RISK", orgPath, "adult|inpatient",
             InheritanceOverrideMode.DISABLE,
-            InheritanceOverrideStatus.PUBLISHED
+            InheritanceOverrideStatus.ACTIVE
         )).thenReturn(List.of(disable));
     }
 
@@ -1096,7 +1096,7 @@ class InheritanceResolverTest {
             null,
             InheritanceOverrideMode.DISABLE,
             propagation,
-            InheritanceOverrideStatus.PUBLISHED,
+            InheritanceOverrideStatus.ACTIVE,
             orgPath,
             "adult|inpatient",
             "本机构停用该资产",
@@ -1228,7 +1228,7 @@ class InheritanceResolverTest {
             overrideReason,
             impactScope,
             propagation,
-            InheritanceOverrideStatus.PUBLISHED
+            InheritanceOverrideStatus.ACTIVE
         );
     }
 

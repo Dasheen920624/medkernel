@@ -134,18 +134,11 @@ export default function RuleValidate() {
   const handleEvaluate = async () => {
     try {
       if (!selectedSnapshotId) {
-        message.error("请先选择 ACTIVE 临床快照");
+        message.error("请先选择已生效临床快照");
         return;
       }
-      const packageVersion = snapshotDetailQuery.data?.packageVersion?.trim();
-      if (!packageVersion) {
-        message.error("所选临床快照缺少配置包版本，不能执行规则");
-        return;
-      }
-
       const res = await evaluateMutation.mutateAsync({
         triggerPoint,
-        packageVersion,
         contextSnapshotId: selectedSnapshotId,
       });
 
@@ -357,7 +350,7 @@ export default function RuleValidate() {
               </label>
               <Input
                 id="rule-patient-id"
-                placeholder="输入患者 ID 检索 ACTIVE 快照"
+                placeholder="输入患者 ID 检索已生效快照"
                 value={snapshotPatientId}
                 onChange={(e) => {
                   setSnapshotPatientId(e.target.value);
@@ -392,13 +385,13 @@ export default function RuleValidate() {
 
             {snapshotDetailQuery.data && (
               <Descriptions bordered size="small" column={1} className={styles.sectionGap}>
-                <Descriptions.Item label="配置包版本">
-                  {snapshotDetailQuery.data.packageVersion || "缺失"}
+                <Descriptions.Item label="机构生效版本">
+                  {snapshotDetailQuery.data.runtimeReleaseId || "由当前机构生效版本确认"}
                 </Descriptions.Item>
                 <Descriptions.Item label="质量状态">
                   {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
                 </Descriptions.Item>
-                <Descriptions.Item label="链路 TraceId">
+                <Descriptions.Item label="追踪号">
                   {snapshotDetailQuery.data.traceId || "未返回"}
                 </Descriptions.Item>
               </Descriptions>
@@ -468,10 +461,10 @@ export default function RuleValidate() {
               <div className={styles.resultPanel}>
                 <div className={styles.resultSummary}>
                   <Descriptions size="small" column={2} className={styles.flexGrow}>
-                    <Descriptions.Item label="链路 TraceId">
+                    <Descriptions.Item label="追踪号">
                       <span className={styles.codeText}>{evaluateResponse.traceId}</span>
                     </Descriptions.Item>
-                    <Descriptions.Item label="求值 RequestId">
+                    <Descriptions.Item label="评估请求号">
                       <span className={styles.codeText}>{evaluateResponse.requestId}</span>
                     </Descriptions.Item>
                     <Descriptions.Item label="最高严重警示">
@@ -590,16 +583,16 @@ export default function RuleValidate() {
               size="small"
               className={styles.sectionGapLg}
             >
-              <Descriptions.Item label="求值 Execution ID">
+              <Descriptions.Item label="评估执行号">
                 <span className={styles.codeText}>{explainData.executionId}</span>
               </Descriptions.Item>
-              <Descriptions.Item label="链路 追踪号">
+              <Descriptions.Item label="追踪号">
                 <span className={styles.codeText}>{explainData.traceId}</span>
               </Descriptions.Item>
               <Descriptions.Item label="触发点">
                 <span className={styles.codeText}>{explainData.triggerPoint}</span>
               </Descriptions.Item>
-              <Descriptions.Item label="输入 Payload 摘要 (SHA-256)">
+              <Descriptions.Item label="输入内容校验码">
                 <span className={styles.codeText}>{explainData.inputDigest}</span>
               </Descriptions.Item>
               <Descriptions.Item label="风险评级">

@@ -165,10 +165,10 @@ public class EvidenceController {
     }
 
     /**
-     * 下载证据包 NDJSON 文件。
+     * 下载证据导出 NDJSON 文件。
      *
      * @param archiveDigestHex 不含 {@code sm3:} 前缀的 64 位摘要
-     * @return 证据包文件字节
+     * @return 证据导出文件字节
      */
     @GetMapping("/snapshots/export/{archiveDigestHex}/download")
     @PreAuthorize("@perm.has('audit.export')")

@@ -109,7 +109,7 @@ class KnowledgeAssetSchemaValidatorTest {
     void validatesAcrossAssetTypesWithoutTypeSpecificCode() {
         for (VersionedAssetType type : List.of(
                 VersionedAssetType.KNOWLEDGE, VersionedAssetType.RULE,
-                VersionedAssetType.PATHWAY, VersionedAssetType.RECOMMENDATION)) {
+                VersionedAssetType.PATHWAY, VersionedAssetType.ACTION_CARD)) {
             assertThatCode(() -> validator.validate(valid().assetType(type).build()))
                 .as("类型 %s 应类型无关地通过", type)
                 .doesNotThrowAnyException();

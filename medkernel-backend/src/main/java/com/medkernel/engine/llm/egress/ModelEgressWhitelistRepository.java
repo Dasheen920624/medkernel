@@ -5,13 +5,13 @@ import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 出域字段白名单数据访问存储库（LLM-03）。
+ * 外调允许字段数据访问存储库（LLM-03）。
  */
 @Repository
 public interface ModelEgressWhitelistRepository extends CrudRepository<ModelEgressWhitelist, Long> {
 
     /**
-     * 按租户与能力码唯一检索出域白名单。
+     * 按机构与能力码唯一检索外调允许范围。
      */
     Optional<ModelEgressWhitelist> findByTenantIdAndCapabilityCode(String tenantId, String capabilityCode);
 }

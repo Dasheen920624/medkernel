@@ -1,6 +1,9 @@
 package com.medkernel.engine.authoring;
 
+import java.util.List;
+
 import com.fasterxml.jackson.databind.JsonNode;
+import com.medkernel.engine.versioning.AssetTriggerBindingInput;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -13,7 +16,7 @@ public record AuthoringBatchRuleGenerateRow(
     @NotBlank String ruleCode,
     @NotBlank String name,
     @NotNull JsonNode parameterBindings,
-    String packageVersion,
+    List<AssetTriggerBindingInput> triggers,
     String applicableOrgUnitId,
     String changeSummary
 ) {}

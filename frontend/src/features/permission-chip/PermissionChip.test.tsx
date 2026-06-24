@@ -9,7 +9,7 @@ const securityProfileState = vi.hoisted(() => ({
       userId: "auditor-01",
       roles: [
         {
-          code: "compliance-auditor",
+          code: "auditor",
           displayName: "合规审计",
           source: "ASSIGNMENT",
           scopeLevel: "DEPARTMENT",
@@ -64,7 +64,7 @@ vi.mock("@/shared/api/hooks", () => ({
 afterEach(() => {
   securityProfileState.value.data.roles = [
     {
-      code: "compliance-auditor",
+      code: "auditor",
       displayName: "合规审计",
       source: "ASSIGNMENT",
       scopeLevel: "DEPARTMENT",

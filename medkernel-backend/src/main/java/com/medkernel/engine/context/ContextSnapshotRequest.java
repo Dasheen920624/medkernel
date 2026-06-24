@@ -27,7 +27,6 @@ public record ContextSnapshotRequest(
     @NotBlank String patientId,
     String encounterId,
     @NotBlank String orgUnitId,
-    @NotBlank @JsonProperty("package_version") String packageVersion,
     @NotNull @Valid ContextSnapshotResources resources
 ) {
 
@@ -46,17 +45,15 @@ public record ContextSnapshotRequest(
             String patientId,
             String encounterId,
             String orgUnitId,
-            String packageVersion,
             ContextSnapshotResources resources) {
         this(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
             departmentId, null, specialtyId, userId, roleCodes, patientId,
-            encounterId, orgUnitId, packageVersion, resources);
+            encounterId, orgUnitId, resources);
     }
 
     public ContextSnapshotRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
-        packageVersion = packageVersion == null ? null : packageVersion.trim();
     }
 
     public String effectiveIdempotencyKey(String headerIdempotencyKey) {

@@ -4,7 +4,7 @@ import java.net.URI;
 import java.time.Instant;
 
 /**
- * 已抓取公域资料原文字节。调用方负责先完成白名单和部署形态门禁。
+ * 已抓取公域资料原文字节。调用方负责先完成来源允许清单和部署形态门禁。
  */
 public record FetchedWebContent(
     URI effectiveUri,

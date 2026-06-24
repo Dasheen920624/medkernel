@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 /**
  * X-DOMAIN 领域门面 B0 fixture 证据服务。
  *
- * <p>只验证门面是否复用已有确定性引擎入口、服务包成员是否可解析，以及缺真实资产时是否诚实空态；
+ * <p>只验证门面是否复用已有确定性引擎入口、业务组合成员是否可解析，以及缺真实资产时是否诚实空态；
  * 不生成、不内置任何真实医学内容。
  */
 @Service
@@ -129,10 +129,10 @@ public class DomainFacadeB0FixtureService {
             "com.medkernel.engine.followup.FollowupEngineService",
             "/api/v1/engine/followup/plans/generate",
             "复用随访计划生成和任务调度入口"));
-        fixtures.put(DomainFacadeEngine.PACKAGE, fixture(
-            "com.medkernel.engine.pkg.PackageEngineService",
-            "/api/v1/engine/pkg/packages",
-            "复用知识包发布与服务包交付入口"));
+        fixtures.put(DomainFacadeEngine.RELEASE, fixture(
+            "com.medkernel.engine.release.PlatformBaselineService",
+            "/api/v1/engine/releases/platform-baselines",
+            "复用平台标准版本与机构生效版本发布入口"));
         fixtures.put(DomainFacadeEngine.INTEGRATION, fixture(
             "com.medkernel.engine.integration.service.IntegrationService",
             "/api/v1/engine/integration/adapters",
@@ -144,7 +144,7 @@ public class DomainFacadeB0FixtureService {
         fixtures.put(DomainFacadeEngine.SAFETY, fixture(
             "com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService",
             "/api/v1/engine/knowledge-production/jobs/{jobCode}/candidates",
-            "复用红线/门禁/高危审核候选安全入口"));
+            "复用红线、生产安全校验和高危审核候选安全入口"));
         fixtures.put(DomainFacadeEngine.ORGANIZATION, fixture(
             "com.medkernel.engine.org.OrgUnitService",
             "/api/v1/engine/org/org-units",

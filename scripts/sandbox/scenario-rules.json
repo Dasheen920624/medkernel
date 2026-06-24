@@ -22,7 +22,7 @@
       "sourceRef": "国家卫生健康委医疗质量安全核心制度要点；阈值由演练机构危急值目录配置",
       "changeSummary": "建立演练机构血钾危急值回报闭环，强提醒且不自动开立或修改医嘱",
       "institution": {
-        "tenantId": "pilot-hospital",
+        "tenantId": "t-rehearsal",
         "scope": "SANDBOX_INSTITUTION",
         "customRule": true
       },
@@ -173,7 +173,7 @@
       "sourceRef": "DailyMed 华法林钠片监管标签：合并影响止血药物时应加强出血与 INR 监测",
       "changeSummary": "建立演练机构抗凝与抗血小板联用强提醒，不自动停药、换药或改量",
       "institution": {
-        "tenantId": "pilot-hospital",
+        "tenantId": "t-rehearsal",
         "scope": "SANDBOX_INSTITUTION",
         "customRule": true
       },
@@ -330,7 +330,7 @@
       "sourceRef": "ACR Manual on Contrast Media；eGFR 边界与处置路径由演练机构配置",
       "changeSummary": "建立造影前肾功能高风险核查与 override 演练，不自动取消检查或阻断真实 HIS 流程",
       "institution": {
-        "tenantId": "pilot-hospital",
+        "tenantId": "t-rehearsal",
         "scope": "SANDBOX_INSTITUTION",
         "customRule": true
       },
@@ -504,7 +504,7 @@
       "sourceRef": "2023 ESC 急性冠脉综合征指南；肌钙蛋白判定使用本地检测方法参考上限",
       "changeSummary": "建立胸痛与肌钙蛋白异常组合提醒，不自动诊断 ACS、不自动开立检查或治疗",
       "institution": {
-        "tenantId": "pilot-hospital",
+        "tenantId": "t-rehearsal",
         "scope": "SANDBOX_INSTITUTION",
         "customRule": true
       },
@@ -666,7 +666,7 @@
       "sourceRef": "国家卫生健康委医疗质量安全核心制度要点；危急影像分类由演练机构目录维护",
       "changeSummary": "建立已签发危急影像报告回报确认演练，不修改报告、不自动开立后续医嘱",
       "institution": {
-        "tenantId": "pilot-hospital",
+        "tenantId": "t-rehearsal",
         "scope": "SANDBOX_INSTITUTION",
         "customRule": true
       },
@@ -810,7 +810,7 @@
       "sourceRef": "WHO Medication Safety in Transitions of Care",
       "changeSummary": "建立出院签署时随访计划缺失提醒，不自动生成处方、随访任务或临床结论",
       "institution": {
-        "tenantId": "pilot-hospital",
+        "tenantId": "t-rehearsal",
         "scope": "SANDBOX_INSTITUTION",
         "customRule": true
       },
@@ -959,7 +959,7 @@
       "sourceRef": "DailyMed 华法林钠片监管标签：剂量按患者 INR 与适应证调整并持续监测",
       "changeSummary": "建立随访异常与 INR 异常组合强提醒，不自动调整华法林剂量或安排真实回院",
       "institution": {
-        "tenantId": "pilot-hospital",
+        "tenantId": "t-rehearsal",
         "scope": "SANDBOX_INSTITUTION",
         "customRule": true
       },
@@ -1122,7 +1122,7 @@
       "sourceRef": "医保办发〔2024〕9号 DRG/DIP 2.0 版分组方案",
       "changeSummary": "建立医保分组事实存在但支付字段缺失的信息提示，不自动拒付、不影响医嘱",
       "institution": {
-        "tenantId": "pilot-hospital",
+        "tenantId": "t-rehearsal",
         "scope": "SANDBOX_INSTITUTION",
         "customRule": true
       },
@@ -1247,7 +1247,7 @@
       "sourceRef": "医疗质量管理办法及解读；病历签署要求由机构制度细化",
       "changeSummary": "建立出院小结存在但未签署的质控提醒，不自动补写、签署或修改病历",
       "institution": {
-        "tenantId": "pilot-hospital",
+        "tenantId": "t-rehearsal",
         "scope": "SANDBOX_INSTITUTION",
         "customRule": true
       },
@@ -1385,7 +1385,7 @@
       "sourceRef": "病历书写基本规范（试行）；机构可扩展必填数据元清单",
       "changeSummary": "建立有就诊记录但患者出生日期缺失的信息提示，不自动补值或修改病历",
       "institution": {
-        "tenantId": "pilot-hospital",
+        "tenantId": "t-rehearsal",
         "scope": "SANDBOX_INSTITUTION",
         "customRule": true
       },

@@ -38,10 +38,13 @@ class SecurityMeControllerTest {
     PasswordEncoder passwordEncoder;
 
     @AfterEach
-    void clearAssignmentsAndOverrides() {
-        jdbcTemplate.update("DELETE FROM emergency_permission_grant");
+    void clearAssignments() {
         jdbcTemplate.update("DELETE FROM user_role_assignment");
-        jdbcTemplate.update("DELETE FROM role_permission");
+        jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = 'false', updated_by = 'test-cleanup'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, "medkernel.auth.mfa.enabled");
         credentialRepository.findByTenantIdAndUserId("t-1", "platform-owner")
             .ifPresent(credentialRepository::delete);
     }
@@ -54,12 +57,12 @@ class SecurityMeControllerTest {
                     .claim("tenant_id", "t-1")
                     .claim("hospital_id", "h-1")
                     .claim("department_id", "d-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority(RoleCode.CLINICAL_DECISION_USER.authority()))))
+                    .claim("roles", List.of(RoleCode.CLINICAL_USER.code())))
+                    .authorities(new SimpleGrantedAuthority(RoleCode.CLINICAL_USER.authority()))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.userId").value("doctor-1"))
             .andExpect(jsonPath("$.data.username").value("doctor-1"))
-            .andExpect(jsonPath("$.data.roles[*].code", hasItem(RoleCode.CLINICAL_DECISION_USER.code())))
+            .andExpect(jsonPath("$.data.roles[*].code", hasItem(RoleCode.CLINICAL_USER.code())))
             .andExpect(jsonPath("$.data.permissions[*].code", hasItem(PermissionCode.RECOMMENDATION_READ.code())))
             .andExpect(jsonPath("$.data.permissions[*].dimension", hasItem(PermissionDimension.ACTION.name())))
             .andExpect(jsonPath("$.data.permissions[*].dimension", hasItem(PermissionDimension.MENU.name())))
@@ -89,45 +92,79 @@ class SecurityMeControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("platform-owner")
                     .claim("tenant_id", "t-1")
-                    .claim("roles", List.of(RoleCode.PLATFORM_GOVERNANCE_ADMIN.code())))
-                    .authorities(new SimpleGrantedAuthority(RoleCode.PLATFORM_GOVERNANCE_ADMIN.authority()))))
+                    .claim("roles", List.of(RoleCode.PLATFORM_ADMIN.code())))
+                    .authorities(new SimpleGrantedAuthority(RoleCode.PLATFORM_ADMIN.authority()))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.userId").value("platform-owner"))
             .andExpect(jsonPath("$.data.username").value("platform-owner"))
             .andExpect(jsonPath("$.data.mustChangePwd").value(true))
-            .andExpect(jsonPath("$.data.mfaRequired").value(true))
-            .andExpect(jsonPath("$.data.mfaBound").value(false));
+            .andExpect(jsonPath("$.data.mfaRequired").value(false))
+            .andExpect(jsonPath("$.data.mfaBound").value(false))
+            .andExpect(jsonPath("$.data.mfaVerified").value(false));
     }
 
     @Test
-    void currentUserAppliesScopedAssignmentAndExplicitDenyFromDatabase() throws Exception {
+    void currentUserReportsWhetherTheCurrentSessionCompletedMfa() throws Exception {
+        upsertMfaEnabled(true);
+
+        mvc.perform(get("/api/v1/security/me")
+                .with(jwt().jwt(token -> token
+                    .subject("doctor-1")
+                    .claim("tenant_id", "t-1")
+                    .claim("roles", List.of(RoleCode.CLINICAL_USER.code()))
+                    .claim("mfa_verified", false))
+                    .authorities(new SimpleGrantedAuthority(RoleCode.CLINICAL_USER.authority()))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.mfaRequired").value(true))
+            .andExpect(jsonPath("$.data.mfaVerified").value(false));
+    }
+
+    private void upsertMfaEnabled(boolean enabled) {
+        int updated = jdbcTemplate.update("""
+            UPDATE mk_config_item
+               SET config_value = ?, updated_by = 'test'
+             WHERE tenant_id = 'SYSTEM' AND config_key = ?
+            """, Boolean.toString(enabled), "medkernel.auth.mfa.enabled");
+        if (updated > 0) {
+            return;
+        }
+        jdbcTemplate.update("""
+            INSERT INTO mk_config_item (
+                config_id, tenant_id, config_key, config_value, value_type, display_name,
+                risk_level, owner, description, source, protected_flag, active_flag,
+                version, created_at, created_by, updated_at, updated_by
+            ) VALUES (
+                'cfg-test-mfa-enabled', 'SYSTEM', ?, ?, 'BOOLEAN', '登录 MFA',
+                'HIGH', '安全组', '测试 MFA 运行策略。', 'YML_SEED', 'Y', 'Y',
+                1, CURRENT_TIMESTAMP, 'test', CURRENT_TIMESTAMP, 'test'
+            )
+            """, "medkernel.auth.mfa.enabled", Boolean.toString(enabled));
+    }
+
+    @Test
+    void currentUserAppliesScopedAssignmentWithoutAllowingTenantPermissionRewrite() throws Exception {
         jdbcTemplate.update("""
             INSERT INTO user_role_assignment
                 (tenant_id, user_id, role_code, scope_level, scope_code)
             VALUES (?, ?, ?, ?, ?)
-            """, "t-1", "doctor-1", RoleCode.QUALITY_GOVERNOR.code(), "DEPARTMENT", "d-1");
-        jdbcTemplate.update("""
-            INSERT INTO role_permission
-                (tenant_id, role_code, permission_code, effect)
-            VALUES (?, ?, ?, ?)
-            """, "t-1", RoleCode.CLINICAL_DECISION_USER.code(), PermissionCode.RECOMMENDATION_ACCEPT.code(), "DENY");
+            """, "t-1", "doctor-1", RoleCode.ENGINE_OPERATOR.code(), "DEPARTMENT", "d-1");
 
         mvc.perform(get("/api/v1/security/me")
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "t-1")
                     .claim("department_id", "d-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority(RoleCode.CLINICAL_DECISION_USER.authority()))))
+                    .claim("roles", List.of(RoleCode.CLINICAL_USER.code())))
+                    .authorities(new SimpleGrantedAuthority(RoleCode.CLINICAL_USER.authority()))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.roles[*].code", hasItem(RoleCode.QUALITY_GOVERNOR.code())))
+            .andExpect(jsonPath("$.data.roles[*].code", hasItem(RoleCode.ENGINE_OPERATOR.code())))
             .andExpect(jsonPath("$.data.permissions[*].code", hasItem(PermissionCode.EVALUATION_PUBLISH.code())))
             .andExpect(jsonPath("$.data.permissions[*].code",
-                not(hasItem(PermissionCode.RECOMMENDATION_ACCEPT.code()))));
+                hasItem(PermissionCode.RECOMMENDATION_ACCEPT.code())));
     }
 
     @Test
-    void currentUserReceivesActiveEmergencyGrantInPermissionProfile() throws Exception {
+    void ordinaryUserCannotAcquireEmergencyPermissionFromDatabaseGrant() throws Exception {
         jdbcTemplate.update("""
             INSERT INTO emergency_permission_grant
                 (tenant_id, user_id, permission_code, reason, granted_by, granted_at,
@@ -147,11 +184,11 @@ class SecurityMeControllerTest {
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
                     .claim("tenant_id", "t-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority(RoleCode.CLINICAL_DECISION_USER.authority()))))
+                    .claim("roles", List.of(RoleCode.CLINICAL_USER.code())))
+                    .authorities(new SimpleGrantedAuthority(RoleCode.CLINICAL_USER.authority()))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.permissions[*].code", hasItem(PermissionCode.ENV_EMERGENCY.code())))
-            .andExpect(jsonPath("$.data.environmentKeys", hasItem("emergency")));
+            .andExpect(jsonPath("$.data.permissions[*].code", not(hasItem(PermissionCode.ENV_EMERGENCY.code()))))
+            .andExpect(jsonPath("$.data.environmentKeys", not(hasItem("emergency"))));
     }
 
     @Test
@@ -159,8 +196,8 @@ class SecurityMeControllerTest {
         mvc.perform(get("/api/v1/security/me")
                 .with(jwt().jwt(token -> token
                     .subject("doctor-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority(RoleCode.CLINICAL_DECISION_USER.authority()))))
+                    .claim("roles", List.of(RoleCode.CLINICAL_USER.code())))
+                    .authorities(new SimpleGrantedAuthority(RoleCode.CLINICAL_USER.authority()))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }

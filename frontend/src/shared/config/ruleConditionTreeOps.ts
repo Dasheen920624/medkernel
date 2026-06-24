@@ -34,7 +34,6 @@ export function createConditionLeaf(partial: Partial<RuleCondition> = {}): RuleC
     valueKind: partial.valueKind ?? "string",
   };
   if (partial.expr) leaf.expr = partial.expr;
-  if (partial.fragment) leaf.fragment = partial.fragment;
   return leaf;
 }
 
@@ -112,7 +111,6 @@ export function rootDepth(node: RuleConditionNode): number {
 /** 是否存在未解析字段（空或仍含模板占位符）。 */
 export function rootHasUnresolvedFact(node: RuleConditionNode): boolean {
   if (!isConditionGroup(node)) {
-    if (node.fragment) return false;
     const fact = (node.expr?.field ?? node.fact).trim();
     return fact.length === 0 || fact.includes("<字段路径>");
   }

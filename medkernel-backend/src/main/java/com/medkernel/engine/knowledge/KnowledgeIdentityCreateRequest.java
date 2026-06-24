@@ -23,7 +23,6 @@ public record KnowledgeIdentityCreateRequest(
     @JsonProperty("specialty_id") String contextSpecialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
     @NotBlank @Size(max = 43) String identitySlug,
     @NotNull KnowledgeDomain domain,
     @NotBlank String subject,
@@ -38,7 +37,7 @@ public record KnowledgeIdentityCreateRequest(
     public KnowledgeApiContext context() {
         return KnowledgeApiContext.from(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, contextSpecialtyId, userId, roleCodes, packageVersion
+            departmentId, contextSpecialtyId, userId, roleCodes
         );
     }
 }

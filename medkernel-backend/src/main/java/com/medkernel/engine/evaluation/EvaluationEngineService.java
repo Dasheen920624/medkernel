@@ -23,12 +23,14 @@ import com.medkernel.engine.context.CanonicalResource;
 import com.medkernel.engine.context.CanonicalResourceRepository;
 import com.medkernel.engine.context.ContextSnapshot;
 import com.medkernel.engine.context.ContextSnapshotRepository;
+import com.medkernel.engine.evaluation.runtime.RuntimeReleaseEvaluationSelector;
 import com.medkernel.engine.org.OrgAssignmentValidator;
 import com.medkernel.engine.rule.RuleDslEvaluation;
 import com.medkernel.engine.rule.RuleDslEvaluator;
-import com.medkernel.engine.security.AuthenticatedRoleGuard;
-import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.security.AuthenticatedPermissionGuard;
+import com.medkernel.engine.security.PermissionCode;
 import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionNumbers;
 import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
 import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.ReleasePort;
@@ -47,6 +49,7 @@ import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponse;
 import com.medkernel.shared.observability.DiagnoseResponseAssembler;
 import com.medkernel.shared.observability.StateTransitionRecorder;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -89,6 +92,7 @@ public class EvaluationEngineService {
     private final AssetVersionRepository assetVersions;
     private final ReleasePort releasePort;
     private final OrgAssignmentValidator assignments;
+    private final RuntimeReleaseEvaluationSelector runtimeEvaluations;
 
     /**
      * 注入评估质控闭环所需仓库、审计发布器、状态记录器与诊断装配器。
@@ -111,7 +115,8 @@ public class EvaluationEngineService {
             EvaluationVersionedAssetAdapter versionedAssets,
             AssetVersionRepository assetVersions,
             ReleasePort releasePort,
-            OrgAssignmentValidator assignments) {
+            OrgAssignmentValidator assignments,
+            RuntimeReleaseEvaluationSelector runtimeEvaluations) {
         this.indicators = indicators;
         this.runs = runs;
         this.results = results;
@@ -130,40 +135,56 @@ public class EvaluationEngineService {
         this.assetVersions = assetVersions;
         this.releasePort = releasePort;
         this.assignments = assignments;
+        this.runtimeEvaluations = runtimeEvaluations;
     }
 
     /**
      * 创建评估指标草稿版本。
      *
-     * <p>前置：请求必须包含指标编码、版本号、名称、对象类型、分母、分子、时间窗、组织范围、
+     * <p>前置：请求必须包含指标编码、名称、对象类型、分母、分子、时间窗、组织范围、
      * 责任科室和来源引用；失败抛出 {@code ENG-EVAL-001}。
      */
     @Transactional
     public EvaluationIndicator createIndicator(EvaluationIndicatorCreateRequest request) {
         validateIndicator(request);
         assignments.requireActiveDepartment(request.responsibleDepartmentId());
+        String tenantId = tenantId();
+        int versionNo = indicators.findTopByTenantIdAndIndicatorCodeOrderByVersionNoDesc(
+                tenantId, request.indicatorCode()
+            )
+            .map(EvaluationIndicator::versionNo)
+            .orElse(0) + 1;
         Instant now = Instant.now();
         String indicatorId = "ei-" + UUID.randomUUID();
-        EvaluationIndicator indicator = indicators.save(new EvaluationIndicator(
-            null, indicatorId, tenantId(), request.indicatorCode(), request.versionNo(), request.name(),
-            request.subjectType(), request.denominatorDefinition(), request.numeratorDefinition(),
-            request.exclusionDefinition(), request.scoringDefinition(), request.timeWindow(),
-            request.organizationScope(), request.responsibleDepartmentId(), request.sourceRef(),
-            request.packageVersion(), EvaluationIndicatorStatus.DRAFT, null, null, null,
-            now, actor(), now, actor(), traceId()));
-        versionedAssets.registerDraft(new AssetVersionRegisterCommand(
-            indicator.tenantId(),
-            VersionedAssetType.EVALUATION,
-            indicator.indicatorCode(),
-            String.valueOf(indicator.versionNo()),
-            versionOrganizationScope(indicator),
-            evaluationApplicableScope(indicator),
-            indicatorContent(indicator),
-            null,
-            indicator.sourceRef(),
-            actor(),
-            traceId()
-        ));
+        EvaluationIndicator indicator;
+        try {
+            indicator = indicators.save(new EvaluationIndicator(
+                null, indicatorId, tenantId, request.indicatorCode(), versionNo, request.name(),
+                request.subjectType(), request.denominatorDefinition(), request.numeratorDefinition(),
+                request.exclusionDefinition(), request.scoringDefinition(), request.timeWindow(),
+                request.organizationScope(), request.responsibleDepartmentId(), request.sourceRef(),
+                EvaluationIndicatorStatus.DRAFT, null, null, null,
+                now, actor(), now, actor(), traceId()));
+            versionedAssets.registerDraft(new AssetVersionRegisterCommand(
+                indicator.tenantId(),
+                VersionedAssetType.EVALUATION,
+                indicator.indicatorCode(),
+                versionOrganizationScope(indicator),
+                evaluationApplicableScope(indicator),
+                indicatorContent(indicator),
+                null,
+                indicator.sourceRef(),
+                actor(),
+                traceId()
+            ));
+        } catch (DuplicateKeyException exception) {
+            throw new ApiException(
+                ErrorCode.CONFLICT,
+                "评估指标版本并发创建冲突，请刷新后重试: "
+                    + request.indicatorCode() + "@" + versionNo,
+                exception
+            );
+        }
         transitions.record(INDICATOR_ENTITY, indicatorId, null, EvaluationIndicatorStatus.DRAFT.name(),
             "创建评估指标草稿", null);
         auditRecorder.record(AuditAction.CREATE, INDICATOR_ENTITY, indicatorId,
@@ -288,9 +309,8 @@ public class EvaluationEngineService {
                 && indicator.status() != EvaluationIndicatorStatus.GRAY) {
             throw new ApiException(ErrorCode.ENG_EVAL_003);
         }
-        if (!AuthenticatedRoleGuard.has(RoleCode.QUALITY_GOVERNOR)
-                && !AuthenticatedRoleGuard.has(RoleCode.ORGANIZATION_ADMIN)) {
-            throw new ApiException(ErrorCode.FORBIDDEN, "评估指标全量激活仅质量治理员或机构管理员可执行");
+        if (!AuthenticatedPermissionGuard.has(PermissionCode.EVALUATION_PUBLISH)) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "评估指标全量激活需要 evaluation.publish 权限");
         }
         releasePort.publish(releaseCommand(
             indicator,
@@ -380,15 +400,15 @@ public class EvaluationEngineService {
         contextJson.set("followUps", followUps);
         contextJson.set("claims", claims);
 
-        // 3. 加载当前租户下所有活跃（ACTIVE）的指标库
+        // 3. 从当前机构生效版本加载本次可执行的指标库
         List<EvaluationIndicator> activeIndicators = new ArrayList<>(
-            indicators.findByTenantIdAndStatus(tenantId, EvaluationIndicatorStatus.ACTIVE));
+            runtimeEvaluations.select(tenantId, snapshot.runtimeReleaseId()));
         activeIndicators.sort(Comparator
             .comparing(EvaluationIndicator::indicatorCode)
             .thenComparingInt(EvaluationIndicator::versionNo)
             .thenComparing(EvaluationIndicator::indicatorId));
         if (activeIndicators.isEmpty()) {
-            throw new ApiException(ErrorCode.ENG_EVAL_004, "当前租户无生效（ACTIVE）状态的质控评估指标，无法执行扫描");
+            throw new ApiException(ErrorCode.ENG_EVAL_004, "当前机构生效版本未包含生效质控评估指标，无法执行扫描");
         }
 
         String inputDigest = automaticEvaluationInputDigest(request, snapshot, resourceList, activeIndicators);
@@ -517,7 +537,7 @@ public class EvaluationEngineService {
             snapshot.patientId(),
             snapshot.encounterId(),
             request.scenarioCode(),
-            request.packageVersion() == null ? snapshot.packageVersion() : request.packageVersion(),
+            null,
             inputDigest,
             now,
             resultRequests
@@ -552,10 +572,11 @@ public class EvaluationEngineService {
         String actor = actor();
         String traceId = traceId();
         String runId = "er-" + UUID.randomUUID();
+        String runtimeReleaseId = resolveRuntimeReleaseId(request, tenantId);
         EvaluationRun savedRun = runs.save(new EvaluationRun(
             null, runId, tenantId, request.runCode(), request.runType(), request.sourceEventId(),
             request.contextSnapshotId(), request.patientId(), request.encounterId(), request.scenarioCode(),
-            request.packageVersion(), request.inputDigest(), EvaluationRunStatus.RECORDED, null,
+            runtimeReleaseId, request.inputDigest(), EvaluationRunStatus.RECORDED, null,
             request.occurredAt() == null ? now : request.occurredAt(),
             now, actor, now, actor, traceId));
 
@@ -852,17 +873,17 @@ public class EvaluationEngineService {
     }
 
     /**
-     * 按整改任务 ID 提交专用豁免动作，要求带审批引用。
+     * 按整改任务 ID 提交专用豁免动作，要求带决定依据。
      */
     @Transactional
     public RectificationReviewResponse waiveRectificationTask(
             String taskId, RectificationWaiveRequest request, String idempotencyKey) {
-        if (request == null || !hasText(request.reason()) || !hasText(request.approvalRef())) {
+        if (request == null || !hasText(request.reason()) || !hasText(request.decisionRef())) {
             throw new ApiException(ErrorCode.ENG_EVAL_001);
         }
         String evidence = hasText(request.evidenceRef())
-            ? "审批引用: " + request.approvalRef() + "；证据引用: " + request.evidenceRef()
-            : "审批引用: " + request.approvalRef();
+            ? "决定依据: " + request.decisionRef() + "；证据引用: " + request.evidenceRef()
+            : "决定依据: " + request.decisionRef();
         return reviewRectificationTask(
             taskId,
             new RectificationReviewRequest(RectificationReviewDecision.WAIVED, request.reason(), evidence),
@@ -905,7 +926,7 @@ public class EvaluationEngineService {
     /**
      * 按运行 ID 装配可解释诊断响应。
      *
-     * <p>诊断响应包含运行快照、关联结果 ID、问题 ID、整改任务 ID 与 traceId；运行不存在抛出 {@code ENG-EVAL-001}。
+     * <p>诊断响应包含运行状态快照、关联结果 ID、问题 ID、整改任务 ID 与 traceId；运行不存在抛出 {@code ENG-EVAL-001}。
      */
     @Transactional(readOnly = true)
     public DiagnoseResponse diagnose(String runId) {
@@ -932,7 +953,7 @@ public class EvaluationEngineService {
     }
 
     private void validateIndicator(EvaluationIndicatorCreateRequest request) {
-        if (request == null || request.versionNo() < 1 || !hasText(request.indicatorCode())
+        if (request == null || !hasText(request.indicatorCode())
                 || !hasText(request.name()) || request.subjectType() == null
                 || !hasText(request.denominatorDefinition()) || !hasText(request.numeratorDefinition())
                 || !hasText(request.timeWindow()) || !hasText(request.organizationScope())
@@ -958,6 +979,26 @@ public class EvaluationEngineService {
         if (!hasContextReference && !hasManualSource) {
             throw new ApiException(ErrorCode.ENG_EVAL_001, "评估运行缺少可追溯的上下文或人工抽检来源");
         }
+    }
+
+    private String resolveRuntimeReleaseId(EvaluationRunRequest request, String tenantId) {
+        if (!hasText(request.contextSnapshotId())) {
+            return blankToNull(request.runtimeReleaseId());
+        }
+        ContextSnapshot snapshot = snapshots
+            .findBySnapshotIdAndTenantId(request.contextSnapshotId(), tenantId)
+            .orElseThrow(() -> new ApiException(
+                ErrorCode.ENG_EVAL_001, "评估运行引用的上下文快照不存在"));
+        if (!hasText(snapshot.runtimeReleaseId())) {
+            throw new ApiException(
+                ErrorCode.ENG_EVAL_001, "评估运行引用的上下文快照缺少机构生效版本");
+        }
+        if (hasText(request.runtimeReleaseId())
+                && !snapshot.runtimeReleaseId().equals(request.runtimeReleaseId().trim())) {
+            throw new ApiException(
+                ErrorCode.ENG_EVAL_001, "评估机构生效版本与上下文快照锁定的机构生效版本不一致");
+        }
+        return snapshot.runtimeReleaseId();
     }
 
     private void validateResult(EvaluationResultRequest result) {
@@ -1024,15 +1065,11 @@ public class EvaluationEngineService {
             List<CanonicalResource> resourceList,
             List<EvaluationIndicator> activeIndicators) {
         List<String> values = new ArrayList<>();
-        String packageVersion = request.packageVersion() == null
-            ? snapshot.packageVersion()
-            : request.packageVersion();
         values.add(request.contextSnapshotId());
         values.add(request.scenarioCode());
-        values.add(packageVersion);
+        values.add(snapshot.runtimeReleaseId());
         values.add(snapshot.patientId());
         values.add(snapshot.encounterId());
-        values.add(snapshot.packageVersion());
         for (CanonicalResource resource : resourceList) {
             values.add(resource.resourceId());
             values.add(resource.resourceType().name());
@@ -1046,7 +1083,6 @@ public class EvaluationEngineService {
             values.add(indicator.numeratorDefinition());
             values.add(indicator.exclusionDefinition());
             values.add(indicator.scoringDefinition());
-            values.add(indicator.packageVersion());
         }
         return digestValues(values.toArray(String[]::new));
     }
@@ -1217,11 +1253,15 @@ public class EvaluationEngineService {
             indicator.tenantId(),
             VersionedAssetType.EVALUATION,
             indicator.indicatorCode(),
-            String.valueOf(indicator.versionNo())
+            assetVersionNo(indicator)
         ).orElseThrow(() -> new ApiException(
             ErrorCode.ENG_EVAL_003,
             "评估指标缺少统一资产版本，禁止推进发布状态"
         ));
+    }
+
+    private String assetVersionNo(EvaluationIndicator indicator) {
+        return AssetVersionNumbers.canonical(indicator.versionNo());
     }
 
     private VersionReleaseCommand releaseCommand(
@@ -1271,8 +1311,8 @@ public class EvaluationEngineService {
             VersionedAssetType.EVALUATION,
             indicator.indicatorCode(),
             assetVersion.versionId(),
-            versionOrganizationScope(indicator),
-            evaluationApplicableScope(indicator),
+            assetVersion.organizationScope(),
+            assetVersion.applicableScope(),
             null,
             null,
             rolloutPolicy,
@@ -1280,7 +1320,6 @@ public class EvaluationEngineService {
             reason,
             actor(),
             traceId(),
-            publishEvidence == null ? null : publishEvidence.electronicSignature(),
             publishEvidence == null ? null : publishEvidence.qualityGate()
         );
     }
@@ -1290,11 +1329,7 @@ public class EvaluationEngineService {
     }
 
     private String versionOrganizationScope(EvaluationIndicator indicator) {
-        String scope = indicator.organizationScope() == null ? "" : indicator.organizationScope().trim();
-        if (scope.startsWith("tenant:") || scope.startsWith("/") || "ALL".equals(scope)) {
-            return scope;
-        }
-        return "tenant:" + indicator.tenantId();
+        return null;
     }
 
     private String indicatorContent(EvaluationIndicator indicator) {
@@ -1310,7 +1345,6 @@ public class EvaluationEngineService {
         content.put("timeWindow", indicator.timeWindow());
         content.put("organizationScope", indicator.organizationScope());
         content.put("responsibleDepartmentId", indicator.responsibleDepartmentId());
-        content.put("packageVersion", indicator.packageVersion());
         return compactJson(content);
     }
 
@@ -1329,7 +1363,7 @@ public class EvaluationEngineService {
             indicator.versionNo(), indicator.name(), indicator.subjectType(), indicator.denominatorDefinition(),
             indicator.numeratorDefinition(), indicator.exclusionDefinition(), indicator.scoringDefinition(),
             indicator.timeWindow(), indicator.organizationScope(), indicator.responsibleDepartmentId(),
-            indicator.sourceRef(), indicator.packageVersion(), status,
+            indicator.sourceRef(), status,
             publishedAt == null ? indicator.publishedAt() : publishedAt,
             publishedAt == null ? indicator.publishedBy() : actor(),
             activatedAt == null ? indicator.activatedAt() : activatedAt,

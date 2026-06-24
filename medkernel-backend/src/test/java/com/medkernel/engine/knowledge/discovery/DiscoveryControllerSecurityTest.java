@@ -54,7 +54,7 @@ class DiscoveryControllerSecurityTest {
     private static final String BODY = "{\"query\":\"阿司匹林\"}";
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void clinicalUserCannotExplore() throws Exception {
         mockMvc.perform(post("/api/v1/engine/knowledge/discovery:explore")
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(BODY))
@@ -70,14 +70,14 @@ class DiscoveryControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanExplore() throws Exception {
+    void engineOperatorCanExplore() throws Exception {
         when(service.explore(any())).thenReturn(new DiscoveryResponse("run-x", Instant.now(),
             DiscoveryRunStatus.EMPTY, false, 0, 0, "0".repeat(64), List.of(), List.of()));
 
         mockMvc.perform(post("/api/v1/engine/knowledge/discovery:explore")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(BODY))
             .andExpect(status().isOk());
     }
@@ -90,13 +90,13 @@ class DiscoveryControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanListRuns() throws Exception {
+    void engineOperatorCanListRuns() throws Exception {
         when(service.listRuns(anyInt(), anyInt())).thenReturn(PageResponse.empty(PageRequest.defaults()));
 
         mockMvc.perform(get("/api/v1/engine/knowledge/discovery/runs")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("knowledge-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"))))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.items").isArray())
             .andExpect(jsonPath("$.data.page").value(1))

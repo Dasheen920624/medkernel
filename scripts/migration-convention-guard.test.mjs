@@ -84,7 +84,7 @@ test("合规迁移通过中文注释、命名规约和租户索引门禁", async
   );
 });
 
-test("V30 及以前的权威基线表名不被后续 mk 命名规则误判", async () => {
+test("V30 及以前的标准版本表名不被后续 mk 命名规则误判", async () => {
   await withFixture(
     {
       "medkernel-backend/src/main/resources/db/migration/postgres/V30__legacy_authority.sql": `
@@ -170,6 +170,61 @@ test("tenant_id 主键已具备唯一索引，不要求重复创建租户索引"
     async (root) => {
       const report = await scanSqlFiles(root, [
         "medkernel-backend/src/main/resources/db/migration/postgres/V31__tenant_primary_key.sql",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), false);
+      assert.deepEqual(report.violations, []);
+    },
+  );
+});
+
+test("ALTER TABLE 中的 tenant_id 主键可作为真实租户索引", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/resources/db/migration/postgres/V31__tenant_alter_primary_key.sql": `
+        CREATE TABLE mk_audit_chain_head (
+          tenant_id VARCHAR(64) NOT NULL,
+          last_event_id VARCHAR(64)
+        );
+
+        ALTER TABLE mk_audit_chain_head
+          ADD CONSTRAINT pk_mk_audit_chain_head PRIMARY KEY (tenant_id);
+
+        COMMENT ON TABLE mk_audit_chain_head IS '每租户审计链头';
+      `,
+    },
+    async (root) => {
+      const report = await scanSqlFiles(root, [
+        "medkernel-backend/src/main/resources/db/migration/postgres/V31__tenant_alter_primary_key.sql",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), false);
+      assert.deepEqual(report.violations, []);
+    },
+  );
+});
+
+test("ALTER TABLE 中以 tenant_id 开头的唯一约束可作为真实租户索引", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/resources/db/migration/postgres/V31__tenant_alter_unique.sql": `
+        CREATE TABLE mk_rule_sample (
+          id BIGSERIAL NOT NULL,
+          tenant_id VARCHAR(64) NOT NULL,
+          sample_code VARCHAR(64) NOT NULL
+        );
+
+        ALTER TABLE mk_rule_sample
+          ADD CONSTRAINT pk_mk_rule_sample PRIMARY KEY (id);
+        ALTER TABLE mk_rule_sample
+          ADD CONSTRAINT uk_mk_rule_sample_tenant_code UNIQUE (tenant_id, sample_code);
+
+        COMMENT ON TABLE mk_rule_sample IS '租户规则样例表';
+      `,
+    },
+    async (root) => {
+      const report = await scanSqlFiles(root, [
+        "medkernel-backend/src/main/resources/db/migration/postgres/V31__tenant_alter_unique.sql",
       ]);
 
       assert.equal(hasBlockingViolations(report), false);

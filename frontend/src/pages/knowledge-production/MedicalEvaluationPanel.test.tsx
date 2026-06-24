@@ -13,10 +13,6 @@ vi.mock("@/shared/api/hooks", () => ({
   useRunModelEvaluation: vi.fn(),
 }));
 vi.mock("@/shared/api/modelProviders", () => ({ useModelProviders: vi.fn() }));
-vi.mock("./IndependentMedicalReviewPanel", () => ({
-  default: () => <div>independent-review-panel</div>,
-}));
-
 const runEvaluation = vi.fn();
 
 describe("MedicalEvaluationPanel", () => {
@@ -61,7 +57,7 @@ describe("MedicalEvaluationPanel", () => {
     await user.click(screen.getByText("medical-model · medical-v1"));
     await user.click(screen.getByRole("combobox", { name: "医学能力" }));
     await user.click(screen.getByText("临床规则草案拟定"));
-    await user.click(screen.getByRole("button", { name: "运行当前制品评测" }));
+    await user.click(screen.getByRole("button", { name: "运行当前交付文件评测" }));
 
     await waitFor(() =>
       expect(runEvaluation).toHaveBeenCalledWith({
@@ -70,6 +66,7 @@ describe("MedicalEvaluationPanel", () => {
         capabilityCode: "rule.draft",
       }),
     );
-    expect(screen.getByText("independent-review-panel")).toBeInTheDocument();
+    expect(screen.getByText(/评测通过后直接作为当前交付文件的模型放行证据/)).toBeInTheDocument();
+    expect(screen.queryByText("独立复核")).not.toBeInTheDocument();
   });
 });

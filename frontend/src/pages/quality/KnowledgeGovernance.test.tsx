@@ -26,7 +26,6 @@ const mockUseCreateKnowledgeCustomization = vi.fn();
 const mockUsePublishKnowledgeCustomization = vi.fn();
 const mockUseRestorePlatformKnowledge = vi.fn();
 const mockUseAssetTemplates = vi.fn();
-const mockUsePackages = vi.fn();
 const mockUseKnowledgeProductionReadiness = vi.fn();
 const mockUseKnowledgeProductionJobs = vi.fn();
 const mockUseKnowledgeProductionCandidates = vi.fn();
@@ -35,10 +34,11 @@ const mockUseKnowledgeProductionTriageResults = vi.fn();
 const mockUseKnowledgeProductionShadowRuns = vi.fn();
 const mockUseCandidateCoexistence = vi.fn();
 const mockUseCreateKnowledgeProductionJob = vi.fn();
+const mockUseGenerateKnowledgeModelCandidate = vi.fn();
 const mockUseCancelKnowledgeProductionJob = vi.fn();
 const mockUseKnowledgeAcquisitionSources = vi.fn();
 const mockUseSaveKnowledgeAcquisitionSourceDraft = vi.fn();
-const mockUseApproveKnowledgeAcquisitionSource = vi.fn();
+const mockUseEnableKnowledgeAcquisitionSource = vi.fn();
 const mockUseDisableKnowledgeAcquisitionSource = vi.fn();
 const mockUseKnowledgeInitializationBatches = vi.fn();
 const mockUseApproveLowKnowledgeInitializationBatch = vi.fn();
@@ -60,7 +60,6 @@ vi.mock("@/shared/api/hooks", () => ({
   useCreateKnowledgeCustomization: () => mockUseCreateKnowledgeCustomization(),
   usePublishKnowledgeCustomization: () => mockUsePublishKnowledgeCustomization(),
   useRestorePlatformKnowledge: () => mockUseRestorePlatformKnowledge(),
-  usePackages: (params: unknown, options?: unknown) => mockUsePackages(params, options),
   useKnowledgeProductionReadiness: (params: unknown, enabled?: boolean) =>
     mockUseKnowledgeProductionReadiness(params, enabled),
   useKnowledgeProductionJobs: (params: unknown, enabled?: boolean) =>
@@ -75,10 +74,11 @@ vi.mock("@/shared/api/hooks", () => ({
     mockUseKnowledgeProductionShadowRuns(jobCode),
   useCandidateCoexistence: (candidateRef?: string) => mockUseCandidateCoexistence(candidateRef),
   useCreateKnowledgeProductionJob: () => mockUseCreateKnowledgeProductionJob(),
+  useGenerateKnowledgeModelCandidate: () => mockUseGenerateKnowledgeModelCandidate(),
   useCancelKnowledgeProductionJob: () => mockUseCancelKnowledgeProductionJob(),
   useKnowledgeAcquisitionSources: (params: unknown) => mockUseKnowledgeAcquisitionSources(params),
   useSaveKnowledgeAcquisitionSourceDraft: () => mockUseSaveKnowledgeAcquisitionSourceDraft(),
-  useApproveKnowledgeAcquisitionSource: () => mockUseApproveKnowledgeAcquisitionSource(),
+  useEnableKnowledgeAcquisitionSource: () => mockUseEnableKnowledgeAcquisitionSource(),
   useDisableKnowledgeAcquisitionSource: () => mockUseDisableKnowledgeAcquisitionSource(),
   useKnowledgeInitializationBatches: (enabled?: boolean) =>
     mockUseKnowledgeInitializationBatches(enabled),
@@ -226,6 +226,7 @@ let deprecateIdentity: ReturnType<typeof vi.fn>;
 let createCustomization: ReturnType<typeof vi.fn>;
 let publishCustomization: ReturnType<typeof vi.fn>;
 let createProductionJob: ReturnType<typeof vi.fn>;
+let generateModelCandidate: ReturnType<typeof vi.fn>;
 let cancelProductionJob: ReturnType<typeof vi.fn>;
 let approveLowInitializationBatch: ReturnType<typeof vi.fn>;
 let refreshInitializationBatch: ReturnType<typeof vi.fn>;
@@ -282,6 +283,16 @@ beforeEach(() => {
     jobCode: "job-new-1",
     status: "PENDING",
   });
+  generateModelCandidate = vi.fn().mockResolvedValue({
+    jobCode: "job-ai-1",
+    modelTaskId: "task-model-1",
+    modelMode: "B2",
+    summary: {
+      candidates: [{ jobCode: "job-ai-1", candidateRef: "kv:42:ai-draft-task-model-1" }],
+      skipped: [],
+      blocked: [],
+    },
+  });
   cancelProductionJob = vi.fn().mockResolvedValue({
     jobCode: "job-ai-1",
     status: "CANCELLED",
@@ -314,7 +325,6 @@ beforeEach(() => {
   mockUsePublishKnowledgeCustomization.mockReset();
   mockUseRestorePlatformKnowledge.mockReset();
   mockUseAssetTemplates.mockReset();
-  mockUsePackages.mockReset();
   mockUseKnowledgeProductionReadiness.mockReset();
   mockUseKnowledgeProductionJobs.mockReset();
   mockUseKnowledgeProductionCandidates.mockReset();
@@ -323,10 +333,11 @@ beforeEach(() => {
   mockUseKnowledgeProductionShadowRuns.mockReset();
   mockUseCandidateCoexistence.mockReset();
   mockUseCreateKnowledgeProductionJob.mockReset();
+  mockUseGenerateKnowledgeModelCandidate.mockReset();
   mockUseCancelKnowledgeProductionJob.mockReset();
   mockUseKnowledgeAcquisitionSources.mockReset();
   mockUseSaveKnowledgeAcquisitionSourceDraft.mockReset();
-  mockUseApproveKnowledgeAcquisitionSource.mockReset();
+  mockUseEnableKnowledgeAcquisitionSource.mockReset();
   mockUseDisableKnowledgeAcquisitionSource.mockReset();
   mockUseKnowledgeInitializationBatches.mockReset();
   mockUseApproveLowKnowledgeInitializationBatch.mockReset();
@@ -346,25 +357,6 @@ beforeEach(() => {
     isError: false,
     error: undefined,
   });
-  mockUsePackages.mockReturnValue({
-    data: {
-      items: [
-        {
-          packageId: "pkg-knowledge-2026",
-          packageCode: "PKG.KNOW",
-          packageVersion: "PKG.KNOW.2026.06",
-          name: "知识审核上下文包",
-          status: "ACTIVE",
-        },
-      ],
-      page: 1,
-      size: 20,
-      total: 1,
-      hasNext: false,
-    },
-    isLoading: false,
-    isError: false,
-  });
   mockUseKnowledgeProductionReadiness.mockReturnValue({
     data: {
       tenantId: "tenant-A",
@@ -376,11 +368,11 @@ beforeEach(() => {
       modelInvocationAllowed: false,
       items: [
         {
-          code: "P6_ACCEPTANCE",
+          code: "MODEL_PROVIDER",
           ready: false,
           required: true,
-          message: "P6 独立验收未放行",
-          evidence: "配置中心 false",
+          message: "模型服务未就绪",
+          evidence: "模型服务未配置",
         },
       ],
     },
@@ -424,9 +416,7 @@ beforeEach(() => {
         riskLevel: "HIGH",
         createdAt: "2026-06-16T10:02:00Z",
         routing: {
-          ownerReviewerRole: "INSTITUTION_KNOWLEDGE_GOVERNOR",
-          domainReviewerRole: "CLINICAL_GOVERNANCE_LEAD",
-          requiresDualSign: true,
+          reviewerRole: "engine-operator",
           domain: "GUIDELINE",
         },
       },
@@ -492,6 +482,10 @@ beforeEach(() => {
     mutateAsync: createProductionJob,
     isPending: false,
   });
+  mockUseGenerateKnowledgeModelCandidate.mockReturnValue({
+    mutateAsync: generateModelCandidate,
+    isPending: false,
+  });
   mockUseCancelKnowledgeProductionJob.mockReturnValue({
     mutateAsync: cancelProductionJob,
     isPending: false,
@@ -507,7 +501,7 @@ beforeEach(() => {
     mutateAsync: vi.fn(),
     isPending: false,
   });
-  mockUseApproveKnowledgeAcquisitionSource.mockReturnValue({
+  mockUseEnableKnowledgeAcquisitionSource.mockReturnValue({
     mutateAsync: vi.fn(),
     isPending: false,
   });
@@ -538,9 +532,9 @@ beforeEach(() => {
         modelVersion: null,
         summary: "基础知识初始化发行",
         createdAt: "2026-06-19T01:00:00Z",
-        createdBy: "knowledge-governor",
+        createdBy: "engine-operator",
         updatedAt: "2026-06-19T01:00:00Z",
-        updatedBy: "knowledge-governor",
+        updatedBy: "engine-operator",
       },
     ],
     isLoading: false,
@@ -714,7 +708,7 @@ describe("KnowledgeGovernance", () => {
   );
 
   it(
-    "requires an electronic signature before publishing a high-risk institution version",
+    "allows the responsible operator to publish a high-risk institution version",
     async () => {
       const user = userEvent.setup();
       mockUseSecurityProfile.mockReturnValue({
@@ -753,30 +747,13 @@ describe("KnowledgeGovernance", () => {
       renderPage(<InstitutionKnowledge />);
       await user.click(screen.getByRole("button", { name: "发布机构版本" }));
 
-      expect(screen.getByText("高风险知识必须完成电子签名")).toBeInTheDocument();
       await user.type(screen.getByLabelText("发布依据"), "医务与质控联合复核通过");
-      await user.type(screen.getByLabelText("签名编号"), "sig-local-knowledge-1");
-      await user.type(screen.getByLabelText("复核人工号"), "medical-reviewer-1");
-      await user.type(screen.getByLabelText("复核人姓名"), "医务复核员");
-      fireEvent.change(screen.getByLabelText("签名时间"), {
-        target: { value: "2026-06-11T10:00" },
-      });
-      await user.type(screen.getByLabelText("签名摘要"), "b".repeat(64));
       await user.click(screen.getByRole("button", { name: "确认发布" }));
 
       await waitFor(() => {
         expect(publishCustomization).toHaveBeenCalledWith({
           customizationId: "kc-high-risk",
           reason: "医务与质控联合复核通过",
-          publishEvidence: {
-            electronicSignature: {
-              signatureId: "sig-local-knowledge-1",
-              signerId: "medical-reviewer-1",
-              signerName: "医务复核员",
-              signedAt: new Date("2026-06-11T10:00").toISOString(),
-              signatureHash: "b".repeat(64),
-            },
-          },
         });
       });
     },
@@ -912,7 +889,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.queryByRole("tab", { name: "机构知识" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "知识生产" })).not.toBeInTheDocument();
     expect(screen.queryByText("机构知识血缘")).not.toBeInTheDocument();
-    expect(screen.queryByText("模型生产 readiness")).not.toBeInTheDocument();
+    expect(screen.queryByText("模型生产上线准备")).not.toBeInTheDocument();
   });
 
   it("renders institution knowledge as a standalone maintenance entry", () => {
@@ -945,7 +922,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getAllByText("院内覆盖可治理").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /定制为本机构版本/ })).toBeInTheDocument();
     expect(screen.queryByText("待审核候选总数")).not.toBeInTheDocument();
-    expect(screen.queryByText("模型生产 readiness")).not.toBeInTheDocument();
+    expect(screen.queryByText("模型生产上线准备")).not.toBeInTheDocument();
   });
 
   it("separates platform-source and tenant-overlay production lanes with visible ownership labels", () => {
@@ -1010,12 +987,12 @@ describe("KnowledgeGovernance", () => {
     expect(mockUseKnowledgeAcquisitionSources).toHaveBeenCalledWith({ page: 1, size: 20 });
 
     expect(screen.getByText("公域来源治理")).toBeInTheDocument();
-    expect(screen.getByText("模型生产 readiness")).toBeInTheDocument();
-    expect(screen.getByText("P6 独立验收未放行")).toBeInTheDocument();
-    expect(screen.getByText("生产 job")).toBeInTheDocument();
+    expect(screen.getByText("模型生产上线准备")).toBeInTheDocument();
+    expect(screen.getByText("模型服务未就绪")).toBeInTheDocument();
+    expect(screen.getAllByText("生产任务").length).toBeGreaterThan(0);
     expect(screen.getAllByText("job-ai-1").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("API 大模型").length).toBeGreaterThan(0);
-    expect(screen.getByText("门禁结果")).toBeInTheDocument();
+    expect(screen.getAllByText("统一模型接口").length).toBeGreaterThan(0);
+    expect(screen.getByText("生产安全校验结果")).toBeInTheDocument();
     expect(screen.getByText("SOURCE_ANCHOR")).toBeInTheDocument();
     expect(screen.getByText("8 态分流")).toBeInTheDocument();
     expect(screen.getByText("CONFLICT")).toBeInTheDocument();
@@ -1027,7 +1004,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
   });
 
-  it("blocks production job creation until all nine readiness gates pass", () => {
+  it("blocks production job creation while model production prerequisites are not ready", () => {
     mockUseSecurityProfile.mockReturnValue({
       data: {
         dataScope: { tenantId: "tenant-A" },
@@ -1037,7 +1014,7 @@ describe("KnowledgeGovernance", () => {
 
     renderPage(<KnowledgeProduction />);
 
-    expect(screen.getByText("九项生产闸尚未全部满足，暂不能创建正式生产任务")).toBeInTheDocument();
+    expect(screen.getByText("模型生产前置仍有阻断")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "创建生产任务" })).toBeDisabled();
   });
 
@@ -1074,7 +1051,9 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getAllByText("审候选").length).toBeGreaterThan(0);
     expect(screen.getAllByText("影响").length).toBeGreaterThan(0);
     expect(screen.getAllByText("结论").length).toBeGreaterThan(0);
-    expect(screen.getByDisplayValue("API 大模型（正式生产固定）")).toBeDisabled();
+    expect(screen.getByDisplayValue("统一模型接口（本地或外部模型服务）")).toBeDisabled();
+    expect(screen.getByDisplayValue("医学知识")).toBeDisabled();
+    expect(screen.queryByRole("option", { name: "规则" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("生产器")).not.toBeInTheDocument();
 
     await user.clear(screen.getByLabelText("来源范围"));
@@ -1091,7 +1070,7 @@ describe("KnowledgeGovernance", () => {
       }),
     );
     expect(mockUseKnowledgeInitializationBatches).toHaveBeenCalledWith(true);
-    expect(screen.getAllByText("高风险必须由两名不同签署人完成双签").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("高风险必须逐条确认并保留完整证据").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /批量通过候选/ })).not.toBeInTheDocument();
     expect(screen.getByText("初始化发行批次")).toBeInTheDocument();
     expect(screen.getAllByText("foundation-f1-1.0.0").length).toBeGreaterThan(0);
@@ -1101,7 +1080,67 @@ describe("KnowledgeGovernance", () => {
     expect(screen.queryByText("F8")).not.toBeInTheDocument();
     expect(screen.getByText("低风险 1 · 可原子批审")).toBeInTheDocument();
     expect(screen.getByText("中风险 1 · 必须逐条审核")).toBeInTheDocument();
-    expect(screen.getByText("高风险 1 · 必须真实双签")).toBeInTheDocument();
+    expect(screen.getByText("高风险 1 · 必须逐条确认并保留证据")).toBeInTheDocument();
+  });
+
+  it("starts real model generation for the selected job with controlled source and identity", async () => {
+    const user = userEvent.setup();
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        permissions: [{ code: "knowledge.write" }],
+      },
+    });
+    mockUseKnowledgeProductionReadiness.mockReturnValue({
+      data: {
+        tenantId: "tenant-A",
+        producer: "API_MODEL",
+        capabilityCode: "knowledge.production.knowledge",
+        providerCode: "provider-openai",
+        deploymentForm: "EXTERNAL",
+        ready: true,
+        modelInvocationAllowed: true,
+        items: [],
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+
+    renderPage(<KnowledgeProduction />);
+
+    await user.click(screen.getByRole("button", { name: "启动大模型生成" }));
+    expect(screen.getByText("生成正式知识候选")).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("来源锚点"));
+    await user.type(screen.getByLabelText("来源锚点"), "GL-VTE-2026:v1:section-2");
+    await user.clear(screen.getByLabelText("生成提示"));
+    await user.type(screen.getByLabelText("生成提示"), "请依据来源锚点生成结构化候选知识。");
+    await user.click(screen.getByRole("button", { name: "开始生成候选" }));
+
+    await waitFor(() =>
+      expect(generateModelCandidate).toHaveBeenCalledWith({
+        jobCode: "job-ai-1",
+        request: {
+          capabilityCode: "knowledge.production.knowledge",
+          prompt: "请依据来源锚点生成结构化候选知识。",
+          providerCode: "provider-openai",
+          timeoutSeconds: 90,
+          assetIdentity: "KNOW.VTE.GUIDE",
+          subject: "VTE 防治指南",
+          sources: [
+            {
+              sourceRef: "GL-VTE-2026:v1:section-2",
+              authorityLevel: "B_GUIDELINE",
+            },
+          ],
+          trustLevel: "B_GUIDELINE",
+          riskLevel: "MEDIUM",
+          target: { targetIdentityId: 42 },
+        },
+      }),
+    );
   });
 
   it("approves only the frozen LOW subset of an initialization batch", async () => {
@@ -1150,7 +1189,7 @@ describe("KnowledgeGovernance", () => {
 
     renderPage(<KnowledgeProduction />);
 
-    expect(screen.getByText("暂无生产 job")).toBeInTheDocument();
+    expect(screen.getByText("暂无生产任务")).toBeInTheDocument();
     expect(screen.getByText("初始化发行批次")).toBeInTheDocument();
     expect(screen.getAllByText("foundation-f1-1.0.0").length).toBeGreaterThan(0);
   });
@@ -1160,7 +1199,7 @@ describe("KnowledgeGovernance", () => {
       data: undefined,
       isLoading: false,
       isError: true,
-      error: new Error("门禁接口断开"),
+      error: new Error("生产安全校验接口断开"),
     });
     mockUseKnowledgeProductionShadowRuns.mockReturnValue({
       data: undefined,
@@ -1171,9 +1210,9 @@ describe("KnowledgeGovernance", () => {
 
     renderPage(<KnowledgeProduction />);
 
-    expect(screen.getByText("模型生产 readiness")).toBeInTheDocument();
+    expect(screen.getByText("模型生产上线准备")).toBeInTheDocument();
     expect(screen.getByText("生产证据部分读取失败")).toBeInTheDocument();
-    expect(screen.getByText(/门禁结果：门禁接口断开/)).toBeInTheDocument();
+    expect(screen.getByText(/生产安全校验结果：生产安全校验接口断开/)).toBeInTheDocument();
     expect(screen.getByText(/影子评测：影子评测接口断开/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
   });
@@ -1355,7 +1394,7 @@ describe("KnowledgeGovernance", () => {
           sourceCitations: '[{"anchor":"source-fragment-candidate","version":"sv-2026"}]',
           confidence: 0.87,
           fallbackUsed: true,
-          fallbackReason: "B2 -> B1：外部 provider 限流，本地模型成功",
+          fallbackReason: "B2 -> B1：外部模型服务限流，本地模型成功",
           riskLevel: "HIGH",
           producedAt: "2026-06-06T01:05:00Z",
           producedBy: "ai-factory",
@@ -1376,7 +1415,7 @@ describe("KnowledgeGovernance", () => {
     });
     // AI 生成候选须带 AI 标识（Tag 非按钮，不触发生成）+ 生产器来源
     expect(await screen.findByText("AI 生成")).toBeInTheDocument();
-    expect(screen.getByText(/API 大模型/)).toBeInTheDocument();
+    expect(screen.getByText(/统一模型接口/)).toBeInTheDocument();
     // 仍不得出现 AI 生成按钮（本页只审不生成，B0 / AIREVIEW-01 边界）
     expect(screen.queryByRole("button", { name: /AI 生成|创建候选/ })).not.toBeInTheDocument();
   });
@@ -1417,7 +1456,7 @@ describe("KnowledgeGovernance", () => {
           sourceCitations: '[{"anchor":"source-fragment-candidate","version":"sv-2026"}]',
           confidence: 0.87,
           fallbackUsed: true,
-          fallbackReason: "B2 -> B1：外部 provider 限流，本地模型成功",
+          fallbackReason: "B2 -> B1：外部模型服务限流，本地模型成功",
           riskLevel: "HIGH",
           producedAt: "2026-06-06T01:05:00Z",
           producedBy: "ai-factory",
@@ -1444,7 +1483,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.queryByText("prompt:aikstd13-v1")).not.toBeInTheDocument();
     expect(screen.queryByText("tool:submit-candidate-v1")).not.toBeInTheDocument();
     expect(
-      screen.queryByText("降级：B2 -> B1：外部 provider 限流，本地模型成功"),
+      screen.queryByText("降级：B2 -> B1：外部模型服务限流，本地模型成功"),
     ).not.toBeInTheDocument();
   });
 
@@ -1475,7 +1514,7 @@ describe("KnowledgeGovernance", () => {
           sourceCitations: '[{"anchor":"source-fragment-candidate","version":"sv-2026"}]',
           confidence: 0.87,
           fallbackUsed: true,
-          fallbackReason: "B2 -> B1：外部 provider 限流，本地模型成功",
+          fallbackReason: "B2 -> B1：外部模型服务限流，本地模型成功",
           riskLevel: "HIGH",
           producedAt: "2026-06-06T01:05:00Z",
           producedBy: "ai-factory",
@@ -1490,7 +1529,7 @@ describe("KnowledgeGovernance", () => {
     await user.click(screen.getByRole("button", { name: "查看审核对照" }));
     expect(screen.queryByText("job-vte-ai")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("switch", { name: "专家模式" }));
+    await user.click(screen.getByRole("switch", { name: "高级信息" }));
 
     expect(screen.getByText("job-vte-ai")).toBeInTheDocument();
     expect(screen.getByText("task-vte-ai")).toBeInTheDocument();
@@ -1500,7 +1539,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("prompt:aikstd13-v1")).toBeInTheDocument();
     expect(screen.getByText("tool:submit-candidate-v1")).toBeInTheDocument();
     expect(
-      screen.getAllByText("降级：B2 -> B1：外部 provider 限流，本地模型成功").length,
+      screen.getAllByText("降级：B2 -> B1：外部模型服务限流，本地模型成功").length,
     ).toBeGreaterThan(0);
   });
 
@@ -1516,35 +1555,17 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("证据等级")).toBeInTheDocument();
   });
 
-  it("loads knowledge review package selector through small server-side search pages", async () => {
+  it("locks review to the selected knowledge version without a package selector", async () => {
     const user = userEvent.setup();
-    mockUseSecurityProfile.mockReturnValue({
-      data: {
-        dataScope: { tenantId: "t-1" },
-        permissions: [{ code: "knowledge.publish" }, { code: "package.read" }],
-      },
-    });
     renderPage();
 
     await user.click(screen.getByRole("button", { name: "查看审核对照" }));
 
-    expect(mockUsePackages).toHaveBeenCalledWith(
-      {
-        page: 1,
-        size: 20,
-        assetType: "KNOWLEDGE",
-        keyword: undefined,
-      },
-      { enabled: true },
-    );
-    expect(mockUsePackages).not.toHaveBeenCalledWith({
-      page: 1,
-      size: 100,
-      assetType: "KNOWLEDGE",
-    });
+    expect(screen.queryByLabelText("审核上下文" + "包版本")).not.toBeInTheDocument();
+    expect(screen.getByText("审核对象已锁定为当前候选版本")).toBeInTheDocument();
   });
 
-  it("does not load production evidence or packages from the review workspace before needed", () => {
+  it("does not load production evidence from the review workspace before needed", () => {
     renderPage();
 
     expect(mockUseKnowledgeProductionReadiness).toHaveBeenCalledWith(
@@ -1552,15 +1573,6 @@ describe("KnowledgeGovernance", () => {
       false,
     );
     expect(mockUseKnowledgeProductionJobs).toHaveBeenCalledWith({ page: 1, size: 20 }, false);
-    expect(mockUsePackages).toHaveBeenCalledWith(
-      {
-        page: 1,
-        size: 20,
-        assetType: "KNOWLEDGE",
-        keyword: undefined,
-      },
-      { enabled: false },
-    );
   });
 
   it("returns a candidate for revision through the RETURN review decision with a mandatory reason", async () => {
@@ -1568,9 +1580,6 @@ describe("KnowledgeGovernance", () => {
     renderPage();
 
     await user.click(screen.getByRole("button", { name: "查看审核对照" }));
-    fireEvent.change(screen.getByLabelText("审核上下文包版本"), {
-      target: { value: "PKG.KNOW.2026.06" },
-    });
     fireEvent.change(screen.getByLabelText("审核理由"), {
       target: { value: "请补充禁忌章节后重提。" },
     });
@@ -1580,7 +1589,6 @@ describe("KnowledgeGovernance", () => {
     await waitFor(() => {
       expect(reviewCandidate).toHaveBeenCalledWith({
         candidateId: 9001,
-        packageVersion: "PKG.KNOW.2026.06",
         request: {
           decision: "RETURN",
           reason: "请补充禁忌章节后重提。",
@@ -1597,9 +1605,6 @@ describe("KnowledgeGovernance", () => {
     renderPage();
 
     await user.click(screen.getByRole("button", { name: "查看审核对照" }));
-    fireEvent.change(screen.getByLabelText("审核上下文包版本"), {
-      target: { value: "PKG.KNOW.2026.06" },
-    });
     fireEvent.click(screen.getByRole("button", { name: /退\s*修/ }));
 
     await waitFor(() => {
@@ -1613,9 +1618,6 @@ describe("KnowledgeGovernance", () => {
     renderPage();
 
     await user.click(screen.getByRole("button", { name: "查看审核对照" }));
-    fireEvent.change(screen.getByLabelText("审核上下文包版本"), {
-      target: { value: "PKG.KNOW.2026.06" },
-    });
     fireEvent.change(screen.getByLabelText("审核理由"), {
       target: { value: "来源证据与现行权威冲突，当前不采纳。" },
     });
@@ -1624,7 +1626,6 @@ describe("KnowledgeGovernance", () => {
     await waitFor(() => {
       expect(reviewCandidate).toHaveBeenCalledWith({
         candidateId: 9001,
-        packageVersion: "PKG.KNOW.2026.06",
         request: {
           decision: "REJECT",
           reason: "来源证据与现行权威冲突，当前不采纳。",
@@ -1643,33 +1644,11 @@ describe("KnowledgeGovernance", () => {
       renderPage();
 
       await user.click(screen.getByRole("button", { name: "查看审核对照" }));
-      expect(screen.getByText("PKG.KNOW.2026.06 · 知识审核上下文包")).toBeInTheDocument();
+      expect(screen.getByText("审核对象已锁定为当前候选版本")).toBeInTheDocument();
       fireEvent.change(screen.getByLabelText("审核理由"), {
         target: { value: "已核对来源锚点和现行版差异，允许替换。" },
       });
-      fireEvent.change(screen.getByLabelText("签名 ID"), {
-        target: { value: "sig-knowledge-2002" },
-      });
-      fireEvent.change(screen.getByLabelText("签名时间"), {
-        target: { value: "2026-06-09T16:00" },
-      });
-      fireEvent.change(screen.getByLabelText("签名人 ID"), {
-        target: { value: "expert-1" },
-      });
-      fireEvent.change(screen.getByLabelText("签名人姓名"), {
-        target: { value: "审核专家" },
-      });
-      fireEvent.change(screen.getByLabelText("签名摘要"), {
-        target: { value: "a".repeat(64) },
-      });
-      for (const label of [
-        "结构校验",
-        "术语绑定",
-        "依赖完整性",
-        "安全单调性",
-        "影响模拟",
-        "同行复核",
-      ]) {
+      for (const label of ["结构校验", "术语绑定", "依赖完整性", "安全单调性", "影响模拟"]) {
         fireEvent.click(screen.getByRole("checkbox", { name: label }));
       }
       fireEvent.click(screen.getByRole("button", { name: "通过并发布" }));
@@ -1677,27 +1656,18 @@ describe("KnowledgeGovernance", () => {
       await waitFor(() => {
         expect(reviewCandidate).toHaveBeenCalledWith({
           candidateId: 9001,
-          packageVersion: "PKG.KNOW.2026.06",
           request: {
             decision: "APPROVE",
             reason: "已核对来源锚点和现行版差异，允许替换。",
             feedbackType: "ACCEPTED",
             followupAction: "NONE",
             publishEvidence: {
-              electronicSignature: {
-                signatureId: "sig-knowledge-2002",
-                signerId: "expert-1",
-                signerName: "审核专家",
-                signedAt: new Date("2026-06-09T16:00").toISOString(),
-                signatureHash: "a".repeat(64),
-              },
               qualityGate: {
                 schemaValid: true,
                 terminologyBindingComplete: true,
                 dependencyIntegrityVerified: true,
                 safetyMonotonicityVerified: true,
                 impactSimulationPassed: true,
-                peerReviewSigned: true,
                 summary: undefined,
               },
             },

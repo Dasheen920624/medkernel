@@ -1,8 +1,6 @@
 package com.medkernel.engine.knowledge.diagnosis.runtime;
 
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -14,40 +12,38 @@ import com.medkernel.engine.knowledge.KnowledgeDomain;
 import com.medkernel.engine.knowledge.KnowledgeIdentity;
 import com.medkernel.engine.knowledge.KnowledgeIdentityRepository;
 import com.medkernel.engine.rule.RuleDslEvaluator;
-import com.medkernel.engine.safety.ClinicalRedlineRepository;
 import com.medkernel.engine.safety.ClinicalRedlineRule;
-import com.medkernel.engine.safety.ClinicalRedlineStatus;
+import com.medkernel.engine.safety.RuntimeReleaseClinicalRedlineSelector;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
-import com.medkernel.shared.context.PlatformTenant;
 
 import org.springframework.stereotype.Component;
 
 /**
- * 红线合流默认实现：对 OPT-04 ACTIVE 红线 DSL 按患者结构化上下文求值，命中且红线经
+ * 红线合流默认实现：对机构生效版本锁定的 OPT-04 红线 DSL 按患者结构化上下文求值，命中且红线经
  * {@code source_version_id} 关联到 DIAGNOSIS 身份时，返回该诊断身份码（编排侧据此置顶且不可疲劳抑制）。
  *
- * <p>跨域只读复用 OPT-04 红线仓储与规则 DSL 执行器，不改红线表、不写其数据。生效集为平台 +
- * 本租户 ACTIVE 红线；置顶是安全正向动作，输出按身份码去重，无需再做平台/租户互斥裁决。
+ * <p>跨域只读复用 OPT-04 运行选择器与规则 DSL 执行器，不改红线表、不写其数据。平台标准版本、
+ * 集团/医院覆盖和停用状态均由机构生效版本清单决定。
  * 红线未关联诊断来源（DDI / 剂量 / 危急值等纯安全红线归推荐主链路 ClinicalRedlineMatcher 处理）、
  * 未命中、无红线时返回空集，诚实降级不阻断主链路。
  */
 @Component
 public class DefaultDiagnosisRedlinePort implements DiagnosisRedlinePort {
 
-    private final ClinicalRedlineRepository redlines;
+    private final RuntimeReleaseClinicalRedlineSelector runtimeRedlines;
     private final KnowledgeAssetVersionRepository versions;
     private final KnowledgeIdentityRepository identities;
     private final RuleDslEvaluator evaluator;
     private final ObjectMapper json;
 
     public DefaultDiagnosisRedlinePort(
-            ClinicalRedlineRepository redlines,
+            RuntimeReleaseClinicalRedlineSelector runtimeRedlines,
             KnowledgeAssetVersionRepository versions,
             KnowledgeIdentityRepository identities,
             RuleDslEvaluator evaluator,
             ObjectMapper json) {
-        this.redlines = redlines;
+        this.runtimeRedlines = runtimeRedlines;
         this.versions = versions;
         this.identities = identities;
         this.evaluator = evaluator;
@@ -61,7 +57,7 @@ public class DefaultDiagnosisRedlinePort implements DiagnosisRedlinePort {
         }
         JsonNode context = json.valueToTree(snapshot.resources());
         Set<String> pinned = new LinkedHashSet<>();
-        for (ClinicalRedlineRule redline : activeRedlines(tenantId)) {
+        for (ClinicalRedlineRule redline : runtimeRedlines.select(tenantId, snapshot.runtimeReleaseId())) {
             String diagnosisCode = diagnosisCode(redline);
             if (diagnosisCode == null) {
                 continue; // 红线未关联诊断身份：不置顶诊断候选
@@ -71,18 +67,6 @@ public class DefaultDiagnosisRedlinePort implements DiagnosisRedlinePort {
             }
         }
         return Set.copyOf(pinned);
-    }
-
-    /** 生效 ACTIVE 红线：非平台租户叠加平台基线红线 + 本租户红线（输出按身份码去重，置顶是安全正向叠加）。 */
-    private List<ClinicalRedlineRule> activeRedlines(String tenantId) {
-        List<ClinicalRedlineRule> rules = new ArrayList<>();
-        if (!PlatformTenant.isPlatformTenant(tenantId)) {
-            rules.addAll(redlines.findByTenantIdAndStatusOrderByCategoryAscRedlineKeyAscUpdatedAtDesc(
-                PlatformTenant.ID, ClinicalRedlineStatus.ACTIVE));
-        }
-        rules.addAll(redlines.findByTenantIdAndStatusOrderByCategoryAscRedlineKeyAscUpdatedAtDesc(
-            tenantId, ClinicalRedlineStatus.ACTIVE));
-        return rules;
     }
 
     /** 红线 {@code source_version_id} → 知识版本 → 身份；仅 DIAGNOSIS 域返回身份码，否则返回 null。 */

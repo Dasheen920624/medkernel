@@ -46,7 +46,7 @@ public class KnowledgeInitializationCatalog {
         item(33, "全生命周期预防与特殊人群", InitializationReleaseType.CLINICAL_CONTENT, InitializationPhase.F6),
         item(34, "联合照护", InitializationReleaseType.CLINICAL_CONTENT, InitializationPhase.F6),
         item(31, "机构临床参数与本地化模板", InitializationReleaseType.COMPOSITE, InitializationPhase.F7),
-        item(15, "首发知识包总验收", InitializationReleaseType.FOUNDATION, InitializationPhase.F8),
+        item(15, "基础知识资产总验收", InitializationReleaseType.FOUNDATION, InitializationPhase.F8),
         item(32, "知识金标回归与发行兼容", InitializationReleaseType.FOUNDATION, InitializationPhase.F8)
     );
 

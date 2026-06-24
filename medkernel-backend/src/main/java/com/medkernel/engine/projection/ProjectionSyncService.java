@@ -143,7 +143,7 @@ public class ProjectionSyncService {
             snapshotCount,
             graphEnabled
                 ? "图投影开关已开启；状态由快照数量与同步结果决定"
-                : "graph-projection Feature Flag 关闭，关系库权威主链路保持可用");
+                : "图投影能力开关关闭，关系库权威主链路保持可用");
     }
 
     @Transactional(readOnly = true)
@@ -185,13 +185,13 @@ public class ProjectionSyncService {
                     0,
                     null,
                     null,
-                    flagName + " Feature Flag 关闭，未执行" + displayName + "重建",
+                    abilitySwitchName(flagName) + "关闭，未执行" + displayName + "重建",
                     Instant.now()));
                 recordSyncAudit(finished, ProjectionSyncStatus.NOT_SYNCED);
                 return responseFrom(
                     finished,
                     ProjectionSyncStatus.NOT_SYNCED,
-                    flagName + " Feature Flag 关闭，关系库权威主链路保持可用");
+                    abilitySwitchName(flagName) + "关闭，关系库权威主链路保持可用");
             }
 
             List<ProjectionFact> sourceFacts = sourceSupplier.get();
@@ -245,7 +245,7 @@ public class ProjectionSyncService {
                 targetType,
                 tenantId,
                 ProjectionSyncStatus.NOT_SYNCED,
-                flagName + " Feature Flag 关闭，未执行投影一致性校验",
+                abilitySwitchName(flagName) + "关闭，未执行投影一致性校验",
                 false,
                 0,
                 0,
@@ -306,7 +306,7 @@ public class ProjectionSyncService {
     private ProjectionExecutionResult externalExecutionResult(String tenantId, ProjectionSync finished,
             int sourceCount, String sourceHash, String traceId) {
         if (!policy.difyWorkflowEnabled()) {
-            return ProjectionExecutionResult.notSynced("dify-workflow Feature Flag 关闭，未执行外部工作流");
+            return ProjectionExecutionResult.notSynced("外部工作流能力开关关闭，未执行外部工作流");
         }
         return executor.execute(new ProjectionExecutionCommand(
             tenantId,
@@ -330,6 +330,14 @@ public class ProjectionSyncService {
             sync.traceId(),
             difyStatus,
             message);
+    }
+
+    private static String abilitySwitchName(String flagName) {
+        return switch (flagName) {
+            case "graph-projection" -> "图投影能力开关";
+            case "search-projection" -> "知识搜索能力开关";
+            default -> "相关能力开关";
+        };
     }
 
     private void recordSyncAudit(ProjectionSync sync, ProjectionSyncStatus difyStatus) {

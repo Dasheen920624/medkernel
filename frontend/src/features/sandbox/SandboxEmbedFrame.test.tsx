@@ -49,7 +49,7 @@ describe("SandboxEmbedFrame", () => {
     expect(onDecision).toHaveBeenCalledTimes(1);
   });
 
-  it("switches between iframe, sdk and api integration contract views", () => {
+  it("switches between iframe, script and interface integration contract views", () => {
     const onModeChange = vi.fn();
     const { rerender } = render(
       <ConfigProvider>
@@ -63,7 +63,7 @@ describe("SandboxEmbedFrame", () => {
       </ConfigProvider>,
     );
 
-    fireEvent.click(screen.getByText("SDK"));
+    fireEvent.click(screen.getByText("脚本接入"));
     expect(onModeChange).toHaveBeenCalledWith("SDK");
 
     rerender(
@@ -77,7 +77,10 @@ describe("SandboxEmbedFrame", () => {
         />
       </ConfigProvider>,
     );
-    expect(screen.getByText(/MedKernelCDSS.launch/)).toBeInTheDocument();
+    expect(screen.getByText(/访问凭证：token-1/)).toBeInTheDocument();
+    expect(
+      screen.getByText((text) => text.includes("接入地址：/embed/launch?token=token-1")),
+    ).toBeInTheDocument();
 
     rerender(
       <ConfigProvider>
@@ -90,6 +93,6 @@ describe("SandboxEmbedFrame", () => {
         />
       </ConfigProvider>,
     );
-    expect(screen.getByText(/POST \/api\/v1\/engine\/embed\/launch/)).toBeInTheDocument();
+    expect(screen.getByText(/由信息科系统发起受控嵌入访问/)).toBeInTheDocument();
   });
 });

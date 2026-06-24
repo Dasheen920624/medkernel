@@ -139,20 +139,20 @@ test('agent fetch-public-material 公域资料载荷非 JSON 时结构化拒绝'
   assert.equal(client.calls.executeTool.length, 0);
 });
 
-test('exports submit 经审批闸控制的导出端点，带审批ID与幂等键', async () => {
+test('exports submit 经范围确认门禁提交，带确认ID与幂等键', async () => {
   const client = fakeClient();
   await runCommand(client, 'exports', 'submit', ['RULE_USAGE', 'exp-1', 'idem-1'], { windowDays: '90' });
   assert.deepEqual(client.calls.post[0], {
     path: '/api/v1/engine-data/exports',
-    body: { exportType: 'RULE_USAGE', windowDays: 90, approvalId: 'exp-1', idempotencyKey: 'idem-1' },
+    body: { exportType: 'RULE_USAGE', windowDays: 90, confirmationId: 'exp-1', idempotencyKey: 'idem-1' },
   });
 });
 
-test('exports submit 缺审批ID结构化拒绝（不绕审批、不伪造）', async () => {
+test('exports submit 缺确认ID结构化拒绝', async () => {
   const client = fakeClient();
   await assert.rejects(
     () => runCommand(client, 'exports', 'submit', ['RULE_USAGE'], {}),
-    (err) => err instanceof CliUsageError && /approvalId/.test(err.message),
+    (err) => err instanceof CliUsageError && /confirmationId/.test(err.message),
   );
   assert.equal(client.calls.post.length, 0);
 });
@@ -169,7 +169,7 @@ test('exports list 经列表端点取近期作业', async () => {
   assert.equal(client.calls.get[0], '/api/v1/engine-data/exports');
 });
 
-test('exports complete 走合规导出审批登记端点，不绕审批', async () => {
+test('exports complete 走合规导出确认登记端点', async () => {
   const client = fakeClient();
   await runCommand(client, 'exports', 'complete', ['exp-1', 'job-1'], {});
   assert.equal(client.calls.post[0].path, '/api/v1/compliance/exports/exp-1:complete-from-job');

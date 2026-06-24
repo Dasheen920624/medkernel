@@ -23,7 +23,7 @@ function wrapper() {
     username: "规则作者",
     roles: [
       {
-        code: "knowledge-governor",
+        code: "engine-operator",
         displayName: "专科医生",
         source: "tenant",
         scopeLevel: "TENANT",
@@ -70,10 +70,7 @@ describe("AuthoringReadablePreview", () => {
       },
     });
 
-    render(
-      <AuthoringReadablePreview subject="RULE_CONDITION" packageVersion="pkg-2026.06" dsl={dsl} />,
-      { wrapper: wrapper() },
-    );
+    render(<AuthoringReadablePreview subject="RULE_CONDITION" dsl={dsl} />, { wrapper: wrapper() });
 
     expect(await screen.findByText("当 年龄 大于等于 65。")).toBeInTheDocument();
     expect(screen.getByText("可读预览")).toBeInTheDocument();
@@ -86,10 +83,10 @@ describe("AuthoringReadablePreview", () => {
           dsl,
           tenant_id: "tenant-A",
           user_id: "author-1",
-          role_codes: ["knowledge-governor"],
-          package_version: "pkg-2026.06",
+          role_codes: ["engine-operator"],
         }),
       ),
     );
+    expect(vi.mocked(apiClient.post).mock.calls[0]?.[1]).not.toHaveProperty("package_version");
   });
 });

@@ -7,7 +7,7 @@ import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { apiClient } from "@/shared/api/client";
-import ConfigPackages from "./tenant/ConfigPackages";
+import ReleaseGovernance from "./tenant/ReleaseGovernance";
 import AuthoringAssets from "./tenant/AuthoringAssets";
 import Followup from "./clinical/Followup";
 import WorkflowTodos from "./clinical/WorkflowTodos";
@@ -160,10 +160,10 @@ function renderPage(page: React.ReactElement) {
 }
 
 describe("page smoke coverage", () => {
-  it("renders the tenant config-packages console", () => {
-    renderPage(<ConfigPackages />);
-    expect(screen.getByRole("heading", { name: "配置包与发布" })).toBeInTheDocument();
-    expect(screen.getByText("正在加载配置包与发布")).toBeInTheDocument();
+  it("renders the unified release governance console", () => {
+    renderPage(<ReleaseGovernance />);
+    expect(screen.getByRole("heading", { name: "发布治理" })).toBeInTheDocument();
+    expect(screen.queryByText("配置" + "包与发布")).not.toBeInTheDocument();
   });
 
   it("renders the unified authoring asset library", () => {
@@ -336,7 +336,7 @@ describe("page smoke coverage", () => {
 
     expect(screen.getByText("患者 ID")).toBeInTheDocument();
     expect(screen.getByText("就诊 ID")).toBeInTheDocument();
-    expect(screen.getByText(/输入患者 ID 或就诊 ID 后读取 ACTIVE 临床快照/)).toBeInTheDocument();
+    expect(screen.getByText(/输入患者 ID 或就诊 ID 后读取已生效临床快照/)).toBeInTheDocument();
   });
 
   it("renders the knowledge governance page through the real candidate loading state", () => {
@@ -379,7 +379,7 @@ describe("page smoke coverage", () => {
     renderPage(<AdminAudit />);
     expect(screen.getByRole("heading", { name: "审计与证据" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "审计事件" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "申请导出" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "确认导出范围" })).not.toBeInTheDocument();
   });
 
   it("renders the tenant terminology-mapping console", () => {

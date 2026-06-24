@@ -30,7 +30,6 @@ public record RecommendationTriggerRequest(
     String encounterId,
     String patientPathwayId,
     @NotBlank String scenarioCode,
-    String packageVersion,
     String inputDigest,
     Instant occurredAt,
     @Valid List<RecommendationCardRequest> candidateCards,
@@ -45,12 +44,11 @@ public record RecommendationTriggerRequest(
             String encounterId,
             String patientPathwayId,
             String scenarioCode,
-            String packageVersion,
             String inputDigest,
             Instant occurredAt,
             List<RecommendationCardRequest> candidateCards) {
         this(triggerCode, triggerType, sourceEventId, contextSnapshotId, patientId, encounterId,
-            patientPathwayId, scenarioCode, packageVersion, inputDigest, occurredAt, candidateCards,
+            patientPathwayId, scenarioCode, inputDigest, occurredAt, candidateCards,
             Boolean.FALSE);
     }
 
@@ -75,7 +73,6 @@ public record RecommendationTriggerRequest(
             triggerCode,
             patientId,
             encounterId,
-            packageVersion,
             null,
             context,
             null,

@@ -27,7 +27,7 @@ public record RecommendationTrigger(
     @Column("encounter_id") String encounterId,
     @Column("patient_pathway_id") String patientPathwayId,
     @Column("scenario_code") String scenarioCode,
-    @Column("package_version") String packageVersion,
+    @Column("runtime_release_id") String runtimeReleaseId,
     @Column("input_digest") String inputDigest,
     RecommendationTriggerStatus status,
     @Column("error_code") String errorCode,

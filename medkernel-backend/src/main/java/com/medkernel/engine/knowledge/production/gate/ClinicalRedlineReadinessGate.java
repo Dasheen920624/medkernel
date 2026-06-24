@@ -26,7 +26,7 @@ import com.medkernel.engine.safety.ClinicalRedlineService;
  *
  * <p>包含医学逻辑的候选提审前必须确认 OPT-04 五类红线目录均已配置；严格匹配
  * {@code SourceCandidateGenerator} 契约的无医学逻辑 B0 结构候选可先进入人工编著审核，解除基础知识与红线目录的
- * 启动环依赖。如果候选 payload 带结构化
+         * 启动环依赖。如果候选内容带结构化
  * {@code clinicalSafety.redlineChecks} / {@code clinicalRedlineChecks}，每条检查必须引用 ACTIVE 红线并带证据。
  * 任一项声明命中、越界或阻断即诚实拦截，不把模型/模板结论伪装成已通过。
  */
@@ -60,7 +60,7 @@ public class ClinicalRedlineReadinessGate implements CandidateGate {
         }
         ClinicalRedlineCatalogResponse catalog = redlineService.activeCatalog(null);
         if (catalog == null || catalog.contentStatus() == ClinicalRedlineContentStatus.NOT_CONFIGURED) {
-            return GateItemResult.fail(CODE, "临床安全红线目录未配置，无法完成红线/剂量/高危门禁");
+            return GateItemResult.fail(CODE, "临床安全红线目录未配置，无法完成红线、剂量和高危检查");
         }
         Set<ClinicalRedlineCategory> configured = catalog.redlines() == null
             ? EnumSet.noneOf(ClinicalRedlineCategory.class)
@@ -84,7 +84,7 @@ public class ClinicalRedlineReadinessGate implements CandidateGate {
             JsonNode payload,
             List<ClinicalRedlineResponse> activeRedlines) {
         if (payload == null) {
-            return GateItemResult.fail(CODE, "候选 payload 不是合法 JSON，无法完成临床红线逐条校验");
+            return GateItemResult.fail(CODE, "候选内容结构不合法，无法完成临床红线逐条校验");
         }
         List<JsonNode> checks = redlineCheckNodes(payload);
         if (checks.isEmpty()) {
@@ -107,7 +107,7 @@ public class ClinicalRedlineReadinessGate implements CandidateGate {
                     .findFirst();
             if (active.isEmpty()) {
                 return GateItemResult.fail(CODE,
-                    "结构化红线检查未匹配 ACTIVE 红线：" + category.get().name() + "/" + redlineKey);
+                    "结构化红线检查未匹配已生效红线：" + category.get().name() + "/" + redlineKey);
             }
             String evidence = text(check, "evidenceReference", "sourceReference", "basis", "citation");
             if (evidence.isBlank()) {

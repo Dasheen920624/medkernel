@@ -79,7 +79,7 @@ describe("browserCompatibility", () => {
     const report = evaluateBrowserCompatibility(ALL_CAPABILITIES, "2026-06-18T00:00:00Z");
     const text = formatBrowserCompatibilityEvidence(report);
 
-    expect(text).toContain("证据依据：客户端 Web 能力探测");
+    expect(text).toContain("证据依据：客户端浏览器能力探测");
     expect(text).toContain("不替代目标国产浏览器现场确认");
     expect(text).not.toContain("User-Agent");
     expect(text).not.toContain("浏览器认证通过");

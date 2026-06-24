@@ -97,10 +97,10 @@ class RecommendationEngineServiceTest {
         when(deterministicMatcher.match(any())).thenReturn(List.of());
         when(fatiguePolicyResolver.resolve(any())).thenReturn(Optional.empty());
         when(contextSnapshots.findById("snapshot-1")).thenReturn(new ContextSnapshotResponse(
-            "snapshot-1", ContextSnapshotStatus.ACTIVE, validResources(), "pkg-1",
+            "snapshot-1", ContextSnapshotStatus.ACTIVE, validResources(), "runtime-release-test",
             QualityStatus.VALID, List.of(), Map.of(), Instant.now(), "trace-snapshot"));
-        when(riskMatrixService.assess(any(), any(), any())).thenAnswer(inv -> {
-            RecommendationRiskLevel severity = inv.getArgument(1);
+        when(riskMatrixService.assess(any(), any(), any(), any())).thenAnswer(inv -> {
+            RecommendationRiskLevel severity = inv.getArgument(2);
             boolean highRisk = severity == RecommendationRiskLevel.HIGH || severity == RecommendationRiskLevel.CRITICAL;
             return new CdssRiskAssessment(
                 "builtin-risk-baseline",
@@ -152,7 +152,7 @@ class RecommendationEngineServiceTest {
         assertThat(triggerCap.getValue().tenantId()).isEqualTo("tenant-A");
         assertThat(triggerCap.getValue().patientId()).isEqualTo("MPI-1");
         assertThat(triggerCap.getValue().encounterId()).isEqualTo("ENC-1");
-        assertThat(triggerCap.getValue().packageVersion()).isEqualTo("pkg-1");
+        assertThat(triggerCap.getValue().runtimeReleaseId()).isEqualTo("runtime-release-test");
         assertThat(triggerCap.getValue().inputDigest())
             .startsWith("sha256:")
             .isNotEqualTo("sha256:trigger");
@@ -167,12 +167,16 @@ class RecommendationEngineServiceTest {
 
     @Test
     void triggerAppliesRiskMatrixBeforePersistingCard() {
-        when(riskMatrixService.assess("order-sign", RecommendationRiskLevel.LOW, CdssAutomationLevel.AUTOMATED))
+        when(riskMatrixService.assess(
+                "runtime-release-test",
+                "order-sign",
+                RecommendationRiskLevel.LOW,
+                CdssAutomationLevel.AUTOMATED))
             .thenReturn(new CdssRiskAssessment(
                 "matrix-order-auto-v3",
                 "3",
                 RecommendationRiskLevel.CRITICAL,
-                CdssReviewRequirement.DUAL_REVIEW,
+                CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
                 168,
                 "OPT04_REDLINE_SILENT_TRIAL",
                 false,
@@ -190,11 +194,16 @@ class RecommendationEngineServiceTest {
         assertThat(saved.riskLevel()).isEqualTo(RecommendationRiskLevel.CRITICAL);
         assertThat(saved.requiresPhysicianConfirmation()).isTrue();
         assertThat(saved.automationLevel()).isEqualTo(CdssAutomationLevel.AUTOMATED);
-        assertThat(saved.reviewRequirement()).isEqualTo(CdssReviewRequirement.DUAL_REVIEW);
+        assertThat(saved.reviewRequirement()).isEqualTo(CdssReviewRequirement.PHYSICIAN_CONFIRMATION);
         assertThat(saved.silentRunHours()).isEqualTo(168);
         assertThat(saved.releaseGate()).isEqualTo("OPT04_REDLINE_SILENT_TRIAL");
         assertThat(saved.autoExecutionAllowed()).isFalse();
         assertThat(saved.riskMatrixVersion()).isEqualTo("3");
+        verify(riskMatrixService).assess(
+            "runtime-release-test",
+            "order-sign",
+            RecommendationRiskLevel.LOW,
+            CdssAutomationLevel.AUTOMATED);
     }
 
     @Test
@@ -214,7 +223,7 @@ class RecommendationEngineServiceTest {
         RecommendationTriggerRequest request = new RecommendationTriggerRequest(
             "TRG.LEGACY", "WARD_ORDER", "event-1", "snapshot-1",
             "patient-1", "enc-1", "pathway-1", "WARD_ORDER",
-            "1.0.0", "sha256:trigger", Instant.now(), List.of());
+            "sha256:trigger", Instant.now(), List.of());
 
         assertThatThrownBy(() -> service.trigger(request))
             .isInstanceOf(ApiException.class)
@@ -416,7 +425,11 @@ class RecommendationEngineServiceTest {
                 RecommendationInterruptLevel.STRONG_INTERRUPTIVE,
                 true,
                 List.of(redlineSource))));
-        when(riskMatrixService.assess("order-sign", RecommendationRiskLevel.CRITICAL, CdssAutomationLevel.INTERRUPTIVE))
+        when(riskMatrixService.assess(
+                "runtime-release-test",
+                "order-sign",
+                RecommendationRiskLevel.CRITICAL,
+                CdssAutomationLevel.INTERRUPTIVE))
             .thenReturn(new CdssRiskAssessment(
                 "broken-matrix",
                 "1",
@@ -443,7 +456,7 @@ class RecommendationEngineServiceTest {
             assertThat(card.riskLevel()).isEqualTo(RecommendationRiskLevel.CRITICAL);
             assertThat(card.interruptLevel()).isEqualTo(RecommendationInterruptLevel.STRONG_INTERRUPTIVE);
             assertThat(card.requiresPhysicianConfirmation()).isTrue();
-            assertThat(card.reviewRequirement()).isEqualTo(CdssReviewRequirement.DUAL_REVIEW);
+            assertThat(card.reviewRequirement()).isEqualTo(CdssReviewRequirement.PHYSICIAN_CONFIRMATION);
             assertThat(card.releaseGate()).isEqualTo("OPT04_REDLINE_RUNTIME_GUARD");
         });
         verify(fatigueSignals, never()).countLowValueSignals(any(), any(), any(), any());
@@ -692,7 +705,7 @@ class RecommendationEngineServiceTest {
         return new RecommendationTriggerRequest(
             "TRG.ORDER", "order-sign", "event-1", "snapshot-1",
             "patient-1", "enc-1", "pathway-1", "WARD_ORDER",
-            "1.0.0", "sha256:trigger", Instant.now(), candidateCards);
+            "sha256:trigger", Instant.now(), candidateCards);
     }
 
     private RecommendationTriggerRequest triggerRequest(
@@ -701,7 +714,7 @@ class RecommendationEngineServiceTest {
         return new RecommendationTriggerRequest(
             "TRG.ORDER", "order-sign", "event-1", "snapshot-1",
             "patient-1", "enc-1", "pathway-1", "WARD_ORDER",
-            "1.0.0", "sha256:trigger", Instant.now(), candidateCards,
+            "sha256:trigger", Instant.now(), candidateCards,
             modelEnhancementEnabled);
     }
 
@@ -752,7 +765,7 @@ class RecommendationEngineServiceTest {
         return new RecommendationTrigger(
             null, triggerId, "tenant-A", "TRG.ORDER", "order-sign",
             "event-1", "snapshot-1", "patient-1", "enc-1", "pathway-1",
-            "WARD_ORDER", "1.0.0", "sha256:trigger", status, null,
+            "WARD_ORDER", "runtime-release-test", "sha256:trigger", status, null,
             now, now, "tester", now, "tester", "trace-rec");
     }
 

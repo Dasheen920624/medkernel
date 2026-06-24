@@ -20,15 +20,12 @@ import com.medkernel.engine.llm.provider.DeploymentForm;
 import com.medkernel.engine.llm.provider.DeploymentFormService;
 import com.medkernel.engine.llm.provider.ProviderCompletion;
 import com.medkernel.engine.llm.provider.ProviderRequest;
-import com.medkernel.engine.security.AuthenticatedRoleGuard;
-import com.medkernel.engine.security.RoleCode;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
-import com.medkernel.shared.config.HighRiskChangeGuard;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.runtime.RuntimeProperties;
@@ -36,16 +33,15 @@ import com.medkernel.shared.runtime.RuntimeProperties;
 /**
  * 医学回归评测服务（LLM-07 T16/T17/T18）。
  *
- * <p>运行评测（对候选 provider 跑基准集，无基准集不认证）、高风险换版专家复核签字、上线门禁查询。
+ * <p>运行评测（对候选 provider 跑基准集，无基准集不认证）并提供上线门禁查询。
  * provider 启用前须存在 {@code PASSED} 评测运行（{@link #isClearedForGoLive}），否则 {@code ENG-LLM-008} 阻断。
  */
 @Service
 public class ModelEvalService {
 
-    private static final String SIGN_OFF_RESOURCE_TYPE = "model_eval_sign_off";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() { };
-    private static final Set<String> RUN_STATUSES = Set.of("PENDING_REVIEW", "PASSED", "FAILED");
+    private static final Set<String> RUN_STATUSES = Set.of("PASSED", "FAILED");
 
     private final MedicalRegressionCaseRepository caseRepo;
     private final ModelEvalRunRepository runRepo;
@@ -53,7 +49,6 @@ public class ModelEvalService {
     private final MedicalRegressionEvaluator evaluator;
     private final ModelProviderRegistry registry;
     private final AuditRecorder auditRecorder;
-    private final HighRiskChangeGuard highRiskChangeGuard;
     private final RuntimeProperties runtimeProperties;
     private final DeploymentFormService deploymentFormService;
 
@@ -63,7 +58,6 @@ public class ModelEvalService {
                             MedicalRegressionEvaluator evaluator,
                             ModelProviderRegistry registry,
                             AuditRecorder auditRecorder,
-                            HighRiskChangeGuard highRiskChangeGuard,
                             RuntimeProperties runtimeProperties,
                             DeploymentFormService deploymentFormService) {
         this.caseRepo = caseRepo;
@@ -72,7 +66,6 @@ public class ModelEvalService {
         this.evaluator = evaluator;
         this.registry = registry;
         this.auditRecorder = auditRecorder;
-        this.highRiskChangeGuard = highRiskChangeGuard;
         this.runtimeProperties = runtimeProperties;
         this.deploymentFormService = deploymentFormService;
     }
@@ -138,75 +131,6 @@ public class ModelEvalService {
         MedicalRegressionEvaluator.QualityEvalVerdict verdict =
             evaluator.evaluateQuality(cases, qualityRunner(tenantId, providerCode, request.caseOutputs()));
         return persistQuality(tenantId, providerCode, modelVersion, capabilityCode, promptVersion, toolVersion, verdict);
-    }
-
-    @Transactional
-    public ModelEvalRun signOff(Long runId, ModelEvalSignOffRequest request) {
-        if (request == null || !Boolean.TRUE.equals(request.evidenceAcknowledged())) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "必须确认已逐例核查评测证据");
-        }
-        String reviewComment = requireText(request.reviewComment(), "review_comment");
-        if (reviewComment.length() < 10 || reviewComment.length() > 1000) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "专家复核意见须为 10 至 1000 字");
-        }
-        String tenantId = requireCurrentTenant();
-        if (!AuthenticatedRoleGuard.has(RoleCode.QUALITY_GOVERNOR)) {
-            throw new ApiException(ErrorCode.FORBIDDEN, "仅质量治理员可执行专家复核签字");
-        }
-        ModelEvalRun run = runRepo.findById(runId)
-            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "评测运行不存在: " + runId));
-        if (!tenantId.equals(run.tenantId())) {
-            throw new ApiException(ErrorCode.TENANT_FORBIDDEN, "无权访问该评测运行");
-        }
-        if (!"PENDING_REVIEW".equals(run.status())) {
-            throw new ApiException(ErrorCode.ENG_LLM_008,
-                "仅待复核（PENDING_REVIEW）评测可签字放行，当前状态: " + run.status());
-        }
-        if (!requireCurrentReleaseFingerprint().equals(run.releaseFingerprint())) {
-            throw new ApiException(
-                ErrorCode.ENG_LLM_008,
-                "该评测属于历史运行制品，必须在当前制品重新运行");
-        }
-        String actor = RequestContext.currentUserId().orElse("system");
-        if (actor.equals(run.createdBy())) {
-            throw ApiException.conflict("专家签字人与评测执行人必须分离");
-        }
-        List<ModelEvalCaseEvidence> evidence = evidenceRepo
-            .findByTenantIdAndRunIdOrderByIdAsc(tenantId, runId);
-        assertReviewEvidenceComplete(run, evidence);
-        List<MedicalRegressionCase> currentCases = caseRepo
-            .findByTenantIdAndCapabilityCodeAndEnabledFlag(
-                tenantId, requireText(run.capabilityCode(), "capability_code"), "Y");
-        if (currentCases.isEmpty()
-            || !RegressionBaselineEvidence.matches(run.caseSummaryJson(), currentCases)
-            || !evidenceMatchesCurrentCases(evidence, currentCases)) {
-            throw new ApiException(ErrorCode.ENG_LLM_008, "当前医学回归基准已变化，必须重新运行评测");
-        }
-        highRiskChangeGuard.assertHighRiskAllowed(SIGN_OFF_RESOURCE_TYPE, String.valueOf(runId));
-        Instant now = Instant.now();
-        int updated = runRepo.signOffPending(runId, tenantId, actor, reviewComment, now);
-        if (updated != 1) {
-            throw ApiException.conflict("评测复核状态已被其他请求处理，请刷新后重试");
-        }
-        ModelEvalRun signed = new ModelEvalRun(
-            run.id(), run.tenantId(), run.providerCode(), run.modelVersion(),
-            run.capabilityCode(), run.promptVersion(), run.toolVersion(), run.releaseFingerprint(),
-            run.totalCases(), run.passedCases(), run.failedCases(),
-            run.qualityScore(), run.terminologyScore(),
-            run.fakeCitationDetected(), run.redLineBreach(), run.hallucinationDetected(),
-            "PASSED", run.caseSummaryJson(),
-            reviewComment, actor, now, run.createdAt(), run.createdBy(), now, actor);
-        auditRecorder.record(AuditAction.UPDATE, "mk_llm_eval_run", String.valueOf(runId),
-            "专家复核签字放行评测 " + run.providerCode() + "/" + run.modelVersion());
-        return signed;
-    }
-
-    private void assertReviewEvidenceComplete(
-            ModelEvalRun run,
-            List<ModelEvalCaseEvidence> evidence) {
-        if (!isReviewEvidenceComplete(run, evidence)) {
-            throw new ApiException(ErrorCode.ENG_LLM_008, "评测逐用例证据不完整或存在未通过裁决");
-        }
     }
 
     private boolean isReviewEvidenceComplete(
@@ -279,14 +203,7 @@ public class ModelEvalService {
             || !evidenceMatchesCurrentCases(evidence, currentCases)) {
             return false;
         }
-        boolean requiresExpertSignOff = currentCases.stream().anyMatch(MedicalRegressionCase::redLine);
-        return !requiresExpertSignOff
-            || (run.get().reviewer() != null
-                && !run.get().reviewer().isBlank()
-                && !run.get().reviewer().equals(run.get().createdBy())
-                && run.get().reviewComment() != null
-                && !run.get().reviewComment().isBlank()
-                && run.get().signedAt() != null);
+        return true;
     }
 
     @Transactional(readOnly = true)
@@ -323,7 +240,7 @@ public class ModelEvalService {
         return PageResponse.of(items, page, total);
     }
 
-    /** 读取单次运行及逐例证据，并计算当前是否仍满足复核条件。 */
+    /** 读取单次运行、逐例证据及当前交付内容有效性。 */
     @Transactional(readOnly = true)
     public ModelEvalRunDetailResponse getRunDetail(Long runId) {
         String tenantId = requireCurrentTenant();
@@ -340,18 +257,12 @@ public class ModelEvalService {
             && RegressionBaselineEvidence.matches(run.caseSummaryJson(), currentCases)
             && (evidence.isEmpty() || evidenceMatchesCurrentCases(evidence, currentCases));
         boolean releaseCurrent = releaseMatchesCurrent(run);
-        boolean reviewable = "PENDING_REVIEW".equals(run.status())
-            && evidenceComplete
-            && baselineCurrent
-            && releaseCurrent;
         return new ModelEvalRunDetailResponse(
             toSummary(run),
             evidence.stream().map(this::toEvidenceResponse).toList(),
             evidenceComplete,
             baselineCurrent,
-            releaseCurrent,
-            reviewable,
-            reviewBlockReason(run, evidenceComplete, baselineCurrent, releaseCurrent));
+            releaseCurrent);
     }
 
     private ModelEvalRun requireTenantRun(Long runId, String tenantId) {
@@ -371,7 +282,7 @@ public class ModelEvalService {
             "Y".equalsIgnoreCase(run.fakeCitationDetected()),
             "Y".equalsIgnoreCase(run.redLineBreach()),
             "Y".equalsIgnoreCase(run.hallucinationDetected()),
-            run.status(), run.reviewer(), run.signedAt(), run.reviewComment(), run.createdAt(), run.createdBy());
+            run.status(), run.createdAt(), run.createdBy());
     }
 
     private ModelEvalCaseEvidenceResponse toEvidenceResponse(ModelEvalCaseEvidence evidence) {
@@ -398,26 +309,6 @@ public class ModelEvalService {
         }
     }
 
-    private String reviewBlockReason(
-            ModelEvalRun run,
-            boolean evidenceComplete,
-            boolean baselineCurrent,
-            boolean releaseCurrent) {
-        if (!releaseCurrent) {
-            return "该评测属于历史运行制品，必须在当前制品重新运行";
-        }
-        if (!"PENDING_REVIEW".equals(run.status())) {
-            return "该运行当前不是待复核状态";
-        }
-        if (!evidenceComplete) {
-            return "逐用例证据不完整，必须重新运行评测";
-        }
-        if (!baselineCurrent) {
-            return "当前医学回归基准已变化，必须重新运行评测";
-        }
-        return null;
-    }
-
     private ModelEvalRun persist(String tenantId, String providerCode, String modelVersion,
                                  String capabilityCode,
                                  List<MedicalRegressionCase> cases,
@@ -430,7 +321,7 @@ public class ModelEvalService {
             verdict.total(), verdict.passed(), verdict.failed(),
             null, null, verdict.fakeCitationDetected() ? "Y" : "N", verdict.redLineBreach() ? "Y" : "N",
             "N", verdict.status(), RegressionBaselineEvidence.toJson(cases),
-            null, null, null, now, actor, now, actor));
+            now, actor, now, actor));
         persistCaseEvidence(saved, verdict.caseEvidence(), now, actor);
         auditRecorder.record(AuditAction.EXECUTE, "mk_llm_eval_run", providerCode + "/" + modelVersion,
             "运行医学回归评测 " + providerCode + "/" + modelVersion + " -> " + verdict.status());
@@ -510,7 +401,7 @@ public class ModelEvalService {
             verdict.total(), verdict.passed(), verdict.failed(),
             verdict.qualityScore(), verdict.terminologyScore(), "N", "N",
             verdict.hallucinationDetected() ? "Y" : "N", verdict.status(), verdict.caseSummaryJson(),
-            null, null, null, now, actor, now, actor));
+            now, actor, now, actor));
         auditRecorder.record(AuditAction.EXECUTE, "mk_llm_eval_run", capabilityCode + "/" + modelVersion,
             "运行 AI 质量评测 " + capabilityCode + "/" + modelVersion + " -> " + verdict.status());
         return saved;
@@ -531,12 +422,12 @@ public class ModelEvalService {
         String raw = runtimeProperties.getReleaseFingerprint();
         String normalized = raw == null ? "" : raw.trim();
         if (normalized.isEmpty() || normalized.length() > 128) {
-            throw new ApiException(ErrorCode.ENG_LLM_008, "当前运行制品指纹未正确配置");
+            throw new ApiException(ErrorCode.ENG_LLM_008, "当前交付内容指纹未正确配置");
         }
         if (deploymentFormService.currentForm() == DeploymentForm.PRODUCTION_CENTER
             && Set.of("development", "dev", "unset", "unknown").contains(
                 normalized.toLowerCase(Locale.ROOT))) {
-            throw new ApiException(ErrorCode.ENG_LLM_008, "生产中心禁止使用占位运行制品指纹");
+            throw new ApiException(ErrorCode.ENG_LLM_008, "生产中心禁止使用占位交付内容指纹");
         }
         return normalized;
     }

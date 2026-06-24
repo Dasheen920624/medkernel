@@ -319,9 +319,9 @@ export default function Notifications() {
                         <span>{sourceText[item.sourceType]}</span>
                         <span>{item.patientId || "-"}</span>
                         <span>{item.encounterId || "-"}</span>
-                        <span>来源对象 {item.sourceId}</span>
+                        <span>来源编号 {item.sourceId}</span>
                         <span>
-                          {item.traceId ? `追踪链路 ${item.traceId}` : SOURCE_TRACE_MISSING_TEXT}
+                          {item.traceId ? `追踪号 ${item.traceId}` : SOURCE_TRACE_MISSING_TEXT}
                         </span>
                       </Space>
                       {externalDeliveries.length > 0 && (

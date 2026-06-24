@@ -62,12 +62,11 @@ class KnowgenSpecializedAssetSkeletonRegistryTest {
             .containsExactly(VersionedAssetType.TERMINOLOGY, VersionedAssetType.VALUE_SET);
         assertThat(registry.require("KNOWGEN-30").assetTypes())
             .containsExactly(
-                VersionedAssetType.CONDITION_FRAGMENT,
                 VersionedAssetType.SAFETY,
                 VersionedAssetType.CDSS_RISK,
                 VersionedAssetType.ACTION_CARD,
                 VersionedAssetType.ORDER_SET,
-                VersionedAssetType.SUBPATHWAY);
+                VersionedAssetType.PATHWAY);
         assertThat(skeletons).allSatisfy(skeleton -> {
             assertThat(skeleton.b0Executable()).isTrue();
             assertThat(skeleton.modelRequired()).isFalse();

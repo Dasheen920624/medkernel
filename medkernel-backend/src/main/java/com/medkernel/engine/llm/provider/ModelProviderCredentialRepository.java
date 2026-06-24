@@ -6,7 +6,7 @@ import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 模型 Provider 租户凭据仓储。任何读取和变更必须同时携带租户与 Provider 编码。
+ * 模型服务机构凭据仓储。任何读取和变更必须同时携带服务机构与模型服务编码。
  */
 @Repository
 public interface ModelProviderCredentialRepository

@@ -88,30 +88,30 @@ describe("Login", () => {
     mutateAsyncMock.mockResolvedValue({
       userId: "doctor-1",
       tenantId: "t-1",
-      roles: ["clinical-decision-user"],
+      roles: ["clinical-user"],
       mustChangePwd: false,
       mfaRequired: false,
       mfaBound: false,
     });
     render(<Login />);
     fireEvent.change(screen.getByLabelText("工号 / 账号"), {
-      target: { value: "clinical-decision-user" },
+      target: { value: "clinical-user" },
     });
     fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Mk@2026dev" } });
     fireEvent.click(screen.getByRole("button", { name: /进入工作台/ }));
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith("/dashboard"));
     expect(mutateAsyncMock).toHaveBeenCalledWith({
-      username: "clinical-decision-user",
+      username: "clinical-user",
       password: "Mk@2026dev",
       tenantId: "t-1",
     });
   });
 
-  it("登录成功后若仍需改密或 MFA，强制进入首次部署引导", async () => {
+  it("登录成功后若仍需改密或多因素认证，强制进入首次部署引导", async () => {
     mutateAsyncMock.mockResolvedValue({
       userId: "platform-owner",
       tenantId: "t-1",
-      roles: ["platform-governance-admin"],
+      roles: ["platform-admin"],
       mustChangePwd: true,
       mfaRequired: true,
       mfaBound: false,
@@ -126,6 +126,32 @@ describe("Login", () => {
         "/bootstrap",
         expect.objectContaining({
           state: expect.objectContaining({ phase: "change-password" }),
+        }),
+      ),
+    );
+  });
+
+  it("多因素认证已绑定但本次尚未验证时进入验证码步骤", async () => {
+    mutateAsyncMock.mockResolvedValue({
+      userId: "engine-operator",
+      tenantId: "t-1",
+      roles: ["engine-operator"],
+      mustChangePwd: false,
+      mfaRequired: true,
+      mfaBound: true,
+    });
+    render(<Login />);
+    fireEvent.change(screen.getByLabelText("工号 / 账号"), {
+      target: { value: "engine-operator" },
+    });
+    fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Mk@2026dev" } });
+    fireEvent.click(screen.getByRole("button", { name: /进入工作台/ }));
+
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith(
+        "/bootstrap",
+        expect.objectContaining({
+          state: expect.objectContaining({ phase: "mfa" }),
         }),
       ),
     );
@@ -217,7 +243,7 @@ describe("Login", () => {
     mutateAsyncMock.mockResolvedValue({
       userId: "hosp-admin",
       tenantId: "t-hospital",
-      roles: ["organization-admin"],
+      roles: ["platform-admin"],
       mustChangePwd: false,
       mfaRequired: false,
       mfaBound: false,

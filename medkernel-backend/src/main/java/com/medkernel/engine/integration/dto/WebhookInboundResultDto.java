@@ -17,6 +17,8 @@ public record WebhookInboundResultDto(
     JsonNode mappedPayload,
     int mappedFieldCount,
     int normalizedCodeCount,
+    String clinicalEventId,
+    String clinicalEventStatus,
     boolean idempotentReplay,
     List<String> warnings
 ) {

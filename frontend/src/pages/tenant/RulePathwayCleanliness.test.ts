@@ -32,7 +32,7 @@ const forbiddenBusinessExamples = [
 ];
 
 const forbiddenBypassLanguage = [
-  "规避门禁",
+  "规避检查",
   "防止 ESLint",
   "AST 扫描",
   "模拟传入",
@@ -88,10 +88,11 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(hooksSource).not.toContain("SpecialtyPackageStatus");
     expect(hooksSource).not.toContain("useSpecialtyPackages");
     expect(hooksSource).not.toContain("useCreateSpecialtyPackage");
-    expect(hooksSource).toContain("useBuildPathwayKnowledgePackage");
-    expect(pathwaySource).toContain("usePackages");
-    expect(pathwaySource).toContain("useBuildPathwayKnowledgePackage");
-    expect(patientPathwaysSource).toContain("usePackages");
+    expect(hooksSource).not.toContain("useBuildPathwayKnowledgePackage");
+    expect(hooksSource).not.toContain("/engine/pkg/packages/pathway");
+    expect(pathwaySource).not.toContain("usePackages");
+    expect(pathwaySource).not.toContain("useBuildPathwayKnowledgePackage");
+    expect(patientPathwaysSource).not.toContain("usePackages");
   });
 
   it("uses the engine tenant API roots for onboarding service package hooks", () => {
@@ -221,23 +222,25 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     );
   });
 
-  it("keeps config package center free of legacy decorative layout and wired to StepFlow", () => {
-    const configPackagesSource = readSource("src/pages/tenant/ConfigPackages.tsx");
+  it("发布治理中心不再保留旧上线容器生命周期", () => {
+    const releaseSource = readSource("src/pages/tenant/ReleaseGovernance.tsx");
+    const hooksSource = readSource("src/shared/api/hooks.ts");
 
-    expect(configPackagesSource).toContain("StepFlow");
-    expect(configPackagesSource).not.toContain("bg-gradient-to-br");
-    expect(configPackagesSource).not.toContain("rounded-2xl");
-    expect(configPackagesSource).not.toContain("text-slate-");
-    expect(configPackagesSource).not.toContain("style=");
-    expect(configPackagesSource).not.toContain("font-normal font");
-    expect(configPackagesSource).not.toContain("一键创建知识配置包草稿");
-    expect(configPackagesSource).toContain("width: 260");
-    expect(configPackagesSource).toContain("className={styles.nowrap}");
+    expect(releaseSource).toContain("平台标准版本");
+    expect(releaseSource).toContain("机构生效版本");
+    expect(releaseSource).not.toContain("usePackages");
+    expect(releaseSource).not.toContain("useReleasePackage");
+    expect(releaseSource).not.toContain("配置" + "包");
+    expect(hooksSource).not.toContain('const PACKAGE_API_ROOT = "/engine/pkg/packages"');
+    expect(hooksSource).not.toContain(
+      'const RELEASE_GOVERNANCE_API_ROOT = "/engine/versioning/releases"',
+    );
+    expect(hooksSource).not.toContain("useStartReleaseRollout");
+    expect(hooksSource).not.toContain("useOverrideTemplates");
   });
 
   it("keeps terminology mapping wired to real API-04 safety flows instead of read-only samples", () => {
     const terminologySource = readSource("src/pages/tenant/TerminologyMapping.tsx");
-    const configPackagesSource = readSource("src/pages/tenant/ConfigPackages.tsx");
     const hooksSource = readSource("src/shared/api/hooks.ts");
 
     expect(terminologySource).toContain("StepFlow");
@@ -245,13 +248,13 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(terminologySource).toContain("useLocalTerms");
     expect(terminologySource).toContain("useTerminologyCandidates");
     expect(terminologySource).toContain("useTerminologyConflicts");
-    expect(terminologySource).toContain("useBuildTerminologyKnowledgePackage");
-    expect(terminologySource).toContain("useReleasePackage");
-    expect(terminologySource).toContain("useRollbackPackage");
+    expect(terminologySource).toContain("useCreateTerminologyAssetDraft");
+    expect(terminologySource).not.toContain("useReleasePackage");
+    expect(terminologySource).not.toContain("useRollbackPackage");
+    expect(terminologySource).not.toContain("usePackages");
     expect(terminologySource).not.toContain("useTerminologyPackages");
     expect(terminologySource).not.toContain("usePublishTerminologyPackage");
     expect(terminologySource).not.toContain("useRollbackTerminologyPackage");
-    expect(configPackagesSource).not.toContain("TermMappingPackage");
     expect(hooksSource).not.toContain("TermMappingPackage");
     expect(hooksSource).not.toContain("/mapping-packages");
     expect(terminologySource).not.toContain("read-only");

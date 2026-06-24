@@ -26,7 +26,10 @@ public class FollowupPathwayHandoffAdapter implements PathwayFollowupHandoffPort
             command.patientPathwayId(),
             command.diseaseCode(),
             command.riskLevel(),
-            command.taskTypes());
+            command.runtimeReleaseId(),
+            command.taskTypes(),
+            null,
+            null);
         return new PathwayFollowupHandoffResult(
             response.planId(), response.tasks().size(), response.status().name(),
             RequestContext.currentTraceId());

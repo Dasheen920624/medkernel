@@ -13,8 +13,12 @@ deploy/onprem/
 ├── mk-publish.ps1                 # Windows / PowerShell 一键构建、上传、发布
 ├── mk-publish.sh                  # macOS / Linux 一键构建、上传、发布
 ├── medkernel-deploy.sh            # 服务器端发布/回滚/状态脚本
-├── purge-schema.sql               # Oracle 首发/灾备清库脚本
+├── medkernel-fresh-deploy.sh      # PostgreSQL 备份、隔离恢复、清库和 V1 全新部署
+├── medkernel-post-rehearsal-verify.sh # 六阶段演练后的重启、数据库和恢复验收
+├── purge-schema.sql               # Oracle 重建/灾备清库脚本
 ├── tests/
+│   ├── validate-medkernel-fresh-deploy.sh
+│   ├── validate-medkernel-post-rehearsal-verify.sh
 │   └── validate-ollama-model.sh    # 本地模型定义安全与确定性门禁
 └── templates/
     ├── medkernel.service          # systemd 单元模板
@@ -102,7 +106,7 @@ sudo medkernel-deploy --rollback /zoesoft/medkernel/backups/deploy-YYYYmmdd-HHMM
 
 ## Ollama 本地知识草案模型
 
-本地模型只生成待独立人工审核的知识草案，不得自动签署评测、审核或发布医学知识。模型定义固定基础模型、采样参数和安全约束；真实权重 digest、provider 配置和版本三元组仍须在目标环境留证，不能只凭模型标签宣告一致。
+本地模型只生成待责任人确认的知识草案，不得自动确认或发布医学知识。模型定义固定基础模型、采样参数和安全约束；真实权重 digest、provider 配置和版本三元组仍须在目标环境留证，不能只凭模型标签宣告一致。
 
 提交或部署前先执行定义门禁：
 
@@ -119,7 +123,7 @@ ollama create medkernel-qwen25:1.5b-v1 \
 ollama show medkernel-qwen25:1.5b-v1 --modelfile
 ```
 
-Ollama 仅监听回环地址，模型目录放在受管数据目录。应用侧 provider 完成真实健康检查后仍保持停用，直至当前启用医学基准集评测通过、独立专家签署、能力策略、版本三元组和 P6 验收全部就绪。
+Ollama 仅监听回环地址，模型目录放在受管数据目录。应用侧 provider 完成真实健康检查后仍保持停用，直至当前启用医学基准集评测、能力策略、版本三元组和出域策略全部通过技术门禁。
 
 ## 首次部署要点
 
@@ -193,9 +197,9 @@ sudo medkernel-deploy --rollback /zoesoft/medkernel/backups/deploy-YYYYmmdd-HHMM
 
 回滚只恢复 jar 和前端 dist。已经执行成功的 Flyway 数据库迁移不会被自动回退；如果新版本迁移失败，需要查看 `/zoesoft/medkernel/logs/stdout.log` 并按 Flyway 修复流程处理。
 
-## Oracle 首发/清库
+## Oracle 重建/清库
 
-只适用于老 Oracle 现场或需要重建 Oracle schema 的首发。该操作会删除 `MEDKERNEL` schema 下对象，必须先备份并单独确认。
+只适用于老 Oracle 现场或需要重建 Oracle schema 的上线。该操作会删除 `MEDKERNEL` schema 下对象，必须先备份并单独确认。
 
 ```bash
 systemctl stop medkernel
@@ -203,7 +207,7 @@ sqlplus medkernel/<密码>@//<host>:1521/<service> @deploy/onprem/purge-schema.s
 systemctl start medkernel
 ```
 
-当前腾讯云 PostgreSQL 首发不使用该 SQL；PostgreSQL 数据库初始化由服务器首次部署流程和 Flyway 完成。
+当前腾讯云 PostgreSQL 上线不使用该 SQL；PostgreSQL 数据库初始化由服务器首次部署流程和 Flyway 完成。
 
 ## PostgreSQL 全新清库发布
 
@@ -218,13 +222,18 @@ sudo bash deploy/onprem/medkernel-fresh-deploy.sh --validate-environment-only
 预检通过后再执行全新发布：
 
 ```bash
+BUSINESS_TABLES="$(node -e 'const schema=require("./medkernel-backend/src/main/resources/db/schema/medkernel.schema.json"); console.log(schema.tables.length)')"
+
 sudo bash deploy/onprem/medkernel-fresh-deploy.sh \
   --jar /path/to/medkernel.jar \
   --frontend /path/to/dist.tar.gz \
   --service-unit /path/to/medkernel.service \
   --deploy-script /path/to/medkernel-deploy.sh \
   --source <40位提交哈希> \
-  --expected-flyway-version 149 \
+  --expected-host <目标机hostname> \
+  --external-base-url https://<正式域名>/medkernel \
+  --expected-flyway-version 1 \
+  --expected-business-tables "$BUSINESS_TABLES" \
   --confirm-fresh \
   --confirm-database medkernel
 ```
@@ -236,3 +245,25 @@ sudo bash deploy/onprem/medkernel-fresh-deploy.sh \
 ```
 
 该流程不会删除 `/zoesoft/medkernel/conf`，不会输出环境文件中的密钥、接管码或数据库口令。失败时不得把旧程序包自动恢复到已清空的新数据库；应根据本次备份目录中的 `evidence/` 和服务日志定位问题。
+
+## 全功能与全知识上线演练
+
+清库部署完成后，使用 `scripts/release/full-system-rehearsal.mjs` 依次执行账号接管、真实
+Provider、沙盘、11 域全知识、Provider 降级恢复和全量浏览器旅程。演练通过后必须执行：
+
+```bash
+BUSINESS_TABLES="$(node -e 'const schema=require("./medkernel-backend/src/main/resources/db/schema/medkernel.schema.json"); console.log(schema.tables.length)')"
+
+sudo bash deploy/onprem/medkernel-post-rehearsal-verify.sh \
+  --expected-host <目标机hostname> \
+  --expected-source <40位提交哈希> \
+  --external-base-url https://<正式域名>/medkernel \
+  --provider-code ollama-launch \
+  --expected-business-tables "$BUSINESS_TABLES" \
+  --expected-flyway-version 1 \
+  --confirm-restart \
+  --confirm-database medkernel
+```
+
+该入口会严格验证 TLS、服务重启、四职责、全知识、模型生产、沙盘、审计和演练后备份恢复。
+完整环境变量、阶段定义和证据边界见 [部署与上线演练](../../docs/DEPLOYMENT_AND_REHEARSAL.md)。

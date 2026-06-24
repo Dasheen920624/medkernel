@@ -88,8 +88,8 @@ public class ModelEnhancementMatrixService {
         // FR-2 B0 前置门禁：上线（ACTIVE）须同时具备已登记能力码与 B0 路径（铁律 #4 B0 先于模型）。
         if ("ACTIVE".equals(accessStatus) && (capabilityCode == null || b0Path == null)) {
             throw new ApiException(ErrorCode.ENG_LLM_010,
-                "业务点 " + point + " 上线须同时具备已登记能力码与 B0 路径，当前缺"
-                    + (capabilityCode == null ? "能力码" : "B0 路径"));
+                "业务点 " + point + " 上线须同时具备已登记能力码与基础规则路径，当前缺"
+                    + (capabilityCode == null ? "能力码" : "基础规则路径"));
         }
 
         Instant now = Instant.now();

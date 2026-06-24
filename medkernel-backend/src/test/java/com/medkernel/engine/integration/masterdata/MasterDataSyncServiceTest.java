@@ -333,7 +333,7 @@ class MasterDataSyncServiceTest {
             .put("departmentCode", "CARDIO")
             .put("appointmentType", "INTERNAL")
             .put("userId", "EMP-001")
-            .put("roleCode", "clinical-decision-user")
+            .put("roleCode", "clinical-user")
             .put("identityProvider", "EMPLOYEE_NO")
             .put("identitySubject", "EMP-001")
             .put("status", "ACTIVE");

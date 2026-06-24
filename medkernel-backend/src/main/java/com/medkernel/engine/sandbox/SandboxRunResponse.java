@@ -14,7 +14,8 @@ public record SandboxRunResponse(
     String runId,
     String baselineId,
     SandboxRunMode mode,
-    String resolvedPackageVersion,
+    String runtimeReleaseRef,
+    Long runtimeRevisionNo,
     SandboxResolutionSource resolutionSource,
     boolean externalSideEffects,
     List<SandboxStepTrace> steps,
@@ -56,7 +57,7 @@ public record SandboxRunResponse(
             List<String> embedModes,
             String result) {
         this(
-            scenarioId, traceId, null, null, SandboxRunMode.CURRENT, null, null, false,
+            scenarioId, traceId, null, null, SandboxRunMode.CURRENT, null, null, null, false,
             steps, snapshotId, triggerId, cardCount, embedToken, embedUrl, hookInstance,
             patientPathwayId, followupPlanId, evaluationRunId, embedModes, result, null, List.of(), null);
     }
@@ -76,7 +77,7 @@ public record SandboxRunResponse(
             List<String> embedModes,
             String result) {
         this(
-            scenarioId, traceId, null, null, SandboxRunMode.CURRENT, null, null, false,
+            scenarioId, traceId, null, null, SandboxRunMode.CURRENT, null, null, null, false,
             steps, snapshotId, triggerId, cardCount, embedToken, embedUrl,
             null, patientPathwayId, followupPlanId, evaluationRunId, embedModes, result, null, List.of(), null);
     }
@@ -92,7 +93,7 @@ public record SandboxRunResponse(
             String embedUrl,
             String result) {
         this(
-            scenarioId, traceId, null, null, SandboxRunMode.CURRENT, null, null, false,
+            scenarioId, traceId, null, null, SandboxRunMode.CURRENT, null, null, null, false,
             steps, snapshotId, triggerId, cardCount, embedToken, embedUrl,
             null, null, null, null, List.of(), result, null, List.of(), null);
     }
@@ -101,7 +102,8 @@ public record SandboxRunResponse(
     public SandboxRunResponse withRuntime(String effectiveRunId, SandboxRuntimeBaseline baseline) {
         return new SandboxRunResponse(
             scenarioId, traceId, effectiveRunId, baseline.baselineId(), baseline.mode(),
-            baseline.packageVersion(), baseline.resolutionSource(), false, steps, snapshotId,
+            baseline.runtimeReleaseRef(), baseline.runtimeRevisionNo(),
+            baseline.resolutionSource(), false, steps, snapshotId,
             triggerId, cardCount, embedToken, embedUrl, hookInstance, patientPathwayId,
             followupPlanId, evaluationRunId, embedModes, result, baseline.replayCaseId(),
             replayRuleResults, comparison);

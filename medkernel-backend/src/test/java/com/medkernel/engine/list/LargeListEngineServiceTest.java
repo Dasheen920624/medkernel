@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -37,6 +38,8 @@ import com.medkernel.shared.audit.persistence.AuditEventRepository;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.crypto.SmCryptoService;
+import com.medkernel.shared.export.ExportConfirmationGate;
+import com.medkernel.shared.export.ExportCompletionRequested;
 
 class LargeListEngineServiceTest {
 
@@ -49,6 +52,8 @@ class LargeListEngineServiceTest {
     private IsolatedAuditPublisher isolatedAudit;
     private JdbcTemplate jdbc;
     private Executor asyncExecutor;
+    private ExportConfirmationGate confirmationGate;
+    private ApplicationEventPublisher applicationEventPublisher;
 
     private LargeListEngineService service;
 
@@ -59,6 +64,8 @@ class LargeListEngineServiceTest {
         auditPublisher = mock(AuditEventPublisher.class);
         isolatedAudit = mock(IsolatedAuditPublisher.class);
         jdbc = mock(JdbcTemplate.class);
+        confirmationGate = mock(ExportConfirmationGate.class);
+        applicationEventPublisher = mock(ApplicationEventPublisher.class);
         asyncExecutor = command -> {
         };
 
@@ -69,7 +76,9 @@ class LargeListEngineServiceTest {
             isolatedAudit,
             jdbc,
             asyncExecutor,
-            new SmCryptoService()
+            new SmCryptoService(),
+            confirmationGate,
+            applicationEventPublisher
         );
 
         RequestContext.restore(new RequestContext.Snapshot("trace-123", OrgScope.tenant("tenant-1"), "IT-OPS-001"));
@@ -229,7 +238,8 @@ class LargeListEngineServiceTest {
 
     @Test
     void submitExportTask_PendingJobPersisted() {
-        ExportSubmitRequest req = new ExportSubmitRequest("AUDIT_EVENT", Map.of());
+        ExportSubmitRequest req = new ExportSubmitRequest(
+            "AUDIT_EVENT", Map.of(), "FILTERED_RESULT", "idem-pending", "exp-pending");
 
         LargeListExportJob pendingJob = new LargeListExportJob(
             "job-1", "tenant-1", "AUDIT_EVENT", "{\"filters\":{}}", "FILTERED_RESULT",
@@ -250,15 +260,42 @@ class LargeListEngineServiceTest {
     }
 
     @Test
+    void submitExportTask_RequiresMatchingConfirmationBeforePersisting() {
+        when(jobRepo.save(any(LargeListExportJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.submitExportTask(new ExportSubmitRequest(
+            "AUDIT_EVENT",
+            Map.of("action", "LOGIN"),
+            "FILTERED_RESULT",
+            "idem-confirmed-1",
+            "exp-audit-confirmed-1"
+        ));
+
+        verify(confirmationGate).requireConfirmedForExport(
+            eq("tenant-1"),
+            eq("exp-audit-confirmed-1"),
+            eq("AUDIT_EVENT"),
+            eq("{\"resourceType\":\"AUDIT_EVENT\",\"filters\":{\"action\":\"LOGIN\"},\"selectedScope\":\"FILTERED_RESULT\"}")
+        );
+        verify(jobRepo).save(any(LargeListExportJob.class));
+    }
+
+    @Test
     void submitExportTask_PersistsStructuredJsonSnapshot() throws Exception {
         when(jobRepo.save(any(LargeListExportJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(jobRepo.findByJobId(anyString())).thenReturn(Optional.empty());
 
-        service.submitExportTask(new ExportSubmitRequest("AUDIT_EVENT", Map.of(
-            "action", "LOGIN",
-            "resourceType", "USER",
-            "actorUserId", "doctor-1"
-        )));
+        service.submitExportTask(new ExportSubmitRequest(
+            "AUDIT_EVENT",
+            Map.of(
+                "action", "LOGIN",
+                "resourceType", "USER",
+                "actorUserId", "doctor-1"
+            ),
+            "FILTERED_RESULT",
+            "idem-snapshot",
+            "exp-snapshot"
+        ));
 
         ArgumentCaptor<LargeListExportJob> job = ArgumentCaptor.forClass(LargeListExportJob.class);
         verify(jobRepo, atLeastOnce()).save(job.capture());
@@ -281,7 +318,8 @@ class LargeListEngineServiceTest {
             "AUDIT_EVENT",
             Map.of("action", "LOGIN"),
             "FILTERED_RESULT",
-            "idem-1"
+            "idem-1",
+            "exp-idem-1"
         ));
 
         assertEquals("job-existing", response.jobId());
@@ -301,7 +339,13 @@ class LargeListEngineServiceTest {
             .thenReturn(Optional.of(existingJob));
 
         ApiException ex = assertThrows(ApiException.class, () -> service.submitExportTask(
-            new ExportSubmitRequest("AUDIT_EVENT", Map.of("action", "LOGOUT"), "FILTERED_RESULT", "idem-1")
+            new ExportSubmitRequest(
+                "AUDIT_EVENT",
+                Map.of("action", "LOGOUT"),
+                "FILTERED_RESULT",
+                "idem-1",
+                "exp-idem-1"
+            )
         ));
 
         assertEquals("ENG-API-001", ex.errorCode().code());
@@ -314,7 +358,10 @@ class LargeListEngineServiceTest {
 
         ExportSubmitResponse response = service.submitExportTask(new ExportSubmitRequest(
             "TERMINOLOGY_MAPPING",
-            Map.of("status", "DRAFT", "sourceSystem", "HIS")
+            Map.of("status", "DRAFT", "sourceSystem", "HIS"),
+            "FILTERED_RESULT",
+            "idem-terminology",
+            "exp-terminology"
         ));
 
         assertNotNull(response.jobId());
@@ -324,7 +371,13 @@ class LargeListEngineServiceTest {
     @Test
     void submitExportTask_RejectsUnknownAuditFilter() {
         ApiException ex = assertThrows(ApiException.class, () -> service.submitExportTask(
-            new ExportSubmitRequest("AUDIT_EVENT", Map.of("payloadDigest", "secret"))
+            new ExportSubmitRequest(
+                "AUDIT_EVENT",
+                Map.of("payloadDigest", "secret"),
+                "FILTERED_RESULT",
+                "idem-invalid-audit",
+                "exp-invalid-audit"
+            )
         ));
 
         assertEquals("ENG-LIST-007", ex.errorCode().code());
@@ -334,7 +387,13 @@ class LargeListEngineServiceTest {
     @Test
     void submitExportTask_RejectsUnknownTerminologyFilter() {
         ApiException ex = assertThrows(ApiException.class, () -> service.submitExportTask(
-            new ExportSubmitRequest("TERMINOLOGY_MAPPING", Map.of("tenantId", "tenant-2"))
+            new ExportSubmitRequest(
+                "TERMINOLOGY_MAPPING",
+                Map.of("tenantId", "tenant-2"),
+                "FILTERED_RESULT",
+                "idem-invalid-term",
+                "exp-invalid-term"
+            )
         ));
 
         assertEquals("ENG-LIST-007", ex.errorCode().code());
@@ -359,7 +418,7 @@ class LargeListEngineServiceTest {
               "superAdminOnly":"true"
             }}
             """,
-            "FILTERED_RESULT", "PENDING", null, null, 0L, null, 0L, "trace-123", null, null,
+            "FILTERED_RESULT", "PENDING", null, null, 0L, null, 0L, "trace-123", null, "idem-job-1",
             Instant.now(), "IT-OPS-001", Instant.now(), "IT-OPS-001"
         );
         when(jobRepo.findByJobId("job-1")).thenReturn(Optional.of(pendingJob));
@@ -379,6 +438,13 @@ class LargeListEngineServiceTest {
         assertEquals(Instant.parse("2026-01-01T00:00:00Z"), query.getValue().from());
         assertEquals(Instant.parse("2026-01-02T00:00:00Z"), query.getValue().to());
         assertTrue(query.getValue().superAdminOnly());
+        verify(applicationEventPublisher).publishEvent(new ExportCompletionRequested(
+            "tenant-1",
+            "idem-job-1",
+            "job-1",
+            "后台异步导出任务已生成真实文件",
+            "IT-OPS-001"
+        ));
     }
 
     @Test

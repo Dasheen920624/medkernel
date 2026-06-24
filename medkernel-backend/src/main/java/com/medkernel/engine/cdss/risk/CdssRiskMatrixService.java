@@ -6,12 +6,25 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 import com.medkernel.engine.cdshook.CdsHookContract;
 import com.medkernel.engine.context.ClinicalEventTriggerPoint;
 import com.medkernel.engine.recommendation.RecommendationRiskLevel;
+import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
+import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
+import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
+import com.medkernel.engine.versioning.AssetVersionService;
+import com.medkernel.engine.versioning.ReleasePort;
+import com.medkernel.engine.versioning.RolloutPolicy;
+import com.medkernel.engine.versioning.VersionReleaseCommand;
+import com.medkernel.engine.versioning.VersionReleaseScopeType;
+import com.medkernel.engine.versioning.VersionedAssetType;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -26,23 +39,42 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class CdssRiskMatrixService {
 
+    static final String ASSET_IDENTITY = "CDSS.RISK.MATRIX";
+    private static final String SCHEMA_VERSION = "1.0";
+
+    private static final JsonMapper JSON = JsonMapper.builder().findAndAddModules().build();
+
     private final CdssRiskMatrixRepository matrixRepository;
     private final AuditRecorder auditRecorder;
+    private final AssetVersionService versionService;
+    private final ReleasePort releasePort;
+    private final RuntimeReleaseCdssRiskMatrixSelector runtimeSelector;
 
-    public CdssRiskMatrixService(CdssRiskMatrixRepository matrixRepository, AuditRecorder auditRecorder) {
+    public CdssRiskMatrixService(
+            CdssRiskMatrixRepository matrixRepository,
+            AuditRecorder auditRecorder,
+            AssetVersionService versionService,
+            ReleasePort releasePort,
+            RuntimeReleaseCdssRiskMatrixSelector runtimeSelector) {
         this.matrixRepository = matrixRepository;
         this.auditRecorder = auditRecorder;
+        this.versionService = versionService;
+        this.releasePort = releasePort;
+        this.runtimeSelector = runtimeSelector;
     }
 
     @Transactional(readOnly = true)
     public CdssRiskAssessment assess(
+            String runtimeReleaseId,
             String triggerPoint,
             RecommendationRiskLevel severityLevel,
             CdssAutomationLevel automationLevel) {
         String normalizedTrigger = normalizeTrigger(triggerPoint);
         RecommendationRiskLevel severity = severityLevel == null ? RecommendationRiskLevel.LOW : severityLevel;
         CdssAutomationLevel automation = automationLevel == null ? CdssAutomationLevel.INFORM_ONLY : automationLevel;
-        return matrixRepository.findActiveRule(tenantId(), normalizedTrigger, severity, automation)
+        return runtimeSelector.selectRule(
+                tenantId(), requireText(runtimeReleaseId, "机构生效版本不能为空"),
+                normalizedTrigger, severity, automation)
             .map(CdssRiskMatrixRule::toAssessment)
             .orElseGet(() -> builtInBaseline(normalizedTrigger, severity, automation));
     }
@@ -121,12 +153,96 @@ public class CdssRiskMatrixService {
             .comparing(CdssRiskMatrixRule::triggerPoint)
             .thenComparing(rule -> rule.severityLevel().name())
             .thenComparing(rule -> rule.automationLevel().name()));
+        AssetVersion assetVersion = registerUnifiedAssetVersion(
+            tenantId, request, saved, actor, traceId);
+        publishUnifiedAssetWhenEffective(status, assetVersion, request.changeReason(), actor, traceId);
         auditRecorder.record(AuditAction.UPDATE, "mk_engine_cdss_risk_matrix", matrixVersion,
             "更新 CDSS 风险分级矩阵(" + status + ") " + changeReason);
         return new CdssRiskMatrixResponse(saved, traceId);
     }
 
     private record ValidatedMatrixEntry(String triggerPoint, CdssRiskMatrixEntryRequest entry) {}
+
+    private AssetVersion registerUnifiedAssetVersion(
+            String tenantId,
+            CdssRiskMatrixUpdateRequest request,
+            List<CdssRiskMatrixRule> saved,
+            String actor,
+            String traceId) {
+        String matrixVersion = request.matrixVersion().trim();
+        Map<String, Object> content = new LinkedHashMap<>();
+        content.put("schemaVersion", SCHEMA_VERSION);
+        content.put("matrixVersion", matrixVersion);
+        content.put("status", request.status().name());
+        content.put("changeReason", request.changeReason().trim());
+        content.put("rules", saved.stream().map(this::assetRule).toList());
+        return versionService.registerDraft(new AssetVersionRegisterCommand(
+            tenantId,
+            VersionedAssetType.CDSS_RISK,
+            ASSET_IDENTITY,
+            null,
+            "ALL",
+            writeContent(content),
+            null,
+            "cdss-risk-matrix:" + matrixVersion,
+            actor,
+            traceId,
+            AssetVersionSafetyPolicy.SAFETY_REDLINE,
+            AssetVersionOverridePolicy.LOCKED
+        ));
+    }
+
+    private Map<String, Object> assetRule(CdssRiskMatrixRule rule) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("matrixId", rule.matrixId());
+        value.put("triggerPoint", rule.triggerPoint());
+        value.put("severityLevel", rule.severityLevel());
+        value.put("automationLevel", rule.automationLevel());
+        value.put("riskLevel", rule.riskLevel());
+        value.put("reviewRequirement", rule.reviewRequirement());
+        value.put("silentRunHours", rule.silentRunHours());
+        value.put("releaseGate", rule.releaseGate());
+        value.put("autoExecutionAllowed", rule.autoExecutionAllowed());
+        value.put("samdClassification", rule.samdClassification());
+        value.put("regulatoryEvidence", rule.regulatoryEvidence());
+        value.put("explanation", rule.explanation());
+        return value;
+    }
+
+    private void publishUnifiedAssetWhenEffective(
+            CdssRiskMatrixStatus status,
+            AssetVersion assetVersion,
+            String changeReason,
+            String actor,
+            String traceId) {
+        if (status != CdssRiskMatrixStatus.PUBLISHED && status != CdssRiskMatrixStatus.ACTIVE) {
+            return;
+        }
+        releasePort.publish(new VersionReleaseCommand(
+            assetVersion.tenantId(),
+            VersionedAssetType.CDSS_RISK,
+            assetVersion.assetIdentity(),
+            assetVersion.versionId(),
+            assetVersion.organizationScope(),
+            assetVersion.applicableScope(),
+            VersionReleaseScopeType.ALL,
+            null,
+            RolloutPolicy.all(),
+            "CDSS 风险矩阵变更：" + requireText(changeReason, "风险矩阵变更原因不能为空"),
+            null,
+            actor,
+            traceId,
+            null
+        ));
+    }
+
+    private String writeContent(Map<String, Object> content) {
+        try {
+            return JSON.writeValueAsString(content);
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(ErrorCode.INTERNAL_ERROR, "CDSS 风险矩阵资产正文序列化失败", exception);
+        }
+    }
 
     private void validateAgainstSafetyBaseline(String triggerPoint, CdssRiskMatrixEntryRequest entry) {
         if (entry.severityLevel() == null
@@ -166,16 +282,16 @@ public class CdssRiskMatrixService {
         if (automationLevel == CdssAutomationLevel.AUTOMATED) {
             return new CdssRiskAssessment(
                 "builtin-risk-baseline", "baseline", RecommendationRiskLevel.CRITICAL,
-                CdssReviewRequirement.DUAL_REVIEW, 168, "OPT04_REDLINE_SILENT_TRIAL",
+                CdssReviewRequirement.PHYSICIAN_CONFIRMATION, 168, "OPT04_REDLINE_SILENT_TRIAL",
                 false, "NMPA_RESERVED", "RISK_ANALYSIS_REQUIRED",
                 "自动化 CDSS 输出按医疗安全基线提升为红线级，禁止自动执行");
         }
         if (severity == RecommendationRiskLevel.CRITICAL) {
             return new CdssRiskAssessment(
                 "builtin-risk-baseline", "baseline", RecommendationRiskLevel.CRITICAL,
-                CdssReviewRequirement.DUAL_REVIEW, 168, "OPT04_REDLINE_SILENT_TRIAL",
+                CdssReviewRequirement.PHYSICIAN_CONFIRMATION, 168, "OPT04_REDLINE_SILENT_TRIAL",
                 false, "NMPA_RESERVED", "RISK_ANALYSIS_REQUIRED",
-                "红线级 CDSS 输出必须双人复核并经过静默试运行门槛");
+                "红线级 CDSS 输出必须由医师逐次确认并经过静默试运行门槛");
         }
         if (severity == RecommendationRiskLevel.HIGH
                 || (triggerHazard(triggerPoint) >= 2 && severity == RecommendationRiskLevel.MEDIUM
@@ -221,7 +337,6 @@ public class CdssRiskMatrixService {
         return switch (reviewRequirement) {
             case OPTIONAL_REVIEW -> 0;
             case PHYSICIAN_CONFIRMATION -> 1;
-            case DUAL_REVIEW -> 2;
         };
     }
 

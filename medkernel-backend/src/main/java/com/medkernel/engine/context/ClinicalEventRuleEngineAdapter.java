@@ -6,8 +6,11 @@ import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.medkernel.engine.rule.RuntimeReleaseRuleSelector;
+import com.medkernel.engine.rule.RuntimeRuleSelection;
 import com.medkernel.engine.rule.RuleEngineService;
 import com.medkernel.engine.rule.RuleEvaluateResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * 临床事件到规则引擎真实执行入口的适配器。
@@ -17,10 +20,20 @@ public class ClinicalEventRuleEngineAdapter implements ClinicalEventEngineAdapte
 
     private final RuleEngineService rules;
     private final ObjectMapper json;
+    private final RuntimeReleaseRuleSelector runtimeRules;
 
-    public ClinicalEventRuleEngineAdapter(RuleEngineService rules, ObjectMapper json) {
+    @Autowired
+    public ClinicalEventRuleEngineAdapter(
+            RuleEngineService rules,
+            ObjectMapper json,
+            RuntimeReleaseRuleSelector runtimeRules) {
         this.rules = rules;
         this.json = json;
+        this.runtimeRules = runtimeRules;
+    }
+
+    ClinicalEventRuleEngineAdapter(RuleEngineService rules, ObjectMapper json) {
+        this(rules, json, null);
     }
 
     @Override
@@ -30,13 +43,25 @@ public class ClinicalEventRuleEngineAdapter implements ClinicalEventEngineAdapte
 
     @Override
     public ClinicalEventEngineDispatchResult dispatch(ClinicalEventContext context) {
-        RuleEvaluateResponse response = rules.evaluateContext(
-            context.triggerPoint(),
-            toRuleContext(context),
-            context.eventId(),
-            List.of(),
-            context.packageVersion()
-        );
+        RuntimeRuleSelection selection = runtimeRules == null
+            ? new RuntimeRuleSelection(context.runtimeReleaseId(), null, List.of())
+            : runtimeRules.select(
+                context.tenantId(), context.runtimeReleaseId(), context.triggerPoint());
+        RuleEvaluateResponse response = runtimeRules == null
+            ? rules.evaluateContext(
+                context.triggerPoint(),
+                toRuleContext(context),
+                context.eventId(),
+                List.of(),
+                context.runtimeReleaseId()
+            )
+            : rules.evaluatePinnedContext(
+                context.triggerPoint(),
+                toRuleContext(context),
+                context.eventId(),
+                selection.rules(),
+                selection.runtimeReleaseId()
+            );
         return ClinicalEventEngineDispatchResult.dispatched(
             engine(), response.requestId(), "规则引擎已接收临床事件上下文");
     }
@@ -54,6 +79,7 @@ public class ClinicalEventRuleEngineAdapter implements ClinicalEventEngineAdapte
         event.put("triggerSource", context.triggerSource());
         event.put("occurredAt", context.occurredAt().toString());
         event.put("payloadDigest", context.payloadDigest());
+        event.put("runtimeReleaseId", context.runtimeReleaseId());
         ObjectNode patient = root.path("patient").isObject()
             ? (ObjectNode) root.path("patient")
             : root.putObject("patient");

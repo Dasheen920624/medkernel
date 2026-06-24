@@ -16,8 +16,8 @@ import jakarta.validation.Valid;
 /**
  * 页面嵌入引擎接口控制器 (GA-ENG-API-11)。
  *
- * <p>提供外部工作站集成所需的令牌生成、单次交换校验、用户交互闭环反馈以及安全域名白名单管理的 REST API 服务。
- * 签发与白名单管理受 {@link DataScope} 保护；外部宿主端点仅接受服务端校验的一次性令牌。
+ * <p>提供外部工作站集成所需的启动凭证生成、单次交换校验、用户交互闭环反馈以及安全域名允许清单管理的 REST API 服务。
+ * 签发与允许清单管理受 {@link DataScope} 保护；外部宿主端点仅接受服务端校验的一次性启动凭证。
  */
 @RestController
 @RequestMapping("/api/v1/engine/embed")
@@ -30,10 +30,10 @@ public class EmbedEngineController {
     }
 
     /**
-     * 生成一次性页面嵌入启动令牌。
+     * 生成一次性页面嵌入启动凭证。
      *
-     * @param request 令牌申请请求信息
-     * @return 启动令牌及嵌入链接响应
+     * @param request 启动凭证申请请求信息
+     * @return 启动凭证及嵌入链接响应
      */
     @PostMapping("/launch-tokens")
     @PreAuthorize("@perm.has('embed.write')")
@@ -43,9 +43,9 @@ public class EmbedEngineController {
     }
 
     /**
-     * 使用启动令牌兑换获取嵌入会话临床上下文，并物理标记令牌为已使用。
+     * 使用启动凭证兑换获取嵌入会话临床上下文，并物理标记凭证为已使用。
      *
-     * @param request 启动令牌兑换请求
+     * @param request 启动凭证兑换请求
      * @return 会话及关联的临床上下文
      */
     @PostMapping("/launch")
@@ -55,7 +55,7 @@ public class EmbedEngineController {
     }
 
     /**
-     * 使用已兑换令牌读取该患者、就诊和触发点范围内的临床建议。
+     * 使用已兑换凭证读取该患者、就诊和触发点范围内的临床建议。
      */
     @PostMapping("/recommendations")
     public ApiResult<EmbedRecommendationCardsResponse> recommendations(
@@ -75,7 +75,7 @@ public class EmbedEngineController {
     }
 
     /**
-     * 为当前租户添加允许嵌入 Origin 白名单域名。
+     * 为当前服务机构添加允许嵌入的 Origin 来源域名。
      *
      * @param request 域名 Origin 配置请求
      * @return 空响应
@@ -89,9 +89,9 @@ public class EmbedEngineController {
     }
 
     /**
-     * 获取当前租户下配置的所有 Origin 白名单域名列表。
+     * 获取当前服务机构下配置的所有 Origin 来源域名允许清单。
      *
-     * @return Origin域名白名单列表
+     * @return Origin 来源域名允许清单
      */
     @GetMapping("/origins")
     @PreAuthorize("@perm.has('embed.read')")

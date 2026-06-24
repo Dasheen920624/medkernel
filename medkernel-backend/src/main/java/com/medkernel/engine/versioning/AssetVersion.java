@@ -10,7 +10,7 @@ import org.springframework.data.relational.core.mapping.Table;
  * 通用配置资产版本实体。
  *
  * <p>物理表按迁移规约命名为 {@code mk_version_asset_version}；领域对象保持
- * {@code AssetVersion}，供知识、术语、规则、路径、包、评估等配置资产复用。
+ * {@code AssetVersion}，供知识、术语、规则、路径、评估、随访、安全、辅助诊疗等运行资产复用。
  */
 @Table("mk_version_asset_version")
 public record AssetVersion(

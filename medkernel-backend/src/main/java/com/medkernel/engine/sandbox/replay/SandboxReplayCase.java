@@ -18,8 +18,8 @@ public record SandboxReplayCase(
     @Column("source_context_ref") String sourceContextRef,
     @Column("context_snapshot_json") String contextSnapshotJson,
     @Column("context_snapshot_hash") String contextSnapshotHash,
-    @Column("package_code") String packageCode,
-    @Column("package_version") String packageVersion,
+    @Column("source_runtime_release_ref") String sourceRuntimeReleaseRef,
+    @Column("source_runtime_revision_no") Long sourceRuntimeRevisionNo,
     @Column("occurred_at") Instant occurredAt,
     @Column("manifest_hash") String manifestHash,
     @Column("deidentification_profile") String deidentificationProfile,
@@ -36,7 +36,8 @@ public record SandboxReplayCase(
     public SandboxReplayCase revoke(Instant at, String actor, String reason, String nextTraceId) {
         return new SandboxReplayCase(
             id, replayCaseId, sandboxTenantId, sourceTenantRef, sourceEventRef, sourceTraceRef,
-            sourceContextRef, contextSnapshotJson, contextSnapshotHash, packageCode, packageVersion,
+            sourceContextRef, contextSnapshotJson, contextSnapshotHash,
+            sourceRuntimeReleaseRef, sourceRuntimeRevisionNo,
             occurredAt, manifestHash, deidentificationProfile, SandboxReplayStatus.REVOKED,
             importedAt, importedBy, at, actor, reason, createdAt, at, nextTraceId);
     }

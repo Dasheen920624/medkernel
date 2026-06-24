@@ -200,10 +200,11 @@ class MpiServiceTest {
             "ctx-1", "mpi-1", "enc-1", ContextSnapshotStatus.ACTIVE, QualityStatus.PARTIAL, Instant.now());
         ContextSnapshotResponse snapshot = new ContextSnapshotResponse(
             "ctx-1", ContextSnapshotStatus.ACTIVE, null,
-            "pkg-2026.06",
+            "runtime-release-test",
             QualityStatus.PARTIAL, List.of(), java.util.Map.of(), Instant.now(), "trace-context");
         PatientPathway activePathway = new PatientPathway(
-            1L, "pp-1", TENANT_ID, "mpi-1", "enc-1", "pt-1", "ASSESS",
+            1L, "pp-1", TENANT_ID, "mpi-1", "enc-1", "pt-1",
+            "release-H1", "av-pathway-v1", "ASSESS",
             PatientPathwayStatus.NODE_EXECUTING, Instant.now(), null, null, null, null,
             Instant.now(), ACTOR, Instant.now(), ACTOR, "trace-pathway");
         when(repository.findByTenantIdAndMpiId(TENANT_ID, "mpi-1")).thenReturn(Optional.of(patient));

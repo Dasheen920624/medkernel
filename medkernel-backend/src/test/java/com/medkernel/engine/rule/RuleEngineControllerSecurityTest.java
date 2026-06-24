@@ -59,10 +59,8 @@ class RuleEngineControllerSecurityTest {
         }
         """;
 
-    private static final String SIGNOFF_BODY =
-        "{\"stage\":\"COMMITTEE\",\"decision\":\"APPROVED\",\"reason\":\"同意进入影子验证\"}";
     private static final String TRANSITION_BODY =
-        "{\"targetState\":\"SHADOW\",\"impactDigest\":\"sha256:impact\",\"reason\":\"会签完成\"}";
+        "{\"targetState\":\"REVIEWED\",\"impactDigest\":\"sha256:impact\",\"reason\":\"负责人确认技术验证结果\"}";
     private static final String OVERRIDE_BODY =
         "{\"actionCode\":\"BLOCK\",\"reason\":\"已完成临床复核\"}";
     private static final String SHADOW_FEEDBACK_BODY =
@@ -84,7 +82,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCanReadRuleButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/rule/rules/rule-1"))
             .andExpect(status().isBadRequest())
@@ -92,7 +90,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCanEvaluateRulesButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/evaluate")
                 .contentType("application/json")
@@ -102,7 +100,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCanDiagnoseExecutionButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/rule/rules/executions/rex-1/explain"))
             .andExpect(status().isBadRequest())
@@ -110,7 +108,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCanListExecutionsButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/rule/rules/executions"))
             .andExpect(status().isBadRequest())
@@ -118,7 +116,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCanReadShadowStatsButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/rule/rules/rule-1/shadow-stats"))
             .andExpect(status().isBadRequest())
@@ -126,7 +124,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCanCaptureOverrideButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/executions/rex-1/override")
                 .contentType("application/json")
@@ -136,7 +134,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_KNOWLEDGE_GOVERNOR")
+    @WithMockUser(authorities = "ROLE_ENGINE_OPERATOR")
     void specialistCanReachCreateButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules")
                 .contentType("application/json")
@@ -146,7 +144,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_KNOWLEDGE_GOVERNOR")
+    @WithMockUser(authorities = "ROLE_ENGINE_OPERATOR")
     void specialistCanReachTestCaseAndSimulateButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/test-cases")
                 .contentType("application/json")
@@ -156,20 +154,19 @@ class RuleEngineControllerSecurityTest {
 
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/simulate")
                 .contentType("application/json")
-                .content("{\"context\":{\"patient\":{\"age\":72}}}"))
+                .content("""
+                    {
+                      "triggerPoint": "patient-view",
+                      "context": {"patient": {"age": 72}}
+                    }
+                    """))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_GOVERNOR")
-    void medicalAffairsCanGovernRuleButDataScopeRejectsMissingTenant() throws Exception {
-        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/signoffs")
-                .contentType("application/json")
-                .content(SIGNOFF_BODY))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
-
+    @WithMockUser(authorities = "ROLE_ENGINE_OPERATOR")
+    void engineOperatorCanGovernRuleButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/transitions")
                 .contentType("application/json")
                 .content(TRANSITION_BODY))
@@ -178,14 +175,8 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_QUALITY_GOVERNOR")
-    void qualityGovernorCanReachGovernanceEndpointsBeforeDataScopeValidation() throws Exception {
-        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/signoffs")
-                .contentType("application/json")
-                .content(SIGNOFF_BODY))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
-
+    @WithMockUser(authorities = "ROLE_ENGINE_OPERATOR")
+    void engineOperatorCanReachGovernanceTransitionBeforeDataScopeValidation() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/transitions")
                 .contentType("application/json")
                 .content(TRANSITION_BODY))
@@ -194,7 +185,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_KNOWLEDGE_GOVERNOR")
+    @WithMockUser(authorities = "ROLE_ENGINE_OPERATOR")
     void specialistCanReachRuleGovernanceTransitionForDraftSubmission() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/transitions")
                 .contentType("application/json")
@@ -204,7 +195,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_KNOWLEDGE_GOVERNOR")
+    @WithMockUser(authorities = "ROLE_ENGINE_OPERATOR")
     void specialistCanReachShadowFeedbackButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/executions/rex-1/shadow-feedback")
                 .contentType("application/json")
@@ -214,7 +205,7 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_KNOWLEDGE_GOVERNOR")
+    @WithMockUser(authorities = "ROLE_ENGINE_OPERATOR")
     void specialistCanReachBacktestAndDriftButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/backtest")
                 .contentType("application/json")
@@ -230,13 +221,8 @@ class RuleEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCannotGovernRules() throws Exception {
-        mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/signoffs")
-                .contentType("application/json")
-                .content(SIGNOFF_BODY))
-            .andExpect(status().isForbidden());
-
         mvc.perform(post("/api/v1/engine/rule/rules/rule-1/governance/transitions")
                 .contentType("application/json")
                 .content(TRANSITION_BODY))

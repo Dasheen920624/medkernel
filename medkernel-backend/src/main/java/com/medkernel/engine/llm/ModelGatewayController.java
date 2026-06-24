@@ -62,7 +62,7 @@ public class ModelGatewayController {
      * @return 保存后的目录项
      */
     @PutMapping("/catalog/{capabilityCode}")
-    @PreAuthorize("@perm.has('system.manage')")
+    @PreAuthorize("@perm.has('llm.manage')")
     public ApiResult<ModelCapabilityDefinitionResponse> saveCatalogEntry(
             @PathVariable String capabilityCode,
             @Valid @RequestBody ModelCapabilityDefinitionUpsertRequest request) {
@@ -106,7 +106,7 @@ public class ModelGatewayController {
     }
 
     /**
-     * 按 task_id 重放 B0 确定性模型任务，复现原任务保存的输入摘要与版本三元组。
+     * 按任务号重放 B0 确定性模型任务，复现原任务保存的输入摘要与提示词、工具和模型版本。
      *
      * @param id 原任务唯一 ID
      * @return 新重放任务处理结果

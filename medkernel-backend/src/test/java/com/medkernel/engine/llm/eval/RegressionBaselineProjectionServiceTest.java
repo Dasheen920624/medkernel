@@ -48,11 +48,11 @@ class RegressionBaselineProjectionServiceTest {
             assertThat(regressionCase.tenantId()).isEqualTo("tenant-A");
             assertThat(regressionCase.capabilityCode()).isEqualTo("rule.draft");
             assertThat(regressionCase.caseInput()).contains(
-                "儿童用药剂量上限需双签",
+                "儿童用药剂量不得超过已审上限",
                 "超出已审剂量上限可能导致严重不良反应",
                 "{\"field\":\"dose.amount\",\"operator\":\"lte\"}",
                 "source-version:77#dose-limit");
-            assertThat(regressionCase.expectedPhrase()).isEqualTo("儿童用药剂量上限需双签");
+            assertThat(regressionCase.expectedPhrase()).isEqualTo("儿童用药剂量不得超过已审上限");
             assertThat(regressionCase.redLineType()).isEqualTo("DOSE_LIMIT");
             assertThat(regressionCase.citationRequired()).isEqualTo("Y");
             assertThat(regressionCase.caseVersion()).isEqualTo("2026.1");
@@ -67,7 +67,7 @@ class RegressionBaselineProjectionServiceTest {
         ClinicalRedlineRule redline = redline("tenant-A", "redline-dose-limit", "RDL-DOSE-001",
             ClinicalRedlineCategory.DOSE_LIMIT);
         MedicalRegressionCase existing = new MedicalRegressionCase(9L, "tenant-A", "rule.draft",
-            "rule", expectedCaseInput(redline), "儿童用药剂量上限需双签", "[]", "[]", 100, "DOSE_LIMIT",
+            "rule", expectedCaseInput(redline), "儿童用药剂量不得超过已审上限", "[]", "[]", 100, "DOSE_LIMIT",
             "source-version:77#dose-limit", "Y", "2026.1", "Y", Instant.now(),
             "regression-baseline-seeder", Instant.now(), "regression-baseline-seeder");
         when(redlineRepository.findByTenantIdAndStatusOrderByCategoryAscRedlineKeyAscUpdatedAtDesc(
@@ -151,10 +151,10 @@ class RegressionBaselineProjectionServiceTest {
             RecommendationRiskLevel.CRITICAL,
             "risk-matrix-dose",
             "4",
-            CdssReviewRequirement.DUAL_REVIEW,
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
             168,
             "OPT04_REDLINE_SILENT_TRIAL",
-            "儿童用药剂量上限需双签",
+            "儿童用药剂量不得超过已审上限",
             "超出已审剂量上限可能导致严重不良反应",
             conditionDsl,
             "药品说明书与儿科用药指南证据",

@@ -1,16 +1,19 @@
 package com.medkernel.engine.versioning;
 
 /**
- * 配置类资产统一生命周期状态机。
+ * 配置类资产内容版本生命周期。
  *
- * <p>平台版本与租户覆盖共用同一状态机；只有 {@link #PUBLISHED} 参与新请求解析，
- * {@link #RETIRED} 保留历史重放但不再参与解析。
+ * <p>评审、批准、灰度、回滚等过程状态属于发布计划或机构生效版本，不写入内容版本。
  */
 public enum AssetVersionStatus {
     DRAFT,
-    IN_REVIEW,
-    APPROVED,
     PUBLISHED,
-    DEPRECATED,
-    RETIRED
+    WITHDRAWN;
+
+    /**
+     * 返回上线模型允许写入和解释的全部内容生命周期。
+     */
+    public static AssetVersionStatus[] canonicalValues() {
+        return new AssetVersionStatus[] {DRAFT, PUBLISHED, WITHDRAWN};
+    }
 }

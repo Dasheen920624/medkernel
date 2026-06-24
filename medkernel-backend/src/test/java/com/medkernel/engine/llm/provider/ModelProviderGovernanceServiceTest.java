@@ -29,7 +29,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 模型 provider 治理服务单元测试（LLM-08 T13 双形态门禁 ENG-LLM-009 + LLM-07 T17 上线评测门禁 ENG-LLM-008）。
+ * 模型服务治理服务单元测试（LLM-08 T13 双形态门禁 ENG-LLM-009 + LLM-07 T17 上线评测门禁 ENG-LLM-008）。
  */
 class ModelProviderGovernanceServiceTest {
 
@@ -81,7 +81,7 @@ class ModelProviderGovernanceServiceTest {
         verify(evalService, never()).isClearedForGoLive(any(), any(), any(), any());
         verify(deploymentForm, never()).allowsExternalProvider();
         verify(auditRecorder).record(AuditAction.UPDATE, "mk_llm_provider", "ollama-local",
-            "保存模型 provider ollama-local");
+            "保存模型服务 ollama-local");
     }
 
     @Test
@@ -277,7 +277,7 @@ class ModelProviderGovernanceServiceTest {
             AuditAction.UPDATE,
             "mk_llm_provider_credential",
             "external",
-            "保存模型 provider 凭据 external（尾标=1234，版本=0）：登记生产模型凭据");
+            "保存模型服务凭据 external（尾标=1234，版本=0）：登记生产模型凭据");
     }
 
     @Test
@@ -321,7 +321,7 @@ class ModelProviderGovernanceServiceTest {
             AuditAction.DELETE,
             "mk_llm_provider_credential",
             "external",
-            "移除模型 provider 凭据 external（原尾标=1234，版本=3）：撤销失效的生产模型凭据");
+            "移除模型服务凭据 external（原尾标=1234，版本=3）：撤销失效的生产模型凭据");
     }
 
     @Test
@@ -337,7 +337,7 @@ class ModelProviderGovernanceServiceTest {
             "external",
             new ModelProviderActivationRequest(
                 CAPABILITY,
-                "独立专家评测已签署，按 T9.8 受控启用",
+                "医学回归评测通过并已核查，受控启用",
                 5L,
                 true));
 
@@ -348,7 +348,7 @@ class ModelProviderGovernanceServiceTest {
             AuditAction.UPDATE,
             "mk_llm_provider",
             "external",
-            "启用模型 provider external（capability=rule.draft）：独立专家评测已签署，按 T9.8 受控启用");
+            "启用模型服务 external（能力=rule.draft）：医学回归评测通过并已核查，受控启用");
     }
 
     @Test
@@ -473,7 +473,7 @@ class ModelProviderGovernanceServiceTest {
             AuditAction.UPDATE,
             "mk_llm_provider",
             "external",
-            "停用模型 provider external：维护窗口主动停用");
+            "停用模型服务 external：维护窗口主动停用");
     }
 
     @Test
@@ -523,7 +523,7 @@ class ModelProviderGovernanceServiceTest {
         assertThat(checked.enabled()).isTrue();
         assertThat(checked.version()).isEqualTo(1L);
         verify(auditRecorder).record(AuditAction.UPDATE, "mk_llm_provider", "ollama-local",
-            "探测模型 provider ollama-local status=HEALTHY");
+            "探测模型服务 ollama-local，连接状态=连接正常");
     }
 
     @Test

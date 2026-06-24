@@ -75,7 +75,7 @@ public class ClinicalEventCallbackNotifier {
         payload.put("patientId", event.patientId());
         putNullable(payload, "encounterId", event.encounterId());
         payload.put("sourceSystem", event.sourceSystem());
-        payload.put("packageVersion", event.packageVersion());
+        payload.put("runtimeReleaseId", event.runtimeReleaseId());
         payload.put("payloadDigest", event.payloadDigest());
         putInstant(payload, "occurredAt", event.occurredAt());
         putNullable(payload, "callbackWebhookId", webhook.webhookId());

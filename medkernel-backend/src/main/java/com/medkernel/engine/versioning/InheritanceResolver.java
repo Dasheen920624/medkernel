@@ -28,9 +28,9 @@ import com.medkernel.shared.hash.Sha256ContentHash;
 public class InheritanceResolver {
 
     private static final List<AssetVersionStatus> RESOLVABLE_VERSION_STATUSES =
-        List.of(AssetVersionStatus.PUBLISHED, AssetVersionStatus.DEPRECATED, AssetVersionStatus.RETIRED);
+        List.of(AssetVersionStatus.PUBLISHED, AssetVersionStatus.WITHDRAWN);
     private static final List<InheritanceOverrideStatus> RESOLVABLE_OVERRIDE_STATUSES =
-        List.of(InheritanceOverrideStatus.PUBLISHED, InheritanceOverrideStatus.RETIRED);
+        List.of(InheritanceOverrideStatus.ACTIVE, InheritanceOverrideStatus.RETIRED);
 
     private final OrgHierarchyRepository hierarchy;
     private final AssetVersionRepository assetVersions;
@@ -75,9 +75,10 @@ public class InheritanceResolver {
     }
 
     /**
-     * 在同一组织闭包和解析时点内批量解析资产，并把可适用的 ADD 独有资产并入结果。
+     * 在同一组织闭包和解析时点内批量解析显式声明的资产。
      *
      * <p>查询次数不随资产数量增长：一次组织闭包、一次覆盖集合、当前租户与平台各一次版本集合。
+     * 机构生效版本要上线哪些资产由版本明细显式声明；解析器不再按旧容器编码隐式拉入 ADD 独有资产。
      */
     public List<BatchResolvedAsset> resolveBatch(InheritanceBatchResolveQuery query) {
         String tenantId = required(query.tenantId(), "租户 ID");
@@ -97,16 +98,7 @@ public class InheritanceResolver {
             .filter(value -> orgPathSet.contains(value.orgPath()))
             .toList();
 
-        LinkedHashSet<VersionedAssetIdentity> added = candidateOverrides.stream()
-            .filter(value -> isApplicableAdd(value, path, scopes, effectiveAt))
-            .map(value -> new VersionedAssetIdentity(value.assetType(), value.assetIdentity()))
-            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
-
         LinkedHashSet<VersionedAssetIdentity> allIdentities = new LinkedHashSet<>(declared);
-        added.stream()
-            .sorted(Comparator.comparing((VersionedAssetIdentity value) -> value.assetType().name())
-                .thenComparing(VersionedAssetIdentity::assetIdentity))
-            .forEach(allIdentities::add);
         if (allIdentities.isEmpty()) {
             return List.of();
         }
@@ -148,11 +140,7 @@ public class InheritanceResolver {
                 }
             }
             if (resolution != null) {
-                resolved.add(new BatchResolvedAsset(identity, resolution, added.contains(identity)));
-            } else if (added.contains(identity)) {
-                throw new ApiException(
-                    ErrorCode.CONFLICT,
-                    "ADD 独有资产缺少可解析版本: " + identity.assetType() + ":" + identity.assetIdentity());
+                resolved.add(new BatchResolvedAsset(identity, resolution, false));
             }
         }
         return List.copyOf(resolved);
@@ -234,7 +222,7 @@ public class InheritanceResolver {
             );
         }
 
-        // 租户组织闭包内无任何适用版本/覆盖：前置回退平台权威基线（设计附录 G·D1）
+        // 租户组织闭包内无任何适用版本/覆盖：前置回退平台标准版本（设计附录 G·D1）
         ResolvedAssetVersion platformBaseline = resolvePlatformBaseline(
             assetType,
             assetIdentity,
@@ -337,14 +325,14 @@ public class InheritanceResolver {
     }
 
     /**
-     * 前置回退平台权威基线：租户组织闭包无适用版本时，按 {@link PlatformAuthority} 约定读取
+     * 前置回退平台标准版本：租户组织闭包无适用版本时，按 {@link PlatformAuthority} 约定读取
      * 平台主租户顶层组织路径下该身份的 PUBLISHED 版本，标注 {@link SourceTier#PLATFORM}。
      *
      * <p>平台版本是继承链最一般的根：未被任何租户覆盖遮蔽的身份恒解析到平台 PUBLISHED 版本，平台升级后
      * 未定制方下次解析自动跟随，无需任何租户级复制（设计 platform-authority 规格）。平台亦无基线时返回
      * {@code null}，由调用方按 {@code NOT_FOUND} 诚实降级，不伪造。
      *
-     * @return 命中平台基线时的解析结果；平台无 ACTIVE 基线时为 {@code null}
+     * @return 命中平台标准版本时的解析结果；平台无 ACTIVE 基线时为 {@code null}
      */
     private ResolvedAssetVersion resolvePlatformBaseline(
             VersionedAssetType assetType,
@@ -375,7 +363,7 @@ public class InheritanceResolver {
             false,
             false,
             new InheritanceExplanation(
-                appendSafetyInterception("继承平台权威基线版本 " + baseline.versionNo(), ignoredOverrideId),
+                appendSafetyInterception("继承平台标准版本 " + baseline.versionNo(), ignoredOverrideId),
                 chain,
                 null,
                 null,
@@ -484,7 +472,7 @@ public class InheritanceResolver {
                 orgPath,
                 applicableScope,
                 InheritanceOverrideMode.DISABLE,
-                InheritanceOverrideStatus.PUBLISHED);
+                InheritanceOverrideStatus.ACTIVE);
         List<InheritanceOverride> candidates = new ArrayList<>(safeList(exact));
         for (InheritanceOverride value : safeList(
                 overrides.findByTenantIdAndAssetTypeAndAssetIdentity(
@@ -572,8 +560,7 @@ public class InheritanceResolver {
 
     private boolean versionEffectiveAt(AssetVersion version, Instant effectiveAt) {
         if (version.status() != AssetVersionStatus.PUBLISHED
-                && version.status() != AssetVersionStatus.DEPRECATED
-                && version.status() != AssetVersionStatus.RETIRED) {
+                && version.status() != AssetVersionStatus.WITHDRAWN) {
             return false;
         }
         return (version.effectiveFrom() == null || !effectiveAt.isBefore(version.effectiveFrom()))
@@ -581,7 +568,7 @@ public class InheritanceResolver {
     }
 
     private boolean overrideEffectiveAt(InheritanceOverride value, Instant effectiveAt) {
-        if (value.lifecycleStatus() == InheritanceOverrideStatus.PUBLISHED) {
+        if (value.lifecycleStatus() == InheritanceOverrideStatus.ACTIVE) {
             return value.createdAt() == null || !effectiveAt.isBefore(value.createdAt());
         }
         return value.lifecycleStatus() == InheritanceOverrideStatus.RETIRED
@@ -612,7 +599,7 @@ public class InheritanceResolver {
     }
 
     /**
-     * 覆盖记录的 inherited_version_id 既可能指向当前租户组织链上的版本，也可能直接指向平台基线。
+     * 覆盖记录的 inherited_version_id 既可能指向当前租户组织链上的版本，也可能直接指向平台标准版本。
      * 安全护栏必须同时识别两类来源，避免平台锁定/红线基线被租户覆盖绕过。
      */
     private Optional<AssetVersion> findInheritedBaseline(String tenantId, String inheritedVersionId) {
@@ -720,26 +707,6 @@ public class InheritanceResolver {
                 required(value.assetIdentity(), "资产身份")));
         }
         return List.copyOf(normalized);
-    }
-
-    private boolean isApplicableAdd(
-            InheritanceOverride value,
-            List<OrgUnit> path,
-            List<String> scopes,
-            Instant effectiveAt) {
-        if (value.overrideMode() != InheritanceOverrideMode.ADD
-                || value.overrideVersionId() == null
-                || value.overrideVersionId().isBlank()
-                || !overrideEffectiveAt(value, effectiveAt)) {
-            return false;
-        }
-        OrgUnit target = path.get(path.size() - 1);
-        boolean inherited = !Objects.equals(value.orgPath(), target.orgPath());
-        if (inherited && value.propagation() == InheritancePropagation.EXCLUSIVE) {
-            return false;
-        }
-        return scopes.stream().anyMatch(scope ->
-            ApplicableScopeMatcher.matches(value.applicableScope(), scope));
     }
 
     private List<AssetVersion> filterVersionsForTenant(

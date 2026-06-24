@@ -13,7 +13,7 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.test.context.TestPropertySource;
 
 /**
- * 出域治理三表（白名单 / 审批 / 证据）数据访问回归测试（LLM-03）。
+ * 外调治理三表（允许范围 / 责任确认 / 证据）数据访问回归测试（LLM-03）。
  *
  * <p>验证 V125 迁移在 H2(PostgreSQL 模式) 下建表成功，三仓储读写与按租户+能力码的唯一检索口径正确。
  */
@@ -34,7 +34,7 @@ class ModelEgressGovernanceRepositoryTest {
     ModelEgressWhitelistRepository whitelistRepository;
 
     @Autowired
-    ModelEgressApprovalRepository approvalRepository;
+    ModelEgressConfirmationRepository confirmationRepository;
 
     @Autowired
     ModelEgressEvidenceRepository evidenceRepository;
@@ -55,26 +55,28 @@ class ModelEgressGovernanceRepositoryTest {
                 assertThat(saved.allowedFields()).isEqualTo("[\"clinicalText\"]");
                 assertThat(saved.sensitivityLevel()).isEqualTo("HIGH");
                 assertThat(saved.desensitizationRules()).isEqualTo("{\"clinicalText\":\"GENERALIZE\"}");
-                assertThat(saved.approvalThresholdLevel()).isEqualTo("MEDIUM");
+                assertThat(saved.confirmationThresholdLevel()).isEqualTo("MEDIUM");
                 assertThat(saved.guardrailLockedFlag()).isEqualTo("Y");
             });
     }
 
     @Test
-    void approval_findsLatestApprovedByPayloadHash() {
+    void confirmation_findsLatestByPayloadHash() {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
-        approvalRepository.save(new ModelEgressApproval(
+        confirmationRepository.save(new ModelEgressConfirmation(
             null, "tenant-1", "knowledge.extract", "hash-abc",
-            "APPROVED", "compliance-001", now,
-            now, "compliance-001", now, "compliance-001"));
+            "生成机构知识草稿", "operator-001", now,
+            now, "operator-001", now, "operator-001"));
 
-        assertThat(approvalRepository
-                .findFirstByTenantIdAndCapabilityCodeAndPayloadHashAndStatusOrderByIdDesc(
-                    "tenant-1", "knowledge.extract", "hash-abc", "APPROVED"))
+        assertThat(confirmationRepository
+                .findFirstByTenantIdAndCapabilityCodeAndPayloadHashOrderByIdDesc(
+                    "tenant-1", "knowledge.extract", "hash-abc"))
             .isPresent()
             .get()
-            .extracting(ModelEgressApproval::approver)
-            .isEqualTo("compliance-001");
+            .satisfies(confirmation -> {
+                assertThat(confirmation.confirmedBy()).isEqualTo("operator-001");
+                assertThat(confirmation.purpose()).isEqualTo("生成机构知识草稿");
+            });
     }
 
     @Test
@@ -91,7 +93,7 @@ class ModelEgressGovernanceRepositoryTest {
             .get()
             .satisfies(e -> {
                 assertThat(e.desensitizedHash()).isEqualTo("sha256-of-masked");
-                assertThat(e.approvalId()).isEqualTo(7L);
+                assertThat(e.confirmationId()).isEqualTo(7L);
             });
     }
 }

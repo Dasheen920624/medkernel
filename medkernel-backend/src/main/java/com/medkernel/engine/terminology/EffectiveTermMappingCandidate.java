@@ -7,6 +7,7 @@ public record EffectiveTermMappingCandidate(
     Long mappingId,
     Long standardTermId,
     String standardCode,
+    String versionNo,
     String scopeLevel
 ) {
 }

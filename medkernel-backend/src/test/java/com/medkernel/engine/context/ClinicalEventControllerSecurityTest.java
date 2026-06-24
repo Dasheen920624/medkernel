@@ -35,7 +35,6 @@ class ClinicalEventControllerSecurityTest {
           "encounterId": "ENC-1",
           "clinicalSetting": "INPATIENT",
           "sourceSystem": "HIS",
-          "packageVersion": "kpv-1",
           "triggerPoint": "patient-view",
           "occurredAt": "2026-05-27T01:00:00Z",
           "payload": {"diagnosisCode": "I21.0"}
@@ -54,7 +53,7 @@ class ClinicalEventControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCannotCreateClinicalEvent() throws Exception {
         mvc.perform(post("/api/v1/engine/clinical-events")
                 .contentType("application/json")
@@ -63,7 +62,7 @@ class ClinicalEventControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void itOpsCanReachAsyncCreateButDataScopeFailsOnMissingTenant() throws Exception {
         when(service.receiveAsync(any())).thenReturn(accepted());
         mvc.perform(post("/api/v1/engine/clinical-events:async")
@@ -74,7 +73,7 @@ class ClinicalEventControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void itOpsCanReachClinicalEventsCustomerPathButDataScopeFailsOnMissingTenant() throws Exception {
         when(service.receive(any())).thenReturn(accepted());
         mvc.perform(post("/api/v1/engine/clinical-events")
@@ -85,7 +84,7 @@ class ClinicalEventControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void itOpsCanReachClinicalEventsBatchSuffixPathButDataScopeFailsOnMissingTenant() throws Exception {
         when(service.receiveBatch(any())).thenReturn(
             new ClinicalEventBatchResponse("batch-1", java.util.List.of(), java.util.List.of(),
@@ -98,7 +97,7 @@ class ClinicalEventControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void itOpsCanReachClinicalEventsReplaySuffixPathButDataScopeFailsOnMissingTenant() throws Exception {
         when(service.replay(anyString())).thenReturn(
             new ClinicalEventReplayResponse("evt-1", "evt-replay-1",
@@ -111,7 +110,7 @@ class ClinicalEventControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void itOpsCanReachClinicalEventsDeadLetterReplayButDataScopeFailsOnMissingTenant() throws Exception {
         when(service.replayDeadLetter(anyString())).thenReturn(
             new ClinicalEventReplayResponse("evt-dead", "evt-replay-1",
@@ -122,7 +121,7 @@ class ClinicalEventControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCanReachReadButDataScopeFailsOnMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/clinical-events/evt-1"))
             .andExpect(status().isBadRequest())
@@ -137,7 +136,7 @@ class ClinicalEventControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_COMPLIANCE_AUDITOR")
+    @WithMockUser(authorities = "ROLE_AUDITOR")
     void auditComplianceCannotReplayClinicalEvent() throws Exception {
         mvc.perform(post("/api/v1/engine/clinical-events:replay")
                 .contentType("application/json")
@@ -146,7 +145,7 @@ class ClinicalEventControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void itOpsCanReachReplayButDataScopeFailsOnMissingTenant() throws Exception {
         when(service.replay(anyString())).thenReturn(
             new ClinicalEventReplayResponse("evt-1", "evt-replay-1",
@@ -159,7 +158,7 @@ class ClinicalEventControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_INTEGRATION_OPERATOR")
+    @WithMockUser(authorities = "ROLE_PLATFORM_ADMIN")
     void legacyEventsAndSlashActionRoutesAreNotMounted() throws Exception {
         mvc.perform(post("/api/v1/engine/events")
                 .contentType("application/json")

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { ROLE_OPTIONS, roleLabel } from "./roleCatalog";
+import { KNOWN_ROLE_CODES, ROLE_OPTIONS, roleLabel } from "./roleCatalog";
 
-const currentRoles = [
+const launchRoles = ["platform-admin", "engine-operator", "clinical-user", "auditor"];
+
+const retiredRoleCodes = [
   "platform-governance-admin",
   "platform-knowledge-governor",
   "organization-admin",
@@ -18,31 +20,24 @@ const currentRoles = [
   "implementation-operator",
 ];
 
-const removedLegacyRoles = [
-  "platform-admin",
-  "group-admin",
-  "hospital-admin",
-  "it-ops",
-  "medical-affairs",
-  "qa-manager",
-  "insurance-manager",
-  "dept-head",
-  "specialist",
-  "doctor",
-  "nurse",
-  "med-technician",
-  "pharmacist",
-  "audit-compliance",
-  "implementation-engineer",
-];
-
 describe("roleCatalog", () => {
-  it("exposes only the current responsibility role system", () => {
-    expect(ROLE_OPTIONS.map((role) => role.code)).toEqual(currentRoles);
+  it("exposes only the four launch responsibilities", () => {
+    expect(ROLE_OPTIONS).toEqual([
+      { code: "platform-admin", name: "平台管理员" },
+      { code: "engine-operator", name: "医疗引擎运营员" },
+      { code: "clinical-user", name: "临床使用者" },
+      { code: "auditor", name: "审计员" },
+    ]);
+    expect(ROLE_OPTIONS.map((role) => role.code)).toEqual(launchRoles);
+    expect(KNOWN_ROLE_CODES).toEqual(launchRoles);
   });
 
-  it("does not translate removed legacy roles", () => {
-    removedLegacyRoles.forEach((role) => {
+  it("normalizes active Spring authorities without maintaining aliases", () => {
+    expect(roleLabel("ROLE_ENGINE_OPERATOR")).toBe("医疗引擎运营员");
+  });
+
+  it("does not translate retired role codes", () => {
+    retiredRoleCodes.forEach((role) => {
       expect(roleLabel(role)).toBe("未识别角色");
     });
   });

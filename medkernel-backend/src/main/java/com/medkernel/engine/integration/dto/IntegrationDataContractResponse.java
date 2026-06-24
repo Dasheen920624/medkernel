@@ -4,11 +4,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 第三方数据接入契约响应。契约随 packageVersion 固定，字段来自上下文字段目录单一真相源。
+ * 第三方数据接入契约响应。服务端锁定当前机构生效版本，字段来自上下文字段目录单一真相源。
  */
 public record IntegrationDataContractResponse(
     String contractId,
-    String packageVersion,
+    String runtimeReleaseId,
     String schemaVersion,
     List<String> accessGuide,
     Map<String, IntegrationDataContractResource> resources,

@@ -21,6 +21,8 @@ import com.medkernel.shared.context.RequestContext;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class CredentialBootstrapGuardInterceptorTest {
 
@@ -33,7 +35,7 @@ class CredentialBootstrapGuardInterceptorTest {
     @Test
     void allowsChangePasswordWhenApplicationContextPathPrefixesRequestUri() {
         CredentialBootstrapGuardInterceptor interceptor =
-            new CredentialBootstrapGuardInterceptor((tenantId, userId) -> true);
+            new CredentialBootstrapGuardInterceptor((tenantId, userId) -> true, disabledMfa());
         authenticateMustChangeUser();
 
         assertThatCode(() -> interceptor.preHandle(
@@ -46,7 +48,7 @@ class CredentialBootstrapGuardInterceptorTest {
     @Test
     void stillBlocksBusinessApiWhenMustChangePasswordWithApplicationContextPath() {
         CredentialBootstrapGuardInterceptor interceptor =
-            new CredentialBootstrapGuardInterceptor((tenantId, userId) -> true);
+            new CredentialBootstrapGuardInterceptor((tenantId, userId) -> true, disabledMfa());
         authenticateMustChangeUser();
 
         assertThatThrownBy(() -> interceptor.preHandle(
@@ -57,20 +59,36 @@ class CredentialBootstrapGuardInterceptorTest {
             .satisfies(error -> assertThat(((ApiException) error).errorCode()).isEqualTo(ErrorCode.ENG_AUTH_015));
     }
 
+    @Test
+    void blocksBusinessApiWhenMfaIsEnabledButSessionIsNotVerified() {
+        MfaRuntimePolicy policy = mock(MfaRuntimePolicy.class);
+        when(policy.enabled()).thenReturn(true);
+        CredentialBootstrapGuardInterceptor interceptor =
+            new CredentialBootstrapGuardInterceptor((tenantId, userId) -> false, policy);
+        authenticateMustChangeUser();
+
+        assertThatThrownBy(() -> interceptor.preHandle(
+            request("/medkernel", "/api/v1/security/menu-permissions/visible"),
+            new MockHttpServletResponse(),
+            new Object()))
+            .isInstanceOf(ApiException.class)
+            .satisfies(error -> assertThat(((ApiException) error).errorCode()).isEqualTo(ErrorCode.ENG_AUTH_010));
+    }
+
     private static void authenticateMustChangeUser() {
         RequestContext.restore(new RequestContext.Snapshot("trace-auth-015", OrgScope.tenant("t-1"), "doctor-1"));
         Jwt jwt = Jwt.withTokenValue("token")
             .header("alg", "HS256")
             .subject("doctor-1")
             .claim("tenant_id", "t-1")
-            .claim("roles", List.of("clinical-decision-user"))
+            .claim("roles", List.of("clinical-user"))
             .issuedAt(Instant.now())
             .expiresAt(Instant.now().plusSeconds(600))
             .claims(claims -> claims.putAll(Map.of("user_id", "doctor-1")))
             .build();
         SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(
             jwt,
-            List.of(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))));
+            List.of(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))));
     }
 
     private static MockHttpServletRequest request(String contextPath, String servletPath) {
@@ -79,5 +97,11 @@ class CredentialBootstrapGuardInterceptorTest {
         request.setServletPath(servletPath);
         request.setRequestURI(contextPath + servletPath);
         return request;
+    }
+
+    private static MfaRuntimePolicy disabledMfa() {
+        MfaRuntimePolicy policy = mock(MfaRuntimePolicy.class);
+        when(policy.enabled()).thenReturn(false);
+        return policy;
     }
 }

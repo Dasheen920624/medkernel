@@ -20,7 +20,7 @@ vi.mock("@/shared/api/hooks", () => ({
 const scenarios = [
   {
     id: "sbx-lab-critical-k",
-    servicePackage: "clinical-collaboration",
+    serviceLine: "clinical-collaboration",
     engine: "rule",
     playbook: "RULE_ONLY",
     triggerPoint: "result-review",
@@ -51,7 +51,7 @@ const scenarios = [
   },
   {
     id: "sbx-antibiotic-review",
-    servicePackage: "clinical-collaboration",
+    serviceLine: "clinical-collaboration",
     engine: "rule",
     playbook: "RULE_ONLY",
     triggerPoint: "order-sign",
@@ -70,7 +70,7 @@ const scenarios = [
   },
   {
     id: "sbx-recommendation-composite",
-    servicePackage: "engine-orchestration",
+    serviceLine: "engine-orchestration",
     engine: "recommendation",
     playbook: "RECOMMENDATION_COMPOSITE",
     triggerPoint: "patient-view",
@@ -116,14 +116,12 @@ describe("SandboxHost", () => {
       data: {
         ready: true,
         targetOrgUnitId: "hospital-sandbox-1",
-        bindingId: "binding-1",
-        packageOwnerTenantId: "tenant-sandbox-1",
-        packageId: "pkg-1",
-        packageCode: "PKG.SANDBOX",
-        packageVersion: "7.2.1",
-        resolutionSource: "TENANT_PACKAGE",
+        runtimeReleaseId: "runtime-sandbox-1",
+        runtimeRevisionNo: 7,
+        platformBaselineReleaseId: "platform-baseline-1",
+        manifestSha256: "a".repeat(64),
+        resolutionSource: "CURRENT_RUNTIME_RELEASE",
         assetCount: 10,
-        warnings: [],
         resolvedAt: "2026-06-19T03:00:00Z",
         externalSideEffects: false,
       },
@@ -140,8 +138,9 @@ describe("SandboxHost", () => {
       runId: "run-sandbox-host-1",
       baselineId: "baseline-sandbox-host-1",
       mode: "CURRENT",
-      resolvedPackageVersion: "7.2.1",
-      resolutionSource: "TENANT_PACKAGE",
+      runtimeReleaseRef: "runtime-sandbox-1",
+      runtimeRevisionNo: 7,
+      resolutionSource: "CURRENT_RUNTIME_RELEASE",
       externalSideEffects: false,
       steps: [
         {
@@ -213,7 +212,7 @@ describe("SandboxHost", () => {
     expect(screen.getByText("trace-sandbox-host-1")).toBeInTheDocument();
     expect(screen.getByText("run-sandbox-host-1")).toBeInTheDocument();
     expect(screen.getByText("baseline-sandbox-host-1")).toBeInTheDocument();
-    expect(screen.getAllByText("演练机构规则").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("当前机构生效版本").length).toBeGreaterThan(0);
     expect(screen.getAllByText("外部副作用已关闭")).toHaveLength(2);
   });
 
@@ -232,10 +231,9 @@ describe("SandboxHost", () => {
       data: {
         ready: false,
         reasonCode: "SANDBOX_RUNTIME_BASELINE_MISSING",
-        reason: "演练机构未激活沙盘运行绑定",
+        reason: "演练机构尚未发布沙盘生效版本",
         targetOrgUnitId: "hospital-sandbox-1",
         assetCount: 0,
-        warnings: [],
         externalSideEffects: false,
       },
       isLoading: false,
@@ -246,24 +244,22 @@ describe("SandboxHost", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /抗菌药物处方复核/ }));
 
-    expect(await screen.findByText(/演练机构未激活沙盘运行绑定/)).toBeInTheDocument();
+    expect(await screen.findByText(/演练机构尚未发布沙盘生效版本/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "运行真实引擎链路" })).not.toBeInTheDocument();
     expect(sandboxHookMocks.run).not.toHaveBeenCalled();
   });
 
-  it("shows a platform-source runtime binding without claiming institution ownership", () => {
+  it("shows the current institution effective version without exposing package selectors", () => {
     sandboxHookMocks.useSandboxRuntimeStatus.mockReturnValue({
       data: {
         ready: true,
         targetOrgUnitId: "hospital-sandbox-1",
-        bindingId: "binding-platform-1",
-        packageOwnerTenantId: "__platform__",
-        packageId: "pkg-platform-1",
-        packageCode: "PKG.PLATFORM.RULES",
-        packageVersion: "9.0.0",
-        resolutionSource: "PLATFORM_PACKAGE",
+        runtimeReleaseId: "runtime-platform-1",
+        runtimeRevisionNo: 9,
+        platformBaselineReleaseId: "platform-baseline-9",
+        manifestSha256: "b".repeat(64),
+        resolutionSource: "CURRENT_RUNTIME_RELEASE",
         assetCount: 32,
-        warnings: [],
         resolvedAt: "2026-06-19T04:00:00Z",
         externalSideEffects: false,
       },
@@ -274,8 +270,8 @@ describe("SandboxHost", () => {
 
     renderSandboxHost();
 
-    expect(screen.getByText("平台主源规则")).toBeInTheDocument();
-    expect(screen.getByText("PKG.PLATFORM.RULES@9.0.0")).toBeInTheDocument();
+    expect(screen.getByText("当前机构生效版本")).toBeInTheDocument();
+    expect(screen.getByText("第 9 版 · runtime-platform-1")).toBeInTheDocument();
   });
 
   it("runs an outer-engine playbook without fabricated clinical input", async () => {
@@ -285,8 +281,9 @@ describe("SandboxHost", () => {
       runId: "run-outer-1",
       baselineId: "baseline-outer-1",
       mode: "CURRENT",
-      resolvedPackageVersion: "7.2.1",
-      resolutionSource: "TENANT_PACKAGE",
+      runtimeReleaseRef: "runtime-sandbox-1",
+      runtimeRevisionNo: 7,
+      resolutionSource: "CURRENT_RUNTIME_RELEASE",
       externalSideEffects: false,
       steps: [],
       snapshotId: "ctx-outer-1",
@@ -325,7 +322,8 @@ describe("SandboxHost", () => {
       baselineId: "baseline-history-1",
       mode: "HISTORICAL_EXACT",
       replayCaseId: "replay-2025-001",
-      resolvedPackageVersion: "old-7",
+      runtimeReleaseRef: "sha256:old-7",
+      runtimeRevisionNo: 4,
       resolutionSource: "REPLAY_MANIFEST",
       externalSideEffects: false,
       steps: [],
@@ -380,8 +378,9 @@ describe("SandboxHost", () => {
       baselineId: "baseline-compare-1",
       mode: "COMPARE",
       replayCaseId: "replay-2025-001",
-      resolvedPackageVersion: "current-2",
-      resolutionSource: "TENANT_PACKAGE",
+      runtimeReleaseRef: "runtime-current-2",
+      runtimeRevisionNo: 2,
+      resolutionSource: "CURRENT_RUNTIME_RELEASE",
       externalSideEffects: false,
       steps: [],
       cardCount: 0,

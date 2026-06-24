@@ -1,18 +1,12 @@
 package com.medkernel.engine.security;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.Set;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
@@ -22,37 +16,16 @@ import com.medkernel.shared.context.OrgScope;
 /**
  * 计算当前用户有效权限。
  *
- * <p>顺序：JWT 角色 + 范围匹配的用户角色分配 → 默认角色权限 → 租户级 ALLOW/DENY 覆盖。
- * 多角色覆盖冲突时采用 DENY 优先。
+ * <p>顺序：JWT 角色 + 范围匹配的用户职责分配 → 固定职责权限包。
+ * 租户只配置职责与组织范围，不改写角色权限，避免菜单、动作和数据门禁漂移。
  */
 @Service
 public class EffectivePermissionService {
 
-    private final RolePermissionOverrideRepository rolePermissionRepository;
     private final UserRoleAssignmentRepository userRoleAssignmentRepository;
-    private final EmergencyPermissionGrantRepository emergencyGrantRepository;
-    private final Clock clock;
 
-    @Autowired
-    public EffectivePermissionService(RolePermissionOverrideRepository rolePermissionRepository,
-                                      UserRoleAssignmentRepository userRoleAssignmentRepository,
-                                      EmergencyPermissionGrantRepository emergencyGrantRepository) {
-        this(rolePermissionRepository, userRoleAssignmentRepository, emergencyGrantRepository, Clock.systemUTC());
-    }
-
-    EffectivePermissionService(RolePermissionOverrideRepository rolePermissionRepository,
-                               UserRoleAssignmentRepository userRoleAssignmentRepository) {
-        this(rolePermissionRepository, userRoleAssignmentRepository, null, Clock.systemUTC());
-    }
-
-    EffectivePermissionService(RolePermissionOverrideRepository rolePermissionRepository,
-                               UserRoleAssignmentRepository userRoleAssignmentRepository,
-                               EmergencyPermissionGrantRepository emergencyGrantRepository,
-                               Clock clock) {
-        this.rolePermissionRepository = rolePermissionRepository;
+    public EffectivePermissionService(UserRoleAssignmentRepository userRoleAssignmentRepository) {
         this.userRoleAssignmentRepository = userRoleAssignmentRepository;
-        this.emergencyGrantRepository = emergencyGrantRepository;
-        this.clock = clock == null ? Clock.systemUTC() : clock;
     }
 
     public EffectivePermissionProfile resolve(Authentication auth, OrgScope scope, String userId) {
@@ -65,9 +38,6 @@ public class EffectivePermissionService {
             RoleCode.fromCode(roleCode)
                 .ifPresent(role -> permissions.addAll(DefaultPermissionPolicy.permissionsOf(role)));
         }
-        applyTenantOverrides(scope, roles.keySet(), permissions);
-        applyActiveEmergencyGrant(scope, userId, permissions);
-
         List<EffectivePermissionProfile.PermissionView> permissionViews = permissions.stream()
             .sorted(Comparator.comparing(PermissionCode::code))
             .map(p -> new EffectivePermissionProfile.PermissionView(
@@ -87,7 +57,8 @@ public class EffectivePermissionService {
             environmentKeysFor(permissions),
             dataScope(scope),
             false,
-            MfaRequirementPolicy.requiresMfa(roles.keySet()),
+            false,
+            false,
             false
         );
     }
@@ -163,62 +134,6 @@ public class EffectivePermissionService {
 
     private boolean matches(String assignedCode, String contextCode) {
         return contextCode != null && !contextCode.isBlank() && assignedCode.equals(contextCode);
-    }
-
-    private void applyTenantOverrides(OrgScope scope,
-                                      Collection<String> roleCodes,
-                                      EnumSet<PermissionCode> permissions) {
-        if (scope == null || !scope.hasTenant() || roleCodes == null || roleCodes.isEmpty()) {
-            return;
-        }
-        if (roleCodes.stream().anyMatch(SystemSuperAdminGuard::isSystemSuperAdminRole)) {
-            return;
-        }
-        List<String> normalizedRoleCodes = roleCodes.stream()
-            .filter(Objects::nonNull)
-            .filter(code -> RoleCode.fromCode(code).isPresent())
-            .distinct()
-            .toList();
-        if (normalizedRoleCodes.isEmpty()) {
-            return;
-        }
-
-        List<RolePermissionOverride> overrides =
-            rolePermissionRepository.findByTenantIdAndRoleCodes(scope.tenantId(), normalizedRoleCodes);
-        LinkedHashSet<String> roleSet = new LinkedHashSet<>(normalizedRoleCodes);
-        EnumSet<PermissionCode> allowed = EnumSet.noneOf(PermissionCode.class);
-        EnumSet<PermissionCode> denied = EnumSet.noneOf(PermissionCode.class);
-        for (RolePermissionOverride override : overrides) {
-            if (!roleSet.contains(override.roleCode())) {
-                continue;
-            }
-            override.permission().ifPresent(permission -> {
-                if (override.effect() == PermissionEffect.DENY) {
-                    denied.add(permission);
-                } else if (override.effect() == PermissionEffect.ALLOW) {
-                    allowed.add(permission);
-                }
-            });
-        }
-        permissions.addAll(allowed);
-        permissions.removeAll(denied);
-    }
-
-    private void applyActiveEmergencyGrant(OrgScope scope, String userId, EnumSet<PermissionCode> permissions) {
-        if (emergencyGrantRepository == null
-                || scope == null
-                || !scope.hasTenant()
-                || userId == null
-                || userId.isBlank()) {
-            return;
-        }
-        Instant now = clock.instant();
-        List<EmergencyPermissionGrant> grants =
-            emergencyGrantRepository.findActiveByTenantIdAndUserIdAndPermissionCode(
-                scope.tenantId(), userId, PermissionCode.ENV_EMERGENCY.code(), now);
-        if (grants != null && grants.stream().anyMatch(grant -> grant.activeAt(now))) {
-            permissions.add(PermissionCode.ENV_EMERGENCY);
-        }
     }
 
     private List<String> environmentKeysFor(EnumSet<PermissionCode> permissions) {

@@ -9,7 +9,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 规则发布门禁测试用例实体（GA-ENG-API-05）。
  *
- * <p>记录用例输入快照、期望命中/严重度/动作码以及最近一次试运行结果；
+ * <p>记录用例输入快照、期望命中/严重度/命中后处理以及最近一次试运行结果；
  * 发布要求阳性、阴性、边界、冲突四类用例齐备且全部 PASS，详见
  * {@link RuleEngineService#transitionGovernance}。
  */

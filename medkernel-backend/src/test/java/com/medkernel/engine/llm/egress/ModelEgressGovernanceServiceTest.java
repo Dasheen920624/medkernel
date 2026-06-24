@@ -23,22 +23,22 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 出域治理管理服务单元测试（LLM-03 白名单/审批维护）。
+ * 外调治理管理服务单元测试（LLM-03 允许范围/责任确认维护）。
  */
 class ModelEgressGovernanceServiceTest {
 
     private ModelEgressWhitelistRepository whitelistRepo;
-    private ModelEgressApprovalRepository approvalRepo;
+    private ModelEgressConfirmationRepository confirmationRepo;
     private AuditRecorder auditRecorder;
     private ModelEgressGovernanceService service;
 
     @BeforeEach
     void setUp() {
         whitelistRepo = mock(ModelEgressWhitelistRepository.class);
-        approvalRepo = mock(ModelEgressApprovalRepository.class);
+        confirmationRepo = mock(ModelEgressConfirmationRepository.class);
         auditRecorder = mock(AuditRecorder.class);
-        service = new ModelEgressGovernanceService(whitelistRepo, approvalRepo, auditRecorder);
-        RequestContext.restore(new RequestContext.Snapshot("trace-1", OrgScope.tenant("tenant-1"), "compliance-001"));
+        service = new ModelEgressGovernanceService(whitelistRepo, confirmationRepo, auditRecorder);
+        RequestContext.restore(new RequestContext.Snapshot("trace-1", OrgScope.tenant("tenant-1"), "operator-001"));
     }
 
     @AfterEach
@@ -59,7 +59,7 @@ class ModelEgressGovernanceServiceTest {
         assertThat(saved.allowedFields()).isEqualTo("[\"clinicalText\",\"ageYears\"]");
         assertThat(saved.sensitivityLevel()).isEqualTo("HIGH");
         verify(auditRecorder).record(AuditAction.UPDATE, "mk_llm_egress_whitelist", "knowledge.extract",
-            "保存模型出域白名单 knowledge.extract");
+            "保存模型外调允许范围 knowledge.extract");
     }
 
     @Test
@@ -76,10 +76,10 @@ class ModelEgressGovernanceServiceTest {
                 rules, "MEDIUM"));
 
         assertThat(saved.desensitizationRules()).isEqualTo("{\"clinicalText\":\"GENERALIZE\",\"ageYears\":\"NONE\"}");
-        assertThat(saved.approvalThresholdLevel()).isEqualTo("MEDIUM");
+        assertThat(saved.confirmationThresholdLevel()).isEqualTo("MEDIUM");
         assertThat(saved.guardrailLockedFlag()).isEqualTo("Y");
         verify(auditRecorder).record(AuditAction.UPDATE, "mk_llm_egress_whitelist", "knowledge.extract",
-            "保存模型出域白名单 knowledge.extract");
+            "保存模型外调允许范围 knowledge.extract");
     }
 
     @Test
@@ -100,17 +100,19 @@ class ModelEgressGovernanceServiceTest {
     }
 
     @Test
-    void decideApproval_recordsApprovedRecordWithApproverAndAudits() {
-        when(approvalRepo.save(any(ModelEgressApproval.class))).thenAnswer(i -> i.getArgument(0));
+    void confirmEgress_recordsCurrentOperatorPurposeAndAudits() {
+        when(confirmationRepo.save(any(ModelEgressConfirmation.class))).thenAnswer(i -> i.getArgument(0));
 
-        ModelEgressApproval approval = service.decideApproval(
-            new ModelEgressApprovalRequest("knowledge.extract", "hash-abc", "APPROVED"));
+        ModelEgressConfirmation confirmation = service.confirmEgress(
+            new ModelEgressConfirmationRequest(
+                "knowledge.extract", "hash-abc", "生成机构知识草稿，仅使用已脱敏字段"));
 
-        assertThat(approval.tenantId()).isEqualTo("tenant-1");
-        assertThat(approval.status()).isEqualTo("APPROVED");
-        assertThat(approval.approver()).isEqualTo("compliance-001");
-        assertThat(approval.payloadHash()).isEqualTo("hash-abc");
-        verify(auditRecorder).record(any(AuditAction.class), org.mockito.ArgumentMatchers.eq("mk_llm_egress_approval"),
+        assertThat(confirmation.tenantId()).isEqualTo("tenant-1");
+        assertThat(confirmation.confirmedBy()).isEqualTo("operator-001");
+        assertThat(confirmation.payloadHash()).isEqualTo("hash-abc");
+        assertThat(confirmation.purpose()).isEqualTo("生成机构知识草稿，仅使用已脱敏字段");
+        verify(auditRecorder).record(any(AuditAction.class),
+            org.mockito.ArgumentMatchers.eq("mk_llm_egress_confirmation"),
             org.mockito.ArgumentMatchers.eq("hash-abc"), any());
     }
 }

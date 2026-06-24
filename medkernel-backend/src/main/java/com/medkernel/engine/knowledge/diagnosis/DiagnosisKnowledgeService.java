@@ -30,7 +30,6 @@ import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
-import com.medkernel.engine.versioning.VersionPublishEvidence;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -86,7 +85,7 @@ public class DiagnosisKnowledgeService {
         KnowledgeIdentity identity = knowledgeIdentities.createIdentity(new KnowledgeIdentityCreateRequest(
             context.requestId(), context.traceId(), context.tenantId(), context.groupId(),
             context.hospitalId(), context.campusId(), context.siteId(), context.departmentId(),
-            context.specialtyId(), context.userId(), context.roleCodes(), context.packageVersion(),
+            context.specialtyId(), context.userId(), context.roleCodes(),
             identityInput.identitySlug(), KnowledgeDomain.DIAGNOSIS, identityInput.subject(),
             identityInput.assetSpecialtyId(), identityInput.description()));
         DiagnosisAssetDraftResponse response = createEvidenceCompleteVersion(
@@ -125,7 +124,7 @@ public class DiagnosisKnowledgeService {
         SourceDocument source = knowledgeIdentities.registerSource(new KnowledgeSourceCreateRequest(
             context.requestId(), context.traceId(), context.tenantId(), context.groupId(),
             context.hospitalId(), context.campusId(), context.siteId(), context.departmentId(),
-            context.specialtyId(), context.userId(), context.roleCodes(), context.packageVersion(),
+            context.specialtyId(), context.userId(), context.roleCodes(),
             sourceInput.sourceCode(), sourceInput.sourceType(), sourceInput.authorityLevel(),
             sourceInput.authorityBasis(), sourceInput.title(), sourceInput.publisher(),
             sourceInput.license(), sourceInput.language()));
@@ -133,14 +132,14 @@ public class DiagnosisKnowledgeService {
             source.id(), new KnowledgeSourceVersionCreateRequest(
                 context.requestId(), context.traceId(), context.tenantId(), context.groupId(),
                 context.hospitalId(), context.campusId(), context.siteId(), context.departmentId(),
-                context.specialtyId(), context.userId(), context.roleCodes(), context.packageVersion(),
+                context.specialtyId(), context.userId(), context.roleCodes(),
                 sourceInput.versionNo(), sourceInput.publishedAt(), null, sourceInput.fileUri(),
                 sourceInput.language(), sourceInput.content()));
         KnowledgeCandidateResponse candidate = knowledgeVersions.classifyCandidate(
             identity.id(), new KnowledgeVersionCreateRequest(
                 context.requestId(), context.traceId(), context.tenantId(), context.groupId(),
                 context.hospitalId(), context.campusId(), context.siteId(), context.departmentId(),
-                context.specialtyId(), context.userId(), context.roleCodes(), context.packageVersion(),
+                context.specialtyId(), context.userId(), context.roleCodes(),
                 versionInput.versionNo(), versionInput.versionLabel(), source.id(), sourceVersion.id(),
                 sourceInput.content(), evidenceInput.anchorPath(), versionInput.riskLevel(),
                 versionInput.gradeQuality(), versionInput.gradeStrength(), versionInput.reviewCycleMonths()));
@@ -267,7 +266,7 @@ public class DiagnosisKnowledgeService {
         DiagnosisConfidencePolicy policy = resolvePolicy(tenant);
         List<DiagnosisTestCase> cases = testCases.findByTenantIdAndDiagnosisVersionId(tenant, versionId);
         if (cases.isEmpty()) {
-            throw new ApiException(ErrorCode.ENG_DX_006, "诊断知识至少需要一个回归病例才可发布");
+            throw new ApiException(ErrorCode.ENG_DX_006, "诊断知识至少需要一个验证病例才可发布");
         }
         for (DiagnosisTestCase tc : cases) {
             if (!version.identityId().equals(tc.expectedIdentityId())) {
@@ -290,13 +289,13 @@ public class DiagnosisKnowledgeService {
             Long identityId,
             Long versionId,
             String reason,
-            VersionPublishEvidence publishEvidence) {
+            Long qualityGateRecordId) {
         publishGate(versionId);
         return knowledgeVersions.activate(
             identityId,
             versionId,
             reason,
-            VersionPublishEvidence.orEmpty(publishEvidence));
+            qualityGateRecordId);
     }
 
     /** 当前租户 DEFAULT 优先，未覆盖回退平台主源 t-1（V75 已种子）；都缺才诚实失败 ENG_DX_005。 */
@@ -333,7 +332,7 @@ public class DiagnosisKnowledgeService {
             if (hasText(criterion.valueConstraint()) || hasText(criterion.temporalConstraint())) {
                 throw new ApiException(ErrorCode.ENG_DX_006,
                     "诊断标准 " + criterion.findingTermCode()
-                        + " 含数值或时序约束，B0 运行门禁尚未求值，暂不可发布");
+                        + " 含数值或时序约束，无模型规则链路尚未支持这些约束，暂不可发布");
             }
         }
     }

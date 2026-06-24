@@ -24,11 +24,9 @@ class PathwayEngineControllerSecurityTest {
 
     private static final String TEMPLATE_BODY = """
         {
-          "packageId": "sp-1",
           "templateCode": "TPL.COPD",
           "name": "稳定期随访路径",
           "diseaseCode": "COPD",
-          "templateVersion": 1,
           "templateLevel": "STANDARD",
           "entryMode": "AUTO_SUGGEST",
           "startNodeCode": "ASSESS",
@@ -46,13 +44,14 @@ class PathwayEngineControllerSecurityTest {
     private static final String ENTER_BODY = """
         {
           "contextSnapshotId": "ctx-active-1",
-          "templateId": "pt-1",
-          "package_version": "pkg-2026.06"
+          "triggerPoint": "patient-view",
+          "templateId": "pt-1"
         }
         """;
 
     private static final String ADVANCE_BODY = """
         {
+          "triggerPoint": "patient-view",
           "eventType": "COMPLETE",
           "eventId": "evt-1"
         }
@@ -70,7 +69,7 @@ class PathwayEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void doctorCanReadPathwayButDataScopeRejectsMissingTenant() throws Exception {
         mvc.perform(get("/api/v1/engine/pathway/pathway-templates/pt-1"))
             .andExpect(status().isBadRequest())
@@ -90,9 +89,9 @@ class PathwayEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_KNOWLEDGE_GOVERNOR")
+    @WithMockUser(authorities = "ROLE_ENGINE_OPERATOR")
     void specialistCanWriteTemplateButDataScopeRejectsMissingTenant() throws Exception {
-        // knowledge-governor 持 pathway.write 可创建模板，但缺租户上下文 → 400。
+        // engine-operator 持 pathway.write 可创建模板，但缺租户上下文 → 400。
         mvc.perform(post("/api/v1/engine/pathway/pathway-templates")
                 .contentType("application/json")
                 .content(TEMPLATE_BODY))
@@ -101,9 +100,9 @@ class PathwayEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
     void clinicianCanExecutePatientPathwayButDataScopeRejectsMissingTenant() throws Exception {
-        // clinical-decision-user 持 pathway.execute（入径/推进），缺租户上下文 → 400。
+        // clinical-user 持 pathway.execute（入径/推进），缺租户上下文 → 400。
         mvc.perform(post("/api/v1/engine/pathway/patient-pathways/enter")
                 .contentType("application/json")
                 .content(ENTER_BODY))
@@ -118,22 +117,23 @@ class PathwayEngineControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_GOVERNOR")
-    void medicalAffairsCanPublishButDataScopeRejectsMissingTenant() throws Exception {
+    @WithMockUser(authorities = "ROLE_ENGINE_OPERATOR")
+    void legacyManualPublishEndpointIsRetired() throws Exception {
         mvc.perform(post("/api/v1/engine/pathway/pathway-templates/pt-1/publish")
                 .contentType("application/json")
                 .content("{}"))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("ENG-API-005"));
     }
 
     @Test
-    @WithMockUser(authorities = "ROLE_CLINICAL_DECISION_USER")
-    void doctorCannotPublishPathwayTemplate() throws Exception {
+    @WithMockUser(authorities = "ROLE_CLINICAL_USER")
+    void doctorAlsoReceivesNotFoundForRetiredManualPublishEndpoint() throws Exception {
         mvc.perform(post("/api/v1/engine/pathway/pathway-templates/pt-1/publish")
                 .contentType("application/json")
                 .content("{}"))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("ENG-API-005"));
     }
 
     @Test

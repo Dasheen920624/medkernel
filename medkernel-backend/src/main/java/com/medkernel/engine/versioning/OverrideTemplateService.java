@@ -320,7 +320,7 @@ public class OverrideTemplateService {
         List<SourceItem> sourceItems = overrides.findByTenantIdAndOrgPathAndLifecycleStatus(
                 command.tenantId(),
                 sourceOrg.orgPath(),
-                InheritanceOverrideStatus.PUBLISHED
+                InheritanceOverrideStatus.ACTIVE
             ).stream()
             .map(override -> new SourceItem(
                 override.overrideId(),
@@ -366,7 +366,7 @@ public class OverrideTemplateService {
                 item.assetIdentity(),
                 target.orgPath(),
                 item.applicableScope(),
-                InheritanceOverrideStatus.PUBLISHED
+                InheritanceOverrideStatus.ACTIVE
             );
         if (!existing.isEmpty()) {
             status = "EXISTING_OVERRIDE_CONFLICT";

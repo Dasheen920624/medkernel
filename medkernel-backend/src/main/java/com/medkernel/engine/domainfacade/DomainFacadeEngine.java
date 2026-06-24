@@ -13,7 +13,7 @@ public enum DomainFacadeEngine {
     EMBED,
     EVALUATION,
     FOLLOWUP,
-    PACKAGE,
+    RELEASE,
     INTEGRATION,
     DATA_SERVICE,
     SAFETY,

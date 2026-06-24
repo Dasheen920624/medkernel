@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 
 /**
  * 规则试运行入参（GA-ENG-API-05 {@code POST /api/v1/engine/rule/rules/{ruleId}/simulate}）。
@@ -22,21 +23,17 @@ public record RuleSimulateRequest(
     @JsonProperty("specialty_id") String specialtyId,
     @JsonProperty("user_id") String userId,
     @JsonProperty("role_codes") List<String> roleCodes,
-    @JsonProperty("package_version") String packageVersion,
+    @NotBlank String triggerPoint,
     @NotNull JsonNode context
 ) implements RuleContextRequest {
     public RuleSimulateRequest {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
     }
 
-    public RuleSimulateRequest(JsonNode context) {
-        this(null, null, null, null, null, null, null, null, null, null, List.of(), null, context);
-    }
-
     public RuleApiContext apiContext() {
         return new RuleApiContext(
             requestId, traceId, tenantId, groupId, hospitalId, campusId, siteId,
-            departmentId, specialtyId, userId, roleCodes, packageVersion
+            departmentId, specialtyId, userId, roleCodes
         );
     }
 }

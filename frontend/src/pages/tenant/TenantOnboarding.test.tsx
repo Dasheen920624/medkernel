@@ -122,7 +122,7 @@ function mockHooks(overrides?: {
     data: {
       userId: "admin-1",
       username: "admin",
-      roles: [{ code: "organization-admin" }],
+      roles: [{ code: "platform-admin" }],
       permissions: [],
       menuKeys: [],
       environmentKeys: [],

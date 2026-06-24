@@ -61,20 +61,20 @@ class JwtClaimsResolverTest {
     void rolesClaimSupportsListForm() {
         Jwt token = jwt(Map.of(
             "sub", "u", "tenant_id", "t",
-            "roles", List.of("clinical-decision-user", "quality-governor")
+            "roles", List.of("clinical-user", "engine-operator")
         ));
         assertThat(JwtClaimsResolver.resolveRoles(token))
-            .containsExactlyInAnyOrder("clinical-decision-user", "quality-governor");
+            .containsExactlyInAnyOrder("clinical-user", "engine-operator");
     }
 
     @Test
     void rolesClaimSupportsCommaSeparatedString() {
         Jwt token = jwt(Map.of(
             "sub", "u", "tenant_id", "t",
-            "roles", "clinical-decision-user, quality-governor ,organization-admin"
+            "roles", "clinical-user, engine-operator ,platform-admin"
         ));
         assertThat(JwtClaimsResolver.resolveRoles(token))
-            .containsExactlyInAnyOrder("clinical-decision-user", "quality-governor", "organization-admin");
+            .containsExactlyInAnyOrder("clinical-user", "engine-operator", "platform-admin");
     }
 
     @Test

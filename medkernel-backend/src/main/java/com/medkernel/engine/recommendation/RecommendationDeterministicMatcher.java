@@ -102,7 +102,8 @@ public class RecommendationDeterministicMatcher {
                     dsl, context, RequestContext.currentOrgScope(), version.versionId()).applicable()) {
                 continue;
             }
-            RuleDslEvaluation evaluation = ruleEvaluator.evaluate(dsl, context);
+            RuleDslEvaluation evaluation = ruleEvaluator.evaluate(
+                dsl, context, tenantId, snapshot.runtimeReleaseId());
             if (evaluation.hit()) {
                 matched.add(toCard(
                     request, snapshot, rule, version, evaluation, tenantId, candidate.resolution()));
@@ -189,7 +190,7 @@ public class RecommendationDeterministicMatcher {
         values.add(new RecommendationSourceRequest(
             RecommendationSourceType.CONTEXT,
             snapshot.snapshotId(),
-            snapshot.packageVersion(),
+            snapshot.runtimeReleaseId(),
             "标准临床上下文",
             "context_snapshot:" + snapshot.snapshotId(),
             null,
@@ -408,7 +409,7 @@ public class RecommendationDeterministicMatcher {
     }
 
     private static String releaseApplicableScope(RuleDefinition rule) {
-        return hasText(rule.packageVersion()) ? rule.packageVersion().trim() : "ALL";
+        return "ALL";
     }
 
     private static String resolutionContentHash(ResolvedAssetVersion resolution) {

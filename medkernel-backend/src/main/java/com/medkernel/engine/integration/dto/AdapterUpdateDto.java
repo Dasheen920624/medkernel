@@ -19,6 +19,6 @@ public record AdapterUpdateDto(
     String configJson,
 
     @NotBlank(message = "状态不能为空")
-    @Pattern(regexp = "ACTIVE|SUSPENDED", message = "状态必须是 ACTIVE 或 SUSPENDED")
+    @Pattern(regexp = "ACTIVE|SUSPENDED", message = "状态必须是启用或挂起")
     String status
 ) {}

@@ -5,8 +5,5 @@ package com.medkernel.engine.authoring;
  */
 public enum AuthoringBatchJobType {
     RULE_GENERATE,
-    RULE_PUBLISH,
-    PACKAGE_IMPORT,
-    PACKAGE_EXPORT,
-    PACKAGE_DISTRIBUTE
+    RULE_PUBLISH
 }

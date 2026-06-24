@@ -1,18 +1,16 @@
 import { App as AntdApp, ConfigProvider } from "antd";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type * as ApiHooks from "@/shared/api/hooks";
 import ReleaseGovernance from "./ReleaseGovernance";
 
-const simulateAsync = vi.fn();
-const startRolloutAsync = vi.fn();
-const observeAsync = vi.fn();
-const rollbackRolloutAsync = vi.fn();
-const createTemplateAsync = vi.fn();
+const publishPlatformAsync = vi.fn();
+const activateHospitalAsync = vi.fn();
+const rollbackHospitalAsync = vi.fn();
+const simulateReleaseImpactAsync = vi.fn();
 const useOrgUnitsMock = vi.fn();
-const useOverrideTemplatesMock = vi.fn();
 
 vi.mock("@/shared/api/hooks", async () => {
   const actual = await vi.importActual<typeof ApiHooks>("@/shared/api/hooks");
@@ -20,11 +18,11 @@ vi.mock("@/shared/api/hooks", async () => {
     ...actual,
     useSecurityProfile: () => ({
       data: {
-        userId: "publisher-a",
-        roles: [{ code: "organization-admin", displayName: "院级管理员" }],
+        userId: "operator-a",
+        roles: [{ code: "platform-admin", displayName: "平台管理员" }],
         permissions: [],
-        menuKeys: ["config-packages"],
-        dataScope: { tenantId: "tenant-a" },
+        menuKeys: ["release-governance"],
+        dataScope: { tenantId: "tenant-a", hospitalId: null },
       },
     }),
     useOrgUnits: (params: unknown) => {
@@ -33,40 +31,175 @@ vi.mock("@/shared/api/hooks", async () => {
         data: {
           items: [
             {
-              id: "org-a",
-              code: "ORG-A",
+              id: "hospital-a",
+              code: "HOSP-A",
               name: "中心医院",
               level: "FACILITY",
               facilityType: "HOSPITAL",
-              orgPath: "/tenant-a/org-a",
+              orgPath: "/tenant-a/hospital-a",
             },
           ],
         },
-      };
-    },
-    useReleaseSimulation: () => ({ mutateAsync: simulateAsync, isPending: false }),
-    useStartReleaseRollout: () => ({ mutateAsync: startRolloutAsync, isPending: false }),
-    useObserveReleaseRollout: () => ({ mutateAsync: observeAsync, isPending: false }),
-    useRollbackRollout: () => ({ mutateAsync: rollbackRolloutAsync, isPending: false }),
-    useOverrideTemplates: (params: unknown) => {
-      useOverrideTemplatesMock(params);
-      return {
-        data: {
-          items: [],
-          page: 1,
-          size: 20,
-          total: 0,
-          hasNext: false,
-          totalEstimated: false,
-        },
         isLoading: false,
-        isError: false,
       };
     },
-    useCreateOverrideTemplate: () => ({ mutateAsync: createTemplateAsync, isPending: false }),
-    usePreviewOverrideBatch: () => ({ mutateAsync: vi.fn(), isPending: false }),
-    useApplyOverrideBatch: () => ({ mutateAsync: vi.fn(), isPending: false }),
-    useRevokeOverrideBatch: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useCurrentPlatformBaseline: () => ({
+      data: {
+        release: {
+          baselineReleaseId: "baseline-A8",
+          revisionNo: 8,
+          manifestSha256: "a".repeat(64),
+          publishedAt: "2026-06-23T08:00:00Z",
+          publishedBy: "operator-platform",
+        },
+        items: [
+          {
+            sourceTenantId: "platform",
+            assetType: "RULE",
+            assetIdentity: "RULE.CKD",
+            entryState: "ACTIVE",
+            versionId: "rule-v1",
+            versionNo: "V1",
+            contentHash: "1".repeat(64),
+          },
+          {
+            sourceTenantId: "platform",
+            assetType: "PATHWAY",
+            assetIdentity: "PATH.OLD",
+            entryState: "ACTIVE",
+            versionId: "path-old-v1",
+            versionNo: "V1",
+            contentHash: "2".repeat(64),
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    }),
+    usePlatformReleaseCandidates: () => ({
+      data: {
+        items: [
+          {
+            sourceLayer: "PLATFORM",
+            assetType: "RULE",
+            assetIdentity: "RULE.CKD",
+            versionId: "rule-v2",
+            versionNo: "V2",
+            status: "DRAFT",
+            organizationScope: "/platform",
+            applicableScope: "ALL",
+            contentHash: "3".repeat(64),
+            sourceRef: "指南 2026",
+            updatedAt: "2026-06-23T09:00:00Z",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+        totalEstimated: false,
+      },
+      isLoading: false,
+    }),
+    usePublishPlatformBaseline: () => ({
+      mutateAsync: publishPlatformAsync,
+      isPending: false,
+    }),
+    useCurrentHospitalRuntime: (hospitalId: string | undefined) => ({
+      data: hospitalId
+        ? {
+            release: {
+              releaseId: "runtime-H9",
+              tenantId: "tenant-a",
+              hospitalId,
+              revisionNo: 9,
+              platformBaselineReleaseId: "baseline-A8",
+              manifestSha256: "b".repeat(64),
+              activatedAt: "2026-06-23T09:00:00Z",
+              activatedBy: "operator-a",
+            },
+            items: [
+              {
+                releaseId: "runtime-H9",
+                sourceTenantId: "platform",
+                sourceLayer: "PLATFORM",
+                assetType: "RULE",
+                assetIdentity: "RULE.CKD",
+                entryState: "ACTIVE",
+                versionId: "rule-v1",
+                versionNo: "V1",
+              },
+            ],
+          }
+        : undefined,
+      isLoading: false,
+      isError: false,
+    }),
+    useHospitalRuntimeCandidates: () => ({
+      data: {
+        items: [
+          {
+            sourceLayer: "HOSPITAL",
+            assetType: "PATHWAY",
+            assetIdentity: "PATH.CKD.LOCAL",
+            versionId: "path-v3",
+            versionNo: "V3",
+            status: "PUBLISHED",
+            organizationScope: "/tenant-a/hospital-a",
+            applicableScope: "adult|inpatient",
+            contentHash: "4".repeat(64),
+            sourceRef: "本院路径",
+            updatedAt: "2026-06-23T09:30:00Z",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+        totalEstimated: false,
+      },
+      isLoading: false,
+    }),
+    useHospitalRuntimeHistory: () => ({
+      data: {
+        items: [
+          {
+            releaseId: "runtime-H9",
+            revisionNo: 9,
+            platformBaselineReleaseId: "baseline-A8",
+            manifestSha256: "b".repeat(64),
+            activatedAt: "2026-06-23T09:00:00Z",
+            activatedBy: "operator-a",
+          },
+          {
+            releaseId: "runtime-H7",
+            revisionNo: 7,
+            platformBaselineReleaseId: "baseline-A7",
+            manifestSha256: "c".repeat(64),
+            activatedAt: "2026-06-22T09:00:00Z",
+            activatedBy: "operator-a",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 2,
+        hasNext: false,
+        totalEstimated: false,
+      },
+      isLoading: false,
+    }),
+    useActivateHospitalRuntime: () => ({
+      mutateAsync: activateHospitalAsync,
+      isPending: false,
+    }),
+    useRollbackHospitalRuntime: () => ({
+      mutateAsync: rollbackHospitalAsync,
+      isPending: false,
+    }),
+    useSimulateReleaseImpact: () => ({
+      mutateAsync: simulateReleaseImpactAsync,
+      isPending: false,
+    }),
   };
 });
 
@@ -84,223 +217,180 @@ function renderPage() {
 
 describe("ReleaseGovernance", () => {
   beforeEach(() => {
-    simulateAsync.mockReset();
-    startRolloutAsync.mockReset();
-    observeAsync.mockReset();
-    rollbackRolloutAsync.mockReset();
-    createTemplateAsync.mockReset();
+    publishPlatformAsync.mockReset();
+    activateHospitalAsync.mockReset();
+    rollbackHospitalAsync.mockReset();
+    simulateReleaseImpactAsync.mockReset();
     useOrgUnitsMock.mockReset();
-    useOverrideTemplatesMock.mockReset();
-    simulateAsync.mockResolvedValue({
-      simulationDigest: "digest-a",
-      candidateVersionId: "version-a",
-      currentVersionId: "version-current",
+    publishPlatformAsync.mockResolvedValue({ revisionNo: 9 });
+    activateHospitalAsync.mockResolvedValue({ revisionNo: 10 });
+    rollbackHospitalAsync.mockResolvedValue({ revisionNo: 10 });
+    simulateReleaseImpactAsync.mockResolvedValue({
+      simulationDigest: "d".repeat(64),
+      generatedAt: "2026-06-23T10:00:00Z",
+      candidateVersionId: "path-v3",
+      currentVersionId: "path-v2",
       affectedOrganizations: [
-        { orgUnitId: "org-a", orgPath: "/tenant-a/org-a", orgName: "中心医院" },
+        {
+          orgUnitId: "hospital-a",
+          orgPath: "/tenant-a/hospital-a",
+          orgName: "中心医院",
+        },
       ],
-      applicableDimensions: ["ALL"],
+      applicableDimensions: ["adult|inpatient"],
       diff: {
         changeType: "MODIFIED",
-        currentVersionNo: "1",
-        candidateVersionNo: "2",
-        currentContentHash: "old",
-        candidateContentHash: "new",
+        currentVersionNo: "V2",
+        candidateVersionNo: "V3",
+        currentContentHash: "1".repeat(64),
+        candidateContentHash: "4".repeat(64),
       },
       replay: {
         status: "SUPPORTED",
-        sampledCases: 40,
-        changedCases: 6,
-        triggerIncreases: 4,
-        triggerDecreases: 2,
-        severityIncreases: 1,
+        sampledCases: 12,
+        changedCases: 2,
+        triggerIncreases: 1,
+        triggerDecreases: 0,
+        severityIncreases: 0,
         severityDecreases: 0,
         highRiskSnapshotIds: [],
+        impactedAssets: [
+          {
+            assetType: "RULE",
+            assetIdentity: "RULE.ANEMIA",
+            versionId: "rule-active",
+            versionNo: "V3",
+          },
+        ],
+        reason: null,
       },
       safety: { passed: true, issues: [] },
       dependencies: { passed: true, issues: [] },
       conflicts: [],
       releasable: true,
     });
-    startRolloutAsync.mockResolvedValue({
-      planId: "plan-a",
-      versionId: "version-a",
-      fromVersionId: "version-current",
-      status: "GRAY",
-      rolloutStageIndex: 0,
-    });
-    observeAsync.mockResolvedValue({
-      plan: {
-        planId: "plan-a",
-        versionId: "version-a",
-        fromVersionId: "version-current",
-        status: "PAUSED",
-        rolloutStageIndex: 0,
-        rolloutPausedReason: "异常率超过阈值",
-      },
-      paused: true,
-      readyForFullRelease: false,
-      currentStagePercent: 10,
-    });
-    rollbackRolloutAsync.mockResolvedValue({
-      planId: "plan-a",
-      versionId: "version-a",
-      fromVersionId: "version-current",
-      status: "ROLLED_BACK",
-      rolloutStageIndex: 0,
-    });
-    createTemplateAsync.mockResolvedValue({});
   });
 
-  it("shows impact evidence and starts rollout with the confirmed server digest", async () => {
+  it("publishes the selected platform draft and explicit tombstone as the next platform standard version", async () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "发布治理" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /一键回退/ })).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("资产身份"), { target: { value: "RULE.VTE.RISK" } });
-    fireEvent.change(screen.getByLabelText("候选版本 ID"), { target: { value: "version-a" } });
-    fireEvent.mouseDown(screen.getByLabelText("目标组织"));
-    fireEvent.click(await screen.findByText(/中心医院/));
-    fireEvent.click(screen.getByRole("button", { name: /运行影响模拟/ }));
+    expect(screen.getByText("当前平台标准版本 第 8 版")).toBeInTheDocument();
+    expect(
+      screen.queryByText(new RegExp(`灰度|覆盖模板|配置${"包"}版本|候选版本 ID`)),
+    ).not.toBeInTheDocument();
 
-    expect(await screen.findByText("影响 1 个组织")).toBeInTheDocument();
-    expect(screen.getByText("40 个病例样本")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /确认并启动灰度/ }));
-    fireEvent.change(screen.getByLabelText("发布说明"), {
-      target: { value: "完成临床与依赖复核" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /^启动灰度$/ }));
+    fireEvent.click(screen.getByLabelText("发布 RULE.CKD V2"));
+    fireEvent.click(screen.getByLabelText("停用 PATH.OLD"));
+    fireEvent.click(screen.getByRole("button", { name: "发布新平台标准版本" }));
 
     await waitFor(() =>
-      expect(startRolloutAsync).toHaveBeenCalledWith(
-        expect.objectContaining({
-          confirmedSimulationDigest: "digest-a",
-          simulation: expect.objectContaining({
-            assetIdentity: "RULE.VTE.RISK",
-            candidateVersionId: "version-a",
-          }),
-        }),
-      ),
-    );
-  });
-
-  it("searches the organization directory through bounded server pagination", async () => {
-    renderPage();
-
-    expect(useOrgUnitsMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ page: 1, size: 50, keyword: undefined, status: "ACTIVE" }),
-    );
-
-    const organizationSelect = screen.getByLabelText("目标组织");
-    fireEvent.mouseDown(organizationSelect);
-    fireEvent.change(organizationSelect, { target: { value: "中心" } });
-
-    await waitFor(() =>
-      expect(useOrgUnitsMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({ page: 1, size: 50, keyword: "中心", status: "ACTIVE" }),
-      ),
-    );
-  });
-
-  it("loads override templates through bounded server pagination", () => {
-    renderPage();
-
-    fireEvent.click(screen.getByRole("tab", { name: "覆盖模板与批量复用" }));
-
-    expect(useOverrideTemplatesMock).toHaveBeenLastCalledWith({ page: 1, size: 20 });
-  });
-
-  it("updates the visible rollout state from observation and rolls back to the recorded pin", async () => {
-    renderPage();
-    fireEvent.change(screen.getByLabelText("资产身份"), { target: { value: "RULE.VTE.RISK" } });
-    fireEvent.change(screen.getByLabelText("候选版本 ID"), { target: { value: "version-a" } });
-    fireEvent.mouseDown(screen.getByLabelText("目标组织"));
-    fireEvent.click(await screen.findByText(/中心医院/));
-    fireEvent.click(screen.getByRole("button", { name: /运行影响模拟/ }));
-    await screen.findByText("影响 1 个组织");
-    fireEvent.click(screen.getByRole("button", { name: /确认并启动灰度/ }));
-    fireEvent.change(screen.getByLabelText("发布说明"), {
-      target: { value: "完成临床与依赖复核" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /^启动灰度$/ }));
-    await screen.findByText("当前阶段 1");
-
-    expect(screen.getByLabelText("样本数")).toHaveValue("100");
-    fireEvent.change(screen.getByLabelText("样本数"), { target: { value: "100" } });
-    fireEvent.change(screen.getByLabelText("命中数"), { target: { value: "30" } });
-    fireEvent.change(screen.getByLabelText("阻断数"), { target: { value: "10" } });
-    fireEvent.change(screen.getByLabelText("人工拒绝数"), { target: { value: "5" } });
-    fireEvent.change(screen.getByLabelText("异常数"), { target: { value: "6" } });
-    fireEvent.click(screen.getByRole("button", { name: "提交观察窗数据" }));
-
-    expect(await screen.findByText("异常率超过阈值")).toBeInTheDocument();
-    expect(screen.getByText("已暂停")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "提交观察窗数据" })).toBeDisabled();
-
-    fireEvent.click(screen.getByRole("button", { name: "回退版本" }));
-    const rollbackTitle = await screen.findByText("回退灰度计划");
-    const rollbackDialog = rollbackTitle.closest('[role="dialog"]');
-    expect(rollbackDialog).not.toBeNull();
-    const dialog = within(rollbackDialog as HTMLElement);
-    expect(dialog.getByText(/version-current/)).toBeInTheDocument();
-    expect(dialog.queryByLabelText("当前版本 ID")).not.toBeInTheDocument();
-    fireEvent.change(dialog.getByLabelText("回退原因"), {
-      target: { value: "灰度异常，恢复上一钉点" },
-    });
-    fireEvent.click(dialog.getByLabelText("已确认停止本次灰度并恢复上一钉点"));
-    fireEvent.click(dialog.getByRole("button", { name: "确认回退" }));
-
-    await waitFor(() =>
-      expect(rollbackRolloutAsync).toHaveBeenCalledWith({
-        planId: "plan-a",
-        reason: "灰度异常，恢复上一钉点",
-        confirmedHighRisk: true,
+      expect(publishPlatformAsync).toHaveBeenCalledWith({
+        publishVersionIds: ["rule-v2"],
+        disabledAssets: [{ assetType: "PATHWAY", assetIdentity: "PATH.OLD" }],
       }),
     );
-    expect(await screen.findByText("已回滚")).toBeInTheDocument();
-  }, 15_000);
+  });
 
-  it("collects complete governance evidence when creating an override template", async () => {
+  it("builds one institution effective version from platform and local asset selections", async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
+    fireEvent.click(await screen.findByText(/中心医院/));
+
+    expect(await screen.findByText("当前机构生效版本 第 9 版")).toBeInTheDocument();
+    expect(screen.getByLabelText("启用平台内容 RULE.CKD")).toBeChecked();
+    fireEvent.click(screen.getByLabelText("启用本地内容 PATH.CKD.LOCAL V3"));
+    fireEvent.click(screen.getByRole("button", { name: "评估发布影响" }));
+    await screen.findByText("可发布");
+    fireEvent.click(screen.getByRole("button", { name: "生成新机构生效版本" }));
+
+    await waitFor(() =>
+      expect(activateHospitalAsync).toHaveBeenCalledWith({
+        hospitalId: "hospital-a",
+        request: {
+          platformBaselineReleaseId: "baseline-A8",
+          expectedCurrentReleaseId: "runtime-H9",
+          activeAssets: [
+            { assetType: "RULE", assetIdentity: "RULE.CKD", versionId: null },
+            {
+              assetType: "PATHWAY",
+              assetIdentity: "PATH.CKD.LOCAL",
+              versionId: "path-v3",
+            },
+          ],
+        },
+      }),
+    );
+  });
+
+  it("does not create an institution effective version with unassessed local content", async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
+    fireEvent.click(await screen.findByText(/中心医院/));
+    fireEvent.click(screen.getByLabelText("启用本地内容 PATH.CKD.LOCAL V3"));
+    fireEvent.click(screen.getByRole("button", { name: "生成新机构生效版本" }));
+
+    expect(activateHospitalAsync).not.toHaveBeenCalled();
+  });
+
+  it("runs release impact assessment for selected local assets before creating the institution effective version", async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
+    fireEvent.click(await screen.findByText(/中心医院/));
+    fireEvent.click(screen.getByLabelText("启用本地内容 PATH.CKD.LOCAL V3"));
+    fireEvent.click(screen.getByRole("button", { name: "评估发布影响" }));
+
+    await waitFor(() =>
+      expect(simulateReleaseImpactAsync).toHaveBeenCalledWith({
+        assetType: "PATHWAY",
+        assetIdentity: "PATH.CKD.LOCAL",
+        candidateVersionId: "path-v3",
+        targetOrgUnitIds: ["hospital-a"],
+        targetOrgPath: "/tenant-a/hospital-a",
+        applicableScope: "adult|inpatient",
+        rolloutPolicy: {
+          strategy: "ORG_LIST",
+          orgUnitIds: ["hospital-a"],
+        },
+        replayDays: 30,
+        replayLimit: 100,
+      }),
+    );
+    expect(await screen.findByText("可发布")).toBeInTheDocument();
+    expect(screen.getByText("回放病例 12 例，变化 2 例")).toBeInTheDocument();
+    expect(screen.getByText("影响 1 项在用资产")).toBeInTheDocument();
+    expect(screen.getByText("规则 · RULE.ANEMIA · V3")).toBeInTheDocument();
+  });
+
+  it("rolls back only by selecting a real historical institution effective version", async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
+    fireEvent.click(await screen.findByText(/中心医院/));
+    fireEvent.click(await screen.findByRole("button", { name: "回滚到 第 7 版" }));
+    fireEvent.click(await screen.findByRole("button", { name: "确认回滚" }));
+
+    await waitFor(() =>
+      expect(rollbackHospitalAsync).toHaveBeenCalledWith({
+        hospitalId: "hospital-a",
+        targetReleaseId: "runtime-H7",
+      }),
+    );
+  });
+
+  it("loads hospitals through bounded server-side organization filtering", () => {
     renderPage();
 
-    fireEvent.click(screen.getByRole("tab", { name: "覆盖模板与批量复用" }));
-    fireEvent.click(screen.getByRole("button", { name: /新建模板/ }));
-    const dialog = within(screen.getByRole("dialog", { name: "新建覆盖模板" }));
-    fireEvent.change(dialog.getByLabelText("模板名称"), {
-      target: { value: "儿科规则模板" },
-    });
-    fireEvent.change(dialog.getByLabelText("资产身份"), {
-      target: { value: "RULE.PEDIATRIC.DOSE" },
-    });
-    fireEvent.change(dialog.getByLabelText("继承版本 ID"), {
-      target: { value: "version-platform-1" },
-    });
-    fireEvent.change(dialog.getByLabelText("差异摘要"), {
-      target: { value: "按儿科制度收紧剂量阈值" },
-    });
-    fireEvent.change(dialog.getByLabelText("覆盖原因"), {
-      target: { value: "本院儿科用药制度要求" },
-    });
-    fireEvent.click(dialog.getByRole("button", { name: "创建模板" }));
-
-    await waitFor(() =>
-      expect(createTemplateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({
-          applicableScope: "ALL",
-          items: [
-            expect.objectContaining({
-              assetIdentity: "RULE.PEDIATRIC.DOSE",
-              inheritedVersionId: "version-platform-1",
-              applicableScope: "ALL",
-              diffSummary: "按儿科制度收紧剂量阈值",
-              overrideReason: "本院儿科用药制度要求",
-            }),
-          ],
-        }),
-      ),
-    );
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "新建覆盖模板" })).not.toBeInTheDocument(),
+    expect(useOrgUnitsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        page: 1,
+        size: 50,
+        level: "FACILITY",
+        status: "ACTIVE",
+      }),
     );
   });
 });

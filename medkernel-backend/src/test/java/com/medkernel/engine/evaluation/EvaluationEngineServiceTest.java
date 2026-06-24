@@ -27,6 +27,7 @@ import com.medkernel.shared.observability.DiagnoseResponseAssembler;
 import com.medkernel.shared.observability.StateTransitionRecorder;
 import com.medkernel.engine.context.ContextSnapshot;
 import com.medkernel.engine.context.CanonicalResource;
+import com.medkernel.engine.evaluation.runtime.RuntimeReleaseEvaluationSelector;
 import com.medkernel.engine.rule.RuleDslEvaluation;
 import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.engine.security.RoleCode;
@@ -42,6 +43,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -66,6 +68,7 @@ class EvaluationEngineServiceTest {
     private AssetVersionRepository assetVersions;
     private ReleasePort releasePort;
     private com.medkernel.engine.org.OrgAssignmentValidator assignments;
+    private RuntimeReleaseEvaluationSelector runtimeEvaluations;
     private EvaluationEngineService service;
 
     @BeforeEach
@@ -88,12 +91,13 @@ class EvaluationEngineServiceTest {
         assetVersions = mock(AssetVersionRepository.class);
         releasePort = mock(ReleasePort.class);
         assignments = mock(com.medkernel.engine.org.OrgAssignmentValidator.class);
+        runtimeEvaluations = mock(RuntimeReleaseEvaluationSelector.class);
 
         service = new EvaluationEngineService(
             indicators, runs, results, findings, tasks, reviews, idempotencyKeys,
             auditRecorder, transitions, diagnoseAssembler,
             canonicalResources, snapshots, ruleEvaluator, json,
-            versionedAssets, assetVersions, releasePort, assignments);
+            versionedAssets, assetVersions, releasePort, assignments, runtimeEvaluations);
 
         when(indicators.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(runs.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -104,7 +108,7 @@ class EvaluationEngineServiceTest {
 
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-eval", com.medkernel.shared.context.OrgScope.tenant("tenant-A"), "qa-1"));
-        authenticate(RoleCode.ORGANIZATION_ADMIN);
+        authenticate(RoleCode.ENGINE_OPERATOR);
     }
 
     @AfterEach
@@ -115,19 +119,21 @@ class EvaluationEngineServiceTest {
 
     @Test
     void indicatorFlowsFromDraftToActiveAndReplacesOldActiveVersion() {
-        EvaluationIndicator draft = service.createIndicator(indicatorRequest(2));
+        when(indicators.findTopByTenantIdAndIndicatorCodeOrderByVersionNoDesc(
+            "tenant-A", "IND.VTE.PROPHYLAXIS"
+        )).thenReturn(Optional.of(indicator("ei-v1", 1, EvaluationIndicatorStatus.OFFLINE)));
+        EvaluationIndicator draft = service.createIndicator(indicatorRequest());
         assertThat(draft.status()).isEqualTo(EvaluationIndicatorStatus.DRAFT);
         assertThat(draft.tenantId()).isEqualTo("tenant-A");
         verify(versionedAssets).registerDraft(org.mockito.ArgumentMatchers.argThat(command ->
             command.assetType() == VersionedAssetType.EVALUATION
                 && command.assetIdentity().equals("IND.VTE.PROPHYLAXIS")
-                && command.versionNo().equals("2")
-                && command.organizationScope().equals("tenant:tenant-A")
+                && command.organizationScope() == null
         ));
 
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-            "tenant-A", VersionedAssetType.EVALUATION, "IND.VTE.PROPHYLAXIS", "2"
-        )).thenReturn(Optional.of(assetVersion("av-eval-2", "2", AssetVersionStatus.DRAFT)));
+            "tenant-A", VersionedAssetType.EVALUATION, "IND.VTE.PROPHYLAXIS", "V2"
+        )).thenReturn(Optional.of(assetVersion("av-eval-2", "V2", AssetVersionStatus.DRAFT)));
         when(indicators.findByIndicatorIdAndTenantId(draft.indicatorId(), "tenant-A"))
             .thenReturn(Optional.of(draft));
         EvaluationIndicator pending = service.submitIndicator(draft.indicatorId());
@@ -135,8 +141,8 @@ class EvaluationEngineServiceTest {
         verify(releasePort).submitForReview(any());
 
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-            "tenant-A", VersionedAssetType.EVALUATION, "IND.VTE.PROPHYLAXIS", "2"
-        )).thenReturn(Optional.of(assetVersion("av-eval-2", "2", AssetVersionStatus.IN_REVIEW)));
+            "tenant-A", VersionedAssetType.EVALUATION, "IND.VTE.PROPHYLAXIS", "V2"
+        )).thenReturn(Optional.of(assetVersion("av-eval-2", "V2", AssetVersionStatus.DRAFT)));
         when(indicators.findByIndicatorIdAndTenantId(draft.indicatorId(), "tenant-A"))
             .thenReturn(Optional.of(pending));
         EvaluationIndicator published = service.publishIndicator(
@@ -147,8 +153,8 @@ class EvaluationEngineServiceTest {
         verify(releasePort).approveReview(any());
 
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-            "tenant-A", VersionedAssetType.EVALUATION, "IND.VTE.PROPHYLAXIS", "2"
-        )).thenReturn(Optional.of(assetVersion("av-eval-2", "2", AssetVersionStatus.PUBLISHED)));
+            "tenant-A", VersionedAssetType.EVALUATION, "IND.VTE.PROPHYLAXIS", "V2"
+        )).thenReturn(Optional.of(assetVersion("av-eval-2", "V2", AssetVersionStatus.PUBLISHED)));
         when(indicators.findByIndicatorIdAndTenantId(draft.indicatorId(), "tenant-A"))
             .thenReturn(Optional.of(published));
         EvaluationIndicator gray = service.grayIndicator(
@@ -186,14 +192,49 @@ class EvaluationEngineServiceTest {
     }
 
     @Test
+    void createIndicatorAutomaticallyAllocatesNextBusinessVersion() {
+        when(indicators.findTopByTenantIdAndIndicatorCodeOrderByVersionNoDesc(
+            "tenant-A", "IND.VTE.PROPHYLAXIS"
+        )).thenReturn(Optional.of(indicator("ei-v3", 3, EvaluationIndicatorStatus.OFFLINE)));
+
+        EvaluationIndicator indicator = service.createIndicator(indicatorRequest());
+
+        assertThat(indicator.versionNo()).isEqualTo(4);
+        verify(versionedAssets).registerDraft(argThat(command ->
+            command.assetIdentity().equals("IND.VTE.PROPHYLAXIS")
+        ));
+    }
+
+    @Test
+    void createIndicatorRequestDoesNotExposeBusinessVersionInput() {
+        assertThat(EvaluationIndicatorCreateRequest.class.getRecordComponents())
+            .extracting(component -> component.getName())
+            .doesNotContain("versionNo");
+    }
+
+    @Test
+    void createIndicatorReportsConcurrentVersionAllocationConflictHonestly() {
+        when(indicators.save(any()))
+            .thenThrow(new DuplicateKeyException("uk_eval_indicator_tenant_version"));
+
+        assertThatThrownBy(() -> service.createIndicator(indicatorRequest()))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("版本并发创建冲突")
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+
+        verify(versionedAssets, never()).registerDraft(any());
+    }
+
+    @Test
     void activateIndicatorRejectsUserWithoutQualityGovernanceResponsibility() {
         EvaluationIndicator gray = indicator("ei-gray", 2, EvaluationIndicatorStatus.GRAY);
         when(indicators.findByIndicatorIdAndTenantId("ei-gray", "tenant-A"))
             .thenReturn(Optional.of(gray));
         when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
-            "tenant-A", VersionedAssetType.EVALUATION, "IND.VTE.PROPHYLAXIS", "2"
-        )).thenReturn(Optional.of(assetVersion("av-eval-2", "2", AssetVersionStatus.PUBLISHED)));
-        authenticate(RoleCode.CLINICAL_DECISION_USER);
+            "tenant-A", VersionedAssetType.EVALUATION, "IND.VTE.PROPHYLAXIS", "V2"
+        )).thenReturn(Optional.of(assetVersion("av-eval-2", "V2", AssetVersionStatus.PUBLISHED)));
+        authenticate(RoleCode.CLINICAL_USER);
 
         assertThatThrownBy(() -> service.activateIndicator(
             "ei-gray",
@@ -219,10 +260,10 @@ class EvaluationEngineServiceTest {
     @Test
     void createIndicatorRejectsNaturalLanguageRuleDefinitionBeforeDrafting() {
         EvaluationIndicatorCreateRequest request = new EvaluationIndicatorCreateRequest(
-            "IND.QC.RULE", 1, "质控规则指标", EvaluationSubjectType.MEDICAL_RECORD,
+            "IND.QC.RULE", "质控规则指标", EvaluationSubjectType.MEDICAL_RECORD,
             "符合住院风险分层病例",
             ruleDefinition("patient.qualityReady", "equals", "true"),
-            null, null, "DISCHARGE+24H", "全院", "dept-1", "guideline-1", "1.0.0");
+            null, null, "DISCHARGE+24H", "全院", "dept-1", "guideline-1");
 
         assertThatThrownBy(() -> service.createIndicator(request))
             .isInstanceOf(ApiException.class)
@@ -296,7 +337,7 @@ class EvaluationEngineServiceTest {
             EvaluationResultLevel.PASS, false, "抽检通过", null, null, List.of());
         EvaluationRunRequest unlinked = new EvaluationRunRequest(
             "RUN.UNLINKED", EvaluationRunType.BATCH_IMPORT, null, null, null, null,
-            "DISCHARGE", "1.0.0", "sha256:run", Instant.now(), List.of(result));
+            "DISCHARGE", null, "sha256:run", Instant.now(), List.of(result));
 
         assertThatThrownBy(() -> service.run(unlinked))
             .isInstanceOf(ApiException.class)
@@ -484,14 +525,14 @@ class EvaluationEngineServiceTest {
         assertThat(service.diagnose("run-1")).isSameAs(expected);
     }
 
-    private EvaluationIndicatorCreateRequest indicatorRequest(int version) {
+    private EvaluationIndicatorCreateRequest indicatorRequest() {
         return new EvaluationIndicatorCreateRequest(
-            "IND.VTE.PROPHYLAXIS", version, "静脉血栓预防完成率", EvaluationSubjectType.MEDICAL_RECORD,
+            "IND.VTE.PROPHYLAXIS", "静脉血栓预防完成率", EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
             ruleDefinition("patient.excluded", "equals", "true"),
             "达标率 >= 95%",
-            "DISCHARGE+24H", "全院住院科室", "dept-1", "guideline-1", "1.0.0");
+            "DISCHARGE+24H", "全院住院科室", "dept-1", "guideline-1");
     }
 
     private EvaluationRunRequest runRequest(QualityFindingSeverity severity, boolean assigned) {
@@ -506,8 +547,8 @@ class EvaluationEngineServiceTest {
             EvaluationResultLevel.NON_COMPLIANT, true, "指标未达标", "evidence-1", "dept-1",
             List.of(finding));
         return new EvaluationRunRequest(
-            "RUN.VTE", EvaluationRunType.UPSTREAM_RESULT, "event-1", "snapshot-1",
-            "patient-1", "enc-1", "DISCHARGE", "1.0.0", "sha256:run", Instant.now(), List.of(result));
+            "RUN.VTE", EvaluationRunType.UPSTREAM_RESULT, "event-1", null,
+            "patient-1", "enc-1", "DISCHARGE", null, "sha256:run", Instant.now(), List.of(result));
     }
 
     private EvaluationIndicator indicator(String indicatorId, int version, EvaluationIndicatorStatus status) {
@@ -518,7 +559,7 @@ class EvaluationEngineServiceTest {
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
             null, null,
-            "DISCHARGE+24H", "全院", "dept-1", "guideline-1", "1.0.0", status,
+            "DISCHARGE+24H", "全院", "dept-1", "guideline-1", status,
             now, "qa-1", status == EvaluationIndicatorStatus.ACTIVE ? now : null,
             now, "qa-1", now, "qa-1", "trace-eval");
     }
@@ -527,7 +568,7 @@ class EvaluationEngineServiceTest {
         Instant now = Instant.now();
         return new EvaluationRun(
             null, runId, "tenant-A", "RUN.VTE", EvaluationRunType.UPSTREAM_RESULT,
-            "event-1", "snapshot-1", "patient-1", "enc-1", "DISCHARGE", "1.0.0",
+            "event-1", "snapshot-1", "patient-1", "enc-1", "DISCHARGE", "runtime-release-test",
             "sha256:run", EvaluationRunStatus.RECORDED, null, now,
             now, "qa-1", now, "qa-1", "trace-eval");
     }
@@ -562,9 +603,10 @@ class EvaluationEngineServiceTest {
     void evaluateSnapshotCalculatesMetricsAndCreatesDefectFindings() {
         // Mock ContextSnapshot
         ContextSnapshot snapshot = new ContextSnapshot(
-            null, "snap-1", "tenant-A", "dept-1", null, null, "1.0.0",
+            null, "snap-1", "tenant-A", "dept-1", null, null, "runtime-release-test",
             "patient-1", "enc-1", com.medkernel.engine.context.ContextSnapshotStatus.ACTIVE,
-            "[]", "{}", com.medkernel.engine.context.QualityStatus.VALID, "trace-eval",
+            "[]", "{}",
+            "{}", com.medkernel.engine.context.QualityStatus.VALID, "trace-eval",
             "sig", Instant.now(), "qa-1");
         when(snapshots.findBySnapshotIdAndTenantId("snap-1", "tenant-A")).thenReturn(Optional.of(snapshot));
 
@@ -580,10 +622,12 @@ class EvaluationEngineServiceTest {
         EvaluationIndicator indicator = new EvaluationIndicator(
             null, "ei-active", "tenant-A", "IND.VTE.PROPHYLAXIS", 1, "静脉血栓预防完成率",
             EvaluationSubjectType.MEDICAL_RECORD, "{\"all\":[]}", "{\"all\":[]}", "{\"all\":[]}",
-            "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1", "1.0.0",
+            "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
+            .thenReturn(List.of(indicator));
+        when(runtimeEvaluations.select("tenant-A", "runtime-release-test"))
             .thenReturn(List.of(indicator));
         when(indicators.findByIndicatorIdAndTenantId("ei-active", "tenant-A")).thenReturn(Optional.of(indicator));
 
@@ -595,7 +639,7 @@ class EvaluationEngineServiceTest {
             .thenReturn(new RuleDslEvaluation(false, null, List.of(), null));
 
         EvaluationRunResponse response = service.evaluateSnapshot(
-            new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE", "1.0.0"));
+            new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE"));
 
         assertThat(response.status()).isEqualTo(EvaluationRunStatus.RECORDED);
         assertThat(response.resultCount()).isEqualTo(1);
@@ -621,17 +665,19 @@ class EvaluationEngineServiceTest {
             EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
-            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1", "1.0.0",
+            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
+            .thenReturn(List.of(indicator));
+        when(runtimeEvaluations.select("tenant-A", "runtime-release-test"))
             .thenReturn(List.of(indicator));
         when(indicators.findByIndicatorIdAndTenantId("ei-active", "tenant-A")).thenReturn(Optional.of(indicator));
         when(ruleEvaluator.evaluateConditionTree(any(), any(), any()))
             .thenReturn(ruleEvaluation(true, "分母入组规则校验", "patient.qualityReady", true))
             .thenReturn(ruleEvaluation(false, "分子达标规则校验", "patient.completed", false));
 
-        service.evaluateSnapshot(new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE", "1.0.0"));
+        service.evaluateSnapshot(new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE"));
 
         ArgumentCaptor<EvaluationResult> result = ArgumentCaptor.forClass(EvaluationResult.class);
         ArgumentCaptor<QualityFinding> finding = ArgumentCaptor.forClass(QualityFinding.class);
@@ -660,10 +706,12 @@ class EvaluationEngineServiceTest {
             EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
-            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1", "1.0.0",
+            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
+            .thenReturn(List.of(indicator));
+        when(runtimeEvaluations.select("tenant-A", "runtime-release-test"))
             .thenReturn(List.of(indicator));
         when(indicators.findByIndicatorIdAndTenantId("ei-active", "tenant-A")).thenReturn(Optional.of(indicator));
         when(ruleEvaluator.evaluateConditionTree(any(), any(), any()))
@@ -672,8 +720,8 @@ class EvaluationEngineServiceTest {
             .thenReturn(ruleEvaluation(true, "分母入组规则校验", "patient.qualityReady", true))
             .thenReturn(ruleEvaluation(true, "分子达标规则校验", "patient.completed", true));
 
-        service.evaluateSnapshot(new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE", "1.0.0"));
-        service.evaluateSnapshot(new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE", "1.0.0"));
+        service.evaluateSnapshot(new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE"));
+        service.evaluateSnapshot(new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE"));
 
         ArgumentCaptor<EvaluationRun> run = ArgumentCaptor.forClass(EvaluationRun.class);
         verify(runs, org.mockito.Mockito.times(2)).save(run.capture());
@@ -700,10 +748,12 @@ class EvaluationEngineServiceTest {
             EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
-            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1", "1.0.0",
+            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
+            .thenReturn(List.of(indicator));
+        when(runtimeEvaluations.select("tenant-A", "runtime-release-test"))
             .thenReturn(List.of(indicator));
 
         EvaluationResult existingResult = result("result-existing", "er-existing");
@@ -713,7 +763,7 @@ class EvaluationEngineServiceTest {
             String stableRunCode = invocation.getArgument(0);
             return Optional.of(new EvaluationRun(
                 null, "er-existing", "tenant-A", stableRunCode, EvaluationRunType.UPSTREAM_RESULT,
-                null, "snap-1", "patient-1", "enc-1", "DISCHARGE", "1.0.0",
+                null, "snap-1", "patient-1", "enc-1", "DISCHARGE", "runtime-release-test",
                 "sha256:existing", EvaluationRunStatus.RECORDED, null, Instant.now(),
                 Instant.now(), "qa-1", Instant.now(), "qa-1", "trace-existing"));
         });
@@ -725,7 +775,7 @@ class EvaluationEngineServiceTest {
             .thenReturn(Optional.of(existingTask));
 
         EvaluationRunResponse response = service.evaluateSnapshot(
-            new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE", "1.0.0"));
+            new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE"));
 
         assertThat(response.runId()).isEqualTo("er-existing");
         assertThat(response.resultCount()).isEqualTo(1);
@@ -757,7 +807,7 @@ class EvaluationEngineServiceTest {
             .thenReturn(List.of(badPatient));
 
         assertThatThrownBy(() -> service.evaluateSnapshot(
-                new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE", "1.0.0")))
+                new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE")))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_EVAL_001);
@@ -781,19 +831,65 @@ class EvaluationEngineServiceTest {
         EvaluationIndicator indicator = new EvaluationIndicator(
             null, "ei-active", "tenant-A", "IND.VTE.PROPHYLAXIS", 1, "静脉血栓预防完成率",
             EvaluationSubjectType.MEDICAL_RECORD, "{bad-json", "{\"all\":[]}", null,
-            "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1", "1.0.0",
+            "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
             .thenReturn(List.of(indicator));
+        when(runtimeEvaluations.select("tenant-A", "runtime-release-test"))
+            .thenReturn(List.of(indicator));
 
         assertThatThrownBy(() -> service.evaluateSnapshot(
-                new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE", "1.0.0")))
+                new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE")))
             .isInstanceOf(ApiException.class)
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_EVAL_001);
 
         verify(runs, never()).save(any());
+    }
+
+    @Test
+    void evaluateSnapshotOnlyUsesIndicatorsPinnedByCurrentRuntimeRelease() {
+        ContextSnapshot snapshot = snapshot("snap-1");
+        when(snapshots.findBySnapshotIdAndTenantId("snap-1", "tenant-A")).thenReturn(Optional.of(snapshot));
+        when(canonicalResources.findBySnapshotIdOrderBySeqNoAsc("snap-1"))
+            .thenReturn(List.of(patientResource(
+                "res-1", "{\"patientId\":\"patient-1\",\"qualityReady\":true,\"completed\":true}")));
+
+        EvaluationIndicator included = new EvaluationIndicator(
+            null, "ei-runtime", "tenant-A", "IND.QC.RUNTIME", 2, "机构生效版本内指标",
+            EvaluationSubjectType.MEDICAL_RECORD,
+            ruleDefinition("patient.qualityReady", "equals", "true"),
+            ruleDefinition("patient.completed", "equals", "true"),
+            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
+            EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
+            "qa-1", Instant.now(), "qa-1", "trace-eval");
+        EvaluationIndicator outside = new EvaluationIndicator(
+            null, "ei-outside", "tenant-A", "IND.QC.OUTSIDE", 1, "未上线指标",
+            EvaluationSubjectType.MEDICAL_RECORD,
+            ruleDefinition("patient.qualityReady", "equals", "true"),
+            ruleDefinition("patient.completed", "equals", "true"),
+            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
+            EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
+            "qa-1", Instant.now(), "qa-1", "trace-eval");
+        when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
+            .thenReturn(List.of(included, outside));
+        when(runtimeEvaluations.select("tenant-A", "runtime-release-test"))
+            .thenReturn(List.of(included));
+        when(indicators.findByIndicatorIdAndTenantId("ei-runtime", "tenant-A"))
+            .thenReturn(Optional.of(included));
+        when(ruleEvaluator.evaluateConditionTree(any(), any(), any()))
+            .thenReturn(ruleEvaluation(true, "分母入组规则校验", "patient.qualityReady", true))
+            .thenReturn(ruleEvaluation(true, "分子达标规则校验", "patient.completed", true));
+
+        EvaluationRunResponse response = service.evaluateSnapshot(
+            new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE"));
+
+        assertThat(response.resultCount()).isEqualTo(1);
+        ArgumentCaptor<EvaluationResult> result = ArgumentCaptor.forClass(EvaluationResult.class);
+        verify(results).save(result.capture());
+        assertThat(result.getValue().indicatorId()).isEqualTo("ei-runtime");
+        verify(indicators, never()).findByIndicatorIdAndTenantId("ei-outside", "tenant-A");
     }
 
     private AssetVersion assetVersion(String versionId, String versionNo, AssetVersionStatus status) {
@@ -819,9 +915,10 @@ class EvaluationEngineServiceTest {
 
     private ContextSnapshot snapshot(String snapshotId) {
         return new ContextSnapshot(
-            null, snapshotId, "tenant-A", "dept-1", null, null, "1.0.0",
+            null, snapshotId, "tenant-A", "dept-1", null, null, "runtime-release-test",
             "patient-1", "enc-1", com.medkernel.engine.context.ContextSnapshotStatus.ACTIVE,
-            "[]", "{}", com.medkernel.engine.context.QualityStatus.VALID, "trace-eval",
+            "[]", "{}",
+            "{}", com.medkernel.engine.context.QualityStatus.VALID, "trace-eval",
             "sig", Instant.now(), "qa-1");
     }
 

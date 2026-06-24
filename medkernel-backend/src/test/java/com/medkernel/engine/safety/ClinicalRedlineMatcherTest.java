@@ -31,11 +31,12 @@ import org.junit.jupiter.api.Test;
 class ClinicalRedlineMatcherTest {
 
     private final ContextSnapshotService snapshots = mock(ContextSnapshotService.class);
-    private final ClinicalRedlineRepository redlines = mock(ClinicalRedlineRepository.class);
+    private final RuntimeReleaseClinicalRedlineSelector runtimeRedlines =
+        mock(RuntimeReleaseClinicalRedlineSelector.class);
     private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
     private final ClinicalRedlineMatcher matcher = new ClinicalRedlineMatcher(
         snapshots,
-        redlines,
+        runtimeRedlines,
         new RuleDslEvaluator(json),
         json
     );
@@ -50,12 +51,8 @@ class ClinicalRedlineMatcherTest {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-redline-match", OrgScope.tenant("tenant-A"), "doctor-1"));
         when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
-        when(redlines.findByTenantIdAndStatusOrderByCategoryAscRedlineKeyAscUpdatedAtDesc(
-                "tenant-A", ClinicalRedlineStatus.ACTIVE))
+        when(runtimeRedlines.select("tenant-A", "runtime-release-test"))
             .thenReturn(List.of(redline("tenant-A", "redline-ddi-warfarin-nsaid")));
-        when(redlines.findByTenantIdAndStatusOrderByCategoryAscRedlineKeyAscUpdatedAtDesc(
-                "t-1", ClinicalRedlineStatus.ACTIVE))
-            .thenReturn(List.of());
 
         List<RecommendationCardRequest> cards = matcher.match(triggerRequest());
 
@@ -90,11 +87,7 @@ class ClinicalRedlineMatcherTest {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-redline-match", OrgScope.tenant("tenant-A"), "doctor-1"));
         when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
-        when(redlines.findByTenantIdAndStatusOrderByCategoryAscRedlineKeyAscUpdatedAtDesc(
-                "tenant-A", ClinicalRedlineStatus.ACTIVE))
-            .thenReturn(List.of());
-        when(redlines.findByTenantIdAndStatusOrderByCategoryAscRedlineKeyAscUpdatedAtDesc(
-                "t-1", ClinicalRedlineStatus.ACTIVE))
+        when(runtimeRedlines.select("tenant-A", "runtime-release-test"))
             .thenReturn(List.of(redline("t-1", "platform-redline-ddi-warfarin-nsaid")));
 
         List<RecommendationCardRequest> cards = matcher.match(triggerRequest());
@@ -105,15 +98,11 @@ class ClinicalRedlineMatcherTest {
     }
 
     @Test
-    void tenantRedlineWithSameRuntimeKeyCannotShadowPlatformSafetyRedline() {
+    void matcherOnlyConsumesRedlinesSelectedByRuntimeRelease() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-redline-match", OrgScope.tenant("tenant-A"), "doctor-1"));
         when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
-        when(redlines.findByTenantIdAndStatusOrderByCategoryAscRedlineKeyAscUpdatedAtDesc(
-                "tenant-A", ClinicalRedlineStatus.ACTIVE))
-            .thenReturn(List.of(redline("tenant-A", "tenant-redline-same-key", "MALE")));
-        when(redlines.findByTenantIdAndStatusOrderByCategoryAscRedlineKeyAscUpdatedAtDesc(
-                "t-1", ClinicalRedlineStatus.ACTIVE))
+        when(runtimeRedlines.select("tenant-A", "runtime-release-test"))
             .thenReturn(List.of(redline("t-1", "platform-redline-ddi-warfarin-nsaid", "FEMALE")));
 
         List<RecommendationCardRequest> cards = matcher.match(triggerRequest());
@@ -128,7 +117,7 @@ class ClinicalRedlineMatcherTest {
         return new RecommendationTriggerRequest(
             "TRG.ORDER", "order-sign", "event-1", "snapshot-1",
             "patient-1", "enc-1", null, "WARD_ORDER",
-            "1.0.0", "sha256:trigger", Instant.now(), List.of());
+            "sha256:trigger", Instant.now(), List.of());
     }
 
     private ContextSnapshotResponse snapshot() {
@@ -138,8 +127,9 @@ class ClinicalRedlineMatcherTest {
         return new ContextSnapshotResponse(
             "snapshot-1", ContextSnapshotStatus.ACTIVE,
             new ContextSnapshotResources(patient, List.of(), List.of(), List.of(), List.of(), List.of(),
-                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of()),
-            "1.0.0",
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                ContextSnapshotResources.emptyExtensions()),
+            "runtime-release-test",
             QualityStatus.VALID, List.of(), java.util.Map.of(), Instant.now(), "trace-redline-match");
     }
 
@@ -164,7 +154,7 @@ class ClinicalRedlineMatcherTest {
             RecommendationRiskLevel.CRITICAL,
             "risk-matrix-critical-ddi",
             "4",
-            CdssReviewRequirement.DUAL_REVIEW,
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
             168,
             "OPT04_REDLINE_SILENT_TRIAL",
             "华法林合并非甾体抗炎药出血风险",

@@ -10,9 +10,16 @@ const apiMocks = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(),
   remove: vi.fn(),
+  snapshot: vi.fn(),
+  permissions: ["context.write"] as string[],
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
+  useSecurityProfile: () => ({
+    data: {
+      permissions: apiMocks.permissions.map((code) => ({ code })),
+    },
+  }),
   useContextFieldCatalog: () => ({
     data: apiMocks.catalog,
     isLoading: false,
@@ -21,6 +28,10 @@ vi.mock("@/shared/api/hooks", () => ({
   useCreateContextField: () => ({ mutateAsync: apiMocks.create, isPending: false }),
   useUpdateContextField: () => ({ mutateAsync: apiMocks.update, isPending: false }),
   useDeleteContextField: () => ({ mutateAsync: apiMocks.remove, isPending: false }),
+  useSnapshotContextFieldCatalogDraft: () => ({
+    mutateAsync: apiMocks.snapshot,
+    isPending: false,
+  }),
 }));
 
 function renderManager() {
@@ -38,7 +49,9 @@ describe("FieldCatalogManager 字段目录维护（P2/P5）", () => {
     apiMocks.create.mockReset();
     apiMocks.update.mockReset();
     apiMocks.remove.mockReset();
+    apiMocks.snapshot.mockReset();
     apiMocks.catalogError = false;
+    apiMocks.permissions = ["context.write"];
     apiMocks.catalog = [
       {
         category: "医嘱信息",
@@ -150,10 +163,94 @@ describe("FieldCatalogManager 字段目录维护（P2/P5）", () => {
     );
   });
 
+  it("独立新增有真实运行落点的院内扩展字段", async () => {
+    apiMocks.create.mockResolvedValue({});
+    renderManager();
+
+    fireEvent.click(screen.getByRole("button", { name: "新增院内扩展字段" }));
+    fireEvent.change(screen.getByLabelText("扩展字段键"), {
+      target: { value: "dialysis_access_type" },
+    });
+    fireEvent.change(screen.getByLabelText("业务域"), { target: { value: "院内扩展" } });
+    fireEvent.change(screen.getByLabelText("字段分组"), { target: { value: "肾脏替代治疗" } });
+    fireEvent.change(screen.getByLabelText("展示名"), { target: { value: "透析通路类型" } });
+    fireEvent.mouseDown(screen.getByLabelText("数据类型"));
+    fireEvent.click(await screen.findByText("编码"));
+    fireEvent.change(screen.getByLabelText("绑定字典"), {
+      target: { value: "LOCAL_DIALYSIS_ACCESS" },
+    });
+    fireEvent.change(screen.getByLabelText("说明"), {
+      target: { value: "院内结构化扩展字段" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /保存扩展字段/ }));
+
+    await waitFor(() =>
+      expect(apiMocks.create).toHaveBeenCalledWith({
+        category: "院内扩展",
+        group: "肾脏替代治疗",
+        resourceType: "Extension",
+        fieldPath: "extensions.local.dialysis_access_type",
+        displayName: "透析通路类型",
+        dataType: "code",
+        unit: undefined,
+        codeSystem: "LOCAL_DIALYSIS_ACCESS",
+        description: "院内结构化扩展字段",
+      }),
+    );
+  });
+
+  it("切换扩展字段类型时清除无效的单位和字典", async () => {
+    renderManager();
+    fireEvent.click(screen.getByRole("button", { name: "新增院内扩展字段" }));
+
+    expect(screen.getByLabelText("单位")).toBeDisabled();
+    expect(screen.getByLabelText("绑定字典")).toBeDisabled();
+
+    fireEvent.mouseDown(screen.getByLabelText("数据类型"));
+    fireEvent.click(await screen.findByText("数值"));
+    expect(screen.getByLabelText("单位")).not.toBeDisabled();
+    fireEvent.change(screen.getByLabelText("单位"), { target: { value: "mg/dL" } });
+
+    fireEvent.mouseDown(screen.getByLabelText("数据类型"));
+    fireEvent.click(await screen.findByText("编码"));
+    await waitFor(() => expect(screen.getByLabelText("单位")).toHaveValue(""));
+    expect(screen.getByLabelText("单位")).toBeDisabled();
+    expect(screen.getByLabelText("绑定字典")).not.toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("绑定字典"), {
+      target: { value: "LOCAL_DIALYSIS_ACCESS" },
+    });
+    fireEvent.mouseDown(screen.getByLabelText("数据类型"));
+    fireEvent.click(await screen.findByText("文本"));
+    await waitFor(() => expect(screen.getByLabelText("绑定字典")).toHaveValue(""));
+    expect(screen.getByLabelText("绑定字典")).toBeDisabled();
+  });
+
   it("字段目录接口不可用时诚实提示并禁止保存", () => {
     apiMocks.catalogError = true;
     renderManager();
     expect(screen.getByText("字段目录暂不可用")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /保存覆盖/ })).toBeDisabled();
+  });
+
+  it("将当前工作目录固化为自动编号的统一资产草稿", async () => {
+    apiMocks.snapshot.mockResolvedValue({ versionNo: "V2" });
+    renderManager();
+
+    fireEvent.click(screen.getByRole("button", { name: "固化为字段目录草稿" }));
+
+    await waitFor(() => expect(apiMocks.snapshot).toHaveBeenCalledTimes(1));
+  });
+
+  it("无 context.write 时覆盖、新增和删除三个维护入口统一只读", () => {
+    apiMocks.permissions = ["context.read"];
+
+    renderManager();
+
+    expect(screen.getByText("当前账号仅可查看字段目录")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "维护平台字段覆盖" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "新增院内扩展字段" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /保存覆盖/ })).toBeDisabled();
+    expect(screen.getByLabelText("删除覆盖 observations[].code")).toBeDisabled();
   });
 });

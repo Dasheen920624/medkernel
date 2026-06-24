@@ -64,7 +64,7 @@ class KnowledgeAssetApiContractTest {
     @Test
     void createIdentityRejectsMissingStandardContext() throws Exception {
         mvc.perform(post("/api/v1/engine/knowledge/identities")
-                .with(knowledgeGovernorJwt())
+                .with(engineOperatorJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -81,7 +81,7 @@ class KnowledgeAssetApiContractTest {
     @Test
     void createIdentityAcceptsSnakeCaseStandardContext() throws Exception {
         mvc.perform(post("/api/v1/engine/knowledge/identities")
-                .with(knowledgeGovernorJwt())
+                .with(engineOperatorJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -95,8 +95,7 @@ class KnowledgeAssetApiContractTest {
                       "department_id": "d-1",
                       "specialty_id": "sp-1",
                       "user_id": "u-99",
-                      "role_codes": ["clinical-governor"],
-                      "package_version": "pkg-2026.06",
+                      "role_codes": ["engine-operator"],
                       "identitySlug": "rosuvastatin-guide",
                       "domain": "DRUG",
                       "subject": "瑞舒伐他汀说明书"
@@ -108,7 +107,7 @@ class KnowledgeAssetApiContractTest {
     @Test
     void sourceVersionUsesNestedSourceRoute() throws Exception {
         mvc.perform(post("/api/v1/engine/knowledge/sources/1/versions")
-                .with(knowledgeGovernorJwt())
+                .with(engineOperatorJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -116,8 +115,7 @@ class KnowledgeAssetApiContractTest {
                       "trace_id": "trace-source-version-001",
                       "tenant_id": "t-1",
                       "user_id": "u-99",
-                      "role_codes": ["clinical-governor"],
-                      "package_version": "pkg-2026.06",
+                      "role_codes": ["engine-operator"],
                       "versionNo": "2026",
                       "content": "瑞舒伐他汀说明书来源原文",
                       "fileUri": "file://controlled/source.pdf"
@@ -129,7 +127,7 @@ class KnowledgeAssetApiContractTest {
     @Test
     void versionSubmitRouteExistsUnderIdentity() throws Exception {
         mvc.perform(post("/api/v1/engine/knowledge/identities/1/versions/10/submit")
-                .with(knowledgeGovernorJwt())
+                .with(engineOperatorJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(standardContextJson()))
             .andExpect(status().isOk());
@@ -141,7 +139,7 @@ class KnowledgeAssetApiContractTest {
             .thenReturn(candidateResponse(CandidateClassificationType.SAME_IDENTITY_NEW_VERSION));
 
         mvc.perform(post("/api/v1/engine/knowledge/identities/1/versions")
-                .with(knowledgeGovernorJwt())
+                .with(engineOperatorJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -149,8 +147,7 @@ class KnowledgeAssetApiContractTest {
                       "trace_id": "trace-version-create-001",
                       "tenant_id": "t-1",
                       "user_id": "u-99",
-                      "role_codes": ["clinical-governor"],
-                      "package_version": "pkg-2026.06",
+                      "role_codes": ["engine-operator"],
                       "versionNo": "2026",
                       "versionLabel": "2026 版",
                       "sourceDocumentId": 7,
@@ -185,7 +182,7 @@ class KnowledgeAssetApiContractTest {
     @Test
     void citationCreateRouteAcceptsStructuredEvidenceLink() throws Exception {
         mvc.perform(post("/api/v1/engine/knowledge/citations")
-                .with(knowledgeGovernorJwt())
+                .with(engineOperatorJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -278,7 +275,7 @@ class KnowledgeAssetApiContractTest {
         when(retirementService.deprecate(eq(1L), any())).thenReturn(transition);
 
         mvc.perform(post("/api/v1/engine/knowledge/identities/1/deprecate")
-                .with(knowledgeGovernorJwt())
+                .with(engineOperatorJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -303,19 +300,17 @@ class KnowledgeAssetApiContractTest {
 
     @Test
     void replayRouteMarksHistoricalVersion() throws Exception {
-        when(versionService.replayVersion(eq(1L), eq(10L), eq("pkg-2026.06"), eq("ctx-snap-001")))
+        when(versionService.replayVersion(eq(1L), eq(10L), eq("ctx-snap-001")))
             .thenReturn(new KnowledgeReplayResponse(
                 1L, 10L, "v1", KnowledgeVersionStatus.SUPERSEDED, true,
-                "pkg-2026.06", "ctx-snap-001", "sha256-old", "[]", null, null
+                "ctx-snap-001", "sha256-old", "[]", null, null
             ));
 
         mvc.perform(get("/api/v1/engine/knowledge/identities/1/versions/10/replay")
-                .queryParam("packageVersion", "pkg-2026.06")
                 .queryParam("snapshotId", "ctx-snap-001")
                 .with(readJwt()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.historicalVersion").value(true))
-            .andExpect(jsonPath("$.data.packageVersion").value("pkg-2026.06"))
             .andExpect(jsonPath("$.data.snapshotId").value("ctx-snap-001"));
     }
 
@@ -348,7 +343,7 @@ class KnowledgeAssetApiContractTest {
             .thenReturn(candidateResponse("APPROVED", CandidateReviewStatus.APPROVED));
 
         mvc.perform(post("/api/v1/engine/knowledge/candidates/77/review")
-                .with(knowledgeGovernorJwt())
+                .with(engineOperatorJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -356,8 +351,7 @@ class KnowledgeAssetApiContractTest {
                       "trace_id": "trace-candidate-review-001",
                       "tenant_id": "t-1",
                       "user_id": "u-99",
-                      "role_codes": ["clinical-governor"],
-                      "package_version": "pkg-2026.06",
+                      "role_codes": ["engine-operator"],
                       "decision": "APPROVE",
                       "reason": "同意"
                     }
@@ -393,28 +387,28 @@ class KnowledgeAssetApiContractTest {
             .andExpect(jsonPath("$.code").value("ENG-API-002"));
     }
 
-    private static org.springframework.test.web.servlet.request.RequestPostProcessor knowledgeGovernorJwt() {
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor engineOperatorJwt() {
         return jwt().jwt(token -> token
-                .subject("api03-knowledge-governor")
+                .subject("api03-engine-operator")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("knowledge-governor")))
-            .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"));
+                .claim("roles", List.of("engine-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor readJwt() {
         return jwt().jwt(token -> token
                 .subject("api03-doctor")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("clinical-decision-user")))
-            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"));
+                .claim("roles", List.of("clinical-user")))
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor exportJwt() {
         return jwt().jwt(token -> token
                 .subject("api03-audit")
                 .claim("tenant_id", "t-1")
-                .claim("roles", List.of("compliance-auditor")))
-            .authorities(new SimpleGrantedAuthority("ROLE_COMPLIANCE_AUDITOR"));
+                .claim("roles", List.of("auditor")))
+            .authorities(new SimpleGrantedAuthority("ROLE_AUDITOR"));
     }
 
     private static String standardContextJson() {
@@ -424,8 +418,7 @@ class KnowledgeAssetApiContractTest {
               "trace_id": "trace-version-submit-001",
               "tenant_id": "t-1",
               "user_id": "u-99",
-              "role_codes": ["clinical-governor"],
-              "package_version": "pkg-2026.06"
+              "role_codes": ["engine-operator"]
             }
             """;
     }

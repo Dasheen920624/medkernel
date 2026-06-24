@@ -224,7 +224,6 @@ export default function Followup() {
       const values = await templateForm.validateFields();
       await createTemplateMutation.mutateAsync({
         templateCode: values.templateCode,
-        versionNo: Number(values.versionNo),
         name: values.name,
         description: values.description,
         organizationScope: values.organizationScope,
@@ -722,7 +721,7 @@ export default function Followup() {
             <Form.Item label="患者 ID">
               <Input
                 aria-label="随访快照患者 ID"
-                placeholder="输入患者 ID 检索 ACTIVE 快照"
+                placeholder="输入患者 ID 检索已生效快照"
                 value={snapshotPatientId}
                 onChange={(event) => {
                   setSnapshotPatientId(event.target.value);
@@ -753,8 +752,8 @@ export default function Followup() {
           />
           {snapshotDetailQuery.data ? (
             <Descriptions bordered size="small" column={2}>
-              <Descriptions.Item label="配置包版本">
-                {snapshotDetailQuery.data.packageVersion ?? "未标注"}
+              <Descriptions.Item label="机构生效版本">
+                {snapshotDetailQuery.data.runtimeReleaseId ?? "由当前机构生效版本确认"}
               </Descriptions.Item>
               <Descriptions.Item label="质量状态">
                 {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
@@ -768,7 +767,7 @@ export default function Followup() {
               {
                 validator: async () => {
                   if (!selectedSnapshotId) {
-                    throw new Error("请选择 ACTIVE 随访上下文快照");
+                    throw new Error("请选择已生效随访上下文快照");
                   }
                 },
               },
@@ -976,7 +975,7 @@ export default function Followup() {
                       <Tag color="red">异常事件 {abnormalEvidence.eventId}</Tag>
                       <Tag color="orange">回院任务 {abnormalEvidence.returnTaskId}</Tag>
                       <Tag color="gold">通知事件 {abnormalEvidence.notificationEventId}</Tag>
-                      <Tag>追踪链路 {abnormalEvidence.traceId}</Tag>
+                      <Tag>追踪号 {abnormalEvidence.traceId}</Tag>
                     </Space>
                   }
                 />
@@ -1003,7 +1002,6 @@ export default function Followup() {
           layout="vertical"
           className={styles.formGap}
           initialValues={{
-            versionNo: 1,
             organizationScope: "p5-hospital",
             applicableScope: "COPD",
             questionnaireTemplateId: "FOLLOWUP_QUESTIONNAIRE_DEFAULT",
@@ -1034,16 +1032,7 @@ export default function Followup() {
             <TextArea rows={2} placeholder="说明适用场景、随访目标和触发条件" />
           </Form.Item>
           <Row gutter={12}>
-            <Col span={8}>
-              <Form.Item
-                name="versionNo"
-                label="版本"
-                rules={[{ required: true, message: "请输入版本号" }]}
-              >
-                <InputNumber min={1} className={styles.fullWidth} />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
+            <Col span={12}>
               <Form.Item
                 name="organizationScope"
                 label="组织范围"
@@ -1052,7 +1041,7 @@ export default function Followup() {
                 <Input />
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col span={12}>
               <Form.Item
                 name="applicableScope"
                 label="适用范围"

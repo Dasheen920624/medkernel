@@ -20,7 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 全业务模型增强接入矩阵控制器权限安全测试（LLM-05，{@code llm.enhancement.manage} 归平台治理管理员）。
+ * 全业务模型增强接入矩阵控制器权限安全测试（LLM-05，{@code llm.enhancement.manage} 归医疗引擎运营员）。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -54,31 +54,30 @@ class ModelEnhancementMatrixControllerSecurityTest {
         mockMvc.perform(put("/api/v1/model-enhancement-matrix/rule")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void integrationOperatorCannotUpsertMatrixEntry() throws Exception {
-        // LLM-05 矩阵＝平台治理管理员职责（模型网关全局目录），集成运维员（管 provider/出域）无权。
+    void platformAdministratorCannotUpsertMatrixEntry() throws Exception {
         mockMvc.perform(put("/api/v1/model-enhancement-matrix/rule")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("integration-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_INTEGRATION_OPERATOR")))
+                    .claim("roles", List.of("platform-admin")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN")))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void platformGovernanceAdminCanUpsertMatrixEntry() throws Exception {
+    void engineOperatorCanUpsertMatrixEntry() throws Exception {
         mockMvc.perform(put("/api/v1/model-enhancement-matrix/rule")
                 .with(jwt().jwt(token -> token
                     .subject("u").claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("platform-governance-admin")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_GOVERNANCE_ADMIN")))
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isOk());
     }

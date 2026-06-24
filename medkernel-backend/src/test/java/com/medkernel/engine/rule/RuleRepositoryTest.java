@@ -44,11 +44,9 @@ class RuleRepositoryTest {
     @Autowired RuleDriftSnapshotRepository driftSnapshots;
     @Autowired RuleApplicabilityRepository applicabilities;
     @Autowired RuleGovernanceRepository governance;
-    @Autowired RuleSignoffRepository signoffs;
 
     @AfterEach
     void wipe() {
-        signoffs.deleteAll();
         governance.deleteAll();
         driftSnapshots.deleteAll();
         backtests.deleteAll();
@@ -113,7 +111,7 @@ class RuleRepositoryTest {
     }
 
     @Test
-    void persistsGovernanceAndDistinctSignoffEvidence() {
+    void persistsTheSingleRuleGovernanceFact() {
         String ruleId = "rule-" + UUID.randomUUID();
         String versionId = "rv-" + UUID.randomUUID();
         Instant now = Instant.now();
@@ -125,43 +123,22 @@ class RuleRepositoryTest {
             "rg-" + UUID.randomUUID(),
             "tenant-A",
             versionId,
-            RuleGovernanceState.COMMITTEE,
-            2,
-            1,
-            "author-1",
-            "同行评审已完成",
+            RuleGovernanceState.REVIEWED,
+            "operator-1",
+            "负责人已确认技术验证结果",
             now,
-            "author-1",
+            "operator-1",
             now,
-            "reviewer-1",
+            "operator-1",
             "trace-governance",
             null
         ));
-        RuleSignoff savedSignoff = signoffs.save(new RuleSignoff(
-            null,
-            "rs-" + UUID.randomUUID(),
-            "tenant-A",
-            versionId,
-            RuleSignoffStage.COMMITTEE,
-            1,
-            "clinical-governor",
-            "reviewer-2",
-            RuleSignoffDecision.APPROVED,
-            "同意进入影子验证",
-            now,
-            "trace-governance"
-        ));
 
         assertThat(savedGovernance.id()).isNotNull();
-        assertThat(savedSignoff.id()).isNotNull();
         assertThat(governance.findByRuleVersionIdAndTenantId(versionId, "tenant-A"))
             .get()
             .extracting(RuleGovernance::state)
-            .isEqualTo(RuleGovernanceState.COMMITTEE);
-        assertThat(signoffs.findByRuleVersionIdAndTenantIdOrderBySignedAtAsc(
-            versionId, "tenant-A"))
-            .extracting(RuleSignoff::signerId)
-            .containsExactly("reviewer-2");
+            .isEqualTo(RuleGovernanceState.REVIEWED);
         assertThat(governance.findByRuleVersionIdAndTenantId(versionId, "tenant-B")).isEmpty();
     }
 
@@ -177,15 +154,13 @@ class RuleRepositoryTest {
             "rg-" + UUID.randomUUID(),
             "tenant-A",
             versionId,
-            RuleGovernanceState.COMMITTEE,
-            2,
-            1,
-            "author-1",
-            "等待委员会会签",
+            RuleGovernanceState.REVIEWED,
+            "operator-1",
+            "负责人已确认",
             now,
-            "author-1",
+            "operator-1",
             now,
-            "reviewer-1",
+            "operator-1",
             "trace-governance",
             null
         ));
@@ -196,16 +171,17 @@ class RuleRepositoryTest {
 
         governance.save(first.transition(
             RuleGovernanceState.SHADOW,
-            "会签完成",
+            "进入影子验证",
             now.plusSeconds(1),
-            "publisher-1",
+            "operator-1",
             "trace-first"
         ));
 
-        assertThatThrownBy(() -> governance.save(stale.reject(
-                "并发驳回",
+        assertThatThrownBy(() -> governance.save(stale.transition(
+                RuleGovernanceState.SHADOW,
+                "并发推进",
                 now.plusSeconds(2),
-                "reviewer-2",
+                "operator-1",
                 "trace-stale"
             )))
             .isInstanceOf(OptimisticLockingFailureException.class);
@@ -351,7 +327,7 @@ class RuleRepositoryTest {
         return new RuleDefinition(
             null, ruleId, tenantId, ruleCode, name, RuleType.ORDER,
             RuleAuthoringMode.DSL, RuleRiskLevel.HIGH, 100, null, 0, status,
-            null, "rpv-1", "dept-1", now, "tester", now, "tester", "trace-rule");
+            null, "dept-1", now, "tester", now, "tester", "trace-rule");
     }
 
     private RuleVersion sampleVersion(String versionId, String tenantId, String ruleId) {
@@ -374,7 +350,7 @@ class RuleRepositoryTest {
     private RuleExecutionLog sampleExecution(String executionId, String tenantId, String ruleId, String versionId) {
         Instant now = Instant.now();
         return new RuleExecutionLog(
-            null, executionId, tenantId, ruleId, versionId, "order-sign", "evt-1", "tester",
+            null, executionId, tenantId, ruleId, versionId, null, "order-sign", "evt-1", "tester",
             "MPI-1", "ENC-1", "RULE.ANTICOAG:STRONG_REMINDER", "sha256:abc", true,
             RuleRiskLevel.HIGH, "[{\"actionCode\":\"STRONG_REMINDER\"}]",
             "{\"title\":\"抗凝风险提示\"}", RuleExecutionStatus.SUCCESS,

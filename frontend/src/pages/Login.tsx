@@ -120,7 +120,7 @@ function buildDelegatedAlert({
       message: "统一身份已接入",
       description:
         status.message ||
-        "统一身份由医院信息中心配置；双因素认证、国密与国产 CA 由系统按策略自动选择。",
+        "统一身份由医院信息中心配置；多因素认证、国密与国产 CA 由系统按策略自动选择。",
     };
   }
 
@@ -129,17 +129,17 @@ function buildDelegatedAlert({
     message: "统一身份暂未接入",
     description:
       status.message ||
-      "统一身份由医院信息中心配置；双因素认证、国密与国产 CA 由系统按策略自动选择。",
+      "统一身份由医院信息中心配置；多因素认证、国密与国产 CA 由系统按策略自动选择。",
   };
 }
 
 /**
- * 默认登录路径 + 双因素认证/统一身份折叠区。
+ * 默认登录路径 + 多因素认证/统一身份折叠区。
  *
  * 与 docs/CONSTITUTION.md §1 第 6 条对齐：
  * - 默认只有账号密码 1 个主动作
  * - 统一身份认证（CAS/OIDC/SAML）作为次级折叠区
- * - 双因素认证 / 国密策略不让用户手动选，由系统按医院策略
+ * - 多因素认证 / 国密策略不让用户手动选，由系统按医院策略
  * - ICP/公安备案、用户协议、隐私政策必须保留
  */
 export default function Login() {
@@ -224,7 +224,7 @@ export default function Login() {
         password: values.password,
         tenantId: activeTenant.tenantId,
       });
-      if (result.mustChangePwd || (result.mfaRequired && !result.mfaBound)) {
+      if (result.mustChangePwd || result.mfaRequired) {
         navigate("/bootstrap", {
           state: {
             phase: result.mustChangePwd ? "change-password" : "mfa",
@@ -448,7 +448,7 @@ export default function Login() {
 
           <div className={styles.policyStrip}>
             <SafetyCertificateOutlined aria-hidden="true" />
-            <Text>系统将按医院策略自动校验双因素认证、国密通道与会话安全。</Text>
+            <Text>系统将按医院策略自动校验多因素认证、国密通道与会话安全。</Text>
           </div>
 
           {bootstrapStatus.data?.initialized === false && (

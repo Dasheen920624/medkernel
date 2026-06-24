@@ -10,23 +10,14 @@ export const appBase = (process.env.E2E_BASE_URL?.trim() || "http://localhost:51
 const frontendApiBase = `${appBase}/medkernel/api/v1`;
 export const tenantId = "t-1";
 const defaultPassword = "Mk@2026dev";
+const credentialsConfigured = Boolean(process.env.E2E_ROLE_CREDENTIALS_FILE?.trim());
 const credentialOverrides = loadCredentialOverrides();
 
 export const roleAccounts = [
-  "platform-governance-admin",
-  "platform-knowledge-governor",
-  "organization-admin",
-  "identity-access-admin",
-  "knowledge-governor",
-  "clinical-governor",
-  "clinical-decision-user",
-  "nursing-collaborator",
-  "medication-safety-user",
-  "diagnostic-service-user",
-  "quality-governor",
-  "compliance-auditor",
-  "integration-operator",
-  "implementation-operator",
+  "platform-admin",
+  "engine-operator",
+  "clinical-user",
+  "auditor",
 ] as const;
 
 export type RoleAccount = (typeof roleAccounts)[number];
@@ -36,28 +27,37 @@ export async function ensureReadySession(page: Page, role: RoleAccount) {
   const password = stablePassword(role);
   let currentPassword = password;
   let login = await loginWith(page, role, password);
-  if (!login.ok()) {
+  if (!login.ok() && !credentialsConfigured) {
     currentPassword = defaultPassword;
     login = await loginWith(page, role, defaultPassword);
   }
   await expectOk(login, `${role} 登录`);
   let result = (await login.json()).data;
 
+  if (process.env.E2E_EXPECT_MFA_DISABLED === "1") {
+    expect(result.mfaRequired, `${role} 上线默认 MFA 必须关闭`).toBe(false);
+  }
+
   if (result.mustChangePwd) {
     const change = await postApi(page, "/auth/change-password", {
       oldPassword: currentPassword,
       newPassword: password,
     });
-    if (!change.ok()) {
+    if (!change.ok() && !credentialsConfigured) {
       const retry = await postApi(page, "/auth/change-password", {
         oldPassword: defaultPassword,
         newPassword: password,
       });
       await expectOk(retry, `${role} 首次改密`);
+    } else {
+      await expectOk(change, `${role} 首次改密`);
     }
     const relogin = await loginWith(page, role, password);
     await expectOk(relogin, `${role} 改密后重新登录`);
     result = (await relogin.json()).data;
+    if (process.env.E2E_EXPECT_MFA_DISABLED === "1") {
+      expect(result.mfaRequired, `${role} 改密后默认 MFA 必须关闭`).toBe(false);
+    }
   }
 
   if (result.mfaRequired && !result.mfaBound) {
@@ -184,28 +184,42 @@ function loadCredentialOverrides() {
   const file = process.env.E2E_ROLE_CREDENTIALS_FILE?.trim();
   if (!file) return {} as Record<string, { password?: string; tenantId?: string }>;
   const source = JSON.parse(readFileSync(file, "utf8")) as {
-    customerTenant?: {
-      adminUsername?: string;
-      password?: string;
+    schemaVersion?: string;
+    status?: string;
+    platform?: {
       tenantId?: string;
-    };
-    roleAccounts?: Record<string, { password?: string; tenantId?: string }>;
-    platformRoleAccounts?: Record<string, { password?: string; tenantId?: string }>;
-  };
-  const customerTenant =
-    source.customerTenant?.adminUsername && source.customerTenant.password
-      ? {
-          [source.customerTenant.adminUsername]: {
-            password: source.customerTenant.password,
-            tenantId: source.customerTenant.tenantId,
-          },
+      accounts?: Record<
+        string,
+        {
+          tenantId?: string;
+          username?: string;
+          role?: string;
+          password?: string;
         }
-      : {};
-  return {
-    ...customerTenant,
-    ...(source.roleAccounts ?? {}),
-    ...(source.platformRoleAccounts ?? {}),
+      >;
+    };
   };
+  if (source.schemaVersion !== "1.0.0" || source.status !== "READY") {
+    throw new Error("E2E 上线凭据必须使用 READY 状态的 1.0.0 契约");
+  }
+  if (!source.platform || source.platform.tenantId !== tenantId || !source.platform.accounts) {
+    throw new Error("E2E 上线凭据缺少平台主租户账号");
+  }
+  const accounts = source.platform.accounts;
+  return Object.fromEntries(
+    roleAccounts.map((role) => {
+      const account = accounts[role];
+      if (
+        account?.tenantId !== tenantId ||
+        account.username !== role ||
+        account.role !== role ||
+        !account.password
+      ) {
+        throw new Error(`E2E 上线凭据缺少有效的 ${role} 账号`);
+      }
+      return [role, { password: account.password, tenantId: account.tenantId }];
+    }),
+  );
 }
 
 function requireEnv(name: string) {

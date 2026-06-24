@@ -23,10 +23,10 @@ class EvidenceCreateDtoValidationTest {
             "trace-001",
             "COMPLIANCE_EXPORT",
             "CREATE",
-            "export_approval",
+            "export_confirmation",
             "exp-001",
-            "合规导出审批证据",
-            "{\"approvalId\":\"exp-001\"}"
+            "合规导出确认证据",
+            "{\"confirmationId\":\"exp-001\"}"
         );
 
         assertThat(validator.validate(dto))

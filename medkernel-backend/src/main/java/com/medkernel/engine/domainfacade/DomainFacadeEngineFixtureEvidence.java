@@ -9,7 +9,7 @@ package com.medkernel.engine.domainfacade;
  * @param b0Assertion fixture 断言摘要
  * @param deterministic 是否为确定性路径
  * @param handlerPresent 处理器类是否存在
- * @param clinicalContentSeeded 是否预填真实医学内容；T7.1 必须为 false
+ * @param clinicalContentSeeded 是否预填真实医学内容；固定为 false
  */
 public record DomainFacadeEngineFixtureEvidence(
     DomainFacadeEngine engine,

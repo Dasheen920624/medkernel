@@ -1,13 +1,13 @@
 export type SandboxScenarioStatus = "runtime-check" | "catalog-unavailable";
 
-export type SandboxServicePackage =
+export type SandboxServiceLine =
   | "clinical-collaboration"
   | "quality-improvement"
   | "engine-orchestration";
 
 interface SandboxScenarioBase {
   id: string;
-  servicePackage: SandboxServicePackage;
+  serviceLine: SandboxServiceLine;
   engine: string;
   playbook: string;
   triggerPoint: string;
@@ -54,7 +54,7 @@ export type SandboxScenario =
 
 export interface SandboxCatalogScenario {
   id: string;
-  servicePackage?: string;
+  serviceLine?: string;
   engine?: string;
   playbook?: string;
   triggerPoint?: string;
@@ -87,7 +87,7 @@ export interface SandboxCatalogScenario {
 export const SANDBOX_SCENARIOS: SandboxScenario[] = [
   {
     id: "backend-catalog-required",
-    servicePackage: "clinical-collaboration",
+    serviceLine: "clinical-collaboration",
     engine: "catalog",
     playbook: "CATALOG",
     triggerPoint: "patient-view",
@@ -107,16 +107,16 @@ export function isNumericScenario(scenario: SandboxScenario): scenario is Numeri
   return scenario.inputKind === "numeric";
 }
 
-export function scenariosByServicePackage(
+export function scenariosByServiceLine(
   scenarios: SandboxScenario[] = SANDBOX_SCENARIOS,
-): Record<SandboxServicePackage, SandboxScenario[]> {
-  const initial: Record<SandboxServicePackage, SandboxScenario[]> = {
+): Record<SandboxServiceLine, SandboxScenario[]> {
+  const initial: Record<SandboxServiceLine, SandboxScenario[]> = {
     "clinical-collaboration": [],
     "quality-improvement": [],
     "engine-orchestration": [],
   };
-  return scenarios.reduce<Record<SandboxServicePackage, SandboxScenario[]>>((groups, scenario) => {
-    groups[scenario.servicePackage].push(scenario);
+  return scenarios.reduce<Record<SandboxServiceLine, SandboxScenario[]>>((groups, scenario) => {
+    groups[scenario.serviceLine].push(scenario);
     return groups;
   }, initial);
 }
@@ -218,7 +218,7 @@ function mergeKnownScenario(
 ): SandboxScenario {
   return {
     ...local,
-    servicePackage: normalizeServicePackage(remote.servicePackage, local.servicePackage),
+    serviceLine: normalizeServiceLine(remote.serviceLine, local.serviceLine),
     engine: remote.engine ?? local.engine,
     playbook: remote.playbook ?? local.playbook,
     triggerPoint: remote.triggerPoint ?? local.triggerPoint,
@@ -240,10 +240,10 @@ function mergeKnownScenario(
 
 function scenarioFromCatalog(remote: SandboxCatalogScenario): SandboxScenario {
   const status = normalizeStatus(remote.status, "runtime-check");
-  const servicePackage = normalizeServicePackage(remote.servicePackage, "clinical-collaboration");
+  const serviceLine = normalizeServiceLine(remote.serviceLine, "clinical-collaboration");
   const base = {
     id: remote.id,
-    servicePackage,
+    serviceLine,
     engine: remote.engine ?? "rule",
     playbook: remote.playbook ?? "RULE_ONLY",
     triggerPoint: remote.triggerPoint ?? "patient-view",
@@ -345,10 +345,10 @@ function normalizeStatus(
   return fallback;
 }
 
-function normalizeServicePackage(
+function normalizeServiceLine(
   value: string | undefined,
-  fallback: SandboxServicePackage,
-): SandboxServicePackage {
+  fallback: SandboxServiceLine,
+): SandboxServiceLine {
   return value === "clinical-collaboration" ||
     value === "quality-improvement" ||
     value === "engine-orchestration"

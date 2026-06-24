@@ -5,7 +5,7 @@ package com.medkernel.engine.sandbox;
  */
 public record SandboxScenario(
     String id,
-    String servicePackage,
+    String serviceLine,
     String engine,
     String triggerPoint,
     String ruleType,

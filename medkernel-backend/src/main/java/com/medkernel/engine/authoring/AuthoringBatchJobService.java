@@ -11,9 +11,6 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.medkernel.engine.pkg.PackageOfflineImportResponse;
-import com.medkernel.engine.pkg.PackageSyncResponse;
-import com.medkernel.engine.pkg.ReleasePlanStatus;
 import com.medkernel.engine.rule.RuleCreateResponse;
 import com.medkernel.engine.rule.RuleGovernanceResponse;
 import com.medkernel.engine.rule.RuleImpactResponse;
@@ -42,7 +39,6 @@ public class AuthoringBatchJobService {
     private final AuthoringBatchJobRepository jobs;
     private final AuthoringBatchItemRepository items;
     private final AuthoringBatchRulePort rules;
-    private final AuthoringBatchPackagePort packages;
     private final AuthoringFeatureGate featureGate;
     private final AuditRecorder auditRecorder;
 
@@ -51,14 +47,12 @@ public class AuthoringBatchJobService {
             AuthoringBatchJobRepository jobs,
             AuthoringBatchItemRepository items,
             AuthoringBatchRulePort rules,
-            AuthoringBatchPackagePort packages,
             AuthoringFeatureGate featureGate,
             AuditRecorder auditRecorder) {
         this.json = json;
         this.jobs = jobs;
         this.items = items;
         this.rules = rules;
-        this.packages = packages;
         this.featureGate = featureGate;
         this.auditRecorder = auditRecorder;
     }
@@ -79,7 +73,7 @@ public class AuthoringBatchJobService {
                     row.ruleCode(),
                     row.name(),
                     template,
-                    row.packageVersion(),
+                    row.triggers(),
                     row.applicableOrgUnitId(),
                     row.changeSummary(),
                     row.parameterBindings()));
@@ -166,118 +160,6 @@ public class AuthoringBatchJobService {
     }
 
     /**
-     * 批量导入离线配置包。
-     */
-    public AuthoringBatchJobResponse importPackages(AuthoringBatchPackageImportRequest request) {
-        requireFeature();
-        requireDistinctIds(request.items().stream().map(AuthoringBatchPackageImportItem::itemId).toList());
-        AuthoringBatchJob job = createJob(
-            AuthoringBatchJobType.PACKAGE_IMPORT, request.items().size(),
-            Map.of("itemIds", request.items().stream().map(AuthoringBatchPackageImportItem::itemId).toList()));
-        List<AuthoringBatchItem> results = new ArrayList<>();
-        for (AuthoringBatchPackageImportItem item : request.items()) {
-            try {
-                PackageOfflineImportResponse imported = packages.importOfflinePackage(item.offlinePackageJson());
-                results.add(saveSuccess(
-                    job,
-                    item.itemId(),
-                    "PACKAGE",
-                    imported.packageId(),
-                    imported,
-                    imported.packageVersion(),
-                    "离线配置包已导入"));
-            } catch (RuntimeException exception) {
-                results.add(saveFailure(job, item.itemId(), "PACKAGE", null, exception));
-            }
-        }
-        return finish(job, results);
-    }
-
-    /**
-     * 批量导出离线配置包。
-     */
-    public AuthoringBatchJobResponse exportPackages(AuthoringBatchPackageExportRequest request) {
-        requireFeature();
-        requireDistinctIds(request.items().stream().map(AuthoringBatchPackageExportItem::itemId).toList());
-        AuthoringBatchJob job = createJob(
-            AuthoringBatchJobType.PACKAGE_EXPORT, request.items().size(), request);
-        List<AuthoringBatchItem> results = new ArrayList<>();
-        for (AuthoringBatchPackageExportItem item : request.items()) {
-            try {
-                String payload = packages.exportOfflinePackage(item.packageId(), item.targetOrgUnitId());
-                results.add(saveSuccess(
-                    job,
-                    item.itemId(),
-                    "PACKAGE",
-                    item.packageId(),
-                    Map.of(
-                        "packageId", item.packageId(),
-                        "targetOrgUnitId", item.targetOrgUnitId(),
-                        "offlinePackageJson", payload),
-                    null,
-                    "离线配置包已导出"));
-            } catch (RuntimeException exception) {
-                results.add(saveFailure(job, item.itemId(), "PACKAGE", item.packageId(), exception));
-            }
-        }
-        return finish(job, results);
-    }
-
-    /**
-     * 批量向多个组织分发配置包，目标不可达时保留可重试的诚实状态。
-     */
-    public AuthoringBatchJobResponse distributePackages(AuthoringBatchPackageDistributeRequest request) {
-        requireFeature();
-        requireDistinctIds(request.items().stream().map(AuthoringBatchPackageDistributeItem::itemId).toList());
-        AuthoringBatchJob job = createJob(
-            AuthoringBatchJobType.PACKAGE_DISTRIBUTE, request.items().size(), request);
-        List<AuthoringBatchItem> results = new ArrayList<>();
-        for (AuthoringBatchPackageDistributeItem item : request.items()) {
-            try {
-                PackageSyncResponse distributed = packages.distribute(
-                    new AuthoringBatchPackageDistributeCommand(
-                        item.packageId(),
-                        item.targetOrgUnitId(),
-                        item.strategy(),
-                        item.scopeType(),
-                        item.scopeValue(),
-                        item.adapterIds(),
-                        item.reason()));
-                if (distributed.status() == ReleasePlanStatus.NOT_SYNCED) {
-                    results.add(saveNotConnected(
-                        job,
-                        item.itemId(),
-                        item.targetOrgUnitId(),
-                        distributed,
-                        distributed.planId()));
-                } else if (distributed.status() == ReleasePlanStatus.SUCCESS) {
-                    results.add(saveSuccess(
-                        job,
-                        item.itemId(),
-                        "SYNC_TARGET",
-                        item.targetOrgUnitId(),
-                        distributed,
-                        distributed.planId(),
-                        "配置包已分发"));
-                } else {
-                    results.add(saveFailure(
-                        job,
-                        item.itemId(),
-                        "SYNC_TARGET",
-                        item.targetOrgUnitId(),
-                        new ApiException(
-                            ErrorCode.ENG_PACKAGE_005,
-                            "配置包分发失败: " + distributed.status())));
-                }
-            } catch (RuntimeException exception) {
-                results.add(saveFailure(
-                    job, item.itemId(), "SYNC_TARGET", item.targetOrgUnitId(), exception));
-            }
-        }
-        return finish(job, results);
-    }
-
-    /**
      * 查询单个任务及逐项结果。
      */
     public AuthoringBatchJobResponse get(String jobId) {
@@ -318,7 +200,6 @@ public class AuthoringBatchJobService {
             totalCount,
             0,
             0,
-            0,
             writeJson(request, "批量任务请求摘要无法序列化"),
             null,
             now,
@@ -341,18 +222,6 @@ public class AuthoringBatchJobService {
         return saveItem(
             job, itemId, AuthoringBatchItemStatus.SUCCEEDED, targetType, targetId,
             writeJson(result, "批量任务结果无法序列化"), rollbackRef, null, message);
-    }
-
-    private AuthoringBatchItem saveNotConnected(
-            AuthoringBatchJob job,
-            String itemId,
-            String targetId,
-            Object result,
-            String rollbackRef) {
-        return saveItem(
-            job, itemId, AuthoringBatchItemStatus.NOT_CONNECTED, "SYNC_TARGET", targetId,
-            writeJson(result, "批量分发结果无法序列化"), rollbackRef,
-            ErrorCode.DOWNSTREAM_UNAVAILABLE.code(), "目标同步通道未连接，可重试");
     }
 
     private AuthoringBatchItem saveFailure(
@@ -402,19 +271,16 @@ public class AuthoringBatchJobService {
             List<AuthoringBatchItem> results) {
         int successes = count(results, AuthoringBatchItemStatus.SUCCEEDED);
         int failures = count(results, AuthoringBatchItemStatus.FAILED);
-        int retryable = count(results, AuthoringBatchItemStatus.NOT_CONNECTED);
-        AuthoringBatchJobStatus status = finalStatus(results.size(), successes, failures, retryable);
+        AuthoringBatchJobStatus status = finalStatus(results.size(), successes);
         Map<String, Object> summary = Map.of(
             "status", status,
             "totalCount", results.size(),
             "successCount", successes,
-            "failureCount", failures,
-            "retryableCount", retryable);
+            "failureCount", failures);
         AuthoringBatchJob completed = jobs.save(job.completed(
             status,
             successes,
             failures,
-            retryable,
             writeJson(summary, "批量任务汇总无法序列化"),
             Instant.now(),
             actor()));
@@ -429,25 +295,16 @@ public class AuthoringBatchJobService {
     private AuditAction completionAuditAction(AuthoringBatchJobType type) {
         return switch (type) {
             case RULE_GENERATE -> AuditAction.CREATE;
-            case RULE_PUBLISH, PACKAGE_DISTRIBUTE -> AuditAction.PUBLISH;
-            case PACKAGE_IMPORT -> AuditAction.IMPORT;
-            case PACKAGE_EXPORT -> AuditAction.EXPORT;
+            case RULE_PUBLISH -> AuditAction.PUBLISH;
         };
     }
 
-    private AuthoringBatchJobStatus finalStatus(
-            int total,
-            int successes,
-            int failures,
-            int retryable) {
+    private AuthoringBatchJobStatus finalStatus(int total, int successes) {
         if (successes == total) {
             return AuthoringBatchJobStatus.SUCCEEDED;
         }
         if (successes > 0) {
             return AuthoringBatchJobStatus.PARTIAL_SUCCESS;
-        }
-        if (retryable == total) {
-            return AuthoringBatchJobStatus.NOT_CONNECTED;
         }
         return AuthoringBatchJobStatus.FAILED;
     }
@@ -481,7 +338,6 @@ public class AuthoringBatchJobService {
             job.totalCount(),
             job.successCount(),
             job.failureCount(),
-            job.retryableCount(),
             job.resultSummaryJson(),
             jobItems.stream().map(this::responseItem).toList(),
             job.traceId(),

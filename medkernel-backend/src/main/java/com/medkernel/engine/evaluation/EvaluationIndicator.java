@@ -29,7 +29,6 @@ public record EvaluationIndicator(
     @Column("organization_scope") String organizationScope,
     @Column("responsible_department_id") String responsibleDepartmentId,
     @Column("source_ref") String sourceRef,
-    @Column("package_version") String packageVersion,
     EvaluationIndicatorStatus status,
     @Column("published_at") Instant publishedAt,
     @Column("published_by") String publishedBy,

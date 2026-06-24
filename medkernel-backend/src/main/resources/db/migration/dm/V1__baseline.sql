@@ -1,0 +1,8784 @@
+-- MedKernel 全新上线数据库基线（达梦 DM）
+-- 本文件由 scripts/db/generate-migrations.mjs 根据 db/schema/medkernel.schema.json 生成，请勿手工修改。
+-- 仅包含终态结构；固定职责、权限包与模型能力目录由应用代码播种。
+
+CREATE TABLE audit_chain_head (
+    tenant_id VARCHAR2(64) NOT NULL,
+    last_event_id VARCHAR2(64),
+    last_signature VARCHAR2(512) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE audit_event (
+    id NUMBER(19) IDENTITY NOT NULL,
+    event_id VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128),
+    occurred_at TIMESTAMP NOT NULL,
+    actor_user_id VARCHAR2(64),
+    action VARCHAR2(32) NOT NULL,
+    resource_type VARCHAR2(128) NOT NULL,
+    resource_id VARCHAR2(128) NOT NULL,
+    summary VARCHAR2(512),
+    payload_digest VARCHAR2(128),
+    tenant_id VARCHAR2(64) NOT NULL,
+    hospital_id VARCHAR2(64),
+    department_id VARCHAR2(64),
+    ip_address VARCHAR2(64),
+    user_agent VARCHAR2(512),
+    signature VARCHAR2(512),
+    status VARCHAR2(32) DEFAULT 'RECORDED' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    prev_event_id VARCHAR2(64),
+    prev_signature VARCHAR2(512),
+    outcome VARCHAR2(16) DEFAULT 'SUCCESS' NOT NULL,
+    error_code VARCHAR2(64),
+    actor_roles VARCHAR2(512),
+    org_path VARCHAR2(1024),
+    environment_key VARCHAR2(64),
+    before_snapshot CLOB,
+    after_snapshot CLOB,
+    dedupe_key VARCHAR2(128)
+);
+
+CREATE TABLE canonical_resource (
+    id NUMBER(19) IDENTITY NOT NULL,
+    resource_id VARCHAR2(64) NOT NULL,
+    snapshot_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    resource_type VARCHAR2(32) NOT NULL,
+    resource_payload CLOB NOT NULL,
+    source_system VARCHAR2(64),
+    source_record_id VARCHAR2(128),
+    mapped_version VARCHAR2(64),
+    event_time TIMESTAMP,
+    received_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    quality_status VARCHAR2(32) DEFAULT 'VALID' NOT NULL,
+    seq_no NUMBER(10) DEFAULT 0 NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE citation (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    asset_version_id NUMBER(19) NOT NULL,
+    source_fragment_id NUMBER(19) NOT NULL,
+    relation VARCHAR2(32) DEFAULT 'DERIVED_FROM' NOT NULL,
+    weight NUMBER(10) DEFAULT 100 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    start_offset NUMBER(10),
+    end_offset NUMBER(10)
+);
+
+CREATE TABLE clinical_clock (
+    id NUMBER(19) IDENTITY NOT NULL,
+    clock_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    patient_pathway_id VARCHAR2(64) NOT NULL,
+    node_code VARCHAR2(128) NOT NULL,
+    metric_code VARCHAR2(128),
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    due_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    status VARCHAR2(32) DEFAULT 'RUNNING' NOT NULL,
+    baseline_event VARCHAR2(64),
+    baseline_at TIMESTAMP,
+    min_due_at TIMESTAMP,
+    target_due_at TIMESTAMP,
+    max_due_at TIMESTAMP,
+    escalation_level VARCHAR2(32) DEFAULT 'NONE' NOT NULL,
+    escalation_policy_json CLOB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE clinical_runtime_release (
+    id NUMBER(19) IDENTITY NOT NULL,
+    release_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    hospital_id VARCHAR2(64) NOT NULL,
+    revision_no NUMBER(19) NOT NULL,
+    platform_baseline_release_id VARCHAR2(64) NOT NULL,
+    manifest_sha256 VARCHAR2(64) NOT NULL,
+    rollback_from_release_id VARCHAR2(64),
+    activated_at TIMESTAMP NOT NULL,
+    activated_by VARCHAR2(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE clinical_event (
+    id NUMBER(19) IDENTITY NOT NULL,
+    event_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    event_type VARCHAR2(32) NOT NULL,
+    source_system VARCHAR2(64),
+    payload_digest VARCHAR2(128),
+    occurred_at TIMESTAMP NOT NULL,
+    received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    snapshot_id VARCHAR2(64),
+    processing_status VARCHAR2(32) DEFAULT 'RECEIVED' NOT NULL,
+    trace_id VARCHAR2(128),
+    patient_id VARCHAR2(64),
+    encounter_id VARCHAR2(64),
+    clinical_setting VARCHAR2(16) NOT NULL,
+    runtime_release_id VARCHAR2(64) NOT NULL,
+    error_code VARCHAR2(64),
+    error_class VARCHAR2(32),
+    retry_count NUMBER(10) DEFAULT 0 NOT NULL,
+    root_event_id VARCHAR2(64),
+    org_scope_json CLOB,
+    trigger_point VARCHAR2(64),
+    idempotency_key VARCHAR2(128),
+    callback_webhook_id VARCHAR2(64)
+);
+
+CREATE TABLE clinical_event_outbox (
+    id NUMBER(19) IDENTITY NOT NULL,
+    event_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128),
+    actor_user_id VARCHAR2(64),
+    claim_status VARCHAR2(16) DEFAULT 'PENDING' NOT NULL,
+    claimed_by VARCHAR2(64),
+    claimed_at TIMESTAMP,
+    next_attempt_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    retry_count NUMBER(10) DEFAULT 0 NOT NULL,
+    last_error_code VARCHAR2(64),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    processed_at TIMESTAMP
+);
+
+CREATE TABLE clinical_event_payload (
+    id NUMBER(19) IDENTITY NOT NULL,
+    event_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    payload CLOB,
+    payload_uri VARCHAR2(256),
+    storage_type VARCHAR2(16) DEFAULT 'INLINE' NOT NULL,
+    content_type VARCHAR2(64) DEFAULT 'application/json' NOT NULL,
+    digest VARCHAR2(128) NOT NULL,
+    size_bytes NUMBER(19) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    deleted_at TIMESTAMP
+);
+
+CREATE TABLE context_idempotency_key (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    idem_key VARCHAR2(128) NOT NULL,
+    snapshot_id VARCHAR2(64) NOT NULL,
+    payload_digest VARCHAR2(128) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE context_snapshot (
+    id NUMBER(19) IDENTITY NOT NULL,
+    snapshot_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_unit_id VARCHAR2(64) NOT NULL,
+    patient_id VARCHAR2(64) NOT NULL,
+    encounter_id VARCHAR2(64),
+    runtime_release_id VARCHAR2(64) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'ACTIVE' NOT NULL,
+    missing_fields CLOB,
+    mapping_status CLOB,
+    extensions_json CLOB NOT NULL,
+    quality_status VARCHAR2(32) DEFAULT 'VALID' NOT NULL,
+    trace_id VARCHAR2(128),
+    signature VARCHAR2(512),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    request_id VARCHAR2(128),
+    org_path VARCHAR2(512)
+);
+
+CREATE TABLE embed_launch_token (
+    id NUMBER(19) IDENTITY NOT NULL,
+    token VARCHAR2(128) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    user_id VARCHAR2(64) NOT NULL,
+    role_code VARCHAR2(64) NOT NULL,
+    patient_id VARCHAR2(64) NOT NULL,
+    encounter_id VARCHAR2(64) NOT NULL,
+    trigger_point VARCHAR2(64) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'UNUSED' NOT NULL,
+    expired_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128),
+    integration_mode VARCHAR2(16) DEFAULT 'IFRAME' NOT NULL,
+    hook VARCHAR2(64),
+    hook_instance VARCHAR2(128),
+    consumed_at TIMESTAMP,
+    parent_origin VARCHAR2(512)
+);
+
+CREATE TABLE embed_origin_whitelist (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    origin VARCHAR2(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE emergency_permission_grant (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    user_id VARCHAR2(128) NOT NULL,
+    permission_code VARCHAR2(128) DEFAULT 'env.emergency' NOT NULL,
+    reason VARCHAR2(512) NOT NULL,
+    granted_by VARCHAR2(128) NOT NULL,
+    granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    revoked_at TIMESTAMP,
+    revoked_by VARCHAR2(128),
+    active_flag CHAR(1) DEFAULT 'Y' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE evaluation_idempotency_key (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    idem_key VARCHAR2(128) NOT NULL,
+    operation_type VARCHAR2(32) NOT NULL,
+    finding_id VARCHAR2(64) NOT NULL,
+    task_id VARCHAR2(64) NOT NULL,
+    review_id VARCHAR2(64),
+    request_digest VARCHAR2(128) NOT NULL,
+    finding_status VARCHAR2(32) NOT NULL,
+    task_status VARCHAR2(32) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE evaluation_indicator (
+    id NUMBER(19) IDENTITY NOT NULL,
+    indicator_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    indicator_code VARCHAR2(128) NOT NULL,
+    version_no NUMBER(10) NOT NULL,
+    name VARCHAR2(256) NOT NULL,
+    subject_type VARCHAR2(32) NOT NULL,
+    denominator_definition CLOB NOT NULL,
+    numerator_definition CLOB NOT NULL,
+    exclusion_definition CLOB,
+    scoring_definition CLOB,
+    time_window VARCHAR2(128) NOT NULL,
+    organization_scope VARCHAR2(256) NOT NULL,
+    responsible_department_id VARCHAR2(64) NOT NULL,
+    source_ref VARCHAR2(512) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'DRAFT' NOT NULL,
+    published_at TIMESTAMP,
+    published_by VARCHAR2(64),
+    activated_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE evaluation_result (
+    id NUMBER(19) IDENTITY NOT NULL,
+    result_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    run_id VARCHAR2(64) NOT NULL,
+    indicator_id VARCHAR2(64) NOT NULL,
+    indicator_code VARCHAR2(128) NOT NULL,
+    indicator_version NUMBER(10) NOT NULL,
+    subject_type VARCHAR2(32) NOT NULL,
+    subject_ref_id VARCHAR2(128) NOT NULL,
+    score_value NUMERIC(18,4),
+    result_level VARCHAR2(32) NOT NULL,
+    hit_flag NUMBER(1) DEFAULT 0 NOT NULL,
+    evidence_summary VARCHAR2(2048) NOT NULL,
+    source_ref VARCHAR2(512),
+    responsible_department_id VARCHAR2(64),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE evaluation_run (
+    id NUMBER(19) IDENTITY NOT NULL,
+    run_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    run_code VARCHAR2(128) NOT NULL,
+    run_type VARCHAR2(32) NOT NULL,
+    source_event_id VARCHAR2(64),
+    context_snapshot_id VARCHAR2(64),
+    patient_id VARCHAR2(128),
+    encounter_id VARCHAR2(128),
+    scenario_code VARCHAR2(128) NOT NULL,
+    runtime_release_id VARCHAR2(64),
+    input_digest VARCHAR2(128) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'RECEIVED' NOT NULL,
+    error_code VARCHAR2(64),
+    occurred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE evidence_snapshot (
+    id NUMBER(19) IDENTITY NOT NULL,
+    evidence_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128),
+    evidence_type VARCHAR2(64) NOT NULL,
+    action VARCHAR2(32) NOT NULL,
+    subject_type VARCHAR2(128) NOT NULL,
+    subject_id VARCHAR2(64) NOT NULL,
+    evidence_summary VARCHAR2(512) NOT NULL,
+    payload_snapshot VARCHAR2(4000) NOT NULL,
+    payload_hash VARCHAR2(128) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    file_uri VARCHAR2(512),
+    file_digest VARCHAR2(128),
+    signature_algorithm VARCHAR2(32),
+    signature_value VARCHAR2(2048),
+    signer_public_key VARCHAR2(2048)
+);
+
+CREATE TABLE followup_event (
+    id NUMBER(19) IDENTITY NOT NULL,
+    event_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    plan_id VARCHAR2(64),
+    event_type VARCHAR2(32) NOT NULL,
+    payload CLOB NOT NULL,
+    triggered_by VARCHAR2(64),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128),
+    idempotency_key VARCHAR2(128)
+);
+
+CREATE TABLE followup_plan (
+    id NUMBER(19) IDENTITY NOT NULL,
+    plan_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    patient_id VARCHAR2(64) NOT NULL,
+    encounter_id VARCHAR2(64),
+    pathway_id VARCHAR2(64),
+    disease_code VARCHAR2(128),
+    risk_level VARCHAR2(32),
+    runtime_release_id VARCHAR2(64),
+    status VARCHAR2(32) DEFAULT 'DRAFT' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128),
+    idempotency_key VARCHAR2(128),
+    source_fact_type VARCHAR2(32),
+    source_fact_id VARCHAR2(128),
+    generation_rule_code VARCHAR2(96),
+    generation_explanation CLOB,
+    template_id VARCHAR2(64),
+    template_version NUMBER(10)
+);
+
+CREATE TABLE followup_questionnaire (
+    id NUMBER(19) IDENTITY NOT NULL,
+    questionnaire_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    task_id VARCHAR2(64) NOT NULL,
+    form_data CLOB NOT NULL,
+    score NUMERIC(10,2),
+    status VARCHAR2(32) DEFAULT 'DRAFT' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128),
+    plan_id VARCHAR2(64),
+    questionnaire_template_id VARCHAR2(128),
+    answer_data CLOB,
+    idempotency_key VARCHAR2(128),
+    submitted_at TIMESTAMP,
+    executor_id VARCHAR2(64)
+);
+
+CREATE TABLE followup_task (
+    id NUMBER(19) IDENTITY NOT NULL,
+    task_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    plan_id VARCHAR2(64) NOT NULL,
+    task_type VARCHAR2(32) NOT NULL,
+    due_date TIMESTAMP NOT NULL,
+    status VARCHAR2(32) DEFAULT 'PENDING' NOT NULL,
+    executor_id VARCHAR2(64),
+    executor_type VARCHAR2(32),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128),
+    idempotency_key VARCHAR2(128),
+    clinical_clock_id VARCHAR2(64),
+    questionnaire_template_id VARCHAR2(128)
+);
+
+CREATE TABLE integration_adapter (
+    id NUMBER(19) IDENTITY NOT NULL,
+    adapter_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    name VARCHAR2(256) NOT NULL,
+    protocol_type VARCHAR2(64) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'ACTIVE' NOT NULL,
+    config_json VARCHAR2(4000),
+    health_status VARCHAR2(32) DEFAULT 'HEALTHY' NOT NULL,
+    rtt_ms NUMBER(19) DEFAULT 0 NOT NULL,
+    last_heartbeat_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE integration_message_log (
+    id NUMBER(19) IDENTITY NOT NULL,
+    message_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128),
+    direction VARCHAR2(32) NOT NULL,
+    system_name VARCHAR2(128) NOT NULL,
+    protocol_type VARCHAR2(32) NOT NULL,
+    payload_summary VARCHAR2(512),
+    payload VARCHAR2(4000),
+    status VARCHAR2(32) DEFAULT 'SUCCESS' NOT NULL,
+    retry_count NUMBER(10) DEFAULT 0 NOT NULL,
+    max_retries NUMBER(10) DEFAULT 3 NOT NULL,
+    error_message VARCHAR2(512),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE integration_webhook_config (
+    id NUMBER(19) IDENTITY NOT NULL,
+    webhook_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    name VARCHAR2(256) NOT NULL,
+    callback_url VARCHAR2(512) NOT NULL,
+    secret_cipher VARCHAR2(256) NOT NULL,
+    events_subscribed VARCHAR2(512) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'ACTIVE' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE knowledge_asset_version (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    identity_id NUMBER(19) NOT NULL,
+    version_no VARCHAR2(64) NOT NULL,
+    version_label VARCHAR2(256),
+    source_document_id NUMBER(19),
+    source_version_id NUMBER(19),
+    content_hash VARCHAR2(128) NOT NULL,
+    anchors VARCHAR2(2048),
+    status VARCHAR2(32) DEFAULT 'DRAFT' NOT NULL,
+    risk_level VARCHAR2(16) DEFAULT 'MEDIUM' NOT NULL,
+    effective_from TIMESTAMP,
+    effective_to TIMESTAMP,
+    reviewed_by VARCHAR2(64),
+    reviewed_at TIMESTAMP,
+    activated_at TIMESTAMP,
+    superseded_at TIMESTAMP,
+    withdrawn_at TIMESTAMP,
+    withdrawn_reason VARCHAR2(512),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    authority_level VARCHAR2(32),
+    grade_quality VARCHAR2(16),
+    grade_strength VARCHAR2(16),
+    conflict_arbitration VARCHAR2(2048),
+    organization_scope VARCHAR2(256) NOT NULL,
+    applicable_scope VARCHAR2(256) NOT NULL,
+    active_scope_key VARCHAR2(768) NOT NULL,
+    review_cycle_months NUMBER(10) DEFAULT 12 NOT NULL,
+    next_review_at TIMESTAMP
+);
+
+CREATE TABLE knowledge_export_job (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    job_code VARCHAR2(64) NOT NULL,
+    requested_by VARCHAR2(64) NOT NULL,
+    export_type VARCHAR2(32) NOT NULL,
+    filter_json VARCHAR2(2048),
+    status VARCHAR2(32) DEFAULT 'PENDING' NOT NULL,
+    progress NUMBER(10) DEFAULT 0 NOT NULL,
+    result_uri VARCHAR2(512),
+    item_count NUMBER(19),
+    error_message VARCHAR2(1024),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    expires_at TIMESTAMP
+);
+
+CREATE TABLE knowledge_identity (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    identity_code VARCHAR2(128) NOT NULL,
+    domain VARCHAR2(32) NOT NULL,
+    subject VARCHAR2(512) NOT NULL,
+    specialty_id VARCHAR2(64),
+    description VARCHAR2(2048),
+    status VARCHAR2(32) DEFAULT 'ACTIVE' NOT NULL,
+    current_version_id NUMBER(19),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE knowledge_supersession (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    identity_id NUMBER(19) NOT NULL,
+    old_version_id NUMBER(19),
+    new_version_id NUMBER(19),
+    transition_type VARCHAR2(32) NOT NULL,
+    transition_reason VARCHAR2(512),
+    transitioned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    transitioned_by VARCHAR2(64) NOT NULL,
+    successor_identity_id NUMBER(19),
+    grace_period_end TIMESTAMP,
+    migration_guidance VARCHAR2(1000)
+);
+
+CREATE TABLE local_term (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    source_system VARCHAR2(64) NOT NULL,
+    local_code VARCHAR2(128) NOT NULL,
+    category VARCHAR2(32) NOT NULL,
+    local_name VARCHAR2(512) NOT NULL,
+    normalized_name VARCHAR2(512),
+    department_id VARCHAR2(64),
+    status VARCHAR2(32) DEFAULT 'UNMAPPED' NOT NULL,
+    first_seen_at TIMESTAMP,
+    last_seen_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mapping_candidate (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    local_term_id NUMBER(19) NOT NULL,
+    standard_term_id NUMBER(19) NOT NULL,
+    confidence BINARY_DOUBLE,
+    candidate_source VARCHAR2(32) DEFAULT 'RULE' NOT NULL,
+    risk_level VARCHAR2(16) DEFAULT 'MEDIUM' NOT NULL,
+    evidence_text VARCHAR2(1024),
+    conflict_flag NUMBER(1) DEFAULT 0 NOT NULL,
+    status VARCHAR2(32) DEFAULT 'PENDING' NOT NULL,
+    review_note VARCHAR2(500),
+    reviewed_by VARCHAR2(64),
+    reviewed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    generation_job_code VARCHAR2(64)
+);
+
+CREATE TABLE mapping_conflict (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    conflict_type VARCHAR2(32) NOT NULL,
+    local_term_id NUMBER(19),
+    standard_term_id NUMBER(19),
+    mapping_id NUMBER(19),
+    risk_level VARCHAR2(16) DEFAULT 'MEDIUM' NOT NULL,
+    description VARCHAR2(1024) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'OPEN' NOT NULL,
+    resolved_by VARCHAR2(64),
+    resolved_at TIMESTAMP,
+    resolution_note VARCHAR2(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mk_aik_gate_result (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    job_code VARCHAR2(64) NOT NULL,
+    content_hash VARCHAR2(64) NOT NULL,
+    gate_code VARCHAR2(48) NOT NULL,
+    passed NUMBER(1) NOT NULL,
+    reason VARCHAR2(512),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64)
+);
+
+CREATE TABLE mk_clinical_care_plan (
+    care_plan_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512) NOT NULL,
+    source_system VARCHAR2(64) NOT NULL,
+    source_id VARCHAR2(128) NOT NULL,
+    fhir_resource_id VARCHAR2(128),
+    patient_id VARCHAR2(64) NOT NULL,
+    encounter_id VARCHAR2(64),
+    pathway_id VARCHAR2(64),
+    status VARCHAR2(32),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_clinical_claim (
+    claim_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512) NOT NULL,
+    source_system VARCHAR2(64) NOT NULL,
+    source_id VARCHAR2(128) NOT NULL,
+    fhir_resource_id VARCHAR2(128),
+    patient_id VARCHAR2(64) NOT NULL,
+    encounter_id VARCHAR2(64),
+    claim_type VARCHAR2(64),
+    status VARCHAR2(32),
+    total_amount NUMERIC(18,2),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_clinical_condition (
+    condition_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512) NOT NULL,
+    source_system VARCHAR2(64) NOT NULL,
+    source_id VARCHAR2(128) NOT NULL,
+    fhir_resource_id VARCHAR2(128),
+    patient_id VARCHAR2(64) NOT NULL,
+    encounter_id VARCHAR2(64),
+    code VARCHAR2(128) NOT NULL,
+    code_system VARCHAR2(64) NOT NULL,
+    display_name VARCHAR2(256) NOT NULL,
+    clinical_status VARCHAR2(32),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_clinical_diagnostic_report (
+    report_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512) NOT NULL,
+    source_system VARCHAR2(64) NOT NULL,
+    source_id VARCHAR2(128) NOT NULL,
+    fhir_resource_id VARCHAR2(128),
+    patient_id VARCHAR2(64) NOT NULL,
+    encounter_id VARCHAR2(64),
+    report_type VARCHAR2(64) NOT NULL,
+    status VARCHAR2(32),
+    conclusion CLOB,
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_clinical_document (
+    document_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512) NOT NULL,
+    source_system VARCHAR2(64) NOT NULL,
+    source_id VARCHAR2(128) NOT NULL,
+    fhir_resource_id VARCHAR2(128),
+    patient_id VARCHAR2(64) NOT NULL,
+    encounter_id VARCHAR2(64),
+    document_type VARCHAR2(64) NOT NULL,
+    status VARCHAR2(32),
+    content_hash VARCHAR2(128),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_clinical_encounter (
+    encounter_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512) NOT NULL,
+    source_system VARCHAR2(64) NOT NULL,
+    source_id VARCHAR2(128) NOT NULL,
+    fhir_resource_id VARCHAR2(128),
+    patient_id VARCHAR2(64) NOT NULL,
+    encounter_class VARCHAR2(32) NOT NULL,
+    status VARCHAR2(32) NOT NULL,
+    started_at TIMESTAMP,
+    ended_at TIMESTAMP,
+    org_unit_id VARCHAR2(64),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_clinical_follow_up (
+    follow_up_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512) NOT NULL,
+    source_system VARCHAR2(64) NOT NULL,
+    source_id VARCHAR2(128) NOT NULL,
+    fhir_resource_id VARCHAR2(128),
+    patient_id VARCHAR2(64) NOT NULL,
+    encounter_id VARCHAR2(64),
+    plan_type VARCHAR2(64) NOT NULL,
+    status VARCHAR2(32),
+    planned_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_clinical_medication (
+    medication_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512) NOT NULL,
+    source_system VARCHAR2(64) NOT NULL,
+    source_id VARCHAR2(128) NOT NULL,
+    fhir_resource_id VARCHAR2(128),
+    patient_id VARCHAR2(64) NOT NULL,
+    encounter_id VARCHAR2(64),
+    code VARCHAR2(128) NOT NULL,
+    code_system VARCHAR2(64) NOT NULL,
+    display_name VARCHAR2(256) NOT NULL,
+    dose NUMERIC(18,6),
+    dose_unit VARCHAR2(64),
+    route VARCHAR2(64),
+    frequency VARCHAR2(64),
+    status VARCHAR2(32),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_clinical_nursing_assessment (
+    assessment_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512) NOT NULL,
+    source_system VARCHAR2(64) NOT NULL,
+    source_id VARCHAR2(128) NOT NULL,
+    fhir_resource_id VARCHAR2(128),
+    patient_id VARCHAR2(64) NOT NULL,
+    encounter_id VARCHAR2(64),
+    assessment_type VARCHAR2(64) NOT NULL,
+    status VARCHAR2(32),
+    risk_level VARCHAR2(32),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_clinical_observation (
+    observation_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512) NOT NULL,
+    source_system VARCHAR2(64) NOT NULL,
+    source_id VARCHAR2(128) NOT NULL,
+    fhir_resource_id VARCHAR2(128),
+    patient_id VARCHAR2(64) NOT NULL,
+    encounter_id VARCHAR2(64),
+    code VARCHAR2(128) NOT NULL,
+    code_system VARCHAR2(64) NOT NULL,
+    display_name VARCHAR2(256) NOT NULL,
+    value_numeric NUMERIC(18,6),
+    unit VARCHAR2(64),
+    critical_flag VARCHAR2(32),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_clinical_patient (
+    patient_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512) NOT NULL,
+    source_system VARCHAR2(64) NOT NULL,
+    source_id VARCHAR2(128) NOT NULL,
+    fhir_resource_id VARCHAR2(128),
+    name_cipher VARCHAR2(1024) NOT NULL,
+    name_mask VARCHAR2(128) NOT NULL,
+    identity_no_cipher VARCHAR2(1024),
+    identity_no_mask VARCHAR2(64),
+    phone_cipher VARCHAR2(1024),
+    phone_mask VARCHAR2(64),
+    birth_date DATE,
+    gender_code VARCHAR2(16),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_clinical_procedure (
+    procedure_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512) NOT NULL,
+    source_system VARCHAR2(64) NOT NULL,
+    source_id VARCHAR2(128) NOT NULL,
+    fhir_resource_id VARCHAR2(128),
+    patient_id VARCHAR2(64) NOT NULL,
+    encounter_id VARCHAR2(64),
+    code VARCHAR2(128) NOT NULL,
+    code_system VARCHAR2(64) NOT NULL,
+    display_name VARCHAR2(256) NOT NULL,
+    status VARCHAR2(32),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_compliance_data_permission (
+    id NUMBER(19) IDENTITY NOT NULL,
+    policy_id VARCHAR2(128) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    resource_type VARCHAR2(128) NOT NULL,
+    action VARCHAR2(32) NOT NULL,
+    min_data_level VARCHAR2(32) NOT NULL,
+    allowed_columns_json CLOB NOT NULL,
+    group_id VARCHAR2(64),
+    hospital_id VARCHAR2(64),
+    campus_id VARCHAR2(64),
+    site_id VARCHAR2(64),
+    department_id VARCHAR2(64),
+    specialty_id VARCHAR2(64),
+    status VARCHAR2(32) DEFAULT 'ACTIVE' NOT NULL,
+    version NUMBER(19) DEFAULT 1 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128),
+    ward_id VARCHAR2(64)
+);
+
+CREATE TABLE mk_compliance_export_confirmation (
+    id NUMBER(19) IDENTITY NOT NULL,
+    confirmation_id VARCHAR2(128) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    resource_type VARCHAR2(128) NOT NULL,
+    export_scope_snapshot CLOB NOT NULL,
+    idempotency_key VARCHAR2(128) NOT NULL,
+    reason VARCHAR2(512) NOT NULL,
+    confirmed_by VARCHAR2(64) NOT NULL,
+    confirmed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    status VARCHAR2(32) DEFAULT 'CONFIRMED' NOT NULL,
+    export_uri VARCHAR2(512),
+    export_digest VARCHAR2(128),
+    confirmation_evidence_id VARCHAR2(64) NOT NULL,
+    confirmation_evidence_file_uri VARCHAR2(512),
+    export_evidence_id VARCHAR2(64),
+    export_evidence_file_uri VARCHAR2(512),
+    version NUMBER(19) DEFAULT 1 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_compliance_identity_binding (
+    id NUMBER(19) IDENTITY NOT NULL,
+    binding_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    user_id VARCHAR2(128) NOT NULL,
+    provider_type VARCHAR2(32) NOT NULL,
+    external_subject_digest VARCHAR2(72) NOT NULL,
+    subject_hint VARCHAR2(128) NOT NULL,
+    status VARCHAR2(16) DEFAULT 'ACTIVE' NOT NULL,
+    version NUMBER(19) DEFAULT 1 NOT NULL,
+    unbound_reason VARCHAR2(512),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_compliance_interop_assessment_item (
+    id NUMBER(19) IDENTITY NOT NULL,
+    item_id VARCHAR2(128) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    standard_version VARCHAR2(64) NOT NULL,
+    dimension VARCHAR2(64) NOT NULL,
+    item_code VARCHAR2(128) NOT NULL,
+    item_name VARCHAR2(256) NOT NULL,
+    requirement_summary CLOB NOT NULL,
+    owner_department_id VARCHAR2(64),
+    effective_from TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    effective_to TIMESTAMP,
+    status VARCHAR2(32) DEFAULT 'ACTIVE' NOT NULL,
+    version NUMBER(19) DEFAULT 1 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_compliance_interop_evidence_map (
+    id NUMBER(19) IDENTITY NOT NULL,
+    map_id VARCHAR2(128) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    item_id VARCHAR2(128) NOT NULL,
+    evidence_source_type VARCHAR2(64) NOT NULL,
+    source_id VARCHAR2(128) NOT NULL,
+    evidence_ref VARCHAR2(256) NOT NULL,
+    evidence_summary VARCHAR2(512) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'ACTIVE' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_compliance_masking_rule (
+    id NUMBER(19) IDENTITY NOT NULL,
+    rule_id VARCHAR2(128) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    resource_type VARCHAR2(128) NOT NULL,
+    field_name VARCHAR2(64) NOT NULL,
+    scenario_code VARCHAR2(64) DEFAULT 'DEFAULT' NOT NULL,
+    strategy VARCHAR2(32) NOT NULL,
+    mask_char VARCHAR2(4) DEFAULT '*' NOT NULL,
+    prefix_keep NUMBER(10) DEFAULT 0 NOT NULL,
+    suffix_keep NUMBER(10) DEFAULT 0 NOT NULL,
+    status VARCHAR2(32) DEFAULT 'ACTIVE' NOT NULL,
+    version NUMBER(19) DEFAULT 1 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_config_history (
+    history_id VARCHAR2(80) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    config_key VARCHAR2(256) NOT NULL,
+    before_value CLOB,
+    after_value CLOB,
+    change_type VARCHAR2(32) NOT NULL,
+    reason VARCHAR2(512),
+    version NUMBER(19) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mk_config_item (
+    config_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    config_key VARCHAR2(256) NOT NULL,
+    config_value CLOB,
+    value_type VARCHAR2(32) DEFAULT 'STRING' NOT NULL,
+    display_name VARCHAR2(128) NOT NULL,
+    risk_level VARCHAR2(16) DEFAULT 'LOW' NOT NULL,
+    owner VARCHAR2(128) DEFAULT '信息科' NOT NULL,
+    description VARCHAR2(512),
+    source VARCHAR2(32) DEFAULT 'YML_SEED' NOT NULL,
+    protected_flag CHAR(1) DEFAULT 'N' NOT NULL,
+    active_flag CHAR(1) DEFAULT 'Y' NOT NULL,
+    version NUMBER(19) DEFAULT 1 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mk_context_field_catalog (
+    id NUMBER(19) IDENTITY NOT NULL,
+    field_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    category VARCHAR2(64) NOT NULL,
+    group_name VARCHAR2(64) NOT NULL,
+    resource_type VARCHAR2(40) NOT NULL,
+    field_path VARCHAR2(200) NOT NULL,
+    display_name VARCHAR2(200) NOT NULL,
+    data_type VARCHAR2(20) NOT NULL,
+    unit VARCHAR2(40),
+    code_system VARCHAR2(64),
+    description VARCHAR2(500),
+    status VARCHAR2(20) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_diagnosis_care_pointer (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    diagnosis_version_id NUMBER(19) NOT NULL,
+    pointer_type VARCHAR2(16) NOT NULL,
+    target_type VARCHAR2(16) NOT NULL,
+    target_ref VARCHAR2(128) NOT NULL,
+    is_soft NUMBER(1) DEFAULT 1 NOT NULL,
+    description VARCHAR2(512),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_diagnosis_confidence_policy (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    scope_key VARCHAR2(128) NOT NULL,
+    strong_min_major NUMBER(10) DEFAULT 2 NOT NULL,
+    require_all_required NUMBER(1) DEFAULT 1 NOT NULL,
+    moderate_min_hits NUMBER(10) DEFAULT 1 NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_diagnosis_criterion (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    diagnosis_version_id NUMBER(19) NOT NULL,
+    finding_term_code VARCHAR2(64) NOT NULL,
+    direction VARCHAR2(16) NOT NULL,
+    weight VARCHAR2(8) NOT NULL,
+    value_constraint VARCHAR2(512),
+    temporal_constraint VARCHAR2(256),
+    citation_id NUMBER(19),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_diagnosis_differential (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    diagnosis_version_id NUMBER(19) NOT NULL,
+    differential_identity_id NUMBER(19) NOT NULL,
+    key_point VARCHAR2(1024),
+    suggested_workup VARCHAR2(512),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_diagnosis_test_case (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    diagnosis_version_id NUMBER(19) NOT NULL,
+    case_code VARCHAR2(64) NOT NULL,
+    findings CLOB NOT NULL,
+    expected_identity_id NUMBER(19) NOT NULL,
+    expected_confidence VARCHAR2(16) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_doc_parse_job (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    job_code VARCHAR2(64) NOT NULL,
+    source_document_id NUMBER(19) NOT NULL,
+    source_file_name VARCHAR2(512) NOT NULL,
+    document_format VARCHAR2(24) NOT NULL,
+    source_hash VARCHAR2(64) NOT NULL,
+    status VARCHAR2(24) DEFAULT 'PENDING' NOT NULL,
+    result_source_version_id NUMBER(19),
+    parsed_section_count NUMBER(10),
+    parsed_fragment_count NUMBER(10),
+    error_message VARCHAR2(1024),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64)
+);
+
+CREATE TABLE mk_emr_level_evidence_export (
+    id NUMBER(19) IDENTITY NOT NULL,
+    export_id VARCHAR2(128) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    target_id VARCHAR2(128) NOT NULL,
+    hospital_org_id VARCHAR2(64) NOT NULL,
+    standard_version VARCHAR2(64) NOT NULL,
+    idempotency_key VARCHAR2(128) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'EXPORTED' NOT NULL,
+    evidence_line_count NUMBER(10) DEFAULT 0 NOT NULL,
+    payload_sha256 VARCHAR2(64) NOT NULL,
+    payload_ndjson CLOB NOT NULL,
+    requested_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_emr_level_gap (
+    id NUMBER(19) IDENTITY NOT NULL,
+    gap_id VARCHAR2(128) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    target_id VARCHAR2(128) NOT NULL,
+    item_id VARCHAR2(128) NOT NULL,
+    item_code VARCHAR2(128) NOT NULL,
+    capability_code VARCHAR2(128) NOT NULL,
+    capability_status VARCHAR2(32) NOT NULL,
+    gap_status VARCHAR2(32) DEFAULT 'OPEN' NOT NULL,
+    gap_reason CLOB NOT NULL,
+    responsible_department_id VARCHAR2(64) NOT NULL,
+    due_at TIMESTAMP NOT NULL,
+    rectification_task_id VARCHAR2(128) NOT NULL,
+    evidence_ref VARCHAR2(512),
+    closed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_emr_level_item (
+    id NUMBER(19) IDENTITY NOT NULL,
+    item_id VARCHAR2(128) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    target_id VARCHAR2(128) NOT NULL,
+    standard_version VARCHAR2(64) NOT NULL,
+    item_code VARCHAR2(128) NOT NULL,
+    item_name VARCHAR2(256) NOT NULL,
+    required_level NUMBER(10) NOT NULL,
+    capability_code VARCHAR2(128) NOT NULL,
+    capability_name VARCHAR2(256) NOT NULL,
+    capability_status VARCHAR2(32) NOT NULL,
+    evidence_ref VARCHAR2(512),
+    evidence_summary CLOB NOT NULL,
+    responsible_department_id VARCHAR2(64),
+    due_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_emr_level_target (
+    id NUMBER(19) IDENTITY NOT NULL,
+    target_id VARCHAR2(128) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    hospital_org_id VARCHAR2(64) NOT NULL,
+    target_level NUMBER(10) NOT NULL,
+    standard_version VARCHAR2(64) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'ACTIVE' NOT NULL,
+    total_item_count NUMBER(10) DEFAULT 0 NOT NULL,
+    satisfied_item_count NUMBER(10) DEFAULT 0 NOT NULL,
+    gap_item_count NUMBER(10) DEFAULT 0 NOT NULL,
+    progress_rate NUMERIC(7,4) DEFAULT 0 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_engine_authoring_asset_favorite (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    user_id VARCHAR2(64) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    asset_id VARCHAR2(128) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_engine_authoring_asset_profile (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    asset_id VARCHAR2(128) NOT NULL,
+    category VARCHAR2(64),
+    tags_json CLOB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_engine_authoring_batch_item (
+    id NUMBER(19) IDENTITY NOT NULL,
+    job_id VARCHAR2(128) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    item_id VARCHAR2(128) NOT NULL,
+    status VARCHAR2(32) NOT NULL,
+    target_type VARCHAR2(64),
+    target_id VARCHAR2(128),
+    result_json CLOB,
+    rollback_ref VARCHAR2(128),
+    error_code VARCHAR2(64),
+    message VARCHAR2(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_engine_authoring_batch_job (
+    id NUMBER(19) IDENTITY NOT NULL,
+    job_id VARCHAR2(128) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    job_type VARCHAR2(32) NOT NULL,
+    status VARCHAR2(32) NOT NULL,
+    total_count NUMBER(10) DEFAULT 0 NOT NULL,
+    success_count NUMBER(10) DEFAULT 0 NOT NULL,
+    failure_count NUMBER(10) DEFAULT 0 NOT NULL,
+    request_summary_json CLOB,
+    result_summary_json CLOB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_engine_cdss_risk_matrix (
+    id NUMBER(19) IDENTITY NOT NULL,
+    matrix_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    trigger_point VARCHAR2(64) NOT NULL,
+    severity_level VARCHAR2(32) NOT NULL,
+    automation_level VARCHAR2(32) NOT NULL,
+    risk_level VARCHAR2(32) NOT NULL,
+    review_requirement VARCHAR2(64) NOT NULL,
+    silent_run_hours NUMBER(10) DEFAULT 0 NOT NULL,
+    release_gate VARCHAR2(128) NOT NULL,
+    auto_execution_allowed NUMBER(1) DEFAULT 0 NOT NULL,
+    samd_classification VARCHAR2(64),
+    regulatory_evidence VARCHAR2(512),
+    status VARCHAR2(32) DEFAULT 'ACTIVE' NOT NULL,
+    matrix_version VARCHAR2(64) NOT NULL,
+    explanation VARCHAR2(1024) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_engine_clinical_redline (
+    id NUMBER(19) IDENTITY NOT NULL,
+    redline_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    category VARCHAR2(64) NOT NULL,
+    trigger_point VARCHAR2(64) NOT NULL,
+    scope_type VARCHAR2(32) NOT NULL,
+    scope_ref VARCHAR2(128) NOT NULL,
+    active_scope_key VARCHAR2(512),
+    redline_key VARCHAR2(128) NOT NULL,
+    redline_version VARCHAR2(64) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'DRAFT' NOT NULL,
+    hazard_severity VARCHAR2(32) NOT NULL,
+    risk_matrix_id VARCHAR2(64) NOT NULL,
+    risk_matrix_version VARCHAR2(64) NOT NULL,
+    review_requirement VARCHAR2(64) NOT NULL,
+    silent_run_hours NUMBER(10) DEFAULT 0 NOT NULL,
+    release_gate VARCHAR2(128) NOT NULL,
+    title VARCHAR2(256) NOT NULL,
+    clinical_hazard VARCHAR2(1024) NOT NULL,
+    condition_dsl VARCHAR2(4000) NOT NULL,
+    evidence_source VARCHAR2(512) NOT NULL,
+    evidence_reference VARCHAR2(512) NOT NULL,
+    source_version_id NUMBER(19),
+    lower_tenant_override_allowed NUMBER(1) DEFAULT 0 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_engine_clinical_redline_trial (
+    id NUMBER(19) IDENTITY NOT NULL,
+    trial_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    redline_id VARCHAR2(64) NOT NULL,
+    redline_key VARCHAR2(128) NOT NULL,
+    redline_version VARCHAR2(64) NOT NULL,
+    status VARCHAR2(32) NOT NULL,
+    observed_from TIMESTAMP NOT NULL,
+    observed_to TIMESTAMP NOT NULL,
+    required_silent_hours NUMBER(19) NOT NULL,
+    actual_silent_hours NUMBER(19) NOT NULL,
+    evaluated_case_count NUMBER(19) NOT NULL,
+    matched_case_count NUMBER(19) NOT NULL,
+    false_positive_case_count NUMBER(19) NOT NULL,
+    safety_incident_count NUMBER(19) NOT NULL,
+    gate_passed NUMBER(1) DEFAULT 0 NOT NULL,
+    evidence_reference VARCHAR2(512) NOT NULL,
+    operator_note VARCHAR2(1024),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_engine_data_encrypted_field (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    scope_key VARCHAR2(128) NOT NULL,
+    field_name VARCHAR2(128) NOT NULL,
+    data_level VARCHAR2(8) NOT NULL,
+    cipher_text VARCHAR2(2048) NOT NULL,
+    cipher_algorithm VARCHAR2(64) NOT NULL,
+    key_ref VARCHAR2(128) NOT NULL,
+    search_hash VARCHAR2(96) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64),
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_engine_data_export_job (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    job_code VARCHAR2(64) NOT NULL,
+    requested_by VARCHAR2(64) NOT NULL,
+    export_type VARCHAR2(32) NOT NULL,
+    status VARCHAR2(16) DEFAULT 'PENDING' NOT NULL,
+    progress NUMBER(10) DEFAULT 0 NOT NULL,
+    result_uri VARCHAR2(512),
+    item_count NUMBER(19),
+    error_message VARCHAR2(1024),
+    confirmation_id VARCHAR2(128) NOT NULL,
+    idempotency_key VARCHAR2(128) NOT NULL,
+    request_snapshot VARCHAR2(2000) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    expires_at TIMESTAMP
+);
+
+CREATE TABLE mk_engine_data_field_policy (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    field_path VARCHAR2(256) NOT NULL,
+    data_level VARCHAR2(8) NOT NULL,
+    encryption_required_flag CHAR(1) DEFAULT 'N' NOT NULL,
+    allowed_channel VARCHAR2(48) NOT NULL,
+    status VARCHAR2(16) DEFAULT 'ACTIVE' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64),
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_engine_notification (
+    id NUMBER(19) IDENTITY NOT NULL,
+    notification_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    source_type VARCHAR2(32) NOT NULL,
+    source_id VARCHAR2(128) NOT NULL,
+    dedupe_key VARCHAR2(256) NOT NULL,
+    title VARCHAR2(256) NOT NULL,
+    message CLOB NOT NULL,
+    notification_level VARCHAR2(16) NOT NULL,
+    status VARCHAR2(16) DEFAULT 'UNREAD' NOT NULL,
+    recipient_id VARCHAR2(64),
+    recipient_role VARCHAR2(64),
+    patient_id VARCHAR2(128),
+    encounter_id VARCHAR2(128),
+    deep_link VARCHAR2(512),
+    read_at TIMESTAMP,
+    read_by VARCHAR2(64),
+    trace_id VARCHAR2(128),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    org_unit_id VARCHAR2(64)
+);
+
+CREATE TABLE mk_engine_rule_parameter_binding (
+    id NUMBER(19) IDENTITY NOT NULL,
+    rule_version_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    param_key VARCHAR2(64) NOT NULL,
+    param_value_json CLOB NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_engine_workflow_todo (
+    id NUMBER(19) IDENTITY NOT NULL,
+    todo_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    source_type VARCHAR2(32) NOT NULL,
+    source_id VARCHAR2(128) NOT NULL,
+    title VARCHAR2(256) NOT NULL,
+    summary CLOB NOT NULL,
+    priority VARCHAR2(16) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'PENDING' NOT NULL,
+    assignee_id VARCHAR2(64),
+    assignee_role VARCHAR2(64),
+    patient_id VARCHAR2(128),
+    encounter_id VARCHAR2(128),
+    due_at TIMESTAMP,
+    deep_link VARCHAR2(512),
+    completion_reason CLOB,
+    completed_at TIMESTAMP,
+    completed_by VARCHAR2(64),
+    transferred_to VARCHAR2(64),
+    trace_id VARCHAR2(128),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    transfer_reason CLOB,
+    org_unit_id VARCHAR2(64)
+);
+
+CREATE TABLE mk_experience_export_task (
+    task_id VARCHAR2(80) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    resource_type VARCHAR2(64) NOT NULL,
+    request_snapshot CLOB NOT NULL,
+    selected_scope VARCHAR2(32) DEFAULT 'FILTERED_RESULT' NOT NULL,
+    status VARCHAR2(32) DEFAULT 'PENDING' NOT NULL,
+    file_name VARCHAR2(255),
+    file_path VARCHAR2(512),
+    file_size NUMBER(19) DEFAULT 0 NOT NULL,
+    error_message VARCHAR2(512),
+    time_cost_ms NUMBER(19) DEFAULT 0 NOT NULL,
+    trace_id VARCHAR2(128),
+    audit_id VARCHAR2(128),
+    idempotency_key VARCHAR2(128),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mk_experience_saved_view (
+    saved_view_id VARCHAR2(80) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    user_id VARCHAR2(64) NOT NULL,
+    page_key VARCHAR2(128) NOT NULL,
+    view_name VARCHAR2(128) NOT NULL,
+    definition_json CLOB NOT NULL,
+    default_flag CHAR(1) DEFAULT 'N' NOT NULL,
+    version NUMBER(19) DEFAULT 1 NOT NULL,
+    status VARCHAR2(16) DEFAULT 'ACTIVE' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mk_experience_user_pref (
+    user_pref_id VARCHAR2(80) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    user_id VARCHAR2(64) NOT NULL,
+    pref_key VARCHAR2(96) NOT NULL,
+    pref_value CLOB NOT NULL,
+    version NUMBER(19) DEFAULT 1 NOT NULL,
+    status VARCHAR2(16) DEFAULT 'ACTIVE' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mk_fhir_mapping_rule (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    rule_code VARCHAR2(128) NOT NULL,
+    fhir_version VARCHAR2(8) NOT NULL,
+    fhir_resource_type VARCHAR2(64) NOT NULL,
+    canonical_resource_type VARCHAR2(64) NOT NULL,
+    fhir_path VARCHAR2(256) NOT NULL,
+    canonical_path VARCHAR2(256) NOT NULL,
+    required_field NUMBER(1) DEFAULT 0 NOT NULL,
+    transform_type VARCHAR2(64) NOT NULL,
+    rule_version NUMBER(10) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'ACTIVE' NOT NULL,
+    trace_id VARCHAR2(128),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL
+);
+
+CREATE TABLE mk_fhir_resource_mapping (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512) NOT NULL,
+    fhir_version VARCHAR2(8) NOT NULL,
+    fhir_resource_type VARCHAR2(64) NOT NULL,
+    fhir_id VARCHAR2(128) NOT NULL,
+    canonical_resource_id NUMBER(19) NOT NULL,
+    canonical_resource_type VARCHAR2(64) NOT NULL,
+    field_mapping_rate NUMERIC(7,4) NOT NULL,
+    missing_field_count NUMBER(10) DEFAULT 0 NOT NULL,
+    mapping_status VARCHAR2(32) DEFAULT 'ACTIVE' NOT NULL,
+    trace_id VARCHAR2(128),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL
+);
+
+CREATE TABLE mk_followup_template (
+    id NUMBER(19) IDENTITY NOT NULL,
+    template_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    template_code VARCHAR2(128) NOT NULL,
+    version_no NUMBER(10) NOT NULL,
+    name VARCHAR2(200) NOT NULL,
+    description VARCHAR2(1000),
+    organization_scope VARCHAR2(1000) NOT NULL,
+    applicable_scope VARCHAR2(512) NOT NULL,
+    task_definition_json CLOB NOT NULL,
+    questionnaire_definition_json CLOB NOT NULL,
+    abnormal_action_json CLOB NOT NULL,
+    source_ref VARCHAR2(1000) NOT NULL,
+    asset_version_id VARCHAR2(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128) NOT NULL
+);
+
+CREATE TABLE mk_identity_person (
+    person_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    employee_no VARCHAR2(128) NOT NULL,
+    display_name VARCHAR2(128) NOT NULL,
+    mobile_hint VARCHAR2(32),
+    status VARCHAR2(32) NOT NULL,
+    version NUMBER(19) DEFAULT 1 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_identity_person_account (
+    link_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    person_id VARCHAR2(64) NOT NULL,
+    user_id VARCHAR2(128) NOT NULL,
+    status VARCHAR2(32) NOT NULL,
+    version NUMBER(19) DEFAULT 1 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_identity_person_appointment (
+    appointment_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    person_id VARCHAR2(64) NOT NULL,
+    organization_id VARCHAR2(64) NOT NULL,
+    department_id VARCHAR2(64),
+    ward_id VARCHAR2(64),
+    appointment_type VARCHAR2(32) NOT NULL,
+    position_title VARCHAR2(128),
+    primary_flag CHAR(1) DEFAULT 'N' NOT NULL,
+    effective_from TIMESTAMP NOT NULL,
+    effective_to TIMESTAMP,
+    status VARCHAR2(32) NOT NULL,
+    version NUMBER(19) DEFAULT 1 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_identity_person_import_job (
+    job_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    file_name VARCHAR2(256) NOT NULL,
+    file_digest VARCHAR2(128) NOT NULL,
+    status VARCHAR2(32) NOT NULL,
+    total_rows NUMBER(10) DEFAULT 0 NOT NULL,
+    valid_rows NUMBER(10) DEFAULT 0 NOT NULL,
+    conflict_rows NUMBER(10) DEFAULT 0 NOT NULL,
+    success_rows NUMBER(10) DEFAULT 0 NOT NULL,
+    failure_rows NUMBER(10) DEFAULT 0 NOT NULL,
+    committed_at TIMESTAMP,
+    version NUMBER(19) DEFAULT 1 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_identity_person_import_row (
+    row_id VARCHAR2(64) NOT NULL,
+    job_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    row_no NUMBER(10) NOT NULL,
+    employee_no VARCHAR2(128),
+    display_name VARCHAR2(128),
+    organization_code VARCHAR2(128),
+    department_code VARCHAR2(128),
+    ward_code VARCHAR2(128),
+    appointment_type VARCHAR2(32),
+    position_title VARCHAR2(128),
+    login_name VARCHAR2(128),
+    role_code VARCHAR2(64),
+    identity_provider VARCHAR2(32),
+    external_subject_digest VARCHAR2(128),
+    external_subject_hint VARCHAR2(32),
+    action VARCHAR2(32) NOT NULL,
+    status VARCHAR2(32) NOT NULL,
+    error_message VARCHAR2(1024),
+    result_person_id VARCHAR2(64),
+    result_user_id VARCHAR2(128),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE mk_integration_data_quality_report (
+    report_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    generated_at TIMESTAMP NOT NULL,
+    required_field_total NUMBER(10) NOT NULL,
+    required_field_present NUMBER(10) NOT NULL,
+    required_field_rate NUMERIC(5,2) NOT NULL,
+    adapter_total NUMBER(10) NOT NULL,
+    mapped_adapter_count NUMBER(10) NOT NULL,
+    mapping_rate NUMERIC(5,2) NOT NULL,
+    timely_adapter_count NUMBER(10) NOT NULL,
+    timeliness_rate NUMERIC(5,2) NOT NULL,
+    not_connected_count NUMBER(10) NOT NULL,
+    misconfigured_count NUMBER(10) NOT NULL,
+    gap_summary VARCHAR2(2000) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_integration_master_data_sync_batch (
+    id NUMBER(19) IDENTITY NOT NULL,
+    batch_id VARCHAR2(128) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    webhook_id VARCHAR2(128) NOT NULL,
+    adapter_id VARCHAR2(128) NOT NULL,
+    source_system VARCHAR2(64) NOT NULL,
+    sync_mode VARCHAR2(32) NOT NULL,
+    previous_cursor VARCHAR2(256),
+    cursor_value VARCHAR2(256) NOT NULL,
+    payload_hash VARCHAR2(64) NOT NULL,
+    status VARCHAR2(16) NOT NULL,
+    total_count NUMBER(10) NOT NULL,
+    applied_count NUMBER(10) NOT NULL,
+    failed_count NUMBER(10) NOT NULL,
+    error_summary VARCHAR2(128),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    trace_id VARCHAR2(128) NOT NULL
+);
+
+CREATE TABLE mk_integration_master_data_sync_record (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    source_system VARCHAR2(64) NOT NULL,
+    resource_type VARCHAR2(32) NOT NULL,
+    source_record_id VARCHAR2(256) NOT NULL,
+    internal_id VARCHAR2(128) NOT NULL,
+    source_version NUMBER(19) NOT NULL,
+    payload_hash VARCHAR2(64) NOT NULL,
+    status VARCHAR2(16) NOT NULL,
+    last_batch_id VARCHAR2(128) NOT NULL,
+    source_updated_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE mk_integration_onboarding (
+    id NUMBER(19) IDENTITY NOT NULL,
+    onboarding_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    name VARCHAR2(256) NOT NULL,
+    access_mode VARCHAR2(16) NOT NULL,
+    adapter_id VARCHAR2(64),
+    fhir_version VARCHAR2(16),
+    source_system VARCHAR2(128) NOT NULL,
+    business_scenario VARCHAR2(256) NOT NULL,
+    org_path VARCHAR2(512) NOT NULL,
+    callback_webhook_id VARCHAR2(64),
+    status VARCHAR2(32) NOT NULL,
+    evidence_text VARCHAR2(1000),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_integration_regional_source (
+    id NUMBER(19) IDENTITY NOT NULL,
+    source_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    regional_network_name VARCHAR2(256) NOT NULL,
+    source_organization_id VARCHAR2(64) NOT NULL,
+    source_organization_name VARCHAR2(256) NOT NULL,
+    trust_level VARCHAR2(16) NOT NULL,
+    evidence_text VARCHAR2(1000) NOT NULL,
+    adapter_id VARCHAR2(64),
+    onboarding_id VARCHAR2(64),
+    org_path VARCHAR2(512) NOT NULL,
+    status VARCHAR2(32) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_knowledge_acquisition_run (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    run_code VARCHAR2(64) NOT NULL,
+    source_id NUMBER(19),
+    source_code VARCHAR2(128) NOT NULL,
+    url VARCHAR2(1024) NOT NULL,
+    domain VARCHAR2(255) NOT NULL,
+    trigger_type VARCHAR2(24) NOT NULL,
+    status VARCHAR2(24) NOT NULL,
+    fetched_at TIMESTAMP,
+    source_hash VARCHAR2(64),
+    byte_size NUMBER(19),
+    content_type VARCHAR2(255),
+    license VARCHAR2(512),
+    license_policy VARCHAR2(24),
+    robots_policy VARCHAR2(24),
+    material_file_uri VARCHAR2(1024),
+    source_document_id NUMBER(19),
+    source_version_id NUMBER(19),
+    parse_job_code VARCHAR2(64),
+    failure_reason VARCHAR2(1024),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64)
+);
+
+CREATE TABLE mk_knowledge_acquisition_source (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    source_code VARCHAR2(128) NOT NULL,
+    domain VARCHAR2(255) NOT NULL,
+    base_url VARCHAR2(512) NOT NULL,
+    source_type VARCHAR2(32) NOT NULL,
+    authority_level VARCHAR2(32) NOT NULL,
+    authority_basis VARCHAR2(512) NOT NULL,
+    title VARCHAR2(512) NOT NULL,
+    publisher VARCHAR2(256) NOT NULL,
+    license VARCHAR2(512) NOT NULL,
+    license_policy VARCHAR2(24) NOT NULL,
+    robots_policy VARCHAR2(24) NOT NULL,
+    enabled_flag CHAR(1) DEFAULT 'N' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64),
+    schedule_enabled_flag CHAR(1) DEFAULT 'N' NOT NULL,
+    schedule_interval_minutes NUMBER(10),
+    next_check_at TIMESTAMP,
+    last_check_at TIMESTAMP,
+    default_format VARCHAR2(24),
+    generation_plan_json CLOB,
+    lock_version NUMBER(19) DEFAULT 0 NOT NULL
+);
+
+CREATE TABLE mk_knowledge_affected_case_task (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    task_key VARCHAR2(256) NOT NULL,
+    invalidation_id NUMBER(19) NOT NULL,
+    identity_id NUMBER(19) NOT NULL,
+    version_id NUMBER(19) NOT NULL,
+    task_type VARCHAR2(32) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'OPEN' NOT NULL,
+    target_type VARCHAR2(32) NOT NULL,
+    target_ref VARCHAR2(256) NOT NULL,
+    reason CLOB NOT NULL,
+    due_at TIMESTAMP NOT NULL,
+    assigned_to VARCHAR2(64),
+    trace_id VARCHAR2(128),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mk_knowledge_candidate_classification (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512),
+    identity_id NUMBER(19) NOT NULL,
+    candidate_version_id NUMBER(19),
+    active_version_id NUMBER(19),
+    classification VARCHAR2(32) NOT NULL,
+    review_status VARCHAR2(32) NOT NULL,
+    content_hash VARCHAR2(128) NOT NULL,
+    basis VARCHAR2(2048) NOT NULL,
+    diff_summary VARCHAR2(2048),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mk_knowledge_customization (
+    customization_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    platform_identity_id NUMBER(19) NOT NULL,
+    platform_version_id NUMBER(19) NOT NULL,
+    platform_version_no VARCHAR2(64) NOT NULL,
+    local_identity_id NUMBER(19) NOT NULL,
+    local_version_id NUMBER(19) NOT NULL,
+    target_org_unit_id VARCHAR2(64) NOT NULL,
+    target_org_path VARCHAR2(256) NOT NULL,
+    applicable_scope VARCHAR2(256) NOT NULL,
+    source_type VARCHAR2(32) NOT NULL,
+    status VARCHAR2(32) NOT NULL,
+    reason VARCHAR2(1024) NOT NULL,
+    override_id VARCHAR2(64),
+    version NUMBER(19) DEFAULT 1 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_knowledge_diff (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    run_code VARCHAR2(64) NOT NULL,
+    target_identity_id NUMBER(19),
+    current_version_id NUMBER(19),
+    asset_identity VARCHAR2(160) NOT NULL,
+    current_content_hash VARCHAR2(64),
+    candidate_content_hash VARCHAR2(64) NOT NULL,
+    diff_type VARCHAR2(24) NOT NULL,
+    basis CLOB NOT NULL,
+    source_ref VARCHAR2(512) NOT NULL,
+    detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64),
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_knowledge_discovery_run (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    run_code VARCHAR2(64) NOT NULL,
+    query_text VARCHAR2(512) NOT NULL,
+    capability_code VARCHAR2(64) NOT NULL,
+    executed_at TIMESTAMP NOT NULL,
+    source_snapshot VARCHAR2(4000) NOT NULL,
+    hit_count NUMBER(10) DEFAULT 0 NOT NULL,
+    candidate_count NUMBER(10) DEFAULT 0 NOT NULL,
+    result_hash VARCHAR2(64) NOT NULL,
+    status VARCHAR2(16) NOT NULL,
+    degraded NUMBER(1) DEFAULT 0 NOT NULL,
+    created_by VARCHAR2(64),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE mk_knowledge_expiry_task (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    task_key VARCHAR2(240) NOT NULL,
+    diff_id NUMBER(19),
+    identity_id NUMBER(19) NOT NULL,
+    version_id NUMBER(19) NOT NULL,
+    task_type VARCHAR2(32) NOT NULL,
+    status VARCHAR2(24) NOT NULL,
+    risk_level VARCHAR2(16) NOT NULL,
+    reason CLOB NOT NULL,
+    review_due_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64),
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_knowledge_generation_triage (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    job_code VARCHAR2(64) NOT NULL,
+    content_hash VARCHAR2(64) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    target_identity_id NUMBER(19),
+    active_version_id NUMBER(19),
+    matched_version_id NUMBER(19),
+    triage_state VARCHAR2(32) NOT NULL,
+    action VARCHAR2(32) NOT NULL,
+    basis VARCHAR2(512) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64)
+);
+
+CREATE TABLE mk_knowledge_initialization_batch (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    batch_code VARCHAR2(64) NOT NULL,
+    release_type VARCHAR2(32) NOT NULL,
+    release_version VARCHAR2(32) NOT NULL,
+    foundation_release_version VARCHAR2(32),
+    phase_code VARCHAR2(8) NOT NULL,
+    status VARCHAR2(16) NOT NULL,
+    source_manifest_hash VARCHAR2(64) NOT NULL,
+    candidate_manifest_hash VARCHAR2(64) NOT NULL,
+    overall_hash VARCHAR2(64) NOT NULL,
+    source_count NUMBER(10) NOT NULL,
+    candidate_count NUMBER(10) NOT NULL,
+    low_count NUMBER(10) NOT NULL,
+    medium_count NUMBER(10) NOT NULL,
+    high_count NUMBER(10) NOT NULL,
+    coverage_json CLOB NOT NULL,
+    template_version VARCHAR2(64) NOT NULL,
+    model_version VARCHAR2(128),
+    summary VARCHAR2(1000) NOT NULL,
+    idempotency_key VARCHAR2(128) NOT NULL,
+    last_bulk_idempotency_key VARCHAR2(128),
+    last_bulk_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL
+);
+
+CREATE TABLE mk_knowledge_initialization_item (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    batch_id NUMBER(19) NOT NULL,
+    sequence_no NUMBER(10) NOT NULL,
+    catalog_code VARCHAR2(16) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    canonical_id VARCHAR2(256) NOT NULL,
+    namespace VARCHAR2(256) NOT NULL,
+    asset_version VARCHAR2(32) NOT NULL,
+    source_version_id NUMBER(19) NOT NULL,
+    source_hash VARCHAR2(64) NOT NULL,
+    candidate_ref VARCHAR2(128) NOT NULL,
+    candidate_classification_id NUMBER(19) NOT NULL,
+    candidate_content_hash VARCHAR2(64) NOT NULL,
+    risk_level VARCHAR2(16) NOT NULL,
+    generated_by_model_flag CHAR(1) NOT NULL,
+    dependencies_json CLOB NOT NULL,
+    governance_json CLOB NOT NULL,
+    change_type VARCHAR2(32) NOT NULL,
+    replacement_canonical_id VARCHAR2(256),
+    effective_to TIMESTAMP,
+    status VARCHAR2(24) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL
+);
+
+CREATE TABLE mk_knowledge_invalidation (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    identity_id NUMBER(19) NOT NULL,
+    version_id NUMBER(19) NOT NULL,
+    invalidation_type VARCHAR2(32) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'OPEN' NOT NULL,
+    risk_level VARCHAR2(16) NOT NULL,
+    reason CLOB NOT NULL,
+    organization_scope VARCHAR2(256) NOT NULL,
+    applicable_scope VARCHAR2(256) NOT NULL,
+    authorized_by VARCHAR2(64) NOT NULL,
+    invalidated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    expedited_review_required NUMBER(1) DEFAULT 1 NOT NULL,
+    trace_id VARCHAR2(128),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mk_knowledge_material_object (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    scope_key VARCHAR2(128) NOT NULL,
+    file_uri VARCHAR2(1024) NOT NULL,
+    sha256 VARCHAR2(64) NOT NULL,
+    content_type VARCHAR2(128) NOT NULL,
+    byte_size NUMBER(19) NOT NULL,
+    storage_backend VARCHAR2(32) NOT NULL,
+    source_channel VARCHAR2(64) NOT NULL,
+    stored_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    stored_by VARCHAR2(64)
+);
+
+CREATE TABLE mk_knowledge_production_candidate (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    job_code VARCHAR2(64) NOT NULL,
+    asset_identity VARCHAR2(256) NOT NULL,
+    content_hash VARCHAR2(64) NOT NULL,
+    candidate_ref VARCHAR2(256) NOT NULL,
+    risk_level VARCHAR2(16) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64),
+    explain_json CLOB
+);
+
+CREATE TABLE mk_knowledge_production_job (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    job_code VARCHAR2(64) NOT NULL,
+    source_scope VARCHAR2(1024) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    producer VARCHAR2(16) NOT NULL,
+    target_pipeline VARCHAR2(16) NOT NULL,
+    domain VARCHAR2(24) NOT NULL,
+    model_strategy VARCHAR2(256),
+    status VARCHAR2(16) DEFAULT 'PENDING' NOT NULL,
+    candidate_count NUMBER(10) DEFAULT 0 NOT NULL,
+    lineage VARCHAR2(2048),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64),
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_knowledge_review_assignment (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512),
+    candidate_classification_id NUMBER(19) NOT NULL,
+    identity_id NUMBER(19) NOT NULL,
+    candidate_version_id NUMBER(19) NOT NULL,
+    assigned_to VARCHAR2(64) NOT NULL,
+    review_status VARCHAR2(32) NOT NULL,
+    decision VARCHAR2(16),
+    reason VARCHAR2(1024),
+    decided_by VARCHAR2(64),
+    decided_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    feedback_type VARCHAR2(48),
+    followup_action VARCHAR2(64)
+);
+
+CREATE TABLE mk_knowledge_shadow_run (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    job_code VARCHAR2(64) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    target_identity_id NUMBER(19),
+    content_hash VARCHAR2(64) NOT NULL,
+    capability_code VARCHAR2(96) NOT NULL,
+    status VARCHAR2(24) NOT NULL,
+    total_cases NUMBER(10) DEFAULT 0 NOT NULL,
+    hit_count NUMBER(10) DEFAULT 0 NOT NULL,
+    false_positive_count NUMBER(10) DEFAULT 0 NOT NULL,
+    miss_count NUMBER(10) DEFAULT 0 NOT NULL,
+    degradation_detected NUMBER(1) DEFAULT 0 NOT NULL,
+    ready_for_review NUMBER(1) DEFAULT 0 NOT NULL,
+    basis VARCHAR2(512) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64)
+);
+
+CREATE TABLE mk_llm_egress_confirmation (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    capability_code VARCHAR2(64) NOT NULL,
+    payload_hash VARCHAR2(64) NOT NULL,
+    purpose VARCHAR2(512) NOT NULL,
+    confirmed_by VARCHAR2(64) NOT NULL,
+    confirmed_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mk_llm_egress_evidence (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    capability_code VARCHAR2(64) NOT NULL,
+    task_id VARCHAR2(64) NOT NULL,
+    egress_fields VARCHAR2(1024) NOT NULL,
+    desensitized_hash VARCHAR2(64) NOT NULL,
+    confirmation_id NUMBER(19),
+    provider_code VARCHAR2(64),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mk_llm_egress_whitelist (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    capability_code VARCHAR2(64) NOT NULL,
+    allowed_fields VARCHAR2(1024) NOT NULL,
+    sensitivity_level VARCHAR2(16) DEFAULT 'LOW' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    desensitization_rules VARCHAR2(2048) DEFAULT '{}' NOT NULL,
+    confirmation_threshold_level VARCHAR2(16) DEFAULT 'HIGH' NOT NULL,
+    guardrail_locked_flag CHAR(1) DEFAULT 'Y' NOT NULL
+);
+
+CREATE TABLE mk_llm_enhancement_matrix (
+    id NUMBER(19) IDENTITY NOT NULL,
+    business_point VARCHAR2(64) NOT NULL,
+    business_name VARCHAR2(128) NOT NULL,
+    capability_code VARCHAR2(64),
+    b0_path VARCHAR2(512),
+    access_status VARCHAR2(24) DEFAULT 'PENDING' NOT NULL,
+    enabled_flag CHAR(1) DEFAULT 'Y' NOT NULL,
+    sort_order NUMBER(10) DEFAULT 100 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mk_llm_eval_case_evidence (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    run_id NUMBER(19) NOT NULL,
+    regression_case_id NUMBER(19) NOT NULL,
+    case_version VARCHAR2(64) NOT NULL,
+    case_input CLOB NOT NULL,
+    expected_phrase VARCHAR2(2000) NOT NULL,
+    red_line_type VARCHAR2(64),
+    source_reference VARCHAR2(512) NOT NULL,
+    output_content CLOB NOT NULL,
+    source_citations CLOB,
+    expected_phrase_hit CHAR(1) NOT NULL,
+    citation_required CHAR(1) NOT NULL,
+    citation_verified CHAR(1) NOT NULL,
+    red_line_case CHAR(1) NOT NULL,
+    red_line_breach CHAR(1) NOT NULL,
+    passed_flag CHAR(1) NOT NULL,
+    failure_reasons_json VARCHAR2(1000) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mk_llm_eval_run (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    provider_code VARCHAR2(64) NOT NULL,
+    model_version VARCHAR2(64) NOT NULL,
+    capability_code VARCHAR2(64),
+    prompt_version VARCHAR2(128),
+    tool_version VARCHAR2(128),
+    total_cases NUMBER(10) DEFAULT 0 NOT NULL,
+    passed_cases NUMBER(10) DEFAULT 0 NOT NULL,
+    failed_cases NUMBER(10) DEFAULT 0 NOT NULL,
+    quality_score NUMERIC(5,2),
+    terminology_score NUMERIC(5,2),
+    fake_citation_detected CHAR(1) DEFAULT 'N' NOT NULL,
+    red_line_breach CHAR(1) DEFAULT 'N' NOT NULL,
+    hallucination_detected CHAR(1) DEFAULT 'N' NOT NULL,
+    status VARCHAR2(24) NOT NULL,
+    case_summary_json VARCHAR2(4000) DEFAULT '[]' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    release_fingerprint VARCHAR2(128)
+);
+
+CREATE TABLE mk_llm_model_version_bundle (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    capability_code VARCHAR2(96) NOT NULL,
+    prompt_version VARCHAR2(128) NOT NULL,
+    prompt_hash VARCHAR2(64) NOT NULL,
+    tool_version VARCHAR2(128) NOT NULL,
+    tool_hash VARCHAR2(64) NOT NULL,
+    model_version VARCHAR2(128) NOT NULL,
+    model_hash VARCHAR2(64) NOT NULL,
+    status VARCHAR2(24) NOT NULL,
+    effective_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    retired_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64),
+    active_scope_key VARCHAR2(192)
+);
+
+CREATE TABLE mk_llm_provider (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    provider_code VARCHAR2(64) NOT NULL,
+    provider_type VARCHAR2(32) NOT NULL,
+    endpoint_uri VARCHAR2(512) NOT NULL,
+    model_version VARCHAR2(64),
+    enabled_flag CHAR(1) DEFAULT 'Y' NOT NULL,
+    status VARCHAR2(32) DEFAULT 'NOT_CONNECTED' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    lock_version NUMBER(19) DEFAULT 0 NOT NULL
+);
+
+CREATE TABLE mk_llm_provider_credential (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    provider_code VARCHAR2(64) NOT NULL,
+    credential_ciphertext VARCHAR2(4096) NOT NULL,
+    credential_fingerprint VARCHAR2(64) NOT NULL,
+    credential_last4 VARCHAR2(8) NOT NULL,
+    lock_version NUMBER(19) DEFAULT 0 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_llm_regression_case (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    capability_code VARCHAR2(64) NOT NULL,
+    case_domain VARCHAR2(32) DEFAULT 'general' NOT NULL,
+    case_input VARCHAR2(2000) NOT NULL,
+    expected_phrase VARCHAR2(512) NOT NULL,
+    expected_terms_json VARCHAR2(2000) DEFAULT '[]' NOT NULL,
+    forbidden_assertions_json VARCHAR2(2000) DEFAULT '[]' NOT NULL,
+    min_score NUMBER(10) DEFAULT 100 NOT NULL,
+    red_line_type VARCHAR2(64),
+    source_reference VARCHAR2(512) NOT NULL,
+    citation_required CHAR(1) DEFAULT 'N' NOT NULL,
+    case_version VARCHAR2(32) DEFAULT 'v1' NOT NULL,
+    enabled_flag CHAR(1) DEFAULT 'Y' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mk_mpi_merge_review (
+    review_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    source_mpi_id VARCHAR2(64) NOT NULL,
+    target_mpi_id VARCHAR2(64) NOT NULL,
+    risk_level VARCHAR2(16) NOT NULL,
+    status VARCHAR2(32) NOT NULL,
+    risk_reason VARCHAR2(512) NOT NULL,
+    requested_by VARCHAR2(64) NOT NULL,
+    requested_at TIMESTAMP NOT NULL,
+    reviewed_by VARCHAR2(64),
+    reviewed_at TIMESTAMP,
+    review_reason VARCHAR2(512),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_obs_payload_store (
+    id NUMBER(19) IDENTITY NOT NULL,
+    payload_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512),
+    entity_type VARCHAR2(64) NOT NULL,
+    entity_id VARCHAR2(128) NOT NULL,
+    trace_id VARCHAR2(128),
+    storage_type VARCHAR2(16) DEFAULT 'INLINE' NOT NULL,
+    content_type VARCHAR2(128) DEFAULT 'application/octet-stream' NOT NULL,
+    digest VARCHAR2(128) NOT NULL,
+    size_bytes NUMBER(19) NOT NULL,
+    payload_base64 CLOB,
+    payload_uri VARCHAR2(512),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64),
+    deleted_at TIMESTAMP,
+    deleted_by VARCHAR2(64)
+);
+
+CREATE TABLE mk_obs_state_transition (
+    id NUMBER(19) IDENTITY NOT NULL,
+    entity_type VARCHAR2(64) NOT NULL,
+    entity_id VARCHAR2(128) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512),
+    from_status VARCHAR2(64),
+    to_status VARCHAR2(64) NOT NULL,
+    reason VARCHAR2(128) NOT NULL,
+    actor VARCHAR2(64),
+    trace_id VARCHAR2(128),
+    error_code VARCHAR2(64),
+    error_class VARCHAR2(32),
+    error_message VARCHAR2(512),
+    retry_count NUMBER(10),
+    next_retry_at TIMESTAMP,
+    occurred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64)
+);
+
+CREATE TABLE mk_org_secondary_membership (
+    tenant_id VARCHAR2(64) NOT NULL,
+    child_id VARCHAR2(26) NOT NULL,
+    secondary_parent_id VARCHAR2(26) NOT NULL,
+    relation_code VARCHAR2(64) DEFAULT 'MATRIX' NOT NULL,
+    priority NUMBER(10) DEFAULT 100 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mk_plugin_grant (
+    id NUMBER(19) IDENTITY NOT NULL,
+    grant_id VARCHAR2(64) NOT NULL,
+    plugin_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    capability_key VARCHAR2(128) NOT NULL,
+    capability_type VARCHAR2(32) NOT NULL,
+    service_contract_id VARCHAR2(128) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'AUTHORIZED' NOT NULL,
+    authorization_reason VARCHAR2(500),
+    clinical_safety_confirmed CHAR(1) DEFAULT 'N' NOT NULL,
+    version NUMBER(19) DEFAULT 1 NOT NULL,
+    granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    granted_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_plugin_registry (
+    id NUMBER(19) IDENTITY NOT NULL,
+    plugin_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    plugin_code VARCHAR2(128) NOT NULL,
+    display_name VARCHAR2(128) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'PENDING_REVIEW' NOT NULL,
+    authority_boundary VARCHAR2(32) DEFAULT 'READ_ONLY' NOT NULL,
+    capabilities_json CLOB NOT NULL,
+    version NUMBER(19) DEFAULT 1 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_projection_snapshot (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    target_type VARCHAR2(32) NOT NULL,
+    fact_key VARCHAR2(256) NOT NULL,
+    fact_kind VARCHAR2(16) NOT NULL,
+    object_type VARCHAR2(64) NOT NULL,
+    object_id VARCHAR2(128) NOT NULL,
+    subject_key VARCHAR2(256),
+    predicate_name VARCHAR2(64),
+    object_key VARCHAR2(256),
+    content_hash VARCHAR2(64) NOT NULL,
+    canonical_payload CLOB NOT NULL,
+    source_updated_at TIMESTAMP,
+    synced_at TIMESTAMP NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_projection_sync (
+    id NUMBER(19) IDENTITY NOT NULL,
+    sync_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    target_type VARCHAR2(32) NOT NULL,
+    status VARCHAR2(32) NOT NULL,
+    source_count NUMBER(10) DEFAULT 0 NOT NULL,
+    projection_count NUMBER(10) DEFAULT 0 NOT NULL,
+    source_hash VARCHAR2(64),
+    projection_hash VARCHAR2(64),
+    message CLOB,
+    started_at TIMESTAMP NOT NULL,
+    finished_at TIMESTAMP,
+    requested_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_quality_case_review (
+    id NUMBER(19) IDENTITY NOT NULL,
+    review_id VARCHAR2(128) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    context_snapshot_id VARCHAR2(64) NOT NULL,
+    patient_id VARCHAR2(64) NOT NULL,
+    encounter_id VARCHAR2(64),
+    department_id VARCHAR2(64) NOT NULL,
+    scenario_code VARCHAR2(64) NOT NULL,
+    runtime_release_id VARCHAR2(64) NOT NULL,
+    review_status VARCHAR2(32) NOT NULL,
+    evaluation_run_id VARCHAR2(64) NOT NULL,
+    result_count NUMBER(10) DEFAULT 0 NOT NULL,
+    finding_count NUMBER(10) DEFAULT 0 NOT NULL,
+    task_count NUMBER(10) DEFAULT 0 NOT NULL,
+    model_status VARCHAR2(32) NOT NULL,
+    model_downgrade_reason VARCHAR2(128),
+    evidence_summary CLOB NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_quality_dashboard_alert (
+    id NUMBER(19) IDENTITY NOT NULL,
+    alert_id VARCHAR2(256) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    department_id VARCHAR2(64),
+    alert_type VARCHAR2(64) NOT NULL,
+    source_type VARCHAR2(64) NOT NULL,
+    source_id VARCHAR2(128) NOT NULL,
+    severity VARCHAR2(32) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'OPEN' NOT NULL,
+    threshold_code VARCHAR2(64) NOT NULL,
+    threshold_value NUMERIC(18,4) NOT NULL,
+    actual_value NUMERIC(18,4) NOT NULL,
+    title VARCHAR2(256) NOT NULL,
+    evidence_summary CLOB NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_quality_drg_grouping (
+    id NUMBER(19) IDENTITY NOT NULL,
+    grouping_id VARCHAR2(128) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    context_snapshot_id VARCHAR2(64) NOT NULL,
+    patient_id VARCHAR2(64) NOT NULL,
+    encounter_id VARCHAR2(64),
+    department_id VARCHAR2(64) NOT NULL,
+    grouper_version VARCHAR2(64) NOT NULL,
+    expected_group_code VARCHAR2(64) NOT NULL,
+    actual_group_code VARCHAR2(64) NOT NULL,
+    grouping_status VARCHAR2(32) NOT NULL,
+    explanation CLOB NOT NULL,
+    evidence_summary CLOB NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_quality_insurance_issue (
+    id NUMBER(19) IDENTITY NOT NULL,
+    issue_id VARCHAR2(128) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    context_snapshot_id VARCHAR2(64) NOT NULL,
+    claim_id VARCHAR2(64) NOT NULL,
+    patient_id VARCHAR2(64) NOT NULL,
+    encounter_id VARCHAR2(64),
+    department_id VARCHAR2(64),
+    issue_type VARCHAR2(32) NOT NULL,
+    severity VARCHAR2(32) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'OPEN' NOT NULL,
+    rule_code VARCHAR2(128) NOT NULL,
+    rule_version VARCHAR2(64) NOT NULL,
+    claim_amount NUMERIC(18,2),
+    threshold_amount NUMERIC(18,2),
+    evidence_summary CLOB NOT NULL,
+    evaluation_run_id VARCHAR2(64),
+    finding_id VARCHAR2(64),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_sandbox_replay_asset_binding (
+    id NUMBER(19) IDENTITY NOT NULL,
+    binding_id VARCHAR2(64) NOT NULL,
+    sandbox_tenant_id VARCHAR2(64) NOT NULL,
+    replay_case_id VARCHAR2(64) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    asset_identity VARCHAR2(128) NOT NULL,
+    version_id VARCHAR2(128) NOT NULL,
+    asset_version VARCHAR2(64) NOT NULL,
+    source_tier VARCHAR2(16) NOT NULL,
+    source_org_ref VARCHAR2(71) NOT NULL,
+    content_json CLOB NOT NULL,
+    content_hash VARCHAR2(64) NOT NULL,
+    historical_status VARCHAR2(16) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128) NOT NULL
+);
+
+CREATE TABLE mk_sandbox_replay_case (
+    id NUMBER(19) IDENTITY NOT NULL,
+    replay_case_id VARCHAR2(64) NOT NULL,
+    sandbox_tenant_id VARCHAR2(64) NOT NULL,
+    source_tenant_ref VARCHAR2(71) NOT NULL,
+    source_event_ref VARCHAR2(71) NOT NULL,
+    source_trace_ref VARCHAR2(71) NOT NULL,
+    source_context_ref VARCHAR2(71) NOT NULL,
+    context_snapshot_json CLOB NOT NULL,
+    context_snapshot_hash VARCHAR2(64) NOT NULL,
+    source_runtime_release_ref VARCHAR2(71) NOT NULL,
+    source_runtime_revision_no NUMBER(19) NOT NULL,
+    occurred_at TIMESTAMP NOT NULL,
+    manifest_hash VARCHAR2(64) NOT NULL,
+    deidentification_profile VARCHAR2(64) NOT NULL,
+    status VARCHAR2(16) NOT NULL,
+    imported_at TIMESTAMP NOT NULL,
+    imported_by VARCHAR2(64) NOT NULL,
+    revoked_at TIMESTAMP,
+    revoked_by VARCHAR2(64),
+    revoke_reason VARCHAR2(512),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    trace_id VARCHAR2(128) NOT NULL
+);
+
+CREATE TABLE mk_sandbox_run (
+    id NUMBER(19) IDENTITY NOT NULL,
+    run_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    scenario_id VARCHAR2(128) NOT NULL,
+    run_mode VARCHAR2(32) NOT NULL,
+    baseline_id VARCHAR2(64),
+    runtime_release_ref VARCHAR2(71),
+    runtime_revision_no NUMBER(19),
+    platform_baseline_release_id VARCHAR2(64),
+    manifest_sha256 VARCHAR2(64),
+    resolution_source VARCHAR2(32),
+    asset_manifest_json CLOB,
+    baseline_hash VARCHAR2(64),
+    external_side_effect_status VARCHAR2(24) NOT NULL,
+    status VARCHAR2(24) NOT NULL,
+    failure_code VARCHAR2(64),
+    failure_message VARCHAR2(1024),
+    started_at TIMESTAMP NOT NULL,
+    completed_at TIMESTAMP,
+    trace_id VARCHAR2(128) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    replay_case_id VARCHAR2(64)
+);
+
+CREATE TABLE mk_security_bootstrap_init_token (
+    id NUMBER(19) IDENTITY NOT NULL,
+    token_id VARCHAR2(80) NOT NULL,
+    token_hash CHAR(64) NOT NULL,
+    status VARCHAR2(16) DEFAULT 'ACTIVE' NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP,
+    used_by VARCHAR2(64),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_term_candidate_generation_job (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    job_code VARCHAR2(64) NOT NULL,
+    source_system VARCHAR2(64) NOT NULL,
+    minimum_score BINARY_DOUBLE,
+    semantic_assist_enabled NUMBER(1) DEFAULT 1 NOT NULL,
+    requested_by VARCHAR2(64) NOT NULL,
+    status VARCHAR2(16) DEFAULT 'PENDING' NOT NULL,
+    progress NUMBER(10) DEFAULT 0 NOT NULL,
+    generated_count NUMBER(10) DEFAULT 0 NOT NULL,
+    candidate_page_uri VARCHAR2(512),
+    error_message VARCHAR2(1024),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP
+);
+
+CREATE TABLE mk_term_high_risk_rule (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    rule_code VARCHAR2(64) NOT NULL,
+    rule_type VARCHAR2(32) NOT NULL,
+    category VARCHAR2(32),
+    left_terms VARCHAR2(1024),
+    right_terms VARCHAR2(1024),
+    unit_terms VARCHAR2(512),
+    scale_ratio BINARY_DOUBLE,
+    evidence_text VARCHAR2(1024) NOT NULL,
+    status VARCHAR2(16) DEFAULT 'ACTIVE' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mk_term_mapping_snapshot (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    version_id VARCHAR2(64) NOT NULL,
+    mapping_id NUMBER(19) NOT NULL,
+    local_term_id NUMBER(19) NOT NULL,
+    standard_term_id NUMBER(19) NOT NULL,
+    source_system VARCHAR2(64) NOT NULL,
+    local_code VARCHAR2(128) NOT NULL,
+    target_dictionary_key VARCHAR2(128) NOT NULL,
+    standard_code VARCHAR2(128) NOT NULL,
+    category VARCHAR2(32),
+    mapping_snapshot VARCHAR2(4000) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE mk_version_activation_transaction (
+    id NUMBER(19) IDENTITY NOT NULL,
+    transaction_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    asset_identity VARCHAR2(128) NOT NULL,
+    from_version_id VARCHAR2(64),
+    to_version_id VARCHAR2(64) NOT NULL,
+    action VARCHAR2(32) NOT NULL,
+    active_scope_key VARCHAR2(512) NOT NULL,
+    impact_digest VARCHAR2(1024),
+    evidence_summary VARCHAR2(2048) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_version_asset_dependency (
+    id NUMBER(19) IDENTITY NOT NULL,
+    dependency_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    asset_identity VARCHAR2(128) NOT NULL,
+    version_id VARCHAR2(64) NOT NULL,
+    depends_on_asset_type VARCHAR2(32) NOT NULL,
+    depends_on_identity VARCHAR2(128) NOT NULL,
+    min_version_no VARCHAR2(64),
+    max_version_no VARCHAR2(64),
+    dependency_kind VARCHAR2(32) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_version_asset_content (
+    id NUMBER(19) IDENTITY NOT NULL,
+    version_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    content_json CLOB NOT NULL,
+    content_hash VARCHAR2(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_version_asset_version (
+    id NUMBER(19) IDENTITY NOT NULL,
+    version_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    asset_identity VARCHAR2(128) NOT NULL,
+    version_no VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(256) NOT NULL,
+    applicable_scope VARCHAR2(256) NOT NULL,
+    content_hash VARCHAR2(64) NOT NULL,
+    status VARCHAR2(32) NOT NULL,
+    active_scope_key VARCHAR2(512) NOT NULL,
+    source_ref VARCHAR2(512),
+    effective_from TIMESTAMP,
+    effective_to TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128),
+    safety_policy VARCHAR2(32) DEFAULT 'NORMAL' NOT NULL,
+    override_policy VARCHAR2(32) DEFAULT 'FREE' NOT NULL
+);
+
+CREATE TABLE mk_version_inheritance_override (
+    id NUMBER(19) IDENTITY NOT NULL,
+    override_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    asset_identity VARCHAR2(128) NOT NULL,
+    inherited_version_id VARCHAR2(64),
+    override_version_id VARCHAR2(64),
+    override_mode VARCHAR2(32) NOT NULL,
+    org_path VARCHAR2(256) NOT NULL,
+    applicable_scope VARCHAR2(256) NOT NULL,
+    diff_summary VARCHAR2(1024) NOT NULL,
+    override_reason VARCHAR2(1024) NOT NULL,
+    impact_scope VARCHAR2(1024) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128),
+    propagation VARCHAR2(32) DEFAULT 'INHERITABLE' NOT NULL,
+    lifecycle_status VARCHAR2(32) DEFAULT 'ACTIVE' NOT NULL
+);
+
+CREATE TABLE mk_version_override_operation (
+    id NUMBER(19) IDENTITY NOT NULL,
+    operation_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    operation_type VARCHAR2(16) NOT NULL,
+    template_id VARCHAR2(64),
+    source_org_unit_id VARCHAR2(64),
+    target_org_units_json CLOB NOT NULL,
+    status VARCHAR2(16) NOT NULL,
+    preview_digest VARCHAR2(64) NOT NULL,
+    result_summary_json CLOB NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(128) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_version_override_template (
+    id NUMBER(19) IDENTITY NOT NULL,
+    template_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    template_name VARCHAR2(200) NOT NULL,
+    description VARCHAR2(1000),
+    applicable_scope VARCHAR2(1000) NOT NULL,
+    status VARCHAR2(16) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(128) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(128) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_version_override_template_item (
+    id NUMBER(19) IDENTITY NOT NULL,
+    item_id VARCHAR2(64) NOT NULL,
+    template_id VARCHAR2(64) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    asset_identity VARCHAR2(200) NOT NULL,
+    inherited_version_id VARCHAR2(64),
+    source_override_version_id VARCHAR2(64),
+    override_mode VARCHAR2(16) NOT NULL,
+    propagation VARCHAR2(16) NOT NULL,
+    applicable_scope VARCHAR2(1000) NOT NULL,
+    diff_summary VARCHAR2(2000) NOT NULL,
+    override_reason VARCHAR2(1000) NOT NULL
+);
+
+CREATE TABLE mk_version_release_plan (
+    id NUMBER(19) IDENTITY NOT NULL,
+    plan_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    asset_identity VARCHAR2(128) NOT NULL,
+    version_id VARCHAR2(64) NOT NULL,
+    from_version_id VARCHAR2(64),
+    target_org_path VARCHAR2(256) NOT NULL,
+    applicable_scope VARCHAR2(256) NOT NULL,
+    scope_type VARCHAR2(32) NOT NULL,
+    scope_value VARCHAR2(1024),
+    status VARCHAR2(32) NOT NULL,
+    impact_digest VARCHAR2(1024) NOT NULL,
+    review_conclusion VARCHAR2(1024),
+    evidence_summary VARCHAR2(2048) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128),
+    quality_gate_summary VARCHAR2(2048),
+    rollout_strategy VARCHAR2(32) DEFAULT 'ALL' NOT NULL,
+    rollout_config_json CLOB,
+    rollout_stage_index NUMBER(10) DEFAULT 0 NOT NULL,
+    rollout_paused_reason VARCHAR2(1000)
+);
+
+CREATE TABLE mk_version_replay_binding (
+    id NUMBER(19) IDENTITY NOT NULL,
+    binding_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    asset_identity VARCHAR2(128) NOT NULL,
+    version_id VARCHAR2(64) NOT NULL,
+    patient_snapshot_id VARCHAR2(128) NOT NULL,
+    runtime_event_id VARCHAR2(128) NOT NULL,
+    result_hash VARCHAR2(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE mk_version_rollout_observation (
+    id NUMBER(19) IDENTITY NOT NULL,
+    observation_id VARCHAR2(64) NOT NULL,
+    plan_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    stage_index NUMBER(10) NOT NULL,
+    sample_count NUMBER(19) NOT NULL,
+    hit_count NUMBER(19) NOT NULL,
+    block_count NUMBER(19) NOT NULL,
+    manual_rejection_count NUMBER(19) NOT NULL,
+    anomaly_count NUMBER(19) NOT NULL,
+    hit_rate NUMERIC(9,6) NOT NULL,
+    block_rate NUMERIC(9,6) NOT NULL,
+    manual_rejection_rate NUMERIC(9,6) NOT NULL,
+    anomaly_rate NUMERIC(9,6) NOT NULL,
+    observed_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(128) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE model_capability_definition (
+    capability_code VARCHAR2(64) NOT NULL,
+    display_name VARCHAR2(120) NOT NULL,
+    description VARCHAR2(500) NOT NULL,
+    category VARCHAR2(64) NOT NULL,
+    enabled_flag CHAR(1) DEFAULT 'Y' NOT NULL,
+    sort_order NUMBER(10) DEFAULT 0 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE model_capability_policy (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    capability_code VARCHAR2(64) NOT NULL,
+    scope_type VARCHAR2(32) NOT NULL,
+    scope_ref VARCHAR2(128) NOT NULL,
+    route_strategy VARCHAR2(32) DEFAULT 'BASELINE' NOT NULL,
+    desensitize_strategy VARCHAR2(64) DEFAULT 'DEFAULT' NOT NULL,
+    expected_schema CLOB,
+    fallback_order_json CLOB DEFAULT '["BASELINE"]' NOT NULL,
+    timeout_ms NUMBER(10) DEFAULT 60000 NOT NULL,
+    rate_limit_per_minute NUMBER(10),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE model_capability_task (
+    id NUMBER(19) IDENTITY NOT NULL,
+    task_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    capability_code VARCHAR2(64) NOT NULL,
+    input_hash VARCHAR2(64) NOT NULL,
+    input_summary VARCHAR2(512) NOT NULL,
+    output_content CLOB,
+    model_mode VARCHAR2(32) NOT NULL,
+    model_version VARCHAR2(64),
+    prompt_version VARCHAR2(64),
+    source_citations VARCHAR2(1024),
+    confidence BINARY_DOUBLE,
+    risk_level VARCHAR2(32),
+    fallback_used NUMBER(1) DEFAULT 0 NOT NULL,
+    fallback_reason VARCHAR2(255),
+    time_cost_ms NUMBER(19) DEFAULT 0 NOT NULL,
+    status VARCHAR2(32) DEFAULT 'PENDING' NOT NULL,
+    trace_id VARCHAR2(128),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    tool_version VARCHAR2(64)
+);
+
+CREATE TABLE mpi_patient (
+    id NUMBER(19) IDENTITY NOT NULL,
+    mpi_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    masked_name VARCHAR2(128) NOT NULL,
+    gender VARCHAR2(10) NOT NULL,
+    age NUMBER(10) NOT NULL,
+    id_last4 VARCHAR2(10) NOT NULL,
+    merged_count NUMBER(10) DEFAULT 0 NOT NULL,
+    status VARCHAR2(32) DEFAULT 'ACTIVE' NOT NULL,
+    merged_into_mpi_id VARCHAR2(64),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE org_closure (
+    tenant_id VARCHAR2(64) NOT NULL,
+    ancestor_id VARCHAR2(26) NOT NULL,
+    descendant_id VARCHAR2(26) NOT NULL,
+    depth NUMBER(10) NOT NULL
+);
+
+CREATE TABLE org_unit (
+    id VARCHAR2(26) NOT NULL,
+    parent_id VARCHAR2(26),
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(1024) NOT NULL,
+    level_code VARCHAR2(32) NOT NULL,
+    code VARCHAR2(128) NOT NULL,
+    name VARCHAR2(256) NOT NULL,
+    name_pinyin VARCHAR2(256),
+    specialty_id VARCHAR2(64),
+    status VARCHAR2(32) DEFAULT 'ACTIVE' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    facility_type VARCHAR2(32)
+);
+
+CREATE TABLE pathway_edge (
+    id NUMBER(19) IDENTITY NOT NULL,
+    edge_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    template_id VARCHAR2(64) NOT NULL,
+    edge_code VARCHAR2(128) NOT NULL,
+    from_node_code VARCHAR2(128) NOT NULL,
+    to_node_code VARCHAR2(128) NOT NULL,
+    edge_type VARCHAR2(32) DEFAULT 'DEFAULT' NOT NULL,
+    condition_json CLOB,
+    priority NUMBER(10) DEFAULT 0 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE pathway_milestone (
+    id NUMBER(19) IDENTITY NOT NULL,
+    milestone_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    template_id VARCHAR2(64) NOT NULL,
+    phase_code VARCHAR2(128) NOT NULL,
+    phase_name VARCHAR2(256) NOT NULL,
+    milestone_code VARCHAR2(128) NOT NULL,
+    name VARCHAR2(256) NOT NULL,
+    day_offset NUMBER(10),
+    expected_offset_minutes NUMBER(10),
+    achievement_criteria_json CLOB,
+    sort_order NUMBER(10) DEFAULT 0 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE pathway_node (
+    id NUMBER(19) IDENTITY NOT NULL,
+    node_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    template_id VARCHAR2(64) NOT NULL,
+    node_code VARCHAR2(128) NOT NULL,
+    name VARCHAR2(256) NOT NULL,
+    node_type VARCHAR2(32) NOT NULL,
+    milestone_code VARCHAR2(128),
+    sort_order NUMBER(10) DEFAULT 0 NOT NULL,
+    responsible_role VARCHAR2(128),
+    accountable_role VARCHAR2(128),
+    consulted_roles_json CLOB,
+    informed_roles_json CLOB,
+    dependency_json CLOB,
+    time_window_minutes NUMBER(10),
+    terminal_flag NUMBER(1) DEFAULT 0 NOT NULL,
+    disabled_flag NUMBER(1) DEFAULT 0 NOT NULL,
+    config_json CLOB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE pathway_outcome_binding (
+    id NUMBER(19) IDENTITY NOT NULL,
+    binding_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    template_id VARCHAR2(64) NOT NULL,
+    scope VARCHAR2(32) NOT NULL,
+    ref_code VARCHAR2(128) NOT NULL,
+    indicator_code VARCHAR2(128) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE pathway_template (
+    id NUMBER(19) IDENTITY NOT NULL,
+    template_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    template_code VARCHAR2(128) NOT NULL,
+    name VARCHAR2(256) NOT NULL,
+    disease_code VARCHAR2(128) NOT NULL,
+    template_version NUMBER(10) DEFAULT 1 NOT NULL,
+    template_level VARCHAR2(32) DEFAULT 'STANDARD' NOT NULL,
+    status VARCHAR2(32) DEFAULT 'DRAFT' NOT NULL,
+    entry_mode VARCHAR2(32) DEFAULT 'AUTO_SUGGEST' NOT NULL,
+    start_node_code VARCHAR2(128),
+    source_ref VARCHAR2(512) NOT NULL,
+    description VARCHAR2(1024),
+    entry_criteria_json CLOB,
+    exit_criteria_json CLOB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE pathway_variance (
+    id NUMBER(19) IDENTITY NOT NULL,
+    variance_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    patient_pathway_id VARCHAR2(64) NOT NULL,
+    node_code VARCHAR2(128) NOT NULL,
+    variance_type VARCHAR2(32) NOT NULL,
+    reason_code VARCHAR2(128) NOT NULL,
+    reason VARCHAR2(1024) NOT NULL,
+    responsible_role VARCHAR2(128) NOT NULL,
+    resolution_decision VARCHAR2(32) NOT NULL,
+    resolution_action VARCHAR2(512),
+    continue_node_code VARCHAR2(128),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE patient_pathway (
+    id NUMBER(19) IDENTITY NOT NULL,
+    patient_pathway_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    patient_id VARCHAR2(128) NOT NULL,
+    encounter_id VARCHAR2(128),
+    template_id VARCHAR2(64) NOT NULL,
+    runtime_release_id VARCHAR2(64) NOT NULL,
+    pathway_version_id VARCHAR2(64) NOT NULL,
+    current_node_code VARCHAR2(128),
+    status VARCHAR2(32) DEFAULT 'ENTERED' NOT NULL,
+    entered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    completed_at TIMESTAMP,
+    exited_at TIMESTAMP,
+    exit_reason VARCHAR2(512),
+    last_event_id VARCHAR2(64),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE platform_credential (
+    id NUMBER(19) IDENTITY NOT NULL,
+    credential_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    user_id VARCHAR2(128) NOT NULL,
+    username VARCHAR2(128) NOT NULL,
+    password_hash VARCHAR2(255) NOT NULL,
+    status VARCHAR2(16) DEFAULT 'ACTIVE' NOT NULL,
+    must_change_pwd CHAR(1) DEFAULT 'Y' NOT NULL,
+    mfa_secret VARCHAR2(512),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE quality_finding (
+    id NUMBER(19) IDENTITY NOT NULL,
+    finding_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    run_id VARCHAR2(64) NOT NULL,
+    result_id VARCHAR2(64) NOT NULL,
+    indicator_id VARCHAR2(64) NOT NULL,
+    finding_code VARCHAR2(128) NOT NULL,
+    title VARCHAR2(256) NOT NULL,
+    description VARCHAR2(2048) NOT NULL,
+    severity VARCHAR2(16) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'NEW' NOT NULL,
+    evidence_summary VARCHAR2(2048) NOT NULL,
+    responsible_department_id VARCHAR2(64),
+    due_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE recommendation_card (
+    id NUMBER(19) IDENTITY NOT NULL,
+    card_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    trigger_id VARCHAR2(64) NOT NULL,
+    card_code VARCHAR2(128) NOT NULL,
+    card_type VARCHAR2(32) NOT NULL,
+    title VARCHAR2(256) NOT NULL,
+    summary VARCHAR2(1024) NOT NULL,
+    suggested_action VARCHAR2(1024) NOT NULL,
+    risk_level VARCHAR2(32) NOT NULL,
+    interrupt_level VARCHAR2(32) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'PENDING' NOT NULL,
+    requires_physician_confirmation NUMBER(1) DEFAULT 0 NOT NULL,
+    ai_generated NUMBER(1) DEFAULT 0 NOT NULL,
+    source_summary VARCHAR2(1024) NOT NULL,
+    explanation_json CLOB,
+    fatigue_key VARCHAR2(256),
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128),
+    risk_matrix_id VARCHAR2(64),
+    risk_matrix_version VARCHAR2(64),
+    automation_level VARCHAR2(32) DEFAULT 'INFORM_ONLY' NOT NULL,
+    review_requirement VARCHAR2(64) DEFAULT 'OPTIONAL_REVIEW' NOT NULL,
+    silent_run_hours NUMBER(10) DEFAULT 0 NOT NULL,
+    release_gate VARCHAR2(128) DEFAULT 'STANDARD_CHANGE_REVIEW' NOT NULL,
+    auto_execution_allowed NUMBER(1) DEFAULT 0 NOT NULL,
+    samd_classification VARCHAR2(64),
+    regulatory_evidence VARCHAR2(512),
+    risk_matrix_explanation VARCHAR2(1024)
+);
+
+CREATE TABLE recommendation_fatigue_signal (
+    id NUMBER(19) IDENTITY NOT NULL,
+    signal_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    trigger_id VARCHAR2(64),
+    card_id VARCHAR2(64),
+    fatigue_key VARCHAR2(256),
+    patient_id VARCHAR2(128),
+    encounter_id VARCHAR2(128),
+    operator_id VARCHAR2(64),
+    signal_type VARCHAR2(32) NOT NULL,
+    occurrence_count NUMBER(10) DEFAULT 1 NOT NULL,
+    window_started_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE recommendation_feedback (
+    id NUMBER(19) IDENTITY NOT NULL,
+    feedback_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    card_id VARCHAR2(64) NOT NULL,
+    feedback_type VARCHAR2(32) NOT NULL,
+    reason_code VARCHAR2(128),
+    reason_text VARCHAR2(1024),
+    operator_id VARCHAR2(64) NOT NULL,
+    operator_role VARCHAR2(128),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128),
+    idempotency_key VARCHAR2(128)
+);
+
+CREATE TABLE recommendation_source (
+    id NUMBER(19) IDENTITY NOT NULL,
+    source_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    card_id VARCHAR2(64) NOT NULL,
+    source_type VARCHAR2(32) NOT NULL,
+    source_ref_id VARCHAR2(128),
+    source_version VARCHAR2(128),
+    source_title VARCHAR2(256) NOT NULL,
+    citation_locator VARCHAR2(256),
+    source_hash VARCHAR2(128),
+    summary VARCHAR2(1024),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE recommendation_trigger (
+    id NUMBER(19) IDENTITY NOT NULL,
+    trigger_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    trigger_code VARCHAR2(128) NOT NULL,
+    trigger_type VARCHAR2(64) NOT NULL,
+    source_event_id VARCHAR2(64),
+    context_snapshot_id VARCHAR2(64),
+    patient_id VARCHAR2(128),
+    encounter_id VARCHAR2(128),
+    patient_pathway_id VARCHAR2(64),
+    scenario_code VARCHAR2(128) NOT NULL,
+    runtime_release_id VARCHAR2(64) NOT NULL,
+    input_digest VARCHAR2(128) NOT NULL,
+    status VARCHAR2(32) DEFAULT 'RECEIVED' NOT NULL,
+    error_code VARCHAR2(64),
+    occurred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE rectification_review (
+    id NUMBER(19) IDENTITY NOT NULL,
+    review_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    finding_id VARCHAR2(64) NOT NULL,
+    task_id VARCHAR2(64) NOT NULL,
+    decision VARCHAR2(32) NOT NULL,
+    review_comment VARCHAR2(2048),
+    evidence_ref VARCHAR2(512),
+    reviewer_id VARCHAR2(64) NOT NULL,
+    reviewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE rectification_task (
+    id NUMBER(19) IDENTITY NOT NULL,
+    task_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    finding_id VARCHAR2(64) NOT NULL,
+    responsible_department_id VARCHAR2(64) NOT NULL,
+    assignee_user_id VARCHAR2(64),
+    status VARCHAR2(32) DEFAULT 'ASSIGNED' NOT NULL,
+    due_at TIMESTAMP NOT NULL,
+    rectification_summary VARCHAR2(2048),
+    evidence_ref VARCHAR2(512),
+    submitted_at TIMESTAMP,
+    submitted_by VARCHAR2(64),
+    closed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE rule_applicability (
+    id NUMBER(19) IDENTITY NOT NULL,
+    rule_version_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    population_json CLOB NOT NULL,
+    org_scope_json CLOB NOT NULL,
+    settings_json CLOB NOT NULL,
+    effective_from DATE,
+    effective_to DATE,
+    rollout_percent NUMBER(10) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE rule_backtest_run (
+    id NUMBER(19) IDENTITY NOT NULL,
+    backtest_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    rule_id VARCHAR2(64) NOT NULL,
+    version_id VARCHAR2(64) NOT NULL,
+    cohort_ref VARCHAR2(120),
+    sample_count NUMBER(10) NOT NULL,
+    true_positive_count NUMBER(10) NOT NULL,
+    false_positive_count NUMBER(10) NOT NULL,
+    true_negative_count NUMBER(10) NOT NULL,
+    false_negative_count NUMBER(10) NOT NULL,
+    sensitivity BINARY_DOUBLE NOT NULL,
+    specificity BINARY_DOUBLE NOT NULL,
+    accuracy BINARY_DOUBLE NOT NULL,
+    fire_rate BINARY_DOUBLE NOT NULL,
+    false_positive_examples_json CLOB NOT NULL,
+    false_negative_examples_json CLOB NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE rule_definition (
+    id NUMBER(19) IDENTITY NOT NULL,
+    rule_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    rule_code VARCHAR2(128) NOT NULL,
+    name VARCHAR2(256) NOT NULL,
+    rule_type VARCHAR2(32) NOT NULL,
+    authoring_mode VARCHAR2(32) DEFAULT 'DSL' NOT NULL,
+    risk_level VARCHAR2(16) DEFAULT 'MEDIUM' NOT NULL,
+    priority NUMBER(10) DEFAULT 100 NOT NULL,
+    suppressed_by VARCHAR2(128),
+    dedupe_window_seconds NUMBER(10) DEFAULT 0 NOT NULL,
+    status VARCHAR2(32) DEFAULT 'DRAFT' NOT NULL,
+    active_version_id VARCHAR2(64),
+    applicable_org_unit_id VARCHAR2(64),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE rule_drift_snapshot (
+    id NUMBER(19) IDENTITY NOT NULL,
+    drift_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    rule_id VARCHAR2(64) NOT NULL,
+    version_id VARCHAR2(64) NOT NULL,
+    baseline_backtest_id VARCHAR2(64) NOT NULL,
+    window_start TIMESTAMP NOT NULL,
+    window_end TIMESTAMP NOT NULL,
+    sample_count NUMBER(19) NOT NULL,
+    hit_count NUMBER(19) NOT NULL,
+    baseline_fire_rate BINARY_DOUBLE NOT NULL,
+    current_fire_rate BINARY_DOUBLE NOT NULL,
+    drift_delta BINARY_DOUBLE NOT NULL,
+    threshold BINARY_DOUBLE NOT NULL,
+    status VARCHAR2(32) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE rule_execution_log (
+    id NUMBER(19) IDENTITY NOT NULL,
+    execution_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    rule_id VARCHAR2(64) NOT NULL,
+    version_id VARCHAR2(64) NOT NULL,
+    runtime_release_id VARCHAR2(64),
+    trigger_point VARCHAR2(64) NOT NULL,
+    event_id VARCHAR2(64),
+    actor_user_id VARCHAR2(64),
+    patient_id VARCHAR2(64),
+    encounter_id VARCHAR2(64),
+    semantic_key VARCHAR2(256),
+    input_digest VARCHAR2(128) NOT NULL,
+    hit NUMBER(1) NOT NULL,
+    severity VARCHAR2(16),
+    actions_json CLOB,
+    explanation_json CLOB,
+    status VARCHAR2(32) DEFAULT 'SUCCESS' NOT NULL,
+    error_code VARCHAR2(64),
+    error_class VARCHAR2(32),
+    deduplicated_from_execution_id VARCHAR2(64),
+    executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE rule_governance (
+    id NUMBER(19) IDENTITY NOT NULL,
+    governance_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    rule_version_id VARCHAR2(64) NOT NULL,
+    state VARCHAR2(32) NOT NULL,
+    author_id VARCHAR2(64) NOT NULL,
+    last_reason VARCHAR2(500) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128),
+    lock_version NUMBER(19) DEFAULT 0 NOT NULL
+);
+
+CREATE TABLE rule_override_log (
+    id NUMBER(19) IDENTITY NOT NULL,
+    override_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    execution_id VARCHAR2(64) NOT NULL,
+    rule_id VARCHAR2(64) NOT NULL,
+    version_id VARCHAR2(64) NOT NULL,
+    patient_id VARCHAR2(64),
+    encounter_id VARCHAR2(64),
+    action_code VARCHAR2(40) NOT NULL,
+    override_reason VARCHAR2(500) NOT NULL,
+    overridden_by VARCHAR2(64) NOT NULL,
+    overridden_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE rule_shadow_feedback (
+    id NUMBER(19) IDENTITY NOT NULL,
+    feedback_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    execution_id VARCHAR2(64) NOT NULL,
+    rule_id VARCHAR2(64) NOT NULL,
+    version_id VARCHAR2(64) NOT NULL,
+    patient_id VARCHAR2(64),
+    encounter_id VARCHAR2(64),
+    decision VARCHAR2(32) NOT NULL,
+    reason VARCHAR2(500),
+    assessed_by VARCHAR2(64) NOT NULL,
+    assessed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE rule_test_case (
+    id NUMBER(19) IDENTITY NOT NULL,
+    case_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    rule_id VARCHAR2(64) NOT NULL,
+    version_id VARCHAR2(64) NOT NULL,
+    case_type VARCHAR2(32) NOT NULL,
+    context_snapshot_id VARCHAR2(64) NOT NULL,
+    input_payload CLOB NOT NULL,
+    expected_hit NUMBER(1) NOT NULL,
+    expected_severity VARCHAR2(16),
+    expected_action_code VARCHAR2(64),
+    last_hit NUMBER(1),
+    last_status VARCHAR2(32),
+    last_message VARCHAR2(512),
+    last_run_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE rule_version (
+    id NUMBER(19) IDENTITY NOT NULL,
+    version_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    rule_id VARCHAR2(64) NOT NULL,
+    version_no NUMBER(10) NOT NULL,
+    source_ref VARCHAR2(512) NOT NULL,
+    change_summary VARCHAR2(512),
+    dsl_json CLOB NOT NULL,
+    explanation_json CLOB,
+    status VARCHAR2(32) DEFAULT 'DRAFT' NOT NULL,
+    published_at TIMESTAMP,
+    published_by VARCHAR2(64),
+    rollback_version_id VARCHAR2(64),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE source_document (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    source_code VARCHAR2(128) NOT NULL,
+    source_type VARCHAR2(32) NOT NULL,
+    authority_level VARCHAR2(32) NOT NULL,
+    title VARCHAR2(512) NOT NULL,
+    publisher VARCHAR2(256),
+    license VARCHAR2(128),
+    language VARCHAR2(16) DEFAULT 'zh-CN' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    authority_basis VARCHAR2(1024)
+);
+
+CREATE TABLE source_fragment (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    source_version_id NUMBER(19) NOT NULL,
+    anchor_path VARCHAR2(256) NOT NULL,
+    anchor_label VARCHAR2(256),
+    text_excerpt VARCHAR2(2048),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    content_hash VARCHAR2(128)
+);
+
+CREATE TABLE source_version (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    source_document_id NUMBER(19) NOT NULL,
+    version_no VARCHAR2(64) NOT NULL,
+    published_at TIMESTAMP,
+    content_hash VARCHAR2(128) NOT NULL,
+    file_uri VARCHAR2(512),
+    language VARCHAR2(16) DEFAULT 'zh-CN' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE specialty_metric_binding (
+    id NUMBER(19) IDENTITY NOT NULL,
+    binding_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    template_id VARCHAR2(64) NOT NULL,
+    node_code VARCHAR2(128) NOT NULL,
+    metric_code VARCHAR2(128) NOT NULL,
+    required_flag NUMBER(1) DEFAULT 0 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE standard_term (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    standard_system VARCHAR2(64) NOT NULL,
+    term_code VARCHAR2(128) NOT NULL,
+    category VARCHAR2(32) NOT NULL,
+    display_name VARCHAR2(512) NOT NULL,
+    normalized_name VARCHAR2(512),
+    version_no VARCHAR2(64) DEFAULT '1' NOT NULL,
+    status VARCHAR2(32) DEFAULT 'ACTIVE' NOT NULL,
+    source_version_id NUMBER(19),
+    evidence_text VARCHAR2(1024),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE sys_idempotency (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    idempotency_key VARCHAR2(128) NOT NULL,
+    request_method VARCHAR2(16) NOT NULL,
+    request_path VARCHAR2(512) NOT NULL,
+    request_hash VARCHAR2(64) NOT NULL,
+    response_status NUMBER(10),
+    response_content_type VARCHAR2(128),
+    response_body CLOB,
+    result_hash VARCHAR2(64),
+    trace_id VARCHAR2(128),
+    status VARCHAR2(16) DEFAULT 'PROCESSING' NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE sys_login_attempt (
+    id NUMBER(19) IDENTITY NOT NULL,
+    attempt_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    username VARCHAR2(128) NOT NULL,
+    credential_id VARCHAR2(64),
+    failed_count NUMBER(10) DEFAULT 0 NOT NULL,
+    locked_until TIMESTAMP,
+    last_failed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE sys_password_reset_token (
+    id NUMBER(19) IDENTITY NOT NULL,
+    reset_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    user_id VARCHAR2(128) NOT NULL,
+    username VARCHAR2(128) NOT NULL,
+    token_hash VARCHAR2(96) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE sys_task (
+    id NUMBER(19) IDENTITY NOT NULL,
+    task_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512),
+    task_mode VARCHAR2(16) NOT NULL,
+    status VARCHAR2(32) NOT NULL,
+    task_type VARCHAR2(64) NOT NULL,
+    payload_storage_type VARCHAR2(16),
+    payload_uri VARCHAR2(512),
+    payload_digest VARCHAR2(128),
+    payload_size_bytes NUMBER(19),
+    total_count NUMBER(10) DEFAULT 0 NOT NULL,
+    success_count NUMBER(10) DEFAULT 0 NOT NULL,
+    failure_count NUMBER(10) DEFAULT 0 NOT NULL,
+    retryable_count NUMBER(10) DEFAULT 0 NOT NULL,
+    failure_details_json CLOB,
+    message CLOB,
+    error_code VARCHAR2(64),
+    trace_id VARCHAR2(128),
+    started_at TIMESTAMP,
+    finished_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    retry_count NUMBER(10) DEFAULT 0 NOT NULL,
+    max_retries NUMBER(10) DEFAULT 2 NOT NULL,
+    next_attempt_at TIMESTAMP,
+    last_error_code VARCHAR2(64),
+    dead_letter_id VARCHAR2(64),
+    replayed_from_task_id VARCHAR2(64)
+);
+
+CREATE TABLE sys_task_dead_letter (
+    id NUMBER(19) IDENTITY NOT NULL,
+    dead_letter_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    org_path VARCHAR2(512),
+    task_id VARCHAR2(64) NOT NULL,
+    task_mode VARCHAR2(16) NOT NULL,
+    task_type VARCHAR2(64) NOT NULL,
+    payload_storage_type VARCHAR2(16),
+    payload_uri VARCHAR2(512),
+    payload_digest VARCHAR2(128),
+    payload_size_bytes NUMBER(19),
+    total_count NUMBER(10) DEFAULT 0 NOT NULL,
+    retry_count NUMBER(10) DEFAULT 0 NOT NULL,
+    failure_details_json CLOB,
+    error_code VARCHAR2(64),
+    message CLOB,
+    trace_id VARCHAR2(128),
+    created_at TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    replayed_at TIMESTAMP,
+    replayed_by VARCHAR2(64),
+    replay_task_id VARCHAR2(64)
+);
+
+CREATE TABLE tenant_branding (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    hospital_name VARCHAR2(128) NOT NULL,
+    logo_url VARCHAR2(512),
+    theme_color VARCHAR2(32),
+    expert_mode NUMBER(1) DEFAULT 0 NOT NULL,
+    custom_branding_json VARCHAR2(4000),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE tenant_success_plan (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    current_stage VARCHAR2(32) NOT NULL,
+    health_score NUMBER(10) DEFAULT 80 NOT NULL,
+    activated_modules VARCHAR2(512),
+    activated_pathways VARCHAR2(512),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE tenant_user (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    user_id VARCHAR2(128) NOT NULL,
+    display_name VARCHAR2(128) NOT NULL,
+    status VARCHAR2(16) DEFAULT 'ACTIVE' NOT NULL,
+    version NUMBER(19) DEFAULT 1 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE term_mapping (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    local_term_id NUMBER(19) NOT NULL,
+    standard_term_id NUMBER(19) NOT NULL,
+    source_system VARCHAR2(64),
+    category VARCHAR2(32),
+    confidence BINARY_DOUBLE,
+    risk_level VARCHAR2(16) DEFAULT 'MEDIUM' NOT NULL,
+    status VARCHAR2(32) DEFAULT 'DRAFT' NOT NULL,
+    evidence_text VARCHAR2(1024),
+    confirmed_by VARCHAR2(64),
+    confirmed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE user_role_assignment (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    user_id VARCHAR2(128) NOT NULL,
+    role_code VARCHAR2(64) NOT NULL,
+    scope_level VARCHAR2(32) DEFAULT 'TENANT' NOT NULL,
+    scope_code VARCHAR2(128) NOT NULL,
+    active_flag CHAR(1) DEFAULT 'Y' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) DEFAULT 'system' NOT NULL
+);
+
+CREATE TABLE asset_trigger_binding (
+    id NUMBER(19) IDENTITY NOT NULL,
+    trigger_binding_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    asset_identity VARCHAR2(128) NOT NULL,
+    version_id VARCHAR2(64) NOT NULL,
+    trigger_point VARCHAR2(128) NOT NULL,
+    purpose VARCHAR2(40) NOT NULL,
+    required_fields_json CLOB DEFAULT '[]' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE asset_identity (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    asset_identity VARCHAR2(128) NOT NULL,
+    status VARCHAR2(16) DEFAULT 'ACTIVE' NOT NULL,
+    latest_version_sequence NUMBER(19) DEFAULT 0 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE asset_validation_record (
+    id NUMBER(19) IDENTITY NOT NULL,
+    validation_id VARCHAR2(64) NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    version_id VARCHAR2(64) NOT NULL,
+    content_hash VARCHAR2(64) NOT NULL,
+    passed NUMBER(1) NOT NULL,
+    summary VARCHAR2(512) NOT NULL,
+    validated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    validated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE medical_domain (
+    id NUMBER(19) IDENTITY NOT NULL,
+    domain_code VARCHAR2(64) NOT NULL,
+    name VARCHAR2(128) NOT NULL,
+    description VARCHAR2(1024),
+    parent_domain_code VARCHAR2(64),
+    status VARCHAR2(16) DEFAULT 'ACTIVE' NOT NULL,
+    sort_order NUMBER(10) DEFAULT 0 NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE asset_domain_profile (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    asset_identity VARCHAR2(128) NOT NULL,
+    primary_domain_code VARCHAR2(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE asset_related_domain (
+    id NUMBER(19) IDENTITY NOT NULL,
+    tenant_id VARCHAR2(64) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    asset_identity VARCHAR2(128) NOT NULL,
+    domain_code VARCHAR2(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE platform_baseline_release (
+    id NUMBER(19) IDENTITY NOT NULL,
+    baseline_release_id VARCHAR2(64) NOT NULL,
+    revision_no NUMBER(19) NOT NULL,
+    manifest_sha256 VARCHAR2(64) NOT NULL,
+    published_at TIMESTAMP NOT NULL,
+    published_by VARCHAR2(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE platform_baseline_item (
+    id NUMBER(19) IDENTITY NOT NULL,
+    baseline_release_id VARCHAR2(64) NOT NULL,
+    source_tenant_id VARCHAR2(64) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    asset_identity VARCHAR2(128) NOT NULL,
+    entry_state VARCHAR2(16) DEFAULT 'ACTIVE' NOT NULL,
+    version_id VARCHAR2(64),
+    version_no VARCHAR2(64),
+    content_hash VARCHAR2(64),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+CREATE TABLE clinical_runtime_release_item (
+    id NUMBER(19) IDENTITY NOT NULL,
+    release_id VARCHAR2(64) NOT NULL,
+    source_tenant_id VARCHAR2(64) NOT NULL,
+    source_layer VARCHAR2(16) NOT NULL,
+    asset_type VARCHAR2(32) NOT NULL,
+    asset_identity VARCHAR2(128) NOT NULL,
+    entry_state VARCHAR2(16) DEFAULT 'ACTIVE' NOT NULL,
+    version_id VARCHAR2(64),
+    version_no VARCHAR2(64),
+    content_hash VARCHAR2(64),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by VARCHAR2(64) NOT NULL,
+    trace_id VARCHAR2(128)
+);
+
+-- 主键、唯一约束与检查约束
+
+ALTER TABLE audit_chain_head ADD CONSTRAINT pk_audit_chain_head PRIMARY KEY (tenant_id);
+ALTER TABLE audit_event ADD CONSTRAINT pk_audit_event PRIMARY KEY (id);
+ALTER TABLE audit_event ADD CONSTRAINT uk_audit_event_dedupe UNIQUE (tenant_id, dedupe_key);
+ALTER TABLE audit_event ADD CONSTRAINT uk_audit_event_event_id UNIQUE (event_id);
+ALTER TABLE audit_event ADD CONSTRAINT ck_audit_event_outcome CHECK (outcome IN('SUCCESS', 'FAILED'));
+ALTER TABLE audit_event ADD CONSTRAINT ck_audit_event_status CHECK (status IN('RECORDED', 'SIGNED', 'TSA_SIGNED', 'REJECTED'));
+ALTER TABLE canonical_resource ADD CONSTRAINT pk_canonical_resource PRIMARY KEY (id);
+ALTER TABLE canonical_resource ADD CONSTRAINT uk_canonical_resource_id UNIQUE (resource_id);
+ALTER TABLE canonical_resource ADD CONSTRAINT ck_canonical_resource_quality CHECK (quality_status IN('VALID', 'PARTIAL', 'INVALID'));
+ALTER TABLE canonical_resource ADD CONSTRAINT ck_canonical_resource_type CHECK (resource_type IN('PATIENT', 'ALLERGY_INTOLERANCE', 'ENCOUNTER', 'CONDITION', 'NURSING_ASSESSMENT', 'OBSERVATION', 'DIAGNOSTIC_REPORT', 'MEDICATION', 'PROCEDURE', 'DOCUMENT', 'CARE_PLAN', 'FOLLOW_UP', 'CLAIM'));
+ALTER TABLE citation ADD CONSTRAINT pk_citation PRIMARY KEY (id);
+ALTER TABLE citation ADD CONSTRAINT uk_citation_av_fragment UNIQUE (asset_version_id, source_fragment_id, relation);
+ALTER TABLE citation ADD CONSTRAINT ck_citation_anchor_offsets CHECK (((start_offset IS NULL) OR (start_offset >= 0)) AND ((end_offset IS NULL) OR (end_offset >= 0)) AND ((start_offset IS NULL) OR (end_offset IS NULL) OR (end_offset >= start_offset)));
+ALTER TABLE citation ADD CONSTRAINT ck_citation_relation CHECK (relation IN('DERIVED_FROM', 'CITES', 'CONTRADICTS', 'SUPPORTS', 'SUPERSEDES_OF'));
+ALTER TABLE clinical_clock ADD CONSTRAINT pk_clinical_clock PRIMARY KEY (id);
+ALTER TABLE clinical_clock ADD CONSTRAINT uk_clinical_clock_id UNIQUE (clock_id);
+ALTER TABLE clinical_clock ADD CONSTRAINT ck_clinical_clock_escalation CHECK (escalation_level IN('NONE', 'REMINDER', 'REPORT', 'QUALITY_RECORD'));
+ALTER TABLE clinical_clock ADD CONSTRAINT ck_clinical_clock_status CHECK (status IN('RUNNING', 'COMPLETED', 'TIMEOUT', 'MISSING_DATA', 'VARIANCE'));
+ALTER TABLE clinical_runtime_release ADD CONSTRAINT pk_clinical_runtime_release PRIMARY KEY (id);
+ALTER TABLE clinical_runtime_release ADD CONSTRAINT uk_clinical_runtime_release_id UNIQUE (release_id);
+ALTER TABLE clinical_runtime_release ADD CONSTRAINT uk_clinical_runtime_release_revision UNIQUE (tenant_id, hospital_id, revision_no);
+ALTER TABLE clinical_runtime_release ADD CONSTRAINT ck_clinical_runtime_release_revision CHECK (revision_no >= 1);
+ALTER TABLE clinical_runtime_release ADD CONSTRAINT ck_clinical_runtime_release_manifest_hash CHECK (REGEXP_LIKE(manifest_sha256, '^[0-9a-f]{64}$'));
+ALTER TABLE clinical_event ADD CONSTRAINT pk_clinical_event PRIMARY KEY (id);
+ALTER TABLE clinical_event ADD CONSTRAINT uk_clinical_event_id UNIQUE (event_id);
+ALTER TABLE clinical_event ADD CONSTRAINT ck_clinical_event_setting CHECK (clinical_setting IN('INPATIENT', 'OUTPATIENT', 'ED', 'FOLLOWUP'));
+ALTER TABLE clinical_event ADD CONSTRAINT ck_clinical_event_status CHECK (processing_status IN('RECEIVED', 'MAPPED', 'PROCESSED', 'FAILED', 'SUPERSEDED'));
+ALTER TABLE clinical_event ADD CONSTRAINT ck_clinical_event_trigger_point CHECK ((trigger_point IN('PATIENT_VIEW', 'ORDER_SIGN', 'MEDICATION_PRESCRIBE', 'RESULT_REVIEW', 'DISCHARGE_SIGN', 'FOLLOWUP_ALERT')) OR (trigger_point IS NULL));
+ALTER TABLE clinical_event ADD CONSTRAINT ck_clinical_event_type CHECK (event_type IN('DIAGNOSIS', 'ORDER', 'REPORT', 'DISCHARGE', 'FOLLOWUP', 'ADMISSION'));
+ALTER TABLE clinical_event_outbox ADD CONSTRAINT pk_clinical_event_outbox PRIMARY KEY (id);
+ALTER TABLE clinical_event_outbox ADD CONSTRAINT uk_outbox_event_id UNIQUE (event_id);
+ALTER TABLE clinical_event_outbox ADD CONSTRAINT ck_outbox_status CHECK (claim_status IN('PENDING', 'CLAIMED', 'PROCESSED', 'DEAD'));
+ALTER TABLE clinical_event_payload ADD CONSTRAINT pk_clinical_event_payload PRIMARY KEY (id);
+ALTER TABLE clinical_event_payload ADD CONSTRAINT uk_event_payload UNIQUE (event_id);
+ALTER TABLE clinical_event_payload ADD CONSTRAINT ck_storage_type CHECK (storage_type IN('INLINE', 'URI'));
+ALTER TABLE context_idempotency_key ADD CONSTRAINT pk_context_idempotency_key PRIMARY KEY (id);
+ALTER TABLE context_idempotency_key ADD CONSTRAINT uk_context_idempotency_tenant_key UNIQUE (tenant_id, idem_key);
+ALTER TABLE context_snapshot ADD CONSTRAINT pk_context_snapshot PRIMARY KEY (id);
+ALTER TABLE context_snapshot ADD CONSTRAINT uk_context_snapshot_id UNIQUE (snapshot_id);
+ALTER TABLE context_snapshot ADD CONSTRAINT ck_context_snapshot_quality CHECK (quality_status IN('VALID', 'PARTIAL', 'INVALID'));
+ALTER TABLE context_snapshot ADD CONSTRAINT ck_context_snapshot_status CHECK (status IN('DRAFT', 'ACTIVE', 'SUPERSEDED', 'REJECTED'));
+ALTER TABLE embed_launch_token ADD CONSTRAINT pk_embed_launch_token PRIMARY KEY (id);
+ALTER TABLE embed_launch_token ADD CONSTRAINT uk_embed_launch_token UNIQUE (token);
+ALTER TABLE embed_origin_whitelist ADD CONSTRAINT pk_embed_origin_whitelist PRIMARY KEY (id);
+ALTER TABLE embed_origin_whitelist ADD CONSTRAINT uk_embed_origin_tenant UNIQUE (tenant_id, origin);
+ALTER TABLE emergency_permission_grant ADD CONSTRAINT pk_emergency_permission_grant PRIMARY KEY (id);
+ALTER TABLE emergency_permission_grant ADD CONSTRAINT ck_emergency_permission_active CHECK (active_flag IN('Y', 'N'));
+ALTER TABLE emergency_permission_grant ADD CONSTRAINT ck_emergency_permission_code CHECK (permission_code = 'env.emergency');
+ALTER TABLE evaluation_idempotency_key ADD CONSTRAINT pk_evaluation_idempotency_key PRIMARY KEY (id);
+ALTER TABLE evaluation_idempotency_key ADD CONSTRAINT uk_eval_idempotency_operation_key UNIQUE (tenant_id, operation_type, idem_key);
+ALTER TABLE evaluation_idempotency_key ADD CONSTRAINT ck_eval_idempotency_finding_status CHECK (finding_status IN('NEW', 'ASSIGNED', 'REMEDIATING', 'CLOSED', 'WAIVED'));
+ALTER TABLE evaluation_idempotency_key ADD CONSTRAINT ck_eval_idempotency_operation CHECK (operation_type IN('RECTIFICATION_SUBMIT', 'RECTIFICATION_REVIEW'));
+ALTER TABLE evaluation_idempotency_key ADD CONSTRAINT ck_eval_idempotency_task_status CHECK (task_status IN('ASSIGNED', 'SUBMITTED', 'RETURNED', 'CLOSED', 'WAIVED'));
+ALTER TABLE evaluation_indicator ADD CONSTRAINT pk_evaluation_indicator PRIMARY KEY (id);
+ALTER TABLE evaluation_indicator ADD CONSTRAINT uk_eval_indicator_id UNIQUE (indicator_id);
+ALTER TABLE evaluation_indicator ADD CONSTRAINT uk_eval_indicator_tenant_version UNIQUE (tenant_id, indicator_code, version_no);
+ALTER TABLE evaluation_indicator ADD CONSTRAINT ck_eval_indicator_status CHECK (status IN('DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'GRAY', 'ACTIVE', 'OFFLINE', 'ARCHIVED'));
+ALTER TABLE evaluation_indicator ADD CONSTRAINT ck_eval_indicator_subject CHECK (subject_type IN('PATIENT', 'MEDICAL_RECORD', 'DEPARTMENT', 'DOCTOR', 'DISEASE', 'PATHWAY', 'CLAIM', 'FOLLOWUP'));
+ALTER TABLE evaluation_result ADD CONSTRAINT pk_evaluation_result PRIMARY KEY (id);
+ALTER TABLE evaluation_result ADD CONSTRAINT uk_eval_result_id UNIQUE (result_id);
+ALTER TABLE evaluation_result ADD CONSTRAINT ck_eval_result_level CHECK (result_level IN('PASS', 'ATTENTION', 'NON_COMPLIANT', 'CRITICAL'));
+ALTER TABLE evaluation_result ADD CONSTRAINT ck_eval_result_subject CHECK (subject_type IN('PATIENT', 'MEDICAL_RECORD', 'DEPARTMENT', 'DOCTOR', 'DISEASE', 'PATHWAY', 'CLAIM', 'FOLLOWUP'));
+ALTER TABLE evaluation_run ADD CONSTRAINT pk_evaluation_run PRIMARY KEY (id);
+ALTER TABLE evaluation_run ADD CONSTRAINT uk_eval_run_id UNIQUE (run_id);
+ALTER TABLE evaluation_run ADD CONSTRAINT uk_eval_run_tenant_code UNIQUE (tenant_id, run_code);
+ALTER TABLE evaluation_run ADD CONSTRAINT ck_eval_run_status CHECK (status IN('RECEIVED', 'RECORDED', 'FAILED'));
+ALTER TABLE evaluation_run ADD CONSTRAINT ck_eval_run_type CHECK (run_type IN('MANUAL_SAMPLE', 'UPSTREAM_RESULT', 'BATCH_IMPORT'));
+ALTER TABLE evidence_snapshot ADD CONSTRAINT pk_evidence_snapshot PRIMARY KEY (id);
+ALTER TABLE evidence_snapshot ADD CONSTRAINT uk_evidence_snapshot UNIQUE (evidence_id);
+ALTER TABLE followup_event ADD CONSTRAINT pk_followup_event PRIMARY KEY (id);
+ALTER TABLE followup_event ADD CONSTRAINT uk_followup_event_id UNIQUE (event_id);
+ALTER TABLE followup_plan ADD CONSTRAINT pk_followup_plan PRIMARY KEY (id);
+ALTER TABLE followup_plan ADD CONSTRAINT uk_followup_plan_id UNIQUE (plan_id);
+ALTER TABLE followup_questionnaire ADD CONSTRAINT pk_followup_questionnaire PRIMARY KEY (id);
+ALTER TABLE followup_questionnaire ADD CONSTRAINT uk_followup_questionnaire_id UNIQUE (questionnaire_id);
+ALTER TABLE followup_task ADD CONSTRAINT pk_followup_task PRIMARY KEY (id);
+ALTER TABLE followup_task ADD CONSTRAINT uk_followup_task_id UNIQUE (task_id);
+ALTER TABLE integration_adapter ADD CONSTRAINT pk_integration_adapter PRIMARY KEY (id);
+ALTER TABLE integration_adapter ADD CONSTRAINT uk_integration_adapter UNIQUE (tenant_id, adapter_id);
+ALTER TABLE integration_adapter ADD CONSTRAINT ck_integration_adapter_health CHECK (health_status IN('HEALTHY', 'UNHEALTHY', 'NOT_CONNECTED', 'MISCONFIGURED'));
+ALTER TABLE integration_adapter ADD CONSTRAINT ck_integration_adapter_status CHECK (status IN('ACTIVE', 'SUSPENDED'));
+ALTER TABLE integration_message_log ADD CONSTRAINT pk_integration_message_log PRIMARY KEY (id);
+ALTER TABLE integration_message_log ADD CONSTRAINT uk_integration_message UNIQUE (tenant_id, message_id);
+ALTER TABLE integration_message_log ADD CONSTRAINT ck_integration_message_dir CHECK (direction IN('INBOUND', 'OUTBOUND'));
+ALTER TABLE integration_message_log ADD CONSTRAINT ck_integration_message_status CHECK (status IN('SUCCESS', 'FAILED', 'RETRYING', 'NOT_CONNECTED', 'DEAD_LETTER'));
+ALTER TABLE integration_webhook_config ADD CONSTRAINT pk_integration_webhook_config PRIMARY KEY (id);
+ALTER TABLE integration_webhook_config ADD CONSTRAINT uk_integration_webhook UNIQUE (tenant_id, webhook_id);
+ALTER TABLE integration_webhook_config ADD CONSTRAINT ck_integration_webhook_status CHECK (status IN('ACTIVE', 'SUSPENDED'));
+ALTER TABLE knowledge_asset_version ADD CONSTRAINT pk_knowledge_asset_version PRIMARY KEY (id);
+ALTER TABLE knowledge_asset_version ADD CONSTRAINT uk_knowledge_asset_version UNIQUE (identity_id, version_no);
+ALTER TABLE knowledge_asset_version ADD CONSTRAINT uk_knowledge_asset_version_active_scope UNIQUE (tenant_id, active_scope_key);
+ALTER TABLE knowledge_asset_version ADD CONSTRAINT ck_knowledge_asset_grade_quality CHECK ((grade_quality IN('HIGH', 'MODERATE', 'LOW', 'VERY_LOW')) OR (grade_quality IS NULL));
+ALTER TABLE knowledge_asset_version ADD CONSTRAINT ck_knowledge_asset_grade_strength CHECK ((grade_strength IN('STRONG', 'WEAK')) OR (grade_strength IS NULL));
+ALTER TABLE knowledge_asset_version ADD CONSTRAINT ck_knowledge_asset_version_authority CHECK ((authority_level IN('A_REGULATION', 'B_GUIDELINE', 'C_CONSENSUS_LITERATURE', 'D_HOSPITAL', 'E_FEEDBACK')) OR (authority_level IS NULL));
+ALTER TABLE knowledge_asset_version ADD CONSTRAINT ck_knowledge_asset_version_risk CHECK (risk_level IN('LOW', 'MEDIUM', 'HIGH'));
+ALTER TABLE knowledge_asset_version ADD CONSTRAINT ck_knowledge_asset_version_status CHECK (status IN('DRAFT', 'CANDIDATE', 'UNDER_REVIEW', 'PENDING_REPLACEMENT_REVIEW', 'ACTIVE', 'SUPERSEDED', 'WITHDRAWN', 'REJECTED'));
+ALTER TABLE knowledge_asset_version ADD CONSTRAINT ck_knowledge_av_review_cycle CHECK (review_cycle_months BETWEEN 1 AND 60);
+ALTER TABLE knowledge_export_job ADD CONSTRAINT pk_knowledge_export_job PRIMARY KEY (id);
+ALTER TABLE knowledge_export_job ADD CONSTRAINT uk_knowledge_export_job_code UNIQUE (job_code);
+ALTER TABLE knowledge_export_job ADD CONSTRAINT ck_knowledge_export_job_status CHECK (status IN('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'EXPIRED', 'CANCELLED'));
+ALTER TABLE knowledge_export_job ADD CONSTRAINT ck_knowledge_export_job_type CHECK (export_type IN('IDENTITIES', 'VERSIONS', 'LINEAGE', 'CITATIONS', 'FULL_TENANT'));
+ALTER TABLE knowledge_identity ADD CONSTRAINT pk_knowledge_identity PRIMARY KEY (id);
+ALTER TABLE knowledge_identity ADD CONSTRAINT uk_knowledge_identity_tenant_code UNIQUE (tenant_id, identity_code);
+ALTER TABLE knowledge_identity ADD CONSTRAINT ck_knowledge_identity_domain CHECK (domain IN('GUIDELINE', 'DRUG', 'PATHWAY_KNOWLEDGE', 'NURSING', 'DIAGNOSTIC_ITEM', 'TCM', 'PROTOCOL', 'POLICY', 'LITERATURE', 'OTHER', 'DIAGNOSIS'));
+ALTER TABLE knowledge_identity ADD CONSTRAINT ck_knowledge_identity_status CHECK (status IN('ACTIVE', 'DEPRECATED', 'WITHDRAWN', 'ARCHIVED'));
+ALTER TABLE knowledge_supersession ADD CONSTRAINT pk_knowledge_supersession PRIMARY KEY (id);
+ALTER TABLE knowledge_supersession ADD CONSTRAINT ck_knowledge_supersession_type CHECK (transition_type IN('ACTIVATE', 'REPLACE', 'WITHDRAW', 'RESTORE', 'ROLLBACK', 'DEPRECATE', 'RETIRE'));
+ALTER TABLE local_term ADD CONSTRAINT pk_local_term PRIMARY KEY (id);
+ALTER TABLE local_term ADD CONSTRAINT uk_local_term_code UNIQUE (tenant_id, source_system, local_code, category);
+ALTER TABLE local_term ADD CONSTRAINT ck_local_term_category CHECK (category IN('DIAGNOSIS', 'PROCEDURE', 'DRUG', 'DEVICE', 'LAB', 'EXAM', 'ORDER', 'INSURANCE', 'DEPARTMENT', 'DOCUMENT', 'FOLLOWUP', 'OTHER'));
+ALTER TABLE local_term ADD CONSTRAINT ck_local_term_status CHECK (status IN('UNMAPPED', 'MAPPED', 'DISABLED'));
+ALTER TABLE mapping_candidate ADD CONSTRAINT pk_mapping_candidate PRIMARY KEY (id);
+ALTER TABLE mapping_candidate ADD CONSTRAINT ck_mapping_candidate_risk CHECK (risk_level IN('LOW', 'MEDIUM', 'HIGH'));
+ALTER TABLE mapping_candidate ADD CONSTRAINT ck_mapping_candidate_source CHECK (candidate_source IN('RULE', 'AI', 'MANUAL', 'IMPORT'));
+ALTER TABLE mapping_candidate ADD CONSTRAINT ck_mapping_candidate_status CHECK (status IN('PENDING', 'CONFIRMED', 'REJECTED', 'EXPIRED'));
+ALTER TABLE mapping_conflict ADD CONSTRAINT pk_mapping_conflict PRIMARY KEY (id);
+ALTER TABLE mapping_conflict ADD CONSTRAINT ck_mapping_conflict_risk CHECK (risk_level IN('LOW', 'MEDIUM', 'HIGH'));
+ALTER TABLE mapping_conflict ADD CONSTRAINT ck_mapping_conflict_status CHECK (status IN('OPEN', 'RESOLVED', 'IGNORED'));
+ALTER TABLE mapping_conflict ADD CONSTRAINT ck_mapping_conflict_type CHECK (conflict_type IN('ONE_TO_MANY', 'MANY_TO_ONE', 'DISABLED_CODE', 'CROSS_SYSTEM_INCONSISTENT', 'HOMONYM', 'SYNONYM_MISMATCH'));
+ALTER TABLE mk_aik_gate_result ADD CONSTRAINT pk_mk_aik_gate_result PRIMARY KEY (id);
+ALTER TABLE mk_clinical_care_plan ADD CONSTRAINT pk_mk_clinical_care_plan PRIMARY KEY (care_plan_id);
+ALTER TABLE mk_clinical_care_plan ADD CONSTRAINT uk_mk_clinical_care_plan_source UNIQUE (tenant_id, source_system, source_id);
+ALTER TABLE mk_clinical_claim ADD CONSTRAINT pk_mk_clinical_claim PRIMARY KEY (claim_id);
+ALTER TABLE mk_clinical_claim ADD CONSTRAINT uk_mk_clinical_claim_source UNIQUE (tenant_id, source_system, source_id);
+ALTER TABLE mk_clinical_condition ADD CONSTRAINT pk_mk_clinical_condition PRIMARY KEY (condition_id);
+ALTER TABLE mk_clinical_condition ADD CONSTRAINT uk_mk_clinical_condition_source UNIQUE (tenant_id, source_system, source_id);
+ALTER TABLE mk_clinical_diagnostic_report ADD CONSTRAINT pk_mk_clinical_diagnostic_report PRIMARY KEY (report_id);
+ALTER TABLE mk_clinical_diagnostic_report ADD CONSTRAINT uk_mk_clinical_diagnostic_report_source UNIQUE (tenant_id, source_system, source_id);
+ALTER TABLE mk_clinical_document ADD CONSTRAINT pk_mk_clinical_document PRIMARY KEY (document_id);
+ALTER TABLE mk_clinical_document ADD CONSTRAINT uk_mk_clinical_document_source UNIQUE (tenant_id, source_system, source_id);
+ALTER TABLE mk_clinical_encounter ADD CONSTRAINT pk_mk_clinical_encounter PRIMARY KEY (encounter_id);
+ALTER TABLE mk_clinical_encounter ADD CONSTRAINT uk_mk_clinical_encounter_source UNIQUE (tenant_id, source_system, source_id);
+ALTER TABLE mk_clinical_follow_up ADD CONSTRAINT pk_mk_clinical_follow_up PRIMARY KEY (follow_up_id);
+ALTER TABLE mk_clinical_follow_up ADD CONSTRAINT uk_mk_clinical_follow_up_source UNIQUE (tenant_id, source_system, source_id);
+ALTER TABLE mk_clinical_medication ADD CONSTRAINT pk_mk_clinical_medication PRIMARY KEY (medication_id);
+ALTER TABLE mk_clinical_medication ADD CONSTRAINT uk_mk_clinical_medication_source UNIQUE (tenant_id, source_system, source_id);
+ALTER TABLE mk_clinical_nursing_assessment ADD CONSTRAINT pk_mk_clinical_nursing_assessment PRIMARY KEY (assessment_id);
+ALTER TABLE mk_clinical_nursing_assessment ADD CONSTRAINT uk_mk_clinical_nursing_assessment_source UNIQUE (tenant_id, source_system, source_id);
+ALTER TABLE mk_clinical_observation ADD CONSTRAINT pk_mk_clinical_observation PRIMARY KEY (observation_id);
+ALTER TABLE mk_clinical_observation ADD CONSTRAINT uk_mk_clinical_observation_source UNIQUE (tenant_id, source_system, source_id);
+ALTER TABLE mk_clinical_patient ADD CONSTRAINT pk_mk_clinical_patient PRIMARY KEY (patient_id);
+ALTER TABLE mk_clinical_patient ADD CONSTRAINT uk_mk_clinical_patient_source UNIQUE (tenant_id, source_system, source_id);
+ALTER TABLE mk_clinical_procedure ADD CONSTRAINT pk_mk_clinical_procedure PRIMARY KEY (procedure_id);
+ALTER TABLE mk_clinical_procedure ADD CONSTRAINT uk_mk_clinical_procedure_source UNIQUE (tenant_id, source_system, source_id);
+ALTER TABLE mk_compliance_data_permission ADD CONSTRAINT pk_mk_compliance_data_permission PRIMARY KEY (id);
+ALTER TABLE mk_compliance_data_permission ADD CONSTRAINT uk_compliance_data_permission_policy UNIQUE (tenant_id, resource_type, action);
+ALTER TABLE mk_compliance_data_permission ADD CONSTRAINT ck_compliance_data_permission_action CHECK (action IN('READ', 'EXPORT'));
+ALTER TABLE mk_compliance_data_permission ADD CONSTRAINT ck_compliance_data_permission_level CHECK (min_data_level IN('DEPARTMENT', 'HOSPITAL', 'GROUP'));
+ALTER TABLE mk_compliance_data_permission ADD CONSTRAINT ck_compliance_data_permission_status CHECK (status IN('ACTIVE', 'DISABLED'));
+ALTER TABLE mk_compliance_data_permission ADD CONSTRAINT ck_compliance_data_permission_version CHECK (version >= 1);
+ALTER TABLE mk_compliance_export_confirmation ADD CONSTRAINT pk_mk_compliance_export_confirmation PRIMARY KEY (id);
+ALTER TABLE mk_compliance_export_confirmation ADD CONSTRAINT uk_compliance_export_confirmation UNIQUE (tenant_id, confirmation_id);
+ALTER TABLE mk_compliance_export_confirmation ADD CONSTRAINT uk_compliance_export_confirmation_idem UNIQUE (tenant_id, idempotency_key);
+ALTER TABLE mk_compliance_export_confirmation ADD CONSTRAINT ck_compliance_export_confirmation_status CHECK (status IN('CONFIRMED', 'EXPORTED'));
+ALTER TABLE mk_compliance_export_confirmation ADD CONSTRAINT ck_compliance_export_confirmation_version CHECK (version >= 1);
+ALTER TABLE mk_compliance_identity_binding ADD CONSTRAINT pk_mk_compliance_identity_binding PRIMARY KEY (id);
+ALTER TABLE mk_compliance_identity_binding ADD CONSTRAINT uk_compliance_identity_binding_id UNIQUE (binding_id);
+ALTER TABLE mk_compliance_identity_binding ADD CONSTRAINT uk_compliance_identity_subject UNIQUE (tenant_id, provider_type, external_subject_digest);
+ALTER TABLE mk_compliance_identity_binding ADD CONSTRAINT ck_compliance_identity_provider CHECK (provider_type IN('OIDC', 'CAS', 'SAML', 'EMPLOYEE_NO', 'SM_CA'));
+ALTER TABLE mk_compliance_identity_binding ADD CONSTRAINT ck_compliance_identity_status CHECK (status IN('ACTIVE', 'UNBOUND'));
+ALTER TABLE mk_compliance_identity_binding ADD CONSTRAINT ck_compliance_identity_version CHECK (version >= 1);
+ALTER TABLE mk_compliance_interop_assessment_item ADD CONSTRAINT pk_mk_compliance_interop_assessment_item PRIMARY KEY (id);
+ALTER TABLE mk_compliance_interop_assessment_item ADD CONSTRAINT uk_compliance_interop_item_code UNIQUE (tenant_id, standard_version, item_code);
+ALTER TABLE mk_compliance_interop_assessment_item ADD CONSTRAINT uk_compliance_interop_item_id UNIQUE (tenant_id, item_id);
+ALTER TABLE mk_compliance_interop_assessment_item ADD CONSTRAINT ck_compliance_interop_item_dimension CHECK (dimension IN('DATA_RESOURCE', 'STANDARDIZATION', 'INFRASTRUCTURE', 'APPLICATION_EFFECT'));
+ALTER TABLE mk_compliance_interop_assessment_item ADD CONSTRAINT ck_compliance_interop_item_status CHECK (status IN('ACTIVE', 'RETIRED'));
+ALTER TABLE mk_compliance_interop_assessment_item ADD CONSTRAINT ck_compliance_interop_item_version CHECK (version >= 1);
+ALTER TABLE mk_compliance_interop_evidence_map ADD CONSTRAINT pk_mk_compliance_interop_evidence_map PRIMARY KEY (id);
+ALTER TABLE mk_compliance_interop_evidence_map ADD CONSTRAINT uk_compliance_interop_evidence_map UNIQUE (tenant_id, map_id);
+ALTER TABLE mk_compliance_interop_evidence_map ADD CONSTRAINT uk_compliance_interop_evidence_source UNIQUE (tenant_id, item_id, evidence_source_type, source_id);
+ALTER TABLE mk_compliance_interop_evidence_map ADD CONSTRAINT ck_compliance_interop_evidence_source CHECK (evidence_source_type IN('EVIDENCE_SNAPSHOT', 'EMR_LEVEL_EVIDENCE_EXPORT'));
+ALTER TABLE mk_compliance_interop_evidence_map ADD CONSTRAINT ck_compliance_interop_evidence_status CHECK (status IN('ACTIVE', 'REVOKED'));
+ALTER TABLE mk_compliance_masking_rule ADD CONSTRAINT pk_mk_compliance_masking_rule PRIMARY KEY (id);
+ALTER TABLE mk_compliance_masking_rule ADD CONSTRAINT uk_compliance_masking_rule UNIQUE (tenant_id, resource_type, field_name, scenario_code);
+ALTER TABLE mk_compliance_masking_rule ADD CONSTRAINT ck_compliance_masking_rule_keep CHECK ((prefix_keep >= 0) AND (prefix_keep <= 32) AND (suffix_keep >= 0) AND (suffix_keep <= 32));
+ALTER TABLE mk_compliance_masking_rule ADD CONSTRAINT ck_compliance_masking_rule_status CHECK (status IN('ACTIVE', 'DISABLED'));
+ALTER TABLE mk_compliance_masking_rule ADD CONSTRAINT ck_compliance_masking_rule_strategy CHECK (strategy IN('REDACT', 'KEEP_LAST', 'KEEP_FIRST_LAST', 'EMAIL', 'FIXED'));
+ALTER TABLE mk_compliance_masking_rule ADD CONSTRAINT ck_compliance_masking_rule_version CHECK (version >= 1);
+ALTER TABLE mk_config_history ADD CONSTRAINT pk_config_history PRIMARY KEY (history_id);
+ALTER TABLE mk_config_history ADD CONSTRAINT ck_config_history_change_type CHECK (change_type IN('CREATE', 'UPDATE', 'ROLLBACK'));
+ALTER TABLE mk_config_item ADD CONSTRAINT pk_config_item PRIMARY KEY (config_id);
+ALTER TABLE mk_config_item ADD CONSTRAINT uk_config_item_tenant_key UNIQUE (tenant_id, config_key);
+ALTER TABLE mk_config_item ADD CONSTRAINT ck_config_item_active CHECK (active_flag IN('Y', 'N'));
+ALTER TABLE mk_config_item ADD CONSTRAINT ck_config_item_protected CHECK (protected_flag IN('Y', 'N'));
+ALTER TABLE mk_config_item ADD CONSTRAINT ck_config_item_risk CHECK (risk_level IN('LOW', 'MEDIUM', 'HIGH'));
+ALTER TABLE mk_config_item ADD CONSTRAINT ck_config_item_source CHECK (source IN('YML_SEED', 'DB', 'IMPORT', 'API', 'PLATFORM_SEED'));
+ALTER TABLE mk_config_item ADD CONSTRAINT ck_config_item_value_type CHECK (value_type IN('BOOLEAN', 'STRING', 'JSON', 'INTEGER', 'DECIMAL'));
+ALTER TABLE mk_context_field_catalog ADD CONSTRAINT pk_mk_context_field_catalog PRIMARY KEY (id);
+ALTER TABLE mk_context_field_catalog ADD CONSTRAINT uk_mk_ctx_field_catalog_tenant_path UNIQUE (tenant_id, field_path);
+ALTER TABLE mk_context_field_catalog ADD CONSTRAINT ck_mk_ctx_field_catalog_data_type CHECK (data_type IN('number', 'string', 'boolean', 'date', 'code', 'list'));
+ALTER TABLE mk_context_field_catalog ADD CONSTRAINT ck_mk_ctx_field_catalog_status CHECK (status IN('ACTIVE', 'DEPRECATED'));
+ALTER TABLE mk_diagnosis_care_pointer ADD CONSTRAINT pk_mk_diagnosis_care_pointer PRIMARY KEY (id);
+ALTER TABLE mk_diagnosis_care_pointer ADD CONSTRAINT ck_mk_diagnosis_pointer_target CHECK (target_type IN('RULE', 'KNOWLEDGE', 'PATHWAY'));
+ALTER TABLE mk_diagnosis_care_pointer ADD CONSTRAINT ck_mk_diagnosis_pointer_type CHECK (pointer_type IN('TREATMENT', 'WORKUP', 'PATHWAY'));
+ALTER TABLE mk_diagnosis_confidence_policy ADD CONSTRAINT pk_mk_diagnosis_confidence_policy PRIMARY KEY (id);
+ALTER TABLE mk_diagnosis_confidence_policy ADD CONSTRAINT uk_mk_diagnosis_confpolicy UNIQUE (tenant_id, scope_key);
+ALTER TABLE mk_diagnosis_criterion ADD CONSTRAINT pk_mk_diagnosis_criterion PRIMARY KEY (id);
+ALTER TABLE mk_diagnosis_criterion ADD CONSTRAINT ck_mk_diagnosis_criterion_dir CHECK (direction IN('SUPPORTING', 'REFUTING', 'REQUIRED', 'EXCLUSION'));
+ALTER TABLE mk_diagnosis_criterion ADD CONSTRAINT ck_mk_diagnosis_criterion_weight CHECK (weight IN('MAJOR', 'MINOR'));
+ALTER TABLE mk_diagnosis_differential ADD CONSTRAINT pk_mk_diagnosis_differential PRIMARY KEY (id);
+ALTER TABLE mk_diagnosis_differential ADD CONSTRAINT uk_mk_dx_diff_version_target UNIQUE (tenant_id, diagnosis_version_id, differential_identity_id);
+ALTER TABLE mk_diagnosis_test_case ADD CONSTRAINT pk_mk_diagnosis_test_case PRIMARY KEY (id);
+ALTER TABLE mk_diagnosis_test_case ADD CONSTRAINT uk_mk_diagnosis_testcase UNIQUE (tenant_id, diagnosis_version_id, case_code);
+ALTER TABLE mk_diagnosis_test_case ADD CONSTRAINT ck_mk_diagnosis_testcase_conf CHECK (expected_confidence IN('STRONG', 'MODERATE', 'WEAK', 'EXCLUDE'));
+ALTER TABLE mk_doc_parse_job ADD CONSTRAINT pk_mk_doc_parse_job PRIMARY KEY (id);
+ALTER TABLE mk_doc_parse_job ADD CONSTRAINT uk_mk_doc_parse_job_code UNIQUE (job_code);
+ALTER TABLE mk_doc_parse_job ADD CONSTRAINT ck_mk_doc_parse_job_format CHECK (document_format IN('STRUCTURED_TEXT', 'PDF', 'WORD'));
+ALTER TABLE mk_doc_parse_job ADD CONSTRAINT ck_mk_doc_parse_job_status CHECK (status IN('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED'));
+ALTER TABLE mk_emr_level_evidence_export ADD CONSTRAINT pk_mk_emr_level_evidence_export PRIMARY KEY (id);
+ALTER TABLE mk_emr_level_evidence_export ADD CONSTRAINT uk_emr_level_export_id UNIQUE (tenant_id, export_id);
+ALTER TABLE mk_emr_level_evidence_export ADD CONSTRAINT uk_emr_level_export_idem UNIQUE (tenant_id, target_id, idempotency_key);
+ALTER TABLE mk_emr_level_evidence_export ADD CONSTRAINT ck_emr_level_export_lines CHECK (evidence_line_count >= 0);
+ALTER TABLE mk_emr_level_evidence_export ADD CONSTRAINT ck_emr_level_export_status CHECK (status = 'EXPORTED');
+ALTER TABLE mk_emr_level_gap ADD CONSTRAINT pk_mk_emr_level_gap PRIMARY KEY (id);
+ALTER TABLE mk_emr_level_gap ADD CONSTRAINT uk_emr_level_gap_id UNIQUE (tenant_id, gap_id);
+ALTER TABLE mk_emr_level_gap ADD CONSTRAINT uk_emr_level_gap_item UNIQUE (tenant_id, target_id, item_id);
+ALTER TABLE mk_emr_level_gap ADD CONSTRAINT ck_emr_level_gap_capability CHECK (capability_status IN('GAP', 'MISSING_EVIDENCE'));
+ALTER TABLE mk_emr_level_gap ADD CONSTRAINT ck_emr_level_gap_status CHECK (gap_status IN('OPEN', 'RESOLVED'));
+ALTER TABLE mk_emr_level_item ADD CONSTRAINT pk_mk_emr_level_item PRIMARY KEY (id);
+ALTER TABLE mk_emr_level_item ADD CONSTRAINT uk_emr_level_item_capability UNIQUE (tenant_id, target_id, item_code, capability_code);
+ALTER TABLE mk_emr_level_item ADD CONSTRAINT uk_emr_level_item_id UNIQUE (tenant_id, item_id);
+ALTER TABLE mk_emr_level_item ADD CONSTRAINT ck_emr_level_item_required_level CHECK (required_level IN(4, 5, 6));
+ALTER TABLE mk_emr_level_item ADD CONSTRAINT ck_emr_level_item_status CHECK (capability_status IN('SATISFIED', 'GAP', 'MISSING_EVIDENCE'));
+ALTER TABLE mk_emr_level_target ADD CONSTRAINT pk_mk_emr_level_target PRIMARY KEY (id);
+ALTER TABLE mk_emr_level_target ADD CONSTRAINT uk_emr_level_target_id UNIQUE (tenant_id, target_id);
+ALTER TABLE mk_emr_level_target ADD CONSTRAINT uk_emr_level_target_scope UNIQUE (tenant_id, hospital_org_id, standard_version);
+ALTER TABLE mk_emr_level_target ADD CONSTRAINT ck_emr_level_target_counts CHECK ((total_item_count >= 0) AND (satisfied_item_count >= 0) AND (gap_item_count >= 0) AND (progress_rate >= 0) AND (progress_rate <= 1));
+ALTER TABLE mk_emr_level_target ADD CONSTRAINT ck_emr_level_target_level CHECK (target_level IN(4, 5, 6));
+ALTER TABLE mk_emr_level_target ADD CONSTRAINT ck_emr_level_target_status CHECK (status IN('DRAFT', 'PUBLISHED', 'ACTIVE'));
+ALTER TABLE mk_engine_authoring_asset_favorite ADD CONSTRAINT pk_mk_engine_authoring_asset_favorite PRIMARY KEY (id);
+ALTER TABLE mk_engine_authoring_asset_favorite ADD CONSTRAINT uk_mk_engine_authoring_asset_favorite_user_asset UNIQUE (tenant_id, user_id, asset_type, asset_id);
+ALTER TABLE mk_engine_authoring_asset_profile ADD CONSTRAINT pk_mk_engine_authoring_asset_profile PRIMARY KEY (id);
+ALTER TABLE mk_engine_authoring_asset_profile ADD CONSTRAINT uk_mk_engine_authoring_asset_profile_asset UNIQUE (tenant_id, asset_type, asset_id);
+ALTER TABLE mk_engine_authoring_batch_item ADD CONSTRAINT pk_mk_engine_authoring_batch_item PRIMARY KEY (id);
+ALTER TABLE mk_engine_authoring_batch_item ADD CONSTRAINT uk_mk_engine_authoring_batch_item UNIQUE (tenant_id, job_id, item_id);
+ALTER TABLE mk_engine_authoring_batch_item ADD CONSTRAINT ck_mk_engine_authoring_batch_item_status CHECK (status IN('SUCCEEDED', 'FAILED'));
+ALTER TABLE mk_engine_authoring_batch_job ADD CONSTRAINT pk_mk_engine_authoring_batch_job PRIMARY KEY (id);
+ALTER TABLE mk_engine_authoring_batch_job ADD CONSTRAINT uk_mk_engine_authoring_batch_job UNIQUE (tenant_id, job_id);
+ALTER TABLE mk_engine_authoring_batch_job ADD CONSTRAINT ck_mk_engine_authoring_batch_job_status CHECK (status IN('RUNNING', 'SUCCEEDED', 'PARTIAL_SUCCESS', 'FAILED'));
+ALTER TABLE mk_engine_authoring_batch_job ADD CONSTRAINT ck_mk_engine_authoring_batch_job_type CHECK (job_type IN('RULE_GENERATE', 'RULE_PUBLISH'));
+ALTER TABLE mk_engine_cdss_risk_matrix ADD CONSTRAINT pk_mk_engine_cdss_risk_matrix PRIMARY KEY (id);
+ALTER TABLE mk_engine_cdss_risk_matrix ADD CONSTRAINT uk_cdss_risk_matrix_id UNIQUE (matrix_id);
+ALTER TABLE mk_engine_cdss_risk_matrix ADD CONSTRAINT uk_cdss_risk_matrix_scope_version UNIQUE (tenant_id, trigger_point, severity_level, automation_level, status, matrix_version);
+ALTER TABLE mk_engine_cdss_risk_matrix ADD CONSTRAINT ck_cdss_risk_matrix_auto CHECK (automation_level IN('INFORM_ONLY', 'INTERRUPTIVE', 'AUTOMATED'));
+ALTER TABLE mk_engine_cdss_risk_matrix ADD CONSTRAINT ck_cdss_risk_matrix_auto_exec CHECK (auto_execution_allowed IN(1, 0));
+ALTER TABLE mk_engine_cdss_risk_matrix ADD CONSTRAINT ck_cdss_risk_matrix_review CHECK (review_requirement IN('OPTIONAL_REVIEW', 'PHYSICIAN_CONFIRMATION'));
+ALTER TABLE mk_engine_cdss_risk_matrix ADD CONSTRAINT ck_cdss_risk_matrix_risk CHECK (risk_level IN('LOW', 'MEDIUM', 'HIGH', 'CRITICAL'));
+ALTER TABLE mk_engine_cdss_risk_matrix ADD CONSTRAINT ck_cdss_risk_matrix_severity CHECK (severity_level IN('LOW', 'MEDIUM', 'HIGH', 'CRITICAL'));
+ALTER TABLE mk_engine_cdss_risk_matrix ADD CONSTRAINT ck_cdss_risk_matrix_status CHECK (status IN('DRAFT', 'PUBLISHED', 'ACTIVE', 'RETIRED'));
+ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT pk_mk_engine_clinical_redline PRIMARY KEY (id);
+ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT uk_clinical_redline_active_scope UNIQUE (tenant_id, active_scope_key);
+ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT uk_clinical_redline_id UNIQUE (redline_id);
+ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT uk_clinical_redline_version UNIQUE (tenant_id, redline_key, redline_version);
+ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT ck_clinical_redline_category CHECK (category IN('DRUG_INTERACTION', 'CRITICAL_VALUE', 'DOSE_LIMIT', 'ANTIMICROBIAL_RESTRICTION', 'SPECIAL_POPULATION_CONTRAINDICATION'));
+ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT ck_clinical_redline_hazard CHECK (hazard_severity IN('LOW', 'MEDIUM', 'HIGH', 'CRITICAL'));
+ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT ck_clinical_redline_override CHECK (lower_tenant_override_allowed IN(1, 0));
+ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT ck_clinical_redline_review CHECK (review_requirement IN('OPTIONAL_REVIEW', 'PHYSICIAN_CONFIRMATION'));
+ALTER TABLE mk_engine_clinical_redline ADD CONSTRAINT ck_clinical_redline_status CHECK (status IN('DRAFT', 'SILENT_RUNNING', 'ACTIVE', 'WITHDRAWN'));
+ALTER TABLE mk_engine_clinical_redline_trial ADD CONSTRAINT pk_mk_engine_clinical_redline_trial PRIMARY KEY (id);
+ALTER TABLE mk_engine_clinical_redline_trial ADD CONSTRAINT uk_clinical_redline_trial_id UNIQUE (tenant_id, trial_id);
+ALTER TABLE mk_engine_clinical_redline_trial ADD CONSTRAINT ck_clinical_redline_trial_counts CHECK ((required_silent_hours >= 0) AND (actual_silent_hours >= 0) AND (evaluated_case_count >= 0) AND (matched_case_count >= 0) AND (false_positive_case_count >= 0) AND (safety_incident_count >= 0) AND (matched_case_count <= evaluated_case_count) AND (false_positive_case_count <= matched_case_count));
+ALTER TABLE mk_engine_clinical_redline_trial ADD CONSTRAINT ck_clinical_redline_trial_gate CHECK (gate_passed IN(1, 0));
+ALTER TABLE mk_engine_clinical_redline_trial ADD CONSTRAINT ck_clinical_redline_trial_status CHECK (status IN('PASSED', 'FAILED'));
+ALTER TABLE mk_engine_data_encrypted_field ADD CONSTRAINT pk_mk_engine_data_encrypted_field PRIMARY KEY (id);
+ALTER TABLE mk_engine_data_encrypted_field ADD CONSTRAINT ck_mk_engine_data_encrypted_field_cipher CHECK (cipher_algorithm = 'SM4/ECB/PKCS5Padding');
+ALTER TABLE mk_engine_data_encrypted_field ADD CONSTRAINT ck_mk_engine_data_encrypted_field_hash CHECK (search_hash LIKE 'sm3:%');
+ALTER TABLE mk_engine_data_encrypted_field ADD CONSTRAINT ck_mk_engine_data_encrypted_field_level CHECK (data_level IN('D3', 'D4'));
+ALTER TABLE mk_engine_data_export_job ADD CONSTRAINT pk_mk_engine_data_export_job PRIMARY KEY (id);
+ALTER TABLE mk_engine_data_export_job ADD CONSTRAINT uk_mk_engine_data_export_job_code UNIQUE (job_code);
+ALTER TABLE mk_engine_data_export_job ADD CONSTRAINT uk_mk_engine_data_export_job_idem UNIQUE (tenant_id, idempotency_key);
+ALTER TABLE mk_engine_data_export_job ADD CONSTRAINT ck_mk_engine_data_export_job_status CHECK (status IN('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED', 'EXPIRED'));
+ALTER TABLE mk_engine_data_export_job ADD CONSTRAINT ck_mk_engine_data_export_job_type CHECK (export_type IN('RULE_USAGE', 'KNOWLEDGE_USAGE', 'CLINICAL_SIGNALS'));
+ALTER TABLE mk_engine_data_field_policy ADD CONSTRAINT pk_mk_engine_data_field_policy PRIMARY KEY (id);
+ALTER TABLE mk_engine_data_field_policy ADD CONSTRAINT uk_mk_engine_data_field_policy_path UNIQUE (tenant_id, field_path);
+ALTER TABLE mk_engine_data_field_policy ADD CONSTRAINT ck_mk_engine_data_field_policy_channel CHECK (allowed_channel IN('SERVICE_INTERNAL_ONLY', 'MASKED_OUTPUT_ONLY', 'AGGREGATE_ONLY', 'PUBLIC_METADATA_ONLY', 'FORBIDDEN'));
+ALTER TABLE mk_engine_data_field_policy ADD CONSTRAINT ck_mk_engine_data_field_policy_encrypt CHECK ((encryption_required_flag IN('Y', 'N')) AND ((data_level NOT IN('D3', 'D4')) OR (encryption_required_flag = 'Y')));
+ALTER TABLE mk_engine_data_field_policy ADD CONSTRAINT ck_mk_engine_data_field_policy_level CHECK (data_level IN('D0', 'D1', 'D2', 'D3', 'D4', 'D5'));
+ALTER TABLE mk_engine_data_field_policy ADD CONSTRAINT ck_mk_engine_data_field_policy_status CHECK (status IN('ACTIVE', 'DEPRECATED'));
+ALTER TABLE mk_engine_notification ADD CONSTRAINT pk_mk_engine_notification PRIMARY KEY (id);
+ALTER TABLE mk_engine_notification ADD CONSTRAINT uk_notification_dedupe UNIQUE (tenant_id, dedupe_key);
+ALTER TABLE mk_engine_notification ADD CONSTRAINT uk_notification_id UNIQUE (notification_id);
+ALTER TABLE mk_engine_notification ADD CONSTRAINT ck_notification_level CHECK (notification_level IN('CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'));
+ALTER TABLE mk_engine_notification ADD CONSTRAINT ck_notification_source_type CHECK (source_type IN('FOLLOWUP_EVENT', 'SAFETY_REVIEW', 'WORKFLOW_TODO', 'SYNC_EVENT', 'RULE_EVENT', 'PATHWAY_EVENT', 'RELEASE_ROLLOUT'));
+ALTER TABLE mk_engine_notification ADD CONSTRAINT ck_notification_status CHECK (status IN('UNREAD', 'READ'));
+ALTER TABLE mk_engine_rule_parameter_binding ADD CONSTRAINT pk_mk_engine_rule_parameter_binding PRIMARY KEY (id);
+ALTER TABLE mk_engine_rule_parameter_binding ADD CONSTRAINT uk_mk_engine_rule_parameter_binding_key UNIQUE (tenant_id, rule_version_id, param_key);
+ALTER TABLE mk_engine_workflow_todo ADD CONSTRAINT pk_mk_engine_workflow_todo PRIMARY KEY (id);
+ALTER TABLE mk_engine_workflow_todo ADD CONSTRAINT uk_workflow_todo_id UNIQUE (todo_id);
+ALTER TABLE mk_engine_workflow_todo ADD CONSTRAINT uk_workflow_todo_source UNIQUE (tenant_id, source_type, source_id);
+ALTER TABLE mk_engine_workflow_todo ADD CONSTRAINT ck_workflow_todo_priority CHECK (priority IN('CRITICAL', 'HIGH', 'MEDIUM', 'LOW'));
+ALTER TABLE mk_engine_workflow_todo ADD CONSTRAINT ck_workflow_todo_source_type CHECK (source_type IN('FOLLOWUP_TASK', 'SAFETY_REVIEW', 'RECOMMENDATION_CARD', 'PATHWAY_NODE', 'RULE_EVENT', 'PATHWAY_EVENT', 'NURSING_TASK', 'REPORT_INTERPRETATION', 'BEDSIDE_KNOWLEDGE'));
+ALTER TABLE mk_engine_workflow_todo ADD CONSTRAINT ck_workflow_todo_status CHECK (status IN('PENDING', 'IN_PROGRESS', 'COMPLETED', 'TRANSFERRED', 'CANCELLED'));
+ALTER TABLE mk_experience_export_task ADD CONSTRAINT pk_export_task PRIMARY KEY (task_id);
+ALTER TABLE mk_experience_export_task ADD CONSTRAINT uk_export_task_idempotency UNIQUE (tenant_id, idempotency_key);
+ALTER TABLE mk_experience_export_task ADD CONSTRAINT ck_export_task_scope CHECK (selected_scope IN('CURRENT_PAGE', 'FILTERED_RESULT'));
+ALTER TABLE mk_experience_export_task ADD CONSTRAINT ck_export_task_status CHECK (status IN('PENDING', 'RUNNING', 'SUCCESS', 'FAILED', 'EXPIRED'));
+ALTER TABLE mk_experience_saved_view ADD CONSTRAINT pk_saved_view PRIMARY KEY (saved_view_id);
+ALTER TABLE mk_experience_saved_view ADD CONSTRAINT uk_saved_view_user_name UNIQUE (tenant_id, user_id, page_key, view_name);
+ALTER TABLE mk_experience_saved_view ADD CONSTRAINT ck_saved_view_default CHECK (default_flag IN('Y', 'N'));
+ALTER TABLE mk_experience_saved_view ADD CONSTRAINT ck_saved_view_status CHECK (status IN('ACTIVE', 'ARCHIVED'));
+ALTER TABLE mk_experience_user_pref ADD CONSTRAINT pk_user_pref PRIMARY KEY (user_pref_id);
+ALTER TABLE mk_experience_user_pref ADD CONSTRAINT uk_user_pref_user_key UNIQUE (tenant_id, user_id, pref_key);
+ALTER TABLE mk_experience_user_pref ADD CONSTRAINT ck_user_pref_status CHECK (status IN('ACTIVE', 'ARCHIVED'));
+ALTER TABLE mk_fhir_mapping_rule ADD CONSTRAINT pk_mk_fhir_mapping_rule PRIMARY KEY (id);
+ALTER TABLE mk_fhir_mapping_rule ADD CONSTRAINT uk_mk_fhir_rule_code UNIQUE (tenant_id, rule_code, fhir_version, rule_version);
+ALTER TABLE mk_fhir_mapping_rule ADD CONSTRAINT ck_mk_fhir_rule_status CHECK (status IN('ACTIVE', 'DEPRECATED', 'UNMAPPED_WARNING'));
+ALTER TABLE mk_fhir_mapping_rule ADD CONSTRAINT ck_mk_fhir_rule_ver CHECK (fhir_version IN('R4', 'R5'));
+ALTER TABLE mk_fhir_mapping_rule ADD CONSTRAINT ck_mk_fhir_rule_version CHECK (rule_version > 0);
+ALTER TABLE mk_fhir_resource_mapping ADD CONSTRAINT pk_mk_fhir_resource_mapping PRIMARY KEY (id);
+ALTER TABLE mk_fhir_resource_mapping ADD CONSTRAINT uk_mk_fhir_res_map_canon UNIQUE (tenant_id, canonical_resource_id, fhir_version);
+ALTER TABLE mk_fhir_resource_mapping ADD CONSTRAINT uk_mk_fhir_res_map_fhir UNIQUE (tenant_id, fhir_version, fhir_resource_type, fhir_id);
+ALTER TABLE mk_fhir_resource_mapping ADD CONSTRAINT ck_mk_fhir_res_map_missing CHECK (missing_field_count >= 0);
+ALTER TABLE mk_fhir_resource_mapping ADD CONSTRAINT ck_mk_fhir_res_map_rate CHECK ((field_mapping_rate >= 0) AND (field_mapping_rate <= 1));
+ALTER TABLE mk_fhir_resource_mapping ADD CONSTRAINT ck_mk_fhir_res_map_status CHECK (mapping_status IN('ACTIVE', 'DEPRECATED', 'UNMAPPED_WARNING'));
+ALTER TABLE mk_fhir_resource_mapping ADD CONSTRAINT ck_mk_fhir_res_map_ver CHECK (fhir_version IN('R4', 'R5'));
+ALTER TABLE mk_followup_template ADD CONSTRAINT pk_mk_followup_template PRIMARY KEY (id);
+ALTER TABLE mk_followup_template ADD CONSTRAINT uk_mk_followup_template_asset_version UNIQUE (asset_version_id);
+ALTER TABLE mk_followup_template ADD CONSTRAINT uk_mk_followup_template_code_version UNIQUE (tenant_id, template_code, version_no);
+ALTER TABLE mk_followup_template ADD CONSTRAINT uk_mk_followup_template_id UNIQUE (template_id);
+ALTER TABLE mk_followup_template ADD CONSTRAINT ck_mk_followup_template_version CHECK (version_no > 0);
+ALTER TABLE mk_identity_person ADD CONSTRAINT pk_mk_identity_person PRIMARY KEY (person_id);
+ALTER TABLE mk_identity_person ADD CONSTRAINT uk_person_employee UNIQUE (tenant_id, employee_no);
+ALTER TABLE mk_identity_person ADD CONSTRAINT ck_person_status CHECK (status IN('ACTIVE', 'INACTIVE', 'LEFT'));
+ALTER TABLE mk_identity_person ADD CONSTRAINT ck_person_version CHECK (version >= 1);
+ALTER TABLE mk_identity_person_account ADD CONSTRAINT pk_mk_identity_person_account PRIMARY KEY (link_id);
+ALTER TABLE mk_identity_person_account ADD CONSTRAINT uk_person_account_person UNIQUE (tenant_id, person_id);
+ALTER TABLE mk_identity_person_account ADD CONSTRAINT uk_person_account_user UNIQUE (tenant_id, user_id);
+ALTER TABLE mk_identity_person_account ADD CONSTRAINT ck_person_account_status CHECK (status IN('ACTIVE', 'DISABLED'));
+ALTER TABLE mk_identity_person_account ADD CONSTRAINT ck_person_account_version CHECK (version >= 1);
+ALTER TABLE mk_identity_person_appointment ADD CONSTRAINT pk_mk_identity_person_appointment PRIMARY KEY (appointment_id);
+ALTER TABLE mk_identity_person_appointment ADD CONSTRAINT ck_person_appointment_primary CHECK (primary_flag IN('Y', 'N'));
+ALTER TABLE mk_identity_person_appointment ADD CONSTRAINT ck_person_appointment_status CHECK (status IN('PENDING', 'ACTIVE', 'ENDED'));
+ALTER TABLE mk_identity_person_appointment ADD CONSTRAINT ck_person_appointment_type CHECK (appointment_type IN('INTERNAL', 'GROUP_SHARED', 'EXTERNAL_COLLABORATOR', 'IMPLEMENTATION'));
+ALTER TABLE mk_identity_person_appointment ADD CONSTRAINT ck_person_appointment_version CHECK (version >= 1);
+ALTER TABLE mk_identity_person_import_job ADD CONSTRAINT pk_mk_identity_person_import_job PRIMARY KEY (job_id);
+ALTER TABLE mk_identity_person_import_job ADD CONSTRAINT uk_person_import_digest UNIQUE (tenant_id, file_digest);
+ALTER TABLE mk_identity_person_import_job ADD CONSTRAINT ck_person_import_status CHECK (status IN('VALIDATING', 'HAS_ISSUES', 'READY', 'PROCESSING', 'PARTIAL', 'COMPLETED', 'CANCELLED'));
+ALTER TABLE mk_identity_person_import_job ADD CONSTRAINT ck_person_import_version CHECK (version >= 1);
+ALTER TABLE mk_identity_person_import_row ADD CONSTRAINT pk_mk_identity_person_import_row PRIMARY KEY (row_id);
+ALTER TABLE mk_identity_person_import_row ADD CONSTRAINT uk_person_import_row_no UNIQUE (job_id, row_no);
+ALTER TABLE mk_identity_person_import_row ADD CONSTRAINT ck_person_import_row_action CHECK (action IN('CREATE', 'UPDATE', 'SKIP', 'CONFLICT'));
+ALTER TABLE mk_identity_person_import_row ADD CONSTRAINT ck_person_import_row_status CHECK (status IN('VALID', 'INVALID', 'SUCCESS', 'FAILED', 'SKIPPED'));
+ALTER TABLE mk_integration_data_quality_report ADD CONSTRAINT pk_mk_integration_data_quality_report PRIMARY KEY (report_id);
+ALTER TABLE mk_integration_data_quality_report ADD CONSTRAINT ck_dqr_adapter_nonneg CHECK ((adapter_total >= 0) AND (mapped_adapter_count >= 0) AND (timely_adapter_count >= 0));
+ALTER TABLE mk_integration_data_quality_report ADD CONSTRAINT ck_dqr_rates CHECK ((required_field_rate >= 0) AND (required_field_rate <= 100) AND (mapping_rate >= 0) AND (mapping_rate <= 100) AND (timeliness_rate >= 0) AND (timeliness_rate <= 100));
+ALTER TABLE mk_integration_data_quality_report ADD CONSTRAINT ck_dqr_required_nonneg CHECK ((required_field_total >= 0) AND (required_field_present >= 0));
+ALTER TABLE mk_integration_data_quality_report ADD CONSTRAINT ck_dqr_status_nonneg CHECK ((not_connected_count >= 0) AND (misconfigured_count >= 0));
+ALTER TABLE mk_integration_master_data_sync_batch ADD CONSTRAINT pk_mk_integration_master_data_sync_batch PRIMARY KEY (id);
+ALTER TABLE mk_integration_master_data_sync_batch ADD CONSTRAINT uk_mk_integration_master_data_sync_batch UNIQUE (tenant_id, source_system, batch_id);
+ALTER TABLE mk_integration_master_data_sync_batch ADD CONSTRAINT ck_mk_integration_master_data_sync_batch_mode CHECK (sync_mode IN('INCREMENTAL', 'FULL_SNAPSHOT'));
+ALTER TABLE mk_integration_master_data_sync_batch ADD CONSTRAINT ck_mk_integration_master_data_sync_batch_status CHECK (status IN('SUCCESS', 'FAILED'));
+ALTER TABLE mk_integration_master_data_sync_record ADD CONSTRAINT pk_mk_integration_master_data_sync_record PRIMARY KEY (id);
+ALTER TABLE mk_integration_master_data_sync_record ADD CONSTRAINT uk_mk_integration_master_data_sync_record UNIQUE (tenant_id, source_system, resource_type, source_record_id);
+ALTER TABLE mk_integration_master_data_sync_record ADD CONSTRAINT ck_mk_integration_master_data_sync_record_status CHECK (status IN('ACTIVE', 'DISABLED'));
+ALTER TABLE mk_integration_master_data_sync_record ADD CONSTRAINT ck_mk_integration_master_data_sync_record_type CHECK (resource_type IN('ORG_UNIT', 'PERSON', 'LOCAL_TERM'));
+ALTER TABLE mk_integration_master_data_sync_record ADD CONSTRAINT ck_mk_integration_master_data_sync_record_version CHECK (source_version > 0);
+ALTER TABLE mk_integration_onboarding ADD CONSTRAINT pk_mk_integration_onboarding PRIMARY KEY (id);
+ALTER TABLE mk_integration_onboarding ADD CONSTRAINT uk_integ_onboarding_tenant_id UNIQUE (tenant_id, onboarding_id);
+ALTER TABLE mk_integration_onboarding ADD CONSTRAINT ck_integ_onboarding_fhir CHECK ((fhir_version IN('R4', 'R5')) OR (fhir_version IS NULL));
+ALTER TABLE mk_integration_onboarding ADD CONSTRAINT ck_integ_onboarding_mode CHECK (access_mode IN('ADAPTER', 'FHIR'));
+ALTER TABLE mk_integration_onboarding ADD CONSTRAINT ck_integ_onboarding_status CHECK (status IN('REQUESTED', 'AUTH_CONFIGURED', 'MAPPING_CONFIGURED', 'ONLINE', 'OFFLINE'));
+ALTER TABLE mk_integration_regional_source ADD CONSTRAINT pk_mk_integration_regional_source PRIMARY KEY (id);
+ALTER TABLE mk_integration_regional_source ADD CONSTRAINT uk_integ_regional_source_id UNIQUE (tenant_id, source_id);
+ALTER TABLE mk_integration_regional_source ADD CONSTRAINT ck_integ_regional_status CHECK (status IN('ACTIVE', 'INACTIVE'));
+ALTER TABLE mk_integration_regional_source ADD CONSTRAINT ck_integ_regional_trust CHECK (trust_level IN('LOW', 'MEDIUM', 'HIGH'));
+ALTER TABLE mk_knowledge_acquisition_run ADD CONSTRAINT pk_mk_knowledge_acquisition_run PRIMARY KEY (id);
+ALTER TABLE mk_knowledge_acquisition_run ADD CONSTRAINT uk_mk_knowledge_acquisition_run_code UNIQUE (tenant_id, run_code);
+ALTER TABLE mk_knowledge_acquisition_run ADD CONSTRAINT ck_mk_knowledge_acquisition_run_status CHECK (status IN('SUCCEEDED', 'DUPLICATE', 'BLOCKED', 'FAILED'));
+ALTER TABLE mk_knowledge_acquisition_run ADD CONSTRAINT ck_mk_knowledge_acquisition_run_trigger CHECK (trigger_type IN('MANUAL', 'SCHEDULED', 'AGENT_TOOL'));
+ALTER TABLE mk_knowledge_acquisition_source ADD CONSTRAINT pk_mk_knowledge_acquisition_source PRIMARY KEY (id);
+ALTER TABLE mk_knowledge_acquisition_source ADD CONSTRAINT uk_mk_knowledge_acquisition_source_code UNIQUE (tenant_id, source_code);
+ALTER TABLE mk_knowledge_acquisition_source ADD CONSTRAINT ck_mk_knowledge_acquisition_default_format CHECK ((default_format IN('STRUCTURED_TEXT', 'PDF', 'WORD')) OR (default_format IS NULL));
+ALTER TABLE mk_knowledge_acquisition_source ADD CONSTRAINT ck_mk_knowledge_acquisition_interval CHECK ((schedule_interval_minutes IS NULL) OR (schedule_interval_minutes > 0));
+ALTER TABLE mk_knowledge_acquisition_source ADD CONSTRAINT ck_mk_knowledge_acquisition_license_policy CHECK (license_policy IN('PERMITTED', 'RESTRICTED', 'FORBIDDEN'));
+ALTER TABLE mk_knowledge_acquisition_source ADD CONSTRAINT ck_mk_knowledge_acquisition_robots_policy CHECK (robots_policy IN('ALLOW_FETCH', 'MANUAL_ALLOWED', 'DISALLOW_FETCH'));
+ALTER TABLE mk_knowledge_acquisition_source ADD CONSTRAINT ck_mk_knowledge_acquisition_source_authority CHECK (authority_level IN('A_REGULATION', 'B_GUIDELINE', 'C_CONSENSUS_LITERATURE', 'D_HOSPITAL', 'E_FEEDBACK'));
+ALTER TABLE mk_knowledge_acquisition_source ADD CONSTRAINT ck_mk_knowledge_acquisition_source_enabled CHECK (enabled_flag IN('Y', 'N'));
+ALTER TABLE mk_knowledge_acquisition_source ADD CONSTRAINT ck_mk_knowledge_acquisition_source_schedule CHECK (schedule_enabled_flag IN('Y', 'N'));
+ALTER TABLE mk_knowledge_acquisition_source ADD CONSTRAINT ck_mk_knowledge_acquisition_source_type CHECK (source_type IN('GUIDELINE', 'DRUG_LABEL', 'STANDARD', 'POLICY', 'HOSPITAL_PROTOCOL', 'TCM_CLASSIC', 'LITERATURE', 'CONSENSUS', 'OTHER'));
+ALTER TABLE mk_knowledge_affected_case_task ADD CONSTRAINT pk_mk_knowledge_affected_case_task PRIMARY KEY (id);
+ALTER TABLE mk_knowledge_affected_case_task ADD CONSTRAINT uk_mk_knowledge_affected_task_key UNIQUE (tenant_id, task_key);
+ALTER TABLE mk_knowledge_affected_case_task ADD CONSTRAINT ck_mk_knowledge_affected_target_type CHECK (target_type IN('KNOWLEDGE_VERSION', 'ASSET_DEPENDENCY', 'SYNC_TARGET', 'PATIENT_CASE', 'PATIENT_PATHWAY'));
+ALTER TABLE mk_knowledge_affected_case_task ADD CONSTRAINT ck_mk_knowledge_affected_task_status CHECK (status IN('OPEN', 'IN_PROGRESS', 'DONE', 'CANCELLED'));
+ALTER TABLE mk_knowledge_affected_case_task ADD CONSTRAINT ck_mk_knowledge_affected_task_type CHECK (task_type IN('PHYSICIAN_REVIEW', 'ASSET_DEPENDENCY_REVIEW', 'SYNC_ALERT'));
+ALTER TABLE mk_knowledge_candidate_classification ADD CONSTRAINT pk_mk_knowledge_candidate_classification PRIMARY KEY (id);
+ALTER TABLE mk_knowledge_candidate_classification ADD CONSTRAINT ck_knowledge_candidate_classification CHECK (classification IN('NEW_ASSET', 'SAME_IDENTITY_NEW_VERSION', 'DUPLICATE', 'CONFLICT'));
+ALTER TABLE mk_knowledge_candidate_classification ADD CONSTRAINT ck_knowledge_candidate_review_status CHECK (review_status IN('PENDING_REPLACEMENT_REVIEW', 'DUPLICATE_SKIPPED', 'APPROVED', 'REJECTED', 'RETURNED'));
+ALTER TABLE mk_knowledge_customization ADD CONSTRAINT pk_mk_knowledge_customization PRIMARY KEY (customization_id);
+ALTER TABLE mk_knowledge_customization ADD CONSTRAINT uk_knowledge_customization_scope UNIQUE (tenant_id, platform_identity_id, target_org_unit_id, applicable_scope);
+ALTER TABLE mk_knowledge_customization ADD CONSTRAINT ck_knowledge_customization_source CHECK (source_type = 'LOCAL_CUSTOMIZATION');
+ALTER TABLE mk_knowledge_customization ADD CONSTRAINT ck_knowledge_customization_status CHECK (status IN('DRAFT', 'ACTIVE', 'RESTORED'));
+ALTER TABLE mk_knowledge_customization ADD CONSTRAINT ck_knowledge_customization_version CHECK (version >= 1);
+ALTER TABLE mk_knowledge_diff ADD CONSTRAINT pk_mk_knowledge_diff PRIMARY KEY (id);
+ALTER TABLE mk_knowledge_diff ADD CONSTRAINT uk_knowledge_diff_run_asset_hash UNIQUE (tenant_id, run_code, asset_identity, candidate_content_hash, diff_type);
+ALTER TABLE mk_knowledge_diff ADD CONSTRAINT ck_knowledge_diff_type CHECK (diff_type IN('NEW', 'REVISED', 'DEPRECATED'));
+ALTER TABLE mk_knowledge_discovery_run ADD CONSTRAINT pk_mk_knowledge_discovery_run PRIMARY KEY (id);
+ALTER TABLE mk_knowledge_discovery_run ADD CONSTRAINT uk_mk_knowledge_discovery_run_code UNIQUE (run_code);
+ALTER TABLE mk_knowledge_discovery_run ADD CONSTRAINT ck_mk_knowledge_discovery_run_status CHECK (status IN('SUCCEEDED', 'EMPTY', 'DEGRADED'));
+ALTER TABLE mk_knowledge_expiry_task ADD CONSTRAINT pk_mk_knowledge_expiry_task PRIMARY KEY (id);
+ALTER TABLE mk_knowledge_expiry_task ADD CONSTRAINT uk_expiry_task_key UNIQUE (tenant_id, task_key);
+ALTER TABLE mk_knowledge_expiry_task ADD CONSTRAINT ck_expiry_task_risk CHECK (risk_level IN('LOW', 'MEDIUM', 'HIGH'));
+ALTER TABLE mk_knowledge_expiry_task ADD CONSTRAINT ck_expiry_task_status CHECK (status IN('OPEN', 'IN_REVIEW', 'RESOLVED', 'CANCELLED'));
+ALTER TABLE mk_knowledge_expiry_task ADD CONSTRAINT ck_expiry_task_type CHECK (task_type IN('SOURCE_DEPRECATED', 'REVIEW_OVERDUE'));
+ALTER TABLE mk_knowledge_generation_triage ADD CONSTRAINT pk_mk_knowledge_generation_triage PRIMARY KEY (id);
+ALTER TABLE mk_knowledge_generation_triage ADD CONSTRAINT ck_mk_knowledge_generation_triage_action CHECK (action IN('SUBMIT_REVIEW', 'SKIP_DUPLICATE', 'MERGE_REVIEW', 'UPGRADE_REVIEW', 'CONFLICT_REVIEW', 'DOWNGRADE_REVIEW', 'RETIREMENT_REVIEW', 'MANUAL_REVIEW'));
+ALTER TABLE mk_knowledge_generation_triage ADD CONSTRAINT ck_mk_knowledge_generation_triage_state CHECK (triage_state IN('NEW_ASSET', 'DUPLICATE', 'MINOR_REVISION', 'MAJOR_UPGRADE', 'CONFLICT', 'DOWNGRADE', 'DEPRECATION', 'UNCERTAIN'));
+ALTER TABLE mk_knowledge_initialization_batch ADD CONSTRAINT pk_mk_knowledge_initialization_batch PRIMARY KEY (id);
+ALTER TABLE mk_knowledge_initialization_batch ADD CONSTRAINT uk_mk_knowledge_init_batch_code UNIQUE (tenant_id, batch_code);
+ALTER TABLE mk_knowledge_initialization_batch ADD CONSTRAINT uk_mk_knowledge_init_idempotency UNIQUE (tenant_id, idempotency_key);
+ALTER TABLE mk_knowledge_initialization_batch ADD CONSTRAINT ck_mk_knowledge_init_batch_counts CHECK ((source_count > 0) AND (candidate_count > 0) AND (low_count >= 0) AND (medium_count >= 0) AND (high_count >= 0) AND (((low_count + medium_count) + high_count) = candidate_count));
+ALTER TABLE mk_knowledge_initialization_batch ADD CONSTRAINT ck_mk_knowledge_init_batch_status CHECK (status IN('VALIDATED', 'IN_REVIEW', 'COMPLETE', 'BLOCKED'));
+ALTER TABLE mk_knowledge_initialization_batch ADD CONSTRAINT ck_mk_knowledge_init_foundation_ref CHECK (((release_type = 'FOUNDATION') AND (foundation_release_version IS NULL)) OR ((release_type <> 'FOUNDATION') AND (foundation_release_version IS NOT NULL)));
+ALTER TABLE mk_knowledge_initialization_batch ADD CONSTRAINT ck_mk_knowledge_init_phase CHECK (phase_code IN('F0', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'));
+ALTER TABLE mk_knowledge_initialization_batch ADD CONSTRAINT ck_mk_knowledge_init_release_type CHECK (release_type IN('FOUNDATION', 'CLINICAL_CONTENT', 'COMPOSITE'));
+ALTER TABLE mk_knowledge_initialization_item ADD CONSTRAINT pk_mk_knowledge_initialization_item PRIMARY KEY (id);
+ALTER TABLE mk_knowledge_initialization_item ADD CONSTRAINT uk_mk_knowledge_init_item_candidate UNIQUE (tenant_id, candidate_classification_id);
+ALTER TABLE mk_knowledge_initialization_item ADD CONSTRAINT uk_mk_knowledge_init_item_canonical UNIQUE (tenant_id, batch_id, canonical_id);
+ALTER TABLE mk_knowledge_initialization_item ADD CONSTRAINT uk_mk_knowledge_init_item_sequence UNIQUE (tenant_id, batch_id, sequence_no);
+ALTER TABLE mk_knowledge_initialization_item ADD CONSTRAINT ck_mk_knowledge_init_item_change CHECK (change_type IN('NEW', 'PATCH_COMPATIBLE', 'MINOR_COMPATIBLE', 'MAJOR_BREAKING', 'DEPRECATION'));
+ALTER TABLE mk_knowledge_initialization_item ADD CONSTRAINT ck_mk_knowledge_init_item_model CHECK (generated_by_model_flag IN('Y', 'N'));
+ALTER TABLE mk_knowledge_initialization_item ADD CONSTRAINT ck_mk_knowledge_init_item_replacement CHECK (((change_type <> 'DEPRECATION') AND (replacement_canonical_id IS NULL) AND (effective_to IS NULL)) OR ((change_type = 'DEPRECATION') AND (replacement_canonical_id IS NOT NULL) AND (effective_to IS NOT NULL)));
+ALTER TABLE mk_knowledge_initialization_item ADD CONSTRAINT ck_mk_knowledge_init_item_risk CHECK (risk_level IN('LOW', 'MEDIUM', 'HIGH'));
+ALTER TABLE mk_knowledge_initialization_item ADD CONSTRAINT ck_mk_knowledge_init_item_status CHECK (status IN('PENDING_REVIEW', 'APPROVED', 'BLOCKED'));
+ALTER TABLE mk_knowledge_invalidation ADD CONSTRAINT pk_mk_knowledge_invalidation PRIMARY KEY (id);
+ALTER TABLE mk_knowledge_invalidation ADD CONSTRAINT uk_mk_knowledge_invalidation_key UNIQUE (tenant_id, identity_id, version_id, invalidation_type);
+ALTER TABLE mk_knowledge_invalidation ADD CONSTRAINT ck_mk_knowledge_invalidation_review CHECK (expedited_review_required IN(1, 0));
+ALTER TABLE mk_knowledge_invalidation ADD CONSTRAINT ck_mk_knowledge_invalidation_risk CHECK (risk_level IN('LOW', 'MEDIUM', 'HIGH'));
+ALTER TABLE mk_knowledge_invalidation ADD CONSTRAINT ck_mk_knowledge_invalidation_status CHECK (status IN('OPEN', 'RESOLVED', 'CANCELLED'));
+ALTER TABLE mk_knowledge_invalidation ADD CONSTRAINT ck_mk_knowledge_invalidation_type CHECK (invalidation_type IN('SUPERSEDED_REPLACEMENT', 'EMERGENCY_WITHDRAW', 'SOURCE_RECALL', 'SAFETY_ALERT'));
+ALTER TABLE mk_knowledge_material_object ADD CONSTRAINT pk_mk_knowledge_material_object PRIMARY KEY (id);
+ALTER TABLE mk_knowledge_material_object ADD CONSTRAINT uk_mk_knowledge_material_object_scope_hash UNIQUE (tenant_id, scope_key, sha256);
+ALTER TABLE mk_knowledge_material_object ADD CONSTRAINT ck_mk_knowledge_material_object_backend CHECK (storage_backend IN('LOCAL_FILE', 'REMOTE_URI'));
+ALTER TABLE mk_knowledge_production_candidate ADD CONSTRAINT pk_mk_knowledge_production_candidate PRIMARY KEY (id);
+ALTER TABLE mk_knowledge_production_candidate ADD CONSTRAINT ck_mk_knowledge_production_candidate_risk CHECK (risk_level IN('LOW', 'MEDIUM', 'HIGH'));
+ALTER TABLE mk_knowledge_production_job ADD CONSTRAINT pk_mk_knowledge_production_job PRIMARY KEY (id);
+ALTER TABLE mk_knowledge_production_job ADD CONSTRAINT uk_mk_knowledge_production_job_code UNIQUE (job_code);
+ALTER TABLE mk_knowledge_production_job ADD CONSTRAINT ck_mk_knowledge_production_job_domain CHECK (domain IN('CLINICAL', 'PHARMACY', 'TERMINOLOGY_REPORT', 'EVALUATION_INSURANCE', 'GENERAL'));
+ALTER TABLE mk_knowledge_production_job ADD CONSTRAINT ck_mk_knowledge_production_job_pipeline CHECK (target_pipeline IN('PLATFORM_SOURCE', 'TENANT_OVERLAY'));
+ALTER TABLE mk_knowledge_production_job ADD CONSTRAINT ck_mk_knowledge_production_job_producer CHECK (producer IN('API_MODEL', 'AGENT_TOOL', 'LOCAL_MODEL', 'MANUAL'));
+ALTER TABLE mk_knowledge_production_job ADD CONSTRAINT ck_mk_knowledge_production_job_status CHECK (status IN('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED'));
+ALTER TABLE mk_knowledge_review_assignment ADD CONSTRAINT pk_mk_knowledge_review_assignment PRIMARY KEY (id);
+ALTER TABLE mk_knowledge_review_assignment ADD CONSTRAINT ck_review_assignment_decision CHECK ((decision IN('APPROVE', 'REJECT', 'RETURN')) OR (decision IS NULL));
+ALTER TABLE mk_knowledge_review_assignment ADD CONSTRAINT ck_review_assignment_feedback_type CHECK ((feedback_type IN('ACCEPTED', 'NOT_ADOPTED', 'CONTENT_GAP', 'SOURCE_BLANK', 'FALSE_POSITIVE')) OR (feedback_type IS NULL));
+ALTER TABLE mk_knowledge_review_assignment ADD CONSTRAINT ck_review_assignment_followup_action CHECK ((followup_action IN('NONE', 'CREATE_REVISION_CANDIDATE', 'REQUEST_SOURCE_EVIDENCE', 'MARK_FALSE_POSITIVE', 'ARCHIVE_REJECTED')) OR (followup_action IS NULL));
+ALTER TABLE mk_knowledge_review_assignment ADD CONSTRAINT ck_review_assignment_review_status CHECK (review_status IN('PENDING_REPLACEMENT_REVIEW', 'DUPLICATE_SKIPPED', 'APPROVED', 'REJECTED', 'RETURNED'));
+ALTER TABLE mk_knowledge_shadow_run ADD CONSTRAINT pk_mk_knowledge_shadow_run PRIMARY KEY (id);
+ALTER TABLE mk_knowledge_shadow_run ADD CONSTRAINT ck_mk_knowledge_shadow_run_counts CHECK ((total_cases >= 0) AND (hit_count >= 0) AND (false_positive_count >= 0) AND (miss_count >= 0));
+ALTER TABLE mk_knowledge_shadow_run ADD CONSTRAINT ck_mk_knowledge_shadow_run_status CHECK (status IN('NOT_READY', 'FAILED', 'PASSED', 'PENDING_REVIEW'));
+ALTER TABLE mk_llm_egress_confirmation ADD CONSTRAINT pk_mk_llm_egress_confirmation PRIMARY KEY (id);
+ALTER TABLE mk_llm_egress_evidence ADD CONSTRAINT pk_mk_llm_egress_evidence PRIMARY KEY (id);
+ALTER TABLE mk_llm_egress_whitelist ADD CONSTRAINT pk_mk_llm_egress_whitelist PRIMARY KEY (id);
+ALTER TABLE mk_llm_egress_whitelist ADD CONSTRAINT uk_mk_llm_egress_whitelist UNIQUE (tenant_id, capability_code);
+ALTER TABLE mk_llm_egress_whitelist ADD CONSTRAINT ck_mk_llm_egress_policy_guardrail CHECK (guardrail_locked_flag = 'Y');
+ALTER TABLE mk_llm_egress_whitelist ADD CONSTRAINT ck_mk_llm_egress_policy_threshold CHECK (confirmation_threshold_level IN('LOW', 'MEDIUM', 'HIGH'));
+ALTER TABLE mk_llm_egress_whitelist ADD CONSTRAINT ck_mk_llm_egress_whitelist_sensitivity CHECK (sensitivity_level IN('LOW', 'MEDIUM', 'HIGH'));
+ALTER TABLE mk_llm_enhancement_matrix ADD CONSTRAINT pk_mk_llm_enhancement_matrix PRIMARY KEY (id);
+ALTER TABLE mk_llm_enhancement_matrix ADD CONSTRAINT uk_mk_llm_enhancement_matrix_point UNIQUE (business_point);
+ALTER TABLE mk_llm_enhancement_matrix ADD CONSTRAINT ck_mk_llm_enhancement_matrix_enabled CHECK (enabled_flag IN('Y', 'N'));
+ALTER TABLE mk_llm_enhancement_matrix ADD CONSTRAINT ck_mk_llm_enhancement_matrix_status CHECK (access_status IN('PENDING', 'ACTIVE', 'DISABLED'));
+ALTER TABLE mk_llm_eval_case_evidence ADD CONSTRAINT pk_mk_llm_eval_case_evidence PRIMARY KEY (id);
+ALTER TABLE mk_llm_eval_case_evidence ADD CONSTRAINT uk_mk_llm_eval_case_run_case UNIQUE (tenant_id, run_id, regression_case_id);
+ALTER TABLE mk_llm_eval_case_evidence ADD CONSTRAINT ck_mk_llm_eval_case_flags CHECK ((expected_phrase_hit IN('Y', 'N')) AND (citation_required IN('Y', 'N')) AND (citation_verified IN('Y', 'N')) AND (red_line_case IN('Y', 'N')) AND (red_line_breach IN('Y', 'N')) AND (passed_flag IN('Y', 'N')));
+ALTER TABLE mk_llm_eval_run ADD CONSTRAINT pk_mk_llm_eval_run PRIMARY KEY (id);
+ALTER TABLE mk_llm_eval_run ADD CONSTRAINT ck_mk_llm_eval_run_hallucination CHECK (hallucination_detected IN('Y', 'N'));
+ALTER TABLE mk_llm_eval_run ADD CONSTRAINT ck_mk_llm_eval_run_quality_score CHECK (((quality_score IS NULL) OR (quality_score BETWEEN 0 AND 100)) AND ((terminology_score IS NULL) OR (terminology_score BETWEEN 0 AND 100)));
+ALTER TABLE mk_llm_eval_run ADD CONSTRAINT ck_mk_llm_eval_run_status CHECK (status IN('PASSED', 'FAILED'));
+ALTER TABLE mk_llm_model_version_bundle ADD CONSTRAINT pk_mk_llm_model_version_bundle PRIMARY KEY (id);
+ALTER TABLE mk_llm_model_version_bundle ADD CONSTRAINT uk_mk_llm_model_version_active_scope UNIQUE (active_scope_key);
+ALTER TABLE mk_llm_model_version_bundle ADD CONSTRAINT ck_mk_llm_model_version_active_scope CHECK (((status = 'RETIRED') AND (active_scope_key IS NULL)) OR ((status = 'ACTIVE') AND (active_scope_key IS NOT NULL) AND (active_scope_key = (tenant_id || '|' || capability_code))));
+ALTER TABLE mk_llm_model_version_bundle ADD CONSTRAINT ck_mk_llm_model_version_bundle_status CHECK (status IN('ACTIVE', 'RETIRED'));
+ALTER TABLE mk_llm_provider ADD CONSTRAINT pk_mk_llm_provider PRIMARY KEY (id);
+ALTER TABLE mk_llm_provider ADD CONSTRAINT uk_mk_llm_provider_tenant_code UNIQUE (tenant_id, provider_code);
+ALTER TABLE mk_llm_provider ADD CONSTRAINT ck_mk_llm_provider_enabled CHECK (enabled_flag IN('Y', 'N'));
+ALTER TABLE mk_llm_provider ADD CONSTRAINT ck_mk_llm_provider_type CHECK (provider_type IN('OLLAMA', 'OPENAI_COMPATIBLE', 'CLAUDE', 'DIFY'));
+ALTER TABLE mk_llm_provider_credential ADD CONSTRAINT pk_mk_llm_provider_credential PRIMARY KEY (id);
+ALTER TABLE mk_llm_provider_credential ADD CONSTRAINT uk_mk_llm_provider_credential_tenant UNIQUE (tenant_id, provider_code);
+ALTER TABLE mk_llm_regression_case ADD CONSTRAINT pk_mk_llm_regression_case PRIMARY KEY (id);
+ALTER TABLE mk_llm_regression_case ADD CONSTRAINT ck_mk_llm_regression_case_citation CHECK (citation_required IN('Y', 'N'));
+ALTER TABLE mk_llm_regression_case ADD CONSTRAINT ck_mk_llm_regression_case_enabled CHECK (enabled_flag IN('Y', 'N'));
+ALTER TABLE mk_llm_regression_case ADD CONSTRAINT ck_mk_llm_regression_case_score CHECK (min_score BETWEEN 0 AND 100);
+ALTER TABLE mk_mpi_merge_review ADD CONSTRAINT pk_mk_mpi_merge_review PRIMARY KEY (review_id);
+ALTER TABLE mk_mpi_merge_review ADD CONSTRAINT uk_mpi_merge_review_pair UNIQUE (tenant_id, source_mpi_id, target_mpi_id);
+ALTER TABLE mk_mpi_merge_review ADD CONSTRAINT ck_mpi_merge_review_risk CHECK (risk_level IN('LOW', 'MEDIUM', 'HIGH'));
+ALTER TABLE mk_mpi_merge_review ADD CONSTRAINT ck_mpi_merge_review_status CHECK (status IN('PENDING', 'CONFIRMED', 'REJECTED'));
+ALTER TABLE mk_obs_payload_store ADD CONSTRAINT pk_mk_obs_payload_store PRIMARY KEY (id);
+ALTER TABLE mk_obs_payload_store ADD CONSTRAINT uk_mops_payload_id UNIQUE (payload_id);
+ALTER TABLE mk_obs_payload_store ADD CONSTRAINT ck_mops_storage_type CHECK (storage_type IN('INLINE', 'URI'));
+ALTER TABLE mk_obs_state_transition ADD CONSTRAINT pk_mk_obs_state_transition PRIMARY KEY (id);
+ALTER TABLE mk_obs_state_transition ADD CONSTRAINT ck_most_error_class CHECK ((error_class IN('INPUT', 'AUTH', 'DATA', 'EXTERNAL', 'INTERNAL')) OR (error_class IS NULL));
+ALTER TABLE mk_org_secondary_membership ADD CONSTRAINT pk_mk_org_secondary_membership PRIMARY KEY (tenant_id, child_id, secondary_parent_id);
+ALTER TABLE mk_org_secondary_membership ADD CONSTRAINT ck_mk_org_secondary_not_self CHECK (child_id <> secondary_parent_id);
+ALTER TABLE mk_org_secondary_membership ADD CONSTRAINT ck_mk_org_secondary_priority CHECK (priority >= 0);
+ALTER TABLE mk_plugin_grant ADD CONSTRAINT pk_mk_plugin_grant PRIMARY KEY (id);
+ALTER TABLE mk_plugin_grant ADD CONSTRAINT uk_mk_plugin_grant_capability UNIQUE (tenant_id, plugin_id, capability_key);
+ALTER TABLE mk_plugin_grant ADD CONSTRAINT uk_mk_plugin_grant_id UNIQUE (grant_id);
+ALTER TABLE mk_plugin_grant ADD CONSTRAINT ck_mk_plugin_grant_clinical CHECK (clinical_safety_confirmed IN('Y', 'N'));
+ALTER TABLE mk_plugin_grant ADD CONSTRAINT ck_mk_plugin_grant_status CHECK (status IN('AUTHORIZED', 'REVOKED'));
+ALTER TABLE mk_plugin_grant ADD CONSTRAINT ck_mk_plugin_grant_type CHECK (capability_type IN('READ', 'EXECUTE', 'WRITE'));
+ALTER TABLE mk_plugin_grant ADD CONSTRAINT ck_mk_plugin_grant_version CHECK (version >= 1);
+ALTER TABLE mk_plugin_registry ADD CONSTRAINT pk_mk_plugin_registry PRIMARY KEY (id);
+ALTER TABLE mk_plugin_registry ADD CONSTRAINT uk_plugin_registry_id UNIQUE (plugin_id);
+ALTER TABLE mk_plugin_registry ADD CONSTRAINT uk_plugin_registry_tenant_code UNIQUE (tenant_id, plugin_code);
+ALTER TABLE mk_plugin_registry ADD CONSTRAINT ck_plugin_registry_boundary CHECK (authority_boundary IN('READ_ONLY', 'CONTROLLED_WRITE'));
+ALTER TABLE mk_plugin_registry ADD CONSTRAINT ck_plugin_registry_status CHECK (status IN('PENDING_REVIEW', 'AUTHORIZED', 'DISABLED'));
+ALTER TABLE mk_plugin_registry ADD CONSTRAINT ck_plugin_registry_version CHECK (version >= 1);
+ALTER TABLE mk_projection_snapshot ADD CONSTRAINT pk_mk_projection_snapshot PRIMARY KEY (id);
+ALTER TABLE mk_projection_snapshot ADD CONSTRAINT uk_mk_projection_snapshot_fact UNIQUE (tenant_id, target_type, fact_key);
+ALTER TABLE mk_projection_snapshot ADD CONSTRAINT ck_mk_projection_snapshot_kind CHECK (fact_kind IN('NODE', 'EDGE'));
+ALTER TABLE mk_projection_snapshot ADD CONSTRAINT ck_mk_projection_snapshot_target CHECK (target_type IN('CLINICAL_GRAPH', 'KNOWLEDGE_GRAPH', 'KNOWLEDGE_SEARCH'));
+ALTER TABLE mk_projection_sync ADD CONSTRAINT pk_mk_projection_sync PRIMARY KEY (id);
+ALTER TABLE mk_projection_sync ADD CONSTRAINT uk_mk_projection_sync_tenant_sync UNIQUE (tenant_id, sync_id);
+ALTER TABLE mk_projection_sync ADD CONSTRAINT ck_mk_projection_sync_status CHECK (status IN('PENDING', 'RUNNING', 'SUCCESS', 'FAILED', 'NOT_SYNCED'));
+ALTER TABLE mk_projection_sync ADD CONSTRAINT ck_mk_projection_sync_target CHECK (target_type IN('CLINICAL_GRAPH', 'KNOWLEDGE_GRAPH', 'KNOWLEDGE_SEARCH'));
+ALTER TABLE mk_quality_case_review ADD CONSTRAINT pk_mk_quality_case_review PRIMARY KEY (id);
+ALTER TABLE mk_quality_case_review ADD CONSTRAINT uk_quality_case_review_id UNIQUE (tenant_id, review_id);
+ALTER TABLE mk_quality_case_review ADD CONSTRAINT uk_quality_case_review_snapshot UNIQUE (tenant_id, context_snapshot_id, scenario_code, runtime_release_id);
+ALTER TABLE mk_quality_case_review ADD CONSTRAINT ck_quality_case_review_model CHECK (model_status = 'MODEL_DISABLED');
+ALTER TABLE mk_quality_case_review ADD CONSTRAINT ck_quality_case_review_status CHECK (review_status IN('PASS', 'NON_COMPLIANT'));
+ALTER TABLE mk_quality_dashboard_alert ADD CONSTRAINT pk_mk_quality_dashboard_alert PRIMARY KEY (id);
+ALTER TABLE mk_quality_dashboard_alert ADD CONSTRAINT uk_quality_dashboard_alert_id UNIQUE (tenant_id, alert_id);
+ALTER TABLE mk_quality_dashboard_alert ADD CONSTRAINT uk_quality_dashboard_alert_source UNIQUE (tenant_id, alert_type, source_type, source_id);
+ALTER TABLE mk_quality_dashboard_alert ADD CONSTRAINT ck_quality_dashboard_alert_status CHECK (status IN('OPEN', 'ACKNOWLEDGED', 'RESOLVED'));
+ALTER TABLE mk_quality_dashboard_alert ADD CONSTRAINT ck_quality_dashboard_alert_type CHECK (alert_type IN('HIGH_RISK_FINDING', 'OVERDUE_RECTIFICATION', 'RULE_OVERRIDE', 'PATHWAY_VARIANCE', 'CLOCK_SLA_BREACH'));
+ALTER TABLE mk_quality_drg_grouping ADD CONSTRAINT pk_mk_quality_drg_grouping PRIMARY KEY (id);
+ALTER TABLE mk_quality_drg_grouping ADD CONSTRAINT uk_quality_drg_grouping_id UNIQUE (tenant_id, grouping_id);
+ALTER TABLE mk_quality_drg_grouping ADD CONSTRAINT uk_quality_drg_grouping_snapshot UNIQUE (tenant_id, context_snapshot_id, grouper_version);
+ALTER TABLE mk_quality_drg_grouping ADD CONSTRAINT ck_quality_drg_grouping_status CHECK (grouping_status IN('MATCHED', 'MISMATCHED'));
+ALTER TABLE mk_quality_insurance_issue ADD CONSTRAINT pk_mk_quality_insurance_issue PRIMARY KEY (id);
+ALTER TABLE mk_quality_insurance_issue ADD CONSTRAINT uk_quality_insurance_issue_id UNIQUE (tenant_id, issue_id);
+ALTER TABLE mk_quality_insurance_issue ADD CONSTRAINT uk_quality_insurance_issue_source UNIQUE (tenant_id, context_snapshot_id, claim_id, issue_type, rule_code, rule_version);
+ALTER TABLE mk_quality_insurance_issue ADD CONSTRAINT ck_quality_insurance_issue_severity CHECK (severity IN('P0', 'P1', 'P2', 'P3'));
+ALTER TABLE mk_quality_insurance_issue ADD CONSTRAINT ck_quality_insurance_issue_status CHECK (status IN('OPEN', 'RECTIFICATION_CREATED', 'CLOSED'));
+ALTER TABLE mk_quality_insurance_issue ADD CONSTRAINT ck_quality_insurance_issue_type CHECK (issue_type IN('DRG', 'CODING', 'FEE', 'INSURANCE'));
+ALTER TABLE mk_sandbox_replay_asset_binding ADD CONSTRAINT pk_mk_sandbox_replay_asset_binding PRIMARY KEY (id);
+ALTER TABLE mk_sandbox_replay_asset_binding ADD CONSTRAINT uk_mk_sandbox_replay_asset_id UNIQUE (sandbox_tenant_id, binding_id);
+ALTER TABLE mk_sandbox_replay_asset_binding ADD CONSTRAINT uk_mk_sandbox_replay_asset_version UNIQUE (sandbox_tenant_id, replay_case_id, asset_type, asset_identity, version_id);
+ALTER TABLE mk_sandbox_replay_asset_binding ADD CONSTRAINT ck_mk_sandbox_replay_asset_source CHECK (source_tier IN('PLATFORM', 'ORG'));
+ALTER TABLE mk_sandbox_replay_asset_binding ADD CONSTRAINT ck_mk_sandbox_replay_asset_status CHECK (historical_status IN('PUBLISHED', 'WITHDRAWN'));
+ALTER TABLE mk_sandbox_replay_case ADD CONSTRAINT pk_mk_sandbox_replay_case PRIMARY KEY (id);
+ALTER TABLE mk_sandbox_replay_case ADD CONSTRAINT uk_mk_sandbox_replay_case UNIQUE (sandbox_tenant_id, replay_case_id);
+ALTER TABLE mk_sandbox_replay_case ADD CONSTRAINT uk_mk_sandbox_replay_manifest UNIQUE (sandbox_tenant_id, manifest_hash);
+ALTER TABLE mk_sandbox_replay_case ADD CONSTRAINT ck_mk_sandbox_replay_case_revoke CHECK (((status = 'IMPORTED') AND (revoked_at IS NULL) AND (revoked_by IS NULL) AND (revoke_reason IS NULL)) OR ((status = 'REVOKED') AND (revoked_at IS NOT NULL) AND (revoked_by IS NOT NULL) AND (revoke_reason IS NOT NULL)));
+ALTER TABLE mk_sandbox_replay_case ADD CONSTRAINT ck_mk_sandbox_replay_case_status CHECK (status IN('IMPORTED', 'REVOKED'));
+ALTER TABLE mk_sandbox_run ADD CONSTRAINT pk_mk_sandbox_run PRIMARY KEY (id);
+ALTER TABLE mk_sandbox_run ADD CONSTRAINT uk_mk_sandbox_run_baseline UNIQUE (tenant_id, baseline_id);
+ALTER TABLE mk_sandbox_run ADD CONSTRAINT uk_mk_sandbox_run_id UNIQUE (tenant_id, run_id);
+ALTER TABLE mk_sandbox_run ADD CONSTRAINT ck_mk_sandbox_run_baseline_complete CHECK (((status IN('PREPARING', 'FAILED')) AND (baseline_id IS NULL) AND (runtime_release_ref IS NULL) AND (runtime_revision_no IS NULL) AND (platform_baseline_release_id IS NULL) AND (manifest_sha256 IS NULL) AND (resolution_source IS NULL) AND (asset_manifest_json IS NULL) AND (baseline_hash IS NULL) AND (replay_case_id IS NULL)) OR ((baseline_id IS NOT NULL) AND (runtime_release_ref IS NOT NULL) AND (runtime_revision_no IS NOT NULL) AND (manifest_sha256 IS NOT NULL) AND (resolution_source IS NOT NULL) AND (asset_manifest_json IS NOT NULL) AND (baseline_hash IS NOT NULL) AND (((run_mode = 'CURRENT') AND (platform_baseline_release_id IS NOT NULL) AND (replay_case_id IS NULL) AND (resolution_source = 'CURRENT_RUNTIME_RELEASE')) OR ((run_mode = 'COMPARE') AND (platform_baseline_release_id IS NOT NULL) AND (replay_case_id IS NOT NULL) AND (resolution_source = 'CURRENT_RUNTIME_RELEASE')) OR ((run_mode = 'HISTORICAL_EXACT') AND (platform_baseline_release_id IS NULL) AND (replay_case_id IS NOT NULL) AND (resolution_source = 'REPLAY_MANIFEST')))));
+ALTER TABLE mk_sandbox_run ADD CONSTRAINT ck_mk_sandbox_run_mode CHECK (run_mode IN('CURRENT', 'HISTORICAL_EXACT', 'COMPARE'));
+ALTER TABLE mk_sandbox_run ADD CONSTRAINT ck_mk_sandbox_run_replay_case CHECK ((run_mode NOT IN('HISTORICAL_EXACT', 'COMPARE')) OR (replay_case_id IS NOT NULL) OR ((status IN('PREPARING', 'FAILED')) AND (baseline_id IS NULL)));
+ALTER TABLE mk_sandbox_run ADD CONSTRAINT ck_mk_sandbox_run_resolution CHECK ((resolution_source IN('CURRENT_RUNTIME_RELEASE', 'REPLAY_MANIFEST')) OR (resolution_source IS NULL));
+ALTER TABLE mk_sandbox_run ADD CONSTRAINT ck_mk_sandbox_run_side_effect CHECK (external_side_effect_status = 'SUPPRESSED');
+ALTER TABLE mk_sandbox_run ADD CONSTRAINT ck_mk_sandbox_run_status CHECK (status IN('PREPARING', 'RUNNING', 'PASSED', 'FAILED'));
+ALTER TABLE mk_security_bootstrap_init_token ADD CONSTRAINT pk_mk_security_bootstrap_init_token PRIMARY KEY (id);
+ALTER TABLE mk_security_bootstrap_init_token ADD CONSTRAINT uk_bootstrap_init_token_hash UNIQUE (token_hash);
+ALTER TABLE mk_security_bootstrap_init_token ADD CONSTRAINT uk_bootstrap_init_token_id UNIQUE (token_id);
+ALTER TABLE mk_security_bootstrap_init_token ADD CONSTRAINT ck_bootstrap_init_token_status CHECK (status IN('ACTIVE', 'USED', 'REVOKED'));
+ALTER TABLE mk_term_candidate_generation_job ADD CONSTRAINT pk_mk_term_candidate_generation_job PRIMARY KEY (id);
+ALTER TABLE mk_term_candidate_generation_job ADD CONSTRAINT uk_mk_term_candidate_generation_job_code UNIQUE (job_code);
+ALTER TABLE mk_term_candidate_generation_job ADD CONSTRAINT ck_mk_term_candidate_generation_job_status CHECK (status IN('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED'));
+ALTER TABLE mk_term_high_risk_rule ADD CONSTRAINT pk_mk_term_high_risk_rule PRIMARY KEY (id);
+ALTER TABLE mk_term_high_risk_rule ADD CONSTRAINT uk_mk_term_high_risk_rule_code UNIQUE (tenant_id, rule_code);
+ALTER TABLE mk_term_high_risk_rule ADD CONSTRAINT ck_mk_term_high_risk_rule_category CHECK ((category IN('DIAGNOSIS', 'PROCEDURE', 'DRUG', 'DEVICE', 'LAB', 'EXAM', 'ORDER', 'INSURANCE', 'DEPARTMENT', 'DOCUMENT', 'FOLLOWUP', 'OTHER')) OR (category IS NULL));
+ALTER TABLE mk_term_high_risk_rule ADD CONSTRAINT ck_mk_term_high_risk_rule_status CHECK (status IN('ACTIVE', 'DISABLED'));
+ALTER TABLE mk_term_high_risk_rule ADD CONSTRAINT ck_mk_term_high_risk_rule_type CHECK (rule_type IN('MUTUALLY_EXCLUSIVE_TERMS', 'DOSE_MAGNITUDE', 'UNIT_STRENGTH'));
+ALTER TABLE mk_term_mapping_snapshot ADD CONSTRAINT pk_mk_term_mapping_snapshot PRIMARY KEY (id);
+ALTER TABLE mk_term_mapping_snapshot ADD CONSTRAINT uk_term_mapping_snapshot UNIQUE (tenant_id, version_id, mapping_id);
+ALTER TABLE mk_version_activation_transaction ADD CONSTRAINT pk_mk_version_activation_transaction PRIMARY KEY (id);
+ALTER TABLE mk_version_activation_transaction ADD CONSTRAINT uk_mk_version_activation_transaction_id UNIQUE (transaction_id);
+ALTER TABLE mk_version_activation_transaction ADD CONSTRAINT uk_mk_version_activation_transaction_idem UNIQUE (tenant_id, asset_type, asset_identity, to_version_id, action, active_scope_key);
+ALTER TABLE mk_version_activation_transaction ADD CONSTRAINT ck_mk_version_activation_transaction_action CHECK (action IN('PUBLISH', 'ROLLBACK'));
+ALTER TABLE mk_version_activation_transaction ADD CONSTRAINT ck_mk_version_activation_transaction_type CHECK (asset_type IN('KNOWLEDGE', 'TERMINOLOGY', 'RULE', 'PATHWAY', 'EVALUATION', 'FOLLOWUP', 'FIELD_CATALOG', 'SAFETY', 'CDSS_RISK', 'VALUE_SET', 'FORMULA', 'ORDER_SET', 'ACTION_CARD'));
+ALTER TABLE mk_version_asset_dependency ADD CONSTRAINT pk_mk_version_asset_dependency PRIMARY KEY (id);
+ALTER TABLE mk_version_asset_dependency ADD CONSTRAINT uk_mk_version_asset_dependency_edge UNIQUE (tenant_id, asset_type, asset_identity, version_id, depends_on_asset_type, depends_on_identity);
+ALTER TABLE mk_version_asset_dependency ADD CONSTRAINT uk_mk_version_asset_dependency_id UNIQUE (dependency_id);
+ALTER TABLE mk_version_asset_dependency ADD CONSTRAINT ck_mk_version_asset_dependency_kind CHECK (dependency_kind IN('FIELD', 'TERMINOLOGY', 'RULE', 'PATHWAY', 'RUNTIME_ASSET', 'EVALUATION', 'FOLLOWUP', 'OTHER'));
+ALTER TABLE mk_version_asset_dependency ADD CONSTRAINT ck_mk_version_asset_dependency_owner_type CHECK (asset_type IN('KNOWLEDGE', 'TERMINOLOGY', 'RULE', 'PATHWAY', 'EVALUATION', 'FOLLOWUP', 'FIELD_CATALOG', 'SAFETY', 'CDSS_RISK', 'VALUE_SET', 'FORMULA', 'ORDER_SET', 'ACTION_CARD'));
+ALTER TABLE mk_version_asset_dependency ADD CONSTRAINT ck_mk_version_asset_dependency_target_type CHECK (depends_on_asset_type IN('KNOWLEDGE', 'TERMINOLOGY', 'RULE', 'PATHWAY', 'EVALUATION', 'FOLLOWUP', 'FIELD_CATALOG', 'SAFETY', 'CDSS_RISK', 'VALUE_SET', 'FORMULA', 'ORDER_SET', 'ACTION_CARD'));
+ALTER TABLE mk_version_asset_content ADD CONSTRAINT pk_mk_version_asset_content PRIMARY KEY (id);
+ALTER TABLE mk_version_asset_content ADD CONSTRAINT uk_mk_version_asset_content_version UNIQUE (version_id);
+ALTER TABLE mk_version_asset_content ADD CONSTRAINT ck_mk_version_asset_content_hash CHECK (REGEXP_LIKE(content_hash, '^[0-9a-f]{64}$'));
+ALTER TABLE mk_version_asset_version ADD CONSTRAINT pk_mk_version_asset_version PRIMARY KEY (id);
+ALTER TABLE mk_version_asset_version ADD CONSTRAINT uk_mk_version_asset_version_active UNIQUE (tenant_id, asset_type, active_scope_key);
+ALTER TABLE mk_version_asset_version ADD CONSTRAINT uk_mk_version_asset_version_id UNIQUE (version_id);
+ALTER TABLE mk_version_asset_version ADD CONSTRAINT uk_mk_version_asset_version_no UNIQUE (tenant_id, asset_type, asset_identity, version_no);
+ALTER TABLE mk_version_asset_version ADD CONSTRAINT ck_mk_version_asset_override_policy CHECK (override_policy IN('FREE', 'REVIEW', 'LOCKED'));
+ALTER TABLE mk_version_asset_version ADD CONSTRAINT ck_mk_version_asset_safety_policy CHECK (safety_policy IN('NORMAL', 'SAFETY_REDLINE'));
+ALTER TABLE mk_version_asset_version ADD CONSTRAINT ck_mk_version_asset_version_hash CHECK (REGEXP_LIKE(content_hash, '^[0-9a-f]{64}$'));
+ALTER TABLE mk_version_asset_version ADD CONSTRAINT ck_mk_version_asset_version_status CHECK (status IN('DRAFT', 'PUBLISHED', 'WITHDRAWN'));
+ALTER TABLE mk_version_asset_version ADD CONSTRAINT ck_mk_version_asset_version_type CHECK (asset_type IN('KNOWLEDGE', 'TERMINOLOGY', 'RULE', 'PATHWAY', 'EVALUATION', 'FOLLOWUP', 'FIELD_CATALOG', 'SAFETY', 'CDSS_RISK', 'VALUE_SET', 'FORMULA', 'ORDER_SET', 'ACTION_CARD'));
+ALTER TABLE mk_version_inheritance_override ADD CONSTRAINT pk_mk_version_inheritance_override PRIMARY KEY (id);
+ALTER TABLE mk_version_inheritance_override ADD CONSTRAINT uk_mk_version_inheritance_override_active UNIQUE (tenant_id, asset_type, asset_identity, org_path, applicable_scope);
+ALTER TABLE mk_version_inheritance_override ADD CONSTRAINT uk_mk_version_inheritance_override_id UNIQUE (override_id);
+ALTER TABLE mk_version_inheritance_override ADD CONSTRAINT ck_mk_version_inheritance_override_lifecycle CHECK (lifecycle_status IN('ACTIVE', 'RETIRED'));
+ALTER TABLE mk_version_inheritance_override ADD CONSTRAINT ck_mk_version_inheritance_override_mode CHECK (override_mode IN('REPLACE', 'DISABLE', 'ADD'));
+ALTER TABLE mk_version_inheritance_override ADD CONSTRAINT ck_mk_version_inheritance_override_propagation CHECK (propagation IN('INHERITABLE', 'EXCLUSIVE'));
+ALTER TABLE mk_version_inheritance_override ADD CONSTRAINT ck_mk_version_inheritance_override_type CHECK (asset_type IN('KNOWLEDGE', 'TERMINOLOGY', 'RULE', 'PATHWAY', 'EVALUATION', 'FOLLOWUP', 'FIELD_CATALOG', 'SAFETY', 'CDSS_RISK', 'VALUE_SET', 'FORMULA', 'ORDER_SET', 'ACTION_CARD'));
+ALTER TABLE mk_version_override_operation ADD CONSTRAINT pk_mk_version_override_operation PRIMARY KEY (id);
+ALTER TABLE mk_version_override_operation ADD CONSTRAINT uk_mk_version_override_operation_id UNIQUE (operation_id);
+ALTER TABLE mk_version_override_operation ADD CONSTRAINT ck_mk_version_override_operation_status CHECK (status IN('PREVIEWED', 'APPLIED', 'REVOKED', 'FAILED'));
+ALTER TABLE mk_version_override_operation ADD CONSTRAINT ck_mk_version_override_operation_type CHECK (operation_type IN('APPLY', 'REVOKE', 'CLONE'));
+ALTER TABLE mk_version_override_template ADD CONSTRAINT pk_mk_version_override_template PRIMARY KEY (id);
+ALTER TABLE mk_version_override_template ADD CONSTRAINT uk_mk_version_override_template_id UNIQUE (template_id);
+ALTER TABLE mk_version_override_template ADD CONSTRAINT uk_mk_version_override_template_name UNIQUE (tenant_id, template_name);
+ALTER TABLE mk_version_override_template ADD CONSTRAINT ck_mk_version_override_template_status CHECK (status IN('ACTIVE', 'ARCHIVED'));
+ALTER TABLE mk_version_override_template_item ADD CONSTRAINT pk_mk_version_override_template_item PRIMARY KEY (id);
+ALTER TABLE mk_version_override_template_item ADD CONSTRAINT uk_mk_version_override_template_asset UNIQUE (template_id, asset_type, asset_identity);
+ALTER TABLE mk_version_override_template_item ADD CONSTRAINT uk_mk_version_override_template_item_id UNIQUE (item_id);
+ALTER TABLE mk_version_override_template_item ADD CONSTRAINT ck_mk_version_override_template_mode CHECK (override_mode IN('REPLACE', 'DISABLE', 'ADD'));
+ALTER TABLE mk_version_override_template_item ADD CONSTRAINT ck_mk_version_override_template_propagation CHECK (propagation IN('INHERITABLE', 'EXCLUSIVE'));
+ALTER TABLE mk_version_release_plan ADD CONSTRAINT pk_mk_version_release_plan PRIMARY KEY (id);
+ALTER TABLE mk_version_release_plan ADD CONSTRAINT uk_mk_version_release_plan_id UNIQUE (plan_id);
+ALTER TABLE mk_version_release_plan ADD CONSTRAINT ck_mk_version_release_plan_scope CHECK (scope_type IN('ALL', 'REGION', 'FACILITY', 'CAMPUS', 'DEPARTMENT', 'WARD'));
+ALTER TABLE mk_version_release_plan ADD CONSTRAINT ck_mk_version_release_plan_status CHECK (status IN('IN_REVIEW', 'REJECTED', 'APPROVED', 'PUBLISHED', 'GRAY', 'PAUSED', 'ROLLED_BACK', 'FAILED'));
+ALTER TABLE mk_version_release_plan ADD CONSTRAINT ck_mk_version_release_plan_type CHECK (asset_type IN('KNOWLEDGE', 'TERMINOLOGY', 'RULE', 'PATHWAY', 'EVALUATION', 'FOLLOWUP', 'FIELD_CATALOG', 'SAFETY', 'CDSS_RISK', 'VALUE_SET', 'FORMULA', 'ORDER_SET', 'ACTION_CARD'));
+ALTER TABLE mk_version_release_plan ADD CONSTRAINT ck_mk_version_release_rollout_strategy CHECK (rollout_strategy IN('ALL', 'ORG_SUBTREE', 'ORG_LIST', 'CANARY_BED_PERCENT', 'STAGED'));
+ALTER TABLE mk_version_replay_binding ADD CONSTRAINT pk_mk_version_replay_binding PRIMARY KEY (id);
+ALTER TABLE mk_version_replay_binding ADD CONSTRAINT uk_mk_version_replay_binding_event UNIQUE (tenant_id, asset_type, asset_identity, runtime_event_id);
+ALTER TABLE mk_version_replay_binding ADD CONSTRAINT uk_mk_version_replay_binding_id UNIQUE (binding_id);
+ALTER TABLE mk_version_replay_binding ADD CONSTRAINT ck_mk_version_replay_binding_hash CHECK (REGEXP_LIKE(result_hash, '^[0-9a-f]{64}$'));
+ALTER TABLE mk_version_replay_binding ADD CONSTRAINT ck_mk_version_replay_binding_type CHECK (asset_type IN('KNOWLEDGE', 'TERMINOLOGY', 'RULE', 'PATHWAY', 'EVALUATION', 'FOLLOWUP', 'FIELD_CATALOG', 'SAFETY', 'CDSS_RISK', 'VALUE_SET', 'FORMULA', 'ORDER_SET', 'ACTION_CARD'));
+ALTER TABLE mk_version_rollout_observation ADD CONSTRAINT pk_mk_version_rollout_observation PRIMARY KEY (id);
+ALTER TABLE mk_version_rollout_observation ADD CONSTRAINT uk_mk_version_rollout_observation_id UNIQUE (observation_id);
+ALTER TABLE mk_version_rollout_observation ADD CONSTRAINT ck_mk_version_rollout_observation_counts CHECK ((stage_index >= 0) AND (sample_count > 0) AND (hit_count >= 0) AND (block_count >= 0) AND (manual_rejection_count >= 0) AND (anomaly_count >= 0));
+ALTER TABLE mk_version_rollout_observation ADD CONSTRAINT ck_mk_version_rollout_observation_rates CHECK ((hit_rate BETWEEN 0 AND 1) AND (block_rate BETWEEN 0 AND 1) AND (manual_rejection_rate BETWEEN 0 AND 1) AND (anomaly_rate BETWEEN 0 AND 1));
+ALTER TABLE model_capability_definition ADD CONSTRAINT pk_model_capability_definition PRIMARY KEY (capability_code);
+ALTER TABLE model_capability_definition ADD CONSTRAINT ck_model_capability_definition_enabled CHECK (enabled_flag IN('Y', 'N'));
+ALTER TABLE model_capability_policy ADD CONSTRAINT pk_model_capability_policy PRIMARY KEY (id);
+ALTER TABLE model_capability_policy ADD CONSTRAINT uk_model_policy_scope UNIQUE (tenant_id, capability_code, scope_type, scope_ref);
+ALTER TABLE model_capability_policy ADD CONSTRAINT ck_model_policy_rate_limit CHECK ((rate_limit_per_minute IS NULL) OR (rate_limit_per_minute BETWEEN 1 AND 600));
+ALTER TABLE model_capability_policy ADD CONSTRAINT ck_model_policy_scope CHECK (scope_type IN('TENANT', 'GROUP', 'HOSPITAL', 'CAMPUS', 'SITE', 'DEPARTMENT', 'WARD'));
+ALTER TABLE model_capability_policy ADD CONSTRAINT ck_model_policy_timeout_ms CHECK (timeout_ms BETWEEN 1000 AND 120000);
+ALTER TABLE model_capability_task ADD CONSTRAINT pk_model_capability_task PRIMARY KEY (id);
+ALTER TABLE model_capability_task ADD CONSTRAINT uk_model_task_id UNIQUE (task_id);
+ALTER TABLE mpi_patient ADD CONSTRAINT pk_mpi_patient PRIMARY KEY (id);
+ALTER TABLE mpi_patient ADD CONSTRAINT uk_mpi_patient_id UNIQUE (mpi_id);
+ALTER TABLE org_closure ADD CONSTRAINT pk_org_closure PRIMARY KEY (tenant_id, ancestor_id, descendant_id);
+ALTER TABLE org_closure ADD CONSTRAINT ck_org_closure_depth CHECK (depth >= 0);
+ALTER TABLE org_unit ADD CONSTRAINT pk_org_unit PRIMARY KEY (id);
+ALTER TABLE org_unit ADD CONSTRAINT uk_org_unit_tenant_code UNIQUE (tenant_id, code);
+ALTER TABLE org_unit ADD CONSTRAINT ck_org_unit_facility_type CHECK (((facility_type IN('HOSPITAL', 'SPECIALTY_HOSPITAL', 'BRANCH_HOSPITAL', 'COMMUNITY_HEALTH_CENTER', 'TOWNSHIP_CLINIC', 'VILLAGE_CLINIC', 'OUTPATIENT_CLINIC', 'STATION', 'OTHER')) AND (level_code = 'FACILITY')) OR ((level_code <> 'FACILITY') AND (facility_type IS NULL)));
+ALTER TABLE org_unit ADD CONSTRAINT ck_org_unit_level CHECK (level_code IN('PLATFORM', 'TENANT', 'REGION', 'FACILITY', 'CAMPUS', 'DEPARTMENT', 'WARD'));
+ALTER TABLE org_unit ADD CONSTRAINT ck_org_unit_status CHECK (status IN('ACTIVE', 'SUSPENDED', 'ARCHIVED'));
+ALTER TABLE pathway_edge ADD CONSTRAINT pk_pathway_edge PRIMARY KEY (id);
+ALTER TABLE pathway_edge ADD CONSTRAINT uk_pathway_edge_template_code UNIQUE (tenant_id, template_id, edge_code);
+ALTER TABLE pathway_edge ADD CONSTRAINT ck_pathway_edge_type CHECK (edge_type IN('DEFAULT', 'CONDITION', 'RISK_STRATIFICATION', 'PATIENT_CHOICE', 'RESOURCE_UNAVAILABLE', 'PHYSICIAN_DECISION', 'ROLLBACK', 'JOIN'));
+ALTER TABLE pathway_milestone ADD CONSTRAINT pk_pathway_milestone PRIMARY KEY (id);
+ALTER TABLE pathway_milestone ADD CONSTRAINT uk_pathway_milestone_template_code UNIQUE (tenant_id, template_id, milestone_code);
+ALTER TABLE pathway_milestone ADD CONSTRAINT ck_pathway_milestone_day CHECK ((day_offset IS NULL) OR (day_offset >= 0));
+ALTER TABLE pathway_milestone ADD CONSTRAINT ck_pathway_milestone_expected CHECK ((expected_offset_minutes IS NULL) OR (expected_offset_minutes >= 0));
+ALTER TABLE pathway_node ADD CONSTRAINT pk_pathway_node PRIMARY KEY (id);
+ALTER TABLE pathway_node ADD CONSTRAINT uk_pathway_node_template_code UNIQUE (tenant_id, template_id, node_code);
+ALTER TABLE pathway_node ADD CONSTRAINT ck_pathway_node_disabled CHECK (disabled_flag IN(1, 0));
+ALTER TABLE pathway_node ADD CONSTRAINT ck_pathway_node_terminal CHECK (terminal_flag IN(1, 0));
+ALTER TABLE pathway_node ADD CONSTRAINT ck_pathway_node_type CHECK (node_type IN('SCREENING', 'ASSESSMENT', 'EXAM', 'LAB', 'MEDICATION', 'SURGERY', 'NURSING', 'REHAB', 'DISCHARGE', 'FOLLOWUP', 'QUALITY', 'DECISION', 'PARALLEL', 'WAIT_TIMER', 'MANUAL_GATE', 'ORDER_SET'));
+ALTER TABLE pathway_outcome_binding ADD CONSTRAINT pk_pathway_outcome_binding PRIMARY KEY (id);
+ALTER TABLE pathway_outcome_binding ADD CONSTRAINT uk_pathway_outcome_binding UNIQUE (tenant_id, template_id, scope, ref_code, indicator_code);
+ALTER TABLE pathway_outcome_binding ADD CONSTRAINT ck_pathway_outcome_scope CHECK (scope IN('TEMPLATE', 'PHASE', 'MILESTONE'));
+ALTER TABLE pathway_template ADD CONSTRAINT pk_pathway_template PRIMARY KEY (id);
+ALTER TABLE pathway_template ADD CONSTRAINT uk_pathway_template_tenant_code UNIQUE (tenant_id, template_code, template_version);
+ALTER TABLE pathway_template ADD CONSTRAINT ck_pathway_entry_mode CHECK (entry_mode IN('AUTO_SUGGEST', 'MANUAL_CONFIRM'));
+ALTER TABLE pathway_template ADD CONSTRAINT ck_pathway_template_level CHECK (template_level IN('STANDARD', 'GROUP', 'HOSPITAL', 'DEPARTMENT', 'SPECIALTY'));
+ALTER TABLE pathway_template ADD CONSTRAINT ck_pathway_template_status CHECK (status IN('DRAFT', 'PUBLISHED', 'OFFLINE', 'ARCHIVED'));
+ALTER TABLE pathway_variance ADD CONSTRAINT pk_pathway_variance PRIMARY KEY (id);
+ALTER TABLE pathway_variance ADD CONSTRAINT uk_pathway_variance_id UNIQUE (variance_id);
+ALTER TABLE pathway_variance ADD CONSTRAINT ck_pathway_variance_resolution CHECK (resolution_decision IN('HOLD', 'REENTER', 'TERMINATE'));
+ALTER TABLE pathway_variance ADD CONSTRAINT ck_pathway_variance_type CHECK (variance_type IN('CLINICAL', 'SYSTEM', 'PATIENT', 'FAMILY'));
+ALTER TABLE patient_pathway ADD CONSTRAINT pk_patient_pathway PRIMARY KEY (id);
+ALTER TABLE patient_pathway ADD CONSTRAINT uk_patient_pathway_id UNIQUE (patient_pathway_id);
+ALTER TABLE patient_pathway ADD CONSTRAINT ck_patient_pathway_status CHECK (status IN('ENTERED', 'NODE_EXECUTING', 'VARIANCE', 'COMPLETED', 'EXITED'));
+ALTER TABLE platform_credential ADD CONSTRAINT pk_platform_credential PRIMARY KEY (id);
+ALTER TABLE platform_credential ADD CONSTRAINT uk_platform_credential_id UNIQUE (credential_id);
+ALTER TABLE platform_credential ADD CONSTRAINT uk_platform_credential_username UNIQUE (tenant_id, username);
+ALTER TABLE platform_credential ADD CONSTRAINT ck_platform_credential_mustchg CHECK (must_change_pwd IN('Y', 'N'));
+ALTER TABLE platform_credential ADD CONSTRAINT ck_platform_credential_status CHECK (status IN('ACTIVE', 'DISABLED', 'LOCKED'));
+ALTER TABLE quality_finding ADD CONSTRAINT pk_quality_finding PRIMARY KEY (id);
+ALTER TABLE quality_finding ADD CONSTRAINT uk_quality_finding_id UNIQUE (finding_id);
+ALTER TABLE quality_finding ADD CONSTRAINT uk_quality_finding_result_code UNIQUE (tenant_id, result_id, finding_code);
+ALTER TABLE quality_finding ADD CONSTRAINT ck_quality_finding_severity CHECK (severity IN('P0', 'P1', 'P2', 'P3'));
+ALTER TABLE quality_finding ADD CONSTRAINT ck_quality_finding_status CHECK (status IN('NEW', 'ASSIGNED', 'REMEDIATING', 'CLOSED', 'WAIVED'));
+ALTER TABLE recommendation_card ADD CONSTRAINT pk_recommendation_card PRIMARY KEY (id);
+ALTER TABLE recommendation_card ADD CONSTRAINT uk_rec_card_id UNIQUE (card_id);
+ALTER TABLE recommendation_card ADD CONSTRAINT uk_rec_card_trigger_code UNIQUE (tenant_id, trigger_id, card_code);
+ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_ai_generated CHECK (ai_generated IN(1, 0));
+ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_auto_execution CHECK (auto_execution_allowed IN(1, 0));
+ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_automation CHECK (automation_level IN('INFORM_ONLY', 'INTERRUPTIVE', 'AUTOMATED'));
+ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_interrupt CHECK (interrupt_level IN('SILENT', 'INFO', 'WEAK_INTERRUPTIVE', 'STRONG_INTERRUPTIVE'));
+ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_physician_confirmation CHECK (requires_physician_confirmation IN(1, 0));
+ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_review CHECK (review_requirement IN('OPTIONAL_REVIEW', 'PHYSICIAN_CONFIRMATION'));
+ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_risk CHECK (risk_level IN('LOW', 'MEDIUM', 'HIGH', 'CRITICAL'));
+ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_status CHECK (status IN('PENDING', 'VIEWED', 'ACCEPTED', 'REJECTED', 'DEFERRED', 'DISMISSED', 'SUPPRESSED', 'EXPIRED'));
+ALTER TABLE recommendation_card ADD CONSTRAINT ck_rec_card_type CHECK (card_type IN('MEDICATION', 'EXAM', 'LAB', 'PATHWAY', 'RISK', 'KNOWLEDGE', 'QUALITY', 'NURSING', 'FOLLOWUP'));
+ALTER TABLE recommendation_fatigue_signal ADD CONSTRAINT pk_recommendation_fatigue_signal PRIMARY KEY (id);
+ALTER TABLE recommendation_fatigue_signal ADD CONSTRAINT uk_rec_fatigue_id UNIQUE (signal_id);
+ALTER TABLE recommendation_fatigue_signal ADD CONSTRAINT ck_rec_fatigue_signal CHECK (signal_type IN('SHOWN', 'SILENT_RECORDED', 'VIEWED', 'ACCEPTED', 'REJECTED', 'DEFERRED', 'DISMISSED', 'SUPPRESSED'));
+ALTER TABLE recommendation_feedback ADD CONSTRAINT pk_recommendation_feedback PRIMARY KEY (id);
+ALTER TABLE recommendation_feedback ADD CONSTRAINT uk_rec_feedback_id UNIQUE (feedback_id);
+ALTER TABLE recommendation_feedback ADD CONSTRAINT ck_rec_feedback_type CHECK (feedback_type IN('VIEW_SOURCE', 'ACCEPT', 'REJECT', 'DEFER', 'DISMISS'));
+ALTER TABLE recommendation_source ADD CONSTRAINT pk_recommendation_source PRIMARY KEY (id);
+ALTER TABLE recommendation_source ADD CONSTRAINT uk_rec_source_id UNIQUE (source_id);
+ALTER TABLE recommendation_source ADD CONSTRAINT ck_rec_source_type CHECK (source_type IN('RULE', 'REDLINE', 'PATHWAY', 'KNOWLEDGE', 'CONTEXT', 'TERMINOLOGY', 'MANUAL'));
+ALTER TABLE recommendation_trigger ADD CONSTRAINT pk_recommendation_trigger PRIMARY KEY (id);
+ALTER TABLE recommendation_trigger ADD CONSTRAINT uk_rec_trigger_id UNIQUE (trigger_id);
+ALTER TABLE recommendation_trigger ADD CONSTRAINT uk_rec_trigger_tenant_code UNIQUE (tenant_id, trigger_code);
+ALTER TABLE recommendation_trigger ADD CONSTRAINT ck_rec_trigger_status CHECK (status IN('RECEIVED', 'EVALUATED', 'NO_CARD', 'FAILED'));
+ALTER TABLE rectification_review ADD CONSTRAINT pk_rectification_review PRIMARY KEY (id);
+ALTER TABLE rectification_review ADD CONSTRAINT uk_rect_review_id UNIQUE (review_id);
+ALTER TABLE rectification_review ADD CONSTRAINT ck_rect_review_decision CHECK (decision IN('APPROVED', 'RETURNED', 'WAIVED'));
+ALTER TABLE rectification_task ADD CONSTRAINT pk_rectification_task PRIMARY KEY (id);
+ALTER TABLE rectification_task ADD CONSTRAINT uk_rect_task_finding UNIQUE (tenant_id, finding_id);
+ALTER TABLE rectification_task ADD CONSTRAINT uk_rect_task_id UNIQUE (task_id);
+ALTER TABLE rectification_task ADD CONSTRAINT ck_rect_task_status CHECK (status IN('ASSIGNED', 'SUBMITTED', 'RETURNED', 'CLOSED', 'WAIVED'));
+ALTER TABLE rule_applicability ADD CONSTRAINT pk_rule_applicability PRIMARY KEY (id);
+ALTER TABLE rule_applicability ADD CONSTRAINT uk_rule_applicability_version UNIQUE (tenant_id, rule_version_id);
+ALTER TABLE rule_applicability ADD CONSTRAINT ck_rule_applicability_dates CHECK ((effective_from IS NULL) OR (effective_to IS NULL) OR (effective_from <= effective_to));
+ALTER TABLE rule_applicability ADD CONSTRAINT ck_rule_applicability_rollout CHECK (rollout_percent BETWEEN 0 AND 100);
+ALTER TABLE rule_backtest_run ADD CONSTRAINT pk_rule_backtest_run PRIMARY KEY (id);
+ALTER TABLE rule_backtest_run ADD CONSTRAINT uk_rule_backtest_id UNIQUE (backtest_id);
+ALTER TABLE rule_backtest_run ADD CONSTRAINT ck_rule_backtest_counts CHECK ((true_positive_count >= 0) AND (false_positive_count >= 0) AND (true_negative_count >= 0) AND (false_negative_count >= 0));
+ALTER TABLE rule_backtest_run ADD CONSTRAINT ck_rule_backtest_rates CHECK ((sensitivity BETWEEN 0 AND 1) AND (specificity BETWEEN 0 AND 1) AND (accuracy BETWEEN 0 AND 1) AND (fire_rate BETWEEN 0 AND 1));
+ALTER TABLE rule_backtest_run ADD CONSTRAINT ck_rule_backtest_sample CHECK (sample_count > 0);
+ALTER TABLE rule_definition ADD CONSTRAINT pk_rule_definition PRIMARY KEY (id);
+ALTER TABLE rule_definition ADD CONSTRAINT uk_rule_definition_tenant_code UNIQUE (tenant_id, rule_code);
+ALTER TABLE rule_definition ADD CONSTRAINT ck_rule_definition_dedupe CHECK (dedupe_window_seconds BETWEEN 0 AND 86400);
+ALTER TABLE rule_definition ADD CONSTRAINT ck_rule_definition_mode CHECK (authoring_mode IN('TEMPLATE', 'VISUAL', 'DSL'));
+ALTER TABLE rule_definition ADD CONSTRAINT ck_rule_definition_priority CHECK (priority BETWEEN 0 AND 1000);
+ALTER TABLE rule_definition ADD CONSTRAINT ck_rule_definition_risk CHECK (risk_level IN('LOW', 'MEDIUM', 'HIGH', 'CRITICAL'));
+ALTER TABLE rule_definition ADD CONSTRAINT ck_rule_definition_status CHECK (status IN('DRAFT', 'PUBLISHED', 'OFFLINE', 'ARCHIVED'));
+ALTER TABLE rule_definition ADD CONSTRAINT ck_rule_definition_type CHECK (rule_type IN('DIAGNOSIS', 'ORDER', 'LAB', 'REPORT', 'DISCHARGE', 'FOLLOWUP', 'INSURANCE', 'QUALITY', 'RECORD', 'PATHWAY'));
+ALTER TABLE rule_drift_snapshot ADD CONSTRAINT pk_rule_drift_snapshot PRIMARY KEY (id);
+ALTER TABLE rule_drift_snapshot ADD CONSTRAINT uk_rule_drift_snapshot_id UNIQUE (drift_id);
+ALTER TABLE rule_drift_snapshot ADD CONSTRAINT ck_rule_drift_rates CHECK ((baseline_fire_rate BETWEEN 0 AND 1) AND (current_fire_rate BETWEEN 0 AND 1) AND (threshold BETWEEN 0 AND 1) AND (drift_delta BETWEEN -1 AND 1));
+ALTER TABLE rule_drift_snapshot ADD CONSTRAINT ck_rule_drift_sample CHECK ((sample_count > 0) AND (hit_count BETWEEN 0 AND sample_count));
+ALTER TABLE rule_drift_snapshot ADD CONSTRAINT ck_rule_drift_status CHECK (status IN('STABLE', 'WARNING'));
+ALTER TABLE rule_drift_snapshot ADD CONSTRAINT ck_rule_drift_window CHECK (window_start < window_end);
+ALTER TABLE rule_execution_log ADD CONSTRAINT pk_rule_execution_log PRIMARY KEY (id);
+ALTER TABLE rule_execution_log ADD CONSTRAINT uk_rule_execution_id UNIQUE (execution_id);
+ALTER TABLE rule_execution_log ADD CONSTRAINT ck_rule_execution_severity CHECK ((severity IN('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')) OR (severity IS NULL));
+ALTER TABLE rule_execution_log ADD CONSTRAINT ck_rule_execution_status CHECK (status IN('SUCCESS', 'SHADOW_RECORDED', 'MISS', 'NOT_APPLICABLE', 'SUPPRESSED', 'DEDUPLICATED', 'FAILED'));
+ALTER TABLE rule_governance ADD CONSTRAINT pk_rule_governance PRIMARY KEY (id);
+ALTER TABLE rule_governance ADD CONSTRAINT uk_rule_governance_id UNIQUE (governance_id);
+ALTER TABLE rule_governance ADD CONSTRAINT uk_rule_governance_version UNIQUE (tenant_id, rule_version_id);
+ALTER TABLE rule_governance ADD CONSTRAINT ck_rule_governance_state CHECK (state IN('DRAFT', 'REVIEWED', 'SHADOW', 'CANARY', 'FULL', 'MONITOR', 'RETIRED'));
+ALTER TABLE rule_override_log ADD CONSTRAINT pk_rule_override_log PRIMARY KEY (id);
+ALTER TABLE rule_override_log ADD CONSTRAINT uk_rule_override_execution_action UNIQUE (tenant_id, execution_id, action_code);
+ALTER TABLE rule_override_log ADD CONSTRAINT uk_rule_override_id UNIQUE (override_id);
+ALTER TABLE rule_override_log ADD CONSTRAINT ck_rule_override_action CHECK (action_code IN('BLOCK', 'STRONG_REMINDER'));
+ALTER TABLE rule_shadow_feedback ADD CONSTRAINT pk_rule_shadow_feedback PRIMARY KEY (id);
+ALTER TABLE rule_shadow_feedback ADD CONSTRAINT uk_rule_shadow_feedback_execution UNIQUE (tenant_id, execution_id);
+ALTER TABLE rule_shadow_feedback ADD CONSTRAINT uk_rule_shadow_feedback_id UNIQUE (feedback_id);
+ALTER TABLE rule_shadow_feedback ADD CONSTRAINT ck_rule_shadow_feedback_decision CHECK (decision IN('TRUE_POSITIVE', 'FALSE_POSITIVE'));
+ALTER TABLE rule_test_case ADD CONSTRAINT pk_rule_test_case PRIMARY KEY (id);
+ALTER TABLE rule_test_case ADD CONSTRAINT uk_rule_test_case_id UNIQUE (case_id);
+ALTER TABLE rule_test_case ADD CONSTRAINT ck_rule_test_case_status CHECK ((last_status IN('NOT_RUN', 'PASS', 'FAIL', 'ERROR')) OR (last_status IS NULL));
+ALTER TABLE rule_test_case ADD CONSTRAINT ck_rule_test_case_type CHECK (case_type IN('POSITIVE', 'NEGATIVE', 'BOUNDARY', 'CONFLICT'));
+ALTER TABLE rule_version ADD CONSTRAINT pk_rule_version PRIMARY KEY (id);
+ALTER TABLE rule_version ADD CONSTRAINT uk_rule_version_rule_no UNIQUE (tenant_id, rule_id, version_no);
+ALTER TABLE rule_version ADD CONSTRAINT ck_rule_version_status CHECK (status IN('DRAFT', 'PUBLISHED', 'OFFLINE', 'ARCHIVED'));
+ALTER TABLE source_document ADD CONSTRAINT pk_source_document PRIMARY KEY (id);
+ALTER TABLE source_document ADD CONSTRAINT uk_source_document_tenant_code UNIQUE (tenant_id, source_code);
+ALTER TABLE source_document ADD CONSTRAINT ck_source_document_authority CHECK (authority_level IN('A_REGULATION', 'B_GUIDELINE', 'C_CONSENSUS_LITERATURE', 'D_HOSPITAL', 'E_FEEDBACK'));
+ALTER TABLE source_document ADD CONSTRAINT ck_source_document_type CHECK (source_type IN('GUIDELINE', 'DRUG_LABEL', 'STANDARD', 'POLICY', 'HOSPITAL_PROTOCOL', 'TCM_CLASSIC', 'LITERATURE', 'CONSENSUS', 'OTHER'));
+ALTER TABLE source_fragment ADD CONSTRAINT pk_source_fragment PRIMARY KEY (id);
+ALTER TABLE source_fragment ADD CONSTRAINT uk_source_fragment_version_anchor UNIQUE (source_version_id, anchor_path);
+ALTER TABLE source_fragment ADD CONSTRAINT uk_source_fragment_version_hash UNIQUE (source_version_id, content_hash);
+ALTER TABLE source_version ADD CONSTRAINT pk_source_version PRIMARY KEY (id);
+ALTER TABLE source_version ADD CONSTRAINT uk_source_version_doc_hash UNIQUE (source_document_id, content_hash);
+ALTER TABLE source_version ADD CONSTRAINT uk_source_version_doc_no UNIQUE (source_document_id, version_no);
+ALTER TABLE specialty_metric_binding ADD CONSTRAINT pk_specialty_metric_binding PRIMARY KEY (id);
+ALTER TABLE specialty_metric_binding ADD CONSTRAINT uk_specialty_metric_binding UNIQUE (tenant_id, template_id, node_code, metric_code);
+ALTER TABLE specialty_metric_binding ADD CONSTRAINT ck_specialty_metric_required CHECK (required_flag IN(1, 0));
+ALTER TABLE standard_term ADD CONSTRAINT pk_standard_term PRIMARY KEY (id);
+ALTER TABLE standard_term ADD CONSTRAINT uk_standard_term_code UNIQUE (tenant_id, standard_system, term_code, version_no);
+ALTER TABLE standard_term ADD CONSTRAINT ck_standard_term_category CHECK (category IN('DIAGNOSIS', 'PROCEDURE', 'DRUG', 'DEVICE', 'LAB', 'EXAM', 'ORDER', 'INSURANCE', 'DEPARTMENT', 'DOCUMENT', 'FOLLOWUP', 'OTHER'));
+ALTER TABLE standard_term ADD CONSTRAINT ck_standard_term_status CHECK (status IN('ACTIVE', 'DISABLED'));
+ALTER TABLE sys_idempotency ADD CONSTRAINT pk_sys_idempotency PRIMARY KEY (id);
+ALTER TABLE sys_idempotency ADD CONSTRAINT uk_sys_idempotency_tenant_key UNIQUE (tenant_id, idempotency_key);
+ALTER TABLE sys_idempotency ADD CONSTRAINT ck_sys_idempotency_status CHECK (status IN('PROCESSING', 'COMPLETED'));
+ALTER TABLE sys_login_attempt ADD CONSTRAINT pk_sys_login_attempt PRIMARY KEY (id);
+ALTER TABLE sys_login_attempt ADD CONSTRAINT uk_sys_login_attempt_id UNIQUE (attempt_id);
+ALTER TABLE sys_login_attempt ADD CONSTRAINT uk_sys_login_attempt_tenant_user UNIQUE (tenant_id, username);
+ALTER TABLE sys_login_attempt ADD CONSTRAINT ck_sys_login_attempt_failed_count CHECK (failed_count >= 0);
+ALTER TABLE sys_password_reset_token ADD CONSTRAINT pk_sys_password_reset_token PRIMARY KEY (id);
+ALTER TABLE sys_password_reset_token ADD CONSTRAINT uk_password_reset_token_id UNIQUE (reset_id);
+ALTER TABLE sys_password_reset_token ADD CONSTRAINT ck_password_reset_token_expiry CHECK (expires_at > created_at);
+ALTER TABLE sys_task ADD CONSTRAINT pk_sys_task PRIMARY KEY (id);
+ALTER TABLE sys_task ADD CONSTRAINT uk_sys_task_tenant_task UNIQUE (tenant_id, task_id);
+ALTER TABLE sys_task ADD CONSTRAINT ck_sys_task_mode CHECK (task_mode IN('ONLINE', 'ASYNC', 'BATCH', 'OFFLINE'));
+ALTER TABLE sys_task ADD CONSTRAINT ck_sys_task_status CHECK (status IN('UNREAD', 'PROCESSING', 'COMPLETED', 'PARTIAL_SUCCESS', 'FAILED', 'ESCALATED', 'NOT_CONNECTED', 'DEAD_LETTER'));
+ALTER TABLE sys_task_dead_letter ADD CONSTRAINT pk_sys_task_dead_letter PRIMARY KEY (id);
+ALTER TABLE sys_task_dead_letter ADD CONSTRAINT uk_sys_task_dead_letter UNIQUE (tenant_id, dead_letter_id);
+ALTER TABLE sys_task_dead_letter ADD CONSTRAINT uk_sys_task_dead_task UNIQUE (tenant_id, task_id);
+ALTER TABLE sys_task_dead_letter ADD CONSTRAINT ck_sys_task_dead_mode CHECK (task_mode IN('ONLINE', 'ASYNC', 'BATCH', 'OFFLINE'));
+ALTER TABLE tenant_branding ADD CONSTRAINT pk_tenant_branding PRIMARY KEY (id);
+ALTER TABLE tenant_branding ADD CONSTRAINT uk_tenant_branding UNIQUE (tenant_id);
+ALTER TABLE tenant_success_plan ADD CONSTRAINT pk_tenant_success_plan PRIMARY KEY (id);
+ALTER TABLE tenant_success_plan ADD CONSTRAINT uk_tenant_success_plan UNIQUE (tenant_id);
+ALTER TABLE tenant_user ADD CONSTRAINT pk_tenant_user PRIMARY KEY (id);
+ALTER TABLE tenant_user ADD CONSTRAINT uk_tenant_user_identity UNIQUE (tenant_id, user_id);
+ALTER TABLE tenant_user ADD CONSTRAINT ck_tenant_user_status CHECK (status IN('ACTIVE', 'DISABLED', 'LOCKED'));
+ALTER TABLE tenant_user ADD CONSTRAINT ck_tenant_user_version CHECK (version >= 1);
+ALTER TABLE term_mapping ADD CONSTRAINT pk_term_mapping PRIMARY KEY (id);
+ALTER TABLE term_mapping ADD CONSTRAINT ck_term_mapping_risk CHECK (risk_level IN('LOW', 'MEDIUM', 'HIGH'));
+ALTER TABLE term_mapping ADD CONSTRAINT ck_term_mapping_status CHECK (status IN('DRAFT', 'CONFIRMED', 'SUPERSEDED', 'ROLLED_BACK'));
+ALTER TABLE user_role_assignment ADD CONSTRAINT pk_user_role_assignment PRIMARY KEY (id);
+ALTER TABLE user_role_assignment ADD CONSTRAINT uk_user_role_assignment UNIQUE (tenant_id, user_id, role_code, scope_level, scope_code);
+ALTER TABLE user_role_assignment ADD CONSTRAINT ck_user_role_assignment_active CHECK (active_flag IN('Y', 'N'));
+ALTER TABLE asset_trigger_binding ADD CONSTRAINT pk_asset_trigger_binding PRIMARY KEY (id);
+ALTER TABLE asset_trigger_binding ADD CONSTRAINT uk_asset_trigger_binding_id UNIQUE (trigger_binding_id);
+ALTER TABLE asset_trigger_binding ADD CONSTRAINT uk_asset_trigger_binding_version_trigger UNIQUE (tenant_id, version_id, trigger_point, purpose);
+ALTER TABLE asset_trigger_binding ADD CONSTRAINT ck_asset_trigger_binding_purpose CHECK (purpose IN('RULE_EXECUTION', 'PATHWAY_ENTRY_CANDIDATE', 'PATHWAY_PROGRESS'));
+ALTER TABLE asset_trigger_binding ADD CONSTRAINT ck_asset_trigger_binding_type_purpose CHECK (((asset_type = 'RULE') AND (purpose = 'RULE_EXECUTION')) OR ((asset_type = 'PATHWAY') AND (purpose IN('PATHWAY_ENTRY_CANDIDATE', 'PATHWAY_PROGRESS'))));
+ALTER TABLE asset_identity ADD CONSTRAINT pk_asset_identity PRIMARY KEY (id);
+ALTER TABLE asset_identity ADD CONSTRAINT uk_asset_identity_stable UNIQUE (tenant_id, asset_type, asset_identity);
+ALTER TABLE asset_identity ADD CONSTRAINT ck_asset_identity_sequence CHECK (latest_version_sequence >= 0);
+ALTER TABLE asset_identity ADD CONSTRAINT ck_asset_identity_status CHECK (status IN('ACTIVE', 'RETIRED'));
+ALTER TABLE asset_identity ADD CONSTRAINT ck_asset_identity_type CHECK (asset_type IN('KNOWLEDGE', 'TERMINOLOGY', 'RULE', 'PATHWAY', 'EVALUATION', 'FOLLOWUP', 'FIELD_CATALOG', 'SAFETY', 'CDSS_RISK', 'VALUE_SET', 'FORMULA', 'ORDER_SET', 'ACTION_CARD'));
+ALTER TABLE asset_validation_record ADD CONSTRAINT pk_asset_validation_record PRIMARY KEY (id);
+ALTER TABLE asset_validation_record ADD CONSTRAINT uk_asset_validation_record_id UNIQUE (validation_id);
+ALTER TABLE asset_validation_record ADD CONSTRAINT ck_asset_validation_record_hash CHECK (REGEXP_LIKE(content_hash, '^[0-9a-f]{64}$'));
+ALTER TABLE asset_validation_record ADD CONSTRAINT ck_asset_validation_record_passed CHECK (passed IN(1, 0));
+ALTER TABLE medical_domain ADD CONSTRAINT pk_medical_domain PRIMARY KEY (id);
+ALTER TABLE medical_domain ADD CONSTRAINT uk_medical_domain_code UNIQUE (domain_code);
+ALTER TABLE medical_domain ADD CONSTRAINT ck_medical_domain_status CHECK (status IN('ACTIVE', 'INACTIVE'));
+ALTER TABLE asset_domain_profile ADD CONSTRAINT pk_asset_domain_profile PRIMARY KEY (id);
+ALTER TABLE asset_domain_profile ADD CONSTRAINT uk_asset_domain_profile_identity UNIQUE (tenant_id, asset_type, asset_identity);
+ALTER TABLE asset_domain_profile ADD CONSTRAINT ck_asset_domain_profile_type CHECK (asset_type IN('KNOWLEDGE', 'TERMINOLOGY', 'RULE', 'PATHWAY', 'EVALUATION', 'FOLLOWUP', 'FIELD_CATALOG', 'SAFETY', 'CDSS_RISK', 'VALUE_SET', 'FORMULA', 'ORDER_SET', 'ACTION_CARD'));
+ALTER TABLE asset_related_domain ADD CONSTRAINT pk_asset_related_domain PRIMARY KEY (id);
+ALTER TABLE asset_related_domain ADD CONSTRAINT uk_asset_related_domain_identity UNIQUE (tenant_id, asset_type, asset_identity, domain_code);
+ALTER TABLE asset_related_domain ADD CONSTRAINT ck_asset_related_domain_type CHECK (asset_type IN('KNOWLEDGE', 'TERMINOLOGY', 'RULE', 'PATHWAY', 'EVALUATION', 'FOLLOWUP', 'FIELD_CATALOG', 'SAFETY', 'CDSS_RISK', 'VALUE_SET', 'FORMULA', 'ORDER_SET', 'ACTION_CARD'));
+ALTER TABLE platform_baseline_release ADD CONSTRAINT pk_platform_baseline_release PRIMARY KEY (id);
+ALTER TABLE platform_baseline_release ADD CONSTRAINT uk_platform_baseline_release_id UNIQUE (baseline_release_id);
+ALTER TABLE platform_baseline_release ADD CONSTRAINT uk_platform_baseline_revision UNIQUE (revision_no);
+ALTER TABLE platform_baseline_release ADD CONSTRAINT ck_platform_baseline_revision CHECK (revision_no >= 1);
+ALTER TABLE platform_baseline_release ADD CONSTRAINT ck_platform_baseline_manifest_hash CHECK (REGEXP_LIKE(manifest_sha256, '^[0-9a-f]{64}$'));
+ALTER TABLE platform_baseline_item ADD CONSTRAINT pk_platform_baseline_item PRIMARY KEY (id);
+ALTER TABLE platform_baseline_item ADD CONSTRAINT uk_platform_baseline_item_identity UNIQUE (baseline_release_id, asset_type, asset_identity);
+ALTER TABLE platform_baseline_item ADD CONSTRAINT ck_platform_baseline_item_hash CHECK (content_hash IS NULL OR REGEXP_LIKE(content_hash, '^[0-9a-f]{64}$'));
+ALTER TABLE platform_baseline_item ADD CONSTRAINT ck_platform_baseline_item_payload CHECK (((entry_state = 'ACTIVE') AND (version_id IS NOT NULL) AND (version_no IS NOT NULL) AND (content_hash IS NOT NULL)) OR ((entry_state = 'DISABLED') AND (version_id IS NULL) AND (version_no IS NULL) AND (content_hash IS NULL)));
+ALTER TABLE platform_baseline_item ADD CONSTRAINT ck_platform_baseline_item_state CHECK (entry_state IN('ACTIVE', 'DISABLED'));
+ALTER TABLE platform_baseline_item ADD CONSTRAINT ck_platform_baseline_item_type CHECK (asset_type IN('KNOWLEDGE', 'TERMINOLOGY', 'RULE', 'PATHWAY', 'EVALUATION', 'FOLLOWUP', 'FIELD_CATALOG', 'SAFETY', 'CDSS_RISK', 'VALUE_SET', 'FORMULA', 'ORDER_SET', 'ACTION_CARD'));
+ALTER TABLE clinical_runtime_release_item ADD CONSTRAINT pk_clinical_runtime_release_item PRIMARY KEY (id);
+ALTER TABLE clinical_runtime_release_item ADD CONSTRAINT uk_clinical_runtime_item_identity UNIQUE (release_id, asset_type, asset_identity);
+ALTER TABLE clinical_runtime_release_item ADD CONSTRAINT ck_clinical_runtime_item_hash CHECK (content_hash IS NULL OR REGEXP_LIKE(content_hash, '^[0-9a-f]{64}$'));
+ALTER TABLE clinical_runtime_release_item ADD CONSTRAINT ck_clinical_runtime_item_layer CHECK (source_layer IN('PLATFORM', 'GROUP', 'HOSPITAL'));
+ALTER TABLE clinical_runtime_release_item ADD CONSTRAINT ck_clinical_runtime_item_payload CHECK (((entry_state = 'ACTIVE') AND (version_id IS NOT NULL) AND (version_no IS NOT NULL) AND (content_hash IS NOT NULL)) OR ((entry_state = 'DISABLED') AND (version_id IS NULL) AND (version_no IS NULL) AND (content_hash IS NULL)));
+ALTER TABLE clinical_runtime_release_item ADD CONSTRAINT ck_clinical_runtime_item_state CHECK (entry_state IN('ACTIVE', 'DISABLED'));
+ALTER TABLE clinical_runtime_release_item ADD CONSTRAINT ck_clinical_runtime_item_type CHECK (asset_type IN('KNOWLEDGE', 'TERMINOLOGY', 'RULE', 'PATHWAY', 'EVALUATION', 'FOLLOWUP', 'FIELD_CATALOG', 'SAFETY', 'CDSS_RISK', 'VALUE_SET', 'FORMULA', 'ORDER_SET', 'ACTION_CARD'));
+
+-- 外键
+
+ALTER TABLE clinical_runtime_release ADD CONSTRAINT fk_clinical_runtime_release_baseline FOREIGN KEY (platform_baseline_release_id) REFERENCES platform_baseline_release (baseline_release_id);
+ALTER TABLE clinical_event ADD CONSTRAINT fk_clinical_event_runtime_release FOREIGN KEY (runtime_release_id) REFERENCES clinical_runtime_release (release_id);
+ALTER TABLE context_snapshot ADD CONSTRAINT fk_context_snapshot_runtime_release FOREIGN KEY (runtime_release_id) REFERENCES clinical_runtime_release (release_id);
+ALTER TABLE evaluation_run ADD CONSTRAINT fk_evaluation_run_runtime_release FOREIGN KEY (runtime_release_id) REFERENCES clinical_runtime_release (release_id);
+ALTER TABLE followup_plan ADD CONSTRAINT fk_followup_plan_runtime_release FOREIGN KEY (runtime_release_id) REFERENCES clinical_runtime_release (release_id);
+ALTER TABLE mk_identity_person_account ADD CONSTRAINT fk_person_account_person FOREIGN KEY (person_id) REFERENCES mk_identity_person (person_id);
+ALTER TABLE mk_identity_person_appointment ADD CONSTRAINT fk_person_appointment_person FOREIGN KEY (person_id) REFERENCES mk_identity_person (person_id);
+ALTER TABLE mk_identity_person_import_row ADD CONSTRAINT fk_person_import_row_job FOREIGN KEY (job_id) REFERENCES mk_identity_person_import_job (job_id);
+ALTER TABLE mk_knowledge_acquisition_run ADD CONSTRAINT fk_mk_knowledge_acquisition_run_source FOREIGN KEY (source_id) REFERENCES mk_knowledge_acquisition_source (id);
+ALTER TABLE mk_knowledge_initialization_item ADD CONSTRAINT fk_mk_knowledge_init_item_batch FOREIGN KEY (batch_id) REFERENCES mk_knowledge_initialization_batch (id);
+ALTER TABLE mk_knowledge_initialization_item ADD CONSTRAINT fk_mk_knowledge_init_item_classification FOREIGN KEY (candidate_classification_id) REFERENCES mk_knowledge_candidate_classification (id);
+ALTER TABLE mk_knowledge_initialization_item ADD CONSTRAINT fk_mk_knowledge_init_item_source FOREIGN KEY (source_version_id) REFERENCES source_version (id);
+ALTER TABLE mk_llm_eval_case_evidence ADD CONSTRAINT fk_mk_llm_eval_case_run FOREIGN KEY (run_id) REFERENCES mk_llm_eval_run (id);
+ALTER TABLE mk_org_secondary_membership ADD CONSTRAINT fk_mk_org_secondary_child FOREIGN KEY (child_id) REFERENCES org_unit (id) ON DELETE CASCADE;
+ALTER TABLE mk_org_secondary_membership ADD CONSTRAINT fk_mk_org_secondary_parent FOREIGN KEY (secondary_parent_id) REFERENCES org_unit (id) ON DELETE CASCADE;
+ALTER TABLE mk_plugin_grant ADD CONSTRAINT fk_plugin_grant_registry FOREIGN KEY (plugin_id) REFERENCES mk_plugin_registry (plugin_id);
+ALTER TABLE mk_quality_case_review ADD CONSTRAINT fk_quality_case_review_runtime_release FOREIGN KEY (runtime_release_id) REFERENCES clinical_runtime_release (release_id);
+ALTER TABLE mk_sandbox_replay_asset_binding ADD CONSTRAINT fk_mk_sandbox_replay_asset_case FOREIGN KEY (sandbox_tenant_id, replay_case_id) REFERENCES mk_sandbox_replay_case (sandbox_tenant_id, replay_case_id);
+ALTER TABLE mk_sandbox_run ADD CONSTRAINT fk_mk_sandbox_run_replay_case FOREIGN KEY (tenant_id, replay_case_id) REFERENCES mk_sandbox_replay_case (sandbox_tenant_id, replay_case_id);
+ALTER TABLE mk_term_mapping_snapshot ADD CONSTRAINT fk_term_mapping_snapshot_version FOREIGN KEY (version_id) REFERENCES mk_version_asset_version (version_id);
+ALTER TABLE mk_version_asset_content ADD CONSTRAINT fk_mk_version_asset_content_version FOREIGN KEY (version_id) REFERENCES mk_version_asset_version (version_id) ON DELETE CASCADE;
+ALTER TABLE org_closure ADD CONSTRAINT fk_org_closure_ancestor FOREIGN KEY (ancestor_id) REFERENCES org_unit (id) ON DELETE CASCADE;
+ALTER TABLE org_closure ADD CONSTRAINT fk_org_closure_descendant FOREIGN KEY (descendant_id) REFERENCES org_unit (id) ON DELETE CASCADE;
+ALTER TABLE recommendation_trigger ADD CONSTRAINT fk_recommendation_trigger_runtime_release FOREIGN KEY (runtime_release_id) REFERENCES clinical_runtime_release (release_id);
+ALTER TABLE asset_trigger_binding ADD CONSTRAINT fk_asset_trigger_binding_version FOREIGN KEY (version_id) REFERENCES mk_version_asset_version (version_id) ON DELETE CASCADE;
+ALTER TABLE asset_validation_record ADD CONSTRAINT fk_asset_validation_record_version FOREIGN KEY (version_id) REFERENCES mk_version_asset_version (version_id) ON DELETE CASCADE;
+ALTER TABLE medical_domain ADD CONSTRAINT fk_medical_domain_parent FOREIGN KEY (parent_domain_code) REFERENCES medical_domain (domain_code);
+ALTER TABLE asset_domain_profile ADD CONSTRAINT fk_asset_domain_profile_identity FOREIGN KEY (tenant_id, asset_type, asset_identity) REFERENCES asset_identity (tenant_id, asset_type, asset_identity) ON DELETE CASCADE;
+ALTER TABLE asset_domain_profile ADD CONSTRAINT fk_asset_domain_profile_domain FOREIGN KEY (primary_domain_code) REFERENCES medical_domain (domain_code);
+ALTER TABLE asset_related_domain ADD CONSTRAINT fk_asset_related_domain_identity FOREIGN KEY (tenant_id, asset_type, asset_identity) REFERENCES asset_identity (tenant_id, asset_type, asset_identity) ON DELETE CASCADE;
+ALTER TABLE asset_related_domain ADD CONSTRAINT fk_asset_related_domain_domain FOREIGN KEY (domain_code) REFERENCES medical_domain (domain_code);
+ALTER TABLE platform_baseline_item ADD CONSTRAINT fk_platform_baseline_item_identity FOREIGN KEY (source_tenant_id, asset_type, asset_identity) REFERENCES asset_identity (tenant_id, asset_type, asset_identity);
+ALTER TABLE platform_baseline_item ADD CONSTRAINT fk_platform_baseline_item_release FOREIGN KEY (baseline_release_id) REFERENCES platform_baseline_release (baseline_release_id) ON DELETE CASCADE;
+ALTER TABLE platform_baseline_item ADD CONSTRAINT fk_platform_baseline_item_version FOREIGN KEY (version_id) REFERENCES mk_version_asset_version (version_id);
+ALTER TABLE clinical_runtime_release_item ADD CONSTRAINT fk_clinical_runtime_item_identity FOREIGN KEY (source_tenant_id, asset_type, asset_identity) REFERENCES asset_identity (tenant_id, asset_type, asset_identity);
+ALTER TABLE clinical_runtime_release_item ADD CONSTRAINT fk_clinical_runtime_item_release FOREIGN KEY (release_id) REFERENCES clinical_runtime_release (release_id) ON DELETE CASCADE;
+ALTER TABLE clinical_runtime_release_item ADD CONSTRAINT fk_clinical_runtime_item_version FOREIGN KEY (version_id) REFERENCES mk_version_asset_version (version_id);
+
+-- 查询索引
+
+CREATE INDEX idx_audit_event_actor ON audit_event (actor_user_id, occurred_at);
+CREATE INDEX idx_audit_event_env ON audit_event (tenant_id, environment_key, occurred_at);
+CREATE INDEX idx_audit_event_large_action ON audit_event (tenant_id, action, id);
+CREATE INDEX idx_audit_event_large_actor ON audit_event (tenant_id, actor_user_id, id);
+CREATE INDEX idx_audit_event_large_cursor ON audit_event (tenant_id, id);
+CREATE INDEX idx_audit_event_large_resource ON audit_event (tenant_id, resource_type, id);
+CREATE INDEX idx_audit_event_org_path ON audit_event (tenant_id, org_path, occurred_at);
+CREATE INDEX idx_audit_event_outcome ON audit_event (tenant_id, outcome, occurred_at);
+CREATE INDEX idx_audit_event_resource ON audit_event (resource_type, resource_id, occurred_at);
+CREATE INDEX idx_audit_event_tenant ON audit_event (tenant_id, occurred_at);
+CREATE INDEX idx_audit_event_trace ON audit_event (trace_id);
+CREATE INDEX idx_canonical_resource_snapshot ON canonical_resource (snapshot_id, resource_type, seq_no);
+CREATE INDEX idx_canonical_resource_tenant_type ON canonical_resource (tenant_id, resource_type);
+CREATE INDEX idx_canonical_resource_trace ON canonical_resource (trace_id);
+CREATE INDEX idx_citation_fragment ON citation (source_fragment_id);
+CREATE INDEX idx_citation_tenant_av ON citation (tenant_id, asset_version_id);
+CREATE INDEX idx_clinical_clock_due ON clinical_clock (tenant_id, status, due_at);
+CREATE INDEX idx_clinical_clock_pathway ON clinical_clock (tenant_id, patient_pathway_id, started_at);
+CREATE INDEX idx_clinical_event_callback ON clinical_event (tenant_id, callback_webhook_id, received_at);
+CREATE INDEX idx_clinical_event_encounter ON clinical_event (tenant_id, encounter_id, received_at);
+CREATE INDEX idx_clinical_event_patient ON clinical_event (tenant_id, patient_id, received_at);
+CREATE INDEX idx_clinical_event_snapshot ON clinical_event (snapshot_id);
+CREATE INDEX idx_clinical_event_runtime_release ON clinical_event (tenant_id, runtime_release_id, received_at);
+CREATE INDEX idx_clinical_event_tenant_received ON clinical_event (tenant_id, received_at);
+CREATE INDEX idx_clinical_event_trigger ON clinical_event (tenant_id, trigger_point, received_at);
+CREATE UNIQUE INDEX uk_clinical_event_idempotency ON clinical_event (tenant_id, idempotency_key);
+CREATE INDEX idx_outbox_pending ON clinical_event_outbox (claim_status, next_attempt_at);
+CREATE INDEX idx_outbox_tenant ON clinical_event_outbox (tenant_id, created_at);
+CREATE INDEX idx_cep_tenant_time ON clinical_event_payload (tenant_id, created_at);
+CREATE INDEX idx_context_idempotency_expires ON context_idempotency_key (expires_at);
+CREATE INDEX idx_context_snapshot_org_path ON context_snapshot (tenant_id, org_path, created_at);
+CREATE INDEX idx_context_snapshot_runtime_release ON context_snapshot (tenant_id, runtime_release_id, created_at);
+CREATE INDEX idx_context_snapshot_status ON context_snapshot (tenant_id, status, created_at);
+CREATE INDEX idx_context_snapshot_tenant_enc ON context_snapshot (tenant_id, encounter_id);
+CREATE INDEX idx_context_snapshot_tenant_patient ON context_snapshot (tenant_id, patient_id, created_at);
+CREATE INDEX idx_context_snapshot_tenant_request ON context_snapshot (tenant_id, request_id);
+CREATE INDEX idx_embed_token_hook ON embed_launch_token (tenant_id, hook, hook_instance);
+CREATE INDEX idx_embed_token_status_expired ON embed_launch_token (tenant_id, status, expired_at);
+CREATE INDEX idx_embed_token_tenant ON embed_launch_token (tenant_id, token);
+CREATE INDEX idx_emergency_permission_active ON emergency_permission_grant (tenant_id, user_id, permission_code, active_flag, expires_at);
+CREATE INDEX idx_emergency_permission_expiry ON emergency_permission_grant (active_flag, expires_at);
+CREATE INDEX idx_eval_idempotency_resource ON evaluation_idempotency_key (tenant_id, finding_id, operation_type, created_at);
+CREATE INDEX idx_eval_indicator_code_status ON evaluation_indicator (tenant_id, indicator_code, status);
+CREATE INDEX idx_eval_indicator_tenant_status ON evaluation_indicator (tenant_id, status, updated_at);
+CREATE INDEX idx_eval_result_indicator ON evaluation_result (tenant_id, indicator_id, created_at);
+CREATE INDEX idx_eval_result_run ON evaluation_result (tenant_id, run_id);
+CREATE INDEX idx_eval_run_context ON evaluation_run (tenant_id, context_snapshot_id, patient_id, created_at);
+CREATE INDEX idx_eval_run_tenant_time ON evaluation_run (tenant_id, created_at);
+CREATE INDEX idx_evd_tenant ON evidence_snapshot (tenant_id, evidence_type);
+CREATE INDEX idx_evd_trace ON evidence_snapshot (trace_id);
+CREATE INDEX idx_followup_event_plan ON followup_event (tenant_id, plan_id);
+CREATE INDEX idx_followup_event_type ON followup_event (tenant_id, event_type);
+CREATE UNIQUE INDEX uk_followup_event_idempotency ON followup_event (tenant_id, event_type, idempotency_key);
+CREATE INDEX idx_followup_plan_runtime_release ON followup_plan (tenant_id, runtime_release_id, created_at);
+CREATE INDEX idx_followup_plan_fact ON followup_plan (tenant_id, source_fact_type, source_fact_id);
+CREATE INDEX idx_followup_plan_status ON followup_plan (status);
+CREATE INDEX idx_followup_plan_template ON followup_plan (tenant_id, template_id, template_version);
+CREATE INDEX idx_followup_plan_tenant_patient ON followup_plan (tenant_id, patient_id);
+CREATE UNIQUE INDEX uk_followup_plan_idempotency ON followup_plan (tenant_id, idempotency_key);
+CREATE INDEX idx_followup_questionnaire_plan ON followup_questionnaire (tenant_id, plan_id);
+CREATE INDEX idx_followup_questionnaire_task ON followup_questionnaire (tenant_id, task_id);
+CREATE UNIQUE INDEX uk_followup_questionnaire_idempotency ON followup_questionnaire (tenant_id, idempotency_key);
+CREATE INDEX idx_followup_task_clock ON followup_task (tenant_id, clinical_clock_id);
+CREATE INDEX idx_followup_task_due_date ON followup_task (due_date);
+CREATE INDEX idx_followup_task_status_due ON followup_task (tenant_id, status, due_date);
+CREATE INDEX idx_followup_task_tenant_plan ON followup_task (tenant_id, plan_id);
+CREATE UNIQUE INDEX uk_followup_task_idempotency ON followup_task (tenant_id, idempotency_key);
+CREATE INDEX idx_integ_adapter_tenant ON integration_adapter (tenant_id, protocol_type);
+CREATE INDEX idx_integ_msg_tenant ON integration_message_log (tenant_id, status);
+CREATE INDEX idx_integ_msg_trace ON integration_message_log (trace_id);
+CREATE INDEX idx_integ_webhook_tenant ON integration_webhook_config (tenant_id);
+CREATE INDEX idx_knowledge_av_authority ON knowledge_asset_version (tenant_id, authority_level);
+CREATE INDEX idx_knowledge_av_content_hash ON knowledge_asset_version (tenant_id, content_hash);
+CREATE INDEX idx_knowledge_av_effective_scope ON knowledge_asset_version (tenant_id, identity_id, organization_scope, applicable_scope, status);
+CREATE INDEX idx_knowledge_av_identity_status ON knowledge_asset_version (identity_id, status);
+CREATE INDEX idx_knowledge_av_review_due ON knowledge_asset_version (tenant_id, status, next_review_at);
+CREATE INDEX idx_knowledge_av_tenant_status ON knowledge_asset_version (tenant_id, status);
+CREATE INDEX idx_knowledge_av_tenant_updated ON knowledge_asset_version (tenant_id, updated_at);
+CREATE INDEX idx_export_job_tenant_created ON knowledge_export_job (tenant_id, created_at);
+CREATE INDEX idx_export_job_tenant_status ON knowledge_export_job (tenant_id, status);
+CREATE INDEX idx_knowledge_identity_specialty ON knowledge_identity (tenant_id, specialty_id);
+CREATE INDEX idx_knowledge_identity_tenant_domain ON knowledge_identity (tenant_id, domain);
+CREATE INDEX idx_knowledge_identity_updated ON knowledge_identity (tenant_id, updated_at);
+CREATE INDEX idx_supersession_grace ON knowledge_supersession (transition_type, grace_period_end);
+CREATE INDEX idx_supersession_new ON knowledge_supersession (new_version_id);
+CREATE INDEX idx_supersession_old ON knowledge_supersession (old_version_id);
+CREATE INDEX idx_supersession_successor ON knowledge_supersession (tenant_id, successor_identity_id);
+CREATE INDEX idx_supersession_tenant_identity ON knowledge_supersession (tenant_id, identity_id, transitioned_at);
+CREATE INDEX idx_local_term_department ON local_term (tenant_id, department_id);
+CREATE INDEX idx_local_term_tenant_source ON local_term (tenant_id, source_system, status);
+CREATE INDEX idx_mapping_candidate_generation_job ON mapping_candidate (tenant_id, generation_job_code, status);
+CREATE INDEX idx_mapping_candidate_tenant_status ON mapping_candidate (tenant_id, status, risk_level);
+CREATE INDEX idx_mapping_conflict_tenant_status ON mapping_conflict (tenant_id, status, risk_level);
+CREATE INDEX idx_mk_aik_gate_result_job ON mk_aik_gate_result (tenant_id, job_code);
+CREATE INDEX idx_mk_clinical_care_plan_org_path ON mk_clinical_care_plan (tenant_id, org_path);
+CREATE INDEX idx_mk_clinical_care_plan_patient ON mk_clinical_care_plan (tenant_id, patient_id);
+CREATE INDEX idx_mk_clinical_claim_org_path ON mk_clinical_claim (tenant_id, org_path);
+CREATE INDEX idx_mk_clinical_claim_patient ON mk_clinical_claim (tenant_id, patient_id);
+CREATE INDEX idx_mk_clinical_condition_code ON mk_clinical_condition (tenant_id, code_system, code);
+CREATE INDEX idx_mk_clinical_condition_org_path ON mk_clinical_condition (tenant_id, org_path);
+CREATE INDEX idx_mk_clinical_condition_patient ON mk_clinical_condition (tenant_id, patient_id);
+CREATE INDEX idx_mk_clinical_diagnostic_report_org_path ON mk_clinical_diagnostic_report (tenant_id, org_path);
+CREATE INDEX idx_mk_clinical_diagnostic_report_patient ON mk_clinical_diagnostic_report (tenant_id, patient_id);
+CREATE INDEX idx_mk_clinical_document_org_path ON mk_clinical_document (tenant_id, org_path);
+CREATE INDEX idx_mk_clinical_document_patient ON mk_clinical_document (tenant_id, patient_id);
+CREATE INDEX idx_mk_clinical_encounter_org_path ON mk_clinical_encounter (tenant_id, org_path);
+CREATE INDEX idx_mk_clinical_encounter_patient ON mk_clinical_encounter (tenant_id, patient_id);
+CREATE INDEX idx_mk_clinical_follow_up_org_path ON mk_clinical_follow_up (tenant_id, org_path);
+CREATE INDEX idx_mk_clinical_follow_up_patient ON mk_clinical_follow_up (tenant_id, patient_id);
+CREATE INDEX idx_mk_clinical_medication_code ON mk_clinical_medication (tenant_id, code_system, code);
+CREATE INDEX idx_mk_clinical_medication_org_path ON mk_clinical_medication (tenant_id, org_path);
+CREATE INDEX idx_mk_clinical_medication_patient ON mk_clinical_medication (tenant_id, patient_id);
+CREATE INDEX idx_mk_clinical_nursing_assessment_org_path ON mk_clinical_nursing_assessment (tenant_id, org_path);
+CREATE INDEX idx_mk_clinical_nursing_assessment_patient ON mk_clinical_nursing_assessment (tenant_id, patient_id);
+CREATE INDEX idx_mk_clinical_observation_code ON mk_clinical_observation (tenant_id, code_system, code);
+CREATE INDEX idx_mk_clinical_observation_org_path ON mk_clinical_observation (tenant_id, org_path);
+CREATE INDEX idx_mk_clinical_observation_patient ON mk_clinical_observation (tenant_id, patient_id);
+CREATE INDEX idx_mk_clinical_patient_org_path ON mk_clinical_patient (tenant_id, org_path);
+CREATE INDEX idx_mk_clinical_procedure_code ON mk_clinical_procedure (tenant_id, code_system, code);
+CREATE INDEX idx_mk_clinical_procedure_org_path ON mk_clinical_procedure (tenant_id, org_path);
+CREATE INDEX idx_mk_clinical_procedure_patient ON mk_clinical_procedure (tenant_id, patient_id);
+CREATE INDEX idx_compliance_data_permission_resource ON mk_compliance_data_permission (tenant_id, resource_type, action, status);
+CREATE INDEX idx_compliance_data_permission_scope ON mk_compliance_data_permission (tenant_id, group_id, hospital_id, department_id, status);
+CREATE INDEX idx_compliance_data_permission_ward ON mk_compliance_data_permission (tenant_id, ward_id, status);
+CREATE INDEX idx_compliance_export_confirmation_evidence ON mk_compliance_export_confirmation (tenant_id, confirmation_evidence_id, export_evidence_id);
+CREATE INDEX idx_compliance_export_confirmation_resource ON mk_compliance_export_confirmation (tenant_id, resource_type, status);
+CREATE INDEX idx_compliance_export_confirmation_status ON mk_compliance_export_confirmation (tenant_id, status, confirmed_at DESC);
+CREATE INDEX idx_compliance_identity_binding_status ON mk_compliance_identity_binding (tenant_id, status, updated_at);
+CREATE INDEX idx_compliance_identity_binding_user ON mk_compliance_identity_binding (tenant_id, user_id, provider_type, status);
+CREATE INDEX idx_compliance_interop_item_dimension ON mk_compliance_interop_assessment_item (tenant_id, standard_version, dimension);
+CREATE INDEX idx_compliance_interop_item_status ON mk_compliance_interop_assessment_item (tenant_id, standard_version, status);
+CREATE INDEX idx_compliance_interop_evidence_item ON mk_compliance_interop_evidence_map (tenant_id, item_id, status);
+CREATE INDEX idx_compliance_interop_evidence_source ON mk_compliance_interop_evidence_map (tenant_id, evidence_source_type, source_id);
+CREATE INDEX idx_compliance_interop_evidence_status ON mk_compliance_interop_evidence_map (tenant_id, status, created_at);
+CREATE INDEX idx_compliance_masking_rule_resource ON mk_compliance_masking_rule (tenant_id, resource_type, field_name, scenario_code, status);
+CREATE INDEX idx_compliance_masking_rule_status ON mk_compliance_masking_rule (tenant_id, status, updated_at);
+CREATE INDEX idx_config_history_tenant_key ON mk_config_history (tenant_id, config_key, created_at);
+CREATE INDEX idx_config_item_tenant_key ON mk_config_item (tenant_id, config_key, active_flag);
+CREATE INDEX idx_mk_ctx_field_catalog_tenant ON mk_context_field_catalog (tenant_id);
+CREATE INDEX idx_mk_diagnosis_pointer_version ON mk_diagnosis_care_pointer (tenant_id, diagnosis_version_id);
+CREATE INDEX idx_mk_diagnosis_confpolicy_tenant ON mk_diagnosis_confidence_policy (tenant_id);
+CREATE INDEX idx_mk_diagnosis_criterion_finding ON mk_diagnosis_criterion (tenant_id, finding_term_code);
+CREATE INDEX idx_mk_diagnosis_criterion_version ON mk_diagnosis_criterion (tenant_id, diagnosis_version_id);
+CREATE INDEX idx_mk_diagnosis_differential_version ON mk_diagnosis_differential (tenant_id, diagnosis_version_id);
+CREATE INDEX idx_mk_diagnosis_testcase_version ON mk_diagnosis_test_case (tenant_id, diagnosis_version_id);
+CREATE INDEX idx_mk_doc_parse_job_lookup ON mk_doc_parse_job (tenant_id, source_document_id, status);
+CREATE INDEX idx_emr_level_export_created ON mk_emr_level_evidence_export (tenant_id, created_at);
+CREATE INDEX idx_emr_level_export_target ON mk_emr_level_evidence_export (tenant_id, target_id, created_at);
+CREATE INDEX idx_emr_level_gap_target ON mk_emr_level_gap (tenant_id, target_id, gap_status);
+CREATE INDEX idx_emr_level_gap_task ON mk_emr_level_gap (tenant_id, rectification_task_id);
+CREATE INDEX idx_emr_level_item_target ON mk_emr_level_item (tenant_id, target_id, capability_status);
+CREATE INDEX idx_emr_level_target_scope ON mk_emr_level_target (tenant_id, hospital_org_id, status);
+CREATE INDEX idx_mk_engine_authoring_asset_favorite_asset ON mk_engine_authoring_asset_favorite (tenant_id, asset_type, asset_id);
+CREATE INDEX idx_mk_engine_authoring_asset_favorite_user ON mk_engine_authoring_asset_favorite (tenant_id, user_id);
+CREATE INDEX idx_mk_engine_authoring_asset_profile_category ON mk_engine_authoring_asset_profile (tenant_id, category);
+CREATE INDEX idx_mk_engine_authoring_batch_item_job ON mk_engine_authoring_batch_item (tenant_id, job_id);
+CREATE INDEX idx_mk_engine_authoring_batch_item_status ON mk_engine_authoring_batch_item (tenant_id, status);
+CREATE INDEX idx_mk_engine_authoring_batch_job_status ON mk_engine_authoring_batch_job (tenant_id, status, created_at);
+CREATE INDEX idx_cdss_risk_matrix_active ON mk_engine_cdss_risk_matrix (tenant_id, trigger_point, severity_level, automation_level, status);
+CREATE INDEX idx_cdss_risk_matrix_version ON mk_engine_cdss_risk_matrix (tenant_id, matrix_version, status, updated_at);
+CREATE INDEX idx_clinical_redline_active ON mk_engine_clinical_redline (tenant_id, status, category, trigger_point, updated_at);
+CREATE INDEX idx_clinical_redline_category ON mk_engine_clinical_redline (tenant_id, category, status, redline_key);
+CREATE INDEX idx_clinical_redline_source ON mk_engine_clinical_redline (tenant_id, source_version_id, status);
+CREATE INDEX idx_clinical_redline_trial_redline ON mk_engine_clinical_redline_trial (tenant_id, redline_id, redline_version, created_at);
+CREATE INDEX idx_clinical_redline_trial_status ON mk_engine_clinical_redline_trial (tenant_id, status, gate_passed, created_at);
+CREATE INDEX idx_mk_engine_data_encrypted_field_hash ON mk_engine_data_encrypted_field (tenant_id, search_hash);
+CREATE INDEX idx_mk_engine_data_encrypted_field_scope ON mk_engine_data_encrypted_field (tenant_id, scope_key);
+CREATE INDEX idx_mk_engine_data_export_job_tenant ON mk_engine_data_export_job (tenant_id, created_at);
+CREATE INDEX idx_mk_engine_data_field_policy_level ON mk_engine_data_field_policy (tenant_id, data_level, status);
+CREATE INDEX idx_mk_engine_data_field_policy_status ON mk_engine_data_field_policy (tenant_id, status);
+CREATE INDEX idx_notification_org_scope ON mk_engine_notification (tenant_id, org_unit_id, status);
+CREATE INDEX idx_notification_recipient_status ON mk_engine_notification (tenant_id, recipient_id, status);
+CREATE INDEX idx_notification_tenant_status_created ON mk_engine_notification (tenant_id, status, created_at);
+CREATE INDEX idx_mk_engine_rule_parameter_binding_key ON mk_engine_rule_parameter_binding (tenant_id, param_key);
+CREATE INDEX idx_mk_engine_rule_parameter_binding_version ON mk_engine_rule_parameter_binding (tenant_id, rule_version_id);
+CREATE INDEX idx_workflow_todo_assignee_status ON mk_engine_workflow_todo (tenant_id, assignee_id, status);
+CREATE INDEX idx_workflow_todo_org_scope ON mk_engine_workflow_todo (tenant_id, org_unit_id, status);
+CREATE INDEX idx_workflow_todo_tenant_status_due ON mk_engine_workflow_todo (tenant_id, status, due_at);
+CREATE INDEX idx_export_task_resource ON mk_experience_export_task (tenant_id, resource_type, created_at);
+CREATE INDEX idx_export_task_status ON mk_experience_export_task (tenant_id, status, created_at);
+CREATE INDEX idx_saved_view_default ON mk_experience_saved_view (tenant_id, user_id, page_key, default_flag, status);
+CREATE INDEX idx_saved_view_user_page ON mk_experience_saved_view (tenant_id, user_id, page_key, status);
+CREATE INDEX idx_user_pref_user_key ON mk_experience_user_pref (tenant_id, user_id, pref_key, status);
+CREATE INDEX idx_mk_fhir_rule_tenant ON mk_fhir_mapping_rule (tenant_id, fhir_version, fhir_resource_type, status);
+CREATE INDEX idx_mk_fhir_res_map_canon ON mk_fhir_resource_mapping (tenant_id, canonical_resource_id);
+CREATE INDEX idx_mk_fhir_res_map_tenant ON mk_fhir_resource_mapping (tenant_id, fhir_resource_type);
+CREATE INDEX idx_mk_followup_template_tenant ON mk_followup_template (tenant_id, updated_at);
+CREATE INDEX idx_person_directory ON mk_identity_person (tenant_id, display_name, employee_no);
+CREATE INDEX idx_person_appointment_org ON mk_identity_person_appointment (tenant_id, organization_id, department_id, ward_id, status);
+CREATE INDEX idx_person_appointment_person ON mk_identity_person_appointment (tenant_id, person_id, status, primary_flag);
+CREATE INDEX idx_person_import_row_job ON mk_identity_person_import_row (tenant_id, job_id, row_no);
+CREATE INDEX idx_dqr_tenant_generated ON mk_integration_data_quality_report (tenant_id, generated_at DESC);
+CREATE INDEX idx_mk_integration_master_data_sync_batch_latest ON mk_integration_master_data_sync_batch (tenant_id, source_system, status, processed_at);
+CREATE INDEX idx_mk_integration_master_data_sync_record_status ON mk_integration_master_data_sync_record (tenant_id, source_system, resource_type, status);
+CREATE INDEX idx_integ_onb_adapter ON mk_integration_onboarding (tenant_id, adapter_id);
+CREATE INDEX idx_integ_onb_tenant_status ON mk_integration_onboarding (tenant_id, status, updated_at);
+CREATE INDEX idx_integ_regional_org ON mk_integration_regional_source (tenant_id, source_organization_id);
+CREATE INDEX idx_integ_regional_tenant_trust ON mk_integration_regional_source (tenant_id, trust_level, status);
+CREATE INDEX idx_mk_knowledge_acquisition_run_source ON mk_knowledge_acquisition_run (tenant_id, source_code, created_at);
+CREATE INDEX idx_mk_knowledge_acquisition_run_status ON mk_knowledge_acquisition_run (tenant_id, status, created_at);
+CREATE INDEX idx_mk_knowledge_acquisition_schedule_due ON mk_knowledge_acquisition_source (schedule_enabled_flag, next_check_at, tenant_id);
+CREATE INDEX idx_mk_knowledge_acquisition_source_domain ON mk_knowledge_acquisition_source (tenant_id, domain);
+CREATE INDEX idx_mk_knowledge_acquisition_source_status ON mk_knowledge_acquisition_source (tenant_id, enabled_flag, license_policy, robots_policy);
+CREATE INDEX idx_mk_knowledge_affected_task_status ON mk_knowledge_affected_case_task (tenant_id, status, due_at);
+CREATE INDEX idx_mk_knowledge_affected_task_version ON mk_knowledge_affected_case_task (tenant_id, version_id, task_type);
+CREATE INDEX idx_candidate_classification_candidate ON mk_knowledge_candidate_classification (tenant_id, candidate_version_id);
+CREATE INDEX idx_candidate_classification_identity ON mk_knowledge_candidate_classification (tenant_id, identity_id, created_at);
+CREATE INDEX idx_candidate_classification_status ON mk_knowledge_candidate_classification (tenant_id, review_status);
+CREATE INDEX idx_knowledge_customization_local ON mk_knowledge_customization (tenant_id, local_identity_id, local_version_id);
+CREATE INDEX idx_knowledge_diff_run ON mk_knowledge_diff (tenant_id, run_code);
+CREATE INDEX idx_knowledge_diff_target ON mk_knowledge_diff (tenant_id, target_identity_id, detected_at);
+CREATE INDEX idx_mk_knowledge_discovery_run_tenant ON mk_knowledge_discovery_run (tenant_id, executed_at);
+CREATE INDEX idx_expiry_task_status ON mk_knowledge_expiry_task (tenant_id, status, review_due_at);
+CREATE INDEX idx_expiry_task_version ON mk_knowledge_expiry_task (tenant_id, version_id, status);
+CREATE INDEX idx_mk_knowledge_generation_triage_identity ON mk_knowledge_generation_triage (tenant_id, target_identity_id, created_at);
+CREATE INDEX idx_mk_knowledge_generation_triage_job ON mk_knowledge_generation_triage (tenant_id, job_code);
+CREATE INDEX idx_mk_knowledge_init_batch_release ON mk_knowledge_initialization_batch (tenant_id, release_type, release_version, status);
+CREATE INDEX idx_mk_knowledge_init_batch_status ON mk_knowledge_initialization_batch (tenant_id, status, created_at);
+CREATE INDEX idx_mk_knowledge_init_item_batch ON mk_knowledge_initialization_item (tenant_id, batch_id, status, sequence_no);
+CREATE INDEX idx_mk_knowledge_init_item_source ON mk_knowledge_initialization_item (tenant_id, source_version_id, source_hash);
+CREATE INDEX idx_mk_knowledge_invalidation_identity ON mk_knowledge_invalidation (tenant_id, identity_id, invalidated_at);
+CREATE INDEX idx_mk_knowledge_invalidation_status ON mk_knowledge_invalidation (tenant_id, status, invalidated_at);
+CREATE INDEX idx_mk_knowledge_production_candidate_job ON mk_knowledge_production_candidate (tenant_id, job_code);
+CREATE INDEX idx_mk_knowledge_production_job_lookup ON mk_knowledge_production_job (tenant_id, target_pipeline, status);
+CREATE INDEX idx_review_assignment_candidate ON mk_knowledge_review_assignment (tenant_id, candidate_version_id);
+CREATE INDEX idx_review_assignment_identity ON mk_knowledge_review_assignment (tenant_id, identity_id, created_at);
+CREATE INDEX idx_review_assignment_status ON mk_knowledge_review_assignment (tenant_id, review_status);
+CREATE INDEX idx_mk_knowledge_shadow_run_job ON mk_knowledge_shadow_run (tenant_id, job_code);
+CREATE INDEX idx_mk_knowledge_shadow_run_status ON mk_knowledge_shadow_run (tenant_id, status, created_at);
+CREATE INDEX idx_mk_llm_egress_confirmation_lookup ON mk_llm_egress_confirmation (tenant_id, capability_code, payload_hash);
+CREATE INDEX idx_mk_llm_egress_evidence_tenant ON mk_llm_egress_evidence (tenant_id, capability_code);
+CREATE INDEX idx_mk_llm_enhancement_matrix_status ON mk_llm_enhancement_matrix (access_status, sort_order);
+CREATE INDEX idx_mk_llm_eval_case_evidence_run ON mk_llm_eval_case_evidence (tenant_id, run_id, id);
+CREATE INDEX idx_mk_llm_eval_run_capability ON mk_llm_eval_run (tenant_id, capability_code, model_version, created_at);
+CREATE INDEX idx_mk_llm_eval_run_lookup ON mk_llm_eval_run (tenant_id, provider_code, model_version, status);
+CREATE INDEX idx_mk_llm_model_version_bundle_capability ON mk_llm_model_version_bundle (tenant_id, capability_code, status, id);
+CREATE INDEX idx_mk_llm_provider_tenant ON mk_llm_provider (tenant_id, provider_type);
+CREATE INDEX idx_mk_llm_provider_credential_tenant ON mk_llm_provider_credential (tenant_id, updated_at);
+CREATE INDEX idx_mk_llm_regression_case_domain ON mk_llm_regression_case (tenant_id, capability_code, case_domain);
+CREATE INDEX idx_mk_llm_regression_case_tenant ON mk_llm_regression_case (tenant_id, capability_code);
+CREATE INDEX idx_mpi_mrv_source ON mk_mpi_merge_review (tenant_id, source_mpi_id);
+CREATE INDEX idx_mpi_mrv_tenant_status ON mk_mpi_merge_review (tenant_id, status, requested_at);
+CREATE INDEX idx_mops_entity ON mk_obs_payload_store (entity_type, entity_id, created_at);
+CREATE INDEX idx_mops_tenant_time ON mk_obs_payload_store (tenant_id, created_at);
+CREATE INDEX idx_mops_trace ON mk_obs_payload_store (trace_id, created_at);
+CREATE INDEX idx_most_entity ON mk_obs_state_transition (entity_type, entity_id, occurred_at);
+CREATE INDEX idx_most_failed ON mk_obs_state_transition (tenant_id, error_class, occurred_at);
+CREATE INDEX idx_most_tenant_time ON mk_obs_state_transition (tenant_id, occurred_at);
+CREATE INDEX idx_most_trace ON mk_obs_state_transition (trace_id);
+CREATE INDEX idx_mk_org_secondary_child ON mk_org_secondary_membership (tenant_id, child_id, priority);
+CREATE INDEX idx_mk_org_secondary_parent ON mk_org_secondary_membership (tenant_id, secondary_parent_id);
+CREATE INDEX idx_mk_plugin_grant_tenant_status ON mk_plugin_grant (tenant_id, plugin_id, status);
+CREATE INDEX idx_plugin_registry_tenant ON mk_plugin_registry (tenant_id, status, plugin_code);
+CREATE INDEX idx_mk_projection_snapshot_tenant_target ON mk_projection_snapshot (tenant_id, target_type);
+CREATE INDEX idx_mk_projection_sync_tenant_status ON mk_projection_sync (tenant_id, status);
+CREATE INDEX idx_mk_projection_sync_tenant_target_ts ON mk_projection_sync (tenant_id, target_type, started_at);
+CREATE INDEX idx_quality_case_review_department ON mk_quality_case_review (tenant_id, department_id, review_status);
+CREATE INDEX idx_quality_case_review_tenant_status ON mk_quality_case_review (tenant_id, review_status, created_at);
+CREATE INDEX idx_quality_dashboard_alert_department ON mk_quality_dashboard_alert (tenant_id, department_id, status);
+CREATE INDEX idx_quality_dashboard_alert_tenant_status ON mk_quality_dashboard_alert (tenant_id, status, updated_at);
+CREATE INDEX idx_quality_drg_grouping_department ON mk_quality_drg_grouping (tenant_id, department_id, grouping_status);
+CREATE INDEX idx_quality_drg_grouping_tenant_status ON mk_quality_drg_grouping (tenant_id, grouping_status, created_at);
+CREATE INDEX idx_quality_insurance_issue_claim ON mk_quality_insurance_issue (tenant_id, claim_id, rule_code);
+CREATE INDEX idx_quality_insurance_issue_department ON mk_quality_insurance_issue (tenant_id, department_id, status);
+CREATE INDEX idx_quality_insurance_issue_tenant_status ON mk_quality_insurance_issue (tenant_id, status, severity, created_at);
+CREATE INDEX idx_mk_sandbox_replay_asset_case ON mk_sandbox_replay_asset_binding (sandbox_tenant_id, replay_case_id, asset_type);
+CREATE INDEX idx_mk_sandbox_replay_case_status ON mk_sandbox_replay_case (sandbox_tenant_id, status, imported_at);
+CREATE INDEX idx_mk_sandbox_run_replay_case ON mk_sandbox_run (tenant_id, replay_case_id, started_at);
+CREATE INDEX idx_mk_sandbox_run_scenario ON mk_sandbox_run (tenant_id, scenario_id, started_at);
+CREATE INDEX idx_mk_sandbox_run_tenant_status ON mk_sandbox_run (tenant_id, status, started_at);
+CREATE INDEX idx_bootstrap_init_token_expires ON mk_security_bootstrap_init_token (status, expires_at);
+CREATE INDEX idx_mk_term_candidate_generation_job_tenant ON mk_term_candidate_generation_job (tenant_id, created_at);
+CREATE INDEX idx_mk_term_high_risk_rule_category ON mk_term_high_risk_rule (tenant_id, category, status);
+CREATE INDEX idx_mk_term_high_risk_rule_tenant_status ON mk_term_high_risk_rule (tenant_id, status);
+CREATE INDEX idx_term_mapping_snapshot_anchor ON mk_term_mapping_snapshot (tenant_id, source_system, local_code, target_dictionary_key, category);
+CREATE INDEX idx_term_mapping_snapshot_version ON mk_term_mapping_snapshot (tenant_id, version_id);
+CREATE INDEX idx_mk_version_activation_transaction_asset ON mk_version_activation_transaction (tenant_id, asset_type, asset_identity, created_at);
+CREATE INDEX idx_mk_version_asset_dependency_owner ON mk_version_asset_dependency (tenant_id, asset_type, asset_identity, version_id);
+CREATE INDEX idx_mk_version_asset_dependency_target ON mk_version_asset_dependency (tenant_id, depends_on_asset_type, depends_on_identity);
+CREATE INDEX idx_mk_version_asset_content_tenant ON mk_version_asset_content (tenant_id);
+CREATE INDEX idx_av_batch_identity ON mk_version_asset_version (tenant_id, asset_identity, status, asset_type);
+CREATE INDEX idx_mk_version_asset_version_active_scope ON mk_version_asset_version (tenant_id, asset_type, active_scope_key, status);
+CREATE INDEX idx_mk_version_asset_version_identity ON mk_version_asset_version (tenant_id, asset_type, asset_identity);
+CREATE INDEX idx_mk_version_asset_version_tenant_status ON mk_version_asset_version (tenant_id, status, updated_at);
+CREATE INDEX idx_io_batch_scope ON mk_version_inheritance_override (tenant_id, org_path, lifecycle_status, asset_identity);
+CREATE INDEX idx_mk_version_inheritance_override_scope ON mk_version_inheritance_override (tenant_id, org_path, asset_type, asset_identity);
+CREATE INDEX idx_mk_version_inheritance_override_version ON mk_version_inheritance_override (tenant_id, inherited_version_id, override_version_id);
+CREATE INDEX idx_mk_version_override_operation_tenant ON mk_version_override_operation (tenant_id, operation_type, created_at);
+CREATE INDEX idx_mk_version_override_template_tenant ON mk_version_override_template (tenant_id, status, updated_at);
+CREATE INDEX idx_mk_version_release_plan_asset ON mk_version_release_plan (tenant_id, asset_type, asset_identity, status);
+CREATE INDEX idx_mk_version_release_plan_version ON mk_version_release_plan (tenant_id, version_id, status);
+CREATE INDEX idx_mk_version_replay_binding_version ON mk_version_replay_binding (tenant_id, version_id, runtime_event_id);
+CREATE INDEX idx_mk_version_rollout_plan ON mk_version_rollout_observation (tenant_id, plan_id, stage_index, observed_at);
+CREATE INDEX idx_model_task_tenant ON model_capability_task (tenant_id, capability_code);
+CREATE INDEX idx_mpi_patient_tenant_status ON mpi_patient (tenant_id, status);
+CREATE INDEX idx_org_closure_ancestor ON org_closure (tenant_id, ancestor_id, depth);
+CREATE INDEX idx_org_closure_descendant ON org_closure (tenant_id, descendant_id, depth);
+CREATE INDEX idx_org_unit_parent ON org_unit (parent_id);
+CREATE INDEX idx_org_unit_path ON org_unit (tenant_id, org_path);
+CREATE INDEX idx_org_unit_tenant_lv ON org_unit (tenant_id, level_code);
+CREATE INDEX idx_pathway_edge_template_from ON pathway_edge (tenant_id, template_id, from_node_code, priority);
+CREATE INDEX idx_pathway_edge_template_to ON pathway_edge (tenant_id, template_id, to_node_code);
+CREATE INDEX idx_pathway_milestone_phase_day ON pathway_milestone (tenant_id, template_id, phase_code, day_offset);
+CREATE INDEX idx_pathway_milestone_template_order ON pathway_milestone (tenant_id, template_id, sort_order);
+CREATE INDEX idx_pathway_node_template_order ON pathway_node (tenant_id, template_id, sort_order);
+CREATE INDEX idx_pathway_outcome_indicator ON pathway_outcome_binding (tenant_id, indicator_code);
+CREATE INDEX idx_pathway_outcome_template ON pathway_outcome_binding (tenant_id, template_id, scope, ref_code);
+CREATE INDEX idx_pathway_template_disease ON pathway_template (tenant_id, disease_code);
+CREATE INDEX idx_pathway_template_tenant_status ON pathway_template (tenant_id, status, updated_at);
+CREATE INDEX idx_pathway_variance_pathway_time ON pathway_variance (tenant_id, patient_pathway_id, created_at);
+CREATE INDEX idx_patient_pathway_patient ON patient_pathway (tenant_id, patient_id, entered_at);
+CREATE INDEX idx_patient_pathway_template_status ON patient_pathway (tenant_id, template_id, status);
+CREATE INDEX idx_patient_pathway_runtime_version ON patient_pathway (tenant_id, runtime_release_id, pathway_version_id);
+CREATE INDEX idx_platform_credential_login ON platform_credential (tenant_id, username, status);
+CREATE INDEX idx_quality_finding_department ON quality_finding (tenant_id, responsible_department_id, status, due_at);
+CREATE INDEX idx_quality_finding_status ON quality_finding (tenant_id, status, severity, created_at);
+CREATE INDEX idx_rec_card_fatigue ON recommendation_card (tenant_id, fatigue_key, created_at);
+CREATE INDEX idx_rec_card_risk ON recommendation_card (tenant_id, risk_level, interrupt_level, created_at);
+CREATE INDEX idx_rec_card_risk_matrix ON recommendation_card (tenant_id, risk_matrix_version, automation_level, created_at);
+CREATE INDEX idx_rec_card_tenant_status ON recommendation_card (tenant_id, status, created_at);
+CREATE INDEX idx_rec_card_trigger ON recommendation_card (tenant_id, trigger_id);
+CREATE INDEX idx_rec_fatigue_card ON recommendation_fatigue_signal (tenant_id, card_id, created_at);
+CREATE INDEX idx_rec_fatigue_key ON recommendation_fatigue_signal (tenant_id, fatigue_key, signal_type, created_at);
+CREATE INDEX idx_rec_fatigue_tenant_time ON recommendation_fatigue_signal (tenant_id, created_at);
+CREATE INDEX idx_rec_feedback_card_time ON recommendation_feedback (tenant_id, card_id, created_at);
+CREATE UNIQUE INDEX uk_rec_feedback_idempotency ON recommendation_feedback (tenant_id, card_id, idempotency_key);
+CREATE INDEX idx_rec_source_card ON recommendation_source (tenant_id, card_id, source_type);
+CREATE INDEX idx_rec_trigger_patient ON recommendation_trigger (tenant_id, patient_id, encounter_id, created_at);
+CREATE INDEX idx_rec_trigger_scenario ON recommendation_trigger (tenant_id, scenario_code, created_at);
+CREATE INDEX idx_rec_trigger_status ON recommendation_trigger (tenant_id, status, created_at);
+CREATE INDEX idx_rec_trigger_runtime_release ON recommendation_trigger (tenant_id, runtime_release_id, created_at);
+CREATE INDEX idx_rec_trigger_tenant_time ON recommendation_trigger (tenant_id, created_at);
+CREATE INDEX idx_rect_review_finding ON rectification_review (tenant_id, finding_id, reviewed_at);
+CREATE INDEX idx_rect_task_department_status ON rectification_task (tenant_id, responsible_department_id, status, due_at);
+CREATE INDEX idx_rect_task_finding ON rectification_task (tenant_id, finding_id, status);
+CREATE INDEX idx_rule_applicability_effective ON rule_applicability (tenant_id, effective_from, effective_to);
+CREATE INDEX idx_rule_backtest_rule_time ON rule_backtest_run (tenant_id, rule_id, created_at);
+CREATE INDEX idx_rule_backtest_version_time ON rule_backtest_run (tenant_id, version_id, created_at);
+CREATE INDEX idx_rule_definition_priority ON rule_definition (tenant_id, status, priority);
+CREATE INDEX idx_rule_definition_tenant_status ON rule_definition (tenant_id, status, updated_at);
+CREATE INDEX idx_rule_definition_type_risk ON rule_definition (tenant_id, rule_type, risk_level);
+CREATE INDEX idx_rule_drift_rule_time ON rule_drift_snapshot (tenant_id, rule_id, created_at);
+CREATE INDEX idx_rule_drift_status ON rule_drift_snapshot (tenant_id, rule_id, status);
+CREATE INDEX idx_rule_execution_release ON rule_execution_log (tenant_id, runtime_release_id, executed_at);
+CREATE INDEX idx_rule_execution_dedupe ON rule_execution_log (tenant_id, patient_id, semantic_key, executed_at);
+CREATE INDEX idx_rule_execution_rule_time ON rule_execution_log (tenant_id, rule_id, executed_at);
+CREATE INDEX idx_rule_execution_tenant_time ON rule_execution_log (tenant_id, executed_at);
+CREATE INDEX idx_rule_execution_trigger ON rule_execution_log (tenant_id, trigger_point, executed_at);
+CREATE INDEX idx_rule_governance_state ON rule_governance (tenant_id, state, updated_at);
+CREATE INDEX idx_rule_override_execution ON rule_override_log (tenant_id, execution_id);
+CREATE INDEX idx_rule_override_rule_time ON rule_override_log (tenant_id, rule_id, overridden_at);
+CREATE INDEX idx_rule_shadow_feedback_decision ON rule_shadow_feedback (tenant_id, rule_id, decision);
+CREATE INDEX idx_rule_shadow_feedback_rule_time ON rule_shadow_feedback (tenant_id, rule_id, assessed_at);
+CREATE INDEX idx_rule_test_case_version_type ON rule_test_case (tenant_id, version_id, case_type);
+CREATE INDEX idx_rule_version_rule_status ON rule_version (tenant_id, rule_id, status);
+CREATE INDEX idx_source_document_tenant_auth ON source_document (tenant_id, authority_level);
+CREATE INDEX idx_source_document_tenant_type ON source_document (tenant_id, source_type);
+CREATE INDEX idx_source_fragment_tenant_ver ON source_fragment (tenant_id, source_version_id);
+CREATE INDEX idx_source_version_tenant_doc ON source_version (tenant_id, source_document_id);
+CREATE INDEX idx_specialty_metric_template ON specialty_metric_binding (tenant_id, template_id, node_code);
+CREATE INDEX idx_standard_term_tenant_category ON standard_term (tenant_id, category);
+CREATE INDEX idx_standard_term_tenant_updated ON standard_term (tenant_id, updated_at);
+CREATE INDEX idx_sys_idempotency_expiry ON sys_idempotency (status, expires_at);
+CREATE INDEX idx_sys_login_attempt_locked_until ON sys_login_attempt (tenant_id, locked_until);
+CREATE INDEX idx_pwd_reset_token_expiry ON sys_password_reset_token (tenant_id, expires_at);
+CREATE INDEX idx_pwd_reset_token_lookup ON sys_password_reset_token (tenant_id, user_id, token_hash, used_at);
+CREATE INDEX idx_sys_task_dead_letter ON sys_task (tenant_id, dead_letter_id);
+CREATE INDEX idx_sys_task_mode_ts ON sys_task (tenant_id, task_mode, created_at);
+CREATE INDEX idx_sys_task_org_ts ON sys_task (tenant_id, org_path, created_at);
+CREATE INDEX idx_sys_task_retry_ts ON sys_task (tenant_id, status, next_attempt_at);
+CREATE INDEX idx_sys_task_status_ts ON sys_task (tenant_id, status, created_at);
+CREATE INDEX idx_sys_task_dead_task ON sys_task_dead_letter (task_id, tenant_id);
+CREATE INDEX idx_sys_task_dead_tenant_ts ON sys_task_dead_letter (tenant_id, created_at);
+CREATE INDEX idx_tenant_user_directory ON tenant_user (tenant_id, display_name, user_id);
+CREATE INDEX idx_term_mapping_local_standard ON term_mapping (tenant_id, local_term_id, standard_term_id);
+CREATE INDEX idx_term_mapping_tenant_status ON term_mapping (tenant_id, status);
+CREATE INDEX idx_user_role_assignment_user ON user_role_assignment (tenant_id, user_id, active_flag);
+CREATE INDEX idx_asset_trigger_binding_lookup ON asset_trigger_binding (tenant_id, purpose, trigger_point, version_id);
+CREATE INDEX idx_asset_identity_status ON asset_identity (tenant_id, status, asset_type);
+CREATE INDEX idx_asset_validation_record_version ON asset_validation_record (tenant_id, version_id, validated_at DESC);
+CREATE INDEX idx_medical_domain_status_sort ON medical_domain (status, sort_order, domain_code);
+CREATE INDEX idx_asset_domain_profile_domain ON asset_domain_profile (primary_domain_code, tenant_id, asset_type);
+CREATE INDEX idx_asset_related_domain_domain ON asset_related_domain (domain_code, tenant_id, asset_type);
+CREATE INDEX idx_platform_baseline_item_version ON platform_baseline_item (version_id);
+CREATE INDEX idx_clinical_runtime_item_version ON clinical_runtime_release_item (version_id);
+
+-- 中文结构说明
+
+COMMENT ON TABLE audit_chain_head IS '每租户审计哈希链链头';
+COMMENT ON COLUMN audit_chain_head.tenant_id IS '租户标识';
+COMMENT ON COLUMN audit_chain_head.last_event_id IS '业务字段：last_event_id';
+COMMENT ON COLUMN audit_chain_head.last_signature IS '业务字段：last_signature';
+COMMENT ON COLUMN audit_chain_head.updated_at IS '更新时间';
+COMMENT ON TABLE audit_event IS '业务表：audit_event';
+COMMENT ON COLUMN audit_event.id IS '数据库主键';
+COMMENT ON COLUMN audit_event.event_id IS '业务字段：event_id';
+COMMENT ON COLUMN audit_event.trace_id IS '追踪号';
+COMMENT ON COLUMN audit_event.occurred_at IS '业务字段：occurred_at';
+COMMENT ON COLUMN audit_event.actor_user_id IS '业务字段：actor_user_id';
+COMMENT ON COLUMN audit_event.action IS '业务字段：action';
+COMMENT ON COLUMN audit_event.resource_type IS '业务字段：resource_type';
+COMMENT ON COLUMN audit_event.resource_id IS '业务字段：resource_id';
+COMMENT ON COLUMN audit_event.summary IS '业务字段：summary';
+COMMENT ON COLUMN audit_event.payload_digest IS '业务字段：payload_digest';
+COMMENT ON COLUMN audit_event.tenant_id IS '租户标识';
+COMMENT ON COLUMN audit_event.hospital_id IS '业务字段：hospital_id';
+COMMENT ON COLUMN audit_event.department_id IS '业务字段：department_id';
+COMMENT ON COLUMN audit_event.ip_address IS '业务字段：ip_address';
+COMMENT ON COLUMN audit_event.user_agent IS '业务字段：user_agent';
+COMMENT ON COLUMN audit_event.signature IS '业务字段：signature';
+COMMENT ON COLUMN audit_event.status IS '当前状态';
+COMMENT ON COLUMN audit_event.created_at IS '创建时间';
+COMMENT ON COLUMN audit_event.prev_event_id IS '业务字段：prev_event_id';
+COMMENT ON COLUMN audit_event.prev_signature IS '业务字段：prev_signature';
+COMMENT ON COLUMN audit_event.outcome IS '业务字段：outcome';
+COMMENT ON COLUMN audit_event.error_code IS '业务字段：error_code';
+COMMENT ON COLUMN audit_event.actor_roles IS '触发审计事件时用户拥有的角色集合';
+COMMENT ON COLUMN audit_event.org_path IS '触发审计事件时的组织路径快照';
+COMMENT ON COLUMN audit_event.environment_key IS '触发审计事件的环境标识';
+COMMENT ON COLUMN audit_event.before_snapshot IS '变更前快照，敏感字段已脱敏';
+COMMENT ON COLUMN audit_event.after_snapshot IS '变更后快照，敏感字段已脱敏';
+COMMENT ON COLUMN audit_event.dedupe_key IS '审计幂等键：tenant + traceId + action + target 的 SM3 摘要';
+COMMENT ON TABLE canonical_resource IS '业务表：canonical_resource';
+COMMENT ON COLUMN canonical_resource.id IS '数据库主键';
+COMMENT ON COLUMN canonical_resource.resource_id IS '业务字段：resource_id';
+COMMENT ON COLUMN canonical_resource.snapshot_id IS '业务字段：snapshot_id';
+COMMENT ON COLUMN canonical_resource.tenant_id IS '租户标识';
+COMMENT ON COLUMN canonical_resource.resource_type IS '业务字段：resource_type';
+COMMENT ON COLUMN canonical_resource.resource_payload IS '业务字段：resource_payload';
+COMMENT ON COLUMN canonical_resource.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN canonical_resource.source_record_id IS '业务字段：source_record_id';
+COMMENT ON COLUMN canonical_resource.mapped_version IS '业务字段：mapped_version';
+COMMENT ON COLUMN canonical_resource.event_time IS '业务字段：event_time';
+COMMENT ON COLUMN canonical_resource.received_time IS '业务字段：received_time';
+COMMENT ON COLUMN canonical_resource.quality_status IS '业务字段：quality_status';
+COMMENT ON COLUMN canonical_resource.seq_no IS '业务字段：seq_no';
+COMMENT ON COLUMN canonical_resource.trace_id IS '追踪号';
+COMMENT ON TABLE citation IS '业务表：citation';
+COMMENT ON COLUMN citation.id IS '数据库主键';
+COMMENT ON COLUMN citation.tenant_id IS '租户标识';
+COMMENT ON COLUMN citation.asset_version_id IS '业务字段：asset_version_id';
+COMMENT ON COLUMN citation.source_fragment_id IS '业务字段：source_fragment_id';
+COMMENT ON COLUMN citation.relation IS '业务字段：relation';
+COMMENT ON COLUMN citation.weight IS '业务字段：weight';
+COMMENT ON COLUMN citation.created_at IS '创建时间';
+COMMENT ON COLUMN citation.created_by IS '创建人';
+COMMENT ON COLUMN citation.start_offset IS '来源片段内引用起始偏移，用于把 Citation 精确定位到 SourceFragment 文本范围';
+COMMENT ON COLUMN citation.end_offset IS '来源片段内引用结束偏移，用于把 Citation 精确定位到 SourceFragment 文本范围';
+COMMENT ON TABLE clinical_clock IS '业务表：clinical_clock';
+COMMENT ON COLUMN clinical_clock.id IS '数据库主键';
+COMMENT ON COLUMN clinical_clock.clock_id IS '业务字段：clock_id';
+COMMENT ON COLUMN clinical_clock.tenant_id IS '租户标识';
+COMMENT ON COLUMN clinical_clock.patient_pathway_id IS '业务字段：patient_pathway_id';
+COMMENT ON COLUMN clinical_clock.node_code IS '业务字段：node_code';
+COMMENT ON COLUMN clinical_clock.metric_code IS '业务字段：metric_code';
+COMMENT ON COLUMN clinical_clock.started_at IS '业务字段：started_at';
+COMMENT ON COLUMN clinical_clock.due_at IS '业务字段：due_at';
+COMMENT ON COLUMN clinical_clock.completed_at IS '业务字段：completed_at';
+COMMENT ON COLUMN clinical_clock.status IS '当前状态';
+COMMENT ON COLUMN clinical_clock.baseline_event IS '业务字段：baseline_event';
+COMMENT ON COLUMN clinical_clock.baseline_at IS '业务字段：baseline_at';
+COMMENT ON COLUMN clinical_clock.min_due_at IS '业务字段：min_due_at';
+COMMENT ON COLUMN clinical_clock.target_due_at IS '业务字段：target_due_at';
+COMMENT ON COLUMN clinical_clock.max_due_at IS '业务字段：max_due_at';
+COMMENT ON COLUMN clinical_clock.escalation_level IS '业务字段：escalation_level';
+COMMENT ON COLUMN clinical_clock.escalation_policy_json IS '业务字段：escalation_policy_json';
+COMMENT ON COLUMN clinical_clock.created_at IS '创建时间';
+COMMENT ON COLUMN clinical_clock.created_by IS '创建人';
+COMMENT ON COLUMN clinical_clock.updated_at IS '更新时间';
+COMMENT ON COLUMN clinical_clock.updated_by IS '更新人';
+COMMENT ON COLUMN clinical_clock.trace_id IS '追踪号';
+COMMENT ON TABLE clinical_runtime_release IS '机构生效版本账本：只追加，锁定平台标准版本和完整精确版本明细校验码';
+COMMENT ON COLUMN clinical_runtime_release.id IS '数据库主键';
+COMMENT ON COLUMN clinical_runtime_release.release_id IS '不可变机构生效版本 ID';
+COMMENT ON COLUMN clinical_runtime_release.tenant_id IS '医院所属租户';
+COMMENT ON COLUMN clinical_runtime_release.hospital_id IS '机构生效版本适用医院';
+COMMENT ON COLUMN clinical_runtime_release.revision_no IS '医院内自动递增生效版本号';
+COMMENT ON COLUMN clinical_runtime_release.platform_baseline_release_id IS '采用的平台标准版本标识';
+COMMENT ON COLUMN clinical_runtime_release.manifest_sha256 IS '完整精确版本明细 SHA-256 校验码';
+COMMENT ON COLUMN clinical_runtime_release.rollback_from_release_id IS '回滚时复制的历史机构生效版本 ID';
+COMMENT ON COLUMN clinical_runtime_release.activated_at IS '生效时间';
+COMMENT ON COLUMN clinical_runtime_release.activated_by IS '生效操作人';
+COMMENT ON COLUMN clinical_runtime_release.created_at IS '创建时间';
+COMMENT ON COLUMN clinical_runtime_release.created_by IS '创建人';
+COMMENT ON COLUMN clinical_runtime_release.trace_id IS '链路追踪 ID';
+COMMENT ON TABLE clinical_event IS '业务表：clinical_event';
+COMMENT ON COLUMN clinical_event.id IS '数据库主键';
+COMMENT ON COLUMN clinical_event.event_id IS '业务字段：event_id';
+COMMENT ON COLUMN clinical_event.tenant_id IS '租户标识';
+COMMENT ON COLUMN clinical_event.event_type IS '业务字段：event_type';
+COMMENT ON COLUMN clinical_event.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN clinical_event.payload_digest IS '业务字段：payload_digest';
+COMMENT ON COLUMN clinical_event.occurred_at IS '业务字段：occurred_at';
+COMMENT ON COLUMN clinical_event.received_at IS '业务字段：received_at';
+COMMENT ON COLUMN clinical_event.snapshot_id IS '业务字段：snapshot_id';
+COMMENT ON COLUMN clinical_event.processing_status IS '业务字段：processing_status';
+COMMENT ON COLUMN clinical_event.trace_id IS '追踪号';
+COMMENT ON COLUMN clinical_event.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN clinical_event.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN clinical_event.clinical_setting IS '标准临床场景：住院、门诊、急诊或随访';
+COMMENT ON COLUMN clinical_event.runtime_release_id IS '机构生效版本 ID';
+COMMENT ON COLUMN clinical_event.error_code IS '业务字段：error_code';
+COMMENT ON COLUMN clinical_event.error_class IS '业务字段：error_class';
+COMMENT ON COLUMN clinical_event.retry_count IS '业务字段：retry_count';
+COMMENT ON COLUMN clinical_event.root_event_id IS '业务字段：root_event_id';
+COMMENT ON COLUMN clinical_event.org_scope_json IS '接收临床事件时的组织上下文 JSON，用于异步派发规则/路径/CDSS 时恢复同源组织维度';
+COMMENT ON COLUMN clinical_event.trigger_point IS '临床事件触发点：患者打开、医嘱签署、用药开立、结果查看、出院签署或随访提醒';
+COMMENT ON COLUMN clinical_event.idempotency_key IS '客户面 API 幂等键，同租户内同键同 payload 只接收一次';
+COMMENT ON COLUMN clinical_event.callback_webhook_id IS '处理完成后回调客户系统的 Webhook 配置 ID';
+COMMENT ON TABLE clinical_event_outbox IS '临床事件可靠处理出站队列';
+COMMENT ON COLUMN clinical_event_outbox.id IS '数据库主键';
+COMMENT ON COLUMN clinical_event_outbox.event_id IS '业务字段：event_id';
+COMMENT ON COLUMN clinical_event_outbox.tenant_id IS '租户标识';
+COMMENT ON COLUMN clinical_event_outbox.trace_id IS '追踪号';
+COMMENT ON COLUMN clinical_event_outbox.actor_user_id IS '业务字段：actor_user_id';
+COMMENT ON COLUMN clinical_event_outbox.claim_status IS '业务字段：claim_status';
+COMMENT ON COLUMN clinical_event_outbox.claimed_by IS '业务字段：claimed_by';
+COMMENT ON COLUMN clinical_event_outbox.claimed_at IS '业务字段：claimed_at';
+COMMENT ON COLUMN clinical_event_outbox.next_attempt_at IS '业务字段：next_attempt_at';
+COMMENT ON COLUMN clinical_event_outbox.retry_count IS '业务字段：retry_count';
+COMMENT ON COLUMN clinical_event_outbox.last_error_code IS '业务字段：last_error_code';
+COMMENT ON COLUMN clinical_event_outbox.created_at IS '创建时间';
+COMMENT ON COLUMN clinical_event_outbox.processed_at IS '业务字段：processed_at';
+COMMENT ON TABLE clinical_event_payload IS '临床事件原始载荷与摘要';
+COMMENT ON COLUMN clinical_event_payload.id IS '数据库主键';
+COMMENT ON COLUMN clinical_event_payload.event_id IS '业务字段：event_id';
+COMMENT ON COLUMN clinical_event_payload.tenant_id IS '租户标识';
+COMMENT ON COLUMN clinical_event_payload.payload IS '业务字段：payload';
+COMMENT ON COLUMN clinical_event_payload.payload_uri IS '业务字段：payload_uri';
+COMMENT ON COLUMN clinical_event_payload.storage_type IS '业务字段：storage_type';
+COMMENT ON COLUMN clinical_event_payload.content_type IS '业务字段：content_type';
+COMMENT ON COLUMN clinical_event_payload.digest IS '业务字段：digest';
+COMMENT ON COLUMN clinical_event_payload.size_bytes IS '业务字段：size_bytes';
+COMMENT ON COLUMN clinical_event_payload.created_at IS '创建时间';
+COMMENT ON COLUMN clinical_event_payload.deleted_at IS '业务字段：deleted_at';
+COMMENT ON TABLE context_idempotency_key IS '业务表：context_idempotency_key';
+COMMENT ON COLUMN context_idempotency_key.id IS '数据库主键';
+COMMENT ON COLUMN context_idempotency_key.tenant_id IS '租户标识';
+COMMENT ON COLUMN context_idempotency_key.idem_key IS '业务字段：idem_key';
+COMMENT ON COLUMN context_idempotency_key.snapshot_id IS '业务字段：snapshot_id';
+COMMENT ON COLUMN context_idempotency_key.payload_digest IS '业务字段：payload_digest';
+COMMENT ON COLUMN context_idempotency_key.expires_at IS '业务字段：expires_at';
+COMMENT ON COLUMN context_idempotency_key.created_at IS '创建时间';
+COMMENT ON TABLE context_snapshot IS '不可变标准上下文快照';
+COMMENT ON COLUMN context_snapshot.id IS '数据库主键';
+COMMENT ON COLUMN context_snapshot.snapshot_id IS '业务字段：snapshot_id';
+COMMENT ON COLUMN context_snapshot.tenant_id IS '租户标识';
+COMMENT ON COLUMN context_snapshot.org_unit_id IS '业务字段：org_unit_id';
+COMMENT ON COLUMN context_snapshot.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN context_snapshot.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN context_snapshot.runtime_release_id IS '机构生效版本 ID';
+COMMENT ON COLUMN context_snapshot.status IS '当前状态';
+COMMENT ON COLUMN context_snapshot.missing_fields IS '业务字段：missing_fields';
+COMMENT ON COLUMN context_snapshot.mapping_status IS '业务字段：mapping_status';
+COMMENT ON COLUMN context_snapshot.extensions_json IS '租户 extensions.local 命名空间扩展字段快照';
+COMMENT ON COLUMN context_snapshot.quality_status IS '业务字段：quality_status';
+COMMENT ON COLUMN context_snapshot.trace_id IS '追踪号';
+COMMENT ON COLUMN context_snapshot.signature IS '业务字段：signature';
+COMMENT ON COLUMN context_snapshot.created_at IS '创建时间';
+COMMENT ON COLUMN context_snapshot.created_by IS '创建人';
+COMMENT ON COLUMN context_snapshot.request_id IS '请求级幂等 ID，对齐 API-01 request_id';
+COMMENT ON COLUMN context_snapshot.org_path IS '请求组织路径快照，用于组织作用域审计';
+COMMENT ON TABLE embed_launch_token IS '业务表：embed_launch_token';
+COMMENT ON COLUMN embed_launch_token.id IS '数据库主键';
+COMMENT ON COLUMN embed_launch_token.token IS '业务字段：token';
+COMMENT ON COLUMN embed_launch_token.tenant_id IS '租户标识';
+COMMENT ON COLUMN embed_launch_token.user_id IS '业务字段：user_id';
+COMMENT ON COLUMN embed_launch_token.role_code IS '业务字段：role_code';
+COMMENT ON COLUMN embed_launch_token.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN embed_launch_token.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN embed_launch_token.trigger_point IS '业务字段：trigger_point';
+COMMENT ON COLUMN embed_launch_token.status IS '状态(UNUSED,USED,EXPIRED,REVOKED)';
+COMMENT ON COLUMN embed_launch_token.expired_at IS '业务字段：expired_at';
+COMMENT ON COLUMN embed_launch_token.created_at IS '创建时间';
+COMMENT ON COLUMN embed_launch_token.created_by IS '创建人';
+COMMENT ON COLUMN embed_launch_token.updated_at IS '更新时间';
+COMMENT ON COLUMN embed_launch_token.updated_by IS '更新人';
+COMMENT ON COLUMN embed_launch_token.trace_id IS '追踪号';
+COMMENT ON COLUMN embed_launch_token.integration_mode IS '嵌入集成方式(IFRAME,SDK,API)';
+COMMENT ON COLUMN embed_launch_token.hook IS 'CDS Hooks风格触发点编码';
+COMMENT ON COLUMN embed_launch_token.hook_instance IS 'CDS Hooks触发实例ID';
+COMMENT ON COLUMN embed_launch_token.consumed_at IS '令牌一次性消费时间';
+COMMENT ON COLUMN embed_launch_token.parent_origin IS '签发时绑定并通过白名单校验的父系统Origin';
+COMMENT ON TABLE embed_origin_whitelist IS '业务表：embed_origin_whitelist';
+COMMENT ON COLUMN embed_origin_whitelist.id IS '数据库主键';
+COMMENT ON COLUMN embed_origin_whitelist.tenant_id IS '租户标识';
+COMMENT ON COLUMN embed_origin_whitelist.origin IS '业务字段：origin';
+COMMENT ON COLUMN embed_origin_whitelist.created_at IS '创建时间';
+COMMENT ON COLUMN embed_origin_whitelist.created_by IS '创建人';
+COMMENT ON COLUMN embed_origin_whitelist.updated_at IS '更新时间';
+COMMENT ON COLUMN embed_origin_whitelist.updated_by IS '更新人';
+COMMENT ON TABLE emergency_permission_grant IS '应急权限授予记录表，break-glass 权限必须审计且到期自动失效';
+COMMENT ON COLUMN emergency_permission_grant.id IS '数据库主键';
+COMMENT ON COLUMN emergency_permission_grant.tenant_id IS '租户标识';
+COMMENT ON COLUMN emergency_permission_grant.user_id IS '业务字段：user_id';
+COMMENT ON COLUMN emergency_permission_grant.permission_code IS '业务字段：permission_code';
+COMMENT ON COLUMN emergency_permission_grant.reason IS '业务字段：reason';
+COMMENT ON COLUMN emergency_permission_grant.granted_by IS '业务字段：granted_by';
+COMMENT ON COLUMN emergency_permission_grant.granted_at IS '业务字段：granted_at';
+COMMENT ON COLUMN emergency_permission_grant.expires_at IS '业务字段：expires_at';
+COMMENT ON COLUMN emergency_permission_grant.revoked_at IS '业务字段：revoked_at';
+COMMENT ON COLUMN emergency_permission_grant.revoked_by IS '业务字段：revoked_by';
+COMMENT ON COLUMN emergency_permission_grant.active_flag IS '是否启用：Y/N';
+COMMENT ON COLUMN emergency_permission_grant.created_at IS '创建时间';
+COMMENT ON COLUMN emergency_permission_grant.created_by IS '创建人';
+COMMENT ON COLUMN emergency_permission_grant.updated_at IS '更新时间';
+COMMENT ON COLUMN emergency_permission_grant.updated_by IS '更新人';
+COMMENT ON TABLE evaluation_idempotency_key IS '业务表：evaluation_idempotency_key';
+COMMENT ON COLUMN evaluation_idempotency_key.id IS '数据库主键';
+COMMENT ON COLUMN evaluation_idempotency_key.tenant_id IS '租户标识';
+COMMENT ON COLUMN evaluation_idempotency_key.idem_key IS '业务字段：idem_key';
+COMMENT ON COLUMN evaluation_idempotency_key.operation_type IS '业务字段：operation_type';
+COMMENT ON COLUMN evaluation_idempotency_key.finding_id IS '业务字段：finding_id';
+COMMENT ON COLUMN evaluation_idempotency_key.task_id IS '业务字段：task_id';
+COMMENT ON COLUMN evaluation_idempotency_key.review_id IS '业务字段：review_id';
+COMMENT ON COLUMN evaluation_idempotency_key.request_digest IS '业务字段：request_digest';
+COMMENT ON COLUMN evaluation_idempotency_key.finding_status IS '业务字段：finding_status';
+COMMENT ON COLUMN evaluation_idempotency_key.task_status IS '业务字段：task_status';
+COMMENT ON COLUMN evaluation_idempotency_key.created_at IS '创建时间';
+COMMENT ON COLUMN evaluation_idempotency_key.created_by IS '创建人';
+COMMENT ON COLUMN evaluation_idempotency_key.trace_id IS '追踪号';
+COMMENT ON TABLE evaluation_indicator IS '业务表：evaluation_indicator';
+COMMENT ON COLUMN evaluation_indicator.id IS '数据库主键';
+COMMENT ON COLUMN evaluation_indicator.indicator_id IS '业务字段：indicator_id';
+COMMENT ON COLUMN evaluation_indicator.tenant_id IS '租户标识';
+COMMENT ON COLUMN evaluation_indicator.indicator_code IS '业务字段：indicator_code';
+COMMENT ON COLUMN evaluation_indicator.version_no IS '业务字段：version_no';
+COMMENT ON COLUMN evaluation_indicator.name IS '业务字段：name';
+COMMENT ON COLUMN evaluation_indicator.subject_type IS '业务字段：subject_type';
+COMMENT ON COLUMN evaluation_indicator.denominator_definition IS '业务字段：denominator_definition';
+COMMENT ON COLUMN evaluation_indicator.numerator_definition IS '业务字段：numerator_definition';
+COMMENT ON COLUMN evaluation_indicator.exclusion_definition IS '业务字段：exclusion_definition';
+COMMENT ON COLUMN evaluation_indicator.scoring_definition IS '业务字段：scoring_definition';
+COMMENT ON COLUMN evaluation_indicator.time_window IS '业务字段：time_window';
+COMMENT ON COLUMN evaluation_indicator.organization_scope IS '业务字段：organization_scope';
+COMMENT ON COLUMN evaluation_indicator.responsible_department_id IS '业务字段：responsible_department_id';
+COMMENT ON COLUMN evaluation_indicator.source_ref IS '业务字段：source_ref';
+COMMENT ON COLUMN evaluation_indicator.status IS '当前状态';
+COMMENT ON COLUMN evaluation_indicator.published_at IS '业务字段：published_at';
+COMMENT ON COLUMN evaluation_indicator.published_by IS '业务字段：published_by';
+COMMENT ON COLUMN evaluation_indicator.activated_at IS '业务字段：activated_at';
+COMMENT ON COLUMN evaluation_indicator.created_at IS '创建时间';
+COMMENT ON COLUMN evaluation_indicator.created_by IS '创建人';
+COMMENT ON COLUMN evaluation_indicator.updated_at IS '更新时间';
+COMMENT ON COLUMN evaluation_indicator.updated_by IS '更新人';
+COMMENT ON COLUMN evaluation_indicator.trace_id IS '追踪号';
+COMMENT ON TABLE evaluation_result IS '业务表：evaluation_result';
+COMMENT ON COLUMN evaluation_result.id IS '数据库主键';
+COMMENT ON COLUMN evaluation_result.result_id IS '业务字段：result_id';
+COMMENT ON COLUMN evaluation_result.tenant_id IS '租户标识';
+COMMENT ON COLUMN evaluation_result.run_id IS '业务字段：run_id';
+COMMENT ON COLUMN evaluation_result.indicator_id IS '业务字段：indicator_id';
+COMMENT ON COLUMN evaluation_result.indicator_code IS '业务字段：indicator_code';
+COMMENT ON COLUMN evaluation_result.indicator_version IS '业务字段：indicator_version';
+COMMENT ON COLUMN evaluation_result.subject_type IS '业务字段：subject_type';
+COMMENT ON COLUMN evaluation_result.subject_ref_id IS '业务字段：subject_ref_id';
+COMMENT ON COLUMN evaluation_result.score_value IS '业务字段：score_value';
+COMMENT ON COLUMN evaluation_result.result_level IS '业务字段：result_level';
+COMMENT ON COLUMN evaluation_result.hit_flag IS '业务字段：hit_flag';
+COMMENT ON COLUMN evaluation_result.evidence_summary IS '业务字段：evidence_summary';
+COMMENT ON COLUMN evaluation_result.source_ref IS '业务字段：source_ref';
+COMMENT ON COLUMN evaluation_result.responsible_department_id IS '业务字段：responsible_department_id';
+COMMENT ON COLUMN evaluation_result.created_at IS '创建时间';
+COMMENT ON COLUMN evaluation_result.created_by IS '创建人';
+COMMENT ON COLUMN evaluation_result.updated_at IS '更新时间';
+COMMENT ON COLUMN evaluation_result.updated_by IS '更新人';
+COMMENT ON COLUMN evaluation_result.trace_id IS '追踪号';
+COMMENT ON TABLE evaluation_run IS '业务表：evaluation_run';
+COMMENT ON COLUMN evaluation_run.id IS '数据库主键';
+COMMENT ON COLUMN evaluation_run.run_id IS '业务字段：run_id';
+COMMENT ON COLUMN evaluation_run.tenant_id IS '租户标识';
+COMMENT ON COLUMN evaluation_run.run_code IS '业务字段：run_code';
+COMMENT ON COLUMN evaluation_run.run_type IS '业务字段：run_type';
+COMMENT ON COLUMN evaluation_run.source_event_id IS '业务字段：source_event_id';
+COMMENT ON COLUMN evaluation_run.context_snapshot_id IS '业务字段：context_snapshot_id';
+COMMENT ON COLUMN evaluation_run.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN evaluation_run.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN evaluation_run.scenario_code IS '业务字段：scenario_code';
+COMMENT ON COLUMN evaluation_run.runtime_release_id IS '本次评估事实锁定的机构生效版本；无患者上下文的人工抽检可为空';
+COMMENT ON COLUMN evaluation_run.input_digest IS '业务字段：input_digest';
+COMMENT ON COLUMN evaluation_run.status IS '当前状态';
+COMMENT ON COLUMN evaluation_run.error_code IS '业务字段：error_code';
+COMMENT ON COLUMN evaluation_run.occurred_at IS '业务字段：occurred_at';
+COMMENT ON COLUMN evaluation_run.created_at IS '创建时间';
+COMMENT ON COLUMN evaluation_run.created_by IS '创建人';
+COMMENT ON COLUMN evaluation_run.updated_at IS '更新时间';
+COMMENT ON COLUMN evaluation_run.updated_by IS '更新人';
+COMMENT ON COLUMN evaluation_run.trace_id IS '追踪号';
+COMMENT ON TABLE evidence_snapshot IS '可信数据审计快照与防篡改存证表';
+COMMENT ON COLUMN evidence_snapshot.id IS '自增物理主键';
+COMMENT ON COLUMN evidence_snapshot.evidence_id IS '全局唯一存证证据 ID';
+COMMENT ON COLUMN evidence_snapshot.tenant_id IS '租户 ID';
+COMMENT ON COLUMN evidence_snapshot.trace_id IS '全链路追踪 traceId';
+COMMENT ON COLUMN evidence_snapshot.evidence_type IS '证据资产类型 (KNOWLEDGE_SOURCE, TERM_MAPPING, RULE_PUBLISH 等)';
+COMMENT ON COLUMN evidence_snapshot.action IS '关键操作动作 (CREATE, RELEASE, FEEDBACK 等)';
+COMMENT ON COLUMN evidence_snapshot.subject_type IS '业务关联的实体对象类型';
+COMMENT ON COLUMN evidence_snapshot.subject_id IS '业务关联实体对象全局唯一 ID';
+COMMENT ON COLUMN evidence_snapshot.evidence_summary IS '证据简要描述';
+COMMENT ON COLUMN evidence_snapshot.payload_snapshot IS '业务发生时的完整明文 JSON 快照报文';
+COMMENT ON COLUMN evidence_snapshot.payload_hash IS '证据规范串 SM3 摘要，格式 sm3:<hex>';
+COMMENT ON COLUMN evidence_snapshot.created_at IS '证据生成创建时点';
+COMMENT ON COLUMN evidence_snapshot.created_by IS '操作人账户';
+COMMENT ON COLUMN evidence_snapshot.updated_at IS '最后更新时点';
+COMMENT ON COLUMN evidence_snapshot.updated_by IS '最后更新人';
+COMMENT ON COLUMN evidence_snapshot.file_uri IS '真实证据文件下载 URI；由证据服务写出文件后生成，不得伪造';
+COMMENT ON COLUMN evidence_snapshot.file_digest IS '真实证据文件内容 SM3 摘要，格式 sm3:<hex>';
+COMMENT ON COLUMN evidence_snapshot.signature_algorithm IS '证据链签名算法，固定为 SM3_WITH_SM2';
+COMMENT ON COLUMN evidence_snapshot.signature_value IS '基于证据规范串的 SM2 签名值（Base64）';
+COMMENT ON COLUMN evidence_snapshot.signer_public_key IS '验签用 SM2 公钥（X.509 Base64）';
+COMMENT ON TABLE followup_event IS '业务表：followup_event';
+COMMENT ON COLUMN followup_event.id IS '数据库主键';
+COMMENT ON COLUMN followup_event.event_id IS '业务字段：event_id';
+COMMENT ON COLUMN followup_event.tenant_id IS '租户标识';
+COMMENT ON COLUMN followup_event.plan_id IS '业务字段：plan_id';
+COMMENT ON COLUMN followup_event.event_type IS '事件类型(ABNORMAL_RETURN,NOTIFICATION_REQUESTED,RESULT_INFLOW)';
+COMMENT ON COLUMN followup_event.payload IS '业务字段：payload';
+COMMENT ON COLUMN followup_event.triggered_by IS '业务字段：triggered_by';
+COMMENT ON COLUMN followup_event.created_at IS '创建时间';
+COMMENT ON COLUMN followup_event.created_by IS '创建人';
+COMMENT ON COLUMN followup_event.updated_at IS '更新时间';
+COMMENT ON COLUMN followup_event.updated_by IS '更新人';
+COMMENT ON COLUMN followup_event.trace_id IS '追踪号';
+COMMENT ON COLUMN followup_event.idempotency_key IS '异常回院、通知请求或结果回流幂等键';
+COMMENT ON TABLE followup_plan IS '业务表：followup_plan';
+COMMENT ON COLUMN followup_plan.id IS '数据库主键';
+COMMENT ON COLUMN followup_plan.plan_id IS '业务字段：plan_id';
+COMMENT ON COLUMN followup_plan.tenant_id IS '租户标识';
+COMMENT ON COLUMN followup_plan.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN followup_plan.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN followup_plan.pathway_id IS '业务字段：pathway_id';
+COMMENT ON COLUMN followup_plan.disease_code IS '业务字段：disease_code';
+COMMENT ON COLUMN followup_plan.risk_level IS '业务字段：risk_level';
+COMMENT ON COLUMN followup_plan.runtime_release_id IS '随访计划生成时锁定的机构生效版本 ID；使用随访模板时必填';
+COMMENT ON COLUMN followup_plan.status IS '当前状态';
+COMMENT ON COLUMN followup_plan.created_at IS '创建时间';
+COMMENT ON COLUMN followup_plan.created_by IS '创建人';
+COMMENT ON COLUMN followup_plan.updated_at IS '更新时间';
+COMMENT ON COLUMN followup_plan.updated_by IS '更新人';
+COMMENT ON COLUMN followup_plan.trace_id IS '追踪号';
+COMMENT ON COLUMN followup_plan.idempotency_key IS '计划生成幂等键：同租户同键只生成一次随访计划';
+COMMENT ON COLUMN followup_plan.source_fact_type IS '随访计划生成来源事实类型：PATHWAY路径、DIAGNOSIS诊断或RISK风险分层';
+COMMENT ON COLUMN followup_plan.source_fact_id IS '随访计划生成来源事实业务ID，如患者路径实例ID、诊断编码或风险分层值';
+COMMENT ON COLUMN followup_plan.generation_rule_code IS '随访计划确定性生成规则编码，用于复现与审计';
+COMMENT ON COLUMN followup_plan.generation_explanation IS '随访计划生成解释JSON，记录受控事实、任务类型、模型状态和关键时钟依据';
+COMMENT ON COLUMN followup_plan.template_id IS '生成计划所绑定的已发布随访模板ID';
+COMMENT ON COLUMN followup_plan.template_version IS '生成计划所绑定的随访模板版本号';
+COMMENT ON TABLE followup_questionnaire IS '业务表：followup_questionnaire';
+COMMENT ON COLUMN followup_questionnaire.id IS '数据库主键';
+COMMENT ON COLUMN followup_questionnaire.questionnaire_id IS '业务字段：questionnaire_id';
+COMMENT ON COLUMN followup_questionnaire.tenant_id IS '租户标识';
+COMMENT ON COLUMN followup_questionnaire.task_id IS '业务字段：task_id';
+COMMENT ON COLUMN followup_questionnaire.form_data IS '业务字段：form_data';
+COMMENT ON COLUMN followup_questionnaire.score IS '业务字段：score';
+COMMENT ON COLUMN followup_questionnaire.status IS '当前状态';
+COMMENT ON COLUMN followup_questionnaire.created_at IS '创建时间';
+COMMENT ON COLUMN followup_questionnaire.created_by IS '创建人';
+COMMENT ON COLUMN followup_questionnaire.updated_at IS '更新时间';
+COMMENT ON COLUMN followup_questionnaire.updated_by IS '更新人';
+COMMENT ON COLUMN followup_questionnaire.trace_id IS '追踪号';
+COMMENT ON COLUMN followup_questionnaire.plan_id IS '问卷所属随访计划ID';
+COMMENT ON COLUMN followup_questionnaire.questionnaire_template_id IS '问卷模板ID';
+COMMENT ON COLUMN followup_questionnaire.answer_data IS '结构化作答数据JSON';
+COMMENT ON COLUMN followup_questionnaire.idempotency_key IS '问卷下发或作答幂等键';
+COMMENT ON COLUMN followup_questionnaire.submitted_at IS '问卷作答提交时间';
+COMMENT ON COLUMN followup_questionnaire.executor_id IS '问卷下发或作答执行人ID';
+COMMENT ON TABLE followup_task IS '业务表：followup_task';
+COMMENT ON COLUMN followup_task.id IS '数据库主键';
+COMMENT ON COLUMN followup_task.task_id IS '业务字段：task_id';
+COMMENT ON COLUMN followup_task.tenant_id IS '租户标识';
+COMMENT ON COLUMN followup_task.plan_id IS '业务字段：plan_id';
+COMMENT ON COLUMN followup_task.task_type IS '任务类型(QUESTIONNAIRE,EXAM,LAB,OUTPATIENT,RETURN_VISIT)';
+COMMENT ON COLUMN followup_task.due_date IS '业务字段：due_date';
+COMMENT ON COLUMN followup_task.status IS '状态(PENDING,IN_PROGRESS,COMPLETED,ABNORMAL_RETURN,OVERDUE,CANCELLED)';
+COMMENT ON COLUMN followup_task.executor_id IS '业务字段：executor_id';
+COMMENT ON COLUMN followup_task.executor_type IS '业务字段：executor_type';
+COMMENT ON COLUMN followup_task.created_at IS '创建时间';
+COMMENT ON COLUMN followup_task.created_by IS '创建人';
+COMMENT ON COLUMN followup_task.updated_at IS '更新时间';
+COMMENT ON COLUMN followup_task.updated_by IS '更新人';
+COMMENT ON COLUMN followup_task.trace_id IS '追踪号';
+COMMENT ON COLUMN followup_task.idempotency_key IS '任务派发幂等键：同租户同键只生成一次随访任务';
+COMMENT ON COLUMN followup_task.clinical_clock_id IS '随访任务绑定的路径关键时钟ID，用于到期追溯';
+COMMENT ON COLUMN followup_task.questionnaire_template_id IS '问卷任务绑定的问卷模板ID';
+COMMENT ON TABLE integration_adapter IS '业务表：integration_adapter';
+COMMENT ON COLUMN integration_adapter.id IS '数据库主键';
+COMMENT ON COLUMN integration_adapter.adapter_id IS '业务字段：adapter_id';
+COMMENT ON COLUMN integration_adapter.tenant_id IS '租户标识';
+COMMENT ON COLUMN integration_adapter.name IS '业务字段：name';
+COMMENT ON COLUMN integration_adapter.protocol_type IS '业务字段：protocol_type';
+COMMENT ON COLUMN integration_adapter.status IS '当前状态';
+COMMENT ON COLUMN integration_adapter.config_json IS '业务字段：config_json';
+COMMENT ON COLUMN integration_adapter.health_status IS '业务字段：health_status';
+COMMENT ON COLUMN integration_adapter.rtt_ms IS '业务字段：rtt_ms';
+COMMENT ON COLUMN integration_adapter.last_heartbeat_at IS '业务字段：last_heartbeat_at';
+COMMENT ON COLUMN integration_adapter.created_at IS '创建时间';
+COMMENT ON COLUMN integration_adapter.created_by IS '创建人';
+COMMENT ON COLUMN integration_adapter.updated_at IS '更新时间';
+COMMENT ON COLUMN integration_adapter.updated_by IS '更新人';
+COMMENT ON TABLE integration_message_log IS '业务表：integration_message_log';
+COMMENT ON COLUMN integration_message_log.id IS '数据库主键';
+COMMENT ON COLUMN integration_message_log.message_id IS '业务字段：message_id';
+COMMENT ON COLUMN integration_message_log.tenant_id IS '租户标识';
+COMMENT ON COLUMN integration_message_log.trace_id IS '追踪号';
+COMMENT ON COLUMN integration_message_log.direction IS '业务字段：direction';
+COMMENT ON COLUMN integration_message_log.system_name IS '业务字段：system_name';
+COMMENT ON COLUMN integration_message_log.protocol_type IS '业务字段：protocol_type';
+COMMENT ON COLUMN integration_message_log.payload_summary IS '业务字段：payload_summary';
+COMMENT ON COLUMN integration_message_log.payload IS '业务字段：payload';
+COMMENT ON COLUMN integration_message_log.status IS '数据流审计及重试队列状态（SUCCESS、FAILED、RETRYING、NOT_CONNECTED、DEAD_LETTER）';
+COMMENT ON COLUMN integration_message_log.retry_count IS '业务字段：retry_count';
+COMMENT ON COLUMN integration_message_log.max_retries IS '业务字段：max_retries';
+COMMENT ON COLUMN integration_message_log.error_message IS '业务字段：error_message';
+COMMENT ON COLUMN integration_message_log.created_at IS '创建时间';
+COMMENT ON COLUMN integration_message_log.created_by IS '创建人';
+COMMENT ON COLUMN integration_message_log.updated_at IS '更新时间';
+COMMENT ON COLUMN integration_message_log.updated_by IS '更新人';
+COMMENT ON TABLE integration_webhook_config IS '业务表：integration_webhook_config';
+COMMENT ON COLUMN integration_webhook_config.id IS '数据库主键';
+COMMENT ON COLUMN integration_webhook_config.webhook_id IS '业务字段：webhook_id';
+COMMENT ON COLUMN integration_webhook_config.tenant_id IS '租户标识';
+COMMENT ON COLUMN integration_webhook_config.name IS '业务字段：name';
+COMMENT ON COLUMN integration_webhook_config.callback_url IS '业务字段：callback_url';
+COMMENT ON COLUMN integration_webhook_config.secret_cipher IS '业务字段：secret_cipher';
+COMMENT ON COLUMN integration_webhook_config.events_subscribed IS '业务字段：events_subscribed';
+COMMENT ON COLUMN integration_webhook_config.status IS '当前状态';
+COMMENT ON COLUMN integration_webhook_config.created_at IS '创建时间';
+COMMENT ON COLUMN integration_webhook_config.created_by IS '创建人';
+COMMENT ON COLUMN integration_webhook_config.updated_at IS '更新时间';
+COMMENT ON COLUMN integration_webhook_config.updated_by IS '更新人';
+COMMENT ON TABLE knowledge_asset_version IS '业务表：knowledge_asset_version';
+COMMENT ON COLUMN knowledge_asset_version.id IS '数据库主键';
+COMMENT ON COLUMN knowledge_asset_version.tenant_id IS '租户标识';
+COMMENT ON COLUMN knowledge_asset_version.identity_id IS '业务字段：identity_id';
+COMMENT ON COLUMN knowledge_asset_version.version_no IS '业务字段：version_no';
+COMMENT ON COLUMN knowledge_asset_version.version_label IS '业务字段：version_label';
+COMMENT ON COLUMN knowledge_asset_version.source_document_id IS '业务字段：source_document_id';
+COMMENT ON COLUMN knowledge_asset_version.source_version_id IS '业务字段：source_version_id';
+COMMENT ON COLUMN knowledge_asset_version.content_hash IS '业务字段：content_hash';
+COMMENT ON COLUMN knowledge_asset_version.anchors IS '业务字段：anchors';
+COMMENT ON COLUMN knowledge_asset_version.status IS '当前状态';
+COMMENT ON COLUMN knowledge_asset_version.risk_level IS '业务字段：risk_level';
+COMMENT ON COLUMN knowledge_asset_version.effective_from IS '业务字段：effective_from';
+COMMENT ON COLUMN knowledge_asset_version.effective_to IS '业务字段：effective_to';
+COMMENT ON COLUMN knowledge_asset_version.reviewed_by IS '业务字段：reviewed_by';
+COMMENT ON COLUMN knowledge_asset_version.reviewed_at IS '业务字段：reviewed_at';
+COMMENT ON COLUMN knowledge_asset_version.activated_at IS '业务字段：activated_at';
+COMMENT ON COLUMN knowledge_asset_version.superseded_at IS '业务字段：superseded_at';
+COMMENT ON COLUMN knowledge_asset_version.withdrawn_at IS '业务字段：withdrawn_at';
+COMMENT ON COLUMN knowledge_asset_version.withdrawn_reason IS '业务字段：withdrawn_reason';
+COMMENT ON COLUMN knowledge_asset_version.created_at IS '创建时间';
+COMMENT ON COLUMN knowledge_asset_version.created_by IS '创建人';
+COMMENT ON COLUMN knowledge_asset_version.updated_at IS '更新时间';
+COMMENT ON COLUMN knowledge_asset_version.updated_by IS '更新人';
+COMMENT ON COLUMN knowledge_asset_version.authority_level IS '知识资产版本发布时快照的 A-E 来源可信分级';
+COMMENT ON COLUMN knowledge_asset_version.grade_quality IS 'GRADE 证据质量：HIGH 高 / MODERATE 中 / LOW 低 / VERY_LOW 极低';
+COMMENT ON COLUMN knowledge_asset_version.grade_strength IS 'GRADE 推荐强度：STRONG 强推荐 / WEAK 弱推荐';
+COMMENT ON COLUMN knowledge_asset_version.conflict_arbitration IS '版本替换时的可信分级冲突裁决摘要，用于低阶覆盖高阶留证';
+COMMENT ON COLUMN knowledge_asset_version.organization_scope IS '知识版本组织适用域，参与 SYS-08 同一适用域唯一权威判定';
+COMMENT ON COLUMN knowledge_asset_version.applicable_scope IS '知识版本适用人群或临床上下文范围，缺省 ALL，参与同一适用域唯一权威判定';
+COMMENT ON COLUMN knowledge_asset_version.active_scope_key IS 'ACTIVE 时为知识身份、组织域、适用域拼接键；非 ACTIVE 使用 version:<id> 保持唯一';
+COMMENT ON COLUMN knowledge_asset_version.review_cycle_months IS '权威知识复审周期，单位为月，允许 1 至 60';
+COMMENT ON COLUMN knowledge_asset_version.next_review_at IS '版本激活评审后计算的下次复审到期时间';
+COMMENT ON TABLE knowledge_export_job IS '业务表：knowledge_export_job';
+COMMENT ON COLUMN knowledge_export_job.id IS '数据库主键';
+COMMENT ON COLUMN knowledge_export_job.tenant_id IS '租户标识';
+COMMENT ON COLUMN knowledge_export_job.job_code IS '业务字段：job_code';
+COMMENT ON COLUMN knowledge_export_job.requested_by IS '业务字段：requested_by';
+COMMENT ON COLUMN knowledge_export_job.export_type IS '业务字段：export_type';
+COMMENT ON COLUMN knowledge_export_job.filter_json IS '业务字段：filter_json';
+COMMENT ON COLUMN knowledge_export_job.status IS '当前状态';
+COMMENT ON COLUMN knowledge_export_job.progress IS '业务字段：progress';
+COMMENT ON COLUMN knowledge_export_job.result_uri IS '业务字段：result_uri';
+COMMENT ON COLUMN knowledge_export_job.item_count IS '业务字段：item_count';
+COMMENT ON COLUMN knowledge_export_job.error_message IS '业务字段：error_message';
+COMMENT ON COLUMN knowledge_export_job.created_at IS '创建时间';
+COMMENT ON COLUMN knowledge_export_job.started_at IS '业务字段：started_at';
+COMMENT ON COLUMN knowledge_export_job.completed_at IS '业务字段：completed_at';
+COMMENT ON COLUMN knowledge_export_job.expires_at IS '业务字段：expires_at';
+COMMENT ON TABLE knowledge_identity IS '业务表：knowledge_identity';
+COMMENT ON COLUMN knowledge_identity.id IS '数据库主键';
+COMMENT ON COLUMN knowledge_identity.tenant_id IS '租户标识';
+COMMENT ON COLUMN knowledge_identity.identity_code IS '业务字段：identity_code';
+COMMENT ON COLUMN knowledge_identity.domain IS '业务字段：domain';
+COMMENT ON COLUMN knowledge_identity.subject IS '业务字段：subject';
+COMMENT ON COLUMN knowledge_identity.specialty_id IS '业务字段：specialty_id';
+COMMENT ON COLUMN knowledge_identity.description IS '业务字段：description';
+COMMENT ON COLUMN knowledge_identity.status IS '当前状态';
+COMMENT ON COLUMN knowledge_identity.current_version_id IS '业务字段：current_version_id';
+COMMENT ON COLUMN knowledge_identity.created_at IS '创建时间';
+COMMENT ON COLUMN knowledge_identity.created_by IS '创建人';
+COMMENT ON COLUMN knowledge_identity.updated_at IS '更新时间';
+COMMENT ON COLUMN knowledge_identity.updated_by IS '更新人';
+COMMENT ON TABLE knowledge_supersession IS '业务表：knowledge_supersession';
+COMMENT ON COLUMN knowledge_supersession.id IS '数据库主键';
+COMMENT ON COLUMN knowledge_supersession.tenant_id IS '租户标识';
+COMMENT ON COLUMN knowledge_supersession.identity_id IS '业务字段：identity_id';
+COMMENT ON COLUMN knowledge_supersession.old_version_id IS '业务字段：old_version_id';
+COMMENT ON COLUMN knowledge_supersession.new_version_id IS '业务字段：new_version_id';
+COMMENT ON COLUMN knowledge_supersession.transition_type IS '业务字段：transition_type';
+COMMENT ON COLUMN knowledge_supersession.transition_reason IS '业务字段：transition_reason';
+COMMENT ON COLUMN knowledge_supersession.transitioned_at IS '业务字段：transitioned_at';
+COMMENT ON COLUMN knowledge_supersession.transitioned_by IS '业务字段：transitioned_by';
+COMMENT ON COLUMN knowledge_supersession.successor_identity_id IS '弃用知识身份的稳定后继身份 ID';
+COMMENT ON COLUMN knowledge_supersession.grace_period_end IS '旧身份允许迁移引用的宽限期结束时间';
+COMMENT ON COLUMN knowledge_supersession.migration_guidance IS '旧身份引用方迁移到后继身份的明确指引';
+COMMENT ON TABLE local_term IS '业务表：local_term';
+COMMENT ON COLUMN local_term.id IS '数据库主键';
+COMMENT ON COLUMN local_term.tenant_id IS '租户标识';
+COMMENT ON COLUMN local_term.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN local_term.local_code IS '业务字段：local_code';
+COMMENT ON COLUMN local_term.category IS '业务字段：category';
+COMMENT ON COLUMN local_term.local_name IS '业务字段：local_name';
+COMMENT ON COLUMN local_term.normalized_name IS '业务字段：normalized_name';
+COMMENT ON COLUMN local_term.department_id IS '业务字段：department_id';
+COMMENT ON COLUMN local_term.status IS '当前状态';
+COMMENT ON COLUMN local_term.first_seen_at IS '业务字段：first_seen_at';
+COMMENT ON COLUMN local_term.last_seen_at IS '业务字段：last_seen_at';
+COMMENT ON COLUMN local_term.created_at IS '创建时间';
+COMMENT ON COLUMN local_term.created_by IS '创建人';
+COMMENT ON COLUMN local_term.updated_at IS '更新时间';
+COMMENT ON COLUMN local_term.updated_by IS '更新人';
+COMMENT ON TABLE mapping_candidate IS '业务表：mapping_candidate';
+COMMENT ON COLUMN mapping_candidate.id IS '数据库主键';
+COMMENT ON COLUMN mapping_candidate.tenant_id IS '租户标识';
+COMMENT ON COLUMN mapping_candidate.local_term_id IS '业务字段：local_term_id';
+COMMENT ON COLUMN mapping_candidate.standard_term_id IS '业务字段：standard_term_id';
+COMMENT ON COLUMN mapping_candidate.confidence IS '业务字段：confidence';
+COMMENT ON COLUMN mapping_candidate.candidate_source IS '业务字段：candidate_source';
+COMMENT ON COLUMN mapping_candidate.risk_level IS '业务字段：risk_level';
+COMMENT ON COLUMN mapping_candidate.evidence_text IS '业务字段：evidence_text';
+COMMENT ON COLUMN mapping_candidate.conflict_flag IS '业务字段：conflict_flag';
+COMMENT ON COLUMN mapping_candidate.status IS '当前状态';
+COMMENT ON COLUMN mapping_candidate.review_note IS '业务字段：review_note';
+COMMENT ON COLUMN mapping_candidate.reviewed_by IS '业务字段：reviewed_by';
+COMMENT ON COLUMN mapping_candidate.reviewed_at IS '业务字段：reviewed_at';
+COMMENT ON COLUMN mapping_candidate.created_at IS '创建时间';
+COMMENT ON COLUMN mapping_candidate.created_by IS '创建人';
+COMMENT ON COLUMN mapping_candidate.updated_at IS '更新时间';
+COMMENT ON COLUMN mapping_candidate.updated_by IS '更新人';
+COMMENT ON COLUMN mapping_candidate.generation_job_code IS '业务字段：generation_job_code';
+COMMENT ON TABLE mapping_conflict IS '业务表：mapping_conflict';
+COMMENT ON COLUMN mapping_conflict.id IS '数据库主键';
+COMMENT ON COLUMN mapping_conflict.tenant_id IS '租户标识';
+COMMENT ON COLUMN mapping_conflict.conflict_type IS '业务字段：conflict_type';
+COMMENT ON COLUMN mapping_conflict.local_term_id IS '业务字段：local_term_id';
+COMMENT ON COLUMN mapping_conflict.standard_term_id IS '业务字段：standard_term_id';
+COMMENT ON COLUMN mapping_conflict.mapping_id IS '业务字段：mapping_id';
+COMMENT ON COLUMN mapping_conflict.risk_level IS '业务字段：risk_level';
+COMMENT ON COLUMN mapping_conflict.description IS '业务字段：description';
+COMMENT ON COLUMN mapping_conflict.status IS '当前状态';
+COMMENT ON COLUMN mapping_conflict.resolved_by IS '业务字段：resolved_by';
+COMMENT ON COLUMN mapping_conflict.resolved_at IS '业务字段：resolved_at';
+COMMENT ON COLUMN mapping_conflict.resolution_note IS '业务字段：resolution_note';
+COMMENT ON COLUMN mapping_conflict.created_at IS '创建时间';
+COMMENT ON COLUMN mapping_conflict.created_by IS '创建人';
+COMMENT ON COLUMN mapping_conflict.updated_at IS '更新时间';
+COMMENT ON COLUMN mapping_conflict.updated_by IS '更新人';
+COMMENT ON TABLE mk_aik_gate_result IS '业务表：mk_aik_gate_result';
+COMMENT ON COLUMN mk_aik_gate_result.id IS '数据库主键';
+COMMENT ON COLUMN mk_aik_gate_result.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_aik_gate_result.job_code IS '业务字段：job_code';
+COMMENT ON COLUMN mk_aik_gate_result.content_hash IS '业务字段：content_hash';
+COMMENT ON COLUMN mk_aik_gate_result.gate_code IS '业务字段：gate_code';
+COMMENT ON COLUMN mk_aik_gate_result.passed IS '业务字段：passed';
+COMMENT ON COLUMN mk_aik_gate_result.reason IS '业务字段：reason';
+COMMENT ON COLUMN mk_aik_gate_result.created_at IS '创建时间';
+COMMENT ON COLUMN mk_aik_gate_result.created_by IS '创建人';
+COMMENT ON TABLE mk_clinical_care_plan IS '业务表：mk_clinical_care_plan';
+COMMENT ON COLUMN mk_clinical_care_plan.care_plan_id IS '业务字段：care_plan_id';
+COMMENT ON COLUMN mk_clinical_care_plan.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_clinical_care_plan.org_path IS '业务字段：org_path';
+COMMENT ON COLUMN mk_clinical_care_plan.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN mk_clinical_care_plan.source_id IS '业务字段：source_id';
+COMMENT ON COLUMN mk_clinical_care_plan.fhir_resource_id IS '业务字段：fhir_resource_id';
+COMMENT ON COLUMN mk_clinical_care_plan.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN mk_clinical_care_plan.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN mk_clinical_care_plan.pathway_id IS '业务字段：pathway_id';
+COMMENT ON COLUMN mk_clinical_care_plan.status IS '当前状态';
+COMMENT ON COLUMN mk_clinical_care_plan.created_at IS '创建时间';
+COMMENT ON COLUMN mk_clinical_care_plan.created_by IS '创建人';
+COMMENT ON COLUMN mk_clinical_care_plan.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_clinical_care_plan.updated_by IS '更新人';
+COMMENT ON COLUMN mk_clinical_care_plan.trace_id IS '追踪号';
+COMMENT ON TABLE mk_clinical_claim IS '业务表：mk_clinical_claim';
+COMMENT ON COLUMN mk_clinical_claim.claim_id IS '业务字段：claim_id';
+COMMENT ON COLUMN mk_clinical_claim.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_clinical_claim.org_path IS '业务字段：org_path';
+COMMENT ON COLUMN mk_clinical_claim.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN mk_clinical_claim.source_id IS '业务字段：source_id';
+COMMENT ON COLUMN mk_clinical_claim.fhir_resource_id IS '业务字段：fhir_resource_id';
+COMMENT ON COLUMN mk_clinical_claim.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN mk_clinical_claim.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN mk_clinical_claim.claim_type IS '业务字段：claim_type';
+COMMENT ON COLUMN mk_clinical_claim.status IS '当前状态';
+COMMENT ON COLUMN mk_clinical_claim.total_amount IS '业务字段：total_amount';
+COMMENT ON COLUMN mk_clinical_claim.created_at IS '创建时间';
+COMMENT ON COLUMN mk_clinical_claim.created_by IS '创建人';
+COMMENT ON COLUMN mk_clinical_claim.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_clinical_claim.updated_by IS '更新人';
+COMMENT ON COLUMN mk_clinical_claim.trace_id IS '追踪号';
+COMMENT ON TABLE mk_clinical_condition IS '业务表：mk_clinical_condition';
+COMMENT ON COLUMN mk_clinical_condition.condition_id IS '业务字段：condition_id';
+COMMENT ON COLUMN mk_clinical_condition.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_clinical_condition.org_path IS '业务字段：org_path';
+COMMENT ON COLUMN mk_clinical_condition.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN mk_clinical_condition.source_id IS '业务字段：source_id';
+COMMENT ON COLUMN mk_clinical_condition.fhir_resource_id IS '业务字段：fhir_resource_id';
+COMMENT ON COLUMN mk_clinical_condition.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN mk_clinical_condition.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN mk_clinical_condition.code IS '业务字段：code';
+COMMENT ON COLUMN mk_clinical_condition.code_system IS '业务字段：code_system';
+COMMENT ON COLUMN mk_clinical_condition.display_name IS '业务字段：display_name';
+COMMENT ON COLUMN mk_clinical_condition.clinical_status IS '业务字段：clinical_status';
+COMMENT ON COLUMN mk_clinical_condition.created_at IS '创建时间';
+COMMENT ON COLUMN mk_clinical_condition.created_by IS '创建人';
+COMMENT ON COLUMN mk_clinical_condition.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_clinical_condition.updated_by IS '更新人';
+COMMENT ON COLUMN mk_clinical_condition.trace_id IS '追踪号';
+COMMENT ON TABLE mk_clinical_diagnostic_report IS '业务表：mk_clinical_diagnostic_report';
+COMMENT ON COLUMN mk_clinical_diagnostic_report.report_id IS '业务字段：report_id';
+COMMENT ON COLUMN mk_clinical_diagnostic_report.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_clinical_diagnostic_report.org_path IS '业务字段：org_path';
+COMMENT ON COLUMN mk_clinical_diagnostic_report.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN mk_clinical_diagnostic_report.source_id IS '业务字段：source_id';
+COMMENT ON COLUMN mk_clinical_diagnostic_report.fhir_resource_id IS '业务字段：fhir_resource_id';
+COMMENT ON COLUMN mk_clinical_diagnostic_report.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN mk_clinical_diagnostic_report.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN mk_clinical_diagnostic_report.report_type IS '业务字段：report_type';
+COMMENT ON COLUMN mk_clinical_diagnostic_report.status IS '当前状态';
+COMMENT ON COLUMN mk_clinical_diagnostic_report.conclusion IS '业务字段：conclusion';
+COMMENT ON COLUMN mk_clinical_diagnostic_report.created_at IS '创建时间';
+COMMENT ON COLUMN mk_clinical_diagnostic_report.created_by IS '创建人';
+COMMENT ON COLUMN mk_clinical_diagnostic_report.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_clinical_diagnostic_report.updated_by IS '更新人';
+COMMENT ON COLUMN mk_clinical_diagnostic_report.trace_id IS '追踪号';
+COMMENT ON TABLE mk_clinical_document IS '业务表：mk_clinical_document';
+COMMENT ON COLUMN mk_clinical_document.document_id IS '业务字段：document_id';
+COMMENT ON COLUMN mk_clinical_document.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_clinical_document.org_path IS '业务字段：org_path';
+COMMENT ON COLUMN mk_clinical_document.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN mk_clinical_document.source_id IS '业务字段：source_id';
+COMMENT ON COLUMN mk_clinical_document.fhir_resource_id IS '业务字段：fhir_resource_id';
+COMMENT ON COLUMN mk_clinical_document.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN mk_clinical_document.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN mk_clinical_document.document_type IS '业务字段：document_type';
+COMMENT ON COLUMN mk_clinical_document.status IS '当前状态';
+COMMENT ON COLUMN mk_clinical_document.content_hash IS '业务字段：content_hash';
+COMMENT ON COLUMN mk_clinical_document.created_at IS '创建时间';
+COMMENT ON COLUMN mk_clinical_document.created_by IS '创建人';
+COMMENT ON COLUMN mk_clinical_document.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_clinical_document.updated_by IS '更新人';
+COMMENT ON COLUMN mk_clinical_document.trace_id IS '追踪号';
+COMMENT ON TABLE mk_clinical_encounter IS '业务表：mk_clinical_encounter';
+COMMENT ON COLUMN mk_clinical_encounter.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN mk_clinical_encounter.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_clinical_encounter.org_path IS '业务字段：org_path';
+COMMENT ON COLUMN mk_clinical_encounter.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN mk_clinical_encounter.source_id IS '业务字段：source_id';
+COMMENT ON COLUMN mk_clinical_encounter.fhir_resource_id IS '业务字段：fhir_resource_id';
+COMMENT ON COLUMN mk_clinical_encounter.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN mk_clinical_encounter.encounter_class IS '业务字段：encounter_class';
+COMMENT ON COLUMN mk_clinical_encounter.status IS '当前状态';
+COMMENT ON COLUMN mk_clinical_encounter.started_at IS '业务字段：started_at';
+COMMENT ON COLUMN mk_clinical_encounter.ended_at IS '业务字段：ended_at';
+COMMENT ON COLUMN mk_clinical_encounter.org_unit_id IS '业务字段：org_unit_id';
+COMMENT ON COLUMN mk_clinical_encounter.created_at IS '创建时间';
+COMMENT ON COLUMN mk_clinical_encounter.created_by IS '创建人';
+COMMENT ON COLUMN mk_clinical_encounter.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_clinical_encounter.updated_by IS '更新人';
+COMMENT ON COLUMN mk_clinical_encounter.trace_id IS '追踪号';
+COMMENT ON TABLE mk_clinical_follow_up IS '业务表：mk_clinical_follow_up';
+COMMENT ON COLUMN mk_clinical_follow_up.follow_up_id IS '业务字段：follow_up_id';
+COMMENT ON COLUMN mk_clinical_follow_up.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_clinical_follow_up.org_path IS '业务字段：org_path';
+COMMENT ON COLUMN mk_clinical_follow_up.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN mk_clinical_follow_up.source_id IS '业务字段：source_id';
+COMMENT ON COLUMN mk_clinical_follow_up.fhir_resource_id IS '业务字段：fhir_resource_id';
+COMMENT ON COLUMN mk_clinical_follow_up.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN mk_clinical_follow_up.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN mk_clinical_follow_up.plan_type IS '业务字段：plan_type';
+COMMENT ON COLUMN mk_clinical_follow_up.status IS '当前状态';
+COMMENT ON COLUMN mk_clinical_follow_up.planned_at IS '业务字段：planned_at';
+COMMENT ON COLUMN mk_clinical_follow_up.created_at IS '创建时间';
+COMMENT ON COLUMN mk_clinical_follow_up.created_by IS '创建人';
+COMMENT ON COLUMN mk_clinical_follow_up.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_clinical_follow_up.updated_by IS '更新人';
+COMMENT ON COLUMN mk_clinical_follow_up.trace_id IS '追踪号';
+COMMENT ON TABLE mk_clinical_medication IS '业务表：mk_clinical_medication';
+COMMENT ON COLUMN mk_clinical_medication.medication_id IS '业务字段：medication_id';
+COMMENT ON COLUMN mk_clinical_medication.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_clinical_medication.org_path IS '业务字段：org_path';
+COMMENT ON COLUMN mk_clinical_medication.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN mk_clinical_medication.source_id IS '业务字段：source_id';
+COMMENT ON COLUMN mk_clinical_medication.fhir_resource_id IS '业务字段：fhir_resource_id';
+COMMENT ON COLUMN mk_clinical_medication.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN mk_clinical_medication.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN mk_clinical_medication.code IS '业务字段：code';
+COMMENT ON COLUMN mk_clinical_medication.code_system IS '业务字段：code_system';
+COMMENT ON COLUMN mk_clinical_medication.display_name IS '业务字段：display_name';
+COMMENT ON COLUMN mk_clinical_medication.dose IS '业务字段：dose';
+COMMENT ON COLUMN mk_clinical_medication.dose_unit IS '业务字段：dose_unit';
+COMMENT ON COLUMN mk_clinical_medication.route IS '业务字段：route';
+COMMENT ON COLUMN mk_clinical_medication.frequency IS '业务字段：frequency';
+COMMENT ON COLUMN mk_clinical_medication.status IS '当前状态';
+COMMENT ON COLUMN mk_clinical_medication.created_at IS '创建时间';
+COMMENT ON COLUMN mk_clinical_medication.created_by IS '创建人';
+COMMENT ON COLUMN mk_clinical_medication.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_clinical_medication.updated_by IS '更新人';
+COMMENT ON COLUMN mk_clinical_medication.trace_id IS '追踪号';
+COMMENT ON TABLE mk_clinical_nursing_assessment IS '业务表：mk_clinical_nursing_assessment';
+COMMENT ON COLUMN mk_clinical_nursing_assessment.assessment_id IS '业务字段：assessment_id';
+COMMENT ON COLUMN mk_clinical_nursing_assessment.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_clinical_nursing_assessment.org_path IS '业务字段：org_path';
+COMMENT ON COLUMN mk_clinical_nursing_assessment.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN mk_clinical_nursing_assessment.source_id IS '业务字段：source_id';
+COMMENT ON COLUMN mk_clinical_nursing_assessment.fhir_resource_id IS '业务字段：fhir_resource_id';
+COMMENT ON COLUMN mk_clinical_nursing_assessment.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN mk_clinical_nursing_assessment.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN mk_clinical_nursing_assessment.assessment_type IS '业务字段：assessment_type';
+COMMENT ON COLUMN mk_clinical_nursing_assessment.status IS '当前状态';
+COMMENT ON COLUMN mk_clinical_nursing_assessment.risk_level IS '业务字段：risk_level';
+COMMENT ON COLUMN mk_clinical_nursing_assessment.created_at IS '创建时间';
+COMMENT ON COLUMN mk_clinical_nursing_assessment.created_by IS '创建人';
+COMMENT ON COLUMN mk_clinical_nursing_assessment.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_clinical_nursing_assessment.updated_by IS '更新人';
+COMMENT ON COLUMN mk_clinical_nursing_assessment.trace_id IS '追踪号';
+COMMENT ON TABLE mk_clinical_observation IS '业务表：mk_clinical_observation';
+COMMENT ON COLUMN mk_clinical_observation.observation_id IS '业务字段：observation_id';
+COMMENT ON COLUMN mk_clinical_observation.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_clinical_observation.org_path IS '业务字段：org_path';
+COMMENT ON COLUMN mk_clinical_observation.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN mk_clinical_observation.source_id IS '业务字段：source_id';
+COMMENT ON COLUMN mk_clinical_observation.fhir_resource_id IS '业务字段：fhir_resource_id';
+COMMENT ON COLUMN mk_clinical_observation.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN mk_clinical_observation.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN mk_clinical_observation.code IS '业务字段：code';
+COMMENT ON COLUMN mk_clinical_observation.code_system IS '业务字段：code_system';
+COMMENT ON COLUMN mk_clinical_observation.display_name IS '业务字段：display_name';
+COMMENT ON COLUMN mk_clinical_observation.value_numeric IS '业务字段：value_numeric';
+COMMENT ON COLUMN mk_clinical_observation.unit IS '业务字段：unit';
+COMMENT ON COLUMN mk_clinical_observation.critical_flag IS '业务字段：critical_flag';
+COMMENT ON COLUMN mk_clinical_observation.created_at IS '创建时间';
+COMMENT ON COLUMN mk_clinical_observation.created_by IS '创建人';
+COMMENT ON COLUMN mk_clinical_observation.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_clinical_observation.updated_by IS '更新人';
+COMMENT ON COLUMN mk_clinical_observation.trace_id IS '追踪号';
+COMMENT ON TABLE mk_clinical_patient IS '业务表：mk_clinical_patient';
+COMMENT ON COLUMN mk_clinical_patient.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN mk_clinical_patient.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_clinical_patient.org_path IS '业务字段：org_path';
+COMMENT ON COLUMN mk_clinical_patient.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN mk_clinical_patient.source_id IS '业务字段：source_id';
+COMMENT ON COLUMN mk_clinical_patient.fhir_resource_id IS '业务字段：fhir_resource_id';
+COMMENT ON COLUMN mk_clinical_patient.name_cipher IS '业务字段：name_cipher';
+COMMENT ON COLUMN mk_clinical_patient.name_mask IS '业务字段：name_mask';
+COMMENT ON COLUMN mk_clinical_patient.identity_no_cipher IS '业务字段：identity_no_cipher';
+COMMENT ON COLUMN mk_clinical_patient.identity_no_mask IS '业务字段：identity_no_mask';
+COMMENT ON COLUMN mk_clinical_patient.phone_cipher IS '业务字段：phone_cipher';
+COMMENT ON COLUMN mk_clinical_patient.phone_mask IS '业务字段：phone_mask';
+COMMENT ON COLUMN mk_clinical_patient.birth_date IS '业务字段：birth_date';
+COMMENT ON COLUMN mk_clinical_patient.gender_code IS '业务字段：gender_code';
+COMMENT ON COLUMN mk_clinical_patient.created_at IS '创建时间';
+COMMENT ON COLUMN mk_clinical_patient.created_by IS '创建人';
+COMMENT ON COLUMN mk_clinical_patient.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_clinical_patient.updated_by IS '更新人';
+COMMENT ON COLUMN mk_clinical_patient.trace_id IS '追踪号';
+COMMENT ON TABLE mk_clinical_procedure IS '业务表：mk_clinical_procedure';
+COMMENT ON COLUMN mk_clinical_procedure.procedure_id IS '业务字段：procedure_id';
+COMMENT ON COLUMN mk_clinical_procedure.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_clinical_procedure.org_path IS '业务字段：org_path';
+COMMENT ON COLUMN mk_clinical_procedure.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN mk_clinical_procedure.source_id IS '业务字段：source_id';
+COMMENT ON COLUMN mk_clinical_procedure.fhir_resource_id IS '业务字段：fhir_resource_id';
+COMMENT ON COLUMN mk_clinical_procedure.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN mk_clinical_procedure.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN mk_clinical_procedure.code IS '业务字段：code';
+COMMENT ON COLUMN mk_clinical_procedure.code_system IS '业务字段：code_system';
+COMMENT ON COLUMN mk_clinical_procedure.display_name IS '业务字段：display_name';
+COMMENT ON COLUMN mk_clinical_procedure.status IS '当前状态';
+COMMENT ON COLUMN mk_clinical_procedure.created_at IS '创建时间';
+COMMENT ON COLUMN mk_clinical_procedure.created_by IS '创建人';
+COMMENT ON COLUMN mk_clinical_procedure.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_clinical_procedure.updated_by IS '更新人';
+COMMENT ON COLUMN mk_clinical_procedure.trace_id IS '追踪号';
+COMMENT ON TABLE mk_compliance_data_permission IS 'SYS-06 行列数据权限策略表，按租户和资源动作配置最小数据级别与列白名单';
+COMMENT ON COLUMN mk_compliance_data_permission.id IS '数据库主键';
+COMMENT ON COLUMN mk_compliance_data_permission.policy_id IS '策略 ID，由资源类型和动作确定，租户内稳定';
+COMMENT ON COLUMN mk_compliance_data_permission.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_compliance_data_permission.resource_type IS '受控业务资源类型，如 clinical_case 或 evidence_snapshot';
+COMMENT ON COLUMN mk_compliance_data_permission.action IS '策略动作，READ 为读取，EXPORT 为导出';
+COMMENT ON COLUMN mk_compliance_data_permission.min_data_level IS '访问该资源所需的最低数据范围级别';
+COMMENT ON COLUMN mk_compliance_data_permission.allowed_columns_json IS '允许读取或导出的字段白名单 JSON 数组';
+COMMENT ON COLUMN mk_compliance_data_permission.group_id IS '业务字段：group_id';
+COMMENT ON COLUMN mk_compliance_data_permission.hospital_id IS '业务字段：hospital_id';
+COMMENT ON COLUMN mk_compliance_data_permission.campus_id IS '业务字段：campus_id';
+COMMENT ON COLUMN mk_compliance_data_permission.site_id IS '业务字段：site_id';
+COMMENT ON COLUMN mk_compliance_data_permission.department_id IS '业务字段：department_id';
+COMMENT ON COLUMN mk_compliance_data_permission.specialty_id IS '业务字段：specialty_id';
+COMMENT ON COLUMN mk_compliance_data_permission.status IS '当前状态';
+COMMENT ON COLUMN mk_compliance_data_permission.version IS '并发版本号';
+COMMENT ON COLUMN mk_compliance_data_permission.created_at IS '创建时间';
+COMMENT ON COLUMN mk_compliance_data_permission.created_by IS '创建人';
+COMMENT ON COLUMN mk_compliance_data_permission.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_compliance_data_permission.updated_by IS '更新人';
+COMMENT ON COLUMN mk_compliance_data_permission.trace_id IS '最近一次策略变更的链路追踪 ID';
+COMMENT ON COLUMN mk_compliance_data_permission.ward_id IS '数据权限策略限定的病区组织节点';
+COMMENT ON TABLE mk_compliance_export_confirmation IS '敏感数据导出确认表，记录冻结范围、确认凭据、真实导出产物与证据链';
+COMMENT ON COLUMN mk_compliance_export_confirmation.id IS '数据库主键';
+COMMENT ON COLUMN mk_compliance_export_confirmation.confirmation_id IS '导出确认业务 ID，租户内唯一';
+COMMENT ON COLUMN mk_compliance_export_confirmation.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_compliance_export_confirmation.resource_type IS '已确认导出的受控资源类型';
+COMMENT ON COLUMN mk_compliance_export_confirmation.export_scope_snapshot IS '冻结的导出范围 JSON，任务提交和证据链均以该快照为准';
+COMMENT ON COLUMN mk_compliance_export_confirmation.idempotency_key IS '导出确认幂等键';
+COMMENT ON COLUMN mk_compliance_export_confirmation.reason IS '当前操作者确认导出的业务原因';
+COMMENT ON COLUMN mk_compliance_export_confirmation.confirmed_by IS '执行导出确认的账号';
+COMMENT ON COLUMN mk_compliance_export_confirmation.confirmed_at IS '导出范围确认时间';
+COMMENT ON COLUMN mk_compliance_export_confirmation.status IS '导出状态：CONFIRMED 或 EXPORTED';
+COMMENT ON COLUMN mk_compliance_export_confirmation.export_uri IS '真实导出产物 URI，只有导出完成后写入';
+COMMENT ON COLUMN mk_compliance_export_confirmation.export_digest IS '真实导出产物 SM3 摘要，格式为 sm3:<64 位十六进制>';
+COMMENT ON COLUMN mk_compliance_export_confirmation.confirmation_evidence_id IS '导出确认生成的证据快照 ID';
+COMMENT ON COLUMN mk_compliance_export_confirmation.confirmation_evidence_file_uri IS '导出确认证据文件地址';
+COMMENT ON COLUMN mk_compliance_export_confirmation.export_evidence_id IS '真实导出登记生成的证据快照 ID';
+COMMENT ON COLUMN mk_compliance_export_confirmation.export_evidence_file_uri IS '真实导出证据文件地址';
+COMMENT ON COLUMN mk_compliance_export_confirmation.version IS '并发版本号';
+COMMENT ON COLUMN mk_compliance_export_confirmation.created_at IS '创建时间';
+COMMENT ON COLUMN mk_compliance_export_confirmation.created_by IS '创建人';
+COMMENT ON COLUMN mk_compliance_export_confirmation.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_compliance_export_confirmation.updated_by IS '更新人';
+COMMENT ON COLUMN mk_compliance_export_confirmation.trace_id IS '最近一次导出状态变更的链路追踪 ID';
+COMMENT ON TABLE mk_compliance_identity_binding IS 'SVC-COMPLIANCE-01 外部身份绑定表，身份原文不落库，仅保存 SM3 摘要和脱敏提示';
+COMMENT ON COLUMN mk_compliance_identity_binding.id IS '数据库主键';
+COMMENT ON COLUMN mk_compliance_identity_binding.binding_id IS '业务字段：binding_id';
+COMMENT ON COLUMN mk_compliance_identity_binding.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_compliance_identity_binding.user_id IS '业务字段：user_id';
+COMMENT ON COLUMN mk_compliance_identity_binding.provider_type IS '业务字段：provider_type';
+COMMENT ON COLUMN mk_compliance_identity_binding.external_subject_digest IS '外部身份主体规范化后的 SM3 摘要';
+COMMENT ON COLUMN mk_compliance_identity_binding.subject_hint IS '供管理员辨认的脱敏身份提示';
+COMMENT ON COLUMN mk_compliance_identity_binding.status IS '当前状态';
+COMMENT ON COLUMN mk_compliance_identity_binding.version IS '并发版本号';
+COMMENT ON COLUMN mk_compliance_identity_binding.unbound_reason IS '最近一次解绑原因，解绑操作同时写统一审计链';
+COMMENT ON COLUMN mk_compliance_identity_binding.created_at IS '创建时间';
+COMMENT ON COLUMN mk_compliance_identity_binding.created_by IS '创建人';
+COMMENT ON COLUMN mk_compliance_identity_binding.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_compliance_identity_binding.updated_by IS '更新人';
+COMMENT ON COLUMN mk_compliance_identity_binding.trace_id IS '追踪号';
+COMMENT ON TABLE mk_compliance_interop_assessment_item IS 'OPT-05 互联互通测评四维指标项表，保存受控版本化测评要求';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.id IS '数据库主键';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.item_id IS '业务字段：item_id';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.standard_version IS '互联互通测评标准版本';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.dimension IS '测评四维：数据资源、标准化、基础设施、应用效果';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.item_code IS '业务字段：item_code';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.item_name IS '业务字段：item_name';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.requirement_summary IS '测评项要求摘要，不替代正式标准文本';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.owner_department_id IS '业务字段：owner_department_id';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.effective_from IS '业务字段：effective_from';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.effective_to IS '业务字段：effective_to';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.status IS '当前状态';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.version IS '并发版本号';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.created_at IS '创建时间';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.created_by IS '创建人';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.updated_by IS '更新人';
+COMMENT ON COLUMN mk_compliance_interop_assessment_item.trace_id IS '追踪号';
+COMMENT ON TABLE mk_compliance_interop_evidence_map IS 'OPT-05 互联互通测评证据映射表，引用真实 EVID-01 或 EMR-LEVEL-02 证据';
+COMMENT ON COLUMN mk_compliance_interop_evidence_map.id IS '数据库主键';
+COMMENT ON COLUMN mk_compliance_interop_evidence_map.map_id IS '业务字段：map_id';
+COMMENT ON COLUMN mk_compliance_interop_evidence_map.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_compliance_interop_evidence_map.item_id IS '业务字段：item_id';
+COMMENT ON COLUMN mk_compliance_interop_evidence_map.evidence_source_type IS '真实证据来源类型：EVIDENCE_SNAPSHOT 或 EMR_LEVEL_EVIDENCE_EXPORT';
+COMMENT ON COLUMN mk_compliance_interop_evidence_map.source_id IS '证据源业务 ID，必须能在对应真实表中查到';
+COMMENT ON COLUMN mk_compliance_interop_evidence_map.evidence_ref IS '面向评审下钻的证据引用，如 evidence_snapshot:<id>';
+COMMENT ON COLUMN mk_compliance_interop_evidence_map.evidence_summary IS '业务字段：evidence_summary';
+COMMENT ON COLUMN mk_compliance_interop_evidence_map.status IS '当前状态';
+COMMENT ON COLUMN mk_compliance_interop_evidence_map.created_at IS '创建时间';
+COMMENT ON COLUMN mk_compliance_interop_evidence_map.created_by IS '创建人';
+COMMENT ON COLUMN mk_compliance_interop_evidence_map.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_compliance_interop_evidence_map.updated_by IS '更新人';
+COMMENT ON COLUMN mk_compliance_interop_evidence_map.trace_id IS '最近一次证据映射变更链路追踪 ID';
+COMMENT ON TABLE mk_compliance_masking_rule IS 'SYS-06 后端脱敏规则表，按租户、资源、字段和场景配置脱敏策略';
+COMMENT ON COLUMN mk_compliance_masking_rule.id IS '数据库主键';
+COMMENT ON COLUMN mk_compliance_masking_rule.rule_id IS '脱敏规则 ID，由资源、字段和场景确定，租户内稳定';
+COMMENT ON COLUMN mk_compliance_masking_rule.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_compliance_masking_rule.resource_type IS '受控业务资源类型，如 clinical_case 或 evidence_snapshot';
+COMMENT ON COLUMN mk_compliance_masking_rule.field_name IS '敏感字段名，后端调用脱敏服务时按该字段匹配规则';
+COMMENT ON COLUMN mk_compliance_masking_rule.scenario_code IS '脱敏场景编码，DEFAULT 为默认场景';
+COMMENT ON COLUMN mk_compliance_masking_rule.strategy IS '脱敏策略，如 KEEP_LAST、KEEP_FIRST_LAST、EMAIL、FIXED';
+COMMENT ON COLUMN mk_compliance_masking_rule.mask_char IS '脱敏替换字符，必须为单个字符';
+COMMENT ON COLUMN mk_compliance_masking_rule.prefix_keep IS '业务字段：prefix_keep';
+COMMENT ON COLUMN mk_compliance_masking_rule.suffix_keep IS '业务字段：suffix_keep';
+COMMENT ON COLUMN mk_compliance_masking_rule.status IS '当前状态';
+COMMENT ON COLUMN mk_compliance_masking_rule.version IS '并发版本号';
+COMMENT ON COLUMN mk_compliance_masking_rule.created_at IS '创建时间';
+COMMENT ON COLUMN mk_compliance_masking_rule.created_by IS '创建人';
+COMMENT ON COLUMN mk_compliance_masking_rule.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_compliance_masking_rule.updated_by IS '更新人';
+COMMENT ON COLUMN mk_compliance_masking_rule.trace_id IS '最近一次脱敏规则变更的链路追踪 ID';
+COMMENT ON TABLE mk_config_history IS '配置中心变更历史表：追加记录配置变更前后值、原因、版本和操作人';
+COMMENT ON COLUMN mk_config_history.history_id IS '业务字段：history_id';
+COMMENT ON COLUMN mk_config_history.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_config_history.config_key IS '业务字段：config_key';
+COMMENT ON COLUMN mk_config_history.before_value IS '业务字段：before_value';
+COMMENT ON COLUMN mk_config_history.after_value IS '变更后配置值；NULL 或空字符串表示回滚到尚未配置状态';
+COMMENT ON COLUMN mk_config_history.change_type IS '业务字段：change_type';
+COMMENT ON COLUMN mk_config_history.reason IS '配置变更原因，支撑审计追溯';
+COMMENT ON COLUMN mk_config_history.version IS '并发版本号';
+COMMENT ON COLUMN mk_config_history.created_at IS '创建时间';
+COMMENT ON COLUMN mk_config_history.created_by IS '创建人';
+COMMENT ON TABLE mk_config_item IS '配置中心当前值表：保存可热生效的受控配置项、风险等级和保护标记';
+COMMENT ON COLUMN mk_config_item.config_id IS '业务字段：config_id';
+COMMENT ON COLUMN mk_config_item.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_config_item.config_key IS '配置键，全局命名空间使用点分层';
+COMMENT ON COLUMN mk_config_item.config_value IS '配置值；NULL 或空字符串表示尚未配置，读取层统一返回空字符串';
+COMMENT ON COLUMN mk_config_item.value_type IS '业务字段：value_type';
+COMMENT ON COLUMN mk_config_item.display_name IS '业务字段：display_name';
+COMMENT ON COLUMN mk_config_item.risk_level IS '业务字段：risk_level';
+COMMENT ON COLUMN mk_config_item.owner IS '业务字段：owner';
+COMMENT ON COLUMN mk_config_item.description IS '业务字段：description';
+COMMENT ON COLUMN mk_config_item.source IS '配置来源：YML_SEED 表示启动配置种子，PLATFORM_SEED 表示平台治理基线种子，API/IMPORT/DB 表示运行期维护来源';
+COMMENT ON COLUMN mk_config_item.protected_flag IS '保护配置标记：Y 表示高危或合规配置，需要额外护栏';
+COMMENT ON COLUMN mk_config_item.active_flag IS '是否启用：Y/N';
+COMMENT ON COLUMN mk_config_item.version IS '并发版本号';
+COMMENT ON COLUMN mk_config_item.created_at IS '创建时间';
+COMMENT ON COLUMN mk_config_item.created_by IS '创建人';
+COMMENT ON COLUMN mk_config_item.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_config_item.updated_by IS '更新人';
+COMMENT ON TABLE mk_context_field_catalog IS '上下文字段目录租户元数据覆盖与 extensions.local 扩展字段';
+COMMENT ON COLUMN mk_context_field_catalog.id IS '数据库主键';
+COMMENT ON COLUMN mk_context_field_catalog.field_id IS '业务字段：field_id';
+COMMENT ON COLUMN mk_context_field_catalog.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_context_field_catalog.category IS '业务字段：category';
+COMMENT ON COLUMN mk_context_field_catalog.group_name IS '业务字段：group_name';
+COMMENT ON COLUMN mk_context_field_catalog.resource_type IS '业务字段：resource_type';
+COMMENT ON COLUMN mk_context_field_catalog.field_path IS '业务字段：field_path';
+COMMENT ON COLUMN mk_context_field_catalog.display_name IS '业务字段：display_name';
+COMMENT ON COLUMN mk_context_field_catalog.data_type IS '业务字段：data_type';
+COMMENT ON COLUMN mk_context_field_catalog.unit IS '业务字段：unit';
+COMMENT ON COLUMN mk_context_field_catalog.code_system IS '业务字段：code_system';
+COMMENT ON COLUMN mk_context_field_catalog.description IS '业务字段：description';
+COMMENT ON COLUMN mk_context_field_catalog.status IS '当前状态';
+COMMENT ON COLUMN mk_context_field_catalog.created_at IS '创建时间';
+COMMENT ON COLUMN mk_context_field_catalog.created_by IS '创建人';
+COMMENT ON COLUMN mk_context_field_catalog.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_context_field_catalog.updated_by IS '更新人';
+COMMENT ON COLUMN mk_context_field_catalog.trace_id IS '追踪号';
+COMMENT ON TABLE mk_diagnosis_care_pointer IS '诊疗指针：确诊后指向治疗/检查（规则·知识）或专病路径（恒软建议）';
+COMMENT ON COLUMN mk_diagnosis_care_pointer.id IS '数据库主键';
+COMMENT ON COLUMN mk_diagnosis_care_pointer.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_diagnosis_care_pointer.diagnosis_version_id IS '业务字段：diagnosis_version_id';
+COMMENT ON COLUMN mk_diagnosis_care_pointer.pointer_type IS '业务字段：pointer_type';
+COMMENT ON COLUMN mk_diagnosis_care_pointer.target_type IS '目标资产类型：RULE 规则 / KNOWLEDGE 知识 / PATHWAY 专病路径';
+COMMENT ON COLUMN mk_diagnosis_care_pointer.target_ref IS '业务字段：target_ref';
+COMMENT ON COLUMN mk_diagnosis_care_pointer.is_soft IS '业务字段：is_soft';
+COMMENT ON COLUMN mk_diagnosis_care_pointer.description IS '业务字段：description';
+COMMENT ON COLUMN mk_diagnosis_care_pointer.created_at IS '创建时间';
+COMMENT ON COLUMN mk_diagnosis_care_pointer.created_by IS '创建人';
+COMMENT ON COLUMN mk_diagnosis_care_pointer.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_diagnosis_care_pointer.updated_by IS '更新人';
+COMMENT ON COLUMN mk_diagnosis_care_pointer.trace_id IS '追踪号';
+COMMENT ON TABLE mk_diagnosis_confidence_policy IS '置信分级策略：权重→等级阈值，可按租户/科室 scope_key 覆盖，不硬编码';
+COMMENT ON COLUMN mk_diagnosis_confidence_policy.id IS '数据库主键';
+COMMENT ON COLUMN mk_diagnosis_confidence_policy.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_diagnosis_confidence_policy.scope_key IS '业务字段：scope_key';
+COMMENT ON COLUMN mk_diagnosis_confidence_policy.strong_min_major IS '业务字段：strong_min_major';
+COMMENT ON COLUMN mk_diagnosis_confidence_policy.require_all_required IS '业务字段：require_all_required';
+COMMENT ON COLUMN mk_diagnosis_confidence_policy.moderate_min_hits IS '业务字段：moderate_min_hits';
+COMMENT ON COLUMN mk_diagnosis_confidence_policy.created_at IS '创建时间';
+COMMENT ON COLUMN mk_diagnosis_confidence_policy.created_by IS '创建人';
+COMMENT ON COLUMN mk_diagnosis_confidence_policy.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_diagnosis_confidence_policy.updated_by IS '更新人';
+COMMENT ON COLUMN mk_diagnosis_confidence_policy.trace_id IS '追踪号';
+COMMENT ON TABLE mk_diagnosis_criterion IS '诊断标准：支持/反对/必需/排除某诊断的发现项（引用标准术语编码）及权重';
+COMMENT ON COLUMN mk_diagnosis_criterion.id IS '数据库主键';
+COMMENT ON COLUMN mk_diagnosis_criterion.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_diagnosis_criterion.diagnosis_version_id IS '业务字段：diagnosis_version_id';
+COMMENT ON COLUMN mk_diagnosis_criterion.finding_term_code IS '发现项标准术语编码（TERM-01），不写死中文';
+COMMENT ON COLUMN mk_diagnosis_criterion.direction IS '方向：SUPPORTING 支持 / REFUTING 反对 / REQUIRED 必需 / EXCLUSION 排除';
+COMMENT ON COLUMN mk_diagnosis_criterion.weight IS '业务字段：weight';
+COMMENT ON COLUMN mk_diagnosis_criterion.value_constraint IS '业务字段：value_constraint';
+COMMENT ON COLUMN mk_diagnosis_criterion.temporal_constraint IS '时序/趋势约束（可选，求值留后续阶段接 RuleDslEvaluator，Spec 1 命中到编码级）';
+COMMENT ON COLUMN mk_diagnosis_criterion.citation_id IS '业务字段：citation_id';
+COMMENT ON COLUMN mk_diagnosis_criterion.created_at IS '创建时间';
+COMMENT ON COLUMN mk_diagnosis_criterion.created_by IS '创建人';
+COMMENT ON COLUMN mk_diagnosis_criterion.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_diagnosis_criterion.updated_by IS '更新人';
+COMMENT ON COLUMN mk_diagnosis_criterion.trace_id IS '追踪号';
+COMMENT ON TABLE mk_diagnosis_differential IS '鉴别清单：与本诊断需鉴别的疾病、鉴别要点与建议补充检查';
+COMMENT ON COLUMN mk_diagnosis_differential.id IS '数据库主键';
+COMMENT ON COLUMN mk_diagnosis_differential.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_diagnosis_differential.diagnosis_version_id IS '业务字段：diagnosis_version_id';
+COMMENT ON COLUMN mk_diagnosis_differential.differential_identity_id IS '业务字段：differential_identity_id';
+COMMENT ON COLUMN mk_diagnosis_differential.key_point IS '业务字段：key_point';
+COMMENT ON COLUMN mk_diagnosis_differential.suggested_workup IS '业务字段：suggested_workup';
+COMMENT ON COLUMN mk_diagnosis_differential.created_at IS '创建时间';
+COMMENT ON COLUMN mk_diagnosis_differential.created_by IS '创建人';
+COMMENT ON COLUMN mk_diagnosis_differential.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_diagnosis_differential.updated_by IS '更新人';
+COMMENT ON COLUMN mk_diagnosis_differential.trace_id IS '追踪号';
+COMMENT ON TABLE mk_diagnosis_test_case IS '诊断测试病例：发现集→期望候选/置信，作为发布门禁回归集';
+COMMENT ON COLUMN mk_diagnosis_test_case.id IS '数据库主键';
+COMMENT ON COLUMN mk_diagnosis_test_case.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_diagnosis_test_case.diagnosis_version_id IS '业务字段：diagnosis_version_id';
+COMMENT ON COLUMN mk_diagnosis_test_case.case_code IS '业务字段：case_code';
+COMMENT ON COLUMN mk_diagnosis_test_case.findings IS '业务字段：findings';
+COMMENT ON COLUMN mk_diagnosis_test_case.expected_identity_id IS '业务字段：expected_identity_id';
+COMMENT ON COLUMN mk_diagnosis_test_case.expected_confidence IS '业务字段：expected_confidence';
+COMMENT ON COLUMN mk_diagnosis_test_case.created_at IS '创建时间';
+COMMENT ON COLUMN mk_diagnosis_test_case.created_by IS '创建人';
+COMMENT ON COLUMN mk_diagnosis_test_case.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_diagnosis_test_case.updated_by IS '更新人';
+COMMENT ON COLUMN mk_diagnosis_test_case.trace_id IS '追踪号';
+COMMENT ON TABLE mk_doc_parse_job IS '业务表：mk_doc_parse_job';
+COMMENT ON COLUMN mk_doc_parse_job.id IS '数据库主键';
+COMMENT ON COLUMN mk_doc_parse_job.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_doc_parse_job.job_code IS '业务字段：job_code';
+COMMENT ON COLUMN mk_doc_parse_job.source_document_id IS '业务字段：source_document_id';
+COMMENT ON COLUMN mk_doc_parse_job.source_file_name IS '业务字段：source_file_name';
+COMMENT ON COLUMN mk_doc_parse_job.document_format IS '业务字段：document_format';
+COMMENT ON COLUMN mk_doc_parse_job.source_hash IS '业务字段：source_hash';
+COMMENT ON COLUMN mk_doc_parse_job.status IS '当前状态';
+COMMENT ON COLUMN mk_doc_parse_job.result_source_version_id IS '业务字段：result_source_version_id';
+COMMENT ON COLUMN mk_doc_parse_job.parsed_section_count IS '业务字段：parsed_section_count';
+COMMENT ON COLUMN mk_doc_parse_job.parsed_fragment_count IS '业务字段：parsed_fragment_count';
+COMMENT ON COLUMN mk_doc_parse_job.error_message IS '业务字段：error_message';
+COMMENT ON COLUMN mk_doc_parse_job.created_at IS '创建时间';
+COMMENT ON COLUMN mk_doc_parse_job.created_by IS '创建人';
+COMMENT ON COLUMN mk_doc_parse_job.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_doc_parse_job.updated_by IS '更新人';
+COMMENT ON TABLE mk_emr_level_evidence_export IS 'EMR-LEVEL-02 电子病历评级证据导出表，保存真实 NDJSON 证据和可复算 SHA-256 指纹';
+COMMENT ON COLUMN mk_emr_level_evidence_export.id IS '数据库主键';
+COMMENT ON COLUMN mk_emr_level_evidence_export.export_id IS '证据导出 ID，由租户、评级目标和幂等键确定生成';
+COMMENT ON COLUMN mk_emr_level_evidence_export.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_emr_level_evidence_export.target_id IS '业务字段：target_id';
+COMMENT ON COLUMN mk_emr_level_evidence_export.hospital_org_id IS '业务字段：hospital_org_id';
+COMMENT ON COLUMN mk_emr_level_evidence_export.standard_version IS '业务字段：standard_version';
+COMMENT ON COLUMN mk_emr_level_evidence_export.idempotency_key IS '证据导出幂等键，同一目标同一键只生成一份证据导出';
+COMMENT ON COLUMN mk_emr_level_evidence_export.status IS '当前状态';
+COMMENT ON COLUMN mk_emr_level_evidence_export.evidence_line_count IS '业务字段：evidence_line_count';
+COMMENT ON COLUMN mk_emr_level_evidence_export.payload_sha256 IS '证据导出 NDJSON payload 的 SHA-256 十六进制指纹';
+COMMENT ON COLUMN mk_emr_level_evidence_export.payload_ndjson IS '按评级标准项组织的真实证据导出 NDJSON 内容';
+COMMENT ON COLUMN mk_emr_level_evidence_export.requested_by IS '业务字段：requested_by';
+COMMENT ON COLUMN mk_emr_level_evidence_export.created_at IS '创建时间';
+COMMENT ON COLUMN mk_emr_level_evidence_export.created_by IS '创建人';
+COMMENT ON COLUMN mk_emr_level_evidence_export.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_emr_level_evidence_export.updated_by IS '更新人';
+COMMENT ON COLUMN mk_emr_level_evidence_export.completed_at IS '业务字段：completed_at';
+COMMENT ON COLUMN mk_emr_level_evidence_export.trace_id IS '链路追踪 ID';
+COMMENT ON TABLE mk_emr_level_gap IS 'EMR-LEVEL-01 电子病历评级差距表，保存缺口原因并关联真实整改任务';
+COMMENT ON COLUMN mk_emr_level_gap.id IS '数据库主键';
+COMMENT ON COLUMN mk_emr_level_gap.gap_id IS '业务字段：gap_id';
+COMMENT ON COLUMN mk_emr_level_gap.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_emr_level_gap.target_id IS '业务字段：target_id';
+COMMENT ON COLUMN mk_emr_level_gap.item_id IS '业务字段：item_id';
+COMMENT ON COLUMN mk_emr_level_gap.item_code IS '业务字段：item_code';
+COMMENT ON COLUMN mk_emr_level_gap.capability_code IS '业务字段：capability_code';
+COMMENT ON COLUMN mk_emr_level_gap.capability_status IS '业务字段：capability_status';
+COMMENT ON COLUMN mk_emr_level_gap.gap_status IS '业务字段：gap_status';
+COMMENT ON COLUMN mk_emr_level_gap.gap_reason IS '不能计入评级进度的真实差距原因';
+COMMENT ON COLUMN mk_emr_level_gap.responsible_department_id IS '业务字段：responsible_department_id';
+COMMENT ON COLUMN mk_emr_level_gap.due_at IS '业务字段：due_at';
+COMMENT ON COLUMN mk_emr_level_gap.rectification_task_id IS '联动创建的整改任务 ID';
+COMMENT ON COLUMN mk_emr_level_gap.evidence_ref IS '业务字段：evidence_ref';
+COMMENT ON COLUMN mk_emr_level_gap.closed_at IS '业务字段：closed_at';
+COMMENT ON COLUMN mk_emr_level_gap.created_at IS '创建时间';
+COMMENT ON COLUMN mk_emr_level_gap.created_by IS '创建人';
+COMMENT ON COLUMN mk_emr_level_gap.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_emr_level_gap.updated_by IS '更新人';
+COMMENT ON COLUMN mk_emr_level_gap.trace_id IS '链路追踪 ID';
+COMMENT ON TABLE mk_emr_level_item IS 'EMR-LEVEL-01 电子病历评级标准项能力映射表，记录目标级别内项目与系统能力证据';
+COMMENT ON COLUMN mk_emr_level_item.id IS '数据库主键';
+COMMENT ON COLUMN mk_emr_level_item.item_id IS '业务字段：item_id';
+COMMENT ON COLUMN mk_emr_level_item.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_emr_level_item.target_id IS '业务字段：target_id';
+COMMENT ON COLUMN mk_emr_level_item.standard_version IS '业务字段：standard_version';
+COMMENT ON COLUMN mk_emr_level_item.item_code IS '业务字段：item_code';
+COMMENT ON COLUMN mk_emr_level_item.item_name IS '业务字段：item_name';
+COMMENT ON COLUMN mk_emr_level_item.required_level IS '业务字段：required_level';
+COMMENT ON COLUMN mk_emr_level_item.capability_code IS '业务字段：capability_code';
+COMMENT ON COLUMN mk_emr_level_item.capability_name IS '业务字段：capability_name';
+COMMENT ON COLUMN mk_emr_level_item.capability_status IS '能力点状态，缺证据时为 MISSING_EVIDENCE';
+COMMENT ON COLUMN mk_emr_level_item.evidence_ref IS '证明能力满足的真实证据引用';
+COMMENT ON COLUMN mk_emr_level_item.evidence_summary IS '业务字段：evidence_summary';
+COMMENT ON COLUMN mk_emr_level_item.responsible_department_id IS '业务字段：responsible_department_id';
+COMMENT ON COLUMN mk_emr_level_item.due_at IS '业务字段：due_at';
+COMMENT ON COLUMN mk_emr_level_item.created_at IS '创建时间';
+COMMENT ON COLUMN mk_emr_level_item.created_by IS '创建人';
+COMMENT ON COLUMN mk_emr_level_item.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_emr_level_item.updated_by IS '更新人';
+COMMENT ON COLUMN mk_emr_level_item.trace_id IS '追踪号';
+COMMENT ON TABLE mk_emr_level_target IS 'EMR-LEVEL-01 电子病历评级目标表，保存机构目标级别、标准版本和真实进度';
+COMMENT ON COLUMN mk_emr_level_target.id IS '数据库主键';
+COMMENT ON COLUMN mk_emr_level_target.target_id IS '业务字段：target_id';
+COMMENT ON COLUMN mk_emr_level_target.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_emr_level_target.hospital_org_id IS '业务字段：hospital_org_id';
+COMMENT ON COLUMN mk_emr_level_target.target_level IS '目标电子病历评级级别，仅允许 4、5、6';
+COMMENT ON COLUMN mk_emr_level_target.standard_version IS '业务字段：standard_version';
+COMMENT ON COLUMN mk_emr_level_target.status IS '当前状态';
+COMMENT ON COLUMN mk_emr_level_target.total_item_count IS '业务字段：total_item_count';
+COMMENT ON COLUMN mk_emr_level_target.satisfied_item_count IS '业务字段：satisfied_item_count';
+COMMENT ON COLUMN mk_emr_level_target.gap_item_count IS '业务字段：gap_item_count';
+COMMENT ON COLUMN mk_emr_level_target.progress_rate IS '按目标级别内标准项证据计算的进度比例';
+COMMENT ON COLUMN mk_emr_level_target.created_at IS '创建时间';
+COMMENT ON COLUMN mk_emr_level_target.created_by IS '创建人';
+COMMENT ON COLUMN mk_emr_level_target.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_emr_level_target.updated_by IS '更新人';
+COMMENT ON COLUMN mk_emr_level_target.trace_id IS '追踪号';
+COMMENT ON TABLE mk_engine_authoring_asset_favorite IS '统一创作资产库个人收藏表';
+COMMENT ON COLUMN mk_engine_authoring_asset_favorite.id IS '数据库主键';
+COMMENT ON COLUMN mk_engine_authoring_asset_favorite.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_engine_authoring_asset_favorite.user_id IS '用户 ID';
+COMMENT ON COLUMN mk_engine_authoring_asset_favorite.asset_type IS '资产类型统一枚举';
+COMMENT ON COLUMN mk_engine_authoring_asset_favorite.asset_id IS '资产业务 ID';
+COMMENT ON COLUMN mk_engine_authoring_asset_favorite.created_at IS '收藏时间';
+COMMENT ON COLUMN mk_engine_authoring_asset_favorite.trace_id IS '请求链路追踪 ID';
+COMMENT ON TABLE mk_engine_authoring_asset_profile IS '统一创作资产库元数据表：保存规则、路径、随访模板及独立配置资产的分类与标签';
+COMMENT ON COLUMN mk_engine_authoring_asset_profile.id IS '数据库主键';
+COMMENT ON COLUMN mk_engine_authoring_asset_profile.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_engine_authoring_asset_profile.asset_type IS '资产类型：规则、路径、随访模板及独立配置资产统一枚举';
+COMMENT ON COLUMN mk_engine_authoring_asset_profile.asset_id IS '资产业务 ID';
+COMMENT ON COLUMN mk_engine_authoring_asset_profile.category IS '资产库分类';
+COMMENT ON COLUMN mk_engine_authoring_asset_profile.tags_json IS '资产标签 JSON 数组';
+COMMENT ON COLUMN mk_engine_authoring_asset_profile.created_at IS '创建时间';
+COMMENT ON COLUMN mk_engine_authoring_asset_profile.created_by IS '创建人';
+COMMENT ON COLUMN mk_engine_authoring_asset_profile.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_engine_authoring_asset_profile.updated_by IS '更新人';
+COMMENT ON COLUMN mk_engine_authoring_asset_profile.trace_id IS '请求链路追踪 ID';
+COMMENT ON TABLE mk_engine_authoring_batch_item IS '创作批量任务逐项结果表：保存每条规则的真实执行结果';
+COMMENT ON COLUMN mk_engine_authoring_batch_item.id IS '数据库主键';
+COMMENT ON COLUMN mk_engine_authoring_batch_item.job_id IS '批量任务业务 ID';
+COMMENT ON COLUMN mk_engine_authoring_batch_item.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_engine_authoring_batch_item.item_id IS '请求内逐项标识';
+COMMENT ON COLUMN mk_engine_authoring_batch_item.status IS '逐项状态：成功或失败';
+COMMENT ON COLUMN mk_engine_authoring_batch_item.target_type IS '目标类型：规则';
+COMMENT ON COLUMN mk_engine_authoring_batch_item.target_id IS '目标业务 ID';
+COMMENT ON COLUMN mk_engine_authoring_batch_item.result_json IS '逐项成功结果 JSON';
+COMMENT ON COLUMN mk_engine_authoring_batch_item.rollback_ref IS '发布计划或可回滚证据引用';
+COMMENT ON COLUMN mk_engine_authoring_batch_item.error_code IS '失败错误码';
+COMMENT ON COLUMN mk_engine_authoring_batch_item.message IS '逐项执行消息';
+COMMENT ON COLUMN mk_engine_authoring_batch_item.created_at IS '记录时间';
+COMMENT ON COLUMN mk_engine_authoring_batch_item.created_by IS '执行人';
+COMMENT ON COLUMN mk_engine_authoring_batch_item.trace_id IS '请求链路追踪 ID';
+COMMENT ON TABLE mk_engine_authoring_batch_job IS '创作批量任务表：记录规则批量生成和发布的真实任务进度';
+COMMENT ON COLUMN mk_engine_authoring_batch_job.id IS '数据库主键';
+COMMENT ON COLUMN mk_engine_authoring_batch_job.job_id IS '批量任务业务 ID';
+COMMENT ON COLUMN mk_engine_authoring_batch_job.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_engine_authoring_batch_job.job_type IS '任务类型：规则生成或规则发布';
+COMMENT ON COLUMN mk_engine_authoring_batch_job.status IS '任务状态：运行中、成功、部分成功或失败';
+COMMENT ON COLUMN mk_engine_authoring_batch_job.total_count IS '任务逐项总数';
+COMMENT ON COLUMN mk_engine_authoring_batch_job.success_count IS '成功项数量';
+COMMENT ON COLUMN mk_engine_authoring_batch_job.failure_count IS '失败项数量';
+COMMENT ON COLUMN mk_engine_authoring_batch_job.request_summary_json IS '请求摘要 JSON';
+COMMENT ON COLUMN mk_engine_authoring_batch_job.result_summary_json IS '结果摘要 JSON';
+COMMENT ON COLUMN mk_engine_authoring_batch_job.created_at IS '创建时间';
+COMMENT ON COLUMN mk_engine_authoring_batch_job.created_by IS '创建人';
+COMMENT ON COLUMN mk_engine_authoring_batch_job.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_engine_authoring_batch_job.updated_by IS '更新人';
+COMMENT ON COLUMN mk_engine_authoring_batch_job.trace_id IS '请求链路追踪 ID';
+COMMENT ON TABLE mk_engine_cdss_risk_matrix IS 'CDSS 风险分级矩阵：按触发点、危害严重度和自动化程度决定推荐输出风险级别、审核强度和上线门槛';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.id IS '数据库主键';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.matrix_id IS '矩阵规则 ID（业务键）';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.trigger_point IS 'CDS Hooks 触发点：patient-view/order-sign/medication-prescribe/result-review/discharge-sign/followup-alert';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.severity_level IS '输入危害严重度：LOW/MEDIUM/HIGH/CRITICAL';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.automation_level IS '自动化程度：INFORM_ONLY 仅提示 / INTERRUPTIVE 打断式 / AUTOMATED 自动化输出';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.risk_level IS '矩阵输出风险级别：LOW/MEDIUM/HIGH/CRITICAL';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.review_requirement IS '确认要求：OPTIONAL_REVIEW 可选复核 / PHYSICIAN_CONFIRMATION 医师逐次确认';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.silent_run_hours IS '静默试运行小时数门槛';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.release_gate IS '上线门槛编码，供 OPT-04 红线与发布门禁引用';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.auto_execution_allowed IS '是否允许自动执行；医疗安全主线默认 FALSE';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.samd_classification IS 'NMPA SaMD 分类预留字段；当前仅记录预留状态，不代表已完成监管认定';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.regulatory_evidence IS '监管证据预留字段：记录未来 SaMD 路径所需证据要求';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.status IS '当前状态';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.matrix_version IS '矩阵版本号';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.explanation IS '分级依据说明';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.created_at IS '创建时间';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.created_by IS '创建人';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.updated_by IS '更新人';
+COMMENT ON COLUMN mk_engine_cdss_risk_matrix.trace_id IS '追踪号';
+COMMENT ON TABLE mk_engine_clinical_redline IS '临床安全红线规则库：保存 DDI、危急值、剂量上限、抗菌限制和特殊人群禁忌等红线版本';
+COMMENT ON COLUMN mk_engine_clinical_redline.id IS '数据库主键';
+COMMENT ON COLUMN mk_engine_clinical_redline.redline_id IS '红线版本业务 ID';
+COMMENT ON COLUMN mk_engine_clinical_redline.tenant_id IS '租户 ID；平台统一红线同步到租户后仍按租户隔离读取';
+COMMENT ON COLUMN mk_engine_clinical_redline.category IS '红线类目：DDI、危急值、剂量上限、抗菌限制、特殊人群禁忌';
+COMMENT ON COLUMN mk_engine_clinical_redline.trigger_point IS '适用 CDS Hooks 触发点';
+COMMENT ON COLUMN mk_engine_clinical_redline.scope_type IS '适用域类型：TENANT/ORG/SPECIALTY 等受控范围';
+COMMENT ON COLUMN mk_engine_clinical_redline.scope_ref IS '适用域引用';
+COMMENT ON COLUMN mk_engine_clinical_redline.active_scope_key IS 'ACTIVE 唯一作用域键；非 ACTIVE 为空以允许多版本并存';
+COMMENT ON COLUMN mk_engine_clinical_redline.redline_key IS '红线稳定键，同一红线跨版本不变';
+COMMENT ON COLUMN mk_engine_clinical_redline.redline_version IS '红线内容版本号';
+COMMENT ON COLUMN mk_engine_clinical_redline.status IS '红线状态：草稿、静默试运行、生效、撤回';
+COMMENT ON COLUMN mk_engine_clinical_redline.hazard_severity IS '危害严重度，绑定 OPT-03 风险矩阵输入';
+COMMENT ON COLUMN mk_engine_clinical_redline.risk_matrix_id IS '绑定的 OPT-03 风险矩阵规则 ID';
+COMMENT ON COLUMN mk_engine_clinical_redline.risk_matrix_version IS '绑定的 OPT-03 风险矩阵版本';
+COMMENT ON COLUMN mk_engine_clinical_redline.review_requirement IS '红线命中后的人工审核要求';
+COMMENT ON COLUMN mk_engine_clinical_redline.silent_run_hours IS '上线前静默试运行小时数要求';
+COMMENT ON COLUMN mk_engine_clinical_redline.release_gate IS '上线门槛编码';
+COMMENT ON COLUMN mk_engine_clinical_redline.title IS '红线中文标题';
+COMMENT ON COLUMN mk_engine_clinical_redline.clinical_hazard IS '危害分析说明';
+COMMENT ON COLUMN mk_engine_clinical_redline.condition_dsl IS '来自配置或知识资产的规则条件 DSL；不得在代码写死医学常量';
+COMMENT ON COLUMN mk_engine_clinical_redline.evidence_source IS '证据来源说明';
+COMMENT ON COLUMN mk_engine_clinical_redline.evidence_reference IS '证据引用锚点';
+COMMENT ON COLUMN mk_engine_clinical_redline.source_version_id IS '关联知识来源版本 ID';
+COMMENT ON COLUMN mk_engine_clinical_redline.lower_tenant_override_allowed IS '下级租户是否允许关闭；安全红线默认 FALSE';
+COMMENT ON COLUMN mk_engine_clinical_redline.created_at IS '创建时间';
+COMMENT ON COLUMN mk_engine_clinical_redline.created_by IS '创建人';
+COMMENT ON COLUMN mk_engine_clinical_redline.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_engine_clinical_redline.updated_by IS '更新人';
+COMMENT ON COLUMN mk_engine_clinical_redline.trace_id IS '创建或更新追踪 ID';
+COMMENT ON TABLE mk_engine_clinical_redline_trial IS '临床安全红线静默试运行证据：保存真实观察窗口、命中统计和上线门禁结果';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.id IS '数据库主键';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.trial_id IS '试运行证据业务 ID';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.redline_id IS '关联红线版本业务 ID';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.redline_key IS '红线稳定键';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.redline_version IS '红线内容版本号';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.status IS '试运行门禁结果：通过或未通过';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.observed_from IS '试运行观察窗口开始时间';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.observed_to IS '试运行观察窗口结束时间';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.required_silent_hours IS '红线要求的静默试运行小时数';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.actual_silent_hours IS '本次证据覆盖的实际静默小时数';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.evaluated_case_count IS '真实观察窗口内评估病例数';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.matched_case_count IS '真实观察窗口内红线命中数';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.false_positive_case_count IS '真实观察窗口内人工确认误报数';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.safety_incident_count IS '静默试运行期间发现的安全事件数';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.gate_passed IS '上线门禁是否达标';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.evidence_reference IS '试运行证据引用；不得使用伪造或占位证据';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.operator_note IS '操作者说明';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.created_at IS '创建时间';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.created_by IS '创建人';
+COMMENT ON COLUMN mk_engine_clinical_redline_trial.trace_id IS '创建追踪 ID';
+COMMENT ON TABLE mk_engine_data_encrypted_field IS 'DATASVC-01 D3/D4 字段级加密账本：只保存 SM4 密文、不可逆检索 hash 与审计锚点，不保存患者字段明文';
+COMMENT ON COLUMN mk_engine_data_encrypted_field.id IS '数据库主键';
+COMMENT ON COLUMN mk_engine_data_encrypted_field.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_engine_data_encrypted_field.scope_key IS '字段所属最小业务作用域，例如 clinical-context 或 export-request';
+COMMENT ON COLUMN mk_engine_data_encrypted_field.field_name IS '加密字段名，不含字段明文值';
+COMMENT ON COLUMN mk_engine_data_encrypted_field.data_level IS '业务字段：data_level';
+COMMENT ON COLUMN mk_engine_data_encrypted_field.cipher_text IS 'SM4 密文，禁止保存明文患者字段';
+COMMENT ON COLUMN mk_engine_data_encrypted_field.cipher_algorithm IS '业务字段：cipher_algorithm';
+COMMENT ON COLUMN mk_engine_data_encrypted_field.key_ref IS '业务字段：key_ref';
+COMMENT ON COLUMN mk_engine_data_encrypted_field.search_hash IS '不可逆 SM3 检索 hash，用于等值匹配，不含明文';
+COMMENT ON COLUMN mk_engine_data_encrypted_field.created_at IS '创建时间';
+COMMENT ON COLUMN mk_engine_data_encrypted_field.created_by IS '创建人';
+COMMENT ON COLUMN mk_engine_data_encrypted_field.trace_id IS '追踪号';
+COMMENT ON TABLE mk_engine_data_export_job IS '业务表：mk_engine_data_export_job';
+COMMENT ON COLUMN mk_engine_data_export_job.id IS '数据库主键';
+COMMENT ON COLUMN mk_engine_data_export_job.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_engine_data_export_job.job_code IS '业务字段：job_code';
+COMMENT ON COLUMN mk_engine_data_export_job.requested_by IS '业务字段：requested_by';
+COMMENT ON COLUMN mk_engine_data_export_job.export_type IS '业务字段：export_type';
+COMMENT ON COLUMN mk_engine_data_export_job.status IS '当前状态';
+COMMENT ON COLUMN mk_engine_data_export_job.progress IS '业务字段：progress';
+COMMENT ON COLUMN mk_engine_data_export_job.result_uri IS '业务字段：result_uri';
+COMMENT ON COLUMN mk_engine_data_export_job.item_count IS '业务字段：item_count';
+COMMENT ON COLUMN mk_engine_data_export_job.error_message IS '业务字段：error_message';
+COMMENT ON COLUMN mk_engine_data_export_job.confirmation_id IS '导出确认业务 ID';
+COMMENT ON COLUMN mk_engine_data_export_job.idempotency_key IS '业务字段：idempotency_key';
+COMMENT ON COLUMN mk_engine_data_export_job.request_snapshot IS '业务字段：request_snapshot';
+COMMENT ON COLUMN mk_engine_data_export_job.created_at IS '创建时间';
+COMMENT ON COLUMN mk_engine_data_export_job.started_at IS '业务字段：started_at';
+COMMENT ON COLUMN mk_engine_data_export_job.completed_at IS '业务字段：completed_at';
+COMMENT ON COLUMN mk_engine_data_export_job.expires_at IS '业务字段：expires_at';
+COMMENT ON TABLE mk_engine_data_field_policy IS 'DATASVC-01 字段分级元数据：记录字段路径、数据级别、加密要求与允许通道';
+COMMENT ON COLUMN mk_engine_data_field_policy.id IS '数据库主键';
+COMMENT ON COLUMN mk_engine_data_field_policy.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_engine_data_field_policy.field_path IS '字段路径，由 scope_key.field_name 组成';
+COMMENT ON COLUMN mk_engine_data_field_policy.data_level IS '业务字段：data_level';
+COMMENT ON COLUMN mk_engine_data_field_policy.encryption_required_flag IS '字段是否必须字段级加密；D3/D4 固定为 Y';
+COMMENT ON COLUMN mk_engine_data_field_policy.allowed_channel IS '允许通道：仅服务内部、仅脱敏输出、仅聚合、公开元数据或禁用';
+COMMENT ON COLUMN mk_engine_data_field_policy.status IS '当前状态';
+COMMENT ON COLUMN mk_engine_data_field_policy.created_at IS '创建时间';
+COMMENT ON COLUMN mk_engine_data_field_policy.created_by IS '创建人';
+COMMENT ON COLUMN mk_engine_data_field_policy.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_engine_data_field_policy.updated_by IS '更新人';
+COMMENT ON COLUMN mk_engine_data_field_policy.trace_id IS '追踪号';
+COMMENT ON TABLE mk_engine_notification IS 'SVC-CLINICAL-03 通知中心表，统一承接真实业务事件并保存已读状态';
+COMMENT ON COLUMN mk_engine_notification.id IS '数据库主键';
+COMMENT ON COLUMN mk_engine_notification.notification_id IS '业务字段：notification_id';
+COMMENT ON COLUMN mk_engine_notification.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_engine_notification.source_type IS '通知来源类型，包含随访事件、安全复核、协同待办、临床同步、规则事件和路径事件';
+COMMENT ON COLUMN mk_engine_notification.source_id IS '业务字段：source_id';
+COMMENT ON COLUMN mk_engine_notification.dedupe_key IS '通知去重键';
+COMMENT ON COLUMN mk_engine_notification.title IS '业务字段：title';
+COMMENT ON COLUMN mk_engine_notification.message IS '业务字段：message';
+COMMENT ON COLUMN mk_engine_notification.notification_level IS '通知级别';
+COMMENT ON COLUMN mk_engine_notification.status IS '阅读状态';
+COMMENT ON COLUMN mk_engine_notification.recipient_id IS '业务字段：recipient_id';
+COMMENT ON COLUMN mk_engine_notification.recipient_role IS '业务字段：recipient_role';
+COMMENT ON COLUMN mk_engine_notification.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN mk_engine_notification.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN mk_engine_notification.deep_link IS '业务字段：deep_link';
+COMMENT ON COLUMN mk_engine_notification.read_at IS '业务字段：read_at';
+COMMENT ON COLUMN mk_engine_notification.read_by IS '阅读人';
+COMMENT ON COLUMN mk_engine_notification.trace_id IS '链路追踪 ID';
+COMMENT ON COLUMN mk_engine_notification.created_at IS '创建时间';
+COMMENT ON COLUMN mk_engine_notification.created_by IS '创建人';
+COMMENT ON COLUMN mk_engine_notification.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_engine_notification.updated_by IS '更新人';
+COMMENT ON COLUMN mk_engine_notification.org_unit_id IS '通知组织池归属组织单元 ID；为空表示租户级组织项';
+COMMENT ON TABLE mk_engine_rule_parameter_binding IS '参数化规则实例参数值，schema 保存在规则版本 DSL 的 meta.parameters';
+COMMENT ON COLUMN mk_engine_rule_parameter_binding.id IS '数据库主键';
+COMMENT ON COLUMN mk_engine_rule_parameter_binding.rule_version_id IS '规则版本业务 ID';
+COMMENT ON COLUMN mk_engine_rule_parameter_binding.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_engine_rule_parameter_binding.param_key IS '参数键，对应 DSL meta.parameters.key';
+COMMENT ON COLUMN mk_engine_rule_parameter_binding.param_value_json IS '参数实例值 JSON';
+COMMENT ON COLUMN mk_engine_rule_parameter_binding.created_at IS '参数绑定创建时间';
+COMMENT ON COLUMN mk_engine_rule_parameter_binding.created_by IS '参数绑定创建人';
+COMMENT ON COLUMN mk_engine_rule_parameter_binding.trace_id IS '请求链路追踪 ID';
+COMMENT ON TABLE mk_engine_workflow_todo IS 'SVC-CLINICAL-03 临床协同待办表，统一承接随访、安全撤回、路径节点和后续护理/床旁知识等真实来源任务';
+COMMENT ON COLUMN mk_engine_workflow_todo.id IS '数据库主键';
+COMMENT ON COLUMN mk_engine_workflow_todo.todo_id IS '业务字段：todo_id';
+COMMENT ON COLUMN mk_engine_workflow_todo.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_engine_workflow_todo.source_type IS '待办来源类型，包含随访、安全、推荐、路径节点、规则事件、路径事件和推荐派生任务';
+COMMENT ON COLUMN mk_engine_workflow_todo.source_id IS '来源业务 ID';
+COMMENT ON COLUMN mk_engine_workflow_todo.title IS '业务字段：title';
+COMMENT ON COLUMN mk_engine_workflow_todo.summary IS '业务字段：summary';
+COMMENT ON COLUMN mk_engine_workflow_todo.priority IS '待办优先级';
+COMMENT ON COLUMN mk_engine_workflow_todo.status IS '待办办理状态';
+COMMENT ON COLUMN mk_engine_workflow_todo.assignee_id IS '业务字段：assignee_id';
+COMMENT ON COLUMN mk_engine_workflow_todo.assignee_role IS '业务字段：assignee_role';
+COMMENT ON COLUMN mk_engine_workflow_todo.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN mk_engine_workflow_todo.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN mk_engine_workflow_todo.due_at IS '业务字段：due_at';
+COMMENT ON COLUMN mk_engine_workflow_todo.deep_link IS '业务字段：deep_link';
+COMMENT ON COLUMN mk_engine_workflow_todo.completion_reason IS '完成说明';
+COMMENT ON COLUMN mk_engine_workflow_todo.completed_at IS '业务字段：completed_at';
+COMMENT ON COLUMN mk_engine_workflow_todo.completed_by IS '业务字段：completed_by';
+COMMENT ON COLUMN mk_engine_workflow_todo.transferred_to IS '业务字段：transferred_to';
+COMMENT ON COLUMN mk_engine_workflow_todo.trace_id IS '链路追踪 ID';
+COMMENT ON COLUMN mk_engine_workflow_todo.created_at IS '创建时间';
+COMMENT ON COLUMN mk_engine_workflow_todo.created_by IS '创建人';
+COMMENT ON COLUMN mk_engine_workflow_todo.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_engine_workflow_todo.updated_by IS '更新人';
+COMMENT ON COLUMN mk_engine_workflow_todo.transfer_reason IS '待办转交说明，记录转交原因和交接要求';
+COMMENT ON COLUMN mk_engine_workflow_todo.org_unit_id IS '协同待办组织池归属组织单元 ID；为空表示租户级组织项';
+COMMENT ON TABLE mk_experience_export_task IS '系统异步导出任务表：保存大规模列表导出任务、视图快照、物理文件与审计线索';
+COMMENT ON COLUMN mk_experience_export_task.task_id IS '异步导出任务全局唯一 ID';
+COMMENT ON COLUMN mk_experience_export_task.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_experience_export_task.resource_type IS '业务字段：resource_type';
+COMMENT ON COLUMN mk_experience_export_task.request_snapshot IS '导出时的页面视图、筛选、列和选择范围快照 JSON';
+COMMENT ON COLUMN mk_experience_export_task.selected_scope IS '导出范围：CURRENT_PAGE 当前页 / FILTERED_RESULT 筛选结果';
+COMMENT ON COLUMN mk_experience_export_task.status IS '当前状态';
+COMMENT ON COLUMN mk_experience_export_task.file_name IS '业务字段：file_name';
+COMMENT ON COLUMN mk_experience_export_task.file_path IS '业务字段：file_path';
+COMMENT ON COLUMN mk_experience_export_task.file_size IS '业务字段：file_size';
+COMMENT ON COLUMN mk_experience_export_task.error_message IS '业务字段：error_message';
+COMMENT ON COLUMN mk_experience_export_task.time_cost_ms IS '业务字段：time_cost_ms';
+COMMENT ON COLUMN mk_experience_export_task.trace_id IS '追踪号';
+COMMENT ON COLUMN mk_experience_export_task.audit_id IS '业务字段：audit_id';
+COMMENT ON COLUMN mk_experience_export_task.idempotency_key IS '幂等键，防止重复提交同一导出任务';
+COMMENT ON COLUMN mk_experience_export_task.created_at IS '创建时间';
+COMMENT ON COLUMN mk_experience_export_task.created_by IS '创建人';
+COMMENT ON COLUMN mk_experience_export_task.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_experience_export_task.updated_by IS '更新人';
+COMMENT ON TABLE mk_experience_saved_view IS '系统保存视图表：按租户、用户和页面保存筛选、列、分页和高级信息配置';
+COMMENT ON COLUMN mk_experience_saved_view.saved_view_id IS '业务字段：saved_view_id';
+COMMENT ON COLUMN mk_experience_saved_view.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_experience_saved_view.user_id IS '业务字段：user_id';
+COMMENT ON COLUMN mk_experience_saved_view.page_key IS '业务字段：page_key';
+COMMENT ON COLUMN mk_experience_saved_view.view_name IS '业务字段：view_name';
+COMMENT ON COLUMN mk_experience_saved_view.definition_json IS '保存视图定义 JSON，不允许包含患者、令牌、密码等敏感内容';
+COMMENT ON COLUMN mk_experience_saved_view.default_flag IS '默认视图标记：Y 默认 / N 非默认';
+COMMENT ON COLUMN mk_experience_saved_view.version IS '并发版本号';
+COMMENT ON COLUMN mk_experience_saved_view.status IS '当前状态';
+COMMENT ON COLUMN mk_experience_saved_view.created_at IS '创建时间';
+COMMENT ON COLUMN mk_experience_saved_view.created_by IS '创建人';
+COMMENT ON COLUMN mk_experience_saved_view.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_experience_saved_view.updated_by IS '更新人';
+COMMENT ON TABLE mk_experience_user_pref IS '系统用户体验偏好表：按租户、用户和偏好键保存主题等非临床 UI 偏好';
+COMMENT ON COLUMN mk_experience_user_pref.user_pref_id IS '业务字段：user_pref_id';
+COMMENT ON COLUMN mk_experience_user_pref.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_experience_user_pref.user_id IS '业务字段：user_id';
+COMMENT ON COLUMN mk_experience_user_pref.pref_key IS '偏好键，例如 theme.mode';
+COMMENT ON COLUMN mk_experience_user_pref.pref_value IS '偏好值（可为序列化 JSON，如通知设置），仅保存非敏感 UI 配置，不保存患者、令牌或密码信息';
+COMMENT ON COLUMN mk_experience_user_pref.version IS '并发版本号';
+COMMENT ON COLUMN mk_experience_user_pref.status IS '当前状态';
+COMMENT ON COLUMN mk_experience_user_pref.created_at IS '创建时间';
+COMMENT ON COLUMN mk_experience_user_pref.created_by IS '创建人';
+COMMENT ON COLUMN mk_experience_user_pref.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_experience_user_pref.updated_by IS '更新人';
+COMMENT ON TABLE mk_fhir_mapping_rule IS 'FHIR 字段到标准临床字段的版本化映射规则';
+COMMENT ON COLUMN mk_fhir_mapping_rule.id IS '数据库主键';
+COMMENT ON COLUMN mk_fhir_mapping_rule.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_fhir_mapping_rule.rule_code IS '规则编码';
+COMMENT ON COLUMN mk_fhir_mapping_rule.fhir_version IS 'FHIR 版本：R4 或 R5';
+COMMENT ON COLUMN mk_fhir_mapping_rule.fhir_resource_type IS 'FHIR 资源类型';
+COMMENT ON COLUMN mk_fhir_mapping_rule.canonical_resource_type IS '标准临床资源类型';
+COMMENT ON COLUMN mk_fhir_mapping_rule.fhir_path IS 'FHIR 字段路径';
+COMMENT ON COLUMN mk_fhir_mapping_rule.canonical_path IS '标准临床字段路径';
+COMMENT ON COLUMN mk_fhir_mapping_rule.required_field IS '是否必填字段';
+COMMENT ON COLUMN mk_fhir_mapping_rule.transform_type IS '字段转换类型';
+COMMENT ON COLUMN mk_fhir_mapping_rule.rule_version IS '规则版本号';
+COMMENT ON COLUMN mk_fhir_mapping_rule.status IS '规则状态';
+COMMENT ON COLUMN mk_fhir_mapping_rule.trace_id IS '链路追踪 ID';
+COMMENT ON COLUMN mk_fhir_mapping_rule.created_at IS '创建时间';
+COMMENT ON COLUMN mk_fhir_mapping_rule.created_by IS '创建人';
+COMMENT ON COLUMN mk_fhir_mapping_rule.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_fhir_mapping_rule.updated_by IS '更新人';
+COMMENT ON TABLE mk_fhir_resource_mapping IS 'FHIR 资源与标准临床资源的一一映射证据';
+COMMENT ON COLUMN mk_fhir_resource_mapping.id IS '数据库主键';
+COMMENT ON COLUMN mk_fhir_resource_mapping.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_fhir_resource_mapping.org_path IS '组织路径快照';
+COMMENT ON COLUMN mk_fhir_resource_mapping.fhir_version IS 'FHIR 版本：R4 或 R5';
+COMMENT ON COLUMN mk_fhir_resource_mapping.fhir_resource_type IS 'FHIR 资源类型';
+COMMENT ON COLUMN mk_fhir_resource_mapping.fhir_id IS 'FHIR 资源 ID';
+COMMENT ON COLUMN mk_fhir_resource_mapping.canonical_resource_id IS '标准临床资源表主键';
+COMMENT ON COLUMN mk_fhir_resource_mapping.canonical_resource_type IS '标准临床资源类型';
+COMMENT ON COLUMN mk_fhir_resource_mapping.field_mapping_rate IS '字段映射完成率，0 到 1';
+COMMENT ON COLUMN mk_fhir_resource_mapping.missing_field_count IS '缺失字段数量';
+COMMENT ON COLUMN mk_fhir_resource_mapping.mapping_status IS '映射状态';
+COMMENT ON COLUMN mk_fhir_resource_mapping.trace_id IS '链路追踪 ID';
+COMMENT ON COLUMN mk_fhir_resource_mapping.created_at IS '创建时间';
+COMMENT ON COLUMN mk_fhir_resource_mapping.created_by IS '创建人';
+COMMENT ON COLUMN mk_fhir_resource_mapping.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_fhir_resource_mapping.updated_by IS '更新人';
+COMMENT ON TABLE mk_followup_template IS '随访配置模板不可变版本，不保存患者、就诊和问卷作答等运行数据';
+COMMENT ON COLUMN mk_followup_template.id IS '数据库主键';
+COMMENT ON COLUMN mk_followup_template.template_id IS '随访模板稳定业务ID';
+COMMENT ON COLUMN mk_followup_template.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_followup_template.template_code IS '随访模板业务编码';
+COMMENT ON COLUMN mk_followup_template.version_no IS '随访模板不可变版本号';
+COMMENT ON COLUMN mk_followup_template.name IS '业务字段：name';
+COMMENT ON COLUMN mk_followup_template.description IS '业务字段：description';
+COMMENT ON COLUMN mk_followup_template.organization_scope IS '业务字段：organization_scope';
+COMMENT ON COLUMN mk_followup_template.applicable_scope IS '业务字段：applicable_scope';
+COMMENT ON COLUMN mk_followup_template.task_definition_json IS '任务类型、相对时点和问卷模板绑定JSON';
+COMMENT ON COLUMN mk_followup_template.questionnaire_definition_json IS '问卷结构定义JSON，不含真实作答';
+COMMENT ON COLUMN mk_followup_template.abnormal_action_json IS '异常触发条件、回院动作和通知目标JSON';
+COMMENT ON COLUMN mk_followup_template.source_ref IS '业务字段：source_ref';
+COMMENT ON COLUMN mk_followup_template.asset_version_id IS '统一配置资产版本ID';
+COMMENT ON COLUMN mk_followup_template.created_at IS '创建时间';
+COMMENT ON COLUMN mk_followup_template.created_by IS '创建人';
+COMMENT ON COLUMN mk_followup_template.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_followup_template.updated_by IS '更新人';
+COMMENT ON COLUMN mk_followup_template.trace_id IS '追踪号';
+COMMENT ON TABLE mk_identity_person IS '租户内自然人主数据，独立于登录账号和外部认证身份';
+COMMENT ON COLUMN mk_identity_person.person_id IS '业务字段：person_id';
+COMMENT ON COLUMN mk_identity_person.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_identity_person.employee_no IS '租户内稳定人员编号，用于批量导入幂等匹配';
+COMMENT ON COLUMN mk_identity_person.display_name IS '业务字段：display_name';
+COMMENT ON COLUMN mk_identity_person.mobile_hint IS '业务字段：mobile_hint';
+COMMENT ON COLUMN mk_identity_person.status IS '当前状态';
+COMMENT ON COLUMN mk_identity_person.version IS '并发版本号';
+COMMENT ON COLUMN mk_identity_person.created_at IS '创建时间';
+COMMENT ON COLUMN mk_identity_person.created_by IS '创建人';
+COMMENT ON COLUMN mk_identity_person.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_identity_person.updated_by IS '更新人';
+COMMENT ON COLUMN mk_identity_person.trace_id IS '追踪号';
+COMMENT ON TABLE mk_identity_person_account IS '自然人与稳定系统用户主体之间的一对一关联';
+COMMENT ON COLUMN mk_identity_person_account.link_id IS '业务字段：link_id';
+COMMENT ON COLUMN mk_identity_person_account.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_identity_person_account.person_id IS '业务字段：person_id';
+COMMENT ON COLUMN mk_identity_person_account.user_id IS '业务字段：user_id';
+COMMENT ON COLUMN mk_identity_person_account.status IS '当前状态';
+COMMENT ON COLUMN mk_identity_person_account.version IS '并发版本号';
+COMMENT ON COLUMN mk_identity_person_account.created_at IS '创建时间';
+COMMENT ON COLUMN mk_identity_person_account.created_by IS '创建人';
+COMMENT ON COLUMN mk_identity_person_account.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_identity_person_account.updated_by IS '更新人';
+COMMENT ON COLUMN mk_identity_person_account.trace_id IS '追踪号';
+COMMENT ON TABLE mk_identity_person_appointment IS '人员在医疗机构、科室、病区中的任职关系和有效期';
+COMMENT ON COLUMN mk_identity_person_appointment.appointment_id IS '业务字段：appointment_id';
+COMMENT ON COLUMN mk_identity_person_appointment.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_identity_person_appointment.person_id IS '业务字段：person_id';
+COMMENT ON COLUMN mk_identity_person_appointment.organization_id IS '业务字段：organization_id';
+COMMENT ON COLUMN mk_identity_person_appointment.department_id IS '业务字段：department_id';
+COMMENT ON COLUMN mk_identity_person_appointment.ward_id IS '任职所在病区组织节点';
+COMMENT ON COLUMN mk_identity_person_appointment.appointment_type IS '业务字段：appointment_type';
+COMMENT ON COLUMN mk_identity_person_appointment.position_title IS '业务字段：position_title';
+COMMENT ON COLUMN mk_identity_person_appointment.primary_flag IS '是否为当前主任职，Y 是、N 否';
+COMMENT ON COLUMN mk_identity_person_appointment.effective_from IS '业务字段：effective_from';
+COMMENT ON COLUMN mk_identity_person_appointment.effective_to IS '业务字段：effective_to';
+COMMENT ON COLUMN mk_identity_person_appointment.status IS '当前状态';
+COMMENT ON COLUMN mk_identity_person_appointment.version IS '并发版本号';
+COMMENT ON COLUMN mk_identity_person_appointment.created_at IS '创建时间';
+COMMENT ON COLUMN mk_identity_person_appointment.created_by IS '创建人';
+COMMENT ON COLUMN mk_identity_person_appointment.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_identity_person_appointment.updated_by IS '更新人';
+COMMENT ON COLUMN mk_identity_person_appointment.trace_id IS '追踪号';
+COMMENT ON TABLE mk_identity_person_import_job IS '人员批量导入预检、提交和结果汇总任务';
+COMMENT ON COLUMN mk_identity_person_import_job.job_id IS '业务字段：job_id';
+COMMENT ON COLUMN mk_identity_person_import_job.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_identity_person_import_job.file_name IS '业务字段：file_name';
+COMMENT ON COLUMN mk_identity_person_import_job.file_digest IS '业务字段：file_digest';
+COMMENT ON COLUMN mk_identity_person_import_job.status IS '当前状态';
+COMMENT ON COLUMN mk_identity_person_import_job.total_rows IS '业务字段：total_rows';
+COMMENT ON COLUMN mk_identity_person_import_job.valid_rows IS '业务字段：valid_rows';
+COMMENT ON COLUMN mk_identity_person_import_job.conflict_rows IS '业务字段：conflict_rows';
+COMMENT ON COLUMN mk_identity_person_import_job.success_rows IS '业务字段：success_rows';
+COMMENT ON COLUMN mk_identity_person_import_job.failure_rows IS '业务字段：failure_rows';
+COMMENT ON COLUMN mk_identity_person_import_job.committed_at IS '业务字段：committed_at';
+COMMENT ON COLUMN mk_identity_person_import_job.version IS '并发版本号';
+COMMENT ON COLUMN mk_identity_person_import_job.created_at IS '创建时间';
+COMMENT ON COLUMN mk_identity_person_import_job.created_by IS '创建人';
+COMMENT ON COLUMN mk_identity_person_import_job.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_identity_person_import_job.updated_by IS '更新人';
+COMMENT ON COLUMN mk_identity_person_import_job.trace_id IS '追踪号';
+COMMENT ON TABLE mk_identity_person_import_row IS '人员批量导入逐行校验、冲突和处理结果';
+COMMENT ON COLUMN mk_identity_person_import_row.row_id IS '业务字段：row_id';
+COMMENT ON COLUMN mk_identity_person_import_row.job_id IS '业务字段：job_id';
+COMMENT ON COLUMN mk_identity_person_import_row.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_identity_person_import_row.row_no IS '业务字段：row_no';
+COMMENT ON COLUMN mk_identity_person_import_row.employee_no IS '业务字段：employee_no';
+COMMENT ON COLUMN mk_identity_person_import_row.display_name IS '业务字段：display_name';
+COMMENT ON COLUMN mk_identity_person_import_row.organization_code IS '业务字段：organization_code';
+COMMENT ON COLUMN mk_identity_person_import_row.department_code IS '业务字段：department_code';
+COMMENT ON COLUMN mk_identity_person_import_row.ward_code IS '人员导入时用于组织树匹配的病区编码';
+COMMENT ON COLUMN mk_identity_person_import_row.appointment_type IS '业务字段：appointment_type';
+COMMENT ON COLUMN mk_identity_person_import_row.position_title IS '业务字段：position_title';
+COMMENT ON COLUMN mk_identity_person_import_row.login_name IS '业务字段：login_name';
+COMMENT ON COLUMN mk_identity_person_import_row.role_code IS '业务字段：role_code';
+COMMENT ON COLUMN mk_identity_person_import_row.identity_provider IS '业务字段：identity_provider';
+COMMENT ON COLUMN mk_identity_person_import_row.external_subject_digest IS '外部身份国密摘要，禁止保存身份原文';
+COMMENT ON COLUMN mk_identity_person_import_row.external_subject_hint IS '业务字段：external_subject_hint';
+COMMENT ON COLUMN mk_identity_person_import_row.action IS '业务字段：action';
+COMMENT ON COLUMN mk_identity_person_import_row.status IS '当前状态';
+COMMENT ON COLUMN mk_identity_person_import_row.error_message IS '业务字段：error_message';
+COMMENT ON COLUMN mk_identity_person_import_row.result_person_id IS '业务字段：result_person_id';
+COMMENT ON COLUMN mk_identity_person_import_row.result_user_id IS '业务字段：result_user_id';
+COMMENT ON COLUMN mk_identity_person_import_row.created_at IS '创建时间';
+COMMENT ON TABLE mk_integration_data_quality_report IS '数据质量报告快照';
+COMMENT ON COLUMN mk_integration_data_quality_report.report_id IS '报告业务主键（ULID 形态）';
+COMMENT ON COLUMN mk_integration_data_quality_report.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_integration_data_quality_report.generated_at IS '报告生成时间';
+COMMENT ON COLUMN mk_integration_data_quality_report.required_field_total IS 'MPI 核心必填字段槽位总数';
+COMMENT ON COLUMN mk_integration_data_quality_report.required_field_present IS 'MPI 核心必填字段已填数量';
+COMMENT ON COLUMN mk_integration_data_quality_report.required_field_rate IS 'MPI 核心必填字段完成率百分比';
+COMMENT ON COLUMN mk_integration_data_quality_report.adapter_total IS '适配器总数';
+COMMENT ON COLUMN mk_integration_data_quality_report.mapped_adapter_count IS '已配置字段映射的适配器数量';
+COMMENT ON COLUMN mk_integration_data_quality_report.mapping_rate IS '字段映射配置完成率百分比';
+COMMENT ON COLUMN mk_integration_data_quality_report.timely_adapter_count IS '24 小时内完成连通核查的适配器数量';
+COMMENT ON COLUMN mk_integration_data_quality_report.timeliness_rate IS '连通核查时效率百分比';
+COMMENT ON COLUMN mk_integration_data_quality_report.not_connected_count IS 'NOT_CONNECTED 适配器数量';
+COMMENT ON COLUMN mk_integration_data_quality_report.misconfigured_count IS 'MISCONFIGURED 适配器数量';
+COMMENT ON COLUMN mk_integration_data_quality_report.gap_summary IS '数据质量缺口摘要';
+COMMENT ON COLUMN mk_integration_data_quality_report.created_at IS '创建时间';
+COMMENT ON COLUMN mk_integration_data_quality_report.created_by IS '创建人';
+COMMENT ON COLUMN mk_integration_data_quality_report.trace_id IS '链路追踪 ID';
+COMMENT ON TABLE mk_integration_master_data_sync_batch IS '院内主数据同步批次台账，保存验签后的批次摘要、连续游标和处理结果，不保存原始业务载荷';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.id IS '数据库主键';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.batch_id IS '业务字段：batch_id';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.webhook_id IS '业务字段：webhook_id';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.adapter_id IS '业务字段：adapter_id';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.sync_mode IS '业务字段：sync_mode';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.previous_cursor IS '业务字段：previous_cursor';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.cursor_value IS '业务字段：cursor_value';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.payload_hash IS '同步请求规范化内容的SHA-256摘要';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.status IS '当前状态';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.total_count IS '业务字段：total_count';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.applied_count IS '业务字段：applied_count';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.failed_count IS '业务字段：failed_count';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.error_summary IS '失败错误码摘要，不保存人员或字典原始内容';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.created_at IS '创建时间';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.processed_at IS '业务字段：processed_at';
+COMMENT ON COLUMN mk_integration_master_data_sync_batch.trace_id IS '追踪号';
+COMMENT ON TABLE mk_integration_master_data_sync_record IS '来源主数据记录版本映射，保存外部记录到院内权威记录的版本、摘要和启停状态';
+COMMENT ON COLUMN mk_integration_master_data_sync_record.id IS '数据库主键';
+COMMENT ON COLUMN mk_integration_master_data_sync_record.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_integration_master_data_sync_record.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN mk_integration_master_data_sync_record.resource_type IS '业务字段：resource_type';
+COMMENT ON COLUMN mk_integration_master_data_sync_record.source_record_id IS '业务字段：source_record_id';
+COMMENT ON COLUMN mk_integration_master_data_sync_record.internal_id IS '院内关系库权威记录标识';
+COMMENT ON COLUMN mk_integration_master_data_sync_record.source_version IS '业务字段：source_version';
+COMMENT ON COLUMN mk_integration_master_data_sync_record.payload_hash IS '单条来源记录规范化内容的SHA-256摘要';
+COMMENT ON COLUMN mk_integration_master_data_sync_record.status IS '当前状态';
+COMMENT ON COLUMN mk_integration_master_data_sync_record.last_batch_id IS '业务字段：last_batch_id';
+COMMENT ON COLUMN mk_integration_master_data_sync_record.source_updated_at IS '业务字段：source_updated_at';
+COMMENT ON COLUMN mk_integration_master_data_sync_record.updated_at IS '更新时间';
+COMMENT ON TABLE mk_integration_onboarding IS '第三方业务接口接入生命周期档案';
+COMMENT ON COLUMN mk_integration_onboarding.id IS '自增主键';
+COMMENT ON COLUMN mk_integration_onboarding.onboarding_id IS '接入申请业务 ID';
+COMMENT ON COLUMN mk_integration_onboarding.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_integration_onboarding.name IS '接入申请中文名称';
+COMMENT ON COLUMN mk_integration_onboarding.access_mode IS '接入路线：适配器或 FHIR 门面';
+COMMENT ON COLUMN mk_integration_onboarding.adapter_id IS '绑定适配器 ID';
+COMMENT ON COLUMN mk_integration_onboarding.fhir_version IS 'FHIR 版本：R4/R5';
+COMMENT ON COLUMN mk_integration_onboarding.source_system IS '第三方来源系统';
+COMMENT ON COLUMN mk_integration_onboarding.business_scenario IS '业务接入场景';
+COMMENT ON COLUMN mk_integration_onboarding.org_path IS '组织作用域路径';
+COMMENT ON COLUMN mk_integration_onboarding.callback_webhook_id IS '回调 Webhook 配置 ID';
+COMMENT ON COLUMN mk_integration_onboarding.status IS '接入阶段状态';
+COMMENT ON COLUMN mk_integration_onboarding.evidence_text IS '阶段推进证据说明';
+COMMENT ON COLUMN mk_integration_onboarding.created_at IS '创建时间';
+COMMENT ON COLUMN mk_integration_onboarding.created_by IS '创建人';
+COMMENT ON COLUMN mk_integration_onboarding.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_integration_onboarding.updated_by IS '更新人';
+COMMENT ON COLUMN mk_integration_onboarding.trace_id IS '链路追踪 ID';
+COMMENT ON TABLE mk_integration_regional_source IS '区域协同来源可信分级档案';
+COMMENT ON COLUMN mk_integration_regional_source.id IS '自增主键';
+COMMENT ON COLUMN mk_integration_regional_source.source_id IS '区域来源业务 ID';
+COMMENT ON COLUMN mk_integration_regional_source.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_integration_regional_source.regional_network_name IS '区域协同网络名称';
+COMMENT ON COLUMN mk_integration_regional_source.source_organization_id IS '来源组织 ID';
+COMMENT ON COLUMN mk_integration_regional_source.source_organization_name IS '来源组织名称';
+COMMENT ON COLUMN mk_integration_regional_source.trust_level IS '来源可信分级';
+COMMENT ON COLUMN mk_integration_regional_source.evidence_text IS '可信分级证据说明';
+COMMENT ON COLUMN mk_integration_regional_source.adapter_id IS '关联适配器 ID';
+COMMENT ON COLUMN mk_integration_regional_source.onboarding_id IS '关联接入申请 ID';
+COMMENT ON COLUMN mk_integration_regional_source.org_path IS '组织作用域路径';
+COMMENT ON COLUMN mk_integration_regional_source.status IS '来源状态';
+COMMENT ON COLUMN mk_integration_regional_source.created_at IS '创建时间';
+COMMENT ON COLUMN mk_integration_regional_source.created_by IS '创建人';
+COMMENT ON COLUMN mk_integration_regional_source.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_integration_regional_source.updated_by IS '更新人';
+COMMENT ON COLUMN mk_integration_regional_source.trace_id IS '链路追踪 ID';
+COMMENT ON TABLE mk_knowledge_acquisition_run IS 'AIK-STD-14 公域资料获取运行账本：记录真实 URL、抓取时点、原文指纹、资料 URI 和解析结果';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.id IS '数据库主键';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.run_code IS '业务字段：run_code';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.source_id IS '业务字段：source_id';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.source_code IS '业务字段：source_code';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.url IS '业务字段：url';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.domain IS '业务字段：domain';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.trigger_type IS '业务字段：trigger_type';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.status IS '当前状态';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.fetched_at IS '业务字段：fetched_at';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.source_hash IS '公域资料原文字节 SHA-256 指纹';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.byte_size IS '业务字段：byte_size';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.content_type IS '业务字段：content_type';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.license IS '业务字段：license';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.license_policy IS '业务字段：license_policy';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.robots_policy IS '业务字段：robots_policy';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.material_file_uri IS '受管资料库 URI，可为 file:// 本地磁盘、对象存储或 HTTPS 网关';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.source_document_id IS '业务字段：source_document_id';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.source_version_id IS '业务字段：source_version_id';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.parse_job_code IS '业务字段：parse_job_code';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.failure_reason IS '业务字段：failure_reason';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.created_at IS '创建时间';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.created_by IS '创建人';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_knowledge_acquisition_run.updated_by IS '更新人';
+COMMENT ON TABLE mk_knowledge_acquisition_source IS 'AIK-STD-14 公域资料来源白名单：记录域名、许可、robots 策略和启停状态';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.id IS '数据库主键';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.source_code IS '业务字段：source_code';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.domain IS '业务字段：domain';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.base_url IS '业务字段：base_url';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.source_type IS '业务字段：source_type';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.authority_level IS '业务字段：authority_level';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.authority_basis IS '业务字段：authority_basis';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.title IS '业务字段：title';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.publisher IS '业务字段：publisher';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.license IS '业务字段：license';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.license_policy IS '许可裁决：允许、受限或禁止进入知识生产';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.robots_policy IS 'robots / ToS 抓取策略裁决';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.enabled_flag IS '业务字段：enabled_flag';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.created_at IS '创建时间';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.created_by IS '创建人';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.updated_by IS '更新人';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.schedule_enabled_flag IS '公域资料自动获取调度开关，默认关闭';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.schedule_interval_minutes IS '公域资料自动获取调度间隔分钟数';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.next_check_at IS '下一次公域资料自动获取检查时间';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.last_check_at IS '最近一次公域资料自动获取检查时间';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.default_format IS '调度获取时默认文档格式';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.generation_plan_json IS '调度获取成功后的候选生成计划 JSON';
+COMMENT ON COLUMN mk_knowledge_acquisition_source.lock_version IS '公域来源治理并发版本号，防止配置更新、启用和停用相互覆盖';
+COMMENT ON TABLE mk_knowledge_affected_case_task IS 'SYS-08 知识失效影响处置任务，记录医师复核、补同步和同步告警';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.id IS '数据库主键';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.task_key IS '任务幂等键，防止重复派发';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.invalidation_id IS '关联的知识失效记录 ID';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.identity_id IS '知识身份 ID';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.version_id IS '被失效的知识版本 ID';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.task_type IS '任务类型：医师复核、包补同步或同步告警';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.status IS '任务处置状态';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.target_type IS '任务目标类型';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.target_ref IS '任务目标引用，不得伪造患者 ID';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.reason IS '任务派发原因';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.due_at IS '任务截止时间';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.assigned_to IS '任务处理人或处理角色';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.trace_id IS '链路追踪 ID';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.created_at IS '创建时间';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.created_by IS '创建人';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_knowledge_affected_case_task.updated_by IS '更新人';
+COMMENT ON TABLE mk_knowledge_candidate_classification IS '知识候选新旧识别结果：记录新建、同身份新版、重复、冲突及其判定依据';
+COMMENT ON COLUMN mk_knowledge_candidate_classification.id IS '数据库主键';
+COMMENT ON COLUMN mk_knowledge_candidate_classification.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_knowledge_candidate_classification.org_path IS '组织树作用域路径快照，用于审核队列按集团、医院、科室切分；专病另作为横切适用域';
+COMMENT ON COLUMN mk_knowledge_candidate_classification.identity_id IS '知识身份 ID';
+COMMENT ON COLUMN mk_knowledge_candidate_classification.candidate_version_id IS '候选知识版本 ID；重复候选不落版本时为空';
+COMMENT ON COLUMN mk_knowledge_candidate_classification.active_version_id IS '对照的当前 ACTIVE 版本 ID';
+COMMENT ON COLUMN mk_knowledge_candidate_classification.classification IS '候选分类：NEW_ASSET 新建 / SAME_IDENTITY_NEW_VERSION 同身份新版 / DUPLICATE 重复 / CONFLICT 冲突';
+COMMENT ON COLUMN mk_knowledge_candidate_classification.review_status IS '审核状态：PENDING_REPLACEMENT_REVIEW 待替换审核 / DUPLICATE_SKIPPED 重复跳过 / APPROVED 通过 / REJECTED 拒绝 / RETURNED 退修';
+COMMENT ON COLUMN mk_knowledge_candidate_classification.content_hash IS '候选内容 SHA-256 指纹';
+COMMENT ON COLUMN mk_knowledge_candidate_classification.basis IS '分类依据，记录命中的身份、内容指纹、来源分级或冲突说明';
+COMMENT ON COLUMN mk_knowledge_candidate_classification.diff_summary IS '候选与当前权威版本的对照摘要';
+COMMENT ON COLUMN mk_knowledge_candidate_classification.created_at IS '创建时间';
+COMMENT ON COLUMN mk_knowledge_candidate_classification.created_by IS '创建人';
+COMMENT ON COLUMN mk_knowledge_candidate_classification.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_knowledge_candidate_classification.updated_by IS '更新人';
+COMMENT ON TABLE mk_knowledge_customization IS '客户机构从平台权威知识按需派生的血缘与覆盖生命周期';
+COMMENT ON COLUMN mk_knowledge_customization.customization_id IS '业务字段：customization_id';
+COMMENT ON COLUMN mk_knowledge_customization.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_knowledge_customization.platform_identity_id IS '平台知识身份主键，只允许来自唯一平台主租户';
+COMMENT ON COLUMN mk_knowledge_customization.platform_version_id IS '派生时记录的平台标准版本主键';
+COMMENT ON COLUMN mk_knowledge_customization.platform_version_no IS '业务字段：platform_version_no';
+COMMENT ON COLUMN mk_knowledge_customization.local_identity_id IS '客户租户内保持同一业务键的知识身份主键';
+COMMENT ON COLUMN mk_knowledge_customization.local_version_id IS '客户租户内派生版本主键';
+COMMENT ON COLUMN mk_knowledge_customization.target_org_unit_id IS '本地定制生效的组织节点';
+COMMENT ON COLUMN mk_knowledge_customization.target_org_path IS '业务字段：target_org_path';
+COMMENT ON COLUMN mk_knowledge_customization.applicable_scope IS '业务字段：applicable_scope';
+COMMENT ON COLUMN mk_knowledge_customization.source_type IS '业务字段：source_type';
+COMMENT ON COLUMN mk_knowledge_customization.status IS '当前状态';
+COMMENT ON COLUMN mk_knowledge_customization.reason IS '业务字段：reason';
+COMMENT ON COLUMN mk_knowledge_customization.override_id IS '发布后登记的组织继承覆盖业务 ID';
+COMMENT ON COLUMN mk_knowledge_customization.version IS '并发版本号';
+COMMENT ON COLUMN mk_knowledge_customization.created_at IS '创建时间';
+COMMENT ON COLUMN mk_knowledge_customization.created_by IS '创建人';
+COMMENT ON COLUMN mk_knowledge_customization.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_knowledge_customization.updated_by IS '更新人';
+COMMENT ON COLUMN mk_knowledge_customization.trace_id IS '追踪号';
+COMMENT ON TABLE mk_knowledge_diff IS 'AIK-STD-08 最新知识探索差异台账：记录新增、修订、废止差异，不自动替换权威版本';
+COMMENT ON COLUMN mk_knowledge_diff.id IS '数据库主键';
+COMMENT ON COLUMN mk_knowledge_diff.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_knowledge_diff.run_code IS '探索运行编码，关联当时看到什么';
+COMMENT ON COLUMN mk_knowledge_diff.target_identity_id IS '待对照的现行知识身份 ID；为空表示全新知识候选';
+COMMENT ON COLUMN mk_knowledge_diff.current_version_id IS '现行权威版本 ID；新增或缺基线时为空';
+COMMENT ON COLUMN mk_knowledge_diff.asset_identity IS '业务字段：asset_identity';
+COMMENT ON COLUMN mk_knowledge_diff.current_content_hash IS '业务字段：current_content_hash';
+COMMENT ON COLUMN mk_knowledge_diff.candidate_content_hash IS '探索候选内容 SHA-256 指纹';
+COMMENT ON COLUMN mk_knowledge_diff.diff_type IS '差异类型：新增、修订、废止';
+COMMENT ON COLUMN mk_knowledge_diff.basis IS '差异检测依据和人读说明';
+COMMENT ON COLUMN mk_knowledge_diff.source_ref IS '业务字段：source_ref';
+COMMENT ON COLUMN mk_knowledge_diff.detected_at IS '业务字段：detected_at';
+COMMENT ON COLUMN mk_knowledge_diff.created_by IS '创建人';
+COMMENT ON COLUMN mk_knowledge_diff.trace_id IS '追踪号';
+COMMENT ON TABLE mk_knowledge_discovery_run IS '业务表：mk_knowledge_discovery_run';
+COMMENT ON COLUMN mk_knowledge_discovery_run.id IS '数据库主键';
+COMMENT ON COLUMN mk_knowledge_discovery_run.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_knowledge_discovery_run.run_code IS '业务字段：run_code';
+COMMENT ON COLUMN mk_knowledge_discovery_run.query_text IS '业务字段：query_text';
+COMMENT ON COLUMN mk_knowledge_discovery_run.capability_code IS '业务字段：capability_code';
+COMMENT ON COLUMN mk_knowledge_discovery_run.executed_at IS '业务字段：executed_at';
+COMMENT ON COLUMN mk_knowledge_discovery_run.source_snapshot IS '业务字段：source_snapshot';
+COMMENT ON COLUMN mk_knowledge_discovery_run.hit_count IS '业务字段：hit_count';
+COMMENT ON COLUMN mk_knowledge_discovery_run.candidate_count IS '业务字段：candidate_count';
+COMMENT ON COLUMN mk_knowledge_discovery_run.result_hash IS '业务字段：result_hash';
+COMMENT ON COLUMN mk_knowledge_discovery_run.status IS '当前状态';
+COMMENT ON COLUMN mk_knowledge_discovery_run.degraded IS '业务字段：degraded';
+COMMENT ON COLUMN mk_knowledge_discovery_run.created_by IS '创建人';
+COMMENT ON COLUMN mk_knowledge_discovery_run.created_at IS '创建时间';
+COMMENT ON TABLE mk_knowledge_expiry_task IS 'AIK-STD-08 过期知识复核任务：来源废止或复审超期只触发复核，不自动撤回';
+COMMENT ON COLUMN mk_knowledge_expiry_task.id IS '数据库主键';
+COMMENT ON COLUMN mk_knowledge_expiry_task.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_knowledge_expiry_task.task_key IS '过期任务幂等键';
+COMMENT ON COLUMN mk_knowledge_expiry_task.diff_id IS '触发该任务的差异台账 ID';
+COMMENT ON COLUMN mk_knowledge_expiry_task.identity_id IS '业务字段：identity_id';
+COMMENT ON COLUMN mk_knowledge_expiry_task.version_id IS '业务字段：version_id';
+COMMENT ON COLUMN mk_knowledge_expiry_task.task_type IS '过期触发类型：来源废止或复审超期';
+COMMENT ON COLUMN mk_knowledge_expiry_task.status IS '过期复核任务状态';
+COMMENT ON COLUMN mk_knowledge_expiry_task.risk_level IS '业务字段：risk_level';
+COMMENT ON COLUMN mk_knowledge_expiry_task.reason IS '过期复核原因和来源依据';
+COMMENT ON COLUMN mk_knowledge_expiry_task.review_due_at IS '业务字段：review_due_at';
+COMMENT ON COLUMN mk_knowledge_expiry_task.created_at IS '创建时间';
+COMMENT ON COLUMN mk_knowledge_expiry_task.created_by IS '创建人';
+COMMENT ON COLUMN mk_knowledge_expiry_task.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_knowledge_expiry_task.updated_by IS '更新人';
+COMMENT ON COLUMN mk_knowledge_expiry_task.trace_id IS '追踪号';
+COMMENT ON TABLE mk_knowledge_generation_triage IS '业务表：mk_knowledge_generation_triage';
+COMMENT ON COLUMN mk_knowledge_generation_triage.id IS '数据库主键';
+COMMENT ON COLUMN mk_knowledge_generation_triage.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_knowledge_generation_triage.job_code IS '业务字段：job_code';
+COMMENT ON COLUMN mk_knowledge_generation_triage.content_hash IS '业务字段：content_hash';
+COMMENT ON COLUMN mk_knowledge_generation_triage.asset_type IS '业务字段：asset_type';
+COMMENT ON COLUMN mk_knowledge_generation_triage.target_identity_id IS '业务字段：target_identity_id';
+COMMENT ON COLUMN mk_knowledge_generation_triage.active_version_id IS '业务字段：active_version_id';
+COMMENT ON COLUMN mk_knowledge_generation_triage.matched_version_id IS '业务字段：matched_version_id';
+COMMENT ON COLUMN mk_knowledge_generation_triage.triage_state IS '业务字段：triage_state';
+COMMENT ON COLUMN mk_knowledge_generation_triage.action IS '业务字段：action';
+COMMENT ON COLUMN mk_knowledge_generation_triage.basis IS '业务字段：basis';
+COMMENT ON COLUMN mk_knowledge_generation_triage.created_at IS '创建时间';
+COMMENT ON COLUMN mk_knowledge_generation_triage.created_by IS '创建人';
+COMMENT ON TABLE mk_knowledge_initialization_batch IS '生产知识初始化发行批次，固定来源清单、候选清单、风险统计和整体摘要';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.id IS '数据库主键';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.batch_code IS '业务字段：batch_code';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.release_type IS '业务字段：release_type';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.release_version IS '业务字段：release_version';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.foundation_release_version IS '临床内容或组合资产锁定的基础发行版本';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.phase_code IS '业务字段：phase_code';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.status IS '当前状态';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.source_manifest_hash IS '业务字段：source_manifest_hash';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.candidate_manifest_hash IS '业务字段：candidate_manifest_hash';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.overall_hash IS '初始化发行预览的稳定整体 SHA-256 摘要';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.source_count IS '业务字段：source_count';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.candidate_count IS '业务字段：candidate_count';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.low_count IS '业务字段：low_count';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.medium_count IS '业务字段：medium_count';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.high_count IS '业务字段：high_count';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.coverage_json IS '业务字段：coverage_json';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.template_version IS '业务字段：template_version';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.model_version IS '业务字段：model_version';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.summary IS '业务字段：summary';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.idempotency_key IS '业务字段：idempotency_key';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.last_bulk_idempotency_key IS '业务字段：last_bulk_idempotency_key';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.last_bulk_at IS '业务字段：last_bulk_at';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.created_at IS '创建时间';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.created_by IS '创建人';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_knowledge_initialization_batch.updated_by IS '更新人';
+COMMENT ON TABLE mk_knowledge_initialization_item IS '初始化发行候选条目，复用既有候选分类与 LOW、MEDIUM、HIGH 审核链';
+COMMENT ON COLUMN mk_knowledge_initialization_item.id IS '数据库主键';
+COMMENT ON COLUMN mk_knowledge_initialization_item.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_knowledge_initialization_item.batch_id IS '业务字段：batch_id';
+COMMENT ON COLUMN mk_knowledge_initialization_item.sequence_no IS '业务字段：sequence_no';
+COMMENT ON COLUMN mk_knowledge_initialization_item.catalog_code IS '业务字段：catalog_code';
+COMMENT ON COLUMN mk_knowledge_initialization_item.asset_type IS '业务字段：asset_type';
+COMMENT ON COLUMN mk_knowledge_initialization_item.canonical_id IS '业务字段：canonical_id';
+COMMENT ON COLUMN mk_knowledge_initialization_item.namespace IS '业务字段：namespace';
+COMMENT ON COLUMN mk_knowledge_initialization_item.asset_version IS '业务字段：asset_version';
+COMMENT ON COLUMN mk_knowledge_initialization_item.source_version_id IS '业务字段：source_version_id';
+COMMENT ON COLUMN mk_knowledge_initialization_item.source_hash IS '业务字段：source_hash';
+COMMENT ON COLUMN mk_knowledge_initialization_item.candidate_ref IS '业务字段：candidate_ref';
+COMMENT ON COLUMN mk_knowledge_initialization_item.candidate_classification_id IS '固定的知识候选分类记录，禁止由前端批审时替换候选集合';
+COMMENT ON COLUMN mk_knowledge_initialization_item.candidate_content_hash IS '业务字段：candidate_content_hash';
+COMMENT ON COLUMN mk_knowledge_initialization_item.risk_level IS '业务字段：risk_level';
+COMMENT ON COLUMN mk_knowledge_initialization_item.generated_by_model_flag IS '候选是否含模型生成内容；基础 canonical 数据禁止模型生成';
+COMMENT ON COLUMN mk_knowledge_initialization_item.dependencies_json IS '业务字段：dependencies_json';
+COMMENT ON COLUMN mk_knowledge_initialization_item.governance_json IS '业务字段：governance_json';
+COMMENT ON COLUMN mk_knowledge_initialization_item.change_type IS '业务字段：change_type';
+COMMENT ON COLUMN mk_knowledge_initialization_item.replacement_canonical_id IS '业务字段：replacement_canonical_id';
+COMMENT ON COLUMN mk_knowledge_initialization_item.effective_to IS '业务字段：effective_to';
+COMMENT ON COLUMN mk_knowledge_initialization_item.status IS '当前状态';
+COMMENT ON COLUMN mk_knowledge_initialization_item.created_at IS '创建时间';
+COMMENT ON COLUMN mk_knowledge_initialization_item.created_by IS '创建人';
+COMMENT ON COLUMN mk_knowledge_initialization_item.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_knowledge_initialization_item.updated_by IS '更新人';
+COMMENT ON TABLE mk_knowledge_invalidation IS 'SYS-08 知识失效记录，保存旧版原子替换、紧急限制、授权和审计证据';
+COMMENT ON COLUMN mk_knowledge_invalidation.id IS '数据库主键';
+COMMENT ON COLUMN mk_knowledge_invalidation.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_knowledge_invalidation.identity_id IS '知识身份 ID';
+COMMENT ON COLUMN mk_knowledge_invalidation.version_id IS '被失效的知识版本 ID';
+COMMENT ON COLUMN mk_knowledge_invalidation.invalidation_type IS '失效类型：原子替换、紧急撤回、来源召回或安全警示';
+COMMENT ON COLUMN mk_knowledge_invalidation.status IS '失效处置状态';
+COMMENT ON COLUMN mk_knowledge_invalidation.risk_level IS '被失效版本的风险等级';
+COMMENT ON COLUMN mk_knowledge_invalidation.reason IS '失效原因和安全依据';
+COMMENT ON COLUMN mk_knowledge_invalidation.organization_scope IS '失效生效组织范围';
+COMMENT ON COLUMN mk_knowledge_invalidation.applicable_scope IS '失效生效适用人群或上下文';
+COMMENT ON COLUMN mk_knowledge_invalidation.authorized_by IS '授权撤回的操作人';
+COMMENT ON COLUMN mk_knowledge_invalidation.invalidated_at IS '失效触发时间';
+COMMENT ON COLUMN mk_knowledge_invalidation.expedited_review_required IS '是否需要加急审核';
+COMMENT ON COLUMN mk_knowledge_invalidation.trace_id IS '链路追踪 ID';
+COMMENT ON COLUMN mk_knowledge_invalidation.created_at IS '创建时间';
+COMMENT ON COLUMN mk_knowledge_invalidation.created_by IS '创建人';
+COMMENT ON COLUMN mk_knowledge_invalidation.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_knowledge_invalidation.updated_by IS '更新人';
+COMMENT ON TABLE mk_knowledge_material_object IS '知识文档原件资料库对象账本：记录受管 URI、真实 SHA-256、后端类型和入库审计，不保存原文字节';
+COMMENT ON COLUMN mk_knowledge_material_object.id IS '数据库主键';
+COMMENT ON COLUMN mk_knowledge_material_object.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_knowledge_material_object.scope_key IS '业务字段：scope_key';
+COMMENT ON COLUMN mk_knowledge_material_object.file_uri IS '受管资料库 URI，可为现场 file、本地网关或对象存储 URI，禁止伪造临时路径';
+COMMENT ON COLUMN mk_knowledge_material_object.sha256 IS '原件字节 SHA-256 指纹，用于取回校验和重复入库幂等';
+COMMENT ON COLUMN mk_knowledge_material_object.content_type IS '业务字段：content_type';
+COMMENT ON COLUMN mk_knowledge_material_object.byte_size IS '业务字段：byte_size';
+COMMENT ON COLUMN mk_knowledge_material_object.storage_backend IS '业务字段：storage_backend';
+COMMENT ON COLUMN mk_knowledge_material_object.source_channel IS '业务字段：source_channel';
+COMMENT ON COLUMN mk_knowledge_material_object.stored_at IS '业务字段：stored_at';
+COMMENT ON COLUMN mk_knowledge_material_object.stored_by IS '业务字段：stored_by';
+COMMENT ON TABLE mk_knowledge_production_candidate IS '业务表：mk_knowledge_production_candidate';
+COMMENT ON COLUMN mk_knowledge_production_candidate.id IS '数据库主键';
+COMMENT ON COLUMN mk_knowledge_production_candidate.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_knowledge_production_candidate.job_code IS '业务字段：job_code';
+COMMENT ON COLUMN mk_knowledge_production_candidate.asset_identity IS '业务字段：asset_identity';
+COMMENT ON COLUMN mk_knowledge_production_candidate.content_hash IS '业务字段：content_hash';
+COMMENT ON COLUMN mk_knowledge_production_candidate.candidate_ref IS '业务字段：candidate_ref';
+COMMENT ON COLUMN mk_knowledge_production_candidate.risk_level IS '业务字段：risk_level';
+COMMENT ON COLUMN mk_knowledge_production_candidate.created_at IS '创建时间';
+COMMENT ON COLUMN mk_knowledge_production_candidate.created_by IS '创建人';
+COMMENT ON COLUMN mk_knowledge_production_candidate.explain_json IS '候选生产解释元数据JSON：仅保存模型任务ID、模式、版本三元组、来源引用、置信和降级原因，不保存提示词原文或候选正文';
+COMMENT ON TABLE mk_knowledge_production_job IS '业务表：mk_knowledge_production_job';
+COMMENT ON COLUMN mk_knowledge_production_job.id IS '数据库主键';
+COMMENT ON COLUMN mk_knowledge_production_job.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_knowledge_production_job.job_code IS '业务字段：job_code';
+COMMENT ON COLUMN mk_knowledge_production_job.source_scope IS '业务字段：source_scope';
+COMMENT ON COLUMN mk_knowledge_production_job.asset_type IS '业务字段：asset_type';
+COMMENT ON COLUMN mk_knowledge_production_job.producer IS '业务字段：producer';
+COMMENT ON COLUMN mk_knowledge_production_job.target_pipeline IS '业务字段：target_pipeline';
+COMMENT ON COLUMN mk_knowledge_production_job.domain IS '业务字段：domain';
+COMMENT ON COLUMN mk_knowledge_production_job.model_strategy IS '业务字段：model_strategy';
+COMMENT ON COLUMN mk_knowledge_production_job.status IS '当前状态';
+COMMENT ON COLUMN mk_knowledge_production_job.candidate_count IS '业务字段：candidate_count';
+COMMENT ON COLUMN mk_knowledge_production_job.lineage IS '业务字段：lineage';
+COMMENT ON COLUMN mk_knowledge_production_job.created_at IS '创建时间';
+COMMENT ON COLUMN mk_knowledge_production_job.created_by IS '创建人';
+COMMENT ON COLUMN mk_knowledge_production_job.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_knowledge_production_job.updated_by IS '更新人';
+COMMENT ON COLUMN mk_knowledge_production_job.trace_id IS '追踪号';
+COMMENT ON TABLE mk_knowledge_review_assignment IS '知识候选审核分派与结论记录：仅待替换审核候选进入此表，重复候选不建待办';
+COMMENT ON COLUMN mk_knowledge_review_assignment.id IS '数据库主键';
+COMMENT ON COLUMN mk_knowledge_review_assignment.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_knowledge_review_assignment.org_path IS '组织树作用域路径快照，用于审核任务按集团、医院、科室切分；专病另作为横切适用域';
+COMMENT ON COLUMN mk_knowledge_review_assignment.candidate_classification_id IS '候选分类记录 ID';
+COMMENT ON COLUMN mk_knowledge_review_assignment.identity_id IS '知识身份 ID';
+COMMENT ON COLUMN mk_knowledge_review_assignment.candidate_version_id IS '候选知识版本 ID';
+COMMENT ON COLUMN mk_knowledge_review_assignment.assigned_to IS '审核分派用户 ID';
+COMMENT ON COLUMN mk_knowledge_review_assignment.review_status IS '审核状态：PENDING_REPLACEMENT_REVIEW 待替换审核 / APPROVED 通过 / REJECTED 拒绝 / RETURNED 退修';
+COMMENT ON COLUMN mk_knowledge_review_assignment.decision IS '审核结论：APPROVE 通过 / REJECT 拒绝 / RETURN 退修';
+COMMENT ON COLUMN mk_knowledge_review_assignment.reason IS '审核理由或拒绝原因';
+COMMENT ON COLUMN mk_knowledge_review_assignment.decided_by IS '作出审核结论的用户 ID';
+COMMENT ON COLUMN mk_knowledge_review_assignment.decided_at IS '审核结论时间';
+COMMENT ON COLUMN mk_knowledge_review_assignment.created_at IS '创建时间';
+COMMENT ON COLUMN mk_knowledge_review_assignment.created_by IS '创建人';
+COMMENT ON COLUMN mk_knowledge_review_assignment.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_knowledge_review_assignment.updated_by IS '更新人';
+COMMENT ON COLUMN mk_knowledge_review_assignment.feedback_type IS '审核反馈类型：ACCEPTED 采纳 / NOT_ADOPTED 不采纳 / CONTENT_GAP 内容缺口 / SOURCE_BLANK 来源空白 / FALSE_POSITIVE 误报';
+COMMENT ON COLUMN mk_knowledge_review_assignment.followup_action IS '审核后回流动作：NONE 无后续 / CREATE_REVISION_CANDIDATE 创建修订候选 / REQUEST_SOURCE_EVIDENCE 补充来源证据 / MARK_FALSE_POSITIVE 标记误报 / ARCHIVE_REJECTED 封存驳回';
+COMMENT ON TABLE mk_knowledge_shadow_run IS '业务表：mk_knowledge_shadow_run';
+COMMENT ON COLUMN mk_knowledge_shadow_run.id IS '数据库主键';
+COMMENT ON COLUMN mk_knowledge_shadow_run.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_knowledge_shadow_run.job_code IS '业务字段：job_code';
+COMMENT ON COLUMN mk_knowledge_shadow_run.asset_type IS '业务字段：asset_type';
+COMMENT ON COLUMN mk_knowledge_shadow_run.target_identity_id IS '业务字段：target_identity_id';
+COMMENT ON COLUMN mk_knowledge_shadow_run.content_hash IS '业务字段：content_hash';
+COMMENT ON COLUMN mk_knowledge_shadow_run.capability_code IS '业务字段：capability_code';
+COMMENT ON COLUMN mk_knowledge_shadow_run.status IS '当前状态';
+COMMENT ON COLUMN mk_knowledge_shadow_run.total_cases IS '业务字段：total_cases';
+COMMENT ON COLUMN mk_knowledge_shadow_run.hit_count IS '业务字段：hit_count';
+COMMENT ON COLUMN mk_knowledge_shadow_run.false_positive_count IS '业务字段：false_positive_count';
+COMMENT ON COLUMN mk_knowledge_shadow_run.miss_count IS '业务字段：miss_count';
+COMMENT ON COLUMN mk_knowledge_shadow_run.degradation_detected IS '业务字段：degradation_detected';
+COMMENT ON COLUMN mk_knowledge_shadow_run.ready_for_review IS '业务字段：ready_for_review';
+COMMENT ON COLUMN mk_knowledge_shadow_run.basis IS '业务字段：basis';
+COMMENT ON COLUMN mk_knowledge_shadow_run.created_at IS '创建时间';
+COMMENT ON COLUMN mk_knowledge_shadow_run.created_by IS '创建人';
+COMMENT ON TABLE mk_llm_egress_confirmation IS '模型出域责任确认记录';
+COMMENT ON COLUMN mk_llm_egress_confirmation.id IS '数据库主键';
+COMMENT ON COLUMN mk_llm_egress_confirmation.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_llm_egress_confirmation.capability_code IS '业务字段：capability_code';
+COMMENT ON COLUMN mk_llm_egress_confirmation.payload_hash IS '业务字段：payload_hash';
+COMMENT ON COLUMN mk_llm_egress_confirmation.purpose IS '当前操作者确认的出域用途';
+COMMENT ON COLUMN mk_llm_egress_confirmation.confirmed_by IS '责任确认人';
+COMMENT ON COLUMN mk_llm_egress_confirmation.confirmed_at IS '责任确认时间';
+COMMENT ON COLUMN mk_llm_egress_confirmation.created_at IS '创建时间';
+COMMENT ON COLUMN mk_llm_egress_confirmation.created_by IS '创建人';
+COMMENT ON COLUMN mk_llm_egress_confirmation.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_llm_egress_confirmation.updated_by IS '更新人';
+COMMENT ON TABLE mk_llm_egress_evidence IS '业务表：mk_llm_egress_evidence';
+COMMENT ON COLUMN mk_llm_egress_evidence.id IS '数据库主键';
+COMMENT ON COLUMN mk_llm_egress_evidence.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_llm_egress_evidence.capability_code IS '业务字段：capability_code';
+COMMENT ON COLUMN mk_llm_egress_evidence.task_id IS '业务字段：task_id';
+COMMENT ON COLUMN mk_llm_egress_evidence.egress_fields IS '业务字段：egress_fields';
+COMMENT ON COLUMN mk_llm_egress_evidence.desensitized_hash IS '业务字段：desensitized_hash';
+COMMENT ON COLUMN mk_llm_egress_evidence.confirmation_id IS '高敏出域责任确认记录标识';
+COMMENT ON COLUMN mk_llm_egress_evidence.provider_code IS '业务字段：provider_code';
+COMMENT ON COLUMN mk_llm_egress_evidence.created_at IS '创建时间';
+COMMENT ON COLUMN mk_llm_egress_evidence.created_by IS '创建人';
+COMMENT ON COLUMN mk_llm_egress_evidence.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_llm_egress_evidence.updated_by IS '更新人';
+COMMENT ON TABLE mk_llm_egress_whitelist IS '业务表：mk_llm_egress_whitelist';
+COMMENT ON COLUMN mk_llm_egress_whitelist.id IS '数据库主键';
+COMMENT ON COLUMN mk_llm_egress_whitelist.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_llm_egress_whitelist.capability_code IS '业务字段：capability_code';
+COMMENT ON COLUMN mk_llm_egress_whitelist.allowed_fields IS '业务字段：allowed_fields';
+COMMENT ON COLUMN mk_llm_egress_whitelist.sensitivity_level IS '业务字段：sensitivity_level';
+COMMENT ON COLUMN mk_llm_egress_whitelist.created_at IS '创建时间';
+COMMENT ON COLUMN mk_llm_egress_whitelist.created_by IS '创建人';
+COMMENT ON COLUMN mk_llm_egress_whitelist.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_llm_egress_whitelist.updated_by IS '更新人';
+COMMENT ON COLUMN mk_llm_egress_whitelist.desensitization_rules IS 'OPT-09 数据最小化策略：字段到脱敏规则 JSON，算子支持 MASK_ALL / MASK / GENERALIZE / NULLIFY / NONE';
+COMMENT ON COLUMN mk_llm_egress_whitelist.confirmation_threshold_level IS '数据最小化策略责任确认阈值：敏感级达到 LOW / MEDIUM / HIGH 时必须由当前获授权操作者确认用途';
+COMMENT ON COLUMN mk_llm_egress_whitelist.guardrail_locked_flag IS 'OPT-09 高危护栏标志：固定 Y，不允许关闭模型出域数据最小化护栏';
+COMMENT ON TABLE mk_llm_enhancement_matrix IS '业务表：mk_llm_enhancement_matrix';
+COMMENT ON COLUMN mk_llm_enhancement_matrix.id IS '数据库主键';
+COMMENT ON COLUMN mk_llm_enhancement_matrix.business_point IS '业务字段：business_point';
+COMMENT ON COLUMN mk_llm_enhancement_matrix.business_name IS '业务字段：business_name';
+COMMENT ON COLUMN mk_llm_enhancement_matrix.capability_code IS '业务字段：capability_code';
+COMMENT ON COLUMN mk_llm_enhancement_matrix.b0_path IS '业务字段：b0_path';
+COMMENT ON COLUMN mk_llm_enhancement_matrix.access_status IS '业务字段：access_status';
+COMMENT ON COLUMN mk_llm_enhancement_matrix.enabled_flag IS '业务字段：enabled_flag';
+COMMENT ON COLUMN mk_llm_enhancement_matrix.sort_order IS '业务字段：sort_order';
+COMMENT ON COLUMN mk_llm_enhancement_matrix.created_at IS '创建时间';
+COMMENT ON COLUMN mk_llm_enhancement_matrix.created_by IS '创建人';
+COMMENT ON COLUMN mk_llm_enhancement_matrix.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_llm_enhancement_matrix.updated_by IS '更新人';
+COMMENT ON TABLE mk_llm_eval_case_evidence IS '医学回归评测逐用例不可变证据，供负责人据证核查';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.id IS '数据库主键';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.run_id IS '医学回归评测运行主键';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.regression_case_id IS '评测时使用的回归用例主键';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.case_version IS '评测时用例版本';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.case_input IS '评测时用例输入快照，不得包含患者身份数据';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.expected_phrase IS '评测时安全期望短语快照';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.red_line_type IS '评测时红线类型快照';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.source_reference IS '评测时真实来源引用快照';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.output_content IS '候选模型真实输出';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.source_citations IS '候选模型返回的来源引用载荷';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.expected_phrase_hit IS '是否命中安全期望短语：Y/N';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.citation_required IS '该用例是否要求来源引用：Y/N';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.citation_verified IS '来源引用是否精确核验通过：Y/N';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.red_line_case IS '是否红线用例：Y/N';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.red_line_breach IS '是否突破医学红线：Y/N';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.passed_flag IS '逐用例是否通过：Y/N';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.failure_reasons_json IS '失败原因代码 JSON 数组';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.created_at IS '证据生成时间';
+COMMENT ON COLUMN mk_llm_eval_case_evidence.created_by IS '评测执行人';
+COMMENT ON TABLE mk_llm_eval_run IS '模型版本医学回归与 AI 质量评测运行结果：上线门禁、幻觉拦截、术语质量和版本趋势依据';
+COMMENT ON COLUMN mk_llm_eval_run.id IS '数据库主键';
+COMMENT ON COLUMN mk_llm_eval_run.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_llm_eval_run.provider_code IS '业务字段：provider_code';
+COMMENT ON COLUMN mk_llm_eval_run.model_version IS '业务字段：model_version';
+COMMENT ON COLUMN mk_llm_eval_run.capability_code IS '被评测模型能力码';
+COMMENT ON COLUMN mk_llm_eval_run.prompt_version IS '本次评测绑定的 prompt 版本号';
+COMMENT ON COLUMN mk_llm_eval_run.tool_version IS '本次评测绑定的 tool 版本号';
+COMMENT ON COLUMN mk_llm_eval_run.total_cases IS '业务字段：total_cases';
+COMMENT ON COLUMN mk_llm_eval_run.passed_cases IS '业务字段：passed_cases';
+COMMENT ON COLUMN mk_llm_eval_run.failed_cases IS '业务字段：failed_cases';
+COMMENT ON COLUMN mk_llm_eval_run.quality_score IS 'AI 质量总分，0-100';
+COMMENT ON COLUMN mk_llm_eval_run.terminology_score IS '中文术语专项分，0-100';
+COMMENT ON COLUMN mk_llm_eval_run.fake_citation_detected IS '业务字段：fake_citation_detected';
+COMMENT ON COLUMN mk_llm_eval_run.red_line_breach IS '业务字段：red_line_breach';
+COMMENT ON COLUMN mk_llm_eval_run.hallucination_detected IS '是否命中幻觉拦截：Y/N';
+COMMENT ON COLUMN mk_llm_eval_run.status IS '当前状态';
+COMMENT ON COLUMN mk_llm_eval_run.case_summary_json IS '逐用例评分、失败原因和幻觉标记摘要 JSON';
+COMMENT ON COLUMN mk_llm_eval_run.created_at IS '创建时间';
+COMMENT ON COLUMN mk_llm_eval_run.created_by IS '创建人';
+COMMENT ON COLUMN mk_llm_eval_run.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_llm_eval_run.updated_by IS '更新人';
+COMMENT ON COLUMN mk_llm_eval_run.release_fingerprint IS '生成医学评测时锁定的交付内容指纹，必须与当前部署一致方可作为放行证据';
+COMMENT ON TABLE mk_llm_model_version_bundle IS '模型版本三元组版本包：记录 prompt/tool/model 版本号、状态和内容 hash，不保存正文或凭据';
+COMMENT ON COLUMN mk_llm_model_version_bundle.id IS '数据库主键';
+COMMENT ON COLUMN mk_llm_model_version_bundle.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_llm_model_version_bundle.capability_code IS '业务字段：capability_code';
+COMMENT ON COLUMN mk_llm_model_version_bundle.prompt_version IS '业务字段：prompt_version';
+COMMENT ON COLUMN mk_llm_model_version_bundle.prompt_hash IS '业务字段：prompt_hash';
+COMMENT ON COLUMN mk_llm_model_version_bundle.tool_version IS '业务字段：tool_version';
+COMMENT ON COLUMN mk_llm_model_version_bundle.tool_hash IS '业务字段：tool_hash';
+COMMENT ON COLUMN mk_llm_model_version_bundle.model_version IS '业务字段：model_version';
+COMMENT ON COLUMN mk_llm_model_version_bundle.model_hash IS '业务字段：model_hash';
+COMMENT ON COLUMN mk_llm_model_version_bundle.status IS '当前状态';
+COMMENT ON COLUMN mk_llm_model_version_bundle.effective_at IS '业务字段：effective_at';
+COMMENT ON COLUMN mk_llm_model_version_bundle.retired_at IS '业务字段：retired_at';
+COMMENT ON COLUMN mk_llm_model_version_bundle.created_at IS '创建时间';
+COMMENT ON COLUMN mk_llm_model_version_bundle.created_by IS '创建人';
+COMMENT ON COLUMN mk_llm_model_version_bundle.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_llm_model_version_bundle.updated_by IS '更新人';
+COMMENT ON COLUMN mk_llm_model_version_bundle.active_scope_key IS 'ACTIVE 模型版本包的租户与能力唯一作用域键；RETIRED 必须为空';
+COMMENT ON TABLE mk_llm_provider IS '业务表：mk_llm_provider';
+COMMENT ON COLUMN mk_llm_provider.id IS '数据库主键';
+COMMENT ON COLUMN mk_llm_provider.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_llm_provider.provider_code IS '业务字段：provider_code';
+COMMENT ON COLUMN mk_llm_provider.provider_type IS '业务字段：provider_type';
+COMMENT ON COLUMN mk_llm_provider.endpoint_uri IS '业务字段：endpoint_uri';
+COMMENT ON COLUMN mk_llm_provider.model_version IS '业务字段：model_version';
+COMMENT ON COLUMN mk_llm_provider.enabled_flag IS '业务字段：enabled_flag';
+COMMENT ON COLUMN mk_llm_provider.status IS '当前状态';
+COMMENT ON COLUMN mk_llm_provider.created_at IS '创建时间';
+COMMENT ON COLUMN mk_llm_provider.created_by IS '创建人';
+COMMENT ON COLUMN mk_llm_provider.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_llm_provider.updated_by IS '更新人';
+COMMENT ON COLUMN mk_llm_provider.lock_version IS '模型 provider 治理并发版本号，防止配置、探活与启停相互覆盖';
+COMMENT ON TABLE mk_llm_provider_credential IS '模型 Provider 凭据加密库：只保存密文、不可逆指纹、尾标与轮换审计，不保存明文 Key';
+COMMENT ON COLUMN mk_llm_provider_credential.id IS '数据库主键';
+COMMENT ON COLUMN mk_llm_provider_credential.tenant_id IS '凭据所属租户，任何读取和轮换必须按租户隔离';
+COMMENT ON COLUMN mk_llm_provider_credential.provider_code IS '模型 Provider 编码，与租户共同唯一';
+COMMENT ON COLUMN mk_llm_provider_credential.credential_ciphertext IS '使用模型凭据独立用途密钥加密的 SM4 密文';
+COMMENT ON COLUMN mk_llm_provider_credential.credential_fingerprint IS '凭据 SHA-256 不可逆指纹，用于变更识别，不得反推明文';
+COMMENT ON COLUMN mk_llm_provider_credential.credential_last4 IS '凭据尾标，仅用于前台帮助授权人员识别当前 Key';
+COMMENT ON COLUMN mk_llm_provider_credential.lock_version IS '模型凭据轮换乐观锁版本号，防止并发覆盖';
+COMMENT ON COLUMN mk_llm_provider_credential.created_at IS '创建时间';
+COMMENT ON COLUMN mk_llm_provider_credential.created_by IS '创建人';
+COMMENT ON COLUMN mk_llm_provider_credential.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_llm_provider_credential.updated_by IS '更新人';
+COMMENT ON COLUMN mk_llm_provider_credential.trace_id IS '凭据创建或最近轮换请求的审计追踪标识';
+COMMENT ON TABLE mk_llm_regression_case IS '医学回归评测基准用例：登记输入、期望短语、红线类型和真实来源引用，不含真实患者数据';
+COMMENT ON COLUMN mk_llm_regression_case.id IS '数据库主键';
+COMMENT ON COLUMN mk_llm_regression_case.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_llm_regression_case.capability_code IS '业务字段：capability_code';
+COMMENT ON COLUMN mk_llm_regression_case.case_domain IS 'AI 质量评测维度：dictionary/rule/pathway/recommendation/explanation/terminology/general';
+COMMENT ON COLUMN mk_llm_regression_case.case_input IS '业务字段：case_input';
+COMMENT ON COLUMN mk_llm_regression_case.expected_phrase IS '业务字段：expected_phrase';
+COMMENT ON COLUMN mk_llm_regression_case.expected_terms_json IS '中文术语专项期望命中词 JSON 数组';
+COMMENT ON COLUMN mk_llm_regression_case.forbidden_assertions_json IS '幻觉拦截禁用断言或编造编码 JSON 数组';
+COMMENT ON COLUMN mk_llm_regression_case.min_score IS '该用例最低通过分，0-100';
+COMMENT ON COLUMN mk_llm_regression_case.red_line_type IS '业务字段：red_line_type';
+COMMENT ON COLUMN mk_llm_regression_case.source_reference IS '用例来源引用，必须指向已审红线、来源版本或真实评测资料锚点';
+COMMENT ON COLUMN mk_llm_regression_case.citation_required IS '业务字段：citation_required';
+COMMENT ON COLUMN mk_llm_regression_case.case_version IS '业务字段：case_version';
+COMMENT ON COLUMN mk_llm_regression_case.enabled_flag IS '业务字段：enabled_flag';
+COMMENT ON COLUMN mk_llm_regression_case.created_at IS '创建时间';
+COMMENT ON COLUMN mk_llm_regression_case.created_by IS '创建人';
+COMMENT ON COLUMN mk_llm_regression_case.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_llm_regression_case.updated_by IS '更新人';
+COMMENT ON TABLE mk_mpi_merge_review IS '高危患者主索引合并审核单';
+COMMENT ON COLUMN mk_mpi_merge_review.review_id IS '审核单业务主键（ULID 形态）';
+COMMENT ON COLUMN mk_mpi_merge_review.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_mpi_merge_review.source_mpi_id IS '待合并源患者主索引 ID';
+COMMENT ON COLUMN mk_mpi_merge_review.target_mpi_id IS '合并目标患者主索引 ID';
+COMMENT ON COLUMN mk_mpi_merge_review.risk_level IS '合并风险等级';
+COMMENT ON COLUMN mk_mpi_merge_review.status IS '审核状态：PENDING/CONFIRMED/REJECTED';
+COMMENT ON COLUMN mk_mpi_merge_review.risk_reason IS '触发人工确认的风险原因';
+COMMENT ON COLUMN mk_mpi_merge_review.requested_by IS '发起审核人';
+COMMENT ON COLUMN mk_mpi_merge_review.requested_at IS '发起审核时间';
+COMMENT ON COLUMN mk_mpi_merge_review.reviewed_by IS '确认或拒绝审核人';
+COMMENT ON COLUMN mk_mpi_merge_review.reviewed_at IS '确认或拒绝审核时间';
+COMMENT ON COLUMN mk_mpi_merge_review.review_reason IS '人工确认或拒绝理由';
+COMMENT ON COLUMN mk_mpi_merge_review.created_at IS '创建时间';
+COMMENT ON COLUMN mk_mpi_merge_review.created_by IS '创建人';
+COMMENT ON COLUMN mk_mpi_merge_review.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_mpi_merge_review.updated_by IS '更新人';
+COMMENT ON COLUMN mk_mpi_merge_review.trace_id IS '链路追踪 ID';
+COMMENT ON TABLE mk_obs_payload_store IS '可观测 payload 存储表：统一保存引擎输入输出大报文的摘要、位置和软删除状态';
+COMMENT ON COLUMN mk_obs_payload_store.id IS '数据库主键';
+COMMENT ON COLUMN mk_obs_payload_store.payload_id IS 'payload 业务 ID';
+COMMENT ON COLUMN mk_obs_payload_store.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_obs_payload_store.org_path IS '组织路径快照';
+COMMENT ON COLUMN mk_obs_payload_store.entity_type IS '关联引擎实体类型';
+COMMENT ON COLUMN mk_obs_payload_store.entity_id IS '关联引擎实体业务 ID';
+COMMENT ON COLUMN mk_obs_payload_store.trace_id IS '请求或异步任务 traceId';
+COMMENT ON COLUMN mk_obs_payload_store.storage_type IS '存储类型：INLINE 表内 Base64 / URI 外部对象存储';
+COMMENT ON COLUMN mk_obs_payload_store.content_type IS 'payload 内容类型';
+COMMENT ON COLUMN mk_obs_payload_store.digest IS 'payload SHA-256 摘要';
+COMMENT ON COLUMN mk_obs_payload_store.size_bytes IS '业务字段：size_bytes';
+COMMENT ON COLUMN mk_obs_payload_store.payload_base64 IS 'INLINE 存储时的 Base64 payload';
+COMMENT ON COLUMN mk_obs_payload_store.payload_uri IS '业务字段：payload_uri';
+COMMENT ON COLUMN mk_obs_payload_store.created_at IS '创建时间';
+COMMENT ON COLUMN mk_obs_payload_store.created_by IS '创建人';
+COMMENT ON COLUMN mk_obs_payload_store.deleted_at IS '软删除时间，非空表示已归档或删除';
+COMMENT ON COLUMN mk_obs_payload_store.deleted_by IS '业务字段：deleted_by';
+COMMENT ON TABLE mk_obs_state_transition IS '可观测状态流转表：记录所有引擎实体状态机 from/to、原因、操作者和 traceId';
+COMMENT ON COLUMN mk_obs_state_transition.id IS '数据库主键';
+COMMENT ON COLUMN mk_obs_state_transition.entity_type IS '引擎实体类型，例如 clinical_event、recommendation_trigger';
+COMMENT ON COLUMN mk_obs_state_transition.entity_id IS '引擎实体业务 ID';
+COMMENT ON COLUMN mk_obs_state_transition.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_obs_state_transition.org_path IS '组织路径快照';
+COMMENT ON COLUMN mk_obs_state_transition.from_status IS '业务字段：from_status';
+COMMENT ON COLUMN mk_obs_state_transition.to_status IS '业务字段：to_status';
+COMMENT ON COLUMN mk_obs_state_transition.reason IS '业务字段：reason';
+COMMENT ON COLUMN mk_obs_state_transition.actor IS '业务字段：actor';
+COMMENT ON COLUMN mk_obs_state_transition.trace_id IS '请求或异步任务 traceId';
+COMMENT ON COLUMN mk_obs_state_transition.error_code IS '失败时的统一错误码';
+COMMENT ON COLUMN mk_obs_state_transition.error_class IS '业务字段：error_class';
+COMMENT ON COLUMN mk_obs_state_transition.error_message IS '业务字段：error_message';
+COMMENT ON COLUMN mk_obs_state_transition.retry_count IS '业务字段：retry_count';
+COMMENT ON COLUMN mk_obs_state_transition.next_retry_at IS '业务字段：next_retry_at';
+COMMENT ON COLUMN mk_obs_state_transition.occurred_at IS '状态流转发生时间';
+COMMENT ON COLUMN mk_obs_state_transition.created_at IS '创建时间';
+COMMENT ON COLUMN mk_obs_state_transition.created_by IS '记录创建操作者';
+COMMENT ON TABLE mk_org_secondary_membership IS '组织次级归属边：表达矩阵归属，不改变主父链和 org_path';
+COMMENT ON COLUMN mk_org_secondary_membership.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_org_secondary_membership.child_id IS '子组织节点 ID';
+COMMENT ON COLUMN mk_org_secondary_membership.secondary_parent_id IS '次级父组织节点 ID';
+COMMENT ON COLUMN mk_org_secondary_membership.relation_code IS '次级归属关系编码，如 SPECIALTY_CENTER / MATRIX';
+COMMENT ON COLUMN mk_org_secondary_membership.priority IS '同一子节点多条次级归属的稳定排序优先级，数值越小越优先';
+COMMENT ON COLUMN mk_org_secondary_membership.created_at IS '创建时间';
+COMMENT ON COLUMN mk_org_secondary_membership.created_by IS '创建人';
+COMMENT ON TABLE mk_plugin_grant IS '插件能力授权表，记录受控写入授权原因和临床安全确认';
+COMMENT ON COLUMN mk_plugin_grant.id IS '数据库主键';
+COMMENT ON COLUMN mk_plugin_grant.grant_id IS '业务字段：grant_id';
+COMMENT ON COLUMN mk_plugin_grant.plugin_id IS '业务字段：plugin_id';
+COMMENT ON COLUMN mk_plugin_grant.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_plugin_grant.capability_key IS '业务字段：capability_key';
+COMMENT ON COLUMN mk_plugin_grant.capability_type IS '业务字段：capability_type';
+COMMENT ON COLUMN mk_plugin_grant.service_contract_id IS '插件能力绑定的服务契约 ID，禁止直接绑定数据库表';
+COMMENT ON COLUMN mk_plugin_grant.status IS '当前状态';
+COMMENT ON COLUMN mk_plugin_grant.authorization_reason IS '当前操作者授予受控写能力的原因';
+COMMENT ON COLUMN mk_plugin_grant.clinical_safety_confirmed IS '临床数据写能力是否已完成安全确认，Y 或 N';
+COMMENT ON COLUMN mk_plugin_grant.version IS '并发版本号';
+COMMENT ON COLUMN mk_plugin_grant.granted_at IS '业务字段：granted_at';
+COMMENT ON COLUMN mk_plugin_grant.granted_by IS '业务字段：granted_by';
+COMMENT ON COLUMN mk_plugin_grant.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_plugin_grant.updated_by IS '更新人';
+COMMENT ON COLUMN mk_plugin_grant.trace_id IS '追踪号';
+COMMENT ON TABLE mk_plugin_registry IS '插件安全边界声明表，记录租户插件、能力边界和审核状态';
+COMMENT ON COLUMN mk_plugin_registry.id IS '数据库主键';
+COMMENT ON COLUMN mk_plugin_registry.plugin_id IS '插件实例稳定标识';
+COMMENT ON COLUMN mk_plugin_registry.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_plugin_registry.plugin_code IS '业务字段：plugin_code';
+COMMENT ON COLUMN mk_plugin_registry.display_name IS '业务字段：display_name';
+COMMENT ON COLUMN mk_plugin_registry.status IS '当前状态';
+COMMENT ON COLUMN mk_plugin_registry.authority_boundary IS '插件最高权限边界，READ_ONLY 或 CONTROLLED_WRITE';
+COMMENT ON COLUMN mk_plugin_registry.capabilities_json IS '插件声明的服务契约能力清单，不保存密钥或凭证';
+COMMENT ON COLUMN mk_plugin_registry.version IS '并发版本号';
+COMMENT ON COLUMN mk_plugin_registry.created_at IS '创建时间';
+COMMENT ON COLUMN mk_plugin_registry.created_by IS '创建人';
+COMMENT ON COLUMN mk_plugin_registry.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_plugin_registry.updated_by IS '更新人';
+COMMENT ON COLUMN mk_plugin_registry.trace_id IS '追踪号';
+COMMENT ON TABLE mk_projection_snapshot IS 'SYS-03 投影快照表，保存可由关系库重放生成的图投影事实副本';
+COMMENT ON COLUMN mk_projection_snapshot.id IS '数据库主键';
+COMMENT ON COLUMN mk_projection_snapshot.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_projection_snapshot.target_type IS '投影快照目标类型：CLINICAL_GRAPH 临床图 / KNOWLEDGE_GRAPH 知识图 / KNOWLEDGE_SEARCH 知识搜索';
+COMMENT ON COLUMN mk_projection_snapshot.fact_key IS '业务字段：fact_key';
+COMMENT ON COLUMN mk_projection_snapshot.fact_kind IS '业务字段：fact_kind';
+COMMENT ON COLUMN mk_projection_snapshot.object_type IS '业务字段：object_type';
+COMMENT ON COLUMN mk_projection_snapshot.object_id IS '业务字段：object_id';
+COMMENT ON COLUMN mk_projection_snapshot.subject_key IS '业务字段：subject_key';
+COMMENT ON COLUMN mk_projection_snapshot.predicate_name IS '业务字段：predicate_name';
+COMMENT ON COLUMN mk_projection_snapshot.object_key IS '业务字段：object_key';
+COMMENT ON COLUMN mk_projection_snapshot.content_hash IS '业务字段：content_hash';
+COMMENT ON COLUMN mk_projection_snapshot.canonical_payload IS '业务字段：canonical_payload';
+COMMENT ON COLUMN mk_projection_snapshot.source_updated_at IS '业务字段：source_updated_at';
+COMMENT ON COLUMN mk_projection_snapshot.synced_at IS '业务字段：synced_at';
+COMMENT ON COLUMN mk_projection_snapshot.trace_id IS '追踪号';
+COMMENT ON TABLE mk_projection_sync IS 'SYS-03 投影同步任务表，记录从关系库权威源重建派生投影的状态、数量与摘要';
+COMMENT ON COLUMN mk_projection_sync.id IS '数据库主键';
+COMMENT ON COLUMN mk_projection_sync.sync_id IS '业务字段：sync_id';
+COMMENT ON COLUMN mk_projection_sync.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_projection_sync.target_type IS '投影目标类型：CLINICAL_GRAPH 临床图 / KNOWLEDGE_GRAPH 知识图 / KNOWLEDGE_SEARCH 知识搜索';
+COMMENT ON COLUMN mk_projection_sync.status IS '当前状态';
+COMMENT ON COLUMN mk_projection_sync.source_count IS '业务字段：source_count';
+COMMENT ON COLUMN mk_projection_sync.projection_count IS '业务字段：projection_count';
+COMMENT ON COLUMN mk_projection_sync.source_hash IS '业务字段：source_hash';
+COMMENT ON COLUMN mk_projection_sync.projection_hash IS '业务字段：projection_hash';
+COMMENT ON COLUMN mk_projection_sync.message IS '业务字段：message';
+COMMENT ON COLUMN mk_projection_sync.started_at IS '业务字段：started_at';
+COMMENT ON COLUMN mk_projection_sync.finished_at IS '业务字段：finished_at';
+COMMENT ON COLUMN mk_projection_sync.requested_by IS '业务字段：requested_by';
+COMMENT ON COLUMN mk_projection_sync.trace_id IS '追踪号';
+COMMENT ON TABLE mk_quality_case_review IS 'SVC-QUALITY-02 病案内涵质控结果表，复用评估运行并保存病案级证据';
+COMMENT ON COLUMN mk_quality_case_review.id IS '数据库主键';
+COMMENT ON COLUMN mk_quality_case_review.review_id IS '业务字段：review_id';
+COMMENT ON COLUMN mk_quality_case_review.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_quality_case_review.context_snapshot_id IS '病案上下文快照 ID';
+COMMENT ON COLUMN mk_quality_case_review.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN mk_quality_case_review.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN mk_quality_case_review.department_id IS '业务字段：department_id';
+COMMENT ON COLUMN mk_quality_case_review.scenario_code IS '业务字段：scenario_code';
+COMMENT ON COLUMN mk_quality_case_review.runtime_release_id IS '病案上下文快照锁定的机构生效版本';
+COMMENT ON COLUMN mk_quality_case_review.review_status IS '病案内涵质控状态';
+COMMENT ON COLUMN mk_quality_case_review.evaluation_run_id IS '业务字段：evaluation_run_id';
+COMMENT ON COLUMN mk_quality_case_review.result_count IS '业务字段：result_count';
+COMMENT ON COLUMN mk_quality_case_review.finding_count IS '业务字段：finding_count';
+COMMENT ON COLUMN mk_quality_case_review.task_count IS '业务字段：task_count';
+COMMENT ON COLUMN mk_quality_case_review.model_status IS '业务字段：model_status';
+COMMENT ON COLUMN mk_quality_case_review.model_downgrade_reason IS '业务字段：model_downgrade_reason';
+COMMENT ON COLUMN mk_quality_case_review.evidence_summary IS '业务字段：evidence_summary';
+COMMENT ON COLUMN mk_quality_case_review.created_at IS '创建时间';
+COMMENT ON COLUMN mk_quality_case_review.created_by IS '创建人';
+COMMENT ON COLUMN mk_quality_case_review.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_quality_case_review.updated_by IS '更新人';
+COMMENT ON COLUMN mk_quality_case_review.trace_id IS '追踪号';
+COMMENT ON TABLE mk_quality_dashboard_alert IS 'SVC-QUALITY-01 质控驾驶舱预警 read-model 表，保存真实质控问题与整改任务阈值越界预警';
+COMMENT ON COLUMN mk_quality_dashboard_alert.id IS '数据库主键';
+COMMENT ON COLUMN mk_quality_dashboard_alert.alert_id IS '业务字段：alert_id';
+COMMENT ON COLUMN mk_quality_dashboard_alert.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_quality_dashboard_alert.department_id IS '责任科室 ID';
+COMMENT ON COLUMN mk_quality_dashboard_alert.alert_type IS '质控预警类型，包含高风险发现、逾期整改、规则越权、路径变异和关键时钟超时';
+COMMENT ON COLUMN mk_quality_dashboard_alert.source_type IS '预警来源事实类型';
+COMMENT ON COLUMN mk_quality_dashboard_alert.source_id IS '预警来源事实 ID';
+COMMENT ON COLUMN mk_quality_dashboard_alert.severity IS '业务字段：severity';
+COMMENT ON COLUMN mk_quality_dashboard_alert.status IS '预警处理状态';
+COMMENT ON COLUMN mk_quality_dashboard_alert.threshold_code IS '触发阈值编码';
+COMMENT ON COLUMN mk_quality_dashboard_alert.threshold_value IS '业务字段：threshold_value';
+COMMENT ON COLUMN mk_quality_dashboard_alert.actual_value IS '触发时真实值';
+COMMENT ON COLUMN mk_quality_dashboard_alert.title IS '业务字段：title';
+COMMENT ON COLUMN mk_quality_dashboard_alert.evidence_summary IS '预警证据摘要';
+COMMENT ON COLUMN mk_quality_dashboard_alert.created_at IS '创建时间';
+COMMENT ON COLUMN mk_quality_dashboard_alert.created_by IS '创建人';
+COMMENT ON COLUMN mk_quality_dashboard_alert.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_quality_dashboard_alert.updated_by IS '更新人';
+COMMENT ON COLUMN mk_quality_dashboard_alert.trace_id IS '链路追踪 ID';
+COMMENT ON TABLE mk_quality_drg_grouping IS 'SVC-QUALITY-02 DRG/DIP 入组核对结果表，保存版本化分组解释';
+COMMENT ON COLUMN mk_quality_drg_grouping.id IS '数据库主键';
+COMMENT ON COLUMN mk_quality_drg_grouping.grouping_id IS '业务字段：grouping_id';
+COMMENT ON COLUMN mk_quality_drg_grouping.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_quality_drg_grouping.context_snapshot_id IS '业务字段：context_snapshot_id';
+COMMENT ON COLUMN mk_quality_drg_grouping.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN mk_quality_drg_grouping.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN mk_quality_drg_grouping.department_id IS '业务字段：department_id';
+COMMENT ON COLUMN mk_quality_drg_grouping.grouper_version IS 'DRG/DIP 分组器版本';
+COMMENT ON COLUMN mk_quality_drg_grouping.expected_group_code IS '业务字段：expected_group_code';
+COMMENT ON COLUMN mk_quality_drg_grouping.actual_group_code IS '业务字段：actual_group_code';
+COMMENT ON COLUMN mk_quality_drg_grouping.grouping_status IS '入组核对状态';
+COMMENT ON COLUMN mk_quality_drg_grouping.explanation IS '业务字段：explanation';
+COMMENT ON COLUMN mk_quality_drg_grouping.evidence_summary IS '业务字段：evidence_summary';
+COMMENT ON COLUMN mk_quality_drg_grouping.created_at IS '创建时间';
+COMMENT ON COLUMN mk_quality_drg_grouping.created_by IS '创建人';
+COMMENT ON COLUMN mk_quality_drg_grouping.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_quality_drg_grouping.updated_by IS '更新人';
+COMMENT ON COLUMN mk_quality_drg_grouping.trace_id IS '追踪号';
+COMMENT ON TABLE mk_quality_insurance_issue IS 'SVC-QUALITY-02 医保病案问题表，保存编码、费用、入组和医保违规证据';
+COMMENT ON COLUMN mk_quality_insurance_issue.id IS '数据库主键';
+COMMENT ON COLUMN mk_quality_insurance_issue.issue_id IS '业务字段：issue_id';
+COMMENT ON COLUMN mk_quality_insurance_issue.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_quality_insurance_issue.context_snapshot_id IS '业务字段：context_snapshot_id';
+COMMENT ON COLUMN mk_quality_insurance_issue.claim_id IS '医保结算事实 ID';
+COMMENT ON COLUMN mk_quality_insurance_issue.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN mk_quality_insurance_issue.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN mk_quality_insurance_issue.department_id IS '业务字段：department_id';
+COMMENT ON COLUMN mk_quality_insurance_issue.issue_type IS '医保病案问题类型';
+COMMENT ON COLUMN mk_quality_insurance_issue.severity IS '业务字段：severity';
+COMMENT ON COLUMN mk_quality_insurance_issue.status IS '当前状态';
+COMMENT ON COLUMN mk_quality_insurance_issue.rule_code IS '业务字段：rule_code';
+COMMENT ON COLUMN mk_quality_insurance_issue.rule_version IS '业务字段：rule_version';
+COMMENT ON COLUMN mk_quality_insurance_issue.claim_amount IS '业务字段：claim_amount';
+COMMENT ON COLUMN mk_quality_insurance_issue.threshold_amount IS '业务字段：threshold_amount';
+COMMENT ON COLUMN mk_quality_insurance_issue.evidence_summary IS '可追溯病历与结算证据摘要';
+COMMENT ON COLUMN mk_quality_insurance_issue.evaluation_run_id IS '业务字段：evaluation_run_id';
+COMMENT ON COLUMN mk_quality_insurance_issue.finding_id IS '业务字段：finding_id';
+COMMENT ON COLUMN mk_quality_insurance_issue.created_at IS '创建时间';
+COMMENT ON COLUMN mk_quality_insurance_issue.created_by IS '创建人';
+COMMENT ON COLUMN mk_quality_insurance_issue.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_quality_insurance_issue.updated_by IS '更新人';
+COMMENT ON COLUMN mk_quality_insurance_issue.trace_id IS '链路追踪 ID';
+COMMENT ON TABLE mk_sandbox_replay_asset_binding IS '历史重放精确资产版本及只读内容快照，不进入当前知识资产生命周期';
+COMMENT ON COLUMN mk_sandbox_replay_asset_binding.id IS '数据库主键';
+COMMENT ON COLUMN mk_sandbox_replay_asset_binding.binding_id IS '业务字段：binding_id';
+COMMENT ON COLUMN mk_sandbox_replay_asset_binding.sandbox_tenant_id IS '业务字段：sandbox_tenant_id';
+COMMENT ON COLUMN mk_sandbox_replay_asset_binding.replay_case_id IS '业务字段：replay_case_id';
+COMMENT ON COLUMN mk_sandbox_replay_asset_binding.asset_type IS '业务字段：asset_type';
+COMMENT ON COLUMN mk_sandbox_replay_asset_binding.asset_identity IS '业务字段：asset_identity';
+COMMENT ON COLUMN mk_sandbox_replay_asset_binding.version_id IS '业务字段：version_id';
+COMMENT ON COLUMN mk_sandbox_replay_asset_binding.asset_version IS '业务字段：asset_version';
+COMMENT ON COLUMN mk_sandbox_replay_asset_binding.source_tier IS '业务字段：source_tier';
+COMMENT ON COLUMN mk_sandbox_replay_asset_binding.source_org_ref IS '业务字段：source_org_ref';
+COMMENT ON COLUMN mk_sandbox_replay_asset_binding.content_json IS '历史资产只读内容快照';
+COMMENT ON COLUMN mk_sandbox_replay_asset_binding.content_hash IS '历史资产规范 JSON 的 SHA-256 摘要';
+COMMENT ON COLUMN mk_sandbox_replay_asset_binding.historical_status IS '业务字段：historical_status';
+COMMENT ON COLUMN mk_sandbox_replay_asset_binding.created_at IS '创建时间';
+COMMENT ON COLUMN mk_sandbox_replay_asset_binding.created_by IS '创建人';
+COMMENT ON COLUMN mk_sandbox_replay_asset_binding.trace_id IS '追踪号';
+COMMENT ON TABLE mk_sandbox_replay_case IS '沙盘历史重放不可变明细：保存 D4 脱敏上下文、来源机构生效版本引用和精确版本明细校验码';
+COMMENT ON COLUMN mk_sandbox_replay_case.id IS '数据库主键';
+COMMENT ON COLUMN mk_sandbox_replay_case.replay_case_id IS '业务字段：replay_case_id';
+COMMENT ON COLUMN mk_sandbox_replay_case.sandbox_tenant_id IS '业务字段：sandbox_tenant_id';
+COMMENT ON COLUMN mk_sandbox_replay_case.source_tenant_ref IS '现场来源租户的 SHA-256 不可逆别名，禁止保存真实租户标识';
+COMMENT ON COLUMN mk_sandbox_replay_case.source_event_ref IS '业务字段：source_event_ref';
+COMMENT ON COLUMN mk_sandbox_replay_case.source_trace_ref IS '业务字段：source_trace_ref';
+COMMENT ON COLUMN mk_sandbox_replay_case.source_context_ref IS '业务字段：source_context_ref';
+COMMENT ON COLUMN mk_sandbox_replay_case.context_snapshot_json IS '历史重放使用的 D4 脱敏规范上下文快照';
+COMMENT ON COLUMN mk_sandbox_replay_case.context_snapshot_hash IS '脱敏上下文规范 JSON 的 SHA-256 摘要';
+COMMENT ON COLUMN mk_sandbox_replay_case.source_runtime_release_ref IS '来源机构生效版本的 SHA-256 不可逆引用，禁止保存可反查现场的真实标识';
+COMMENT ON COLUMN mk_sandbox_replay_case.source_runtime_revision_no IS '来源医院当时使用的生效版本号';
+COMMENT ON COLUMN mk_sandbox_replay_case.occurred_at IS '业务字段：occurred_at';
+COMMENT ON COLUMN mk_sandbox_replay_case.manifest_hash IS '上下文与全部精确版本绑定共同计算的历史重放校验码';
+COMMENT ON COLUMN mk_sandbox_replay_case.deidentification_profile IS '业务字段：deidentification_profile';
+COMMENT ON COLUMN mk_sandbox_replay_case.status IS '当前状态';
+COMMENT ON COLUMN mk_sandbox_replay_case.imported_at IS '业务字段：imported_at';
+COMMENT ON COLUMN mk_sandbox_replay_case.imported_by IS '业务字段：imported_by';
+COMMENT ON COLUMN mk_sandbox_replay_case.revoked_at IS '业务字段：revoked_at';
+COMMENT ON COLUMN mk_sandbox_replay_case.revoked_by IS '业务字段：revoked_by';
+COMMENT ON COLUMN mk_sandbox_replay_case.revoke_reason IS '业务字段：revoke_reason';
+COMMENT ON COLUMN mk_sandbox_replay_case.created_at IS '创建时间';
+COMMENT ON COLUMN mk_sandbox_replay_case.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_sandbox_replay_case.trace_id IS '追踪号';
+COMMENT ON TABLE mk_sandbox_run IS '沙盘运行账本：保存不可变运行基线、解析来源、资产快照和执行状态';
+COMMENT ON COLUMN mk_sandbox_run.id IS '数据库主键';
+COMMENT ON COLUMN mk_sandbox_run.run_id IS '业务字段：run_id';
+COMMENT ON COLUMN mk_sandbox_run.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_sandbox_run.scenario_id IS '业务字段：scenario_id';
+COMMENT ON COLUMN mk_sandbox_run.run_mode IS '沙盘运行模式：CURRENT、HISTORICAL_EXACT 或 COMPARE';
+COMMENT ON COLUMN mk_sandbox_run.baseline_id IS '单次沙盘运行锁定的标准版本标识';
+COMMENT ON COLUMN mk_sandbox_run.runtime_release_ref IS '当前模式保存机构生效版本 ID；历史模式保存来源机构生效版本不可逆引用';
+COMMENT ON COLUMN mk_sandbox_run.runtime_revision_no IS '本次锁定的机构生效版本号';
+COMMENT ON COLUMN mk_sandbox_run.platform_baseline_release_id IS 'CURRENT 与 COMPARE 模式锁定的平台标准版本 ID';
+COMMENT ON COLUMN mk_sandbox_run.manifest_sha256 IS '机构生效版本或历史重放明细的 SHA-256 校验码';
+COMMENT ON COLUMN mk_sandbox_run.resolution_source IS '业务字段：resolution_source';
+COMMENT ON COLUMN mk_sandbox_run.asset_manifest_json IS '本次锁定的精确版本明细，不得在执行中重新解析';
+COMMENT ON COLUMN mk_sandbox_run.baseline_hash IS '不可变运行基线 SHA-256';
+COMMENT ON COLUMN mk_sandbox_run.external_side_effect_status IS '外部副作用必须为 SUPPRESSED，禁止现场写回';
+COMMENT ON COLUMN mk_sandbox_run.status IS '当前状态';
+COMMENT ON COLUMN mk_sandbox_run.failure_code IS '业务字段：failure_code';
+COMMENT ON COLUMN mk_sandbox_run.failure_message IS '业务字段：failure_message';
+COMMENT ON COLUMN mk_sandbox_run.started_at IS '业务字段：started_at';
+COMMENT ON COLUMN mk_sandbox_run.completed_at IS '业务字段：completed_at';
+COMMENT ON COLUMN mk_sandbox_run.trace_id IS '追踪号';
+COMMENT ON COLUMN mk_sandbox_run.created_at IS '创建时间';
+COMMENT ON COLUMN mk_sandbox_run.created_by IS '创建人';
+COMMENT ON COLUMN mk_sandbox_run.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_sandbox_run.updated_by IS '更新人';
+COMMENT ON COLUMN mk_sandbox_run.replay_case_id IS 'HISTORICAL_EXACT 或 COMPARE 使用的演练机构历史重放清单标识';
+COMMENT ON TABLE mk_security_bootstrap_init_token IS '首次部署一次性 init token：仅保存 SHA-256 摘要，用于全新生产环境安全接管';
+COMMENT ON COLUMN mk_security_bootstrap_init_token.id IS '数据库主键';
+COMMENT ON COLUMN mk_security_bootstrap_init_token.token_id IS '业务字段：token_id';
+COMMENT ON COLUMN mk_security_bootstrap_init_token.token_hash IS 'init token 的 SHA-256 摘要，禁止保存明文 token';
+COMMENT ON COLUMN mk_security_bootstrap_init_token.status IS '当前状态';
+COMMENT ON COLUMN mk_security_bootstrap_init_token.expires_at IS 'token 过期时间，过期后必须诚实拒绝';
+COMMENT ON COLUMN mk_security_bootstrap_init_token.used_at IS 'token 首次消费时间，非空表示已使用';
+COMMENT ON COLUMN mk_security_bootstrap_init_token.used_by IS '业务字段：used_by';
+COMMENT ON COLUMN mk_security_bootstrap_init_token.created_at IS '创建时间';
+COMMENT ON COLUMN mk_security_bootstrap_init_token.created_by IS '创建人';
+COMMENT ON COLUMN mk_security_bootstrap_init_token.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_security_bootstrap_init_token.updated_by IS '更新人';
+COMMENT ON COLUMN mk_security_bootstrap_init_token.trace_id IS '链路追踪标识，与入站最长 128 字符契约一致';
+COMMENT ON TABLE mk_term_candidate_generation_job IS '业务表：mk_term_candidate_generation_job';
+COMMENT ON COLUMN mk_term_candidate_generation_job.id IS '数据库主键';
+COMMENT ON COLUMN mk_term_candidate_generation_job.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_term_candidate_generation_job.job_code IS '业务字段：job_code';
+COMMENT ON COLUMN mk_term_candidate_generation_job.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN mk_term_candidate_generation_job.minimum_score IS '业务字段：minimum_score';
+COMMENT ON COLUMN mk_term_candidate_generation_job.semantic_assist_enabled IS '业务字段：semantic_assist_enabled';
+COMMENT ON COLUMN mk_term_candidate_generation_job.requested_by IS '业务字段：requested_by';
+COMMENT ON COLUMN mk_term_candidate_generation_job.status IS '当前状态';
+COMMENT ON COLUMN mk_term_candidate_generation_job.progress IS '业务字段：progress';
+COMMENT ON COLUMN mk_term_candidate_generation_job.generated_count IS '业务字段：generated_count';
+COMMENT ON COLUMN mk_term_candidate_generation_job.candidate_page_uri IS '业务字段：candidate_page_uri';
+COMMENT ON COLUMN mk_term_candidate_generation_job.error_message IS '业务字段：error_message';
+COMMENT ON COLUMN mk_term_candidate_generation_job.created_at IS '创建时间';
+COMMENT ON COLUMN mk_term_candidate_generation_job.started_at IS '业务字段：started_at';
+COMMENT ON COLUMN mk_term_candidate_generation_job.completed_at IS '业务字段：completed_at';
+COMMENT ON TABLE mk_term_high_risk_rule IS '术语高危近似规则：用于识别必须人工逐条二次确认的高危候选';
+COMMENT ON COLUMN mk_term_high_risk_rule.id IS '数据库主键';
+COMMENT ON COLUMN mk_term_high_risk_rule.tenant_id IS '租户 ID；SYSTEM 表示平台全局安全底线规则';
+COMMENT ON COLUMN mk_term_high_risk_rule.rule_code IS '规则编码，租户内唯一';
+COMMENT ON COLUMN mk_term_high_risk_rule.rule_type IS '规则类型：MUTUALLY_EXCLUSIVE_TERMS 互斥词组 / DOSE_MAGNITUDE 剂量量级 / UNIT_STRENGTH 单位强度';
+COMMENT ON COLUMN mk_term_high_risk_rule.category IS '适用术语分类；为空表示跨分类通用';
+COMMENT ON COLUMN mk_term_high_risk_rule.left_terms IS '左侧词组，使用竖线等分隔，命中后与右侧词组互斥判断';
+COMMENT ON COLUMN mk_term_high_risk_rule.right_terms IS '右侧词组，使用竖线等分隔，命中后与左侧词组互斥判断';
+COMMENT ON COLUMN mk_term_high_risk_rule.unit_terms IS '剂量或单位词组，用于剂量量级和单位强度判断';
+COMMENT ON COLUMN mk_term_high_risk_rule.scale_ratio IS '剂量量级阈值，例如 10 表示十倍及以上差异';
+COMMENT ON COLUMN mk_term_high_risk_rule.evidence_text IS '命中证据文案，展示给审核人并写入候选证据';
+COMMENT ON COLUMN mk_term_high_risk_rule.status IS '规则状态：ACTIVE 可用 / DISABLED 停用';
+COMMENT ON COLUMN mk_term_high_risk_rule.created_at IS '创建时间';
+COMMENT ON COLUMN mk_term_high_risk_rule.created_by IS '创建人';
+COMMENT ON COLUMN mk_term_high_risk_rule.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_term_high_risk_rule.updated_by IS '更新人';
+COMMENT ON TABLE mk_term_mapping_snapshot IS '术语资产版本不可变映射快照：运行时仅通过机构生效版本锁定的精确版本读取';
+COMMENT ON COLUMN mk_term_mapping_snapshot.id IS '数据库主键';
+COMMENT ON COLUMN mk_term_mapping_snapshot.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_term_mapping_snapshot.version_id IS '术语资产版本标识 → mk_version_asset_version.version_id';
+COMMENT ON COLUMN mk_term_mapping_snapshot.mapping_id IS '业务字段：mapping_id';
+COMMENT ON COLUMN mk_term_mapping_snapshot.local_term_id IS '构包时固化的院内术语 ID';
+COMMENT ON COLUMN mk_term_mapping_snapshot.standard_term_id IS '构包时固化的标准术语 ID';
+COMMENT ON COLUMN mk_term_mapping_snapshot.source_system IS '构包时固化的院内来源系统';
+COMMENT ON COLUMN mk_term_mapping_snapshot.local_code IS '构包时固化的院内编码';
+COMMENT ON COLUMN mk_term_mapping_snapshot.target_dictionary_key IS '构包时固化的目标标准字典';
+COMMENT ON COLUMN mk_term_mapping_snapshot.standard_code IS '构包时固化的标准编码';
+COMMENT ON COLUMN mk_term_mapping_snapshot.category IS '构包时固化的术语分类';
+COMMENT ON COLUMN mk_term_mapping_snapshot.mapping_snapshot IS '不可变术语映射 JSON 快照';
+COMMENT ON COLUMN mk_term_mapping_snapshot.created_at IS '创建时间';
+COMMENT ON COLUMN mk_term_mapping_snapshot.created_by IS '创建人';
+COMMENT ON TABLE mk_version_activation_transaction IS '通用版本激活事务：记录全量激活与回滚的原子切换证据';
+COMMENT ON COLUMN mk_version_activation_transaction.id IS '数据库主键';
+COMMENT ON COLUMN mk_version_activation_transaction.transaction_id IS '激活事务业务 ID';
+COMMENT ON COLUMN mk_version_activation_transaction.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_version_activation_transaction.asset_type IS '激活事务资产类型（统一枚举）';
+COMMENT ON COLUMN mk_version_activation_transaction.asset_identity IS '资产身份编码';
+COMMENT ON COLUMN mk_version_activation_transaction.from_version_id IS '被替换或回滚来源版本 ID';
+COMMENT ON COLUMN mk_version_activation_transaction.to_version_id IS '激活目标版本 ID';
+COMMENT ON COLUMN mk_version_activation_transaction.action IS '生效事务动作：PUBLISH 发布或 ROLLBACK 回滚';
+COMMENT ON COLUMN mk_version_activation_transaction.active_scope_key IS '唯一生效域键';
+COMMENT ON COLUMN mk_version_activation_transaction.impact_digest IS '影响摘要';
+COMMENT ON COLUMN mk_version_activation_transaction.evidence_summary IS '激活事务证据摘要';
+COMMENT ON COLUMN mk_version_activation_transaction.created_at IS '创建时间';
+COMMENT ON COLUMN mk_version_activation_transaction.created_by IS '创建人';
+COMMENT ON COLUMN mk_version_activation_transaction.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_version_activation_transaction.updated_by IS '更新人';
+COMMENT ON COLUMN mk_version_activation_transaction.trace_id IS '链路追踪 ID';
+COMMENT ON TABLE mk_version_asset_dependency IS '资产依赖图：记录某一资产版本引用的字段、字典、规则、路径或包项';
+COMMENT ON COLUMN mk_version_asset_dependency.id IS '数据库主键';
+COMMENT ON COLUMN mk_version_asset_dependency.dependency_id IS '依赖边业务 ID，跨方言唯一';
+COMMENT ON COLUMN mk_version_asset_dependency.tenant_id IS '租户 ID；平台资产使用 __platform__';
+COMMENT ON COLUMN mk_version_asset_dependency.asset_type IS '依赖来源资产类型';
+COMMENT ON COLUMN mk_version_asset_dependency.asset_identity IS '依赖来源资产身份';
+COMMENT ON COLUMN mk_version_asset_dependency.version_id IS '依赖来源资产版本 ID';
+COMMENT ON COLUMN mk_version_asset_dependency.depends_on_asset_type IS '被依赖资产类型';
+COMMENT ON COLUMN mk_version_asset_dependency.depends_on_identity IS '被依赖资产身份；发布与 DISABLE 校验以此定位悬空引用';
+COMMENT ON COLUMN mk_version_asset_dependency.min_version_no IS '被依赖资产最小兼容版本号；为空表示不限制下界';
+COMMENT ON COLUMN mk_version_asset_dependency.max_version_no IS '被依赖资产最大兼容版本号；为空表示不限制上界';
+COMMENT ON COLUMN mk_version_asset_dependency.dependency_kind IS '依赖边类型：字段、术语、规则、路径、包项、评估、随访或其他';
+COMMENT ON COLUMN mk_version_asset_dependency.created_at IS '创建时间';
+COMMENT ON COLUMN mk_version_asset_dependency.created_by IS '创建人';
+COMMENT ON COLUMN mk_version_asset_dependency.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_version_asset_dependency.updated_by IS '更新人';
+COMMENT ON COLUMN mk_version_asset_dependency.trace_id IS '链路追踪 ID';
+COMMENT ON TABLE mk_version_asset_content IS '统一配置资产正文：保存可恢复内容并与版本元数据一一对应';
+COMMENT ON COLUMN mk_version_asset_content.id IS '数据库主键';
+COMMENT ON COLUMN mk_version_asset_content.version_id IS '统一资产版本业务 ID';
+COMMENT ON COLUMN mk_version_asset_content.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_version_asset_content.content_json IS '资产完整可恢复正文，按资产类型契约解释';
+COMMENT ON COLUMN mk_version_asset_content.content_hash IS '正文 SHA-256 十六进制指纹，必须与版本元数据一致';
+COMMENT ON COLUMN mk_version_asset_content.created_at IS '创建时间';
+COMMENT ON COLUMN mk_version_asset_content.created_by IS '创建人';
+COMMENT ON COLUMN mk_version_asset_content.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_version_asset_content.updated_by IS '更新人';
+COMMENT ON COLUMN mk_version_asset_content.trace_id IS '链路追踪 ID';
+COMMENT ON TABLE mk_version_asset_version IS '通用配置资产版本：登记不可变版本、内容指纹和生效域唯一键';
+COMMENT ON COLUMN mk_version_asset_version.id IS '数据库主键';
+COMMENT ON COLUMN mk_version_asset_version.version_id IS '版本业务 ID，跨方言唯一';
+COMMENT ON COLUMN mk_version_asset_version.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_version_asset_version.asset_type IS '资产类型（统一枚举）：知识、术语、规则、路径、评估、随访、字段目录、包、推荐、安全、CDSS风险、值集、计算公式、医嘱套餐、临床提示卡';
+COMMENT ON COLUMN mk_version_asset_version.asset_identity IS '资产身份编码，同一身份下版本号单调演进';
+COMMENT ON COLUMN mk_version_asset_version.version_no IS '资产版本号，租户与资产身份内唯一';
+COMMENT ON COLUMN mk_version_asset_version.org_path IS '组织树生效域，记录组织继承中的发布范围';
+COMMENT ON COLUMN mk_version_asset_version.applicable_scope IS '适用人群或上下文范围，参与唯一生效域判定';
+COMMENT ON COLUMN mk_version_asset_version.content_hash IS '资产内容 SHA-256 十六进制指纹，禁止版本号或时间戳伪造';
+COMMENT ON COLUMN mk_version_asset_version.status IS '统一内容版本状态：DRAFT 草稿、PUBLISHED 已发布、WITHDRAWN 已撤回';
+COMMENT ON COLUMN mk_version_asset_version.active_scope_key IS 'ACTIVE 时为资产身份、组织域和适用域拼接键；非 ACTIVE 使用 version:<version_id> 保持唯一';
+COMMENT ON COLUMN mk_version_asset_version.source_ref IS '来源引用，例如知识来源、规则定义或包条目引用';
+COMMENT ON COLUMN mk_version_asset_version.effective_from IS '生效开始时间，PR1 可为空，后续发布流写入';
+COMMENT ON COLUMN mk_version_asset_version.effective_to IS '生效结束时间，PR1 可为空，后续下线或回滚写入';
+COMMENT ON COLUMN mk_version_asset_version.created_at IS '创建时间';
+COMMENT ON COLUMN mk_version_asset_version.created_by IS '创建人';
+COMMENT ON COLUMN mk_version_asset_version.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_version_asset_version.updated_by IS '更新人';
+COMMENT ON COLUMN mk_version_asset_version.trace_id IS '链路追踪 ID';
+COMMENT ON COLUMN mk_version_asset_version.safety_policy IS '继承安全策略：NORMAL 普通配置 / SAFETY_REDLINE 高风险禁忌红线';
+COMMENT ON COLUMN mk_version_asset_version.override_policy IS '下游覆盖策略护栏：FREE 可自由覆盖 / REVIEW 覆盖需评审 / LOCKED 安全单调（禁止关闭、只能收紧不能放宽）';
+COMMENT ON TABLE mk_version_inheritance_override IS '组织继承局部覆盖解释：记录下级覆盖上级版本的差异、原因和影响范围';
+COMMENT ON COLUMN mk_version_inheritance_override.id IS '数据库主键';
+COMMENT ON COLUMN mk_version_inheritance_override.override_id IS '覆盖解释业务 ID，跨方言唯一';
+COMMENT ON COLUMN mk_version_inheritance_override.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_version_inheritance_override.asset_type IS '继承覆盖资产类型（统一枚举）';
+COMMENT ON COLUMN mk_version_inheritance_override.asset_identity IS '资产身份编码';
+COMMENT ON COLUMN mk_version_inheritance_override.inherited_version_id IS '被继承的上级资产版本 ID；ADD 独有资产为空';
+COMMENT ON COLUMN mk_version_inheritance_override.override_version_id IS '本地覆盖或独有版本 ID；关闭继承时为空';
+COMMENT ON COLUMN mk_version_inheritance_override.override_mode IS '覆盖方式：REPLACE 本地版本替换 / DISABLE 关闭继承 / ADD 新增独有资产';
+COMMENT ON COLUMN mk_version_inheritance_override.org_path IS '覆盖生效组织路径';
+COMMENT ON COLUMN mk_version_inheritance_override.applicable_scope IS '适用人群或上下文范围';
+COMMENT ON COLUMN mk_version_inheritance_override.diff_summary IS '本地覆盖与继承版本的差异说明';
+COMMENT ON COLUMN mk_version_inheritance_override.override_reason IS '本地覆盖的业务原因和审核依据';
+COMMENT ON COLUMN mk_version_inheritance_override.impact_scope IS '覆盖影响范围说明';
+COMMENT ON COLUMN mk_version_inheritance_override.created_at IS '创建时间';
+COMMENT ON COLUMN mk_version_inheritance_override.created_by IS '创建人';
+COMMENT ON COLUMN mk_version_inheritance_override.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_version_inheritance_override.updated_by IS '更新人';
+COMMENT ON COLUMN mk_version_inheritance_override.trace_id IS '链路追踪 ID';
+COMMENT ON COLUMN mk_version_inheritance_override.propagation IS '覆盖传播范围：INHERITABLE 下级复用 / EXCLUSIVE 仅本节点独有';
+COMMENT ON COLUMN mk_version_inheritance_override.lifecycle_status IS '覆盖状态：ACTIVE 已启用 / RETIRED 已退役；ACTIVE 参与解析，RETIRED 仅用于历史重放窗口';
+COMMENT ON TABLE mk_version_override_operation IS '覆盖模板批量预演、生效、撤销和克隆记录';
+COMMENT ON COLUMN mk_version_override_operation.id IS '数据库主键';
+COMMENT ON COLUMN mk_version_override_operation.operation_id IS '业务字段：operation_id';
+COMMENT ON COLUMN mk_version_override_operation.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_version_override_operation.operation_type IS '业务字段：operation_type';
+COMMENT ON COLUMN mk_version_override_operation.template_id IS '业务字段：template_id';
+COMMENT ON COLUMN mk_version_override_operation.source_org_unit_id IS '业务字段：source_org_unit_id';
+COMMENT ON COLUMN mk_version_override_operation.target_org_units_json IS '业务字段：target_org_units_json';
+COMMENT ON COLUMN mk_version_override_operation.status IS '当前状态';
+COMMENT ON COLUMN mk_version_override_operation.preview_digest IS '业务字段：preview_digest';
+COMMENT ON COLUMN mk_version_override_operation.result_summary_json IS '业务字段：result_summary_json';
+COMMENT ON COLUMN mk_version_override_operation.created_at IS '创建时间';
+COMMENT ON COLUMN mk_version_override_operation.created_by IS '创建人';
+COMMENT ON COLUMN mk_version_override_operation.trace_id IS '追踪号';
+COMMENT ON TABLE mk_version_override_template IS '可复用的组织覆盖模板';
+COMMENT ON COLUMN mk_version_override_template.id IS '数据库主键';
+COMMENT ON COLUMN mk_version_override_template.template_id IS '业务字段：template_id';
+COMMENT ON COLUMN mk_version_override_template.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_version_override_template.template_name IS '业务字段：template_name';
+COMMENT ON COLUMN mk_version_override_template.description IS '业务字段：description';
+COMMENT ON COLUMN mk_version_override_template.applicable_scope IS '业务字段：applicable_scope';
+COMMENT ON COLUMN mk_version_override_template.status IS '当前状态';
+COMMENT ON COLUMN mk_version_override_template.created_at IS '创建时间';
+COMMENT ON COLUMN mk_version_override_template.created_by IS '创建人';
+COMMENT ON COLUMN mk_version_override_template.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_version_override_template.updated_by IS '更新人';
+COMMENT ON COLUMN mk_version_override_template.trace_id IS '追踪号';
+COMMENT ON TABLE mk_version_override_template_item IS '覆盖模板内的资产覆盖项';
+COMMENT ON COLUMN mk_version_override_template_item.id IS '数据库主键';
+COMMENT ON COLUMN mk_version_override_template_item.item_id IS '业务字段：item_id';
+COMMENT ON COLUMN mk_version_override_template_item.template_id IS '业务字段：template_id';
+COMMENT ON COLUMN mk_version_override_template_item.asset_type IS '业务字段：asset_type';
+COMMENT ON COLUMN mk_version_override_template_item.asset_identity IS '业务字段：asset_identity';
+COMMENT ON COLUMN mk_version_override_template_item.inherited_version_id IS '业务字段：inherited_version_id';
+COMMENT ON COLUMN mk_version_override_template_item.source_override_version_id IS '业务字段：source_override_version_id';
+COMMENT ON COLUMN mk_version_override_template_item.override_mode IS '业务字段：override_mode';
+COMMENT ON COLUMN mk_version_override_template_item.propagation IS '业务字段：propagation';
+COMMENT ON COLUMN mk_version_override_template_item.applicable_scope IS '业务字段：applicable_scope';
+COMMENT ON COLUMN mk_version_override_template_item.diff_summary IS '业务字段：diff_summary';
+COMMENT ON COLUMN mk_version_override_template_item.override_reason IS '业务字段：override_reason';
+COMMENT ON TABLE mk_version_release_plan IS '通用版本发布计划：记录审核、静默观察、灰度、全量和回滚证据';
+COMMENT ON COLUMN mk_version_release_plan.id IS '数据库主键';
+COMMENT ON COLUMN mk_version_release_plan.plan_id IS '发布计划业务 ID';
+COMMENT ON COLUMN mk_version_release_plan.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_version_release_plan.asset_type IS '发布计划资产类型（统一枚举）';
+COMMENT ON COLUMN mk_version_release_plan.asset_identity IS '资产身份编码';
+COMMENT ON COLUMN mk_version_release_plan.version_id IS '目标版本 ID';
+COMMENT ON COLUMN mk_version_release_plan.from_version_id IS '来源版本 ID，全量替换或回滚时记录';
+COMMENT ON COLUMN mk_version_release_plan.target_org_path IS '发布目标组织路径';
+COMMENT ON COLUMN mk_version_release_plan.applicable_scope IS '发布适用范围';
+COMMENT ON COLUMN mk_version_release_plan.scope_type IS '版本发布组织范围类型：ALL 全量、REGION 区域、FACILITY 机构、CAMPUS 院区、DEPARTMENT 科室、WARD 病区';
+COMMENT ON COLUMN mk_version_release_plan.scope_value IS '发布范围取值，灰度时记录放量策略与范围快照';
+COMMENT ON COLUMN mk_version_release_plan.status IS '发布计划状态：评审中、拒绝、批准、发布、灰度、已回滚或失败';
+COMMENT ON COLUMN mk_version_release_plan.impact_digest IS '发布影响摘要';
+COMMENT ON COLUMN mk_version_release_plan.review_conclusion IS '审核结论';
+COMMENT ON COLUMN mk_version_release_plan.evidence_summary IS '发布证据摘要';
+COMMENT ON COLUMN mk_version_release_plan.created_at IS '创建时间';
+COMMENT ON COLUMN mk_version_release_plan.created_by IS '创建人';
+COMMENT ON COLUMN mk_version_release_plan.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_version_release_plan.updated_by IS '更新人';
+COMMENT ON COLUMN mk_version_release_plan.trace_id IS '链路追踪 ID';
+COMMENT ON COLUMN mk_version_release_plan.quality_gate_summary IS '平台发布质量门摘要：结构、术语字段、依赖、安全与影响模拟';
+COMMENT ON COLUMN mk_version_release_plan.rollout_strategy IS '发布放量策略，与组织作用域独立';
+COMMENT ON COLUMN mk_version_release_plan.rollout_config_json IS '结构化灰度策略参数 JSON';
+COMMENT ON COLUMN mk_version_release_plan.rollout_stage_index IS '当前已进入的灰度批次下标';
+COMMENT ON COLUMN mk_version_release_plan.rollout_paused_reason IS '自动或人工暂停放量的原因';
+COMMENT ON TABLE mk_version_replay_binding IS '历史重放绑定：将运行结果绑定到当时患者快照与资产版本';
+COMMENT ON COLUMN mk_version_replay_binding.id IS '数据库主键';
+COMMENT ON COLUMN mk_version_replay_binding.binding_id IS '重放绑定业务 ID';
+COMMENT ON COLUMN mk_version_replay_binding.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mk_version_replay_binding.asset_type IS '历史重放资产类型（统一枚举）';
+COMMENT ON COLUMN mk_version_replay_binding.asset_identity IS '资产身份编码';
+COMMENT ON COLUMN mk_version_replay_binding.version_id IS '历史资产版本 ID';
+COMMENT ON COLUMN mk_version_replay_binding.patient_snapshot_id IS '当时患者上下文快照 ID';
+COMMENT ON COLUMN mk_version_replay_binding.runtime_event_id IS '运行事件 ID';
+COMMENT ON COLUMN mk_version_replay_binding.result_hash IS '运行结果 SHA-256 摘要';
+COMMENT ON COLUMN mk_version_replay_binding.created_at IS '创建时间';
+COMMENT ON COLUMN mk_version_replay_binding.created_by IS '创建人';
+COMMENT ON COLUMN mk_version_replay_binding.updated_at IS '更新时间';
+COMMENT ON COLUMN mk_version_replay_binding.updated_by IS '更新人';
+COMMENT ON COLUMN mk_version_replay_binding.trace_id IS '链路追踪 ID';
+COMMENT ON TABLE mk_version_rollout_observation IS '灰度批次关键指标观测事实';
+COMMENT ON COLUMN mk_version_rollout_observation.id IS '数据库主键';
+COMMENT ON COLUMN mk_version_rollout_observation.observation_id IS '业务字段：observation_id';
+COMMENT ON COLUMN mk_version_rollout_observation.plan_id IS '业务字段：plan_id';
+COMMENT ON COLUMN mk_version_rollout_observation.tenant_id IS '租户标识';
+COMMENT ON COLUMN mk_version_rollout_observation.stage_index IS '业务字段：stage_index';
+COMMENT ON COLUMN mk_version_rollout_observation.sample_count IS '业务字段：sample_count';
+COMMENT ON COLUMN mk_version_rollout_observation.hit_count IS '业务字段：hit_count';
+COMMENT ON COLUMN mk_version_rollout_observation.block_count IS '业务字段：block_count';
+COMMENT ON COLUMN mk_version_rollout_observation.manual_rejection_count IS '业务字段：manual_rejection_count';
+COMMENT ON COLUMN mk_version_rollout_observation.anomaly_count IS '业务字段：anomaly_count';
+COMMENT ON COLUMN mk_version_rollout_observation.hit_rate IS '业务字段：hit_rate';
+COMMENT ON COLUMN mk_version_rollout_observation.block_rate IS '业务字段：block_rate';
+COMMENT ON COLUMN mk_version_rollout_observation.manual_rejection_rate IS '业务字段：manual_rejection_rate';
+COMMENT ON COLUMN mk_version_rollout_observation.anomaly_rate IS '业务字段：anomaly_rate';
+COMMENT ON COLUMN mk_version_rollout_observation.observed_at IS '业务字段：observed_at';
+COMMENT ON COLUMN mk_version_rollout_observation.created_by IS '创建人';
+COMMENT ON COLUMN mk_version_rollout_observation.trace_id IS '追踪号';
+COMMENT ON TABLE model_capability_definition IS '平台模型能力目录';
+COMMENT ON COLUMN model_capability_definition.capability_code IS '业务字段：capability_code';
+COMMENT ON COLUMN model_capability_definition.display_name IS '业务字段：display_name';
+COMMENT ON COLUMN model_capability_definition.description IS '业务字段：description';
+COMMENT ON COLUMN model_capability_definition.category IS '业务字段：category';
+COMMENT ON COLUMN model_capability_definition.enabled_flag IS '业务字段：enabled_flag';
+COMMENT ON COLUMN model_capability_definition.sort_order IS '业务字段：sort_order';
+COMMENT ON COLUMN model_capability_definition.created_at IS '创建时间';
+COMMENT ON COLUMN model_capability_definition.created_by IS '创建人';
+COMMENT ON COLUMN model_capability_definition.updated_at IS '更新时间';
+COMMENT ON COLUMN model_capability_definition.updated_by IS '更新人';
+COMMENT ON TABLE model_capability_policy IS '场景模型路由与脱敏策略配置表';
+COMMENT ON COLUMN model_capability_policy.id IS '数据库主键';
+COMMENT ON COLUMN model_capability_policy.tenant_id IS '租户ID';
+COMMENT ON COLUMN model_capability_policy.capability_code IS '能力标识代码';
+COMMENT ON COLUMN model_capability_policy.scope_type IS '策略作用域类型：租户、集团、医院、院区、站点、科室或病区';
+COMMENT ON COLUMN model_capability_policy.scope_ref IS '策略作用域引用ID，按组织继承链逐级解析';
+COMMENT ON COLUMN model_capability_policy.route_strategy IS '模型路由策略(DISABLED禁用,BASELINE基线B0,LOCAL_MODEL本地,EXTERNAL_MODEL外部)';
+COMMENT ON COLUMN model_capability_policy.desensitize_strategy IS '数据脱敏策略代码';
+COMMENT ON COLUMN model_capability_policy.expected_schema IS '期待输出匹配的JSON Schema结构约束';
+COMMENT ON COLUMN model_capability_policy.fallback_order_json IS 'B2/B1/B0 降级顺序 JSON 数组，必须由首选层级逐级降到 BASELINE';
+COMMENT ON COLUMN model_capability_policy.timeout_ms IS '单次 provider 调用超时预算（毫秒）';
+COMMENT ON COLUMN model_capability_policy.rate_limit_per_minute IS '能力策略级 provider 每分钟限流阈值';
+COMMENT ON COLUMN model_capability_policy.created_at IS '创建时间';
+COMMENT ON COLUMN model_capability_policy.created_by IS '创建人';
+COMMENT ON COLUMN model_capability_policy.updated_at IS '更新时间';
+COMMENT ON COLUMN model_capability_policy.updated_by IS '更新人';
+COMMENT ON TABLE model_capability_task IS '业务表：model_capability_task';
+COMMENT ON COLUMN model_capability_task.id IS '数据库主键';
+COMMENT ON COLUMN model_capability_task.task_id IS '业务字段：task_id';
+COMMENT ON COLUMN model_capability_task.tenant_id IS '租户标识';
+COMMENT ON COLUMN model_capability_task.capability_code IS '业务字段：capability_code';
+COMMENT ON COLUMN model_capability_task.input_hash IS '业务字段：input_hash';
+COMMENT ON COLUMN model_capability_task.input_summary IS '业务字段：input_summary';
+COMMENT ON COLUMN model_capability_task.output_content IS '业务字段：output_content';
+COMMENT ON COLUMN model_capability_task.model_mode IS '业务字段：model_mode';
+COMMENT ON COLUMN model_capability_task.model_version IS '业务字段：model_version';
+COMMENT ON COLUMN model_capability_task.prompt_version IS '业务字段：prompt_version';
+COMMENT ON COLUMN model_capability_task.source_citations IS '业务字段：source_citations';
+COMMENT ON COLUMN model_capability_task.confidence IS '业务字段：confidence';
+COMMENT ON COLUMN model_capability_task.risk_level IS '业务字段：risk_level';
+COMMENT ON COLUMN model_capability_task.fallback_used IS '业务字段：fallback_used';
+COMMENT ON COLUMN model_capability_task.fallback_reason IS '业务字段：fallback_reason';
+COMMENT ON COLUMN model_capability_task.time_cost_ms IS '业务字段：time_cost_ms';
+COMMENT ON COLUMN model_capability_task.status IS '当前状态';
+COMMENT ON COLUMN model_capability_task.trace_id IS '追踪号';
+COMMENT ON COLUMN model_capability_task.created_at IS '创建时间';
+COMMENT ON COLUMN model_capability_task.created_by IS '创建人';
+COMMENT ON COLUMN model_capability_task.updated_at IS '更新时间';
+COMMENT ON COLUMN model_capability_task.updated_by IS '更新人';
+COMMENT ON COLUMN model_capability_task.tool_version IS '业务字段：tool_version';
+COMMENT ON TABLE mpi_patient IS '患者主索引信息表';
+COMMENT ON COLUMN mpi_patient.id IS '自增物理主键';
+COMMENT ON COLUMN mpi_patient.mpi_id IS '患者主索引 ID';
+COMMENT ON COLUMN mpi_patient.tenant_id IS '租户 ID';
+COMMENT ON COLUMN mpi_patient.masked_name IS '脱敏患者姓名';
+COMMENT ON COLUMN mpi_patient.gender IS '性别 M/F';
+COMMENT ON COLUMN mpi_patient.age IS '年龄';
+COMMENT ON COLUMN mpi_patient.id_last4 IS '身份证后四位';
+COMMENT ON COLUMN mpi_patient.merged_count IS '合并的主索引数量';
+COMMENT ON COLUMN mpi_patient.status IS '状态 ACTIVE/MERGED_INTO';
+COMMENT ON COLUMN mpi_patient.merged_into_mpi_id IS '被合并入的患者主索引 ID';
+COMMENT ON COLUMN mpi_patient.created_at IS '创建时间点';
+COMMENT ON COLUMN mpi_patient.created_by IS '创建人';
+COMMENT ON COLUMN mpi_patient.updated_at IS '最后更新时间点';
+COMMENT ON COLUMN mpi_patient.updated_by IS '最后更新人';
+COMMENT ON TABLE org_closure IS '业务表：org_closure';
+COMMENT ON COLUMN org_closure.tenant_id IS '租户标识';
+COMMENT ON COLUMN org_closure.ancestor_id IS '业务字段：ancestor_id';
+COMMENT ON COLUMN org_closure.descendant_id IS '业务字段：descendant_id';
+COMMENT ON COLUMN org_closure.depth IS '业务字段：depth';
+COMMENT ON TABLE org_unit IS '业务表：org_unit';
+COMMENT ON COLUMN org_unit.id IS '数据库主键';
+COMMENT ON COLUMN org_unit.parent_id IS '业务字段：parent_id';
+COMMENT ON COLUMN org_unit.tenant_id IS '租户标识';
+COMMENT ON COLUMN org_unit.org_path IS '业务字段：org_path';
+COMMENT ON COLUMN org_unit.level_code IS '组织层级：平台权威层、租户根、区域/联合体、机构、院区、科室、病区；专病通过 specialty_id 横切表达';
+COMMENT ON COLUMN org_unit.code IS '业务字段：code';
+COMMENT ON COLUMN org_unit.name IS '业务字段：name';
+COMMENT ON COLUMN org_unit.name_pinyin IS '业务字段：name_pinyin';
+COMMENT ON COLUMN org_unit.specialty_id IS '业务字段：specialty_id';
+COMMENT ON COLUMN org_unit.status IS '当前状态';
+COMMENT ON COLUMN org_unit.created_at IS '创建时间';
+COMMENT ON COLUMN org_unit.created_by IS '创建人';
+COMMENT ON COLUMN org_unit.updated_at IS '更新时间';
+COMMENT ON COLUMN org_unit.updated_by IS '更新人';
+COMMENT ON COLUMN org_unit.facility_type IS '医疗服务机构类型：医院、专科医院、独立分院、社区卫生服务中心、乡镇卫生院、村卫生室、门诊部、服务站或其他';
+COMMENT ON TABLE pathway_edge IS '业务表：pathway_edge';
+COMMENT ON COLUMN pathway_edge.id IS '数据库主键';
+COMMENT ON COLUMN pathway_edge.edge_id IS '业务字段：edge_id';
+COMMENT ON COLUMN pathway_edge.tenant_id IS '租户标识';
+COMMENT ON COLUMN pathway_edge.template_id IS '业务字段：template_id';
+COMMENT ON COLUMN pathway_edge.edge_code IS '业务字段：edge_code';
+COMMENT ON COLUMN pathway_edge.from_node_code IS '业务字段：from_node_code';
+COMMENT ON COLUMN pathway_edge.to_node_code IS '业务字段：to_node_code';
+COMMENT ON COLUMN pathway_edge.edge_type IS '业务字段：edge_type';
+COMMENT ON COLUMN pathway_edge.condition_json IS '业务字段：condition_json';
+COMMENT ON COLUMN pathway_edge.priority IS '业务字段：priority';
+COMMENT ON COLUMN pathway_edge.created_at IS '创建时间';
+COMMENT ON COLUMN pathway_edge.created_by IS '创建人';
+COMMENT ON COLUMN pathway_edge.updated_at IS '更新时间';
+COMMENT ON COLUMN pathway_edge.updated_by IS '更新人';
+COMMENT ON COLUMN pathway_edge.trace_id IS '追踪号';
+COMMENT ON TABLE pathway_milestone IS '业务表：pathway_milestone';
+COMMENT ON COLUMN pathway_milestone.id IS '数据库主键';
+COMMENT ON COLUMN pathway_milestone.milestone_id IS '业务字段：milestone_id';
+COMMENT ON COLUMN pathway_milestone.tenant_id IS '租户标识';
+COMMENT ON COLUMN pathway_milestone.template_id IS '业务字段：template_id';
+COMMENT ON COLUMN pathway_milestone.phase_code IS '业务字段：phase_code';
+COMMENT ON COLUMN pathway_milestone.phase_name IS '业务字段：phase_name';
+COMMENT ON COLUMN pathway_milestone.milestone_code IS '业务字段：milestone_code';
+COMMENT ON COLUMN pathway_milestone.name IS '业务字段：name';
+COMMENT ON COLUMN pathway_milestone.day_offset IS '业务字段：day_offset';
+COMMENT ON COLUMN pathway_milestone.expected_offset_minutes IS '业务字段：expected_offset_minutes';
+COMMENT ON COLUMN pathway_milestone.achievement_criteria_json IS '业务字段：achievement_criteria_json';
+COMMENT ON COLUMN pathway_milestone.sort_order IS '业务字段：sort_order';
+COMMENT ON COLUMN pathway_milestone.created_at IS '创建时间';
+COMMENT ON COLUMN pathway_milestone.created_by IS '创建人';
+COMMENT ON COLUMN pathway_milestone.updated_at IS '更新时间';
+COMMENT ON COLUMN pathway_milestone.updated_by IS '更新人';
+COMMENT ON COLUMN pathway_milestone.trace_id IS '追踪号';
+COMMENT ON TABLE pathway_node IS '业务表：pathway_node';
+COMMENT ON COLUMN pathway_node.id IS '数据库主键';
+COMMENT ON COLUMN pathway_node.node_id IS '业务字段：node_id';
+COMMENT ON COLUMN pathway_node.tenant_id IS '租户标识';
+COMMENT ON COLUMN pathway_node.template_id IS '业务字段：template_id';
+COMMENT ON COLUMN pathway_node.node_code IS '业务字段：node_code';
+COMMENT ON COLUMN pathway_node.name IS '业务字段：name';
+COMMENT ON COLUMN pathway_node.node_type IS '业务字段：node_type';
+COMMENT ON COLUMN pathway_node.milestone_code IS '业务字段：milestone_code';
+COMMENT ON COLUMN pathway_node.sort_order IS '业务字段：sort_order';
+COMMENT ON COLUMN pathway_node.responsible_role IS '业务字段：responsible_role';
+COMMENT ON COLUMN pathway_node.accountable_role IS '业务字段：accountable_role';
+COMMENT ON COLUMN pathway_node.consulted_roles_json IS '业务字段：consulted_roles_json';
+COMMENT ON COLUMN pathway_node.informed_roles_json IS '业务字段：informed_roles_json';
+COMMENT ON COLUMN pathway_node.dependency_json IS '业务字段：dependency_json';
+COMMENT ON COLUMN pathway_node.time_window_minutes IS '业务字段：time_window_minutes';
+COMMENT ON COLUMN pathway_node.terminal_flag IS '业务字段：terminal_flag';
+COMMENT ON COLUMN pathway_node.disabled_flag IS '业务字段：disabled_flag';
+COMMENT ON COLUMN pathway_node.config_json IS '业务字段：config_json';
+COMMENT ON COLUMN pathway_node.created_at IS '创建时间';
+COMMENT ON COLUMN pathway_node.created_by IS '创建人';
+COMMENT ON COLUMN pathway_node.updated_at IS '更新时间';
+COMMENT ON COLUMN pathway_node.updated_by IS '更新人';
+COMMENT ON COLUMN pathway_node.trace_id IS '追踪号';
+COMMENT ON TABLE pathway_outcome_binding IS '路径结局指标绑定表，保存路径模板、阶段或里程碑与评估指标的关联';
+COMMENT ON COLUMN pathway_outcome_binding.id IS '数据库主键';
+COMMENT ON COLUMN pathway_outcome_binding.binding_id IS '路径结局指标绑定业务 ID';
+COMMENT ON COLUMN pathway_outcome_binding.tenant_id IS '租户标识';
+COMMENT ON COLUMN pathway_outcome_binding.template_id IS '业务字段：template_id';
+COMMENT ON COLUMN pathway_outcome_binding.scope IS '绑定作用域：TEMPLATE 模板、PHASE 阶段、MILESTONE 里程碑';
+COMMENT ON COLUMN pathway_outcome_binding.ref_code IS '业务字段：ref_code';
+COMMENT ON COLUMN pathway_outcome_binding.indicator_code IS '评估指标编码，必须对应已激活 EvaluationIndicator';
+COMMENT ON COLUMN pathway_outcome_binding.created_at IS '创建时间';
+COMMENT ON COLUMN pathway_outcome_binding.created_by IS '创建人';
+COMMENT ON COLUMN pathway_outcome_binding.updated_at IS '更新时间';
+COMMENT ON COLUMN pathway_outcome_binding.updated_by IS '更新人';
+COMMENT ON COLUMN pathway_outcome_binding.trace_id IS '追踪号';
+COMMENT ON TABLE pathway_template IS '路径模板版本表，模板独立维护并由机构生效版本选择启用版本';
+COMMENT ON COLUMN pathway_template.id IS '数据库主键';
+COMMENT ON COLUMN pathway_template.template_id IS '业务字段：template_id';
+COMMENT ON COLUMN pathway_template.tenant_id IS '租户标识';
+COMMENT ON COLUMN pathway_template.template_code IS '业务字段：template_code';
+COMMENT ON COLUMN pathway_template.name IS '业务字段：name';
+COMMENT ON COLUMN pathway_template.disease_code IS '业务字段：disease_code';
+COMMENT ON COLUMN pathway_template.template_version IS '业务字段：template_version';
+COMMENT ON COLUMN pathway_template.template_level IS '业务字段：template_level';
+COMMENT ON COLUMN pathway_template.status IS '当前状态';
+COMMENT ON COLUMN pathway_template.entry_mode IS '业务字段：entry_mode';
+COMMENT ON COLUMN pathway_template.start_node_code IS '业务字段：start_node_code';
+COMMENT ON COLUMN pathway_template.source_ref IS '业务字段：source_ref';
+COMMENT ON COLUMN pathway_template.description IS '业务字段：description';
+COMMENT ON COLUMN pathway_template.entry_criteria_json IS '业务字段：entry_criteria_json';
+COMMENT ON COLUMN pathway_template.exit_criteria_json IS '业务字段：exit_criteria_json';
+COMMENT ON COLUMN pathway_template.created_at IS '创建时间';
+COMMENT ON COLUMN pathway_template.created_by IS '创建人';
+COMMENT ON COLUMN pathway_template.updated_at IS '更新时间';
+COMMENT ON COLUMN pathway_template.updated_by IS '更新人';
+COMMENT ON COLUMN pathway_template.trace_id IS '追踪号';
+COMMENT ON TABLE pathway_variance IS '路径节点指标绑定表，记录路径模板节点与临床指标的关联';
+COMMENT ON COLUMN pathway_variance.id IS '数据库主键';
+COMMENT ON COLUMN pathway_variance.variance_id IS '业务字段：variance_id';
+COMMENT ON COLUMN pathway_variance.tenant_id IS '租户标识';
+COMMENT ON COLUMN pathway_variance.patient_pathway_id IS '业务字段：patient_pathway_id';
+COMMENT ON COLUMN pathway_variance.node_code IS '业务字段：node_code';
+COMMENT ON COLUMN pathway_variance.variance_type IS '业务字段：variance_type';
+COMMENT ON COLUMN pathway_variance.reason_code IS '业务字段：reason_code';
+COMMENT ON COLUMN pathway_variance.reason IS '业务字段：reason';
+COMMENT ON COLUMN pathway_variance.responsible_role IS '业务字段：responsible_role';
+COMMENT ON COLUMN pathway_variance.resolution_decision IS '业务字段：resolution_decision';
+COMMENT ON COLUMN pathway_variance.resolution_action IS '业务字段：resolution_action';
+COMMENT ON COLUMN pathway_variance.continue_node_code IS '业务字段：continue_node_code';
+COMMENT ON COLUMN pathway_variance.created_at IS '创建时间';
+COMMENT ON COLUMN pathway_variance.created_by IS '创建人';
+COMMENT ON COLUMN pathway_variance.updated_at IS '更新时间';
+COMMENT ON COLUMN pathway_variance.updated_by IS '更新人';
+COMMENT ON COLUMN pathway_variance.trace_id IS '追踪号';
+COMMENT ON TABLE patient_pathway IS '业务表：patient_pathway';
+COMMENT ON COLUMN patient_pathway.id IS '数据库主键';
+COMMENT ON COLUMN patient_pathway.patient_pathway_id IS '业务字段：patient_pathway_id';
+COMMENT ON COLUMN patient_pathway.tenant_id IS '租户标识';
+COMMENT ON COLUMN patient_pathway.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN patient_pathway.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN patient_pathway.template_id IS '业务字段：template_id';
+COMMENT ON COLUMN patient_pathway.runtime_release_id IS '患者入径时固定的机构生效版本 ID';
+COMMENT ON COLUMN patient_pathway.pathway_version_id IS '患者入径时固定的精确路径资产版本 ID';
+COMMENT ON COLUMN patient_pathway.current_node_code IS '业务字段：current_node_code';
+COMMENT ON COLUMN patient_pathway.status IS '当前状态';
+COMMENT ON COLUMN patient_pathway.entered_at IS '业务字段：entered_at';
+COMMENT ON COLUMN patient_pathway.completed_at IS '业务字段：completed_at';
+COMMENT ON COLUMN patient_pathway.exited_at IS '业务字段：exited_at';
+COMMENT ON COLUMN patient_pathway.exit_reason IS '业务字段：exit_reason';
+COMMENT ON COLUMN patient_pathway.last_event_id IS '业务字段：last_event_id';
+COMMENT ON COLUMN patient_pathway.created_at IS '创建时间';
+COMMENT ON COLUMN patient_pathway.created_by IS '创建人';
+COMMENT ON COLUMN patient_pathway.updated_at IS '更新时间';
+COMMENT ON COLUMN patient_pathway.updated_by IS '更新人';
+COMMENT ON COLUMN patient_pathway.trace_id IS '追踪号';
+COMMENT ON TABLE platform_credential IS '平台自建身份凭证表（外网 SaaS / 本地 dev 登录）';
+COMMENT ON COLUMN platform_credential.id IS '数据库主键';
+COMMENT ON COLUMN platform_credential.credential_id IS '业务字段：credential_id';
+COMMENT ON COLUMN platform_credential.tenant_id IS '租户标识';
+COMMENT ON COLUMN platform_credential.user_id IS '业务字段：user_id';
+COMMENT ON COLUMN platform_credential.username IS '业务字段：username';
+COMMENT ON COLUMN platform_credential.password_hash IS '业务字段：password_hash';
+COMMENT ON COLUMN platform_credential.status IS '当前状态';
+COMMENT ON COLUMN platform_credential.must_change_pwd IS '业务字段：must_change_pwd';
+COMMENT ON COLUMN platform_credential.mfa_secret IS '业务字段：mfa_secret';
+COMMENT ON COLUMN platform_credential.created_at IS '创建时间';
+COMMENT ON COLUMN platform_credential.created_by IS '创建人';
+COMMENT ON COLUMN platform_credential.updated_at IS '更新时间';
+COMMENT ON COLUMN platform_credential.updated_by IS '更新人';
+COMMENT ON COLUMN platform_credential.trace_id IS '链路追踪标识，与入站最长 128 字符契约一致';
+COMMENT ON TABLE quality_finding IS '业务表：quality_finding';
+COMMENT ON COLUMN quality_finding.id IS '数据库主键';
+COMMENT ON COLUMN quality_finding.finding_id IS '业务字段：finding_id';
+COMMENT ON COLUMN quality_finding.tenant_id IS '租户标识';
+COMMENT ON COLUMN quality_finding.run_id IS '业务字段：run_id';
+COMMENT ON COLUMN quality_finding.result_id IS '业务字段：result_id';
+COMMENT ON COLUMN quality_finding.indicator_id IS '业务字段：indicator_id';
+COMMENT ON COLUMN quality_finding.finding_code IS '业务字段：finding_code';
+COMMENT ON COLUMN quality_finding.title IS '业务字段：title';
+COMMENT ON COLUMN quality_finding.description IS '业务字段：description';
+COMMENT ON COLUMN quality_finding.severity IS '业务字段：severity';
+COMMENT ON COLUMN quality_finding.status IS '当前状态';
+COMMENT ON COLUMN quality_finding.evidence_summary IS '业务字段：evidence_summary';
+COMMENT ON COLUMN quality_finding.responsible_department_id IS '业务字段：responsible_department_id';
+COMMENT ON COLUMN quality_finding.due_at IS '业务字段：due_at';
+COMMENT ON COLUMN quality_finding.created_at IS '创建时间';
+COMMENT ON COLUMN quality_finding.created_by IS '创建人';
+COMMENT ON COLUMN quality_finding.updated_at IS '更新时间';
+COMMENT ON COLUMN quality_finding.updated_by IS '更新人';
+COMMENT ON COLUMN quality_finding.trace_id IS '追踪号';
+COMMENT ON TABLE recommendation_card IS '业务表：recommendation_card';
+COMMENT ON COLUMN recommendation_card.id IS '数据库主键';
+COMMENT ON COLUMN recommendation_card.card_id IS '业务字段：card_id';
+COMMENT ON COLUMN recommendation_card.tenant_id IS '租户标识';
+COMMENT ON COLUMN recommendation_card.trigger_id IS '业务字段：trigger_id';
+COMMENT ON COLUMN recommendation_card.card_code IS '业务字段：card_code';
+COMMENT ON COLUMN recommendation_card.card_type IS '业务字段：card_type';
+COMMENT ON COLUMN recommendation_card.title IS '业务字段：title';
+COMMENT ON COLUMN recommendation_card.summary IS '业务字段：summary';
+COMMENT ON COLUMN recommendation_card.suggested_action IS '业务字段：suggested_action';
+COMMENT ON COLUMN recommendation_card.risk_level IS '业务字段：risk_level';
+COMMENT ON COLUMN recommendation_card.interrupt_level IS '业务字段：interrupt_level';
+COMMENT ON COLUMN recommendation_card.status IS '当前状态';
+COMMENT ON COLUMN recommendation_card.requires_physician_confirmation IS '业务字段：requires_physician_confirmation';
+COMMENT ON COLUMN recommendation_card.ai_generated IS '业务字段：ai_generated';
+COMMENT ON COLUMN recommendation_card.source_summary IS '业务字段：source_summary';
+COMMENT ON COLUMN recommendation_card.explanation_json IS '业务字段：explanation_json';
+COMMENT ON COLUMN recommendation_card.fatigue_key IS '业务字段：fatigue_key';
+COMMENT ON COLUMN recommendation_card.expires_at IS '业务字段：expires_at';
+COMMENT ON COLUMN recommendation_card.created_at IS '创建时间';
+COMMENT ON COLUMN recommendation_card.created_by IS '创建人';
+COMMENT ON COLUMN recommendation_card.updated_at IS '更新时间';
+COMMENT ON COLUMN recommendation_card.updated_by IS '更新人';
+COMMENT ON COLUMN recommendation_card.trace_id IS '追踪号';
+COMMENT ON COLUMN recommendation_card.risk_matrix_id IS '命中的 CDSS 风险矩阵规则 ID';
+COMMENT ON COLUMN recommendation_card.risk_matrix_version IS '命中的 CDSS 风险矩阵版本';
+COMMENT ON COLUMN recommendation_card.automation_level IS '本推荐卡采用的 CDSS 自动化程度';
+COMMENT ON COLUMN recommendation_card.review_requirement IS '本推荐卡的人工审核要求';
+COMMENT ON COLUMN recommendation_card.silent_run_hours IS '本推荐卡对应的静默试运行门槛小时数';
+COMMENT ON COLUMN recommendation_card.release_gate IS '本推荐卡对应的上线门槛编码';
+COMMENT ON COLUMN recommendation_card.auto_execution_allowed IS '本推荐卡是否允许自动执行；当前医疗安全主线禁止自动执行';
+COMMENT ON COLUMN recommendation_card.samd_classification IS 'NMPA SaMD 分类预留字段；不代表已完成监管认定';
+COMMENT ON COLUMN recommendation_card.regulatory_evidence IS '监管证据预留字段';
+COMMENT ON COLUMN recommendation_card.risk_matrix_explanation IS '风险矩阵分级解释';
+COMMENT ON TABLE recommendation_fatigue_signal IS '业务表：recommendation_fatigue_signal';
+COMMENT ON COLUMN recommendation_fatigue_signal.id IS '数据库主键';
+COMMENT ON COLUMN recommendation_fatigue_signal.signal_id IS '业务字段：signal_id';
+COMMENT ON COLUMN recommendation_fatigue_signal.tenant_id IS '租户标识';
+COMMENT ON COLUMN recommendation_fatigue_signal.trigger_id IS '业务字段：trigger_id';
+COMMENT ON COLUMN recommendation_fatigue_signal.card_id IS '业务字段：card_id';
+COMMENT ON COLUMN recommendation_fatigue_signal.fatigue_key IS '业务字段：fatigue_key';
+COMMENT ON COLUMN recommendation_fatigue_signal.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN recommendation_fatigue_signal.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN recommendation_fatigue_signal.operator_id IS '业务字段：operator_id';
+COMMENT ON COLUMN recommendation_fatigue_signal.signal_type IS '信号类型：SHOWN 已展示 / SILENT_RECORDED 静默试运行 / VIEWED 用户查看 / ACCEPTED 用户采纳 / REJECTED 用户不采纳 / DEFERRED 稍后处理 / DISMISSED 关闭忽略 / SUPPRESSED 疲劳治理抑制';
+COMMENT ON COLUMN recommendation_fatigue_signal.occurrence_count IS '业务字段：occurrence_count';
+COMMENT ON COLUMN recommendation_fatigue_signal.window_started_at IS '业务字段：window_started_at';
+COMMENT ON COLUMN recommendation_fatigue_signal.created_at IS '创建时间';
+COMMENT ON COLUMN recommendation_fatigue_signal.created_by IS '创建人';
+COMMENT ON COLUMN recommendation_fatigue_signal.updated_at IS '更新时间';
+COMMENT ON COLUMN recommendation_fatigue_signal.updated_by IS '更新人';
+COMMENT ON COLUMN recommendation_fatigue_signal.trace_id IS '追踪号';
+COMMENT ON TABLE recommendation_feedback IS '业务表：recommendation_feedback';
+COMMENT ON COLUMN recommendation_feedback.id IS '数据库主键';
+COMMENT ON COLUMN recommendation_feedback.feedback_id IS '业务字段：feedback_id';
+COMMENT ON COLUMN recommendation_feedback.tenant_id IS '租户标识';
+COMMENT ON COLUMN recommendation_feedback.card_id IS '业务字段：card_id';
+COMMENT ON COLUMN recommendation_feedback.feedback_type IS '业务字段：feedback_type';
+COMMENT ON COLUMN recommendation_feedback.reason_code IS '业务字段：reason_code';
+COMMENT ON COLUMN recommendation_feedback.reason_text IS '业务字段：reason_text';
+COMMENT ON COLUMN recommendation_feedback.operator_id IS '业务字段：operator_id';
+COMMENT ON COLUMN recommendation_feedback.operator_role IS '业务字段：operator_role';
+COMMENT ON COLUMN recommendation_feedback.created_at IS '创建时间';
+COMMENT ON COLUMN recommendation_feedback.created_by IS '创建人';
+COMMENT ON COLUMN recommendation_feedback.updated_at IS '更新时间';
+COMMENT ON COLUMN recommendation_feedback.updated_by IS '更新人';
+COMMENT ON COLUMN recommendation_feedback.trace_id IS '追踪号';
+COMMENT ON COLUMN recommendation_feedback.idempotency_key IS '反馈幂等键：同租户同推荐卡同键只记录一次反馈';
+COMMENT ON TABLE recommendation_source IS '业务表：recommendation_source';
+COMMENT ON COLUMN recommendation_source.id IS '数据库主键';
+COMMENT ON COLUMN recommendation_source.source_id IS '业务字段：source_id';
+COMMENT ON COLUMN recommendation_source.tenant_id IS '租户标识';
+COMMENT ON COLUMN recommendation_source.card_id IS '业务字段：card_id';
+COMMENT ON COLUMN recommendation_source.source_type IS '来源类型：RULE 规则命中 / REDLINE 临床安全红线 / PATHWAY 路径节点 / KNOWLEDGE 知识引用 / CONTEXT 上下文事实 / TERMINOLOGY 术语映射 / MANUAL 人工录入';
+COMMENT ON COLUMN recommendation_source.source_ref_id IS '业务字段：source_ref_id';
+COMMENT ON COLUMN recommendation_source.source_version IS '业务字段：source_version';
+COMMENT ON COLUMN recommendation_source.source_title IS '业务字段：source_title';
+COMMENT ON COLUMN recommendation_source.citation_locator IS '业务字段：citation_locator';
+COMMENT ON COLUMN recommendation_source.source_hash IS '业务字段：source_hash';
+COMMENT ON COLUMN recommendation_source.summary IS '业务字段：summary';
+COMMENT ON COLUMN recommendation_source.created_at IS '创建时间';
+COMMENT ON COLUMN recommendation_source.created_by IS '创建人';
+COMMENT ON COLUMN recommendation_source.updated_at IS '更新时间';
+COMMENT ON COLUMN recommendation_source.updated_by IS '更新人';
+COMMENT ON COLUMN recommendation_source.trace_id IS '追踪号';
+COMMENT ON TABLE recommendation_trigger IS '业务表：recommendation_trigger';
+COMMENT ON COLUMN recommendation_trigger.id IS '数据库主键';
+COMMENT ON COLUMN recommendation_trigger.trigger_id IS '业务字段：trigger_id';
+COMMENT ON COLUMN recommendation_trigger.tenant_id IS '租户标识';
+COMMENT ON COLUMN recommendation_trigger.trigger_code IS '业务字段：trigger_code';
+COMMENT ON COLUMN recommendation_trigger.trigger_type IS '业务字段：trigger_type';
+COMMENT ON COLUMN recommendation_trigger.source_event_id IS '业务字段：source_event_id';
+COMMENT ON COLUMN recommendation_trigger.context_snapshot_id IS '业务字段：context_snapshot_id';
+COMMENT ON COLUMN recommendation_trigger.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN recommendation_trigger.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN recommendation_trigger.patient_pathway_id IS '业务字段：patient_pathway_id';
+COMMENT ON COLUMN recommendation_trigger.scenario_code IS '业务字段：scenario_code';
+COMMENT ON COLUMN recommendation_trigger.runtime_release_id IS '机构生效版本 ID';
+COMMENT ON COLUMN recommendation_trigger.input_digest IS '业务字段：input_digest';
+COMMENT ON COLUMN recommendation_trigger.status IS '当前状态';
+COMMENT ON COLUMN recommendation_trigger.error_code IS '业务字段：error_code';
+COMMENT ON COLUMN recommendation_trigger.occurred_at IS '业务字段：occurred_at';
+COMMENT ON COLUMN recommendation_trigger.created_at IS '创建时间';
+COMMENT ON COLUMN recommendation_trigger.created_by IS '创建人';
+COMMENT ON COLUMN recommendation_trigger.updated_at IS '更新时间';
+COMMENT ON COLUMN recommendation_trigger.updated_by IS '更新人';
+COMMENT ON COLUMN recommendation_trigger.trace_id IS '追踪号';
+COMMENT ON TABLE rectification_review IS '业务表：rectification_review';
+COMMENT ON COLUMN rectification_review.id IS '数据库主键';
+COMMENT ON COLUMN rectification_review.review_id IS '业务字段：review_id';
+COMMENT ON COLUMN rectification_review.tenant_id IS '租户标识';
+COMMENT ON COLUMN rectification_review.finding_id IS '业务字段：finding_id';
+COMMENT ON COLUMN rectification_review.task_id IS '业务字段：task_id';
+COMMENT ON COLUMN rectification_review.decision IS '业务字段：decision';
+COMMENT ON COLUMN rectification_review.review_comment IS '业务字段：review_comment';
+COMMENT ON COLUMN rectification_review.evidence_ref IS '业务字段：evidence_ref';
+COMMENT ON COLUMN rectification_review.reviewer_id IS '业务字段：reviewer_id';
+COMMENT ON COLUMN rectification_review.reviewed_at IS '业务字段：reviewed_at';
+COMMENT ON COLUMN rectification_review.created_at IS '创建时间';
+COMMENT ON COLUMN rectification_review.created_by IS '创建人';
+COMMENT ON COLUMN rectification_review.updated_at IS '更新时间';
+COMMENT ON COLUMN rectification_review.updated_by IS '更新人';
+COMMENT ON COLUMN rectification_review.trace_id IS '追踪号';
+COMMENT ON TABLE rectification_task IS '业务表：rectification_task';
+COMMENT ON COLUMN rectification_task.id IS '数据库主键';
+COMMENT ON COLUMN rectification_task.task_id IS '业务字段：task_id';
+COMMENT ON COLUMN rectification_task.tenant_id IS '租户标识';
+COMMENT ON COLUMN rectification_task.finding_id IS '业务字段：finding_id';
+COMMENT ON COLUMN rectification_task.responsible_department_id IS '业务字段：responsible_department_id';
+COMMENT ON COLUMN rectification_task.assignee_user_id IS '业务字段：assignee_user_id';
+COMMENT ON COLUMN rectification_task.status IS '当前状态';
+COMMENT ON COLUMN rectification_task.due_at IS '业务字段：due_at';
+COMMENT ON COLUMN rectification_task.rectification_summary IS '业务字段：rectification_summary';
+COMMENT ON COLUMN rectification_task.evidence_ref IS '业务字段：evidence_ref';
+COMMENT ON COLUMN rectification_task.submitted_at IS '业务字段：submitted_at';
+COMMENT ON COLUMN rectification_task.submitted_by IS '业务字段：submitted_by';
+COMMENT ON COLUMN rectification_task.closed_at IS '业务字段：closed_at';
+COMMENT ON COLUMN rectification_task.created_at IS '创建时间';
+COMMENT ON COLUMN rectification_task.created_by IS '创建人';
+COMMENT ON COLUMN rectification_task.updated_at IS '更新时间';
+COMMENT ON COLUMN rectification_task.updated_by IS '更新人';
+COMMENT ON COLUMN rectification_task.trace_id IS '追踪号';
+COMMENT ON TABLE rule_applicability IS '规则版本适用域检索镜像，权威内容为规则 DSL 的 applicability';
+COMMENT ON COLUMN rule_applicability.id IS '数据库主键';
+COMMENT ON COLUMN rule_applicability.rule_version_id IS '业务字段：rule_version_id';
+COMMENT ON COLUMN rule_applicability.tenant_id IS '租户标识';
+COMMENT ON COLUMN rule_applicability.population_json IS '人群纳入与排除条件 JSON';
+COMMENT ON COLUMN rule_applicability.org_scope_json IS '集团、医院、科室组织范围 JSON';
+COMMENT ON COLUMN rule_applicability.settings_json IS '住院、门诊、急诊、随访场景 JSON';
+COMMENT ON COLUMN rule_applicability.effective_from IS '业务字段：effective_from';
+COMMENT ON COLUMN rule_applicability.effective_to IS '业务字段：effective_to';
+COMMENT ON COLUMN rule_applicability.rollout_percent IS '稳定灰度比例，取值 0 到 100';
+COMMENT ON COLUMN rule_applicability.created_at IS '创建时间';
+COMMENT ON COLUMN rule_applicability.created_by IS '创建人';
+COMMENT ON COLUMN rule_applicability.updated_at IS '更新时间';
+COMMENT ON COLUMN rule_applicability.updated_by IS '更新人';
+COMMENT ON COLUMN rule_applicability.trace_id IS '追踪号';
+COMMENT ON TABLE rule_backtest_run IS '规则历史回测事实，基于真实脱敏金标准样本计算灵敏度与特异度';
+COMMENT ON COLUMN rule_backtest_run.id IS '数据库主键';
+COMMENT ON COLUMN rule_backtest_run.backtest_id IS '业务字段：backtest_id';
+COMMENT ON COLUMN rule_backtest_run.tenant_id IS '租户标识';
+COMMENT ON COLUMN rule_backtest_run.rule_id IS '业务字段：rule_id';
+COMMENT ON COLUMN rule_backtest_run.version_id IS '业务字段：version_id';
+COMMENT ON COLUMN rule_backtest_run.cohort_ref IS '回测样本集引用，例如脱敏快照批次或测试用例集合';
+COMMENT ON COLUMN rule_backtest_run.sample_count IS '业务字段：sample_count';
+COMMENT ON COLUMN rule_backtest_run.true_positive_count IS '业务字段：true_positive_count';
+COMMENT ON COLUMN rule_backtest_run.false_positive_count IS '业务字段：false_positive_count';
+COMMENT ON COLUMN rule_backtest_run.true_negative_count IS '业务字段：true_negative_count';
+COMMENT ON COLUMN rule_backtest_run.false_negative_count IS '业务字段：false_negative_count';
+COMMENT ON COLUMN rule_backtest_run.sensitivity IS '业务字段：sensitivity';
+COMMENT ON COLUMN rule_backtest_run.specificity IS '业务字段：specificity';
+COMMENT ON COLUMN rule_backtest_run.accuracy IS '业务字段：accuracy';
+COMMENT ON COLUMN rule_backtest_run.fire_rate IS '业务字段：fire_rate';
+COMMENT ON COLUMN rule_backtest_run.false_positive_examples_json IS '误报样本 ID 列表 JSON';
+COMMENT ON COLUMN rule_backtest_run.false_negative_examples_json IS '漏报样本 ID 列表 JSON';
+COMMENT ON COLUMN rule_backtest_run.created_at IS '创建时间';
+COMMENT ON COLUMN rule_backtest_run.created_by IS '创建人';
+COMMENT ON COLUMN rule_backtest_run.trace_id IS '追踪号';
+COMMENT ON TABLE rule_definition IS '业务表：rule_definition';
+COMMENT ON COLUMN rule_definition.id IS '数据库主键';
+COMMENT ON COLUMN rule_definition.rule_id IS '业务字段：rule_id';
+COMMENT ON COLUMN rule_definition.tenant_id IS '租户标识';
+COMMENT ON COLUMN rule_definition.rule_code IS '业务字段：rule_code';
+COMMENT ON COLUMN rule_definition.name IS '业务字段：name';
+COMMENT ON COLUMN rule_definition.rule_type IS '业务字段：rule_type';
+COMMENT ON COLUMN rule_definition.authoring_mode IS '业务字段：authoring_mode';
+COMMENT ON COLUMN rule_definition.risk_level IS '业务字段：risk_level';
+COMMENT ON COLUMN rule_definition.priority IS '规则优先级，数值越大越先执行';
+COMMENT ON COLUMN rule_definition.suppressed_by IS '抑制当前规则的高阶规则编码';
+COMMENT ON COLUMN rule_definition.dedupe_window_seconds IS '同患者同语义动作去重窗口秒数，0 表示不去重';
+COMMENT ON COLUMN rule_definition.status IS '当前状态';
+COMMENT ON COLUMN rule_definition.active_version_id IS '业务字段：active_version_id';
+COMMENT ON COLUMN rule_definition.applicable_org_unit_id IS '业务字段：applicable_org_unit_id';
+COMMENT ON COLUMN rule_definition.created_at IS '创建时间';
+COMMENT ON COLUMN rule_definition.created_by IS '创建人';
+COMMENT ON COLUMN rule_definition.updated_at IS '更新时间';
+COMMENT ON COLUMN rule_definition.updated_by IS '更新人';
+COMMENT ON COLUMN rule_definition.trace_id IS '追踪号';
+COMMENT ON TABLE rule_drift_snapshot IS '规则上线后漂移监测快照，比较生产窗口命中率与回测基线';
+COMMENT ON COLUMN rule_drift_snapshot.id IS '数据库主键';
+COMMENT ON COLUMN rule_drift_snapshot.drift_id IS '业务字段：drift_id';
+COMMENT ON COLUMN rule_drift_snapshot.tenant_id IS '租户标识';
+COMMENT ON COLUMN rule_drift_snapshot.rule_id IS '业务字段：rule_id';
+COMMENT ON COLUMN rule_drift_snapshot.version_id IS '业务字段：version_id';
+COMMENT ON COLUMN rule_drift_snapshot.baseline_backtest_id IS '作为漂移基线的历史回测 ID';
+COMMENT ON COLUMN rule_drift_snapshot.window_start IS '业务字段：window_start';
+COMMENT ON COLUMN rule_drift_snapshot.window_end IS '业务字段：window_end';
+COMMENT ON COLUMN rule_drift_snapshot.sample_count IS '业务字段：sample_count';
+COMMENT ON COLUMN rule_drift_snapshot.hit_count IS '业务字段：hit_count';
+COMMENT ON COLUMN rule_drift_snapshot.baseline_fire_rate IS '业务字段：baseline_fire_rate';
+COMMENT ON COLUMN rule_drift_snapshot.current_fire_rate IS '业务字段：current_fire_rate';
+COMMENT ON COLUMN rule_drift_snapshot.drift_delta IS '当前命中率减基线命中率的差值';
+COMMENT ON COLUMN rule_drift_snapshot.threshold IS '业务字段：threshold';
+COMMENT ON COLUMN rule_drift_snapshot.status IS '漂移状态：STABLE 稳定 / WARNING 告警';
+COMMENT ON COLUMN rule_drift_snapshot.created_at IS '创建时间';
+COMMENT ON COLUMN rule_drift_snapshot.created_by IS '创建人';
+COMMENT ON COLUMN rule_drift_snapshot.trace_id IS '追踪号';
+COMMENT ON TABLE rule_execution_log IS '业务表：rule_execution_log';
+COMMENT ON COLUMN rule_execution_log.id IS '数据库主键';
+COMMENT ON COLUMN rule_execution_log.execution_id IS '业务字段：execution_id';
+COMMENT ON COLUMN rule_execution_log.tenant_id IS '租户标识';
+COMMENT ON COLUMN rule_execution_log.rule_id IS '业务字段：rule_id';
+COMMENT ON COLUMN rule_execution_log.version_id IS '业务字段：version_id';
+COMMENT ON COLUMN rule_execution_log.runtime_release_id IS '医院临床运行时锁定的不可变机构生效版本 ID；创作试运行可为空';
+COMMENT ON COLUMN rule_execution_log.trigger_point IS '业务字段：trigger_point';
+COMMENT ON COLUMN rule_execution_log.event_id IS '业务字段：event_id';
+COMMENT ON COLUMN rule_execution_log.actor_user_id IS '业务字段：actor_user_id';
+COMMENT ON COLUMN rule_execution_log.patient_id IS '用于交互治理的患者业务 ID，不保存患者详情';
+COMMENT ON COLUMN rule_execution_log.encounter_id IS '用于交互治理的就诊业务 ID，不保存就诊详情';
+COMMENT ON COLUMN rule_execution_log.semantic_key IS '规则动作语义键，用于同患者窗口去重';
+COMMENT ON COLUMN rule_execution_log.input_digest IS '业务字段：input_digest';
+COMMENT ON COLUMN rule_execution_log.hit IS '业务字段：hit';
+COMMENT ON COLUMN rule_execution_log.severity IS '业务字段：severity';
+COMMENT ON COLUMN rule_execution_log.actions_json IS '业务字段：actions_json';
+COMMENT ON COLUMN rule_execution_log.explanation_json IS '业务字段：explanation_json';
+COMMENT ON COLUMN rule_execution_log.status IS '当前状态';
+COMMENT ON COLUMN rule_execution_log.error_code IS '业务字段：error_code';
+COMMENT ON COLUMN rule_execution_log.error_class IS '业务字段：error_class';
+COMMENT ON COLUMN rule_execution_log.deduplicated_from_execution_id IS '命中窗口去重时指向首次执行 ID';
+COMMENT ON COLUMN rule_execution_log.executed_at IS '业务字段：executed_at';
+COMMENT ON COLUMN rule_execution_log.created_at IS '创建时间';
+COMMENT ON COLUMN rule_execution_log.trace_id IS '追踪号';
+COMMENT ON TABLE rule_governance IS '规则版本知识治理事实，记录从草稿到退役的唯一当前阶段';
+COMMENT ON COLUMN rule_governance.id IS '数据库主键';
+COMMENT ON COLUMN rule_governance.governance_id IS '业务字段：governance_id';
+COMMENT ON COLUMN rule_governance.tenant_id IS '租户标识';
+COMMENT ON COLUMN rule_governance.rule_version_id IS '业务字段：rule_version_id';
+COMMENT ON COLUMN rule_governance.state IS '业务字段：state';
+COMMENT ON COLUMN rule_governance.author_id IS '规则版本负责人，可确认并推进完整技术发布链';
+COMMENT ON COLUMN rule_governance.last_reason IS '业务字段：last_reason';
+COMMENT ON COLUMN rule_governance.created_at IS '创建时间';
+COMMENT ON COLUMN rule_governance.created_by IS '创建人';
+COMMENT ON COLUMN rule_governance.updated_at IS '更新时间';
+COMMENT ON COLUMN rule_governance.updated_by IS '更新人';
+COMMENT ON COLUMN rule_governance.trace_id IS '追踪号';
+COMMENT ON COLUMN rule_governance.lock_version IS '治理状态并发更新版本号，防止状态相互覆盖';
+COMMENT ON TABLE rule_override_log IS '规则越权日志：记录阻断或强提醒动作的人工越权理由';
+COMMENT ON COLUMN rule_override_log.id IS '数据库主键';
+COMMENT ON COLUMN rule_override_log.override_id IS '业务字段：override_id';
+COMMENT ON COLUMN rule_override_log.tenant_id IS '租户标识';
+COMMENT ON COLUMN rule_override_log.execution_id IS '业务字段：execution_id';
+COMMENT ON COLUMN rule_override_log.rule_id IS '业务字段：rule_id';
+COMMENT ON COLUMN rule_override_log.version_id IS '业务字段：version_id';
+COMMENT ON COLUMN rule_override_log.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN rule_override_log.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN rule_override_log.action_code IS '业务字段：action_code';
+COMMENT ON COLUMN rule_override_log.override_reason IS '医师选择或填写的越权理由';
+COMMENT ON COLUMN rule_override_log.overridden_by IS '业务字段：overridden_by';
+COMMENT ON COLUMN rule_override_log.overridden_at IS '业务字段：overridden_at';
+COMMENT ON COLUMN rule_override_log.created_at IS '创建时间';
+COMMENT ON COLUMN rule_override_log.trace_id IS '追踪号';
+COMMENT ON TABLE rule_shadow_feedback IS '规则影子运行复核事实，用于统计真实命中与误报';
+COMMENT ON COLUMN rule_shadow_feedback.id IS '数据库主键';
+COMMENT ON COLUMN rule_shadow_feedback.feedback_id IS '业务字段：feedback_id';
+COMMENT ON COLUMN rule_shadow_feedback.tenant_id IS '租户标识';
+COMMENT ON COLUMN rule_shadow_feedback.execution_id IS '业务字段：execution_id';
+COMMENT ON COLUMN rule_shadow_feedback.rule_id IS '业务字段：rule_id';
+COMMENT ON COLUMN rule_shadow_feedback.version_id IS '业务字段：version_id';
+COMMENT ON COLUMN rule_shadow_feedback.patient_id IS '业务字段：patient_id';
+COMMENT ON COLUMN rule_shadow_feedback.encounter_id IS '业务字段：encounter_id';
+COMMENT ON COLUMN rule_shadow_feedback.decision IS '影子复核结论：TRUE_POSITIVE 真实命中 / FALSE_POSITIVE 误报';
+COMMENT ON COLUMN rule_shadow_feedback.reason IS '影子复核说明，误报时必填';
+COMMENT ON COLUMN rule_shadow_feedback.assessed_by IS '执行影子复核的用户 ID';
+COMMENT ON COLUMN rule_shadow_feedback.assessed_at IS '业务字段：assessed_at';
+COMMENT ON COLUMN rule_shadow_feedback.created_at IS '创建时间';
+COMMENT ON COLUMN rule_shadow_feedback.trace_id IS '追踪号';
+COMMENT ON TABLE rule_test_case IS '业务表：rule_test_case';
+COMMENT ON COLUMN rule_test_case.id IS '数据库主键';
+COMMENT ON COLUMN rule_test_case.case_id IS '业务字段：case_id';
+COMMENT ON COLUMN rule_test_case.tenant_id IS '租户标识';
+COMMENT ON COLUMN rule_test_case.rule_id IS '业务字段：rule_id';
+COMMENT ON COLUMN rule_test_case.version_id IS '业务字段：version_id';
+COMMENT ON COLUMN rule_test_case.case_type IS '业务字段：case_type';
+COMMENT ON COLUMN rule_test_case.context_snapshot_id IS '业务字段：context_snapshot_id';
+COMMENT ON COLUMN rule_test_case.input_payload IS '业务字段：input_payload';
+COMMENT ON COLUMN rule_test_case.expected_hit IS '业务字段：expected_hit';
+COMMENT ON COLUMN rule_test_case.expected_severity IS '业务字段：expected_severity';
+COMMENT ON COLUMN rule_test_case.expected_action_code IS '业务字段：expected_action_code';
+COMMENT ON COLUMN rule_test_case.last_hit IS '业务字段：last_hit';
+COMMENT ON COLUMN rule_test_case.last_status IS '业务字段：last_status';
+COMMENT ON COLUMN rule_test_case.last_message IS '业务字段：last_message';
+COMMENT ON COLUMN rule_test_case.last_run_at IS '业务字段：last_run_at';
+COMMENT ON COLUMN rule_test_case.created_at IS '创建时间';
+COMMENT ON COLUMN rule_test_case.created_by IS '创建人';
+COMMENT ON COLUMN rule_test_case.updated_at IS '更新时间';
+COMMENT ON COLUMN rule_test_case.updated_by IS '更新人';
+COMMENT ON COLUMN rule_test_case.trace_id IS '追踪号';
+COMMENT ON TABLE rule_version IS '业务表：rule_version';
+COMMENT ON COLUMN rule_version.id IS '数据库主键';
+COMMENT ON COLUMN rule_version.version_id IS '业务字段：version_id';
+COMMENT ON COLUMN rule_version.tenant_id IS '租户标识';
+COMMENT ON COLUMN rule_version.rule_id IS '业务字段：rule_id';
+COMMENT ON COLUMN rule_version.version_no IS '业务字段：version_no';
+COMMENT ON COLUMN rule_version.source_ref IS '业务字段：source_ref';
+COMMENT ON COLUMN rule_version.change_summary IS '业务字段：change_summary';
+COMMENT ON COLUMN rule_version.dsl_json IS '业务字段：dsl_json';
+COMMENT ON COLUMN rule_version.explanation_json IS '业务字段：explanation_json';
+COMMENT ON COLUMN rule_version.status IS '当前状态';
+COMMENT ON COLUMN rule_version.published_at IS '业务字段：published_at';
+COMMENT ON COLUMN rule_version.published_by IS '业务字段：published_by';
+COMMENT ON COLUMN rule_version.rollback_version_id IS '业务字段：rollback_version_id';
+COMMENT ON COLUMN rule_version.created_at IS '创建时间';
+COMMENT ON COLUMN rule_version.created_by IS '创建人';
+COMMENT ON COLUMN rule_version.updated_at IS '更新时间';
+COMMENT ON COLUMN rule_version.updated_by IS '更新人';
+COMMENT ON COLUMN rule_version.trace_id IS '追踪号';
+COMMENT ON TABLE source_document IS '业务表：source_document';
+COMMENT ON COLUMN source_document.id IS '数据库主键';
+COMMENT ON COLUMN source_document.tenant_id IS '租户标识';
+COMMENT ON COLUMN source_document.source_code IS '业务字段：source_code';
+COMMENT ON COLUMN source_document.source_type IS '业务字段：source_type';
+COMMENT ON COLUMN source_document.authority_level IS '业务字段：authority_level';
+COMMENT ON COLUMN source_document.title IS '业务字段：title';
+COMMENT ON COLUMN source_document.publisher IS '业务字段：publisher';
+COMMENT ON COLUMN source_document.license IS '业务字段：license';
+COMMENT ON COLUMN source_document.language IS '业务字段：language';
+COMMENT ON COLUMN source_document.created_at IS '创建时间';
+COMMENT ON COLUMN source_document.created_by IS '创建人';
+COMMENT ON COLUMN source_document.updated_at IS '更新时间';
+COMMENT ON COLUMN source_document.updated_by IS '更新人';
+COMMENT ON COLUMN source_document.authority_basis IS '来源可信分级判定依据，记录法规文号、指南发布机构、共识出处或院内制度编号';
+COMMENT ON TABLE source_fragment IS '业务表：source_fragment';
+COMMENT ON COLUMN source_fragment.id IS '数据库主键';
+COMMENT ON COLUMN source_fragment.tenant_id IS '租户标识';
+COMMENT ON COLUMN source_fragment.source_version_id IS '业务字段：source_version_id';
+COMMENT ON COLUMN source_fragment.anchor_path IS '业务字段：anchor_path';
+COMMENT ON COLUMN source_fragment.anchor_label IS '业务字段：anchor_label';
+COMMENT ON COLUMN source_fragment.text_excerpt IS '业务字段：text_excerpt';
+COMMENT ON COLUMN source_fragment.created_at IS '创建时间';
+COMMENT ON COLUMN source_fragment.content_hash IS '来源片段正文的 SHA-256 内容指纹，用于同版本内去重和真实性核验';
+COMMENT ON TABLE source_version IS '业务表：source_version';
+COMMENT ON COLUMN source_version.id IS '数据库主键';
+COMMENT ON COLUMN source_version.tenant_id IS '租户标识';
+COMMENT ON COLUMN source_version.source_document_id IS '业务字段：source_document_id';
+COMMENT ON COLUMN source_version.version_no IS '业务字段：version_no';
+COMMENT ON COLUMN source_version.published_at IS '业务字段：published_at';
+COMMENT ON COLUMN source_version.content_hash IS '业务字段：content_hash';
+COMMENT ON COLUMN source_version.file_uri IS '业务字段：file_uri';
+COMMENT ON COLUMN source_version.language IS '业务字段：language';
+COMMENT ON COLUMN source_version.created_at IS '创建时间';
+COMMENT ON COLUMN source_version.created_by IS '创建人';
+COMMENT ON TABLE specialty_metric_binding IS '业务表：specialty_metric_binding';
+COMMENT ON COLUMN specialty_metric_binding.id IS '数据库主键';
+COMMENT ON COLUMN specialty_metric_binding.binding_id IS '业务字段：binding_id';
+COMMENT ON COLUMN specialty_metric_binding.tenant_id IS '租户标识';
+COMMENT ON COLUMN specialty_metric_binding.template_id IS '业务字段：template_id';
+COMMENT ON COLUMN specialty_metric_binding.node_code IS '业务字段：node_code';
+COMMENT ON COLUMN specialty_metric_binding.metric_code IS '业务字段：metric_code';
+COMMENT ON COLUMN specialty_metric_binding.required_flag IS '业务字段：required_flag';
+COMMENT ON COLUMN specialty_metric_binding.created_at IS '创建时间';
+COMMENT ON COLUMN specialty_metric_binding.created_by IS '创建人';
+COMMENT ON COLUMN specialty_metric_binding.updated_at IS '更新时间';
+COMMENT ON COLUMN specialty_metric_binding.updated_by IS '更新人';
+COMMENT ON COLUMN specialty_metric_binding.trace_id IS '追踪号';
+COMMENT ON TABLE standard_term IS '业务表：standard_term';
+COMMENT ON COLUMN standard_term.id IS '数据库主键';
+COMMENT ON COLUMN standard_term.tenant_id IS '租户标识';
+COMMENT ON COLUMN standard_term.standard_system IS '业务字段：standard_system';
+COMMENT ON COLUMN standard_term.term_code IS '业务字段：term_code';
+COMMENT ON COLUMN standard_term.category IS '业务字段：category';
+COMMENT ON COLUMN standard_term.display_name IS '业务字段：display_name';
+COMMENT ON COLUMN standard_term.normalized_name IS '业务字段：normalized_name';
+COMMENT ON COLUMN standard_term.version_no IS '业务字段：version_no';
+COMMENT ON COLUMN standard_term.status IS '当前状态';
+COMMENT ON COLUMN standard_term.source_version_id IS '业务字段：source_version_id';
+COMMENT ON COLUMN standard_term.evidence_text IS '业务字段：evidence_text';
+COMMENT ON COLUMN standard_term.created_at IS '创建时间';
+COMMENT ON COLUMN standard_term.created_by IS '创建人';
+COMMENT ON COLUMN standard_term.updated_at IS '更新时间';
+COMMENT ON COLUMN standard_term.updated_by IS '更新人';
+COMMENT ON TABLE sys_idempotency IS '平台级幂等记录表：保存 Idempotency-Key 首次成功响应，防止写操作重复副作用';
+COMMENT ON COLUMN sys_idempotency.id IS '数据库主键';
+COMMENT ON COLUMN sys_idempotency.tenant_id IS '租户 ID';
+COMMENT ON COLUMN sys_idempotency.idempotency_key IS '幂等键，来自 Idempotency-Key 请求头';
+COMMENT ON COLUMN sys_idempotency.request_method IS '首次请求 HTTP 方法';
+COMMENT ON COLUMN sys_idempotency.request_path IS '首次请求路径与查询串';
+COMMENT ON COLUMN sys_idempotency.request_hash IS '首次请求摘要，用于拒绝同键异文';
+COMMENT ON COLUMN sys_idempotency.response_status IS '首次成功响应 HTTP 状态码';
+COMMENT ON COLUMN sys_idempotency.response_content_type IS '首次成功响应媒体类型';
+COMMENT ON COLUMN sys_idempotency.response_body IS '首次成功响应体';
+COMMENT ON COLUMN sys_idempotency.result_hash IS '首次成功响应体 SHA-256 摘要';
+COMMENT ON COLUMN sys_idempotency.trace_id IS '首次请求 traceId';
+COMMENT ON COLUMN sys_idempotency.status IS '幂等状态：PROCESSING 处理中 / COMPLETED 已完成';
+COMMENT ON COLUMN sys_idempotency.expires_at IS '幂等记录过期时间，用于 TTL 清理';
+COMMENT ON COLUMN sys_idempotency.created_at IS '创建时间';
+COMMENT ON COLUMN sys_idempotency.updated_at IS '更新时间';
+COMMENT ON TABLE sys_login_attempt IS 'AUTH-03 登录失败计数与锁定限流状态表';
+COMMENT ON COLUMN sys_login_attempt.id IS '数据库主键';
+COMMENT ON COLUMN sys_login_attempt.attempt_id IS '业务字段：attempt_id';
+COMMENT ON COLUMN sys_login_attempt.tenant_id IS '租户标识';
+COMMENT ON COLUMN sys_login_attempt.username IS '业务字段：username';
+COMMENT ON COLUMN sys_login_attempt.credential_id IS '业务字段：credential_id';
+COMMENT ON COLUMN sys_login_attempt.failed_count IS '业务字段：failed_count';
+COMMENT ON COLUMN sys_login_attempt.locked_until IS '业务字段：locked_until';
+COMMENT ON COLUMN sys_login_attempt.last_failed_at IS '业务字段：last_failed_at';
+COMMENT ON COLUMN sys_login_attempt.created_at IS '创建时间';
+COMMENT ON COLUMN sys_login_attempt.created_by IS '创建人';
+COMMENT ON COLUMN sys_login_attempt.updated_at IS '更新时间';
+COMMENT ON COLUMN sys_login_attempt.updated_by IS '更新人';
+COMMENT ON COLUMN sys_login_attempt.trace_id IS '追踪号';
+COMMENT ON TABLE sys_password_reset_token IS 'AUTH-03 受控密码重置一次性 token 表';
+COMMENT ON COLUMN sys_password_reset_token.id IS '数据库主键';
+COMMENT ON COLUMN sys_password_reset_token.reset_id IS '业务字段：reset_id';
+COMMENT ON COLUMN sys_password_reset_token.tenant_id IS '租户标识';
+COMMENT ON COLUMN sys_password_reset_token.user_id IS '业务字段：user_id';
+COMMENT ON COLUMN sys_password_reset_token.username IS '业务字段：username';
+COMMENT ON COLUMN sys_password_reset_token.token_hash IS '一次性重置 token 的 SM3 摘要，明文仅返回一次';
+COMMENT ON COLUMN sys_password_reset_token.expires_at IS '业务字段：expires_at';
+COMMENT ON COLUMN sys_password_reset_token.used_at IS 'token 被消费的时间；非空表示不可再次使用';
+COMMENT ON COLUMN sys_password_reset_token.created_at IS '创建时间';
+COMMENT ON COLUMN sys_password_reset_token.created_by IS '创建人';
+COMMENT ON COLUMN sys_password_reset_token.updated_at IS '更新时间';
+COMMENT ON COLUMN sys_password_reset_token.updated_by IS '更新人';
+COMMENT ON COLUMN sys_password_reset_token.trace_id IS '追踪号';
+COMMENT ON TABLE sys_task IS 'SYS-05 任务运行框架表，承载在线、异步、批量任务的权威状态';
+COMMENT ON COLUMN sys_task.id IS '数据库主键';
+COMMENT ON COLUMN sys_task.task_id IS '任务业务 ID，用于轮询和审计';
+COMMENT ON COLUMN sys_task.tenant_id IS '租户标识';
+COMMENT ON COLUMN sys_task.org_path IS '业务字段：org_path';
+COMMENT ON COLUMN sys_task.task_mode IS '业务字段：task_mode';
+COMMENT ON COLUMN sys_task.status IS '待办状态机状态：未读、处理中、完成、部分成功、失败或升级';
+COMMENT ON COLUMN sys_task.task_type IS '业务字段：task_type';
+COMMENT ON COLUMN sys_task.payload_storage_type IS '业务字段：payload_storage_type';
+COMMENT ON COLUMN sys_task.payload_uri IS '业务字段：payload_uri';
+COMMENT ON COLUMN sys_task.payload_digest IS '业务字段：payload_digest';
+COMMENT ON COLUMN sys_task.payload_size_bytes IS '业务字段：payload_size_bytes';
+COMMENT ON COLUMN sys_task.total_count IS '业务字段：total_count';
+COMMENT ON COLUMN sys_task.success_count IS '业务字段：success_count';
+COMMENT ON COLUMN sys_task.failure_count IS '业务字段：failure_count';
+COMMENT ON COLUMN sys_task.retryable_count IS '业务字段：retryable_count';
+COMMENT ON COLUMN sys_task.failure_details_json IS '业务字段：failure_details_json';
+COMMENT ON COLUMN sys_task.message IS '业务字段：message';
+COMMENT ON COLUMN sys_task.error_code IS '业务字段：error_code';
+COMMENT ON COLUMN sys_task.trace_id IS '追踪号';
+COMMENT ON COLUMN sys_task.started_at IS '业务字段：started_at';
+COMMENT ON COLUMN sys_task.finished_at IS '业务字段：finished_at';
+COMMENT ON COLUMN sys_task.created_at IS '创建时间';
+COMMENT ON COLUMN sys_task.created_by IS '创建人';
+COMMENT ON COLUMN sys_task.updated_at IS '更新时间';
+COMMENT ON COLUMN sys_task.updated_by IS '更新人';
+COMMENT ON COLUMN sys_task.retry_count IS '任务已执行的人工重试次数';
+COMMENT ON COLUMN sys_task.max_retries IS '任务允许的最大人工重试次数';
+COMMENT ON COLUMN sys_task.next_attempt_at IS '建议的下一次重试时间';
+COMMENT ON COLUMN sys_task.last_error_code IS '业务字段：last_error_code';
+COMMENT ON COLUMN sys_task.dead_letter_id IS '任务进入死信后的死信 ID';
+COMMENT ON COLUMN sys_task.replayed_from_task_id IS '死信回放来源任务 ID';
+COMMENT ON TABLE sys_task_dead_letter IS 'SYS-05 任务死信表，保存重试耗尽任务的失败证据和人工回放结果';
+COMMENT ON COLUMN sys_task_dead_letter.id IS '数据库主键';
+COMMENT ON COLUMN sys_task_dead_letter.dead_letter_id IS '死信业务 ID，用于人工回放和审计追踪';
+COMMENT ON COLUMN sys_task_dead_letter.tenant_id IS '租户标识';
+COMMENT ON COLUMN sys_task_dead_letter.org_path IS '业务字段：org_path';
+COMMENT ON COLUMN sys_task_dead_letter.task_id IS '进入死信的原始任务 ID';
+COMMENT ON COLUMN sys_task_dead_letter.task_mode IS '业务字段：task_mode';
+COMMENT ON COLUMN sys_task_dead_letter.task_type IS '业务字段：task_type';
+COMMENT ON COLUMN sys_task_dead_letter.payload_storage_type IS '业务字段：payload_storage_type';
+COMMENT ON COLUMN sys_task_dead_letter.payload_uri IS '业务字段：payload_uri';
+COMMENT ON COLUMN sys_task_dead_letter.payload_digest IS '业务字段：payload_digest';
+COMMENT ON COLUMN sys_task_dead_letter.payload_size_bytes IS '业务字段：payload_size_bytes';
+COMMENT ON COLUMN sys_task_dead_letter.total_count IS '业务字段：total_count';
+COMMENT ON COLUMN sys_task_dead_letter.retry_count IS '业务字段：retry_count';
+COMMENT ON COLUMN sys_task_dead_letter.failure_details_json IS '业务字段：failure_details_json';
+COMMENT ON COLUMN sys_task_dead_letter.error_code IS '业务字段：error_code';
+COMMENT ON COLUMN sys_task_dead_letter.message IS '业务字段：message';
+COMMENT ON COLUMN sys_task_dead_letter.trace_id IS '追踪号';
+COMMENT ON COLUMN sys_task_dead_letter.created_at IS '创建时间';
+COMMENT ON COLUMN sys_task_dead_letter.created_by IS '创建人';
+COMMENT ON COLUMN sys_task_dead_letter.updated_at IS '更新时间';
+COMMENT ON COLUMN sys_task_dead_letter.updated_by IS '更新人';
+COMMENT ON COLUMN sys_task_dead_letter.replayed_at IS '业务字段：replayed_at';
+COMMENT ON COLUMN sys_task_dead_letter.replayed_by IS '业务字段：replayed_by';
+COMMENT ON COLUMN sys_task_dead_letter.replay_task_id IS '人工回放后创建的新任务 ID';
+COMMENT ON TABLE tenant_branding IS '租户定制 brand 品牌信息表';
+COMMENT ON COLUMN tenant_branding.id IS '自增物理主键';
+COMMENT ON COLUMN tenant_branding.tenant_id IS '租户 ID';
+COMMENT ON COLUMN tenant_branding.hospital_name IS '医院物理名称';
+COMMENT ON COLUMN tenant_branding.logo_url IS '医院定制 Logo URL';
+COMMENT ON COLUMN tenant_branding.theme_color IS '平台定制 UI 主题色';
+COMMENT ON COLUMN tenant_branding.expert_mode IS '是否默认展示高级信息';
+COMMENT ON COLUMN tenant_branding.custom_branding_json IS '其他扩展样式的品牌 JSON 配置';
+COMMENT ON COLUMN tenant_branding.created_at IS '创建时间点';
+COMMENT ON COLUMN tenant_branding.created_by IS '创建人';
+COMMENT ON COLUMN tenant_branding.updated_at IS '最后更新时间点';
+COMMENT ON COLUMN tenant_branding.updated_by IS '最后更新人';
+COMMENT ON TABLE tenant_success_plan IS '租户客户成功多维生命周期计划表';
+COMMENT ON COLUMN tenant_success_plan.id IS '自增物理主键';
+COMMENT ON COLUMN tenant_success_plan.tenant_id IS '租户 ID';
+COMMENT ON COLUMN tenant_success_plan.current_stage IS '当前生命周期阶段 (PREPARATION, PILOT, ACCEPTANCE, PROMOTION, RUNNING, RENEWAL)';
+COMMENT ON COLUMN tenant_success_plan.health_score IS '多维治理健康度评分';
+COMMENT ON COLUMN tenant_success_plan.activated_modules IS '已激活系统服务模块逗号分隔列表';
+COMMENT ON COLUMN tenant_success_plan.activated_pathways IS '已激活临床专病包逗号分隔列表';
+COMMENT ON COLUMN tenant_success_plan.created_at IS '创建时间点';
+COMMENT ON COLUMN tenant_success_plan.created_by IS '创建人';
+COMMENT ON COLUMN tenant_success_plan.updated_at IS '最后更新时间点';
+COMMENT ON COLUMN tenant_success_plan.updated_by IS '最后更新人';
+COMMENT ON TABLE tenant_user IS '租户用户唯一目录，凭证、角色和外部身份绑定共同引用该主体';
+COMMENT ON COLUMN tenant_user.id IS '数据库主键';
+COMMENT ON COLUMN tenant_user.tenant_id IS '租户标识';
+COMMENT ON COLUMN tenant_user.user_id IS '租户内稳定用户标识，不承载登录凭证';
+COMMENT ON COLUMN tenant_user.display_name IS '面向管理员和临床人员展示的用户名称';
+COMMENT ON COLUMN tenant_user.status IS '用户生命周期状态，ACTIVE、DISABLED 或 LOCKED';
+COMMENT ON COLUMN tenant_user.version IS '并发版本号';
+COMMENT ON COLUMN tenant_user.created_at IS '创建时间';
+COMMENT ON COLUMN tenant_user.created_by IS '创建人';
+COMMENT ON COLUMN tenant_user.updated_at IS '更新时间';
+COMMENT ON COLUMN tenant_user.updated_by IS '更新人';
+COMMENT ON COLUMN tenant_user.trace_id IS '追踪号';
+COMMENT ON TABLE term_mapping IS '业务表：term_mapping';
+COMMENT ON COLUMN term_mapping.id IS '数据库主键';
+COMMENT ON COLUMN term_mapping.tenant_id IS '租户标识';
+COMMENT ON COLUMN term_mapping.local_term_id IS '业务字段：local_term_id';
+COMMENT ON COLUMN term_mapping.standard_term_id IS '业务字段：standard_term_id';
+COMMENT ON COLUMN term_mapping.source_system IS '业务字段：source_system';
+COMMENT ON COLUMN term_mapping.category IS '业务字段：category';
+COMMENT ON COLUMN term_mapping.confidence IS '业务字段：confidence';
+COMMENT ON COLUMN term_mapping.risk_level IS '业务字段：risk_level';
+COMMENT ON COLUMN term_mapping.status IS '当前状态';
+COMMENT ON COLUMN term_mapping.evidence_text IS '业务字段：evidence_text';
+COMMENT ON COLUMN term_mapping.confirmed_by IS '业务字段：confirmed_by';
+COMMENT ON COLUMN term_mapping.confirmed_at IS '业务字段：confirmed_at';
+COMMENT ON COLUMN term_mapping.created_at IS '创建时间';
+COMMENT ON COLUMN term_mapping.created_by IS '创建人';
+COMMENT ON COLUMN term_mapping.updated_at IS '更新时间';
+COMMENT ON COLUMN term_mapping.updated_by IS '更新人';
+COMMENT ON TABLE user_role_assignment IS '业务表：user_role_assignment';
+COMMENT ON COLUMN user_role_assignment.id IS '数据库主键';
+COMMENT ON COLUMN user_role_assignment.tenant_id IS '租户标识';
+COMMENT ON COLUMN user_role_assignment.user_id IS '业务字段：user_id';
+COMMENT ON COLUMN user_role_assignment.role_code IS '业务字段：role_code';
+COMMENT ON COLUMN user_role_assignment.scope_level IS '业务字段：scope_level';
+COMMENT ON COLUMN user_role_assignment.scope_code IS '业务字段：scope_code';
+COMMENT ON COLUMN user_role_assignment.active_flag IS '是否启用：Y/N';
+COMMENT ON COLUMN user_role_assignment.created_at IS '创建时间';
+COMMENT ON COLUMN user_role_assignment.created_by IS '创建人';
+COMMENT ON COLUMN user_role_assignment.updated_at IS '更新时间';
+COMMENT ON COLUMN user_role_assignment.updated_by IS '更新人';
+COMMENT ON TABLE asset_trigger_binding IS '资产内容版本多触发绑定：规则执行、路径候选入径与路径推进均绑定精确版本';
+COMMENT ON COLUMN asset_trigger_binding.id IS '数据库主键';
+COMMENT ON COLUMN asset_trigger_binding.trigger_binding_id IS '触发绑定业务标识';
+COMMENT ON COLUMN asset_trigger_binding.tenant_id IS '资产所属租户标识';
+COMMENT ON COLUMN asset_trigger_binding.asset_type IS '允许触发绑定的资产类型：规则或路径';
+COMMENT ON COLUMN asset_trigger_binding.asset_identity IS '跨版本稳定资产身份';
+COMMENT ON COLUMN asset_trigger_binding.version_id IS '精确资产内容版本标识';
+COMMENT ON COLUMN asset_trigger_binding.trigger_point IS '标准化临床触发点编码';
+COMMENT ON COLUMN asset_trigger_binding.purpose IS '绑定用途：规则执行、路径候选入径或路径推进';
+COMMENT ON COLUMN asset_trigger_binding.required_fields_json IS '运行前必需的标准字段编码 JSON 数组';
+COMMENT ON COLUMN asset_trigger_binding.created_at IS '创建时间';
+COMMENT ON COLUMN asset_trigger_binding.created_by IS '创建人';
+COMMENT ON COLUMN asset_trigger_binding.updated_at IS '更新时间';
+COMMENT ON COLUMN asset_trigger_binding.updated_by IS '更新人';
+COMMENT ON COLUMN asset_trigger_binding.trace_id IS '链路追踪标识';
+COMMENT ON TABLE asset_identity IS '可发布配置资产稳定身份：统一管理类型、身份状态和版本序列';
+COMMENT ON COLUMN asset_identity.id IS '数据库主键';
+COMMENT ON COLUMN asset_identity.tenant_id IS '资产所属租户标识';
+COMMENT ON COLUMN asset_identity.asset_type IS '统一运行配置资产类型';
+COMMENT ON COLUMN asset_identity.asset_identity IS '跨版本稳定资产身份';
+COMMENT ON COLUMN asset_identity.status IS '身份状态：ACTIVE 可维护或 RETIRED 已退役';
+COMMENT ON COLUMN asset_identity.latest_version_sequence IS '服务端分配下一内容版本号的当前最大序号';
+COMMENT ON COLUMN asset_identity.created_at IS '创建时间';
+COMMENT ON COLUMN asset_identity.created_by IS '创建人';
+COMMENT ON COLUMN asset_identity.updated_at IS '更新时间';
+COMMENT ON COLUMN asset_identity.updated_by IS '更新人';
+COMMENT ON COLUMN asset_identity.trace_id IS '链路追踪标识';
+COMMENT ON TABLE asset_validation_record IS '资产发布技术校验证据：精确绑定租户、版本和内容哈希，仅记录同步校验结果';
+COMMENT ON COLUMN asset_validation_record.id IS '数据库主键';
+COMMENT ON COLUMN asset_validation_record.validation_id IS '不可变技术校验证据标识';
+COMMENT ON COLUMN asset_validation_record.tenant_id IS '被校验资产所属租户标识';
+COMMENT ON COLUMN asset_validation_record.version_id IS '被校验的精确资产版本业务 ID';
+COMMENT ON COLUMN asset_validation_record.content_hash IS '校验时绑定的资产内容 SHA-256 指纹';
+COMMENT ON COLUMN asset_validation_record.passed IS '同步技术校验是否通过';
+COMMENT ON COLUMN asset_validation_record.summary IS '技术校验结果摘要';
+COMMENT ON COLUMN asset_validation_record.validated_at IS '技术校验完成时间';
+COMMENT ON COLUMN asset_validation_record.validated_by IS '触发技术校验的操作人';
+COMMENT ON COLUMN asset_validation_record.trace_id IS '链路追踪标识';
+COMMENT ON TABLE medical_domain IS '平台统一医疗领域目录：稳定分类编码，无独立版本序列';
+COMMENT ON COLUMN medical_domain.id IS '数据库主键';
+COMMENT ON COLUMN medical_domain.domain_code IS '平台统一稳定领域编码';
+COMMENT ON COLUMN medical_domain.name IS '领域中文名称';
+COMMENT ON COLUMN medical_domain.description IS '领域用途与边界说明';
+COMMENT ON COLUMN medical_domain.parent_domain_code IS '可选上级稳定领域编码';
+COMMENT ON COLUMN medical_domain.status IS '领域状态：ACTIVE 可用或 INACTIVE 停用';
+COMMENT ON COLUMN medical_domain.sort_order IS '同层级展示顺序';
+COMMENT ON COLUMN medical_domain.created_at IS '创建时间';
+COMMENT ON COLUMN medical_domain.created_by IS '创建人';
+COMMENT ON COLUMN medical_domain.updated_at IS '更新时间';
+COMMENT ON COLUMN medical_domain.updated_by IS '更新人';
+COMMENT ON COLUMN medical_domain.trace_id IS '链路追踪标识';
+COMMENT ON TABLE asset_domain_profile IS '稳定资产身份主领域归类：每个租户和资产身份只能有一个主领域';
+COMMENT ON COLUMN asset_domain_profile.id IS '数据库主键';
+COMMENT ON COLUMN asset_domain_profile.tenant_id IS '资产所属租户标识';
+COMMENT ON COLUMN asset_domain_profile.asset_type IS '统一资产类型';
+COMMENT ON COLUMN asset_domain_profile.asset_identity IS '跨版本稳定资产身份';
+COMMENT ON COLUMN asset_domain_profile.primary_domain_code IS '维护者确认的唯一主领域编码';
+COMMENT ON COLUMN asset_domain_profile.created_at IS '创建时间';
+COMMENT ON COLUMN asset_domain_profile.created_by IS '创建人';
+COMMENT ON COLUMN asset_domain_profile.updated_at IS '更新时间';
+COMMENT ON COLUMN asset_domain_profile.updated_by IS '更新人';
+COMMENT ON COLUMN asset_domain_profile.trace_id IS '链路追踪标识';
+COMMENT ON TABLE asset_related_domain IS '稳定资产身份相关领域：用于跨领域检索，不参与临床执行路由';
+COMMENT ON COLUMN asset_related_domain.id IS '数据库主键';
+COMMENT ON COLUMN asset_related_domain.tenant_id IS '资产所属租户标识';
+COMMENT ON COLUMN asset_related_domain.asset_type IS '统一资产类型';
+COMMENT ON COLUMN asset_related_domain.asset_identity IS '跨版本稳定资产身份';
+COMMENT ON COLUMN asset_related_domain.domain_code IS '可选相关领域编码';
+COMMENT ON COLUMN asset_related_domain.created_at IS '创建时间';
+COMMENT ON COLUMN asset_related_domain.created_by IS '创建人';
+COMMENT ON COLUMN asset_related_domain.updated_at IS '更新时间';
+COMMENT ON COLUMN asset_related_domain.updated_by IS '更新人';
+COMMENT ON COLUMN asset_related_domain.trace_id IS '链路追踪标识';
+COMMENT ON TABLE platform_baseline_release IS '平台标准版本账本：只追加并锁定完整精确版本明细校验码';
+COMMENT ON COLUMN platform_baseline_release.id IS '数据库主键';
+COMMENT ON COLUMN platform_baseline_release.baseline_release_id IS '不可变平台标准版本标识';
+COMMENT ON COLUMN platform_baseline_release.revision_no IS '平台全局自动递增修订号';
+COMMENT ON COLUMN platform_baseline_release.manifest_sha256 IS '完整精确版本明细 SHA-256 校验码';
+COMMENT ON COLUMN platform_baseline_release.published_at IS '平台标准版本发布时间';
+COMMENT ON COLUMN platform_baseline_release.published_by IS '平台标准版本发布操作人';
+COMMENT ON COLUMN platform_baseline_release.created_at IS '记录创建时间';
+COMMENT ON COLUMN platform_baseline_release.created_by IS '记录创建人';
+COMMENT ON COLUMN platform_baseline_release.trace_id IS '链路追踪标识';
+COMMENT ON TABLE platform_baseline_item IS '平台标准版本明细条目：每个稳定资产身份锁定一个精确已发布版本';
+COMMENT ON COLUMN platform_baseline_item.id IS '数据库主键';
+COMMENT ON COLUMN platform_baseline_item.baseline_release_id IS '所属平台标准版本标识';
+COMMENT ON COLUMN platform_baseline_item.source_tenant_id IS '资产正文来源租户，平台资产固定为平台租户';
+COMMENT ON COLUMN platform_baseline_item.asset_type IS '统一资产类型';
+COMMENT ON COLUMN platform_baseline_item.asset_identity IS '跨版本稳定资产身份';
+COMMENT ON COLUMN platform_baseline_item.entry_state IS '清单条目状态：ACTIVE 锁定精确版本或 DISABLED 明确停用';
+COMMENT ON COLUMN platform_baseline_item.version_id IS '清单锁定的精确资产版本标识';
+COMMENT ON COLUMN platform_baseline_item.version_no IS '便于展示和核对的资产版本号';
+COMMENT ON COLUMN platform_baseline_item.content_hash IS '精确资产正文 SHA-256 摘要';
+COMMENT ON COLUMN platform_baseline_item.created_at IS '条目创建时间';
+COMMENT ON COLUMN platform_baseline_item.created_by IS '条目创建人';
+COMMENT ON COLUMN platform_baseline_item.trace_id IS '链路追踪标识';
+COMMENT ON TABLE clinical_runtime_release_item IS '机构生效版本明细条目：锁定平台、集团或医院来源的精确资产版本';
+COMMENT ON COLUMN clinical_runtime_release_item.id IS '数据库主键';
+COMMENT ON COLUMN clinical_runtime_release_item.release_id IS '所属机构生效版本标识';
+COMMENT ON COLUMN clinical_runtime_release_item.source_tenant_id IS '资产正文来源租户';
+COMMENT ON COLUMN clinical_runtime_release_item.source_layer IS '资产来源层级：PLATFORM、GROUP 或 HOSPITAL';
+COMMENT ON COLUMN clinical_runtime_release_item.asset_type IS '统一资产类型';
+COMMENT ON COLUMN clinical_runtime_release_item.asset_identity IS '跨版本稳定资产身份';
+COMMENT ON COLUMN clinical_runtime_release_item.entry_state IS '运行条目状态：ACTIVE 锁定精确版本或 DISABLED 明确停用';
+COMMENT ON COLUMN clinical_runtime_release_item.version_id IS '运行清单锁定的精确资产版本标识';
+COMMENT ON COLUMN clinical_runtime_release_item.version_no IS '便于展示和核对的资产版本号';
+COMMENT ON COLUMN clinical_runtime_release_item.content_hash IS '精确资产正文 SHA-256 摘要';
+COMMENT ON COLUMN clinical_runtime_release_item.created_at IS '条目创建时间';
+COMMENT ON COLUMN clinical_runtime_release_item.created_by IS '条目创建人';
+COMMENT ON COLUMN clinical_runtime_release_item.trace_id IS '链路追踪标识';

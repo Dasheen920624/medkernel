@@ -12,6 +12,9 @@ spring:
       enabled: true     # Spring Boot 3.2+ Virtual Threads 默认开启
   flyway:
     enabled: false      # 默认由具体 profile 打开迁移
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
 
 server:
   port: ${SERVER_PORT:18080}
@@ -80,6 +83,8 @@ medkernel:
     health-probe-interval-ms: ${MEDKERNEL_INTEGRATION_HEALTH_PROBE_INTERVAL_MS:300000}
     secret-key: ${MEDKERNEL_INTEGRATION_SECRET_KEY:}
   auth:
+    mfa:
+      enabled: ${MEDKERNEL_AUTH_MFA_ENABLED:false}
     jwt:
       ttl-seconds: 28800
       secret: ${MEDKERNEL_AUTH_JWT_SECRET:}
@@ -148,12 +153,6 @@ medkernel:
         risk: HIGH
         owner: 医务处 / 信息科
         description: 控制区间、参考范围、单位、时序和受控公式等临床算子是否参与求值。
-      authoring-condition-fragment-library:
-        display-name: 条件片段库
-        enabled: ${MEDKERNEL_AUTHORING_CONDITION_FRAGMENT_LIBRARY_ENABLED:false}
-        risk: MEDIUM
-        owner: 医务处 / 信息科
-        description: 控制条件片段库的复用入口；未启用时不得按片段引用求值。
       authoring-batch-authoring:
         display-name: 批量创作
         enabled: ${MEDKERNEL_AUTHORING_BATCH_AUTHORING_ENABLED:true}
@@ -165,7 +164,7 @@ medkernel:
         enabled: ${MEDKERNEL_AUTHORING_PATHWAY_RICH_NODES_ENABLED:true}
         risk: HIGH
         owner: 医务处 / 信息科
-        description: 控制决策、并行、等待计时、子路径、人工闸门和医嘱集节点是否可发布与推进。
+        description: 控制决策、并行、等待计时、人工确认和医嘱集节点是否可发布与推进。
     backup:
       enabled: ${MEDKERNEL_BACKUP_ENABLED:false}
       rpo: ${MEDKERNEL_BACKUP_RPO:未启用}

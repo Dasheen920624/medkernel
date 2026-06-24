@@ -19,6 +19,7 @@ public record RuleExecutionLog(
     @Column("tenant_id") String tenantId,
     @Column("rule_id") String ruleId,
     @Column("version_id") String versionId,
+    @Column("runtime_release_id") String runtimeReleaseId,
     @Column("trigger_point") String triggerPoint,
     @Column("event_id") String eventId,
     @Column("actor_user_id") String actorUserId,

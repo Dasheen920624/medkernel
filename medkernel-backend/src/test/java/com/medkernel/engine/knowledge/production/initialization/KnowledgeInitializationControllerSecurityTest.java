@@ -1,7 +1,6 @@
 package com.medkernel.engine.knowledge.production.initialization;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -42,9 +41,6 @@ class KnowledgeInitializationControllerSecurityTest {
     private MockMvc mockMvc;
 
     @MockBean
-    private SourceVersionApprovalService sourceApprovalService;
-
-    @MockBean
     private KnowledgeInitializationService initializationService;
 
     @AfterEach
@@ -60,68 +56,50 @@ class KnowledgeInitializationControllerSecurityTest {
     }
 
     @Test
-    void knowledgeGovernorCanReadCatalogAndBatches() throws Exception {
+    void engineOperatorCanReadCatalogAndBatches() throws Exception {
         when(initializationService.list()).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/engine/knowledge-production/initialization/catalog")
-                .with(knowledgeGovernor()))
+                .with(engineOperator()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[0].catalogCode").value("KNOWGEN-29"));
         mockMvc.perform(get("/api/v1/engine/knowledge-production/initialization/batches")
-                .with(knowledgeGovernor()))
+                .with(engineOperator()))
             .andExpect(status().isOk());
     }
 
     @Test
-    void knowledgeGovernorCannotApproveSourceVersion() throws Exception {
+    void sourceVersionApprovalEndpointDoesNotExist() throws Exception {
         mockMvc.perform(post(
                 "/api/v1/engine/knowledge-production/initialization/source-versions/9/approval")
-                .with(knowledgeGovernor())
+                .with(engineOperator())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(APPROVAL_BODY))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isNotFound());
     }
 
     @Test
-    void systemSuperadminCanApproveSourceVersion() throws Exception {
-        when(sourceApprovalService.approve(anyLong(), any())).thenReturn(null);
-
-        mockMvc.perform(post(
-                "/api/v1/engine/knowledge-production/initialization/source-versions/9/approval")
-                .with(systemSuperadmin())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(APPROVAL_BODY))
-            .andExpect(status().isOk());
-    }
-
-    @Test
-    void knowledgeGovernorCanApproveLowAndRefreshBatch() throws Exception {
+    void engineOperatorCanApproveLowAndRefreshBatch() throws Exception {
         when(initializationService.approveLow(anyString(), any())).thenReturn(null);
         when(initializationService.refresh(anyString())).thenReturn(null);
 
         mockMvc.perform(post(
                 "/api/v1/engine/knowledge-production/initialization/batches/foundation-f1/approve-low")
-                .with(knowledgeGovernor())
+                .with(engineOperator())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(LOW_APPROVAL_BODY))
             .andExpect(status().isOk());
         mockMvc.perform(post(
                 "/api/v1/engine/knowledge-production/initialization/batches/foundation-f1/refresh")
-                .with(knowledgeGovernor()))
+                .with(engineOperator()))
             .andExpect(status().isOk());
     }
 
     private org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors
-            .JwtRequestPostProcessor knowledgeGovernor() {
-        return jwt().jwt(token -> token.subject("reviewer").claim("tenant_id", "tenant-1")
-                .claim("roles", List.of("knowledge-governor")))
-            .authorities(new SimpleGrantedAuthority("ROLE_KNOWLEDGE_GOVERNOR"));
+            .JwtRequestPostProcessor engineOperator() {
+        return jwt().jwt(token -> token.subject("operator").claim("tenant_id", "tenant-1")
+                .claim("roles", List.of("engine-operator")))
+            .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"));
     }
 
-    private org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors
-            .JwtRequestPostProcessor systemSuperadmin() {
-        return jwt().jwt(token -> token.subject("admin").claim("tenant_id", "tenant-1")
-                .claim("roles", List.of("system-superadmin")))
-            .authorities(new SimpleGrantedAuthority("ROLE_SYSTEM_SUPERADMIN"));
-    }
 }

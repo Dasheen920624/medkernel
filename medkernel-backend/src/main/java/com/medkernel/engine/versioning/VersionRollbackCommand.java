@@ -12,7 +12,7 @@ public record VersionRollbackCommand(
     String confirmedCurrentVersion,
     String confirmedTargetVersion,
     String reason,
-    Boolean confirmedHighRisk,
+    Boolean confirmedOperation,
     String actor,
     String traceId
 ) {}

@@ -103,8 +103,6 @@ class AcquisitionOrchestrationServiceTest {
             AcquisitionLicensePolicy.PERMITTED,
             AcquisitionRobotsPolicy.ALLOW_FETCH,
             "Y",
-            "super-admin",
-            Instant.parse("2026-06-17T00:00:00Z"),
             "N",
             null,
             null,
@@ -145,13 +143,13 @@ class AcquisitionOrchestrationServiceTest {
         KnowledgeAcquisitionRunResponse response = service.run(request("https://guideline.example.org/htn.txt"));
 
         assertThat(response.status()).isEqualTo(KnowledgeAcquisitionRunStatus.BLOCKED);
-        assertThat(response.failureReason()).contains("PRODUCTION_CENTER");
+        assertThat(response.failureReason()).contains("知识生产中心");
         verify(fetcher, never()).fetch(any());
 
         ArgumentCaptor<KnowledgeAcquisitionRun> saved = ArgumentCaptor.forClass(KnowledgeAcquisitionRun.class);
         verify(runRepository).save(saved.capture());
         assertThat(saved.getValue().status()).isEqualTo(KnowledgeAcquisitionRunStatus.BLOCKED);
-        assertThat(saved.getValue().failureReason()).contains("PRODUCTION_CENTER");
+        assertThat(saved.getValue().failureReason()).contains("知识生产中心");
     }
 
     @Test
@@ -167,7 +165,7 @@ class AcquisitionOrchestrationServiceTest {
         ArgumentCaptor<KnowledgeAcquisitionRun> saved = ArgumentCaptor.forClass(KnowledgeAcquisitionRun.class);
         verify(runRepository).save(saved.capture());
         assertThat(saved.getValue().triggerType()).isEqualTo(AcquisitionTriggerType.SCHEDULED);
-        assertThat(saved.getValue().failureReason()).contains("PRODUCTION_CENTER");
+        assertThat(saved.getValue().failureReason()).contains("知识生产中心");
     }
 
     @Test
@@ -189,7 +187,7 @@ class AcquisitionOrchestrationServiceTest {
         KnowledgeAcquisitionRunResponse response = service.run(request("https://evil.example.net/htn.txt"));
 
         assertThat(response.status()).isEqualTo(KnowledgeAcquisitionRunStatus.BLOCKED);
-        assertThat(response.failureReason()).contains("白名单");
+        assertThat(response.failureReason()).contains("允许清单");
         verify(fetcher, never()).fetch(any());
     }
 
@@ -202,7 +200,7 @@ class AcquisitionOrchestrationServiceTest {
         KnowledgeAcquisitionRunResponse response = service.run(request("https://guideline.example.org/htn.txt"));
 
         assertThat(response.status()).isEqualTo(KnowledgeAcquisitionRunStatus.BLOCKED);
-        assertThat(response.failureReason()).contains("白名单");
+        assertThat(response.failureReason()).contains("允许清单");
         verify(fetcher, never()).fetch(any());
     }
 
@@ -231,7 +229,7 @@ class AcquisitionOrchestrationServiceTest {
         KnowledgeAcquisitionRunResponse response = service.run(request("https://guideline.example.org/redirect"));
 
         assertThat(response.status()).isEqualTo(KnowledgeAcquisitionRunStatus.BLOCKED);
-        assertThat(response.failureReason()).contains("重定向域名不在来源白名单");
+        assertThat(response.failureReason()).contains("重定向域名不在来源允许清单");
         verify(parseService, never()).submit(any());
     }
 
@@ -304,8 +302,7 @@ class AcquisitionOrchestrationServiceTest {
             "zh-CN", Instant.EPOCH, "user-001")));
         GenerationSummary generationSummary = new GenerationSummary(
             List.of(new GeneratedCandidate(VersionedAssetType.RULE, "job-acq", "kv:1:draft",
-                new ReviewRoutingDecision(RoleCode.KNOWLEDGE_GOVERNOR, RoleCode.KNOWLEDGE_GOVERNOR,
-                    false, KnowledgeDomain.CLINICAL))),
+                new ReviewRoutingDecision(RoleCode.ENGINE_OPERATOR, KnowledgeDomain.CLINICAL))),
             List.of(),
             List.of());
         when(candidateGeneration.generate(any())).thenReturn(generationSummary);

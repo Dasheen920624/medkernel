@@ -1,5 +1,7 @@
 package com.medkernel.engine.authoring;
 
+import java.util.List;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.medkernel.engine.rule.RuleAuthoringMode;
 import com.medkernel.engine.rule.RuleCreateResponse;
@@ -8,6 +10,7 @@ import com.medkernel.engine.rule.RuleGovernanceState;
 import com.medkernel.engine.rule.RuleImpactResponse;
 import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.engine.rule.RuleType;
+import com.medkernel.engine.versioning.AssetTriggerBindingInput;
 
 /**
  * 批量创作对规则域稳定能力的调用端口。
@@ -31,7 +34,7 @@ record AuthoringBatchRuleTemplate(
     int priority,
     String suppressedBy,
     int dedupeWindowSeconds,
-    String packageVersion,
+    List<AssetTriggerBindingInput> triggers,
     String applicableOrgUnitId,
     String sourceRef,
     JsonNode dsl,
@@ -42,7 +45,7 @@ record AuthoringBatchRuleDraftCommand(
     String ruleCode,
     String name,
     AuthoringBatchRuleTemplate template,
-    String packageVersion,
+    List<AssetTriggerBindingInput> triggers,
     String applicableOrgUnitId,
     String changeSummary,
     JsonNode parameterBindings

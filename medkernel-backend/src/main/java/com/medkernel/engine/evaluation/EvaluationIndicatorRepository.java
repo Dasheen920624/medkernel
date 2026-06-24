@@ -20,6 +20,11 @@ public interface EvaluationIndicatorRepository extends ListCrudRepository<Evalua
      */
     Optional<EvaluationIndicator> findByIndicatorIdAndTenantId(String indicatorId, String tenantId);
 
+    Optional<EvaluationIndicator> findTopByTenantIdAndIndicatorCodeOrderByVersionNoDesc(
+        String tenantId,
+        String indicatorCode
+    );
+
     /**
      * 按租户列出全部指标版本，按更新时间倒序用于管理端浏览。
      */
@@ -35,6 +40,12 @@ public interface EvaluationIndicatorRepository extends ListCrudRepository<Evalua
      */
     List<EvaluationIndicator> findByTenantIdAndIndicatorCodeAndStatus(
         String tenantId, String indicatorCode, EvaluationIndicatorStatus status);
+
+    /**
+     * 按稳定指标编码与业务版本号定位机构生效版本锁定的精确指标版本。
+     */
+    Optional<EvaluationIndicator> findByTenantIdAndIndicatorCodeAndVersionNo(
+        String tenantId, String indicatorCode, int versionNo);
 
     /**
      * 按状态、对象类型和指标编码可选过滤统计指标总数。

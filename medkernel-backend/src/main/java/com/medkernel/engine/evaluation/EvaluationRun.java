@@ -23,7 +23,7 @@ public record EvaluationRun(
     @Column("patient_id") String patientId,
     @Column("encounter_id") String encounterId,
     @Column("scenario_code") String scenarioCode,
-    @Column("package_version") String packageVersion,
+    @Column("runtime_release_id") String runtimeReleaseId,
     @Column("input_digest") String inputDigest,
     EvaluationRunStatus status,
     @Column("error_code") String errorCode,

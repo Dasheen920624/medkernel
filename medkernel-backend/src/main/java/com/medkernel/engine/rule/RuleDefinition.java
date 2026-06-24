@@ -29,7 +29,6 @@ public record RuleDefinition(
     @Column("dedupe_window_seconds") int dedupeWindowSeconds,
     RuleDefinitionStatus status,
     @Column("active_version_id") String activeVersionId,
-    @Column("package_version") String packageVersion,
     @Column("applicable_org_unit_id") String applicableOrgUnitId,
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy,

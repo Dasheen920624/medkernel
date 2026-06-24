@@ -8,7 +8,7 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 模型 Provider 租户凭据密文。
+ * 模型服务机构凭据密文。
  *
  * <p>实体只保存模型凭据专用 SM4 密文、不可逆 SHA-256 指纹、尾标和轮换审计，不保存明文 Key。
  */

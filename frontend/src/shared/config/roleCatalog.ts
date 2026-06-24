@@ -1,19 +1,13 @@
 export const ROLE_OPTIONS = [
-  { code: "platform-governance-admin", name: "平台治理管理员" },
-  { code: "platform-knowledge-governor", name: "平台知识治理员" },
-  { code: "organization-admin", name: "机构管理员" },
-  { code: "identity-access-admin", name: "人员与访问管理员" },
-  { code: "knowledge-governor", name: "机构知识治理员" },
-  { code: "clinical-governor", name: "临床治理负责人" },
-  { code: "clinical-decision-user", name: "临床决策使用者" },
-  { code: "nursing-collaborator", name: "护理协同人员" },
-  { code: "medication-safety-user", name: "药事安全人员" },
-  { code: "diagnostic-service-user", name: "医技协同人员" },
-  { code: "quality-governor", name: "质量与医保治理员" },
-  { code: "compliance-auditor", name: "合规审计员" },
-  { code: "integration-operator", name: "集成运维员" },
-  { code: "implementation-operator", name: "实施运维员" },
+  { code: "platform-admin", name: "平台管理员" },
+  { code: "engine-operator", name: "医疗引擎运营员" },
+  { code: "clinical-user", name: "临床使用者" },
+  { code: "auditor", name: "审计员" },
 ] as const;
+
+export type ProductRoleCode = (typeof ROLE_OPTIONS)[number]["code"];
+
+export const KNOWN_ROLE_CODES = ROLE_OPTIONS.map((role) => role.code);
 
 export const SCOPE_LEVEL_OPTIONS = [
   { code: "TENANT", name: "服务机构全域" },

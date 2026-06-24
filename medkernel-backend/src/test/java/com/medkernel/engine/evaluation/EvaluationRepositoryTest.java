@@ -102,7 +102,7 @@ class EvaluationRepositoryTest {
             null, indicatorId, tenantId, "IND.VTE.PROPHYLAXIS", 1, "静脉血栓预防完成率",
             EvaluationSubjectType.MEDICAL_RECORD, "符合住院风险分层病例", "完成预防评估病例",
             "出血高风险除外", "达标率 >= 95%", "DISCHARGE+24H", "{\"department\":\"ward\"}",
-            "dept-1", "guideline-1", "1.0.0", EvaluationIndicatorStatus.ACTIVE,
+            "dept-1", "guideline-1", EvaluationIndicatorStatus.ACTIVE,
             now, "qa-1", now, now, "qa-1", now, "qa-1", "trace-evaluation");
     }
 
@@ -110,7 +110,7 @@ class EvaluationRepositoryTest {
         Instant now = Instant.now();
         return new EvaluationRun(
             null, runId, tenantId, "RUN." + runId, EvaluationRunType.UPSTREAM_RESULT,
-            "event-1", "snapshot-1", "patient-1", "enc-1", "DISCHARGE", "1.0.0",
+            "event-1", "snapshot-1", "patient-1", "enc-1", "DISCHARGE", null,
             "sha256:run", EvaluationRunStatus.RECORDED, null, now,
             now, "qa-1", now, "qa-1", "trace-evaluation");
     }

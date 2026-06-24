@@ -53,7 +53,7 @@ public class DeveloperConsoleService {
 
     private String fieldContractUrl(String contractId) {
         return "third-party-knowledge-runtime".equals(contractId)
-            ? "/api/v1/engine/integration/data-contract?packageVersion={packageVersion}"
+            ? "/api/v1/engine/integration/data-contract"
             : null;
     }
 }

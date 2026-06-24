@@ -15,8 +15,6 @@ const mockUseActivateEvaluationIndicator = vi.fn();
 const mockUseEvaluateSnapshot = vi.fn();
 const mockUseContextSnapshots = vi.fn();
 const mockUseOrgUnits = vi.fn();
-const mockUsePackages = vi.fn();
-const mockUseSecurityProfile = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useEvaluationIndicators: (params: unknown) => mockUseEvaluationIndicators(params),
@@ -29,8 +27,6 @@ vi.mock("@/shared/api/hooks", () => ({
   useContextSnapshots: (params: unknown, options: unknown) =>
     mockUseContextSnapshots(params, options),
   useOrgUnits: (params: unknown) => mockUseOrgUnits(params),
-  usePackages: (params: unknown, options: unknown) => mockUsePackages(params, options),
-  useSecurityProfile: () => mockUseSecurityProfile(),
 }));
 
 const realIndicator = {
@@ -50,9 +46,8 @@ const realIndicator = {
   scoringDefinition: "P1:扣 100 分",
   timeWindow: "DISCHARGE+24H",
   organizationScope: "全院",
-  responsibleDepartmentId: "医务处",
+  responsibleDepartmentId: "质量管理组",
   sourceRef: "真实指南 2026",
-  packageVersion: "2026.06",
   status: "DRAFT",
   traceId: "trace-indicator-real",
 };
@@ -114,32 +109,6 @@ beforeEach(() => {
       ],
     },
     isLoading: false,
-  });
-  mockUsePackages.mockReset();
-  mockUseSecurityProfile.mockReset();
-  mockUseSecurityProfile.mockReturnValue({
-    data: {
-      permissions: [{ code: "evaluation.read" }, { code: "package.read" }],
-    },
-  });
-  mockUsePackages.mockReturnValue({
-    data: {
-      items: [
-        {
-          packageId: "pkg-eval-2026",
-          packageCode: "PKG.EVAL",
-          packageVersion: "PKG.EVAL.2026.06",
-          name: "质控评估配置包",
-          status: "ACTIVE",
-        },
-      ],
-      page: 1,
-      size: 20,
-      total: 1,
-      hasNext: false,
-    },
-    isLoading: false,
-    isError: false,
   });
   mockUseCreateEvaluationIndicator.mockReset();
   mockUseSubmitEvaluationIndicator.mockReset();
@@ -208,15 +177,6 @@ describe("QcEvalSets", () => {
     expect(mockUseEvaluationIndicators).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, size: 20 }),
     );
-    expect(mockUsePackages).toHaveBeenCalledWith(
-      {
-        page: 1,
-        size: 20,
-        assetType: "EVALUATION",
-        keyword: undefined,
-      },
-      { enabled: true },
-    );
     expect(screen.getByRole("heading", { name: "评估指标库" })).toBeInTheDocument();
     expect(screen.getByText("真实评估指标总数")).toBeInTheDocument();
     expect(screen.getAllByText("IND.VTE.REAL").length).toBeGreaterThan(0);
@@ -239,27 +199,7 @@ describe("QcEvalSets", () => {
     expect(pagePrimaryButtons).toHaveLength(1);
   });
 
-  it("does not request evaluation packages when the current role lacks package.read", () => {
-    mockUseSecurityProfile.mockReturnValue({
-      data: {
-        permissions: [{ code: "evaluation.read" }],
-      },
-    });
-
-    renderPage();
-
-    expect(mockUsePackages).toHaveBeenCalledWith(
-      {
-        page: 1,
-        size: 20,
-        assetType: "EVALUATION",
-        keyword: undefined,
-      },
-      { enabled: false },
-    );
-  });
-
-  it("loads evaluation package selectors through small server-side search pages", () => {
+  it("loads department references without exposing an evaluation package selector", () => {
     renderPage();
 
     expect(mockUseOrgUnits).toHaveBeenCalledWith({
@@ -269,20 +209,7 @@ describe("QcEvalSets", () => {
       level: "DEPARTMENT",
       status: "ACTIVE",
     });
-    expect(mockUsePackages).toHaveBeenCalledWith(
-      {
-        page: 1,
-        size: 20,
-        assetType: "EVALUATION",
-        keyword: undefined,
-      },
-      { enabled: true },
-    );
-    expect(mockUsePackages).not.toHaveBeenCalledWith({
-      page: 1,
-      size: 100,
-      assetType: "EVALUATION",
-    });
+    expect(screen.queryByLabelText("配置" + "包版本")).not.toBeInTheDocument();
   });
 
   it("creates a draft indicator from condition-tree DSL instead of raw hard-coded JSON text", async () => {
@@ -290,11 +217,12 @@ describe("QcEvalSets", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "新建指标" }));
 
+    expect(screen.queryByLabelText("版本号")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("指标编码"), { target: { value: "IND.NEW.VTE" } });
     fireEvent.change(screen.getByLabelText("指标名称"), { target: { value: "新 VTE 指标" } });
     await userEvent.click(screen.getByRole("combobox", { name: "责任科室" }));
     await userEvent.click(await screen.findByText("骨科 · ORTHO"));
-    expect(screen.getByText("PKG.EVAL.2026.06 · 质控评估配置包")).toBeInTheDocument();
+    expect(screen.getByText("指标版本独立维护")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("来源依据"), { target: { value: "院内真实指南 2026" } });
 
     const factInputs = screen.getAllByRole("combobox", { name: "上下文字段路径" });
@@ -308,14 +236,15 @@ describe("QcEvalSets", () => {
 
     await waitFor(() => expect(createIndicator).toHaveBeenCalledTimes(1));
     const payload = createIndicator.mock.calls[0][0];
+    expect(payload).not.toHaveProperty("versionNo");
     expect(payload).toEqual(
       expect.objectContaining({
         indicatorCode: "IND.NEW.VTE",
         name: "新 VTE 指标",
-        packageVersion: "PKG.EVAL.2026.06",
         responsibleDepartmentId: "dept-ortho",
       }),
     );
+    expect(payload).not.toHaveProperty("packageVersion");
     expect(JSON.parse(payload.denominatorDefinition)).toEqual({
       all: [
         expect.objectContaining({
@@ -343,10 +272,11 @@ describe("QcEvalSets", () => {
     await user.click(screen.getByRole("button", { name: "查看指标详情" }));
     expect(screen.getAllByText("条件根组 · 第 1 层").length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole("button", { name: "提交审核" }));
+    await user.click(screen.getByRole("button", { name: "提交技术验证" }));
 
     await waitFor(() => expect(submitIndicator).toHaveBeenCalledWith("indicator-real-1"));
     expect(refetch).toHaveBeenCalled();
+    expect(screen.queryByText(/医务处|信息科主任|多人审核/)).not.toBeInTheDocument();
   });
 
   it("requires release evidence before starting the default gray rollout", async () => {
@@ -400,15 +330,12 @@ describe("QcEvalSets", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", { name: "选择 snapshot-real-1" }));
-    await userEvent.click(screen.getByRole("combobox", { name: "配置包版本" }));
-    await userEvent.click(await screen.findByText("PKG.EVAL.2026.06 · 质控评估配置包"));
     fireEvent.click(screen.getByRole("button", { name: "执行仿真评估" }));
 
     await waitFor(() =>
       expect(evaluateSnapshot).toHaveBeenCalledWith({
         contextSnapshotId: "snapshot-real-1",
         scenarioCode: "DISCHARGE",
-        packageVersion: "PKG.EVAL.2026.06",
       }),
     );
     expect(await screen.findByText("run-real-1")).toBeInTheDocument();

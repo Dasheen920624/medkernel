@@ -84,7 +84,7 @@ export function ServerDataTable<T extends object>({
 
   const ordinaryColumns = columns.filter((column) => !column.expertOnly);
   if (ordinaryColumns.length + 1 > 8) {
-    throw new Error("普通模式表格最多 8 列，技术字段应进入详情或专家模式");
+    throw new Error("普通视图表格最多 8 列，技术字段应进入详情或高级信息");
   }
 
   const defaultVisibleColumnKeys = ordinaryColumns.map((column) => column.key);

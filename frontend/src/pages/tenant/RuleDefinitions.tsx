@@ -34,8 +34,10 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   CodeOutlined,
+  CopyOutlined,
   DeleteOutlined,
   DeploymentUnitOutlined,
+  EditOutlined,
   FileSearchOutlined,
   InfoCircleOutlined,
   PlusOutlined,
@@ -47,20 +49,17 @@ import {
   useRuleDefinitions,
   useRuleDetail,
   useCreateRule,
+  useCreateNextRuleVersion,
+  useUpdateRule,
   useAddTestCase,
   useRunRuleTests,
   useSimulateRule,
-  useSignoffRule,
   useTransitionRuleGovernance,
   useSecurityProfile,
   useContextFieldCatalog,
   useContextSnapshots,
   useContextSnapshotDetail,
   useAuthoringPreviewRun,
-  useConditionFragments,
-  useCreateConditionFragment,
-  useUpdateConditionFragment,
-  useConditionFragmentImpact,
   useRuleImpact,
   useRuleShadowStats,
   useRuleBacktestLatest,
@@ -68,23 +67,18 @@ import {
   useRuleDriftLatest,
   useCaptureRuleDriftSnapshot,
   useOrgUnits,
-  usePackages,
 } from "@/shared/api/hooks";
 import type {
   OrgUnit,
-  KnowledgePackage,
   RuleDefinition,
   RuleEvaluationItem,
   RuleImpactObject,
   RuleImpactResponse,
   RuleGovernanceState,
-  RuleSignoffStage,
   RuleTestCase,
   ContextSnapshotSummary,
   AuthoringPreviewRunEvidence,
   AuthoringPreviewRunResponse,
-  ConditionFragmentStatus,
-  ConditionFragmentResponse,
   VersionPublishEvidence,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
@@ -122,7 +116,6 @@ import {
   createCriticalValueParameterDefinitions,
   createRuleActionDraft,
   createExplanationTemplate,
-  dslToConditionNode,
   dslToConditionTree,
   dslWhenToRootGroup,
   flatToRootGroup,
@@ -175,19 +168,8 @@ const { Paragraph, Text } = Typography;
 type RuleStatusBadge = Exclude<BadgeProps["status"], undefined>;
 type CreateLayerKey = "l1" | "l2" | "preview" | "l3";
 type DetailLayerKey = "l1" | "l2" | "l3" | "cases" | "simulate" | "release";
-type ConditionFragmentFormValue = {
-  fragmentCode: string;
-  fragmentName: string;
-  category?: string;
-  versionNo: number;
-  packageVersion: string;
-  status: ConditionFragmentStatus;
-};
 
 const DEFAULT_TEMPLATE_KEY: RuleTemplateKey = "clinical_quality_monitor";
-const RULE_PACKAGE_REFERENCE_PAGE_SIZE = 20;
-const RULE_FRAGMENT_LIBRARY_PAGE_SIZE = 20;
-const CONDITION_FRAGMENT_IMPACT_PAGE_SIZE = 20;
 const REQUIRED_RELEASE_CASE_TYPES = ["POSITIVE", "NEGATIVE", "BOUNDARY", "CONFLICT"];
 const CLINICAL_SETTING_LABELS: Record<RuleClinicalSetting, string> = {
   INPATIENT: "住院",
@@ -253,12 +235,6 @@ const RISK_RANK: Record<RuleSeverity, number> = {
   HIGH: 3,
   CRITICAL: 4,
 };
-
-function conditionFragmentStatusColor(status: ConditionFragmentStatus) {
-  if (status === "ACTIVE") return "green";
-  if (status === "DRAFT") return "blue";
-  return "default";
-}
 
 const numericComparisonChoices = [
   { value: "gt", label: "大于" },
@@ -379,11 +355,14 @@ function parseStoredJson(value?: string | null) {
   }
 }
 
-function toStoredConditionTree(value?: string | null) {
+function toStoredConditionTree(
+  value: string | null | undefined,
+  triggerPoint: ClinicalTriggerPoint | undefined,
+) {
   const parsed = parseStoredJson(value);
-  if (!parsed) return null;
+  if (!parsed || !triggerPoint) return null;
   try {
-    return dslToConditionTree(parsed);
+    return dslToConditionTree(parsed, triggerPoint);
   } catch {
     return null;
   }
@@ -456,7 +435,7 @@ function renderRiskTag(level: string) {
 function renderStatus(status: string) {
   const statusMap: Record<string, { text: string; status: RuleStatusBadge }> = {
     DRAFT: { text: "草稿设计中", status: "warning" },
-    PUBLISHED: { text: "内容已审核", status: "processing" },
+    PUBLISHED: { text: "已发布", status: "processing" },
     OFFLINE: { text: "已下线封存", status: "default" },
     ARCHIVED: { text: "已归档历史", status: "default" },
   };
@@ -467,11 +446,18 @@ function renderStatus(status: string) {
   return <Badge status={config.status} text={config.text} />;
 }
 
+const RULE_VERSION_STATUS_LABELS: Record<string, string> = {
+  DRAFT: "草稿设计中",
+  PUBLISHED: "已发布",
+  OFFLINE: "已下线封存",
+  ARCHIVED: "已归档历史",
+};
+
 function renderDeploymentStatus(status: string) {
   const statusMap: Record<string, { text: string; status: RuleStatusBadge }> = {
     DRAFT: { text: "待提交", status: "warning" },
-    IN_REVIEW: { text: "审核中", status: "processing" },
-    APPROVED: { text: "已批准待发布", status: "processing" },
+    IN_REVIEW: { text: "技术验证中", status: "processing" },
+    APPROVED: { text: "已验证待激活", status: "processing" },
     PUBLISHED: { text: "运行中", status: "success" },
     DEPRECATED: { text: "已弃用", status: "default" },
     RETIRED: { text: "已退役", status: "default" },
@@ -501,16 +487,10 @@ function collectReadableConditions(node: RuleConditionNode): RuleCondition[] {
 }
 
 function readableConditionLabel(condition: RuleCondition) {
-  if (condition.fragment) {
-    return condition.label || condition.fragment.name || condition.fragment.fragmentCode;
-  }
   return condition.label || condition.expr?.field || condition.fact || "未命名条件";
 }
 
 function readableConditionSentence(condition: RuleCondition) {
-  if (condition.fragment) {
-    return `${readableConditionLabel(condition)}存在`;
-  }
   const valueText = conditionNeedsValue(condition.operator)
     ? ` ${conditionValueText(condition)}`
     : "";
@@ -615,7 +595,7 @@ function renderRuleReadablePath(
         <div className={styles.readablePathHeader}>
           <Space direction="vertical" size={2}>
             <Text strong>规则可读路径</Text>
-            <Text type="secondary">面向医生、质控与评审会的只读业务解释。</Text>
+            <Text type="secondary">面向医生、运行与质控人员的只读业务解释。</Text>
           </Space>
           {renderRiskTag(highestRisk)}
         </div>
@@ -710,25 +690,10 @@ export default function RuleDefinitions() {
     () => new Set(securityQuery.data?.permissions.map((permission) => permission.code) ?? []),
     [securityQuery.data?.permissions],
   );
-  const roleCodes = useMemo(
-    () => new Set(securityQuery.data?.roles.map((role) => role.code) ?? []),
-    [securityQuery.data?.roles],
-  );
   const canWriteRule = permissionCodes.has("rule.write");
   const canPublishRule = permissionCodes.has("rule.publish");
-  const canReadPackages = permissionCodes.has("package.read");
-  const canSignRule =
-    (canWriteRule || canPublishRule || permissionCodes.has("evaluation.publish")) &&
-    [
-      "clinical-governor",
-      "quality-governor",
-      "quality-governor",
-      "clinical-governor",
-      "knowledge-governor",
-    ].some((role) => roleCodes.has(role));
-  const canCoordinateRelease =
-    canPublishRule && (roleCodes.has("clinical-governor") || roleCodes.has("organization-admin"));
-  const canActivateFull = canPublishRule && roleCodes.has("organization-admin");
+  const canCoordinateRelease = canPublishRule;
+  const canActivateFull = canPublishRule;
   const [page, setPage] = useState(1);
   const [size] = useState(10);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
@@ -737,6 +702,8 @@ export default function RuleDefinitions() {
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
   const [activeDetailLayer, setActiveDetailLayer] = useState<DetailLayerKey>("l2");
   const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [editingRuleMeta, setEditingRuleMeta] = useState<RuleDsl["meta"] | undefined>();
   const [fieldManagerOpen, setFieldManagerOpen] = useState(false);
   const [activeCreateLayer, setActiveCreateLayer] = useState<CreateLayerKey>("l1");
   const [createExpertMode, setCreateExpertMode] = useState(false);
@@ -755,27 +722,12 @@ export default function RuleDefinitions() {
   const [populationExcludeTree, setPopulationExcludeTree] =
     useState<PopulationConditionTree | null>(null);
   const [orgSearch, setOrgSearch] = useState<Record<RuleOrgLevel, string>>(EMPTY_ORG_SEARCH);
-  const [rulePackageSearch, setRulePackageSearch] = useState("");
   const [selectedOrgOptions, setSelectedOrgOptions] =
     useState<Record<RuleOrgLevel, OrgSelectOption[]>>(EMPTY_ORG_OPTION_CACHE);
   const [dslEditorValue, setDslEditorValue] = useState(createDefaultDslText);
   const [createForm] = Form.useForm();
-  const createPackageVersion = Form.useWatch("packageVersion", createForm);
-  const currentCreatePackageVersion =
-    typeof createPackageVersion === "string" ? createPackageVersion.trim() : "";
-  const [selectedFragmentId, setSelectedFragmentId] = useState<string | undefined>();
-  const [fragmentLibraryOpen, setFragmentLibraryOpen] = useState(false);
-  const [fragmentLibraryPage, setFragmentLibraryPage] = useState(1);
-  const [fragmentLibrarySearch, setFragmentLibrarySearch] = useState("");
-  const [editingFragmentId, setEditingFragmentId] = useState<string | null>(null);
-  const [fragmentBodyJson, setFragmentBodyJson] = useState<unknown | null>(null);
-  const [impactFragmentId, setImpactFragmentId] = useState("");
-  const [impactPage, setImpactPage] = useState(1);
-  const [fragmentForm] = Form.useForm<ConditionFragmentFormValue>();
   const [caseModalVisible, setCaseModalVisible] = useState(false);
   const [caseForm] = Form.useForm();
-  const [fullSignatureModalOpen, setFullSignatureModalOpen] = useState(false);
-  const [signatureForm] = Form.useForm();
   const caseExpectedHit = Form.useWatch("expectedHit", caseForm) ?? true;
   const [simulateResult, setSimulateResult] = useState<RuleEvaluationItem | null>(null);
   const [createPreviewRunResult, setCreatePreviewRunResult] =
@@ -828,101 +780,27 @@ export default function RuleDefinitions() {
     level: "DEPARTMENT",
     status: "ACTIVE",
   });
-  const rulePackagesQuery = usePackages(
-    {
-      page: 1,
-      size: RULE_PACKAGE_REFERENCE_PAGE_SIZE,
-      assetType: "RULE",
-      keyword: rulePackageSearch || undefined,
-    },
-    { enabled: canReadPackages },
-  );
-  const packageVersionOptions = useMemo(
-    () =>
-      (rulePackagesQuery.data?.items ?? []).map((pkg: KnowledgePackage) => ({
-        value: pkg.packageVersion,
-        label: `${pkg.name}（${pkg.packageVersion}）`,
-      })),
-    [rulePackagesQuery.data?.items],
-  );
-  const knownPackageVersions = useMemo(
-    () => new Set(packageVersionOptions.map((option) => option.value)),
-    [packageVersionOptions],
-  );
-  const isKnownPackageVersion = (packageVersion: string) =>
-    knownPackageVersions.has(packageVersion.trim());
-  const packageVersionRules = [
-    { required: true, message: "请选择本规则绑定的配置包版本" },
-    {
-      validator: async (_: unknown, value: unknown) => {
-        const version = typeof value === "string" ? value.trim() : "";
-        if (!version) return;
-        if (rulePackagesQuery.isError) {
-          throw new Error("配置包列表不可用，暂不能绑定包版本。");
-        }
-        if (knownPackageVersions.size === 0) {
-          throw new Error("当前暂无可绑定的规则配置包版本。");
-        }
-        if (!knownPackageVersions.has(version)) {
-          throw new Error("请选择已存在的规则配置包版本。");
-        }
-      },
-    },
-  ];
-  const activeConditionFragmentsQuery = useConditionFragments(
-    {
-      status: "ACTIVE",
-      packageVersion: currentCreatePackageVersion,
-      page: 1,
-      size: 50,
-    },
-    { enabled: createModalVisible && Boolean(currentCreatePackageVersion) },
-  );
-  const activeConditionFragments = useMemo(
-    () => activeConditionFragmentsQuery.data?.items ?? [],
-    [activeConditionFragmentsQuery.data?.items],
-  );
-  const fragmentById = useMemo(
-    () => new Map(activeConditionFragments.map((fragment) => [fragment.fragmentId, fragment])),
-    [activeConditionFragments],
-  );
-  const conditionFragmentOptions = useMemo(
-    () =>
-      activeConditionFragments.map((fragment) => ({
-        value: fragment.fragmentId,
-        label: `${fragment.name} · ${fragment.fragmentCode} · v${fragment.versionNo}`,
-      })),
-    [activeConditionFragments],
-  );
-  const selectedConditionFragment = selectedFragmentId
-    ? fragmentById.get(selectedFragmentId)
-    : undefined;
-  const fragmentLibraryKeyword = fragmentLibrarySearch.trim();
-  const fragmentLibraryQuery = useConditionFragments(
-    {
-      packageVersion: currentCreatePackageVersion || undefined,
-      ...(fragmentLibraryKeyword ? { keyword: fragmentLibraryKeyword } : {}),
-      page: fragmentLibraryPage,
-      size: RULE_FRAGMENT_LIBRARY_PAGE_SIZE,
-      sort: "fragmentCode,asc",
-    },
-    { enabled: fragmentLibraryOpen },
-  );
-  const fragmentLibraryItems = fragmentLibraryQuery.data?.items ?? [];
-
   const {
     data: detailData,
     isLoading: detailLoading,
     refetch: refetchDetail,
   } = useRuleDetail(selectedRuleId || "");
-  const selectedRulePackageVersion = detailData?.definition.packageVersion ?? "";
+  const selectedRuleTriggerPoints = useMemo(
+    () =>
+      (detailData?.triggerBindings ?? [])
+        .filter((binding) => binding.purpose === "RULE_EXECUTION")
+        .map((binding) => binding.triggerPoint)
+        .filter(isClinicalTriggerPoint),
+    [detailData?.triggerBindings],
+  );
+  const selectedRulePrimaryTrigger = selectedRuleTriggerPoints[0];
   const detailDsl = useMemo(
     () => parseStoredJson(detailData?.version?.dslJson),
     [detailData?.version?.dslJson],
   );
   const detailTree = useMemo(
-    () => toStoredConditionTree(detailData?.version?.dslJson),
-    [detailData?.version?.dslJson],
+    () => toStoredConditionTree(detailData?.version?.dslJson, selectedRulePrimaryTrigger),
+    [detailData?.version?.dslJson, selectedRulePrimaryTrigger],
   );
   const detailRoot = useMemo(() => {
     const parsed = parseStoredJson(detailData?.version?.dslJson);
@@ -939,19 +817,13 @@ export default function RuleDefinitions() {
   );
 
   const createRuleMutation = useCreateRule();
+  const createNextRuleVersionMutation = useCreateNextRuleVersion();
+  const updateRuleMutation = useUpdateRule();
   const addTestCaseMutation = useAddTestCase(selectedRuleId || "");
   const runRuleTestsMutation = useRunRuleTests(selectedRuleId || "");
   const simulateMutation = useSimulateRule(selectedRuleId || "");
-  const signoffMutation = useSignoffRule();
   const governanceTransitionMutation = useTransitionRuleGovernance();
   const previewRunMutation = useAuthoringPreviewRun();
-  const createConditionFragmentMutation = useCreateConditionFragment();
-  const updateConditionFragmentMutation = useUpdateConditionFragment();
-  const conditionFragmentImpactQuery = useConditionFragmentImpact(
-    impactFragmentId,
-    { page: impactPage, size: CONDITION_FRAGMENT_IMPACT_PAGE_SIZE },
-    { enabled: Boolean(impactFragmentId) },
-  );
   const runBacktestMutation = useRunRuleBacktest();
   const captureDriftMutation = useCaptureRuleDriftSnapshot();
   const snapshotsQuery = useContextSnapshots(
@@ -977,7 +849,7 @@ export default function RuleDefinitions() {
     enabled: Boolean(
       selectedRuleId &&
         detailData?.governance.state &&
-        ["DRAFT", "COMMITTEE", "SHADOW", "CANARY"].includes(detailData.governance.state),
+        ["DRAFT", "REVIEWED", "SHADOW", "CANARY"].includes(detailData.governance.state),
     ),
   });
   const shadowStatsQuery = useRuleShadowStats(selectedRuleId || "", {
@@ -1005,11 +877,10 @@ export default function RuleDefinitions() {
     setDslEditorValue(formatRuleJson(conditionTreeToDsl(nextTree)));
     setCriticalReturnMinutes(DEFAULT_CRITICAL_RETURN_MINUTES);
     setCriticalObservationCode(DEFAULT_CRITICAL_OBSERVATION_CODE);
-    setSelectedFragmentId(undefined);
     setActiveCreateLayer("l1");
     createForm.setFieldsValue({
       ruleType: template.ruleType,
-      triggerPoint: nextTree.triggerPoint,
+      triggerPoints: [nextTree.triggerPoint],
       riskLevel: template.riskLevel,
       priority: 100,
       suppressedBy: undefined,
@@ -1019,6 +890,8 @@ export default function RuleDefinitions() {
   };
 
   const openCreateModal = () => {
+    setEditingRuleId(null);
+    setEditingRuleMeta(undefined);
     createForm.resetFields();
     setCreateExpertMode(false);
     setOrgSearch(EMPTY_ORG_SEARCH);
@@ -1030,6 +903,58 @@ export default function RuleDefinitions() {
     setCreatePreviewRunResult(null);
     resetLayeredAuthoring();
     setCreateModalVisible(true);
+  };
+
+  const openEditModal = () => {
+    if (!selectedRuleId || !detailData?.version) return;
+    try {
+      if (!selectedRulePrimaryTrigger) {
+        throw new Error("规则版本缺少临床触发绑定");
+      }
+      const parsedDsl = parseStoredJson(detailData.version.dslJson);
+      if (!isRecord(parsedDsl) || !("when" in parsedDsl)) {
+        throw new Error("规则技术配置缺少触发条件");
+      }
+      const nextTree = withStableRoot(dslToConditionTree(parsedDsl, selectedRulePrimaryTrigger));
+      setEditingRuleId(selectedRuleId);
+      setEditingRuleMeta(
+        isRecord(parsedDsl.meta) ? (parsedDsl.meta as RuleDsl["meta"]) : undefined,
+      );
+      setSelectedTemplateKey(DEFAULT_TEMPLATE_KEY);
+      setConditionTree(nextTree);
+      setPopulationIncludeTree(
+        toPopulationConditionTree(nextTree.applicability.population.include),
+      );
+      setPopulationExcludeTree(
+        toPopulationConditionTree(nextTree.applicability.population.exclude),
+      );
+      setDslEditorValue(formatRuleJson(parsedDsl));
+      setCreateExpertMode(false);
+      setActiveCreateLayer("l2");
+      setSnapshotPatientId("");
+      setSnapshotEncounterId("");
+      setSnapshotSearchParams(null);
+      setSelectedSnapshotId("");
+      setCreatePreviewRunResult(null);
+      createForm.setFieldsValue({
+        ruleCode: detailData.definition.ruleCode,
+        name: detailData.definition.name,
+        ruleType: detailData.definition.ruleType,
+        riskLevel: detailData.definition.riskLevel,
+        triggerPoints: selectedRuleTriggerPoints,
+        sourceRef: detailData.version.sourceRef,
+        changeSummary: detailData.version.changeSummary,
+        priority: detailData.definition.priority,
+        suppressedBy: detailData.definition.suppressedBy || undefined,
+        dedupeWindowMinutes: detailData.definition.dedupeWindowSeconds / 60,
+      });
+      setCreateModalVisible(true);
+    } catch {
+      modal.error({
+        title: "无法编辑当前规则草稿",
+        content: "当前版本的技术配置无法还原为条件树，请先核查规则版本数据。",
+      });
+    }
   };
 
   const toggleCreateExpertMode = (checked: boolean) => {
@@ -1056,10 +981,9 @@ export default function RuleDefinitions() {
     setDslEditorValue(formatRuleJson(conditionTreeToDsl(nextTree)));
     setCriticalReturnMinutes(DEFAULT_CRITICAL_RETURN_MINUTES);
     setCriticalObservationCode(DEFAULT_CRITICAL_OBSERVATION_CODE);
-    setSelectedFragmentId(undefined);
     createForm.setFieldsValue({
       ruleType: template.ruleType,
-      triggerPoint: nextTree.triggerPoint,
+      triggerPoints: [nextTree.triggerPoint],
       riskLevel: template.riskLevel,
     });
     setActiveCreateLayer(templateKey === "critical_value_report" ? "l1" : "l2");
@@ -1085,13 +1009,15 @@ export default function RuleDefinitions() {
     return meta ? { ...dsl, meta } : dsl;
   };
 
-  const createRuleMeta = useMemo<RuleDsl["meta"] | undefined>(
-    () =>
-      selectedTemplateKey === "critical_value_report"
-        ? { parameters: createCriticalValueParameterDefinitions() }
-        : undefined,
-    [selectedTemplateKey],
-  );
+  const createRuleMeta = useMemo<RuleDsl["meta"] | undefined>(() => {
+    if (editingRuleId) {
+      return editingRuleMeta;
+    }
+    if (selectedTemplateKey === "critical_value_report") {
+      return { parameters: createCriticalValueParameterDefinitions() };
+    }
+    return undefined;
+  }, [editingRuleId, editingRuleMeta, selectedTemplateKey]);
 
   const createActionsWithSource = (sourceRef?: string) =>
     conditionTree.actions.map((action) => ({
@@ -1128,8 +1054,8 @@ export default function RuleDefinitions() {
         ),
       ),
     );
-    // 仅静默同步，不强制切到 L3 / 不强开 L3 DSL 编辑模式（修复「同步即跳 L3」）。
-    message.success("已从 L2 条件树同步到 L3 DSL");
+    // 仅静默同步，不强制切到 L3 / 不强开 L3 技术配置模式（修复「同步即跳 L3」）。
+    message.success("已从 L2 条件树同步到 L3 技术配置");
   };
 
   const syncDslToTree = () => {
@@ -1138,7 +1064,7 @@ export default function RuleDefinitions() {
       if (!isRecord(parsed) || !("when" in parsed)) {
         throw new Error("缺少 when");
       }
-      const nextTree = dslToConditionTree(parsed);
+      const nextTree = dslToConditionTree(parsed, conditionTree.triggerPoint);
       const root = nextTree.root ?? dslWhenToRootGroup((parsed as { when: unknown }).when);
       setConditionTree({ ...nextTree, root, logic: root.logic });
       setPopulationIncludeTree(
@@ -1147,11 +1073,11 @@ export default function RuleDefinitions() {
       setPopulationExcludeTree(
         toPopulationConditionTree(nextTree.applicability.population.exclude),
       );
-      createForm.setFieldValue("triggerPoint", nextTree.triggerPoint);
+      createForm.setFieldValue("triggerPoints", [nextTree.triggerPoint]);
       setActiveCreateLayer("l2");
-      message.success("已从 L3 DSL 回填到 L2 条件树");
+      message.success("已从 L3 技术配置回填到 L2 条件树");
     } catch {
-      message.error("L3 DSL JSON 不合法，无法回填到条件树。");
+      message.error("L3 技术配置文本不合法，无法回填到条件树。");
     }
   };
 
@@ -1182,94 +1108,10 @@ export default function RuleDefinitions() {
       return null;
     }
   }, [dslEditorValue]);
-  const currentFragmentBodyJson = createRulePreviewDsl.when;
-
-  const resetFragmentForm = () => {
-    const packageVersion = String(
-      createForm.getFieldValue("packageVersion") ?? currentCreatePackageVersion,
-    ).trim();
-    setEditingFragmentId(null);
-    setFragmentBodyJson(currentFragmentBodyJson);
-    fragmentForm.setFieldsValue({
-      fragmentCode: "",
-      fragmentName: "",
-      category: "",
-      versionNo: 1,
-      packageVersion,
-      status: "ACTIVE",
-    });
-  };
-
-  const openFragmentLibrary = () => {
-    setEditingFragmentId(null);
-    setFragmentBodyJson(currentFragmentBodyJson);
-    setFragmentLibraryPage(1);
-    setFragmentLibrarySearch("");
-    setFragmentLibraryOpen(true);
-  };
-
-  const refreshFragmentBodyFromCurrentTree = () => {
-    setFragmentBodyJson(currentFragmentBodyJson);
-    message.success("已使用当前条件树更新片段正文");
-  };
-
-  const editConditionFragment = (fragment: ConditionFragmentResponse) => {
-    setEditingFragmentId(fragment.fragmentId);
-    setFragmentBodyJson(fragment.bodyJson);
-    fragmentForm.setFieldsValue({
-      fragmentCode: fragment.fragmentCode,
-      fragmentName: fragment.name,
-      category: fragment.category ?? "",
-      versionNo: fragment.versionNo,
-      packageVersion: fragment.packageVersion,
-      status: fragment.status,
-    });
-  };
-
-  const saveConditionFragment = async () => {
-    const values = fragmentForm.getFieldsValue(true) as Partial<ConditionFragmentFormValue>;
-    const fragmentCode = values.fragmentCode?.trim() ?? "";
-    const name = values.fragmentName?.trim() ?? "";
-    const packageVersion =
-      values.packageVersion?.trim() ||
-      String(createForm.getFieldValue("packageVersion") ?? currentCreatePackageVersion).trim();
-    if (!fragmentCode || !name || !packageVersion) {
-      message.error("请填写片段编码、名称和包版本。");
-      return;
-    }
-    if (!isKnownPackageVersion(packageVersion)) {
-      message.error("请选择已存在的规则配置包版本后再保存片段。");
-      return;
-    }
-    const payload = {
-      fragmentCode,
-      name,
-      category: values.category?.trim() || undefined,
-      versionNo: Number(values.versionNo ?? 1),
-      packageVersion,
-      status: values.status ?? "ACTIVE",
-      bodyJson: fragmentBodyJson ?? currentFragmentBodyJson,
-    };
-    try {
-      if (editingFragmentId) {
-        await updateConditionFragmentMutation.mutateAsync({
-          fragmentId: editingFragmentId,
-          body: payload,
-        });
-        message.success("条件片段已更新");
-      } else {
-        await createConditionFragmentMutation.mutateAsync(payload);
-        message.success("条件片段已保存");
-      }
-      resetFragmentForm();
-    } catch (error: unknown) {
-      if (applyApiFieldErrors(fragmentForm, error)) return;
-      message.error(getApiErrorMessage(error, "条件片段保存失败"));
-    }
-  };
-
-  const updateTriggerPoint = (triggerPoint: ClinicalTriggerPoint) => {
-    const nextTree = { ...conditionTree, triggerPoint };
+  const updateTriggerPoints = (triggerPoints: ClinicalTriggerPoint[]) => {
+    const primaryTrigger = triggerPoints[0];
+    if (!primaryTrigger) return;
+    const nextTree = { ...conditionTree, triggerPoint: primaryTrigger };
     setConditionTree(nextTree);
     setDslEditorValue(formatRuleJson(conditionTreeToDsl(nextTree)));
   };
@@ -1334,39 +1176,6 @@ export default function RuleDefinitions() {
     updateRoot((root) => addNodeToGroup(root, groupId, createConditionGroup()));
 
   const removeNode = (id: string) => updateRoot((root) => removeConditionById(root, id));
-
-  const fragmentToRuleCondition = (fragment: ConditionFragmentResponse): RuleCondition =>
-    createConditionLeaf({
-      label: fragment.name,
-      fact: "",
-      operator: "exists",
-      valueKind: "empty",
-      fragment: {
-        fragmentId: fragment.fragmentId,
-        fragmentCode: fragment.fragmentCode,
-        name: fragment.name,
-        version: fragment.versionNo,
-        packageVersion: fragment.packageVersion,
-      },
-    });
-
-  const applyConditionFragment = (mode: "reference" | "copy") => {
-    const fragment = selectedConditionFragment;
-    if (!fragment) {
-      message.warning("请选择条件片段。");
-      return;
-    }
-    try {
-      const node =
-        mode === "reference"
-          ? fragmentToRuleCondition(fragment)
-          : dslToConditionNode(fragment.bodyJson);
-      updateRoot((root) => addNodeToGroup(root, root.id, node));
-      message.success(mode === "reference" ? "已引用条件片段" : "已拷贝条件片段正文");
-    } catch {
-      message.error("条件片段正文无法转成当前条件树。");
-    }
-  };
 
   const updateConditionValue = (condition: RuleCondition, patch: Record<string, unknown>) => {
     updateCondition(condition.id, {
@@ -1540,7 +1349,7 @@ export default function RuleDefinitions() {
       updateConditionExpression(condition, { where: undefined });
       return;
     }
-    const parsed = parseJsonInput(text, "where 条件 JSON 不合法。", message.error);
+    const parsed = parseJsonInput(text, "附加条件配置不合法。", message.error);
     if (isRecord(parsed)) {
       updateConditionExpression(condition, { where: parsed });
     }
@@ -1892,7 +1701,7 @@ export default function RuleDefinitions() {
         <Space direction="vertical" size="small" className="mk-full-width">
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item label="白名单公式">
+              <Form.Item label="可选医学公式">
                 <Select
                   value={formula}
                   options={[...DERIVED_FORMULA_OPTIONS]}
@@ -2223,30 +2032,6 @@ export default function RuleDefinitions() {
   };
 
   const renderConditionLeaf = (condition: RuleCondition) => {
-    if (condition.fragment) {
-      return (
-        <div key={condition.id} className={styles.conditionCard}>
-          <div className={styles.conditionHeader}>
-            <Space>
-              <Tag color="green">条件片段</Tag>
-              <Text strong>
-                {condition.label || condition.fragment.name || condition.fragment.fragmentCode}
-              </Text>
-              <Text type="secondary">
-                {condition.fragment.fragmentCode} · v{condition.fragment.version} ·{" "}
-                {condition.fragment.packageVersion}
-              </Text>
-            </Space>
-            <Button
-              size="small"
-              aria-label="移除条件"
-              icon={<DeleteOutlined />}
-              onClick={() => removeNode(condition.id)}
-            />
-          </div>
-        </div>
-      );
-    }
     const needsValue = conditionNeedsValue(condition.operator);
     const isFirstLeaf = condition.id === firstLeafId;
     const expressionEnabled = Boolean(condition.expr);
@@ -2508,21 +2293,6 @@ export default function RuleDefinitions() {
         </div>
       );
     }
-    if (node.fragment) {
-      return (
-        <Descriptions key={node.id} bordered column={2} size="small">
-          <Descriptions.Item label="类型">
-            <Tag color="green">条件片段</Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="片段名称">
-            {node.label || node.fragment.name || node.fragment.fragmentCode}
-          </Descriptions.Item>
-          <Descriptions.Item label="片段编码">{node.fragment.fragmentCode}</Descriptions.Item>
-          <Descriptions.Item label="片段版本">v{node.fragment.version}</Descriptions.Item>
-          <Descriptions.Item label="包版本">{node.fragment.packageVersion}</Descriptions.Item>
-        </Descriptions>
-      );
-    }
     return (
       <Descriptions key={node.id} bordered column={2} size="small">
         <Descriptions.Item label="条件标签">{node.label}</Descriptions.Item>
@@ -2545,21 +2315,24 @@ export default function RuleDefinitions() {
       let submitRoot: RuleConditionGroup;
       let submitTree: RuleConditionTree;
       try {
+        const triggerPoints = Array.isArray(values.triggerPoints)
+          ? values.triggerPoints.filter(isClinicalTriggerPoint)
+          : [];
+        const primaryTrigger = triggerPoints[0];
+        if (!primaryTrigger) {
+          throw new Error("缺少临床触发场景");
+        }
         // L3 DSL 编辑模式以 JSON 为准；普通模式以 L2 递归条件树为准（避免未点同步而提交过期 DSL）。
         parsedDsl = createExpertMode
           ? parseRuleJson(dslEditorValue)
           : buildCurrentCreateRuleDsl(values.sourceRef);
-        if (
-          !isRecord(parsedDsl) ||
-          !("when" in parsedDsl) ||
-          !isClinicalTriggerPoint(parsedDsl.trigger)
-        ) {
-          throw new Error("缺少 trigger 或 when");
+        if (!isRecord(parsedDsl) || !("when" in parsedDsl)) {
+          throw new Error("缺少 when");
         }
-        submitTree = dslToConditionTree(parsedDsl);
+        submitTree = dslToConditionTree(parsedDsl, primaryTrigger);
         submitRoot = submitTree.root ?? dslWhenToRootGroup((parsedDsl as { when: unknown }).when);
       } catch {
-        message.error("L3 DSL JSON 不合法，请先从 L2 同步或修正后再提交。");
+        message.error("L3 技术配置文本不合法，请先从 L2 同步或修正后再提交。");
         setCreateExpertMode(true);
         setActiveCreateLayer("l3");
         return;
@@ -2587,19 +2360,22 @@ export default function RuleDefinitions() {
         return;
       }
 
-      const parameterBindings = buildCreateRuleParameterBindings();
-      if (parameterBindings === null) return;
-
-      await createRuleMutation.mutateAsync({
+      const commonPayload = {
         ruleCode: values.ruleCode,
         name: values.name,
         ruleType: values.ruleType,
-        authoringMode: "VISUAL",
+        authoringMode: editingRuleId
+          ? (detailData?.definition.authoringMode ?? "VISUAL")
+          : "VISUAL",
         riskLevel: values.riskLevel,
         priority: values.priority ?? 100,
         suppressedBy: values.suppressedBy || undefined,
         dedupeWindowSeconds: Math.round((values.dedupeWindowMinutes ?? 0) * 60),
-        packageVersion: values.packageVersion,
+        triggers: (values.triggerPoints as ClinicalTriggerPoint[]).map((triggerPoint) => ({
+          trigger_point: triggerPoint,
+          purpose: "RULE_EXECUTION" as const,
+          required_fields: [],
+        })),
         sourceRef: values.sourceRef,
         changeSummary: values.changeSummary,
         dslJson: parsedDsl,
@@ -2607,18 +2383,39 @@ export default function RuleDefinitions() {
           ...submitTree,
           root: submitRoot,
         }),
-        ...(parameterBindings ? { parameterBindings } : {}),
-      });
+      };
 
-      message.success("新规则创建成功，状态为草稿");
+      if (editingRuleId) {
+        await updateRuleMutation.mutateAsync({
+          ruleId: editingRuleId,
+          ...commonPayload,
+          applicableOrgUnitId: detailData?.definition.applicableOrgUnitId || undefined,
+        });
+        message.success(
+          `V${detailData?.version.versionNo ?? ""} 规则草稿已保存，运行中旧版本不受影响`,
+        );
+      } else {
+        const parameterBindings = buildCreateRuleParameterBindings();
+        if (parameterBindings === null) return;
+        await createRuleMutation.mutateAsync({
+          ...commonPayload,
+          ...(parameterBindings ? { parameterBindings } : {}),
+        });
+        message.success("新规则创建成功，状态为草稿");
+      }
       setCreateModalVisible(false);
+      setEditingRuleId(null);
+      setEditingRuleMeta(undefined);
       createForm.resetFields();
       setCreatePreviewRunResult(null);
       resetLayeredAuthoring();
+      if (editingRuleId) {
+        refetchDetail();
+      }
       refetchList();
     } catch (error: unknown) {
       if (applyApiFieldErrors(createForm, error)) return;
-      message.error(getApiErrorMessage(error, "创建规则失败"));
+      message.error(getApiErrorMessage(error, editingRuleId ? "保存规则草稿失败" : "创建规则失败"));
     }
   };
 
@@ -2627,16 +2424,15 @@ export default function RuleDefinitions() {
       const values = await caseForm.validateFields();
       const snapshot = snapshotDetailQuery.data;
       if (!selectedSnapshotId || !snapshot) {
-        message.error("请先检索并选择一份 ACTIVE 标准上下文快照。");
+        message.error("请先检索并选择一份已生效的标准上下文。");
         return;
       }
       if (snapshot.status !== "ACTIVE" || !snapshot.resources) {
-        message.error("所选快照不是可用的 ACTIVE 标准上下文快照，请重新选择。");
+        message.error("所选上下文尚未生效或不可用，请重新选择。");
         return;
       }
 
       await addTestCaseMutation.mutateAsync({
-        packageVersion: selectedRulePackageVersion,
         caseType: values.caseType,
         contextSnapshotId: snapshot.snapshotId,
         expectedHit: values.expectedHit,
@@ -2657,7 +2453,7 @@ export default function RuleDefinitions() {
   const runSimulation = async (inputPayload: unknown) => {
     try {
       const result = await simulateMutation.mutateAsync({
-        packageVersion: selectedRulePackageVersion,
+        triggerPoint: conditionTree.triggerPoint,
         inputPayload,
       });
       setSimulateResult(result);
@@ -2670,11 +2466,9 @@ export default function RuleDefinitions() {
 
   const handleRunRuleTests = async () => {
     try {
-      const result = await runRuleTestsMutation.mutateAsync({
-        packageVersion: selectedRulePackageVersion,
-      });
+      const result = await runRuleTestsMutation.mutateAsync();
       if (result.allPassed) {
-        message.success("全部发布门禁用例执行通过");
+        message.success("全部发布验证用例执行通过");
       } else {
         message.warning("用例执行完成，存在未通过项，请核对期望与规则配置。");
       }
@@ -2701,22 +2495,13 @@ export default function RuleDefinitions() {
   };
 
   const handleRunCreatePreview = async () => {
-    const packageVersion = String(createForm.getFieldValue("packageVersion") ?? "").trim();
-    if (!packageVersion) {
-      message.warning("请先选择标准上下文包版本。");
-      return;
-    }
-    if (!isKnownPackageVersion(packageVersion)) {
-      message.warning("请选择已存在的标准上下文包版本。");
-      return;
-    }
     if (!selectedSnapshotId) {
-      message.warning("请先选择一个 ACTIVE 快照。");
+      message.warning("请先选择一个已生效快照。");
       return;
     }
     const snapshot = snapshotDetailQuery.data;
     if (!snapshot || snapshot.status !== "ACTIVE" || !snapshot.resources) {
-      message.error("所选快照不是可用的 ACTIVE 标准上下文快照，请重新选择。");
+      message.error("所选快照不是可用的已生效标准上下文快照，请重新选择。");
       return;
     }
     let draftDsl: unknown;
@@ -2739,14 +2524,13 @@ export default function RuleDefinitions() {
         return;
       }
     } catch {
-      message.error("草稿 DSL 不合法，请先修正 L2 条件树或 L3 JSON。");
+      message.error("草稿技术配置不合法，请先修正 L2 条件树或 L3 配置文本。");
       return;
     }
 
     try {
       const result = await previewRunMutation.mutateAsync({
         subject: "RULE_CONDITION",
-        packageVersion,
         snapshotId: selectedSnapshotId,
         dsl: draftDsl,
       });
@@ -2759,7 +2543,7 @@ export default function RuleDefinitions() {
 
   const handleSimulateSelectedSnapshot = async () => {
     if (!selectedSnapshotId) {
-      message.warning("请先选择一个 ACTIVE 快照。");
+      message.warning("请先选择一个已生效快照。");
       return;
     }
     const snapshot = snapshotDetailQuery.data;
@@ -2798,7 +2582,7 @@ export default function RuleDefinitions() {
     } catch (error: unknown) {
       modal.error({
         title: "历史回测未完成",
-        content: getApiErrorMessage(error, "请核查金标准样本和规则 DSL 后重试。"),
+        content: getApiErrorMessage(error, "请核查金标准样本和规则技术配置后重试。"),
       });
     }
   };
@@ -2835,7 +2619,7 @@ export default function RuleDefinitions() {
     if (!selectedRuleId) return false;
     const impactDigest = impactQuery.data?.impactDigest;
     const reason = releaseReason.trim();
-    const impactRequired = ["PEER_REVIEW", "SHADOW", "CANARY", "FULL"].includes(targetState);
+    const impactRequired = ["REVIEWED", "SHADOW", "CANARY", "FULL"].includes(targetState);
     if (impactRequired && !impactDigest) {
       setActiveDetailLayer("release");
       message.error("请先读取当前影响摘要，再推进治理状态。");
@@ -2849,7 +2633,6 @@ export default function RuleDefinitions() {
     try {
       await governanceTransitionMutation.mutateAsync({
         ruleId: selectedRuleId,
-        packageVersion: selectedRulePackageVersion,
         targetState,
         impactDigest,
         reason,
@@ -2861,149 +2644,33 @@ export default function RuleDefinitions() {
     } catch (error: unknown) {
       modal.error({
         title: "规则治理推进被拒绝",
-        content: getApiErrorMessage(error, "当前阶段门禁未满足，请核查页面中的真实证据。"),
+        content: getApiErrorMessage(error, "当前阶段检查未满足，请核查页面中的真实证据。"),
       });
       return false;
     }
   };
 
-  // 高风险（红线/高危）规则院级全量激活前必须采集独立电子签名：后端 VersionReleaseService
-  // 对 SAFETY_REDLINE 等高风险发布强制电子签名，且复核人须与发布人相互独立。
-  const fullActivationNeedsSignature = ["HIGH", "CRITICAL"].includes(
-    detailData?.definition.riskLevel ?? "",
-  );
-
   const startFullActivation = () => {
-    if (!fullActivationNeedsSignature) {
-      void handleGovernanceTransition("FULL", "规则已完成院级全量激活");
-      return;
-    }
-    // 先校验治理说明与影响摘要，避免填完电子签名才报门禁错误。
-    if (!impactQuery.data?.impactDigest) {
-      setActiveDetailLayer("release");
-      message.error("请先读取当前影响摘要，再推进治理状态。");
-      return;
-    }
-    if (!releaseReason.trim()) {
-      setActiveDetailLayer("release");
-      message.error("请填写本次治理说明。");
-      return;
-    }
-    signatureForm.resetFields();
-    signatureForm.setFieldValue("signedAt", new Date().toISOString());
-    setFullSignatureModalOpen(true);
+    void handleGovernanceTransition("FULL", "规则已完成院级全量激活");
   };
 
-  const handleFullActivationSignoff = async () => {
-    let values: {
-      signatureId: string;
-      signerId: string;
-      signerName: string;
-      signedAt: string;
-      signatureHash: string;
-    };
+  const handleCreateNextVersion = async () => {
+    if (!selectedRuleId || !detailData) return;
     try {
-      values = await signatureForm.validateFields();
-    } catch {
-      return;
-    }
-    const publishEvidence: VersionPublishEvidence = {
-      electronicSignature: {
-        signatureId: values.signatureId.trim(),
-        signerId: values.signerId.trim(),
-        signerName: values.signerName.trim(),
-        signedAt: new Date(values.signedAt).toISOString(),
-        signatureHash: values.signatureHash.trim(),
-      },
-    };
-    const ok = await handleGovernanceTransition("FULL", "规则已完成院级全量激活", publishEvidence);
-    if (ok) {
-      setFullSignatureModalOpen(false);
-    }
-  };
-
-  const handleGovernanceSignoff = async (
-    stage: RuleSignoffStage,
-    decision: "APPROVED" | "REJECTED",
-  ) => {
-    if (!selectedRuleId) return;
-    const reason = releaseReason.trim();
-    if (!reason) {
-      message.error("请填写评审或会签说明。");
-      return;
-    }
-    try {
-      await signoffMutation.mutateAsync({
+      const created = await createNextRuleVersionMutation.mutateAsync({
         ruleId: selectedRuleId,
-        packageVersion: selectedRulePackageVersion,
-        stage,
-        decision,
-        reason,
       });
-      message.success(decision === "APPROVED" ? "签署意见已记录" : "规则已退回草稿");
-      refreshGovernance();
+      message.success(`已复制为 V${created.versionNo} 草稿，旧版本继续运行`);
+      setActiveDetailLayer("l2");
+      refetchDetail();
+      refetchList();
     } catch (error: unknown) {
       modal.error({
-        title: "规则签署被拒绝",
-        content: getApiErrorMessage(error, "当前登录角色或治理阶段不允许本次签署。"),
+        title: "复制下一版本失败",
+        content: getApiErrorMessage(error, "请核查当前版本是否已全量运行。"),
       });
     }
   };
-
-  const conditionFragmentColumns: TableProps<ConditionFragmentResponse>["columns"] = [
-    {
-      title: "片段编码",
-      dataIndex: "fragmentCode",
-      key: "fragmentCode",
-      render: (text: string) => <Tag color="green">{text}</Tag>,
-    },
-    {
-      title: "片段名称",
-      dataIndex: "name",
-      key: "name",
-      className: styles.textStrong,
-    },
-    {
-      title: "版本",
-      dataIndex: "versionNo",
-      key: "versionNo",
-      render: (version: number) => `v${version}`,
-    },
-    {
-      title: "状态",
-      dataIndex: "status",
-      key: "status",
-      render: (status: ConditionFragmentStatus) => (
-        <Tag color={conditionFragmentStatusColor(status)}>{customerEnumLabel(status)}</Tag>
-      ),
-    },
-    {
-      title: "包版本",
-      dataIndex: "packageVersion",
-      key: "packageVersion",
-    },
-    {
-      title: "操作",
-      key: "actions",
-      render: (_, fragment) => (
-        <Space>
-          <Button size="small" onClick={() => editConditionFragment(fragment)}>
-            编辑
-          </Button>
-          <Button
-            size="small"
-            icon={<FileSearchOutlined />}
-            onClick={() => {
-              setImpactPage(1);
-              setImpactFragmentId(fragment.fragmentId);
-            }}
-          >
-            影响
-          </Button>
-        </Space>
-      ),
-    },
-  ];
 
   const columns: TableProps<RuleDefinition>["columns"] = [
     {
@@ -3037,10 +2704,11 @@ export default function RuleDefinitions() {
       render: renderStatus,
     },
     {
-      title: "当前包版本",
-      dataIndex: "packageVersion",
-      key: "packageVersion",
-      render: (val: string) => val || <span className={styles.textMuted}>未锁定</span>,
+      title: "当前资产版本",
+      dataIndex: "activeVersionId",
+      key: "activeVersionId",
+      render: (value?: string | null) =>
+        value || <span className={styles.textMuted}>尚未形成版本</span>,
     },
     {
       title: "操作",
@@ -3097,7 +2765,7 @@ export default function RuleDefinitions() {
 
   const renderSnapshotChoices = () => {
     if (!snapshotSearchParams) {
-      return <Empty description="输入患者 ID 或就诊 ID 后读取 ACTIVE 快照" />;
+      return <Empty description="输入患者 ID 或就诊 ID 后读取已生效快照" />;
     }
     if (snapshotsQuery.isLoading) {
       return <Alert type="info" showIcon message="正在读取真实上下文快照列表..." />;
@@ -3113,7 +2781,7 @@ export default function RuleDefinitions() {
       );
     }
     if (snapshots.length === 0) {
-      return <Empty description="当前患者或就诊下暂无 ACTIVE 临床快照" />;
+      return <Empty description="当前患者或就诊下暂无已生效临床快照" />;
     }
     return (
       <Space direction="vertical" size="small" className="mk-full-width">
@@ -3157,13 +2825,13 @@ export default function RuleDefinitions() {
           <Descriptions.Item label="质量状态">
             {customerDisplayText(snapshot.qualityStatus)}
           </Descriptions.Item>
-          <Descriptions.Item label="绑定包版本">
-            {snapshot.packageVersion || selectedRulePackageVersion || "-"}
+          <Descriptions.Item label="机构生效版本">
+            {snapshot.runtimeReleaseId || "-"}
           </Descriptions.Item>
           <Descriptions.Item label="缺失字段">
             {snapshot.missingFields?.length ? `${snapshot.missingFields.length} 项` : "无"}
           </Descriptions.Item>
-          <Descriptions.Item label="Trace">{snapshot.traceId || "-"}</Descriptions.Item>
+          <Descriptions.Item label="追踪号">{snapshot.traceId || "-"}</Descriptions.Item>
         </Descriptions>
         <Button
           type="primary"
@@ -3236,8 +2904,8 @@ export default function RuleDefinitions() {
         <Descriptions bordered column={1} size="small">
           <Descriptions.Item label="试运行结果">{result.outcomeText}</Descriptions.Item>
           <Descriptions.Item label="快照 ID">{result.snapshotId}</Descriptions.Item>
-          <Descriptions.Item label="包版本">{result.packageVersion}</Descriptions.Item>
-          <Descriptions.Item label="Trace">{result.traceId || "-"}</Descriptions.Item>
+          <Descriptions.Item label="机构生效版本">{result.runtimeReleaseId}</Descriptions.Item>
+          <Descriptions.Item label="追踪号">{result.traceId || "-"}</Descriptions.Item>
         </Descriptions>
         {renderPreviewRunEvidence(result.conditionEvidence ?? [])}
       </Space>
@@ -3263,8 +2931,8 @@ export default function RuleDefinitions() {
           <Descriptions.Item label="质量状态">
             {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
           </Descriptions.Item>
-          <Descriptions.Item label="绑定包版本">
-            {snapshotDetailQuery.data.packageVersion || createPackageVersion || "-"}
+          <Descriptions.Item label="机构生效版本">
+            {snapshotDetailQuery.data.runtimeReleaseId || "-"}
           </Descriptions.Item>
           <Descriptions.Item label="缺失字段">
             {snapshotDetailQuery.data.missingFields?.length
@@ -3301,10 +2969,10 @@ export default function RuleDefinitions() {
         <Descriptions.Item label="质量状态">
           {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
         </Descriptions.Item>
-        <Descriptions.Item label="绑定包版本">
-          {snapshotDetailQuery.data.packageVersion || selectedRulePackageVersion || "-"}
+        <Descriptions.Item label="机构生效版本">
+          {snapshotDetailQuery.data.runtimeReleaseId || "-"}
         </Descriptions.Item>
-        <Descriptions.Item label="Trace">
+        <Descriptions.Item label="追踪号">
           {snapshotDetailQuery.data.traceId || "-"}
         </Descriptions.Item>
       </Descriptions>
@@ -3373,7 +3041,7 @@ export default function RuleDefinitions() {
         type="error"
         showIcon
         message="影响摘要读取失败"
-        description="发布门禁需要真实影响摘要，请稍后重试。"
+        description="发布校验需要真实影响摘要，请稍后重试。"
       />
     );
   }
@@ -3384,13 +3052,11 @@ export default function RuleDefinitions() {
     0,
     RULE_GOVERNANCE_STAGES.findIndex((stage) => stage.key === governanceState),
   );
-  const governanceNeedsImpact = ["DRAFT", "COMMITTEE", "SHADOW", "CANARY"].includes(
-    governanceState,
-  );
+  const governanceNeedsImpact = ["DRAFT", "REVIEWED", "SHADOW", "CANARY"].includes(governanceState);
   let detailAlertMessage = "当前规则处于草稿阶段，可补测试用例和试运行。";
   let detailAlertType: "success" | "warning" | "info" = "info";
   if (governanceState === "RETIRED") {
-    detailAlertMessage = "当前规则已退役封存，定义、版本与全部签署证据仅供审计追溯。";
+    detailAlertMessage = "当前规则已退役封存，定义、版本与发布证据仅供审计追溯。";
     detailAlertType = "warning";
   } else if (governanceState === "MONITOR") {
     detailAlertMessage = "当前规则已进入运行监测，可查看真实运行证据或执行退役封存。";
@@ -3404,76 +3070,31 @@ export default function RuleDefinitions() {
   const renderGovernanceAction = () => {
     if (!governance) return null;
     const transitionPending = governanceTransitionMutation.isPending;
-    const signoffPending = signoffMutation.isPending;
     switch (governance.state) {
       case "DRAFT":
         if (!canWriteRule && !canPublishRule) return null;
         return (
           <Button
             type="primary"
-            onClick={() => handleGovernanceTransition("PEER_REVIEW", "规则已提交同行评审")}
+            onClick={() => handleGovernanceTransition("REVIEWED", "规则技术验证已确认")}
             loading={transitionPending}
             disabled={!releaseGate.allPassed || !impactQuery.data?.impactDigest}
           >
-            提交同行评审
+            确认技术验证
           </Button>
         );
-      case "PEER_REVIEW":
-        if (!canSignRule) return null;
+      case "REVIEWED":
+        if (!canCoordinateRelease) return null;
         return (
-          <Space wrap>
-            <Button
-              type="primary"
-              onClick={() => handleGovernanceSignoff("PEER_REVIEW", "APPROVED")}
-              loading={signoffPending}
-            >
-              同行评审通过
-            </Button>
-            <Button
-              danger
-              onClick={() => handleGovernanceSignoff("PEER_REVIEW", "REJECTED")}
-              loading={signoffPending}
-            >
-              退回草稿
-            </Button>
-          </Space>
+          <Button
+            type="primary"
+            onClick={() => handleGovernanceTransition("SHADOW", "规则已进入影子运行")}
+            loading={transitionPending}
+            disabled={!impactQuery.data?.impactDigest}
+          >
+            进入影子运行
+          </Button>
         );
-      case "COMMITTEE": {
-        if (!canSignRule && !canCoordinateRelease) return null;
-        const readyForShadow = governance.committeeApprovalCount >= governance.requiredSignoffs;
-        return (
-          <Space wrap>
-            {readyForShadow && canCoordinateRelease && (
-              <Button
-                type="primary"
-                onClick={() => handleGovernanceTransition("SHADOW", "规则已进入影子运行")}
-                loading={transitionPending}
-                disabled={!impactQuery.data?.impactDigest}
-              >
-                进入影子运行
-              </Button>
-            )}
-            {!readyForShadow && canSignRule && (
-              <Button
-                type="primary"
-                onClick={() => handleGovernanceSignoff("COMMITTEE", "APPROVED")}
-                loading={signoffPending}
-              >
-                委员会会签通过
-              </Button>
-            )}
-            {canSignRule && (
-              <Button
-                danger
-                onClick={() => handleGovernanceSignoff("COMMITTEE", "REJECTED")}
-                loading={signoffPending}
-              >
-                退回草稿
-              </Button>
-            )}
-          </Space>
-        );
-      }
       case "SHADOW":
         if (!canCoordinateRelease) return null;
         return (
@@ -3540,10 +3161,7 @@ export default function RuleDefinitions() {
         <Descriptions.Item label="当前阶段">
           {ruleGovernanceLabel(governanceState)}
         </Descriptions.Item>
-        <Descriptions.Item label="评审轮次">第 {governance?.reviewRound ?? 1} 轮</Descriptions.Item>
-        <Descriptions.Item label="委员会会签">
-          {governance?.committeeApprovalCount ?? 0} / {governance?.requiredSignoffs ?? 1}
-        </Descriptions.Item>
+        <Descriptions.Item label="负责人">{governance?.authorId || "暂无"}</Descriptions.Item>
         <Descriptions.Item label="最近说明">{governance?.lastReason || "暂无"}</Descriptions.Item>
       </Descriptions>
       {governanceState === "DRAFT" && (
@@ -3553,19 +3171,10 @@ export default function RuleDefinitions() {
           message={
             releaseGate.allPassed
               ? "阳性、阴性、边界、冲突四类测试用例已全绿。"
-              : `同行评审门禁未满足：缺少 ${releaseGate.missingTypes.join("、") || "通过结果"}。`
+              : `技术验证未满足：缺少 ${releaseGate.missingTypes.join("、") || "通过结果"}。`
           }
         />
       )}
-      {["HIGH", "CRITICAL"].includes(detailData?.definition.riskLevel ?? "") &&
-        ["PEER_REVIEW", "COMMITTEE"].includes(governanceState) && (
-          <Alert
-            type="warning"
-            showIcon
-            message="高危或红线规则要求两名独立委员会成员会签。"
-            description="影响摘要来自规则影响分析接口；路径、在径患者和同步目标只展示后端从关系库定位到的真实对象。"
-          />
-        )}
       {governanceNeedsImpact && impactSummaryPanel}
       {governanceState === "SHADOW" && (
         <Descriptions bordered size="small" column={{ xs: 1, md: 3 }} title="影子运行统计">
@@ -3675,32 +3284,12 @@ export default function RuleDefinitions() {
           </Descriptions>
         </Space>
       )}
-      {(governance?.signoffs.length ?? 0) > 0 && (
-        <Descriptions bordered size="small" column={1} title="签署证据">
-          {governance?.signoffs.map((signoff) => (
-            <Descriptions.Item
-              key={signoff.signoffId}
-              label={`${signoff.stage === "PEER_REVIEW" ? "同行评审" : "委员会"} · 第 ${
-                signoff.reviewRound
-              } 轮`}
-            >
-              <Space wrap>
-                <Tag color={signoff.decision === "APPROVED" ? "green" : "red"}>
-                  {signoff.decision === "APPROVED" ? "通过" : "驳回"}
-                </Tag>
-                <Text>{signoff.signerId}</Text>
-                <Text type="secondary">{signoff.reason}</Text>
-              </Space>
-            </Descriptions.Item>
-          ))}
-        </Descriptions>
-      )}
       {governanceState === "RETIRED" ? (
         <Alert
           type="info"
           showIcon
           message="规则已封存"
-          description="内容、版本、评审轮次与签署证据均保留，不提供删除或重新发布入口。"
+          description="内容、版本、技术验证、发布与审计证据均保留，不提供删除或重新发布入口。"
         />
       ) : (
         <Form layout="vertical">
@@ -3710,7 +3299,7 @@ export default function RuleDefinitions() {
               rows={3}
               value={releaseReason}
               onChange={(event) => setReleaseReason(event.target.value)}
-              placeholder="填写本次评审、会签、发布、监测或退役依据。"
+              placeholder="填写本次确认、发布、监测或退役依据。"
             />
           </Form.Item>
           {governanceAction ?? (
@@ -3718,7 +3307,7 @@ export default function RuleDefinitions() {
               type="info"
               showIcon
               message="当前账号仅可查看本阶段证据"
-              description="可执行动作由规则写入权限、签署角色和发布职责共同决定。"
+              description="可执行动作由规则写入或发布权限决定。"
             />
           )}
         </Form>
@@ -3772,11 +3361,7 @@ export default function RuleDefinitions() {
                 <Alert type="warning" showIcon message="条件结构无法解析，请在 L3 技术视图核查。" />
               )}
               {Boolean(detailDsl) && (
-                <AuthoringReadablePreview
-                  subject="RULE_CONDITION"
-                  packageVersion={selectedRulePackageVersion}
-                  dsl={detailDsl}
-                />
+                <AuthoringReadablePreview subject="RULE_CONDITION" dsl={detailDsl} />
               )}
               <Descriptions bordered column={1} size="small">
                 <Descriptions.Item label="适用场景">
@@ -3826,7 +3411,7 @@ export default function RuleDefinitions() {
             <Alert
               type="warning"
               showIcon
-              message="该版本 DSL 无法无损还原为当前 L2 条件树，请在 L3 技术视图核查。"
+              message="该版本的技术配置无法无损还原为当前 L2 条件树，请在 L3 技术视图核查。"
             />
           ),
         },
@@ -3836,7 +3421,7 @@ export default function RuleDefinitions() {
                 key: "l3",
                 label: (
                   <span>
-                    <CodeOutlined /> L3 DSL
+                    <CodeOutlined /> L3 技术配置
                   </span>
                 ),
                 children: (
@@ -3844,7 +3429,7 @@ export default function RuleDefinitions() {
                     <Row gutter={16}>
                       <Col span={12}>
                         <div className={`${styles.codePanel} ${styles.codeText}`}>
-                          {detailDsl ? formatRuleJson(detailDsl) : "当前版本 DSL 无法解析"}
+                          {detailDsl ? formatRuleJson(detailDsl) : "当前版本技术配置无法解析"}
                         </div>
                       </Col>
                       <Col span={12}>
@@ -3856,11 +3441,7 @@ export default function RuleDefinitions() {
                       </Col>
                     </Row>
                     {Boolean(detailDsl) && (
-                      <AuthoringReadablePreview
-                        subject="RULE_CONDITION"
-                        packageVersion={selectedRulePackageVersion}
-                        dsl={detailDsl}
-                      />
+                      <AuthoringReadablePreview subject="RULE_CONDITION" dsl={detailDsl} />
                     )}
                   </Space>
                 ),
@@ -3871,7 +3452,7 @@ export default function RuleDefinitions() {
           key: "cases",
           label: (
             <span>
-              <InfoCircleOutlined /> 发布门禁测试用例 ({detailData.testCases.length})
+              <InfoCircleOutlined /> 发布验证用例 ({detailData.testCases.length})
             </span>
           ),
           children: (
@@ -4033,7 +3614,7 @@ export default function RuleDefinitions() {
                     </Descriptions.Item>
                     {simulateResult.hit && (
                       <>
-                        <Descriptions.Item label="动作卡">
+                        <Descriptions.Item label="临床提示卡">
                           <Space wrap>
                             {simulateResult.actions.map((action, index) => (
                               <Tag key={`${action.actionCode}-${index}`} color={action.indicator}>
@@ -4392,92 +3973,19 @@ export default function RuleDefinitions() {
             type="info"
             showIcon
             message="临床算子"
-            description="区间比较、单位换算、时间窗持续/趋势和 eGFR/CrCl/BSA 受控公式均可在 L2 结构化配置；支持任意层级「具体条件 + 子条件组」嵌套；L3 JSON 仅保留给 L3 技术核查。"
+            description="区间比较、单位换算、时间窗持续/趋势和 eGFR/CrCl/BSA 计算公式均可在 L2 结构化配置；支持任意层级「具体条件 + 子条件组」嵌套；L3 配置文本仅保留给 L3 技术核查。"
           />
-
-          <div className={styles.conditionCard}>
-            <div className={styles.conditionHeader}>
-              <Space direction="vertical" size={0}>
-                <Text strong>条件片段</Text>
-                <Text type="secondary">
-                  选择同包版本的 ACTIVE 片段，可引用联动或拷贝为本地条件。
-                </Text>
-              </Space>
-              <Tag color={currentCreatePackageVersion ? "green" : "default"}>
-                {currentCreatePackageVersion || "待填写包版本"}
-              </Tag>
-            </div>
-            <Space wrap className="mk-full-width">
-              <Select
-                aria-label="选择条件片段"
-                showSearch
-                allowClear
-                value={selectedConditionFragment ? selectedFragmentId : undefined}
-                loading={activeConditionFragmentsQuery.isLoading}
-                disabled={!currentCreatePackageVersion || activeConditionFragmentsQuery.isError}
-                options={conditionFragmentOptions}
-                optionFilterProp="label"
-                placeholder={
-                  currentCreatePackageVersion ? "选择可复用条件片段" : "先填写标准上下文包版本"
-                }
-                className={styles.fragmentSelect}
-                onChange={(value) => setSelectedFragmentId(value)}
-              />
-              <Button
-                icon={<BranchesOutlined />}
-                disabled={!selectedConditionFragment}
-                onClick={() => applyConditionFragment("reference")}
-              >
-                引用
-              </Button>
-              <Button
-                icon={<PlusOutlined />}
-                disabled={!selectedConditionFragment}
-                onClick={() => applyConditionFragment("copy")}
-              >
-                拷贝
-              </Button>
-              <Button icon={<FileSearchOutlined />} onClick={openFragmentLibrary}>
-                片段库
-              </Button>
-            </Space>
-            {!currentCreatePackageVersion && (
-              <Text type="secondary">标准上下文包版本用于约束片段、规则与运行期求值一致。</Text>
-            )}
-            {activeConditionFragmentsQuery.isError && (
-              <Alert
-                className={styles.marginTopSm}
-                type="error"
-                showIcon
-                message="条件片段暂不可用"
-                description={getApiErrorMessage(
-                  activeConditionFragmentsQuery.error,
-                  "条件片段列表加载失败，请稍后重试。",
-                )}
-              />
-            )}
-            {currentCreatePackageVersion &&
-              !activeConditionFragmentsQuery.isLoading &&
-              !activeConditionFragmentsQuery.isError &&
-              conditionFragmentOptions.length === 0 && (
-                <Empty
-                  className={styles.marginTopSm}
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description="当前包版本暂无可用条件片段"
-                />
-              )}
-          </div>
 
           {renderConditionGroup(conditionRoot, 0)}
 
           <Space direction="vertical" size="middle" className="mk-full-width">
             <div className={styles.conditionHeader}>
               <Space direction="vertical" size={0}>
-                <Text strong>命中动作卡</Text>
-                <Text type="secondary">按风险级别输出可审阅卡片，不直接执行医嘱。</Text>
+                <Text strong>命中临床提示卡</Text>
+                <Text type="secondary">按风险等级输出医生可审阅提醒，不直接执行医嘱。</Text>
               </Space>
-              <Button icon={<PlusOutlined />} aria-label="添加动作" onClick={addAction}>
-                添加动作
+              <Button icon={<PlusOutlined />} aria-label="添加提示" onClick={addAction}>
+                添加提示
               </Button>
             </div>
 
@@ -4489,17 +3997,17 @@ export default function RuleDefinitions() {
               >
                 <div className={styles.conditionHeader}>
                   <Space>
-                    <Tag color={action.indicator}>动作 {actionIndex + 1}</Tag>
-                    <Text strong>{action.summary || "待填写动作摘要"}</Text>
+                    <Tag color={action.indicator}>提示 {actionIndex + 1}</Tag>
+                    <Text strong>{action.summary || "待填写提示摘要"}</Text>
                   </Space>
                   <Tooltip
-                    title={conditionTree.actions.length === 1 ? "至少保留一个动作" : "删除动作"}
+                    title={conditionTree.actions.length === 1 ? "至少保留一个提示" : "删除提示"}
                   >
                     <Button
                       type="text"
                       danger
                       icon={<DeleteOutlined />}
-                      aria-label={`删除动作 ${actionIndex + 1}`}
+                      aria-label={`删除提示 ${actionIndex + 1}`}
                       disabled={conditionTree.actions.length === 1}
                       onClick={() => removeAction(actionIndex)}
                     />
@@ -4508,7 +4016,7 @@ export default function RuleDefinitions() {
 
                 <Row gutter={12}>
                   <Col xs={24} md={8}>
-                    <Form.Item label="动作类型" htmlFor={`action-code-${actionIndex}`}>
+                    <Form.Item label="命中后处理" htmlFor={`action-code-${actionIndex}`}>
                       <Select
                         id={`action-code-${actionIndex}`}
                         value={action.actionCode}
@@ -4520,14 +4028,14 @@ export default function RuleDefinitions() {
                         <Option value="INFO">信息提示</Option>
                         <Option value="REMIND">一般提醒</Option>
                         <Option value="STRONG_REMINDER">强提醒</Option>
-                        <Option value="BLOCK">阻断确认</Option>
+                        <Option value="BLOCK">红线拦截</Option>
                         <Option value="SUGGEST_ORDER">建议医嘱</Option>
-                        <Option value="AUTO_DOCUMENT">自动留痕</Option>
+                        <Option value="AUTO_DOCUMENT">辅助记录</Option>
                       </Select>
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={8}>
-                    <Form.Item label="风险级别" htmlFor={`action-severity-${actionIndex}`}>
+                    <Form.Item label="风险等级" htmlFor={`action-severity-${actionIndex}`}>
                       <Select
                         id={`action-severity-${actionIndex}`}
                         value={action.atSeverity}
@@ -4539,12 +4047,12 @@ export default function RuleDefinitions() {
                         <Option value="LOW">低风险</Option>
                         <Option value="MEDIUM">中风险</Option>
                         <Option value="HIGH">高风险</Option>
-                        <Option value="CRITICAL">红线</Option>
+                        <Option value="CRITICAL">红线风险</Option>
                       </Select>
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={8}>
-                    <Form.Item label="卡片指示" htmlFor={`action-indicator-${actionIndex}`}>
+                    <Form.Item label="提醒等级" htmlFor={`action-indicator-${actionIndex}`}>
                       <Select
                         id={`action-indicator-${actionIndex}`}
                         value={action.indicator}
@@ -4553,9 +4061,9 @@ export default function RuleDefinitions() {
                         }
                         className="mk-full-width"
                       >
-                        <Option value="info">信息</Option>
-                        <Option value="warning">警示</Option>
-                        <Option value="critical">严重</Option>
+                        <Option value="info">信息提示</Option>
+                        <Option value="warning">需要关注</Option>
+                        <Option value="critical">必须处理</Option>
                       </Select>
                     </Form.Item>
                   </Col>
@@ -4563,7 +4071,7 @@ export default function RuleDefinitions() {
 
                 <Row gutter={12}>
                   <Col xs={24} md={10}>
-                    <Form.Item label="卡片摘要" htmlFor={`action-summary-${actionIndex}`}>
+                    <Form.Item label="提示摘要" htmlFor={`action-summary-${actionIndex}`}>
                       <Input
                         id={`action-summary-${actionIndex}`}
                         value={action.summary}
@@ -4614,7 +4122,7 @@ export default function RuleDefinitions() {
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={6}>
-                    <Form.Item label="证据等级" htmlFor={`action-evidence-${actionIndex}`}>
+                    <Form.Item label="证据类型" htmlFor={`action-evidence-${actionIndex}`}>
                       <Input
                         id={`action-evidence-${actionIndex}`}
                         value={action.source.evidenceLevel}
@@ -4633,7 +4141,10 @@ export default function RuleDefinitions() {
 
                 <Row gutter={12} align="middle">
                   <Col xs={24} md={18}>
-                    <Form.Item label="可覆盖理由" htmlFor={`action-reasons-${actionIndex}`}>
+                    <Form.Item
+                      label="允许改用其他方案的原因"
+                      htmlFor={`action-reasons-${actionIndex}`}
+                    >
                       <Select
                         id={`action-reasons-${actionIndex}`}
                         mode="tags"
@@ -4665,18 +4176,18 @@ export default function RuleDefinitions() {
                 </Row>
 
                 <div className={styles.conditionHeader}>
-                  <Text strong>建议项</Text>
+                  <Text strong>医生可选操作</Text>
                   <Button
                     size="small"
                     icon={<PlusOutlined />}
-                    aria-label={`为动作 ${actionIndex + 1} 添加建议`}
+                    aria-label={`为提示 ${actionIndex + 1} 添加可选操作`}
                     onClick={() => addSuggestion(actionIndex)}
                   >
-                    添加建议
+                    添加可选操作
                   </Button>
                 </div>
                 {action.suggestions.length === 0 ? (
-                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无建议项" />
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无可选操作" />
                 ) : (
                   <Space direction="vertical" size="small" className="mk-full-width">
                     {action.suggestions.map((suggestion, suggestionIndex) => (
@@ -4685,20 +4196,20 @@ export default function RuleDefinitions() {
                         className={styles.suggestionSection}
                       >
                         <div className={styles.conditionHeader}>
-                          <Text strong>建议 {suggestionIndex + 1}</Text>
-                          <Tooltip title="删除建议">
+                          <Text strong>可选操作 {suggestionIndex + 1}</Text>
+                          <Tooltip title="删除可选操作">
                             <Button
                               type="text"
                               danger
                               icon={<DeleteOutlined />}
-                              aria-label={`删除建议 ${suggestionIndex + 1}`}
+                              aria-label={`删除可选操作 ${suggestionIndex + 1}`}
                               onClick={() => removeSuggestion(actionIndex, suggestionIndex)}
                             />
                           </Tooltip>
                         </div>
                         <Row gutter={12}>
                           <Col xs={24} md={12}>
-                            <Form.Item label="建议名称">
+                            <Form.Item label="可选操作名称">
                               <Input
                                 value={suggestion.label}
                                 onChange={(event) =>
@@ -4710,7 +4221,7 @@ export default function RuleDefinitions() {
                             </Form.Item>
                           </Col>
                           <Col xs={24} md={12}>
-                            <Form.Item label="建议类型">
+                            <Form.Item label="可选操作类型">
                               <Input
                                 value={suggestion.actionType}
                                 onChange={(event) =>
@@ -4723,7 +4234,7 @@ export default function RuleDefinitions() {
                           </Col>
                         </Row>
                         <div className={styles.conditionHeader}>
-                          <Text type="secondary">建议参数</Text>
+                          <Text type="secondary">操作参数</Text>
                           <Button
                             type="text"
                             size="small"
@@ -4782,20 +4293,16 @@ export default function RuleDefinitions() {
             ))}
           </Space>
 
-          <AuthoringReadablePreview
-            subject="RULE_CONDITION"
-            packageVersion={createPackageVersion}
-            dsl={createRulePreviewDsl}
-          />
+          <AuthoringReadablePreview subject="RULE_CONDITION" dsl={createRulePreviewDsl} />
 
           <Space>
             <Button
               type="primary"
               icon={<SyncOutlined />}
-              aria-label="同步到 DSL"
+              aria-label="同步到技术配置"
               onClick={syncTreeToDsl}
             >
-              同步到 DSL
+              同步到技术配置
             </Button>
             <Button
               icon={<ApartmentOutlined />}
@@ -4870,7 +4377,7 @@ export default function RuleDefinitions() {
             key: "l3",
             label: (
               <span>
-                <CodeOutlined /> L3 DSL
+                <CodeOutlined /> L3 技术配置
               </span>
             ),
             children: (
@@ -4878,10 +4385,10 @@ export default function RuleDefinitions() {
                 <Alert
                   type="warning"
                   showIcon
-                  message="L3 是受控 DSL 编辑层，保存前必须能回填到 L2 条件树；不允许提交无法解释的裸 DSL。"
+                  message="L3 是受控技术配置层，保存前必须能回填到 L2 条件树；不允许提交无法解释的配置文本。"
                   className={styles.marginBottomMd}
                 />
-                <Form.Item label="规则 DSL JSON" htmlFor="ruleDslJson">
+                <Form.Item label="规则配置文本" htmlFor="ruleDslJson">
                   <TextArea
                     id="ruleDslJson"
                     rows={16}
@@ -4892,7 +4399,6 @@ export default function RuleDefinitions() {
                 </Form.Item>
                 <AuthoringReadablePreview
                   subject="RULE_CONDITION"
-                  packageVersion={createPackageVersion}
                   dsl={createRulePreviewDslFromL3}
                 />
                 <Space>
@@ -4905,10 +4411,10 @@ export default function RuleDefinitions() {
                   </Button>
                   <Button
                     icon={<FileSearchOutlined />}
-                    aria-label="重新生成 DSL"
+                    aria-label="重新生成技术配置"
                     onClick={syncTreeToDsl}
                   >
-                    重新生成 DSL
+                    重新生成技术配置
                   </Button>
                 </Space>
               </>
@@ -4932,7 +4438,7 @@ export default function RuleDefinitions() {
       state={pageState}
       stateProps={{
         title: "规则列表读取失败",
-        description: getApiErrorMessage(listError, "请稍后重试，或联系信息科核查规则 API。"),
+        description: getApiErrorMessage(listError, "请稍后重试，或联系信息科核查规则接口。"),
         onRetry: refetchList,
       }}
     >
@@ -4947,7 +4453,7 @@ export default function RuleDefinitions() {
               className={styles.controlSm}
             >
               <Option value="DRAFT">草稿设计中</Option>
-              <Option value="PUBLISHED">内容已审核</Option>
+              <Option value="PUBLISHED">已发布</Option>
               <Option value="OFFLINE">已下线封存</Option>
             </Select>
           </Form.Item>
@@ -5061,11 +4567,39 @@ export default function RuleDefinitions() {
               <Descriptions.Item label="当前版本">
                 {detailData.version?.versionNo || 0} 版
               </Descriptions.Item>
+              <Descriptions.Item label="版本历史" span={2}>
+                <Space wrap>
+                  {detailData.versions.map((version) => (
+                    <Tag key={version.versionId}>
+                      {`V${version.versionNo} · ${
+                        RULE_VERSION_STATUS_LABELS[version.status] ??
+                        customerEnumLabel(version.status)
+                      }`}
+                    </Tag>
+                  ))}
+                </Space>
+              </Descriptions.Item>
             </Descriptions>
 
             <Space className="mk-flex-between mk-full-width">
-              <Text type="secondary">技术 DSL 与解释模板默认隐藏，需要进入 L3 技术视图。</Text>
+              <Text type="secondary">技术配置与解释模板默认隐藏，需要进入 L3 技术视图。</Text>
               <Space>
+                {canWriteRule &&
+                  detailData.version.status === "DRAFT" &&
+                  governanceState === "DRAFT" && (
+                    <Button icon={<EditOutlined />} onClick={openEditModal}>
+                      编辑当前草稿
+                    </Button>
+                  )}
+                {canWriteRule && ["FULL", "MONITOR"].includes(governanceState) && (
+                  <Button
+                    icon={<CopyOutlined />}
+                    loading={createNextRuleVersionMutation.isPending}
+                    onClick={handleCreateNextVersion}
+                  >
+                    复制为新版本
+                  </Button>
+                )}
                 <Text>L3 技术视图</Text>
                 <Switch
                   aria-label="L3 技术视图"
@@ -5085,17 +4619,21 @@ export default function RuleDefinitions() {
       </Drawer>
 
       <Modal
-        title="创建新临床规则"
+        title={
+          editingRuleId ? `编辑 V${detailData?.version.versionNo ?? ""} 规则草稿` : "创建新临床规则"
+        }
         open={createModalVisible}
         onOk={handleCreateRule}
         onCancel={() => {
           setCreateModalVisible(false);
+          setEditingRuleId(null);
+          setEditingRuleMeta(undefined);
           setCreatePreviewRunResult(null);
         }}
         width="min(920px, calc(100vw - 32px))"
-        okText="创建草稿"
+        okText={editingRuleId ? "保存草稿" : "创建草稿"}
         cancelText="取消"
-        confirmLoading={createRuleMutation.isPending}
+        confirmLoading={createRuleMutation.isPending || updateRuleMutation.isPending}
         forceRender
       >
         <Form form={createForm} layout="vertical">
@@ -5106,7 +4644,7 @@ export default function RuleDefinitions() {
                 label="规则唯一业务编码"
                 rules={[{ required: true, message: "请输入编码，同一服务空间内不可重复" }]}
               >
-                <Input placeholder="输入规则业务编码" />
+                <Input placeholder="输入规则业务编码" disabled={Boolean(editingRuleId)} />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -5115,14 +4653,14 @@ export default function RuleDefinitions() {
                 label="规则显示名称"
                 rules={[{ required: true, message: "请输入规则名称" }]}
               >
-                <Input placeholder="输入规则显示名称" />
+                <Input placeholder="输入规则显示名称" disabled={Boolean(editingRuleId)} />
               </Form.Item>
             </Col>
           </Row>
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item name="ruleType" label="规则门类" rules={[{ required: true }]}>
-                <Select>
+                <Select disabled={Boolean(editingRuleId)}>
                   {RULE_TYPE_OPTIONS.map((option) => (
                     <Option key={option.value} value={option.value}>
                       {option.label}
@@ -5133,7 +4671,7 @@ export default function RuleDefinitions() {
             </Col>
             <Col span={8}>
               <Form.Item name="riskLevel" label="风险严重等级" rules={[{ required: true }]}>
-                <Select>
+                <Select disabled={Boolean(editingRuleId)}>
                   <Option value="LOW">低风险</Option>
                   <Option value="MEDIUM">中风险</Option>
                   <Option value="HIGH">高风险</Option>
@@ -5141,8 +4679,12 @@ export default function RuleDefinitions() {
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="triggerPoint" label="触发时点" rules={[{ required: true }]}>
-                <Select onChange={updateTriggerPoint}>
+              <Form.Item
+                name="triggerPoints"
+                label="临床触发场景"
+                rules={[{ required: true, message: "请至少选择一个临床触发场景" }]}
+              >
+                <Select mode="multiple" maxTagCount="responsive" onChange={updateTriggerPoints}>
                   {CLINICAL_TRIGGER_POINT_OPTIONS.map((option) => (
                     <Option key={option.value} value={option.value}>
                       {option.label}
@@ -5160,7 +4702,7 @@ export default function RuleDefinitions() {
                 rules={[{ required: true, message: "请输入依据来源" }]}
               >
                 <Input
-                  placeholder="输入已审核医学依据、院内制度或配置包来源"
+                  placeholder="输入已审核医学依据、院内制度或权威来源"
                   onChange={(event) => {
                     const label = event.target.value;
                     setConditionTree((current) => ({
@@ -5176,17 +4718,19 @@ export default function RuleDefinitions() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="packageVersion" label="标准上下文包版本" rules={packageVersionRules}>
-                <AutoComplete
-                  options={packageVersionOptions}
-                  placeholder="选择当前已审核的标准上下文包版本"
-                  filterOption={false}
-                  onSearch={setRulePackageSearch}
-                />
-              </Form.Item>
+              <Alert
+                showIcon
+                type="info"
+                message="规则版本独立维护"
+                description="规则发布时由平台标准版本或机构生效版本选择上线版本；创作阶段不绑定上线范围或离线交付文件。"
+              />
             </Col>
           </Row>
-          <Form.Item name="changeSummary" label="初始化变更内容说明" rules={[{ required: true }]}>
+          <Form.Item
+            name="changeSummary"
+            label={editingRuleId ? "本版变更内容说明" : "初始化变更内容说明"}
+            rules={[{ required: true }]}
+          >
             <Input placeholder="本次创建版本的修改概述" />
           </Form.Item>
 
@@ -5198,7 +4742,13 @@ export default function RuleDefinitions() {
                 tooltip="数值越大越先执行，用于确定显式抑制的先后关系。"
                 rules={[{ required: true, message: "请输入执行优先级" }]}
               >
-                <InputNumber min={0} max={1000} precision={0} className="mk-full-width" />
+                <InputNumber
+                  min={0}
+                  max={1000}
+                  precision={0}
+                  className="mk-full-width"
+                  disabled={Boolean(editingRuleId)}
+                />
               </Form.Item>
             </Col>
             <Col span={8}>
@@ -5209,6 +4759,7 @@ export default function RuleDefinitions() {
               >
                 <AutoComplete
                   allowClear
+                  disabled={Boolean(editingRuleId)}
                   filterOption={(input, option) =>
                     String(option?.label ?? option?.value ?? "")
                       .toLowerCase()
@@ -5229,17 +4780,23 @@ export default function RuleDefinitions() {
                 tooltip="窗口内相同规则与动作只保留首次成功命中，0 表示不去重。"
                 rules={[{ required: true, message: "请输入去重窗口" }]}
               >
-                <InputNumber min={0} max={1440} precision={0} className="mk-full-width" />
+                <InputNumber
+                  min={0}
+                  max={1440}
+                  precision={0}
+                  className="mk-full-width"
+                  disabled={Boolean(editingRuleId)}
+                />
               </Form.Item>
             </Col>
           </Row>
 
           <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
-            <Text type="secondary">普通配置只展示 L1/L2；L3 DSL 需显式进入 L3 DSL 编辑模式。</Text>
+            <Text type="secondary">普通配置只展示 L1/L2；L3 技术配置需显式进入技术配置模式。</Text>
             <Space>
-              <Text>L3 DSL 编辑模式</Text>
+              <Text>L3 技术配置模式</Text>
               <Switch
-                aria-label="L3 DSL 编辑模式"
+                aria-label="L3 技术配置模式"
                 checked={createExpertMode}
                 onChange={toggleCreateExpertMode}
               />
@@ -5252,198 +4809,6 @@ export default function RuleDefinitions() {
             onChange={(key) => setActiveCreateLayer(key as CreateLayerKey)}
           />
         </Form>
-      </Modal>
-
-      <Drawer
-        title="条件片段库"
-        width={980}
-        zIndex={1200}
-        open={fragmentLibraryOpen}
-        afterOpenChange={(open) => {
-          if (open && !editingFragmentId) resetFragmentForm();
-        }}
-        onClose={() => setFragmentLibraryOpen(false)}
-      >
-        <Row gutter={[16, 16]}>
-          <Col xs={24} lg={10}>
-            <div className={styles.formSection}>
-              <Form form={fragmentForm} layout="vertical">
-                <Row gutter={12}>
-                  <Col span={12}>
-                    <Form.Item
-                      name="fragmentCode"
-                      label="片段编码"
-                      rules={[{ required: true, message: "请输入片段编码" }]}
-                    >
-                      <Input placeholder="FRAG_RENAL_IMPAIRED" />
-                    </Form.Item>
-                  </Col>
-                  <Col span={12}>
-                    <Form.Item
-                      name="fragmentName"
-                      label="片段名称"
-                      rules={[{ required: true, message: "请输入片段名称" }]}
-                    >
-                      <Input placeholder="肾功能受限" />
-                    </Form.Item>
-                  </Col>
-                </Row>
-                <Row gutter={12}>
-                  <Col span={12}>
-                    <Form.Item name="category" label="分类">
-                      <Input placeholder="如 肾病 / 抗凝" />
-                    </Form.Item>
-                  </Col>
-                  <Col span={12}>
-                    <Form.Item
-                      name="versionNo"
-                      label="片段版本"
-                      initialValue={1}
-                      rules={[{ required: true, message: "请输入片段版本" }]}
-                    >
-                      <InputNumber min={1} precision={0} className="mk-full-width" />
-                    </Form.Item>
-                  </Col>
-                </Row>
-                <Row gutter={12}>
-                  <Col span={12}>
-                    <Form.Item
-                      name="packageVersion"
-                      label="包版本"
-                      initialValue={currentCreatePackageVersion}
-                      rules={packageVersionRules}
-                    >
-                      <AutoComplete
-                        options={packageVersionOptions}
-                        placeholder="选择规则配置包版本"
-                        filterOption={false}
-                        onSearch={setRulePackageSearch}
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col span={12}>
-                    <Form.Item
-                      name="status"
-                      label="状态"
-                      initialValue="ACTIVE"
-                      rules={[{ required: true, message: "请选择状态" }]}
-                    >
-                      <Select>
-                        <Option value="DRAFT">草稿</Option>
-                        <Option value="ACTIVE">可复用</Option>
-                        <Option value="RETIRED">已退役</Option>
-                      </Select>
-                    </Form.Item>
-                  </Col>
-                </Row>
-                <Form.Item label="片段正文">
-                  <TextArea
-                    readOnly
-                    value={formatRuleJson(fragmentBodyJson ?? currentFragmentBodyJson)}
-                    autoSize={{ minRows: 5, maxRows: 10 }}
-                  />
-                </Form.Item>
-                <Space wrap>
-                  <Button icon={<SyncOutlined />} onClick={refreshFragmentBodyFromCurrentTree}>
-                    使用当前条件树
-                  </Button>
-                  <Button onClick={resetFragmentForm}>新建</Button>
-                  <Button
-                    type="primary"
-                    loading={
-                      createConditionFragmentMutation.isPending ||
-                      updateConditionFragmentMutation.isPending
-                    }
-                    onClick={saveConditionFragment}
-                  >
-                    {editingFragmentId ? "更新片段" : "保存片段"}
-                  </Button>
-                </Space>
-              </Form>
-            </div>
-          </Col>
-          <Col xs={24} lg={14}>
-            <Space direction="vertical" size="middle" className="mk-full-width">
-              <Input
-                allowClear
-                aria-label="检索条件片段"
-                placeholder="按片段编码、名称或分类检索"
-                value={fragmentLibrarySearch}
-                onChange={(event) => {
-                  setFragmentLibrarySearch(event.target.value);
-                  setFragmentLibraryPage(1);
-                }}
-              />
-              <Table
-                rowKey="fragmentId"
-                size="small"
-                loading={fragmentLibraryQuery.isLoading}
-                dataSource={fragmentLibraryItems}
-                columns={conditionFragmentColumns}
-                pagination={{
-                  current: fragmentLibraryQuery.data?.page ?? fragmentLibraryPage,
-                  pageSize: fragmentLibraryQuery.data?.size ?? RULE_FRAGMENT_LIBRARY_PAGE_SIZE,
-                  total: fragmentLibraryQuery.data?.total ?? fragmentLibraryItems.length,
-                  showSizeChanger: false,
-                  onChange: (page) => setFragmentLibraryPage(page),
-                }}
-                locale={{ emptyText: "当前包版本暂无条件片段" }}
-              />
-            </Space>
-          </Col>
-        </Row>
-      </Drawer>
-
-      <Modal
-        title="条件片段影响分析"
-        open={Boolean(impactFragmentId)}
-        footer={null}
-        onCancel={() => {
-          setImpactFragmentId("");
-          setImpactPage(1);
-        }}
-        width={760}
-        zIndex={1300}
-      >
-        <Space direction="vertical" size="middle" className="mk-full-width">
-          <Descriptions bordered size="small" column={2}>
-            <Descriptions.Item label="片段编码">
-              {conditionFragmentImpactQuery.data?.fragmentCode ?? "-"}
-            </Descriptions.Item>
-            <Descriptions.Item label="片段版本">
-              {conditionFragmentImpactQuery.data
-                ? `v${conditionFragmentImpactQuery.data.versionNo}`
-                : "-"}
-            </Descriptions.Item>
-            <Descriptions.Item label="包版本">
-              {conditionFragmentImpactQuery.data?.packageVersion ?? "-"}
-            </Descriptions.Item>
-            <Descriptions.Item label="影响摘要">
-              {conditionFragmentImpactQuery.data?.impactDigest ?? "-"}
-            </Descriptions.Item>
-          </Descriptions>
-          <Table
-            rowKey={(item) => `${item.assetType}-${item.assetId}`}
-            size="small"
-            loading={conditionFragmentImpactQuery.isLoading}
-            dataSource={conditionFragmentImpactQuery.data?.affectedAssets.items ?? []}
-            pagination={{
-              current: conditionFragmentImpactQuery.data?.affectedAssets.page ?? impactPage,
-              pageSize:
-                conditionFragmentImpactQuery.data?.affectedAssets.size ??
-                CONDITION_FRAGMENT_IMPACT_PAGE_SIZE,
-              total: conditionFragmentImpactQuery.data?.affectedAssets.total ?? 0,
-              showSizeChanger: false,
-              onChange: (page) => setImpactPage(page),
-            }}
-            columns={[
-              { title: "资产类型", dataIndex: "assetType", key: "assetType" },
-              { title: "资产编码", dataIndex: "assetCode", key: "assetCode" },
-              { title: "名称", dataIndex: "displayName", key: "displayName" },
-              { title: "影响原因", dataIndex: "impactReason", key: "impactReason" },
-            ]}
-          />
-        </Space>
       </Modal>
 
       <Modal
@@ -5470,8 +4835,8 @@ export default function RuleDefinitions() {
             type="info"
             showIcon
             className={styles.marginBottomMd}
-            message="从 ACTIVE 标准上下文快照固化回归用例"
-            description="服务端校验快照状态并保存来源 ID 与资源副本，不接受人工粘贴的上下文 JSON。"
+            message="从已生效标准上下文生成验证用例"
+            description="服务端校验快照状态并保存来源 ID 与资源副本，不接受人工粘贴的上下文配置文本。"
           />
           <Row gutter={12}>
             <Col span={12}>
@@ -5499,10 +4864,10 @@ export default function RuleDefinitions() {
           </Row>
           <Button
             icon={<FileSearchOutlined />}
-            aria-label="读取 ACTIVE 快照"
+            aria-label="读取已生效快照"
             onClick={handleSnapshotSearch}
           >
-            读取 ACTIVE 快照
+            读取已生效快照
           </Button>
           <div className={styles.marginTopMd}>{renderSnapshotChoices()}</div>
           {selectedSnapshotId && (
@@ -5557,78 +4922,6 @@ export default function RuleDefinitions() {
               </Col>
             </Row>
           )}
-        </Form>
-      </Modal>
-
-      <Modal
-        title="院级全量激活 · 独立电子签名"
-        zIndex={1100}
-        open={fullSignatureModalOpen}
-        onOk={handleFullActivationSignoff}
-        onCancel={() => setFullSignatureModalOpen(false)}
-        okText="电子签名并全量激活"
-        cancelText="取消"
-        confirmLoading={governanceTransitionMutation.isPending}
-        width={680}
-      >
-        <Alert
-          type="warning"
-          showIcon
-          className={styles.marginBottomMd}
-          message="高风险规则院级全量激活须留存独立电子签名"
-          description="复核人必须与发布人为不同人员；电子签名摘要须为 64 位小写 SHA-256。签名证据随发布版本归档供审计追溯。"
-        />
-        <Form form={signatureForm} layout="vertical">
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="signatureId"
-                label="电子签名 ID"
-                rules={[{ required: true, message: "请输入电子签名 ID" }]}
-              >
-                <Input placeholder="输入电子签名凭证编号" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="signedAt"
-                label="签名时间"
-                rules={[{ required: true, message: "请输入签名时间" }]}
-              >
-                <Input placeholder="ISO 时间，如 2026-06-13T12:00:00Z" />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="signerId"
-                label="复核人 ID"
-                rules={[{ required: true, message: "请输入复核人 ID" }]}
-              >
-                <Input placeholder="独立复核人账号（须不同于发布人）" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="signerName"
-                label="复核人姓名"
-                rules={[{ required: true, message: "请输入复核人姓名" }]}
-              >
-                <Input placeholder="独立复核人姓名" />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item
-            name="signatureHash"
-            label="电子签名摘要（SHA-256）"
-            rules={[
-              { required: true, message: "请输入电子签名摘要" },
-              { pattern: /^[0-9a-f]{64}$/, message: "须为 64 位小写 SHA-256" },
-            ]}
-          >
-            <Input placeholder="64 位小写十六进制摘要" />
-          </Form.Item>
         </Form>
       </Modal>
 

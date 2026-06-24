@@ -22,7 +22,7 @@ export function ContextSnapshotSelector({
   noun = "临床快照",
 }: ContextSnapshotSelectorProps) {
   if (!enabled) {
-    return <Empty description={`输入患者 ID 或就诊 ID 后读取 ACTIVE ${noun}`} />;
+    return <Empty description={`输入患者 ID 或就诊 ID 后读取已生效${noun}`} />;
   }
   if (loading) {
     return <Alert type="info" showIcon message={`正在读取${noun}`} />;
@@ -31,7 +31,7 @@ export function ContextSnapshotSelector({
     return <Alert type="error" showIcon message={`${noun}读取失败`} />;
   }
   if (snapshots.length === 0) {
-    return <Empty description={`当前患者或就诊下暂无 ACTIVE ${noun}`} />;
+    return <Empty description={`当前患者或就诊下暂无已生效${noun}`} />;
   }
   return (
     <List

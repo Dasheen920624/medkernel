@@ -13,7 +13,6 @@ import com.medkernel.shared.api.ApiResult;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.datascope.DataScope;
-import com.medkernel.engine.versioning.VersionPublishEvidence;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -57,7 +56,7 @@ public class KnowledgeCustomizationController {
         return ApiResult.ok(service.publish(
             customizationId,
             request.reason(),
-            request.publishEvidence()));
+            request.qualityGateRecordId()));
     }
 
     @PostMapping("/{customizationId}:restore-platform")
@@ -72,12 +71,8 @@ public class KnowledgeCustomizationController {
     /** 发布本地定制请求。 */
     public record PublishRequest(
         @NotBlank @Size(max = 1000) String reason,
-        VersionPublishEvidence publishEvidence
-    ) {
-        public PublishRequest {
-            publishEvidence = VersionPublishEvidence.orEmpty(publishEvidence);
-        }
-    }
+        Long qualityGateRecordId
+    ) {}
 
     /** 恢复平台标准请求。 */
     public record RestoreRequest(

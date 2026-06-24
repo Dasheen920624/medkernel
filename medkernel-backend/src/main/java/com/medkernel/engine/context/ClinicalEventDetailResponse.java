@@ -15,7 +15,7 @@ public record ClinicalEventDetailResponse(
     String encounterId,
     ClinicalSetting clinicalSetting,
     String sourceSystem,
-    String packageVersion,
+    String runtimeReleaseId,
     String callbackWebhookId,
     ClinicalEventStatus status,
     String payloadDigest,

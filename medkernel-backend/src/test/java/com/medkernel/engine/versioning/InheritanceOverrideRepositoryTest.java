@@ -86,7 +86,7 @@ class InheritanceOverrideRepositoryTest {
         assertThat(repository.findByTenantIdAndOrgPathInAndLifecycleStatusIn(
             "tenant-A",
             List.of(HOSP_PATH),
-            List.of(InheritanceOverrideStatus.PUBLISHED)))
+            List.of(InheritanceOverrideStatus.ACTIVE)))
             .containsExactly(tenantA);
     }
 
@@ -119,7 +119,7 @@ class InheritanceOverrideRepositoryTest {
             overrideVersionId,
             mode,
             InheritancePropagation.INHERITABLE,
-            InheritanceOverrideStatus.PUBLISHED,
+            InheritanceOverrideStatus.ACTIVE,
             orgPath,
             "adult|inpatient",
             "本机构覆盖差异",

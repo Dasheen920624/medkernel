@@ -5,7 +5,7 @@ import {
   buildSandboxContextOverride,
   isNumericScenario,
   mergeSandboxCatalog,
-  scenariosByServicePackage,
+  scenariosByServiceLine,
 } from "./sandboxScenarios";
 
 describe("sandboxScenarios", () => {
@@ -17,16 +17,16 @@ describe("sandboxScenarios", () => {
         inputKind: "unavailable",
       }),
     ]);
-    expect(scenariosByServicePackage()["clinical-collaboration"]).toHaveLength(1);
-    expect(scenariosByServicePackage()["quality-improvement"]).toHaveLength(0);
-    expect(scenariosByServicePackage()["engine-orchestration"]).toHaveLength(0);
+    expect(scenariosByServiceLine()["clinical-collaboration"]).toHaveLength(1);
+    expect(scenariosByServiceLine()["quality-improvement"]).toHaveLength(0);
+    expect(scenariosByServiceLine()["engine-orchestration"]).toHaveLength(0);
   });
 
   it("maps backend numeric and orchestration catalog items without frontend clinical constants", () => {
     const scenarios = mergeSandboxCatalog([
       {
         id: "sbx-lab-critical-k",
-        servicePackage: "clinical-collaboration",
+        serviceLine: "clinical-collaboration",
         engine: "rule",
         playbook: "RULE_ONLY",
         triggerPoint: "result-review",
@@ -56,7 +56,7 @@ describe("sandboxScenarios", () => {
       },
       {
         id: "sbx-recommendation-composite",
-        servicePackage: "engine-orchestration",
+        serviceLine: "engine-orchestration",
         engine: "recommendation",
         playbook: "RECOMMENDATION_COMPOSITE",
         triggerPoint: "patient-view",

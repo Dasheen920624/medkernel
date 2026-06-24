@@ -71,8 +71,8 @@ class FollowupEngineControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(GENERATE_BODY))
                 .andExpect(status().isOk());
@@ -84,8 +84,8 @@ class FollowupEngineControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER"))))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
                 .andExpect(status().isOk());
     }
 
@@ -95,8 +95,8 @@ class FollowupEngineControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("clinical-decision-user")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_DECISION_USER")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(GENERATE_BODY))
                 .andExpect(status().isOk());
@@ -107,8 +107,8 @@ class FollowupEngineControllerSecurityTest {
         mockMvc.perform(post("/api/v1/engine/followup/plans/generate")
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
-                    .claim("roles", List.of("clinical-governor")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_GOVERNOR")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(GENERATE_BODY))
                 .andExpect(status().isBadRequest())
@@ -121,8 +121,8 @@ class FollowupEngineControllerSecurityTest {
                 .with(jwt().jwt(token -> token
                     .subject("test-user")
                     .claim("tenant_id", "tenant-1")
-                    .claim("roles", List.of("nursing-collaborator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_NURSING_COLLABORATOR")))
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {

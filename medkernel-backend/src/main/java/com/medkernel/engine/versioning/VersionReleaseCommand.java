@@ -17,7 +17,6 @@ public record VersionReleaseCommand(
     String reviewConclusion,
     String actor,
     String traceId,
-    VersionElectronicSignature electronicSignature,
     VersionPublishQualityGate qualityGate
 ) {
 }

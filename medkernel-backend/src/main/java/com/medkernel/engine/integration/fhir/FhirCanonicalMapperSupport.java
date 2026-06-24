@@ -145,7 +145,8 @@ final class FhirCanonicalMapperSupport {
         String sourceRecordId = "Observation/" + observationId;
         String mappedVersion = mappedVersion(version, "Observation");
         FhirCodingMappingResult codingMapping = terminology.mapObservationCode(
-            request.tenantId(), observationId, coding.system(), coding.code(), coding.display(),
+            request.tenantId(), request.runtimeReleaseId(),
+            observationId, coding.system(), coding.code(), coding.display(),
             sourceRecordId, mappedVersion);
         QualityStatus qualityStatus = quality(codingMapping);
 
@@ -342,7 +343,8 @@ final class FhirCanonicalMapperSupport {
         String sourceRecordId = "AllergyIntolerance/" + id;
         String mappedVersion = mappedVersion(version, "AllergyIntolerance");
         FhirCodingMappingResult codingMapping = terminology.mapCode(
-            request.tenantId(), CanonicalResourceType.ALLERGY_INTOLERANCE, id, "code",
+            request.tenantId(), request.runtimeReleaseId(),
+            CanonicalResourceType.ALLERGY_INTOLERANCE, id, "code",
             coding.system(), coding.code(), coding.display(), "DRUG", sourceRecordId, mappedVersion);
         QualityStatus qualityStatus = quality(codingMapping);
         Instant onset = parseInstantOrNull(text(resource.path("onsetDateTime")));
@@ -398,7 +400,8 @@ final class FhirCanonicalMapperSupport {
         String sourceRecordId = "Condition/" + id;
         String mappedVersion = mappedVersion(version, "Condition");
         FhirCodingMappingResult codingMapping = terminology.mapCode(
-            request.tenantId(), CanonicalResourceType.CONDITION, id, "code",
+            request.tenantId(), request.runtimeReleaseId(),
+            CanonicalResourceType.CONDITION, id, "code",
             coding.system(), coding.code(), coding.display(), "ICD-10", sourceRecordId, mappedVersion);
         QualityStatus qualityStatus = quality(codingMapping);
         Instant onset = parseInstantOrNull(text(resource.path("onsetDateTime")));
@@ -418,7 +421,8 @@ final class FhirCanonicalMapperSupport {
         String sourceRecordId = "Medication/" + id;
         String mappedVersion = mappedVersion(version, "Medication");
         FhirCodingMappingResult codingMapping = terminology.mapCode(
-            request.tenantId(), CanonicalResourceType.MEDICATION, id, "code",
+            request.tenantId(), request.runtimeReleaseId(),
+            CanonicalResourceType.MEDICATION, id, "code",
             coding.system(), coding.code(), coding.display(), "DRUG", sourceRecordId, mappedVersion);
         QualityStatus qualityStatus = quality(codingMapping);
         CanonicalMedication payload = new CanonicalMedication(
@@ -436,7 +440,8 @@ final class FhirCanonicalMapperSupport {
         String sourceRecordId = "Procedure/" + id;
         String mappedVersion = mappedVersion(version, "Procedure");
         FhirCodingMappingResult codingMapping = terminology.mapCode(
-            request.tenantId(), CanonicalResourceType.PROCEDURE, id, "code",
+            request.tenantId(), request.runtimeReleaseId(),
+            CanonicalResourceType.PROCEDURE, id, "code",
             coding.system(), coding.code(), coding.display(), "PROCEDURE", sourceRecordId, mappedVersion);
         QualityStatus qualityStatus = quality(codingMapping);
         Instant performedAt = parseInstantOrNull(text(resource.path("performedDateTime")));

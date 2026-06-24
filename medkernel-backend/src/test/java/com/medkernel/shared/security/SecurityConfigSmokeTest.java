@@ -20,7 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * GA-CORE-02 / W1-G3 闸门 smoke：
  * <ul>
  *   <li>SecurityFilterChain bean 已注册
- *   <li>/api/v1/system/ping 白名单可匿名访问 → 200
+ *   <li>/api/v1/system/ping 匿名允许入口可匿名访问 → 200
  *   <li>不存在的鉴权端点匿名访问 → 401（OAuth2 Resource Server 生效证据）
  * </ul>
  */
@@ -40,7 +40,7 @@ class SecurityConfigSmokeTest {
 
     @Test
     void protectedActuatorEndpointReturns401WithoutToken() throws Exception {
-        // /actuator/metrics 未在白名单中，OAuth2 Resource Server 必须返 401
+        // /actuator/metrics 未在匿名允许入口中，OAuth2 Resource Server 必须返 401
         MockMvc mvc = MockMvcBuilders.webAppContextSetup(context)
             .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity())
             .build();

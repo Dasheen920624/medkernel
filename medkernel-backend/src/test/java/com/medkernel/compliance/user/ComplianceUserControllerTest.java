@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 身份安全服务包的统一用户管理契约测试。
+ * 身份安全服务的统一用户管理契约测试。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -59,7 +59,7 @@ class ComplianceUserControllerTest {
         saveCredential("t-1", "managed-701", "managed.one");
         saveCredential("t-1", "managed-702", "managed.two");
         saveCredential("t-2", "managed-hidden", "hidden.one");
-        saveRole("t-1", "managed-701", "clinical-decision-user");
+        saveRole("t-1", "managed-701", "clinical-user");
 
         mvc.perform(get("/api/v1/compliance/users")
                 .param("page", "1")
@@ -84,7 +84,7 @@ class ComplianceUserControllerTest {
                       "credentialManaged": false,
                       "userId": "delegated-701",
                       "displayName": "委托身份医生",
-                      "roleCode": "clinical-decision-user"
+                      "roleCode": "clinical-user"
                     }
                     """))
             .andExpect(status().isOk())
@@ -116,16 +116,16 @@ class ComplianceUserControllerTest {
                 .content("""
                     {
                       "credentialManaged": true,
-                      "userId": "platform-knowledge-governor",
-                      "displayName": "平台知识治理员",
-                      "username": "platform-knowledge-governor",
-                      "roleCode": "platform-knowledge-governor"
+                      "userId": "engine-operator-user",
+                      "displayName": "医疗引擎运营员",
+                      "username": "engine-operator-user",
+                      "roleCode": "engine-operator"
                     }
                     """))
             .andExpect(status().isOk());
 
         PlatformCredential credential = credentials
-            .findByTenantIdAndUserId("t-1", "platform-knowledge-governor")
+            .findByTenantIdAndUserId("t-1", "engine-operator-user")
             .orElseThrow();
         org.assertj.core.api.Assertions.assertThat(credential.traceId()).isEqualTo(traceId);
     }
@@ -152,34 +152,34 @@ class ComplianceUserControllerTest {
     @Test
     void returnsRealAssignedRolesAndEffectivePermissionsForUserDetail() throws Exception {
         saveCredential("t-1", "managed-703", "managed.three");
-        saveRole("t-1", "managed-703", "clinical-decision-user");
+        saveRole("t-1", "managed-703", "clinical-user");
 
         mvc.perform(get("/api/v1/compliance/users/{userId}", "managed-703")
                 .with(admin("t-1")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.userId").value("managed-703"))
-            .andExpect(jsonPath("$.data.roles[0].code").value("clinical-decision-user"))
+            .andExpect(jsonPath("$.data.roles[0].code").value("clinical-user"))
             .andExpect(jsonPath("$.data.effectivePermissions[*].code", hasItem("context.read")));
     }
 
     @Test
-    void implementationOperatorCanMaintainUsersDuringOnboarding() throws Exception {
+    void platformAdministratorCanMaintainUsersDuringOnboarding() throws Exception {
         saveCredential("t-1", "managed-710", "managed.ten");
 
         mvc.perform(get("/api/v1/compliance/users")
-                .with(implementationOperator("t-1")))
+                .with(platformAdministrator("t-1")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.total").value(1));
 
         mvc.perform(post("/api/v1/compliance/users")
-                .with(implementationOperator("t-1"))
+                .with(platformAdministrator("t-1"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "credentialManaged": false,
                       "userId": "implementation-created",
                       "displayName": "实施创建人员",
-                      "roleCode": "clinical-decision-user"
+                      "roleCode": "clinical-user"
                     }
                     """))
             .andExpect(status().isOk())
@@ -193,7 +193,7 @@ class ComplianceUserControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
-                      "roleCode": "clinical-decision-user",
+                      "roleCode": "clinical-user",
                       "scopeLevel": "TENANT",
                       "scopeCode": "t-1"
                     }
@@ -211,15 +211,15 @@ class ComplianceUserControllerTest {
     }
 
     @Test
-    void hospitalAdministratorCannotGrantPlatformAdministratorRole() throws Exception {
+    void clinicalUserCannotGrantPlatformAdministratorRole() throws Exception {
         saveCredential("t-1", "managed-705", "managed.five");
 
         mvc.perform(post("/api/v1/compliance/users/{userId}/roles", "managed-705")
-                .with(admin("t-1"))
+                .with(clinicalUser("t-1"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
-                      "roleCode": "platform-governance-admin",
+                      "roleCode": "platform-admin",
                       "scopeLevel": "TENANT",
                       "scopeCode": "t-1"
                     }
@@ -236,17 +236,17 @@ class ComplianceUserControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
-                      "roleCode": "nursing-collaborator",
+                      "roleCode": "clinical-user",
                       "scopeLevel": "TENANT",
                       "scopeCode": "t-1"
                     }
                     """))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.roles[0].code").value("nursing-collaborator"))
+            .andExpect(jsonPath("$.data.roles[0].code").value("clinical-user"))
             .andExpect(jsonPath("$.data.roles[0].scopeName").value("平台治理空间"));
 
         mvc.perform(delete("/api/v1/compliance/users/{userId}/roles/{roleCode}",
-                "managed-706", "nursing-collaborator")
+                "managed-706", "clinical-user")
                 .param("scopeLevel", "TENANT")
                 .param("scopeCode", "t-1")
                 .with(admin("t-1")))
@@ -255,7 +255,7 @@ class ComplianceUserControllerTest {
 
         UserRoleAssignment history = roleAssignments
             .findByTenantIdAndUserIdAndRoleCodeAndScopeLevelAndScopeCode(
-                "t-1", "managed-706", "nursing-collaborator", "TENANT", "t-1")
+                "t-1", "managed-706", "clinical-user", "TENANT", "t-1")
             .orElseThrow();
         org.assertj.core.api.Assertions.assertThat(history.activeFlag()).isEqualTo("N");
     }
@@ -276,7 +276,7 @@ class ComplianceUserControllerTest {
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor admin(String tenantId) {
         return jwt().jwt(token -> token.subject("admin-1").claim("tenant_id", tenantId))
-            .authorities(new SimpleGrantedAuthority("ROLE_ORGANIZATION_ADMIN"));
+            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor systemSuperAdmin(
@@ -285,13 +285,19 @@ class ComplianceUserControllerTest {
             .authorities(new SimpleGrantedAuthority("ROLE_SYSTEM_SUPERADMIN"));
     }
 
-    private static org.springframework.test.web.servlet.request.RequestPostProcessor implementationOperator(
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor platformAdministrator(
             String tenantId) {
-        return jwt().jwt(token -> token.subject("impl-1").claim("tenant_id", tenantId))
+        return jwt().jwt(token -> token.subject("platform-admin-2").claim("tenant_id", tenantId))
             .authorities(
-                new SimpleGrantedAuthority("ROLE_IMPLEMENTATION_OPERATOR"),
+                new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"),
                 new SimpleGrantedAuthority("org.read"),
                 new SimpleGrantedAuthority("org.write"));
+    }
+
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor clinicalUser(
+            String tenantId) {
+        return jwt().jwt(token -> token.subject("clinical-user-2").claim("tenant_id", tenantId))
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"));
     }
 
     private void saveCredential(String tenantId, String userId, String username) {

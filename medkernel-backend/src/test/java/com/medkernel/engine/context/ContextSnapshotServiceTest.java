@@ -48,7 +48,7 @@ class ContextSnapshotServiceTest {
     private CanonicalResourceRepository resources;
     private ContextIdempotencyKeyRepository idemRepo;
     private ContextValidator validator;
-    private PackageVersionPort versions;
+    private CurrentClinicalRuntimeReleaseResolver runtimeReleases;
     private TerminologyMappingPort mapping;
     private AuditRecorder auditRecorder;
     private IsolatedAuditPublisher isolatedAudit;
@@ -62,19 +62,19 @@ class ContextSnapshotServiceTest {
         resources = mock(CanonicalResourceRepository.class);
         idemRepo = mock(ContextIdempotencyKeyRepository.class);
         validator = new ContextValidator();
-        versions = mock(PackageVersionPort.class);
+        runtimeReleases = mock(CurrentClinicalRuntimeReleaseResolver.class);
         mapping = mock(TerminologyMappingPort.class);
         auditRecorder = mock(AuditRecorder.class);
         isolatedAudit = mock(IsolatedAuditPublisher.class);
         recorder = mock(StateTransitionRecorder.class);
         diagnoseAssembler = mock(DiagnoseResponseAssembler.class);
-        when(mapping.evaluate(anyString(), anyList())).thenReturn(Map.of());
-        when(versions.exists(anyString(), anyString()))
-            .thenAnswer(invocation -> !invocation.<String>getArgument(1).isBlank());
+        when(mapping.evaluate(anyString(), anyString(), anyList())).thenReturn(Map.of());
+        when(runtimeReleases.resolve(any(OrgScope.class)))
+            .thenReturn(runtimeRelease("release-1"));
         ObjectMapper json = new ObjectMapper();
         json.findAndRegisterModules();
         service = new ContextSnapshotService(snapshots, resources, idemRepo,
-            validator, versions, mapping, auditRecorder, isolatedAudit, recorder,
+            validator, runtimeReleases, mapping, auditRecorder, isolatedAudit, recorder,
             diagnoseAssembler, json);
 
         when(snapshots.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -95,6 +95,7 @@ class ContextSnapshotServiceTest {
         ContextSnapshotResponse resp = service.create(sampleRequest(), null);
 
         assertThat(resp.snapshotId()).startsWith("ctx-");
+        assertThat(resp.runtimeReleaseId()).isEqualTo("release-1");
         assertThat(resp.status()).isEqualTo(ContextSnapshotStatus.ACTIVE);
         assertThat(resp.qualityStatus()).isEqualTo(QualityStatus.VALID);
         verify(snapshots, times(1)).save(any());
@@ -103,6 +104,35 @@ class ContextSnapshotServiceTest {
         verify(idemRepo, never()).save(any());
         verify(auditRecorder, times(1)).record(
             eq(AuditAction.CREATE), eq("context_snapshot"), anyString(), anyString());
+    }
+
+    @Test
+    void shouldPersistNamespacedExtensionsInsideImmutableSnapshot() throws Exception {
+        ContextSnapshotResources base = validResources();
+        ContextSnapshotResources withExtensions = new ContextSnapshotResources(
+            base.patient(),
+            base.allergyIntolerances(),
+            base.encounters(),
+            base.conditions(),
+            base.nursingAssessments(),
+            base.observations(),
+            base.diagnosticReports(),
+            base.medications(),
+            base.procedures(),
+            base.documents(),
+            base.carePlans(),
+            base.followUps(),
+            base.claims(),
+            new ObjectMapper().readTree(
+                "{\"local\":{\"dialysis_access_type\":\"AVF\",\"dialysis_years\":3}}")
+        );
+
+        service.create(request("MPI-1", "ENC-1", "ORG-1", withExtensions), null);
+
+        ArgumentCaptor<ContextSnapshot> snapshot = ArgumentCaptor.forClass(ContextSnapshot.class);
+        verify(snapshots).save(snapshot.capture());
+        assertThat(snapshot.getValue().extensionsJson())
+            .isEqualTo("{\"local\":{\"dialysis_access_type\":\"AVF\",\"dialysis_years\":3}}");
     }
 
     @Test
@@ -116,11 +146,11 @@ class ContextSnapshotServiceTest {
         when(idemRepo.findByTenantIdAndIdempotencyKey("tenant-A", "req-ctx-1"))
             .thenReturn(Optional.empty());
 
-        ContextSnapshotRequest request = unifiedRequest("req-ctx-1", "pkg-2026.06");
+        ContextSnapshotRequest request = unifiedRequest("req-ctx-1");
 
         ContextSnapshotResponse resp = service.create(request, "legacy-header-key");
 
-        assertThat(resp.packageVersion()).isEqualTo("pkg-2026.06");
+        assertThat(resp.runtimeReleaseId()).isEqualTo("release-1");
         assertThat(resp.resources().patient().mpi()).isEqualTo("MPI-1");
         assertThat(resp.resources().observations()).extracting(CanonicalObservation::code)
             .containsExactly("HB");
@@ -129,7 +159,7 @@ class ContextSnapshotServiceTest {
         ArgumentCaptor<ContextSnapshot> snapshotCap = ArgumentCaptor.forClass(ContextSnapshot.class);
         verify(snapshots).save(snapshotCap.capture());
         assertThat(snapshotCap.getValue().requestId()).isEqualTo("req-ctx-1");
-        assertThat(snapshotCap.getValue().packageVersion()).isEqualTo("pkg-2026.06");
+        assertThat(snapshotCap.getValue().runtimeReleaseId()).isEqualTo("release-1");
         assertThat(snapshotCap.getValue().orgPath())
             .isEqualTo("group-1/hospital-1/campus-1/site-1/DEPT-A/WARD-A/stroke");
 
@@ -153,7 +183,6 @@ class ContextSnapshotServiceTest {
               "patientId": "MPI-JSON",
               "encounterId": "ENC-JSON",
               "orgUnitId": "ORG-JSON",
-              "package_version": "pkg-json",
               "resources": {}
             }
             """, ContextSnapshotRequest.class);
@@ -167,13 +196,12 @@ class ContextSnapshotServiceTest {
         assertThat(request.patientId()).isEqualTo("MPI-JSON");
         assertThat(request.encounterId()).isEqualTo("ENC-JSON");
         assertThat(request.orgUnitId()).isEqualTo("ORG-JSON");
-        assertThat(request.packageVersion()).isEqualTo("pkg-json");
         assertThat(request.resources().observations()).isEmpty();
     }
 
     @Test
     void shouldEvaluateTerminologyMappingWithTraceableCodeAnchors() {
-        when(mapping.evaluate(eq("tenant-A"), anyList()))
+        when(mapping.evaluate(eq("tenant-A"), eq("release-1"), anyList()))
             .thenReturn(Map.of("CONDITION:cond-1:code:I10", "UNKNOWN"));
 
         ContextSnapshotResponse resp = service.create(requestWithCondition(), null);
@@ -182,7 +210,8 @@ class ContextSnapshotServiceTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<ClinicalCodeMappingAnchor>> anchorsCap =
             ArgumentCaptor.forClass((Class) List.class);
-        verify(mapping).evaluate(eq("tenant-A"), anchorsCap.capture());
+        verify(mapping).evaluate(
+            eq("tenant-A"), eq("release-1"), anchorsCap.capture());
         assertThat(anchorsCap.getValue()).anySatisfy(anchor -> {
             assertThat(anchor.resourceType()).isEqualTo(CanonicalResourceType.CONDITION);
             assertThat(anchor.resourceId()).isEqualTo("cond-1");
@@ -194,7 +223,7 @@ class ContextSnapshotServiceTest {
 
     @Test
     void shouldPersistStructuredAllergyIntoleranceAndExposeTerminologyAnchor() {
-        when(mapping.evaluate(eq("tenant-A"), anyList()))
+        when(mapping.evaluate(eq("tenant-A"), eq("release-1"), anyList()))
             .thenReturn(Map.of("ALLERGY_INTOLERANCE:alg-1:code:ATC-J01C", "UNKNOWN"));
 
         ContextSnapshotResponse resp = service.create(requestWithAllergyIntolerance(), null);
@@ -221,8 +250,9 @@ class ContextSnapshotServiceTest {
     void shouldEmitFailureAuditOnInvalidQualityWithoutCreateAudit() {
         var resourcesDto = new ContextSnapshotResources(null,
             List.of(), List.of(), List.of(), List.of(), List.of(),
-            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
-        var req = request("MPI-1", null, "ORG-1", "pkg-1", resourcesDto);
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            ContextSnapshotResources.emptyExtensions());
+        var req = request("MPI-1", null, "ORG-1", resourcesDto);
         assertThatThrownBy(() -> service.create(req, null)).isInstanceOf(ApiException.class);
         // 成功审计：从未被发布
         verify(auditRecorder, never()).record(any(AuditAction.class), anyString(), anyString(), anyString());
@@ -237,8 +267,9 @@ class ContextSnapshotServiceTest {
     void shouldRejectWhenPatientMissing() {
         var resourcesDto = new ContextSnapshotResources(null,
             List.of(), List.of(), List.of(), List.of(), List.of(),
-            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
-        var req = request("MPI-1", null, "ORG-1", "pkg-1", resourcesDto);
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            ContextSnapshotResources.emptyExtensions());
+        var req = request("MPI-1", null, "ORG-1", resourcesDto);
 
         assertThatThrownBy(() -> service.create(req, null))
             .isInstanceOf(ApiException.class)
@@ -247,8 +278,9 @@ class ContextSnapshotServiceTest {
     }
 
     @Test
-    void shouldRejectWhenPackageVersionBlank() {
-        var req = request("MPI-1", null, "ORG-1", "", validResources());
+    void shouldRejectWhenCurrentRuntimeBindingMissing() {
+        when(runtimeReleases.resolve(any(OrgScope.class))).thenReturn(null);
+        var req = request("MPI-1", null, "ORG-1", validResources());
 
         assertThatThrownBy(() -> service.create(req, null))
             .isInstanceOf(ApiException.class)
@@ -264,8 +296,9 @@ class ContextSnapshotServiceTest {
                 Instant.now().plusSeconds(60), Instant.now())));
         when(snapshots.findBySnapshotIdAndTenantId("ctx-cached", "tenant-A"))
             .thenReturn(Optional.of(new ContextSnapshot(
-                1L, "ctx-cached", "tenant-A", "ORG-1", null, null, "pkg-1", "MPI-1", null,
+                1L, "ctx-cached", "tenant-A", "ORG-1", null, null, "runtime-release-test", "MPI-1", null,
                 ContextSnapshotStatus.ACTIVE, "[]", "{}",
+            "{}",
                 QualityStatus.VALID, "trace", null, Instant.now(), "tester")));
 
         ContextSnapshotResponse resp = service.create(sampleRequest(), "key-1");
@@ -283,15 +316,16 @@ class ContextSnapshotServiceTest {
         when(snapshots.findBySnapshotIdAndTenantId("ctx-cached", "tenant-A"))
             .thenReturn(Optional.of(new ContextSnapshot(
                 1L, "ctx-cached", "tenant-A", "ORG-1",
-                "req-retry-1", "tenant-A/ORG-1", "pkg-2026.06",
+                "req-retry-1", "tenant-A/ORG-1", "runtime-release-test",
                 "MPI-1", "ENC-1",
                 ContextSnapshotStatus.ACTIVE, "[]", "{}",
+            "{}",
                 QualityStatus.VALID, "trace", null, Instant.now(), "tester")));
 
-        ContextSnapshotResponse resp = service.create(unifiedRequest("req-retry-1", "pkg-2026.06"), "header-fallback");
+        ContextSnapshotResponse resp = service.create(unifiedRequest("req-retry-1"), "header-fallback");
 
         assertThat(resp.snapshotId()).isEqualTo("ctx-cached");
-        assertThat(resp.packageVersion()).isEqualTo("pkg-2026.06");
+        assertThat(resp.runtimeReleaseId()).isEqualTo("runtime-release-test");
         verify(idemRepo).findByTenantIdAndIdempotencyKey("tenant-A", "req-retry-1");
         verify(idemRepo, never()).findByTenantIdAndIdempotencyKey("tenant-A", "header-fallback");
         verify(snapshots, never()).save(any());
@@ -324,8 +358,9 @@ class ContextSnapshotServiceTest {
     void shouldFindByIdWithinCurrentTenant() {
         when(snapshots.findBySnapshotIdAndTenantId("ctx-1", "tenant-A"))
             .thenReturn(Optional.of(new ContextSnapshot(
-                1L, "ctx-1", "tenant-A", "ORG-1", null, null, "pkg-1", "MPI-1", "ENC-1",
+                1L, "ctx-1", "tenant-A", "ORG-1", null, null, "runtime-release-test", "MPI-1", "ENC-1",
                 ContextSnapshotStatus.ACTIVE, "[]", "{}",
+            "{}",
                 QualityStatus.VALID, "trace", null, Instant.now(), "tester")));
 
         ContextSnapshotResponse resp = service.findById("ctx-1");
@@ -341,9 +376,10 @@ class ContextSnapshotServiceTest {
         when(snapshots.findBySnapshotIdAndTenantId("ctx-1", "tenant-A"))
             .thenReturn(Optional.of(new ContextSnapshot(
                 1L, "ctx-1", "tenant-A", "ORG-1",
-                "req-ctx-1", "tenant-A/ORG-1", "pkg-2026.06",
+                "req-ctx-1", "tenant-A/ORG-1", "runtime-release-test",
                 "MPI-1", "ENC-1",
                 ContextSnapshotStatus.ACTIVE, missingJson, mappingJson,
+                "{\"local\":{\"dialysis_access_type\":\"AVF\"}}",
                 QualityStatus.PARTIAL, "trace", null, Instant.now(), "tester")));
         when(resources.findBySnapshotIdAndTenantIdOrderBySeqNoAsc("ctx-1", "tenant-A"))
             .thenReturn(List.of(
@@ -372,6 +408,8 @@ class ContextSnapshotServiceTest {
             .containsExactly("alg-1");
         assertThat(resp.resources().observations()).extracting(CanonicalObservation::observationId)
             .containsExactly("obs-1");
+        assertThat(resp.resources().extensions().at("/local/dialysis_access_type").asText())
+            .isEqualTo("AVF");
     }
 
     @Test
@@ -423,13 +461,15 @@ class ContextSnapshotServiceTest {
         when(snapshots.pageByTenantIdAndPatientIdOrderByCreatedAtDesc(
                 "tenant-A", "MPI-1", 0, 20))
             .thenReturn(List.of(
-                new ContextSnapshot(1L, "ctx-1", "tenant-A", "ORG-1", null, null, "pkg-1",
+                new ContextSnapshot(1L, "ctx-1", "tenant-A", "ORG-1", null, null, "runtime-release-test",
                     "MPI-1", "ENC-1",
                     ContextSnapshotStatus.ACTIVE, "[]", "{}",
+            "{}",
                     QualityStatus.VALID, "t", null, now, "tester"),
-                new ContextSnapshot(2L, "ctx-2", "tenant-A", "ORG-1", null, null, "pkg-1",
+                new ContextSnapshot(2L, "ctx-2", "tenant-A", "ORG-1", null, null, "runtime-release-test",
                     "MPI-1", null,
                     ContextSnapshotStatus.SUPERSEDED, "[]", "{}",
+            "{}",
                     QualityStatus.PARTIAL, "t", null, now, "tester")
             ));
 
@@ -447,9 +487,10 @@ class ContextSnapshotServiceTest {
         when(snapshots.pageByTenantIdAndEncounterIdOrderByCreatedAtDesc(
                 "tenant-A", "ENC-X", 0, 20))
             .thenReturn(List.of(
-                new ContextSnapshot(1L, "ctx-e", "tenant-A", "ORG-1", null, null, "pkg-1",
+                new ContextSnapshot(1L, "ctx-e", "tenant-A", "ORG-1", null, null, "runtime-release-test",
                     "MPI-9", "ENC-X",
                     ContextSnapshotStatus.ACTIVE, "[]", "{}",
+            "{}",
                     QualityStatus.VALID, "t", null, Instant.now(), "tester")));
 
         var filter = new ContextSnapshotFilter(null, "ENC-X", null, null, null);
@@ -468,8 +509,9 @@ class ContextSnapshotServiceTest {
     }
 
     @Test
-    void packageVersionMissingTriggersFailureAudit() {
-        var req = request("MPI-1", null, "ORG-1", "", validResources());
+    void runtimeReleaseMissingTriggersFailureAudit() {
+        when(runtimeReleases.resolve(any(OrgScope.class))).thenReturn(null);
+        var req = request("MPI-1", null, "ORG-1", validResources());
 
         assertThatThrownBy(() -> service.create(req, null))
             .isInstanceOf(ApiException.class)
@@ -513,8 +555,9 @@ class ContextSnapshotServiceTest {
             List.of(new com.medkernel.engine.context.canonical.CanonicalCondition(
                 "cond-1", "I10", "ICD-10", "原发性高血压",
                 "ACTIVE", "HIGH", "HIS", "cond-rec-1", "v1", now, now, QualityStatus.VALID)),
-            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
-        return request("MPI-1", "ENC-1", "ORG-1", "pkg-1", resources);
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            ContextSnapshotResources.emptyExtensions());
+        return request("MPI-1", "ENC-1", "ORG-1", resources);
     }
 
     private ContextSnapshotRequest requestWithAllergyIntolerance() {
@@ -532,15 +575,16 @@ class ContextSnapshotServiceTest {
             base.documents(),
             base.carePlans(),
             base.followUps(),
-            base.claims());
-        return request("MPI-1", "ENC-1", "ORG-1", "pkg-1", resources);
+            base.claims(),
+            base.extensions());
+        return request("MPI-1", "ENC-1", "ORG-1", resources);
     }
 
     private ContextSnapshotResources validResources() {
         return ContextSnapshotServiceFixtures.validResources();
     }
 
-    private ContextSnapshotRequest unifiedRequest(String requestId, String packageVersion) {
+    private ContextSnapshotRequest unifiedRequest(String requestId) {
         return new ContextSnapshotRequest(
             requestId,
             "trace-from-client",
@@ -556,7 +600,6 @@ class ContextSnapshotServiceTest {
             "MPI-1",
             "ENC-1",
             "ORG-1",
-            packageVersion,
             resourcesWithObservation()
         );
     }
@@ -577,7 +620,6 @@ class ContextSnapshotServiceTest {
             "MPI-1",
             "ENC-1",
             "ORG-1",
-            "pkg-2026.06",
             validResources()
         );
     }
@@ -598,7 +640,6 @@ class ContextSnapshotServiceTest {
             "MPI-1",
             "ENC-1",
             "ORG-1",
-            "pkg-2026.06",
             validResources()
         );
     }
@@ -607,11 +648,10 @@ class ContextSnapshotServiceTest {
             String patientId,
             String encounterId,
             String orgUnitId,
-            String packageVersion,
             ContextSnapshotResources resources) {
         return new ContextSnapshotRequest(
             null, null, null, null, null, null, null, null, null, null, List.of(),
-            patientId, encounterId, orgUnitId, packageVersion, resources);
+            patientId, encounterId, orgUnitId, resources);
     }
 
     private ContextSnapshotResources resourcesWithObservation() {
@@ -629,7 +669,8 @@ class ContextSnapshotServiceTest {
             base.documents(),
             base.carePlans(),
             base.followUps(),
-            base.claims()
+            base.claims(),
+            base.extensions()
         );
     }
 
@@ -670,5 +711,12 @@ class ContextSnapshotServiceTest {
         } catch (Exception exception) {
             throw new AssertionError(exception);
         }
+    }
+
+    private ClinicalRuntimeRelease runtimeRelease(String releaseId) {
+        Instant now = Instant.parse("2026-06-01T01:00:00Z");
+        return new ClinicalRuntimeRelease(
+            1L, releaseId, "tenant-A", "hospital-A", 1L, "baseline-1",
+            "a".repeat(64), null, now, "tester", now, "tester", "trace-test");
     }
 }

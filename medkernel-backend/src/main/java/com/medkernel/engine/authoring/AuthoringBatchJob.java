@@ -19,7 +19,6 @@ public record AuthoringBatchJob(
     @Column("total_count") int totalCount,
     @Column("success_count") int successCount,
     @Column("failure_count") int failureCount,
-    @Column("retryable_count") int retryableCount,
     @Column("request_summary_json") String requestSummaryJson,
     @Column("result_summary_json") String resultSummaryJson,
     @Column("created_at") Instant createdAt,
@@ -31,7 +30,7 @@ public record AuthoringBatchJob(
     public AuthoringBatchJob withId(Long value) {
         return new AuthoringBatchJob(
             value, jobId, tenantId, jobType, status, totalCount, successCount, failureCount,
-            retryableCount, requestSummaryJson, resultSummaryJson, createdAt, createdBy,
+            requestSummaryJson, resultSummaryJson, createdAt, createdBy,
             updatedAt, updatedBy, traceId);
     }
 
@@ -39,13 +38,12 @@ public record AuthoringBatchJob(
             AuthoringBatchJobStatus finalStatus,
             int successes,
             int failures,
-            int retryable,
             String summaryJson,
             Instant completedAt,
             String actor) {
         return new AuthoringBatchJob(
             id, jobId, tenantId, jobType, finalStatus, totalCount, successes, failures,
-            retryable, requestSummaryJson, summaryJson, createdAt, createdBy,
+            requestSummaryJson, summaryJson, createdAt, createdBy,
             completedAt, actor, traceId);
     }
 }
