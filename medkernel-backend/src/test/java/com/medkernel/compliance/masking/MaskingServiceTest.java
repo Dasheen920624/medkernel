@@ -191,14 +191,14 @@ class MaskingServiceTest {
     private ResolvedDataScope desensitizedScope() {
         return new ResolvedDataScope(
             DataAccessLevel.HOSPITAL,
-            new OrgScope("t-1", "g-1", "h-1", null, null, "cardiology", null),
+            new OrgScope("t-1", "g-1", "h-1", null, null, "cardiology", null, null),
             true);
     }
 
     private ResolvedDataScope rawScope() {
         return new ResolvedDataScope(
             DataAccessLevel.HOSPITAL,
-            new OrgScope("t-1", "g-1", "h-1", null, null, "cardiology", null),
+            new OrgScope("t-1", "g-1", "h-1", null, null, "cardiology", null, null),
             false);
     }
 

@@ -50,12 +50,12 @@ class DataPermissionServiceTest {
             .thenReturn(Optional.of(activePolicy("[\"patientId\",\"diagnosisName\"]")));
         ResolvedDataScope resolved = new ResolvedDataScope(
             DataAccessLevel.DEPARTMENT,
-            new OrgScope("t-1", "g-1", "h-1", null, null, "cardiology", null));
+            new OrgScope("t-1", "g-1", "h-1", null, null, "cardiology", null, null));
         DataPermissionCheck check = new DataPermissionCheck(
             "t-1",
             "clinical_case",
             DataPermissionAction.READ,
-            new OrgScope("t-1", "g-1", "h-1", null, null, "oncology", null),
+            new OrgScope("t-1", "g-1", "h-1", null, null, "oncology", null, null),
             List.of("patientId"));
 
         ApiException ex = catchThrowableOfType(() -> service.assertAccess(resolved, check), ApiException.class);
@@ -70,12 +70,12 @@ class DataPermissionServiceTest {
             .thenReturn(Optional.of(activePolicy("[\"patientId\",\"diagnosisName\"]")));
         ResolvedDataScope resolved = new ResolvedDataScope(
             DataAccessLevel.DEPARTMENT,
-            new OrgScope("t-1", "g-1", "h-1", null, null, "cardiology", null));
+            new OrgScope("t-1", "g-1", "h-1", null, null, "cardiology", null, null));
         DataPermissionCheck check = new DataPermissionCheck(
             "t-1",
             "clinical_case",
             DataPermissionAction.READ,
-            new OrgScope("t-1", "g-1", "h-1", null, null, "cardiology", null),
+            new OrgScope("t-1", "g-1", "h-1", null, null, "cardiology", null, null),
             List.of("patientId", "patientPhone"));
 
         ApiException ex = catchThrowableOfType(() -> service.assertAccess(resolved, check), ApiException.class);

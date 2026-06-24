@@ -7,6 +7,8 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.medkernel.shared.context.OrgScope;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class RuntimeArchitectureCleanlinessTest {
@@ -119,6 +121,13 @@ class RuntimeArchitectureCleanlinessTest {
         assertThat(offenders)
             .as("禁止通过字符串拼接绕过旧发布容器字段扫描；需要拒绝旧输入时只能使用专门护栏")
             .isEmpty();
+    }
+
+    @Test
+    void orgScopeDoesNotExposeRetiredSevenArgumentCompatibilityConstructor() {
+        assertThat(OrgScope.class.getDeclaredConstructors())
+            .as("组织上下文必须显式携带 wardId 槽位；不得保留旧 7 参兼容构造器")
+            .noneMatch(constructor -> constructor.getParameterCount() == 7);
     }
 
     private static boolean sourceContains(Path path, String term) {

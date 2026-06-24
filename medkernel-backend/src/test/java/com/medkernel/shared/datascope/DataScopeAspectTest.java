@@ -50,7 +50,7 @@ class DataScopeAspectTest {
     void hospitalLevelSatisfiedWhenHospitalIdPresent() {
         HospitalScopedService target = proxy(new HospitalScopedService());
         RequestContext.restore(new RequestContext.Snapshot("trace",
-            new OrgScope("t-1", null, "h-1", null, null, null, null),
+            new OrgScope("t-1", null, "h-1", null, null, null, null, null),
             "u"));
         assertThat(target.run()).isEqualTo("hospital-ok");
     }
@@ -59,7 +59,7 @@ class DataScopeAspectTest {
     void wardLevelRequiresWardRatherThanOnlyDepartment() {
         WardScopedService target = proxy(new WardScopedService());
         RequestContext.restore(new RequestContext.Snapshot("trace",
-            new OrgScope("t-1", null, "h-1", null, null, "d-1", null),
+            new OrgScope("t-1", null, "h-1", null, null, "d-1", null, null),
             "u"));
         assertThatThrownBy(target::run)
             .isInstanceOf(ApiException.class)

@@ -432,7 +432,7 @@ class ContextSnapshotServiceTest {
     void shouldRejectWhenRequestDepartmentExceedsCurrentScope() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-current",
-            new OrgScope("tenant-A", null, null, null, null, "DEPT-A", null),
+            new OrgScope("tenant-A", null, null, null, null, "DEPT-A", null, null),
             "tester"));
 
         assertThatThrownBy(() -> service.create(unifiedRequestForDepartment("DEPT-B"), null))

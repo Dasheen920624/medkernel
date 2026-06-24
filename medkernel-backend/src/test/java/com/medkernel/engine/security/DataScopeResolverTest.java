@@ -30,14 +30,14 @@ class DataScopeResolverTest {
 
     @Test
     void departmentScopedDoctorCanOnlyAccessSameDepartment() {
-        OrgScope current = new OrgScope("t-1", null, "h-1", null, null, "cardiology", null);
+        OrgScope current = new OrgScope("t-1", null, "h-1", null, null, "cardiology", null, null);
 
         ResolvedDataScope resolved = resolver.resolve(auth(RoleCode.CLINICAL_USER), current, "doctor-1");
 
         assertThat(resolved.level()).isEqualTo(DataAccessLevel.DEPARTMENT);
-        assertThat(resolved.canAccess(new OrgScope("t-1", null, "h-1", null, null, "cardiology", null))).isTrue();
-        assertThat(resolved.canAccess(new OrgScope("t-1", null, "h-1", null, null, "oncology", null))).isFalse();
-        assertThat(resolved.canAccess(new OrgScope("t-1", null, "h-1", null, null, null, null))).isFalse();
+        assertThat(resolved.canAccess(new OrgScope("t-1", null, "h-1", null, null, "cardiology", null, null))).isTrue();
+        assertThat(resolved.canAccess(new OrgScope("t-1", null, "h-1", null, null, "oncology", null, null))).isFalse();
+        assertThat(resolved.canAccess(new OrgScope("t-1", null, "h-1", null, null, null, null, null))).isFalse();
     }
 
     @Test
@@ -55,26 +55,26 @@ class DataScopeResolverTest {
 
     @Test
     void engineOperatorUsesAssignedGroupScopeAcrossHospitals() {
-        OrgScope current = new OrgScope("t-1", "g-1", "h-1", null, null, null, null);
+        OrgScope current = new OrgScope("t-1", "g-1", "h-1", null, null, null, null, null);
 
         ResolvedDataScope resolved = resolver.resolve(auth(RoleCode.ENGINE_OPERATOR), current, "qa-1");
 
         assertThat(resolved.level()).isEqualTo(DataAccessLevel.GROUP);
-        assertThat(resolved.canAccess(new OrgScope("t-1", "g-1", "h-1", null, null, "cardiology", null))).isTrue();
-        assertThat(resolved.canAccess(new OrgScope("t-1", "g-1", "h-2", null, null, "cardiology", null))).isTrue();
-        assertThat(resolved.canAccess(new OrgScope("t-1", "g-2", "h-9", null, null, null, null))).isFalse();
+        assertThat(resolved.canAccess(new OrgScope("t-1", "g-1", "h-1", null, null, "cardiology", null, null))).isTrue();
+        assertThat(resolved.canAccess(new OrgScope("t-1", "g-1", "h-2", null, null, "cardiology", null, null))).isTrue();
+        assertThat(resolved.canAccess(new OrgScope("t-1", "g-2", "h-9", null, null, null, null, null))).isFalse();
     }
 
     @Test
     void groupScopedRoleCanAccessSameGroupAcrossHospitals() {
-        OrgScope current = new OrgScope("t-1", "g-1", null, null, null, null, null);
+        OrgScope current = new OrgScope("t-1", "g-1", null, null, null, null, null, null);
 
         ResolvedDataScope resolved = resolver.resolve(auth(RoleCode.PLATFORM_ADMIN), current, "group-admin-1");
 
         assertThat(resolved.level()).isEqualTo(DataAccessLevel.GROUP);
-        assertThat(resolved.canAccess(new OrgScope("t-1", "g-1", "h-1", null, null, "cardiology", null))).isTrue();
-        assertThat(resolved.canAccess(new OrgScope("t-1", "g-2", "h-9", null, null, null, null))).isFalse();
-        assertThat(resolved.canAccess(new OrgScope("t-2", "g-1", "h-1", null, null, null, null))).isFalse();
+        assertThat(resolved.canAccess(new OrgScope("t-1", "g-1", "h-1", null, null, "cardiology", null, null))).isTrue();
+        assertThat(resolved.canAccess(new OrgScope("t-1", "g-2", "h-9", null, null, null, null, null))).isFalse();
+        assertThat(resolved.canAccess(new OrgScope("t-2", "g-1", "h-1", null, null, null, null, null))).isFalse();
     }
 
     @Test
@@ -90,7 +90,7 @@ class DataScopeResolverTest {
 
         assertThat(resolved.level()).isEqualTo(DataAccessLevel.NONE);
         assertThat(resolved.desensitized()).isTrue();
-        assertThat(resolved.canAccess(new OrgScope("t-1", "g-1", "h-1", null, null, null, null))).isFalse();
+        assertThat(resolved.canAccess(new OrgScope("t-1", "g-1", "h-1", null, null, null, null, null))).isFalse();
     }
 
     private UsernamePasswordAuthenticationToken auth(RoleCode role) {

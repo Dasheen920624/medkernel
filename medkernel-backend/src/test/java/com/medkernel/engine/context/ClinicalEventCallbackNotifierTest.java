@@ -103,7 +103,7 @@ class ClinicalEventCallbackNotifierTest {
     private ClinicalEventContext context() {
         return new ClinicalEventContext(
             "evt-1", "tenant-A", new OrgScope(
-                "tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
+                "tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", null, "specialty-A"),
             ClinicalEventType.DIAGNOSIS, ClinicalEventTriggerPoint.PATIENT_VIEW,
             "MPI-1", "ENC-1", ClinicalSetting.INPATIENT, null, "HIS",
             "runtime-release-test", "digest", Instant.parse("2026-05-27T01:00:00Z"),

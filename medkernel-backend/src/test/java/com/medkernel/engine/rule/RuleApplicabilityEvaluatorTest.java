@@ -115,7 +115,7 @@ class RuleApplicabilityEvaluatorTest {
                 """),
             context("MPI-1", "INPATIENT"),
             new OrgScope(
-                "tenant-A", "group-1", "hospital-1", null, null, "dept-2", null),
+                "tenant-A", "group-1", "hospital-1", null, null, "dept-2", null, null),
             "version-1"
         );
 

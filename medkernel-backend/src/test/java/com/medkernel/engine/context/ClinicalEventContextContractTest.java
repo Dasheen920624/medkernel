@@ -24,7 +24,7 @@ class ClinicalEventContextContractTest {
             .put("diagnosisCode", "I10")
             .put("sourceRecordId", "his-rec-1");
         var orgScope = new OrgScope("tenant-A", "group-A", "hospital-A",
-            "campus-A", "site-A", "dept-A", "specialty-A");
+            "campus-A", "site-A", "dept-A", null, "specialty-A");
         var anchor = new ClinicalCodeMappingAnchor(
             CanonicalResourceType.CONDITION,
             "cond-1",

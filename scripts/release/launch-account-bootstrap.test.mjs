@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -10,6 +11,16 @@ import {
   selectLaunchAccount,
   validateLaunchCredentials,
 } from "./launch-account-bootstrap-lib.mjs";
+
+test("上线接管实现使用已移除字段命名而非旧入口命名", () => {
+  const source = readFileSync(
+    new URL("./launch-account-bootstrap-lib.mjs", import.meta.url),
+    "utf8",
+  );
+  const retiredConstantName = ["LEGACY", "FIELDS"].join("_");
+
+  assert.doesNotMatch(source, new RegExp(`\\b${retiredConstantName}\\b`, "u"));
+});
 
 test("上线凭据只包含内置接管身份与平台、演练机构两组四职责账号", () => {
   const plan = buildLaunchCredentialPlan({
@@ -45,8 +56,8 @@ test("正式凭据契约拒绝旧字段、临时口令和缺失职责", () => {
     "t-rehearsal",
   );
 
-  const legacy = { ...credentials, roleAccounts: {} };
-  assert.throws(() => validateLaunchCredentials(legacy), /旧凭据字段/u);
+  const retiredShape = { ...credentials, roleAccounts: {} };
+  assert.throws(() => validateLaunchCredentials(retiredShape), /旧凭据字段/u);
 
   const missing = structuredClone(credentials);
   delete missing.rehearsal.accounts.auditor;

@@ -367,7 +367,7 @@ class PathwayEngineServiceTest {
     void templateDetailKeepsSelectedDraftVersionWhenOlderVersionIsPublishedForOrg() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-pathway",
-            new OrgScope("tenant-A", null, "hospital-1", null, null, "dept-1", null),
+            new OrgScope("tenant-A", null, "hospital-1", null, null, "dept-1", null, null),
             "tester"));
         PathwayTemplate selectedDraft = template(
             "pt-v2", "tenant-A", "TPL.COPD", 2, PathwayTemplateStatus.DRAFT);
@@ -709,7 +709,7 @@ class PathwayEngineServiceTest {
     void enterPatientPathwayCreatesStartNodeWorklistFromRaciRoles() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-pathway",
-            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
+            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", null, "specialty-A"),
             "tester"));
         PathwayNode startNode = nodeWithRaci(
             "ASSESS",
@@ -999,7 +999,7 @@ class PathwayEngineServiceTest {
             transitions, diagnoseAssembler, json, followupHandoff, safetyGuard,
             versionedAssets, assetVersions, resolver, runtimePathways);
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace-pathway", new OrgScope("tenant-A", null, "hosp-1", null, null, "dept-1", null), "tester"));
+            "trace-pathway", new OrgScope("tenant-A", null, "hosp-1", null, null, "dept-1", null, null), "tester"));
         when(runtimePathways.requireEntryCandidate(
                 "tenant-A", "runtime-release-test", "patient-view", "pt-v2"))
             .thenReturn(new RuntimePathwayReference(
@@ -1026,7 +1026,7 @@ class PathwayEngineServiceTest {
     void enterPatientPathwayRejectsVersionThatRuntimeReleaseCannotResolve() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-pathway",
-            new OrgScope("tenant-A", null, "hospital-1", null, null, "dept-1", null),
+            new OrgScope("tenant-A", null, "hospital-1", null, null, "dept-1", null, null),
             "tester"));
         when(contextSnapshots.findById("ctx-active-1")).thenReturn(contextSnapshot("ctx-active-1"));
         when(runtimePathways.requireEntryCandidate(
@@ -1174,7 +1174,7 @@ class PathwayEngineServiceTest {
     @Test
     void advanceKeepsRuntimePinnedToEntryTemplateWhenNewVersionBecomesActive() {
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace-pathway", new OrgScope("tenant-A", null, "hosp-1", null, null, "dept-1", null), "tester"));
+            "trace-pathway", new OrgScope("tenant-A", null, "hosp-1", null, null, "dept-1", null, null), "tester"));
         PatientPathway runtime = new PatientPathway(
             1L, "pp-1", "tenant-A", "patient-1", "enc-1", "pt-v1",
             "release-H3", "av-pathway-v1", "ASSESS",

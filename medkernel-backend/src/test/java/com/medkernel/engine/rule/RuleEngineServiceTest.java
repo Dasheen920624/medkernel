@@ -1559,7 +1559,7 @@ class RuleEngineServiceTest {
     @Test
     void evaluateAllRulesUsesInheritanceResolvedVersionForCurrentDepartment() {
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace-rule", new OrgScope("tenant-A", null, "hosp-1", null, null, "dept-1", null), "tester"));
+            "trace-rule", new OrgScope("tenant-A", null, "hosp-1", null, null, "dept-1", null, null), "tester"));
         RuleDefinition rule = existingRule(
             "rule-1", "tenant-A", "RULE.ANTICOAG", "抗凝风险提示",
             "version-1", RuleDefinitionStatus.PUBLISHED);
@@ -1603,7 +1603,7 @@ class RuleEngineServiceTest {
             versionedAssets, assetVersions, triggerBindings, releasePort, governanceService, shadowFeedback,
             backtests, driftSnapshots, resolver, contextSnapshots);
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace-rule", new OrgScope("tenant-A", null, "hosp-1", null, null, "dept-1", null), "tester"));
+            "trace-rule", new OrgScope("tenant-A", null, "hosp-1", null, null, "dept-1", null, null), "tester"));
         RuleDefinition rule = existingRule(
             "rule-1", "tenant-A", "RULE.ANTICOAG", "抗凝风险提示",
             "version-1", RuleDefinitionStatus.PUBLISHED);

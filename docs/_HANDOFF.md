@@ -56,7 +56,7 @@
   `node --test scripts/release/full-system-rehearsal.test.mjs ... scripts/sandbox/seed-scenarios.test.mjs`
   共 39 个用例通过。
 - 真实性、迁移、配置边界、CLI 和 MCP 测试通过，共 94 个用例通过。
-- 后端 `mvn -q test` 通过：Surefire 汇总 515 个 suite、3008 个测试，0 failure、0 error、7 skipped；
+- 后端 `mvn -q test` 通过：Surefire 汇总 515 个 suite、3011 个测试，0 failure、0 error、7 skipped；
   7 个 skipped 均来自本机 Docker/Testcontainers 不可用的数据库烟测。
 - 前端 `npm run verify` 通过：lint、stylelint、真实性规则、format、typecheck 和 Vitest 全部完成，
   Vitest 汇总 107 个测试文件、769 个测试通过。
@@ -73,6 +73,17 @@
 - 修复后 `mvn -q -Dtest=KnowledgeInitializationCatalogTest,InheritanceResolverBatchTest test`、
   `npm test -- --run src/pages/tenant/RulePathwayCleanliness.test.ts -t "uses the current rule and pathway customer API roots"`、
   `mvn -q -DskipTests compile`、`npm run lint` 均通过。
+- 组织范围旧入口收口定向红灯已复现后修复：
+  `RuntimeArchitectureCleanlinessTest#orgScopeDoesNotExposeRetiredSevenArgumentCompatibilityConstructor` 先失败于
+  `OrgScope` 仍暴露不含 `wardId` 槽位的 7 参数构造器；上线接管凭据命名清洁度测试先失败于实现层仍使用旧入口命名。
+- 修复后
+  `mvn -q -Dtest=RuntimeArchitectureCleanlinessTest#orgScopeDoesNotExposeRetiredSevenArgumentCompatibilityConstructor test`、
+  `mvn -q -Dtest=RuntimeArchitectureCleanlinessTest test`、
+  `mvn -q -DskipTests compile`、
+  `mvn -q -Dtest=JwtClaimsResolverTest,DataScopeResolverTest,DataScopeAspectTest,EffectivePermissionServiceTest test`、
+  `mvn -q -Dtest=AuthControllerTest,AuthenticatedPermissionGuardTest,RoleArchitectureCleanlinessTest test`、
+  `node --test scripts/release/launch-account-bootstrap.test.mjs scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`
+  均通过；发布脚本定向集共 15 个用例通过。
 
 ## 本轮落地内容
 
@@ -83,6 +94,9 @@
   `8dfd8e872ef4ab0856289567bb6ee2056c7daeb5a564891e4df2cc3e4e4dccac`，与本地候选脚本一致。
 - 生产代码继续清理旧 package/兼容残留：移除未使用的 `.packageList/.packageCard` 样式；`BatchResolvedAsset`
   去掉恒为 `false` 的 `added` 标志；`KNOWGEN-32` 标题改为“知识金标回归与发行验收”。
+- `OrgScope` 移除不含 `wardId` 槽位的旧 7 参数构造器；现有调用已显式补齐 8 参数组织范围，
+  清洁度测试防止旧入口回流。
+- 上线接管凭据校验继续拒绝旧凭据字段，同时实现层改用“已移除字段”命名，避免后续协作者误判为仍需维护的旧入口。
 
 后续改动必须继续使用 TDD 或先复现后修复，完成声明前重新跑与改动相关的门禁。
 

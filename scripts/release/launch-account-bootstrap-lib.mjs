@@ -22,7 +22,7 @@ const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
 );
-const LEGACY_FIELDS = Object.freeze([
+const RETIRED_CREDENTIAL_FIELDS = Object.freeze([
   "accounts",
   "roleAccounts",
   "platformRoleAccounts",
@@ -70,7 +70,7 @@ export function buildLaunchCredentialPlan(options = {}) {
 
 export function validateLaunchCredentials(credentials) {
   requireObject(credentials, "上线凭据");
-  for (const field of LEGACY_FIELDS) {
+  for (const field of RETIRED_CREDENTIAL_FIELDS) {
     if (Object.hasOwn(credentials, field)) {
       throw new Error(`上线凭据禁止保留旧凭据字段 ${field}`);
     }

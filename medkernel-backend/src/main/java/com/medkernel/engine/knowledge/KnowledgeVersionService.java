@@ -1257,6 +1257,7 @@ public class KnowledgeVersionService {
             context.campusId(),
             context.siteId(),
             context.departmentId(),
+            null,
             context.specialtyId());
         return assetScopes.resolve(tenantId, scope).organizationPath();
     }

@@ -63,7 +63,7 @@ class TerminologyAssetDraftServiceTest {
             .thenReturn(version("av-term-v1", "V1"));
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-term-asset",
-            new OrgScope("tenant-A", null, "hospital-A", null, null, "CARD", null),
+            new OrgScope("tenant-A", null, "hospital-A", null, null, "CARD", null, null),
             "author-A"
         ));
     }
