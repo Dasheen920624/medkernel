@@ -9,7 +9,7 @@
 - 前端路由：43 项。
 - 后端菜单：34 项。
 - 页面与页内组件：53 项。
-- 后端控制器：93 项。
+- 后端控制器：94 项。
 - 批量、导入、导出和异步任务承载类：16 项。
 - 目标客户业务域：工作台、机构与人员、知识治理、临床协同、质量管理、合规安全、系统运维。
 - 专业能力按普通功能归入所属业务域并由权限控制；仅服务外部系统的能力只保留接口契约。
@@ -17,7 +17,7 @@
 | 裁决 | 数量 |
 |---|---:|
 | API_ONLY | 7 |
-| KEEP | 85 |
+| KEEP | 86 |
 | MERGE | 54 |
 | MOVE | 60 |
 | REMOVE | 1 |
@@ -524,6 +524,8 @@
 | `RecommendationEvaluateSuffixController` | POST /api/v1/engine/recommendations:evaluate | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@RuntimeReleaseController decision=KEEP -->
 | `RuntimeReleaseController` | GET /api/v1/engine/releases/platform-baselines/current<br>GET /api/v1/engine/releases/platform-baselines/candidates<br>GET /api/v1/engine/releases/hospitals/{hospitalId}/runtime-releases/current<br>GET /api/v1/engine/releases/hospitals/{hospitalId}/runtime-candidates<br>GET /api/v1/engine/releases/hospitals/{hospitalId}/runtime-releases<br>POST /api/v1/engine/releases/platform-baselines<br>POST /api/v1/engine/releases/hospitals/{hospitalId}/runtime-releases<br>POST /api/v1/engine/releases/hospitals/{hospitalId}/runtime-releases:rollback | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+<!-- capability:controller:controller@ReportInterpretationController decision=KEEP -->
+| `ReportInterpretationController` | POST /api/v1/engine/recommendations/report-interpretation | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@RuleEngineController decision=KEEP -->
 | `RuleEngineController` | POST /api/v1/engine/rule/rules<br>GET /api/v1/engine/rule/rules<br>GET /api/v1/engine/rule/rules/{ruleId}<br>PUT /api/v1/engine/rule/rules/{ruleId}<br>POST /api/v1/engine/rule/rules/{ruleId}/versions<br>POST /api/v1/engine/rule/rules/{ruleId}/test-cases<br>POST /api/v1/engine/rule/rules/{ruleId}/test<br>POST /api/v1/engine/rule/rules/{ruleId}/simulate<br>其余 12 项 | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@ClinicalRedlineController decision=KEEP -->

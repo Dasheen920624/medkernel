@@ -111,9 +111,13 @@ test("一份 V2/V3 规范变更为五个方言生成同版本迁移", () => {
     assert.equal(result.status, 0, result.stderr);
     for (const dialect of dialects) {
       const migrationDirectory = join(fixture.migrationRoot, dialect);
-      assert.match(readFileSync(join(migrationDirectory, "V1__baseline.sql"), "utf8"), /CREATE TABLE sample_record/);
+      const v1 = readFileSync(join(migrationDirectory, "V1__baseline.sql"), "utf8");
       const v2 = readFileSync(join(migrationDirectory, "V2__add_sample_label.sql"), "utf8");
       const v3 = readFileSync(join(migrationDirectory, "V3__index_sample_label.sql"), "utf8");
+      assert.match(v1, /CREATE TABLE sample_record/);
+      assert.doesNotMatch(v1, /\n\n$/);
+      assert.doesNotMatch(v2, /\n\n$/);
+      assert.doesNotMatch(v3, /\n\n$/);
       assert.match(v2, /ALTER TABLE sample_record ADD label/);
       assert.match(v2, ["oracle", "dm"].includes(dialect) ? /VARCHAR2\(100\)/ : /VARCHAR\(100\)/);
       assert.match(v3, /CREATE INDEX idx_sample_record_label ON sample_record \(label\)/);

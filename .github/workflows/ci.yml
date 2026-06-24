@@ -180,10 +180,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install
         working-directory: frontend
-        run: npm install --no-audit --no-fund --no-package-lock
+        run: npm ci --no-audit --no-fund
 
       - name: Type check
         working-directory: frontend
@@ -213,10 +215,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install
         working-directory: frontend
-        run: npm install --no-audit --no-fund --no-package-lock
+        run: npm ci --no-audit --no-fund
 
       - name: ESLint
         working-directory: frontend
@@ -261,6 +265,7 @@ jobs:
         with:
           distribution: ${{ matrix.distribution }}
           java-version: "21"
+          cache: maven
 
       - name: Smoke compile
         working-directory: medkernel-backend
@@ -268,7 +273,7 @@ jobs:
 
       - name: Smoke test
         working-directory: medkernel-backend
-        run: mvn -B -q test
+        run: mvn -B -q -Dtest=MedKernelApplicationTests,ServiceContractGovernanceTest,OpenApiContractConfigurationTest,MigrationBaselineContractTest test
 
   # GA-ENG-DOC-01 · 引擎层中文 Javadoc / SQL COMMENT 软门禁
   # 新增 .java / .sql 文件缺中文注释 → fail；修改既有文件缺口 → 仅 step summary warn。

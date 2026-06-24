@@ -340,6 +340,18 @@
   `curl` 严格校验失败于 self-signed certificate，`openssl s_client` 返回 verify code 18。
   必须先配置可信且具备 SAN 的证书；严格 TLS 和浏览器验收通过前不得宣称上线通过。
 
+## 2026-06-24 PR #650 门禁修复
+
+- 已按当前分支权威覆盖 `origin/main` 的 #648/#649 后续差异，保留 `codex/647-launch-simplification`
+  作为 PR #650 的唯一审查分支；
+- 修复 PR 红灯根因：补齐 `ReportInterpretationController` 服务契约、重新生成产品功能目录、收敛五方言
+  baseline 生成器的 EOF 规则并加入回归测试；
+- 优化 PR 门禁耗时：前端统一 `npm ci` 与 npm cache，JDK matrix 改为 Maven cache +
+  关键烟测组合，完整后端测试仍由 backend-build-test 单独执行；
+- 本地复验证据：`node scripts/db/generate-migrations.mjs --check`、`CI=true npm run test:coverage`、
+  `npm run lint`、`npm run test:lint-rules`、`npm run stylelint`、`npm run format:check`、
+  `mvn -q test`、`mvn -q package -DskipTests`、guard-rules 同构脚本、部署脚本校验均已通过。
+
 ## 完成边界
 
 本地工作只有在完整产品矩阵、全量质量门和 134 真实演练都通过后才可称为上线候选。当前允许为阶段切片
