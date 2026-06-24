@@ -956,6 +956,7 @@ export async function runSeed() {
     results: [],
     initialRuntimeRelease: null,
     runtimeRelease: null,
+    runtimeBinding: null,
     failures: [],
   };
   if (process.env.SEED_VALIDATE_ONLY === "1") return summary;
@@ -1080,6 +1081,7 @@ export async function runSeed() {
           },
         );
         summary.runtimeRelease = runtimeRelease;
+        summary.runtimeBinding = runtimeRelease.status;
       } finally {
         await adminContext.close();
       }
@@ -1096,7 +1098,7 @@ export async function runSeed() {
   if (summary.failures.length > 0) {
     throw new Error(`沙盘铺底存在 ${summary.failures.length} 个失败`);
   }
-  if (!summary.runtimeRelease?.status?.ready)
+  if (!summary.runtimeBinding?.ready)
     throw new Error("沙盘铺底完成但 CURRENT 机构生效版本未就绪");
   return summary;
 }

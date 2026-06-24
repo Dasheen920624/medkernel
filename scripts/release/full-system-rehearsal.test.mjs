@@ -15,7 +15,7 @@ const MANIFEST_PATH = fileURLToPath(
   new URL("../knowledge/manifests/full-knowledge-rehearsal-1.0.0.json", import.meta.url),
 );
 
-test("整套演练固定覆盖四职责、Provider、沙盘、11 域知识、运行韧性、全量浏览器旅程和完整范围审计", () => {
+test("整套演练固定覆盖四职责、Provider、平台基线、沙盘、11 域知识、运行韧性、全量浏览器旅程和完整范围审计", () => {
   const config = rehearsalConfig();
   const plan = buildFullSystemStagePlan(config);
 
@@ -24,6 +24,7 @@ test("整套演练固定覆盖四职责、Provider、沙盘、11 域知识、运
     [
       "account-bootstrap",
       "model-provider",
+      "platform-baseline",
       "sandbox",
       "full-knowledge",
       "runtime-resilience",
@@ -34,16 +35,19 @@ test("整套演练固定覆盖四职责、Provider、沙盘、11 域知识、运
   assert.equal(plan[0].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
   assert.equal(plan[1].env.FULL_KNOWLEDGE_MANIFEST_PATH, MANIFEST_PATH);
   assert.equal(plan[2].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
-  assert.equal(plan[2].label, "演练机构十规则四十用例与机构生效版本");
-  assert.equal(plan[3].env.FULL_KNOWLEDGE_PROVIDER_CODE, "ollama-launch");
-  assert.equal(plan[4].env.RUNTIME_RESILIENCE_PROVIDER_CODE, "ollama-launch");
-  assert.equal(plan[4].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
-  assert.equal(plan[5].cwd.endsWith("/frontend"), true);
-  assert.equal(plan[5].env.E2E_EXTERNAL_DEPLOYMENT, "1");
-  assert.equal(plan[5].env.E2E_EXPECT_MFA_DISABLED, "1");
-  assert.equal(plan[5].env.E2E_IGNORE_HTTPS_ERRORS, undefined);
-  assert.equal(plan[6].env.LAUNCH_COVERAGE_EVIDENCE_PATH.endsWith("/launch-coverage.json"), true);
-  assert.equal(plan[6].env.FULL_SYSTEM_EVIDENCE_ROOT, config.evidenceRoot);
+  assert.equal(plan[2].env.LAUNCH_PLATFORM_BASELINE_EVIDENCE_PATH.endsWith("/platform-baseline.json"), true);
+  assert.equal(plan[2].label, "平台字段目录权威基线");
+  assert.equal(plan[3].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
+  assert.equal(plan[3].label, "演练机构十规则四十用例与机构生效版本");
+  assert.equal(plan[4].env.FULL_KNOWLEDGE_PROVIDER_CODE, "ollama-launch");
+  assert.equal(plan[5].env.RUNTIME_RESILIENCE_PROVIDER_CODE, "ollama-launch");
+  assert.equal(plan[5].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
+  assert.equal(plan[6].cwd.endsWith("/frontend"), true);
+  assert.equal(plan[6].env.E2E_EXTERNAL_DEPLOYMENT, "1");
+  assert.equal(plan[6].env.E2E_EXPECT_MFA_DISABLED, "1");
+  assert.equal(plan[6].env.E2E_IGNORE_HTTPS_ERRORS, undefined);
+  assert.equal(plan[7].env.LAUNCH_COVERAGE_EVIDENCE_PATH.endsWith("/launch-coverage.json"), true);
+  assert.equal(plan[7].env.FULL_SYSTEM_EVIDENCE_ROOT, config.evidenceRoot);
 });
 
 test("整套演练配置拒绝跳过 TLS 校验并把全部证据固定在仓库外", () => {
@@ -86,7 +90,8 @@ test("任一阶段退出失败立即阻断整场且不执行后续阶段", async
         readJson: (_path, stage) =>
           stage.id === "account-bootstrap"
             ? { status: "PASSED", verifiedAccountCount: 9 }
-            : {
+            : stage.id === "model-provider"
+            ? {
                 status: "PASSED",
                 provider: { enabled: true, status: "HEALTHY" },
                 evaluation: {
@@ -94,15 +99,16 @@ test("任一阶段退出失败立即阻断整场且不执行后续阶段", async
                   totalCases: 3,
                   passedCases: 3,
                   failedCases: 0,
-                },
-              },
+                }
+              }
+            : platformBaselineEvidence(),
       }),
     /sandbox 阶段失败/u,
   );
-  assert.deepEqual(executed, ["account-bootstrap", "model-provider", "sandbox"]);
+  assert.deepEqual(executed, ["account-bootstrap", "model-provider", "platform-baseline", "sandbox"]);
 });
 
-test("七阶段证据全部满足正式条件时才生成 PASSED 总索引", async () => {
+test("八阶段证据全部满足正式条件时才生成 PASSED 总索引", async () => {
   const coverageEvidence = completeLaunchCoverageEvidence();
   const evidenceByStage = {
     "account-bootstrap": { status: "PASSED", verifiedAccountCount: 9 },
@@ -111,6 +117,7 @@ test("七阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
       provider: { enabled: true, status: "HEALTHY" },
       evaluation: { totalCases: 3, passedCases: 3, failedCases: 0, status: "PASSED" },
     },
+    "platform-baseline": platformBaselineEvidence(),
     sandbox: {
       results: Array.from({ length: 10 }, (_, index) => ({ ruleCode: `R${index}`, result: "PASS" })),
       failures: [],
@@ -165,7 +172,7 @@ test("七阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
 
   assert.equal(result.status, "PASSED");
   assert.equal(result.source, "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17");
-  assert.equal(result.stages.length, 7);
+  assert.equal(result.stages.length, 8);
   assert.deepEqual(result.coverage.scenarios, coverageEvidence.coverage.scenarios);
   assert.deepEqual(result.coverage.versionedAssets, coverageEvidence.coverage.versionedAssets);
   assert.equal(result.coverage.standardPatientResources.length, 13);
@@ -188,6 +195,14 @@ test("完整上线覆盖矩阵缺项、跳过或未知时证据门禁拒绝放�
   assert.throws(() => assertCompleteLaunchCoverage(skippedAsset), /SKIPPED/u);
 
   assert.throws(
+    () => validateStageEvidence("platform-baseline", {
+      status: "PASSED",
+      fieldCatalog: { assetType: "RULE", entryState: "ACTIVE" },
+      baseline: { revisionNo: 1 },
+    }),
+    /字段目录平台基线/u,
+  );
+  assert.throws(
     () => validateStageEvidence("full-knowledge", {
       status: "PASSED",
       coverage: { expectedDomains: Array(11).fill("X"), publishedDomains: [] },
@@ -207,6 +222,25 @@ function completeLaunchCoverageEvidence() {
   return {
     status: "PASSED",
     coverage: buildRequiredLaunchCoverage(),
+  };
+}
+
+function platformBaselineEvidence() {
+  return {
+    status: "PASSED",
+    stage: "PLATFORM_BASELINE_BOOTSTRAP",
+    operator: { tenantId: "t-1", role: "engine-operator" },
+    fieldCatalog: {
+      assetType: "FIELD_CATALOG",
+      assetIdentity: "FIELD.CATALOG.CLINICAL_CONTEXT",
+      entryState: "ACTIVE",
+      versionId: "field-v1",
+      versionNo: "1",
+    },
+    baseline: {
+      baselineReleaseId: "baseline-1",
+      revisionNo: 1,
+    },
   };
 }
 

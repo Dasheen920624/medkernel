@@ -260,6 +260,7 @@ export function readFullSystemRehearsalConfig(env, options = {}) {
 export function buildFullSystemStagePlan(config) {
   const accountEvidence = path.join(config.evidenceRoot, "account-bootstrap.json");
   const modelEvidence = path.join(config.evidenceRoot, "model-provider.json");
+  const platformBaselineEvidence = path.join(config.evidenceRoot, "platform-baseline.json");
   const sandboxRoot = path.join(config.evidenceRoot, "sandbox");
   const knowledgeEvidence = path.join(config.evidenceRoot, "full-knowledge.json");
   const resilienceEvidence = path.join(config.evidenceRoot, "runtime-resilience.json");
@@ -301,6 +302,20 @@ export function buildFullSystemStagePlan(config) {
         LAUNCH_MODEL_VERSION: config.provider.modelVersion,
         FULL_KNOWLEDGE_MANIFEST_PATH: config.manifestPath,
         LAUNCH_MODEL_EVIDENCE_PATH: modelEvidence,
+      },
+    },
+    {
+      id: "platform-baseline",
+      label: "平台字段目录权威基线",
+      command: process.execPath,
+      args: ["scripts/release/platform-baseline-bootstrap.mjs"],
+      cwd: config.repoRoot,
+      evidencePath: platformBaselineEvidence,
+      env: {
+        ...common,
+        LAUNCH_API_BASE_URL: config.apiBaseUrl,
+        LAUNCH_CREDENTIALS_FILE: config.credentialsPath,
+        LAUNCH_PLATFORM_BASELINE_EVIDENCE_PATH: platformBaselineEvidence,
       },
     },
     {
@@ -455,6 +470,27 @@ export function validateStageEvidence(stageId, evidence) {
       return {
         providerCode: evidence.provider.code,
         evaluationCases: evidence.evaluation.totalCases,
+      };
+    case "platform-baseline":
+      if (
+        evidence.status !== "PASSED" ||
+        evidence.stage !== "PLATFORM_BASELINE_BOOTSTRAP" ||
+        evidence.operator?.tenantId !== "t-1" ||
+        evidence.operator?.role !== "engine-operator" ||
+        evidence.fieldCatalog?.assetType !== "FIELD_CATALOG" ||
+        evidence.fieldCatalog?.assetIdentity !== "FIELD.CATALOG.CLINICAL_CONTEXT" ||
+        evidence.fieldCatalog?.entryState !== "ACTIVE" ||
+        typeof evidence.fieldCatalog?.versionId !== "string" ||
+        !evidence.fieldCatalog.versionId.trim() ||
+        !Number.isInteger(evidence.baseline?.revisionNo) ||
+        !evidence.baseline?.baselineReleaseId
+      ) {
+        throw new Error("字段目录平台基线未完整发布为当前平台标准版本");
+      }
+      return {
+        baselineReleaseId: evidence.baseline.baselineReleaseId,
+        revisionNo: evidence.baseline.revisionNo,
+        fieldCatalogVersion: evidence.fieldCatalog.versionId,
       };
     case "sandbox":
       if (

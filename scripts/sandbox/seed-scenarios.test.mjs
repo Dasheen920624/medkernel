@@ -102,6 +102,7 @@ test("沙盘创建快照前先激活含平台基线资产的当前医院机构�
       runSeed.indexOf("ensureInitialRuntimeRelease(") < runSeed.indexOf("seedSnapshots("),
   );
   assert.match(runSeed, /activePlatformBaselineAssets/u);
+  assert.match(runSeed, /runtimeBinding/u);
 });
 
 test("沙盘演练脚本不再创建或发布旧容器", async () => {

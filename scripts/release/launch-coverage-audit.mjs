@@ -41,6 +41,7 @@ export function buildLaunchCoverageEvidence(config, options = {}) {
   const stageFiles = {
     "account-bootstrap": path.join(config.evidenceRoot, "account-bootstrap.json"),
     "model-provider": path.join(config.evidenceRoot, "model-provider.json"),
+    "platform-baseline": path.join(config.evidenceRoot, "platform-baseline.json"),
     sandbox: path.join(config.evidenceRoot, "sandbox/seed-summary.json"),
     "full-knowledge": path.join(config.evidenceRoot, "full-knowledge.json"),
     "runtime-resilience": path.join(config.evidenceRoot, "runtime-resilience.json"),
