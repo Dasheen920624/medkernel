@@ -85,6 +85,22 @@ test("路径知识演练来源必须使用可从 134 核验的官方路径工具
   assert.doesNotMatch(pathway.source.url, /nice\.org\.uk/u);
 });
 
+test("文献知识演练来源必须使用可从 134 Node fetch 核验的 NLM 页面", () => {
+  const literature = manifest.entries.find((entry) => entry.domain === "LITERATURE");
+
+  assert.equal(literature.source.publisher, "U.S. National Library of Medicine");
+  assert.equal(
+    literature.source.url,
+    "https://www.nlm.nih.gov/medline/medline_overview.html",
+  );
+  assert.ok(literature.source.verificationTerms.includes("MEDLINE"));
+  assert.ok(literature.source.verificationTerms.includes("PubMed"));
+  assert.ok(
+    literature.source.verificationTerms.includes("National Library of Medicine"),
+  );
+  assert.doesNotMatch(literature.source.url, /pubmed\.ncbi\.nlm\.nih\.gov/u);
+});
+
 test("正式演练会真实抓取官方来源并验证允许主机、锚点词和内容摘要", async () => {
   const entry = manifest.entries[0];
   const verified = await verifyOfficialSource(entry, {
