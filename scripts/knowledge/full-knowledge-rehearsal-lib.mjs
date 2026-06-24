@@ -212,6 +212,14 @@ export function buildPublicationQualityRecordRequest({
   };
 }
 
+export function isAcceptableShadowRun(shadowRun) {
+  return (
+    (shadowRun?.status === "PASSED" || shadowRun?.status === "PENDING_REVIEW") &&
+    shadowRun.readyForReview === true &&
+    shadowRun.degradationDetected !== true
+  );
+}
+
 export function readRehearsalConfig(env, options = {}) {
   const readFile = options.readFile ?? ((file) => readFileSync(file, "utf8"));
   const repoRoot = path.resolve(options.repoRoot ?? REPO_ROOT);
@@ -805,11 +813,7 @@ async function assertTechnicalEvidence(args, jobCode) {
     throw new Error("候选没有进入真实审核分流");
   }
   const finalShadow = shadow.at(-1);
-  if (
-    finalShadow?.status !== "PASSED" ||
-    finalShadow.readyForReview !== true ||
-    finalShadow.degradationDetected === true
-  ) {
+  if (!isAcceptableShadowRun(finalShadow)) {
     throw new Error("候选影子评测未通过或检测到退化");
   }
   return {

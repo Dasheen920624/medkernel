@@ -8,6 +8,7 @@ import {
   buildPublicationQualityRecordRequest,
   buildModelPrompt,
   buildRehearsalPlan,
+  isAcceptableShadowRun,
   readRehearsalConfig,
   redactEvidence,
   validateFullKnowledgeManifest,
@@ -177,6 +178,41 @@ test("审核与激活只提交服务端发布质量记录ID，不提交客户端
   assert.equal(JSON.stringify(request).includes("dependency"), false);
   assert.equal(JSON.stringify(request).includes("safetyMonotonicity"), false);
   assert.equal(JSON.stringify(request).includes("impactSimulation"), false);
+});
+
+test("候选影子评测接受通过或待人工重点复核且拒绝退化", () => {
+  assert.equal(
+    isAcceptableShadowRun({
+      status: "PASSED",
+      readyForReview: true,
+      degradationDetected: false,
+    }),
+    true,
+  );
+  assert.equal(
+    isAcceptableShadowRun({
+      status: "PENDING_REVIEW",
+      readyForReview: true,
+      degradationDetected: false,
+    }),
+    true,
+  );
+  assert.equal(
+    isAcceptableShadowRun({
+      status: "PENDING_REVIEW",
+      readyForReview: true,
+      degradationDetected: true,
+    }),
+    false,
+  );
+  assert.equal(
+    isAcceptableShadowRun({
+      status: "FAILED",
+      readyForReview: false,
+      degradationDetected: true,
+    }),
+    false,
+  );
 });
 
 test("演练运行上下文不提交旧包版本参数", () => {

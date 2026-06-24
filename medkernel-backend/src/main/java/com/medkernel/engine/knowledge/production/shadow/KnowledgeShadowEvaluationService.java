@@ -1,20 +1,27 @@
 package com.medkernel.engine.knowledge.production.shadow;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.medkernel.engine.factory.AssetSourceRef;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
+import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.knowledge.production.generation.StrictB0TemplatePolicy;
 import com.medkernel.engine.llm.eval.MedicalRegressionCase;
 import com.medkernel.engine.llm.eval.MedicalRegressionCaseRepository;
 import com.medkernel.engine.llm.eval.MedicalRegressionEvaluator;
 import com.medkernel.engine.llm.provider.ProviderCompletion;
+import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.context.RequestContext;
 
 /**
@@ -50,10 +57,17 @@ public class KnowledgeShadowEvaluationService {
     @Transactional
     public KnowledgeShadowDecision evaluate(KnowledgeAssetEnvelope candidate, KnowledgeShadowContext context) {
         String capabilityCode = capabilityCode(context);
-        if (strictB0TemplatePolicy.matches(candidate.payload())) {
+        JsonNode payload = parsePayload(candidate == null ? null : candidate.payload());
+        if (strictB0TemplatePolicy.matches(payload)) {
             KnowledgeShadowRun saved = persist(candidate, context, capabilityCode,
                 KnowledgeShadowRunStatus.PENDING_REVIEW, 0, 0, 0, 0, false, true,
                 "严格 B0 非模型待编著骨架不执行模型影子评测，进入人工编著审核");
+            return toDecision(saved);
+        }
+        if (lowRiskModelSourceBoundaryOnly(candidate, payload)) {
+            KnowledgeShadowRun saved = persist(candidate, context, capabilityCode,
+                KnowledgeShadowRunStatus.PENDING_REVIEW, 0, 0, 0, 0, false, true,
+                "低风险模型来源边界候选不复用 Provider 上线回归提示词，进入人工审核重点核查来源、边界和不可推断声明");
             return toDecision(saved);
         }
         List<MedicalRegressionCase> cases = caseRepository.findByTenantIdAndCapabilityCodeAndEnabledFlag(
@@ -122,5 +136,116 @@ public class KnowledgeShadowEvaluationService {
         return OBJECT_MAPPER.valueToTree(candidate.sources().stream()
             .map(AssetSourceRef::sourceRef)
             .toList()).toString();
+    }
+
+    private JsonNode parsePayload(String payload) {
+        if (payload == null || payload.isBlank()) {
+            return null;
+        }
+        try {
+            return OBJECT_MAPPER.readTree(payload);
+        } catch (JsonProcessingException invalidJson) {
+            return null;
+        }
+    }
+
+    private boolean lowRiskModelSourceBoundaryOnly(KnowledgeAssetEnvelope candidate, JsonNode payload) {
+        if (candidate == null
+                || candidate.assetType() != VersionedAssetType.KNOWLEDGE
+                || candidate.riskLevel() != KnowledgeRiskLevel.LOW
+                || payload == null
+                || !payload.isObject()
+                || !payload.path("aiGenerated").asBoolean(false)
+                || !payload.path("modelOutput").isObject()
+                || !redlineCheckNodes(payload).isEmpty()) {
+            return false;
+        }
+        JsonNode modelOutput = payload.path("modelOutput");
+        if (!modelOutput.path("clinicalActionable").isBoolean()
+                || modelOutput.path("clinicalActionable").asBoolean()
+                || text(modelOutput, "domain").isBlank()
+                || text(modelOutput, "subject").isBlank()) {
+            return false;
+        }
+        return validSourceReferences(candidate, modelOutput.path("sourceReferences"))
+            && limitationsDeclareNonClinicalUse(modelOutput.path("limitations"))
+            && sectionsDeclareSourceBoundary(modelOutput.path("sections"));
+    }
+
+    private boolean validSourceReferences(KnowledgeAssetEnvelope candidate, JsonNode references) {
+        if (references == null || !references.isArray() || references.isEmpty()) {
+            return false;
+        }
+        Set<String> envelopeRefs = candidate.sources().stream()
+            .map(AssetSourceRef::sourceRef)
+            .filter(ref -> ref != null && !ref.isBlank())
+            .collect(Collectors.toSet());
+        if (envelopeRefs.isEmpty()) {
+            return false;
+        }
+        for (JsonNode reference : references) {
+            String sourceRef = text(reference, "sourceRef");
+            if (!reference.isObject()
+                    || sourceRef.isBlank()
+                    || text(reference, "authorityLevel").isBlank()
+                    || !envelopeRefs.contains(sourceRef)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean limitationsDeclareNonClinicalUse(JsonNode limitations) {
+        if (limitations == null || !limitations.isArray() || limitations.isEmpty()) {
+            return false;
+        }
+        for (JsonNode limitation : limitations) {
+            String text = limitation.asText("");
+            if (text.contains("不构成")
+                    && (text.contains("诊断") || text.contains("处方") || text.contains("剂量")
+                        || text.contains("阈值") || text.contains("医嘱"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean sectionsDeclareSourceBoundary(JsonNode sections) {
+        if (sections == null || !sections.isObject() || sections.isEmpty()) {
+            return false;
+        }
+        List<JsonNode> values = new ArrayList<>();
+        sections.elements().forEachRemaining(values::add);
+        return values.stream().allMatch(value -> {
+            String text = value.asText("");
+            return !text.isBlank()
+                && (text.contains("不可推断") || text.contains("来源边界") || text.contains("正式临床内容"));
+        });
+    }
+
+    private List<JsonNode> redlineCheckNodes(JsonNode payload) {
+        List<JsonNode> result = new ArrayList<>();
+        addArray(result, payload.path("clinicalRedlineChecks"));
+        addArray(result, payload.path("clinicalSafety").path("redlineChecks"));
+        addArray(result, payload.path("modelOutput").path("clinicalRedlineChecks"));
+        addArray(result, payload.path("modelOutput").path("clinicalSafety").path("redlineChecks"));
+        return result;
+    }
+
+    private void addArray(List<JsonNode> result, JsonNode node) {
+        if (node != null && node.isArray()) {
+            node.forEach(result::add);
+        }
+    }
+
+    private static String text(JsonNode node, String field) {
+        if (node == null) {
+            return "";
+        }
+        JsonNode value = node.get(field);
+        if (value == null || value.isNull()) {
+            return "";
+        }
+        return value.asText("").trim();
     }
 }

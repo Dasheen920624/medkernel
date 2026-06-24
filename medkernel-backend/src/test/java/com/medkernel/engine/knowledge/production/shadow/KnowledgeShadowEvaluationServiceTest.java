@@ -130,6 +130,20 @@ class KnowledgeShadowEvaluationServiceTest {
     }
 
     @Test
+    void lowRiskModelSourceBoundaryEntersReviewWithoutReusingProviderRegressionPromptCases() {
+        KnowledgeShadowDecision decision = service.evaluate(lowRiskSourceBoundaryModelCandidate(),
+            new KnowledgeShadowContext("tenant-a", "job-source-boundary", null, VersionedAssetType.KNOWLEDGE));
+
+        assertThat(decision.readyForReview()).isTrue();
+        assertThat(decision.status()).isEqualTo(KnowledgeShadowRunStatus.PENDING_REVIEW);
+        KnowledgeShadowRun saved = savedRun();
+        assertThat(saved.totalCases()).isZero();
+        assertThat(saved.degradationDetected()).isFalse();
+        assertThat(saved.basis()).contains("低风险").contains("来源边界").contains("人工审核");
+        verifyNoInteractions(cases);
+    }
+
+    @Test
     void passingBenchmarkAllowsReviewAndRecordsMetrics() {
         when(cases.findByTenantIdAndCapabilityCodeAndEnabledFlag(
             "tenant-a", "knowledge.production.rule", "Y")).thenReturn(List.of(
@@ -210,6 +224,44 @@ class KnowledgeShadowEvaluationServiceTest {
             SourceAuthorityLevel.B_GUIDELINE, GradeEvidenceQuality.MODERATE,
             GradeRecommendationStrength.STRONG, KnowledgeRiskLevel.MEDIUM, "tenant-a",
             "a".repeat(64), payload, AssetVersionStatus.DRAFT);
+    }
+
+    private KnowledgeAssetEnvelope lowRiskSourceBoundaryModelCandidate() {
+        String payload = """
+            {
+              "aiGenerated": true,
+              "modelTaskId": "task-source-boundary",
+              "modelMode": "B1",
+              "modelVersion": "medkernel-qwen25:1.5b-v1",
+              "capabilityCode": "knowledge.production.knowledge",
+              "modelOutput": {
+                "domain": "GUIDELINE",
+                "subject": "指南来源治理与使用边界",
+                "clinicalActionable": false,
+                "sourceReferences": [
+                  {
+                    "sourceRef": "WHO-GRC-2026:2026.06.22:page:mandate",
+                    "authorityLevel": "B_GUIDELINE",
+                    "anchorLabel": "指南质量保障职责"
+                  }
+                ],
+                "limitations": [
+                  "仅用于验证 MedKernel 知识生产流程，不构成诊断、处方、剂量、阈值或自动医嘱。"
+                ],
+                "sections": {
+                  "summary": "来源边界：只说明指南来源治理职责；证据不足时明确不可推断。",
+                  "references": "正式临床内容仍须绑定具体原始文件、机构版本和适用范围。"
+                }
+              }
+            }
+            """;
+        return new KnowledgeAssetEnvelope(
+            VersionedAssetType.KNOWLEDGE, "launch.guideline.governance-boundary", "指南来源治理与使用边界",
+            "ai-draft-task-source-boundary",
+            List.of(new AssetSourceRef("WHO-GRC-2026:2026.06.22:page:mandate",
+                SourceAuthorityLevel.B_GUIDELINE)),
+            SourceAuthorityLevel.B_GUIDELINE, null, null, KnowledgeRiskLevel.LOW, "tenant-a",
+            "b".repeat(64), payload, AssetVersionStatus.DRAFT);
     }
 
     private MedicalRegressionCase regressionCase(String capabilityCode, String expected,
