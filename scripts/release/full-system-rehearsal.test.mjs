@@ -3,7 +3,9 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
+  assertCompleteLaunchCoverage,
   buildFullSystemStagePlan,
+  buildRequiredLaunchCoverage,
   readFullSystemRehearsalConfig,
   runFullSystemRehearsal,
   validateStageEvidence,
@@ -13,7 +15,7 @@ const MANIFEST_PATH = fileURLToPath(
   new URL("../knowledge/manifests/full-knowledge-rehearsal-1.0.0.json", import.meta.url),
 );
 
-test("整套演练固定覆盖四职责、Provider、沙盘、11 域知识、运行韧性和全量浏览器旅程", () => {
+test("整套演练固定覆盖四职责、Provider、沙盘、11 域知识、运行韧性、全量浏览器旅程和完整范围审计", () => {
   const config = rehearsalConfig();
   const plan = buildFullSystemStagePlan(config);
 
@@ -26,6 +28,7 @@ test("整套演练固定覆盖四职责、Provider、沙盘、11 域知识、运
       "full-knowledge",
       "runtime-resilience",
       "browser-e2e",
+      "launch-coverage",
     ],
   );
   assert.equal(plan[0].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
@@ -39,6 +42,8 @@ test("整套演练固定覆盖四职责、Provider、沙盘、11 域知识、运
   assert.equal(plan[5].env.E2E_EXTERNAL_DEPLOYMENT, "1");
   assert.equal(plan[5].env.E2E_EXPECT_MFA_DISABLED, "1");
   assert.equal(plan[5].env.E2E_IGNORE_HTTPS_ERRORS, undefined);
+  assert.equal(plan[6].env.LAUNCH_COVERAGE_EVIDENCE_PATH.endsWith("/launch-coverage.json"), true);
+  assert.equal(plan[6].env.FULL_SYSTEM_EVIDENCE_ROOT, config.evidenceRoot);
 });
 
 test("整套演练配置拒绝跳过 TLS 校验并把全部证据固定在仓库外", () => {
@@ -97,7 +102,8 @@ test("任一阶段退出失败立即阻断整场且不执行后续阶段", async
   assert.deepEqual(executed, ["account-bootstrap", "model-provider", "sandbox"]);
 });
 
-test("六阶段证据全部满足正式条件时才生成 PASSED 总索引", async () => {
+test("七阶段证据全部满足正式条件时才生成 PASSED 总索引", async () => {
+  const coverageEvidence = completeLaunchCoverageEvidence();
   const evidenceByStage = {
     "account-bootstrap": { status: "PASSED", verifiedAccountCount: 9 },
     "model-provider": {
@@ -147,6 +153,7 @@ test("六阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
       },
     },
     "browser-e2e": { stats: { expected: 82, unexpected: 0, flaky: 0 } },
+    "launch-coverage": coverageEvidence,
   };
   const written = [];
   const result = await runFullSystemRehearsal(rehearsalConfig(), {
@@ -158,12 +165,28 @@ test("六阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
 
   assert.equal(result.status, "PASSED");
   assert.equal(result.source, "1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17");
-  assert.equal(result.stages.length, 6);
+  assert.equal(result.stages.length, 7);
+  assert.deepEqual(result.coverage.scenarios, coverageEvidence.coverage.scenarios);
+  assert.deepEqual(result.coverage.versionedAssets, coverageEvidence.coverage.versionedAssets);
+  assert.equal(result.coverage.standardPatientResources.length, 13);
+  assert.equal(result.coverage.deliveryShapes.length, 5);
+  assert.equal(result.coverage.serviceCombinations.length, 7);
   assert.equal(written.length, 1);
   assert.equal(written[0].value.status, "PASSED");
 });
 
-test("全知识缺域或浏览器存在非预期失败时证据门禁拒绝放行", () => {
+test("完整上线覆盖矩阵缺项、跳过或未知时证据门禁拒绝放行", () => {
+  const complete = completeLaunchCoverageEvidence();
+  assert.doesNotThrow(() => assertCompleteLaunchCoverage(complete));
+
+  const missingScenario = structuredClone(complete);
+  missingScenario.coverage.scenarios = missingScenario.coverage.scenarios.filter((item) => item.code !== "S40");
+  assert.throws(() => assertCompleteLaunchCoverage(missingScenario), /S0–S40/u);
+
+  const skippedAsset = structuredClone(complete);
+  skippedAsset.coverage.versionedAssets[0].status = "SKIPPED";
+  assert.throws(() => assertCompleteLaunchCoverage(skippedAsset), /SKIPPED/u);
+
   assert.throws(
     () => validateStageEvidence("full-knowledge", {
       status: "PASSED",
@@ -179,6 +202,13 @@ test("全知识缺域或浏览器存在非预期失败时证据门禁拒绝放�
     /浏览器全量旅程存在失败/u,
   );
 });
+
+function completeLaunchCoverageEvidence() {
+  return {
+    status: "PASSED",
+    coverage: buildRequiredLaunchCoverage(),
+  };
+}
 
 function rehearsalConfig() {
   return readFullSystemRehearsalConfig(baseEnv(), {

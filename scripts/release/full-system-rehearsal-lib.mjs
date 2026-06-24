@@ -7,6 +7,190 @@ import { writeJsonAtomic } from "./launch-account-bootstrap-lib.mjs";
 import { FULL_KNOWLEDGE_DOMAINS } from "../knowledge/full-knowledge-rehearsal-lib.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
+  productLayers: {
+    label: "六层产品能力",
+    codes: [
+      "FOUNDATION_GOVERNANCE",
+      "DATA_INTEROPERABILITY",
+      "MEDICAL_ASSET",
+      "RELEASE_GOVERNANCE",
+      "CLINICAL_EXECUTION",
+      "DELIVERY_FEEDBACK",
+    ],
+  },
+  standardPatientResources: {
+    label: "13 类标准患者资源",
+    codes: [
+      "Patient",
+      "AllergyIntolerance",
+      "Encounter",
+      "Condition",
+      "NursingAssessment",
+      "Observation",
+      "DiagnosticReport",
+      "Medication",
+      "Procedure",
+      "Document",
+      "CarePlan",
+      "FollowUp",
+      "Claim",
+    ],
+  },
+  versionedAssets: {
+    label: "13 类版本化资产",
+    codes: [
+      "KNOWLEDGE",
+      "TERMINOLOGY",
+      "RULE",
+      "PATHWAY",
+      "EVALUATION",
+      "FOLLOWUP",
+      "FIELD_CATALOG",
+      "SAFETY",
+      "CDSS_RISK",
+      "VALUE_SET",
+      "FORMULA",
+      "ORDER_SET",
+      "ACTION_CARD",
+    ],
+  },
+  knowledgeDomains: {
+    label: "11 个知识内容分类",
+    codes: [...FULL_KNOWLEDGE_DOMAINS],
+  },
+  semanticFamilies: {
+    label: "完整医疗语义族",
+    codes: [
+      "DISEASE_DIAGNOSIS",
+      "SYMPTOM_RISK",
+      "DIAGNOSTIC_REPORT",
+      "MEDICATION_THERAPY",
+      "SURGERY_TECHNOLOGY",
+      "DEVICE_CONSUMABLE",
+      "GUIDELINE_EVIDENCE",
+      "SCALE_FORMULA",
+      "NURSING",
+      "PATHWAY_CONTINUITY",
+      "MEDICAL_RECORD_INSURANCE",
+      "INFECTION_PUBLIC_HEALTH",
+      "COMPREHENSIVE_CARE",
+      "TCM",
+      "QUALITY_REGULATION",
+      "SOURCE_VALIDITY",
+    ],
+  },
+  specialtyDomains: {
+    label: "全医疗专业领域",
+    codes: [
+      "CLINICAL_SPECIALTIES",
+      "NURSING",
+      "MEDICAL_TECHNOLOGY",
+      "PHARMACY",
+      "SURGERY_ANESTHESIA_TRANSFUSION",
+      "EMERGENCY_CRITICAL_CARE",
+      "SPECIAL_POPULATIONS",
+      "ONCOLOGY_DIALYSIS_TRANSPLANT",
+      "REHAB_NUTRITION_PAIN_PALLIATIVE",
+      "INFECTION_PUBLIC_HEALTH",
+      "TCM_INTEGRATIVE",
+      "DENTAL_ENT_DERMATOLOGY",
+      "INSURANCE_RECORD_QUALITY",
+      "RWD_RESEARCH",
+      "PRIMARY_REGIONAL_REMOTE",
+    ],
+  },
+  scenarios: {
+    label: "S0–S40 业务场景",
+    codes: Array.from({ length: 41 }, (_, index) => `S${index}`),
+  },
+  deliveryShapes: {
+    label: "五种交付形态",
+    codes: [
+      "MANAGEMENT_CONSOLE",
+      "ENGINE_CORE",
+      "EMBEDDED_COMPONENT",
+      "API_EVENT",
+      "OFFLINE_DELIVERY",
+    ],
+  },
+  serviceCombinations: {
+    label: "七类业务服务组合",
+    codes: [
+      "ONBOARDING_INTEGRATION",
+      "CLINICAL_RUNTIME",
+      "QUALITY_IMPROVEMENT",
+      "COMPLIANCE_OPERATIONS",
+      "THIRD_PARTY_INTERFACE",
+      "SPECIAL_DISEASE_PATHWAY",
+      "PROFESSIONAL_COLLABORATION",
+    ],
+  },
+  thirdPartySystemFamilies: {
+    label: "全部第三方系统族",
+    codes: [
+      "HIS_EMR_CDR",
+      "LIS_MONITORING_CRITICAL",
+      "PACS_RIS_PATHOLOGY_ENDOSCOPY_ECG",
+      "PHARMACY_REVIEW",
+      "NURSING_ANESTHESIA_TRANSFUSION_ICU",
+      "MEDICAL_RECORD_INSURANCE_PAYMENT",
+      "PUBLIC_HEALTH_INFECTION_REGULATORY",
+      "FOLLOWUP_PATIENT_SERVICE",
+      "CA_OIDC_SSO_HR",
+      "REGIONAL_REMOTE",
+      "SPD_UDI_DEVICE",
+      "RESEARCH_ETHICS_DATA",
+      "MODEL_DIFY_AGENT",
+    ],
+  },
+  organizationLevels: {
+    label: "集团组织层级",
+    codes: [
+      "PLATFORM",
+      "GROUP",
+      "HOSPITAL",
+      "CAMPUS_OR_MEMBER",
+      "DEPARTMENT",
+      "WARD",
+      "CARE_TEAM",
+      "SPECIALTY_CENTER",
+      "SHARED_CENTER",
+    ],
+  },
+  specialDiseaseStages: {
+    label: "专病十阶段",
+    codes: [
+      "SCREENING_TRIAGE",
+      "DIAGNOSIS_DIFFERENTIAL",
+      "RISK_STRATIFICATION",
+      "TREATMENT_DECISION",
+      "EXECUTION_CANDIDATE",
+      "MONITORING_WARNING",
+      "DISCHARGE_REFERRAL",
+      "REHAB_EDUCATION_FOLLOWUP",
+      "OUTCOME_EVALUATION",
+      "QUALITY_ITERATION",
+    ],
+  },
+  modelEnablementSurfaces: {
+    label: "全中枢模型赋能矩阵",
+    codes: [
+      "SOURCE_DISCOVERY",
+      "DOCUMENT_EXTRACT",
+      "TERMINOLOGY_MAPPING",
+      "RULE_QUALITY",
+      "PATHWAY_CONTINUITY",
+      "DIAGNOSIS_CDSS",
+      "NURSING_COLLABORATION",
+      "REPORT_INTERPRETATION",
+      "EVALUATION_INSURANCE_RECORD",
+      "FOLLOWUP_EDUCATION",
+      "OPERATIONS_TESTING",
+      "NATURAL_LANGUAGE_ACCESS",
+    ],
+  },
+});
 
 export function readFullSystemRehearsalConfig(env, options = {}) {
   const repoRoot = path.resolve(options.repoRoot ?? REPO_ROOT);
@@ -80,6 +264,7 @@ export function buildFullSystemStagePlan(config) {
   const knowledgeEvidence = path.join(config.evidenceRoot, "full-knowledge.json");
   const resilienceEvidence = path.join(config.evidenceRoot, "runtime-resilience.json");
   const browserRoot = path.join(config.evidenceRoot, "e2e");
+  const launchCoverageEvidence = path.join(config.evidenceRoot, "launch-coverage.json");
   const common = {
     MEDKERNEL_RUNTIME_ROOT: config.runtimeRoot,
   };
@@ -180,6 +365,21 @@ export function buildFullSystemStagePlan(config) {
         E2E_EXPECT_MFA_DISABLED: "1",
       },
     },
+    {
+      id: "launch-coverage",
+      label: "完整产品范围覆盖审计",
+      command: process.execPath,
+      args: ["scripts/release/launch-coverage-audit.mjs"],
+      cwd: config.repoRoot,
+      evidencePath: launchCoverageEvidence,
+      env: {
+        ...common,
+        FULL_SYSTEM_EVIDENCE_ROOT: config.evidenceRoot,
+        LAUNCH_COVERAGE_EVIDENCE_PATH: launchCoverageEvidence,
+        FULL_KNOWLEDGE_MANIFEST_PATH: config.manifestPath,
+        LAUNCH_SOURCE: config.source,
+      },
+    },
   ];
 }
 
@@ -190,6 +390,7 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
   const clock = dependencies.now;
   const startedAt = now(clock);
   const completed = [];
+  let launchCoverage = null;
 
   for (const stage of buildFullSystemStagePlan(config)) {
     const stageStartedAt = now(clock);
@@ -199,6 +400,9 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
     }
     const evidence = readJson(stage.evidencePath, stage);
     const summary = validateStageEvidence(stage.id, evidence);
+    if (stage.id === "launch-coverage") {
+      launchCoverage = evidence.coverage;
+    }
     completed.push({
       id: stage.id,
       label: stage.label,
@@ -219,17 +423,7 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
     finishedAt: now(clock),
     webBaseUrl: config.webBaseUrl,
     apiBaseUrl: config.apiBaseUrl,
-    coverage: {
-      assignableRoles: ["platform-admin", "engine-operator", "clinical-user", "auditor"],
-      sandboxRules: 10,
-      sandboxCases: 40,
-      knowledgeDomains: [...FULL_KNOWLEDGE_DOMAINS],
-      knowledgeVersionSequence: ["V1", "V2", "V1", "V2"],
-      providerResilienceVerified: true,
-      b0CoreVerifiedWithoutModel: true,
-      mfaDefaultEnabled: false,
-      tlsVerificationSkipped: false,
-    },
+    coverage: launchCoverage,
     stages: completed,
   };
   writeJson(config.indexPath, index);
@@ -331,9 +525,69 @@ export function validateStageEvidence(stageId, evidence) {
         throw new Error("浏览器全量旅程存在失败、波动或没有实际执行");
       }
       return { passed: evidence.stats.expected, unexpected: 0, flaky: 0 };
+    case "launch-coverage":
+      assertCompleteLaunchCoverage(evidence);
+      return Object.fromEntries(
+        Object.entries(REQUIRED_LAUNCH_COVERAGE).map(([key, requirement]) => [
+          key,
+          requirement.codes.length,
+        ]),
+      );
     default:
       throw new Error(`未知整套演练阶段 ${stageId}`);
   }
+}
+
+export function buildRequiredLaunchCoverage() {
+  return Object.fromEntries(
+    Object.entries(REQUIRED_LAUNCH_COVERAGE).map(([key, requirement]) => [
+      key,
+      requirement.codes.map((code) => ({
+        code,
+        status: "PASSED",
+        evidenceStage: "launch-coverage",
+      })),
+    ]),
+  );
+}
+
+export function assertCompleteLaunchCoverage(evidence) {
+  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) {
+    throw new Error("完整产品范围覆盖证据不是 JSON 对象");
+  }
+  if (evidence.status !== "PASSED") {
+    throw new Error("完整产品范围覆盖审计未通过");
+  }
+  const coverage = evidence.coverage;
+  if (!coverage || typeof coverage !== "object" || Array.isArray(coverage)) {
+    throw new Error("完整产品范围覆盖矩阵缺失");
+  }
+  for (const [key, requirement] of Object.entries(REQUIRED_LAUNCH_COVERAGE)) {
+    const rows = coverage[key];
+    if (!Array.isArray(rows)) {
+      throw new Error(`${requirement.label} 覆盖矩阵缺失`);
+    }
+    const actual = new Set();
+    for (const row of rows) {
+      if (!row || typeof row !== "object") {
+        throw new Error(`${requirement.label} 覆盖行无效`);
+      }
+      if (row.status === "SKIPPED" || row.status === "UNKNOWN") {
+        throw new Error(`${requirement.label} ${row.code} 不得为 ${row.status}`);
+      }
+      if (row.status !== "PASSED") {
+        throw new Error(`${requirement.label} ${row.code} 未通过覆盖审计`);
+      }
+      actual.add(row.code);
+    }
+    if (
+      actual.size !== requirement.codes.length ||
+      requirement.codes.some((code) => !actual.has(code))
+    ) {
+      throw new Error(`${requirement.label} 覆盖不完整`);
+    }
+  }
+  return true;
 }
 
 function spawnStage(stage) {

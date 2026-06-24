@@ -8,9 +8,8 @@
 - 基线：PR #647 合并提交 `acd511c0`；
 - 分支：`codex/647-launch-simplification`；
 - worktree：`/Users/zhikunzheng/.config/superpowers/worktrees/codex3/647-launch-simplification`；
-- 不读取、比较或继承 #648、#649；
-- 用户已明确冻结远程动作：只保留本地分支、本地验证和本地提交，不推送、不创建 PR、不触碰
-  远程 `main`，直至用户后续明确授权；
+- 不继承 #648、#649 内容；当前分支已按本线产品树覆盖最新 `origin/main`；
+- 用户已授权本阶段推送当前分支并创建临时 PR；仍不得合并远程 `main`；
 - 项目尚未上线，不兼容旧角色、旧迁移、旧包发布链路、旧接口或旧文档；
 - 目标是完整上线，保留真实页面与业务能力，不把用户举例缩成产品边界。
 - 原始 #647 的有效诉求已经统一吸收到 `PRODUCT_SCOPE.md`：五种交付形态、完整组织拓扑、七类
@@ -111,6 +110,11 @@
 - 领域归属契约已补齐 `engine-domaincatalog` 以及资产身份、资产验证记录、资产触发绑定表归属；候选生成、
   候选物化、价值指标、质控看板和全链路 E2E 的测试前置数据已对齐真实租户根组织、机构生效版本外键和
   清单哈希算法，不再靠裸字符串或占位哈希绕过关系库权威。
+- 整套上线演练已新增第七个 `launch-coverage` 覆盖审计阶段：前六阶段证据必须全部通过统一门禁后，
+  才生成 `launch-coverage.json` 并写入总索引覆盖矩阵；矩阵覆盖六层产品能力、13 类患者资源、
+  13 类版本化资产、11 类知识内容、完整医疗语义族、全医疗专业领域、S0–S40、五种交付形态、
+  七类业务组合、第三方系统族、组织层级、专病十阶段和模型赋能矩阵，任何 `SKIPPED`、
+  `UNKNOWN` 或前置阶段失败都阻断整套通过结论。
 
 本阶段新鲜验证证据：
 
@@ -238,6 +242,13 @@
   `mvn -q -Dtest=RuntimeReleaseDiagnosticItemSelectorTest,ReportInterpretationServiceTest,ReportInterpretationControllerSecurityTest,RecommendationEngineControllerSecurityTest test`
   通过；`mvn -q -DskipTests compile` 通过；`npm run lint` 通过；`npm run format:check` 通过；
   `npm run build` 通过。
+- 完整上线覆盖审计红灯/绿灯：
+  `node --test scripts/release/full-system-rehearsal.test.mjs` 先失败于缺少
+  `assertCompleteLaunchCoverage`；补齐覆盖矩阵与第七阶段后通过；
+  `node --test scripts/release/launch-coverage-audit.test.mjs` 先失败于沙盘阶段误判和浏览器失败未阻断；
+  改为复用统一阶段证据门禁后通过；
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`
+  8 个用例通过。
 
 ## 2026-06-23 阶段检查点
 
@@ -298,8 +309,8 @@
    消费证据的术语、字段目录、评价、随访、质量和知识开始；
 2. 复扫生产代码和前端页面，继续消除旧包发布命名、包选择器和接口残留；
 3. 只保留 `runtimeReleaseId`、精确资产版本和内容摘要作为机构生效事实；
-4. 重写全系统演练脚本，使其覆盖六层、13 类资源、13 类资产、11 个知识分类、完整医疗语义、
-   专病十阶段、全专业领域、S0–S40、五种交付形态和七类业务组合；
+4. 继续把全系统演练脚本从“覆盖矩阵门禁”推进到 134 真实执行数据：当前本地脚本已能阻断缺项、
+   跳过和前置失败，但仍需在真实部署中产生全部矩阵证据；
 5. 完成前后端、CLI、MCP、T-GATE、构建和部署资产全量验证；
 6. 在 134 完成备份恢复预演、清库 V1、重部署、八段全系统演练、重启和再次恢复。
 
@@ -331,5 +342,5 @@
 
 ## 完成边界
 
-本地工作只有在完整产品矩阵、全量质量门和 134 真实演练都通过后才可称为上线候选。当前不得
-推送或创建 PR；远程合并不是本阶段任务。
+本地工作只有在完整产品矩阵、全量质量门和 134 真实演练都通过后才可称为上线候选。当前允许为阶段切片
+创建临时 PR 供审查，但不得合并远程 `main`；PR 不代表 134 上线完成。
