@@ -36,7 +36,10 @@ import com.medkernel.engine.versioning.VersionPublishEvidence;
 import com.medkernel.engine.versioning.VersionPublishQualityGate;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.engine.release.ReleaseSourceLayer;
+import com.medkernel.engine.security.EffectivePermissionService;
 import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.security.UserRoleAssignment;
+import com.medkernel.engine.security.UserRoleAssignmentRepository;
 import com.medkernel.engine.knowledge.production.gate.PublicationQualityRecordService;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -70,6 +73,7 @@ class KnowledgeVersionServiceTest {
     private ReleasePort releasePort;
     private PublicationQualityRecordService publicationQualityRecords;
     private AssetScopeResolver assetScopes;
+    private UserRoleAssignmentRepository userRoleAssignments;
     private KnowledgeVersionService service;
 
     @BeforeEach
@@ -90,10 +94,13 @@ class KnowledgeVersionServiceTest {
         releasePort = Mockito.mock(ReleasePort.class);
         publicationQualityRecords = Mockito.mock(PublicationQualityRecordService.class);
         assetScopes = Mockito.mock(AssetScopeResolver.class);
+        userRoleAssignments = Mockito.mock(UserRoleAssignmentRepository.class);
         service = new KnowledgeVersionService(
             identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, sourceVersionRepo, projectionRefreshPort,
             candidateClassificationRepo, reviewAssignmentRepo, invalidationRepo, affectedCaseTaskRepo,
-            versionedAssets, assetVersions, releasePort, publicationQualityRecords, assetScopes);
+            versionedAssets, assetVersions, releasePort, publicationQualityRecords, assetScopes,
+            new EffectivePermissionService(userRoleAssignments));
+        when(userRoleAssignments.findActiveByTenantIdAndUserId(any(), any())).thenReturn(List.of());
         when(assetScopes.resolve(any(), any(OrgScope.class)))
             .thenAnswer(invocation -> {
                 String tenantId = invocation.getArgument(0);
@@ -1259,6 +1266,37 @@ class KnowledgeVersionServiceTest {
     }
 
     @Test
+    void assignedRoleApprovalUsesEffectiveTenantRoleWhenJwtAuthorityIsAbsent() {
+        KnowledgeIdentity identity = identity(1L, 5L);
+        KnowledgeAssetVersion active = version(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
+        KnowledgeAssetVersion candidate = version(
+            22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.LOW);
+        CandidateClassification classification = classification(
+            88L, 1L, 22L, 5L, CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE)).thenReturn(Optional.of(active));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 22L))
+            .thenReturn(List.of(citation(22L)));
+        when(reviewAssignmentRepo.findByTenantIdAndCandidateClassificationIdOrderByCreatedAtAscIdAsc("t-1", 88L))
+            .thenReturn(List.of(assignment(
+                101L, classification, RoleCode.ENGINE_OPERATOR.code(),
+                CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW, null, null)));
+        when(userRoleAssignments.findActiveByTenantIdAndUserId("t-1", "u-99"))
+            .thenReturn(List.of(tenantRoleAssignment("u-99", RoleCode.ENGINE_OPERATOR)));
+        SecurityContextHolder.getContext().setAuthentication(
+            new UsernamePasswordAuthenticationToken("u-99", "N/A", List.of()));
+
+        KnowledgeCandidateResponse response = service.reviewCandidate(88L, candidateReviewRequest("t-1"));
+
+        assertThat(response.reasonCode()).isEqualTo("APPROVED");
+        verify(projectionRefreshPort).refreshPublishedVersion("t-1", 1L, 22L, "u-99", "trace");
+    }
+
+    @Test
     void highRiskReturnTerminatesCandidateAndClosesOtherPendingSeatWithoutForgingSignature() {
         KnowledgeAssetVersion candidate = version(
             22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.HIGH);
@@ -1698,6 +1736,21 @@ class KnowledgeVersionServiceTest {
                 "u-99",
                 "N/A",
                 List.of(new SimpleGrantedAuthority(role.authority()))));
+    }
+
+    private UserRoleAssignment tenantRoleAssignment(String userId, RoleCode role) {
+        return new UserRoleAssignment(
+            null,
+            "t-1",
+            userId,
+            role.code(),
+            "TENANT",
+            "t-1",
+            "Y",
+            null,
+            "test",
+            null,
+            "test");
     }
 
     private SourceDocument sourceDocument(Long id, SourceAuthorityLevel authorityLevel) {

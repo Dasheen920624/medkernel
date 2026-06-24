@@ -9,6 +9,8 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.engine.security.AuthenticatedRoleGuard;
+import com.medkernel.engine.security.EffectivePermissionService;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.knowledge.production.gate.PublicationQualityRecordService;
 import com.medkernel.engine.versioning.AssetVersion;
@@ -76,6 +79,7 @@ public class KnowledgeVersionService {
     private final ReleasePort releasePort;
     private final PublicationQualityRecordService publicationQualityRecords;
     private final AssetScopeResolver assetScopes;
+    private final EffectivePermissionService effectivePermissions;
 
     public KnowledgeVersionService(KnowledgeIdentityRepository identityRepository,
                                    KnowledgeAssetVersionRepository versionRepository,
@@ -92,7 +96,8 @@ public class KnowledgeVersionService {
                                    AssetVersionRepository assetVersions,
                                    ReleasePort releasePort,
                                    PublicationQualityRecordService publicationQualityRecords,
-                                   AssetScopeResolver assetScopes) {
+                                   AssetScopeResolver assetScopes,
+                                   EffectivePermissionService effectivePermissions) {
         this.identityRepository = identityRepository;
         this.versionRepository = versionRepository;
         this.supersessionRepository = supersessionRepository;
@@ -109,6 +114,7 @@ public class KnowledgeVersionService {
         this.releasePort = releasePort;
         this.publicationQualityRecords = publicationQualityRecords;
         this.assetScopes = assetScopes;
+        this.effectivePermissions = effectivePermissions;
     }
 
     public PageResponse<KnowledgeAssetVersion> listByIdentity(Long identityId, PageRequest request) {
@@ -968,8 +974,18 @@ public class KnowledgeVersionService {
 
     private boolean matchesAssignment(ReviewAssignment assignment, String actor) {
         return RoleCode.fromCode(assignment.assignedTo())
-            .map(AuthenticatedRoleGuard::has)
+            .map(role -> AuthenticatedRoleGuard.has(role) || hasEffectiveRole(role, actor))
             .orElseGet(() -> actor.equals(assignment.assignedTo()));
+    }
+
+    private boolean hasEffectiveRole(RoleCode role, String actor) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return false;
+        }
+        return effectivePermissions.resolve(authentication, RequestContext.currentOrgScope(), actor)
+            .roleCodes()
+            .contains(role.code());
     }
 
     private void closeRemainingAssignments(
