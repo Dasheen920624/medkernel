@@ -68,6 +68,23 @@ test("持续更新页面必须明确声明为核查快照，不能把核查日�
   );
 });
 
+test("路径知识演练来源必须使用可从 134 核验的官方路径工具页", () => {
+  const pathway = manifest.entries.find(
+    (entry) => entry.domain === "PATHWAY_KNOWLEDGE",
+  );
+
+  assert.equal(pathway.source.publisher, "World Health Organization");
+  assert.equal(
+    pathway.source.url,
+    "https://www.who.int/tools/covid-19-clinical-care-pathway",
+  );
+  assert.ok(
+    pathway.source.verificationTerms.includes("COVID-19 Clinical Care Pathway"),
+  );
+  assert.ok(pathway.source.verificationTerms.includes("clinical care pathway"));
+  assert.doesNotMatch(pathway.source.url, /nice\.org\.uk/u);
+});
+
 test("正式演练会真实抓取官方来源并验证允许主机、锚点词和内容摘要", async () => {
   const entry = manifest.entries[0];
   const verified = await verifyOfficialSource(entry, {
