@@ -145,16 +145,41 @@ export function buildModelPrompt(entry, template, revisionNote = "V1 初始候�
     label: section.label,
     required: Boolean(section.required),
   }));
+  const sourceRef = `${entry.source.sourceCode}:${entry.source.versionNo}:${entry.source.anchorPath}`;
+  const templateJson = {
+    domain: entry.domain,
+    subject: entry.subject,
+    clinicalActionable: false,
+    sourceReferences: [
+      {
+        sourceRef,
+        authorityLevel: entry.source.authorityLevel,
+        anchorLabel: entry.source.anchorLabel,
+      },
+    ],
+    limitations: [
+      "仅用于验证 MedKernel 知识生产流程，不构成诊断、处方、剂量、阈值或自动医嘱。",
+      "正式临床内容必须绑定具体原始文件、机构版本、适用范围和人工审核结论。",
+    ],
+    sections: Object.fromEntries(
+      sections.map((section) => [
+        section.key,
+        `${section.label}：只基于受控来源锚点说明来源边界；不可从当前来源推断的内容必须明确写明不可推断。`,
+      ]),
+    ),
+  };
   return [
-    "你是 MedKernel 正式医学知识生产器。只返回一个合法 JSON 对象，不要 Markdown、代码围栏或额外说明。",
+    "你是 MedKernel 正式医学知识生产器。只返回一个合法 JSON 对象，不要 Markdown、代码围栏或额外说明；第一个字符必须是 {，最后一个字符必须是 }。",
     `知识域：${entry.domain}；主题：${entry.subject}；版本演练：${revisionNote}。`,
-    `唯一受控来源：${entry.source.sourceCode}:${entry.source.versionNo}:${entry.source.anchorPath}。`,
+    `唯一受控来源：${sourceRef}。`,
     `来源锚点原文：${entry.source.textExcerpt}`,
     "目标仅是生成低风险的来源说明、结构边界和使用限制；不得补造诊断、剂量、阈值、治疗建议、患者事实或自动医嘱。",
     "每个章节都必须明确：正式临床内容仍须绑定具体原始文件、版本和适用范围；证据不足时写明不可推断。",
     `返回对象字段固定为：domain、subject、clinicalActionable(false)、sourceReferences(数组)、limitations(数组)、sections(对象)。sections 键必须覆盖：${sections
       .map((section) => `${section.key}(${section.label})`)
       .join("、")}。`,
+    "必须严格按以下 JSON 模板返回；顶层字段不得增删，domain、subject、clinicalActionable、sourceReferences.sourceRef 必须保持模板值：",
+    JSON.stringify(templateJson, null, 2),
   ].join("\n");
 }
 

@@ -143,6 +143,11 @@ test("模型提示只允许基于来源形成演练候选并要求返回模板 J
 
   assert.match(prompt, /只返回一个合法 JSON 对象/u);
   assert.match(prompt, /不得补造诊断、剂量、阈值、治疗建议/u);
+  assert.match(prompt, /第一个字符必须是 \{/u);
+  assert.match(prompt, /"domain": "GUIDELINE"/u);
+  assert.match(prompt, /"clinicalActionable": false/u);
+  assert.match(prompt, /"sourceReferences"/u);
+  assert.match(prompt, /"limitations"/u);
   assert.match(prompt, /recommendation/u);
   assert.match(prompt, /references/u);
   assert.match(prompt, new RegExp(manifest.entries[0].source.sourceCode, "u"));

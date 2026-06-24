@@ -273,7 +273,7 @@ public class ModelGatewayService {
 
         // 2. 校验策略禁用阻断
         if ("DISABLED".equalsIgnoreCase(strategy)) {
-            publishFailureAudit(ErrorCode.ENG_LLM_001, "提交任务失败，能力已被禁用 capabilityCode=" + capabilityCode);
+            publishFailureAudit(taskId, ErrorCode.ENG_LLM_001, "提交任务失败，能力已被禁用 capabilityCode=" + capabilityCode);
             throw new ApiException(ErrorCode.ENG_LLM_001, "模型能力 " + capabilityCode + " 已经被组织禁用");
         }
         guardRequiredRoute(req.requiredRouteStrategy(), strategy);
@@ -309,7 +309,7 @@ public class ModelGatewayService {
                 } else {
                     log.warn("结构化输出规则校验失败 capabilityCode={}：{}",
                         capabilityCode, schemaError.getMessage());
-                    publishFailureAudit(schemaError.errorCode(),
+                    publishFailureAudit(taskId, schemaError.errorCode(),
                         "结构化输出规则校验失败 capabilityCode=" + capabilityCode + "：" + schemaError.getMessage());
                     throw schemaError;
                 }
@@ -592,9 +592,9 @@ public class ModelGatewayService {
         return scope.tenantId();
     }
 
-    private void publishFailureAudit(ErrorCode code, String summary) {
+    private void publishFailureAudit(String taskId, ErrorCode code, String summary) {
         isolatedAudit.publishInNewTx(AuditEvent.failure(
-            AuditAction.EXECUTE, "model_capability_task", null, code.code(), summary));
+            AuditAction.EXECUTE, "model_capability_task", taskId, code.code(), summary));
     }
 
     private ModelCapabilityStatusResponse statusOf(
@@ -995,7 +995,7 @@ public class ModelGatewayService {
                 prompt = readPromptField(prep.payload());
             } catch (ApiException egressBlocked) {
                 log.warn("模型外调安全闸阻断 capabilityCode={}：{}", capabilityCode, egressBlocked.getMessage());
-                publishFailureAudit(egressBlocked.errorCode(),
+                publishFailureAudit(taskId, egressBlocked.errorCode(),
                     "模型外调安全闸阻断，能力=" + capabilityCode + "：" + egressBlocked.getMessage());
                 return ProviderAttempt.failure(ModelFallbackTrigger.EGRESS_BLOCKED, egressBlocked.getMessage());
             }

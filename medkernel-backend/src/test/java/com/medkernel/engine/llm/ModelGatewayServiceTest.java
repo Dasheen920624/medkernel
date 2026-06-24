@@ -423,7 +423,10 @@ class ModelGatewayServiceTest {
         ApiException ex = assertThrows(ApiException.class, () -> service.submitTask(req));
         assertEquals("ENG-LLM-002", ex.errorCode().code());
         // 失败路径也发 FAILED 审计；且不得落库成功任务
-        verify(isolatedAudit).publishInNewTx(any(AuditEvent.class));
+        ArgumentCaptor<AuditEvent> auditCaptor = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(isolatedAudit).publishInNewTx(auditCaptor.capture());
+        assertEquals("model_capability_task", auditCaptor.getValue().resourceType());
+        assertTrue(auditCaptor.getValue().resourceId().startsWith("task-"));
         verify(taskRepo, never()).save(any(ModelCapabilityTask.class));
     }
 
