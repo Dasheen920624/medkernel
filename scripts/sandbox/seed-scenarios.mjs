@@ -77,6 +77,18 @@ export function ruleEvaluationPayload(ctx, rule, snapshot, definition) {
   };
 }
 
+export function evaluationTestCase(rule) {
+  const positive = rule.clinicalContent.testCases.find(
+    (item) => item.caseType === "POSITIVE",
+  );
+  if (!positive) throw new Error(`沙盘规则 ${rule.ruleCode} 缺少 POSITIVE 样例`);
+  return {
+    ...positive,
+    patientId: `${positive.patientId}-EVAL`,
+    encounterId: `${positive.encounterId}-EVAL`,
+  };
+}
+
 export const RULE_GOVERNANCE_STAGES = Object.freeze([
   "DRAFT",
   "REVIEWED",
@@ -618,21 +630,6 @@ async function createAndTestRule(
         `${rule.ruleCode} 四类规则测试未全绿: ${JSON.stringify(testRun.results)}`,
       );
     }
-    const positive = snapshots.find((item) => item.caseType === "POSITIVE");
-    const evaluation = ensureOk(
-      await apiPost(
-        context,
-        "/engine/rule/rules/evaluate",
-        ruleEvaluationPayload(ctx, rule, positive, definition),
-        `rule-evaluate-${rule.ruleCode}`,
-      ),
-      `规则真实快照正式评估 ${rule.ruleCode}`,
-    );
-    const evaluatedRule = (evaluation.items ?? []).find(
-      (item) => item.ruleId === definition.ruleId,
-    );
-    if (evaluatedRule?.hit !== true)
-      throw new Error(`${rule.ruleCode} 阳性快照正式评估未命中`);
     detail = await ruleDetail(
       context,
       definition.ruleId,
@@ -647,6 +644,81 @@ async function createAndTestRule(
   } finally {
     await context.close();
   }
+}
+
+async function createEvaluationSnapshot(context, ctx, rule, runtimeReleaseId) {
+  const testCase = evaluationTestCase(rule);
+  const created = ensureOk(
+    await apiPost(
+      context,
+      "/engine/context/snapshots",
+      snapshotPayload(testCase, ctx),
+      `evaluation-snapshot-create-${rule.ruleCode}`,
+    ),
+    `创建 ${rule.ruleCode} 正式评估快照`,
+    [201],
+  );
+  if (
+    !created?.snapshotId ||
+    created.status !== "ACTIVE" ||
+    created.runtimeReleaseId !== runtimeReleaseId
+  ) {
+    throw new Error(
+      `${rule.ruleCode} 正式评估快照未绑定最终机构生效版本: ` +
+        JSON.stringify({
+          snapshotId: created?.snapshotId,
+          status: created?.status,
+          runtimeReleaseId: created?.runtimeReleaseId,
+          expectedRuntimeReleaseId: runtimeReleaseId,
+        }),
+    );
+  }
+  return {
+    ...testCase,
+    snapshotId: created.snapshotId,
+    reused: false,
+  };
+}
+
+async function verifyPublishedRuleEvaluations(context, ctx, rules, results, runtimeReleaseId) {
+  const byCode = new Map(results.map((item) => [item.ruleCode, item]));
+  const evaluations = [];
+  for (const rule of rules) {
+    const definition = byCode.get(rule.ruleCode);
+    if (!definition?.ruleId) {
+      throw new Error(`${rule.ruleCode} 缺少已发布规则结果，无法正式评估`);
+    }
+    const snapshot = await createEvaluationSnapshot(
+      context,
+      ctx,
+      rule,
+      runtimeReleaseId,
+    );
+    const evaluation = ensureOk(
+      await apiPost(
+        context,
+        "/engine/rule/rules/evaluate",
+        ruleEvaluationPayload(ctx, rule, snapshot, definition),
+        `rule-evaluate-${rule.ruleCode}`,
+      ),
+      `规则真实快照正式评估 ${rule.ruleCode}`,
+    );
+    const evaluatedRule = (evaluation.items ?? []).find(
+      (item) => item.ruleId === definition.ruleId,
+    );
+    if (evaluatedRule?.hit !== true) {
+      throw new Error(`${rule.ruleCode} 阳性快照正式评估未命中`);
+    }
+    evaluations.push({
+      ruleCode: rule.ruleCode,
+      ruleId: definition.ruleId,
+      snapshotId: snapshot.snapshotId,
+      evaluationId: evaluation.evaluationId,
+      hit: true,
+      severity: evaluatedRule.severity ?? null,
+    });
+  }
+  return evaluations;
 }
 
 async function withRole(browser, credentials, role, run) {
@@ -967,6 +1039,7 @@ export async function runSeed() {
     runnableRuleCodes: selected.runnable.map((item) => item.ruleCode),
     blockedRuleCodes: selected.blocked.map((item) => item.ruleCode),
     results: [],
+    evaluations: [],
     initialRuntimeRelease: null,
     runtimeRelease: null,
     runtimeBinding: null,
@@ -1095,6 +1168,13 @@ export async function runSeed() {
         );
         summary.runtimeRelease = runtimeRelease;
         summary.runtimeBinding = runtimeRelease.status;
+        summary.evaluations = await verifyPublishedRuleEvaluations(
+          adminContext,
+          ctx,
+          selected.runnable,
+          summary.results,
+          runtimeRelease.release.releaseId,
+        );
       } finally {
         await adminContext.close();
       }

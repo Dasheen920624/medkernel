@@ -6,6 +6,7 @@ import { loadScenarioRules } from "./scenario-rules.mjs";
 import {
   buildCanonicalResources,
   deriveSandboxRuntimeDigest,
+  evaluationTestCase,
   resolveChromiumLaunchOptions,
   ruleEvaluationPayload,
   ruleTriggerBindings,
@@ -107,6 +108,17 @@ test("沙盘创建快照前先激活含平台基线资产的当前医院机构�
   assert.match(runSeed, /runtimeBinding/u);
 });
 
+test("沙盘正式评估在最终机构生效版本激活后使用新正例快照", async () => {
+  const source = await readFile(new URL("./seed-scenarios.mjs", import.meta.url), "utf8");
+  const runSeed = source.slice(source.indexOf("export async function runSeed"));
+  const finalRelease = runSeed.indexOf("activate-sandbox-final-runtime-release");
+  const finalEvaluation = runSeed.indexOf("verifyPublishedRuleEvaluations(");
+
+  assert.ok(finalRelease >= 0, "缺少最终机构生效版本激活");
+  assert.ok(finalEvaluation >= 0, "缺少最终正式评估校验");
+  assert.ok(finalRelease < finalEvaluation, "正式评估必须晚于最终机构生效版本");
+});
+
 test("沙盘规则创建请求显式提交外层执行触发绑定", () => {
   const rule = manifest.scenarios[0];
 
@@ -132,6 +144,19 @@ test("沙盘规则正例校验走正式评估接口并使用已生效快照", ()
     eventId: `sandbox-${rule.ruleCode}-POSITIVE`,
     ruleIds: [definition.ruleId],
   });
+});
+
+test("沙盘正式评估正例快照不复用铺底四测患者身份", () => {
+  const rule = manifest.scenarios[0];
+  const positive = rule.clinicalContent.testCases.find(
+    (item) => item.caseType === "POSITIVE",
+  );
+  const evaluation = evaluationTestCase(rule);
+
+  assert.equal(evaluation.caseType, "POSITIVE");
+  assert.equal(evaluation.expectedHit, true);
+  assert.equal(evaluation.patientId, `${positive.patientId}-EVAL`);
+  assert.equal(evaluation.encounterId, `${positive.encounterId}-EVAL`);
 });
 
 test("沙盘演练脚本不再创建或发布旧容器", async () => {
