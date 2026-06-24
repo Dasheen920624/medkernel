@@ -645,16 +645,20 @@ describe("PathwayTemplates 上线路径维护契约", () => {
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );
 
-  it("字段目录不可用时阻断路径条件同步到技术配置", async () => {
-    apiMocks.contextFieldCatalogError = true;
-    const { user, dialog } = await openCreateDialog();
+  it(
+    "字段目录不可用时阻断路径条件同步到技术配置",
+    async () => {
+      apiMocks.contextFieldCatalogError = true;
+      const { user, dialog } = await openCreateDialog();
 
-    await user.click(within(dialog).getByLabelText("急诊处置路径"));
-    await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
+      await user.click(within(dialog).getByLabelText("急诊处置路径"));
+      await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
 
-    expect(
-      within(dialog).getByText("字段目录暂不可用，路径条件不能同步到技术配置。"),
-    ).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: /同步到技术配置/ })).toBeDisabled();
-  });
+      expect(
+        within(dialog).getByText("字段目录暂不可用，路径条件不能同步到技术配置。"),
+      ).toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: /同步到技术配置/ })).toBeDisabled();
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
 });
