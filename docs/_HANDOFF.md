@@ -61,6 +61,8 @@
 - 前端 `npm run verify` 通过：lint、stylelint、真实性规则、format、typecheck 和 Vitest 全部完成，
   Vitest 汇总 107 个测试文件、769 个测试通过。
 - 前端 `npm run build` 通过；后端 `mvn -q -DskipTests package` 通过。
+- 最新候选提交 `24c8a6d99db4dc9c3c01a59428bd8a98787eb6f4` 已重新执行
+  `mvn -q -DskipTests package` 与 `npm run build`；业务表数从统一模式源读取为 207，Flyway 目标版本为 1。
 - 全量静态护栏通过：
   `authenticity-guard --mode=all` 扫描 2009 个文件，
   `config-boundary-guard --mode=all` 扫描 1902 个文件，
@@ -92,6 +94,11 @@
 - 134 已安装当前 `deploy/onprem/medkernel-fresh-deploy.sh` 到
   `/zoesoft/medkernel/bin/medkernel-fresh-deploy.sh`，远端 SHA-256 为
   `8dfd8e872ef4ab0856289567bb6ee2056c7daeb5a564891e4df2cc3e4e4dccac`，与本地候选脚本一致。
+- 最新候选已暂存到 134：
+  `/zoesoft/medkernel/incoming/candidate-24c8a6d99db4dc9c3c01a59428bd8a98787eb6f4/`；
+  `medkernel.jar`、`dist.tar.gz`、`medkernel.service`、`medkernel-deploy.sh`、
+  `medkernel-fresh-deploy.sh` 均通过远端 `SHA256SUMS` 校验；前端包含 271 个 dist 条目并包含
+  `dist/index.html`。
 - 生产代码继续清理旧 package/兼容残留：移除未使用的 `.packageList/.packageCard` 样式；`BatchResolvedAsset`
   去掉恒为 `false` 的 `added` 标志；`KNOWGEN-32` 标题改为“知识金标回归与发行验收”。
 - `OrgScope` 移除不含 `wardId` 槽位的旧 7 参数构造器；现有调用已显式补齐 8 参数组织范围，
@@ -105,6 +112,10 @@
 - 目标主机：`193.112.107.134`，hostname 为 `VM-0-13-opencloudos`。
 - 当前远端 `medkernel`、`nginx`、`postgresql` 均 active；内部 readiness 返回 `{"status":"UP"}`。
 - 当前远端运行旧部署提交 `2c502f1e547a185dc5ab95a76d7a3329c4d1f724`，不是本轮候选。
+- 2026-06-24 已用候选 `24c8a6d99db4dc9c3c01a59428bd8a98787eb6f4` 执行正式清库命令参数；
+  脚本输出 `[OK] 生产运行环境预检通过` 后在 `[X] TLS 证书链验证失败` 处停止。该失败发生在备份、
+  停服和清库之前；复核远端 `medkernel`、`nginx`、`postgresql` 仍 active，manifest 仍指向旧部署提交，
+  且未生成 `fresh-preclear-24c8a6d99db4*` 备份目录。
 - `/zoesoft/medkernel/bin` 已安装当前 `medkernel-fresh-deploy.sh`，权限为 `0750 root:root`。
 - `/zoesoft/medkernel/conf/medkernel.env` 权限为 `600 medkernel:medkernel`；2026-06-24 已配置
   `MEDKERNEL_BOOTSTRAP_INIT_TOKEN` 并再次执行远端正式目录脚本
@@ -117,7 +128,8 @@
 
 ## 下一步
 
-1. 待 134 配置可信 SAN 证书后，重新执行严格 TLS 验证；若生产环境变更过密钥或配置，先复跑环境预检。
+1. 待 134 配置可信 SAN 证书后，使用已暂存候选重新执行正式清库命令；若生产环境变更过密钥或配置，
+   先复跑环境预检并重新校验候选 `SHA256SUMS`。
 2. 严格 TLS 通过后，再按
    [DEPLOYMENT_AND_REHEARSAL](DEPLOYMENT_AND_REHEARSAL.md) 执行清库 V1、首次接管、八段全系统演练、
    全知识演练、重启和备份恢复复核。
