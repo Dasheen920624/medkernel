@@ -138,6 +138,7 @@ run_failure_case() {
   grep -q 'createdb --owner=medkernel medkernel' "$TMP_ROOT/database-operations.log"
   grep -q 'pg_restore --exit-on-error --no-owner --no-acl --dbname medkernel' \
     "$TMP_ROOT/database-operations.log"
+  grep -q 'psql -X -v ON_ERROR_STOP=1 -d medkernel' "$TMP_ROOT/database-operations.log"
   grep -q 'restart medkernel' "$TMP_ROOT/systemd-operations.log"
   test "$(grep -c 'actuator/health/readiness' "$TMP_ROOT/readiness-operations.log")" -ge 2
   grep -q "recovery_reason=$reason" "$BACKUP_DIR/evidence/recovery.properties"

@@ -190,6 +190,38 @@ database_query() {
   run_as_postgres psql -X -v ON_ERROR_STOP=1 -Atq -d "$database_name" -c "$sql"
 }
 
+reset_public_object_owner() {
+  local database_name="$1"
+  run_as_postgres psql -X -v ON_ERROR_STOP=1 -d "$database_name" <<SQL
+DO \$\$
+DECLARE
+  r record;
+BEGIN
+  EXECUTE format('ALTER SCHEMA public OWNER TO %I', '$DATABASE_OWNER');
+  FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
+    EXECUTE format('ALTER TABLE public.%I OWNER TO %I', r.tablename, '$DATABASE_OWNER');
+  END LOOP;
+  FOR r IN SELECT viewname FROM pg_views WHERE schemaname = 'public' LOOP
+    EXECUTE format('ALTER VIEW public.%I OWNER TO %I', r.viewname, '$DATABASE_OWNER');
+  END LOOP;
+  FOR r IN SELECT matviewname FROM pg_matviews WHERE schemaname = 'public' LOOP
+    EXECUTE format('ALTER MATERIALIZED VIEW public.%I OWNER TO %I', r.matviewname, '$DATABASE_OWNER');
+  END LOOP;
+  FOR r IN SELECT sequencename FROM pg_sequences WHERE schemaname = 'public' LOOP
+    EXECUTE format('ALTER SEQUENCE public.%I OWNER TO %I', r.sequencename, '$DATABASE_OWNER');
+  END LOOP;
+  FOR r IN
+    SELECT p.oid::regprocedure AS signature
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+  LOOP
+    EXECUTE format('ALTER ROUTINE %s OWNER TO %I', r.signature, '$DATABASE_OWNER');
+  END LOOP;
+END \$\$;
+SQL
+}
+
 read_env_value() {
   local key="$1"
   awk -v key="$key" '
@@ -397,6 +429,7 @@ verify_backup_restore() {
   run_as_postgres createdb --owner="$DATABASE_OWNER" "$RESTORE_DATABASE"
   run_as_postgres pg_restore --exit-on-error --no-owner --no-acl \
     --dbname "$RESTORE_DATABASE" < "$BACKUP_DIR/database/medkernel.dump"
+  reset_public_object_owner "$RESTORE_DATABASE"
 
   restored_tables="$(
     database_query "$RESTORE_DATABASE" \
@@ -404,7 +437,7 @@ verify_backup_restore() {
   )"
   restored_flyway="$(
     database_query "$RESTORE_DATABASE" \
-      "select version from flyway_schema_history where success order by installed_rank desc limit 1;"
+      "SET ROLE \"$DATABASE_OWNER\"; select version from flyway_schema_history where success order by installed_rank desc limit 1;"
   )"
   [ "$restored_tables" -gt 0 ] || die "隔离恢复后未发现业务表"
   [ -n "$restored_flyway" ] || die "隔离恢复后未发现 Flyway 版本"
@@ -602,6 +635,7 @@ restore_previous_database() {
   run_as_postgres createdb --owner="$DATABASE_OWNER" "$DATABASE" || return 1
   run_as_postgres pg_restore --exit-on-error --no-owner --no-acl \
     --dbname "$DATABASE" < "$BACKUP_DIR/database/medkernel.dump" || return 1
+  reset_public_object_owner "$DATABASE" || return 1
   ok "发布前数据库已恢复"
 }
 
