@@ -34,7 +34,7 @@
 
 - 44 条路由、54 个页面组件和 34 个菜单保留；
 - 三产品空间和四职责已建立，旧角色兼容、机构权限覆盖和主要人员分离门阀已移除；
-- MFA 默认关闭，开启后使用真实 TOTP 和受限绑定会话；
+- 多因素认证默认关闭，开启后使用真实 TOTP 和受限绑定会话；
 - 双签、委员会、独立专家签字及模型跨角色等待门槛已移除；
 - 条件片段、子路径、路径继承和循环引用已删除；路径只单向调用规则；
 - 规则与路径已支持稳定身份、服务端自动 V1/V2/V3、发布版本不可变和独立下一版草稿；
@@ -42,7 +42,7 @@
 - 大模型知识、规则和路径候选已统一进入正式草稿入口并执行类型校验；
 - 诊断支持只消费机构生效版本锁定的诊断知识，响应包含鉴别诊断依据；
 - 数据库已由一份模式源生成 PostgreSQL、Kingbase、Oracle、达梦和 H2 的单一 V1；
-- 当前模式模型为 208 张表；H2、PostgreSQL 和 Oracle 迁移验证曾通过，最终结构变更后必须重跑；
+- 当前模式模型为 207 张表；H2、PostgreSQL 和 Oracle 迁移验证曾通过，最终结构变更后必须重跑；
 - 前端与后端多组定向测试曾通过，具体结果只作为阶段证据，不能代替最终全量门禁。
 
 ## 2026-06-24 阶段检查点
@@ -142,6 +142,14 @@
 - 构建与迁移轻量核查：
   `npm run build` 通过；`mvn -q -DskipTests compile` 通过；
   `node scripts/db/generate-migrations.mjs --check` 通过；`git diff --check` 通过。
+- 部署与演练脚本本地契约核查：
+  `bash deploy/onprem/tests/validate-medkernel-fresh-deploy.sh` 通过；
+  `bash deploy/onprem/tests/validate-medkernel-post-rehearsal-verify.sh` 通过；
+  `bash deploy/onprem/tests/validate-medkernel-failure-recovery.sh` 通过；
+  `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/runtime-resilience-rehearsal.test.mjs scripts/release/launch-account-bootstrap.test.mjs scripts/release/model-provider-launch.test.mjs scripts/knowledge/full-knowledge-rehearsal.test.mjs scripts/sandbox/seed-scenarios.test.mjs`
+  36 个用例通过；
+- 清库部署文档已同步 `--external-base-url`，单机手册的业务表数改为从候选 schema 读取；
+  当前候选 schema 为 207 张业务表，`node scripts/db/generate-migrations.mjs --check` 通过。
 
 ## 2026-06-23 阶段检查点
 
@@ -222,9 +230,15 @@
 
 - 当前仍运行旧部署提交 `2c502f1e547a185dc5ab95a76d7a3329c4d1f724`；
 - 当前数据库属于清洁 V1 基线以前的历史链，必须先备份并在隔离库恢复成功后再清库；
+- 2026-06-24 只读探测：`medkernel`、`nginx`、`postgresql` 均 active，内部 readiness 为
+  `{"status":"UP"}`；数据库最新 Flyway 为 `159`，public base tables 为 `215`；
+- 2026-06-24 使用当前 `medkernel-fresh-deploy.sh --validate-environment-only` 远程预检失败于
+  `MEDKERNEL_BOOTSTRAP_INIT_TOKEN` 未配置；未读取或输出任何密钥值；
 - 模型服务已登记但停用，尚无正式模型知识激活；
 - 文献根目录为 `file:///medkernel-data/platform-knowledge/t-1/literature-materials/`；
-- 134 必须先配置可信且具备 SAN 的证书；严格 TLS 和浏览器验收通过前不得宣称上线通过。
+- 134 当前 HTTPS 证书仍为自签 `CN=193.112.107.134`，无 Subject Alternative Name；
+  `curl` 严格校验失败于 self-signed certificate，`openssl s_client` 返回 verify code 18。
+  必须先配置可信且具备 SAN 的证书；严格 TLS 和浏览器验收通过前不得宣称上线通过。
 
 ## 完成边界
 

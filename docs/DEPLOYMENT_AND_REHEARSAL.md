@@ -71,6 +71,7 @@ sudo bash deploy/onprem/medkernel-fresh-deploy.sh \
   --deploy-script /path/to/medkernel-deploy.sh \
   --source <40位本地提交哈希> \
   --expected-host <134目标机hostname> \
+  --external-base-url https://<正式域名>/medkernel \
   --expected-flyway-version <候选迁移版本> \
   --expected-business-tables <候选模式清单表数> \
   --confirm-fresh \

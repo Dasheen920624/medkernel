@@ -222,6 +222,8 @@ sudo bash deploy/onprem/medkernel-fresh-deploy.sh --validate-environment-only
 预检通过后再执行全新发布：
 
 ```bash
+BUSINESS_TABLES="$(node -e 'const schema=require("./medkernel-backend/src/main/resources/db/schema/medkernel.schema.json"); console.log(schema.tables.length)')"
+
 sudo bash deploy/onprem/medkernel-fresh-deploy.sh \
   --jar /path/to/medkernel.jar \
   --frontend /path/to/dist.tar.gz \
@@ -229,8 +231,9 @@ sudo bash deploy/onprem/medkernel-fresh-deploy.sh \
   --deploy-script /path/to/medkernel-deploy.sh \
   --source <40位提交哈希> \
   --expected-host <目标机hostname> \
+  --external-base-url https://<正式域名>/medkernel \
   --expected-flyway-version 1 \
-  --expected-business-tables 208 \
+  --expected-business-tables "$BUSINESS_TABLES" \
   --confirm-fresh \
   --confirm-database medkernel
 ```
@@ -249,12 +252,14 @@ sudo bash deploy/onprem/medkernel-fresh-deploy.sh \
 Provider、沙盘、11 域全知识、Provider 降级恢复和全量浏览器旅程。演练通过后必须执行：
 
 ```bash
+BUSINESS_TABLES="$(node -e 'const schema=require("./medkernel-backend/src/main/resources/db/schema/medkernel.schema.json"); console.log(schema.tables.length)')"
+
 sudo bash deploy/onprem/medkernel-post-rehearsal-verify.sh \
   --expected-host <目标机hostname> \
   --expected-source <40位提交哈希> \
   --external-base-url https://<正式域名>/medkernel \
   --provider-code ollama-launch \
-  --expected-business-tables 208 \
+  --expected-business-tables "$BUSINESS_TABLES" \
   --expected-flyway-version 1 \
   --confirm-restart \
   --confirm-database medkernel

@@ -141,7 +141,7 @@ if MEDKERNEL_APP_HOME="$TMP_ROOT/app" \
   bash "$SCRIPT" \
     --source 1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17 \
     --expected-flyway-version 1 \
-    --expected-business-tables 208 \
+    --expected-business-tables 207 \
     --confirm-fresh \
     --confirm-database medkernel \
     >"$TMP_ROOT/missing-host.log" 2>&1; then
@@ -159,7 +159,7 @@ if MEDKERNEL_APP_HOME="$TMP_ROOT/app" \
     --deploy-script "$TMP_ROOT/missing-deploy.sh" \
     --source 1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17 \
     --expected-flyway-version 1 \
-    --expected-business-tables 208 \
+    --expected-business-tables 207 \
     --confirm-fresh \
     --confirm-database medkernel \
     >"$TMP_ROOT/host-mismatch.log" 2>&1; then

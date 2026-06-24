@@ -46,7 +46,7 @@ MedKernel 134 全功能与全知识演练后验收
     --expected-source <40 位提交哈希> \
     --external-base-url https://<正式域名或具备 SAN 的地址>/medkernel \
     --provider-code ollama-launch \
-    --expected-business-tables 208 \
+    --expected-business-tables <候选模式清单表数> \
     --expected-flyway-version 1 \
     --confirm-restart \
     --confirm-database medkernel
