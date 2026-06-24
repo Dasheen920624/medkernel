@@ -50,6 +50,12 @@ class ClinicalRedlineReadinessGateTest {
             Sha256ContentHash.sha256(payload, "x"), payload, AssetVersionStatus.DRAFT);
     }
 
+    private KnowledgeAssetEnvelope lowRiskKnowledgeEnvelope(String payload) {
+        return new KnowledgeAssetEnvelope(VersionedAssetType.KNOWLEDGE, "identity:knowledge", "来源边界说明", "v1",
+            List.of(), SourceAuthorityLevel.B_GUIDELINE, null, null, KnowledgeRiskLevel.LOW, "t-1",
+            Sha256ContentHash.sha256(payload, "x"), payload, AssetVersionStatus.DRAFT);
+    }
+
     private ClinicalRedlineResponse redline(ClinicalRedlineCategory category) {
         return new ClinicalRedlineResponse("rl-" + category.name(), category, category.name(), "v1",
             ClinicalRedlineStatus.ACTIVE, "标题", "危害", "{}", null, "matrix", "v1", null,
@@ -93,6 +99,44 @@ class ClinicalRedlineReadinessGateTest {
             """;
 
         GateItemResult result = gate.evaluate(envelope(payload), new GateContext("t-1", "job-1"));
+
+        assertThat(result.passed()).isTrue();
+    }
+
+    @Test
+    void passesLowRiskNonActionableSourceBoundaryModelOutputWhenRedlineCatalogNotConfigured() {
+        when(redlineService.activeCatalog(null)).thenReturn(new ClinicalRedlineCatalogResponse(
+            ClinicalRedlineContentStatus.NOT_CONFIGURED, ClinicalRedlineCategory.requiredSafetyCategories(),
+            List.of(), "trace"));
+        String payload = """
+            {
+              "aiGenerated": true,
+              "modelTaskId": "task-launch-guideline",
+              "modelMode": "B1",
+              "modelVersion": "medkernel-qwen25:1.5b-v1",
+              "modelOutput": {
+                "domain": "GUIDELINE",
+                "subject": "指南来源治理与使用边界",
+                "clinicalActionable": false,
+                "sourceReferences": [
+                  {
+                    "sourceRef": "WHO-GRC-2026:2026.06.22:page:mandate",
+                    "authorityLevel": "B_GUIDELINE",
+                    "anchorLabel": "指南质量保障职责"
+                  }
+                ],
+                "limitations": [
+                  "仅用于验证 MedKernel 知识生产流程，不构成诊断、处方、剂量、阈值或自动医嘱。"
+                ],
+                "sections": {
+                  "recommendation": "推荐意见：只基于受控来源锚点说明来源边界；不可从当前来源推断的内容必须明确写明不可推断。",
+                  "evidence": "证据等级：只基于受控来源锚点说明来源边界；不可从当前来源推断的内容必须明确写明不可推断。"
+                }
+              }
+            }
+            """;
+
+        GateItemResult result = gate.evaluate(lowRiskKnowledgeEnvelope(payload), new GateContext("t-1", "job-1"));
 
         assertThat(result.passed()).isTrue();
     }

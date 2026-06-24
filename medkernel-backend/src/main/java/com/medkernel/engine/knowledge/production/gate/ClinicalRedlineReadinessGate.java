@@ -14,12 +14,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
+import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.knowledge.production.generation.StrictB0TemplatePolicy;
 import com.medkernel.engine.safety.ClinicalRedlineCatalogResponse;
 import com.medkernel.engine.safety.ClinicalRedlineCategory;
 import com.medkernel.engine.safety.ClinicalRedlineContentStatus;
 import com.medkernel.engine.safety.ClinicalRedlineResponse;
 import com.medkernel.engine.safety.ClinicalRedlineService;
+import com.medkernel.engine.versioning.VersionedAssetType;
 
 /**
  * 门禁：临床安全红线体系与候选结构化红线检查（AIK-STD-05，FR-2 红线/剂量/高危）。
@@ -55,7 +57,7 @@ public class ClinicalRedlineReadinessGate implements CandidateGate {
     @Override
     public GateItemResult evaluate(KnowledgeAssetEnvelope candidate, GateContext context) {
         JsonNode payload = parsePayload(candidate.payload());
-        if (strictB0TemplatePolicy.matches(payload)) {
+        if (strictB0TemplatePolicy.matches(payload) || lowRiskSourceBoundaryOnly(candidate, payload)) {
             return GateItemResult.pass(CODE);
         }
         ClinicalRedlineCatalogResponse catalog = redlineService.activeCatalog(null);
@@ -78,6 +80,71 @@ public class ClinicalRedlineReadinessGate implements CandidateGate {
             return structured;
         }
         return GateItemResult.pass(CODE);
+    }
+
+    private boolean lowRiskSourceBoundaryOnly(KnowledgeAssetEnvelope candidate, JsonNode payload) {
+        if (candidate == null
+                || candidate.assetType() != VersionedAssetType.KNOWLEDGE
+                || candidate.riskLevel() != KnowledgeRiskLevel.LOW
+                || payload == null
+                || !payload.isObject()
+                || !redlineCheckNodes(payload).isEmpty()) {
+            return false;
+        }
+        JsonNode modelOutput = payload.path("modelOutput").isObject()
+            ? payload.path("modelOutput")
+            : payload;
+        if (!modelOutput.path("clinicalActionable").isBoolean()
+                || modelOutput.path("clinicalActionable").asBoolean()
+                || text(modelOutput, "domain").isBlank()
+                || text(modelOutput, "subject").isBlank()) {
+            return false;
+        }
+        return validSourceReferences(modelOutput.path("sourceReferences"))
+            && limitationsDeclareNonClinicalUse(modelOutput.path("limitations"))
+            && sectionsDeclareSourceBoundary(modelOutput.path("sections"));
+    }
+
+    private boolean validSourceReferences(JsonNode references) {
+        if (references == null || !references.isArray() || references.isEmpty()) {
+            return false;
+        }
+        for (JsonNode reference : references) {
+            if (!reference.isObject()
+                    || text(reference, "sourceRef").isBlank()
+                    || text(reference, "authorityLevel").isBlank()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean limitationsDeclareNonClinicalUse(JsonNode limitations) {
+        if (limitations == null || !limitations.isArray() || limitations.isEmpty()) {
+            return false;
+        }
+        for (JsonNode limitation : limitations) {
+            String text = limitation.asText("");
+            if (text.contains("不构成")
+                    && (text.contains("诊断") || text.contains("处方") || text.contains("剂量")
+                        || text.contains("阈值") || text.contains("医嘱"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean sectionsDeclareSourceBoundary(JsonNode sections) {
+        if (sections == null || !sections.isObject() || sections.isEmpty()) {
+            return false;
+        }
+        List<JsonNode> values = new ArrayList<>();
+        sections.elements().forEachRemaining(values::add);
+        return values.stream().allMatch(value -> {
+            String text = value.asText("");
+            return !text.isBlank()
+                && (text.contains("不可推断") || text.contains("来源边界") || text.contains("正式临床内容"));
+        });
     }
 
     private GateItemResult evaluateStructuredRedlineChecks(
