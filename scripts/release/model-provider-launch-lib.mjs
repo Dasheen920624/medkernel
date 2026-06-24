@@ -442,7 +442,7 @@ function buildKnowledgeProductionPolicy() {
       required: ["domain", "subject", "sourceReferences", "limitations", "sections"],
     }),
     fallbackOrder: ["LOCAL_MODEL", "BASELINE"],
-    timeoutMs: 60_000,
+    timeoutMs: 120_000,
     rateLimitPerMinute: 6,
   };
 }

@@ -118,6 +118,7 @@ test("正式 Provider 上线按配置、探活、真实评测、当前操作者�
   const policy = requests.find((item) => item.path === "/model-capabilities/policies/knowledge.production.knowledge");
   assert.deepEqual(policy.body.fallbackOrder, ["LOCAL_MODEL", "BASELINE"]);
   assert.equal(policy.body.desensitizeStrategy, "MASK_ALL");
+  assert.equal(policy.body.timeoutMs, 120_000);
   const bundle = requests.find((item) => item.path === "/model-versions/bundles");
   assert.equal(bundle.body.capabilityCode, "knowledge.production.knowledge");
   assert.equal(bundle.body.modelVersion, "medkernel-qwen25:1.5b-v1");
