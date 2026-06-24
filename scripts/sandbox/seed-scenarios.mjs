@@ -67,6 +67,14 @@ export function ruleTriggerBindings(rule) {
   ];
 }
 
+export function ruleSimulationPayload(ctx, rule, snapshotDetail) {
+  return {
+    ...ctx,
+    triggerPoint: rule.triggerPoint,
+    context: snapshotDetail.resources,
+  };
+}
+
 export const RULE_GOVERNANCE_STAGES = Object.freeze([
   "DRAFT",
   "REVIEWED",
@@ -621,10 +629,7 @@ async function createAndTestRule(
       await apiPost(
         context,
         `/engine/rule/rules/${definition.ruleId}/simulate`,
-        {
-          ...ctx,
-          context: snapshotDetail.resources,
-        },
+        ruleSimulationPayload(ctx, rule, snapshotDetail),
         `rule-simulate-${rule.ruleCode}`,
       ),
       `规则真实快照试运行 ${rule.ruleCode}`,

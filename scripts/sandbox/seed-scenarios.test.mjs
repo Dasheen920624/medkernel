@@ -7,6 +7,7 @@ import {
   buildCanonicalResources,
   deriveSandboxRuntimeDigest,
   resolveChromiumLaunchOptions,
+  ruleSimulationPayload,
   ruleTriggerBindings,
   resolveSandboxEvidenceDir,
   resolveSandboxAccounts,
@@ -116,6 +117,23 @@ test("沙盘规则创建请求显式提交外层执行触发绑定", () => {
       required_fields: [],
     },
   ]);
+});
+
+test("沙盘规则真实快照试运行请求携带同一触发点", () => {
+  const rule = manifest.scenarios[0];
+  const ctx = { tenant_id: "t-rehearsal", hospital_id: "h-rehearsal" };
+  const snapshotDetail = {
+    resources: buildCanonicalResources(
+      rule.clinicalContent.testCases.find((item) => item.caseType === "POSITIVE"),
+      "2026-06-19T03:00:00.000Z",
+    ),
+  };
+
+  assert.deepEqual(ruleSimulationPayload(ctx, rule, snapshotDetail), {
+    ...ctx,
+    triggerPoint: rule.triggerPoint,
+    context: snapshotDetail.resources,
+  });
 });
 
 test("沙盘演练脚本不再创建或发布旧容器", async () => {
