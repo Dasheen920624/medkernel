@@ -82,6 +82,10 @@
 - 发布治理页已接入真实发布影响评估：候选资产列表带出适用人群或上下文，机构运营员选择集团/本院内容后可在
   生成机构生效版本前调用 `/engine/versioning/releases/simulations`，并用“可发布/需处理、病例回放、
   依赖影响、阻断原因”等医疗产品语言展示结果，不再让前台猜测评估域。
+- 医技报告解读已从“部分数据骨架”补成运行闭环：服务端只接收已生效标准上下文快照，按快照锁定的
+  `runtimeReleaseId` 读取机构生效版本中的 `DIAGNOSTIC_ITEM` 医技项目说明书，输出辅助解读与复核建议；
+  解读结果会通过推荐引擎生成临床提示卡，不改写已签发报告、不自动开立医嘱。前台“提醒与推荐中枢”
+  已新增“生成报告解读”入口，共用快照选择器，不暴露包、版本或知识域选择器。
 - 前台产品语言门禁已扩展到启动凭证、来源允许范围、模型版本组合、运行环境、无模型规则链路、
   多因素认证、生产前校验、生产安全校验、发布质量校验、发布验证用例、开通条件和时窗校验等
   医疗引擎中枢语言。
@@ -223,6 +227,17 @@
   通过；`mvn -q -DskipTests compile` 通过；`npm run verify` 通过，前端汇总 107 个测试文件 / 767 个测试通过；
   `npm run build` 通过；`git diff --check` 通过。本轮 `npm run verify` 中曾暴露 Hook 依赖稳定性与 Prettier
   格式问题，已修复后复跑通过。
+- 医技报告解读运行闭环红灯/绿灯：
+  `mvn -q -Dtest=RuntimeReleaseDiagnosticItemSelectorTest,ReportInterpretationServiceTest test` 先失败于缺少
+  运行选择器、解读服务和请求/响应契约；补齐后又暴露检验报告类型被小写归一后误归为检查类，修复后通过；
+  `mvn -q -Dtest=RuntimeReleaseDiagnosticItemSelectorTest,ReportInterpretationServiceTest,ReportInterpretationControllerSecurityTest test`
+  通过，覆盖机构生效版本医技项目说明书选择、未激活版本拒绝、空态不误判无风险、临床提示卡持久化、
+  未认证/审计员/访客/缺租户安全门；
+  `npm test -- --run src/pages/clinical/CdssFatigue.test.tsx src/shared/api/hooks.test.ts` 通过，
+  2 个文件 / 127 个测试通过，覆盖前台从已生效快照生成报告解读且不显示触发时点或版本选择器；
+  `mvn -q -Dtest=RuntimeReleaseDiagnosticItemSelectorTest,ReportInterpretationServiceTest,ReportInterpretationControllerSecurityTest,RecommendationEngineControllerSecurityTest test`
+  通过；`mvn -q -DskipTests compile` 通过；`npm run lint` 通过；`npm run format:check` 通过；
+  `npm run build` 通过。
 
 ## 2026-06-23 阶段检查点
 
@@ -280,7 +295,7 @@
 ## 当前最高优先级
 
 1. 继续完成 13 类资产“身份—版本—正文—校验—发布—生效—证据—撤回/回滚”闭环，优先从仍缺完整生效
-   消费证据的患者报告解读、术语、字段目录、评价、随访、质量和知识开始；
+   消费证据的术语、字段目录、评价、随访、质量和知识开始；
 2. 复扫生产代码和前端页面，继续消除旧包发布命名、包选择器和接口残留；
 3. 只保留 `runtimeReleaseId`、精确资产版本和内容摘要作为机构生效事实；
 4. 重写全系统演练脚本，使其覆盖六层、13 类资源、13 类资产、11 个知识分类、完整医疗语义、
@@ -293,7 +308,7 @@
 - 生产用户可见旧 Package 文案/深链已清一轮，但类名级历史命名仍需结合证据导出边界逐项评估；
 - 值集、计算公式、医嘱套餐和临床提示卡的规则/路径核心消费者已切到机构生效版本语义，但更多资产类型的真实
   消费者闭环仍需逐项补证；
-- 患者报告解读只有部分数据骨架，尚未形成完整运行闭环；
+- 医技报告解读已补齐本地运行闭环和前台入口，但尚未在 134 清库环境完成真实病例与全知识演练；
 - 字段目录已补第三方接入契约的机构生效版本消费证据，规则/路径字段引用也已登记字段目录资产依赖；但术语
   覆盖门禁、评价、随访、质量和知识仍需继续按机构生效版本复核；
 - 离线交付文件、集成契约、CLI 和 MCP 尚未完全切换到新模型；

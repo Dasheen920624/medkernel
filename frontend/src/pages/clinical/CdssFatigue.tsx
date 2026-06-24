@@ -43,6 +43,7 @@ import {
   useContextSnapshotDetail,
   useContextSnapshots,
   useEvaluateRecommendations,
+  useInterpretDiagnosticReport,
   useRecommendationCardDetail,
   useRecommendationCardSources,
   useRecommendationStats,
@@ -160,6 +161,7 @@ type RecommendationJourneyStep = {
   description: string;
   evidence?: string;
 };
+type TriggerModalMode = "RECOMMENDATION" | "REPORT_INTERPRETATION";
 
 function textOrDash(value?: string | null) {
   return value && value.trim() ? value : "暂无";
@@ -244,6 +246,7 @@ function getRecommendationJourneySteps(
 export default function CdssFatigue() {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [triggerModalVisible, setTriggerModalVisible] = useState<boolean>(false);
+  const [triggerModalMode, setTriggerModalMode] = useState<TriggerModalMode>("RECOMMENDATION");
   const [diagnoseDrawerVisible, setDiagnoseDrawerVisible] = useState<boolean>(false);
   const [snapshotPatientId, setSnapshotPatientId] = useState("");
   const [snapshotEncounterId, setSnapshotEncounterId] = useState("");
@@ -343,20 +346,39 @@ export default function CdssFatigue() {
 
   // 突变动作
   const triggerCdssMutation = useEvaluateRecommendations();
+  const reportInterpretationMutation = useInterpretDiagnosticReport();
   const feedbackMutation = useSubmitRecommendationFeedback(selectedCardId || "");
   const selectedFatigueGovernance = getFatigueGovernance(detailData?.card);
   const selectedJourneySteps = detailData
     ? getRecommendationJourneySteps(detailData, sourcesData ?? detailData.sources, diagnoseData)
     : [];
 
+  const openTriggerModal = (mode: TriggerModalMode) => {
+    setTriggerModalMode(mode);
+    setTriggerModalVisible(true);
+  };
+
   // 已生效临床快照是评估上下文的唯一来源；生效内容由服务端按机构当前版本解析。
   const handleTriggerCdss = async () => {
     try {
-      const values = await triggerForm.validateFields();
       if (!selectedSnapshot) {
         message.error("请先选择已生效临床快照");
         return;
       }
+
+      if (triggerModalMode === "REPORT_INTERPRETATION") {
+        const res = await reportInterpretationMutation.mutateAsync({
+          contextSnapshotId: selectedSnapshot.snapshotId,
+        });
+        message.success(
+          `报告解读已生成：${res.interpretations.length} 项；相关提示已进入临床提示卡。`,
+        );
+        closeTriggerModal();
+        refetchCards();
+        return;
+      }
+
+      const values = await triggerForm.validateFields();
 
       const res = await triggerCdssMutation.mutateAsync({
         triggerCode: `CDSS-MANUAL-${values.triggerType}`,
@@ -374,12 +396,20 @@ export default function CdssFatigue() {
       refetchCards();
     } catch (error: unknown) {
       if (applyApiFieldErrors(triggerForm, error)) return;
-      message.error(getApiErrorMessage(error, "触发 CDSS 计算失败，请稍后重试"));
+      message.error(
+        getApiErrorMessage(
+          error,
+          triggerModalMode === "REPORT_INTERPRETATION"
+            ? "生成报告解读失败，请稍后重试"
+            : "触发推荐评估失败，请稍后重试",
+        ),
+      );
     }
   };
 
   const closeTriggerModal = () => {
     setTriggerModalVisible(false);
+    setTriggerModalMode("RECOMMENDATION");
     setSnapshotPatientId("");
     setSnapshotEncounterId("");
     setSelectedSnapshotId("");
@@ -639,9 +669,15 @@ export default function CdssFatigue() {
             <Button
               type="primary"
               icon={<FireOutlined />}
-              onClick={() => setTriggerModalVisible(true)}
+              onClick={() => openTriggerModal("RECOMMENDATION")}
             >
               登记触发评估
+            </Button>
+            <Button
+              icon={<ReadOutlined />}
+              onClick={() => openTriggerModal("REPORT_INTERPRETATION")}
+            >
+              生成报告解读
             </Button>
           </Form.Item>
         </Form>
@@ -681,21 +717,27 @@ export default function CdssFatigue() {
       <div className={styles.surface}>{cardsTableContent}</div>
 
       <Modal
-        title="登记一次推荐触发评估"
+        title={
+          triggerModalMode === "REPORT_INTERPRETATION" ? "生成医技报告解读" : "登记一次推荐触发评估"
+        }
         open={triggerModalVisible}
         onOk={handleTriggerCdss}
         onCancel={closeTriggerModal}
-        okText="执行推荐评估"
+        okText={triggerModalMode === "REPORT_INTERPRETATION" ? "生成报告解读" : "执行推荐评估"}
         cancelText="取消"
         okButtonProps={{
           disabled: !selectedSnapshotId || snapshotDetailQuery.isLoading,
         }}
         width={720}
-        confirmLoading={triggerCdssMutation.isPending}
+        confirmLoading={triggerCdssMutation.isPending || reportInterpretationMutation.isPending}
         destroyOnClose
       >
         <Alert
-          message="推荐引擎将读取所选已生效临床快照，执行已激活规则与红线检查；模型不可用时保持确定性规则链路。"
+          message={
+            triggerModalMode === "REPORT_INTERPRETATION"
+              ? "系统将读取所选已生效临床快照中的医技报告，并按机构生效版本生成辅助解读；不会改写已签发报告，也不会自动开立医嘱。"
+              : "推荐引擎将读取所选已生效临床快照，执行已激活规则与红线检查；模型不可用时保持确定性规则链路。"
+          }
           type="info"
           showIcon
           className={styles.sectionGap}
@@ -734,15 +776,17 @@ export default function CdssFatigue() {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item name="triggerType" label="触发时点" rules={[{ required: true }]}>
-            <Select
-              options={[
-                { value: "patient-view", label: "查看患者" },
-                { value: "order-select", label: "选择医嘱" },
-                { value: "order-sign", label: "签署医嘱" },
-              ]}
-            />
-          </Form.Item>
+          {triggerModalMode === "RECOMMENDATION" && (
+            <Form.Item name="triggerType" label="触发时点" rules={[{ required: true }]}>
+              <Select
+                options={[
+                  { value: "patient-view", label: "查看患者" },
+                  { value: "order-select", label: "选择医嘱" },
+                  { value: "order-sign", label: "签署医嘱" },
+                ]}
+              />
+            </Form.Item>
+          )}
           <ContextSnapshotSelector
             enabled={hasSnapshotFilter}
             loading={snapshotsQuery.isLoading}

@@ -8,6 +8,7 @@ import {
   useContextSnapshotDetail,
   useContextSnapshots,
   useEvaluateRecommendations,
+  useInterpretDiagnosticReport,
   useRecommendationCardDetail,
   useRecommendationCardSources,
   useRecommendationCards,
@@ -26,6 +27,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useContextSnapshotDetail: vi.fn(),
   useContextSnapshots: vi.fn(),
   useEvaluateRecommendations: vi.fn(),
+  useInterpretDiagnosticReport: vi.fn(),
   useRecommendationCardDetail: vi.fn(),
   useRecommendationCardSources: vi.fn(),
   useRecommendationCards: vi.fn(),
@@ -39,6 +41,7 @@ const mockUseClinicalRecommendationCards = vi.mocked(useClinicalRecommendationCa
 const mockUseContextSnapshotDetail = vi.mocked(useContextSnapshotDetail);
 const mockUseContextSnapshots = vi.mocked(useContextSnapshots);
 const mockUseEvaluateRecommendations = vi.mocked(useEvaluateRecommendations);
+const mockUseInterpretDiagnosticReport = vi.mocked(useInterpretDiagnosticReport);
 const mockUseRecommendationCardDetail = vi.mocked(useRecommendationCardDetail);
 const mockUseRecommendationCardSources = vi.mocked(useRecommendationCardSources);
 const mockUseRecommendationCards = vi.mocked(useRecommendationCards);
@@ -65,6 +68,7 @@ describe("CdssFatigue", () => {
   const refetchDiagnose = vi.fn();
   const submitFeedback = vi.fn();
   const evaluateRecommendations = vi.fn();
+  const interpretDiagnosticReport = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -247,6 +251,31 @@ describe("CdssFatigue", () => {
       mutateAsync: evaluateRecommendations,
       isPending: false,
     } as unknown as ReturnType<typeof useEvaluateRecommendations>);
+    interpretDiagnosticReport.mockResolvedValue({
+      contextSnapshotId: "snapshot-rec-1",
+      runtimeReleaseId: "runtime-release-report",
+      interpretations: [
+        {
+          reportId: "report-k-1",
+          reportType: "LAB.POTASSIUM",
+          conclusion: "血钾 6.3 mmol/L，危急值，已复核",
+          itemCode: "LAB.POTASSIUM",
+          itemName: "血钾检验说明书",
+          sourceVersionId: 21,
+          versionNo: "v1.0",
+          criticalRisk: true,
+          summary: "已签发报告结合当前机构生效版本生成辅助解读。",
+          abnormalHighlights: ["血钾升高", "危急值"],
+          recommendations: ["请按本机构危急值闭环完成人工确认、回报和记录，系统不自动修改报告。"],
+        },
+      ],
+      advisoryNote: "报告解读仅用于辅助阅读，不改写已签发报告，不替代医师判断。",
+      traceId: "trace-report",
+    });
+    mockUseInterpretDiagnosticReport.mockReturnValue({
+      mutateAsync: interpretDiagnosticReport,
+      isPending: false,
+    } as unknown as ReturnType<typeof useInterpretDiagnosticReport>);
     submitFeedback.mockResolvedValue({
       cardId: "card-real-1",
       status: "ACCEPTED",
@@ -302,6 +331,33 @@ describe("CdssFatigue", () => {
           encounterId: "enc-real-1",
         }),
       );
+    },
+    CDSS_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "generates report interpretation from a selected ACTIVE snapshot without trigger or version selectors",
+    async () => {
+      const user = userEvent.setup();
+      renderCdssFatigue();
+
+      await user.click(screen.getByRole("button", { name: /生成报告解读/ }));
+
+      expect(screen.getByText("生成医技报告解读")).toBeInTheDocument();
+      expect(screen.getByText(/不会改写已签发报告，也不会自动开立医嘱/)).toBeInTheDocument();
+      expect(screen.queryByLabelText("触发时点")).not.toBeInTheDocument();
+
+      await user.type(screen.getByLabelText("患者 ID"), "patient-real-1");
+      await user.click(screen.getByRole("button", { name: "选择 snapshot-rec-1" }));
+      const confirmButtons = screen.getAllByRole("button", { name: "生成报告解读" });
+      await user.click(confirmButtons[confirmButtons.length - 1]);
+
+      await waitFor(() =>
+        expect(interpretDiagnosticReport).toHaveBeenCalledWith({
+          contextSnapshotId: "snapshot-rec-1",
+        }),
+      );
+      expect(evaluateRecommendations).not.toHaveBeenCalled();
     },
     CDSS_INTERACTION_TIMEOUT_MS,
   );

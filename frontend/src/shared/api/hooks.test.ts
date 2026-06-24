@@ -76,6 +76,7 @@ import {
   useIntegrationAdapters,
   useIntegrationOnboardings,
   useInsuranceIssues,
+  useInterpretDiagnosticReport,
   useReplayDeadLetter,
   useRunSandboxScenario,
   useSandboxRuntimeStatus,
@@ -2460,6 +2461,41 @@ describe("recommendation evaluation api hook", () => {
 
     expect(evaluated).toBe(response);
     expect(apiClient.post).toHaveBeenCalledWith("/engine/recommendations:evaluate", request);
+  });
+
+  it("interprets diagnostic reports from the selected ACTIVE context snapshot without client version selectors", async () => {
+    const response = {
+      contextSnapshotId: "snapshot-active-1",
+      runtimeReleaseId: "runtime-release-report",
+      interpretations: [
+        {
+          reportId: "report-k-1",
+          reportType: "LAB.POTASSIUM",
+          conclusion: "血钾 6.3 mmol/L，危急值，已复核",
+          itemCode: "LAB.POTASSIUM",
+          itemName: "血钾检验说明书",
+          sourceVersionId: 21,
+          versionNo: "v1.0",
+          criticalRisk: true,
+          summary: "已签发报告结合当前机构生效版本生成辅助解读。",
+          abnormalHighlights: ["血钾升高", "危急值"],
+          recommendations: ["请按本机构危急值闭环完成人工确认、回报和记录，系统不自动修改报告。"],
+        },
+      ],
+      advisoryNote: "报告解读仅用于辅助阅读，不改写已签发报告，不替代医师判断。",
+      traceId: "trace-report",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: response } });
+
+    const { result } = renderApiHook(() => useInterpretDiagnosticReport());
+    const interpreted = await result.current.mutateAsync({
+      contextSnapshotId: "snapshot-active-1",
+    });
+
+    expect(interpreted).toBe(response);
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/recommendations/report-interpretation", {
+      contextSnapshotId: "snapshot-active-1",
+    });
   });
 });
 

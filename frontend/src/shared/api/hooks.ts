@@ -5430,6 +5430,28 @@ export interface RecommendationEvaluationResponse {
   traceId: string;
 }
 
+export interface ReportInterpretationItem {
+  reportId: string;
+  reportType: string;
+  conclusion?: string | null;
+  itemCode: string;
+  itemName: string;
+  sourceVersionId: number;
+  versionNo: string;
+  criticalRisk: boolean;
+  summary: string;
+  abnormalHighlights: string[];
+  recommendations: string[];
+}
+
+export interface ReportInterpretationResponse {
+  contextSnapshotId: string;
+  runtimeReleaseId: string;
+  interpretations: ReportInterpretationItem[];
+  advisoryNote: string;
+  traceId: string;
+}
+
 export interface RecommendationFeedbackResponse {
   cardId: string;
   status: RecommendationCardStatus;
@@ -5453,6 +5475,19 @@ export function useEvaluateRecommendations() {
     }) => {
       const { data } = await apiClient.post<{ data: RecommendationEvaluationResponse }>(
         "/engine/recommendations:evaluate",
+        payload,
+      );
+      return data.data;
+    },
+  });
+}
+
+// 医技报告解读：前台只提交已生效标准上下文快照，机构生效版本由服务端锁定。
+export function useInterpretDiagnosticReport() {
+  return useMutation({
+    mutationFn: async (payload: { contextSnapshotId: string }) => {
+      const { data } = await apiClient.post<{ data: ReportInterpretationResponse }>(
+        "/engine/recommendations/report-interpretation",
         payload,
       );
       return data.data;
