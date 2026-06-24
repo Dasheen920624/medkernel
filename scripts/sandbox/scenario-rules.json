@@ -41,7 +41,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "result-review",
           "meta": {
             "parameters": [
               {
@@ -194,7 +193,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "medication-prescribe",
           "meta": {
             "parameters": [
               { "key": "warfarinAtc", "valueType": "CODE", "required": true },
@@ -352,7 +350,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "order-sign",
           "meta": {
             "parameters": [
               { "key": "egfrCode", "valueType": "CODE", "required": true },
@@ -529,7 +526,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "patient-view",
           "meta": {
             "parameters": [
               {
@@ -693,7 +689,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "result-review",
           "meta": {
             "parameters": [
               {
@@ -839,7 +834,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "discharge-sign",
           "meta": {
             "parameters": [
               {
@@ -990,7 +984,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "followup-alert",
           "meta": {
             "parameters": [
               { "key": "inrCode", "valueType": "CODE", "required": true },
@@ -1155,7 +1148,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "order-sign",
           "meta": {
             "parameters": [
               {
@@ -1282,7 +1274,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "patient-view",
           "meta": {
             "parameters": [
               {
@@ -1422,7 +1413,6 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "patient-view",
           "meta": {
             "parameters": [
               {

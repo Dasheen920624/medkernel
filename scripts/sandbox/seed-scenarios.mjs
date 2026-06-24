@@ -57,6 +57,16 @@ export function resolveChromiumLaunchOptions(env = process.env) {
   };
 }
 
+export function ruleTriggerBindings(rule) {
+  return [
+    {
+      trigger_point: rule.triggerPoint,
+      purpose: "RULE_EXECUTION",
+      required_fields: [],
+    },
+  ];
+}
+
 export const RULE_GOVERNANCE_STAGES = Object.freeze([
   "DRAFT",
   "REVIEWED",
@@ -532,6 +542,7 @@ async function createAndTestRule(
             priority: 100,
             dedupeWindowSeconds: 0,
             applicableOrgUnitId: null,
+            triggers: ruleTriggerBindings(rule),
             sourceRef: rule.sourceRef,
             changeSummary: rule.changeSummary,
             dsl: rule.clinicalContent.dsl,

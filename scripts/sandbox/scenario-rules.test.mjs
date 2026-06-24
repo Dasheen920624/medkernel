@@ -95,6 +95,19 @@ test("每条规则的 DSL 适用域满足后端规则契约", async () => {
   }
 });
 
+test("每条规则的 DSL 不再内嵌触发点", async () => {
+  const manifest = await loadScenarioRules();
+
+  for (const scenario of manifest.scenarios) {
+    assert.equal(scenario.clinicalContent.dsl.trigger, undefined);
+    assert.ok(scenario.triggerPoint, scenario.ruleCode);
+  }
+
+  const embeddedTrigger = structuredClone(manifest);
+  embeddedTrigger.scenarios[0].clinicalContent.dsl.trigger = "result-review";
+  assert.throws(() => validateScenarioRules(embeddedTrigger), /不得包含 trigger/);
+});
+
 test("显式选择任一机构规则都可进入铺底", async () => {
   const manifest = await loadScenarioRules();
   const selected = selectSeedRules(

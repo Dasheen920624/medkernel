@@ -44,7 +44,8 @@ public class RuleEngineController {
     /**
      * 创建规则定义并生成初始草稿版本。
      *
-     * <p>权限：{@code rule.write}；DSL 必须可解析且包含 trigger/when/then/explain，否则抛
+     * <p>权限：{@code rule.write}；DSL 必须可解析且包含 when/then/explain，触发点由
+     * 资产版本触发绑定维护，否则抛
      * {@link com.medkernel.shared.api.error.ApiException} 错误码 {@code ENG-RULE-001}。
      */
     @PostMapping("/rules")

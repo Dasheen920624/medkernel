@@ -7,6 +7,7 @@ import {
   buildCanonicalResources,
   deriveSandboxRuntimeDigest,
   resolveChromiumLaunchOptions,
+  ruleTriggerBindings,
   resolveSandboxEvidenceDir,
   resolveSandboxAccounts,
   RULE_GOVERNANCE_STAGES,
@@ -103,6 +104,18 @@ test("沙盘创建快照前先激活含平台基线资产的当前医院机构�
   );
   assert.match(runSeed, /activePlatformBaselineAssets/u);
   assert.match(runSeed, /runtimeBinding/u);
+});
+
+test("沙盘规则创建请求显式提交外层执行触发绑定", () => {
+  const rule = manifest.scenarios[0];
+
+  assert.deepEqual(ruleTriggerBindings(rule), [
+    {
+      trigger_point: rule.triggerPoint,
+      purpose: "RULE_EXECUTION",
+      required_fields: [],
+    },
+  ]);
 });
 
 test("沙盘演练脚本不再创建或发布旧容器", async () => {

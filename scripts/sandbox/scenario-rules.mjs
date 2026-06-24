@@ -138,8 +138,13 @@ function validateClinicalContent(scenario) {
   if (!content?.dsl || !Array.isArray(content.testCases)) {
     throw new Error(`沙盘规则 ${scenario.ruleCode} 缺少 DSL 或测试用例`);
   }
-  if (content.dsl.trigger !== scenario.triggerPoint || !content.dsl.when) {
-    throw new Error(`沙盘规则 ${scenario.ruleCode} DSL 触发点或条件无效`);
+  if (Object.hasOwn(content.dsl, "trigger")) {
+    throw new Error(
+      `沙盘规则 ${scenario.ruleCode} DSL 不得包含 trigger`,
+    );
+  }
+  if (!content.dsl.when) {
+    throw new Error(`沙盘规则 ${scenario.ruleCode} DSL 条件无效`);
   }
   validateApplicability(scenario, content.dsl.applicability);
   if (!Array.isArray(content.dsl.then) || content.dsl.then.length === 0) {
