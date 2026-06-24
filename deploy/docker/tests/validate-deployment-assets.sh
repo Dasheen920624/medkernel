@@ -90,6 +90,8 @@ if grep -q 'mvn -B -q' "$ROOT/deploy/docker/backend/Dockerfile"; then
 fi
 grep -q 'maven.test.skip=true' "$ROOT/deploy/docker/backend/Dockerfile"
 grep -A4 'location = /healthz' "$ROOT/deploy/docker/frontend/nginx.conf" | grep -q 'proxy_set_header Host \$host;'
+grep -A8 'location /medkernel/' "$ROOT/deploy/docker/frontend/nginx.conf" | grep -q 'proxy_read_timeout 240s;'
+grep -A8 'location /medkernel/' "$ROOT/deploy/onprem/templates/medkernel.nginx.conf" | grep -q 'proxy_read_timeout 240s;'
 
 EMBED_BLOCK="$(grep -A6 'location = /embed/launch' "$ROOT/deploy/docker/frontend/nginx.conf")"
 grep -q 'frame-ancestors \*' <<<"$EMBED_BLOCK"
