@@ -7,7 +7,7 @@ import {
   buildCanonicalResources,
   deriveSandboxRuntimeDigest,
   resolveChromiumLaunchOptions,
-  ruleSimulationPayload,
+  ruleEvaluationPayload,
   ruleTriggerBindings,
   resolveSandboxEvidenceDir,
   resolveSandboxAccounts,
@@ -119,20 +119,18 @@ test("沙盘规则创建请求显式提交外层执行触发绑定", () => {
   ]);
 });
 
-test("沙盘规则真实快照试运行请求携带同一触发点", () => {
+test("沙盘规则正例校验走正式评估接口并使用已生效快照", () => {
   const rule = manifest.scenarios[0];
   const ctx = { tenant_id: "t-rehearsal", hospital_id: "h-rehearsal" };
-  const snapshotDetail = {
-    resources: buildCanonicalResources(
-      rule.clinicalContent.testCases.find((item) => item.caseType === "POSITIVE"),
-      "2026-06-19T03:00:00.000Z",
-    ),
-  };
+  const positive = { caseType: "POSITIVE", snapshotId: "snap-positive" };
+  const definition = { ruleId: "rule-positive" };
 
-  assert.deepEqual(ruleSimulationPayload(ctx, rule, snapshotDetail), {
+  assert.deepEqual(ruleEvaluationPayload(ctx, rule, positive, definition), {
     ...ctx,
     triggerPoint: rule.triggerPoint,
-    context: snapshotDetail.resources,
+    contextSnapshotId: positive.snapshotId,
+    eventId: `sandbox-${rule.ruleCode}-POSITIVE`,
+    ruleIds: [definition.ruleId],
   });
 });
 

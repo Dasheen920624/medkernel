@@ -67,11 +67,13 @@ export function ruleTriggerBindings(rule) {
   ];
 }
 
-export function ruleSimulationPayload(ctx, rule, snapshotDetail) {
+export function ruleEvaluationPayload(ctx, rule, snapshot, definition) {
   return {
     ...ctx,
     triggerPoint: rule.triggerPoint,
-    context: snapshotDetail.resources,
+    contextSnapshotId: snapshot.snapshotId,
+    eventId: `sandbox-${rule.ruleCode}-${snapshot.caseType}`,
+    ruleIds: [definition.ruleId],
   };
 }
 
@@ -617,25 +619,20 @@ async function createAndTestRule(
       );
     }
     const positive = snapshots.find((item) => item.caseType === "POSITIVE");
-    const snapshotDetail = ensureOk(
-      await apiGet(
-        context,
-        `/engine/context/snapshots/${positive.snapshotId}`,
-        `positive-${rule.ruleCode}`,
-      ),
-      `读取 ${rule.ruleCode} 阳性快照`,
-    );
-    const simulation = ensureOk(
+    const evaluation = ensureOk(
       await apiPost(
         context,
-        `/engine/rule/rules/${definition.ruleId}/simulate`,
-        ruleSimulationPayload(ctx, rule, snapshotDetail),
-        `rule-simulate-${rule.ruleCode}`,
+        "/engine/rule/rules/evaluate",
+        ruleEvaluationPayload(ctx, rule, positive, definition),
+        `rule-evaluate-${rule.ruleCode}`,
       ),
-      `规则真实快照试运行 ${rule.ruleCode}`,
+      `规则真实快照正式评估 ${rule.ruleCode}`,
     );
-    if (simulation.hit !== true)
-      throw new Error(`${rule.ruleCode} 阳性快照试运行未命中`);
+    const evaluatedRule = (evaluation.items ?? []).find(
+      (item) => item.ruleId === definition.ruleId,
+    );
+    if (evaluatedRule?.hit !== true)
+      throw new Error(`${rule.ruleCode} 阳性快照正式评估未命中`);
     detail = await ruleDetail(
       context,
       definition.ruleId,
