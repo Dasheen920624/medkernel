@@ -65,6 +65,9 @@
 - 整套上线演练沙盘阶段已从旧“上线容器”改为“机构生效版本”，全知识演练夹具同步到当前 11 个知识域
   `DIAGNOSTIC_ITEM`；
 - 审计导出、质控导出和产品范围里的用户可见旧“证据导出包”口径已收敛为“证据导出”；
+- 质控驾驶舱下钻响应已从旧 `QualityEvidencePackage/evidencePackage` 收敛为
+  `QualityEvidenceExport/evidenceExport`；证据导出载荷补齐真实 SHA-256 证据范围摘要，前台显示为
+  “证据范围摘要”，不再把 `scopeDigest` 字段名直接展示给用户。
 - 复扫生产源码、前端源码、脚本和契约文档后，旧 `packageId/packageVersion`、旧 `/engine/pkg/packages`
   路径和旧上线容器词只保留在历史负向护栏说明中。
 - `ClinicalRuntimeDeclarativeAssetResolver` 已允许 `FIELD_CATALOG` 按机构生效版本解析不可变正文；
@@ -180,6 +183,17 @@
   `npm test -- --run src/shared/config/i18nLaunchBoundary.test.ts src/shared/config/customerLanguageGate.test.ts src/widgets/AppLayout.test.tsx`
   3 个文件 / 29 个测试通过；`npm run verify` 通过，前端汇总 107 个测试文件 / 764 个测试通过；
   `npm run build` 通过；`git diff --check` 通过。
+- 质控证据导出契约红灯/绿灯：
+  `mvn -q -Dtest=QualityDashboardServiceTest#drilldownReturnsTraceableEvidencePackageForFindings test`
+  先失败于响应仍序列化旧 `evidencePackage` 字段；
+  `mvn -q -Dtest=QualityDashboardServiceTest#drilldownReturnsTraceableEvidenceExportForFindings test`
+  又暴露证据导出缺少真实 `scopeDigest`；
+  修复后 `mvn -q -Dtest=QualityDashboardServiceTest#drilldownReturnsTraceableEvidenceExportForFindings,QualityDashboardControllerSecurityTest test`
+  通过，`mvn -q -Dtest=QualityDashboardServiceTest,QualityDashboardControllerSecurityTest,MigrationBaselineContractTest test`
+  通过；`npm test -- --run src/pages/quality/QcDashboard.test.tsx src/shared/api/hooks.test.ts`
+  2 个文件 / 122 个测试通过；`mvn -q -DskipTests compile` 通过；`npm run verify` 通过，前端汇总
+  107 个测试文件 / 764 个测试通过；`git diff --check` 通过。生产源码已无旧 `evidencePackage`
+  字段或用户可见 `scopeDigest：` 标签，旧词只留历史说明和负向护栏。
 - 部署与演练脚本本地契约核查：
   `bash deploy/onprem/tests/validate-medkernel-fresh-deploy.sh` 通过；
   `bash deploy/onprem/tests/validate-medkernel-post-rehearsal-verify.sh` 通过；

@@ -7,6 +7,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medkernel.engine.cdss.risk.CdssAutomationLevel;
 import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
 import com.medkernel.engine.evaluation.QualityFinding;
@@ -56,6 +58,8 @@ import org.springframework.test.context.TestPropertySource;
     "spring.flyway.locations=classpath:db/migration/h2"
 })
 class QualityDashboardServiceTest {
+
+    private static final ObjectMapper JSON = new ObjectMapper().findAndRegisterModules();
 
     @Autowired QualityDashboardService service;
     @Autowired QualityDashboardAlertRepository alerts;
@@ -142,7 +146,7 @@ class QualityDashboardServiceTest {
     }
 
     @Test
-    void drilldownReturnsTraceableEvidencePackageForFindings() {
+    void drilldownReturnsTraceableEvidenceExportForFindings() {
         Instant now = Instant.parse("2026-06-05T00:00:00Z");
         seedFinding("tenant-A", "qf-critical", QualityFindingSeverity.P0,
             QualityFindingStatus.NEW, "dept-a", now);
@@ -159,8 +163,13 @@ class QualityDashboardServiceTest {
             assertThat(item.evidenceSummary()).contains("病历证据");
             assertThat(item.traceId()).isEqualTo("trace-quality");
         });
-        assertThat(response.evidencePackage().items()).singleElement().satisfies(item ->
+        assertThat(response.evidenceExport().items()).singleElement().satisfies(item ->
             assertThat(item.sourceId()).isEqualTo("qf-critical"));
+        assertThat(response.evidenceExport().scopeDigest()).matches("[a-f0-9]{64}");
+        JsonNode serialized = JSON.valueToTree(response);
+        assertThat(serialized.has("evidencePackage")).isFalse();
+        assertThat(serialized.path("evidenceExport").path("scopeDigest").asText()).matches("[a-f0-9]{64}");
+        assertThat(serialized.path("evidenceExport").path("items")).hasSize(1);
     }
 
     @Test

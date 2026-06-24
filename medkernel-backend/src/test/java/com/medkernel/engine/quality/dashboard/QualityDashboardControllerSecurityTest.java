@@ -51,7 +51,9 @@ class QualityDashboardControllerSecurityTest {
         when(service.drilldown(any(), eq(QualityDashboardDrilldownType.FINDING), eq(0), eq(20)))
             .thenReturn(new QualityDashboardDrilldownResponse(
                 QualityDashboardDrilldownType.FINDING, List.of(),
-                new QualityEvidencePackage("empty", Instant.EPOCH, List.of()), 0, 20, 0, false));
+                new QualityEvidenceExport("empty", Instant.EPOCH,
+                    "0000000000000000000000000000000000000000000000000000000000000000",
+                    List.of()), 0, 20, 0, false));
         when(service.alerts(any(), eq(0), eq(20)))
             .thenReturn(new QualityDashboardAlertsResponse(List.of(), 0, 20, 0, false));
 

@@ -8,7 +8,7 @@ import java.util.List;
 public record QualityDashboardDrilldownResponse(
     QualityDashboardDrilldownType type,
     List<QualityDashboardDrilldownItem> items,
-    QualityEvidencePackage evidencePackage,
+    QualityEvidenceExport evidenceExport,
     int offset,
     int limit,
     long total,

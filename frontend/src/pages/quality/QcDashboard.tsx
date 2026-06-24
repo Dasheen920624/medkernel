@@ -99,8 +99,8 @@ export default function QcDashboard() {
     <Button
       type="primary"
       icon={<ExportOutlined />}
-      disabled={!drilldownQuery.data?.evidencePackage}
-      onClick={() => downloadEvidencePackage(drilldownQuery.data)}
+      disabled={!drilldownQuery.data?.evidenceExport}
+      onClick={() => downloadEvidenceExport(drilldownQuery.data)}
     >
       导出证据
     </Button>
@@ -481,12 +481,12 @@ function EvidenceDrawer({
           />
         )}
 
-        {query.data?.evidencePackage && (
+        {query.data?.evidenceExport && (
           <Alert
             type="info"
             showIcon
-            message={`证据导出 ${query.data.evidencePackage.exportId}`}
-            description={`生成时间：${formatDateTime(query.data.evidencePackage.generatedAt)}；scopeDigest：${query.data.evidencePackage.scopeDigest}`}
+            message={`证据导出编号：${query.data.evidenceExport.exportId}`}
+            description={`生成时间：${formatDateTime(query.data.evidenceExport.generatedAt)}；证据范围摘要：${query.data.evidenceExport.scopeDigest}`}
           />
         )}
 
@@ -601,17 +601,17 @@ function getResponseStatus(error: unknown): number | undefined {
   return typeof response?.status === "number" ? response.status : undefined;
 }
 
-function downloadEvidencePackage(data: ReturnType<typeof useQualityDashboardDrilldown>["data"]) {
-  if (!data?.evidencePackage || typeof document === "undefined") {
+function downloadEvidenceExport(data: ReturnType<typeof useQualityDashboardDrilldown>["data"]) {
+  if (!data?.evidenceExport || typeof document === "undefined") {
     return;
   }
-  const blob = new Blob([JSON.stringify(data.evidencePackage, null, 2)], {
+  const blob = new Blob([JSON.stringify(data.evidenceExport, null, 2)], {
     type: "application/json",
   });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${data.evidencePackage.exportId}.json`;
+  link.download = `${data.evidenceExport.exportId}.json`;
   link.click();
   URL.revokeObjectURL(url);
 }

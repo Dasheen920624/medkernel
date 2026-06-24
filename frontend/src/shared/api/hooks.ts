@@ -5872,7 +5872,7 @@ export interface QualityDashboardDrilldownItem {
   traceId: string | null;
 }
 
-export interface QualityEvidencePackage {
+export interface QualityEvidenceExport {
   exportId: string;
   generatedAt: string;
   scopeDigest: string;
@@ -5883,7 +5883,7 @@ export interface QualityEvidencePackage {
 export interface QualityDashboardDrilldownResponse {
   type: QualityDashboardDrilldownType;
   items: QualityDashboardDrilldownItem[];
-  evidencePackage: QualityEvidencePackage | null;
+  evidenceExport: QualityEvidenceExport | null;
   offset: number;
   limit: number;
   total: number;

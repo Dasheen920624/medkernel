@@ -11,6 +11,7 @@ import com.medkernel.engine.quality.value.ValueMetricFilter;
 import com.medkernel.engine.quality.value.ValueMetricsService;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.shared.hash.Sha256ContentHash;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -98,11 +99,11 @@ public class QualityDashboardService {
             case ALERT -> alertDrilldown(tenantId, f);
         };
         DrilldownPage page = queryDrilldown(type, query, safeOffset, safeLimit);
-        QualityEvidencePackage evidencePackage = new QualityEvidencePackage(
-            "SVC-QUALITY-01." + type.name() + "." + safeOffset + "." + safeLimit,
-            Instant.now(), page.items());
+        String exportId = "SVC-QUALITY-01." + type.name() + "." + safeOffset + "." + safeLimit;
+        QualityEvidenceExport evidenceExport = new QualityEvidenceExport(
+            exportId, Instant.now(), evidenceScopeDigest(tenantId, f, type, safeOffset, safeLimit, page), page.items());
         return new QualityDashboardDrilldownResponse(
-            type, page.items(), evidencePackage, safeOffset, safeLimit, page.total(),
+            type, page.items(), evidenceExport, safeOffset, safeLimit, page.total(),
             safeOffset + safeLimit < page.total());
     }
 
@@ -550,6 +551,36 @@ public class QualityDashboardService {
 
     private String coalesce(String first, String second) {
         return first == null || first.isBlank() ? second : first;
+    }
+
+    private String evidenceScopeDigest(
+            String tenantId,
+            QualityDashboardFilter filter,
+            QualityDashboardDrilldownType type,
+            int offset,
+            int limit,
+            DrilldownPage page) {
+        List<String> parts = new ArrayList<>();
+        parts.add("tenant=" + nullToBlank(tenantId));
+        parts.add("type=" + type.name());
+        parts.add("from=" + (filter.from() == null ? "" : filter.from()));
+        parts.add("to=" + (filter.to() == null ? "" : filter.to()));
+        parts.add("department=" + nullToBlank(filter.departmentId()));
+        parts.add("offset=" + offset);
+        parts.add("limit=" + limit);
+        parts.add("total=" + page.total());
+        for (QualityDashboardDrilldownItem item : page.items()) {
+            parts.add(String.join("|",
+                nullToBlank(item.sourceType()),
+                nullToBlank(item.sourceId()),
+                nullToBlank(item.departmentId()),
+                nullToBlank(item.traceId())));
+        }
+        return Sha256ContentHash.sha256(String.join("\n", parts), "质控证据导出范围不能为空");
+    }
+
+    private String nullToBlank(String value) {
+        return value == null ? "" : value;
     }
 
     private String tenantId() {
