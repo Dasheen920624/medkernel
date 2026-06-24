@@ -92,19 +92,19 @@
 - 当前远端 `medkernel`、`nginx`、`postgresql` 均 active；内部 readiness 返回 `{"status":"UP"}`。
 - 当前远端运行旧部署提交 `2c502f1e547a185dc5ab95a76d7a3329c4d1f724`，不是本轮候选。
 - `/zoesoft/medkernel/bin` 已安装当前 `medkernel-fresh-deploy.sh`，权限为 `0750 root:root`。
-- `/zoesoft/medkernel/conf/medkernel.env` 权限为 `600 medkernel:medkernel`。
-- 2026-06-24 使用远端正式目录脚本执行 `--validate-environment-only`，失败于
-  `MEDKERNEL_BOOTSTRAP_INIT_TOKEN` 未配置；远端不存在 `/zoesoft/medkernel/conf/bootstrap-init-token.txt`；
-  未读取或输出密钥值。
+- `/zoesoft/medkernel/conf/medkernel.env` 权限为 `600 medkernel:medkernel`；2026-06-24 已配置
+  `MEDKERNEL_BOOTSTRAP_INIT_TOKEN` 并再次执行远端正式目录脚本
+  `medkernel-fresh-deploy.sh --validate-environment-only`，返回 `[OK] 生产运行环境预检通过`；未读取或输出
+  密钥值。
 - 134 公网 HTTPS 证书仍为自签 `CN=193.112.107.134`，无 Subject Alternative Name；
   严格 `curl` 失败于 `self signed certificate`，`openssl s_client` 返回 verify error 18。
-- 严格 TLS、可信 SAN 证书和首次接管令牌未完成前，不得执行上线通过声明，也不得把本地演练或历史截图
-  替代 134 真实证据。
+- 严格 TLS 和可信 SAN 证书未完成前，不得执行上线通过声明，也不得把本地演练或历史截图替代 134
+  真实证据。
 
 ## 下一步
 
-1. 待 134 配置可信 SAN 证书和首次接管令牌后，重新执行环境预检和严格 TLS 验证。
-2. 134 预检通过后，再按
+1. 待 134 配置可信 SAN 证书后，重新执行严格 TLS 验证；若生产环境变更过密钥或配置，先复跑环境预检。
+2. 严格 TLS 通过后，再按
    [DEPLOYMENT_AND_REHEARSAL](DEPLOYMENT_AND_REHEARSAL.md) 执行清库 V1、首次接管、八段全系统演练、
    全知识演练、重启和备份恢复复核。
 3. 若继续本地开发，仍从本文件和 [待处理问题](audit/deferred-issues.md) 续接；不要恢复旧偏离设计、
