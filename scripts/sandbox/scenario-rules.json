@@ -57,6 +57,8 @@
             ]
           },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["INPATIENT", "OUTPATIENT", "ED"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -200,6 +202,8 @@
             ]
           },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["INPATIENT", "OUTPATIENT", "ED"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -361,6 +365,8 @@
             ]
           },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["INPATIENT", "OUTPATIENT", "ED"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -539,6 +545,8 @@
             ]
           },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["ED", "INPATIENT"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -696,6 +704,8 @@
             ]
           },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["INPATIENT", "OUTPATIENT", "ED"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -840,6 +850,8 @@
             ]
           },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["INPATIENT"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -990,6 +1002,8 @@
             ]
           },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["FOLLOWUP"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -1152,6 +1166,8 @@
             ]
           },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["INPATIENT"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -1277,6 +1293,8 @@
             ]
           },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["INPATIENT"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -1415,6 +1433,8 @@
             ]
           },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["INPATIENT", "OUTPATIENT", "ED"],
             "effective": { "rolloutPercent": 100 }
           },

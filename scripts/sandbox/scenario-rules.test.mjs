@@ -78,6 +78,23 @@ test("每条规则都有权威来源、可执行 DSL 和四类可验证样例", 
   }
 });
 
+test("每条规则的 DSL 适用域满足后端规则契约", async () => {
+  const manifest = await loadScenarioRules();
+
+  for (const scenario of manifest.scenarios) {
+    const applicability = scenario.clinicalContent.dsl.applicability;
+    assert.ok(applicability.population, scenario.ruleCode);
+    assert.deepEqual(applicability.orgScope, {
+      groupIds: [],
+      hospitalIds: [],
+      deptIds: [],
+    });
+    assert.ok(Array.isArray(applicability.settings), scenario.ruleCode);
+    assert.ok(applicability.settings.length > 0, scenario.ruleCode);
+    assert.ok(Number.isInteger(applicability.effective?.rolloutPercent));
+  }
+});
+
 test("显式选择任一机构规则都可进入铺底", async () => {
   const manifest = await loadScenarioRules();
   const selected = selectSeedRules(
@@ -136,4 +153,13 @@ test("缺来源、缺机构归属或缺四类样例会被清单校验拒绝", as
     () => validateScenarioRules(missingDependencyVersion),
     /外圈资产依赖缺少 assetVersion/,
   );
+
+  const missingPopulation = structuredClone(manifest);
+  delete missingPopulation.scenarios[0].clinicalContent.dsl.applicability
+    .population;
+  assert.throws(() => validateScenarioRules(missingPopulation), /population/);
+
+  const missingOrgScope = structuredClone(manifest);
+  delete missingOrgScope.scenarios[0].clinicalContent.dsl.applicability.orgScope;
+  assert.throws(() => validateScenarioRules(missingOrgScope), /orgScope/);
 });
