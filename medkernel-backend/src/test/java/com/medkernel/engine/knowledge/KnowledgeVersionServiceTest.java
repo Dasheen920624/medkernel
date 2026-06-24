@@ -34,6 +34,7 @@ import com.medkernel.engine.versioning.AssetScopeResolver;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.VersionPublishEvidence;
 import com.medkernel.engine.versioning.VersionPublishQualityGate;
+import com.medkernel.engine.versioning.VersionRollbackCommand;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.engine.release.ReleaseSourceLayer;
 import com.medkernel.engine.security.EffectivePermissionService;
@@ -314,6 +315,45 @@ class KnowledgeVersionServiceTest {
         assertThat(invalidation.getValue().invalidationType().name()).isEqualTo("SUPERSEDED_REPLACEMENT");
         assertThat(invalidation.getValue().reason()).contains("newVersionId=5");
         verify(affectedCaseTaskRepo, times(3)).save(any(AffectedCaseTask.class));
+    }
+
+    @Test
+    void activateSupersededVersionRollsBackWithdrawnUnifiedVersionInsteadOfRepublishing() {
+        KnowledgeIdentity identity = identity(1L, 11L);
+        KnowledgeAssetVersion rollbackTarget = versionWithVersionNo(
+            5L, 1L, KnowledgeVersionStatus.SUPERSEDED, KnowledgeRiskLevel.LOW, "V1");
+        KnowledgeAssetVersion currentActive = versionWithVersionNo(
+            11L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW, "V2");
+
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 5L)).thenReturn(Optional.of(rollbackTarget));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
+            .thenReturn(Optional.of(currentActive));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 5L))
+            .thenReturn(List.of(citation(5L)));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "t-1", VersionedAssetType.KNOWLEDGE, "DRUG.X", "V1"))
+            .thenReturn(Optional.of(unifiedVersion(
+                "DRUG.X", "V1", rollbackTarget.contentHash(),
+                "knowledge-version:DRUG.X:V1", AssetVersionStatus.WITHDRAWN)));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "t-1", VersionedAssetType.KNOWLEDGE, "DRUG.X", "V2"))
+            .thenReturn(Optional.of(unifiedVersion(
+                "DRUG.X", "V2", currentActive.contentHash(),
+                "knowledge-version:DRUG.X:V2", AssetVersionStatus.PUBLISHED)));
+
+        service.activate(1L, 5L, "回滚到上一版权威知识", 900L);
+
+        ArgumentCaptor<VersionRollbackCommand> rollback =
+            ArgumentCaptor.forClass(VersionRollbackCommand.class);
+        verify(releasePort).rollback(rollback.capture());
+        assertThat(rollback.getValue().currentVersionId()).isEqualTo("av-DRUG.X-V2");
+        assertThat(rollback.getValue().targetVersionId()).isEqualTo("av-DRUG.X-V1");
+        assertThat(rollback.getValue().confirmedCurrentVersion()).isEqualTo("V2");
+        assertThat(rollback.getValue().confirmedTargetVersion()).isEqualTo("V1");
+        assertThat(rollback.getValue().confirmedOperation()).isTrue();
+        verify(releasePort, never()).publish(any());
     }
 
     @Test
@@ -1642,12 +1682,27 @@ class KnowledgeVersionServiceTest {
                                                            KnowledgeVersionStatus status, KnowledgeRiskLevel risk,
                                                            SourceAuthorityLevel authorityLevel, Long sourceVersionId,
                                                            String organizationScope, String applicableScope) {
+        return versionWithVersionNo(id, tenantId, identityId, status, risk, authorityLevel, sourceVersionId,
+            organizationScope, applicableScope, "v1");
+    }
+
+    private KnowledgeAssetVersion versionWithVersionNo(Long id, Long identityId, KnowledgeVersionStatus status,
+                                                       KnowledgeRiskLevel risk, String versionNo) {
+        return versionWithVersionNo(id, "t-1", identityId, status, risk, SourceAuthorityLevel.B_GUIDELINE,
+            null, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE, versionNo);
+    }
+
+    private KnowledgeAssetVersion versionWithVersionNo(Long id, String tenantId, Long identityId,
+                                                       KnowledgeVersionStatus status, KnowledgeRiskLevel risk,
+                                                       SourceAuthorityLevel authorityLevel, Long sourceVersionId,
+                                                       String organizationScope, String applicableScope,
+                                                       String versionNo) {
         Instant now = Instant.now();
         String activeScopeKey = status == KnowledgeVersionStatus.ACTIVE
             ? KnowledgeAssetVersion.activeScopeKey(identityId, organizationScope, applicableScope)
             : "version:" + id;
         return new KnowledgeAssetVersion(
-            id, tenantId, identityId, "v1", "label",
+            id, tenantId, identityId, versionNo, "label",
             null, sourceVersionId, sha256("知识版本夹具内容-" + tenantId + "-" + id), null,
             status, risk,
             authorityLevel, null, null, null,

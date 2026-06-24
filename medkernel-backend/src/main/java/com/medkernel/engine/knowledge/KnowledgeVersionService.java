@@ -37,6 +37,7 @@ import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.RolloutPolicy;
 import com.medkernel.engine.versioning.VersionPublishEvidence;
 import com.medkernel.engine.versioning.VersionReleaseCommand;
+import com.medkernel.engine.versioning.VersionRollbackCommand;
 import com.medkernel.engine.versioning.VersionedAssetType;
 
 /**
@@ -694,19 +695,20 @@ public class KnowledgeVersionService {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "高风险版本激活必须填写说明");
         }
         requireCitation(tenantId, target.id());
+        String organizationScope = target.effectiveOrganizationScope();
+        String applicableScope = target.effectiveApplicableScope();
+        Optional<KnowledgeAssetVersion> currentActiveOpt = versionRepository.findActiveByEffectiveScope(
+            tenantId, identityId, organizationScope, applicableScope);
         VersionPublishEvidence publishEvidence = publicationQualityRecords.requirePublishEvidence(
             qualityGateRecordId, identityId, target);
         publishUnifiedVersion(
             identity,
             target,
+            currentActiveOpt.orElse(null),
             normalizedReason,
             publishEvidence);
 
         // 3) 同一完整适用域内的当前 ACTIVE 版本（如有）→ SUPERSEDED
-        String organizationScope = target.effectiveOrganizationScope();
-        String applicableScope = target.effectiveApplicableScope();
-        Optional<KnowledgeAssetVersion> currentActiveOpt = versionRepository.findActiveByEffectiveScope(
-            tenantId, identityId, organizationScope, applicableScope);
         Long oldVersionId = null;
         SupersessionType transitionType = SupersessionType.ACTIVATE;
         ConflictArbitration arbitration = null;
@@ -795,6 +797,7 @@ public class KnowledgeVersionService {
     private void publishUnifiedVersion(
             KnowledgeIdentity identity,
             KnowledgeAssetVersion target,
+            KnowledgeAssetVersion currentActive,
             String reason,
             VersionPublishEvidence publishEvidence) {
         AssetVersion assetVersion = requireUnifiedAssetVersion(identity, target);
@@ -809,9 +812,41 @@ public class KnowledgeVersionService {
             case PUBLISHED -> {
                 // 已发布版本重复激活保持幂等，领域内容状态随后对齐。
             }
-            case WITHDRAWN ->
-                throw new ApiException(ErrorCode.CONFLICT, "统一知识版本已撤回，不能直接激活");
+            case WITHDRAWN -> {
+                if (target.status() != KnowledgeVersionStatus.SUPERSEDED) {
+                    throw new ApiException(ErrorCode.CONFLICT, "统一知识版本已撤回，不能直接激活");
+                }
+                rollbackUnifiedVersion(identity, target, currentActive, assetVersion, reason);
+            }
         }
+    }
+
+    private void rollbackUnifiedVersion(
+            KnowledgeIdentity identity,
+            KnowledgeAssetVersion rollbackTarget,
+            KnowledgeAssetVersion currentActive,
+            AssetVersion targetAssetVersion,
+            String reason) {
+        if (currentActive == null) {
+            throw new ApiException(ErrorCode.CONFLICT, "知识版本回滚缺少当前权威版本");
+        }
+        AssetVersion currentAssetVersion = requireUnifiedAssetVersion(identity, currentActive);
+        String rollbackReason = reason == null || reason.isBlank()
+            ? "知识版本回滚至 " + rollbackTarget.versionNo()
+            : reason.trim();
+        releasePort.rollback(new VersionRollbackCommand(
+            identity.tenantId(),
+            VersionedAssetType.KNOWLEDGE,
+            identity.identityCode(),
+            currentAssetVersion.versionId(),
+            targetAssetVersion.versionId(),
+            currentAssetVersion.versionNo(),
+            targetAssetVersion.versionNo(),
+            rollbackReason,
+            true,
+            currentActor(),
+            RequestContext.currentTraceId()
+        ));
     }
 
     private AssetVersion requireUnifiedAssetVersion(
