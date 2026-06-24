@@ -92,6 +92,9 @@
 - 前台与外部可见字典已继续按医疗引擎中枢产品语境扩展到“计算公式”“医嘱套餐”“临床提示卡”
   “命中后处理”等业务词；前端页面、共享字典、后端校验/权限/模板/错误消息和五方言 V1 注释已同步，
   旧技术词仅允许出现在翻译兜底、语言门禁、负向测试和历史接力说明中。
+- 当前上线候选明确为简体中文产品体验，不提供多语言版本或语言切换入口；已移除前端未落地的
+  `i18next` / `i18next-browser-languagedetector` / `react-i18next` 运行依赖，并新增护栏避免依赖层
+  继续暗示已支持多语言。
 - 领域归属契约已补齐 `engine-domaincatalog` 以及资产身份、资产验证记录、资产触发绑定表归属；候选生成、
   候选物化、价值指标、质控看板和全链路 E2E 的测试前置数据已对齐真实租户根组织、机构生效版本外键和
   清单哈希算法，不再靠裸字符串或占位哈希绕过关系库权威。
@@ -171,6 +174,12 @@
   先暴露规则断言仍期望旧动作表述，修正为临床提示卡口径后通过；
 - 收口核查：`git diff --check` 通过；残留旧前台词扫描只命中翻译兜底、语言门禁、负向测试断言和历史接力说明，
   未发现生产前台页面或后端外部消息继续直接暴露旧技术词。
+- 简体中文产品版边界红灯/绿灯：
+  `npm test -- --run src/shared/config/i18nLaunchBoundary.test.ts` 先失败于仍声明未使用的
+  `i18next` / `i18next-browser-languagedetector` / `react-i18next`；移除依赖并更新体验契约后通过；
+  `npm test -- --run src/shared/config/i18nLaunchBoundary.test.ts src/shared/config/customerLanguageGate.test.ts src/widgets/AppLayout.test.tsx`
+  3 个文件 / 29 个测试通过；`npm run verify` 通过，前端汇总 107 个测试文件 / 764 个测试通过；
+  `npm run build` 通过；`git diff --check` 通过。
 - 部署与演练脚本本地契约核查：
   `bash deploy/onprem/tests/validate-medkernel-fresh-deploy.sh` 通过；
   `bash deploy/onprem/tests/validate-medkernel-post-rehearsal-verify.sh` 通过；
