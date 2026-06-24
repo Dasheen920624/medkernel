@@ -16,6 +16,7 @@ import com.medkernel.engine.versioning.AssetDependencyRepository;
 import com.medkernel.engine.versioning.AssetDependencyService;
 import com.medkernel.engine.versioning.AssetIdentity;
 import com.medkernel.engine.versioning.AssetIdentityRepository;
+import com.medkernel.engine.versioning.AssetPublicationStatusSynchronizer;
 import com.medkernel.engine.versioning.AssetTechnicalValidationService;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionRepository;
@@ -40,6 +41,7 @@ public class PlatformBaselineService {
     private final AssetVersionRepository versions;
     private final AssetTechnicalValidationService validation;
     private final AssetDependencyRepository dependencies;
+    private final List<AssetPublicationStatusSynchronizer> publicationSynchronizers;
     private final Clock clock;
 
     @Autowired
@@ -49,10 +51,11 @@ public class PlatformBaselineService {
             AssetIdentityRepository identities,
             AssetVersionRepository versions,
             AssetTechnicalValidationService validation,
-            AssetDependencyRepository dependencies) {
+            AssetDependencyRepository dependencies,
+            List<AssetPublicationStatusSynchronizer> publicationSynchronizers) {
         this(
             releases, items, identities, versions, validation,
-            dependencies, Clock.systemUTC());
+            dependencies, publicationSynchronizers, Clock.systemUTC());
     }
 
     PlatformBaselineService(
@@ -62,6 +65,7 @@ public class PlatformBaselineService {
             AssetVersionRepository versions,
             AssetTechnicalValidationService validation,
             AssetDependencyRepository dependencies,
+            List<AssetPublicationStatusSynchronizer> publicationSynchronizers,
             Clock clock) {
         this.releases = releases;
         this.items = items;
@@ -69,6 +73,9 @@ public class PlatformBaselineService {
         this.versions = versions;
         this.validation = validation;
         this.dependencies = dependencies;
+        this.publicationSynchronizers = publicationSynchronizers == null
+            ? List.of()
+            : List.copyOf(publicationSynchronizers);
         this.clock = clock;
     }
 
@@ -155,7 +162,7 @@ public class PlatformBaselineService {
         assertDependencyClosure(manifest);
         Instant now = clock.instant();
         for (AssetVersion version : changedVersions.values()) {
-            versions.save(version.withStatusAndWindow(
+            AssetVersion published = versions.save(version.withStatusAndWindow(
                 AssetVersionStatus.PUBLISHED,
                 "version:" + version.versionId(),
                 now,
@@ -163,6 +170,7 @@ public class PlatformBaselineService {
                 now,
                 actor
             ));
+            notifyPublished(published, now, actor, command.traceId());
         }
 
         List<DraftEntry> ordered = manifest.values().stream()
@@ -249,6 +257,16 @@ public class PlatformBaselineService {
 
     private static ApiException validation(String message) {
         return new ApiException(ErrorCode.VALIDATION_FAILED, message);
+    }
+
+    private void notifyPublished(
+            AssetVersion published,
+            Instant publishedAt,
+            String actor,
+            String traceId) {
+        for (AssetPublicationStatusSynchronizer synchronizer : publicationSynchronizers) {
+            synchronizer.afterPublished(published, publishedAt, actor, traceId);
+        }
     }
 
     private static String blankToNull(String value) {

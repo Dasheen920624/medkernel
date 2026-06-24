@@ -104,6 +104,63 @@ export const SANDBOX_ACTOR_ROLES = Object.freeze({
   auditReader: "auditor",
 });
 
+export const sandboxPathwayPrototype = Object.freeze({
+  templateCode: "PATH.ED.DISPOSITION",
+  name: "急诊处置路径",
+  diseaseCode: "ED",
+  templateLevel: "STANDARD",
+  entryMode: "AUTO_SUGGEST",
+  startNodeCode: "ASSESS",
+  sourceRef: "院内已审核急诊处置制度",
+  description: "急诊评估后进入处置或离院安排。",
+  entryCriteria: {},
+  exitCriteria: {},
+  milestones: [
+    {
+      phaseCode: "ED",
+      phaseName: "急诊处置",
+      milestoneCode: "M-ED-ASSESS",
+      name: "完成急诊评估",
+      dayOffset: 0,
+      expectedOffsetMinutes: 30,
+      sortOrder: 1,
+    },
+  ],
+  nodes: [
+    {
+      nodeCode: "ASSESS",
+      name: "急诊评估",
+      nodeType: "ASSESSMENT",
+      milestoneCode: "M-ED-ASSESS",
+      sortOrder: 1,
+      responsibleRole: "急诊医生",
+      accountableRole: "急诊医生",
+      terminal: false,
+    },
+    {
+      nodeCode: "DISPOSITION",
+      name: "处置安排",
+      nodeType: "DISCHARGE",
+      milestoneCode: "M-ED-ASSESS",
+      sortOrder: 2,
+      responsibleRole: "急诊医生",
+      accountableRole: "急诊医生",
+      terminal: true,
+    },
+  ],
+  edges: [
+    {
+      edgeCode: "E-ASSESS-DISPOSITION",
+      fromNodeCode: "ASSESS",
+      toNodeCode: "DISPOSITION",
+      edgeType: "DEFAULT",
+      priority: 1,
+    },
+  ],
+  metricBindings: [],
+  outcomeBindings: [],
+});
+
 function traceId(stage) {
   return `sandbox-seed-${stage}-${Date.now()}`;
 }
@@ -836,34 +893,212 @@ async function governRule(browser, credentials, ruleId) {
   );
 }
 
-async function discoverRequiredOuterAssets(context, dependencies) {
-  const response = await apiGet(
-    context,
-    "/engine/pathway/pathway-templates?status=PUBLISHED&page=0&size=100",
-    "find-sandbox-pathway",
-  );
-  const pathways = pageItems(ensureOk(response, "读取已发布路径资产"));
-  return dependencies.map((dependency) => {
+async function discoverRequiredOuterAssets(context, ctx, dependencies) {
+  return Promise.all(dependencies.map(async (dependency) => {
     if (dependency.assetType !== "PATHWAY") {
       throw new Error(`暂不支持的沙盘外圈资产类型 ${dependency.assetType}`);
     }
-    const pathway = pathways.find(
-      (item) =>
-        item.templateCode === dependency.assetCode &&
-        String(item.templateVersion) === dependency.assetVersion,
+    const pathway = await findPublishedPathway(
+      context,
+      dependency,
+      `find-sandbox-pathway-${dependency.assetCode}`,
     );
     if (!pathway?.templateId) {
       throw new Error(
         `缺少沙盘外圈精确资产 ${dependency.assetCode}@${dependency.assetVersion}`,
       );
     }
+    const candidate = await findHospitalRuntimeCandidate(
+      context,
+      ctx,
+      dependency,
+      `find-sandbox-pathway-candidate-${dependency.assetCode}`,
+    );
+    if (!candidate?.versionId || candidate.status !== "PUBLISHED") {
+      throw new Error(
+        `沙盘外圈资产缺少已发布统一版本 ${dependency.assetCode}@${dependency.assetVersion}`,
+      );
+    }
     return {
       ...dependency,
       assetId: pathway.templateId,
       assetIdentity: dependency.assetCode,
-      versionId: pathway.versionId ?? null,
+      versionId: candidate.versionId,
     };
-  });
+  }));
+}
+
+function assetVersionMatches(actual, expected) {
+  const normalizedActual = String(actual ?? "").trim().replace(/^V/i, "");
+  const normalizedExpected = String(expected ?? "").trim().replace(/^V/i, "");
+  return normalizedActual !== "" && normalizedActual === normalizedExpected;
+}
+
+async function findPublishedPathway(context, dependency, stage) {
+  const response = await apiGet(
+    context,
+    `/engine/pathway/pathway-templates?status=PUBLISHED&templateCode=${encodeURIComponent(dependency.assetCode)}&page=1&size=100`,
+    stage,
+  );
+  const pathways = pageItems(ensureOk(response, "读取已发布路径资产"));
+  return pathways.find(
+    (item) =>
+      item.templateCode === dependency.assetCode &&
+      assetVersionMatches(item.templateVersion, dependency.assetVersion),
+  ) ?? null;
+}
+
+async function findHospitalRuntimeCandidate(context, ctx, dependency, stage) {
+  const targetOrgUnitId = runtimeTargetOrgUnitId(
+    ctx ?? (await envelope(context, `${stage}-scope`)),
+  );
+  const response = await apiGet(
+    context,
+    `/engine/releases/hospitals/${encodeURIComponent(targetOrgUnitId)}/runtime-candidates?assetType=PATHWAY&keyword=${encodeURIComponent(dependency.assetCode)}&page=1&size=100`,
+    stage,
+  );
+  const candidates = pageItems(ensureOk(response, "读取医院运行候选资产"));
+  return candidates.find(
+    (item) =>
+      item.assetType === "PATHWAY" &&
+      item.assetIdentity === dependency.assetCode &&
+      assetVersionMatches(item.versionNo, dependency.assetVersion),
+  ) ?? null;
+}
+
+function assertSupportedSandboxPathwayDependency(dependency) {
+  if (
+    dependency.assetType !== "PATHWAY" ||
+    dependency.assetCode !== sandboxPathwayPrototype.templateCode ||
+    !assetVersionMatches(dependency.assetVersion, "1")
+  ) {
+    throw new Error(
+      `缺少可自动准备的沙盘路径原型: ${dependency.assetType}/${dependency.assetCode}@${dependency.assetVersion}`,
+    );
+  }
+}
+
+async function createRequiredPathwayDraft(context, ctx, dependency) {
+  assertSupportedSandboxPathwayDependency(dependency);
+  const created = ensureOk(
+    await apiPost(
+      context,
+      "/engine/pathway/pathway-templates",
+      {
+        ...ctx,
+        ...sandboxPathwayPrototype,
+      },
+      `create-required-pathway-${dependency.assetCode}`,
+    ),
+    `创建沙盘外圈路径 ${dependency.assetCode}`,
+    [201],
+  );
+  const template = created?.template;
+  if (
+    template?.templateCode !== dependency.assetCode ||
+    !assetVersionMatches(template?.templateVersion, dependency.assetVersion) ||
+    created?.deploymentStatus !== "DRAFT"
+  ) {
+    throw new Error(
+      `沙盘外圈路径草稿返回不一致: ${JSON.stringify(created).slice(0, 1000)}`,
+    );
+  }
+  return created;
+}
+
+async function activateRequiredPathwayRuntimeAsset(
+  context,
+  ctx,
+  dependency,
+  candidate,
+  baseline,
+) {
+  const platformAssets = activePlatformBaselineAssets(baseline);
+  if (platformAssets.length === 0) {
+    throw new Error("平台当前标准版本没有 ACTIVE 运行资产，无法发布沙盘路径资产");
+  }
+  return activateRuntimeRelease(
+    context,
+    ctx,
+    [
+      ...platformAssets,
+      {
+        assetType: "PATHWAY",
+        assetIdentity: dependency.assetCode,
+        versionId: candidate.versionId,
+      },
+    ],
+    {
+      baseline,
+      currentStage: `sandbox-pathway-runtime-current-${dependency.assetCode}`,
+      activateStage: `activate-required-pathway-runtime-${dependency.assetCode}`,
+      verifyStage: `verify-required-pathway-runtime-${dependency.assetCode}`,
+    },
+  );
+}
+
+async function ensureRequiredOuterAssets(context, ctx, dependencies, baseline) {
+  for (const dependency of dependencies) {
+    if (dependency.assetType !== "PATHWAY") {
+      throw new Error(`暂不支持的沙盘外圈资产类型 ${dependency.assetType}`);
+    }
+    const published = await findPublishedPathway(
+      context,
+      dependency,
+      `precheck-published-pathway-${dependency.assetCode}`,
+    );
+    let candidate = await findHospitalRuntimeCandidate(
+      context,
+      ctx,
+      dependency,
+      `precheck-pathway-candidate-${dependency.assetCode}`,
+    );
+    if (published && candidate?.status === "PUBLISHED") {
+      continue;
+    }
+    if (candidate?.status === "PUBLISHED" && !published) {
+      throw new Error(
+        `沙盘路径统一版本已发布但模板投影未同步: ${dependency.assetCode}@${dependency.assetVersion}`,
+      );
+    }
+    if (!candidate) {
+      await createRequiredPathwayDraft(context, ctx, dependency);
+      candidate = await findHospitalRuntimeCandidate(
+        context,
+        ctx,
+        dependency,
+        `created-pathway-candidate-${dependency.assetCode}`,
+      );
+    }
+    if (!candidate?.versionId || candidate.status !== "DRAFT") {
+      throw new Error(
+        `沙盘路径缺少可发布草稿版本: ${dependency.assetCode}@${dependency.assetVersion}`,
+      );
+    }
+    await activateRequiredPathwayRuntimeAsset(
+      context,
+      ctx,
+      dependency,
+      candidate,
+      baseline,
+    );
+    const activated = await findPublishedPathway(
+      context,
+      dependency,
+      `verify-published-pathway-${dependency.assetCode}`,
+    );
+    const activatedCandidate = await findHospitalRuntimeCandidate(
+      context,
+      ctx,
+      dependency,
+      `verify-pathway-candidate-${dependency.assetCode}`,
+    );
+    if (!activated || activatedCandidate?.status !== "PUBLISHED") {
+      throw new Error(
+        `沙盘路径发布后仍不可精确发现: ${dependency.assetCode}@${dependency.assetVersion}`,
+      );
+    }
+  }
 }
 
 function runtimeAssetSelection(item) {
@@ -1138,8 +1373,15 @@ export async function runSeed() {
         if (platformAssets.length === 0) {
           throw new Error("平台当前标准版本没有 ACTIVE 运行资产，无法生成最终机构生效版本");
         }
+        await ensureRequiredOuterAssets(
+          adminContext,
+          ctx,
+          manifest.dependencies,
+          baseline,
+        );
         const outerAssets = await discoverRequiredOuterAssets(
           adminContext,
+          ctx,
           manifest.dependencies,
         );
         const ruleAssets = summary.results.map((item) => ({

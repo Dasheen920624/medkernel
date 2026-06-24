@@ -12,6 +12,7 @@ import {
   ruleTriggerBindings,
   resolveSandboxEvidenceDir,
   resolveSandboxAccounts,
+  sandboxPathwayPrototype,
   RULE_GOVERNANCE_STAGES,
   SANDBOX_ACTOR_ROLES,
 } from "./seed-scenarios.mjs";
@@ -106,6 +107,42 @@ test("沙盘创建快照前先激活含平台基线资产的当前医院机构�
   );
   assert.match(runSeed, /activePlatformBaselineAssets/u);
   assert.match(runSeed, /runtimeBinding/u);
+});
+
+test("沙盘外圈急诊路径资产沿用前台真实原型且不提交旧容器字段", () => {
+  assert.equal(sandboxPathwayPrototype.templateCode, "PATH.ED.DISPOSITION");
+  assert.equal(sandboxPathwayPrototype.name, "急诊处置路径");
+  assert.equal(sandboxPathwayPrototype.diseaseCode, "ED");
+  assert.equal(sandboxPathwayPrototype.startNodeCode, "ASSESS");
+  assert.equal(sandboxPathwayPrototype.nodes.length, 2);
+  assert.deepEqual(
+    sandboxPathwayPrototype.nodes.map((item) => item.nodeCode),
+    ["ASSESS", "DISPOSITION"],
+  );
+  assert.equal(sandboxPathwayPrototype.nodes[1].terminal, true);
+  assert.deepEqual(sandboxPathwayPrototype.edges, [
+    {
+      edgeCode: "E-ASSESS-DISPOSITION",
+      fromNodeCode: "ASSESS",
+      toNodeCode: "DISPOSITION",
+      edgeType: "DEFAULT",
+      priority: 1,
+    },
+  ]);
+  assert.equal(JSON.stringify(sandboxPathwayPrototype).includes("package"), false);
+});
+
+test("沙盘最终发布前先统一准备规则清单声明的外圈资产", async () => {
+  const source = await readFile(new URL("./seed-scenarios.mjs", import.meta.url), "utf8");
+  const runSeed = source.slice(source.indexOf("export async function runSeed"));
+  const ensureOuter = runSeed.indexOf("ensureRequiredOuterAssets(");
+  const discoverOuter = runSeed.indexOf("discoverRequiredOuterAssets(");
+
+  assert.ok(ensureOuter >= 0, "缺少外圈资产统一准备步骤");
+  assert.ok(discoverOuter >= 0, "缺少外圈资产精确发现步骤");
+  assert.ok(ensureOuter < discoverOuter, "外圈资产必须先准备再精确发现");
+  assert.match(source, /sandboxPathwayPrototype/u);
+  assert.match(source, /activateRequiredPathwayRuntimeAsset/u);
 });
 
 test("沙盘正式评估在最终机构生效版本激活后使用新正例快照", async () => {

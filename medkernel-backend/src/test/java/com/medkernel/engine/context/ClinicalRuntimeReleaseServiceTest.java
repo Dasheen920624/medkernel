@@ -33,6 +33,7 @@ import com.medkernel.engine.versioning.AssetDependencyRepository;
 import com.medkernel.engine.versioning.AssetIdentity;
 import com.medkernel.engine.versioning.AssetIdentityRepository;
 import com.medkernel.engine.versioning.AssetIdentityStatus;
+import com.medkernel.engine.versioning.AssetPublicationStatusSynchronizer;
 import com.medkernel.engine.versioning.AssetOwnershipScope;
 import com.medkernel.engine.versioning.AssetScopeResolver;
 import com.medkernel.engine.versioning.AssetTechnicalValidationService;
@@ -65,6 +66,8 @@ class ClinicalRuntimeReleaseServiceTest {
         mock(AssetTechnicalValidationService.class);
     private final AssetDependencyRepository dependencies = mock(AssetDependencyRepository.class);
     private final AssetScopeResolver assetScopes = mock(AssetScopeResolver.class);
+    private final AssetPublicationStatusSynchronizer publicationSynchronizer =
+        mock(AssetPublicationStatusSynchronizer.class);
     private ClinicalRuntimeReleaseService service;
 
     @BeforeEach
@@ -80,6 +83,7 @@ class ClinicalRuntimeReleaseServiceTest {
             validation,
             dependencies,
             assetScopes,
+            List.of(publicationSynchronizer),
             Clock.fixed(NOW, ZoneOffset.UTC)
         );
         when(releases.save(any(ClinicalRuntimeRelease.class)))
@@ -295,6 +299,65 @@ class ClinicalRuntimeReleaseServiceTest {
             value -> value.assetIdentity().equals("RULE.LOCAL")
                 && value.entryState() == ReleaseEntryState.ACTIVE
                 && value.sourceLayer() == ReleaseSourceLayer.HOSPITAL));
+    }
+
+    @Test
+    void publishesLocalPathwayDraftAndNotifiesProjectionSynchronizers() {
+        stubHospitalAndBaseline();
+        AssetVersion draft = version(
+            "pathway-local-v1",
+            "tenant-A",
+            VersionedAssetType.PATHWAY,
+            "PATH.ED.DISPOSITION",
+            "V1",
+            "6".repeat(64),
+            "/tenant-A/group-A/hospital-A")
+            .withStatus(
+                AssetVersionStatus.DRAFT,
+                "version:pathway-local-v1",
+                NOW.minusSeconds(60),
+                "operator-A");
+        when(versions.findByVersionIdAndTenantId("pathway-local-v1", "tenant-A"))
+            .thenReturn(Optional.of(draft));
+        when(versions.save(any(AssetVersion.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(identities.findByTenantIdAndAssetTypeAndAssetIdentity(
+            "tenant-A", VersionedAssetType.PATHWAY, "PATH.ED.DISPOSITION"))
+            .thenReturn(Optional.of(new AssetIdentity(
+                1L, "tenant-A", VersionedAssetType.PATHWAY, "PATH.ED.DISPOSITION",
+                AssetIdentityStatus.ACTIVE, 1L,
+                NOW.minusSeconds(3600), "operator-old",
+                NOW.minusSeconds(60), "operator-old", "trace-old")));
+        when(assetScopes.resolveOrganizationPath(
+            "tenant-A", "/tenant-A/group-A/hospital-A"))
+            .thenReturn(new AssetOwnershipScope(
+                ReleaseSourceLayer.HOSPITAL,
+                "/tenant-A/group-A/hospital-A"));
+        when(releases.findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+            "tenant-A", "hospital-A")).thenReturn(Optional.empty());
+
+        service.activate(new ClinicalRuntimeReleaseCommand(
+            "tenant-A",
+            "hospital-A",
+            "baseline-A8",
+            null,
+            List.of(ClinicalRuntimeAssetSelection.local(
+                VersionedAssetType.PATHWAY,
+                "PATH.ED.DISPOSITION",
+                "pathway-local-v1")),
+            "operator-A",
+            "trace-A"
+        ));
+
+        verify(validation).validateForPublish(draft, "operator-A", "trace-A");
+        verify(publicationSynchronizer).afterPublished(
+            org.mockito.ArgumentMatchers.argThat(value ->
+                value.versionId().equals("pathway-local-v1")
+                    && value.assetType() == VersionedAssetType.PATHWAY
+                    && value.status() == AssetVersionStatus.PUBLISHED),
+            org.mockito.ArgumentMatchers.eq(NOW),
+            org.mockito.ArgumentMatchers.eq("operator-A"),
+            org.mockito.ArgumentMatchers.eq("trace-A"));
     }
 
     @Test

@@ -31,6 +31,7 @@ import com.medkernel.engine.versioning.AssetIdentity;
 import com.medkernel.engine.versioning.AssetIdentityRepository;
 import com.medkernel.engine.versioning.AssetIdentityStatus;
 import com.medkernel.engine.versioning.AssetOwnershipScope;
+import com.medkernel.engine.versioning.AssetPublicationStatusSynchronizer;
 import com.medkernel.engine.versioning.AssetScopeResolver;
 import com.medkernel.engine.versioning.AssetTechnicalValidationService;
 import com.medkernel.engine.versioning.AssetVersion;
@@ -62,6 +63,7 @@ public class ClinicalRuntimeReleaseService {
     private final AssetTechnicalValidationService validation;
     private final AssetDependencyRepository dependencies;
     private final AssetScopeResolver assetScopes;
+    private final List<AssetPublicationStatusSynchronizer> publicationSynchronizers;
     private final Clock clock;
 
     @Autowired
@@ -75,10 +77,12 @@ public class ClinicalRuntimeReleaseService {
             AssetVersionRepository versions,
             AssetTechnicalValidationService validation,
             AssetDependencyRepository dependencies,
-            AssetScopeResolver assetScopes) {
+            AssetScopeResolver assetScopes,
+            List<AssetPublicationStatusSynchronizer> publicationSynchronizers) {
         this(
             baselines, baselineItems, releases, runtimeItems, organizations,
-            identities, versions, validation, dependencies, assetScopes, Clock.systemUTC()
+            identities, versions, validation, dependencies, assetScopes,
+            publicationSynchronizers, Clock.systemUTC()
         );
     }
 
@@ -93,6 +97,7 @@ public class ClinicalRuntimeReleaseService {
             AssetTechnicalValidationService validation,
             AssetDependencyRepository dependencies,
             AssetScopeResolver assetScopes,
+            List<AssetPublicationStatusSynchronizer> publicationSynchronizers,
             Clock clock) {
         this.baselines = baselines;
         this.baselineItems = baselineItems;
@@ -104,6 +109,9 @@ public class ClinicalRuntimeReleaseService {
         this.validation = validation;
         this.dependencies = dependencies;
         this.assetScopes = assetScopes;
+        this.publicationSynchronizers = publicationSynchronizers == null
+            ? List.of()
+            : List.copyOf(publicationSynchronizers);
         this.clock = clock;
     }
 
@@ -147,7 +155,7 @@ public class ClinicalRuntimeReleaseService {
 
         Instant now = clock.instant();
         for (AssetVersion draft : draftsToPublish.values()) {
-            versions.save(draft.withStatusAndWindow(
+            AssetVersion published = versions.save(draft.withStatusAndWindow(
                 AssetVersionStatus.PUBLISHED,
                 "version:" + draft.versionId(),
                 now,
@@ -155,6 +163,7 @@ public class ClinicalRuntimeReleaseService {
                 now,
                 actor
             ));
+            notifyPublished(published, now, actor, command.traceId());
         }
         List<RuntimeEntry> ordered = manifest.values().stream()
             .sorted(Comparator
@@ -577,6 +586,16 @@ public class ClinicalRuntimeReleaseService {
 
     private static ApiException validation(String message) {
         return new ApiException(ErrorCode.VALIDATION_FAILED, message);
+    }
+
+    private void notifyPublished(
+            AssetVersion published,
+            Instant publishedAt,
+            String actor,
+            String traceId) {
+        for (AssetPublicationStatusSynchronizer synchronizer : publicationSynchronizers) {
+            synchronizer.afterPublished(published, publishedAt, actor, traceId);
+        }
     }
 
     private static String blankToNull(String value) {
