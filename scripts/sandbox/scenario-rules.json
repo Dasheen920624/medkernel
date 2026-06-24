@@ -1098,6 +1098,11 @@
             "all": [
               { "expr": { "field": "claims[].drgCode" }, "operator": "exists" },
               {
+                "expr": { "field": "claims[].drgCode" },
+                "operator": "not_in",
+                "value": ["UNASSIGNED"]
+              },
+              {
                 "expr": { "field": "claims[].totalCost" },
                 "operator": "exists"
               },

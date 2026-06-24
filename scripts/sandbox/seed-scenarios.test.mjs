@@ -253,6 +253,25 @@ test("出院随访空类型边界在标准资源规范化后仍触发缺随访�
   );
 });
 
+test("DRG 缺编码样例规范化为占位编码后仍不触发支付缺项提醒", () => {
+  const rule = manifest.scenarios.find(
+    (item) => item.ruleCode === "SBX.INSURANCE.DRG",
+  );
+  const conflict = rule.clinicalContent.testCases.find(
+    (item) => item.caseType === "CONFLICT",
+  );
+  const resources = buildCanonicalResources(
+    conflict,
+    "2026-06-19T03:00:00.000Z",
+  );
+
+  assert.equal(resources.claims[0].drgCode, "UNASSIGNED");
+  assert.equal(
+    evaluateScenarioCase(rule, { ...conflict, facts: resources }),
+    false,
+  );
+});
+
 function canonicalCredentials() {
   const account = (tenantId, role) => ({
     tenantId,
