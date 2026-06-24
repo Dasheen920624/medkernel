@@ -116,6 +116,10 @@
   脚本输出 `[OK] 生产运行环境预检通过` 后在 `[X] TLS 证书链验证失败` 处停止。该失败发生在备份、
   停服和清库之前；复核远端 `medkernel`、`nginx`、`postgresql` 仍 active，manifest 仍指向旧部署提交，
   且未生成 `fresh-preclear-24c8a6d99db4*` 备份目录。
+- 134 已安装 `certbot 2.8.0` 与 Nginx 插件；使用 `193-112-107-134.sslip.io` 做 ACME staging
+  dry-run 时，Let's Encrypt 已解析到 `193.112.107.134`，但连接 `:80` 超时。复核 `firewalld`
+  inactive、`iptables` INPUT 默认 ACCEPT、Nginx 配置未被 dry-run 改动、`certbot certificates`
+  显示无证书；当前阻塞已收敛为云侧公网入站或安全组未放通 ACME HTTP-01。
 - `/zoesoft/medkernel/bin` 已安装当前 `medkernel-fresh-deploy.sh`，权限为 `0750 root:root`。
 - `/zoesoft/medkernel/conf/medkernel.env` 权限为 `600 medkernel:medkernel`；2026-06-24 已配置
   `MEDKERNEL_BOOTSTRAP_INIT_TOKEN` 并再次执行远端正式目录脚本
@@ -128,7 +132,8 @@
 
 ## 下一步
 
-1. 待 134 配置可信 SAN 证书后，使用已暂存候选重新执行正式清库命令；若生产环境变更过密钥或配置，
+1. 待 134 云侧放通 ACME 所需公网 `80/443` 入站或绑定可签发的正式域名后，重新执行证书签发；
+   证书通过严格 TLS 后，使用已暂存候选重新执行正式清库命令。若生产环境变更过密钥或配置，
    先复跑环境预检并重新校验候选 `SHA256SUMS`。
 2. 严格 TLS 通过后，再按
    [DEPLOYMENT_AND_REHEARSAL](DEPLOYMENT_AND_REHEARSAL.md) 执行清库 V1、首次接管、八段全系统演练、
