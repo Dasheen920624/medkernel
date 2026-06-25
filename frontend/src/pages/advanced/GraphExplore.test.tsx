@@ -122,12 +122,13 @@ describe("GraphExplore", () => {
     expect(screen.queryByText(/胸痛|阿司匹林|高级工具骨架|Neo4j 5\.23/)).not.toBeInTheDocument();
   });
 
-  it("shows the high-risk rebuild action only to users with projection rebuild permission", async () => {
+  it("shows the high-risk rebuild action in the page header only after confirmation", async () => {
     const user = userEvent.setup();
     apiMocks.security.data.permissions = [
       { code: "projection.read" },
       { code: "projection.rebuild" },
     ];
+    apiMocks.rebuild.mutateAsync.mockResolvedValue({ message: "投影重建完成" });
 
     render(
       <ConfigProvider>
@@ -135,9 +136,15 @@ describe("GraphExplore", () => {
       </ConfigProvider>,
     );
 
-    await user.click(screen.getByRole("tab", { name: "一致性差异 (0)" }));
-
     expect(screen.getByRole("button", { name: "重建投影" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "重建投影" }));
+
+    expect(await screen.findByText("确认重建当前投影")).toBeInTheDocument();
+    expect(apiMocks.rebuild.mutateAsync).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "确认重建" }));
+
+    expect(apiMocks.rebuild.mutateAsync).toHaveBeenCalledWith("CLINICAL_GRAPH");
   });
 
   it("keeps real facts usable when consistency status is temporarily unavailable", () => {

@@ -6,6 +6,7 @@ import {
   Empty,
   Input,
   List,
+  Popconfirm,
   Result,
   Select,
   Space,
@@ -344,18 +345,6 @@ export default function GraphExplore() {
         {diffPanel("投影多余", report?.extra ?? [])}
         {diffPanel("内容已变化", report?.changed ?? [])}
       </div>
-      {canRebuild && (
-        <div className={styles.rebuildRow}>
-          <Button
-            aria-label="重建投影"
-            icon={<SyncOutlined />}
-            loading={rebuildMutation.isPending}
-            onClick={handleRebuild}
-          >
-            重建投影
-          </Button>
-        </div>
-      )}
     </>
   );
 
@@ -372,6 +361,27 @@ export default function GraphExplore() {
             onClick={handleReload}
           />
         </Tooltip>
+      }
+      primary={
+        canRebuild ? (
+          <Popconfirm
+            title="确认重建当前投影"
+            description="只重建派生快照，不改写关系库权威源。"
+            okText="确认重建"
+            cancelText="取消"
+            onConfirm={handleRebuild}
+          >
+            <Button
+              aria-label="重建投影"
+              type="primary"
+              danger
+              icon={<SyncOutlined />}
+              loading={rebuildMutation.isPending}
+            >
+              重建投影
+            </Button>
+          </Popconfirm>
+        ) : null
       }
     >
       <div className={styles.pageStack}>
