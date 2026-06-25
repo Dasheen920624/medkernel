@@ -40957,7 +40957,7 @@
           "comment": "平台定制 UI 主题色"
         },
         {
-          "name": "expert_mode",
+          "name": "evidence_details_enabled",
           "type": "boolean",
           "nullable": false,
           "default": "FALSE",

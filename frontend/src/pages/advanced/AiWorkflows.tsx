@@ -231,9 +231,9 @@ function buildEgressPreviewRows(
         field: field.value,
         label: field.label,
         category: field.category,
-        status: selected ? "核心标识强制遮蔽" : "核心标识默认不出域",
+        status: selected ? "核心标识强制遮蔽" : "核心标识默认不提供给模型",
         reason: selected
-          ? "即使纳入允许字段，运行时仍只可传出遮蔽后值"
+          ? "即使纳入允许字段，运行时仍只可发送遮蔽后值"
           : "公网外调默认不发送姓名、证件、电话、地址和患者编号明文",
         coreSensitive: true,
       };
@@ -242,7 +242,7 @@ function buildEgressPreviewRows(
       field: field.value,
       label: field.label,
       category: field.category,
-      status: selected ? egressOperatorView[selectedOperator] : "不出域",
+      status: selected ? egressOperatorView[selectedOperator] : "不提供给模型",
       reason: selected
         ? "按当前字段处理策略进入模型请求"
         : "未纳入允许字段，运行时不会传给外部模型",
@@ -255,7 +255,7 @@ function egressPreviewStatusColor(item: EgressPreviewRow) {
   if (item.coreSensitive) {
     return "warning";
   }
-  if (item.status === "不出域") {
+  if (item.status === "不提供给模型") {
     return "default";
   }
   return "blue";
@@ -695,9 +695,9 @@ export default function AiWorkflows() {
               />
               <div className={styles.egressPreviewPanel}>
                 <div className={styles.egressPreviewHeader}>
-                  <Text strong>字段出域预览</Text>
+                  <Text strong>模型使用字段预览</Text>
                   <Text type="secondary">
-                    高敏用途达到阈值时，每次模型出域前需要责任确认；证据只保存字段清单、处理策略和摘要，不保存患者明文。
+                    高敏用途达到阈值时，每次发送给模型前需要责任确认；证据只保存字段清单、处理策略和摘要，不保存患者明文。
                   </Text>
                 </div>
                 <Table
@@ -713,7 +713,7 @@ export default function AiWorkflows() {
                 <div className={styles.egressPreviewHeader}>
                   <Text strong>本次外调用途确认</Text>
                   <Text type="secondary">
-                    高敏患者上下文出域前，记录脱敏载荷摘要和业务用途；确认记录进入审计链，不能替代医生确认或自动形成医嘱。
+                    高敏患者上下文发送给模型前，记录脱敏载荷摘要和业务用途；确认记录进入审计链，不能替代医生确认或自动形成医嘱。
                   </Text>
                 </div>
                 <Form.Item label="脱敏载荷摘要">

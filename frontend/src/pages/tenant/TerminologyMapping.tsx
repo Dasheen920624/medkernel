@@ -47,10 +47,10 @@ import {
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
-import { useExpertModeStore } from "@/shared/lib/expertModeStore";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { AsyncExportAction } from "@/shared/ui/AsyncExportAction";
 import { EvidenceDetailDrawer, type EvidenceDetailSection } from "@/shared/ui/EvidenceDetailDrawer";
-import { canUseExpertMode } from "@/shared/ui/expertModeAccess";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { ExperienceFilterBar } from "@/shared/ui/ExperienceFilterBar";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { PageState } from "@/shared/ui/PageState";
@@ -198,12 +198,12 @@ function detailSections(mapping?: TermMapping): EvidenceDetailSection[] {
       ],
     },
     {
-      key: "expert",
+      key: "technical",
       title: "技术字段",
       items: [
-        { label: "映射 ID", value: mapping.id, expertOnly: true },
-        { label: "院内编码 ID", value: mapping.localTermId, expertOnly: true },
-        { label: "标准编码 ID", value: mapping.standardTermId, expertOnly: true },
+        { label: "映射 ID", value: mapping.id, advancedOnly: true },
+        { label: "院内编码 ID", value: mapping.localTermId, advancedOnly: true },
+        { label: "标准编码 ID", value: mapping.standardTermId, advancedOnly: true },
       ],
     },
   ];
@@ -276,9 +276,9 @@ export default function TerminologyMapping() {
   const [buildForm] = Form.useForm();
 
   const security = useSecurityProfile();
-  const globalExpertMode = useExpertModeStore((state) => state.enabled);
-  const setExpertMode = useExpertModeStore((state) => state.setEnabled);
-  const expertMode = canUseExpertMode(security.data) && globalExpertMode;
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const setEvidenceDetails = useEvidenceDetailsStore((state) => state.setEnabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const query = useTerminologyMappings({
     page: request.pageNumber,
     size: request.pageSize,
@@ -324,22 +324,22 @@ export default function TerminologyMapping() {
     setFilters([...savedSnapshot.filters]);
     setRequest(savedSnapshot.pageRequest);
     setVisibleColumnKeys(savedSnapshot.visibleColumnKeys);
-    setExpertMode(savedSnapshot.expertMode);
+    setEvidenceDetails(savedSnapshot.evidenceDetailsEnabled);
     savedViewApplied.current = true;
-  }, [savedViews.data, setExpertMode]);
+  }, [savedViews.data, setEvidenceDetails]);
 
   function snapshot(
     nextFilters = filters,
     nextRequest = request,
     nextColumns = visibleColumnKeys,
-    nextExpertMode = expertMode,
+    nextEvidenceDetails = evidenceDetailsEnabled,
   ): ExperienceViewSnapshot {
     return {
       viewKey: VIEW_KEY,
       filters: nextFilters,
       pageRequest: nextRequest,
       visibleColumnKeys: nextColumns,
-      expertMode: nextExpertMode,
+      evidenceDetailsEnabled: nextEvidenceDetails,
       capturedAt: new Date().toISOString(),
     };
   }
@@ -762,7 +762,7 @@ export default function TerminologyMapping() {
                   ? { ...query.data.partial, onRetryFailures: () => void query.refetch() }
                   : undefined
               }
-              expertMode={expertMode}
+              evidenceDetailsEnabled={evidenceDetailsEnabled}
               initialVisibleColumnKeys={visibleColumnKeys}
               onRequestChange={setRequest}
               onOpenDetail={setSelectedMapping}
@@ -858,7 +858,7 @@ export default function TerminologyMapping() {
       <EvidenceDetailDrawer
         open={!!selectedMapping}
         title="术语映射详情"
-        expertMode={expertMode}
+        evidenceDetailsEnabled={evidenceDetailsEnabled}
         sections={detailSections(selectedMapping)}
         traceId={query.data?.traceId}
         onClose={() => setSelectedMapping(undefined)}

@@ -13,7 +13,7 @@ import {
   useTraceDiagnosis,
   useVerifyEvidence,
 } from "@/shared/api/hooks";
-import { useExpertModeStore } from "@/shared/lib/expertModeStore";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 import AdminAudit from "./AdminAudit";
 import { buildAuditEventQuery } from "./auditQuery";
@@ -147,7 +147,7 @@ describe("AdminAudit", () => {
 
   beforeEach(() => {
     window.localStorage.clear();
-    useExpertModeStore.setState({ enabled: false });
+    useEvidenceDetailsStore.setState({ enabled: false });
     vi.clearAllMocks();
     confirmExport.mockResolvedValue({
       confirmationId: "exp-audit-new",

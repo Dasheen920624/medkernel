@@ -3,7 +3,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SystemProviders from "./SystemProviders";
 import { useRuntimeOperations, useSecurityProfile } from "@/shared/api/hooks";
-import { useExpertModeStore } from "@/shared/lib/expertModeStore";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 vi.mock("@/shared/api/hooks", () => ({
   useRuntimeOperations: vi.fn(),
@@ -116,7 +116,7 @@ describe("SystemProviders", () => {
 
   beforeEach(() => {
     window.localStorage.clear();
-    useExpertModeStore.setState({ enabled: false });
+    useEvidenceDetailsStore.setState({ enabled: false });
     vi.clearAllMocks();
     vi.mocked(useSecurityProfile).mockReturnValue({
       data: {
@@ -255,7 +255,7 @@ describe("SystemProviders", () => {
     expect(screen.queryByText("关系数据库")).not.toBeInTheDocument();
   });
 
-  it("reveals deployment diagnostics only after an authorized operator enables expert mode", () => {
+  it("reveals deployment diagnostics only after an authorized operator enables evidence details", () => {
     render(
       <ConfigProvider>
         <SystemProviders />

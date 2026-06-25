@@ -1284,8 +1284,8 @@ export default function PathwayTemplates() {
 
   const [createTemplateVisible, setCreateTemplateVisible] = useState<boolean>(false);
   const [fieldManagerOpen, setFieldManagerOpen] = useState<boolean>(false);
-  const [createExpertMode, setCreateExpertMode] = useState<boolean>(false);
-  const [detailExpertMode, setDetailExpertMode] = useState<boolean>(false);
+  const [createAdvancedConfigEnabled, setCreateAdvancedConfigEnabled] = useState<boolean>(false);
+  const [detailAdvancedViewEnabled, setDetailAdvancedViewEnabled] = useState<boolean>(false);
   const [selectedPathwayPrototype, setSelectedPathwayPrototype] =
     useState<PathwayPrototypeKey>("blank");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -1583,7 +1583,7 @@ export default function PathwayTemplates() {
       ),
     );
     resetSimulation();
-    setCreateExpertMode(false);
+    setCreateAdvancedConfigEnabled(false);
     setCreateTemplateVisible(true);
     messageApi.success(
       `已复制当前内容，提交时系统将自动创建 v${detailData.nextVersionNo}.0 草稿。`,
@@ -1689,12 +1689,12 @@ export default function PathwayTemplates() {
     setCreatePreviewRunResult(null);
   };
 
-  const toggleCreateExpertMode = (checked: boolean) => {
-    setCreateExpertMode(checked);
+  const toggleCreateAdvancedConfigEnabled = (checked: boolean) => {
+    setCreateAdvancedConfigEnabled(checked);
   };
 
-  const toggleDetailExpertMode = (checked: boolean) => {
-    setDetailExpertMode(checked);
+  const toggleDetailAdvancedViewEnabled = (checked: boolean) => {
+    setDetailAdvancedViewEnabled(checked);
     if (!checked && detailActiveTab === "l3") {
       setDetailActiveTab("l2");
     }
@@ -1837,7 +1837,7 @@ export default function PathwayTemplates() {
           buildDraftDsl(values.milestones, values.nodes, values.edges, values.outcomeBindings),
         ),
       );
-      setCreateExpertMode(true);
+      setCreateAdvancedConfigEnabled(true);
       messageApi.success("已从 L2 节点画布同步到 L3 技术配置");
     } catch (error: unknown) {
       messageApi.error(error instanceof Error ? error.message : "L2 节点画布无法生成技术配置");
@@ -2017,7 +2017,7 @@ export default function PathwayTemplates() {
           onClick={() => {
             setSelectedTemplateId(record.templateId);
             setDetailActiveTab("l1");
-            setDetailExpertMode(false);
+            setDetailAdvancedViewEnabled(false);
             setSimulateStartNode(record.startNodeCode ?? "");
             resetSimulation();
           }}
@@ -3321,7 +3321,7 @@ export default function PathwayTemplates() {
         </Row>
       ),
     },
-    ...(createExpertMode
+    ...(createAdvancedConfigEnabled
       ? [
           {
             key: "l3",
@@ -3559,7 +3559,7 @@ export default function PathwayTemplates() {
             </Space>
           ),
         },
-        ...(detailExpertMode
+        ...(detailAdvancedViewEnabled
           ? [
               {
                 key: "l3",
@@ -3876,7 +3876,7 @@ export default function PathwayTemplates() {
                 setSelectedPathwayPrototype("blank");
                 resetCreateTemplateDraft();
                 resetSimulation();
-                setCreateExpertMode(false);
+                setCreateAdvancedConfigEnabled(false);
                 setCreateTemplateVisible(true);
               }}
             >
@@ -3924,8 +3924,8 @@ export default function PathwayTemplates() {
               <span>L3 技术配置模式</span>
               <Switch
                 aria-label="L3 技术配置模式"
-                checked={createExpertMode}
-                onChange={toggleCreateExpertMode}
+                checked={createAdvancedConfigEnabled}
+                onChange={toggleCreateAdvancedConfigEnabled}
               />
             </Space>
           </Space>
@@ -3939,7 +3939,7 @@ export default function PathwayTemplates() {
         onClose={() => {
           setSelectedTemplateId(null);
           setDetailActiveTab("l1");
-          setDetailExpertMode(false);
+          setDetailAdvancedViewEnabled(false);
           setSimulateStartNode("");
           resetSimulation();
         }}
@@ -3977,8 +3977,8 @@ export default function PathwayTemplates() {
                 <span>L3 技术视图</span>
                 <Switch
                   aria-label="L3 技术视图"
-                  checked={detailExpertMode}
-                  onChange={toggleDetailExpertMode}
+                  checked={detailAdvancedViewEnabled}
+                  onChange={toggleDetailAdvancedViewEnabled}
                 />
               </Space>
             </Space>

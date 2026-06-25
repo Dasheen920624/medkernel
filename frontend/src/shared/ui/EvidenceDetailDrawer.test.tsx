@@ -12,7 +12,7 @@ const sections = [
     title: "摘要",
     items: [
       { label: "映射状态", value: "草稿" },
-      { label: "内部字段", value: "mapping-1", expertOnly: true },
+      { label: "内部字段", value: "mapping-1", advancedOnly: true },
     ],
   },
 ];
@@ -23,7 +23,7 @@ function renderDrawer(props: Partial<ComponentProps<typeof EvidenceDetailDrawer>
       <EvidenceDetailDrawer
         open
         title="映射详情"
-        expertMode={false}
+        evidenceDetailsEnabled={false}
         sections={sections}
         traceId="trace-123"
         onClose={vi.fn()}
@@ -34,7 +34,7 @@ function renderDrawer(props: Partial<ComponentProps<typeof EvidenceDetailDrawer>
 }
 
 describe("EvidenceDetailDrawer", () => {
-  it("keeps expert evidence hidden until expert mode is enabled", () => {
+  it("keeps advanced evidence hidden until evidence details are enabled", () => {
     const { rerender } = renderDrawer();
 
     expect(screen.getByText("草稿")).toBeInTheDocument();
@@ -46,7 +46,7 @@ describe("EvidenceDetailDrawer", () => {
         <EvidenceDetailDrawer
           open
           title="映射详情"
-          expertMode
+          evidenceDetailsEnabled
           sections={sections}
           traceId="trace-123"
           onClose={vi.fn()}

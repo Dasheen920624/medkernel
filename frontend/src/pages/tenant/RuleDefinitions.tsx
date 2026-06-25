@@ -706,8 +706,8 @@ export default function RuleDefinitions() {
   const [editingRuleMeta, setEditingRuleMeta] = useState<RuleDsl["meta"] | undefined>();
   const [fieldManagerOpen, setFieldManagerOpen] = useState(false);
   const [activeCreateLayer, setActiveCreateLayer] = useState<CreateLayerKey>("l1");
-  const [createExpertMode, setCreateExpertMode] = useState(false);
-  const [detailExpertMode, setDetailExpertMode] = useState(false);
+  const [createAdvancedConfigEnabled, setCreateAdvancedConfigEnabled] = useState(false);
+  const [detailAdvancedViewEnabled, setDetailAdvancedViewEnabled] = useState(false);
   const [selectedTemplateKey, setSelectedTemplateKey] =
     useState<RuleTemplateKey>(DEFAULT_TEMPLATE_KEY);
   const [criticalReturnMinutes, setCriticalReturnMinutes] = useState<number>(
@@ -893,7 +893,7 @@ export default function RuleDefinitions() {
     setEditingRuleId(null);
     setEditingRuleMeta(undefined);
     createForm.resetFields();
-    setCreateExpertMode(false);
+    setCreateAdvancedConfigEnabled(false);
     setOrgSearch(EMPTY_ORG_SEARCH);
     setSelectedOrgOptions(EMPTY_ORG_OPTION_CACHE);
     setSnapshotPatientId("");
@@ -929,7 +929,7 @@ export default function RuleDefinitions() {
         toPopulationConditionTree(nextTree.applicability.population.exclude),
       );
       setDslEditorValue(formatRuleJson(parsedDsl));
-      setCreateExpertMode(false);
+      setCreateAdvancedConfigEnabled(false);
       setActiveCreateLayer("l2");
       setSnapshotPatientId("");
       setSnapshotEncounterId("");
@@ -957,15 +957,15 @@ export default function RuleDefinitions() {
     }
   };
 
-  const toggleCreateExpertMode = (checked: boolean) => {
-    setCreateExpertMode(checked);
+  const toggleCreateAdvancedConfigEnabled = (checked: boolean) => {
+    setCreateAdvancedConfigEnabled(checked);
     if (!checked && activeCreateLayer === "l3") {
       setActiveCreateLayer("l2");
     }
   };
 
-  const toggleDetailExpertMode = (checked: boolean) => {
-    setDetailExpertMode(checked);
+  const toggleDetailAdvancedViewEnabled = (checked: boolean) => {
+    setDetailAdvancedViewEnabled(checked);
     if (!checked && activeDetailLayer === "l3") {
       setActiveDetailLayer("l2");
     }
@@ -2323,7 +2323,7 @@ export default function RuleDefinitions() {
           throw new Error("缺少临床触发场景");
         }
         // L3 DSL 编辑模式以 JSON 为准；普通模式以 L2 递归条件树为准（避免未点同步而提交过期 DSL）。
-        parsedDsl = createExpertMode
+        parsedDsl = createAdvancedConfigEnabled
           ? parseRuleJson(dslEditorValue)
           : buildCurrentCreateRuleDsl(values.sourceRef);
         if (!isRecord(parsedDsl) || !("when" in parsedDsl)) {
@@ -2333,7 +2333,7 @@ export default function RuleDefinitions() {
         submitRoot = submitTree.root ?? dslWhenToRootGroup((parsedDsl as { when: unknown }).when);
       } catch {
         message.error("L3 技术配置文本不合法，请先从 L2 同步或修正后再提交。");
-        setCreateExpertMode(true);
+        setCreateAdvancedConfigEnabled(true);
         setActiveCreateLayer("l3");
         return;
       }
@@ -2348,10 +2348,10 @@ export default function RuleDefinitions() {
         return;
       }
       if (
-        (!createExpertMode && populationIncludeTree
+        (!createAdvancedConfigEnabled && populationIncludeTree
           ? hasUnresolvedPopulationFact(populationIncludeTree)
           : false) ||
-        (!createExpertMode && populationExcludeTree
+        (!createAdvancedConfigEnabled && populationExcludeTree
           ? hasUnresolvedPopulationFact(populationExcludeTree)
           : false)
       ) {
@@ -2506,11 +2506,13 @@ export default function RuleDefinitions() {
     }
     let draftDsl: unknown;
     try {
-      draftDsl = createExpertMode ? parseRuleJson(dslEditorValue) : buildCurrentCreateRuleDsl();
+      draftDsl = createAdvancedConfigEnabled
+        ? parseRuleJson(dslEditorValue)
+        : buildCurrentCreateRuleDsl();
       if (!isRecord(draftDsl) || !("when" in draftDsl)) {
         throw new Error("缺少 when");
       }
-      const root = createExpertMode
+      const root = createAdvancedConfigEnabled
         ? dslWhenToRootGroup((draftDsl as { when: unknown }).when)
         : conditionRoot;
       if (rootDepth(root) > MAX_TREE_DEPTH) {
@@ -2723,7 +2725,7 @@ export default function RuleDefinitions() {
             setSnapshotSearchParams(null);
             setSimulateResult(null);
             setReleaseReason("");
-            setDetailExpertMode(false);
+            setDetailAdvancedViewEnabled(false);
           }}
         >
           查看配置与试运行
@@ -3415,7 +3417,7 @@ export default function RuleDefinitions() {
             />
           ),
         },
-        ...(detailExpertMode
+        ...(detailAdvancedViewEnabled
           ? [
               {
                 key: "l3",
@@ -4371,7 +4373,7 @@ export default function RuleDefinitions() {
         </Row>
       ),
     },
-    ...(createExpertMode
+    ...(createAdvancedConfigEnabled
       ? [
           {
             key: "l3",
@@ -4526,7 +4528,7 @@ export default function RuleDefinitions() {
           setSnapshotSearchParams(null);
           setSimulateResult(null);
           setReleaseReason("");
-          setDetailExpertMode(false);
+          setDetailAdvancedViewEnabled(false);
         }}
         open={!!selectedRuleId}
         loading={detailLoading}
@@ -4603,8 +4605,8 @@ export default function RuleDefinitions() {
                 <Text>L3 技术视图</Text>
                 <Switch
                   aria-label="L3 技术视图"
-                  checked={detailExpertMode}
-                  onChange={toggleDetailExpertMode}
+                  checked={detailAdvancedViewEnabled}
+                  onChange={toggleDetailAdvancedViewEnabled}
                 />
               </Space>
             </Space>
@@ -4797,8 +4799,8 @@ export default function RuleDefinitions() {
               <Text>L3 技术配置模式</Text>
               <Switch
                 aria-label="L3 技术配置模式"
-                checked={createExpertMode}
-                onChange={toggleCreateExpertMode}
+                checked={createAdvancedConfigEnabled}
+                onChange={toggleCreateAdvancedConfigEnabled}
               />
             </Space>
           </Space>

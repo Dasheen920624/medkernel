@@ -74,7 +74,7 @@ const apiMocks = vi.hoisted(() => ({
   security: {
     data: {
       userId: "user-1",
-      username: "expert",
+      username: "engine-operator",
       roles: [{ code: "engine-operator" }],
       permissions: [{ code: "projection.read" }],
       menuKeys: ["graph-explore"],

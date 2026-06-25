@@ -6,7 +6,7 @@ const { Text, Title } = Typography;
 export interface EvidenceDetailSection {
   key: string;
   title: string;
-  items: Array<{ label: string; value: ReactNode; expertOnly?: boolean }>;
+  items: Array<{ label: string; value: ReactNode; advancedOnly?: boolean }>;
 }
 
 interface EvidenceDetailDrawerProps {
@@ -14,7 +14,7 @@ interface EvidenceDetailDrawerProps {
   title: string;
   loading?: boolean;
   error?: Error;
-  expertMode: boolean;
+  evidenceDetailsEnabled: boolean;
   sections: EvidenceDetailSection[];
   traceId?: string;
   onClose: () => void;
@@ -26,7 +26,7 @@ export function EvidenceDetailDrawer({
   title,
   loading = false,
   error,
-  expertMode,
+  evidenceDetailsEnabled,
   sections,
   traceId,
   onClose,
@@ -61,7 +61,9 @@ export function EvidenceDetailDrawer({
     contents = (
       <Space direction="vertical" size="large" className="mk-full-width">
         {sections.map((section) => {
-          const visibleItems = section.items.filter((item) => expertMode || !item.expertOnly);
+          const visibleItems = section.items.filter(
+            (item) => evidenceDetailsEnabled || !item.advancedOnly,
+          );
           if (visibleItems.length === 0) return null;
 
           return (
@@ -79,7 +81,7 @@ export function EvidenceDetailDrawer({
             </section>
           );
         })}
-        {expertMode && traceId && <Text type="secondary">追踪号：{traceId}</Text>}
+        {evidenceDetailsEnabled && traceId && <Text type="secondary">追踪号：{traceId}</Text>}
       </Space>
     );
   }

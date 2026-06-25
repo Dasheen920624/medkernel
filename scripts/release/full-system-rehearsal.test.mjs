@@ -182,6 +182,33 @@ test("八阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
   assert.equal(written[0].value.status, "PASSED");
 });
 
+test("整套演练持续输出八阶段进度并在总索引记录阶段耗时", async () => {
+  const progress = [];
+  const result = await runFullSystemRehearsal(rehearsalConfig(), {
+    runCommand: async () => ({ exitCode: 0 }),
+    readJson: (_path, stage) => completeStageEvidence()[stage.id],
+    writeJson: () => {},
+    now: steppedClock("2026-06-25T08:00:00.000Z"),
+    onProgress: (event) => progress.push(event),
+  });
+
+  assert.equal(progress[0].type, "stage-start");
+  assert.equal(progress[0].stageId, "account-bootstrap");
+  assert.ok(
+    progress.some(
+      (event) =>
+        event.type === "stage-complete" &&
+        event.stageId === "full-knowledge" &&
+        event.completed === 5 &&
+        event.remaining === 3 &&
+        event.durationMs > 0,
+    ),
+  );
+  assert.equal(progress.at(-1).type, "rehearsal-complete");
+  assert.equal(progress.at(-1).stageCount, 8);
+  assert.ok(result.stages.every((stage) => stage.durationMs > 0));
+});
+
 test("完整上线覆盖矩阵缺项、跳过或未知时证据门禁拒绝放行", () => {
   const complete = completeLaunchCoverageEvidence();
   assert.doesNotThrow(() => assertCompleteLaunchCoverage(complete));
@@ -222,6 +249,70 @@ function completeLaunchCoverageEvidence() {
   return {
     status: "PASSED",
     coverage: buildRequiredLaunchCoverage(),
+  };
+}
+
+function completeStageEvidence() {
+  return {
+    "account-bootstrap": { status: "PASSED", verifiedAccountCount: 9 },
+    "model-provider": {
+      status: "PASSED",
+      provider: { enabled: true, status: "HEALTHY" },
+      evaluation: { totalCases: 3, passedCases: 3, failedCases: 0, status: "PASSED" },
+    },
+    "platform-baseline": platformBaselineEvidence(),
+    sandbox: {
+      results: Array.from({ length: 10 }, (_, index) => ({ ruleCode: `R${index}`, result: "PASS" })),
+      failures: [],
+      runtimeBinding: { ready: true, externalSideEffects: false },
+    },
+    "full-knowledge": {
+      status: "PASSED",
+      coverage: {
+        expectedDomains: [
+          "GUIDELINE", "DRUG", "PATHWAY_KNOWLEDGE", "NURSING", "DIAGNOSTIC_ITEM", "TCM",
+          "PROTOCOL", "POLICY", "LITERATURE", "OTHER", "DIAGNOSIS",
+        ],
+        publishedDomains: [
+          "GUIDELINE", "DRUG", "PATHWAY_KNOWLEDGE", "NURSING", "DIAGNOSTIC_ITEM", "TCM",
+          "PROTOCOL", "POLICY", "LITERATURE", "OTHER", "DIAGNOSIS",
+        ],
+      },
+      versionLifecycle: {
+        v1VersionId: 101,
+        v2VersionId: 102,
+        rollbackActiveVersionId: 101,
+        restoredActiveVersionId: 102,
+        finalStatus: "ACTIVE",
+      },
+    },
+    "runtime-resilience": {
+      status: "PASSED",
+      disabled: {
+        providerEnabled: false,
+        readinessReady: false,
+        modelInvocationAllowed: false,
+        blockingRequiredItems: ["MODEL_PROVIDER"],
+      },
+      b0: { fixtureCount: 17, passedCount: 17, modelRequiredCount: 0 },
+      restored: {
+        providerEnabled: true,
+        providerStatus: "HEALTHY",
+        readinessReady: true,
+        modelInvocationAllowed: true,
+      },
+    },
+    "browser-e2e": { stats: { expected: 82, unexpected: 0, flaky: 0 } },
+    "launch-coverage": completeLaunchCoverageEvidence(),
+  };
+}
+
+function steppedClock(startIso) {
+  let current = Date.parse(startIso);
+  return () => {
+    const value = new Date(current).toISOString();
+    current += 1000;
+    return value;
   };
 }
 

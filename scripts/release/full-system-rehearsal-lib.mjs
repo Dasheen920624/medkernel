@@ -398,19 +398,59 @@ export function buildFullSystemStagePlan(config) {
   ];
 }
 
+export function formatFullSystemProgress(event) {
+  if (!event || typeof event !== "object") return "[full-system] 进度事件无效";
+  switch (event.type) {
+    case "stage-start":
+      return `[full-system] 阶段 ${event.sequence}/${event.total} 开始：${event.stageLabel}`;
+    case "stage-complete":
+      return `[full-system] 阶段 ${event.completed}/${event.total} 通过：${event.stageLabel}，用时 ${formatDuration(event.durationMs)}，还剩 ${event.remaining} 个`;
+    case "stage-failed":
+      return `[full-system] 阶段 ${event.sequence}/${event.total} 失败：${event.stageLabel}，exit=${event.exitCode}`;
+    case "rehearsal-complete":
+      return `[full-system] 整套上线演练通过：${event.stageCount} 个阶段，证据 ${event.indexPath}`;
+    default:
+      return `[full-system] ${event.type ?? "未知进度"} ${event.stageId ?? ""}`.trim();
+  }
+}
+
 export async function runFullSystemRehearsal(config, dependencies = {}) {
   const runCommand = dependencies.runCommand ?? spawnStage;
   const readJson = dependencies.readJson ?? readJsonFile;
   const writeJson = dependencies.writeJson ?? writeJsonAtomic;
   const clock = dependencies.now;
+  const progress = createProgressReporter(dependencies.onProgress, clock);
   const startedAt = now(clock);
   const completed = [];
   let launchCoverage = null;
+  const stages = buildFullSystemStagePlan(config);
+  const totalStages = stages.length;
 
-  for (const stage of buildFullSystemStagePlan(config)) {
+  for (const [index, stage] of stages.entries()) {
+    progress({
+      type: "stage-start",
+      stageId: stage.id,
+      stageLabel: stage.label,
+      sequence: index + 1,
+      total: totalStages,
+      completed: index,
+      remaining: totalStages - index,
+      evidencePath: stage.evidencePath,
+    });
     const stageStartedAt = now(clock);
     const commandResult = await runCommand(stage);
     if (commandResult?.exitCode !== 0) {
+      progress({
+        type: "stage-failed",
+        stageId: stage.id,
+        stageLabel: stage.label,
+        sequence: index + 1,
+        total: totalStages,
+        completed: index,
+        remaining: totalStages - index,
+        exitCode: commandResult?.exitCode ?? "unknown",
+        evidencePath: stage.evidencePath,
+      });
       throw new Error(`${stage.id} 阶段失败（exit=${commandResult?.exitCode ?? "unknown"}）`);
     }
     const evidence = readJson(stage.evidencePath, stage);
@@ -418,30 +458,59 @@ export async function runFullSystemRehearsal(config, dependencies = {}) {
     if (stage.id === "launch-coverage") {
       launchCoverage = evidence.coverage;
     }
+    const stageFinishedAt = now(clock);
+    const durationMs = elapsedMs(stageStartedAt, stageFinishedAt);
     completed.push({
       id: stage.id,
       label: stage.label,
       status: "PASSED",
       startedAt: stageStartedAt,
-      finishedAt: now(clock),
+      finishedAt: stageFinishedAt,
+      durationMs,
+      evidencePath: stage.evidencePath,
+      summary,
+    });
+    progress({
+      type: "stage-complete",
+      stageId: stage.id,
+      stageLabel: stage.label,
+      sequence: index + 1,
+      total: totalStages,
+      completed: index + 1,
+      remaining: totalStages - index - 1,
+      durationMs,
       evidencePath: stage.evidencePath,
       summary,
     });
   }
 
+  const finishedAt = now(clock);
   const index = {
     schemaVersion: "1.0.0",
     status: "PASSED",
     stage: "FULL_SYSTEM_REHEARSAL",
     source: config.source,
     startedAt,
-    finishedAt: now(clock),
+    finishedAt,
+    durationMs: elapsedMs(startedAt, finishedAt),
     webBaseUrl: config.webBaseUrl,
     apiBaseUrl: config.apiBaseUrl,
     coverage: launchCoverage,
+    observability: {
+      stageCount: completed.length,
+      completedStages: completed.length,
+      failedStages: 0,
+    },
     stages: completed,
   };
   writeJson(config.indexPath, index);
+  progress({
+    type: "rehearsal-complete",
+    status: index.status,
+    stageCount: completed.length,
+    durationMs: index.durationMs,
+    indexPath: config.indexPath,
+  });
   return index;
 }
 
@@ -692,6 +761,30 @@ function outsideRepo(value, repoRoot, label) {
 function now(clock) {
   const value = clock ? clock() : new Date();
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+function createProgressReporter(onProgress, clock) {
+  if (typeof onProgress !== "function") return () => {};
+  return (event) => {
+    onProgress({
+      at: now(clock),
+      ...event,
+    });
+  };
+}
+
+function elapsedMs(startedAt, finishedAt) {
+  const started = Date.parse(startedAt);
+  const finished = Date.parse(finishedAt);
+  if (!Number.isFinite(started) || !Number.isFinite(finished)) return 0;
+  return Math.max(0, finished - started);
+}
+
+function formatDuration(value) {
+  const milliseconds = Number.isFinite(value) ? Math.max(0, value) : 0;
+  if (milliseconds < 1000) return `${milliseconds}ms`;
+  const seconds = Math.round(milliseconds / 100) / 10;
+  return `${seconds}s`;
 }
 
 function requireText(value, label) {

@@ -11,6 +11,7 @@ import {
   isAcceptableShadowRun,
   readRehearsalConfig,
   redactEvidence,
+  runFullKnowledgeRehearsal,
   validateFullKnowledgeManifest,
   verifyOfficialSource,
 } from "./full-knowledge-rehearsal-lib.mjs";
@@ -225,6 +226,67 @@ test("演练运行上下文不提交旧包版本参数", () => {
   assert.equal(source.includes("packageVersion"), false);
 });
 
+test("正式全知识演练持续输出域级进度并在证据中记录模型任务耗时", async () => {
+  const progress = [];
+  const evidence = await runFullKnowledgeRehearsal({
+    apiBaseUrl: "https://193.112.107.134/medkernel/api/v1",
+    tenantId: "t-1",
+    operator: {
+      tenantId: "t-1",
+      username: "engine-operator",
+      password: "controlled-password",
+      role: "engine-operator",
+    },
+    providerCode: "ollama-launch",
+    manifest,
+    fetchImpl: createKnowledgeApiFetch(manifest),
+    sourceFetchImpl: async (url) => {
+      const entry = manifest.entries.find((item) => item.source.url === url.toString());
+      return jsonLikeResponse(
+        `<html>${entry.source.verificationTerms.join(" ")}</html>`,
+        { contentType: "text/html; charset=utf-8", url: url.toString() },
+      );
+    },
+    now: steppedClock("2026-06-25T10:00:00.000Z"),
+    onProgress: (event) => progress.push(event),
+  });
+
+  assert.equal(evidence.status, "PASSED");
+  assert.equal(progress[0].type, "stage-start");
+  assert.ok(progress.some((event) => event.type === "source-verified" && event.remaining === 10));
+  assert.ok(
+    progress.some(
+      (event) =>
+        event.type === "domain-start" &&
+        event.domain === "GUIDELINE" &&
+        event.completed === 0 &&
+        event.total === 11 &&
+        event.remaining === 11,
+    ),
+  );
+  assert.ok(
+    progress.some(
+      (event) =>
+        event.type === "domain-complete" &&
+        event.domain === "GUIDELINE" &&
+        event.completed === 1 &&
+        event.remaining === 10 &&
+        event.modelTaskId === "task-1" &&
+        event.modelTaskDurationMs > 0,
+    ),
+  );
+  assert.ok(progress.some((event) => event.type === "rollback-complete"));
+  assert.equal(progress.at(-1).type, "stage-complete");
+  assert.equal(evidence.observability.totalDomains, 11);
+  assert.equal(evidence.observability.completedDomains, 11);
+  assert.equal(evidence.observability.modelTasks.length, 12);
+  assert.ok(
+    evidence.knowledge.every(
+      (item) => item.progress.remainingDomains >= 0 && item.modelTaskDurationMs > 0,
+    ),
+  );
+});
+
 test("配置只接受平台主源医疗引擎运营员和仓库外运行时证据目录", () => {
   const config = readRehearsalConfig(
     {
@@ -336,3 +398,244 @@ test("证据脱敏不泄露凭据、Cookie、令牌和患者数据", () => {
   assert.equal(evidence.safety.containsPatientData, false);
   assert.equal(evidence.domain, "GUIDELINE");
 });
+
+function steppedClock(startIso) {
+  let current = Date.parse(startIso);
+  return () => {
+    const value = new Date(current).toISOString();
+    current += 1000;
+    return value;
+  };
+}
+
+function createKnowledgeApiFetch(rehearsalManifest) {
+  const identitiesByCode = new Map();
+  const identitiesById = new Map();
+  const jobs = new Map();
+  const versionsByIdentity = new Map();
+  const classificationsByVersion = new Map();
+  const activeVersionByIdentity = new Map();
+  let nextSourceId = 10;
+  let nextSourceVersionId = 100;
+  let nextFragmentId = 1000;
+  let nextIdentityId = 1;
+  let nextVersionId = 101;
+  let nextClassificationId = 1001;
+  let nextJobId = 1;
+  let nextQualityRecordId = 1;
+
+  return async (input, init = {}) => {
+    const url = new URL(input);
+    const method = String(init.method ?? "GET").toUpperCase();
+    const pathname = url.pathname.replace(/^\/medkernel\/api\/v1/u, "");
+    const body = init.body ? JSON.parse(init.body) : {};
+
+    if (method === "POST" && pathname === "/auth/login") {
+      return apiResponse({
+        tenantId: "t-1",
+        mustChangePwd: false,
+        mfaRequired: false,
+        roles: ["engine-operator"],
+      }, {
+        setCookie: "mk_session=controlled; Path=/, XSRF-TOKEN=controlled-xsrf; Path=/",
+      });
+    }
+    if (method === "GET" && pathname === "/engine/knowledge-production/asset-templates") {
+      return apiResponse(
+        rehearsalManifest.entries.map((entry) => ({
+          assetType: "KNOWLEDGE",
+          knowledgeDomain: entry.domain,
+          sections: [
+            { key: "summary", label: "来源边界", required: true },
+            { key: "references", label: "参考来源", required: true },
+          ],
+        })),
+      );
+    }
+    if (method === "GET" && pathname === "/engine/knowledge-production/readiness") {
+      return apiResponse({
+        capabilityCode: rehearsalManifest.capabilityCode,
+        providerCode: "ollama-launch",
+        ready: true,
+        modelInvocationAllowed: true,
+        deploymentForm: "LOCAL_MODEL",
+        items: [{ code: "MODEL_PROVIDER", required: true, ready: true }],
+      });
+    }
+    if (method === "POST" && pathname === "/engine/knowledge/sources") {
+      return apiResponse({ id: nextSourceId++, sourceCode: body.sourceCode });
+    }
+    const sourceVersionMatch = /^\/engine\/knowledge\/sources\/(\d+)\/versions$/u.exec(pathname);
+    if (method === "POST" && sourceVersionMatch) {
+      return apiResponse({
+        id: nextSourceVersionId++,
+        versionNo: body.versionNo,
+        contentHash: body.contentHash,
+      });
+    }
+    if (method === "POST" && pathname === "/engine/knowledge/sources/fragments") {
+      return apiResponse({ id: nextFragmentId++, sourceVersionId: body.sourceVersionId });
+    }
+    if (method === "POST" && pathname === "/engine/knowledge-production/jobs") {
+      const entry = rehearsalManifest.entries.find((item) =>
+        body.sourceScope.startsWith(`${item.source.sourceCode}:`),
+      );
+      const jobCode = `job-${nextJobId++}`;
+      jobs.set(jobCode, { entry });
+      return apiResponse({ jobCode, assetType: "KNOWLEDGE" });
+    }
+    const modelCandidateMatch =
+      /^\/engine\/knowledge-production\/jobs\/([^/]+)\/model-candidates$/u.exec(pathname);
+    if (method === "POST" && modelCandidateMatch) {
+      const jobCode = decodeURIComponent(modelCandidateMatch[1]);
+      const job = jobs.get(jobCode);
+      const entry = job.entry;
+      let identity = body.target?.targetIdentityId
+        ? identitiesById.get(body.target.targetIdentityId)
+        : null;
+      if (!identity) {
+        identity = {
+          id: nextIdentityId++,
+          domain: body.target.newIdentity.domain,
+          identityCode: body.target.newIdentity.identityCode,
+        };
+        identitiesByCode.set(identity.identityCode, identity);
+        identitiesById.set(identity.id, identity);
+      }
+      const version = {
+        id: nextVersionId++,
+        versionNo: body.target?.targetIdentityId ? "2" : "1",
+        status: "DRAFT",
+      };
+      const classification = {
+        id: nextClassificationId++,
+        candidateVersionId: version.id,
+      };
+      versionsByIdentity.set(identity.id, [
+        ...(versionsByIdentity.get(identity.id) ?? []),
+        version,
+      ]);
+      classificationsByVersion.set(version.id, classification);
+      job.identity = identity;
+      job.version = version;
+      job.classification = classification;
+      return apiResponse({
+        modelTaskId: `task-${jobCode.slice("job-".length)}`,
+        modelMode: "LOCAL_MODEL",
+        modelVersion: "medkernel-qwen25:1.5b-v1",
+        promptVersion: "prompt-v1",
+        toolVersion: "tool-v1",
+        summary: {
+          candidates: [{ candidateRef: `kv:${identity.id}:${version.versionNo}` }],
+          blocked: [],
+          skipped: [],
+        },
+      });
+    }
+    const identityByCodeMatch =
+      /^\/engine\/knowledge\/identities\/by-code\/([^/]+)$/u.exec(pathname);
+    if (method === "GET" && identityByCodeMatch) {
+      return apiResponse(identitiesByCode.get(decodeURIComponent(identityByCodeMatch[1])));
+    }
+    const candidatesMatch =
+      /^\/engine\/knowledge\/identities\/(\d+)\/candidates$/u.exec(pathname);
+    if (method === "GET" && candidatesMatch) {
+      const identityId = Number(candidatesMatch[1]);
+      const versions = versionsByIdentity.get(identityId) ?? [];
+      return apiResponse({
+        candidates: { items: versions },
+        classifications: versions.map((version) => classificationsByVersion.get(version.id)),
+      });
+    }
+    if (method === "POST" && pathname === "/engine/knowledge/citations") {
+      return apiResponse({ id: 1 });
+    }
+    const technicalMatch =
+      /^\/engine\/knowledge-production\/jobs\/([^/]+)\/(gate-results|triage-results|shadow-runs)$/u.exec(pathname);
+    if (method === "GET" && technicalMatch) {
+      const suffix = technicalMatch[2];
+      if (suffix === "gate-results") return apiResponse([{ passed: true }]);
+      if (suffix === "triage-results") return apiResponse([{ action: "MANUAL_REVIEW" }]);
+      return apiResponse([
+        {
+          status: "PASSED",
+          readyForReview: true,
+          degradationDetected: false,
+          totalCases: 3,
+        },
+      ]);
+    }
+    const qualityMatch =
+      /^\/engine\/knowledge-production\/jobs\/([^/]+)\/publication-quality-records$/u.exec(pathname);
+    if (method === "POST" && qualityMatch) {
+      return apiResponse({
+        id: nextQualityRecordId++,
+        candidateRef: body.candidateRef,
+        versionId: body.versionId,
+      });
+    }
+    const reviewMatch = /^\/engine\/knowledge\/candidates\/(\d+)\/review$/u.exec(pathname);
+    if (method === "POST" && reviewMatch) {
+      const classificationId = Number(reviewMatch[1]);
+      const version = [...versionsByIdentity.values()]
+        .flat()
+        .find((item) => classificationsByVersion.get(item.id)?.id === classificationId);
+      version.status = "ACTIVE";
+      const [identityId] = [...versionsByIdentity.entries()].find(([, versions]) =>
+        versions.some((item) => item.id === version.id),
+      );
+      activeVersionByIdentity.set(identityId, version);
+      return apiResponse({ reasonCode: "APPROVED", candidates: { items: [version] } });
+    }
+    const completeMatch =
+      /^\/engine\/knowledge-production\/jobs\/([^/]+)\/complete$/u.exec(pathname);
+    if (method === "POST" && completeMatch) {
+      return apiResponse({ status: "COMPLETED" });
+    }
+    const activeMatch = /^\/engine\/knowledge\/identities\/(\d+)\/active$/u.exec(pathname);
+    if (method === "GET" && activeMatch) {
+      return apiResponse(activeVersionByIdentity.get(Number(activeMatch[1])));
+    }
+    const lineageMatch =
+      /^\/engine\/knowledge\/identities\/(\d+)\/(provenance|citations|source-evidence)$/u.exec(pathname);
+    if (method === "GET" && lineageMatch) {
+      return apiResponse(lineageMatch[2] === "provenance" ? { source: "controlled" } : [{ id: 1 }]);
+    }
+    const activateMatch =
+      /^\/engine\/knowledge\/identities\/(\d+)\/versions\/(\d+)\/activate$/u.exec(pathname);
+    if (method === "POST" && activateMatch) {
+      const identityId = Number(activateMatch[1]);
+      const versionId = Number(activateMatch[2]);
+      const version = (versionsByIdentity.get(identityId) ?? []).find((item) => item.id === versionId);
+      version.status = "ACTIVE";
+      activeVersionByIdentity.set(identityId, version);
+      return apiResponse(version);
+    }
+
+    return jsonLikeResponse(JSON.stringify({ success: false, message: `${method} ${pathname}` }), {
+      status: 404,
+    });
+  };
+}
+
+function apiResponse(data, options = {}) {
+  return jsonLikeResponse(JSON.stringify({ success: true, data }), options);
+}
+
+function jsonLikeResponse(text, options = {}) {
+  const status = options.status ?? 200;
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    url: options.url ?? "https://193.112.107.134/medkernel/api/v1/test",
+    headers: {
+      get: (name) => {
+        const normalized = name.toLowerCase();
+        if (normalized === "set-cookie") return options.setCookie ?? null;
+        if (normalized === "content-type") return options.contentType ?? "application/json";
+        return null;
+      },
+    },
+    text: async () => text,
+  };
+}

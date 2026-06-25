@@ -365,7 +365,7 @@ function CustomerTenantImplementation() {
       hospitalName: branding.hospitalName,
       logoUrl: branding.logoUrl,
       themeColor: branding.themeColor ?? "var(--mk-theme-navy)",
-      expertMode: branding.expertMode ?? false,
+      evidenceDetailsEnabled: branding.evidenceDetailsEnabled ?? false,
     });
   }, [branding, brandForm]);
 
@@ -458,7 +458,7 @@ function CustomerTenantImplementation() {
         hospitalName: values.hospitalName,
         logoUrl: values.logoUrl || null,
         themeColor: values.themeColor,
-        expertMode: values.expertMode,
+        evidenceDetailsEnabled: values.evidenceDetailsEnabled,
       });
 
       message.success("品牌信息已保存");
@@ -782,7 +782,11 @@ function CustomerTenantImplementation() {
                         </div>
                       </Form.Item>
 
-                      <Form.Item name="expertMode" label="默认展示高级信息" valuePropName="checked">
+                      <Form.Item
+                        name="evidenceDetailsEnabled"
+                        label="默认展开证据详情"
+                        valuePropName="checked"
+                      >
                         <Switch checkedChildren="开启" unCheckedChildren="关闭" />
                       </Form.Item>
 

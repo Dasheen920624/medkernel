@@ -213,7 +213,7 @@ const routeDecisions = {
     decision: "SPLIT",
     targetDomain: "知识生产",
     targetEntry: "知识生产",
-    task: "核查知识生产 readiness、生产 job、候选血缘、门禁、8 态和影子证据",
+    task: "核查知识生产 readiness、生产 job、候选血缘、门禁、8 态、影子证据和高敏患者上下文用途确认重试",
   },
   "/admin/users": {
     decision: "MOVE",
@@ -467,15 +467,29 @@ function controllerDecision(className, endpoints) {
       rationale: "仅服务外部系统或嵌入链路，不进入客户主菜单",
     };
   }
+  if (/DataMinimizationPolicyController/i.test(className)) {
+    return {
+      decision: "KEEP",
+      target: "对应客户任务页面",
+      rationale: "策略维护归外调治理，当前任务用途确认可由知识生产操作者完成并落审计",
+    };
+  }
   if (
     /Developer|Projection|Diagnose|Model(Gateway|Egress|Provider|Eval|Enhancement)|PluginSecurity/i.test(
       text,
     )
   ) {
+    if (/ModelEgressController/i.test(className)) {
+      return {
+        decision: "KEEP",
+        target: "所属业务域专业能力",
+        rationale: "外调策略由实施/运营维护，本次脱敏载荷用途确认由业务上下文承载",
+      };
+    }
     return {
       decision: "KEEP",
       target: "所属业务域专业能力",
-      rationale: "按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示",
+      rationale: "按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示",
     };
   }
   if (/Batch|Export|RuntimeTask|AsyncSuffix/i.test(text)) {

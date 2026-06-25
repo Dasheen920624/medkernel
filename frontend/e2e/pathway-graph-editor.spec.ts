@@ -57,7 +57,7 @@ test.describe("线2路径图编辑器真实验收", () => {
     await firstNode.press("Escape");
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "同步到技术配置" }).click();
-    await enableExpertMode(dialog);
+    await enableAdvancedConfig(dialog);
     await dialog.getByRole("tab", { name: "L3 技术配置" }).click();
     const dslValue = await dialog.getByLabel("路径配置文本").inputValue();
     const dsl = JSON.parse(dslValue) as {
@@ -135,10 +135,10 @@ async function openNodeCanvas(dialog: ReturnType<Page["getByRole"]>) {
   await expect(dialog.getByText("结构化节点画布", { exact: true })).toBeVisible();
 }
 
-async function enableExpertMode(dialog: ReturnType<Page["getByRole"]>) {
-  const expertSwitch = dialog.getByRole("switch", { name: "L3 技术配置模式" });
-  if ((await expertSwitch.getAttribute("aria-checked")) !== "true") {
-    await expertSwitch.click();
+async function enableAdvancedConfig(dialog: ReturnType<Page["getByRole"]>) {
+  const advancedConfigSwitch = dialog.getByRole("switch", { name: "L3 技术配置模式" });
+  if ((await advancedConfigSwitch.getAttribute("aria-checked")) !== "true") {
+    await advancedConfigSwitch.click();
   }
   await expect(dialog.getByRole("tab", { name: "L3 技术配置" })).toBeVisible();
 }

@@ -109,7 +109,9 @@ public class TenantPilotService {
                 input.hospitalName() == null ? existing.hospitalName() : input.hospitalName(),
                 input.logoUrl() == null ? existing.logoUrl() : input.logoUrl(),
                 input.themeColor() == null ? existing.themeColor() : input.themeColor(),
-                input.expertMode() == null ? existing.expertMode() : input.expertMode(),
+                input.evidenceDetailsEnabled() == null
+                    ? existing.evidenceDetailsEnabled()
+                    : input.evidenceDetailsEnabled(),
                 input.customBrandingJson() == null ? existing.customBrandingJson() : input.customBrandingJson(),
                 existing.createdAt(),
                 existing.createdBy(),
@@ -123,7 +125,7 @@ public class TenantPilotService {
                 input.hospitalName() == null ? DEFAULT_HOSPITAL_NAME : input.hospitalName(),
                 input.logoUrl(),
                 input.themeColor() == null ? DEFAULT_THEME_COLOR : input.themeColor(),
-                input.expertMode() != null && input.expertMode(),
+                input.evidenceDetailsEnabled() != null && input.evidenceDetailsEnabled(),
                 input.customBrandingJson() == null ? "{}" : input.customBrandingJson(),
                 Instant.now(),
                 currentActor(),

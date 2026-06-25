@@ -20,8 +20,8 @@ import { PageState } from "@/shared/ui/PageState";
 import { useRuntimeOperations, useSecurityProfile } from "@/shared/api/hooks";
 import type { RuntimeDependencyStatus, RuntimeFeatureFlag } from "@/shared/api/hooks";
 import { customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
-import { useExpertModeStore } from "@/shared/lib/expertModeStore";
-import { canUseExpertMode } from "@/shared/ui/expertModeAccess";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import type { RouteExperience } from "@/shared/ui/experienceTypes";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -93,8 +93,8 @@ export default function SystemProviders() {
   const security = useSecurityProfile();
   const routeAllowed = Boolean(security.data && canAccessRoute(route, security.data));
   const runtime = useRuntimeOperations(routeAllowed);
-  const globalExpertMode = useExpertModeStore((state) => state.enabled);
-  const expertMode = canUseExpertMode(security.data) && globalExpertMode;
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const { token } = theme.useToken();
 
   if (security.isLoading) {
@@ -239,7 +239,7 @@ export default function SystemProviders() {
                 title: "说明",
                 key: "summary",
                 render: (_, dependency) =>
-                  expertMode ? dependency.detail : dependencySummary(dependency),
+                  evidenceDetailsEnabled ? dependency.detail : dependencySummary(dependency),
               },
             ]}
           />
@@ -294,7 +294,7 @@ export default function SystemProviders() {
           </Col>
         </Row>
 
-        {expertMode ? (
+        {evidenceDetailsEnabled ? (
           <>
             <Alert
               type={data.healthStatus === "UP" ? "success" : "warning"}

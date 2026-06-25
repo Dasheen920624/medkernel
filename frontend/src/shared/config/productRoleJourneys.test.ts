@@ -28,7 +28,7 @@ describe("product role journeys", () => {
     ]);
   });
 
-  it("keeps every role task on a customer entry instead of hidden or expert routes", () => {
+  it("keeps every role task on a customer entry instead of hidden diagnostic routes", () => {
     PRODUCT_ROLE_JOURNEYS.forEach((journey) => {
       const actions = [journey.primaryAction, ...journey.highFrequencyActions];
       expect(new Set(actions.map((action) => action.path)).size).toBe(actions.length);

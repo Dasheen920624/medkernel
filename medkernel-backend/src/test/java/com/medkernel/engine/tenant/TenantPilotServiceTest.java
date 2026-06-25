@@ -99,7 +99,7 @@ class TenantPilotServiceTest {
         assertEquals("未配置医院名称", brand.hospitalName());
         assertThat(brand.logoUrl()).isNull();
         assertEquals("var(--mk-theme-navy)", brand.themeColor());
-        assertFalse(brand.expertMode());
+        assertFalse(brand.evidenceDetailsEnabled());
         assertThat(brand.hospitalName()).doesNotContain("示范医院");
 
         Branding updateInput = new Branding(
@@ -117,7 +117,7 @@ class TenantPilotServiceTest {
         assertEquals(brand.id(), saved.id(), "更新物理主键保持一致");
         assertEquals("市人民医院", saved.hospitalName());
         assertEquals("var(--mk-theme-cyan)", saved.themeColor());
-        assertTrue(saved.expertMode());
+        assertTrue(saved.evidenceDetailsEnabled());
         assertEquals("{\"customLogoSize\":\"large\"}", saved.customBrandingJson());
         assertEquals(actor, saved.updatedBy(), "更新人审计指纹正确");
     }

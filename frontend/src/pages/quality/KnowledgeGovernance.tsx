@@ -101,9 +101,9 @@ import {
   KNOWLEDGE_TRIAGE_STATE_META,
 } from "@/shared/config/knowledgeReview";
 import { platformTenantId } from "@/shared/config/tenantDictionary";
-import { useExpertModeStore } from "@/shared/lib/expertModeStore";
-import { ExpertModeToggle } from "@/shared/ui/ExpertModeToggle";
-import { canUseExpertMode } from "@/shared/ui/expertModeAccess";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { OrgUnitSelect } from "@/shared/ui/OrgUnitSelect";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
@@ -535,9 +535,9 @@ export default function KnowledgeGovernance({
   const [modelGenerationForm] = Form.useForm<ModelGenerationFormValues>();
   const [modelEgressConfirmationForm] = Form.useForm<{ purpose: string }>();
   const security = useSecurityProfile();
-  const globalExpertMode = useExpertModeStore((state) => state.enabled);
-  const mayUseExpertMode = canUseExpertMode(security.data);
-  const expertMode = mayUseExpertMode && globalExpertMode;
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const mayUseEvidenceDetails = canUseEvidenceDetails(security.data);
+  const evidenceDetailsEnabled = mayUseEvidenceDetails && globalEvidenceDetails;
   const identitiesQuery = useKnowledgeIdentities({
     domain,
     status,
@@ -975,7 +975,7 @@ export default function KnowledgeGovernance({
         <Space direction="vertical" size="small">
           <Text>批次：{batch.batchCode}</Text>
           <Text type="secondary">
-            发行摘要：{expertMode ? batch.overallHash : "已由服务端冻结并校验"}
+            发行摘要：{evidenceDetailsEnabled ? batch.overallHash : "已由服务端冻结并校验"}
           </Text>
           <Text>仅处理服务端冻结清单中的低风险条目；中高风险仍须由医疗引擎运营人员逐条确认。</Text>
         </Space>
@@ -1569,7 +1569,7 @@ export default function KnowledgeGovernance({
           <Tag color={initializationBatchStatusColor(record.status)}>
             {initializationBatchStatusLabel(record.status)}
           </Tag>
-          {expertMode ? (
+          {evidenceDetailsEnabled ? (
             <Text type="secondary" copyable>
               {record.overallHash}
             </Text>
@@ -2571,13 +2571,13 @@ export default function KnowledgeGovernance({
     );
   }
 
-  const expertModeControl = mayUseExpertMode ? (
-    <ExpertModeToggle securityProfile={security.data} />
+  const evidenceDetailsEnabledControl = mayUseEvidenceDetails ? (
+    <EvidenceDetailsToggle securityProfile={security.data} />
   ) : null;
-  const pageExtrasWithExpertMode = expertModeControl ? (
+  const pageExtrasWithEvidenceDetails = evidenceDetailsEnabledControl ? (
     <Space wrap>
       {pageExtras}
-      {expertModeControl}
+      {evidenceDetailsEnabledControl}
     </Space>
   ) : (
     pageExtras
@@ -2591,7 +2591,7 @@ export default function KnowledgeGovernance({
         <PageShell
           title={pageMeta.title}
           description={pageMeta.description}
-          extras={pageExtrasWithExpertMode}
+          extras={pageExtrasWithEvidenceDetails}
         >
           {pageContent}
         </PageShell>
@@ -2791,7 +2791,7 @@ export default function KnowledgeGovernance({
               message="本次模型生成需要先确认患者上下文外调用途"
               description={
                 pendingModelEgressConfirmation.challenge.message ||
-                "高敏模型外调已被阻断；确认后系统会使用同一生产请求重新生成候选。"
+                "高敏患者上下文使用已暂停；确认后系统会使用同一生产请求重新生成候选。"
               }
             />
             <Descriptions column={1} bordered size="small">
@@ -2801,7 +2801,7 @@ export default function KnowledgeGovernance({
               <Descriptions.Item label="脱敏载荷摘要">
                 {pendingModelEgressConfirmation.challenge.payloadHash}
               </Descriptions.Item>
-              <Descriptions.Item label="拟出域字段">
+              <Descriptions.Item label="拟供模型使用字段">
                 {pendingModelEgressConfirmation.challenge.egressFields.join("、") ||
                   "未返回字段清单"}
               </Descriptions.Item>

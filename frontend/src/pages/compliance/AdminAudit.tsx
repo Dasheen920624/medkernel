@@ -45,9 +45,9 @@ import {
 } from "@/shared/api/hooks";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
-import { useExpertModeStore } from "@/shared/lib/expertModeStore";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { AsyncExportAction } from "@/shared/ui/AsyncExportAction";
-import { canUseExpertMode } from "@/shared/ui/expertModeAccess";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { ExperienceFilterBar } from "@/shared/ui/ExperienceFilterBar";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { PageState } from "@/shared/ui/PageState";
@@ -212,7 +212,7 @@ function confirmationExportRequest(confirmation: ExportConfirmation): AsyncExpor
         "actorUserId",
         "resource",
       ],
-      expertMode: false,
+      evidenceDetailsEnabled: false,
       capturedAt: confirmation.confirmedAt,
     },
   };
@@ -241,8 +241,8 @@ export default function AdminAudit() {
   const [confirmationForm] = Form.useForm<{ reason: string }>();
 
   const security = useSecurityProfile();
-  const globalExpertMode = useExpertModeStore((state) => state.enabled);
-  const expertMode = canUseExpertMode(security.data) && globalExpertMode;
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const canExport = hasPermission(security.data, "list.export");
   const canReviewModelEgress =
     hasPermission(security.data, "audit.read") || hasPermission(security.data, "llm.egress.manage");
@@ -287,7 +287,7 @@ export default function AdminAudit() {
       sortOrder: "desc",
       filters: auditQuery,
     },
-    visibleColumnKeys: expertMode
+    visibleColumnKeys: evidenceDetailsEnabled
       ? [
           "summary",
           "actionCode",
@@ -311,7 +311,7 @@ export default function AdminAudit() {
           "actorUserId",
           "resource",
         ],
-    expertMode,
+    evidenceDetailsEnabled,
     capturedAt: new Date().toISOString(),
   };
 
@@ -369,7 +369,7 @@ export default function AdminAudit() {
         </Tooltip>
       ),
     },
-    ...(expertMode
+    ...(evidenceDetailsEnabled
       ? [
           {
             title: "事件编号",

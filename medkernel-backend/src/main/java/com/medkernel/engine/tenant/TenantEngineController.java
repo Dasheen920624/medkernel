@@ -60,7 +60,7 @@ public class TenantEngineController {
             dto.hospitalName(),
             dto.logoUrl(),
             dto.themeColor(),
-            dto.expertMode(),
+            dto.evidenceDetailsEnabled(),
             dto.customBrandingJson(),
             null, null, null, null
         );
@@ -135,7 +135,7 @@ public class TenantEngineController {
         @Size(max = 32, message = "主题色值不合法")
         String themeColor,
 
-        Boolean expertMode,
+        Boolean evidenceDetailsEnabled,
 
         @Size(max = 4000, message = "品牌扩展配置JSON超出最大限制")
         String customBrandingJson

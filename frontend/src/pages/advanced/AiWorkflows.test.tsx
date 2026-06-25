@@ -235,12 +235,14 @@ describe("AiWorkflows", () => {
     await user.click(screen.getByRole("button", { name: "配置 患者解释生成 外调安全策略" }));
     const dialog = await screen.findByRole("dialog", { name: "配置外调安全策略" });
     expect(dialog).toHaveTextContent("公网外部模型可使用患者上下文");
-    expect(within(dialog).getByText("字段出域预览")).toBeInTheDocument();
+    expect(dialog).not.toHaveTextContent("字段" + "出" + "域" + "预览");
+    expect(within(dialog).getByText("模型使用字段预览")).toBeInTheDocument();
     expect(within(dialog).getAllByText("提示词内容").length).toBeGreaterThan(0);
     expect(within(dialog).getAllByText("全量遮蔽").length).toBeGreaterThan(0);
     expect(within(dialog).getByText("患者姓名")).toBeInTheDocument();
-    expect(within(dialog).getAllByText("核心标识默认不出域").length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByText("核心标识默认不提供给模型").length).toBeGreaterThan(0);
     expect(within(dialog).getByText(/高敏用途达到阈值时/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/每次发送给模型前需要责任确认/)).toBeInTheDocument();
     expect(within(dialog).getByText("本次外调用途确认")).toBeInTheDocument();
     await user.type(within(dialog).getByLabelText("脱敏载荷摘要"), "sha256:payload-001");
     await user.type(

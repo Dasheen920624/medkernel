@@ -70,9 +70,9 @@ import {
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ADAPTER_PROTOCOL_OPTIONS, canAccessRoute, findRouteByPath } from "@/shared/config/routes";
 import { customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
-import { useExpertModeStore } from "@/shared/lib/expertModeStore";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { OrgUnitSelect } from "@/shared/ui/OrgUnitSelect";
-import { canUseExpertMode } from "@/shared/ui/expertModeAccess";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { PageState } from "@/shared/ui/PageState";
 import type { PageStateKind } from "@/shared/ui/PageState.contract";
@@ -320,8 +320,8 @@ export default function AdapterHub() {
   const createWebhookMutation = useCreateWebhook();
   const testWebhookSignatureMutation = useTestWebhookSignature();
   const registerRegionalSourceMutation = useRegisterRegionalSource();
-  const globalExpertMode = useExpertModeStore((state) => state.enabled);
-  const expertMode = canUseExpertMode(profile) && globalExpertMode;
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(profile) && globalEvidenceDetails;
   const canWrite = hasPermission(profile, "integration.write");
   const canExecute = hasPermission(profile, "integration.execute");
 
@@ -368,7 +368,7 @@ export default function AdapterHub() {
   async function handleCreateAdapter() {
     try {
       const values = (await adapterForm.validateFields()) as AdapterFormValue;
-      const configJson = expertMode
+      const configJson = evidenceDetailsEnabled
         ? values.configJson?.trim()
         : JSON.stringify({
             ...(usesHttpConnector
@@ -1425,7 +1425,7 @@ export default function AdapterHub() {
           <Form.Item name="protocolType" label="接入协议" rules={[{ required: true }]}>
             <Select options={[...ADAPTER_PROTOCOL_OPTIONS]} />
           </Form.Item>
-          {expertMode ? (
+          {evidenceDetailsEnabled ? (
             <Form.Item
               name="configJson"
               label="连接与字段映射配置"

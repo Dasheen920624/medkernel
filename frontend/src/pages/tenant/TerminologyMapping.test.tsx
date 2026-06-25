@@ -29,7 +29,7 @@ import {
   type TermMappingCandidate,
   type TerminologyCandidateGenerationJob,
 } from "@/shared/api/hooks";
-import { useExpertModeStore } from "@/shared/lib/expertModeStore";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 import TerminologyMapping from "./TerminologyMapping";
 
@@ -233,7 +233,7 @@ const defaultSavedView = {
       filters: { sourceSystem: "HIS" },
     },
     visibleColumnKeys: ["sourceSystem", "status", "updatedAt"],
-    expertMode: true,
+    evidenceDetailsEnabled: true,
     capturedAt: "2026-06-01T00:00:00.000Z",
   }),
   defaultView: true,
@@ -333,7 +333,7 @@ function apiFailure(detail: string) {
 describe("TerminologyMapping", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    useExpertModeStore.setState({ enabled: false });
+    useEvidenceDetailsStore.setState({ enabled: false });
     vi.clearAllMocks();
     configureQuery();
   });

@@ -33,7 +33,7 @@ interface ServerDataTableProps<T extends object> {
   loading: boolean;
   error?: Error;
   partial?: ExperiencePartialResult;
-  expertMode?: boolean;
+  evidenceDetailsEnabled?: boolean;
   initialVisibleColumnKeys?: readonly string[];
   onRequestChange: (request: ExperiencePageRequest) => void;
   onOpenDetail: (record: T) => void;
@@ -71,7 +71,7 @@ export function ServerDataTable<T extends object>({
   loading,
   error,
   partial,
-  expertMode = false,
+  evidenceDetailsEnabled = false,
   initialVisibleColumnKeys,
   onRequestChange,
   onOpenDetail,
@@ -82,7 +82,7 @@ export function ServerDataTable<T extends object>({
     throw new Error(`服务端分页每页最多 ${MAX_EXPERIENCE_PAGE_SIZE} 条`);
   }
 
-  const ordinaryColumns = columns.filter((column) => !column.expertOnly);
+  const ordinaryColumns = columns.filter((column) => !column.advancedOnly);
   if (ordinaryColumns.length + 1 > 8) {
     throw new Error("普通视图表格最多 8 列，技术字段应进入详情或高级信息");
   }
@@ -92,7 +92,9 @@ export function ServerDataTable<T extends object>({
     initialVisibleColumnKeys ? [...initialVisibleColumnKeys] : defaultVisibleColumnKeys,
   );
   const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
-  const selectableColumns = columns.filter((column) => expertMode || !column.expertOnly);
+  const selectableColumns = columns.filter(
+    (column) => evidenceDetailsEnabled || !column.advancedOnly,
+  );
   const effectiveVisibleKeys = visibleColumnKeys.filter((key) =>
     selectableColumns.some((column) => column.key === key),
   );
@@ -113,7 +115,7 @@ export function ServerDataTable<T extends object>({
       filters: snapshotFilters(request.filters),
       pageRequest: request,
       visibleColumnKeys: nextKeys,
-      expertMode,
+      evidenceDetailsEnabled,
       capturedAt: new Date().toISOString(),
     });
   }

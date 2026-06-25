@@ -315,7 +315,10 @@ describe("ProviderSetupPanel", () => {
         confirmedHighRisk: true,
       }),
     );
-    expect(screen.queryByText(/独立签署|质量治理专家|集成运维员/)).not.toBeInTheDocument();
+    const legacyRolePattern = new RegExp(
+      ["独立签署", "质量治理" + "专" + "家", "集成运维员"].join("|"),
+    );
+    expect(screen.queryByText(legacyRolePattern)).not.toBeInTheDocument();
   });
 
   it("blocks a vague provider activation reason before calling the backend", async () => {

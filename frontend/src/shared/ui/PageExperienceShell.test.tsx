@@ -5,21 +5,21 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import type { RouteExperience } from "./experienceTypes";
 import { PageExperienceShell } from "./PageExperienceShell";
-import { useExpertModeStore } from "@/shared/lib/expertModeStore";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 const experience: RouteExperience = {
   primaryRole: "医疗引擎运营员",
   goal: "核查映射风险",
   defaultView: "最近更新",
   defaultFilters: [],
-  expertContent: ["traceId"],
+  evidenceDetailContent: ["traceId"],
   interruptionLevel: "info",
   evidence: "来源和审计",
   dataScale: { expected: "large", pagination: "page", exportStrategy: "disabled" },
   riskLevel: "medium",
 };
 
-const expertProfile = {
+const evidenceDetailProfile = {
   permissions: [
     {
       code: "advanced.read",
@@ -36,15 +36,15 @@ const normalProfile = { permissions: [], menuKeys: [] };
 describe("PageExperienceShell", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    useExpertModeStore.setState({ enabled: false });
+    useEvidenceDetailsStore.setState({ enabled: false });
   });
 
-  it("discloses expert mode only for an authorized profile", () => {
+  it("discloses evidence details only for an authorized profile", () => {
     const { rerender } = render(
       <ConfigProvider>
         <PageExperienceShell
           meta={{ title: "字典映射", experience }}
-          securityProfile={expertProfile}
+          securityProfile={evidenceDetailProfile}
         >
           内容
         </PageExperienceShell>
@@ -70,15 +70,21 @@ describe("PageExperienceShell", () => {
     expect(screen.queryByRole("switch", { name: "高级信息" })).not.toBeInTheDocument();
   });
 
-  it("uses one shared expert mode preference across page shells", async () => {
+  it("uses one shared evidence details preference across page shells", async () => {
     const user = userEvent.setup();
 
     render(
       <ConfigProvider>
-        <PageExperienceShell meta={{ title: "审计", experience }} securityProfile={expertProfile}>
+        <PageExperienceShell
+          meta={{ title: "审计", experience }}
+          securityProfile={evidenceDetailProfile}
+        >
           审计内容
         </PageExperienceShell>
-        <PageExperienceShell meta={{ title: "溯源", experience }} securityProfile={expertProfile}>
+        <PageExperienceShell
+          meta={{ title: "溯源", experience }}
+          securityProfile={evidenceDetailProfile}
+        >
           溯源内容
         </PageExperienceShell>
       </ConfigProvider>,
@@ -92,6 +98,6 @@ describe("PageExperienceShell", () => {
 
     expect(switches[0]).toBeChecked();
     expect(switches[1]).toBeChecked();
-    expect(window.localStorage.getItem("medkernel.expert-mode.enabled")).toBe("true");
+    expect(window.localStorage.getItem("medkernel.evidence-details.enabled")).toBe("true");
   });
 });

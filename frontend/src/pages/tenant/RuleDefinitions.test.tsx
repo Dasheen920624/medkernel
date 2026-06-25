@@ -993,7 +993,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       await user.click(screen.getByRole("tab", { name: /真实快照试运行/ }));
       await user.click(screen.getByRole("switch", { name: "L3 技术视图" }));
 
-      expect(screen.queryByText("专家手工配置文本兜底")).not.toBeInTheDocument();
+      expect(screen.queryByText("手工配置文本兜底")).not.toBeInTheDocument();
       expect(
         screen.queryByRole("button", { name: "运行手工配置文本试运行" }),
       ).not.toBeInTheDocument();
@@ -1643,7 +1643,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   );
 
   it(
-    "普通模式同步到技术配置后仍停留在 L2 且不强制显示专家页",
+    "普通模式同步到技术配置后仍停留在 L2 且不强制显示 L3 技术页",
     async () => {
       const user = userEvent.setup();
       renderRuleDefinitions();

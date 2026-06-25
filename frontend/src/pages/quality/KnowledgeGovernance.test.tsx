@@ -9,7 +9,7 @@ import KnowledgeGovernance, {
   InstitutionKnowledge,
   KnowledgeProduction,
 } from "./KnowledgeGovernance";
-import { useExpertModeStore } from "@/shared/lib/expertModeStore";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 const KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS = 15_000;
 
@@ -128,13 +128,13 @@ const activeVersion = {
   applicableScope: "cardiology",
   activeScopeKey: "42|hospital:hospital-A|cardiology",
   effectiveFrom: "2026-05-01T00:00:00Z",
-  reviewedBy: "expert-1",
+  reviewedBy: "knowledge-reviewer-1",
   reviewedAt: "2026-05-01T01:00:00Z",
   activatedAt: "2026-05-01T02:00:00Z",
   createdAt: "2026-05-01T00:00:00Z",
   createdBy: "u-knowledge",
   updatedAt: "2026-05-01T02:00:00Z",
-  updatedBy: "expert-1",
+  updatedBy: "knowledge-reviewer-1",
 };
 
 const candidateVersion = {
@@ -177,7 +177,7 @@ const candidateClassification = {
   reviewStatus: "PENDING_REPLACEMENT_REVIEW",
   contentHash: "candidate-real-hash",
   basis: "同一 identity 下来源版本更新，GRADE 强度与现行版冲突",
-  diffSummary: "新增围手术期高危禁忌条款，需专家确认后替换现行版。",
+  diffSummary: "新增围手术期高危禁忌条款，需责任人确认后替换现行版。",
   createdAt: "2026-06-06T01:12:00Z",
   createdBy: "workflow-know-02",
   updatedAt: "2026-06-06T01:12:00Z",
@@ -258,7 +258,7 @@ function pageResponse<T>(items: T[], total = items.length, page = 1, size = 20) 
 
 beforeEach(() => {
   window.localStorage.clear();
-  useExpertModeStore.setState({ enabled: false });
+  useEvidenceDetailsStore.setState({ enabled: false });
   refetchIdentities = vi.fn();
   refetchCandidates = vi.fn();
   reviewCandidate = vi.fn().mockResolvedValue({
@@ -888,7 +888,7 @@ describe("KnowledgeGovernance", () => {
       screen.getByText("同一 identity 下来源版本更新，GRADE 强度与现行版冲突"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("新增围手术期高危禁忌条款，需专家确认后替换现行版。"),
+      screen.getByText("新增围手术期高危禁忌条款，需责任人确认后替换现行版。"),
     ).toBeInTheDocument();
     expect(screen.queryByText("入口暂未激活")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();

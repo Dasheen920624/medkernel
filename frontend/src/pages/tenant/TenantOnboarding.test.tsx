@@ -176,7 +176,7 @@ function mockHooks(overrides?: {
       hospitalName: "人民医院",
       logoUrl: "",
       themeColor: "var(--mk-theme-navy)",
-      expertMode: false,
+      evidenceDetailsEnabled: false,
       customBrandingJson: "{}",
     },
     isLoading: false,

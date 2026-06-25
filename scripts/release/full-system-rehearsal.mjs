@@ -2,6 +2,7 @@
 import { existsSync } from "node:fs";
 
 import {
+  formatFullSystemProgress,
   readFullSystemRehearsalConfig,
   runFullSystemRehearsal,
 } from "./full-system-rehearsal-lib.mjs";
@@ -11,7 +12,11 @@ async function main() {
   if (existsSync(config.indexPath)) {
     throw new Error(`全新整套演练拒绝覆盖既有总证据：${config.indexPath}`);
   }
-  const evidence = await runFullSystemRehearsal(config);
+  const evidence = await runFullSystemRehearsal(config, {
+    onProgress: (event) => {
+      process.stdout.write(`${formatFullSystemProgress(event)}\n`);
+    },
+  });
   process.stdout.write(
     `PASSED full-system-rehearsal evidence=${config.indexPath} stages=${evidence.stages.length}\n`,
   );

@@ -14,7 +14,7 @@ const request: AsyncExportRequest = {
     filters: [],
     pageRequest: { pageNumber: 1, pageSize: 20, filters: {} },
     visibleColumnKeys: ["status"],
-    expertMode: false,
+    evidenceDetailsEnabled: false,
     capturedAt: "2026-05-26T00:00:00.000Z",
   },
   selectedScope: "currentPage",

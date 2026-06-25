@@ -9122,7 +9122,7 @@ export interface Branding {
   hospitalName: string;
   logoUrl: string;
   themeColor: string;
-  expertMode: boolean;
+  evidenceDetailsEnabled: boolean;
   customBrandingJson: string;
   createdAt?: string;
   createdBy?: string;

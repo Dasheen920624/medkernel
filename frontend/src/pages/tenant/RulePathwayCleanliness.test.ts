@@ -190,12 +190,19 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
 
   it("does not keep fake tenant branding defaults in onboarding page", () => {
     const onboardingSource = readSource("src/pages/tenant/TenantOnboarding.tsx");
+    const legacyBrandingModeKey = "ex" + "pert" + "Mode";
 
     expect(onboardingSource).not.toContain("MedKernel 智能示范医院");
     expect(onboardingSource).not.toContain("http://assets");
     expect(onboardingSource).not.toContain("Tabs.TabPane");
     expect(onboardingSource).not.toContain("sandbox");
+    expect(onboardingSource).not.toContain(legacyBrandingModeKey);
+    expect(onboardingSource).toContain("evidenceDetailsEnabled");
     expect(onboardingSource).toContain("未配置医院名称");
+
+    const hooksSource = readSource("src/shared/api/hooks.ts");
+    expect(hooksSource).not.toContain(`${legacyBrandingModeKey}: boolean`);
+    expect(hooksSource).toContain("evidenceDetailsEnabled: boolean");
   });
 
   it("keeps tenant onboarding aligned with organization tree plus specialty dimension", () => {

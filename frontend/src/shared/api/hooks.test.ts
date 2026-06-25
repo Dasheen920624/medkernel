@@ -4389,7 +4389,7 @@ describe("experience foundation api helpers", () => {
         filters: [{ key: "status", value: "DRAFT" }],
         pageRequest: { pageNumber: 1, pageSize: 20, filters: { status: "DRAFT" } },
         visibleColumnKeys: ["status"],
-        expertMode: false,
+        evidenceDetailsEnabled: false,
         capturedAt: "2026-06-01T00:00:00.000Z",
       },
     });
@@ -4428,7 +4428,7 @@ describe("experience foundation api helpers", () => {
         filters: [{ key: "sourceSystem", value: "HIS" }],
         pageRequest: { pageNumber: 1, pageSize: 20, filters: { status: "DRAFT" } },
         visibleColumnKeys: ["status"],
-        expertMode: false,
+        evidenceDetailsEnabled: false,
         capturedAt: "2026-06-01T00:00:00.000Z",
       },
       selectedScope: "currentPage",
