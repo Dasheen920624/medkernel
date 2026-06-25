@@ -1608,6 +1608,7 @@ export interface KnowledgeModelProductionResult {
       failedGates?: Array<{ code: string; reason: string }>;
     }>;
   };
+  egressConfirmation?: ModelEgressConfirmationChallenge | null;
 }
 
 export interface GenerateKnowledgeModelCandidateCommand {
@@ -8054,9 +8055,17 @@ export interface ModelTaskRequest {
   providerCode?: string | null;
 }
 
+export interface ModelEgressConfirmationChallenge {
+  capabilityCode: string;
+  payloadHash: string;
+  egressFields: string[];
+  providerCode?: string | null;
+  message: string;
+}
+
 export interface ModelTaskResponse {
   taskId: string;
-  status: "SUCCESS" | "FAILED" | "DEGRADED" | string;
+  status: "SUCCESS" | "FAILED" | "DEGRADED" | "CONFIRMATION_REQUIRED" | string;
   outputContent: string;
   modelMode: string;
   modelVersion: string;
@@ -8069,6 +8078,7 @@ export interface ModelTaskResponse {
   fallbackReason: string;
   timeCostMs: number;
   traceId: string;
+  egressConfirmation?: ModelEgressConfirmationChallenge | null;
 }
 
 export interface ModelPolicyValidateRequest {

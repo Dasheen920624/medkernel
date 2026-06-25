@@ -393,14 +393,14 @@ public final class ServiceContractCatalog {
                 "发布、回滚和导出提示词、工具和模型版本组合"))),
         contract("model-egress", "模型外调治理服务",
             "com.medkernel.engine.llm.egress.ModelEgressController", "/api/v1/model-egress",
-            permissions("llm.egress.manage"),
+            permissions("llm.egress.manage", "knowledge.write"),
             audits(
                 audit(AuditAction.UPDATE, "mk_llm_egress_whitelist", "维护模型外调允许范围"),
                 audit(AuditAction.UPDATE, "mk_llm_egress_confirmation", "确认高敏外调用途"))),
         contract("data-minimization-policies", "数据最小化策略服务",
             "com.medkernel.engine.llm.egress.DataMinimizationPolicyController",
             "/api/v1/data-minimization/policies",
-            permissions("llm.egress.manage"),
+            permissions("llm.egress.manage", "knowledge.write"),
             audits(
                 audit(AuditAction.UPDATE, "mk_llm_egress_whitelist", "维护数据最小化允许范围、脱敏规则和确认阈值"),
                 audit(AuditAction.UPDATE, "mk_llm_egress_confirmation", "确认模型高敏外调用途"))),

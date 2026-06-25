@@ -32,6 +32,7 @@ import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.engine.llm.egress.ModelEgressConfirmationRequiredException;
 import com.medkernel.engine.llm.egress.ModelEgressGuard;
 import com.medkernel.engine.llm.provider.ModelProviderRegistry;
 import com.medkernel.engine.llm.provider.ProviderCompletion;
@@ -41,8 +42,9 @@ import com.medkernel.engine.llm.provider.ProviderRequest;
  * 模型能力网关核心领域服务实现类 (GA-ENG-API-12)。
  *
      * <p>统一管控模型能力调用：能力阻断、正则数据脱敏、期待输出结构校验，并通过物理子事务强隔离记录审计日志。
-     * 当前经模型服务注册表解析 B1/B2；模型服务缺位、出域阻断、结构化失败或调用失败时按 LLM-02
- * 降级矩阵如实返回 B0（无模型确定性基线），禁止伪造 B2 模型名、置信度或来源引文。
+     * 当前经模型服务注册表解析 B1/B2；模型服务缺位、策略不可执行、结构化失败或调用失败时按 LLM-02
+ * 降级矩阵如实返回 B0（无模型确定性基线）；高敏出域缺责任确认时返回可操作确认挑战，禁止伪造 B2 模型名、
+ * 置信度或来源引文。
  */
 @Service
 public class ModelGatewayService {
@@ -328,6 +330,7 @@ public class ModelGatewayService {
         boolean fallbackUsed = outcome.fallbackUsed();
         String fallbackReason = outcome.fallbackReason();
         String taskStatus = outcome.taskStatus();
+        ModelEgressConfirmationChallenge egressConfirmation = outcome.egressConfirmation();
 
         long timeCost = System.currentTimeMillis() - startTime;
 
@@ -361,13 +364,12 @@ public class ModelGatewayService {
 
         // 6. 成功留痕：成功路径走 AuditRecorder（AFTER_COMMIT 同事务一致性，符合 IsolatedAuditPublisher
         //    契约——isolated 仅用于失败留痕）；retryTask 亦走 AuditRecorder，模块内统一（LLM-M-04）。
-        auditRecorder.record(
-            AuditAction.EXECUTE,
-            "model_capability_task",
-            taskId,
-            String.format("推理任务完成 capabilityCode=%s mode=%s fallback=%b cost=%dms",
-                capabilityCode, modelMode, fallbackUsed, timeCost)
-        );
+        String auditSummary = "CONFIRMATION_REQUIRED".equals(taskStatus)
+            ? String.format("模型任务等待外调用途确认 capabilityCode=%s mode=%s payloadHash=%s cost=%dms",
+                capabilityCode, modelMode, egressConfirmation == null ? "" : egressConfirmation.payloadHash(), timeCost)
+            : String.format("推理任务完成 capabilityCode=%s mode=%s fallback=%b cost=%dms",
+                capabilityCode, modelMode, fallbackUsed, timeCost);
+        auditRecorder.record(AuditAction.EXECUTE, "model_capability_task", taskId, auditSummary);
 
         return new ModelTaskResponse(
             taskId,
@@ -383,7 +385,8 @@ public class ModelGatewayService {
             fallbackUsed,
             fallbackReason,
             timeCost,
-            traceId
+            traceId,
+            egressConfirmation
         );
     }
 
@@ -417,7 +420,8 @@ public class ModelGatewayService {
             task.fallbackUsed(),
             task.fallbackReason(),
             task.timeCostMs(),
-            task.traceId()
+            task.traceId(),
+            egressConfirmationFromOutput(task.outputContent())
         );
     }
 
@@ -929,7 +933,17 @@ public class ModelGatewayService {
     private record RouteOutcome(
         String outputContent, String modelMode, String modelVersion, String promptVersion, String toolVersion,
         String sourceCitations, Double confidence, String riskLevel,
-        boolean fallbackUsed, String fallbackReason, String taskStatus) {}
+        boolean fallbackUsed, String fallbackReason, String taskStatus,
+        ModelEgressConfirmationChallenge egressConfirmation
+    ) {
+        RouteOutcome(String outputContent, String modelMode, String modelVersion, String promptVersion,
+                     String toolVersion, String sourceCitations, Double confidence, String riskLevel,
+                     boolean fallbackUsed, String fallbackReason, String taskStatus) {
+            this(
+                outputContent, modelMode, modelVersion, promptVersion, toolVersion,
+                sourceCitations, confidence, riskLevel, fallbackUsed, fallbackReason, taskStatus, null);
+        }
+    }
 
     private record SchemaRepairResult(String content, List<String> fields) {}
 
@@ -998,7 +1012,8 @@ public class ModelGatewayService {
                     successful.riskLevel(),
                     true,
                     String.join("；", reasons),
-                    successful.taskStatus()
+                    successful.taskStatus(),
+                    successful.egressConfirmation()
                 );
             }
 
@@ -1051,6 +1066,14 @@ public class ModelGatewayService {
                         "外调最小化结果未包含允许的提示内容");
                 }
                 prompt = readPromptField(prep.payload());
+            } catch (ModelEgressConfirmationRequiredException confirmationRequired) {
+                log.warn("模型外调等待责任确认 capabilityCode={} payloadHash={}",
+                    capabilityCode, confirmationRequired.payloadHash());
+                publishFailureAudit(taskId, confirmationRequired.errorCode(),
+                    "模型外调等待责任确认，能力=" + capabilityCode
+                        + "，payloadHash=" + confirmationRequired.payloadHash());
+                return ProviderAttempt.success(confirmationRequiredOutcome(
+                    confirmationRequired, plannedTriple, provider.modelMode()));
             } catch (ApiException egressBlocked) {
                 log.warn("模型外调安全闸阻断 capabilityCode={}：{}", capabilityCode, egressBlocked.getMessage());
                 publishFailureAudit(taskId, egressBlocked.errorCode(),
@@ -1169,6 +1192,68 @@ public class ModelGatewayService {
             executeB0Fallback(capabilityCode), "B0", baseline.modelVersion(), baseline.promptVersion(),
             baseline.toolVersion(),
             "[]", null, "LOW", true, fallbackReason, "DEGRADED");
+    }
+
+    private RouteOutcome confirmationRequiredOutcome(
+            ModelEgressConfirmationRequiredException required,
+            ModelVersionTriple plannedTriple,
+            String modelMode) {
+        var output = OBJECT_MAPPER.createObjectNode();
+        output.put("status", "CONFIRMATION_REQUIRED");
+        output.put("capabilityCode", required.capabilityCode());
+        output.put("payloadHash", required.payloadHash());
+        var fields = output.putArray("egressFields");
+        required.egressFields().forEach(fields::add);
+        output.put("providerCode", required.providerCode());
+        output.put("message", required.getMessage());
+        ModelEgressConfirmationChallenge challenge = new ModelEgressConfirmationChallenge(
+            required.capabilityCode(),
+            required.payloadHash(),
+            required.egressFields(),
+            required.providerCode(),
+            required.getMessage()
+        );
+        return new RouteOutcome(
+            output.toString(),
+            modelMode,
+            plannedTriple.modelVersion(),
+            plannedTriple.promptVersion(),
+            plannedTriple.toolVersion(),
+            "[]",
+            null,
+            "HIGH",
+            false,
+            null,
+            "CONFIRMATION_REQUIRED",
+            challenge
+        );
+    }
+
+    private ModelEgressConfirmationChallenge egressConfirmationFromOutput(String outputContent) {
+        try {
+            JsonNode output = OBJECT_MAPPER.readTree(outputContent);
+            if (output == null || !"CONFIRMATION_REQUIRED".equals(output.path("status").asText())) {
+                return null;
+            }
+            List<String> fields = new ArrayList<>();
+            JsonNode egressFields = output.path("egressFields");
+            if (egressFields.isArray()) {
+                egressFields.forEach(field -> {
+                    if (field.isTextual() && !field.asText().isBlank()) {
+                        fields.add(field.asText());
+                    }
+                });
+            }
+            return new ModelEgressConfirmationChallenge(
+                output.path("capabilityCode").asText(null),
+                output.path("payloadHash").asText(null),
+                fields,
+                output.path("providerCode").asText(null),
+                output.path("message").asText(null)
+            );
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private ActiveVersionPlan activeVersionPlan(String tenantId, String capabilityCode) {

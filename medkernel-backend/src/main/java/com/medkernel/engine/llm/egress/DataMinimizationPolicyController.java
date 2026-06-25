@@ -60,7 +60,7 @@ public class DataMinimizationPolicyController {
      * 确认一条脱敏后高敏载荷的外调用途。
      */
     @PostMapping("/model-egress/confirmations")
-    @PreAuthorize("@perm.has('llm.egress.manage')")
+    @PreAuthorize("@perm.hasAny('llm.egress.manage','knowledge.write')")
     public ApiResult<ModelEgressConfirmation> confirmModelEgress(
             @Valid @RequestBody ModelEgressConfirmationRequest request) {
         return ApiResult.ok(service.confirmEgress(request));

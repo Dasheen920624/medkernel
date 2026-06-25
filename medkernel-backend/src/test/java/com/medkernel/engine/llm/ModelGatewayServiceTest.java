@@ -834,6 +834,34 @@ class ModelGatewayServiceTest {
     }
 
     @Test
+    void submitTask_externalConfirmationRequiredReturnsActionableChallengeWithoutB0Fallback() {
+        policy("EXTERNAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
+        resolveProvider("EXTERNAL_MODEL", adapter);
+        when(egressGuard.prepareEgress(any(), any(), anyString(), anyString(), any()))
+            .thenThrow(new com.medkernel.engine.llm.egress.ModelEgressConfirmationRequiredException(
+                "knowledge.extract",
+                "sha256-confirmation-required",
+                java.util.List.of("prompt"),
+                "p1",
+                "能力 knowledge.extract 高敏数据外调未经责任确认，已阻断"));
+
+        ModelTaskResponse resp = service.submitTask(new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("CONFIRMATION_REQUIRED", resp.status());
+        assertEquals("B2", resp.modelMode());
+        assertFalse(resp.fallbackUsed());
+        assertNotNull(resp.egressConfirmation());
+        assertEquals("knowledge.extract", resp.egressConfirmation().capabilityCode());
+        assertEquals("sha256-confirmation-required", resp.egressConfirmation().payloadHash());
+        assertEquals(java.util.List.of("prompt"), resp.egressConfirmation().egressFields());
+        verify(adapter, never()).complete(any(), any());
+        verify(taskRepo).save(argThat(task ->
+            "CONFIRMATION_REQUIRED".equals(task.status())
+                && task.outputContent().contains("sha256-confirmation-required")));
+    }
+
+    @Test
     void submitTask_providerCallFails_degradesToB0() {
         policy("LOCAL_MODEL");
         var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);

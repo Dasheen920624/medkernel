@@ -95,7 +95,11 @@ public class ModelEgressGuard {
             ModelEgressConfirmation confirmation = confirmationRepo
                 .findFirstByTenantIdAndCapabilityCodeAndPayloadHashOrderByIdDesc(
                     tenantId, capabilityCode, desensitizedHash)
-                .orElseThrow(() -> new ApiException(ErrorCode.ENG_LLM_007,
+                .orElseThrow(() -> new ModelEgressConfirmationRequiredException(
+                    capabilityCode,
+                    desensitizedHash,
+                    egressFields,
+                    providerCode,
                     "能力 " + capabilityCode + " 高敏数据外调未经责任确认，已阻断"));
             confirmationId = confirmation.id();
         }

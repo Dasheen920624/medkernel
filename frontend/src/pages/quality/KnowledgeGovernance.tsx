@@ -37,6 +37,7 @@ import {
   useDeprecateKnowledgeIdentity,
   useCreateKnowledgeCustomization,
   useCreateKnowledgeProductionJob,
+  useConfirmModelEgress,
   useGenerateKnowledgeModelCandidate,
   useKnowledgeCustomizations,
   useKnowledgeCandidateDiff,
@@ -64,8 +65,10 @@ import {
   type CandidateCoexistenceView,
   type CandidateCoexistenceVersionSnapshot,
   type CreateKnowledgeProductionJobRequest,
+  type KnowledgeModelProductionResult,
   type KnowledgeModelCandidateRequest,
   type KnowledgeSourceAuthorityLevel,
+  type ModelEgressConfirmationChallenge,
   type GenerationTriage,
   type CandidateProvenanceView,
   type KnowledgeProductionCandidateView,
@@ -372,6 +375,12 @@ type ModelGenerationFormValues = {
   newIdentityDomain?: KnowledgeDomain;
 };
 
+type PendingModelEgressConfirmation = {
+  job: KnowledgeProductionJob;
+  request: KnowledgeModelCandidateRequest;
+  challenge: ModelEgressConfirmationChallenge;
+};
+
 const EMPTY_RETIREMENT_FORM: RetirementFormValues = {
   successorIdentityId: undefined,
   gracePeriodEnd: "",
@@ -501,6 +510,9 @@ export default function KnowledgeGovernance({
   const [productionJobCode, setProductionJobCode] = useState<string>();
   const [productionCandidateRef, setProductionCandidateRef] = useState<string>();
   const [modelGenerationJob, setModelGenerationJob] = useState<KnowledgeProductionJob>();
+  const [pendingModelEgressConfirmation, setPendingModelEgressConfirmation] =
+    useState<PendingModelEgressConfirmation>();
+  const [expandedProvenanceRefs, setExpandedProvenanceRefs] = useState<string[]>([]);
   const [selectedIdentityId, setSelectedIdentityId] = useState<number>();
   const [selectedCandidateId, setSelectedCandidateId] = useState<number>();
   const [retirementIdentity, setRetirementIdentity] = useState<KnowledgeIdentity>();
@@ -521,6 +533,7 @@ export default function KnowledgeGovernance({
   const [customizationActionForm] = Form.useForm<{ reason: string }>();
   const [productionJobForm] = Form.useForm<CreateKnowledgeProductionJobRequest>();
   const [modelGenerationForm] = Form.useForm<ModelGenerationFormValues>();
+  const [modelEgressConfirmationForm] = Form.useForm<{ purpose: string }>();
   const security = useSecurityProfile();
   const globalExpertMode = useExpertModeStore((state) => state.enabled);
   const mayUseExpertMode = canUseExpertMode(security.data);
@@ -577,6 +590,7 @@ export default function KnowledgeGovernance({
   const restorePlatformKnowledge = useRestorePlatformKnowledge();
   const createProductionJobMutation = useCreateKnowledgeProductionJob();
   const generateModelCandidateMutation = useGenerateKnowledgeModelCandidate();
+  const confirmModelEgressMutation = useConfirmModelEgress();
   const cancelProductionJobMutation = useCancelKnowledgeProductionJob();
   const canCustomize =
     !isPlatformTenant &&
@@ -692,6 +706,15 @@ export default function KnowledgeGovernance({
   }, [provenanceQuery.data]);
   const provenanceFor = (version?: KnowledgeAssetVersion) =>
     version ? provenanceByRef.get(`kv:${version.identityId}:${version.versionNo}`) : undefined;
+  const isProvenanceDetailsOpen = (provenance?: CandidateProvenanceView) =>
+    Boolean(provenance && expandedProvenanceRefs.includes(provenance.candidateRef));
+  const toggleProvenanceDetails = (provenance: CandidateProvenanceView) => {
+    setExpandedProvenanceRefs((refs) =>
+      refs.includes(provenance.candidateRef)
+        ? refs.filter((ref) => ref !== provenance.candidateRef)
+        : [...refs, provenance.candidateRef],
+    );
+  };
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId);
   const diffQuery = useKnowledgeCandidateDiff(selectedCandidateId);
   const reviewMutation = useReviewKnowledgeCandidate();
@@ -838,6 +861,46 @@ export default function KnowledgeGovernance({
     });
   }
 
+  async function refreshProductionEvidence() {
+    await Promise.all([
+      productionJobsQuery.refetch(),
+      productionCandidatesQuery.refetch(),
+      productionGateResultsQuery.refetch(),
+      productionTriageResultsQuery.refetch(),
+      productionShadowRunsQuery.refetch(),
+      identitiesQuery.refetch(),
+    ]);
+  }
+
+  function firstBlockedGateReason(result: KnowledgeModelProductionResult) {
+    return result.summary.blocked[0]?.failedGates?.[0]?.reason;
+  }
+
+  async function handleModelGenerationResult(
+    result: KnowledgeModelProductionResult,
+    job: KnowledgeProductionJob,
+    request: KnowledgeModelCandidateRequest,
+  ) {
+    if (result.summary.candidates.length > 0) {
+      message.success(`已生成 ${result.summary.candidates.length} 条待审核知识候选`);
+      modelGenerationForm.resetFields();
+      setPendingModelEgressConfirmation(undefined);
+      setModelGenerationJob(undefined);
+    } else if (result.egressConfirmation) {
+      setPendingModelEgressConfirmation({
+        job,
+        request,
+        challenge: result.egressConfirmation,
+      });
+      message.warning(firstBlockedGateReason(result) || "模型外调需要责任确认，未生成候选");
+    } else if (result.summary.blocked.length > 0) {
+      message.warning(firstBlockedGateReason(result) || "模型结果被生产安全校验阻断，未生成候选");
+    } else {
+      message.warning(result.summary.skipped[0]?.reason || "模型未生成可提交候选");
+    }
+    await refreshProductionEvidence();
+  }
+
   async function submitModelGeneration(values: ModelGenerationFormValues) {
     if (!modelGenerationJob) return;
     const target: KnowledgeModelCandidateRequest["target"] =
@@ -850,46 +913,58 @@ export default function KnowledgeGovernance({
               identityCode: values.newIdentityCode?.trim() ?? "",
             },
           };
+    const request: KnowledgeModelCandidateRequest = {
+      capabilityCode: values.capabilityCode.trim(),
+      prompt: values.prompt.trim(),
+      providerCode: values.providerCode?.trim() || undefined,
+      timeoutSeconds: values.timeoutSeconds,
+      assetIdentity: values.assetIdentity.trim(),
+      subject: values.subject.trim(),
+      sources: [
+        {
+          sourceRef: values.sourceRef.trim(),
+          authorityLevel: values.trustLevel,
+        },
+      ],
+      trustLevel: values.trustLevel,
+      riskLevel: values.riskLevel,
+      target,
+    };
     try {
       const result = await generateModelCandidateMutation.mutateAsync({
         jobCode: modelGenerationJob.jobCode,
-        request: {
-          capabilityCode: values.capabilityCode.trim(),
-          prompt: values.prompt.trim(),
-          providerCode: values.providerCode?.trim() || undefined,
-          timeoutSeconds: values.timeoutSeconds,
-          assetIdentity: values.assetIdentity.trim(),
-          subject: values.subject.trim(),
-          sources: [
-            {
-              sourceRef: values.sourceRef.trim(),
-              authorityLevel: values.trustLevel,
-            },
-          ],
-          trustLevel: values.trustLevel,
-          riskLevel: values.riskLevel,
-          target,
-        },
+        request,
       });
-      if (result.summary.candidates.length > 0) {
-        message.success(`已生成 ${result.summary.candidates.length} 条待审核知识候选`);
-        modelGenerationForm.resetFields();
-        setModelGenerationJob(undefined);
-      } else if (result.summary.blocked.length > 0) {
-        message.warning("模型结果被生产安全校验阻断，未生成候选");
-      } else {
-        message.warning(result.summary.skipped[0]?.reason || "模型未生成可提交候选");
-      }
-      await Promise.all([
-        productionJobsQuery.refetch(),
-        productionCandidatesQuery.refetch(),
-        productionGateResultsQuery.refetch(),
-        productionTriageResultsQuery.refetch(),
-        productionShadowRunsQuery.refetch(),
-        identitiesQuery.refetch(),
-      ]);
+      await handleModelGenerationResult(result, modelGenerationJob, request);
     } catch (error) {
       message.error(getApiErrorMessage(error, "大模型知识生成失败"));
+    }
+  }
+
+  async function confirmPendingModelEgress(values: { purpose: string }) {
+    if (!pendingModelEgressConfirmation) return;
+    const purpose = values.purpose.trim();
+    if (!purpose) {
+      message.warning("请填写本次外调用途说明");
+      return;
+    }
+    const pending = pendingModelEgressConfirmation;
+    try {
+      await confirmModelEgressMutation.mutateAsync({
+        capabilityCode: pending.challenge.capabilityCode,
+        payloadHash: pending.challenge.payloadHash,
+        purpose,
+      });
+      message.success("外调用途确认已记录，正在重新启动模型生成");
+      setPendingModelEgressConfirmation(undefined);
+      modelEgressConfirmationForm.resetFields();
+      const result = await generateModelCandidateMutation.mutateAsync({
+        jobCode: pending.job.jobCode,
+        request: pending.request,
+      });
+      await handleModelGenerationResult(result, pending.job, pending.request);
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "外调用途确认或重试失败"));
     }
   }
 
@@ -1212,15 +1287,6 @@ export default function KnowledgeGovernance({
             ) : null}
             <Text type="secondary">{hospitalFallbackText(provenance)}</Text>
             <Text type="secondary">{sourceCitationSummary(provenance.sourceCitations)}</Text>
-            {expertMode ? (
-              <>
-                {provenance.modelMode ? <Tag color="geekblue">{provenance.modelMode}</Tag> : null}
-                <Text type="secondary">生产任务：{provenance.jobCode}</Text>
-                {provenance.modelVersion ? (
-                  <Text type="secondary">模型：{provenance.modelVersion}</Text>
-                ) : null}
-              </>
-            ) : null}
           </Space>
         );
       },
@@ -2702,6 +2768,74 @@ export default function KnowledgeGovernance({
       </Modal>
 
       <Modal
+        title="确认模型外调用途"
+        open={Boolean(pendingModelEgressConfirmation)}
+        okText="记录确认并重试"
+        cancelText="暂不外调"
+        confirmLoading={
+          confirmModelEgressMutation.isPending || generateModelCandidateMutation.isPending
+        }
+        onOk={() => modelEgressConfirmationForm.submit()}
+        onCancel={() => {
+          modelEgressConfirmationForm.resetFields();
+          setPendingModelEgressConfirmation(undefined);
+        }}
+        destroyOnClose
+        width={720}
+      >
+        {pendingModelEgressConfirmation ? (
+          <Space direction="vertical" size="middle" className="mk-full-width">
+            <Alert
+              type="warning"
+              showIcon
+              message="本次模型生成需要先确认患者上下文外调用途"
+              description={
+                pendingModelEgressConfirmation.challenge.message ||
+                "高敏模型外调已被阻断；确认后系统会使用同一生产请求重新生成候选。"
+              }
+            />
+            <Descriptions column={1} bordered size="small">
+              <Descriptions.Item label="模型能力">
+                {pendingModelEgressConfirmation.challenge.capabilityCode}
+              </Descriptions.Item>
+              <Descriptions.Item label="脱敏载荷摘要">
+                {pendingModelEgressConfirmation.challenge.payloadHash}
+              </Descriptions.Item>
+              <Descriptions.Item label="拟出域字段">
+                {pendingModelEgressConfirmation.challenge.egressFields.join("、") ||
+                  "未返回字段清单"}
+              </Descriptions.Item>
+              <Descriptions.Item label="模型服务">
+                {pendingModelEgressConfirmation.challenge.providerCode || "服务端策略选择"}
+              </Descriptions.Item>
+            </Descriptions>
+            <Form
+              form={modelEgressConfirmationForm}
+              layout="vertical"
+              onFinish={confirmPendingModelEgress}
+              preserve={false}
+            >
+              <Form.Item
+                name="purpose"
+                label="用途说明"
+                rules={[
+                  { required: true, whitespace: true, message: "请说明本次模型外调用途" },
+                  { min: 6, message: "用途说明至少 6 个字符" },
+                ]}
+              >
+                <Input.TextArea
+                  rows={4}
+                  maxLength={512}
+                  showCount
+                  placeholder="说明本次生成候选的业务目的、最小必要患者上下文和确认责任"
+                />
+              </Form.Item>
+            </Form>
+          </Space>
+        ) : null}
+      </Modal>
+
+      <Modal
         title={`定制机构知识${customizeIdentity ? ` · ${customizeIdentity.subject}` : ""}`}
         open={Boolean(customizeIdentity)}
         okText="创建定制草稿"
@@ -2885,7 +3019,16 @@ export default function KnowledgeGovernance({
                 <Descriptions.Item label="生产时点">
                   {provenance.producedAt ?? "未返回"}
                 </Descriptions.Item>
-                {expertMode ? (
+                <Descriptions.Item label="生产证据">
+                  <Button
+                    type="link"
+                    size="small"
+                    onClick={() => toggleProvenanceDetails(provenance)}
+                  >
+                    {isProvenanceDetailsOpen(provenance) ? "收起生产证据" : "生产证据详情"}
+                  </Button>
+                </Descriptions.Item>
+                {isProvenanceDetailsOpen(provenance) ? (
                   <>
                     <Descriptions.Item label="生产任务编号">{provenance.jobCode}</Descriptions.Item>
                     <Descriptions.Item label="模型任务 ID">

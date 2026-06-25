@@ -117,7 +117,7 @@
 | `/knowledge/diagnosis` | 诊断知识维护 | knowledge-governance | diagnosis-knowledge | primary | SPLIT | 知识治理 | 诊断知识维护 | 维护诊断身份、诊断标准、鉴别诊断、测试病例与来源证据 |
 <!-- capability:route:route@%2Fknowledge%2Fproduction decision=SPLIT -->
 <!-- route:/knowledge/production -->
-| `/knowledge/production` | 模型生产控制台 | knowledge-production | knowledge-production | primary | SPLIT | 知识生产 | 知识生产 | 核查知识生产 readiness、生产 job、候选血缘、门禁、8 态和影子证据 |
+| `/knowledge/production` | 模型生产控制台 | knowledge-production | knowledge-production | primary | SPLIT | 知识生产 | 知识生产 | 核查知识生产 readiness、生产 job、候选血缘、门禁、8 态、影子证据和高敏模型外调用途确认重试 |
 <!-- capability:route:route@%2Fadmin%2Fusers decision=MOVE -->
 <!-- route:/admin/users -->
 | `/admin/users` | 人员与账号 | organization-people | admin-users | primary | MOVE | 机构与人员 | 人员与账号 | 维护自然人、任职、账号、职责和组织范围 |
@@ -419,17 +419,17 @@
 <!-- capability:controller:controller@ClinicalEventBatchSuffixController decision=MERGE -->
 | `ClinicalEventBatchSuffixController` | POST /api/v1/engine/clinical-events:batch | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@ClinicalEventController decision=KEEP -->
-| `ClinicalEventController` | POST /api/v1/engine/clinical-events<br>GET /api/v1/engine/clinical-events/{eventId}<br>GET /api/v1/engine/clinical-events/{eventId}/payload<br>GET /api/v1/engine/clinical-events/{eventId}/diagnose<br>GET /api/v1/engine/clinical-events/dead-letter<br>POST /api/v1/engine/clinical-events/dead-letter/{deadLetterId}/replay<br>GET /api/v1/engine/clinical-events | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
+| `ClinicalEventController` | POST /api/v1/engine/clinical-events<br>GET /api/v1/engine/clinical-events/{eventId}<br>GET /api/v1/engine/clinical-events/{eventId}/payload<br>GET /api/v1/engine/clinical-events/{eventId}/diagnose<br>GET /api/v1/engine/clinical-events/dead-letter<br>POST /api/v1/engine/clinical-events/dead-letter/{deadLetterId}/replay<br>GET /api/v1/engine/clinical-events | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示 |
 <!-- capability:controller:controller@ClinicalEventReplaySuffixController decision=KEEP -->
 | `ClinicalEventReplaySuffixController` | POST /api/v1/engine/clinical-events:replay | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@ContextFieldCatalogController decision=KEEP -->
 | `ContextFieldCatalogController` | GET /api/v1/engine/context/field-catalog<br>POST /api/v1/engine/context/field-catalog/drafts<br>POST /api/v1/engine/context/field-catalog<br>PUT /api/v1/engine/context/field-catalog/{fieldId}<br>DELETE /api/v1/engine/context/field-catalog/{fieldId} | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@ContextSnapshotController decision=KEEP -->
-| `ContextSnapshotController` | POST /api/v1/engine/context/snapshots<br>GET /api/v1/engine/context/snapshots/{snapshotId}<br>GET /api/v1/engine/context/snapshots/{snapshotId}/diagnose<br>GET /api/v1/engine/context/snapshots | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
+| `ContextSnapshotController` | POST /api/v1/engine/context/snapshots<br>GET /api/v1/engine/context/snapshots/{snapshotId}<br>GET /api/v1/engine/context/snapshots/{snapshotId}/diagnose<br>GET /api/v1/engine/context/snapshots | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示 |
 <!-- capability:controller:controller@EngineDataController decision=MERGE -->
 | `EngineDataController` | GET /api/v1/engine-data/rule-usage<br>GET /api/v1/engine-data/knowledge-usage<br>GET /api/v1/engine-data/clinical-signals<br>GET /api/v1/engine-data/tools<br>POST /api/v1/engine-data/tools/{toolName}:execute<br>POST /api/v1/engine-data/exports<br>GET /api/v1/engine-data/exports/{jobCode}<br>GET /api/v1/engine-data/exports<br>其余 2 项 | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@DeveloperConsoleController decision=KEEP -->
-| `DeveloperConsoleController` | GET /api/v1/system/dev-console/api-contracts | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
+| `DeveloperConsoleController` | GET /api/v1/system/dev-console/api-contracts | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示 |
 <!-- capability:controller:controller@DomainFacadeController decision=KEEP -->
 | `DomainFacadeController` | GET /api/v1/engine/domain-facades<br>GET /api/v1/engine/domain-facades/b0-fixtures<br>GET /api/v1/engine/domain-facades/{code}<br>GET /api/v1/engine/domain-facades/{code}/b0-fixture | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@EmbedEngineController decision=API_ONLY -->
@@ -437,7 +437,7 @@
 <!-- capability:controller:controller@EmrLevelController decision=MERGE -->
 | `EmrLevelController` | PUT /api/v1/engine/emr-level/targets<br>GET /api/v1/engine/emr-level/targets<br>GET /api/v1/engine/emr-level/gaps<br>GET /api/v1/engine/emr-level/progress<br>GET /api/v1/engine/emr-level/data-quality<br>POST /api/v1/engine/emr-level/evidence-exports | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@EvaluationEngineCanonicalController decision=KEEP -->
-| `EvaluationEngineCanonicalController` | POST /api/v1/engine/evaluation/indicators<br>GET /api/v1/engine/evaluation/indicators<br>GET /api/v1/engine/evaluation/indicators/{indicatorId}<br>POST /api/v1/engine/evaluation/indicators/{indicatorId}/submit<br>POST /api/v1/engine/evaluation/indicators/{indicatorId}/publish<br>POST /api/v1/engine/evaluation/indicators/{indicatorId}/gray<br>POST /api/v1/engine/evaluation/indicators/{indicatorId}/activate<br>POST /api/v1/engine/evaluation/runs<br>其余 6 项 | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
+| `EvaluationEngineCanonicalController` | POST /api/v1/engine/evaluation/indicators<br>GET /api/v1/engine/evaluation/indicators<br>GET /api/v1/engine/evaluation/indicators/{indicatorId}<br>POST /api/v1/engine/evaluation/indicators/{indicatorId}/submit<br>POST /api/v1/engine/evaluation/indicators/{indicatorId}/publish<br>POST /api/v1/engine/evaluation/indicators/{indicatorId}/gray<br>POST /api/v1/engine/evaluation/indicators/{indicatorId}/activate<br>POST /api/v1/engine/evaluation/runs<br>其余 6 项 | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示 |
 <!-- capability:controller:controller@EvaluationEngineEvaluateSuffixController decision=KEEP -->
 | `EvaluationEngineEvaluateSuffixController` | POST /api/v1/engine/evaluation:evaluate | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@RectificationController decision=KEEP -->
@@ -487,21 +487,21 @@
 <!-- capability:controller:controller@LargeListController decision=MERGE -->
 | `LargeListController` | GET /api/v1/large-lists/audit-events/list<br>POST /api/v1/large-lists/exports<br>GET /api/v1/large-lists/exports/{id}<br>GET /api/v1/large-lists/exports/{id}/download | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@ModelEnhancementMatrixController decision=KEEP -->
-| `ModelEnhancementMatrixController` | GET /api/v1/model-enhancement-matrix<br>GET /api/v1/model-enhancement-matrix/coverage<br>PUT /api/v1/model-enhancement-matrix/{businessPoint} | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
+| `ModelEnhancementMatrixController` | GET /api/v1/model-enhancement-matrix<br>GET /api/v1/model-enhancement-matrix/coverage<br>PUT /api/v1/model-enhancement-matrix/{businessPoint} | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示 |
 <!-- capability:controller:controller@ModelGatewayController decision=KEEP -->
-| `ModelGatewayController` | GET /api/v1/model-capabilities/status<br>GET /api/v1/model-capabilities/catalog<br>PUT /api/v1/model-capabilities/catalog/{capabilityCode}<br>POST /api/v1/model-capabilities/tasks<br>GET /api/v1/model-capabilities/tasks/{id}<br>POST /api/v1/model-capabilities/tasks/{id}/retry<br>POST /api/v1/model-capabilities/tasks/{id}/replay<br>POST /api/v1/model-capabilities/policies/validate<br>其余 1 项 | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
+| `ModelGatewayController` | GET /api/v1/model-capabilities/status<br>GET /api/v1/model-capabilities/catalog<br>PUT /api/v1/model-capabilities/catalog/{capabilityCode}<br>POST /api/v1/model-capabilities/tasks<br>GET /api/v1/model-capabilities/tasks/{id}<br>POST /api/v1/model-capabilities/tasks/{id}/retry<br>POST /api/v1/model-capabilities/tasks/{id}/replay<br>POST /api/v1/model-capabilities/policies/validate<br>其余 1 项 | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示 |
 <!-- capability:controller:controller@ModelVersionGovernanceController decision=MERGE -->
 | `ModelVersionGovernanceController` | POST /api/v1/model-versions/bundles<br>POST /api/v1/model-versions/capabilities/{capabilityCode}/rollback/{bundleId}<br>GET /api/v1/model-versions/capabilities/{capabilityCode}/active<br>GET /api/v1/model-versions/capabilities/{capabilityCode}/export | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@DataMinimizationPolicyController decision=KEEP -->
-| `DataMinimizationPolicyController` | PUT /api/v1/data-minimization/policies/model-egress/{capabilityCode}<br>GET /api/v1/data-minimization/policies/model-egress/confirmations<br>POST /api/v1/data-minimization/policies/model-egress/confirmations | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+| `DataMinimizationPolicyController` | PUT /api/v1/data-minimization/policies/model-egress/{capabilityCode}<br>GET /api/v1/data-minimization/policies/model-egress/confirmations<br>POST /api/v1/data-minimization/policies/model-egress/confirmations | KEEP | 对应客户任务页面 | 策略维护归外调治理，当前任务用途确认可由知识生产操作者完成并落审计 |
 <!-- capability:controller:controller@ModelEgressController decision=KEEP -->
-| `ModelEgressController` | PUT /api/v1/model-egress/whitelist/{capabilityCode}<br>POST /api/v1/model-egress/confirmations | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
+| `ModelEgressController` | PUT /api/v1/model-egress/whitelist/{capabilityCode}<br>POST /api/v1/model-egress/confirmations | KEEP | 所属业务域专业能力 | 外调策略由实施/运营维护，本次脱敏载荷用途确认由业务上下文承载 |
 <!-- capability:controller:controller@AiQualityEvalController decision=KEEP -->
 | `AiQualityEvalController` | POST /api/v1/ai-eval/runs<br>GET /api/v1/ai-eval/trends | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@ModelEvalController decision=KEEP -->
-| `ModelEvalController` | GET /api/v1/model-evaluations/runs<br>GET /api/v1/model-evaluations/runs/{runId}<br>POST /api/v1/model-evaluations<br>GET /api/v1/model-evaluations/regression-cases<br>POST /api/v1/model-evaluations/regression-cases<br>POST /api/v1/model-evaluations/regression-cases:bulk-import<br>POST /api/v1/model-evaluations/regression-cases/{caseId}:enable<br>POST /api/v1/model-evaluations/regression-cases/{caseId}:disable | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
+| `ModelEvalController` | GET /api/v1/model-evaluations/runs<br>GET /api/v1/model-evaluations/runs/{runId}<br>POST /api/v1/model-evaluations<br>GET /api/v1/model-evaluations/regression-cases<br>POST /api/v1/model-evaluations/regression-cases<br>POST /api/v1/model-evaluations/regression-cases:bulk-import<br>POST /api/v1/model-evaluations/regression-cases/{caseId}:enable<br>POST /api/v1/model-evaluations/regression-cases/{caseId}:disable | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示 |
 <!-- capability:controller:controller@ModelProviderController decision=KEEP -->
-| `ModelProviderController` | GET /api/v1/model-providers<br>PUT /api/v1/model-providers/{providerCode}<br>GET /api/v1/model-providers/{providerCode}<br>PUT /api/v1/model-providers/{providerCode}/credential<br>DELETE /api/v1/model-providers/{providerCode}/credential<br>POST /api/v1/model-providers/{providerCode}/enable<br>POST /api/v1/model-providers/{providerCode}/disable<br>POST /api/v1/model-providers/{providerCode}/health-check | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
+| `ModelProviderController` | GET /api/v1/model-providers<br>PUT /api/v1/model-providers/{providerCode}<br>GET /api/v1/model-providers/{providerCode}<br>PUT /api/v1/model-providers/{providerCode}/credential<br>DELETE /api/v1/model-providers/{providerCode}/credential<br>POST /api/v1/model-providers/{providerCode}/enable<br>POST /api/v1/model-providers/{providerCode}/disable<br>POST /api/v1/model-providers/{providerCode}/health-check | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示 |
 <!-- capability:controller:controller@MpiController decision=KEEP -->
 | `MpiController` | GET /api/v1/engine/mpi/patients<br>POST /api/v1/engine/mpi/patients<br>GET /api/v1/engine/mpi/patients/{mpiId}<br>GET /api/v1/engine/mpi/stats<br>POST /api/v1/engine/mpi/patients:merge<br>POST /api/v1/engine/mpi/patients/{sourceMpiId}:split<br>GET /api/v1/engine/mpi/merge-reviews<br>POST /api/v1/engine/mpi/merge-reviews/{reviewId}/confirm | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@OrgUnitController decision=KEEP -->
@@ -509,9 +509,9 @@
 <!-- capability:controller:controller@PathwayEngineController decision=KEEP -->
 | `PathwayEngineController` | POST /api/v1/engine/pathway/pathway-templates<br>GET /api/v1/engine/pathway/pathway-templates<br>GET /api/v1/engine/pathway/pathway-templates/{templateId}<br>POST /api/v1/engine/pathway/pathway-templates/{templateId}/simulate<br>POST /api/v1/engine/pathway/patient-pathways/enter<br>GET /api/v1/engine/pathway/patient-pathways/entry-candidates<br>GET /api/v1/engine/pathway/patient-pathways<br>GET /api/v1/engine/pathway/patient-pathways/{patientPathwayId}<br>其余 3 项 | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@PluginSecurityController decision=KEEP -->
-| `PluginSecurityController` | GET /api/v1/plugins<br>POST /api/v1/plugins/register<br>POST /api/v1/plugins/{pluginId}/grants<br>POST /api/v1/plugins/{pluginId}:disable | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
+| `PluginSecurityController` | GET /api/v1/plugins<br>POST /api/v1/plugins/register<br>POST /api/v1/plugins/{pluginId}/grants<br>POST /api/v1/plugins/{pluginId}:disable | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示 |
 <!-- capability:controller:controller@ProjectionController decision=KEEP -->
-| `ProjectionController` | POST /api/v1/projections/clinical-graph/rebuild<br>GET /api/v1/projections/clinical-graph/status<br>GET /api/v1/projections/clinical-graph/facts<br>GET /api/v1/projections/clinical-graph/consistency<br>POST /api/v1/projections/knowledge-graph/rebuild<br>GET /api/v1/projections/knowledge-graph/consistency<br>GET /api/v1/projections/knowledge-graph/facts<br>POST /api/v1/projections/knowledge-search/rebuild<br>其余 2 项 | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
+| `ProjectionController` | POST /api/v1/projections/clinical-graph/rebuild<br>GET /api/v1/projections/clinical-graph/status<br>GET /api/v1/projections/clinical-graph/facts<br>GET /api/v1/projections/clinical-graph/consistency<br>POST /api/v1/projections/knowledge-graph/rebuild<br>GET /api/v1/projections/knowledge-graph/consistency<br>GET /api/v1/projections/knowledge-graph/facts<br>POST /api/v1/projections/knowledge-search/rebuild<br>其余 2 项 | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示 |
 <!-- capability:controller:controller@QualityDashboardController decision=KEEP -->
 | `QualityDashboardController` | GET /api/v1/engine/quality/dashboard<br>GET /api/v1/engine/quality/dashboard/drilldown<br>GET /api/v1/engine/quality/alerts<br>POST /api/v1/engine/quality/alerts/{alertId}/acknowledge | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@InsuranceQualityController decision=KEEP -->
@@ -519,7 +519,7 @@
 <!-- capability:controller:controller@ValueMetricsController decision=KEEP -->
 | `ValueMetricsController` | GET /api/v1/engine/value-metrics<br>GET /api/v1/engine/value-metrics/{metricCode}/drilldown | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@RecommendationEngineController decision=KEEP -->
-| `RecommendationEngineController` | POST /api/v1/engine/recommendations/triggers<br>GET /api/v1/engine/recommendations/cards<br>GET /api/v1/engine/recommendations/clinical-cards<br>GET /api/v1/engine/recommendations/stats<br>GET /api/v1/engine/recommendations/cards/{cardId}<br>GET /api/v1/engine/recommendations/cards/{cardId}/sources<br>POST /api/v1/engine/recommendations/cards/{cardId}/feedback<br>GET /api/v1/engine/recommendations/fatigue-signals<br>其余 1 项 | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
+| `RecommendationEngineController` | POST /api/v1/engine/recommendations/triggers<br>GET /api/v1/engine/recommendations/cards<br>GET /api/v1/engine/recommendations/clinical-cards<br>GET /api/v1/engine/recommendations/stats<br>GET /api/v1/engine/recommendations/cards/{cardId}<br>GET /api/v1/engine/recommendations/cards/{cardId}/sources<br>POST /api/v1/engine/recommendations/cards/{cardId}/feedback<br>GET /api/v1/engine/recommendations/fatigue-signals<br>其余 1 项 | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示 |
 <!-- capability:controller:controller@RecommendationEvaluateSuffixController decision=KEEP -->
 | `RecommendationEvaluateSuffixController` | POST /api/v1/engine/recommendations:evaluate | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@RuntimeReleaseController decision=KEEP -->
@@ -559,7 +559,7 @@
 <!-- capability:controller:controller@SystemConfigController decision=KEEP -->
 | `SystemConfigController` | GET /api/v1/system/configs<br>GET /api/v1/system/configs/tenants/{tenantId}<br>PATCH /api/v1/system/configs/{key:.+}<br>PATCH /api/v1/system/configs/tenants/{tenantId}/{key:.+}<br>POST /api/v1/system/configs/{key:.+}/rollback | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@ObservabilityDiagnoseController decision=KEEP -->
-| `ObservabilityDiagnoseController` | GET /api/v1/engine/diagnose/traces/{traceId} | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
+| `ObservabilityDiagnoseController` | GET /api/v1/engine/diagnose/traces/{traceId} | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示 |
 <!-- capability:controller:controller@RuntimeOperationsController decision=KEEP -->
 | `RuntimeOperationsController` | GET /api/v1/system/operations<br>GET /api/v1/system/operations/domestic-report | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@RuntimeTaskController decision=MERGE -->

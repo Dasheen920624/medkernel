@@ -15,7 +15,7 @@ import jakarta.validation.Valid;
 /**
  * 模型外调治理接口控制器（LLM-03）。
  *
- * <p>由引擎运营员（{@code llm.egress.manage}）维护外调允许范围并确认高敏外调用途；
+ * <p>由引擎运营员（{@code llm.egress.manage}）维护外调允许范围；知识生产操作者或引擎运营员可确认本次高敏外调用途；
  * 全线 {@link DataScope} 强服务机构隔离。运行时外调拦截在 {@code ModelEgressGuard}。
  */
 @RestController
@@ -44,7 +44,7 @@ public class ModelEgressController {
      * 确认一条脱敏后高敏载荷的外调用途。
      */
     @PostMapping("/confirmations")
-    @PreAuthorize("@perm.has('llm.egress.manage')")
+    @PreAuthorize("@perm.hasAny('llm.egress.manage','knowledge.write')")
     public ApiResult<ModelEgressConfirmation> confirmEgress(
             @Valid @RequestBody ModelEgressConfirmationRequest request) {
         return ApiResult.ok(service.confirmEgress(request));

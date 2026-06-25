@@ -1,6 +1,7 @@
 package com.medkernel.engine.knowledge.production.model;
 
 import com.medkernel.engine.knowledge.production.generation.GenerationSummary;
+import com.medkernel.engine.llm.ModelEgressConfirmationChallenge;
 
 /**
  * 模型知识生产结果。
@@ -14,6 +15,17 @@ public record ModelKnowledgeProductionResult(
     String modelVersion,
     String promptVersion,
     String toolVersion,
-    GenerationSummary summary
+    GenerationSummary summary,
+    ModelEgressConfirmationChallenge egressConfirmation
 ) {
+    public ModelKnowledgeProductionResult(
+            String jobCode,
+            String modelTaskId,
+            String modelMode,
+            String modelVersion,
+            String promptVersion,
+            String toolVersion,
+            GenerationSummary summary) {
+        this(jobCode, modelTaskId, modelMode, modelVersion, promptVersion, toolVersion, summary, null);
+    }
 }

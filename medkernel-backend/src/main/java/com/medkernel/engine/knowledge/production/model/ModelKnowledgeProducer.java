@@ -36,6 +36,7 @@ import com.medkernel.engine.knowledge.production.triage.GenerationTriageContext;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageDecision;
 import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
 import com.medkernel.engine.llm.ModelGatewayService;
+import com.medkernel.engine.llm.ModelEgressConfirmationChallenge;
 import com.medkernel.engine.llm.ModelTaskRequest;
 import com.medkernel.engine.llm.ModelTaskResponse;
 import com.medkernel.engine.llm.provider.DeploymentForm;
@@ -58,6 +59,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ModelKnowledgeProducer {
 
     public static final String MODEL_OUTPUT_SCHEMA_GATE = "MODEL_OUTPUT_SCHEMA";
+    public static final String MODEL_EGRESS_CONFIRMATION_GATE = "MODEL_EGRESS_CONFIRMATION";
 
     private final KnowledgeProductionJobRepository jobRepository;
     private final KnowledgeProductionReadinessService readinessService;
@@ -115,6 +117,13 @@ public class ModelKnowledgeProducer {
             request.capabilityCode(), request.prompt(), request.timeoutSeconds(),
             requiredRouteStrategy(job, readiness), request.providerCode(),
             authoritativeOutputContext(tenantId, request)));
+        if (isEgressConfirmationRequired(task)) {
+            return result(jobCode, task, new GenerationSummary(
+                List.of(),
+                List.of(),
+                List.of(new BlockedCandidate(job.assetType(), jobCode, List.of(GateItemResult.fail(
+                    MODEL_EGRESS_CONFIRMATION_GATE, egressConfirmationReason(task)))))));
+        }
         if (isB0Fallback(task)) {
             return result(jobCode, task, new GenerationSummary(
                 List.of(),
@@ -273,6 +282,26 @@ public class ModelKnowledgeProducer {
             || !"SUCCEEDED".equalsIgnoreCase(task.status());
     }
 
+    private boolean isEgressConfirmationRequired(ModelTaskResponse task) {
+        return task != null && "CONFIRMATION_REQUIRED".equalsIgnoreCase(task.status());
+    }
+
+    private String egressConfirmationReason(ModelTaskResponse task) {
+        ModelEgressConfirmationChallenge confirmation = task.egressConfirmation();
+        if (confirmation == null) {
+            return "模型外调已阻断，需先完成本次用途与责任确认；确认后重新启动模型生成，输出仍只作为待审候选";
+        }
+        String fields = confirmation.egressFields().isEmpty()
+            ? "未返回字段清单"
+            : String.join("、", confirmation.egressFields());
+        return "模型外调已阻断，需先完成本次用途与责任确认：能力="
+            + confirmation.capabilityCode()
+            + "，载荷摘要=" + confirmation.payloadHash()
+            + "，字段=" + fields
+            + "，服务=" + confirmation.providerCode()
+            + "；确认后重新启动模型生成，输出仍只作为待审候选";
+    }
+
     private String fallbackReason(ModelTaskResponse task) {
         if (task == null) {
             return "模型网关未返回结果，未生成候选";
@@ -399,7 +428,8 @@ public class ModelKnowledgeProducer {
             modelVersion,
             promptVersion,
             toolVersion,
-            summary);
+            summary,
+            task == null ? null : task.egressConfirmation());
     }
 
     private String requireCurrentTenant() {

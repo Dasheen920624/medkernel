@@ -32,6 +32,7 @@ const mockUseKnowledgeProductionCandidates = vi.fn();
 const mockUseKnowledgeProductionGateResults = vi.fn();
 const mockUseKnowledgeProductionTriageResults = vi.fn();
 const mockUseKnowledgeProductionShadowRuns = vi.fn();
+const mockUseConfirmModelEgress = vi.fn();
 const mockUseCandidateCoexistence = vi.fn();
 const mockUseCreateKnowledgeProductionJob = vi.fn();
 const mockUseGenerateKnowledgeModelCandidate = vi.fn();
@@ -72,6 +73,7 @@ vi.mock("@/shared/api/hooks", () => ({
     mockUseKnowledgeProductionTriageResults(jobCode),
   useKnowledgeProductionShadowRuns: (jobCode?: string) =>
     mockUseKnowledgeProductionShadowRuns(jobCode),
+  useConfirmModelEgress: () => mockUseConfirmModelEgress(),
   useCandidateCoexistence: (candidateRef?: string) => mockUseCandidateCoexistence(candidateRef),
   useCreateKnowledgeProductionJob: () => mockUseCreateKnowledgeProductionJob(),
   useGenerateKnowledgeModelCandidate: () => mockUseGenerateKnowledgeModelCandidate(),
@@ -227,6 +229,7 @@ let createCustomization: ReturnType<typeof vi.fn>;
 let publishCustomization: ReturnType<typeof vi.fn>;
 let createProductionJob: ReturnType<typeof vi.fn>;
 let generateModelCandidate: ReturnType<typeof vi.fn>;
+let confirmModelEgress: ReturnType<typeof vi.fn>;
 let cancelProductionJob: ReturnType<typeof vi.fn>;
 let approveLowInitializationBatch: ReturnType<typeof vi.fn>;
 let refreshInitializationBatch: ReturnType<typeof vi.fn>;
@@ -282,6 +285,12 @@ beforeEach(() => {
   createProductionJob = vi.fn().mockResolvedValue({
     jobCode: "job-new-1",
     status: "PENDING",
+  });
+  confirmModelEgress = vi.fn().mockResolvedValue({
+    id: 12,
+    capabilityCode: "knowledge.production.knowledge",
+    payloadHash: "sha256-confirmation-required",
+    purpose: "确认用于知识候选生成",
   });
   generateModelCandidate = vi.fn().mockResolvedValue({
     jobCode: "job-ai-1",
@@ -484,6 +493,10 @@ beforeEach(() => {
   });
   mockUseGenerateKnowledgeModelCandidate.mockReturnValue({
     mutateAsync: generateModelCandidate,
+    isPending: false,
+  });
+  mockUseConfirmModelEgress.mockReturnValue({
+    mutateAsync: confirmModelEgress,
     isPending: false,
   });
   mockUseCancelKnowledgeProductionJob.mockReturnValue({
@@ -1149,6 +1162,90 @@ describe("KnowledgeGovernance", () => {
     );
   });
 
+  it("confirms actionable egress purpose and retries model production with the same request", async () => {
+    const user = userEvent.setup();
+    generateModelCandidate.mockResolvedValueOnce({
+      jobCode: "job-ai-1",
+      modelTaskId: "task-confirm-1",
+      modelMode: "B2",
+      summary: {
+        candidates: [],
+        skipped: [],
+        blocked: [
+          {
+            assetType: "KNOWLEDGE",
+            jobCode: "job-ai-1",
+            failedGates: [
+              {
+                code: "MODEL_EGRESS_CONFIRMATION",
+                reason:
+                  "模型外调已阻断，需先完成本次用途与责任确认：载荷摘要=sha256-confirmation-required",
+              },
+            ],
+          },
+        ],
+      },
+      egressConfirmation: {
+        capabilityCode: "knowledge.production.knowledge",
+        payloadHash: "sha256-confirmation-required",
+        egressFields: ["prompt"],
+        providerCode: "provider-openai",
+        message: "高敏患者上下文外调前需要责任确认",
+      },
+    });
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        permissions: [{ code: "knowledge.write" }],
+      },
+    });
+    mockUseKnowledgeProductionReadiness.mockReturnValue({
+      data: {
+        tenantId: "tenant-A",
+        producer: "API_MODEL",
+        capabilityCode: "knowledge.production.knowledge",
+        providerCode: "provider-openai",
+        deploymentForm: "EXTERNAL",
+        ready: true,
+        modelInvocationAllowed: true,
+        items: [],
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+
+    renderPage(<KnowledgeProduction />);
+
+    await user.click(screen.getByRole("button", { name: "启动大模型生成" }));
+    await user.clear(screen.getByLabelText("来源锚点"));
+    await user.type(screen.getByLabelText("来源锚点"), "GL-VTE-2026:v1:section-2");
+    await user.clear(screen.getByLabelText("生成提示"));
+    await user.type(screen.getByLabelText("生成提示"), "请依据来源锚点生成结构化候选知识。");
+    await user.click(screen.getByRole("button", { name: "开始生成候选" }));
+
+    await waitFor(() => expect(generateModelCandidate).toHaveBeenCalled());
+    expect(await screen.findByText("确认模型外调用途")).toBeInTheDocument();
+    expect(screen.getByText(/高敏患者上下文外调前需要责任确认/)).toBeInTheDocument();
+    expect(screen.getByText("sha256-confirmation-required")).toBeInTheDocument();
+
+    await user.type(
+      screen.getByLabelText("用途说明"),
+      "确认用于知识候选生成，患者上下文已按最小必要出域",
+    );
+    await user.click(screen.getByRole("button", { name: "记录确认并重试" }));
+
+    await waitFor(() =>
+      expect(confirmModelEgress).toHaveBeenCalledWith({
+        capabilityCode: "knowledge.production.knowledge",
+        payloadHash: "sha256-confirmation-required",
+        purpose: "确认用于知识候选生成，患者上下文已按最小必要出域",
+      }),
+    );
+    await waitFor(() => expect(generateModelCandidate).toHaveBeenCalledTimes(2));
+  });
+
   it("approves only the frozen LOW subset of an initialization batch", async () => {
     const user = userEvent.setup();
     mockUseSecurityProfile.mockReturnValue({
@@ -1493,7 +1590,7 @@ describe("KnowledgeGovernance", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("reveals technical AI provenance only after authorized users enable expert mode", async () => {
+  it("reveals low-frequency AI provenance from contextual evidence details", async () => {
     const user = userEvent.setup();
     mockUseSecurityProfile.mockReturnValue({
       data: {
@@ -1535,7 +1632,7 @@ describe("KnowledgeGovernance", () => {
     await user.click(screen.getByRole("button", { name: "查看审核对照" }));
     expect(screen.queryByText("job-vte-ai")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("switch", { name: "高级信息" }));
+    await user.click(screen.getByRole("button", { name: "生产证据详情" }));
 
     expect(screen.getByText("job-vte-ai")).toBeInTheDocument();
     expect(screen.getByText("task-vte-ai")).toBeInTheDocument();

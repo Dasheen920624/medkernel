@@ -425,6 +425,41 @@ describe("model gateway api hooks", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/model-capabilities/tasks", payload);
   });
 
+  it("preserves actionable egress confirmation challenges for real model tasks", async () => {
+    const task = {
+      ...replayedTask,
+      taskId: "task-confirm-1",
+      status: "CONFIRMATION_REQUIRED",
+      modelMode: "B2",
+      fallbackUsed: false,
+      fallbackReason: "",
+      egressConfirmation: {
+        capabilityCode: "knowledge.extract",
+        payloadHash: "sha256-confirmation-required",
+        egressFields: ["prompt"],
+        providerCode: "p1",
+        message: "高敏外调需要责任确认",
+      },
+    };
+    const payload = {
+      capabilityCode: "knowledge.extract",
+      inputData: "公网模型前需要确认的脱敏患者上下文",
+      requiredRouteStrategy: "EXTERNAL_MODEL",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: task } });
+
+    const submitHook = renderApiHook(() => useSubmitModelTask());
+
+    await expect(submitHook.result.current.mutateAsync(payload)).resolves.toMatchObject({
+      status: "CONFIRMATION_REQUIRED",
+      egressConfirmation: {
+        payloadHash: "sha256-confirmation-required",
+        egressFields: ["prompt"],
+      },
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/model-capabilities/tasks", payload);
+  });
+
   it("validates and saves route policy with explicit fallback budget", async () => {
     const validationPayload = {
       capabilityCode: "knowledge.extract",

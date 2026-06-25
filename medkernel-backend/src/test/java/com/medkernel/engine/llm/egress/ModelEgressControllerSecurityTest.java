@@ -5,7 +5,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import java.lang.reflect.Method;
 import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
@@ -15,6 +17,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -114,6 +117,23 @@ class ModelEgressControllerSecurityTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(CONFIRMATION_BODY))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void egressConfirmationAllowsKnowledgeWritersButPolicyManagementStaysRestricted() throws Exception {
+        Method legacyConfirmation = ModelEgressController.class.getDeclaredMethod(
+            "confirmEgress", ModelEgressConfirmationRequest.class);
+        Method dataMinimizationConfirmation = DataMinimizationPolicyController.class.getDeclaredMethod(
+            "confirmModelEgress", ModelEgressConfirmationRequest.class);
+        Method dataMinimizationPolicy = DataMinimizationPolicyController.class.getDeclaredMethod(
+            "upsertModelEgressPolicy", String.class, ModelEgressWhitelistUpsertRequest.class);
+
+        assertThat(legacyConfirmation.getAnnotation(PreAuthorize.class).value())
+            .isEqualTo("@perm.hasAny('llm.egress.manage','knowledge.write')");
+        assertThat(dataMinimizationConfirmation.getAnnotation(PreAuthorize.class).value())
+            .isEqualTo("@perm.hasAny('llm.egress.manage','knowledge.write')");
+        assertThat(dataMinimizationPolicy.getAnnotation(PreAuthorize.class).value())
+            .isEqualTo("@perm.has('llm.egress.manage')");
     }
 
     @Test

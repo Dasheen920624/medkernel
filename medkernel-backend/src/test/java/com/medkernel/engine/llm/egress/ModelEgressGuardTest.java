@@ -248,9 +248,16 @@ class ModelEgressGuardTest {
 
         assertThatThrownBy(() -> guard.prepareEgress(
                 "tenant-1", "knowledge.extract", "{\"clinicalText\":\"主诉发热\"}", "task-1", "claude"))
-            .isInstanceOf(ApiException.class)
-            .extracting(e -> ((ApiException) e).errorCode())
-            .isEqualTo(ErrorCode.ENG_LLM_007);
+            .isInstanceOf(ModelEgressConfirmationRequiredException.class)
+            .satisfies(error -> {
+                ModelEgressConfirmationRequiredException required =
+                    (ModelEgressConfirmationRequiredException) error;
+                assertThat(required.errorCode()).isEqualTo(ErrorCode.ENG_LLM_007);
+                assertThat(required.capabilityCode()).isEqualTo("knowledge.extract");
+                assertThat(required.payloadHash()).hasSize(64);
+                assertThat(required.egressFields()).containsExactly("clinicalText");
+                assertThat(required.providerCode()).isEqualTo("claude");
+            });
     }
 
     @Test

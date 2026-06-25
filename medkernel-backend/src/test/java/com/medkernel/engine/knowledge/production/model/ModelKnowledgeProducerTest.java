@@ -49,6 +49,7 @@ import com.medkernel.engine.knowledge.production.triage.GenerationTriageDecision
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageState;
 import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
 import com.medkernel.engine.llm.ModelGatewayService;
+import com.medkernel.engine.llm.ModelEgressConfirmationChallenge;
 import com.medkernel.engine.llm.ModelTaskRequest;
 import com.medkernel.engine.llm.ModelTaskResponse;
 import com.medkernel.engine.llm.provider.DeploymentForm;
@@ -404,6 +405,38 @@ class ModelKnowledgeProducerTest {
         assertThat(result.summary().candidates()).isEmpty();
         assertThat(result.summary().skipped()).singleElement()
             .satisfies(skipped -> assertThat(skipped.reason()).contains("B0", "外调"));
+        verify(gateService, never()).evaluate(any(), any());
+        verify(production, never()).submitCandidate(any(), any(), any());
+    }
+
+    @Test
+    void egressConfirmationRequiredBlocksWithActionableGateBeforeCandidateChain() {
+        when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(new ModelTaskResponse(
+            "task-confirmation", "CONFIRMATION_REQUIRED",
+            "{\"status\":\"CONFIRMATION_REQUIRED\",\"payloadHash\":\"sha256-confirmation-required\"}",
+            "B2", "claude-opus-4", "prompt:aikstd13-v1", "tool:submit-candidate-v1",
+            "[]", null, "HIGH", false, null, 18L, "trace-model",
+            new ModelEgressConfirmationChallenge(
+                CAPABILITY,
+                "sha256-confirmation-required",
+                List.of("prompt"),
+                PROVIDER,
+                "高敏外调需要责任确认")));
+
+        ModelKnowledgeProductionResult result = producer.generate(JOB_CODE, request());
+
+        assertThat(result.egressConfirmation()).isNotNull();
+        assertThat(result.egressConfirmation().payloadHash()).isEqualTo("sha256-confirmation-required");
+        assertThat(result.summary().candidates()).isEmpty();
+        assertThat(result.summary().skipped()).isEmpty();
+        assertThat(result.summary().blocked()).singleElement()
+            .satisfies(blocked -> assertThat(blocked.failedGates()).singleElement()
+                .satisfies(gate -> {
+                    assertThat(gate.code()).isEqualTo(ModelKnowledgeProducer.MODEL_EGRESS_CONFIRMATION_GATE);
+                    assertThat(gate.reason())
+                        .contains("责任确认", "sha256-confirmation-required", "prompt", PROVIDER)
+                        .doesNotContain("降级 B0");
+                }));
         verify(gateService, never()).evaluate(any(), any());
         verify(production, never()).submitCandidate(any(), any(), any());
     }
