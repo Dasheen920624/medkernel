@@ -128,7 +128,10 @@ async function openCreatePathwayDialog(page: Page) {
 }
 
 async function openNodeCanvas(dialog: ReturnType<Page["getByRole"]>) {
-  await dialog.getByRole("tab", { name: "节点画布" }).click();
+  const canvasTab = dialog.getByRole("tab", { name: "节点画布" });
+  await expect(canvasTab).toBeVisible();
+  await canvasTab.click();
+  await expect(canvasTab).toHaveAttribute("aria-selected", "true");
   await expect(dialog.getByText("结构化节点画布", { exact: true })).toBeVisible();
 }
 

@@ -104,6 +104,7 @@ async function enableGraphProjection(page: Page) {
 async function seedActiveKnowledge(page: Page) {
   await ensureReadySession(page, "engine-operator");
   const suffix = Date.now();
+  await ensureGraphFindingTerms(page, suffix);
   const create = await postApi(page, "/engine/knowledge/diagnosis/assets", {
     request_id: `e2e-graph-${suffix}`,
     trace_id: `e2e-graph-${suffix}`,
@@ -193,6 +194,29 @@ async function seedActiveKnowledge(page: Page) {
     },
   );
   await expectOk(publish, "发布真实知识资产");
+}
+
+async function ensureGraphFindingTerms(page: Page, suffix: number) {
+  for (const term of [
+    { termCode: "FEVER", displayName: "发热" },
+    { termCode: "COUGH", displayName: "咳嗽" },
+  ]) {
+    const response = await postApi(page, "/engine/terminology/terms/standard", {
+      request_id: `e2e-graph-term-${term.termCode}-${suffix}`,
+      trace_id: `e2e-graph-term-${term.termCode}-${suffix}`,
+      tenant_id: "t-1",
+      user_id: "engine-operator",
+      role_codes: ["engine-operator"],
+      standardSystem: "TERM.DIAGNOSIS",
+      termCode: term.termCode,
+      category: "DIAGNOSIS",
+      displayName: term.displayName,
+      normalizedName: term.displayName,
+      versionNo: "2026-e2e-graph",
+      evidenceText: "图谱真实链路验收前置 TERM-01 标准术语",
+    });
+    await expectOk(response, `登记 TERM-01 标准术语 ${term.termCode}`);
+  }
 }
 
 async function selectKnowledgeProjection(page: Page) {

@@ -152,9 +152,11 @@ describe("AiWorkflows", () => {
     expect(screen.getByText("模型能力已关闭")).toBeInTheDocument();
     expect(screen.getByText("默认脱敏")).toBeInTheDocument();
     expect(screen.getByText("全量掩码")).toBeInTheDocument();
+    expect(screen.getAllByText("规则链路可用").length).toBeGreaterThan(0);
     expect(screen.getByText("医院:hospital-a")).toBeInTheDocument();
     expect(screen.getByText("继承配置")).toBeInTheDocument();
     expect(screen.getByText("未配置专属策略，使用系统无模型规则链路")).toBeInTheDocument();
+    expect(screen.queryByText("基线可用")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /提交|运行|重试|配置|编辑|新增|保存/ })).toBeNull();
     expect(requests).toEqual(["get /security/me", "get /model-capabilities/status"]);
   });
@@ -185,7 +187,7 @@ describe("AiWorkflows", () => {
     renderPage();
 
     expect(await screen.findByText("部分 AI 能力当前不可用")).toBeInTheDocument();
-    expect(screen.getByText("1 项能力没有可用路由或基线，其他能力仍可查看。")).toBeInTheDocument();
+    expect(screen.getByText("1 项能力没有可用路由或规则链路，其他能力仍可查看。")).toBeInTheDocument();
     expect(screen.getByText("暂不可用")).toBeInTheDocument();
   });
 

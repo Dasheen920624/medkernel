@@ -6,12 +6,12 @@ import {
 } from "../../e2e/support/embedBaseUrl.mjs";
 
 describe("embed business host base url", () => {
-  it("keeps the deployed context path for iframe launch urls", () => {
+  it("uses the frontend origin for iframe launch urls when the API context path is supplied", () => {
     expect(resolveEmbedAppBase("https://193.112.107.134/medkernel")).toBe(
-      "https://193.112.107.134/medkernel",
+      "https://193.112.107.134",
     );
     expect(resolveEmbedAppBase("https://193.112.107.134/medkernel/")).toBe(
-      "https://193.112.107.134/medkernel",
+      "https://193.112.107.134",
     );
   });
 

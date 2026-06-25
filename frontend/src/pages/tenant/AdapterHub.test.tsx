@@ -549,6 +549,23 @@ describe("AdapterHub", () => {
     expect(screen.getByText("派生不可写")).toBeInTheDocument();
   });
 
+  it("does not request the current-hospital data contract outside hospital scope", () => {
+    vi.mocked(useSecurityProfile).mockReturnValue(
+      query({
+        ...profile,
+        dataScope: {
+          ...profile.dataScope,
+          hospitalId: null,
+        },
+      }) as never,
+    );
+
+    renderPage();
+
+    expect(useIntegrationDataContract).toHaveBeenCalledWith(false);
+    expect(screen.getByText("请先切换到具体医院后查看当前生效版本字段要求。")).toBeInTheDocument();
+  });
+
   it("keeps required source and data contract configuration visible before any adapter is created", () => {
     vi.mocked(useIntegrationAdapters).mockReturnValue(query(adapterPage([])) as never);
     vi.mocked(useAdapterHubStatus).mockReturnValue(

@@ -285,9 +285,13 @@ export default function AdapterHub() {
   );
 
   const security = useSecurityProfile();
+  const profile = security.data;
+  const canAccess = !!profile && canAccessRoute(route, profile);
+  const hasHospitalRuntimeScope = Boolean(profile?.dataScope.hospitalId);
+  const canLoadDataContract = canAccess && hasHospitalRuntimeScope;
   const adaptersQuery = useIntegrationAdapters({ page: adapterPage, size: ADAPTER_PAGE_SIZE });
   const statusQuery = useAdapterHubStatus();
-  const dataContractQuery = useIntegrationDataContract(true);
+  const dataContractQuery = useIntegrationDataContract(canLoadDataContract);
   const masterDataQuery = useMasterDataReconciliation(
     masterDataSource,
     masterDataSource.length > 0,
@@ -316,10 +320,8 @@ export default function AdapterHub() {
   const createWebhookMutation = useCreateWebhook();
   const testWebhookSignatureMutation = useTestWebhookSignature();
   const registerRegionalSourceMutation = useRegisterRegionalSource();
-  const profile = security.data;
   const globalExpertMode = useExpertModeStore((state) => state.enabled);
   const expertMode = canUseExpertMode(profile) && globalExpertMode;
-  const canAccess = !!profile && canAccessRoute(route, profile);
   const canWrite = hasPermission(profile, "integration.write");
   const canExecute = hasPermission(profile, "integration.execute");
 
@@ -920,6 +922,11 @@ export default function AdapterHub() {
               loading={dataContractQuery.isFetching}
               contract={dataContractQuery.data}
               error={dataContractQuery.isError}
+              unavailableReason={
+                !hasHospitalRuntimeScope
+                  ? "请先切换到具体医院后查看当前生效版本字段要求。"
+                  : undefined
+              }
             />
           </div>
 
@@ -1697,10 +1704,12 @@ function DataContractPanel({
   loading,
   contract,
   error,
+  unavailableReason,
 }: {
   loading: boolean;
   contract?: IntegrationDataContractResponse;
   error: boolean;
+  unavailableReason?: string;
 }) {
   const resourceCount = contract ? Object.keys(contract.resources).length : 0;
   const fieldColumns: ColumnsType<IntegrationDataContractResponse["fields"][number]> = [
@@ -1731,6 +1740,9 @@ function DataContractPanel({
     <Card title="数据接入契约" className={styles.sectionCard}>
       <Space direction="vertical" size="middle" className="mk-full-width">
         {loading && !contract && <Text type="secondary">正在读取当前机构生效版本的字段要求…</Text>}
+        {!loading && !error && !contract && unavailableReason && (
+          <Alert type="info" showIcon message={unavailableReason} />
+        )}
         {error && <Alert type="warning" showIcon message="数据接入契约暂时不可用" />}
         {contract ? (
           <Space direction="vertical" size="small">
@@ -1751,7 +1763,9 @@ function DataContractPanel({
             />
           </Space>
         ) : (
-          !loading && !error && <Text type="secondary">当前医院尚无可读取的数据接入契约。</Text>
+          !loading &&
+          !error &&
+          !unavailableReason && <Text type="secondary">当前医院尚无可读取的数据接入契约。</Text>
         )}
       </Space>
     </Card>

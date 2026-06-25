@@ -7,6 +7,7 @@ import { PageShell } from "@/shared/ui/PageShell";
 import MedicalEvaluationPanel from "./MedicalEvaluationPanel";
 import ProductionReadinessPanel from "./ProductionReadinessPanel";
 import ProviderSetupPanel from "./ProviderSetupPanel";
+import styles from "./ModelProductionConsole.module.css";
 
 const STEP_IDS = ["provider", "evaluation", "readiness", "production"] as const;
 
@@ -22,7 +23,7 @@ export default function ModelProductionConsole() {
       title="模型生产控制台"
       description="在同一页面完成模型服务配置、医学评测、生产前校验和大模型知识生产"
     >
-      <Space direction="vertical" size="large" className="mk-full-width">
+      <Space direction="vertical" size="large" className={styles.consoleStack}>
         <Alert
           type="info"
           showIcon
@@ -40,16 +41,16 @@ export default function ModelProductionConsole() {
             ]}
           />
         </Card>
-        <section id="provider" aria-label="模型服务与密钥">
+        <section id="provider" aria-label="模型服务与密钥" className={styles.section}>
           <ProviderSetupPanel />
         </section>
-        <section id="evaluation" aria-label="医学评测">
+        <section id="evaluation" aria-label="医学评测" className={styles.section}>
           <MedicalEvaluationPanel />
         </section>
-        <section id="readiness" aria-label="生产前校验">
+        <section id="readiness" aria-label="生产前校验" className={styles.section}>
           <ProductionReadinessPanel />
         </section>
-        <section id="production" aria-label="开始生产">
+        <section id="production" aria-label="开始生产" className={styles.section}>
           <Card title="开始生产">
             <KnowledgeProductionWorkspace />
           </Card>

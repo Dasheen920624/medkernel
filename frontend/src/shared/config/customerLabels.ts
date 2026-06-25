@@ -10,6 +10,8 @@ const customerTextReplacements: ReadonlyArray<readonly [RegExp, string]> = [
   [/B0\s*主链路/g, "无模型规则主链路"],
   [/B0\s*路径/g, "无模型规则路径"],
   [/B0/g, "无模型规则链路"],
+  [/没有可用基线/g, "没有可用规则链路"],
+  [/可用基线/g, "可用规则链路"],
   [/\s*ACTIVE\s*/g, "已生效"],
   [/MFA/g, "多因素认证"],
   [/运行底座/g, "运行环境"],

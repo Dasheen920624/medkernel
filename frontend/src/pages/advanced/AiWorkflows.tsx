@@ -60,7 +60,7 @@ function availabilityView(item: ModelCapabilityStatusResponse) {
     return { color: "default", label: "已停用" };
   }
   if (item.fallbackAvailable) {
-    return { color: "success", label: "基线可用" };
+    return { color: "success", label: "规则链路可用" };
   }
   return { color: "warning", label: "暂不可用" };
 }
@@ -310,7 +310,7 @@ export default function AiWorkflows() {
             type="warning"
             showIcon
             message="部分 AI 能力当前不可用"
-            description={`${unavailableCount} 项能力没有可用路由或基线，其他能力仍可查看。`}
+            description={`${unavailableCount} 项能力没有可用路由或规则链路，其他能力仍可查看。`}
           />
         ) : null}
 

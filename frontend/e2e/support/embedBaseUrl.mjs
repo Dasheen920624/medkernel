@@ -1,7 +1,12 @@
 const DEFAULT_EMBED_BASE_URL = "http://localhost:5173";
 
 export function resolveEmbedAppBase(baseUrl = DEFAULT_EMBED_BASE_URL) {
-  return normalizeBaseUrl(baseUrl).replace(/\/+$/, "");
+  const normalized = normalizeBaseUrl(baseUrl).replace(/\/+$/, "");
+  const parsed = new URL(normalized);
+  if (parsed.pathname.replace(/\/+$/, "") === "/medkernel") {
+    return parsed.origin;
+  }
+  return normalized;
 }
 
 export function resolveEmbedOrigin(baseUrl = DEFAULT_EMBED_BASE_URL) {
