@@ -7,7 +7,7 @@ export const appBase = (process.env.E2E_BASE_URL?.trim() || "http://localhost:51
   /\/+$/,
   "",
 );
-const frontendApiBase = `${appBase}/medkernel/api/v1`;
+const frontendApiBase = resolveFrontendApiBase(appBase);
 export const tenantId = "t-1";
 const defaultPassword = "Mk@2026dev";
 export const roleAccounts = [
@@ -174,6 +174,13 @@ export async function expectOk(response: APIResponse, label: string) {
 
 export function stablePassword(role: RoleAccount) {
   return credentialOverrides[role]?.password ?? `Mk@2026${role.replace(/-/g, "")}`;
+}
+
+export function resolveFrontendApiBase(baseUrl: string) {
+  const normalized = baseUrl.trim().replace(/\/+$/, "");
+  const pathname = new URL(normalized).pathname.replace(/\/+$/, "");
+  const contextPath = pathname.endsWith("/medkernel") ? "" : "/medkernel";
+  return `${normalized}${contextPath}/api/v1`;
 }
 
 function tenantIdFor(username: string) {

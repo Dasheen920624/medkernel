@@ -43,7 +43,11 @@ describe("E2E credential contract", () => {
     process.env.E2E_API_BASE_URL = "https://127.0.0.1/medkernel/api/v1";
     process.env.E2E_ROLE_CREDENTIALS_FILE = credentialsPath;
 
-    const auth = await import("../../e2e/support/auth.ts");
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof import(
+      "../../e2e/support/auth.ts"
+    ) & {
+      resolveFrontendApiBase: (baseUrl: string) => string;
+    };
 
     expect(auth.roleAccounts).toEqual([
       "platform-admin",
@@ -52,6 +56,12 @@ describe("E2E credential contract", () => {
       "auditor",
     ]);
     expect(auth.stablePassword("engine-operator")).toBe("secret-engine-operator");
+    expect(auth.resolveFrontendApiBase("http://localhost:5173")).toBe(
+      "http://localhost:5173/medkernel/api/v1",
+    );
+    expect(auth.resolveFrontendApiBase("https://193.112.107.134/medkernel")).toBe(
+      "https://193.112.107.134/medkernel/api/v1",
+    );
   });
 });
 
