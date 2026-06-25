@@ -318,6 +318,128 @@ class KnowledgeVersionServiceTest {
     }
 
     @Test
+    void activateRestoredVersionReusesOpenReplacementInvalidationForPreviouslySupersededVersion() {
+        KnowledgeIdentity identity = identity(1L, 11L);
+        KnowledgeAssetVersion v1Active =
+            versionWithVersionNo(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW, "V1");
+        KnowledgeAssetVersion v1Superseded =
+            versionWithVersionNo(5L, 1L, KnowledgeVersionStatus.SUPERSEDED, KnowledgeRiskLevel.LOW, "V1");
+        KnowledgeAssetVersion v2Candidate =
+            versionWithVersionNo(11L, 1L, KnowledgeVersionStatus.UNDER_REVIEW, KnowledgeRiskLevel.LOW, "V2");
+        KnowledgeAssetVersion v2Active =
+            versionWithVersionNo(11L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW, "V2");
+        KnowledgeAssetVersion v2Superseded =
+            versionWithVersionNo(11L, 1L, KnowledgeVersionStatus.SUPERSEDED, KnowledgeRiskLevel.LOW, "V2");
+        KnowledgeInvalidation existingV1Invalidation = new KnowledgeInvalidation(
+            77L,
+            "t-1",
+            1L,
+            5L,
+            KnowledgeInvalidationType.SUPERSEDED_REPLACEMENT,
+            KnowledgeInvalidationStatus.OPEN,
+            KnowledgeRiskLevel.LOW,
+            "知识版本原子替换：oldVersionId=5，newVersionId=11",
+            "tenant:t-1",
+            KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE,
+            "u-99",
+            Instant.now(),
+            false,
+            "trace",
+            Instant.now(),
+            "u-99",
+            Instant.now(),
+            "u-99"
+        );
+        KnowledgeInvalidation resolvedV1Invalidation = new KnowledgeInvalidation(
+            existingV1Invalidation.id(),
+            existingV1Invalidation.tenantId(),
+            existingV1Invalidation.identityId(),
+            existingV1Invalidation.versionId(),
+            existingV1Invalidation.invalidationType(),
+            KnowledgeInvalidationStatus.RESOLVED,
+            existingV1Invalidation.riskLevel(),
+            existingV1Invalidation.reason(),
+            existingV1Invalidation.organizationScope(),
+            existingV1Invalidation.applicableScope(),
+            existingV1Invalidation.authorizedBy(),
+            existingV1Invalidation.invalidatedAt(),
+            existingV1Invalidation.expeditedReviewRequired(),
+            existingV1Invalidation.traceId(),
+            existingV1Invalidation.createdAt(),
+            existingV1Invalidation.createdBy(),
+            existingV1Invalidation.updatedAt(),
+            existingV1Invalidation.updatedBy()
+        );
+        KnowledgeInvalidation existingV2Invalidation = new KnowledgeInvalidation(
+            78L,
+            "t-1",
+            1L,
+            11L,
+            KnowledgeInvalidationType.SUPERSEDED_REPLACEMENT,
+            KnowledgeInvalidationStatus.OPEN,
+            KnowledgeRiskLevel.LOW,
+            "知识版本原子替换：oldVersionId=11，newVersionId=5",
+            "tenant:t-1",
+            KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE,
+            "u-99",
+            Instant.now(),
+            false,
+            "trace",
+            Instant.now(),
+            "u-99",
+            Instant.now(),
+            "u-99"
+        );
+
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L))
+            .thenReturn(Optional.of(identity), Optional.of(identity), Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 11L))
+            .thenReturn(Optional.of(v2Candidate), Optional.of(v2Superseded));
+        when(versionRepo.findByTenantIdAndId("t-1", 5L))
+            .thenReturn(Optional.of(v1Superseded));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
+            .thenReturn(Optional.of(v1Active), Optional.of(v2Active), Optional.of(v1Active));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 11L))
+            .thenReturn(List.of(citation(11L)));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 5L))
+            .thenReturn(List.of(citation(5L)));
+        when(invalidationRepo.findByTenantIdAndVersionIdOrderByInvalidatedAtDesc("t-1", 5L))
+            .thenReturn(List.of(), List.of(existingV1Invalidation), List.of(resolvedV1Invalidation));
+        when(invalidationRepo.findByTenantIdAndVersionIdOrderByInvalidatedAtDesc("t-1", 11L))
+            .thenReturn(List.of(), List.of(), List.of(existingV2Invalidation));
+
+        service.activate(1L, 11L, "发布 V2", 900L);
+        service.activate(1L, 5L, "回滚至 V1", 900L);
+        KnowledgeAssetVersion restored = service.activate(1L, 11L, "恢复 V2", 900L);
+
+        assertThat(restored.id()).isEqualTo(11L);
+        assertThat(restored.status()).isEqualTo(KnowledgeVersionStatus.ACTIVE);
+        verify(supersessionRepo, times(3)).save(any(KnowledgeSupersession.class));
+        ArgumentCaptor<KnowledgeInvalidation> invalidation = ArgumentCaptor.forClass(KnowledgeInvalidation.class);
+        verify(invalidationRepo, times(5)).save(invalidation.capture());
+        assertThat(invalidation.getAllValues().stream().filter(item -> item.id() == null).toList())
+            .extracting(KnowledgeInvalidation::versionId)
+            .containsExactly(5L, 11L);
+        assertThat(invalidation.getAllValues()).anySatisfy(item -> {
+            assertThat(item.id()).isEqualTo(77L);
+            assertThat(item.versionId()).isEqualTo(5L);
+            assertThat(item.status()).isEqualTo(KnowledgeInvalidationStatus.RESOLVED);
+        });
+        assertThat(invalidation.getAllValues()).anySatisfy(item -> {
+            assertThat(item.id()).isEqualTo(77L);
+            assertThat(item.versionId()).isEqualTo(5L);
+            assertThat(item.status()).isEqualTo(KnowledgeInvalidationStatus.OPEN);
+            assertThat(item.reason()).contains("恢复 V2").contains("newVersionId=11");
+        });
+        assertThat(invalidation.getAllValues()).anySatisfy(item -> {
+            assertThat(item.id()).isEqualTo(78L);
+            assertThat(item.versionId()).isEqualTo(11L);
+            assertThat(item.status()).isEqualTo(KnowledgeInvalidationStatus.RESOLVED);
+        });
+    }
+
+    @Test
     void activateSupersededVersionRollsBackWithdrawnUnifiedVersionInsteadOfRepublishing() {
         KnowledgeIdentity identity = identity(1L, 11L);
         KnowledgeAssetVersion rollbackTarget = versionWithVersionNo(

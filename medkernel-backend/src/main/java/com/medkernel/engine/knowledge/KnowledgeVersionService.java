@@ -776,6 +776,7 @@ public class KnowledgeVersionService {
             now, actor
         );
         identityRepository.save(updatedIdentity);
+        resolveReplacementInvalidationsForActivatedVersion(saved, now, actor);
 
         // 6) supersession 历史链
         KnowledgeSupersession transition = new KnowledgeSupersession(
@@ -1239,12 +1240,62 @@ public class KnowledgeVersionService {
     private void createReplacementAffectedCaseTasks(KnowledgeAssetVersion oldVersion, Long newVersionId,
             String reason, Instant now, String actor) {
         String impactReason = replacementImpactReason(oldVersion.id(), newVersionId, reason);
-        KnowledgeInvalidation invalidation = invalidationRepository.save(new KnowledgeInvalidation(
-            null,
-            oldVersion.tenantId(),
-            oldVersion.identityId(),
-            oldVersion.id(),
-            KnowledgeInvalidationType.SUPERSEDED_REPLACEMENT,
+        KnowledgeInvalidation invalidation = replacementInvalidation(oldVersion.tenantId(), oldVersion.id())
+            .map(existing -> reopenReplacementInvalidation(
+                existing,
+                oldVersion,
+                impactReason,
+                now,
+                actor))
+            .orElseGet(() -> invalidationRepository.save(new KnowledgeInvalidation(
+                null,
+                oldVersion.tenantId(),
+                oldVersion.identityId(),
+                oldVersion.id(),
+                KnowledgeInvalidationType.SUPERSEDED_REPLACEMENT,
+                KnowledgeInvalidationStatus.OPEN,
+                oldVersion.riskLevel(),
+                impactReason,
+                oldVersion.effectiveOrganizationScope(),
+                oldVersion.effectiveApplicableScope(),
+                actor,
+                now,
+                false,
+                RequestContext.currentTraceId(),
+                now,
+                actor,
+                now,
+                actor
+            )));
+        createAffectedCaseTasks(invalidation, oldVersion, impactReason, now, actor);
+    }
+
+    private Optional<KnowledgeInvalidation> replacementInvalidation(String tenantId, Long versionId) {
+        List<KnowledgeInvalidation> invalidations =
+            invalidationRepository.findByTenantIdAndVersionIdOrderByInvalidatedAtDesc(tenantId, versionId);
+        if (invalidations == null || invalidations.isEmpty()) {
+            return Optional.empty();
+        }
+        return invalidations.stream()
+            .filter(item -> item.invalidationType() == KnowledgeInvalidationType.SUPERSEDED_REPLACEMENT)
+            .findFirst();
+    }
+
+    private KnowledgeInvalidation reopenReplacementInvalidation(
+            KnowledgeInvalidation existing,
+            KnowledgeAssetVersion oldVersion,
+            String impactReason,
+            Instant now,
+            String actor) {
+        if (existing.status() == KnowledgeInvalidationStatus.OPEN) {
+            return existing;
+        }
+        return invalidationRepository.save(new KnowledgeInvalidation(
+            existing.id(),
+            existing.tenantId(),
+            existing.identityId(),
+            existing.versionId(),
+            existing.invalidationType(),
             KnowledgeInvalidationStatus.OPEN,
             oldVersion.riskLevel(),
             impactReason,
@@ -1254,12 +1305,39 @@ public class KnowledgeVersionService {
             now,
             false,
             RequestContext.currentTraceId(),
-            now,
-            actor,
+            existing.createdAt(),
+            existing.createdBy(),
             now,
             actor
         ));
-        createAffectedCaseTasks(invalidation, oldVersion, impactReason, now, actor);
+    }
+
+    private void resolveReplacementInvalidationsForActivatedVersion(
+            KnowledgeAssetVersion activated,
+            Instant now,
+            String actor) {
+        replacementInvalidation(activated.tenantId(), activated.id())
+            .filter(existing -> existing.status() == KnowledgeInvalidationStatus.OPEN)
+            .ifPresent(existing -> invalidationRepository.save(new KnowledgeInvalidation(
+                existing.id(),
+                existing.tenantId(),
+                existing.identityId(),
+                existing.versionId(),
+                existing.invalidationType(),
+                KnowledgeInvalidationStatus.RESOLVED,
+                existing.riskLevel(),
+                existing.reason(),
+                existing.organizationScope(),
+                existing.applicableScope(),
+                existing.authorizedBy(),
+                existing.invalidatedAt(),
+                existing.expeditedReviewRequired(),
+                existing.traceId(),
+                existing.createdAt(),
+                existing.createdBy(),
+                now,
+                actor
+            )));
     }
 
     private String replacementImpactReason(Long oldVersionId, Long newVersionId, String reason) {
