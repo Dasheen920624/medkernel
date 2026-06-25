@@ -5,16 +5,16 @@
 
 ## 当前主线
 
-- 基线：最新 `origin/main` 为 `ed850568`，对应 PR #650「补齐完整上线覆盖审计门禁」。
-- 续接入口：只以 PR #650 工作树内当前权威文档为准；更早 PR、偏离设计和执行计划只留在 Git 历史，
-  不在当前工作树作为权威入口。
+- 基线：最新权威为 PR #650「补齐完整上线覆盖审计门禁」；更早 PR、偏离设计和旧执行计划只留在
+  Git 历史，不作为当前事实入口。
 - 当前分支：`codex/engine-core-golive`。
-- 当前用户约束：不使用子代理；只允许本地提交；不得推送远程、不得合并 `main`。
+- 当前用户约束：不使用子代理；只允许本地提交；不得推送远程、不得合并 `main`；后续对话只是补充信息时，
+  仍按本文和产品权威深读后继续主线。
 - 当前目标：完成 MedKernel 全新项目上线级整体梳理与落地，统一平台权威版本与全链路能力，移除旧兼容
-  和冗余设计，完成真实页面、统一迁移、代码/契约/前后端/文档/测试/构建核查，并在 134 清库重新部署
-  后完成全功能与全知识全流程演练。
-- 完成边界：本地门禁通过只代表候选质量；134 真实清库、严格 TLS、首次接管、完整演练和重启/恢复复核
-  全部通过后，才能声明上线候选完成。
+  和冗余设计，完善真实功能页面与统一迁移生成，完成代码/契约/前后端/文档/测试/构建核查，并在 134
+  清库重新部署完成全功能与全知识全流程演练。
+- 当前阶段结论：脚本模式的基础数据路线、134 清库部署、八段全系统演练和发布后独立验收已经走通；
+  下一阶段必须进入“全前台真实操作演练 + 全角色产品体验优化”，不能停留在脚本演练数据上。
 
 ## 当前唯一权威
 
@@ -31,112 +31,93 @@
 9. [质量基线](audit/质量基线.md)
 10. [待处理问题](audit/deferred-issues.md)
 
-当前工作树不保留旧卡、旧 backlog、旧设计计划或历史截图作为权威。若需要了解旧过程，只能通过 Git
-历史追溯，不能把历史计划恢复为当前产品事实。
-
 ## 当前产品模型
 
 - MedKernel 是集团医疗智能中枢，不是单独规则引擎、模型平台或知识库。
 - 产品按医疗引擎、知识生产、平台管理三类空间组织；空间只是分区，不裁剪真实功能。
 - 客户可分配职责只有平台管理员、医疗引擎运营员、临床使用者和审计员；医生、护士、药师、医技、
-  质控、医保等用业务任职和组织范围表达。
+  质控、医保、患者等通过业务任职、组织范围和前台场景表达。
+- 系统超级管理员只用于首次接管和应急，不是客户日常四职责。
 - 关系数据库是唯一权威业务事实源；图、缓存、搜索、Dify 和模型都是可关闭、可重建的投影或执行器。
 - 大模型只产生候选、草稿或解释，不直接形成临床事实、机构生效版本或自动医嘱。
-- 平台标准版本和机构生效版本都是不可变清单；离线交付文件只负责传输与恢复。
-- 临床调用方不提交包、领域、资产版本或生效版本；服务端按当前机构生效版本锁定精确资产版本。
-- 旧包发布、旧兼容角色、旧迁移链、旧上线容器和重复阶段文档都不是目标产品模型。
+- 平台标准版本和机构生效版本都是不可变清单；沙盘 CURRENT 读取 `clinical_runtime_release`，
+  不再维护独立 `mk_sandbox_runtime_binding`。
+- 影子评测可接受状态是 `PASSED` 或 `PENDING_REVIEW` 且 `ready_for_review=true` 且无退化；
+  `PENDING_REVIEW` 是医疗安全复核语义，不是失败。
+
+## 134 当前事实
+
+- 目标主机：`193.112.107.134`，hostname 为 `VM-0-13-opencloudos`。
+- 当前运行候选：`611fc31e762c91dd6dff73e9906a449b8f3b457a`。
+- 运行 manifest：`source=611fc31e762c91dd6dff73e9906a449b8f3b457a`，
+  `commit=611fc31e762c91dd6dff73e9906a449b8f3b457a`，
+  `jarSha256=c696a79c89cd22b83365152856a25b676350e3bcbe507b8cd17f9d876381dc5c`。
+- `medkernel` 服务 active 且 enabled；严格 readiness 返回 `{"status":"UP"}`。
+- 134 使用 `/zoesoft/medkernel/nginx/ssl/server.crt` 作为本轮可信 SAN 证书校验根，
+  `MEDKERNEL_TLS_CA_FILE=/zoesoft/medkernel/nginx/ssl/server.crt` 下严格 TLS、SAN、有效期和 readiness 已通过。
+  ACME/HTTP-01 入站不是本轮阻塞项；绑定正式公网域名时再处理公网 CA 证书。
+- 本轮模型提供方：`ollama-launch`，类型 `OLLAMA`，端点 `http://127.0.0.1:11434`，
+  模型版本 `medkernel-qwen25:1.5b-v1`。服务器模型信息目录为 `/zoesoft/mimoModel`；不得输出、提交或记录密钥。
 
 ## 本轮已验证
 
-- `node scripts/db/generate-migrations.mjs --check` 通过，五方言 V1 仍由同一模式源生成。
-- 单机部署脚本契约通过：
-  `validate-medkernel-fresh-deploy.sh`、`validate-medkernel-post-rehearsal-verify.sh`、
-  `validate-medkernel-failure-recovery.sh`。
-- 发布、知识、沙箱与覆盖审计脚本测试通过：
-  `node --test scripts/release/full-system-rehearsal.test.mjs ... scripts/sandbox/seed-scenarios.test.mjs`
-  共 39 个用例通过。
-- 真实性、迁移、配置边界、CLI 和 MCP 测试通过，共 94 个用例通过。
-- 后端 `mvn -q test` 通过：Surefire 汇总 515 个 suite、3011 个测试，0 failure、0 error、7 skipped；
-  7 个 skipped 均来自本机 Docker/Testcontainers 不可用的数据库烟测。
-- 前端 `npm run verify` 通过：lint、stylelint、真实性规则、format、typecheck 和 Vitest 全部完成，
-  Vitest 汇总 107 个测试文件、769 个测试通过。
-- 前端 `npm run build` 通过；后端 `mvn -q -DskipTests package` 通过。
-- 最新候选提交 `24c8a6d99db4dc9c3c01a59428bd8a98787eb6f4` 已重新执行
-  `mvn -q -DskipTests package` 与 `npm run build`；业务表数从统一模式源读取为 207，Flyway 目标版本为 1。
-- 全量静态护栏通过：
-  `authenticity-guard --mode=all` 扫描 2009 个文件，
-  `config-boundary-guard --mode=all` 扫描 1902 个文件，
-  `migration-convention-guard --mode=all` 扫描 5 份迁移文件。
-- 部署资产、单机部署、发布包、Ollama 生产模型定义和 Shell 断言语义契约均通过。
-- 旧 package/旧发布语义收口定向红灯已复现后修复：
-  `KnowledgeInitializationCatalogTest` 先失败于 `KNOWGEN-32` 标题仍含旧兼容发布语义；
-  `InheritanceResolverBatchTest` 先失败于 `BatchResolvedAsset` 仍暴露恒为 `false` 的 `added` 标志；
-  `RulePathwayCleanliness.test.ts` 先失败于规则/路径样式表残留 `.packageList/.packageCard`。
-- 修复后 `mvn -q -Dtest=KnowledgeInitializationCatalogTest,InheritanceResolverBatchTest test`、
-  `npm test -- --run src/pages/tenant/RulePathwayCleanliness.test.ts -t "uses the current rule and pathway customer API roots"`、
-  `mvn -q -DskipTests compile`、`npm run lint` 均通过。
-- 组织范围旧入口收口定向红灯已复现后修复：
-  `RuntimeArchitectureCleanlinessTest#orgScopeDoesNotExposeRetiredSevenArgumentCompatibilityConstructor` 先失败于
-  `OrgScope` 仍暴露不含 `wardId` 槽位的 7 参数构造器；上线接管凭据命名清洁度测试先失败于实现层仍使用旧入口命名。
-- 修复后
-  `mvn -q -Dtest=RuntimeArchitectureCleanlinessTest#orgScopeDoesNotExposeRetiredSevenArgumentCompatibilityConstructor test`、
-  `mvn -q -Dtest=RuntimeArchitectureCleanlinessTest test`、
-  `mvn -q -DskipTests compile`、
-  `mvn -q -Dtest=JwtClaimsResolverTest,DataScopeResolverTest,DataScopeAspectTest,EffectivePermissionServiceTest test`、
-  `mvn -q -Dtest=AuthControllerTest,AuthenticatedPermissionGuardTest,RoleArchitectureCleanlinessTest test`、
-  `node --test scripts/release/launch-account-bootstrap.test.mjs scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`
-  均通过；发布脚本定向集共 15 个用例通过。
+- 本地候选 `611fc31e762c91dd6dff73e9906a449b8f3b457a` 已打包并上传到
+  `/zoesoft/medkernel/incoming/candidate-611fc31e762c91dd6dff73e9906a449b8f3b457a/`；
+  远端 `SHA256SUMS` 校验通过。
+- 134 清库部署已成功，使用业务表数 207、Flyway 版本 1；部署备份目录：
+  `/zoesoft/medkernel/backups/fresh-preclear-611fc31e762c-20260625-134052/evidence`。
+- 八段全系统演练已通过，证据目录：
+  `/zoesoft/medkernel/var/evidence/full-system-611fc31e-20260625-134250`；
+  当前索引已复制到 `/zoesoft/medkernel/var/evidence/current-launch`。
+- 八段包括：`account-bootstrap`、`model-provider`、`platform-baseline`、`sandbox`、`full-knowledge`、
+  `runtime-resilience`、`browser-e2e`、`launch-coverage`。
+- 浏览器 E2E 48 个用例通过；全知识 11 域、12 次模型知识生产、B0 降级、沙盘、覆盖矩阵均完成。
+- 发布后独立验收已通过并写入
+  `/zoesoft/medkernel/var/evidence/current-launch/release-acceptance.properties`：
+  `release_status=PASSED`，`verified_at=2026-06-25T14:22:20+08:00`，
+  `full_system_stage_count=8`，`database_restore_status=PASSED`。
+- 发布后验收备份目录：
+  `/zoesoft/medkernel/backups/launch-acceptance-611fc31e762c-20260625-142212`；
+  数据库备份 SHA-256 为 `221b4b9007215c9afeff6956ab92a122e4c6312bc7d34b592c9e2bd076878a54`。
+- 验收数据库摘要：Flyway 成功 1、失败 0、public 基础表 208、上线身份 9、客户四职责分配 12、
+  系统超级管理员分配 1、全知识身份 11、当前 ACTIVE 知识 11、模型成功任务 12、影子可复核任务 12、
+  沙盘规则 10、测试用例 40、最新机构生效版本 ACTIVE 条目 12、审计事件 273。
+- 本地已通过：
+  `mvn -q -Dtest=CandidateCoexistenceServiceTest test`、
+  `mvn -q -Dtest=KnowledgeProductionControllerSecurityTest#knowledgeReaderCanQueryCandidateCoexistence,KnowledgeProductionControllerSecurityTest#guestCannotQueryCandidateCoexistence test`、
+  `mvn -q -DskipTests package`、
+  `bash deploy/onprem/tests/validate-medkernel-post-rehearsal-verify.sh`。
+- 134 已通过：
+  `bash /zoesoft/medkernel/var/rehearsal/repo-611fc31e762c91dd6dff73e9906a449b8f3b457a/deploy/onprem/tests/validate-medkernel-post-rehearsal-verify.sh`
+  和完整 `medkernel-post-rehearsal-verify.sh`。
 
 ## 本轮落地内容
 
-- `frontend/src/pages/tenant/PathwayTemplates.test.tsx`：字段目录不可用时阻断路径条件同步的交互测试沿用
-  页面内既有 `PATHWAY_INTERACTION_TIMEOUT_MS`，避免全量 Vitest 资源压力下误超时；业务断言未放宽。
-- 134 已安装当前 `deploy/onprem/medkernel-fresh-deploy.sh` 到
-  `/zoesoft/medkernel/bin/medkernel-fresh-deploy.sh`，远端 SHA-256 为
-  `8dfd8e872ef4ab0856289567bb6ee2056c7daeb5a564891e4df2cc3e4e4dccac`，与本地候选脚本一致。
-- 最新候选已暂存到 134：
-  `/zoesoft/medkernel/incoming/candidate-24c8a6d99db4dc9c3c01a59428bd8a98787eb6f4/`；
-  `medkernel.jar`、`dist.tar.gz`、`medkernel.service`、`medkernel-deploy.sh`、
-  `medkernel-fresh-deploy.sh` 均通过远端 `SHA256SUMS` 校验；前端包含 271 个 dist 条目并包含
-  `dist/index.html`。
-- 生产代码继续清理旧 package/兼容残留：移除未使用的 `.packageList/.packageCard` 样式；`BatchResolvedAsset`
-  去掉恒为 `false` 的 `added` 标志；`KNOWGEN-32` 标题改为“知识金标回归与发行验收”。
-- `OrgScope` 移除不含 `wardId` 槽位的旧 7 参数构造器；现有调用已显式补齐 8 参数组织范围，
-  清洁度测试防止旧入口回流。
-- 上线接管凭据校验继续拒绝旧凭据字段，同时实现层改用“已移除字段”命名，避免后续协作者误判为仍需维护的旧入口。
+- 修复知识生产候选共存读态：非 `PENDING_REPLACEMENT_REVIEW` 候选在只读共存端点返回明确“不可替换复核”
+  视图，不再用 409 阻断知识生产页面和演练。
+- 发布后验收脚本升级为八段证据契约，核对完整覆盖矩阵，不再使用旧布尔字段。
+- 发布后验收脚本的权限口径改为客户四职责 12 个有效分配 + 系统超级管理员 1 个保留分配，
+  防止旧“8 个分配”误导。
+- 发布后验收脚本的影子评测口径改为 `PASSED/PENDING_REVIEW + ready_for_review + 无退化`，
+  符合医疗安全复核模型。
+- 发布后验收脚本的沙盘 CURRENT 口径改查统一机构生效版本 `clinical_runtime_release` 和
+  `clinical_runtime_release_item`，禁止旧 `mk_sandbox_runtime_binding` 回流。
 
-后续改动必须继续使用 TDD 或先复现后修复，完成声明前重新跑与改动相关的门禁。
+## 模型与患者信息安全
 
-## 134 外部事实
-
-- 目标主机：`193.112.107.134`，hostname 为 `VM-0-13-opencloudos`。
-- 当前远端 `medkernel`、`nginx`、`postgresql` 均 active；内部 readiness 返回 `{"status":"UP"}`。
-- 当前远端运行旧部署提交 `2c502f1e547a185dc5ab95a76d7a3329c4d1f724`，不是本轮候选。
-- 2026-06-24 已用候选 `24c8a6d99db4dc9c3c01a59428bd8a98787eb6f4` 执行正式清库命令参数；
-  脚本输出 `[OK] 生产运行环境预检通过` 后在 `[X] TLS 证书链验证失败` 处停止。该失败发生在备份、
-  停服和清库之前；复核远端 `medkernel`、`nginx`、`postgresql` 仍 active，manifest 仍指向旧部署提交，
-  且未生成 `fresh-preclear-24c8a6d99db4*` 备份目录。
-- 134 已安装 `certbot 2.8.0` 与 Nginx 插件；使用 `193-112-107-134.sslip.io` 做 ACME staging
-  dry-run 时，Let's Encrypt 已解析到 `193.112.107.134`，但连接 `:80` 超时。复核 `firewalld`
-  inactive、`iptables` INPUT 默认 ACCEPT、Nginx 配置未被 dry-run 改动、`certbot certificates`
-  显示无证书；当前阻塞已收敛为云侧公网入站或安全组未放通 ACME HTTP-01。
-- `/zoesoft/medkernel/bin` 已安装当前 `medkernel-fresh-deploy.sh`，权限为 `0750 root:root`。
-- `/zoesoft/medkernel/conf/medkernel.env` 权限为 `600 medkernel:medkernel`；2026-06-24 已配置
-  `MEDKERNEL_BOOTSTRAP_INIT_TOKEN` 并再次执行远端正式目录脚本
-  `medkernel-fresh-deploy.sh --validate-environment-only`，返回 `[OK] 生产运行环境预检通过`；未读取或输出
-  密钥值。
-- 134 公网 HTTPS 证书仍为自签 `CN=193.112.107.134`，无 Subject Alternative Name；
-  严格 `curl` 失败于 `self signed certificate`，`openssl s_client` 返回 verify error 18。
-- 严格 TLS 和可信 SAN 证书未完成前，不得执行上线通过声明，也不得把本地演练或历史截图替代 134
-  真实证据。
+- 公网部署的系统本身可以处理患者信息；调用公网 API 模型或外部模型时，允许在授权用途内使用患者上下文，
+  但必须先做最小必要、核心敏感字段屏蔽、目的绑定、责任确认、租户/机构边界和审计。
+- 院内本地模型可以在授权范围内使用必要敏感信息，但仍要标注敏感边界，限制留存，证据和日志不得含患者明文。
+- 无论内外模型，模型输出只能是候选、草稿、解释或摘要，必须保留 AI 标识、模型版本、提示版本、
+  输入/输出摘要、引用与校验结果；不得伪造模型调用或把模型输出直接变成医嘱/临床事实。
 
 ## 下一步
 
-1. 待 134 云侧放通 ACME 所需公网 `80/443` 入站或绑定可签发的正式域名后，重新执行证书签发；
-   证书通过严格 TLS 后，使用已暂存候选重新执行正式清库命令。若生产环境变更过密钥或配置，
-   先复跑环境预检并重新校验候选 `SHA256SUMS`。
-2. 严格 TLS 通过后，再按
-   [DEPLOYMENT_AND_REHEARSAL](DEPLOYMENT_AND_REHEARSAL.md) 执行清库 V1、首次接管、八段全系统演练、
-   全知识演练、重启和备份恢复复核。
-3. 若继续本地开发，仍从本文件和 [待处理问题](audit/deferred-issues.md) 续接；不要恢复旧偏离设计、
-   旧阶段日志或历史截图作为事实源。
+1. 完成本轮脚本和文档改动的本地门禁、`git diff --check` 和本地提交；不得推送远程。
+2. 启动下一阶段全前台真实操作演练：尽可能通过前台创建机构、账号、来源、患者资源、字典映射、知识候选、
+   版本发布、机构生效版本、沙盘运行、临床调用、审计与恢复证据；脚本只作为辅助校验，不再作为唯一数据来源。
+3. 用全视角体验产品并优化：医生、护士、药师、医技、患者/随访、平台管理员、医疗引擎运营员、审计员、
+   医疗实施工程师、信息科长、院长、医疗产品经理等。发现功能分类不合理、流程过长、理解困难、六态不足、
+   页面空壳、权限误导或医疗安全表达不清时，直接按最符合真实医疗产品的方案优化。
+4. 重点关注全知识/本地模型生成耗时期间的前台进度反馈、患者敏感信息进入外部模型前的遮蔽交互、
+   以及真实前台操作生成的数据是否能完整走到 134 的同一验收链路。
