@@ -14,10 +14,10 @@
 - 当前目标：完成 MedKernel 全新项目上线级整体梳理与落地，统一平台权威版本与全链路能力，移除旧兼容
   和冗余设计，完善真实功能页面与统一迁移生成，完成代码、契约、前后端、文档、测试、构建核查，并在
   134 清库重新部署完成全功能与全知识全流程演练。
-- 当前阶段结论：脚本模式基础数据路线、134 清库部署、八段全系统演练和发布后独立验收已在
-  `77e7a81e8deae6d88097dd5998438ba5eee27a50` 通过；全前台真实操作薄切片也已进入全系统 E2E。
-  下一阶段必须继续做全角色、全流程、全视角真实前台体验与产品优化，不能把脚本式演练误判为完整
-  前台真实演练完成。
+- 当前阶段结论：`2de9ebf069292aa2331c649eee8dcdb95b3ddba4` 已在 134 完成清库重部署、八段全系统
+  演练和发布后独立验收；全前台真实操作薄切片已在普通 Chromium 与国产 Chromium 内核仿真项目中通过。
+  下一阶段必须继续做全角色、全流程、全视角真实前台体验与产品优化，不能把脚本式演练或薄切片误判为
+  完整前台真实演练完成。
 
 ## 当前唯一权威
 
@@ -51,20 +51,22 @@
 ## 134 当前事实
 
 - 目标主机：`193.112.107.134`，hostname 为 `VM-0-13-opencloudos`。
-- 当前运行候选：`77e7a81e8deae6d88097dd5998438ba5eee27a50`。
+- 当前运行候选：`2de9ebf069292aa2331c649eee8dcdb95b3ddba4`。
 - 运行 manifest：`/zoesoft/medkernel/manifest.properties`：
-  `source=77e7a81e8deae6d88097dd5998438ba5eee27a50`，
-  `commit=77e7a81e8deae6d88097dd5998438ba5eee27a50`，
-  `deployedAt=2026-06-25T17:37:28+08:00`，
-  `jarSha256=8fbb463a022b2cef80cca1f51cbf658dccf892341402e340f60d76ce32d87bb2`。
+  `source=2de9ebf069292aa2331c649eee8dcdb95b3ddba4`，
+  `commit=2de9ebf069292aa2331c649eee8dcdb95b3ddba4`，
+  `deployedAt=2026-06-25T21:11:34+08:00`，
+  `jarSha256=3818c0d54dc88aa1e7f54604fb7a3503beb9a1e18408e67e54938a6554cf6f21`。
 - 本地候选前端包 SHA-256：
-  `8abd1eaf5d65a951fe573a5ae45989259b70e4319b356189a708f65cd237c20a`。
+  `2bd78d981b08a68797d9dd40edd073a46df4e39b3151e1fbdea7c30390602fb4`。
 - `medkernel` 服务 active 且 enabled；严格 readiness 正确路径为
   `https://193.112.107.134/medkernel/actuator/health/readiness`，返回 `{"status":"UP"}`。
   `/medkernel/api/v1/actuator/health/readiness` 返回 401 是 API 安全边界，不是健康失败。
 - 134 使用 `/zoesoft/medkernel/nginx/ssl/server.crt` 作为本轮可信 SAN 证书校验根，
   `MEDKERNEL_TLS_CA_FILE=/zoesoft/medkernel/nginx/ssl/server.crt` 下严格 TLS、SAN、有效期和 readiness 已通过。
   ACME/HTTP-01 入站不是本轮阻塞项；绑定正式公网域名时再处理公网 CA 证书。
+- Node/Playwright 演练只追加 `NODE_EXTRA_CA_CERTS=/zoesoft/medkernel/nginx/ssl/server.crt`；不要把
+  `SSL_CERT_FILE` 指到该自签 SAN 证书，否则会覆盖系统 CA，导致 WHO 等官方 HTTPS 来源抓取失败。
 - 本轮模型提供方：`ollama-launch`，类型 `OLLAMA`，端点 `http://127.0.0.1:11434`，
   模型版本 `medkernel-qwen25:1.5b-v1`。服务器模型信息目录为 `/zoesoft/mimoModel`；不得输出、提交或记录密钥。
 - 134 已安装 `google-noto-cjk-fonts` 并刷新字体缓存；这是浏览器 E2E 截图中文可读证据的环境依赖，
@@ -76,15 +78,16 @@
   `GET /engine/mpi/stats` 能处理前台新建且性别未知/脏值的患者；`UNKNOWN` 归并逻辑有单测和集成测试。
 - 临床使用者新增 `mpi.create` 权限，能创建脱敏 MPI 患者，但不能合并、拆分或执行高风险 MPI 治理动作；
   前台会隐藏无权限的高风险动作。
-- 134 清库部署已成功，使用业务表数 207、Flyway 版本 1；清库前证据目录：
-  `/zoesoft/medkernel/backups/fresh-preclear-77e7a81e8dea-20260625-173647/evidence`。
-- 本轮部署备份目录：`/zoesoft/medkernel/backups/deploy-20260625-173727`。
+- 134 清库部署已成功，使用业务表数 207、Flyway 版本 1（public 表 208 = 业务 207 + Flyway 1）；
+  最终清库前证据目录：
+  `/zoesoft/medkernel/backups/fresh-preclear-2de9ebf06929-20260625-211120/evidence`。
+- 本轮最终部署备份目录：`/zoesoft/medkernel/backups/deploy-20260625-211134`。
 - 八段全系统演练已通过，当前证据目录：
   `/zoesoft/medkernel/var/evidence/current-launch`；总索引：
   `/zoesoft/medkernel/var/evidence/current-launch/full-system.json`。
 - 八段包括：`account-bootstrap`、`model-provider`、`platform-baseline`、`sandbox`、`full-knowledge`、
   `runtime-resilience`、`browser-e2e`、`launch-coverage`；`full-system.json` 记录 `status=PASSED`、
-  `source=77e7a81e8deae6d88097dd5998438ba5eee27a50`、`stageCount=8`。
+  `source=2de9ebf069292aa2331c649eee8dcdb95b3ddba4`、`stageCount=8`。
 - 全知识演练通过，证据：
   `/zoesoft/medkernel/var/evidence/current-launch/full-knowledge.json`；11 个知识域全部发布：
   `GUIDELINE`、`DRUG`、`PATHWAY_KNOWLEDGE`、`NURSING`、`DIAGNOSTIC_ITEM`、`TCM`、`PROTOCOL`、
@@ -92,21 +95,21 @@
 - 运行时韧性演练通过，证据：
   `/zoesoft/medkernel/var/evidence/current-launch/runtime-resilience.json`；B0 降级夹具 `17/17` 通过。
 - 浏览器 E2E 通过，证据：
-  `/zoesoft/medkernel/var/evidence/current-launch/e2e/report/results.json`；Playwright `50 passed (14.1m)`，
+  `/zoesoft/medkernel/var/evidence/current-launch/e2e/report/results.json`；Playwright `50 passed (14.0m)`，
   `expected=50`、`unexpected=0`、`flaky=0`。
 - 本轮全前台真实操作用例已经在普通 Chromium 与国产 Chromium 内核仿真项目中纳入全系统 E2E：
   平台接入、知识值集、模型外调安全策略、MPI 患者和随访模板均由前台页面提交产生；截图和运行记录位于
   `/zoesoft/medkernel/var/evidence/current-launch/e2e/artifacts/real-frontdesk-rehearsal-*`。
 - 发布后独立验收已通过并写入
   `/zoesoft/medkernel/var/evidence/current-launch/release-acceptance.properties`：
-  `release_status=PASSED`，`verified_at=2026-06-25T18:05:48+08:00`，
-  `source=77e7a81e8deae6d88097dd5998438ba5eee27a50`，
+  `release_status=PASSED`，`verified_at=2026-06-25T21:39:23+08:00`，
+  `source=2de9ebf069292aa2331c649eee8dcdb95b3ddba4`，
   `full_system_stage_count=8`，`strict_tls_verified=true`，
   `database_restore_status=PASSED`。
 - 发布后验收备份目录：
-  `/zoesoft/medkernel/backups/launch-acceptance-77e7a81e8dea-20260625-180540`；
+  `/zoesoft/medkernel/backups/launch-acceptance-2de9ebf06929-20260625-213915`；
   数据库备份 SHA-256：
-  `529799c9f117d181b6376a7be8062a9f847c9df611f5e6957a885bb7211a81f5`。
+  `7f2796d03a4b7337983c99a550f79223904aff6722334083c6359df3705b3c06`。
 - 覆盖审计通过，证据：
   `/zoesoft/medkernel/var/evidence/current-launch/launch-coverage.json`；产品层、标准患者资源 13 类、
   版本资产 13 类、知识域 11 类、语义族 16 类、专科域 15 类、场景 S0-S40、交付形态、服务组合、
@@ -115,25 +118,26 @@
   `mvn -q -Dtest=MpiServiceTest,MpiServiceIntegrationTest,MpiControllerContractTest test`、
   `npm test -- Mpi.test.tsx`、`npm run typecheck`、`npm run stylelint`、`npm run build`、
   `mvn -q -DskipTests package`、`git diff --check`。
-- 继续前台体验优化的本地核查已通过，尚未重新部署 134：
+- 继续前台体验优化的本地核查已通过，并已随 `2de9ebf069292aa2331c649eee8dcdb95b3ddba4` 重新部署 134：
   `npm test` 全量 `109 passed / 778 passed`、`npm run typecheck`、`npm run lint`、
   `npm run stylelint`、`npm run build`、`npm run format:check`、`git diff --check`。
-- 模型外调患者上下文预览薄片已在本地通过，尚未重新部署 134：
+- 模型外调患者上下文预览薄片已在本地通过，并已随 `2de9ebf069292aa2331c649eee8dcdb95b3ddba4` 重新部署 134：
   `npm test -- --run src/pages/advanced/AiWorkflows.test.tsx`、`npm run typecheck`、`npm run lint`、
   `npm run stylelint`、`npm run format:check`、`npm run build`、`git diff --check`。
-- 模型外调真实任务用途确认薄片已在本地通过，尚未重新部署 134：
+- 模型外调真实任务用途确认薄片已在本地通过，并已随 `2de9ebf069292aa2331c649eee8dcdb95b3ddba4` 重新部署 134：
   `npm test -- --run src/shared/api/hooks.test.ts -t "confirms high-sensitivity model egress purpose"`、
   `npm test -- --run src/pages/advanced/AiWorkflows.test.tsx -t "允许具备权限的实施人员"`、
   `npm test -- --run src/pages/advanced/AiWorkflows.test.tsx src/shared/api/hooks.test.ts`、
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run build`、
   `git diff --check`。
-- 模型外调用途确认审计回看薄片已在本地通过，尚未重新部署 134：
+- 模型外调用途确认审计回看薄片已在本地通过，并已随 `2de9ebf069292aa2331c649eee8dcdb95b3ddba4` 重新部署 134：
   `mvn -q -Dtest=ModelEgressGovernanceServiceTest,ModelEgressGovernanceRepositoryTest,ModelEgressControllerSecurityTest test`、
   `mvn -q -DskipTests package`、
   `npm test -- --run src/pages/compliance/AdminAudit.test.tsx src/shared/api/hooks.test.ts`、
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run build`、
   `git diff --check`。
-- 知识生产真实任务触发模型外调责任确认闭环已在本地通过，尚未重新部署 134：
+- 知识生产真实任务触发模型外调责任确认闭环已在本地通过，并已随
+  `2de9ebf069292aa2331c649eee8dcdb95b3ddba4` 重新部署 134：
   `mvn -q -Dtest=ModelEgressControllerSecurityTest,ModelEgressGovernanceServiceTest,ModelEgressGuardTest,ModelGatewayServiceTest,ModelKnowledgeProducerTest,KnowledgeProductionControllerSecurityTest test`、
   `mvn -q -DskipTests package`、
   `npm test -- --run src/pages/quality/KnowledgeGovernance.test.tsx src/shared/api/hooks.test.ts`、
@@ -159,6 +163,8 @@
   身份证后四位等核心患者标识仍必须递归遮蔽或置空，不能作为“完全不脱敏”理解。
 - 模型能力页面前台命名从“AI 工作流”收束为“模型能力”，新增患者上下文外调边界提示：公网模型可按授权用途
   使用患者上下文，但核心标识先遮蔽；院内本地模型可按授权使用必要信息，日志和证据不留患者明文。
+- 全系统 E2E 中残留的旧“AI 工作流”页面标题断言已清理为“模型能力”，覆盖普通 Chromium 与国产
+  Chromium 内核仿真下的模型能力页面和全前台真实操作演练，避免后续 AI 或实施人员被旧页面名误导。
 - 模型能力页的外调安全策略弹窗新增字段出域预览：实施人员配置允许字段时，可直接看到提示词、年龄、性别、
   诊断摘要、患者姓名、证件号、手机号、地址和患者编号的出域结果；核心标识默认不出域，即使被纳入允许字段，
   运行时也只可传出遮蔽后值；高敏用途达到阈值时提示每次出域前责任确认，证据只保存字段清单、处理策略和摘要。
@@ -188,6 +194,9 @@
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
+- 完整演练访问 134 自签 SAN 证书时只追加 `NODE_EXTRA_CA_CERTS`；曾因同时设置
+  `SSL_CERT_FILE=/zoesoft/medkernel/nginx/ssl/server.crt` 覆盖系统 CA，导致全知识官方来源抓取失败。
+  根因已确认并用修正后的环境重跑通过，不要把这个失败当作知识来源或业务代码问题。
 
 ## 模型与患者信息安全
 
@@ -210,7 +219,7 @@
    知识候选、版本发布、机构生效版本、沙盘运行、临床调用、审计与恢复证据；脚本只作为辅助校验，不再作为
    唯一数据来源。
 3. 继续扩展公网/外网患者信息使用体验：字段出域预览、手工用途确认、审计回看和知识生产真实任务阻断确认闭环
-   已完成本地薄片；还要补强不同部署模式默认策略、134 重新部署证据和更多前台真实操作证据，使其可理解、
+   已完成本地薄片并随 134 清库演练验证；还要补强不同部署模式默认策略和更多前台真实操作证据，使其可理解、
    可检查、可追溯。
 4. 优化上线演练可观察性：全知识/本地模型生成期间当前 stdout 进度不足，应补充知识域进度、模型任务耗时、
    当前阶段和预计剩余项，避免后续 AI 或实施人员误判为卡死。

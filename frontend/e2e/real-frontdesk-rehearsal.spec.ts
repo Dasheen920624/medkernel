@@ -123,7 +123,7 @@ async function configureModelEgressPolicyFromUi(
   await ensureReadySession(page, "engine-operator");
   clearRuntime(runtime);
   await page.goto("/advanced/ai-workflows", { waitUntil: "networkidle" });
-  await expect(page.getByRole("heading", { name: "AI 工作流" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "模型能力" })).toBeVisible();
   await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
   await expectNoRootOverflow(page, "模型能力外调安全策略桌面");
 
