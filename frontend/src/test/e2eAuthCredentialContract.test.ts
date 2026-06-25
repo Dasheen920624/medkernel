@@ -1,0 +1,73 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+
+const envSnapshot = {
+  E2E_API_BASE_URL: process.env.E2E_API_BASE_URL,
+  E2E_ROLE_CREDENTIALS_FILE: process.env.E2E_ROLE_CREDENTIALS_FILE,
+};
+
+let tempDir: string | null = null;
+
+afterEach(() => {
+  if (tempDir) {
+    rmSync(tempDir, { recursive: true, force: true });
+    tempDir = null;
+  }
+  restoreEnv("E2E_API_BASE_URL", envSnapshot.E2E_API_BASE_URL);
+  restoreEnv("E2E_ROLE_CREDENTIALS_FILE", envSnapshot.E2E_ROLE_CREDENTIALS_FILE);
+});
+
+describe("E2E credential contract", () => {
+  it("loads canonical platform account credentials during auth support module initialization", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "medkernel-e2e-auth-"));
+    const credentialsPath = join(tempDir, "current-launch.json");
+    writeFileSync(
+      credentialsPath,
+      JSON.stringify({
+        schemaVersion: "1.0.0",
+        status: "READY",
+        platform: {
+          tenantId: "t-1",
+          accounts: {
+            "platform-admin": account("platform-admin"),
+            "engine-operator": account("engine-operator"),
+            "clinical-user": account("clinical-user"),
+            auditor: account("auditor"),
+          },
+        },
+      }),
+      "utf8",
+    );
+    process.env.E2E_API_BASE_URL = "https://127.0.0.1/medkernel/api/v1";
+    process.env.E2E_ROLE_CREDENTIALS_FILE = credentialsPath;
+
+    const auth = await import("../../e2e/support/auth.ts");
+
+    expect(auth.roleAccounts).toEqual([
+      "platform-admin",
+      "engine-operator",
+      "clinical-user",
+      "auditor",
+    ]);
+    expect(auth.stablePassword("engine-operator")).toBe("secret-engine-operator");
+  });
+});
+
+function account(role: string) {
+  return {
+    tenantId: "t-1",
+    username: role,
+    role,
+    password: `secret-${role}`,
+  };
+}
+
+function restoreEnv(name: string, value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[name];
+  } else {
+    process.env[name] = value;
+  }
+}

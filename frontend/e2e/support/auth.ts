@@ -10,9 +10,6 @@ export const appBase = (process.env.E2E_BASE_URL?.trim() || "http://localhost:51
 const frontendApiBase = `${appBase}/medkernel/api/v1`;
 export const tenantId = "t-1";
 const defaultPassword = "Mk@2026dev";
-const credentialsConfigured = Boolean(process.env.E2E_ROLE_CREDENTIALS_FILE?.trim());
-const credentialOverrides = loadCredentialOverrides();
-
 export const roleAccounts = [
   "platform-admin",
   "engine-operator",
@@ -21,6 +18,9 @@ export const roleAccounts = [
 ] as const;
 
 export type RoleAccount = (typeof roleAccounts)[number];
+
+const credentialsConfigured = Boolean(process.env.E2E_ROLE_CREDENTIALS_FILE?.trim());
+const credentialOverrides = loadCredentialOverrides();
 
 export async function ensureReadySession(page: Page, role: RoleAccount) {
   await resetRoleSession(page);
