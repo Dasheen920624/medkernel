@@ -193,7 +193,7 @@ describe("page smoke coverage", () => {
   it("renders the clinical workflow-todos console with the real empty state", async () => {
     mockWorkflowCollaboration();
     renderPage(<WorkflowTodos />);
-    expect(screen.getByRole("heading", { name: "工作流协同待办中心" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "协同任务" })).toBeInTheDocument();
     expect(await screen.findByText("当前暂无协同待办")).toBeInTheDocument();
     expect(screen.queryByText("待办接口尚未接入")).not.toBeInTheDocument();
   });
@@ -208,7 +208,7 @@ describe("page smoke coverage", () => {
 
   it("renders the clinical followup console without local demo plans", () => {
     renderPage(<Followup />);
-    expect(screen.getByRole("heading", { name: "智能随访工作台" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "随访协同" })).toBeInTheDocument();
     expect(screen.queryByText("FP-2026001")).not.toBeInTheDocument();
     expect(screen.getByText("当前暂无随访计划")).toBeInTheDocument();
   });

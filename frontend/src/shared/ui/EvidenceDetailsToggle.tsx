@@ -27,9 +27,9 @@ export function EvidenceDetailsToggle({
 
   return (
     <Space size="small">
-      <Text>高级信息</Text>
+      <Text>证据详情</Text>
       <Switch
-        aria-label="高级信息"
+        aria-label="证据详情"
         checked={effectiveEvidenceDetails}
         onChange={handleEvidenceDetailsChange}
       />

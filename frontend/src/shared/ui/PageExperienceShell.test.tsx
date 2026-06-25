@@ -54,7 +54,7 @@ describe("PageExperienceShell", () => {
     expect(screen.getByText("核查映射风险")).toBeInTheDocument();
     expect(screen.queryByText("主要角色：医疗引擎运营员")).not.toBeInTheDocument();
     expect(screen.queryByText("默认视图：最近更新")).not.toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "高级信息" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
 
     rerender(
       <ConfigProvider>
@@ -67,7 +67,7 @@ describe("PageExperienceShell", () => {
       </ConfigProvider>,
     );
 
-    expect(screen.queryByRole("switch", { name: "高级信息" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "证据详情" })).not.toBeInTheDocument();
   });
 
   it("uses one shared evidence details preference across page shells", async () => {
@@ -90,7 +90,7 @@ describe("PageExperienceShell", () => {
       </ConfigProvider>,
     );
 
-    const switches = screen.getAllByRole("switch", { name: "高级信息" });
+    const switches = screen.getAllByRole("switch", { name: "证据详情" });
     expect(switches[0]).not.toBeChecked();
     expect(switches[1]).not.toBeChecked();
 

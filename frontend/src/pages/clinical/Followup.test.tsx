@@ -232,7 +232,6 @@ describe("Followup", () => {
     expect(
       screen.getByText(/查看真实随访计划、患者问卷回收、护士代填和异常回院事件/),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/后端接口返回/)).not.toBeInTheDocument();
     expect(screen.getByText("作用域随访计划数")).toBeInTheDocument();
     expect(screen.getByText("作用域执行中计划")).toBeInTheDocument();
     expect(screen.getByText("作用域已完成任务")).toBeInTheDocument();
@@ -247,6 +246,20 @@ describe("Followup", () => {
     expect(
       screen.getByText((_content, element) => element?.textContent === "14.7%"),
     ).toBeInTheDocument();
+  });
+
+  it("keeps follow-up read failures in hospital language", () => {
+    followupHookMocks.useFollowupPlans.mockReturnValue({
+      data: undefined,
+      isError: true,
+      isLoading: false,
+      refetch: followupHookMocks.refetchPlans,
+    });
+
+    renderFollowup();
+
+    expect(screen.getByText("随访计划读取失败")).toBeInTheDocument();
+    expect(screen.getByText("请检查登录权限、服务空间或数据读取服务状态。")).toBeInTheDocument();
   });
 
   it("loads follow-up plans through server-side table pagination", async () => {

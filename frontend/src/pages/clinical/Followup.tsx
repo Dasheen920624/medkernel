@@ -595,8 +595,8 @@ export default function Followup() {
               type="error"
               showIcon
               className={styles.sectionGap}
-              message="随访计划接口读取失败"
-              description="请检查登录权限、服务空间或后端接口状态。"
+              message="随访计划读取失败"
+              description="请检查登录权限、服务空间或数据读取服务状态。"
             />
           )}
 

@@ -242,7 +242,7 @@ describe("AdminAudit", () => {
     expect(screen.getByText("导出")).toBeInTheDocument();
     expect(screen.getByText("追踪号 trace-7")).toBeInTheDocument();
     expect(screen.getByText("链签名已登记")).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "高级信息" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getByText(/约 101 条/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "下一页" }));
@@ -305,7 +305,7 @@ describe("AdminAudit", () => {
 
     const user = userEvent.setup();
     render(<AdminAudit />);
-    expect(screen.getByRole("switch", { name: "高级信息" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("对象类型"), { target: { value: "audit" } });
     await user.click(screen.getByRole("combobox", { name: "执行结果" }));
@@ -318,7 +318,7 @@ describe("AdminAudit", () => {
     );
   });
 
-  it("searches audit events by traceId without entering advanced information mode", async () => {
+  it("searches audit events by traceId without entering evidence details", async () => {
     const user = userEvent.setup();
     render(<AdminAudit />);
 
@@ -331,7 +331,7 @@ describe("AdminAudit", () => {
     );
   });
 
-  it("shows model egress confirmations as audit evidence without advanced information mode", async () => {
+  it("shows model egress confirmations as audit evidence without evidence details", async () => {
     const user = userEvent.setup();
     render(<AdminAudit />);
 
@@ -345,12 +345,12 @@ describe("AdminAudit", () => {
     expect(screen.queryByText("事件 evt-7")).not.toBeInTheDocument();
   });
 
-  it("uses advanced information only for low-frequency evidence fields", async () => {
+  it("uses evidence details only for low-frequency evidence fields", async () => {
     const user = userEvent.setup();
     render(<AdminAudit />);
 
     expect(screen.queryByText("事件 evt-7")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("switch", { name: "高级信息" }));
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
 
     expect(screen.getByText("事件 evt-7")).toBeInTheDocument();
     expect(screen.getByText("环境未标记")).toBeInTheDocument();

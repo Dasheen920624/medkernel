@@ -262,7 +262,7 @@ describe("SystemProviders", () => {
       </ConfigProvider>,
     );
 
-    fireEvent.click(screen.getByRole("switch", { name: "高级信息" }));
+    fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
 
     expect(screen.getByText("docker-core")).toBeInTheDocument();
     expect(screen.getByText("postgres")).toBeInTheDocument();
