@@ -228,6 +228,8 @@ describe("Followup", () => {
   it("renders server-side scoped progress metrics instead of current-page counts", () => {
     renderFollowup();
 
+    expect(screen.getByText(/查看真实随访计划、问卷回收与异常回院事件/)).toBeInTheDocument();
+    expect(screen.queryByText(/后端接口返回/)).not.toBeInTheDocument();
     expect(screen.getByText("作用域随访计划数")).toBeInTheDocument();
     expect(screen.getByText("作用域执行中计划")).toBeInTheDocument();
     expect(screen.getByText("作用域已完成任务")).toBeInTheDocument();

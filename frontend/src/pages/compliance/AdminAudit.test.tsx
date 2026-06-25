@@ -216,7 +216,10 @@ describe("AdminAudit", () => {
     render(<AdminAudit />);
 
     expect(screen.getByText("auditor-1")).toBeInTheDocument();
-    expect(screen.getByText("EXPORT")).toBeInTheDocument();
+    expect(screen.getByText("导出")).toBeInTheDocument();
+    expect(screen.getByText("追踪号 trace-7")).toBeInTheDocument();
+    expect(screen.getByText("链签名已登记")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "高级信息" })).toBeInTheDocument();
     expect(screen.getByText(/约 101 条/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "下一页" }));
@@ -279,9 +282,8 @@ describe("AdminAudit", () => {
 
     const user = userEvent.setup();
     render(<AdminAudit />);
-    expect(screen.queryByLabelText("对象类型")).not.toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "高级信息" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("switch", { name: "高级信息" }));
     fireEvent.change(screen.getByLabelText("对象类型"), { target: { value: "audit" } });
     await user.click(screen.getByRole("combobox", { name: "执行结果" }));
     await user.click(await screen.findByText("失败"));
@@ -306,6 +308,18 @@ describe("AdminAudit", () => {
     );
   });
 
+  it("uses advanced information only for low-frequency evidence fields", async () => {
+    const user = userEvent.setup();
+    render(<AdminAudit />);
+
+    expect(screen.queryByText("事件 evt-7")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("switch", { name: "高级信息" }));
+
+    expect(screen.getByText("事件 evt-7")).toBeInTheDocument();
+    expect(screen.getByText("环境未标记")).toBeInTheDocument();
+    expect(screen.getByText("载荷未生成")).toBeInTheDocument();
+  });
+
   it("opens persisted audit detail, diagnosis chain and redacted snapshots", async () => {
     const user = userEvent.setup();
     render(<AdminAudit />);
@@ -325,7 +339,7 @@ describe("AdminAudit", () => {
     const user = userEvent.setup();
     render(<AdminAudit />);
 
-    fireEvent.change(screen.getByLabelText("操作编码"), { target: { value: "EXPORT" } });
+    fireEvent.change(screen.getByLabelText("操作事项"), { target: { value: "EXPORT" } });
     await waitFor(() =>
       expect(useLargeAuditEvents).toHaveBeenLastCalledWith(
         expect.objectContaining({ action: "EXPORT" }),

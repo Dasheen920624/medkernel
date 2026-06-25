@@ -240,7 +240,7 @@ describe("page smoke coverage", () => {
 
   it("renders the advanced AI workflow status page", () => {
     renderPage(<AiWorkflows />);
-    expect(screen.getByRole("heading", { name: "AI 工作流" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "模型能力" })).toBeInTheDocument();
   });
 
   it("renders the advanced knowledge provenance console", () => {

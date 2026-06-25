@@ -36,6 +36,9 @@ import styles from "./AiWorkflows.module.css";
 
 const { Text } = Typography;
 
+const MODEL_CAPABILITY_TITLE = "模型能力";
+const MODEL_CAPABILITY_DESCRIPTION = "核查模型能力、路由与降级状态";
+
 const routeStrategyView: Record<string, { color: string; label: string }> = {
   BASELINE: { color: "blue", label: "基础规则能力" },
   DISABLED: { color: "default", label: "模型能力已关闭" },
@@ -343,7 +346,7 @@ export default function AiWorkflows() {
 
   if (securityQuery.isLoading) {
     return (
-      <PageShell title="AI 工作流" description="查看当前组织的 AI 能力与降级状态">
+      <PageShell title={MODEL_CAPABILITY_TITLE} description={MODEL_CAPABILITY_DESCRIPTION}>
         <Spin aria-label="正在核验访问权限" />
       </PageShell>
     );
@@ -351,18 +354,18 @@ export default function AiWorkflows() {
 
   if (securityQuery.isError || !canRead) {
     return (
-      <PageShell title="AI 工作流" description="查看当前组织的 AI 能力与降级状态">
-        <Result status="403" title="无权查看 AI 工作流" subTitle="需要 AI 能力读取权限。" />
+      <PageShell title={MODEL_CAPABILITY_TITLE} description={MODEL_CAPABILITY_DESCRIPTION}>
+        <Result status="403" title="无权查看模型能力" subTitle="需要模型能力读取权限。" />
       </PageShell>
     );
   }
 
   if (statusQuery.isError) {
     return (
-      <PageShell title="AI 工作流" description="查看当前组织的 AI 能力与降级状态">
+      <PageShell title={MODEL_CAPABILITY_TITLE} description={MODEL_CAPABILITY_DESCRIPTION}>
         <Result
           status="error"
-          title="AI 能力状态读取失败"
+          title="模型能力状态读取失败"
           subTitle="未使用本地默认项替代真实状态。"
           extra={
             <Button type="primary" onClick={() => statusQuery.refetch()}>
@@ -376,9 +379,9 @@ export default function AiWorkflows() {
 
   if (statusQuery.isLoading) {
     return (
-      <PageShell title="AI 工作流" description="查看当前组织的 AI 能力与降级状态">
+      <PageShell title={MODEL_CAPABILITY_TITLE} description={MODEL_CAPABILITY_DESCRIPTION}>
         <div className={styles.loadingState}>
-          <Spin aria-label="正在读取 AI 能力状态" size="large" />
+          <Spin aria-label="正在读取模型能力状态" size="large" />
           <Text type="secondary">正在读取真实能力目录与运行状态</Text>
         </div>
       </PageShell>
@@ -387,8 +390,8 @@ export default function AiWorkflows() {
 
   return (
     <PageShell
-      title="AI 工作流"
-      description="查看当前组织已登记能力、路由策略与无模型降级状态"
+      title={MODEL_CAPABILITY_TITLE}
+      description="查看已登记能力、路由策略与降级状态"
       extras={
         <Tooltip title="刷新能力状态">
           <Button
@@ -401,7 +404,7 @@ export default function AiWorkflows() {
       }
     >
       <div className={styles.pageStack}>
-        <section className={styles.summaryStrip} aria-label="AI 能力状态摘要">
+        <section className={styles.summaryStrip} aria-label="模型能力状态摘要">
           <div className={styles.summaryItem}>
             <Text type="secondary">已登记能力</Text>
             <strong>{summary.total}</strong>
@@ -424,10 +427,17 @@ export default function AiWorkflows() {
           <Alert
             type="warning"
             showIcon
-            message="部分 AI 能力当前不可用"
+            message="部分模型能力当前不可用"
             description={`${unavailableCount} 项能力没有可用路由或规则链路，其他能力仍可查看。`}
           />
         ) : null}
+
+        <Alert
+          type="info"
+          showIcon
+          message="患者上下文外调边界"
+          description="公网模型可在授权用途内使用患者上下文，姓名、证件号、手机号、地址、患者编号等核心标识字段先遮蔽；院内本地模型按授权使用必要信息，日志与证据不留患者明文。"
+        />
 
         {capabilities.length === 0 ? (
           <div className={styles.emptyState}>
@@ -435,7 +445,7 @@ export default function AiWorkflows() {
               image={Empty.PRESENTED_IMAGE_SIMPLE}
               description={
                 <div className={styles.emptyDescription}>
-                  <Text>当前组织没有已启用的 AI 能力</Text>
+                  <Text>当前组织没有已启用的模型能力</Text>
                   <Text type="secondary">未使用本地默认项补齐真实结果。</Text>
                 </div>
               }

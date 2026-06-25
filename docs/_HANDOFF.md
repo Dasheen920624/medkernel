@@ -115,6 +115,9 @@
   `mvn -q -Dtest=MpiServiceTest,MpiServiceIntegrationTest,MpiControllerContractTest test`、
   `npm test -- Mpi.test.tsx`、`npm run typecheck`、`npm run stylelint`、`npm run build`、
   `mvn -q -DskipTests package`、`git diff --check`。
+- 继续前台体验优化的本地核查已通过，尚未重新部署 134：
+  `npm test` 全量 `109 passed / 778 passed`、`npm run typecheck`、`npm run lint`、
+  `npm run stylelint`、`npm run build`、`npm run format:check`、`git diff --check`。
 
 ## 本轮落地内容
 
@@ -133,10 +136,17 @@
   字段允许范围、脱敏算子、敏感级别和责任确认阈值，并明确公网外部模型可在授权用途内使用患者上下文。
 - 后端模型外调安全闸收紧 `NONE` 语义：`NONE` 只保留非核心业务值，姓名、证件、手机号、地址、患者编号、
   身份证后四位等核心患者标识仍必须递归遮蔽或置空，不能作为“完全不脱敏”理解。
+- 模型能力页面前台命名从“AI 工作流”收束为“模型能力”，新增患者上下文外调边界提示：公网模型可按授权用途
+  使用患者上下文，但核心标识先遮蔽；院内本地模型可按授权使用必要信息，日志和证据不留患者明文。
+- 审计管理页按真实审计员、信息科长和院长视角优化：默认列表直接展示审计事项、中文操作、执行结果、
+  追踪号、链签名状态和证据对象；对象类型、执行结果是常用筛选，默认可用，不再放进高级信息。
+- “高级信息”不是要禁止出现，也不是单独专家模式；正确定位是渐进查看低频证据，例如事件编号、环境标识、
+  载荷摘要和原始变更快照。关键业务判断、医疗安全和审计追踪证据必须默认可见，不能藏在高级开关后。
 - MPI 创建权限从 `mpi.write` 拆出为 `mpi.create`：临床使用者可创建脱敏患者索引，平台/治理动作仍需更高权限。
 - 修复 MPI 性别统计投影在 PostgreSQL/Hibernate 下的新建患者 500 问题；未知、空值和非 M/F 值统一归入
   `UNKNOWN`。
 - 前台 MPI 文案修正：将“在径路径实例”改为“活跃路径实例”。
+- 临床随访页移除“后端接口返回”等实现视角说明，改为围绕真实随访计划、问卷回收和异常回院事件表达页面目标。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。

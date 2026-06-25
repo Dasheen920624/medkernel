@@ -259,6 +259,17 @@
   color: var(--ant-color-text-secondary);
 }
 
+.auditEventCell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: calc(var(--mk-unit) * 4);
+}
+
+.auditEvidenceText {
+  overflow-wrap: anywhere;
+}
+
 .baselineStatusPass {
   color: var(--ant-color-success);
   background-color: var(--ant-color-success-bg);

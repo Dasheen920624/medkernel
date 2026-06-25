@@ -41,6 +41,7 @@ import {
   type TracePayloadSummary,
   type TraceStateTransition,
 } from "@/shared/api/hooks";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
 import { useExpertModeStore } from "@/shared/lib/expertModeStore";
 import { AsyncExportAction } from "@/shared/ui/AsyncExportAction";
@@ -56,6 +57,7 @@ import type {
 } from "@/shared/ui/experienceTypes";
 
 import { buildAuditEventQuery } from "./auditQuery";
+import styles from "./Compliance.module.css";
 
 const { Text } = Typography;
 const PAGE_SIZE = 20;
@@ -103,6 +105,37 @@ function outcomeTag(outcome?: string | null) {
   if (outcome === "SUCCESS") return <Tag color="green">成功</Tag>;
   if (outcome === "FAILURE" || outcome === "FAILED") return <Tag color="red">失败</Tag>;
   return <Tag>未知</Tag>;
+}
+
+function auditActionLabel(actionCode?: string | null) {
+  const labels: Record<string, string> = {
+    CREATE: "新增",
+    UPDATE: "更新",
+    DELETE: "删除",
+    EXPORT: "导出",
+    EXECUTE: "执行",
+    LOGIN: "登录",
+    READ: "查看",
+    VIEW: "查看",
+  };
+  return actionCode ? (labels[actionCode] ?? customerEnumLabel(actionCode)) : "未记录";
+}
+
+function auditResourceLabel(resourceType?: string | null, resourceId?: string | null) {
+  const labels: Record<string, string> = {
+    audit: "审计记录",
+    AUDIT_EVENT: "审计事件",
+    evidence: "证据",
+    EVIDENCE_SNAPSHOT: "证据快照",
+  };
+  const resourceLabel = resourceType
+    ? (labels[resourceType] ?? customerEnumLabel(resourceType))
+    : "业务对象";
+  return `${resourceLabel}${resourceId ? ` ${resourceId}` : ""}`;
+}
+
+function signatureStatusLabel(signature?: string | null) {
+  return signature?.trim() ? "链签名已登记" : "链签名未生成";
 }
 
 function confirmationStatusTag(status: ExportConfirmation["status"]) {
@@ -167,7 +200,16 @@ function confirmationExportRequest(confirmation: ExportConfirmation): AsyncExpor
         sortOrder: "desc",
         filters: scope.filters,
       },
-      visibleColumnKeys: ["occurredAt", "actorUserId", "actionCode", "summary", "outcome"],
+      visibleColumnKeys: [
+        "summary",
+        "actionCode",
+        "outcome",
+        "traceId",
+        "signature",
+        "occurredAt",
+        "actorUserId",
+        "resource",
+      ],
       expertMode: false,
       capturedAt: confirmation.confirmedAt,
     },
@@ -237,18 +279,57 @@ export default function AdminAudit() {
       filters: auditQuery,
     },
     visibleColumnKeys: expertMode
-      ? ["occurredAt", "actorUserId", "actionCode", "summary", "outcome", "traceId", "signature"]
-      : ["occurredAt", "actorUserId", "actionCode", "summary", "outcome"],
+      ? [
+          "summary",
+          "actionCode",
+          "outcome",
+          "traceId",
+          "signature",
+          "occurredAt",
+          "actorUserId",
+          "resource",
+          "eventId",
+          "environmentKey",
+          "payloadDigest",
+        ]
+      : [
+          "summary",
+          "actionCode",
+          "outcome",
+          "traceId",
+          "signature",
+          "occurredAt",
+          "actorUserId",
+          "resource",
+        ],
     expertMode,
     capturedAt: new Date().toISOString(),
   };
 
   const columns = [
     {
+      title: "审计事项",
+      key: "summary",
+      width: 360,
+      render: (_value: unknown, record: AuditEventRow) => (
+        <div className={styles.auditEventCell}>
+          <Space size="small" wrap>
+            <Text strong>{record.summary || "未返回摘要"}</Text>
+            <Tag>{auditActionLabel(record.actionCode)}</Tag>
+            {outcomeTag(record.outcome)}
+          </Space>
+          <Text type="secondary" className={styles.auditEvidenceText}>
+            追踪号 {record.traceId ?? "未返回"}
+          </Text>
+          <Text type="secondary">{signatureStatusLabel(record.signature)}</Text>
+        </div>
+      ),
+    },
+    {
       title: "时间",
       dataIndex: "occurredAt",
-      width: 180,
-      render: (value: string) => (value ? new Date(value).toLocaleString() : "-"),
+      width: 190,
+      render: (value: string) => formatTime(value),
     },
     {
       title: "操作人",
@@ -257,22 +338,11 @@ export default function AdminAudit() {
       render: (value: string | null) => value ?? "系统",
     },
     {
-      title: "操作",
-      dataIndex: "actionCode",
-      width: 140,
-      render: (value: string) => <Text code>{value || "-"}</Text>,
-    },
-    {
-      title: "摘要",
-      dataIndex: "summary",
-      width: 280,
-      render: (value: string) => value || "-",
-    },
-    {
-      title: "结果",
-      dataIndex: "outcome",
-      width: 100,
-      render: (value: string | null) => outcomeTag(value),
+      title: "证据对象",
+      key: "resource",
+      width: 220,
+      render: (_value: unknown, record: AuditEventRow) =>
+        auditResourceLabel(record.resourceType, record.resourceId),
     },
     {
       title: "详情",
@@ -293,16 +363,24 @@ export default function AdminAudit() {
     ...(expertMode
       ? [
           {
-            title: "追踪号",
-            dataIndex: "traceId",
-            width: 180,
-            render: (value: string | null) => value ?? "-",
+            title: "事件编号",
+            key: "eventId",
+            width: 160,
+            render: (_value: unknown, record: AuditEventRow) => `事件 ${record.eventId}`,
           },
           {
-            title: "签名",
-            dataIndex: "signature",
+            title: "运行环境",
+            key: "environmentKey",
+            width: 140,
+            render: (_value: unknown, record: AuditEventRow) =>
+              record.environmentKey ? `环境 ${record.environmentKey}` : "环境未标记",
+          },
+          {
+            title: "载荷摘要",
+            key: "payloadDigest",
             width: 180,
-            render: (value: string | null) => (value ? `${value.slice(0, 16)}...` : "-"),
+            render: (_value: unknown, record: AuditEventRow) =>
+              record.payloadDigest ? `载荷 ${record.payloadDigest}` : "载荷未生成",
           },
         ]
       : []),
@@ -633,32 +711,30 @@ export default function AdminAudit() {
                     value={filters}
                     onChange={updateFilters}
                     advanced={
-                      expertMode ? (
-                        <Space wrap size="small">
-                          <Input.Search
-                            aria-label="对象类型"
-                            placeholder="输入对象类型"
-                            value={filterValue(filters, "resourceType")}
-                            allowClear
-                            onChange={(event) =>
-                              updateFilter("resourceType", event.target.value || undefined)
-                            }
-                            className="mk-search-sm"
-                          />
-                          <Select
-                            aria-label="执行结果"
-                            placeholder="选择执行结果"
-                            value={filterValue(filters, "outcome")}
-                            options={[
-                              { label: "成功", value: "SUCCESS" },
-                              { label: "失败", value: "FAILED" },
-                            ]}
-                            allowClear
-                            onChange={(value) => updateFilter("outcome", value)}
-                            className="mk-search-sm"
-                          />
-                        </Space>
-                      ) : null
+                      <Space wrap size="small">
+                        <Input.Search
+                          aria-label="对象类型"
+                          placeholder="输入对象类型"
+                          value={filterValue(filters, "resourceType")}
+                          allowClear
+                          onChange={(event) =>
+                            updateFilter("resourceType", event.target.value || undefined)
+                          }
+                          className="mk-search-sm"
+                        />
+                        <Select
+                          aria-label="执行结果"
+                          placeholder="选择执行结果"
+                          value={filterValue(filters, "outcome")}
+                          options={[
+                            { label: "成功", value: "SUCCESS" },
+                            { label: "失败", value: "FAILED" },
+                          ]}
+                          allowClear
+                          onChange={(value) => updateFilter("outcome", value)}
+                          className="mk-search-sm"
+                        />
+                      </Space>
                     }
                   />
                   <Space wrap size="small">

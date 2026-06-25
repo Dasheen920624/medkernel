@@ -489,10 +489,7 @@ export default function Followup() {
   ];
 
   return (
-    <PageShell
-      title="智能随访工作台"
-      description="查看真实随访计划、提交问卷回收内容，并上报随访异常事件。页面只展示后端接口返回的数据。"
-    >
+    <PageShell title="智能随访工作台" description="查看真实随访计划、问卷回收与异常回院事件">
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}

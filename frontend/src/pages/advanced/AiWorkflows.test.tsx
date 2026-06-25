@@ -126,8 +126,8 @@ describe("AiWorkflows", () => {
 
     renderPage();
 
-    expect(await screen.findByLabelText("正在读取 AI 能力状态")).toBeInTheDocument();
-    expect(screen.queryByText("当前组织没有已启用的 AI 能力")).not.toBeInTheDocument();
+    expect(await screen.findByLabelText("正在读取模型能力状态")).toBeInTheDocument();
+    expect(screen.queryByText("当前组织没有已启用的模型能力")).not.toBeInTheDocument();
   });
 
   it("只读取真实能力状态，不暴露执行和管理入口", async () => {
@@ -145,8 +145,10 @@ describe("AiWorkflows", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "AI 工作流" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "模型能力" })).toBeInTheDocument();
     expect(await screen.findByText("临床知识关联发现")).toBeInTheDocument();
+    expect(screen.getByText(/公网模型可在授权用途内使用患者上下文/)).toBeInTheDocument();
+    expect(screen.getByText(/核心标识字段先遮蔽/)).toBeInTheDocument();
     expect(screen.getByText("临床规则草案拟定")).toBeInTheDocument();
     expect(screen.getAllByText("基础规则能力").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("模型能力已关闭")).toBeInTheDocument();
@@ -199,7 +201,7 @@ describe("AiWorkflows", () => {
         return response(config, {
           data: {
             capabilityCode: "clinical.explanation",
-            allowedFields: "[\"prompt\"]",
+            allowedFields: '["prompt"]',
             sensitivityLevel: "HIGH",
           },
         });
@@ -247,8 +249,10 @@ describe("AiWorkflows", () => {
 
     renderPage();
 
-    expect(await screen.findByText("部分 AI 能力当前不可用")).toBeInTheDocument();
-    expect(screen.getByText("1 项能力没有可用路由或规则链路，其他能力仍可查看。")).toBeInTheDocument();
+    expect(await screen.findByText("部分模型能力当前不可用")).toBeInTheDocument();
+    expect(
+      screen.getByText("1 项能力没有可用路由或规则链路，其他能力仍可查看。"),
+    ).toBeInTheDocument();
     expect(screen.getByText("暂不可用")).toBeInTheDocument();
   });
 
@@ -262,8 +266,8 @@ describe("AiWorkflows", () => {
 
     renderPage();
 
-    expect(await screen.findByText("无权查看 AI 工作流")).toBeInTheDocument();
-    expect(screen.getByText("需要 AI 能力读取权限。")).toBeInTheDocument();
+    expect(await screen.findByText("无权查看模型能力")).toBeInTheDocument();
+    expect(screen.getByText("需要模型能力读取权限。")).toBeInTheDocument();
   });
 
   it("真实能力为空时显示诚实空态", async () => {
@@ -279,7 +283,7 @@ describe("AiWorkflows", () => {
 
     renderPage();
 
-    expect(await screen.findByText("当前组织没有已启用的 AI 能力")).toBeInTheDocument();
+    expect(await screen.findByText("当前组织没有已启用的模型能力")).toBeInTheDocument();
     expect(screen.getByText("未使用本地默认项补齐真实结果。")).toBeInTheDocument();
   });
 
@@ -302,7 +306,7 @@ describe("AiWorkflows", () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(await screen.findByText("AI 能力状态读取失败")).toBeInTheDocument();
+    expect(await screen.findByText("模型能力状态读取失败")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "重新读取" }));
 
     expect(await screen.findByText("临床知识关联发现")).toBeInTheDocument();
