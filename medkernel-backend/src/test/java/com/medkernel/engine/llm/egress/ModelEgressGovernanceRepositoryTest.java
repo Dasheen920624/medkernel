@@ -80,6 +80,29 @@ class ModelEgressGovernanceRepositoryTest {
     }
 
     @Test
+    void confirmation_pagesRecentTenantRecordsForAuditReview() {
+        Instant first = Instant.parse("2026-06-14T00:00:00Z");
+        Instant second = Instant.parse("2026-06-15T00:00:00Z");
+        confirmationRepository.save(new ModelEgressConfirmation(
+            null, "tenant-1", "knowledge.extract", "hash-old",
+            "生成机构知识草稿", "operator-001", first,
+            first, "operator-001", first, "operator-001"));
+        confirmationRepository.save(new ModelEgressConfirmation(
+            null, "tenant-1", "clinical.explanation", "hash-new",
+            "向患者解释检查结果", "operator-002", second,
+            second, "operator-002", second, "operator-002"));
+        confirmationRepository.save(new ModelEgressConfirmation(
+            null, "tenant-2", "clinical.explanation", "hash-other",
+            "其他租户记录", "operator-003", second,
+            second, "operator-003", second, "operator-003"));
+
+        assertThat(confirmationRepository.countByTenantId("tenant-1")).isEqualTo(2);
+        assertThat(confirmationRepository.pageByTenantId("tenant-1", 0, 20))
+            .extracting(ModelEgressConfirmation::payloadHash)
+            .containsExactly("hash-new", "hash-old");
+    }
+
+    @Test
     void evidence_persistsEgressTrace() {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         ModelEgressEvidence saved = evidenceRepository.save(new ModelEgressEvidence(

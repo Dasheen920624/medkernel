@@ -7,6 +7,7 @@ import {
   useExportConfirmations,
   useLargeAuditEvents,
   useLargeListExportJob,
+  useModelEgressConfirmations,
   useSecurityProfile,
   useSubmitLargeListExport,
   useTraceDiagnosis,
@@ -22,6 +23,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useExportConfirmations: vi.fn(),
   useLargeAuditEvents: vi.fn(),
   useLargeListExportJob: vi.fn(),
+  useModelEgressConfirmations: vi.fn(),
   useSecurityProfile: vi.fn(),
   useSubmitLargeListExport: vi.fn(),
   useTraceDiagnosis: vi.fn(),
@@ -89,6 +91,17 @@ const confirmations = [
       "/medkernel/api/v1/compliance/evidence/snapshots/evd-audit-exported-file/file",
     version: 2,
     confirmedAt: "2026-06-06T12:02:00Z",
+  },
+];
+
+const modelEgressConfirmations = [
+  {
+    id: 7,
+    capabilityCode: "clinical.explanation",
+    payloadHash: "sha256:payload-001",
+    purpose: "向患者解释检查结果，仅使用已脱敏字段",
+    confirmedBy: "operator-001",
+    confirmedAt: "2026-06-25T19:45:00Z",
   },
 ];
 
@@ -178,6 +191,16 @@ describe("AdminAudit", () => {
         page: 1,
         size: 20,
         total: confirmations.length,
+        hasNext: false,
+        totalEstimated: false,
+      }) as never,
+    );
+    vi.mocked(useModelEgressConfirmations).mockReturnValue(
+      query({
+        items: modelEgressConfirmations,
+        page: 1,
+        size: 20,
+        total: 1,
         hasNext: false,
         totalEstimated: false,
       }) as never,
@@ -306,6 +329,20 @@ describe("AdminAudit", () => {
         expect.objectContaining({ cursor: undefined, traceId: "trace-7" }),
       ),
     );
+  });
+
+  it("shows model egress confirmations as audit evidence without advanced information mode", async () => {
+    const user = userEvent.setup();
+    render(<AdminAudit />);
+
+    await user.click(screen.getByRole("tab", { name: "模型外调确认" }));
+
+    expect(useModelEgressConfirmations).toHaveBeenCalledWith({ page: 1, size: 20 }, true);
+    expect(screen.getByText("clinical.explanation")).toBeInTheDocument();
+    expect(screen.getByText("sha256:payload-001")).toBeInTheDocument();
+    expect(screen.getByText("向患者解释检查结果，仅使用已脱敏字段")).toBeInTheDocument();
+    expect(screen.getByText("operator-001")).toBeInTheDocument();
+    expect(screen.queryByText("事件 evt-7")).not.toBeInTheDocument();
   });
 
   it("uses advanced information only for low-frequency evidence fields", async () => {

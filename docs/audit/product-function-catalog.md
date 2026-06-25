@@ -493,7 +493,7 @@
 <!-- capability:controller:controller@ModelVersionGovernanceController decision=MERGE -->
 | `ModelVersionGovernanceController` | POST /api/v1/model-versions/bundles<br>POST /api/v1/model-versions/capabilities/{capabilityCode}/rollback/{bundleId}<br>GET /api/v1/model-versions/capabilities/{capabilityCode}/active<br>GET /api/v1/model-versions/capabilities/{capabilityCode}/export | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
 <!-- capability:controller:controller@DataMinimizationPolicyController decision=KEEP -->
-| `DataMinimizationPolicyController` | PUT /api/v1/data-minimization/policies/model-egress/{capabilityCode}<br>POST /api/v1/data-minimization/policies/model-egress/confirmations | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+| `DataMinimizationPolicyController` | PUT /api/v1/data-minimization/policies/model-egress/{capabilityCode}<br>GET /api/v1/data-minimization/policies/model-egress/confirmations<br>POST /api/v1/data-minimization/policies/model-egress/confirmations | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@ModelEgressController decision=KEEP -->
 | `ModelEgressController` | PUT /api/v1/model-egress/whitelist/{capabilityCode}<br>POST /api/v1/model-egress/confirmations | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示 |
 <!-- capability:controller:controller@AiQualityEvalController decision=KEEP -->

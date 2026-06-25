@@ -8146,6 +8146,12 @@ export interface ModelEgressConfirmation {
   updatedBy?: string | null;
 }
 
+export interface ModelEgressConfirmationsParams {
+  page?: number;
+  size?: number;
+  sort?: string;
+}
+
 export interface ModelCapabilityDefinition {
   capabilityCode: string;
   displayName: string;
@@ -8328,8 +8334,31 @@ export function useSaveModelEgressPolicy() {
   });
 }
 
-// 16. 记录模型外调用途确认：绑定能力、脱敏载荷摘要和本次授权用途，供审计追溯
+// 16. 分页回看模型外调用途确认：供审计、实施复核和安全排查查看脱敏摘要与确认人
+export async function fetchModelEgressConfirmations(
+  params: ModelEgressConfirmationsParams = {},
+): Promise<PageResponse<ModelEgressConfirmation>> {
+  const { data } = await apiClient.get<{ data: PageResponse<ModelEgressConfirmation> }>(
+    "/data-minimization/policies/model-egress/confirmations",
+    { params },
+  );
+  return data.data;
+}
+
+export function useModelEgressConfirmations(
+  params: ModelEgressConfirmationsParams = {},
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ["data-minimization", "model-egress-confirmations", params],
+    queryFn: () => fetchModelEgressConfirmations(params),
+    enabled,
+  });
+}
+
+// 17. 记录模型外调用途确认：绑定能力、脱敏载荷摘要和本次授权用途，供审计追溯
 export function useConfirmModelEgress() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: ModelEgressConfirmationRequest) => {
       const { data } = await apiClient.post<{ data: ModelEgressConfirmation }>(
@@ -8337,6 +8366,11 @@ export function useConfirmModelEgress() {
         payload,
       );
       return data.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["data-minimization", "model-egress-confirmations"],
+      });
     },
   });
 }

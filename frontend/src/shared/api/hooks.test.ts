@@ -20,6 +20,7 @@ import {
   fetchDelegatedAuthStatus,
   fetchDataPermissionPolicies,
   fetchExportConfirmations,
+  fetchModelEgressConfirmations,
   fetchInteropAssessment,
   fetchIdentityBindings,
   fetchMaskingRules,
@@ -4526,6 +4527,34 @@ describe("experience foundation api helpers", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/compliance/exports", {
       params: { resourceType: "AUDIT_EVENT", status: "CONFIRMED", page: 2, size: 20 },
     });
+  });
+
+  it("loads model egress confirmations through the data minimization read endpoint", async () => {
+    const confirmations = {
+      items: [
+        {
+          id: 7,
+          capabilityCode: "clinical.explanation",
+          payloadHash: "sha256:payload-001",
+          purpose: "向患者解释检查结果，仅使用已脱敏字段",
+          confirmedBy: "operator-001",
+          confirmedAt: "2026-06-25T19:45:00Z",
+        },
+      ],
+      page: 1,
+      size: 20,
+      total: 1,
+      hasNext: false,
+      totalEstimated: false,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: confirmations } });
+
+    await expect(fetchModelEgressConfirmations({ page: 1, size: 20 })).resolves.toBe(confirmations);
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/data-minimization/policies/model-egress/confirmations",
+      { params: { page: 1, size: 20 } },
+    );
   });
 
   it("runs compliance trial and masking preview through audited backend commands", async () => {

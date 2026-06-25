@@ -1,6 +1,7 @@
 package com.medkernel.engine.llm.egress;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -125,6 +126,28 @@ class ModelEgressControllerSecurityTest {
                     .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(CONFIRMATION_BODY))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void auditorCanReviewDesensitizedEgressConfirmations() throws Exception {
+        mockMvc.perform(get("/api/v1/data-minimization/policies/model-egress/confirmations")
+                .with(jwt().jwt(token -> token
+                    .subject("audit-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("auditor")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_AUDITOR"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void clinicalUserCannotReviewDesensitizedEgressConfirmations() throws Exception {
+        mockMvc.perform(get("/api/v1/data-minimization/policies/model-egress/confirmations")
+                .with(jwt().jwt(token -> token
+                    .subject("clinical-user")
+                    .claim("tenant_id", "tenant-1")
+                    .claim("roles", List.of("clinical-user")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
                 .andExpect(status().isForbidden());
     }
 }

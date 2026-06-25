@@ -31,6 +31,7 @@ import {
   useExportConfirmations,
   useLargeAuditEvents,
   useLargeListExportJob,
+  useModelEgressConfirmations,
   useSecurityProfile,
   useSubmitLargeListExport,
   useTraceDiagnosis,
@@ -38,6 +39,7 @@ import {
   type AuditEventRow,
   type EvidenceVerifyResult,
   type ExportConfirmation,
+  type ModelEgressConfirmation,
   type TracePayloadSummary,
   type TraceStateTransition,
 } from "@/shared/api/hooks";
@@ -235,12 +237,15 @@ export default function AdminAudit() {
   const [verifyResult, setVerifyResult] = useState<EvidenceVerifyResult>();
   const [verifyError, setVerifyError] = useState<string>();
   const [confirmationPage, setConfirmationPage] = useState(1);
+  const [egressConfirmationPage, setEgressConfirmationPage] = useState(1);
   const [confirmationForm] = Form.useForm<{ reason: string }>();
 
   const security = useSecurityProfile();
   const globalExpertMode = useExpertModeStore((state) => state.enabled);
   const expertMode = canUseExpertMode(security.data) && globalExpertMode;
   const canExport = hasPermission(security.data, "list.export");
+  const canReviewModelEgress =
+    hasPermission(security.data, "audit.read") || hasPermission(security.data, "llm.egress.manage");
   const currentCursor = cursorHistory[cursorHistory.length - 1];
   const auditQuery = buildAuditEventQuery(filters);
   const events = useLargeAuditEvents({
@@ -254,6 +259,10 @@ export default function AdminAudit() {
   const confirmations = useExportConfirmations(
     { resourceType: "AUDIT_EVENT", page: confirmationPage, size: CONFIRMATION_PAGE_SIZE },
     canExport,
+  );
+  const egressConfirmations = useModelEgressConfirmations(
+    { page: egressConfirmationPage, size: CONFIRMATION_PAGE_SIZE },
+    canReviewModelEgress,
   );
   const confirmExport = useConfirmExport();
   const verifyEvidence = useVerifyEvidence();
@@ -640,6 +649,36 @@ export default function AdminAudit() {
     },
   ];
 
+  const egressConfirmationColumns = [
+    {
+      title: "模型能力",
+      render: (_value: unknown, confirmation: ModelEgressConfirmation) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{confirmation.capabilityCode}</Text>
+          <Text type="secondary">{formatTime(confirmation.confirmedAt)}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "用途说明",
+      dataIndex: "purpose",
+      render: (value: string) => value || "未记录",
+    },
+    {
+      title: "脱敏载荷摘要",
+      render: (_value: unknown, confirmation: ModelEgressConfirmation) => (
+        <Text code copyable>
+          {confirmation.payloadHash}
+        </Text>
+      ),
+    },
+    {
+      title: "确认人",
+      dataIndex: "confirmedBy",
+      render: (value?: string | null) => value ?? "系统",
+    },
+  ];
+
   function renderConfirmationContent() {
     if (confirmations.isLoading) {
       return <PageState state="loading" />;
@@ -671,6 +710,41 @@ export default function AdminAudit() {
     );
   }
 
+  function renderEgressConfirmationContent() {
+    if (egressConfirmations.isLoading) {
+      return <PageState state="loading" />;
+    }
+    if (egressConfirmations.isError) {
+      return (
+        <PageState
+          state="error"
+          title="模型外调确认记录读取失败"
+          onRetry={() => void egressConfirmations.refetch()}
+        />
+      );
+    }
+    return (
+      <Table<ModelEgressConfirmation>
+        rowKey={(record) =>
+          String(
+            record.id ?? `${record.capabilityCode}-${record.payloadHash}-${record.confirmedAt}`,
+          )
+        }
+        dataSource={egressConfirmations.data?.items ?? []}
+        columns={egressConfirmationColumns}
+        pagination={{
+          current: egressConfirmations.data?.page ?? egressConfirmationPage,
+          pageSize: CONFIRMATION_PAGE_SIZE,
+          total: egressConfirmations.data?.total ?? 0,
+          hideOnSinglePage: true,
+          showSizeChanger: false,
+          onChange: (nextPage) => setEgressConfirmationPage(nextPage),
+        }}
+        scroll={{ x: "max-content" }}
+      />
+    );
+  }
+
   return (
     <PageExperienceShell
       meta={PAGE_META}
@@ -696,7 +770,7 @@ export default function AdminAudit() {
           showIcon
           icon={<SafetyCertificateOutlined />}
           message="审计链已启用"
-          description="事件按服务空间隔离并保留摘要、签名和追踪号；有权操作者逐次确认准确筛选范围后，由后端异步生成文件并自动登记摘要与证据。"
+          description="事件按服务空间隔离并保留摘要、签名和追踪号；受控导出与模型外调用途确认均登记确认人、业务原因和可验摘要。"
         />
         <Tabs
           defaultActiveKey="events"
@@ -797,6 +871,15 @@ export default function AdminAudit() {
                     key: "confirmations",
                     label: "导出记录",
                     children: renderConfirmationContent(),
+                  },
+                ]
+              : []),
+            ...(canReviewModelEgress
+              ? [
+                  {
+                    key: "model-egress-confirmations",
+                    label: "模型外调确认",
+                    children: renderEgressConfirmationContent(),
                   },
                 ]
               : []),
