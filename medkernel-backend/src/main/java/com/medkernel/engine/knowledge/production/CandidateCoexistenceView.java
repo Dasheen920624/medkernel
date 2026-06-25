@@ -124,6 +124,28 @@ public record CandidateCoexistenceView(
             "候选处于 PENDING_REPLACEMENT_REVIEW，仅供审核台对照，不参与临床执行；审核通过才会进入 SYS-08 原子激活/替换流程");
     }
 
+    public static CandidateCoexistenceView notReplacementReview(String candidateRef,
+                                                                KnowledgeAssetVersion candidate,
+                                                                KnowledgeAssetVersion active,
+                                                                ProductionLineage lineage) {
+        boolean hasActive = active != null && active.status() == KnowledgeVersionStatus.ACTIVE;
+        String status = candidate.status().name();
+        return new CandidateCoexistenceView(
+            candidateRef,
+            candidate.identityId(),
+            VersionSnapshot.from(candidate),
+            VersionSnapshot.from(active),
+            null,
+            null,
+            "当前候选状态为 " + status + "，未进入待审替换评审；仅展示生产血缘与安全边界",
+            lineage,
+            false,
+            hasActive,
+            "NOT_REPLACEMENT_REVIEW",
+            "当前候选状态为 " + status + "，无需共存审核；若要发布或替换，需先进入待审替换评审并完成人工确认",
+            "当前记录不是 PENDING_REPLACEMENT_REVIEW 候选，不参与候选共存审核；候选不参与临床执行，也不得绕过机构生效版本用于临床执行");
+    }
+
     private static String replacementReminder(KnowledgeAssetVersion candidate, KnowledgeAssetVersion active,
                                               boolean hasActive) {
         if (!hasActive) {

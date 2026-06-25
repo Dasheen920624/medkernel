@@ -39,27 +39,28 @@ public class CandidateCoexistenceService {
         this.jobRepository = jobRepository;
     }
 
-    /** 返回候选与现行权威版本的共存对照；非待审候选拒绝伪装成共存态。 */
+    /** 返回候选与现行权威版本的共存对照；非待审候选返回不可审核读态，不伪装成共存审核。 */
     @Transactional(readOnly = true)
     public CandidateCoexistenceView resolve(String candidateRef) {
         String tenantId = requireCurrentTenant();
         ParsedCandidateRef ref = parse(candidateRef);
+        String normalizedRef = candidateRef.trim();
         KnowledgeAssetVersion candidate = versionRepository
             .findByTenantIdAndIdentityIdAndVersionNo(tenantId, ref.identityId(), ref.versionNo())
             .orElseThrow(() -> ApiException.notFound("知识候选引用 " + candidateRef));
-        if (candidate.status() != KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW) {
-            throw new ApiException(ErrorCode.CONFLICT,
-                "知识候选引用 " + candidateRef + " 当前状态为 " + candidate.status() + "，不是待审共存候选");
-        }
         KnowledgeAssetVersion active = versionRepository.findActiveByEffectiveScope(
             tenantId,
             candidate.identityId(),
             candidate.effectiveOrganizationScope(),
             candidate.effectiveApplicableScope()).orElse(null);
+        CandidateCoexistenceView.ProductionLineage lineage = lineage(tenantId, normalizedRef);
+        if (candidate.status() != KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW) {
+            return CandidateCoexistenceView.notReplacementReview(normalizedRef, candidate, active, lineage);
+        }
         CandidateClassification classification = classificationRepository
             .findByTenantIdAndCandidateVersionId(tenantId, candidate.id())
             .orElse(null);
-        return CandidateCoexistenceView.of(candidateRef.trim(), candidate, active, classification, lineage(tenantId, candidateRef));
+        return CandidateCoexistenceView.of(normalizedRef, candidate, active, classification, lineage);
     }
 
     private CandidateCoexistenceView.ProductionLineage lineage(String tenantId, String candidateRef) {
