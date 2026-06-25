@@ -170,6 +170,125 @@ type EgressPolicyForm = {
   confirmationThresholdLevel: ModelEgressSensitivityLevel;
 };
 
+type EgressFieldCandidate = {
+  value: string;
+  label: string;
+  category: string;
+  coreSensitive: boolean;
+};
+
+type EgressPreviewRow = {
+  field: string;
+  label: string;
+  category: string;
+  status: string;
+  reason: string;
+  coreSensitive: boolean;
+};
+
+const egressFieldCatalog: EgressFieldCandidate[] = [
+  { value: "prompt", label: "提示词内容", category: "任务上下文", coreSensitive: false },
+  { value: "patient.age", label: "患者年龄", category: "患者上下文", coreSensitive: false },
+  { value: "patient.sex", label: "患者性别", category: "患者上下文", coreSensitive: false },
+  { value: "patient.diagnosis", label: "诊断摘要", category: "患者上下文", coreSensitive: false },
+  { value: "patient.name", label: "患者姓名", category: "核心标识", coreSensitive: true },
+  { value: "patient.identityNo", label: "证件号码", category: "核心标识", coreSensitive: true },
+  { value: "patient.phone", label: "手机号码", category: "核心标识", coreSensitive: true },
+  { value: "patient.address", label: "联系地址", category: "核心标识", coreSensitive: true },
+  { value: "patient.mpiId", label: "患者编号", category: "核心标识", coreSensitive: true },
+];
+
+const egressFieldOptions = egressFieldCatalog.map((field) => ({
+  value: field.value,
+  label: field.label,
+}));
+
+function normalizeAllowedFields(fields?: string[]) {
+  return Array.from(new Set((fields ?? []).map((field) => field.trim()).filter(Boolean)));
+}
+
+function buildEgressPreviewRows(
+  allowedFields: string[] | undefined,
+  operator: ModelEgressDesensitizationOperator | undefined,
+): EgressPreviewRow[] {
+  const allowed = new Set(normalizeAllowedFields(allowedFields));
+  const catalogValues = new Set(egressFieldCatalog.map((field) => field.value));
+  const customAllowedFields = Array.from(allowed)
+    .filter((field) => !catalogValues.has(field))
+    .map<EgressFieldCandidate>((field) => ({
+      value: field,
+      label: field,
+      category: "自定义字段",
+      coreSensitive: false,
+    }));
+  const selectedOperator = operator ?? "MASK_ALL";
+  return [...egressFieldCatalog, ...customAllowedFields].map((field) => {
+    const selected = allowed.has(field.value);
+    if (field.coreSensitive) {
+      return {
+        field: field.value,
+        label: field.label,
+        category: field.category,
+        status: selected ? "核心标识强制遮蔽" : "核心标识默认不出域",
+        reason: selected
+          ? "即使纳入允许字段，运行时仍只可传出遮蔽后值"
+          : "公网外调默认不发送姓名、证件、电话、地址和患者编号明文",
+        coreSensitive: true,
+      };
+    }
+    return {
+      field: field.value,
+      label: field.label,
+      category: field.category,
+      status: selected ? egressOperatorView[selectedOperator] : "不出域",
+      reason: selected
+        ? "按当前字段处理策略进入模型请求"
+        : "未纳入允许字段，运行时不会传给外部模型",
+      coreSensitive: false,
+    };
+  });
+}
+
+function egressPreviewStatusColor(item: EgressPreviewRow) {
+  if (item.coreSensitive) {
+    return "warning";
+  }
+  if (item.status === "不出域") {
+    return "default";
+  }
+  return "blue";
+}
+
+const egressPreviewColumns: TableProps<EgressPreviewRow>["columns"] = [
+  {
+    title: "字段",
+    key: "field",
+    width: 180,
+    render: (_value, item) => (
+      <div className={styles.previewFieldCell}>
+        <Text strong>{item.label}</Text>
+        <Text code>{item.field}</Text>
+      </div>
+    ),
+  },
+  {
+    title: "分类",
+    dataIndex: "category",
+    width: 110,
+  },
+  {
+    title: "外调结果",
+    key: "status",
+    width: 150,
+    render: (_value, item) => <Tag color={egressPreviewStatusColor(item)}>{item.status}</Tag>,
+  },
+  {
+    title: "说明",
+    dataIndex: "reason",
+    render: (value: string) => <Text type="secondary">{value}</Text>,
+  },
+];
+
 export default function AiWorkflows() {
   const { message } = App.useApp();
   const securityQuery = useSecurityProfile();
@@ -185,10 +304,15 @@ export default function AiWorkflows() {
   const selectedEgressOperator = Form.useWatch("operator", egressForm) as
     | ModelEgressDesensitizationOperator
     | undefined;
+  const selectedAllowedFields = Form.useWatch("allowedFields", egressForm) as string[] | undefined;
   const [egressCapability, setEgressCapability] = useState<ModelCapabilityStatusResponse | null>(
     null,
   );
   const capabilities = useMemo(() => statusQuery.data ?? [], [statusQuery.data]);
+  const egressPreviewRows = useMemo(
+    () => buildEgressPreviewRows(selectedAllowedFields ?? ["prompt"], selectedEgressOperator),
+    [selectedAllowedFields, selectedEgressOperator],
+  );
 
   const summary = useMemo(
     () => ({
@@ -220,9 +344,7 @@ export default function AiWorkflows() {
     if (!egressCapability) return;
     try {
       const values = await egressForm.validateFields();
-      const allowedFields = Array.from(
-        new Set(values.allowedFields.map((field) => field.trim()).filter(Boolean)),
-      );
+      const allowedFields = normalizeAllowedFields(values.allowedFields);
       const operator = values.operator ?? "MASK_ALL";
       const desensitizationRules = Object.fromEntries(
         allowedFields.map((field) => [field, operator]),
@@ -473,6 +595,7 @@ export default function AiWorkflows() {
         <Modal
           title="配置外调安全策略"
           open={Boolean(egressCapability)}
+          width={760}
           okText="保存外调安全策略"
           okButtonProps={{ "aria-label": "保存外调安全策略" }}
           confirmLoading={saveEgressPolicy.isPending}
@@ -513,7 +636,7 @@ export default function AiWorkflows() {
                 <Select
                   mode="tags"
                   tokenSeparators={[","]}
-                  options={[{ value: "prompt", label: "prompt" }]}
+                  options={egressFieldOptions}
                   placeholder="输入字段后回车"
                 />
               </Form.Item>
@@ -535,6 +658,22 @@ export default function AiWorkflows() {
                 showIcon
                 message={`当前字段处理：${egressOperatorView[selectedEgressOperator ?? "MASK_ALL"]}`}
               />
+              <div className={styles.egressPreviewPanel}>
+                <div className={styles.egressPreviewHeader}>
+                  <Text strong>字段出域预览</Text>
+                  <Text type="secondary">
+                    高敏用途达到阈值时，每次模型出域前需要责任确认；证据只保存字段清单、处理策略和摘要，不保存患者明文。
+                  </Text>
+                </div>
+                <Table
+                  size="small"
+                  rowKey="field"
+                  columns={egressPreviewColumns}
+                  dataSource={egressPreviewRows}
+                  pagination={false}
+                  scroll={{ x: 640 }}
+                />
+              </div>
             </Form>
           ) : null}
         </Modal>

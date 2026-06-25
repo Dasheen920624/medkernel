@@ -67,6 +67,27 @@
   margin-block: calc(var(--mk-unit) * 12);
 }
 
+.egressPreviewPanel {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--mk-unit) * 8);
+  margin-block-start: calc(var(--mk-unit) * 12);
+}
+
+.egressPreviewHeader,
+.previewFieldCell {
+  display: flex;
+  flex-direction: column;
+}
+
+.egressPreviewHeader {
+  gap: calc(var(--mk-unit) * 4);
+}
+
+.previewFieldCell {
+  gap: calc(var(--mk-unit) * 2);
+}
+
 .schemaText {
   display: block;
   overflow-wrap: anywhere;

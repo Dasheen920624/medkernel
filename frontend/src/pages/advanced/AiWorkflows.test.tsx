@@ -1,6 +1,6 @@
 import { App as AntdApp, ConfigProvider } from "antd";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AxiosAdapter, InternalAxiosRequestConfig } from "axios";
 import { afterEach, describe, expect, it } from "vitest";
@@ -215,6 +215,12 @@ describe("AiWorkflows", () => {
     await user.click(screen.getByRole("button", { name: "配置 患者解释生成 外调安全策略" }));
     const dialog = await screen.findByRole("dialog", { name: "配置外调安全策略" });
     expect(dialog).toHaveTextContent("公网外部模型可使用患者上下文");
+    expect(within(dialog).getByText("字段出域预览")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("提示词内容").length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByText("全量遮蔽").length).toBeGreaterThan(0);
+    expect(within(dialog).getByText("患者姓名")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("核心标识默认不出域").length).toBeGreaterThan(0);
+    expect(within(dialog).getByText(/高敏用途达到阈值时/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "保存外调安全策略" }));
 
     await waitFor(() =>
