@@ -228,7 +228,10 @@ describe("Followup", () => {
   it("renders server-side scoped progress metrics instead of current-page counts", () => {
     renderFollowup();
 
-    expect(screen.getByText(/查看真实随访计划、问卷回收与异常回院事件/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "随访协同" })).toBeInTheDocument();
+    expect(
+      screen.getByText(/查看真实随访计划、患者问卷回收、护士代填和异常回院事件/),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/后端接口返回/)).not.toBeInTheDocument();
     expect(screen.getByText("作用域随访计划数")).toBeInTheDocument();
     expect(screen.getByText("作用域执行中计划")).toBeInTheDocument();
@@ -397,6 +400,34 @@ describe("Followup", () => {
     expect(screen.getByText("通知事件 notify-event-1")).toBeInTheDocument();
     expect(screen.getByText("追踪号 trace-followup-1")).toBeInTheDocument();
     expect(screen.getByText("异常事件 event-return-1")).toBeInTheDocument();
+  });
+
+  it("records who submitted the follow-up questionnaire instead of assuming a physician", async () => {
+    const user = userEvent.setup();
+    renderFollowup();
+
+    await user.click(screen.getByRole("button", { name: /查看与办理/ }));
+    await screen.findByText("问卷回收");
+    await user.click(screen.getByRole("button", { name: /填\s*报/ }));
+    await user.click(screen.getByLabelText("提交来源"));
+    await user.click(await screen.findByText("护士代填"));
+    fireEvent.change(screen.getByLabelText("问卷回收内容"), {
+      target: { value: "患者电话随访反馈今日咳嗽减轻，护士代为录入。" },
+    });
+    await user.click(screen.getByRole("button", { name: /提交问卷/ }));
+
+    await waitFor(() =>
+      expect(followupHookMocks.submitQuestionnaire).toHaveBeenCalledWith(
+        expect.objectContaining({
+          taskId: "task-questionnaire-1",
+          questionnaireTemplateId: "FOLLOWUP_QUESTIONNAIRE_DEFAULT",
+          executorType: "NURSE",
+        }),
+      ),
+    );
+    expect(followupHookMocks.submitQuestionnaire).not.toHaveBeenCalledWith(
+      expect.objectContaining({ executorType: "PHYSICIAN" }),
+    );
   });
 
   it("generates a plan from an ACTIVE context snapshot instead of typed patient facts", async () => {

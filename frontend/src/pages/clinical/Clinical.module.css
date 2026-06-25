@@ -416,6 +416,14 @@
   margin-bottom: calc(var(--mk-unit) * 16);
 }
 
+.queueSummary {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--mk-unit) * 10);
+  padding: calc(var(--mk-unit) * 16);
+  margin-bottom: calc(var(--mk-unit) * 16);
+}
+
 .sectionGapLg {
   margin-bottom: calc(var(--mk-unit) * 24);
 }

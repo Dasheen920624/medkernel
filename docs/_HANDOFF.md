@@ -143,6 +143,10 @@
   `npm test -- --run src/pages/quality/KnowledgeGovernance.test.tsx src/shared/api/hooks.test.ts`、
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run build`、
   `git diff --check`。
+- 临床协同任务和随访协同前台体验薄片已在本地通过：协同任务页按真实待办来源、风险和到期优先级给出
+  医生/护士可执行的队列摘要；随访问卷提交来源改由患者、护士或医生复核录入真实选择，不再默认假定医生提交。
+  已验证：`npm test -- --run src/pages/clinical/WorkflowTodos.test.tsx src/pages/clinical/Followup.test.tsx`、
+  `npm run format:check`、`npm run lint`、`npm run stylelint`、`npm run test:lint-rules`、`npm run build`。
 
 ## 本轮落地内容
 
@@ -198,6 +202,11 @@
   `UNKNOWN`。
 - 前台 MPI 文案修正：将“在径路径实例”改为“活跃路径实例”。
 - 临床随访页移除“后端接口返回”等实现视角说明，改为围绕真实随访计划、问卷回收和异常回院事件表达页面目标。
+- 协同任务页按医生、护士和随访团队真实工作方式优化：页面标题对齐功能目录为“协同任务”，优先级改为中文
+  医疗可读标签，并新增今日队列摘要，默认告诉操作者待处理数量、安全复核、护理任务、危急和高优先任务，
+  以及先处理哪类任务。
+- 随访协同问卷填报补齐真实执行者来源：患者自填、护士代填、医生复核录入由前台表单明确选择并写入提交契约，
+  避免把护士或患者产生的数据错误归到医生名下。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -231,4 +240,6 @@
 4. 按“高级信息新定义”继续回扫历史页面：知识审核候选来源溯源和全局证据详情偏好已完成；其它旧页面如仍存在
    生硬身份化开关、孤立技术入口或把关键安全/审计/业务判断证据藏起来的设计，后续都要改成上下文里的渐进证据、
    诊断信息或变更明细。
-5. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。
+5. 本地临床协同任务与随访协同体验薄片还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，
+   不能把当前本地薄片误记为 134 已验收。
+6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

@@ -304,7 +304,7 @@ export default function Followup() {
         }),
         answerData,
         idempotencyKey: `questionnaire-${selectedTask.taskId}-${crypto.randomUUID()}`,
-        executorType: "PHYSICIAN",
+        executorType: values.executorType,
       });
 
       message.success("随访问卷内容已提交，请以刷新后的任务状态为准");
@@ -489,7 +489,10 @@ export default function Followup() {
   ];
 
   return (
-    <PageShell title="智能随访工作台" description="查看真实随访计划、问卷回收与异常回院事件">
+    <PageShell
+      title="随访协同"
+      description="查看真实随访计划、患者问卷回收、护士代填和异常回院事件。"
+    >
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}
@@ -893,6 +896,7 @@ export default function Followup() {
                   form={questionnaireForm}
                   layout="vertical"
                   onFinish={handleSubmitQuestionnaire}
+                  initialValues={{ executorType: "PATIENT" }}
                 >
                   <Alert
                     type="info"
@@ -900,6 +904,19 @@ export default function Followup() {
                     className={styles.sectionGap}
                     message={`正在提交随访任务：${selectedTaskId}`}
                   />
+                  <Form.Item
+                    name="executorType"
+                    label="提交来源"
+                    rules={[{ required: true, message: "请选择问卷提交来源" }]}
+                  >
+                    <Select
+                      options={[
+                        { value: "PATIENT", label: "患者自填" },
+                        { value: "NURSE", label: "护士代填" },
+                        { value: "PHYSICIAN", label: "医生复核录入" },
+                      ]}
+                    />
+                  </Form.Item>
                   <Form.Item
                     name="content"
                     label="问卷回收内容"

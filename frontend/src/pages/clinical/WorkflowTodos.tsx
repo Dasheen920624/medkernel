@@ -70,6 +70,13 @@ const priorityColor: Record<WorkflowPriority, string> = {
   LOW: "blue",
 };
 
+const priorityText: Record<WorkflowPriority, string> = {
+  CRITICAL: "危急",
+  HIGH: "高优先",
+  MEDIUM: "中优先",
+  LOW: "低优先",
+};
+
 const priorityRank: Record<WorkflowPriority, number> = {
   CRITICAL: 0,
   HIGH: 1,
@@ -114,6 +121,31 @@ function compareDateTime(left?: string | null, right?: string | null) {
   if (!left) return 1;
   if (!right) return -1;
   return new Date(left).getTime() - new Date(right).getTime();
+}
+
+function countTodos<T extends string>(
+  todos: WorkflowTodo[],
+  field: "sourceType" | "priority",
+  value: T,
+) {
+  return todos.filter((todo) => todo[field] === value).length;
+}
+
+function buildClinicalQueueFocus(pendingTodos: WorkflowTodo[]) {
+  if (pendingTodos.length === 0) return "暂无待处理任务";
+
+  const sourceFocus = (Object.keys(sourceRank) as WorkflowTodoSourceType[])
+    .map((source) => ({
+      source,
+      count: countTodos(pendingTodos, "sourceType", source),
+    }))
+    .filter((item) => item.count > 0)
+    .slice(0, 2)
+    .map((item) => sourceText[item.source]);
+
+  if (sourceFocus.length === 0) return "按到期时间处理";
+  if (sourceFocus.length === 1) return `先处理${sourceFocus[0]}`;
+  return `先处理${sourceFocus[0]}，再处理${sourceFocus[1]}`;
 }
 
 export default function WorkflowTodos() {
@@ -167,6 +199,15 @@ export default function WorkflowTodos() {
       }),
     [data?.items],
   );
+  const pendingTodos = useMemo(
+    () => visibleTodos.filter((todo) => todo.status === "PENDING" || todo.status === "IN_PROGRESS"),
+    [visibleTodos],
+  );
+  const safetyReviewCount = countTodos(pendingTodos, "sourceType", "SAFETY_REVIEW");
+  const nursingTaskCount = countTodos(pendingTodos, "sourceType", "NURSING_TASK");
+  const criticalCount = countTodos(pendingTodos, "priority", "CRITICAL");
+  const highPriorityCount = countTodos(pendingTodos, "priority", "HIGH");
+  const queueFocus = buildClinicalQueueFocus(pendingTodos);
 
   const handleComplete = async () => {
     if (!completingTodo) return;
@@ -250,7 +291,9 @@ export default function WorkflowTodos() {
       title: "优先级",
       dataIndex: "priority",
       key: "priority",
-      render: (value: WorkflowPriority) => <Tag color={priorityColor[value]}>{value}</Tag>,
+      render: (value: WorkflowPriority) => (
+        <Tag color={priorityColor[value]}>{priorityText[value] ?? customerEnumLabel(value)}</Tag>
+      ),
     },
     {
       title: "状态",
@@ -322,14 +365,26 @@ export default function WorkflowTodos() {
 
   return (
     <PageShell
-      title="工作流协同待办中心"
-      description="统一查看并办理真实临床协同待办。"
+      title="协同任务"
+      description="医生、护士、随访团队按风险和到期时间处理临床协同任务，来源、责任和追踪证据保持可回看。"
       extras={
         <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
           刷新
         </Button>
       }
     >
+      <div className={`${styles.surface} ${styles.queueSummary}`}>
+        <div className={styles.sectionTitle}>今日先处理</div>
+        <Space wrap size={[8, 8]}>
+          <Tag color="blue">{pendingTodos.length} 项待处理</Tag>
+          <Tag color="red">安全复核 {safetyReviewCount} 项</Tag>
+          <Tag color="purple">护理任务 {nursingTaskCount} 项</Tag>
+          <Tag color="red">危急 {criticalCount} 项</Tag>
+          <Tag color="volcano">高优先 {highPriorityCount} 项</Tag>
+        </Space>
+        <div className={styles.textSmall}>{queueFocus}</div>
+      </div>
+
       <Card className={styles.sectionGap}>
         <Space wrap>
           <Select

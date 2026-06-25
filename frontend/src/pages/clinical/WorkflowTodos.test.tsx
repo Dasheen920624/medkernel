@@ -144,14 +144,79 @@ describe("WorkflowTodos", () => {
       page: 1,
       size: 10,
     });
-    expect(screen.getByRole("heading", { name: "工作流协同待办中心" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "协同任务" })).toBeInTheDocument();
+    expect(screen.getByText(/医生、护士、随访团队按风险和到期时间处理/)).toBeInTheDocument();
     expect(screen.getByText("随访异常复核")).toBeInTheDocument();
     expect(screen.getByText("patient-real-1")).toBeInTheDocument();
     expect(screen.getByText("来源编号 return-task-1")).toBeInTheDocument();
     expect(screen.getByText("追踪号 trace-workflow")).toBeInTheDocument();
     expect(screen.getByText("随访任务")).toBeInTheDocument();
+    expect(screen.getByText("高优先")).toBeInTheDocument();
     expect(screen.queryByText("FOLLOWUP_TASK")).not.toBeInTheDocument();
+    expect(screen.queryByText("HIGH")).not.toBeInTheDocument();
     expect(screen.queryByText("待办接口尚未接入")).not.toBeInTheDocument();
+  });
+
+  it("summarizes the clinical work queue so doctors and nurses know what to handle first", () => {
+    workflowHookMocks.useWorkflowTodos.mockReturnValue({
+      data: {
+        items: [
+          {
+            todoId: "todo-safety-1",
+            sourceType: "SAFETY_REVIEW",
+            sourceId: "withdrawal:patient-real-1",
+            title: "安全撤回复核任务",
+            summary: "旧版禁忌知识撤回后需要复核患者病例",
+            priority: "CRITICAL",
+            status: "PENDING",
+            assigneeId: "doctor-real-1",
+            assigneeRole: "DOCTOR",
+            patientId: "patient-real-1",
+            dueAt: "2026-06-04T10:00:00Z",
+          },
+          {
+            todoId: "todo-nursing-1",
+            sourceType: "NURSING_TASK",
+            sourceId: "nursing:patient-real-2",
+            title: "压疮风险评估",
+            summary: "护理评估提示风险升高",
+            priority: "HIGH",
+            status: "PENDING",
+            assigneeId: "nurse-real-1",
+            assigneeRole: "NURSE",
+            patientId: "patient-real-2",
+            dueAt: "2026-06-04T09:00:00Z",
+          },
+          {
+            todoId: "todo-completed-1",
+            sourceType: "FOLLOWUP_TASK",
+            sourceId: "return-task-2",
+            title: "已完成随访确认",
+            summary: "患者已完成问卷回收",
+            priority: "LOW",
+            status: "COMPLETED",
+            patientId: "patient-real-3",
+          },
+        ],
+        page: 0,
+        size: 10,
+        total: 3,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: workflowHookMocks.refetchTodos,
+    });
+
+    renderWorkflowTodos();
+
+    expect(screen.getByText("今日先处理")).toBeInTheDocument();
+    expect(screen.getByText("2 项待处理")).toBeInTheDocument();
+    expect(screen.getByText("安全复核 1 项")).toBeInTheDocument();
+    expect(screen.getByText("护理任务 1 项")).toBeInTheDocument();
+    expect(screen.getByText("危急 1 项")).toBeInTheDocument();
+    expect(screen.getByText("高优先 1 项")).toBeInTheDocument();
+    expect(screen.getByText("先处理安全复核，再处理护理任务")).toBeInTheDocument();
   });
 
   it("passes selected organization scope to the server-side todo query", async () => {
