@@ -37,7 +37,8 @@
 7. MFA 默认关闭；开启后的真实 TOTP 登录另行通过；
 8. 临床入口不接收离线交付文件、领域、资产版本或机构生效版本选择参数，由服务端锁定当前机构生效版本；
 9. 模型服务不可用时系统返回真实降级状态，B0 主链仍可运行；
-10. 候选交付文件、数据库模式摘要和前后端资源都绑定同一完整 40 位本地提交哈希。
+10. 浏览器 E2E 验收机已安装中文 CJK 字体（OpenCloudOS 可用 `google-noto-cjk-fonts`），截图证据中文可读；
+11. 候选交付文件、数据库模式摘要和前后端资源都绑定同一完整 40 位本地提交哈希。
 
 表数量、迁移版本和资产目录数量必须从候选构建清单读取，不在文档或脚本外重复维护常量。
 
@@ -48,6 +49,18 @@
 ```bash
 sudo bash deploy/onprem/medkernel-fresh-deploy.sh --validate-environment-only
 ```
+
+浏览器 E2E 和发布后验收会使用截图证据证明真实页面状态；验收机必须具备中文字体。OpenCloudOS/RHEL
+系环境推荐预先安装：
+
+```bash
+sudo dnf install -y google-noto-cjk-fonts
+fc-cache -f
+fc-match 'Noto Sans CJK SC:lang=zh-cn'
+```
+
+若显式 CJK 字体匹配和 `fc-list :lang=zh family` 都没有返回 Noto CJK、思源、文泉驿或同等级 CJK
+字体，截图会出现方块字，不能作为中文产品体验证据。
 
 清库前固定执行：
 

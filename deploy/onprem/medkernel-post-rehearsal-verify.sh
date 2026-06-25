@@ -138,6 +138,18 @@ strict_curl() {
   fi
 }
 
+verify_chinese_evidence_font() {
+  local font_match font_families
+  font_match="$(fc-match 'Noto Sans CJK SC:lang=zh-cn' 2>/dev/null || true)"
+  font_families="$(fc-list :lang=zh family 2>/dev/null || true)"
+  {
+    printf '%s\n' "$font_match"
+    printf '%s\n' "$font_families"
+  } | grep -Eiq 'Noto.*CJK|Source Han|WenQuanYi|Droid Sans Fallback|CJK|fangsong|uming|ukai' ||
+    die "缺少中文 CJK 字体，浏览器 E2E 截图会出现方块字；请安装 google-noto-cjk-fonts 或同等级字体"
+  ok "中文截图证据字体可用：${font_match%%:*}"
+}
+
 run_as_postgres() {
   (
     cd /tmp
@@ -189,7 +201,7 @@ validate_inputs() {
   [[ "$DATABASE_OWNER" =~ ^[a-zA-Z0-9_]+$ ]] || die "数据库 owner 包含非法字符"
   [[ "$PORT" =~ ^[0-9]+$ ]] || die "SERVER_PORT 不是有效端口"
 
-  for command_name in curl jq pg_dump pg_restore psql createdb dropdb sha256sum systemctl sudo openssl; do
+  for command_name in curl jq pg_dump pg_restore psql createdb dropdb sha256sum systemctl sudo openssl fc-match; do
     require_command "$command_name"
   done
   [ -f "$FULL_SYSTEM_EVIDENCE" ] || die "缺少整套演练证据：$FULL_SYSTEM_EVIDENCE"
@@ -204,6 +216,7 @@ validate_inputs() {
   assert_equal "manifest commit" "$EXPECTED_SOURCE" "$manifest_commit"
   [ "$(systemctl is-active "$SERVICE")" = "active" ] || die "服务未处于 active"
   [ "$(systemctl is-enabled "$SERVICE")" = "enabled" ] || die "服务未处于 enabled"
+  verify_chinese_evidence_font
   strict_tls_preflight
 
   mkdir -p "$EVIDENCE_ROOT" "$APP_HOME/backups"

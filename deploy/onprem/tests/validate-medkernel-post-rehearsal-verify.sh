@@ -39,6 +39,10 @@ grep -q 'openssl s_client' "$SCRIPT"
 grep -q 'openssl x509.*-checkend' "$SCRIPT"
 grep -q 'openssl x509.*-checkhost\|openssl x509.*-checkip' "$SCRIPT"
 grep -q 'subjectAltName' "$SCRIPT"
+grep -q 'fc-match' "$SCRIPT"
+grep -q 'verify_chinese_evidence_font' "$SCRIPT"
+grep -q 'google-noto-cjk-fonts' "$SCRIPT"
+grep -q '中文截图证据字体可用' "$SCRIPT"
 if grep -Eq 'curl.*([[:space:]]--insecure|[[:space:]]-[[:alpha:]]*k[[:alpha:]]*)' "$SCRIPT"; then
   printf 'post rehearsal verification may not bypass TLS validation\n' >&2
   exit 1
