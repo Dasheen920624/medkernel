@@ -63,6 +63,10 @@
   background: var(--ant-color-fill-quaternary);
 }
 
+.egressCapability {
+  margin-block: calc(var(--mk-unit) * 12);
+}
+
 .schemaText {
   display: block;
   overflow-wrap: anywhere;

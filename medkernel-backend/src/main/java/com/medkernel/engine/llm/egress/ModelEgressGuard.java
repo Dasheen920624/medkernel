@@ -33,9 +33,9 @@ public class ModelEgressGuard {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Set<String> DIRECT_IDENTIFIER_FIELDS = Set.of(
         "name", "fullname", "patientname", "username",
-        "patientid", "patientref", "mpiid", "idcard", "nationalid",
+        "patientid", "patientref", "mpiid", "idcard", "idnumber", "idlast4", "nationalid",
         "phone", "mobile", "telephone", "email", "address",
-        "姓名", "患者姓名", "患者编号", "身份证", "身份证号", "电话", "手机号", "邮箱", "住址");
+        "姓名", "患者姓名", "患者编号", "身份证", "身份证号", "身份证后四位", "电话", "手机号", "邮箱", "住址");
 
     private final ModelEgressWhitelistRepository whitelistRepo;
     private final ModelEgressConfirmationRepository confirmationRepo;
@@ -77,7 +77,7 @@ public class ModelEgressGuard {
         source.fieldNames().forEachRemaining(field -> {
             if (policy.allowedFields().contains(field)) {
                 minimized.set(field, desensitizeNode(
-                    source.get(field), policy.desensitizationRules().getOrDefault(field, "MASK_ALL")));
+                    source.get(field), policy.desensitizationRules().getOrDefault(field, "MASK_ALL"), field));
                 egressFields.add(field);
             }
         });
@@ -118,16 +118,43 @@ public class ModelEgressGuard {
 
     /**
      * 外调字段强制脱敏：默认采用最严格 {@code MASK_ALL}；OPT-09 允许按字段配置掩码、泛化、置空或保留。
+     * 即使配置为 {@code NONE}，核心患者标识仍强制遮蔽，仅非核心业务值可保留。
      */
-    private JsonNode desensitizeNode(JsonNode value, String operator) {
+    private JsonNode desensitizeNode(JsonNode value, String operator, String fieldName) {
         String normalized = operator == null ? "MASK_ALL" : operator.trim().toUpperCase(Locale.ROOT);
         return switch (normalized) {
-            case "NONE" -> value == null ? NullNode.getInstance() : value;
+            case "NONE" -> keepBusinessValueAndMaskCoreIdentifiers(value, fieldName);
             case "NULLIFY" -> NullNode.getInstance();
             case "GENERALIZE" -> new TextNode("[已泛化]");
             case "MASK", "MASK_ALL" -> maskAll(value, null);
             default -> maskAll(value, null);
         };
+    }
+
+    private JsonNode keepBusinessValueAndMaskCoreIdentifiers(JsonNode value, String fieldName) {
+        if (value == null || value.isNull()) {
+            return NullNode.getInstance();
+        }
+        if (directIdentifierField(fieldName)) {
+            return NullNode.getInstance();
+        }
+        if (value.isTextual()) {
+            return new TextNode(ModelDataDesensitizer.desensitize(value.asText(), "MASK_ALL"));
+        }
+        if (value.isObject()) {
+            ObjectNode masked = OBJECT_MAPPER.createObjectNode();
+            value.fields().forEachRemaining(entry ->
+                masked.set(
+                    entry.getKey(),
+                    keepBusinessValueAndMaskCoreIdentifiers(entry.getValue(), entry.getKey())));
+            return masked;
+        }
+        if (value.isArray()) {
+            ArrayNode masked = OBJECT_MAPPER.createArrayNode();
+            value.forEach(item -> masked.add(keepBusinessValueAndMaskCoreIdentifiers(item, fieldName)));
+            return masked;
+        }
+        return value;
     }
 
     private JsonNode maskAll(JsonNode value, String fieldName) {

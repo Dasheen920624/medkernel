@@ -8096,6 +8096,36 @@ export interface ModelPolicyUpsertRequest {
   rateLimitPerMinute?: number | null;
 }
 
+export type ModelEgressSensitivityLevel = "LOW" | "MEDIUM" | "HIGH";
+export type ModelEgressDesensitizationOperator =
+  | "MASK"
+  | "MASK_ALL"
+  | "GENERALIZE"
+  | "NULLIFY"
+  | "NONE";
+
+export interface ModelEgressPolicyUpsertRequest {
+  allowedFields: string[];
+  sensitivityLevel: ModelEgressSensitivityLevel;
+  desensitizationRules: Record<string, ModelEgressDesensitizationOperator>;
+  confirmationThresholdLevel: ModelEgressSensitivityLevel;
+}
+
+export interface ModelEgressPolicy {
+  id?: number | null;
+  tenantId: string;
+  capabilityCode: string;
+  allowedFields: string;
+  sensitivityLevel: ModelEgressSensitivityLevel;
+  desensitizationRules: string;
+  confirmationThresholdLevel: ModelEgressSensitivityLevel;
+  guardrailLockedFlag: string;
+  createdAt?: string | null;
+  createdBy?: string | null;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
 export interface ModelCapabilityDefinition {
   capabilityCode: string;
   displayName: string;
@@ -8245,6 +8275,29 @@ export function useSaveModelPolicy() {
     }) => {
       const { data } = await apiClient.put<{ data: ModelCapabilityStatusResponse }>(
         `/model-capabilities/policies/${encodeURIComponent(capabilityCode)}`,
+        policy,
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["model", "capabilities-status"] });
+    },
+  });
+}
+
+// 15. 保存模型外调数据最小化策略：字段允许范围、强制脱敏规则和高敏责任确认阈值
+export function useSaveModelEgressPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      capabilityCode,
+      policy,
+    }: {
+      capabilityCode: string;
+      policy: ModelEgressPolicyUpsertRequest;
+    }) => {
+      const { data } = await apiClient.put<{ data: ModelEgressPolicy }>(
+        `/data-minimization/policies/model-egress/${encodeURIComponent(capabilityCode)}`,
         policy,
       );
       return data.data;

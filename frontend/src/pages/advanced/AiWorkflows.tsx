@@ -1,10 +1,14 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
+  App,
   Button,
   Descriptions,
   Empty,
+  Form,
+  Modal,
   Result,
+  Select,
   Spin,
   Table,
   Tag,
@@ -12,10 +16,19 @@ import {
   Typography,
 } from "antd";
 import type { TableProps } from "antd";
-import { ReloadOutlined } from "@ant-design/icons";
+import { ReloadOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 
-import { useModelCapabilitiesStatus, useSecurityProfile } from "@/shared/api/hooks";
-import type { ModelCapabilityStatusResponse } from "@/shared/api/hooks";
+import {
+  useModelCapabilitiesStatus,
+  useSaveModelEgressPolicy,
+  useSecurityProfile,
+} from "@/shared/api/hooks";
+import type {
+  ModelCapabilityStatusResponse,
+  ModelEgressDesensitizationOperator,
+  ModelEgressSensitivityLevel,
+} from "@/shared/api/hooks";
+import { getApiErrorMessage } from "@/shared/api/errors";
 import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 
@@ -33,8 +46,32 @@ const routeStrategyView: Record<string, { color: string; label: string }> = {
 const desensitizeStrategyView: Record<string, string> = {
   DEFAULT: "默认脱敏",
   MASK_ALL: "全量掩码",
-  NONE: "未启用脱敏",
+  NONE: "仅核心敏感遮蔽",
 };
+
+const egressOperatorView: Record<ModelEgressDesensitizationOperator, string> = {
+  MASK: "遮蔽",
+  MASK_ALL: "全量遮蔽",
+  GENERALIZE: "泛化",
+  NULLIFY: "清空",
+  NONE: "保留非核心业务值",
+};
+
+const sensitivityLevelOptions: Array<{ value: ModelEgressSensitivityLevel; label: string }> = [
+  { value: "HIGH", label: "高敏" },
+  { value: "MEDIUM", label: "中敏" },
+  { value: "LOW", label: "低敏" },
+];
+
+const egressOperatorOptions: Array<{
+  value: ModelEgressDesensitizationOperator;
+  label: string;
+}> = [
+  { value: "MASK_ALL", label: "全量遮蔽" },
+  { value: "GENERALIZE", label: "泛化" },
+  { value: "NULLIFY", label: "清空" },
+  { value: "NONE", label: "保留非核心业务值" },
+];
 
 const policyScopeView: Record<string, string> = {
   TENANT: "服务机构",
@@ -78,6 +115,8 @@ function configurationModeLabel(item: ModelCapabilityStatusResponse) {
 
 function capabilityDetails(item: ModelCapabilityStatusResponse) {
   const scopeLabel = `${policyScopeView[item.policyScopeType] ?? customerEnumLabel(item.policyScopeType)}:${item.policyScopeRef}`;
+  const externalEnabled =
+    item.routeStrategy === "EXTERNAL_MODEL" || item.fallbackOrder.includes("EXTERNAL_MODEL");
   return (
     <Descriptions className={styles.details} column={{ xs: 1, sm: 2, lg: 3 }} size="small">
       <Descriptions.Item label="能力代码">
@@ -105,6 +144,11 @@ function capabilityDetails(item: ModelCapabilityStatusResponse) {
       <Descriptions.Item label="状态说明">
         {customerDisplayText(item.fallbackReason)}
       </Descriptions.Item>
+      <Descriptions.Item label="外调边界" span={3}>
+        {externalEnabled
+          ? "公网外部模型可在授权用途内使用患者上下文，运行时仍会先执行字段允许范围、核心敏感遮蔽、责任确认和证据留痕。"
+          : "当前能力不走公网外部模型；如后续切到外部模型，仍需先配置外调安全策略。"}
+      </Descriptions.Item>
       {item.expectedSchema ? (
         <Descriptions.Item label="输出格式明细" span={3}>
           <Text code className={styles.schemaText}>
@@ -116,14 +160,31 @@ function capabilityDetails(item: ModelCapabilityStatusResponse) {
   );
 }
 
+type EgressPolicyForm = {
+  allowedFields: string[];
+  operator: ModelEgressDesensitizationOperator;
+  sensitivityLevel: ModelEgressSensitivityLevel;
+  confirmationThresholdLevel: ModelEgressSensitivityLevel;
+};
+
 export default function AiWorkflows() {
+  const { message } = App.useApp();
   const securityQuery = useSecurityProfile();
   const permissionCodes = useMemo(
     () => new Set(securityQuery.data?.permissions.map((permission) => permission.code) ?? []),
     [securityQuery.data],
   );
   const canRead = permissionCodes.has("llm.read");
+  const canManageEgress = permissionCodes.has("llm.egress.manage");
   const statusQuery = useModelCapabilitiesStatus(canRead);
+  const saveEgressPolicy = useSaveModelEgressPolicy();
+  const [egressForm] = Form.useForm<EgressPolicyForm>();
+  const selectedEgressOperator = Form.useWatch("operator", egressForm) as
+    | ModelEgressDesensitizationOperator
+    | undefined;
+  const [egressCapability, setEgressCapability] = useState<ModelCapabilityStatusResponse | null>(
+    null,
+  );
   const capabilities = useMemo(() => statusQuery.data ?? [], [statusQuery.data]);
 
   const summary = useMemo(
@@ -141,6 +202,44 @@ export default function AiWorkflows() {
         .length,
     [capabilities],
   );
+
+  function openEgressPolicy(item: ModelCapabilityStatusResponse) {
+    setEgressCapability(item);
+    egressForm.setFieldsValue({
+      allowedFields: ["prompt"],
+      operator: "MASK_ALL",
+      sensitivityLevel: "HIGH",
+      confirmationThresholdLevel: "HIGH",
+    });
+  }
+
+  async function saveCurrentEgressPolicy() {
+    if (!egressCapability) return;
+    try {
+      const values = await egressForm.validateFields();
+      const allowedFields = Array.from(
+        new Set(values.allowedFields.map((field) => field.trim()).filter(Boolean)),
+      );
+      const operator = values.operator ?? "MASK_ALL";
+      const desensitizationRules = Object.fromEntries(
+        allowedFields.map((field) => [field, operator]),
+      ) as Record<string, ModelEgressDesensitizationOperator>;
+      await saveEgressPolicy.mutateAsync({
+        capabilityCode: egressCapability.capabilityCode,
+        policy: {
+          allowedFields,
+          sensitivityLevel: values.sensitivityLevel,
+          desensitizationRules,
+          confirmationThresholdLevel: values.confirmationThresholdLevel,
+        },
+      });
+      message.success("外调安全策略已保存");
+      setEgressCapability(null);
+      egressForm.resetFields();
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "外调安全策略保存失败"));
+    }
+  }
 
   const columns: TableProps<ModelCapabilityStatusResponse>["columns"] = [
     {
@@ -225,6 +324,22 @@ export default function AiWorkflows() {
       },
     },
   ];
+  if (canManageEgress) {
+    columns.push({
+      title: "外调安全",
+      key: "egressPolicy",
+      width: 120,
+      render: (_value, item) => (
+        <Tooltip title="配置字段允许范围、脱敏规则和责任确认阈值">
+          <Button
+            aria-label={`配置 ${item.displayName} 外调安全策略`}
+            icon={<SafetyCertificateOutlined />}
+            onClick={() => openEgressPolicy(item)}
+          />
+        </Tooltip>
+      ),
+    });
+  }
 
   if (securityQuery.isLoading) {
     return (
@@ -345,6 +460,74 @@ export default function AiWorkflows() {
             />
           </div>
         )}
+        <Modal
+          title="配置外调安全策略"
+          open={Boolean(egressCapability)}
+          okText="保存外调安全策略"
+          okButtonProps={{ "aria-label": "保存外调安全策略" }}
+          confirmLoading={saveEgressPolicy.isPending}
+          onOk={() => void saveCurrentEgressPolicy()}
+          onCancel={() => setEgressCapability(null)}
+          destroyOnClose
+        >
+          {egressCapability ? (
+            <Form<EgressPolicyForm>
+              form={egressForm}
+              layout="vertical"
+              initialValues={{
+                allowedFields: ["prompt"],
+                operator: "MASK_ALL",
+                sensitivityLevel: "HIGH",
+                confirmationThresholdLevel: "HIGH",
+              }}
+            >
+              <Alert
+                type="warning"
+                showIcon
+                message="公网外部模型可使用患者上下文"
+                description="外调前必须完成字段最小化、核心敏感信息遮蔽、责任确认和证据留痕；保留非核心业务值时，核心患者标识仍由后端强制遮蔽。"
+              />
+              <Descriptions className={styles.egressCapability} column={1} size="small">
+                <Descriptions.Item label="模型能力">
+                  {egressCapability.displayName}
+                </Descriptions.Item>
+                <Descriptions.Item label="能力代码">
+                  <Text code>{egressCapability.capabilityCode}</Text>
+                </Descriptions.Item>
+              </Descriptions>
+              <Form.Item
+                name="allowedFields"
+                label="外调允许字段"
+                rules={[{ required: true, type: "array", min: 1, message: "请至少保留一个字段" }]}
+              >
+                <Select
+                  mode="tags"
+                  tokenSeparators={[","]}
+                  options={[{ value: "prompt", label: "prompt" }]}
+                  placeholder="输入字段后回车"
+                />
+              </Form.Item>
+              <Form.Item name="operator" label="字段处理" rules={[{ required: true }]}>
+                <Select options={egressOperatorOptions} />
+              </Form.Item>
+              <Form.Item name="sensitivityLevel" label="敏感级别" rules={[{ required: true }]}>
+                <Select options={sensitivityLevelOptions} />
+              </Form.Item>
+              <Form.Item
+                name="confirmationThresholdLevel"
+                label="责任确认阈值"
+                rules={[{ required: true }]}
+              >
+                <Select options={sensitivityLevelOptions} />
+              </Form.Item>
+              <Alert
+                type="info"
+                showIcon
+                message={`当前字段处理：${egressOperatorView[selectedEgressOperator ?? "MASK_ALL"]}`}
+              />
+            </Form>
+          ) : null}
+        </Modal>
       </div>
     </PageShell>
   );

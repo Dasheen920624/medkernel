@@ -177,6 +177,30 @@ class ModelEgressGuardTest {
     }
 
     @Test
+    void noneOperatorStillMasksCoreSensitiveTextBeforePublicEgress() {
+        policy("[\"prompt\",\"ageYears\",\"idLast4\"]", "LOW",
+            "{\"prompt\":\"NONE\",\"ageYears\":\"NONE\",\"idLast4\":\"NONE\"}", "HIGH");
+
+        ModelEgressGuard.EgressPreparation prep = guard.prepareEgress(
+            "tenant-1", "knowledge.extract",
+            "{\"prompt\":\"患者：张三，身份证号110101199001011234，手机号13988888888，"
+                + "住址：北京市东城区测试路 1 号，请结合病情生成解释。\","
+                + "\"ageYears\":72,\"idLast4\":\"1234\"}",
+            "task-none-public", "openai-compatible");
+
+        assertThat(prep.payload())
+            .contains("\"ageYears\":72")
+            .contains("\"idLast4\":null")
+            .contains("110101********1234")
+            .contains("139****8888")
+            .contains("住址：[已屏蔽]")
+            .doesNotContain("张三")
+            .doesNotContain("110101199001011234")
+            .doesNotContain("13988888888")
+            .doesNotContain("北京市东城区测试路");
+    }
+
+    @Test
     void configuredNullifyRuleClearsWhitelistedField() {
         policy("[\"clinicalText\"]", "LOW", "{\"clinicalText\":\"NULLIFY\"}", "HIGH");
 

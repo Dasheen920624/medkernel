@@ -17,7 +17,7 @@ type RuntimeRecord = RuntimeCollectors & {
 test.describe.configure({ mode: "serial" });
 
 test.describe("全前台真实操作演练", () => {
-  test("平台接入、知识资产与临床随访数据均由前台页面提交产生", async ({
+  test("平台接入、知识资产、外调策略、患者资源与临床随访数据均由前台页面提交产生", async ({
     page,
   }, testInfo) => {
     test.setTimeout(420_000);
@@ -29,6 +29,8 @@ test.describe("全前台真实操作演练", () => {
       await page.setViewportSize({ width: 1440, height: 960 });
       await createAdapterFromUi(page, testInfo, runtime, records, suffix);
       await createValueSetFromUi(page, testInfo, runtime, records, suffix);
+      await configureModelEgressPolicyFromUi(page, testInfo, runtime, records);
+      await createMpiPatientFromUi(page, testInfo, runtime, records);
       await createFollowupTemplateFromUi(page, testInfo, runtime, records, suffix);
     } finally {
       await attachRuntimeRecords(testInfo, records);
@@ -112,6 +114,81 @@ async function createValueSetFromUi(
   recordCleanRuntime(page, "前台创建知识值集草稿", runtime, records);
 }
 
+async function configureModelEgressPolicyFromUi(
+  page: Page,
+  testInfo: TestInfo,
+  runtime: RuntimeCollectors,
+  records: RuntimeRecord[],
+) {
+  await ensureReadySession(page, "engine-operator");
+  clearRuntime(runtime);
+  await page.goto("/advanced/ai-workflows", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "AI 工作流" })).toBeVisible();
+  await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
+  await expectNoRootOverflow(page, "模型能力外调安全策略桌面");
+
+  const policyButton = page.getByRole("button", { name: /配置 .+ 外调安全策略/ }).first();
+  await expect(policyButton).toBeEnabled();
+  await policyButton.click();
+  const dialog = page.getByRole("dialog", { name: "配置外调安全策略" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("公网外部模型可使用患者上下文")).toBeVisible();
+
+  const responsePromise = waitForPut(page, "/api/v1/data-minimization/policies/model-egress/");
+  await dialog.getByRole("button", { name: "保存外调安全策略" }).click();
+  const response = await responsePromise;
+  expect(response.ok(), "前台提交模型外调安全策略应返回成功").toBe(true);
+  const result = (await response.json()) as {
+    data?: { allowedFields?: string; sensitivityLevel?: string; guardrailLockedFlag?: string };
+  };
+  expect(result.data?.allowedFields).toContain("prompt");
+  expect(result.data?.sensitivityLevel).toBe("HIGH");
+  expect(result.data?.guardrailLockedFlag).toBe("Y");
+  await expect(dialog).toBeHidden({ timeout: 20_000 });
+  await captureEvidence(page, testInfo, "real-frontdesk-model-egress-policy");
+  recordCleanRuntime(page, "前台配置模型外调安全策略", runtime, records);
+}
+
+async function createMpiPatientFromUi(
+  page: Page,
+  testInfo: TestInfo,
+  runtime: RuntimeCollectors,
+  records: RuntimeRecord[],
+) {
+  await ensureReadySession(page, "clinical-user");
+  clearRuntime(runtime);
+  await page.goto("/mpi", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "患者主索引 MPI" })).toBeVisible();
+  await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
+  await expectNoRootOverflow(page, "患者主索引桌面");
+
+  await expect(page.getByRole("button", { name: "新增患者" })).toBeEnabled();
+  await page.getByRole("button", { name: "新增患者" }).click();
+  const dialog = page.getByRole("dialog", { name: /新增患者主索引/ });
+  await expect(dialog).toBeVisible();
+  const maskedName = "赵*君";
+  const idLast4 = String(Date.now()).slice(-4);
+  await dialog.getByLabel("脱敏姓名").fill(maskedName);
+  await dialog.getByLabel("性别").click();
+  await page.getByRole("option", { name: "女 (F)" }).click();
+  await dialog.getByRole("spinbutton", { name: "年龄" }).fill("67");
+  await dialog.getByLabel("身份证后四位").fill(idLast4);
+
+  const responsePromise = waitForPost(page, "/api/v1/engine/mpi/patients");
+  await dialog.getByRole("button", { name: "保存患者" }).click();
+  const response = await responsePromise;
+  expect(response.ok(), "前台提交脱敏患者主索引应返回成功").toBe(true);
+  const result = (await response.json()) as {
+    data?: { mpiId?: string; maskedName?: string; idLast4?: string };
+  };
+  expect(result.data?.mpiId).toBeTruthy();
+  expect(result.data?.maskedName).toBe(maskedName);
+  expect(result.data?.idLast4).toBe(idLast4);
+  await expect(dialog).toBeHidden({ timeout: 20_000 });
+  await captureEvidence(page, testInfo, "real-frontdesk-mpi-patient");
+  recordCleanRuntime(page, "前台创建脱敏患者主索引", runtime, records);
+}
+
 async function createFollowupTemplateFromUi(
   page: Page,
   testInfo: TestInfo,
@@ -159,6 +236,13 @@ async function createFollowupTemplateFromUi(
 function waitForPost(page: Page, path: string) {
   return page.waitForResponse(
     (response) => response.request().method() === "POST" && response.url().includes(path),
+    { timeout: 30_000 },
+  );
+}
+
+function waitForPut(page: Page, path: string) {
+  return page.waitForResponse(
+    (response) => response.request().method() === "PUT" && response.url().includes(path),
     { timeout: 30_000 },
   );
 }

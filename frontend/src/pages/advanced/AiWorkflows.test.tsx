@@ -161,6 +161,67 @@ describe("AiWorkflows", () => {
     expect(requests).toEqual(["get /security/me", "get /model-capabilities/status"]);
   });
 
+  it("允许具备权限的实施人员为公网模型使用患者上下文配置外调安全策略", async () => {
+    const user = userEvent.setup();
+    const requests: string[] = [];
+    apiClient.defaults.adapter = (async (config) => {
+      requests.push(`${config.method ?? "get"} ${config.url ?? ""}`);
+      if (config.url === "/security/me") {
+        return response(
+          config,
+          securityProfile(["menu.ai-workflows", "llm.read", "llm.egress.manage"]),
+        );
+      }
+      if (config.url === "/model-capabilities/status" && config.method === "get") {
+        return response(config, {
+          data: [
+            {
+              ...statusItems[0],
+              capabilityCode: "clinical.explanation",
+              displayName: "患者解释生成",
+              routeStrategy: "EXTERNAL_MODEL",
+              fallbackOrder: ["EXTERNAL_MODEL", "LOCAL_MODEL", "BASELINE"],
+              desensitizeStrategy: "DEFAULT",
+            },
+          ],
+        });
+      }
+      if (
+        config.url === "/data-minimization/policies/model-egress/clinical.explanation" &&
+        config.method === "put"
+      ) {
+        expect(JSON.parse(config.data as string)).toEqual({
+          allowedFields: ["prompt"],
+          sensitivityLevel: "HIGH",
+          desensitizationRules: { prompt: "MASK_ALL" },
+          confirmationThresholdLevel: "HIGH",
+        });
+        return response(config, {
+          data: {
+            capabilityCode: "clinical.explanation",
+            allowedFields: "[\"prompt\"]",
+            sensitivityLevel: "HIGH",
+          },
+        });
+      }
+      throw new Error(`未预期接口: ${config.method ?? ""} ${config.url ?? ""}`);
+    }) as AxiosAdapter;
+
+    renderPage();
+
+    expect(await screen.findByText("患者解释生成")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "配置 患者解释生成 外调安全策略" }));
+    const dialog = await screen.findByRole("dialog", { name: "配置外调安全策略" });
+    expect(dialog).toHaveTextContent("公网外部模型可使用患者上下文");
+    await user.click(screen.getByRole("button", { name: "保存外调安全策略" }));
+
+    await waitFor(() =>
+      expect(requests).toContain(
+        "put /data-minimization/policies/model-egress/clinical.explanation",
+      ),
+    );
+  });
+
   it("部分能力不可用时显示诚实的部分成功状态", async () => {
     apiClient.defaults.adapter = (async (config) => {
       if (config.url === "/security/me") {
