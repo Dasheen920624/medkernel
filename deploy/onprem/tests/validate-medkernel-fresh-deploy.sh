@@ -86,6 +86,7 @@ grep -q -- '--external-base-url' "$SCRIPT"
 grep -q -- '--confirm-prune-backups' "$SCRIPT"
 grep -q -- '--service-unit' "$SCRIPT"
 grep -q -- '--deploy-script' "$SCRIPT"
+grep -q -- '--nginx-conf' "$SCRIPT"
 grep -q 'platform-knowledge/t-1/literature-materials' "$SCRIPT"
 grep -q 'pg_dump.*--format=custom' "$SCRIPT"
 grep -q 'sha256sum.*SHA256SUMS' "$SCRIPT"
@@ -123,6 +124,14 @@ grep -q 'openssl s_client' "$SCRIPT"
 grep -q 'openssl x509.*-checkend' "$SCRIPT"
 grep -q 'openssl x509.*-checkhost\|openssl x509.*-checkip' "$SCRIPT"
 grep -q 'subjectAltName' "$SCRIPT"
+grep -q 'STAGED_NGINX_CONF=' "$SCRIPT"
+grep -q 'install -m 644 "\$STAGED_NGINX_CONF" "\$NGINX_CONF_PATH"' "$SCRIPT"
+grep -q 'nginx -t' "$SCRIPT"
+grep -q 'candidate_nginx_conf_sha256' "$SCRIPT"
+grep -q 'running_nginx_conf_sha256' "$SCRIPT"
+grep -q 'embed-launch-headers.txt' "$SCRIPT"
+grep -q 'frame-ancestors' "$SCRIPT"
+grep -q 'X-Frame-Options' "$SCRIPT"
 if grep -Eq 'curl.*([[:space:]]--insecure|[[:space:]]-[[:alpha:]]*k[[:alpha:]]*)' "$SCRIPT"; then
   printf 'fresh deployment may not bypass TLS validation\n' >&2
   exit 1
@@ -162,6 +171,7 @@ if MEDKERNEL_APP_HOME="$TMP_ROOT/app" \
     --frontend "$TMP_ROOT/missing-dist.tar.gz" \
     --service-unit "$TMP_ROOT/missing.service" \
     --deploy-script "$TMP_ROOT/missing-deploy.sh" \
+    --nginx-conf "$TMP_ROOT/missing.nginx.conf" \
     --source 1603b5a7575dc1b5c6b110ee7bef908ca3d2ce17 \
     --expected-flyway-version 1 \
     --expected-business-tables 207 \

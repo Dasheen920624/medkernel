@@ -69,6 +69,7 @@ sudo bash deploy/onprem/medkernel-fresh-deploy.sh \
   --frontend /path/to/dist.tar.gz \
   --service-unit /path/to/medkernel.service \
   --deploy-script /path/to/medkernel-deploy.sh \
+  --nginx-conf /path/to/medkernel.nginx.conf \
   --source <40位本地提交哈希> \
   --expected-host <134目标机hostname> \
   --external-base-url https://<正式域名>/medkernel \
@@ -111,8 +112,10 @@ sudo bash deploy/onprem/medkernel-fresh-deploy.sh \
 - 13 类版本化资产的 V1、代表性 V2、机构同源覆盖、机构新增和停用墓碑；
 - 正常、高风险、证据不足、依赖断裂、模型不可用和外部系统断连用例。
 
-知识与结构资产生成只能引用允许使用的公开权威来源。大模型输出必须保存提供方、模型版本、
-提示版本、输入摘要、输出摘要、引用、时延、校验结果和 AI 标识，不得伪造。
+知识与结构资产生成必须引用允许使用的权威来源；公网部署可以在授权用途内让外部模型使用患者
+上下文，但进入外部模型前必须完成最小化、核心敏感字段屏蔽、责任确认和审计。院内本地模型可在
+授权范围内使用必要敏感信息，仍须保存处理边界。大模型输出必须保存提供方、模型版本、提示版本、
+输入摘要、输出摘要、引用、时延、校验结果和 AI 标识，不得伪造。
 
 ## 5. 八段全系统演练
 

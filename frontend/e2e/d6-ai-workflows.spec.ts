@@ -29,7 +29,7 @@ test.describe("D6 AI 工作流真实验收", () => {
     await expect(page.getByText("B0")).toHaveCount(0);
     await expect(page.getByText("BASELINE", { exact: true })).toHaveCount(0);
     await expect(page.getByText("基线可用")).toHaveCount(0);
-    await expect(page.getByText("使用系统默认", { exact: true })).toBeVisible();
+    await expect(page.getByText("系统无模型规则链路", { exact: true })).toBeVisible();
     await expectNoRootOverflow(page);
     await page.evaluate(() => window.scrollTo(0, 0));
 

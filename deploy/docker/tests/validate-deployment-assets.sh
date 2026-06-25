@@ -106,6 +106,9 @@ if grep -q 'X-Frame-Options' <<<"$ONPREM_EMBED_BLOCK"; then
   echo "院内部署嵌入启动页不得返回 X-Frame-Options" >&2
   exit 1
 fi
+grep -Fq 'v3/api-docs' "$ROOT/deploy/onprem/templates/medkernel.nginx.conf"
+grep -Fq 'swagger-ui' "$ROOT/deploy/onprem/templates/medkernel.nginx.conf"
+grep -Fq 'actuator/(?!health)' "$ROOT/deploy/onprem/templates/medkernel.nginx.conf"
 grep -q 'pg_dump' "$ROOT/deploy/docker/scripts/backup.sh"
 grep -q 'checksum_file' "$ROOT/deploy/docker/scripts/backup.sh"
 grep -q '.sha256' "$ROOT/deploy/docker/scripts/backup.sh"

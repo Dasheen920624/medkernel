@@ -61,7 +61,7 @@
 2. 同时快照数据库、`conf/`、systemd 单元、Nginx 配置、后端 JAR、前端 `dist`、manifest、运行目录与发布脚本；
 3. 备份完成后立即生成 `SHA256SUMS` 并执行 `sha256sum -c`，摘要失败时不得停服或清库；
 4. 隔离恢复数据库备份通过后，才允许修改 systemd、执行 `dropdb` 或切换交付文件；
-5. 从开始修改 systemd 起注册强制恢复事务。`ERR`、`INT`、`TERM`，以及清库后、发布中、候选 readiness 任一点失败，都必须恢复发布前数据库、配置、systemd 和前后端交付文件；
+5. 从开始修改 systemd 与 Nginx 候选配置起注册强制恢复事务。`ERR`、`INT`、`TERM`，以及清库后、发布中、候选 readiness 任一点失败，都必须恢复发布前数据库、配置、Nginx、systemd 和前后端交付文件；
 6. 恢复完成的判定不是“文件已复制”，而是旧 JAR 摘要一致，内部 readiness 与严格 TLS 外部 readiness 均返回 200；
 7. 只有候选版本全部验证通过后才能解除恢复事务。备份与恢复证据保留在本次 `fresh-preclear-*` 目录。
 

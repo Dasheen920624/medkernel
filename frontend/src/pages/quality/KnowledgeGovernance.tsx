@@ -70,6 +70,7 @@ import {
   type CandidateProvenanceView,
   type KnowledgeProductionCandidateView,
   type KnowledgeProductionJob,
+  type KnowledgeProductionReadinessItem,
   type KnowledgeInitializationBatch,
   type KnowledgeShadowRun,
   type KnowledgeAssetVersion,
@@ -106,6 +107,7 @@ import { PageState } from "@/shared/ui/PageState";
 import { SourceInfo } from "@/shared/ui/SourceInfo";
 
 import AcquisitionSourceGovernancePanel from "./AcquisitionSourceGovernancePanel";
+import styles from "./Quality.module.css";
 
 const { Text, Title } = Typography;
 
@@ -206,6 +208,11 @@ const PRODUCTION_JOB_STATUS_LABELS: Record<string, string> = {
 function producerLabel(producer?: string) {
   if (!producer) return "未知来源";
   return PRODUCER_LABELS[producer] ?? producer;
+}
+
+function tableText(value?: string | number | null, fallback = "无") {
+  const text = value === undefined || value === null || value === "" ? fallback : String(value);
+  return <span className={styles.wrapCell}>{text}</span>;
 }
 
 function pipelineMeta(pipeline?: string | null) {
@@ -1260,13 +1267,35 @@ export default function KnowledgeGovernance({
     },
   ];
 
+  const productionReadinessColumns: ColumnsType<KnowledgeProductionReadinessItem> = [
+    { title: "前置项", dataIndex: "code", width: 180, render: (value) => tableText(value) },
+    {
+      title: "状态",
+      dataIndex: "ready",
+      width: 96,
+      render: (ready: boolean) => (
+        <Tag color={ready ? "success" : "error"}>{ready ? "满足" : "阻断"}</Tag>
+      ),
+    },
+    { title: "说明", dataIndex: "message", width: 360, render: (value) => tableText(value) },
+    {
+      title: "证据",
+      dataIndex: "evidence",
+      width: 360,
+      render: (value?: string | null) => tableText(value, "无"),
+    },
+  ];
+
   const productionJobColumns: ColumnsType<KnowledgeProductionJob> = [
     {
       title: "生产任务",
       key: "job",
+      width: 260,
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{record.jobCode}</Text>
+          <Text strong className={styles.wrapCell}>
+            {record.jobCode}
+          </Text>
           <Text type="secondary">{producerLabel(record.producer)}</Text>
         </Space>
       ),
@@ -1274,6 +1303,7 @@ export default function KnowledgeGovernance({
     {
       title: "管道 / 状态",
       key: "status",
+      width: 220,
       render: (_, record) => {
         const meta = pipelineMeta(record.targetPipeline);
         return (
@@ -1292,6 +1322,7 @@ export default function KnowledgeGovernance({
     {
       title: "领域 / 候选",
       key: "domain",
+      width: 180,
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text>{knowledgeDomainLabel(record.domain)}</Text>
@@ -1302,11 +1333,13 @@ export default function KnowledgeGovernance({
     {
       title: "模型策略",
       dataIndex: "modelStrategy",
-      render: (value?: string | null) => value || "未配置",
+      width: 180,
+      render: (value?: string | null) => tableText(value, "未配置"),
     },
     {
       title: "操作",
       key: "action",
+      width: 140,
       render: (_, record) => (
         <Button
           type={record.jobCode === selectedProductionJobCode ? "primary" : "default"}
@@ -1322,21 +1355,30 @@ export default function KnowledgeGovernance({
     {
       title: "候选引用",
       dataIndex: "candidateRef",
-      render: (value: string) => <Text strong>{value}</Text>,
+      width: 220,
+      render: (value: string) => (
+        <Text strong className={styles.wrapCell}>
+          {value}
+        </Text>
+      ),
     },
     {
       title: "资产身份 / hash",
       key: "identity",
+      width: 280,
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text>{record.assetIdentity || "未返回身份"}</Text>
-          <Text type="secondary">{record.contentHash || "未返回 hash"}</Text>
+          <Text className={styles.wrapCell}>{record.assetIdentity || "未返回身份"}</Text>
+          <Text type="secondary" className={styles.wrapCell}>
+            {record.contentHash || "未返回 hash"}
+          </Text>
         </Space>
       ),
     },
     {
       title: "风险 / 审核",
       key: "routing",
+      width: 220,
       render: (_, record) => (
         <Space direction="vertical" size={2}>
           <Tag color={RISK_COLORS[record.riskLevel ?? ""] ?? "default"}>
@@ -1352,10 +1394,13 @@ export default function KnowledgeGovernance({
     {
       title: "生产安全校验",
       dataIndex: "gateCode",
+      width: 220,
+      render: (value?: string | null) => tableText(value, "未返回门禁"),
     },
     {
       title: "结果",
       dataIndex: "passed",
+      width: 96,
       render: (passed: boolean) => (
         <Tag color={passed ? "success" : "error"}>{booleanGateLabel(passed)}</Tag>
       ),
@@ -1363,7 +1408,8 @@ export default function KnowledgeGovernance({
     {
       title: "原因",
       dataIndex: "reason",
-      render: (value?: string | null) => value || "无",
+      width: 420,
+      render: (value?: string | null) => tableText(value, "无"),
     },
   ];
 
@@ -1371,6 +1417,7 @@ export default function KnowledgeGovernance({
     {
       title: "8 态",
       dataIndex: "triageState",
+      width: 220,
       render: (value: string) => (
         <Space size={4} wrap>
           <Tag
@@ -1388,11 +1435,14 @@ export default function KnowledgeGovernance({
     {
       title: "动作",
       dataIndex: "action",
+      width: 180,
+      render: (value?: string | null) => tableText(value, "未返回动作"),
     },
     {
       title: "依据",
       dataIndex: "basis",
-      render: (value?: string | null) => value || "未返回依据",
+      width: 420,
+      render: (value?: string | null) => tableText(value, "未返回依据"),
     },
   ];
 
@@ -1400,11 +1450,13 @@ export default function KnowledgeGovernance({
     {
       title: "状态",
       dataIndex: "status",
+      width: 140,
       render: (value: string) => <Tag color={productionStatusColor(value)}>{value}</Tag>,
     },
     {
       title: "样本",
       key: "cases",
+      width: 280,
       render: (_, record) => (
         <Text>
           {record.totalCases} 例 / 命中 {record.hitCount} / 误报 {record.falsePositiveCount} / 漏报{" "}
@@ -1415,12 +1467,15 @@ export default function KnowledgeGovernance({
     {
       title: "裁决",
       key: "ready",
+      width: 360,
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Tag color={record.readyForReview ? "success" : "error"}>
             {record.readyForReview ? "可提审" : "不可提审"}
           </Tag>
-          <Text type="secondary">{record.basis || "未返回依据"}</Text>
+          <Text type="secondary" className={styles.wrapCell}>
+            {record.basis || "未返回依据"}
+          </Text>
         </Space>
       ),
     },
@@ -1825,20 +1880,24 @@ export default function KnowledgeGovernance({
       );
     } else {
       productionCandidateLineageContent = (
-        <Table
-          rowKey="candidateRef"
-          columns={productionCandidateColumns}
-          dataSource={productionCandidates}
-          rowSelection={{
-            type: "radio",
-            selectedRowKeys: selectedProductionCandidate
-              ? [selectedProductionCandidate.candidateRef]
-              : [],
-            onChange: (keys) => setProductionCandidateRef(String(keys[0])),
-          }}
-          pagination={false}
-          size="small"
-        />
+        <div className={styles.tableViewport} data-testid="production-candidate-lineage-table">
+          <Table
+            rowKey="candidateRef"
+            columns={productionCandidateColumns}
+            dataSource={productionCandidates}
+            rowSelection={{
+              type: "radio",
+              selectedRowKeys: selectedProductionCandidate
+                ? [selectedProductionCandidate.candidateRef]
+                : [],
+              onChange: (keys) => setProductionCandidateRef(String(keys[0])),
+            }}
+            pagination={false}
+            scroll={{ x: 760 }}
+            size="small"
+            tableLayout="fixed"
+          />
+        </div>
       );
     }
     productionCenterContent = (
@@ -1858,28 +1917,17 @@ export default function KnowledgeGovernance({
                   : "上线准备未通过时不得调用外部模型或伪造候选。"
               }
             />
-            <Table
-              rowKey="code"
-              columns={[
-                { title: "前置项", dataIndex: "code" },
-                {
-                  title: "状态",
-                  dataIndex: "ready",
-                  render: (ready: boolean) => (
-                    <Tag color={ready ? "success" : "error"}>{ready ? "满足" : "阻断"}</Tag>
-                  ),
-                },
-                { title: "说明", dataIndex: "message" },
-                {
-                  title: "证据",
-                  dataIndex: "evidence",
-                  render: (value?: string | null) => value || "无",
-                },
-              ]}
-              dataSource={readiness?.items ?? []}
-              pagination={false}
-              size="small"
-            />
+            <div className={styles.tableViewport} data-testid="production-readiness-table">
+              <Table
+                rowKey="code"
+                columns={productionReadinessColumns}
+                dataSource={readiness?.items ?? []}
+                pagination={false}
+                scroll={{ x: 996 }}
+                size="small"
+                tableLayout="fixed"
+              />
+            </div>
           </Space>
         </Card>
 
@@ -1937,13 +1985,17 @@ export default function KnowledgeGovernance({
                 }
               />
             ) : null}
-            <Table
-              rowKey="jobCode"
-              columns={productionJobColumns}
-              dataSource={productionJobs}
-              pagination={false}
-              size="middle"
-            />
+            <div className={styles.tableViewport} data-testid="production-jobs-table">
+              <Table
+                rowKey="jobCode"
+                columns={productionJobColumns}
+                dataSource={productionJobs}
+                pagination={false}
+                scroll={{ x: 880 }}
+                size="middle"
+                tableLayout="fixed"
+              />
+            </div>
           </Space>
         </Card>
 
@@ -1968,14 +2020,18 @@ export default function KnowledgeGovernance({
           </Col>
           <Col xs={24} xl={12}>
             <Card title="生产安全校验结果">
-              <Table
-                rowKey={(record) => `${record.gateCode}-${record.contentHash ?? ""}`}
-                columns={productionGateColumns}
-                dataSource={productionGateResults}
-                loading={productionGateResultsQuery.isLoading}
-                pagination={false}
-                size="small"
-              />
+              <div className={styles.tableViewport} data-testid="production-gate-results-table">
+                <Table
+                  rowKey={(record) => `${record.gateCode}-${record.contentHash ?? ""}`}
+                  columns={productionGateColumns}
+                  dataSource={productionGateResults}
+                  loading={productionGateResultsQuery.isLoading}
+                  pagination={false}
+                  scroll={{ x: 736 }}
+                  size="small"
+                  tableLayout="fixed"
+                />
+              </div>
             </Card>
           </Col>
           <Col xs={24} xl={12}>
@@ -1990,27 +2046,35 @@ export default function KnowledgeGovernance({
                     </Space>
                   ))}
                 </Space>
-                <Table
-                  rowKey={(record) => `${record.triageState}-${record.contentHash ?? ""}`}
-                  columns={productionTriageColumns}
-                  dataSource={productionTriageResults}
-                  loading={productionTriageResultsQuery.isLoading}
-                  pagination={false}
-                  size="small"
-                />
+                <div className={styles.tableViewport} data-testid="production-triage-results-table">
+                  <Table
+                    rowKey={(record) => `${record.triageState}-${record.contentHash ?? ""}`}
+                    columns={productionTriageColumns}
+                    dataSource={productionTriageResults}
+                    loading={productionTriageResultsQuery.isLoading}
+                    pagination={false}
+                    scroll={{ x: 820 }}
+                    size="small"
+                    tableLayout="fixed"
+                  />
+                </div>
               </Space>
             </Card>
           </Col>
           <Col xs={24} xl={12}>
             <Card title="影子评测">
-              <Table
-                rowKey={(record) => `${record.status}-${record.contentHash ?? ""}`}
-                columns={productionShadowColumns}
-                dataSource={productionShadowRuns}
-                loading={productionShadowRunsQuery.isLoading}
-                pagination={false}
-                size="small"
-              />
+              <div className={styles.tableViewport} data-testid="production-shadow-runs-table">
+                <Table
+                  rowKey={(record) => `${record.status}-${record.contentHash ?? ""}`}
+                  columns={productionShadowColumns}
+                  dataSource={productionShadowRuns}
+                  loading={productionShadowRunsQuery.isLoading}
+                  pagination={false}
+                  scroll={{ x: 780 }}
+                  size="small"
+                  tableLayout="fixed"
+                />
+              </div>
             </Card>
           </Col>
         </Row>

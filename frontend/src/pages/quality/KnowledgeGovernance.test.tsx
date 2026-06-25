@@ -998,6 +998,12 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("CONFLICT")).toBeInTheDocument();
     expect(screen.getByText("影子评测")).toBeInTheDocument();
     expect(screen.getByText("误报率超过阈值")).toBeInTheDocument();
+    expect(screen.getByTestId("production-readiness-table")).toBeInTheDocument();
+    expect(screen.getByTestId("production-jobs-table")).toBeInTheDocument();
+    expect(screen.getByTestId("production-candidate-lineage-table")).toBeInTheDocument();
+    expect(screen.getByTestId("production-gate-results-table")).toBeInTheDocument();
+    expect(screen.getByTestId("production-triage-results-table")).toBeInTheDocument();
+    expect(screen.getByTestId("production-shadow-runs-table")).toBeInTheDocument();
     expect(screen.getByText("共存替换提醒")).toBeInTheDocument();
     expect(screen.getByText("候选不可执行")).toBeInTheDocument();
     expect(screen.getAllByText("审核通过后将触发 SYS-08 原子替换").length).toBeGreaterThan(0);

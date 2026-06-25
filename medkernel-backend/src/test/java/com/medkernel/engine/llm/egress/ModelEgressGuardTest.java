@@ -117,6 +117,30 @@ class ModelEgressGuardTest {
     }
 
     @Test
+    void publicInternetPromptMasksCorePatientSensitiveInformationBeforeExternalModelUse() {
+        policy("[\"prompt\"]", "LOW", "{\"prompt\":\"MASK_ALL\"}", "HIGH");
+
+        ModelEgressGuard.EgressPreparation prep = guard.prepareEgress(
+            "tenant-1", "knowledge.extract",
+            "{\"prompt\":\"患者：张三，身份证号110101199001011234，手机号13988888888，"
+                + "邮箱zhangsan@example.com，住址：北京市东城区测试路 1 号，病历号MR-20260625001。"
+                + "请生成仅供医生确认的解释。\"}",
+            "task-public-patient", "openai-compatible");
+
+        assertThat(prep.payload())
+            .doesNotContain("张三")
+            .doesNotContain("110101199001011234")
+            .doesNotContain("13988888888")
+            .doesNotContain("zhangsan@example.com")
+            .doesNotContain("北京市东城区测试路")
+            .doesNotContain("MR-20260625001")
+            .contains("139****8888")
+            .contains("110101********1234")
+            .contains("住址：[已屏蔽]");
+        assertThat(prep.egressFields()).containsExactly("prompt");
+    }
+
+    @Test
     void defaultMaskAllRecursivelyProtectsStructuredPayload() {
         whitelist("[\"clinicalContext\"]", "LOW");
 
