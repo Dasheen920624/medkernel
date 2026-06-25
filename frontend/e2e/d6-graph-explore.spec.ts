@@ -110,7 +110,6 @@ async function seedActiveKnowledge(page: Page) {
     tenant_id: "t-1",
     user_id: "engine-operator",
     role_codes: ["engine-operator"],
-    package_version: "2026.06",
     identity: {
       identitySlug: `e2e-graph-${suffix}`,
       subject: "图谱真实链路验收知识",

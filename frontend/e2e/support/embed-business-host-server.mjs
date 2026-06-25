@@ -1,10 +1,11 @@
 import { createServer } from "node:http";
 
+import { resolveEmbedAppBase, resolveEmbedOrigin } from "./embedBaseUrl.mjs";
+
 const host = "127.0.0.1";
 const port = 4174;
-const embedOrigin = new URL(
-  process.env.E2E_BASE_URL?.trim() || "http://localhost:5173",
-).origin;
+const embedAppBase = resolveEmbedAppBase(process.env.E2E_BASE_URL);
+const embedOrigin = resolveEmbedOrigin(embedAppBase);
 
 const html = `<!doctype html>
 <html lang="zh-CN">
@@ -43,7 +44,7 @@ const html = `<!doctype html>
         <iframe
           id="medkernel-frame"
           title="MedKernel 临床建议"
-          src="${embedOrigin}/embed/launch?token=host-e2e-token"
+          src="${embedAppBase}/embed/launch?token=host-e2e-token"
           sandbox="allow-forms allow-same-origin allow-scripts"
         ></iframe>
       </section>

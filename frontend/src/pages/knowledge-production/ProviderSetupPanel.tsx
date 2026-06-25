@@ -33,6 +33,8 @@ import {
 } from "@/shared/config/modelProduction";
 import { PageState } from "@/shared/ui/PageState";
 
+import styles from "./ProviderSetupPanel.module.css";
+
 const { Text } = Typography;
 const PROVIDER_PAGE_SIZE = 20;
 
@@ -219,8 +221,9 @@ export default function ProviderSetupPanel() {
     {
       title: "模型服务",
       key: "provider",
+      width: 220,
       render: (_: unknown, provider: ModelProviderGovernanceView) => (
-        <Space direction="vertical" size={0}>
+        <Space direction="vertical" size={0} className={styles.providerCell}>
           <Text strong>{provider.providerCode}</Text>
           <Text type="secondary">{provider.modelVersion}</Text>
         </Space>
@@ -229,6 +232,7 @@ export default function ProviderSetupPanel() {
     {
       title: "密钥",
       key: "credential",
+      width: 240,
       render: (_: unknown, provider: ModelProviderGovernanceView) => (
         <Space direction="vertical" size={0}>
           {credentialLabel(provider)}
@@ -244,6 +248,7 @@ export default function ProviderSetupPanel() {
     {
       title: "连接状态",
       key: "status",
+      width: 180,
       render: (_: unknown, provider: ModelProviderGovernanceView) => {
         const meta = STATUS_META[provider.status] ?? {
           label: provider.status,
@@ -262,9 +267,10 @@ export default function ProviderSetupPanel() {
     {
       title: "操作",
       key: "actions",
+      width: 340,
       render: (_: unknown, provider: ModelProviderGovernanceView) =>
         canManage ? (
-          <Space wrap>
+          <div className={styles.actionGroup}>
             <Button onClick={() => openEditProviderModal(provider)}>编辑配置</Button>
             <Button onClick={() => setCredentialProvider(provider)}>
               {provider.credentialConfigured ? "轮换密钥" : "配置密钥"}
@@ -299,7 +305,7 @@ export default function ProviderSetupPanel() {
                 移除密钥
               </Button>
             ) : null}
-          </Space>
+          </div>
         ) : (
           <Text type="secondary">由医疗引擎运营员处理</Text>
         ),
@@ -335,19 +341,22 @@ export default function ProviderSetupPanel() {
     );
   } else {
     content = (
-      <Table<ModelProviderGovernanceView>
-        rowKey="providerCode"
-        columns={columns}
-        dataSource={providers.data.items}
-        pagination={{
-          current: providerPage,
-          pageSize: providers.data.size,
-          total: providers.data.total,
-          showSizeChanger: false,
-          onChange: setProviderPage,
-        }}
-        scroll={{ x: 920 }}
-      />
+      <div className={styles.tablePanel} data-testid="model-provider-table-panel">
+        <Table<ModelProviderGovernanceView>
+          rowKey="providerCode"
+          columns={columns}
+          dataSource={providers.data.items}
+          pagination={{
+            current: providerPage,
+            pageSize: providers.data.size,
+            total: providers.data.total,
+            showSizeChanger: false,
+            onChange: setProviderPage,
+          }}
+          scroll={{ x: 980 }}
+          tableLayout="fixed"
+        />
+      </div>
     );
   }
 

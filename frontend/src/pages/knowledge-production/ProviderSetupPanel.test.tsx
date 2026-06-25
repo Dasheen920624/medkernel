@@ -159,6 +159,16 @@ describe("ProviderSetupPanel", () => {
     expect(useModelProviders).toHaveBeenLastCalledWith({ page: 2, size: 20 }, true);
   });
 
+  it("keeps the wide provider table inside an internal scroll panel", () => {
+    render(
+      <ConfigProvider>
+        <ProviderSetupPanel />
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByTestId("model-provider-table-panel")).toBeInTheDocument();
+  });
+
   it("uses a non-autofilled password input and clears it after rotation", async () => {
     const user = userEvent.setup();
     render(

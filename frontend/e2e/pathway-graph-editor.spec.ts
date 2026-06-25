@@ -56,10 +56,10 @@ test.describe("线2路径图编辑器真实验收", () => {
 
     await firstNode.press("Escape");
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "同步到 DSL" }).click();
+    await dialog.getByRole("button", { name: "同步到技术配置" }).click();
     await enableExpertMode(dialog);
-    await dialog.getByRole("tab", { name: "L3 DSL" }).click();
-    const dslValue = await dialog.getByLabel("路径 DSL JSON").inputValue();
+    await dialog.getByRole("tab", { name: "L3 技术配置" }).click();
+    const dslValue = await dialog.getByLabel("路径配置文本").inputValue();
     const dsl = JSON.parse(dslValue) as {
       nodes: Array<{ config?: { authoringLayout?: { x: number; y: number } } }>;
     };
@@ -133,11 +133,11 @@ async function openNodeCanvas(dialog: ReturnType<Page["getByRole"]>) {
 }
 
 async function enableExpertMode(dialog: ReturnType<Page["getByRole"]>) {
-  const expertSwitch = dialog.getByRole("switch", { name: "专家模式" });
+  const expertSwitch = dialog.getByRole("switch", { name: "L3 技术配置模式" });
   if ((await expertSwitch.getAttribute("aria-checked")) !== "true") {
     await expertSwitch.click();
   }
-  await expect(dialog.getByRole("tab", { name: "L3 DSL" })).toBeVisible();
+  await expect(dialog.getByRole("tab", { name: "L3 技术配置" })).toBeVisible();
 }
 
 async function expectNoRootOverflow(page: Page) {

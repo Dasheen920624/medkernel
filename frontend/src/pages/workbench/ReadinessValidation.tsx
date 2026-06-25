@@ -73,14 +73,16 @@ export default function ReadinessValidation() {
   const [activeStatuses, setActiveStatuses] = useState<ReadinessStatus[]>(STATUS_FILTERS);
   const security = useSecurityProfile();
   const profile = security.data;
+  const permissionCodes = new Set(profile?.permissions?.map((permission) => permission.code) ?? []);
   const canQueryRuntime = Boolean(profile && canAccessRoute(READINESS_ROUTE, profile));
+  const canQueryKnowledgeReadiness = canQueryRuntime && permissionCodes.has("knowledge.read");
   const runtime = useRuntimeOperations(canQueryRuntime);
   const knowledgeReadiness = useKnowledgeProductionReadiness(
     {
       producer: "API_MODEL",
       capabilityCode: "rule.draft",
     },
-    canQueryRuntime,
+    canQueryKnowledgeReadiness,
   );
   const retryButton = canQueryRuntime ? (
     <Button
@@ -89,7 +91,9 @@ export default function ReadinessValidation() {
       icon={<ReloadOutlined />}
       onClick={() => {
         void runtime.refetch();
-        void knowledgeReadiness.refetch();
+        if (canQueryKnowledgeReadiness) {
+          void knowledgeReadiness.refetch();
+        }
       }}
     >
       重新自检
@@ -138,7 +142,7 @@ export default function ReadinessValidation() {
     );
   }
 
-  if (runtime.isLoading || knowledgeReadiness.isLoading) {
+  if (runtime.isLoading || (canQueryKnowledgeReadiness && knowledgeReadiness.isLoading)) {
     return (
       <PageShell
         title="验收自检"
@@ -171,8 +175,15 @@ export default function ReadinessValidation() {
   }
 
   const snapshot = runtime.data;
-  const items = snapshot ? buildSelfCheckItems(snapshot, knowledgeReadiness.data?.items ?? []) : [];
-  if (knowledgeReadiness.isError) {
+  const items = snapshot
+    ? buildSelfCheckItems(
+        snapshot,
+        canQueryKnowledgeReadiness ? (knowledgeReadiness.data?.items ?? []) : [],
+      )
+    : [];
+  if (!canQueryKnowledgeReadiness) {
+    items.push(buildKnowledgeReadinessUnauthorizedItem());
+  } else if (knowledgeReadiness.isError) {
     items.push(buildKnowledgeReadinessUnavailableItem(knowledgeReadiness.error));
   }
   const filteredItems = items.filter((item) => activeStatuses.includes(item.status));
@@ -350,6 +361,19 @@ function buildKnowledgeReadinessUnavailableItem(error: unknown): SelfCheckItem {
     status: "blocked",
     reason: parsed.traceId ? `${parsed.message}（追踪号：${parsed.traceId}）` : parsed.message,
     repairPath: "/security/baseline",
+    partial: true,
+  };
+}
+
+function buildKnowledgeReadinessUnauthorizedItem(): SelfCheckItem {
+  return {
+    key: "knowledge-readiness-unauthorized",
+    item: "知识生产上线准备",
+    source: "知识生产上线准备",
+    status: "blocked",
+    reason:
+      "当前角色缺少知识生产读取权限，未采集模型知识生产 readiness；请由医疗引擎运营员或具备 knowledge.read 的角色核查。",
+    repairPath: "/knowledge/production",
     partial: true,
   };
 }

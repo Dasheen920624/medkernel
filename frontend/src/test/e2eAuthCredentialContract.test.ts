@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
+import type * as AuthSupport from "../../e2e/support/auth.ts";
+
 const envSnapshot = {
   E2E_API_BASE_URL: process.env.E2E_API_BASE_URL,
   E2E_ROLE_CREDENTIALS_FILE: process.env.E2E_ROLE_CREDENTIALS_FILE,
@@ -43,11 +45,7 @@ describe("E2E credential contract", () => {
     process.env.E2E_API_BASE_URL = "https://127.0.0.1/medkernel/api/v1";
     process.env.E2E_ROLE_CREDENTIALS_FILE = credentialsPath;
 
-    const auth = (await import("../../e2e/support/auth.ts")) as typeof import(
-      "../../e2e/support/auth.ts"
-    ) & {
-      resolveFrontendApiBase: (baseUrl: string) => string;
-    };
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
 
     expect(auth.roleAccounts).toEqual([
       "platform-admin",

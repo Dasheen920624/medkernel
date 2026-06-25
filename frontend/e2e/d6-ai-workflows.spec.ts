@@ -13,8 +13,9 @@ test.describe("D6 AI 工作流真实验收", () => {
     await page.goto("/advanced/ai-workflows");
     await expect(page.getByRole("heading", { name: "AI 工作流" })).toBeVisible();
     await expect(page.getByText("临床知识关联发现")).toBeVisible();
+    await expect(page.getByText("正式医学知识生产")).toBeVisible();
     await expect(page.getByText("智能随访", { exact: true })).toBeVisible();
-    await expect(page.locator("tbody tr.ant-table-row")).toHaveCount(8);
+    await expect(page.locator("tbody tr.ant-table-row")).toHaveCount(9);
     await expect(page.getByText("B0 基线").last()).toBeVisible();
     await expect(page.getByText("未配置专属策略，使用系统 B0 基线").first()).toBeVisible();
     await expect(

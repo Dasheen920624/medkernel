@@ -50,7 +50,7 @@ function renderPage() {
   );
 }
 
-function profile(roleCode = "platform-admin"): SecurityProfile {
+function profile(roleCode = "platform-admin", extraPermissions: string[] = []): SecurityProfile {
   return {
     userId: `${roleCode}-1`,
     username: roleCode,
@@ -78,6 +78,13 @@ function profile(roleCode = "platform-admin"): SecurityProfile {
         displayName: "查看验收自检",
         risk: "LOW",
       },
+      ...extraPermissions.map((code) => ({
+        code,
+        dimension: "ACTION" as const,
+        target: code,
+        displayName: code,
+        risk: "LOW" as const,
+      })),
     ],
     menuKeys: ["workbench"],
     environmentKeys: ["production"],
@@ -256,9 +263,9 @@ const knowledgeReadiness = {
   ],
 };
 
-function setLoadedState(roleCode = "platform-admin") {
+function setLoadedState(roleCode = "platform-admin", extraPermissions: string[] = []) {
   hookState.security = {
-    data: profile(roleCode),
+    data: profile(roleCode, extraPermissions),
     isLoading: false,
     isError: false,
   };
@@ -289,7 +296,7 @@ describe("ReadinessValidation", () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "验收自检" })).toBeInTheDocument();
-    expect(screen.getByText("3 通过 / 10 阻塞 / 2 未启用")).toBeInTheDocument();
+    expect(screen.getByText("2 通过 / 4 阻塞 / 2 未启用")).toBeInTheDocument();
     expect(screen.getByText("存在阻塞项，验收前需处理")).toBeInTheDocument();
     expect(screen.getByTestId("readiness-validation-tabs")).toBeInTheDocument();
     expect(screen.getAllByTestId(/^readiness-validation-filter-/)).toHaveLength(3);
@@ -302,6 +309,21 @@ describe("ReadinessValidation", () => {
     renderPage();
 
     expect(screen.queryByText("当前权限不足")).not.toBeInTheDocument();
+    expect(screen.getByText("2 通过 / 4 阻塞 / 2 未启用")).toBeInTheDocument();
+    expect(hookState.runtimeEnabledCalls.at(-1)).toBe(true);
+    expect(hookState.knowledgeReadinessEnabledCalls.at(-1)).toBe(false);
+    const unauthorizedRow = screen.getByTestId(
+      "readiness-validation-item-knowledge-readiness-unauthorized",
+    );
+    expect(within(unauthorizedRow).getAllByText("知识生产上线准备")).toHaveLength(2);
+    expect(within(unauthorizedRow).getByText(/缺少知识生产读取权限/)).toBeInTheDocument();
+  });
+
+  it("queries production readiness only for roles with knowledge read permission", () => {
+    setLoadedState("engine-operator", ["knowledge.read"]);
+
+    renderPage();
+
     expect(screen.getByText("3 通过 / 10 阻塞 / 2 未启用")).toBeInTheDocument();
     expect(hookState.runtimeEnabledCalls.at(-1)).toBe(true);
     expect(hookState.knowledgeReadinessEnabledCalls.at(-1)).toBe(true);
@@ -323,6 +345,7 @@ describe("ReadinessValidation", () => {
   });
 
   it("shows all eight production readiness gates with real configuration destinations", () => {
+    setLoadedState("engine-operator", ["knowledge.read"]);
     renderPage();
 
     const literatureRoot = screen.getByTestId(
