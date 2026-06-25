@@ -169,16 +169,23 @@ async function createMpiPatientFromUi(
   const maskedName = "赵*君";
   const idLast4 = String(Date.now()).slice(-4);
   await dialog.getByLabel("脱敏姓名").fill(maskedName);
-  await dialog.getByRole("combobox", { name: "性别" }).click();
-  await page.getByRole("option", { name: "女 (F)" }).click();
+  const genderCombobox = dialog.getByRole("combobox", { name: "性别" });
+  await genderCombobox.click();
+  await genderCombobox.press("ArrowDown");
+  await genderCombobox.press("ArrowDown");
+  await genderCombobox.press("Enter");
   await dialog.getByRole("spinbutton", { name: "年龄" }).fill("67");
   await dialog.getByLabel("身份证后四位").fill(idLast4);
 
   const responsePromise = waitForPost(page, "/api/v1/engine/mpi/patients");
   await dialog.getByRole("button", { name: "保存患者" }).click();
   const response = await responsePromise;
-  expect(response.ok(), "前台提交脱敏患者主索引应返回成功").toBe(true);
-  const result = (await response.json()) as {
+  const responseBody = await response.text();
+  expect(
+    response.ok(),
+    `前台提交脱敏患者主索引应返回成功 status=${response.status()} body=${responseBody}`,
+  ).toBe(true);
+  const result = JSON.parse(responseBody) as {
     data?: { mpiId?: string; maskedName?: string; idLast4?: string };
   };
   expect(result.data?.mpiId).toBeTruthy();

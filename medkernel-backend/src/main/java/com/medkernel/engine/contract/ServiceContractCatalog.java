@@ -439,7 +439,7 @@ public final class ServiceContractCatalog {
                 audit(AuditAction.EXPORT, "mk_engine_data_export_job", "提交与下载引擎数据异步导出（D2 去标识聚合 CSV，SYS-06 审批闸控 + 小样本抑制）"))),
         contract("mpi", "患者主索引服务",
             "com.medkernel.engine.mpi.MpiController", "/api/v1/engine/mpi",
-            permissions("mpi.read", "mpi.write"),
+            permissions("mpi.read", "mpi.create", "mpi.write"),
             audits(
                 audit(AuditAction.CREATE, "mpi_patient", "创建患者主索引"),
                 audit(AuditAction.UPDATE, "mpi_patient", "合并患者主索引"),

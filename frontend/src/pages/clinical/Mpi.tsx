@@ -36,10 +36,12 @@ import {
   useMpiPatients,
   useMpiStats,
   useMergeMpiPatients,
+  useSecurityProfile,
   useSplitMpiPatient,
   type MpiPatientCreatePayload,
   type MpiPatient,
   type MpiPatientDetailResponse,
+  type SecurityProfile,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
 import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
@@ -47,6 +49,10 @@ import styles from "./Mpi.module.css";
 
 const { Option } = Select;
 const { Text } = Typography;
+
+function hasPermission(profile: SecurityProfile | undefined, code: string) {
+  return profile?.permissions.some((permission) => permission.code === code) ?? false;
+}
 
 function snapshotEncounterId(
   snapshot:
@@ -124,6 +130,9 @@ export default function Mpi() {
   const [status, setStatus] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(20);
+  const security = useSecurityProfile();
+  const canCreatePatient = hasPermission(security.data, "mpi.create");
+  const canManageMpiIdentity = hasPermission(security.data, "mpi.write");
 
   // 查询参数缓存，以便在点击查询时才触发真正的 API 过滤
   const [filterKeyword, setFilterKeyword] = useState("");
@@ -414,7 +423,7 @@ export default function Mpi() {
             <Button size="small" icon={<UserOutlined />} onClick={() => showDetailDrawer(record)}>
               患者360
             </Button>
-            {record.status === "ACTIVE" ? (
+            {canManageMpiIdentity && record.status === "ACTIVE" ? (
               <Button
                 size="small"
                 icon={<MergeCellsOutlined />}
@@ -422,7 +431,8 @@ export default function Mpi() {
               >
                 合并患者
               </Button>
-            ) : (
+            ) : null}
+            {canManageMpiIdentity && record.status !== "ACTIVE" ? (
               <Tooltip title="需要人工核查理由，拆分后源主索引恢复为活跃">
                 <Button
                   size="small"
@@ -432,12 +442,12 @@ export default function Mpi() {
                   拆分归并
                 </Button>
               </Tooltip>
-            )}
+            ) : null}
           </Space>
         ),
       },
     ],
-    [showDetailDrawer, showMergeModal, showSplitModal],
+    [canManageMpiIdentity, showDetailDrawer, showMergeModal, showSplitModal],
   );
 
   let detailDrawerContent = <Alert message="暂无患者 360 详情" type="info" showIcon />;
@@ -466,9 +476,11 @@ export default function Mpi() {
       title="患者主索引 MPI"
       description="跨系统归一患者身份，保留合并审核证据。"
       primary={
-        <Button type="primary" icon={<UserAddOutlined />} onClick={showCreateModal}>
-          新增患者
-        </Button>
+        canCreatePatient ? (
+          <Button type="primary" icon={<UserAddOutlined />} onClick={showCreateModal}>
+            新增患者
+          </Button>
+        ) : undefined
       }
     >
       <div className={styles.container}>
@@ -564,9 +576,15 @@ export default function Mpi() {
               <Button icon={<ReloadOutlined />} onClick={handleReset}>
                 重置
               </Button>
-              <Button type="dashed" icon={<MergeCellsOutlined />} onClick={() => showMergeModal()}>
-                快速合并
-              </Button>
+              {canManageMpiIdentity ? (
+                <Button
+                  type="dashed"
+                  icon={<MergeCellsOutlined />}
+                  onClick={() => showMergeModal()}
+                >
+                  快速合并
+                </Button>
+              ) : null}
             </Space>
           </div>
         </div>

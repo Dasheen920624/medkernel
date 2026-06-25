@@ -9,6 +9,7 @@ import {
   useMpiPatientDetail,
   useMpiPatients,
   useMpiStats,
+  useSecurityProfile,
   useSplitMpiPatient,
 } from "@/shared/api/hooks";
 
@@ -20,6 +21,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useMpiPatientDetail: vi.fn(),
   useMpiPatients: vi.fn(),
   useMpiStats: vi.fn(),
+  useSecurityProfile: vi.fn(),
   useSplitMpiPatient: vi.fn(),
 }));
 
@@ -28,6 +30,7 @@ const mockUseMergeMpiPatients = vi.mocked(useMergeMpiPatients);
 const mockUseMpiPatientDetail = vi.mocked(useMpiPatientDetail);
 const mockUseMpiPatients = vi.mocked(useMpiPatients);
 const mockUseMpiStats = vi.mocked(useMpiStats);
+const mockUseSecurityProfile = vi.mocked(useSecurityProfile);
 const mockUseSplitMpiPatient = vi.mocked(useSplitMpiPatient);
 
 const MPI_INTERACTION_TIMEOUT_MS = 15_000;
@@ -42,6 +45,24 @@ function renderMpi() {
   );
 }
 
+function securityProfile(permissionCodes = ["mpi.read", "mpi.create", "mpi.write"]) {
+  return {
+    data: {
+      permissions: permissionCodes.map((code) => ({
+        code,
+        dimension: "ACTION",
+        target: "mpi",
+        displayName: code,
+        risk: code === "mpi.write" ? "HIGH" : "MEDIUM",
+      })),
+      roles: [{ code: "clinical-user", displayName: "临床使用者", source: "TEST" }],
+      menuKeys: ["mpi"],
+      environmentKeys: ["production"],
+      dataScope: { tenantId: "tenant-A" },
+    },
+  } as unknown as ReturnType<typeof useSecurityProfile>;
+}
+
 describe("Mpi", () => {
   const refetchList = vi.fn();
   const refetchStats = vi.fn();
@@ -51,6 +72,7 @@ describe("Mpi", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSecurityProfile.mockReturnValue(securityProfile());
     mockUseMpiPatients.mockReturnValue({
       data: {
         items: [
@@ -302,6 +324,17 @@ describe("Mpi", () => {
     },
     MPI_INTERACTION_TIMEOUT_MS,
   );
+
+  it("hides create and high-risk merge actions without matching MPI action permissions", () => {
+    mockUseSecurityProfile.mockReturnValue(securityProfile(["mpi.read"]));
+
+    renderMpi();
+
+    expect(screen.queryByRole("button", { name: /新增患者/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /快速合并/ })).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("button", { name: /合并患者/ })).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: /拆分归并/ })).toHaveLength(0);
+  });
 
   it(
     "splits a merged MPI row with an explicit review reason",

@@ -175,6 +175,7 @@ class DefaultPermissionPolicyTest {
             .contains(
                 PermissionCode.RECOMMENDATION_ACCEPT,
                 PermissionCode.PATHWAY_EXECUTE,
+                PermissionCode.MPI_CREATE,
                 PermissionCode.FOLLOWUP_WRITE,
                 PermissionCode.WORKFLOW_WRITE,
                 PermissionCode.SANDBOX_RUN)
@@ -185,6 +186,7 @@ class DefaultPermissionPolicyTest {
                 PermissionCode.RULE_PUBLISH,
                 PermissionCode.PATHWAY_WRITE,
                 PermissionCode.PATHWAY_PUBLISH,
+                PermissionCode.MPI_WRITE,
                 PermissionCode.SANDBOX_MANAGE,
                 PermissionCode.SYSTEM_MANAGE);
     }

@@ -150,6 +150,28 @@ class MpiControllerContractTest {
     }
 
     @Test
+    void clinicalUserCanCreateDesensitizedMpiPatientButCannotMergePatients() throws Exception {
+        when(service.createPatient(any(MpiPatientCreateRequest.class))).thenReturn(
+            new MpiPatient(1L, "mpi-clinical-new", "tenant-A", "赵*君", "F", 67, "9876", 0, "ACTIVE",
+                null, Instant.now(), "clinical-user", Instant.now(), "clinical-user")
+        );
+
+        mvc.perform(post("/api/v1/engine/mpi/patients")
+                .with(clinicalJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"maskedName\":\"赵*君\",\"gender\":\"F\",\"age\":67,\"idLast4\":\"9876\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.mpiId").value("mpi-clinical-new"))
+            .andExpect(jsonPath("$.data.maskedName").value("赵*君"));
+
+        mvc.perform(post("/api/v1/engine/mpi/patients:merge")
+                .with(clinicalJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sourceMpiId\":\"mpi-source\",\"targetMpiId\":\"mpi-target\"}"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
     void legacyClinicalMpiAndSlashMergeRoutesAreNotMounted() throws Exception {
         mvc.perform(get("/api/v1/clinical/mpi/stats").with(readJwt()))
             .andExpect(status().isNotFound());
@@ -174,6 +196,14 @@ class MpiControllerContractTest {
                 .claim("tenant_id", "tenant-A")
                 .claim("roles", List.of("platform-admin")))
             .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
+    }
+
+    private static RequestPostProcessor clinicalJwt() {
+        return jwt().jwt(token -> token
+                .subject("clinical-user")
+                .claim("tenant_id", "tenant-A")
+                .claim("roles", List.of("clinical-user")))
+            .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"));
     }
 
     private static RequestPostProcessor writeJwt() {
