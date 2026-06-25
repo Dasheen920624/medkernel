@@ -6,6 +6,7 @@ import {
   Descriptions,
   Empty,
   Form,
+  Input,
   Modal,
   Result,
   Select,
@@ -19,6 +20,7 @@ import type { TableProps } from "antd";
 import { ReloadOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 
 import {
+  useConfirmModelEgress,
   useModelCapabilitiesStatus,
   useSaveModelEgressPolicy,
   useSecurityProfile,
@@ -300,6 +302,7 @@ export default function AiWorkflows() {
   const canManageEgress = permissionCodes.has("llm.egress.manage");
   const statusQuery = useModelCapabilitiesStatus(canRead);
   const saveEgressPolicy = useSaveModelEgressPolicy();
+  const confirmModelEgress = useConfirmModelEgress();
   const [egressForm] = Form.useForm<EgressPolicyForm>();
   const selectedEgressOperator = Form.useWatch("operator", egressForm) as
     | ModelEgressDesensitizationOperator
@@ -308,6 +311,8 @@ export default function AiWorkflows() {
   const [egressCapability, setEgressCapability] = useState<ModelCapabilityStatusResponse | null>(
     null,
   );
+  const [confirmationPayloadHash, setConfirmationPayloadHash] = useState("");
+  const [confirmationPurpose, setConfirmationPurpose] = useState("");
   const capabilities = useMemo(() => statusQuery.data ?? [], [statusQuery.data]);
   const egressPreviewRows = useMemo(
     () => buildEgressPreviewRows(selectedAllowedFields ?? ["prompt"], selectedEgressOperator),
@@ -332,12 +337,21 @@ export default function AiWorkflows() {
 
   function openEgressPolicy(item: ModelCapabilityStatusResponse) {
     setEgressCapability(item);
+    setConfirmationPayloadHash("");
+    setConfirmationPurpose("");
     egressForm.setFieldsValue({
       allowedFields: ["prompt"],
       operator: "MASK_ALL",
       sensitivityLevel: "HIGH",
       confirmationThresholdLevel: "HIGH",
     });
+  }
+
+  function closeEgressPolicy() {
+    setEgressCapability(null);
+    setConfirmationPayloadHash("");
+    setConfirmationPurpose("");
+    egressForm.resetFields();
   }
 
   async function saveCurrentEgressPolicy() {
@@ -359,10 +373,31 @@ export default function AiWorkflows() {
         },
       });
       message.success("外调安全策略已保存");
-      setEgressCapability(null);
-      egressForm.resetFields();
+      closeEgressPolicy();
     } catch (error: unknown) {
       message.error(getApiErrorMessage(error, "外调安全策略保存失败"));
+    }
+  }
+
+  async function confirmCurrentModelEgressPurpose() {
+    if (!egressCapability) return;
+    const payloadHash = confirmationPayloadHash.trim();
+    const purpose = confirmationPurpose.trim();
+    if (!payloadHash || !purpose) {
+      message.warning("请填写脱敏载荷摘要和用途说明");
+      return;
+    }
+    try {
+      await confirmModelEgress.mutateAsync({
+        capabilityCode: egressCapability.capabilityCode,
+        payloadHash,
+        purpose,
+      });
+      message.success("外调用途确认已记录");
+      setConfirmationPayloadHash("");
+      setConfirmationPurpose("");
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, "外调用途确认失败"));
     }
   }
 
@@ -600,7 +635,7 @@ export default function AiWorkflows() {
           okButtonProps={{ "aria-label": "保存外调安全策略" }}
           confirmLoading={saveEgressPolicy.isPending}
           onOk={() => void saveCurrentEgressPolicy()}
-          onCancel={() => setEgressCapability(null)}
+          onCancel={closeEgressPolicy}
           destroyOnClose
         >
           {egressCapability ? (
@@ -673,6 +708,40 @@ export default function AiWorkflows() {
                   pagination={false}
                   scroll={{ x: 640 }}
                 />
+              </div>
+              <div className={styles.egressConfirmationPanel}>
+                <div className={styles.egressPreviewHeader}>
+                  <Text strong>本次外调用途确认</Text>
+                  <Text type="secondary">
+                    高敏患者上下文出域前，记录脱敏载荷摘要和业务用途；确认记录进入审计链，不能替代医生确认或自动形成医嘱。
+                  </Text>
+                </div>
+                <Form.Item label="脱敏载荷摘要">
+                  <Input
+                    aria-label="脱敏载荷摘要"
+                    value={confirmationPayloadHash}
+                    onChange={(event) => setConfirmationPayloadHash(event.target.value)}
+                    placeholder="例如 sha256:payload-001"
+                  />
+                </Form.Item>
+                <Form.Item label="用途说明">
+                  <Input.TextArea
+                    aria-label="用途说明"
+                    value={confirmationPurpose}
+                    onChange={(event) => setConfirmationPurpose(event.target.value)}
+                    placeholder="说明本次外调用途和最小必要患者上下文"
+                    rows={3}
+                    maxLength={512}
+                    showCount
+                  />
+                </Form.Item>
+                <Button
+                  htmlType="button"
+                  loading={confirmModelEgress.isPending}
+                  onClick={() => void confirmCurrentModelEgressPurpose()}
+                >
+                  记录用途确认
+                </Button>
               </div>
             </Form>
           ) : null}

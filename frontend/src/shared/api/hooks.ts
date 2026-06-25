@@ -8126,6 +8126,26 @@ export interface ModelEgressPolicy {
   updatedBy?: string | null;
 }
 
+export interface ModelEgressConfirmationRequest {
+  capabilityCode: string;
+  payloadHash: string;
+  purpose: string;
+}
+
+export interface ModelEgressConfirmation {
+  id?: number | null;
+  tenantId?: string | null;
+  capabilityCode: string;
+  payloadHash: string;
+  purpose: string;
+  confirmedBy?: string | null;
+  confirmedAt?: string | null;
+  createdAt?: string | null;
+  createdBy?: string | null;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
 export interface ModelCapabilityDefinition {
   capabilityCode: string;
   displayName: string;
@@ -8304,6 +8324,19 @@ export function useSaveModelEgressPolicy() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["model", "capabilities-status"] });
+    },
+  });
+}
+
+// 16. 记录模型外调用途确认：绑定能力、脱敏载荷摘要和本次授权用途，供审计追溯
+export function useConfirmModelEgress() {
+  return useMutation({
+    mutationFn: async (payload: ModelEgressConfirmationRequest) => {
+      const { data } = await apiClient.post<{ data: ModelEgressConfirmation }>(
+        "/data-minimization/policies/model-egress/confirmations",
+        payload,
+      );
+      return data.data;
     },
   });
 }

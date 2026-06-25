@@ -115,6 +115,7 @@ import {
   useSubmitModelTask,
   useValidateModelPolicy,
   useSaveModelPolicy,
+  useConfirmModelEgress,
   useCandidateCoexistence,
   useLargeAuditEvents,
   useLocalTerms,
@@ -497,6 +498,39 @@ describe("model gateway api hooks", () => {
       timeoutMs: 1500,
       rateLimitPerMinute: 20,
     });
+  });
+
+  it("confirms high-sensitivity model egress purpose through the data minimization endpoint", async () => {
+    const payload = {
+      capabilityCode: "clinical.explanation",
+      payloadHash: "sha256:payload-001",
+      purpose: "向患者解释检查结果，仅使用已脱敏字段",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        data: {
+          id: 7,
+          tenantId: "tenant-1",
+          capabilityCode: payload.capabilityCode,
+          payloadHash: payload.payloadHash,
+          purpose: payload.purpose,
+          confirmedBy: "operator-001",
+          confirmedAt: "2026-06-25T19:45:00Z",
+        },
+      },
+    });
+
+    const confirmHook = renderApiHook(() => useConfirmModelEgress());
+
+    await expect(confirmHook.result.current.mutateAsync(payload)).resolves.toMatchObject({
+      capabilityCode: "clinical.explanation",
+      purpose: "向患者解释检查结果，仅使用已脱敏字段",
+      confirmedBy: "operator-001",
+    });
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/data-minimization/policies/model-egress/confirmations",
+      payload,
+    );
   });
 });
 

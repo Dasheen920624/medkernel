@@ -206,6 +206,26 @@ describe("AiWorkflows", () => {
           },
         });
       }
+      if (
+        config.url === "/data-minimization/policies/model-egress/confirmations" &&
+        config.method === "post"
+      ) {
+        expect(JSON.parse(config.data as string)).toEqual({
+          capabilityCode: "clinical.explanation",
+          payloadHash: "sha256:payload-001",
+          purpose: "向患者解释检查结果，仅使用已脱敏字段",
+        });
+        return response(config, {
+          data: {
+            id: 7,
+            capabilityCode: "clinical.explanation",
+            payloadHash: "sha256:payload-001",
+            purpose: "向患者解释检查结果，仅使用已脱敏字段",
+            confirmedBy: "operator-001",
+            confirmedAt: "2026-06-25T19:45:00Z",
+          },
+        });
+      }
       throw new Error(`未预期接口: ${config.method ?? ""} ${config.url ?? ""}`);
     }) as AxiosAdapter;
 
@@ -221,12 +241,22 @@ describe("AiWorkflows", () => {
     expect(within(dialog).getByText("患者姓名")).toBeInTheDocument();
     expect(within(dialog).getAllByText("核心标识默认不出域").length).toBeGreaterThan(0);
     expect(within(dialog).getByText(/高敏用途达到阈值时/)).toBeInTheDocument();
+    expect(within(dialog).getByText("本次外调用途确认")).toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText("脱敏载荷摘要"), "sha256:payload-001");
+    await user.type(
+      within(dialog).getByLabelText("用途说明"),
+      "向患者解释检查结果，仅使用已脱敏字段",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "记录用途确认" }));
     await user.click(screen.getByRole("button", { name: "保存外调安全策略" }));
 
     await waitFor(() =>
       expect(requests).toContain(
         "put /data-minimization/policies/model-egress/clinical.explanation",
       ),
+    );
+    await waitFor(() =>
+      expect(requests).toContain("post /data-minimization/policies/model-egress/confirmations"),
     );
   });
 
