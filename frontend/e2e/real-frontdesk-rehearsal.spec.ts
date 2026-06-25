@@ -169,7 +169,7 @@ async function createMpiPatientFromUi(
   const maskedName = "赵*君";
   const idLast4 = String(Date.now()).slice(-4);
   await dialog.getByLabel("脱敏姓名").fill(maskedName);
-  await dialog.getByLabel("性别").click();
+  await dialog.getByRole("combobox", { name: "性别" }).click();
   await page.getByRole("option", { name: "女 (F)" }).click();
   await dialog.getByRole("spinbutton", { name: "年龄" }).fill("67");
   await dialog.getByLabel("身份证后四位").fill(idLast4);

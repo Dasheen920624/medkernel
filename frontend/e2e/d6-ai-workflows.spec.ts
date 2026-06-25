@@ -19,8 +19,9 @@ test.describe("D6 AI 工作流真实验收", () => {
     await expect(page.getByText("基础规则能力").first()).toBeVisible();
     await expect(page.getByText("规则链路可用").first()).toBeVisible();
     await expect(page.getByText("未配置专属策略，使用系统无模型规则链路").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /配置 .+ 外调安全策略/ })).toHaveCount(9);
     await expect(
-      page.getByRole("button", { name: /提交|运行|重试|配置|编辑|新增|保存/ }),
+      page.getByRole("button", { name: /提交|运行|重试|编辑|新增|保存/ }),
     ).toHaveCount(0);
 
     await page.getByRole("button", { name: "展开行" }).first().click();
