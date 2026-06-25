@@ -149,11 +149,17 @@ public class MpiService {
 
         if (genderCounts != null) {
             for (MpiPatientRepository.GenderCount gc : genderCounts) {
-                String gender = gc.getGender();
+                String gender = gc.gender();
+                long count = gc.cnt() == null ? 0L : gc.cnt();
                 if (gender == null || gender.isBlank()) {
-                    genderMap.put("UNKNOWN", genderMap.getOrDefault("UNKNOWN", 0L) + gc.getCnt());
+                    genderMap.put("UNKNOWN", genderMap.getOrDefault("UNKNOWN", 0L) + count);
                 } else {
-                    genderMap.put(gender.toUpperCase(), gc.getCnt());
+                    String normalized = gender.toUpperCase();
+                    if ("M".equals(normalized) || "F".equals(normalized)) {
+                        genderMap.put(normalized, count);
+                    } else {
+                        genderMap.put("UNKNOWN", genderMap.getOrDefault("UNKNOWN", 0L) + count);
+                    }
                 }
             }
         }

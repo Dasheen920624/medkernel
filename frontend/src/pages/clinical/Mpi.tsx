@@ -495,7 +495,7 @@ export default function Mpi() {
               {statsLoading ? "..." : (stats?.activeCount ?? 0)}
             </div>
             <div className={styles.statSubtext}>
-              当前服务空间内仍作为主记录使用的患者数；在径路径实例{" "}
+              当前服务空间内仍作为主记录使用的患者数；活跃路径实例{" "}
               {statsLoading ? "..." : (stats?.activePathwayCount ?? 0)} 个
             </div>
           </div>

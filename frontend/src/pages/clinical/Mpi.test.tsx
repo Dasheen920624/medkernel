@@ -297,7 +297,7 @@ describe("Mpi", () => {
       expect(screen.getAllByText("mpi-real-1").length).toBeGreaterThan(0);
       expect(screen.getByText("张*三")).toBeInTheDocument();
       expect(screen.getByText("mpi-merged-1")).toBeInTheDocument();
-      expect(screen.getByText(/在径路径实例 2 个/)).toBeInTheDocument();
+      expect(screen.getByText(/活跃路径实例 2 个/)).toBeInTheDocument();
 
       await user.click(screen.getByRole("button", { name: /新增患者/ }));
       expect(screen.queryByText("患者主索引 ID")).not.toBeInTheDocument();

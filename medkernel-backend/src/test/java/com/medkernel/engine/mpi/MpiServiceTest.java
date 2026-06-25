@@ -169,13 +169,8 @@ class MpiServiceTest {
         when(repository.averageAge(TENANT_ID)).thenReturn(42.5);
         when(patientPathways.countActiveByTenantId(TENANT_ID)).thenReturn(3L);
 
-        MpiPatientRepository.GenderCount gcMale = mock(MpiPatientRepository.GenderCount.class);
-        when(gcMale.getGender()).thenReturn("M");
-        when(gcMale.getCnt()).thenReturn(6L);
-
-        MpiPatientRepository.GenderCount gcFemale = mock(MpiPatientRepository.GenderCount.class);
-        when(gcFemale.getGender()).thenReturn("F");
-        when(gcFemale.getCnt()).thenReturn(4L);
+        MpiPatientRepository.GenderCount gcMale = new MpiPatientRepository.GenderCount("M", 6L);
+        MpiPatientRepository.GenderCount gcFemale = new MpiPatientRepository.GenderCount("F", 4L);
 
         when(repository.countGender(TENANT_ID)).thenReturn(List.of(gcMale, gcFemale));
 

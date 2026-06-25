@@ -56,11 +56,8 @@ public interface MpiPatientRepository extends ListCrudRepository<MpiPatient, Lon
     @Query("SELECT AVG(age) FROM mpi_patient WHERE tenant_id = :tenantId AND status = 'ACTIVE'")
     Double averageAge(@Param("tenantId") String tenantId);
 
-    @Query("SELECT gender, COUNT(*) as cnt FROM mpi_patient WHERE tenant_id = :tenantId AND status = 'ACTIVE' GROUP BY gender")
+    @Query("SELECT gender, COUNT(*) AS cnt FROM mpi_patient WHERE tenant_id = :tenantId AND status = 'ACTIVE' GROUP BY gender")
     List<GenderCount> countGender(@Param("tenantId") String tenantId);
 
-    interface GenderCount {
-        String getGender();
-        long getCnt();
-    }
+    record GenderCount(String gender, Long cnt) {}
 }
