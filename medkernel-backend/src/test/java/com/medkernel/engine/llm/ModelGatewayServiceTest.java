@@ -1067,7 +1067,7 @@ class ModelGatewayServiceTest {
 
     private static String b0Output(String capabilityCode) {
         return "{\"status\":\"NO_MODEL_PROVIDER\",\"capability\":\"" + capabilityCode
-            + "\",\"candidates\":[],\"message\":\"当前未接入可用模型服务，未生成候选内容\"}";
+            + "\",\"candidates\":[],\"message\":\"当前没有可用模型服务，未生成候选内容\"}";
     }
 
     private static ModelCapabilityTask storedTask(String taskId, String tenantId) {

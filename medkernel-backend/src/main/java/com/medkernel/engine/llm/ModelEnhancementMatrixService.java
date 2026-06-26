@@ -16,12 +16,12 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 全业务模型增强接入矩阵服务（LLM-05）。
+ * 全业务模型赋能覆盖矩阵服务（LLM-05）。
  *
- * <p>维护平台全局「模型网关全局目录」的增强接入图谱：业务点 ↔ 能力码 ↔ B0 路径 ↔ 接入状态。
+ * <p>维护平台全局「模型网关全局目录」的模型赋能覆盖图谱：业务点 ↔ 能力码 ↔ B0 主链 ↔ 配置状态。
  * 落点四原子条目：
  * <ul>
- *   <li>FR-1 矩阵台账：{@link #listMatrix()} 列举全部可增强业务点及接入状态。</li>
+ *   <li>FR-1 矩阵台账：{@link #listMatrix()} 列举全部可赋能业务点及配置状态。</li>
  *   <li>FR-2 B0 前置门禁：业务点上线（{@code ACTIVE}）须先有 B0 路径，否则 {@code ENG-LLM-010}（铁律 #4）。</li>
  *   <li>FR-3 一致接入：声明的能力码须已在模型网关（{@link ModelCapabilityDefinition}）登记并启用，
  *       否则 {@code ENG-LLM-001}——杜绝绕网关直连模型。</li>
@@ -43,7 +43,7 @@ public class ModelEnhancementMatrixService {
         this.auditRecorder = auditRecorder;
     }
 
-    /** FR-1：列举全部可增强业务点矩阵台账。 */
+    /** FR-1：列举全部可赋能业务点矩阵台账。 */
     @Transactional(readOnly = true)
     public List<ModelEnhancementMatrixResponse> listMatrix() {
         requireCurrentTenant();
@@ -52,7 +52,7 @@ public class ModelEnhancementMatrixService {
             .toList();
     }
 
-    /** FR-4：覆盖核查——总数 / 已接入 / 缺口（诚实列出未接入业务点）。 */
+    /** FR-4：覆盖核查——总数 / 已启用 / 缺口（诚实列出待配置业务点）。 */
     @Transactional(readOnly = true)
     public EnhancementCoverageReport coverageReport() {
         requireCurrentTenant();
@@ -66,7 +66,7 @@ public class ModelEnhancementMatrixService {
     }
 
     /**
-     * 登记或更新一个业务点的增强接入。FR-2/FR-3 双门禁：上线须能力码已登记 + B0 路径就绪。
+     * 登记或更新一个业务点的模型赋能覆盖。FR-2/FR-3 双门禁：上线须能力码已登记 + B0 路径就绪。
      */
     @Transactional
     public ModelEnhancementMatrixResponse upsertEntry(String businessPoint,
@@ -109,7 +109,7 @@ public class ModelEnhancementMatrixService {
             now,
             actor));
         auditRecorder.record(AuditAction.UPDATE, "mk_llm_enhancement_matrix", point,
-            "维护模型增强接入矩阵业务点 " + point + " -> " + accessStatus);
+            "维护模型赋能覆盖矩阵业务点 " + point + " -> " + accessStatus);
         return ModelEnhancementMatrixResponse.from(saved);
     }
 

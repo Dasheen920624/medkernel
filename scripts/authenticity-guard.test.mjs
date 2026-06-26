@@ -716,6 +716,35 @@ test("路径模板生产文件禁止回流固定急诊原型", async () => {
   );
 });
 
+test("后端生产契约会阻断运行状态未接入口吻", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/shared/runtime/RuntimeOperationsService.java": `
+        public class RuntimeOperationsService {
+          String graph = "能力开关已开启；真实图谱探活未接入，暂不判定通过";
+        }
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/llm/ModelGatewayService.java": `
+        public class ModelGatewayService {
+          String message = "当前未接入可用模型服务，未生成候选内容";
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/shared/runtime/RuntimeOperationsService.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/llm/ModelGatewayService.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+      ]);
+    },
+  );
+});
+
 test("前端 catch 成功门禁只检查 catch 代码块内部", async () => {
   await withFixture(
     {

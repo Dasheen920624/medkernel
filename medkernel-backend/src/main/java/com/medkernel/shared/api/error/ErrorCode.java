@@ -120,7 +120,7 @@ public enum ErrorCode {
     ENG_LLM_007("ENG-LLM-007", 403, "高敏数据外调未经审批，已阻断", ErrorClass.AUTH, false),
     ENG_LLM_008("ENG-LLM-008", 409, "模型服务与版本未通过医学验证评测，禁止上线", ErrorClass.DATA, false),
     ENG_LLM_009("ENG-LLM-009", 403, "当前部署形态（院内运行）禁止启用外部模型服务", ErrorClass.AUTH, false),
-    ENG_LLM_010("ENG-LLM-010", 409, "增强接入矩阵业务点上线须同时具备已登记能力码与基础规则路径", ErrorClass.DATA, false),
+    ENG_LLM_010("ENG-LLM-010", 409, "模型赋能覆盖业务点上线须同时具备已登记能力码与基础规则路径", ErrorClass.DATA, false),
     ENG_LIST_001("ENG-LIST-001", 400, "非法的列表资源类型或排序字段", ErrorClass.INPUT, false),
     ENG_LIST_002("ENG-LIST-002", 404, "异步导出任务不存在", ErrorClass.DATA, false),
     ENG_LIST_003("ENG-LIST-003", 409, "导出任务尚未完成，无法提供下载", ErrorClass.DATA, false),

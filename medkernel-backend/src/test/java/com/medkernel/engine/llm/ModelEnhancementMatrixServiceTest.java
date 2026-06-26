@@ -21,7 +21,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 全业务模型增强接入矩阵服务单元测试（LLM-05）。
+ * 全业务模型赋能覆盖矩阵服务单元测试（LLM-05）。
  *
  * <p>验证：矩阵台账列举（FR-1）、B0 前置门禁（FR-2，无 B0 不得上线）、统一经网关接入校验
  * （FR-3，能力码须已在网关登记）、覆盖核查缺口诚实标注（FR-4，不虚报覆盖）。

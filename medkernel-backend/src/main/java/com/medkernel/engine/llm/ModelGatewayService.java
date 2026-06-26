@@ -1285,7 +1285,7 @@ public class ModelGatewayService {
         output.put("status", "NO_MODEL_PROVIDER");
         output.put("capability", capabilityCode);
         output.putArray("candidates");
-        output.put("message", "当前未接入可用模型服务，未生成候选内容");
+        output.put("message", "当前没有可用模型服务，未生成候选内容");
         return output.toString();
     }
 }

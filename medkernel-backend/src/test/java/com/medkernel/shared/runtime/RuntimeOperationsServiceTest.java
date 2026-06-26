@@ -15,6 +15,7 @@ import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeBackupReadi
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -96,6 +97,32 @@ class RuntimeOperationsServiceTest {
             .doesNotContain("secret");
     }
 
+    @Test
+    void enabledOptionalDependenciesUseConfiguredButUnverifiedLanguage() {
+        RuntimeProperties properties = new RuntimeProperties();
+        RuntimeOperationsFixture fixture = fixture(properties);
+        when(fixture.configService().runtimeFeatureFlagEnabled(any(), eq("graph-projection"))).thenReturn(true);
+        when(fixture.configService().runtimeFeatureFlagEnabled(any(), eq("search-projection"))).thenReturn(true);
+        when(fixture.configService().runtimeFeatureFlagEnabled(any(), eq("dify-workflow"))).thenReturn(true);
+        when(fixture.configService().runtimeFeatureFlagEnabled(any(), eq("external-provider"))).thenReturn(true);
+
+        RuntimeOperationsSnapshot snapshot = fixture.service().snapshot();
+
+        assertThat(snapshot.dependencies())
+            .filteredOn(item -> List.of(
+                "graph-projection",
+                "search-projection",
+                "dify-workflow",
+                "model-gateway",
+                "external-provider"
+            ).contains(item.key()))
+            .allSatisfy(item -> assertThat(item.detail())
+                .doesNotContain("未接入")
+                .doesNotContain("暂不判定通过"));
+        assertThat(dependencyDetail(snapshot, "graph-projection")).contains("连接健康验证");
+        assertThat(dependencyDetail(snapshot, "model-gateway")).contains("模型能力页");
+    }
+
     private RuntimeOperationsFixture fixture(RuntimeProperties properties) {
         Environment environment = mock(Environment.class);
         HealthEndpoint healthEndpoint = mock(HealthEndpoint.class);
@@ -122,7 +149,7 @@ class RuntimeOperationsServiceTest {
         ));
         when(evidenceReader.read(any())).thenReturn(RuntimeBackupDrillEvidence.notAvailable());
 
-        return new RuntimeOperationsFixture(evidenceReader, new RuntimeOperationsService(
+        return new RuntimeOperationsFixture(evidenceReader, configService, new RuntimeOperationsService(
             environment,
             healthEndpoint,
             new SimpleMeterRegistry(),
@@ -132,8 +159,17 @@ class RuntimeOperationsServiceTest {
         ));
     }
 
+    private String dependencyDetail(RuntimeOperationsSnapshot snapshot, String key) {
+        return snapshot.dependencies().stream()
+            .filter(item -> item.key().equals(key))
+            .findFirst()
+            .orElseThrow()
+            .detail();
+    }
+
     private record RuntimeOperationsFixture(
         RuntimeBackupDrillEvidenceReader evidenceReader,
+        SystemConfigService configService,
         RuntimeOperationsService service
     ) {
     }

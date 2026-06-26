@@ -20,7 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 全业务模型增强接入矩阵控制器权限安全测试（LLM-05，{@code llm.enhancement.manage} 归医疗引擎运营员）。
+ * 全业务模型赋能覆盖矩阵控制器权限安全测试（LLM-05，{@code llm.enhancement.manage} 归医疗引擎运营员）。
  */
 @SpringBootTest
 @AutoConfigureMockMvc

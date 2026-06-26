@@ -7,7 +7,7 @@ import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 全业务模型增强接入矩阵数据访问存储库（LLM-05）。
+ * 全业务模型赋能覆盖矩阵数据访问存储库（LLM-05）。
  */
 @Repository
 public interface ModelEnhancementMatrixRepository extends CrudRepository<ModelEnhancementMatrix, Long> {

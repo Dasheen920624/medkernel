@@ -459,6 +459,14 @@
   `node --test scripts/sandbox/scenario-rules.test.mjs scripts/sandbox/seed-scenarios.test.mjs`、
   `mvn -q -Dtest=SandboxScenarioCatalogTest,SandboxOrchestrationServiceTest,SandboxRuntimeStatusServiceTest,PathwayPublicationStatusSynchronizerTest,ClinicalRuntimeReleaseServiceTest,AuthoringPreviewRunServiceTest test`；
   尚未重新部署 134。
+- 运行保障状态和模型赋能覆盖契约已继续按信息科、实施、院长和医疗引擎运营员视角收束：系统运行依赖明细
+  不再用“探活未接入 / 暂不判定通过”解释开关已开启状态，而是提示连接健康验证未通过或去模型能力、服务对接页
+  完成验证；模型 B0 降级信封不再写“未接入可用模型服务”；全业务模型能力治理中文从“增强接入矩阵 / 待接入”
+  改为“模型赋能覆盖矩阵 / 待配置”。真实性门禁新增运行状态未接入口吻拦截，防止这些上线前表达回流。已验证：
+  `mvn -q -Dtest=RuntimeOperationsServiceTest,ModelGatewayServiceTest test`、
+  `mvn -q -Dtest=ModelEnhancementMatrixServiceTest,ModelEnhancementMatrixControllerSecurityTest,DefaultPermissionPolicyTest,ServiceContractGovernanceTest,RuntimeOperationsServiceTest,ModelGatewayServiceTest test`、
+  `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`；
+  尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -500,7 +508,7 @@
    通知偏好和导出能力实现层旧口径清理、全局客户面服务状态旧口径清理、统一身份登录和身份来源待配置口径清理、
    工作台第一屏多角色数据状态表达清理、全局客户面实现层口径清理、前端测试说明与共享注释旧口径清理、
    数据库 COMMENT 和 schema 旧口径清理、验证用例/验证病例产品口径清理、前后端服务状态与未来接入口径清理、
-   路径原型和沙盘外圈路径通用化清理
+   路径原型和沙盘外圈路径通用化清理、运行保障状态和模型赋能覆盖契约口径清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。
