@@ -875,7 +875,7 @@ async function produceAndPublish(args) {
       body: {
         ...apiContext(args),
         decision: "APPROVE",
-        reason: "低风险上线演练知识：来源、结构、引用、安全门和影响模拟均已核对",
+        reason: "低风险上线演练知识：来源、结构、引用、安全门和影响评估均已核对",
         qualityGateRecordId: qualityRecord.id,
       },
       label: `${entry.domain} 当前责任操作者确认并发布`,

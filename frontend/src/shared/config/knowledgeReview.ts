@@ -17,7 +17,7 @@ export const KNOWLEDGE_QUALITY_GATE_OPTIONS = [
   { label: "术语绑定", value: "terminologyBindingComplete" },
   { label: "依赖完整性", value: "dependencyIntegrityVerified" },
   { label: "安全单调性", value: "safetyMonotonicityVerified" },
-  { label: "影响模拟", value: "impactSimulationPassed" },
+  { label: "影响评估", value: "impactSimulationPassed" },
 ];
 
 export const KNOWLEDGE_TRIAGE_STATE_META: Array<{

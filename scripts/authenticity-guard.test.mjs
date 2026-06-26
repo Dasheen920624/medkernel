@@ -454,6 +454,48 @@ test("领域门面生产契约禁止回流 fixture 验收样本口径", async ()
   );
 });
 
+test("后端生产规则校验禁止继续使用静态校验占位口径", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/rule/RuleEngineService.java": `
+        public class RuleEngineService {
+          void fill(ObjectNode node) {
+            node.put("summary", "临床提示卡引用静态校验占位");
+          }
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/rule/RuleEngineService.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["backend.rule-static-placeholder-language"]);
+    },
+  );
+});
+
+test("上线演练脚本禁止继续使用影响模拟旧口径", async () => {
+  await withFixture(
+    {
+      "scripts/knowledge/full-knowledge-rehearsal-lib.mjs": `
+        export const review = {
+          reason: "低风险上线演练知识：来源、结构、引用、安全门和影响模拟均已核对",
+        };
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "scripts/knowledge/full-knowledge-rehearsal-lib.mjs",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["scripts.impact-simulation-language"]);
+    },
+  );
+});
+
 test("前端生产文件会阻断默认临床病例文本回流", async () => {
   await withFixture(
     {

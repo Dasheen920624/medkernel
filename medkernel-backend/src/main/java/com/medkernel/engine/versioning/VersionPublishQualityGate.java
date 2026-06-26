@@ -40,7 +40,7 @@ public record VersionPublishQualityGate(
             passedItems.add("安全单调性");
         }
         if (impactSimulationPassed) {
-            passedItems.add("影响模拟");
+            passedItems.add("影响评估");
         }
         return String.join("、", passedItems) + "已通过";
     }

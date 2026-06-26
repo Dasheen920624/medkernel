@@ -331,10 +331,10 @@ describe("DiagnosisKnowledgePanel", () => {
     const publishButton = screen.getByRole("button", { name: /通过校验并发布/ });
     expect(publishButton).toBeDisabled();
 
-    for (const gate of ["结构校验", "术语绑定", "依赖完整性", "安全单调性", "影响模拟"]) {
+    for (const gate of ["结构校验", "术语绑定", "依赖完整性", "安全单调性", "影响评估"]) {
       fireEvent.click(screen.getByRole("checkbox", { name: gate }));
     }
-    fillField("校验说明", "结构、术语、依赖、安全和模拟均通过");
+    fillField("校验说明", "结构、术语、依赖、安全和评估均通过");
     expect(publishButton).toBeEnabled();
 
     await user.click(publishButton);
@@ -352,7 +352,7 @@ describe("DiagnosisKnowledgePanel", () => {
             dependencyIntegrityVerified: true,
             safetyMonotonicityVerified: true,
             impactSimulationPassed: true,
-            summary: "结构、术语、依赖、安全和模拟均通过",
+            summary: "结构、术语、依赖、安全和评估均通过",
           },
         },
       });

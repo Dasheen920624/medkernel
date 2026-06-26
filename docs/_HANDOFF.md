@@ -204,6 +204,18 @@
   无结果、`node --test scripts/release/runtime-resilience-rehearsal.test.mjs scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`、
   `mvn -q -Dtest=ModelEvalServiceTest,AiQualityEvalControllerSecurityTest,DomainFacadeApiContractTest,DomainFacadeB0EvidenceServiceTest,DomainFacadeControllerSecurityTest test`、
   `mvn -q -DskipTests package`、`bash scripts/check-comment-zh.sh --mode=full`、`git diff --check`；尚未重新部署 134。
+- 知识发布质量门与规则提示卡引用口径已在本地通过：前台知识审核和诊断知识发布质量门显示“影响评估”，
+  保留既有 API 字段 `impactSimulationPassed`；后端默认质量门摘要和全知识演练发布理由同步为“影响评估”；
+  规则引擎 actionCardRef 静态校验动作不再使用“静态校验占位”表达，改为机构生效版本物化前的引用格式校验。
+  真实性门禁新增“影响模拟”旧口径和规则校验占位口径拦截。已验证：
+  `npm test -- --run src/pages/quality/KnowledgeGovernance.test.tsx src/pages/quality/DiagnosisKnowledgePanel.test.tsx`、
+  `mvn -q -Dtest=VersionPublishQualityGateTest,VersionReleaseServiceTest test`、
+  `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
+  `node --test scripts/knowledge/full-knowledge-rehearsal.test.mjs`、
+  `rg -n "影响模拟|静态校验占位|校验占位|临床提示卡引用静态" frontend/src medkernel-backend/src/main/java medkernel-backend/src/test/java scripts docs --glob '!docs/_HANDOFF.md' --glob '!**/target/**' --glob '!scripts/authenticity-guard.test.mjs' --glob '!scripts/authenticity-guard.mjs'`
+  无结果、`npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、
+  `npm run test:lint-rules`、`npm run build`、`mvn -q -DskipTests package`、
+  `bash scripts/check-comment-zh.sh --mode=full`、`git diff --check`；尚未重新部署 134。
 
 ## 本轮落地内容
 
@@ -312,6 +324,8 @@
   审计和集成说明统一表达为验证，避免医院实施、信息科和外部系统联调时把一次性测试理解成上线能力。
 - 领域门面、运行韧性演练和模型质量评测不再使用 fixture 作为公开契约或生产证据字段，统一表达为
   B0 主链路证据和离线基线评测，避免把正式能力误解为临时样本或测试夹具。
+- 知识发布质量门中文口径从“影响模拟”统一为“影响评估”；全知识演练证据、前台复选项和后端默认摘要同步，
+  规则提示卡引用的静态校验动作不再写“占位”，避免审核员、院长或后续 AI 把校验动作误解为临时数据。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -347,8 +361,8 @@
    诊断信息或变更明细。
 5. 本地临床协同任务、随访协同体验薄片、沙盘场景目录语义清理、退役工具主域文本清理、性能压测契约、
    旧口径门禁、客户面退役说明清理、全局治理语言清理、安全校验口径清理、实施内部口径清理、
-   临床提醒来源空态、Webhook 验证口径清理、领域门面 B0 主链路证据和离线评测 baseline 命名清理
-   还未重新部署 134；
+   临床提醒来源空态、Webhook 验证口径清理、领域门面 B0 主链路证据和离线评测 baseline 命名清理、
+   知识发布质量门影响评估与规则提示卡引用占位口径清理还未重新部署 134；
    下一次清库/发布演练要纳入真实前台操作证据，
    不能把当前本地薄片或本地门禁误记为 134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

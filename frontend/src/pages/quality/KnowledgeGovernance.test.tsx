@@ -1755,7 +1755,7 @@ describe("KnowledgeGovernance", () => {
       fireEvent.change(screen.getByLabelText("审核理由"), {
         target: { value: "已核对来源锚点和现行版差异，允许替换。" },
       });
-      for (const label of ["结构校验", "术语绑定", "依赖完整性", "安全单调性", "影响模拟"]) {
+      for (const label of ["结构校验", "术语绑定", "依赖完整性", "安全单调性", "影响评估"]) {
         fireEvent.click(screen.getByRole("checkbox", { name: label }));
       }
       fireEvent.click(screen.getByRole("button", { name: "通过并发布" }));

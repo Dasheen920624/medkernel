@@ -2338,31 +2338,31 @@ public class RuleEngineService {
                 normalizedThen.add(action.deepCopy());
                 continue;
             }
-            normalizedThen.add(staticActionCardReferencePlaceholder(action));
+            normalizedThen.add(actionCardReferenceForValidation(action));
         }
         normalizedDsl.set("then", normalizedThen);
         return normalizedDsl;
     }
 
-    private ObjectNode staticActionCardReferencePlaceholder(JsonNode action) {
+    private ObjectNode actionCardReferenceForValidation(JsonNode action) {
         JsonNode rawRef = action.get("actionCardRef");
         if (rawRef == null || !rawRef.isTextual() || trimToNull(rawRef.asText()) == null) {
             throw new ApiException(ErrorCode.ENG_RULE_001, "临床提示卡引用 actionCardRef 必须是非空文本");
         }
-        ObjectNode placeholder = json.createObjectNode();
-        placeholder.put("actionCardRef", trimToNull(rawRef.asText()));
-        placeholder.put("actionCode", RuleActionCode.REMIND.name());
-        placeholder.put("atSeverity", RuleRiskLevel.LOW.name());
-        placeholder.put("indicator", "info");
-        placeholder.put("summary", "临床提示卡引用静态校验占位");
-        placeholder.put("detail", "真实临床提示卡由机构生效版本统一物化后执行");
+        ObjectNode validationAction = json.createObjectNode();
+        validationAction.put("actionCardRef", trimToNull(rawRef.asText()));
+        validationAction.put("actionCode", RuleActionCode.REMIND.name());
+        validationAction.put("atSeverity", RuleRiskLevel.LOW.name());
+        validationAction.put("indicator", "info");
+        validationAction.put("summary", "临床提示卡引用待机构生效版本物化");
+        validationAction.put("detail", "规则草稿仅校验提示卡引用格式；执行时由机构生效版本物化为真实临床提示卡");
         ObjectNode source = json.createObjectNode();
         source.put("label", "临床提示卡引用");
-        placeholder.set("source", source);
-        placeholder.set("suggestions", json.createArrayNode());
-        placeholder.set("overrideReasons", json.createArrayNode());
-        placeholder.put("requiresPhysicianConfirmation", false);
-        return placeholder;
+        validationAction.set("source", source);
+        validationAction.set("suggestions", json.createArrayNode());
+        validationAction.set("overrideReasons", json.createArrayNode());
+        validationAction.put("requiresPhysicianConfirmation", false);
+        return validationAction;
     }
 
     private void rejectUnknownContextFields(JsonNode dsl) {

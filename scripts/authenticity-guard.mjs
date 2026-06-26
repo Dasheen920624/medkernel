@@ -20,6 +20,7 @@ const FRONTEND_ROUTER = /^frontend\/src\/app\/router\.tsx$/;
 const BACKEND_JAVA = /^medkernel-backend\/src\/main\/java\/.+\.java$/;
 const BACKEND_DOMAIN_FACADE =
   /^medkernel-backend\/src\/main\/java\/com\/medkernel\/engine\/domainfacade\/.+\.java$/;
+const REHEARSAL_SCRIPT = /^scripts\/(?:knowledge|release)\/.+\.mjs$/;
 const DB_COMMENT_CONTRACT =
   /^medkernel-backend\/src\/main\/resources\/db\/(?:schema\/medkernel\.schema\.json|migration\/(?:dm|h2|kingbase|oracle|postgres)\/V1__baseline\.sql)$/;
 const CURRENT_DOCS =
@@ -69,7 +70,7 @@ const FRONTEND_RULES = [
     message:
       "前端客户面禁止把治理、诊断和受控配置表达成开发或工程内部语言。",
     pattern:
-      /开发者控制台|技术验证|技术配置|技术闸|技术阻断|技术门禁|技术门|技术安全门|技术评测|技术字段|技术降级原因|技术校验|受控调试|调试信息|\bSRE\b/,
+      /开发者控制台|技术验证|技术配置|技术闸|技术阻断|技术门禁|技术门|技术安全门|技术评测|技术字段|技术降级原因|技术校验|受控调试|调试信息|影响模拟|\bSRE\b/,
   },
   {
     ruleId: "frontend.technical-object-visible",
@@ -140,7 +141,7 @@ const FRONTEND_SHARED_CONFIG_RULES = [
     message:
       "前端客户面禁止把治理、诊断和受控配置表达成开发或工程内部语言。",
     pattern:
-      /开发者控制台|技术验证|技术配置|技术闸|技术阻断|技术门禁|技术门|技术安全门|技术评测|技术字段|技术降级原因|技术校验|受控调试|调试信息|\bSRE\b/,
+      /开发者控制台|技术验证|技术配置|技术闸|技术阻断|技术门禁|技术门|技术安全门|技术评测|技术字段|技术降级原因|技术校验|受控调试|调试信息|影响模拟|\bSRE\b/,
   },
 ];
 
@@ -179,8 +180,8 @@ const FRONTEND_ROUTER_RULES = [
 const CURRENT_DOC_RULES = [
   {
     ruleId: "docs.customer-facing-safety-language",
-    message: "当前权威文档禁止继续使用技术安全门、技术评测、技术字段或技术校验旧口径。",
-    pattern: /技术安全门|技术评测|技术字段|技术校验/,
+    message: "当前权威文档禁止继续使用技术安全门、技术评测、技术字段、技术校验或影响模拟旧口径。",
+    pattern: /技术安全门|技术评测|技术字段|技术校验|影响模拟/,
   },
 ];
 
@@ -201,8 +202,13 @@ const BACKEND_RULES = [
   },
   {
     ruleId: "backend.customer-facing-safety-language",
-    message: "后端生产中文注释和契约说明禁止继续使用技术安全门、技术评测或技术校验旧口径。",
-    pattern: /技术安全门|技术评测|技术校验/,
+    message: "后端生产中文注释和契约说明禁止继续使用技术安全门、技术评测、技术校验或影响模拟旧口径。",
+    pattern: /技术安全门|技术评测|技术校验|影响模拟/,
+  },
+  {
+    ruleId: "backend.rule-static-placeholder-language",
+    message: "后端生产规则校验禁止继续使用静态校验占位口径。",
+    pattern: /临床提示卡引用静态校验占位|静态校验占位|校验占位/,
   },
   {
     ruleId: "backend.random-business-value",
@@ -279,6 +285,14 @@ const BACKEND_DOMAIN_FACADE_RULES = [
     ruleId: "backend.domain-facade-fixture-language",
     message: "领域门面公开契约禁止继续使用 fixture 或 b0-fixture 旧验收样本口径。",
     pattern: /\bfixture\b|b0-fixtures?|B0\s*fixture/i,
+  },
+];
+
+const REHEARSAL_SCRIPT_RULES = [
+  {
+    ruleId: "scripts.impact-simulation-language",
+    message: "上线演练脚本和证据文本禁止继续使用影响模拟旧口径。",
+    pattern: /影响模拟/,
   },
 ];
 
@@ -445,6 +459,7 @@ function rulesForFile(file) {
   if (FRONTEND_SHARED_API.test(file)) return FRONTEND_SHARED_API_RULES;
   if (FRONTEND_SHARED_CONFIG.test(file)) return FRONTEND_SHARED_CONFIG_RULES;
   if (FRONTEND_CSS.test(file)) return FRONTEND_CSS_RULES;
+  if (REHEARSAL_SCRIPT.test(file)) return REHEARSAL_SCRIPT_RULES;
   if (CURRENT_DOCS.test(file)) return CURRENT_DOC_RULES;
   if (DB_COMMENT_CONTRACT.test(file)) return DB_COMMENT_RULES;
   if (BACKEND_DOMAIN_FACADE.test(file)) {
