@@ -35,9 +35,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 诊断知识维护服务：标准 / 鉴别 / 指针 / 测试病例 CRUD + 以测试病例全绿为发布门禁。
+ * 诊断知识维护服务：标准 / 鉴别 / 指针 / 验证病例 CRUD + 以验证病例全绿为发布门禁。
  *
- * <p>发布走 {@link #publishDiagnosis}：先 {@link #publishGate} 复算全部测试病例，分级与期望一致才调通用版本激活；
+ * <p>发布走 {@link #publishDiagnosis}：先 {@link #publishGate} 复算全部验证病例，分级与期望一致才调通用版本激活；
  * 不一致抛 {@code ENG_DX_006}，门禁真正生效（非死方法）。置信策略可按租户/科室覆盖，未覆盖回退平台主租户 t-1 DEFAULT。
  * B0 阶段数值/时序约束只允许草稿登记，发布门禁会阻断，避免生成运行时无法真实求值的诊断知识。
  */
@@ -233,7 +233,7 @@ public class DiagnosisKnowledgeService {
         }
     }
 
-    // —— 测试病例 ——
+    // —— 验证病例 ——
 
     @Transactional
     public DiagnosisTestCase addTestCase(Long versionId, DiagnosisTestCaseRequest req) {
@@ -245,7 +245,7 @@ public class DiagnosisKnowledgeService {
             req.caseCode(), req.findings(), req.expectedIdentityId(), req.expectedConfidence(),
             now, actor, now, actor, traceId()));
         audit.record(AuditAction.CREATE, "mk_diagnosis_test_case", String.valueOf(saved.id()),
-            "新增诊断测试病例 " + req.caseCode());
+            "新增诊断验证病例 " + req.caseCode());
         return saved;
     }
 
@@ -256,7 +256,7 @@ public class DiagnosisKnowledgeService {
 
     // —— 发布门禁 ——
 
-    /** 发布门禁：该版本所有测试病例经命中核心复算，分级与期望一致才放行，否则 ENG_DX_006。 */
+    /** 发布门禁：该版本所有验证病例经命中核心复算，分级与期望一致才放行，否则 ENG_DX_006。 */
     @Transactional(readOnly = true)
     public void publishGate(Long versionId) {
         String tenant = tenant();
@@ -271,19 +271,19 @@ public class DiagnosisKnowledgeService {
         for (DiagnosisTestCase tc : cases) {
             if (!version.identityId().equals(tc.expectedIdentityId())) {
                 throw new ApiException(ErrorCode.ENG_DX_006,
-                    "测试病例 " + tc.caseCode() + " 的期望诊断身份不属于当前版本");
+                    "验证病例 " + tc.caseCode() + " 的期望诊断身份不属于当前版本");
             }
             Set<String> findings = parseFindings(tc.findings());
             DiagnosisMatchResult result = matcher.match(findings, versionCriteria, policy);
             if (result.confidence() != tc.expectedConfidence()) {
                 throw new ApiException(ErrorCode.ENG_DX_006,
-                    "测试病例 " + tc.caseCode() + " 期望 " + tc.expectedConfidence()
+                    "验证病例 " + tc.caseCode() + " 期望 " + tc.expectedConfidence()
                         + " 实得 " + result.confidence());
             }
         }
     }
 
-    /** 发布诊断知识版本：先过测试病例门禁（publishGate）全绿，才调通用版本激活。门禁失败抛 ENG_DX_006。 */
+    /** 发布诊断知识版本：先过验证病例门禁（publishGate）全绿，才调通用版本激活。门禁失败抛 ENG_DX_006。 */
     @Transactional
     public KnowledgeAssetVersion publishDiagnosis(
             Long identityId,

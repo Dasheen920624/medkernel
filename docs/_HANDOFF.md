@@ -293,6 +293,14 @@
   无结果、`node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
   `bash scripts/check-comment-zh.sh --mode=full`、`mvn -q -Dtest=MigrationBaselineContractTest test`、
   `mvn -q -DskipTests package`、`git diff --check`；尚未重新部署 134。
+- 规则和诊断知识发布门禁的客户面验证材料口径已全局清理：前台、当前功能目录、后端中文契约、测试夹具、
+  五方言 COMMENT、schema、沙盘脚本和能力导出均从“测试用例/测试病例”改为“验证用例/验证病例”，避免
+  医疗引擎运营员、医生复核、实施培训和后续 AI 把发布门禁材料理解成 QA 测试数据。真实性门禁新增
+  产品验证材料旧口径拦截。已验证：`npm test -- --run src/pages/tenant/RuleDefinitions.test.tsx src/pages/quality/DiagnosisKnowledgeMaintenance.test.tsx src/shared/config/routes.test.ts src/shared/config/customerLanguageGate.test.ts`、
+  `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
+  `mvn -q -Dtest=DiagnosisKnowledgeServiceTest,DiagnosisKnowledgeApiContractTest,RuleEngineServiceTest,RuleEngineControllerSecurityTest,MigrationBaselineContractTest test`、
+  `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
+  `npm run build`、`mvn -q -DskipTests package`、`bash scripts/check-comment-zh.sh --mode=full`；尚未重新部署 134。
 
 ## 本轮落地内容
 
@@ -430,6 +438,8 @@
   和浏览器兼容性报告不再把后台实现层当成客户面事实，避免后续 AI 读取测试时被旧口径误导。
 - 数据库 COMMENT 和 schema 同步收束：脱敏规则、诊断约束、知识原件和发布质量门不再保留“后端类型”、
   “后续阶段”或“影响模拟”等旧事实，五方言迁移继续保持一致。
+- 规则和诊断知识发布门禁的验证材料统一称为“验证用例/验证病例”：页面按钮、弹窗、错误提示、审计摘要、
+  后端 Javadoc、数据库 COMMENT、沙盘演练脚本和功能目录同步，避免把医疗发布门禁误读成普通软件测试数据。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -470,7 +480,7 @@
    平台管理员工作台治理概览表达清理、发布治理服务影响评估契约口径清理、工作台空态未上线承诺清理、
    通知偏好和导出能力实现层旧口径清理、全局客户面服务状态旧口径清理、统一身份登录和身份来源待配置口径清理、
    工作台第一屏多角色数据状态表达清理、全局客户面实现层口径清理、前端测试说明与共享注释旧口径清理、
-   数据库 COMMENT 和 schema 旧口径清理
+   数据库 COMMENT 和 schema 旧口径清理、验证用例/验证病例产品口径清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

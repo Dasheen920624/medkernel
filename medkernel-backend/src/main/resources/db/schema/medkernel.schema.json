@@ -12444,7 +12444,7 @@
     },
     {
       "name": "mk_diagnosis_test_case",
-      "comment": "诊断测试病例：发现集→期望候选/置信，作为发布门禁回归集",
+      "comment": "诊断验证病例：发现集→期望候选/置信，作为发布门禁回归集",
       "columns": [
         {
           "name": "id",
@@ -36961,7 +36961,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "回测样本集引用，例如脱敏快照批次或测试用例集合"
+          "comment": "回测样本集引用，例如脱敏快照批次或验证用例集合"
         },
         {
           "name": "sample_count",

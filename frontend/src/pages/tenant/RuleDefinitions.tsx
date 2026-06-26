@@ -2440,7 +2440,7 @@ export default function RuleDefinitions() {
         expectedActionCode: values.expectedHit ? values.expectedActionCode : undefined,
       });
 
-      message.success("成功新增测试用例");
+      message.success("成功新增验证用例");
       setCaseModalVisible(false);
       caseForm.resetFields();
       refetchDetail();
@@ -2474,7 +2474,7 @@ export default function RuleDefinitions() {
       }
       refetchDetail();
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "执行规则测试用例失败"));
+      message.error(getApiErrorMessage(error, "执行规则验证用例失败"));
     }
   };
 
@@ -3055,7 +3055,7 @@ export default function RuleDefinitions() {
     RULE_GOVERNANCE_STAGES.findIndex((stage) => stage.key === governanceState),
   );
   const governanceNeedsImpact = ["DRAFT", "REVIEWED", "SHADOW", "CANARY"].includes(governanceState);
-  let detailAlertMessage = "当前规则处于草稿阶段，可补测试用例和试运行。";
+  let detailAlertMessage = "当前规则处于草稿阶段，可补验证用例和试运行。";
   let detailAlertType: "success" | "warning" | "info" = "info";
   if (governanceState === "RETIRED") {
     detailAlertMessage = "当前规则已退役封存，定义、版本与发布证据仅供审计追溯。";
@@ -3172,7 +3172,7 @@ export default function RuleDefinitions() {
           showIcon
           message={
             releaseGate.allPassed
-              ? "阳性、阴性、边界、冲突四类测试用例已全绿。"
+              ? "阳性、阴性、边界、冲突四类验证用例已全绿。"
               : `安全复核未满足：缺少 ${releaseGate.missingTypes.join("、") || "通过结果"}。`
           }
         />
@@ -3486,7 +3486,7 @@ export default function RuleDefinitions() {
                         setCaseModalVisible(true);
                       }}
                     >
-                      新增测试用例
+                      新增验证用例
                     </Button>
                   )}
                 </Space>
@@ -4810,7 +4810,7 @@ export default function RuleDefinitions() {
       </Modal>
 
       <Modal
-        title="新增测试用例"
+        title="新增验证用例"
         zIndex={1100}
         open={caseModalVisible}
         onOk={handleAddTestCase}
@@ -4841,7 +4841,7 @@ export default function RuleDefinitions() {
               <Form.Item label="患者 ID" htmlFor="rule-case-snapshot-patient-id">
                 <Input
                   id="rule-case-snapshot-patient-id"
-                  aria-label="测试用例患者 ID"
+                  aria-label="验证用例患者 ID"
                   value={snapshotPatientId}
                   onChange={(event) => setSnapshotPatientId(event.target.value)}
                   placeholder="输入患者主索引"
@@ -4852,7 +4852,7 @@ export default function RuleDefinitions() {
               <Form.Item label="就诊 ID" htmlFor="rule-case-snapshot-encounter-id">
                 <Input
                   id="rule-case-snapshot-encounter-id"
-                  aria-label="测试用例就诊 ID"
+                  aria-label="验证用例就诊 ID"
                   value={snapshotEncounterId}
                   onChange={(event) => setSnapshotEncounterId(event.target.value)}
                   placeholder="输入就诊号"

@@ -1019,21 +1019,21 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   );
 
   it(
-    "规则详情抽屉中的测试用例弹层高于抽屉，且只允许选择已生效快照",
+    "规则详情抽屉中的验证用例弹层高于抽屉，且只允许选择已生效快照",
     async () => {
       apiMocks.ruleListData = { items: [draftRule], total: 1 };
       apiMocks.ruleDetailData = createRuleDetail();
 
       const user = await openDraftRuleDrawer();
       await user.click(screen.getByRole("tab", { name: /发布验证用例/ }));
-      await user.click(screen.getByRole("button", { name: /新增测试用例/ }));
+      await user.click(screen.getByRole("button", { name: /新增验证用例/ }));
 
-      const title = await screen.findByText("新增测试用例", { selector: ".ant-modal-title" });
+      const title = await screen.findByText("新增验证用例", { selector: ".ant-modal-title" });
       const dialog = title.closest(".ant-modal-content");
       expect(dialog).not.toBeNull();
       expect(dialog?.closest(".ant-modal-wrap")).toHaveStyle({ zIndex: "1100" });
-      expect(within(dialog as HTMLElement).getByLabelText("测试用例患者 ID")).toBeInTheDocument();
-      expect(within(dialog as HTMLElement).getByLabelText("测试用例就诊 ID")).toBeInTheDocument();
+      expect(within(dialog as HTMLElement).getByLabelText("验证用例患者 ID")).toBeInTheDocument();
+      expect(within(dialog as HTMLElement).getByLabelText("验证用例就诊 ID")).toBeInTheDocument();
       expect(within(dialog as HTMLElement).queryByText(/测试输入配置文本/)).not.toBeInTheDocument();
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
@@ -1049,13 +1049,13 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
 
       const user = await openDraftRuleDrawer();
       await user.click(screen.getByRole("tab", { name: /发布验证用例/ }));
-      await user.click(screen.getByRole("button", { name: /新增测试用例/ }));
+      await user.click(screen.getByRole("button", { name: /新增验证用例/ }));
 
-      const title = await screen.findByText("新增测试用例", { selector: ".ant-modal-title" });
+      const title = await screen.findByText("新增验证用例", { selector: ".ant-modal-title" });
       const dialog = title.closest(".ant-modal-content");
       expect(dialog).not.toBeNull();
       const caseDialog = within(dialog as HTMLElement);
-      await user.type(caseDialog.getByLabelText("测试用例患者 ID"), "P-001");
+      await user.type(caseDialog.getByLabelText("验证用例患者 ID"), "P-001");
       await user.click(caseDialog.getByRole("button", { name: "读取已生效快照" }));
       await user.click(await caseDialog.findByText("ctx-001"));
       await user.click(caseDialog.getByRole("combobox", { name: "用例类别" }));

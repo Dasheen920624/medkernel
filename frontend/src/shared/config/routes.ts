@@ -745,7 +745,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     requiredPermissions: ["menu.diagnosis-knowledge", "knowledge.read"],
     experience: readonlyExperience(
       "医疗引擎运营员",
-      "维护诊断身份、诊断标准、鉴别诊断、测试病例与来源证据",
+      "维护诊断身份、诊断标准、鉴别诊断、验证病例与来源证据",
       "诊断知识台账",
       "large",
     ),

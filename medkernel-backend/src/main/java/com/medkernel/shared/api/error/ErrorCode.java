@@ -182,7 +182,7 @@ public enum ErrorCode {
     ENG_DX_001("ENG-DX-001", 409, "诊断知识版本无效或未发布", ErrorClass.DATA, false),
     ENG_DX_004("ENG-DX-004", 400, "鉴别引用的诊断身份不存在", ErrorClass.DATA, false),
     ENG_DX_005("ENG-DX-005", 409, "诊断置信策略缺失或非法", ErrorClass.DATA, false),
-    ENG_DX_006("ENG-DX-006", 409, "诊断测试病例未通过，不得发布", ErrorClass.DATA, false);
+    ENG_DX_006("ENG-DX-006", 409, "诊断验证病例未通过，不得发布", ErrorClass.DATA, false);
 
     private final String code;
     private final int httpStatus;

@@ -397,6 +397,50 @@ test("当前权威体验文档禁止回流演示重构旧说法", async () => {
   );
 });
 
+test("产品验证材料禁止继续使用测试用例或测试病例旧口径", async () => {
+  const testCaseLabel = "测试" + "用例";
+  const testPatientLabel = "测试" + "病例";
+  await withFixture(
+    {
+      "frontend/src/pages/RuleDefinitions.tsx": `
+        export const label = "新增${testCaseLabel}";
+      `,
+      "frontend/src/shared/config/routes.ts": `
+        export const description = "维护诊断身份、诊断标准、鉴别诊断、${testPatientLabel}与来源证据";
+      `,
+      "docs/PRODUCT_SCOPE.md": `
+        诊断知识维护包含${testPatientLabel}发布门禁。
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/rule/RuleEngineService.java": `
+        public class RuleEngineService {
+          String message = "规则${testCaseLabel}未全部通过";
+        }
+      `,
+      "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql": `
+        COMMENT ON TABLE mk_diagnosis_test_case IS '诊断${testPatientLabel}：发现集到期望候选';
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/pages/RuleDefinitions.tsx",
+        "frontend/src/shared/config/routes.ts",
+        "docs/PRODUCT_SCOPE.md",
+        "medkernel-backend/src/main/java/com/medkernel/engine/rule/RuleEngineService.java",
+        "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-safety-language",
+        "db.customer-facing-safety-language",
+        "docs.customer-facing-safety-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+      ]);
+    },
+  );
+});
+
 test("后端与数据库中文注释会阻断旧安全校验口径", async () => {
   const technicalEvaluation = "技术" + "评测";
   const impactSimulation = "影响" + "模拟";

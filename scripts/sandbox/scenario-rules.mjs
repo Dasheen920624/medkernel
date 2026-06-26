@@ -136,7 +136,7 @@ function validateSources(scenario) {
 function validateClinicalContent(scenario) {
   const content = scenario.clinicalContent;
   if (!content?.dsl || !Array.isArray(content.testCases)) {
-    throw new Error(`沙盘规则 ${scenario.ruleCode} 缺少 DSL 或测试用例`);
+    throw new Error(`沙盘规则 ${scenario.ruleCode} 缺少 DSL 或验证用例`);
   }
   if (Object.hasOwn(content.dsl, "trigger")) {
     throw new Error(
@@ -159,7 +159,7 @@ function validateClinicalContent(scenario) {
   for (const required of REQUIRED_CASES) {
     if (!caseTypes.has(required)) {
       throw new Error(
-        `沙盘规则 ${scenario.ruleCode} 缺少 ${required} 测试用例`,
+        `沙盘规则 ${scenario.ruleCode} 缺少 ${required} 验证用例`,
       );
     }
   }
@@ -168,7 +168,7 @@ function validateClinicalContent(scenario) {
     content.testCases.length !== REQUIRED_CASES.size
   ) {
     throw new Error(
-      `沙盘规则 ${scenario.ruleCode} 测试用例类型必须且只能覆盖四类`,
+      `沙盘规则 ${scenario.ruleCode} 验证用例类型必须且只能覆盖四类`,
     );
   }
   for (const testCase of content.testCases) {

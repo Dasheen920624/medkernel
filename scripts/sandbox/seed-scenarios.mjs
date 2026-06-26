@@ -669,7 +669,7 @@ async function createAndTestRule(
           },
           `rule-case-${rule.ruleCode}-${snapshot.caseType}`,
         ),
-        `创建 ${rule.ruleCode}/${snapshot.caseType} 测试用例`,
+        `创建 ${rule.ruleCode}/${snapshot.caseType} 验证用例`,
         [201],
       );
     }

@@ -150,7 +150,7 @@ public final class ServiceContractCatalog {
             audits(audit(AuditAction.CREATE, "mk_diagnosis_criterion", "新增诊断标准"),
                 audit(AuditAction.CREATE, "mk_diagnosis_differential", "新增鉴别清单"),
                 audit(AuditAction.CREATE, "mk_diagnosis_care_pointer", "新增诊疗指针"),
-                audit(AuditAction.CREATE, "mk_diagnosis_test_case", "新增诊断测试病例"))),
+                audit(AuditAction.CREATE, "mk_diagnosis_test_case", "新增诊断验证病例"))),
         contract("context-snapshot", "标准上下文快照服务",
             "com.medkernel.engine.context.ContextSnapshotController", "/api/v1/engine/context/snapshots",
             permissions("context.write", "context.read"),
@@ -519,7 +519,7 @@ public final class ServiceContractCatalog {
             "com.medkernel.engine.rule.RuleEngineController", "/api/v1/engine/rule",
             permissions("rule.write", "rule.read", "rule.publish", "rule.override"),
             audits(
-                audit(AuditAction.CREATE, "rule_definition", "创建规则和测试用例"),
+                audit(AuditAction.CREATE, "rule_definition", "创建规则和验证用例"),
                 audit(AuditAction.PUBLISH, "rule_definition", "发布规则版本"),
                 audit(AuditAction.EXECUTE, "rule_execution", "执行规则"),
                 audit(AuditAction.FEEDBACK, "rule_override_log", "记录规则动作人工越权"))),

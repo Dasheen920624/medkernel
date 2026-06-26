@@ -20,9 +20,9 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 诊断知识维护 API（归 knowledge 客户面，复用知识读写权限）。
  *
- * <p>标准 / 鉴别 / 指针 / 测试病例 add 走 {@code knowledge.write}、list 走 {@code knowledge.read}；
+ * <p>标准 / 鉴别 / 指针 / 验证病例 add 走 {@code knowledge.write}、list 走 {@code knowledge.read}；
  * 发布激活版本走 {@code knowledge.publish}（与 KnowledgeVersionController.activate 一致，HIGH 风险），
- * 先过测试病例门禁（publishGate）全绿才激活——门禁真正生效。
+ * 先过验证病例门禁（publishGate）全绿才激活——门禁真正生效。
  */
 @RestController
 @RequestMapping("/api/v1/engine/knowledge/diagnosis")
@@ -97,7 +97,7 @@ public class DiagnosisKnowledgeController {
         return ApiResult.ok(service.listCarePointers(versionId));
     }
 
-    // —— 测试病例 ——
+    // —— 验证病例 ——
 
     @PostMapping("/versions/{versionId}/test-cases")
     @PreAuthorize("@perm.has('knowledge.write')")
@@ -112,7 +112,7 @@ public class DiagnosisKnowledgeController {
         return ApiResult.ok(service.listTestCases(versionId));
     }
 
-    // —— 发布门禁（必过测试病例门禁才激活；激活=HIGH 风险，走 knowledge.publish）——
+    // —— 发布门禁（必过验证病例门禁才激活；激活=HIGH 风险，走 knowledge.publish）——
 
     @PostMapping("/identities/{identityId}/versions/{versionId}/publish")
     @PreAuthorize("@perm.has('knowledge.publish')")
