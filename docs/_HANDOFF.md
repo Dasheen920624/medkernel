@@ -263,6 +263,13 @@
   统一身份旧口径组合搜索无结果、`npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、
   `npm run test:lint-rules`、`npm run build`、`mvn -q -DskipTests package`、
   `bash scripts/check-comment-zh.sh --mode=full`、`git diff --check`；尚未重新部署 134。
+- 工作台第一屏多角色体验已在本地继续清理：临床使用者、医疗引擎运营员、平台管理员看到的是可执行页面入口、
+  真实数据来源位置和知识同步配置状态，不再用自证式聚合说明、未来 API 承诺或笼统未接入标签解释当前能力。
+  真实性门禁新增工作台假闭环和聚合占位旧口径拦截。已验证：
+  `npm test -- --run src/widgets/WorkbenchPanel.test.tsx src/pages/pages.smoke.test.tsx`、
+  `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run build`、
+  `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
+  工作台第一屏旧口径组合搜索无结果；尚未重新部署 134。
 
 ## 本轮落地内容
 
@@ -390,6 +397,9 @@
 - 统一身份登录、身份来源和委托登录错误契约继续按医院角色真实理解收束：医生/护士/管理员登录页看到的是
   “统一身份服务待配置”和“待配置”的可执行状态，信息科/实施通过身份来源完成配置；测试夹具和后端契约也不再
   用统一身份实现侧旧话术误导后续实现。
+- 工作台第一屏继续按全角色真实体验收束：临床使用者进入患者路径、提醒推荐、随访协同和通知，医疗引擎运营员
+  进入知识来源、术语映射、发布影响和质量整改，平台管理员看到知识同步来源配置状态；聚合统计和跨页汇总只在
+  对应治理页面展示真实数据，第一屏不再自证、不承诺未来来源。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -428,7 +438,8 @@
    临床提醒来源空态、Webhook 验证口径清理、领域门面 B0 主链路证据和离线评测 baseline 命名清理、
    知识发布质量门影响评估与规则提示卡引用占位口径清理、权威体验契约演示重构旧说法清理、
    平台管理员工作台治理概览表达清理、发布治理服务影响评估契约口径清理、工作台空态未上线承诺清理、
-   通知偏好和导出能力实现层旧口径清理、全局客户面服务状态旧口径清理、统一身份登录和身份来源待配置口径清理
+   通知偏好和导出能力实现层旧口径清理、全局客户面服务状态旧口径清理、统一身份登录和身份来源待配置口径清理、
+   工作台第一屏多角色数据状态表达清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

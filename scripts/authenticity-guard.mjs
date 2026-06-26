@@ -58,7 +58,7 @@ const FRONTEND_RULES = [
     message:
       "前端生产文件禁止用本地待办、演示验收剧本或 demo workflow 冒充真实工作台闭环。",
     pattern:
-      /\btodoMock\b|客户验收剧本|演示验收剧本|demo workflow|dataSource=\{todoMock\}/i,
+      /\btodoMock\b|客户验收剧本|演示验收剧本|demo workflow|dataSource=\{todoMock\}|工作台不伪造|伪造汇总数据|伪造汇总趋势|真实工作台聚合数据待接入|等待真实聚合 API/i,
   },
   {
     ruleId: "frontend.retired-demo-copy",

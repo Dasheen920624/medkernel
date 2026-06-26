@@ -277,7 +277,7 @@ function WorkbenchCards({
           <DomainEntryCard
             id="clinical"
             title="临床协同入口"
-            description="进入患者路径、提醒与推荐、随访协同与消息通知；工作台不伪造跨页聚合数量。"
+            description="进入患者路径、提醒与推荐、随访协同与消息通知；各页面展示对应真实数据和处理入口。"
             actions={[
               { label: "患者路径", path: "/pathway/patients" },
               { label: "提醒与推荐", path: "/cdss/fatigue" },
@@ -310,7 +310,7 @@ function WorkbenchCards({
           <DomainEntryCard
             id="knowledge-lineage"
             title="来源、差异与发布"
-            description="追溯知识来源和派生关系，复核术语映射与发布影响，不在工作台伪造汇总数据。"
+            description="追溯知识来源和派生关系，复核术语映射与发布影响；汇总数据以各治理页面为准。"
             actions={[
               { label: "来源与血缘", path: "/advanced/provenance" },
               { label: "术语与字典", path: "/terminology/mapping" },
@@ -388,7 +388,7 @@ function WorkbenchCards({
           id="quality"
           title="质量问题与整改"
           marker="质量整改入口"
-          description="进入质量管理概览和整改页面查看真实责任对象；工作台不伪造汇总趋势。"
+          description="进入质量管理概览和整改页面查看责任对象、整改进度和复核入口。"
           actions={[
             { label: "质量管理概览", path: "/qc/dashboard" },
             { label: "质量问题与整改", path: "/qc/alerts" },
@@ -587,8 +587,10 @@ function KnowledgeSyncCard({
         if (!graph) {
           return (
             <Space direction="vertical" size="small">
-              <Tag>未接入</Tag>
-              <Text type="secondary">当前状态未返回知识同步来源。</Text>
+              <Tag>知识同步来源待配置</Tag>
+              <Text type="secondary">
+                当前运行状态未返回知识同步来源，请在运行保障中核查图谱投影配置。
+              </Text>
             </Space>
           );
         }

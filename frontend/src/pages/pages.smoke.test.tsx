@@ -44,6 +44,8 @@ const testQueryClient = new QueryClient({
 const originalApiAdapter = apiClient.defaults.adapter;
 const legacyDelegatedUnavailableCopy = ["统一身份", "暂未接入"].join("");
 const legacyDelegatedProviderPattern = new RegExp(`${["真实院方", " IdP"].join("")}|连接器|未接通`);
+const legacyWorkbenchAggregationPlaceholder = ["真实工作台", "聚合数据待接入"].join("");
+const legacyWorkbenchAggregationApiPlaceholder = ["等待真实", "聚合 API"].join("");
 
 beforeEach(() => {
   apiClient.defaults.adapter = (() => new Promise(() => undefined)) as AxiosAdapter;
@@ -270,8 +272,8 @@ describe("page smoke coverage", () => {
     );
     expect(screen.getByRole("heading", { name: "工作台" })).toBeInTheDocument();
     expect(screen.getByText("正在确认当前角色")).toBeInTheDocument();
-    expect(screen.queryByText("真实工作台聚合数据待接入")).toBeNull();
-    expect(screen.queryByText("等待真实聚合 API")).toBeNull();
+    expect(screen.queryByText(legacyWorkbenchAggregationPlaceholder)).toBeNull();
+    expect(screen.queryByText(legacyWorkbenchAggregationApiPlaceholder)).toBeNull();
     expect(screen.queryByText("本周建议动作")).toBeNull();
     expect(screen.queryByText("验收自检")).toBeNull();
   });

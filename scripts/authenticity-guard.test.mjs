@@ -178,6 +178,8 @@ test("前端页面触碰文件会阻断旧规则路径示例占位符回流", as
 });
 
 test("前端生产文件会阻断工作台本地假闭环和业务示例残留", async () => {
+  const workbenchSelfProof = "工作台不" + "伪造汇总数据";
+  const workbenchPlaceholder = "真实工作台" + "聚合数据待接入";
   await withFixture(
     {
       "frontend/src/pages/Dashboard.tsx": `
@@ -194,13 +196,22 @@ test("前端生产文件会阻断工作台本地假闭环和业务示例残留",
           );
         }
       `,
+      "frontend/src/widgets/WorkbenchPanel.tsx": `
+        export function WorkbenchPanel() {
+          return <section><p>${workbenchSelfProof}</p><p>${workbenchPlaceholder}</p></section>;
+        }
+      `,
     },
     async (root) => {
-      const report = await scanFiles(root, ["frontend/src/pages/Dashboard.tsx"]);
+      const report = await scanFiles(root, [
+        "frontend/src/pages/Dashboard.tsx",
+        "frontend/src/widgets/WorkbenchPanel.tsx",
+      ]);
 
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), [
         "frontend.hardcoded-medical-constant",
+        "frontend.local-demo-workflow",
         "frontend.local-demo-workflow",
       ]);
     },
