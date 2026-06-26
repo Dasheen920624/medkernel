@@ -389,7 +389,15 @@ describe("CdssFatigue", () => {
     expect(screen.getAllByText("已确认风险，按指南处理。").length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("tab", { name: /医师反馈/ }));
-    await user.click(screen.getByRole("button", { name: /确认并予以采纳/ }));
+    expect(
+      screen.getByText(
+        "医师反馈会进入临床决策证据链。采纳或不采纳都需记录真实理由；系统按登录态记录操作者身份，不由前端填写。",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "采纳建议" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "不采纳建议" })).toBeInTheDocument();
+    expect(screen.queryByText(/ACCEPT|REJECT|抗拒|克拉霉素/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /确认采纳建议/ }));
 
     await waitFor(() => {
       expect(submitFeedback).toHaveBeenCalledWith({
@@ -491,6 +499,12 @@ describe("CdssFatigue", () => {
     await user.click(screen.getByRole("button", { name: /查看与人机反馈/ }));
     await user.click(screen.getByRole("tab", { name: /提醒频次治理/ }));
 
+    expect(
+      await screen.findByText(
+        "提醒频次治理用于减少低价值重复提醒；高危红线和必须医师确认的提醒不会被自动静音。",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/狼来了|物理拦截|高阶/)).not.toBeInTheDocument();
     expect(await screen.findByText("红线不可抑制")).toBeInTheDocument();
     expect(screen.getByText("medkernel.cdss.fatigue.policy")).toBeInTheDocument();
     expect(screen.getAllByText("REDLINE:RDL-DDI-001").length).toBeGreaterThan(0);

@@ -416,7 +416,7 @@ export default function CdssFatigue() {
     triggerForm.resetFields();
   };
 
-  // 提交医师反馈 (ACCEPT / REJECT)。操作者身份由平台从登录态取真实用户，前端绝不伪造 physicianId。
+  // 提交医师采纳或不采纳反馈。操作者身份由平台从登录态取真实用户，前端绝不伪造 physicianId。
   const handleFeedback = async (feedbackType: RecommendationFeedbackType) => {
     if (!selectedCardId) return;
     try {
@@ -993,7 +993,7 @@ export default function CdssFatigue() {
                     <Card className={`${styles.detailCard} ${styles.marginTopSm}`}>
                       <Form form={feedbackForm} layout="vertical">
                         <Alert
-                          message="合理化医师反馈是临床合理处方闭环的核心留痕。选择不采纳时，请录入客观严谨的临床医学抗拒理由，以便医疗质控追溯与持续优化CDSS阈值。操作者身份由系统按登录态如实记录。"
+                          message="医师反馈会进入临床决策证据链。采纳或不采纳都需记录真实理由；系统按登录态记录操作者身份，不由前端填写。"
                           type="info"
                           showIcon
                           className={styles.sectionGap}
@@ -1007,15 +1007,15 @@ export default function CdssFatigue() {
                           items={[
                             {
                               key: "accept",
-                              label: "采纳合理建议 (ACCEPT)",
+                              label: "采纳建议",
                               children: (
                                 <>
                                   <div className={styles.successEvidence}>
-                                    确认采纳此建议。系统将登记采纳反馈并生成临床决策证据；是否下达/撤销医嘱由医师在
+                                    确认采纳后，系统登记反馈并生成临床决策证据；是否下达或调整医嘱仍由医师在
                                     HIS 中确认。
                                   </div>
-                                  <Form.Item name="comments" label="采纳说明 (非必填)">
-                                    <Input placeholder="输入采纳说明，如：遵照指南撤销不合理克拉霉素..." />
+                                  <Form.Item name="comments" label="采纳说明（可选）">
+                                    <Input placeholder="输入采纳说明，如：结合当前病情确认按院内制度处理" />
                                   </Form.Item>
                                   <Button
                                     type="primary"
@@ -1023,7 +1023,7 @@ export default function CdssFatigue() {
                                     loading={feedbackMutation.isPending}
                                     className={styles.fullWidth}
                                   >
-                                    确认并予以采纳 (ACCEPT)
+                                    确认采纳建议
                                   </Button>
                                 </>
                               ),
@@ -1031,39 +1031,31 @@ export default function CdssFatigue() {
 
                             {
                               key: "reject",
-                              label: "拒绝驳回建议 (REJECT)",
+                              label: "不采纳建议",
                               children: (
                                 <>
                                   <Form.Item
                                     name="rejectReason"
-                                    label="医生拒绝/不采纳的临床抗拒原因"
-                                    rules={[
-                                      { required: true, message: "请选择拒绝采纳的临床理由" },
-                                    ]}
+                                    label="不采纳理由"
+                                    rules={[{ required: true, message: "请选择不采纳理由" }]}
                                   >
-                                    <Select placeholder="选择合理的抗拒指征原因">
-                                      <Option value="方案不合个体指征">
-                                        方案不合个体指征 (患者存在基因多态或联合耐药事实)
+                                    <Select placeholder="选择不采纳原因">
+                                      <Option value="不符合当前患者指征">不符合当前患者指征</Option>
+                                      <Option value="已有替代处理方案">已有替代处理方案</Option>
+                                      <Option value="数据与当前病情不一致">
+                                        数据与当前病情不一致
                                       </Option>
-                                      <Option value="已有替代有效疗法">
-                                        已有替代有效疗法 (临床已采取其它合理对症治疗手段)
-                                      </Option>
-                                      <Option value="数据存在延迟偏差">
-                                        数据存在延迟偏差 (系统检测到的就诊或过敏事实与临床现状不符)
-                                      </Option>
-                                      <Option value="其他合理临床抉择">
-                                        其他合理临床抉择 (需要医生在下方输入备注具体说明)
-                                      </Option>
+                                      <Option value="其他临床判断">其他临床判断</Option>
                                     </Select>
                                   </Form.Item>
                                   <Form.Item
                                     name="comments"
-                                    label="备注/不采纳详细医学判定说明"
-                                    rules={[{ required: true, message: "请输入详细拒绝说明" }]}
+                                    label="不采纳说明"
+                                    rules={[{ required: true, message: "请输入不采纳说明" }]}
                                   >
                                     <TextArea
                                       rows={2}
-                                      placeholder="请录入专业客观的临床诊断说明以便应对质控核查..."
+                                      placeholder="请记录当前患者情况、依据和已采取的处理方式"
                                     />
                                   </Form.Item>
                                   <Button
@@ -1073,7 +1065,7 @@ export default function CdssFatigue() {
                                     loading={feedbackMutation.isPending}
                                     className={styles.fullWidth}
                                   >
-                                    确认拒绝采纳该建议 (REJECT)
+                                    确认不采纳建议
                                   </Button>
                                 </>
                               ),
@@ -1095,7 +1087,7 @@ export default function CdssFatigue() {
                   children: (
                     <div className={styles.marginTopSm}>
                       <Alert
-                        message="为防范“提醒狼来了麻木”，MedKernel 引擎引入高阶提醒疲劳度限流控制事实。当特定场景超频触发且被医生频繁驳回时，系统会触发静音/限频甚至全面物理拦截阻断。"
+                        message="提醒频次治理用于减少低价值重复提醒；高危红线和必须医师确认的提醒不会被自动静音。"
                         type="warning"
                         showIcon
                         className={styles.sectionGap}
