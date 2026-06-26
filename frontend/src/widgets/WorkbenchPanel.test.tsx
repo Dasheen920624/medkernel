@@ -351,7 +351,15 @@ describe("WorkbenchPanel", () => {
 
     expect(screen.getByRole("heading", { name: "临床使用者工作台" })).toBeInTheDocument();
     expect(screen.getByText("我的待办")).toBeInTheDocument();
-    expect(screen.getAllByText(/当前组织暂无待办/).length).toBeGreaterThan(0);
+    const todoCard = screen.getByTestId("workbench-card-todo");
+    expect(within(todoCard).getByText("无待办")).toBeInTheDocument();
+    expect(within(todoCard).getByText("当前组织暂无待办")).toBeInTheDocument();
+    expect(
+      within(todoCard).getByText(
+        "当前组织暂无待办；可进入患者路径、提醒与推荐、随访协同或消息通知查看实时事项。",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/发布治理状态/)).not.toBeInTheDocument();
     expect(
       screen.getByText(
         "进入患者路径、提醒与推荐、随访协同与消息通知；各页面展示对应真实数据和处理入口。",

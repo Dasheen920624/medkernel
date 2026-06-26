@@ -650,11 +650,11 @@ function AuditChangesCard({
 
 function TodoCard({ onNavigate }: { onNavigate: (path: string) => void }) {
   return (
-    <Card data-testid="workbench-card-todo" title="我的待办" extra={<Tag>暂无</Tag>}>
+    <Card data-testid="workbench-card-todo" title="我的待办" extra={<Tag>无待办</Tag>}>
       <PageState
         state="empty"
         title="当前组织暂无待办"
-        description="当前组织暂无待办，可查看发布治理状态或切换组织。"
+        description="当前组织暂无待办；可进入患者路径、提醒与推荐、随访协同或消息通知查看实时事项。"
         action={
           <Button type="link" onClick={() => onNavigate("/workflow/todos")}>
             查看待办

@@ -477,6 +477,9 @@
   `npm test -- --run src/widgets/WorkbenchPanel.test.tsx`、
   `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`；
   尚未重新部署 134。
+- 临床使用者工作台待办空态已继续按医生、护士视角收束：无待办时不再引导到发布治理，而是提示进入患者路径、
+  提醒与推荐、随访协同或消息通知查看实时事项；仍不伪造待办数量。已验证：
+  `npm test -- --run src/widgets/WorkbenchPanel.test.tsx`；尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -520,7 +523,7 @@
    数据库 COMMENT 和 schema 旧口径清理、验证用例/验证病例产品口径清理、前后端服务状态与未来接入口径清理、
    路径原型和沙盘外圈路径通用化清理、运行保障状态和模型赋能覆盖契约口径清理、
    知识解析和外部集成阶段性接入口径清理、运行保障普通视图与证据详情分层清理、
-   工作台质量闭环入口清理、集成契约和生产注释旧口径清理
+   工作台质量闭环入口清理、集成契约和生产注释旧口径清理、临床待办空态角色体验清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。
