@@ -323,7 +323,7 @@ function WorkbenchCards({
           <DomainEntryCard
             id="engine-quality"
             title="质量问题与整改"
-            description="处理质量问题、医保审核和评价指标，形成医疗引擎的持续改进闭环。"
+            description="进入质量管理概览核查指标口径、责任对象、整改进度和医保审核入口。"
             actions={[
               { label: "质量问题与整改", path: "/qc/alerts" },
               { label: "医保审核", path: "/qc/insurance" },
@@ -401,7 +401,7 @@ function WorkbenchCards({
           id="value"
           title="质量管理"
           marker="质量管理入口"
-          description="进入质量管理概览查看真实指标；暂无工作台独立聚合时只提供入口。"
+          description="进入质量管理概览核查指标口径、责任对象、整改进度和医保审核入口。"
           actions={[
             { label: "质量管理概览", path: "/qc/dashboard" },
             { label: "医保审核", path: "/qc/insurance" },

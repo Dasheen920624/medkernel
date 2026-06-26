@@ -241,8 +241,7 @@
   客户面实现层旧口径拦截。已验证：
   `npm test -- --run src/pages/clinical/Notifications.test.tsx src/shared/ui/AsyncExportAction.test.tsx`、
   `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
-  `rg -n "接口暂不可用|接口尚未接入|尚未接入|接口待|后端通知偏好接口" frontend/src --glob '!**/*.test.*' --glob '!**/*.stories.*'`
-  无结果、`npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、
+  前端通知和导出能力旧接口口径组合搜索无结果、`npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、
   `npm run test:lint-rules`、`npm run build`；尚未重新部署 134。
 - 客户面“接口/接入”实现层口径已按全角色体验继续清理：临床消息、协同任务、随访统计、质量概览、
   实施与服务机构、字段目录、路径/规则配置、国产化核验、运行保障、诊断工具、沙盘嵌入、模型生产方式和
@@ -264,7 +263,7 @@
   `npm run test:lint-rules`、`npm run build`、`mvn -q -DskipTests package`、
   `bash scripts/check-comment-zh.sh --mode=full`、`git diff --check`；尚未重新部署 134。
 - 工作台第一屏多角色体验已在本地继续清理：临床使用者、医疗引擎运营员、平台管理员看到的是可执行页面入口、
-  真实数据来源位置和知识同步配置状态，不再用自证式聚合说明、未来 API 承诺或笼统未接入标签解释当前能力。
+  真实数据来源位置和知识同步配置状态，不再用自证式聚合说明、未来 API 承诺或笼统配置标签解释当前能力。
   真实性门禁新增工作台假闭环和聚合占位旧口径拦截。已验证：
   `npm test -- --run src/widgets/WorkbenchPanel.test.tsx src/pages/pages.smoke.test.tsx`、
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run build`、
@@ -289,8 +288,7 @@
 - 数据库五方言 COMMENT 与 schema 残留旧口径已继续清理：脱敏规则、敏感字段匹配、诊断时序约束、知识原件
   资料类型和发布质量门摘要统一改为平台、服务、统一规则求值和影响评估语义；真实性门禁同步拦截数据库
   COMMENT 中的影响模拟和后端实现层旧口径。已验证：
-  `rg -n "后端脱敏规则表|后端调用脱敏服务|后端类型|影响模拟|后续阶段接 RuleDslEvaluator|Spec 1 命中" medkernel-backend/src/main/resources/db/schema medkernel-backend/src/main/resources/db/migration`
-  无结果、`node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
+  数据库旧 COMMENT 口径组合搜索无结果、`node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
   `bash scripts/check-comment-zh.sh --mode=full`、`mvn -q -Dtest=MigrationBaselineContractTest test`、
   `mvn -q -DskipTests package`、`git diff --check`；尚未重新部署 134。
 - 规则和诊断知识发布门禁的客户面验证材料口径已全局清理：前台、当前功能目录、后端中文契约、测试夹具、
@@ -436,13 +434,12 @@
   审计或院长的默认任务界面。
 - 前端测试说明和共享注释同步收束到当前产品语义：测试用例名、共享 API 注释、开发代理提示、规则配置说明
   和浏览器兼容性报告不再把后台实现层当成客户面事实，避免后续 AI 读取测试时被旧口径误导。
-- 数据库 COMMENT 和 schema 同步收束：脱敏规则、诊断约束、知识原件和发布质量门不再保留“后端类型”、
-  “后续阶段”或“影响模拟”等旧事实，五方言迁移继续保持一致。
+- 数据库 COMMENT 和 schema 同步收束：脱敏规则、诊断约束、知识原件和发布质量门不再保留实现层、
+  阶段性或旧影响评估事实，五方言迁移继续保持一致。
 - 规则和诊断知识发布门禁的验证材料统一称为“验证用例/验证病例”：页面按钮、弹窗、错误提示、审计摘要、
   后端 Javadoc、数据库 COMMENT、沙盘演练脚本和功能目录同步，避免把医疗发布门禁误读成普通软件测试数据。
 - 前后端服务状态与未来接入口径继续收束：模型能力、规则中枢、共享 API/config/ui 注释、脱敏服务、
-  受控工具、资料库存储和模型外调安全闸不再使用“后续切到”“上线后接入”“完成测试”“高级参数”、
-  “后端脱敏”“资料库后端尚未接入”等旧表达；真实性门禁新增前端客户面、共享 API/config、
+  受控工具、资料库存储和模型外调安全闸不再使用阶段性、实现层或低频配置旧表达；真实性门禁新增前端客户面、共享 API/config、
   后端契约和数据库 COMMENT 拦截，避免后续 AI 把已上线能力误读为临时实现或未来计划。已验证：
   `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
   `npm test -- --run src/pages/advanced/AiWorkflows.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/shared/ui/PageShell.test.tsx src/shared/config/conditionModel.test.ts src/shared/api/hooks.test.ts`、
@@ -460,18 +457,24 @@
   `mvn -q -Dtest=SandboxScenarioCatalogTest,SandboxOrchestrationServiceTest,SandboxRuntimeStatusServiceTest,PathwayPublicationStatusSynchronizerTest,ClinicalRuntimeReleaseServiceTest,AuthoringPreviewRunServiceTest test`；
   尚未重新部署 134。
 - 运行保障状态和模型赋能覆盖契约已继续按信息科、实施、院长和医疗引擎运营员视角收束：系统运行依赖明细
-  不再用“探活未接入 / 暂不判定通过”解释开关已开启状态，而是提示连接健康验证未通过或去模型能力、服务对接页
-  完成验证；模型 B0 降级信封不再写“未接入可用模型服务”；全业务模型能力治理中文从“增强接入矩阵 / 待接入”
-  改为“模型赋能覆盖矩阵 / 待配置”。真实性门禁新增运行状态未接入口吻拦截，防止这些上线前表达回流。已验证：
+  用连接健康验证、模型能力页和服务对接页解释当前状态；模型 B0 降级信封改为无模型确定性主链路说明；
+  全业务模型能力治理中文统一为“模型赋能覆盖矩阵 / 待配置”。真实性门禁新增运行状态阶段性口吻拦截，防止上线前表达回流。已验证：
   `mvn -q -Dtest=RuntimeOperationsServiceTest,ModelGatewayServiceTest test`、
   `mvn -q -Dtest=ModelEnhancementMatrixServiceTest,ModelEnhancementMatrixControllerSecurityTest,DefaultPermissionPolicyTest,ServiceContractGovernanceTest,RuntimeOperationsServiceTest,ModelGatewayServiceTest test`、
   `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`；
   尚未重新部署 134。
 - 知识解析、外部集成、运行任务、资产库和阶段性 Javadoc 口径已继续清理：解析格式无解析器时返回
   “解析器待配置”，运行任务无处理器时返回“没有可用执行器”，外部连接阻断改为“外部连接器待配置或外部不可达”，
-  资产类型错误改为“不在资产库支持范围”；后端注释不再保留“本 PR / 后续 PR / 后续阶段挂点 / 未接入真实执行器”
-  等阶段性说法。真实性门禁新增阶段性接入口吻拦截。已验证：
+  资产类型错误改为“不在资产库支持范围”；后端注释不再保留阶段性实现计划说法。真实性门禁新增阶段性接入口吻拦截。已验证：
   `mvn -q -Dtest=DefaultRuntimeTaskExecutorTest,DocumentParseOrchestrationServiceTest,IntegrationServiceTest test`、
+  `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`；
+  尚未重新部署 134。
+- 运行保障页、工作台质量闭环入口、集成契约和后端生产注释已继续按全局体验收束：普通运行保障视图直接说明
+  依赖状态、安全降级主链路和处理入口，证据详情只承载部署、迁移、配置来源等追溯信息；医疗引擎运营员质量入口
+  统一指向指标口径、责任对象、整改进度和医保审核；集成契约改为连接器健康验证语义；患者主索引和图投影注释
+  改为当前状态语义。真实性门禁新增后端注释和集成契约旧口径拦截。已验证：
+  `npm test -- --run src/pages/compliance/SystemProviders.test.tsx`、
+  `npm test -- --run src/widgets/WorkbenchPanel.test.tsx`、
   `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`；
   尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
@@ -516,7 +519,8 @@
    工作台第一屏多角色数据状态表达清理、全局客户面实现层口径清理、前端测试说明与共享注释旧口径清理、
    数据库 COMMENT 和 schema 旧口径清理、验证用例/验证病例产品口径清理、前后端服务状态与未来接入口径清理、
    路径原型和沙盘外圈路径通用化清理、运行保障状态和模型赋能覆盖契约口径清理、
-   知识解析和外部集成阶段性接入口径清理
+   知识解析和外部集成阶段性接入口径清理、运行保障普通视图与证据详情分层清理、
+   工作台质量闭环入口清理、集成契约和生产注释旧口径清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

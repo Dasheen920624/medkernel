@@ -304,6 +304,7 @@ describe("WorkbenchPanel", () => {
     expect(screen.getAllByText(/知识图谱投影/).length).toBeGreaterThan(0);
     expect(screen.queryByText(legacyWorkbenchAggregationPlaceholder)).not.toBeInTheDocument();
     expect(screen.queryByText(legacyWorkbenchAggregationApiPlaceholder)).not.toBeInTheDocument();
+    expect(screen.queryByText(/暂无工作台独立聚合/)).not.toBeInTheDocument();
   });
 
   it("renders an explicit responsibility-specific landing view for all four launch roles", () => {
@@ -330,6 +331,9 @@ describe("WorkbenchPanel", () => {
     expect(screen.getAllByText("知识审核与发布").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /生成与发布知识/ })).toBeInTheDocument();
     expect(screen.getAllByText("质量问题与整改").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText("进入质量管理概览核查指标口径、责任对象、整改进度和医保审核入口。"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("临床协同入口")).not.toBeInTheDocument();
     knowledge.unmount();
 

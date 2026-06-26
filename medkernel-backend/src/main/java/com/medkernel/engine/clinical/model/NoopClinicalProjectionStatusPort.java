@@ -4,7 +4,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.stereotype.Component;
 
 /**
- * 默认图投影状态端口：未接入真实图投影时诚实返回 NOT_SYNCED。
+ * 默认图投影状态端口：未收到图投影同步状态时诚实返回 NOT_SYNCED。
  */
 @Component
 @ConditionalOnMissingBean(ClinicalProjectionStatusPort.class)

@@ -171,7 +171,7 @@ public class MpiService {
      * 获取患者 360 详情。
      *
      * <p>详情由当前租户患者主索引、最新标准上下文快照和最近活跃路径实例组成；
-     * 若暂未接入标准上下文，返回空快照字段而不是构造本地假患者事实。
+     * 若当前没有已生效标准上下文快照，返回空快照字段而不是构造本地假患者事实。
      */
     @Transactional(readOnly = true)
     public MpiPatientDetailResponse patientDetail(String mpiId) {

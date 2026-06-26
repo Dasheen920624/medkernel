@@ -65,13 +65,51 @@ function dependencySummary(dependency: RuntimeDependencyStatus) {
   if (dependency.key === "database") {
     return dependency.status === "UP" ? "核心数据服务可用" : "核心数据服务需要检查";
   }
+  if (dependency.key === "prometheus") {
+    return dependency.status === "UP" ? "业务指标采集可用" : "指标采集待验证；不影响核心业务提交。";
+  }
+  if (dependency.key === "backup-restore") {
+    return dependency.detail;
+  }
   if (dependency.key === "graph-projection") {
-    return dependency.status === "UP" ? "图谱辅助能力可用" : "图谱辅助能力未连接";
+    return dependency.status === "UP"
+      ? "图谱辅助能力可用"
+      : "知识图谱未连接；核心业务继续使用关系库权威数据。";
+  }
+  if (dependency.key === "search-projection") {
+    return dependency.status === "UP"
+      ? "知识搜索能力可用"
+      : "知识搜索待验证；知识生产和审核继续使用已发布资产。";
   }
   if (dependency.key === "dify-workflow") {
-    return dependency.status === "UP" ? "智能工作流可用" : "智能工作流未启用";
+    return dependency.status === "UP"
+      ? "模型工作流可用"
+      : "模型工作流未启用；规则、路径与知识生成继续使用确定性主链路。";
+  }
+  if (dependency.key === "model-gateway") {
+    return dependency.status === "UP"
+      ? "模型服务健康验证通过"
+      : "模型服务待验证；当前按无模型规则主链路运行。";
+  }
+  if (dependency.key === "external-provider") {
+    return dependency.status === "UP"
+      ? "外部系统连接可用"
+      : "外部系统连接待验证；不伪造同步成功，请在服务对接页完成健康验证。";
   }
   return dependency.detail;
+}
+
+function dependencyDetail(dependency: RuntimeDependencyStatus, evidenceDetailsEnabled: boolean) {
+  const summary = dependencySummary(dependency);
+  if (!evidenceDetailsEnabled || dependency.detail === summary) {
+    return summary;
+  }
+  return (
+    <Space direction="vertical" size={2}>
+      <Typography.Text>{summary}</Typography.Text>
+      <Typography.Text type="secondary">{dependency.detail}</Typography.Text>
+    </Space>
+  );
 }
 
 function formatDateTime(value?: string | null) {
@@ -238,8 +276,7 @@ export default function SystemProviders() {
               {
                 title: "说明",
                 key: "summary",
-                render: (_, dependency) =>
-                  evidenceDetailsEnabled ? dependency.detail : dependencySummary(dependency),
+                render: (_, dependency) => dependencyDetail(dependency, evidenceDetailsEnabled),
               },
             ]}
           />

@@ -780,6 +780,55 @@ test("后端生产契约会阻断阶段性接入口吻", async () => {
   );
 });
 
+test("后端生产注释会阻断投影和标准上下文未完成口吻", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/clinical/model/NoopClinicalProjectionStatusPort.java": `
+        /** 默认图投影状态端口：未接入真实图投影时诚实返回 NOT_SYNCED。 */
+        public class NoopClinicalProjectionStatusPort {}
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/mpi/MpiService.java": `
+        public class MpiService {
+          /** 若暂未接入标准上下文，返回空快照字段而不是构造本地假患者事实。 */
+          public void patientDetail() {}
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/clinical/model/NoopClinicalProjectionStatusPort.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/mpi/MpiService.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+      ]);
+    },
+  );
+});
+
+test("集成契约文档会阻断未接入真实连接器旧口径", async () => {
+  await withFixture(
+    {
+      "docs/contracts/integration/third-party-integration-guide.md": `
+        - ONLINE 不等于外部系统真实可达；未接入真实连接器时响应仍显示 NOT_CONNECTED。
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "docs/contracts/integration/third-party-integration-guide.md",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "docs.integration-contract-current-language",
+      ]);
+    },
+  );
+});
+
 test("前端 catch 成功门禁只检查 catch 代码块内部", async () => {
   await withFixture(
     {
