@@ -320,6 +320,22 @@ test("当前权威文档会阻断旧技术安全门口径", async () => {
   );
 });
 
+test("当前权威体验文档禁止回流演示重构旧说法", async () => {
+  await withFixture(
+    {
+      "docs/EXPERIENCE_CONTRACT.md": `
+        新增或改造客户可见页面还必须遵守五条演示重构原则：
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, ["docs/EXPERIENCE_CONTRACT.md"]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["docs.customer-facing-safety-language"]);
+    },
+  );
+});
+
 test("后端与数据库中文注释会阻断旧安全校验口径", async () => {
   const technicalEvaluation = "技术" + "评测";
   const technicalValidation = "技术" + "校验";

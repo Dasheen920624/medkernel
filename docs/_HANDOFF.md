@@ -216,6 +216,11 @@
   无结果、`npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、
   `npm run test:lint-rules`、`npm run build`、`mvn -q -DskipTests package`、
   `bash scripts/check-comment-zh.sh --mode=full`、`git diff --check`；尚未重新部署 134。
+- 权威体验契约旧口径已在本地清理：`EXPERIENCE_CONTRACT` 中“演示重构原则”改为“体验重构原则”，
+  真实性门禁新增当前权威体验文档旧说法拦截。已验证：`node --test scripts/authenticity-guard.test.mjs`、
+  `node scripts/authenticity-guard.mjs --mode=inventory`、
+  `rg -n "演示重构原则|影响模拟|静态校验占位|fixture|b0-fixture|offline-fixture|兜底伪造|技术安全门|技术门禁|测试 Payload" docs frontend/src medkernel-backend/src/main/java scripts --glob '!docs/_HANDOFF.md' --glob '!**/target/**' --glob '!scripts/authenticity-guard.test.mjs' --glob '!scripts/authenticity-guard.mjs' --glob '!scripts/check-comment-zh/**'`
+  仅命中测试自检或合法表单/临床路径语义，`git diff --check` 通过；尚未重新部署 134。
 
 ## 本轮落地内容
 
@@ -326,6 +331,8 @@
   B0 主链路证据和离线基线评测，避免把正式能力误解为临时样本或测试夹具。
 - 知识发布质量门中文口径从“影响模拟”统一为“影响评估”；全知识演练证据、前台复选项和后端默认摘要同步，
   规则提示卡引用的静态校验动作不再写“占位”，避免审核员、院长或后续 AI 把校验动作误解为临时数据。
+- 权威体验契约把页面改造原则从“演示重构”改为“体验重构”，强调真实客户任务和全角色体验，不再用演示页思路
+  牵引产品优化。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -362,7 +369,7 @@
 5. 本地临床协同任务、随访协同体验薄片、沙盘场景目录语义清理、退役工具主域文本清理、性能压测契约、
    旧口径门禁、客户面退役说明清理、全局治理语言清理、安全校验口径清理、实施内部口径清理、
    临床提醒来源空态、Webhook 验证口径清理、领域门面 B0 主链路证据和离线评测 baseline 命名清理、
-   知识发布质量门影响评估与规则提示卡引用占位口径清理还未重新部署 134；
+   知识发布质量门影响评估与规则提示卡引用占位口径清理、权威体验契约演示重构旧说法清理还未重新部署 134；
    下一次清库/发布演练要纳入真实前台操作证据，
    不能把当前本地薄片或本地门禁误记为 134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

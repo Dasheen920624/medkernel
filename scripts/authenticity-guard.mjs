@@ -180,8 +180,8 @@ const FRONTEND_ROUTER_RULES = [
 const CURRENT_DOC_RULES = [
   {
     ruleId: "docs.customer-facing-safety-language",
-    message: "当前权威文档禁止继续使用技术安全门、技术评测、技术字段、技术校验或影响模拟旧口径。",
-    pattern: /技术安全门|技术评测|技术字段|技术校验|影响模拟/,
+    message: "当前权威文档禁止继续使用技术安全门、技术评测、技术字段、技术校验、影响模拟或演示重构旧口径。",
+    pattern: /技术安全门|技术评测|技术字段|技术校验|影响模拟|演示重构原则/,
   },
 ];
 
