@@ -225,18 +225,19 @@ describe("Followup", () => {
     });
   });
 
-  it("renders server-side scoped progress metrics instead of current-page counts", () => {
+  it("renders current-organization progress metrics instead of current-page counts", () => {
     renderFollowup();
 
     expect(screen.getByRole("heading", { name: "随访协同" })).toBeInTheDocument();
     expect(
-      screen.getByText(/查看真实随访计划、患者问卷回收、护士代填和异常回院事件/),
+      screen.getByText(/按当前组织范围查看随访计划、患者问卷回收、护士代填和异常回院处理/),
     ).toBeInTheDocument();
-    expect(screen.getByText("作用域随访计划数")).toBeInTheDocument();
-    expect(screen.getByText("作用域执行中计划")).toBeInTheDocument();
-    expect(screen.getByText("作用域已完成任务")).toBeInTheDocument();
-    expect(screen.getByText("作用域任务完成率")).toBeInTheDocument();
-    expect(screen.getByText("作用域异常回院率")).toBeInTheDocument();
+    expect(screen.getByText("当前范围随访计划")).toBeInTheDocument();
+    expect(screen.getByText("当前范围执行中计划")).toBeInTheDocument();
+    expect(screen.getByText("当前范围已完成任务")).toBeInTheDocument();
+    expect(screen.getByText("当前范围任务完成率")).toBeInTheDocument();
+    expect(screen.getByText("当前范围异常回院率")).toBeInTheDocument();
+    expect(screen.queryByText(/作用域/)).not.toBeInTheDocument();
     expect(screen.getByText("12")).toBeInTheDocument();
     expect(screen.getByText("8")).toBeInTheDocument();
     expect(screen.getByText("21")).toBeInTheDocument();
@@ -259,7 +260,10 @@ describe("Followup", () => {
     renderFollowup();
 
     expect(screen.getByText("随访计划读取失败")).toBeInTheDocument();
-    expect(screen.getByText("请检查登录权限、服务空间或数据读取服务状态。")).toBeInTheDocument();
+    expect(
+      screen.getByText("请确认登录状态、组织范围；若持续失败，请联系信息科核查随访服务。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/服务空间|数据读取服务/)).not.toBeInTheDocument();
   });
 
   it("loads follow-up plans through server-side table pagination", async () => {
@@ -353,7 +357,7 @@ describe("Followup", () => {
       sort: "updatedAt,desc",
     });
 
-    await user.click(screen.getByRole("tab", { name: "模板治理" }));
+    await user.click(screen.getByRole("tab", { name: "随访模板" }));
     await user.click(screen.getByTitle("2"));
 
     await waitFor(() => {
@@ -366,8 +370,9 @@ describe("Followup", () => {
 
     await user.click(screen.getByRole("tab", { name: "计划执行" }));
     await user.click(screen.getByRole("button", { name: /生成随访计划/ }));
-    await user.click(screen.getByLabelText("随访模板"));
-    await user.type(screen.getByLabelText("随访模板"), "FUP.COPD.2026");
+    const generateDialog = screen.getByRole("dialog", { name: "生成随访计划" });
+    await user.click(within(generateDialog).getByLabelText("随访模板"));
+    await user.type(within(generateDialog).getByLabelText("随访模板"), "FUP.COPD.2026");
 
     await waitFor(() => {
       expect(followupHookMocks.useFollowupTemplates).toHaveBeenCalledWith({
@@ -385,16 +390,16 @@ describe("Followup", () => {
     renderFollowup();
 
     await user.click(screen.getByRole("button", { name: /查看与办理/ }));
-    await screen.findByText("异常事件上报");
-    await user.click(screen.getByLabelText("严重性"));
+    await screen.findByText("异常回院登记");
+    await user.click(screen.getByLabelText("回院风险等级"));
     await user.click(await screen.findByText("高风险"));
-    fireEvent.change(screen.getByLabelText("异常表现"), {
+    fireEvent.change(screen.getByLabelText("异常症状或情况"), {
       target: { value: "患者随访反馈呼吸困难加重" },
     });
-    fireEvent.change(screen.getByLabelText("处理建议"), {
+    fireEvent.change(screen.getByLabelText("医护处理建议"), {
       target: { value: "安排回院复核并通知责任医生" },
     });
-    await user.click(screen.getByRole("button", { name: /上报异常事件/ }));
+    await user.click(screen.getByRole("button", { name: /登记异常回院/ }));
 
     await waitFor(() => expect(followupHookMocks.reportAbnormal).toHaveBeenCalledTimes(1));
     const request = followupHookMocks.reportAbnormal.mock.calls[0][0];
@@ -410,9 +415,10 @@ describe("Followup", () => {
     });
 
     expect(await screen.findByText("回院任务 return-task-1")).toBeInTheDocument();
-    expect(screen.getByText("通知事件 notify-event-1")).toBeInTheDocument();
+    expect(screen.getByText("通知记录 notify-event-1")).toBeInTheDocument();
     expect(screen.getByText("追踪号 trace-followup-1")).toBeInTheDocument();
-    expect(screen.getByText("异常事件 event-return-1")).toBeInTheDocument();
+    expect(screen.getByText("异常记录 event-return-1")).toBeInTheDocument();
+    expect(screen.queryByText(/异常事件|上报/)).not.toBeInTheDocument();
   });
 
   it("records who submitted the follow-up questionnaire instead of assuming a physician", async () => {
@@ -448,7 +454,7 @@ describe("Followup", () => {
     renderFollowup();
 
     await user.click(screen.getByRole("button", { name: /生成随访计划/ }));
-    fireEvent.change(screen.getByLabelText("随访快照患者 ID"), {
+    fireEvent.change(screen.getByLabelText("随访快照患者标识"), {
       target: { value: "patient-real-1" },
     });
     await user.click(screen.getByRole("button", { name: "选择 snapshot-followup-1" }));
@@ -471,18 +477,22 @@ describe("Followup", () => {
         idempotencyKey: "followup-plan-snapshot-followup-1-ftpl-1-HIGH-QUESTIONNAIRE",
       }),
     );
-    expect(screen.queryByLabelText("患者 ID")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("就诊 ID")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("患者标识")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("就诊标识")).not.toBeInTheDocument();
   });
 
-  it("shows followup template governance and publishes draft templates", async () => {
+  it("shows followup templates and publishes templates with current product wording", async () => {
     const user = userEvent.setup();
     renderFollowup();
 
-    await user.click(screen.getByRole("tab", { name: "模板治理" }));
+    await user.click(screen.getByRole("tab", { name: "随访模板" }));
 
     expect(screen.getByText("慢阻肺出院随访")).toBeInTheDocument();
-    expect(screen.getByText("待发布模板")).toBeInTheDocument();
+    expect(screen.getAllByText("待发布模板").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("随访模板").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText("模板发布后才能用于生成随访计划，已生成计划继续保留原模板版本。"),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /发布模板/ }));
 
     await waitFor(() =>
@@ -490,19 +500,27 @@ describe("Followup", () => {
         templateId: "ftpl-draft",
         request: {
           impactDigest: "sm3:draft-template",
-          reason: "第一阶段随访模板发布",
+          reason: "随访模板发布",
         },
       }),
     );
+    expect(screen.queryByText(/第一阶段|模板治理|随访模板资产|运行期/)).not.toBeInTheDocument();
   });
 
-  it("创建随访模板时不要求人工填写内部版本号", async () => {
+  it("创建随访模板时不暴露内部版本和技术字段名称", async () => {
     const user = userEvent.setup();
     renderFollowup();
 
-    await user.click(screen.getByRole("tab", { name: "模板治理" }));
+    await user.click(screen.getByRole("tab", { name: "随访模板" }));
     await user.click(screen.getByRole("button", { name: /新建模板/ }));
 
     expect(screen.queryByLabelText("版本")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("问卷模板标识")).toBeInTheDocument();
+    expect(screen.getByLabelText("问题标识")).toBeInTheDocument();
+    expect(screen.getByLabelText("依据来源")).toBeInTheDocument();
+    expect(screen.queryByLabelText("问卷模板 ID")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("问题编码")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("来源引用")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("FIRST_PHASE_FOLLOWUP_TEMPLATE")).not.toBeInTheDocument();
   });
 });

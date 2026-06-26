@@ -62,11 +62,16 @@ const FOLLOWUP_TEMPLATE_PAGE_SIZE = 20;
 
 const planStatusConfig: Record<FollowupPlanStatus, { status: BadgeProps["status"]; text: string }> =
   {
-    DRAFT: { status: "default", text: "草案" },
+    DRAFT: { status: "default", text: "待完善" },
     ACTIVE: { status: "processing", text: "执行中" },
     COMPLETED: { status: "success", text: "已结案" },
     CANCELLED: { status: "error", text: "已取消" },
   };
+
+const templateStatusConfig: Record<string, { color: string; text: string }> = {
+  PUBLISHED: { color: "green", text: "已发布" },
+  DRAFT: { color: "gold", text: "待发布" },
+};
 
 const taskTypeOptions = [
   { value: "QUESTIONNAIRE", label: "问卷回收" },
@@ -274,7 +279,7 @@ export default function Followup() {
           impactDigest:
             template.contentHash ||
             `followup-template-${template.templateId}-v${template.versionNo}`,
-          reason: "第一阶段随访模板发布",
+          reason: "随访模板发布",
         },
       });
       message.success("随访模板已发布，可用于新随访计划");
@@ -333,12 +338,12 @@ export default function Followup() {
       });
 
       setAbnormalEvidence(response);
-      message.warning("随访异常事件已上报，请以审计与刷新后的任务状态为准");
+      message.warning("异常回院已登记，请以审计与刷新后的任务状态为准");
       abnormalForm.resetFields();
       await refreshFollowupData();
     } catch (error: unknown) {
       if (applyApiFieldErrors(abnormalForm, error)) return;
-      message.error(getApiErrorMessage(error, "异常上报失败"));
+      message.error(getApiErrorMessage(error, "异常回院登记失败"));
     }
   };
 
@@ -350,12 +355,12 @@ export default function Followup() {
       render: (planId: string) => <span className={styles.textStrong}>{planId}</span>,
     },
     {
-      title: "患者 ID",
+      title: "患者标识",
       dataIndex: "patientId",
       key: "patientId",
     },
     {
-      title: "就诊 ID",
+      title: "就诊标识",
       dataIndex: "encounterId",
       key: "encounterId",
       render: (encounterId: string) => <Tag color="blue">{encounterId}</Tag>,
@@ -465,9 +470,13 @@ export default function Followup() {
       title: "状态",
       dataIndex: "assetStatus",
       key: "assetStatus",
-      render: (status: string) => (
-        <Tag color={status === "PUBLISHED" ? "green" : "gold"}>{customerEnumLabel(status)}</Tag>
-      ),
+      render: (status: string) => {
+        const current = templateStatusConfig[status] ?? {
+          color: "default",
+          text: customerEnumLabel(status),
+        };
+        return <Tag color={current.color}>{current.text}</Tag>;
+      },
     },
     {
       title: "操作",
@@ -491,14 +500,14 @@ export default function Followup() {
   return (
     <PageShell
       title="随访协同"
-      description="查看真实随访计划、患者问卷回收、护士代填和异常回院事件。"
+      description="按当前组织范围查看随访计划、患者问卷回收、护士代填和异常回院处理。"
     >
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}
         items={[
           { key: "plans", label: "计划执行" },
-          { key: "templates", label: "模板治理" },
+          { key: "templates", label: "随访模板" },
         ]}
       />
       {activeTab === "plans" ? (
@@ -507,7 +516,7 @@ export default function Followup() {
             <Col xs={24} sm={12} xl={6}>
               <Card>
                 <Statistic
-                  title="作用域随访计划数"
+                  title="当前范围随访计划"
                   value={statsLoading ? "..." : stats.totalPlans}
                   prefix={<FileTextOutlined />}
                 />
@@ -516,7 +525,7 @@ export default function Followup() {
             <Col xs={24} sm={12} xl={6}>
               <Card>
                 <Statistic
-                  title="作用域执行中计划"
+                  title="当前范围执行中计划"
                   value={statsLoading ? "..." : stats.activePlans}
                   prefix={<CompassOutlined />}
                 />
@@ -525,7 +534,7 @@ export default function Followup() {
             <Col xs={24} sm={12} xl={6}>
               <Card>
                 <Statistic
-                  title="作用域已完成任务"
+                  title="当前范围已完成任务"
                   value={statsLoading ? "..." : stats.completedTasks}
                   prefix={<CheckCircleOutlined />}
                 />
@@ -534,7 +543,7 @@ export default function Followup() {
             <Col xs={24} sm={12} xl={6}>
               <Card>
                 <Statistic
-                  title="作用域任务完成率"
+                  title="当前范围任务完成率"
                   value={statsLoading ? "..." : stats.taskCompletionRatePercent}
                   suffix="%"
                   prefix={<AlertOutlined />}
@@ -544,7 +553,7 @@ export default function Followup() {
             <Col span={6}>
               <Card>
                 <Statistic
-                  title="作用域异常回院率"
+                  title="当前范围异常回院率"
                   value={statsLoading ? "..." : stats.abnormalReturnRatePercent}
                   suffix="%"
                   prefix={<WarningOutlined />}
@@ -557,7 +566,7 @@ export default function Followup() {
             <Space wrap className={styles.rowBetween}>
               <Space wrap>
                 <Input
-                  placeholder="按患者 ID 检索"
+                  placeholder="按患者标识检索"
                   allowClear
                   value={patientFilter}
                   onChange={(event) => {
@@ -596,7 +605,7 @@ export default function Followup() {
               showIcon
               className={styles.sectionGap}
               message="随访计划读取失败"
-              description="请检查登录权限、服务空间或数据读取服务状态。"
+              description="请确认登录状态、组织范围；若持续失败，请联系信息科核查随访服务。"
             />
           )}
 
@@ -644,7 +653,7 @@ export default function Followup() {
             <Col xs={24} sm={8}>
               <Card>
                 <Statistic
-                  title="待治理模板"
+                  title="待发布模板"
                   value={
                     templates.filter((template) => template.assetStatus !== "PUBLISHED").length
                   }
@@ -655,9 +664,9 @@ export default function Followup() {
           <Card>
             <Space wrap className={styles.rowBetween}>
               <Space direction="vertical" size={0}>
-                <span className={styles.textStrong}>随访模板资产</span>
+                <span className={styles.textStrong}>随访模板</span>
                 <span className={styles.textMuted}>
-                  模板发布后才能绑定随访计划，运行期只记录计划和任务实例。
+                  模板发布后才能用于生成随访计划，已生成计划继续保留原模板版本。
                 </span>
               </Space>
               <Input
@@ -718,10 +727,10 @@ export default function Followup() {
       >
         <Form form={generateForm} layout="vertical" className={styles.formGap}>
           <Space wrap className={styles.fullWidth}>
-            <Form.Item label="患者 ID">
+            <Form.Item label="患者标识">
               <Input
-                aria-label="随访快照患者 ID"
-                placeholder="输入患者 ID 检索已生效快照"
+                aria-label="随访快照患者标识"
+                placeholder="输入患者标识检索已生效快照"
                 value={snapshotPatientId}
                 onChange={(event) => {
                   setSnapshotPatientId(event.target.value);
@@ -729,10 +738,10 @@ export default function Followup() {
                 }}
               />
             </Form.Item>
-            <Form.Item label="就诊 ID">
+            <Form.Item label="就诊标识">
               <Input
-                aria-label="随访快照就诊 ID"
-                placeholder="可单独按就诊 ID 检索"
+                aria-label="随访快照就诊标识"
+                placeholder="可单独按就诊标识检索"
                 value={snapshotEncounterId}
                 onChange={(event) => {
                   setSnapshotEncounterId(event.target.value);
@@ -831,9 +840,9 @@ export default function Followup() {
           <Space direction="vertical" size="large" className={styles.fullWidth}>
             <Descriptions bordered size="small" column={2}>
               <Descriptions.Item label="计划编号">{selectedPlanDetail.planId}</Descriptions.Item>
-              <Descriptions.Item label="服务空间">{selectedPlanDetail.tenantId}</Descriptions.Item>
-              <Descriptions.Item label="患者 ID">{selectedPlanDetail.patientId}</Descriptions.Item>
-              <Descriptions.Item label="就诊 ID">
+              <Descriptions.Item label="服务机构">{selectedPlanDetail.tenantId}</Descriptions.Item>
+              <Descriptions.Item label="患者标识">{selectedPlanDetail.patientId}</Descriptions.Item>
+              <Descriptions.Item label="就诊标识">
                 {selectedPlanDetail.encounterId}
               </Descriptions.Item>
               <Descriptions.Item label="病种编码">
@@ -902,7 +911,7 @@ export default function Followup() {
                     type="info"
                     showIcon
                     className={styles.sectionGap}
-                    message={`正在提交随访任务：${selectedTaskId}`}
+                    message={`正在提交问卷任务：${selectedTaskId}`}
                   />
                   <Form.Item
                     name="executorType"
@@ -938,12 +947,12 @@ export default function Followup() {
               )}
             </Card>
 
-            <Card title="异常事件上报">
+            <Card title="异常回院登记">
               <Form form={abnormalForm} layout="vertical" onFinish={handleReportAbnormal}>
                 <Form.Item
                   name="severity"
-                  label="严重性"
-                  rules={[{ required: true, message: "请选择严重性" }]}
+                  label="回院风险等级"
+                  rules={[{ required: true, message: "请选择回院风险等级" }]}
                 >
                   <Select
                     options={[
@@ -955,15 +964,15 @@ export default function Followup() {
                 </Form.Item>
                 <Form.Item
                   name="symptoms"
-                  label="异常表现"
-                  rules={[{ required: true, message: "请输入异常表现" }]}
+                  label="异常症状或情况"
+                  rules={[{ required: true, message: "请输入异常症状或情况" }]}
                 >
                   <TextArea rows={3} placeholder="请录入真实随访反馈中的异常表现" />
                 </Form.Item>
                 <Form.Item
                   name="remark"
-                  label="处理建议"
-                  rules={[{ required: true, message: "请输入处理建议" }]}
+                  label="医护处理建议"
+                  rules={[{ required: true, message: "请输入医护处理建议" }]}
                 >
                   <TextArea rows={3} placeholder="请录入当前医护人员给出的处理建议" />
                 </Form.Item>
@@ -975,7 +984,7 @@ export default function Followup() {
                   loading={reportAbnormalMutation.isPending}
                   disabled={selectedPlanDetail.status !== "ACTIVE"}
                 >
-                  上报异常事件
+                  登记异常回院
                 </Button>
               </Form>
               {abnormalEvidence && (
@@ -986,9 +995,9 @@ export default function Followup() {
                   message="异常回院证据已登记"
                   description={
                     <Space wrap>
-                      <Tag color="red">异常事件 {abnormalEvidence.eventId}</Tag>
+                      <Tag color="red">异常记录 {abnormalEvidence.eventId}</Tag>
                       <Tag color="orange">回院任务 {abnormalEvidence.returnTaskId}</Tag>
-                      <Tag color="gold">通知事件 {abnormalEvidence.notificationEventId}</Tag>
+                      <Tag color="gold">通知记录 {abnormalEvidence.notificationEventId}</Tag>
                       <Tag>追踪号 {abnormalEvidence.traceId}</Tag>
                     </Space>
                   }
@@ -1025,7 +1034,7 @@ export default function Followup() {
             outpatientDelayDays: 14,
             abnormalCondition: "出现呼吸困难加重或血氧下降",
             notifyTarget: "责任医生与随访护士",
-            sourceRef: "FIRST_PHASE_FOLLOWUP_TEMPLATE",
+            sourceRef: "FOLLOWUP_TEMPLATE_STANDARD",
           }}
         >
           <Form.Item
@@ -1087,8 +1096,8 @@ export default function Followup() {
           </Row>
           <Form.Item
             name="questionnaireTemplateId"
-            label="问卷模板 ID"
-            rules={[{ required: true, message: "请输入问卷模板 ID" }]}
+            label="问卷模板标识"
+            rules={[{ required: true, message: "请输入问卷模板标识" }]}
           >
             <Input />
           </Form.Item>
@@ -1096,8 +1105,8 @@ export default function Followup() {
             <Col span={12}>
               <Form.Item
                 name="questionCode"
-                label="问题编码"
-                rules={[{ required: true, message: "请输入问题编码" }]}
+                label="问题标识"
+                rules={[{ required: true, message: "请输入问题标识" }]}
               >
                 <Input />
               </Form.Item>
@@ -1134,8 +1143,8 @@ export default function Followup() {
           </Form.Item>
           <Form.Item
             name="sourceRef"
-            label="来源引用"
-            rules={[{ required: true, message: "请输入来源引用" }]}
+            label="依据来源"
+            rules={[{ required: true, message: "请输入依据来源" }]}
           >
             <Input />
           </Form.Item>

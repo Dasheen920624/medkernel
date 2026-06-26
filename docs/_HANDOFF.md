@@ -248,8 +248,8 @@
   路由体验元数据统一改为服务状态、服务目录、服务契约、服务对接或来源状态，不再让医生、护士、患者随访、
   信息科、实施、审计员或院长看到实现层命名；真实性门禁新增这组旧口径拦截。已验证：
   `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
-  `rg -n "后端通知接口|后端工作流接口|随访统计接口读取失败|质控汇总接口|服务空间接口|开通接口|组织接口|canonical 字段目录|恢复接口|系统运行接口|字段目录接口|上下文快照接口读取失败|规则接口|接口接入|接口目录|接口说明|统一模型接口|接口原始状态|专属接口" frontend/src --glob '!**/*.stories.*'`
-  无结果、`npm test -- --run src/pages/clinical/Notifications.test.tsx src/pages/clinical/WorkflowTodos.test.tsx src/pages/clinical/Followup.test.tsx src/pages/quality/QcDashboard.test.tsx src/pages/quality/KnowledgeGovernance.test.tsx src/pages/tenant/ImplementationGuide.test.tsx src/pages/tenant/TenantOnboarding.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/PathwayTemplates.test.tsx src/features/sandbox/SandboxEmbedFrame.test.tsx src/shared/ui/condition/FieldCatalogManager.test.tsx src/pages/operationalControlPages.test.tsx src/shared/config/routes.test.ts`
+  客户面服务状态旧口径组合搜索无结果、
+  `npm test -- --run src/pages/clinical/Notifications.test.tsx src/pages/clinical/WorkflowTodos.test.tsx src/pages/clinical/Followup.test.tsx src/pages/quality/QcDashboard.test.tsx src/pages/quality/KnowledgeGovernance.test.tsx src/pages/tenant/ImplementationGuide.test.tsx src/pages/tenant/TenantOnboarding.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/PathwayTemplates.test.tsx src/features/sandbox/SandboxEmbedFrame.test.tsx src/shared/ui/condition/FieldCatalogManager.test.tsx src/pages/operationalControlPages.test.tsx src/shared/config/routes.test.ts`
   13 个文件 / 172 个用例通过、`npm run typecheck`、`npm run lint`、`npm run stylelint`、
   `npm run format:check`、`npm run test:lint-rules`、`npm run build`；尚未重新部署 134。
 - 统一身份登录和身份来源待配置口径已在本地通过：登录页、页面烟测、身份来源测试夹具、共享 API 测试、
@@ -353,16 +353,19 @@
 - 修复 MPI 性别统计投影在 PostgreSQL/Hibernate 下的新建患者 500 问题；未知、空值和非 M/F 值统一归入
   `UNKNOWN`。
 - 前台 MPI 文案修正：将“在径路径实例”改为“活跃路径实例”。
-- 临床随访页移除实现视角说明，改为围绕真实随访计划、问卷回收和异常回院事件表达页面目标。
+- 临床随访页移除实现视角说明，改为围绕真实随访计划、问卷回收和异常回院处理表达页面目标。
 - 协同任务页按医生、护士和随访团队真实工作方式优化：页面标题对齐功能目录为“协同任务”，优先级改为中文
   医疗可读标签，并新增今日队列摘要，默认告诉操作者待处理数量、安全复核、护理任务、危急和高优先任务，
   以及先处理哪类任务。
 - 随访协同问卷填报补齐真实执行者来源：患者自填、护士代填、医生复核录入由前台表单明确选择并写入提交契约，
   避免把护士或患者产生的数据错误归到医生名下。
+- 随访协同统计、模板、计划生成、问卷回收和异常回院登记继续按医生、护士、患者随访和信息科视角收束：
+  统计口径使用当前范围，读取失败提示登录状态、组织范围和信息科核查随访服务，模板页说明发布后可用于生成计划，
+  异常回院操作改为登记，模板表单不暴露内部版本、阶段性来源或技术字段名。
 - 全局低频证据展开统一改为“证据详情”：共享开关、页面壳、审计页、运行保障页和服务端表格门禁都不再使用
   旧标签；CONSTITUTION、体验契约、术语表和质量基线同步改口径，避免代码与权威文档说两套话。
-- 页面烟测已同步当前功能目录标题：协同任务、随访协同不再被旧标题断言拉回；随访读取失败改成医院可理解的
-  数据读取服务状态提示，不暴露实现视角。
+- 页面烟测已同步当前功能目录标题：协同任务、随访协同不再被旧标题断言拉回；随访读取失败改成登录状态、
+  组织范围和信息科核查随访服务的可执行提示，不暴露实现视角。
 - 全真体验沙盘目录降级语义已收敛：目录读取失败时页面只提示沙盘场景目录暂不可用，并明确不会生成或暗示
   可运行临床场景；远端目录缺少数值录入或可执行输入契约时继续阻断运行，但原因使用产品语义表达。
 - 退役的独立“高级工具”主域不再作为连续文本保留在前端源码和当前文档中；路由/API 中的 `advanced`
@@ -484,6 +487,12 @@
   不再暴露内部反馈枚举、生硬否定措辞、内部策略动作或单药品示例，改为采纳/不采纳建议、未采纳、已限频、
   真实理由和登录态记录；高危红线和必须医师确认的提醒明确不会被自动减少或隐藏。已验证：
   `npm test -- --run src/pages/clinical/CdssFatigue.test.tsx`；尚未重新部署 134。
+- 随访协同统计、模板发布、计划生成、问卷回收和异常回院登记已继续按医生、护士、患者随访和信息科视角收束：
+  统计改为当前范围，读取失败指向登录状态、组织范围和信息科核查随访服务，模板页说明发布后可用于生成计划，
+  异常回院操作改为登记，模板表单不再暴露内部版本、阶段性来源和技术字段名。已验证：
+  `npm test -- --run src/pages/clinical/Followup.test.tsx`、
+  `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
+  `npm run build`、`git diff --check`；尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -528,7 +537,7 @@
    路径原型和沙盘外圈路径通用化清理、运行保障状态和模型赋能覆盖契约口径清理、
    知识解析和外部集成阶段性接入口径清理、运行保障普通视图与证据详情分层清理、
    工作台质量闭环入口清理、集成契约和生产注释旧口径清理、临床待办空态角色体验清理、
-   临床提醒反馈与频次治理医生/护士视角清理
+   临床提醒反馈与频次治理医生/护士视角清理、随访协同统计/模板/异常回院登记多角色体验清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。
