@@ -428,7 +428,7 @@ export default function Bootstrap() {
           <Result
             status="success"
             title="系统已完成首次部署"
-            subTitle="初始管理员已经建立，请返回登录。后续账号与服务空间统一在工作台内维护。"
+            subTitle="初始管理员已经建立，请返回登录。后续账号与服务机构统一在工作台内维护。"
             extra={[
               <Button
                 aria-label="返回登录"
@@ -559,13 +559,13 @@ export default function Bootstrap() {
                 </Title>
                 <Paragraph type="secondary">
                   接管码有效期：{formatTime(expiresAt) ?? "以部署配置为准"}
-                  。初始管理员属于平台治理空间（唯一内置），集团和医院服务空间进入平台治理后开通。
+                  。初始管理员属于平台治理空间（唯一内置），集团和医院服务机构进入平台治理后开通。
                 </Paragraph>
                 <div className={styles.bootstrapTenantContext}>
                   <SafetyCertificateOutlined aria-hidden="true" />
                   <div>
                     <Text strong>平台治理空间自动绑定</Text>
-                    <Text type="secondary">集团和医院服务空间进入平台治理后开通。</Text>
+                    <Text type="secondary">集团和医院服务机构进入平台治理后开通。</Text>
                   </div>
                 </div>
                 <Form
@@ -855,7 +855,7 @@ export default function Bootstrap() {
                 subTitle={
                   accountSecuritySetup
                     ? accountSecurityDoneDescription
-                    : "现在可以返回登录进入平台治理；集团、医院和其他服务空间后续在服务机构管理中维护。"
+                    : "现在可以返回登录进入平台治理；集团、医院和其他服务机构后续在服务机构管理中维护。"
                 }
                 extra={[
                   recoveryCode ? (

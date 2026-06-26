@@ -275,7 +275,7 @@ export default function SecurityBaseline() {
           type="info"
           showIcon
           message="当前为只读视图"
-          description="只有具备系统管理权限的账号可以修改配置；读取仍按当前服务空间和组织范围隔离。"
+          description="只有具备系统管理权限的账号可以修改配置；读取仍按当前服务机构和组织范围隔离。"
         />
       )}
       <Tabs

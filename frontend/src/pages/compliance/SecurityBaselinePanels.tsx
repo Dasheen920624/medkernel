@@ -233,10 +233,10 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
         />
         {scope === "tenant" && (
           <Input
-            aria-label="服务空间标识"
+            aria-label="服务机构标识"
             value={tenantId}
             onChange={(event) => setTenantId(event.target.value)}
-            placeholder="请输入服务空间标识"
+            placeholder="请输入服务机构标识"
             className="mk-config-tenant-input"
           />
         )}
