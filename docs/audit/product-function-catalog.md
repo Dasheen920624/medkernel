@@ -606,7 +606,7 @@
 <!-- capability:batch:batch@RuntimeTaskService decision=MERGE -->
 | `RuntimeTaskService` | `medkernel-backend/src/main/java/com/medkernel/shared/runtime/task/RuntimeTaskService.java` | MERGE | 对应业务页的异步任务 |
 
-## 7. 强制后续动作
+## 7. 强制收口动作
 
 1. 目标信息架构必须以本目录的唯一任务和目标归属为输入，比较领域型、角色任务型、生命周期型和混合型方案后写入产品权威。
 2. `MOVE`、`RENAME`、`MERGE` 和 `REMOVE` 必须同步修改菜单、路由、权限、面包屑、页面、客户手册和自动化测试。

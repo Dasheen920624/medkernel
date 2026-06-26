@@ -546,6 +546,15 @@
   版本统一为 `OPT-01`，真实性门禁新增历史阶段标签拦截。已验证：
   `node --test scripts/authenticity-guard.test.mjs`；当前源码、测试和当前文档目录的历史阶段标签扫描无命中；
   尚未重新部署 134。
+- 客户面旧态、未来态和模拟态口径已继续按全局产品体验收束：首次接管、模型服务、MPI 合并、沙盘历史重放、
+  知识身份退役、质控确认、规则复制、术语版本生成、模型能力受管目录、路由体验元数据、功能目录及生成脚本
+  不再使用会误导为旧兼容、上线前承诺或页面模拟数据的说法；沙盘 `COMPARE` 能力保留内部契约，客户面呈现为
+  “版本差异评估/规则版本差异”。真实性门禁新增客户面和当前目录旧态/未来态/模拟态拦截。已验证：
+  `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
+  `npm test -- --run src/pages/Bootstrap.test.tsx src/pages/sandbox/SandboxHost.test.tsx src/pages/knowledge-production/ProviderSetupPanel.test.tsx src/pages/quality/QcAlerts.test.tsx src/pages/quality/KnowledgeGovernance.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/TerminologyMapping.test.tsx src/pages/clinical/Mpi.test.tsx`、
+  `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
+  `npm run build`、`mvn -q -f medkernel-backend/pom.xml -DskipTests package`、
+  `bash scripts/check-comment-zh.sh --mode=full`、`git diff --check`；尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -595,7 +604,8 @@
    实施与服务机构就绪空态/错误态清理、通知偏好/审计证据/路由体验范围语言清理、
    服务机构开通台账与表单语言清理、首次部署接管和安全基线范围语言清理、
    模型/知识/嵌入/规则/术语/接入/知识血缘范围语言清理、平台治理入口和测试契约范围语言清理、
-   低频配置明细与验收证据呈现清理、历史阶段标签清理和门禁增强
+   低频配置明细与验收证据呈现清理、历史阶段标签清理和门禁增强、
+   客户面旧态/未来态/模拟态口径和门禁增强
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

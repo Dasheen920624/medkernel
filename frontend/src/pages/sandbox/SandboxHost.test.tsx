@@ -460,11 +460,11 @@ describe("SandboxHost", () => {
     });
 
     renderSandboxHost();
-    fireEvent.click(screen.getByRole("radio", { name: "新旧对比" }));
+    fireEvent.click(screen.getByRole("radio", { name: "版本差异评估" }));
     fireEvent.change(screen.getByLabelText("历史重放清单标识"), {
       target: { value: "replay-2025-001" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "运行新旧对比" }));
+    fireEvent.click(screen.getByRole("button", { name: "运行版本差异评估" }));
 
     await waitFor(() =>
       expect(sandboxHookMocks.run).toHaveBeenCalledWith({
@@ -476,7 +476,7 @@ describe("SandboxHost", () => {
         },
       }),
     );
-    expect(await screen.findByRole("region", { name: "新旧规则差异" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "规则版本差异" })).toBeInTheDocument();
     expect(screen.getByText("高风险变化规则")).toBeInTheDocument();
     expect(screen.getByText("严重度升高")).toBeInTheDocument();
     expect(screen.getAllByText("新增命中")).toHaveLength(2);

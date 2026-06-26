@@ -134,7 +134,7 @@ export default function QcAlerts() {
     try {
       const acknowledged = await acknowledgeMutation.mutateAsync(selectedAlert.alertId);
       setSelectedAlert(acknowledged);
-      setDispatchFeedback({ type: "success", text: "预警已确认，后续状态仍由来源事实闭环刷新。" });
+      setDispatchFeedback({ type: "success", text: "预警已确认，状态继续由来源事实闭环刷新。" });
       alertsQuery.refetch();
     } catch (error: unknown) {
       setDispatchFeedback({ type: "error", text: getApiErrorMessage(error, "确认预警失败") });

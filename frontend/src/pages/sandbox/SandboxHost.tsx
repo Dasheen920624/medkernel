@@ -267,7 +267,7 @@ export default function SandboxHost() {
                 options={[
                   { label: "当前规则", value: "CURRENT" },
                   { label: "历史原样重放", value: "HISTORICAL_EXACT" },
-                  { label: "新旧对比", value: "COMPARE" },
+                  { label: "版本差异评估", value: "COMPARE" },
                 ]}
               />
             </Space>
@@ -416,8 +416,8 @@ export default function SandboxHost() {
           )}
 
           {result?.comparison && (
-            <section className={styles.runSummary} aria-label="新旧规则差异">
-              <Typography.Title level={5}>新旧规则差异</Typography.Title>
+            <section className={styles.runSummary} aria-label="规则版本差异">
+              <Typography.Title level={5}>规则版本差异</Typography.Title>
               <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 5 }}>
                 <Descriptions.Item label="差异规则">
                   {result.comparison.summary.differenceCount}
@@ -490,12 +490,12 @@ export default function SandboxHost() {
                 <Button
                   type="primary"
                   icon={<PlayCircleOutlined />}
-                  aria-label={runMode === "COMPARE" ? "运行新旧对比" : "按清单原样重放"}
+                  aria-label={runMode === "COMPARE" ? "运行版本差异评估" : "按清单原样重放"}
                   loading={runMutation.isPending}
                   disabled={!scenarioRunnable}
                   onClick={handleHistoricalRun}
                 >
-                  {runMode === "COMPARE" ? "运行新旧对比" : "按清单原样重放"}
+                  {runMode === "COMPARE" ? "运行版本差异评估" : "按清单原样重放"}
                 </Button>
               </Space>
             </section>

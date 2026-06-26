@@ -1008,7 +1008,7 @@ export default function TerminologyMapping() {
             type="info"
             showIcon
             message="版本号由系统自动生成"
-            description="同一资产编码首次生成 V1，后续生成 V2、V3；调用方不能手工输入版本号。"
+            description="同一资产编码首次生成 V1，再次生成 V2、V3；调用方不能手工输入版本号。"
           />
         </Form>
       </Modal>

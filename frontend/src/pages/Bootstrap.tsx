@@ -49,7 +49,7 @@ const handoverSignals = [
   },
   {
     label: "创建初始管理员",
-    value: "只创建第一个接管账号，后续账号进工作台开通",
+    value: "只创建第一个接管账号，其余账号进入工作台按职责开通",
   },
   {
     label: "按需启用多因素认证",
@@ -428,7 +428,7 @@ export default function Bootstrap() {
           <Result
             status="success"
             title="系统已完成首次部署"
-            subTitle="初始管理员已经建立，请返回登录。后续账号与服务机构统一在工作台内维护。"
+            subTitle="初始管理员已经建立，请返回登录。账号与服务机构统一在工作台内维护。"
             extra={[
               <Button
                 aria-label="返回登录"
@@ -855,7 +855,7 @@ export default function Bootstrap() {
                 subTitle={
                   accountSecuritySetup
                     ? accountSecurityDoneDescription
-                    : "现在可以返回登录进入平台治理；集团、医院和其他服务机构后续在服务机构管理中维护。"
+                    : "现在可以返回登录进入平台治理；集团、医院和其他服务机构统一在服务机构管理中维护。"
                 }
                 extra={[
                   recoveryCode ? (

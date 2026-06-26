@@ -2392,7 +2392,7 @@ export default function RuleDefinitions() {
           applicableOrgUnitId: detailData?.definition.applicableOrgUnitId || undefined,
         });
         message.success(
-          `V${detailData?.version.versionNo ?? ""} 规则草稿已保存，运行中旧版本不受影响`,
+          `V${detailData?.version.versionNo ?? ""} 规则草稿已保存，已生效版本不受影响`,
         );
       } else {
         const parameterBindings = buildCreateRuleParameterBindings();
@@ -2662,7 +2662,7 @@ export default function RuleDefinitions() {
       const created = await createNextRuleVersionMutation.mutateAsync({
         ruleId: selectedRuleId,
       });
-      message.success(`已复制为 V${created.versionNo} 草稿，旧版本继续运行`);
+      message.success(`已复制为 V${created.versionNo} 草稿，已生效版本继续运行`);
       setActiveDetailLayer("l2");
       refetchDetail();
       refetchList();

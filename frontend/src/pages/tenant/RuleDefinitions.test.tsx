@@ -1307,7 +1307,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   );
 
   it(
-    "已全量运行规则可复制为同编码下一版草稿且旧版继续运行",
+    "已全量运行规则可复制为同编码下一版草稿且已生效版本继续运行",
     async () => {
       const publishedRule = {
         ...draftRule,
@@ -1338,7 +1338,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
           ruleId: "rule-1",
         }),
       );
-      expect(await screen.findByText("已复制为 V2 草稿，旧版本继续运行")).toBeInTheDocument();
+      expect(await screen.findByText("已复制为 V2 草稿，已生效版本继续运行")).toBeInTheDocument();
       expect(apiMocks.refetchDetail).toHaveBeenCalled();
       expect(apiMocks.refetchList).toHaveBeenCalled();
     },
@@ -1427,9 +1427,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         ),
       );
       expect(apiMocks.updateRule.mock.calls[0][0].dslJson).not.toHaveProperty("trigger");
-      expect(
-        await screen.findByText("V2 规则草稿已保存，运行中旧版本不受影响"),
-      ).toBeInTheDocument();
+      expect(await screen.findByText("V2 规则草稿已保存，已生效版本不受影响")).toBeInTheDocument();
       expect(apiMocks.refetchDetail).toHaveBeenCalled();
       expect(apiMocks.refetchList).toHaveBeenCalled();
     },

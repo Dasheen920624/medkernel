@@ -3187,7 +3187,7 @@ export default function KnowledgeGovernance({
             type="warning"
             showIcon
             message={retirementIdentity?.subject ?? "未选择知识身份"}
-            description="宽限期内旧身份继续可读并显示迁移提示；到期后旧版本撤回，服务机构覆盖进入迁移悬置态。"
+            description="宽限期内原知识身份继续可读并显示迁移提示；到期后原版本撤回，服务机构覆盖进入迁移悬置态。"
           />
           <Form layout="vertical">
             <Form.Item label="后继知识身份" required>

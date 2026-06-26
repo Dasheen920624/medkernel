@@ -996,6 +996,57 @@ test("前端客户面会阻断未上线和低频参数旧口径", async () => {
   );
 });
 
+test("客户面和当前目录会阻断旧态、未来态和模拟态口径", async () => {
+  const futureAccount = "后续" + "账号";
+  const staleHealthConclusion = "旧" + "健康结论";
+  const oldNewCompare = "新旧" + "对比";
+  const pageMockData = "页面" + "模拟数据";
+  const futureRulePath = "后续" + "规则和路径";
+  const futureActionHeading = "强制" + "后续动作";
+  await withFixture(
+    {
+      "frontend/src/pages/Bootstrap.tsx": `
+        export const copy = "只创建第一个接管账号，${futureAccount}进工作台开通";
+      `,
+      "frontend/src/pages/ProviderSetupPanel.tsx": `
+        export const copy = "配置或轮换密钥会强制停用服务并清除${staleHealthConclusion}";
+      `,
+      "frontend/src/pages/SandboxHost.tsx": `
+        export const label = "${oldNewCompare}";
+      `,
+      "frontend/src/shared/config/modelProduction.ts": `
+        export const comment = "这些值来自平台模型服务类型与模型能力合同，不是${pageMockData}。";
+      `,
+      "frontend/src/shared/config/routes.ts": `
+        export const goal = "核查院内码与标准码的映射关系，降低${futureRulePath}执行风险";
+      `,
+      "docs/audit/product-function-catalog.md": `
+        ## 7. ${futureActionHeading}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/pages/Bootstrap.tsx",
+        "frontend/src/pages/ProviderSetupPanel.tsx",
+        "frontend/src/pages/SandboxHost.tsx",
+        "frontend/src/shared/config/modelProduction.ts",
+        "frontend/src/shared/config/routes.ts",
+        "docs/audit/product-function-catalog.md",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "docs.retired-product-state-language",
+        "frontend.retired-product-state-language",
+        "frontend.retired-product-state-language",
+        "frontend.retired-product-state-language",
+        "frontend.retired-product-state-language",
+        "frontend.retired-product-state-language",
+      ]);
+    },
+  );
+});
+
 test("共享 API 合同禁止把平台能力写成待上线旧口径", async () => {
   await withFixture(
     {

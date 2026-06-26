@@ -26,7 +26,7 @@ const SANDBOX_SCRIPT = /^scripts\/sandbox\/.+\.(?:mjs|json)$/;
 const DB_COMMENT_CONTRACT =
   /^medkernel-backend\/src\/main\/resources\/db\/(?:schema\/medkernel\.schema\.json|migration\/(?:dm|h2|kingbase|oracle|postgres)\/V1__baseline\.sql)$/;
 const CURRENT_DOCS =
-  /^docs\/(?:CONSTITUTION|EXPERIENCE_CONTRACT|PRODUCT_SCOPE|glossary)\.md$|^docs\/handbook\/operations\.md$|^docs\/audit\/质量基线\.md$/;
+  /^docs\/(?:CONSTITUTION|EXPERIENCE_CONTRACT|PRODUCT_SCOPE|glossary)\.md$|^docs\/handbook\/operations\.md$|^docs\/audit\/(?:product-function-catalog|质量基线)\.md$/;
 const INTEGRATION_CONTRACT_DOCS = /^docs\/contracts\/integration\/.+\.md$/;
 const FRONTEND_ALLOWLIST =
   /\.(?:test|spec|stories)\.(?:ts|tsx)$|^frontend\/src\/(?:test|mocks)\//;
@@ -72,6 +72,13 @@ const FRONTEND_RULES = [
     message:
       "前端客户面错误态和向导文案禁止出现演示数据、演示病例、安全骨架或未上线承诺等退役表达。",
     pattern: /演示数据|演示病例|安全骨架|兜底伪造|页面不做兜底|不做任何兜底|后续来源上线|自动回灌/,
+  },
+  {
+    ruleId: "frontend.retired-product-state-language",
+    message:
+      "前端客户面禁止保留旧态、未来态或模拟态口径，必须描述当前任务、当前版本和真实流程事实。",
+    pattern:
+      /页面模拟数据|旧健康结论|旧身份|旧版本|后续账号|后续在服务机构管理|后续状态仍|后续以目标患者|后续生成|新旧对比|新旧规则差异|运行新旧对比/,
   },
   {
     ruleId: "frontend.customer-facing-engineering-language",
@@ -156,6 +163,12 @@ const FRONTEND_SHARED_API_RULES = [
 
 const FRONTEND_SHARED_CONFIG_RULES = [
   {
+    ruleId: "frontend.retired-product-state-language",
+    message:
+      "前端共享配置禁止保留旧态、未来态或模拟态口径，必须描述当前任务、当前版本和真实流程事实。",
+    pattern: /页面模拟数据|后续规则和路径|后续账号|新旧对比|新旧规则差异|运行新旧对比/,
+  },
+  {
     ruleId: "frontend.customer-facing-engineering-language",
     message:
       "前端客户面禁止把治理、诊断和受控配置表达成开发或工程内部语言。",
@@ -197,6 +210,11 @@ const FRONTEND_ROUTER_RULES = [
 ];
 
 const CURRENT_DOC_RULES = [
+  {
+    ruleId: "docs.retired-product-state-language",
+    message: "当前权威目录禁止保留旧态、未来态或模拟态口径，必须描述当前收口动作。",
+    pattern: /强制后续动作/,
+  },
   {
     ruleId: "docs.customer-facing-safety-language",
     message:

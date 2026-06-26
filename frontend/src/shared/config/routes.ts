@@ -103,7 +103,7 @@ function readonlyExperience(
 
 const terminologyMappingExperience: RouteExperience = {
   primaryRole: "医疗引擎运营员",
-  goal: "核查院内码与标准码的映射关系，降低后续规则和路径执行风险",
+  goal: "核查院内码与标准码的映射关系，降低规则和路径执行风险",
   defaultView: "最近更新的待确认和高风险映射优先",
   defaultFilters: [
     {

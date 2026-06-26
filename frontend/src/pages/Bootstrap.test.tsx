@@ -98,7 +98,7 @@ describe("Bootstrap", () => {
 
     expect(screen.getByText("系统已完成首次部署")).toBeInTheDocument();
     expect(
-      screen.getByText("初始管理员已经建立，请返回登录。后续账号与服务机构统一在工作台内维护。"),
+      screen.getByText("初始管理员已经建立，请返回登录。账号与服务机构统一在工作台内维护。"),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("部署接管码")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "返回登录" }));
