@@ -512,6 +512,10 @@
   组织范围隔离，不再用内部运行分区解释关键证据边界。已验证：
   `npm test -- --run src/pages/compliance/NotificationSettings.test.tsx src/pages/compliance/AdminAudit.test.tsx`、
   `npm test -- --run src/shared/config/routes.test.ts src/pages/pages.smoke.test.tsx`；尚未重新部署 134。
+- 服务机构开通台账、开通表单、开通结果、组织编码提示和品牌归属预览已继续按平台管理员、实施工程师和
+  信息科视角收束：平台治理入口统一使用服务机构/服务机构标识，不再把租户运行分区表达为机构空间；
+  组织节点和品牌预览也回到当前服务机构语义。已验证：
+  `npm test -- --run src/pages/tenant/TenantOnboarding.test.tsx`；尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -558,7 +562,8 @@
    工作台质量闭环入口清理、集成契约和生产注释旧口径清理、临床待办空态角色体验清理、
    临床提醒反馈与频次治理医生/护士视角清理、随访协同统计/模板/异常回院登记多角色体验清理、
    临床通知/协同任务/MPI 组织范围和信息科提示清理、全局顶栏与权限指纹范围语言清理、
-   实施与服务机构就绪空态/错误态清理、通知偏好/审计证据/路由体验范围语言清理
+   实施与服务机构就绪空态/错误态清理、通知偏好/审计证据/路由体验范围语言清理、
+   服务机构开通台账与表单语言清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

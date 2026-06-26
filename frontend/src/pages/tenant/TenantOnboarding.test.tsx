@@ -302,7 +302,7 @@ describe("TenantOnboarding", () => {
     expect(screen.queryByText(/机构空间/)).not.toBeInTheDocument();
   });
 
-  it("仅允许平台治理空间开通服务机构空间", async () => {
+  it("仅允许平台治理空间开通服务机构", async () => {
     const provision = vi.fn().mockResolvedValue({
       tenantId: "t-renmin",
       adminUserId: "renmin-admin",
@@ -317,8 +317,8 @@ describe("TenantOnboarding", () => {
     expect(screen.queryByText("组织树")).not.toBeInTheDocument();
     expect(screen.getByText("人民医院")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /开通机构空间/ }));
-    await userEvent.type(screen.getByLabelText("机构空间标识"), "t-renmin");
+    await userEvent.click(screen.getByRole("button", { name: /开通服务机构/ }));
+    await userEvent.type(screen.getByLabelText("服务机构标识"), "t-renmin");
     await userEvent.type(screen.getByLabelText("服务机构名称"), "人民医院");
     await userEvent.type(screen.getByLabelText("首个管理员登录名"), "renmin-admin");
     await userEvent.click(screen.getByRole("button", { name: "确认开通" }));
@@ -331,5 +331,7 @@ describe("TenantOnboarding", () => {
       }),
     );
     expect(await screen.findByText("TenantPwd@9")).toBeInTheDocument();
+    expect(screen.getAllByText(/服务机构/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/机构空间/)).not.toBeInTheDocument();
   });
 });
