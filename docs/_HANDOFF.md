@@ -243,6 +243,14 @@
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
   `npm run build`、真实性/配置边界/迁移规约 inventory、`bash scripts/check-comment-zh.sh --mode=full`、
   `git diff --check`；尚未重新部署 134。
+- 客户面错误态和路径向导已继续按真实产品体验清理：图谱投影读取失败、规则快照读取失败和路径原型说明
+  改为真实服务状态与可执行下一步，不再用退役演示说明或上线前结构口吻解释页面；`RequestContext` Javadoc
+  改为当前 TraceId、OrgScope 和 userId 的运行事实。真实性门禁新增客户面退役文案与后端早期任务口吻拦截。
+- 上述客户面退役说明清理已在本地通过：`node --test scripts/authenticity-guard.test.mjs`、
+  `node scripts/authenticity-guard.mjs --mode=inventory`、
+  `npm test -- --run src/pages/advanced/GraphExplore.test.tsx src/pages/tenant/PathwayTemplates.test.tsx src/pages/tenant/RuleDefinitions.test.tsx`、
+  `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run build`、
+  `mvn -q -DskipTests package`、`bash scripts/check-comment-zh.sh --mode=full`；尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -276,7 +284,7 @@
 4. 按“证据详情新定义”继续回扫历史页面：知识审核候选来源溯源和全局证据详情偏好已完成；其它旧页面如仍存在
    生硬身份化开关、孤立技术入口或把关键安全/审计/业务判断证据藏起来的设计，后续都要改成上下文里的渐进证据、
    诊断信息或变更明细。
-5. 本地临床协同任务、随访协同体验薄片、沙盘场景目录语义清理、退役工具主域文本清理、性能压测契约
-   与旧口径门禁还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片
-   或本地门禁误记为 134 已验收。
+5. 本地临床协同任务、随访协同体验薄片、沙盘场景目录语义清理、退役工具主域文本清理、性能压测契约、
+   旧口径门禁和客户面退役说明清理还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，
+   不能把当前本地薄片或本地门禁误记为 134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

@@ -2778,7 +2778,7 @@ export default function RuleDefinitions() {
           type="error"
           showIcon
           message="上下文快照接口读取失败"
-          description="请稍后重试；页面不会用演示病例替代真实快照。"
+          description="请稍后重试或检查快照服务状态；页面仅使用已生效快照服务返回的真实数据。"
         />
       );
     }

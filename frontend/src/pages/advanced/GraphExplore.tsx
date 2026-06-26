@@ -254,7 +254,7 @@ export default function GraphExplore() {
         <Result
           status="error"
           title="投影事实读取失败"
-          subTitle="未使用本地演示数据替代真实结果。"
+          subTitle="请检查图谱投影服务状态；页面仅展示关系库与投影服务返回的真实结果。"
           extra={
             <Button type="primary" onClick={() => factsQuery.refetch()}>
               重新读取

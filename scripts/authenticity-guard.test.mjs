@@ -207,6 +207,32 @@ test("前端生产文件会阻断工作台本地假闭环和业务示例残留",
   );
 });
 
+test("前端生产文件会阻断客户面退役演示说明", async () => {
+  const retiredDemoData = "演示" + "数据";
+  const retiredSafetySkeleton = "安全" + "骨架";
+  await withFixture(
+    {
+      "frontend/src/pages/GraphExplore.tsx": `
+        export function GraphExplore() {
+          return <Result subTitle="未使用本地${retiredDemoData}替代真实结果。" />;
+        }
+      `,
+      "frontend/src/pages/PathwayTemplates.tsx": `
+        export const description = "默认生成急诊评估到处置安排的两节点${retiredSafetySkeleton}。";
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/pages/GraphExplore.tsx",
+        "frontend/src/pages/PathwayTemplates.tsx",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["frontend.retired-demo-copy", "frontend.retired-demo-copy"]);
+    },
+  );
+});
+
 test("前端生产文件会阻断默认临床病例文本回流", async () => {
   await withFixture(
     {
@@ -597,6 +623,33 @@ test("后端占位 Javadoc 门禁只检查 Javadoc 块内部", async () => {
 
       assert.equal(hasBlockingViolations(report), false);
       assert.deepEqual(report.violations, []);
+    },
+  );
+});
+
+test("后端生产注释会阻断早期任务口吻", async () => {
+  const retiredSkeletonIntro = "本类只提供" + "骨架";
+  const retiredTaskPhrase = "任务中" + "实施";
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/shared/context/RequestContext.java": `
+        package com.medkernel.shared.context;
+
+        /**
+         * 请求上下文。
+         *
+         * <p>${retiredSkeletonIntro}；JWT 到组织上下文的真实填充在后续${retiredTaskPhrase}。
+         */
+        public final class RequestContext {}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/shared/context/RequestContext.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["backend.retired-task-language"]);
     },
   );
 });

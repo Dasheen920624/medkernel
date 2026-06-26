@@ -366,7 +366,7 @@ const pathwayPrototypeOptions: Array<{
   {
     key: "ed_disposition",
     title: "急诊处置路径",
-    description: "默认生成急诊评估到处置安排的两节点安全骨架。",
+    description: "默认生成急诊评估到处置安排的两节点起始结构，可继续补充准入、处置和退出条件。",
   },
 ];
 

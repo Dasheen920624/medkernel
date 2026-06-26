@@ -52,6 +52,12 @@ const FRONTEND_RULES = [
       /\btodoMock\b|客户验收剧本|演示验收剧本|demo workflow|dataSource=\{todoMock\}/i,
   },
   {
+    ruleId: "frontend.retired-demo-copy",
+    message:
+      "前端客户面错误态和向导文案禁止出现演示数据、演示病例或安全骨架等退役表达。",
+    pattern: /演示数据|演示病例|安全骨架/,
+  },
+  {
     ruleId: "frontend.technical-object-visible",
     message: "客户面默认视图禁止裸露 JSON / font-mono 等技术对象。",
     pattern:
@@ -204,6 +210,11 @@ const BACKEND_RULES = [
     ruleId: "backend.placeholder-javadoc",
     message: "后端生产 Javadoc 禁止出现模拟、仿真、演示、占位或 placeholder。",
     javadocBlockPattern: /模拟|仿真|演示|占位|placeholder/i,
+  },
+  {
+    ruleId: "backend.retired-task-language",
+    message: "后端生产注释禁止保留早期任务口吻，已上线能力必须描述当前运行事实。",
+    pattern: /本类只提供骨架|任务中实施/,
   },
 ];
 
