@@ -215,7 +215,7 @@ function PlatformTenantProvisioning() {
         state="error"
         stateProps={{
           title: "机构空间台账读取失败",
-          description: "请重试；若持续失败，请带追踪号联系平台运维排查开通接口。",
+          description: "请重试；若持续失败，请带追踪号联系平台运维排查机构开通服务。",
           onRetry: () => refetch(),
         }}
       >
@@ -493,7 +493,7 @@ function CustomerTenantImplementation() {
         state="error"
         stateProps={{
           title: "机构实施状态读取失败",
-          description: "请重试；若持续失败，请带追踪号联系信息科排查机构空间与组织接口。",
+          description: "请重试；若持续失败，请带追踪号联系信息科排查机构空间与组织服务。",
           onRetry: () => {
             void refetchOrgs();
             void refetchReadiness();

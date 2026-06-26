@@ -1004,7 +1004,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("模型服务未就绪")).toBeInTheDocument();
     expect(screen.getAllByText("生产任务").length).toBeGreaterThan(0);
     expect(screen.getAllByText("job-ai-1").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("统一模型接口").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("统一模型服务").length).toBeGreaterThan(0);
     expect(screen.getByText("生产安全校验结果")).toBeInTheDocument();
     expect(screen.getByText("SOURCE_ANCHOR")).toBeInTheDocument();
     expect(screen.getByText("8 态分流")).toBeInTheDocument();
@@ -1070,7 +1070,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getAllByText("审候选").length).toBeGreaterThan(0);
     expect(screen.getAllByText("影响").length).toBeGreaterThan(0);
     expect(screen.getAllByText("结论").length).toBeGreaterThan(0);
-    expect(screen.getByDisplayValue("统一模型接口（本地或外部模型服务）")).toBeDisabled();
+    expect(screen.getByDisplayValue("统一模型服务（本地或外部模型服务）")).toBeDisabled();
     expect(screen.getByDisplayValue("医学知识")).toBeDisabled();
     expect(screen.queryByRole("option", { name: "规则" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("生产器")).not.toBeInTheDocument();
@@ -1522,7 +1522,7 @@ describe("KnowledgeGovernance", () => {
     });
     // AI 生成候选须带 AI 标识（Tag 非按钮，不触发生成）+ 生产器来源
     expect(await screen.findByText("AI 生成")).toBeInTheDocument();
-    expect(screen.getByText(/统一模型接口/)).toBeInTheDocument();
+    expect(screen.getByText(/统一模型服务/)).toBeInTheDocument();
     // 仍不得出现 AI 生成按钮（本页只审不生成，B0 / AIREVIEW-01 边界）
     expect(screen.queryByRole("button", { name: /AI 生成|创建候选/ })).not.toBeInTheDocument();
   });

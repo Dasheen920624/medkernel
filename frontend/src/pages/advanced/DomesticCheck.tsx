@@ -94,7 +94,7 @@ export default function DomesticCheck() {
         <PageState
           state="error"
           title="暂时无法读取国产化自检"
-          description="请稍后重试，或让信息科检查系统运行接口。"
+          description="请稍后重试，或让信息科检查系统运行服务。"
           action={
             <Button icon={<ReloadOutlined />} onClick={() => runtime.refetch()}>
               重读自检快照

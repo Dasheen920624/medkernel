@@ -226,7 +226,7 @@ describe("FieldCatalogManager 字段目录维护（P2/P5）", () => {
     expect(screen.getByLabelText("绑定字典")).toBeDisabled();
   });
 
-  it("字段目录接口不可用时诚实提示并禁止保存", () => {
+  it("字段目录服务不可用时诚实提示并禁止保存", () => {
     apiMocks.catalogError = true;
     renderManager();
     expect(screen.getByText("字段目录暂不可用")).toBeInTheDocument();

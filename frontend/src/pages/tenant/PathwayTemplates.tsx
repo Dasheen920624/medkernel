@@ -2378,7 +2378,7 @@ export default function PathwayTemplates() {
                 type="error"
                 showIcon
                 message="字段目录暂不可用，路径条件不能同步到受控配置。"
-                description="路径纳入、排除和流转条件必须绑定标准字段目录；恢复字段目录接口后再同步或保存。"
+                description="路径纳入、排除和流转条件必须绑定标准字段目录；恢复字段目录服务后再同步或保存。"
               />
             ) : null}
             <Row gutter={[16, 16]} className="mk-full-width">

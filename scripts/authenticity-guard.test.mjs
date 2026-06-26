@@ -277,6 +277,18 @@ test("前端生产文件会阻断客户面工程内部语言", async () => {
       "frontend/src/shared/ui/AsyncExportAction.tsx": `
         export const fallback = "导出任务接口尚未接入";
       `,
+      "frontend/src/pages/Notifications.tsx": `
+        export const error = "请检查登录状态、服务空间或后端通知接口。";
+      `,
+      "frontend/src/pages/WorkflowTodos.tsx": `
+        export const error = "请检查登录状态、服务空间或后端工作流接口。";
+      `,
+      "frontend/src/pages/ImplementationGuide.tsx": `
+        export const error = "请带追踪号联系信息科排查服务空间接口。";
+      `,
+      "frontend/src/shared/ui/condition/FieldCatalogManager.tsx": `
+        export const error = "当前无法读取 canonical 字段目录，请恢复接口后再维护字段元数据。";
+      `,
     },
     async (root) => {
       const report = await scanFiles(root, [
@@ -285,10 +297,18 @@ test("前端生产文件会阻断客户面工程内部语言", async () => {
         "frontend/src/pages/KnowledgeGovernance.tsx",
         "frontend/src/shared/config/routes.ts",
         "frontend/src/shared/ui/AsyncExportAction.tsx",
+        "frontend/src/pages/Notifications.tsx",
+        "frontend/src/pages/WorkflowTodos.tsx",
+        "frontend/src/pages/ImplementationGuide.tsx",
+        "frontend/src/shared/ui/condition/FieldCatalogManager.tsx",
       ]);
 
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), [
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
         "frontend.customer-facing-engineering-language",
         "frontend.customer-facing-engineering-language",
         "frontend.customer-facing-engineering-language",

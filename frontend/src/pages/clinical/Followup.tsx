@@ -605,8 +605,8 @@ export default function Followup() {
               type="error"
               showIcon
               className={styles.sectionGap}
-              message="随访统计接口读取失败"
-              description="看板统计来自后端作用域聚合，当前不可用时不使用当前页数据冒充全局统计。"
+              message="随访统计读取失败"
+              description="看板统计来自当前组织范围聚合，暂不可用时不使用当前页列表冒充全局统计。"
             />
           )}
 

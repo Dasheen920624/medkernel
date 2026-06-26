@@ -244,6 +244,15 @@
   `rg -n "接口暂不可用|接口尚未接入|尚未接入|接口待|后端通知偏好接口" frontend/src --glob '!**/*.test.*' --glob '!**/*.stories.*'`
   无结果、`npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、
   `npm run test:lint-rules`、`npm run build`；尚未重新部署 134。
+- 客户面“接口/接入”实现层口径已按全角色体验继续清理：临床消息、协同任务、随访统计、质量概览、
+  实施与服务机构、字段目录、路径/规则配置、国产化核验、运行保障、诊断工具、沙盘嵌入、模型生产方式和
+  路由体验元数据统一改为服务状态、服务目录、服务契约、服务对接或来源状态，不再让医生、护士、患者随访、
+  信息科、实施、审计员或院长看到实现层命名；真实性门禁新增这组旧口径拦截。已验证：
+  `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
+  `rg -n "后端通知接口|后端工作流接口|随访统计接口读取失败|质控汇总接口|服务空间接口|开通接口|组织接口|canonical 字段目录|恢复接口|系统运行接口|字段目录接口|上下文快照接口读取失败|规则接口|接口接入|接口目录|接口说明|统一模型接口|接口原始状态|专属接口" frontend/src --glob '!**/*.stories.*'`
+  无结果、`npm test -- --run src/pages/clinical/Notifications.test.tsx src/pages/clinical/WorkflowTodos.test.tsx src/pages/clinical/Followup.test.tsx src/pages/quality/QcDashboard.test.tsx src/pages/quality/KnowledgeGovernance.test.tsx src/pages/tenant/ImplementationGuide.test.tsx src/pages/tenant/TenantOnboarding.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/PathwayTemplates.test.tsx src/features/sandbox/SandboxEmbedFrame.test.tsx src/shared/ui/condition/FieldCatalogManager.test.tsx src/pages/operationalControlPages.test.tsx src/shared/config/routes.test.ts`
+  13 个文件 / 172 个用例通过、`npm run typecheck`、`npm run lint`、`npm run stylelint`、
+  `npm run format:check`、`npm run test:lint-rules`、`npm run build`；尚未重新部署 134。
 
 ## 本轮落地内容
 
@@ -365,6 +374,9 @@
   信息科或院长在无数据时被未来承诺误导。
 - 通知偏好和导出能力的不可用状态从实现层接入说明改为业务可执行提示：临床消息页提示回到通知设置确认，
   导出控件提示联系信息科确认范围或配置，避免前台用户把平台能力误读成临时未完成页面。
+- 全局客户面服务状态口径继续收束：临床、质量、实施、系统运维、沙盘、诊断工具、模型生产和字段目录
+  页面不再把读取失败、对接方式或低频证据表达成实现层接口名，统一改为医院角色可理解的服务状态、
+  服务目录、服务契约、服务对接和来源状态。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -403,7 +415,7 @@
    临床提醒来源空态、Webhook 验证口径清理、领域门面 B0 主链路证据和离线评测 baseline 命名清理、
    知识发布质量门影响评估与规则提示卡引用占位口径清理、权威体验契约演示重构旧说法清理、
    平台管理员工作台治理概览表达清理、发布治理服务影响评估契约口径清理、工作台空态未上线承诺清理、
-   通知偏好和导出能力实现层旧口径清理
+   通知偏好和导出能力实现层旧口径清理、全局客户面服务状态旧口径清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

@@ -3,7 +3,7 @@
  *
  * <p>受控组件：`value` 为顶层 {@link RuleGroup}，`onChange` 回传新根。规则 `when` 与
  * 路径边 `guard` 共用本组件，支持任意深度「条件组(all/any/可取反)+叶子」嵌套，
- * 直接解决「条件树只有一层」。字段路径接入 canonical 字段目录，选择后自动带出值类型与字典。
+ * 直接解决「条件树只有一层」。字段路径接入标准字段目录，选择后自动带出值类型与字典。
  */
 import { useMemo } from "react";
 import {

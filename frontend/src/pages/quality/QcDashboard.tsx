@@ -167,7 +167,7 @@ export default function QcDashboard() {
         state="empty"
         stateProps={{
           title: "当前筛选下暂无真实质控数据",
-          description: "未从质控汇总接口读取到问题、预警或质量成效。",
+          description: "质控汇总服务暂未返回问题、预警或质量成效。",
         }}
       >
         <></>

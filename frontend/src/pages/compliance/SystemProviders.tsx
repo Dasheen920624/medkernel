@@ -135,7 +135,7 @@ export default function SystemProviders() {
         <PageState
           state="error"
           title="暂时无法读取运行保障信息"
-          description="请稍后重试，或让信息科检查系统运行接口。"
+          description="请稍后重试，或让信息科检查系统运行服务。"
           action={
             <Button icon={<ReloadOutlined />} onClick={() => runtime.refetch()}>
               重试

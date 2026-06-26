@@ -198,7 +198,7 @@ export default function DevConsole() {
         <PageState
           state="error"
           title="暂时无法读取诊断工具"
-          description="请稍后重试，或让信息科检查系统运行接口。"
+          description="请稍后重试，或让信息科检查系统运行服务。"
           action={
             <Button
               icon={<ReloadOutlined />}
@@ -290,7 +290,7 @@ export default function DevConsole() {
     apiDirectory = (
       <PageState
         state="error"
-        title="接口目录读取失败"
+        title="服务目录读取失败"
         action={
           <Button icon={<ReloadOutlined />} onClick={() => apiContracts.refetch()}>
             重试
@@ -355,11 +355,11 @@ export default function DevConsole() {
                         type="link"
                         size="small"
                         icon={<ApiOutlined />}
-                        aria-label="接口说明"
+                        aria-label="服务契约"
                         href={record.openApiDocumentUrl}
                         target="_blank"
                       >
-                        接口说明
+                        服务契约
                       </Button>
                     ) : null}
                     {record.fieldContractUrl ? (
@@ -581,7 +581,7 @@ export default function DevConsole() {
   return (
     <PageShell
       title="诊断工具"
-      description="接口契约、追踪诊断与插件边界"
+      description="服务契约、追踪诊断与插件边界"
       extras={
         <Button
           icon={<ReloadOutlined />}
@@ -667,7 +667,7 @@ export default function DevConsole() {
                 label: (
                   <Space size={6}>
                     <ApiOutlined />
-                    接口目录
+                    服务目录
                   </Space>
                 ),
                 children: apiDirectory,

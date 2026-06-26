@@ -167,7 +167,7 @@ const RISK_COLORS: Record<string, "default" | "success" | "warning" | "error"> =
 
 // AIK-STD-12：AI 工厂生产器中文标识（aiGenerated 据 producer≠MANUAL，由后端判定）
 const PRODUCER_LABELS: Record<string, string> = {
-  API_MODEL: "统一模型接口",
+  API_MODEL: "统一模型服务",
   AGENT_TOOL: "Agent 工具",
   LOCAL_MODEL: "本地模型",
   MANUAL: "人工录入",
@@ -1786,7 +1786,7 @@ export default function KnowledgeGovernance({
             </Col>
             <Col xs={24} sm={12} lg={4}>
               <Form.Item label="生产方式">
-                <Input value="统一模型接口（本地或外部模型服务）" disabled />
+                <Input value="统一模型服务（本地或外部模型服务）" disabled />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} lg={4}>

@@ -2777,7 +2777,7 @@ export default function RuleDefinitions() {
         <Alert
           type="error"
           showIcon
-          message="上下文快照接口读取失败"
+          message="上下文快照读取失败"
           description="请稍后重试或检查快照服务状态；页面仅使用已生效快照服务返回的真实数据。"
         />
       );
@@ -3561,11 +3561,7 @@ export default function RuleDefinitions() {
           ),
           children: (
             <Space direction="vertical" size="large" className="mk-full-width">
-              <Alert
-                type="info"
-                showIcon
-                message="默认从标准上下文快照接口读取真实脱敏快照；页面不内置示例病例。"
-              />
+              <Alert type="info" showIcon message="默认从已生效临床快照服务读取真实脱敏快照。" />
               <Row gutter={16}>
                 <Col span={12}>
                   <Form layout="vertical">
@@ -4440,7 +4436,7 @@ export default function RuleDefinitions() {
       state={pageState}
       stateProps={{
         title: "规则列表读取失败",
-        description: getApiErrorMessage(listError, "请稍后重试，或联系信息科核查规则接口。"),
+        description: getApiErrorMessage(listError, "请稍后重试，或联系信息科核查规则服务状态。"),
         onRetry: refetchList,
       }}
     >

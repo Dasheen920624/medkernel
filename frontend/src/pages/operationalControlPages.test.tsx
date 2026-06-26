@@ -609,7 +609,7 @@ describe("operational control pages", () => {
     consoleError.mockRestore();
   });
 
-  it("展示接口目录、追踪诊断和插件管理工具", async () => {
+  it("展示服务目录、追踪诊断和插件管理工具", async () => {
     const user = userEvent.setup();
     renderPage(<DevConsole />);
 
@@ -623,7 +623,7 @@ describe("operational control pages", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("运行状态服务")).toBeInTheDocument();
     expect(screen.getByText("rule.publish")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "接口说明" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "服务契约" })).toHaveAttribute(
       "href",
       "/v3/api-docs/medkernel-third-party-integration",
     );

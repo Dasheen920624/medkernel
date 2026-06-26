@@ -96,7 +96,7 @@ export default function ImplementationGuide() {
         state="error"
         stateProps={{
           title: "实施步骤读取失败",
-          description: "请重试；若持续失败，请带追踪号联系信息科排查服务空间接口。",
+          description: "请重试；若持续失败，请带追踪号联系信息科排查服务空间服务。",
           onRetry: () => refetch(),
         }}
       >

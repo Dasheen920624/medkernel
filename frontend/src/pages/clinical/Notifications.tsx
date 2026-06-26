@@ -241,7 +241,7 @@ export default function Notifications() {
           showIcon
           className={styles.sectionGap}
           message="通知读取失败"
-          description="请检查登录状态、服务空间或后端通知接口。"
+          description="请检查登录状态、服务空间或通知服务状态。"
         />
       )}
 
