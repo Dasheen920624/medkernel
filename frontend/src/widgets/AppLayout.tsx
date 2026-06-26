@@ -73,7 +73,7 @@ function organizationSummary(profile: SecurityProfile | undefined) {
     return "组织范围未配置";
   }
   const parts = [
-    ["服务空间", scope.tenantId],
+    ["服务机构", scope.tenantId],
     ["集团", scope.groupId],
     ["医院", scope.hospitalId],
     ["院区", scope.campusId],

@@ -129,7 +129,7 @@ function formatDataScope(dataScope: SecurityProfile["dataScope"]) {
     return `医院 ${dataScope.hospitalId}`;
   }
   if (dataScope.tenantId) {
-    return `服务空间 ${dataScope.tenantId}`;
+    return `服务机构 ${dataScope.tenantId}`;
   }
   return "当前组织";
 }

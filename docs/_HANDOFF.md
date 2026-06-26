@@ -498,6 +498,10 @@
   内部运行分区暴露给临床用户。已验证：
   `npm test -- --run src/pages/clinical/Notifications.test.tsx src/pages/clinical/WorkflowTodos.test.tsx src/pages/clinical/Mpi.test.tsx`；
   尚未重新部署 134。
+- 全局顶栏用户菜单和权限指纹已继续按全角色第一屏体验收束：租户级数据范围在用户菜单和权限浮层中显示为
+  服务机构，医院、科室等组织层级保持可读，不再把内部运行分区作为所有角色的身份范围名称。已验证：
+  `npm test -- --run src/widgets/AppLayout.test.tsx src/features/permission-chip/PermissionChip.test.tsx`；
+  尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -543,7 +547,7 @@
    知识解析和外部集成阶段性接入口径清理、运行保障普通视图与证据详情分层清理、
    工作台质量闭环入口清理、集成契约和生产注释旧口径清理、临床待办空态角色体验清理、
    临床提醒反馈与频次治理医生/护士视角清理、随访协同统计/模板/异常回院登记多角色体验清理、
-   临床通知/协同任务/MPI 组织范围和信息科提示清理
+   临床通知/协同任务/MPI 组织范围和信息科提示清理、全局顶栏与权限指纹范围语言清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

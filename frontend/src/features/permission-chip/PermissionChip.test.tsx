@@ -71,6 +71,11 @@ afterEach(() => {
       scopeCode: "quality",
     },
   ];
+  securityProfileState.value.data.dataScope = {
+    tenantId: "tenant-a",
+    hospitalId: "hospital-a",
+    departmentId: "quality",
+  };
 });
 
 describe("PermissionChip", () => {
@@ -103,5 +108,24 @@ describe("PermissionChip", () => {
 
     expect(screen.getByText("未分配角色")).toBeInTheDocument();
     expect(screen.queryByText("权限读取中")).toBeNull();
+  });
+
+  it("uses service institution language for tenant-level data scope", () => {
+    securityProfileState.value.data.dataScope = {
+      tenantId: "tenant-a",
+      hospitalId: "",
+      departmentId: "",
+    };
+
+    render(
+      <ConfigProvider>
+        <PermissionChip />
+      </ConfigProvider>,
+    );
+
+    fireEvent.click(screen.getByText("合规审计"));
+
+    expect(screen.getByText(/服务机构 tenant-a/)).toBeInTheDocument();
+    expect(screen.queryByText(/服务空间/)).not.toBeInTheDocument();
   });
 });
