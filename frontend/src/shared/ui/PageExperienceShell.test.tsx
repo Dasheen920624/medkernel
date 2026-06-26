@@ -25,7 +25,7 @@ const evidenceDetailProfile = {
       code: "advanced.read",
       dimension: "ACTION",
       target: "advanced",
-      displayName: "高级工具",
+      displayName: "证据详情",
       risk: "LOW",
     },
   ],

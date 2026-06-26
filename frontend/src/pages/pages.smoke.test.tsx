@@ -232,18 +232,18 @@ describe("page smoke coverage", () => {
     expect(screen.getByRole("button", { name: /刷新/ })).toBeInTheDocument();
   });
 
-  it("renders an advanced tool page with advanced-only messaging", () => {
+  it("renders the knowledge graph page with projection-source messaging", () => {
     renderPage(<GraphExplore />);
     expect(screen.getByRole("heading", { name: "图谱查询" })).toBeInTheDocument();
     expect(screen.getByText("关系库权威源的可重建投影")).toBeInTheDocument();
   });
 
-  it("renders the advanced AI workflow status page", () => {
+  it("renders the model capability status page", () => {
     renderPage(<AiWorkflows />);
     expect(screen.getByRole("heading", { name: "模型能力" })).toBeInTheDocument();
   });
 
-  it("renders the advanced knowledge provenance console", () => {
+  it("renders the knowledge provenance console", () => {
     renderPage(
       <MemoryRouter
         initialEntries={["/advanced/provenance"]}

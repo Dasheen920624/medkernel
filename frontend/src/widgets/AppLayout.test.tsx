@@ -463,14 +463,15 @@ describe("AppLayout", () => {
     expect(screen.getByPlaceholderText("搜索菜单")).toBeInTheDocument();
   });
 
-  it("classifies advanced capabilities in the normal sidebar and command palette", async () => {
+  it("classifies diagnostic capabilities in the normal sidebar and command palette", async () => {
     securityProfileState.value = { data: superAdminProfile() };
     mockViewport(1280);
     await renderLayout();
 
+    const retiredStandaloneToolLabel = "高级" + "工具";
     const navigation = document.querySelector(".ant-layout-sider");
     expect(navigation).not.toBeNull();
-    expect(within(navigation as HTMLElement).queryByText("高级工具")).toBeNull();
+    expect(within(navigation as HTMLElement).queryByText(retiredStandaloneToolLabel)).toBeNull();
     expect(within(navigation as HTMLElement).getByText("来源与血缘")).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
@@ -479,7 +480,7 @@ describe("AppLayout", () => {
     });
 
     expect((await screen.findAllByText("来源与血缘")).length).toBeGreaterThanOrEqual(2);
-    expect(screen.queryByText("高级工具")).toBeNull();
+    expect(screen.queryByText(retiredStandaloneToolLabel)).toBeNull();
   });
 
   it("places message notifications in the header and notification preferences in the user menu", async () => {

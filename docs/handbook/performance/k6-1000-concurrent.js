@@ -58,7 +58,7 @@ const SCENARIOS = [
   { weight: 5, name: 'audit-events', run: () => auditEvents() },
   { weight: 3, name: 'audit-snapshot', run: () => auditSnapshot() },
 
-  // 高级工具：占 5%（含 LLM Gateway 降级链）
+  // 模型能力与低频诊断：占 5%（含 LLM Gateway 降级链）
   { weight: 3, name: 'llm-providers', run: () => llmProviders() },
   { weight: 2, name: 'llm-chat', run: () => llmChat() },
 ];

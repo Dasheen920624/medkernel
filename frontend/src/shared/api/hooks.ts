@@ -594,7 +594,7 @@ export function useDisablePlugin() {
 }
 
 // ──────────────────────────────────────────
-// 高级工具 · 关系库权威源投影查询
+// 知识关系 · 关系库权威源投影查询
 // ──────────────────────────────────────────
 export type ProjectionTargetType = "CLINICAL_GRAPH" | "KNOWLEDGE_GRAPH" | "KNOWLEDGE_SEARCH";
 

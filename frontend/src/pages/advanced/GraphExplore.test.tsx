@@ -119,7 +119,10 @@ describe("GraphExplore", () => {
     expect(screen.getByText("trace-graph-1")).toBeInTheDocument();
     expect(screen.getAllByText("obs-1").length).toBeGreaterThan(1);
 
-    expect(screen.queryByText(/胸痛|阿司匹林|高级工具骨架|Neo4j 5\.23/)).not.toBeInTheDocument();
+    const retiredDemoTokens = new RegExp(
+      ["胸痛", "阿司匹林", "高级" + "工具骨架", "Neo4j 5\\.23"].join("|"),
+    );
+    expect(screen.queryByText(retiredDemoTokens)).not.toBeInTheDocument();
   });
 
   it("shows the high-risk rebuild action in the page header only after confirmation", async () => {

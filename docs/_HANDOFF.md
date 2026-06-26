@@ -160,6 +160,11 @@
   `npm test -- --run src/features/sandbox/sandboxScenarios.test.ts src/pages/sandbox/SandboxHost.test.tsx src/features/sandbox/SandboxDataEntry.test.tsx`、
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
   `npm run build`。
+- 退役“高级工具”概念的剩余文档、注释和测试夹具已在本地清理：现行表达改为诊断能力、知识关系、模型能力
+  或证据详情；负向测试仍防止独立旧主域回流，但不再把旧词作为连续现行文本保留。已验证：
+  `rg -n "高级工具" frontend/src docs --glob '!docs/_HANDOFF.md'` 无结果、
+  `npm test -- --run src/shared/ui/PageExperienceShell.test.tsx src/widgets/AppLayout.test.tsx src/shared/config/menu.test.ts src/shared/config/productRoleJourneys.test.ts src/pages/pages.smoke.test.tsx src/pages/advanced/GraphExplore.test.tsx`、
+  `npm run typecheck`、`npm run lint`、`npm run format:check`、`npm run build`。
 
 ## 本轮落地内容
 
@@ -226,6 +231,8 @@
   数据读取服务状态提示，不暴露实现视角。
 - 全真体验沙盘目录降级语义已收敛：目录读取失败时页面只提示沙盘场景目录暂不可用，并明确不会生成或暗示
   可运行临床场景；远端目录缺少数值录入或可执行输入契约时继续阻断运行，但原因使用产品语义表达。
+- 退役的独立“高级工具”主域不再作为连续文本保留在前端源码和当前文档中；路由/API 中的 `advanced`
+  仍是既有技术路径，产品表达按知识关系、模型能力、国产化核验、诊断工具和证据详情落入对应空间。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -259,6 +266,6 @@
 4. 按“证据详情新定义”继续回扫历史页面：知识审核候选来源溯源和全局证据详情偏好已完成；其它旧页面如仍存在
    生硬身份化开关、孤立技术入口或把关键安全/审计/业务判断证据藏起来的设计，后续都要改成上下文里的渐进证据、
    诊断信息或变更明细。
-5. 本地临床协同任务、随访协同体验薄片和沙盘场景目录语义清理还未重新部署 134；下一次清库/发布演练要
-   纳入真实前台操作证据，不能把当前本地薄片误记为 134 已验收。
+5. 本地临床协同任务、随访协同体验薄片、沙盘场景目录语义清理和退役高级工具文本清理还未重新部署 134；
+   下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片误记为 134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

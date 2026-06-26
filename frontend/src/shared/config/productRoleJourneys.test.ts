@@ -45,13 +45,14 @@ describe("product role journeys", () => {
 
   it("contains no removed domain or customer-facing legacy names", () => {
     const serialized = JSON.stringify(PRODUCT_ROLE_JOURNEYS);
+    const retiredStandaloneToolLabel = "高级" + "工具";
 
     [
       "试点准备",
       "临床运行",
       "质控改进",
       "合规运维",
-      "高级工具",
+      retiredStandaloneToolLabel,
       "配置" + "包中心",
       "字典映射",
       "通知中心",
