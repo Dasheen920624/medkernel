@@ -179,6 +179,16 @@ describe("CdssFatigue", () => {
             operatorRole: "DOCTOR",
             createdAt: "2026-06-04T00:00:00Z",
           },
+          {
+            feedbackId: "feedback-real-2",
+            cardId: "card-real-1",
+            feedbackType: "REJECT",
+            reasonCode: "不符合当前患者指征",
+            reasonText: "患者当前情况不适用，已记录替代处理方案。",
+            operatorId: "doctor-real-2",
+            operatorRole: "DOCTOR",
+            createdAt: "2026-06-04T00:10:00Z",
+          },
         ],
         fatigueSignals: [],
         traceId: "trace-rec",
@@ -309,6 +319,68 @@ describe("CdssFatigue", () => {
     expect(screen.getByText("66.7%")).toBeInTheDocument();
   });
 
+  it("uses clinical disposition wording for non-accepted and frequency-limited reminder statuses", () => {
+    mockUseClinicalRecommendationCards.mockReturnValue({
+      data: {
+        items: [
+          {
+            cardId: "card-rejected-1",
+            triggerId: "trigger-rejected-1",
+            patientId: "patient-real-2",
+            encounterId: "enc-real-2",
+            patientPathwayId: "pathway-real-2",
+            scenarioCode: "WARD_ORDER",
+            triggerType: "order-sign",
+            cardType: "MEDICATION",
+            title: "已处理提醒",
+            summary: "医师已记录不采纳原因",
+            suggestedAction: "保留证据并归档",
+            riskLevel: "MEDIUM",
+            interruptLevel: "SOFT",
+            status: "REJECTED",
+            fatigueKey: "WARD_ORDER:ARCHIVED",
+            requiresPhysicianConfirmation: false,
+            aiGenerated: false,
+            traceId: "trace-rejected",
+          },
+          {
+            cardId: "card-limited-1",
+            triggerId: "trigger-limited-1",
+            patientId: "patient-real-3",
+            encounterId: "enc-real-3",
+            patientPathwayId: "pathway-real-3",
+            scenarioCode: "WARD_ORDER",
+            triggerType: "order-sign",
+            cardType: "MEDICATION",
+            title: "低价值重复提醒",
+            summary: "已按科室频次策略减少展示",
+            suggestedAction: "必要时进入详情复核",
+            riskLevel: "LOW",
+            interruptLevel: "NONE",
+            status: "SUPPRESSED",
+            fatigueKey: "WARD_ORDER:LOW_VALUE",
+            requiresPhysicianConfirmation: false,
+            aiGenerated: false,
+            traceId: "trace-limited",
+          },
+        ],
+        page: 1,
+        size: 10,
+        total: 2,
+        hasNext: false,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: refetchCards,
+    } as unknown as ReturnType<typeof useClinicalRecommendationCards>);
+
+    renderCdssFatigue();
+
+    expect(screen.getByText("未采纳")).toBeInTheDocument();
+    expect(screen.getByText("已限频")).toBeInTheDocument();
+    expect(screen.queryByText(/已驳回|疲劳抑制/)).not.toBeInTheDocument();
+  });
+
   it(
     "evaluates recommendations from a selected ACTIVE snapshot without manual JSON",
     async () => {
@@ -387,6 +459,8 @@ describe("CdssFatigue", () => {
     expect(screen.getByText(/trace-rec/)).toBeInTheDocument();
     expect(await screen.findByText(/doctor-real-1/)).toBeInTheDocument();
     expect(screen.getAllByText("已确认风险，按指南处理。").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("不采纳建议").length).toBeGreaterThan(0);
+    expect(screen.getByText("患者当前情况不适用，已记录替代处理方案。")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: /医师反馈/ }));
     expect(
@@ -396,7 +470,7 @@ describe("CdssFatigue", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "采纳建议" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "不采纳建议" })).toBeInTheDocument();
-    expect(screen.queryByText(/ACCEPT|REJECT|抗拒|克拉霉素/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/ACCEPT|REJECT|抗拒|克拉霉素|驳回/)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /确认采纳建议/ }));
 
     await waitFor(() => {
@@ -485,7 +559,7 @@ describe("CdssFatigue", () => {
             signalType: "BLOCK",
             triggerCount: 9,
             governanceThreshold: 3,
-            summary: "红线命中频繁，但高危红线不可被疲劳抑制。",
+            summary: "红线命中频繁，但高危红线必须保留人工确认。",
             createdAt: "2026-06-04T00:00:00Z",
           },
         ],
@@ -501,15 +575,17 @@ describe("CdssFatigue", () => {
 
     expect(
       await screen.findByText(
-        "提醒频次治理用于减少低价值重复提醒；高危红线和必须医师确认的提醒不会被自动静音。",
+        "提醒频次治理用于减少低价值重复提醒；高危红线和必须医师确认的提醒不会被自动减少或隐藏。",
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/狼来了|物理拦截|高阶/)).not.toBeInTheDocument();
-    expect(await screen.findByText("红线不可抑制")).toBeInTheDocument();
+    expect(screen.queryByText(/狼来了|物理拦截|高阶|静音|抑制|疲劳/)).not.toBeInTheDocument();
+    expect(await screen.findByText("红线必须保留")).toBeInTheDocument();
     expect(screen.getByText("medkernel.cdss.fatigue.policy")).toBeInTheDocument();
+    expect(screen.getByText("必须保留确认")).toBeInTheDocument();
+    expect(screen.queryByText(/MUTE|BLOCK|SUPPRESSED/)).not.toBeInTheDocument();
     expect(screen.getAllByText("REDLINE:RDL-DDI-001").length).toBeGreaterThan(0);
     expect(screen.getByText("9 / 3 次")).toBeInTheDocument();
-    expect(screen.getByText(/科室级疲劳阈值/)).toBeInTheDocument();
+    expect(screen.getAllByText(/科室级限频阈值/).length).toBeGreaterThan(0);
   });
 
   it("shows forbidden state when org data scope denies clinical reminder cards", () => {

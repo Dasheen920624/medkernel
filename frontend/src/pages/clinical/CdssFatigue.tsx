@@ -76,6 +76,27 @@ type RecommendationFatigueGovernance = {
   description: string;
 };
 
+const recommendationStatusLabels: Record<RecommendationCardStatus, string> = {
+  PENDING: "待处理",
+  VIEWED: "已查看依据",
+  ACCEPTED: "已采纳",
+  REJECTED: "未采纳",
+  DEFERRED: "稍后处理",
+  DISMISSED: "已关闭",
+  SUPPRESSED: "已限频",
+  EXPIRED: "已失效",
+};
+
+const feedbackTypeLabels: Record<RecommendationFeedbackType, string> = {
+  ACCEPT: "采纳建议",
+  REJECT: "不采纳建议",
+};
+
+const signalTypeLabels: Record<string, string> = {
+  MUTE: "减少展示",
+  BLOCK: "必须保留确认",
+};
+
 const interruptLevelLabels: Record<string, string> = {
   HARD: "强阻断",
   STRONG_INTERRUPTIVE: "强阻断",
@@ -125,9 +146,9 @@ function getFatigueGovernance(
   if (isClinicalRedlineCard(card)) {
     return {
       isNonSuppressible: true,
-      label: "红线不可抑制",
+      label: "红线必须保留",
       color: "red",
-      description: "疲劳信号仅用于审计和质控，不会静音或降级临床安全红线。",
+      description: "重复提醒信号仅用于质量复核，不会自动减少或隐藏临床安全红线。",
     };
   }
   if (
@@ -137,17 +158,31 @@ function getFatigueGovernance(
   ) {
     return {
       isNonSuppressible: true,
-      label: "高风险不可抑制",
+      label: "高风险必须确认",
       color: "volcano",
-      description: "高风险或强打断提醒必须保留医师确认链路，不参与疲劳静音。",
+      description: "高风险或强打断提醒必须保留医师确认链路，不参与低价值提醒限频。",
     };
   }
   return {
     isNonSuppressible: false,
-    label: "按科室阈值治理",
+    label: "按科室频次治理",
     color: "blue",
     description: "低价值重复提醒按配置中心阈值进入低打扰治理。",
   };
+}
+
+function getRecommendationStatusLabel(status: string): string {
+  return (
+    recommendationStatusLabels[status as RecommendationCardStatus] ?? customerDisplayText(status)
+  );
+}
+
+function getFeedbackTypeLabel(feedbackType: RecommendationFeedbackType): string {
+  return feedbackTypeLabels[feedbackType] ?? customerEnumLabel(feedbackType);
+}
+
+function getSignalTypeLabel(signalType: string): string {
+  return signalTypeLabels[signalType] ?? customerDisplayText(signalType);
 }
 
 function getFatigueProgressPercent(signal: RecommendationFatigueSignal): number {
@@ -221,13 +256,13 @@ function getRecommendationJourneySteps(
     },
     {
       title: "待办 / 通知",
-      status: detail.card.status,
+      status: getRecommendationStatusLabel(detail.card.status),
       description: "推荐卡会同步为医生待办或通知；状态以真实闭环为准。",
       evidence: `追踪号：${diagnose?.traceId || detail.trigger?.traceId || detail.traceId}`,
     },
     {
       title: "医生反馈",
-      status: latestFeedback ? latestFeedback.feedbackType : "待处理",
+      status: latestFeedback ? getFeedbackTypeLabel(latestFeedback.feedbackType) : "待处理",
       description: latestFeedback?.reasonText || "医生采纳或不采纳时必须留下真实理由。",
       evidence: latestFeedback?.operatorRole ? roleLabel(latestFeedback.operatorRole) : undefined,
     },
@@ -311,7 +346,7 @@ export default function CdssFatigue() {
     selectedCardId || "",
   );
 
-  // 获取该卡片相关的疲劳静音治理信号
+  // 获取该卡片相关的提醒频次治理信号
   const { data: fatigueSignalsData, refetch: refetchFatigue } = useRecommendationFatigueSignals({
     fatigueKey: detailData?.card.fatigueKey || undefined,
     page: 1,
@@ -390,7 +425,7 @@ export default function CdssFatigue() {
       });
 
       message.success(
-        `推荐评估已完成：展示 ${res.visibleCardCount} 张，疲劳策略抑制 ${res.suppressedCardCount} 张。`,
+        `推荐评估已完成：展示 ${res.visibleCardCount} 张，频次策略减少展示 ${res.suppressedCardCount} 张。`,
       );
       closeTriggerModal();
       refetchCards();
@@ -509,14 +544,14 @@ export default function CdssFatigue() {
       key: "status",
       render: (status: RecommendationCardStatus) => {
         const config: Record<string, { status: RecommendationBadgeStatus; text: string }> = {
-          PENDING: { status: "warning", text: "待处理" },
-          VIEWED: { status: "processing", text: "已查看依据" },
-          ACCEPTED: { status: "success", text: "已采纳" },
-          REJECTED: { status: "error", text: "已驳回" },
-          DEFERRED: { status: "default", text: "稍后处理" },
-          DISMISSED: { status: "default", text: "已关闭" },
-          SUPPRESSED: { status: "default", text: "疲劳抑制" },
-          EXPIRED: { status: "default", text: "已失效" },
+          PENDING: { status: "warning", text: getRecommendationStatusLabel("PENDING") },
+          VIEWED: { status: "processing", text: getRecommendationStatusLabel("VIEWED") },
+          ACCEPTED: { status: "success", text: getRecommendationStatusLabel("ACCEPTED") },
+          REJECTED: { status: "error", text: getRecommendationStatusLabel("REJECTED") },
+          DEFERRED: { status: "default", text: getRecommendationStatusLabel("DEFERRED") },
+          DISMISSED: { status: "default", text: getRecommendationStatusLabel("DISMISSED") },
+          SUPPRESSED: { status: "default", text: getRecommendationStatusLabel("SUPPRESSED") },
+          EXPIRED: { status: "default", text: getRecommendationStatusLabel("EXPIRED") },
         };
         const current = config[status] ?? { status: "default", text: "未识别状态" };
         return <Badge status={current.status} text={current.text} />;
@@ -632,7 +667,7 @@ export default function CdssFatigue() {
             >
               <Option value="PENDING">待处理</Option>
               <Option value="ACCEPTED">已采纳</Option>
-              <Option value="REJECTED">已驳回</Option>
+              <Option value="REJECTED">未采纳</Option>
               <Option value="EXPIRED">已失效</Option>
             </Select>
           </Form.Item>
@@ -815,7 +850,7 @@ export default function CdssFatigue() {
         title={
           <div className={styles.drawerTitle}>
             <BookOutlined className={styles.iconInfo} />
-            <span>智能建议人机闭环反馈与疲劳治理控制台</span>
+            <span>推荐详情与反馈闭环</span>
           </div>
         }
         width={900}
@@ -893,7 +928,7 @@ export default function CdssFatigue() {
                   {interruptLevelLabels[detailData.card.interruptLevel] ?? "未识别级别"}
                 </Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="疲劳治理策略" span={3}>
+              <Descriptions.Item label="提醒频次策略" span={3}>
                 <Tag color={selectedFatigueGovernance.color}>{selectedFatigueGovernance.label}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="提醒摘要描述" span={3}>
@@ -912,7 +947,7 @@ export default function CdssFatigue() {
                       <div>
                         <div className={styles.timelineTitle}>
                           {item.operatorId} · {roleLabel(item.operatorRole || "DOCTOR")} ·{" "}
-                          {customerEnumLabel(item.feedbackType)}
+                          {getFeedbackTypeLabel(item.feedbackType)}
                         </div>
                         <div className={styles.timelineMeta}>
                           {item.reasonText || item.reasonCode || "未记录说明"}
@@ -1087,16 +1122,16 @@ export default function CdssFatigue() {
                   children: (
                     <div className={styles.marginTopSm}>
                       <Alert
-                        message="提醒频次治理用于减少低价值重复提醒；高危红线和必须医师确认的提醒不会被自动静音。"
+                        message="提醒频次治理用于减少低价值重复提醒；高危红线和必须医师确认的提醒不会被自动减少或隐藏。"
                         type="warning"
                         showIcon
                         className={styles.sectionGap}
                       />
                       <Alert
-                        message="疲劳治理策略来自配置中心"
+                        message="提醒频次策略来自配置中心"
                         description={
                           <div className={styles.contentText}>
-                            <span>科室级疲劳阈值读取 </span>
+                            <span>科室级限频阈值读取 </span>
                             <Tag color="blue" className={styles.inlineTag}>
                               {FATIGUE_POLICY_CONFIG_KEY}
                             </Tag>
@@ -1116,14 +1151,14 @@ export default function CdssFatigue() {
                             className={`${styles.compactCard} ${styles.sectionGap}`}
                           >
                             <Descriptions size="small" column={2}>
-                              <Descriptions.Item label="疲劳标识">
+                              <Descriptions.Item label="频次策略标识">
                                 <span className={`${styles.codeText} ${styles.textStrong}`}>
                                   {signal.fatigueKey}
                                 </span>
                               </Descriptions.Item>
-                              <Descriptions.Item label="信号定位">
+                              <Descriptions.Item label="治理动作">
                                 <Tag color={signal.signalType === "MUTE" ? "orange" : "red"}>
-                                  {signal.signalType}
+                                  {getSignalTypeLabel(signal.signalType)}
                                 </Tag>
                               </Descriptions.Item>
                               <Descriptions.Item label="治理来源">
@@ -1135,7 +1170,7 @@ export default function CdssFatigue() {
                             </Descriptions>
                             <div className={styles.marginTopMd}>
                               <div className={`${styles.rowBetween} ${styles.textSmall}`}>
-                                <span>疲劳触发进度 (当前触发 / 疲劳静音阈值)</span>
+                                <span>重复触发进度（当前触发 / 科室级限频阈值）</span>
                                 <span className={styles.textStrong}>
                                   {signal.triggerCount} / {signal.governanceThreshold} 次
                                 </span>
@@ -1157,7 +1192,7 @@ export default function CdssFatigue() {
                           </Card>
                         ))
                       ) : (
-                        <Empty description="该场景暂无已采集的疲劳治理信号" />
+                        <Empty description="该场景暂无已采集的提醒频次治理信号" />
                       )}
                     </div>
                   ),
