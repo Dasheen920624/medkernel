@@ -23,7 +23,7 @@ import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * SYS-06 后端脱敏规则服务。
+ * SYS-06 脱敏规则服务。
  */
 @Service
 public class MaskingService {

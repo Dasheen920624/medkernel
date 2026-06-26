@@ -36,7 +36,7 @@ export interface RuleLeaf {
   kind: "leaf";
   id: string;
   label: string;
-  /** 上下文字段路径（后续由字段目录选择器约束；现为文本）。 */
+  /** 上下文字段路径（提交前由字段目录与未解析字段校验约束）。 */
   fact: string;
   operator: RuleOperator;
   value?: RuleLeafValue;

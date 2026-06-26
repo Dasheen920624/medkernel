@@ -1,7 +1,7 @@
 package com.medkernel.engine.knowledge.material;
 
 /**
- * 文档原件入库请求。资料库后端由运行配置决定，调用方只声明租户、作用域、字节和真实指纹。
+ * 文档原件入库请求。资料库存储方式由运行配置决定，调用方只声明租户、作用域、字节和真实指纹。
  */
 public record DocumentMaterialStoreRequest(
     String tenantId,

@@ -440,6 +440,16 @@
   “后续阶段”或“影响模拟”等旧事实，五方言迁移继续保持一致。
 - 规则和诊断知识发布门禁的验证材料统一称为“验证用例/验证病例”：页面按钮、弹窗、错误提示、审计摘要、
   后端 Javadoc、数据库 COMMENT、沙盘演练脚本和功能目录同步，避免把医疗发布门禁误读成普通软件测试数据。
+- 前后端服务状态与未来接入口径继续收束：模型能力、规则中枢、共享 API/config/ui 注释、脱敏服务、
+  受控工具、资料库存储和模型外调安全闸不再使用“后续切到”“上线后接入”“完成测试”“高级参数”、
+  “后端脱敏”“资料库后端尚未接入”等旧表达；真实性门禁新增前端客户面、共享 API/config、
+  后端契约和数据库 COMMENT 拦截，避免后续 AI 把已上线能力误读为临时实现或未来计划。已验证：
+  `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
+  `npm test -- --run src/pages/advanced/AiWorkflows.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/shared/ui/PageShell.test.tsx src/shared/config/conditionModel.test.ts src/shared/api/hooks.test.ts`、
+  `mvn -q -Dtest=MaskingServiceTest,ManagedDocumentMaterialStorageTest,ModelEgressGuardTest,ControlledToolServiceTest test`、
+  `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
+  `npm run build`、`mvn -q -DskipTests package`、`bash scripts/check-comment-zh.sh --mode=full`；
+  尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -480,7 +490,7 @@
    平台管理员工作台治理概览表达清理、发布治理服务影响评估契约口径清理、工作台空态未上线承诺清理、
    通知偏好和导出能力实现层旧口径清理、全局客户面服务状态旧口径清理、统一身份登录和身份来源待配置口径清理、
    工作台第一屏多角色数据状态表达清理、全局客户面实现层口径清理、前端测试说明与共享注释旧口径清理、
-   数据库 COMMENT 和 schema 旧口径清理、验证用例/验证病例产品口径清理
+   数据库 COMMENT 和 schema 旧口径清理、验证用例/验证病例产品口径清理、前后端服务状态与未来接入口径清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

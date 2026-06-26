@@ -15,9 +15,9 @@ import type {
  * MedKernel v1.0 GA · React Query hooks（按业务域分组）。
  * 与平台 /api/v1/* 路由一一对应。
  *
- * GA-ENG-BASE-09 净化：删除 W3-W7 旧业务 hook，仅保留 engine/* 真接口、
+ * GA-ENG-BASE-09 净化：删除 W3-W7 旧业务 hook，仅保留 engine/* 平台 API、
  * compliance/audit/* 与 /security/me、/system/* 合法运行底座 hook，
- * 以及 GA-ENG-API-04 上线后接入的字典映射 hook（业务包装阶段会渐进新增其它 engine hook）。
+ * 以及 GA-ENG-API-04 字典映射 hook；新增业务包装必须绑定真实平台 API。
  */
 
 // ──────────────────────────────────────────

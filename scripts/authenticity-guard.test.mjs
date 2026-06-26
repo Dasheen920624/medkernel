@@ -766,6 +766,121 @@ test("共享 API 合同禁止继续使用 Webhook 测试旧口径", async () => 
   );
 });
 
+test("前端客户面会阻断未上线和低频参数旧口径", async () => {
+  await withFixture(
+    {
+      "frontend/src/pages/advanced/AiWorkflows.tsx": `
+        export const warning = "当前能力不走公网外部模型；如后续切到外部模型，仍需先配置外调安全策略。";
+      `,
+      "frontend/src/pages/tenant/RuleDefinitions.tsx": `
+        export const description = "配置规则资产，完成测试、解释和临床治理。";
+      `,
+      "frontend/src/shared/ui/PageShell.tsx": `
+        /** 默认 1 个主目标内容区，高级参数折叠到子组件内。 */
+        export function PageShell() {}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/pages/advanced/AiWorkflows.tsx",
+        "frontend/src/pages/tenant/RuleDefinitions.tsx",
+        "frontend/src/shared/ui/PageShell.tsx",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+      ]);
+    },
+  );
+});
+
+test("共享 API 合同禁止把平台能力写成待上线旧口径", async () => {
+  await withFixture(
+    {
+      "frontend/src/shared/api/hooks.ts": `
+        // 仅保留 engine/* 真接口，以及上线后接入的字典映射 hook，业务包装阶段会渐进新增。
+        export function usePlatformDictionary() {}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/shared/api/hooks.ts",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.shared-api-current-contract-language",
+      ]);
+    },
+  );
+});
+
+test("共享配置禁止把已实现校验写成后续约束旧口径", async () => {
+  await withFixture(
+    {
+      "frontend/src/shared/config/conditionModel.ts": `
+        export interface RuleLeaf {
+          /** 上下文字段路径（后续由字段目录选择器约束；现为文本）。 */
+          fact: string;
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/shared/config/conditionModel.ts",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.customer-facing-engineering-language",
+      ]);
+    },
+  );
+});
+
+test("后端生产契约禁止回流实现层和未来接入口径", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/compliance/masking/MaskingService.java": `
+        /** SYS-06 后端脱敏规则服务。 */
+        public class MaskingService {}
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/material/ManagedDocumentMaterialStorage.java": `
+        public class ManagedDocumentMaterialStorage {
+          String error = "资料库后端尚未接入读取适配器";
+        }
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/llm/egress/ModelEgressGuard.java": `
+        public class ModelEgressGuard {
+          String comment = "脱敏、审批和留证在后续条目接入";
+        }
+      `,
+      "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql": `
+        COMMENT ON TABLE mk_compliance_masking_rule IS 'SYS-06 后端脱敏规则表';
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/compliance/masking/MaskingService.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/material/ManagedDocumentMaterialStorage.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/llm/egress/ModelEgressGuard.java",
+        "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+        "db.customer-facing-safety-language",
+      ]);
+    },
+  );
+});
+
 test("CSS 触碰文件会阻断 hex/rgb/hsl 与字号圆角 px 硬编码", async () => {
   await withFixture(
     {

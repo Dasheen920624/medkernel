@@ -55,7 +55,7 @@ public class ModelEgressGuard {
     public record EgressPreparation(String payload, List<String> egressFields, String desensitizedHash) {}
 
     /**
-     * 对外调内容执行允许字段最小化（脱敏/审批/留证在后续条目接入）。
+     * 对外调内容执行允许字段最小化，并同步处理脱敏、责任确认和证据留痕。
      */
     public EgressPreparation prepareEgress(String tenantId,
                                            String capabilityCode,

@@ -152,7 +152,7 @@ function capabilityDetails(item: ModelCapabilityStatusResponse) {
       <Descriptions.Item label="外调边界" span={3}>
         {externalEnabled
           ? "公网外部模型可在授权用途内使用患者上下文，运行时仍会先执行字段允许范围、核心敏感遮蔽、责任确认和证据留痕。"
-          : "当前能力不走公网外部模型；如后续切到外部模型，仍需先配置外调安全策略。"}
+          : "当前能力不走公网外部模型；切换到外部模型前必须先配置外调安全策略。"}
       </Descriptions.Item>
       {item.expectedSchema ? (
         <Descriptions.Item label="输出格式明细" span={3}>
