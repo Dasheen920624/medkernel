@@ -5,7 +5,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /**
- * 当前用户有效权限画像，供前端菜单、按钮和高级信息使用。
+ * 当前用户有效权限画像，供前端菜单、按钮和证据详情使用。
  */
 public record EffectivePermissionProfile(
     String userId,

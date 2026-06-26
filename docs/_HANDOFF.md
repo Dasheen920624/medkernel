@@ -233,6 +233,16 @@
   可运行临床场景；远端目录缺少数值录入或可执行输入契约时继续阻断运行，但原因使用产品语义表达。
 - 退役的独立“高级工具”主域不再作为连续文本保留在前端源码和当前文档中；路由/API 中的 `advanced`
   仍是既有技术路径，产品表达按知识关系、模型能力、国产化核验、诊断工具和证据详情落入对应空间。
+- 性能压测契约已切到当前产品模型：脚本只打医疗引擎、知识生产、质量管理、平台管理和模型能力入口，
+  使用 `/api/v1/model-capabilities/*`、`/api/v1/model-providers` 与环境注入 Bearer 令牌，不再保留旧模型路径、
+  历史四域分组或固定患者病例文本；质量基线新增 `scripts/performance-contract-guard.test.mjs` 门禁。
+- 当前文档、前端共享 API 注释、后端观测/权限 Javadoc、模型能力目录、五方言 V1 迁移和 schema 已同步
+  当前产品口径：质量能力归入“质量管理”，低频证据按“证据详情”渐进展示，不再用旧域名或旧体验词误导后续实现。
+- 上述性能契约与旧口径清理已在本地通过：`node --test scripts/performance-contract-guard.test.mjs`、
+  `mvn -q -Dtest=MigrationBaselineContractTest,ModelGatewayServiceTest test`、`mvn -q -DskipTests package`、
+  `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
+  `npm run build`、真实性/配置边界/迁移规约 inventory、`bash scripts/check-comment-zh.sh --mode=full`、
+  `git diff --check`；尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -266,6 +276,7 @@
 4. 按“证据详情新定义”继续回扫历史页面：知识审核候选来源溯源和全局证据详情偏好已完成；其它旧页面如仍存在
    生硬身份化开关、孤立技术入口或把关键安全/审计/业务判断证据藏起来的设计，后续都要改成上下文里的渐进证据、
    诊断信息或变更明细。
-5. 本地临床协同任务、随访协同体验薄片、沙盘场景目录语义清理和退役高级工具文本清理还未重新部署 134；
-   下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片误记为 134 已验收。
+5. 本地临床协同任务、随访协同体验薄片、沙盘场景目录语义清理、退役工具主域文本清理、性能压测契约
+   与旧口径门禁还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片
+   或本地门禁误记为 134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

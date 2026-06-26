@@ -1,7 +1,7 @@
 // GA-PERF-01 · MedKernel v1.0 GA 1000 并发 60 min 压测脚本
 // 工具：k6 (https://k6.io)
-// 使用：k6 run docs/performance/k6-1000-concurrent.js
-//      或 k6 run -e BASE_URL=https://medkernel-staging.your-hospital.cn docs/performance/k6-1000-concurrent.js
+// 使用：k6 run docs/handbook/performance/k6-1000-concurrent.js
+//      或 k6 run -e BASE_URL=https://medkernel-staging.your-hospital.cn docs/handbook/performance/k6-1000-concurrent.js
 //
 // 验收硬指标（与 docs/CONSTITUTION.md 性能基线对齐）：
 // - 1000 并发 60 min 无错误
@@ -14,6 +14,12 @@ import { check, sleep } from 'k6';
 import { Trend, Rate } from 'k6/metrics';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:18080/medkernel';
+const AUTH_TOKEN = __ENV.MEDKERNEL_AUTH_TOKEN || __ENV.AUTH_TOKEN || '';
+const JSON_HEADERS = {
+  'Content-Type': 'application/json',
+  ...(AUTH_TOKEN ? { Authorization: `Bearer ${AUTH_TOKEN}` } : {}),
+};
+const GET_PARAMS = AUTH_TOKEN ? { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } } : {};
 
 // 自定义指标
 const cdssLatency = new Trend('cdss_p95_latency');
@@ -40,27 +46,27 @@ export const options = {
 };
 
 const SCENARIOS = [
-  // 临床运行域：占总流量 60%
+  // 医疗引擎：占总流量 55%
   { weight: 30, name: 'mpi-search', run: () => mpiSearch() },
   { weight: 15, name: 'cdss-alerts', run: () => cdssAlerts() },
   { weight: 10, name: 'rule-validate', run: () => ruleValidate() },
-  { weight: 5, name: 'patient-pathways', run: () => patientPathways() },
 
-  // 试点准备域：占 15%
+  // 知识生产：占 20%
   { weight: 8, name: 'pathway-list', run: () => pathwayList() },
   { weight: 7, name: 'runtime-releases', run: () => runtimeReleases() },
+  { weight: 5, name: 'model-capability-status', run: () => modelCapabilityStatus() },
 
-  // 质控改进域：占 12%
+  // 质量管理：占 12%
   { weight: 8, name: 'qc-dashboard', run: () => qcDashboard() },
   { weight: 4, name: 'insurance-audit', run: () => insuranceAudit() },
 
-  // 合规运维域：占 8%
+  // 平台管理：占 8%
   { weight: 5, name: 'audit-events', run: () => auditEvents() },
   { weight: 3, name: 'audit-snapshot', run: () => auditSnapshot() },
 
-  // 模型能力与低频诊断：占 5%（含 LLM Gateway 降级链）
-  { weight: 3, name: 'llm-providers', run: () => llmProviders() },
-  { weight: 2, name: 'llm-chat', run: () => llmChat() },
+  // 模型能力与证据诊断：占 5%（含模型能力网关降级链）
+  { weight: 3, name: 'model-providers', run: () => modelProviders() },
+  { weight: 2, name: 'model-task', run: () => modelTask() },
 ];
 
 export default function () {
@@ -83,58 +89,68 @@ function track(res, customMetric) {
 }
 
 function mpiSearch() {
-  const res = http.get(`${BASE_URL}/api/v1/engine/mpi/patients?keyword=12`);
+  const res = http.get(`${BASE_URL}/api/v1/engine/mpi/patients?keyword=12`, GET_PARAMS);
   track(res, mpiLatency);
 }
 function cdssAlerts() {
-  const res = http.get(`${BASE_URL}/api/v1/clinical/cdss/alerts`);
+  const res = http.get(`${BASE_URL}/api/v1/clinical/cdss/alerts`, GET_PARAMS);
   track(res, cdssLatency);
 }
 function ruleValidate() {
   const res = http.post(
     `${BASE_URL}/api/v1/tenant/rules/validate`,
-    JSON.stringify({ patientMpi: 'MPI-000123456', orderText: '头孢曲松 1g qd' }),
-    { headers: { 'Content-Type': 'application/json' } },
+    JSON.stringify({ patientMpi: 'PERF-MPI-0001', orderText: '受控性能压测医嘱文本' }),
+    { headers: JSON_HEADERS },
   );
   track(res, ruleValidateLatency);
 }
-function patientPathways() {
-  const res = http.get(`${BASE_URL}/api/v1/clinical/cdss/alerts`);
-  track(res);
-}
 function pathwayList() {
-  const res = http.get(`${BASE_URL}/api/v1/tenant/pathways`);
+  const res = http.get(`${BASE_URL}/api/v1/tenant/pathways`, GET_PARAMS);
   track(res);
 }
 function runtimeReleases() {
-  const res = http.get(`${BASE_URL}/api/v1/engine/releases/platform-baselines/current`);
+  const res = http.get(`${BASE_URL}/api/v1/engine/releases/platform-baselines/current`, GET_PARAMS);
+  track(res);
+}
+function modelCapabilityStatus() {
+  const res = http.get(`${BASE_URL}/api/v1/model-capabilities/status`, GET_PARAMS);
   track(res);
 }
 function qcDashboard() {
-  const res = http.get(`${BASE_URL}/api/v1/engine/mpi/stats`);
+  const res = http.get(`${BASE_URL}/api/v1/engine/quality/dashboard`, GET_PARAMS);
   track(res);
 }
 function insuranceAudit() {
-  const res = http.get(`${BASE_URL}/api/v1/quality/insurance/drg/rulesets`);
+  const res = http.get(`${BASE_URL}/api/v1/engine/quality/insurance-issues?page=1&size=20`, GET_PARAMS);
   track(res);
 }
 function auditEvents() {
-  const res = http.get(`${BASE_URL}/api/v1/compliance/audit/events`);
+  const res = http.get(`${BASE_URL}/api/v1/compliance/audit/events?page=1&size=20`, GET_PARAMS);
   track(res);
 }
 function auditSnapshot() {
-  const res = http.post(`${BASE_URL}/api/v1/compliance/audit/snapshot?reason=k6-perf`);
-  track(res);
-}
-function llmProviders() {
-  const res = http.get(`${BASE_URL}/api/v1/advanced/llm/providers`);
-  track(res);
-}
-function llmChat() {
   const res = http.post(
-    `${BASE_URL}/api/v1/advanced/llm/chat`,
-    JSON.stringify({ prompt: '胸痛 AMI 患者建议' }),
-    { headers: { 'Content-Type': 'application/json' } },
+    `${BASE_URL}/api/v1/compliance/audit/snapshot?reason=k6-perf`,
+    null,
+    { headers: JSON_HEADERS },
+  );
+  track(res);
+}
+function modelProviders() {
+  const res = http.get(`${BASE_URL}/api/v1/model-providers?page=1&size=20`, GET_PARAMS);
+  track(res);
+}
+function modelTask() {
+  const res = http.post(
+    `${BASE_URL}/api/v1/model-capabilities/tasks`,
+    JSON.stringify({
+      capabilityCode: 'knowledge.production.knowledge',
+      inputData: '请基于已登记权威来源生成一段可供人工审核的知识候选摘要。',
+      timeoutSeconds: 10,
+      requiredRouteStrategy: 'AUTO',
+      authoritativeOutputContext: '性能压测仅校验模型能力网关、降级与结构化响应，不写入临床事实。',
+    }),
+    { headers: JSON_HEADERS },
   );
   track(res);
 }

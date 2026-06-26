@@ -128,7 +128,7 @@ function withStandardApiContext<T extends object>(
 }
 
 // ──────────────────────────────────────────
-// 合规运维 · 审计日志（BASE-04 已落地）
+// 平台管理 · 审计证据日志（BASE-04 已落地）
 // ──────────────────────────────────────────
 export type AuditEventRow = {
   id: string;
@@ -9229,7 +9229,7 @@ export function useTransitionSuccessStage() {
 }
 
 // ──────────────────────────────────────────
-// 组织单元 · 试点准备（GA-SVC-PILOT-01）
+// 平台管理 · 组织单元（GA-SVC-PILOT-01）
 // ──────────────────────────────────────────
 export interface OrgUnit {
   id?: string;

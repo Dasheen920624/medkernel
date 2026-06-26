@@ -6605,7 +6605,7 @@ COMMENT ON COLUMN mk_experience_export_task.created_at IS '创建时间';
 COMMENT ON COLUMN mk_experience_export_task.created_by IS '创建人';
 COMMENT ON COLUMN mk_experience_export_task.updated_at IS '更新时间';
 COMMENT ON COLUMN mk_experience_export_task.updated_by IS '更新人';
-COMMENT ON TABLE mk_experience_saved_view IS '系统保存视图表：按租户、用户和页面保存筛选、列、分页和高级信息配置';
+COMMENT ON TABLE mk_experience_saved_view IS '系统保存视图表：按租户、用户和页面保存筛选、列、分页和证据详情配置';
 COMMENT ON COLUMN mk_experience_saved_view.saved_view_id IS '业务字段：saved_view_id';
 COMMENT ON COLUMN mk_experience_saved_view.tenant_id IS '租户标识';
 COMMENT ON COLUMN mk_experience_saved_view.user_id IS '业务字段：user_id';

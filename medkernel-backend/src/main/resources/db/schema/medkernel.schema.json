@@ -16761,7 +16761,7 @@
     },
     {
       "name": "mk_experience_saved_view",
-      "comment": "系统保存视图表：按租户、用户和页面保存筛选、列、分页和高级信息配置",
+      "comment": "系统保存视图表：按租户、用户和页面保存筛选、列、分页和证据详情配置",
       "columns": [
         {
           "name": "saved_view_id",
@@ -40962,7 +40962,7 @@
           "nullable": false,
           "default": "FALSE",
           "identity": false,
-          "comment": "是否默认展示高级信息"
+          "comment": "是否默认展开证据详情"
         },
         {
           "name": "custom_branding_json",
