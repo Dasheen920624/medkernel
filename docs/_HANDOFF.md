@@ -154,6 +154,12 @@
   `npm test -- --run src/shared/ui/PageExperienceShell.test.tsx src/shared/ui/ServerDataTable.test.tsx src/pages/compliance/AdminAudit.test.tsx src/pages/compliance/SystemProviders.test.tsx src/pages/clinical/Followup.test.tsx`、
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
   `npm run build`。
+- 沙盘场景目录体验清理已在本地通过：全真体验沙盘的目录未就绪、目录默认文案和缺契约阻断原因统一改成
+  医院/实施可理解的场景目录语义，不再暴露“后端目录”“前端兜底”“模拟场景”或“占位”等误导词；
+  默认不可用场景 id 改为 `sandbox-catalog-required`。已验证：`npm test` 全量 `109 passed / 788 passed`、
+  `npm test -- --run src/features/sandbox/sandboxScenarios.test.ts src/pages/sandbox/SandboxHost.test.tsx src/features/sandbox/SandboxDataEntry.test.tsx`、
+  `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
+  `npm run build`。
 
 ## 本轮落地内容
 
@@ -218,6 +224,8 @@
   旧标签；CONSTITUTION、体验契约、术语表和质量基线同步改口径，避免代码与权威文档说两套话。
 - 页面烟测已同步当前功能目录标题：协同任务、随访协同不再被旧标题断言拉回；随访读取失败改成医院可理解的
   数据读取服务状态提示，不暴露实现视角。
+- 全真体验沙盘目录降级语义已收敛：目录读取失败时页面只提示沙盘场景目录暂不可用，并明确不会生成或暗示
+  可运行临床场景；远端目录缺少数值录入或可执行输入契约时继续阻断运行，但原因使用产品语义表达。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -251,6 +259,6 @@
 4. 按“证据详情新定义”继续回扫历史页面：知识审核候选来源溯源和全局证据详情偏好已完成；其它旧页面如仍存在
    生硬身份化开关、孤立技术入口或把关键安全/审计/业务判断证据藏起来的设计，后续都要改成上下文里的渐进证据、
    诊断信息或变更明细。
-5. 本地临床协同任务与随访协同体验薄片还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，
-   不能把当前本地薄片误记为 134 已验收。
+5. 本地临床协同任务、随访协同体验薄片和沙盘场景目录语义清理还未重新部署 134；下一次清库/发布演练要
+   纳入真实前台操作证据，不能把当前本地薄片误记为 134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

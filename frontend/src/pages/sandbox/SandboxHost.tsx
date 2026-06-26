@@ -339,8 +339,8 @@ export default function SandboxHost() {
             <Alert
               type="warning"
               showIcon
-              message="后端场景目录暂不可用"
-              description="当前使用前端内置受控目录兜底，不伪装远端目录已同步。"
+              message="沙盘场景目录暂不可用"
+              description="当前仅展示目录未就绪状态，不生成或暗示可运行临床场景。"
             />
           )}
 

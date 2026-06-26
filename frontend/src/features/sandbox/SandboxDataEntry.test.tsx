@@ -13,7 +13,7 @@ const numericScenario: NumericSandboxScenario = {
   playbook: "RULE_ONLY",
   triggerPoint: "result-review",
   title: "受控数值场景",
-  narrative: "后端目录描述。",
+  narrative: "场景目录描述。",
   hostSummary: "院内业务系统检验复核",
   expectedRuleCode: "SBX.LAB.CRITICAL.K",
   expectedAction: "STRONG_REMINDER",

@@ -25,7 +25,7 @@ const scenarios = [
     playbook: "RULE_ONLY",
     triggerPoint: "result-review",
     title: "检验复核受控场景",
-    narrative: "由后端目录提供的受控场景。",
+    narrative: "由场景目录提供的受控场景。",
     hostSummary: "院内业务系统检验复核",
     patientId: "patient-1",
     encounterId: "encounter-1",
@@ -57,7 +57,7 @@ const scenarios = [
     triggerPoint: "order-sign",
     title: "抗菌药物处方复核",
     narrative: "使用演练机构规则运行。",
-    hostSummary: "院内业务系统模拟场景",
+    hostSummary: "院内业务系统处方复核",
     patientId: "patient-2",
     encounterId: "encounter-2",
     expectedRuleCode: "SBX.ANTIBIOTIC.REVIEW",
@@ -76,7 +76,7 @@ const scenarios = [
     triggerPoint: "patient-view",
     title: "推荐综合卡",
     narrative: "真实引擎编排。",
-    hostSummary: "院内业务系统编排场景",
+    hostSummary: "院内业务系统综合编排",
     patientId: "patient-3",
     encounterId: "encounter-3",
     expectedRuleCode: null,
@@ -272,6 +272,23 @@ describe("SandboxHost", () => {
 
     expect(screen.getByText("当前机构生效版本")).toBeInTheDocument();
     expect(screen.getByText("第 9 版 · runtime-platform-1")).toBeInTheDocument();
+  });
+
+  it("shows a product-facing scenario catalog warning when the catalog cannot be read", () => {
+    sandboxHookMocks.useSandboxScenarios.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      refetch: vi.fn(),
+    });
+
+    renderSandboxHost();
+
+    expect(screen.getByText("沙盘场景目录暂不可用")).toBeInTheDocument();
+    expect(
+      screen.getByText("当前仅展示目录未就绪状态，不生成或暗示可运行临床场景。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/后端|前端内置|兜底/)).not.toBeInTheDocument();
   });
 
   it("runs an outer-engine playbook without fabricated clinical input", async () => {
