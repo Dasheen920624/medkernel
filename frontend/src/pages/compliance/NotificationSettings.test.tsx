@@ -94,7 +94,7 @@ describe("NotificationSettings", () => {
     });
   });
 
-  it("renders persisted backend settings without the old static defaults", () => {
+  it("renders persisted notification settings without the old static defaults", () => {
     renderSettings();
 
     expect(screen.getByRole("heading", { name: "通知偏好" })).toBeInTheDocument();

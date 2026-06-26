@@ -41,14 +41,14 @@ describe("api error helpers", () => {
     );
   });
 
-  it("maps backend field errors to Ant Design Form fields", () => {
+  it("maps service field errors to Ant Design Form fields", () => {
     expect(apiFieldErrorsToFormFields(problemError())).toEqual([
       { name: "username", errors: ["用户名不能为空"] },
       { name: ["profile", "email"], errors: ["邮箱格式不合法"] },
     ]);
   });
 
-  it("supports field name mapping for pages whose form names differ from backend fields", () => {
+  it("supports field name mapping for pages whose form names differ from service fields", () => {
     expect(
       apiFieldErrorsToFormFields(problemError(), {
         fieldNameMap: (field) => (field === "username" ? "account" : undefined),

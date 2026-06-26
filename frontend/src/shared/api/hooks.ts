@@ -13,7 +13,7 @@ import type {
 
 /**
  * MedKernel v1.0 GA · React Query hooks（按业务域分组）。
- * 与后端 /api/v1/* 路由一一对应。
+ * 与平台 /api/v1/* 路由一一对应。
  *
  * GA-ENG-BASE-09 净化：删除 W3-W7 旧业务 hook，仅保留 engine/* 真接口、
  * compliance/audit/* 与 /security/me、/system/* 合法运行底座 hook，
@@ -5607,7 +5607,7 @@ export function useRecommendationCardSources(cardId: string) {
 }
 
 // 3. Feedback Hook
-// 契约对齐后端 RecommendationFeedbackRequest：仅 feedbackType / reasonCode / reasonText / operatorRole；
+// 契约对齐 RecommendationFeedbackRequest：仅 feedbackType / reasonCode / reasonText / operatorRole；
 // 操作者 id 由平台从 RequestContext 取真实登录用户，前端不得伪造 physicianId。
 export function useSubmitRecommendationFeedback(cardId: string) {
   return useMutation({

@@ -167,7 +167,7 @@ describe("RuleValidate", () => {
     } as unknown as ReturnType<typeof useRuleExecutions>);
   });
 
-  it("evaluates rules with CDS Hooks trigger point and renders backend rule DTO fields", async () => {
+  it("evaluates rules with CDS Hooks trigger point and renders rule DTO fields", async () => {
     const user = userEvent.setup();
     renderRuleValidate();
 

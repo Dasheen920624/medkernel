@@ -218,7 +218,7 @@ describe("SystemProviders", () => {
     expect(screen.queryByText("latest-restore-drill.properties")).not.toBeInTheDocument();
   });
 
-  it("re-runs the real backend probe from the single page action", () => {
+  it("re-runs the real provider probe from the single page action", () => {
     render(
       <ConfigProvider>
         <SystemProviders />

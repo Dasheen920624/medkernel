@@ -85,8 +85,8 @@ describe("browserCompatibility", () => {
     expect(text).not.toContain("浏览器认证通过");
   });
 
-  it("导出时追加客户端能力证据且不改写后端报告", async () => {
-    const serverReport = new Blob(["MedKernel 国产化后端自检报告"], {
+  it("导出时追加客户端能力证据且不改写服务报告", async () => {
+    const serverReport = new Blob(["MedKernel 国产化服务自检报告"], {
       type: "text/plain;charset=utf-8",
     });
     const browserReport = evaluateBrowserCompatibility(ALL_CAPABILITIES, "2026-06-18T00:00:00Z");
@@ -94,7 +94,7 @@ describe("browserCompatibility", () => {
     const combined = await appendBrowserCompatibilityEvidence(serverReport, browserReport);
     const text = await readBlobAsText(combined);
 
-    expect(text).toContain("MedKernel 国产化后端自检报告");
+    expect(text).toContain("MedKernel 国产化服务自检报告");
     expect(text).toContain("当前浏览器能力预检");
     expect(text).not.toContain("Cookie");
     expect(text).not.toContain("localStorage");

@@ -524,7 +524,7 @@ describe("TerminologyMapping", () => {
     expect(screen.getByText("生成术语资产版本")).toBeInTheDocument();
   });
 
-  it("loads and saves backend view snapshots", async () => {
+  it("loads and saves service view snapshots", async () => {
     const saveView = vi.fn().mockResolvedValue(defaultSavedView);
     vi.mocked(useSavedViews).mockReturnValue({ data: [defaultSavedView] } as never);
     vi.mocked(useSaveView).mockReturnValue({ mutateAsync: saveView } as never);

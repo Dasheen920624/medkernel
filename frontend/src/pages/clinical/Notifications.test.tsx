@@ -168,7 +168,7 @@ describe("Notifications", () => {
     });
   });
 
-  it("marks an unread notification as read through the backend and refreshes", async () => {
+  it("marks an unread notification as read through the service and refreshes", async () => {
     const user = userEvent.setup();
     renderNotifications();
 
@@ -180,7 +180,7 @@ describe("Notifications", () => {
     expect(notificationHookMocks.refetchNotifications).toHaveBeenCalled();
   });
 
-  it("marks all currently loaded unread notifications through backend acknowledgements", async () => {
+  it("marks all currently loaded unread notifications through service acknowledgements", async () => {
     const user = userEvent.setup();
     notificationHookMocks.useWorkflowNotifications.mockReturnValue({
       data: {

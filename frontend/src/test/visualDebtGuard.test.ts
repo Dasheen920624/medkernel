@@ -60,7 +60,7 @@ describe("前端视觉债、存储与外部连接门禁", () => {
     expect(findViolations(CONSOLE_PATTERN)).toEqual([]);
   });
 
-  it("生产代码只经统一 API client 调用后端，不从浏览器直连外部能力", () => {
+  it("生产代码只经统一 API client 调用平台 API，不从浏览器直连外部能力", () => {
     expect(findViolations(DIRECT_NETWORK_CLIENT_PATTERN, ALLOWED_NETWORK_CLIENT_FILES)).toEqual([]);
     expect(findViolations(EXTERNAL_SERVICE_TARGET_PATTERN)).toEqual([]);
     expect(findViolations(FRONTEND_EXTERNAL_FEATURE_FLAG_PATTERN)).toEqual([]);

@@ -17,7 +17,7 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-  // 自动加 trace-id（与后端 OpenTelemetry 链路对齐）
+  // 自动加 trace-id（与平台 OpenTelemetry 链路对齐）
   if (config.headers) {
     config.headers["X-Trace-Id"] = crypto.randomUUID();
   }

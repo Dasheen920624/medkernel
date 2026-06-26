@@ -638,7 +638,7 @@ describe("shared runtime api helpers", () => {
     vi.mocked(apiClient.put).mockReset();
   });
 
-  it("downloads the backend generated domestic compatibility report", async () => {
+  it("downloads the generated domestic compatibility report", async () => {
     const reportBlob = new Blob(["MedKernel 国产化自检报告"]);
     vi.mocked(apiClient.get).mockResolvedValueOnce({ data: reportBlob });
 
@@ -748,7 +748,7 @@ describe("shared runtime api helpers", () => {
     });
   });
 
-  it("marks workflow notifications read through the backend endpoint", async () => {
+  it("marks workflow notifications read through the notification endpoint", async () => {
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       data: { data: { notificationId: "notify-real-1", status: "READ" } },
     });
@@ -2575,7 +2575,7 @@ describe("sandbox orchestration api hook", () => {
     vi.mocked(apiClient.post).mockReset();
   });
 
-  it("loads the backend-owned scenario catalog", async () => {
+  it("loads the governed scenario catalog", async () => {
     const response = [
       {
         id: "scenario-1",
@@ -2613,7 +2613,7 @@ describe("sandbox orchestration api hook", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/engine/sandbox/runtime-status");
   });
 
-  it("runs the selected scenario through the backend orchestration endpoint", async () => {
+  it("runs the selected scenario through the orchestration endpoint", async () => {
     const response = {
       scenarioId: "sbx-lab-critical-k",
       traceId: "trace-sandbox-1",
@@ -4376,7 +4376,7 @@ describe("experience foundation api helpers", () => {
     });
   });
 
-  it("saves view snapshots as backend JSON definition", async () => {
+  it("saves view snapshots as service JSON definition", async () => {
     const saved = { savedViewId: "sv-1", pageKey: "terminology.mapping" };
     vi.mocked(apiClient.put).mockResolvedValueOnce({ data: { data: saved } });
 
@@ -4592,7 +4592,7 @@ describe("experience foundation api helpers", () => {
     );
   });
 
-  it("runs compliance trial and masking preview through audited backend commands", async () => {
+  it("runs compliance trial and masking preview through audited service commands", async () => {
     vi.mocked(apiClient.post)
       .mockResolvedValueOnce({
         data: {
@@ -4718,7 +4718,7 @@ describe("experience foundation api helpers", () => {
     await completeConfirmedExportJob({
       confirmationId: "exp-audit-1",
       jobId: "job-audit-1",
-      reason: "后端任务已生成真实文件",
+      reason: "导出任务已生成真实文件",
       expectedVersion: 1,
     });
 
@@ -4748,7 +4748,7 @@ describe("experience foundation api helpers", () => {
       "/compliance/exports/exp-audit-1:complete-from-job",
       {
         jobId: "job-audit-1",
-        reason: "后端任务已生成真实文件",
+        reason: "导出任务已生成真实文件",
         expectedVersion: 1,
       },
     );

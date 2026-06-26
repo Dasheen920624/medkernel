@@ -1,4 +1,4 @@
-/** AIK-STD-14 公域来源治理字段字典，与后端枚举保持一一对应。 */
+/** AIK-STD-14 公域来源治理字段字典，与服务枚举保持一一对应。 */
 export const KNOWLEDGE_ACQUISITION_SOURCE_TYPE_OPTIONS = [
   { value: "GUIDELINE", label: "临床指南" },
   { value: "DRUG_LABEL", label: "药品说明书" },

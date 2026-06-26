@@ -279,6 +279,13 @@
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
   `npm run build`、`node --test scripts/authenticity-guard.test.mjs`、
   `node scripts/authenticity-guard.mjs --mode=inventory`、客户面实现层旧句式组合搜索无结果；尚未重新部署 134。
+- 前端测试说明、共享注释和开发代理提示中的实现层旧口径已继续清理：测试名、夹具说明、API 注释、
+  dev proxy 提示和浏览器兼容性报告统一改为平台 API、服务端、服务契约、服务报告或真实任务状态；仅保留
+  后端源码路径、路由/菜单快照契约和负向断言中的必要命名。已验证：
+  `npm test -- --run src/widgets/AppLayout.test.tsx src/pages/knowledge-production/ProviderSetupPanel.test.tsx src/pages/compliance/NotificationSettings.test.tsx src/pages/compliance/SystemProviders.test.tsx src/shared/api/errors.test.ts src/shared/api/mutation.test.tsx src/shared/api/hooks.test.ts src/pages/clinical/WorkflowTodos.test.tsx src/pages/tenant/TerminologyMapping.test.tsx src/pages/tenant/ImplementationGuide.test.tsx src/pages/clinical/RuleValidate.test.tsx src/shared/config/ruleLayeredEditor.test.ts src/test/visualDebtGuard.test.ts src/test/viteProxyGuard.test.ts src/shared/lib/browserCompatibility.test.ts src/pages/tenant/TenantOnboarding.test.tsx src/shared/config/customerLanguageGate.test.ts src/shared/config/conditionModel.test.ts src/pages/clinical/Notifications.test.tsx`、
+  `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、
+  `node scripts/authenticity-guard.mjs --mode=inventory`、`node --test scripts/authenticity-guard.test.mjs`、
+  `npm run test:lint-rules`、`npm run build`、`git diff --check`；尚未重新部署 134。
 
 ## 本轮落地内容
 
@@ -412,6 +419,8 @@
 - 客户面实现层语言继续按真实医疗产品体验收束：页面默认解释平台服务状态、来源事实、数据脱敏、安全策略、
   服务契约和可执行下一步；后台实现命名只留在必要代码契约中，不能进入医生、护士、患者、实施、信息科、
   审计或院长的默认任务界面。
+- 前端测试说明和共享注释同步收束到当前产品语义：测试用例名、共享 API 注释、开发代理提示、规则配置说明
+  和浏览器兼容性报告不再把后台实现层当成客户面事实，避免后续 AI 读取测试时被旧口径误导。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -451,7 +460,7 @@
    知识发布质量门影响评估与规则提示卡引用占位口径清理、权威体验契约演示重构旧说法清理、
    平台管理员工作台治理概览表达清理、发布治理服务影响评估契约口径清理、工作台空态未上线承诺清理、
    通知偏好和导出能力实现层旧口径清理、全局客户面服务状态旧口径清理、统一身份登录和身份来源待配置口径清理、
-   工作台第一屏多角色数据状态表达清理、全局客户面实现层口径清理
+   工作台第一屏多角色数据状态表达清理、全局客户面实现层口径清理、前端测试说明与共享注释旧口径清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

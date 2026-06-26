@@ -199,7 +199,7 @@ describe("ProviderSetupPanel", () => {
     expect(screen.queryByDisplayValue("sk-fake-medical-key-5678")).not.toBeInTheDocument();
   });
 
-  it("blocks a vague credential change reason before calling the backend", async () => {
+  it("blocks a vague credential change reason before calling the service", async () => {
     const user = userEvent.setup();
     render(
       <ConfigProvider>
@@ -321,7 +321,7 @@ describe("ProviderSetupPanel", () => {
     expect(screen.queryByText(legacyRolePattern)).not.toBeInTheDocument();
   });
 
-  it("blocks a vague provider activation reason before calling the backend", async () => {
+  it("blocks a vague provider activation reason before calling the service", async () => {
     const user = userEvent.setup();
     vi.mocked(useModelProviders).mockReturnValue(providerQuery("HEALTHY") as never);
     render(

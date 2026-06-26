@@ -16,7 +16,7 @@ import {
 } from "./conditionModel";
 
 describe("RULE-01 递归条件模型（P1-1）", () => {
-  it("支持 A 且 (B 或 C) 的嵌套并序列化为后端 when 结构", () => {
+  it("支持 A 且 (B 或 C) 的嵌套并序列化为服务端 when 结构", () => {
     const root: RuleGroup = createGroup({
       logic: "all",
       children: [

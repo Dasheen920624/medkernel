@@ -11,7 +11,7 @@ import {
  * 递归条件模型，作为规则与路径可视化创作的统一条件内核。
  *
  * <p>本模型用可嵌套的「条件组（all/any/not）+ 叶子」表达任意深度临床判断
- * （如 `A 且 (B 或 C)`），并与后端
+ * （如 `A 且 (B 或 C)`），并与服务端
  * {@code RuleDslEvaluator.evaluateConditionNode} 的递归 `all`/`any` 求值无损双向映射。
  *
  * <p>规则 `when` 与路径边 `guard` 共用本模型（统一条件内核）。叶子承载字段路径
@@ -60,7 +60,7 @@ export type RuleNode = RuleGroup | RuleLeaf;
 export const MAX_TREE_DEPTH = 5;
 export const MAX_LEAF_COUNT = 50;
 
-/** DSL 叶子序列化形态（后端忽略 `ui` 旁注）。 */
+/** DSL 叶子序列化形态（服务端忽略 `ui` 旁注）。 */
 type DslUi = { id?: string; label?: string; valueKind?: RuleValueKind };
 
 interface DslLeaf {

@@ -92,7 +92,7 @@ describe("ImplementationGuide", () => {
     apiMocks.transitionSuccessStage.mockReset();
   });
 
-  it("renders real backend implementation steps with blockers and configuration links", () => {
+  it("renders real implementation steps with blockers and configuration links", () => {
     renderGuide();
 
     expect(screen.getByRole("heading", { name: "实施与验收" })).toBeInTheDocument();
@@ -108,7 +108,7 @@ describe("ImplementationGuide", () => {
     expect(adapterLink).toHaveAttribute("href", "/adapter/hub");
   });
 
-  it("shows an empty state instead of a fake success plan when backend returns no steps", () => {
+  it("shows an empty state instead of a fake success plan when the service returns no steps", () => {
     apiMocks.implementationSteps = [];
 
     renderGuide();

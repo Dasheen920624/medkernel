@@ -43,7 +43,7 @@ afterEach(() => {
 });
 
 describe("useApiMutation", () => {
-  it("applies backend field errors to form fields instead of showing only a toast", async () => {
+  it("applies service field errors to form fields instead of showing only a toast", async () => {
     const setFields = vi.fn();
 
     function Subject() {

@@ -430,7 +430,7 @@ describe("AppLayout", () => {
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
   });
 
-  it("requires terminology action permissions beyond the backend menu key", async () => {
+  it("requires terminology action permissions beyond the menu catalog key", async () => {
     securityProfileState.value = {
       data: {
         ...permissionProfile(["terminology-mapping"]),
@@ -578,7 +578,7 @@ describe("AppLayout", () => {
     expect(queryClient.getQueryData(["security", "me"])).toBeUndefined();
   });
 
-  it("shows an idle warning before timeout and renews the backend session", async () => {
+  it("shows an idle warning before timeout and renews the authenticated session", async () => {
     vi.useFakeTimers();
     mockViewport(1280);
     await renderLayout("/dashboard");

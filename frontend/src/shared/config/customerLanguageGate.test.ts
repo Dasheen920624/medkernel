@@ -42,7 +42,7 @@ const forbiddenCustomerTokens =
 const technicalFormatTokens = /\b(?:JSON|DSL)\b/;
 
 describe("customer language gate", () => {
-  it("translates standalone and embedded backend enum values", () => {
+  it("translates standalone and embedded service enum values", () => {
     expect(customerEnumLabel("NOT_CONNECTED")).toBe("未接通");
     expect(customerDisplayText("HIS 适配器仍为 NOT_CONNECTED")).toBe("HIS 适配器仍为 未接通");
     expect(customerDisplayText("权限维度 ASSET 缺少授权")).toBe("权限维度 治理资产 缺少授权");

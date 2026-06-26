@@ -244,7 +244,7 @@ describe("WorkflowTodos", () => {
     });
   });
 
-  it("renders clinical collaboration source labels without exposing backend enum names", () => {
+  it("renders clinical collaboration source labels without exposing service enum names", () => {
     workflowHookMocks.useWorkflowTodos.mockReturnValue({
       data: {
         items: [
@@ -374,7 +374,7 @@ describe("WorkflowTodos", () => {
     );
   });
 
-  it("exposes a source jump only when the backend provides a deep link", () => {
+  it("exposes a source jump only when the service provides a deep link", () => {
     workflowHookMocks.useWorkflowTodos.mockReturnValue({
       data: {
         items: [
@@ -493,7 +493,7 @@ describe("WorkflowTodos", () => {
     expect(screen.queryByText(/^追踪号 trace-/)).not.toBeInTheDocument();
   });
 
-  it("persists completion through the backend and refreshes the server-side list", async () => {
+  it("persists completion through the service and refreshes the server-side list", async () => {
     const user = userEvent.setup();
     renderWorkflowTodos();
 
@@ -510,7 +510,7 @@ describe("WorkflowTodos", () => {
     expect(workflowHookMocks.refetchTodos).toHaveBeenCalled();
   });
 
-  it("persists transfer through the backend instead of changing browser-only state", async () => {
+  it("persists transfer through the service instead of changing browser-only state", async () => {
     const user = userEvent.setup();
     renderWorkflowTodos();
 

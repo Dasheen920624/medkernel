@@ -201,7 +201,7 @@ describe("TenantOnboarding", () => {
     mockHooks();
   });
 
-  it("shows backend onboarding readiness blockers and keeps activation disabled", () => {
+  it("shows onboarding readiness blockers and keeps activation disabled", () => {
     renderPage(<TenantOnboarding />);
 
     expect(useOrgUnits).toHaveBeenCalledWith({
