@@ -58,6 +58,12 @@ const FRONTEND_RULES = [
     pattern: /演示数据|演示病例|安全骨架/,
   },
   {
+    ruleId: "frontend.customer-facing-engineering-language",
+    message:
+      "前端客户面禁止把治理、诊断和受控配置表达成开发或工程内部语言。",
+    pattern: /开发者控制台|技术验证|技术配置|技术闸|技术阻断|技术门禁|技术门/,
+  },
+  {
     ruleId: "frontend.technical-object-visible",
     message: "客户面默认视图禁止裸露 JSON / font-mono 等技术对象。",
     pattern:

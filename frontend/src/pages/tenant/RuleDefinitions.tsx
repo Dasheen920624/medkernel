@@ -456,7 +456,7 @@ const RULE_VERSION_STATUS_LABELS: Record<string, string> = {
 function renderDeploymentStatus(status: string) {
   const statusMap: Record<string, { text: string; status: RuleStatusBadge }> = {
     DRAFT: { text: "待提交", status: "warning" },
-    IN_REVIEW: { text: "技术验证中", status: "processing" },
+    IN_REVIEW: { text: "安全复核中", status: "processing" },
     APPROVED: { text: "已验证待激活", status: "processing" },
     PUBLISHED: { text: "运行中", status: "success" },
     DEPRECATED: { text: "已弃用", status: "default" },
@@ -913,7 +913,7 @@ export default function RuleDefinitions() {
       }
       const parsedDsl = parseStoredJson(detailData.version.dslJson);
       if (!isRecord(parsedDsl) || !("when" in parsedDsl)) {
-        throw new Error("规则技术配置缺少触发条件");
+        throw new Error("规则受控配置缺少触发条件");
       }
       const nextTree = withStableRoot(dslToConditionTree(parsedDsl, selectedRulePrimaryTrigger));
       setEditingRuleId(selectedRuleId);
@@ -952,7 +952,7 @@ export default function RuleDefinitions() {
     } catch {
       modal.error({
         title: "无法编辑当前规则草稿",
-        content: "当前版本的技术配置无法还原为条件树，请先核查规则版本数据。",
+        content: "当前版本的受控配置无法还原为条件树，请先核查规则版本数据。",
       });
     }
   };
@@ -1054,8 +1054,8 @@ export default function RuleDefinitions() {
         ),
       ),
     );
-    // 仅静默同步，不强制切到 L3 / 不强开 L3 技术配置模式（修复「同步即跳 L3」）。
-    message.success("已从 L2 条件树同步到 L3 技术配置");
+    // 仅静默同步，不强制切到受控配置文本模式。
+    message.success("已从条件树同步到受控配置文本");
   };
 
   const syncDslToTree = () => {
@@ -1075,9 +1075,9 @@ export default function RuleDefinitions() {
       );
       createForm.setFieldValue("triggerPoints", [nextTree.triggerPoint]);
       setActiveCreateLayer("l2");
-      message.success("已从 L3 技术配置回填到 L2 条件树");
+      message.success("已从受控配置文本回填到条件树");
     } catch {
-      message.error("L3 技术配置文本不合法，无法回填到条件树。");
+      message.error("受控配置文本不合法，无法回填到条件树。");
     }
   };
 
@@ -2322,7 +2322,7 @@ export default function RuleDefinitions() {
         if (!primaryTrigger) {
           throw new Error("缺少临床触发场景");
         }
-        // L3 DSL 编辑模式以 JSON 为准；普通模式以 L2 递归条件树为准（避免未点同步而提交过期 DSL）。
+        // 受控配置文本模式以精确配置为准；普通模式以递归条件树为准（避免未点同步而提交过期配置）。
         parsedDsl = createAdvancedConfigEnabled
           ? parseRuleJson(dslEditorValue)
           : buildCurrentCreateRuleDsl(values.sourceRef);
@@ -2332,7 +2332,7 @@ export default function RuleDefinitions() {
         submitTree = dslToConditionTree(parsedDsl, primaryTrigger);
         submitRoot = submitTree.root ?? dslWhenToRootGroup((parsedDsl as { when: unknown }).when);
       } catch {
-        message.error("L3 技术配置文本不合法，请先从 L2 同步或修正后再提交。");
+        message.error("受控配置文本不合法，请先从条件树同步或修正后再提交。");
         setCreateAdvancedConfigEnabled(true);
         setActiveCreateLayer("l3");
         return;
@@ -2526,7 +2526,7 @@ export default function RuleDefinitions() {
         return;
       }
     } catch {
-      message.error("草稿技术配置不合法，请先修正 L2 条件树或 L3 配置文本。");
+      message.error("草稿受控配置不合法，请先修正条件树或受控配置文本。");
       return;
     }
 
@@ -2584,7 +2584,7 @@ export default function RuleDefinitions() {
     } catch (error: unknown) {
       modal.error({
         title: "历史回测未完成",
-        content: getApiErrorMessage(error, "请核查金标准样本和规则技术配置后重试。"),
+        content: getApiErrorMessage(error, "请核查金标准样本和规则受控配置后重试。"),
       });
     }
   };
@@ -3078,11 +3078,11 @@ export default function RuleDefinitions() {
         return (
           <Button
             type="primary"
-            onClick={() => handleGovernanceTransition("REVIEWED", "规则技术验证已确认")}
+            onClick={() => handleGovernanceTransition("REVIEWED", "规则安全复核已确认")}
             loading={transitionPending}
             disabled={!releaseGate.allPassed || !impactQuery.data?.impactDigest}
           >
-            确认技术验证
+            确认安全复核
           </Button>
         );
       case "REVIEWED":
@@ -3173,7 +3173,7 @@ export default function RuleDefinitions() {
           message={
             releaseGate.allPassed
               ? "阳性、阴性、边界、冲突四类测试用例已全绿。"
-              : `技术验证未满足：缺少 ${releaseGate.missingTypes.join("、") || "通过结果"}。`
+              : `安全复核未满足：缺少 ${releaseGate.missingTypes.join("、") || "通过结果"}。`
           }
         />
       )}
@@ -3291,7 +3291,7 @@ export default function RuleDefinitions() {
           type="info"
           showIcon
           message="规则已封存"
-          description="内容、版本、技术验证、发布与审计证据均保留，不提供删除或重新发布入口。"
+          description="内容、版本、安全复核、发布与审计证据均保留，不提供删除或重新发布入口。"
         />
       ) : (
         <Form layout="vertical">
@@ -3360,7 +3360,7 @@ export default function RuleDefinitions() {
               {detailRoot ? (
                 renderReadonlyNode(detailRoot)
               ) : (
-                <Alert type="warning" showIcon message="条件结构无法解析，请在 L3 技术视图核查。" />
+                <Alert type="warning" showIcon message="条件结构无法解析，请在受控配置视图核查。" />
               )}
               {Boolean(detailDsl) && (
                 <AuthoringReadablePreview subject="RULE_CONDITION" dsl={detailDsl} />
@@ -3413,7 +3413,7 @@ export default function RuleDefinitions() {
             <Alert
               type="warning"
               showIcon
-              message="该版本的技术配置无法无损还原为当前 L2 条件树，请在 L3 技术视图核查。"
+              message="该版本的受控配置无法无损还原为当前条件树，请在受控配置视图核查。"
             />
           ),
         },
@@ -3423,7 +3423,7 @@ export default function RuleDefinitions() {
                 key: "l3",
                 label: (
                   <span>
-                    <CodeOutlined /> L3 技术配置
+                    <CodeOutlined /> 受控配置文本
                   </span>
                 ),
                 children: (
@@ -3431,7 +3431,7 @@ export default function RuleDefinitions() {
                     <Row gutter={16}>
                       <Col span={12}>
                         <div className={`${styles.codePanel} ${styles.codeText}`}>
-                          {detailDsl ? formatRuleJson(detailDsl) : "当前版本技术配置无法解析"}
+                          {detailDsl ? formatRuleJson(detailDsl) : "当前版本受控配置无法解析"}
                         </div>
                       </Col>
                       <Col span={12}>
@@ -3975,7 +3975,7 @@ export default function RuleDefinitions() {
             type="info"
             showIcon
             message="临床算子"
-            description="区间比较、单位换算、时间窗持续/趋势和 eGFR/CrCl/BSA 计算公式均可在 L2 结构化配置；支持任意层级「具体条件 + 子条件组」嵌套；L3 配置文本仅保留给 L3 技术核查。"
+            description="区间比较、单位换算、时间窗持续/趋势和 eGFR/CrCl/BSA 计算公式均可在结构化配置中完成；支持任意层级「具体条件 + 子条件组」嵌套；受控配置文本仅用于授权人员核查精确执行结构。"
           />
 
           {renderConditionGroup(conditionRoot, 0)}
@@ -4301,10 +4301,10 @@ export default function RuleDefinitions() {
             <Button
               type="primary"
               icon={<SyncOutlined />}
-              aria-label="同步到技术配置"
+              aria-label="同步到受控配置"
               onClick={syncTreeToDsl}
             >
-              同步到技术配置
+              同步到受控配置
             </Button>
             <Button
               icon={<ApartmentOutlined />}
@@ -4379,7 +4379,7 @@ export default function RuleDefinitions() {
             key: "l3",
             label: (
               <span>
-                <CodeOutlined /> L3 技术配置
+                <CodeOutlined /> 受控配置文本
               </span>
             ),
             children: (
@@ -4387,7 +4387,7 @@ export default function RuleDefinitions() {
                 <Alert
                   type="warning"
                   showIcon
-                  message="L3 是受控技术配置层，保存前必须能回填到 L2 条件树；不允许提交无法解释的配置文本。"
+                  message="受控配置文本用于承载精确执行结构，保存前必须能回填到条件树；不允许提交无法解释的配置文本。"
                   className={styles.marginBottomMd}
                 />
                 <Form.Item label="规则配置文本" htmlFor="ruleDslJson">
@@ -4413,10 +4413,10 @@ export default function RuleDefinitions() {
                   </Button>
                   <Button
                     icon={<FileSearchOutlined />}
-                    aria-label="重新生成技术配置"
+                    aria-label="重新生成受控配置"
                     onClick={syncTreeToDsl}
                   >
-                    重新生成技术配置
+                    重新生成受控配置
                   </Button>
                 </Space>
               </>
@@ -4584,7 +4584,7 @@ export default function RuleDefinitions() {
             </Descriptions>
 
             <Space className="mk-flex-between mk-full-width">
-              <Text type="secondary">技术配置与解释模板默认隐藏，需要进入 L3 技术视图。</Text>
+              <Text type="secondary">受控配置与解释模板默认隐藏，需要进入受控配置视图。</Text>
               <Space>
                 {canWriteRule &&
                   detailData.version.status === "DRAFT" &&
@@ -4602,9 +4602,9 @@ export default function RuleDefinitions() {
                     复制为新版本
                   </Button>
                 )}
-                <Text>L3 技术视图</Text>
+                <Text>受控配置视图</Text>
                 <Switch
-                  aria-label="L3 技术视图"
+                  aria-label="受控配置视图"
                   checked={detailAdvancedViewEnabled}
                   onChange={toggleDetailAdvancedViewEnabled}
                 />
@@ -4794,11 +4794,11 @@ export default function RuleDefinitions() {
           </Row>
 
           <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
-            <Text type="secondary">普通配置只展示 L1/L2；L3 技术配置需显式进入技术配置模式。</Text>
+            <Text type="secondary">普通配置只展示 L1/L2；受控配置文本需显式进入受控配置模式。</Text>
             <Space>
-              <Text>L3 技术配置模式</Text>
+              <Text>受控配置文本模式</Text>
               <Switch
-                aria-label="L3 技术配置模式"
+                aria-label="受控配置文本模式"
                 checked={createAdvancedConfigEnabled}
                 onChange={toggleCreateAdvancedConfigEnabled}
               />

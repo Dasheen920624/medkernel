@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.medkernel.shared.api.ApiResult;
 
 /**
- * 开发者控制台 REST 入口（D6 DEVCON-01）。
+ * 诊断工具 REST 入口（D6 DEVCON-01）。
  */
 @RestController
 @RequestMapping("/api/v1/system/dev-console")

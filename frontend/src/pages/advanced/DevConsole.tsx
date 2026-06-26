@@ -186,7 +186,7 @@ export default function DevConsole() {
 
   if (systemRuntime.isLoading || runtime.isLoading) {
     return (
-      <PageShell title="开发者控制台" description="正在读取系统运行摘要">
+      <PageShell title="诊断工具" description="正在读取系统运行摘要">
         <PageState state="loading" />
       </PageShell>
     );
@@ -194,10 +194,10 @@ export default function DevConsole() {
 
   if (systemRuntime.isError || runtime.isError) {
     return (
-      <PageShell title="开发者控制台" description="系统运行摘要读取失败">
+      <PageShell title="诊断工具" description="系统运行摘要读取失败">
         <PageState
           state="error"
-          title="暂时无法读取开发者控制台"
+          title="暂时无法读取诊断工具"
           description="请稍后重试，或让 SRE 检查系统运行接口。"
           action={
             <Button
@@ -216,7 +216,7 @@ export default function DevConsole() {
   const rawRuntime = systemRuntime.data;
   if (!operations || !rawRuntime) {
     return (
-      <PageShell title="开发者控制台" description="系统运行摘要暂无数据">
+      <PageShell title="诊断工具" description="系统运行摘要暂无数据">
         <PageState state="empty" title="暂无系统运行摘要" />
       </PageShell>
     );
@@ -580,7 +580,7 @@ export default function DevConsole() {
 
   return (
     <PageShell
-      title="开发者控制台"
+      title="诊断工具"
       description="接口契约、追踪诊断与插件边界"
       extras={
         <Button

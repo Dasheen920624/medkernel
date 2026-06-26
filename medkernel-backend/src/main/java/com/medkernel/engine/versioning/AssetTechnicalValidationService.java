@@ -12,7 +12,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.ids.Ulid;
 
 /**
- * 发布前同步技术验证服务。
+ * 发布前同步安全复核服务。
  *
  * <p>每次发布都重新校验稳定身份、可恢复正文和内容哈希，并保存绑定精确版本的证据。
      * 依赖闭包必须由平台或医院的完整版本明细统一校验，避免原子发布中的多个新版本被逐项误判。
@@ -46,7 +46,7 @@ public class AssetTechnicalValidationService {
     }
 
     /**
-     * 同步重跑发布前技术验证并记录成功证据。
+     * 同步重跑发布前安全复核并记录成功证据。
      */
     @Transactional
     public AssetValidationRecord validateForPublish(
@@ -81,7 +81,7 @@ public class AssetTechnicalValidationService {
             version.versionId(),
             version.contentHash(),
             true,
-            "同步技术验证通过：稳定身份和正文哈希有效；依赖闭包由完整版本明细校验",
+            "同步安全复核通过：稳定身份和正文哈希有效；依赖闭包由完整版本明细校验",
             now,
             required(actor, "验证人"),
             blankToNull(traceId)

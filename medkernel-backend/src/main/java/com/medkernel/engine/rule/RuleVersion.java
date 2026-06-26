@@ -10,7 +10,7 @@ import org.springframework.data.relational.core.mapping.Table;
  * 规则版本实体（GA-ENG-API-05 规则 JSON DSL 与解释模板的版本化载体）。
  *
  * <p>同租户同规则下 {@code version_no} 递增，{@code source_ref} 必填以记录指南/制度/路径/医保来源；
- * 技术验证通过并进入影子运行后，由
+ * 安全复核通过并进入影子运行后，由
  * {@link RuleEngineService#transitionGovernance} 把内容状态从 {@code DRAFT} 推进到 {@code PUBLISHED}。
  */
 @Table("rule_version")

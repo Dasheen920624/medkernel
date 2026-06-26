@@ -391,7 +391,7 @@ export default function AuthoringBatchDrawer({
                   value={targetState}
                   onChange={setTargetState}
                   options={[
-                    { value: "REVIEWED", label: "技术验证" },
+                    { value: "REVIEWED", label: "安全复核" },
                     { value: "SHADOW", label: "影子运行" },
                     { value: "CANARY", label: "灰度" },
                     { value: "FULL", label: "全量" },

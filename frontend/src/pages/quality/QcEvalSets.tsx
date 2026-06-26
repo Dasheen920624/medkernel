@@ -104,7 +104,7 @@ const SUBJECT_LABELS: Record<EvaluationSubjectType, string> = {
 
 const STATUS_LABELS: Record<EvaluationIndicatorStatus, string> = {
   DRAFT: "草稿",
-  PENDING_REVIEW: "待技术验证",
+  PENDING_REVIEW: "待安全复核",
   PUBLISHED: "已发布",
   GRAY: "灰度中",
   ACTIVE: "生效中",
@@ -352,10 +352,10 @@ export default function QcEvalSets() {
     try {
       const updated = await submitMutation.mutateAsync(indicatorId);
       setSelectedIndicator(updated);
-      message.success("指标已提交技术验证");
+      message.success("指标已提交安全复核");
       indicatorsQuery.refetch();
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "指标提交技术验证失败"));
+      message.error(getApiErrorMessage(error, "指标提交安全复核失败"));
     }
   }
 
@@ -437,10 +437,10 @@ export default function QcEvalSets() {
       ),
       submit_review: visibleIndicator ? (
         <Text type="secondary">
-          {STATUS_LABELS[visibleIndicator.status]} · 当前授权责任人技术验证。
+          {STATUS_LABELS[visibleIndicator.status]} · 当前授权责任人安全复核。
         </Text>
       ) : (
-        <Text type="secondary">暂无待技术验证对象。</Text>
+        <Text type="secondary">暂无待安全复核对象。</Text>
       ),
       canary_release: visibleIndicator ? (
         <Text type="secondary">发布版本 {formatVersion(visibleIndicator)}</Text>
@@ -697,12 +697,12 @@ export default function QcEvalSets() {
               <Space wrap>
                 {selectedIndicator.status === "DRAFT" && (
                   <Button
-                    aria-label="提交技术验证"
+                    aria-label="提交安全复核"
                     type="primary"
                     loading={submitMutation.isPending}
                     onClick={() => submitIndicator(selectedIndicator.indicatorId)}
                   >
-                    提交技术验证
+                    提交安全复核
                   </Button>
                 )}
                 {selectedIndicator.status === "PENDING_REVIEW" && (
@@ -789,7 +789,7 @@ export default function QcEvalSets() {
           onChange={(event) => setReleaseReason(event.target.value)}
           maxLength={500}
           rows={4}
-          placeholder="填写技术验证结论、灰度依据或全量确认说明"
+          placeholder="填写安全复核结论、灰度依据或全量确认说明"
         />
       </Modal>
 

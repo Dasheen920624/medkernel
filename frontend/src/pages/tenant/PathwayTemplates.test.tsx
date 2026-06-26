@@ -460,7 +460,7 @@ describe("PathwayTemplates 上线路径维护契约", () => {
 
       expect(within(dialog).getByRole("tab", { name: /基础模板/ })).toBeInTheDocument();
       expect(within(dialog).getByRole("tab", { name: /节点画布/ })).toBeInTheDocument();
-      expect(within(dialog).queryByRole("tab", { name: /L3 技术配置/ })).not.toBeInTheDocument();
+      expect(within(dialog).queryByRole("tab", { name: /受控配置文本/ })).not.toBeInTheDocument();
 
       await user.click(within(dialog).getByLabelText("急诊处置路径"));
       await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
@@ -473,8 +473,8 @@ describe("PathwayTemplates 上线路径维护契约", () => {
       fireEvent.change(within(dialog).getByLabelText("条件值"), {
         target: { value: "true" },
       });
-      await user.click(within(dialog).getByRole("button", { name: /同步到技术配置/ }));
-      await user.click(within(dialog).getByRole("tab", { name: /L3 技术配置/ }));
+      await user.click(within(dialog).getByRole("button", { name: /同步到受控配置/ }));
+      await user.click(within(dialog).getByRole("tab", { name: /受控配置文本/ }));
 
       const dslEditor = within(dialog).getByLabelText("路径配置文本") as HTMLTextAreaElement;
       const parsed = JSON.parse(dslEditor.value) as {
@@ -490,7 +490,7 @@ describe("PathwayTemplates 上线路径维护契约", () => {
   );
 
   it(
-    "路径可单向引用已发布规则，技术配置只保存规则稳定身份并由机构生效版本确认精确版本",
+    "路径可单向引用已发布规则，受控配置只保存规则稳定身份并由机构生效版本确认精确版本",
     async () => {
       apiMocks.rulesData = { items: [publishedRule], total: 1 };
       const { user, dialog } = await openCreateDialog();
@@ -502,8 +502,8 @@ describe("PathwayTemplates 上线路径维护契约", () => {
 
       expect(within(dialog).getByText(/运行时由同一机构生效版本确认规则版本/)).toBeInTheDocument();
 
-      await user.click(within(dialog).getByRole("button", { name: /同步到技术配置/ }));
-      await user.click(within(dialog).getByRole("tab", { name: /L3 技术配置/ }));
+      await user.click(within(dialog).getByRole("button", { name: /同步到受控配置/ }));
+      await user.click(within(dialog).getByRole("tab", { name: /受控配置文本/ }));
       const dslEditor = within(dialog).getByLabelText("路径配置文本") as HTMLTextAreaElement;
       const parsed = JSON.parse(dslEditor.value) as {
         edges: Array<{ condition?: Record<string, unknown> }>;
@@ -646,7 +646,7 @@ describe("PathwayTemplates 上线路径维护契约", () => {
   );
 
   it(
-    "字段目录不可用时阻断路径条件同步到技术配置",
+    "字段目录不可用时阻断路径条件同步到受控配置",
     async () => {
       apiMocks.contextFieldCatalogError = true;
       const { user, dialog } = await openCreateDialog();
@@ -655,9 +655,9 @@ describe("PathwayTemplates 上线路径维护契约", () => {
       await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
 
       expect(
-        within(dialog).getByText("字段目录暂不可用，路径条件不能同步到技术配置。"),
+        within(dialog).getByText("字段目录暂不可用，路径条件不能同步到受控配置。"),
       ).toBeInTheDocument();
-      expect(within(dialog).getByRole("button", { name: /同步到技术配置/ })).toBeDisabled();
+      expect(within(dialog).getByRole("button", { name: /同步到受控配置/ })).toBeDisabled();
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );

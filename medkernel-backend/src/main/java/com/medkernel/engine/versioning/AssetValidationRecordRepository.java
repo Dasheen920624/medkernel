@@ -4,7 +4,7 @@ import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 资产技术验证证据仓储。
+ * 资产安全复核证据仓储。
  */
 @Repository
 public interface AssetValidationRecordRepository

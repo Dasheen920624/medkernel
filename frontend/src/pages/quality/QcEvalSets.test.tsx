@@ -272,7 +272,7 @@ describe("QcEvalSets", () => {
     await user.click(screen.getByRole("button", { name: "查看指标详情" }));
     expect(screen.getAllByText("条件根组 · 第 1 层").length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole("button", { name: "提交技术验证" }));
+    await user.click(screen.getByRole("button", { name: "提交安全复核" }));
 
     await waitFor(() => expect(submitIndicator).toHaveBeenCalledWith("indicator-real-1"));
     expect(refetch).toHaveBeenCalled();

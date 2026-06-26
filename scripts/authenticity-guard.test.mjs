@@ -233,6 +233,42 @@ test("前端生产文件会阻断客户面退役演示说明", async () => {
   );
 });
 
+test("前端生产文件会阻断客户面工程内部语言", async () => {
+  const developerConsole = "开发者" + "控制台";
+  const technicalReview = "技术" + "验证";
+  const technicalConfig = "技术" + "配置";
+  const technicalGate = "技术" + "门";
+  await withFixture(
+    {
+      "frontend/src/pages/DevConsole.tsx": `
+        export function DevConsole() {
+          return <PageShell title="${developerConsole}" description="等待${technicalReview}" />;
+        }
+      `,
+      "frontend/src/pages/RuleDefinitions.tsx": `
+        export const label = "L3 ${technicalConfig}";
+      `,
+      "frontend/src/pages/KnowledgeGovernance.tsx": `
+        export const message = "${technicalGate}尚未满足";
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/pages/DevConsole.tsx",
+        "frontend/src/pages/RuleDefinitions.tsx",
+        "frontend/src/pages/KnowledgeGovernance.tsx",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+      ]);
+    },
+  );
+});
+
 test("前端生产文件会阻断默认临床病例文本回流", async () => {
   await withFixture(
     {

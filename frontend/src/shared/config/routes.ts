@@ -234,7 +234,7 @@ const adapterHubExperience: RouteExperience = {
       placeholder: "输入院区或科室",
     },
   ],
-  evidenceDetailContent: ["接入标识", "追踪号", "技术配置", "对接路线引用", "消息编号"],
+  evidenceDetailContent: ["接入标识", "追踪号", "受控配置", "对接路线引用", "消息编号"],
   interruptionLevel: "strong",
   evidence: "适配器启停、健康检查、死信重放、数据质量报告均保留审计证据",
   dataScale: { expected: "large", pagination: "page", exportStrategy: "async" },
@@ -765,7 +765,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     requiredPermissions: ["menu.knowledge-production", "knowledge.read"],
     experience: readonlyExperience(
       "医疗引擎运营员",
-      "在同一页面完成模型服务、医学评测、八项技术闸和正式大模型知识生产",
+      "在同一页面完成模型服务、医学评测、八项安全门和正式大模型知识生产",
       "模型生产步骤",
       "large",
     ),

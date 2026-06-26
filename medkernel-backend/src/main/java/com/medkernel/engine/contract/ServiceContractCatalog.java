@@ -587,7 +587,7 @@ public final class ServiceContractCatalog {
                 audit(AuditAction.CREATE, "mapping_candidate", "生成待审核术语映射候选"),
                 audit(AuditAction.CREATE, "term_mapping", "确认字典映射"),
                 audit(AuditAction.REVIEW, "mapping_conflict", "处置术语映射冲突"))),
-        contract("developer-console", "开发者控制台服务",
+        contract("developer-console", "诊断工具服务",
             "com.medkernel.engine.developer.DeveloperConsoleController", "/api/v1/system/dev-console",
             permissions("system.read"),
             List.of()),

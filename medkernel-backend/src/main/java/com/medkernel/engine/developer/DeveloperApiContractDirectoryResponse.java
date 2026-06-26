@@ -6,7 +6,7 @@ import com.medkernel.engine.security.PermissionDimension;
 import com.medkernel.shared.audit.AuditAction;
 
 /**
- * 开发者控制台 API 契约目录响应。
+ * 诊断工具 API 契约目录响应。
  *
  * @param contracts 已脱敏服务契约清单
  */

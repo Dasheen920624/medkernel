@@ -613,7 +613,7 @@ describe("operational control pages", () => {
     const user = userEvent.setup();
     renderPage(<DevConsole />);
 
-    expect(screen.getByRole("heading", { name: "开发者控制台" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "诊断工具" })).toBeInTheDocument();
     expect(screen.getByText("系统运行概况")).toBeInTheDocument();
     expect(screen.getAllByText("medkernel").length).toBeGreaterThan(0);
     expect(screen.getByText("docker-core")).toBeInTheDocument();

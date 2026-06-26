@@ -8,7 +8,7 @@ import com.medkernel.engine.developer.DeveloperApiContractDirectoryResponse.Deve
 import com.medkernel.engine.developer.DeveloperApiContractDirectoryResponse.DeveloperApiPermissionResponse;
 
 /**
- * 开发者控制台服务。
+ * 诊断工具服务。
  *
  * <p>控制台只输出治理后的契约视图，不泄露控制器类名、密钥、凭证或内部实现细节。
  */

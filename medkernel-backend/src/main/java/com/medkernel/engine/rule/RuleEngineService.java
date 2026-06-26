@@ -347,7 +347,7 @@ public class RuleEngineService {
      *
      * <p>旧发布版本继续由统一版本解析器提供运行服务；新版本只切换编辑态指针，
      * 并复制 DSL、解释、适用域、参数绑定和发布门禁用例。测试执行结果不会复制，
-     * 新版本必须重新完成技术验证。
+     * 新版本必须重新完成安全复核。
      */
     @Transactional
     public RuleVersionCreateResponse createNextVersion(String ruleId) {

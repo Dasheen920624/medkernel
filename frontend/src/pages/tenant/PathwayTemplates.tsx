@@ -117,7 +117,7 @@ const PATHWAY_CONTENT_STATUS: Record<
 
 const PATHWAY_DEPLOYMENT_STATUS: Record<string, { status: PathwayBadgeStatus; text: string }> = {
   DRAFT: { status: "warning", text: "待提交" },
-  IN_REVIEW: { status: "processing", text: "技术验证中" },
+  IN_REVIEW: { status: "processing", text: "安全复核中" },
   APPROVED: { status: "processing", text: "已验证待激活" },
   PUBLISHED: { status: "success", text: "运行中" },
   DEPRECATED: { status: "default", text: "已弃用" },
@@ -969,7 +969,7 @@ function parsePathwayDslJson(value: string): PathwayDslPayload {
     }
     return payload;
   } catch {
-    throw new Error("L3 技术配置格式不合法，请检查节点、连线与指标绑定。");
+    throw new Error("受控配置文本格式不合法，请检查节点、连线与指标绑定。");
   }
 }
 
@@ -1827,7 +1827,7 @@ export default function PathwayTemplates() {
 
   const syncCanvasToDsl = () => {
     if (fieldCatalogQuery.isError) {
-      messageApi.error("字段目录暂不可用，路径条件不能同步到技术配置。");
+      messageApi.error("字段目录暂不可用，路径条件不能同步到受控配置。");
       return;
     }
     try {
@@ -1838,9 +1838,9 @@ export default function PathwayTemplates() {
         ),
       );
       setCreateAdvancedConfigEnabled(true);
-      messageApi.success("已从 L2 节点画布同步到 L3 技术配置");
+      messageApi.success("已从节点画布同步到受控配置文本");
     } catch (error: unknown) {
-      messageApi.error(error instanceof Error ? error.message : "L2 节点画布无法生成技术配置");
+      messageApi.error(error instanceof Error ? error.message : "L2 节点画布无法生成受控配置");
     }
   };
 
@@ -1856,9 +1856,9 @@ export default function PathwayTemplates() {
           formValues.outcomeBindings,
         ),
       );
-      messageApi.success("已将 L3 技术配置回填到 L2 节点画布");
+      messageApi.success("已将受控配置文本回填到节点画布");
     } catch (error: unknown) {
-      messageApi.error(error instanceof Error ? error.message : "L3 技术配置回填失败");
+      messageApi.error(error instanceof Error ? error.message : "受控配置文本回填失败");
     }
   };
 
@@ -2362,7 +2362,7 @@ export default function PathwayTemplates() {
                   disabled={fieldCatalogQuery.isError}
                   onClick={syncCanvasToDsl}
                 >
-                  同步到技术配置
+                  同步到受控配置
                 </Button>
                 <Button
                   icon={<ApartmentOutlined />}
@@ -2377,7 +2377,7 @@ export default function PathwayTemplates() {
               <Alert
                 type="error"
                 showIcon
-                message="字段目录暂不可用，路径条件不能同步到技术配置。"
+                message="字段目录暂不可用，路径条件不能同步到受控配置。"
                 description="路径纳入、排除和流转条件必须绑定标准字段目录；恢复字段目录接口后再同步或保存。"
               />
             ) : null}
@@ -3325,7 +3325,7 @@ export default function PathwayTemplates() {
       ? [
           {
             key: "l3",
-            label: "L3 技术配置",
+            label: "受控配置文本",
             children: (
               <div className={styles.editorSection}>
                 <Space direction="vertical" size="middle" className="mk-full-width">
@@ -3343,7 +3343,7 @@ export default function PathwayTemplates() {
                   <Alert
                     type="warning"
                     showIcon
-                    message="L3 是受控技术配置层，普通路径配置请优先使用 L2 节点画布。"
+                    message="受控配置文本用于承载精确执行结构，普通路径配置请优先使用节点画布。"
                   />
                   <Form.Item
                     label="路径配置文本"
@@ -3563,7 +3563,7 @@ export default function PathwayTemplates() {
           ? [
               {
                 key: "l3",
-                label: "L3 技术配置",
+                label: "受控配置文本",
                 children: (
                   <Space direction="vertical" className={`mk-full-width ${styles.marginTopMd}`}>
                     <TextArea
@@ -3918,12 +3918,12 @@ export default function PathwayTemplates() {
         <Form form={templateForm} layout="vertical" className={styles.marginTopMd}>
           <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
             <span className={`${styles.textSmall} ${styles.textSecondary}`}>
-              普通配置只展示 L1/L2；L3 技术配置需显式进入技术配置模式。
+              普通配置只展示 L1/L2；受控配置文本需显式进入受控配置模式。
             </span>
             <Space>
-              <span>L3 技术配置模式</span>
+              <span>受控配置文本模式</span>
               <Switch
-                aria-label="L3 技术配置模式"
+                aria-label="受控配置文本模式"
                 checked={createAdvancedConfigEnabled}
                 onChange={toggleCreateAdvancedConfigEnabled}
               />
@@ -3974,9 +3974,9 @@ export default function PathwayTemplates() {
                 路径拓扑与真实快照试运行是本页主流程；上线启停统一由发布治理管理。
               </span>
               <Space>
-                <span>L3 技术视图</span>
+                <span>受控配置视图</span>
                 <Switch
-                  aria-label="L3 技术视图"
+                  aria-label="受控配置视图"
                   checked={detailAdvancedViewEnabled}
                   onChange={toggleDetailAdvancedViewEnabled}
                 />

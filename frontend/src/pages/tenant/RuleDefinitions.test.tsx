@@ -467,7 +467,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   });
 
   it(
-    "创建规则时提供 L1 模板、L2 条件树与 L3 技术配置，并能从 L2 同步到 L3",
+    "创建规则时提供模板、条件树与受控配置文本，并能从条件树同步到受控配置",
     async () => {
       renderRuleDefinitions();
 
@@ -476,9 +476,9 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
       expect(within(dialog).getByRole("tab", { name: /L1 模板/ })).toBeInTheDocument();
       expect(within(dialog).getByRole("tab", { name: /L2 条件树/ })).toBeInTheDocument();
-      expect(within(dialog).queryByRole("tab", { name: /L3 技术配置/ })).not.toBeInTheDocument();
-      fireEvent.click(within(dialog).getByRole("switch", { name: "L3 技术配置模式" }));
-      expect(within(dialog).getByRole("tab", { name: /L3 技术配置/ })).toBeInTheDocument();
+      expect(within(dialog).queryByRole("tab", { name: /受控配置文本/ })).not.toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole("switch", { name: "受控配置文本模式" }));
+      expect(within(dialog).getByRole("tab", { name: /受控配置文本/ })).toBeInTheDocument();
 
       fireEvent.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
       expect(within(dialog).getByText("临床算子")).toBeInTheDocument();
@@ -495,9 +495,9 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "添加提示" }));
       const summaries = within(dialog).getAllByLabelText("提示摘要");
       fireEvent.change(summaries[1], { target: { value: "同步记录规则命中" } });
-      fireEvent.click(within(dialog).getByRole("button", { name: "同步到技术配置" }));
+      fireEvent.click(within(dialog).getByRole("button", { name: "同步到受控配置" }));
 
-      fireEvent.click(within(dialog).getByRole("tab", { name: /L3 技术配置/ }));
+      fireEvent.click(within(dialog).getByRole("tab", { name: /受控配置文本/ }));
       const dslEditor = within(dialog).getByLabelText("规则配置文本");
       expect((dslEditor as HTMLTextAreaElement).value).not.toContain('"trigger"');
       expect((dslEditor as HTMLTextAreaElement).value).toContain('"fact": "observations.0.value"');
@@ -778,7 +778,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         target: { value: "6" },
       });
 
-      fireEvent.click(within(dialog).getByRole("button", { name: "同步到技术配置" }));
+      fireEvent.click(within(dialog).getByRole("button", { name: "同步到受控配置" }));
       fireEvent.click(within(dialog).getByRole("button", { name: "创建草稿" }));
       await waitFor(() =>
         expect(apiMocks.createRule).toHaveBeenCalledWith(
@@ -991,7 +991,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
 
       const user = await openDraftRuleDrawer();
       await user.click(screen.getByRole("tab", { name: /真实快照试运行/ }));
-      await user.click(screen.getByRole("switch", { name: "L3 技术视图" }));
+      await user.click(screen.getByRole("switch", { name: "受控配置视图" }));
 
       expect(screen.queryByText("手工配置文本兜底")).not.toBeInTheDocument();
       expect(
@@ -1124,7 +1124,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   );
 
   it(
-    "展示七阶段治理与影响摘要，并完成技术验证",
+    "展示七阶段治理与影响摘要，并完成安全复核",
     async () => {
       apiMocks.ruleListData = { items: [draftRule], total: 1 };
       apiMocks.ruleDetailData = createRuleDetail();
@@ -1174,7 +1174,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         versionId: "ver-1",
         state: "REVIEWED",
         authorId: "u-1",
-        lastReason: "负责人确认技术验证",
+        lastReason: "负责人确认安全复核",
         testResults: [],
         releaseEvidence: ["REVIEWED 负责人确认"],
         traceId: "trace-governance",
@@ -1185,7 +1185,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       const user = await openDraftRuleDrawer();
       await user.click(screen.getByRole("tab", { name: /治理与发布/ }));
 
-      expect(screen.getByText("技术验证")).toBeInTheDocument();
+      expect(screen.getByText("安全复核")).toBeInTheDocument();
       expect(screen.getByText("影子运行")).toBeInTheDocument();
       expect(screen.getByText("退役")).toBeInTheDocument();
       expect(screen.getByText("sha256:impact-abc")).toBeInTheDocument();
@@ -1194,15 +1194,15 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       expect(screen.getByText(/患者 patient-1/)).toBeInTheDocument();
       expect(screen.getByText(/院内规则库/)).toBeInTheDocument();
 
-      await user.type(screen.getByLabelText("治理说明"), "已查看影响摘要并确认技术验证");
-      await user.click(screen.getByRole("button", { name: "确认技术验证" }));
+      await user.type(screen.getByLabelText("治理说明"), "已查看影响摘要并确认安全复核");
+      await user.click(screen.getByRole("button", { name: "确认安全复核" }));
 
       await waitFor(() =>
         expect(apiMocks.transitionRuleGovernance).toHaveBeenCalledWith({
           ruleId: "rule-1",
           targetState: "REVIEWED",
           impactDigest: "sha256:impact-abc",
-          reason: "已查看影响摘要并确认技术验证",
+          reason: "已查看影响摘要并确认安全复核",
         }),
       );
     },
@@ -1461,7 +1461,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       await user.click(screen.getByText("治理与发布"));
 
       expect(screen.getByText("当前账号仅可查看本阶段证据")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "确认技术验证" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "确认安全复核" })).not.toBeInTheDocument();
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
   );
@@ -1607,7 +1607,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   );
 
   it(
-    "L2 支持新增子条件组实现任意层级嵌套，并同步为嵌套技术配置",
+    "L2 支持新增子条件组实现任意层级嵌套，并同步为嵌套受控配置",
     async () => {
       const user = userEvent.setup();
       renderRuleDefinitions();
@@ -1623,10 +1623,10 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       expect(within(dialog).getByText("子条件组 · 第 2 层")).toBeInTheDocument();
       expect(within(dialog).getAllByText("具体条件").length).toBeGreaterThan(1);
 
-      // 进入 L3 技术配置模式并同步，断言配置文本为嵌套结构（顶层 all 内含子组）
-      await user.click(within(dialog).getByRole("switch", { name: "L3 技术配置模式" }));
-      await user.click(within(dialog).getByRole("button", { name: "同步到技术配置" }));
-      await user.click(within(dialog).getByRole("tab", { name: /L3 技术配置/ }));
+      // 进入 受控配置文本模式并同步，断言配置文本为嵌套结构（顶层 all 内含子组）
+      await user.click(within(dialog).getByRole("switch", { name: "受控配置文本模式" }));
+      await user.click(within(dialog).getByRole("button", { name: "同步到受控配置" }));
+      await user.click(within(dialog).getByRole("tab", { name: /受控配置文本/ }));
       const dslEditor = within(dialog).getByLabelText("规则配置文本") as HTMLTextAreaElement;
       const parsed = JSON.parse(dslEditor.value) as { when: { all: unknown[] } };
       expect(Array.isArray(parsed.when.all)).toBe(true);
@@ -1643,7 +1643,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   );
 
   it(
-    "普通模式同步到技术配置后仍停留在 L2 且不强制显示 L3 技术页",
+    "普通模式同步到受控配置后仍停留在条件树且不强制显示受控配置页",
     async () => {
       const user = userEvent.setup();
       renderRuleDefinitions();
@@ -1651,9 +1651,9 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
       await user.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
-      await user.click(within(dialog).getByRole("button", { name: "同步到技术配置" }));
+      await user.click(within(dialog).getByRole("button", { name: "同步到受控配置" }));
 
-      expect(within(dialog).queryByRole("tab", { name: /L3 技术配置/ })).not.toBeInTheDocument();
+      expect(within(dialog).queryByRole("tab", { name: /受控配置文本/ })).not.toBeInTheDocument();
       expect(within(dialog).getByRole("tabpanel")).toHaveTextContent("条件根组 · 第 1 层");
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
