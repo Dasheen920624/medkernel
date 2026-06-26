@@ -18,9 +18,9 @@ test("十条机构演练规则全部可运行且不依赖固定机构生效版�
   assert.deepEqual(manifest.dependencies, [
     {
       assetType: "PATHWAY",
-      assetCode: "PATH.ED.DISPOSITION",
+      assetCode: "PATH.CLINICAL.CYCLE",
       assetVersion: "1",
-      purpose: "沙盘急诊路径入径与推进外圈场景",
+      purpose: "沙盘路径入径与推进外圈场景",
     },
   ]);
   assert.ok(

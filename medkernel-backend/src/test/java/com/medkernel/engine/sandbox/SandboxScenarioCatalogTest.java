@@ -49,15 +49,15 @@ class SandboxScenarioCatalogTest {
             .filteredOn(scenario -> !"rule".equals(scenario.engine()))
             .extracting(SandboxScenario::id)
             .containsExactly(
-                "sbx-pathway-ed",
+                "sbx-pathway-cycle",
                 "sbx-recommendation-composite",
                 "sbx-followup-closed-loop",
                 "sbx-evaluation-closed-loop",
                 "sbx-embed-modes");
         assertThat(catalog.all()).allSatisfy(scenario ->
             assertThat(catalog.requireRunnable(scenario.id())).isSameAs(scenario));
-        assertThat(catalog.require("sbx-pathway-ed").expectedAssetCode())
-            .isEqualTo("PATH.ED.DISPOSITION");
+        assertThat(catalog.require("sbx-pathway-cycle").expectedAssetCode())
+            .isEqualTo("PATH.CLINICAL.CYCLE");
         assertThat(catalog.require("sbx-recommendation-composite").expectedAction())
             .isEqualTo("SUGGEST_ORDER");
     }

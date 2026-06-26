@@ -308,7 +308,7 @@ class ClinicalRuntimeReleaseServiceTest {
             "pathway-local-v1",
             "tenant-A",
             VersionedAssetType.PATHWAY,
-            "PATH.ED.DISPOSITION",
+            "PATH.CLINICAL.CYCLE",
             "V1",
             "6".repeat(64),
             "/tenant-A/group-A/hospital-A")
@@ -322,9 +322,9 @@ class ClinicalRuntimeReleaseServiceTest {
         when(versions.save(any(AssetVersion.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
         when(identities.findByTenantIdAndAssetTypeAndAssetIdentity(
-            "tenant-A", VersionedAssetType.PATHWAY, "PATH.ED.DISPOSITION"))
+            "tenant-A", VersionedAssetType.PATHWAY, "PATH.CLINICAL.CYCLE"))
             .thenReturn(Optional.of(new AssetIdentity(
-                1L, "tenant-A", VersionedAssetType.PATHWAY, "PATH.ED.DISPOSITION",
+                1L, "tenant-A", VersionedAssetType.PATHWAY, "PATH.CLINICAL.CYCLE",
                 AssetIdentityStatus.ACTIVE, 1L,
                 NOW.minusSeconds(3600), "operator-old",
                 NOW.minusSeconds(60), "operator-old", "trace-old")));
@@ -343,7 +343,7 @@ class ClinicalRuntimeReleaseServiceTest {
             null,
             List.of(ClinicalRuntimeAssetSelection.local(
                 VersionedAssetType.PATHWAY,
-                "PATH.ED.DISPOSITION",
+                "PATH.CLINICAL.CYCLE",
                 "pathway-local-v1")),
             "operator-A",
             "trace-A"

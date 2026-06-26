@@ -150,7 +150,7 @@
 | `/advanced/domestic` | 国产化核验 | system-operations | domestic-check | primary | MOVE | 系统运维 | 国产化核验 | 核查国产化适配与部署证据 |
 <!-- capability:route:route@%2Fadvanced%2Fdev-console decision=MOVE -->
 <!-- route:/advanced/dev-console -->
-| `/advanced/dev-console` | 诊断工具 | system-operations | dev-console | primary | MOVE | 系统运维 | 诊断工具 | 由开发和实施角色执行受控诊断 |
+| `/advanced/dev-console` | 诊断工具 | system-operations | dev-console | primary | MOVE | 系统运维 | 诊断工具 | 由信息科和实施角色执行受控诊断 |
 <!-- capability:route:route@%2Fembed%2Flaunch decision=KEEP -->
 <!-- route:/embed/launch -->
 | `/embed/launch` | 临床嵌入式终端 | clinical-collaboration | — | embedded | KEEP | 临床协同 | 院内系统嵌入终端 | 在受信来源内承载临床嵌入并回传人工反馈 |

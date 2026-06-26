@@ -65,9 +65,9 @@ public class SandboxScenarioCatalog {
             "SBX.RECORD.COMPLETENESS", "INFO", "LOW"));
 
         register(outerScenario(
-            "sbx-pathway-ed", "pathway", "PATHWAY", "急诊路径入径与推进",
+            "sbx-pathway-cycle", "pathway", "PATHWAY", "路径入径与推进",
             "SBX-LAB-K-001", "SBX-LAB-K-ENC-001", "PATHWAY", "MEDIUM",
-            "PATH.ED.DISPOSITION"));
+            "PATH.CLINICAL.CYCLE"));
         register(outerScenario(
             "sbx-recommendation-composite", "recommendation", "RECOMMENDATION_COMPOSITE",
             "推荐综合卡", "SBX-ACS-001", "SBX-ACS-ENC-001", "SUGGEST_ORDER", "MEDIUM",

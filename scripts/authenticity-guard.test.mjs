@@ -230,7 +230,7 @@ test("前端生产文件会阻断客户面退役演示说明", async () => {
         }
       `,
       "frontend/src/pages/PathwayTemplates.tsx": `
-        export const description = "默认生成急诊评估到处置安排的两节点${retiredSafetySkeleton}。";
+        export const description = "默认生成评估到处置确认的两节点${retiredSafetySkeleton}。";
       `,
       "frontend/src/pages/CdssFatigue.tsx": `
         export const empty = "暂无来源解释证据，不做任何${fallbackFake}";
@@ -671,6 +671,46 @@ test("前端生产文件会阻断默认临床病例文本回流", async () => {
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), [
         "frontend.hardcoded-medical-constant",
+      ]);
+    },
+  );
+});
+
+test("路径模板生产文件禁止回流固定急诊原型", async () => {
+  await withFixture(
+    {
+      "frontend/src/pages/tenant/PathwayTemplates.tsx": `
+        const prototype = {
+          title: "急诊处置路径",
+          templateCode: "PATH.ED.DISPOSITION",
+          milestoneCode: "M-ED-ASSESS",
+        };
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/sandbox/SandboxScenarioCatalog.java": `
+        public class SandboxScenarioCatalog {
+          String id = "sbx-pathway-ed";
+          String code = "PATH.ED.DISPOSITION";
+        }
+      `,
+      "scripts/sandbox/seed-scenarios.mjs": `
+        export const pathway = {
+          name: "急诊处置路径",
+          responsibleRole: "急诊医生",
+        };
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/pages/tenant/PathwayTemplates.tsx",
+        "medkernel-backend/src/main/java/com/medkernel/engine/sandbox/SandboxScenarioCatalog.java",
+        "scripts/sandbox/seed-scenarios.mjs",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.pathway-hardcoded-prototype",
+        "frontend.pathway-hardcoded-prototype",
+        "scripts.pathway-hardcoded-prototype",
       ]);
     },
   );

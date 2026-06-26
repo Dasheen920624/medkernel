@@ -291,7 +291,7 @@ type SnapshotQuery = {
   size: number;
 };
 
-type PathwayPrototypeKey = "blank" | "ed_disposition";
+type PathwayPrototypeKey = "blank" | "basic_cycle";
 
 const templateLevelOptions: Array<{ value: PathwayTemplateLevel; label: string }> = [
   { value: "STANDARD", label: "平台标准模板" },
@@ -364,9 +364,9 @@ const pathwayPrototypeOptions: Array<{
     description: "从 L1 基本信息与 L2 节点画布手工配置。",
   },
   {
-    key: "ed_disposition",
-    title: "急诊处置路径",
-    description: "默认生成急诊评估到处置安排的两节点起始结构，可继续补充准入、处置和退出条件。",
+    key: "basic_cycle",
+    title: "基础节点闭环",
+    description: "生成评估到处置确认的两节点起始结构，由医院按专科、病种和岗位继续配置。",
   },
 ];
 
@@ -571,7 +571,7 @@ function normalizeNodes(nodes?: PathwayNodeFormValue[]) {
         typeof node.timeWindowMinutes === "number" && node.timeWindowMinutes > 0
           ? node.timeWindowMinutes
           : undefined;
-      const responsibleRole = cleanText(node.responsibleRole) ?? "专科医生";
+      const responsibleRole = cleanText(node.responsibleRole) ?? "责任医生";
       const accountableRole = cleanText(node.accountableRole) ?? responsibleRole;
       return {
         nodeCode: cleanText(node.nodeCode) ?? "",
@@ -1599,10 +1599,10 @@ export default function PathwayTemplates() {
 
     const milestones: PathwayMilestoneFormValue[] = [
       {
-        phaseCode: "ED",
-        phaseName: "急诊处置",
-        milestoneCode: "M-ED-ASSESS",
-        name: "完成急诊评估",
+        phaseCode: "ENTRY",
+        phaseName: "入径评估",
+        milestoneCode: "M-ENTRY-ASSESS",
+        name: "完成入径评估",
         dayOffset: 0,
         expectedOffsetMinutes: 30,
         sortOrder: 1,
@@ -1611,21 +1611,21 @@ export default function PathwayTemplates() {
     const nodes: PathwayNodeFormValue[] = [
       {
         nodeCode: "ASSESS",
-        name: "急诊评估",
+        name: "入径评估",
         nodeType: "ASSESSMENT",
-        milestoneCode: "M-ED-ASSESS",
+        milestoneCode: "M-ENTRY-ASSESS",
         sortOrder: 1,
-        responsibleRole: "急诊医生",
-        accountableRole: "急诊医生",
+        responsibleRole: "责任医生",
+        accountableRole: "责任医生",
       },
       {
         nodeCode: "DISPOSITION",
-        name: "处置安排",
-        nodeType: "DISCHARGE",
-        milestoneCode: "M-ED-ASSESS",
+        name: "处置确认",
+        nodeType: "MANUAL_GATE",
+        milestoneCode: "M-ENTRY-ASSESS",
         sortOrder: 2,
-        responsibleRole: "急诊医生",
-        accountableRole: "急诊医生",
+        responsibleRole: "责任医生",
+        accountableRole: "责任医生",
         terminal: true,
       },
     ];
@@ -1640,14 +1640,14 @@ export default function PathwayTemplates() {
     ];
 
     templateForm.setFieldsValue({
-      name: "急诊处置路径",
-      templateCode: "PATH.ED.DISPOSITION",
-      diseaseCode: "ED",
+      name: "基础节点闭环",
+      templateCode: "PATH.CLINICAL.CYCLE",
+      diseaseCode: "GENERAL",
       templateLevel: "STANDARD",
       entryMode: "AUTO_SUGGEST",
       startNodeCode: "ASSESS",
-      sourceRef: "院内已审核急诊处置制度",
-      description: "急诊评估后进入处置或离院安排。",
+      sourceRef: "院内已审核路径制度",
+      description: "完成入径评估后进入处置确认或闭环安排。",
       milestones,
       nodes,
       edges,
@@ -2707,7 +2707,7 @@ export default function PathwayTemplates() {
                             label="责任角色"
                             rules={[{ required: true, message: "请填写责任角色" }]}
                           >
-                            <Input placeholder="如 专科医生" />
+                            <Input placeholder="如 责任医生 / 责任护士" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} sm={12} lg={6}>
@@ -2935,8 +2935,8 @@ export default function PathwayTemplates() {
                       nodeCode: nextSeqCode("nodes", "nodeCode", "N"),
                       nodeType: "ASSESSMENT",
                       sortOrder: fields.length + 1,
-                      responsibleRole: "专科医生",
-                      accountableRole: "专科医生",
+                      responsibleRole: "责任医生",
+                      accountableRole: "责任医生",
                       consultedRoles: [],
                       informedRoles: [],
                       terminal: false,

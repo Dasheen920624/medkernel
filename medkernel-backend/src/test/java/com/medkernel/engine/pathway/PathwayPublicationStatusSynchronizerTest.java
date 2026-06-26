@@ -28,17 +28,17 @@ class PathwayPublicationStatusSynchronizerTest {
     void marksMatchingDraftTemplatePublishedWhenUnifiedPathwayVersionIsPublished() {
         PathwayTemplate draft = template(PathwayTemplateStatus.DRAFT);
         when(templates.findByTenantIdAndTemplateCodeAndTemplateVersion(
-            "tenant-A", "PATH.ED.DISPOSITION", 1))
+            "tenant-A", "PATH.CLINICAL.CYCLE", 1))
             .thenReturn(Optional.of(draft));
 
         synchronizer.afterPublished(
-            version(VersionedAssetType.PATHWAY, "PATH.ED.DISPOSITION", "V1"),
+            version(VersionedAssetType.PATHWAY, "PATH.CLINICAL.CYCLE", "V1"),
             NOW,
             "operator-A",
             "trace-A");
 
         verify(templates).save(org.mockito.ArgumentMatchers.argThat(value ->
-            value.templateId().equals("pt-ed-v1")
+            value.templateId().equals("pt-cycle-v1")
                 && value.status() == PathwayTemplateStatus.PUBLISHED
                 && value.updatedAt().equals(NOW)
                 && value.updatedBy().equals("operator-A")
@@ -48,7 +48,7 @@ class PathwayPublicationStatusSynchronizerTest {
     @Test
     void ignoresNonPathwayPublishedVersions() {
         synchronizer.afterPublished(
-            version(VersionedAssetType.RULE, "RULE.ED.DISPOSITION", "V1"),
+            version(VersionedAssetType.RULE, "RULE.CLINICAL.CYCLE", "V1"),
             NOW,
             "operator-A",
             "trace-A");
@@ -68,13 +68,13 @@ class PathwayPublicationStatusSynchronizerTest {
             assetIdentity,
             versionNo,
             "/tenant-A/group-A/hospital-A",
-            "disease:ED",
+            "pathway:GENERAL",
             "a".repeat(64),
             AssetVersionSafetyPolicy.NORMAL,
             AssetVersionOverridePolicy.FREE,
             AssetVersionStatus.PUBLISHED,
             "version:av-" + assetIdentity,
-            "院内已审核急诊处置制度",
+            "院内已审核路径制度",
             NOW,
             null,
             NOW.minusSeconds(3600),
@@ -88,18 +88,18 @@ class PathwayPublicationStatusSynchronizerTest {
     private PathwayTemplate template(PathwayTemplateStatus status) {
         return new PathwayTemplate(
             1L,
-            "pt-ed-v1",
+            "pt-cycle-v1",
             "tenant-A",
-            "PATH.ED.DISPOSITION",
-            "急诊处置路径",
-            "ED",
+            "PATH.CLINICAL.CYCLE",
+            "基础节点闭环",
+            "GENERAL",
             1,
             PathwayTemplateLevel.STANDARD,
             status,
             PathwayEntryMode.AUTO_SUGGEST,
             "ASSESS",
-            "院内已审核急诊处置制度",
-            "急诊评估后进入处置或离院安排。",
+            "院内已审核路径制度",
+            "完成入径评估后进入处置确认或闭环安排。",
             "{}",
             "{}",
             NOW.minusSeconds(3600),

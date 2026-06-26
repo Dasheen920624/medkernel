@@ -109,10 +109,10 @@ test("沙盘创建快照前先激活含平台基线资产的当前医院机构�
   assert.match(runSeed, /runtimeBinding/u);
 });
 
-test("沙盘外圈急诊路径资产沿用前台真实原型且不提交旧容器字段", () => {
-  assert.equal(sandboxPathwayPrototype.templateCode, "PATH.ED.DISPOSITION");
-  assert.equal(sandboxPathwayPrototype.name, "急诊处置路径");
-  assert.equal(sandboxPathwayPrototype.diseaseCode, "ED");
+test("沙盘外圈路径资产沿用前台真实通用原型且不提交旧容器字段", () => {
+  assert.equal(sandboxPathwayPrototype.templateCode, "PATH.CLINICAL.CYCLE");
+  assert.equal(sandboxPathwayPrototype.name, "基础节点闭环");
+  assert.equal(sandboxPathwayPrototype.diseaseCode, "GENERAL");
   assert.equal(sandboxPathwayPrototype.startNodeCode, "ASSESS");
   assert.equal(sandboxPathwayPrototype.nodes.length, 2);
   assert.deepEqual(

@@ -22,6 +22,7 @@ const BACKEND_JAVA = /^medkernel-backend\/src\/main\/java\/.+\.java$/;
 const BACKEND_DOMAIN_FACADE =
   /^medkernel-backend\/src\/main\/java\/com\/medkernel\/engine\/domainfacade\/.+\.java$/;
 const REHEARSAL_SCRIPT = /^scripts\/(?:knowledge|release)\/.+\.mjs$/;
+const SANDBOX_SCRIPT = /^scripts\/sandbox\/.+\.(?:mjs|json)$/;
 const DB_COMMENT_CONTRACT =
   /^medkernel-backend\/src\/main\/resources\/db\/(?:schema\/medkernel\.schema\.json|migration\/(?:dm|h2|kingbase|oracle|postgres)\/V1__baseline\.sql)$/;
 const CURRENT_DOCS =
@@ -52,6 +53,11 @@ const FRONTEND_RULES = [
     message: "前端生产文件禁止写死疾病、药品、编码等医学常量。",
     pattern:
       /高血压|糖尿病|DRUG-001|DRUG-CODE|DX-CODE|PT-CAP-01|PKG-COP-001|J44|I10|E11|J18|肺炎|心梗|脑卒中|卒中|急性脑梗死|阿替普酶|静脉溶栓|突发左侧肢体无力|住院医师临床病历特征提取|患者李建国|神经内科|危急值|Class I|社区获得性|抗感染化疗|低分子肝素|强力阿司匹林|老年患者/,
+  },
+  {
+    ruleId: "frontend.pathway-hardcoded-prototype",
+    message: "路径模板生产文件禁止回流固定急诊原型，必须由医院按专科、病种和岗位配置。",
+    pattern: /急诊处置路径|PATH\.ED\.DISPOSITION|M-ED-ASSESS/,
   },
   {
     ruleId: "frontend.local-demo-workflow",
@@ -212,6 +218,12 @@ const BACKEND_RULES = [
       /技术核验|技术发布链|来源版本技术信息|平台开发者|调试接口|调试前|通道调试|测试\s*Payload|Webhook\s*测试|签名测试|双向连通测试|签名生成与双向连通测试|院方统一身份尚未接入|未配置真实 IdP 连接器|后端脱敏|资料库后端|后端尚未接入|后续(?:条目|适配器)接入|(?:offline|b0)-fixture/,
   },
   {
+    ruleId: "backend.pathway-hardcoded-prototype",
+    message: "后端生产契约禁止回流固定急诊路径原型，路径资产必须由机构按真实场景配置。",
+    pattern:
+      /急诊处置路径|PATH\.ED\.DISPOSITION|M-ED-ASSESS|急诊医生|院内已审核急诊处置制度|sbx-pathway-ed/,
+  },
+  {
     ruleId: "backend.customer-facing-safety-language",
     message:
       "后端生产中文注释和契约说明禁止继续使用技术安全门、技术评测、技术校验、影响模拟、发布模拟、测试用例或测试病例旧口径。",
@@ -306,6 +318,15 @@ const REHEARSAL_SCRIPT_RULES = [
     ruleId: "scripts.impact-simulation-language",
     message: "上线演练脚本和证据文本禁止继续使用影响模拟或发布模拟旧口径。",
     pattern: /影响模拟|发布模拟|模拟摘要/,
+  },
+];
+
+const SANDBOX_SCRIPT_RULES = [
+  {
+    ruleId: "scripts.pathway-hardcoded-prototype",
+    message: "沙盘种子和规则清单禁止回流固定急诊路径原型，必须使用通用路径闭环资产。",
+    pattern:
+      /急诊处置路径|PATH\.ED\.DISPOSITION|M-ED-ASSESS|急诊医生|院内已审核急诊处置制度|sbx-pathway-ed/,
   },
 ];
 
@@ -474,6 +495,7 @@ function rulesForFile(file) {
   if (FRONTEND_SHARED_CONFIG.test(file)) return FRONTEND_SHARED_CONFIG_RULES;
   if (FRONTEND_CSS.test(file)) return FRONTEND_CSS_RULES;
   if (REHEARSAL_SCRIPT.test(file)) return REHEARSAL_SCRIPT_RULES;
+  if (SANDBOX_SCRIPT.test(file)) return SANDBOX_SCRIPT_RULES;
   if (CURRENT_DOCS.test(file)) return CURRENT_DOC_RULES;
   if (DB_COMMENT_CONTRACT.test(file)) return DB_COMMENT_RULES;
   if (BACKEND_DOMAIN_FACADE.test(file)) {

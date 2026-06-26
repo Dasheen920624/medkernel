@@ -3,9 +3,9 @@
   "dependencies": [
     {
       "assetType": "PATHWAY",
-      "assetCode": "PATH.ED.DISPOSITION",
+      "assetCode": "PATH.CLINICAL.CYCLE",
       "assetVersion": "1",
-      "purpose": "沙盘急诊路径入径与推进外圈场景"
+      "purpose": "沙盘路径入径与推进外圈场景"
     }
   ],
   "scenarios": [

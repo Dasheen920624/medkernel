@@ -450,6 +450,15 @@
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
   `npm run build`、`mvn -q -DskipTests package`、`bash scripts/check-comment-zh.sh --mode=full`；
   尚未重新部署 134。
+- 路径原型、沙盘外圈路径和诊断工具角色口径已继续按全局产品体验收束：路径维护前台默认原型改为
+  “基础节点闭环”，沙盘脚本和服务端目录使用通用临床路径资产 `PATH.CLINICAL.CYCLE`，不再把固定急诊处置
+  当作平台默认原型；诊断工具功能目录任务责任改为信息科和实施角色。真实性门禁新增前端、后端和沙盘脚本
+  固定急诊原型拦截，避免医生、护士、实施或后续 AI 把单专科样例误认为平台标准能力。已验证：
+  `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
+  `npm test -- --run src/pages/tenant/PathwayTemplates.test.tsx`、
+  `node --test scripts/sandbox/scenario-rules.test.mjs scripts/sandbox/seed-scenarios.test.mjs`、
+  `mvn -q -Dtest=SandboxScenarioCatalogTest,SandboxOrchestrationServiceTest,SandboxRuntimeStatusServiceTest,PathwayPublicationStatusSynchronizerTest,ClinicalRuntimeReleaseServiceTest,AuthoringPreviewRunServiceTest test`；
+  尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -490,7 +499,8 @@
    平台管理员工作台治理概览表达清理、发布治理服务影响评估契约口径清理、工作台空态未上线承诺清理、
    通知偏好和导出能力实现层旧口径清理、全局客户面服务状态旧口径清理、统一身份登录和身份来源待配置口径清理、
    工作台第一屏多角色数据状态表达清理、全局客户面实现层口径清理、前端测试说明与共享注释旧口径清理、
-   数据库 COMMENT 和 schema 旧口径清理、验证用例/验证病例产品口径清理、前后端服务状态与未来接入口径清理
+   数据库 COMMENT 和 schema 旧口径清理、验证用例/验证病例产品口径清理、前后端服务状态与未来接入口径清理、
+   路径原型和沙盘外圈路径通用化清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

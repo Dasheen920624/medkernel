@@ -279,7 +279,7 @@ const routeDecisions = {
     decision: "MOVE",
     targetDomain: "系统运维",
     targetEntry: "诊断工具",
-    task: "由开发和实施角色执行受控诊断",
+    task: "由信息科和实施角色执行受控诊断",
   },
   "/embed/launch": {
     decision: "KEEP",

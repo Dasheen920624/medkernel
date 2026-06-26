@@ -264,7 +264,7 @@ function createTemplateDetail(
         nodeType: "ASSESSMENT",
         milestoneCode: "M-PREOP-ASSESS",
         sortOrder: 1,
-        responsibleRole: "专科医生",
+        responsibleRole: "责任医生",
         accountableRole: "科主任",
         consultedRolesJson: '["护理组"]',
         informedRolesJson: '["质控办"]',
@@ -282,7 +282,7 @@ function createTemplateDetail(
         responsibleRole: "随访护士",
         accountableRole: "护理组长",
         consultedRolesJson: "[]",
-        informedRolesJson: '["专科医生"]',
+        informedRolesJson: '["责任医生"]',
         timeWindowMinutes: 0,
         terminalFlag: true,
       },
@@ -419,7 +419,7 @@ describe("PathwayTemplates 上线路径维护契约", () => {
     async () => {
       const { user, dialog } = await openCreateDialog();
 
-      await user.click(within(dialog).getByLabelText("急诊处置路径"));
+      await user.click(within(dialog).getByLabelText("基础节点闭环"));
       await user.click(within(dialog).getByRole("button", { name: /OK|确 定|确定/ }));
 
       await waitFor(() => expect(apiMocks.createTemplate).toHaveBeenCalled());
@@ -431,8 +431,8 @@ describe("PathwayTemplates 上线路径维护契约", () => {
         edges: Array<{ edgeCode: string; fromNodeCode: string; toNodeCode: string }>;
       };
       expectNoLegacyPackageKeys(payload);
-      expect(payload.templateCode).toBe("PATH.ED.DISPOSITION");
-      expect(payload.diseaseCode).toBe("ED");
+      expect(payload.templateCode).toBe("PATH.CLINICAL.CYCLE");
+      expect(payload.diseaseCode).toBe("GENERAL");
       expect(payload.startNodeCode).toBe("ASSESS");
       expect(payload.nodes).toEqual(
         expect.arrayContaining([
@@ -462,7 +462,7 @@ describe("PathwayTemplates 上线路径维护契约", () => {
       expect(within(dialog).getByRole("tab", { name: /节点画布/ })).toBeInTheDocument();
       expect(within(dialog).queryByRole("tab", { name: /受控配置文本/ })).not.toBeInTheDocument();
 
-      await user.click(within(dialog).getByLabelText("急诊处置路径"));
+      await user.click(within(dialog).getByLabelText("基础节点闭环"));
       await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
       expect(within(dialog).queryByText("条件片段")).not.toBeInTheDocument();
       expect(within(dialog).queryByText("子路径")).not.toBeInTheDocument();
@@ -495,7 +495,7 @@ describe("PathwayTemplates 上线路径维护契约", () => {
       apiMocks.rulesData = { items: [publishedRule], total: 1 };
       const { user, dialog } = await openCreateDialog();
 
-      await user.click(within(dialog).getByLabelText("急诊处置路径"));
+      await user.click(within(dialog).getByLabelText("基础节点闭环"));
       await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
       await selectAntdOption(user, dialog, "守卫来源", "引用已发布规则");
       await selectAntdOption(user, dialog, "已发布规则", /低血压路径分流/);
@@ -587,7 +587,7 @@ describe("PathwayTemplates 上线路径维护契约", () => {
       apiMocks.previewRun.mockResolvedValue(previewResult);
       const { user, dialog } = await openCreateDialog();
 
-      await user.click(within(dialog).getByLabelText("急诊处置路径"));
+      await user.click(within(dialog).getByLabelText("基础节点闭环"));
       await user.click(within(dialog).getByRole("tab", { name: /即配即试/ }));
       await user.type(within(dialog).getByLabelText("患者 ID"), "P-001");
       await user.type(within(dialog).getByLabelText("就诊 ID"), "E-001");
@@ -651,7 +651,7 @@ describe("PathwayTemplates 上线路径维护契约", () => {
       apiMocks.contextFieldCatalogError = true;
       const { user, dialog } = await openCreateDialog();
 
-      await user.click(within(dialog).getByLabelText("急诊处置路径"));
+      await user.click(within(dialog).getByLabelText("基础节点闭环"));
       await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
 
       expect(
