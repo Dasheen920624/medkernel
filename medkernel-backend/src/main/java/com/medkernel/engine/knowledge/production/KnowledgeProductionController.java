@@ -123,7 +123,7 @@ public class KnowledgeProductionController {
         return ApiResult.ok(service.listCandidates(jobCode, page, size));
     }
 
-    /** 候选来源溯源（AIK-STD-12 PR1）：审核台批量反查候选 AI 工厂来源，旁挂只读不改既有候选响应。 */
+    /** 候选来源溯源（AIK-STD-12）：审核台批量反查候选 AI 工厂来源，旁挂只读不改既有候选响应。 */
     @PostMapping("/candidates/provenance")
     @PreAuthorize("@perm.has('knowledge.read')")
     public ApiResult<List<CandidateProvenanceView>> candidateProvenance(

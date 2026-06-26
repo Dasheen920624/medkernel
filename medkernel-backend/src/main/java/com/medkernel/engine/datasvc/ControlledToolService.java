@@ -33,7 +33,7 @@ import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.hash.Sha256ContentHash;
 
 /**
- * 引擎数据服务层 · 受控工具服务（DATASVC-01 PR2，CLI/MCP 共用受控工具执行入口）。
+ * 引擎数据服务层 · 受控工具服务（DATASVC-01，CLI/MCP 共用受控工具执行入口）。
  *
  * <p>把已建的受控读模型服务以「受控工具」形式统一暴露：工具只能经本服务派发到既有受控服务执行，
  * <b>不直连数据库、不绕身份/权限/脱敏/审计/降级</b>（FR-5）。每次执行包裹 FR-4 治理信封

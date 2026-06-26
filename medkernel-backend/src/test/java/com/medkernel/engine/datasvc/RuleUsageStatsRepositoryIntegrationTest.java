@@ -16,7 +16,7 @@ import com.medkernel.engine.rule.RuleExecutionStatus;
 import com.medkernel.engine.rule.RuleRiskLevel;
 
 /**
- * 规则使用统计聚合仓库集成测试（DATASVC-01 PR1）。
+ * 规则使用统计聚合仓库集成测试（DATASVC-01）。
  *
  * <p>对真实 H2 播种 {@code rule_execution_log} 执行事实，验证 D2 聚合 SQL 与投影映射真实可执行：
  * 按 {@code rule_id} 分组的执行总数、命中数与分组计数，跨方言标准分页。

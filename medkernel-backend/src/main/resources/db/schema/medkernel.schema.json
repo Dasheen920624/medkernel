@@ -30293,7 +30293,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "生效开始时间，PR1 可为空，后续发布流写入"
+          "comment": "资产版本生效开始时间；为空表示尚未进入机构生效清单"
         },
         {
           "name": "effective_to",
@@ -30301,7 +30301,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "生效结束时间，PR1 可为空，后续下线或回滚写入"
+          "comment": "资产版本生效结束时间；为空表示仍可被有效清单引用"
         },
         {
           "name": "created_at",

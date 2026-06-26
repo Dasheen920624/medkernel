@@ -5,7 +5,7 @@ import java.time.Instant;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 
 /**
- * 候选生产来源溯源视图（AIK-STD-12 PR1，FR-2/4）：审核台候选经血缘反查 AI 工厂来源。
+ * 候选生产来源溯源视图（AIK-STD-12，FR-2/4）：审核台候选经血缘反查 AI 工厂来源。
  *
  * <p>{@code aiGenerated = producer ≠ MANUAL}——用于审核台 AI 标识；附归属 job / 生产器 / 管道 / 模型策略 /
  * 领域 / 风险 / 生产时点与人 / 模型三元组 / 置信与降级证据，供来源溯源。无血缘行的候选（手建）不产此视图（铁律 #1 不臆造）。

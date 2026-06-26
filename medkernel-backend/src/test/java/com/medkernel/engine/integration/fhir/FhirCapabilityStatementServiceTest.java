@@ -14,19 +14,19 @@ class FhirCapabilityStatementServiceTest {
     private final FhirCapabilityStatementService service = new FhirCapabilityStatementService(json);
 
     @Test
-    void declaresR4AndR5MappingSurfaceForPr4CanonicalResourcesWithoutRuntimeInteractions() {
+    void declaresR4AndR5MappingSurfaceForCanonicalResourcesWithoutRuntimeInteractions() {
         JsonNode r4 = service.mappingCapability(FhirVersion.R4);
         JsonNode r5 = service.mappingCapability(FhirVersion.R5);
 
         assertThat(r4.path("resourceType").asText()).isEqualTo("CapabilityStatement");
-        assertThat(r4.path("software").path("version").asText()).isEqualTo("OPT-01-PR4");
+        assertThat(r4.path("software").path("version").asText()).isEqualTo("OPT-01");
         assertThat(r4.path("fhirVersion").asText()).isEqualTo("4.0.1");
         assertThat(r5.path("fhirVersion").asText()).isEqualTo("5.0.0");
         assertThat(r4.path("status").asText()).isEqualTo("active");
         assertThat(r4.path("kind").asText()).isEqualTo("capability");
         assertThat(r4.path("format")).anySatisfy(format -> assertThat(format.asText()).isEqualTo("json"));
         assertThat(r4.path("implementation").path("description").asText())
-            .contains("OPT-01 PR4", "确定性映射", "医师确认");
+            .contains("OPT-01", "确定性映射", "医师确认");
 
         JsonNode resources = r4.path("rest").get(0).path("resource");
         assertThat(resourceTypes(resources)).contains(
@@ -48,10 +48,10 @@ class FhirCapabilityStatementServiceTest {
     }
 
     @Test
-    void declaresPr4RuntimeSurfaceForTenCoreResources() {
+    void declaresRuntimeSurfaceForTenCoreResources() {
         JsonNode statement = service.runtimeCapability(FhirVersion.R4);
 
-        assertThat(statement.path("software").path("version").asText()).isEqualTo("OPT-01-PR4");
+        assertThat(statement.path("software").path("version").asText()).isEqualTo("OPT-01");
         assertThat(statement.path("implementation").path("description").asText())
             .contains("11 类核心 FHIR 资源", "read", "search", "create", "医师确认", "NOT_CONNECTED");
         JsonNode resources = statement.path("rest").get(0).path("resource");

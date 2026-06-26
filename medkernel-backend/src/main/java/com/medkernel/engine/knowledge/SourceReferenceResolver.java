@@ -6,7 +6,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 受控源引用解析器（AIK-STD-13 PR4，B0 纯确定性）。
+ * 受控源引用解析器（AIK-STD-13，B0 纯确定性）。
  *
  * <p>把信封串源引用 {@code "sourceCode:versionNo:anchorPath"}（与 LLM-06 探索产出格式对齐）回查为受控源 FK；
  * 解析不出诚实拒收（铁律 #1 不伪造 FK、不半物化），强租户隔离。

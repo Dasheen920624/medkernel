@@ -13,7 +13,7 @@ import org.springframework.test.context.ActiveProfiles;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 
 /**
- * 知识候选生产血缘仓储集成测试（AIK-STD-13 PR2）。
+ * 知识候选生产血缘仓储集成测试（AIK-STD-13）。
  *
  * <p>对真实 H2 验证 {@code mk_knowledge_production_candidate} 落库与按 job 回溯读取，强租户隔离。
  */

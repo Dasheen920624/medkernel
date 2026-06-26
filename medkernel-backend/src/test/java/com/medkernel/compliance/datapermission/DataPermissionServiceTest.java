@@ -103,7 +103,7 @@ class DataPermissionServiceTest {
             "cardiology-ward-1",
             null,
             DataPermissionStatus.ACTIVE,
-            "SYS-06 PR1 行列权限基线",
+            "SYS-06 行列权限基线",
             null);
 
         DataPermissionPolicyResponse response = service.upsertPolicy("t-1", request, "admin-1");
@@ -117,7 +117,7 @@ class DataPermissionServiceTest {
         assertThat(audit.getValue().action()).isEqualTo(AuditAction.PERMISSION_CHANGE);
         assertThat(audit.getValue().targetType()).isEqualTo("mk_compliance_data_permission");
         assertThat(audit.getValue().targetId()).isEqualTo("dperm-clinical-case-read");
-        assertThat(audit.getValue().summary()).contains("SYS-06 PR1 行列权限基线");
+        assertThat(audit.getValue().summary()).contains("SYS-06 行列权限基线");
         verify(orgAssignments).requireActiveScopeReferences(
             "t-1", "g-1", "h-1", null, null,
             "cardiology", "cardiology-ward-1", null);

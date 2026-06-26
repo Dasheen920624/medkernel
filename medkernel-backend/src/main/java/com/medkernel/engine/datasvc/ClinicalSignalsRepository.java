@@ -9,7 +9,7 @@ import org.springframework.data.repository.Repository;
 import com.medkernel.engine.recommendation.RecommendationCard;
 
 /**
- * 临床信号统计只读聚合仓库（DATASVC-01 PR1）。
+ * 临床信号统计只读聚合仓库（DATASVC-01）。
  *
  * <p>从推荐引擎真实投递的 CDSS 决策信号事实 {@code recommendation_card}（engine-recommendation 所属）
  * **只读聚合**为 D2 去标识统计——不写该表（不违反域归属：仅写操作受 {@code DomainOwnershipContractTest} 约束）。

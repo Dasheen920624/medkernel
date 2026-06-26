@@ -20,7 +20,7 @@ import com.medkernel.engine.knowledge.parsing.DocumentSectionizer.TableBlock;
 import com.medkernel.engine.knowledge.parsing.DocumentSectionizer.TextLine;
 
 /**
- * Word 解析器（AIK-STD-02 PR3，Apache POI）。按文档顺序遍历 {@code .docx} 正文元素：段落确定性提取为
+ * Word 解析器（AIK-STD-02，Apache POI）。按文档顺序遍历 {@code .docx} 正文元素：段落确定性提取为
  * 文本行（无版式页维度故页号为 {@code null}）、表格按结构（行/单元格）提取为表格块 → 复用
  * {@link DocumentSectionizer} 解析为章节树 + 表格理解（表格归属当前章节，物化为单元锚点片段）。
  * 纯结构读取、无模型（B0）；旧二进制 {@code .doc}、非 OOXML 字节、损坏 docx 诚实失败，

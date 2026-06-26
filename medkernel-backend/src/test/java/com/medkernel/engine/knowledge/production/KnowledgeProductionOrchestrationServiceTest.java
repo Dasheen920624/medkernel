@@ -301,7 +301,7 @@ class KnowledgeProductionOrchestrationServiceTest {
         verify(jobRepository).pageByTenantId(CUSTOMER, 0, 20);
     }
 
-    // ─── PR2：候选生产血缘 + job 生命周期 ─────────────────────────
+    // ─── 候选生产血缘 + job 生命周期 ─────────────────────────
 
     private KnowledgeProductionJob jobWith(String tenantId, ProductionJobStatus status, TargetPipeline pipeline) {
         return new KnowledgeProductionJob(1L, tenantId, "job-1", "探索 run r-1",

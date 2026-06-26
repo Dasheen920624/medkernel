@@ -136,7 +136,7 @@ public enum PermissionCode {
     ASSET_RULE("asset.rule", PermissionDimension.ASSET, Risk.MEDIUM, "访问规则资产"),
     ASSET_PATHWAY("asset.pathway", PermissionDimension.ASSET, Risk.MEDIUM, "访问路径资产"),
 
-    // ─── 环境维度（正式应急的细粒度回收在 BASE-02 PR3 承接）───────────────
+    // ─── 环境维度（正式应急按环境权限细粒度回收）───────────────
     ENV_TEST("env.test", PermissionDimension.ENVIRONMENT, Risk.LOW, "访问测试环境"),
     ENV_TRIAL("env.trial", PermissionDimension.ENVIRONMENT, Risk.MEDIUM, "访问试运行环境"),
     ENV_PRODUCTION("env.production", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问正式环境"),

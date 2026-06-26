@@ -172,7 +172,7 @@ class MaskingServiceTest {
             0,
             4,
             MaskingRuleStatus.ACTIVE,
-            "SYS-06 PR2 后端脱敏规则基线",
+            "SYS-06 后端脱敏规则基线",
             null);
 
         MaskingRuleResponse response = service.upsertRule("t-1", request, "admin-1");
@@ -185,7 +185,7 @@ class MaskingServiceTest {
         verify(auditRecorder).record(audit.capture());
         assertThat(audit.getValue().action()).isEqualTo(AuditAction.PERMISSION_CHANGE);
         assertThat(audit.getValue().targetType()).isEqualTo("mk_compliance_masking_rule");
-        assertThat(audit.getValue().summary()).contains("SYS-06 PR2 后端脱敏规则基线");
+        assertThat(audit.getValue().summary()).contains("SYS-06 后端脱敏规则基线");
     }
 
     private ResolvedDataScope desensitizedScope() {

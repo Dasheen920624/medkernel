@@ -28,7 +28,7 @@ import org.springframework.stereotype.Service;
 /**
  * GA-CORE-02 / W1-G5 闸门：国密 SM2 / SM3 / SM4。
  *
- * <p>采用 BouncyCastle 1.78.1 (jdk18on)。FIPS 路径由后续 GA-SEC-02 切换到 bc-fips。
+ * <p>采用 BouncyCastle 1.78.1 (jdk18on)。FIPS 形态须通过合规 provider 配置启用。
  *
  * <p>合规依据：
  * <ul>

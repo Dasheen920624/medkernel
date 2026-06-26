@@ -55,7 +55,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 引擎数据服务层 · 受控工具服务单元测试（DATASVC-01 PR2，CLI/MCP 共用受控工具执行入口）。
+ * 引擎数据服务层 · 受控工具服务单元测试（DATASVC-01，CLI/MCP 共用受控工具执行入口）。
  *
  * <p>验证：工具目录登记（FR-3/4）、执行包裹 FR-4 治理信封（traceId/数据级别/脱敏策略/来源版本/权限结果/
  * 降级状态/输出 hash）、不绕治理仅调既有受控服务（FR-5）、每次调用留审计含输出 hash（FR-6）、

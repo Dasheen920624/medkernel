@@ -125,6 +125,11 @@ const FRONTEND_SHARED_API_RULES = [
     pattern: /真接口|上线后接入|渐进新增/,
   },
   {
+    ruleId: "frontend.shared-api-historical-stage-language",
+    message: "共享 API 合同禁止保留 PR 阶段或未来 GA 标签，必须描述当前上线能力。",
+    pattern: /\bPR\d+\b|后续\s*GA-[A-Z0-9-]+|首版主要/,
+  },
+  {
     ruleId: "frontend.demo-snapshot-export",
     message:
       "共享 API 层禁止导出演示/模拟快照供生产页面调用，页面必须读取真实接口或诚实空态。",
@@ -217,6 +222,11 @@ const DB_COMMENT_RULES = [
     pattern:
       /技术安全门|技术评测|技术校验|技术发布链|影响模拟|测试用例|测试病例|后端脱敏|后端调用脱敏服务|后端类型|求值留后续阶段接\s*RuleDslEvaluator|Spec\s*1\s*命中/,
   },
+  {
+    ruleId: "db.historical-stage-language",
+    message: "数据库中文注释禁止保留 PR 阶段或未来发布流口径，必须描述当前字段事实。",
+    pattern: /\bPR\d+\b|后续发布流|后续下线|后续\s*GA-[A-Z0-9-]+|首版主要/,
+  },
 ];
 
 const BACKEND_RULES = [
@@ -225,6 +235,11 @@ const BACKEND_RULES = [
     message: "后端生产契约和注释禁止继续使用面向实施内部的旧口径。",
     pattern:
       /技术核验|技术发布链|来源版本技术信息|平台开发者|调试接口|调试前|通道调试|测试\s*Payload|Webhook\s*测试|签名测试|双向连通测试|签名生成与双向连通测试|院方统一身份尚未接入|未配置真实 IdP 连接器|后端脱敏|资料库后端|后端尚未接入|后续(?:条目|适配器)接入|真实(?:图谱|搜索|模型工作流|模型服务|外部系统)探活未接入|暂不判定通过|未接入可用模型服务|未接入真实(?:执行器|外部连接器|连接器|图投影|图谱)|暂未接入标准上下文|待对应适配器接入|尚未接入资产库|增强接入矩阵|待接入|未接入业务点|本\s*PR|后续\s*PR|后续阶段挂点|(?:offline|b0)-fixture/,
+  },
+  {
+    ruleId: "backend.historical-stage-language",
+    message: "后端生产契约和注释禁止保留 PR 阶段、未来 GA 或首版预留口径。",
+    pattern: /\bPR\d+\b|后续\s*GA-[A-Z0-9-]+|后续\s*API-\d+|首版主要|PR\d+\s*落|替换\s*PR\d+\s*暂存桩/,
   },
   {
     ruleId: "backend.pathway-hardcoded-prototype",

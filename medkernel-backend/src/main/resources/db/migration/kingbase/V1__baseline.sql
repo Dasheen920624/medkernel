@@ -7735,8 +7735,8 @@ COMMENT ON COLUMN mk_version_asset_version.content_hash IS '资产内容 SHA-256
 COMMENT ON COLUMN mk_version_asset_version.status IS '统一内容版本状态：DRAFT 草稿、PUBLISHED 已发布、WITHDRAWN 已撤回';
 COMMENT ON COLUMN mk_version_asset_version.active_scope_key IS 'ACTIVE 时为资产身份、组织域和适用域拼接键；非 ACTIVE 使用 version:<version_id> 保持唯一';
 COMMENT ON COLUMN mk_version_asset_version.source_ref IS '来源引用，例如知识来源、规则定义或包条目引用';
-COMMENT ON COLUMN mk_version_asset_version.effective_from IS '生效开始时间，PR1 可为空，后续发布流写入';
-COMMENT ON COLUMN mk_version_asset_version.effective_to IS '生效结束时间，PR1 可为空，后续下线或回滚写入';
+COMMENT ON COLUMN mk_version_asset_version.effective_from IS '资产版本生效开始时间；为空表示尚未进入机构生效清单';
+COMMENT ON COLUMN mk_version_asset_version.effective_to IS '资产版本生效结束时间；为空表示仍可被有效清单引用';
 COMMENT ON COLUMN mk_version_asset_version.created_at IS '创建时间';
 COMMENT ON COLUMN mk_version_asset_version.created_by IS '创建人';
 COMMENT ON COLUMN mk_version_asset_version.updated_at IS '更新时间';

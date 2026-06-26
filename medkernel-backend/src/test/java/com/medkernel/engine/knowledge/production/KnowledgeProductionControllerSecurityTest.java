@@ -316,7 +316,7 @@ class KnowledgeProductionControllerSecurityTest {
             .andExpect(jsonPath("$.data.total").value(0));
     }
 
-    // ─── PR2：候选血缘列表 + 生命周期端点 ─────────────────────────
+    // ─── 候选血缘列表 + 生命周期端点 ─────────────────────────
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor governor() {
         return jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
@@ -362,7 +362,7 @@ class KnowledgeProductionControllerSecurityTest {
             .andExpect(status().isForbidden());
     }
 
-    // ─── AIK-STD-12 PR1：候选来源溯源端点（knowledge.read）─────────────
+    // ─── AIK-STD-12：候选来源溯源端点（knowledge.read）─────────────
 
     private static final String PROVENANCE_BODY = "{\"candidateRefs\":[\"kv:1:v1\"]}";
 
@@ -463,7 +463,7 @@ class KnowledgeProductionControllerSecurityTest {
         verify(provenanceService, never()).resolve(any());
     }
 
-    // ─── AIK-STD-12 PR3：全专业资产模板目录（FR-1）────────────────
+    // ─── AIK-STD-12：全专业资产模板目录（FR-1）────────────────
 
     @Test
     void assetTemplatesReadableWithKnowledgeRead() throws Exception {

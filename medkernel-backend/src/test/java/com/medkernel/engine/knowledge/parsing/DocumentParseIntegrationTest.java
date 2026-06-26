@@ -39,7 +39,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 文档解析管线端到端集成测试（AIK-STD-02 PR1，真实 H2）。
+ * 文档解析管线端到端集成测试（AIK-STD-02，真实 H2）。
  *
  * <p>验证：提交结构化文本 → 编排服务确定性解析章节 → 物化进 {@code source_version} + {@code source_fragment}
  * 带真实层级锚点（§章节/¶段）与真实 SHA-256；job 记 SUCCEEDED；再次提交同内容幂等（复用版本、不重复片段）。

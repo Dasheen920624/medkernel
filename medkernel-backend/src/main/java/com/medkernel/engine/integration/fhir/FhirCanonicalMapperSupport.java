@@ -59,7 +59,7 @@ final class FhirCanonicalMapperSupport {
             case DIAGNOSTIC_REPORT -> mapDiagnosticReport(canonical);
             case DOCUMENT -> mapDocumentReference(canonical);
             case NURSING_ASSESSMENT, FOLLOW_UP, CLAIM -> throw new IllegalArgumentException(
-                "OPT-01 PR4 不开放该标准资源的 FHIR 出站映射: " + canonical.resourceType());
+                "OPT-01 不开放该标准资源的 FHIR 出站映射: " + canonical.resourceType());
         };
     }
 
@@ -130,7 +130,7 @@ final class FhirCanonicalMapperSupport {
             case "DocumentReference" -> mapDocumentInbound(request, version);
             case "ServiceRequest" -> throw new IllegalArgumentException(
                 "FHIR ServiceRequest create 必须走医师确认任务，不自动写申请单");
-            default -> throw new IllegalArgumentException("OPT-01 PR4 未开放该 FHIR 入站资源映射: " + resourceType);
+            default -> throw new IllegalArgumentException("OPT-01 未开放该 FHIR 入站资源映射: " + resourceType);
         };
     }
 

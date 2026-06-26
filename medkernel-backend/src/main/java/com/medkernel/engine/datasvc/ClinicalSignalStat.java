@@ -3,7 +3,7 @@ package com.medkernel.engine.datasvc;
 import java.time.Instant;
 
 /**
- * 临床信号统计聚合行（DATASVC-01 PR1，D2 去标识）。
+ * 临床信号统计聚合行（DATASVC-01，D2 去标识）。
  *
  * <p>从 {@code recommendation_card} 真实投递的 CDSS 决策信号事实按 {@code card_type}（信号类别）聚合：
  * 信号总数、高危信号数（risk_level 为 HIGH/CRITICAL）、采纳数（status=ACCEPTED）、驳回数（status=REJECTED）、

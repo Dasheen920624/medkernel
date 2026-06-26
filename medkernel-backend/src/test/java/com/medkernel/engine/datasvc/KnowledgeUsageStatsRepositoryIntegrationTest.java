@@ -15,7 +15,7 @@ import com.medkernel.engine.recommendation.RecommendationSourceRepository;
 import com.medkernel.engine.recommendation.RecommendationSourceType;
 
 /**
- * 知识使用统计聚合仓库集成测试（DATASVC-01 PR1）。
+ * 知识使用统计聚合仓库集成测试（DATASVC-01）。
  *
  * <p>对真实 H2 播种 {@code recommendation_source} 来源解释事实，验证 D2 聚合 SQL 与投影映射真实可执行：
  * 仅取 {@code source_type='KNOWLEDGE'} 且 {@code source_ref_id} 非空子集，按知识引用聚合引用次数、去重卡片数、

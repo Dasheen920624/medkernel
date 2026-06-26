@@ -22,7 +22,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 候选真实物化实现（AIK-STD-13 PR4，替换 PR1 暂存桩）。
+ * 候选真实物化实现（AIK-STD-13，替换早期暂存实现）。
  *
  * <p>解析受控源 FK（{@link SourceReferenceResolver}）+ 目标知识身份（现有 / find-or-create 身份壳）→ 构造标准版本请求
  * → 经 {@link KnowledgeVersionService#classifyCandidate} 落版本/审核链并建立固定职责分派；返回真实物化版本引用。

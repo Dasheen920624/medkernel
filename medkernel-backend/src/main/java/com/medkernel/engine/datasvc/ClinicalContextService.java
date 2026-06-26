@@ -15,7 +15,7 @@ import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.hash.Sha256ContentHash;
 
 /**
- * 引擎数据服务层 · 临床上下文服务（DATASVC-01 PR2-d，受控工具 {@code getClinicalContextExplanation} 上游）。
+ * 引擎数据服务层 · 临床上下文服务（DATASVC-01，受控工具 {@code getClinicalContextExplanation} 上游）。
  *
  * <p>对临床启动凭证授权的会话，只读校验 {@code embed_launch_token}（engine-embed 所属，仅读不消费、不写、
  * 不违域归属）并强制租户隔离、过期/状态校验，授权时返回**最小授权上下文**：触发点/角色/接入模式/会话有效期 +

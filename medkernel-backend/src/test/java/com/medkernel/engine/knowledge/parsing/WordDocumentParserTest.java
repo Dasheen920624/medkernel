@@ -13,7 +13,7 @@ import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.junit.jupiter.api.Test;
 
 /**
- * Word 解析器测试（AIK-STD-02 PR3，Apache POI）。夹具 {@code .docx} 由 POI 确定性构造（编号标题 +
+ * Word 解析器测试（AIK-STD-02，Apache POI）。夹具 {@code .docx} 由 POI 确定性构造（编号标题 +
  * 段落 + 表格），验证：段落归章节（无版式页 page=null）+ 表格理解（表→行/单元格、归属当前节、节内表序）；
  * 空 docx 与损坏字节诚实失败（FR-5 / 铁律 #1，绝不产伪结构）。
  */

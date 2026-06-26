@@ -1434,7 +1434,7 @@ export interface CandidateProvenanceView {
 }
 
 /**
- * 审核台批量反查候选 AI 工厂生产来源（AIK-STD-12 PR1 端点）。
+ * 审核台批量反查候选 AI 工厂生产来源（AIK-STD-12 端点）。
  * 传候选版本引用 kv:{identityId}:{versionNo}；无血缘行的候选不返回（诚实「非工厂候选」）。
  */
 export function useCandidateProvenance(candidateRefs: string[]) {

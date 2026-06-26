@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * SYS-06 PR2 脱敏规则控制器安全矩阵。
+ * SYS-06 脱敏规则控制器安全矩阵。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -165,7 +165,7 @@ class MaskingRuleControllerSecurityTest {
               "prefixKeep": 0,
               "suffixKeep": 4,
               "status": "ACTIVE",
-              "reason": "SYS-06 PR2 后端脱敏规则基线"
+              "reason": "SYS-06 后端脱敏规则基线"
             }
             """;
     }

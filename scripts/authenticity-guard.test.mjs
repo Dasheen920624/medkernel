@@ -780,6 +780,52 @@ test("后端生产契约会阻断阶段性接入口吻", async () => {
   );
 });
 
+test("后端与数据库注释会阻断历史阶段口径", async () => {
+  const pr1 = "PR" + "1";
+  const futureGa = "后续 " + "GA-SEC-02";
+  const firstEdition = "首版主要";
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/datasvc/RuleUsageStatsService.java": `
+        /** 引擎数据服务层 · 规则使用统计服务（DATASVC-01 ${pr1}）。 */
+        public class RuleUsageStatsService {}
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/shared/crypto/SmCryptoService.java": `
+        /** FIPS 路径由${futureGa}切换到 bc-fips。 */
+        public class SmCryptoService {}
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/rule/RuleAuthoringMode.java": `
+        /** ${firstEdition}支持 DSL，TEMPLATE/VISUAL 为规则编辑器预留。 */
+        public enum RuleAuthoringMode {}
+      `,
+      "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql": `
+        COMMENT ON COLUMN mk_version_asset_version.effective_from IS '生效开始时间，${pr1} 可为空，后续发布流写入';
+      `,
+      "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json": `
+        {"comment":"生效开始时间，${pr1} 可为空，后续发布流写入"}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/datasvc/RuleUsageStatsService.java",
+        "medkernel-backend/src/main/java/com/medkernel/shared/crypto/SmCryptoService.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/rule/RuleAuthoringMode.java",
+        "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql",
+        "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.historical-stage-language",
+        "backend.historical-stage-language",
+        "backend.historical-stage-language",
+        "db.historical-stage-language",
+        "db.historical-stage-language",
+      ]);
+    },
+  );
+});
+
 test("后端生产注释会阻断投影和标准上下文未完成口吻", async () => {
   await withFixture(
     {

@@ -14,7 +14,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 引擎数据服务层 · 知识使用统计服务（DATASVC-01 PR1）。
+ * 引擎数据服务层 · 知识使用统计服务（DATASVC-01）。
  *
  * <p>把推荐卡引用知识的运行事实（{@code recommendation_source} 中 {@code source_type='KNOWLEDGE'} 子集）
  * 沉淀为 D2 去标识聚合读模型，服务端分页 + 默认时间窗 + 每次查询留审计。

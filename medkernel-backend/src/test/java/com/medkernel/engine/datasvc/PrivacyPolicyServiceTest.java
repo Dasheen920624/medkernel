@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import com.medkernel.shared.api.error.ApiException;
 
 /**
- * 引擎数据服务层 · 隐私分级策略服务单元测试（DATASVC-01 PR2-c）。
+ * 引擎数据服务层 · 隐私分级策略服务单元测试（DATASVC-01）。
  *
  * <p>验证数据分级 D0–D5 准入策略（FR-2）：D2 准入；D3/D4 在字段级加密能力就绪后准入且标记必须加密；
  * D5 重要个人信息禁入；非法级别结构化拒绝不泄漏内部。

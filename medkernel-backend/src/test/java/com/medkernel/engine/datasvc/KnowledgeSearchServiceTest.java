@@ -26,7 +26,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 引擎数据服务层 · 知识检索服务单元测试（DATASVC-01 PR2-c）。
+ * 引擎数据服务层 · 知识检索服务单元测试（DATASVC-01）。
  *
  * <p>验证：关键词检索映射为 D1 命中列表 + 服务端分页 + 审计、真实无匹配诚实返回（非降级）、
  * 上游不可用诚实降级（空结果不伪装真实无匹配，铁律 #1）。

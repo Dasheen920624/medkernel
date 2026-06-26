@@ -32,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * BASE-03 PR2 · 平台级 Idempotency-Key 契约测试。
+ * BASE-03 · 平台级 Idempotency-Key 契约测试。
  */
 class IdempotencyFilterTest {
 

@@ -29,7 +29,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 引擎数据服务层 · 规则解释服务单元测试（DATASVC-01 PR2-b）。
+ * 引擎数据服务层 · 规则解释服务单元测试（DATASVC-01）。
  *
  * <p>验证：存在规则映射为 D1 已发布资产元数据 + 审计（FR-1/2/6）、不存在规则结构化 not-found（不泄漏内部）、
  * 上游不可用诚实降级不以伪造元数据伪装（FR-7/铁律 #1）。

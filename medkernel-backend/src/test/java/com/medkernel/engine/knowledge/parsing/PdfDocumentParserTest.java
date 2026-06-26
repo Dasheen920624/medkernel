@@ -17,7 +17,7 @@ import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.junit.jupiter.api.Test;
 
 /**
- * PDF 解析器测试（AIK-STD-02 PR2，Apache PDFBox）。夹具 PDF 由 PDFBox 确定性构造（ASCII 编号标题 +
+ * PDF 解析器测试（AIK-STD-02，Apache PDFBox）。夹具 PDF 由 PDFBox 确定性构造（ASCII 编号标题 +
  * 段落，避免 CJK 字体内嵌），验证：逐页提取 → 章节树 + 逐段真实页号；扫描件（无文本层）与损坏 PDF 诚实失败。
  */
 class PdfDocumentParserTest {

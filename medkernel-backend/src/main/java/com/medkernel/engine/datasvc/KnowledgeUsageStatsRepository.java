@@ -9,7 +9,7 @@ import org.springframework.data.repository.Repository;
 import com.medkernel.engine.recommendation.RecommendationSource;
 
 /**
- * 知识使用统计只读聚合仓库（DATASVC-01 PR1）。
+ * 知识使用统计只读聚合仓库（DATASVC-01）。
  *
  * <p>从推荐卡来源解释事实 {@code recommendation_source}（engine-recommendation 所属）中
  * {@code source_type='KNOWLEDGE'} 子集**只读聚合**为 D2 去标识统计——不写该表（不违反域归属：仅写操作受

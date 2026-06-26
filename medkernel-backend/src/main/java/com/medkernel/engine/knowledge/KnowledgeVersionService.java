@@ -298,7 +298,7 @@ public class KnowledgeVersionService {
     }
 
     /**
-     * 对新进入的知识版本候选做 B0 新旧识别与审核分流（AIK-STD-13 PR4）。
+     * 对新进入的知识版本候选做 B0 新旧识别与审核分流（AIK-STD-13）。
      *
      * <p>{@code assignmentPlan} 非空时按固定运营职责建立 {@link ReviewAssignment}；
      * 为 null 时使用提交人建立单行分派。
