@@ -62,7 +62,7 @@ describe("menu config", () => {
         "knowledge-production",
         "ai-workflows",
         "domestic-check",
-        "dev-console",
+        "runtime-diagnostics",
       ]),
     );
   });
@@ -111,7 +111,7 @@ describe("menu config", () => {
           "adapter-hub",
           "system-providers",
           "domestic-check",
-          "dev-console",
+          "runtime-diagnostics",
         ],
       ],
     ]);

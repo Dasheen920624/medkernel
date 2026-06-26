@@ -244,7 +244,7 @@
   前端通知和导出能力旧接口口径组合搜索无结果、`npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、
   `npm run test:lint-rules`、`npm run build`；尚未重新部署 134。
 - 客户面“接口/接入”实现层口径已按全角色体验继续清理：临床消息、协同任务、随访统计、质量概览、
-  实施与服务机构、字段目录、路径/规则配置、国产化核验、运行保障、诊断工具、沙盘嵌入、模型生产方式和
+  实施与服务机构、字段目录、路径/规则配置、国产化自检、运行保障、运行诊断、沙盘嵌入、模型生产方式和
   路由体验元数据统一改为服务状态、服务目录、服务契约、服务对接或来源状态，不再让医生、护士、患者随访、
   信息科、实施、审计员或院长看到实现层命名；真实性门禁新增这组旧口径拦截。已验证：
   `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
@@ -369,7 +369,7 @@
 - 全真体验沙盘目录降级语义已收敛：目录读取失败时页面只提示沙盘场景目录暂不可用，并明确不会生成或暗示
   可运行临床场景；远端目录缺少数值录入或可执行输入契约时继续阻断运行，但原因使用产品语义表达。
 - 退役的独立“高级工具”主域不再作为连续文本保留在前端源码和当前文档中；路由/API 中的 `advanced`
-  仍是既有技术路径，产品表达按知识关系、模型能力、国产化核验、诊断工具和证据详情落入对应空间。
+  仍是既有技术路径，产品表达按知识关系、模型能力、国产化自检、运行诊断和证据详情落入对应空间。
 - 性能压测契约已切到当前产品模型：脚本只打医疗引擎、知识生产、质量管理、平台管理和模型能力入口，
   使用 `/api/v1/model-capabilities/*`、`/api/v1/model-providers` 与环境注入 Bearer 令牌，不再保留旧模型路径、
   历史四域分组或固定患者病例文本；质量基线新增 `scripts/performance-contract-guard.test.mjs` 门禁。
@@ -388,7 +388,7 @@
   `npm test -- --run src/pages/advanced/GraphExplore.test.tsx src/pages/tenant/PathwayTemplates.test.tsx src/pages/tenant/RuleDefinitions.test.tsx`、
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run build`、
   `mvn -q -DskipTests package`、`bash scripts/check-comment-zh.sh --mode=full`；尚未重新部署 134。
-- 全局治理语言和客户面工程术语已继续收束：系统运维入口统一为“诊断工具”，规则、路径、评价指标、
+- 全局治理语言和客户面工程术语已继续收束：系统运维入口统一为“运行诊断”，规则、路径、评价指标、
   知识生产和资产发布前治理统一表达为“安全复核 / 安全门”，规则/路径低频精确结构统一表达为
   “受控配置文本 / 配置明细”；前后端契约、Javadoc、CONSTITUTION 和页面测试同步改口径。
   真实性门禁新增客户面工程语言拦截，禁止“开发者控制台、技术验证、技术配置、技术闸、技术阻断、
@@ -398,12 +398,12 @@
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
   `npm run build`、`mvn -q -DskipTests package`、`bash scripts/check-comment-zh.sh --mode=full`、
   `git diff --check`；尚未重新部署 134。
-- 全局治理语言口径进一步收束为医院角色可理解的产品语义：诊断工具失败提示指向信息科，来源启用、
+- 全局治理语言口径进一步收束为医院角色可理解的产品语义：运行诊断失败提示指向信息科，来源启用、
   资产发布、模型评测统一为安全校验或安全评测，低频字段统一为追溯字段并进入证据详情；权威文档、
   Java 契约说明、五方言 COMMENT 与 schema 同步，并由真实性门禁防回流。
 - 知识生产模型外调用途确认重交互测试补用同文件既有 15s 交互预算，消除全量并发下 5s 默认超时；
   该调整只扩大真实前台交互测试预算，不改变产品运行逻辑。
-- 实施和信息科视角的内部口径继续收束：诊断工具路由说明改为“运行诊断信息”，Webhook 说明改为签名验证
+- 实施和信息科视角的内部口径继续收束：运行诊断路由说明改为“运行诊断信息”，Webhook 说明改为签名验证
   和连通性验证，来源启用改为 robots 安全校验，来源版本缺项改为追溯信息不完整，路径试运行用于发布或复核前
   回放，平台登录目录只说明平台接管和运行保障人员，规则治理 COMMENT 改为完整发布链。
 - 临床提醒详情的知识来源缺失空态已从工程自证改为医生可执行的复核提示；Webhook 相关页面、契约、权限、
@@ -423,7 +423,7 @@
   信息科或院长在无数据时被未来承诺误导。
 - 通知偏好和导出能力的不可用状态从实现层接入说明改为业务可执行提示：临床消息页提示回到通知设置确认，
   导出控件提示联系信息科确认范围或配置，避免前台用户把平台能力误读成临时未完成页面。
-- 全局客户面服务状态口径继续收束：临床、质量、实施、系统运维、沙盘、诊断工具、模型生产和字段目录
+- 全局客户面服务状态口径继续收束：临床、质量、实施、系统运维、沙盘、运行诊断、模型生产和字段目录
   页面不再把读取失败、对接方式或低频证据表达成实现层接口名，统一改为医院角色可理解的服务状态、
   服务目录、服务契约、服务对接和来源状态。
 - 统一身份登录、身份来源和委托登录错误契约继续按医院角色真实理解收束：医生/护士/管理员登录页看到的是
@@ -450,9 +450,9 @@
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
   `npm run build`、`mvn -q -DskipTests package`、`bash scripts/check-comment-zh.sh --mode=full`；
   尚未重新部署 134。
-- 路径原型、沙盘外圈路径和诊断工具角色口径已继续按全局产品体验收束：路径维护前台默认原型改为
+- 路径原型、沙盘外圈路径和运行诊断角色口径已继续按全局产品体验收束：路径维护前台默认原型改为
   “基础节点闭环”，沙盘脚本和服务端目录使用通用临床路径资产 `PATH.CLINICAL.CYCLE`，不再把固定急诊处置
-  当作平台默认原型；诊断工具功能目录任务责任改为信息科和实施角色。真实性门禁新增前端、后端和沙盘脚本
+  当作平台默认原型；运行诊断功能目录任务责任改为信息科和实施角色。真实性门禁新增前端、后端和沙盘脚本
   固定急诊原型拦截，避免医生、护士、实施或后续 AI 把单专科样例误认为平台标准能力。已验证：
   `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
   `npm test -- --run src/pages/tenant/PathwayTemplates.test.tsx`、
@@ -566,6 +566,17 @@
   `npm run build`、`node scripts/authenticity-guard.mjs --mode=inventory`、
   `mvn -q -f medkernel-backend/pom.xml -DskipTests package`、`bash scripts/check-comment-zh.sh --mode=full`、
   `git diff --check`；尚未重新部署 134。
+- 系统运维域入口契约已继续按全局产品体验收束：前台菜单、路由、权限、后端包名、服务契约和功能目录统一为
+  “运行诊断”，路径为 `/system/runtime-diagnostics`，后端入口为 `/api/v1/system/runtime-diagnostics`；
+  国产化入口统一为“国产化自检”。退役的英文控制台路径、类名、权限键和旧中文标签不再作为当前入口事实保留；
+  真实性门禁新增旧入口名和旧中文标签拦截。
+  已验证：目标前端测试 `7 files / 216 passed`、前端全量 `109 files / 803 passed`、`npm run typecheck`、
+  `npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、`npm run build`、
+  `node --test scripts/authenticity-guard.test.mjs` `49 passed`、`node scripts/authenticity-guard.mjs --mode=inventory`、
+  旧入口组合搜索无结果、`mvn -q -f medkernel-backend/pom.xml -Dtest=RuntimeDiagnosticsControllerTest,MenuPermissionCatalogTest,DefaultPermissionPolicyTest,D0DomainAcceptanceTest test`、
+  `mvn -q -f medkernel-backend/pom.xml test`、`mvn -q -f medkernel-backend/pom.xml -DskipTests package`、
+  `bash scripts/check-comment-zh.sh --mode=full`、`git diff --check`；本机 Docker/Testcontainers 探测不可用但全量
+  Maven 测试退出码为 0，相关容器条件测试按条件处理；尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -616,7 +627,8 @@
    服务机构开通台账与表单语言清理、首次部署接管和安全基线范围语言清理、
    模型/知识/嵌入/规则/术语/接入/知识血缘范围语言清理、平台治理入口和测试契约范围语言清理、
    低频配置明细与验收证据呈现清理、历史阶段标签清理和门禁增强、
-   客户面旧态/未来态/模拟态口径和门禁增强、知识生产入口模型平台化命名清理
+   客户面旧态/未来态/模拟态口径和门禁增强、知识生产入口模型平台化命名清理、
+   系统运维域运行诊断入口契约和国产化自检命名清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

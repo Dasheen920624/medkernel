@@ -266,10 +266,11 @@ test("前端生产文件会阻断客户面工程内部语言", async () => {
   const technicalField = "技术" + "字段";
   const technicalValidation = "技术" + "校验";
   const controlledDebug = "受控" + "调试" + "信息";
+  const oldDiagnosticsLabel = "诊断" + "工具";
   await withFixture(
     {
-      "frontend/src/pages/DevConsole.tsx": `
-        export function DevConsole() {
+      "frontend/src/pages/RuntimeDiagnostics.tsx": `
+        export function RuntimeDiagnostics() {
           return <PageShell title="${developerConsole}" description="请让 SRE 等待${technicalReview}" />;
         }
       `,
@@ -281,7 +282,7 @@ test("前端生产文件会阻断客户面工程内部语言", async () => {
       `,
       "frontend/src/shared/config/routes.ts": `
         export const route = {
-          title: "诊断工具",
+          title: "${oldDiagnosticsLabel}",
           experience: readonlyExperience("平台管理员", "核查${controlledDebug}", "最近诊断"),
         };
       `,
@@ -315,7 +316,7 @@ test("前端生产文件会阻断客户面工程内部语言", async () => {
     },
     async (root) => {
       const report = await scanFiles(root, [
-        "frontend/src/pages/DevConsole.tsx",
+        "frontend/src/pages/RuntimeDiagnostics.tsx",
         "frontend/src/pages/RuleDefinitions.tsx",
         "frontend/src/pages/KnowledgeGovernance.tsx",
         "frontend/src/shared/config/routes.ts",

@@ -178,8 +178,9 @@ public enum PermissionCode {
     MENU_PROVENANCE("menu.provenance", PermissionDimension.MENU, Risk.LOW, "查看来源与血缘"),
     MENU_GRAPH_EXPLORE("menu.graph-explore", PermissionDimension.MENU, Risk.LOW, "查看知识关系"),
     MENU_AI_WORKFLOWS("menu.ai-workflows", PermissionDimension.MENU, Risk.LOW, "查看模型能力"),
-    MENU_DOMESTIC_CHECK("menu.domestic-check", PermissionDimension.MENU, Risk.LOW, "查看国产化核验"),
-    MENU_DEV_CONSOLE("menu.dev-console", PermissionDimension.MENU, Risk.LOW, "查看诊断工具");
+    MENU_DOMESTIC_CHECK("menu.domestic-check", PermissionDimension.MENU, Risk.LOW, "查看国产化自检"),
+    MENU_RUNTIME_DIAGNOSTICS(
+        "menu.runtime-diagnostics", PermissionDimension.MENU, Risk.LOW, "查看运行诊断");
 
     private final String code;
     private final PermissionDimension dimension;

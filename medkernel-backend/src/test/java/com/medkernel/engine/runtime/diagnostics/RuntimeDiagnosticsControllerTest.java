@@ -1,4 +1,4 @@
-package com.medkernel.engine.developer;
+package com.medkernel.engine.runtime.diagnostics;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,21 +18,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * D6 DEVCON-01：开发者控制台只暴露治理后的 API 契约视图。
+ * 运行诊断只暴露治理后的 API 契约视图。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class DeveloperConsoleControllerTest {
+class RuntimeDiagnosticsControllerTest {
 
     @Autowired MockMvc mvc;
 
     @Test
     void apiContractDirectoryRequiresAuthenticationAndSystemReadPermission() throws Exception {
-        mvc.perform(get("/api/v1/system/dev-console/api-contracts"))
+        mvc.perform(get("/api/v1/system/runtime-diagnostics/api-contracts"))
             .andExpect(status().isUnauthorized());
 
-        mvc.perform(get("/api/v1/system/dev-console/api-contracts")
+        mvc.perform(get("/api/v1/system/runtime-diagnostics/api-contracts")
                 .with(jwt().jwt(token -> token.subject("doctor-1").claim("tenant_id", "t-1"))
                     .authorities(new SimpleGrantedAuthority("ROLE_CLINICAL_USER"))))
             .andExpect(status().isForbidden());
@@ -40,7 +40,7 @@ class DeveloperConsoleControllerTest {
 
     @Test
     void apiContractDirectoryReturnsSanitizedServiceContracts() throws Exception {
-        mvc.perform(get("/api/v1/system/dev-console/api-contracts")
+        mvc.perform(get("/api/v1/system/runtime-diagnostics/api-contracts")
                 .with(jwt().jwt(token -> token.subject("ops-1").claim("tenant_id", "t-1"))
                     .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"))))
             .andExpect(status().isOk())

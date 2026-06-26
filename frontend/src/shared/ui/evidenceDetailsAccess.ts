@@ -7,7 +7,7 @@ const EVIDENCE_DETAIL_MENU_KEYS = new Set([
   "knowledge-production",
   "ai-workflows",
   "domestic-check",
-  "dev-console",
+  "runtime-diagnostics",
 ]);
 
 export type EvidenceDetailsProfile = Partial<Pick<SecurityProfile, "permissions" | "menuKeys">>;

@@ -33,7 +33,7 @@ class DefaultPermissionPolicyTest {
             "adapter-hub",
             "system-providers",
             "domestic-check",
-            "dev-console",
+            "runtime-diagnostics",
             "notifications",
             "notification-settings"),
         "engine-operator", List.of(

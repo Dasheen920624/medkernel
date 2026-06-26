@@ -31,7 +31,7 @@ import {
 
 import { getApiErrorMessage } from "@/shared/api/errors";
 import {
-  useDeveloperApiContracts,
+  useRuntimeDiagnosticsApiContracts,
   useDisablePlugin,
   useGrantPlugin,
   usePlugins,
@@ -41,9 +41,9 @@ import {
   useTraceDiagnosis,
 } from "@/shared/api/hooks";
 import type {
-  DeveloperApiContract,
   PluginCapabilityType,
   PluginItem,
+  RuntimeDiagnosticsApiContract,
   RuntimeDependencyStatus,
   TracePayloadSummary,
   TraceStateTransition,
@@ -52,7 +52,7 @@ import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 
-import styles from "./Advanced.module.css";
+import styles from "../advanced/Advanced.module.css";
 
 const { Text } = Typography;
 const { Search } = Input;
@@ -143,11 +143,11 @@ function formatTime(value?: string | null) {
   }).format(timestamp);
 }
 
-export default function DevConsole() {
+export default function RuntimeDiagnostics() {
   const { message, modal } = App.useApp();
   const systemRuntime = useSystemRuntime();
   const runtime = useRuntimeOperations();
-  const apiContracts = useDeveloperApiContracts();
+  const apiContracts = useRuntimeDiagnosticsApiContracts();
   const plugins = usePlugins();
   const registerPlugin = useRegisterPlugin();
   const grantPlugin = useGrantPlugin();
@@ -186,7 +186,7 @@ export default function DevConsole() {
 
   if (systemRuntime.isLoading || runtime.isLoading) {
     return (
-      <PageShell title="诊断工具" description="正在读取系统运行摘要">
+      <PageShell title="运行诊断" description="正在读取系统运行摘要">
         <PageState state="loading" />
       </PageShell>
     );
@@ -194,10 +194,10 @@ export default function DevConsole() {
 
   if (systemRuntime.isError || runtime.isError) {
     return (
-      <PageShell title="诊断工具" description="系统运行摘要读取失败">
+      <PageShell title="运行诊断" description="系统运行摘要读取失败">
         <PageState
           state="error"
-          title="暂时无法读取诊断工具"
+          title="暂时无法读取运行诊断"
           description="请稍后重试，或让信息科检查系统运行服务。"
           action={
             <Button
@@ -216,7 +216,7 @@ export default function DevConsole() {
   const rawRuntime = systemRuntime.data;
   if (!operations || !rawRuntime) {
     return (
-      <PageShell title="诊断工具" description="系统运行摘要暂无数据">
+      <PageShell title="运行诊断" description="系统运行摘要暂无数据">
         <PageState state="empty" title="暂无系统运行摘要" />
       </PageShell>
     );
@@ -308,7 +308,7 @@ export default function DevConsole() {
           value={contractKeyword}
           onChange={(event) => setContractKeyword(event.target.value)}
         />
-        <Table<DeveloperApiContract>
+        <Table<RuntimeDiagnosticsApiContract>
           rowKey="id"
           dataSource={filteredContracts}
           pagination={{ pageSize: 10, showSizeChanger: false }}
@@ -580,7 +580,7 @@ export default function DevConsole() {
 
   return (
     <PageShell
-      title="诊断工具"
+      title="运行诊断"
       description="服务契约、追踪诊断与插件边界"
       extras={
         <Button

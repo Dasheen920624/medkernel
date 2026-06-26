@@ -147,10 +147,10 @@
 | `/advanced/ai-workflows` | 模型能力 | knowledge-production | ai-workflows | primary | MOVE | 知识生产 | 模型能力 | 查看模型能力、任务和诚实降级状态 |
 <!-- capability:route:route@%2Fadvanced%2Fdomestic decision=MOVE -->
 <!-- route:/advanced/domestic -->
-| `/advanced/domestic` | 国产化核验 | system-operations | domestic-check | primary | MOVE | 系统运维 | 国产化核验 | 核查国产化适配与部署证据 |
-<!-- capability:route:route@%2Fadvanced%2Fdev-console decision=MOVE -->
-<!-- route:/advanced/dev-console -->
-| `/advanced/dev-console` | 诊断工具 | system-operations | dev-console | primary | MOVE | 系统运维 | 诊断工具 | 由信息科和实施角色执行受控诊断 |
+| `/advanced/domestic` | 国产化自检 | system-operations | domestic-check | primary | MOVE | 系统运维 | 国产化自检 | 核查国产化适配与部署证据 |
+<!-- capability:route:route@%2Fsystem%2Fruntime-diagnostics decision=MOVE -->
+<!-- route:/system/runtime-diagnostics -->
+| `/system/runtime-diagnostics` | 运行诊断 | system-operations | runtime-diagnostics | primary | MOVE | 系统运维 | 运行诊断 | 由信息科和实施角色执行受控诊断 |
 <!-- capability:route:route@%2Fembed%2Flaunch decision=KEEP -->
 <!-- route:/embed/launch -->
 | `/embed/launch` | 临床嵌入式终端 | clinical-collaboration | — | embedded | KEEP | 临床协同 | 院内系统嵌入终端 | 在受信来源内承载临床嵌入并回传人工反馈 |
@@ -254,10 +254,10 @@
 | `system-providers` | 运行保障 | `system-operations` | primary | `MENU_SYSTEM_PROVIDERS` | RENAME | 系统运维 | 运行保障 |
 <!-- capability:menu:menu@domestic-check decision=MOVE -->
 <!-- menu:domestic-check -->
-| `domestic-check` | 国产化核验 | `system-operations` | primary | `MENU_DOMESTIC_CHECK` | MOVE | 系统运维 | 国产化核验 |
-<!-- capability:menu:menu@dev-console decision=MOVE -->
-<!-- menu:dev-console -->
-| `dev-console` | 诊断工具 | `system-operations` | primary | `MENU_DEV_CONSOLE` | MOVE | 系统运维 | 诊断工具 |
+| `domestic-check` | 国产化自检 | `system-operations` | primary | `MENU_DOMESTIC_CHECK` | MOVE | 系统运维 | 国产化自检 |
+<!-- capability:menu:menu@runtime-diagnostics decision=MOVE -->
+<!-- menu:runtime-diagnostics -->
+| `runtime-diagnostics` | 运行诊断 | `system-operations` | primary | `MENU_RUNTIME_DIAGNOSTICS` | MOVE | 系统运维 | 运行诊断 |
 <!-- capability:menu:menu@notifications decision=MOVE -->
 <!-- menu:notifications -->
 | `notifications` | 消息通知 | `workbench` | header | `MENU_NOTIFICATIONS` | MOVE | 工作台 | 消息通知（页头入口） |
@@ -279,10 +279,8 @@
 | `frontend/src/pages/NotFound.tsx` | `*` | KEEP | 系统反馈 | 未找到页面 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fadvanced%2FAiWorkflows.tsx decision=MOVE -->
 | `frontend/src/pages/advanced/AiWorkflows.tsx` | `/advanced/ai-workflows` | MOVE | 知识生产 | 模型能力 |
-<!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fadvanced%2FDevConsole.tsx decision=MOVE -->
-| `frontend/src/pages/advanced/DevConsole.tsx` | `/advanced/dev-console` | MOVE | 系统运维 | 诊断工具 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fadvanced%2FDomesticCheck.tsx decision=MOVE -->
-| `frontend/src/pages/advanced/DomesticCheck.tsx` | `/advanced/domestic` | MOVE | 系统运维 | 国产化核验 |
+| `frontend/src/pages/advanced/DomesticCheck.tsx` | `/advanced/domestic` | MOVE | 系统运维 | 国产化自检 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fadvanced%2FGraphExplore.tsx decision=MOVE -->
 | `frontend/src/pages/advanced/GraphExplore.tsx` | `/advanced/graph` | MOVE | 知识治理 | 知识关系 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fadvanced%2FProjectionGraphCanvas.tsx decision=MERGE -->
@@ -351,6 +349,8 @@
 | `frontend/src/pages/quality/QcEvalSets.tsx` | `/qc/eval/sets` | RENAME | 质量管理 | 评价指标 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fsandbox%2FSandboxHost.tsx decision=KEEP -->
 | `frontend/src/pages/sandbox/SandboxHost.tsx` | `/sandbox` | KEEP | 临床协同 | 全真体验沙盘 |
+<!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fsystem%2FRuntimeDiagnostics.tsx decision=MOVE -->
+| `frontend/src/pages/system/RuntimeDiagnostics.tsx` | `/system/runtime-diagnostics` | MOVE | 系统运维 | 运行诊断 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Ftenant%2FAdapterHub.tsx decision=MOVE -->
 | `frontend/src/pages/tenant/AdapterHub.tsx` | `/adapter/hub` | MOVE | 系统运维 | 系统接入 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Ftenant%2FAuthoringAssets.tsx decision=MERGE -->
@@ -428,8 +428,6 @@
 | `ContextSnapshotController` | POST /api/v1/engine/context/snapshots<br>GET /api/v1/engine/context/snapshots/{snapshotId}<br>GET /api/v1/engine/context/snapshots/{snapshotId}/diagnose<br>GET /api/v1/engine/context/snapshots | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示 |
 <!-- capability:controller:controller@EngineDataController decision=MERGE -->
 | `EngineDataController` | GET /api/v1/engine-data/rule-usage<br>GET /api/v1/engine-data/knowledge-usage<br>GET /api/v1/engine-data/clinical-signals<br>GET /api/v1/engine-data/tools<br>POST /api/v1/engine-data/tools/{toolName}:execute<br>POST /api/v1/engine-data/exports<br>GET /api/v1/engine-data/exports/{jobCode}<br>GET /api/v1/engine-data/exports<br>其余 2 项 | MERGE | 对应业务页内任务或导出流程 | 异步和批量能力作为主任务步骤，不单列客户菜单 |
-<!-- capability:controller:controller@DeveloperConsoleController decision=KEEP -->
-| `DeveloperConsoleController` | GET /api/v1/system/dev-console/api-contracts | KEEP | 所属业务域专业能力 | 按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示 |
 <!-- capability:controller:controller@DomainFacadeController decision=KEEP -->
 | `DomainFacadeController` | GET /api/v1/engine/domain-facades<br>GET /api/v1/engine/domain-facades/b0-evidence<br>GET /api/v1/engine/domain-facades/{code}<br>GET /api/v1/engine/domain-facades/{code}/b0-evidence | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@EmbedEngineController decision=API_ONLY -->
@@ -528,6 +526,8 @@
 | `ReportInterpretationController` | POST /api/v1/engine/recommendations/report-interpretation | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@RuleEngineController decision=KEEP -->
 | `RuleEngineController` | POST /api/v1/engine/rule/rules<br>GET /api/v1/engine/rule/rules<br>GET /api/v1/engine/rule/rules/{ruleId}<br>PUT /api/v1/engine/rule/rules/{ruleId}<br>POST /api/v1/engine/rule/rules/{ruleId}/versions<br>POST /api/v1/engine/rule/rules/{ruleId}/test-cases<br>POST /api/v1/engine/rule/rules/{ruleId}/test<br>POST /api/v1/engine/rule/rules/{ruleId}/simulate<br>其余 12 项 | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
+<!-- capability:controller:controller@RuntimeDiagnosticsController decision=KEEP -->
+| `RuntimeDiagnosticsController` | GET /api/v1/system/runtime-diagnostics/api-contracts | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@ClinicalRedlineController decision=KEEP -->
 | `ClinicalRedlineController` | GET /api/v1/engine/safety/redlines<br>POST /api/v1/engine/safety/redlines:dry-run<br>POST /api/v1/engine/safety/redlines:promote | KEEP | 对应客户任务页面 | 保留真实后端能力，由目标页面、权限和审计边界承载 |
 <!-- capability:controller:controller@SafetyWithdrawalController decision=MERGE -->

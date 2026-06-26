@@ -6,14 +6,14 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import DomesticCheck from "./advanced/DomesticCheck";
-import DevConsole from "./advanced/DevConsole";
+import RuntimeDiagnostics from "./system/RuntimeDiagnostics";
 import IdentityBinding from "./compliance/IdentityBinding";
 import SecurityBaseline from "./compliance/SecurityBaseline";
 import {
   downloadDomesticCompatibilityReport,
   useCreateIdentityBinding,
   useDelegatedAuthStatus,
-  useDeveloperApiContracts,
+  useRuntimeDiagnosticsApiContracts,
   useDisablePlugin,
   useGrantPlugin,
   useIdentityBindings,
@@ -32,7 +32,7 @@ import {
 } from "@/shared/api/hooks";
 import type {
   DelegatedAuthStatus,
-  DeveloperApiContractDirectory,
+  RuntimeDiagnosticsApiContractDirectory,
   IdentityBinding as IdentityBindingRecord,
   LoginTenantDirectory,
   PluginList,
@@ -45,7 +45,7 @@ vi.mock("@/shared/api/hooks", () => ({
   downloadDomesticCompatibilityReport: vi.fn(),
   useCreateIdentityBinding: vi.fn(),
   useDelegatedAuthStatus: vi.fn(),
-  useDeveloperApiContracts: vi.fn(),
+  useRuntimeDiagnosticsApiContracts: vi.fn(),
   useDisablePlugin: vi.fn(),
   useGrantPlugin: vi.fn(),
   useIdentityBindings: vi.fn(),
@@ -303,7 +303,7 @@ const systemRuntime = {
   runtime: "Java 21",
 };
 
-const developerContracts: DeveloperApiContractDirectory = {
+const runtimeDiagnosticsContracts: RuntimeDiagnosticsApiContractDirectory = {
   contracts: [
     {
       id: "runtime-operations",
@@ -447,7 +447,9 @@ describe("operational control pages", () => {
     vi.mocked(useSecurityProfile).mockReturnValue(query(securityProfile) as never);
     vi.mocked(useRuntimeOperations).mockReturnValue(query(runtimeSnapshot) as never);
     vi.mocked(useSystemRuntime).mockReturnValue(query(systemRuntime) as never);
-    vi.mocked(useDeveloperApiContracts).mockReturnValue(query(developerContracts) as never);
+    vi.mocked(useRuntimeDiagnosticsApiContracts).mockReturnValue(
+      query(runtimeDiagnosticsContracts) as never,
+    );
     vi.mocked(usePlugins).mockReturnValue(query(pluginList) as never);
     vi.mocked(useTraceDiagnosis).mockReturnValue(query(undefined) as never);
     vi.mocked(useRegisterPlugin).mockReturnValue({
@@ -609,11 +611,11 @@ describe("operational control pages", () => {
     consoleError.mockRestore();
   });
 
-  it("展示服务目录、追踪诊断和插件管理工具", async () => {
+  it("展示服务目录、追踪诊断和插件管理能力", async () => {
     const user = userEvent.setup();
-    renderPage(<DevConsole />);
+    renderPage(<RuntimeDiagnostics />);
 
-    expect(screen.getByRole("heading", { name: "诊断工具" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "运行诊断" })).toBeInTheDocument();
     expect(screen.getByText("系统运行概况")).toBeInTheDocument();
     expect(screen.getAllByText("medkernel").length).toBeGreaterThan(0);
     expect(screen.getByText("docker-core")).toBeInTheDocument();
@@ -661,7 +663,7 @@ describe("operational control pages", () => {
     );
 
     try {
-      renderPage(<DevConsole />);
+      renderPage(<RuntimeDiagnostics />);
       fireEvent.click(screen.getByRole("tab", { name: "追踪诊断" }));
       const traceInput = screen.getByPlaceholderText("输入 追踪号");
       fireEvent.change(traceInput, { target: { value: "trace-console" } });

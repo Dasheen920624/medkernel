@@ -272,13 +272,13 @@ const routeDecisions = {
   "/advanced/domestic": {
     decision: "MOVE",
     targetDomain: "系统运维",
-    targetEntry: "国产化核验",
+    targetEntry: "国产化自检",
     task: "核查国产化适配与部署证据",
   },
-  "/advanced/dev-console": {
+  "/system/runtime-diagnostics": {
     decision: "MOVE",
     targetDomain: "系统运维",
-    targetEntry: "诊断工具",
+    targetEntry: "运行诊断",
     task: "由信息科和实施角色执行受控诊断",
   },
   "/embed/launch": {

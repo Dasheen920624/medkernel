@@ -60,7 +60,7 @@ public final class DefaultPermissionPolicy {
             MENU_ADAPTER_HUB,
             MENU_SYSTEM_PROVIDERS,
             MENU_DOMESTIC_CHECK,
-            MENU_DEV_CONSOLE,
+            MENU_RUNTIME_DIAGNOSTICS,
             MENU_NOTIFICATIONS,
             MENU_NOTIFICATION_SETTINGS);
     }

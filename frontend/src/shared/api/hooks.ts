@@ -366,19 +366,19 @@ export function useSystemRuntime() {
   });
 }
 
-export interface DeveloperApiPermission {
+export interface RuntimeDiagnosticsApiPermission {
   code: string;
   dimension: PermissionDimension;
   purpose: string;
 }
 
-export interface DeveloperApiAuditPoint {
+export interface RuntimeDiagnosticsApiAuditPoint {
   action: string;
   targetType: string;
   purpose: string;
 }
 
-export interface DeveloperApiContract {
+export interface RuntimeDiagnosticsApiContract {
   id: string;
   title: string;
   basePath: string;
@@ -386,25 +386,25 @@ export interface DeveloperApiContract {
   openApiDocumentUrl?: string | null;
   fieldContractUrl?: string | null;
   openApiPaths: string[];
-  permissions: DeveloperApiPermission[];
-  auditPoints: DeveloperApiAuditPoint[];
+  permissions: RuntimeDiagnosticsApiPermission[];
+  auditPoints: RuntimeDiagnosticsApiAuditPoint[];
   publicEndpoints: string[];
 }
 
-export interface DeveloperApiContractDirectory {
-  contracts: DeveloperApiContract[];
+export interface RuntimeDiagnosticsApiContractDirectory {
+  contracts: RuntimeDiagnosticsApiContract[];
 }
 
-type DeveloperApiContractDirectoryEnvelope = {
-  data: DeveloperApiContractDirectory;
+type RuntimeDiagnosticsApiContractDirectoryEnvelope = {
+  data: RuntimeDiagnosticsApiContractDirectory;
 };
 
-export function useDeveloperApiContracts() {
+export function useRuntimeDiagnosticsApiContracts() {
   return useQuery({
-    queryKey: ["system", "dev-console", "api-contracts"],
+    queryKey: ["system", "runtime-diagnostics", "api-contracts"],
     queryFn: async () => {
-      const response = await apiClient.get<DeveloperApiContractDirectoryEnvelope>(
-        "/system/dev-console/api-contracts",
+      const response = await apiClient.get<RuntimeDiagnosticsApiContractDirectoryEnvelope>(
+        "/system/runtime-diagnostics/api-contracts",
       );
       return response.data.data;
     },

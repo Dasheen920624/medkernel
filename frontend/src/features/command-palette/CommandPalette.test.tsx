@@ -31,7 +31,7 @@ describe("CommandPalette", () => {
     );
 
     expect(screen.getByText("术语与字典")).toBeInTheDocument();
-    expect(screen.queryByText("诊断工具")).toBeNull();
+    expect(screen.queryByText("运行诊断")).toBeNull();
     expect(screen.queryByText("/terminology/mapping")).toBeNull();
   });
 

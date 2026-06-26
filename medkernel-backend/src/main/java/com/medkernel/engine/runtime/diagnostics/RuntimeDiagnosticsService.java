@@ -1,23 +1,23 @@
-package com.medkernel.engine.developer;
+package com.medkernel.engine.runtime.diagnostics;
 
 import org.springframework.stereotype.Service;
 
 import com.medkernel.engine.contract.ServiceContractCatalog;
-import com.medkernel.engine.developer.DeveloperApiContractDirectoryResponse.DeveloperApiAuditResponse;
-import com.medkernel.engine.developer.DeveloperApiContractDirectoryResponse.DeveloperApiContractResponse;
-import com.medkernel.engine.developer.DeveloperApiContractDirectoryResponse.DeveloperApiPermissionResponse;
+import com.medkernel.engine.runtime.diagnostics.RuntimeDiagnosticsApiContractDirectoryResponse.RuntimeDiagnosticsApiAuditResponse;
+import com.medkernel.engine.runtime.diagnostics.RuntimeDiagnosticsApiContractDirectoryResponse.RuntimeDiagnosticsApiContractResponse;
+import com.medkernel.engine.runtime.diagnostics.RuntimeDiagnosticsApiContractDirectoryResponse.RuntimeDiagnosticsApiPermissionResponse;
 
 /**
- * 诊断工具服务。
+ * 运行诊断服务。
  *
- * <p>控制台只输出治理后的契约视图，不泄露控制器类名、密钥、凭证或内部实现细节。
+ * <p>只输出治理后的契约视图，不泄露控制器类名、密钥、凭证或内部实现细节。
  */
 @Service
-public class DeveloperConsoleService {
+public class RuntimeDiagnosticsService {
 
-    public DeveloperApiContractDirectoryResponse apiContracts() {
-        return new DeveloperApiContractDirectoryResponse(ServiceContractCatalog.contracts().stream()
-            .map(contract -> new DeveloperApiContractResponse(
+    public RuntimeDiagnosticsApiContractDirectoryResponse apiContracts() {
+        return new RuntimeDiagnosticsApiContractDirectoryResponse(ServiceContractCatalog.contracts().stream()
+            .map(contract -> new RuntimeDiagnosticsApiContractResponse(
                 contract.id(),
                 contract.title(),
                 contract.basePath(),
@@ -26,13 +26,13 @@ public class DeveloperConsoleService {
                 fieldContractUrl(contract.id()),
                 contract.openApiPaths(),
                 contract.permissions().stream()
-                    .map(permission -> new DeveloperApiPermissionResponse(
+                    .map(permission -> new RuntimeDiagnosticsApiPermissionResponse(
                         permission.code(),
                         permission.dimension(),
                         permission.purpose()))
                     .toList(),
                 contract.auditPoints().stream()
-                    .map(audit -> new DeveloperApiAuditResponse(
+                    .map(audit -> new RuntimeDiagnosticsApiAuditResponse(
                         audit.action(),
                         audit.targetType(),
                         audit.purpose()))

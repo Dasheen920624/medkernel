@@ -38,7 +38,7 @@ import {
   upsertDataPermissionPolicy,
   upsertMaskingRule,
   useCompleteWorkflowTodo,
-  useDeveloperApiContracts,
+  useRuntimeDiagnosticsApiContracts,
   useDisablePlugin,
   useAdvanceIntegrationOnboarding,
   useBatchConfirmTerminologyCandidates,
@@ -260,7 +260,7 @@ describe("pathway api contract", () => {
   });
 });
 
-describe("developer console api hooks", () => {
+describe("runtime diagnostics api hooks", () => {
   beforeEach(() => {
     vi.mocked(apiClient.get).mockReset();
     vi.mocked(apiClient.post).mockReset();
@@ -282,7 +282,7 @@ describe("developer console api hooks", () => {
       .mockResolvedValueOnce({ data: { data: diagnosis } })
       .mockResolvedValueOnce({ data: { data: plugins } });
 
-    const directoryHook = renderApiHook(() => useDeveloperApiContracts());
+    const directoryHook = renderApiHook(() => useRuntimeDiagnosticsApiContracts());
     await waitFor(() => expect(directoryHook.result.current.data).toEqual(directory));
 
     const traceHook = renderApiHook(() => useTraceDiagnosis(" trace/1 ", true));
@@ -291,7 +291,7 @@ describe("developer console api hooks", () => {
     const pluginsHook = renderApiHook(() => usePlugins());
     await waitFor(() => expect(pluginsHook.result.current.data).toEqual(plugins));
 
-    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/system/dev-console/api-contracts");
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/system/runtime-diagnostics/api-contracts");
     expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/diagnose/traces/trace%2F1");
     expect(apiClient.get).toHaveBeenNthCalledWith(3, "/plugins");
   });

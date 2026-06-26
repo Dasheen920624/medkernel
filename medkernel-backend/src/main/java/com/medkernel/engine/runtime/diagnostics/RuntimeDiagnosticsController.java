@@ -1,4 +1,4 @@
-package com.medkernel.engine.developer;
+package com.medkernel.engine.runtime.diagnostics;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -8,15 +8,15 @@ import org.springframework.web.bind.annotation.RestController;
 import com.medkernel.shared.api.ApiResult;
 
 /**
- * 诊断工具 REST 入口（D6 DEVCON-01）。
+ * 运行诊断 REST 入口。
  */
 @RestController
-@RequestMapping("/api/v1/system/dev-console")
-public class DeveloperConsoleController {
+@RequestMapping("/api/v1/system/runtime-diagnostics")
+public class RuntimeDiagnosticsController {
 
-    private final DeveloperConsoleService service;
+    private final RuntimeDiagnosticsService service;
 
-    public DeveloperConsoleController(DeveloperConsoleService service) {
+    public RuntimeDiagnosticsController(RuntimeDiagnosticsService service) {
         this.service = service;
     }
 
@@ -27,7 +27,7 @@ public class DeveloperConsoleController {
      */
     @GetMapping("/api-contracts")
     @PreAuthorize("@perm.has('system.read')")
-    public ApiResult<DeveloperApiContractDirectoryResponse> apiContracts() {
+    public ApiResult<RuntimeDiagnosticsApiContractDirectoryResponse> apiContracts() {
         return ApiResult.ok(service.apiContracts());
     }
 }

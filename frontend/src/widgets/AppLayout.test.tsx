@@ -249,7 +249,7 @@ const allMenuKeys = [
   "graph-explore",
   "ai-workflows",
   "domestic-check",
-  "dev-console",
+  "runtime-diagnostics",
 ];
 
 beforeEach(() => {
