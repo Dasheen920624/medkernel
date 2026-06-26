@@ -189,8 +189,10 @@ const CURRENT_DOC_RULES = [
 const DB_COMMENT_RULES = [
   {
     ruleId: "db.customer-facing-safety-language",
-    message: "数据库中文注释禁止继续使用技术安全门、技术评测、技术校验或技术发布链旧口径。",
-    pattern: /技术安全门|技术评测|技术校验|技术发布链/,
+    message:
+      "数据库中文注释禁止继续使用技术安全门、技术评测、技术校验、技术发布链、影响模拟或后端实现层旧口径。",
+    pattern:
+      /技术安全门|技术评测|技术校验|技术发布链|影响模拟|后端脱敏规则表|后端调用脱敏服务|后端类型|求值留后续阶段接\s*RuleDslEvaluator|Spec\s*1\s*命中/,
   },
 ];
 

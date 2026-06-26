@@ -286,6 +286,13 @@
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、
   `node scripts/authenticity-guard.mjs --mode=inventory`、`node --test scripts/authenticity-guard.test.mjs`、
   `npm run test:lint-rules`、`npm run build`、`git diff --check`；尚未重新部署 134。
+- 数据库五方言 COMMENT 与 schema 残留旧口径已继续清理：脱敏规则、敏感字段匹配、诊断时序约束、知识原件
+  资料类型和发布质量门摘要统一改为平台、服务、统一规则求值和影响评估语义；真实性门禁同步拦截数据库
+  COMMENT 中的影响模拟和后端实现层旧口径。已验证：
+  `rg -n "后端脱敏规则表|后端调用脱敏服务|后端类型|影响模拟|后续阶段接 RuleDslEvaluator|Spec 1 命中" medkernel-backend/src/main/resources/db/schema medkernel-backend/src/main/resources/db/migration`
+  无结果、`node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
+  `bash scripts/check-comment-zh.sh --mode=full`、`mvn -q -Dtest=MigrationBaselineContractTest test`、
+  `mvn -q -DskipTests package`、`git diff --check`；尚未重新部署 134。
 
 ## 本轮落地内容
 
@@ -421,6 +428,8 @@
   审计或院长的默认任务界面。
 - 前端测试说明和共享注释同步收束到当前产品语义：测试用例名、共享 API 注释、开发代理提示、规则配置说明
   和浏览器兼容性报告不再把后台实现层当成客户面事实，避免后续 AI 读取测试时被旧口径误导。
+- 数据库 COMMENT 和 schema 同步收束：脱敏规则、诊断约束、知识原件和发布质量门不再保留“后端类型”、
+  “后续阶段”或“影响模拟”等旧事实，五方言迁移继续保持一致。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -460,7 +469,8 @@
    知识发布质量门影响评估与规则提示卡引用占位口径清理、权威体验契约演示重构旧说法清理、
    平台管理员工作台治理概览表达清理、发布治理服务影响评估契约口径清理、工作台空态未上线承诺清理、
    通知偏好和导出能力实现层旧口径清理、全局客户面服务状态旧口径清理、统一身份登录和身份来源待配置口径清理、
-   工作台第一屏多角色数据状态表达清理、全局客户面实现层口径清理、前端测试说明与共享注释旧口径清理
+   工作台第一屏多角色数据状态表达清理、全局客户面实现层口径清理、前端测试说明与共享注释旧口径清理、
+   数据库 COMMENT 和 schema 旧口径清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

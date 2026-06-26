@@ -399,7 +399,8 @@ test("当前权威体验文档禁止回流演示重构旧说法", async () => {
 
 test("后端与数据库中文注释会阻断旧安全校验口径", async () => {
   const technicalEvaluation = "技术" + "评测";
-  const technicalValidation = "技术" + "校验";
+  const impactSimulation = "影响" + "模拟";
+  const backendMasking = "后端" + "脱敏规则表";
   await withFixture(
     {
       "medkernel-backend/src/main/java/com/medkernel/engine/llm/eval/ModelEvalRun.java": `
@@ -407,10 +408,10 @@ test("后端与数据库中文注释会阻断旧安全校验口径", async () =>
         public record ModelEvalRun() {}
       `,
       "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql": `
-        COMMENT ON TABLE asset_validation_record IS '资产发布${technicalValidation}证据';
+        COMMENT ON COLUMN mk_version_release_plan.quality_gate_summary IS '结构、术语字段、依赖、安全与${impactSimulation}';
       `,
       "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json": `
-        {"comment":"${technicalValidation}结果摘要"}
+        {"comment":"SYS-06 ${backendMasking}，按租户、资源、字段和场景配置脱敏策略"}
       `,
     },
     async (root) => {

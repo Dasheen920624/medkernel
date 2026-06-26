@@ -11078,7 +11078,7 @@
     },
     {
       "name": "mk_compliance_masking_rule",
-      "comment": "SYS-06 后端脱敏规则表，按租户、资源、字段和场景配置脱敏策略",
+      "comment": "SYS-06 脱敏规则表，按租户、资源、字段和场景配置脱敏策略",
       "columns": [
         {
           "name": "id",
@@ -11122,7 +11122,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "敏感字段名，后端调用脱敏服务时按该字段匹配规则"
+          "comment": "敏感字段名，平台执行脱敏策略时按该字段匹配规则"
         },
         {
           "name": "scenario_code",
@@ -12205,7 +12205,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "时序/趋势约束（可选，求值留后续阶段接 RuleDslEvaluator，Spec 1 命中到编码级）"
+          "comment": "时序/趋势约束（可选，发布校验和运行解释按统一规则求值）"
         },
         {
           "name": "citation_id",
@@ -22713,7 +22713,7 @@
     },
     {
       "name": "mk_knowledge_material_object",
-      "comment": "知识文档原件资料库对象账本：记录受管 URI、真实 SHA-256、后端类型和入库审计，不保存原文字节",
+      "comment": "知识文档原件资料库对象账本：记录受管 URI、真实 SHA-256、资料类型和入库审计，不保存原文字节",
       "columns": [
         {
           "name": "id",
@@ -31450,7 +31450,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "平台发布质量门摘要：结构、术语字段、依赖、安全与影响模拟"
+          "comment": "平台发布质量门摘要：结构、术语字段、依赖、安全与影响评估"
         },
         {
           "name": "rollout_strategy",
