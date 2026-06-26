@@ -577,6 +577,10 @@
   `mvn -q -f medkernel-backend/pom.xml test`、`mvn -q -f medkernel-backend/pom.xml -DskipTests package`、
   `bash scripts/check-comment-zh.sh --mode=full`、`git diff --check`；本机 Docker/Testcontainers 探测不可用但全量
   Maven 测试退出码为 0，相关容器条件测试按条件处理；尚未重新部署 134。
+- 系统运维域入口契约二次扫尾已补齐：职责旅程菜单快照同步使用 `runtime-diagnostics`，运行诊断页面测试标识
+  从旧控制台语义改为运行依赖语义，避免测试和接力材料继续误导后续 AI。已验证：
+  `npm test -- --run src/shared/config/productRoleJourneys.test.ts src/pages/operationalControlPages.test.tsx`、
+  `node scripts/authenticity-guard.mjs --mode=inventory`、旧入口组合搜索无结果；尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。

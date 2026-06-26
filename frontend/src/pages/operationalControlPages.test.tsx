@@ -621,7 +621,7 @@ describe("operational control pages", () => {
     expect(screen.getByText("docker-core")).toBeInTheDocument();
     expect(screen.getByText("Java 21")).toBeInTheDocument();
     expect(
-      within(screen.getByTestId("developer-dependencies")).getByText("统一身份来源"),
+      within(screen.getByTestId("runtime-dependencies")).getByText("统一身份来源"),
     ).toBeInTheDocument();
     expect(screen.getByText("运行状态服务")).toBeInTheDocument();
     expect(screen.getByText("rule.publish")).toBeInTheDocument();

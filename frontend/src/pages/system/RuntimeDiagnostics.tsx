@@ -637,7 +637,7 @@ export default function RuntimeDiagnostics() {
           </Descriptions>
         </Card>
 
-        <Card data-testid="developer-dependencies">
+        <Card data-testid="runtime-dependencies">
           <Table<RuntimeDependencyStatus>
             rowKey="key"
             dataSource={operations.dependencies}
