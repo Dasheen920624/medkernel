@@ -22,7 +22,7 @@ import com.medkernel.shared.context.RequestContext;
 import com.medkernel.engine.knowledge.production.generation.GenerationItem;
 
 /**
- * AIK-STD-14 公域来源治理：运营员登记停用配置，技术校验通过后显式启用。
+ * AIK-STD-14 公域来源治理：运营员登记停用配置，安全校验通过后显式启用。
  *
  * <p>配置更新一律停用来源，避免域名、许可或调度参数被静默替换；启用不要求第二操作人或 MFA，
  * 但仍强制校验 HTTPS、公开域名、许可、robots 策略和生成计划，并保留完整审计记录。
@@ -89,7 +89,7 @@ public class AcquisitionSourceGovernanceService {
         return saved;
     }
 
-    /** 技术校验通过后由当前运营员显式启用来源。 */
+    /** 安全校验通过后由当前运营员显式启用来源。 */
     @Transactional
     public KnowledgeAcquisitionSource enable(String sourceCode) {
         String tenantId = requireCurrentTenant();

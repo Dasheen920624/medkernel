@@ -198,7 +198,7 @@ export default function DevConsole() {
         <PageState
           state="error"
           title="暂时无法读取诊断工具"
-          description="请稍后重试，或让 SRE 检查系统运行接口。"
+          description="请稍后重试，或让信息科检查系统运行接口。"
           action={
             <Button
               icon={<ReloadOutlined />}

@@ -337,7 +337,7 @@ public final class ServiceContractCatalog {
                 audit(AuditAction.UPDATE, "mk_knowledge_acquisition_source",
                     "更新配置时停用来源，或停用来源与自动调度"),
                 audit(AuditAction.UPDATE, "mk_knowledge_acquisition_source",
-                    "许可和 robots 技术校验通过后显式启用公域资料来源"),
+                    "许可和 robots 安全校验通过后显式启用公域资料来源"),
                 audit(AuditAction.EXECUTE, "mk_knowledge_acquisition_run",
                     "运行手动或调度公域资料获取并记录 URL、许可、robots 策略、原文指纹和解析结果"))),
         contract("knowledge-doc-parse", "文档解析服务",

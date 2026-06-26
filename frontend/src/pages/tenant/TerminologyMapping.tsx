@@ -199,7 +199,7 @@ function detailSections(mapping?: TermMapping): EvidenceDetailSection[] {
     },
     {
       key: "technical",
-      title: "技术字段",
+      title: "追溯字段",
       items: [
         { label: "映射 ID", value: mapping.id, advancedOnly: true },
         { label: "院内编码 ID", value: mapping.localTermId, advancedOnly: true },

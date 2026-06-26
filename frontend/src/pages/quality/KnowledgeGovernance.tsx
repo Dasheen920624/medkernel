@@ -3049,7 +3049,7 @@ export default function KnowledgeGovernance({
                     <Descriptions.Item label="工具版本">
                       {provenance.toolVersion || "未返回"}
                     </Descriptions.Item>
-                    <Descriptions.Item label="技术降级原因">
+                    <Descriptions.Item label="运行降级原因">
                       {fallbackText(provenance)}
                     </Descriptions.Item>
                     <Descriptions.Item label="来源引用原文">

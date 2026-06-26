@@ -1162,89 +1162,93 @@ describe("KnowledgeGovernance", () => {
     );
   });
 
-  it("confirms actionable egress purpose and retries model production with the same request", async () => {
-    const user = userEvent.setup();
-    generateModelCandidate.mockResolvedValueOnce({
-      jobCode: "job-ai-1",
-      modelTaskId: "task-confirm-1",
-      modelMode: "B2",
-      summary: {
-        candidates: [],
-        skipped: [],
-        blocked: [
-          {
-            assetType: "KNOWLEDGE",
-            jobCode: "job-ai-1",
-            failedGates: [
-              {
-                code: "MODEL_EGRESS_CONFIRMATION",
-                reason:
-                  "模型外调已阻断，需先完成本次用途与责任确认：载荷摘要=sha256-confirmation-required",
-              },
-            ],
-          },
-        ],
-      },
-      egressConfirmation: {
-        capabilityCode: "knowledge.production.knowledge",
-        payloadHash: "sha256-confirmation-required",
-        egressFields: ["prompt"],
-        providerCode: "provider-openai",
-        message: "高敏患者上下文外调前需要责任确认",
-      },
-    });
-    mockUseSecurityProfile.mockReturnValue({
-      data: {
-        dataScope: { tenantId: "tenant-A" },
-        permissions: [{ code: "knowledge.write" }],
-      },
-    });
-    mockUseKnowledgeProductionReadiness.mockReturnValue({
-      data: {
-        tenantId: "tenant-A",
-        producer: "API_MODEL",
-        capabilityCode: "knowledge.production.knowledge",
-        providerCode: "provider-openai",
-        deploymentForm: "EXTERNAL",
-        ready: true,
-        modelInvocationAllowed: true,
-        items: [],
-      },
-      isLoading: false,
-      isError: false,
-      error: undefined,
-      refetch: vi.fn(),
-    });
+  it(
+    "confirms actionable egress purpose and retries model production with the same request",
+    async () => {
+      const user = userEvent.setup();
+      generateModelCandidate.mockResolvedValueOnce({
+        jobCode: "job-ai-1",
+        modelTaskId: "task-confirm-1",
+        modelMode: "B2",
+        summary: {
+          candidates: [],
+          skipped: [],
+          blocked: [
+            {
+              assetType: "KNOWLEDGE",
+              jobCode: "job-ai-1",
+              failedGates: [
+                {
+                  code: "MODEL_EGRESS_CONFIRMATION",
+                  reason:
+                    "模型外调已阻断，需先完成本次用途与责任确认：载荷摘要=sha256-confirmation-required",
+                },
+              ],
+            },
+          ],
+        },
+        egressConfirmation: {
+          capabilityCode: "knowledge.production.knowledge",
+          payloadHash: "sha256-confirmation-required",
+          egressFields: ["prompt"],
+          providerCode: "provider-openai",
+          message: "高敏患者上下文外调前需要责任确认",
+        },
+      });
+      mockUseSecurityProfile.mockReturnValue({
+        data: {
+          dataScope: { tenantId: "tenant-A" },
+          permissions: [{ code: "knowledge.write" }],
+        },
+      });
+      mockUseKnowledgeProductionReadiness.mockReturnValue({
+        data: {
+          tenantId: "tenant-A",
+          producer: "API_MODEL",
+          capabilityCode: "knowledge.production.knowledge",
+          providerCode: "provider-openai",
+          deploymentForm: "EXTERNAL",
+          ready: true,
+          modelInvocationAllowed: true,
+          items: [],
+        },
+        isLoading: false,
+        isError: false,
+        error: undefined,
+        refetch: vi.fn(),
+      });
 
-    renderPage(<KnowledgeProduction />);
+      renderPage(<KnowledgeProduction />);
 
-    await user.click(screen.getByRole("button", { name: "启动大模型生成" }));
-    await user.clear(screen.getByLabelText("来源锚点"));
-    await user.type(screen.getByLabelText("来源锚点"), "GL-VTE-2026:v1:section-2");
-    await user.clear(screen.getByLabelText("生成提示"));
-    await user.type(screen.getByLabelText("生成提示"), "请依据来源锚点生成结构化候选知识。");
-    await user.click(screen.getByRole("button", { name: "开始生成候选" }));
+      await user.click(screen.getByRole("button", { name: "启动大模型生成" }));
+      await user.clear(screen.getByLabelText("来源锚点"));
+      await user.type(screen.getByLabelText("来源锚点"), "GL-VTE-2026:v1:section-2");
+      await user.clear(screen.getByLabelText("生成提示"));
+      await user.type(screen.getByLabelText("生成提示"), "请依据来源锚点生成结构化候选知识。");
+      await user.click(screen.getByRole("button", { name: "开始生成候选" }));
 
-    await waitFor(() => expect(generateModelCandidate).toHaveBeenCalled());
-    expect(await screen.findByText("确认模型外调用途")).toBeInTheDocument();
-    expect(screen.getByText(/高敏患者上下文外调前需要责任确认/)).toBeInTheDocument();
-    expect(screen.getByText("sha256-confirmation-required")).toBeInTheDocument();
+      await waitFor(() => expect(generateModelCandidate).toHaveBeenCalled());
+      expect(await screen.findByText("确认模型外调用途")).toBeInTheDocument();
+      expect(screen.getByText(/高敏患者上下文外调前需要责任确认/)).toBeInTheDocument();
+      expect(screen.getByText("sha256-confirmation-required")).toBeInTheDocument();
 
-    await user.type(
-      screen.getByLabelText("用途说明"),
-      "确认用于知识候选生成，患者上下文已按最小必要出域",
-    );
-    await user.click(screen.getByRole("button", { name: "记录确认并重试" }));
+      await user.type(
+        screen.getByLabelText("用途说明"),
+        "确认用于知识候选生成，患者上下文已按最小必要出域",
+      );
+      await user.click(screen.getByRole("button", { name: "记录确认并重试" }));
 
-    await waitFor(() =>
-      expect(confirmModelEgress).toHaveBeenCalledWith({
-        capabilityCode: "knowledge.production.knowledge",
-        payloadHash: "sha256-confirmation-required",
-        purpose: "确认用于知识候选生成，患者上下文已按最小必要出域",
-      }),
-    );
-    await waitFor(() => expect(generateModelCandidate).toHaveBeenCalledTimes(2));
-  });
+      await waitFor(() =>
+        expect(confirmModelEgress).toHaveBeenCalledWith({
+          capabilityCode: "knowledge.production.knowledge",
+          payloadHash: "sha256-confirmation-required",
+          purpose: "确认用于知识候选生成，患者上下文已按最小必要出域",
+        }),
+      );
+      await waitFor(() => expect(generateModelCandidate).toHaveBeenCalledTimes(2));
+    },
+    KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS,
+  );
 
   it("approves only the frozen LOW subset of an initialization batch", async () => {
     const user = userEvent.setup();

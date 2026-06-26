@@ -59,7 +59,7 @@ describe("ServerDataTable", () => {
       dataIndex: "status" as const,
     }));
 
-    expect(() => renderTable({ columns: crowded })).toThrow(/技术字段应进入详情或证据详情/);
+    expect(() => renderTable({ columns: crowded })).toThrow(/追溯字段应进入详情或证据详情/);
     vi.restoreAllMocks();
   });
 

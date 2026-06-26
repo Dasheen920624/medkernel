@@ -165,6 +165,15 @@
   `rg -n "高级工具" frontend/src docs --glob '!docs/_HANDOFF.md'` 无结果、
   `npm test -- --run src/shared/ui/PageExperienceShell.test.tsx src/widgets/AppLayout.test.tsx src/shared/config/menu.test.ts src/shared/config/productRoleJourneys.test.ts src/pages/pages.smoke.test.tsx src/pages/advanced/GraphExplore.test.tsx`、
   `npm run typecheck`、`npm run lint`、`npm run format:check`、`npm run build`。
+- 全局治理语言与安全校验口径清理已在本地通过：客户面、当前权威文档、后端契约说明、五方言 COMMENT
+  和 schema 均不再使用 `SRE`、`技术字段`、`技术降级原因`、`技术校验`、`技术安全门`、`技术评测`、
+  `技术闸`、`技术门禁`、`技术门` 等旧口径；真实性门禁新增前端、当前文档、后端和数据库注释规则。
+  已验证：`node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
+  `rg -n "SRE|技术字段|技术降级原因|技术校验|技术安全门|技术评测|技术闸|技术门禁|技术门" frontend/src docs medkernel-backend/src/main/java medkernel-backend/src/main/resources/db/schema medkernel-backend/src/main/resources/db/migration --glob '!docs/_HANDOFF.md' --glob '!**/*.test.*' --glob '!**/*.stories.*'`
+  无结果、`npm test -- --run` 全量 `109 passed / 788 passed`、`npm run typecheck`、`npm run lint`、
+  `npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、`npm run build`、
+  `bash scripts/check-comment-zh.sh --mode=full`、`mvn -q test`、`mvn -q -DskipTests package`、
+  `git diff --check`；尚未重新部署 134。
 
 ## 本轮落地内容
 
@@ -209,7 +218,7 @@
   置信度、备用能力和来源依据；模型任务编号、策略、版本、提示词、工具、降级原文等低频证据改由
   当前审核对照抽屉内的“生产证据详情”展开。
 - 全局低频证据能力已收束为证据详情：前端偏好键、权限判断、页面壳、证据抽屉、服务端表格保存视图和租户品牌
-  字段统一使用证据详情语义；技术字段统一作为 `advancedOnly` 渐进展示，租户品牌五方言迁移和 schema 使用
+  字段统一使用证据详情语义；追溯字段统一作为 `advancedOnly` 渐进展示，租户品牌五方言迁移和 schema 使用
   `evidence_details_enabled`，不再保留身份化模式字段。
 - 全知识正式演练和八阶段全系统演练已补充 stdout 进度与证据可观察性：知识域开始/完成、模型任务耗时、
   V2 刷新、回滚、阶段耗时、完成/失败阶段数都会进入运行输出和总证据，避免长任务被误判为卡死。
@@ -261,6 +270,11 @@
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
   `npm run build`、`mvn -q -DskipTests package`、`bash scripts/check-comment-zh.sh --mode=full`、
   `git diff --check`；尚未重新部署 134。
+- 全局治理语言口径进一步收束为医院角色可理解的产品语义：诊断工具失败提示指向信息科，来源启用、
+  资产发布、模型评测统一为安全校验或安全评测，低频字段统一为追溯字段并进入证据详情；权威文档、
+  Java 契约说明、五方言 COMMENT 与 schema 同步，并由真实性门禁防回流。
+- 知识生产模型外调用途确认重交互测试补用同文件既有 15s 交互预算，消除全量并发下 5s 默认超时；
+  该调整只扩大真实前台交互测试预算，不改变产品运行逻辑。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -295,6 +309,7 @@
    生硬身份化开关、孤立技术入口或把关键安全/审计/业务判断证据藏起来的设计，后续都要改成上下文里的渐进证据、
    诊断信息或变更明细。
 5. 本地临床协同任务、随访协同体验薄片、沙盘场景目录语义清理、退役工具主域文本清理、性能压测契约、
-   旧口径门禁、客户面退役说明清理和全局治理语言清理还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，
+   旧口径门禁、客户面退役说明清理、全局治理语言清理和安全校验口径清理还未重新部署 134；
+   下一次清库/发布演练要纳入真实前台操作证据，
    不能把当前本地薄片或本地门禁误记为 134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

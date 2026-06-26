@@ -295,7 +295,7 @@ export default function AcquisitionSourceGovernancePanel({
         <Alert
           type="info"
           showIcon
-          message="来源配置、技术校验、运行获取"
+          message="来源配置、安全校验、运行获取"
           description="保存后默认停用；启用前系统校验域名、HTTPS、许可与 robots 边界，所有变更保留维护记录。"
         />
         {content}

@@ -41976,7 +41976,7 @@
     },
     {
       "name": "asset_validation_record",
-      "comment": "资产发布技术校验证据：精确绑定租户、版本和内容哈希，仅记录同步校验结果",
+      "comment": "资产发布安全校验证据：精确绑定租户、版本和内容哈希，仅记录同步校验结果",
       "columns": [
         {
           "name": "id",
@@ -41993,7 +41993,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "不可变技术校验证据标识"
+          "comment": "不可变安全校验证据标识"
         },
         {
           "name": "tenant_id",
@@ -42028,7 +42028,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "同步技术校验是否通过"
+          "comment": "同步安全校验是否通过"
         },
         {
           "name": "summary",
@@ -42037,7 +42037,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "技术校验结果摘要"
+          "comment": "安全校验结果摘要"
         },
         {
           "name": "validated_at",
@@ -42045,7 +42045,7 @@
           "nullable": false,
           "default": "CURRENT_TIMESTAMP",
           "identity": false,
-          "comment": "技术校验完成时间"
+          "comment": "安全校验完成时间"
         },
         {
           "name": "validated_by",
@@ -42054,7 +42054,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "触发技术校验的操作人"
+          "comment": "触发安全校验的操作人"
         },
         {
           "name": "trace_id",

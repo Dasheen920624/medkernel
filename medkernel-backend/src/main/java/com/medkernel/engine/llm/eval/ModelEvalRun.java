@@ -8,7 +8,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 模型服务与版本医学回归评测运行结果（LLM-07 FR-5）。
  *
- * <p>{@code status}：全部技术评测通过为 {@code PASSED}，可作为 {@code ENG-LLM-008} 上线门禁证据；
+ * <p>{@code status}：全部安全评测通过为 {@code PASSED}，可作为 {@code ENG-LLM-008} 上线门禁证据；
  * {@code FAILED} 阻断上线。{@code fakeCitationDetected}/{@code redLineBreach} 任一为真即 FAILED。
  * 每次运行绑定不可变的 {@code releaseFingerprint}，历史交付内容的评测结果不得用于当前部署放行。
  */

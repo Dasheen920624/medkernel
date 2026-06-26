@@ -238,18 +238,20 @@ test("前端生产文件会阻断客户面工程内部语言", async () => {
   const technicalReview = "技术" + "验证";
   const technicalConfig = "技术" + "配置";
   const technicalGate = "技术" + "门";
+  const technicalField = "技术" + "字段";
+  const technicalValidation = "技术" + "校验";
   await withFixture(
     {
       "frontend/src/pages/DevConsole.tsx": `
         export function DevConsole() {
-          return <PageShell title="${developerConsole}" description="等待${technicalReview}" />;
+          return <PageShell title="${developerConsole}" description="请让 SRE 等待${technicalReview}" />;
         }
       `,
       "frontend/src/pages/RuleDefinitions.tsx": `
         export const label = "L3 ${technicalConfig}";
       `,
       "frontend/src/pages/KnowledgeGovernance.tsx": `
-        export const message = "${technicalGate}尚未满足";
+        export const message = "${technicalGate}尚未满足，${technicalField}和${technicalValidation}进入详情";
       `,
     },
     async (root) => {
@@ -264,6 +266,70 @@ test("前端生产文件会阻断客户面工程内部语言", async () => {
         "frontend.customer-facing-engineering-language",
         "frontend.customer-facing-engineering-language",
         "frontend.customer-facing-engineering-language",
+      ]);
+    },
+  );
+});
+
+test("当前权威文档会阻断旧技术安全门口径", async () => {
+  const technicalSafetyGate = "技术" + "安全门";
+  const technicalEvaluation = "技术" + "评测";
+  const technicalField = "技术" + "字段";
+  const technicalValidation = "技术" + "校验";
+  await withFixture(
+    {
+      "docs/PRODUCT_SCOPE.md": `知识生产包含${technicalSafetyGate}。`,
+      "docs/glossary.md": `模型生成、${technicalEvaluation}和发布。`,
+      "docs/handbook/operations.md": `发布前核查${technicalValidation}和回滚。`,
+      "docs/EXPERIENCE_CONTRACT.md": `默认视图折叠${technicalField}。`,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "docs/PRODUCT_SCOPE.md",
+        "docs/glossary.md",
+        "docs/handbook/operations.md",
+        "docs/EXPERIENCE_CONTRACT.md",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "docs.customer-facing-safety-language",
+        "docs.customer-facing-safety-language",
+        "docs.customer-facing-safety-language",
+        "docs.customer-facing-safety-language",
+      ]);
+    },
+  );
+});
+
+test("后端与数据库中文注释会阻断旧安全校验口径", async () => {
+  const technicalEvaluation = "技术" + "评测";
+  const technicalValidation = "技术" + "校验";
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/llm/eval/ModelEvalRun.java": `
+        /** 全部${technicalEvaluation}通过后才能上线。 */
+        public record ModelEvalRun() {}
+      `,
+      "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql": `
+        COMMENT ON TABLE asset_validation_record IS '资产发布${technicalValidation}证据';
+      `,
+      "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json": `
+        {"comment":"${technicalValidation}结果摘要"}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/llm/eval/ModelEvalRun.java",
+        "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql",
+        "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-safety-language",
+        "db.customer-facing-safety-language",
+        "db.customer-facing-safety-language",
       ]);
     },
   );
