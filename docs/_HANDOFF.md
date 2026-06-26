@@ -174,6 +174,16 @@
   `npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、`npm run build`、
   `bash scripts/check-comment-zh.sh --mode=full`、`mvn -q test`、`mvn -q -DskipTests package`、
   `git diff --check`；尚未重新部署 134。
+- 全局实施内部口径清理已在本地通过：前端路由体验、后端契约/Javadoc、五方言 COMMENT 和 schema 均不再使用
+  `技术核验`、`技术发布链`、`来源版本技术信息`、`调试接口`、`调试前`、`通道调试`、`测试 Payload`、
+  `平台开发者`、`受控调试`、`技术类型` 等旧表达；真实性门禁新增共享路由配置、后端实施内部口径和数据库
+  `技术发布链` 拦截。已验证：`node --test scripts/authenticity-guard.test.mjs`、
+  `node scripts/authenticity-guard.mjs --mode=inventory`、
+  `rg -n "调试|测试 Payload|签名测试|技术发布链|技术核验|来源版本技术信息|平台开发者|受控调试|技术类型" frontend/src medkernel-backend/src/main/java medkernel-backend/src/main/resources/db/schema medkernel-backend/src/main/resources/db/migration --glob '!**/*.test.*' --glob '!**/*.stories.*'`
+  无结果、`npm test -- --run src/shared/config/routes.test.ts src/shared/config/customerLanguageGate.test.ts src/pages/operationalControlPages.test.tsx`、
+  `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
+  `npm run build`、`mvn -q -DskipTests package`、`bash scripts/check-comment-zh.sh --mode=full`、
+  `git diff --check`；尚未重新部署 134。
 
 ## 本轮落地内容
 
@@ -275,6 +285,9 @@
   Java 契约说明、五方言 COMMENT 与 schema 同步，并由真实性门禁防回流。
 - 知识生产模型外调用途确认重交互测试补用同文件既有 15s 交互预算，消除全量并发下 5s 默认超时；
   该调整只扩大真实前台交互测试预算，不改变产品运行逻辑。
+- 实施和信息科视角的内部口径继续收束：诊断工具路由说明改为“运行诊断信息”，Webhook 说明改为签名验证
+  和连通性验证，来源启用改为 robots 安全校验，来源版本缺项改为追溯信息不完整，路径试运行用于发布或复核前
+  回放，平台登录目录只说明平台接管和运行保障人员，规则治理 COMMENT 改为完整发布链。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -309,7 +322,7 @@
    生硬身份化开关、孤立技术入口或把关键安全/审计/业务判断证据藏起来的设计，后续都要改成上下文里的渐进证据、
    诊断信息或变更明细。
 5. 本地临床协同任务、随访协同体验薄片、沙盘场景目录语义清理、退役工具主域文本清理、性能压测契约、
-   旧口径门禁、客户面退役说明清理、全局治理语言清理和安全校验口径清理还未重新部署 134；
+   旧口径门禁、客户面退役说明清理、全局治理语言清理、安全校验口径清理和实施内部口径清理还未重新部署 134；
    下一次清库/发布演练要纳入真实前台操作证据，
    不能把当前本地薄片或本地门禁误记为 134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

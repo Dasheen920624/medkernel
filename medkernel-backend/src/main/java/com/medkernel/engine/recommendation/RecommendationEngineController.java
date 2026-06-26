@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 触发与来源解释属于受控写入（{@code recommendation.write}），
  * 列表与详情属于读（{@code recommendation.read}），
  * 医师反馈使用专属权限 {@code recommendation.accept}；
- * 不提供绕过权限或租户隔离的调试接口。
+ * 不提供绕过权限或租户隔离的旁路接口。
  */
 @RestController
 @RequestMapping("/api/v1/engine/recommendations")

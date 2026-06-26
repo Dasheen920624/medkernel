@@ -8365,7 +8365,7 @@ COMMENT ON COLUMN rule_governance.governance_id IS '业务字段：governance_id
 COMMENT ON COLUMN rule_governance.tenant_id IS '租户标识';
 COMMENT ON COLUMN rule_governance.rule_version_id IS '业务字段：rule_version_id';
 COMMENT ON COLUMN rule_governance.state IS '业务字段：state';
-COMMENT ON COLUMN rule_governance.author_id IS '规则版本负责人，可确认并推进完整技术发布链';
+COMMENT ON COLUMN rule_governance.author_id IS '规则版本负责人，可确认并推进完整发布链';
 COMMENT ON COLUMN rule_governance.last_reason IS '业务字段：last_reason';
 COMMENT ON COLUMN rule_governance.created_at IS '创建时间';
 COMMENT ON COLUMN rule_governance.created_by IS '创建人';

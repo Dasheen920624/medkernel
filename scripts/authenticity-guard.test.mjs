@@ -240,6 +240,7 @@ test("前端生产文件会阻断客户面工程内部语言", async () => {
   const technicalGate = "技术" + "门";
   const technicalField = "技术" + "字段";
   const technicalValidation = "技术" + "校验";
+  const controlledDebug = "受控" + "调试" + "信息";
   await withFixture(
     {
       "frontend/src/pages/DevConsole.tsx": `
@@ -253,16 +254,24 @@ test("前端生产文件会阻断客户面工程内部语言", async () => {
       "frontend/src/pages/KnowledgeGovernance.tsx": `
         export const message = "${technicalGate}尚未满足，${technicalField}和${technicalValidation}进入详情";
       `,
+      "frontend/src/shared/config/routes.ts": `
+        export const route = {
+          title: "诊断工具",
+          experience: readonlyExperience("平台管理员", "核查${controlledDebug}", "最近诊断"),
+        };
+      `,
     },
     async (root) => {
       const report = await scanFiles(root, [
         "frontend/src/pages/DevConsole.tsx",
         "frontend/src/pages/RuleDefinitions.tsx",
         "frontend/src/pages/KnowledgeGovernance.tsx",
+        "frontend/src/shared/config/routes.ts",
       ]);
 
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), [
+        "frontend.customer-facing-engineering-language",
         "frontend.customer-facing-engineering-language",
         "frontend.customer-facing-engineering-language",
         "frontend.customer-facing-engineering-language",
@@ -328,6 +337,69 @@ test("后端与数据库中文注释会阻断旧安全校验口径", async () =>
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), [
         "backend.customer-facing-safety-language",
+        "db.customer-facing-safety-language",
+        "db.customer-facing-safety-language",
+      ]);
+    },
+  );
+});
+
+test("前后端契约会阻断实施内部口径残留", async () => {
+  const technicalCheck = "技术" + "核验";
+  const technicalReleaseChain = "技术" + "发布链";
+  const sourceVersionTechInfo = "来源版本" + "技术" + "信息";
+  const platformDeveloper = "平台" + "开发者";
+  const debugBefore = "调试" + "前";
+  const channelDebug = "通道" + "调试";
+  const testPayload = "测试 " + "Payload";
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/acquisition/AcquisitionController.java": `
+        /** 启用已经完成来源真实性、许可和 robots ${technicalCheck}的资料来源。 */
+        public class AcquisitionController {}
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/security/auth/LoginTenantDirectoryService.java": `
+        /** 平台主租户退到第二层给${platformDeveloper}和运维人员使用。 */
+        public class LoginTenantDirectoryService {}
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/pathway/PathwaySimulationResponse.java": `
+        /** 用于在发布或${debugBefore}回放路径走向。 */
+        public record PathwaySimulationResponse() {}
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/integration/dto/WebhookTestDto.java": `
+        /** 用于在 Webhook 订阅${channelDebug}中传递${testPayload}报文。 */
+        public record WebhookTestDto() {}
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/initialization/KnowledgeInitializationService.java": `
+        public class KnowledgeInitializationService {
+          String message = "${sourceVersionTechInfo}不完整";
+        }
+      `,
+      "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql": `
+        COMMENT ON COLUMN rule_governance.author_id IS '规则版本负责人，可确认并推进完整${technicalReleaseChain}';
+      `,
+      "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json": `
+        {"comment":"规则版本负责人，可确认并推进完整${technicalReleaseChain}"}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/acquisition/AcquisitionController.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/security/auth/LoginTenantDirectoryService.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/pathway/PathwaySimulationResponse.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/integration/dto/WebhookTestDto.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/initialization/KnowledgeInitializationService.java",
+        "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql",
+        "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
         "db.customer-facing-safety-language",
         "db.customer-facing-safety-language",
       ]);

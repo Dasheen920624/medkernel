@@ -48,7 +48,7 @@ import com.medkernel.shared.context.RequestContext;
 /**
  * 外部第三方系统对接及集成核心业务逻辑服务。
  *
- * <p>实现适配器生命周期管理（健康检查、配置预检）、外部 Webhook 签名测试、
+ * <p>实现适配器生命周期管理（健康检查、配置预检）、外部 Webhook 签名验证、
  * 接口集成消息队列的多租户分页查询、以及死信队列（Dead Letter）的一键手动重试及业务补偿。
  */
 @Service
@@ -597,12 +597,12 @@ public class IntegrationService {
     }
 
     /**
-     * 对指定 Webhook 回调通道执行双向安全签名演算连通性自测试。
+     * 对指定 Webhook 回调通道执行双向安全签名演算连通性自验证。
      *
-     * <p>结合防回放 timestamp 以及 payload 进行 HMAC-SHA256 签名推导测试。
+     * <p>结合防回放 timestamp 以及报文进行 HMAC-SHA256 签名推导验证。
      *
      * @param tenantId 租户标识
-     * @param dto      测试报文要素 DTO (含 Webhook ID 及测试 Payload)
+     * @param dto      验证报文要素 DTO（含 Webhook ID 及验证报文）
      * @return 包含共享密钥、签名拼接规则、防回放时间戳及最终签名的推导结果 Map
      * @throws ApiException 若 Webhook 配置不存在抛出 ENG_INTEG_003，签名计算错误抛出 INTERNAL_ERROR
      */

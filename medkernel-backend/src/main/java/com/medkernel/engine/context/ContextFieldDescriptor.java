@@ -9,7 +9,7 @@ package com.medkernel.engine.context;
  *
  * <p>字段按业务层级组织：{@code category}（一级业务域，如「医嘱信息」）→ {@code group}
  * （二级分组，如「用药医嘱」）→ 字段，贴合临床认知；{@code resourceType} 为底层 canonical
- * 技术类型，保留用于过滤与追溯。
+ * 资源类型，保留用于过滤与追溯。
  *
  * @param category     一级业务域（基本信息/诊断信息/医嘱信息/检验检查/…）
  * @param group        二级业务分组（患者基本信息/用药医嘱/检验体征结果/…）

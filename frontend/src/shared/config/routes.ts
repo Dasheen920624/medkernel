@@ -944,7 +944,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     menuLabel: "诊断工具",
     placement: "primary",
     navigationOrder: 5,
-    experience: readonlyExperience("平台管理员", "核查受控调试信息", "最近诊断", "large"),
+    experience: readonlyExperience("平台管理员", "核查运行诊断信息", "最近诊断", "large"),
     pageType: "advanced",
   },
   {

@@ -38033,7 +38033,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "规则版本负责人，可确认并推进完整技术发布链"
+          "comment": "规则版本负责人，可确认并推进完整发布链"
         },
         {
           "name": "last_reason",

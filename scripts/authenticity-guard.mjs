@@ -13,6 +13,7 @@ import {
 
 const FRONTEND_SOURCE = /^frontend\/src\/(?:pages|features|widgets)\/.+\.(?:ts|tsx)$/;
 const FRONTEND_SHARED_API = /^frontend\/src\/shared\/api\/.+\.(?:ts|tsx)$/;
+const FRONTEND_SHARED_CONFIG = /^frontend\/src\/shared\/config\/.+\.ts$/;
 const FRONTEND_CSS = /^frontend\/src\/.+\.module\.css$/;
 const FRONTEND_E2E = /^frontend\/e2e\/.+\.(?:ts|tsx)$/;
 const FRONTEND_ROUTER = /^frontend\/src\/app\/router\.tsx$/;
@@ -66,7 +67,7 @@ const FRONTEND_RULES = [
     message:
       "前端客户面禁止把治理、诊断和受控配置表达成开发或工程内部语言。",
     pattern:
-      /开发者控制台|技术验证|技术配置|技术闸|技术阻断|技术门禁|技术门|技术安全门|技术评测|技术字段|技术降级原因|技术校验|\bSRE\b/,
+      /开发者控制台|技术验证|技术配置|技术闸|技术阻断|技术门禁|技术门|技术安全门|技术评测|技术字段|技术降级原因|技术校验|受控调试|调试信息|\bSRE\b/,
   },
   {
     ruleId: "frontend.technical-object-visible",
@@ -126,6 +127,16 @@ const FRONTEND_SHARED_API_RULES = [
   },
 ];
 
+const FRONTEND_SHARED_CONFIG_RULES = [
+  {
+    ruleId: "frontend.customer-facing-engineering-language",
+    message:
+      "前端客户面禁止把治理、诊断和受控配置表达成开发或工程内部语言。",
+    pattern:
+      /开发者控制台|技术验证|技术配置|技术闸|技术阻断|技术门禁|技术门|技术安全门|技术评测|技术字段|技术降级原因|技术校验|受控调试|调试信息|\bSRE\b/,
+  },
+];
+
 const FRONTEND_CSS_RULES = [
   {
     ruleId: "frontend.css-hardcoded-color",
@@ -169,12 +180,18 @@ const CURRENT_DOC_RULES = [
 const DB_COMMENT_RULES = [
   {
     ruleId: "db.customer-facing-safety-language",
-    message: "数据库中文注释禁止继续使用技术安全门、技术评测或技术校验旧口径。",
-    pattern: /技术安全门|技术评测|技术校验/,
+    message: "数据库中文注释禁止继续使用技术安全门、技术评测、技术校验或技术发布链旧口径。",
+    pattern: /技术安全门|技术评测|技术校验|技术发布链/,
   },
 ];
 
 const BACKEND_RULES = [
+  {
+    ruleId: "backend.customer-facing-internal-operation-language",
+    message: "后端生产契约和注释禁止继续使用面向实施内部的旧口径。",
+    pattern:
+      /技术核验|技术发布链|来源版本技术信息|平台开发者|调试接口|调试前|通道调试|测试\s*Payload/,
+  },
   {
     ruleId: "backend.customer-facing-safety-language",
     message: "后端生产中文注释和契约说明禁止继续使用技术安全门、技术评测或技术校验旧口径。",
@@ -411,6 +428,7 @@ function rulesForFile(file) {
   if (FRONTEND_ALLOWLIST.test(file)) return [];
   if (FRONTEND_SOURCE.test(file)) return FRONTEND_RULES;
   if (FRONTEND_SHARED_API.test(file)) return FRONTEND_SHARED_API_RULES;
+  if (FRONTEND_SHARED_CONFIG.test(file)) return FRONTEND_SHARED_CONFIG_RULES;
   if (FRONTEND_CSS.test(file)) return FRONTEND_CSS_RULES;
   if (CURRENT_DOCS.test(file)) return CURRENT_DOC_RULES;
   if (DB_COMMENT_CONTRACT.test(file)) return DB_COMMENT_RULES;
