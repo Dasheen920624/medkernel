@@ -493,7 +493,7 @@ function CustomerTenantImplementation() {
         state="error"
         stateProps={{
           title: "机构实施状态读取失败",
-          description: "请重试；若持续失败，请带追踪号联系信息科排查机构空间与组织服务。",
+          description: "请重试；若持续失败，请带追踪号联系信息科核查服务机构与组织服务。",
           onRetry: () => {
             void refetchOrgs();
             void refetchReadiness();
@@ -513,7 +513,7 @@ function CustomerTenantImplementation() {
         state="empty"
         stateProps={{
           title: "暂无实施就绪步骤",
-          description: "当前服务机构尚未返回实施就绪步骤，请确认机构空间已经建立。",
+          description: "当前服务机构尚未返回实施就绪步骤，请确认服务机构和组织范围已经建立。",
           onRetry: () => {
             void refetchReadiness();
           },

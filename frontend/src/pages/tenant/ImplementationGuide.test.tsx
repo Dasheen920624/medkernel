@@ -114,7 +114,11 @@ describe("ImplementationGuide", () => {
     renderGuide();
 
     expect(screen.getByText("暂无实施步骤")).toBeInTheDocument();
+    expect(
+      screen.getByText("当前服务机构尚未返回实施步骤，请先确认服务机构与组织范围已建立。"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("跨部门、跨系统的 9 步交付模型")).not.toBeInTheDocument();
+    expect(screen.queryByText(/服务空间/)).not.toBeInTheDocument();
   });
 
   it("shows an error state with retry when implementation steps cannot be loaded", () => {
@@ -123,6 +127,10 @@ describe("ImplementationGuide", () => {
     renderGuide();
 
     expect(screen.getByText("实施步骤读取失败")).toBeInTheDocument();
+    expect(
+      screen.getByText("请重试；若持续失败，请带追踪号联系信息科核查实施服务。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/服务空间/)).not.toBeInTheDocument();
     screen.getByRole("button", { name: "重试" }).click();
     expect(apiMocks.implementationStepsRefetch).toHaveBeenCalledTimes(1);
   });

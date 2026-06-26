@@ -96,7 +96,7 @@ export default function ImplementationGuide() {
         state="error"
         stateProps={{
           title: "实施步骤读取失败",
-          description: "请重试；若持续失败，请带追踪号联系信息科排查服务空间服务。",
+          description: "请重试；若持续失败，请带追踪号联系信息科核查实施服务。",
           onRetry: () => refetch(),
         }}
       >
@@ -113,7 +113,7 @@ export default function ImplementationGuide() {
         state="empty"
         stateProps={{
           title: "暂无实施步骤",
-          description: "当前服务机构尚未返回实施步骤，请先确认服务空间与组织范围已建立。",
+          description: "当前服务机构尚未返回实施步骤，请先确认服务机构与组织范围已建立。",
         }}
       >
         <></>

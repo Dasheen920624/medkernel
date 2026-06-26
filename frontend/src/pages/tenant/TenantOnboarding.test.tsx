@@ -278,7 +278,28 @@ describe("TenantOnboarding", () => {
     renderPage(<TenantOnboarding />);
 
     expect(screen.getByText("机构实施状态读取失败")).toBeInTheDocument();
+    expect(
+      screen.getByText("请重试；若持续失败，请带追踪号联系信息科核查服务机构与组织服务。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/机构空间/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+  });
+
+  it("keeps empty readiness guidance in service institution language", () => {
+    mockHooks({
+      readiness: {
+        ...blockedReadiness,
+        steps: [],
+      },
+    });
+
+    renderPage(<TenantOnboarding />);
+
+    expect(screen.getByText("暂无实施就绪步骤")).toBeInTheDocument();
+    expect(
+      screen.getByText("当前服务机构尚未返回实施就绪步骤，请确认服务机构和组织范围已经建立。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/机构空间/)).not.toBeInTheDocument();
   });
 
   it("仅允许平台治理空间开通服务机构空间", async () => {
