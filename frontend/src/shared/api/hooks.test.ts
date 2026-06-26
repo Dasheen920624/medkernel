@@ -185,6 +185,7 @@ import {
   useReportFollowupAbnormal,
   useSaveWorkflowNotificationSettings,
   useSaveWorkflowSystemNotificationSettings,
+  type SecurityProfile,
   useSplitMpiPatient,
   useTransferWorkflowTodo,
   useUnfavoriteAuthoringAsset,
@@ -205,7 +206,7 @@ vi.mock("./client", () => ({
   },
 }));
 
-function securityProfile() {
+function securityProfile(): SecurityProfile {
   return {
     userId: "user-1",
     username: "platform-admin",
@@ -233,17 +234,18 @@ function securityProfile() {
     mustChangePwd: false,
     mfaRequired: false,
     mfaBound: true,
+    mfaVerified: true,
   };
 }
 
-function renderApiHook<T>(hook: () => T) {
+function renderApiHook<T>(hook: () => T, profile = securityProfile()) {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
       mutations: { retry: false },
     },
   });
-  client.setQueryData(["security", "me"], securityProfile());
+  client.setQueryData(["security", "me"], profile);
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client }, children);
   return renderHook(hook, { wrapper });
@@ -3074,6 +3076,27 @@ describe("terminology mapping api helpers", () => {
       expect.objectContaining({
         candidateIds: [11],
       }),
+    );
+  });
+
+  it("requires a service institution and role before submitting standard context requests", async () => {
+    const profile = {
+      ...securityProfile(),
+      roles: [],
+      dataScope: { ...securityProfile().dataScope, tenantId: null },
+    };
+    const generate = renderApiHook(() => useGenerateTerminologyCandidates(), profile);
+
+    await expect(
+      generate.result.current.mutateAsync({
+        sourceSystem: "LIS",
+        minimumScore: 0.6,
+        semanticAssistEnabled: false,
+      }),
+    ).rejects.toThrow("标准上下文缺少服务机构或角色，请刷新用户状态后重试。");
+    expect(apiClient.post).not.toHaveBeenCalledWith(
+      "/engine/terminology/mappings/candidates",
+      expect.anything(),
     );
   });
 

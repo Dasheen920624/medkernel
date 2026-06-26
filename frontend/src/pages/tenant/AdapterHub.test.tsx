@@ -504,6 +504,12 @@ describe("AdapterHub", () => {
     expect(screen.getByText("缺少 EMR 适配器")).toBeInTheDocument();
     expect(screen.getByText("数据接入契约")).toBeInTheDocument();
     expect(screen.getByText("选模板/导入")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("tab", { name: "数据质量看板" }));
+    expect(screen.getByText("尚未生成本轮数据质量报告")).toBeInTheDocument();
+    expect(screen.getByText(/当前服务机构的适配器、字段映射和探活事实/)).toBeInTheDocument();
+    expect(screen.queryByText(/当前服务空间/)).not.toBeInTheDocument();
+
     expect(screen.queryByText(/Webhook 回调订阅安全自研沙箱/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Launch Token/)).not.toBeInTheDocument();
   });

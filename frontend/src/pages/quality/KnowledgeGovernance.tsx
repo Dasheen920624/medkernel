@@ -2390,7 +2390,7 @@ export default function KnowledgeGovernance({
         type="info"
         showIcon
         message="当前位于平台治理空间"
-        description="平台负责维护权威标准；机构定制、发布和恢复操作在对应医疗机构空间内完成。"
+        description="平台负责维护权威标准；机构定制、发布和恢复操作在对应医疗机构内完成。"
       />
     );
   } else {

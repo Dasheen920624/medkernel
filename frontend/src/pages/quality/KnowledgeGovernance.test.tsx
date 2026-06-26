@@ -938,6 +938,23 @@ describe("KnowledgeGovernance", () => {
     expect(screen.queryByText("模型生产上线准备")).not.toBeInTheDocument();
   });
 
+  it("keeps platform-source guidance in service institution language", () => {
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "t-1" },
+        permissions: [{ code: "knowledge.write" }],
+      },
+    });
+
+    renderPage(<InstitutionKnowledge />);
+
+    expect(screen.getByText("当前位于平台治理空间")).toBeInTheDocument();
+    expect(
+      screen.getByText("平台负责维护权威标准；机构定制、发布和恢复操作在对应医疗机构内完成。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/机构空间/)).not.toBeInTheDocument();
+  });
+
   it("separates platform-source and tenant-overlay production lanes with visible ownership labels", () => {
     mockUseKnowledgeProductionJobs.mockReturnValue({
       data: {

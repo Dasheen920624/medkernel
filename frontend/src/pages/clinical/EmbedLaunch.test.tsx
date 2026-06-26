@@ -85,6 +85,30 @@ describe("EmbedLaunch", () => {
     expect(screen.queryByText("tr-local-embed-9122")).not.toBeInTheDocument();
   });
 
+  it("explains invalid embedded sessions with service institution allow-list language", () => {
+    mockUseEmbedLaunch.mockReturnValue({
+      data: {
+        userId: "doctor-1",
+        roleCode: "clinical-user",
+        tenantId: "tenant-A",
+        patientId: "MPI-1001",
+        encounterId: "ENC-2001",
+        triggerPoint: "ORDER_ENTRY",
+        active: false,
+        traceId: "trace-invalid-1",
+        parentOrigin: "https://unknown.example.com",
+      },
+      isLoading: false,
+      isError: false,
+    } as ReturnType<typeof useEmbedLaunch>);
+
+    renderEmbedLaunch();
+
+    expect(screen.getByText("临床建议会话已安全隔离")).toBeInTheDocument();
+    expect(screen.getByText("来源系统未通过当前服务机构的允许清单校验。")).toBeInTheDocument();
+    expect(screen.queryByText(/服务空间/)).not.toBeInTheDocument();
+  });
+
   it("submits the selected card and posts physician feedback only to the validated parent origin", async () => {
     const submitFeedback = vi.fn().mockResolvedValue({
       token: "launch-token",

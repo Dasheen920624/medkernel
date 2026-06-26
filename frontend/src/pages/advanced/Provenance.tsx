@@ -476,7 +476,7 @@ export default function Provenance() {
             message="知识身份读取失败"
             description={getApiErrorMessage(
               identitiesQuery.error,
-              "请检查登录权限、服务空间或知识服务状态。",
+              "请检查登录权限、服务机构范围或知识服务状态。",
             )}
           />
         )}

@@ -175,7 +175,7 @@ export default function EmbedLaunch() {
             <ul className={styles.bulletList}>
               <li>一次性启动凭证仅允许使用一次。</li>
               <li>当前嵌入会话已结案或失效。</li>
-              <li>来源系统未通过当前服务空间的允许清单校验。</li>
+              <li>来源系统未通过当前服务机构的允许清单校验。</li>
             </ul>
           </div>
           <Alert

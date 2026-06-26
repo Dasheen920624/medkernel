@@ -522,7 +522,7 @@ function readableScope(applicability: RuleApplicability) {
   ].filter(Boolean);
   return [
     settingText.join("、") || "未配置场景",
-    orgText.join("、") || "当前服务空间全部组织",
+    orgText.join("、") || "当前服务机构全部组织",
     effectiveText.join(" · "),
   ].join(" · ");
 }
@@ -3384,7 +3384,7 @@ export default function RuleDefinitions() {
                     ...(detailTree.applicability.orgScope.deptIds ?? []).map(
                       (value) => `科室 ${value}`,
                     ),
-                  ].join("、") || "当前服务空间全部组织"}
+                  ].join("、") || "当前服务机构全部组织"}
                 </Descriptions.Item>
                 <Descriptions.Item label="生效范围">
                   {detailTree.applicability.effective.from ?? "立即生效"} 至{" "}
@@ -4640,7 +4640,7 @@ export default function RuleDefinitions() {
               <Form.Item
                 name="ruleCode"
                 label="规则唯一业务编码"
-                rules={[{ required: true, message: "请输入编码，同一服务空间内不可重复" }]}
+                rules={[{ required: true, message: "请输入编码，同一服务机构内不可重复" }]}
               >
                 <Input placeholder="输入规则业务编码" disabled={Boolean(editingRuleId)} />
               </Form.Item>

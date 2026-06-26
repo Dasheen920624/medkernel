@@ -513,14 +513,21 @@
   `npm test -- --run src/pages/compliance/NotificationSettings.test.tsx src/pages/compliance/AdminAudit.test.tsx`、
   `npm test -- --run src/shared/config/routes.test.ts src/pages/pages.smoke.test.tsx`；尚未重新部署 134。
 - 服务机构开通台账、开通表单、开通结果、组织编码提示和品牌归属预览已继续按平台管理员、实施工程师和
-  信息科视角收束：平台治理入口统一使用服务机构/服务机构标识，不再把租户运行分区表达为机构空间；
+  信息科视角收束：平台治理入口统一使用服务机构/服务机构标识，不再把内部运行分区术语交给院方用户；
   组织节点和品牌预览也回到当前服务机构语义。已验证：
   `npm test -- --run src/pages/tenant/TenantOnboarding.test.tsx`；尚未重新部署 134。
 - 首次部署接管和安全基线系统配置已继续按院方管理员、信息科、实施工程师和平台管理员视角收束：
   初始管理员创建后的后续账号、集团/医院开通提示和安全基线服务机构覆盖输入框统一使用服务机构语义，
-  不再把用户需要维护的机构边界表达为服务空间。已验证：
+  不再用内部运行分区术语解释用户需要维护的机构边界。已验证：
   `npm test -- --run src/pages/Bootstrap.test.tsx`、
   `npm test -- --run src/pages/compliance/SecurityBaseline.test.tsx`；尚未重新部署 134。
+- 模型能力、知识治理、嵌入临床建议、规则配置、标准上下文、术语映射、系统接入、知识血缘、词汇表和开通服务
+  注释已继续按医生、护士、信息科、实施工程师、医疗引擎运营员、知识管理员和平台管理员视角收束：
+  模型配置摘要、平台知识维护提示、嵌入来源允许清单、规则适用范围/编码校验、标准上下文错误、术语资产范围、
+  适配器质量快照和知识身份错误态统一使用服务机构/医疗机构/机构范围语义，不再把内部运行分区术语交给前台用户
+  或当前协作文档。已验证：
+  `npm test -- --run src/pages/advanced/AiWorkflows.test.tsx src/pages/quality/KnowledgeGovernance.test.tsx src/pages/clinical/EmbedLaunch.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/shared/api/hooks.test.ts src/pages/tenant/TerminologyMapping.test.tsx src/pages/tenant/AdapterHub.test.tsx src/pages/advanced/Provenance.test.tsx`；
+  旧空间类客户面词扫描在 `frontend/src`、`medkernel-backend/src` 和 `docs` 当前文档中无命中；尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -568,7 +575,8 @@
    临床提醒反馈与频次治理医生/护士视角清理、随访协同统计/模板/异常回院登记多角色体验清理、
    临床通知/协同任务/MPI 组织范围和信息科提示清理、全局顶栏与权限指纹范围语言清理、
    实施与服务机构就绪空态/错误态清理、通知偏好/审计证据/路由体验范围语言清理、
-   服务机构开通台账与表单语言清理、首次部署接管和安全基线范围语言清理
+   服务机构开通台账与表单语言清理、首次部署接管和安全基线范围语言清理、
+   模型/知识/嵌入/规则/术语/接入/知识血缘范围语言清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

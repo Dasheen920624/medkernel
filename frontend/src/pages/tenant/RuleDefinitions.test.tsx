@@ -464,6 +464,11 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     expect(within(dialog).queryByLabelText("标准上下文" + "包版本")).not.toBeInTheDocument();
     expect(within(dialog).getByText("规则版本独立维护")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("临床触发场景")).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "创建草稿" }));
+    expect(
+      await within(dialog).findByText("请输入编码，同一服务机构内不可重复"),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByText(/服务空间/)).not.toBeInTheDocument();
   });
 
   it(
@@ -990,6 +995,8 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       });
 
       const user = await openDraftRuleDrawer();
+      expect((await screen.findAllByText(/当前服务机构全部组织/)).length).toBeGreaterThan(0);
+      expect(screen.queryByText(/当前服务空间/)).not.toBeInTheDocument();
       await user.click(screen.getByRole("tab", { name: /真实快照试运行/ }));
       await user.click(screen.getByRole("switch", { name: "受控配置视图" }));
 

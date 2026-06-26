@@ -70,7 +70,7 @@ public class TenantProvisioningService {
         this.passwordPolicy = passwordPolicy;
     }
 
-    /** 列出客户租户根组织，不暴露唯一平台主租户。 */
+    /** 列出客户服务机构根组织，不暴露唯一平台主机构。 */
     @Transactional(readOnly = true)
     public List<TenantSummary> listTenants() {
         return orgUnits.findAllTenantRoots().stream()
@@ -79,7 +79,7 @@ public class TenantProvisioningService {
             .toList();
     }
 
-    /** 开通客户服务空间：建根组织 + 首个平台管理员账号（须首登改密）。 */
+    /** 开通客户服务机构：建根组织 + 首个平台管理员账号（须首登改密）。 */
     @Transactional
     public ProvisionTenantResponse provisionTenant(ProvisionTenantRequest req) {
         String tenantId = req.tenantId().trim();

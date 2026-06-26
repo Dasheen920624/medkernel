@@ -132,7 +132,7 @@ function capabilityDetails(item: ModelCapabilityStatusResponse) {
         {desensitizeStrategyView[item.desensitizeStrategy] ??
           customerEnumLabel(item.desensitizeStrategy)}
       </Descriptions.Item>
-      <Descriptions.Item label="服务空间专属配置">{configurationModeLabel(item)}</Descriptions.Item>
+      <Descriptions.Item label="服务机构专属配置">{configurationModeLabel(item)}</Descriptions.Item>
       <Descriptions.Item label="策略作用域">
         <Text code>{scopeLabel}</Text>
       </Descriptions.Item>
@@ -571,7 +571,7 @@ export default function AiWorkflows() {
             <strong>{summary.baseline}</strong>
           </div>
           <div className={styles.summaryItem}>
-            <Text type="secondary">服务空间已配置</Text>
+            <Text type="secondary">服务机构已配置</Text>
             <strong>{summary.configured}</strong>
           </div>
           <div className={styles.summaryItem}>

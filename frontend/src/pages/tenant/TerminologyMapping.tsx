@@ -226,7 +226,7 @@ function assetScopeOptions(profile: SecurityProfile | undefined) {
     { level: "CAMPUS", code: scope.campusId, label: "当前院区" },
     { level: "FACILITY", code: facilityId, label: "当前机构" },
     { level: "REGION", code: scope.groupId, label: "当前区域" },
-    { level: "TENANT", code: scope.tenantId, label: "当前服务空间" },
+    { level: "TENANT", code: scope.tenantId, label: "当前服务机构" },
   ]
     .filter((item): item is { level: string; code: string; label: string } => Boolean(item.code))
     .map((item) => ({

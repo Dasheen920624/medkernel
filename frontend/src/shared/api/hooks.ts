@@ -97,7 +97,7 @@ function standardApiContext(profile: SecurityProfile | undefined): StandardApiCo
   const tenantId = profile.dataScope?.tenantId;
   const roleCodes = profile.roles.map((role) => role.code).filter(Boolean);
   if (!tenantId || roleCodes.length === 0) {
-    throw new Error("标准上下文缺少服务空间或角色，请刷新用户状态后重试。");
+    throw new Error("标准上下文缺少服务机构或角色，请刷新用户状态后重试。");
   }
   const traceId = crypto.randomUUID();
   const context: StandardApiContextFields = {
