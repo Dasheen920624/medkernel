@@ -227,7 +227,7 @@ export default function ImplementationGuide() {
                     size="small"
                     split={false}
                     dataSource={step.blockers}
-                    locale={{ emptyText: "后端未返回阻塞原因" }}
+                    locale={{ emptyText: "当前未返回阻塞原因" }}
                     renderItem={(blocker) => (
                       <List.Item className={styles.blockerItem}>
                         <Text type="warning">{blocker}</Text>

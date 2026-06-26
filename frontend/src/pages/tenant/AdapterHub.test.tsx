@@ -594,7 +594,7 @@ describe("AdapterHub", () => {
   });
 
   it(
-    "creates adapters with the backend protocol contract and structured field mappings",
+    "creates adapters with the service protocol contract and structured field mappings",
     async () => {
       const user = userEvent.setup();
       const createAdapter = mutation(hisAdapter);
@@ -708,11 +708,11 @@ describe("AdapterHub", () => {
       webhookId: "clinical-events",
       payload: '{"event":"clinical.test"}',
     });
-    expect(await screen.findByText("未发起外部连通测试")).toBeInTheDocument();
+    expect(await screen.findByText("签名已在本地生成，未向外部地址发起请求。")).toBeInTheDocument();
     expect(screen.getByText("sha256=preview-signature")).toBeInTheDocument();
   }, 15_000);
 
-  it("registers a graded regional source instead of leaving the backend-only done item unusable", async () => {
+  it("registers a graded regional source instead of leaving the service-only done item unusable", async () => {
     const user = userEvent.setup();
     const registerSource = mutation(regionalSource);
     vi.mocked(useRegisterRegionalSource).mockReturnValue(registerSource as never);

@@ -234,7 +234,7 @@ describe("AdminAudit", () => {
     );
   });
 
-  it("uses backend cursors and public audit fields instead of client-side pagination", async () => {
+  it("uses service cursors and public audit fields instead of client-side pagination", async () => {
     const user = userEvent.setup();
     render(<AdminAudit />);
 

@@ -1087,7 +1087,7 @@ export default function AdminAudit() {
                   message={verifyResult.isValid ? "证据验签通过" : "证据验签失败"}
                   description={
                     verifyResult.signatureValid
-                      ? "存储指纹、计算指纹与国密签名已由后端核验。"
+                      ? "存储指纹、计算指纹与国密签名已由平台核验。"
                       : "国密签名无效，请立即停止使用该导出文件并核查审计事件。"
                   }
                 />

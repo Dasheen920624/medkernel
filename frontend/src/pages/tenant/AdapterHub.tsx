@@ -955,7 +955,7 @@ export default function AdapterHub() {
               message={HEALTH_ALERT_MESSAGE[healthResult.healthStatus] ?? "外部系统当前不可达"}
               description={`适配器 ${healthResult.adapterId} 返回 ${healthResult.healthStatus}，RTT ${
                 healthResult.rttMs > 0 ? `${healthResult.rttMs}ms` : "未测量"
-              }。页面仅展示后端真实状态。`}
+              }。页面仅展示平台记录的真实状态。`}
             />
           )}
 
@@ -1106,7 +1106,7 @@ export default function AdapterHub() {
                         type="info"
                         showIcon
                         message="尚未生成本轮数据质量报告"
-                        description="点击页面右上角“生成质量报告”，后端会基于当前服务空间的适配器、字段映射和探活事实生成快照。"
+                        description="点击页面右上角“生成质量报告”，平台会基于当前服务空间的适配器、字段映射和探活事实生成快照。"
                       />
                     )}
                     <div className={styles.qualityGrid}>
@@ -1124,7 +1124,7 @@ export default function AdapterHub() {
                   <div className={styles.sectionStack}>
                     <div className={styles.toolbar}>
                       <Text type="secondary">
-                        接入申请必须先完成鉴权、字段映射和健康检查，再由后端推进状态。
+                        接入申请必须先完成鉴权、字段映射和健康检查，再由平台推进状态。
                       </Text>
                       <Button
                         icon={<PlusOutlined aria-hidden="true" />}
@@ -1314,7 +1314,7 @@ export default function AdapterHub() {
           type="warning"
           showIcon
           message="共享密钥仅显示一次"
-          description="请立即保存到受控凭证系统。关闭后，列表、测试和日志均不会再次返回该密钥。"
+          description="请立即保存到受控凭证系统。关闭后，列表、签名预览和日志均不会再次返回该密钥。"
         />
         <Text className={styles.secretValue}>{createdWebhook?.sharedSecret}</Text>
       </Modal>
@@ -1442,7 +1442,7 @@ export default function AdapterHub() {
                 },
               ]}
             >
-              <Input.TextArea rows={6} placeholder="输入后端契约支持的适配器配置文本" />
+              <Input.TextArea rows={6} placeholder="输入服务契约支持的适配器配置文本" />
             </Form.Item>
           ) : (
             <>

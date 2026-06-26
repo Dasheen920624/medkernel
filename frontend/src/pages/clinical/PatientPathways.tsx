@@ -1192,7 +1192,7 @@ export default function PatientPathways() {
                             onFinish={handleVarianceAdvance}
                           >
                             <Alert
-                              message="临床变异：登记患者偏离当前路径节点的事实、原因码、责任角色和处置决策，后端统一生成审计事实。"
+                              message="临床变异：登记患者偏离当前路径节点的事实、原因码、责任角色和处置决策，平台统一生成审计事实。"
                               type="warning"
                               showIcon
                               className={styles.sectionGap}
@@ -1377,7 +1377,7 @@ export default function PatientPathways() {
         {(variancesData ?? detailData?.variances ?? []).length > 0 ? (
           <div>
             <Alert
-              message="这里仅展示后端返回的路径变异事实，页面不补写原因、不生成本地变异记录。"
+              message="这里仅展示已记录的路径变异事实，页面不补写原因、不生成本地变异记录。"
               type="info"
               showIcon
               className={styles.sectionGapLg}

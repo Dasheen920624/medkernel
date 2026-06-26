@@ -210,7 +210,7 @@ export default function InsuranceAudit() {
         type: "success",
         text:
           audit.auditStatus === "INSUFFICIENT_DATA"
-            ? "后端未找到当前快照对应的真实医保结算事实，未生成违规。"
+            ? "当前快照未找到可核验的真实医保结算事实，未生成违规。"
             : "医保审核已基于真实结算事实执行，命中问题已由服务联动整改闭环。",
       });
       issuesQuery.refetch();
@@ -255,7 +255,7 @@ export default function InsuranceAudit() {
         title: issuesQuery.isError ? parsedError?.message : "当前筛选下暂无真实医保问题",
         description: issuesQuery.isError
           ? "请稍后重试，或凭追踪号联系信息科核查。"
-          : "后端当前没有返回符合筛选条件的医保病案问题。",
+          : "当前没有符合筛选条件的医保病案问题。",
         traceId: parsedError?.traceId,
         onRetry: () => issuesQuery.refetch(),
       }}
@@ -481,7 +481,7 @@ export default function InsuranceAudit() {
               </Space>
               <Space wrap size="middle" className="mk-full-width">
                 <Form.Item label="费用阈值" name="maxAmount">
-                  <Input inputMode="decimal" placeholder="可选，后端按真实结算金额比较" />
+                  <Input inputMode="decimal" placeholder="可选，按真实结算金额比较" />
                 </Form.Item>
                 <Form.Item label="期望结算状态" name="requiredClaimStatus">
                   <Input placeholder="可选" />

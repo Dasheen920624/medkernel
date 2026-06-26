@@ -5354,7 +5354,7 @@ export interface RecommendationFeedback {
   feedbackType: RecommendationFeedbackType;
   reasonCode?: string;
   reasonText?: string;
-  // 操作者由后端从 RequestContext 取真实登录用户写入；前端不传，仅展示。
+  // 操作者由平台从 RequestContext 取真实登录用户写入；前端不传，仅展示。
   operatorId: string;
   operatorRole?: string;
   createdAt?: string;
@@ -5608,7 +5608,7 @@ export function useRecommendationCardSources(cardId: string) {
 
 // 3. Feedback Hook
 // 契约对齐后端 RecommendationFeedbackRequest：仅 feedbackType / reasonCode / reasonText / operatorRole；
-// 操作者 id 由后端从 RequestContext 取真实登录用户，前端不得伪造 physicianId。
+// 操作者 id 由平台从 RequestContext 取真实登录用户，前端不得伪造 physicianId。
 export function useSubmitRecommendationFeedback(cardId: string) {
   return useMutation({
     mutationFn: async (payload: {

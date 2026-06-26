@@ -37,7 +37,7 @@ const forbiddenBypassLanguage = [
   "AST 扫描",
   "模拟传入",
   "本地列表展现",
-  "后端未返回患者路径实体，列表保持不变",
+  "患者路径服务未返回实体，列表保持不变",
 ];
 
 function readSource(file: string) {

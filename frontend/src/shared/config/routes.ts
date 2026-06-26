@@ -176,7 +176,7 @@ const securityBaselineExperience: RouteExperience = {
   defaultFilters: [],
   evidenceDetailContent: ["配置键", "版本", "组织范围", "证据 ID", "追踪号"],
   interruptionLevel: "weak",
-  evidence: "配置、权限、脱敏和测评变更均由后端校验并保留版本与审计证据",
+  evidence: "配置、权限、脱敏和测评变更均由平台校验并保留版本与审计证据",
   dataScale: { expected: "small", pagination: "page", exportStrategy: "none" },
   riskLevel: "high",
 };

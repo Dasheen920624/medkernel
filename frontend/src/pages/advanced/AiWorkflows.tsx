@@ -653,7 +653,7 @@ export default function AiWorkflows() {
                 type="warning"
                 showIcon
                 message="公网外部模型可使用患者上下文"
-                description="外调前必须完成字段最小化、核心敏感信息遮蔽、责任确认和证据留痕；保留非核心业务值时，核心患者标识仍由后端强制遮蔽。"
+                description="外调前必须完成字段最小化、核心敏感信息遮蔽、责任确认和证据留痕；保留非核心业务值时，核心患者标识仍由平台安全策略强制遮蔽。"
               />
               <Descriptions className={styles.egressCapability} column={1} size="small">
                 <Descriptions.Item label="模型能力">

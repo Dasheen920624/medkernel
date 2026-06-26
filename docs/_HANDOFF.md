@@ -270,6 +270,15 @@
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run build`、
   `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
   工作台第一屏旧口径组合搜索无结果；尚未重新部署 134。
+- 全局客户面实现层口径已继续清理：退出会话、临床路径变异、临床提醒闭环、质量问题、评价结果、医保审核、
+  审计验签、安全基线、实施接入、模型外调、路由证据和相关测试说明统一改为平台、服务、来源事实、
+  数据脱敏、服务契约或安全策略语义，不再让医生、护士、患者随访、信息科、实施、审计员或院长看到实现层
+  后台命名。真实性门禁新增这组客户面实现层旧句式拦截。已验证：
+  `npm test -- --run` 全量 `109 passed / 791 passed`、
+  `npm test -- --run src/widgets/AppLayout.test.tsx src/pages/clinical/PatientPathways.test.tsx src/pages/clinical/CdssFatigue.test.tsx src/pages/quality/QcAlerts.test.tsx src/pages/quality/QcEvalResults.test.tsx src/pages/quality/InsuranceAudit.test.tsx src/pages/compliance/AdminAudit.test.tsx src/pages/compliance/SecurityBaseline.test.tsx src/pages/tenant/ImplementationGuide.test.tsx src/pages/tenant/AdapterHub.test.tsx src/pages/advanced/AiWorkflows.test.tsx src/pages/pages.smoke.test.tsx src/pages/operationalControlPages.test.tsx src/pages/clinical/Mpi.test.tsx src/pages/compliance/NotificationSettings.test.tsx src/shared/api/hooks.test.ts`、
+  `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
+  `npm run build`、`node --test scripts/authenticity-guard.test.mjs`、
+  `node scripts/authenticity-guard.mjs --mode=inventory`、客户面实现层旧句式组合搜索无结果；尚未重新部署 134。
 
 ## 本轮落地内容
 
@@ -400,6 +409,9 @@
 - 工作台第一屏继续按全角色真实体验收束：临床使用者进入患者路径、提醒推荐、随访协同和通知，医疗引擎运营员
   进入知识来源、术语映射、发布影响和质量整改，平台管理员看到知识同步来源配置状态；聚合统计和跨页汇总只在
   对应治理页面展示真实数据，第一屏不再自证、不承诺未来来源。
+- 客户面实现层语言继续按真实医疗产品体验收束：页面默认解释平台服务状态、来源事实、数据脱敏、安全策略、
+  服务契约和可执行下一步；后台实现命名只留在必要代码契约中，不能进入医生、护士、患者、实施、信息科、
+  审计或院长的默认任务界面。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -439,7 +451,7 @@
    知识发布质量门影响评估与规则提示卡引用占位口径清理、权威体验契约演示重构旧说法清理、
    平台管理员工作台治理概览表达清理、发布治理服务影响评估契约口径清理、工作台空态未上线承诺清理、
    通知偏好和导出能力实现层旧口径清理、全局客户面服务状态旧口径清理、统一身份登录和身份来源待配置口径清理、
-   工作台第一屏多角色数据状态表达清理
+   工作台第一屏多角色数据状态表达清理、全局客户面实现层口径清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

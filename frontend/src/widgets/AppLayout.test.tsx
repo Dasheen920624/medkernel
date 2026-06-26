@@ -533,7 +533,7 @@ describe("AppLayout", () => {
     );
   });
 
-  it("confirms logout, calls the backend logout endpoint, clears cached state and returns to login", async () => {
+  it("confirms logout, calls the authenticated logout endpoint, clears cached state and returns to login", async () => {
     mockViewport(1280);
     const { queryClient } = await renderLayout("/dashboard");
     queryClient.setQueryData(["security", "me"], { userId: "doctor-1" });

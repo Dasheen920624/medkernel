@@ -165,7 +165,7 @@ const RISK_COLORS: Record<string, "default" | "success" | "warning" | "error"> =
   HIGH: "error",
 };
 
-// AIK-STD-12：AI 工厂生产器中文标识（aiGenerated 据 producer≠MANUAL，由后端判定）
+// AIK-STD-12：AI 工厂生产器中文标识（aiGenerated 据 producer≠MANUAL，由平台服务判定）
 const PRODUCER_LABELS: Record<string, string> = {
   API_MODEL: "统一模型服务",
   AGENT_TOOL: "Agent 工具",

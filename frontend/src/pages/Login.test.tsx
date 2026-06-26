@@ -219,7 +219,7 @@ describe("Login", () => {
     expect(screen.queryByRole("button", { name: "院方统一身份认证" })).not.toBeInTheDocument();
   });
 
-  it("后端未返回租户目录时不使用本地租户兜底", () => {
+  it("租户目录服务未返回时不使用本地租户兜底", () => {
     loginTenantDirectoryState = {
       isLoading: false,
       isError: false,

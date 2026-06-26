@@ -127,7 +127,7 @@ describe("NotificationSettings", () => {
     expect(screen.queryByText("默认夜班医生静默")).not.toBeInTheDocument();
   });
 
-  it("saves quiet-hours preferences through the backend mutation", async () => {
+  it("saves quiet-hours preferences through the service mutation", async () => {
     const user = userEvent.setup();
     renderSettings();
 

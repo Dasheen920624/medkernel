@@ -162,7 +162,7 @@ export default function QcAlerts() {
         title: alertsQuery.isError ? parsedError?.message : "当前筛选下暂无真实质量问题",
         description: alertsQuery.isError
           ? "请稍后重试，或凭追踪号联系信息科核查。"
-          : "后端当前没有返回符合筛选条件的预警。",
+          : "当前没有符合筛选条件的预警。",
         traceId: parsedError?.traceId,
         onRetry: () => alertsQuery.refetch(),
       }}
@@ -320,7 +320,7 @@ export default function QcAlerts() {
               type="info"
               showIcon
               message="状态闭环口径"
-              description="预警状态由后端来源事实刷新；本页只通过真实整改任务推进闭环，不在前端伪造确认结果。"
+              description="预警状态由来源事实刷新；本页只通过真实整改任务推进闭环，不在前端伪造确认结果。"
             />
 
             {selectedAlert.status === "OPEN" && (

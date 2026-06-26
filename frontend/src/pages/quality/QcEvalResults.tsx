@@ -328,7 +328,7 @@ export default function QcEvalResults() {
           title: parsedError?.message ?? "当前筛选下暂无真实评价结果",
           description: parsedError
             ? "请稍后重试，或凭追踪号联系信息科核查。"
-            : "后端当前没有返回符合筛选条件的结果或问题。",
+            : "当前没有符合筛选条件的评价结果或问题。",
           traceId: parsedError?.traceId,
           onRetry: refreshAll,
         }}

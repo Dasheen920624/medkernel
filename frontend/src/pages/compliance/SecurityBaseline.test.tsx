@@ -566,7 +566,7 @@ describe("SecurityBaseline", () => {
     expect(screen.getByRole("option", { name: "心内科 · DEPT-1" })).toBeInTheDocument();
   });
 
-  it("runs a data permission trial against the backend decision contract", async () => {
+  it("runs a data permission trial against the data access decision contract", async () => {
     const user = userEvent.setup();
     renderPage();
 

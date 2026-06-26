@@ -222,7 +222,7 @@ function getRecommendationJourneySteps(
     {
       title: "待办 / 通知",
       status: detail.card.status,
-      description: "推荐卡会同步为医生待办或通知；状态以后端闭环为准。",
+      description: "推荐卡会同步为医生待办或通知；状态以真实闭环为准。",
       evidence: `追踪号：${diagnose?.traceId || detail.trigger?.traceId || detail.traceId}`,
     },
     {
@@ -263,7 +263,7 @@ export default function CdssFatigue() {
   const [feedbackForm] = Form.useForm();
   const [triggerForm] = Form.useForm();
 
-  // 真实推荐卡列表：后端分页 + 服务端过滤，页面不伪造卡片。
+  // 真实推荐卡列表：服务分页 + 服务端过滤，页面不伪造卡片。
   const {
     data: cardsPage,
     isLoading: cardsLoading,
@@ -416,7 +416,7 @@ export default function CdssFatigue() {
     triggerForm.resetFields();
   };
 
-  // 提交医师反馈 (ACCEPT / REJECT)。操作者身份由后端从登录态取真实用户，前端绝不伪造 physicianId。
+  // 提交医师反馈 (ACCEPT / REJECT)。操作者身份由平台从登录态取真实用户，前端绝不伪造 physicianId。
   const handleFeedback = async (feedbackType: RecommendationFeedbackType) => {
     if (!selectedCardId) return;
     try {
@@ -436,7 +436,7 @@ export default function CdssFatigue() {
       );
       feedbackForm.resetFields();
 
-      // 反馈后刷新真实数据，状态以后端为准
+      // 反馈后刷新真实数据，状态以服务回写为准
       refetchCards();
       refetchDetail();
       refetchSources();
@@ -1165,7 +1165,7 @@ export default function CdssFatigue() {
                           </Card>
                         ))
                       ) : (
-                        <Empty description="该场景暂无疲劳治理信号（仅展示后端真实采集信号）" />
+                        <Empty description="该场景暂无已采集的疲劳治理信号" />
                       )}
                     </div>
                   ),

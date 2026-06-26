@@ -222,7 +222,7 @@ describe("Mpi", () => {
   });
 
   it(
-    "opens patient 360 detail from the backend MPI detail hook",
+    "opens patient 360 detail from the MPI detail service hook",
     async () => {
       const user = userEvent.setup();
       renderMpi();
@@ -265,7 +265,7 @@ describe("Mpi", () => {
   );
 
   it(
-    "merges an active MPI row through the backend mutation and refreshes evidence",
+    "merges an active MPI row through the service mutation and refreshes evidence",
     async () => {
       const user = userEvent.setup();
       renderMpi();
@@ -289,7 +289,7 @@ describe("Mpi", () => {
   );
 
   it(
-    "renders real MPI rows and creates a patient through the backend mutation",
+    "renders real MPI rows and creates a patient through the service mutation",
     async () => {
       const user = userEvent.setup();
       renderMpi();

@@ -605,8 +605,7 @@ export function AppLayout() {
         onCancel={() => setLogoutConfirmOpen(false)}
       >
         <Typography.Paragraph>
-          退出后将清除当前前端会话状态，并由后端清理 httpOnly 登录
-          Cookie；再次访问业务页面需要重新登录。
+          退出后将清除当前会话状态，并由平台清理登录 Cookie；再次访问业务页面需要重新登录。
         </Typography.Paragraph>
       </Modal>
       <Modal
@@ -619,7 +618,7 @@ export function AppLayout() {
         confirmLoading={renewSession.isPending}
       >
         <Typography.Paragraph>
-          当前会话长时间无操作。继续使用会向服务端续期；不处理将自动退出登录。
+          当前会话长时间无操作。继续使用会刷新会话有效期；不处理将自动退出登录。
         </Typography.Paragraph>
       </Modal>
       <CommandPalette

@@ -321,7 +321,7 @@ describe("PatientPathways", () => {
     } as unknown as ReturnType<typeof useAdvancePatientPathway>);
   });
 
-  it("renders real patient pathway rows from the backend page instead of session-only state", () => {
+  it("renders real patient pathway rows from the service page instead of session-only state", () => {
     renderPatientPathways();
 
     expect(mockUsePatientPathways).toHaveBeenCalledWith({
@@ -370,7 +370,7 @@ describe("PatientPathways", () => {
     });
   }, 15_000);
 
-  it("shows backend clocks and variance evidence in the pathway detail drawer", async () => {
+  it("shows pathway clocks and variance evidence in the pathway detail drawer", async () => {
     const user = userEvent.setup();
     renderPatientPathways();
 
@@ -412,7 +412,7 @@ describe("PatientPathways", () => {
     expect(within(graph).queryByRole("button", { name: /删除/ })).not.toBeInTheDocument();
   });
 
-  it("advances the current node through the backend mutation and refreshes facts", async () => {
+  it("advances the current node through the service mutation and refreshes facts", async () => {
     const user = userEvent.setup();
     renderPatientPathways();
 
@@ -436,7 +436,7 @@ describe("PatientPathways", () => {
     expect(refetchPathways).toHaveBeenCalled();
   });
 
-  it("records a variance reason through the backend mutation", async () => {
+  it("records a variance reason through the service mutation", async () => {
     const user = userEvent.setup();
     renderPatientPathways();
 

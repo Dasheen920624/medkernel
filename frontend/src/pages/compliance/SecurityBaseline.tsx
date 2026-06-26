@@ -268,7 +268,7 @@ export default function SecurityBaseline() {
   return (
     <PageShell
       title="安全基线与系统配置"
-      description="统一管理运行配置、数据访问、后端脱敏与互操作测评证据"
+      description="统一管理运行配置、数据访问、数据脱敏与互操作测评证据"
     >
       {!canManage && (
         <Alert

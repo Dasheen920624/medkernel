@@ -760,7 +760,7 @@ describe("shared runtime api helpers", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/engine/notifications/notify-real-1/read");
   });
 
-  it("loads notification settings from the backend preference endpoint", async () => {
+  it("loads notification settings from the preference endpoint", async () => {
     vi.mocked(apiClient.get).mockResolvedValueOnce({
       data: {
         data: {
@@ -794,7 +794,7 @@ describe("shared runtime api helpers", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/engine/notifications/settings");
   });
 
-  it("saves notification settings through the backend preference endpoint", async () => {
+  it("saves notification settings through the preference endpoint", async () => {
     vi.mocked(apiClient.put).mockResolvedValueOnce({
       data: {
         data: {
@@ -4769,7 +4769,7 @@ describe("experience foundation api helpers", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/experience/theme-preference");
   });
 
-  it("saves only supported theme modes to the backend preference endpoint", async () => {
+  it("saves only supported theme modes to the preference endpoint", async () => {
     const preference = {
       mode: "eye",
       version: 3,

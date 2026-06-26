@@ -303,6 +303,15 @@ test("前端生产文件会阻断客户面工程内部语言", async () => {
       "frontend/src/pages/Login.tsx": `
         export const delegated = "统一身份暂未接入，后端未返回统一身份方式，真实院方 IdP 配置后开放。";
       `,
+      "frontend/src/pages/QcAlerts.tsx": `
+        export const empty = "后端当前没有返回符合筛选条件的预警。";
+      `,
+      "frontend/src/pages/SecurityBaseline.tsx": `
+        export const description = "统一管理运行配置、数据访问、后端脱敏与互操作测评证据";
+      `,
+      "frontend/src/widgets/AppLayout.tsx": `
+        export const logout = "退出后将清除当前前端会话状态，并由后端清理 httpOnly 登录 Cookie。";
+      `,
     },
     async (root) => {
       const report = await scanFiles(root, [
@@ -316,10 +325,16 @@ test("前端生产文件会阻断客户面工程内部语言", async () => {
         "frontend/src/pages/ImplementationGuide.tsx",
         "frontend/src/shared/ui/condition/FieldCatalogManager.tsx",
         "frontend/src/pages/Login.tsx",
+        "frontend/src/pages/QcAlerts.tsx",
+        "frontend/src/pages/SecurityBaseline.tsx",
+        "frontend/src/widgets/AppLayout.tsx",
       ]);
 
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), [
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
         "frontend.customer-facing-engineering-language",
         "frontend.customer-facing-engineering-language",
         "frontend.customer-facing-engineering-language",
@@ -628,7 +643,7 @@ test("前端 catch 成功门禁只检查 catch 代码块内部", async () => {
             return;
           }
 
-          message.success("后端真实返回后再提示成功");
+          message.success("服务确认成功后再提示成功");
         }
       `,
     },

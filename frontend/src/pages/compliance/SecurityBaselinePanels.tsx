@@ -597,7 +597,7 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
           type="info"
           showIcon
           message="按当前登录身份与组织范围试算数据访问结果"
-          description="试算调用后端权限裁决端点，只展示真实返回的行级结果和字段级拒绝清单。"
+          description="试算调用数据访问裁决服务，只展示真实返回的行级结果和字段级拒绝清单。"
         />
         <Form
           key={defaultPolicy?.policyId ?? "empty-data-permission-trial"}
@@ -962,8 +962,8 @@ export function MaskingRulePanel({ canManage }: { canManage: boolean }) {
         <Alert
           type="info"
           showIcon
-          message="使用后端脱敏引擎预览字段输出"
-          description="预览值由操作者显式输入，页面只呈现后端返回的脱敏字段与输出值。"
+          message="使用数据脱敏规则预览字段输出"
+          description="预览值由操作者显式输入，页面只呈现脱敏规则计算出的字段与输出值。"
         />
         <Form
           key={defaultRule?.ruleId ?? "empty-masking-preview"}
