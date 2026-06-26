@@ -144,6 +144,23 @@ describe("Notifications", () => {
     expect(screen.queryByText("通知接口尚未接入")).not.toBeInTheDocument();
   });
 
+  it("keeps notification read failures in organization and information-office language", () => {
+    notificationHookMocks.useWorkflowNotifications.mockReturnValue({
+      data: undefined,
+      isError: true,
+      isLoading: false,
+      refetch: notificationHookMocks.refetchNotifications,
+    });
+
+    renderNotifications();
+
+    expect(screen.getByText("通知读取失败")).toBeInTheDocument();
+    expect(
+      screen.getByText("请确认登录状态、组织范围；若持续失败，请联系信息科核查通知服务。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/服务空间|通知服务状态/)).not.toBeInTheDocument();
+  });
+
   it("passes selected organization scope to the server-side notification query", async () => {
     const user = userEvent.setup();
     renderNotifications();

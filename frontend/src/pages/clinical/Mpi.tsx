@@ -495,7 +495,7 @@ export default function Mpi() {
               {statsLoading ? "..." : (stats?.activeCount ?? 0)}
             </div>
             <div className={styles.statSubtext}>
-              当前服务空间内仍作为主记录使用的患者数；活跃路径实例{" "}
+              当前组织范围内仍作为主记录使用的患者数；活跃路径实例{" "}
               {statsLoading ? "..." : (stats?.activePathwayCount ?? 0)} 个
             </div>
           </div>
@@ -756,7 +756,7 @@ export default function Mpi() {
               message="活跃患者目录暂时不可用"
               description={getApiErrorMessage(
                 activeDirectoryQuery.error,
-                "无法读取当前服务空间的活跃患者，请重试后再执行合并。",
+                "无法读取当前组织范围的活跃患者，请重试后再执行合并。",
               )}
               type="error"
               showIcon

@@ -493,6 +493,11 @@
   `npm test -- --run src/pages/clinical/Followup.test.tsx`、
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
   `npm run build`、`git diff --check`；尚未重新部署 134。
+- 临床通知、协同任务和 MPI 活跃患者目录已继续按医生、护士、患者服务团队和信息科视角收束：通知与待办
+  读取失败统一指向登录状态、组织范围和信息科核查对应服务；MPI 统计和合并目录使用当前组织范围，避免把
+  内部运行分区暴露给临床用户。已验证：
+  `npm test -- --run src/pages/clinical/Notifications.test.tsx src/pages/clinical/WorkflowTodos.test.tsx src/pages/clinical/Mpi.test.tsx`；
+  尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -537,7 +542,8 @@
    路径原型和沙盘外圈路径通用化清理、运行保障状态和模型赋能覆盖契约口径清理、
    知识解析和外部集成阶段性接入口径清理、运行保障普通视图与证据详情分层清理、
    工作台质量闭环入口清理、集成契约和生产注释旧口径清理、临床待办空态角色体验清理、
-   临床提醒反馈与频次治理医生/护士视角清理、随访协同统计/模板/异常回院登记多角色体验清理
+   临床提醒反馈与频次治理医生/护士视角清理、随访协同统计/模板/异常回院登记多角色体验清理、
+   临床通知/协同任务/MPI 组织范围和信息科提示清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

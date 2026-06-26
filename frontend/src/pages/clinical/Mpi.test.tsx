@@ -325,6 +325,83 @@ describe("Mpi", () => {
     MPI_INTERACTION_TIMEOUT_MS,
   );
 
+  it(
+    "keeps MPI active patient directory language scoped to the current organization",
+    async () => {
+      const activeDirectoryRefetch = vi.fn();
+      mockUseMpiPatients.mockImplementation((params?: { status?: string; size?: number }) => {
+        if (params?.status === "ACTIVE" && params.size === 50) {
+          return {
+            data: undefined,
+            isLoading: false,
+            isError: true,
+            error: undefined,
+            refetch: activeDirectoryRefetch,
+          } as unknown as ReturnType<typeof useMpiPatients>;
+        }
+
+        return {
+          data: {
+            items: [
+              {
+                id: 1,
+                mpiId: "mpi-real-1",
+                tenantId: "tenant-A",
+                maskedName: "张*三",
+                gender: "M",
+                age: 36,
+                idLast4: "1234",
+                mergedCount: 0,
+                status: "ACTIVE",
+                mergedIntoMpiId: null,
+                createdAt: "2026-06-04T00:00:00Z",
+                createdBy: "doctor-a",
+                updatedAt: "2026-06-04T00:00:00Z",
+                updatedBy: "doctor-a",
+              },
+              {
+                id: 3,
+                mpiId: "mpi-target-1",
+                tenantId: "tenant-A",
+                maskedName: "王*五",
+                gender: "M",
+                age: 52,
+                idLast4: "5678",
+                mergedCount: 0,
+                status: "ACTIVE",
+                mergedIntoMpiId: null,
+                createdAt: "2026-06-04T00:00:00Z",
+                createdBy: "doctor-a",
+                updatedAt: "2026-06-04T00:00:00Z",
+                updatedBy: "doctor-a",
+              },
+            ],
+            total: 2,
+          },
+          isLoading: false,
+          refetch: refetchList,
+        } as unknown as ReturnType<typeof useMpiPatients>;
+      });
+      const user = userEvent.setup();
+
+      renderMpi();
+
+      expect(
+        screen.getByText(/当前组织范围内仍作为主记录使用的患者数；活跃路径实例/),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/当前服务空间/)).not.toBeInTheDocument();
+
+      await user.click(screen.getAllByRole("button", { name: /合并患者/ })[0]);
+
+      expect(screen.getByText("活跃患者目录暂时不可用")).toBeInTheDocument();
+      expect(
+        screen.getByText("无法读取当前组织范围的活跃患者，请重试后再执行合并。"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/当前服务空间/)).not.toBeInTheDocument();
+    },
+    MPI_INTERACTION_TIMEOUT_MS,
+  );
+
   it("hides create and high-risk merge actions without matching MPI action permissions", () => {
     mockUseSecurityProfile.mockReturnValue(securityProfile(["mpi.read"]));
 

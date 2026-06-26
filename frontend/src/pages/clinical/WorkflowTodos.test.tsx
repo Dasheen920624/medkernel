@@ -157,6 +157,23 @@ describe("WorkflowTodos", () => {
     expect(screen.queryByText("待办接口尚未接入")).not.toBeInTheDocument();
   });
 
+  it("keeps workflow todo read failures in organization and information-office language", () => {
+    workflowHookMocks.useWorkflowTodos.mockReturnValue({
+      data: undefined,
+      isError: true,
+      isLoading: false,
+      refetch: workflowHookMocks.refetchTodos,
+    });
+
+    renderWorkflowTodos();
+
+    expect(screen.getByText("协同待办读取失败")).toBeInTheDocument();
+    expect(
+      screen.getByText("请确认登录状态、组织范围；若持续失败，请联系信息科核查协同任务服务。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/服务空间|协同任务服务状态/)).not.toBeInTheDocument();
+  });
+
   it("summarizes the clinical work queue so doctors and nurses know what to handle first", () => {
     workflowHookMocks.useWorkflowTodos.mockReturnValue({
       data: {
