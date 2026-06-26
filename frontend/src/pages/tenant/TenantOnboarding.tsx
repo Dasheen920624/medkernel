@@ -784,10 +784,10 @@ function CustomerTenantImplementation() {
 
                       <Form.Item
                         name="evidenceDetailsEnabled"
-                        label="默认展开证据详情"
+                        label="默认展示验收证据"
                         valuePropName="checked"
                       >
-                        <Switch checkedChildren="开启" unCheckedChildren="关闭" />
+                        <Switch checkedChildren="展示" unCheckedChildren="精简" />
                       </Form.Item>
 
                       <Button

@@ -602,7 +602,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   );
 
   it(
-    "危急值原型向导带出默认动作和高级折叠，未展开高级项也可创建草稿",
+    "危急值原型向导带出默认动作和补充配置折叠，未展开补充项也可创建草稿",
     async () => {
       apiMocks.createRule.mockResolvedValue({ ruleId: "rule-critical" });
       const user = userEvent.setup();
@@ -996,7 +996,10 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       const user = await openDraftRuleDrawer();
       expect((await screen.findAllByText(/当前服务机构全部组织/)).length).toBeGreaterThan(0);
       await user.click(screen.getByRole("tab", { name: /真实快照试运行/ }));
-      await user.click(screen.getByRole("switch", { name: "受控配置视图" }));
+      expect(
+        screen.getByText("条件树是主视图；受控配置和解释模板可在配置明细中核查。"),
+      ).toBeInTheDocument();
+      await user.click(screen.getByRole("switch", { name: "配置明细" }));
 
       expect(screen.queryByText("手工配置文本兜底")).not.toBeInTheDocument();
       expect(

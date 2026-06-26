@@ -8614,7 +8614,7 @@ COMMENT ON COLUMN tenant_branding.tenant_id IS '租户 ID';
 COMMENT ON COLUMN tenant_branding.hospital_name IS '医院物理名称';
 COMMENT ON COLUMN tenant_branding.logo_url IS '医院定制 Logo URL';
 COMMENT ON COLUMN tenant_branding.theme_color IS '平台定制 UI 主题色';
-COMMENT ON COLUMN tenant_branding.evidence_details_enabled IS '是否默认展开证据详情';
+COMMENT ON COLUMN tenant_branding.evidence_details_enabled IS '是否默认展示验收证据';
 COMMENT ON COLUMN tenant_branding.custom_branding_json IS '其他扩展样式的品牌 JSON 配置';
 COMMENT ON COLUMN tenant_branding.created_at IS '创建时间点';
 COMMENT ON COLUMN tenant_branding.created_by IS '创建人';

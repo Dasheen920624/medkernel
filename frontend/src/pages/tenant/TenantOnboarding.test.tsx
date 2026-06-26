@@ -267,6 +267,13 @@ describe("TenantOnboarding", () => {
     expect(screen.queryByRole("button", { name: /开通租户/ })).not.toBeInTheDocument();
   });
 
+  it("uses implementation evidence language for the branding evidence preference", () => {
+    renderPage(<TenantOnboarding />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /品牌信息/ }));
+    expect(screen.getByRole("switch", { name: "默认展示验收证据" })).toBeInTheDocument();
+  });
+
   it("renders an error state when organization or readiness APIs fail", () => {
     vi.mocked(useOnboardingReadiness).mockReturnValue({
       data: undefined,

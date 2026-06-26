@@ -40962,7 +40962,7 @@
           "nullable": false,
           "default": "FALSE",
           "identity": false,
-          "comment": "是否默认展开证据详情"
+          "comment": "是否默认展示验收证据"
         },
         {
           "name": "custom_branding_json",

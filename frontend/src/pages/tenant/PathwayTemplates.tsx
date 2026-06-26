@@ -3971,12 +3971,12 @@ export default function PathwayTemplates() {
             )}
             <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
               <span className={`${styles.textSmall} ${styles.textSecondary}`}>
-                路径拓扑与真实快照试运行是本页主流程；上线启停统一由发布治理管理。
+                路径拓扑与真实快照试运行是主视图；配置明细用于核查受控配置。
               </span>
               <Space>
-                <span>受控配置视图</span>
+                <span>配置明细</span>
                 <Switch
-                  aria-label="受控配置视图"
+                  aria-label="配置明细"
                   checked={detailAdvancedViewEnabled}
                   onChange={toggleDetailAdvancedViewEnabled}
                 />

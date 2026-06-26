@@ -3360,7 +3360,7 @@ export default function RuleDefinitions() {
               {detailRoot ? (
                 renderReadonlyNode(detailRoot)
               ) : (
-                <Alert type="warning" showIcon message="条件结构无法解析，请在受控配置视图核查。" />
+                <Alert type="warning" showIcon message="条件结构无法解析，请打开配置明细核查。" />
               )}
               {Boolean(detailDsl) && (
                 <AuthoringReadablePreview subject="RULE_CONDITION" dsl={detailDsl} />
@@ -3413,7 +3413,7 @@ export default function RuleDefinitions() {
             <Alert
               type="warning"
               showIcon
-              message="该版本的受控配置无法无损还原为当前条件树，请在受控配置视图核查。"
+              message="该版本的配置明细无法无损还原为当前条件树，请打开配置明细核查。"
             />
           ),
         },
@@ -4580,7 +4580,7 @@ export default function RuleDefinitions() {
             </Descriptions>
 
             <Space className="mk-flex-between mk-full-width">
-              <Text type="secondary">受控配置与解释模板默认隐藏，需要进入受控配置视图。</Text>
+              <Text type="secondary">条件树是主视图；受控配置和解释模板可在配置明细中核查。</Text>
               <Space>
                 {canWriteRule &&
                   detailData.version.status === "DRAFT" &&
@@ -4598,9 +4598,9 @@ export default function RuleDefinitions() {
                     复制为新版本
                   </Button>
                 )}
-                <Text>受控配置视图</Text>
+                <Text>配置明细</Text>
                 <Switch
-                  aria-label="受控配置视图"
+                  aria-label="配置明细"
                   checked={detailAdvancedViewEnabled}
                   onChange={toggleDetailAdvancedViewEnabled}
                 />

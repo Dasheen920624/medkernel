@@ -390,7 +390,7 @@
   `mvn -q -DskipTests package`、`bash scripts/check-comment-zh.sh --mode=full`；尚未重新部署 134。
 - 全局治理语言和客户面工程术语已继续收束：系统运维入口统一为“诊断工具”，规则、路径、评价指标、
   知识生产和资产发布前治理统一表达为“安全复核 / 安全门”，规则/路径低频精确结构统一表达为
-  “受控配置文本 / 受控配置视图”；前后端契约、Javadoc、CONSTITUTION 和页面测试同步改口径。
+  “受控配置文本 / 配置明细”；前后端契约、Javadoc、CONSTITUTION 和页面测试同步改口径。
   真实性门禁新增客户面工程语言拦截，禁止“开发者控制台、技术验证、技术配置、技术闸、技术阻断、
   技术门禁、技术门”等表达回流。已验证：`node --test scripts/authenticity-guard.test.mjs`、
   `node scripts/authenticity-guard.mjs --mode=inventory`、
@@ -535,6 +535,12 @@
   `npm test -- --run` 覆盖 24 个受影响前端测试文件，275 个用例通过；
   `mvn -q -f medkernel-backend/pom.xml -Dtest=PlatformTenantTest,AuthControllerTest,ComplianceUserControllerTest,RuntimeReleaseControllerTest test`；
   旧客户面范围词扫描在 `frontend/src`、`medkernel-backend/src/test` 和 `docs` 中无命中；尚未重新部署 134。
+- 规则详情、路径详情和服务机构品牌偏好已继续按医疗引擎运营员、实施工程师、信息科和院方管理员视角收束：
+  低频精确结构不再作为孤立开关呈现，改为上下文内“配置明细”；品牌偏好改为“默认展示验收证据”，并同步
+  五方言迁移 COMMENT 与 schema。已验证：
+  `npm test -- --run src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/PathwayTemplates.test.tsx src/pages/tenant/TenantOnboarding.test.tsx`；
+  `bash scripts/check-comment-zh.sh --mode=full`；旧低频明细入口词扫描在 `frontend/src`、`docs` 和
+  `medkernel-backend/src` 中无命中；尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -583,7 +589,8 @@
    临床通知/协同任务/MPI 组织范围和信息科提示清理、全局顶栏与权限指纹范围语言清理、
    实施与服务机构就绪空态/错误态清理、通知偏好/审计证据/路由体验范围语言清理、
    服务机构开通台账与表单语言清理、首次部署接管和安全基线范围语言清理、
-   模型/知识/嵌入/规则/术语/接入/知识血缘范围语言清理、平台治理入口和测试契约范围语言清理
+   模型/知识/嵌入/规则/术语/接入/知识血缘范围语言清理、平台治理入口和测试契约范围语言清理、
+   低频配置明细与验收证据呈现清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

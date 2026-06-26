@@ -621,6 +621,10 @@ describe("PathwayTemplates 上线路径维护契约", () => {
 
       expect(screen.getByText(/当前路径版本已纳入机构生效版本/)).toBeInTheDocument();
       expect(screen.queryByRole("tab", { name: /7 步流发布/ })).not.toBeInTheDocument();
+      expect(
+        screen.getByText("路径拓扑与真实快照试运行是主视图；配置明细用于核查受控配置。"),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("switch", { name: "配置明细" })).toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: /复制为新版本/ }));
 
       const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
