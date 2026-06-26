@@ -372,14 +372,23 @@ describe("CdssFatigue", () => {
     expect(screen.getAllByText("触发事件").length).toBeGreaterThan(0);
     expect(screen.getAllByText("命中规则").length).toBeGreaterThan(0);
     expect(screen.getAllByText("知识来源").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("该卡片暂未返回来源解释，暂不展示来源证据。").length,
+    ).toBeGreaterThan(0);
     expect(screen.getAllByText("路径上下文").length).toBeGreaterThan(0);
     expect(screen.getAllByText("待办 / 通知").length).toBeGreaterThan(0);
     expect(screen.getAllByText("医生反馈").length).toBeGreaterThan(0);
     expect(screen.getAllByText("药师复核").length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("tab", { name: /临床指南与来源证据/ }));
+    expect(
+      screen.getByText("该提醒卡暂无来源解释证据；请结合患者病情与院内制度复核。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/兜底伪造/)).not.toBeInTheDocument();
     expect(screen.getByText(/trace-rec/)).toBeInTheDocument();
     expect(await screen.findByText(/doctor-real-1/)).toBeInTheDocument();
     expect(screen.getAllByText("已确认风险，按指南处理。").length).toBeGreaterThan(0);
 
+    await user.click(screen.getByRole("tab", { name: /医师反馈/ }));
     await user.click(screen.getByRole("button", { name: /确认并予以采纳/ }));
 
     await waitFor(() => {

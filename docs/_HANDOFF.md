@@ -184,6 +184,16 @@
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
   `npm run build`、`mvn -q -DskipTests package`、`bash scripts/check-comment-zh.sh --mode=full`、
   `git diff --check`；尚未重新部署 134。
+- 临床提醒来源空态与 Webhook 验证口径清理已在本地通过：医生侧来源缺失时不再暴露工程自证话术，
+  改为提示暂不展示来源证据并结合患者病情与院内制度复核；前端共享 API、客户标签、后端权限说明、服务契约、
+  审计事件和第三方集成契约文档统一使用 Webhook 验证或连通性验证。真实性门禁新增来源空态工程话术与
+  Webhook 验证旧命名防回流拦截。已验证：`node --test scripts/authenticity-guard.test.mjs`、
+  `node scripts/authenticity-guard.mjs --mode=inventory`、
+  `rg -n "Webhook 测试|签名测试|双向连通测试|连通测试|签名生成与双向测试|兜底伪造|页面不做兜底|不做任何兜底" frontend/src medkernel-backend/src/main/java docs medkernel-backend/src/main/resources/db/schema medkernel-backend/src/main/resources/db/migration --glob '!docs/_HANDOFF.md' --glob '!**/*.test.*' --glob '!**/*.stories.*'`
+  无结果、`npm test -- --run src/pages/clinical/CdssFatigue.test.tsx src/shared/api/hooks.test.ts src/shared/config/customerLanguageGate.test.ts`、
+  `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
+  `npm run build`、`mvn -q -DskipTests package`、`bash scripts/check-comment-zh.sh --mode=full`、
+  `git diff --check`；尚未重新部署 134。
 
 ## 本轮落地内容
 
@@ -288,6 +298,8 @@
 - 实施和信息科视角的内部口径继续收束：诊断工具路由说明改为“运行诊断信息”，Webhook 说明改为签名验证
   和连通性验证，来源启用改为 robots 安全校验，来源版本缺项改为追溯信息不完整，路径试运行用于发布或复核前
   回放，平台登录目录只说明平台接管和运行保障人员，规则治理 COMMENT 改为完整发布链。
+- 临床提醒详情的知识来源缺失空态已从工程自证改为医生可执行的复核提示；Webhook 相关页面、契约、权限、
+  审计和集成说明统一表达为验证，避免医院实施、信息科和外部系统联调时把一次性测试理解成上线能力。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -322,7 +334,8 @@
    生硬身份化开关、孤立技术入口或把关键安全/审计/业务判断证据藏起来的设计，后续都要改成上下文里的渐进证据、
    诊断信息或变更明细。
 5. 本地临床协同任务、随访协同体验薄片、沙盘场景目录语义清理、退役工具主域文本清理、性能压测契约、
-   旧口径门禁、客户面退役说明清理、全局治理语言清理、安全校验口径清理和实施内部口径清理还未重新部署 134；
+   旧口径门禁、客户面退役说明清理、全局治理语言清理、安全校验口径清理、实施内部口径清理、
+   临床提醒来源空态和 Webhook 验证口径清理还未重新部署 134；
    下一次清库/发布演练要纳入真实前台操作证据，
    不能把当前本地薄片或本地门禁误记为 134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

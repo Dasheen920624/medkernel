@@ -268,7 +268,7 @@ public final class ServiceContractCatalog {
             audits(
                 audit(AuditAction.CREATE, "integration_adapter", "创建适配器和 Webhook"),
                 audit(AuditAction.UPDATE, "integration_adapter", "更新适配器和 Webhook"),
-                audit(AuditAction.EXECUTE, "integration_adapter", "健康检查、Webhook 测试 / 入站验签 / 出站补偿 / 死信重放"),
+                audit(AuditAction.EXECUTE, "integration_adapter", "健康检查、Webhook 验证 / 入站验签 / 出站补偿 / 死信重放"),
                 audit(AuditAction.CREATE, "mk_integration_onboarding", "创建第三方业务接口接入申请"),
                 audit(AuditAction.UPDATE, "mk_integration_onboarding", "推进第三方业务接口接入阶段"),
                 audit(AuditAction.CREATE, "mk_integration_regional_source", "登记区域协同来源可信分级"),

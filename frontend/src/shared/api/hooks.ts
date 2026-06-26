@@ -8908,7 +8908,7 @@ export function useCreateWebhook() {
   });
 }
 
-// 7. Webhook 签名生成与双向测试
+// 7. Webhook 签名生成与双向验证
 export function useTestWebhookSignature() {
   return useMutation({
     mutationFn: async (payload: WebhookTestPayload) => {

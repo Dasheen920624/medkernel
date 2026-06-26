@@ -108,7 +108,7 @@ public enum PermissionCode {
     LIST_EXPORT("list.export", Risk.MEDIUM, "创建和下载大规模列表异步导出文件"),
     INTEGRATION_READ("integration.read", Risk.LOW, "查看第三方适配器、Webhook 和集成日志"),
     INTEGRATION_WRITE("integration.write", Risk.MEDIUM, "创建或修改第三方适配器与 Webhook"),
-    INTEGRATION_EXECUTE("integration.execute", Risk.MEDIUM, "执行适配器健康检查、Webhook 测试、入站验签、出站补偿和死信重放"),
+    INTEGRATION_EXECUTE("integration.execute", Risk.MEDIUM, "执行适配器健康检查、Webhook 验证、入站验签、出站补偿和死信重放"),
     MPI_READ("mpi.read", Risk.LOW, "查看患者主索引列表与统计"),
     MPI_CREATE("mpi.create", Risk.MEDIUM, "创建脱敏患者主索引"),
     MPI_WRITE("mpi.write", Risk.HIGH, "合并、拆分和确认患者主索引"),

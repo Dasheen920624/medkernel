@@ -342,7 +342,7 @@ export const customerEnumLabels: LabelMap = {
   REENTER: "再次进入路径",
   TERMINATE: "终止路径",
   WARD_ORDER: "住院医嘱",
-  NOT_TESTED: "未发起外部连通测试",
+  NOT_TESTED: "未发起外部连通验证",
   SIGNATURE_GENERATED: "签名已生成",
   container: "容器运行环境",
   local: "本地运行环境",

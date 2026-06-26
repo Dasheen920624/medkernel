@@ -382,7 +382,7 @@ public class IntegrationController {
                 AuditAction.EXECUTE,
                 "integration_webhook",
                 dto.webhookId(),
-                "执行 Webhook 签名生成与双向连通测试"
+                "执行 Webhook 签名生成与双向连通验证"
             ));
             return ApiResult.ok(testResult);
         } catch (ApiException e) {

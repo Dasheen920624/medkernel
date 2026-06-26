@@ -210,6 +210,7 @@ test("前端生产文件会阻断工作台本地假闭环和业务示例残留",
 test("前端生产文件会阻断客户面退役演示说明", async () => {
   const retiredDemoData = "演示" + "数据";
   const retiredSafetySkeleton = "安全" + "骨架";
+  const fallbackFake = "兜底" + "伪造";
   await withFixture(
     {
       "frontend/src/pages/GraphExplore.tsx": `
@@ -220,15 +221,23 @@ test("前端生产文件会阻断客户面退役演示说明", async () => {
       "frontend/src/pages/PathwayTemplates.tsx": `
         export const description = "默认生成急诊评估到处置安排的两节点${retiredSafetySkeleton}。";
       `,
+      "frontend/src/pages/CdssFatigue.tsx": `
+        export const empty = "暂无来源解释证据，不做任何${fallbackFake}";
+      `,
     },
     async (root) => {
       const report = await scanFiles(root, [
         "frontend/src/pages/GraphExplore.tsx",
         "frontend/src/pages/PathwayTemplates.tsx",
+        "frontend/src/pages/CdssFatigue.tsx",
       ]);
 
       assert.equal(hasBlockingViolations(report), true);
-      assert.deepEqual(ruleIds(report), ["frontend.retired-demo-copy", "frontend.retired-demo-copy"]);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.retired-demo-copy",
+        "frontend.retired-demo-copy",
+        "frontend.retired-demo-copy",
+      ]);
     },
   );
 });
@@ -375,6 +384,11 @@ test("前后端契约会阻断实施内部口径残留", async () => {
           String message = "${sourceVersionTechInfo}不完整";
         }
       `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/security/PermissionCode.java": `
+        public enum PermissionCode {
+          INTEGRATION_EXECUTE("执行适配器健康检查、Webhook 测试、入站验签")
+        }
+      `,
       "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql": `
         COMMENT ON COLUMN rule_governance.author_id IS '规则版本负责人，可确认并推进完整${technicalReleaseChain}';
       `,
@@ -389,12 +403,14 @@ test("前后端契约会阻断实施内部口径残留", async () => {
         "medkernel-backend/src/main/java/com/medkernel/engine/pathway/PathwaySimulationResponse.java",
         "medkernel-backend/src/main/java/com/medkernel/engine/integration/dto/WebhookTestDto.java",
         "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/initialization/KnowledgeInitializationService.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/security/PermissionCode.java",
         "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql",
         "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json",
       ]);
 
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-internal-operation-language",
         "backend.customer-facing-internal-operation-language",
         "backend.customer-facing-internal-operation-language",
         "backend.customer-facing-internal-operation-language",
@@ -494,6 +510,27 @@ test("共享 API 层禁止导出演示快照供生产页面调用", async () => 
 
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), ["frontend.demo-snapshot-export"]);
+    },
+  );
+});
+
+test("共享 API 合同禁止继续使用 Webhook 测试旧口径", async () => {
+  await withFixture(
+    {
+      "frontend/src/shared/api/hooks.ts": `
+        // Webhook 签名生成与双向测试
+        export function useTestWebhookSignature() {}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/shared/api/hooks.ts",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.customer-facing-integration-test-language",
+      ]);
     },
   );
 });

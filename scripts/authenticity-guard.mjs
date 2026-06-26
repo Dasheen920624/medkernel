@@ -60,7 +60,7 @@ const FRONTEND_RULES = [
     ruleId: "frontend.retired-demo-copy",
     message:
       "前端客户面错误态和向导文案禁止出现演示数据、演示病例或安全骨架等退役表达。",
-    pattern: /演示数据|演示病例|安全骨架/,
+    pattern: /演示数据|演示病例|安全骨架|兜底伪造|页面不做兜底|不做任何兜底/,
   },
   {
     ruleId: "frontend.customer-facing-engineering-language",
@@ -102,6 +102,11 @@ const FRONTEND_RULES = [
 ];
 
 const FRONTEND_SHARED_API_RULES = [
+  {
+    ruleId: "frontend.customer-facing-integration-test-language",
+    message: "共享 API 合同禁止继续使用 Webhook 测试、签名测试或连通测试旧口径。",
+    pattern: /Webhook\s*测试|签名测试|双向连通测试|签名生成与双向测试|连通测试/,
+  },
   {
     ruleId: "frontend.demo-snapshot-export",
     message:
@@ -190,7 +195,7 @@ const BACKEND_RULES = [
     ruleId: "backend.customer-facing-internal-operation-language",
     message: "后端生产契约和注释禁止继续使用面向实施内部的旧口径。",
     pattern:
-      /技术核验|技术发布链|来源版本技术信息|平台开发者|调试接口|调试前|通道调试|测试\s*Payload/,
+      /技术核验|技术发布链|来源版本技术信息|平台开发者|调试接口|调试前|通道调试|测试\s*Payload|Webhook\s*测试|签名测试|双向连通测试|签名生成与双向连通测试/,
   },
   {
     ruleId: "backend.customer-facing-safety-language",

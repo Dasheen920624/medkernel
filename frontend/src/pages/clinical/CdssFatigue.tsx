@@ -210,7 +210,7 @@ function getRecommendationJourneySteps(
     {
       title: "知识来源",
       status: sourceTitle ? "已有来源" : "待补来源",
-      description: sourceTitle || "该卡片暂未返回来源解释，页面不做兜底伪造。",
+      description: sourceTitle || "该卡片暂未返回来源解释，暂不展示来源证据。",
       evidence: sources?.[0]?.sourceRef,
     },
     {
@@ -975,7 +975,7 @@ export default function CdssFatigue() {
                           </Card>
                         ))
                       ) : (
-                        <Empty description="该提醒卡暂无来源解释证据（仅展示后端真实来源，不做任何兜底伪造）" />
+                        <Empty description="该提醒卡暂无来源解释证据；请结合患者病情与院内制度复核。" />
                       )}
                     </div>
                   ),
