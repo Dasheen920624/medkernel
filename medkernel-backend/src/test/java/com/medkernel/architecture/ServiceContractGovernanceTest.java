@@ -130,6 +130,18 @@ class ServiceContractGovernanceTest {
     }
 
     @Test
+    void releaseGovernanceContractUsesImpactAssessmentLanguage() {
+        ServiceContract contract = ServiceContractCatalog.contractOfController(
+                "com.medkernel.engine.versioning.ReleaseGovernanceController")
+            .orElseThrow(() -> new AssertionError("发布治理控制器缺少服务契约"));
+
+        assertThat(contract.title()).isEqualTo("发布影响评估与灰度治理服务");
+        assertThat(contract.auditPoints())
+            .extracting(audit -> audit.purpose())
+            .contains("记录发布前影响评估与灰度观测");
+    }
+
+    @Test
     void controllersMustExposeSingleCanonicalBasePath() {
         assertThat(apiControllers())
             .allSatisfy(controller -> assertThat(classPaths(controller))

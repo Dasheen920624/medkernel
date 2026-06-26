@@ -512,6 +512,35 @@ test("上线演练脚本禁止继续使用影响模拟旧口径", async () => {
   );
 });
 
+test("后端发布治理契约禁止回流发布模拟旧口径", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/contract/ServiceContractCatalog.java": `
+        public class ServiceContractCatalog {
+          String title = "发布模拟与灰度治理服务";
+        }
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/versioning/ReleaseGovernanceController.java": `
+        public class ReleaseGovernanceController {
+          String conflict = "模拟摘要已变化，请重新模拟并确认";
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/contract/ServiceContractCatalog.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/versioning/ReleaseGovernanceController.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-safety-language",
+        "backend.customer-facing-safety-language",
+      ]);
+    },
+  );
+});
+
 test("前端生产文件会阻断默认临床病例文本回流", async () => {
   await withFixture(
     {

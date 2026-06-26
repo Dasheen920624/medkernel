@@ -192,7 +192,7 @@ public class ReleaseSimulationService {
                 resolveUnits(command.tenantId(), command.targetOrgUnitIds());
         };
         if (resolved.isEmpty()) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "发布模拟未解析到任何目标组织");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "发布影响评估未解析到任何目标组织");
         }
         return resolved.stream()
             .filter(OrgUnit::isActive)
@@ -206,7 +206,7 @@ public class ReleaseSimulationService {
 
     private List<OrgUnit> resolveUnits(String tenantId, List<String> ids) {
         if (ids == null || ids.isEmpty()) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "发布模拟至少选择一个目标组织");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "发布影响评估至少选择一个目标组织");
         }
         List<OrgUnit> resolved = new ArrayList<>();
         for (String id : ids.stream().filter(value -> value != null && !value.isBlank()).distinct().toList()) {
@@ -398,7 +398,7 @@ public class ReleaseSimulationService {
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("JDK 缺少 SHA-256 摘要算法", exception);
         } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
-            throw new IllegalStateException("发布模拟证据序列化失败", exception);
+            throw new IllegalStateException("发布影响评估证据序列化失败", exception);
         }
     }
 
@@ -411,11 +411,11 @@ public class ReleaseSimulationService {
                 || isBlank(command.candidateVersionId())
                 || isBlank(command.targetOrgPath())
                 || isBlank(command.applicableScope())) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "发布模拟资产、生效域与候选版本不能为空");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "发布影响评估资产、生效域与候选版本不能为空");
         }
         if (!Objects.equals(command.candidateTenantId(), command.tenantId())
                 && !PlatformAuthority.PLATFORM_TENANT_ID.equals(command.candidateTenantId())) {
-            throw new ApiException(ErrorCode.FORBIDDEN, "发布模拟禁止读取其他租户的候选资产");
+            throw new ApiException(ErrorCode.FORBIDDEN, "发布影响评估禁止读取其他租户的候选资产");
         }
         if (command.replayDays() == null || command.replayDays() < 1 || command.replayDays() > 365) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "历史回放天数必须在 1 到 365 之间");
@@ -431,7 +431,7 @@ public class ReleaseSimulationService {
         if (candidate.assetType() != command.assetType()
                 || !Objects.equals(candidate.assetIdentity(), command.assetIdentity())
                 || !Objects.equals(candidate.applicableScope(), command.applicableScope())) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "候选版本与发布模拟资产域不一致");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "候选版本与发布影响评估资产域不一致");
         }
     }
 
