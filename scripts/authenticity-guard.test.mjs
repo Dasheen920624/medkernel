@@ -274,6 +274,9 @@ test("前端生产文件会阻断客户面工程内部语言", async () => {
           experience: readonlyExperience("平台管理员", "核查${controlledDebug}", "最近诊断"),
         };
       `,
+      "frontend/src/shared/ui/AsyncExportAction.tsx": `
+        export const fallback = "导出任务接口尚未接入";
+      `,
     },
     async (root) => {
       const report = await scanFiles(root, [
@@ -281,10 +284,12 @@ test("前端生产文件会阻断客户面工程内部语言", async () => {
         "frontend/src/pages/RuleDefinitions.tsx",
         "frontend/src/pages/KnowledgeGovernance.tsx",
         "frontend/src/shared/config/routes.ts",
+        "frontend/src/shared/ui/AsyncExportAction.tsx",
       ]);
 
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), [
+        "frontend.customer-facing-engineering-language",
         "frontend.customer-facing-engineering-language",
         "frontend.customer-facing-engineering-language",
         "frontend.customer-facing-engineering-language",

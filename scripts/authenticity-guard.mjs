@@ -14,6 +14,7 @@ import {
 const FRONTEND_SOURCE = /^frontend\/src\/(?:pages|features|widgets)\/.+\.(?:ts|tsx)$/;
 const FRONTEND_SHARED_API = /^frontend\/src\/shared\/api\/.+\.(?:ts|tsx)$/;
 const FRONTEND_SHARED_CONFIG = /^frontend\/src\/shared\/config\/.+\.ts$/;
+const FRONTEND_SHARED_UI = /^frontend\/src\/shared\/ui\/.+\.(?:ts|tsx)$/;
 const FRONTEND_CSS = /^frontend\/src\/.+\.module\.css$/;
 const FRONTEND_E2E = /^frontend\/e2e\/.+\.(?:ts|tsx)$/;
 const FRONTEND_ROUTER = /^frontend\/src\/app\/router\.tsx$/;
@@ -70,7 +71,7 @@ const FRONTEND_RULES = [
     message:
       "前端客户面禁止把治理、诊断和受控配置表达成开发或工程内部语言。",
     pattern:
-      /开发者控制台|技术验证|技术配置|技术闸|技术阻断|技术门禁|技术门|技术安全门|技术评测|技术字段|技术降级原因|技术校验|受控调试|调试信息|影响模拟|发布模拟|模拟摘要|\bSRE\b/,
+      /开发者控制台|技术验证|技术配置|技术闸|技术阻断|技术门禁|技术门|技术安全门|技术评测|技术字段|技术降级原因|技术校验|受控调试|调试信息|影响模拟|发布模拟|模拟摘要|接口暂不可用|接口尚未接入|接口待[^，。；\n]*接入|后端通知偏好接口|\bSRE\b/,
   },
   {
     ruleId: "frontend.technical-object-visible",
@@ -456,6 +457,7 @@ function rulesForFile(file) {
   if (FRONTEND_ROUTER.test(file)) return FRONTEND_ROUTER_RULES;
   if (FRONTEND_ALLOWLIST.test(file)) return [];
   if (FRONTEND_SOURCE.test(file)) return FRONTEND_RULES;
+  if (FRONTEND_SHARED_UI.test(file)) return FRONTEND_RULES;
   if (FRONTEND_SHARED_API.test(file)) return FRONTEND_SHARED_API_RULES;
   if (FRONTEND_SHARED_CONFIG.test(file)) return FRONTEND_SHARED_CONFIG_RULES;
   if (FRONTEND_CSS.test(file)) return FRONTEND_CSS_RULES;

@@ -39,11 +39,11 @@ describe("AsyncExportAction", () => {
     const onSubmit = vi.fn();
     const { rerender } = renderAction({
       enabled: false,
-      disabledReason: "导出任务接口待引擎离线交付任务接入",
+      disabledReason: "导出任务暂不可用，请联系信息科确认导出范围。",
       onSubmit,
     });
 
-    expect(screen.getByText("导出任务接口待引擎离线交付任务接入")).toBeInTheDocument();
+    expect(screen.getByText("导出任务暂不可用，请联系信息科确认导出范围。")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "导出" })).toBeDisabled();
 
     rerender(
@@ -59,6 +59,23 @@ describe("AsyncExportAction", () => {
 
     expect(screen.getByText("当前权限不足，无法提交导出任务")).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("uses business fallback copy when export capability is unavailable", async () => {
+    const { rerender } = renderAction({ enabled: false });
+
+    expect(screen.getByText("导出任务暂不可用，请联系信息科确认导出范围。")).toBeInTheDocument();
+    expect(screen.queryByText(/接口|接入/)).not.toBeInTheDocument();
+
+    rerender(
+      <ConfigProvider>
+        <AsyncExportAction enabled permissionGranted request={request} />
+      </ConfigProvider>,
+    );
+
+    await submitExport();
+    expect(screen.getByText("导出服务暂时不可用，请联系信息科确认导出配置。")).toBeInTheDocument();
+    expect(screen.queryByText(/尚未接入|接口/)).not.toBeInTheDocument();
   });
 
   it("polls a pending export until completion and displays audit evidence", async () => {

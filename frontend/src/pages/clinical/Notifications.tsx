@@ -114,7 +114,7 @@ export default function Notifications() {
         type="warning"
         showIcon
         message="免打扰状态暂不可确认"
-        description="通知偏好接口暂不可用，请刷新或到设置页确认。"
+        description="通知偏好暂时不可用，请刷新或到通知设置页确认。"
       />
     );
   } else if (notificationSettings?.quietHoursEnabled) {

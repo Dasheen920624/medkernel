@@ -92,7 +92,7 @@ export function AsyncExportAction({
 
   async function submitRequest() {
     if (!onSubmit) {
-      setFailure("导出服务尚未接入");
+      setFailure("导出服务暂时不可用，请联系信息科确认导出配置。");
       return;
     }
 
@@ -125,7 +125,9 @@ export function AsyncExportAction({
         <Button aria-label={buttonAriaLabel} icon={<DownloadOutlined />} disabled>
           {buttonLabel}
         </Button>
-        <Text type="secondary">{disabledReason ?? "导出任务接口尚未接入"}</Text>
+        <Text type="secondary">
+          {disabledReason ?? "导出任务暂不可用，请联系信息科确认导出范围。"}
+        </Text>
       </Space>
     );
   }

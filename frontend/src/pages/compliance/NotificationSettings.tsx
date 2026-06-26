@@ -225,7 +225,7 @@ export default function NotificationSettings() {
           showIcon
           className="mk-card-gap-bottom"
           message="通知偏好读取失败"
-          description="请检查登录状态、服务空间或后端通知偏好接口。"
+          description="请检查登录状态、服务空间或通知偏好配置。"
         />
       )}
 

@@ -528,7 +528,7 @@ describe("Notifications", () => {
     renderNotifications();
 
     expect(screen.getByText("免打扰状态暂不可确认")).toBeInTheDocument();
-    expect(screen.getByText("通知偏好接口暂不可用，请刷新或到设置页确认。")).toBeInTheDocument();
+    expect(screen.getByText("通知偏好暂时不可用，请刷新或到通知设置页确认。")).toBeInTheDocument();
     expect(screen.getByText("随访异常通知")).toBeInTheDocument();
   });
 });

@@ -236,6 +236,14 @@
   或“自动回灌”；真实性门禁新增前端未上线承诺旧文案拦截。已验证：
   `npm test -- --run src/widgets/WorkbenchPanel.test.tsx`、`node --test scripts/authenticity-guard.test.mjs`、
   `node scripts/authenticity-guard.mjs --mode=inventory`；尚未重新部署 134。
+- 通知偏好和共享导出能力状态已在本地清理：前台错误、禁用和设置失败提示统一指向通知设置、信息科确认
+  导出范围或导出配置，不再向医生、护士、审计员或实施人员暴露实现层接入状态；真实性门禁新增共享 UI
+  客户面实现层旧口径拦截。已验证：
+  `npm test -- --run src/pages/clinical/Notifications.test.tsx src/shared/ui/AsyncExportAction.test.tsx`、
+  `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
+  `rg -n "接口暂不可用|接口尚未接入|尚未接入|接口待|后端通知偏好接口" frontend/src --glob '!**/*.test.*' --glob '!**/*.stories.*'`
+  无结果、`npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、
+  `npm run test:lint-rules`、`npm run build`；尚未重新部署 134。
 
 ## 本轮落地内容
 
@@ -355,6 +363,8 @@
   上线前治理只是演示或临时模拟。
 - 工作台来源卡片空态从“后续来源上线后自动回灌”改为当前组织数据状态和可执行下一步，避免医生、护士、
   信息科或院长在无数据时被未来承诺误导。
+- 通知偏好和导出能力的不可用状态从实现层接入说明改为业务可执行提示：临床消息页提示回到通知设置确认，
+  导出控件提示联系信息科确认范围或配置，避免前台用户把平台能力误读成临时未完成页面。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -392,7 +402,8 @@
    旧口径门禁、客户面退役说明清理、全局治理语言清理、安全校验口径清理、实施内部口径清理、
    临床提醒来源空态、Webhook 验证口径清理、领域门面 B0 主链路证据和离线评测 baseline 命名清理、
    知识发布质量门影响评估与规则提示卡引用占位口径清理、权威体验契约演示重构旧说法清理、
-   平台管理员工作台治理概览表达清理、发布治理服务影响评估契约口径清理、工作台空态未上线承诺清理
+   平台管理员工作台治理概览表达清理、发布治理服务影响评估契约口径清理、工作台空态未上线承诺清理、
+   通知偏好和导出能力实现层旧口径清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。
