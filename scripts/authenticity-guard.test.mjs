@@ -289,6 +289,9 @@ test("前端生产文件会阻断客户面工程内部语言", async () => {
       "frontend/src/shared/ui/condition/FieldCatalogManager.tsx": `
         export const error = "当前无法读取 canonical 字段目录，请恢复接口后再维护字段元数据。";
       `,
+      "frontend/src/pages/Login.tsx": `
+        export const delegated = "统一身份暂未接入，后端未返回统一身份方式，真实院方 IdP 配置后开放。";
+      `,
     },
     async (root) => {
       const report = await scanFiles(root, [
@@ -301,10 +304,12 @@ test("前端生产文件会阻断客户面工程内部语言", async () => {
         "frontend/src/pages/WorkflowTodos.tsx",
         "frontend/src/pages/ImplementationGuide.tsx",
         "frontend/src/shared/ui/condition/FieldCatalogManager.tsx",
+        "frontend/src/pages/Login.tsx",
       ]);
 
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), [
+        "frontend.customer-facing-engineering-language",
         "frontend.customer-facing-engineering-language",
         "frontend.customer-facing-engineering-language",
         "frontend.customer-facing-engineering-language",
@@ -441,6 +446,11 @@ test("前后端契约会阻断实施内部口径残留", async () => {
           String providerCode = "${offlineFixture}";
         }
       `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/security/auth/AuthController.java": `
+        public class AuthController {
+          String message = "院方统一身份尚未接入，未配置真实 IdP 连接器";
+        }
+      `,
       "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql": `
         COMMENT ON COLUMN rule_governance.author_id IS '规则版本负责人，可确认并推进完整${technicalReleaseChain}';
       `,
@@ -457,12 +467,14 @@ test("前后端契约会阻断实施内部口径残留", async () => {
         "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/initialization/KnowledgeInitializationService.java",
         "medkernel-backend/src/main/java/com/medkernel/engine/security/PermissionCode.java",
         "medkernel-backend/src/main/java/com/medkernel/engine/llm/eval/ModelEvalService.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/security/auth/AuthController.java",
         "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql",
         "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json",
       ]);
 
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-internal-operation-language",
         "backend.customer-facing-internal-operation-language",
         "backend.customer-facing-internal-operation-language",
         "backend.customer-facing-internal-operation-language",

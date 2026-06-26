@@ -42,6 +42,8 @@ const testQueryClient = new QueryClient({
 });
 
 const originalApiAdapter = apiClient.defaults.adapter;
+const legacyDelegatedUnavailableCopy = ["统一身份", "暂未接入"].join("");
+const legacyDelegatedProviderPattern = new RegExp(`${["真实院方", " IdP"].join("")}|连接器|未接通`);
 
 beforeEach(() => {
   apiClient.defaults.adapter = (() => new Promise(() => undefined)) as AxiosAdapter;
@@ -62,7 +64,7 @@ function mockDelegatedAuthStatus(options?: { hasCustomerTenants?: boolean }) {
             enabled: true,
             status: "NOT_CONNECTED",
             providers: ["OIDC", "CAS", "SAML", "国密CA"],
-            message: "院方统一身份入口已开放，但当前未配置真实 IdP 连接器。",
+            message: "院方统一身份入口已开放，请由信息科在身份来源完成配置后启用。",
           },
         },
         status: 200,
@@ -316,9 +318,10 @@ describe("page smoke coverage", () => {
     expect(await screen.findByRole("button", { name: /集团总院/ })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "院方统一身份认证" }));
 
-    expect(await screen.findByText("统一身份暂未接入")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "开放式身份认证（OIDC）（未接通）" })).toBeDisabled();
-    expect(screen.getByText(/真实院方 IdP/)).toBeInTheDocument();
+    expect(await screen.findByText("统一身份服务待配置")).toBeInTheDocument();
+    expect(screen.queryByText(legacyDelegatedUnavailableCopy)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "开放式身份认证（OIDC）（待配置）" })).toBeDisabled();
+    expect(screen.queryByText(legacyDelegatedProviderPattern)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "CAS（待院方配置）" })).not.toBeInTheDocument();
   });
 

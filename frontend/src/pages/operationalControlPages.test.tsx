@@ -78,7 +78,7 @@ const delegatedAuth: DelegatedAuthStatus = {
   enabled: true,
   status: "NOT_CONNECTED",
   providers: ["OIDC", "CAS", "SAML", "国密CA"],
-  message: "院方统一身份入口已开放，但当前未配置真实 IdP 连接器。",
+  message: "院方统一身份入口已开放，请由信息科在身份来源完成配置后启用。",
 };
 
 const tenantDirectory: LoginTenantDirectory = {
@@ -222,9 +222,9 @@ const runtimeSnapshot: RuntimeOperationsSnapshot = {
     },
     {
       key: "idp",
-      displayName: "统一身份 IdP",
+      displayName: "统一身份来源",
       status: "NOT_CONNECTED",
-      detail: "未配置真实院方 IdP。",
+      detail: "身份来源待配置。",
     },
   ],
   backup: {
@@ -477,7 +477,7 @@ describe("operational control pages", () => {
     expect(screen.getAllByText("未接通").length).toBeGreaterThan(0);
     expect(screen.getByText("张医生")).toBeInTheDocument();
     expect(screen.getByText("****-001")).toBeInTheDocument();
-    expect(screen.getByText(/未配置真实 IdP/)).toBeInTheDocument();
+    expect(screen.getByText(/请由信息科在身份来源完成配置后启用/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /单个绑定/ }));
     expect(screen.getByRole("dialog", { name: "单个绑定身份来源" })).toBeInTheDocument();
@@ -619,7 +619,7 @@ describe("operational control pages", () => {
     expect(screen.getByText("docker-core")).toBeInTheDocument();
     expect(screen.getByText("Java 21")).toBeInTheDocument();
     expect(
-      within(screen.getByTestId("developer-dependencies")).getByText("统一身份 IdP"),
+      within(screen.getByTestId("developer-dependencies")).getByText("统一身份来源"),
     ).toBeInTheDocument();
     expect(screen.getByText("运行状态服务")).toBeInTheDocument();
     expect(screen.getByText("rule.publish")).toBeInTheDocument();

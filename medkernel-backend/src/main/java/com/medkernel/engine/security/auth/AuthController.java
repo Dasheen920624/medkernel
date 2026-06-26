@@ -91,7 +91,7 @@ public class AuthController {
             enabled ? "NOT_CONNECTED" : "DISABLED",
             DELEGATED_PROVIDERS,
             enabled
-                ? "院方统一身份入口已按认证模式开放，但当前未配置真实 IdP 连接器。"
+                ? "院方统一身份入口已开放，请由信息科在身份来源完成配置后启用。"
                 : "当前认证模式未开放院方统一身份入口。"));
     }
 

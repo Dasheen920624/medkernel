@@ -52,6 +52,9 @@ const cssBlock = (source: string, selector: string) => {
   return source.match(new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`))?.groups?.body ?? "";
 };
 
+const legacyDelegatedUnavailableCopy = ["统一身份", "暂未接入"].join("");
+const legacyDelegatedProviderPattern = new RegExp(`${["Id", "P"].join("")}|连接器|未接通`);
+
 describe("Login", () => {
   beforeEach(() => {
     navigateMock.mockReset();
@@ -68,7 +71,7 @@ describe("Login", () => {
         enabled: true,
         status: "NOT_CONNECTED",
         providers: ["OIDC", "CAS", "SAML", "SM_CA"],
-        message: "院方统一身份入口已开放，但当前未配置真实 IdP 连接器。",
+        message: "院方统一身份入口已开放，请由信息科在身份来源完成配置后启用。",
       },
       isLoading: false,
       isError: false,
@@ -268,7 +271,7 @@ describe("Login", () => {
     expect(screen.queryByText("平台治理空间（唯一内置）")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "平台治理" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "院方统一身份认证" })).toBeInTheDocument();
-    expect(screen.queryByText("统一身份暂未接入")).not.toBeInTheDocument();
+    expect(screen.queryByText(legacyDelegatedUnavailableCopy)).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("请输入工号或机构账号")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("工号 / 账号"), { target: { value: "hosp-admin" } });
@@ -407,14 +410,16 @@ describe("Login", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "院方统一身份认证" }));
 
-    expect(await screen.findByText("统一身份暂未接入")).toBeInTheDocument();
+    expect(await screen.findByText("统一身份服务待配置")).toBeInTheDocument();
     expect(
-      screen.getByText("院方统一身份入口已开放，但当前未配置真实 IdP 连接器。"),
+      screen.getByText("院方统一身份入口已开放，请由信息科在身份来源完成配置后启用。"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "开放式身份认证（OIDC）（未接通）" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "统一认证服务（CAS）（未接通）" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "安全断言认证（SAML）（未接通）" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "国密数字证书（未接通）" })).toBeDisabled();
+    expect(screen.queryByText(legacyDelegatedUnavailableCopy)).not.toBeInTheDocument();
+    expect(screen.queryByText(legacyDelegatedProviderPattern)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "开放式身份认证（OIDC）（待配置）" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "统一认证服务（CAS）（待配置）" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "安全断言认证（SAML）（待配置）" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "国密数字证书（待配置）" })).toBeDisabled();
   });
 
   it("统一身份状态不返回提供方时不展示本地伪造方式", async () => {
@@ -433,7 +438,7 @@ describe("Login", () => {
         enabled: true,
         status: "NOT_CONNECTED",
         providers: [],
-        message: "院方统一身份入口已开放，但当前未配置真实 IdP 连接器。",
+        message: "院方统一身份入口已开放，请由信息科在身份来源完成配置后启用。",
       },
       isLoading: false,
       isError: false,
@@ -443,13 +448,13 @@ describe("Login", () => {
     fireEvent.click(screen.getByRole("button", { name: "院方统一身份认证" }));
 
     expect(
-      await screen.findByText("后端未返回统一身份方式，暂不展示登录跳转入口。"),
+      await screen.findByText("当前未返回统一身份方式，暂不展示登录跳转入口。"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "开放式身份认证（OIDC）（未接通）" }),
+      screen.queryByRole("button", { name: "开放式身份认证（OIDC）（待配置）" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "统一认证服务（CAS）（未接通）" }),
+      screen.queryByRole("button", { name: "统一认证服务（CAS）（待配置）" }),
     ).not.toBeInTheDocument();
   });
 });

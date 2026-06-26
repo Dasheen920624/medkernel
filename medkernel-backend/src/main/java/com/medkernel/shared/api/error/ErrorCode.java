@@ -166,7 +166,7 @@ public enum ErrorCode {
     ENG_AUTH_011("ENG-AUTH-011", 400, "应急命令缺少确认短语", ErrorClass.AUTH, false),
     ENG_AUTH_012("ENG-AUTH-012", 401, "会话已过期，请重新登录", ErrorClass.AUTH, false),
     ENG_AUTH_013("ENG-AUTH-013", 403, "当前认证模式不允许平台账号登录，请使用院方统一身份入口", ErrorClass.AUTH, false),
-    ENG_AUTH_014("ENG-AUTH-014", 503, "院方统一身份尚未接入，无法完成委托登录", ErrorClass.EXTERNAL, true),
+    ENG_AUTH_014("ENG-AUTH-014", 503, "院方统一身份服务待配置，无法完成委托登录", ErrorClass.EXTERNAL, true),
     ENG_AUTH_015("ENG-AUTH-015", 403, "必须先完成初始密码修改", ErrorClass.AUTH, false),
     ENG_AUTH_016("ENG-AUTH-016", 401, "密码重置 token 无效或已使用", ErrorClass.AUTH, false),
     ENG_AUTH_017("ENG-AUTH-017", 409, "系统已完成首次部署，禁止重复创建内置超级管理员", ErrorClass.AUTH, false),

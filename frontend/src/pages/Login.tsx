@@ -21,7 +21,7 @@ import {
   type LoginTenantOption,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
-import { connectionStatusLabel, identityProviderLabel } from "@/shared/config/customerLabels";
+import { identityProviderLabel } from "@/shared/config/customerLabels";
 import { platformTenantDescription } from "@/shared/config/tenantDictionary";
 import styles from "./Login.module.css";
 
@@ -30,8 +30,21 @@ const { Title, Text } = Typography;
 const helpItems = [
   { label: "首次登录", value: "使用管理员开通的账号进入，首次登录后按医院策略改密。" },
   { label: "忘记密码", value: "请联系本院管理员重置密码，重置操作会进入审计留痕。" },
-  { label: "统一身份", value: "接入状态由后端实时返回；未接入时页面只展示状态，不伪造入口。" },
+  { label: "统一身份", value: "统一身份状态由服务返回；待配置时页面只展示状态，不伪造入口。" },
 ];
+
+const delegatedConnectionStatusLabel = (state: string) => {
+  if (state === "NOT_CONNECTED") {
+    return "待配置";
+  }
+  if (state === "READY") {
+    return "已启用";
+  }
+  if (state === "DISABLED") {
+    return "未启用";
+  }
+  return state;
+};
 
 type DelegatedAlert = {
   type: "info" | "error" | "success" | "warning";
@@ -126,10 +139,9 @@ function buildDelegatedAlert({
 
   return {
     type: "warning",
-    message: "统一身份暂未接入",
+    message: "统一身份服务待配置",
     description:
-      status.message ||
-      "统一身份由医院信息中心配置；多因素认证、国密与国产 CA 由系统按策略自动选择。",
+      status.message || "请先使用医院账号密码登录；信息科可在身份来源中完成院方统一身份配置。",
   };
 }
 
@@ -518,17 +530,18 @@ export default function Login() {
                       key={provider}
                       loading={delegatedAuthStatus.isLoading}
                     >
-                      {identityProviderLabel(provider)}（{connectionStatusLabel(delegatedState)}）
+                      {identityProviderLabel(provider)}（
+                      {delegatedConnectionStatusLabel(delegatedState)}）
                     </Button>
                   ))
                 ) : (
                   <Text type="secondary" className={styles.helperText}>
-                    后端未返回统一身份方式，暂不展示登录跳转入口。
+                    当前未返回统一身份方式，暂不展示登录跳转入口。
                   </Text>
                 )}
               </div>
               <Text type="secondary" className={styles.helperText}>
-                当前页只展示已配置状态；真实院方 IdP、证书链和回调地址完成配置后才会开放跳转。
+                当前页只展示已配置状态；院方身份来源、证书链和回调地址完成配置后才会开放跳转。
               </Text>
             </div>
           )}

@@ -4971,7 +4971,7 @@ describe("auth identity api helpers", () => {
       enabled: true,
       status: "NOT_CONNECTED",
       providers: ["OIDC", "CAS", "SAML", "国密CA"],
-      message: "院方统一身份入口已开放，但当前未配置真实 IdP 连接器。",
+      message: "院方统一身份入口已开放，请由信息科在身份来源完成配置后启用。",
     };
     vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: status } });
 

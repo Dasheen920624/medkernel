@@ -343,7 +343,8 @@ class AuthControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.mode").value("BOTH"))
             .andExpect(jsonPath("$.data.enabled").value(true))
-            .andExpect(jsonPath("$.data.status").value("NOT_CONNECTED"));
+            .andExpect(jsonPath("$.data.status").value("NOT_CONNECTED"))
+            .andExpect(jsonPath("$.data.message").value("院方统一身份入口已开放，请由信息科在身份来源完成配置后启用。"));
     }
 
     @Test
@@ -354,7 +355,8 @@ class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
             .andExpect(status().isServiceUnavailable())
-            .andExpect(jsonPath("$.code").value("ENG-AUTH-014"));
+            .andExpect(jsonPath("$.code").value("ENG-AUTH-014"))
+            .andExpect(jsonPath("$.detail").value("院方统一身份服务待配置，无法完成委托登录"));
     }
 
     @Test
