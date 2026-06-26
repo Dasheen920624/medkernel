@@ -361,6 +361,7 @@ test("前后端契约会阻断实施内部口径残留", async () => {
   const debugBefore = "调试" + "前";
   const channelDebug = "通道" + "调试";
   const testPayload = "测试 " + "Payload";
+  const offlineFixture = "offline-" + "fixture";
   await withFixture(
     {
       "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/acquisition/AcquisitionController.java": `
@@ -389,6 +390,11 @@ test("前后端契约会阻断实施内部口径残留", async () => {
           INTEGRATION_EXECUTE("执行适配器健康检查、Webhook 测试、入站验签")
         }
       `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/llm/eval/ModelEvalService.java": `
+        public class ModelEvalService {
+          String providerCode = "${offlineFixture}";
+        }
+      `,
       "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql": `
         COMMENT ON COLUMN rule_governance.author_id IS '规则版本负责人，可确认并推进完整${technicalReleaseChain}';
       `,
@@ -404,6 +410,7 @@ test("前后端契约会阻断实施内部口径残留", async () => {
         "medkernel-backend/src/main/java/com/medkernel/engine/integration/dto/WebhookTestDto.java",
         "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/initialization/KnowledgeInitializationService.java",
         "medkernel-backend/src/main/java/com/medkernel/engine/security/PermissionCode.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/llm/eval/ModelEvalService.java",
         "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql",
         "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json",
       ]);
@@ -416,8 +423,32 @@ test("前后端契约会阻断实施内部口径残留", async () => {
         "backend.customer-facing-internal-operation-language",
         "backend.customer-facing-internal-operation-language",
         "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
         "db.customer-facing-safety-language",
         "db.customer-facing-safety-language",
+      ]);
+    },
+  );
+});
+
+test("领域门面生产契约禁止回流 fixture 验收样本口径", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/domainfacade/DomainFacadeController.java": `
+        /** 列举 X-DOMAIN 17 张领域门面的 B0 fixture 证据。 */
+        @GetMapping("/b0-fixtures")
+        public class DomainFacadeController {}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/domainfacade/DomainFacadeController.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-internal-operation-language",
+        "backend.domain-facade-fixture-language",
       ]);
     },
   );

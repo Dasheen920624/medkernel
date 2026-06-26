@@ -18,6 +18,8 @@ const FRONTEND_CSS = /^frontend\/src\/.+\.module\.css$/;
 const FRONTEND_E2E = /^frontend\/e2e\/.+\.(?:ts|tsx)$/;
 const FRONTEND_ROUTER = /^frontend\/src\/app\/router\.tsx$/;
 const BACKEND_JAVA = /^medkernel-backend\/src\/main\/java\/.+\.java$/;
+const BACKEND_DOMAIN_FACADE =
+  /^medkernel-backend\/src\/main\/java\/com\/medkernel\/engine\/domainfacade\/.+\.java$/;
 const DB_COMMENT_CONTRACT =
   /^medkernel-backend\/src\/main\/resources\/db\/(?:schema\/medkernel\.schema\.json|migration\/(?:dm|h2|kingbase|oracle|postgres)\/V1__baseline\.sql)$/;
 const CURRENT_DOCS =
@@ -195,7 +197,7 @@ const BACKEND_RULES = [
     ruleId: "backend.customer-facing-internal-operation-language",
     message: "后端生产契约和注释禁止继续使用面向实施内部的旧口径。",
     pattern:
-      /技术核验|技术发布链|来源版本技术信息|平台开发者|调试接口|调试前|通道调试|测试\s*Payload|Webhook\s*测试|签名测试|双向连通测试|签名生成与双向连通测试/,
+      /技术核验|技术发布链|来源版本技术信息|平台开发者|调试接口|调试前|通道调试|测试\s*Payload|Webhook\s*测试|签名测试|双向连通测试|签名生成与双向连通测试|(?:offline|b0)-fixture/,
   },
   {
     ruleId: "backend.customer-facing-safety-language",
@@ -269,6 +271,14 @@ const BACKEND_RULES = [
     ruleId: "backend.retired-task-language",
     message: "后端生产注释禁止保留早期任务口吻，已上线能力必须描述当前运行事实。",
     pattern: /本类只提供骨架|任务中实施/,
+  },
+];
+
+const BACKEND_DOMAIN_FACADE_RULES = [
+  {
+    ruleId: "backend.domain-facade-fixture-language",
+    message: "领域门面公开契约禁止继续使用 fixture 或 b0-fixture 旧验收样本口径。",
+    pattern: /\bfixture\b|b0-fixtures?|B0\s*fixture/i,
   },
 ];
 
@@ -437,6 +447,9 @@ function rulesForFile(file) {
   if (FRONTEND_CSS.test(file)) return FRONTEND_CSS_RULES;
   if (CURRENT_DOCS.test(file)) return CURRENT_DOC_RULES;
   if (DB_COMMENT_CONTRACT.test(file)) return DB_COMMENT_RULES;
+  if (BACKEND_DOMAIN_FACADE.test(file)) {
+    return [...BACKEND_RULES, ...BACKEND_DOMAIN_FACADE_RULES];
+  }
   if (BACKEND_JAVA.test(file)) return BACKEND_RULES;
   return [];
 }

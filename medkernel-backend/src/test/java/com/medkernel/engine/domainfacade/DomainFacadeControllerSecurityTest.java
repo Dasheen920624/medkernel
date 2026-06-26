@@ -34,7 +34,7 @@ class DomainFacadeControllerSecurityTest {
     private DomainFacadeCatalogService service;
 
     @MockBean
-    private DomainFacadeB0FixtureService fixtureService;
+    private DomainFacadeB0EvidenceService evidenceService;
 
     @AfterEach
     void clearContext() {

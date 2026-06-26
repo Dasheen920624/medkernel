@@ -605,7 +605,7 @@ export function validateStageEvidence(stageId, evidence) {
         !Array.isArray(evidence.disabled?.blockingRequiredItems) ||
         evidence.disabled.blockingRequiredItems.length !== 1 ||
         evidence.disabled.blockingRequiredItems[0] !== "MODEL_PROVIDER" ||
-        evidence.b0?.fixtureCount !== 17 ||
+        evidence.b0?.evidenceCount !== 17 ||
         evidence.b0?.passedCount !== 17 ||
         evidence.b0?.modelRequiredCount !== 0 ||
         evidence.restored?.providerEnabled !== true ||
@@ -617,7 +617,7 @@ export function validateStageEvidence(stageId, evidence) {
       }
       return {
         disabledBlocker: "MODEL_PROVIDER",
-        b0FixtureCount: 17,
+        b0EvidenceCount: 17,
         restored: true,
       };
     case "browser-e2e":

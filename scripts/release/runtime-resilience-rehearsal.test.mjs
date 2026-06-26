@@ -44,7 +44,7 @@ test("模型关闭时只阻断模型调用且 B0 核心继续可用，真实探�
   assert.deepEqual(evidence.disabled.blockingRequiredItems, ["MODEL_PROVIDER"]);
   assert.equal(evidence.disabled.modelInvocationAllowed, false);
   assert.deepEqual(evidence.b0, {
-    fixtureCount: 17,
+    evidenceCount: 17,
     passedCount: 17,
     modelRequiredCount: 0,
   });
@@ -58,7 +58,7 @@ test("模型关闭时只阻断模型调用且 B0 核心继续可用，真实探�
       "GET /model-providers/ollama-launch",
       "POST /model-providers/ollama-launch/disable",
       "GET /engine/knowledge-production/readiness",
-      "GET /engine/domain-facades/b0-fixtures",
+      "GET /engine/domain-facades/b0-evidence",
       "POST /model-providers/ollama-launch/health-check",
       "POST /model-providers/ollama-launch/enable",
       "GET /engine/knowledge-production/readiness",
@@ -152,14 +152,14 @@ function createResilienceFetch(requests, options = {}) {
     if (path === "/engine/knowledge-production/readiness") {
       return response({ data: provider.enabled ? readyReadiness() : blockedReadiness(options) });
     }
-    if (path === "/engine/domain-facades/b0-fixtures") {
-      const fixtures = Array.from({ length: 17 }, (_, index) => ({
+    if (path === "/engine/domain-facades/b0-evidence") {
+      const evidence = Array.from({ length: 17 }, (_, index) => ({
         code: `FACADE-${index + 1}`,
         status: options.b0Failure && index === 16 ? "FAIL" : "PASS",
         b0Executable: true,
         modelRequired: false,
       }));
-      return response({ data: fixtures });
+      return response({ data: evidence });
     }
     if (path.endsWith("/health-check")) {
       provider = providerView(false, "HEALTHY", 4);

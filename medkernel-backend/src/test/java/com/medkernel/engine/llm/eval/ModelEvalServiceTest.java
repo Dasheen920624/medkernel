@@ -263,7 +263,7 @@ class ModelEvalServiceTest {
 
         ModelEvalRun run = service.runQualityEvaluation(new AiQualityEvalRunRequest(
             "recommendation.draft",
-            "b0-fixture",
+            null,
             "B0-Deterministic-Baseline",
             "prompt:v1",
             "tool:v1",
@@ -275,6 +275,7 @@ class ModelEvalServiceTest {
                 "source-version:77#term"))));
 
         assertThat(run.status()).isEqualTo("FAILED");
+        assertThat(run.providerCode()).isEqualTo("offline-baseline");
         assertThat(run.capabilityCode()).isEqualTo("recommendation.draft");
         assertThat(run.promptVersion()).isEqualTo("prompt:v1");
         assertThat(run.toolVersion()).isEqualTo("tool:v1");
@@ -292,7 +293,7 @@ class ModelEvalServiceTest {
 
         assertThatThrownBy(() -> service.runQualityEvaluation(new AiQualityEvalRunRequest(
             "recommendation.draft",
-            "b0-fixture",
+            "b0-baseline",
             "B0-Deterministic-Baseline",
             "prompt:v1",
             "tool:v1",
@@ -484,7 +485,7 @@ class ModelEvalServiceTest {
             String promptVersion,
             String toolVersion) {
         return new ModelEvalRun(
-            id, "tenant-1", "b0-fixture", "B0-Deterministic-Baseline",
+            id, "tenant-1", "b0-baseline", "B0-Deterministic-Baseline",
             "recommendation.draft", promptVersion, toolVersion, "release-current",
             3, "PASSED".equals(status) ? 3 : 2, "PASSED".equals(status) ? 0 : 1,
             qualityScore, terminologyScore, "N", "N", hallucinationDetected,

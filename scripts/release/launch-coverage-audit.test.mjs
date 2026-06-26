@@ -145,7 +145,7 @@ function completeStageEvidence() {
         modelInvocationAllowed: false,
         blockingRequiredItems: ["MODEL_PROVIDER"],
       },
-      b0: { fixtureCount: 17, passedCount: 17, modelRequiredCount: 0 },
+      b0: { evidenceCount: 17, passedCount: 17, modelRequiredCount: 0 },
       restored: {
         providerEnabled: true,
         providerStatus: "HEALTHY",

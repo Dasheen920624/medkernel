@@ -61,12 +61,13 @@ class DomainFacadeApiContractTest {
     }
 
     @Test
-    void listB0Fixtures_returnsExecutableEvidenceForAllFacadesWithoutModelRequirement() throws Exception {
-        mockMvc.perform(get("/api/v1/engine/domain-facades/b0-fixtures").with(engineOperatorJwt()))
+    void listB0Evidence_returnsExecutableEvidenceForAllFacadesWithoutModelRequirement() throws Exception {
+        mockMvc.perform(get("/api/v1/engine/domain-facades/b0-evidence").with(engineOperatorJwt()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.length()").value(17))
             .andExpect(jsonPath("$.data[*].code", hasItem("NURSING-01")))
             .andExpect(jsonPath("$.data[*].status", everyItem(is("PASS"))))
+            .andExpect(jsonPath("$.data[0].evidenceId").value("DOMAIN-B0-NURSING-01"))
             .andExpect(jsonPath("$.data[*].b0Executable", everyItem(is(true))))
             .andExpect(jsonPath("$.data[*].modelRequired", everyItem(is(false))))
             .andExpect(jsonPath("$.data[*].clinicalContentSeeded", everyItem(is(false))))
@@ -74,8 +75,8 @@ class DomainFacadeApiContractTest {
     }
 
     @Test
-    void getB0Fixture_declaresSpecialtyExtensionHonestEmptyUntilAssetsExist() throws Exception {
-        mockMvc.perform(get("/api/v1/engine/domain-facades/SPECIALTY-EXT-01/b0-fixture")
+    void getB0Evidence_declaresSpecialtyExtensionHonestEmptyUntilAssetsExist() throws Exception {
+        mockMvc.perform(get("/api/v1/engine/domain-facades/SPECIALTY-EXT-01/b0-evidence")
                 .with(engineOperatorJwt()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.code").value("SPECIALTY-EXT-01"))

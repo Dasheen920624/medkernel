@@ -7,53 +7,53 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 
 /**
- * X-DOMAIN 领域门面 B0 fixture 证据服务。
+ * X-DOMAIN 领域门面 B0 主链路证据服务。
  *
  * <p>只验证门面是否复用已有确定性引擎入口、业务组合成员是否可解析，以及缺真实资产时是否诚实空态；
  * 不生成、不内置任何真实医学内容。
  */
 @Service
-public class DomainFacadeB0FixtureService {
+public class DomainFacadeB0EvidenceService {
 
-    private static final Map<DomainFacadeEngine, EngineFixtureDefinition> ENGINE_FIXTURES = engineFixtures();
+    private static final Map<DomainFacadeEngine, EngineEvidenceDefinition> ENGINE_EVIDENCE = engineEvidence();
 
     private final DomainFacadeCatalogService catalogService;
 
-    public DomainFacadeB0FixtureService(DomainFacadeCatalogService catalogService) {
+    public DomainFacadeB0EvidenceService(DomainFacadeCatalogService catalogService) {
         this.catalogService = catalogService;
     }
 
-    /** 返回全部 17 张领域门面的 B0 fixture 证据。 */
-    public List<DomainFacadeB0FixtureEvidence> listFixtureEvidence() {
+    /** 返回全部 17 张领域门面的 B0 主链路证据。 */
+    public List<DomainFacadeB0Evidence> listB0Evidence() {
         return catalogService.listDefinitions().stream()
             .map(this::buildEvidence)
             .toList();
     }
 
-    /** 按门面代码返回 B0 fixture 证据。 */
-    public DomainFacadeB0FixtureEvidence requireFixtureEvidence(String code) {
+    /** 按门面代码返回 B0 主链路证据。 */
+    public DomainFacadeB0Evidence requireB0Evidence(String code) {
         return buildEvidence(catalogService.requireDefinition(code));
     }
 
-    private DomainFacadeB0FixtureEvidence buildEvidence(DomainFacadeDefinition definition) {
-        List<DomainFacadeEngineFixtureEvidence> engineEvidence = definition.engineChain().stream()
+    private DomainFacadeB0Evidence buildEvidence(DomainFacadeDefinition definition) {
+        List<DomainFacadeEngineEvidence> engineEvidence = definition.engineChain().stream()
             .map(this::engineEvidence)
             .toList();
         List<String> verifiedMembers = definition.memberFacadeCodes().stream()
             .filter(this::memberExists)
             .toList();
         boolean membersResolvable = verifiedMembers.size() == definition.memberFacadeCodes().size();
-        boolean handlersPresent = engineEvidence.stream().allMatch(DomainFacadeEngineFixtureEvidence::handlerPresent);
+        boolean handlersPresent = engineEvidence.stream().allMatch(DomainFacadeEngineEvidence::handlerPresent);
         boolean pass = handlersPresent
             && membersResolvable
             && definition.b0Ready()
             && definition.modelEnhancementOptional()
             && !definition.clinicalContentSeeded()
             && !definition.newBusinessEngineRequired();
-        return new DomainFacadeB0FixtureEvidence(
+        return new DomainFacadeB0Evidence(
             definition.code(),
             definition.kind(),
-            pass ? DomainFacadeB0FixtureStatus.PASS : DomainFacadeB0FixtureStatus.FAIL,
+            pass ? DomainFacadeB0EvidenceStatus.PASS : DomainFacadeB0EvidenceStatus.FAIL,
             "DOMAIN-B0-" + definition.code(),
             definition.b0Ready(),
             !definition.modelEnhancementOptional(),
@@ -68,15 +68,15 @@ public class DomainFacadeB0FixtureService {
             verifiedMembers);
     }
 
-    private DomainFacadeEngineFixtureEvidence engineEvidence(DomainFacadeEngine engine) {
-        EngineFixtureDefinition fixture = ENGINE_FIXTURES.get(engine);
-        boolean present = fixture != null && classPresent(fixture.handlerClass());
-        return new DomainFacadeEngineFixtureEvidence(
+    private DomainFacadeEngineEvidence engineEvidence(DomainFacadeEngine engine) {
+        EngineEvidenceDefinition evidence = ENGINE_EVIDENCE.get(engine);
+        boolean present = evidence != null && classPresent(evidence.handlerClass());
+        return new DomainFacadeEngineEvidence(
             engine,
-            fixture == null ? "" : fixture.handlerClass(),
-            fixture == null ? "" : fixture.b0Route(),
-            fixture == null ? "未登记共享 B0 fixture" : fixture.assertion(),
-            fixture != null,
+            evidence == null ? "" : evidence.handlerClass(),
+            evidence == null ? "" : evidence.b0Route(),
+            evidence == null ? "未登记共享 B0 验证入口" : evidence.assertion(),
+            evidence != null,
             present,
             false);
     }
@@ -99,71 +99,71 @@ public class DomainFacadeB0FixtureService {
         }
     }
 
-    private static Map<DomainFacadeEngine, EngineFixtureDefinition> engineFixtures() {
-        EnumMap<DomainFacadeEngine, EngineFixtureDefinition> fixtures = new EnumMap<>(DomainFacadeEngine.class);
-        fixtures.put(DomainFacadeEngine.RULE, fixture(
+    private static Map<DomainFacadeEngine, EngineEvidenceDefinition> engineEvidence() {
+        EnumMap<DomainFacadeEngine, EngineEvidenceDefinition> evidence = new EnumMap<>(DomainFacadeEngine.class);
+        evidence.put(DomainFacadeEngine.RULE, evidence(
             "com.medkernel.engine.rule.RuleEngineService",
             "/api/v1/engine/rule/rules/evaluate",
             "复用规则 DSL 确定性执行入口"));
-        fixtures.put(DomainFacadeEngine.PATHWAY, fixture(
+        evidence.put(DomainFacadeEngine.PATHWAY, evidence(
             "com.medkernel.engine.pathway.PathwayEngineService",
             "/api/v1/engine/pathway/pathway-templates/{templateId}/simulate",
             "复用路径模板试运行与患者路径推进入口"));
-        fixtures.put(DomainFacadeEngine.KNOWLEDGE, fixture(
+        evidence.put(DomainFacadeEngine.KNOWLEDGE, evidence(
             "com.medkernel.engine.knowledge.KnowledgeIdentityService",
             "/api/v1/engine/knowledge/identities",
             "复用关系库权威知识身份与 ACTIVE 版本读取入口"));
-        fixtures.put(DomainFacadeEngine.CDSS, fixture(
+        evidence.put(DomainFacadeEngine.CDSS, evidence(
             "com.medkernel.engine.recommendation.RecommendationEngineService",
             "/api/v1/engine/recommendations/triggers",
             "复用确定性推荐/CDSS 触发与来源解释入口"));
-        fixtures.put(DomainFacadeEngine.EMBED, fixture(
+        evidence.put(DomainFacadeEngine.EMBED, evidence(
             "com.medkernel.engine.embed.EmbedEngineService",
             "/api/v1/engine/embed/recommendations",
             "复用工作站嵌入会话内推荐卡读取入口"));
-        fixtures.put(DomainFacadeEngine.EVALUATION, fixture(
+        evidence.put(DomainFacadeEngine.EVALUATION, evidence(
             "com.medkernel.engine.evaluation.EvaluationEngineService",
             "/api/v1/engine/evaluation/runs",
             "复用评估运行事实和质控结果入口"));
-        fixtures.put(DomainFacadeEngine.FOLLOWUP, fixture(
+        evidence.put(DomainFacadeEngine.FOLLOWUP, evidence(
             "com.medkernel.engine.followup.FollowupEngineService",
             "/api/v1/engine/followup/plans/generate",
             "复用随访计划生成和任务调度入口"));
-        fixtures.put(DomainFacadeEngine.RELEASE, fixture(
+        evidence.put(DomainFacadeEngine.RELEASE, evidence(
             "com.medkernel.engine.release.PlatformBaselineService",
             "/api/v1/engine/releases/platform-baselines",
             "复用平台标准版本与机构生效版本发布入口"));
-        fixtures.put(DomainFacadeEngine.INTEGRATION, fixture(
+        evidence.put(DomainFacadeEngine.INTEGRATION, evidence(
             "com.medkernel.engine.integration.service.IntegrationService",
             "/api/v1/engine/integration/adapters",
             "复用集成适配器、健康检查和互操作入口"));
-        fixtures.put(DomainFacadeEngine.DATA_SERVICE, fixture(
+        evidence.put(DomainFacadeEngine.DATA_SERVICE, evidence(
             "com.medkernel.engine.datasvc.EngineDataController",
             "/api/v1/engine-data/knowledge-usage",
             "复用去标识聚合数据服务和导出治理入口"));
-        fixtures.put(DomainFacadeEngine.SAFETY, fixture(
+        evidence.put(DomainFacadeEngine.SAFETY, evidence(
             "com.medkernel.engine.knowledge.production.gate.CandidateSafetyGateService",
             "/api/v1/engine/knowledge-production/jobs/{jobCode}/candidates",
             "复用红线、生产安全校验和高危审核候选安全入口"));
-        fixtures.put(DomainFacadeEngine.ORGANIZATION, fixture(
+        evidence.put(DomainFacadeEngine.ORGANIZATION, evidence(
             "com.medkernel.engine.org.OrgUnitService",
             "/api/v1/engine/org/org-units",
             "复用组织范围与租户层级解析入口"));
-        fixtures.put(DomainFacadeEngine.DOSAGE_CALCULATION, fixture(
+        evidence.put(DomainFacadeEngine.DOSAGE_CALCULATION, evidence(
             "com.medkernel.engine.factory.ProfessionalAssetTemplateRegistry",
             "/api/v1/engine/knowledge-production/generate",
             "复用受控资产模板骨架承载剂量结构，不内置剂量常量"));
-        fixtures.put(DomainFacadeEngine.AUTHORING_TEMPLATE, fixture(
+        evidence.put(DomainFacadeEngine.AUTHORING_TEMPLATE, evidence(
             "com.medkernel.engine.authoring.AuthoringAssetLibraryService",
             "/api/v1/engine/authoring/assets",
             "复用统一创作资产库和专业模板入口"));
-        return Map.copyOf(fixtures);
+        return Map.copyOf(evidence);
     }
 
-    private static EngineFixtureDefinition fixture(String handlerClass, String b0Route, String assertion) {
-        return new EngineFixtureDefinition(handlerClass, b0Route, assertion);
+    private static EngineEvidenceDefinition evidence(String handlerClass, String b0Route, String assertion) {
+        return new EngineEvidenceDefinition(handlerClass, b0Route, assertion);
     }
 
-    private record EngineFixtureDefinition(String handlerClass, String b0Route, String assertion) {
+    private record EngineEvidenceDefinition(String handlerClass, String b0Route, String assertion) {
     }
 }

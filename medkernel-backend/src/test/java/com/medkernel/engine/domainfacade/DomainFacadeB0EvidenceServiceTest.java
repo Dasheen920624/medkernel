@@ -7,21 +7,21 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * X-DOMAIN 领域门面 B0 fixture 证据测试。
+ * X-DOMAIN 领域门面 B0 主链路证据测试。
  *
  * <p>本测试只证明门面组合复用已有共享引擎链路，且关模型、缺真实资产时不预填医学内容。
  */
-class DomainFacadeB0FixtureServiceTest {
+class DomainFacadeB0EvidenceServiceTest {
 
-    private final DomainFacadeB0FixtureService service =
-        new DomainFacadeB0FixtureService(new DomainFacadeCatalogService());
+    private final DomainFacadeB0EvidenceService service =
+        new DomainFacadeB0EvidenceService(new DomainFacadeCatalogService());
 
     @Test
-    void listFixtureEvidence_coversAllFacadesWithDeterministicB0Handlers() {
-        List<DomainFacadeB0FixtureEvidence> evidence = service.listFixtureEvidence();
+    void listB0Evidence_coversAllFacadesWithDeterministicB0Handlers() {
+        List<DomainFacadeB0Evidence> evidence = service.listB0Evidence();
 
         assertThat(evidence)
-            .extracting(DomainFacadeB0FixtureEvidence::code)
+            .extracting(DomainFacadeB0Evidence::code)
             .containsExactly(
                 "NURSING-01",
                 "REPORT-01",
@@ -42,15 +42,15 @@ class DomainFacadeB0FixtureServiceTest {
                 "SVC-DOMAIN-02");
         assertThat(evidence)
             .allSatisfy(item -> {
-                assertThat(item.status()).isEqualTo(DomainFacadeB0FixtureStatus.PASS);
+                assertThat(item.status()).isEqualTo(DomainFacadeB0EvidenceStatus.PASS);
                 assertThat(item.b0Executable()).isTrue();
                 assertThat(item.modelRequired()).isFalse();
                 assertThat(item.clinicalContentSeeded()).isFalse();
                 assertThat(item.newBusinessEngineRequired()).isFalse();
                 assertThat(item.serviceCombinationMembersResolvable()).isTrue();
-                assertThat(item.fixtureId()).startsWith("DOMAIN-B0-");
-                assertThat(item.engineFixtures()).isNotEmpty();
-                assertThat(item.engineFixtures()).allSatisfy(engine -> {
+                assertThat(item.evidenceId()).startsWith("DOMAIN-B0-");
+                assertThat(item.engineEvidence()).isNotEmpty();
+                assertThat(item.engineEvidence()).allSatisfy(engine -> {
                     assertThat(engine.deterministic()).isTrue();
                     assertThat(engine.handlerPresent()).isTrue();
                     assertThat(engine.clinicalContentSeeded()).isFalse();
@@ -62,8 +62,8 @@ class DomainFacadeB0FixtureServiceTest {
 
     @Test
     void serviceCombinationsResolveOnlyDeclaredMemberFacades() {
-        DomainFacadeB0FixtureEvidence diseaseCombination = service.requireFixtureEvidence("SVC-DOMAIN-01");
-        DomainFacadeB0FixtureEvidence collaborationCombination = service.requireFixtureEvidence("SVC-DOMAIN-02");
+        DomainFacadeB0Evidence diseaseCombination = service.requireB0Evidence("SVC-DOMAIN-01");
+        DomainFacadeB0Evidence collaborationCombination = service.requireB0Evidence("SVC-DOMAIN-02");
 
         assertThat(diseaseCombination.kind()).isEqualTo(DomainFacadeKind.SERVICE_COMBINATION);
         assertThat(diseaseCombination.verifiedMemberFacadeCodes()).containsExactly(
@@ -85,11 +85,11 @@ class DomainFacadeB0FixtureServiceTest {
     }
 
     @Test
-    void specialtyExtensionUsesHonestEmptyFixtureUntilRealAssetsExist() {
-        DomainFacadeB0FixtureEvidence specialty = service.requireFixtureEvidence("SPECIALTY-EXT-01");
+    void specialtyExtensionUsesHonestEmptyEvidenceUntilRealAssetsExist() {
+        DomainFacadeB0Evidence specialty = service.requireB0Evidence("SPECIALTY-EXT-01");
 
         assertThat(specialty.honestEmptyWhenAssetsMissing()).isTrue();
         assertThat(specialty.assetSeedPolicy()).isEqualTo("NO_SEED_HONEST_EMPTY");
-        assertThat(specialty.status()).isEqualTo(DomainFacadeB0FixtureStatus.PASS);
+        assertThat(specialty.status()).isEqualTo(DomainFacadeB0EvidenceStatus.PASS);
     }
 }

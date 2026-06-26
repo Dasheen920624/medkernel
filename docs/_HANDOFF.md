@@ -93,7 +93,7 @@
   `GUIDELINE`、`DRUG`、`PATHWAY_KNOWLEDGE`、`NURSING`、`DIAGNOSTIC_ITEM`、`TCM`、`PROTOCOL`、
   `POLICY`、`LITERATURE`、`OTHER`、`DIAGNOSIS`；观察到结构模板 12 个，版本生命周期最终 `ACTIVE`。
 - 运行时韧性演练通过，证据：
-  `/zoesoft/medkernel/var/evidence/current-launch/runtime-resilience.json`；B0 降级夹具 `17/17` 通过。
+  `/zoesoft/medkernel/var/evidence/current-launch/runtime-resilience.json`；B0 主链路证据 `17/17` 通过。
 - 浏览器 E2E 通过，证据：
   `/zoesoft/medkernel/var/evidence/current-launch/e2e/report/results.json`；Playwright `50 passed (14.0m)`，
   `expected=50`、`unexpected=0`、`flaky=0`。
@@ -194,6 +194,16 @@
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、`npm run test:lint-rules`、
   `npm run build`、`mvn -q -DskipTests package`、`bash scripts/check-comment-zh.sh --mode=full`、
   `git diff --check`；尚未重新部署 134。
+- 领域门面 B0 主链路证据与离线评测 provider 命名已在本地通过：公开接口从 `/b0-fixtures`、
+  `/{code}/b0-fixture` 统一为 `/b0-evidence`、`/{code}/b0-evidence`，DTO 字段改为 `evidenceId`
+  和 `engineEvidence`；运行韧性和全系统演练汇总改为 `evidenceCount/b0EvidenceCount`；模型质量评测
+  默认 provider 从 `offline-fixture` 改为 `offline-baseline`，测试基线 provider 改为 `b0-baseline`。
+  真实性门禁新增领域门面 fixture 旧口径和 offline/b0 fixture provider 拦截。已验证：
+  `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
+  `rg -n "offline-fixture|b0-fixture|b0-fixtures|fixtureCount|b0FixtureCount|DomainFacadeB0Fixture|DomainFacadeEngineFixture|fixture 证据|fixture 验证|engineFixtures|fixtureId" medkernel-backend/src/main/java medkernel-backend/src/test/java scripts/release docs/audit/product-function-catalog.md frontend/src --glob '!docs/_HANDOFF.md' --glob '!**/target/**' --glob '!**/*.test.*'`
+  无结果、`node --test scripts/release/runtime-resilience-rehearsal.test.mjs scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`、
+  `mvn -q -Dtest=ModelEvalServiceTest,AiQualityEvalControllerSecurityTest,DomainFacadeApiContractTest,DomainFacadeB0EvidenceServiceTest,DomainFacadeControllerSecurityTest test`、
+  `mvn -q -DskipTests package`、`bash scripts/check-comment-zh.sh --mode=full`、`git diff --check`；尚未重新部署 134。
 
 ## 本轮落地内容
 
@@ -300,6 +310,8 @@
   回放，平台登录目录只说明平台接管和运行保障人员，规则治理 COMMENT 改为完整发布链。
 - 临床提醒详情的知识来源缺失空态已从工程自证改为医生可执行的复核提示；Webhook 相关页面、契约、权限、
   审计和集成说明统一表达为验证，避免医院实施、信息科和外部系统联调时把一次性测试理解成上线能力。
+- 领域门面、运行韧性演练和模型质量评测不再使用 fixture 作为公开契约或生产证据字段，统一表达为
+  B0 主链路证据和离线基线评测，避免把正式能力误解为临时样本或测试夹具。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -335,7 +347,8 @@
    诊断信息或变更明细。
 5. 本地临床协同任务、随访协同体验薄片、沙盘场景目录语义清理、退役工具主域文本清理、性能压测契约、
    旧口径门禁、客户面退役说明清理、全局治理语言清理、安全校验口径清理、实施内部口径清理、
-   临床提醒来源空态和 Webhook 验证口径清理还未重新部署 134；
+   临床提醒来源空态、Webhook 验证口径清理、领域门面 B0 主链路证据和离线评测 baseline 命名清理
+   还未重新部署 134；
    下一次清库/发布演练要纳入真实前台操作证据，
    不能把当前本地薄片或本地门禁误记为 134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

@@ -115,7 +115,7 @@ public class ModelEvalService {
     public ModelEvalRun runQualityEvaluation(AiQualityEvalRunRequest request) {
         String tenantId = requireCurrentTenant();
         String capabilityCode = requireText(request.capabilityCode(), "capability_code");
-        String providerCode = normalizeOptional(request.providerCode(), "offline-fixture");
+        String providerCode = normalizeOptional(request.providerCode(), "offline-baseline");
         String modelVersion = requireText(request.modelVersion(), "model_version");
         String promptVersion = requireText(request.promptVersion(), "prompt_version");
         String toolVersion = requireText(request.toolVersion(), "tool_version");
