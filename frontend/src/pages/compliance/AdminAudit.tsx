@@ -770,7 +770,7 @@ export default function AdminAudit() {
           showIcon
           icon={<SafetyCertificateOutlined />}
           message="审计链已启用"
-          description="事件按服务空间隔离并保留摘要、签名和追踪号；受控导出与模型外调用途确认均登记确认人、业务原因和可验摘要。"
+          description="事件按服务机构与组织范围隔离并保留摘要、签名和追踪号；受控导出与模型外调用途确认均登记确认人、业务原因和可验摘要。"
         />
         <Tabs
           defaultActiveKey="events"
@@ -930,7 +930,7 @@ export default function AdminAudit() {
                 </Text>
               </Descriptions.Item>
               <Descriptions.Item label="组织范围">
-                {selectedAuditEvent.orgPath ?? "当前服务空间"}
+                {selectedAuditEvent.orgPath ?? "当前组织范围"}
               </Descriptions.Item>
               <Descriptions.Item label="环境">
                 {selectedAuditEvent.environmentKey ?? "未标记"}

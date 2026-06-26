@@ -507,6 +507,11 @@
   口径解释上线准备。已验证：
   `npm test -- --run src/pages/tenant/ImplementationGuide.test.tsx src/pages/tenant/TenantOnboarding.test.tsx`；
   尚未重新部署 134。
+- 通知偏好、审计与证据和共享路由体验元数据已继续按审计员、信息科、平台管理员和临床用户视角收束：
+  通知偏好读取失败指向登录状态、组织范围和信息科核查；审计链、审计详情和身份绑定元数据使用服务机构与
+  组织范围隔离，不再用内部运行分区解释关键证据边界。已验证：
+  `npm test -- --run src/pages/compliance/NotificationSettings.test.tsx src/pages/compliance/AdminAudit.test.tsx`、
+  `npm test -- --run src/shared/config/routes.test.ts src/pages/pages.smoke.test.tsx`；尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -553,7 +558,7 @@
    工作台质量闭环入口清理、集成契约和生产注释旧口径清理、临床待办空态角色体验清理、
    临床提醒反馈与频次治理医生/护士视角清理、随访协同统计/模板/异常回院登记多角色体验清理、
    临床通知/协同任务/MPI 组织范围和信息科提示清理、全局顶栏与权限指纹范围语言清理、
-   实施与服务机构就绪空态/错误态清理
+   实施与服务机构就绪空态/错误态清理、通知偏好/审计证据/路由体验范围语言清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

@@ -141,7 +141,7 @@ const terminologyMappingExperience: RouteExperience = {
 
 const auditExperience: RouteExperience = {
   primaryRole: "审计员",
-  goal: "按时间、操作人、动作和对象追溯当前服务空间的关键操作证据",
+  goal: "按时间、操作人、动作和对象追溯当前服务机构与组织范围内的关键操作证据",
   defaultView: "最近发生的事件优先",
   defaultFilters: [
     {
@@ -164,7 +164,7 @@ const auditExperience: RouteExperience = {
   ],
   evidenceDetailContent: ["事件编号", "环境标识", "输入内容摘要", "原始变更快照"],
   interruptionLevel: "info",
-  evidence: "审计事件按服务空间隔离，异步导出保留任务、追踪号与下载证据",
+  evidence: "审计事件按服务机构与组织范围隔离，异步导出保留任务、追踪号与下载证据",
   dataScale: { expected: "massive", pagination: "cursor", exportStrategy: "async" },
   riskLevel: "medium",
 };
@@ -184,11 +184,11 @@ const securityBaselineExperience: RouteExperience = {
 const identityBindingExperience: RouteExperience = {
   primaryRole: "平台管理员",
   goal: "管理系统用户与员工号、统一身份和国密证书的唯一绑定关系",
-  defaultView: "当前服务空间的有效绑定和解绑历史",
+  defaultView: "当前服务机构与组织范围的有效绑定和解绑历史",
   defaultFilters: [],
   evidenceDetailContent: ["绑定 ID", "身份源类型", "版本", "追踪号"],
   interruptionLevel: "strong",
-  evidence: "绑定与解绑均校验唯一性和版本，并保留服务空间隔离的审计证据",
+  evidence: "绑定与解绑均校验唯一性和版本，并保留服务机构与组织范围隔离的审计证据",
   dataScale: { expected: "large", pagination: "page", exportStrategy: "none" },
   riskLevel: "high",
 };
@@ -357,7 +357,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 1,
     requiredPermissions: ["menu.tenant-onboarding", "tenant.read"],
-    experience: readonlyExperience("平台管理员", "开通服务空间或配置当前服务机构", "待配置组织"),
+    experience: readonlyExperience("平台管理员", "开通服务机构或配置当前服务机构", "待配置组织"),
     pageType: "configuration",
     stateMachine: "config",
   },
