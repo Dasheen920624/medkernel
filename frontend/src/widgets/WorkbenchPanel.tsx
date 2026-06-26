@@ -792,22 +792,22 @@ function GovernanceSlices({
 }) {
   if (successPlan.isLoading) {
     return (
-      <Card title="治理切片">
+      <Card title="治理概览">
         <Skeleton active paragraph={{ rows: 2 }} />
       </Card>
     );
   }
 
   if (successPlan.isError) {
-    const parsed = parseApiError(successPlan.error, "治理切片暂时不可用");
+    const parsed = parseApiError(successPlan.error, "治理概览暂时不可用");
     return (
-      <Card title="治理切片">
+      <Card title="治理概览">
         <PageState
           state="error"
-          title="治理切片暂时不可用"
+          title="治理概览暂时不可用"
           description={customerSafeDisplayText(
             parsed.message,
-            "治理切片暂时不可用，请重试或联系信息科。",
+            "治理概览暂时不可用，请重试或联系信息科。",
           )}
           traceId={parsed.traceId}
         />
@@ -817,11 +817,11 @@ function GovernanceSlices({
 
   if (!successPlan.data) {
     return (
-      <Card title="治理切片">
+      <Card title="治理概览">
         <PageState
           state="empty"
-          title="暂无治理切片"
-          description="当前服务机构暂无生命周期证据。"
+          title="暂无治理概览"
+          description="当前服务机构暂无可展示的生命周期证据。"
         />
       </Card>
     );
@@ -846,7 +846,7 @@ function GovernanceSlices({
   ];
 
   return (
-    <Card title="治理切片">
+    <Card title="治理概览">
       <Row gutter={[16, 16]}>
         {slices.map((slice) => (
           <Col xs={24} md={8} key={slice.key}>

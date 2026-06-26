@@ -268,11 +268,11 @@ function expectedLandingFor(roleCode: string, displayName: string) {
     diagnostic: "医技协同",
     quality: "质量管理概览",
     audit: "最近变化",
-    tenant: "治理切片",
+    tenant: "治理概览",
   } as const;
   return {
     heading: journey?.title ?? `${displayName}工作台`,
-    marker: journey ? markerByKind[journey.kind] : "治理切片",
+    marker: journey ? markerByKind[journey.kind] : "治理概览",
   };
 }
 
@@ -517,7 +517,7 @@ describe("WorkbenchPanel", () => {
     renderWorkbench();
 
     expect(screen.getByRole("heading", { name: "平台管理员工作台" })).toBeInTheDocument();
-    expect(screen.getByText("治理切片")).toBeInTheDocument();
+    expect(screen.getByText("治理概览")).toBeInTheDocument();
     expect(screen.getAllByTestId(/^workbench-governance-slice-/)).toHaveLength(3);
     expect(screen.getByText("本周建议动作")).toBeInTheDocument();
     expect(screen.getByText("核对实施进度")).toBeInTheDocument();
