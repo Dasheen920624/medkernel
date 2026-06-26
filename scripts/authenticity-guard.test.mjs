@@ -351,6 +351,49 @@ test("前端生产文件会阻断客户面工程内部语言", async () => {
   );
 });
 
+test("前端客户面页面标题禁止回流控制台和中枢旧口径", async () => {
+  await withFixture(
+    {
+      "frontend/src/pages/clinical/CdssFatigue.tsx": `
+        export function CdssFatigue() {
+          return <PageShell title="提醒与推荐中枢" />;
+        }
+      `,
+      "frontend/src/pages/clinical/PatientPathways.tsx": `
+        export function PatientPathways() {
+          return <Drawer title="患者临床路径推进与解释追溯控制台" />;
+        }
+      `,
+      "frontend/src/pages/tenant/PathwayTemplates.tsx": `
+        export function PathwayTemplates() {
+          return <PageShell title="路径中枢" />;
+        }
+      `,
+      "frontend/src/pages/tenant/RuleDefinitions.tsx": `
+        export function RuleDefinitions() {
+          return <PageShell title="规则中枢" />;
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/pages/clinical/CdssFatigue.tsx",
+        "frontend/src/pages/clinical/PatientPathways.tsx",
+        "frontend/src/pages/tenant/PathwayTemplates.tsx",
+        "frontend/src/pages/tenant/RuleDefinitions.tsx",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+      ]);
+    },
+  );
+});
+
 test("当前权威文档会阻断旧技术安全门口径", async () => {
   const technicalSafetyGate = "技术" + "安全门";
   const technicalEvaluation = "技术" + "评测";
@@ -1072,6 +1115,8 @@ test("知识生产入口会阻断模型平台化旧名称", async () => {
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), [
         "docs.retired-product-state-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
         "frontend.retired-product-state-language",
         "frontend.retired-product-state-language",
       ]);

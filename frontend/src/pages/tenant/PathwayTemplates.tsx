@@ -3841,7 +3841,7 @@ export default function PathwayTemplates() {
 
   return (
     <PageShell
-      title="路径中枢"
+      title="路径配置"
       description="配置并维护专病临床路径，使用统一条件树、规则引用和真实快照试运行；上线生效由发布治理统一管理。"
     >
       <div className={`${styles.surface} ${styles.filterSurface}`}>
@@ -3934,7 +3934,7 @@ export default function PathwayTemplates() {
       </Modal>
 
       <Drawer
-        title="路径配置与真实快照试运行控制台"
+        title="路径配置与真实快照试运行"
         width="min(1080px, 100vw)"
         onClose={() => {
           setSelectedTemplateId(null);

@@ -4426,7 +4426,7 @@ export default function RuleDefinitions() {
 
   return (
     <PageShell
-      title="规则中枢"
+      title="规则配置"
       description="配置规则资产，完成验证、解释和临床治理。"
       primary={
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>

@@ -377,7 +377,7 @@ describe("PatientPathways", () => {
     await user.click(screen.getByRole("button", { name: /办理推进与解释追溯/ }));
 
     expect(mockUsePatientPathwayDetail).toHaveBeenCalledWith("pp-real-1");
-    expect(screen.getByText("患者临床路径推进与解释追溯控制台")).toBeInTheDocument();
+    expect(screen.getByText("患者路径推进与解释追溯")).toBeInTheDocument();
     expect(screen.getByText("clock-1")).toBeInTheDocument();
     expect(screen.getAllByText(/STROKE.TIME_TO_CT/).length).toBeGreaterThan(0);
     expect(screen.getByText("急诊 / 第 0 天 / M-ASSESS")).toBeInTheDocument();

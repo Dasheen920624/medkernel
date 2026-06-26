@@ -300,7 +300,7 @@ describe("CdssFatigue", () => {
   it("renders clinical reminder cards from trigger context and real aggregate stats", () => {
     renderCdssFatigue();
 
-    expect(screen.getByRole("heading", { name: "提醒与推荐中枢" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "提醒与推荐" })).toBeInTheDocument();
     expect(screen.getByText("推荐链路总览")).toBeInTheDocument();
     expect(screen.getByText("按患者标识 / 追踪号 / 来源编号查推荐")).toBeInTheDocument();
     expect(screen.getByLabelText("患者或追踪号")).toBeInTheDocument();

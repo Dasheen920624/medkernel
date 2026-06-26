@@ -615,7 +615,7 @@ export default function CdssFatigue() {
 
   return (
     <PageShell
-      title="提醒与推荐中枢"
+      title="提醒与推荐"
       description="把临床推荐卡、待办、通知、医生反馈、知识来源和审计追溯放在同一页，医生先处理风险，质控再复核证据。"
     >
       <div className={`${styles.surface} ${styles.journeyOverview}`}>

@@ -361,21 +361,21 @@ describe("page smoke coverage", () => {
     expect(screen.getByText(/活跃患者主索引/)).toBeInTheDocument();
   });
 
-  it("renders the clinical cdss-fatigue console", () => {
+  it("renders the clinical reminder and recommendation page", () => {
     renderPage(<CdssFatigue />);
-    expect(screen.getByRole("heading", { name: "提醒与推荐中枢" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "提醒与推荐" })).toBeInTheDocument();
     expect(screen.getByText("全部状态")).toBeInTheDocument();
   });
 
-  it("renders the tenant pathway-templates console", () => {
+  it("renders the tenant pathway configuration page", () => {
     renderPage(<PathwayTemplates />);
-    expect(screen.getByRole("heading", { name: "路径中枢" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "路径配置" })).toBeInTheDocument();
     expect(screen.getByText("病种编码")).toBeInTheDocument();
   });
 
-  it("renders the tenant rule-definitions console", () => {
+  it("renders the tenant rule configuration page", () => {
     renderPage(<RuleDefinitions />);
-    expect(screen.getByRole("heading", { name: "规则中枢" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "规则配置" })).toBeInTheDocument();
     expect(screen.getByText("全部评级")).toBeInTheDocument();
   });
 

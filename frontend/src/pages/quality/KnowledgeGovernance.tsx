@@ -1732,10 +1732,10 @@ export default function KnowledgeGovernance({
         ) : null}
         <Space direction="vertical" size={4}>
           <Title level={4} className="mk-title-tight">
-            生产者工作台
+            知识生产任务办理
           </Title>
           <Space size={[8, 8]} wrap>
-            {["下任务", "看进度", "审候选", "影响", "结论"].map((step) => (
+            {["新建任务", "查看进度", "审核候选", "评估影响", "记录结论"].map((step) => (
               <Tag key={step} color="processing">
                 {step}
               </Tag>
@@ -1743,7 +1743,7 @@ export default function KnowledgeGovernance({
           </Space>
         </Space>
         <Divider className="mk-divider-tight" />
-        <Title level={5}>下任务</Title>
+        <Title level={5}>新建生产任务</Title>
         <Form<CreateKnowledgeProductionJobRequest>
           form={productionJobForm}
           layout="vertical"

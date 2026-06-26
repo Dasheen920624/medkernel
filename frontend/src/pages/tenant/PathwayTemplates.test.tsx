@@ -344,7 +344,7 @@ async function openDetailDrawer(
   renderPathwayTemplates();
   await screen.findByText(detail.template.templateCode);
   await user.click(screen.getByRole("button", { name: /设计与试运行/ }));
-  await screen.findByText("路径配置与真实快照试运行控制台");
+  await screen.findByText("路径配置与真实快照试运行");
   return user;
 }
 

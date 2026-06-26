@@ -441,7 +441,7 @@
   阶段性或旧影响评估事实，五方言迁移继续保持一致。
 - 规则和诊断知识发布门禁的验证材料统一称为“验证用例/验证病例”：页面按钮、弹窗、错误提示、审计摘要、
   后端 Javadoc、数据库 COMMENT、沙盘演练脚本和功能目录同步，避免把医疗发布门禁误读成普通软件测试数据。
-- 前后端服务状态与未来接入口径继续收束：模型能力、规则中枢、共享 API/config/ui 注释、脱敏服务、
+- 前后端服务状态与未来接入口径继续收束：模型能力、规则配置、共享 API/config/ui 注释、脱敏服务、
   受控工具、资料库存储和模型外调安全闸不再使用阶段性、实现层或低频配置旧表达；真实性门禁新增前端客户面、共享 API/config、
   后端契约和数据库 COMMENT 拦截，避免后续 AI 把已上线能力误读为临时实现或未来计划。已验证：
   `node --test scripts/authenticity-guard.test.mjs`、`node scripts/authenticity-guard.mjs --mode=inventory`、
@@ -581,6 +581,14 @@
   从旧控制台语义改为运行依赖语义，避免测试和接力材料继续误导后续 AI。已验证：
   `npm test -- --run src/shared/config/productRoleJourneys.test.ts src/pages/operationalControlPages.test.tsx`、
   `node scripts/authenticity-guard.mjs --mode=inventory`、旧入口组合搜索无结果；尚未重新部署 134。
+- 前台页面标题和任务动作已继续按全角色真实体验收束：临床提醒、路径配置、规则配置、患者路径推进、
+  路径试运行和知识生产任务不再使用后台化页面标题或身份化任务名；知识生产步骤改为
+  “新建任务、查看进度、审核候选、评估影响、记录结论”。真实性门禁新增客户面“控制台”和旧页面中枢
+  标题拦截，`PRODUCT_SCOPE` 与 `ARCHITECTURE` 的五种交付形态同步为“管理与生产工作区”。
+  已验证：目标前端页面测试 `5 files / 81 passed`、`node --test scripts/authenticity-guard.test.mjs`
+  `50 passed`、`node scripts/authenticity-guard.mjs --mode=inventory`、旧标题组合搜索无结果、
+  `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、
+  `npm run test:lint-rules`、`npm run build`、`git diff --check`；尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。

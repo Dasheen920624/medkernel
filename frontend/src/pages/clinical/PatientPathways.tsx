@@ -796,7 +796,7 @@ export default function PatientPathways() {
         title={
           <div className={styles.drawerTitle}>
             <CompassOutlined className={styles.iconInfo} />
-            <span>患者临床路径推进与解释追溯控制台</span>
+            <span>患者路径推进与解释追溯</span>
           </div>
         }
         width="min(960px, 100vw)"
@@ -1107,7 +1107,7 @@ export default function PatientPathways() {
                   title={
                     <div className={styles.sectionTitle}>
                       <RightCircleOutlined className={styles.iconInfo} />
-                      <span>受控推进决策控制台 (Advance)</span>
+                      <span>受控推进决策</span>
                     </div>
                   }
                   className={styles.detailCard}

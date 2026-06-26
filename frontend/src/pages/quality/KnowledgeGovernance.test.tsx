@@ -1080,12 +1080,12 @@ describe("KnowledgeGovernance", () => {
 
     renderPage(<KnowledgeProduction />);
 
-    expect(screen.getByRole("heading", { name: "生产者工作台" })).toBeInTheDocument();
-    expect(screen.getAllByText("下任务").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("看进度").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("审候选").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("影响").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("结论").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "知识生产任务办理" })).toBeInTheDocument();
+    expect(screen.getAllByText("新建任务").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("查看进度").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("审核候选").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("评估影响").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("记录结论").length).toBeGreaterThan(0);
     expect(screen.getByDisplayValue("统一模型服务（本地或外部模型服务）")).toBeDisabled();
     expect(screen.getByDisplayValue("医学知识")).toBeDisabled();
     expect(screen.queryByRole("option", { name: "规则" })).not.toBeInTheDocument();
