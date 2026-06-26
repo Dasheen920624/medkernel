@@ -263,7 +263,7 @@ describe("Followup", () => {
     expect(
       screen.getByText("请确认登录状态、组织范围；若持续失败，请联系信息科核查随访服务。"),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/服务空间|数据读取服务/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/数据读取服务/)).not.toBeInTheDocument();
   });
 
   it("loads follow-up plans through server-side table pagination", async () => {

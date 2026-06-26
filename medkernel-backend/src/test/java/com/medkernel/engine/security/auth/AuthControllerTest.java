@@ -132,7 +132,7 @@ class AuthControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.hasCustomerTenants").value(false))
             .andExpect(jsonPath("$.data.primaryTenants[0].tenantId").value("t-1"))
-            .andExpect(jsonPath("$.data.platformTenant.name").value("平台治理空间（唯一内置）"));
+            .andExpect(jsonPath("$.data.platformTenant.name").value("平台治理入口（唯一内置）"));
     }
 
     @Test

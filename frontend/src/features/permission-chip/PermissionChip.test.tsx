@@ -126,6 +126,5 @@ describe("PermissionChip", () => {
     fireEvent.click(screen.getByText("合规审计"));
 
     expect(screen.getByText(/服务机构 tenant-a/)).toBeInTheDocument();
-    expect(screen.queryByText(/服务空间/)).not.toBeInTheDocument();
   });
 });

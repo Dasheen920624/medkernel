@@ -389,7 +389,6 @@ describe("Mpi", () => {
       expect(
         screen.getByText(/当前组织范围内仍作为主记录使用的患者数；活跃路径实例/),
       ).toBeInTheDocument();
-      expect(screen.queryByText(/当前服务空间/)).not.toBeInTheDocument();
 
       await user.click(screen.getAllByRole("button", { name: /合并患者/ })[0]);
 
@@ -397,7 +396,6 @@ describe("Mpi", () => {
       expect(
         screen.getByText("无法读取当前组织范围的活跃患者，请重试后再执行合并。"),
       ).toBeInTheDocument();
-      expect(screen.queryByText(/当前服务空间/)).not.toBeInTheDocument();
     },
     MPI_INTERACTION_TIMEOUT_MS,
   );

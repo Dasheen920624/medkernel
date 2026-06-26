@@ -75,7 +75,7 @@ function buildAccountSecuritySignals(platformSetup: boolean, mfaRequired: boolea
   signals.push({
     label: platformSetup ? "进入平台治理" : "进入机构工作台",
     value: platformSetup
-      ? "安全设置完成后返回平台治理空间继续工作"
+      ? "安全设置完成后返回平台治理入口继续工作"
       : "安全设置完成后返回所在服务机构继续工作",
   });
   return signals;
@@ -559,12 +559,12 @@ export default function Bootstrap() {
                 </Title>
                 <Paragraph type="secondary">
                   接管码有效期：{formatTime(expiresAt) ?? "以部署配置为准"}
-                  。初始管理员属于平台治理空间（唯一内置），集团和医院服务机构进入平台治理后开通。
+                  。初始管理员属于平台治理入口（唯一内置），集团和医院服务机构进入平台治理后开通。
                 </Paragraph>
                 <div className={styles.bootstrapTenantContext}>
                   <SafetyCertificateOutlined aria-hidden="true" />
                   <div>
-                    <Text strong>平台治理空间自动绑定</Text>
+                    <Text strong>平台治理入口自动绑定</Text>
                     <Text type="secondary">集团和医院服务机构进入平台治理后开通。</Text>
                   </div>
                 </div>

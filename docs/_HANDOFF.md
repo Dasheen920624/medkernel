@@ -528,6 +528,13 @@
   或当前协作文档。已验证：
   `npm test -- --run src/pages/advanced/AiWorkflows.test.tsx src/pages/quality/KnowledgeGovernance.test.tsx src/pages/clinical/EmbedLaunch.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/shared/api/hooks.test.ts src/pages/tenant/TerminologyMapping.test.tsx src/pages/tenant/AdapterHub.test.tsx src/pages/advanced/Provenance.test.tsx`；
   旧空间类客户面词扫描在 `frontend/src`、`medkernel-backend/src` 和 `docs` 当前文档中无命中；尚未重新部署 134。
+- 平台治理入口、平台内置名称、登录目录、首次部署接管、机构知识提示、平台发布错误和测试契约已继续按
+  平台管理员、实施工程师、信息科、知识管理员和前台协作者视角收束：平台侧统一称平台治理入口/平台权威范围/
+  平台管理入口，测试 fixture 也不再保留旧客户面范围词作为真实名称；真正技术含义的命名空间仍保留在后端注释和
+  校验错误里。已验证：
+  `npm test -- --run` 覆盖 24 个受影响前端测试文件，275 个用例通过；
+  `mvn -q -f medkernel-backend/pom.xml -Dtest=PlatformTenantTest,AuthControllerTest,ComplianceUserControllerTest,RuntimeReleaseControllerTest test`；
+  旧客户面范围词扫描在 `frontend/src`、`medkernel-backend/src/test` 和 `docs` 中无命中；尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。
@@ -576,7 +583,7 @@
    临床通知/协同任务/MPI 组织范围和信息科提示清理、全局顶栏与权限指纹范围语言清理、
    实施与服务机构就绪空态/错误态清理、通知偏好/审计证据/路由体验范围语言清理、
    服务机构开通台账与表单语言清理、首次部署接管和安全基线范围语言清理、
-   模型/知识/嵌入/规则/术语/接入/知识血缘范围语言清理
+   模型/知识/嵌入/规则/术语/接入/知识血缘范围语言清理、平台治理入口和测试契约范围语言清理
    还未重新部署 134；下一次清库/发布演练要纳入真实前台操作证据，不能把当前本地薄片或本地门禁误记为
    134 已验收。
 6. 继续清理旧兼容、冗余设计和误导性历史事实；`.codex/config.toml` 是本地未跟踪文件，不要纳入提交。

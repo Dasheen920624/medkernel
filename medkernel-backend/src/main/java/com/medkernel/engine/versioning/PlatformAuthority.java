@@ -3,7 +3,7 @@ package com.medkernel.engine.versioning;
 import com.medkernel.shared.context.PlatformTenant;
 
 /**
- * 平台权威资产空间约定。
+ * 平台权威资产范围约定。
  *
  * <p>平台标准版本归属唯一平台主机构，并使用独立的顶层组织路径标记平台作用域。
  * {@link InheritanceResolver} 在客户机构组织闭包无适用版本时读取平台生效版本；

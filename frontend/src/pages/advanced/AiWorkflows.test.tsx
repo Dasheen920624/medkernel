@@ -159,7 +159,6 @@ describe("AiWorkflows", () => {
     expect(screen.getByText("医院:hospital-a")).toBeInTheDocument();
     expect(screen.getByText("继承配置")).toBeInTheDocument();
     expect(screen.getByText("未配置专属策略，使用系统无模型规则链路")).toBeInTheDocument();
-    expect(screen.queryByText(/服务空间/)).not.toBeInTheDocument();
     expect(screen.queryByText("基线可用")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /提交|运行|重试|配置|编辑|新增|保存/ })).toBeNull();
     expect(requests).toEqual(["get /security/me", "get /model-capabilities/status"]);

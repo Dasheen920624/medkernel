@@ -2389,7 +2389,7 @@ export default function KnowledgeGovernance({
       <Alert
         type="info"
         showIcon
-        message="当前位于平台治理空间"
+        message="当前位于平台治理入口"
         description="平台负责维护权威标准；机构定制、发布和恢复操作在对应医疗机构内完成。"
       />
     );

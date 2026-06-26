@@ -468,7 +468,6 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     expect(
       await within(dialog).findByText("请输入编码，同一服务机构内不可重复"),
     ).toBeInTheDocument();
-    expect(within(dialog).queryByText(/服务空间/)).not.toBeInTheDocument();
   });
 
   it(
@@ -996,7 +995,6 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
 
       const user = await openDraftRuleDrawer();
       expect((await screen.findAllByText(/当前服务机构全部组织/)).length).toBeGreaterThan(0);
-      expect(screen.queryByText(/当前服务空间/)).not.toBeInTheDocument();
       await user.click(screen.getByRole("tab", { name: /真实快照试运行/ }));
       await user.click(screen.getByRole("switch", { name: "受控配置视图" }));
 

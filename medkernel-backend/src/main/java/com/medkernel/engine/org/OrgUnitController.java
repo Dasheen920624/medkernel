@@ -23,7 +23,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * MedKernel v1.0 GA · 平台管理空间的组织单元 API。
+ * MedKernel v1.0 GA · 平台管理入口的组织单元 API。
  *
  * <p>支撑租户开通、组织目录、任职范围和数据范围配置，是医疗引擎与知识生产按机构隔离运行的基础能力。
  *

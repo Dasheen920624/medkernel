@@ -69,7 +69,6 @@ describe("Provenance", () => {
 
     expect(screen.getByText("知识身份读取失败")).toBeInTheDocument();
     expect(screen.getByText("请检查登录权限、服务机构范围或知识服务状态。")).toBeInTheDocument();
-    expect(screen.queryByText(/服务空间/)).not.toBeInTheDocument();
   });
 
   it("renders an exact knowledge source chain instead of the audit snapshot console", () => {

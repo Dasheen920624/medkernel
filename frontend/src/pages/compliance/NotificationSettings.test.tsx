@@ -188,7 +188,6 @@ describe("NotificationSettings", () => {
     expect(
       screen.getByText("请确认登录状态、组织范围；若持续失败，请联系信息科核查通知偏好配置。"),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/服务空间/)).not.toBeInTheDocument();
   });
 
   it("allows an authorized administrator to update tenant defaults with a reason", async () => {

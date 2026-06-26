@@ -276,7 +276,7 @@ class ComplianceUserControllerTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.roles[0].code").value("clinical-user"))
-            .andExpect(jsonPath("$.data.roles[0].scopeName").value("平台治理空间"));
+            .andExpect(jsonPath("$.data.roles[0].scopeName").value("平台治理入口"));
 
         mvc.perform(delete("/api/v1/compliance/users/{userId}/roles/{roleCode}",
                 "managed-706", "clinical-user")

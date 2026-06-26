@@ -365,7 +365,7 @@ export default function Login() {
               type="warning"
               showIcon
               message="没有可登录机构"
-              description="服务端未返回平台治理空间或医疗服务机构，登录入口已暂停提交。"
+              description="服务端未返回平台治理入口或医疗服务机构，登录入口已暂停提交。"
             />
           )}
 
@@ -436,7 +436,7 @@ export default function Login() {
                     {platformContextDescription}
                   </Text>
                   <Text type="secondary" className={styles.helperText}>
-                    {activeTenant ? "平台标准与全局治理空间" : "无可登录机构"}
+                    {activeTenant ? "平台标准与全局治理入口" : "无可登录机构"}
                   </Text>
                 </div>
               </div>

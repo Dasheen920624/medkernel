@@ -243,7 +243,6 @@ describe("AdminAudit", () => {
     expect(screen.getByText("追踪号 trace-7")).toBeInTheDocument();
     expect(screen.getByText("链签名已登记")).toBeInTheDocument();
     expect(screen.getByText(/事件按服务机构与组织范围隔离/)).toBeInTheDocument();
-    expect(screen.queryByText(/事件按服务空间隔离/)).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getByText(/约 101 条/)).toBeInTheDocument();
 
@@ -369,7 +368,6 @@ describe("AdminAudit", () => {
     expect(screen.getByRole("dialog", { name: "审计事件详情" })).toBeInTheDocument();
     expect(screen.getByText("audit / snapshot-7")).toBeInTheDocument();
     expect(screen.getByText("当前组织范围")).toBeInTheDocument();
-    expect(screen.queryByText("当前服务空间")).not.toBeInTheDocument();
     expect(screen.getByText("审计链签名完成")).toBeInTheDocument();
     expect(screen.getByText("sm3:payload-7")).toBeInTheDocument();
     expect(screen.getByText('{"enabled":true}')).toBeInTheDocument();

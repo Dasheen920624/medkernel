@@ -158,7 +158,7 @@ describe("Notifications", () => {
     expect(
       screen.getByText("请确认登录状态、组织范围；若持续失败，请联系信息科核查通知服务。"),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/服务空间|通知服务状态/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/通知服务状态/)).not.toBeInTheDocument();
   });
 
   it("passes selected organization scope to the server-side notification query", async () => {

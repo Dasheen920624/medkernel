@@ -83,10 +83,10 @@ const delegatedAuth: DelegatedAuthStatus = {
 
 const tenantDirectory: LoginTenantDirectory = {
   primaryTenants: [
-    { tenantId: "t-platform", name: "平台治理空间", kind: "PLATFORM" },
+    { tenantId: "t-platform", name: "平台治理入口", kind: "PLATFORM" },
     { tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" },
   ],
-  platformTenant: { tenantId: "t-platform", name: "平台治理空间", kind: "PLATFORM" },
+  platformTenant: { tenantId: "t-platform", name: "平台治理入口", kind: "PLATFORM" },
   hasCustomerTenants: true,
 };
 

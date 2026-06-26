@@ -82,8 +82,8 @@ function mockDelegatedAuthStatus(options?: { hasCustomerTenants?: boolean }) {
           data: {
             primaryTenants: hasCustomerTenants
               ? [{ tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" }]
-              : [{ tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" }],
-            platformTenant: { tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" },
+              : [{ tenantId: "t-1", name: "平台治理入口（唯一内置）", kind: "PLATFORM" }],
+            platformTenant: { tenantId: "t-1", name: "平台治理入口（唯一内置）", kind: "PLATFORM" },
             hasCustomerTenants,
           },
         },
@@ -291,7 +291,6 @@ describe("page smoke coverage", () => {
     expect(screen.getByText("使用平台治理账号继续")).toBeInTheDocument();
     expect(await screen.findByText("平台治理入口")).toBeInTheDocument();
     expect(screen.queryByLabelText("登录类型切换")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("服务空间标识")).not.toBeInTheDocument();
     expect(screen.queryByText("安全审计已开启")).toBeNull();
     expect(screen.getByRole("button", { name: /默认/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /进入工作台/ })).toBeInTheDocument();

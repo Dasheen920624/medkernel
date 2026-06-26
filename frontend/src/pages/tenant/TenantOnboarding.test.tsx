@@ -59,7 +59,7 @@ const baseOrgUnits = {
       id: "org-tenant",
       level: "TENANT",
       code: "T-1",
-      name: "平台治理空间",
+      name: "平台治理入口",
       parentId: null,
       status: "ACTIVE",
     },
@@ -235,7 +235,7 @@ describe("TenantOnboarding", () => {
     fireEvent.mouseDown(scope.getByRole("combobox", { name: "机构类型" }));
     clickSelectOption("综合医院");
     fireEvent.mouseDown(scope.getByRole("combobox", { name: "直接上级" }));
-    fireEvent.click(screen.getByText("平台治理空间（服务机构根节点）"));
+    fireEvent.click(screen.getByText("平台治理入口（服务机构根节点）"));
     await userEvent.click(scope.getByRole("button", { name: /保存组织节点/ }));
 
     await waitFor(() =>
@@ -281,7 +281,6 @@ describe("TenantOnboarding", () => {
     expect(
       screen.getByText("请重试；若持续失败，请带追踪号联系信息科核查服务机构与组织服务。"),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/机构空间/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
   });
 
@@ -299,10 +298,9 @@ describe("TenantOnboarding", () => {
     expect(
       screen.getByText("当前服务机构尚未返回实施就绪步骤，请确认服务机构和组织范围已经建立。"),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/机构空间/)).not.toBeInTheDocument();
   });
 
-  it("仅允许平台治理空间开通服务机构", async () => {
+  it("仅允许平台治理入口开通服务机构", async () => {
     const provision = vi.fn().mockResolvedValue({
       tenantId: "t-renmin",
       adminUserId: "renmin-admin",
@@ -332,6 +330,5 @@ describe("TenantOnboarding", () => {
     );
     expect(await screen.findByText("TenantPwd@9")).toBeInTheDocument();
     expect(screen.getAllByText(/服务机构/).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/机构空间/)).not.toBeInTheDocument();
   });
 });

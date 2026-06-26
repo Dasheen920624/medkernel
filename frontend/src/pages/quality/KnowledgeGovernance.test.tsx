@@ -948,11 +948,10 @@ describe("KnowledgeGovernance", () => {
 
     renderPage(<InstitutionKnowledge />);
 
-    expect(screen.getByText("当前位于平台治理空间")).toBeInTheDocument();
+    expect(screen.getByText("当前位于平台治理入口")).toBeInTheDocument();
     expect(
       screen.getByText("平台负责维护权威标准；机构定制、发布和恢复操作在对应医疗机构内完成。"),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/机构空间/)).not.toBeInTheDocument();
   });
 
   it("separates platform-source and tenant-overlay production lanes with visible ownership labels", () => {

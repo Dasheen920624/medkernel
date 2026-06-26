@@ -13,7 +13,8 @@ class PlatformTenantTest {
     @Test
     void platformTenantIsSingleBuiltInKnowledgeSourceTenant() {
         assertThat(PlatformTenant.ID).isEqualTo("t-1");
-        assertThat(PlatformTenant.DISPLAY_NAME).isEqualTo("平台治理空间（唯一内置）");
+        assertThat(PlatformTenant.DISPLAY_NAME).isEqualTo("平台治理入口（唯一内置）");
+        assertThat(PlatformTenant.SCOPE_DISPLAY_NAME).isEqualTo("平台治理入口");
         assertThat(PlatformTenant.isPlatformTenant("t-1")).isTrue();
         assertThat(PlatformTenant.isPlatformTenant("t-hospital")).isFalse();
     }

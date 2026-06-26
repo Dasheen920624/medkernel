@@ -62,8 +62,8 @@ vi.mock("@/shared/api/hooks", () => ({
   }),
   useLoginTenantDirectory: () => ({
     data: {
-      primaryTenants: [{ tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" }],
-      platformTenant: { tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" },
+      primaryTenants: [{ tenantId: "t-1", name: "平台治理入口（唯一内置）", kind: "PLATFORM" }],
+      platformTenant: { tenantId: "t-1", name: "平台治理入口（唯一内置）", kind: "PLATFORM" },
       hasCustomerTenants: false,
     },
     isLoading: false,

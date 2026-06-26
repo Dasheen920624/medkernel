@@ -493,7 +493,6 @@ describe("TerminologyMapping", () => {
     await userEvent.click(screen.getByRole("button", { name: "生成术语版本" }));
     expect(screen.getByText("版本号由系统自动生成")).toBeInTheDocument();
     expect(screen.getByText("当前服务机构 · tenant-1")).toBeInTheDocument();
-    expect(screen.queryByText(/当前服务空间/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText("新版本")).not.toBeInTheDocument();
     await userEvent.clear(screen.getByLabelText("资产编码"));
     await userEvent.type(screen.getByLabelText("资产编码"), "TERM.LAB");

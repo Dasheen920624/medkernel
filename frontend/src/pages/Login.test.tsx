@@ -78,8 +78,8 @@ describe("Login", () => {
     };
     loginTenantDirectoryState = {
       data: {
-        primaryTenants: [{ tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" }],
-        platformTenant: { tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" },
+        primaryTenants: [{ tenantId: "t-1", name: "平台治理入口（唯一内置）", kind: "PLATFORM" }],
+        platformTenant: { tenantId: "t-1", name: "平台治理入口（唯一内置）", kind: "PLATFORM" },
         hasCustomerTenants: false,
       },
       isLoading: false,
@@ -216,6 +216,7 @@ describe("Login", () => {
     expect(screen.queryByLabelText("租户标识")).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: /租户/ })).not.toBeInTheDocument();
     expect(screen.getByText("平台治理入口")).toBeInTheDocument();
+    expect(screen.getByText("平台标准与全局治理入口")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "院方统一身份认证" })).not.toBeInTheDocument();
   });
 
@@ -229,15 +230,17 @@ describe("Login", () => {
     expect(screen.getByText("没有可登录机构")).toBeInTheDocument();
     expect(screen.getByText("机构目录未就绪")).toBeInTheDocument();
     expect(screen.getByText("无可登录机构")).toBeInTheDocument();
+    expect(
+      screen.getByText("服务端未返回平台治理入口或医疗服务机构，登录入口已暂停提交。"),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /进入工作台/ })).toBeDisabled();
-    expect(screen.queryByText("平台治理空间（唯一内置）")).not.toBeInTheDocument();
   });
 
   it("已有客户租户时优先显示客户或集团租户，平台主租户退居第二层", async () => {
     loginTenantDirectoryState = {
       data: {
         primaryTenants: [{ tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" }],
-        platformTenant: { tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" },
+        platformTenant: { tenantId: "t-1", name: "平台治理入口（唯一内置）", kind: "PLATFORM" },
         hasCustomerTenants: true,
       },
       isLoading: false,
@@ -268,7 +271,7 @@ describe("Login", () => {
       "true",
     );
     expect(screen.queryByRole("combobox", { name: /客户|集团|租户/ })).not.toBeInTheDocument();
-    expect(screen.queryByText("平台治理空间（唯一内置）")).not.toBeInTheDocument();
+    expect(screen.queryByText("平台治理入口（唯一内置）")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "平台治理" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "院方统一身份认证" })).toBeInTheDocument();
     expect(screen.queryByText(legacyDelegatedUnavailableCopy)).not.toBeInTheDocument();
@@ -289,7 +292,7 @@ describe("Login", () => {
     loginTenantDirectoryState = {
       data: {
         primaryTenants: [{ tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" }],
-        platformTenant: { tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" },
+        platformTenant: { tenantId: "t-1", name: "平台治理入口（唯一内置）", kind: "PLATFORM" },
         hasCustomerTenants: true,
       },
       isLoading: false,
@@ -299,7 +302,6 @@ describe("Login", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "平台治理" }));
 
-    expect(screen.queryByText("平台治理空间（唯一内置）")).not.toBeInTheDocument();
     expect(screen.getByText("平台治理入口")).toBeInTheDocument();
     expect(screen.getByText(/仅供平台治理、知识标准维护和系统运维人员使用/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "平台治理" })).toHaveAttribute(
@@ -400,7 +402,7 @@ describe("Login", () => {
     loginTenantDirectoryState = {
       data: {
         primaryTenants: [{ tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" }],
-        platformTenant: { tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" },
+        platformTenant: { tenantId: "t-1", name: "平台治理入口（唯一内置）", kind: "PLATFORM" },
         hasCustomerTenants: true,
       },
       isLoading: false,
@@ -426,7 +428,7 @@ describe("Login", () => {
     loginTenantDirectoryState = {
       data: {
         primaryTenants: [{ tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" }],
-        platformTenant: { tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" },
+        platformTenant: { tenantId: "t-1", name: "平台治理入口（唯一内置）", kind: "PLATFORM" },
         hasCustomerTenants: true,
       },
       isLoading: false,

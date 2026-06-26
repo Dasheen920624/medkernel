@@ -100,7 +100,6 @@ describe("Bootstrap", () => {
     expect(
       screen.getByText("初始管理员已经建立，请返回登录。后续账号与服务机构统一在工作台内维护。"),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/服务空间/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText("部署接管码")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "返回登录" }));
     expect(screen.getByText("登录页占位")).toBeInTheDocument();
@@ -156,9 +155,8 @@ describe("Bootstrap", () => {
     expect(screen.getByRole("button", { name: "返回登录" })).toBeInTheDocument();
     expect(screen.queryByLabelText("租户标识")).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: /租户/ })).not.toBeInTheDocument();
-    expect(screen.getByText("平台治理空间自动绑定")).toBeInTheDocument();
+    expect(screen.getByText("平台治理入口自动绑定")).toBeInTheDocument();
     expect(screen.getByText("集团和医院服务机构进入平台治理后开通。")).toBeInTheDocument();
-    expect(screen.queryByText(/服务空间/)).not.toBeInTheDocument();
     expect(container.querySelectorAll(".ant-btn-primary")).toHaveLength(1);
 
     fireEvent.change(screen.getByLabelText("账号"), { target: { value: "platform-owner" } });
@@ -169,7 +167,6 @@ describe("Bootstrap", () => {
     fireEvent.click(screen.getByRole("button", { name: "创建初始管理员" }));
 
     expect(await screen.findByText(/请使用初始账号登录并完成首次改密/)).toBeInTheDocument();
-    expect(screen.queryByText(/服务空间/)).not.toBeInTheDocument();
     expect(apiMocks.createAdmin).toHaveBeenCalledWith({
       token: "raw-init-token",
       username: "platform-owner",
