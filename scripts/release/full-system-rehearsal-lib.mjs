@@ -107,7 +107,7 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
   deliveryShapes: {
     label: "五种交付形态",
     codes: [
-      "MANAGEMENT_CONSOLE",
+      "MANAGEMENT_WORKSPACE",
       "ENGINE_CORE",
       "EMBEDDED_COMPONENT",
       "API_EVENT",

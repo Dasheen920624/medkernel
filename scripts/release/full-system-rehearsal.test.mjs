@@ -48,6 +48,16 @@ test("整套演练固定覆盖四职责、Provider、平台基线、沙盘、11 
   assert.equal(plan[6].env.E2E_IGNORE_HTTPS_ERRORS, undefined);
   assert.equal(plan[7].env.LAUNCH_COVERAGE_EVIDENCE_PATH.endsWith("/launch-coverage.json"), true);
   assert.equal(plan[7].env.FULL_SYSTEM_EVIDENCE_ROOT, config.evidenceRoot);
+
+  const requiredCoverage = buildRequiredLaunchCoverage();
+  assert.equal(
+    requiredCoverage.deliveryShapes.some((item) => item.code === "MANAGEMENT_WORKSPACE"),
+    true,
+  );
+  assert.equal(
+    requiredCoverage.deliveryShapes.some((item) => item.code === "MANAGEMENT_CONSOLE"),
+    false,
+  );
 });
 
 test("整套演练配置拒绝跳过 TLS 校验并把全部证据固定在仓库外", () => {

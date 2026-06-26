@@ -425,6 +425,21 @@ test("当前权威文档会阻断旧技术安全门口径", async () => {
   );
 });
 
+test("当前部署演练文档禁止回流控制台交付形态旧口径", async () => {
+  await withFixture(
+    {
+      "docs/DEPLOYMENT_AND_REHEARSAL.md":
+        "验证控制台、引擎核心、嵌入、API/事件和离线交付物五种形态。",
+    },
+    async (root) => {
+      const report = await scanFiles(root, ["docs/DEPLOYMENT_AND_REHEARSAL.md"]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["docs.retired-product-state-language"]);
+    },
+  );
+});
+
 test("当前权威体验文档禁止回流演示重构旧说法", async () => {
   await withFixture(
     {
@@ -524,6 +539,7 @@ test("前后端契约会阻断实施内部口径残留", async () => {
   const technicalReleaseChain = "技术" + "发布链";
   const sourceVersionTechInfo = "来源版本" + "技术" + "信息";
   const platformDeveloper = "平台" + "开发者";
+  const publicConsole = "公共生产" + "控制台";
   const debugBefore = "调试" + "前";
   const channelDebug = "通道" + "调试";
   const testPayload = "测试 " + "Payload";
@@ -550,6 +566,10 @@ test("前后端契约会阻断实施内部口径残留", async () => {
         public class KnowledgeInitializationService {
           String message = "${sourceVersionTechInfo}不完整";
         }
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/FormalKnowledgeProductionPolicy.java": `
+        /** ${publicConsole}只允许经受控模型服务创建正式生产任务。 */
+        public class FormalKnowledgeProductionPolicy {}
       `,
       "medkernel-backend/src/main/java/com/medkernel/engine/security/PermissionCode.java": `
         public enum PermissionCode {
@@ -580,6 +600,7 @@ test("前后端契约会阻断实施内部口径残留", async () => {
         "medkernel-backend/src/main/java/com/medkernel/engine/pathway/PathwaySimulationResponse.java",
         "medkernel-backend/src/main/java/com/medkernel/engine/integration/dto/WebhookTestDto.java",
         "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/initialization/KnowledgeInitializationService.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/FormalKnowledgeProductionPolicy.java",
         "medkernel-backend/src/main/java/com/medkernel/engine/security/PermissionCode.java",
         "medkernel-backend/src/main/java/com/medkernel/engine/llm/eval/ModelEvalService.java",
         "medkernel-backend/src/main/java/com/medkernel/engine/security/auth/AuthController.java",
@@ -589,6 +610,7 @@ test("前后端契约会阻断实施内部口径残留", async () => {
 
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-internal-operation-language",
         "backend.customer-facing-internal-operation-language",
         "backend.customer-facing-internal-operation-language",
         "backend.customer-facing-internal-operation-language",

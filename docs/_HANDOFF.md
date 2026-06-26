@@ -589,6 +589,13 @@
   `50 passed`、`node scripts/authenticity-guard.mjs --mode=inventory`、旧标题组合搜索无结果、
   `npm run typecheck`、`npm run lint`、`npm run stylelint`、`npm run format:check`、
   `npm run test:lint-rules`、`npm run build`、`git diff --check`；尚未重新部署 134。
+- 部署演练权威文档、后端生产注释和上线覆盖矩阵已继续同步为“管理与生产工作区”口径，
+  `launch-coverage` 内部覆盖码改为 `MANAGEMENT_WORKSPACE`，证据页面和
+  知识生产策略注释不再把前台能力写成后台化入口。真实性门禁新增当前部署演练文档和后端注释拦截。
+  已验证：`node --test scripts/authenticity-guard.test.mjs scripts/release/full-system-rehearsal.test.mjs`
+  `57 passed`、`node scripts/authenticity-guard.mjs --mode=inventory`、旧交付形态组合搜索无结果、
+  `bash scripts/check-comment-zh.sh --mode=full`、`mvn -q -f medkernel-backend/pom.xml -DskipTests package`、
+  `git diff --check`；尚未重新部署 134。
 - 正确前端部署包格式必须包含 `dist/index.html`：
   `COPYFILE_DISABLE=1 tar --no-xattrs -czf dist.tar.gz -C frontend dist`。仅打包 `frontend/dist` 内容会被部署脚本
   拒绝，不能作为候选包。

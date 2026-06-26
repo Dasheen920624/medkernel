@@ -26,7 +26,7 @@ const SANDBOX_SCRIPT = /^scripts\/sandbox\/.+\.(?:mjs|json)$/;
 const DB_COMMENT_CONTRACT =
   /^medkernel-backend\/src\/main\/resources\/db\/(?:schema\/medkernel\.schema\.json|migration\/(?:dm|h2|kingbase|oracle|postgres)\/V1__baseline\.sql)$/;
 const CURRENT_DOCS =
-  /^docs\/(?:CONSTITUTION|EXPERIENCE_CONTRACT|PRODUCT_SCOPE|glossary)\.md$|^docs\/handbook\/operations\.md$|^docs\/audit\/(?:product-function-catalog|质量基线)\.md$/;
+  /^docs\/(?:CONSTITUTION|DEPLOYMENT_AND_REHEARSAL|EXPERIENCE_CONTRACT|PRODUCT_SCOPE|glossary)\.md$|^docs\/handbook\/operations\.md$|^docs\/audit\/(?:product-function-catalog|质量基线)\.md$/;
 const INTEGRATION_CONTRACT_DOCS = /^docs\/contracts\/integration\/.+\.md$/;
 const FRONTEND_ALLOWLIST =
   /\.(?:test|spec|stories)\.(?:ts|tsx)$|^frontend\/src\/(?:test|mocks)\//;
@@ -213,7 +213,7 @@ const CURRENT_DOC_RULES = [
   {
     ruleId: "docs.retired-product-state-language",
     message: "当前权威目录禁止保留旧态、未来态或模拟态口径，必须描述当前收口动作。",
-    pattern: /模型生产控制台|管理与生产控制台|强制后续动作/,
+    pattern: /控制台|强制后续动作/,
   },
   {
     ruleId: "docs.customer-facing-safety-language",
@@ -252,7 +252,7 @@ const BACKEND_RULES = [
     ruleId: "backend.customer-facing-internal-operation-language",
     message: "后端生产契约和注释禁止继续使用面向实施内部的旧口径。",
     pattern:
-      /诊断工具|国产化核验|dev-console|developer-console|DeveloperConsole|技术核验|技术发布链|来源版本技术信息|平台开发者|调试接口|调试前|通道调试|测试\s*Payload|Webhook\s*测试|签名测试|双向连通测试|签名生成与双向连通测试|院方统一身份尚未接入|未配置真实 IdP 连接器|后端脱敏|资料库后端|后端尚未接入|后续(?:条目|适配器)接入|真实(?:图谱|搜索|模型工作流|模型服务|外部系统)探活未接入|暂不判定通过|未接入可用模型服务|未接入真实(?:执行器|外部连接器|连接器|图投影|图谱)|暂未接入标准上下文|待对应适配器接入|尚未接入资产库|增强接入矩阵|待接入|未接入业务点|本\s*PR|后续\s*PR|后续阶段挂点|(?:offline|b0)-fixture/,
+      /控制台|诊断工具|国产化核验|dev-console|developer-console|DeveloperConsole|技术核验|技术发布链|来源版本技术信息|平台开发者|调试接口|调试前|通道调试|测试\s*Payload|Webhook\s*测试|签名测试|双向连通测试|签名生成与双向连通测试|院方统一身份尚未接入|未配置真实 IdP 连接器|后端脱敏|资料库后端|后端尚未接入|后续(?:条目|适配器)接入|真实(?:图谱|搜索|模型工作流|模型服务|外部系统)探活未接入|暂不判定通过|未接入可用模型服务|未接入真实(?:执行器|外部连接器|连接器|图投影|图谱)|暂未接入标准上下文|待对应适配器接入|尚未接入资产库|增强接入矩阵|待接入|未接入业务点|本\s*PR|后续\s*PR|后续阶段挂点|(?:offline|b0)-fixture/,
   },
   {
     ruleId: "backend.historical-stage-language",
