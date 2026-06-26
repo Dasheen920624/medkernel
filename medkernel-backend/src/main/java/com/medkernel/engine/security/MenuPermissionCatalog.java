@@ -71,7 +71,7 @@ public final class MenuPermissionCatalog {
             MENU_PROVENANCE, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "graph-explore", "知识关系",
             MENU_GRAPH_EXPLORE, MenuPlacement.PRIMARY),
-        menu("knowledge-production", "knowledge-production", "模型生产控制台",
+        menu("knowledge-production", "knowledge-production", "知识生产",
             MENU_KNOWLEDGE_PRODUCTION, MenuPlacement.PRIMARY),
         menu("knowledge-production", "ai-workflows", "模型能力",
             MENU_AI_WORKFLOWS, MenuPlacement.PRIMARY),

@@ -1047,6 +1047,37 @@ test("客户面和当前目录会阻断旧态、未来态和模拟态口径", as
   );
 });
 
+test("知识生产入口会阻断模型平台化旧名称", async () => {
+  const modelPlatformTitle = "模型生产" + "控制台";
+  await withFixture(
+    {
+      "frontend/src/pages/knowledge-production/KnowledgeProductionPage.tsx": `
+        export const title = "${modelPlatformTitle}";
+      `,
+      "frontend/src/shared/config/routes.ts": `
+        export const route = { path: "/knowledge/production", title: "${modelPlatformTitle}" };
+      `,
+      "docs/audit/product-function-catalog.md": `
+        | /knowledge/production | ${modelPlatformTitle} |
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/pages/knowledge-production/KnowledgeProductionPage.tsx",
+        "frontend/src/shared/config/routes.ts",
+        "docs/audit/product-function-catalog.md",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "docs.retired-product-state-language",
+        "frontend.retired-product-state-language",
+        "frontend.retired-product-state-language",
+      ]);
+    },
+  );
+});
+
 test("共享 API 合同禁止把平台能力写成待上线旧口径", async () => {
   await withFixture(
     {

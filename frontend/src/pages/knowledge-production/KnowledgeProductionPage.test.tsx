@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import ModelProductionConsole from "./ModelProductionConsole";
+import KnowledgeProductionPage from "./KnowledgeProductionPage";
 
 vi.mock("./ProviderSetupPanel", () => ({
   default: () => <div>provider-panel</div>,
@@ -16,15 +16,15 @@ vi.mock("@/pages/quality/KnowledgeGovernance", () => ({
   KnowledgeProductionWorkspace: () => <div>production-panel</div>,
 }));
 
-describe("ModelProductionConsole", () => {
+describe("KnowledgeProductionPage", () => {
   beforeEach(() => {
     window.history.replaceState({}, "", "/knowledge/production");
   });
 
-  it("orders the complete model production workflow on one page", () => {
-    render(<ModelProductionConsole />);
+  it("orders the complete knowledge production workflow on one page", () => {
+    render(<KnowledgeProductionPage />);
 
-    expect(screen.getByRole("heading", { name: "模型生产控制台" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "知识生产" })).toBeInTheDocument();
     const labels = ["模型服务与密钥", "医学评测", "生产前校验", "开始生产"];
     for (let index = 1; index < labels.length; index += 1) {
       const previous = screen.getAllByText(labels[index - 1], { exact: true })[0];

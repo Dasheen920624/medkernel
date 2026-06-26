@@ -1727,7 +1727,7 @@ export default function KnowledgeGovernance({
             type="warning"
             showIcon
             message="八项安全门尚未全部满足，暂不能创建正式生产任务"
-            description="请先在模型生产控制台处理模型服务、医学评测和其余安全门阻断项。"
+            description="请先在知识生产入口处理模型服务、医学评测和其余安全门阻断项。"
           />
         ) : null}
         <Space direction="vertical" size={4}>

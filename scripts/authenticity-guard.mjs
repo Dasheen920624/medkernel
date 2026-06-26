@@ -78,7 +78,7 @@ const FRONTEND_RULES = [
     message:
       "前端客户面禁止保留旧态、未来态或模拟态口径，必须描述当前任务、当前版本和真实流程事实。",
     pattern:
-      /页面模拟数据|旧健康结论|旧身份|旧版本|后续账号|后续在服务机构管理|后续状态仍|后续以目标患者|后续生成|新旧对比|新旧规则差异|运行新旧对比/,
+      /页面模拟数据|模型生产控制台|旧健康结论|旧身份|旧版本|后续账号|后续在服务机构管理|后续状态仍|后续以目标患者|后续生成|新旧对比|新旧规则差异|运行新旧对比/,
   },
   {
     ruleId: "frontend.customer-facing-engineering-language",
@@ -166,7 +166,7 @@ const FRONTEND_SHARED_CONFIG_RULES = [
     ruleId: "frontend.retired-product-state-language",
     message:
       "前端共享配置禁止保留旧态、未来态或模拟态口径，必须描述当前任务、当前版本和真实流程事实。",
-    pattern: /页面模拟数据|后续规则和路径|后续账号|新旧对比|新旧规则差异|运行新旧对比/,
+    pattern: /页面模拟数据|模型生产控制台|后续规则和路径|后续账号|新旧对比|新旧规则差异|运行新旧对比/,
   },
   {
     ruleId: "frontend.customer-facing-engineering-language",
@@ -213,7 +213,7 @@ const CURRENT_DOC_RULES = [
   {
     ruleId: "docs.retired-product-state-language",
     message: "当前权威目录禁止保留旧态、未来态或模拟态口径，必须描述当前收口动作。",
-    pattern: /强制后续动作/,
+    pattern: /模型生产控制台|强制后续动作/,
   },
   {
     ruleId: "docs.customer-facing-safety-language",

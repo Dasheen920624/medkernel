@@ -719,11 +719,12 @@ describe("route metadata", () => {
       pageType: "configuration",
     });
     expect(findRouteByPath("/knowledge/production")).toMatchObject({
-      title: "模型生产控制台",
+      title: "知识生产",
       sectionKey: "knowledge-production",
       menuKey: "knowledge-production",
       requiredPermissions: ["menu.knowledge-production", "knowledge.read"],
-      pageType: "system",
+      pageType: "configuration",
+      stateMachine: "config",
     });
   });
 

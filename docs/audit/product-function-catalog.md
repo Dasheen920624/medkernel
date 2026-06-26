@@ -117,7 +117,7 @@
 | `/knowledge/diagnosis` | 诊断知识维护 | knowledge-governance | diagnosis-knowledge | primary | SPLIT | 知识治理 | 诊断知识维护 | 维护诊断身份、诊断标准、鉴别诊断、验证病例与来源证据 |
 <!-- capability:route:route@%2Fknowledge%2Fproduction decision=SPLIT -->
 <!-- route:/knowledge/production -->
-| `/knowledge/production` | 模型生产控制台 | knowledge-production | knowledge-production | primary | SPLIT | 知识生产 | 知识生产 | 核查知识生产 readiness、生产 job、候选血缘、门禁、8 态、影子证据和高敏患者上下文用途确认重试 |
+| `/knowledge/production` | 知识生产 | knowledge-production | knowledge-production | primary | SPLIT | 知识生产 | 知识生产 | 核查知识生产 readiness、生产 job、候选血缘、门禁、8 态、影子证据和高敏患者上下文用途确认重试 |
 <!-- capability:route:route@%2Fadmin%2Fusers decision=MOVE -->
 <!-- route:/admin/users -->
 | `/admin/users` | 人员与账号 | organization-people | admin-users | primary | MOVE | 机构与人员 | 人员与账号 | 维护自然人、任职、账号、职责和组织范围 |
@@ -203,7 +203,7 @@
 | `graph-explore` | 知识关系 | `knowledge-governance` | primary | `MENU_GRAPH_EXPLORE` | MOVE | 知识治理 | 知识关系 |
 <!-- capability:menu:menu@knowledge-production decision=SPLIT -->
 <!-- menu:knowledge-production -->
-| `knowledge-production` | 模型生产控制台 | `knowledge-production` | primary | `MENU_KNOWLEDGE_PRODUCTION` | SPLIT | 知识生产 | 知识生产 |
+| `knowledge-production` | 知识生产 | `knowledge-production` | primary | `MENU_KNOWLEDGE_PRODUCTION` | SPLIT | 知识生产 | 知识生产 |
 <!-- capability:menu:menu@ai-workflows decision=MOVE -->
 <!-- menu:ai-workflows -->
 | `ai-workflows` | 模型能力 | `knowledge-production` | primary | `MENU_AI_WORKFLOWS` | MOVE | 知识生产 | 模型能力 |
@@ -319,10 +319,10 @@
 | `frontend/src/pages/compliance/SecurityBaselinePanels.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fcompliance%2FSystemProviders.tsx decision=RENAME -->
 | `frontend/src/pages/compliance/SystemProviders.tsx` | `/system/providers` | RENAME | 系统运维 | 运行保障 |
+<!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fknowledge-production%2FKnowledgeProductionPage.tsx decision=MERGE -->
+| `frontend/src/pages/knowledge-production/KnowledgeProductionPage.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fknowledge-production%2FMedicalEvaluationPanel.tsx decision=MERGE -->
 | `frontend/src/pages/knowledge-production/MedicalEvaluationPanel.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
-<!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fknowledge-production%2FModelProductionConsole.tsx decision=MERGE -->
-| `frontend/src/pages/knowledge-production/ModelProductionConsole.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fknowledge-production%2FProductionReadinessPanel.tsx decision=MERGE -->
 | `frontend/src/pages/knowledge-production/ProductionReadinessPanel.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fknowledge-production%2FProviderSetupPanel.tsx decision=MERGE -->
