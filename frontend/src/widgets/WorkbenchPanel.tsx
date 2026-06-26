@@ -762,7 +762,7 @@ function SourceCard<T>({
         <PageState
           state="empty"
           title="暂无数据"
-          description="当前组织暂无可展示内容，后续来源上线后会自动回灌。"
+          description="当前组织暂无可展示内容，请确认组织范围或进入对应页面处理。"
           action={drilldownAction}
         />
       </Card>

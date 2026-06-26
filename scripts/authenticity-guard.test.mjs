@@ -224,16 +224,21 @@ test("前端生产文件会阻断客户面退役演示说明", async () => {
       "frontend/src/pages/CdssFatigue.tsx": `
         export const empty = "暂无来源解释证据，不做任何${fallbackFake}";
       `,
+      "frontend/src/widgets/WorkbenchPanel.tsx": `
+        export const empty = "当前组织暂无可展示内容，后续来源上线后会自动回灌。";
+      `,
     },
     async (root) => {
       const report = await scanFiles(root, [
         "frontend/src/pages/GraphExplore.tsx",
         "frontend/src/pages/PathwayTemplates.tsx",
         "frontend/src/pages/CdssFatigue.tsx",
+        "frontend/src/widgets/WorkbenchPanel.tsx",
       ]);
 
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), [
+        "frontend.retired-demo-copy",
         "frontend.retired-demo-copy",
         "frontend.retired-demo-copy",
         "frontend.retired-demo-copy",

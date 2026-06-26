@@ -403,6 +403,23 @@ describe("WorkbenchPanel", () => {
     expect(screen.getByText(/关系数据库/)).toBeInTheDocument();
   });
 
+  it("uses an actionable empty state instead of future-source promises", () => {
+    hookState.audit = {
+      data: [],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    };
+
+    renderWorkbench();
+
+    const auditCard = screen.getByTestId("workbench-card-audit");
+    expect(
+      within(auditCard).getByText("当前组织暂无可展示内容，请确认组织范围或进入对应页面处理。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/后续来源上线|自动回灌/)).not.toBeInTheDocument();
+  });
+
   it("renders a forbidden state when the loaded security profile cannot access workbench", () => {
     hookState.security = {
       data: {

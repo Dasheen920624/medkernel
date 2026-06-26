@@ -62,8 +62,8 @@ const FRONTEND_RULES = [
   {
     ruleId: "frontend.retired-demo-copy",
     message:
-      "前端客户面错误态和向导文案禁止出现演示数据、演示病例或安全骨架等退役表达。",
-    pattern: /演示数据|演示病例|安全骨架|兜底伪造|页面不做兜底|不做任何兜底/,
+      "前端客户面错误态和向导文案禁止出现演示数据、演示病例、安全骨架或未上线承诺等退役表达。",
+    pattern: /演示数据|演示病例|安全骨架|兜底伪造|页面不做兜底|不做任何兜底|后续来源上线|自动回灌/,
   },
   {
     ruleId: "frontend.customer-facing-engineering-language",
