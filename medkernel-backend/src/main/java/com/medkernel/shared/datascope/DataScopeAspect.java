@@ -67,7 +67,7 @@ public class DataScopeAspect {
             return level == null;
         }
         return switch (level) {
-            // 平台权威层尚未接入请求作用域（属 P0-1.3 平台空间约定）；普通租户作用域不具备平台权威，按 fail-closed 拒绝
+            // 平台权威层不使用普通租户请求作用域；普通租户作用域不具备平台权威，按 fail-closed 拒绝
             case PLATFORM -> false;
             case TENANT -> scope.tenantId() != null && !scope.tenantId().isBlank();
             case REGION -> notBlank(scope.groupId());

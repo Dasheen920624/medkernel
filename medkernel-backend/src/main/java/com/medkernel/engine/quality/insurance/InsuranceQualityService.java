@@ -40,7 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
  * SVC-QUALITY-02 病案医保服务。
  *
  * <p>服务读取关系库中的上下文快照与医保结算事实，执行确定性病案内涵、DRG/DIP 与医保审核。
- * 未接入模型时仍返回 {@link EvaluationModelStatus#MODEL_DISABLED} 的真实 B0 结果；无结算事实时返回
+ * 没有可用模型服务时仍返回 {@link EvaluationModelStatus#MODEL_DISABLED} 的真实 B0 结果；无结算事实时返回
  * {@link InsuranceAuditStatus#INSUFFICIENT_DATA}，不臆造违规。
  */
 @Service

@@ -9,7 +9,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 知识异步导出作业。{@code job_code} 是对外可见的 UUID（不暴露 DB 主键）。
  *
- * <p>本 PR 提供单机线程池执行器；后续 GA-ENG-PKG-01 / GA-ENG-API-13 可替换为分布式队列实现。
+ * <p>当前运行形态使用单机线程池执行器；如部署分布式队列，仍沿用同一任务状态与审计契约。
  */
 @Table("knowledge_export_job")
 public record KnowledgeExportJob(

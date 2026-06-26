@@ -217,14 +217,14 @@ class DocumentParseOrchestrationServiceTest {
     void unsupportedFormatFailsHonestly() {
         when(sourceDocumentRepository.findByTenantIdAndId("tenant-1", 5L))
             .thenReturn(Optional.of(stubDoc()));
-        // WORD 适配器尚未接入（PR3）；合法 Base64 证明已解码并分派，仅诚实判「暂不支持」
+        // WORD 解析器当前待配置；合法 Base64 证明已解码并分派，仅诚实记录不可解析原因。
         String wordBase64 = java.util.Base64.getEncoder()
             .encodeToString("DOCX-BYTES".getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
         DocParseJob job = service.submit(req(wordBase64, DocumentFormat.WORD));
 
         assertThat(job.status()).isEqualTo(ParseJobStatus.FAILED);
-        assertThat(job.errorMessage()).contains("暂不支持");
+        assertThat(job.errorMessage()).contains("解析器待配置");
         verify(materializer, never()).materialize(any(), any(), any(), any(), any(), any(), any());
     }
 

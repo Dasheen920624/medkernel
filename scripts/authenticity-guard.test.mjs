@@ -745,6 +745,41 @@ test("后端生产契约会阻断运行状态未接入口吻", async () => {
   );
 });
 
+test("后端生产契约会阻断阶段性接入口吻", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/shared/runtime/task/DefaultRuntimeTaskExecutor.java": `
+        public class DefaultRuntimeTaskExecutor {
+          String message = "未接入真实执行器，任务未执行";
+        }
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/parsing/DocumentParseOrchestrationService.java": `
+        public class DocumentParseOrchestrationService {
+          String error = "暂不支持解析格式 WORD，待对应适配器接入";
+        }
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeExportJob.java": `
+        /** 本 PR 提供单机线程池执行器；后续 PR 可替换。 */
+        public class KnowledgeExportJob {}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/shared/runtime/task/DefaultRuntimeTaskExecutor.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/parsing/DocumentParseOrchestrationService.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeExportJob.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+      ]);
+    },
+  );
+});
+
 test("前端 catch 成功门禁只检查 catch 代码块内部", async () => {
   await withFixture(
     {

@@ -981,7 +981,7 @@ public class IntegrationService {
             blockers.add("绑定适配器不存在");
         }
         if (HEALTH_NOT_CONNECTED.equals(healthStatus)) {
-            blockers.add("NOT_CONNECTED：未接入真实外部连接器，不阻断主流程");
+            blockers.add("NOT_CONNECTED：外部连接器待配置或外部不可达，不阻断主流程");
         }
         if (HEALTH_MISCONFIGURED.equals(healthStatus)) {
             blockers.add("MISCONFIGURED：适配器配置非法，需修正后再联调");
@@ -1478,7 +1478,7 @@ public class IntegrationService {
         return switch (healthStatus) {
             case HEALTH_HEALTHY -> "真实连接器健康检查成功；状态来自实际探活，不伪造连接";
             case HEALTH_MISCONFIGURED -> "本地配置非法，未执行外部探活；不伪造连接成功";
-            default -> "未接入真实外部连接器或外部不可达；不伪造连接成功";
+            default -> "外部连接器待配置或外部不可达；不伪造连接成功";
         };
     }
 

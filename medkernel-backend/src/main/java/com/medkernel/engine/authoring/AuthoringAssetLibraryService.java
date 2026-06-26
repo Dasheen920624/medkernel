@@ -466,7 +466,7 @@ public class AuthoringAssetLibraryService {
                 .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "路径资产不存在: " + assetId));
             case FOLLOWUP -> followupTemplates.findByTemplateIdAndTenantId(assetId, tenantId)
                 .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "随访模板资产不存在: " + assetId));
-            default -> throw new ApiException(ErrorCode.ENG_ASSET_002, "当前资产类型尚未接入资产库: " + assetType);
+            default -> throw new ApiException(ErrorCode.ENG_ASSET_002, "当前资产类型不在资产库支持范围: " + assetType);
         }
     }
 
