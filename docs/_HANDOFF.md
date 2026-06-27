@@ -18,6 +18,8 @@
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新临床待办与证据权限优化：`bbbbfc55`（`统一临床待办证据权限门禁`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
+- 本地最新提醒推荐体验优化：`cd557ed9`（`统一提醒推荐证据详情体验`）已完成本地验证，尚未同步到 134；
+  134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 当前目标：完成 MedKernel 全新项目上线级整体梳理与落地，统一平台权威版本与全链路能力，移除旧兼容和冗余设计，
   完善真实功能页面与统一迁移生成，完成代码、契约、前后端、文档、测试、构建核查，并在 134 清库重新部署完成
   全功能与全知识全流程演练。
@@ -28,7 +30,9 @@
   全真体验沙盘切入，先修复默认暴露患者/就诊标识、嵌入凭证、技术枚举和运行追踪号的问题；这只是全局扫描第一刀，
   不代表全角色全链路优化完成。第二刀已进入临床前台，MPI、患者路径、消息通知和临床快照选择器已统一默认业务摘要与
   受控证据详情；第三刀补齐协同任务默认业务摘要，并将 MPI、患者路径、消息通知、协同任务的证据详情统一收敛为
-  “有证据权限且开关打开”才显示。后续仍需继续扫描 CDSS 疲劳、模型外调策略、来源血缘、审计、安全基线和运行诊断。
+  “有证据权限且开关打开”才显示；第四刀补齐 CDSS 提醒推荐默认业务视图、触发弹窗、反馈时间线和决策依据抽屉，
+  原始卡片号、患者/就诊编号、追踪号、操作者编号和执行摘要只在受控证据详情中展开。后续仍需继续扫描模型外调策略、
+  来源血缘、审计、安全基线和运行诊断。
 
 ## 当前唯一权威
 
@@ -112,6 +116,13 @@
   `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、
   `npm --prefix frontend test -- --run src/pages/clinical/Mpi.test.tsx src/pages/clinical/PatientPathways.test.tsx src/pages/clinical/Notifications.test.tsx src/pages/clinical/WorkflowTodos.test.tsx`、
   `git diff --check`。
+- 最新提醒推荐体验切片：
+  `cd557ed9` 将 CDSS 提醒推荐接入统一体验壳和证据详情权限门禁，默认列表展示提醒摘要、风险、场景、状态和“已关联患者”，
+  触发评估改用患者信息/就诊信息与临床快照选择，详情抽屉默认展示患者与就诊已关联、临床角色反馈和决策依据；
+  推荐卡编号、患者/就诊编号、追踪号、操作者编号、执行编号和输入摘要仅在有证据权限且开关打开时显示。本地验证通过
+  `npm --prefix frontend test -- --run src/pages/clinical/CdssFatigue.test.tsx`、
+  `npm --prefix frontend test -- --run src/pages/clinical/CdssFatigue.test.tsx src/pages/clinical/WorkflowTodos.test.tsx src/pages/clinical/Mpi.test.tsx src/pages/clinical/PatientPathways.test.tsx src/pages/clinical/Notifications.test.tsx src/pages/pages.smoke.test.tsx`、
+  `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
 - 本地关键验证：
   `npm run typecheck`、`npm test -- --run src/pages/clinical/Followup.test.tsx` 已在 `10f06bea` 前通过；
   该阶段只完成随访字段口径纠偏，`823a2c00` 后已进一步改为业务选项化表单。
@@ -164,10 +175,10 @@
 1. 进入真实前台全角色体验：平台管理员看系统接入与安全基线，医疗引擎运营员看知识生产和版本发布，临床使用者拆分医生、
    护士、药师、医技、质控、患者代理路径，审计员看来源、操作证据和敏感信息边界；信息科长、实施工程师、院长视角看部署、
    权限、全院指标和故障降级。
-2. 已完成沙盘、MPI、患者路径、消息通知、临床快照选择器和协同任务默认视图/证据详情前三轮本地优化；继续优先扫描
-   CDSS 疲劳、模型外调策略、来源血缘、审计、安全基线和运行诊断页面：
+2. 已完成沙盘、MPI、患者路径、消息通知、临床快照选择器、协同任务和 CDSS 提醒推荐默认视图/证据详情四轮本地优化；
+   继续优先扫描模型外调策略、来源血缘、审计、安全基线和运行诊断页面：
    功能分类、页面目标、空态/错态/权限态、流程完整性、操作复杂度、敏感信息处理、证据详情表达都要全局审计。
 3. 优先发现并修复真实产品问题，而不是只优化用户临时指出的点；修复后仍需本地验证、必要时重新构建并在 134 复验。
 4. 下一阶段仍需在 134 执行全角色、全知识、全流程复演；本轮只证明基础真实前台数据路线已跑通，`cd44d8ab`、
-   `eee7b5ee` 与 `bbbbfc55` 尚未部署 134。
+   `eee7b5ee`、`bbbbfc55` 与 `cd557ed9` 尚未部署 134。
 5. 保持本地提交，不推送远程，不合并 `main`；不要提交未跟踪的 `.codex/config.toml`。
