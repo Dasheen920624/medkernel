@@ -131,6 +131,7 @@ describe("AiWorkflows", () => {
   });
 
   it("只读取真实能力状态，不暴露执行和管理入口", async () => {
+    const user = userEvent.setup();
     const requests: string[] = [];
     apiClient.defaults.adapter = (async (config) => {
       requests.push(`${config.method ?? "get"} ${config.url ?? ""}`);
@@ -150,18 +151,28 @@ describe("AiWorkflows", () => {
     expect(screen.getByText(/公网模型可在授权用途内使用患者上下文/)).toBeInTheDocument();
     expect(screen.getByText(/核心标识字段先遮蔽/)).toBeInTheDocument();
     expect(screen.getByText("临床规则草案拟定")).toBeInTheDocument();
+    expect(screen.queryByText("knowledge.discovery")).not.toBeInTheDocument();
+    expect(screen.queryByText("rule.draft")).not.toBeInTheDocument();
+    expect(screen.queryByText("医院:hospital-a")).not.toBeInTheDocument();
+    expect(screen.queryByText('{"required":["status"]}')).not.toBeInTheDocument();
     expect(screen.getAllByText("基础规则能力").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("服务机构已配置")).toBeInTheDocument();
     expect(screen.getByText("模型能力已关闭")).toBeInTheDocument();
     expect(screen.getByText("默认脱敏")).toBeInTheDocument();
     expect(screen.getByText("全量掩码")).toBeInTheDocument();
     expect(screen.getAllByText("规则链路可用").length).toBeGreaterThan(0);
-    expect(screen.getByText("医院:hospital-a")).toBeInTheDocument();
     expect(screen.getByText("继承配置")).toBeInTheDocument();
     expect(screen.getByText("未配置专属策略，使用系统无模型规则链路")).toBeInTheDocument();
     expect(screen.queryByText("基线可用")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /提交|运行|重试|配置|编辑|新增|保存/ })).toBeNull();
     expect(requests).toEqual(["get /security/me", "get /model-capabilities/status"]);
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("knowledge.discovery")).toBeInTheDocument();
+    expect(screen.getByText("rule.draft")).toBeInTheDocument();
+    expect(screen.getByText("医院:hospital-a")).toBeInTheDocument();
+    expect(screen.getByText('{"required":["status"]}')).toBeInTheDocument();
   });
 
   it("允许具备权限的实施人员为公网模型使用患者上下文配置外调安全策略", async () => {

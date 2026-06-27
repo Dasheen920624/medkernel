@@ -32,6 +32,10 @@ import type {
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
+import { findRouteByPath } from "@/shared/config/routes";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
+import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { PageShell } from "@/shared/ui/PageShell";
 
 import styles from "./AiWorkflows.module.css";
@@ -40,6 +44,21 @@ const { Text } = Typography;
 
 const MODEL_CAPABILITY_TITLE = "模型能力";
 const MODEL_CAPABILITY_DESCRIPTION = "核查模型能力、路由与降级状态";
+const route = findRouteByPath("/advanced/ai-workflows");
+const PAGE_META = {
+  title: route?.title ?? MODEL_CAPABILITY_TITLE,
+  experience: route?.experience ?? {
+    primaryRole: "医疗引擎运营员",
+    goal: "核查当前组织 AI 能力与降级状态",
+    defaultView: "能力状态",
+    defaultFilters: [],
+    evidenceDetailContent: ["能力代码", "策略作用域", "输出格式", "外调字段代码"],
+    interruptionLevel: "info" as const,
+    evidence: "模型能力、路由、降级和外调策略均保留配置来源与审计证据",
+    dataScale: { expected: "large" as const, pagination: "page" as const, exportStrategy: "none" as const },
+    riskLevel: "medium" as const,
+  },
+};
 
 const routeStrategyView: Record<string, { color: string; label: string }> = {
   BASELINE: { color: "blue", label: "基础规则能力" },
@@ -118,15 +137,17 @@ function configurationModeLabel(item: ModelCapabilityStatusResponse) {
   return item.inherited ? "继承配置" : "当前作用域配置";
 }
 
-function capabilityDetails(item: ModelCapabilityStatusResponse) {
+function capabilityDetails(item: ModelCapabilityStatusResponse, evidenceDetailsEnabled: boolean) {
   const scopeLabel = `${policyScopeView[item.policyScopeType] ?? customerEnumLabel(item.policyScopeType)}:${item.policyScopeRef}`;
   const externalEnabled =
     item.routeStrategy === "EXTERNAL_MODEL" || item.fallbackOrder.includes("EXTERNAL_MODEL");
   return (
     <Descriptions className={styles.details} column={{ xs: 1, sm: 2, lg: 3 }} size="small">
-      <Descriptions.Item label="能力代码">
-        <Text code>{item.capabilityCode}</Text>
-      </Descriptions.Item>
+      {evidenceDetailsEnabled ? (
+        <Descriptions.Item label="能力代码">
+          <Text code>{item.capabilityCode}</Text>
+        </Descriptions.Item>
+      ) : null}
       <Descriptions.Item label="路由策略">{routeView(item.routeStrategy).label}</Descriptions.Item>
       <Descriptions.Item label="脱敏策略">
         {desensitizeStrategyView[item.desensitizeStrategy] ??
@@ -134,7 +155,7 @@ function capabilityDetails(item: ModelCapabilityStatusResponse) {
       </Descriptions.Item>
       <Descriptions.Item label="服务机构专属配置">{configurationModeLabel(item)}</Descriptions.Item>
       <Descriptions.Item label="策略作用域">
-        <Text code>{scopeLabel}</Text>
+        {evidenceDetailsEnabled ? <Text code>{scopeLabel}</Text> : "按当前组织范围生效"}
       </Descriptions.Item>
       <Descriptions.Item label="降级顺序">
         {fallbackOrderLabel(item.fallbackOrder)}
@@ -154,7 +175,7 @@ function capabilityDetails(item: ModelCapabilityStatusResponse) {
           ? "公网外部模型可在授权用途内使用患者上下文，运行时仍会先执行字段允许范围、核心敏感遮蔽、责任确认和证据留痕。"
           : "当前能力不走公网外部模型；切换到外部模型前必须先配置外调安全策略。"}
       </Descriptions.Item>
-      {item.expectedSchema ? (
+      {evidenceDetailsEnabled && item.expectedSchema ? (
         <Descriptions.Item label="输出格式明细" span={3}>
           <Text code className={styles.schemaText}>
             {item.expectedSchema}
@@ -261,6 +282,11 @@ function egressPreviewStatusColor(item: EgressPreviewRow) {
   return "blue";
 }
 
+function renderExpectedSchema(value: string | null, evidenceDetailsEnabled: boolean) {
+  if (!value) return "未配置";
+  return evidenceDetailsEnabled ? <Text code>{value}</Text> : "已配置";
+}
+
 const egressPreviewColumns: TableProps<EgressPreviewRow>["columns"] = [
   {
     title: "字段",
@@ -300,6 +326,9 @@ export default function AiWorkflows() {
   );
   const canRead = permissionCodes.has("llm.read");
   const canManageEgress = permissionCodes.has("llm.egress.manage");
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled =
+    canUseEvidenceDetails(securityQuery.data) && globalEvidenceDetails;
   const statusQuery = useModelCapabilitiesStatus(canRead);
   const saveEgressPolicy = useSaveModelEgressPolicy();
   const confirmModelEgress = useConfirmModelEgress();
@@ -410,9 +439,11 @@ export default function AiWorkflows() {
         <div className={styles.capabilityCell}>
           <Text strong>{item.displayName}</Text>
           <Text type="secondary">{item.description}</Text>
-          <Text code className={styles.capabilityCode}>
-            {item.capabilityCode}
-          </Text>
+          {evidenceDetailsEnabled ? (
+            <Text code className={styles.capabilityCode}>
+              {item.capabilityCode}
+            </Text>
+          ) : null}
         </div>
       ),
     },
@@ -444,7 +475,7 @@ export default function AiWorkflows() {
       dataIndex: "expectedSchema",
       key: "expectedSchema",
       width: 120,
-      render: (value: string | null) => (value ? "已配置" : "未配置"),
+      render: (value: string | null) => renderExpectedSchema(value, evidenceDetailsEnabled),
     },
     {
       title: "降级顺序",
@@ -464,7 +495,11 @@ export default function AiWorkflows() {
         return (
           <div className={styles.statusCell}>
             <Tag color={item.configured ? "processing" : "default"}>{modeLabel}</Tag>
-            <Text code>{scopeLabel}</Text>
+            {evidenceDetailsEnabled ? (
+              <Text code>{scopeLabel}</Text>
+            ) : (
+              <Text type="secondary">按组织范围生效</Text>
+            )}
           </div>
         );
       },
@@ -546,9 +581,9 @@ export default function AiWorkflows() {
   }
 
   return (
-    <PageShell
-      title={MODEL_CAPABILITY_TITLE}
-      description="查看已登记能力、路由策略与降级状态"
+    <PageExperienceShell
+      meta={PAGE_META}
+      securityProfile={securityQuery.data}
       extras={
         <Tooltip title="刷新能力状态">
           <Button
@@ -619,7 +654,7 @@ export default function AiWorkflows() {
               scroll={{ x: 1184 }}
               tableLayout="fixed"
               expandable={{
-                expandedRowRender: capabilityDetails,
+                expandedRowRender: (item) => capabilityDetails(item, evidenceDetailsEnabled),
                 rowExpandable: () => true,
                 columnTitle: "详情",
                 columnWidth: 64,
@@ -659,9 +694,11 @@ export default function AiWorkflows() {
                 <Descriptions.Item label="模型能力">
                   {egressCapability.displayName}
                 </Descriptions.Item>
-                <Descriptions.Item label="能力代码">
-                  <Text code>{egressCapability.capabilityCode}</Text>
-                </Descriptions.Item>
+                {evidenceDetailsEnabled ? (
+                  <Descriptions.Item label="能力代码">
+                    <Text code>{egressCapability.capabilityCode}</Text>
+                  </Descriptions.Item>
+                ) : null}
               </Descriptions>
               <Form.Item
                 name="allowedFields"
@@ -747,6 +784,6 @@ export default function AiWorkflows() {
           ) : null}
         </Modal>
       </div>
-    </PageShell>
+    </PageExperienceShell>
   );
 }
