@@ -56,9 +56,9 @@ test.describe("线2路径图编辑器真实验收", () => {
 
     await firstNode.press("Escape");
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "同步到技术配置" }).click();
+    await dialog.getByRole("button", { name: /同步到受控配置/ }).click();
     await enableAdvancedConfig(dialog);
-    await dialog.getByRole("tab", { name: "L3 技术配置" }).click();
+    await dialog.getByRole("tab", { name: "受控配置文本" }).click();
     const dslValue = await dialog.getByLabel("路径配置文本").inputValue();
     const dsl = JSON.parse(dslValue) as {
       nodes: Array<{ config?: { authoringLayout?: { x: number; y: number } } }>;
@@ -136,11 +136,11 @@ async function openNodeCanvas(dialog: ReturnType<Page["getByRole"]>) {
 }
 
 async function enableAdvancedConfig(dialog: ReturnType<Page["getByRole"]>) {
-  const advancedConfigSwitch = dialog.getByRole("switch", { name: "L3 技术配置模式" });
+  const advancedConfigSwitch = dialog.getByRole("switch", { name: "受控配置文本模式" });
   if ((await advancedConfigSwitch.getAttribute("aria-checked")) !== "true") {
     await advancedConfigSwitch.click();
   }
-  await expect(dialog.getByRole("tab", { name: "L3 技术配置" })).toBeVisible();
+  await expect(dialog.getByRole("tab", { name: "受控配置文本" })).toBeVisible();
 }
 
 async function expectNoRootOverflow(page: Page) {

@@ -45,18 +45,18 @@ test.describe("核心 UI 运行旅程", () => {
 
       clearRuntime(runtime);
       await page.goto("/rule/definitions", { waitUntil: "networkidle" });
-      await expect(page.getByRole("heading", { name: "规则中枢" })).toBeVisible();
-      await expectNoRootOverflow(page, "规则中枢桌面");
+      await expect(page.getByRole("heading", { name: "规则配置" })).toBeVisible();
+      await expectNoRootOverflow(page, "规则配置桌面");
       await captureEvidence(page, testInfo, "core-rule-definitions-desktop");
-      recordCleanRuntime(page, "规则中枢桌面", runtime, records);
+      recordCleanRuntime(page, "规则配置桌面", runtime, records);
 
       await page.setViewportSize({ width: 390, height: 844 });
       clearRuntime(runtime);
       await page.goto("/rule/definitions", { waitUntil: "networkidle" });
-      await expect(page.getByRole("heading", { name: "规则中枢" })).toBeVisible();
-      await expectNoRootOverflow(page, "规则中枢 390px");
+      await expect(page.getByRole("heading", { name: "规则配置" })).toBeVisible();
+      await expectNoRootOverflow(page, "规则配置 390px");
       await captureEvidence(page, testInfo, "core-rule-definitions-390px");
-      recordCleanRuntime(page, "规则中枢 390px", runtime, records);
+      recordCleanRuntime(page, "规则配置 390px", runtime, records);
 
       await page.setViewportSize({ width: 1440, height: 960 });
       clearRuntime(runtime);

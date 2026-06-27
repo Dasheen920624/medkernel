@@ -206,10 +206,10 @@ async function createFollowupTemplateFromUi(
   await ensureReadySession(page, "clinical-user");
   clearRuntime(runtime);
   await page.goto("/clinical/followup", { waitUntil: "networkidle" });
-  await expect(page.getByRole("heading", { name: "智能随访工作台" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "随访协同" })).toBeVisible();
   await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
-  await page.getByRole("tab", { name: "模板治理" }).click();
-  await expectNoRootOverflow(page, "智能随访工作台模板治理桌面");
+  await page.getByRole("tab", { name: "随访模板" }).click();
+  await expectNoRootOverflow(page, "随访协同模板桌面");
 
   const templateCode = `FUP.REAL.FRONTDESK.${suffix.toUpperCase()}`;
   await expect(page.getByRole("button", { name: /新建模板/ })).toBeEnabled();
