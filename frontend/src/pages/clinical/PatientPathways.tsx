@@ -57,6 +57,7 @@ import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared
 import { findRouteByPath } from "@/shared/config/routes";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import styles from "./Clinical.module.css";
@@ -256,7 +257,8 @@ export default function PatientPathways() {
   const [enterModalVisible, setEnterModalVisible] = useState<boolean>(false);
   const [varianceDrawerVisible, setVarianceDrawerVisible] = useState<boolean>(false);
   const security = useSecurityProfile();
-  const evidenceDetailsEnabled = useEvidenceDetailsStore((state) => state.enabled);
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const screens = Grid.useBreakpoint();
   const isWideViewport =
     screens.md ?? (typeof window === "undefined" ? true : window.innerWidth >= 768);

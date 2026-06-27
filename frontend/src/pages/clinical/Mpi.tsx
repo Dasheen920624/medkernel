@@ -46,6 +46,7 @@ import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared
 import { findRouteByPath } from "@/shared/config/routes";
 import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import styles from "./Mpi.module.css";
 
@@ -187,7 +188,8 @@ export default function Mpi() {
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(20);
   const security = useSecurityProfile();
-  const evidenceDetailsEnabled = useEvidenceDetailsStore((state) => state.enabled);
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const canCreatePatient = hasPermission(security.data, "mpi.create");
   const canManageMpiIdentity = hasPermission(security.data, "mpi.write");
 

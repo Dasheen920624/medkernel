@@ -174,6 +174,27 @@ describe("Notifications", () => {
     expect(screen.getByText("追踪号 trace-notify")).toBeInTheDocument();
   });
 
+  it("does not reveal notification evidence when the role lacks evidence-detail permission", () => {
+    useEvidenceDetailsStore.setState({ enabled: true });
+    notificationHookMocks.useSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [{ code: "notification.read", dimension: "ACTION", target: "notification" }],
+        roles: [{ code: "clinical-user", displayName: "临床使用者", source: "TEST" }],
+        menuKeys: ["notifications"],
+        environmentKeys: ["production"],
+        dataScope: { tenantId: "tenant-A" },
+      },
+    });
+
+    renderNotifications();
+
+    expect(screen.queryByRole("switch", { name: "证据详情" })).not.toBeInTheDocument();
+    expect(screen.getByText("已关联患者上下文")).toBeInTheDocument();
+    expect(screen.queryByText("patient-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("来源编号 event-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("追踪号 trace-notify")).not.toBeInTheDocument();
+  });
+
   it("keeps notification read failures in organization and information-office language", () => {
     notificationHookMocks.useWorkflowNotifications.mockReturnValue({
       data: undefined,

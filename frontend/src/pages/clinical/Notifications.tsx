@@ -25,6 +25,7 @@ import {
 } from "@/shared/lib/sourceLink";
 import { findRouteByPath } from "@/shared/config/routes";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 
@@ -86,7 +87,8 @@ export default function Notifications() {
   const [orgUnitId, setOrgUnitId] = useState<string | undefined>();
   const [orgUnitSearch, setOrgUnitSearch] = useState("");
   const security = useSecurityProfile();
-  const evidenceDetailsEnabled = useEvidenceDetailsStore((state) => state.enabled);
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
 
   const queryParams = {
     status,

@@ -6,6 +6,8 @@ import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+
 import WorkflowTodos from "./WorkflowTodos";
 
 const workflowHookMocks = vi.hoisted(() => ({
@@ -14,6 +16,7 @@ const workflowHookMocks = vi.hoisted(() => ({
   transferTodo: vi.fn(),
   useCompleteWorkflowTodo: vi.fn(),
   useOrgUnits: vi.fn(),
+  useSecurityProfile: vi.fn(),
   useTransferWorkflowTodo: vi.fn(),
   useWorkflowTodos: vi.fn(),
 }));
@@ -21,6 +24,7 @@ const workflowHookMocks = vi.hoisted(() => ({
 vi.mock("@/shared/api/hooks", () => ({
   useCompleteWorkflowTodo: workflowHookMocks.useCompleteWorkflowTodo,
   useOrgUnits: workflowHookMocks.useOrgUnits,
+  useSecurityProfile: workflowHookMocks.useSecurityProfile,
   useTransferWorkflowTodo: workflowHookMocks.useTransferWorkflowTodo,
   useWorkflowTodos: workflowHookMocks.useWorkflowTodos,
 }));
@@ -38,6 +42,19 @@ function renderWorkflowTodos() {
 describe("WorkflowTodos", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useEvidenceDetailsStore.setState({ enabled: false });
+    workflowHookMocks.useSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [
+          { code: "workflow.read", dimension: "ACTION", target: "workflow" },
+          { code: "system.debug", dimension: "ACTION", target: "system" },
+        ],
+        roles: [{ code: "clinical-user", displayName: "临床使用者", source: "TEST" }],
+        menuKeys: ["workflow-todos", "runtime-diagnostics"],
+        environmentKeys: ["production"],
+        dataScope: { tenantId: "tenant-A" },
+      },
+    });
     workflowHookMocks.completeTodo.mockResolvedValue({
       todoId: "todo-real-1",
       status: "COMPLETED",
@@ -145,16 +162,53 @@ describe("WorkflowTodos", () => {
       size: 10,
     });
     expect(screen.getByRole("heading", { name: "协同任务" })).toBeInTheDocument();
-    expect(screen.getByText(/医生、护士、随访团队按风险和到期时间处理/)).toBeInTheDocument();
+    expect(screen.getByText("处理当前岗位待办事项")).toBeInTheDocument();
     expect(screen.getByText("随访异常复核")).toBeInTheDocument();
-    expect(screen.getByText("patient-real-1")).toBeInTheDocument();
-    expect(screen.getByText("来源编号 return-task-1")).toBeInTheDocument();
-    expect(screen.getByText("追踪号 trace-workflow")).toBeInTheDocument();
+    expect(screen.getByText("已关联患者")).toBeInTheDocument();
+    expect(screen.getByText("医生")).toBeInTheDocument();
+    expect(screen.getByText("来源与追踪证据已保留")).toBeInTheDocument();
+    expect(screen.queryByText("patient-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("return-task-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("trace-workflow")).not.toBeInTheDocument();
     expect(screen.getByText("随访任务")).toBeInTheDocument();
     expect(screen.getByText("高优先")).toBeInTheDocument();
     expect(screen.queryByText("FOLLOWUP_TASK")).not.toBeInTheDocument();
     expect(screen.queryByText("HIGH")).not.toBeInTheDocument();
     expect(screen.queryByText("待办接口尚未接入")).not.toBeInTheDocument();
+  });
+
+  it("reveals workflow todo source evidence only after evidence details are enabled", async () => {
+    const user = userEvent.setup();
+    renderWorkflowTodos();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("patient-real-1")).toBeInTheDocument();
+    expect(screen.getByText("enc-real-1")).toBeInTheDocument();
+    expect(screen.getByText("来源编号 return-task-1")).toBeInTheDocument();
+    expect(screen.getByText("追踪号 trace-workflow")).toBeInTheDocument();
+    expect(screen.getByText("doctor-real-1")).toBeInTheDocument();
+  });
+
+  it("does not reveal workflow evidence when the role lacks evidence-detail permission", () => {
+    useEvidenceDetailsStore.setState({ enabled: true });
+    workflowHookMocks.useSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [{ code: "workflow.read", dimension: "ACTION", target: "workflow" }],
+        roles: [{ code: "clinical-user", displayName: "临床使用者", source: "TEST" }],
+        menuKeys: ["workflow-todos"],
+        environmentKeys: ["production"],
+        dataScope: { tenantId: "tenant-A" },
+      },
+    });
+
+    renderWorkflowTodos();
+
+    expect(screen.queryByRole("switch", { name: "证据详情" })).not.toBeInTheDocument();
+    expect(screen.getByText("已关联患者")).toBeInTheDocument();
+    expect(screen.queryByText("patient-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("来源编号 return-task-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("追踪号 trace-workflow")).not.toBeInTheDocument();
   });
 
   it("keeps workflow todo read failures in organization and information-office language", () => {
@@ -473,7 +527,7 @@ describe("WorkflowTodos", () => {
     expect(screen.getByText("来源未提供跳转")).toBeInTheDocument();
   });
 
-  it("shows an honest trace status when workflow todos have no trace id", () => {
+  it("shows an honest trace status when workflow todos have no trace id", async () => {
     workflowHookMocks.useWorkflowTodos.mockReturnValue({
       data: {
         items: [
@@ -504,6 +558,8 @@ describe("WorkflowTodos", () => {
     });
 
     renderWorkflowTodos();
+
+    await userEvent.click(screen.getByRole("switch", { name: "证据详情" }));
 
     expect(screen.getByText("来源编号 return-task-no-trace")).toBeInTheDocument();
     expect(screen.getByText("追踪号未提供")).toBeInTheDocument();

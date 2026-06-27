@@ -264,6 +264,25 @@ describe("Mpi", () => {
   );
 
   it(
+    "does not reveal MPI audit identifiers when the role lacks evidence-detail permission",
+    async () => {
+      const user = userEvent.setup();
+      useEvidenceDetailsStore.setState({ enabled: true });
+      mockUseSecurityProfile.mockReturnValue(securityProfile(["mpi.read"]));
+      renderMpi();
+
+      expect(screen.queryByRole("switch", { name: "证据详情" })).not.toBeInTheDocument();
+      await user.click(screen.getAllByRole("button", { name: /患者360/ })[0]);
+
+      expect(await screen.findByText("患者身份与就诊上下文已关联")).toBeInTheDocument();
+      expect(screen.queryByText("snapshot-real-1")).not.toBeInTheDocument();
+      expect(screen.queryByText("pathway-acute-1")).not.toBeInTheDocument();
+      expect(screen.queryByText(/trace-p360-1/)).not.toBeInTheDocument();
+    },
+    MPI_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "submits keyword and status as real MPI list filters",
     async () => {
       const user = userEvent.setup();

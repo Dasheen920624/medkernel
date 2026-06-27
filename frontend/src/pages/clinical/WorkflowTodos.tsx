@@ -24,6 +24,7 @@ import {
 import {
   useCompleteWorkflowTodo,
   useOrgUnits,
+  useSecurityProfile,
   useTransferWorkflowTodo,
   useWorkflowTodos,
 } from "@/shared/api/hooks";
@@ -40,8 +41,11 @@ import {
   SOURCE_TRACE_MISSING_TEXT,
   resolveSourceDeepLink,
 } from "@/shared/lib/sourceLink";
-import { PageShell } from "@/shared/ui/PageShell";
+import { findRouteByPath } from "@/shared/config/routes";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 
 import styles from "./Clinical.module.css";
 
@@ -105,6 +109,31 @@ const sourceText: Record<WorkflowTodoSourceType, string> = {
 };
 
 const ORG_UNIT_REFERENCE_PAGE_SIZE = 20;
+const route = findRouteByPath("/workflow/todos");
+const PAGE_META = {
+  title: route?.title ?? "协同任务",
+  experience: route?.experience ?? {
+    primaryRole: "临床使用者",
+    goal: "处理当前岗位待办事项",
+    defaultView: "待我处理",
+    defaultFilters: [],
+    evidenceDetailContent: ["患者上下文", "待办来源", "追踪号", "责任人编号"],
+    interruptionLevel: "info" as const,
+    evidence: "待办来源、责任流转和完成转交证据保持可回看",
+    dataScale: { expected: "large" as const, pagination: "page" as const, exportStrategy: "none" as const },
+    riskLevel: "medium" as const,
+  },
+};
+
+const assigneeRoleText: Record<string, string> = {
+  DOCTOR: "医生",
+  NURSE: "护士",
+  NURSING: "护理",
+  PHARMACIST: "药师",
+  TECHNICIAN: "医技",
+  FOLLOWUP: "随访团队",
+  QUALITY: "质控",
+};
 
 function formatDateTime(value?: string | null) {
   if (!value) return "-";
@@ -148,6 +177,24 @@ function buildClinicalQueueFocus(pendingTodos: WorkflowTodo[]) {
   return `先处理${sourceFocus[0]}，再处理${sourceFocus[1]}`;
 }
 
+function assigneeDisplay(todo: WorkflowTodo, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) return todo.assigneeId || "-";
+  if (todo.assigneeRole) return assigneeRoleText[todo.assigneeRole] ?? customerEnumLabel(todo.assigneeRole);
+  return todo.assigneeId ? "已指定责任人" : "-";
+}
+
+function patientContextDisplay(todo: WorkflowTodo, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) {
+    return (
+      <Space direction="vertical" size={0}>
+        <span>{todo.patientId || "-"}</span>
+        {todo.encounterId && <span className={styles.textSmall}>{todo.encounterId}</span>}
+      </Space>
+    );
+  }
+  return todo.patientId ? "已关联患者" : "-";
+}
+
 export default function WorkflowTodos() {
   const [status, setStatus] = useState<WorkflowTodoStatus | undefined>("PENDING");
   const [priority, setPriority] = useState<WorkflowPriority | undefined>();
@@ -162,6 +209,9 @@ export default function WorkflowTodos() {
     transferRole?: string;
     transferReason: string;
   }>();
+  const security = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
 
   const queryParams = {
     status,
@@ -257,8 +307,16 @@ export default function WorkflowTodos() {
           <span className={styles.textStrong}>{record.title}</span>
           <span className={styles.textSmall}>{record.summary}</span>
           <Space wrap size={8} className={styles.textSmall}>
-            <span>来源编号 {record.sourceId}</span>
-            <span>{record.traceId ? `追踪号 ${record.traceId}` : SOURCE_TRACE_MISSING_TEXT}</span>
+            {evidenceDetailsEnabled ? (
+              <>
+                <span>来源编号 {record.sourceId}</span>
+                <span>
+                  {record.traceId ? `追踪号 ${record.traceId}` : SOURCE_TRACE_MISSING_TEXT}
+                </span>
+              </>
+            ) : (
+              <span>来源与追踪证据已保留</span>
+            )}
           </Space>
         </Space>
       ),
@@ -273,13 +331,15 @@ export default function WorkflowTodos() {
       title: "患者",
       dataIndex: "patientId",
       key: "patientId",
-      render: (value?: string | null) => value || "-",
+      render: (_value: string | null | undefined, record) =>
+        patientContextDisplay(record, evidenceDetailsEnabled),
     },
     {
-      title: "责任人",
+      title: evidenceDetailsEnabled ? "责任人" : "责任岗位",
       dataIndex: "assigneeId",
       key: "assigneeId",
-      render: (value?: string | null) => value || "-",
+      render: (_value: string | null | undefined, record) =>
+        assigneeDisplay(record, evidenceDetailsEnabled),
     },
     {
       title: "截止",
@@ -364,9 +424,9 @@ export default function WorkflowTodos() {
   ];
 
   return (
-    <PageShell
-      title="协同任务"
-      description="医生、护士、随访团队按风险和到期时间处理临床协同任务，来源、责任和追踪证据保持可回看。"
+    <PageExperienceShell
+      meta={PAGE_META}
+      securityProfile={security.data}
       extras={
         <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
           刷新
@@ -528,6 +588,6 @@ export default function WorkflowTodos() {
           </Form.Item>
         </Form>
       </Modal>
-    </PageShell>
+    </PageExperienceShell>
   );
 }

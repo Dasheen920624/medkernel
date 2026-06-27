@@ -370,6 +370,29 @@ describe("PatientPathways", () => {
     expect(screen.getByText("enc-1")).toBeInTheDocument();
   });
 
+  it("does not reveal patient pathway identifiers when the role lacks evidence-detail permission", () => {
+    useEvidenceDetailsStore.setState({ enabled: true });
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [
+          { code: "pathway.read", dimension: "ACTION", target: "pathway", displayName: "查看路径" },
+        ],
+        roles: [{ code: "clinical-user", displayName: "临床使用者", source: "TEST" }],
+        menuKeys: ["patient-pathways"],
+        environmentKeys: ["production"],
+        dataScope: { tenantId: "tenant-A" },
+      },
+    } as unknown as ReturnType<typeof useSecurityProfile>);
+
+    renderPatientPathways();
+
+    expect(screen.queryByRole("switch", { name: "证据详情" })).not.toBeInTheDocument();
+    expect(screen.getByText("已关联患者与就诊")).toBeInTheDocument();
+    expect(screen.queryByText("pp-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("mpi-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("enc-1")).not.toBeInTheDocument();
+  });
+
   it("loads only runtime-release pathway candidates for the selected snapshot", async () => {
     const user = userEvent.setup();
     renderPatientPathways();
