@@ -77,10 +77,8 @@ describe("SandboxEmbedFrame", () => {
         />
       </ConfigProvider>,
     );
-    expect(screen.getByText(/访问凭证：token-1/)).toBeInTheDocument();
-    expect(
-      screen.getByText((text) => text.includes("接入地址：/embed/launch?token=token-1")),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/访问凭证：已隐藏/)).toBeInTheDocument();
+    expect(screen.getByText(/接入地址：已生成，默认隐藏/)).toBeInTheDocument();
 
     rerender(
       <ConfigProvider>
@@ -94,5 +92,37 @@ describe("SandboxEmbedFrame", () => {
       </ConfigProvider>,
     );
     expect(screen.getByText(/由信息科系统发起受控嵌入访问/)).toBeInTheDocument();
+  });
+
+  it("masks access credentials and launch links in integration contract views", () => {
+    const { rerender } = render(
+      <ConfigProvider>
+        <SandboxEmbedFrame
+          embedUrl="/embed/launch?token=token-1"
+          embedToken="token-1"
+          mode="SDK"
+          onModeChange={vi.fn()}
+          onDecision={vi.fn()}
+        />
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByText(/访问凭证：已隐藏/)).toBeInTheDocument();
+    expect(screen.getByText(/接入地址：已生成，默认隐藏/)).toBeInTheDocument();
+    expect(screen.queryByText((text) => text.includes("token-1"))).not.toBeInTheDocument();
+
+    rerender(
+      <ConfigProvider>
+        <SandboxEmbedFrame
+          embedUrl="/embed/launch?token=token-1"
+          embedToken="token-1"
+          mode="API"
+          onModeChange={vi.fn()}
+          onDecision={vi.fn()}
+        />
+      </ConfigProvider>,
+    );
+
+    expect(screen.queryByText((text) => text.includes("token-1"))).not.toBeInTheDocument();
   });
 });

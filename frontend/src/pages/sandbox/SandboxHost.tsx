@@ -25,6 +25,7 @@ import {
   useRunSandboxScenario,
   useSandboxRuntimeStatus,
   useSandboxScenarios,
+  useSecurityProfile,
 } from "@/shared/api/hooks";
 import type {
   SandboxResolutionSource,
@@ -33,7 +34,10 @@ import type {
   SandboxRunRequest,
   SandboxRunResponse,
 } from "@/shared/api/hooks";
-import { PageShell } from "@/shared/ui/PageShell";
+import { findRouteByPath } from "@/shared/config/routes";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
+import type { RouteExperience } from "@/shared/ui/experienceTypes";
 
 import styles from "./SandboxHost.module.css";
 
@@ -59,6 +63,37 @@ const DIFFERENCE_LABELS: Record<SandboxRuleDifferenceType, string> = {
   ASSET_MISSING: "资产缺失",
 };
 
+const RUN_MODE_LABELS: Record<SandboxRunMode, string> = {
+  CURRENT: "当前机构版本",
+  HISTORICAL_EXACT: "历史原样重放",
+  COMPARE: "版本差异评估",
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  STRONG_REMINDER: "强提醒",
+  REMIND: "提醒",
+  SUGGEST_ORDER: "建议处置",
+  CATALOG_REQUIRED: "等待场景目录",
+};
+
+const SEVERITY_LABELS: Record<string, string> = {
+  CRITICAL: "危急风险",
+  HIGH: "高风险",
+  MEDIUM: "中风险",
+  LOW: "低风险",
+};
+
+const route = findRouteByPath("/sandbox");
+
+if (!route?.experience) {
+  throw new Error("全真体验沙盘缺少体验声明");
+}
+
+const PAGE_META: { title: string; experience: RouteExperience } = {
+  title: route.title,
+  experience: route.experience,
+};
+
 function isRunModeReady(mode: SandboxRunMode, runtimeReady: boolean, replayReady: boolean) {
   if (mode === "CURRENT") return runtimeReady;
   if (mode === "COMPARE") return runtimeReady && replayReady;
@@ -79,6 +114,14 @@ function sourceLabel(mode: SandboxRunMode, runtimeSourceLabel: string) {
   return "历史重放清单";
 }
 
+function actionLabel(value: string) {
+  return ACTION_LABELS[value] ?? "引擎处置建议";
+}
+
+function severityLabel(value: string) {
+  return SEVERITY_LABELS[value] ?? "风险待核查";
+}
+
 function differenceColor(change: SandboxRuleDifferenceType) {
   if (change === "SEVERITY_INCREASED" || change === "NEW_HIT") return "error";
   if (change === "ASSET_MISSING") return "warning";
@@ -87,9 +130,11 @@ function differenceColor(change: SandboxRuleDifferenceType) {
 
 export default function SandboxHost() {
   const { message } = App.useApp();
+  const security = useSecurityProfile();
   const scenariosQuery = useSandboxScenarios();
   const runtimeQuery = useSandboxRuntimeStatus();
   const runMutation = useRunSandboxScenario();
+  const evidenceDetailsEnabled = useEvidenceDetailsStore((state) => state.enabled);
   const [selectedScenarioId, setSelectedScenarioId] = useState(SANDBOX_SCENARIOS[0].id);
   const [result, setResult] = useState<SandboxRunResponse | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
@@ -209,7 +254,7 @@ export default function SandboxHost() {
   };
 
   return (
-    <PageShell title="全真体验沙盘" description="以院内业务系统视角验证真实引擎与嵌入终端">
+    <PageExperienceShell meta={PAGE_META} securityProfile={security.data}>
       <div className={styles.workspace}>
         <aside className={styles.scenarioRail} aria-label="沙盘场景">
           <div className={styles.sectionHeading}>
@@ -273,7 +318,7 @@ export default function SandboxHost() {
             </Space>
             <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 5 }}>
               <Descriptions.Item label="运行模式">
-                <Tag color="processing">{runMode}</Tag>
+                <Tag color="processing">{RUN_MODE_LABELS[runMode]}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="规则来源">
                 {sourceLabel(runMode, runtimeSourceLabel)}
@@ -292,18 +337,18 @@ export default function SandboxHost() {
 
           <section className={styles.statusStrip} aria-label="场景验收目标">
             <div>
-              <Typography.Text type="secondary">预期规则</Typography.Text>
-              <Typography.Text code>
-                {selectedScenario.expectedRuleCode || selectedScenario.playbook}
+              <Typography.Text type="secondary">验收重点</Typography.Text>
+              <Typography.Text>
+                {selectedScenario.expectedRuleCode ? "规则命中" : "综合推荐"}
               </Typography.Text>
             </div>
             <div>
               <Typography.Text type="secondary">预期动作</Typography.Text>
-              <Tag color="warning">{selectedScenario.expectedAction}</Tag>
+              <Tag color="warning">{actionLabel(selectedScenario.expectedAction)}</Tag>
             </div>
             <div>
               <Typography.Text type="secondary">风险等级</Typography.Text>
-              <Tag color="error">{selectedScenario.expectedSeverity}</Tag>
+              <Tag color="error">{severityLabel(selectedScenario.expectedSeverity)}</Tag>
             </div>
             <Tag
               icon={
@@ -347,9 +392,10 @@ export default function SandboxHost() {
           {result && (
             <section className={styles.runSummary} aria-label="运行证据摘要">
               <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 4 }}>
-                <Descriptions.Item label="演练编号">{result.runId}</Descriptions.Item>
-                <Descriptions.Item label="当前标准版本">{result.baselineId}</Descriptions.Item>
-                <Descriptions.Item label="运行模式">{result.mode}</Descriptions.Item>
+                <Descriptions.Item label="运行结论">
+                  {result.result === "PASS" ? "真实链路已完成" : "链路未完成"}
+                </Descriptions.Item>
+                <Descriptions.Item label="运行模式">{RUN_MODE_LABELS[result.mode]}</Descriptions.Item>
                 <Descriptions.Item label="规则来源">
                   {RESOLUTION_SOURCE_LABELS[result.resolutionSource]}
                 </Descriptions.Item>
@@ -366,13 +412,6 @@ export default function SandboxHost() {
                 <Descriptions.Item label="安全边界">
                   {result.externalSideEffects ? "外部副作用未关闭" : "外部副作用已关闭"}
                 </Descriptions.Item>
-                <Descriptions.Item label="追踪号">{result.traceId}</Descriptions.Item>
-                <Descriptions.Item label="上下文快照">
-                  {result.snapshotId || "未生成"}
-                </Descriptions.Item>
-                <Descriptions.Item label="触发标识">
-                  {result.triggerId || "未生成"}
-                </Descriptions.Item>
                 <Descriptions.Item label="推荐卡">{result.cardCount}</Descriptions.Item>
                 {result.patientPathwayId && (
                   <Descriptions.Item label="患者路径">{result.patientPathwayId}</Descriptions.Item>
@@ -382,6 +421,19 @@ export default function SandboxHost() {
                 )}
                 {result.evaluationRunId && (
                   <Descriptions.Item label="评估运行">{result.evaluationRunId}</Descriptions.Item>
+                )}
+                {evidenceDetailsEnabled && (
+                  <>
+                    <Descriptions.Item label="演练编号">{result.runId}</Descriptions.Item>
+                    <Descriptions.Item label="当前标准版本">{result.baselineId}</Descriptions.Item>
+                    <Descriptions.Item label="追踪号">{result.traceId}</Descriptions.Item>
+                    <Descriptions.Item label="上下文快照">
+                      {result.snapshotId || "未生成"}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="触发标识">
+                      {result.triggerId || "未生成"}
+                    </Descriptions.Item>
+                  </>
                 )}
               </Descriptions>
             </section>
@@ -570,9 +622,12 @@ export default function SandboxHost() {
             />
           )}
 
-          <SandboxPathInspector steps={result?.steps ?? []} />
+          <SandboxPathInspector
+            steps={result?.steps ?? []}
+            evidenceDetailsEnabled={evidenceDetailsEnabled}
+          />
         </main>
       </div>
-    </PageShell>
+    </PageExperienceShell>
   );
 }

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import SandboxHost from "./SandboxHost";
 
 const sandboxHookMocks = vi.hoisted(() => ({
@@ -15,6 +16,12 @@ vi.mock("@/shared/api/hooks", () => ({
   useSandboxScenarios: sandboxHookMocks.useSandboxScenarios,
   useSandboxRuntimeStatus: sandboxHookMocks.useSandboxRuntimeStatus,
   useRunSandboxScenario: sandboxHookMocks.useRunSandboxScenario,
+  useSecurityProfile: () => ({
+    data: {
+      permissions: [{ code: "system.debug" }, { code: "sandbox.run" }, { code: "menu.sandbox" }],
+      menuKeys: ["sandbox", "runtime-diagnostics"],
+    },
+  }),
 }));
 
 const scenarios = [
@@ -102,6 +109,7 @@ function renderSandboxHost() {
 describe("SandboxHost", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useEvidenceDetailsStore.setState({ enabled: false });
     sandboxHookMocks.useRunSandboxScenario.mockReturnValue({
       isPending: false,
       mutateAsync: sandboxHookMocks.run,
@@ -208,12 +216,18 @@ describe("SandboxHost", () => {
       "/embed/launch?token=masked",
     );
     expect(screen.getByText("链路完成")).toBeInTheDocument();
-    expect(screen.getByText("SBX.LAB.CRITICAL.K")).toBeInTheDocument();
+    expect(screen.getByText("真实链路已完成")).toBeInTheDocument();
+    expect(screen.queryByText("SBX.LAB.CRITICAL.K")).not.toBeInTheDocument();
+    expect(screen.queryByText("trace-sandbox-host-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("run-sandbox-host-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("baseline-sandbox-host-1")).not.toBeInTheDocument();
+    expect(screen.getAllByText("当前机构生效版本").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("外部副作用已关闭")).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
     expect(screen.getByText("trace-sandbox-host-1")).toBeInTheDocument();
     expect(screen.getByText("run-sandbox-host-1")).toBeInTheDocument();
     expect(screen.getByText("baseline-sandbox-host-1")).toBeInTheDocument();
-    expect(screen.getAllByText("当前机构生效版本").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("外部副作用已关闭")).toHaveLength(2);
   });
 
   it("keeps a truthful failure state when orchestration cannot complete", async () => {
@@ -328,7 +342,8 @@ describe("SandboxHost", () => {
         },
       }),
     );
-    expect(await screen.findByText("trace-outer-1")).toBeInTheDocument();
+    expect(await screen.findByText("真实链路已完成")).toBeInTheDocument();
+    expect(screen.queryByText("trace-outer-1")).not.toBeInTheDocument();
   });
 
   it("runs an immutable historical manifest without current context overrides", async () => {

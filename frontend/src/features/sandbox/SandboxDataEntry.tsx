@@ -16,6 +16,28 @@ interface SandboxDataEntryProps {
   onRun: (input: SandboxDataInput) => void;
 }
 
+const ENCOUNTER_TYPE_LABELS: Record<string, string> = {
+  ED: "急诊",
+  EMERGENCY: "急诊",
+  OUTPATIENT: "门诊",
+  INPATIENT: "住院",
+  CHECKUP: "体检",
+};
+
+const TRIGGER_POINT_LABELS: Record<string, string> = {
+  "result-review": "检验结果复核",
+  "order-sign": "医嘱签署前复核",
+  "patient-view": "患者页查看",
+};
+
+function encounterTypeLabel(value: string) {
+  return ENCOUNTER_TYPE_LABELS[value] ?? "院内就诊";
+}
+
+function triggerPointLabel(value: string) {
+  return TRIGGER_POINT_LABELS[value] ?? "院内触发点";
+}
+
 export default function SandboxDataEntry({ scenario, running, onRun }: SandboxDataEntryProps) {
   const [numericValue, setNumericValue] = useState(scenario.defaultNumericValue);
 
@@ -42,14 +64,16 @@ export default function SandboxDataEntry({ scenario, running, onRun }: SandboxDa
           <Typography.Text type="secondary">{scenario.hostSummary}</Typography.Text>
         </div>
         <Tag icon={<ExperimentOutlined />} color="processing">
-          {scenario.triggerPoint}
+          {triggerPointLabel(scenario.triggerPoint)}
         </Tag>
       </div>
 
       <Descriptions size="small" column={2} className={styles.descriptionGrid}>
-        <Descriptions.Item label="患者标识">{scenario.patientId}</Descriptions.Item>
-        <Descriptions.Item label="就诊标识">{scenario.encounterId}</Descriptions.Item>
-        <Descriptions.Item label="场景">{scenario.encounterType}</Descriptions.Item>
+        <Descriptions.Item label="患者">{scenario.patientName || "已脱敏患者"}</Descriptions.Item>
+        <Descriptions.Item label="就诊场景">
+          {encounterTypeLabel(scenario.encounterType)}
+        </Descriptions.Item>
+        <Descriptions.Item label="触发点">{triggerPointLabel(scenario.triggerPoint)}</Descriptions.Item>
         <Descriptions.Item label="参考范围">
           {scenario.referenceRange} {scenario.unit}
         </Descriptions.Item>

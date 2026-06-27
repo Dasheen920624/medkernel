@@ -67,4 +67,17 @@ describe("SandboxDataEntry", () => {
 
     expect(screen.getByRole("button", { name: /运行中/ })).toBeDisabled();
   });
+
+  it("keeps patient and encounter identifiers out of the default clinical view", () => {
+    render(
+      <ConfigProvider>
+        <SandboxDataEntry scenario={numericScenario} running={false} onRun={vi.fn()} />
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByText("沙盘患者")).toBeInTheDocument();
+    expect(screen.getByText("急诊")).toBeInTheDocument();
+    expect(screen.queryByText("patient-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("encounter-1")).not.toBeInTheDocument();
+  });
 });
