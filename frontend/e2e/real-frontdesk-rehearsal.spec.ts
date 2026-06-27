@@ -223,11 +223,11 @@ async function createFollowupTemplateFromUi(
     .fill("真实前台演练创建；不包含患者姓名、证件号、电话、住址等核心敏感信息。");
   await dialog.getByLabel("组织范围").fill("p5-hospital");
   await dialog.getByLabel("适用范围").fill("COPD");
-  await dialog.getByLabel("问卷模板 ID").fill("FOLLOWUP_QUESTIONNAIRE_REAL_FRONTDESK");
-  await dialog.getByLabel("问题编码").fill("dyspnea");
+  await dialog.getByLabel("问卷模板标识").fill("FOLLOWUP_QUESTIONNAIRE_REAL_FRONTDESK");
+  await dialog.getByLabel("问题标识").fill("dyspnea");
   await dialog.getByLabel("异常触发条件").fill("呼吸困难加重、血氧下降或患者主动报告异常");
   await dialog.getByLabel("通知对象").fill("责任医生与随访护士");
-  await dialog.getByLabel("来源引用").fill("REAL_FRONTDESK_FOLLOWUP_TEMPLATE");
+  await dialog.getByLabel("依据来源").fill("REAL_FRONTDESK_FOLLOWUP_TEMPLATE");
 
   const responsePromise = waitForPost(page, "/api/v1/engine/followup/templates");
   await dialog.getByRole("button", { name: /创\s*建/ }).click();
