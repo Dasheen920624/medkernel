@@ -19,6 +19,7 @@ const EVIDENCE_DETAIL_MENU_KEYS = new Set([
   "runtime-diagnostics",
   "security-baseline",
   "clinical-followup",
+  "qc-dashboard",
 ]);
 
 export type EvidenceDetailsProfile = Partial<Pick<SecurityProfile, "permissions" | "menuKeys">>;
