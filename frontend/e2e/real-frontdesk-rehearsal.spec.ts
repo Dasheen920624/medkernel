@@ -245,10 +245,25 @@ async function chooseDialogOption(page: Page, dialog: Locator, label: string, op
   const select = combobox.locator(
     "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
   );
+  const selectedText = await currentSelectText(select);
+  if (selectedText === option) {
+    return;
+  }
   await select.locator(".ant-select-selector").click();
-  const optionLocator = page.getByRole("option", { name: option, exact: true });
+  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
+  await expect(dropdown).toBeVisible({ timeout: 5_000 });
+  const optionLocator = dropdown.getByRole("option", { name: option, exact: true });
   await expect(optionLocator).toBeVisible({ timeout: 5_000 });
   await optionLocator.click();
+}
+
+async function currentSelectText(select: Locator) {
+  const selected = select.locator(".ant-select-selection-item").first();
+  const title = await selected.getAttribute("title");
+  if (title) {
+    return title.trim();
+  }
+  return ((await selected.textContent()) ?? "").trim();
 }
 
 function escapeRegExp(value: string) {
