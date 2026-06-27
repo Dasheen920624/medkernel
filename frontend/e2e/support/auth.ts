@@ -139,7 +139,10 @@ async function resetRoleSession(page: Page) {
 
 async function reloadFrontendSession(page: Page, role: RoleAccount) {
   await page.goto(`/dashboard?e2e-session-refresh=${role}-${Date.now()}`, {
-    waitUntil: "networkidle",
+    waitUntil: "domcontentloaded",
+  });
+  await expect(page.getByRole("button", { name: "当前用户菜单" })).toBeVisible({
+    timeout: 20_000,
   });
 }
 
