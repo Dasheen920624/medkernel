@@ -105,6 +105,96 @@ function configValueLabel(value: string) {
   return value.trim() || "未配置";
 }
 
+const RESOURCE_TYPE_LABELS: Record<string, string> = {
+  clinical_case: "临床业务数据",
+};
+
+const FIELD_LABELS: Record<string, string> = {
+  patientId: "患者主索引",
+  encounterId: "就诊标识",
+  patientName: "患者姓名",
+};
+
+const MASKING_STRATEGY_LABELS: Record<string, string> = {
+  REDACT: "全部遮蔽",
+  KEEP_LAST: "保留末尾",
+  KEEP_FIRST_LAST: "保留首尾",
+  EMAIL: "邮箱脱敏",
+  FIXED: "固定替换",
+};
+
+const SCENARIO_LABELS: Record<string, string> = {
+  DEFAULT: "默认场景",
+};
+
+function resourceTypeLabel(value?: string | null, evidenceDetailsEnabled = false) {
+  if (!value) return "未返回";
+  return evidenceDetailsEnabled ? value : (RESOURCE_TYPE_LABELS[value] ?? customerEnumLabel(value));
+}
+
+function fieldLabel(value?: string | null, evidenceDetailsEnabled = false) {
+  if (!value) return "未返回";
+  return evidenceDetailsEnabled ? value : (FIELD_LABELS[value] ?? customerEnumLabel(value));
+}
+
+function fieldListLabel(values: string[] | undefined, evidenceDetailsEnabled = false) {
+  if (!values || values.length === 0) return "无";
+  if (evidenceDetailsEnabled) return values.join(", ");
+  return `${values.length} 项允许字段`;
+}
+
+function scenarioLabel(value?: string | null, evidenceDetailsEnabled = false) {
+  const scenario = value || "DEFAULT";
+  return evidenceDetailsEnabled ? scenario : (SCENARIO_LABELS[scenario] ?? customerEnumLabel(scenario));
+}
+
+function maskingStrategyLabel(value?: string | null, evidenceDetailsEnabled = false) {
+  if (!value) return "未返回";
+  return evidenceDetailsEnabled ? value : (MASKING_STRATEGY_LABELS[value] ?? customerEnumLabel(value));
+}
+
+function dataPermissionActionLabel(value?: string | null) {
+  return dataPermissionActions.find((item) => item.value === value)?.label ?? "未识别";
+}
+
+function dataPermissionLevelLabel(value?: string | null) {
+  return dataPermissionLevels.find((item) => item.value === value)?.label ?? "未识别";
+}
+
+function dataPermissionPolicyHitLabel(
+  policyId?: string | null,
+  evidenceDetailsEnabled = false,
+) {
+  if (evidenceDetailsEnabled) return policyId ?? "未返回策略";
+  return policyId ? "已命中策略" : "未返回策略";
+}
+
+function configSourceLabel(source?: string | null) {
+  if (source === "SYSTEM_INHERITED") return "继承系统";
+  return source ? customerEnumLabel(source) : "未返回";
+}
+
+function configValueView(
+  value: string,
+  item: SystemConfigItem,
+  evidenceDetailsEnabled = false,
+) {
+  if (item.valueType === "BOOLEAN") {
+    return (
+      <Tag color={value === "true" ? "success" : "default"}>
+        {value === "true" ? "启用" : "停用"}
+      </Tag>
+    );
+  }
+  if (!evidenceDetailsEnabled && item.key === KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY) {
+    return value.trim() ? "资料库根地址已配置" : "未配置";
+  }
+  if (evidenceDetailsEnabled) {
+    return <Text code>{configValueLabel(value)}</Text>;
+  }
+  return configValueLabel(value);
+}
+
 function configInput(item: SystemConfigItem | null) {
   if (item?.valueType === "BOOLEAN") {
     return (
@@ -122,7 +212,13 @@ function configInput(item: SystemConfigItem | null) {
   return <Input />;
 }
 
-export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
+export function SystemConfigPanel({
+  canManage,
+  evidenceDetailsEnabled = false,
+}: {
+  canManage: boolean;
+  evidenceDetailsEnabled?: boolean;
+}) {
   const { message } = App.useApp();
   const [scope, setScope] = useState<SystemConfigScope>("system");
   const [tenantId, setTenantId] = useState("default");
@@ -213,7 +309,13 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
           message="平台知识文献资料"
           description={
             <Space direction="vertical" size={2} className="mk-full-width">
-              <Text code>{configValueLabel(knowledgeLiteratureConfig.value)}</Text>
+              {evidenceDetailsEnabled ? (
+                <Text code>{configValueLabel(knowledgeLiteratureConfig.value)}</Text>
+              ) : (
+                <Text>
+                  {knowledgeLiteratureConfig.value.trim() ? "资料库根地址已配置" : "未配置"}
+                </Text>
+              )}
               <Text type="secondary">
                 正式知识生产前必须通过配置中心维护受管本地磁盘、对象存储或 HTTPS 网关等资料库，禁止
                 tmp 临时目录和代码内置厂商地址。
@@ -253,28 +355,21 @@ export function SystemConfigPanel({ canManage }: { canManage: boolean }) {
             render: (_value, item) => (
               <Space direction="vertical" size={0}>
                 <Text strong>{item.displayName}</Text>
-                <Text type="secondary">{item.key}</Text>
+                {evidenceDetailsEnabled ? <Text type="secondary">{item.key}</Text> : null}
               </Space>
             ),
           },
           {
             title: "当前值",
             dataIndex: "value",
-            render: (value, item) =>
-              item.valueType === "BOOLEAN" ? (
-                <Tag color={value === "true" ? "success" : "default"}>
-                  {value === "true" ? "启用" : "停用"}
-                </Tag>
-              ) : (
-                <Text code>{configValueLabel(value)}</Text>
-              ),
+            render: (value, item) => configValueView(value, item, evidenceDetailsEnabled),
           },
           {
             title: "来源",
             dataIndex: "source",
             render: (source) => (
               <Tag color={source === "SYSTEM_INHERITED" ? "default" : "blue"}>
-                {source === "SYSTEM_INHERITED" ? "继承系统" : source}
+                {configSourceLabel(source)}
               </Tag>
             ),
           },
@@ -436,7 +531,13 @@ const dataPermissionLevels = [
 
 const SECURITY_RULE_PAGE_SIZE = 20;
 
-export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
+export function DataPermissionPanel({
+  canManage,
+  evidenceDetailsEnabled = false,
+}: {
+  canManage: boolean;
+  evidenceDetailsEnabled?: boolean;
+}) {
   const { message } = App.useApp();
   const [policyPage, setPolicyPage] = useState(1);
   const policies = useDataPermissionPolicies({ page: policyPage, size: SECURITY_RULE_PAGE_SIZE });
@@ -698,16 +799,30 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
               </Tag>
             </Descriptions.Item>
             <Descriptions.Item label="命中策略">
-              {trialResult.policyId ?? "未返回策略"}
+              {dataPermissionPolicyHitLabel(trialResult.policyId, evidenceDetailsEnabled)}
             </Descriptions.Item>
-            <Descriptions.Item label="资源类型">{trialResult.resourceType}</Descriptions.Item>
-            <Descriptions.Item label="动作">{trialResult.action}</Descriptions.Item>
-            <Descriptions.Item label="要求范围">{trialResult.requiredLevel}</Descriptions.Item>
+            <Descriptions.Item label="资源类型">
+              {resourceTypeLabel(trialResult.resourceType, evidenceDetailsEnabled)}
+            </Descriptions.Item>
+            <Descriptions.Item label="动作">
+              {dataPermissionActionLabel(trialResult.action)}
+            </Descriptions.Item>
+            <Descriptions.Item label="要求范围">
+              {dataPermissionLevelLabel(trialResult.requiredLevel)}
+            </Descriptions.Item>
             <Descriptions.Item label="允许字段">
-              {renderTagList(trialResult.allowedColumns)}
+              {renderTagList(
+                trialResult.allowedColumns.map((field) =>
+                  fieldLabel(field, evidenceDetailsEnabled),
+                ),
+              )}
             </Descriptions.Item>
             <Descriptions.Item label="拒绝字段">
-              {renderTagList(trialResult.deniedColumns)}
+              {renderTagList(
+                trialResult.deniedColumns.map((field) =>
+                  fieldLabel(field, evidenceDetailsEnabled),
+                ),
+              )}
             </Descriptions.Item>
           </Descriptions>
         )}
@@ -734,26 +849,29 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
         }}
         scroll={{ x: "max-content" }}
         columns={[
-          { title: "资源类型", dataIndex: "resourceType" },
+          {
+            title: "资源类型",
+            dataIndex: "resourceType",
+            render: (value) => resourceTypeLabel(value, evidenceDetailsEnabled),
+          },
           {
             title: "动作",
             dataIndex: "action",
             render: (value) => (
               <Tag>
-                {dataPermissionActions.find((item) => item.value === value)?.label ?? "未识别"}
+                {dataPermissionActionLabel(value)}
               </Tag>
             ),
           },
           {
             title: "最小范围",
             dataIndex: "minDataLevel",
-            render: (value) =>
-              dataPermissionLevels.find((item) => item.value === value)?.label ?? "未识别",
+            render: dataPermissionLevelLabel,
           },
           {
             title: "允许字段",
             dataIndex: "allowedColumns",
-            render: (columns: string[]) => columns.join(", "),
+            render: (columns: string[]) => fieldListLabel(columns, evidenceDetailsEnabled),
           },
           { title: "状态", dataIndex: "status", render: statusTag },
           {
@@ -860,7 +978,13 @@ export function DataPermissionPanel({ canManage }: { canManage: boolean }) {
 
 type MaskingForm = MaskingRulePayload;
 
-export function MaskingRulePanel({ canManage }: { canManage: boolean }) {
+export function MaskingRulePanel({
+  canManage,
+  evidenceDetailsEnabled = false,
+}: {
+  canManage: boolean;
+  evidenceDetailsEnabled?: boolean;
+}) {
   const { message } = App.useApp();
   const [rulePage, setRulePage] = useState(1);
   const rules = useMaskingRules({ page: rulePage, size: SECURITY_RULE_PAGE_SIZE });
@@ -1020,11 +1144,18 @@ export function MaskingRulePanel({ canManage }: { canManage: boolean }) {
               type={previewResult.rawAllowed ? "warning" : "success"}
               showIcon
               message={previewResult.rawAllowed ? "允许查看原文" : "已按规则脱敏"}
-              description={`资源类型：${previewResult.resourceType}；场景：${previewResult.scenarioCode ?? "DEFAULT"}`}
+              description={`资源类型：${resourceTypeLabel(
+                previewResult.resourceType,
+                evidenceDetailsEnabled,
+              )}；场景：${scenarioLabel(previewResult.scenarioCode, evidenceDetailsEnabled)}`}
             />
             <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
               <Descriptions.Item label="脱敏字段">
-                {renderTagList(previewResult.maskedFields)}
+                {renderTagList(
+                  previewResult.maskedFields.map((field) =>
+                    fieldLabel(field, evidenceDetailsEnabled),
+                  ),
+                )}
               </Descriptions.Item>
               <Descriptions.Item label="原文许可">
                 {previewResult.rawAllowed ? "允许" : "不允许"}
@@ -1035,7 +1166,7 @@ export function MaskingRulePanel({ canManage }: { canManage: boolean }) {
               size="small"
               pagination={false}
               dataSource={Object.entries(previewResult.values).map(([field, value]) => ({
-                field,
+                field: fieldLabel(field, evidenceDetailsEnabled),
                 value: displayPreviewValue(value),
               }))}
               columns={[
@@ -1063,10 +1194,26 @@ export function MaskingRulePanel({ canManage }: { canManage: boolean }) {
         }}
         scroll={{ x: "max-content" }}
         columns={[
-          { title: "资源类型", dataIndex: "resourceType" },
-          { title: "字段", dataIndex: "fieldName" },
-          { title: "场景", dataIndex: "scenarioCode", render: (value) => value || "DEFAULT" },
-          { title: "策略", dataIndex: "strategy", render: (value) => <Tag>{value}</Tag> },
+          {
+            title: "资源类型",
+            dataIndex: "resourceType",
+            render: (value) => resourceTypeLabel(value, evidenceDetailsEnabled),
+          },
+          {
+            title: "字段",
+            dataIndex: "fieldName",
+            render: (value) => fieldLabel(value, evidenceDetailsEnabled),
+          },
+          {
+            title: "场景",
+            dataIndex: "scenarioCode",
+            render: (value) => scenarioLabel(value, evidenceDetailsEnabled),
+          },
+          {
+            title: "策略",
+            dataIndex: "strategy",
+            render: (value) => <Tag>{maskingStrategyLabel(value, evidenceDetailsEnabled)}</Tag>,
+          },
           {
             title: "保留范围",
             render: (_value, rule) =>
@@ -1176,7 +1323,11 @@ const DIMENSION_LABEL: Record<InteropAssessmentItem["dimension"], string> = {
   APPLICATION_EFFECT: "应用效果",
 };
 
-export function InteropAssessmentPanel() {
+export function InteropAssessmentPanel({
+  evidenceDetailsEnabled = false,
+}: {
+  evidenceDetailsEnabled?: boolean;
+}) {
   const [versionInput, setVersionInput] = useState("IOT-2026");
   const [standardVersion, setStandardVersion] = useState("IOT-2026");
   const assessment = useInteropAssessment(standardVersion);
@@ -1239,7 +1390,9 @@ export function InteropAssessmentPanel() {
             pagination={false}
             scroll={{ x: "max-content" }}
             columns={[
-              { title: "指标编码", dataIndex: "itemCode" },
+              ...(evidenceDetailsEnabled
+                ? [{ title: "指标编码", dataIndex: "itemCode" }]
+                : []),
               { title: "指标", dataIndex: "itemName" },
               {
                 title: "维度",
@@ -1272,7 +1425,9 @@ export function InteropAssessmentPanel() {
                       },
                       { title: "证据引用", dataIndex: "evidenceRef" },
                       { title: "摘要", dataIndex: "evidenceSummary" },
-                      { title: "指纹", dataIndex: "payloadDigest" },
+                      ...(evidenceDetailsEnabled
+                        ? [{ title: "指纹", dataIndex: "payloadDigest" }]
+                        : []),
                     ]}
                   />
                 ),

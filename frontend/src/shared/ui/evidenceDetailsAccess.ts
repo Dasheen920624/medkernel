@@ -3,6 +3,9 @@ import type { SecurityProfile } from "@/shared/api/hooks";
 const EVIDENCE_DETAIL_PERMISSIONS = new Set([
   "advanced.read",
   "system.debug",
+  "system.read",
+  "system.manage",
+  "audit.read",
   "llm.eval.manage",
   "llm.provider.manage",
   "llm.egress.manage",
@@ -14,6 +17,7 @@ const EVIDENCE_DETAIL_MENU_KEYS = new Set([
   "ai-workflows",
   "domestic-check",
   "runtime-diagnostics",
+  "security-baseline",
 ]);
 
 export type EvidenceDetailsProfile = Partial<Pick<SecurityProfile, "permissions" | "menuKeys">>;
