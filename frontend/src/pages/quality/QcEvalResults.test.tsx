@@ -4,6 +4,8 @@ import { App as AntdApp, ConfigProvider } from "antd";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+
 import QcEvalResults from "./QcEvalResults";
 
 const mockUseEvaluationResults = vi.fn();
@@ -12,6 +14,7 @@ const mockUseQualityFindingDetail = vi.fn();
 const mockUseDispatchRectification = vi.fn();
 const mockUseOrgUnits = vi.fn();
 const mockUseOrgUsers = vi.fn();
+const mockUseSecurityProfile = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useEvaluationResults: (params: unknown) => mockUseEvaluationResults(params),
@@ -20,6 +23,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useDispatchRectification: () => mockUseDispatchRectification(),
   useOrgUnits: (params: unknown) => mockUseOrgUnits(params),
   useOrgUsers: (params: unknown) => mockUseOrgUsers(params),
+  useSecurityProfile: () => mockUseSecurityProfile(),
 }));
 
 const realResult = {
@@ -97,6 +101,15 @@ beforeEach(() => {
   mockUseDispatchRectification.mockReset();
   mockUseOrgUnits.mockReset();
   mockUseOrgUsers.mockReset();
+  mockUseSecurityProfile.mockReset();
+  useEvidenceDetailsStore.setState({ enabled: false });
+  mockUseSecurityProfile.mockReturnValue({
+    data: {
+      permissions: [{ code: "evaluation.read" }],
+      roles: [{ code: "quality-user", displayName: "质控人员" }],
+      menuKeys: ["qc-alerts"],
+    },
+  });
 
   mockUseOrgUnits.mockReturnValue({
     data: {
@@ -169,13 +182,21 @@ describe("QcEvalResults", () => {
     expect(screen.getByRole("heading", { name: "质量问题来源" })).toBeInTheDocument();
     expect(screen.getByText("真实评价结果总数")).toBeInTheDocument();
     expect(screen.getByText("待整改问题总数")).toBeInTheDocument();
-    expect(screen.getByText("IND.VTE.REAL")).toBeInTheDocument();
-    expect(screen.getByText("v2")).toBeInTheDocument();
-    expect(screen.getByText("病历 mr-real-1 缺少 VTE 风险评估记录")).toBeInTheDocument();
-    expect(screen.getByText("canonical:medical-record:mr-real-1")).toBeInTheDocument();
-    expect(screen.getByText("trace-result-real")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.getAllByText("评价指标已关联").length).toBeGreaterThan(0);
+    expect(screen.getByText("第 2 版评价口径")).toBeInTheDocument();
+    expect(screen.getByText("对象已关联")).toBeInTheDocument();
+    expect(screen.getAllByText("病历证据已关联").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("证据已记录").length).toBeGreaterThan(0);
     expect(screen.getByText("VTE 风险评估缺失")).toBeInTheDocument();
-    expect(screen.getByText("trace-finding-real")).toBeInTheDocument();
+    expect(screen.queryByText("IND.VTE.REAL")).not.toBeInTheDocument();
+    expect(screen.queryByText("v2")).not.toBeInTheDocument();
+    expect(screen.queryByText(/mr-real-1/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/canonical:medical-record/)).not.toBeInTheDocument();
+    expect(screen.queryByText("trace-result-real")).not.toBeInTheDocument();
+    expect(screen.queryByText("trace-finding-real")).not.toBeInTheDocument();
+    expect(screen.queryByText("indicator-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("result-real-1")).not.toBeInTheDocument();
     expect(
       screen.queryByText(/485|152|92\.8|TRACE_NOT_FOUND|本地违规病例样例/),
     ).not.toBeInTheDocument();
@@ -189,15 +210,43 @@ describe("QcEvalResults", () => {
 
     expect(mockUseQualityFindingDetail).toHaveBeenLastCalledWith("finding-real-1");
     expect(screen.getByText("问题详情与病历证据")).toBeInTheDocument();
+    expect(screen.getAllByText("问题已登记").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("评价指标已关联").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("评价结果已关联").length).toBeGreaterThan(0);
+    expect(screen.getByText("评估运行已记录")).toBeInTheDocument();
+    expect(screen.getAllByText("病历证据已关联").length).toBeGreaterThan(0);
+    expect(screen.queryByText("QF.VTE.MISSING")).not.toBeInTheDocument();
+    expect(screen.queryByText("indicator-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("result-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("trace-finding-real")).not.toBeInTheDocument();
+    expect(screen.queryByText(/canonical:medical-record/)).not.toBeInTheDocument();
+    expect(screen.getByText("暂无整改任务")).toBeInTheDocument();
+  });
+
+  it("证据详情打开后展示评价结果、问题和整改链路原始追溯字段", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("IND.VTE.REAL")).toBeInTheDocument();
+    expect(screen.getByText("v2")).toBeInTheDocument();
+    expect(screen.getByText("病历 mr-real-1 缺少 VTE 风险评估记录")).toBeInTheDocument();
+    expect(screen.getByText("canonical:medical-record:mr-real-1")).toBeInTheDocument();
+    expect(screen.getByText("trace-result-real")).toBeInTheDocument();
+    expect(screen.getByText("trace-finding-real")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "查看问题详情" }));
+
     expect(screen.getAllByText("QF.VTE.MISSING").length).toBeGreaterThan(0);
     expect(screen.getAllByText("indicator-real-1").length).toBeGreaterThan(0);
     expect(screen.getAllByText("result-real-1").length).toBeGreaterThan(0);
+    expect(screen.getByText("run-real-1")).toBeInTheDocument();
     expect(
       screen.getAllByText(
         "来源 canonical:medical-record:mr-real-1，缺少 observations.VTE_ASSESSMENT",
       ).length,
     ).toBeGreaterThan(0);
-    expect(screen.getByText("暂无整改任务")).toBeInTheDocument();
   });
 
   it("dispatches a rectification task for a real finding instead of mutating browser-only state", async () => {
