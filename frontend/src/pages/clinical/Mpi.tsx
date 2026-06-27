@@ -29,7 +29,6 @@ import {
   UserAddOutlined,
   BranchesOutlined,
 } from "@ant-design/icons";
-import { PageShell } from "@/shared/ui/PageShell";
 import {
   useCreateMpiPatient,
   useMpiPatientDetail,
@@ -44,11 +43,29 @@ import {
   type SecurityProfile,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
+import { findRouteByPath } from "@/shared/config/routes";
 import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import styles from "./Mpi.module.css";
 
 const { Option } = Select;
 const { Text } = Typography;
+const route = findRouteByPath("/mpi");
+const PAGE_META = {
+  title: route?.title ?? "患者索引",
+  experience: route?.experience ?? {
+    primaryRole: "临床使用者",
+    goal: "查阅授权范围内的患者索引状态",
+    defaultView: "待核查记录",
+    defaultFilters: [],
+    evidenceDetailContent: ["患者主索引编号", "临床快照编号", "路径实例编号", "追踪号"],
+    interruptionLevel: "info" as const,
+    evidence: "患者身份合并、拆分和 360 视图均保留审计证据",
+    dataScale: { expected: "large" as const, pagination: "page" as const, exportStrategy: "none" as const },
+    riskLevel: "medium" as const,
+  },
+};
 
 function hasPermission(profile: SecurityProfile | undefined, code: string) {
   return profile?.permissions.some((permission) => permission.code === code) ?? false;
@@ -64,30 +81,54 @@ function snapshotEncounterId(
   return "暂无";
 }
 
-function renderPatient360Detail(detail: MpiPatientDetailResponse) {
+function genderLabel(gender?: string) {
+  if (gender === "M") return "男";
+  if (gender === "F") return "女";
+  return "未知";
+}
+
+function mergedIntoText(patient: MpiPatientDetailResponse["patient"], evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) return patient.mergedIntoMpiId ?? "未合并";
+  return patient.mergedIntoMpiId ? "已合并至目标主索引" : "未合并";
+}
+
+function renderPatient360Detail(
+  detail: MpiPatientDetailResponse,
+  evidenceDetailsEnabled: boolean,
+) {
   const snapshot = detail.latestContextSnapshot ?? detail.contextSnapshot ?? null;
   const patient = detail.patient;
 
   return (
     <Space direction="vertical" size="large" className={styles.fullWidth}>
       <Descriptions title="患者主索引" bordered column={2} size="small">
-        <Descriptions.Item label="MPI ID">{patient.mpiId}</Descriptions.Item>
-        <Descriptions.Item label="脱敏姓名">{patient.maskedName}</Descriptions.Item>
+        {evidenceDetailsEnabled && (
+          <Descriptions.Item label="患者主索引编号">{patient.mpiId}</Descriptions.Item>
+        )}
+        <Descriptions.Item label="患者">{patient.maskedName}</Descriptions.Item>
         <Descriptions.Item label="性别">{customerDisplayText(patient.gender)}</Descriptions.Item>
         <Descriptions.Item label="年龄">{patient.age} 岁</Descriptions.Item>
         <Descriptions.Item label="身份证后四位">*** {patient.idLast4}</Descriptions.Item>
         <Descriptions.Item label="主索引状态">
           {customerEnumLabel(patient.status)}
         </Descriptions.Item>
-        <Descriptions.Item label="合并指向">
-          {patient.mergedIntoMpiId ?? "未合并"}
-        </Descriptions.Item>
+        <Descriptions.Item label="合并指向">{mergedIntoText(patient, evidenceDetailsEnabled)}</Descriptions.Item>
         <Descriptions.Item label="已并入数">{patient.mergedCount}</Descriptions.Item>
       </Descriptions>
 
       <Descriptions title="上下文快照" bordered column={2} size="small">
-        <Descriptions.Item label="快照 ID">{snapshot?.snapshotId ?? "暂无快照"}</Descriptions.Item>
-        <Descriptions.Item label="就诊编号">{snapshotEncounterId(snapshot)}</Descriptions.Item>
+        {evidenceDetailsEnabled ? (
+          <>
+            <Descriptions.Item label="快照编号">
+              {snapshot?.snapshotId ?? "暂无快照"}
+            </Descriptions.Item>
+            <Descriptions.Item label="就诊编号">{snapshotEncounterId(snapshot)}</Descriptions.Item>
+          </>
+        ) : (
+          <Descriptions.Item label="患者身份与就诊上下文" span={2}>
+            {snapshot ? "患者身份与就诊上下文已关联" : "暂无已生效上下文"}
+          </Descriptions.Item>
+        )}
         <Descriptions.Item label="快照状态">
           {snapshot?.status ? customerEnumLabel(snapshot.status) : "暂无"}
         </Descriptions.Item>
@@ -104,15 +145,30 @@ function renderPatient360Detail(detail: MpiPatientDetailResponse) {
         renderItem={(pathway) => (
           <List.Item>
             <List.Item.Meta
-              title={<Text code>{pathway.patientPathwayId}</Text>}
+              title={
+                evidenceDetailsEnabled ? (
+                  <Text code>{pathway.patientPathwayId}</Text>
+                ) : (
+                  "当前在径路径"
+                )
+              }
               description={
                 <Space direction="vertical" size={2}>
-                  <Text type="secondary">模板：{pathway.templateId}</Text>
                   <Text type="secondary">
-                    当前节点：{pathway.currentNodeCode ?? "暂无"}；状态：
-                    {customerEnumLabel(pathway.status)}
+                    路径状态：{customerEnumLabel(pathway.status)}
                   </Text>
-                  {pathway.traceId && <Text type="secondary">追踪号：{pathway.traceId}</Text>}
+                  <Text type="secondary">
+                    当前临床环节：{pathway.currentNodeCode ? "已记录" : "暂无"}
+                  </Text>
+                  {evidenceDetailsEnabled && (
+                    <>
+                      <Text type="secondary">模板：{pathway.templateId}</Text>
+                      <Text type="secondary">
+                        当前节点：{pathway.currentNodeCode ?? "暂无"}
+                      </Text>
+                      {pathway.traceId && <Text type="secondary">追踪号：{pathway.traceId}</Text>}
+                    </>
+                  )}
                 </Space>
               }
             />
@@ -120,7 +176,7 @@ function renderPatient360Detail(detail: MpiPatientDetailResponse) {
         )}
       />
 
-      <Text type="secondary">追踪号：{detail.traceId}</Text>
+      {evidenceDetailsEnabled && <Text type="secondary">追踪号：{detail.traceId}</Text>}
     </Space>
   );
 }
@@ -131,6 +187,7 @@ export default function Mpi() {
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(20);
   const security = useSecurityProfile();
+  const evidenceDetailsEnabled = useEvidenceDetailsStore((state) => state.enabled);
   const canCreatePatient = hasPermission(security.data, "mpi.create");
   const canManageMpiIdentity = hasPermission(security.data, "mpi.write");
 
@@ -248,7 +305,11 @@ export default function Mpi() {
         idempotencyKey: createIdempotencyKey,
       });
 
-      message.success(`患者主索引 ${result.mpiId} 已创建，列表和统计已刷新`);
+      message.success(
+        evidenceDetailsEnabled
+          ? `患者主索引 ${result.mpiId} 已创建，列表和统计已刷新`
+          : "患者主索引已创建，列表和统计已刷新",
+      );
       setIsCreateModalVisible(false);
       createForm.resetFields();
       refetchList();
@@ -322,9 +383,11 @@ export default function Mpi() {
     () =>
       activePatients.map((patient) => ({
         value: patient.mpiId,
-        label: `${patient.maskedName} · ${patient.mpiId} · ***${patient.idLast4}`,
+        label: evidenceDetailsEnabled
+          ? `${patient.maskedName} · ${patient.mpiId} · ***${patient.idLast4}`
+          : `${patient.maskedName} · ${genderLabel(patient.gender)} · ${patient.age} 岁 · ***${patient.idLast4}`,
       })),
-    [activePatients],
+    [activePatients, evidenceDetailsEnabled],
   );
   const targetPatientOptions = useMemo(
     () => patientOptions.filter((option) => option.value !== selectedSourceMpiId),
@@ -334,12 +397,16 @@ export default function Mpi() {
   // 定义表格列
   const columns = useMemo(
     () => [
-      {
-        title: "患者主索引 ID (MPI ID)",
-        dataIndex: "mpiId",
-        key: "mpiId",
-        render: (mpiId: string) => <span className={styles.mpiBadge}>{mpiId}</span>,
-      },
+      ...(evidenceDetailsEnabled
+        ? [
+            {
+              title: "患者主索引编号",
+              dataIndex: "mpiId",
+              key: "mpiId",
+              render: (mpiId: string) => <span className={styles.mpiBadge}>{mpiId}</span>,
+            },
+          ]
+        : []),
       {
         title: "脱敏姓名",
         dataIndex: "maskedName",
@@ -352,11 +419,11 @@ export default function Mpi() {
         key: "gender",
         render: (gender: string) => {
           if (gender === "M") {
-            return <Tag color="blue">男 (M)</Tag>;
+            return <Tag color="blue">男</Tag>;
           } else if (gender === "F") {
-            return <Tag color="pink">女 (F)</Tag>;
+            return <Tag color="pink">女</Tag>;
           } else {
-            return <Tag color="default">未知 (UNKNOWN)</Tag>;
+            return <Tag color="default">未知</Tag>;
           }
         },
       },
@@ -398,23 +465,27 @@ export default function Mpi() {
           return <Tag color="default">已合并</Tag>;
         },
       },
-      {
-        title: "合并指向 ID",
-        dataIndex: "mergedIntoMpiId",
-        key: "mergedIntoMpiId",
-        render: (targetId: string | null) => {
-          if (targetId) {
-            return (
-              <Tooltip title={`已合并至目标患者主索引：${targetId}`}>
-                <Tag color="orange" icon={<MergeCellsOutlined />}>
-                  {targetId}
-                </Tag>
-              </Tooltip>
-            );
-          }
-          return <Text type="secondary">-</Text>;
-        },
-      },
+      ...(evidenceDetailsEnabled
+        ? [
+            {
+              title: "合并指向编号",
+              dataIndex: "mergedIntoMpiId",
+              key: "mergedIntoMpiId",
+              render: (targetId: string | null) => {
+                if (targetId) {
+                  return (
+                    <Tooltip title={`已合并至目标患者主索引：${targetId}`}>
+                      <Tag color="orange" icon={<MergeCellsOutlined />}>
+                        {targetId}
+                      </Tag>
+                    </Tooltip>
+                  );
+                }
+                return <Text type="secondary">-</Text>;
+              },
+            },
+          ]
+        : []),
       {
         title: "操作",
         key: "action",
@@ -447,7 +518,7 @@ export default function Mpi() {
         ),
       },
     ],
-    [canManageMpiIdentity, showDetailDrawer, showMergeModal, showSplitModal],
+    [canManageMpiIdentity, evidenceDetailsEnabled, showDetailDrawer, showMergeModal, showSplitModal],
   );
 
   let detailDrawerContent = <Alert message="暂无患者 360 详情" type="info" showIcon />;
@@ -468,13 +539,13 @@ export default function Mpi() {
       />
     );
   } else if (patientDetail) {
-    detailDrawerContent = renderPatient360Detail(patientDetail);
+    detailDrawerContent = renderPatient360Detail(patientDetail, evidenceDetailsEnabled);
   }
 
   return (
-    <PageShell
-      title="患者主索引 MPI"
-      description="跨系统归一患者身份，保留合并审核证据。"
+    <PageExperienceShell
+      meta={PAGE_META}
+      securityProfile={security.data}
       primary={
         canCreatePatient ? (
           <Button type="primary" icon={<UserAddOutlined />} onClick={showCreateModal}>
@@ -543,9 +614,9 @@ export default function Mpi() {
         <div className={styles.filterCard}>
           <div className={styles.filterForm}>
             <div className={styles.filterItem}>
-              <span className={styles.filterLabel}>姓名或 ID 检索:</span>
+              <span className={styles.filterLabel}>患者检索:</span>
               <Input
-                placeholder="支持按姓名或 MPI ID 检索..."
+                placeholder="支持按姓名或院内患者编号检索..."
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 className={styles.searchInput}
@@ -650,9 +721,9 @@ export default function Mpi() {
               rules={[{ required: true, message: "请选择性别" }]}
             >
               <Select placeholder="请选择性别" aria-label="性别">
-                <Option value="M">男 (M)</Option>
-                <Option value="F">女 (F)</Option>
-                <Option value="UNKNOWN">未知 (UNKNOWN)</Option>
+                <Option value="M">男</Option>
+                <Option value="F">女</Option>
+                <Option value="UNKNOWN">未知</Option>
               </Select>
             </Form.Item>
             <Form.Item name="age" label="年龄" rules={[{ required: true, message: "请输入年龄" }]}>
@@ -701,8 +772,14 @@ export default function Mpi() {
               <span>拆分前必须完成人工核查</span>
             </div>
             <div className={styles.warningText}>
-              源主索引 {splitPatientRecord?.mpiId ?? "-"} 将恢复为活跃状态，目标主索引{" "}
-              {splitPatientRecord?.mergedIntoMpiId ?? "-"} 的合并计数会同步扣减。
+              源患者 {splitPatientRecord?.maskedName ?? "-"} 将恢复为活跃状态，目标主索引的合并计数会同步扣减。
+              {evidenceDetailsEnabled && (
+                <>
+                  <br />
+                  源主索引 {splitPatientRecord?.mpiId ?? "-"}；目标主索引{" "}
+                  {splitPatientRecord?.mergedIntoMpiId ?? "-"}。
+                </>
+              )}
             </div>
           </div>
           <Form form={splitForm} layout="vertical">
@@ -805,6 +882,6 @@ export default function Mpi() {
           </Form>
         </Modal>
       </div>
-    </PageShell>
+    </PageExperienceShell>
   );
 }

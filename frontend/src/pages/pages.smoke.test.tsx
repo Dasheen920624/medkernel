@@ -340,7 +340,7 @@ describe("page smoke coverage", () => {
 
     expect(screen.getByText("患者 ID")).toBeInTheDocument();
     expect(screen.getByText("就诊 ID")).toBeInTheDocument();
-    expect(screen.getByText(/输入患者 ID 或就诊 ID 后读取已生效临床快照/)).toBeInTheDocument();
+    expect(screen.getByText(/输入患者信息或就诊信息后读取已生效临床快照/)).toBeInTheDocument();
   });
 
   it("renders the knowledge governance page through the real candidate loading state", () => {
@@ -357,7 +357,7 @@ describe("page smoke coverage", () => {
 
   it("renders the clinical mpi console", () => {
     renderPage(<Mpi />);
-    expect(screen.getByRole("heading", { name: "患者主索引 MPI" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "患者索引" })).toBeInTheDocument();
     expect(screen.getByText(/活跃患者主索引/)).toBeInTheDocument();
   });
 

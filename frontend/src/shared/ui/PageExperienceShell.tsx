@@ -5,6 +5,8 @@ import type { SecurityProfile } from "@/shared/api/hooks";
 
 import { EvidenceDetailsToggle } from "./EvidenceDetailsToggle";
 import { PageShell } from "./PageShell";
+import type { PageStateProps } from "./PageState";
+import type { PageStateKind } from "./PageState.contract";
 import type { RouteExperience } from "./experienceTypes";
 
 interface PageExperienceShellProps {
@@ -14,6 +16,8 @@ interface PageExperienceShellProps {
   onEvidenceDetailsChange?: (enabled: boolean) => void;
   primary?: ReactNode;
   extras?: ReactNode;
+  state?: PageStateKind;
+  stateProps?: Omit<PageStateProps, "state" | "children">;
   children: ReactNode;
 }
 
@@ -24,6 +28,8 @@ export function PageExperienceShell({
   onEvidenceDetailsChange,
   primary,
   extras,
+  state,
+  stateProps,
   children,
 }: PageExperienceShellProps) {
   const evidenceDetailsControl =
@@ -40,6 +46,8 @@ export function PageExperienceShell({
       title={meta.title}
       description={meta.experience.goal}
       primary={primary}
+      state={state}
+      stateProps={stateProps}
       extras={
         <Space wrap>
           {extras}

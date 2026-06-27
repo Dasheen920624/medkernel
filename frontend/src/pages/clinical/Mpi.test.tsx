@@ -12,6 +12,7 @@ import {
   useSecurityProfile,
   useSplitMpiPatient,
 } from "@/shared/api/hooks";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 import Mpi from "./Mpi";
 
@@ -45,7 +46,9 @@ function renderMpi() {
   );
 }
 
-function securityProfile(permissionCodes = ["mpi.read", "mpi.create", "mpi.write"]) {
+function securityProfile(
+  permissionCodes = ["mpi.read", "mpi.create", "mpi.write", "system.debug"],
+) {
   return {
     data: {
       permissions: permissionCodes.map((code) => ({
@@ -56,7 +59,7 @@ function securityProfile(permissionCodes = ["mpi.read", "mpi.create", "mpi.write
         risk: code === "mpi.write" ? "HIGH" : "MEDIUM",
       })),
       roles: [{ code: "clinical-user", displayName: "临床使用者", source: "TEST" }],
-      menuKeys: ["mpi"],
+      menuKeys: permissionCodes.includes("system.debug") ? ["mpi", "runtime-diagnostics"] : ["mpi"],
       environmentKeys: ["production"],
       dataScope: { tenantId: "tenant-A" },
     },
@@ -72,6 +75,7 @@ describe("Mpi", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    useEvidenceDetailsStore.setState({ enabled: false });
     mockUseSecurityProfile.mockReturnValue(securityProfile());
     mockUseMpiPatients.mockReturnValue({
       data: {
@@ -222,7 +226,7 @@ describe("Mpi", () => {
   });
 
   it(
-    "opens patient 360 detail from the MPI detail service hook",
+    "opens patient 360 detail without exposing evidence identifiers by default",
     async () => {
       const user = userEvent.setup();
       renderMpi();
@@ -233,7 +237,26 @@ describe("Mpi", () => {
         expect(mockUseMpiPatientDetail).toHaveBeenCalledWith("mpi-real-1");
       });
       expect(screen.getByText("患者 360 视图")).toBeInTheDocument();
-      expect(screen.getAllByText("snapshot-real-1")).toHaveLength(1);
+      expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+      expect(screen.getAllByText("张*三").length).toBeGreaterThan(0);
+      expect(screen.getByText("患者身份与就诊上下文已关联")).toBeInTheDocument();
+      expect(screen.queryByText("snapshot-real-1")).not.toBeInTheDocument();
+      expect(screen.queryByText("pathway-acute-1")).not.toBeInTheDocument();
+      expect(screen.queryByText(/trace-p360-1/)).not.toBeInTheDocument();
+    },
+    MPI_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "reveals MPI audit identifiers only after evidence details are enabled",
+    async () => {
+      const user = userEvent.setup();
+      renderMpi();
+
+      await user.click(screen.getByRole("switch", { name: "证据详情" }));
+      await user.click(screen.getAllByRole("button", { name: /患者360/ })[0]);
+
+      expect(await screen.findByText("snapshot-real-1")).toBeInTheDocument();
       expect(screen.getByText("pathway-acute-1")).toBeInTheDocument();
       expect(screen.getByText(/trace-p360-1/)).toBeInTheDocument();
     },
@@ -246,7 +269,7 @@ describe("Mpi", () => {
       const user = userEvent.setup();
       renderMpi();
 
-      await user.type(screen.getByPlaceholderText("支持按姓名或 MPI ID 检索..."), "mpi-real-1");
+      await user.type(screen.getByPlaceholderText("支持按姓名或院内患者编号检索..."), "mpi-real-1");
       await user.click(screen.getByRole("combobox", { name: "索引状态" }));
       const activeOptions = await screen.findAllByText("当前有效");
       await user.click(activeOptions[activeOptions.length - 1]);
@@ -272,7 +295,7 @@ describe("Mpi", () => {
 
       await user.click(screen.getAllByRole("button", { name: /合并患者/ })[0]);
       await user.click(screen.getByRole("combobox", { name: "目标患者" }));
-      await user.click(await screen.findByText("王*五 · mpi-target-1 · ***5678"));
+      await user.click(await screen.findByText("王*五 · 男 · 52 岁 · ***5678"));
       await user.click(screen.getByRole("button", { name: "确认合并" }));
 
       await waitFor(() => {
@@ -294,16 +317,15 @@ describe("Mpi", () => {
       const user = userEvent.setup();
       renderMpi();
 
-      expect(screen.getAllByText("mpi-real-1").length).toBeGreaterThan(0);
       expect(screen.getByText("张*三")).toBeInTheDocument();
-      expect(screen.getByText("mpi-merged-1")).toBeInTheDocument();
+      expect(screen.getByText("李*四")).toBeInTheDocument();
       expect(screen.getByText(/活跃路径实例 2 个/)).toBeInTheDocument();
 
       await user.click(screen.getByRole("button", { name: /新增患者/ }));
       expect(screen.queryByText("患者主索引 ID")).not.toBeInTheDocument();
       await user.type(screen.getByPlaceholderText("例如：李*四"), "李*四");
       await user.click(screen.getByRole("combobox", { name: "性别" }));
-      const femaleOptions = await screen.findAllByText("女 (F)");
+      const femaleOptions = await screen.findAllByText("女");
       await user.click(femaleOptions[femaleOptions.length - 1]);
       await user.clear(screen.getByPlaceholderText("例如：36"));
       await user.type(screen.getByPlaceholderText("例如：36"), "41");
