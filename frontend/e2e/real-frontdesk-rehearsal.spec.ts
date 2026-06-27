@@ -241,9 +241,18 @@ async function createFollowupTemplateFromUi(
 }
 
 async function chooseDialogOption(page: Page, dialog: Locator, label: string, option: string) {
-  const select = dialog.locator(".ant-select").filter({ has: dialog.getByLabel(label) });
+  const combobox = dialog.getByRole("combobox", { name: new RegExp(escapeRegExp(label)) }).first();
+  const select = combobox.locator(
+    "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
+  );
   await select.locator(".ant-select-selector").click();
-  await page.getByRole("option", { name: option, exact: true }).click();
+  const optionLocator = page.getByRole("option", { name: option, exact: true });
+  await expect(optionLocator).toBeVisible({ timeout: 5_000 });
+  await optionLocator.click();
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function waitForPost(page: Page, path: string) {
