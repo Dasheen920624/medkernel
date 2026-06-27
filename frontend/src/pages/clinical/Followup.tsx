@@ -43,6 +43,7 @@ import {
   usePublishFollowupTemplate,
   useSubmitFollowupQuestionnaire,
   useReportFollowupAbnormal,
+  useSecurityProfile,
 } from "@/shared/api/hooks";
 import type {
   FollowupAbnormalReportResponse,
@@ -53,6 +54,9 @@ import type {
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
 import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 import {
   defaultFollowupTemplateFormValues,
   followupDiseaseOptions,
@@ -88,7 +92,40 @@ const taskTypeOptions = [
   { value: "OUTPATIENT", label: "门诊复诊" },
 ];
 
+function optionLabel(
+  options: Array<{ value: string; label: string }>,
+  value?: string | null,
+  fallback = "未设置",
+) {
+  if (!value) return fallback;
+  return options.find((option) => option.value === value)?.label ?? customerEnumLabel(value);
+}
+
+function associationText(
+  value: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  businessLabel: string,
+) {
+  if (evidenceDetailsEnabled) return value || "-";
+  return value ? `${businessLabel}已关联` : `${businessLabel}未关联`;
+}
+
+function planTemplateText(
+  plan: Pick<FollowupPlanDetailResponse, "templateId" | "templateVersion">,
+  templateNameById: Map<string, string>,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (!plan.templateId) return "未绑定随访方案";
+  const version = plan.templateVersion ? ` · v${plan.templateVersion}` : "";
+  if (evidenceDetailsEnabled) return `${plan.templateId}${version}`;
+  const templateName = templateNameById.get(plan.templateId) ?? "已绑定随访方案";
+  return `${templateName}${version}`;
+}
+
 export default function Followup() {
+  const security = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const [activeTab, setActiveTab] = useState("plans");
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [generateModalVisible, setGenerateModalVisible] = useState(false);
@@ -175,6 +212,13 @@ export default function Followup() {
       ),
     [publishedTemplatesQuery.data?.items],
   );
+  const templateNameById = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const template of [...templates, ...publishedTemplates]) {
+      names.set(template.templateId, template.name);
+    }
+    return names;
+  }, [publishedTemplates, templates]);
   const templateOptions = useMemo(
     () =>
       publishedTemplates.map((template) => ({
@@ -218,7 +262,7 @@ export default function Followup() {
         ),
       });
 
-      message.success(`随访计划已生成：${response.planId}`);
+      message.success("随访计划已生成，请在计划列表查看");
       setGenerateModalVisible(false);
       generateForm.resetFields();
       setSnapshotPatientId("");
@@ -357,40 +401,46 @@ export default function Followup() {
 
   const columns: TableProps<FollowupPlanDetailResponse>["columns"] = [
     {
-      title: "计划编号",
-      dataIndex: "planId",
-      key: "planId",
-      render: (planId: string) => <span className={styles.textStrong}>{planId}</span>,
+      title: "随访计划",
+      key: "plan",
+      render: (_value: unknown, record) => (
+        <Space direction="vertical" size={0}>
+          <span className={styles.textStrong}>
+            {evidenceDetailsEnabled ? record.planId : "已生成随访计划"}
+          </span>
+        </Space>
+      ),
     },
     {
-      title: "患者标识",
-      dataIndex: "patientId",
-      key: "patientId",
+      title: "随访对象",
+      key: "subject",
+      render: (_value: unknown, record) => (
+        <Space wrap>
+          <Tag>
+            {associationText(record.patientId, evidenceDetailsEnabled, "患者")}
+          </Tag>
+          <Tag color="blue">
+            {associationText(record.encounterId, evidenceDetailsEnabled, "就诊")}
+          </Tag>
+        </Space>
+      ),
     },
     {
-      title: "就诊标识",
-      dataIndex: "encounterId",
-      key: "encounterId",
-      render: (encounterId: string) => <Tag color="blue">{encounterId}</Tag>,
-    },
-    {
-      title: "病种编码",
+      title: "随访病种",
       dataIndex: "diseaseCode",
       key: "diseaseCode",
-      render: (code: string) => <Tag>{code}</Tag>,
+      render: (code: string) => (
+        <Tag>{evidenceDetailsEnabled ? code : optionLabel(followupDiseaseOptions, code)}</Tag>
+      ),
     },
     {
-      title: "模板",
+      title: "随访方案",
       key: "template",
-      render: (_value: unknown, record) =>
-        record.templateId ? (
-          <Tag color="purple">
-            {record.templateId}
-            {record.templateVersion ? ` · v${record.templateVersion}` : ""}
-          </Tag>
-        ) : (
-          <Tag>未绑定</Tag>
-        ),
+      render: (_value: unknown, record) => (
+        <Tag color={record.templateId ? "purple" : "default"}>
+          {planTemplateText(record, templateNameById, evidenceDetailsEnabled)}
+        </Tag>
+      ),
     },
     {
       title: "任务进度",
@@ -450,7 +500,7 @@ export default function Followup() {
         <Space direction="vertical" size={0}>
           <span className={styles.textStrong}>{name}</span>
           <span className={styles.textMuted}>
-            {record.templateCode} · v{record.versionNo}
+            {evidenceDetailsEnabled ? `${record.templateCode} · ` : ""}v{record.versionNo}
           </span>
         </Space>
       ),
@@ -459,7 +509,9 @@ export default function Followup() {
       title: "适用范围",
       dataIndex: "applicableScope",
       key: "applicableScope",
-      render: (scope: string) => <Tag>{scope}</Tag>,
+      render: (scope: string) => (
+        <Tag>{evidenceDetailsEnabled ? scope : optionLabel(followupDiseaseOptions, scope)}</Tag>
+      ),
     },
     {
       title: "任务",
@@ -509,6 +561,7 @@ export default function Followup() {
     <PageShell
       title="随访协同"
       description="按当前组织范围查看随访计划、患者问卷回收、护士代填和异常回院处理。"
+      extras={<EvidenceDetailsToggle securityProfile={security.data} />}
     >
       <Tabs
         activeKey={activeTab}
@@ -574,7 +627,7 @@ export default function Followup() {
             <Space wrap className={styles.rowBetween}>
               <Space wrap>
                 <Input
-                  placeholder="按患者标识检索"
+                  placeholder="按患者线索检索"
                   allowClear
                   value={patientFilter}
                   onChange={(event) => {
@@ -678,7 +731,7 @@ export default function Followup() {
                 </span>
               </Space>
               <Input
-                placeholder="按模板编码、名称或适用范围检索"
+                placeholder="按模板名称或适用范围检索"
                 allowClear
                 value={templateSearch}
                 onChange={(event) => {
@@ -847,26 +900,31 @@ export default function Followup() {
         {selectedPlanDetail && (
           <Space direction="vertical" size="large" className={styles.fullWidth}>
             <Descriptions bordered size="small" column={2}>
-              <Descriptions.Item label="计划编号">{selectedPlanDetail.planId}</Descriptions.Item>
-              <Descriptions.Item label="服务机构">{selectedPlanDetail.tenantId}</Descriptions.Item>
-              <Descriptions.Item label="患者标识">{selectedPlanDetail.patientId}</Descriptions.Item>
-              <Descriptions.Item label="就诊标识">
-                {selectedPlanDetail.encounterId}
+              <Descriptions.Item label="计划证据">
+                {evidenceDetailsEnabled ? selectedPlanDetail.planId : "已生成随访计划"}
               </Descriptions.Item>
-              <Descriptions.Item label="病种编码">
-                {selectedPlanDetail.diseaseCode}
+              <Descriptions.Item label="服务机构">
+                {evidenceDetailsEnabled ? selectedPlanDetail.tenantId : "当前服务机构"}
+              </Descriptions.Item>
+              <Descriptions.Item label="患者">
+                {associationText(selectedPlanDetail.patientId, evidenceDetailsEnabled, "患者")}
+              </Descriptions.Item>
+              <Descriptions.Item label="就诊">
+                {associationText(selectedPlanDetail.encounterId, evidenceDetailsEnabled, "就诊")}
+              </Descriptions.Item>
+              <Descriptions.Item label="随访病种">
+                {evidenceDetailsEnabled
+                  ? selectedPlanDetail.diseaseCode
+                  : optionLabel(followupDiseaseOptions, selectedPlanDetail.diseaseCode)}
               </Descriptions.Item>
               <Descriptions.Item label="随访模板">
-                {selectedPlanDetail.templateId ? (
-                  <Tag color="purple">
-                    {selectedPlanDetail.templateId}
-                    {selectedPlanDetail.templateVersion
-                      ? ` · v${selectedPlanDetail.templateVersion}`
-                      : ""}
-                  </Tag>
-                ) : (
-                  "未绑定"
-                )}
+                <Tag color={selectedPlanDetail.templateId ? "purple" : "default"}>
+                  {planTemplateText(
+                    selectedPlanDetail,
+                    templateNameById,
+                    evidenceDetailsEnabled,
+                  )}
+                </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="状态">
                 <Badge
@@ -880,15 +938,20 @@ export default function Followup() {
 
             <Card title="随访任务">
               <Space direction="vertical" className={styles.fullWidth}>
-                {selectedPlanDetail.tasks.map((task) => (
+                {selectedPlanDetail.tasks.map((task, index) => (
                   <Card key={task.taskId} size="small">
                     <Space wrap className={styles.rowBetween}>
                       <Space wrap>
                         <Tag color={task.status === "COMPLETED" ? "green" : "blue"}>
                           {customerEnumLabel(task.status)}
                         </Tag>
-                        <span className={styles.textStrong}>{task.taskId}</span>
+                        <span className={styles.textStrong}>
+                          {evidenceDetailsEnabled ? task.taskId : `第 ${index + 1} 项`}
+                        </span>
                         <span>{customerEnumLabel(task.taskType)}</span>
+                        {evidenceDetailsEnabled && task.questionnaireTemplateId ? (
+                          <span className={styles.textMuted}>{task.questionnaireTemplateId}</span>
+                        ) : null}
                         <span className={styles.textMuted}>
                           截止：{new Date(task.dueDate).toLocaleDateString()}
                         </span>
@@ -919,7 +982,9 @@ export default function Followup() {
                     type="info"
                     showIcon
                     className={styles.sectionGap}
-                    message={`正在提交问卷任务：${selectedTaskId}`}
+                    message={`正在提交问卷任务：${
+                      evidenceDetailsEnabled ? selectedTaskId : "当前问卷回收任务"
+                    }`}
                   />
                   <Form.Item
                     name="executorType"
@@ -1003,10 +1068,26 @@ export default function Followup() {
                   message="异常回院证据已登记"
                   description={
                     <Space wrap>
-                      <Tag color="red">异常记录 {abnormalEvidence.eventId}</Tag>
-                      <Tag color="orange">回院任务 {abnormalEvidence.returnTaskId}</Tag>
-                      <Tag color="gold">通知记录 {abnormalEvidence.notificationEventId}</Tag>
-                      <Tag>追踪号 {abnormalEvidence.traceId}</Tag>
+                      <Tag color="red">
+                        {evidenceDetailsEnabled
+                          ? `异常记录 ${abnormalEvidence.eventId}`
+                          : "异常记录已登记"}
+                      </Tag>
+                      <Tag color="orange">
+                        {evidenceDetailsEnabled
+                          ? `回院任务 ${abnormalEvidence.returnTaskId}`
+                          : "回院任务已生成"}
+                      </Tag>
+                      <Tag color="gold">
+                        {evidenceDetailsEnabled
+                          ? `通知记录 ${abnormalEvidence.notificationEventId}`
+                          : "通知已发送"}
+                      </Tag>
+                      <Tag>
+                        {evidenceDetailsEnabled
+                          ? `追踪号 ${abnormalEvidence.traceId}`
+                          : "追踪已记录"}
+                      </Tag>
                     </Space>
                   }
                 />

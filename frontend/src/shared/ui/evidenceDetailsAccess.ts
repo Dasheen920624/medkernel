@@ -18,6 +18,7 @@ const EVIDENCE_DETAIL_MENU_KEYS = new Set([
   "domestic-check",
   "runtime-diagnostics",
   "security-baseline",
+  "clinical-followup",
 ]);
 
 export type EvidenceDetailsProfile = Partial<Pick<SecurityProfile, "permissions" | "menuKeys">>;
