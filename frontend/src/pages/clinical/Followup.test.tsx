@@ -507,20 +507,79 @@ describe("Followup", () => {
     expect(screen.queryByText(/第一阶段|模板治理|随访模板资产|运行期/)).not.toBeInTheDocument();
   });
 
-  it("创建随访模板时不暴露内部版本和技术字段名称", async () => {
+  it("创建随访模板时使用业务选项生成可审计的标准契约", async () => {
     const user = userEvent.setup();
     renderFollowup();
 
     await user.click(screen.getByRole("tab", { name: "随访模板" }));
     await user.click(screen.getByRole("button", { name: /新建模板/ }));
+    const dialog = screen.getByRole("dialog", { name: "新建随访模板" });
 
     expect(screen.queryByLabelText("版本")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("问卷模板标识")).toBeInTheDocument();
-    expect(screen.getByLabelText("问题标识")).toBeInTheDocument();
-    expect(screen.getByLabelText("依据来源")).toBeInTheDocument();
+    expect(within(dialog).getByText("方案与适用范围")).toBeInTheDocument();
+    expect(within(dialog).getByText("问卷与异常处理")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("院内方案编号")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("适用机构范围")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("随访病种")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("问卷内容模板")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("核心随访问题")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("院内依据")).toBeInTheDocument();
+    expect(screen.queryByLabelText("模板编码")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("组织范围")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("适用范围")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("问卷模板标识")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("问题标识")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("问卷模板 ID")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("问题编码")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("来源引用")).not.toBeInTheDocument();
+    expect(screen.queryByText("p5-hospital")).not.toBeInTheDocument();
+    expect(screen.queryByText("FOLLOWUP_QUESTIONNAIRE_DEFAULT")).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue("FIRST_PHASE_FOLLOWUP_TEMPLATE")).not.toBeInTheDocument();
+
+    await user.type(within(dialog).getByLabelText("院内方案编号"), "FUP.COPD.REAL");
+    await user.type(within(dialog).getByLabelText("模板名称"), "慢阻肺真实随访方案");
+    await user.type(
+      within(dialog).getByLabelText("模板说明"),
+      "面向出院后慢阻肺患者的护士回收与医生复核流程",
+    );
+    await user.click(within(dialog).getByLabelText("问卷内容模板"));
+    await user.click(await screen.findByText("真实前台慢病随访问卷"));
+    await user.click(within(dialog).getByLabelText("院内依据"));
+    await user.click(await screen.findByText("真实前台演练随访制度"));
+
+    await user.click(within(dialog).getByRole("button", { name: /创\s*建/ }));
+
+    await waitFor(() => expect(followupHookMocks.createTemplate).toHaveBeenCalledTimes(1));
+    expect(followupHookMocks.createTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateCode: "FUP.COPD.REAL",
+        name: "慢阻肺真实随访方案",
+        description: "面向出院后慢阻肺患者的护士回收与医生复核流程",
+        organizationScope: "p5-hospital",
+        applicableScope: "COPD",
+        sourceRef: "REAL_FRONTDESK_FOLLOWUP_TEMPLATE",
+      }),
+    );
+    const request = followupHookMocks.createTemplate.mock.calls[0][0];
+    expect(request.tasks).toEqual([
+      {
+        taskType: "QUESTIONNAIRE",
+        delayDays: 7,
+        questionnaireTemplateId: "FOLLOWUP_QUESTIONNAIRE_REAL_FRONTDESK",
+      },
+      {
+        taskType: "OUTPATIENT",
+        delayDays: 14,
+      },
+    ]);
+    expect(JSON.parse(request.questionnaireDefinition)).toEqual({
+      questions: [
+        {
+          code: "dyspnea",
+          type: "TEXT",
+          required: true,
+        },
+      ],
+    });
   });
 });

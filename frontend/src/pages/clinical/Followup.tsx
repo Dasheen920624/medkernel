@@ -53,6 +53,14 @@ import type {
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
 import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
+import {
+  defaultFollowupTemplateFormValues,
+  followupDiseaseOptions,
+  followupQuestionOptions,
+  followupSourceOptions,
+  organizationScopeOptions,
+  questionnaireTemplateOptions,
+} from "@/shared/config/followupTemplateCatalog";
 
 import styles from "./Clinical.module.css";
 
@@ -1010,6 +1018,7 @@ export default function Followup() {
       <Modal
         title="新建随访模板"
         open={templateModalVisible}
+        width={720}
         onOk={handleCreateTemplate}
         onCancel={() => {
           setTemplateModalVisible(false);
@@ -1024,25 +1033,22 @@ export default function Followup() {
           form={templateForm}
           layout="vertical"
           className={styles.formGap}
-          initialValues={{
-            organizationScope: "p5-hospital",
-            applicableScope: "COPD",
-            questionnaireTemplateId: "FOLLOWUP_QUESTIONNAIRE_DEFAULT",
-            questionCode: "dyspnea",
-            questionType: "TEXT",
-            questionnaireDelayDays: 7,
-            outpatientDelayDays: 14,
-            abnormalCondition: "出现呼吸困难加重或血氧下降",
-            notifyTarget: "责任医生与随访护士",
-            sourceRef: "FOLLOWUP_TEMPLATE_STANDARD",
-          }}
+          initialValues={defaultFollowupTemplateFormValues}
         >
+          <Alert
+            type="info"
+            showIcon
+            className={styles.sectionGap}
+            message="按临床随访方案填写"
+            description="页面显示医生、护士和实施人员能直接判断的业务内容；保存时同步生成标准编码、依据和版本证据。"
+          />
+          <div className={styles.formSectionTitle}>方案与适用范围</div>
           <Form.Item
             name="templateCode"
-            label="模板编码"
-            rules={[{ required: true, message: "请输入模板编码" }]}
+            label="院内方案编号"
+            rules={[{ required: true, message: "请输入院内方案编号" }]}
           >
-            <Input placeholder="例如 FUP.COPD.DISCHARGE" />
+            <Input placeholder="例如 FUP.COPD.DISCHARGE 或 慢阻肺出院随访-2026" />
           </Form.Item>
           <Form.Item
             name="name"
@@ -1058,22 +1064,23 @@ export default function Followup() {
             <Col span={12}>
               <Form.Item
                 name="organizationScope"
-                label="组织范围"
-                rules={[{ required: true, message: "请输入组织范围" }]}
+                label="适用机构范围"
+                rules={[{ required: true, message: "请选择适用机构范围" }]}
               >
-                <Input />
+                <Select options={organizationScopeOptions} />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item
                 name="applicableScope"
-                label="适用范围"
-                rules={[{ required: true, message: "请输入适用范围" }]}
+                label="随访病种"
+                rules={[{ required: true, message: "请选择随访病种" }]}
               >
-                <Input />
+                <Select options={followupDiseaseOptions} />
               </Form.Item>
             </Col>
           </Row>
+          <div className={styles.formSectionTitle}>问卷与异常处理</div>
           <Row gutter={12}>
             <Col span={12}>
               <Form.Item
@@ -1096,26 +1103,26 @@ export default function Followup() {
           </Row>
           <Form.Item
             name="questionnaireTemplateId"
-            label="问卷模板标识"
-            rules={[{ required: true, message: "请输入问卷模板标识" }]}
+            label="问卷内容模板"
+            rules={[{ required: true, message: "请选择问卷内容模板" }]}
           >
-            <Input />
+            <Select options={questionnaireTemplateOptions} />
           </Form.Item>
           <Row gutter={12}>
             <Col span={12}>
               <Form.Item
                 name="questionCode"
-                label="问题标识"
-                rules={[{ required: true, message: "请输入问题标识" }]}
+                label="核心随访问题"
+                rules={[{ required: true, message: "请选择核心随访问题" }]}
               >
-                <Input />
+                <Select options={followupQuestionOptions} />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item
                 name="questionType"
-                label="问题类型"
-                rules={[{ required: true, message: "请输入问题类型" }]}
+                label="回答方式"
+                rules={[{ required: true, message: "请选择回答方式" }]}
               >
                 <Select
                   options={[
@@ -1143,10 +1150,10 @@ export default function Followup() {
           </Form.Item>
           <Form.Item
             name="sourceRef"
-            label="依据来源"
-            rules={[{ required: true, message: "请输入依据来源" }]}
+            label="院内依据"
+            rules={[{ required: true, message: "请选择院内依据" }]}
           >
-            <Input />
+            <Select options={followupSourceOptions} />
           </Form.Item>
         </Form>
       </Modal>

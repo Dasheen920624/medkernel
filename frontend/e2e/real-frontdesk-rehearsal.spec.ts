@@ -1,4 +1,4 @@
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 
 import { ensureReadySession } from "./support/auth";
@@ -216,18 +216,18 @@ async function createFollowupTemplateFromUi(
   await page.getByRole("button", { name: /新建模板/ }).click();
   const dialog = page.getByRole("dialog", { name: "新建随访模板" });
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel("模板编码").fill(templateCode);
+  await dialog.getByLabel("院内方案编号").fill(templateCode);
   await dialog.getByLabel("模板名称").fill(`真实前台慢病随访模板 ${suffix}`);
   await dialog
     .getByLabel("模板说明")
     .fill("真实前台演练创建；不包含患者姓名、证件号、电话、住址等核心敏感信息。");
-  await dialog.getByLabel("组织范围").fill("p5-hospital");
-  await dialog.getByLabel("适用范围").fill("COPD");
-  await dialog.getByLabel("问卷模板标识").fill("FOLLOWUP_QUESTIONNAIRE_REAL_FRONTDESK");
-  await dialog.getByLabel("问题标识").fill("dyspnea");
+  await chooseDialogOption(page, dialog, "适用机构范围", "当前医院");
+  await chooseDialogOption(page, dialog, "随访病种", "慢阻肺");
+  await chooseDialogOption(page, dialog, "问卷内容模板", "真实前台慢病随访问卷");
+  await chooseDialogOption(page, dialog, "核心随访问题", "呼吸困难变化");
   await dialog.getByLabel("异常触发条件").fill("呼吸困难加重、血氧下降或患者主动报告异常");
   await dialog.getByLabel("通知对象").fill("责任医生与随访护士");
-  await dialog.getByLabel("依据来源").fill("REAL_FRONTDESK_FOLLOWUP_TEMPLATE");
+  await chooseDialogOption(page, dialog, "院内依据", "真实前台演练随访制度");
 
   const responsePromise = waitForPost(page, "/api/v1/engine/followup/templates");
   await dialog.getByRole("button", { name: /创\s*建/ }).click();
@@ -238,6 +238,11 @@ async function createFollowupTemplateFromUi(
   await expect(dialog).toBeHidden({ timeout: 20_000 });
   await captureEvidence(page, testInfo, "real-frontdesk-followup-template");
   recordCleanRuntime(page, "前台创建随访模板", runtime, records);
+}
+
+async function chooseDialogOption(page: Page, dialog: Locator, label: string, option: string) {
+  await dialog.getByLabel(label).click();
+  await page.getByRole("option", { name: option }).click();
 }
 
 function waitForPost(page: Page, path: string) {
