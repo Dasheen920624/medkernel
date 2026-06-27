@@ -29,6 +29,7 @@ import {
   useKnowledgeIdentities,
   useKnowledgeProvenance,
   useKnowledgeReviewQueue,
+  useSecurityProfile,
 } from "@/shared/api/hooks";
 import type {
   KnowledgeAssetVersion,
@@ -39,7 +40,11 @@ import type {
 import { KNOWLEDGE_DOMAIN_OPTIONS, type KnowledgeDomain } from "@/shared/config/assetCatalog";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
-import { PageShell } from "@/shared/ui/PageShell";
+import { findRouteByPath } from "@/shared/config/routes";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
+import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
+import type { RouteExperience } from "@/shared/ui/experienceTypes";
 
 import styles from "./Advanced.module.css";
 
@@ -54,7 +59,28 @@ const identityStatusLabels = new Map<KnowledgeIdentityStatus, string>([
   ["WITHDRAWN", "已撤回"],
   ["ARCHIVED", "已归档"],
 ]);
+const evidenceQualityLabels = new Map([
+  ["HIGH", "高质量"],
+  ["MEDIUM", "中等质量"],
+  ["LOW", "低质量"],
+]);
+const sourceRelationLabels = new Map([
+  ["SUPPORTS", "支持"],
+  ["CONFLICTS", "存在冲突"],
+  ["REPLACES", "替代"],
+  ["CITES", "引用"],
+]);
 const PROVENANCE_HISTORY_PAGE_SIZE = 20;
+const route = findRouteByPath("/advanced/provenance");
+
+if (!route?.experience) {
+  throw new Error("来源与血缘页面缺少体验声明");
+}
+
+const PAGE_META: { title: string; experience: RouteExperience } = {
+  title: "知识来源追溯",
+  experience: route.experience,
+};
 
 function domainLabel(value: KnowledgeDomain) {
   return domainLabels.get(value) ?? customerEnumLabel(value);
@@ -62,6 +88,14 @@ function domainLabel(value: KnowledgeDomain) {
 
 function identityStatusLabel(value: KnowledgeIdentityStatus) {
   return identityStatusLabels.get(value) ?? customerEnumLabel(value);
+}
+
+function evidenceQualityLabel(value?: string | null) {
+  return value ? (evidenceQualityLabels.get(value) ?? customerEnumLabel(value)) : "未记录";
+}
+
+function sourceRelationLabel(value?: string | null) {
+  return value ? (sourceRelationLabels.get(value) ?? customerEnumLabel(value)) : "未记录";
 }
 
 function formatDateTime(value?: string | null) {
@@ -81,7 +115,13 @@ function versionStatus(version: KnowledgeAssetVersion, currentVersionId?: number
   return <Tag>历史版本</Tag>;
 }
 
-function EvidenceList({ items }: { items: KnowledgeSourceEvidence[] }) {
+function EvidenceList({
+  items,
+  evidenceDetailsEnabled,
+}: {
+  items: KnowledgeSourceEvidence[];
+  evidenceDetailsEnabled: boolean;
+}) {
   if (items.length === 0) {
     return <Empty description="当前权威版本暂无来源引用" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
   }
@@ -101,7 +141,7 @@ function EvidenceList({ items }: { items: KnowledgeSourceEvidence[] }) {
                   {item.displayLabel}
                 </Tag>
               </Space>
-              <Text type="secondary">{item.sourceCode}</Text>
+              {evidenceDetailsEnabled ? <Text type="secondary">{item.sourceCode}</Text> : null}
             </div>
 
             <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 2 }}>
@@ -111,16 +151,25 @@ function EvidenceList({ items }: { items: KnowledgeSourceEvidence[] }) {
               <Descriptions.Item label="发布日期">
                 {formatDateTime(item.publishedAt)}
               </Descriptions.Item>
-              <Descriptions.Item label="锚点路径">
-                <Text code>{item.anchorPath || "未记录"}</Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="锚点名称">{item.anchorLabel || "未记录"}</Descriptions.Item>
-              <Descriptions.Item label="片段偏移">
-                {item.startOffset ?? "?"} - {item.endOffset ?? "?"}
+              <Descriptions.Item label="引用位置">
+                {item.anchorLabel || "未记录"}
               </Descriptions.Item>
               <Descriptions.Item label="引用关系">
-                {item.relation || "未记录"} / 权重 {item.weight ?? "未记录"}
+                {sourceRelationLabel(item.relation)}
               </Descriptions.Item>
+              {evidenceDetailsEnabled ? (
+                <>
+                  <Descriptions.Item label="锚点路径">
+                    <Text code>{item.anchorPath || "未记录"}</Text>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="片段偏移">
+                    {item.startOffset ?? "?"} - {item.endOffset ?? "?"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="排序权重">
+                    {item.weight ?? "未记录"}
+                  </Descriptions.Item>
+                </>
+              ) : null}
             </Descriptions>
 
             {item.textExcerpt && (
@@ -129,14 +178,16 @@ function EvidenceList({ items }: { items: KnowledgeSourceEvidence[] }) {
 
             {item.authorityBasis && <Text type="secondary">权威依据：{item.authorityBasis}</Text>}
             <Text type="secondary">{item.rankingReason}</Text>
-            <div className={styles.hashGrid}>
-              <Text copyable={Boolean(item.sourceVersionHash)} className={styles.hashText}>
-                来源版本指纹：{item.sourceVersionHash || "未记录"}
-              </Text>
-              <Text copyable={Boolean(item.fragmentHash)} className={styles.hashText}>
-                来源片段指纹：{item.fragmentHash || "未记录"}
-              </Text>
-            </div>
+            {evidenceDetailsEnabled ? (
+              <div className={styles.hashGrid}>
+                <Text copyable={Boolean(item.sourceVersionHash)} className={styles.hashText}>
+                  来源版本指纹：{item.sourceVersionHash || "未记录"}
+                </Text>
+                <Text copyable={Boolean(item.fragmentHash)} className={styles.hashText}>
+                  来源片段指纹：{item.fragmentHash || "未记录"}
+                </Text>
+              </div>
+            ) : null}
           </Space>
         </List.Item>
       )}
@@ -145,6 +196,9 @@ function EvidenceList({ items }: { items: KnowledgeSourceEvidence[] }) {
 }
 
 export default function Provenance() {
+  const security = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const [searchParams, setSearchParams] = useSearchParams();
   const linkedIdentityId = useMemo(() => {
     const value = Number(searchParams.get("identityId"));
@@ -204,9 +258,11 @@ export default function Provenance() {
       render: (value: string, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{value}</Text>
-          <Text type="secondary" className={styles.smallText}>
-            {record.identityCode}
-          </Text>
+          {evidenceDetailsEnabled ? (
+            <Text type="secondary" className={styles.smallText}>
+              {record.identityCode}
+            </Text>
+          ) : null}
         </Space>
       ),
     },
@@ -303,7 +359,9 @@ export default function Provenance() {
             <Title level={4} className={styles.compactTitle}>
               {provenance.identity.subject}
             </Title>
-            <Text type="secondary">{provenance.identity.identityCode}</Text>
+            {evidenceDetailsEnabled ? (
+              <Text type="secondary">{provenance.identity.identityCode}</Text>
+            ) : null}
           </div>
           <Space wrap>
             <Tag>{domainLabel(provenance.identity.domain)}</Tag>
@@ -338,9 +396,13 @@ export default function Provenance() {
                 ? "该知识身份已退役"
                 : `该知识身份将在 ${formatDateTime(retirement.gracePeriodEnd)} 结束迁移宽限期`
             }
-            description={`${retirement.migrationGuidance}；后继身份 ID：${
-              retirement.successorIdentityId ?? "未记录"
-            }`}
+            description={
+              evidenceDetailsEnabled
+                ? `${retirement.migrationGuidance}；后继身份 ID：${
+                    retirement.successorIdentityId ?? "未记录"
+                  }`
+                : retirement.migrationGuidance
+            }
           />
         )}
 
@@ -352,10 +414,12 @@ export default function Provenance() {
             </Space>
             <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
               <Descriptions.Item label="来源级别">
-                {activeVersion.authorityLevel || "未记录"}
+                {activeVersion.authorityLevel
+                  ? customerEnumLabel(activeVersion.authorityLevel)
+                  : "未记录"}
               </Descriptions.Item>
               <Descriptions.Item label="证据质量">
-                {activeVersion.gradeQuality || "未记录"}
+                {evidenceQualityLabel(activeVersion.gradeQuality)}
               </Descriptions.Item>
               <Descriptions.Item label="复审周期">
                 {activeVersion.reviewCycleMonths
@@ -368,9 +432,11 @@ export default function Provenance() {
               <Descriptions.Item label="下次复审">
                 {formatDateTime(activeVersion.nextReviewAt)}
               </Descriptions.Item>
-              <Descriptions.Item label="复审人">
-                {activeVersion.reviewedBy || "未记录"}
-              </Descriptions.Item>
+              {evidenceDetailsEnabled ? (
+                <Descriptions.Item label="复审人">
+                  {activeVersion.reviewedBy || "未记录"}
+                </Descriptions.Item>
+              ) : null}
             </Descriptions>
           </section>
         )}
@@ -402,16 +468,20 @@ export default function Provenance() {
             <FileSearchOutlined />
             <Text strong>精确来源锚点</Text>
           </Space>
-          <EvidenceList items={provenance.sourceEvidence} />
+          <EvidenceList
+            items={provenance.sourceEvidence}
+            evidenceDetailsEnabled={evidenceDetailsEnabled}
+          />
         </section>
       </Space>
     );
   }
 
   return (
-    <PageShell
-      title="知识来源追溯"
-      description="按知识身份查看当前权威版本、历史沿革和精确来源锚点。"
+    <PageExperienceShell
+      meta={PAGE_META}
+      securityProfile={security.data}
+      evidenceDetailsEnabled={evidenceDetailsEnabled}
     >
       <Space direction="vertical" size="large" className={styles.fullWidth}>
         {Boolean(reviewQueueQuery.data?.total) && (
@@ -512,6 +582,6 @@ export default function Provenance() {
           <Card title="来源详情">{detailContent}</Card>
         </div>
       </Space>
-    </PageShell>
+    </PageExperienceShell>
   );
 }
