@@ -252,7 +252,7 @@ async function chooseDialogOption(page: Page, dialog: Locator, label: string, op
   await select.locator(".ant-select-selector").click();
   const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
   await expect(dropdown).toBeVisible({ timeout: 5_000 });
-  const optionLocator = dropdown.getByRole("option", { name: option, exact: true });
+  const optionLocator = dropdown.getByText(option, { exact: true }).last();
   await expect(optionLocator).toBeVisible({ timeout: 5_000 });
   await optionLocator.click();
 }
