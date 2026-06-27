@@ -1,6 +1,12 @@
 import type { SecurityProfile } from "@/shared/api/hooks";
 
-const EVIDENCE_DETAIL_PERMISSIONS = new Set(["advanced.read", "system.debug", "llm.eval.manage"]);
+const EVIDENCE_DETAIL_PERMISSIONS = new Set([
+  "advanced.read",
+  "system.debug",
+  "llm.eval.manage",
+  "llm.provider.manage",
+  "llm.egress.manage",
+]);
 const EVIDENCE_DETAIL_MENU_KEYS = new Set([
   "provenance",
   "graph-explore",

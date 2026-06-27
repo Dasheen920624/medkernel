@@ -31,6 +31,9 @@ import {
   MODEL_CAPABILITY_OPTIONS,
   MODEL_PROVIDER_TYPE_OPTIONS,
 } from "@/shared/config/modelProduction";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 import { PageState } from "@/shared/ui/PageState";
 
 import styles from "./ProviderSetupPanel.module.css";
@@ -80,11 +83,50 @@ function formatDateTime(value?: string | null) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false });
 }
 
+function providerTypeLabel(providerType: ModelProviderGovernanceView["providerType"]) {
+  return (
+    MODEL_PROVIDER_TYPE_OPTIONS.find((option) => option.value === providerType)?.label ??
+    providerType
+  );
+}
+
+function renderProviderIdentity(
+  provider: ModelProviderGovernanceView,
+  evidenceDetailsEnabled: boolean,
+) {
+  return (
+    <Space direction="vertical" size={0} className={styles.providerCell}>
+      <Text strong>
+        {evidenceDetailsEnabled ? provider.providerCode : providerTypeLabel(provider.providerType)}
+      </Text>
+      <Text type="secondary">{provider.modelVersion}</Text>
+      {evidenceDetailsEnabled ? <Text code>{provider.endpointUri}</Text> : null}
+    </Space>
+  );
+}
+
+function renderCredentialAudit(
+  provider: ModelProviderGovernanceView,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (!provider.credentialUpdatedAt) return null;
+  const updatedAt = formatDateTime(provider.credentialUpdatedAt);
+  return (
+    <Text type="secondary">
+      {evidenceDetailsEnabled
+        ? `${updatedAt} · ${provider.credentialUpdatedBy ?? "未知更新人"}`
+        : `${updatedAt} · 已记录`}
+    </Text>
+  );
+}
+
 export default function ProviderSetupPanel() {
   const security = useSecurityProfile();
   const canManage =
     security.data?.permissions?.some((permission) => permission.code === "llm.provider.manage") ??
     false;
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const [providerPage, setProviderPage] = useState(1);
   const providers = useModelProviders(
     { page: providerPage, size: PROVIDER_PAGE_SIZE },
@@ -222,12 +264,8 @@ export default function ProviderSetupPanel() {
       title: "模型服务",
       key: "provider",
       width: 220,
-      render: (_: unknown, provider: ModelProviderGovernanceView) => (
-        <Space direction="vertical" size={0} className={styles.providerCell}>
-          <Text strong>{provider.providerCode}</Text>
-          <Text type="secondary">{provider.modelVersion}</Text>
-        </Space>
-      ),
+      render: (_: unknown, provider: ModelProviderGovernanceView) =>
+        renderProviderIdentity(provider, evidenceDetailsEnabled),
     },
     {
       title: "密钥",
@@ -236,12 +274,7 @@ export default function ProviderSetupPanel() {
       render: (_: unknown, provider: ModelProviderGovernanceView) => (
         <Space direction="vertical" size={0}>
           {credentialLabel(provider)}
-          {provider.credentialUpdatedAt ? (
-            <Text type="secondary">
-              {formatDateTime(provider.credentialUpdatedAt)} ·{" "}
-              {provider.credentialUpdatedBy ?? "未知更新人"}
-            </Text>
-          ) : null}
+          {renderCredentialAudit(provider, evidenceDetailsEnabled)}
         </Space>
       ),
     },
@@ -365,11 +398,14 @@ export default function ProviderSetupPanel() {
       <Card
         title="模型服务与密钥"
         extra={
-          canManage ? (
-            <Button type="primary" onClick={openNewProviderModal}>
-              登记模型服务
-            </Button>
-          ) : null
+          <Space wrap>
+            <EvidenceDetailsToggle securityProfile={security.data} />
+            {canManage ? (
+              <Button type="primary" onClick={openNewProviderModal}>
+                登记模型服务
+              </Button>
+            ) : null}
+          </Space>
         }
       >
         <Space direction="vertical" size="middle" className="mk-full-width">

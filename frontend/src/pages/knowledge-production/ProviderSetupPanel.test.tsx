@@ -12,6 +12,7 @@ import {
   useUpsertModelProvider,
 } from "@/shared/api/modelProviders";
 import { useSecurityProfile } from "@/shared/api/hooks";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 import ProviderSetupPanel from "./ProviderSetupPanel";
 
@@ -70,6 +71,7 @@ function providerQuery(status: "HEALTHY" | "NOT_CONNECTED" = "NOT_CONNECTED") {
 describe("ProviderSetupPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useEvidenceDetailsStore.setState({ enabled: false });
     vi.mocked(useSecurityProfile).mockReturnValue({
       data: {
         permissions: [{ code: "llm.provider.manage" }],
@@ -103,6 +105,27 @@ describe("ProviderSetupPanel", () => {
     expect(screen.getByText("尾号 1234")).toBeInTheDocument();
     expect(screen.getByText("待健康检查")).toBeInTheDocument();
     expect(screen.queryByText(/sk-/)).not.toBeInTheDocument();
+  });
+
+  it("hides provider implementation identifiers by default and reveals them as evidence details", async () => {
+    const user = userEvent.setup();
+    render(
+      <ConfigProvider>
+        <ProviderSetupPanel />
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByText("OpenAI 兼容服务")).toBeInTheDocument();
+    expect(screen.getByText("medical-v1")).toBeInTheDocument();
+    expect(screen.queryByText("medical-model")).not.toBeInTheDocument();
+    expect(screen.queryByText("https://model.example.com/v1")).not.toBeInTheDocument();
+    expect(screen.queryByText(/platform-admin/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("medical-model")).toBeInTheDocument();
+    expect(screen.getByText("https://model.example.com/v1")).toBeInTheDocument();
+    expect(screen.getByText(/platform-admin/)).toBeInTheDocument();
   });
 
   it("blocks enablement until the latest real health check passes", () => {
@@ -207,7 +230,7 @@ describe("ProviderSetupPanel", () => {
       </ConfigProvider>,
     );
 
-    await screen.findByText("medical-model");
+    await screen.findByText("OpenAI 兼容服务");
     await user.click(screen.getByRole("button", { name: "轮换密钥" }));
     await user.type(screen.getByLabelText("模型密钥"), "sk-fake-provider-key-1234");
     await user.type(screen.getByLabelText("变更原因"), "轮换");
