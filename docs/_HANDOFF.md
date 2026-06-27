@@ -9,15 +9,16 @@
   Git 历史，不作为当前事实入口。
 - 当前分支：`codex/engine-core-golive`，本地领先 `origin/main`；只允许本地提交，禁止推送远程、禁止合并
   `main`。
-- 134 运行候选：`10f06bea22cace41856d3b3153ab387fb12b0230`（`修正真实前台演练随访字段口径`）。
-- 本地最新体验切片：`823a2c00`（`优化真实前台随访模板创建体验`），已验证但 134 仍运行上一清库演练候选；
-  下一轮部署前必须以本地最新提交重建前端包。
+- 134 运行候选：`930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`（`按可见业务文本选择随访下拉项`）。
+- 截至 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca` 的体验与演练切片已同步到 134；本接力文档提交只更新事实，
+  不改变 134 运行制品，避免后续误判 manifest。
 - 当前目标：完成 MedKernel 全新项目上线级整体梳理与落地，统一平台权威版本与全链路能力，移除旧兼容和冗余设计，
   完善真实功能页面与统一迁移生成，完成代码、契约、前后端、文档、测试、构建核查，并在 134 清库重新部署完成
   全功能与全知识全流程演练。
-- 当前阶段结论：现有模式八段全系统演练已在 134 用 `10f06bea22ca` 清库部署后通过；真实前台全角色体验优化已启动，
-  已完成随访模板创建薄切片，下一步继续按全角色真实操作扫描页面分类、流程完整性、权限态、错态、敏感信息与证据表达，
-  不能只围绕用户临时提到的单点修补。
+- 当前阶段结论：现有模式八段全系统演练已在 134 清库部署后通过；基础真实前台数据路线已按前台操作跑通，
+  平台接入、知识值集、模型外调安全策略、MPI 患者和随访模板均由页面提交产生。下一步进入全角色真实体验与全局产品优化，
+  按医生、护士、药师、医技、质控、患者/代理、平台管理员、医疗引擎运营员、审计员、信息科长、实施工程师、院长等视角
+  扫描页面分类、流程完整性、权限态、错态、敏感信息与证据表达，不能只围绕用户临时提到的单点修补。
 
 ## 当前唯一权威
 
@@ -47,12 +48,13 @@
 ## 134 当前事实
 
 - 目标主机：`193.112.107.134`，hostname：`VM-0-13-opencloudos`。
-- 当前运行候选：`10f06bea22cace41856d3b3153ab387fb12b0230`。
+- 当前运行候选：`930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 运行 manifest：`/zoesoft/medkernel/manifest.properties`：
-  `source=10f06bea22cace41856d3b3153ab387fb12b0230`，
-  `commit=10f06bea22cace41856d3b3153ab387fb12b0230`，
-  `deployedAt=2026-06-27T10:09:45+08:00`，
-  `jarSha256=6aadb21c09415c58449cff9bbf42dbe5c18993f26e35a1fd946afa11cdd551d9`。
+  `source=930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`，
+  `commit=930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`，
+  `deployedAt=2026-06-27T19:36:50+08:00`，
+  `jarSha256=cc04f4a83d94e2dc6d0327d2ae268a622ceba6e1c236af51ef7a8c88bef763a8`。
+- 最新非清库发布备份：`/zoesoft/medkernel/backups/deploy-20260627-193647`。
 - 最新清库部署证据：
   `/zoesoft/medkernel/backups/fresh-preclear-10f06bea22ca-20260627-100930/evidence`。
 - readiness 正确路径：
@@ -76,6 +78,10 @@
   `823a2c00` 将随访模板创建从手填组织范围、病种、问卷模板标识、问题标识和依据字段，优化为业务选项与分组表单；
   标准码迁入 `frontend/src/shared/config/followupTemplateCatalog.ts`，页面仍向后端提交完整 `organizationScope`、
   `applicableScope`、`questionnaireTemplateId`、`questionCode` 与 `sourceRef` 契约；真实前台 E2E 同步改为前台选择业务项。
+- 最新演练基础设施切片：
+  `a785eb02` 修复发布失败回滚后数据库 public 对象 owner 未恢复给运行账号的问题；
+  `d318d6d0`、`258d3241`、`bc9879c5`、`23891910`、`930745d5` 稳定真实前台 E2E 登录态与 AntD Select 选择逻辑；
+  这些提交只服务于可追溯部署/演练，不改变产品事实口径。
 - 本地关键验证：
   `npm run typecheck`、`npm test -- --run src/pages/clinical/Followup.test.tsx` 已在 `10f06bea` 前通过；
   该阶段只完成随访字段口径纠偏，`823a2c00` 后已进一步改为业务选项化表单。
@@ -103,9 +109,14 @@
   `17/17`。
 - 浏览器 E2E：
   Playwright `50 passed (13.6m)`；两套浏览器项目均覆盖真实前台数据链路。
-- 前台真实操作演练证据：
-  `/zoesoft/medkernel/var/evidence/current-launch/e2e/artifacts/real-frontdesk-rehearsal-*`；
-  平台接入、知识值集、模型外调安全策略、MPI 患者和随访模板均由前台页面提交产生。
+- 最新基础真实前台演练：
+  134 `source-930745d5` 执行
+  `npm run e2e -- real-frontdesk-rehearsal.spec.ts --project=chromium`，结果 `1 passed (43.3s)`。
+- 最新基础真实前台证据：
+  `/zoesoft/medkernel/var/evidence/current-launch/e2e-930-real-frontdesk`；
+  `.last-run.json` 为 `passed`；runtime 记录显示平台接入、知识值集、模型外调安全策略、MPI 患者、随访模板 5 个阶段均无浏览器错误、
+  无 HTTP 错误、无网络失败；截图包含 `real-frontdesk-adapter`、`real-frontdesk-value-set`、
+  `real-frontdesk-model-egress-policy`、`real-frontdesk-mpi-patient`、`real-frontdesk-followup-template`。
 - 覆盖审计：
   `/zoesoft/medkernel/var/evidence/current-launch/launch-coverage.json`，阶段 8 通过。
 - 发布后独立验收：
@@ -120,11 +131,11 @@
 
 ## 下一步
 
-1. 以本地最新提交重新构建候选包，择机同步到 134，确认前端真实前台脚本使用新的随访模板业务选项。
-2. 继续真实前台全角色体验：平台管理员看系统接入与安全基线，医疗引擎运营员看知识生产和版本发布，临床使用者拆分医生、
+1. 进入真实前台全角色体验：平台管理员看系统接入与安全基线，医疗引擎运营员看知识生产和版本发布，临床使用者拆分医生、
    护士、药师、医技、质控、患者代理路径，审计员看来源、操作证据和敏感信息边界；信息科长、实施工程师、院长视角看部署、
    权限、全院指标和故障降级。
-3. 后续优先扫描 `MPI`、患者路径、待办、CDSS 疲劳、沙盘、模型外调策略、来源血缘、审计、安全基线和运行诊断页面：
+2. 后续优先扫描 `MPI`、患者路径、待办、CDSS 疲劳、沙盘、模型外调策略、来源血缘、审计、安全基线和运行诊断页面：
    功能分类、页面目标、空态/错态/权限态、流程完整性、操作复杂度、敏感信息处理、证据详情表达都要全局审计。
-4. 优先发现并修复真实产品问题，而不是只优化用户临时指出的点；修复后仍需本地验证、必要时重新构建并在 134 复验。
+3. 优先发现并修复真实产品问题，而不是只优化用户临时指出的点；修复后仍需本地验证、必要时重新构建并在 134 复验。
+4. 下一阶段仍需在 134 执行全角色、全知识、全流程复演；本轮只证明基础真实前台数据路线已跑通。
 5. 保持本地提交，不推送远程，不合并 `main`；不要提交未跟踪的 `.codex/config.toml`。
