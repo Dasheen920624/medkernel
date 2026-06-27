@@ -238,9 +238,10 @@ describe("AdminAudit", () => {
     const user = userEvent.setup();
     render(<AdminAudit />);
 
-    expect(screen.getByText("auditor-1")).toBeInTheDocument();
     expect(screen.getByText("导出")).toBeInTheDocument();
-    expect(screen.getByText("追踪号 trace-7")).toBeInTheDocument();
+    expect(screen.queryByText("auditor-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("追踪号 trace-7")).not.toBeInTheDocument();
+    expect(screen.queryByText("审计记录 snapshot-7")).not.toBeInTheDocument();
     expect(screen.getByText("链签名已登记")).toBeInTheDocument();
     expect(screen.getByText(/事件按服务机构与组织范围隔离/)).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
@@ -339,11 +340,20 @@ describe("AdminAudit", () => {
     await user.click(screen.getByRole("tab", { name: "模型外调确认" }));
 
     expect(useModelEgressConfirmations).toHaveBeenCalledWith({ page: 1, size: 20 }, true);
+    expect(screen.getByText("临床解释与患者沟通")).toBeInTheDocument();
+    expect(screen.getByText("向患者解释检查结果，仅使用已脱敏字段")).toBeInTheDocument();
+    expect(screen.getByText("脱敏载荷摘要已生成")).toBeInTheDocument();
+    expect(screen.getByText("已记录确认人")).toBeInTheDocument();
+    expect(screen.queryByText("clinical.explanation")).not.toBeInTheDocument();
+    expect(screen.queryByText("sha256:payload-001")).not.toBeInTheDocument();
+    expect(screen.queryByText("operator-001")).not.toBeInTheDocument();
+    expect(screen.queryByText("事件 evt-7")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
     expect(screen.getByText("clinical.explanation")).toBeInTheDocument();
     expect(screen.getByText("sha256:payload-001")).toBeInTheDocument();
-    expect(screen.getByText("向患者解释检查结果，仅使用已脱敏字段")).toBeInTheDocument();
     expect(screen.getByText("operator-001")).toBeInTheDocument();
-    expect(screen.queryByText("事件 evt-7")).not.toBeInTheDocument();
   });
 
   it("uses evidence details only for low-frequency evidence fields", async () => {
@@ -353,6 +363,9 @@ describe("AdminAudit", () => {
     expect(screen.queryByText("事件 evt-7")).not.toBeInTheDocument();
     await user.click(screen.getByRole("switch", { name: "证据详情" }));
 
+    expect(screen.getByText("auditor-1")).toBeInTheDocument();
+    expect(screen.getByText("追踪号 trace-7")).toBeInTheDocument();
+    expect(screen.getByText("审计记录 snapshot-7")).toBeInTheDocument();
     expect(screen.getByText("事件 evt-7")).toBeInTheDocument();
     expect(screen.getByText("环境未标记")).toBeInTheDocument();
     expect(screen.getByText("载荷未生成")).toBeInTheDocument();
@@ -362,7 +375,7 @@ describe("AdminAudit", () => {
     const user = userEvent.setup();
     render(<AdminAudit />);
 
-    await user.click(screen.getByRole("button", { name: "查看详情 evt-7" }));
+    await user.click(screen.getByRole("button", { name: "查看详情 导出审计证据" }));
     await user.click(screen.getByRole("button", { name: "打开诊断链 trace-7" }));
 
     expect(screen.getByRole("dialog", { name: "审计事件详情" })).toBeInTheDocument();

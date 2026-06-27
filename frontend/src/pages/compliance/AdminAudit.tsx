@@ -44,6 +44,7 @@ import {
   type TraceStateTransition,
 } from "@/shared/api/hooks";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { MODEL_CAPABILITY_OPTIONS } from "@/shared/config/modelProduction";
 import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { AsyncExportAction } from "@/shared/ui/AsyncExportAction";
@@ -75,6 +76,10 @@ const PAGE_META: { title: string; experience: RouteExperience } = {
   title: route.title,
   experience: route.experience,
 };
+const MODEL_EGRESS_CAPABILITY_LABELS = new Map<string, string>([
+  ...MODEL_CAPABILITY_OPTIONS.map((option) => [option.value, option.label] as const),
+  ["clinical.explanation", "临床解释与患者沟通"],
+]);
 
 function filterValue(filters: readonly ExperienceFilterValue[], key: string) {
   const value = filters.find((filter) => filter.key === key)?.value;
@@ -123,7 +128,11 @@ function auditActionLabel(actionCode?: string | null) {
   return actionCode ? (labels[actionCode] ?? customerEnumLabel(actionCode)) : "未记录";
 }
 
-function auditResourceLabel(resourceType?: string | null, resourceId?: string | null) {
+function auditResourceLabel(
+  resourceType?: string | null,
+  resourceId?: string | null,
+  evidenceDetailsEnabled = true,
+) {
   const labels: Record<string, string> = {
     audit: "审计记录",
     AUDIT_EVENT: "审计事件",
@@ -133,11 +142,28 @@ function auditResourceLabel(resourceType?: string | null, resourceId?: string | 
   const resourceLabel = resourceType
     ? (labels[resourceType] ?? customerEnumLabel(resourceType))
     : "业务对象";
-  return `${resourceLabel}${resourceId ? ` ${resourceId}` : ""}`;
+  return `${resourceLabel}${evidenceDetailsEnabled && resourceId ? ` ${resourceId}` : ""}`;
+}
+
+function auditActorLabel(actorUserId?: string | null, evidenceDetailsEnabled = true) {
+  if (evidenceDetailsEnabled) return actorUserId ?? "系统";
+  return actorUserId ? "已记录操作人" : "系统操作";
 }
 
 function signatureStatusLabel(signature?: string | null) {
   return signature?.trim() ? "链签名已登记" : "链签名未生成";
+}
+
+function modelEgressCapabilityLabel(capabilityCode: string) {
+  return MODEL_EGRESS_CAPABILITY_LABELS.get(capabilityCode) ?? "模型能力已记录";
+}
+
+function modelEgressConfirmationActorLabel(
+  confirmedBy?: string | null,
+  evidenceDetailsEnabled = true,
+) {
+  if (evidenceDetailsEnabled) return confirmedBy ?? "系统";
+  return confirmedBy ? "已记录确认人" : "系统确认";
 }
 
 function confirmationStatusTag(status: ExportConfirmation["status"]) {
@@ -305,10 +331,9 @@ export default function AdminAudit() {
           "summary",
           "actionCode",
           "outcome",
-          "traceId",
           "signature",
           "occurredAt",
-          "actorUserId",
+          "actor",
           "resource",
         ],
     evidenceDetailsEnabled,
@@ -327,9 +352,11 @@ export default function AdminAudit() {
             <Tag>{auditActionLabel(record.actionCode)}</Tag>
             {outcomeTag(record.outcome)}
           </Space>
-          <Text type="secondary" className={styles.auditEvidenceText}>
-            追踪号 {record.traceId ?? "未返回"}
-          </Text>
+          {evidenceDetailsEnabled ? (
+            <Text type="secondary" className={styles.auditEvidenceText}>
+              追踪号 {record.traceId ?? "未返回"}
+            </Text>
+          ) : null}
           <Text type="secondary">{signatureStatusLabel(record.signature)}</Text>
         </div>
       ),
@@ -344,14 +371,14 @@ export default function AdminAudit() {
       title: "操作人",
       dataIndex: "actorUserId",
       width: 150,
-      render: (value: string | null) => value ?? "系统",
+      render: (value: string | null) => auditActorLabel(value, evidenceDetailsEnabled),
     },
     {
       title: "证据对象",
       key: "resource",
       width: 220,
       render: (_value: unknown, record: AuditEventRow) =>
-        auditResourceLabel(record.resourceType, record.resourceId),
+        auditResourceLabel(record.resourceType, record.resourceId, evidenceDetailsEnabled),
     },
     {
       title: "详情",
@@ -359,7 +386,11 @@ export default function AdminAudit() {
       render: (_value: unknown, record: AuditEventRow) => (
         <Tooltip title="查看审计详情">
           <Button
-            aria-label={`查看详情 ${record.eventId}`}
+            aria-label={
+              evidenceDetailsEnabled
+                ? `查看详情 ${record.eventId}`
+                : `查看详情 ${record.summary || "审计事件"}`
+            }
             icon={<EyeOutlined />}
             onClick={() => {
               setDiagnosisTraceId("");
@@ -654,7 +685,10 @@ export default function AdminAudit() {
       title: "模型能力",
       render: (_value: unknown, confirmation: ModelEgressConfirmation) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{confirmation.capabilityCode}</Text>
+          <Text strong>{modelEgressCapabilityLabel(confirmation.capabilityCode)}</Text>
+          {evidenceDetailsEnabled ? (
+            <Text type="secondary">{confirmation.capabilityCode}</Text>
+          ) : null}
           <Text type="secondary">{formatTime(confirmation.confirmedAt)}</Text>
         </Space>
       ),
@@ -667,15 +701,22 @@ export default function AdminAudit() {
     {
       title: "脱敏载荷摘要",
       render: (_value: unknown, confirmation: ModelEgressConfirmation) => (
-        <Text code copyable>
-          {confirmation.payloadHash}
-        </Text>
+        evidenceDetailsEnabled ? (
+          <Text code copyable>
+            {confirmation.payloadHash}
+          </Text>
+        ) : (
+          <Text type="secondary">
+            {confirmation.payloadHash ? "脱敏载荷摘要已生成" : "脱敏载荷摘要未生成"}
+          </Text>
+        )
       ),
     },
     {
       title: "确认人",
       dataIndex: "confirmedBy",
-      render: (value?: string | null) => value ?? "系统",
+      render: (value?: string | null) =>
+        modelEgressConfirmationActorLabel(value, evidenceDetailsEnabled),
     },
   ];
 
