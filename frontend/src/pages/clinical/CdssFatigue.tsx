@@ -34,7 +34,6 @@ import {
   ExclamationCircleOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
-import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
 import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
@@ -50,6 +49,7 @@ import {
   useSubmitRecommendationFeedback,
   useRecommendationFatigueSignals,
   useRecommendationTriggerDiagnose,
+  useSecurityProfile,
 } from "@/shared/api/hooks";
 import type {
   ClinicalRecommendationCard,
@@ -61,12 +61,31 @@ import type {
   RecommendationFeedbackType,
 } from "@/shared/api/hooks";
 import { customerDisplayText, customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
+import { findRouteByPath } from "@/shared/config/routes";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { roleLabel } from "@/shared/config/roleCatalog";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
+import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import styles from "./Clinical.module.css";
 
 const { TextArea } = Input;
 const { Option } = Select;
 const FATIGUE_POLICY_CONFIG_KEY = "medkernel.cdss.fatigue.policy";
+const route = findRouteByPath("/cdss/fatigue");
+const PAGE_META = {
+  title: route?.title ?? "提醒与推荐",
+  experience: route?.experience ?? {
+    primaryRole: "临床使用者",
+    goal: "查看临床提醒负担和治理线索",
+    defaultView: "需关注提醒",
+    defaultFilters: [],
+    evidenceDetailContent: ["推荐卡编号", "患者上下文编号", "触发追踪号", "决策输入摘要"],
+    interruptionLevel: "info" as const,
+    evidence: "推荐触发、医生反馈、知识来源和频次治理均保留审计证据",
+    dataScale: { expected: "large" as const, pagination: "page" as const, exportStrategy: "none" as const },
+    riskLevel: "medium" as const,
+  },
+};
 
 type RecommendationBadgeStatus = Exclude<BadgeProps["status"], undefined>;
 type RecommendationFatigueGovernance = {
@@ -111,6 +130,20 @@ const scenarioLabels: Record<string, string> = {
   DISCHARGE: "出院",
   DEFAULT: "通用场景",
 };
+
+const clinicalRoleLabels: Record<string, string> = {
+  DOCTOR: "医生",
+  NURSE: "护士",
+  PHARMACIST: "药师",
+  TECHNICIAN: "医技人员",
+  QUALITY_MANAGER: "质控人员",
+  PATIENT: "患者",
+};
+
+function clinicalRoleLabel(value?: string | null) {
+  if (!value) return "未设置角色";
+  return clinicalRoleLabels[value] ?? roleLabel(value);
+}
 
 const FORBIDDEN_ERROR_CODES = new Set([
   "ENG-API-004",
@@ -226,45 +259,55 @@ function getRecommendationJourneySteps(
     explanationSnapshot?: string;
     statusHistory?: Array<{ summary?: string }>;
   } | null,
+  evidenceDetailsEnabled = false,
 ): RecommendationJourneyStep[] {
   const sourceTitle = sources?.[0]?.title ?? detail.card.sourceSummary;
   const latestFeedback = detail.feedback[0];
+  const triggerScenario = detail.trigger?.triggerType ?? detail.card.scenarioCode ?? "";
   return [
     {
       title: "触发事件",
-      status: textOrDash(detail.trigger?.triggerType || detail.card.scenarioCode),
+      status: scenarioLabels[triggerScenario] ?? "已接收事件",
       description: "来自患者上下文、医嘱签署、检验回报或外部系统事件。",
-      evidence: detail.trigger?.sourceEventId || detail.trigger?.triggerId || detail.card.triggerId,
+      evidence: evidenceDetailsEnabled
+        ? detail.trigger?.sourceEventId || detail.trigger?.triggerId || detail.card.triggerId
+        : undefined,
     },
     {
       title: "命中规则",
-      status: textOrDash(diagnose?.ruleId || detail.card.cardCode || detail.card.fatigueKey),
+      status: evidenceDetailsEnabled
+        ? textOrDash(diagnose?.ruleId || detail.card.cardCode || detail.card.fatigueKey)
+        : riskLabel(detail.card.riskLevel),
       description: "规则引擎与红线检查给出风险级别和推荐动作。",
-      evidence: diagnose?.explanationSnapshot || detail.card.summary,
+      evidence: evidenceDetailsEnabled ? diagnose?.explanationSnapshot || detail.card.summary : undefined,
     },
     {
       title: "知识来源",
       status: sourceTitle ? "已有来源" : "待补来源",
       description: sourceTitle || "该卡片暂未返回来源解释，暂不展示来源证据。",
-      evidence: sources?.[0]?.sourceRef,
+      evidence: evidenceDetailsEnabled ? sources?.[0]?.sourceRef : undefined,
     },
     {
       title: "路径上下文",
-      status: textOrDash(detail.trigger?.patientPathwayId),
+      status: detail.trigger?.patientPathwayId ? "已关联路径" : "未关联路径",
       description: "把推荐放回患者路径位置，辅助医生判断下一步。",
-      evidence: detail.trigger?.patientPathwayId,
+      evidence: evidenceDetailsEnabled ? detail.trigger?.patientPathwayId : undefined,
     },
     {
       title: "待办 / 通知",
       status: getRecommendationStatusLabel(detail.card.status),
       description: "推荐卡会同步为医生待办或通知；状态以真实闭环为准。",
-      evidence: `追踪号：${diagnose?.traceId || detail.trigger?.traceId || detail.traceId}`,
+      evidence: evidenceDetailsEnabled
+        ? `追踪号：${diagnose?.traceId || detail.trigger?.traceId || detail.traceId}`
+        : undefined,
     },
     {
       title: "医生反馈",
       status: latestFeedback ? getFeedbackTypeLabel(latestFeedback.feedbackType) : "待处理",
       description: latestFeedback?.reasonText || "医生采纳或不采纳时必须留下真实理由。",
-      evidence: latestFeedback?.operatorRole ? roleLabel(latestFeedback.operatorRole) : undefined,
+      evidence: latestFeedback?.operatorRole
+        ? clinicalRoleLabel(latestFeedback.operatorRole)
+        : undefined,
     },
     {
       title: "药师复核",
@@ -275,6 +318,22 @@ function getRecommendationJourneySteps(
       evidence: diagnose?.statusHistory?.[0]?.summary,
     },
   ];
+}
+
+function renderPatientContextCell(
+  patientId: string | undefined,
+  record: ClinicalRecommendationCard,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) {
+    return (
+      <div>
+        <div className={styles.textStrong}>{patientId || "未关联"}</div>
+        {record.encounterId && <div className={styles.textSmall}>{record.encounterId}</div>}
+      </div>
+    );
+  }
+  return patientId ? "已关联患者" : "未关联患者";
 }
 
 /** 计算输入载荷的真实 SHA-256 摘要（不伪造哈希）。 */
@@ -297,6 +356,9 @@ export default function CdssFatigue() {
   // 医师反馈表单绑定
   const [feedbackForm] = Form.useForm();
   const [triggerForm] = Form.useForm();
+  const security = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
 
   // 真实推荐卡列表：服务分页 + 服务端过滤，页面不伪造卡片。
   const {
@@ -385,7 +447,12 @@ export default function CdssFatigue() {
   const feedbackMutation = useSubmitRecommendationFeedback(selectedCardId || "");
   const selectedFatigueGovernance = getFatigueGovernance(detailData?.card);
   const selectedJourneySteps = detailData
-    ? getRecommendationJourneySteps(detailData, sourcesData ?? detailData.sources, diagnoseData)
+    ? getRecommendationJourneySteps(
+        detailData,
+        sourcesData ?? detailData.sources,
+        diagnoseData,
+        evidenceDetailsEnabled,
+      )
     : [];
 
   const openTriggerModal = (mode: TriggerModalMode) => {
@@ -485,14 +552,18 @@ export default function CdssFatigue() {
 
   // 表格列
   const columns: TableProps<ClinicalRecommendationCard>["columns"] = [
-    {
-      title: "卡片编号",
-      dataIndex: "cardId",
-      key: "cardId",
-      render: (text: string) => (
-        <span className={`${styles.codeText} ${styles.textStrong}`}>{text}</span>
-      ),
-    },
+    ...(evidenceDetailsEnabled
+      ? [
+          {
+            title: "卡片编号",
+            dataIndex: "cardId",
+            key: "cardId",
+            render: (text: string) => (
+              <span className={`${styles.codeText} ${styles.textStrong}`}>{text}</span>
+            ),
+          },
+        ]
+      : []),
     {
       title: "提醒摘要",
       dataIndex: "title",
@@ -501,9 +572,11 @@ export default function CdssFatigue() {
       width: 280,
     },
     {
-      title: "患者 ID",
+      title: evidenceDetailsEnabled ? "患者编号" : "患者上下文",
       dataIndex: "patientId",
       key: "patientId",
+      render: (patientId: string | undefined, record) =>
+        renderPatientContextCell(patientId, record, evidenceDetailsEnabled),
     },
     {
       title: "严重度",
@@ -614,10 +687,7 @@ export default function CdssFatigue() {
   }
 
   return (
-    <PageShell
-      title="提醒与推荐"
-      description="把临床推荐卡、待办、通知、医生反馈、知识来源和审计追溯放在同一页，医生先处理风险，质控再复核证据。"
-    >
+    <PageExperienceShell meta={PAGE_META} securityProfile={security.data}>
       <div className={`${styles.surface} ${styles.journeyOverview}`}>
         <div className={styles.rowBetween}>
           <div>
@@ -651,7 +721,7 @@ export default function CdssFatigue() {
       <div className={`${styles.surface} ${styles.filterSurface}`}>
         <div className={`${styles.sectionTitle} ${styles.sectionGap}`}>
           <SearchOutlined className={styles.iconInfo} />
-          <span>按患者标识 / 追踪号 / 来源编号查推荐</span>
+          <span>按患者信息 / 风险 / 证据线索查推荐</span>
         </div>
         <Form layout="vertical" className={styles.inlineForm}>
           <Form.Item label="状态">
@@ -687,10 +757,10 @@ export default function CdssFatigue() {
               <Option value="LOW">低风险（绿线低打扰）</Option>
             </Select>
           </Form.Item>
-          <Form.Item label="患者或追踪号" htmlFor="recommendation-quick-search">
+          <Form.Item label="患者或证据线索" htmlFor="recommendation-quick-search">
             <Input
               id="recommendation-quick-search"
-              placeholder="输入患者标识、追踪号、卡片或触发事件"
+              placeholder="输入姓名、门急诊号、院内患者编号或证据线索"
               allowClear
               value={quickSearch}
               onChange={(e) => {
@@ -785,10 +855,10 @@ export default function CdssFatigue() {
         >
           <Row gutter={12}>
             <Col span={12}>
-              <Form.Item label="患者 ID" htmlFor="cdss-snapshot-patient">
+              <Form.Item label="患者信息" htmlFor="cdss-snapshot-patient">
                 <Input
                   id="cdss-snapshot-patient"
-                  placeholder="输入患者 ID 检索已生效快照"
+                  placeholder="输入姓名、门急诊号或院内患者编号"
                   value={snapshotPatientId}
                   onChange={(event) => {
                     setSnapshotPatientId(event.target.value);
@@ -798,10 +868,10 @@ export default function CdssFatigue() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="就诊 ID" htmlFor="cdss-snapshot-encounter">
+              <Form.Item label="就诊信息" htmlFor="cdss-snapshot-encounter">
                 <Input
                   id="cdss-snapshot-encounter"
-                  placeholder="可单独按就诊 ID 检索"
+                  placeholder="可按门急诊号或就诊信息缩小范围"
                   value={snapshotEncounterId}
                   onChange={(event) => {
                     setSnapshotEncounterId(event.target.value);
@@ -829,6 +899,7 @@ export default function CdssFatigue() {
             snapshots={snapshotsQuery.data?.items ?? []}
             selectedSnapshotId={selectedSnapshotId}
             onSelect={setSelectedSnapshotId}
+            evidenceDetailsEnabled={evidenceDetailsEnabled}
           />
           {snapshotDetailQuery.data && (
             <Descriptions bordered size="small" column={3} className={styles.sectionGap}>
@@ -838,9 +909,11 @@ export default function CdssFatigue() {
               <Descriptions.Item label="质量">
                 {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
               </Descriptions.Item>
-              <Descriptions.Item label="追踪号">
-                {snapshotDetailQuery.data.traceId || "未返回"}
-              </Descriptions.Item>
+              {evidenceDetailsEnabled && (
+                <Descriptions.Item label="追踪号">
+                  {snapshotDetailQuery.data.traceId || "未返回"}
+                </Descriptions.Item>
+              )}
             </Descriptions>
           )}
         </Form>
@@ -890,21 +963,29 @@ export default function CdssFatigue() {
               size="small"
               className={styles.sectionGapLg}
             >
-              <Descriptions.Item label="卡片编号">
-                <span className={`${styles.codeText} ${styles.textStrong}`}>
-                  {detailData.card.cardId}
-                </span>
-              </Descriptions.Item>
-              <Descriptions.Item label="患者 ID">
-                <span className={styles.textStrong}>
-                  {detailData.trigger?.patientId || "未关联"}
-                </span>
-              </Descriptions.Item>
-              <Descriptions.Item label="就诊编码">
-                <span className={styles.codeText}>
-                  {detailData.trigger?.encounterId || "未关联"}
-                </span>
-              </Descriptions.Item>
+              {evidenceDetailsEnabled ? (
+                <>
+                  <Descriptions.Item label="卡片编号">
+                    <span className={`${styles.codeText} ${styles.textStrong}`}>
+                      {detailData.card.cardId}
+                    </span>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="患者编号">
+                    <span className={styles.textStrong}>
+                      {detailData.trigger?.patientId || "未关联"}
+                    </span>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="就诊编码">
+                    <span className={styles.codeText}>
+                      {detailData.trigger?.encounterId || "未关联"}
+                    </span>
+                  </Descriptions.Item>
+                </>
+              ) : (
+                <Descriptions.Item label="患者与就诊" span={3}>
+                  患者与就诊已关联
+                </Descriptions.Item>
+              )}
               <Descriptions.Item label="决策场景">
                 <Tag color="cyan">
                   {detailData.trigger?.scenarioCode
@@ -946,8 +1027,9 @@ export default function CdssFatigue() {
                     children: (
                       <div>
                         <div className={styles.timelineTitle}>
-                          {item.operatorId} · {roleLabel(item.operatorRole || "DOCTOR")} ·{" "}
-                          {getFeedbackTypeLabel(item.feedbackType)}
+                          {evidenceDetailsEnabled
+                            ? `${item.operatorId} · ${clinicalRoleLabel(item.operatorRole || "DOCTOR")} · ${getFeedbackTypeLabel(item.feedbackType)}`
+                            : `${clinicalRoleLabel(item.operatorRole || "DOCTOR")} · ${getFeedbackTypeLabel(item.feedbackType)}`}
                         </div>
                         <div className={styles.timelineMeta}>
                           {item.reasonText || item.reasonCode || "未记录说明"}
@@ -1210,7 +1292,7 @@ export default function CdssFatigue() {
                 }}
                 className={styles.wideAction}
               >
-                查看决策链追溯
+                查看决策依据
               </Button>
             </div>
           </div>
@@ -1221,7 +1303,7 @@ export default function CdssFatigue() {
         title={
           <div className={styles.drawerTitle}>
             <BugOutlined className={styles.iconInfo} />
-            <span>推荐决策链可信归因审计</span>
+            <span>推荐决策依据与审计证据</span>
           </div>
         }
         width={640}
@@ -1232,33 +1314,39 @@ export default function CdssFatigue() {
         {diagnoseData ? (
           <div>
             <Alert
-              message="决策解释追溯数据提取自底座 StateTransitionRecorder 物理事件留痕，保证透明、可复核、可审计。"
+              message="这里展示推荐产生的可复核依据；原始执行编号、追踪号和输入摘要仅在证据详情中展开。"
               type="info"
               showIcon
               className={styles.sectionGapLg}
             />
 
             <Descriptions
-              title="评估追踪信息"
+              title="评估概览"
               bordered
               column={1}
               size="small"
               className={styles.sectionGapLg}
             >
-              <Descriptions.Item label="推荐触发编号">
-                <span className={styles.codeText}>{diagnoseData.executionId}</span>
-              </Descriptions.Item>
-              <Descriptions.Item label="追踪号">
-                <span className={styles.codeText}>{diagnoseData.traceId}</span>
-              </Descriptions.Item>
-              <Descriptions.Item label="输入内容校验码">
-                <span className={styles.codeText}>{diagnoseData.inputPayloadSummary || "—"}</span>
-              </Descriptions.Item>
               <Descriptions.Item label="提醒卡风险定级">
                 <Tag color={diagnoseData.riskLevel === "HIGH" ? "red" : "orange"}>
                   {riskLabel(diagnoseData.riskLevel || "LOW")}
                 </Tag>
               </Descriptions.Item>
+              {evidenceDetailsEnabled && (
+                <>
+                  <Descriptions.Item label="推荐触发编号">
+                    <span className={styles.codeText}>{diagnoseData.executionId}</span>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="追踪号">
+                    <span className={styles.codeText}>{diagnoseData.traceId}</span>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="输入内容校验码">
+                    <span className={styles.codeText}>
+                      {diagnoseData.inputPayloadSummary || "—"}
+                    </span>
+                  </Descriptions.Item>
+                </>
+              )}
             </Descriptions>
 
             <Card
@@ -1279,7 +1367,7 @@ export default function CdssFatigue() {
               title={
                 <div className={styles.sectionTitle}>
                   <CalendarOutlined className={styles.iconInfo} />
-                  <span>审计流转历史 (State History)</span>
+                  <span>审计流转历史</span>
                 </div>
               }
               className={styles.detailCard}
@@ -1294,9 +1382,9 @@ export default function CdssFatigue() {
                       </span>
                     </div>
                     <div className={styles.timelineMeta}>
-                      <span>操作人: </span>
+                      <span>处理角色: </span>
                       <Tag color="cyan" icon={<UserOutlined />}>
-                        {h.changedBy}
+                        {evidenceDetailsEnabled ? h.changedBy : "已记录"}
                       </Tag>
                     </div>
                     <div className={`${styles.timelineMeta} ${styles.italic}`}>{h.summary}</div>
@@ -1312,6 +1400,6 @@ export default function CdssFatigue() {
           </div>
         )}
       </Drawer>
-    </PageShell>
+    </PageExperienceShell>
   );
 }
