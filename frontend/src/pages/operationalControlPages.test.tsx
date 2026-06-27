@@ -40,6 +40,7 @@ import type {
   SecurityProfile,
 } from "@/shared/api/hooks";
 import * as browserCompatibility from "@/shared/lib/browserCompatibility";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 vi.mock("@/shared/api/hooks", () => ({
   downloadDomesticCompatibilityReport: vi.fn(),
@@ -371,6 +372,7 @@ function renderPage(page: React.ReactElement) {
 
 describe("operational control pages", () => {
   beforeEach(() => {
+    useEvidenceDetailsStore.getState().setEnabled(false);
     vi.mocked(useDelegatedAuthStatus).mockReturnValue(query(delegatedAuth) as never);
     vi.mocked(useIdentityBindings).mockReturnValue(
       query({
@@ -616,15 +618,19 @@ describe("operational control pages", () => {
     renderPage(<RuntimeDiagnostics />);
 
     expect(screen.getByRole("heading", { name: "运行诊断" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getByText("系统运行概况")).toBeInTheDocument();
     expect(screen.getAllByText("medkernel").length).toBeGreaterThan(0);
-    expect(screen.getByText("docker-core")).toBeInTheDocument();
+    expect(screen.getByText("容器化部署")).toBeInTheDocument();
+    expect(screen.queryByText("docker-core")).not.toBeInTheDocument();
+    expect(screen.queryByText("classpath:db/migration/postgres")).not.toBeInTheDocument();
     expect(screen.getByText("Java 21")).toBeInTheDocument();
     expect(
       within(screen.getByTestId("runtime-dependencies")).getByText("统一身份来源"),
     ).toBeInTheDocument();
     expect(screen.getByText("运行状态服务")).toBeInTheDocument();
-    expect(screen.getByText("rule.publish")).toBeInTheDocument();
+    expect(screen.getByText("发布规则")).toBeInTheDocument();
+    expect(screen.queryByText("rule.publish")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "服务契约" })).toHaveAttribute(
       "href",
       "/v3/api-docs/medkernel-third-party-integration",
@@ -636,8 +642,26 @@ describe("operational control pages", () => {
 
     await user.click(screen.getByRole("tab", { name: "插件管理" }));
     expect(screen.getByText("病区只读看板")).toBeInTheDocument();
+    expect(screen.queryByText("ward-read-model")).not.toBeInTheDocument();
+    expect(screen.queryByText("read-runtime")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /注册插件/ })).toBeInTheDocument();
     expect(screen.queryByText("入口暂未激活")).not.toBeInTheDocument();
+  });
+
+  it("将运行诊断低频证据收进证据详情", async () => {
+    const user = userEvent.setup();
+    renderPage(<RuntimeDiagnostics />);
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("docker-core")).toBeInTheDocument();
+    expect(screen.getByText("classpath:db/migration/postgres")).toBeInTheDocument();
+    expect(screen.getByText("runtime-operations")).toBeInTheDocument();
+    expect(screen.getByText("rule.publish")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "插件管理" }));
+    expect(screen.getByText("ward-read-model")).toBeInTheDocument();
+    expect(screen.getByText("read-runtime")).toBeInTheDocument();
   });
 
   it("does not emit row key or dynamic form key warnings", async () => {
@@ -668,7 +692,8 @@ describe("operational control pages", () => {
       const traceInput = screen.getByPlaceholderText("输入 追踪号");
       fireEvent.change(traceInput, { target: { value: "trace-console" } });
       fireEvent.keyDown(traceInput, { key: "Enter", code: "Enter" });
-      expect(await screen.findByText("PENDING → SUCCEEDED")).toBeInTheDocument();
+      expect(await screen.findByText("待处理 → 成功")).toBeInTheDocument();
+      expect(screen.queryByText("it-ops-1")).not.toBeInTheDocument();
 
       fireEvent.click(screen.getByRole("tab", { name: "插件管理" }));
       fireEvent.click(screen.getByRole("button", { name: /授权/ }));
