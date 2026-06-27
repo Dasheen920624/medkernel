@@ -241,8 +241,9 @@ async function createFollowupTemplateFromUi(
 }
 
 async function chooseDialogOption(page: Page, dialog: Locator, label: string, option: string) {
-  await dialog.getByLabel(label).click();
-  await page.getByRole("option", { name: option }).click();
+  const select = dialog.locator(".ant-select").filter({ has: dialog.getByLabel(label) });
+  await select.locator(".ant-select-selector").click();
+  await page.getByRole("option", { name: option, exact: true }).click();
 }
 
 function waitForPost(page: Page, path: string) {
