@@ -229,6 +229,13 @@ const RULE_ACTION_LABELS: Record<RuleActionCode, string> = {
   AUTO_DOCUMENT: "自动留痕",
 };
 
+const ruleSuggestionActionOptions = [
+  { value: "ACKNOWLEDGE", label: "记录已知晓" },
+  { value: "SUGGEST_ORDER", label: "建议医嘱" },
+  { value: "OPEN_FORM", label: "打开记录表单" },
+  { value: "NAVIGATE", label: "打开相关页面" },
+];
+
 const RISK_RANK: Record<RuleSeverity, number> = {
   LOW: 1,
   MEDIUM: 2,
@@ -250,6 +257,35 @@ function isClinicalOperator(operator: RuleOperator) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function suggestionTargetPayloadKey(actionType: string | undefined) {
+  if (actionType === "SUGGEST_ORDER") return "orderSetRef";
+  if (actionType === "OPEN_FORM") return "formRef";
+  if (actionType === "NAVIGATE") return "route";
+  return undefined;
+}
+
+function suggestionTargetRef(suggestion: RuleActionDraft["suggestions"][number]) {
+  const key = suggestionTargetPayloadKey(suggestion.actionType);
+  const targetRef = key ? suggestion.payload?.[key] : undefined;
+  return typeof targetRef === "string" ? targetRef : "";
+}
+
+function suggestionPayloadWithTargetRef(
+  suggestion: RuleActionDraft["suggestions"][number],
+  targetRef: string,
+) {
+  const payload = { ...(suggestion.payload ?? {}) };
+  delete payload.orderSetRef;
+  delete payload.formRef;
+  delete payload.route;
+  const key = suggestionTargetPayloadKey(suggestion.actionType);
+  const normalizedTargetRef = targetRef.trim();
+  if (key && normalizedTargetRef) {
+    payload[key] = normalizedTargetRef;
+  }
+  return Object.keys(payload).length > 0 ? payload : undefined;
 }
 
 function formatEvaluationExplanation(value: unknown) {
@@ -1368,7 +1404,7 @@ export default function RuleDefinitions() {
               ...action,
               suggestions: [
                 ...action.suggestions,
-                { label: "", actionType: "REMIND", payload: {} },
+                { label: "", actionType: "ACKNOWLEDGE" },
               ],
             }
           : action,
@@ -1392,38 +1428,30 @@ export default function RuleDefinitions() {
     }));
   };
 
-  const updateSuggestionPayload = (
+  const updateSuggestionActionType = (
     actionIndex: number,
     suggestionIndex: number,
-    oldKey: string,
-    nextKey: string,
-    nextValue: string,
+    actionType: string,
   ) => {
-    const action = conditionTree.actions[actionIndex];
-    const suggestion = action?.suggestions[suggestionIndex];
-    if (!suggestion) return;
-    const payload = { ...(suggestion.payload ?? {}) };
-    if (oldKey && oldKey !== nextKey) delete payload[oldKey];
-    if (nextKey.trim()) payload[nextKey.trim()] = nextValue;
-    updateSuggestion(actionIndex, suggestionIndex, { payload });
-  };
-
-  const addSuggestionPayload = (actionIndex: number, suggestionIndex: number) => {
     const suggestion = conditionTree.actions[actionIndex]?.suggestions[suggestionIndex];
     if (!suggestion) return;
-    const payload = { ...(suggestion.payload ?? {}) };
-    let sequence = Object.keys(payload).length + 1;
-    while (`参数${sequence}` in payload) sequence += 1;
-    payload[`参数${sequence}`] = "";
-    updateSuggestion(actionIndex, suggestionIndex, { payload });
+    const nextSuggestion = { ...suggestion, actionType };
+    updateSuggestion(actionIndex, suggestionIndex, {
+      actionType,
+      payload: suggestionPayloadWithTargetRef(nextSuggestion, suggestionTargetRef(suggestion)),
+    });
   };
 
-  const removeSuggestionPayload = (actionIndex: number, suggestionIndex: number, key: string) => {
+  const updateSuggestionTargetRef = (
+    actionIndex: number,
+    suggestionIndex: number,
+    targetRef: string,
+  ) => {
     const suggestion = conditionTree.actions[actionIndex]?.suggestions[suggestionIndex];
     if (!suggestion) return;
-    const payload = { ...(suggestion.payload ?? {}) };
-    delete payload[key];
-    updateSuggestion(actionIndex, suggestionIndex, { payload });
+    updateSuggestion(actionIndex, suggestionIndex, {
+      payload: suggestionPayloadWithTargetRef(suggestion, targetRef),
+    });
   };
 
   const updateConditionExpression = (
@@ -4354,8 +4382,12 @@ export default function RuleDefinitions() {
                         </div>
                         <Row gutter={12}>
                           <Col xs={24} md={12}>
-                            <Form.Item label="可选操作名称">
+                            <Form.Item
+                              label="可选操作名称"
+                              htmlFor={`rule-suggestion-label-${actionIndex}-${suggestionIndex}`}
+                            >
                               <Input
+                                id={`rule-suggestion-label-${actionIndex}-${suggestionIndex}`}
                                 value={suggestion.label}
                                 onChange={(event) =>
                                   updateSuggestion(actionIndex, suggestionIndex, {
@@ -4366,70 +4398,39 @@ export default function RuleDefinitions() {
                             </Form.Item>
                           </Col>
                           <Col xs={24} md={12}>
-                            <Form.Item label="可选操作类型">
-                              <Input
-                                value={suggestion.actionType}
-                                onChange={(event) =>
-                                  updateSuggestion(actionIndex, suggestionIndex, {
-                                    actionType: event.target.value,
-                                  })
+                            <Form.Item
+                              label="可选操作类型"
+                              htmlFor={`rule-suggestion-action-type-${actionIndex}-${suggestionIndex}`}
+                            >
+                              <Select
+                                id={`rule-suggestion-action-type-${actionIndex}-${suggestionIndex}`}
+                                value={suggestion.actionType || "ACKNOWLEDGE"}
+                                options={ruleSuggestionActionOptions}
+                                onChange={(value) =>
+                                  updateSuggestionActionType(actionIndex, suggestionIndex, value)
                                 }
                               />
                             </Form.Item>
                           </Col>
                         </Row>
-                        <div className={styles.conditionHeader}>
-                          <Text type="secondary">操作参数</Text>
-                          <Button
-                            type="text"
-                            size="small"
-                            icon={<PlusOutlined />}
-                            onClick={() => addSuggestionPayload(actionIndex, suggestionIndex)}
-                          >
-                            添加参数
-                          </Button>
-                        </div>
-                        <Space direction="vertical" size="small" className="mk-full-width">
-                          {Object.entries(suggestion.payload ?? {}).map(([key, value]) => (
-                            <Space key={key} className="mk-full-width" align="start">
-                              <Input
-                                aria-label="参数键"
-                                value={key}
-                                onChange={(event) =>
-                                  updateSuggestionPayload(
-                                    actionIndex,
-                                    suggestionIndex,
-                                    key,
-                                    event.target.value,
-                                    String(value ?? ""),
-                                  )
-                                }
-                              />
-                              <Input
-                                aria-label="参数值"
-                                value={String(value ?? "")}
-                                onChange={(event) =>
-                                  updateSuggestionPayload(
-                                    actionIndex,
-                                    suggestionIndex,
-                                    key,
-                                    key,
-                                    event.target.value,
-                                  )
-                                }
-                              />
-                              <Button
-                                type="text"
-                                danger
-                                icon={<DeleteOutlined />}
-                                aria-label={`删除参数 ${key}`}
-                                onClick={() =>
-                                  removeSuggestionPayload(actionIndex, suggestionIndex, key)
-                                }
-                              />
-                            </Space>
-                          ))}
-                        </Space>
+                        <Form.Item
+                          label="关联业务对象"
+                          htmlFor={`rule-suggestion-target-ref-${actionIndex}-${suggestionIndex}`}
+                          extra="建议医嘱填医嘱套餐身份；打开记录表单填表单身份；打开相关页面填页面路径。"
+                        >
+                          <Input
+                            id={`rule-suggestion-target-ref-${actionIndex}-${suggestionIndex}`}
+                            placeholder="例如 ORDER.CKD.REVIEW"
+                            value={suggestionTargetRef(suggestion)}
+                            onChange={(event) =>
+                              updateSuggestionTargetRef(
+                                actionIndex,
+                                suggestionIndex,
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </Form.Item>
                       </div>
                     ))}
                   </Space>
