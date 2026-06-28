@@ -859,9 +859,16 @@ export default function KnowledgeGovernance({
 
   function requestCancelProductionJob(job: KnowledgeProductionJob) {
     modal.confirm({
-      title: `中止生产任务 ${job.jobCode}`,
-      content:
-        "仅中止待处理或运行中的生产任务；已入审核的候选仍按治理链路留痕处理，不会伪造发布成功。",
+      title: "确认中止生产任务",
+      content: (
+        <Space direction="vertical" size="small">
+          <Text>将中止当前选中的生产任务；仅中止待处理或运行中的生产任务。</Text>
+          <Text type="secondary">已入审核的候选仍按治理链路留痕处理，不会伪造发布成功。</Text>
+          {evidenceDetailsEnabled ? (
+            <Text type="secondary">生产任务编号：{job.jobCode}</Text>
+          ) : null}
+        </Space>
+      ),
       okText: "确认中止",
       cancelText: "取消",
       okButtonProps: { danger: true },
@@ -1455,10 +1462,11 @@ export default function KnowledgeGovernance({
       ),
     },
     {
-      title: "模型策略",
+      title: "模型生产策略",
       dataIndex: "modelStrategy",
       width: 180,
-      render: (value?: string | null) => tableText(value, "未配置"),
+      render: (value?: string | null) =>
+        value ? evidenceText(value, evidenceDetailsEnabled, "模型生产策略已配置") : "未配置",
     },
     {
       title: "操作",
@@ -1812,7 +1820,6 @@ export default function KnowledgeGovernance({
             assetType: "KNOWLEDGE",
             targetPipeline: defaultProductionTargetPipeline,
             domain: "GUIDELINE",
-            modelStrategy: "gpt-pipeline",
           }}
           onFinish={submitProductionJob}
         >
@@ -2690,7 +2697,11 @@ export default function KnowledgeGovernance({
           <Alert
             type="info"
             showIcon
-            message={`生产任务 ${modelGenerationJob?.jobCode ?? ""}`}
+            message={
+              evidenceDetailsEnabled
+                ? `生产任务 ${modelGenerationJob?.jobCode ?? ""}`
+                : "当前生产任务已选定"
+            }
             description="大模型只生成待审核候选；来源锚点、目标身份、生产安全校验、分流和影子评测全部通过后才进入审核，绝不直接生效。"
           />
           <Form
@@ -3103,7 +3114,7 @@ export default function KnowledgeGovernance({
                     <Descriptions.Item label="模型任务 ID">
                       {provenance.modelTaskId || "未返回"}
                     </Descriptions.Item>
-                    <Descriptions.Item label="模型策略">
+                    <Descriptions.Item label="模型生产策略">
                       {provenance.modelStrategy || "无"}
                     </Descriptions.Item>
                     <Descriptions.Item label="模型模式">

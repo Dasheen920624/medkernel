@@ -1053,12 +1053,16 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("模型生产上线准备")).toBeInTheDocument();
     expect(screen.getByText("模型服务未就绪")).toBeInTheDocument();
     expect(screen.getAllByText("生产任务").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("模型生产策略").length).toBeGreaterThan(1);
     expect(screen.getAllByText("生产任务已登记").length).toBeGreaterThan(0);
+    expect(screen.getByText("模型生产策略已配置")).toBeInTheDocument();
     expect(screen.queryByText("job-ai-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("gpt-pipeline")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("switch", { name: "证据详情" }));
 
     expect(screen.getAllByText("job-ai-1").length).toBeGreaterThan(0);
+    expect(screen.getByText("gpt-pipeline")).toBeInTheDocument();
     expect(screen.getAllByText("统一模型服务").length).toBeGreaterThan(0);
     expect(screen.getByText("生产安全校验结果")).toBeInTheDocument();
     expect(screen.getByText("SOURCE_ANCHOR")).toBeInTheDocument();
@@ -1133,6 +1137,7 @@ describe("KnowledgeGovernance", () => {
     expect(
       screen.queryByPlaceholderText("例如 gpt-pipeline / 外部模型策略标识"),
     ).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("gpt-pipeline")).not.toBeInTheDocument();
 
     await user.clear(screen.getByLabelText("来源范围"));
     await user.type(screen.getByLabelText("来源范围"), "acquisition-run:guideline-2026");
@@ -1144,7 +1149,7 @@ describe("KnowledgeGovernance", () => {
         assetType: "KNOWLEDGE",
         targetPipeline: "TENANT_OVERLAY",
         domain: "GUIDELINE",
-        modelStrategy: "gpt-pipeline",
+        modelStrategy: undefined,
       }),
     );
     expect(mockUseKnowledgeInitializationBatches).toHaveBeenCalledWith(true);
@@ -1568,8 +1573,13 @@ describe("KnowledgeGovernance", () => {
         "审核通过后创建 SYS-08 原子替换、投影刷新与院内同步任务；审核前不改变执行版本。",
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText("job-agent-7")).not.toBeInTheDocument();
+    expect(screen.queryByText("agent-verified")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "中止生产任务" }));
+    expect(await screen.findByText("确认中止生产任务")).toBeInTheDocument();
+    expect(screen.getByText(/将中止当前选中的生产任务/)).toBeInTheDocument();
+    expect(screen.queryByText("job-agent-7")).not.toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: "确认中止" }));
 
     await waitFor(() => expect(cancelProductionJob).toHaveBeenCalledWith("job-agent-7"));
