@@ -84,13 +84,16 @@ describe("AuthoringBatchDrawer", () => {
 
     expect(screen.getByLabelText("模板规则资产")).toBeInTheDocument();
     expect(screen.queryByLabelText("模板规则 ID")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("批量规则草稿表")).toBeInTheDocument();
+    expect(screen.queryByLabelText("参数表")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/ruleCode,name,threshold/)).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("模板规则资产"), {
       target: { value: "rule-template" },
     });
-    fireEvent.change(screen.getByLabelText("参数表"), {
+    fireEvent.change(screen.getByLabelText("批量规则草稿表"), {
       target: {
         value:
-          "ruleCode,name,threshold,enabled\nRULE.CKD.1,CKD 阈值 1,45,true\nRULE.CKD.2,CKD 阈值 2,30,false",
+          "规则身份,规则名称,阈值,启用\nCKD-阈值-45,CKD 阈值 1,45,true\nCKD-阈值-30,CKD 阈值 2,30,false",
       },
     });
     await userEvent.click(screen.getByRole("button", { name: "生成草稿" }));
@@ -101,13 +104,13 @@ describe("AuthoringBatchDrawer", () => {
         rows: [
           {
             rowId: "row-1",
-            ruleCode: "RULE.CKD.1",
+            ruleCode: "CKD-阈值-45",
             name: "CKD 阈值 1",
             parameterBindings: { threshold: 45, enabled: true },
           },
           {
             rowId: "row-2",
-            ruleCode: "RULE.CKD.2",
+            ruleCode: "CKD-阈值-30",
             name: "CKD 阈值 2",
             parameterBindings: { threshold: 30, enabled: false },
           },
@@ -128,8 +131,8 @@ describe("AuthoringBatchDrawer", () => {
     fireEvent.change(screen.getByLabelText("模板规则资产"), {
       target: { value: "rule-template" },
     });
-    fireEvent.change(screen.getByLabelText("参数表"), {
-      target: { value: "ruleCode,name\nRULE.CKD.1,CKD 阈值 1" },
+    fireEvent.change(screen.getByLabelText("批量规则草稿表"), {
+      target: { value: "规则身份,规则名称\nCKD-阈值-45,CKD 阈值 1" },
     });
     await userEvent.click(screen.getByRole("button", { name: "生成草稿" }));
 

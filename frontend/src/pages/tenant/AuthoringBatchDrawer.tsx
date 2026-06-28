@@ -67,15 +67,54 @@ const RISK_LABELS: Record<RuleRiskLevel, string> = {
   CRITICAL: "极高危",
 };
 
+const TABLE_HEADER_ALIASES: Record<string, string> = {
+  ruleCode: "ruleCode",
+  规则身份: "ruleCode",
+  稳定规则身份: "ruleCode",
+  规则资产身份: "ruleCode",
+  规则编码: "ruleCode",
+  name: "name",
+  名称: "name",
+  规则名称: "name",
+  applicableOrgUnitId: "applicableOrgUnitId",
+  适用组织身份: "applicableOrgUnitId",
+  适用科室身份: "applicableOrgUnitId",
+  适用范围身份: "applicableOrgUnitId",
+  changeSummary: "changeSummary",
+  变更说明: "changeSummary",
+  调整说明: "changeSummary",
+  上线说明: "changeSummary",
+  threshold: "threshold",
+  阈值: "threshold",
+  阈值数值: "threshold",
+  enabled: "enabled",
+  启用: "enabled",
+  是否启用: "enabled",
+};
+
+function normalizeTableHeader(header: string) {
+  return TABLE_HEADER_ALIASES[header.replace(/\s+/g, "")] ?? header;
+}
+
 function parseTable(text: string): TableRow[] {
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  if (lines.length < 2) throw new Error("参数表至少需要表头和一行数据");
+  if (lines.length < 2) throw new Error("批量规则表至少需要表头和一行数据");
   const delimiter = lines[0].includes("\t") ? "\t" : ",";
-  const headers = lines[0].split(delimiter).map((header) => header.trim());
-  if (headers.some((header) => !header)) throw new Error("参数表表头不能为空");
+  const rawHeaders = lines[0].split(delimiter).map((header) => header.trim());
+  if (rawHeaders.some((header) => !header)) throw new Error("批量规则表表头不能为空");
+  const headers = rawHeaders.map(normalizeTableHeader);
+  const seenHeaders = new Set<string>();
+  const duplicateHeaderIndex = headers.findIndex((header) => {
+    if (seenHeaders.has(header)) return true;
+    seenHeaders.add(header);
+    return false;
+  });
+  if (duplicateHeaderIndex >= 0) {
+    throw new Error(`批量规则表存在重复列：${rawHeaders[duplicateHeaderIndex]}`);
+  }
   return lines.slice(1).map((line, index) => {
     const values = line.split(delimiter).map((value) => value.trim());
     if (values.length !== headers.length) {
@@ -188,7 +227,9 @@ export default function AuthoringBatchDrawer({
       if (!templateRuleId.trim()) throw new Error("请输入模板规则资产");
       const reserved = new Set(["ruleCode", "name", "applicableOrgUnitId", "changeSummary"]);
       const rows: AuthoringBatchRuleGenerateRow[] = parseTable(parameterTable).map((row, index) => {
-        if (!row.ruleCode || !row.name) throw new Error(`第 ${index + 2} 行缺少 ruleCode 或 name`);
+        if (!row.ruleCode || !row.name) {
+          throw new Error(`第 ${index + 2} 行缺少规则身份或规则名称`);
+        }
         return {
           rowId: `row-${index + 1}`,
           ruleCode: row.ruleCode,
@@ -211,7 +252,7 @@ export default function AuthoringBatchDrawer({
         "规则批量生成失败",
       );
     } catch (error) {
-      message.error(localFailureMessage(error, "参数表解析失败"));
+      message.error(localFailureMessage(error, "批量规则表解析失败"));
     }
   };
 
@@ -320,16 +361,16 @@ export default function AuthoringBatchDrawer({
         />
       </Form.Item>
       <Form.Item
-        label="参数表"
+        label="批量规则草稿表"
         required
-        extra="首列至少包含 ruleCode、name；其余列自动作为模板参数。可直接粘贴 Excel 表格。"
+        extra="至少包含规则身份和规则名称；阈值、启用等列会作为模板参数。可直接粘贴 Excel 表格。"
       >
         <TextArea
-          aria-label="参数表"
+          aria-label="批量规则草稿表"
           value={parameterTable}
           onChange={(event) => setParameterTable(event.target.value)}
           rows={9}
-          placeholder={"ruleCode,name,threshold\nRULE.CKD.1,CKD 阈值 1,45"}
+          placeholder={"规则身份,规则名称,阈值,启用\nCKD-阈值-45,CKD 阈值 1,45,true"}
         />
       </Form.Item>
       <Button
