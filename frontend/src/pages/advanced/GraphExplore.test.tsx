@@ -3,6 +3,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+
 import GraphExplore from "./GraphExplore";
 
 const apiMocks = vi.hoisted(() => ({
@@ -94,6 +96,8 @@ vi.mock("@/shared/api/hooks", () => ({
 
 describe("GraphExplore", () => {
   beforeEach(() => {
+    useEvidenceDetailsStore.getState().setEnabled(false);
+    window.localStorage.clear();
     apiMocks.consistency.isError = false;
     apiMocks.rebuild.mutateAsync.mockReset();
     apiMocks.security.data.permissions = [{ code: "projection.read" }];
@@ -111,18 +115,40 @@ describe("GraphExplore", () => {
     expect(screen.getByText("关系库权威源已有临床图投影快照")).toBeInTheDocument();
     expect(screen.getAllByText("关系库权威源与投影一致").length).toBeGreaterThan(0);
     expect(screen.getByRole("group", { name: "投影关系图" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /观察记录 obs-1/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /观察记录已同步/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "重建投影" })).not.toBeInTheDocument();
+    expect(screen.queryByText("obs-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("trace-graph-1")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /观察记录 obs-1/ }));
+    await user.click(screen.getByRole("button", { name: /观察记录已同步/ }));
 
-    expect(screen.getByText("trace-graph-1")).toBeInTheDocument();
-    expect(screen.getAllByText("obs-1").length).toBeGreaterThan(1);
+    expect(screen.getByText("投影对象已同步")).toBeInTheDocument();
+    expect(screen.getByText("追踪证据已记录")).toBeInTheDocument();
+    expect(screen.queryByText("obs-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("trace-graph-1")).not.toBeInTheDocument();
 
     const retiredDemoTokens = new RegExp(
       ["胸痛", "阿司匹林", "高级" + "工具骨架", "Neo4j 5\\.23"].join("|"),
     );
     expect(screen.queryByText(retiredDemoTokens)).not.toBeInTheDocument();
+  });
+
+  it("shows projection identifiers and trace only after evidence details is enabled", async () => {
+    const user = userEvent.setup();
+    render(
+      <ConfigProvider>
+        <GraphExplore />
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByRole("button", { name: /观察记录 obs-1/ })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /观察记录 obs-1/ }));
+
+    expect(screen.getAllByText("obs-1").length).toBeGreaterThan(1);
+    expect(screen.getByText("trace-graph-1")).toBeInTheDocument();
   });
 
   it("shows the high-risk rebuild action in the page header only after confirmation", async () => {
