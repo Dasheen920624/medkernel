@@ -1129,6 +1129,10 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByDisplayValue("医学知识")).toBeDisabled();
     expect(screen.queryByRole("option", { name: "规则" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("生产器")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("例如 院内模型知识生产策略")).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("例如 gpt-pipeline / 外部模型策略标识"),
+    ).not.toBeInTheDocument();
 
     await user.clear(screen.getByLabelText("来源范围"));
     await user.type(screen.getByLabelText("来源范围"), "acquisition-run:guideline-2026");

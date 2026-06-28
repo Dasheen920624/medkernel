@@ -1855,8 +1855,8 @@ export default function KnowledgeGovernance({
               </Form.Item>
             </Col>
             <Col xs={24} lg={8}>
-              <Form.Item label="模型策略" name="modelStrategy">
-                <Input placeholder="例如 gpt-pipeline / 外部模型策略标识" />
+              <Form.Item label="模型生产策略" name="modelStrategy">
+                <Input placeholder="例如 院内模型知识生产策略" />
               </Form.Item>
             </Col>
             <Col xs={24} lg={8}>
