@@ -175,8 +175,8 @@ describe("RuleValidate", () => {
     expect(screen.getByText("签署医嘱")).toBeInTheDocument();
 
     expect(screen.queryByLabelText(/Payload JSON/)).not.toBeInTheDocument();
-    await user.type(screen.getByLabelText("患者 ID"), "patient-real-1");
-    await user.click(screen.getByRole("button", { name: "选择 snapshot-real-1" }));
+    await user.type(screen.getByLabelText("患者信息"), "patient-real-1");
+    await user.click(screen.getByRole("button", { name: "选择第 1 个临床快照" }));
     await user.click(screen.getByRole("button", { name: /执行匹配校验/ }));
 
     await waitFor(() => {
@@ -185,11 +185,28 @@ describe("RuleValidate", () => {
         contextSnapshotId: "snapshot-real-1",
       });
     });
+    expect(screen.getByText("机构生效版本已确认")).toBeInTheDocument();
+    expect(screen.getByText("评估已留痕")).toBeInTheDocument();
+    expect(screen.getByText("评估请求已记录")).toBeInTheDocument();
+    expect(await screen.findByText("规则已命中")).toBeInTheDocument();
+    expect(screen.getByText("版本证据已关联")).toBeInTheDocument();
+    expect(screen.getByText("必须阻断高危用药")).toBeInTheDocument();
+    expect(screen.getByText(/抗凝规则命中/)).toBeInTheDocument();
+    expect(screen.queryByText("runtime-release-rule")).not.toBeInTheDocument();
+    expect(screen.queryByText("trace-rule")).not.toBeInTheDocument();
+    expect(screen.queryByText("eval-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("rule-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("rv-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("BLOCK")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
     expect(screen.getByText("runtime-release-rule")).toBeInTheDocument();
-    expect(await screen.findByText("rule-real-1")).toBeInTheDocument();
+    expect(screen.getByText("trace-rule")).toBeInTheDocument();
+    expect(screen.getByText("eval-real-1")).toBeInTheDocument();
+    expect(screen.getByText("rule-real-1")).toBeInTheDocument();
     expect(screen.getByText("rv-real-1")).toBeInTheDocument();
     expect(screen.getByText("BLOCK")).toBeInTheDocument();
-    expect(screen.getByText(/抗凝规则命中/)).toBeInTheDocument();
   });
 
   it("highlights critical redline hits as non-ignorable clinical safety evidence", async () => {
@@ -229,13 +246,14 @@ describe("RuleValidate", () => {
 
     renderRuleValidate();
 
-    await user.type(screen.getByLabelText("患者 ID"), "patient-real-1");
-    await user.click(screen.getByRole("button", { name: "选择 snapshot-real-1" }));
+    await user.type(screen.getByLabelText("患者信息"), "patient-real-1");
+    await user.click(screen.getByRole("button", { name: "选择第 1 个临床快照" }));
     await user.click(screen.getByRole("button", { name: /执行匹配校验/ }));
 
     expect(await screen.findByText("安全红线不可忽略")).toBeInTheDocument();
     expect(screen.getAllByText("CRITICAL").length).toBeGreaterThan(0);
-    expect(screen.getByText("BLOCK")).toBeInTheDocument();
+    expect(screen.getByText("安全红线禁止忽略")).toBeInTheDocument();
+    expect(screen.queryByText("BLOCK")).not.toBeInTheDocument();
     expect(screen.getByText(/该校验只提示和阻断，不自动改写医嘱/)).toBeInTheDocument();
   });
 
@@ -243,8 +261,8 @@ describe("RuleValidate", () => {
     const user = userEvent.setup();
     renderRuleValidate();
 
-    await user.type(screen.getByLabelText("患者 ID"), "patient-real-1");
-    await user.click(screen.getByRole("button", { name: "选择 snapshot-real-1" }));
+    await user.type(screen.getByLabelText("患者信息"), "patient-real-1");
+    await user.click(screen.getByRole("button", { name: "选择第 1 个临床快照" }));
     await user.click(screen.getByRole("button", { name: /执行匹配校验/ }));
     await user.click(await screen.findByRole("button", { name: "记录人工继续" }));
 
@@ -303,12 +321,22 @@ describe("RuleValidate", () => {
 
     expect(screen.queryByPlaceholderText("输入历史执行 ExecutionId")).not.toBeInTheDocument();
     await user.click(screen.getByRole("combobox", { name: "历史执行记录" }));
-    await user.click(await screen.findByText(/rule-history-1 · order-sign · 成功/));
+    await user.click(await screen.findByText(/规则执行已记录 · 签署医嘱 · 成功/));
     await user.click(screen.getByRole("button", { name: /回放执行解释/ }));
+
+    expect(await screen.findByText("执行记录已关联")).toBeInTheDocument();
+    expect(screen.getByText("追踪证据已记录")).toBeInTheDocument();
+    expect(screen.getByText("输入摘要已校验")).toBeInTheDocument();
+    expect(screen.queryByText("exec-history-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("trace-history")).not.toBeInTheDocument();
+    expect(screen.queryByText("sha256:history")).not.toBeInTheDocument();
+    expect(screen.getByText(/历史红线回放解释/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
 
     expect((await screen.findAllByText("exec-history-1")).length).toBeGreaterThan(0);
     expect(screen.getByText("trace-history")).toBeInTheDocument();
-    expect(screen.getByText(/历史红线回放解释/)).toBeInTheDocument();
+    expect(screen.getByText("sha256:history")).toBeInTheDocument();
     expect(mockUseRuleExecutionExplain).toHaveBeenLastCalledWith("exec-history-1");
     expect(mockUseRuleExecutions).toHaveBeenCalledWith({ page: 1, size: 20 });
   });

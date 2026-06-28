@@ -8,6 +8,8 @@ import {
   Modal,
   Pagination,
   Select,
+  Space,
+  Switch,
   Button,
   Table,
   Tag,
@@ -86,6 +88,63 @@ function explanationSummary(value: unknown) {
   return [title, reason].filter(Boolean).join("：") || "查看执行解释获取完整证据";
 }
 
+function evidenceText(
+  value: string | number | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  businessText: string,
+) {
+  if (!evidenceDetailsEnabled) {
+    return businessText;
+  }
+  if (value === undefined || value === null || value === "") {
+    return "未返回";
+  }
+  return String(value);
+}
+
+function clinicalTriggerPointLabel(triggerPoint?: string | null) {
+  return (
+    CLINICAL_TRIGGER_POINT_OPTIONS.find((option) => option.value === triggerPoint)?.label ??
+    triggerPoint ??
+    "未返回触发点"
+  );
+}
+
+function actionText(
+  action: RuleEvaluationItem["actions"][number],
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) {
+    return action.actionCode || "未返回动作";
+  }
+  return action.summary || action.detail || "处置动作已记录";
+}
+
+function actionSnapshotText(actions: unknown, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) {
+    return renderJsonValue(actions);
+  }
+  if (!Array.isArray(actions) || actions.length === 0) {
+    return "动作证据已记录";
+  }
+  return actions
+    .map((action) => {
+      if (!action || typeof action !== "object") {
+        return "";
+      }
+      const record = action as Record<string, unknown>;
+      return String(record.summary ?? record.detail ?? "动作证据已记录");
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function renderJsonValue(value: unknown) {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return "暂无解释。";
+  return JSON.stringify(value, null, 2);
+}
+
 type OverrideTarget = {
   executionId: string;
   actionCode: "BLOCK" | "STRONG_REMINDER";
@@ -104,6 +163,7 @@ export default function RuleValidate() {
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
   const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null);
   const [overrideReason, setOverrideReason] = useState("");
+  const [evidenceDetailsEnabled, setEvidenceDetailsEnabled] = useState(false);
 
   const evaluateMutation = useEvaluateRules();
   const captureOverrideMutation = useCaptureRuleOverride();
@@ -126,10 +186,15 @@ export default function RuleValidate() {
   const { data: explainData, isLoading: explainLoading } = useRuleExecutionExplain(
     selectedExecutionId || "",
   );
-  const executionOptions = (executionsQuery.data?.items ?? []).map((execution) => ({
-    value: execution.executionId,
-    label: `${execution.ruleId} · ${execution.triggerPoint} · ${executionStatusLabel(execution.status)} · ${formatTime(execution.executedAt)}`,
+  const executionOptions = (executionsQuery.data?.items ?? []).map((execution, index) => ({
+    value: evidenceDetailsEnabled ? execution.executionId : `规则执行-${index + 1}`,
+    executionId: execution.executionId,
+    label: evidenceDetailsEnabled
+      ? `${execution.ruleId} · ${execution.triggerPoint} · ${executionStatusLabel(execution.status)} · ${formatTime(execution.executedAt)}`
+      : `规则执行已记录 · ${clinicalTriggerPointLabel(execution.triggerPoint)} · ${executionStatusLabel(execution.status)} · ${formatTime(execution.executedAt)}`,
   }));
+  const replayExecutionSelectValue =
+    executionOptions.find((option) => option.executionId === replayExecutionId)?.value ?? undefined;
 
   const handleEvaluate = async () => {
     try {
@@ -178,19 +243,17 @@ export default function RuleValidate() {
     }
   };
 
-  const renderJson = (value: unknown) => {
-    if (typeof value === "string") return value;
-    if (value === null || value === undefined) return "暂无解释。";
-    return JSON.stringify(value, null, 2);
-  };
-
   const columns: TableProps<RuleEvaluationItem>["columns"] = [
     {
       title: "规则 ID",
       dataIndex: "ruleId",
       key: "ruleId",
       width: 190,
-      render: (text: string) => <span className={styles.tableCode}>{text}</span>,
+      render: (text: string) => (
+        <span className={styles.tableCode}>
+          {evidenceText(text, evidenceDetailsEnabled, "规则已命中")}
+        </span>
+      ),
     },
     {
       title: "版本 ID",
@@ -198,7 +261,9 @@ export default function RuleValidate() {
       key: "versionId",
       className: styles.textStrong,
       width: 180,
-      render: (text: string) => <span>{text || "未返回版本"}</span>,
+      render: (text: string) => (
+        <span>{evidenceText(text, evidenceDetailsEnabled, "版本证据已关联")}</span>
+      ),
     },
     {
       title: "执行状态",
@@ -209,10 +274,19 @@ export default function RuleValidate() {
         <div>
           <Tag color={executionStatusColor(status)}>{executionStatusLabel(status)}</Tag>
           {status === "SUPPRESSED" && record.suppressedBy && (
-            <div className={styles.textMuted}>由 {record.suppressedBy} 抑制</div>
+            <div className={styles.textMuted}>
+              由 {evidenceText(record.suppressedBy, evidenceDetailsEnabled, "上级规则")} 抑制
+            </div>
           )}
           {status === "DEDUPLICATED" && record.deduplicatedFromExecutionId && (
-            <div className={styles.textMuted}>首次执行 {record.deduplicatedFromExecutionId}</div>
+            <div className={styles.textMuted}>
+              首次执行{" "}
+              {evidenceText(
+                record.deduplicatedFromExecutionId,
+                evidenceDetailsEnabled,
+                "已记录",
+              )}
+            </div>
           )}
         </div>
       ),
@@ -234,9 +308,12 @@ export default function RuleValidate() {
         const actionCodes = record.actions.map((action) => action.actionCode).filter(Boolean);
         return actionCodes.length > 0 ? (
           <div className={styles.tagRow}>
-            {actionCodes.map((code) => (
-              <Tag color={isRedlineActionCode(code) ? "red" : "blue"} key={code}>
-                {code}
+            {record.actions.map((action, index) => (
+              <Tag
+                color={isRedlineActionCode(action.actionCode) ? "red" : "blue"}
+                key={`${action.actionCode}-${index}`}
+              >
+                {actionText(action, evidenceDetailsEnabled)}
               </Tag>
             ))}
           </div>
@@ -318,6 +395,16 @@ export default function RuleValidate() {
     <PageShell
       title="规则试运行"
       description="向规则引擎输入真实脱敏上下文，实时观测匹配命中情况，进行可信解释与归因追溯。"
+      extras={
+        <Space size="small">
+          <span>证据详情</span>
+          <Switch
+            aria-label="证据详情"
+            checked={evidenceDetailsEnabled}
+            onChange={setEvidenceDetailsEnabled}
+          />
+        </Space>
+      }
     >
       <Row gutter={[24, 24]} className={styles.ruleWorkspace}>
         <Col xs={24} xl={10}>
@@ -346,11 +433,11 @@ export default function RuleValidate() {
 
             <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor="rule-patient-id">
-                患者 ID
+                患者信息
               </label>
               <Input
                 id="rule-patient-id"
-                placeholder="输入患者 ID 检索已生效快照"
+                placeholder="输入患者信息检索已生效快照"
                 value={snapshotPatientId}
                 onChange={(e) => {
                   setSnapshotPatientId(e.target.value);
@@ -361,11 +448,11 @@ export default function RuleValidate() {
 
             <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor="rule-encounter-id">
-                就诊 ID
+                就诊信息
               </label>
               <Input
                 id="rule-encounter-id"
-                placeholder="可单独按就诊 ID 检索"
+                placeholder="可单独按就诊信息检索"
                 value={snapshotEncounterId}
                 onChange={(e) => {
                   setSnapshotEncounterId(e.target.value);
@@ -381,18 +468,27 @@ export default function RuleValidate() {
               snapshots={snapshotsQuery.data?.items ?? []}
               selectedSnapshotId={selectedSnapshotId}
               onSelect={setSelectedSnapshotId}
+              evidenceDetailsEnabled={evidenceDetailsEnabled}
             />
 
             {snapshotDetailQuery.data && (
               <Descriptions bordered size="small" column={1} className={styles.sectionGap}>
                 <Descriptions.Item label="机构生效版本">
-                  {snapshotDetailQuery.data.runtimeReleaseId || "由当前机构生效版本确认"}
+                  {evidenceText(
+                    snapshotDetailQuery.data.runtimeReleaseId,
+                    evidenceDetailsEnabled,
+                    "机构生效版本已确认",
+                  )}
                 </Descriptions.Item>
                 <Descriptions.Item label="质量状态">
                   {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
                 </Descriptions.Item>
                 <Descriptions.Item label="追踪号">
-                  {snapshotDetailQuery.data.traceId || "未返回"}
+                  {evidenceText(
+                    snapshotDetailQuery.data.traceId,
+                    evidenceDetailsEnabled,
+                    "快照证据已记录",
+                  )}
                 </Descriptions.Item>
               </Descriptions>
             )}
@@ -419,11 +515,17 @@ export default function RuleValidate() {
                   placeholder="选择真实历史执行"
                   showSearch
                   optionFilterProp="label"
+                  optionLabelProp="label"
+                  optionRender={(option) => <span>{String(option.label)}</span>}
                   options={executionOptions}
                   loading={executionsQuery.isLoading}
                   disabled={executionsQuery.isError}
-                  value={replayExecutionId}
-                  onChange={setReplayExecutionId}
+                  value={replayExecutionSelectValue}
+                  onChange={(value) => {
+                    setReplayExecutionId(
+                      executionOptions.find((option) => option.value === value)?.executionId ?? "",
+                    );
+                  }}
                   notFoundContent={executionsQuery.isError ? "执行目录读取失败" : "暂无执行记录"}
                 />
                 <Button icon={<FileTextOutlined />} onClick={handleReplayExecution}>
@@ -462,10 +564,22 @@ export default function RuleValidate() {
                 <div className={styles.resultSummary}>
                   <Descriptions size="small" column={2} className={styles.flexGrow}>
                     <Descriptions.Item label="追踪号">
-                      <span className={styles.codeText}>{evaluateResponse.traceId}</span>
+                      <span className={styles.codeText}>
+                        {evidenceText(
+                          evaluateResponse.traceId,
+                          evidenceDetailsEnabled,
+                          "评估已留痕",
+                        )}
+                      </span>
                     </Descriptions.Item>
                     <Descriptions.Item label="评估请求号">
-                      <span className={styles.codeText}>{evaluateResponse.requestId}</span>
+                      <span className={styles.codeText}>
+                        {evidenceText(
+                          evaluateResponse.requestId,
+                          evidenceDetailsEnabled,
+                          "评估请求已记录",
+                        )}
+                      </span>
                     </Descriptions.Item>
                     <Descriptions.Item label="最高严重警示">
                       <Tag color={severityColor(evaluateResponse.highestSeverity)}>
@@ -584,16 +698,38 @@ export default function RuleValidate() {
               className={styles.sectionGapLg}
             >
               <Descriptions.Item label="评估执行号">
-                <span className={styles.codeText}>{explainData.executionId}</span>
+                <span className={styles.codeText}>
+                  {evidenceText(
+                    explainData.executionId,
+                    evidenceDetailsEnabled,
+                    "执行记录已关联",
+                  )}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="追踪号">
-                <span className={styles.codeText}>{explainData.traceId}</span>
+                <span className={styles.codeText}>
+                  {evidenceText(
+                    explainData.traceId,
+                    evidenceDetailsEnabled,
+                    "追踪证据已记录",
+                  )}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="触发点">
-                <span className={styles.codeText}>{explainData.triggerPoint}</span>
+                <span className={styles.codeText}>
+                  {evidenceDetailsEnabled
+                    ? explainData.triggerPoint
+                    : clinicalTriggerPointLabel(explainData.triggerPoint)}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="输入内容校验码">
-                <span className={styles.codeText}>{explainData.inputDigest}</span>
+                <span className={styles.codeText}>
+                  {evidenceText(
+                    explainData.inputDigest,
+                    evidenceDetailsEnabled,
+                    "输入摘要已校验",
+                  )}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="风险评级">
                 <Tag color={explainData.severity === "HIGH" ? "red" : "orange"}>
@@ -616,7 +752,7 @@ export default function RuleValidate() {
               }
               className={`${styles.detailCard} ${styles.sectionGapLg}`}
             >
-              <div className={styles.detailBody}>{renderJson(explainData.explanation)}</div>
+              <div className={styles.detailBody}>{renderJsonValue(explainData.explanation)}</div>
             </Card>
 
             <Card
@@ -628,7 +764,9 @@ export default function RuleValidate() {
               }
               className={styles.detailCard}
             >
-              <div className={styles.detailBody}>{renderJson(explainData.actions)}</div>
+              <div className={styles.detailBody}>
+                {actionSnapshotText(explainData.actions, evidenceDetailsEnabled)}
+              </div>
             </Card>
           </div>
         )}
