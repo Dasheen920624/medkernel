@@ -71,11 +71,11 @@ const mutation = () => ({
   isPending: false,
 });
 
-function renderPanel() {
+function renderPanel(evidenceDetailsEnabled = false) {
   return render(
     <ConfigProvider>
       <AntdApp>
-        <DiagnosisKnowledgePanel />
+        <DiagnosisKnowledgePanel evidenceDetailsEnabled={evidenceDetailsEnabled} />
       </AntdApp>
     </ConfigProvider>,
   );
@@ -191,6 +191,26 @@ describe("DiagnosisKnowledgePanel", () => {
     await user.click(screen.getByRole("button", { name: /新建版本/ }));
     expect(screen.getByText("为慢性肾脏病新建证据完整版本")).toBeInTheDocument();
     expect(screen.queryByLabelText("诊断名称")).not.toBeInTheDocument();
+  });
+
+  it("uses clinical diagnosis wording by default and hides low-frequency identifiers", async () => {
+    renderPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText("知识身份已关联")).toBeInTheDocument();
+    });
+    expect(screen.getAllByText("慢性肾脏病").length).toBeGreaterThan(0);
+    expect(screen.queryByText("身份编码")).not.toBeInTheDocument();
+    expect(screen.queryByText(/DX\.CKD/)).not.toBeInTheDocument();
+  });
+
+  it("reveals diagnosis identity evidence only when evidence details are enabled", async () => {
+    renderPanel(true);
+
+    await waitFor(() => {
+      expect(screen.getByText("身份编码")).toBeInTheDocument();
+    });
+    expect(screen.getByText("DX.CKD")).toBeInTheDocument();
   });
 
   it("blocks publishing an editable version until at least one validation case exists", async () => {
@@ -371,9 +391,9 @@ describe("DiagnosisKnowledgePanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /新建诊断资产/ }));
 
     fillField("诊断名称", "验收诊断");
-    fillField("身份标识", "acceptance-diagnosis");
+    fillField("稳定诊断身份", "acceptance-diagnosis");
     fillField("来源标题", "验收指南");
-    fillField("来源编码", "GUIDE.ACCEPTANCE");
+    fillField("稳定来源身份", "GUIDE.ACCEPTANCE");
     fillField("分级依据", "受控指南来源");
     fillField("来源版本", "2026");
     fillField("受控文件地址", "repository://acceptance");
@@ -401,6 +421,62 @@ describe("DiagnosisKnowledgePanel", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
+  it("shows care pointer targets as business assets by default", async () => {
+    const user = userEvent.setup();
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([editableVersion])));
+    hooks.useRuleDefinitions.mockReturnValue(
+      query({ items: [{ id: 21, name: "慢病检查规则", ruleCode: "RULE.CKD.WORKUP" }] }),
+    );
+    hooks.useDiagnosisCarePointers.mockReturnValue(
+      query([
+        {
+          id: 1,
+          pointerType: "WORKUP",
+          targetType: "RULE",
+          targetRef: "RULE.CKD.WORKUP",
+          description: "建议复查肾功能",
+        },
+      ]),
+    );
+
+    renderPanel();
+    await user.click(screen.getByRole("tab", { name: /诊疗建议/ }));
+
+    expect(screen.getByText("检查建议")).toBeInTheDocument();
+    expect(screen.getByText("规则资产")).toBeInTheDocument();
+    expect(screen.getByText("慢病检查规则")).toBeInTheDocument();
+    expect(screen.queryByText("WORKUP")).not.toBeInTheDocument();
+    expect(screen.queryByText("RULE")).not.toBeInTheDocument();
+    expect(screen.queryByText("RULE.CKD.WORKUP")).not.toBeInTheDocument();
+  });
+
+  it("shows validation cases as business evidence by default", async () => {
+    const user = userEvent.setup();
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([editableVersion])));
+    hooks.useDiagnosisTestCases.mockReturnValue(
+      query([
+        {
+          id: 1,
+          caseCode: "CASE-CKD-001",
+          findings: "EGFR_LOW,ALBUMINURIA",
+          expectedIdentityId: 7,
+          expectedConfidence: "STRONG",
+        },
+      ]),
+    );
+
+    renderPanel();
+    await user.click(screen.getByRole("tab", { name: /验证病例/ }));
+
+    expect(screen.getByText("验证病例已登记")).toBeInTheDocument();
+    expect(screen.getByText("发现项证据已记录")).toBeInTheDocument();
+    expect(screen.getAllByText("慢性肾脏病").length).toBeGreaterThan(0);
+    expect(screen.getByText("强支持")).toBeInTheDocument();
+    expect(screen.queryByText("CASE-CKD-001")).not.toBeInTheDocument();
+    expect(screen.queryByText("EGFR_LOW,ALBUMINURIA")).not.toBeInTheDocument();
+    expect(screen.queryByText(/DX\.CKD/)).not.toBeInTheDocument();
+  });
+
   it("selects the expected diagnosis from the identity directory instead of typing a database id", async () => {
     const user = userEvent.setup();
     hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([editableVersion])));
@@ -411,6 +487,7 @@ describe("DiagnosisKnowledgePanel", () => {
 
     expect(screen.queryByRole("spinbutton", { name: /期望诊断/ })).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "期望诊断" })).toBeInTheDocument();
-    expect(screen.getAllByText("慢性肾脏病 · DX.CKD").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("慢性肾脏病").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/DX\.CKD/)).not.toBeInTheDocument();
   });
 });

@@ -18,6 +18,8 @@ const EVIDENCE_DETAIL_MENU_KEYS = new Set([
   "graph-explore",
   "knowledge-production",
   "knowledge-governance",
+  "institution-knowledge",
+  "diagnosis-knowledge",
   "ai-workflows",
   "implementation-guide",
   "tenant-onboarding",
