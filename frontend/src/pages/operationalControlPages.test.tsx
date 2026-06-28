@@ -593,22 +593,39 @@ describe("operational control pages", () => {
     renderPage(<DomesticCheck />);
 
     expect(screen.getByRole("heading", { name: "国产化自检" })).toBeInTheDocument();
-    expect(screen.getByText("WARN")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.queryByText("WARN")).not.toBeInTheDocument();
+    expect(screen.getAllByText("警告").length).toBeGreaterThan(0);
     expect(screen.getByText(/0 项通过，4 项警告/)).toBeInTheDocument();
-    expect(screen.getAllByText("麒麟 / 统信 / openEuler").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("KAE-JDK 21 / BiSheng JDK 21").length).toBeGreaterThan(0);
+    expect(screen.getByText("目标操作系统已登记")).toBeInTheDocument();
+    expect(screen.getByText("目标 JDK 已登记")).toBeInTheDocument();
+    expect(screen.queryByText("麒麟 / 统信 / openEuler")).not.toBeInTheDocument();
+    expect(screen.queryByText("KAE-JDK 21 / BiSheng JDK 21")).not.toBeInTheDocument();
     expect(screen.getByText("达梦")).toBeInTheDocument();
     expect(screen.getByText("人大金仓")).toBeInTheDocument();
     expect(screen.getByText("SM3")).toBeInTheDocument();
     expect(screen.getAllByText("关系数据库").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/不标记通过/).length).toBeGreaterThan(0);
     expect(screen.getByText("国产浏览器")).toBeInTheDocument();
-    expect(screen.getByText(/国产化自检、五方言迁移合同/)).toBeInTheDocument();
+    expect(screen.getByText("验收证据已登记")).toBeInTheDocument();
+    expect(screen.getAllByText("实际值已采集").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("目标值已登记").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("现场证据已登记").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/国产化自检、五方言迁移合同/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/System\.getProperty/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/medkernel\.runtime\.database-dialect/)).not.toBeInTheDocument();
     expect(screen.getByText("当前浏览器能力预检")).toBeInTheDocument();
     expect(screen.getByText("关键与增强浏览器能力均可用。")).toBeInTheDocument();
     expect(screen.getByText("自动化能力预检不替代目标国产浏览器现场确认。")).toBeInTheDocument();
     expect(screen.getByText("安全加密能力")).toBeInTheDocument();
     expect(screen.queryByText("入口暂未激活")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getAllByText("麒麟 / 统信 / openEuler").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("KAE-JDK 21 / BiSheng JDK 21").length).toBeGreaterThan(0);
+    expect(screen.getByText(/国产化自检、五方言迁移合同/)).toBeInTheDocument();
+    expect(screen.getByText(/System\.getProperty/)).toBeInTheDocument();
+    expect(screen.getByText(/medkernel\.runtime\.database-dialect/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /导出报告/ }));
     await waitFor(() => expect(downloadDomesticCompatibilityReport).toHaveBeenCalledTimes(1));

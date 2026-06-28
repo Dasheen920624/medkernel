@@ -15,7 +15,11 @@ import {
 } from "antd";
 import { DownloadOutlined, ReloadOutlined } from "@ant-design/icons";
 
-import { downloadDomesticCompatibilityReport, useRuntimeOperations } from "@/shared/api/hooks";
+import {
+  downloadDomesticCompatibilityReport,
+  useRuntimeOperations,
+  useSecurityProfile,
+} from "@/shared/api/hooks";
 import type { RuntimeDependencyStatus, RuntimeDomesticCheckItem } from "@/shared/api/hooks";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import {
@@ -23,6 +27,9 @@ import {
   probeBrowserCompatibility,
   type BrowserCompatibilityItem,
 } from "@/shared/lib/browserCompatibility";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 
@@ -71,11 +78,59 @@ function browserAlertType(status: string): "success" | "warning" | "error" {
   return status === "WARN" ? "warning" : "error";
 }
 
+function statusValueText(status: string, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) return status;
+  return CHECK_LABEL[status] ?? customerEnumLabel(status);
+}
+
+function databaseDialectText(value: string, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) return value;
+  const normalized = value.toLowerCase();
+  if (normalized.includes("dm") || normalized.includes("dameng") || normalized.includes("kingbase")) {
+    return "国产关系库已匹配";
+  }
+  if (
+    normalized.includes("postgres") ||
+    normalized.includes("mysql") ||
+    normalized.includes("oracle")
+  ) {
+    return "数据库适配待复核";
+  }
+  return "关系数据库已采集";
+}
+
+function evidenceText(
+  value: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  fallback: string,
+) {
+  return evidenceDetailsEnabled ? value || "未返回" : fallback;
+}
+
+function compatibilityCategoryText(item: RuntimeDomesticCheckItem, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) return item.category;
+  if (item.category === "OS") return "系统环境";
+  if (item.category === "DATABASE") return "数据库适配";
+  if (item.category === "BROWSER") return "浏览器现场";
+  return "国产化适配";
+}
+
+function dependencyDetail(dependency: RuntimeDependencyStatus, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) return dependency.detail;
+  if (dependency.key === "database") {
+    return dependency.status === "UP" ? "核心数据服务可用" : "核心数据服务需国产化复核";
+  }
+  return dependency.detail;
+}
+
 export default function DomesticCheck() {
+  const security = useSecurityProfile();
   const runtime = useRuntimeOperations();
   const [filter, setFilter] = useState<CompatibilityFilter>("ALL");
   const [exporting, setExporting] = useState(false);
   const [browserCompatibility, setBrowserCompatibility] = useState(probeBrowserCompatibility);
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
 
   if (runtime.isLoading) {
     return (
@@ -150,9 +205,16 @@ export default function DomesticCheck() {
       title="国产化自检"
       description="真实探测当前国产化适配状态"
       extras={
-        <Button icon={<DownloadOutlined />} loading={exporting} onClick={() => void exportReport()}>
-          导出报告
-        </Button>
+        <>
+          <EvidenceDetailsToggle securityProfile={security.data} />
+          <Button
+            icon={<DownloadOutlined />}
+            loading={exporting}
+            onClick={() => void exportReport()}
+          >
+            导出报告
+          </Button>
+        </>
       }
       primary={
         <Button type="primary" icon={<ReloadOutlined />} onClick={refreshChecks}>
@@ -164,7 +226,10 @@ export default function DomesticCheck() {
         <Row gutter={[16, 16]}>
           <Col xs={24} sm={12} lg={6}>
             <Card>
-              <Statistic title="整体状态" value={compatibility.overallStatus} />
+              <Statistic
+                title="整体状态"
+                value={statusValueText(compatibility.overallStatus, evidenceDetailsEnabled)}
+              />
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
@@ -179,7 +244,10 @@ export default function DomesticCheck() {
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <Card>
-              <Statistic title="数据库方言" value={data.databaseDialect} />
+              <Statistic
+                title="数据库适配"
+                value={databaseDialectText(data.databaseDialect, evidenceDetailsEnabled)}
+              />
             </Card>
           </Col>
         </Row>
@@ -232,14 +300,32 @@ export default function DomesticCheck() {
         <Card title="目标环境">
           <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
             <Descriptions.Item label="目标操作系统">
-              {data.domesticProfile.targetOs}
+              {evidenceText(
+                data.domesticProfile.targetOs,
+                evidenceDetailsEnabled,
+                "目标操作系统已登记",
+              )}
             </Descriptions.Item>
-            <Descriptions.Item label="目标 JDK">{data.domesticProfile.targetJdk}</Descriptions.Item>
+            <Descriptions.Item label="目标 JDK">
+              {evidenceText(
+                data.domesticProfile.targetJdk,
+                evidenceDetailsEnabled,
+                "目标 JDK 已登记",
+              )}
+            </Descriptions.Item>
             <Descriptions.Item label="当前操作系统">
-              {data.os.name} {data.os.version} {data.os.arch}
+              {evidenceText(
+                `${data.os.name} ${data.os.version} ${data.os.arch}`,
+                evidenceDetailsEnabled,
+                "当前操作系统已采集",
+              )}
             </Descriptions.Item>
             <Descriptions.Item label="当前 JDK">
-              {data.jvm.javaVendor} {data.jvm.javaVersion}
+              {evidenceText(
+                `${data.jvm.javaVendor} ${data.jvm.javaVersion}`,
+                evidenceDetailsEnabled,
+                "Java 运行时已采集",
+              )}
             </Descriptions.Item>
             <Descriptions.Item label="数据库适配">
               <Space wrap>
@@ -257,7 +343,13 @@ export default function DomesticCheck() {
                 ))}
               </Space>
             </Descriptions.Item>
-            <Descriptions.Item label="证据">{data.domesticProfile.evidence}</Descriptions.Item>
+            <Descriptions.Item label="证据">
+              {evidenceText(
+                data.domesticProfile.evidence,
+                evidenceDetailsEnabled,
+                "验收证据已登记",
+              )}
+            </Descriptions.Item>
           </Descriptions>
         </Card>
 
@@ -287,7 +379,9 @@ export default function DomesticCheck() {
                 render: (value, item) => (
                   <Space direction="vertical" size={0}>
                     <Text strong>{value}</Text>
-                    <Text type="secondary">{item.category}</Text>
+                    <Text type="secondary">
+                      {compatibilityCategoryText(item, evidenceDetailsEnabled)}
+                    </Text>
                   </Space>
                 ),
               },
@@ -300,11 +394,23 @@ export default function DomesticCheck() {
                   </Tag>
                 ),
               },
-              { title: "实际", dataIndex: "actualValue" },
-              { title: "目标", dataIndex: "expectedValue" },
+              {
+                title: "实际",
+                render: (_, item) =>
+                  evidenceText(item.actualValue, evidenceDetailsEnabled, "实际值已采集"),
+              },
+              {
+                title: "目标",
+                render: (_, item) =>
+                  evidenceText(item.expectedValue, evidenceDetailsEnabled, "目标值已登记"),
+              },
               { title: "原因", dataIndex: "reason" },
               { title: "建议", dataIndex: "recommendation" },
-              { title: "证据", dataIndex: "evidence" },
+              {
+                title: "证据",
+                render: (_, item) =>
+                  evidenceText(item.evidence, evidenceDetailsEnabled, "现场证据已登记"),
+              },
             ]}
           />
         </Card>
@@ -326,7 +432,10 @@ export default function DomesticCheck() {
                   </Tag>
                 ),
               },
-              { title: "说明", dataIndex: "detail" },
+              {
+                title: "说明",
+                render: (_, dependency) => dependencyDetail(dependency, evidenceDetailsEnabled),
+              },
             ]}
           />
         </Card>
