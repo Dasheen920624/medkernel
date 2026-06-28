@@ -560,7 +560,8 @@ describe("SecurityBaseline", () => {
 
     await user.click(screen.getByRole("tab", { name: "系统配置" }));
     await user.click(screen.getByText("服务机构覆盖"));
-    fireEvent.change(screen.getByRole("textbox", { name: "服务机构标识" }), {
+    expect(screen.queryByRole("textbox", { name: "服务机构标识" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "服务机构身份" }), {
       target: { value: "tenant-A" },
     });
     expect(screen.getByText("规则临床算子")).toBeInTheDocument();

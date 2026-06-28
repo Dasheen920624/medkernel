@@ -335,10 +335,10 @@ export function SystemConfigPanel({
         />
         {scope === "tenant" && (
           <Input
-            aria-label="服务机构标识"
+            aria-label="服务机构身份"
             value={tenantId}
             onChange={(event) => setTenantId(event.target.value)}
-            placeholder="请输入服务机构标识"
+            placeholder="请输入稳定服务机构身份"
             className="mk-config-tenant-input"
           />
         )}
