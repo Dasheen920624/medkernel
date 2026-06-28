@@ -114,6 +114,8 @@
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新规则资产身份配置表达优化：`09f8b515`（`统一规则资产身份配置表达`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
+- 本地最新评价指标身份配置表达优化：`ccee344a`（`统一评价指标身份配置表达`）已完成本地验证，尚未同步到 134；
+  134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 当前目标：完成 MedKernel 全新项目上线级整体梳理与落地，统一平台权威版本与全链路能力，移除旧兼容和冗余设计，
   完善真实功能页面与统一迁移生成，完成代码、契约、前后端、文档、测试、构建核查，并在 134 清库重新部署完成
   全功能与全知识全流程演练。
@@ -260,6 +262,9 @@
   第五十一刀回到单条规则配置真实流程，创建/编辑临床规则时不再把 `ruleCode` 默认标成“规则唯一业务编码”，统一为
   “稳定规则资产身份”，并说明其用于发布治理、机构生效版本和审计追溯；创建草稿、复制下一版草稿、适用域提交、验证用例、
   发布治理和批量规则创作仍沿原 `ruleCode` 契约运行。
+  第五十二刀回到质控评价指标真实流程，筛选和新建指标时不再默认要求质控、医生或实施人员理解“指标编码”，改为
+  “评价指标身份筛选”和“稳定评价指标身份”，并说明其用于版本发布、质控追溯和跨机构迁移；后端 `indicatorCode` 查询、
+  创建草稿、发布治理、仿真评估和证据详情中的原始追溯字段保持不变。
   后续仍需继续扫描关键临床/患者/质量/运营真实流程与真实全角色复演，不能把用户临时补充点当成唯一优化范围。
 
 ## 当前唯一权威
@@ -708,6 +713,14 @@
   `npm --prefix frontend test -- --run src/pages/tenant/RuleDefinitions.test.tsx`、
   `npm --prefix frontend test -- --run src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/AuthoringBatchDrawer.test.tsx src/pages/tenant/ReleaseGovernance.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx`、
   `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
+- 最新评价指标身份配置表达切片：
+  `ccee344a` 将评价指标筛选和新建指标弹窗中的“指标编码”改为“评价指标身份筛选/稳定评价指标身份”，并补充其用于
+  版本发布、质控追溯和跨机构迁移；默认台账仍按指标名称与业务状态展示，创建、查询、生命周期推进、仿真评估和证据详情仍保留
+  原 `indicatorCode` 契约。
+  本地验证通过
+  `npm --prefix frontend test -- --run src/pages/quality/QcEvalSets.test.tsx`、
+  `npm --prefix frontend test -- --run src/pages/quality/QcEvalSets.test.tsx src/pages/quality/InsuranceAudit.test.tsx src/pages/quality/QcEvalResults.test.tsx src/pages/quality/QcAlerts.test.tsx src/pages/quality/QcDashboard.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx`、
+  `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
 - 本地关键验证：
   `npm run typecheck`、`npm test -- --run src/pages/clinical/Followup.test.tsx` 已在 `10f06bea` 前通过；
   该阶段只完成随访字段口径纠偏，`823a2c00` 后已进一步改为业务选项化表单。
@@ -760,10 +773,10 @@
 1. 进入真实前台全角色体验：平台管理员看系统接入与安全基线，医疗引擎运营员看知识生产和版本发布，临床使用者拆分医生、
    护士、药师、医技、质控、患者代理路径，审计员看来源、操作证据和敏感信息边界；信息科长、实施工程师、院长视角看部署、
    权限、全院指标和故障降级。
-2. 已完成沙盘、MPI、患者路径、患者路径入径提示、消息通知、临床快照选择器、临床嵌入启动、规则试运行与二次默认表头/留痕标签、规则配置与规则资产身份表达、路径配置、批量规则创作、协同任务、CDSS 提醒推荐、随访协同、质量管理概览、质量问题来源、质量问题与整改、医保审核与输入、评价指标、知识审核与发布、公域来源治理、诊断知识维护、术语与字典、全局权限范围、全局入口业务反馈、通知偏好、工作台错误留痕、异步导出留痕、编排预览留痕、接口错误留痕、共享错误状态留痕、验收证据配置、服务机构品牌配置、模型能力、模型服务配置与身份配置表达、来源血缘、图谱查询、审计证据、安全基线、运行诊断、验收自检和国产化自检默认视图/证据详情多轮本地优化；
+2. 已完成沙盘、MPI、患者路径、患者路径入径提示、消息通知、临床快照选择器、临床嵌入启动、规则试运行与二次默认表头/留痕标签、规则配置与规则资产身份表达、路径配置、批量规则创作、协同任务、CDSS 提醒推荐、随访协同、质量管理概览、质量问题来源、质量问题与整改、医保审核与输入、评价指标与评价指标身份表达、知识审核与发布、公域来源治理、诊断知识维护、术语与字典、全局权限范围、全局入口业务反馈、通知偏好、工作台错误留痕、异步导出留痕、编排预览留痕、接口错误留痕、共享错误状态留痕、验收证据配置、服务机构品牌配置、模型能力、模型服务配置与身份配置表达、来源血缘、图谱查询、审计证据、安全基线、运行诊断、验收自检和国产化自检默认视图/证据详情多轮本地优化；
    继续优先扫描关键临床/患者真实流程：
    功能分类、页面目标、空态/错态/权限态、流程完整性、操作复杂度、敏感信息处理、证据详情表达都要全局审计。
 3. 优先发现并修复真实产品问题，而不是只优化用户临时指出的点；修复后仍需本地验证、必要时重新构建并在 134 复验。
 4. 下一阶段仍需在 134 执行全角色、全知识、全流程复演；本轮只证明基础真实前台数据路线已跑通，从 `cd44d8ab`
-   到 `09f8b515` 的全角色体验优化提交均尚未部署 134。
+   到 `ccee344a` 的全角色体验优化提交均尚未部署 134。
 5. 保持本地提交，不推送远程，不合并 `main`；不要提交未跟踪的 `.codex/config.toml`。
