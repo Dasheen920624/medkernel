@@ -1629,14 +1629,18 @@ describe("KnowledgeGovernance", () => {
     expect(mockUseKnowledgeCandidateDiff).toHaveBeenLastCalledWith(2002);
     expect(screen.getByText("知识候选审核对照")).toBeInTheDocument();
     expect(screen.getByText("现行 VTE 指南")).toBeInTheDocument();
+    expect(screen.getByText("现行摘要")).toBeInTheDocument();
     expect(screen.getByText("现行摘要已记录")).toBeInTheDocument();
+    expect(screen.getByText("候选摘要")).toBeInTheDocument();
     expect(screen.getByText("候选摘要已记录")).toBeInTheDocument();
+    expect(screen.queryByText("contentHash")).not.toBeInTheDocument();
     expect(screen.queryByText("active-real-hash")).not.toBeInTheDocument();
     expect(screen.queryByText("source-fragment-active")).not.toBeInTheDocument();
     expect(screen.queryByText("candidate-real-hash")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("switch", { name: "证据详情" }));
 
+    expect(screen.getAllByText("contentHash").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("active-real-hash").length).toBeGreaterThan(0);
     expect(screen.getByText("source-fragment-active")).toBeInTheDocument();
     expect(screen.getAllByText("candidate-real-hash").length).toBeGreaterThan(0);

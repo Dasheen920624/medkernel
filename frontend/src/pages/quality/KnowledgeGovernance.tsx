@@ -3010,7 +3010,7 @@ export default function KnowledgeGovernance({
             <Descriptions.Item label="主题">
               {selectedIdentity?.subject ?? "未选择"}
             </Descriptions.Item>
-            <Descriptions.Item label="编码">
+            <Descriptions.Item label={evidenceDetailsEnabled ? "知识身份编码" : "知识身份"}>
               {evidenceText(
                 selectedIdentity?.identityCode,
                 evidenceDetailsEnabled,
@@ -3025,7 +3025,7 @@ export default function KnowledgeGovernance({
           <Descriptions column={1} bordered size="small" title="现行权威版本">
             <Descriptions.Item label="版本">{versionTitle(activeVersion)}</Descriptions.Item>
             <Descriptions.Item label="状态">{versionSubtitle(activeVersion)}</Descriptions.Item>
-            <Descriptions.Item label="contentHash">
+            <Descriptions.Item label={evidenceDetailsEnabled ? "contentHash" : "现行摘要"}>
               {evidenceText(activeVersion?.contentHash, evidenceDetailsEnabled, "现行摘要已记录")}
             </Descriptions.Item>
           </Descriptions>
@@ -3034,7 +3034,7 @@ export default function KnowledgeGovernance({
           <Descriptions column={1} bordered size="small" title="待审候选版本">
             <Descriptions.Item label="版本">{versionTitle(candidateVersion)}</Descriptions.Item>
             <Descriptions.Item label="状态">{versionSubtitle(candidateVersion)}</Descriptions.Item>
-            <Descriptions.Item label="contentHash">
+            <Descriptions.Item label={evidenceDetailsEnabled ? "contentHash" : "候选摘要"}>
               {evidenceText(
                 candidateVersion?.contentHash,
                 evidenceDetailsEnabled,
