@@ -583,7 +583,7 @@ export default function PatientPathways() {
       render: (_value, binding) =>
         binding.scope === "TEMPLATE" ? "全模板" : binding.refCode || "-",
     },
-    { title: "指标编码", dataIndex: "indicatorCode" },
+    { title: "结局指标身份", dataIndex: "indicatorCode" },
   ];
 
   const warningColumns: TableProps<PathwayCoordinationWarning>["columns"] = [

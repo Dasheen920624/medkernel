@@ -217,6 +217,15 @@ describe("PatientPathways", () => {
             traceId: "trace-clock-1",
           },
         ],
+        outcomeBindings: [
+          {
+            bindingId: "outcome-1",
+            templateId: "pt-1",
+            scope: "TEMPLATE",
+            refCode: "TEMPLATE",
+            indicatorCode: "STROKE.OUTCOME.DOOR_TO_CT",
+          },
+        ],
         traceId: "trace-detail-1",
       },
       refetch: refetchDetail,
@@ -450,6 +459,8 @@ describe("PatientPathways", () => {
     expect(screen.getByText("已绑定 1 个路径环节")).toBeInTheDocument();
     expect(screen.getAllByText("已超时").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/质控记录/).length).toBeGreaterThan(0);
+    expect(screen.getByRole("columnheader", { name: "结局指标身份" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "指标编码" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /查看变异事实与审计线索/ }));
 
