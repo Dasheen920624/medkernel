@@ -557,6 +557,8 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
 
       await user.click(within(dialog).getByLabelText("危急值回报"));
+      expect(within(dialog).getByLabelText("检验项目身份")).toBeInTheDocument();
+      expect(within(dialog).queryByLabelText("检验项编码")).not.toBeInTheDocument();
       fireEvent.change(within(dialog).getByLabelText("检验结果字段"), {
         target: { value: "observations[].valueNumeric" },
       });
@@ -565,6 +567,8 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       });
 
       await user.click(within(dialog).getByRole("tab", { name: /即配即试/ }));
+      await user.click(within(dialog).getByRole("button", { name: /读取真实快照/ }));
+      expect(await screen.findByText("请输入患者信息或就诊信息后再读取真实快照。")).toBeInTheDocument();
       await user.type(within(dialog).getByLabelText("患者信息"), "P-001");
       await user.type(within(dialog).getByLabelText("就诊信息"), "E-001");
       await user.click(within(dialog).getByRole("button", { name: /读取真实快照/ }));
@@ -618,6 +622,8 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
 
       await user.click(within(dialog).getByLabelText("危急值回报"));
+      expect(within(dialog).getByLabelText("检验项目身份")).toBeInTheDocument();
+      expect(within(dialog).queryByLabelText("检验项编码")).not.toBeInTheDocument();
       expect(within(dialog).queryByLabelText("灰度比例")).not.toBeInTheDocument();
 
       fireEvent.change(within(dialog).getByLabelText("稳定规则资产身份"), {
@@ -749,7 +755,10 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
         target: { value: "院内已审核心血管诊疗规范 2026" },
       });
       fireEvent.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
+      await within(dialog).findByText("临床算子");
       fireEvent.click(within(dialog).getByText("适用域与生效"));
+      expect(await within(dialog).findByText("输入或选择高优先级规则身份")).toBeInTheDocument();
+      expect(within(dialog).queryByText("输入或选择高优先级规则编码")).not.toBeInTheDocument();
       fireEvent.change(within(dialog).getByLabelText("生效日期"), {
         target: { value: "2026-07-01" },
       });
@@ -1143,6 +1152,9 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       expect(dialog?.closest(".ant-modal-wrap")).toHaveStyle({ zIndex: "1100" });
       expect(within(dialog as HTMLElement).getByLabelText("验证用例患者信息")).toBeInTheDocument();
       expect(within(dialog as HTMLElement).getByLabelText("验证用例就诊信息")).toBeInTheDocument();
+      expect(within(dialog as HTMLElement).getByLabelText("期望风险等级")).toBeInTheDocument();
+      expect(within(dialog as HTMLElement).getByLabelText("期望处置动作")).toBeInTheDocument();
+      expect(within(dialog as HTMLElement).queryByLabelText("期望动作代码")).not.toBeInTheDocument();
       expect(within(dialog as HTMLElement).queryByText(/测试输入配置文本/)).not.toBeInTheDocument();
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
@@ -1181,8 +1193,8 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       );
 
       await waitFor(() => {
-        expect(caseDialog.queryByLabelText("期望动作严重度")).not.toBeInTheDocument();
-        expect(caseDialog.queryByLabelText("期望动作代码")).not.toBeInTheDocument();
+        expect(caseDialog.queryByLabelText("期望风险等级")).not.toBeInTheDocument();
+        expect(caseDialog.queryByLabelText("期望处置动作")).not.toBeInTheDocument();
       });
 
       await user.click(caseDialog.getByRole("button", { name: "保存用例" }));

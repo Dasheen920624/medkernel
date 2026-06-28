@@ -2109,7 +2109,7 @@ export default function RuleDefinitions() {
     if (selectedTemplateKey !== "critical_value_report") return undefined;
     const observationCode = criticalObservationCode.trim();
     if (!observationCode) {
-      message.error("请填写检验项编码。");
+      message.error("请填写检验项目身份。");
       setActiveCreateLayer("l1");
       return null;
     }
@@ -2576,7 +2576,7 @@ export default function RuleDefinitions() {
     const patientId = snapshotPatientId.trim();
     const encounterId = snapshotEncounterId.trim();
     if (!patientId && !encounterId) {
-      message.warning("请输入患者 ID 或就诊 ID 后再读取真实快照。");
+      message.warning("请输入患者信息或就诊信息后再读取真实快照。");
       return;
     }
     setSnapshotSearchParams({
@@ -3838,12 +3838,12 @@ export default function RuleDefinitions() {
             <div className={styles.editorSection}>
               <Row gutter={16}>
                 <Col xs={24} md={6}>
-                  <Form.Item label="检验项编码" htmlFor="critical-observation-code">
+                  <Form.Item label="检验项目身份" htmlFor="critical-observation-code">
                     <Input
                       id="critical-observation-code"
                       value={criticalObservationCode}
                       onChange={(event) => updateCriticalObservationCode(event.target.value)}
-                      placeholder="如 K"
+                      placeholder="如 血钾或 K"
                     />
                   </Form.Item>
                 </Col>
@@ -4921,7 +4921,7 @@ export default function RuleDefinitions() {
                       .toLowerCase()
                       .includes(input.toLowerCase())
                   }
-                  placeholder="输入或选择高优先级规则编码"
+                  placeholder="输入或选择高优先级规则身份"
                   options={(listData?.items ?? []).map((rule) => ({
                     value: rule.ruleCode,
                     label: `${rule.ruleCode} · P${rule.priority} · ${rule.name}`,
@@ -5049,7 +5049,7 @@ export default function RuleDefinitions() {
               <Col span={12}>
                 <Form.Item
                   name="expectedSeverity"
-                  label="期望动作严重度"
+                  label="期望风险等级"
                   rules={[{ required: true }]}
                 >
                   <Select>
@@ -5063,7 +5063,7 @@ export default function RuleDefinitions() {
               <Col span={12}>
                 <Form.Item
                   name="expectedActionCode"
-                  label="期望动作代码"
+                  label="期望处置动作"
                   rules={[{ required: true }]}
                 >
                   <Select>
