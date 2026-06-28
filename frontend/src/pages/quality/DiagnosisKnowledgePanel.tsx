@@ -1165,8 +1165,8 @@ export default function DiagnosisKnowledgePanel({
           layout="vertical"
           initialValues={{ direction: "SUPPORTING", weight: "MAJOR" }}
         >
-          <Form.Item name="findingTermCode" label="标准发现项编码" rules={[{ required: true }]}>
-            <Input />
+          <Form.Item name="findingTermCode" label="标准发现项身份" rules={[{ required: true }]}>
+            <Input placeholder="如 EGFR_LOW，用于稳定追溯该发现项" />
           </Form.Item>
           <Form.Item name="direction" label="方向" rules={[{ required: true }]}>
             <Select
@@ -1319,14 +1319,14 @@ export default function DiagnosisKnowledgePanel({
           layout="vertical"
           initialValues={{ expectedConfidence: "STRONG", expectedIdentityId: identityId }}
         >
-          <Form.Item name="caseCode" label="病例编码" rules={[{ required: true }]}>
-            <Input />
+          <Form.Item name="caseCode" label="稳定验证病例身份" rules={[{ required: true }]}>
+            <Input placeholder="如 CKD-CASE-001，用于复算与验收追溯" />
           </Form.Item>
           <Form.Item
             name="findings"
-            label="发现项编码"
+            label="发现项身份"
             rules={[{ required: true }]}
-            extra="多个标准编码使用英文逗号分隔"
+            extra="多个标准发现项身份使用英文逗号分隔"
           >
             <Input.TextArea rows={3} />
           </Form.Item>

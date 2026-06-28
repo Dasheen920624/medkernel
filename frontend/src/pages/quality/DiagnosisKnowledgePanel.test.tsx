@@ -490,4 +490,25 @@ describe("DiagnosisKnowledgePanel", () => {
     expect(screen.getAllByText("慢性肾脏病").length).toBeGreaterThan(0);
     expect(screen.queryByText(/DX\.CKD/)).not.toBeInTheDocument();
   });
+
+  it("uses stable business identity wording when operators add criteria and validation cases", async () => {
+    const user = userEvent.setup();
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([editableVersion])));
+
+    renderPanel();
+
+    await user.click(screen.getByRole("button", { name: /新增标准/ }));
+    expect(screen.getByLabelText("标准发现项身份")).toBeInTheDocument();
+    expect(screen.queryByText("标准发现项编码")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("tab", { name: /验证病例/ }));
+    await user.click(screen.getByRole("button", { name: /新增病例/ }));
+
+    expect(screen.getByLabelText("稳定验证病例身份")).toBeInTheDocument();
+    expect(screen.getByLabelText("发现项身份")).toBeInTheDocument();
+    expect(screen.getByText("多个标准发现项身份使用英文逗号分隔")).toBeInTheDocument();
+    expect(screen.queryByText("病例编码")).not.toBeInTheDocument();
+    expect(screen.queryByText("发现项编码")).not.toBeInTheDocument();
+  });
 });
