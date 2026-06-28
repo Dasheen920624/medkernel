@@ -68,6 +68,7 @@ interface FormValues {
   suggestions?: Array<{
     label: string;
     actionType: string;
+    targetRef?: string;
     payloadJson?: string;
   }>;
   overrideReasons?: Array<{ reason: string }>;
@@ -108,6 +109,7 @@ function initialValues(type: DeclarativeAssetType): Partial<FormValues> {
       {
         label: "",
         actionType: "ACKNOWLEDGE",
+        targetRef: "",
         payloadJson: "",
       },
     ],
@@ -168,10 +170,8 @@ function valuesFromContent(
           label: typeof suggestion.label === "string" ? suggestion.label : "",
           actionType:
             typeof suggestion.actionType === "string" ? suggestion.actionType : "ACKNOWLEDGE",
-          payloadJson:
-            typeof suggestion.payload === "object" && suggestion.payload !== null
-              ? JSON.stringify(suggestion.payload)
-              : "",
+          targetRef: targetRefFromSuggestionPayload(suggestion),
+          payloadJson: suggestionPayloadJson(suggestion),
         }))
       : undefined,
     overrideReasons: Array.isArray(content.overrideReasons)
@@ -243,7 +243,7 @@ function buildContent(type: DeclarativeAssetType, values: FormValues): Record<st
     suggestions: (values.suggestions ?? []).map((suggestion) => ({
       label: suggestion.label.trim(),
       actionType: suggestion.actionType,
-      ...parseSuggestionPayload(suggestion.payloadJson),
+      ...buildSuggestionPayload(suggestion),
     })),
     overrideReasons: (values.overrideReasons ?? [])
       .map((item) => item.reason.trim())
@@ -251,6 +251,33 @@ function buildContent(type: DeclarativeAssetType, values: FormValues): Record<st
     requiresPhysicianConfirmation:
       shouldRequirePhysicianConfirmation(values) || Boolean(values.requiresPhysicianConfirmation),
   };
+}
+
+function suggestionPayload(suggestion: Record<string, unknown>) {
+  return typeof suggestion.payload === "object" && suggestion.payload !== null
+    ? (suggestion.payload as Record<string, unknown>)
+    : undefined;
+}
+
+function targetPayloadKey(actionType: string | undefined) {
+  if (actionType === "SUGGEST_ORDER") return "orderSetRef";
+  if (actionType === "OPEN_FORM") return "formRef";
+  if (actionType === "NAVIGATE") return "route";
+  return undefined;
+}
+
+function targetRefFromSuggestionPayload(suggestion: Record<string, unknown>) {
+  const key = targetPayloadKey(
+    typeof suggestion.actionType === "string" ? suggestion.actionType : undefined,
+  );
+  const payload = suggestionPayload(suggestion);
+  const targetRef = key ? payload?.[key] : undefined;
+  return typeof targetRef === "string" ? targetRef : "";
+}
+
+function suggestionPayloadJson(suggestion: Record<string, unknown>) {
+  const payload = suggestionPayload(suggestion);
+  return payload ? JSON.stringify(payload) : "";
 }
 
 function parseSuggestionPayload(payloadJson: string | undefined): Record<string, unknown> {
@@ -263,6 +290,22 @@ function parseSuggestionPayload(payloadJson: string | undefined): Record<string,
     throw new Error("临床提示卡的可选操作参数必须是配置对象");
   }
   return { payload: parsed as Record<string, unknown> };
+}
+
+function buildSuggestionPayload(
+  suggestion: NonNullable<FormValues["suggestions"]>[number],
+): Record<string, unknown> {
+  const advancedPayload = parseSuggestionPayload(suggestion.payloadJson).payload;
+  const payload =
+    typeof advancedPayload === "object" && advancedPayload !== null && !Array.isArray(advancedPayload)
+      ? { ...(advancedPayload as Record<string, unknown>) }
+      : {};
+  const key = targetPayloadKey(suggestion.actionType);
+  const targetRef = suggestion.targetRef?.trim();
+  if (key && targetRef) {
+    payload[key] = targetRef;
+  }
+  return Object.keys(payload).length > 0 ? { payload } : {};
 }
 
 function shouldRequirePhysicianConfirmation(values: FormValues): boolean {
@@ -488,7 +531,11 @@ function OrderSetFields() {
   );
 }
 
-function ActionCardFields() {
+function ActionCardFields({
+  evidenceDetailsEnabled,
+}: {
+  evidenceDetailsEnabled: boolean;
+}) {
   return (
     <>
       <Form.Item name="title" label="标题" rules={[{ required: true }]}>
@@ -546,9 +593,27 @@ function ActionCardFields() {
                 >
                   <Select options={ACTION_CARD_SUGGESTION_TYPE_OPTIONS} className="mk-select-md" />
                 </Form.Item>
-                <Form.Item {...field} name={[field.name, "payloadJson"]} label="操作参数">
-                  <Input.TextArea rows={2} placeholder='例如 {"orderSetRef":"ORDER.CKD.REVIEW"}' />
+                <Form.Item
+                  {...field}
+                  name={[field.name, "targetRef"]}
+                  label="关联业务对象"
+                  extra="建议医嘱填医嘱套餐身份；打开记录表单填表单身份；打开相关页面填页面路径。"
+                >
+                  <Input placeholder="例如 ORDER.CKD.REVIEW" />
                 </Form.Item>
+                {evidenceDetailsEnabled ? (
+                  <Form.Item
+                    {...field}
+                    name={[field.name, "payloadJson"]}
+                    label="扩展参数（证据详情）"
+                  >
+                    <Input.TextArea rows={2} placeholder='例如 {"orderSetRef":"ORDER.CKD.REVIEW"}' />
+                  </Form.Item>
+                ) : (
+                  <Form.Item {...field} name={[field.name, "payloadJson"]} hidden>
+                    <Input />
+                  </Form.Item>
+                )}
                 <ArrayRemoveButton onClick={() => remove(field.name)} />
               </Space>
             ))}
@@ -558,6 +623,7 @@ function ActionCardFields() {
                 add({
                   label: "",
                   actionType: "ACKNOWLEDGE",
+                  targetRef: "",
                   payloadJson: "",
                 })
               }
@@ -771,7 +837,9 @@ export default function DeclarativeAssetWorkbench({
           {assetType === "VALUE_SET" && <ValueSetFields />}
           {assetType === "FORMULA" && <FormulaFields />}
           {assetType === "ORDER_SET" && <OrderSetFields />}
-          {assetType === "ACTION_CARD" && <ActionCardFields />}
+          {assetType === "ACTION_CARD" && (
+            <ActionCardFields evidenceDetailsEnabled={evidenceDetailsEnabled} />
+          )}
         </Form>
       </Modal>
     </Space>

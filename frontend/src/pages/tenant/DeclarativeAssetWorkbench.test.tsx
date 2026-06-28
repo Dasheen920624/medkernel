@@ -158,4 +158,55 @@ describe("DeclarativeAssetWorkbench", () => {
     });
     expect(apiMocks.create.mock.calls[0]?.[0].content).not.toHaveProperty("actions");
   });
+
+  it("uses a business target field for suggested orders without exposing JSON parameters by default", async () => {
+    apiMocks.create.mockResolvedValue({ versionId: "av-action-order" });
+    const user = userEvent.setup();
+    renderWorkbench();
+
+    await user.click(screen.getByRole("tab", { name: "临床提示卡" }));
+    await user.click(screen.getByRole("button", { name: "新建临床提示卡" }));
+    await user.type(screen.getByLabelText("稳定资产身份"), "ACTION.CKD.ORDER");
+    await user.type(screen.getByLabelText("来源依据"), "CKD 用药安全指南");
+    await user.type(screen.getByLabelText("标题"), "肾功能异常医嘱建议");
+    await user.type(screen.getByLabelText("摘要"), "建议医师打开肾功能复核套餐");
+    await user.type(screen.getByLabelText("详细说明"), "只生成建议卡片，医嘱必须由医师逐条确认。");
+    await user.type(screen.getByLabelText("依据名称"), "CKD 指南");
+    await user.type(screen.getByLabelText("可选操作名称"), "打开肾功能复核套餐");
+    await user.click(screen.getByRole("combobox", { name: "可选操作类型" }));
+    await user.click(screen.getByText("建议医嘱"));
+    await user.type(screen.getByLabelText("关联业务对象"), "ORDER.CKD.REVIEW");
+
+    expect(screen.queryByLabelText("操作参数")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "保存草稿" }));
+
+    await waitFor(() => {
+      expect(apiMocks.create).toHaveBeenCalledWith({
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION.CKD.ORDER",
+        applicableScope: "ALL",
+        sourceRef: "CKD 用药安全指南",
+        content: {
+          schemaVersion: "1.0",
+          title: "肾功能异常医嘱建议",
+          actionCode: "REMIND",
+          atSeverity: "LOW",
+          indicator: "info",
+          summary: "建议医师打开肾功能复核套餐",
+          detail: "只生成建议卡片，医嘱必须由医师逐条确认。",
+          source: { label: "CKD 指南" },
+          suggestions: [
+            {
+              label: "打开肾功能复核套餐",
+              actionType: "SUGGEST_ORDER",
+              payload: { orderSetRef: "ORDER.CKD.REVIEW" },
+            },
+          ],
+          overrideReasons: [],
+          requiresPhysicianConfirmation: true,
+        },
+      });
+    });
+  });
 });
