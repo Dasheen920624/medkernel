@@ -138,6 +138,8 @@
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新院内人员身份业务表达优化：`fa5dacfe`（`统一院内人员身份业务表达`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
+- 本地最新系统配置服务机构身份表达优化：`ad0cfb53`（`统一系统配置服务机构身份表达`）已完成本地验证，尚未同步到 134；
+  134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 当前目标：完成 MedKernel 全新项目上线级整体梳理与落地，统一平台权威版本与全链路能力，移除旧兼容和冗余设计，
   完善真实功能页面与统一迁移生成，完成代码、契约、前后端、文档、测试、构建核查，并在 134 清库重新部署完成
   全功能与全知识全流程演练。
@@ -321,6 +323,8 @@
   第六十三刀继续回到人员账号与身份来源真实流程，新增人员同时绑定身份来源、单个绑定身份来源和批量匹配说明不再使用
   “院内身份标识”，统一为“院内人员身份”；底层 `employeeNo`、`externalSubject`、身份来源绑定、批量预检和导入提交契约
   保持不变。
+  第六十四刀继续回到系统配置和实施上线真实流程，服务机构覆盖配置不再要求信息科、平台管理员或实施工程师填写“服务机构标识”，
+  统一为“服务机构身份 / 稳定服务机构身份”；底层 `tenantId`、scope 查询、版本锁和高风险确认保存契约保持不变。
   后续仍需继续扫描关键临床/患者/质量/运营真实流程与真实全角色复演，不能把用户临时补充点当成唯一优化范围。
 
 ## 当前唯一权威
@@ -646,6 +650,12 @@
   `npm --prefix frontend test -- --run src/pages/compliance/AdminUsers.test.tsx src/pages/compliance/IdentityBinding.test.tsx`、
   `npm --prefix frontend test -- --run src/pages/compliance/AdminUsers.test.tsx src/pages/compliance/IdentityBinding.test.tsx src/pages/compliance/AdminAudit.test.tsx src/pages/compliance/SecurityBaseline.test.tsx src/pages/compliance/SystemProviders.test.tsx src/pages/compliance/NotificationSettings.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx src/shared/config/customerLanguageGate.test.ts src/shared/config/routes.test.ts`、
   `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
+- 最新系统配置服务机构身份表达切片：
+  `ad0cfb53` 将安全基线系统配置中的“服务机构覆盖”输入从“服务机构标识”改为“服务机构身份”，并用“稳定服务机构身份”
+  提示实施人员选择配置覆盖对象；底层 `tenantId`、scope、版本锁、高风险确认和配置保存请求保持不变。本地验证通过
+  `npm --prefix frontend test -- --run src/pages/compliance/SecurityBaseline.test.tsx`、
+  `npm --prefix frontend test -- --run src/pages/compliance/SecurityBaseline.test.tsx src/pages/compliance/AdminUsers.test.tsx src/pages/compliance/IdentityBinding.test.tsx src/pages/compliance/AdminAudit.test.tsx src/pages/compliance/SystemProviders.test.tsx src/pages/compliance/NotificationSettings.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx src/shared/config/customerLanguageGate.test.ts src/shared/config/routes.test.ts`、
+  `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
 - 最新质量问题整改体验切片：
   `9d58c0e5` 将质量问题与整改页接入统一证据详情；默认面向质控、科室负责人和医生展示业务预警、责任科室、阈值已关联、
   质控问题来源、来源事实和证据记录状态，隐藏阈值 code、来源编号、追踪号和包含来源 ID 的证据摘要；打开证据详情后仍可追溯
@@ -908,10 +918,10 @@
 1. 进入真实前台全角色体验：平台管理员看系统接入与安全基线，医疗引擎运营员看知识生产和版本发布，临床使用者拆分医生、
    护士、药师、医技、质控、患者代理路径，审计员看来源、操作证据和敏感信息边界；信息科长、实施工程师、院长视角看部署、
    权限、全院指标和故障降级。
-2. 已完成沙盘、MPI、患者路径、患者路径入径提示、患者路径结局指标身份表达、消息通知、临床快照选择器、临床嵌入启动、规则试运行与二次默认表头/留痕标签、规则配置与规则资产身份表达、规则配置操作身份表达、路径配置与身份表达、批量规则创作、协同任务、CDSS 提醒推荐、随访协同与快照患者信息表达、质量/医保快照就诊信息表达、人员账号与身份来源院内人员身份表达、质量管理概览、质量问题来源与问题身份表达、质量责任归属业务表达、质量问题与整改、医保审核与输入、评价指标与评价指标身份表达、知识审核与发布、知识身份业务表达、公域来源治理、诊断知识维护与发现项身份表达、术语与字典、全局权限范围、全局入口业务反馈、通知偏好、工作台错误留痕、异步导出留痕、编排预览留痕、接口错误留痕、共享错误状态留痕、验收证据配置、服务机构品牌配置、模型能力、模型服务配置与身份配置表达、来源血缘与知识身份搜索表达、图谱查询、审计证据、安全基线、运行诊断、验收自检和国产化自检默认视图/证据详情多轮本地优化；
+2. 已完成沙盘、MPI、患者路径、患者路径入径提示、患者路径结局指标身份表达、消息通知、临床快照选择器、临床嵌入启动、规则试运行与二次默认表头/留痕标签、规则配置与规则资产身份表达、规则配置操作身份表达、路径配置与身份表达、批量规则创作、协同任务、CDSS 提醒推荐、随访协同与快照患者信息表达、质量/医保快照就诊信息表达、人员账号与身份来源院内人员身份表达、系统配置服务机构身份表达、质量管理概览、质量问题来源与问题身份表达、质量责任归属业务表达、质量问题与整改、医保审核与输入、评价指标与评价指标身份表达、知识审核与发布、知识身份业务表达、公域来源治理、诊断知识维护与发现项身份表达、术语与字典、全局权限范围、全局入口业务反馈、通知偏好、工作台错误留痕、异步导出留痕、编排预览留痕、接口错误留痕、共享错误状态留痕、验收证据配置、服务机构品牌配置、模型能力、模型服务配置与身份配置表达、来源血缘与知识身份搜索表达、图谱查询、审计证据、安全基线、运行诊断、验收自检和国产化自检默认视图/证据详情多轮本地优化；
    继续优先扫描关键临床/患者真实流程：
    功能分类、页面目标、空态/错态/权限态、流程完整性、操作复杂度、敏感信息处理、证据详情表达都要全局审计。
 3. 优先发现并修复真实产品问题，而不是只优化用户临时指出的点；修复后仍需本地验证、必要时重新构建并在 134 复验。
 4. 下一阶段仍需在 134 执行全角色、全知识、全流程复演；本轮只证明基础真实前台数据路线已跑通，从 `cd44d8ab`
-   到 `fa5dacfe` 的全角色体验优化提交均尚未部署 134。
+   到 `ad0cfb53` 的全角色体验优化提交均尚未部署 134。
 5. 保持本地提交，不推送远程，不合并 `main`；不要提交未跟踪的 `.codex/config.toml`。
