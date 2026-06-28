@@ -120,6 +120,8 @@
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新路径配置身份表达优化：`81786d23`（`统一路径配置身份表达`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
+- 本地最新规则配置操作身份表达优化：`b2091ab2`（`收敛规则配置操作身份表达`）已完成本地验证，尚未同步到 134；
+  134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 当前目标：完成 MedKernel 全新项目上线级整体梳理与落地，统一平台权威版本与全链路能力，移除旧兼容和冗余设计，
   完善真实功能页面与统一迁移生成，完成代码、契约、前后端、文档、测试、构建核查，并在 134 清库重新部署完成
   全功能与全知识全流程演练。
@@ -277,6 +279,11 @@
   统一为稳定路径模型身份、适用病种身份、阶段身份、里程碑身份、节点身份、流转身份和指标身份；后端 `templateCode`、
   `diseaseCode`、`phaseCode`、`milestoneCode`、`nodeCode`、`edgeCode`、`metricCode`、`indicatorCode` 和受控 DSL
   提交、拓扑校验、真实快照试运行、发布治理契约保持不变。
+  第五十五刀继续回到临床规则配置真实流程，危急值原型、适用域抑制规则、即配即试快照读取和发布验证用例不再默认要求
+  医生、信息科、实施工程师或临床审核责任人理解“检验项编码 / 高优先级规则编码 / 患者 ID / 就诊 ID / 期望动作代码”，
+  统一为检验项目身份、高优先级规则身份、患者信息、就诊信息、期望风险等级和期望处置动作；后端 `patientId`、
+  `encounterId`、`criticalObservationCode`、`suppressedBy`、`expectedSeverity`、`expectedActionCode` 与规则试运行、
+  验证用例和发布治理契约保持不变。
   后续仍需继续扫描关键临床/患者/质量/运营真实流程与真实全角色复演，不能把用户临时补充点当成唯一优化范围。
 
 ## 当前唯一权威
@@ -376,6 +383,13 @@
   encounterId、runtimeReleaseId、traceId、actionCode、影响对象标识和路径/规则原始编码；打开证据详情后仍可追溯完整配置、
   治理、影响分析、试运行和验证用例证据。本地验证通过
   `npm --prefix frontend test -- --run src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/ReleaseGovernance.test.tsx src/pages/tenant/PathwayTemplates.test.tsx src/pages/clinical/RuleValidate.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx`、
+  `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
+- 最新规则配置操作身份表达切片：
+  `b2091ab2` 将规则配置页继续按真实操作视角收敛；危急值原型改用“检验项目身份”，无快照检索条件时提示输入“患者信息或就诊信息”，
+  适用域抑制规则改为“高优先级规则身份”，发布验证用例改为“期望风险等级 / 期望处置动作”；底层 `patientId`、`encounterId`、
+  `criticalObservationCode`、`suppressedBy`、`expectedSeverity`、`expectedActionCode` 仍作为契约字段保留。本地验证通过
+  `npm --prefix frontend test -- --run src/pages/tenant/RuleDefinitions.test.tsx`、
+  `npm --prefix frontend test -- --run src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/AuthoringBatchDrawer.test.tsx src/pages/tenant/ReleaseGovernance.test.tsx src/pages/tenant/PathwayTemplates.test.tsx src/pages/clinical/RuleValidate.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx`、
   `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
 - 最新路径配置体验切片：
   `77c8ca3c` 将路径配置页接入统一证据详情；默认面向实施工程师、信息科、医疗引擎运营员、临床路径负责人和护理/随访协同角色
@@ -803,10 +817,10 @@
 1. 进入真实前台全角色体验：平台管理员看系统接入与安全基线，医疗引擎运营员看知识生产和版本发布，临床使用者拆分医生、
    护士、药师、医技、质控、患者代理路径，审计员看来源、操作证据和敏感信息边界；信息科长、实施工程师、院长视角看部署、
    权限、全院指标和故障降级。
-2. 已完成沙盘、MPI、患者路径、患者路径入径提示、消息通知、临床快照选择器、临床嵌入启动、规则试运行与二次默认表头/留痕标签、规则配置与规则资产身份表达、路径配置与身份表达、批量规则创作、协同任务、CDSS 提醒推荐、随访协同、质量管理概览、质量问题来源、质量问题与整改、医保审核与输入、评价指标与评价指标身份表达、知识审核与发布、公域来源治理、诊断知识维护与发现项身份表达、术语与字典、全局权限范围、全局入口业务反馈、通知偏好、工作台错误留痕、异步导出留痕、编排预览留痕、接口错误留痕、共享错误状态留痕、验收证据配置、服务机构品牌配置、模型能力、模型服务配置与身份配置表达、来源血缘、图谱查询、审计证据、安全基线、运行诊断、验收自检和国产化自检默认视图/证据详情多轮本地优化；
+2. 已完成沙盘、MPI、患者路径、患者路径入径提示、消息通知、临床快照选择器、临床嵌入启动、规则试运行与二次默认表头/留痕标签、规则配置与规则资产身份表达、规则配置操作身份表达、路径配置与身份表达、批量规则创作、协同任务、CDSS 提醒推荐、随访协同、质量管理概览、质量问题来源、质量问题与整改、医保审核与输入、评价指标与评价指标身份表达、知识审核与发布、公域来源治理、诊断知识维护与发现项身份表达、术语与字典、全局权限范围、全局入口业务反馈、通知偏好、工作台错误留痕、异步导出留痕、编排预览留痕、接口错误留痕、共享错误状态留痕、验收证据配置、服务机构品牌配置、模型能力、模型服务配置与身份配置表达、来源血缘、图谱查询、审计证据、安全基线、运行诊断、验收自检和国产化自检默认视图/证据详情多轮本地优化；
    继续优先扫描关键临床/患者真实流程：
    功能分类、页面目标、空态/错态/权限态、流程完整性、操作复杂度、敏感信息处理、证据详情表达都要全局审计。
 3. 优先发现并修复真实产品问题，而不是只优化用户临时指出的点；修复后仍需本地验证、必要时重新构建并在 134 复验。
 4. 下一阶段仍需在 134 执行全角色、全知识、全流程复演；本轮只证明基础真实前台数据路线已跑通，从 `cd44d8ab`
-   到 `81786d23` 的全角色体验优化提交均尚未部署 134。
+   到 `b2091ab2` 的全角色体验优化提交均尚未部署 134。
 5. 保持本地提交，不推送远程，不合并 `main`；不要提交未跟踪的 `.codex/config.toml`。
