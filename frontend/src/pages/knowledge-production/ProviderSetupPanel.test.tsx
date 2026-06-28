@@ -270,8 +270,9 @@ describe("ProviderSetupPanel", () => {
 
     await user.click(screen.getByRole("button", { name: "编辑配置" }));
     expect(screen.getByRole("dialog", { name: "编辑模型服务" })).toBeInTheDocument();
-    expect(screen.getByLabelText("服务编码")).toBeDisabled();
-    expect(screen.getByLabelText("服务编码")).toHaveValue("medical-model");
+    expect(screen.queryByLabelText("服务编码")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("稳定模型服务身份")).toBeDisabled();
+    expect(screen.getByLabelText("稳定模型服务身份")).toHaveValue("medical-model");
 
     const endpoint = screen.getByLabelText("服务地址");
     await user.clear(endpoint);

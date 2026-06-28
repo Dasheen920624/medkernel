@@ -444,10 +444,15 @@ export default function ProviderSetupPanel() {
         >
           <Form.Item
             name="providerCode"
-            label="服务编码"
-            rules={[{ required: true, message: "请填写服务编码" }]}
+            label="稳定模型服务身份"
+            rules={[{ required: true, message: "请填写稳定模型服务身份" }]}
+            extra="用于发布、评测和审计追溯；默认列表仍按服务类型与模型版本展示。"
           >
-            <Input autoComplete="off" disabled={Boolean(editingProvider)} />
+            <Input
+              autoComplete="off"
+              disabled={Boolean(editingProvider)}
+              placeholder="例如 local-qwen25 或 public-openai-compatible"
+            />
           </Form.Item>
           <Form.Item
             name="providerType"
