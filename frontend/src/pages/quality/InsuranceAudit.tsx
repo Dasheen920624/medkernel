@@ -418,11 +418,11 @@ export default function InsuranceAudit() {
               </Space>
               <Space wrap size="middle" className="mk-full-width">
                 <Form.Item
-                  label="场景编码"
+                  label="审核场景"
                   name="scenarioCode"
-                  rules={[{ required: true, message: "请输入场景编码" }]}
+                  rules={[{ required: true, message: "请输入审核场景" }]}
                 >
-                  <Input />
+                  <Input placeholder="输入本次医保审核场景" />
                 </Form.Item>
                 <Form.Item
                   label="整改截止时间"
@@ -464,16 +464,16 @@ export default function InsuranceAudit() {
               </Space>
               <Space wrap size="middle" className="mk-full-width">
                 <Form.Item
-                  label="规则编码"
+                  label="医保规则依据"
                   name="ruleCode"
-                  rules={[{ required: true, message: "请输入规则编码" }]}
+                  rules={[{ required: true, message: "请输入医保规则依据" }]}
                 >
-                  <Input />
+                  <Input placeholder="输入已生效医保规则依据" />
                 </Form.Item>
                 <Form.Item
-                  label="规则版本"
+                  label="依据版本"
                   name="ruleVersion"
-                  rules={[{ required: true, message: "请输入规则版本" }]}
+                  rules={[{ required: true, message: "请输入依据版本" }]}
                 >
                   <Input />
                 </Form.Item>

@@ -306,6 +306,11 @@ describe("InsuranceAudit", () => {
     await userEvent.click(await screen.findByText("医保管理科 · DEPT-INS"));
     await userEvent.click(screen.getByRole("combobox", { name: "质控指标" }));
     await userEvent.click(await screen.findByText("医保违规费用率 · INS.FEE · v2"));
+    expect(screen.getByLabelText("审核场景")).toBeInTheDocument();
+    expect(screen.queryByLabelText("场景编码")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("医保规则依据")).toBeInTheDocument();
+    expect(screen.queryByLabelText("规则编码")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("审核场景"), { target: { value: "A9" } });
     fireEvent.change(screen.getByLabelText("DRG 分组器版本"), {
       target: { value: "GROUPER-2026" },
     });
@@ -314,8 +319,10 @@ describe("InsuranceAudit", () => {
     fireEvent.change(screen.getByLabelText("入组说明"), {
       target: { value: "病案首页进入复核" },
     });
-    fireEvent.change(screen.getByLabelText("规则编码"), { target: { value: "RULE-FEE-A" } });
-    fireEvent.change(screen.getByLabelText("规则版本"), { target: { value: "2026-A" } });
+    fireEvent.change(screen.getByLabelText("医保规则依据"), {
+      target: { value: "RULE-FEE-A" },
+    });
+    fireEvent.change(screen.getByLabelText("依据版本"), { target: { value: "2026-A" } });
     fireEvent.change(screen.getByLabelText("费用阈值"), { target: { value: "1000" } });
     fireEvent.change(screen.getByLabelText("整改截止时间"), {
       target: { value: "2026-06-12T00:00:00Z" },
