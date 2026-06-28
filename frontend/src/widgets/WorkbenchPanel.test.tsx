@@ -418,7 +418,14 @@ describe("WorkbenchPanel", () => {
       data: undefined,
       isLoading: false,
       isError: true,
-      error: new Error("GET /api/v1/audit/events failed: ECONNREFUSED 127.0.0.1:8080"),
+      error: {
+        response: {
+          data: {
+            detail: "最近变化暂时不可用",
+            traceId: "trace-dashboard-1",
+          },
+        },
+      },
       refetch: vi.fn(),
     };
 
@@ -428,6 +435,9 @@ describe("WorkbenchPanel", () => {
     expect(screen.getAllByText(/最近变化暂时不可用/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/ECONNREFUSED/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\/api\/v1\/audit/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trace-dashboard-1/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/追踪号/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("失败已留痕，可在审计证据中追溯。").length).toBeGreaterThan(0);
     expect(screen.getByText("系统健康")).toBeInTheDocument();
     expect(screen.getByText(/关系数据库/)).toBeInTheDocument();
   });

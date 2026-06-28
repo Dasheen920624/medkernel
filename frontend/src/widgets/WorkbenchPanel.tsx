@@ -102,6 +102,8 @@ const STAGE_LABEL: Record<string, string> = {
   RENEWAL: "续约",
 };
 
+const WORKBENCH_EVIDENCE_HINT = "失败已留痕，可在审计证据中追溯。";
+
 /**
  * 工作台只读组合现有来源 API，不拥有独立业务数据。
  *
@@ -139,11 +141,11 @@ export function WorkbenchPanel() {
         <PageState
           state="error"
           title="暂时无法核验权限"
-          description={customerSafeDisplayText(
+          description={workbenchSafeErrorMessage(
             parsed.message,
             "暂时无法核验当前角色，请重试或联系信息科。",
+            parsed.traceId,
           )}
-          traceId={parsed.traceId}
         />
       </PageShell>
     );
@@ -178,8 +180,11 @@ export function WorkbenchPanel() {
         <PageState
           state="error"
           title="工作台暂时不可用"
-          description={firstFailure?.message ?? "请稍后重试，或联系信息科检查来源服务。"}
-          traceId={firstFailure?.traceId}
+          description={
+            firstFailure
+              ? workbenchErrorMessage(firstFailure.message, firstFailure.traceId)
+              : "请稍后重试，或联系信息科检查来源服务。"
+          }
         />
       </PageShell>
     );
@@ -751,7 +756,7 @@ function SourceCard<T>({
           <Text>
             {customerSafeDisplayText(parsed.message, `${title}暂时不可用，请重试或联系信息科。`)}
           </Text>
-          {parsed.traceId ? <Text type="secondary">追踪号：{parsed.traceId}</Text> : null}
+          {parsed.traceId ? <Text type="secondary">{WORKBENCH_EVIDENCE_HINT}</Text> : null}
           {drilldownAction}
         </Space>
       </Card>
@@ -807,11 +812,11 @@ function GovernanceSlices({
         <PageState
           state="error"
           title="治理概览暂时不可用"
-          description={customerSafeDisplayText(
+          description={workbenchSafeErrorMessage(
             parsed.message,
             "治理概览暂时不可用，请重试或联系信息科。",
+            parsed.traceId,
           )}
-          traceId={parsed.traceId}
         />
       </Card>
     );
@@ -920,7 +925,7 @@ function PartialSourceAlert({
                 failure.message,
                 `${failure.name}暂时不可用，请重试或联系信息科。`,
               )}
-              {failure.traceId ? `（追踪号：${failure.traceId}）` : ""}
+              {failure.traceId ? `（${WORKBENCH_EVIDENCE_HINT}）` : ""}
             </Text>
           ))}
         </Space>
@@ -964,6 +969,14 @@ function collectFailures(
       },
     ];
   });
+}
+
+function workbenchErrorMessage(message: string, traceId?: string): string {
+  return traceId ? `${message}；${WORKBENCH_EVIDENCE_HINT}` : message;
+}
+
+function workbenchSafeErrorMessage(message: string, fallback: string, traceId?: string): string {
+  return workbenchErrorMessage(customerSafeDisplayText(message, fallback), traceId);
 }
 
 function resolveScopeLabel(profile?: SecurityProfile): string {
