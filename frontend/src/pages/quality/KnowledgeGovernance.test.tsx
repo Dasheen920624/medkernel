@@ -608,6 +608,7 @@ beforeEach(() => {
     data: {
       dataScope: { tenantId: "t-1" },
       permissions: [{ code: "knowledge.publish" }],
+      menuKeys: ["knowledge-governance"],
     },
   });
   mockUseKnowledgeCustomizations.mockReturnValue({
@@ -881,7 +882,9 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("待审核候选总数")).toBeInTheDocument();
     expect(screen.getAllByText("冲突候选").length).toBeGreaterThan(0);
     expect(screen.getByText("高风险候选")).toBeInTheDocument();
-    expect(screen.getByText("KNOW.VTE.GUIDE")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.getAllByText("知识身份已关联").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("来源证据已记录").length).toBeGreaterThan(0);
     expect(screen.getByText("VTE 防治指南")).toBeInTheDocument();
     expect(screen.getByText("待审 VTE 指南 2026.06")).toBeInTheDocument();
     expect(
@@ -891,7 +894,28 @@ describe("KnowledgeGovernance", () => {
       screen.getByText("新增围手术期高危禁忌条款，需责任人确认后替换现行版。"),
     ).toBeInTheDocument();
     expect(screen.queryByText("入口暂未激活")).not.toBeInTheDocument();
+    expect(screen.queryByText("KNOW.VTE.GUIDE")).not.toBeInTheDocument();
+    expect(screen.queryByText("candidate-real-hash")).not.toBeInTheDocument();
+    expect(screen.queryByText(/来源文献：3002/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
+  });
+
+  it("证据详情打开后展示知识身份编码、hash 和来源编号", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("KNOW.VTE.GUIDE")).toBeInTheDocument();
+    expect(screen.getByText(/来源文献：3002/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "查看审核对照" }));
+
+    expect(screen.getAllByText("KNOW.VTE.GUIDE").length).toBeGreaterThan(0);
+    expect(screen.getByText("active-real-hash")).toBeInTheDocument();
+    expect(screen.getByText("candidate-real-hash")).toBeInTheDocument();
+    expect(screen.getByText(/来源文档 #3001/)).toBeInTheDocument();
+    expect(screen.getByText(/来源文档 #3002/)).toBeInTheDocument();
   });
 
   it("keeps review desk focused on candidate review without institution or production tabs", () => {
@@ -954,7 +978,8 @@ describe("KnowledgeGovernance", () => {
     ).toBeInTheDocument();
   });
 
-  it("separates platform-source and tenant-overlay production lanes with visible ownership labels", () => {
+  it("separates platform-source and tenant-overlay production lanes with visible ownership labels", async () => {
+    const user = userEvent.setup();
     mockUseKnowledgeProductionJobs.mockReturnValue({
       data: {
         items: [
@@ -996,11 +1021,18 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("双形态生产分区")).toBeInTheDocument();
     expect(screen.getByText("平台主源只读发布账本")).toBeInTheDocument();
     expect(screen.getByText("院内覆盖本机构治理")).toBeInTheDocument();
+    expect(screen.getAllByText("生产任务已登记").length).toBeGreaterThan(0);
+    expect(screen.queryByText("job-platform-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("job-overlay-1")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
     expect(screen.getAllByText("job-platform-1").length).toBeGreaterThan(0);
     expect(screen.getAllByText("job-overlay-1").length).toBeGreaterThan(0);
   });
 
   it("renders the knowledge production center as a standalone production entry", async () => {
+    const user = userEvent.setup();
     renderPage(<KnowledgeProduction />);
 
     expect(mockUseKnowledgeProductionReadiness).toHaveBeenCalledWith(
@@ -1019,6 +1051,11 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("模型生产上线准备")).toBeInTheDocument();
     expect(screen.getByText("模型服务未就绪")).toBeInTheDocument();
     expect(screen.getAllByText("生产任务").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("生产任务已登记").length).toBeGreaterThan(0);
+    expect(screen.queryByText("job-ai-1")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
     expect(screen.getAllByText("job-ai-1").length).toBeGreaterThan(0);
     expect(screen.getAllByText("统一模型服务").length).toBeGreaterThan(0);
     expect(screen.getByText("生产安全校验结果")).toBeInTheDocument();
@@ -1552,6 +1589,14 @@ describe("KnowledgeGovernance", () => {
     expect(mockUseKnowledgeCandidateDiff).toHaveBeenLastCalledWith(2002);
     expect(screen.getByText("知识候选审核对照")).toBeInTheDocument();
     expect(screen.getByText("现行 VTE 指南")).toBeInTheDocument();
+    expect(screen.getByText("现行摘要已记录")).toBeInTheDocument();
+    expect(screen.getByText("候选摘要已记录")).toBeInTheDocument();
+    expect(screen.queryByText("active-real-hash")).not.toBeInTheDocument();
+    expect(screen.queryByText("source-fragment-active")).not.toBeInTheDocument();
+    expect(screen.queryByText("candidate-real-hash")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
     expect(screen.getAllByText("active-real-hash").length).toBeGreaterThan(0);
     expect(screen.getByText("source-fragment-active")).toBeInTheDocument();
     expect(screen.getAllByText("candidate-real-hash").length).toBeGreaterThan(0);

@@ -14,6 +14,7 @@ const EVIDENCE_DETAIL_MENU_KEYS = new Set([
   "provenance",
   "graph-explore",
   "knowledge-production",
+  "knowledge-governance",
   "ai-workflows",
   "domestic-check",
   "runtime-diagnostics",

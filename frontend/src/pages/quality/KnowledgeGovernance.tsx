@@ -406,6 +406,61 @@ function versionSubtitle(version?: KnowledgeAssetVersion) {
   )} · ${sourceAuthorityLabel(version.authorityLevel)}`;
 }
 
+function evidenceText(
+  value: string | number | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  businessText: string,
+) {
+  if (!evidenceDetailsEnabled) {
+    return businessText;
+  }
+  if (value === undefined || value === null || value === "") {
+    return "--";
+  }
+  return String(value);
+}
+
+function candidateSourceText(
+  record: Pick<KnowledgeAssetVersion, "sourceDocumentId" | "sourceVersionId">,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (!evidenceDetailsEnabled) {
+    return "来源证据已记录";
+  }
+  return `来源文献：${record.sourceDocumentId ?? "无"} / 来源版本： ${record.sourceVersionId ?? "无"}`;
+}
+
+function renderVersionSourceInfo(
+  version: KnowledgeAssetVersion | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) {
+    return (
+      <SourceInfo
+        sourceDocumentId={version?.sourceDocumentId}
+        sourceVersionId={version?.sourceVersionId}
+        authorityLevel={version?.authorityLevel}
+        anchors={version?.anchors}
+        reviewedBy={version?.reviewedBy}
+        reviewedAt={version?.reviewedAt}
+      />
+    );
+  }
+
+  return (
+    <Descriptions title="来源与审核" size="small" bordered column={1}>
+      <Descriptions.Item label="来源证据">来源证据已记录</Descriptions.Item>
+      <Descriptions.Item label="权威分级">
+        {version?.authorityLevel ? <Tag>{sourceAuthorityLabel(version.authorityLevel)}</Tag> : "未分级"}
+      </Descriptions.Item>
+      <Descriptions.Item label="证据锚点">证据锚点已记录</Descriptions.Item>
+      <Descriptions.Item label="审核记录">
+        {version?.reviewedAt ? "来源复核已完成" : "待完成人工复核"}
+      </Descriptions.Item>
+    </Descriptions>
+  );
+}
+
 function defaultCapabilityFor(_assetType?: string | null) {
   return "knowledge.production.knowledge";
 }
@@ -1120,7 +1175,9 @@ export default function KnowledgeGovernance({
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{record.subject}</Text>
-          <Text type="secondary">{record.identityCode}</Text>
+          <Text type="secondary">
+            {evidenceText(record.identityCode, evidenceDetailsEnabled, "知识身份已关联")}
+          </Text>
           <Tag color={record.tenantId === platformTenantId ? "blue" : "cyan"}>
             {knowledgeSourceLabel(sourceTypeFor(record))}
           </Tag>
@@ -1193,7 +1250,9 @@ export default function KnowledgeGovernance({
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{record.subject}</Text>
-          <Text type="secondary">{record.identityCode}</Text>
+          <Text type="secondary">
+            {evidenceText(record.identityCode, evidenceDetailsEnabled, "知识身份已关联")}
+          </Text>
           <Space size={4} wrap>
             <Tag color={PIPELINE_META.PLATFORM_SOURCE.color}>
               {PIPELINE_META.PLATFORM_SOURCE.label}
@@ -1310,8 +1369,7 @@ export default function KnowledgeGovernance({
       render: (_, record) => (
         <Space direction="vertical" size={2}>
           <Text>
-            来源文献：{record.sourceDocumentId ?? "无"} / 来源版本：{" "}
-            {record.sourceVersionId ?? "无"}
+            {candidateSourceText(record, evidenceDetailsEnabled)}
           </Text>
           <Space size={4} wrap>
             <Tag color={RISK_COLORS[record.riskLevel ?? ""] ?? "default"}>
@@ -1360,7 +1418,7 @@ export default function KnowledgeGovernance({
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text strong className={styles.wrapCell}>
-            {record.jobCode}
+            {evidenceText(record.jobCode, evidenceDetailsEnabled, "生产任务已登记")}
           </Text>
           <Text type="secondary">{producerLabel(record.producer)}</Text>
         </Space>
@@ -1424,7 +1482,7 @@ export default function KnowledgeGovernance({
       width: 220,
       render: (value: string) => (
         <Text strong className={styles.wrapCell}>
-          {value}
+          {evidenceText(value, evidenceDetailsEnabled, "生产候选已登记")}
         </Text>
       ),
     },
@@ -1434,9 +1492,11 @@ export default function KnowledgeGovernance({
       width: 280,
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text className={styles.wrapCell}>{record.assetIdentity || "未返回身份"}</Text>
+          <Text className={styles.wrapCell}>
+            {evidenceText(record.assetIdentity, evidenceDetailsEnabled, "资产身份已关联")}
+          </Text>
           <Text type="secondary" className={styles.wrapCell}>
-            {record.contentHash || "未返回 hash"}
+            {evidenceText(record.contentHash, evidenceDetailsEnabled, "候选摘要已记录")}
           </Text>
         </Space>
       ),
@@ -2150,7 +2210,11 @@ export default function KnowledgeGovernance({
             <Space direction="vertical" size="middle" className="mk-full-width">
               <Descriptions column={1} bordered size="small">
                 <Descriptions.Item label="当前生产任务">
-                  {selectedProductionJob.jobCode}
+                  {evidenceText(
+                    selectedProductionJob.jobCode,
+                    evidenceDetailsEnabled,
+                    "生产任务已登记",
+                  )}
                 </Descriptions.Item>
                 <Descriptions.Item label="候选执行状态">
                   <Tag color={coexistence?.candidateExecutable ? "success" : "error"}>
@@ -2202,7 +2266,11 @@ export default function KnowledgeGovernance({
                         </Space>
                       </Descriptions.Item>
                       <Descriptions.Item label="hash">
-                        {snapshotValue(coexistence?.candidateVersion, "contentHash")}
+                        {evidenceText(
+                          coexistence?.candidateVersion?.contentHash,
+                          evidenceDetailsEnabled,
+                          "候选摘要已记录",
+                        )}
                       </Descriptions.Item>
                       <Descriptions.Item label="适用域">
                         {snapshotValue(coexistence?.candidateVersion, "applicableScope")}
@@ -2235,7 +2303,11 @@ export default function KnowledgeGovernance({
                         </Space>
                       </Descriptions.Item>
                       <Descriptions.Item label="hash">
-                        {snapshotValue(coexistence?.activeVersion, "contentHash")}
+                        {evidenceText(
+                          coexistence?.activeVersion?.contentHash,
+                          evidenceDetailsEnabled,
+                          "现行摘要已记录",
+                        )}
                       </Descriptions.Item>
                       <Descriptions.Item label="适用域">
                         {snapshotValue(coexistence?.activeVersion, "applicableScope")}
@@ -2936,7 +3008,11 @@ export default function KnowledgeGovernance({
               {selectedIdentity?.subject ?? "未选择"}
             </Descriptions.Item>
             <Descriptions.Item label="编码">
-              {selectedIdentity?.identityCode ?? "未返回编码"}
+              {evidenceText(
+                selectedIdentity?.identityCode,
+                evidenceDetailsEnabled,
+                "知识身份已关联",
+              )}
             </Descriptions.Item>
             <Descriptions.Item label="分类依据">
               {selectedClassification?.basis ?? "未返回分类依据"}
@@ -2947,36 +3023,26 @@ export default function KnowledgeGovernance({
             <Descriptions.Item label="版本">{versionTitle(activeVersion)}</Descriptions.Item>
             <Descriptions.Item label="状态">{versionSubtitle(activeVersion)}</Descriptions.Item>
             <Descriptions.Item label="contentHash">
-              {activeVersion?.contentHash ?? "未返回摘要"}
+              {evidenceText(activeVersion?.contentHash, evidenceDetailsEnabled, "现行摘要已记录")}
             </Descriptions.Item>
           </Descriptions>
-          <SourceInfo
-            sourceDocumentId={activeVersion?.sourceDocumentId}
-            sourceVersionId={activeVersion?.sourceVersionId}
-            authorityLevel={activeVersion?.authorityLevel}
-            anchors={activeVersion?.anchors}
-            reviewedBy={activeVersion?.reviewedBy}
-            reviewedAt={activeVersion?.reviewedAt}
-          />
+          {renderVersionSourceInfo(activeVersion, evidenceDetailsEnabled)}
 
           <Descriptions column={1} bordered size="small" title="待审候选版本">
             <Descriptions.Item label="版本">{versionTitle(candidateVersion)}</Descriptions.Item>
             <Descriptions.Item label="状态">{versionSubtitle(candidateVersion)}</Descriptions.Item>
             <Descriptions.Item label="contentHash">
-              {candidateVersion?.contentHash ?? "未返回摘要"}
+              {evidenceText(
+                candidateVersion?.contentHash,
+                evidenceDetailsEnabled,
+                "候选摘要已记录",
+              )}
             </Descriptions.Item>
             <Descriptions.Item label="替换策略">
               {candidateVersion?.conflictArbitration ?? "未返回替换策略"}
             </Descriptions.Item>
           </Descriptions>
-          <SourceInfo
-            sourceDocumentId={candidateVersion?.sourceDocumentId}
-            sourceVersionId={candidateVersion?.sourceVersionId}
-            authorityLevel={candidateVersion?.authorityLevel}
-            anchors={candidateVersion?.anchors}
-            reviewedBy={candidateVersion?.reviewedBy}
-            reviewedAt={candidateVersion?.reviewedAt}
-          />
+          {renderVersionSourceInfo(candidateVersion, evidenceDetailsEnabled)}
           <Alert
             type={candidateVersion?.riskLevel === "LOW" ? "info" : "warning"}
             showIcon
