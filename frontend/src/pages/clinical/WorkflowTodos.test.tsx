@@ -15,6 +15,7 @@ const workflowHookMocks = vi.hoisted(() => ({
   refetchTodos: vi.fn(),
   transferTodo: vi.fn(),
   useCompleteWorkflowTodo: vi.fn(),
+  useOrgUsers: vi.fn(),
   useOrgUnits: vi.fn(),
   useSecurityProfile: vi.fn(),
   useTransferWorkflowTodo: vi.fn(),
@@ -23,6 +24,7 @@ const workflowHookMocks = vi.hoisted(() => ({
 
 vi.mock("@/shared/api/hooks", () => ({
   useCompleteWorkflowTodo: workflowHookMocks.useCompleteWorkflowTodo,
+  useOrgUsers: workflowHookMocks.useOrgUsers,
   useOrgUnits: workflowHookMocks.useOrgUnits,
   useSecurityProfile: workflowHookMocks.useSecurityProfile,
   useTransferWorkflowTodo: workflowHookMocks.useTransferWorkflowTodo,
@@ -102,6 +104,20 @@ describe("WorkflowTodos", () => {
     workflowHookMocks.useTransferWorkflowTodo.mockReturnValue({
       isPending: false,
       mutateAsync: workflowHookMocks.transferTodo,
+    });
+    workflowHookMocks.useOrgUsers.mockReturnValue({
+      data: {
+        items: [
+          { userId: "doctor-1", displayName: "王医生" },
+          { userId: "nurse-2", displayName: "张护士" },
+        ],
+        page: 1,
+        size: 20,
+        total: 2,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
     });
     workflowHookMocks.useOrgUnits.mockReturnValue({
       data: {
@@ -583,13 +599,23 @@ describe("WorkflowTodos", () => {
     expect(workflowHookMocks.refetchTodos).toHaveBeenCalled();
   });
 
-  it("persists transfer through the service instead of changing browser-only state", async () => {
+  it("lets clinical users transfer todos by selecting a person and role in hospital language", async () => {
     const user = userEvent.setup();
     renderWorkflowTodos();
 
     await user.click(screen.getByRole("button", { name: "转交" }));
-    await user.type(screen.getByLabelText("接收人"), "nurse-2");
-    await user.type(screen.getByLabelText("接收角色"), "NURSING");
+    expect(workflowHookMocks.useOrgUsers).toHaveBeenCalledWith({
+      page: 1,
+      size: 20,
+    });
+    expect(screen.getByText("请按姓名或院内人员身份选择接收人，岗位用于通知与审计留痕。")).toBeInTheDocument();
+    expect(screen.queryByLabelText("接收角色")).not.toBeInTheDocument();
+    expect(screen.queryByText("NURSING")).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("接收人员"));
+    await user.click(await screen.findByText("张护士"));
+    await user.click(screen.getByLabelText("接收岗位"));
+    await user.click(await screen.findByText("护理"));
     await user.type(screen.getByLabelText("转交说明"), "交由护理站安排回院确认");
     await user.click(screen.getByRole("button", { name: "确认转交" }));
 

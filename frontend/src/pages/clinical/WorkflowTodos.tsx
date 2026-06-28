@@ -24,6 +24,7 @@ import {
 import {
   useCompleteWorkflowTodo,
   useOrgUnits,
+  useOrgUsers,
   useSecurityProfile,
   useTransferWorkflowTodo,
   useWorkflowTodos,
@@ -109,6 +110,7 @@ const sourceText: Record<WorkflowTodoSourceType, string> = {
 };
 
 const ORG_UNIT_REFERENCE_PAGE_SIZE = 20;
+const TRANSFER_USER_REFERENCE_PAGE_SIZE = 20;
 const route = findRouteByPath("/workflow/todos");
 const PAGE_META = {
   title: route?.title ?? "协同任务",
@@ -134,6 +136,11 @@ const assigneeRoleText: Record<string, string> = {
   FOLLOWUP: "随访团队",
   QUALITY: "质控",
 };
+
+const transferRoleOptions = Object.entries(assigneeRoleText).map(([value, label]) => ({
+  value,
+  label,
+}));
 
 function formatDateTime(value?: string | null) {
   if (!value) return "-";
@@ -201,6 +208,7 @@ export default function WorkflowTodos() {
   const [sourceType, setSourceType] = useState<WorkflowTodoSourceType | undefined>();
   const [orgUnitId, setOrgUnitId] = useState<string | undefined>();
   const [orgUnitSearch, setOrgUnitSearch] = useState("");
+  const [transferUserSearch, setTransferUserSearch] = useState("");
   const [completingTodo, setCompletingTodo] = useState<WorkflowTodo | null>(null);
   const [transferringTodo, setTransferringTodo] = useState<WorkflowTodo | null>(null);
   const [completeForm] = Form.useForm<{ completionReason: string }>();
@@ -223,11 +231,17 @@ export default function WorkflowTodos() {
   };
   const { data, isError, isLoading, refetch } = useWorkflowTodos(queryParams);
   const orgUnitKeyword = orgUnitSearch.trim();
+  const transferUserKeyword = transferUserSearch.trim();
   const { data: orgUnits, isLoading: orgUnitsLoading } = useOrgUnits({
     page: 1,
     size: ORG_UNIT_REFERENCE_PAGE_SIZE,
     status: "ACTIVE",
     ...(orgUnitKeyword ? { keyword: orgUnitKeyword } : {}),
+  });
+  const { data: transferUsers, isLoading: transferUsersLoading } = useOrgUsers({
+    page: 1,
+    size: TRANSFER_USER_REFERENCE_PAGE_SIZE,
+    ...(transferUserKeyword ? { keyword: transferUserKeyword } : {}),
   });
   const completeMutation = useCompleteWorkflowTodo();
   const transferMutation = useTransferWorkflowTodo();
@@ -237,6 +251,14 @@ export default function WorkflowTodos() {
         .filter((unit) => unit.id)
         .map((unit) => ({ value: unit.id ?? "", label: unit.name })),
     [orgUnits?.items],
+  );
+  const transferUserOptions = useMemo(
+    () =>
+      (transferUsers?.items ?? []).map((user) => ({
+        value: user.userId,
+        label: user.displayName,
+      })),
+    [transferUsers?.items],
   );
   const visibleTodos = useMemo(
     () =>
@@ -290,6 +312,7 @@ export default function WorkflowTodos() {
       });
       message.success("待办已转交");
       setTransferringTodo(null);
+      setTransferUserSearch("");
       transferForm.resetFields();
       await refetch();
     } catch (error: unknown) {
@@ -407,6 +430,7 @@ export default function WorkflowTodos() {
               disabled={record.status !== "PENDING" && record.status !== "IN_PROGRESS"}
               onClick={() => {
                 setTransferringTodo(record);
+                setTransferUserSearch("");
                 transferForm.setFieldsValue({
                   transferTo: "",
                   transferRole: "",
@@ -562,22 +586,42 @@ export default function WorkflowTodos() {
         title="转交待办"
         open={!!transferringTodo}
         onOk={handleTransfer}
-        onCancel={() => setTransferringTodo(null)}
+        onCancel={() => {
+          setTransferringTodo(null);
+          setTransferUserSearch("");
+        }}
         okText="确认转交"
         cancelText="取消"
         confirmLoading={transferMutation.isPending}
         destroyOnClose
       >
         <Form form={transferForm} layout="vertical" className={styles.formGap}>
+          <Alert
+            type="info"
+            showIcon
+            message="请按姓名或院内人员身份选择接收人，岗位用于通知与审计留痕。"
+          />
           <Form.Item
             name="transferTo"
-            label="接收人"
-            rules={[{ required: true, message: "请输入接收人" }]}
+            label="接收人员"
+            rules={[{ required: true, message: "请选择接收人员" }]}
           >
-            <Input maxLength={64} />
+            <Select
+              showSearch
+              filterOption={false}
+              onSearch={setTransferUserSearch}
+              placeholder="按姓名或院内人员身份搜索"
+              options={transferUserOptions}
+              loading={transferUsersLoading}
+              notFoundContent="暂无可选接收人"
+            />
           </Form.Item>
-          <Form.Item name="transferRole" label="接收角色">
-            <Input maxLength={64} />
+          <Form.Item name="transferRole" label="接收岗位">
+            <Select
+              allowClear
+              placeholder="选择接收岗位"
+              options={transferRoleOptions}
+            />
           </Form.Item>
           <Form.Item
             name="transferReason"
