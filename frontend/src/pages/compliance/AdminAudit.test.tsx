@@ -308,6 +308,8 @@ describe("AdminAudit", () => {
     const user = userEvent.setup();
     render(<AdminAudit />);
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("输入操作人信息")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("输入操作人标识")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("对象类型"), { target: { value: "audit" } });
     await user.click(screen.getByRole("combobox", { name: "执行结果" }));

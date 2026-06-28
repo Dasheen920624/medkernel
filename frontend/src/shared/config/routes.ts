@@ -153,7 +153,7 @@ const auditExperience: RouteExperience = {
       key: "actorUserId",
       label: "操作人",
       kind: "search",
-      placeholder: "输入操作人标识",
+      placeholder: "输入操作人信息",
     },
     {
       key: "action",
