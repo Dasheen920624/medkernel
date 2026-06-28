@@ -11,6 +11,7 @@ const DEFAULT_POLL_DELAY_MS = 2000;
 const EXPORT_SUBMIT_FAILURE_FALLBACK = "导出服务暂时不可用，请重试或联系信息科。";
 const EXPORT_POLL_FAILURE_FALLBACK = "导出任务状态读取失败，请重试或联系信息科。";
 const EXPORT_JOB_FAILURE_FALLBACK = "导出任务未完成，请重试或联系信息科。";
+const EXPORT_EVIDENCE_HINT = "导出证据已留痕，可在审计证据中追溯。";
 
 function shouldPoll(job: AsyncExportJob): boolean {
   return job.status === "pending" || job.status === "running";
@@ -188,8 +189,7 @@ export function AsyncExportAction({
           description={
             <Space direction="vertical" size={0}>
               <Text>任务编号：{job.jobId}</Text>
-              {job.traceId && <Text>追踪号：{job.traceId}</Text>}
-              {job.auditId && <Text>审计编号：{job.auditId}</Text>}
+              {(job.traceId || job.auditId) && <Text>{EXPORT_EVIDENCE_HINT}</Text>}
               {job.failureReason && (
                 <Text>
                   {customerSafeDisplayText(job.failureReason, EXPORT_JOB_FAILURE_FALLBACK)}

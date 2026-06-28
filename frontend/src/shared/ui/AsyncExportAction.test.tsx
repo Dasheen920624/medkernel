@@ -110,8 +110,11 @@ describe("AsyncExportAction", () => {
 
     expect(await screen.findByText("导出已完成")).toBeInTheDocument();
     expect(screen.getByText(/job-1/)).toBeInTheDocument();
-    expect(screen.getByText(/trace-1/)).toBeInTheDocument();
-    expect(screen.getByText(/audit-1/)).toBeInTheDocument();
+    expect(screen.getByText("导出证据已留痕，可在审计证据中追溯。")).toBeInTheDocument();
+    expect(screen.queryByText(/trace-1/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/追踪号/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/audit-1/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/审计编号/)).not.toBeInTheDocument();
     expect(onPoll).toHaveBeenCalledWith("job-1");
   });
 
