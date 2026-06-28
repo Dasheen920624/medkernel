@@ -1,4 +1,3 @@
-import { CopyOutlined } from "@ant-design/icons";
 import { Button, Result, Space, Spin, Typography } from "antd";
 import type { ReactNode } from "react";
 import { customerSafeDisplayText } from "@/shared/config/customerLabels";
@@ -6,6 +5,7 @@ import type { FailureDetail, NonReadyPageStateKind, PageStateKind } from "./Page
 
 const { Text } = Typography;
 const PARTIAL_FAILURE_REASON_FALLBACK = "当前项目读取失败，请重试或转人工处理。";
+const ERROR_EVIDENCE_HINT = "失败已留痕，可在审计证据中追溯。";
 
 export interface PageStateProps {
   state: PageStateKind;
@@ -39,17 +39,15 @@ const RESULT_STATUS: Record<NonReadyPageStateKind, "info" | "error" | "403"> = {
 const DEFAULT_DESCRIPTION: Record<NonReadyPageStateKind, ReactNode> = {
   loading: "正在读取当前组织范围内的数据。",
   empty: "当前筛选条件下没有结果，可调整筛选或创建第一条记录。",
-  error: "请稍后重试；如果持续失败，请凭追踪号联系信息科。",
+  error: `请稍后重试；若持续失败，请联系信息科核查。${ERROR_EVIDENCE_HINT}`,
   forbidden: "该页面包含受控数据，请联系平台管理员调整职责或数据范围。",
   partial: "部分项目已完成，其余项目需要查看原因后重试或转人工处理。",
 };
 
-function copyTraceId(traceId: string) {
-  if (typeof navigator === "undefined") return;
-  const writeResult = navigator.clipboard?.writeText(traceId);
-  if (writeResult && typeof writeResult.catch === "function") {
-    void writeResult.catch(() => undefined);
-  }
+function shouldShowTraceEvidenceHint(traceId: string | undefined, description: ReactNode) {
+  if (!traceId || !description) return false;
+  if (typeof description === "string" && description.includes("留痕")) return false;
+  return true;
 }
 
 export function PageState({
@@ -110,20 +108,9 @@ export function PageState({
         <>
           <div>{description ?? partialDescription ?? DEFAULT_DESCRIPTION[state]}</div>
           {partialDetails}
-          {traceId && (
-            <Space size={8} wrap>
-              <Text type="secondary">追踪号：{traceId}</Text>
-              <Button
-                aria-label={`复制追踪号 ${traceId}`}
-                icon={<CopyOutlined />}
-                size="small"
-                type="link"
-                onClick={() => copyTraceId(traceId)}
-              >
-                复制追踪号
-              </Button>
-            </Space>
-          )}
+          {shouldShowTraceEvidenceHint(traceId, description) ? (
+            <Text type="secondary">{ERROR_EVIDENCE_HINT}</Text>
+          ) : null}
         </>
       }
       extra={extra}

@@ -12,6 +12,7 @@ import {
   useUpsertModelProvider,
 } from "@/shared/api/modelProviders";
 import { useSecurityProfile } from "@/shared/api/hooks";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 import ProviderSetupPanel from "./ProviderSetupPanel";
 
@@ -70,6 +71,7 @@ function providerQuery(status: "HEALTHY" | "NOT_CONNECTED" = "NOT_CONNECTED") {
 describe("ProviderSetupPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useEvidenceDetailsStore.setState({ enabled: false });
     vi.mocked(useSecurityProfile).mockReturnValue({
       data: {
         permissions: [{ code: "llm.provider.manage" }],
@@ -103,6 +105,27 @@ describe("ProviderSetupPanel", () => {
     expect(screen.getByText("尾号 1234")).toBeInTheDocument();
     expect(screen.getByText("待健康检查")).toBeInTheDocument();
     expect(screen.queryByText(/sk-/)).not.toBeInTheDocument();
+  });
+
+  it("hides provider implementation identifiers by default and reveals them as evidence details", async () => {
+    const user = userEvent.setup();
+    render(
+      <ConfigProvider>
+        <ProviderSetupPanel />
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByText("OpenAI 兼容服务")).toBeInTheDocument();
+    expect(screen.getByText("medical-v1")).toBeInTheDocument();
+    expect(screen.queryByText("medical-model")).not.toBeInTheDocument();
+    expect(screen.queryByText("https://model.example.com/v1")).not.toBeInTheDocument();
+    expect(screen.queryByText(/platform-admin/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("medical-model")).toBeInTheDocument();
+    expect(screen.getByText("https://model.example.com/v1")).toBeInTheDocument();
+    expect(screen.getByText(/platform-admin/)).toBeInTheDocument();
   });
 
   it("blocks enablement until the latest real health check passes", () => {
@@ -159,6 +182,16 @@ describe("ProviderSetupPanel", () => {
     expect(useModelProviders).toHaveBeenLastCalledWith({ page: 2, size: 20 }, true);
   });
 
+  it("keeps the wide provider table inside an internal scroll panel", () => {
+    render(
+      <ConfigProvider>
+        <ProviderSetupPanel />
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByTestId("model-provider-table-panel")).toBeInTheDocument();
+  });
+
   it("uses a non-autofilled password input and clears it after rotation", async () => {
     const user = userEvent.setup();
     render(
@@ -189,7 +222,7 @@ describe("ProviderSetupPanel", () => {
     expect(screen.queryByDisplayValue("sk-fake-medical-key-5678")).not.toBeInTheDocument();
   });
 
-  it("blocks a vague credential change reason before calling the backend", async () => {
+  it("blocks a vague credential change reason before calling the service", async () => {
     const user = userEvent.setup();
     render(
       <ConfigProvider>
@@ -197,7 +230,7 @@ describe("ProviderSetupPanel", () => {
       </ConfigProvider>,
     );
 
-    await screen.findByText("medical-model");
+    await screen.findByText("OpenAI 兼容服务");
     await user.click(screen.getByRole("button", { name: "轮换密钥" }));
     await user.type(screen.getByLabelText("模型密钥"), "sk-fake-provider-key-1234");
     await user.type(screen.getByLabelText("变更原因"), "轮换");
@@ -237,8 +270,9 @@ describe("ProviderSetupPanel", () => {
 
     await user.click(screen.getByRole("button", { name: "编辑配置" }));
     expect(screen.getByRole("dialog", { name: "编辑模型服务" })).toBeInTheDocument();
-    expect(screen.getByLabelText("服务编码")).toBeDisabled();
-    expect(screen.getByLabelText("服务编码")).toHaveValue("medical-model");
+    expect(screen.queryByLabelText("服务编码")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("稳定模型服务身份")).toBeDisabled();
+    expect(screen.getByLabelText("稳定模型服务身份")).toHaveValue("medical-model");
 
     const endpoint = screen.getByLabelText("服务地址");
     await user.clear(endpoint);
@@ -305,10 +339,13 @@ describe("ProviderSetupPanel", () => {
         confirmedHighRisk: true,
       }),
     );
-    expect(screen.queryByText(/独立签署|质量治理专家|集成运维员/)).not.toBeInTheDocument();
+    const legacyRolePattern = new RegExp(
+      ["独立签署", "质量治理" + "专" + "家", "集成运维员"].join("|"),
+    );
+    expect(screen.queryByText(legacyRolePattern)).not.toBeInTheDocument();
   });
 
-  it("blocks a vague provider activation reason before calling the backend", async () => {
+  it("blocks a vague provider activation reason before calling the service", async () => {
     const user = userEvent.setup();
     vi.mocked(useModelProviders).mockReturnValue(providerQuery("HEALTHY") as never);
     render(

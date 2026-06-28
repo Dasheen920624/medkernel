@@ -54,7 +54,7 @@ class MfaPolicyServiceTest {
             return credential;
         });
         RequestContext.restore(new RequestContext.Snapshot(
-            "trace-mfa", new OrgScope("t-1", null, null, null, null, null, null), "platform-owner"));
+            "trace-mfa", new OrgScope("t-1", null, null, null, null, null, null, null), "platform-owner"));
     }
 
     @AfterEach

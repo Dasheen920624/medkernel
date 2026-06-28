@@ -36,7 +36,7 @@ import jakarta.validation.Valid;
  * 与临床信号统计 {@code /api/v1/engine-data/clinical-signals}（均 D2 去标识聚合），CLI/MCP 共用的
  * 受控工具入口 {@code /api/v1/engine-data/tools}（目录 + 执行，FR-4 治理信封），以及经导出确认门禁
  * 控制的异步 CSV 导出 {@code /api/v1/engine-data/exports/*}（{@code engine-data.export}，FR-1）。读侧统一
- * {@code engine-data.read}，全线 {@link DataScope} 强多租户隔离；后端脱敏 + 数据分级 + 审计 + 诚实降级。
+ * {@code engine-data.read}，全线 {@link DataScope} 强多租户隔离；数据脱敏 + 数据分级 + 审计 + 诚实降级。
  */
 @RestController
 @RequestMapping("/api/v1/engine-data")

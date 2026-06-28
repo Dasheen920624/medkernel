@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import SandboxHost from "./SandboxHost";
 
 const sandboxHookMocks = vi.hoisted(() => ({
@@ -15,6 +16,12 @@ vi.mock("@/shared/api/hooks", () => ({
   useSandboxScenarios: sandboxHookMocks.useSandboxScenarios,
   useSandboxRuntimeStatus: sandboxHookMocks.useSandboxRuntimeStatus,
   useRunSandboxScenario: sandboxHookMocks.useRunSandboxScenario,
+  useSecurityProfile: () => ({
+    data: {
+      permissions: [{ code: "system.debug" }, { code: "sandbox.run" }, { code: "menu.sandbox" }],
+      menuKeys: ["sandbox", "runtime-diagnostics"],
+    },
+  }),
 }));
 
 const scenarios = [
@@ -25,7 +32,7 @@ const scenarios = [
     playbook: "RULE_ONLY",
     triggerPoint: "result-review",
     title: "检验复核受控场景",
-    narrative: "由后端目录提供的受控场景。",
+    narrative: "由场景目录提供的受控场景。",
     hostSummary: "院内业务系统检验复核",
     patientId: "patient-1",
     encounterId: "encounter-1",
@@ -57,7 +64,7 @@ const scenarios = [
     triggerPoint: "order-sign",
     title: "抗菌药物处方复核",
     narrative: "使用演练机构规则运行。",
-    hostSummary: "院内业务系统模拟场景",
+    hostSummary: "院内业务系统处方复核",
     patientId: "patient-2",
     encounterId: "encounter-2",
     expectedRuleCode: "SBX.ANTIBIOTIC.REVIEW",
@@ -76,7 +83,7 @@ const scenarios = [
     triggerPoint: "patient-view",
     title: "推荐综合卡",
     narrative: "真实引擎编排。",
-    hostSummary: "院内业务系统编排场景",
+    hostSummary: "院内业务系统综合编排",
     patientId: "patient-3",
     encounterId: "encounter-3",
     expectedRuleCode: null,
@@ -102,6 +109,7 @@ function renderSandboxHost() {
 describe("SandboxHost", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useEvidenceDetailsStore.setState({ enabled: false });
     sandboxHookMocks.useRunSandboxScenario.mockReturnValue({
       isPending: false,
       mutateAsync: sandboxHookMocks.run,
@@ -170,6 +178,9 @@ describe("SandboxHost", () => {
       ],
       snapshotId: "ctx-sbx-1",
       triggerId: "trigger-sbx-1",
+      patientPathwayId: "pathway-instance-sbx-1",
+      followupPlanId: "followup-plan-sbx-1",
+      evaluationRunId: "evaluation-run-sbx-1",
       cardCount: 1,
       embedToken: "masked",
       embedUrl: "/embed/launch?token=masked",
@@ -208,12 +219,54 @@ describe("SandboxHost", () => {
       "/embed/launch?token=masked",
     );
     expect(screen.getByText("链路完成")).toBeInTheDocument();
-    expect(screen.getByText("SBX.LAB.CRITICAL.K")).toBeInTheDocument();
+    expect(screen.getByText("真实链路已完成")).toBeInTheDocument();
+    expect(screen.queryByText("SBX.LAB.CRITICAL.K")).not.toBeInTheDocument();
+    expect(screen.queryByText("trace-sandbox-host-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("run-sandbox-host-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("baseline-sandbox-host-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("pathway-instance-sbx-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("followup-plan-sbx-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("evaluation-run-sbx-1")).not.toBeInTheDocument();
+    expect(screen.getByText("路径实例已生成")).toBeInTheDocument();
+    expect(screen.getByText("随访计划已登记")).toBeInTheDocument();
+    expect(screen.getByText("评估运行已记录")).toBeInTheDocument();
+    expect(screen.getAllByText("当前机构生效版本").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("外部副作用已关闭")).toHaveLength(2);
+
+    const frame = screen.getByTitle("临床嵌入式终端") as HTMLIFrameElement;
+    fireEvent(
+      window,
+      new MessageEvent("message", {
+        origin: window.location.origin,
+        source: frame.contentWindow,
+        data: {
+          source: "MEDKERNEL_CDSS_EMBED",
+          action: "ADOPT",
+          cardId: "card-1",
+          recommendationStatus: "ADOPTED",
+          traceId: "trace-sandbox-host-1",
+        },
+      }),
+    );
+    expect(await screen.findByText("宿主已收到采纳建议决策")).toBeInTheDocument();
+    expect(screen.getByText("卡片：卡片证据已记录")).toBeInTheDocument();
+    expect(screen.getByText("状态：建议已采纳")).toBeInTheDocument();
+    expect(screen.getByText("追踪证据：已保留")).toBeInTheDocument();
+    expect(screen.queryByText("ADOPT")).not.toBeInTheDocument();
+    expect(screen.queryByText("ADOPTED")).not.toBeInTheDocument();
+    expect(screen.queryByText("card-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("trace-sandbox-host-1")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getByText("pathway-instance-sbx-1")).toBeInTheDocument();
+    expect(screen.getByText("followup-plan-sbx-1")).toBeInTheDocument();
+    expect(screen.getByText("evaluation-run-sbx-1")).toBeInTheDocument();
     expect(screen.getByText("trace-sandbox-host-1")).toBeInTheDocument();
     expect(screen.getByText("run-sandbox-host-1")).toBeInTheDocument();
     expect(screen.getByText("baseline-sandbox-host-1")).toBeInTheDocument();
-    expect(screen.getAllByText("当前机构生效版本").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("外部副作用已关闭")).toHaveLength(2);
+    expect(screen.getByText("宿主已收到采纳建议（ADOPT）决策")).toBeInTheDocument();
+    expect(screen.getByText("卡片：card-1")).toBeInTheDocument();
+    expect(screen.getByText("状态：建议已采纳（ADOPTED）")).toBeInTheDocument();
   });
 
   it("keeps a truthful failure state when orchestration cannot complete", async () => {
@@ -274,6 +327,23 @@ describe("SandboxHost", () => {
     expect(screen.getByText("第 9 版 · runtime-platform-1")).toBeInTheDocument();
   });
 
+  it("shows a product-facing scenario catalog warning when the catalog cannot be read", () => {
+    sandboxHookMocks.useSandboxScenarios.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      refetch: vi.fn(),
+    });
+
+    renderSandboxHost();
+
+    expect(screen.getByText("沙盘场景目录暂不可用")).toBeInTheDocument();
+    expect(
+      screen.getByText("当前仅展示目录未就绪状态，不生成或暗示可运行临床场景。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/后端|前端内置|兜底/)).not.toBeInTheDocument();
+  });
+
   it("runs an outer-engine playbook without fabricated clinical input", async () => {
     sandboxHookMocks.run.mockResolvedValue({
       scenarioId: "sbx-recommendation-composite",
@@ -297,6 +367,11 @@ describe("SandboxHost", () => {
 
     renderSandboxHost();
     fireEvent.click(screen.getByRole("button", { name: /推荐综合卡/ }));
+    expect(screen.getByText("推荐综合卡编排")).toBeInTheDocument();
+    expect(screen.getByText("智能推荐")).toBeInTheDocument();
+    expect(screen.queryByText("RECOMMENDATION_COMPOSITE")).not.toBeInTheDocument();
+    expect(screen.queryByText("recommendation")).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: "运行真实引擎链路" }));
 
     await waitFor(() =>
@@ -311,7 +386,8 @@ describe("SandboxHost", () => {
         },
       }),
     );
-    expect(await screen.findByText("trace-outer-1")).toBeInTheDocument();
+    expect(await screen.findByText("真实链路已完成")).toBeInTheDocument();
+    expect(screen.queryByText("trace-outer-1")).not.toBeInTheDocument();
   });
 
   it("runs an immutable historical manifest without current context overrides", async () => {
@@ -348,7 +424,9 @@ describe("SandboxHost", () => {
 
     renderSandboxHost();
     fireEvent.click(screen.getByRole("radio", { name: "历史原样重放" }));
-    fireEvent.change(screen.getByLabelText("历史重放清单标识"), {
+    expect(screen.getByLabelText("历史演练清单")).toBeInTheDocument();
+    expect(screen.queryByLabelText("历史重放清单标识")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("历史演练清单"), {
       target: { value: "replay-2025-001" },
     });
     fireEvent.click(screen.getByRole("button", { name: "按清单原样重放" }));
@@ -364,10 +442,20 @@ describe("SandboxHost", () => {
       }),
     );
     expect(await screen.findByText("历史高钾规则")).toBeInTheDocument();
-    expect(screen.getByText("RULE.OLD.K@7")).toBeInTheDocument();
+    expect(screen.getByText("历史版本 7")).toBeInTheDocument();
+    expect(screen.queryByText("RULE.OLD.K@7")).not.toBeInTheDocument();
+    expect(screen.getByText("历史已退役")).toBeInTheDocument();
+    expect(screen.queryByText("RETIRED")).not.toBeInTheDocument();
+    expect(screen.getAllByText("危急风险").length).toBeGreaterThan(0);
+    expect(screen.queryByText("CRITICAL")).not.toBeInTheDocument();
     expect(screen.getByText("历史高钾红线")).toBeInTheDocument();
     expect(screen.getAllByText("历史重放清单").length).toBeGreaterThan(0);
     expect(screen.queryByText("上下文原始 JSON")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getByText("RULE.OLD.K@7")).toBeInTheDocument();
+    expect(screen.getByText("历史已退役（RETIRED）")).toBeInTheDocument();
+    expect(screen.getByText("危急风险（CRITICAL）")).toBeInTheDocument();
   });
 
   it("compares historical and current frozen rules without sending a context override", async () => {
@@ -443,11 +531,11 @@ describe("SandboxHost", () => {
     });
 
     renderSandboxHost();
-    fireEvent.click(screen.getByRole("radio", { name: "新旧对比" }));
-    fireEvent.change(screen.getByLabelText("历史重放清单标识"), {
+    fireEvent.click(screen.getByRole("radio", { name: "版本差异评估" }));
+    fireEvent.change(screen.getByLabelText("历史演练清单"), {
       target: { value: "replay-2025-001" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "运行新旧对比" }));
+    fireEvent.click(screen.getByRole("button", { name: "运行版本差异评估" }));
 
     await waitFor(() =>
       expect(sandboxHookMocks.run).toHaveBeenCalledWith({
@@ -459,10 +547,23 @@ describe("SandboxHost", () => {
         },
       }),
     );
-    expect(await screen.findByRole("region", { name: "新旧规则差异" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "规则版本差异" })).toBeInTheDocument();
     expect(screen.getByText("高风险变化规则")).toBeInTheDocument();
+    expect(screen.queryByText("RULE.RISK.UP")).not.toBeInTheDocument();
     expect(screen.getByText("严重度升高")).toBeInTheDocument();
     expect(screen.getAllByText("新增命中")).toHaveLength(2);
+    expect(
+      screen.getByText(/历史：平台标准 第 1 版 \/ 命中；当前：机构版本 第 2 版 \/ 命中/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/PLATFORM|ORG/)).not.toBeInTheDocument();
     expect(screen.getByText("8")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getByText("RULE.RISK.UP")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /历史：平台标准（PLATFORM） 第 1 版 \/ 命中；当前：机构版本（ORG） 第 2 版 \/ 命中/,
+      ),
+    ).toBeInTheDocument();
   });
 });

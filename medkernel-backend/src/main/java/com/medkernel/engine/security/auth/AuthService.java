@@ -238,13 +238,13 @@ public class AuthService {
 
     private OrgScope fallbackOrgScope(String tenantId, String level, String code) {
         return switch (level) {
-            case "REGION" -> new OrgScope(tenantId, code, null, null, null, null, null);
-            case "FACILITY" -> new OrgScope(tenantId, null, code, null, null, null, null);
-            case "CAMPUS" -> new OrgScope(tenantId, null, null, code, null, null, null);
-            case "DEPARTMENT" -> new OrgScope(tenantId, null, null, null, null, code, null);
+            case "REGION" -> new OrgScope(tenantId, code, null, null, null, null, null, null);
+            case "FACILITY" -> new OrgScope(tenantId, null, code, null, null, null, null, null);
+            case "CAMPUS" -> new OrgScope(tenantId, null, null, code, null, null, null, null);
+            case "DEPARTMENT" -> new OrgScope(tenantId, null, null, null, null, code, null, null);
             case "WARD" -> new OrgScope(
                 tenantId, null, null, null, null, null, code, null);
-            case "SPECIALTY" -> new OrgScope(tenantId, null, null, null, null, null, code);
+            case "SPECIALTY" -> new OrgScope(tenantId, null, null, null, null, null, null, code);
             default -> OrgScope.tenant(tenantId);
         };
     }

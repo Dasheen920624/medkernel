@@ -20,11 +20,11 @@ export function RectificationAssignmentFields() {
     .filter((unit) => unit.level === "DEPARTMENT" && unit.status !== "ARCHIVED")
     .map((unit) => ({
       value: unit.id ?? unit.code,
-      label: `${unit.name} · ${unit.code}`,
+      label: unit.name,
     }));
   const userOptions = (usersQuery.data?.items ?? []).map((user) => ({
     value: user.userId,
-    label: `${user.displayName} · ${user.userId}`,
+    label: user.displayName,
   }));
 
   return (

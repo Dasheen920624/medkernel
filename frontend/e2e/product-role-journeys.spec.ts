@@ -21,7 +21,7 @@ const expectedMenus: Record<RoleAccount, string[]> = {
     "adapter-hub",
     "system-providers",
     "domestic-check",
-    "dev-console",
+    "runtime-diagnostics",
     "notifications",
     "notification-settings",
   ],

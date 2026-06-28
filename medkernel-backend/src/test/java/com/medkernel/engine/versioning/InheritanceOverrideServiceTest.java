@@ -198,7 +198,7 @@ class InheritanceOverrideServiceTest {
         AssetVersion local = version("av-hospital-b-v1p", "1.0.0-hosp-b", hospitalB.orgPath(), AssetVersionSafetyPolicy.NORMAL);
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-sys04",
-            new OrgScope("tenant-A", "group-1", "hospital-a", null, null, null, null),
+            new OrgScope("tenant-A", "group-1", "hospital-a", null, null, null, null, null),
             "publisher-1"));
         when(assetVersions.findByVersionIdAndTenantId(inherited.versionId(), "tenant-A")).thenReturn(Optional.of(inherited));
         when(assetVersions.findByVersionIdAndTenantId(local.versionId(), "tenant-A")).thenReturn(Optional.of(local));

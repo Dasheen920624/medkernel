@@ -16,7 +16,8 @@ import java.util.UUID;
  * <p>线程模型：基于 {@link ThreadLocal}，配合 Virtual Threads 一处请求一片上下文。
  * 异步任务请使用 {@link #snapshot()} 显式传递，并在子线程通过 {@link #restore(Snapshot)} 恢复。
  *
- * <p>本类只提供骨架；JWT → OrgScope/userId 的真实填充在 GA-ENG-BASE-01 / 02 任务中实施。
+ * <p>TraceId 由入口过滤器写入；OrgScope 与 userId 由认证和数据范围切面写入。
+ * 缺少组织上下文时，租户级数据访问会被统一拦截。
  */
 public final class RequestContext {
 

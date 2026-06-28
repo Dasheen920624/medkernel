@@ -149,11 +149,17 @@ public class MpiService {
 
         if (genderCounts != null) {
             for (MpiPatientRepository.GenderCount gc : genderCounts) {
-                String gender = gc.getGender();
+                String gender = gc.gender();
+                long count = gc.cnt() == null ? 0L : gc.cnt();
                 if (gender == null || gender.isBlank()) {
-                    genderMap.put("UNKNOWN", genderMap.getOrDefault("UNKNOWN", 0L) + gc.getCnt());
+                    genderMap.put("UNKNOWN", genderMap.getOrDefault("UNKNOWN", 0L) + count);
                 } else {
-                    genderMap.put(gender.toUpperCase(), gc.getCnt());
+                    String normalized = gender.toUpperCase();
+                    if ("M".equals(normalized) || "F".equals(normalized)) {
+                        genderMap.put(normalized, count);
+                    } else {
+                        genderMap.put("UNKNOWN", genderMap.getOrDefault("UNKNOWN", 0L) + count);
+                    }
                 }
             }
         }
@@ -165,7 +171,7 @@ public class MpiService {
      * 获取患者 360 详情。
      *
      * <p>详情由当前租户患者主索引、最新标准上下文快照和最近活跃路径实例组成；
-     * 若暂未接入标准上下文，返回空快照字段而不是构造本地假患者事实。
+     * 若当前没有已生效标准上下文快照，返回空快照字段而不是构造本地假患者事实。
      */
     @Transactional(readOnly = true)
     public MpiPatientDetailResponse patientDetail(String mpiId) {

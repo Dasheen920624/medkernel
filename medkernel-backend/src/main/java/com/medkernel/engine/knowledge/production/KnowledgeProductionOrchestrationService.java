@@ -27,7 +27,7 @@ import com.medkernel.shared.context.RequestContext;
  * 知识生产编排服务（AIK-STD-13）。
  *
  * <p>统一编排层：四生产器产物统一进候选池走同一流水线，落双形态物理隔离（§9 平台主源不可污染 / 客户覆盖不反写），
- * 是「AI 只产候选不产事实」红线归口。PR1 落 job 生命周期 + 隔离守卫 + 候选血缘/审计；候选物化经
+ * 是「AI 只产候选不产事实」红线归口。当前编排 job 生命周期、隔离守卫、候选血缘和审计；候选物化经
  * {@link KnowledgeCandidateIntake} 端口走既有版本/审核链。
  */
 @Service

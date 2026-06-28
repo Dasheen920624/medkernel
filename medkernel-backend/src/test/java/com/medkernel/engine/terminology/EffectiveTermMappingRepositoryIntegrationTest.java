@@ -96,7 +96,7 @@ class EffectiveTermMappingRepositoryIntegrationTest {
             "department:department-1", "4548-4", 202L, now);
         RequestContext.restore(new RequestContext.Snapshot(
             "trace",
-            new OrgScope("tenant-A", null, "hospital-1", null, null, "department-1", null),
+            new OrgScope("tenant-A", null, "hospital-1", null, null, "department-1", null, null),
             "doctor-1"
         ));
 
@@ -122,7 +122,7 @@ class EffectiveTermMappingRepositoryIntegrationTest {
             "tenant:tenant-A", "4548-4", 302L, now.plusSeconds(60));
         RequestContext.restore(new RequestContext.Snapshot(
             "trace",
-            new OrgScope("tenant-A", null, "hospital-1", null, null, null, null),
+            new OrgScope("tenant-A", null, "hospital-1", null, null, null, null, null),
             "operator-1"
         ));
 

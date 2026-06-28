@@ -13,10 +13,21 @@ import {
 
 const FRONTEND_SOURCE = /^frontend\/src\/(?:pages|features|widgets)\/.+\.(?:ts|tsx)$/;
 const FRONTEND_SHARED_API = /^frontend\/src\/shared\/api\/.+\.(?:ts|tsx)$/;
+const FRONTEND_SHARED_CONFIG = /^frontend\/src\/shared\/config\/.+\.ts$/;
+const FRONTEND_SHARED_UI = /^frontend\/src\/shared\/ui\/.+\.(?:ts|tsx)$/;
 const FRONTEND_CSS = /^frontend\/src\/.+\.module\.css$/;
 const FRONTEND_E2E = /^frontend\/e2e\/.+\.(?:ts|tsx)$/;
 const FRONTEND_ROUTER = /^frontend\/src\/app\/router\.tsx$/;
 const BACKEND_JAVA = /^medkernel-backend\/src\/main\/java\/.+\.java$/;
+const BACKEND_DOMAIN_FACADE =
+  /^medkernel-backend\/src\/main\/java\/com\/medkernel\/engine\/domainfacade\/.+\.java$/;
+const REHEARSAL_SCRIPT = /^scripts\/(?:knowledge|release)\/.+\.mjs$/;
+const SANDBOX_SCRIPT = /^scripts\/sandbox\/.+\.(?:mjs|json)$/;
+const DB_COMMENT_CONTRACT =
+  /^medkernel-backend\/src\/main\/resources\/db\/(?:schema\/medkernel\.schema\.json|migration\/(?:dm|h2|kingbase|oracle|postgres)\/V1__baseline\.sql)$/;
+const CURRENT_DOCS =
+  /^docs\/(?:CONSTITUTION|DEPLOYMENT_AND_REHEARSAL|EXPERIENCE_CONTRACT|PRODUCT_SCOPE|glossary)\.md$|^docs\/handbook\/operations\.md$|^docs\/audit\/(?:product-function-catalog|质量基线)\.md$/;
+const INTEGRATION_CONTRACT_DOCS = /^docs\/contracts\/integration\/.+\.md$/;
 const FRONTEND_ALLOWLIST =
   /\.(?:test|spec|stories)\.(?:ts|tsx)$|^frontend\/src\/(?:test|mocks)\//;
 
@@ -45,11 +56,36 @@ const FRONTEND_RULES = [
       /高血压|糖尿病|DRUG-001|DRUG-CODE|DX-CODE|PT-CAP-01|PKG-COP-001|J44|I10|E11|J18|肺炎|心梗|脑卒中|卒中|急性脑梗死|阿替普酶|静脉溶栓|突发左侧肢体无力|住院医师临床病历特征提取|患者李建国|神经内科|危急值|Class I|社区获得性|抗感染化疗|低分子肝素|强力阿司匹林|老年患者/,
   },
   {
+    ruleId: "frontend.pathway-hardcoded-prototype",
+    message: "路径模板生产文件禁止回流固定急诊原型，必须由医院按专科、病种和岗位配置。",
+    pattern: /急诊处置路径|PATH\.ED\.DISPOSITION|M-ED-ASSESS/,
+  },
+  {
     ruleId: "frontend.local-demo-workflow",
     message:
       "前端生产文件禁止用本地待办、演示验收剧本或 demo workflow 冒充真实工作台闭环。",
     pattern:
-      /\btodoMock\b|客户验收剧本|演示验收剧本|demo workflow|dataSource=\{todoMock\}/i,
+      /\btodoMock\b|客户验收剧本|演示验收剧本|demo workflow|dataSource=\{todoMock\}|工作台不伪造|伪造汇总数据|伪造汇总趋势|真实工作台聚合数据待接入|等待真实聚合 API/i,
+  },
+  {
+    ruleId: "frontend.retired-demo-copy",
+    message:
+      "前端客户面错误态和向导文案禁止出现演示数据、演示病例、安全骨架或未上线承诺等退役表达。",
+    pattern: /演示数据|演示病例|安全骨架|兜底伪造|页面不做兜底|不做任何兜底|后续来源上线|自动回灌/,
+  },
+  {
+    ruleId: "frontend.retired-product-state-language",
+    message:
+      "前端客户面禁止保留旧态、未来态或模拟态口径，必须描述当前任务、当前版本和真实流程事实。",
+    pattern:
+      /页面模拟数据|模型生产控制台|旧健康结论|旧身份|旧版本|后续账号|后续在服务机构管理|后续状态仍|后续以目标患者|后续生成|新旧对比|新旧规则差异|运行新旧对比/,
+  },
+  {
+    ruleId: "frontend.customer-facing-engineering-language",
+    message:
+      "前端客户面禁止把治理、诊断和受控配置表达成开发或工程内部语言。",
+    pattern:
+      /控制台|提醒与推荐中枢|路径中枢|规则中枢|诊断工具|国产化核验|dev-console|developer-console|DeveloperConsole|技术验证|技术配置|技术闸|技术阻断|技术门禁|技术门|技术安全门|技术评测|技术字段|技术降级原因|技术校验|受控调试|调试信息|影响模拟|发布模拟|模拟摘要|测试用例|测试病例|完成测试|高级参数|如后续切|后续切到|接口暂不可用|接口尚未接入|接口待[^，。；\n]*接入|后端通知偏好接口|后端通知接口|后端工作流接口|服务空间接口|开通接口|组织接口|canonical 字段目录|恢复接口|系统运行接口|质控汇总接口|字段目录接口|上下文快照接口|规则接口|接口接入|接口目录|接口说明|统一模型接口|接口原始状态|专属接口|统一身份暂未接入|后端未返回统一身份方式|后端(?:当前|返回|清理|统一|未|脱敏|权限|契约|真实|会|推进|按|来源事实|闭环)|由后端|以后端|真实院方 IdP|\bSRE\b/,
   },
   {
     ruleId: "frontend.technical-object-visible",
@@ -85,6 +121,22 @@ const FRONTEND_RULES = [
 
 const FRONTEND_SHARED_API_RULES = [
   {
+    ruleId: "frontend.customer-facing-integration-test-language",
+    message: "共享 API 合同禁止继续使用 Webhook 测试、签名测试或连通测试旧口径。",
+    pattern: /Webhook\s*测试|签名测试|双向连通测试|签名生成与双向测试|连通测试/,
+  },
+  {
+    ruleId: "frontend.shared-api-current-contract-language",
+    message:
+      "共享 API 合同禁止把已上线平台能力写成真接口、上线后接入或渐进新增旧口径。",
+    pattern: /真接口|上线后接入|渐进新增/,
+  },
+  {
+    ruleId: "frontend.shared-api-historical-stage-language",
+    message: "共享 API 合同禁止保留 PR 阶段或未来 GA 标签，必须描述当前上线能力。",
+    pattern: /\bPR\d+\b|后续\s*GA-[A-Z0-9-]+|首版主要/,
+  },
+  {
     ruleId: "frontend.demo-snapshot-export",
     message:
       "共享 API 层禁止导出演示/模拟快照供生产页面调用，页面必须读取真实接口或诚实空态。",
@@ -106,6 +158,22 @@ const FRONTEND_SHARED_API_RULES = [
     message: "共享 API 层禁止写入超过 100 条的大分页，必须使用服务端分页和异步导出。",
     pattern:
       /\b(?:pageSize|size|limit)\s*[:=]\s*(?:1(?:0[1-9]|[1-9]\d)|[2-9]\d{2,}|\d{4,})\b/,
+  },
+];
+
+const FRONTEND_SHARED_CONFIG_RULES = [
+  {
+    ruleId: "frontend.retired-product-state-language",
+    message:
+      "前端共享配置禁止保留旧态、未来态或模拟态口径，必须描述当前任务、当前版本和真实流程事实。",
+    pattern: /页面模拟数据|模型生产控制台|后续规则和路径|后续账号|新旧对比|新旧规则差异|运行新旧对比/,
+  },
+  {
+    ruleId: "frontend.customer-facing-engineering-language",
+    message:
+      "前端客户面禁止把治理、诊断和受控配置表达成开发或工程内部语言。",
+    pattern:
+      /控制台|提醒与推荐中枢|路径中枢|规则中枢|诊断工具|国产化核验|dev-console|developer-console|DeveloperConsole|技术验证|技术配置|技术闸|技术阻断|技术门禁|技术门|技术安全门|技术评测|技术字段|技术降级原因|技术校验|受控调试|调试信息|影响模拟|发布模拟|模拟摘要|测试用例|测试病例|后续由字段目录|现为文本|\bSRE\b/,
   },
 ];
 
@@ -141,7 +209,74 @@ const FRONTEND_ROUTER_RULES = [
   },
 ];
 
+const CURRENT_DOC_RULES = [
+  {
+    ruleId: "docs.retired-product-state-language",
+    message: "当前权威目录禁止保留旧态、未来态或模拟态口径，必须描述当前收口动作。",
+    pattern: /控制台|强制后续动作/,
+  },
+  {
+    ruleId: "docs.customer-facing-safety-language",
+    message:
+      "当前权威文档禁止继续使用技术安全门、技术评测、技术字段、技术校验、影响模拟、发布模拟、测试用例、测试病例、诊断工具、国产化核验或演示重构旧口径。",
+    pattern:
+      /技术安全门|技术评测|技术字段|技术校验|影响模拟|发布模拟|模拟摘要|测试用例|测试病例|诊断工具|国产化核验|dev-console|developer-console|DeveloperConsole|演示重构原则/,
+  },
+];
+
+const INTEGRATION_CONTRACT_DOC_RULES = [
+  {
+    ruleId: "docs.integration-contract-current-language",
+    message: "集成契约文档禁止继续使用未接入真实连接器等上线前旧口径。",
+    pattern: /未接入真实(?:连接器|外部系统|图投影|图谱)|暂未接入标准上下文/,
+  },
+];
+
+const DB_COMMENT_RULES = [
+  {
+    ruleId: "db.customer-facing-safety-language",
+    message:
+      "数据库中文注释禁止继续使用技术安全门、技术评测、技术校验、技术发布链、影响模拟、测试用例、测试病例或后端实现层旧口径。",
+    pattern:
+      /技术安全门|技术评测|技术校验|技术发布链|影响模拟|测试用例|测试病例|后端脱敏|后端调用脱敏服务|后端类型|求值留后续阶段接\s*RuleDslEvaluator|Spec\s*1\s*命中/,
+  },
+  {
+    ruleId: "db.historical-stage-language",
+    message: "数据库中文注释禁止保留 PR 阶段或未来发布流口径，必须描述当前字段事实。",
+    pattern: /\bPR\d+\b|后续发布流|后续下线|后续\s*GA-[A-Z0-9-]+|首版主要/,
+  },
+];
+
 const BACKEND_RULES = [
+  {
+    ruleId: "backend.customer-facing-internal-operation-language",
+    message: "后端生产契约和注释禁止继续使用面向实施内部的旧口径。",
+    pattern:
+      /控制台|诊断工具|国产化核验|dev-console|developer-console|DeveloperConsole|技术核验|技术发布链|来源版本技术信息|平台开发者|调试接口|调试前|通道调试|测试\s*Payload|Webhook\s*测试|签名测试|双向连通测试|签名生成与双向连通测试|院方统一身份尚未接入|未配置真实 IdP 连接器|后端脱敏|资料库后端|后端尚未接入|后续(?:条目|适配器)接入|真实(?:图谱|搜索|模型工作流|模型服务|外部系统)探活未接入|暂不判定通过|未接入可用模型服务|未接入真实(?:执行器|外部连接器|连接器|图投影|图谱)|暂未接入标准上下文|待对应适配器接入|尚未接入资产库|增强接入矩阵|待接入|未接入业务点|本\s*PR|后续\s*PR|后续阶段挂点|(?:offline|b0)-fixture/,
+  },
+  {
+    ruleId: "backend.historical-stage-language",
+    message: "后端生产契约和注释禁止保留 PR 阶段、未来 GA 或首版预留口径。",
+    pattern: /\bPR\d+\b|后续\s*GA-[A-Z0-9-]+|后续\s*API-\d+|首版主要|PR\d+\s*落|替换\s*PR\d+\s*暂存桩/,
+  },
+  {
+    ruleId: "backend.pathway-hardcoded-prototype",
+    message: "后端生产契约禁止回流固定急诊路径原型，路径资产必须由机构按真实场景配置。",
+    pattern:
+      /急诊处置路径|PATH\.ED\.DISPOSITION|M-ED-ASSESS|急诊医生|院内已审核急诊处置制度|sbx-pathway-ed/,
+  },
+  {
+    ruleId: "backend.customer-facing-safety-language",
+    message:
+      "后端生产中文注释和契约说明禁止继续使用技术安全门、技术评测、技术校验、影响模拟、发布模拟、测试用例或测试病例旧口径。",
+    pattern:
+      /技术安全门|技术评测|技术校验|影响模拟|发布模拟|模拟摘要|模拟参数|模拟证据|测试用例|测试病例/,
+  },
+  {
+    ruleId: "backend.rule-static-placeholder-language",
+    message: "后端生产规则校验禁止继续使用静态校验占位口径。",
+    pattern: /临床提示卡引用静态校验占位|静态校验占位|校验占位/,
+  },
   {
     ruleId: "backend.random-business-value",
     message:
@@ -204,6 +339,36 @@ const BACKEND_RULES = [
     ruleId: "backend.placeholder-javadoc",
     message: "后端生产 Javadoc 禁止出现模拟、仿真、演示、占位或 placeholder。",
     javadocBlockPattern: /模拟|仿真|演示|占位|placeholder/i,
+  },
+  {
+    ruleId: "backend.retired-task-language",
+    message: "后端生产注释禁止保留早期任务口吻，已上线能力必须描述当前运行事实。",
+    pattern: /本类只提供骨架|任务中实施/,
+  },
+];
+
+const BACKEND_DOMAIN_FACADE_RULES = [
+  {
+    ruleId: "backend.domain-facade-fixture-language",
+    message: "领域门面公开契约禁止继续使用 fixture 或 b0-fixture 旧验收样本口径。",
+    pattern: /\bfixture\b|b0-fixtures?|B0\s*fixture/i,
+  },
+];
+
+const REHEARSAL_SCRIPT_RULES = [
+  {
+    ruleId: "scripts.impact-simulation-language",
+    message: "上线演练脚本和证据文本禁止继续使用影响模拟或发布模拟旧口径。",
+    pattern: /影响模拟|发布模拟|模拟摘要/,
+  },
+];
+
+const SANDBOX_SCRIPT_RULES = [
+  {
+    ruleId: "scripts.pathway-hardcoded-prototype",
+    message: "沙盘种子和规则清单禁止回流固定急诊路径原型，必须使用通用路径闭环资产。",
+    pattern:
+      /急诊处置路径|PATH\.ED\.DISPOSITION|M-ED-ASSESS|急诊医生|院内已审核急诊处置制度|sbx-pathway-ed/,
   },
 ];
 
@@ -367,8 +532,18 @@ function rulesForFile(file) {
   if (FRONTEND_ROUTER.test(file)) return FRONTEND_ROUTER_RULES;
   if (FRONTEND_ALLOWLIST.test(file)) return [];
   if (FRONTEND_SOURCE.test(file)) return FRONTEND_RULES;
+  if (FRONTEND_SHARED_UI.test(file)) return FRONTEND_RULES;
   if (FRONTEND_SHARED_API.test(file)) return FRONTEND_SHARED_API_RULES;
+  if (FRONTEND_SHARED_CONFIG.test(file)) return FRONTEND_SHARED_CONFIG_RULES;
   if (FRONTEND_CSS.test(file)) return FRONTEND_CSS_RULES;
+  if (REHEARSAL_SCRIPT.test(file)) return REHEARSAL_SCRIPT_RULES;
+  if (SANDBOX_SCRIPT.test(file)) return SANDBOX_SCRIPT_RULES;
+  if (CURRENT_DOCS.test(file)) return CURRENT_DOC_RULES;
+  if (INTEGRATION_CONTRACT_DOCS.test(file)) return INTEGRATION_CONTRACT_DOC_RULES;
+  if (DB_COMMENT_CONTRACT.test(file)) return DB_COMMENT_RULES;
+  if (BACKEND_DOMAIN_FACADE.test(file)) {
+    return [...BACKEND_RULES, ...BACKEND_DOMAIN_FACADE_RULES];
+  }
   if (BACKEND_JAVA.test(file)) return BACKEND_RULES;
   return [];
 }

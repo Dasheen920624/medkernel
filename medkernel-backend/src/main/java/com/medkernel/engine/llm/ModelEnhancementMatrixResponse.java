@@ -1,7 +1,7 @@
 package com.medkernel.engine.llm;
 
 /**
- * 增强接入矩阵台账项响应（LLM-05）。
+ * 模型赋能覆盖矩阵台账项响应（LLM-05）。
  */
 public record ModelEnhancementMatrixResponse(
     String businessPoint,

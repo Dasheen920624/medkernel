@@ -7,6 +7,13 @@ const evidenceRoot = process.env.E2E_EVIDENCE_DIR?.trim()
   : null;
 const reportRoot = evidenceRoot ? path.join(evidenceRoot, 'report') : 'e2e-report';
 const artifactRoot = evidenceRoot ? path.join(evidenceRoot, 'artifacts') : 'test-results';
+const chromiumExecutable = process.env.MEDKERNEL_PLAYWRIGHT_CHROMIUM_EXECUTABLE?.trim();
+const chromiumLaunchOptions = chromiumExecutable
+  ? {
+      executablePath: chromiumExecutable,
+      args: process.env.MEDKERNEL_PLAYWRIGHT_NO_SANDBOX === '1' ? ['--no-sandbox'] : [],
+    }
+  : undefined;
 
 const domesticChromiumSimulation = {
   ...devices['Desktop Chrome'],
@@ -48,6 +55,7 @@ export default defineConfig({
   use: {
     baseURL: process.env.E2E_BASE_URL || 'http://localhost:5173',
     ignoreHTTPSErrors: process.env.E2E_IGNORE_HTTPS_ERRORS === '1',
+    ...(chromiumLaunchOptions ? { launchOptions: chromiumLaunchOptions } : {}),
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

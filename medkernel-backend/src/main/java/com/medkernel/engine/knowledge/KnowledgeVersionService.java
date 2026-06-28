@@ -9,6 +9,8 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.engine.security.AuthenticatedRoleGuard;
+import com.medkernel.engine.security.EffectivePermissionService;
 import com.medkernel.engine.security.RoleCode;
 import com.medkernel.engine.knowledge.production.gate.PublicationQualityRecordService;
 import com.medkernel.engine.versioning.AssetVersion;
@@ -34,6 +37,7 @@ import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.RolloutPolicy;
 import com.medkernel.engine.versioning.VersionPublishEvidence;
 import com.medkernel.engine.versioning.VersionReleaseCommand;
+import com.medkernel.engine.versioning.VersionRollbackCommand;
 import com.medkernel.engine.versioning.VersionedAssetType;
 
 /**
@@ -76,6 +80,7 @@ public class KnowledgeVersionService {
     private final ReleasePort releasePort;
     private final PublicationQualityRecordService publicationQualityRecords;
     private final AssetScopeResolver assetScopes;
+    private final EffectivePermissionService effectivePermissions;
 
     public KnowledgeVersionService(KnowledgeIdentityRepository identityRepository,
                                    KnowledgeAssetVersionRepository versionRepository,
@@ -92,7 +97,8 @@ public class KnowledgeVersionService {
                                    AssetVersionRepository assetVersions,
                                    ReleasePort releasePort,
                                    PublicationQualityRecordService publicationQualityRecords,
-                                   AssetScopeResolver assetScopes) {
+                                   AssetScopeResolver assetScopes,
+                                   EffectivePermissionService effectivePermissions) {
         this.identityRepository = identityRepository;
         this.versionRepository = versionRepository;
         this.supersessionRepository = supersessionRepository;
@@ -109,6 +115,7 @@ public class KnowledgeVersionService {
         this.releasePort = releasePort;
         this.publicationQualityRecords = publicationQualityRecords;
         this.assetScopes = assetScopes;
+        this.effectivePermissions = effectivePermissions;
     }
 
     public PageResponse<KnowledgeAssetVersion> listByIdentity(Long identityId, PageRequest request) {
@@ -291,7 +298,7 @@ public class KnowledgeVersionService {
     }
 
     /**
-     * 对新进入的知识版本候选做 B0 新旧识别与审核分流（AIK-STD-13 PR4）。
+     * 对新进入的知识版本候选做 B0 新旧识别与审核分流（AIK-STD-13）。
      *
      * <p>{@code assignmentPlan} 非空时按固定运营职责建立 {@link ReviewAssignment}；
      * 为 null 时使用提交人建立单行分派。
@@ -390,7 +397,7 @@ public class KnowledgeVersionService {
             candidate.effectiveApplicableScope(),
             null,
             candidate.contentHash(),
-            "knowledge-version:" + identity.identityCode() + ":" + candidate.versionNo(),
+            knowledgeVersionSourceRef(identity.identityCode(), candidate.versionNo()),
             actor,
             RequestContext.currentTraceId(),
             AssetVersionSafetyPolicy.NORMAL,
@@ -688,19 +695,20 @@ public class KnowledgeVersionService {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "高风险版本激活必须填写说明");
         }
         requireCitation(tenantId, target.id());
+        String organizationScope = target.effectiveOrganizationScope();
+        String applicableScope = target.effectiveApplicableScope();
+        Optional<KnowledgeAssetVersion> currentActiveOpt = versionRepository.findActiveByEffectiveScope(
+            tenantId, identityId, organizationScope, applicableScope);
         VersionPublishEvidence publishEvidence = publicationQualityRecords.requirePublishEvidence(
             qualityGateRecordId, identityId, target);
         publishUnifiedVersion(
             identity,
             target,
+            currentActiveOpt.orElse(null),
             normalizedReason,
             publishEvidence);
 
         // 3) 同一完整适用域内的当前 ACTIVE 版本（如有）→ SUPERSEDED
-        String organizationScope = target.effectiveOrganizationScope();
-        String applicableScope = target.effectiveApplicableScope();
-        Optional<KnowledgeAssetVersion> currentActiveOpt = versionRepository.findActiveByEffectiveScope(
-            tenantId, identityId, organizationScope, applicableScope);
         Long oldVersionId = null;
         SupersessionType transitionType = SupersessionType.ACTIVATE;
         ConflictArbitration arbitration = null;
@@ -768,6 +776,7 @@ public class KnowledgeVersionService {
             now, actor
         );
         identityRepository.save(updatedIdentity);
+        resolveReplacementInvalidationsForActivatedVersion(saved, now, actor);
 
         // 6) supersession 历史链
         KnowledgeSupersession transition = new KnowledgeSupersession(
@@ -789,6 +798,7 @@ public class KnowledgeVersionService {
     private void publishUnifiedVersion(
             KnowledgeIdentity identity,
             KnowledgeAssetVersion target,
+            KnowledgeAssetVersion currentActive,
             String reason,
             VersionPublishEvidence publishEvidence) {
         AssetVersion assetVersion = requireUnifiedAssetVersion(identity, target);
@@ -803,23 +813,75 @@ public class KnowledgeVersionService {
             case PUBLISHED -> {
                 // 已发布版本重复激活保持幂等，领域内容状态随后对齐。
             }
-            case WITHDRAWN ->
-                throw new ApiException(ErrorCode.CONFLICT, "统一知识版本已撤回，不能直接激活");
+            case WITHDRAWN -> {
+                if (target.status() != KnowledgeVersionStatus.SUPERSEDED) {
+                    throw new ApiException(ErrorCode.CONFLICT, "统一知识版本已撤回，不能直接激活");
+                }
+                rollbackUnifiedVersion(identity, target, currentActive, assetVersion, reason);
+            }
         }
+    }
+
+    private void rollbackUnifiedVersion(
+            KnowledgeIdentity identity,
+            KnowledgeAssetVersion rollbackTarget,
+            KnowledgeAssetVersion currentActive,
+            AssetVersion targetAssetVersion,
+            String reason) {
+        if (currentActive == null) {
+            throw new ApiException(ErrorCode.CONFLICT, "知识版本回滚缺少当前权威版本");
+        }
+        AssetVersion currentAssetVersion = requireUnifiedAssetVersion(identity, currentActive);
+        String rollbackReason = reason == null || reason.isBlank()
+            ? "知识版本回滚至 " + rollbackTarget.versionNo()
+            : reason.trim();
+        releasePort.rollback(new VersionRollbackCommand(
+            identity.tenantId(),
+            VersionedAssetType.KNOWLEDGE,
+            identity.identityCode(),
+            currentAssetVersion.versionId(),
+            targetAssetVersion.versionId(),
+            currentAssetVersion.versionNo(),
+            targetAssetVersion.versionNo(),
+            rollbackReason,
+            true,
+            currentActor(),
+            RequestContext.currentTraceId()
+        ));
     }
 
     private AssetVersion requireUnifiedAssetVersion(
             KnowledgeIdentity identity,
             KnowledgeAssetVersion version) {
-        return assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+        Optional<AssetVersion> direct = assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
                 identity.tenantId(),
                 VersionedAssetType.KNOWLEDGE,
                 identity.identityCode(),
-                version.versionNo())
+                version.versionNo());
+        if (direct.isPresent()) {
+            return direct.get();
+        }
+        String sourceRef = knowledgeVersionSourceRef(identity.identityCode(), version.versionNo());
+        AssetVersion linked = assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndSourceRef(
+                identity.tenantId(),
+                VersionedAssetType.KNOWLEDGE,
+                identity.identityCode(),
+                sourceRef)
             .orElseThrow(() -> new ApiException(
                 ErrorCode.CONFLICT,
                 "知识版本缺少统一资产版本登记: "
                     + identity.identityCode() + "@" + version.versionNo()));
+        if (!version.contentHash().equals(linked.contentHash())) {
+            throw new ApiException(
+                ErrorCode.CONFLICT,
+                "知识版本统一资产登记内容指纹不一致: "
+                    + identity.identityCode() + "@" + version.versionNo());
+        }
+        return linked;
+    }
+
+    private String knowledgeVersionSourceRef(String identityCode, String versionNo) {
+        return "knowledge-version:" + identityCode + ":" + versionNo;
     }
 
     private VersionReleaseCommand knowledgeReleaseCommand(
@@ -968,8 +1030,18 @@ public class KnowledgeVersionService {
 
     private boolean matchesAssignment(ReviewAssignment assignment, String actor) {
         return RoleCode.fromCode(assignment.assignedTo())
-            .map(AuthenticatedRoleGuard::has)
+            .map(role -> AuthenticatedRoleGuard.has(role) || hasEffectiveRole(role, actor))
             .orElseGet(() -> actor.equals(assignment.assignedTo()));
+    }
+
+    private boolean hasEffectiveRole(RoleCode role, String actor) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return false;
+        }
+        return effectivePermissions.resolve(authentication, RequestContext.currentOrgScope(), actor)
+            .roleCodes()
+            .contains(role.code());
     }
 
     private void closeRemainingAssignments(
@@ -1168,12 +1240,62 @@ public class KnowledgeVersionService {
     private void createReplacementAffectedCaseTasks(KnowledgeAssetVersion oldVersion, Long newVersionId,
             String reason, Instant now, String actor) {
         String impactReason = replacementImpactReason(oldVersion.id(), newVersionId, reason);
-        KnowledgeInvalidation invalidation = invalidationRepository.save(new KnowledgeInvalidation(
-            null,
-            oldVersion.tenantId(),
-            oldVersion.identityId(),
-            oldVersion.id(),
-            KnowledgeInvalidationType.SUPERSEDED_REPLACEMENT,
+        KnowledgeInvalidation invalidation = replacementInvalidation(oldVersion.tenantId(), oldVersion.id())
+            .map(existing -> reopenReplacementInvalidation(
+                existing,
+                oldVersion,
+                impactReason,
+                now,
+                actor))
+            .orElseGet(() -> invalidationRepository.save(new KnowledgeInvalidation(
+                null,
+                oldVersion.tenantId(),
+                oldVersion.identityId(),
+                oldVersion.id(),
+                KnowledgeInvalidationType.SUPERSEDED_REPLACEMENT,
+                KnowledgeInvalidationStatus.OPEN,
+                oldVersion.riskLevel(),
+                impactReason,
+                oldVersion.effectiveOrganizationScope(),
+                oldVersion.effectiveApplicableScope(),
+                actor,
+                now,
+                false,
+                RequestContext.currentTraceId(),
+                now,
+                actor,
+                now,
+                actor
+            )));
+        createAffectedCaseTasks(invalidation, oldVersion, impactReason, now, actor);
+    }
+
+    private Optional<KnowledgeInvalidation> replacementInvalidation(String tenantId, Long versionId) {
+        List<KnowledgeInvalidation> invalidations =
+            invalidationRepository.findByTenantIdAndVersionIdOrderByInvalidatedAtDesc(tenantId, versionId);
+        if (invalidations == null || invalidations.isEmpty()) {
+            return Optional.empty();
+        }
+        return invalidations.stream()
+            .filter(item -> item.invalidationType() == KnowledgeInvalidationType.SUPERSEDED_REPLACEMENT)
+            .findFirst();
+    }
+
+    private KnowledgeInvalidation reopenReplacementInvalidation(
+            KnowledgeInvalidation existing,
+            KnowledgeAssetVersion oldVersion,
+            String impactReason,
+            Instant now,
+            String actor) {
+        if (existing.status() == KnowledgeInvalidationStatus.OPEN) {
+            return existing;
+        }
+        return invalidationRepository.save(new KnowledgeInvalidation(
+            existing.id(),
+            existing.tenantId(),
+            existing.identityId(),
+            existing.versionId(),
+            existing.invalidationType(),
             KnowledgeInvalidationStatus.OPEN,
             oldVersion.riskLevel(),
             impactReason,
@@ -1183,12 +1305,39 @@ public class KnowledgeVersionService {
             now,
             false,
             RequestContext.currentTraceId(),
-            now,
-            actor,
+            existing.createdAt(),
+            existing.createdBy(),
             now,
             actor
         ));
-        createAffectedCaseTasks(invalidation, oldVersion, impactReason, now, actor);
+    }
+
+    private void resolveReplacementInvalidationsForActivatedVersion(
+            KnowledgeAssetVersion activated,
+            Instant now,
+            String actor) {
+        replacementInvalidation(activated.tenantId(), activated.id())
+            .filter(existing -> existing.status() == KnowledgeInvalidationStatus.OPEN)
+            .ifPresent(existing -> invalidationRepository.save(new KnowledgeInvalidation(
+                existing.id(),
+                existing.tenantId(),
+                existing.identityId(),
+                existing.versionId(),
+                existing.invalidationType(),
+                KnowledgeInvalidationStatus.RESOLVED,
+                existing.riskLevel(),
+                existing.reason(),
+                existing.organizationScope(),
+                existing.applicableScope(),
+                existing.authorizedBy(),
+                existing.invalidatedAt(),
+                existing.expeditedReviewRequired(),
+                existing.traceId(),
+                existing.createdAt(),
+                existing.createdBy(),
+                now,
+                actor
+            )));
     }
 
     private String replacementImpactReason(Long oldVersionId, Long newVersionId, String reason) {
@@ -1257,6 +1406,7 @@ public class KnowledgeVersionService {
             context.campusId(),
             context.siteId(),
             context.departmentId(),
+            null,
             context.specialtyId());
         return assetScopes.resolve(tenantId, scope).organizationPath();
     }

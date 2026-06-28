@@ -7,12 +7,13 @@ import {
   useExportConfirmations,
   useLargeAuditEvents,
   useLargeListExportJob,
+  useModelEgressConfirmations,
   useSecurityProfile,
   useSubmitLargeListExport,
   useTraceDiagnosis,
   useVerifyEvidence,
 } from "@/shared/api/hooks";
-import { useExpertModeStore } from "@/shared/lib/expertModeStore";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 import AdminAudit from "./AdminAudit";
 import { buildAuditEventQuery } from "./auditQuery";
@@ -22,6 +23,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useExportConfirmations: vi.fn(),
   useLargeAuditEvents: vi.fn(),
   useLargeListExportJob: vi.fn(),
+  useModelEgressConfirmations: vi.fn(),
   useSecurityProfile: vi.fn(),
   useSubmitLargeListExport: vi.fn(),
   useTraceDiagnosis: vi.fn(),
@@ -92,6 +94,17 @@ const confirmations = [
   },
 ];
 
+const modelEgressConfirmations = [
+  {
+    id: 7,
+    capabilityCode: "clinical.explanation",
+    payloadHash: "sha256:payload-001",
+    purpose: "向患者解释检查结果，仅使用已脱敏字段",
+    confirmedBy: "operator-001",
+    confirmedAt: "2026-06-25T19:45:00Z",
+  },
+];
+
 function query(data: unknown) {
   return {
     data,
@@ -134,7 +147,7 @@ describe("AdminAudit", () => {
 
   beforeEach(() => {
     window.localStorage.clear();
-    useExpertModeStore.setState({ enabled: false });
+    useEvidenceDetailsStore.setState({ enabled: false });
     vi.clearAllMocks();
     confirmExport.mockResolvedValue({
       confirmationId: "exp-audit-new",
@@ -182,6 +195,16 @@ describe("AdminAudit", () => {
         totalEstimated: false,
       }) as never,
     );
+    vi.mocked(useModelEgressConfirmations).mockReturnValue(
+      query({
+        items: modelEgressConfirmations,
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+        totalEstimated: false,
+      }) as never,
+    );
     vi.mocked(useConfirmExport).mockReturnValue({
       mutateAsync: confirmExport,
       isPending: false,
@@ -211,12 +234,17 @@ describe("AdminAudit", () => {
     );
   });
 
-  it("uses backend cursors and public audit fields instead of client-side pagination", async () => {
+  it("uses service cursors and public audit fields instead of client-side pagination", async () => {
     const user = userEvent.setup();
     render(<AdminAudit />);
 
-    expect(screen.getByText("auditor-1")).toBeInTheDocument();
-    expect(screen.getByText("EXPORT")).toBeInTheDocument();
+    expect(screen.getByText("导出")).toBeInTheDocument();
+    expect(screen.queryByText("auditor-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("追踪号 trace-7")).not.toBeInTheDocument();
+    expect(screen.queryByText("审计记录 snapshot-7")).not.toBeInTheDocument();
+    expect(screen.getByText("链签名已登记")).toBeInTheDocument();
+    expect(screen.getByText(/事件按服务机构与组织范围隔离/)).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getByText(/约 101 条/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "下一页" }));
@@ -279,9 +307,10 @@ describe("AdminAudit", () => {
 
     const user = userEvent.setup();
     render(<AdminAudit />);
-    expect(screen.queryByLabelText("对象类型")).not.toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("输入操作人信息")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("输入操作人标识")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("switch", { name: "高级信息" }));
     fireEvent.change(screen.getByLabelText("对象类型"), { target: { value: "audit" } });
     await user.click(screen.getByRole("combobox", { name: "执行结果" }));
     await user.click(await screen.findByText("失败"));
@@ -293,7 +322,7 @@ describe("AdminAudit", () => {
     );
   });
 
-  it("searches audit events by traceId without entering advanced information mode", async () => {
+  it("searches audit events by traceId without entering evidence details", async () => {
     const user = userEvent.setup();
     render(<AdminAudit />);
 
@@ -306,15 +335,54 @@ describe("AdminAudit", () => {
     );
   });
 
+  it("shows model egress confirmations as audit evidence without evidence details", async () => {
+    const user = userEvent.setup();
+    render(<AdminAudit />);
+
+    await user.click(screen.getByRole("tab", { name: "模型外调确认" }));
+
+    expect(useModelEgressConfirmations).toHaveBeenCalledWith({ page: 1, size: 20 }, true);
+    expect(screen.getByText("临床解释与患者沟通")).toBeInTheDocument();
+    expect(screen.getByText("向患者解释检查结果，仅使用已脱敏字段")).toBeInTheDocument();
+    expect(screen.getByText("脱敏载荷摘要已生成")).toBeInTheDocument();
+    expect(screen.getByText("已记录确认人")).toBeInTheDocument();
+    expect(screen.queryByText("clinical.explanation")).not.toBeInTheDocument();
+    expect(screen.queryByText("sha256:payload-001")).not.toBeInTheDocument();
+    expect(screen.queryByText("operator-001")).not.toBeInTheDocument();
+    expect(screen.queryByText("事件 evt-7")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("clinical.explanation")).toBeInTheDocument();
+    expect(screen.getByText("sha256:payload-001")).toBeInTheDocument();
+    expect(screen.getByText("operator-001")).toBeInTheDocument();
+  });
+
+  it("uses evidence details only for low-frequency evidence fields", async () => {
+    const user = userEvent.setup();
+    render(<AdminAudit />);
+
+    expect(screen.queryByText("事件 evt-7")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("auditor-1")).toBeInTheDocument();
+    expect(screen.getByText("追踪号 trace-7")).toBeInTheDocument();
+    expect(screen.getByText("审计记录 snapshot-7")).toBeInTheDocument();
+    expect(screen.getByText("事件 evt-7")).toBeInTheDocument();
+    expect(screen.getByText("环境未标记")).toBeInTheDocument();
+    expect(screen.getByText("载荷未生成")).toBeInTheDocument();
+  });
+
   it("opens persisted audit detail, diagnosis chain and redacted snapshots", async () => {
     const user = userEvent.setup();
     render(<AdminAudit />);
 
-    await user.click(screen.getByRole("button", { name: "查看详情 evt-7" }));
+    await user.click(screen.getByRole("button", { name: "查看详情 导出审计证据" }));
     await user.click(screen.getByRole("button", { name: "打开诊断链 trace-7" }));
 
     expect(screen.getByRole("dialog", { name: "审计事件详情" })).toBeInTheDocument();
     expect(screen.getByText("audit / snapshot-7")).toBeInTheDocument();
+    expect(screen.getByText("当前组织范围")).toBeInTheDocument();
     expect(screen.getByText("审计链签名完成")).toBeInTheDocument();
     expect(screen.getByText("sm3:payload-7")).toBeInTheDocument();
     expect(screen.getByText('{"enabled":true}')).toBeInTheDocument();
@@ -325,7 +393,7 @@ describe("AdminAudit", () => {
     const user = userEvent.setup();
     render(<AdminAudit />);
 
-    fireEvent.change(screen.getByLabelText("操作编码"), { target: { value: "EXPORT" } });
+    fireEvent.change(screen.getByLabelText("操作事项"), { target: { value: "EXPORT" } });
     await waitFor(() =>
       expect(useLargeAuditEvents).toHaveBeenLastCalledWith(
         expect.objectContaining({ action: "EXPORT" }),

@@ -9,7 +9,7 @@ describe("StepFlow", () => {
       "选模板/导入",
       "自动校验",
       "看影响",
-      "技术验证",
+      "安全复核",
       "灰度发布",
       "全量",
       "留证据/可回滚",
@@ -29,7 +29,7 @@ describe("StepFlow", () => {
       expect(screen.getAllByText(s.title).length).toBeGreaterThan(0);
     });
     expect(screen.getByText("待发布")).toBeInTheDocument();
-    expect(screen.getByText("当前授权责任人完成技术验证")).toBeInTheDocument();
+    expect(screen.getByText("当前授权责任人完成安全复核")).toBeInTheDocument();
     expect(screen.queryByText(/医务处|信息科主任|多人审核/)).not.toBeInTheDocument();
   });
 

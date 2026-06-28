@@ -8,7 +8,7 @@ import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
 /**
  * 门禁：来源真实性（结构层）（AIK-STD-05，FR-1 来源真实性）。
  *
- * <p>候选须绑 ≥1 来源且每条来源标识非空（核心 §7 来源可溯 / 铁律 #1 无源拒收）。深层来源可解析校验属 PR2。
+ * <p>候选须绑 ≥1 来源且每条来源标识非空（核心 §7 来源可溯 / 铁律 #1 无源拒收）。深层来源可解析校验由来源解析门负责。
  */
 @Component
 public class SourcePresentGate implements CandidateGate {

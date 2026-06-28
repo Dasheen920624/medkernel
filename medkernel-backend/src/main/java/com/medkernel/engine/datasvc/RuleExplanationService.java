@@ -14,7 +14,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 引擎数据服务层 · 规则解释服务（DATASVC-01 PR2-b，受控工具 {@code explainRule} 上游）。
+ * 引擎数据服务层 · 规则解释服务（DATASVC-01，受控工具 {@code explainRule} 上游）。
  *
  * <p>把单条规则的已发布资产元数据沉淀为 D1 解释读模型，只读现有 {@code rule_definition}（engine-rule 所属，
  * 仅读不写、不违域归属）并强制租户隔离。落点：FR-1 统一数据服务读模型、FR-2 数据分级（D1 已发布资产元数据，

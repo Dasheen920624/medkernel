@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * SYS-06 后端脱敏执行结果。
+ * SYS-06 脱敏执行结果。
  */
 public record MaskingResult(
     String resourceType,

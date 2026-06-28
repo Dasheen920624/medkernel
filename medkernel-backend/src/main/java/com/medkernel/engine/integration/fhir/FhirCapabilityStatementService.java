@@ -27,16 +27,16 @@ public class FhirCapabilityStatementService {
         statement.put("name", "MedKernelFhirMappingFacade");
         statement.put("title", "MedKernel FHIR 映射门面能力声明");
         statement.put("publisher", "MedKernel");
-        statement.put("version", "OPT-01-PR4");
+        statement.put("version", "OPT-01");
         statement.put("fhirVersion", fhirVersionNumber(version));
         statement.putArray("format").add("json");
 
         ObjectNode software = statement.putObject("software");
         software.put("name", "MedKernel");
-        software.put("version", "OPT-01-PR4");
+        software.put("version", "OPT-01");
 
         ObjectNode implementation = statement.putObject("implementation");
-        implementation.put("description", "OPT-01 PR4 声明 CanonicalResource 与 FHIR R4/R5 的确定性映射能力；"
+        implementation.put("description", "OPT-01 声明 CanonicalResource 与 FHIR R4/R5 的确定性映射能力；"
             + "运行 read/search/create 由受控运行门面开放，高风险申请仍走医师确认。");
 
         ObjectNode rest = json.createObjectNode();
@@ -59,9 +59,9 @@ public class FhirCapabilityStatementService {
     }
 
     public JsonNode runtimeCapability(FhirVersion version) {
-        ObjectNode statement = baseStatement(version, "OPT-01-PR4");
+        ObjectNode statement = baseStatement(version, "OPT-01");
         ObjectNode implementation = statement.putObject("implementation");
-        implementation.put("description", "OPT-01 PR4 运行门面开放 11 类核心 FHIR 资源 read/search/create；"
+        implementation.put("description", "OPT-01 运行门面开放 11 类核心 FHIR 资源 read/search/create；"
             + "ServiceRequest create 只登记医师确认任务，不自动写申请单；"
             + "外部连接状态按 INTEG-01 诚实返回 NOT_CONNECTED。");
 

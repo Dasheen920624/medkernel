@@ -3,7 +3,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SystemProviders from "./SystemProviders";
 import { useRuntimeOperations, useSecurityProfile } from "@/shared/api/hooks";
-import { useExpertModeStore } from "@/shared/lib/expertModeStore";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 vi.mock("@/shared/api/hooks", () => ({
   useRuntimeOperations: vi.fn(),
@@ -116,7 +116,7 @@ describe("SystemProviders", () => {
 
   beforeEach(() => {
     window.localStorage.clear();
-    useExpertModeStore.setState({ enabled: false });
+    useEvidenceDetailsStore.setState({ enabled: false });
     vi.clearAllMocks();
     vi.mocked(useSecurityProfile).mockReturnValue({
       data: {
@@ -203,8 +203,20 @@ describe("SystemProviders", () => {
     ).toBeInTheDocument();
     const dependencyRows = within(screen.getByTestId("runtime-dependencies")).getAllByRole("row");
     expect(within(dependencyRows[1]).getByText("知识图谱投影")).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("runtime-dependencies")).getByText(
+        "知识图谱未连接；核心业务继续使用关系库权威数据。",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("runtime-dependencies")).getByText(
+        "模型工作流未启用；规则、路径与知识生成继续使用确定性主链路。",
+      ),
+    ).toBeInTheDocument();
 
     expect(screen.queryByText("Oracle 23ai · 主库")).not.toBeInTheDocument();
+    expect(screen.queryByText("能力开关关闭，未连接图谱投影")).not.toBeInTheDocument();
+    expect(screen.queryByText("能力开关关闭，模型工作流未启用")).not.toBeInTheDocument();
     expect(screen.queryByText(/总院 PACS/)).not.toBeInTheDocument();
     expect(screen.queryByText("DISABLED")).not.toBeInTheDocument();
     expect(screen.queryByText("docker-core")).not.toBeInTheDocument();
@@ -218,7 +230,7 @@ describe("SystemProviders", () => {
     expect(screen.queryByText("latest-restore-drill.properties")).not.toBeInTheDocument();
   });
 
-  it("re-runs the real backend probe from the single page action", () => {
+  it("re-runs the real provider probe from the single page action", () => {
     render(
       <ConfigProvider>
         <SystemProviders />
@@ -255,14 +267,14 @@ describe("SystemProviders", () => {
     expect(screen.queryByText("关系数据库")).not.toBeInTheDocument();
   });
 
-  it("reveals deployment diagnostics only after an authorized operator enables expert mode", () => {
+  it("reveals deployment diagnostics only after an authorized operator enables evidence details", () => {
     render(
       <ConfigProvider>
         <SystemProviders />
       </ConfigProvider>,
     );
 
-    fireEvent.click(screen.getByRole("switch", { name: "高级信息" }));
+    fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
 
     expect(screen.getByText("docker-core")).toBeInTheDocument();
     expect(screen.getByText("postgres")).toBeInTheDocument();
@@ -273,5 +285,7 @@ describe("SystemProviders", () => {
     expect(screen.getAllByText("中风险").length).toBeGreaterThan(0);
     expect(screen.getByText("配置中心读取失败，已使用启动安全默认。")).toBeInTheDocument();
     expect(screen.getByText("latest-restore-drill.properties")).toBeInTheDocument();
+    expect(screen.getByText("能力开关关闭，未连接图谱投影")).toBeInTheDocument();
+    expect(screen.getByText("能力开关关闭，模型工作流未启用")).toBeInTheDocument();
   });
 });

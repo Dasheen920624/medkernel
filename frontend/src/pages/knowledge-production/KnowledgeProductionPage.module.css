@@ -1,0 +1,21 @@
+.consoleStack {
+  width: 100%;
+  min-width: 0;
+}
+
+.consoleStack :global(.ant-space-item) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.section {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.section :global(.ant-card),
+.section :global(.ant-card-body) {
+  min-width: 0;
+  max-width: 100%;
+}

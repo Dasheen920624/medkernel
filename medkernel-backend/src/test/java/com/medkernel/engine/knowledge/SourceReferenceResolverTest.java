@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import com.medkernel.shared.api.error.ApiException;
 
 /**
- * 受控源引用解析器单元测试（AIK-STD-13 PR4，B0 解析/诚实拒收）。
+ * 受控源引用解析器单元测试（AIK-STD-13，B0 解析/诚实拒收）。
  */
 class SourceReferenceResolverTest {
 

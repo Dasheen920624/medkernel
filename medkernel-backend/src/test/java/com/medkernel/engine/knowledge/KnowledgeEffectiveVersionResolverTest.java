@@ -91,6 +91,31 @@ class KnowledgeEffectiveVersionResolverTest {
     }
 
     @Test
+    void canonicalUnifiedVersionResolvesDomainVersionThroughSourceRef() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace", OrgScope.tenant("tenant-A"), "clinical-user"));
+        KnowledgeIdentity identity = identity("tenant-A", 100L);
+        KnowledgeAssetVersion content = version("tenant-A", 2L, "ai-draft-task-1");
+        String sourceRef = "knowledge-version:KNOW.A:ai-draft-task-1";
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
+            "tenant-A", VersionedAssetType.KNOWLEDGE, "KNOW.A", AssetVersionStatus.PUBLISHED))
+            .thenReturn(List.of(asset("tenant-A", "V1", "tenant:tenant-A", sourceRef)));
+        when(identities.findByTenantIdAndIdentityCode("tenant-A", "KNOW.A"))
+            .thenReturn(Optional.of(identity));
+        when(versions.findByTenantIdAndIdentityIdAndVersionNo("tenant-A", 1L, "V1"))
+            .thenReturn(Optional.empty());
+        when(versions.findByTenantIdAndIdentityIdAndVersionNo("tenant-A", 1L, "ai-draft-task-1"))
+            .thenReturn(Optional.of(content));
+
+        KnowledgeEffectiveVersionResolver.ResolvedKnowledgeVersion resolved =
+            resolver.resolve("tenant-A", "KNOW.A", "ALL").orElseThrow();
+
+        assertThat(resolved.assetVersion().versionNo()).isEqualTo("V1");
+        assertThat(resolved.version().versionNo()).isEqualTo("ai-draft-task-1");
+        assertThat(resolved.version().id()).isEqualTo(2L);
+    }
+
+    @Test
     void missingOrgContextRejectsAmbiguousOrganizationVersions() {
         RequestContext.restore(new RequestContext.Snapshot("trace", null, "clinical-user"));
         KnowledgeIdentity identity = identity("tenant-A", null);
@@ -132,12 +157,16 @@ class KnowledgeEffectiveVersionResolverTest {
     }
 
     private AssetVersion asset(String tenantId, String versionNo, String orgPath) {
+        return asset(tenantId, versionNo, orgPath, "SRC");
+    }
+
+    private AssetVersion asset(String tenantId, String versionNo, String orgPath, String sourceRef) {
         Instant now = Instant.parse("2026-06-09T00:00:00Z");
         return new AssetVersion(
             1L, "av-knowledge-" + versionNo, tenantId, VersionedAssetType.KNOWLEDGE,
             "KNOW.A", versionNo, orgPath, "ALL", "a".repeat(64),
             AssetVersionSafetyPolicy.NORMAL, AssetVersionOverridePolicy.FREE,
-            AssetVersionStatus.PUBLISHED, "KNOW.A|" + orgPath + "|ALL", "SRC",
+            AssetVersionStatus.PUBLISHED, "KNOW.A|" + orgPath + "|ALL", sourceRef,
             now, null, now, "tester", now, "tester", "trace");
     }
 }

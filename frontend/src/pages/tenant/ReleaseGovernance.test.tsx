@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type * as ApiHooks from "@/shared/api/hooks";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import ReleaseGovernance from "./ReleaseGovernance";
 
 const publishPlatformAsync = vi.fn();
@@ -21,7 +22,7 @@ vi.mock("@/shared/api/hooks", async () => {
         userId: "operator-a",
         roles: [{ code: "platform-admin", displayName: "平台管理员" }],
         permissions: [],
-        menuKeys: ["release-governance"],
+        menuKeys: ["runtime-releases"],
         dataScope: { tenantId: "tenant-a", hospitalId: null },
       },
     }),
@@ -217,6 +218,8 @@ function renderPage() {
 
 describe("ReleaseGovernance", () => {
   beforeEach(() => {
+    window.localStorage.clear();
+    useEvidenceDetailsStore.setState({ enabled: false });
     publishPlatformAsync.mockReset();
     activateHospitalAsync.mockReset();
     rollbackHospitalAsync.mockReset();
@@ -276,12 +279,18 @@ describe("ReleaseGovernance", () => {
 
     expect(screen.getByRole("heading", { name: "发布治理" })).toBeInTheDocument();
     expect(screen.getByText("当前平台标准版本 第 8 版")).toBeInTheDocument();
+    expect(screen.getByText("规则内容已准备发布")).toBeInTheDocument();
+    expect(screen.getByText("路径内容已在平台标准版本中")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("搜索内容名称、身份或来源")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("搜索内容编码或来源")).not.toBeInTheDocument();
     expect(
       screen.queryByText(new RegExp(`灰度|覆盖模板|配置${"包"}版本|候选版本 ID`)),
     ).not.toBeInTheDocument();
+    expect(screen.queryByText("RULE.CKD")).not.toBeInTheDocument();
+    expect(screen.queryByText("PATH.OLD")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByLabelText("发布 RULE.CKD V2"));
-    fireEvent.click(screen.getByLabelText("停用 PATH.OLD"));
+    fireEvent.click(screen.getByLabelText("发布规则内容 V2"));
+    fireEvent.click(screen.getByLabelText("停用路径内容 V1"));
     fireEvent.click(screen.getByRole("button", { name: "发布新平台标准版本" }));
 
     await waitFor(() =>
@@ -299,8 +308,8 @@ describe("ReleaseGovernance", () => {
     fireEvent.click(await screen.findByText(/中心医院/));
 
     expect(await screen.findByText("当前机构生效版本 第 9 版")).toBeInTheDocument();
-    expect(screen.getByLabelText("启用平台内容 RULE.CKD")).toBeChecked();
-    fireEvent.click(screen.getByLabelText("启用本地内容 PATH.CKD.LOCAL V3"));
+    expect(screen.getByLabelText("启用平台规则内容 V1")).toBeChecked();
+    fireEvent.click(screen.getByLabelText("启用本院路径内容 V3"));
     fireEvent.click(screen.getByRole("button", { name: "评估发布影响" }));
     await screen.findByText("可发布");
     fireEvent.click(screen.getByRole("button", { name: "生成新机构生效版本" }));
@@ -329,7 +338,7 @@ describe("ReleaseGovernance", () => {
     fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
     fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
     fireEvent.click(await screen.findByText(/中心医院/));
-    fireEvent.click(screen.getByLabelText("启用本地内容 PATH.CKD.LOCAL V3"));
+    fireEvent.click(screen.getByLabelText("启用本院路径内容 V3"));
     fireEvent.click(screen.getByRole("button", { name: "生成新机构生效版本" }));
 
     expect(activateHospitalAsync).not.toHaveBeenCalled();
@@ -340,7 +349,7 @@ describe("ReleaseGovernance", () => {
     fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
     fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
     fireEvent.click(await screen.findByText(/中心医院/));
-    fireEvent.click(screen.getByLabelText("启用本地内容 PATH.CKD.LOCAL V3"));
+    fireEvent.click(screen.getByLabelText("启用本院路径内容 V3"));
     fireEvent.click(screen.getByRole("button", { name: "评估发布影响" }));
 
     await waitFor(() =>
@@ -362,7 +371,35 @@ describe("ReleaseGovernance", () => {
     expect(await screen.findByText("可发布")).toBeInTheDocument();
     expect(screen.getByText("回放病例 12 例，变化 2 例")).toBeInTheDocument();
     expect(screen.getByText("影响 1 项在用资产")).toBeInTheDocument();
-    expect(screen.getByText("规则 · RULE.ANEMIA · V3")).toBeInTheDocument();
+    expect(screen.getByText("规则内容 · V3")).toBeInTheDocument();
+    expect(screen.queryByText("RULE.ANEMIA")).not.toBeInTheDocument();
+  });
+
+  it("keeps release identifiers and asset codes behind evidence details by default", async () => {
+    renderPage();
+
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.getByText("规则内容已准备发布")).toBeInTheDocument();
+    expect(screen.getByText("路径内容已在平台标准版本中")).toBeInTheDocument();
+    expect(screen.queryByText("RULE.CKD")).not.toBeInTheDocument();
+    expect(screen.queryByText("PATH.OLD")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
+    fireEvent.click(await screen.findByText(/中心医院/));
+
+    expect(await screen.findByText("规则内容沿用平台标准版本")).toBeInTheDocument();
+    expect(screen.getByText("路径内容可加入机构生效版本")).toBeInTheDocument();
+    expect(screen.queryByText("PATH.CKD.LOCAL")).not.toBeInTheDocument();
+    expect(screen.queryByText("runtime-H9")).not.toBeInTheDocument();
+    expect(screen.queryByText("baseline-A8")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getAllByText("RULE.CKD").length).toBeGreaterThan(0);
+    expect(screen.getByText("PATH.CKD.LOCAL")).toBeInTheDocument();
+    expect(screen.getAllByText("baseline-A8").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("runtime-H9").length).toBeGreaterThan(0);
   });
 
   it("rolls back only by selecting a real historical institution effective version", async () => {

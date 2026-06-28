@@ -43,7 +43,7 @@ afterEach(() => {
 });
 
 describe("useApiMutation", () => {
-  it("applies backend field errors to form fields instead of showing only a toast", async () => {
+  it("applies service field errors to form fields instead of showing only a toast", async () => {
     const setFields = vi.fn();
 
     function Subject() {
@@ -68,7 +68,7 @@ describe("useApiMutation", () => {
     expect(message.error).not.toHaveBeenCalled();
   });
 
-  it("shows a unified Chinese toast with tracking number for non-field errors and preserves custom onError", async () => {
+  it("shows a unified Chinese toast with business evidence text for non-field errors and preserves custom onError", async () => {
     const onError = vi.fn();
 
     function Subject() {
@@ -89,9 +89,10 @@ describe("useApiMutation", () => {
 
     await waitFor(() => {
       expect(message.error).toHaveBeenCalledWith(
-        "请修正表单字段后重试（追踪号：trace-mutation-1）",
+        "请修正表单字段后重试（失败已留痕，可在审计证据中追溯）",
       );
     });
+    expect(message.error).not.toHaveBeenCalledWith(expect.stringContaining("trace-mutation-1"));
     expect(onError).toHaveBeenCalledTimes(1);
   });
 });

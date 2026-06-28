@@ -1,0 +1,30 @@
+.tablePanel {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.tablePanel :global(.ant-table-wrapper) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.tablePanel :global(.ant-table-content) {
+  overflow-x: auto;
+}
+
+.providerCell {
+  min-width: 0;
+}
+
+.providerCell :global(.ant-typography) {
+  overflow-wrap: anywhere;
+}
+
+.actionGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--mk-unit) * 8);
+  min-width: 0;
+}

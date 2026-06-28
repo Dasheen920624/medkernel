@@ -3,7 +3,7 @@ package com.medkernel.engine.datasvc;
 import java.time.Instant;
 
 /**
- * 临床上下文解释（DATASVC-01 PR2-d，受控工具 {@code getClinicalContextExplanation} 的 D4 输出）。
+ * 临床上下文解释（DATASVC-01，受控工具 {@code getClinicalContextExplanation} 的 D4 输出）。
  *
  * <p>对一个临床启动凭证授权的会话，返回**最小授权上下文**：触发点/角色/接入模式/会话有效期 +
  * <b>经不可逆 hash 脱敏的患者/就诊引用</b>（不输出原始患者字段；后续 D4 明文字段落库须走

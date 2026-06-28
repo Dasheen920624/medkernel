@@ -61,7 +61,7 @@ public class AcquisitionController {
         return ApiResult.ok(sourceGovernanceService.saveDraft(sourceCode, request));
     }
 
-    /** 启用已经完成来源真实性、许可和 robots 技术核验的资料来源。 */
+    /** 启用已经完成来源真实性、许可和 robots 安全校验的资料来源。 */
     @PostMapping("/sources/{sourceCode}/enable")
     @PreAuthorize("@perm.has('knowledge.write')")
     public ApiResult<KnowledgeAcquisitionSource> enableSource(@PathVariable String sourceCode) {

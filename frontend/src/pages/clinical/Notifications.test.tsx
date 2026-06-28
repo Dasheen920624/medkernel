@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+
 import Notifications from "./Notifications";
 
 const notificationHookMocks = vi.hoisted(() => ({
@@ -10,6 +12,7 @@ const notificationHookMocks = vi.hoisted(() => ({
   refetchNotifications: vi.fn(),
   useOrgUnits: vi.fn(),
   useReadWorkflowNotification: vi.fn(),
+  useSecurityProfile: vi.fn(),
   useWorkflowNotificationSettings: vi.fn(),
   useWorkflowNotifications: vi.fn(),
 }));
@@ -17,6 +20,7 @@ const notificationHookMocks = vi.hoisted(() => ({
 vi.mock("@/shared/api/hooks", () => ({
   useOrgUnits: notificationHookMocks.useOrgUnits,
   useReadWorkflowNotification: notificationHookMocks.useReadWorkflowNotification,
+  useSecurityProfile: notificationHookMocks.useSecurityProfile,
   useWorkflowNotificationSettings: notificationHookMocks.useWorkflowNotificationSettings,
   useWorkflowNotifications: notificationHookMocks.useWorkflowNotifications,
 }));
@@ -34,6 +38,19 @@ function renderNotifications() {
 describe("Notifications", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useEvidenceDetailsStore.setState({ enabled: false });
+    notificationHookMocks.useSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [
+          { code: "notification.read", dimension: "ACTION", target: "notification" },
+          { code: "system.debug", dimension: "ACTION", target: "system" },
+        ],
+        roles: [{ code: "clinical-user", displayName: "临床使用者", source: "TEST" }],
+        menuKeys: ["notifications", "runtime-diagnostics"],
+        environmentKeys: ["production"],
+        dataScope: { tenantId: "tenant-A" },
+      },
+    });
     notificationHookMocks.markRead.mockResolvedValue({
       notificationId: "notify-real-1",
       status: "READ",
@@ -138,10 +155,61 @@ describe("Notifications", () => {
     expect(screen.getByRole("heading", { name: "消息通知" })).toBeInTheDocument();
     expect(screen.getByText("随访异常通知")).toBeInTheDocument();
     expect(screen.getByText("患者报告呼吸困难，需要处理。")).toBeInTheDocument();
+    expect(screen.getByText("已关联患者上下文")).toBeInTheDocument();
+    expect(screen.queryByText("patient-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("来源编号 event-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("追踪号 trace-notify")).not.toBeInTheDocument();
+    expect(screen.queryByText("通知接口尚未接入")).not.toBeInTheDocument();
+  });
+
+  it("reveals notification source evidence only after evidence details are enabled", async () => {
+    const user = userEvent.setup();
+    renderNotifications();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
     expect(screen.getByText("patient-real-1")).toBeInTheDocument();
+    expect(screen.getByText("enc-real-1")).toBeInTheDocument();
     expect(screen.getByText("来源编号 event-real-1")).toBeInTheDocument();
     expect(screen.getByText("追踪号 trace-notify")).toBeInTheDocument();
-    expect(screen.queryByText("通知接口尚未接入")).not.toBeInTheDocument();
+  });
+
+  it("does not reveal notification evidence when the role lacks evidence-detail permission", () => {
+    useEvidenceDetailsStore.setState({ enabled: true });
+    notificationHookMocks.useSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [{ code: "notification.read", dimension: "ACTION", target: "notification" }],
+        roles: [{ code: "clinical-user", displayName: "临床使用者", source: "TEST" }],
+        menuKeys: ["notifications"],
+        environmentKeys: ["production"],
+        dataScope: { tenantId: "tenant-A" },
+      },
+    });
+
+    renderNotifications();
+
+    expect(screen.queryByRole("switch", { name: "证据详情" })).not.toBeInTheDocument();
+    expect(screen.getByText("已关联患者上下文")).toBeInTheDocument();
+    expect(screen.queryByText("patient-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("来源编号 event-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("追踪号 trace-notify")).not.toBeInTheDocument();
+  });
+
+  it("keeps notification read failures in organization and information-office language", () => {
+    notificationHookMocks.useWorkflowNotifications.mockReturnValue({
+      data: undefined,
+      isError: true,
+      isLoading: false,
+      refetch: notificationHookMocks.refetchNotifications,
+    });
+
+    renderNotifications();
+
+    expect(screen.getByText("通知读取失败")).toBeInTheDocument();
+    expect(
+      screen.getByText("请确认登录状态、组织范围；若持续失败，请联系信息科核查通知服务。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/通知服务状态/)).not.toBeInTheDocument();
   });
 
   it("passes selected organization scope to the server-side notification query", async () => {
@@ -168,7 +236,7 @@ describe("Notifications", () => {
     });
   });
 
-  it("marks an unread notification as read through the backend and refreshes", async () => {
+  it("marks an unread notification as read through the service and refreshes", async () => {
     const user = userEvent.setup();
     renderNotifications();
 
@@ -180,7 +248,7 @@ describe("Notifications", () => {
     expect(notificationHookMocks.refetchNotifications).toHaveBeenCalled();
   });
 
-  it("marks all currently loaded unread notifications through backend acknowledgements", async () => {
+  it("marks all currently loaded unread notifications through service acknowledgements", async () => {
     const user = userEvent.setup();
     notificationHookMocks.useWorkflowNotifications.mockReturnValue({
       data: {
@@ -371,8 +439,8 @@ describe("Notifications", () => {
 
     renderNotifications();
 
-    expect(screen.getByText("来源编号 event-no-trace")).toBeInTheDocument();
-    expect(screen.getByText("追踪号未提供")).toBeInTheDocument();
+    expect(screen.queryByText("来源编号 event-no-trace")).not.toBeInTheDocument();
+    expect(screen.queryByText("追踪号未提供")).not.toBeInTheDocument();
     expect(screen.queryByText(/^追踪号 trace-/)).not.toBeInTheDocument();
   });
 
@@ -528,7 +596,7 @@ describe("Notifications", () => {
     renderNotifications();
 
     expect(screen.getByText("免打扰状态暂不可确认")).toBeInTheDocument();
-    expect(screen.getByText("通知偏好接口暂不可用，请刷新或到设置页确认。")).toBeInTheDocument();
+    expect(screen.getByText("通知偏好暂时不可用，请刷新或到通知设置页确认。")).toBeInTheDocument();
     expect(screen.getByText("随访异常通知")).toBeInTheDocument();
   });
 });

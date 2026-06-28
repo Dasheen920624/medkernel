@@ -19,6 +19,7 @@ import {
   useUpsertDataPermissionPolicy,
   useUpsertMaskingRule,
 } from "@/shared/api/hooks";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 import SecurityBaseline from "./SecurityBaseline";
 
@@ -69,6 +70,7 @@ describe("SecurityBaseline", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    useEvidenceDetailsStore.getState().setEnabled(false);
     vi.mocked(useSecurityProfile).mockReturnValue(
       query({
         userId: "u-admin",
@@ -406,7 +408,12 @@ describe("SecurityBaseline", () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "安全基线与系统配置" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getByText("关系数据库")).toBeInTheDocument();
+    expect(screen.getByText("已限定 1 个运行环境")).toBeInTheDocument();
+    expect(screen.queryByText("u-admin")).not.toBeInTheDocument();
+    expect(screen.queryByText("system.manage")).not.toBeInTheDocument();
+    expect(screen.queryByText("prod")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "系统配置" }));
     expect(screen.getByText("口令最小长度")).toBeInTheDocument();
@@ -414,6 +421,7 @@ describe("SecurityBaseline", () => {
     expect(screen.getByText("平台知识文献资料")).toBeInTheDocument();
     expect(screen.getAllByText("平台知识文献资料库根地址").length).toBeGreaterThan(0);
     expect(screen.getAllByText("未配置").length).toBeGreaterThan(0);
+    expect(screen.queryByText("medkernel.auth.password.min-length")).not.toBeInTheDocument();
     expect(
       screen.getByText(/正式知识生产前必须通过配置中心维护受管本地磁盘、对象存储或 HTTPS 网关/),
     ).toBeInTheDocument();
@@ -421,21 +429,53 @@ describe("SecurityBaseline", () => {
 
     await user.click(screen.getByRole("tab", { name: "数据权限" }));
     expect(useDataPermissionPolicies).toHaveBeenCalledWith({ page: 1, size: 20 });
-    expect(screen.getByText("clinical_case")).toBeInTheDocument();
-    expect(screen.getByText("patientId, encounterId")).toBeInTheDocument();
+    expect(screen.getByText("临床业务数据")).toBeInTheDocument();
+    expect(screen.getByText("2 项允许字段")).toBeInTheDocument();
+    expect(screen.queryByText("clinical_case")).not.toBeInTheDocument();
+    expect(screen.queryByText("patientId, encounterId")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "脱敏规则" }));
     expect(useMaskingRules).toHaveBeenCalledWith({ page: 1, size: 20 });
     expect(
-      screen.getByRole("row", { name: /clinical_case patientName DEFAULT KEEP_FIRST_LAST/ }),
+      screen.getByRole("row", { name: /临床业务数据 患者姓名 默认场景 保留首尾/ }),
     ).toBeInTheDocument();
+    expect(screen.queryByText("KEEP_FIRST_LAST")).not.toBeInTheDocument();
     expect(screen.getByText(/保留前 1 位/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "互操作测评" }));
     expect(screen.getByText("标准数据集覆盖")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Expand row" }));
     expect(screen.getByText("电子病历评级证据导出")).toBeInTheDocument();
+    expect(screen.queryByText("sha256:emr-export-001")).not.toBeInTheDocument();
   }, 15_000);
+
+  it("reveals security identifiers only through evidence details", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("u-admin")).toBeInTheDocument();
+    expect(screen.getByText("system.manage")).toBeInTheDocument();
+    expect(screen.getByText("prod")).toBeInTheDocument();
+    expect(screen.getByText("t-1 / g-1 / h-1")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "系统配置" }));
+    expect(screen.getByText("medkernel.auth.password.min-length")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "数据权限" }));
+    expect(screen.getByText("clinical_case")).toBeInTheDocument();
+    expect(screen.getByText("patientId, encounterId")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "脱敏规则" }));
+    expect(
+      screen.getByRole("row", { name: /clinical_case patientName DEFAULT KEEP_FIRST_LAST/ }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "互操作测评" }));
+    await user.click(screen.getByRole("button", { name: "Expand row" }));
+    expect(screen.getByText("sha256:emr-export-001")).toBeInTheDocument();
+  });
 
   it("treats globally disabled multi-factor authentication as a valid passing configuration", () => {
     const currentProfile = vi.mocked(useSecurityProfile)().data;
@@ -520,7 +560,8 @@ describe("SecurityBaseline", () => {
 
     await user.click(screen.getByRole("tab", { name: "系统配置" }));
     await user.click(screen.getByText("服务机构覆盖"));
-    fireEvent.change(screen.getByRole("textbox", { name: "服务空间标识" }), {
+    expect(screen.queryByRole("textbox", { name: "服务机构标识" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "服务机构身份" }), {
       target: { value: "tenant-A" },
     });
     expect(screen.getByText("规则临床算子")).toBeInTheDocument();
@@ -566,7 +607,7 @@ describe("SecurityBaseline", () => {
     expect(screen.getByRole("option", { name: "心内科 · DEPT-1" })).toBeInTheDocument();
   });
 
-  it("runs a data permission trial against the backend decision contract", async () => {
+  it("runs a data permission trial against the data access decision contract", async () => {
     const user = userEvent.setup();
     renderPage();
 
@@ -589,7 +630,7 @@ describe("SecurityBaseline", () => {
       }),
     );
     expect(await screen.findByText("行级不允许")).toBeInTheDocument();
-    expect(screen.getByText("patientName")).toBeInTheDocument();
+    expect(screen.getByText("患者姓名")).toBeInTheDocument();
   });
 
   it("previews masking rules with explicit operator-provided values", async () => {

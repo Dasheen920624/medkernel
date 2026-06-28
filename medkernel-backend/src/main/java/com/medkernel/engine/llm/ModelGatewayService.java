@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -31,6 +32,7 @@ import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.audit.IsolatedAuditPublisher;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
+import com.medkernel.engine.llm.egress.ModelEgressConfirmationRequiredException;
 import com.medkernel.engine.llm.egress.ModelEgressGuard;
 import com.medkernel.engine.llm.provider.ModelProviderRegistry;
 import com.medkernel.engine.llm.provider.ProviderCompletion;
@@ -40,8 +42,9 @@ import com.medkernel.engine.llm.provider.ProviderRequest;
  * 模型能力网关核心领域服务实现类 (GA-ENG-API-12)。
  *
      * <p>统一管控模型能力调用：能力阻断、正则数据脱敏、期待输出结构校验，并通过物理子事务强隔离记录审计日志。
-     * 当前经模型服务注册表解析 B1/B2；模型服务缺位、出域阻断、结构化失败或调用失败时按 LLM-02
- * 降级矩阵如实返回 B0（无模型确定性基线），禁止伪造 B2 模型名、置信度或来源引文。
+     * 当前经模型服务注册表解析 B1/B2；模型服务缺位、策略不可执行、结构化失败或调用失败时按 LLM-02
+ * 降级矩阵如实返回 B0（无模型确定性基线）；高敏出域缺责任确认时返回可操作确认挑战，禁止伪造 B2 模型名、
+ * 置信度或来源引文。
  */
 @Service
 public class ModelGatewayService {
@@ -273,7 +276,7 @@ public class ModelGatewayService {
 
         // 2. 校验策略禁用阻断
         if ("DISABLED".equalsIgnoreCase(strategy)) {
-            publishFailureAudit(ErrorCode.ENG_LLM_001, "提交任务失败，能力已被禁用 capabilityCode=" + capabilityCode);
+            publishFailureAudit(taskId, ErrorCode.ENG_LLM_001, "提交任务失败，能力已被禁用 capabilityCode=" + capabilityCode);
             throw new ApiException(ErrorCode.ENG_LLM_001, "模型能力 " + capabilityCode + " 已经被组织禁用");
         }
         guardRequiredRoute(req.requiredRouteStrategy(), strategy);
@@ -291,7 +294,7 @@ public class ModelGatewayService {
         String schemaConstraint = policy.expectedSchema();
         RouteOutcome outcome = route(
             tenantId, capabilityCode, strategy, fallbackConfig, desensitizedInput, taskId, versionPlan,
-            schemaConstraint, req.providerCode());
+            schemaConstraint, req.providerCode(), req.authoritativeOutputContext());
 
         // 结构化输出规则校验：真实解析结构化文本并确认必填字段存在（GA-ENG-LLM-01）。
         // 校验对象为本次实际产出；B1/B2 结构化失败先诚实降级 B0，再校验 B0 信封。
@@ -309,7 +312,7 @@ public class ModelGatewayService {
                 } else {
                     log.warn("结构化输出规则校验失败 capabilityCode={}：{}",
                         capabilityCode, schemaError.getMessage());
-                    publishFailureAudit(schemaError.errorCode(),
+                    publishFailureAudit(taskId, schemaError.errorCode(),
                         "结构化输出规则校验失败 capabilityCode=" + capabilityCode + "：" + schemaError.getMessage());
                     throw schemaError;
                 }
@@ -327,6 +330,7 @@ public class ModelGatewayService {
         boolean fallbackUsed = outcome.fallbackUsed();
         String fallbackReason = outcome.fallbackReason();
         String taskStatus = outcome.taskStatus();
+        ModelEgressConfirmationChallenge egressConfirmation = outcome.egressConfirmation();
 
         long timeCost = System.currentTimeMillis() - startTime;
 
@@ -360,13 +364,12 @@ public class ModelGatewayService {
 
         // 6. 成功留痕：成功路径走 AuditRecorder（AFTER_COMMIT 同事务一致性，符合 IsolatedAuditPublisher
         //    契约——isolated 仅用于失败留痕）；retryTask 亦走 AuditRecorder，模块内统一（LLM-M-04）。
-        auditRecorder.record(
-            AuditAction.EXECUTE,
-            "model_capability_task",
-            taskId,
-            String.format("推理任务完成 capabilityCode=%s mode=%s fallback=%b cost=%dms",
-                capabilityCode, modelMode, fallbackUsed, timeCost)
-        );
+        String auditSummary = "CONFIRMATION_REQUIRED".equals(taskStatus)
+            ? String.format("模型任务等待外调用途确认 capabilityCode=%s mode=%s payloadHash=%s cost=%dms",
+                capabilityCode, modelMode, egressConfirmation == null ? "" : egressConfirmation.payloadHash(), timeCost)
+            : String.format("推理任务完成 capabilityCode=%s mode=%s fallback=%b cost=%dms",
+                capabilityCode, modelMode, fallbackUsed, timeCost);
+        auditRecorder.record(AuditAction.EXECUTE, "model_capability_task", taskId, auditSummary);
 
         return new ModelTaskResponse(
             taskId,
@@ -382,7 +385,8 @@ public class ModelGatewayService {
             fallbackUsed,
             fallbackReason,
             timeCost,
-            traceId
+            traceId,
+            egressConfirmation
         );
     }
 
@@ -416,7 +420,8 @@ public class ModelGatewayService {
             task.fallbackUsed(),
             task.fallbackReason(),
             task.timeCostMs(),
-            task.traceId()
+            task.traceId(),
+            egressConfirmationFromOutput(task.outputContent())
         );
     }
 
@@ -592,9 +597,9 @@ public class ModelGatewayService {
         return scope.tenantId();
     }
 
-    private void publishFailureAudit(ErrorCode code, String summary) {
+    private void publishFailureAudit(String taskId, ErrorCode code, String summary) {
         isolatedAudit.publishInNewTx(AuditEvent.failure(
-            AuditAction.EXECUTE, "model_capability_task", null, code.code(), summary));
+            AuditAction.EXECUTE, "model_capability_task", taskId, code.code(), summary));
     }
 
     private ModelCapabilityStatusResponse statusOf(
@@ -822,6 +827,59 @@ public class ModelGatewayService {
         }
     }
 
+    private SchemaRepairResult repairAuthoritativeRequiredFields(
+            String content,
+            String schema,
+            String authoritativeOutputContext) {
+        if (authoritativeOutputContext == null || authoritativeOutputContext.isBlank()) {
+            return new SchemaRepairResult(content, List.of());
+        }
+        JsonNode output;
+        JsonNode context;
+        try {
+            output = OBJECT_MAPPER.readTree(content);
+            context = OBJECT_MAPPER.readTree(authoritativeOutputContext);
+        } catch (Exception parseError) {
+            throw new ApiException(ErrorCode.ENG_LLM_002, "模型输出或权威输出上下文不是合法 JSON");
+        }
+        if (output == null || !output.isObject()) {
+            return new SchemaRepairResult(content, List.of());
+        }
+        if (context == null || !context.isObject()) {
+            throw new ApiException(ErrorCode.ENG_LLM_002, "权威输出上下文必须是 JSON 对象");
+        }
+        ObjectNode repaired = ((ObjectNode) output).deepCopy();
+        List<String> repairedFields = new ArrayList<>();
+        for (String required : extractRequiredFields(schema)) {
+            JsonNode contextValue = context.get(required);
+            if (!repaired.has(required) && usableAuthoritativeValue(contextValue)) {
+                repaired.set(required, contextValue.deepCopy());
+                repairedFields.add(required);
+            }
+        }
+        if (repairedFields.isEmpty()) {
+            return new SchemaRepairResult(content, List.of());
+        }
+        try {
+            return new SchemaRepairResult(OBJECT_MAPPER.writeValueAsString(repaired), repairedFields);
+        } catch (Exception impossible) {
+            throw new ApiException(ErrorCode.ENG_LLM_002, "权威字段补齐后模型输出无法序列化");
+        }
+    }
+
+    private boolean usableAuthoritativeValue(JsonNode value) {
+        if (value == null || value.isNull() || value.isMissingNode()) {
+            return false;
+        }
+        if (value.isTextual()) {
+            return !value.asText().isBlank();
+        }
+        if (value.isArray() || value.isObject()) {
+            return !value.isEmpty();
+        }
+        return true;
+    }
+
     /**
      * 从标准输出规则对象提取必填字段名。
      */
@@ -875,7 +933,19 @@ public class ModelGatewayService {
     private record RouteOutcome(
         String outputContent, String modelMode, String modelVersion, String promptVersion, String toolVersion,
         String sourceCitations, Double confidence, String riskLevel,
-        boolean fallbackUsed, String fallbackReason, String taskStatus) {}
+        boolean fallbackUsed, String fallbackReason, String taskStatus,
+        ModelEgressConfirmationChallenge egressConfirmation
+    ) {
+        RouteOutcome(String outputContent, String modelMode, String modelVersion, String promptVersion,
+                     String toolVersion, String sourceCitations, Double confidence, String riskLevel,
+                     boolean fallbackUsed, String fallbackReason, String taskStatus) {
+            this(
+                outputContent, modelMode, modelVersion, promptVersion, toolVersion,
+                sourceCitations, confidence, riskLevel, fallbackUsed, fallbackReason, taskStatus, null);
+        }
+    }
+
+    private record SchemaRepairResult(String content, List<String> fields) {}
 
     private record ModelFallbackConfig(
         List<String> fallbackOrder,
@@ -905,7 +975,7 @@ public class ModelGatewayService {
     private RouteOutcome route(String tenantId, String capabilityCode, String strategy,
                                ModelFallbackConfig fallbackConfig, String desensitizedInput,
                                String taskId, ActiveVersionPlan versionPlan, String expectedSchema,
-                               String providerCode) {
+                               String providerCode, String authoritativeOutputContext) {
         if (!versionPlan.executable() && !"BASELINE".equalsIgnoreCase(strategy)) {
             return b0Outcome(capabilityCode, versionPlan.reason());
         }
@@ -924,7 +994,8 @@ public class ModelGatewayService {
             String attemptProviderCode = attemptStrategy.equalsIgnoreCase(strategy) ? providerCode : null;
             ProviderAttempt attempt = tryProvider(
                 tenantId, capabilityCode, attemptStrategy, desensitizedInput,
-                taskId, plannedTriple, expectedSchema, fallbackConfig, attemptProviderCode);
+                taskId, plannedTriple, expectedSchema, authoritativeOutputContext,
+                fallbackConfig, attemptProviderCode);
             if (attempt.outcome().isPresent()) {
                 RouteOutcome successful = attempt.outcome().get();
                 if (reasons.isEmpty()) {
@@ -941,7 +1012,8 @@ public class ModelGatewayService {
                     successful.riskLevel(),
                     true,
                     String.join("；", reasons),
-                    successful.taskStatus()
+                    successful.taskStatus(),
+                    successful.egressConfirmation()
                 );
             }
 
@@ -956,7 +1028,8 @@ public class ModelGatewayService {
     private ProviderAttempt tryProvider(String tenantId, String capabilityCode, String strategy,
                                         String desensitizedInput, String taskId,
                                         ModelVersionTriple plannedTriple, String expectedSchema,
-                                        ModelFallbackConfig fallbackConfig, String providerCode) {
+                                        String authoritativeOutputContext, ModelFallbackConfig fallbackConfig,
+                                        String providerCode) {
         var resolved = providerCode == null || providerCode.isBlank()
             ? providerRegistry.resolve(tenantId, strategy)
             : providerRegistry.resolve(tenantId, strategy, providerCode);
@@ -993,9 +1066,17 @@ public class ModelGatewayService {
                         "外调最小化结果未包含允许的提示内容");
                 }
                 prompt = readPromptField(prep.payload());
+            } catch (ModelEgressConfirmationRequiredException confirmationRequired) {
+                log.warn("模型外调等待责任确认 capabilityCode={} payloadHash={}",
+                    capabilityCode, confirmationRequired.payloadHash());
+                publishFailureAudit(taskId, confirmationRequired.errorCode(),
+                    "模型外调等待责任确认，能力=" + capabilityCode
+                        + "，payloadHash=" + confirmationRequired.payloadHash());
+                return ProviderAttempt.success(confirmationRequiredOutcome(
+                    confirmationRequired, plannedTriple, provider.modelMode()));
             } catch (ApiException egressBlocked) {
                 log.warn("模型外调安全闸阻断 capabilityCode={}：{}", capabilityCode, egressBlocked.getMessage());
-                publishFailureAudit(egressBlocked.errorCode(),
+                publishFailureAudit(taskId, egressBlocked.errorCode(),
                     "模型外调安全闸阻断，能力=" + capabilityCode + "：" + egressBlocked.getMessage());
                 return ProviderAttempt.failure(ModelFallbackTrigger.EGRESS_BLOCKED, egressBlocked.getMessage());
             }
@@ -1015,11 +1096,19 @@ public class ModelGatewayService {
                 return ProviderAttempt.failure(ModelFallbackTrigger.PROVIDER_ERROR,
                     "模型服务返回内容为空");
             }
+            String outputContent = completion.content();
             if (expectedSchema != null && !expectedSchema.isBlank()) {
-                validateSchema(completion.content(), expectedSchema);
+                SchemaRepairResult repair = repairAuthoritativeRequiredFields(
+                    outputContent, expectedSchema, authoritativeOutputContext);
+                outputContent = repair.content();
+                if (!repair.fields().isEmpty()) {
+                    log.info("模型输出补齐权威上下文字段 capabilityCode={} fields={}",
+                        capabilityCode, repair.fields());
+                }
+                validateSchema(outputContent, expectedSchema);
             }
             return ProviderAttempt.success(new RouteOutcome(
-                completion.content(), provider.modelMode(), configuredModelVersion,
+                outputContent, provider.modelMode(), configuredModelVersion,
                 plannedTriple.promptVersion(), plannedTriple.toolVersion(),
                 completion.sourceCitations(), completion.confidence(), "LOW", false, null, "SUCCEEDED"));
         } catch (ApiException providerFailed) {
@@ -1105,6 +1194,68 @@ public class ModelGatewayService {
             "[]", null, "LOW", true, fallbackReason, "DEGRADED");
     }
 
+    private RouteOutcome confirmationRequiredOutcome(
+            ModelEgressConfirmationRequiredException required,
+            ModelVersionTriple plannedTriple,
+            String modelMode) {
+        var output = OBJECT_MAPPER.createObjectNode();
+        output.put("status", "CONFIRMATION_REQUIRED");
+        output.put("capabilityCode", required.capabilityCode());
+        output.put("payloadHash", required.payloadHash());
+        var fields = output.putArray("egressFields");
+        required.egressFields().forEach(fields::add);
+        output.put("providerCode", required.providerCode());
+        output.put("message", required.getMessage());
+        ModelEgressConfirmationChallenge challenge = new ModelEgressConfirmationChallenge(
+            required.capabilityCode(),
+            required.payloadHash(),
+            required.egressFields(),
+            required.providerCode(),
+            required.getMessage()
+        );
+        return new RouteOutcome(
+            output.toString(),
+            modelMode,
+            plannedTriple.modelVersion(),
+            plannedTriple.promptVersion(),
+            plannedTriple.toolVersion(),
+            "[]",
+            null,
+            "HIGH",
+            false,
+            null,
+            "CONFIRMATION_REQUIRED",
+            challenge
+        );
+    }
+
+    private ModelEgressConfirmationChallenge egressConfirmationFromOutput(String outputContent) {
+        try {
+            JsonNode output = OBJECT_MAPPER.readTree(outputContent);
+            if (output == null || !"CONFIRMATION_REQUIRED".equals(output.path("status").asText())) {
+                return null;
+            }
+            List<String> fields = new ArrayList<>();
+            JsonNode egressFields = output.path("egressFields");
+            if (egressFields.isArray()) {
+                egressFields.forEach(field -> {
+                    if (field.isTextual() && !field.asText().isBlank()) {
+                        fields.add(field.asText());
+                    }
+                });
+            }
+            return new ModelEgressConfirmationChallenge(
+                output.path("capabilityCode").asText(null),
+                output.path("payloadHash").asText(null),
+                fields,
+                output.path("providerCode").asText(null),
+                output.path("message").asText(null)
+            );
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     private ActiveVersionPlan activeVersionPlan(String tenantId, String capabilityCode) {
         ModelVersionBundle bundle = versionBundleRepository
             .findFirstByTenantIdAndCapabilityCodeAndStatusOrderByIdDesc(tenantId, capabilityCode, "ACTIVE")
@@ -1134,7 +1285,7 @@ public class ModelGatewayService {
         output.put("status", "NO_MODEL_PROVIDER");
         output.put("capability", capabilityCode);
         output.putArray("candidates");
-        output.put("message", "当前未接入可用模型服务，未生成候选内容");
+        output.put("message", "当前没有可用模型服务，未生成候选内容");
         return output.toString();
     }
 }

@@ -6,6 +6,7 @@ import {
   Empty,
   Input,
   List,
+  Popconfirm,
   Result,
   Select,
   Space,
@@ -35,6 +36,9 @@ import type {
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageShell } from "@/shared/ui/PageShell";
 import { ProjectionGraphCanvas } from "./ProjectionGraphCanvas";
 import { projectionObjectLabel, projectionPredicateLabel } from "./projectionGraph";
@@ -70,6 +74,39 @@ function shortHash(value?: string | null) {
   return `${value.slice(0, 12)}...${value.slice(-8)}`;
 }
 
+function projectionEvidenceText(
+  value: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  fallback: string,
+) {
+  return evidenceDetailsEnabled ? value || "未返回" : fallback;
+}
+
+function objectEvidenceText(objectId: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  return projectionEvidenceText(objectId, evidenceDetailsEnabled, "投影对象已同步");
+}
+
+function contentHashText(contentHash: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  return projectionEvidenceText(shortHash(contentHash), evidenceDetailsEnabled, "内容摘要已记录");
+}
+
+function traceEvidenceText(traceId: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  return projectionEvidenceText(traceId, evidenceDetailsEnabled, "追踪证据已记录");
+}
+
+function projectionEndpointText(
+  endpointKey: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) return endpointKey || "未返回";
+  const objectType = endpointKey?.split(":")[0];
+  return objectType ? `${projectionObjectLabel(objectType)}已关联` : "关系对象已关联";
+}
+
+function diffEvidenceText(factKey: string, index: number, evidenceDetailsEnabled: boolean) {
+  return evidenceDetailsEnabled ? factKey : `第 ${index + 1} 条差异事实已记录`;
+}
+
 function formatDateTime(value?: string | null) {
   if (!value) return "未返回";
   const date = new Date(value);
@@ -83,7 +120,7 @@ function statusTag(status?: ProjectionSyncStatus | string | null) {
   return <Tag color={color}>{statusText[value] ?? customerEnumLabel(value)}</Tag>;
 }
 
-function diffPanel(title: string, items: ProjectionDiffItem[]) {
+function diffPanel(title: string, items: ProjectionDiffItem[], evidenceDetailsEnabled: boolean) {
   return (
     <section className={styles.diffPanel}>
       <div className={styles.diffHeader}>
@@ -96,10 +133,10 @@ function diffPanel(title: string, items: ProjectionDiffItem[]) {
         <List
           size="small"
           dataSource={items}
-          renderItem={(item) => (
+          renderItem={(item, index) => (
             <List.Item>
-              <Text code className={styles.diffKey}>
-                {item.factKey}
+              <Text className={styles.diffKey} code={evidenceDetailsEnabled}>
+                {diffEvidenceText(item.factKey, index, evidenceDetailsEnabled)}
               </Text>
             </List.Item>
           )}
@@ -111,12 +148,14 @@ function diffPanel(title: string, items: ProjectionDiffItem[]) {
 
 export default function GraphExplore() {
   const securityQuery = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
   const permissionCodes = useMemo(
     () => new Set(securityQuery.data?.permissions.map((permission) => permission.code) ?? []),
     [securityQuery.data],
   );
   const canRead = permissionCodes.has("projection.read");
   const canRebuild = permissionCodes.has("projection.rebuild");
+  const evidenceDetailsEnabled = canUseEvidenceDetails(securityQuery.data) && globalEvidenceDetails;
 
   const [targetType, setTargetType] = useState<ProjectionTargetType>("CLINICAL_GRAPH");
   const [keywordInput, setKeywordInput] = useState("");
@@ -193,7 +232,9 @@ export default function GraphExplore() {
       render: (_value, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{projectionObjectLabel(record.objectType)}</Text>
-          <Text type="secondary">{record.objectId}</Text>
+          <Text type="secondary">
+            {objectEvidenceText(record.objectId, evidenceDetailsEnabled)}
+          </Text>
         </Space>
       ),
     },
@@ -203,9 +244,9 @@ export default function GraphExplore() {
       render: (_value, record) =>
         record.factKind === "EDGE" ? (
           <Space direction="vertical" size={0}>
-            <Text>{record.subjectKey}</Text>
+            <Text>{projectionEndpointText(record.subjectKey, evidenceDetailsEnabled)}</Text>
             <Text type="secondary">{projectionPredicateLabel(record.predicate)}</Text>
-            <Text>{record.objectKey}</Text>
+            <Text>{projectionEndpointText(record.objectKey, evidenceDetailsEnabled)}</Text>
           </Space>
         ) : (
           <Text type="secondary">节点</Text>
@@ -215,7 +256,9 @@ export default function GraphExplore() {
       title: "摘要",
       dataIndex: "contentHash",
       key: "contentHash",
-      render: (value: string) => <Text code>{shortHash(value)}</Text>,
+      render: (value: string | null) => (
+        <Text code={evidenceDetailsEnabled}>{contentHashText(value, evidenceDetailsEnabled)}</Text>
+      ),
     },
     {
       title: "同步时间",
@@ -224,10 +267,10 @@ export default function GraphExplore() {
       render: (value: string) => <Text type="secondary">{formatDateTime(value)}</Text>,
     },
     {
-      title: "追踪号",
+      title: "追踪证据",
       dataIndex: "traceId",
       key: "traceId",
-      render: (value?: string | null) => value || "未返回",
+      render: (value?: string | null) => traceEvidenceText(value, evidenceDetailsEnabled),
     },
   ];
 
@@ -253,7 +296,7 @@ export default function GraphExplore() {
         <Result
           status="error"
           title="投影事实读取失败"
-          subTitle="未使用本地演示数据替代真实结果。"
+          subTitle="请检查图谱投影服务状态；页面仅展示关系库与投影服务返回的真实结果。"
           extra={
             <Button type="primary" onClick={() => factsQuery.refetch()}>
               重新读取
@@ -273,6 +316,7 @@ export default function GraphExplore() {
           <ProjectionGraphCanvas
             facts={facts}
             selectedKey={selectedNodeKey}
+            evidenceDetailsEnabled={evidenceDetailsEnabled}
             onSelect={(nodeKey, fact) => {
               setSelectedNodeKey(nodeKey);
               setSelectedFact(fact ?? null);
@@ -289,19 +333,23 @@ export default function GraphExplore() {
             <Descriptions.Item label="类型">
               {projectionObjectLabel(selectedFact.objectType)}
             </Descriptions.Item>
-            <Descriptions.Item label="对象标识">{selectedFact.objectId}</Descriptions.Item>
+            <Descriptions.Item label={evidenceDetailsEnabled ? "对象标识" : "对象证据"}>
+              {objectEvidenceText(selectedFact.objectId, evidenceDetailsEnabled)}
+            </Descriptions.Item>
             <Descriptions.Item label="关系">
               {selectedFact.factKind === "EDGE"
                 ? projectionPredicateLabel(selectedFact.predicate)
                 : "节点"}
             </Descriptions.Item>
             <Descriptions.Item label="内容摘要">
-              {shortHash(selectedFact.contentHash)}
+              {contentHashText(selectedFact.contentHash, evidenceDetailsEnabled)}
             </Descriptions.Item>
             <Descriptions.Item label="同步时间">
               {formatDateTime(selectedFact.syncedAt)}
             </Descriptions.Item>
-            <Descriptions.Item label="追踪号">{selectedFact.traceId || "未返回"}</Descriptions.Item>
+            <Descriptions.Item label={evidenceDetailsEnabled ? "追踪号" : "追踪证据"}>
+              {traceEvidenceText(selectedFact.traceId, evidenceDetailsEnabled)}
+            </Descriptions.Item>
           </Descriptions>
         ) : (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="选择节点查看投影证据" />
@@ -340,22 +388,10 @@ export default function GraphExplore() {
   const consistencyTab = (
     <>
       <div className={styles.diffList}>
-        {diffPanel("关系库有、投影缺失", report?.missing ?? [])}
-        {diffPanel("投影多余", report?.extra ?? [])}
-        {diffPanel("内容已变化", report?.changed ?? [])}
+        {diffPanel("关系库有、投影缺失", report?.missing ?? [], evidenceDetailsEnabled)}
+        {diffPanel("投影多余", report?.extra ?? [], evidenceDetailsEnabled)}
+        {diffPanel("内容已变化", report?.changed ?? [], evidenceDetailsEnabled)}
       </div>
-      {canRebuild && (
-        <div className={styles.rebuildRow}>
-          <Button
-            aria-label="重建投影"
-            icon={<SyncOutlined />}
-            loading={rebuildMutation.isPending}
-            onClick={handleRebuild}
-          >
-            重建投影
-          </Button>
-        </div>
-      )}
     </>
   );
 
@@ -364,14 +400,38 @@ export default function GraphExplore() {
       title="图谱查询"
       description="关系库权威源的可重建投影"
       extras={
-        <Tooltip title="刷新当前结果">
-          <Button
-            aria-label="刷新当前结果"
-            icon={<ReloadOutlined />}
-            loading={loading}
-            onClick={handleReload}
-          />
-        </Tooltip>
+        <Space wrap>
+          <EvidenceDetailsToggle securityProfile={securityQuery.data} />
+          <Tooltip title="刷新当前结果">
+            <Button
+              aria-label="刷新当前结果"
+              icon={<ReloadOutlined />}
+              loading={loading}
+              onClick={handleReload}
+            />
+          </Tooltip>
+        </Space>
+      }
+      primary={
+        canRebuild ? (
+          <Popconfirm
+            title="确认重建当前投影"
+            description="只重建派生快照，不改写关系库权威源。"
+            okText="确认重建"
+            cancelText="取消"
+            onConfirm={handleRebuild}
+          >
+            <Button
+              aria-label="重建投影"
+              type="primary"
+              danger
+              icon={<SyncOutlined />}
+              loading={rebuildMutation.isPending}
+            >
+              重建投影
+            </Button>
+          </Popconfirm>
+        ) : null
       }
     >
       <div className={styles.pageStack}>
@@ -403,10 +463,12 @@ export default function GraphExplore() {
             onChange={handleTargetChange}
           />
           <Input
-            aria-label="实体、关系或追踪号"
+            aria-label={evidenceDetailsEnabled ? "实体、关系或追踪号" : "业务对象、关系或追踪证据"}
             allowClear
             value={keywordInput}
-            placeholder="实体、关系、对象标识或追踪号"
+            placeholder={
+              evidenceDetailsEnabled ? "实体、关系、对象标识或追踪号" : "业务对象、关系或追踪证据"
+            }
             onChange={(event) => setKeywordInput(event.target.value)}
             onPressEnter={handleSearch}
           />

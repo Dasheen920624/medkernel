@@ -43,7 +43,7 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
   });
 
   assert.equal(evidence.status, "PASSED");
-  assert.deepEqual(Object.values(evidence.stageStatus), Array(6).fill("PASSED"));
+  assert.deepEqual(Object.values(evidence.stageStatus), Array(7).fill("PASSED"));
   assert.equal(evidence.coverage.standardPatientResources.length, 13);
   assert.equal(evidence.coverage.versionedAssets.length, 13);
   assert.equal(evidence.coverage.knowledgeDomains.length, 11);
@@ -99,6 +99,19 @@ function completeStageEvidence() {
       provider: { enabled: true, status: "HEALTHY", code: "ollama-launch" },
       evaluation: { totalCases: 3, passedCases: 3, failedCases: 0, status: "PASSED" },
     },
+    "platform-baseline": {
+      status: "PASSED",
+      stage: "PLATFORM_BASELINE_BOOTSTRAP",
+      operator: { tenantId: "t-1", role: "engine-operator" },
+      fieldCatalog: {
+        assetType: "FIELD_CATALOG",
+        assetIdentity: "FIELD.CATALOG.CLINICAL_CONTEXT",
+        entryState: "ACTIVE",
+        versionId: "field-v1",
+        versionNo: "1",
+      },
+      baseline: { baselineReleaseId: "baseline-1", revisionNo: 1 },
+    },
     sandbox: {
       results: Array.from({ length: 10 }, (_, index) => ({ ruleCode: `R${index}`, result: "PASS" })),
       failures: [],
@@ -132,7 +145,7 @@ function completeStageEvidence() {
         modelInvocationAllowed: false,
         blockingRequiredItems: ["MODEL_PROVIDER"],
       },
-      b0: { fixtureCount: 17, passedCount: 17, modelRequiredCount: 0 },
+      b0: { evidenceCount: 17, passedCount: 17, modelRequiredCount: 0 },
       restored: {
         providerEnabled: true,
         providerStatus: "HEALTHY",

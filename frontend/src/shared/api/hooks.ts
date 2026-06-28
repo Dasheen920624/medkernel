@@ -13,11 +13,11 @@ import type {
 
 /**
  * MedKernel v1.0 GA · React Query hooks（按业务域分组）。
- * 与后端 /api/v1/* 路由一一对应。
+ * 与平台 /api/v1/* 路由一一对应。
  *
- * GA-ENG-BASE-09 净化：删除 W3-W7 旧业务 hook，仅保留 engine/* 真接口、
+ * GA-ENG-BASE-09 净化：删除 W3-W7 旧业务 hook，仅保留 engine/* 平台 API、
  * compliance/audit/* 与 /security/me、/system/* 合法运行底座 hook，
- * 以及 GA-ENG-API-04 上线后接入的字典映射 hook（业务包装阶段会渐进新增其它 engine hook）。
+ * 以及 GA-ENG-API-04 字典映射 hook；新增业务包装必须绑定真实平台 API。
  */
 
 // ──────────────────────────────────────────
@@ -97,7 +97,7 @@ function standardApiContext(profile: SecurityProfile | undefined): StandardApiCo
   const tenantId = profile.dataScope?.tenantId;
   const roleCodes = profile.roles.map((role) => role.code).filter(Boolean);
   if (!tenantId || roleCodes.length === 0) {
-    throw new Error("标准上下文缺少服务空间或角色，请刷新用户状态后重试。");
+    throw new Error("标准上下文缺少服务机构或角色，请刷新用户状态后重试。");
   }
   const traceId = crypto.randomUUID();
   const context: StandardApiContextFields = {
@@ -128,7 +128,7 @@ function withStandardApiContext<T extends object>(
 }
 
 // ──────────────────────────────────────────
-// 合规运维 · 审计日志（BASE-04 已落地）
+// 平台管理 · 审计证据日志（BASE-04 已落地）
 // ──────────────────────────────────────────
 export type AuditEventRow = {
   id: string;
@@ -366,19 +366,19 @@ export function useSystemRuntime() {
   });
 }
 
-export interface DeveloperApiPermission {
+export interface RuntimeDiagnosticsApiPermission {
   code: string;
   dimension: PermissionDimension;
   purpose: string;
 }
 
-export interface DeveloperApiAuditPoint {
+export interface RuntimeDiagnosticsApiAuditPoint {
   action: string;
   targetType: string;
   purpose: string;
 }
 
-export interface DeveloperApiContract {
+export interface RuntimeDiagnosticsApiContract {
   id: string;
   title: string;
   basePath: string;
@@ -386,25 +386,25 @@ export interface DeveloperApiContract {
   openApiDocumentUrl?: string | null;
   fieldContractUrl?: string | null;
   openApiPaths: string[];
-  permissions: DeveloperApiPermission[];
-  auditPoints: DeveloperApiAuditPoint[];
+  permissions: RuntimeDiagnosticsApiPermission[];
+  auditPoints: RuntimeDiagnosticsApiAuditPoint[];
   publicEndpoints: string[];
 }
 
-export interface DeveloperApiContractDirectory {
-  contracts: DeveloperApiContract[];
+export interface RuntimeDiagnosticsApiContractDirectory {
+  contracts: RuntimeDiagnosticsApiContract[];
 }
 
-type DeveloperApiContractDirectoryEnvelope = {
-  data: DeveloperApiContractDirectory;
+type RuntimeDiagnosticsApiContractDirectoryEnvelope = {
+  data: RuntimeDiagnosticsApiContractDirectory;
 };
 
-export function useDeveloperApiContracts() {
+export function useRuntimeDiagnosticsApiContracts() {
   return useQuery({
-    queryKey: ["system", "dev-console", "api-contracts"],
+    queryKey: ["system", "runtime-diagnostics", "api-contracts"],
     queryFn: async () => {
-      const response = await apiClient.get<DeveloperApiContractDirectoryEnvelope>(
-        "/system/dev-console/api-contracts",
+      const response = await apiClient.get<RuntimeDiagnosticsApiContractDirectoryEnvelope>(
+        "/system/runtime-diagnostics/api-contracts",
       );
       return response.data.data;
     },
@@ -594,7 +594,7 @@ export function useDisablePlugin() {
 }
 
 // ──────────────────────────────────────────
-// 高级工具 · 关系库权威源投影查询
+// 知识关系 · 关系库权威源投影查询
 // ──────────────────────────────────────────
 export type ProjectionTargetType = "CLINICAL_GRAPH" | "KNOWLEDGE_GRAPH" | "KNOWLEDGE_SEARCH";
 
@@ -1434,7 +1434,7 @@ export interface CandidateProvenanceView {
 }
 
 /**
- * 审核台批量反查候选 AI 工厂生产来源（AIK-STD-12 PR1 端点）。
+ * 审核台批量反查候选 AI 工厂生产来源（AIK-STD-12 端点）。
  * 传候选版本引用 kv:{identityId}:{versionNo}；无血缘行的候选不返回（诚实「非工厂候选」）。
  */
 export function useCandidateProvenance(candidateRefs: string[]) {
@@ -1608,6 +1608,7 @@ export interface KnowledgeModelProductionResult {
       failedGates?: Array<{ code: string; reason: string }>;
     }>;
   };
+  egressConfirmation?: ModelEgressConfirmationChallenge | null;
 }
 
 export interface GenerateKnowledgeModelCandidateCommand {
@@ -5353,7 +5354,7 @@ export interface RecommendationFeedback {
   feedbackType: RecommendationFeedbackType;
   reasonCode?: string;
   reasonText?: string;
-  // 操作者由后端从 RequestContext 取真实登录用户写入；前端不传，仅展示。
+  // 操作者由平台从 RequestContext 取真实登录用户写入；前端不传，仅展示。
   operatorId: string;
   operatorRole?: string;
   createdAt?: string;
@@ -5606,8 +5607,8 @@ export function useRecommendationCardSources(cardId: string) {
 }
 
 // 3. Feedback Hook
-// 契约对齐后端 RecommendationFeedbackRequest：仅 feedbackType / reasonCode / reasonText / operatorRole；
-// 操作者 id 由后端从 RequestContext 取真实登录用户，前端不得伪造 physicianId。
+// 契约对齐 RecommendationFeedbackRequest：仅 feedbackType / reasonCode / reasonText / operatorRole；
+// 操作者 id 由平台从 RequestContext 取真实登录用户，前端不得伪造 physicianId。
 export function useSubmitRecommendationFeedback(cardId: string) {
   return useMutation({
     mutationFn: async (payload: {
@@ -8054,9 +8055,17 @@ export interface ModelTaskRequest {
   providerCode?: string | null;
 }
 
+export interface ModelEgressConfirmationChallenge {
+  capabilityCode: string;
+  payloadHash: string;
+  egressFields: string[];
+  providerCode?: string | null;
+  message: string;
+}
+
 export interface ModelTaskResponse {
   taskId: string;
-  status: "SUCCESS" | "FAILED" | "DEGRADED" | string;
+  status: "SUCCESS" | "FAILED" | "DEGRADED" | "CONFIRMATION_REQUIRED" | string;
   outputContent: string;
   modelMode: string;
   modelVersion: string;
@@ -8069,6 +8078,7 @@ export interface ModelTaskResponse {
   fallbackReason: string;
   timeCostMs: number;
   traceId: string;
+  egressConfirmation?: ModelEgressConfirmationChallenge | null;
 }
 
 export interface ModelPolicyValidateRequest {
@@ -8094,6 +8104,62 @@ export interface ModelPolicyUpsertRequest {
   fallbackOrder?: string[];
   timeoutMs?: number;
   rateLimitPerMinute?: number | null;
+}
+
+export type ModelEgressSensitivityLevel = "LOW" | "MEDIUM" | "HIGH";
+export type ModelEgressDesensitizationOperator =
+  | "MASK"
+  | "MASK_ALL"
+  | "GENERALIZE"
+  | "NULLIFY"
+  | "NONE";
+
+export interface ModelEgressPolicyUpsertRequest {
+  allowedFields: string[];
+  sensitivityLevel: ModelEgressSensitivityLevel;
+  desensitizationRules: Record<string, ModelEgressDesensitizationOperator>;
+  confirmationThresholdLevel: ModelEgressSensitivityLevel;
+}
+
+export interface ModelEgressPolicy {
+  id?: number | null;
+  tenantId: string;
+  capabilityCode: string;
+  allowedFields: string;
+  sensitivityLevel: ModelEgressSensitivityLevel;
+  desensitizationRules: string;
+  confirmationThresholdLevel: ModelEgressSensitivityLevel;
+  guardrailLockedFlag: string;
+  createdAt?: string | null;
+  createdBy?: string | null;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+export interface ModelEgressConfirmationRequest {
+  capabilityCode: string;
+  payloadHash: string;
+  purpose: string;
+}
+
+export interface ModelEgressConfirmation {
+  id?: number | null;
+  tenantId?: string | null;
+  capabilityCode: string;
+  payloadHash: string;
+  purpose: string;
+  confirmedBy?: string | null;
+  confirmedAt?: string | null;
+  createdAt?: string | null;
+  createdBy?: string | null;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+export interface ModelEgressConfirmationsParams {
+  page?: number;
+  size?: number;
+  sort?: string;
 }
 
 export interface ModelCapabilityDefinition {
@@ -8251,6 +8317,70 @@ export function useSaveModelPolicy() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["model", "capabilities-status"] });
+    },
+  });
+}
+
+// 15. 保存模型外调数据最小化策略：字段允许范围、强制脱敏规则和高敏责任确认阈值
+export function useSaveModelEgressPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      capabilityCode,
+      policy,
+    }: {
+      capabilityCode: string;
+      policy: ModelEgressPolicyUpsertRequest;
+    }) => {
+      const { data } = await apiClient.put<{ data: ModelEgressPolicy }>(
+        `/data-minimization/policies/model-egress/${encodeURIComponent(capabilityCode)}`,
+        policy,
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["model", "capabilities-status"] });
+    },
+  });
+}
+
+// 16. 分页回看模型外调用途确认：供审计、实施复核和安全排查查看脱敏摘要与确认人
+export async function fetchModelEgressConfirmations(
+  params: ModelEgressConfirmationsParams = {},
+): Promise<PageResponse<ModelEgressConfirmation>> {
+  const { data } = await apiClient.get<{ data: PageResponse<ModelEgressConfirmation> }>(
+    "/data-minimization/policies/model-egress/confirmations",
+    { params },
+  );
+  return data.data;
+}
+
+export function useModelEgressConfirmations(
+  params: ModelEgressConfirmationsParams = {},
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ["data-minimization", "model-egress-confirmations", params],
+    queryFn: () => fetchModelEgressConfirmations(params),
+    enabled,
+  });
+}
+
+// 17. 记录模型外调用途确认：绑定能力、脱敏载荷摘要和本次授权用途，供审计追溯
+export function useConfirmModelEgress() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: ModelEgressConfirmationRequest) => {
+      const { data } = await apiClient.post<{ data: ModelEgressConfirmation }>(
+        "/data-minimization/policies/model-egress/confirmations",
+        payload,
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["data-minimization", "model-egress-confirmations"],
+      });
     },
   });
 }
@@ -8778,7 +8908,7 @@ export function useCreateWebhook() {
   });
 }
 
-// 7. Webhook 签名生成与双向测试
+// 7. Webhook 签名生成与双向验证
 export function useTestWebhookSignature() {
   return useMutation({
     mutationFn: async (payload: WebhookTestPayload) => {
@@ -8992,7 +9122,7 @@ export interface Branding {
   hospitalName: string;
   logoUrl: string;
   themeColor: string;
-  expertMode: boolean;
+  evidenceDetailsEnabled: boolean;
   customBrandingJson: string;
   createdAt?: string;
   createdBy?: string;
@@ -9099,7 +9229,7 @@ export function useTransitionSuccessStage() {
 }
 
 // ──────────────────────────────────────────
-// 组织单元 · 试点准备（GA-SVC-PILOT-01）
+// 平台管理 · 组织单元（GA-SVC-PILOT-01）
 // ──────────────────────────────────────────
 export interface OrgUnit {
   id?: string;

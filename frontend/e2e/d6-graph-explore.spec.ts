@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { expect, test, type Page } from "@playwright/test";
 
 import {
@@ -103,97 +105,249 @@ async function enableGraphProjection(page: Page) {
 
 async function seedActiveKnowledge(page: Page) {
   await ensureReadySession(page, "engine-operator");
+  const existing = await rebuildKnowledgeProjection(page, "检查已有知识关系投影源");
+  if (existing.sourceCount > 0) return;
+
   const suffix = Date.now();
-  const create = await postApi(page, "/engine/knowledge/diagnosis/assets", {
-    request_id: `e2e-graph-${suffix}`,
-    trace_id: `e2e-graph-${suffix}`,
-    tenant_id: "t-1",
-    user_id: "engine-operator",
-    role_codes: ["engine-operator"],
-    package_version: "2026.06",
-    identity: {
-      identitySlug: `e2e-graph-${suffix}`,
-      subject: "图谱真实链路验收知识",
-      assetSpecialtyId: "GENERAL",
-      description: "用于验证关系库权威知识到图投影查询的真实链路",
-    },
-    source: {
-      sourceCode: `E2E.SOURCE.${suffix}`,
-      sourceType: "GUIDELINE",
-      authorityLevel: "B_GUIDELINE",
-      authorityBasis: "受控验收知识来源",
-      title: "图谱真实链路验收指南",
-      publisher: "MedKernel 质量验收",
-      license: "受控测试许可",
-      language: "zh-CN",
-      versionNo: String(suffix),
-      publishedAt: "2026-06-07T00:00:00Z",
-      fileUri: `repository://e2e/graph-${suffix}`,
-      content: `图谱真实链路验收原文 ${suffix}。发热与咳嗽构成验收发现集。`,
-    },
-    version: {
-      versionNo: String(suffix),
-      versionLabel: "真实链路验收版",
-      riskLevel: "HIGH",
-      gradeQuality: "HIGH",
-      gradeStrength: "STRONG",
-      reviewCycleMonths: 12,
-    },
-    evidence: {
-      anchorPath: "section-1",
-      anchorLabel: "验收标准",
-      textExcerpt: `图谱真实链路验收原文 ${suffix}`,
-    },
+  const seed = await createModelKnowledgeSeed(page, suffix);
+  const rebuilt = await rebuildKnowledgeProjection(page, "种子知识发布后重建知识关系投影");
+  expect(rebuilt.sourceCount, `图谱种子知识 ${seed.identityCode} 必须进入投影源`).toBeGreaterThan(0);
+}
+
+async function rebuildKnowledgeProjection(page: Page, label: string) {
+  const response = await postApi(page, "/projections/knowledge-graph/rebuild", {});
+  await expectOk(response, label);
+  return (await response.json()).data as { sourceCount: number; projectionCount: number };
+}
+
+async function createModelKnowledgeSeed(page: Page, suffix: number) {
+  const source = await registerGraphKnowledgeSource(page, suffix);
+  const identityCode = `e2e.graph.source-boundary.${suffix}`;
+  const subject = "图谱投影验收来源边界知识";
+  const job = await postApi(page, "/engine/knowledge-production/jobs", {
+    sourceScope: source.sourceRef,
+    assetType: "KNOWLEDGE",
+    producer: "API_MODEL",
+    targetPipeline: "PLATFORM_SOURCE",
+    domain: "CLINICAL",
+    modelStrategy: "FORMAL_KNOWLEDGE",
   });
-  await expectOk(create, "创建真实知识资产");
-  const draft = (await create.json()).data;
-  const identityId = draft.identity.id;
-  const versionId = draft.version.id;
+  await expectOk(job, "创建图谱种子正式模型生产任务");
+  const jobData = (await job.json()).data as { jobCode: string };
 
-  for (const criterion of [
-    { findingTermCode: "FEVER", direction: "REQUIRED", weight: "MAJOR" },
-    { findingTermCode: "COUGH", direction: "SUPPORTING", weight: "MAJOR" },
-  ]) {
-    const response = await postApi(
-      page,
-      `/engine/knowledge/diagnosis/versions/${versionId}/criteria`,
-      criterion,
-    );
-    await expectOk(response, `新增诊断标准 ${criterion.findingTermCode}`);
-  }
-
-  const testCase = await postApi(
+  const generated = await postApi(
     page,
-    `/engine/knowledge/diagnosis/versions/${versionId}/test-cases`,
+    `/engine/knowledge-production/jobs/${encodeURIComponent(jobData.jobCode)}/model-candidates`,
     {
-      caseCode: `E2E-GRAPH-${suffix}`,
-      findings: "FEVER,COUGH",
-      expectedIdentityId: identityId,
-      expectedConfidence: "STRONG",
-    },
-  );
-  await expectOk(testCase, "新增知识发布回归病例");
-
-  const publishReason = "真实图谱链路验收";
-  await ensureReadySession(page, "engine-operator");
-  const publish = await postApi(
-    page,
-    `/engine/knowledge/diagnosis/identities/${identityId}/versions/${versionId}/publish`,
-    {
-      reason: publishReason,
-      publishEvidence: {
-        qualityGate: {
-          schemaValid: true,
-          terminologyBindingComplete: true,
-          dependencyIntegrityVerified: true,
-          safetyMonotonicityVerified: true,
-          impactSimulationPassed: true,
-          summary: "E2E 已完成结构、术语、依赖、安全与影响模拟门禁",
-        },
+      capabilityCode: "knowledge.production.knowledge",
+      prompt: buildGraphSeedPrompt(source.sourceRef, subject),
+      providerCode: graphSeedProviderCode(),
+      timeoutSeconds: 120,
+      assetIdentity: identityCode,
+      subject,
+      sources: [{ sourceRef: source.sourceRef, authorityLevel: "B_GUIDELINE" }],
+      trustLevel: "B_GUIDELINE",
+      riskLevel: "LOW",
+      target: {
+        targetIdentityId: null,
+        newIdentity: { domain: "OTHER", subject, identityCode },
       },
     },
   );
-  await expectOk(publish, "发布真实知识资产");
+  await expectOk(generated, "生成图谱种子正式模型候选");
+  const generation = (await generated.json()).data as {
+    modelMode?: string;
+    modelVersion?: string;
+    summary?: {
+      candidates?: Array<{ candidateRef: string; jobCode: string }>;
+      skipped?: unknown[];
+      blocked?: unknown[];
+    };
+  };
+  expect(generation.modelMode?.toUpperCase()).not.toBe("B0");
+  expect(generation.modelVersion).toBeTruthy();
+  expect(generation.summary?.blocked ?? []).toHaveLength(0);
+  expect(generation.summary?.skipped ?? []).toHaveLength(0);
+  expect(generation.summary?.candidates ?? []).toHaveLength(1);
+  const candidateRef = generation.summary?.candidates?.[0]?.candidateRef;
+  expect(candidateRef).toBeTruthy();
+
+  const identity = await getApiData<{ id: number }>(
+    page,
+    `/engine/knowledge/identities/by-code/${encodeURIComponent(identityCode)}`,
+    "读取图谱种子知识身份",
+  );
+  const parsed = parseCandidateRef(candidateRef || "");
+  expect(parsed.identityId).toBe(identity.id);
+  const candidateView = await getApiData<{
+    candidates: { items: Array<{ id: number; versionNo: string; status: string }> };
+    classifications: Array<{ id: number; candidateVersionId: number }>;
+  }>(
+    page,
+    `/engine/knowledge/identities/${identity.id}/candidates?page=1&size=20`,
+    "读取图谱种子候选审核项",
+  );
+  const version = candidateView.candidates.items.find(
+    (item) => item.versionNo === parsed.versionNo,
+  );
+  expect(version, "图谱种子候选版本必须物化").toBeDefined();
+  const classification = candidateView.classifications.find(
+    (item) => item.candidateVersionId === version?.id,
+  );
+  expect(classification, "图谱种子候选必须生成审核分类").toBeDefined();
+
+  const citation = await postApi(page, "/engine/knowledge/citations", {
+    assetVersionId: version?.id,
+    sourceFragmentId: source.fragmentId,
+    relation: "DERIVED_FROM",
+    weight: 100,
+    startOffset: 0,
+    endOffset: source.textExcerpt.length,
+  });
+  await expectOk(citation, "绑定图谱种子来源引用");
+
+  const qualityRecord = await postApi(
+    page,
+    `/engine/knowledge-production/jobs/${encodeURIComponent(jobData.jobCode)}/publication-quality-records`,
+    {
+      candidateRef,
+      identityId: identity.id,
+      versionId: version?.id,
+    },
+  );
+  await expectOk(qualityRecord, "生成图谱种子服务端发布质量记录");
+  const quality = (await qualityRecord.json()).data as { id: number };
+
+  const review = await postApi(page, `/engine/knowledge/candidates/${classification?.id}/review`, {
+    ...apiContext(`e2e-graph-review-${suffix}`),
+    decision: "APPROVE",
+    reason: "D6 图谱投影验收：低风险来源边界候选已完成服务端质量门",
+    qualityGateRecordId: quality.id,
+  });
+  await expectOk(review, "审核激活图谱种子知识");
+
+  const complete = await postApi(
+    page,
+    `/engine/knowledge-production/jobs/${encodeURIComponent(jobData.jobCode)}/complete`,
+    {},
+  );
+  await expectOk(complete, "完成图谱种子生产任务");
+
+  return { identityCode };
+}
+
+async function registerGraphKnowledgeSource(page: Page, suffix: number) {
+  const sourceCode = `E2E-GRAPH-SOURCE-${suffix}`;
+  const versionNo = `2026-e2e-${suffix}`;
+  const anchorPath = "section:source-boundary";
+  const textExcerpt = `图谱投影验收来源边界 ${suffix}：本材料只验证 MedKernel 关系库权威知识到知识关系投影的真实链路。`;
+  const content = `${textExcerpt}\n不得由此推断诊断、处方、剂量、阈值或自动医嘱。`;
+  const source = await postApi(page, "/engine/knowledge/sources", {
+    ...apiContext(`e2e-graph-source-${suffix}`),
+    sourceCode,
+    sourceType: "GUIDELINE",
+    authorityLevel: "B_GUIDELINE",
+    authorityBasis: "D6 图谱投影验收受控来源",
+    title: "图谱投影验收来源边界",
+    publisher: "MedKernel 上线验收",
+    license: "受控验收材料",
+    language: "zh-CN",
+  });
+  await expectOk(source, "登记图谱种子受控来源");
+  const sourceDocument = (await source.json()).data as { id: number };
+
+  const version = await postApi(
+    page,
+    `/engine/knowledge/sources/${sourceDocument.id}/versions`,
+    {
+      ...apiContext(`e2e-graph-source-version-${suffix}`),
+      versionNo,
+      publishedAt: "2026-06-25T00:00:00Z",
+      contentHash: sha256(content),
+      fileUri: `repository://e2e/graph-source-boundary-${suffix}`,
+      language: "zh-CN",
+      content,
+    },
+  );
+  await expectOk(version, "登记图谱种子来源版本");
+  const sourceVersion = (await version.json()).data as { id: number };
+
+  const fragment = await postApi(page, "/engine/knowledge/sources/fragments", {
+    sourceVersionId: sourceVersion.id,
+    anchorPath,
+    anchorLabel: "来源边界",
+    textExcerpt,
+  });
+  await expectOk(fragment, "登记图谱种子来源锚点");
+  const sourceFragment = (await fragment.json()).data as { id: number };
+
+  return {
+    fragmentId: sourceFragment.id,
+    sourceRef: `${sourceCode}:${versionNo}:${anchorPath}`,
+    textExcerpt,
+  };
+}
+
+function buildGraphSeedPrompt(sourceRef: string, subject: string) {
+  const template = {
+    domain: "OTHER",
+    subject,
+    clinicalActionable: false,
+    sourceReferences: [{ sourceRef, authorityLevel: "B_GUIDELINE", anchorLabel: "来源边界" }],
+    limitations: [
+      "本候选仅用于 MedKernel 图谱投影验收，不构成诊断、处方、剂量、阈值或自动医嘱。",
+      "正式临床内容必须绑定具体原始文件、机构版本、适用范围和人工审核结论。",
+    ],
+    sections: {
+      sourceBoundary: "来源边界：仅验证关系库权威知识进入知识关系投影；不可推断医学结论。",
+      clinicalLimit: "正式临床内容不可推断，必须由人工审核后按来源和版本另行编著。",
+    },
+  };
+  return [
+    "只返回一个合法 JSON 对象，不要 Markdown、代码围栏或额外说明；第一个字符必须是 {，最后一个字符必须是 }。",
+    `主题：${subject}；唯一受控来源：${sourceRef}。`,
+    "目标是生成低风险来源边界说明，禁止生成诊断、处方、剂量、阈值、治疗建议、患者事实或自动医嘱。",
+    "必须严格按以下 JSON 返回，顶层字段不得增删：",
+    JSON.stringify(template, null, 2),
+  ].join("\n");
+}
+
+async function getApiData<T>(page: Page, path: string, label: string): Promise<T> {
+  const response = await page.request.get(`${apiBase}${path}`, {
+    headers: { "X-Trace-Id": `e2e-get-${Date.now()}` },
+  });
+  await expectOk(response, label);
+  return (await response.json()).data as T;
+}
+
+function apiContext(traceId: string) {
+  return {
+    request_id: traceId,
+    trace_id: traceId,
+    tenant_id: "t-1",
+    user_id: "engine-operator",
+    role_codes: ["engine-operator"],
+  };
+}
+
+function parseCandidateRef(candidateRef: string) {
+  const parts = candidateRef.split(":");
+  if (parts.length < 3 || parts[0] !== "kv") {
+    throw new Error(`候选引用格式非法：${candidateRef}`);
+  }
+  return { identityId: Number(parts[1]), versionNo: parts.slice(2).join(":") };
+}
+
+function graphSeedProviderCode() {
+  return (
+    process.env.E2E_GRAPH_SEED_PROVIDER_CODE?.trim() ||
+    process.env.E2E_KNOWLEDGE_PROVIDER_CODE?.trim() ||
+    "ollama-launch"
+  );
+}
+
+function sha256(value: string) {
+  return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
 async function selectKnowledgeProjection(page: Page) {

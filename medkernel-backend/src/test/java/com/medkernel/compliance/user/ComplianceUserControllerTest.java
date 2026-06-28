@@ -131,6 +131,39 @@ class ComplianceUserControllerTest {
     }
 
     @Test
+    void managedCredentialIdsAreTenantQualifiedForSameLaunchRoleNames() throws Exception {
+        String body = """
+            {
+              "credentialManaged": true,
+              "userId": "engine-operator",
+              "displayName": "医疗引擎运营员",
+              "username": "engine-operator",
+              "roleCode": "engine-operator"
+            }
+            """;
+
+        mvc.perform(post("/api/v1/compliance/users")
+                .with(systemSuperAdmin("t-1"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/compliance/users")
+                .with(systemSuperAdmin("t-rehearsal"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isOk());
+
+        org.assertj.core.api.Assertions.assertThat(
+                credentials.findByTenantIdAndUserId("t-1", "engine-operator").orElseThrow()
+                    .credentialId())
+            .isEqualTo("cred-t-1-engine-operator");
+        org.assertj.core.api.Assertions.assertThat(
+                credentials.findByTenantIdAndUserId("t-rehearsal", "engine-operator").orElseThrow()
+                    .credentialId())
+            .isEqualTo("cred-t-rehearsal-engine-operator");
+    }
+
+    @Test
     void externalIdentityUserCannotUsePasswordOperations() throws Exception {
         mvc.perform(post("/api/v1/compliance/users")
                 .with(admin("t-1"))
@@ -243,7 +276,7 @@ class ComplianceUserControllerTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.roles[0].code").value("clinical-user"))
-            .andExpect(jsonPath("$.data.roles[0].scopeName").value("平台治理空间"));
+            .andExpect(jsonPath("$.data.roles[0].scopeName").value("平台治理入口"));
 
         mvc.perform(delete("/api/v1/compliance/users/{userId}/roles/{roleCode}",
                 "managed-706", "clinical-user")

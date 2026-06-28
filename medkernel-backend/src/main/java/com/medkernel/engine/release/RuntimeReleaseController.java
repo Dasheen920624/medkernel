@@ -176,7 +176,7 @@ public class RuntimeReleaseController {
     private void requirePlatformContext() {
         if (!PlatformTenant.isPlatformTenant(tenantId())) {
             throw new ApiException(
-                ErrorCode.FORBIDDEN, "只有平台权威空间可以发布平台标准版本");
+                ErrorCode.FORBIDDEN, "只有平台权威范围可以发布平台标准版本");
         }
     }
 

@@ -17,7 +17,7 @@ import com.medkernel.shared.security.MfaRuntimePolicy;
 /**
  * 当前用户权限画像接口。
  *
- * <p>前端只用该接口决定菜单可见、按钮可点、高级信息是否展示；真正授权仍在后端
+ * <p>前端只用该接口决定菜单可见、按钮可点、证据详情是否展示；真正授权仍在后端
  * {@code @PreAuthorize("@perm.has(...)")} 和 {@link DataScope} 双门禁内完成。
  */
 @RestController

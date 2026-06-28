@@ -97,7 +97,7 @@ class MigrationBaselineContractTest {
     }
 
     @Test
-    void canonicalModelRemovesLegacyRoleAndExpertSignoffBaggage() throws IOException {
+    void canonicalModelRemovesLegacyRoleAndSignoffBaggage() throws IOException {
         JsonNode schema = schema();
         Set<String> tableNames = new LinkedHashSet<>();
         for (JsonNode table : schema.path("tables")) {

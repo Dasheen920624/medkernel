@@ -42,11 +42,19 @@ import {
   type ImplementationStep,
   type OrgUnit,
   type ProvisionTenantResult,
+  type SecurityProfile,
   type TenantSummary,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { platformTenantId } from "@/shared/config/tenantDictionary";
-import { customerEnumLabel, facilityTypeLabels } from "@/shared/config/customerLabels";
+import {
+  customerDisplayText,
+  customerEnumLabel,
+  facilityTypeLabels,
+} from "@/shared/config/customerLabels";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageShell } from "@/shared/ui/PageShell";
 import styles from "./Tenant.module.css";
 
@@ -131,21 +139,51 @@ function readinessPercent(steps: ImplementationStep[]) {
   return Math.round((done / steps.length) * 100);
 }
 
-function PlatformTenantProvisioning() {
+function evidenceValueText(
+  value: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  fallback: string,
+) {
+  return evidenceDetailsEnabled ? value || "未返回" : fallback;
+}
+
+function readinessEvidenceText(value: string, evidenceDetailsEnabled: boolean) {
+  return evidenceDetailsEnabled ? value : customerDisplayText(value);
+}
+
+function parentOrgText(
+  parentId: string | null,
+  orgNameById: ReadonlyMap<string, string>,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (!parentId) return "根节点";
+  if (evidenceDetailsEnabled) return parentId;
+  const parentName = orgNameById.get(parentId);
+  return parentName ? `${parentName}（上级组织）` : "上级组织已关联";
+}
+
+function PlatformTenantProvisioning({ securityProfile }: { securityProfile?: SecurityProfile }) {
   const { message } = App.useApp();
   const [form] = Form.useForm();
   const [formOpen, setFormOpen] = useState(false);
   const [provisioned, setProvisioned] = useState<ProvisionTenantResult | null>(null);
   const { data: tenants = [], isLoading, isError, refetch } = useTenants();
   const provisionMutation = useProvisionTenant();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(securityProfile) && globalEvidenceDetails;
 
   const columns = useMemo<ColumnsType<TenantSummary>>(
     () => [
       {
-        title: "机构空间标识",
+        title: "开通证据",
         dataIndex: "tenantId",
         key: "tenantId",
-        render: (tenantId: string) => <span className={styles.orgCode}>{tenantId}</span>,
+        render: (tenantId: string) =>
+          evidenceDetailsEnabled ? (
+            <span className={styles.orgCode}>{tenantId}</span>
+          ) : (
+            <Text>服务机构已开通</Text>
+          ),
       },
       {
         title: "服务机构名称",
@@ -170,7 +208,7 @@ function PlatformTenantProvisioning() {
         render: (createdAt: string) => new Date(createdAt).toLocaleString(),
       },
     ],
-    [],
+    [evidenceDetailsEnabled],
   );
 
   async function handleProvision() {
@@ -187,7 +225,7 @@ function PlatformTenantProvisioning() {
       void refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(form, error)) return;
-      message.error(getApiErrorMessage(error, "服务机构失败"));
+      message.error(getApiErrorMessage(error, "服务机构开通失败"));
     }
   }
 
@@ -195,11 +233,11 @@ function PlatformTenantProvisioning() {
     return (
       <PageShell
         title="服务机构"
-        description="读取机构空间台账"
+        description="读取服务机构台账"
         state="loading"
         stateProps={{
-          title: "正在加载机构空间",
-          description: "正在读取平台已开通的机构空间。",
+          title: "正在加载服务机构",
+          description: "正在读取平台已开通的服务机构。",
         }}
       >
         <></>
@@ -214,8 +252,9 @@ function PlatformTenantProvisioning() {
         description="请重试或联系平台运维"
         state="error"
         stateProps={{
-          title: "机构空间台账读取失败",
-          description: "请重试；若持续失败，请带追踪号联系平台运维排查开通接口。",
+          title: "服务机构台账读取失败",
+          description:
+            "请重试；若持续失败，请联系平台运维核查服务机构开通服务。失败已留痕，可在审计证据中追溯。",
           onRetry: () => refetch(),
         }}
       >
@@ -228,27 +267,28 @@ function PlatformTenantProvisioning() {
     <>
       <PageShell
         title="服务机构"
-        description="为集团、医院或其他服务机构创建独立空间并交付首个管理员账号"
+        description="为集团、医院或其他服务机构建立服务机构档案并交付首个管理员账号"
+        extras={<EvidenceDetailsToggle securityProfile={securityProfile} />}
         primary={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setFormOpen(true)}>
-            开通机构空间
+            开通服务机构
           </Button>
         }
       >
-        <Card title="机构空间">
+        <Card title="服务机构">
           <Table
             dataSource={tenants}
             columns={columns}
             rowKey="tenantId"
             pagination={{ pageSize: 10 }}
-            locale={{ emptyText: "尚未开通机构空间" }}
+            locale={{ emptyText: "尚未开通服务机构" }}
             size="small"
           />
         </Card>
       </PageShell>
 
       <Modal
-        title="开通机构空间"
+        title="开通服务机构"
         open={formOpen}
         okText="确认开通"
         cancelText="取消"
@@ -263,16 +303,16 @@ function PlatformTenantProvisioning() {
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item
             name="tenantId"
-            label="机构空间标识"
+            label="稳定服务机构身份"
             rules={[
-              { required: true, message: "请输入机构空间标识" },
+              { required: true, message: "请输入稳定服务机构身份" },
               {
                 pattern: /^[a-z0-9-]{2,64}$/,
                 message: "仅允许 2-64 位小写字母、数字和连字符",
               },
             ]}
           >
-            <Input placeholder="例如 t-renmin" autoComplete="off" />
+            <Input placeholder="例如 t-renmin，用于部署和审计追溯" autoComplete="off" />
           </Form.Item>
           <Form.Item
             name="tenantName"
@@ -298,7 +338,7 @@ function PlatformTenantProvisioning() {
       </Modal>
 
       <Modal
-        title="机构空间已开通"
+        title="服务机构已开通"
         open={Boolean(provisioned)}
         footer={
           <Button type="primary" onClick={() => setProvisioned(null)}>
@@ -310,8 +350,11 @@ function PlatformTenantProvisioning() {
         {provisioned && (
           <Space direction="vertical" size="middle" className="mk-full-width">
             <Text>
-              机构空间 <Text strong>{provisioned.tenantId}</Text> 与管理员{" "}
-              <Text strong>{provisioned.adminUsername}</Text> 已创建。
+              服务机构{" "}
+              <Text strong>
+                {evidenceValueText(provisioned.tenantId, evidenceDetailsEnabled, "档案")}
+              </Text>{" "}
+              与管理员 <Text strong>{provisioned.adminUsername}</Text> 已创建。
             </Text>
             {provisioned.tempPassword ? (
               <Alert
@@ -330,7 +373,7 @@ function PlatformTenantProvisioning() {
   );
 }
 
-function CustomerTenantImplementation() {
+function CustomerTenantImplementation({ securityProfile }: { securityProfile?: SecurityProfile }) {
   const { message } = App.useApp();
   const [activeTab, setActiveTab] = useState("org");
   const [form] = Form.useForm();
@@ -358,6 +401,8 @@ function CustomerTenantImplementation() {
     refetch: refetchBranding,
   } = useBranding();
   const updateBrandingMutation = useUpdateBranding();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(securityProfile) && globalEvidenceDetails;
 
   useEffect(() => {
     if (!branding) return;
@@ -365,11 +410,15 @@ function CustomerTenantImplementation() {
       hospitalName: branding.hospitalName,
       logoUrl: branding.logoUrl,
       themeColor: branding.themeColor ?? "var(--mk-theme-navy)",
-      expertMode: branding.expertMode ?? false,
+      evidenceDetailsEnabled: branding.evidenceDetailsEnabled ?? false,
     });
   }, [branding, brandForm]);
 
   const orgItems = useMemo(() => orgData?.items ?? [], [orgData?.items]);
+  const orgNameById = useMemo(
+    () => new Map(orgItems.flatMap((item) => (item.id ? [[item.id, item.name] as const] : []))),
+    [orgItems],
+  );
   const readinessSteps = readiness?.steps ?? [];
   const blockerCount = readiness?.blockers.length ?? 0;
   const checkedAt = readiness?.checkedAt
@@ -392,10 +441,10 @@ function CustomerTenantImplementation() {
   const columns = useMemo<ColumnsType<OrgUnit>>(
     () => [
       {
-        title: "组织编码",
+        title: "组织档案",
         dataIndex: "code",
         key: "code",
-        render: (code: string) => <span className={styles.orgCode}>{code}</span>,
+        render: (code: string) => evidenceValueText(code, evidenceDetailsEnabled, "组织已登记"),
       },
       {
         title: "名称",
@@ -415,7 +464,8 @@ function CustomerTenantImplementation() {
         title: "直接上级",
         dataIndex: "parentId",
         key: "parentId",
-        render: (parentId: string | null) => parentId ?? <Text type="secondary">根节点</Text>,
+        render: (parentId: string | null) =>
+          parentOrgText(parentId, orgNameById, evidenceDetailsEnabled),
       },
       {
         title: "状态",
@@ -424,7 +474,7 @@ function CustomerTenantImplementation() {
         render: (status: OrgUnit["status"]) => orgStatusTag(status),
       },
     ],
-    [],
+    [evidenceDetailsEnabled, orgNameById],
   );
 
   async function handleOrgSubmit() {
@@ -458,7 +508,7 @@ function CustomerTenantImplementation() {
         hospitalName: values.hospitalName,
         logoUrl: values.logoUrl || null,
         themeColor: values.themeColor,
-        expertMode: values.expertMode,
+        evidenceDetailsEnabled: values.evidenceDetailsEnabled,
       });
 
       message.success("品牌信息已保存");
@@ -493,7 +543,8 @@ function CustomerTenantImplementation() {
         state="error"
         stateProps={{
           title: "机构实施状态读取失败",
-          description: "请重试；若持续失败，请带追踪号联系信息科排查机构空间与组织接口。",
+          description:
+            "请重试；若持续失败，请联系信息科核查服务机构与组织服务。失败已留痕，可在审计证据中追溯。",
           onRetry: () => {
             void refetchOrgs();
             void refetchReadiness();
@@ -513,7 +564,7 @@ function CustomerTenantImplementation() {
         state="empty"
         stateProps={{
           title: "暂无实施就绪步骤",
-          description: "当前服务机构尚未返回实施就绪步骤，请确认机构空间已经建立。",
+          description: "当前服务机构尚未返回实施就绪步骤，请确认服务机构和组织范围已经建立。",
           onRetry: () => {
             void refetchReadiness();
           },
@@ -527,14 +578,18 @@ function CustomerTenantImplementation() {
   const ready = readiness.ready;
 
   return (
-    <PageShell title="服务机构" description="配置当前服务机构的组织与品牌，实时核查实施就绪状态">
+    <PageShell
+      title="服务机构"
+      description="配置当前服务机构的组织与品牌，实时核查实施就绪状态"
+      extras={<EvidenceDetailsToggle securityProfile={securityProfile} />}
+    >
       <Space direction="vertical" size="large" className="mk-full-width">
         <Row gutter={[16, 16]}>
           <Col xs={24} md={8}>
             <Card className={styles.readinessSummaryCard}>
               <Text type="secondary">组织节点</Text>
               <Title level={3}>{orgData?.total ?? orgItems.length}</Title>
-              <Text type="secondary">来自 engine org 组织树</Text>
+              <Text type="secondary">来自组织与任职台账</Text>
             </Card>
           </Col>
           <Col xs={24} md={8}>
@@ -576,7 +631,9 @@ function CustomerTenantImplementation() {
                 dataSource={readiness.blockers}
                 renderItem={(blocker) => (
                   <List.Item className={styles.blockerItem}>
-                    <Text type="warning">{blocker}</Text>
+                    <Text type="warning">
+                      {readinessEvidenceText(blocker, evidenceDetailsEnabled)}
+                    </Text>
                   </List.Item>
                 )}
               />
@@ -596,7 +653,9 @@ function CustomerTenantImplementation() {
                     {stepTag(step)}
                   </div>
                   <Text type={step.status === "DONE" ? "success" : "secondary"}>
-                    {step.evidence ?? "阻塞原因见上方开通条件清单"}
+                    {step.evidence
+                      ? readinessEvidenceText(step.evidence, evidenceDetailsEnabled)
+                      : "阻塞原因见上方开通条件清单"}
                   </Text>
                 </Space>
               </Card>
@@ -663,10 +722,10 @@ function CustomerTenantImplementation() {
 
                       <Form.Item
                         name="code"
-                        label="组织编码"
-                        rules={[{ required: true, message: "请输入组织编码" }]}
+                        label="稳定组织身份"
+                        rules={[{ required: true, message: "请输入稳定组织身份" }]}
                       >
-                        <Input placeholder="输入当前机构空间内唯一组织编码" />
+                        <Input placeholder="输入当前服务机构内唯一组织身份" />
                       </Form.Item>
 
                       <Form.Item
@@ -754,15 +813,15 @@ function CustomerTenantImplementation() {
                         label="医院名称"
                         rules={[{ required: true, message: "请输入医院名称" }]}
                       >
-                        <Input placeholder="输入系统左上角显示的医院名称" />
+                        <Input placeholder="输入服务机构展示名称" />
                       </Form.Item>
 
-                      <Form.Item name="logoUrl" label="Logo URL">
-                        <Input placeholder="粘贴院方授权的 HTTPS Logo 地址" />
+                      <Form.Item name="logoUrl" label="医院标识图片地址">
+                        <Input placeholder="粘贴院方授权的标识图片地址" />
                       </Form.Item>
 
                       <Form.Item name="themeColor" label="主题色">
-                        <Input placeholder="选择预设主题色或输入合法 CSS 变量" />
+                        <Input placeholder="选择预设主题色或输入品牌色值" />
                       </Form.Item>
 
                       <Form.Item label="预设主题色">
@@ -782,8 +841,12 @@ function CustomerTenantImplementation() {
                         </div>
                       </Form.Item>
 
-                      <Form.Item name="expertMode" label="默认展示高级信息" valuePropName="checked">
-                        <Switch checkedChildren="开启" unCheckedChildren="关闭" />
+                      <Form.Item
+                        name="evidenceDetailsEnabled"
+                        label="上线验收证据说明"
+                        valuePropName="checked"
+                      >
+                        <Switch checkedChildren="证据说明" unCheckedChildren="业务视图" />
                       </Form.Item>
 
                       <Button
@@ -808,7 +871,7 @@ function CustomerTenantImplementation() {
                           <img
                             src={watchLogoUrl}
                             className={styles.brandPreviewLogo}
-                            alt="医院 Logo"
+                            alt="医院标识"
                           />
                         ) : (
                           <div className={styles.brandPreviewLogoPlaceholder}>院</div>
@@ -820,7 +883,7 @@ function CustomerTenantImplementation() {
                       <div className={styles.brandPreviewBody}>
                         <div className={styles.brandPreviewLine} />
                         <div className={styles.brandPreviewLineShort} />
-                        <Tag color="success">{watchHospitalName} · 已归属当前机构空间</Tag>
+                        <Tag color="success">{watchHospitalName} · 已归属当前服务机构</Tag>
                       </div>
                     </div>
                   </div>
@@ -841,11 +904,11 @@ export default function TenantOnboarding() {
     return (
       <PageShell
         title="服务机构管理"
-        description="读取当前机构空间"
+        description="读取当前服务机构"
         state="loading"
         stateProps={{
           title: "正在确认服务机构范围",
-          description: "正在读取当前用户的机构空间与权限画像。",
+          description: "正在读取当前用户的服务机构与权限画像。",
         }}
       >
         <></>
@@ -858,11 +921,12 @@ export default function TenantOnboarding() {
     return (
       <PageShell
         title="服务机构管理"
-        description="当前机构空间不可用"
+        description="当前服务机构不可用"
         state="error"
         stateProps={{
           title: "无法确认当前服务机构",
-          description: "请重新登录；若持续失败，请凭追踪号联系平台运维排查安全画像。",
+          description:
+            "请重新登录；若持续失败，请联系平台运维排查安全画像。失败已留痕，可在审计证据中追溯。",
           onRetry: () => security.refetch(),
         }}
       >
@@ -872,8 +936,8 @@ export default function TenantOnboarding() {
   }
 
   return tenantId === platformTenantId ? (
-    <PlatformTenantProvisioning />
+    <PlatformTenantProvisioning securityProfile={security.data} />
   ) : (
-    <CustomerTenantImplementation />
+    <CustomerTenantImplementation securityProfile={security.data} />
   );
 }

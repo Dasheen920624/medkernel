@@ -15,11 +15,11 @@ import com.medkernel.shared.datascope.DataScope;
 import jakarta.validation.Valid;
 
 /**
- * 全业务模型增强接入矩阵治理控制器（LLM-05）。
+ * 全业务模型赋能覆盖矩阵治理控制器（LLM-05）。
  *
- * <p>「模型网关全局目录」的增强接入图谱：读侧（{@code llm.read}）查矩阵台账与覆盖核查，
- * 写侧（{@code llm.enhancement.manage}，医疗引擎运营员职责）登记/更新业务点接入——上线过
- * B0 前置门禁与统一网关接入校验。全线 {@link DataScope} 强多租户隔离。
+ * <p>「模型网关全局目录」的模型赋能覆盖图谱：读侧（{@code llm.read}）查矩阵台账与覆盖核查，
+ * 写侧（{@code llm.enhancement.manage}，医疗引擎运营员职责）登记/更新业务点配置——上线过
+ * B0 前置门禁与统一网关校验。全线 {@link DataScope} 强多租户隔离。
  */
 @RestController
 @RequestMapping("/api/v1/model-enhancement-matrix")
@@ -32,7 +32,7 @@ public class ModelEnhancementMatrixController {
         this.service = service;
     }
 
-    /** FR-1：列举全部可增强业务点矩阵台账。 */
+    /** FR-1：列举全部可赋能业务点矩阵台账。 */
     @GetMapping
     @PreAuthorize("@perm.has('llm.read')")
     public ApiResult<List<ModelEnhancementMatrixResponse>> list() {
@@ -46,7 +46,7 @@ public class ModelEnhancementMatrixController {
         return ApiResult.ok(service.coverageReport());
     }
 
-    /** FR-2/FR-3：登记/更新业务点接入（上线过 B0 前置门禁 + 统一网关接入校验）。 */
+    /** FR-2/FR-3：登记/更新业务点配置（上线过 B0 前置门禁 + 统一网关校验）。 */
     @PutMapping("/{businessPoint}")
     @PreAuthorize("@perm.has('llm.enhancement.manage')")
     public ApiResult<ModelEnhancementMatrixResponse> upsert(

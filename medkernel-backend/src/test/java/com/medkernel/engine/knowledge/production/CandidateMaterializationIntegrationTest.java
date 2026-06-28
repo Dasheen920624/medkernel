@@ -41,7 +41,7 @@ import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.hash.Sha256ContentHash;
 
 /**
- * 候选真实物化端到端集成测试（AIK-STD-13 PR4，真实 H2）。
+ * 候选真实物化端到端集成测试（AIK-STD-13，真实 H2）。
  *
  * <p>验证 discovery-origin 候选经 {@link MaterializingCandidateIntake} 真实落 {@code KnowledgeAssetVersion}（待审）
  * + {@code CandidateClassification} + 建立医疗引擎运营员单负责人 {@code ReviewAssignment}，

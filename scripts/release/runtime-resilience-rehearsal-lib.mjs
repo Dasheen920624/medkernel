@@ -8,7 +8,7 @@ import {
 } from "./launch-account-bootstrap-lib.mjs";
 
 const CAPABILITY = "knowledge.production.knowledge";
-const EXPECTED_B0_FIXTURE_COUNT = 17;
+const EXPECTED_B0_EVIDENCE_COUNT = 17;
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const API_ALLOWLIST = Object.freeze([
   ["POST", /^\/auth\/login$/u],
@@ -17,7 +17,7 @@ const API_ALLOWLIST = Object.freeze([
   ["POST", /^\/model-providers\/[a-z0-9][a-z0-9._-]{0,63}\/health-check$/u],
   ["POST", /^\/model-providers\/[a-z0-9][a-z0-9._-]{0,63}\/enable$/u],
   ["GET", /^\/engine\/knowledge-production\/readiness$/u],
-  ["GET", /^\/engine\/domain-facades\/b0-fixtures$/u],
+  ["GET", /^\/engine\/domain-facades\/b0-evidence$/u],
 ]);
 
 export function readRuntimeResilienceConfig(env, options = {}) {
@@ -130,10 +130,10 @@ export async function runRuntimeResilienceRehearsal(options) {
       requests,
       session,
       method: "GET",
-      path: "/engine/domain-facades/b0-fixtures",
+      path: "/engine/domain-facades/b0-evidence",
       label: "验证无模型 B0 核心门面",
     });
-    b0Summary = assertB0Fixtures(b0.data);
+    b0Summary = assertB0Evidence(b0.data);
   } catch (error) {
     degradationFailure = error;
   }
@@ -272,9 +272,9 @@ function requiredBlockers(data) {
     .sort();
 }
 
-function assertB0Fixtures(data) {
-  if (!Array.isArray(data) || data.length !== EXPECTED_B0_FIXTURE_COUNT) {
-    throw new Error(`B0 核心门面数量必须为 ${EXPECTED_B0_FIXTURE_COUNT}`);
+function assertB0Evidence(data) {
+  if (!Array.isArray(data) || data.length !== EXPECTED_B0_EVIDENCE_COUNT) {
+    throw new Error(`B0 核心门面数量必须为 ${EXPECTED_B0_EVIDENCE_COUNT}`);
   }
   const passed = data.filter(
     (item) =>
@@ -282,11 +282,11 @@ function assertB0Fixtures(data) {
       item?.b0Executable === true &&
       item?.modelRequired === false,
   );
-  if (passed.length !== EXPECTED_B0_FIXTURE_COUNT) {
+  if (passed.length !== EXPECTED_B0_EVIDENCE_COUNT) {
     throw new Error("B0 核心门面存在失败、不可执行或错误依赖模型的项目");
   }
   return {
-    fixtureCount: data.length,
+    evidenceCount: data.length,
     passedCount: passed.length,
     modelRequiredCount: data.filter((item) => item?.modelRequired === true).length,
   };

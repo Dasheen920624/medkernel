@@ -29,7 +29,7 @@ import {
   type TermMappingCandidate,
   type TerminologyCandidateGenerationJob,
 } from "@/shared/api/hooks";
-import { useExpertModeStore } from "@/shared/lib/expertModeStore";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 import TerminologyMapping from "./TerminologyMapping";
 
@@ -233,7 +233,7 @@ const defaultSavedView = {
       filters: { sourceSystem: "HIS" },
     },
     visibleColumnKeys: ["sourceSystem", "status", "updatedAt"],
-    expertMode: true,
+    evidenceDetailsEnabled: true,
     capturedAt: "2026-06-01T00:00:00.000Z",
   }),
   defaultView: true,
@@ -333,7 +333,7 @@ function apiFailure(detail: string) {
 describe("TerminologyMapping", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    useExpertModeStore.setState({ enabled: false });
+    useEvidenceDetailsStore.setState({ enabled: false });
     vi.clearAllMocks();
     configureQuery();
   });
@@ -351,6 +351,10 @@ describe("TerminologyMapping", () => {
     expect(screen.queryByRole("button", { name: "发布映射包" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "回滚映射包" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "批量确认候选" })).toBeDisabled();
+    expect(screen.getAllByText("高危候选").length).toBeGreaterThan(0);
+    expect(screen.getByText("普通候选")).toBeInTheDocument();
+    expect(screen.queryByText(["#", "901"].join(""))).not.toBeInTheDocument();
+    expect(screen.queryByText(["#", "902"].join(""))).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "查看 1" }));
     expect(screen.getByText("实施核查证据")).toBeInTheDocument();
@@ -382,7 +386,10 @@ describe("TerminologyMapping", () => {
         semanticAssistEnabled: true,
       }),
     );
-    expect(screen.getByText("term-job-1")).toBeInTheDocument();
+    expect(screen.getByText("候选生成任务已提交")).toBeInTheDocument();
+    expect(screen.getByText("候选分页入口已生成")).toBeInTheDocument();
+    expect(screen.queryByText("term-job-1")).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/api\/v1\/engine\/terminology/)).not.toBeInTheDocument();
     expect(screen.getByText("42")).toBeInTheDocument();
   });
 
@@ -411,7 +418,7 @@ describe("TerminologyMapping", () => {
     vi.mocked(useConfirmTerminologyCandidate).mockReturnValue({ mutateAsync: confirm } as never);
 
     renderPage();
-    const ordinaryRow = screen.getByRole("row", { name: /#902/ });
+    const ordinaryRow = screen.getByRole("row", { name: /编码和名称精确匹配/ });
     await userEvent.click(within(ordinaryRow).getByRole("button", { name: /^确\s*认$/ }));
     await userEvent.type(screen.getByLabelText("确认说明"), "编码与名称精确匹配");
     await userEvent.click(screen.getByRole("button", { name: "提交确认" }));
@@ -432,7 +439,7 @@ describe("TerminologyMapping", () => {
     vi.mocked(useResolveTerminologyConflict).mockReturnValue({ mutateAsync: resolve } as never);
 
     renderPage();
-    const candidateRow = screen.getByRole("row", { name: /#901/ });
+    const candidateRow = screen.getByRole("row", { name: /钾 \/ 钠不可互换/ });
     await userEvent.click(within(candidateRow).getByRole("button", { name: /驳\s*回/ }));
     await userEvent.type(screen.getByLabelText("驳回理由"), "钾钠互斥错配");
     await userEvent.click(screen.getByRole("button", { name: "提交驳回" }));
@@ -492,9 +499,11 @@ describe("TerminologyMapping", () => {
     renderPage();
     await userEvent.click(screen.getByRole("button", { name: "生成术语版本" }));
     expect(screen.getByText("版本号由系统自动生成")).toBeInTheDocument();
+    expect(screen.getByText("当前服务机构")).toBeInTheDocument();
+    expect(screen.queryByText("当前服务机构 · tenant-1")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("新版本")).not.toBeInTheDocument();
-    await userEvent.clear(screen.getByLabelText("资产编码"));
-    await userEvent.type(screen.getByLabelText("资产编码"), "TERM.LAB");
+    await userEvent.clear(screen.getByLabelText("稳定术语资产身份"));
+    await userEvent.type(screen.getByLabelText("稳定术语资产身份"), "TERM.LAB");
     await userEvent.click(screen.getByRole("button", { name: "生成草稿版本" }));
 
     expect(createDraft).toHaveBeenCalledWith({
@@ -503,7 +512,21 @@ describe("TerminologyMapping", () => {
       scopeLevel: "TENANT",
       scopeCode: "tenant-1",
     });
-    expect(await screen.findByText(/TERM.LAB@V1 已生成/)).toBeInTheDocument();
+    expect(await screen.findByText(/术语资产版本 V1 已生成/)).toBeInTheDocument();
+  });
+
+  it("allows the terminology workspace itself to reveal trace evidence without provenance access", async () => {
+    useEvidenceDetailsStore.setState({ enabled: true });
+    configureQuery({}, { ...profile, menuKeys: ["terminology-mapping"] });
+
+    renderPage();
+    await userEvent.click(screen.getByRole("button", { name: "查看 1" }));
+
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeChecked();
+    expect(screen.getByText("映射 ID")).toBeInTheDocument();
+    expect(screen.getByText("院内编码 ID")).toBeInTheDocument();
+    expect(screen.getByText("标准编码 ID")).toBeInTheDocument();
+    expect(screen.getByText("追踪号：trace-list")).toBeInTheDocument();
   });
 
   it("keeps errors visible and the asset modal open", async () => {
@@ -524,7 +547,7 @@ describe("TerminologyMapping", () => {
     expect(screen.getByText("生成术语资产版本")).toBeInTheDocument();
   });
 
-  it("loads and saves backend view snapshots", async () => {
+  it("loads and saves service view snapshots", async () => {
     const saveView = vi.fn().mockResolvedValue(defaultSavedView);
     vi.mocked(useSavedViews).mockReturnValue({ data: [defaultSavedView] } as never);
     vi.mocked(useSaveView).mockReturnValue({ mutateAsync: saveView } as never);

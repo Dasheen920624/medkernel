@@ -29,6 +29,7 @@ import {
   useDispatchRectification,
   useEvaluationResults,
   useOrgUnits,
+  useSecurityProfile,
   useQualityFindingDetail,
   useQualityFindings,
 } from "@/shared/api/hooks";
@@ -44,6 +45,9 @@ import { PageShell } from "@/shared/ui/PageShell";
 import type { PageStateKind } from "@/shared/ui/PageState.contract";
 import { RectificationAssignmentFields } from "@/shared/ui/RectificationAssignmentFields";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 
 const { Text } = Typography;
 
@@ -54,6 +58,9 @@ interface DispatchFormValues {
 }
 
 export default function QcEvalResults() {
+  const security = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const [resultLevel, setResultLevel] = useState<EvaluationResultLevel>("NON_COMPLIANT");
   const [findingStatus, setFindingStatus] = useState<QualityFindingStatus>("NEW");
   const [departmentId, setDepartmentId] = useState("");
@@ -111,17 +118,14 @@ export default function QcEvalResults() {
         .filter((unit) => unit.level === "DEPARTMENT" && unit.status !== "ARCHIVED")
         .map((unit) => ({
           value: unit.id ?? unit.code,
-          label: `${unit.name} · ${unit.code}`,
+          label: unit.name,
         })),
     [departmentsQuery.data?.items],
   );
   const departmentNames = useMemo(
     () =>
       new Map(
-        (departmentsQuery.data?.items ?? []).map((unit) => [
-          unit.id ?? unit.code,
-          `${unit.name} · ${unit.code}`,
-        ]),
+        (departmentsQuery.data?.items ?? []).map((unit) => [unit.id ?? unit.code, unit.name]),
       ),
     [departmentsQuery.data?.items],
   );
@@ -188,8 +192,12 @@ export default function QcEvalResults() {
       key: "indicator",
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{record.indicatorCode}</Text>
-          <Text type="secondary">v{record.indicatorVersion}</Text>
+          <Text strong>
+            {evidenceText(record.indicatorCode, evidenceDetailsEnabled, "评价指标已关联")}
+          </Text>
+          <Text type="secondary">
+            {versionText(record.indicatorVersion, evidenceDetailsEnabled)}
+          </Text>
         </Space>
       ),
     },
@@ -199,7 +207,9 @@ export default function QcEvalResults() {
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Tag>{subjectTypeLabel(record.subjectType)}</Tag>
-          <Text type="secondary">{record.subjectRefId}</Text>
+          <Text type="secondary">
+            {evidenceText(record.subjectRefId, evidenceDetailsEnabled, "对象已关联")}
+          </Text>
         </Space>
       ),
     },
@@ -220,8 +230,10 @@ export default function QcEvalResults() {
       key: "evidence",
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text>{record.evidenceSummary}</Text>
-          {record.sourceRef ? <Text type="secondary">{record.sourceRef}</Text> : null}
+          <Text>{evidenceDetailsEnabled ? record.evidenceSummary : "病历证据已关联"}</Text>
+          {evidenceDetailsEnabled && record.sourceRef ? (
+            <Text type="secondary">{record.sourceRef}</Text>
+          ) : null}
         </Space>
       ),
     },
@@ -234,10 +246,12 @@ export default function QcEvalResults() {
       ),
     },
     {
-      title: "追踪号",
+      title: "证据",
       dataIndex: "traceId",
       key: "traceId",
-      render: (traceId: string | undefined) => <Text type="secondary">{traceId ?? "--"}</Text>,
+      render: (traceId: string | undefined) => (
+        <Text type="secondary">{evidenceText(traceId, evidenceDetailsEnabled, "证据已记录")}</Text>
+      ),
     },
   ];
 
@@ -248,7 +262,9 @@ export default function QcEvalResults() {
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{record.title}</Text>
-          <Text type="secondary">{record.findingCode}</Text>
+          <Text type="secondary">
+            {evidenceText(record.findingCode, evidenceDetailsEnabled, "问题已登记")}
+          </Text>
         </Space>
       ),
     },
@@ -267,8 +283,10 @@ export default function QcEvalResults() {
       key: "link",
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text>{record.indicatorId}</Text>
-          <Text type="secondary">{record.resultId}</Text>
+          <Text>{evidenceText(record.indicatorId, evidenceDetailsEnabled, "评价指标已关联")}</Text>
+          <Text type="secondary">
+            {evidenceText(record.resultId, evidenceDetailsEnabled, "评价结果已关联")}
+          </Text>
         </Space>
       ),
     },
@@ -276,7 +294,9 @@ export default function QcEvalResults() {
       title: "病历证据",
       dataIndex: "evidenceSummary",
       key: "evidenceSummary",
-      render: (evidence: string) => <Text>{evidence}</Text>,
+      render: (evidence: string) => (
+        <Text>{evidenceDetailsEnabled ? evidence : "病历证据已关联"}</Text>
+      ),
     },
     {
       title: "责任科室",
@@ -287,10 +307,12 @@ export default function QcEvalResults() {
       ),
     },
     {
-      title: "追踪号",
+      title: "证据",
       dataIndex: "traceId",
       key: "traceId",
-      render: (traceId: string | undefined) => <Text type="secondary">{traceId ?? "--"}</Text>,
+      render: (traceId: string | undefined) => (
+        <Text type="secondary">{evidenceText(traceId, evidenceDetailsEnabled, "证据已记录")}</Text>
+      ),
     },
     {
       title: "操作",
@@ -313,9 +335,12 @@ export default function QcEvalResults() {
         title="质量问题来源"
         description="按真实评价结果追溯问题证据"
         extras={
-          <Button aria-label="刷新评价结果" icon={<ReloadOutlined />} onClick={refreshAll}>
-            刷新
-          </Button>
+          <Space wrap>
+            <EvidenceDetailsToggle securityProfile={security.data} />
+            <Button aria-label="刷新评价结果" icon={<ReloadOutlined />} onClick={refreshAll}>
+              刷新
+            </Button>
+          </Space>
         }
         state={resolvePageState(
           resultsQuery.isLoading || findingsQuery.isLoading,
@@ -327,8 +352,8 @@ export default function QcEvalResults() {
         stateProps={{
           title: parsedError?.message ?? "当前筛选下暂无真实评价结果",
           description: parsedError
-            ? "请稍后重试，或凭追踪号联系信息科核查。"
-            : "后端当前没有返回符合筛选条件的结果或问题。",
+            ? "请稍后重试；若持续失败，请联系信息科核查质量问题来源服务。失败已留痕，可在审计证据中追溯。"
+            : "当前没有符合筛选条件的评价结果或问题。",
           traceId: parsedError?.traceId,
           onRetry: refreshAll,
         }}
@@ -451,10 +476,18 @@ export default function QcEvalResults() {
             ) : null}
 
             <Descriptions bordered column={1}>
-              <Descriptions.Item label="问题编码">{drawerFinding.findingCode}</Descriptions.Item>
-              <Descriptions.Item label="关联指标">{drawerFinding.indicatorId}</Descriptions.Item>
-              <Descriptions.Item label="关联结果">{drawerFinding.resultId}</Descriptions.Item>
-              <Descriptions.Item label="评估运行">{drawerFinding.runId}</Descriptions.Item>
+              <Descriptions.Item label="问题身份">
+                {evidenceText(drawerFinding.findingCode, evidenceDetailsEnabled, "问题已登记")}
+              </Descriptions.Item>
+              <Descriptions.Item label="关联指标">
+                {evidenceText(drawerFinding.indicatorId, evidenceDetailsEnabled, "评价指标已关联")}
+              </Descriptions.Item>
+              <Descriptions.Item label="关联结果">
+                {evidenceText(drawerFinding.resultId, evidenceDetailsEnabled, "评价结果已关联")}
+              </Descriptions.Item>
+              <Descriptions.Item label="评估运行">
+                {evidenceText(drawerFinding.runId, evidenceDetailsEnabled, "评估运行已记录")}
+              </Descriptions.Item>
               <Descriptions.Item label="级别">
                 {severityTag(drawerFinding.severity)}
               </Descriptions.Item>
@@ -467,19 +500,27 @@ export default function QcEvalResults() {
                     drawerFinding.responsibleDepartmentId)
                   : "未指定"}
               </Descriptions.Item>
-              <Descriptions.Item label="追踪号">{drawerFinding.traceId ?? "--"}</Descriptions.Item>
+              <Descriptions.Item label="证据">
+                {evidenceText(drawerFinding.traceId, evidenceDetailsEnabled, "证据已记录")}
+              </Descriptions.Item>
             </Descriptions>
 
             <Alert
               type="info"
               showIcon
               message="病历证据"
-              description={drawerFinding.evidenceSummary}
+              description={
+                evidenceDetailsEnabled ? drawerFinding.evidenceSummary : "病历证据已关联"
+              }
             />
 
             <Card title="整改任务状态">
               {selectedFindingDetail?.task ? (
-                <TaskSummary task={selectedFindingDetail.task} />
+                <TaskSummary
+                  task={selectedFindingDetail.task}
+                  departmentNames={departmentNames}
+                  evidenceDetailsEnabled={evidenceDetailsEnabled}
+                />
               ) : (
                 <Text type="secondary">暂无整改任务</Text>
               )}
@@ -574,13 +615,29 @@ function MetricCard({
   );
 }
 
-function TaskSummary({ task }: { task: RectificationTask }) {
+function TaskSummary({
+  task,
+  departmentNames,
+  evidenceDetailsEnabled,
+}: {
+  task: RectificationTask;
+  departmentNames: Map<string, string>;
+  evidenceDetailsEnabled: boolean;
+}) {
   return (
     <Descriptions bordered column={1}>
-      <Descriptions.Item label="整改任务">{task.taskId}</Descriptions.Item>
+      <Descriptions.Item label="整改任务">
+        {evidenceText(task.taskId, evidenceDetailsEnabled, "整改任务已生成")}
+      </Descriptions.Item>
       <Descriptions.Item label="任务状态">{customerEnumLabel(task.status)}</Descriptions.Item>
-      <Descriptions.Item label="责任科室">{task.responsibleDepartmentId}</Descriptions.Item>
-      <Descriptions.Item label="责任人">{task.assigneeUserId ?? "未指定"}</Descriptions.Item>
+      <Descriptions.Item label="责任科室">
+        {evidenceDetailsEnabled
+          ? task.responsibleDepartmentId
+          : (departmentNames.get(task.responsibleDepartmentId) ?? "责任科室已关联")}
+      </Descriptions.Item>
+      <Descriptions.Item label="责任人">
+        {evidenceText(task.assigneeUserId, evidenceDetailsEnabled, "责任人已关联")}
+      </Descriptions.Item>
       <Descriptions.Item label="截止时间">{formatTime(task.dueAt)}</Descriptions.Item>
     </Descriptions>
   );
@@ -690,6 +747,20 @@ function defaultDueAt(value: string | undefined) {
 
 function formatTime(value: string | undefined) {
   return value ? value.replace("T", " ").slice(0, 16) : "--";
+}
+
+function evidenceText(
+  value: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  businessText: string,
+) {
+  if (evidenceDetailsEnabled) return value || "--";
+  return businessText;
+}
+
+function versionText(version: number | undefined, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) return version === undefined ? "--" : `v${version}`;
+  return version === undefined ? "评价口径已关联" : `第 ${version} 版评价口径`;
 }
 
 function buildDispatchIdempotencyKey(

@@ -23,7 +23,7 @@ import jakarta.validation.Valid;
 /**
  * 规则引擎 REST 入口（GA-ENG-API-05 {@code /api/v1/engine/rule/**}）。
  *
- * <p>承担规则定义、版本、测试用例、试运行、影响分析、治理、真实执行与解释的 HTTP 合同；
+ * <p>承担规则定义、版本、验证用例、试运行、影响分析、治理、真实执行与解释的 HTTP 合同；
  * 权限由 {@code @PreAuthorize} 强校验 {@code rule.read}/{@code rule.write}/{@code rule.publish}，
  * 租户隔离由类级 {@link DataScope}{@code (requireTenant=true)} 兜底。
  */
@@ -44,7 +44,8 @@ public class RuleEngineController {
     /**
      * 创建规则定义并生成初始草稿版本。
      *
-     * <p>权限：{@code rule.write}；DSL 必须可解析且包含 trigger/when/then/explain，否则抛
+     * <p>权限：{@code rule.write}；DSL 必须可解析且包含 when/then/explain，触发点由
+     * 资产版本触发绑定维护，否则抛
      * {@link com.medkernel.shared.api.error.ApiException} 错误码 {@code ENG-RULE-001}。
      */
     @PostMapping("/rules")
@@ -76,7 +77,7 @@ public class RuleEngineController {
     }
 
     /**
-     * 查看指定规则的定义、当前版本及测试用例覆盖情况。
+     * 查看指定规则的定义、当前版本及验证用例覆盖情况。
      *
      * <p>权限：{@code rule.read}；规则不存在抛错误码 {@code ENG-RULE-002}。
      */
@@ -111,7 +112,7 @@ public class RuleEngineController {
     }
 
     /**
-     * 新增规则测试用例（仅草稿状态可加）。
+     * 新增规则验证用例（仅草稿状态可加）。
      *
      * <p>权限：{@code rule.write}；规则状态不为 {@code DRAFT} 时抛错误码 {@code ENG-RULE-006}。
      */
@@ -126,7 +127,7 @@ public class RuleEngineController {
     }
 
     /**
-     * 执行当前版本全部测试用例，不推进发布状态。
+     * 执行当前版本全部验证用例，不推进发布状态。
      */
     @PostMapping("/rules/{ruleId}/test")
     @PreAuthorize("@perm.has('rule.write')")

@@ -39,7 +39,7 @@ class DefaultRuntimeTaskExecutorTest {
 
         assertThat(result.status()).isEqualTo(RuntimeTaskStatus.FAILED);
         assertThat(result.errorCode()).isEqualTo("UNSUPPORTED_TASK_TYPE");
-        assertThat(result.message()).contains("未接入真实执行器");
+        assertThat(result.message()).contains("没有可用执行器");
     }
 
     private RuntimeTaskExecutionCommand command(String taskType) {

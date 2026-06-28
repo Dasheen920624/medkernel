@@ -10,6 +10,7 @@ import styles from "./GraphExplore.module.css";
 interface ProjectionGraphCanvasProps {
   facts: ProjectionFactItem[];
   selectedKey?: string | null;
+  evidenceDetailsEnabled?: boolean;
   onSelect: (nodeKey: string, fact?: ProjectionFactItem) => void;
 }
 
@@ -26,9 +27,18 @@ function shortNodeId(value: string) {
   return `${value.slice(0, 8)}...${value.slice(-6)}`;
 }
 
+function nodeEvidenceLabel(label: string, objectId: string, evidenceDetailsEnabled: boolean) {
+  return evidenceDetailsEnabled ? `${label} ${objectId}` : `${label}已同步`;
+}
+
+function nodeEvidenceText(objectId: string, evidenceDetailsEnabled: boolean) {
+  return evidenceDetailsEnabled ? shortNodeId(objectId) : "已同步";
+}
+
 export function ProjectionGraphCanvas({
   facts,
   selectedKey,
+  evidenceDetailsEnabled = false,
   onSelect,
 }: ProjectionGraphCanvasProps) {
   const graph = useMemo(() => buildProjectionGraph(facts), [facts]);
@@ -116,7 +126,7 @@ export function ProjectionGraphCanvas({
                 key={node.key}
                 role="button"
                 tabIndex={0}
-                aria-label={`${node.label} ${node.objectId}`}
+                aria-label={nodeEvidenceLabel(node.label, node.objectId, evidenceDetailsEnabled)}
                 className={
                   selectedKey === node.key
                     ? `${styles.graphNode} ${styles.graphNodeSelected}`
@@ -131,13 +141,15 @@ export function ProjectionGraphCanvas({
                   }
                 }}
               >
-                <title>{`${node.label} ${node.objectId}`}</title>
+                <title>
+                  {nodeEvidenceLabel(node.label, node.objectId, evidenceDetailsEnabled)}
+                </title>
                 <rect x="-8.5" y="-4.6" width="17" height="9.2" rx="1.4" />
                 <text className={styles.graphNodeType} x="0" y="-0.7">
                   {node.label}
                 </text>
                 <text className={styles.graphNodeId} x="0" y="2.3">
-                  {shortNodeId(node.objectId)}
+                  {nodeEvidenceText(node.objectId, evidenceDetailsEnabled)}
                 </text>
                 {node.referenceOnly && (
                   <text className={styles.graphNodeHint} x="0" y="4">

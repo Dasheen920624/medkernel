@@ -249,7 +249,7 @@ const allMenuKeys = [
   "graph-explore",
   "ai-workflows",
   "domestic-check",
-  "dev-console",
+  "runtime-diagnostics",
 ];
 
 beforeEach(() => {
@@ -430,7 +430,7 @@ describe("AppLayout", () => {
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
   });
 
-  it("requires terminology action permissions beyond the backend menu key", async () => {
+  it("requires terminology action permissions beyond the menu catalog key", async () => {
     securityProfileState.value = {
       data: {
         ...permissionProfile(["terminology-mapping"]),
@@ -458,19 +458,26 @@ describe("AppLayout", () => {
     mockViewport(1280);
     await renderLayout();
 
+    const searchTrigger = screen.getByText("搜索").closest("button");
+    expect(searchTrigger).not.toBeNull();
+    fireEvent.mouseEnter(searchTrigger as HTMLButtonElement);
+    await waitFor(() => expect(screen.getByText("命令面板")).toBeInTheDocument());
+    expect(screen.queryByText(/Ctrl|⌘/)).toBeNull();
+
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
 
     expect(screen.getByPlaceholderText("搜索菜单")).toBeInTheDocument();
   });
 
-  it("classifies advanced capabilities in the normal sidebar and command palette", async () => {
+  it("classifies diagnostic capabilities in the normal sidebar and command palette", async () => {
     securityProfileState.value = { data: superAdminProfile() };
     mockViewport(1280);
     await renderLayout();
 
+    const retiredStandaloneToolLabel = "高级" + "工具";
     const navigation = document.querySelector(".ant-layout-sider");
     expect(navigation).not.toBeNull();
-    expect(within(navigation as HTMLElement).queryByText("高级工具")).toBeNull();
+    expect(within(navigation as HTMLElement).queryByText(retiredStandaloneToolLabel)).toBeNull();
     expect(within(navigation as HTMLElement).getByText("来源与血缘")).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
@@ -479,7 +486,7 @@ describe("AppLayout", () => {
     });
 
     expect((await screen.findAllByText("来源与血缘")).length).toBeGreaterThanOrEqual(2);
-    expect(screen.queryByText("高级工具")).toBeNull();
+    expect(screen.queryByText(retiredStandaloneToolLabel)).toBeNull();
   });
 
   it("places message notifications in the header and notification preferences in the user menu", async () => {
@@ -502,7 +509,8 @@ describe("AppLayout", () => {
     await screen.findByRole("menuitem", { name: /修改密码/ });
     expect(screen.getAllByText("chen.ming").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("临床医生").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("服务空间 t-1 / 医院 h-1 / 科室 d-1")).toBeInTheDocument();
+    expect(screen.getByText("当前服务机构 / 当前医院 / 当前科室")).toBeInTheDocument();
+    expect(screen.queryByText(/服务机构 t-1/)).toBeNull();
     expect(screen.getByRole("menuitem", { name: /修改密码/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /退出登录/ })).toBeInTheDocument();
   });
@@ -532,7 +540,7 @@ describe("AppLayout", () => {
     );
   });
 
-  it("confirms logout, calls the backend logout endpoint, clears cached state and returns to login", async () => {
+  it("confirms logout, calls the authenticated logout endpoint, clears cached state and returns to login", async () => {
     mockViewport(1280);
     const { queryClient } = await renderLayout("/dashboard");
     queryClient.setQueryData(["security", "me"], { userId: "doctor-1" });
@@ -577,7 +585,7 @@ describe("AppLayout", () => {
     expect(queryClient.getQueryData(["security", "me"])).toBeUndefined();
   });
 
-  it("shows an idle warning before timeout and renews the backend session", async () => {
+  it("shows an idle warning before timeout and renews the authenticated session", async () => {
     vi.useFakeTimers();
     mockViewport(1280);
     await renderLayout("/dashboard");

@@ -12,7 +12,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 从版本化资源初始化模型能力和增强接入目录，不覆盖运行期人工调整。 */
+/** 从版本化资源初始化模型能力和模型赋能覆盖目录，不覆盖运行期人工调整。 */
 @Component
 @Order(100)
 public class ModelCatalogSeeder implements ApplicationRunner {

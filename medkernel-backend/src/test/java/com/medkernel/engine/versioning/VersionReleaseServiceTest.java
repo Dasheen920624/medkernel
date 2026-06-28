@@ -318,7 +318,7 @@ class VersionReleaseServiceTest {
         ));
 
         assertThat(result.status()).isEqualTo(VersionReleaseStatus.PUBLISHED);
-        assertThat(result.qualityGateSummary()).contains("依赖完整性").contains("影响模拟");
+        assertThat(result.qualityGateSummary()).contains("依赖完整性").contains("影响评估");
         verify(assetVersions).save(org.mockito.ArgumentMatchers.argThat(saved ->
             saved.versionId().equals("av-v1")
                 && saved.status() == AssetVersionStatus.WITHDRAWN
@@ -706,7 +706,7 @@ class VersionReleaseServiceTest {
             true,
             true,
             true,
-            "结构校验、术语字段绑定、依赖完整性、安全单调性、影响模拟均通过"
+            "结构校验、术语字段绑定、依赖完整性、安全单调性、影响评估均通过"
         );
     }
 

@@ -14,7 +14,7 @@ import com.medkernel.engine.context.QualityStatus;
 import com.medkernel.engine.context.TerminologyMappingPort;
 import org.junit.jupiter.api.Test;
 
-class FhirCanonicalMapperPr4Test {
+class FhirCanonicalMapperContractTest {
 
     private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
     private final FhirR4CanonicalMapper r4 = new FhirR4CanonicalMapper(json, terminologyReturning("VALID"));
@@ -259,7 +259,7 @@ class FhirCanonicalMapperPr4Test {
                   "qualityStatus": "VALID"
                 }
                 """;
-            case NURSING_ASSESSMENT, FOLLOW_UP, CLAIM -> throw new IllegalArgumentException("OPT-01 PR4 不映射该类型: " + type);
+            case NURSING_ASSESSMENT, FOLLOW_UP, CLAIM -> throw new IllegalArgumentException("OPT-01 不映射该类型: " + type);
         };
     }
 

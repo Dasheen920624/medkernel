@@ -9,7 +9,7 @@ import org.springframework.data.repository.Repository;
 import com.medkernel.engine.rule.RuleExecutionLog;
 
 /**
- * 规则使用统计只读聚合仓库（DATASVC-01 PR1）。
+ * 规则使用统计只读聚合仓库（DATASVC-01）。
  *
  * <p>从规则引擎运行事实 {@code rule_execution_log}（engine-rule 所属）**只读聚合**为 D2 去标识统计——
  * 不写该表（不违反域归属：仅写操作受 {@code DomainOwnershipContractTest} 约束）。跨方言用标准

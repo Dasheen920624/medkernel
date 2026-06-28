@@ -207,13 +207,13 @@ const routeDecisions = {
     decision: "SPLIT",
     targetDomain: "知识治理",
     targetEntry: "诊断知识维护",
-    task: "维护诊断身份、诊断标准、鉴别诊断、测试病例与来源证据",
+    task: "维护诊断身份、诊断标准、鉴别诊断、验证病例与来源证据",
   },
   "/knowledge/production": {
     decision: "SPLIT",
     targetDomain: "知识生产",
     targetEntry: "知识生产",
-    task: "核查知识生产 readiness、生产 job、候选血缘、门禁、8 态和影子证据",
+    task: "核查知识生产 readiness、生产 job、候选血缘、门禁、8 态、影子证据和高敏患者上下文用途确认重试",
   },
   "/admin/users": {
     decision: "MOVE",
@@ -272,14 +272,14 @@ const routeDecisions = {
   "/advanced/domestic": {
     decision: "MOVE",
     targetDomain: "系统运维",
-    targetEntry: "国产化核验",
+    targetEntry: "国产化自检",
     task: "核查国产化适配与部署证据",
   },
-  "/advanced/dev-console": {
+  "/system/runtime-diagnostics": {
     decision: "MOVE",
     targetDomain: "系统运维",
-    targetEntry: "诊断工具",
-    task: "由开发和实施角色执行受控诊断",
+    targetEntry: "运行诊断",
+    task: "由信息科和实施角色执行受控诊断",
   },
   "/embed/launch": {
     decision: "KEEP",
@@ -467,15 +467,29 @@ function controllerDecision(className, endpoints) {
       rationale: "仅服务外部系统或嵌入链路，不进入客户主菜单",
     };
   }
+  if (/DataMinimizationPolicyController/i.test(className)) {
+    return {
+      decision: "KEEP",
+      target: "对应客户任务页面",
+      rationale: "策略维护归外调治理，当前任务用途确认可由知识生产操作者完成并落审计",
+    };
+  }
   if (
     /Developer|Projection|Diagnose|Model(Gateway|Egress|Provider|Eval|Enhancement)|PluginSecurity/i.test(
       text,
     )
   ) {
+    if (/ModelEgressController/i.test(className)) {
+      return {
+        decision: "KEEP",
+        target: "所属业务域专业能力",
+        rationale: "外调策略由实施/运营维护，本次脱敏载荷用途确认由业务上下文承载",
+      };
+    }
     return {
       decision: "KEEP",
       target: "所属业务域专业能力",
-      rationale: "按普通功能归入所属业务域，由权限控制，技术细节页内渐进展示",
+      rationale: "按普通功能归入所属业务域，由权限控制，低频证据和诊断信息在业务上下文内渐进展示",
     };
   }
   if (/Batch|Export|RuntimeTask|AsyncSuffix/i.test(text)) {
@@ -673,7 +687,7 @@ ${controllerRows}
 |---|---|---|---|
 ${batchRows}
 
-## 7. 强制后续动作
+## 7. 强制收口动作
 
 1. 目标信息架构必须以本目录的唯一任务和目标归属为输入，比较领域型、角色任务型、生命周期型和混合型方案后写入产品权威。
 2. \`MOVE\`、\`RENAME\`、\`MERGE\` 和 \`REMOVE\` 必须同步修改菜单、路由、权限、面包屑、页面、客户手册和自动化测试。

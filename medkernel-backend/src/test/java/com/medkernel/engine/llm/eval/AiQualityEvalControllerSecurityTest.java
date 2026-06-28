@@ -80,7 +80,7 @@ class AiQualityEvalControllerSecurityTest {
         return """
             {
               "capabilityCode": "recommendation.draft",
-              "providerCode": "b0-fixture",
+              "providerCode": "b0-baseline",
               "modelVersion": "B0-Deterministic-Baseline",
               "promptVersion": "prompt:v1",
               "toolVersion": "tool:v1",

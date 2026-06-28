@@ -21,7 +21,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 候选生产来源溯源服务测试（AIK-STD-12 PR1，真实 H2）。
+ * 候选生产来源溯源服务测试（AIK-STD-12，真实 H2）。
  *
  * <p>验证审核台候选经生产血缘反查 AI 工厂来源：{@code aiGenerated = producer ≠ MANUAL}；
  * 无血缘行（手建候选）/ 跨租户引用诚实不返回（铁律 #1 不臆造、不泄漏跨租户存在性）。

@@ -7,12 +7,9 @@ export const appBase = (process.env.E2E_BASE_URL?.trim() || "http://localhost:51
   /\/+$/,
   "",
 );
-const frontendApiBase = `${appBase}/medkernel/api/v1`;
+const frontendApiBase = resolveFrontendApiBase(appBase);
 export const tenantId = "t-1";
 const defaultPassword = "Mk@2026dev";
-const credentialsConfigured = Boolean(process.env.E2E_ROLE_CREDENTIALS_FILE?.trim());
-const credentialOverrides = loadCredentialOverrides();
-
 export const roleAccounts = [
   "platform-admin",
   "engine-operator",
@@ -21,6 +18,9 @@ export const roleAccounts = [
 ] as const;
 
 export type RoleAccount = (typeof roleAccounts)[number];
+
+const credentialsConfigured = Boolean(process.env.E2E_ROLE_CREDENTIALS_FILE?.trim());
+const credentialOverrides = loadCredentialOverrides();
 
 export async function ensureReadySession(page: Page, role: RoleAccount) {
   await resetRoleSession(page);
@@ -139,7 +139,10 @@ async function resetRoleSession(page: Page) {
 
 async function reloadFrontendSession(page: Page, role: RoleAccount) {
   await page.goto(`/dashboard?e2e-session-refresh=${role}-${Date.now()}`, {
-    waitUntil: "networkidle",
+    waitUntil: "domcontentloaded",
+  });
+  await expect(page.getByRole("button", { name: "当前用户菜单" })).toBeVisible({
+    timeout: 20_000,
   });
 }
 
@@ -174,6 +177,13 @@ export async function expectOk(response: APIResponse, label: string) {
 
 export function stablePassword(role: RoleAccount) {
   return credentialOverrides[role]?.password ?? `Mk@2026${role.replace(/-/g, "")}`;
+}
+
+export function resolveFrontendApiBase(baseUrl: string) {
+  const normalized = baseUrl.trim().replace(/\/+$/, "");
+  const pathname = new URL(normalized).pathname.replace(/\/+$/, "");
+  const contextPath = pathname.endsWith("/medkernel") ? "" : "/medkernel";
+  return `${normalized}${contextPath}/api/v1`;
 }
 
 function tenantIdFor(username: string) {

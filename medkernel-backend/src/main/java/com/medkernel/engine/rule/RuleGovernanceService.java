@@ -16,7 +16,7 @@ import com.medkernel.shared.ids.Ulid;
 /**
  * 规则知识治理状态服务。
  *
- * <p>治理只保留单操作人技术验证与发布链路，不引入多人会签、委员会或角色分离门禁。
+ * <p>治理只保留单操作人安全复核与发布链路，不引入多人会签、委员会或角色分离门禁。
  */
 @Service
 public class RuleGovernanceService {

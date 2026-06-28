@@ -7,7 +7,7 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 精确绑定资产版本和内容哈希的同步技术验证证据。
+ * 精确绑定资产版本和内容哈希的同步安全复核证据。
  */
 @Table("asset_validation_record")
 public record AssetValidationRecord(

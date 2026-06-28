@@ -204,6 +204,7 @@ public class RuleReleaseSimulationReplayEvaluator implements ReleaseSimulationRe
             campusId,
             siteId,
             departmentId,
+            null,
             specialtyId
         );
     }

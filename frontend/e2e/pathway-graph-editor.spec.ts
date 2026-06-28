@@ -56,10 +56,10 @@ test.describe("线2路径图编辑器真实验收", () => {
 
     await firstNode.press("Escape");
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "同步到 DSL" }).click();
-    await enableExpertMode(dialog);
-    await dialog.getByRole("tab", { name: "L3 DSL" }).click();
-    const dslValue = await dialog.getByLabel("路径 DSL JSON").inputValue();
+    await dialog.getByRole("button", { name: /同步到受控配置/ }).click();
+    await enableAdvancedConfig(dialog);
+    await dialog.getByRole("tab", { name: "受控配置文本" }).click();
+    const dslValue = await dialog.getByLabel("路径配置文本").inputValue();
     const dsl = JSON.parse(dslValue) as {
       nodes: Array<{ config?: { authoringLayout?: { x: number; y: number } } }>;
     };
@@ -128,16 +128,19 @@ async function openCreatePathwayDialog(page: Page) {
 }
 
 async function openNodeCanvas(dialog: ReturnType<Page["getByRole"]>) {
-  await dialog.getByRole("tab", { name: "节点画布" }).click();
+  const canvasTab = dialog.getByRole("tab", { name: "节点画布" });
+  await expect(canvasTab).toBeVisible();
+  await canvasTab.click();
+  await expect(canvasTab).toHaveAttribute("aria-selected", "true");
   await expect(dialog.getByText("结构化节点画布", { exact: true })).toBeVisible();
 }
 
-async function enableExpertMode(dialog: ReturnType<Page["getByRole"]>) {
-  const expertSwitch = dialog.getByRole("switch", { name: "专家模式" });
-  if ((await expertSwitch.getAttribute("aria-checked")) !== "true") {
-    await expertSwitch.click();
+async function enableAdvancedConfig(dialog: ReturnType<Page["getByRole"]>) {
+  const advancedConfigSwitch = dialog.getByRole("switch", { name: "受控配置文本模式" });
+  if ((await advancedConfigSwitch.getAttribute("aria-checked")) !== "true") {
+    await advancedConfigSwitch.click();
   }
-  await expect(dialog.getByRole("tab", { name: "L3 DSL" })).toBeVisible();
+  await expect(dialog.getByRole("tab", { name: "受控配置文本" })).toBeVisible();
 }
 
 async function expectNoRootOverflow(page: Page) {

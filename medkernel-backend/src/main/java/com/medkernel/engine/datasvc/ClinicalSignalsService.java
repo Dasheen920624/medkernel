@@ -14,7 +14,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 引擎数据服务层 · 临床信号统计服务（DATASVC-01 PR1）。
+ * 引擎数据服务层 · 临床信号统计服务（DATASVC-01）。
  *
  * <p>把推荐引擎真实投递的 CDSS 决策信号运行事实（{@code recommendation_card}）沉淀为 D2 去标识聚合读模型，
  * 服务端分页 + 默认时间窗 + 每次查询留审计。

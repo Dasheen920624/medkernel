@@ -39,11 +39,15 @@ import {
   type SecurityProfile,
 } from "@/shared/api/hooks";
 import {
+  customerDisplayText,
   connectionStatusLabel,
   delegatedModeLabel,
   identityProviderLabel,
   importRowStatusLabel,
 } from "@/shared/config/customerLabels";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 
@@ -79,15 +83,33 @@ function formatTime(value: string) {
   }).format(timestamp);
 }
 
+function personnelEvidenceText(
+  employeeNo: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled && employeeNo) return `人员编号：${employeeNo}`;
+  return "人员档案已登记";
+}
+
+function identitySubjectText(subjectHint: string, evidenceDetailsEnabled: boolean) {
+  return evidenceDetailsEnabled ? subjectHint : "身份已绑定";
+}
+
+function delegatedMessageText(message: string, evidenceDetailsEnabled: boolean) {
+  return evidenceDetailsEnabled ? message : customerDisplayText(message);
+}
+
 export default function IdentityBinding() {
   const { message } = App.useApp();
   const security = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
   const delegated = useDelegatedAuthStatus();
   const [bindingPage, setBindingPage] = useState(1);
   const bindings = useIdentityBindings({ page: bindingPage, size: IDENTITY_BINDING_PAGE_SIZE });
   const [userSearch, setUserSearch] = useState("");
   const canReadPersonnel = hasPermission(security.data, "org.read");
   const canManage = hasPermission(security.data, "org.write");
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const personnel = usePersonnel(
     { page: 1, size: PERSONNEL_REFERENCE_PAGE_SIZE, keyword: userSearch || undefined },
     { enabled: canReadPersonnel },
@@ -119,9 +141,12 @@ export default function IdentityBinding() {
         .filter((person) => person.userId)
         .map((person) => ({
           value: person.userId as string,
-          label: `${person.displayName} · ${person.employeeNo}`,
+          label: `${person.displayName} · ${personnelEvidenceText(
+            person.employeeNo,
+            evidenceDetailsEnabled,
+          )}`,
         })),
-    [personnel.data?.items],
+    [evidenceDetailsEnabled, personnel.data?.items],
   );
 
   const refresh = async () => {
@@ -254,6 +279,7 @@ export default function IdentityBinding() {
         }
         extras={
           <Space wrap>
+            <EvidenceDetailsToggle securityProfile={security.data} />
             {canManage && (
               <Button icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
                 单个绑定
@@ -280,7 +306,7 @@ export default function IdentityBinding() {
             message={`${delegatedModeLabel(delegated.data.mode)} · ${connectionStatusLabel(
               delegated.data.status,
             )}`}
-            description={delegated.data.message}
+            description={delegatedMessageText(delegated.data.message, evidenceDetailsEnabled)}
           />
           <Card>
             <Space size="large" wrap>
@@ -316,7 +342,9 @@ export default function IdentityBinding() {
                       <Space direction="vertical" size={0}>
                         <Text strong>{person?.displayName ?? "人员信息待同步"}</Text>
                         <Text type="secondary">
-                          {person ? `人员编号：${person.employeeNo}` : "账号已存在"}
+                          {person
+                            ? personnelEvidenceText(person.employeeNo, evidenceDetailsEnabled)
+                            : "账号已存在"}
                         </Text>
                       </Space>
                     );
@@ -327,7 +355,11 @@ export default function IdentityBinding() {
                   dataIndex: "providerType",
                   render: (value: string) => <Tag>{identityProviderLabel(value)}</Tag>,
                 },
-                { title: "脱敏标识", dataIndex: "subjectHint" },
+                {
+                  title: "绑定证据",
+                  dataIndex: "subjectHint",
+                  render: (value: string) => identitySubjectText(value, evidenceDetailsEnabled),
+                },
                 {
                   title: "状态",
                   dataIndex: "status",
@@ -388,7 +420,7 @@ export default function IdentityBinding() {
               showSearch
               filterOption={false}
               onSearch={setUserSearch}
-              placeholder="按姓名或人员编号搜索"
+              placeholder="按姓名或院内人员身份搜索"
               options={userOptions}
               loading={personnel.isLoading}
               notFoundContent="没有已开通账号的人员"
@@ -408,11 +440,11 @@ export default function IdentityBinding() {
           </Form.Item>
           <Form.Item
             name="externalSubject"
-            label="院内身份标识"
+            label="院内人员身份"
             extra="系统只保存不可逆摘要与脱敏提示，不保存身份原文。"
             rules={[
-              { required: true, whitespace: true, message: "请输入院内身份标识" },
-              { max: 512, message: "院内身份标识不能超过 512 个字符" },
+              { required: true, whitespace: true, message: "请输入院内人员身份" },
+              { max: 512, message: "院内人员身份不能超过 512 个字符" },
             ]}
           >
             <Input autoComplete="off" maxLength={512} />
@@ -455,8 +487,8 @@ export default function IdentityBinding() {
           <Alert
             type="info"
             showIcon
-            message="按人员编号批量匹配，先预检后提交"
-            description="使用人员导入模板填写身份来源和院内身份标识。已有人员会更新身份关系，新人员可同时完成建档与账号开通。"
+            message="按院内人员身份批量匹配，先预检后提交"
+            description="使用人员导入模板填写身份来源和院内人员身份。已有人员会更新身份关系，新人员可同时完成建档与账号开通。"
           />
           {!batchResult && (
             <Dragger
@@ -490,7 +522,7 @@ export default function IdentityBinding() {
                 pagination={{ pageSize: 10, hideOnSinglePage: true }}
                 dataSource={batchResult.rows}
                 columns={[
-                  { title: "人员编号", dataIndex: "employeeNo" },
+                  { title: "院内人员身份", dataIndex: "employeeNo" },
                   { title: "姓名", dataIndex: "displayName" },
                   {
                     title: "校验结果",

@@ -31,7 +31,7 @@ export interface RouteExperience {
   goal: string;
   defaultView: string;
   defaultFilters: ExperienceFilterDefinition[];
-  expertContent: string[];
+  evidenceDetailContent: string[];
   interruptionLevel: InterruptionLevel;
   evidence: string;
   dataScale: {
@@ -67,7 +67,7 @@ export interface ExperienceColumn<T> {
   dataIndex?: keyof T;
   width?: number;
   always?: boolean;
-  expertOnly?: boolean;
+  advancedOnly?: boolean;
   render?: (value: unknown, record: T) => ReactNode;
 }
 
@@ -83,7 +83,7 @@ export interface ExperienceViewSnapshot {
   filters: readonly ExperienceFilterValue[];
   pageRequest: ExperiencePageRequest;
   visibleColumnKeys: readonly string[];
-  expertMode: boolean;
+  evidenceDetailsEnabled: boolean;
   capturedAt: string;
 }
 

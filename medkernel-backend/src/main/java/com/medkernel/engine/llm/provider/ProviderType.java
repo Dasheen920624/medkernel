@@ -3,7 +3,8 @@ package com.medkernel.engine.llm.provider;
 /**
  * 模型服务类型（LLM-08 · 核心 §11 B1/B2）。
  *
- * <p>{@link #OLLAMA} 为 B1 本地（内网可用）；其余为 B2 外部（仅外网生产中心可用，运行侧内网禁用）。
+ * <p>{@link #OLLAMA} 为 B1 本地（内网可用）；其余为 B2 外部（仅公网/生产中心形态可用，运行侧
+ * 内网禁用，患者上下文必须先过外调安全闸）。
  */
 public enum ProviderType {
 

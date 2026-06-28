@@ -24,7 +24,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 引擎数据服务层 · 规则使用统计服务单元测试（DATASVC-01 PR1，D2 去标识聚合）。
+ * 引擎数据服务层 · 规则使用统计服务单元测试（DATASVC-01，D2 去标识聚合）。
  *
  * <p>验证：D2 数据级别标注 + 服务端分页（FR-1/FR-2）、空上游诚实返回不伪造（铁律 #1）、
  * 每次查询留审计（FR-6）。

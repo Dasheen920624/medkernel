@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import AuthoringAssets from "./AuthoringAssets";
 
 const apiMocks = vi.hoisted(() => ({
@@ -13,7 +14,9 @@ const apiMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("./DeclarativeAssetWorkbench", () => ({
-  default: () => <div>独立配置资产维护区</div>,
+  default: ({ evidenceDetailsEnabled }: { evidenceDetailsEnabled?: boolean }) => (
+    <div>独立配置资产维护区：{evidenceDetailsEnabled ? "证据已展开" : "业务视图"}</div>
+  ),
 }));
 
 vi.mock("@/shared/ui/condition/FieldCatalogManager", () => ({
@@ -59,6 +62,8 @@ function renderPage() {
 
 describe("AuthoringAssets", () => {
   beforeEach(() => {
+    window.localStorage.clear();
+    useEvidenceDetailsStore.setState({ enabled: false });
     apiMocks.updateProfile.mockReset();
     apiMocks.favorite.mockReset();
     apiMocks.unfavorite.mockReset();
@@ -105,8 +110,12 @@ describe("AuthoringAssets", () => {
 
     expect(screen.getByRole("heading", { name: "统一资产库" })).toBeInTheDocument();
     expect(screen.getByText("CKD 临床路径")).toBeInTheDocument();
+    expect(screen.getByText("路径资产已登记")).toBeInTheDocument();
+    expect(screen.queryByText("PATH.CKD")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("搜索资产名称或证据线索")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("搜索资产名称或证据编码")).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText("搜索资产编码或名称"), {
+    fireEvent.change(screen.getByPlaceholderText("搜索资产名称或证据线索"), {
       target: { value: "CKD" },
     });
     expect(apiMocks.useAuthoringAssets).toHaveBeenLastCalledWith(
@@ -128,6 +137,25 @@ describe("AuthoringAssets", () => {
     });
   });
 
+  it("keeps asset codes behind evidence details while passing the evidence state to configuration assets", async () => {
+    renderPage();
+
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.getByText("路径资产已登记")).toBeInTheDocument();
+    expect(screen.getByText("规则资产已登记")).toBeInTheDocument();
+    expect(screen.queryByText("PATH.CKD")).not.toBeInTheDocument();
+    expect(screen.queryByText("RULE.CKD")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("tab", { name: "配置资产维护" }));
+    expect(screen.getByText("独立配置资产维护区：业务视图")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("PATH.CKD")).toBeInTheDocument();
+    expect(screen.getByText("RULE.CKD")).toBeInTheDocument();
+    expect(screen.getByText("独立配置资产维护区：证据已展开")).toBeInTheDocument();
+  });
+
   it("surfaces independent maintenance without removing the existing asset library", async () => {
     renderPage();
 
@@ -136,7 +164,7 @@ describe("AuthoringAssets", () => {
     expect(screen.getByText("CKD 临床路径")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("tab", { name: "配置资产维护" }));
-    expect(screen.getByText("独立配置资产维护区")).toBeInTheDocument();
+    expect(screen.getByText("独立配置资产维护区：业务视图")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "维护字段目录" }));
     expect(screen.getByText("字段目录维护抽屉")).toBeInTheDocument();
   });

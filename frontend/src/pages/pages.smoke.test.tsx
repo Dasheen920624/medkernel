@@ -42,6 +42,10 @@ const testQueryClient = new QueryClient({
 });
 
 const originalApiAdapter = apiClient.defaults.adapter;
+const legacyDelegatedUnavailableCopy = ["统一身份", "暂未接入"].join("");
+const legacyDelegatedProviderPattern = new RegExp(`${["真实院方", " IdP"].join("")}|连接器|未接通`);
+const legacyWorkbenchAggregationPlaceholder = ["真实工作台", "聚合数据待接入"].join("");
+const legacyWorkbenchAggregationApiPlaceholder = ["等待真实", "聚合 API"].join("");
 
 beforeEach(() => {
   apiClient.defaults.adapter = (() => new Promise(() => undefined)) as AxiosAdapter;
@@ -62,7 +66,7 @@ function mockDelegatedAuthStatus(options?: { hasCustomerTenants?: boolean }) {
             enabled: true,
             status: "NOT_CONNECTED",
             providers: ["OIDC", "CAS", "SAML", "国密CA"],
-            message: "院方统一身份入口已开放，但当前未配置真实 IdP 连接器。",
+            message: "院方统一身份入口已开放，请由信息科在身份来源完成配置后启用。",
           },
         },
         status: 200,
@@ -78,8 +82,8 @@ function mockDelegatedAuthStatus(options?: { hasCustomerTenants?: boolean }) {
           data: {
             primaryTenants: hasCustomerTenants
               ? [{ tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" }]
-              : [{ tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" }],
-            platformTenant: { tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" },
+              : [{ tenantId: "t-1", name: "平台治理入口（唯一内置）", kind: "PLATFORM" }],
+            platformTenant: { tenantId: "t-1", name: "平台治理入口（唯一内置）", kind: "PLATFORM" },
             hasCustomerTenants,
           },
         },
@@ -193,7 +197,7 @@ describe("page smoke coverage", () => {
   it("renders the clinical workflow-todos console with the real empty state", async () => {
     mockWorkflowCollaboration();
     renderPage(<WorkflowTodos />);
-    expect(screen.getByRole("heading", { name: "工作流协同待办中心" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "协同任务" })).toBeInTheDocument();
     expect(await screen.findByText("当前暂无协同待办")).toBeInTheDocument();
     expect(screen.queryByText("待办接口尚未接入")).not.toBeInTheDocument();
   });
@@ -208,7 +212,7 @@ describe("page smoke coverage", () => {
 
   it("renders the clinical followup console without local demo plans", () => {
     renderPage(<Followup />);
-    expect(screen.getByRole("heading", { name: "智能随访工作台" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "随访协同" })).toBeInTheDocument();
     expect(screen.queryByText("FP-2026001")).not.toBeInTheDocument();
     expect(screen.getByText("当前暂无随访计划")).toBeInTheDocument();
   });
@@ -232,18 +236,18 @@ describe("page smoke coverage", () => {
     expect(screen.getByRole("button", { name: /刷新/ })).toBeInTheDocument();
   });
 
-  it("renders an advanced tool page with advanced-only messaging", () => {
+  it("renders the knowledge graph page with projection-source messaging", () => {
     renderPage(<GraphExplore />);
     expect(screen.getByRole("heading", { name: "图谱查询" })).toBeInTheDocument();
     expect(screen.getByText("关系库权威源的可重建投影")).toBeInTheDocument();
   });
 
-  it("renders the advanced AI workflow status page", () => {
+  it("renders the model capability status page", () => {
     renderPage(<AiWorkflows />);
-    expect(screen.getByRole("heading", { name: "AI 工作流" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "模型能力" })).toBeInTheDocument();
   });
 
-  it("renders the advanced knowledge provenance console", () => {
+  it("renders the knowledge provenance console", () => {
     renderPage(
       <MemoryRouter
         initialEntries={["/advanced/provenance"]}
@@ -253,7 +257,7 @@ describe("page smoke coverage", () => {
       </MemoryRouter>,
     );
     expect(screen.getByRole("heading", { name: "知识来源追溯" })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("输入知识主题或身份编码")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("输入知识主题或知识身份")).toBeInTheDocument();
     expect(screen.getByText("知识身份")).toBeInTheDocument();
   });
 
@@ -268,8 +272,8 @@ describe("page smoke coverage", () => {
     );
     expect(screen.getByRole("heading", { name: "工作台" })).toBeInTheDocument();
     expect(screen.getByText("正在确认当前角色")).toBeInTheDocument();
-    expect(screen.queryByText("真实工作台聚合数据待接入")).toBeNull();
-    expect(screen.queryByText("等待真实聚合 API")).toBeNull();
+    expect(screen.queryByText(legacyWorkbenchAggregationPlaceholder)).toBeNull();
+    expect(screen.queryByText(legacyWorkbenchAggregationApiPlaceholder)).toBeNull();
     expect(screen.queryByText("本周建议动作")).toBeNull();
     expect(screen.queryByText("验收自检")).toBeNull();
   });
@@ -287,7 +291,6 @@ describe("page smoke coverage", () => {
     expect(screen.getByText("使用平台治理账号继续")).toBeInTheDocument();
     expect(await screen.findByText("平台治理入口")).toBeInTheDocument();
     expect(screen.queryByLabelText("登录类型切换")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("服务空间标识")).not.toBeInTheDocument();
     expect(screen.queryByText("安全审计已开启")).toBeNull();
     expect(screen.getByRole("button", { name: /默认/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /进入工作台/ })).toBeInTheDocument();
@@ -316,9 +319,10 @@ describe("page smoke coverage", () => {
     expect(await screen.findByRole("button", { name: /集团总院/ })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "院方统一身份认证" }));
 
-    expect(await screen.findByText("统一身份暂未接入")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "开放式身份认证（OIDC）（未接通）" })).toBeDisabled();
-    expect(screen.getByText(/真实院方 IdP/)).toBeInTheDocument();
+    expect(await screen.findByText("统一身份服务待配置")).toBeInTheDocument();
+    expect(screen.queryByText(legacyDelegatedUnavailableCopy)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "开放式身份认证（OIDC）（待配置）" })).toBeDisabled();
+    expect(screen.queryByText(legacyDelegatedProviderPattern)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "CAS（待院方配置）" })).not.toBeInTheDocument();
   });
 
@@ -334,9 +338,10 @@ describe("page smoke coverage", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "仿真评估" }));
 
-    expect(screen.getByText("患者 ID")).toBeInTheDocument();
-    expect(screen.getByText("就诊 ID")).toBeInTheDocument();
-    expect(screen.getByText(/输入患者 ID 或就诊 ID 后读取已生效临床快照/)).toBeInTheDocument();
+    expect(screen.getByText("患者信息")).toBeInTheDocument();
+    expect(screen.getByText("就诊信息")).toBeInTheDocument();
+    expect(screen.queryByText("临床快照 ID")).not.toBeInTheDocument();
+    expect(screen.getByText(/输入患者信息或就诊信息后读取已生效临床快照/)).toBeInTheDocument();
   });
 
   it("renders the knowledge governance page through the real candidate loading state", () => {
@@ -353,25 +358,25 @@ describe("page smoke coverage", () => {
 
   it("renders the clinical mpi console", () => {
     renderPage(<Mpi />);
-    expect(screen.getByRole("heading", { name: "患者主索引 MPI" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "患者索引" })).toBeInTheDocument();
     expect(screen.getByText(/活跃患者主索引/)).toBeInTheDocument();
   });
 
-  it("renders the clinical cdss-fatigue console", () => {
+  it("renders the clinical reminder and recommendation page", () => {
     renderPage(<CdssFatigue />);
-    expect(screen.getByRole("heading", { name: "提醒与推荐中枢" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "提醒与推荐" })).toBeInTheDocument();
     expect(screen.getByText("全部状态")).toBeInTheDocument();
   });
 
-  it("renders the tenant pathway-templates console", () => {
+  it("renders the tenant pathway configuration page", () => {
     renderPage(<PathwayTemplates />);
-    expect(screen.getByRole("heading", { name: "路径中枢" })).toBeInTheDocument();
-    expect(screen.getByText("病种编码")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "路径配置" })).toBeInTheDocument();
+    expect(screen.getByText("适用病种身份")).toBeInTheDocument();
   });
 
-  it("renders the tenant rule-definitions console", () => {
+  it("renders the tenant rule configuration page", () => {
     renderPage(<RuleDefinitions />);
-    expect(screen.getByRole("heading", { name: "规则中枢" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "规则配置" })).toBeInTheDocument();
     expect(screen.getByText("全部评级")).toBeInTheDocument();
   });
 

@@ -15,7 +15,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 引擎数据服务层 · 知识检索服务（DATASVC-01 PR2-c，受控工具 {@code searchKnowledge} 上游）。
+ * 引擎数据服务层 · 知识检索服务（DATASVC-01，受控工具 {@code searchKnowledge} 上游）。
  *
  * <p>按关键词只读检索 {@code knowledge_identity}（engine-knowledge 所属，仅读不写、不违域归属）并强制租户隔离，
  * 映射为 D1 已发布资产元数据命中列表，服务端分页。落点：FR-1 读模型、FR-2 数据分级（D1 无患者字段）、FR-6 审计、

@@ -90,6 +90,8 @@ if grep -q 'mvn -B -q' "$ROOT/deploy/docker/backend/Dockerfile"; then
 fi
 grep -q 'maven.test.skip=true' "$ROOT/deploy/docker/backend/Dockerfile"
 grep -A4 'location = /healthz' "$ROOT/deploy/docker/frontend/nginx.conf" | grep -q 'proxy_set_header Host \$host;'
+grep -A8 'location /medkernel/' "$ROOT/deploy/docker/frontend/nginx.conf" | grep -q 'proxy_read_timeout 240s;'
+grep -A8 'location /medkernel/' "$ROOT/deploy/onprem/templates/medkernel.nginx.conf" | grep -q 'proxy_read_timeout 240s;'
 
 EMBED_BLOCK="$(grep -A6 'location = /embed/launch' "$ROOT/deploy/docker/frontend/nginx.conf")"
 grep -q 'frame-ancestors \*' <<<"$EMBED_BLOCK"
@@ -104,6 +106,9 @@ if grep -q 'X-Frame-Options' <<<"$ONPREM_EMBED_BLOCK"; then
   echo "院内部署嵌入启动页不得返回 X-Frame-Options" >&2
   exit 1
 fi
+grep -Fq 'v3/api-docs' "$ROOT/deploy/onprem/templates/medkernel.nginx.conf"
+grep -Fq 'swagger-ui' "$ROOT/deploy/onprem/templates/medkernel.nginx.conf"
+grep -Fq 'actuator/(?!health)' "$ROOT/deploy/onprem/templates/medkernel.nginx.conf"
 grep -q 'pg_dump' "$ROOT/deploy/docker/scripts/backup.sh"
 grep -q 'checksum_file' "$ROOT/deploy/docker/scripts/backup.sh"
 grep -q '.sha256' "$ROOT/deploy/docker/scripts/backup.sh"

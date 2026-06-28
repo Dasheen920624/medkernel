@@ -13,7 +13,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 引擎数据服务层 · 知识存在性服务（DATASVC-01 PR2-b，受控工具 {@code checkKnowledgeExistence} 上游）。
+ * 引擎数据服务层 · 知识存在性服务（DATASVC-01，受控工具 {@code checkKnowledgeExistence} 上游）。
  *
  * <p>对知识身份编码回答「是否存在」，只读现有 {@code knowledge_identity}（engine-knowledge 所属，仅读不写、
  * 不违域归属）并强制租户隔离。落点：FR-1 读模型、FR-2 数据分级（D1 已发布资产元数据，无患者字段）、FR-6 全审计、

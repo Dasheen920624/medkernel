@@ -2,6 +2,7 @@
 
 import {
   buildRehearsalPlan,
+  formatFullKnowledgeProgress,
   readRehearsalConfig,
   runFullKnowledgeRehearsal,
   writeEvidenceAtomic,
@@ -26,7 +27,12 @@ async function main() {
           mfaRequired: false,
         },
       }
-    : await runFullKnowledgeRehearsal(config);
+    : await runFullKnowledgeRehearsal({
+        ...config,
+        onProgress: (event) => {
+          process.stdout.write(`${formatFullKnowledgeProgress(event)}\n`);
+        },
+      });
   writeEvidenceAtomic(config.evidencePath, evidence);
   process.stdout.write(
     `${evidence.status} ${config.manifest.manifestCode} evidence=${config.evidencePath}\n`,

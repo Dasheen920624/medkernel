@@ -30,7 +30,7 @@ class AuditRecorderTest {
     void recordBuildsCompleteAuditEventFromRequestAndSecurityContext() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-recorder",
-            new OrgScope("t-1", "g-1", "h-1", null, null, "d-1", null),
+            new OrgScope("t-1", "g-1", "h-1", null, null, "d-1", null, null),
             "doctor-1"));
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
             "doctor-1",

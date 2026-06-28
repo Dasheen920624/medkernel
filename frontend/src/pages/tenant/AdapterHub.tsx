@@ -69,10 +69,10 @@ import {
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ADAPTER_PROTOCOL_OPTIONS, canAccessRoute, findRouteByPath } from "@/shared/config/routes";
-import { customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
-import { useExpertModeStore } from "@/shared/lib/expertModeStore";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { OrgUnitSelect } from "@/shared/ui/OrgUnitSelect";
-import { canUseExpertMode } from "@/shared/ui/expertModeAccess";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { PageState } from "@/shared/ui/PageState";
 import type { PageStateKind } from "@/shared/ui/PageState.contract";
@@ -99,6 +99,12 @@ const LOG_PAGE_SIZE = 10;
 const ADAPTER_PAGE_SIZE = 20;
 const INTEGRATION_MAINTENANCE_PAGE_SIZE = 20;
 
+const signaturePreviewEventOptions = [
+  { value: "clinical.test", label: "临床事件联调" },
+  { value: "quality.alert.opened", label: "质控事件联调" },
+  { value: "mpi.patient.updated", label: "患者主数据变更" },
+];
+
 interface AdapterFieldMappingFormValue {
   sourcePath: string;
   targetPath: string;
@@ -117,6 +123,14 @@ interface AdapterFormValue {
   requestTimeoutMs?: number;
   fieldMappings?: AdapterFieldMappingFormValue[];
   configJson?: string;
+}
+
+interface SignaturePreviewFormValue {
+  eventType?: string;
+  samplePatient?: string;
+  sampleEncounter?: string;
+  summary?: string;
+  payload?: string;
 }
 
 const HTTP_PROTOCOLS = new Set(["REST", "FHIR", "WEBHOOK", "WEBSERVICE"]);
@@ -172,6 +186,17 @@ const TRUST_LEVEL_COLOR: Record<string, string> = {
   LOW: "red",
 };
 
+const TRUST_LEVEL_LABEL: Record<string, string> = {
+  HIGH: "高可信",
+  MEDIUM: "中可信",
+  LOW: "低可信",
+};
+
+const MESSAGE_DIRECTION_LABEL: Record<string, string> = {
+  INBOUND: "入站",
+  OUTBOUND: "出站",
+};
+
 const MASTER_DATA_RESOURCE_LABEL: Record<
   MasterDataReconciliation["resources"][number]["resourceType"],
   string
@@ -207,6 +232,30 @@ function percent(numerator: number, denominator: number) {
 
 function healthTag(status: string) {
   return <Tag color={HEALTH_COLOR[status] ?? "default"}>{customerEnumLabel(status)}</Tag>;
+}
+
+function trustLevelLabel(value: string) {
+  return TRUST_LEVEL_LABEL[value] ?? customerEnumLabel(value);
+}
+
+function messageDirectionLabel(value: string) {
+  return MESSAGE_DIRECTION_LABEL[value] ?? customerEnumLabel(value);
+}
+
+function evidenceText(
+  rawValue: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  businessText: string,
+  emptyText = "暂无",
+) {
+  if (!evidenceDetailsEnabled) return businessText;
+  const normalized = rawValue?.trim();
+  return normalized && normalized.length > 0 ? normalized : emptyText;
+}
+
+function bindingText(rawValue: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) return evidenceText(rawValue, true, "已绑定", "未绑定");
+  return rawValue ? "已绑定" : "未绑定";
 }
 
 function requiredSourceStatusColor(item: AdapterHubRequiredSourceStatus) {
@@ -256,6 +305,25 @@ function pageStateFor({
   return "ready";
 }
 
+function buildSignaturePreviewPayload(
+  values: SignaturePreviewFormValue,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled && values.payload?.trim()) {
+    return values.payload.trim();
+  }
+  const payload: Record<string, string> = {
+    event: values.eventType?.trim() || "clinical.test",
+  };
+  const patient = values.samplePatient?.trim();
+  const encounter = values.sampleEncounter?.trim();
+  const summary = values.summary?.trim();
+  if (patient) payload.patient = patient;
+  if (encounter) payload.encounter = encounter;
+  if (summary) payload.summary = summary;
+  return JSON.stringify(payload);
+}
+
 export default function AdapterHub() {
   const [adapterPage, setAdapterPage] = useState(1);
   const [logPage, setLogPage] = useState(1);
@@ -285,9 +353,13 @@ export default function AdapterHub() {
   );
 
   const security = useSecurityProfile();
+  const profile = security.data;
+  const canAccess = !!profile && canAccessRoute(route, profile);
+  const hasHospitalRuntimeScope = Boolean(profile?.dataScope.hospitalId);
+  const canLoadDataContract = canAccess && hasHospitalRuntimeScope;
   const adaptersQuery = useIntegrationAdapters({ page: adapterPage, size: ADAPTER_PAGE_SIZE });
   const statusQuery = useAdapterHubStatus();
-  const dataContractQuery = useIntegrationDataContract(true);
+  const dataContractQuery = useIntegrationDataContract(canLoadDataContract);
   const masterDataQuery = useMasterDataReconciliation(
     masterDataSource,
     masterDataSource.length > 0,
@@ -316,10 +388,8 @@ export default function AdapterHub() {
   const createWebhookMutation = useCreateWebhook();
   const testWebhookSignatureMutation = useTestWebhookSignature();
   const registerRegionalSourceMutation = useRegisterRegionalSource();
-  const profile = security.data;
-  const globalExpertMode = useExpertModeStore((state) => state.enabled);
-  const expertMode = canUseExpertMode(profile) && globalExpertMode;
-  const canAccess = !!profile && canAccessRoute(route, profile);
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(profile) && globalEvidenceDetails;
   const canWrite = hasPermission(profile, "integration.write");
   const canExecute = hasPermission(profile, "integration.execute");
 
@@ -366,7 +436,7 @@ export default function AdapterHub() {
   async function handleCreateAdapter() {
     try {
       const values = (await adapterForm.validateFields()) as AdapterFormValue;
-      const configJson = expertMode
+      const configJson = evidenceDetailsEnabled
         ? values.configJson?.trim()
         : JSON.stringify({
             ...(usesHttpConnector
@@ -516,14 +586,14 @@ export default function AdapterHub() {
 
   async function handleTestWebhookSignature() {
     try {
-      const values = await signatureForm.validateFields();
+      const values = (await signatureForm.validateFields()) as SignaturePreviewFormValue;
       if (!signatureWebhookId) {
         message.warning("请选择回调通道。");
         return;
       }
       const result = await testWebhookSignatureMutation.mutateAsync({
         webhookId: signatureWebhookId,
-        payload: values.payload,
+        payload: buildSignaturePreviewPayload(values, evidenceDetailsEnabled),
       });
       setSignatureResult(result);
     } catch (error: unknown) {
@@ -573,7 +643,9 @@ export default function AdapterHub() {
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{record.name}</Text>
-          <Text className={styles.identifier}>{record.adapterId}</Text>
+          <Text className={styles.identifier}>
+            {evidenceText(record.adapterId, evidenceDetailsEnabled, "适配器已登记")}
+          </Text>
         </Space>
       ),
     },
@@ -640,23 +712,36 @@ export default function AdapterHub() {
 
   const logColumns: ColumnsType<IntegrationMessageLog> = [
     {
-      title: "消息与追踪号",
+      title: "消息证据",
       key: "messageId",
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{record.messageId}</Text>
-          <Text className={styles.identifier}>追踪号：{record.traceId}</Text>
+          <Text strong>
+            {evidenceText(record.messageId, evidenceDetailsEnabled, "消息证据已记录")}
+          </Text>
+          <Text className={styles.identifier}>
+            {evidenceDetailsEnabled ? `追踪号：${record.traceId ?? "暂无"}` : "追踪证据已记录"}
+          </Text>
         </Space>
       ),
     },
     { title: "系统", dataIndex: "systemName", key: "systemName" },
-    { title: "方向", dataIndex: "direction", key: "direction" },
+    {
+      title: "方向",
+      dataIndex: "direction",
+      key: "direction",
+      render: (value) => messageDirectionLabel(String(value)),
+    },
     { title: "摘要", dataIndex: "payloadSummary", key: "payloadSummary" },
     {
       title: "状态",
       dataIndex: "status",
       key: "status",
-      render: (value) => <Tag color={LOG_STATUS_COLOR[String(value)] ?? "default"}>{value}</Tag>,
+      render: (value) => (
+        <Tag color={LOG_STATUS_COLOR[String(value)] ?? "default"}>
+          {customerEnumLabel(String(value))}
+        </Tag>
+      ),
     },
     {
       title: "重试",
@@ -709,7 +794,9 @@ export default function AdapterHub() {
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{record.name}</Text>
-          <Text className={styles.identifier}>{record.onboardingId}</Text>
+          <Text className={styles.identifier}>
+            {evidenceText(record.onboardingId, evidenceDetailsEnabled, "接入申请已登记")}
+          </Text>
         </Space>
       ),
     },
@@ -720,7 +807,9 @@ export default function AdapterHub() {
       dataIndex: "status",
       key: "status",
       render: (value) => (
-        <Tag color={ONBOARDING_STATUS_COLOR[String(value)] ?? "default"}>{value}</Tag>
+        <Tag color={ONBOARDING_STATUS_COLOR[String(value)] ?? "default"}>
+          {customerEnumLabel(String(value))}
+        </Tag>
       ),
     },
     {
@@ -768,11 +857,24 @@ export default function AdapterHub() {
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{record.name}</Text>
-          <Text className={styles.identifier}>{record.webhookId}</Text>
+          <Text className={styles.identifier}>
+            {evidenceText(record.webhookId, evidenceDetailsEnabled, "回调通道已登记")}
+          </Text>
         </Space>
       ),
     },
-    { title: "回调地址", dataIndex: "callbackUrl", key: "callbackUrl" },
+    {
+      title: "回调地址",
+      dataIndex: "callbackUrl",
+      key: "callbackUrl",
+      render: (value) =>
+        evidenceText(
+          String(value ?? ""),
+          evidenceDetailsEnabled,
+          "回调地址已配置",
+          "未配置回调地址",
+        ),
+    },
     { title: "订阅事件", dataIndex: "eventsSubscribed", key: "eventsSubscribed" },
     {
       title: "状态",
@@ -800,7 +902,9 @@ export default function AdapterHub() {
         <Space direction="vertical" size={0}>
           <Text strong>{record.regionalNetworkName}</Text>
           <Text type="secondary">{record.sourceOrganizationName}</Text>
-          <Text className={styles.identifier}>来源编号：{record.sourceId}</Text>
+          <Text className={styles.identifier}>
+            {evidenceDetailsEnabled ? `来源编号：${record.sourceId}` : "来源已登记"}
+          </Text>
         </Space>
       ),
     },
@@ -808,7 +912,11 @@ export default function AdapterHub() {
       title: "可信等级",
       dataIndex: "trustLevel",
       key: "trustLevel",
-      render: (value) => <Tag color={TRUST_LEVEL_COLOR[String(value)] ?? "default"}>{value}</Tag>,
+      render: (value) => (
+        <Tag color={TRUST_LEVEL_COLOR[String(value)] ?? "default"}>
+          {trustLevelLabel(String(value))}
+        </Tag>
+      ),
     },
     { title: "可信证据", dataIndex: "evidenceText", key: "evidenceText" },
     { title: "组织范围", dataIndex: "orgPath", key: "orgPath" },
@@ -817,8 +925,12 @@ export default function AdapterHub() {
       key: "binding",
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text type="secondary">适配器：{record.adapterId ?? "未绑定"}</Text>
-          <Text type="secondary">接入申请：{record.onboardingId ?? "未绑定"}</Text>
+          <Text type="secondary">
+            适配器：{bindingText(record.adapterId, evidenceDetailsEnabled)}
+          </Text>
+          <Text type="secondary">
+            接入申请：{bindingText(record.onboardingId, evidenceDetailsEnabled)}
+          </Text>
         </Space>
       ),
     },
@@ -920,6 +1032,12 @@ export default function AdapterHub() {
               loading={dataContractQuery.isFetching}
               contract={dataContractQuery.data}
               error={dataContractQuery.isError}
+              evidenceDetailsEnabled={evidenceDetailsEnabled}
+              unavailableReason={
+                !hasHospitalRuntimeScope
+                  ? "请先切换到具体医院后查看当前生效版本字段要求。"
+                  : undefined
+              }
             />
           </div>
 
@@ -946,13 +1064,20 @@ export default function AdapterHub() {
               type={HEALTH_ALERT_TYPE[healthResult.healthStatus] ?? "warning"}
               showIcon
               message={HEALTH_ALERT_MESSAGE[healthResult.healthStatus] ?? "外部系统当前不可达"}
-              description={`适配器 ${healthResult.adapterId} 返回 ${healthResult.healthStatus}，RTT ${
+              description={`适配器 ${
+                evidenceDetailsEnabled ? healthResult.adapterId : healthResult.name
+              } 当前${customerEnumLabel(healthResult.healthStatus)}，RTT ${
                 healthResult.rttMs > 0 ? `${healthResult.rttMs}ms` : "未测量"
-              }。页面仅展示后端真实状态。`}
+              }。页面仅展示平台记录的真实状态。`}
             />
           )}
 
-          {qualityReport && <QualityReportCard report={qualityReport} />}
+          {qualityReport && (
+            <QualityReportCard
+              report={qualityReport}
+              evidenceDetailsEnabled={evidenceDetailsEnabled}
+            />
+          )}
 
           <Tabs
             defaultActiveKey="adapters"
@@ -1093,13 +1218,16 @@ export default function AdapterHub() {
                 children: (
                   <div className={styles.sectionStack}>
                     {qualityReport ? (
-                      <QualityReportCard report={qualityReport} />
+                      <QualityReportCard
+                        report={qualityReport}
+                        evidenceDetailsEnabled={evidenceDetailsEnabled}
+                      />
                     ) : (
                       <Alert
                         type="info"
                         showIcon
                         message="尚未生成本轮数据质量报告"
-                        description="点击页面右上角“生成质量报告”，后端会基于当前服务空间的适配器、字段映射和探活事实生成快照。"
+                        description="点击页面右上角“生成质量报告”，平台会基于当前服务机构的适配器、字段映射和探活事实生成快照。"
                       />
                     )}
                     <div className={styles.qualityGrid}>
@@ -1117,7 +1245,7 @@ export default function AdapterHub() {
                   <div className={styles.sectionStack}>
                     <div className={styles.toolbar}>
                       <Text type="secondary">
-                        接入申请必须先完成鉴权、字段映射和健康检查，再由后端推进状态。
+                        接入申请必须先完成鉴权、字段映射和健康检查，再由平台推进状态。
                       </Text>
                       <Button
                         icon={<PlusOutlined aria-hidden="true" />}
@@ -1174,25 +1302,54 @@ export default function AdapterHub() {
                       scroll={{ x: 900 }}
                     />
                     <Card title="签名预览" className={styles.sectionCard}>
-                      <Form form={signatureForm} layout="vertical">
+                      <Form
+                        form={signatureForm}
+                        layout="vertical"
+                        initialValues={{
+                          eventType: "clinical.test",
+                          samplePatient: "联调患者（非真实）",
+                          sampleEncounter: "门诊联调就诊",
+                          summary: "签名预览联调事件",
+                        }}
+                      >
                         <Form.Item label="回调通道" required>
                           <Select
                             value={signatureWebhookId}
                             onChange={setSignatureWebhookId}
                             options={webhooks.map((item) => ({
-                              label: `${item.name}（${item.webhookId}）`,
+                              label: evidenceDetailsEnabled
+                                ? `${item.name}（${item.webhookId}）`
+                                : item.name,
                               value: item.webhookId,
                             }))}
                             placeholder="选择已登记通道"
                           />
                         </Form.Item>
                         <Form.Item
-                          name="payload"
-                          label="签名预览载荷"
-                          rules={[{ required: true, message: "请输入签名预览载荷" }]}
+                          name="eventType"
+                          label="预览事件"
+                          rules={[{ required: true, message: "请选择预览事件" }]}
                         >
-                          <Input.TextArea rows={3} placeholder='例如 {"event":"clinical.test"}' />
+                          <Select options={signaturePreviewEventOptions} />
                         </Form.Item>
+                        <Form.Item name="samplePatient" label="样例患者（非真实）">
+                          <Input placeholder="例如 联调患者（非真实）" />
+                        </Form.Item>
+                        <Form.Item name="sampleEncounter" label="样例就诊（非真实）">
+                          <Input placeholder="例如 门诊联调就诊" />
+                        </Form.Item>
+                        <Form.Item name="summary" label="事件摘要">
+                          <Input.TextArea rows={2} placeholder="例如 签名预览联调事件" />
+                        </Form.Item>
+                        {evidenceDetailsEnabled ? (
+                          <Form.Item
+                            name="payload"
+                            label="签名预览载荷"
+                            extra="填写后将覆盖上方业务字段生成的载荷，仅用于核查服务契约。"
+                          >
+                            <Input.TextArea rows={3} placeholder='例如 {"event":"clinical.test"}' />
+                          </Form.Item>
+                        ) : null}
                         <Button
                           loading={testWebhookSignatureMutation.isPending}
                           disabled={!canExecute || webhooks.length === 0}
@@ -1272,7 +1429,7 @@ export default function AdapterHub() {
         confirmLoading={createWebhookMutation.isPending}
       >
         <Form form={webhookForm} layout="vertical">
-          <Form.Item name="webhookId" label="回调标识" rules={[{ required: true }]}>
+          <Form.Item name="webhookId" label="稳定回调通道身份" rules={[{ required: true }]}>
             <Input placeholder="例如 clinical-events" />
           </Form.Item>
           <Form.Item name="name" label="通道名称" rules={[{ required: true }]}>
@@ -1307,7 +1464,7 @@ export default function AdapterHub() {
           type="warning"
           showIcon
           message="共享密钥仅显示一次"
-          description="请立即保存到受控凭证系统。关闭后，列表、测试和日志均不会再次返回该密钥。"
+          description="请立即保存到受控凭证系统。关闭后，列表、签名预览和日志均不会再次返回该密钥。"
         />
         <Text className={styles.secretValue}>{createdWebhook?.sharedSecret}</Text>
       </Modal>
@@ -1322,13 +1479,13 @@ export default function AdapterHub() {
         confirmLoading={registerRegionalSourceMutation.isPending}
       >
         <Form form={regionalSourceForm} layout="vertical">
-          <Form.Item name="sourceId" label="来源标识" rules={[{ required: true }]}>
+          <Form.Item name="sourceId" label="稳定来源身份" rules={[{ required: true }]}>
             <Input placeholder="例如 regional-lab" />
           </Form.Item>
           <Form.Item name="regionalNetworkName" label="区域网络" rules={[{ required: true }]}>
             <Input placeholder="区域检验互认平台" />
           </Form.Item>
-          <Form.Item name="sourceOrganizationId" label="来源机构标识" rules={[{ required: true }]}>
+          <Form.Item name="sourceOrganizationId" label="来源机构身份" rules={[{ required: true }]}>
             <Input placeholder="来源机构业务标识" />
           </Form.Item>
           <Form.Item
@@ -1342,9 +1499,9 @@ export default function AdapterHub() {
             <Select
               placeholder="选择可信等级"
               options={[
-                { label: riskLabel("HIGH"), value: "HIGH" },
-                { label: riskLabel("MEDIUM"), value: "MEDIUM" },
-                { label: riskLabel("LOW"), value: "LOW" },
+                { label: trustLevelLabel("HIGH"), value: "HIGH" },
+                { label: trustLevelLabel("MEDIUM"), value: "MEDIUM" },
+                { label: trustLevelLabel("LOW"), value: "LOW" },
               ]}
             />
           </Form.Item>
@@ -1409,8 +1566,8 @@ export default function AdapterHub() {
             fieldMappings: [{}],
           }}
         >
-          <Form.Item name="adapterId" label="适配器标识" rules={[{ required: true }]}>
-            <Input placeholder="输入真实适配器标识" />
+          <Form.Item name="adapterId" label="稳定适配器身份" rules={[{ required: true }]}>
+            <Input placeholder="输入稳定适配器身份" />
           </Form.Item>
           <Form.Item name="name" label="系统名称" rules={[{ required: true }]}>
             <Input placeholder="输入院内系统名称" />
@@ -1418,7 +1575,7 @@ export default function AdapterHub() {
           <Form.Item name="protocolType" label="接入协议" rules={[{ required: true }]}>
             <Select options={[...ADAPTER_PROTOCOL_OPTIONS]} />
           </Form.Item>
-          {expertMode ? (
+          {evidenceDetailsEnabled ? (
             <Form.Item
               name="configJson"
               label="连接与字段映射配置"
@@ -1435,7 +1592,7 @@ export default function AdapterHub() {
                 },
               ]}
             >
-              <Input.TextArea rows={6} placeholder="输入后端契约支持的适配器配置文本" />
+              <Input.TextArea rows={6} placeholder="输入服务契约支持的适配器配置文本" />
             </Form.Item>
           ) : (
             <>
@@ -1551,8 +1708,8 @@ export default function AdapterHub() {
         cancelText="取消"
       >
         <Form form={onboardingForm} layout="vertical">
-          <Form.Item name="onboardingId" label="接入申请标识" rules={[{ required: true }]}>
-            <Input placeholder="输入真实接入申请标识" />
+          <Form.Item name="onboardingId" label="稳定接入申请身份" rules={[{ required: true }]}>
+            <Input placeholder="输入稳定接入申请身份" />
           </Form.Item>
           <Form.Item name="name" label="接入申请名称" rules={[{ required: true }]}>
             <Input placeholder="输入接入申请名称" />
@@ -1568,7 +1725,7 @@ export default function AdapterHub() {
               <Option value="FHIR">FHIR 门面</Option>
             </Select>
           </Form.Item>
-          <Form.Item name="adapterId" label="绑定适配器标识">
+          <Form.Item name="adapterId" label="绑定适配器">
             <Select
               allowClear
               showSearch
@@ -1605,7 +1762,7 @@ export default function AdapterHub() {
               notFoundContent="暂无可选组织，请先维护组织架构"
             />
           </Form.Item>
-          <Form.Item name="callbackWebhookId" label="回调通道标识">
+          <Form.Item name="callbackWebhookId" label="回调通道">
             <Select
               allowClear
               showSearch
@@ -1697,10 +1854,14 @@ function DataContractPanel({
   loading,
   contract,
   error,
+  evidenceDetailsEnabled,
+  unavailableReason,
 }: {
   loading: boolean;
   contract?: IntegrationDataContractResponse;
   error: boolean;
+  evidenceDetailsEnabled: boolean;
+  unavailableReason?: string;
 }) {
   const resourceCount = contract ? Object.keys(contract.resources).length : 0;
   const fieldColumns: ColumnsType<IntegrationDataContractResponse["fields"][number]> = [
@@ -1731,16 +1892,27 @@ function DataContractPanel({
     <Card title="数据接入契约" className={styles.sectionCard}>
       <Space direction="vertical" size="middle" className="mk-full-width">
         {loading && !contract && <Text type="secondary">正在读取当前机构生效版本的字段要求…</Text>}
+        {!loading && !error && !contract && unavailableReason && (
+          <Alert type="info" showIcon message={unavailableReason} />
+        )}
         {error && <Alert type="warning" showIcon message="数据接入契约暂时不可用" />}
         {contract ? (
           <Space direction="vertical" size="small">
-            <Text strong>{contract.contractId}</Text>
+            <Text strong>
+              {evidenceText(contract.contractId, evidenceDetailsEnabled, "当前机构字段契约已生成")}
+            </Text>
             <Space wrap>
-              <Tag color="blue">{contract.schemaVersion}</Tag>
+              <Tag color="blue">
+                {evidenceText(contract.schemaVersion, evidenceDetailsEnabled, "字段契约版本已确认")}
+              </Tag>
               <Text>资源 {resourceCount} 类</Text>
               <Text>字段 {contract.fields.length} 项</Text>
             </Space>
-            <Text type="secondary">{contract.accessGuide[0]}</Text>
+            <Text type="secondary">
+              {evidenceDetailsEnabled
+                ? contract.accessGuide[0]
+                : "字段要求由当前机构生效版本自动确定"}
+            </Text>
             <Table
               rowKey="fieldPath"
               dataSource={contract.fields}
@@ -1751,14 +1923,22 @@ function DataContractPanel({
             />
           </Space>
         ) : (
-          !loading && !error && <Text type="secondary">当前医院尚无可读取的数据接入契约。</Text>
+          !loading &&
+          !error &&
+          !unavailableReason && <Text type="secondary">当前医院尚无可读取的数据接入契约。</Text>
         )}
       </Space>
     </Card>
   );
 }
 
-function QualityReportCard({ report }: { report: DataQualityReport }) {
+function QualityReportCard({
+  report,
+  evidenceDetailsEnabled,
+}: {
+  report: DataQualityReport;
+  evidenceDetailsEnabled: boolean;
+}) {
   return (
     <Card title="数据质量报告" className={styles.sectionCard}>
       <div className={styles.qualityGrid}>
@@ -1767,8 +1947,12 @@ function QualityReportCard({ report }: { report: DataQualityReport }) {
         <MetricCard title="时效率" value={report.timelinessRate} suffix="%" />
       </div>
       <Descriptions size="small" column={2}>
-        <Descriptions.Item label="报告 ID">{report.reportId}</Descriptions.Item>
-        <Descriptions.Item label="追踪号">{report.traceId ?? "暂无"}</Descriptions.Item>
+        <Descriptions.Item label="报告">
+          {evidenceText(report.reportId, evidenceDetailsEnabled, "数据质量报告已生成")}
+        </Descriptions.Item>
+        <Descriptions.Item label="追踪">
+          {evidenceDetailsEnabled ? (report.traceId ?? "暂无") : "追踪证据已记录"}
+        </Descriptions.Item>
         <Descriptions.Item label="断连数量">{report.notConnectedCount}</Descriptions.Item>
         <Descriptions.Item label="配置非法">{report.misconfiguredCount}</Descriptions.Item>
         <Descriptions.Item label="缺口摘要" span={2}>

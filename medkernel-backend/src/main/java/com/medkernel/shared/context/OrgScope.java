@@ -29,28 +29,6 @@ public record OrgScope(
     String specialtyId
 ) {
 
-    /**
-     * 兼容不携带病区维度的既有调用；新代码应优先使用完整构造器。
-     */
-    public OrgScope(
-            String tenantId,
-            String groupId,
-            String hospitalId,
-            String campusId,
-            String siteId,
-            String departmentId,
-            String specialtyId) {
-        this(
-            tenantId,
-            groupId,
-            hospitalId,
-            campusId,
-            siteId,
-            departmentId,
-            null,
-            specialtyId);
-    }
-
     public static OrgScope empty() {
         return new OrgScope(null, null, null, null, null, null, null, null);
     }

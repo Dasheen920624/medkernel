@@ -86,19 +86,19 @@ export interface SandboxCatalogScenario {
 
 export const SANDBOX_SCENARIOS: SandboxScenario[] = [
   {
-    id: "backend-catalog-required",
+    id: "sandbox-catalog-required",
     serviceLine: "clinical-collaboration",
     engine: "catalog",
     playbook: "CATALOG",
     triggerPoint: "patient-view",
-    title: "后端场景目录待同步",
-    narrative: "后端目录暂不可用时仅展示诚实占位，不在前端伪造临床场景。",
-    hostSummary: "后端场景目录不可用",
+    title: "沙盘场景目录未就绪",
+    narrative: "场景目录不可用时仅展示停用状态，不生成临床场景。",
+    hostSummary: "场景目录不可用",
     expectedRuleCode: null,
     expectedAction: "CATALOG_REQUIRED",
     expectedSeverity: "LOW",
     status: "catalog-unavailable",
-    statusReason: "请恢复后端场景目录后再运行全真沙盘。",
+    statusReason: "请完成沙盘场景目录配置后再运行全真沙盘。",
     inputKind: "unavailable",
   } satisfies UnavailableSandboxScenario,
 ];
@@ -248,21 +248,21 @@ function scenarioFromCatalog(remote: SandboxCatalogScenario): SandboxScenario {
     playbook: remote.playbook ?? "RULE_ONLY",
     triggerPoint: remote.triggerPoint ?? "patient-view",
     title: remote.title ?? remote.id,
-    narrative: remote.narrative ?? "后端目录场景。",
-    hostSummary: remote.hostSummary ?? "院内业务系统模拟场景",
+    narrative: remote.narrative ?? "按当前机构生效目录运行沙盘场景。",
+    hostSummary: remote.hostSummary ?? "院内业务系统复核",
     expectedRuleCode: remote.expectedRuleCode ?? null,
     expectedAction: remote.expectedAction ?? "REMIND",
     expectedSeverity: remote.expectedSeverity ?? "MEDIUM",
     expectedAssetCode: remote.expectedAssetCode ?? null,
     status,
-    statusReason: remote.statusReason ?? "运行时按当前绑定解析规则与资产。",
+    statusReason: remote.statusReason ?? "运行时按当前机构生效版本解析规则与资产。",
   };
   if (remote.input?.kind === "numeric") {
     if (!hasNumericInputContract(remote)) {
       return {
         ...base,
         status: "catalog-unavailable",
-        statusReason: "后端场景目录缺少数值录入契约，已阻断运行。",
+        statusReason: "场景目录缺少数值录入契约，已阻断运行。",
         inputKind: "unavailable",
       } satisfies UnavailableSandboxScenario;
     }
@@ -293,7 +293,7 @@ function scenarioFromCatalog(remote: SandboxCatalogScenario): SandboxScenario {
   return {
     ...base,
     status: "catalog-unavailable",
-    statusReason: "后端场景目录缺少可执行输入契约，已阻断运行。",
+    statusReason: "场景目录缺少可执行输入契约，已阻断运行。",
     inputKind: "unavailable",
   } satisfies UnavailableSandboxScenario;
 }

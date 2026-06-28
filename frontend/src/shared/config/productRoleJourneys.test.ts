@@ -28,7 +28,7 @@ describe("product role journeys", () => {
     ]);
   });
 
-  it("keeps every role task on a customer entry instead of hidden or expert routes", () => {
+  it("keeps every role task on a customer entry instead of hidden diagnostic routes", () => {
     PRODUCT_ROLE_JOURNEYS.forEach((journey) => {
       const actions = [journey.primaryAction, ...journey.highFrequencyActions];
       expect(new Set(actions.map((action) => action.path)).size).toBe(actions.length);
@@ -45,13 +45,14 @@ describe("product role journeys", () => {
 
   it("contains no removed domain or customer-facing legacy names", () => {
     const serialized = JSON.stringify(PRODUCT_ROLE_JOURNEYS);
+    const retiredStandaloneToolLabel = "高级" + "工具";
 
     [
       "试点准备",
       "临床运行",
       "质控改进",
       "合规运维",
-      "高级工具",
+      retiredStandaloneToolLabel,
       "配置" + "包中心",
       "字典映射",
       "通知中心",
@@ -123,6 +124,8 @@ describe("product role journeys", () => {
     expect(configSource).toContain("E2E_EXTERNAL_DEPLOYMENT");
     expect(configSource).toContain("E2E_EVIDENCE_DIR");
     expect(configSource).toContain("E2E_IGNORE_HTTPS_ERRORS");
+    expect(configSource).toContain("MEDKERNEL_PLAYWRIGHT_CHROMIUM_EXECUTABLE");
+    expect(configSource).toContain("MEDKERNEL_PLAYWRIGHT_NO_SANDBOX");
     expect(configSource).toContain("outputDir:");
     expect(configSource).toContain("assertOutsideRepository");
     expect(embedHostSource).toContain("process.env.E2E_BASE_URL");

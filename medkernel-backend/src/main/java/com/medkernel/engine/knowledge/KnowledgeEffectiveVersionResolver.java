@@ -24,7 +24,8 @@ import com.medkernel.shared.context.RequestContext;
 /**
  * 知识域当前有效版本解析器。
  *
- * <p>统一版本底座决定生效版本，领域版本表只按 {@code version_no} 提供不可变内容。
+ * <p>统一版本底座决定生效版本；领域版本表可按统一版本号直连，也可由
+ * {@code knowledge-version:<identityCode>:<domainVersionNo>} 来源回链定位不可变内容。
  */
 @Service
 public class KnowledgeEffectiveVersionResolver {
@@ -120,9 +121,30 @@ public class KnowledgeEffectiveVersionResolver {
 
     private Optional<ContentVersion> map(String identityCode, AssetVersion assetVersion) {
         return identities.findByTenantIdAndIdentityCode(assetVersion.tenantId(), identityCode)
-            .flatMap(identity -> versions.findByTenantIdAndIdentityIdAndVersionNo(
-                    assetVersion.tenantId(), identity.id(), assetVersion.versionNo())
+            .flatMap(identity -> findContentVersion(identity, assetVersion)
                 .map(version -> new ContentVersion(identity, version)));
+    }
+
+    private Optional<KnowledgeAssetVersion> findContentVersion(
+            KnowledgeIdentity identity,
+            AssetVersion assetVersion) {
+        Optional<KnowledgeAssetVersion> direct = versions.findByTenantIdAndIdentityIdAndVersionNo(
+            assetVersion.tenantId(), identity.id(), assetVersion.versionNo());
+        if (direct.isPresent()) {
+            return direct;
+        }
+        return domainVersionNoFromSourceRef(identity.identityCode(), assetVersion.sourceRef())
+            .flatMap(versionNo -> versions.findByTenantIdAndIdentityIdAndVersionNo(
+                assetVersion.tenantId(), identity.id(), versionNo))
+            .filter(version -> assetVersion.contentHash().equals(version.contentHash()));
+    }
+
+    private Optional<String> domainVersionNoFromSourceRef(String identityCode, String sourceRef) {
+        String prefix = "knowledge-version:" + identityCode + ":";
+        if (!hasText(sourceRef) || !sourceRef.startsWith(prefix) || sourceRef.length() == prefix.length()) {
+            return Optional.empty();
+        }
+        return Optional.of(sourceRef.substring(prefix.length()));
     }
 
     private static String normalize(String value, String fallback) {

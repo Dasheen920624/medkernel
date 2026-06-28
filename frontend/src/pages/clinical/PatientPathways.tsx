@@ -30,7 +30,6 @@ import {
   DisconnectOutlined,
   BranchesOutlined,
 } from "@ant-design/icons";
-import { PageShell } from "@/shared/ui/PageShell";
 import {
   useContextSnapshots,
   usePathwayEntryCandidates,
@@ -41,6 +40,7 @@ import {
   useAdvancePatientPathway,
   usePatientPathwayClocks,
   usePatientPathwayVariances,
+  useSecurityProfile,
 } from "@/shared/api/hooks";
 import type {
   PatientPathway,
@@ -54,13 +54,43 @@ import type {
   PathwayEdge,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
+import { findRouteByPath } from "@/shared/config/routes";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
+import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import styles from "./Clinical.module.css";
 
 const { TextArea } = Input;
 const { Option } = Select;
 const PATHWAY_RUNTIME_TRIGGER = "patient-view";
+const route = findRouteByPath("/pathway/patients");
+const PAGE_META = {
+  title: route?.title ?? "患者路径",
+  experience: route?.experience ?? {
+    primaryRole: "临床使用者",
+    goal: "查看患者路径运行事项",
+    defaultView: "待处理节点",
+    defaultFilters: [],
+    evidenceDetailContent: [
+      "患者路径实例编号",
+      "患者编号",
+      "就诊编号",
+      "节点编码",
+      "时钟编号",
+      "追踪号",
+    ],
+    interruptionLevel: "info" as const,
+    evidence: "患者入径、推进、变异和退径均保留路径运行证据",
+    dataScale: {
+      expected: "large" as const,
+      pagination: "page" as const,
+      exportStrategy: "none" as const,
+    },
+    riskLevel: "medium" as const,
+  },
+};
 
 type PathwayBadgeStatus = Exclude<BadgeProps["status"], undefined>;
 
@@ -214,8 +244,27 @@ function pathwayRuntimeNodeState(
   return { label: "待执行", color: "default", variant: "pending" as const };
 }
 
-function edgeReadableLabel(edge: PathwayEdge) {
-  return `${pathwayEdgeTypeText(edge.edgeType)}：${edge.fromNodeCode} → ${edge.toNodeCode}`;
+function nodeDisplayName(
+  nodes: PathwayNode[],
+  nodeCode?: string | null,
+  evidenceDetailsEnabled = false,
+) {
+  if (!nodeCode) return "未记录";
+  const node = nodes.find((item) => item.nodeCode === nodeCode);
+  if (!node) return evidenceDetailsEnabled ? nodeCode : "已配置环节";
+  return evidenceDetailsEnabled ? `${node.name} (${node.nodeCode})` : node.name;
+}
+
+function edgeReadableLabel(
+  edge: PathwayEdge,
+  nodes: PathwayNode[],
+  evidenceDetailsEnabled: boolean,
+) {
+  return `${pathwayEdgeTypeText(edge.edgeType)}：${nodeDisplayName(
+    nodes,
+    edge.fromNodeCode,
+    evidenceDetailsEnabled,
+  )} → ${nodeDisplayName(nodes, edge.toNodeCode, evidenceDetailsEnabled)}`;
 }
 
 function firstClockForNode(clocks: ClinicalClock[], nodeCode: string) {
@@ -226,6 +275,9 @@ export default function PatientPathways() {
   const [selectedPathwayId, setSelectedPathwayId] = useState<string | null>(null);
   const [enterModalVisible, setEnterModalVisible] = useState<boolean>(false);
   const [varianceDrawerVisible, setVarianceDrawerVisible] = useState<boolean>(false);
+  const security = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const screens = Grid.useBreakpoint();
   const isWideViewport =
     screens.md ?? (typeof window === "undefined" ? true : window.innerWidth >= 768);
@@ -336,11 +388,14 @@ export default function PatientPathways() {
               </Tag>
             </div>
             <div className={`${styles.codeText} ${styles.timelineMuted}`}>
-              {milestone.phaseName} / 第 {milestone.dayOffset ?? "-"} 天 / {milestone.milestoneCode}
+              {milestone.phaseName} / 第 {milestone.dayOffset ?? "-"} 天
+              {evidenceDetailsEnabled ? ` / ${milestone.milestoneCode}` : ""}
             </div>
             <div className={styles.evidenceBox}>
               <div className={styles.timelineMeta}>
-                节点: {nodeCodes.length > 0 ? nodeCodes.join("、") : "未绑定"}
+                {evidenceDetailsEnabled
+                  ? `节点: ${nodeCodes.length > 0 ? nodeCodes.join("、") : "未绑定"}`
+                  : `已绑定 ${nodeCodes.length} 个路径环节`}
               </div>
               <div className={styles.timelineMeta}>
                 预期: {formatDateTime(milestone.expectedAt)}
@@ -350,16 +405,24 @@ export default function PatientPathways() {
               </div>
               {clocksForMilestone.map((clock) => (
                 <div key={clock.clockId} className={styles.timelineMeta}>
-                  <span>时钟: </span>
-                  <Tag color="purple" className={styles.tagCompact}>
-                    {clock.clockId}
-                  </Tag>
+                  {evidenceDetailsEnabled ? (
+                    <>
+                      <span>时钟: </span>
+                      <Tag color="purple" className={styles.tagCompact}>
+                        {clock.clockId}
+                      </Tag>
+                    </>
+                  ) : (
+                    <span>关键时钟: </span>
+                  )}
                   <span>状态: </span>
                   <Tag color={clockStatusColor(clock.status)} className={styles.tagCompact}>
                     {clockStatusText(clock.status)}
                   </Tag>
                   <span>升级: {clockEscalationText(clock.escalationLevel)}</span>
-                  {clock.metricCode && <span>指标: {clock.metricCode}</span>}
+                  {evidenceDetailsEnabled && clock.metricCode && (
+                    <span>指标: {clock.metricCode}</span>
+                  )}
                   <span>目标: {formatDateTime(clock.targetDueAt ?? clock.dueAt)}</span>
                   <span>最晚: {formatDateTime(clock.maxDueAt)}</span>
                 </div>
@@ -421,16 +484,14 @@ export default function PatientPathways() {
         message.error("请先选择已生效临床快照");
         return;
       }
-      const res = await enterPathwayMutation.mutateAsync({
+      await enterPathwayMutation.mutateAsync({
         contextSnapshotId: selectedContextSnapshot.snapshotId,
         templateId: values.templateId,
         triggerPoint: PATHWAY_RUNTIME_TRIGGER,
         startNodeCode: values.startNodeCode?.trim() || undefined,
       });
 
-      message.success(
-        `患者 ${selectedContextSnapshot.patientId} 入径成功，追踪号: ${res?.traceId || ""}`,
-      );
+      message.success("患者已入径，路径列表已刷新");
       setEnterModalVisible(false);
       setEnterPatientFilter("");
       setEnterEncounterFilter("");
@@ -541,7 +602,7 @@ export default function PatientPathways() {
       render: (_value, binding) =>
         binding.scope === "TEMPLATE" ? "全模板" : binding.refCode || "-",
     },
-    { title: "指标编码", dataIndex: "indicatorCode" },
+    { title: "结局指标身份", dataIndex: "indicatorCode" },
   ];
 
   const warningColumns: TableProps<PathwayCoordinationWarning>["columns"] = [
@@ -568,31 +629,49 @@ export default function PatientPathways() {
   ];
 
   const columns: TableProps<PatientPathway>["columns"] = [
-    {
-      title: "实例编号",
-      dataIndex: "patientPathwayId",
-      key: "patientPathwayId",
-      render: (text: string) => (
-        <span className={`${styles.codeText} ${styles.textStrong}`}>{text}</span>
-      ),
-    },
-    {
-      title: "患者 ID",
-      dataIndex: "patientId",
-      key: "patientId",
-      className: styles.textStrong,
-    },
-    {
-      title: "就诊 ID",
-      dataIndex: "encounterId",
-      key: "encounterId",
-      render: (text: string) => <Tag color="blue">{text}</Tag>,
-    },
+    ...(evidenceDetailsEnabled
+      ? [
+          {
+            title: "实例编号",
+            dataIndex: "patientPathwayId",
+            key: "patientPathwayId",
+            render: (text: string) => (
+              <span className={`${styles.codeText} ${styles.textStrong}`}>{text}</span>
+            ),
+          },
+          {
+            title: "患者编号",
+            dataIndex: "patientId",
+            key: "patientId",
+            className: styles.textStrong,
+          },
+          {
+            title: "就诊编号",
+            dataIndex: "encounterId",
+            key: "encounterId",
+            render: (text: string) => <Tag color="blue">{text}</Tag>,
+          },
+        ]
+      : [
+          {
+            title: "患者与就诊",
+            key: "patientContext",
+            render: () => <span className={styles.textStrong}>已关联患者与就诊</span>,
+          },
+        ]),
     {
       title: "路径模板",
       dataIndex: "templateId",
       key: "templateId",
-      render: (text: string) => <Tag color="geekblue">{text}</Tag>,
+      render: (text: string) => {
+        const templateName =
+          templateDetail?.template.templateId === text ? templateDetail.template.name : undefined;
+        return (
+          <Tag color="geekblue">
+            {evidenceDetailsEnabled ? text : (templateName ?? "当前运行路径")}
+          </Tag>
+        );
+      },
     },
     {
       title: "当前流转节点",
@@ -601,7 +680,9 @@ export default function PatientPathways() {
       render: (c: string, record: PatientPathway) => {
         if (record.status === "EXITED") return <Tag color="red">已退径</Tag>;
         if (record.status === "COMPLETED") return <Tag color="green">已完成路径</Tag>;
-        return <Tag color="orange">{c}</Tag>;
+        return (
+          <Tag color="orange">{nodeDisplayName(templateNodes, c, evidenceDetailsEnabled)}</Tag>
+        );
       },
     },
     {
@@ -643,17 +724,17 @@ export default function PatientPathways() {
   ];
 
   return (
-    <PageShell
-      title="患者路径"
-      description="办理临床患者入径，提供标准路径 Milestone 状态时间线，支撑医护标准推进、临床变异登记与可审计链追溯。"
+    <PageExperienceShell
+      meta={PAGE_META}
+      securityProfile={security.data}
       state={patientPathwaysPageState}
       stateProps={patientPathwaysStateProps}
     >
       <div className={`${styles.surface} ${styles.filterSurface}`}>
         <Form layout="inline" className={styles.inlineForm}>
-          <Form.Item label="患者 ID 检索">
+          <Form.Item label="患者检索">
             <Input
-              placeholder="输入患者 ID"
+              placeholder="输入姓名、门急诊号或院内患者编号"
               allowClear
               value={patientFilter}
               onChange={(e) => setPatientFilter(e.target.value)}
@@ -699,7 +780,7 @@ export default function PatientPathways() {
       </div>
 
       <Modal
-        title="办理患者临床路径准入 (入径)"
+        title="办理患者临床路径准入"
         open={enterModalVisible}
         onOk={handleEnterPathway}
         onCancel={() => {
@@ -716,10 +797,10 @@ export default function PatientPathways() {
         <Form form={enterForm} layout="vertical" className={styles.formGap}>
           <Row gutter={12}>
             <Col xs={24} md={12}>
-              <Form.Item label="患者 ID">
+              <Form.Item label="患者信息">
                 <Input
                   allowClear
-                  placeholder="按患者 ID 查询快照"
+                  placeholder="输入姓名、门急诊号或院内患者编号"
                   value={enterPatientFilter}
                   onChange={(event) => {
                     setEnterPatientFilter(event.target.value);
@@ -729,10 +810,10 @@ export default function PatientPathways() {
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item label="就诊 ID">
+              <Form.Item label="就诊信息">
                 <Input
                   allowClear
-                  placeholder="按就诊 ID 查询快照"
+                  placeholder="输入门急诊号、住院号或就诊编号"
                   value={enterEncounterFilter}
                   onChange={(event) => {
                     setEnterEncounterFilter(event.target.value);
@@ -750,6 +831,7 @@ export default function PatientPathways() {
               snapshots={enterSnapshotsQuery.data?.items ?? []}
               selectedSnapshotId={selectedContextSnapshotId}
               onSelect={setSelectedContextSnapshotId}
+              evidenceDetailsEnabled={evidenceDetailsEnabled}
             />
           </Form.Item>
           <Form.Item
@@ -796,7 +878,7 @@ export default function PatientPathways() {
         title={
           <div className={styles.drawerTitle}>
             <CompassOutlined className={styles.iconInfo} />
-            <span>患者临床路径推进与解释追溯控制台</span>
+            <span>患者路径推进与解释追溯</span>
           </div>
         }
         width="min(960px, 100vw)"
@@ -807,28 +889,47 @@ export default function PatientPathways() {
         {detailData && (
           <div>
             <Descriptions
-              title="入径运行事实 facts"
+              title="入径运行事实"
               bordered
               column={pathwayFactColumn}
               size="small"
               className={styles.sectionGapLg}
             >
-              <Descriptions.Item label="患者 ID">
-                <span className={styles.textStrong}>{detailData.patientPathway.patientId}</span>
-              </Descriptions.Item>
-              <Descriptions.Item label="就诊编号">
-                <span className={styles.codeText}>{detailData.patientPathway.encounterId}</span>
-              </Descriptions.Item>
-              <Descriptions.Item label="所用模型">
-                <Tag color="geekblue">{detailData.patientPathway.templateId}</Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="入径实例">
-                <span className={styles.codeText}>
-                  {detailData.patientPathway.patientPathwayId}
-                </span>
-              </Descriptions.Item>
+              {evidenceDetailsEnabled ? (
+                <>
+                  <Descriptions.Item label="患者编号">
+                    <span className={styles.textStrong}>{detailData.patientPathway.patientId}</span>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="就诊编号">
+                    <span className={styles.codeText}>{detailData.patientPathway.encounterId}</span>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="路径模板编号">
+                    <Tag color="geekblue">{detailData.patientPathway.templateId}</Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="入径实例编号">
+                    <span className={styles.codeText}>
+                      {detailData.patientPathway.patientPathwayId}
+                    </span>
+                  </Descriptions.Item>
+                </>
+              ) : (
+                <>
+                  <Descriptions.Item label="患者与就诊">
+                    <span className={styles.textStrong}>患者与就诊已关联</span>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="当前路径">
+                    <Tag color="geekblue">{templateDetail?.template.name ?? "当前运行路径"}</Tag>
+                  </Descriptions.Item>
+                </>
+              )}
               <Descriptions.Item label="当前激活节点">
-                <Tag color="orange">{detailData.patientPathway.currentNodeCode || "无/已结径"}</Tag>
+                <Tag color="orange">
+                  {nodeDisplayName(
+                    templateNodes,
+                    detailData.patientPathway.currentNodeCode || null,
+                    evidenceDetailsEnabled,
+                  ) || "无/已结径"}
+                </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="运行状态">
                 <Badge
@@ -906,10 +1007,14 @@ export default function PatientPathways() {
                             className={`${styles.pathwayRuntimeNode} ${
                               runtimeNodeStateClass[state.variant]
                             }`}
-                            aria-label={`路径节点 ${node.nodeCode} ${state.label}`}
+                            aria-label={`路径节点 ${
+                              evidenceDetailsEnabled ? node.nodeCode : node.name
+                            } ${state.label}`}
                           >
                             <div className={styles.pathwayRuntimeNodeHeader}>
-                              <Tag color="geekblue">{node.nodeCode}</Tag>
+                              {evidenceDetailsEnabled && (
+                                <Tag color="geekblue">{node.nodeCode}</Tag>
+                              )}
                               <Tag color={state.color}>{state.label}</Tag>
                             </div>
                             <div className={styles.pathwayRuntimeNodeName}>{node.name}</div>
@@ -921,14 +1026,20 @@ export default function PatientPathways() {
                             </div>
                             {activeClock && (
                               <div className={styles.pathwayRuntimeEvidence}>
-                                <span>时钟 {activeClock.clockId}</span>
+                                <span>
+                                  {evidenceDetailsEnabled
+                                    ? `时钟 ${activeClock.clockId}`
+                                    : "关键时钟"}
+                                </span>
                                 <Tag
                                   color={clockStatusColor(activeClock.status)}
                                   className={styles.tagCompact}
                                 >
                                   {clockStatusText(activeClock.status)}
                                 </Tag>
-                                {activeClock.metricCode && <span>{activeClock.metricCode}</span>}
+                                {evidenceDetailsEnabled && activeClock.metricCode && (
+                                  <span>{activeClock.metricCode}</span>
+                                )}
                               </div>
                             )}
                             {summary && <div className={styles.contentText}>{summary}</div>}
@@ -937,8 +1048,14 @@ export default function PatientPathways() {
                             <div className={styles.pathwayRuntimeEdges}>
                               {outgoingEdges.map((edge) => (
                                 <div key={edge.edgeId} className={styles.pathwayRuntimeEdge}>
-                                  <span>{edgeReadableLabel(edge)}</span>
-                                  {edge.conditionJson && (
+                                  <span>
+                                    {edgeReadableLabel(
+                                      edge,
+                                      sortedTemplateNodes,
+                                      evidenceDetailsEnabled,
+                                    )}
+                                  </span>
+                                  {evidenceDetailsEnabled && edge.conditionJson && (
                                     <span className={styles.codeText}>条件已配置</span>
                                   )}
                                 </div>
@@ -1045,17 +1162,25 @@ export default function PatientPathways() {
                                       {isCurrent && <Tag color="blue">当前活动</Tag>}
                                     </div>
                                     <div className={`${styles.codeText} ${styles.timelineMuted}`}>
-                                      {node.nodeCode}
+                                      {evidenceDetailsEnabled
+                                        ? node.nodeCode
+                                        : pathwayNodeTypeText(node.nodeType)}
                                     </div>
 
                                     {activeClock && (
                                       <div className={styles.evidenceBox}>
                                         <div className={styles.rowBetween}>
                                           <span>
-                                            时钟:{" "}
-                                            <Tag color="purple" className={styles.tagCompact}>
-                                              {activeClock.clockId}
-                                            </Tag>
+                                            {evidenceDetailsEnabled ? (
+                                              <>
+                                                时钟:{" "}
+                                                <Tag color="purple" className={styles.tagCompact}>
+                                                  {activeClock.clockId}
+                                                </Tag>
+                                              </>
+                                            ) : (
+                                              "关键时钟"
+                                            )}
                                           </span>
                                           <span>
                                             状态:{" "}
@@ -1085,7 +1210,7 @@ export default function PatientPathways() {
                                           超时升级:{" "}
                                           {clockEscalationText(activeClock.escalationLevel)}
                                         </div>
-                                        {activeClock.metricCode && (
+                                        {evidenceDetailsEnabled && activeClock.metricCode && (
                                           <div className={styles.timelineMeta}>
                                             关联质控指标: {activeClock.metricCode}
                                           </div>
@@ -1107,7 +1232,7 @@ export default function PatientPathways() {
                   title={
                     <div className={styles.sectionTitle}>
                       <RightCircleOutlined className={styles.iconInfo} />
-                      <span>受控推进决策控制台 (Advance)</span>
+                      <span>受控推进决策</span>
                     </div>
                   }
                   className={styles.detailCard}
@@ -1157,7 +1282,13 @@ export default function PatientPathways() {
                                     );
                                     return (
                                       <Option key={e.edgeId} value={e.toNodeCode}>
-                                        {targetNode?.name || "未知"} ({e.toNodeCode})
+                                        {targetNode
+                                          ? nodeDisplayName(
+                                              templateDetail.nodes,
+                                              targetNode.nodeCode,
+                                              evidenceDetailsEnabled,
+                                            )
+                                          : "未知"}
                                       </Option>
                                     );
                                   })}
@@ -1192,7 +1323,7 @@ export default function PatientPathways() {
                             onFinish={handleVarianceAdvance}
                           >
                             <Alert
-                              message="临床变异：登记患者偏离当前路径节点的事实、原因码、责任角色和处置决策，后端统一生成审计事实。"
+                              message="临床变异：登记患者偏离当前路径节点的事实、原因码、责任角色和处置决策，平台统一生成审计事实。"
                               type="warning"
                               showIcon
                               className={styles.sectionGap}
@@ -1263,7 +1394,11 @@ export default function PatientPathways() {
                                 <Select placeholder="选择目标节点" aria-label="再入径节点">
                                   {templateDetail?.nodes.map((n) => (
                                     <Option key={n.nodeId} value={n.nodeCode}>
-                                      {n.name} ({n.nodeCode})
+                                      {nodeDisplayName(
+                                        templateDetail.nodes,
+                                        n.nodeCode,
+                                        evidenceDetailsEnabled,
+                                      )}
                                     </Option>
                                   ))}
                                 </Select>
@@ -1377,7 +1512,7 @@ export default function PatientPathways() {
         {(variancesData ?? detailData?.variances ?? []).length > 0 ? (
           <div>
             <Alert
-              message="这里仅展示后端返回的路径变异事实，页面不补写原因、不生成本地变异记录。"
+              message="这里仅展示已记录的路径变异事实，页面不补写原因、不生成本地变异记录。"
               type="info"
               showIcon
               className={styles.sectionGapLg}
@@ -1400,15 +1535,24 @@ export default function PatientPathways() {
                     children: (
                       <div>
                         <div className={styles.timelineTitle}>
-                          {variance.nodeCode} · {customerEnumLabel(variance.varianceType)}
+                          {nodeDisplayName(
+                            templateNodes,
+                            variance.nodeCode,
+                            evidenceDetailsEnabled,
+                          )}{" "}
+                          · {customerEnumLabel(variance.varianceType)}
                         </div>
+                        {evidenceDetailsEnabled && (
+                          <div className={styles.timelineMeta}>
+                            <span>变异编号：</span>
+                            <span>{variance.varianceId}</span>
+                          </div>
+                        )}
                         <div className={styles.timelineMeta}>
-                          <span>变异 ID：</span>
-                          <span>{variance.varianceId}</span>
-                        </div>
-                        <div className={styles.timelineMeta}>
-                          <span>原因码：</span>
-                          <Tag color="orange">{variance.reasonCode}</Tag>
+                          <span>变异原因：</span>
+                          <Tag color="orange">
+                            {evidenceDetailsEnabled ? variance.reasonCode : "已分类"}
+                          </Tag>
                         </div>
                         <div className={styles.timelineMeta}>{variance.reason}</div>
                         <div className={styles.timelineMeta}>
@@ -1428,10 +1572,16 @@ export default function PatientPathways() {
                         {variance.continueNodeCode && (
                           <div className={styles.timelineMeta}>
                             <span>继续节点：</span>
-                            <Tag color="blue">{variance.continueNodeCode}</Tag>
+                            <Tag color="blue">
+                              {nodeDisplayName(
+                                templateNodes,
+                                variance.continueNodeCode,
+                                evidenceDetailsEnabled,
+                              )}
+                            </Tag>
                           </div>
                         )}
-                        {variance.traceId && (
+                        {evidenceDetailsEnabled && variance.traceId && (
                           <div className={`${styles.timelineMeta} ${styles.timelineMuted}`}>
                             追踪号：{variance.traceId}
                           </div>
@@ -1455,6 +1605,6 @@ export default function PatientPathways() {
           </div>
         )}
       </Drawer>
-    </PageShell>
+    </PageExperienceShell>
   );
 }

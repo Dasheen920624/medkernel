@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * 候选来源溯源批量查询请求（AIK-STD-12 PR1）：审核台传一组候选引用反查 AI 工厂来源。
+ * 候选来源溯源批量查询请求（AIK-STD-12）：审核台传一组候选引用反查 AI 工厂来源。
  */
 public record CandidateProvenanceRequest(
     @NotEmpty

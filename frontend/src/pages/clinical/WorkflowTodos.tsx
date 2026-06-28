@@ -24,6 +24,8 @@ import {
 import {
   useCompleteWorkflowTodo,
   useOrgUnits,
+  useOrgUsers,
+  useSecurityProfile,
   useTransferWorkflowTodo,
   useWorkflowTodos,
 } from "@/shared/api/hooks";
@@ -40,8 +42,11 @@ import {
   SOURCE_TRACE_MISSING_TEXT,
   resolveSourceDeepLink,
 } from "@/shared/lib/sourceLink";
-import { PageShell } from "@/shared/ui/PageShell";
+import { findRouteByPath } from "@/shared/config/routes";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 
 import styles from "./Clinical.module.css";
 
@@ -68,6 +73,13 @@ const priorityColor: Record<WorkflowPriority, string> = {
   HIGH: "volcano",
   MEDIUM: "gold",
   LOW: "blue",
+};
+
+const priorityText: Record<WorkflowPriority, string> = {
+  CRITICAL: "危急",
+  HIGH: "高优先",
+  MEDIUM: "中优先",
+  LOW: "低优先",
 };
 
 const priorityRank: Record<WorkflowPriority, number> = {
@@ -98,6 +110,41 @@ const sourceText: Record<WorkflowTodoSourceType, string> = {
 };
 
 const ORG_UNIT_REFERENCE_PAGE_SIZE = 20;
+const TRANSFER_USER_REFERENCE_PAGE_SIZE = 20;
+const route = findRouteByPath("/workflow/todos");
+const PAGE_META = {
+  title: route?.title ?? "协同任务",
+  experience: route?.experience ?? {
+    primaryRole: "临床使用者",
+    goal: "处理当前岗位待办事项",
+    defaultView: "待我处理",
+    defaultFilters: [],
+    evidenceDetailContent: ["患者上下文", "待办来源", "追踪号", "责任人编号"],
+    interruptionLevel: "info" as const,
+    evidence: "待办来源、责任流转和完成转交证据保持可回看",
+    dataScale: {
+      expected: "large" as const,
+      pagination: "page" as const,
+      exportStrategy: "none" as const,
+    },
+    riskLevel: "medium" as const,
+  },
+};
+
+const assigneeRoleText: Record<string, string> = {
+  DOCTOR: "医生",
+  NURSE: "护士",
+  NURSING: "护理",
+  PHARMACIST: "药师",
+  TECHNICIAN: "医技",
+  FOLLOWUP: "随访团队",
+  QUALITY: "质控",
+};
+
+const transferRoleOptions = Object.entries(assigneeRoleText).map(([value, label]) => ({
+  value,
+  label,
+}));
 
 function formatDateTime(value?: string | null) {
   if (!value) return "-";
@@ -116,12 +163,57 @@ function compareDateTime(left?: string | null, right?: string | null) {
   return new Date(left).getTime() - new Date(right).getTime();
 }
 
+function countTodos<T extends string>(
+  todos: WorkflowTodo[],
+  field: "sourceType" | "priority",
+  value: T,
+) {
+  return todos.filter((todo) => todo[field] === value).length;
+}
+
+function buildClinicalQueueFocus(pendingTodos: WorkflowTodo[]) {
+  if (pendingTodos.length === 0) return "暂无待处理任务";
+
+  const sourceFocus = (Object.keys(sourceRank) as WorkflowTodoSourceType[])
+    .map((source) => ({
+      source,
+      count: countTodos(pendingTodos, "sourceType", source),
+    }))
+    .filter((item) => item.count > 0)
+    .slice(0, 2)
+    .map((item) => sourceText[item.source]);
+
+  if (sourceFocus.length === 0) return "按到期时间处理";
+  if (sourceFocus.length === 1) return `先处理${sourceFocus[0]}`;
+  return `先处理${sourceFocus[0]}，再处理${sourceFocus[1]}`;
+}
+
+function assigneeDisplay(todo: WorkflowTodo, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) return todo.assigneeId || "-";
+  if (todo.assigneeRole)
+    return assigneeRoleText[todo.assigneeRole] ?? customerEnumLabel(todo.assigneeRole);
+  return todo.assigneeId ? "已指定责任人" : "-";
+}
+
+function patientContextDisplay(todo: WorkflowTodo, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) {
+    return (
+      <Space direction="vertical" size={0}>
+        <span>{todo.patientId || "-"}</span>
+        {todo.encounterId && <span className={styles.textSmall}>{todo.encounterId}</span>}
+      </Space>
+    );
+  }
+  return todo.patientId ? "已关联患者" : "-";
+}
+
 export default function WorkflowTodos() {
   const [status, setStatus] = useState<WorkflowTodoStatus | undefined>("PENDING");
   const [priority, setPriority] = useState<WorkflowPriority | undefined>();
   const [sourceType, setSourceType] = useState<WorkflowTodoSourceType | undefined>();
   const [orgUnitId, setOrgUnitId] = useState<string | undefined>();
   const [orgUnitSearch, setOrgUnitSearch] = useState("");
+  const [transferUserSearch, setTransferUserSearch] = useState("");
   const [completingTodo, setCompletingTodo] = useState<WorkflowTodo | null>(null);
   const [transferringTodo, setTransferringTodo] = useState<WorkflowTodo | null>(null);
   const [completeForm] = Form.useForm<{ completionReason: string }>();
@@ -130,6 +222,9 @@ export default function WorkflowTodos() {
     transferRole?: string;
     transferReason: string;
   }>();
+  const security = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
 
   const queryParams = {
     status,
@@ -141,11 +236,17 @@ export default function WorkflowTodos() {
   };
   const { data, isError, isLoading, refetch } = useWorkflowTodos(queryParams);
   const orgUnitKeyword = orgUnitSearch.trim();
+  const transferUserKeyword = transferUserSearch.trim();
   const { data: orgUnits, isLoading: orgUnitsLoading } = useOrgUnits({
     page: 1,
     size: ORG_UNIT_REFERENCE_PAGE_SIZE,
     status: "ACTIVE",
     ...(orgUnitKeyword ? { keyword: orgUnitKeyword } : {}),
+  });
+  const { data: transferUsers, isLoading: transferUsersLoading } = useOrgUsers({
+    page: 1,
+    size: TRANSFER_USER_REFERENCE_PAGE_SIZE,
+    ...(transferUserKeyword ? { keyword: transferUserKeyword } : {}),
   });
   const completeMutation = useCompleteWorkflowTodo();
   const transferMutation = useTransferWorkflowTodo();
@@ -155,6 +256,14 @@ export default function WorkflowTodos() {
         .filter((unit) => unit.id)
         .map((unit) => ({ value: unit.id ?? "", label: unit.name })),
     [orgUnits?.items],
+  );
+  const transferUserOptions = useMemo(
+    () =>
+      (transferUsers?.items ?? []).map((user) => ({
+        value: user.userId,
+        label: user.displayName,
+      })),
+    [transferUsers?.items],
   );
   const visibleTodos = useMemo(
     () =>
@@ -167,6 +276,15 @@ export default function WorkflowTodos() {
       }),
     [data?.items],
   );
+  const pendingTodos = useMemo(
+    () => visibleTodos.filter((todo) => todo.status === "PENDING" || todo.status === "IN_PROGRESS"),
+    [visibleTodos],
+  );
+  const safetyReviewCount = countTodos(pendingTodos, "sourceType", "SAFETY_REVIEW");
+  const nursingTaskCount = countTodos(pendingTodos, "sourceType", "NURSING_TASK");
+  const criticalCount = countTodos(pendingTodos, "priority", "CRITICAL");
+  const highPriorityCount = countTodos(pendingTodos, "priority", "HIGH");
+  const queueFocus = buildClinicalQueueFocus(pendingTodos);
 
   const handleComplete = async () => {
     if (!completingTodo) return;
@@ -199,6 +317,7 @@ export default function WorkflowTodos() {
       });
       message.success("待办已转交");
       setTransferringTodo(null);
+      setTransferUserSearch("");
       transferForm.resetFields();
       await refetch();
     } catch (error: unknown) {
@@ -216,8 +335,16 @@ export default function WorkflowTodos() {
           <span className={styles.textStrong}>{record.title}</span>
           <span className={styles.textSmall}>{record.summary}</span>
           <Space wrap size={8} className={styles.textSmall}>
-            <span>来源编号 {record.sourceId}</span>
-            <span>{record.traceId ? `追踪号 ${record.traceId}` : SOURCE_TRACE_MISSING_TEXT}</span>
+            {evidenceDetailsEnabled ? (
+              <>
+                <span>来源编号 {record.sourceId}</span>
+                <span>
+                  {record.traceId ? `追踪号 ${record.traceId}` : SOURCE_TRACE_MISSING_TEXT}
+                </span>
+              </>
+            ) : (
+              <span>来源与追踪证据已保留</span>
+            )}
           </Space>
         </Space>
       ),
@@ -232,13 +359,15 @@ export default function WorkflowTodos() {
       title: "患者",
       dataIndex: "patientId",
       key: "patientId",
-      render: (value?: string | null) => value || "-",
+      render: (_value: string | null | undefined, record) =>
+        patientContextDisplay(record, evidenceDetailsEnabled),
     },
     {
-      title: "责任人",
+      title: evidenceDetailsEnabled ? "责任人" : "责任岗位",
       dataIndex: "assigneeId",
       key: "assigneeId",
-      render: (value?: string | null) => value || "-",
+      render: (_value: string | null | undefined, record) =>
+        assigneeDisplay(record, evidenceDetailsEnabled),
     },
     {
       title: "截止",
@@ -250,7 +379,9 @@ export default function WorkflowTodos() {
       title: "优先级",
       dataIndex: "priority",
       key: "priority",
-      render: (value: WorkflowPriority) => <Tag color={priorityColor[value]}>{value}</Tag>,
+      render: (value: WorkflowPriority) => (
+        <Tag color={priorityColor[value]}>{priorityText[value] ?? customerEnumLabel(value)}</Tag>
+      ),
     },
     {
       title: "状态",
@@ -304,6 +435,7 @@ export default function WorkflowTodos() {
               disabled={record.status !== "PENDING" && record.status !== "IN_PROGRESS"}
               onClick={() => {
                 setTransferringTodo(record);
+                setTransferUserSearch("");
                 transferForm.setFieldsValue({
                   transferTo: "",
                   transferRole: "",
@@ -321,15 +453,27 @@ export default function WorkflowTodos() {
   ];
 
   return (
-    <PageShell
-      title="工作流协同待办中心"
-      description="统一查看并办理真实临床协同待办。"
+    <PageExperienceShell
+      meta={PAGE_META}
+      securityProfile={security.data}
       extras={
         <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
           刷新
         </Button>
       }
     >
+      <div className={`${styles.surface} ${styles.queueSummary}`}>
+        <div className={styles.sectionTitle}>今日先处理</div>
+        <Space wrap size={[8, 8]}>
+          <Tag color="blue">{pendingTodos.length} 项待处理</Tag>
+          <Tag color="red">安全复核 {safetyReviewCount} 项</Tag>
+          <Tag color="purple">护理任务 {nursingTaskCount} 项</Tag>
+          <Tag color="red">危急 {criticalCount} 项</Tag>
+          <Tag color="volcano">高优先 {highPriorityCount} 项</Tag>
+        </Space>
+        <div className={styles.textSmall}>{queueFocus}</div>
+      </div>
+
       <Card className={styles.sectionGap}>
         <Space wrap>
           <Select
@@ -401,7 +545,7 @@ export default function WorkflowTodos() {
           showIcon
           className={styles.sectionGap}
           message="协同待办读取失败"
-          description="请检查登录状态、服务空间或后端工作流接口。"
+          description="请确认登录状态、组织范围；若持续失败，请联系信息科核查协同任务服务。"
         />
       )}
 
@@ -447,22 +591,38 @@ export default function WorkflowTodos() {
         title="转交待办"
         open={!!transferringTodo}
         onOk={handleTransfer}
-        onCancel={() => setTransferringTodo(null)}
+        onCancel={() => {
+          setTransferringTodo(null);
+          setTransferUserSearch("");
+        }}
         okText="确认转交"
         cancelText="取消"
         confirmLoading={transferMutation.isPending}
         destroyOnClose
       >
         <Form form={transferForm} layout="vertical" className={styles.formGap}>
+          <Alert
+            type="info"
+            showIcon
+            message="请按姓名或院内人员身份选择接收人，岗位用于通知与审计留痕。"
+          />
           <Form.Item
             name="transferTo"
-            label="接收人"
-            rules={[{ required: true, message: "请输入接收人" }]}
+            label="接收人员"
+            rules={[{ required: true, message: "请选择接收人员" }]}
           >
-            <Input maxLength={64} />
+            <Select
+              showSearch
+              filterOption={false}
+              onSearch={setTransferUserSearch}
+              placeholder="按姓名或院内人员身份搜索"
+              options={transferUserOptions}
+              loading={transferUsersLoading}
+              notFoundContent="暂无可选接收人"
+            />
           </Form.Item>
-          <Form.Item name="transferRole" label="接收角色">
-            <Input maxLength={64} />
+          <Form.Item name="transferRole" label="接收岗位">
+            <Select allowClear placeholder="选择接收岗位" options={transferRoleOptions} />
           </Form.Item>
           <Form.Item
             name="transferReason"
@@ -473,6 +633,6 @@ export default function WorkflowTodos() {
           </Form.Item>
         </Form>
       </Modal>
-    </PageShell>
+    </PageExperienceShell>
   );
 }

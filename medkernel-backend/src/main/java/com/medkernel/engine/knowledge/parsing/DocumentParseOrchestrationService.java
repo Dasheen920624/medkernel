@@ -91,7 +91,7 @@ public class DocumentParseOrchestrationService {
             .findFirst()
             .orElse(null);
         if (parser == null) {
-            return fail(pending, "暂不支持解析格式 " + request.format() + "，待对应适配器接入", actor);
+            return fail(pending, "解析格式 " + request.format() + " 的解析器待配置，未生成知识结构", actor);
         }
 
         ParsedDocument parsed;
@@ -169,7 +169,7 @@ public class DocumentParseOrchestrationService {
             .findFirst()
             .orElse(null);
         if (parser == null) {
-            return fail(pending, "暂不支持解析格式 " + original.documentFormat() + "，待对应适配器接入", actor);
+            return fail(pending, "解析格式 " + original.documentFormat() + " 的解析器待配置，未生成知识结构", actor);
         }
 
         ParsedDocument parsed;

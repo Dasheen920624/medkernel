@@ -140,7 +140,7 @@ public class InheritanceResolver {
                 }
             }
             if (resolution != null) {
-                resolved.add(new BatchResolvedAsset(identity, resolution, false));
+                resolved.add(new BatchResolvedAsset(identity, resolution));
             }
         }
         return List.copyOf(resolved);

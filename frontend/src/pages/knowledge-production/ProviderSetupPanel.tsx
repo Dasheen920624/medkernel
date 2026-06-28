@@ -31,7 +31,12 @@ import {
   MODEL_CAPABILITY_OPTIONS,
   MODEL_PROVIDER_TYPE_OPTIONS,
 } from "@/shared/config/modelProduction";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 import { PageState } from "@/shared/ui/PageState";
+
+import styles from "./ProviderSetupPanel.module.css";
 
 const { Text } = Typography;
 const PROVIDER_PAGE_SIZE = 20;
@@ -78,11 +83,50 @@ function formatDateTime(value?: string | null) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false });
 }
 
+function providerTypeLabel(providerType: ModelProviderGovernanceView["providerType"]) {
+  return (
+    MODEL_PROVIDER_TYPE_OPTIONS.find((option) => option.value === providerType)?.label ??
+    providerType
+  );
+}
+
+function renderProviderIdentity(
+  provider: ModelProviderGovernanceView,
+  evidenceDetailsEnabled: boolean,
+) {
+  return (
+    <Space direction="vertical" size={0} className={styles.providerCell}>
+      <Text strong>
+        {evidenceDetailsEnabled ? provider.providerCode : providerTypeLabel(provider.providerType)}
+      </Text>
+      <Text type="secondary">{provider.modelVersion}</Text>
+      {evidenceDetailsEnabled ? <Text code>{provider.endpointUri}</Text> : null}
+    </Space>
+  );
+}
+
+function renderCredentialAudit(
+  provider: ModelProviderGovernanceView,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (!provider.credentialUpdatedAt) return null;
+  const updatedAt = formatDateTime(provider.credentialUpdatedAt);
+  return (
+    <Text type="secondary">
+      {evidenceDetailsEnabled
+        ? `${updatedAt} · ${provider.credentialUpdatedBy ?? "未知更新人"}`
+        : `${updatedAt} · 已记录`}
+    </Text>
+  );
+}
+
 export default function ProviderSetupPanel() {
   const security = useSecurityProfile();
   const canManage =
     security.data?.permissions?.some((permission) => permission.code === "llm.provider.manage") ??
     false;
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const [providerPage, setProviderPage] = useState(1);
   const providers = useModelProviders(
     { page: providerPage, size: PROVIDER_PAGE_SIZE },
@@ -219,31 +263,25 @@ export default function ProviderSetupPanel() {
     {
       title: "模型服务",
       key: "provider",
-      render: (_: unknown, provider: ModelProviderGovernanceView) => (
-        <Space direction="vertical" size={0}>
-          <Text strong>{provider.providerCode}</Text>
-          <Text type="secondary">{provider.modelVersion}</Text>
-        </Space>
-      ),
+      width: 220,
+      render: (_: unknown, provider: ModelProviderGovernanceView) =>
+        renderProviderIdentity(provider, evidenceDetailsEnabled),
     },
     {
       title: "密钥",
       key: "credential",
+      width: 240,
       render: (_: unknown, provider: ModelProviderGovernanceView) => (
         <Space direction="vertical" size={0}>
           {credentialLabel(provider)}
-          {provider.credentialUpdatedAt ? (
-            <Text type="secondary">
-              {formatDateTime(provider.credentialUpdatedAt)} ·{" "}
-              {provider.credentialUpdatedBy ?? "未知更新人"}
-            </Text>
-          ) : null}
+          {renderCredentialAudit(provider, evidenceDetailsEnabled)}
         </Space>
       ),
     },
     {
       title: "连接状态",
       key: "status",
+      width: 180,
       render: (_: unknown, provider: ModelProviderGovernanceView) => {
         const meta = STATUS_META[provider.status] ?? {
           label: provider.status,
@@ -262,9 +300,10 @@ export default function ProviderSetupPanel() {
     {
       title: "操作",
       key: "actions",
+      width: 340,
       render: (_: unknown, provider: ModelProviderGovernanceView) =>
         canManage ? (
-          <Space wrap>
+          <div className={styles.actionGroup}>
             <Button onClick={() => openEditProviderModal(provider)}>编辑配置</Button>
             <Button onClick={() => setCredentialProvider(provider)}>
               {provider.credentialConfigured ? "轮换密钥" : "配置密钥"}
@@ -299,7 +338,7 @@ export default function ProviderSetupPanel() {
                 移除密钥
               </Button>
             ) : null}
-          </Space>
+          </div>
         ) : (
           <Text type="secondary">由医疗引擎运营员处理</Text>
         ),
@@ -316,7 +355,7 @@ export default function ProviderSetupPanel() {
         title="模型服务读取失败"
         description={getApiErrorMessage(
           providers.error ?? security.error,
-          "请重试，或凭追踪号联系系统管理员。",
+          "请重试；若持续失败，请联系信息科核查模型服务配置。失败已留痕，可在审计证据中追溯。",
         )}
         onRetry={() => void providers.refetch()}
       />
@@ -335,19 +374,22 @@ export default function ProviderSetupPanel() {
     );
   } else {
     content = (
-      <Table<ModelProviderGovernanceView>
-        rowKey="providerCode"
-        columns={columns}
-        dataSource={providers.data.items}
-        pagination={{
-          current: providerPage,
-          pageSize: providers.data.size,
-          total: providers.data.total,
-          showSizeChanger: false,
-          onChange: setProviderPage,
-        }}
-        scroll={{ x: 920 }}
-      />
+      <div className={styles.tablePanel} data-testid="model-provider-table-panel">
+        <Table<ModelProviderGovernanceView>
+          rowKey="providerCode"
+          columns={columns}
+          dataSource={providers.data.items}
+          pagination={{
+            current: providerPage,
+            pageSize: providers.data.size,
+            total: providers.data.total,
+            showSizeChanger: false,
+            onChange: setProviderPage,
+          }}
+          scroll={{ x: 980 }}
+          tableLayout="fixed"
+        />
+      </div>
     );
   }
 
@@ -356,11 +398,14 @@ export default function ProviderSetupPanel() {
       <Card
         title="模型服务与密钥"
         extra={
-          canManage ? (
-            <Button type="primary" onClick={openNewProviderModal}>
-              登记模型服务
-            </Button>
-          ) : null
+          <Space wrap>
+            <EvidenceDetailsToggle securityProfile={security.data} />
+            {canManage ? (
+              <Button type="primary" onClick={openNewProviderModal}>
+                登记模型服务
+              </Button>
+            ) : null}
+          </Space>
         }
       >
         <Space direction="vertical" size="middle" className="mk-full-width">
@@ -368,7 +413,7 @@ export default function ProviderSetupPanel() {
             type="info"
             showIcon
             message="密钥只加密保存，保存后不再回显"
-            description="配置或轮换密钥会强制停用服务并清除旧健康结论；必须重新探活、评测并受控启用。"
+            description="配置或轮换密钥会强制停用服务并清除最近一次健康结论；必须重新探活、评测并受控启用。"
           />
           {!canManage && security.data ? (
             <Alert
@@ -399,10 +444,15 @@ export default function ProviderSetupPanel() {
         >
           <Form.Item
             name="providerCode"
-            label="服务编码"
-            rules={[{ required: true, message: "请填写服务编码" }]}
+            label="稳定模型服务身份"
+            rules={[{ required: true, message: "请填写稳定模型服务身份" }]}
+            extra="用于发布、评测和审计追溯；默认列表仍按服务类型与模型版本展示。"
           >
-            <Input autoComplete="off" disabled={Boolean(editingProvider)} />
+            <Input
+              autoComplete="off"
+              disabled={Boolean(editingProvider)}
+              placeholder="例如 local-qwen25 或 public-openai-compatible"
+            />
           </Form.Item>
           <Form.Item
             name="providerType"
@@ -443,7 +493,7 @@ export default function ProviderSetupPanel() {
           type="warning"
           showIcon
           message="本操作会清除当前凭据"
-          description="模型服务将被强制停用并失去旧健康结论；如需恢复，必须重新配置密钥、探活、评测和受控启用。"
+          description="模型服务将被强制停用并失去最近一次健康结论；如需恢复，必须重新配置密钥、探活、评测和受控启用。"
         />
         <Form
           form={removalForm}

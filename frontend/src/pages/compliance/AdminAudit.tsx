@@ -31,6 +31,7 @@ import {
   useExportConfirmations,
   useLargeAuditEvents,
   useLargeListExportJob,
+  useModelEgressConfirmations,
   useSecurityProfile,
   useSubmitLargeListExport,
   useTraceDiagnosis,
@@ -38,13 +39,16 @@ import {
   type AuditEventRow,
   type EvidenceVerifyResult,
   type ExportConfirmation,
+  type ModelEgressConfirmation,
   type TracePayloadSummary,
   type TraceStateTransition,
 } from "@/shared/api/hooks";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { MODEL_CAPABILITY_OPTIONS } from "@/shared/config/modelProduction";
 import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
-import { useExpertModeStore } from "@/shared/lib/expertModeStore";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { AsyncExportAction } from "@/shared/ui/AsyncExportAction";
-import { canUseExpertMode } from "@/shared/ui/expertModeAccess";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { ExperienceFilterBar } from "@/shared/ui/ExperienceFilterBar";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { PageState } from "@/shared/ui/PageState";
@@ -56,6 +60,7 @@ import type {
 } from "@/shared/ui/experienceTypes";
 
 import { buildAuditEventQuery } from "./auditQuery";
+import styles from "./Compliance.module.css";
 
 const { Text } = Typography;
 const PAGE_SIZE = 20;
@@ -71,6 +76,10 @@ const PAGE_META: { title: string; experience: RouteExperience } = {
   title: route.title,
   experience: route.experience,
 };
+const MODEL_EGRESS_CAPABILITY_LABELS = new Map<string, string>([
+  ...MODEL_CAPABILITY_OPTIONS.map((option) => [option.value, option.label] as const),
+  ["clinical.explanation", "临床解释与患者沟通"],
+]);
 
 function filterValue(filters: readonly ExperienceFilterValue[], key: string) {
   const value = filters.find((filter) => filter.key === key)?.value;
@@ -103,6 +112,58 @@ function outcomeTag(outcome?: string | null) {
   if (outcome === "SUCCESS") return <Tag color="green">成功</Tag>;
   if (outcome === "FAILURE" || outcome === "FAILED") return <Tag color="red">失败</Tag>;
   return <Tag>未知</Tag>;
+}
+
+function auditActionLabel(actionCode?: string | null) {
+  const labels: Record<string, string> = {
+    CREATE: "新增",
+    UPDATE: "更新",
+    DELETE: "删除",
+    EXPORT: "导出",
+    EXECUTE: "执行",
+    LOGIN: "登录",
+    READ: "查看",
+    VIEW: "查看",
+  };
+  return actionCode ? (labels[actionCode] ?? customerEnumLabel(actionCode)) : "未记录";
+}
+
+function auditResourceLabel(
+  resourceType?: string | null,
+  resourceId?: string | null,
+  evidenceDetailsEnabled = true,
+) {
+  const labels: Record<string, string> = {
+    audit: "审计记录",
+    AUDIT_EVENT: "审计事件",
+    evidence: "证据",
+    EVIDENCE_SNAPSHOT: "证据快照",
+  };
+  const resourceLabel = resourceType
+    ? (labels[resourceType] ?? customerEnumLabel(resourceType))
+    : "业务对象";
+  return `${resourceLabel}${evidenceDetailsEnabled && resourceId ? ` ${resourceId}` : ""}`;
+}
+
+function auditActorLabel(actorUserId?: string | null, evidenceDetailsEnabled = true) {
+  if (evidenceDetailsEnabled) return actorUserId ?? "系统";
+  return actorUserId ? "已记录操作人" : "系统操作";
+}
+
+function signatureStatusLabel(signature?: string | null) {
+  return signature?.trim() ? "链签名已登记" : "链签名未生成";
+}
+
+function modelEgressCapabilityLabel(capabilityCode: string) {
+  return MODEL_EGRESS_CAPABILITY_LABELS.get(capabilityCode) ?? "模型能力已记录";
+}
+
+function modelEgressConfirmationActorLabel(
+  confirmedBy?: string | null,
+  evidenceDetailsEnabled = true,
+) {
+  if (evidenceDetailsEnabled) return confirmedBy ?? "系统";
+  return confirmedBy ? "已记录确认人" : "系统确认";
 }
 
 function confirmationStatusTag(status: ExportConfirmation["status"]) {
@@ -167,8 +228,17 @@ function confirmationExportRequest(confirmation: ExportConfirmation): AsyncExpor
         sortOrder: "desc",
         filters: scope.filters,
       },
-      visibleColumnKeys: ["occurredAt", "actorUserId", "actionCode", "summary", "outcome"],
-      expertMode: false,
+      visibleColumnKeys: [
+        "summary",
+        "actionCode",
+        "outcome",
+        "traceId",
+        "signature",
+        "occurredAt",
+        "actorUserId",
+        "resource",
+      ],
+      evidenceDetailsEnabled: false,
       capturedAt: confirmation.confirmedAt,
     },
   };
@@ -193,12 +263,15 @@ export default function AdminAudit() {
   const [verifyResult, setVerifyResult] = useState<EvidenceVerifyResult>();
   const [verifyError, setVerifyError] = useState<string>();
   const [confirmationPage, setConfirmationPage] = useState(1);
+  const [egressConfirmationPage, setEgressConfirmationPage] = useState(1);
   const [confirmationForm] = Form.useForm<{ reason: string }>();
 
   const security = useSecurityProfile();
-  const globalExpertMode = useExpertModeStore((state) => state.enabled);
-  const expertMode = canUseExpertMode(security.data) && globalExpertMode;
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const canExport = hasPermission(security.data, "list.export");
+  const canReviewModelEgress =
+    hasPermission(security.data, "audit.read") || hasPermission(security.data, "llm.egress.manage");
   const currentCursor = cursorHistory[cursorHistory.length - 1];
   const auditQuery = buildAuditEventQuery(filters);
   const events = useLargeAuditEvents({
@@ -212,6 +285,10 @@ export default function AdminAudit() {
   const confirmations = useExportConfirmations(
     { resourceType: "AUDIT_EVENT", page: confirmationPage, size: CONFIRMATION_PAGE_SIZE },
     canExport,
+  );
+  const egressConfirmations = useModelEgressConfirmations(
+    { page: egressConfirmationPage, size: CONFIRMATION_PAGE_SIZE },
+    canReviewModelEgress,
   );
   const confirmExport = useConfirmExport();
   const verifyEvidence = useVerifyEvidence();
@@ -236,43 +313,64 @@ export default function AdminAudit() {
       sortOrder: "desc",
       filters: auditQuery,
     },
-    visibleColumnKeys: expertMode
-      ? ["occurredAt", "actorUserId", "actionCode", "summary", "outcome", "traceId", "signature"]
-      : ["occurredAt", "actorUserId", "actionCode", "summary", "outcome"],
-    expertMode,
+    visibleColumnKeys: evidenceDetailsEnabled
+      ? [
+          "summary",
+          "actionCode",
+          "outcome",
+          "traceId",
+          "signature",
+          "occurredAt",
+          "actorUserId",
+          "resource",
+          "eventId",
+          "environmentKey",
+          "payloadDigest",
+        ]
+      : ["summary", "actionCode", "outcome", "signature", "occurredAt", "actor", "resource"],
+    evidenceDetailsEnabled,
     capturedAt: new Date().toISOString(),
   };
 
   const columns = [
     {
+      title: "审计事项",
+      key: "summary",
+      width: 360,
+      render: (_value: unknown, record: AuditEventRow) => (
+        <div className={styles.auditEventCell}>
+          <Space size="small" wrap>
+            <Text strong>{record.summary || "未返回摘要"}</Text>
+            <Tag>{auditActionLabel(record.actionCode)}</Tag>
+            {outcomeTag(record.outcome)}
+          </Space>
+          {evidenceDetailsEnabled ? (
+            <Text type="secondary" className={styles.auditEvidenceText}>
+              追踪号 {record.traceId ?? "未返回"}
+            </Text>
+          ) : null}
+          <Text type="secondary">{signatureStatusLabel(record.signature)}</Text>
+        </div>
+      ),
+    },
+    {
       title: "时间",
       dataIndex: "occurredAt",
-      width: 180,
-      render: (value: string) => (value ? new Date(value).toLocaleString() : "-"),
+      width: 190,
+      render: (value: string) => formatTime(value),
     },
     {
       title: "操作人",
       dataIndex: "actorUserId",
       width: 150,
-      render: (value: string | null) => value ?? "系统",
+      render: (value: string | null) => auditActorLabel(value, evidenceDetailsEnabled),
     },
     {
-      title: "操作",
-      dataIndex: "actionCode",
-      width: 140,
-      render: (value: string) => <Text code>{value || "-"}</Text>,
-    },
-    {
-      title: "摘要",
-      dataIndex: "summary",
-      width: 280,
-      render: (value: string) => value || "-",
-    },
-    {
-      title: "结果",
-      dataIndex: "outcome",
-      width: 100,
-      render: (value: string | null) => outcomeTag(value),
+      title: "证据对象",
+      key: "resource",
+      width: 220,
+      render: (_value: unknown, record: AuditEventRow) =>
+        auditResourceLabel(record.resourceType, record.resourceId, evidenceDetailsEnabled),
     },
     {
       title: "详情",
@@ -280,7 +378,11 @@ export default function AdminAudit() {
       render: (_value: unknown, record: AuditEventRow) => (
         <Tooltip title="查看审计详情">
           <Button
-            aria-label={`查看详情 ${record.eventId}`}
+            aria-label={
+              evidenceDetailsEnabled
+                ? `查看详情 ${record.eventId}`
+                : `查看详情 ${record.summary || "审计事件"}`
+            }
             icon={<EyeOutlined />}
             onClick={() => {
               setDiagnosisTraceId("");
@@ -290,19 +392,27 @@ export default function AdminAudit() {
         </Tooltip>
       ),
     },
-    ...(expertMode
+    ...(evidenceDetailsEnabled
       ? [
           {
-            title: "追踪号",
-            dataIndex: "traceId",
-            width: 180,
-            render: (value: string | null) => value ?? "-",
+            title: "事件编号",
+            key: "eventId",
+            width: 160,
+            render: (_value: unknown, record: AuditEventRow) => `事件 ${record.eventId}`,
           },
           {
-            title: "签名",
-            dataIndex: "signature",
+            title: "运行环境",
+            key: "environmentKey",
+            width: 140,
+            render: (_value: unknown, record: AuditEventRow) =>
+              record.environmentKey ? `环境 ${record.environmentKey}` : "环境未标记",
+          },
+          {
+            title: "载荷摘要",
+            key: "payloadDigest",
             width: 180,
-            render: (value: string | null) => (value ? `${value.slice(0, 16)}...` : "-"),
+            render: (_value: unknown, record: AuditEventRow) =>
+              record.payloadDigest ? `载荷 ${record.payloadDigest}` : "载荷未生成",
           },
         ]
       : []),
@@ -562,6 +672,45 @@ export default function AdminAudit() {
     },
   ];
 
+  const egressConfirmationColumns = [
+    {
+      title: "模型能力",
+      render: (_value: unknown, confirmation: ModelEgressConfirmation) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{modelEgressCapabilityLabel(confirmation.capabilityCode)}</Text>
+          {evidenceDetailsEnabled ? (
+            <Text type="secondary">{confirmation.capabilityCode}</Text>
+          ) : null}
+          <Text type="secondary">{formatTime(confirmation.confirmedAt)}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "用途说明",
+      dataIndex: "purpose",
+      render: (value: string) => value || "未记录",
+    },
+    {
+      title: "脱敏载荷摘要",
+      render: (_value: unknown, confirmation: ModelEgressConfirmation) =>
+        evidenceDetailsEnabled ? (
+          <Text code copyable>
+            {confirmation.payloadHash}
+          </Text>
+        ) : (
+          <Text type="secondary">
+            {confirmation.payloadHash ? "脱敏载荷摘要已生成" : "脱敏载荷摘要未生成"}
+          </Text>
+        ),
+    },
+    {
+      title: "确认人",
+      dataIndex: "confirmedBy",
+      render: (value?: string | null) =>
+        modelEgressConfirmationActorLabel(value, evidenceDetailsEnabled),
+    },
+  ];
+
   function renderConfirmationContent() {
     if (confirmations.isLoading) {
       return <PageState state="loading" />;
@@ -593,6 +742,41 @@ export default function AdminAudit() {
     );
   }
 
+  function renderEgressConfirmationContent() {
+    if (egressConfirmations.isLoading) {
+      return <PageState state="loading" />;
+    }
+    if (egressConfirmations.isError) {
+      return (
+        <PageState
+          state="error"
+          title="模型外调确认记录读取失败"
+          onRetry={() => void egressConfirmations.refetch()}
+        />
+      );
+    }
+    return (
+      <Table<ModelEgressConfirmation>
+        rowKey={(record) =>
+          String(
+            record.id ?? `${record.capabilityCode}-${record.payloadHash}-${record.confirmedAt}`,
+          )
+        }
+        dataSource={egressConfirmations.data?.items ?? []}
+        columns={egressConfirmationColumns}
+        pagination={{
+          current: egressConfirmations.data?.page ?? egressConfirmationPage,
+          pageSize: CONFIRMATION_PAGE_SIZE,
+          total: egressConfirmations.data?.total ?? 0,
+          hideOnSinglePage: true,
+          showSizeChanger: false,
+          onChange: (nextPage) => setEgressConfirmationPage(nextPage),
+        }}
+        scroll={{ x: "max-content" }}
+      />
+    );
+  }
+
   return (
     <PageExperienceShell
       meta={PAGE_META}
@@ -618,7 +802,7 @@ export default function AdminAudit() {
           showIcon
           icon={<SafetyCertificateOutlined />}
           message="审计链已启用"
-          description="事件按服务空间隔离并保留摘要、签名和追踪号；有权操作者逐次确认准确筛选范围后，由后端异步生成文件并自动登记摘要与证据。"
+          description="事件按服务机构与组织范围隔离并保留摘要、签名和追踪号；受控导出与模型外调用途确认均登记确认人、业务原因和可验摘要。"
         />
         <Tabs
           defaultActiveKey="events"
@@ -633,32 +817,30 @@ export default function AdminAudit() {
                     value={filters}
                     onChange={updateFilters}
                     advanced={
-                      expertMode ? (
-                        <Space wrap size="small">
-                          <Input.Search
-                            aria-label="对象类型"
-                            placeholder="输入对象类型"
-                            value={filterValue(filters, "resourceType")}
-                            allowClear
-                            onChange={(event) =>
-                              updateFilter("resourceType", event.target.value || undefined)
-                            }
-                            className="mk-search-sm"
-                          />
-                          <Select
-                            aria-label="执行结果"
-                            placeholder="选择执行结果"
-                            value={filterValue(filters, "outcome")}
-                            options={[
-                              { label: "成功", value: "SUCCESS" },
-                              { label: "失败", value: "FAILED" },
-                            ]}
-                            allowClear
-                            onChange={(value) => updateFilter("outcome", value)}
-                            className="mk-search-sm"
-                          />
-                        </Space>
-                      ) : null
+                      <Space wrap size="small">
+                        <Input.Search
+                          aria-label="对象类型"
+                          placeholder="输入对象类型"
+                          value={filterValue(filters, "resourceType")}
+                          allowClear
+                          onChange={(event) =>
+                            updateFilter("resourceType", event.target.value || undefined)
+                          }
+                          className="mk-search-sm"
+                        />
+                        <Select
+                          aria-label="执行结果"
+                          placeholder="选择执行结果"
+                          value={filterValue(filters, "outcome")}
+                          options={[
+                            { label: "成功", value: "SUCCESS" },
+                            { label: "失败", value: "FAILED" },
+                          ]}
+                          allowClear
+                          onChange={(value) => updateFilter("outcome", value)}
+                          className="mk-search-sm"
+                        />
+                      </Space>
                     }
                   />
                   <Space wrap size="small">
@@ -724,6 +906,15 @@ export default function AdminAudit() {
                   },
                 ]
               : []),
+            ...(canReviewModelEgress
+              ? [
+                  {
+                    key: "model-egress-confirmations",
+                    label: "模型外调确认",
+                    children: renderEgressConfirmationContent(),
+                  },
+                ]
+              : []),
           ]}
         />
       </Space>
@@ -771,7 +962,7 @@ export default function AdminAudit() {
                 </Text>
               </Descriptions.Item>
               <Descriptions.Item label="组织范围">
-                {selectedAuditEvent.orgPath ?? "当前服务空间"}
+                {selectedAuditEvent.orgPath ?? "当前组织范围"}
               </Descriptions.Item>
               <Descriptions.Item label="环境">
                 {selectedAuditEvent.environmentKey ?? "未标记"}
@@ -928,7 +1119,7 @@ export default function AdminAudit() {
                   message={verifyResult.isValid ? "证据验签通过" : "证据验签失败"}
                   description={
                     verifyResult.signatureValid
-                      ? "存储指纹、计算指纹与国密签名已由后端核验。"
+                      ? "存储指纹、计算指纹与国密签名已由平台核验。"
                       : "国密签名无效，请立即停止使用该导出文件并核查审计事件。"
                   }
                 />

@@ -25,7 +25,10 @@ import {
 } from "@/shared/api/hooks";
 import type { AuthoringAssetLibraryItem, EngineAssetType } from "@/shared/api/hooks";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 import { PageShell } from "@/shared/ui/PageShell";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import FieldCatalogManager from "@/shared/ui/condition/FieldCatalogManager";
 import AuthoringBatchDrawer from "./AuthoringBatchDrawer";
 import DeclarativeAssetWorkbench from "./DeclarativeAssetWorkbench";
@@ -54,6 +57,21 @@ function assetTypeColor(type: string) {
     FOLLOWUP: "cyan",
   };
   return colors[type] || "default";
+}
+
+function evidenceText(
+  rawValue: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  businessText: string,
+) {
+  if (!evidenceDetailsEnabled) return businessText;
+  const normalized = rawValue?.trim();
+  return normalized && normalized.length > 0 ? normalized : "未返回";
+}
+
+function assetBusinessText(asset: AuthoringAssetLibraryItem, evidenceDetailsEnabled: boolean) {
+  const label = assetTypeLabels[asset.assetType] ?? customerEnumLabel(asset.assetType);
+  return evidenceText(asset.assetCode, evidenceDetailsEnabled, `${label}资产已登记`);
 }
 
 function statusColor(status: string) {
@@ -89,9 +107,11 @@ function hasPermission(profile: ReturnType<typeof useSecurityProfile>["data"], p
 export default function AuthoringAssets() {
   const { message } = AntdApp.useApp();
   const security = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
   const canWrite = canWriteAssets(security.data);
   const canWriteDeclarative = hasPermission(security.data, "asset.write");
   const canWriteFields = hasPermission(security.data, "context.write");
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const [assetType, setAssetType] = useState<EngineAssetType | "ALL">("ALL");
   const [keyword, setKeyword] = useState("");
   const [tag, setTag] = useState("");
@@ -158,7 +178,7 @@ export default function AuthoringAssets() {
         <div className={styles.assetName}>
           <Text strong>{asset.name}</Text>
           <Text type="secondary" className={styles.codeText}>
-            {asset.assetCode}
+            {assetBusinessText(asset, evidenceDetailsEnabled)}
           </Text>
         </div>
       ),
@@ -244,7 +264,8 @@ export default function AuthoringAssets() {
         state="error"
         stateProps={{
           title: "统一资产库读取失败",
-          description: "请重试；若持续失败，请凭追踪号联系信息科排查创作资产服务。",
+          description:
+            "请重试；若持续失败，请联系信息科排查创作资产服务。失败已留痕，可在审计证据中追溯。",
           onRetry: () => assetsQuery.refetch(),
         }}
       >
@@ -254,7 +275,11 @@ export default function AuthoringAssets() {
   }
 
   return (
-    <PageShell title="统一资产库" description="检索、收藏、维护和复用全部引擎资产">
+    <PageShell
+      title="统一资产库"
+      description="检索、收藏、维护和复用全部引擎资产"
+      extras={<EvidenceDetailsToggle securityProfile={security.data} />}
+    >
       <Tabs
         defaultActiveKey="library"
         items={[
@@ -278,7 +303,7 @@ export default function AuthoringAssets() {
                   </Select>
                   <Input
                     allowClear
-                    placeholder="搜索资产编码或名称"
+                    placeholder="搜索资产名称或证据线索"
                     value={keyword}
                     onChange={(event) => setKeyword(event.target.value)}
                     className={styles.keywordInput}
@@ -322,7 +347,10 @@ export default function AuthoringAssets() {
                 <Button disabled={!canWriteFields} onClick={() => setFieldCatalogOpen(true)}>
                   维护字段目录
                 </Button>
-                <DeclarativeAssetWorkbench canWrite={canWriteDeclarative} />
+                <DeclarativeAssetWorkbench
+                  canWrite={canWriteDeclarative}
+                  evidenceDetailsEnabled={evidenceDetailsEnabled}
+                />
               </Space>
             ),
           },

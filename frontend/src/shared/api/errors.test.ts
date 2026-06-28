@@ -37,18 +37,35 @@ describe("api error helpers", () => {
     });
 
     expect(getApiErrorMessage(problemError(), "保存失败")).toBe(
-      "请修正表单字段后重试（追踪号：trace-form-1）",
+      "请修正表单字段后重试（失败已留痕，可在审计证据中追溯）",
+    );
+    expect(getApiErrorMessage(problemError(), "保存失败")).not.toContain("trace-form-1");
+  });
+
+  it("keeps trace identifiers in parsed evidence but not in default customer messages", () => {
+    const error = {
+      response: {
+        data: {
+          detail: "处理失败，请联系信息科核查 trace-form-1",
+          traceId: "trace-form-1",
+        },
+      },
+    };
+
+    expect(parseApiError(error, "保存失败").traceId).toBe("trace-form-1");
+    expect(getApiErrorMessage(error, "保存失败")).toBe(
+      "处理失败，请联系信息科核查（失败已留痕，可在审计证据中追溯）",
     );
   });
 
-  it("maps backend field errors to Ant Design Form fields", () => {
+  it("maps service field errors to Ant Design Form fields", () => {
     expect(apiFieldErrorsToFormFields(problemError())).toEqual([
       { name: "username", errors: ["用户名不能为空"] },
       { name: ["profile", "email"], errors: ["邮箱格式不合法"] },
     ]);
   });
 
-  it("supports field name mapping for pages whose form names differ from backend fields", () => {
+  it("supports field name mapping for pages whose form names differ from service fields", () => {
     expect(
       apiFieldErrorsToFormFields(problemError(), {
         fieldNameMap: (field) => (field === "username" ? "account" : undefined),

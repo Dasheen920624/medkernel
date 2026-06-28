@@ -502,7 +502,7 @@ class WorkflowCollaborationServiceTest {
     void listTodosPassesSelectedOrganizationScopeToRepositoryFilter() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-workflow",
-            new OrgScope("tenant-A", null, null, null, null, "dept-a", null),
+            new OrgScope("tenant-A", null, null, null, null, "dept-a", null, null),
             "doctor-1"));
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         WorkflowTodo selectedTodo = new WorkflowTodo(
@@ -701,7 +701,7 @@ class WorkflowCollaborationServiceTest {
     void completeTodoRejectsSiblingOrganizationTodoWithoutPersisting() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-workflow",
-            new OrgScope("tenant-A", null, null, null, null, "dept-a", null),
+            new OrgScope("tenant-A", null, null, null, null, "dept-a", null, null),
             "doctor-1"));
         when(todos.findVisibleByTenantIdAndTodoId("tenant-A", "todo-sibling-1", "doctor-1", "dept-a"))
             .thenReturn(Optional.empty());
@@ -1549,7 +1549,7 @@ class WorkflowCollaborationServiceTest {
     void listNotificationsPassesSelectedOrganizationScopeToRepositoryFilter() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-workflow",
-            new OrgScope("tenant-A", null, null, null, null, "dept-a", null),
+            new OrgScope("tenant-A", null, null, null, null, "dept-a", null, null),
             "doctor-1"));
         Instant now = Instant.parse("2026-06-04T08:00:00Z");
         WorkflowNotification selectedNotification = new WorkflowNotification(
@@ -1664,7 +1664,7 @@ class WorkflowCollaborationServiceTest {
     void markNotificationReadRejectsSiblingOrganizationNotificationWithoutPersisting() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-workflow",
-            new OrgScope("tenant-A", null, null, null, null, "dept-a", null),
+            new OrgScope("tenant-A", null, null, null, null, "dept-a", null, null),
             "doctor-1"));
         when(notifications.findVisibleByTenantIdAndNotificationId(
                 "tenant-A",
@@ -1883,7 +1883,7 @@ class WorkflowCollaborationServiceTest {
         return new ClinicalEventContext(
             eventId,
             "tenant-A",
-            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
+            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", null, "specialty-A"),
             ClinicalEventType.ORDER,
             ClinicalEventTriggerPoint.ORDER_SIGN,
             "patient-1",

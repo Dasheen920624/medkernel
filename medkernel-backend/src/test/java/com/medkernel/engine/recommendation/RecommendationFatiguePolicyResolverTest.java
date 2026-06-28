@@ -31,7 +31,7 @@ class RecommendationFatiguePolicyResolverTest {
     void configuredDepartmentScenarioPolicyTakesPrecedence() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-rec",
-            new OrgScope("tenant-A", null, "hospital-1", null, null, "dept-icu", null),
+            new OrgScope("tenant-A", null, "hospital-1", null, null, "dept-icu", null, null),
             "doctor-1"));
         when(configs.findActive("SYSTEM", RecommendationFatiguePolicyResolver.CONFIG_KEY))
             .thenReturn(Optional.of(config("""

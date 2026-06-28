@@ -19,7 +19,7 @@
 
 | 职责 | 菜单键（按目录顺序） |
 |---|---|
-| 平台管理员 | `workbench, tenant-onboarding, admin-users, identity-bindings, admin-audit, security-baseline, implementation-guide, adapter-hub, system-providers, domestic-check, dev-console, notifications, notification-settings` |
+| 平台管理员 | `workbench, tenant-onboarding, admin-users, identity-bindings, admin-audit, security-baseline, implementation-guide, adapter-hub, system-providers, domestic-check, runtime-diagnostics, notifications, notification-settings` |
 | 医疗引擎运营员 | `workbench, knowledge-governance, institution-knowledge, diagnosis-knowledge, runtime-releases, terminology-mapping, rule-definitions, pathway-templates, provenance, graph-explore, knowledge-production, ai-workflows, sandbox, qc-dashboard, qc-alerts, insurance-audit, qc-eval-sets, admin-audit, notifications, notification-settings` |
 | 临床使用者 | `workbench, mpi, patient-pathways, cdss-fatigue, workflow-todos, clinical-followup, sandbox, notifications, notification-settings` |
 | 审计员 | `workbench, provenance, admin-audit, security-baseline, notifications, notification-settings` |

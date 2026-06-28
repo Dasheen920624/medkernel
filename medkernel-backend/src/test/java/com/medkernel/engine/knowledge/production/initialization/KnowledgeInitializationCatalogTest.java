@@ -31,4 +31,11 @@ class KnowledgeInitializationCatalogTest {
             .containsExactlyInAnyOrder(FoundationCoverageDimension.values());
         assertThat(catalog.requiredFoundationCoverage()).hasSize(12);
     }
+
+    @Test
+    void catalogTitlesDoNotExposeCompatibilityAsLaunchProductLanguage() {
+        assertThat(catalog.listAll())
+            .extracting(KnowledgeInitializationCatalogItem::title)
+            .noneMatch(title -> title.contains("兼容"));
+    }
 }

@@ -36,7 +36,26 @@ class MpiServiceIntegrationTest {
 
     @AfterEach
     void clearContext() {
+        reviewRepository.deleteAll();
+        patientRepository.deleteAll();
         RequestContext.clear();
+    }
+
+    @Test
+    void statsHandlesNewlyCreatedUnknownGenderPatient() {
+        RequestContext.restore(new RequestContext.Snapshot("trace-mpi-stats-it", OrgScope.tenant(TENANT_ID), "clinical-user"));
+        patientRepository.save(new MpiPatient(
+            null, "mpi-it-stats", TENANT_ID, "赵*君", "UNKNOWN", 67, "4568", 0, "ACTIVE",
+            null, Instant.now(), "test", Instant.now(), "test"
+        ));
+
+        MpiStatsResponse stats = service.getStats();
+
+        assertThat(stats.activeCount()).isEqualTo(1L);
+        assertThat(stats.mergedCount()).isZero();
+        assertThat(stats.activePathwayCount()).isZero();
+        assertThat(stats.averageAge()).isEqualTo(67.0);
+        assertThat(stats.genderCounts()).containsEntry("UNKNOWN", 1L);
     }
 
     @Test

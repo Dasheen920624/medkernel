@@ -4,28 +4,33 @@ import { ensureReadySession, loginFromPlatformPage } from "./support/auth";
 
 test.describe.configure({ mode: "serial" });
 
-test.describe("D6 AI 工作流真实验收", () => {
+test.describe("D6 模型能力真实验收", () => {
   test("医疗引擎运营员从登录页查看真实能力状态", async ({ page }, testInfo) => {
     const browserErrors = collectBrowserErrors(page);
     await ensureReadySession(page, "engine-operator");
     await loginFromPlatformPage(page, "engine-operator");
 
     await page.goto("/advanced/ai-workflows");
-    await expect(page.getByRole("heading", { name: "AI 工作流" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "模型能力" })).toBeVisible();
     await expect(page.getByText("临床知识关联发现")).toBeVisible();
+    await expect(page.getByText("正式医学知识生产")).toBeVisible();
     await expect(page.getByText("智能随访", { exact: true })).toBeVisible();
-    await expect(page.locator("tbody tr.ant-table-row")).toHaveCount(8);
-    await expect(page.getByText("B0 基线").last()).toBeVisible();
-    await expect(page.getByText("未配置专属策略，使用系统 B0 基线").first()).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /提交|运行|重试|配置|编辑|新增|保存/ }),
-    ).toHaveCount(0);
+    await expect(page.locator("tbody tr.ant-table-row")).toHaveCount(9);
+    await expect(page.getByText("基础规则能力").first()).toBeVisible();
+    await expect(page.getByText("规则链路可用").first()).toBeVisible();
+    await expect(page.getByText("未配置专属策略，使用系统无模型规则链路").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /配置 .+ 外调安全策略/ })).toHaveCount(9);
+    await expect(page.getByRole("button", { name: /提交|运行|重试|编辑|新增|保存/ })).toHaveCount(
+      0,
+    );
 
     await page.getByRole("button", { name: "展开行" }).first().click();
     await expect(page.getByText("路由策略", { exact: true })).toBeVisible();
     await expect(page.getByText("基础规则能力", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("B0")).toHaveCount(0);
     await expect(page.getByText("BASELINE", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("使用系统默认", { exact: true })).toBeVisible();
+    await expect(page.getByText("基线可用")).toHaveCount(0);
+    await expect(page.getByText("系统无模型规则链路").first()).toBeVisible();
     await expectNoRootOverflow(page);
     await page.evaluate(() => window.scrollTo(0, 0));
 
@@ -44,7 +49,7 @@ test.describe("D6 AI 工作流真实验收", () => {
     await ensureReadySession(page, "engine-operator");
     await page.goto("/advanced/ai-workflows");
 
-    await expect(page.getByRole("heading", { name: "AI 工作流" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "模型能力" })).toBeVisible();
     await expect(page.getByText("临床知识关联发现")).toBeVisible();
     await expectNoRootOverflow(page);
     await expectTableIsInternallyScrollable(page);

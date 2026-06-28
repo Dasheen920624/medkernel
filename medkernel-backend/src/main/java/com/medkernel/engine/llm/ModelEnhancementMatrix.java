@@ -7,11 +7,11 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 全业务模型增强接入矩阵台账（LLM-05）。
+ * 全业务模型赋能覆盖矩阵台账（LLM-05）。
  *
- * <p>平台全局「模型网关全局目录」的增强接入图谱：登记每个可增强业务点 ↔ 能力码 ↔ B0 路径 ↔ 接入状态。
- * {@code accessStatus}：{@code ACTIVE} 已接入（须同时具备已登记能力码与 B0 路径，过 {@code ENG-LLM-010} 门禁）、
- * {@code PENDING} 待接入（缺口诚实标注，能力码/ B0 可空）、{@code DISABLED} 停用。仿 {@link ModelCapabilityDefinition}
+ * <p>平台全局「模型网关全局目录」的模型赋能覆盖图谱：登记每个可赋能业务点 ↔ 能力码 ↔ B0 主链 ↔ 配置状态。
+ * {@code accessStatus}：{@code ACTIVE} 已启用（须同时具备已登记能力码与 B0 主链，过 {@code ENG-LLM-010} 门禁）、
+ * {@code PENDING} 待配置（缺口诚实标注，能力码/ B0 可空）、{@code DISABLED} 停用。仿 {@link ModelCapabilityDefinition}
  * 为平台全局目录（无 {@code tenant_id}），由医疗引擎运营员维护。
  */
 @Table("mk_llm_enhancement_matrix")

@@ -117,7 +117,7 @@ const PATHWAY_CONTENT_STATUS: Record<
 
 const PATHWAY_DEPLOYMENT_STATUS: Record<string, { status: PathwayBadgeStatus; text: string }> = {
   DRAFT: { status: "warning", text: "待提交" },
-  IN_REVIEW: { status: "processing", text: "技术验证中" },
+  IN_REVIEW: { status: "processing", text: "安全复核中" },
   APPROVED: { status: "processing", text: "已验证待激活" },
   PUBLISHED: { status: "success", text: "运行中" },
   DEPRECATED: { status: "default", text: "已弃用" },
@@ -143,6 +143,67 @@ function pathwayDeploymentStatus(status: string) {
 function pathwayEntryModeText(mode: PathwayEntryMode | string | undefined) {
   if (mode === "MANUAL_CONFIRM") return "人工确认入径";
   return "自动建议入径";
+}
+
+function evidenceText(
+  value: string | number | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  businessText: string,
+) {
+  if (!evidenceDetailsEnabled) return businessText;
+  if (value === undefined || value === null || value === "") return "未返回";
+  return String(value);
+}
+
+function pathwayIdentityText(
+  templateCode: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  return evidenceText(templateCode, evidenceDetailsEnabled, "路径模板已登记");
+}
+
+function pathwayVersionText(version: number | null | undefined, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) {
+    return version ? `v${version}.0` : "未形成版本";
+  }
+  return version ? `第 ${version} 版已形成` : "尚未形成版本";
+}
+
+function snapshotBusinessLabel(index: number) {
+  return `第 ${index + 1} 个临床快照`;
+}
+
+function replaySnapshotBusinessLabel(index: number) {
+  return `第 ${index + 1} 个回放快照`;
+}
+
+function snapshotButtonLabel(
+  snapshot: ContextSnapshotSummary,
+  index: number,
+  evidenceDetailsEnabled: boolean,
+) {
+  return evidenceDetailsEnabled ? snapshot.snapshotId : snapshotBusinessLabel(index);
+}
+
+function snapshotAssociationText(
+  snapshot: Pick<ContextSnapshotSummary, "patientId" | "encounterId">,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) {
+    return `患者 ${snapshot.patientId || "-"} · 就诊 ${snapshot.encounterId || "-"}`;
+  }
+  return "患者已关联 · 就诊已关联";
+}
+
+function selectedSnapshotText(
+  snapshotId: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  return evidenceText(snapshotId, evidenceDetailsEnabled, "临床快照已选择");
+}
+
+function nodeEvidenceText(nodeCode: string, index: number, evidenceDetailsEnabled: boolean) {
+  return evidenceDetailsEnabled ? nodeCode : `第 ${index + 1} 个路径节点`;
 }
 
 type PathwayNodeDraft = {
@@ -291,7 +352,7 @@ type SnapshotQuery = {
   size: number;
 };
 
-type PathwayPrototypeKey = "blank" | "ed_disposition";
+type PathwayPrototypeKey = "blank" | "basic_cycle";
 
 const templateLevelOptions: Array<{ value: PathwayTemplateLevel; label: string }> = [
   { value: "STANDARD", label: "平台标准模板" },
@@ -364,9 +425,9 @@ const pathwayPrototypeOptions: Array<{
     description: "从 L1 基本信息与 L2 节点画布手工配置。",
   },
   {
-    key: "ed_disposition",
-    title: "急诊处置路径",
-    description: "默认生成急诊评估到处置安排的两节点安全骨架。",
+    key: "basic_cycle",
+    title: "基础节点闭环",
+    description: "生成评估到处置确认的两节点起始结构，由医院按专科、病种和岗位继续配置。",
   },
 ];
 
@@ -388,6 +449,16 @@ const pathwayConditionValueKindOptions = [
 function cleanText(value?: string | null) {
   const normalized = value?.trim();
   return normalized || undefined;
+}
+
+function nodeTypeText(type?: PathwayNodeType | string | null) {
+  if (!type) return "未设置";
+  return nodeTypeOptions.find((option) => option.value === type)?.label ?? customerEnumLabel(type);
+}
+
+function edgeTypeText(type?: PathwayEdgeType | string | null) {
+  if (!type) return "未设置";
+  return edgeTypeOptions.find((option) => option.value === type)?.label ?? customerEnumLabel(type);
 }
 
 function parseConditionJson(value?: string) {
@@ -571,7 +642,7 @@ function normalizeNodes(nodes?: PathwayNodeFormValue[]) {
         typeof node.timeWindowMinutes === "number" && node.timeWindowMinutes > 0
           ? node.timeWindowMinutes
           : undefined;
-      const responsibleRole = cleanText(node.responsibleRole) ?? "专科医生";
+      const responsibleRole = cleanText(node.responsibleRole) ?? "责任医生";
       const accountableRole = cleanText(node.accountableRole) ?? responsibleRole;
       return {
         nodeCode: cleanText(node.nodeCode) ?? "",
@@ -764,15 +835,20 @@ function validateRichNodeContracts(nodes: PathwayNodeDraft[], edges: PathwayEdge
   return undefined;
 }
 
-function richNodeConfigSummary(node: PathwayNode) {
+function richNodeConfigSummary(node: PathwayNode, evidenceDetailsEnabled = true) {
   const config = parseLooseJson(node.configJson);
   const orderSetRef = configText(config, "orderSetRef");
-  if (orderSetRef) return `医嘱套餐 ${orderSetRef}`;
+  if (orderSetRef) {
+    return evidenceDetailsEnabled ? `医嘱套餐 ${orderSetRef}` : "医嘱套餐已关联";
+  }
   const clock = configText(config, "clock");
-  if (clock) return `计时 ${clock}`;
+  if (clock) return evidenceDetailsEnabled ? `计时 ${clock}` : "计时规则已配置";
   const clockSla = configObject(config, "clockSla");
   if (clockSla) {
-    return `SLA ${clockSla.baselineEvent ?? "NODE_START"} / ${clockSla.targetMinutes ?? "-"} 分钟`;
+    const targetMinutes = clockSla.targetMinutes ?? "-";
+    return evidenceDetailsEnabled
+      ? `SLA ${clockSla.baselineEvent ?? "NODE_START"} / ${targetMinutes} 分钟`
+      : `SLA 已配置 / ${targetMinutes} 分钟`;
   }
   return "无";
 }
@@ -819,8 +895,13 @@ function outcomeScopeText(scope?: PathwayOutcomeScope | string | null) {
   return "模板";
 }
 
-function outcomeRefText(binding: Pick<PathwayOutcomeBinding, "scope" | "refCode">) {
-  return binding.scope === "TEMPLATE" ? "全模板" : binding.refCode || "-";
+function outcomeRefText(
+  binding: Pick<PathwayOutcomeBinding, "scope" | "refCode">,
+  evidenceDetailsEnabled = true,
+) {
+  if (binding.scope === "TEMPLATE") return "全模板";
+  if (evidenceDetailsEnabled) return binding.refCode || "-";
+  return binding.scope === "MILESTONE" ? "里程碑已关联" : "阶段已关联";
 }
 
 function outcomeBindingKey(
@@ -939,8 +1020,7 @@ function milestoneOptionLabel(
 ) {
   const phase = cleanText(milestone.phaseName) ?? cleanText(milestone.phaseCode) ?? "未命名阶段";
   const name = cleanText(milestone.name) ?? "未命名里程碑";
-  const code = cleanText(milestone.milestoneCode) ?? "未设置编码";
-  return `${phase} / ${milestoneDayText(milestone.dayOffset)} / ${name}（${code}）`;
+  return `${phase} / ${milestoneDayText(milestone.dayOffset)} / ${name}`;
 }
 
 function normalizeEdgesForCanvas(edges?: PathwayEdgeFormValue[]) {
@@ -969,7 +1049,7 @@ function parsePathwayDslJson(value: string): PathwayDslPayload {
     }
     return payload;
   } catch {
-    throw new Error("L3 技术配置格式不合法，请检查节点、连线与指标绑定。");
+    throw new Error("受控配置文本格式不合法，请检查节点、连线与指标绑定。");
   }
 }
 
@@ -1229,10 +1309,10 @@ function findPathwayTopologyIssues(
 
   const issues: string[] = [];
   for (const code of duplicatedCodes(nodes.map((node) => node.nodeCode))) {
-    issues.push(`节点编码 ${code} 重复，请改为唯一编码。`);
+    issues.push(`节点身份 ${code} 重复，请保持唯一。`);
   }
   for (const code of duplicatedCodes(edges.map((edge) => edge.edgeCode))) {
-    issues.push(`边编码 ${code} 重复，请改为唯一编码。`);
+    issues.push(`流转身份 ${code} 重复，请保持唯一。`);
   }
   if (!nodes.some((node) => node.terminal)) {
     issues.push("至少需要一个终止节点。");
@@ -1241,7 +1321,7 @@ function findPathwayTopologyIssues(
   const nodeCodes = new Set(nodes.map((node) => node.nodeCode).filter(Boolean));
   for (const edge of edges) {
     if (!nodeCodes.has(edge.fromNodeCode) || !nodeCodes.has(edge.toNodeCode)) {
-      issues.push(`边 ${edge.edgeCode || "未编码"} 引用不存在节点，请从已建节点中选择。`);
+      issues.push(`流转 ${edge.edgeCode || "未设置身份"} 引用不存在节点，请从已建节点中选择。`);
     }
   }
 
@@ -1284,8 +1364,9 @@ export default function PathwayTemplates() {
 
   const [createTemplateVisible, setCreateTemplateVisible] = useState<boolean>(false);
   const [fieldManagerOpen, setFieldManagerOpen] = useState<boolean>(false);
-  const [createExpertMode, setCreateExpertMode] = useState<boolean>(false);
-  const [detailExpertMode, setDetailExpertMode] = useState<boolean>(false);
+  const [createAdvancedConfigEnabled, setCreateAdvancedConfigEnabled] = useState<boolean>(false);
+  const [detailAdvancedViewEnabled, setDetailAdvancedViewEnabled] = useState<boolean>(false);
+  const evidenceDetailsEnabled = detailAdvancedViewEnabled;
   const [selectedPathwayPrototype, setSelectedPathwayPrototype] =
     useState<PathwayPrototypeKey>("blank");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -1437,9 +1518,9 @@ export default function PathwayTemplates() {
     () =>
       canvasNodes
         .filter((node) => cleanText(node.nodeCode))
-        .map((node) => ({
+        .map((node, index) => ({
           value: node.nodeCode,
-          label: `${cleanText(node.name) ?? "未命名节点"}（${node.nodeCode}）`,
+          label: `${cleanText(node.name) ?? "未命名节点"} · 节点 ${index + 1}`,
         })),
     [canvasNodes],
   );
@@ -1464,7 +1545,7 @@ export default function PathwayTemplates() {
     }
     return [...byCode.entries()].map(([value, label]) => ({
       value,
-      label: `${label}（${value}）`,
+      label,
     }));
   }, [watchedMilestones]);
 
@@ -1472,10 +1553,74 @@ export default function PathwayTemplates() {
     () =>
       (evaluationIndicatorsData?.items ?? []).map((indicator: EvaluationIndicator) => ({
         value: indicator.indicatorCode,
-        label: `${indicator.name}（${indicator.indicatorCode}）`,
+        label: `${indicator.name} · 第 ${indicator.versionNo} 版`,
       })),
     [evaluationIndicatorsData?.items],
   );
+  const detailNodeByCode = useMemo(
+    () => new Map((detailData?.nodes ?? []).map((node) => [node.nodeCode, node])),
+    [detailData?.nodes],
+  );
+  const detailNodeIndexByCode = useMemo(
+    () => new Map((detailData?.nodes ?? []).map((node, index) => [node.nodeCode, index])),
+    [detailData?.nodes],
+  );
+  const detailMilestoneByCode = useMemo(
+    () =>
+      new Map(
+        (detailData?.milestones ?? []).map((milestone) => [milestone.milestoneCode, milestone]),
+      ),
+    [detailData?.milestones],
+  );
+  const outcomeIndicatorByCode = useMemo(
+    () =>
+      new Map(
+        (evaluationIndicatorsData?.items ?? []).map((indicator: EvaluationIndicator) => [
+          indicator.indicatorCode,
+          indicator.name,
+        ]),
+      ),
+    [evaluationIndicatorsData?.items],
+  );
+  const detailNodeIdentityText = (nodeCode: string, rowIndex: number) =>
+    nodeEvidenceText(nodeCode, rowIndex, evidenceDetailsEnabled);
+  const detailEdgeIdentityText = (edgeCode: string, rowIndex: number) =>
+    evidenceDetailsEnabled ? edgeCode : `第 ${rowIndex + 1} 条路径流转`;
+  const detailNodeReferenceText = (nodeCode?: string | null, fallbackIndex?: number) => {
+    if (evidenceDetailsEnabled) return nodeCode || "未返回";
+    const node = nodeCode ? detailNodeByCode.get(nodeCode) : undefined;
+    const nodeName = cleanText(node?.name);
+    if (nodeName) return nodeName;
+    const nodeIndex = nodeCode ? detailNodeIndexByCode.get(nodeCode) : undefined;
+    if (nodeIndex !== undefined) return nodeEvidenceText(nodeCode ?? "", nodeIndex, false);
+    if (fallbackIndex !== undefined) return nodeEvidenceText(nodeCode ?? "", fallbackIndex, false);
+    return "路径节点已关联";
+  };
+  const detailMilestoneReferenceText = (milestoneCode?: string | null) => {
+    const normalizedCode = cleanText(milestoneCode);
+    if (!normalizedCode) return "未绑定";
+    if (evidenceDetailsEnabled) return normalizedCode;
+    const milestone = detailMilestoneByCode.get(normalizedCode);
+    return milestone?.name ? `里程碑：${milestone.name}` : "里程碑已关联";
+  };
+  const detailMetricReferenceText = (metricCode?: string | null) => {
+    if (evidenceDetailsEnabled) return metricCode || "未返回";
+    return metricCode ? "时钟指标已绑定" : "未绑定";
+  };
+  const detailEdgeConditionText = (condition?: string | null) => {
+    const normalized = cleanText(condition);
+    if (evidenceDetailsEnabled) return normalized ?? "默认流转";
+    return normalized ? "流转条件已配置" : "默认流转";
+  };
+  const detailOutcomeIndicatorText = (indicatorCode?: string | null) => {
+    if (evidenceDetailsEnabled) return indicatorCode || "未返回";
+    const indicatorName = indicatorCode ? outcomeIndicatorByCode.get(indicatorCode) : undefined;
+    return indicatorName ?? (indicatorCode ? "结局指标已绑定" : "未绑定");
+  };
+  const detailTrajectoryText = (trajectory: string[] = []) =>
+    evidenceDetailsEnabled
+      ? trajectory.join(" → ")
+      : trajectory.map((nodeCode, index) => detailNodeReferenceText(nodeCode, index)).join(" → ");
   const { data: publishedRulesData, isLoading: publishedRulesLoading } = useRuleDefinitions(
     {
       status: "PUBLISHED",
@@ -1489,7 +1634,7 @@ export default function PathwayTemplates() {
     () =>
       (publishedRulesData?.items ?? []).map((rule: RuleDefinition) => ({
         value: rule.ruleCode,
-        label: `${rule.name} · ${rule.ruleCode}`,
+        label: rule.name,
         ruleAssetId: rule.ruleId,
       })),
     [publishedRulesData?.items],
@@ -1516,7 +1661,7 @@ export default function PathwayTemplates() {
       );
     }
   };
-  // 自动生成不重复的顺序编码（节点 N1/N2…，边 E1/E2…），可改但默认不必手填。
+  // 自动生成不重复的顺序身份（节点 N1/N2…，边 E1/E2…），可改但默认不必手填。
   const nextSeqCode = (
     listName: "nodes" | "edges" | "milestones",
     field: "nodeCode" | "edgeCode" | "milestoneCode",
@@ -1583,7 +1728,7 @@ export default function PathwayTemplates() {
       ),
     );
     resetSimulation();
-    setCreateExpertMode(false);
+    setCreateAdvancedConfigEnabled(false);
     setCreateTemplateVisible(true);
     messageApi.success(
       `已复制当前内容，提交时系统将自动创建 v${detailData.nextVersionNo}.0 草稿。`,
@@ -1599,10 +1744,10 @@ export default function PathwayTemplates() {
 
     const milestones: PathwayMilestoneFormValue[] = [
       {
-        phaseCode: "ED",
-        phaseName: "急诊处置",
-        milestoneCode: "M-ED-ASSESS",
-        name: "完成急诊评估",
+        phaseCode: "ENTRY",
+        phaseName: "入径评估",
+        milestoneCode: "M-ENTRY-ASSESS",
+        name: "完成入径评估",
         dayOffset: 0,
         expectedOffsetMinutes: 30,
         sortOrder: 1,
@@ -1611,21 +1756,21 @@ export default function PathwayTemplates() {
     const nodes: PathwayNodeFormValue[] = [
       {
         nodeCode: "ASSESS",
-        name: "急诊评估",
+        name: "入径评估",
         nodeType: "ASSESSMENT",
-        milestoneCode: "M-ED-ASSESS",
+        milestoneCode: "M-ENTRY-ASSESS",
         sortOrder: 1,
-        responsibleRole: "急诊医生",
-        accountableRole: "急诊医生",
+        responsibleRole: "责任医生",
+        accountableRole: "责任医生",
       },
       {
         nodeCode: "DISPOSITION",
-        name: "处置安排",
-        nodeType: "DISCHARGE",
-        milestoneCode: "M-ED-ASSESS",
+        name: "处置确认",
+        nodeType: "MANUAL_GATE",
+        milestoneCode: "M-ENTRY-ASSESS",
         sortOrder: 2,
-        responsibleRole: "急诊医生",
-        accountableRole: "急诊医生",
+        responsibleRole: "责任医生",
+        accountableRole: "责任医生",
         terminal: true,
       },
     ];
@@ -1640,14 +1785,14 @@ export default function PathwayTemplates() {
     ];
 
     templateForm.setFieldsValue({
-      name: "急诊处置路径",
-      templateCode: "PATH.ED.DISPOSITION",
-      diseaseCode: "ED",
+      name: "基础节点闭环",
+      templateCode: "PATH.CLINICAL.CYCLE",
+      diseaseCode: "GENERAL",
       templateLevel: "STANDARD",
       entryMode: "AUTO_SUGGEST",
       startNodeCode: "ASSESS",
-      sourceRef: "院内已审核急诊处置制度",
-      description: "急诊评估后进入处置或离院安排。",
+      sourceRef: "院内已审核路径制度",
+      description: "完成入径评估后进入处置确认或闭环安排。",
       milestones,
       nodes,
       edges,
@@ -1689,12 +1834,12 @@ export default function PathwayTemplates() {
     setCreatePreviewRunResult(null);
   };
 
-  const toggleCreateExpertMode = (checked: boolean) => {
-    setCreateExpertMode(checked);
+  const toggleCreateAdvancedConfigEnabled = (checked: boolean) => {
+    setCreateAdvancedConfigEnabled(checked);
   };
 
-  const toggleDetailExpertMode = (checked: boolean) => {
-    setDetailExpertMode(checked);
+  const toggleDetailAdvancedViewEnabled = (checked: boolean) => {
+    setDetailAdvancedViewEnabled(checked);
     if (!checked && detailActiveTab === "l3") {
       setDetailActiveTab("l2");
     }
@@ -1726,11 +1871,11 @@ export default function PathwayTemplates() {
           !cleanText(milestone.milestoneCode) ||
           !cleanText(milestone.name)
         ) {
-          messageApi.error("阶段里程碑必须填写阶段编码、阶段名称、里程碑编码和名称");
+          messageApi.error("阶段里程碑必须填写阶段身份、阶段名称、里程碑身份和名称");
           return;
         }
         if (milestoneCodes.has(milestone.milestoneCode)) {
-          messageApi.error(`里程碑编码 ${milestone.milestoneCode} 重复，请改为唯一编码。`);
+          messageApi.error(`里程碑身份 ${milestone.milestoneCode} 重复，请保持唯一。`);
           return;
         }
         milestoneCodes.add(milestone.milestoneCode);
@@ -1761,7 +1906,7 @@ export default function PathwayTemplates() {
         return;
       }
       if (!activeNodeCodes.has(values.startNodeCode)) {
-        messageApi.error("起始节点编码必须来自 L2 节点画布");
+        messageApi.error("起始节点必须来自 L2 节点画布");
         return;
       }
       const timedNodeWithoutMetric = activeNodes.find(
@@ -1770,7 +1915,7 @@ export default function PathwayTemplates() {
           !metricBindings.some((binding) => binding.nodeCode === node.nodeCode),
       );
       if (timedNodeWithoutMetric) {
-        messageApi.error(`节点 ${timedNodeWithoutMetric.nodeCode} 设置时窗后必须绑定时钟指标编码`);
+        messageApi.error(`节点 ${timedNodeWithoutMetric.nodeCode} 设置时窗后必须绑定时钟指标身份`);
         return;
       }
       const topologyIssuesForSubmit = findPathwayTopologyIssues(
@@ -1827,7 +1972,7 @@ export default function PathwayTemplates() {
 
   const syncCanvasToDsl = () => {
     if (fieldCatalogQuery.isError) {
-      messageApi.error("字段目录暂不可用，路径条件不能同步到技术配置。");
+      messageApi.error("字段目录暂不可用，路径条件不能同步到受控配置。");
       return;
     }
     try {
@@ -1837,10 +1982,10 @@ export default function PathwayTemplates() {
           buildDraftDsl(values.milestones, values.nodes, values.edges, values.outcomeBindings),
         ),
       );
-      setCreateExpertMode(true);
-      messageApi.success("已从 L2 节点画布同步到 L3 技术配置");
+      setCreateAdvancedConfigEnabled(true);
+      messageApi.success("已从节点画布同步到受控配置文本");
     } catch (error: unknown) {
-      messageApi.error(error instanceof Error ? error.message : "L2 节点画布无法生成技术配置");
+      messageApi.error(error instanceof Error ? error.message : "L2 节点画布无法生成受控配置");
     }
   };
 
@@ -1856,9 +2001,9 @@ export default function PathwayTemplates() {
           formValues.outcomeBindings,
         ),
       );
-      messageApi.success("已将 L3 技术配置回填到 L2 节点画布");
+      messageApi.success("已将受控配置文本回填到节点画布");
     } catch (error: unknown) {
-      messageApi.error(error instanceof Error ? error.message : "L3 技术配置回填失败");
+      messageApi.error(error instanceof Error ? error.message : "受控配置文本回填失败");
     }
   };
 
@@ -1866,7 +2011,7 @@ export default function PathwayTemplates() {
     const patientId = cleanText(snapshotPatientId);
     const encounterId = cleanText(snapshotEncounterId);
     if (!patientId && !encounterId) {
-      messageApi.error("请输入患者 ID 或就诊 ID 后读取快照");
+      messageApi.error("请输入患者信息或就诊信息后读取快照");
       return;
     }
     setSnapshotQuery({
@@ -1967,10 +2112,12 @@ export default function PathwayTemplates() {
 
   const columns: TableProps<PathwayTemplate>["columns"] = [
     {
-      title: "模板代码",
+      title: "路径身份",
       dataIndex: "templateCode",
       key: "templateCode",
-      render: (text: string) => <Tag color="geekblue">{text}</Tag>,
+      render: (text: string) => (
+        <Tag color="geekblue">{pathwayIdentityText(text, evidenceDetailsEnabled)}</Tag>
+      ),
     },
     {
       title: "路径名称",
@@ -1999,7 +2146,7 @@ export default function PathwayTemplates() {
       title: "版本",
       dataIndex: "templateVersion",
       key: "templateVersion",
-      render: (value: number) => `v${value}.0`,
+      render: (value: number) => pathwayVersionText(value, evidenceDetailsEnabled),
     },
     {
       title: "状态",
@@ -2017,7 +2164,7 @@ export default function PathwayTemplates() {
           onClick={() => {
             setSelectedTemplateId(record.templateId);
             setDetailActiveTab("l1");
-            setDetailExpertMode(false);
+            setDetailAdvancedViewEnabled(false);
             setSimulateStartNode(record.startNodeCode ?? "");
             resetSimulation();
           }}
@@ -2031,20 +2178,22 @@ export default function PathwayTemplates() {
 
   const nodeColumns: TableProps<PathwayNode>["columns"] = [
     {
-      title: "节点代码",
+      title: evidenceDetailsEnabled ? "节点身份" : "路径节点",
       dataIndex: "nodeCode",
-      render: (code: string) => <Tag color="blue">{code}</Tag>,
+      render: (code: string, _node, index) => (
+        <Tag color="blue">{detailNodeIdentityText(code, index)}</Tag>
+      ),
     },
     { title: "名称", dataIndex: "name", className: styles.textStrong },
     {
       title: "节点类型",
       dataIndex: "nodeType",
-      render: (type: PathwayNodeType) => <Tag color="purple">{type}</Tag>,
+      render: (type: PathwayNodeType) => <Tag color="purple">{nodeTypeText(type)}</Tag>,
     },
     {
       title: "里程碑",
       dataIndex: "milestoneCode",
-      render: (code?: string) => (code ? <Tag color="geekblue">{code}</Tag> : "未绑定"),
+      render: (code?: string) => <Tag color="geekblue">{detailMilestoneReferenceText(code)}</Tag>,
     },
     {
       title: "时窗",
@@ -2054,7 +2203,7 @@ export default function PathwayTemplates() {
     {
       title: "配置引用",
       key: "config",
-      render: (_value, node) => richNodeConfigSummary(node),
+      render: (_value, node) => richNodeConfigSummary(node, evidenceDetailsEnabled),
     },
     {
       title: "RACI",
@@ -2099,35 +2248,49 @@ export default function PathwayTemplates() {
   ];
 
   const edgeColumns: TableProps<PathwayEdge>["columns"] = [
-    { title: "边代码", dataIndex: "edgeCode" },
+    {
+      title: evidenceDetailsEnabled ? "流转身份" : "路径流转",
+      dataIndex: "edgeCode",
+      render: (code: string, _edge, index) => detailEdgeIdentityText(code, index),
+    },
     {
       title: "源节点",
       dataIndex: "fromNodeCode",
-      render: (code: string) => <Tag color="orange">{code}</Tag>,
+      render: (code: string) => <Tag color="orange">{detailNodeReferenceText(code)}</Tag>,
     },
     {
       title: "目标节点",
       dataIndex: "toNodeCode",
-      render: (code: string) => <Tag color="green">{code}</Tag>,
+      render: (code: string) => <Tag color="green">{detailNodeReferenceText(code)}</Tag>,
     },
     {
       title: "流转类型",
       dataIndex: "edgeType",
-      render: (type: PathwayEdgeType) => <Tag color="cyan">{type}</Tag>,
+      render: (type: PathwayEdgeType) => <Tag color="cyan">{edgeTypeText(type)}</Tag>,
     },
     {
       title: "流转条件配置",
       dataIndex: "conditionJson",
       render: (condition?: string) => (
-        <span className={styles.codeText}>{cleanText(condition) ?? "默认流转"}</span>
+        <span className={evidenceDetailsEnabled ? styles.codeText : undefined}>
+          {detailEdgeConditionText(condition)}
+        </span>
       ),
     },
     { title: "优先级", dataIndex: "priority" },
   ];
 
   const metricColumns: TableProps<SpecialtyMetricBinding>["columns"] = [
-    { title: "节点代码", dataIndex: "nodeCode" },
-    { title: "指标编码", dataIndex: "metricCode" },
+    {
+      title: evidenceDetailsEnabled ? "节点身份" : "路径节点",
+      dataIndex: "nodeCode",
+      render: (code: string) => detailNodeReferenceText(code),
+    },
+    {
+      title: evidenceDetailsEnabled ? "指标身份" : "时钟指标",
+      dataIndex: "metricCode",
+      render: (code: string) => detailMetricReferenceText(code),
+    },
   ];
 
   const outcomeColumns: TableProps<PathwayOutcomeBinding>["columns"] = [
@@ -2139,9 +2302,13 @@ export default function PathwayTemplates() {
     {
       title: "引用对象",
       key: "refCode",
-      render: (_value, binding) => outcomeRefText(binding),
+      render: (_value, binding) => outcomeRefText(binding, evidenceDetailsEnabled),
     },
-    { title: "指标编码", dataIndex: "indicatorCode" },
+    {
+      title: evidenceDetailsEnabled ? "指标身份" : "结局指标",
+      dataIndex: "indicatorCode",
+      render: (code: string) => detailOutcomeIndicatorText(code),
+    },
   ];
 
   const renderPreviewRunEvidence = (evidence: AuthoringPreviewRunEvidence[]) => (
@@ -2191,8 +2358,8 @@ export default function PathwayTemplates() {
     return (
       <Space direction="vertical" size="middle" className="mk-full-width">
         <Descriptions bordered size="small" column={1}>
-          <Descriptions.Item label="已选快照">
-            {selectedSnapshotDetail.snapshotId}
+          <Descriptions.Item label="快照证据">
+            {evidenceText(selectedSnapshotDetail.snapshotId, false, "试运行快照已关联")}
           </Descriptions.Item>
           <Descriptions.Item label="状态">
             {customerEnumLabel(selectedSnapshotDetail.status)}
@@ -2236,11 +2403,21 @@ export default function PathwayTemplates() {
         </Space>
         <Descriptions bordered size="small" column={1}>
           <Descriptions.Item label="试运行结果">{result.outcomeText}</Descriptions.Item>
-          <Descriptions.Item label="选中路径边">{result.selectedEdgeCode || "-"}</Descriptions.Item>
-          <Descriptions.Item label="节点轨迹">
-            {result.nodeTrajectory?.join(" → ") || "-"}
+          <Descriptions.Item label="快照证据">
+            {evidenceText(result.snapshotId, false, "试运行快照已关联")}
           </Descriptions.Item>
-          <Descriptions.Item label="追踪号">{result.traceId || "-"}</Descriptions.Item>
+          <Descriptions.Item label="机构生效版本">
+            {evidenceText(result.runtimeReleaseId, false, "机构生效版本已确认")}
+          </Descriptions.Item>
+          <Descriptions.Item label="选中路径边">
+            {evidenceText(result.selectedEdgeCode, false, "路径边已选择")}
+          </Descriptions.Item>
+          <Descriptions.Item label="节点轨迹">
+            {result.nodeTrajectory?.length ? "节点轨迹已记录" : "-"}
+          </Descriptions.Item>
+          <Descriptions.Item label="追踪证据">
+            {evidenceText(result.traceId, false, "试运行已留痕")}
+          </Descriptions.Item>
         </Descriptions>
         {renderPreviewRunEvidence(result.conditionEvidence ?? [])}
       </Space>
@@ -2283,8 +2460,8 @@ export default function PathwayTemplates() {
             <Col xs={24} sm={12} lg={8}>
               <Form.Item
                 name="templateCode"
-                label="路径模型代码"
-                tooltip="稳定业务编码；同编码修改时由系统自动创建下一版本"
+                label="稳定路径模型身份"
+                tooltip="用于跨版本、发布治理和机构生效版本追溯；同身份修改时由系统自动创建下一版本"
                 rules={[{ required: true }]}
               >
                 <Input placeholder="如 PATH.CARDIO.REVIEW" />
@@ -2293,8 +2470,8 @@ export default function PathwayTemplates() {
             <Col xs={24} sm={12} lg={8}>
               <Form.Item
                 name="diseaseCode"
-                label="病种代码"
-                tooltip="填写真实病种或诊断分组编码，不写临时中文别名"
+                label="适用病种身份"
+                tooltip="填写真实病种、诊断分组或院内路径病种身份，不写临时中文别名"
                 rules={[{ required: true }]}
               >
                 <Input placeholder="如 CARDIO 或 ICD10-I63" />
@@ -2362,7 +2539,7 @@ export default function PathwayTemplates() {
                   disabled={fieldCatalogQuery.isError}
                   onClick={syncCanvasToDsl}
                 >
-                  同步到技术配置
+                  同步到受控配置
                 </Button>
                 <Button
                   icon={<ApartmentOutlined />}
@@ -2377,8 +2554,8 @@ export default function PathwayTemplates() {
               <Alert
                 type="error"
                 showIcon
-                message="字段目录暂不可用，路径条件不能同步到技术配置。"
-                description="路径纳入、排除和流转条件必须绑定标准字段目录；恢复字段目录接口后再同步或保存。"
+                message="字段目录暂不可用，路径条件不能同步到受控配置。"
+                description="路径纳入、排除和流转条件必须绑定标准字段目录；恢复字段目录服务后再同步或保存。"
               />
             ) : null}
             <Row gutter={[16, 16]} className="mk-full-width">
@@ -2463,7 +2640,7 @@ export default function PathwayTemplates() {
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "phaseCode"]}
-                            label="阶段编码"
+                            label="阶段身份"
                             rules={[{ required: true }]}
                           >
                             <Input placeholder="如 PREOP" />
@@ -2483,7 +2660,7 @@ export default function PathwayTemplates() {
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "milestoneCode"]}
-                            label="里程碑编码"
+                            label="里程碑身份"
                             rules={[{ required: true }]}
                           >
                             <Input placeholder="如 M-PREOP-ASSESS" />
@@ -2651,8 +2828,8 @@ export default function PathwayTemplates() {
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "nodeCode"]}
-                            label="节点编码"
-                            tooltip="新增时自动生成（N1/N2…），可改；用于边连接与起点引用"
+                            label="节点身份"
+                            tooltip="新增时自动生成（N1/N2…），可改；用于流转连接与起点引用"
                             rules={[{ required: true }]}
                           >
                             <Input placeholder="如 N1，可改为 ASSESS" />
@@ -2707,7 +2884,7 @@ export default function PathwayTemplates() {
                             label="责任角色"
                             rules={[{ required: true, message: "请填写责任角色" }]}
                           >
-                            <Input placeholder="如 专科医生" />
+                            <Input placeholder="如 责任医生 / 责任护士" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} sm={12} lg={6}>
@@ -2780,7 +2957,7 @@ export default function PathwayTemplates() {
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "metricCode"]}
-                            label="时钟指标编码"
+                            label="时钟指标身份"
                             tooltip="设置时窗分钟后必填，用于时窗校验与质控时钟"
                             rules={[
                               ({ getFieldValue }) => ({
@@ -2792,7 +2969,7 @@ export default function PathwayTemplates() {
                                   ]);
                                   if (Number(minutes) > 0 && !cleanText(value)) {
                                     return Promise.reject(
-                                      new Error("已设置时窗，请填写时钟指标编码"),
+                                      new Error("已设置时窗，请填写时钟指标身份"),
                                     );
                                   }
                                   return Promise.resolve();
@@ -2935,8 +3112,8 @@ export default function PathwayTemplates() {
                       nodeCode: nextSeqCode("nodes", "nodeCode", "N"),
                       nodeType: "ASSESSMENT",
                       sortOrder: fields.length + 1,
-                      responsibleRole: "专科医生",
-                      accountableRole: "专科医生",
+                      responsibleRole: "责任医生",
+                      accountableRole: "责任医生",
                       consultedRoles: [],
                       informedRoles: [],
                       terminal: false,
@@ -2975,8 +3152,8 @@ export default function PathwayTemplates() {
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "edgeCode"]}
-                            label="边编码"
-                            tooltip="新增时自动生成（E1/E2…），可改"
+                            label="流转身份"
+                            tooltip="新增时自动生成（E1/E2…），可改；用于路径流转追溯"
                             rules={[{ required: true }]}
                           >
                             <Input placeholder="如 E1，可改为 EDGE.ASSESS.FOLLOWUP" />
@@ -3257,18 +3434,20 @@ export default function PathwayTemplates() {
           <Col xs={24} lg={9}>
             <Space direction="vertical" size="middle" className="mk-full-width">
               <div className={styles.formSection}>
-                <Form.Item label="患者 ID" htmlFor="pathway-create-snapshot-patient-id">
+                <Form.Item label="患者信息" htmlFor="pathway-create-snapshot-patient-id">
                   <Input
                     id="pathway-create-snapshot-patient-id"
                     value={snapshotPatientId}
                     onChange={(event) => setSnapshotPatientId(event.target.value)}
+                    placeholder="输入患者信息检索快照"
                   />
                 </Form.Item>
-                <Form.Item label="就诊 ID" htmlFor="pathway-create-snapshot-encounter-id">
+                <Form.Item label="就诊信息" htmlFor="pathway-create-snapshot-encounter-id">
                   <Input
                     id="pathway-create-snapshot-encounter-id"
                     value={snapshotEncounterId}
                     onChange={(event) => setSnapshotEncounterId(event.target.value)}
+                    placeholder="输入就诊信息检索快照"
                   />
                 </Form.Item>
                 <Button
@@ -3284,7 +3463,7 @@ export default function PathwayTemplates() {
               <div className={styles.snapshotList}>
                 {snapshotList.length > 0 ? (
                   <Space direction="vertical" className="mk-full-width">
-                    {snapshotList.map((snapshot: ContextSnapshotSummary) => (
+                    {snapshotList.map((snapshot: ContextSnapshotSummary, index) => (
                       <Button
                         key={snapshot.snapshotId}
                         type={selectedSnapshotId === snapshot.snapshotId ? "primary" : "default"}
@@ -3294,7 +3473,7 @@ export default function PathwayTemplates() {
                         }}
                         className={styles.snapshotButton}
                       >
-                        <span>{snapshot.snapshotId}</span>
+                        <span>{snapshotBusinessLabel(index)}</span>
                         <Tag className={styles.tagGap}>
                           {customerDisplayText(snapshot.qualityStatus)}
                         </Tag>
@@ -3305,7 +3484,7 @@ export default function PathwayTemplates() {
                   <Empty
                     image={Empty.PRESENTED_IMAGE_SIMPLE}
                     description={
-                      snapshotQuery ? "未读取到已生效快照" : "请输入患者 ID 或就诊 ID 读取真实快照"
+                      snapshotQuery ? "未读取到已生效快照" : "请输入患者信息或就诊信息读取真实快照"
                     }
                   />
                 )}
@@ -3321,11 +3500,11 @@ export default function PathwayTemplates() {
         </Row>
       ),
     },
-    ...(createExpertMode
+    ...(createAdvancedConfigEnabled
       ? [
           {
             key: "l3",
-            label: "L3 技术配置",
+            label: "受控配置文本",
             children: (
               <div className={styles.editorSection}>
                 <Space direction="vertical" size="middle" className="mk-full-width">
@@ -3343,7 +3522,7 @@ export default function PathwayTemplates() {
                   <Alert
                     type="warning"
                     showIcon
-                    message="L3 是受控技术配置层，普通路径配置请优先使用 L2 节点画布。"
+                    message="受控配置文本用于承载精确执行结构，普通路径配置请优先使用节点画布。"
                   />
                   <Form.Item
                     label="路径配置文本"
@@ -3425,14 +3604,14 @@ export default function PathwayTemplates() {
           children: (
             <Descriptions bordered column={detailDescriptionColumn} className={styles.marginTopMd}>
               <Descriptions.Item label="名称">{detailData.template.name}</Descriptions.Item>
-              <Descriptions.Item label="模板代码">
-                {detailData.template.templateCode}
+              <Descriptions.Item label="路径身份">
+                {pathwayIdentityText(detailData.template.templateCode, evidenceDetailsEnabled)}
               </Descriptions.Item>
               <Descriptions.Item label="相关病种">
                 {detailData.template.diseaseCode}
               </Descriptions.Item>
               <Descriptions.Item label="版本">
-                v{detailData.template.templateVersion}.0
+                {pathwayVersionText(detailData.template.templateVersion, evidenceDetailsEnabled)}
               </Descriptions.Item>
               <Descriptions.Item label="层级">
                 {customerEnumLabel(detailData.template.templateLevel)}
@@ -3447,16 +3626,34 @@ export default function PathwayTemplates() {
                 {pathwayEntryModeText(detailData.template.entryMode)}
               </Descriptions.Item>
               <Descriptions.Item label="起始节点">
-                {detailData.template.startNodeCode ?? "未设置"}
+                {detailData.template.startNodeCode
+                  ? evidenceText(
+                      detailData.template.startNodeCode,
+                      evidenceDetailsEnabled,
+                      "起始节点已配置",
+                    )
+                  : "未设置"}
               </Descriptions.Item>
               <Descriptions.Item label="入径条件" span={detailDescriptionColumn}>
                 <span className={styles.codeText}>
-                  {cleanText(detailData.template.entryCriteriaJson) ?? "未配置"}
+                  {cleanText(detailData.template.entryCriteriaJson)
+                    ? evidenceText(
+                        detailData.template.entryCriteriaJson,
+                        evidenceDetailsEnabled,
+                        "入径条件已配置",
+                      )
+                    : "未配置"}
                 </span>
               </Descriptions.Item>
               <Descriptions.Item label="出径条件" span={detailDescriptionColumn}>
                 <span className={styles.codeText}>
-                  {cleanText(detailData.template.exitCriteriaJson) ?? "未配置"}
+                  {cleanText(detailData.template.exitCriteriaJson)
+                    ? evidenceText(
+                        detailData.template.exitCriteriaJson,
+                        evidenceDetailsEnabled,
+                        "出径条件已配置",
+                      )
+                    : "未配置"}
                 </span>
               </Descriptions.Item>
               <Descriptions.Item label="知识来源" span={detailDescriptionColumn}>
@@ -3494,6 +3691,7 @@ export default function PathwayTemplates() {
                   edgeType: edge.edgeType,
                   priority: edge.priority,
                 }))}
+                evidenceDetailsEnabled={evidenceDetailsEnabled}
               />
               <Table
                 title={() => "阶段与天序里程碑"}
@@ -3520,24 +3718,25 @@ export default function PathwayTemplates() {
                 columns={edgeColumns}
                 className="medkernel-table"
               />
-              {detailData.edges.map((edge) => {
-                const guard = parseLooseJson(edge.conditionJson);
-                if (!guard || typeof guard !== "object" || Array.isArray(guard)) {
-                  return null;
-                }
-                return (
-                  <AuthoringReadablePreview
-                    key={`edge-preview-${edge.edgeId}`}
-                    subject="PATHWAY_GUARD"
-                    dsl={{
-                      guard,
-                      edgeCode: edge.edgeCode,
-                      fromNodeCode: edge.fromNodeCode,
-                      toNodeCode: edge.toNodeCode,
-                    }}
-                  />
-                );
-              })}
+              {evidenceDetailsEnabled &&
+                detailData.edges.map((edge) => {
+                  const guard = parseLooseJson(edge.conditionJson);
+                  if (!guard || typeof guard !== "object" || Array.isArray(guard)) {
+                    return null;
+                  }
+                  return (
+                    <AuthoringReadablePreview
+                      key={`edge-preview-${edge.edgeId}`}
+                      subject="PATHWAY_GUARD"
+                      dsl={{
+                        guard,
+                        edgeCode: edge.edgeCode,
+                        fromNodeCode: edge.fromNodeCode,
+                        toNodeCode: edge.toNodeCode,
+                      }}
+                    />
+                  );
+                })}
               <Table
                 dataSource={detailData.metricBindings}
                 rowKey="bindingId"
@@ -3559,11 +3758,11 @@ export default function PathwayTemplates() {
             </Space>
           ),
         },
-        ...(detailExpertMode
+        ...(detailAdvancedViewEnabled
           ? [
               {
                 key: "l3",
-                label: "L3 技术配置",
+                label: "受控配置文本",
                 children: (
                   <Space direction="vertical" className={`mk-full-width ${styles.marginTopMd}`}>
                     <TextArea
@@ -3608,18 +3807,20 @@ export default function PathwayTemplates() {
                 <Space direction="vertical" size="middle" className="mk-full-width">
                   <div className={styles.formSection}>
                     <Form layout="vertical">
-                      <Form.Item label="患者 ID" htmlFor="pathway-snapshot-patient-id">
+                      <Form.Item label="患者信息" htmlFor="pathway-snapshot-patient-id">
                         <Input
                           id="pathway-snapshot-patient-id"
                           value={snapshotPatientId}
                           onChange={(event) => setSnapshotPatientId(event.target.value)}
+                          placeholder="输入患者信息检索快照"
                         />
                       </Form.Item>
-                      <Form.Item label="就诊 ID" htmlFor="pathway-snapshot-encounter-id">
+                      <Form.Item label="就诊信息" htmlFor="pathway-snapshot-encounter-id">
                         <Input
                           id="pathway-snapshot-encounter-id"
                           value={snapshotEncounterId}
                           onChange={(event) => setSnapshotEncounterId(event.target.value)}
+                          placeholder="输入就诊信息检索快照"
                         />
                       </Form.Item>
                       <Button
@@ -3636,7 +3837,7 @@ export default function PathwayTemplates() {
                   <div className={styles.snapshotList}>
                     {snapshotList.length > 0 ? (
                       <Space direction="vertical" className="mk-full-width">
-                        {snapshotList.map((snapshot: ContextSnapshotSummary) => (
+                        {snapshotList.map((snapshot: ContextSnapshotSummary, index) => (
                           <Button
                             key={snapshot.snapshotId}
                             type={
@@ -3656,10 +3857,15 @@ export default function PathwayTemplates() {
                             }}
                             className={styles.snapshotButton}
                           >
-                            <span>{snapshot.snapshotId}</span>
+                            <span>
+                              {snapshotButtonLabel(snapshot, index, evidenceDetailsEnabled)}
+                            </span>
                             <Tag className={styles.tagGap}>
                               {customerDisplayText(snapshot.qualityStatus)}
                             </Tag>
+                            <span className={styles.textSmall}>
+                              {snapshotAssociationText(snapshot, evidenceDetailsEnabled)}
+                            </span>
                           </Button>
                         ))}
                       </Space>
@@ -3669,7 +3875,7 @@ export default function PathwayTemplates() {
                         description={
                           snapshotQuery
                             ? "未读取到已生效快照"
-                            : "请输入患者 ID 或就诊 ID 读取真实快照"
+                            : "请输入患者信息或就诊信息读取真实快照"
                         }
                       />
                     )}
@@ -3686,7 +3892,9 @@ export default function PathwayTemplates() {
                             <Select value={selectedStartNode} onChange={setSimulateStartNode}>
                               {detailExecutableNodes.map((node) => (
                                 <Option key={node.nodeCode} value={node.nodeCode}>
-                                  {node.name} ({node.nodeCode})
+                                  {evidenceDetailsEnabled
+                                    ? `${node.name} (${node.nodeCode})`
+                                    : node.name}
                                 </Option>
                               ))}
                             </Select>
@@ -3713,11 +3921,13 @@ export default function PathwayTemplates() {
                                 value={replaySnapshotIds}
                                 onChange={setReplaySnapshotIds}
                                 placeholder="按顺序选择快照"
-                                options={snapshotList.map((snapshot) => ({
+                                options={snapshotList.map((snapshot, index) => ({
                                   value: snapshot.snapshotId,
-                                  label: `${snapshot.snapshotId} / ${customerDisplayText(
-                                    snapshot.qualityStatus,
-                                  )}`,
+                                  label: `${snapshotButtonLabel(
+                                    snapshot,
+                                    index,
+                                    evidenceDetailsEnabled,
+                                  )} / ${customerDisplayText(snapshot.qualityStatus)}`,
                                 }))}
                               />
                             </Form.Item>
@@ -3744,13 +3954,23 @@ export default function PathwayTemplates() {
                     {selectedSnapshotDetail && (
                       <Descriptions bordered size="small" column={detailDescriptionColumn}>
                         <Descriptions.Item label="快照">
-                          {selectedSnapshotDetail.snapshotId}
+                          {selectedSnapshotText(
+                            selectedSnapshotDetail.snapshotId,
+                            evidenceDetailsEnabled,
+                          )}
                         </Descriptions.Item>
                         <Descriptions.Item label="状态">
                           {customerEnumLabel(selectedSnapshotDetail.status)}
                         </Descriptions.Item>
                         <Descriptions.Item label="质量">
                           {customerDisplayText(selectedSnapshotDetail.qualityStatus)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="追踪证据">
+                          {evidenceText(
+                            selectedSnapshotDetail.traceId,
+                            evidenceDetailsEnabled,
+                            "快照追踪已记录",
+                          )}
                         </Descriptions.Item>
                       </Descriptions>
                     )}
@@ -3789,11 +4009,18 @@ export default function PathwayTemplates() {
                             pagination={false}
                             size="small"
                             columns={[
-                              { title: "快照", dataIndex: "snapshotId" },
+                              {
+                                title: "回放快照",
+                                dataIndex: "snapshotId",
+                                render: (snapshotId: string | null | undefined, _step, index) =>
+                                  evidenceDetailsEnabled
+                                    ? snapshotId || "未返回"
+                                    : replaySnapshotBusinessLabel(index),
+                              },
                               {
                                 title: "轨迹",
                                 dataIndex: "nodeTrajectory",
-                                render: (trajectory: string[]) => trajectory.join(" → "),
+                                render: (trajectory: string[]) => detailTrajectoryText(trajectory),
                               },
                               {
                                 title: "最终状态",
@@ -3817,7 +4044,9 @@ export default function PathwayTemplates() {
                                   <div className={styles.timelineTitle}>
                                     {nodeDetail?.name ?? "未知节点"}
                                   </div>
-                                  <div className={styles.timelineMeta}>{nodeCode}</div>
+                                  <div className={styles.timelineMeta}>
+                                    {nodeEvidenceText(nodeCode, index, evidenceDetailsEnabled)}
+                                  </div>
                                 </>
                               ),
                             };
@@ -3841,7 +4070,7 @@ export default function PathwayTemplates() {
 
   return (
     <PageShell
-      title="路径中枢"
+      title="路径配置"
       description="配置并维护专病临床路径，使用统一条件树、规则引用和真实快照试运行；上线生效由发布治理统一管理。"
     >
       <div className={`${styles.surface} ${styles.filterSurface}`}>
@@ -3859,9 +4088,9 @@ export default function PathwayTemplates() {
               <Option value="OFFLINE">已下线</Option>
             </Select>
           </Form.Item>
-          <Form.Item label="病种编码">
+          <Form.Item label="适用病种身份">
             <Input
-              placeholder="输入真实病种编码"
+              placeholder="输入真实病种或诊断分组身份"
               allowClear
               value={diseaseFilter}
               onChange={(event) => setDiseaseFilter(event.target.value)}
@@ -3876,7 +4105,7 @@ export default function PathwayTemplates() {
                 setSelectedPathwayPrototype("blank");
                 resetCreateTemplateDraft();
                 resetSimulation();
-                setCreateExpertMode(false);
+                setCreateAdvancedConfigEnabled(false);
                 setCreateTemplateVisible(true);
               }}
             >
@@ -3918,14 +4147,14 @@ export default function PathwayTemplates() {
         <Form form={templateForm} layout="vertical" className={styles.marginTopMd}>
           <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
             <span className={`${styles.textSmall} ${styles.textSecondary}`}>
-              普通配置只展示 L1/L2；L3 技术配置需显式进入技术配置模式。
+              普通配置只展示 L1/L2；受控配置文本需显式进入受控配置模式。
             </span>
             <Space>
-              <span>L3 技术配置模式</span>
+              <span>受控配置文本模式</span>
               <Switch
-                aria-label="L3 技术配置模式"
-                checked={createExpertMode}
-                onChange={toggleCreateExpertMode}
+                aria-label="受控配置文本模式"
+                checked={createAdvancedConfigEnabled}
+                onChange={toggleCreateAdvancedConfigEnabled}
               />
             </Space>
           </Space>
@@ -3934,12 +4163,12 @@ export default function PathwayTemplates() {
       </Modal>
 
       <Drawer
-        title="路径配置与真实快照试运行控制台"
+        title="路径配置与真实快照试运行"
         width="min(1080px, 100vw)"
         onClose={() => {
           setSelectedTemplateId(null);
           setDetailActiveTab("l1");
-          setDetailExpertMode(false);
+          setDetailAdvancedViewEnabled(false);
           setSimulateStartNode("");
           resetSimulation();
         }}
@@ -3971,14 +4200,14 @@ export default function PathwayTemplates() {
             )}
             <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
               <span className={`${styles.textSmall} ${styles.textSecondary}`}>
-                路径拓扑与真实快照试运行是本页主流程；上线启停统一由发布治理管理。
+                路径拓扑与真实快照试运行是主视图；证据详情打开后可追溯受控配置。
               </span>
               <Space>
-                <span>L3 技术视图</span>
+                <span>证据详情</span>
                 <Switch
-                  aria-label="L3 技术视图"
-                  checked={detailExpertMode}
-                  onChange={toggleDetailExpertMode}
+                  aria-label="证据详情"
+                  checked={detailAdvancedViewEnabled}
+                  onChange={toggleDetailAdvancedViewEnabled}
                 />
               </Space>
             </Space>

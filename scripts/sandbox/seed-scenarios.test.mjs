@@ -2,12 +2,17 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { loadScenarioRules } from "./scenario-rules.mjs";
+import { evaluateScenarioCase, loadScenarioRules } from "./scenario-rules.mjs";
 import {
   buildCanonicalResources,
   deriveSandboxRuntimeDigest,
+  evaluationTestCase,
+  resolveChromiumLaunchOptions,
+  ruleEvaluationPayload,
+  ruleTriggerBindings,
   resolveSandboxEvidenceDir,
   resolveSandboxAccounts,
+  sandboxPathwayPrototype,
   RULE_GOVERNANCE_STAGES,
   SANDBOX_ACTOR_ROLES,
 } from "./seed-scenarios.mjs";
@@ -50,6 +55,22 @@ test("沙盘证据只写运行时目录且拒绝回写仓库", () => {
   );
 });
 
+test("沙盘浏览器可显式使用受信演练环境中的 Chromium 可执行文件", () => {
+  assert.deepEqual(resolveChromiumLaunchOptions({}), {});
+  assert.deepEqual(
+    resolveChromiumLaunchOptions({
+      MEDKERNEL_PLAYWRIGHT_CHROMIUM_EXECUTABLE:
+        "/root/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome",
+      MEDKERNEL_PLAYWRIGHT_NO_SANDBOX: "1",
+    }),
+    {
+      executablePath:
+        "/root/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome",
+      args: ["--no-sandbox"],
+    },
+  );
+});
+
 test("沙盘只读取统一上线凭据中的演练机构四职责", () => {
   const credentials = canonicalCredentials();
   const accounts = resolveSandboxAccounts(credentials);
@@ -74,6 +95,105 @@ test("机构生效版本明细校验码由演练规则清单内容稳定派生",
   const changed = structuredClone(manifest);
   changed.scenarios[0].changeSummary += "（变更）";
   assert.notEqual(deriveSandboxRuntimeDigest(changed), first);
+});
+
+test("沙盘创建快照前先激活含平台基线资产的当前医院机构生效版本", async () => {
+  const source = await readFile(new URL("./seed-scenarios.mjs", import.meta.url), "utf8");
+  const runSeed = source.slice(source.indexOf("export async function runSeed"));
+
+  assert.ok(
+    runSeed.indexOf("ensureInitialRuntimeRelease(") >= 0 &&
+      runSeed.indexOf("ensureInitialRuntimeRelease(") < runSeed.indexOf("seedSnapshots("),
+  );
+  assert.match(runSeed, /activePlatformBaselineAssets/u);
+  assert.match(runSeed, /runtimeBinding/u);
+});
+
+test("沙盘外圈路径资产沿用前台真实通用原型且不提交旧容器字段", () => {
+  assert.equal(sandboxPathwayPrototype.templateCode, "PATH.CLINICAL.CYCLE");
+  assert.equal(sandboxPathwayPrototype.name, "基础节点闭环");
+  assert.equal(sandboxPathwayPrototype.diseaseCode, "GENERAL");
+  assert.equal(sandboxPathwayPrototype.startNodeCode, "ASSESS");
+  assert.equal(sandboxPathwayPrototype.nodes.length, 2);
+  assert.deepEqual(
+    sandboxPathwayPrototype.nodes.map((item) => item.nodeCode),
+    ["ASSESS", "DISPOSITION"],
+  );
+  assert.equal(sandboxPathwayPrototype.nodes[1].terminal, true);
+  assert.deepEqual(sandboxPathwayPrototype.edges, [
+    {
+      edgeCode: "E-ASSESS-DISPOSITION",
+      fromNodeCode: "ASSESS",
+      toNodeCode: "DISPOSITION",
+      edgeType: "DEFAULT",
+      priority: 1,
+    },
+  ]);
+  assert.equal(JSON.stringify(sandboxPathwayPrototype).includes("package"), false);
+});
+
+test("沙盘最终发布前先统一准备规则清单声明的外圈资产", async () => {
+  const source = await readFile(new URL("./seed-scenarios.mjs", import.meta.url), "utf8");
+  const runSeed = source.slice(source.indexOf("export async function runSeed"));
+  const ensureOuter = runSeed.indexOf("ensureRequiredOuterAssets(");
+  const discoverOuter = runSeed.indexOf("discoverRequiredOuterAssets(");
+
+  assert.ok(ensureOuter >= 0, "缺少外圈资产统一准备步骤");
+  assert.ok(discoverOuter >= 0, "缺少外圈资产精确发现步骤");
+  assert.ok(ensureOuter < discoverOuter, "外圈资产必须先准备再精确发现");
+  assert.match(source, /sandboxPathwayPrototype/u);
+  assert.match(source, /activateRequiredPathwayRuntimeAsset/u);
+});
+
+test("沙盘正式评估在最终机构生效版本激活后使用新正例快照", async () => {
+  const source = await readFile(new URL("./seed-scenarios.mjs", import.meta.url), "utf8");
+  const runSeed = source.slice(source.indexOf("export async function runSeed"));
+  const finalRelease = runSeed.indexOf("activate-sandbox-final-runtime-release");
+  const finalEvaluation = runSeed.indexOf("verifyPublishedRuleEvaluations(");
+
+  assert.ok(finalRelease >= 0, "缺少最终机构生效版本激活");
+  assert.ok(finalEvaluation >= 0, "缺少最终正式评估校验");
+  assert.ok(finalRelease < finalEvaluation, "正式评估必须晚于最终机构生效版本");
+});
+
+test("沙盘规则创建请求显式提交外层执行触发绑定", () => {
+  const rule = manifest.scenarios[0];
+
+  assert.deepEqual(ruleTriggerBindings(rule), [
+    {
+      trigger_point: rule.triggerPoint,
+      purpose: "RULE_EXECUTION",
+      required_fields: [],
+    },
+  ]);
+});
+
+test("沙盘规则正例校验走正式评估接口并使用已生效快照", () => {
+  const rule = manifest.scenarios[0];
+  const ctx = { tenant_id: "t-rehearsal", hospital_id: "h-rehearsal" };
+  const positive = { caseType: "POSITIVE", snapshotId: "snap-positive" };
+  const definition = { ruleId: "rule-positive" };
+
+  assert.deepEqual(ruleEvaluationPayload(ctx, rule, positive, definition), {
+    ...ctx,
+    triggerPoint: rule.triggerPoint,
+    contextSnapshotId: positive.snapshotId,
+    eventId: `sandbox-${rule.ruleCode}-POSITIVE`,
+    ruleIds: [definition.ruleId],
+  });
+});
+
+test("沙盘正式评估正例快照不复用铺底四测患者身份", () => {
+  const rule = manifest.scenarios[0];
+  const positive = rule.clinicalContent.testCases.find(
+    (item) => item.caseType === "POSITIVE",
+  );
+  const evaluation = evaluationTestCase(rule);
+
+  assert.equal(evaluation.caseType, "POSITIVE");
+  assert.equal(evaluation.expectedHit, true);
+  assert.equal(evaluation.patientId, `${positive.patientId}-EVAL`);
+  assert.equal(evaluation.encounterId, `${positive.encounterId}-EVAL`);
 });
 
 test("沙盘演练脚本不再创建或发布旧容器", async () => {
@@ -129,12 +249,12 @@ test("缺字段样例使用非匹配占位值通过 DTO 校验且不伪造医学
   const medicationCase = manifest.scenarios
     .find((item) => item.ruleCode === "SBX.MED.WARFARIN.ASA")
     .clinicalContent.testCases.find(
-      (item) => item.caseType === "MISSING_FIELD",
+      (item) => item.caseType === "CONFLICT",
     );
   const claimCase = manifest.scenarios
     .find((item) => item.ruleCode === "SBX.INSURANCE.DRG")
     .clinicalContent.testCases.find(
-      (item) => item.caseType === "MISSING_FIELD",
+      (item) => item.caseType === "CONFLICT",
     );
   const recordCase = manifest.scenarios
     .find((item) => item.ruleCode === "SBX.RECORD.COMPLETENESS")
@@ -149,6 +269,44 @@ test("缺字段样例使用非匹配占位值通过 DTO 校验且不伪造医学
     "UNASSIGNED",
   );
   assert.equal(buildCanonicalResources(recordCase).patient.birthDate, null);
+});
+
+test("出院随访空类型边界在标准资源规范化后仍触发缺随访提醒", () => {
+  const rule = manifest.scenarios.find(
+    (item) => item.ruleCode === "SBX.DISCHARGE.CHECK",
+  );
+  const boundary = rule.clinicalContent.testCases.find(
+    (item) => item.caseType === "BOUNDARY",
+  );
+  const resources = buildCanonicalResources(
+    boundary,
+    "2026-06-19T03:00:00.000Z",
+  );
+
+  assert.equal(resources.followUps[0].planType, "UNCLASSIFIED");
+  assert.equal(
+    evaluateScenarioCase(rule, { ...boundary, facts: resources }),
+    true,
+  );
+});
+
+test("DRG 缺编码样例规范化为占位编码后仍不触发支付缺项提醒", () => {
+  const rule = manifest.scenarios.find(
+    (item) => item.ruleCode === "SBX.INSURANCE.DRG",
+  );
+  const conflict = rule.clinicalContent.testCases.find(
+    (item) => item.caseType === "CONFLICT",
+  );
+  const resources = buildCanonicalResources(
+    conflict,
+    "2026-06-19T03:00:00.000Z",
+  );
+
+  assert.equal(resources.claims[0].drgCode, "UNASSIGNED");
+  assert.equal(
+    evaluateScenarioCase(rule, { ...conflict, facts: resources }),
+    false,
+  );
 });
 
 function canonicalCredentials() {
@@ -187,6 +345,11 @@ function canonicalCredentials() {
     rehearsal: {
       tenantId: "t-rehearsal",
       tenantName: "完整上线演练机构",
+      hospital: {
+        code: "REHEARSAL-HOSPITAL",
+        name: "完整上线演练医院",
+        facilityType: "HOSPITAL",
+      },
       accounts: accounts("t-rehearsal"),
     },
   };

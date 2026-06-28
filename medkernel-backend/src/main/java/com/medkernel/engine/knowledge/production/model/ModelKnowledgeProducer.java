@@ -10,6 +10,8 @@ import com.medkernel.engine.authoring.GeneratedAssetCandidateRequest;
 import com.medkernel.engine.authoring.GeneratedAssetCandidateService;
 import com.medkernel.engine.authoring.GeneratedAssetDraftResponse;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
+import com.medkernel.engine.knowledge.KnowledgeIdentity;
+import com.medkernel.engine.knowledge.KnowledgeIdentityRepository;
 import com.medkernel.engine.knowledge.production.CandidateSubmissionResponse;
 import com.medkernel.engine.knowledge.production.KnowledgeProducer;
 import com.medkernel.engine.knowledge.production.KnowledgeProductionJob;
@@ -34,8 +36,10 @@ import com.medkernel.engine.knowledge.production.triage.GenerationTriageContext;
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageDecision;
 import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
 import com.medkernel.engine.llm.ModelGatewayService;
+import com.medkernel.engine.llm.ModelEgressConfirmationChallenge;
 import com.medkernel.engine.llm.ModelTaskRequest;
 import com.medkernel.engine.llm.ModelTaskResponse;
+import com.medkernel.engine.llm.provider.DeploymentForm;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
@@ -55,6 +59,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ModelKnowledgeProducer {
 
     public static final String MODEL_OUTPUT_SCHEMA_GATE = "MODEL_OUTPUT_SCHEMA";
+    public static final String MODEL_EGRESS_CONFIRMATION_GATE = "MODEL_EGRESS_CONFIRMATION";
 
     private final KnowledgeProductionJobRepository jobRepository;
     private final KnowledgeProductionReadinessService readinessService;
@@ -64,6 +69,7 @@ public class ModelKnowledgeProducer {
     private final KnowledgeGenerationTriageService triageService;
     private final KnowledgeShadowEvaluationService shadowService;
     private final GeneratedAssetCandidateService generatedAssets;
+    private final KnowledgeIdentityRepository identityRepository;
     private final ObjectMapper objectMapper;
 
     public ModelKnowledgeProducer(KnowledgeProductionJobRepository jobRepository,
@@ -74,6 +80,7 @@ public class ModelKnowledgeProducer {
                                   KnowledgeGenerationTriageService triageService,
                                   KnowledgeShadowEvaluationService shadowService,
                                   GeneratedAssetCandidateService generatedAssets,
+                                  KnowledgeIdentityRepository identityRepository,
                                   ObjectMapper objectMapper) {
         this.jobRepository = jobRepository;
         this.readinessService = readinessService;
@@ -83,6 +90,7 @@ public class ModelKnowledgeProducer {
         this.triageService = triageService;
         this.shadowService = shadowService;
         this.generatedAssets = generatedAssets;
+        this.identityRepository = identityRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -107,7 +115,15 @@ public class ModelKnowledgeProducer {
 
         ModelTaskResponse task = modelGateway.submitTask(new ModelTaskRequest(
             request.capabilityCode(), request.prompt(), request.timeoutSeconds(),
-            requiredRouteStrategy(job.producer()), request.providerCode()));
+            requiredRouteStrategy(job, readiness), request.providerCode(),
+            authoritativeOutputContext(tenantId, request)));
+        if (isEgressConfirmationRequired(task)) {
+            return result(jobCode, task, new GenerationSummary(
+                List.of(),
+                List.of(),
+                List.of(new BlockedCandidate(job.assetType(), jobCode, List.of(GateItemResult.fail(
+                    MODEL_EGRESS_CONFIRMATION_GATE, egressConfirmationReason(task)))))));
+        }
         if (isB0Fallback(task)) {
             return result(jobCode, task, new GenerationSummary(
                 List.of(),
@@ -217,8 +233,40 @@ public class ModelKnowledgeProducer {
         }
     }
 
-    private String requiredRouteStrategy(KnowledgeProducer producer) {
-        return producer == KnowledgeProducer.LOCAL_MODEL ? "LOCAL_MODEL" : "EXTERNAL_MODEL";
+    private String requiredRouteStrategy(KnowledgeProductionJob job, KnowledgeProductionReadinessResponse readiness) {
+        if (job.producer() == KnowledgeProducer.LOCAL_MODEL
+            || readiness.deploymentForm() == DeploymentForm.HOSPITAL_RUNTIME) {
+            return "LOCAL_MODEL";
+        }
+        return "EXTERNAL_MODEL";
+    }
+
+    private String authoritativeOutputContext(String tenantId, ModelKnowledgeProductionRequest request) {
+        ObjectNode root = objectMapper.createObjectNode();
+        if (request.target().newIdentity() != null) {
+            root.put("domain", request.target().newIdentity().domain().name());
+            root.put("subject", request.target().newIdentity().subject());
+        } else {
+            KnowledgeIdentity identity = identityRepository
+                .findByTenantIdAndId(tenantId, request.target().targetIdentityId())
+                .orElseThrow(() -> ApiException.notFound("知识身份 id=" + request.target().targetIdentityId()));
+            root.put("domain", identity.domain().name());
+            root.put("subject", identity.subject());
+        }
+        root.put("clinicalActionable", false);
+        var sourceReferences = root.putArray("sourceReferences");
+        for (var source : request.sources()) {
+            ObjectNode sourceNode = sourceReferences.addObject();
+            sourceNode.put("sourceRef", source.sourceRef());
+            if (source.authorityLevel() != null) {
+                sourceNode.put("authorityLevel", source.authorityLevel().name());
+            }
+        }
+        try {
+            return objectMapper.writeValueAsString(root);
+        } catch (JsonProcessingException impossible) {
+            throw new ApiException(ErrorCode.BAD_REQUEST, "模型权威输出上下文序列化失败");
+        }
     }
 
     private List<GateItemResult> readinessFailures(List<KnowledgeProductionReadinessItem> items) {
@@ -232,6 +280,26 @@ public class ModelKnowledgeProducer {
         return task == null
             || "B0".equalsIgnoreCase(task.modelMode())
             || !"SUCCEEDED".equalsIgnoreCase(task.status());
+    }
+
+    private boolean isEgressConfirmationRequired(ModelTaskResponse task) {
+        return task != null && "CONFIRMATION_REQUIRED".equalsIgnoreCase(task.status());
+    }
+
+    private String egressConfirmationReason(ModelTaskResponse task) {
+        ModelEgressConfirmationChallenge confirmation = task.egressConfirmation();
+        if (confirmation == null) {
+            return "模型外调已阻断，需先完成本次用途与责任确认；确认后重新启动模型生成，输出仍只作为待审候选";
+        }
+        String fields = confirmation.egressFields().isEmpty()
+            ? "未返回字段清单"
+            : String.join("、", confirmation.egressFields());
+        return "模型外调已阻断，需先完成本次用途与责任确认：能力="
+            + confirmation.capabilityCode()
+            + "，载荷摘要=" + confirmation.payloadHash()
+            + "，字段=" + fields
+            + "，服务=" + confirmation.providerCode()
+            + "；确认后重新启动模型生成，输出仍只作为待审候选";
     }
 
     private String fallbackReason(ModelTaskResponse task) {
@@ -360,7 +428,8 @@ public class ModelKnowledgeProducer {
             modelVersion,
             promptVersion,
             toolVersion,
-            summary);
+            summary,
+            task == null ? null : task.egressConfirmation());
     }
 
     private String requireCurrentTenant() {

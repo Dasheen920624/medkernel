@@ -18,9 +18,9 @@ test("十条机构演练规则全部可运行且不依赖固定机构生效版�
   assert.deepEqual(manifest.dependencies, [
     {
       assetType: "PATHWAY",
-      assetCode: "PATH.ED.DISPOSITION",
+      assetCode: "PATH.CLINICAL.CYCLE",
       assetVersion: "1",
-      purpose: "沙盘急诊路径入径与推进外圈场景",
+      purpose: "沙盘路径入径与推进外圈场景",
     },
   ]);
   assert.ok(
@@ -65,7 +65,7 @@ test("每条规则都有权威来源、可执行 DSL 和四类可验证样例", 
     );
     assert.deepEqual(
       [...caseTypes].sort(),
-      ["BOUNDARY", "MISSING_FIELD", "NEGATIVE", "POSITIVE"],
+      ["BOUNDARY", "CONFLICT", "NEGATIVE", "POSITIVE"],
       scenario.ruleCode,
     );
     for (const testCase of scenario.clinicalContent.testCases) {
@@ -76,6 +76,66 @@ test("每条规则都有权威来源、可执行 DSL 和四类可验证样例", 
       );
     }
   }
+});
+
+test("每条规则的 DSL 适用域满足后端规则契约", async () => {
+  const manifest = await loadScenarioRules();
+
+  for (const scenario of manifest.scenarios) {
+    const applicability = scenario.clinicalContent.dsl.applicability;
+    assert.ok(applicability.population, scenario.ruleCode);
+    assert.deepEqual(applicability.orgScope, {
+      groupIds: [],
+      hospitalIds: [],
+      deptIds: [],
+    });
+    assert.ok(Array.isArray(applicability.settings), scenario.ruleCode);
+    assert.ok(applicability.settings.length > 0, scenario.ruleCode);
+    assert.ok(Number.isInteger(applicability.effective?.rolloutPercent));
+  }
+});
+
+test("非急诊单场景规则的四类样例显式提供匹配就诊场景", async () => {
+  const manifest = await loadScenarioRules();
+
+  for (const scenario of manifest.scenarios) {
+    const settings = scenario.clinicalContent.dsl.applicability.settings;
+    if (settings.includes("ED")) continue;
+    for (const testCase of scenario.clinicalContent.testCases) {
+      const encounters = testCase.facts.encounters ?? [];
+      assert.ok(
+        encounters.some((item) => settings.includes(item.encounterType)),
+        `${scenario.ruleCode}/${testCase.caseType} 缺少 ${settings.join("|")} 场景`,
+      );
+    }
+  }
+});
+
+test("每条规则的 DSL 不再内嵌触发点", async () => {
+  const manifest = await loadScenarioRules();
+
+  for (const scenario of manifest.scenarios) {
+    assert.equal(scenario.clinicalContent.dsl.trigger, undefined);
+    assert.ok(scenario.triggerPoint, scenario.ruleCode);
+  }
+
+  const embeddedTrigger = structuredClone(manifest);
+  embeddedTrigger.scenarios[0].clinicalContent.dsl.trigger = "result-review";
+  assert.throws(() => validateScenarioRules(embeddedTrigger), /不得包含 trigger/);
+});
+
+test("每条规则的 DSL 不声明未绑定参数 schema", async () => {
+  const manifest = await loadScenarioRules();
+
+  for (const scenario of manifest.scenarios) {
+    assert.equal(scenario.clinicalContent.dsl.meta?.parameters, undefined);
+  }
+
+  const withParameters = structuredClone(manifest);
+  withParameters.scenarios[0].clinicalContent.dsl.meta = {
+    parameters: [{ key: "threshold", valueType: "DECIMAL", required: true }],
+  };
+  assert.throws(() => validateScenarioRules(withParameters), /meta.parameters/);
 });
 
 test("显式选择任一机构规则都可进入铺底", async () => {
@@ -128,12 +188,31 @@ test("缺来源、缺机构归属或缺四类样例会被清单校验拒绝", as
 
   const missingCase = structuredClone(manifest);
   missingCase.scenarios[0].clinicalContent.testCases.pop();
-  assert.throws(() => validateScenarioRules(missingCase), /MISSING_FIELD/);
+  assert.throws(() => validateScenarioRules(missingCase), /CONFLICT/);
 
   const missingDependencyVersion = structuredClone(manifest);
   delete missingDependencyVersion.dependencies[0].assetVersion;
   assert.throws(
     () => validateScenarioRules(missingDependencyVersion),
     /外圈资产依赖缺少 assetVersion/,
+  );
+
+  const missingPopulation = structuredClone(manifest);
+  delete missingPopulation.scenarios[0].clinicalContent.dsl.applicability
+    .population;
+  assert.throws(() => validateScenarioRules(missingPopulation), /population/);
+
+  const missingOrgScope = structuredClone(manifest);
+  delete missingOrgScope.scenarios[0].clinicalContent.dsl.applicability.orgScope;
+  assert.throws(() => validateScenarioRules(missingOrgScope), /orgScope/);
+
+  const missingSingleSettingEncounter = structuredClone(manifest);
+  const followupRule = missingSingleSettingEncounter.scenarios.find(
+    (item) => item.ruleCode === "SBX.FOLLOWUP.INR",
+  );
+  delete followupRule.clinicalContent.testCases[0].facts.encounters;
+  assert.throws(
+    () => validateScenarioRules(missingSingleSettingEncounter),
+    /匹配适用场景/,
   );
 });

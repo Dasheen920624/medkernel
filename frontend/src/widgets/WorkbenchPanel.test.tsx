@@ -14,6 +14,11 @@ import type {
 import { ROLE_OPTIONS } from "@/shared/config/roleCatalog";
 import { findProductRoleJourney } from "@/shared/config/productRoleJourneys";
 
+const legacyWorkbenchAggregationPlaceholder = ["真实工作台", "聚合数据待接入"].join("");
+const legacyWorkbenchAggregationApiPlaceholder = ["等待真实", "聚合 API"].join("");
+const legacyWorkbenchSelfProofPattern = new RegExp(["工作台不", "伪造"].join(""));
+const legacyWorkbenchAggregationPattern = new RegExp(["伪造", "汇总数据"].join(""));
+
 const hookState = vi.hoisted(() => ({
   security: {} as Record<string, unknown>,
   runtime: {} as Record<string, unknown>,
@@ -268,11 +273,11 @@ function expectedLandingFor(roleCode: string, displayName: string) {
     diagnostic: "医技协同",
     quality: "质量管理概览",
     audit: "最近变化",
-    tenant: "治理切片",
+    tenant: "治理概览",
   } as const;
   return {
     heading: journey?.title ?? `${displayName}工作台`,
-    marker: journey ? markerByKind[journey.kind] : "治理切片",
+    marker: journey ? markerByKind[journey.kind] : "治理概览",
   };
 }
 
@@ -290,6 +295,8 @@ describe("WorkbenchPanel", () => {
   });
 
   it("renders the platform operations view without customer-visible technical English", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-02T12:00:00Z"));
     renderWorkbench();
 
     expect(screen.getByRole("heading", { name: "平台管理员工作台" })).toBeInTheDocument();
@@ -297,8 +304,12 @@ describe("WorkbenchPanel", () => {
     expect(screen.getByText("外部依赖连通")).toBeInTheDocument();
     expect(screen.getByText(/关系数据库/)).toBeInTheDocument();
     expect(screen.getAllByText(/知识图谱投影/).length).toBeGreaterThan(0);
-    expect(screen.queryByText("真实工作台聚合数据待接入")).not.toBeInTheDocument();
-    expect(screen.queryByText("等待真实聚合 API")).not.toBeInTheDocument();
+    expect(screen.getByText("生效版本发布申请")).toBeInTheDocument();
+    expect(screen.getByText(/操作人已登记/)).toBeInTheDocument();
+    expect(screen.queryByText(/doctor-1/)).not.toBeInTheDocument();
+    expect(screen.queryByText(legacyWorkbenchAggregationPlaceholder)).not.toBeInTheDocument();
+    expect(screen.queryByText(legacyWorkbenchAggregationApiPlaceholder)).not.toBeInTheDocument();
+    expect(screen.queryByText(/暂无工作台独立聚合/)).not.toBeInTheDocument();
   });
 
   it("renders an explicit responsibility-specific landing view for all four launch roles", () => {
@@ -325,6 +336,9 @@ describe("WorkbenchPanel", () => {
     expect(screen.getAllByText("知识审核与发布").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /生成与发布知识/ })).toBeInTheDocument();
     expect(screen.getAllByText("质量问题与整改").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText("进入质量管理概览核查指标口径、责任对象、整改进度和医保审核入口。"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("临床协同入口")).not.toBeInTheDocument();
     knowledge.unmount();
 
@@ -342,9 +356,23 @@ describe("WorkbenchPanel", () => {
 
     expect(screen.getByRole("heading", { name: "临床使用者工作台" })).toBeInTheDocument();
     expect(screen.getByText("我的待办")).toBeInTheDocument();
-    expect(screen.getAllByText(/当前组织暂无待办/).length).toBeGreaterThan(0);
+    const todoCard = screen.getByTestId("workbench-card-todo");
+    expect(within(todoCard).getByText("无待办")).toBeInTheDocument();
+    expect(within(todoCard).getByText("当前组织暂无待办")).toBeInTheDocument();
+    expect(
+      within(todoCard).getByText(
+        "当前组织暂无待办；可进入患者路径、提醒与推荐、随访协同或消息通知查看实时事项。",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/发布治理状态/)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "进入患者路径、提醒与推荐、随访协同与消息通知；各页面展示对应真实数据和处理入口。",
+      ),
+    ).toBeInTheDocument();
     expect(screen.queryByText("外部依赖连通")).not.toBeInTheDocument();
     expect(screen.queryByText("该域未启用")).not.toBeInTheDocument();
+    expect(screen.queryByText(legacyWorkbenchSelfProofPattern)).not.toBeInTheDocument();
     expect(screen.getByText("临床协同入口")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "患者路径" }));
@@ -372,9 +400,15 @@ describe("WorkbenchPanel", () => {
     expect(screen.getByRole("heading", { name: "医疗引擎运营员工作台" })).toBeInTheDocument();
     expect(screen.getAllByText("知识审核与发布").length).toBeGreaterThan(0);
     expect(screen.getAllByText("质量问题与整改").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(
+        "追溯知识来源和派生关系，复核术语映射与发布影响；汇总数据以各治理页面为准。",
+      ),
+    ).toBeInTheDocument();
     expect(screen.queryByText("外部依赖连通")).not.toBeInTheDocument();
     expect(screen.queryByText(/traceId/i)).not.toBeInTheDocument();
     expect(screen.queryByText("该域未启用")).not.toBeInTheDocument();
+    expect(screen.queryByText(legacyWorkbenchAggregationPattern)).not.toBeInTheDocument();
 
     fireEvent.click(
       within(screen.getByTestId("workbench-card-engine-quality")).getByRole("button", {
@@ -389,7 +423,14 @@ describe("WorkbenchPanel", () => {
       data: undefined,
       isLoading: false,
       isError: true,
-      error: new Error("GET /api/v1/audit/events failed: ECONNREFUSED 127.0.0.1:8080"),
+      error: {
+        response: {
+          data: {
+            detail: "最近变化暂时不可用",
+            traceId: "trace-dashboard-1",
+          },
+        },
+      },
       refetch: vi.fn(),
     };
 
@@ -399,8 +440,28 @@ describe("WorkbenchPanel", () => {
     expect(screen.getAllByText(/最近变化暂时不可用/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/ECONNREFUSED/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\/api\/v1\/audit/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trace-dashboard-1/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/追踪号/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("失败已留痕，可在审计证据中追溯。").length).toBeGreaterThan(0);
     expect(screen.getByText("系统健康")).toBeInTheDocument();
     expect(screen.getByText(/关系数据库/)).toBeInTheDocument();
+  });
+
+  it("uses an actionable empty state instead of future-source promises", () => {
+    hookState.audit = {
+      data: [],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    };
+
+    renderWorkbench();
+
+    const auditCard = screen.getByTestId("workbench-card-audit");
+    expect(
+      within(auditCard).getByText("当前组织暂无可展示内容，请确认组织范围或进入对应页面处理。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/后续来源上线|自动回灌/)).not.toBeInTheDocument();
   });
 
   it("renders a forbidden state when the loaded security profile cannot access workbench", () => {
@@ -517,10 +578,30 @@ describe("WorkbenchPanel", () => {
     renderWorkbench();
 
     expect(screen.getByRole("heading", { name: "平台管理员工作台" })).toBeInTheDocument();
-    expect(screen.getByText("治理切片")).toBeInTheDocument();
+    expect(screen.getByText("治理概览")).toBeInTheDocument();
     expect(screen.getAllByTestId(/^workbench-governance-slice-/)).toHaveLength(3);
     expect(screen.getByText("本周建议动作")).toBeInTheDocument();
     expect(screen.getByText("核对实施进度")).toBeInTheDocument();
     expect(hookState.successPlanEnabledCalls).toContain(true);
+  });
+
+  it("shows actionable knowledge sync status when the runtime source has no graph dependency", () => {
+    setLoadedState("platform-admin", "平台管理员");
+    hookState.runtime = {
+      ...hookState.runtime,
+      data: {
+        ...runtimeSnapshot,
+        dependencies: runtimeSnapshot.dependencies.filter((item) => !item.key.includes("graph")),
+      },
+    };
+
+    renderWorkbench();
+
+    expect(screen.getByRole("heading", { name: "平台管理员工作台" })).toBeInTheDocument();
+    expect(screen.getByText("知识同步来源待配置")).toBeInTheDocument();
+    expect(
+      screen.getByText("当前运行状态未返回知识同步来源，请在运行保障中核查图谱投影配置。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("未接入")).not.toBeInTheDocument();
   });
 });

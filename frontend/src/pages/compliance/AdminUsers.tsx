@@ -58,6 +58,9 @@ import {
   riskLabel,
 } from "@/shared/config/customerLabels";
 import { ROLE_OPTIONS } from "@/shared/config/roleCatalog";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { OrgUnitSelect } from "@/shared/ui/OrgUnitSelect";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
@@ -104,6 +107,25 @@ function accountColor(state?: string | null) {
   return "default";
 }
 
+function personnelIdentityText(
+  employeeNo: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  return evidenceDetailsEnabled && employeeNo ? `人员编号：${employeeNo}` : "人员档案已登记";
+}
+
+function accountLoginText(username: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  if (!username) return "未开通";
+  return evidenceDetailsEnabled ? username : "登录账号已开通";
+}
+
+function identityBindingText(subjectHints: string[], evidenceDetailsEnabled: boolean) {
+  if (subjectHints.length === 0) return "未绑定";
+  return evidenceDetailsEnabled
+    ? subjectHints.join("、")
+    : `已绑定 ${subjectHints.length} 个身份来源`;
+}
+
 export default function AdminUsers() {
   const { message } = App.useApp();
   const [page, setPage] = useState(1);
@@ -126,6 +148,8 @@ export default function AdminUsers() {
   const selectedDepartmentId = Form.useWatch("departmentId", personForm);
 
   const security = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const personnel = usePersonnel({ page, size, keyword: keyword.trim() || undefined });
   const detail = usePersonnelDetail(selectedPersonId);
   const accountDetail = useComplianceUserDetail(detail.data?.account?.userId ?? null);
@@ -343,7 +367,9 @@ export default function AdminUsers() {
             render: (_, record) => (
               <Space direction="vertical" size={0}>
                 <Text strong>{record.displayName}</Text>
-                <Text type="secondary">人员编号：{record.employeeNo}</Text>
+                <Text type="secondary">
+                  {personnelIdentityText(record.employeeNo, evidenceDetailsEnabled)}
+                </Text>
               </Space>
             ),
           },
@@ -376,7 +402,11 @@ export default function AdminUsers() {
                 <Tag color={accountColor(record.accountState)}>
                   {accountStateLabel(record.accountState)}
                 </Tag>
-                {record.username && <Text type="secondary">{record.username}</Text>}
+                {record.username && (
+                  <Text type="secondary">
+                    {accountLoginText(record.username, evidenceDetailsEnabled)}
+                  </Text>
+                )}
               </Space>
             ),
           },
@@ -413,6 +443,7 @@ export default function AdminUsers() {
         }
         extras={
           <Space wrap>
+            <EvidenceDetailsToggle securityProfile={security.data} />
             {canManage && (
               <Button icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
                 新增人员
@@ -428,7 +459,7 @@ export default function AdminUsers() {
           <Input.Search
             allowClear
             aria-label="搜索人员"
-            placeholder="按姓名、人员编号或登录名搜索"
+            placeholder="按姓名、院内人员身份或登录名搜索"
             onSearch={(value) => {
               setKeyword(value);
               setPage(1);
@@ -465,8 +496,8 @@ export default function AdminUsers() {
           <Space align="start" wrap className="mk-full-width">
             <Form.Item
               name="employeeNo"
-              label="人员编号"
-              rules={[{ required: true, whitespace: true, message: "请输入人员编号" }]}
+              label="院内人员身份"
+              rules={[{ required: true, whitespace: true, message: "请输入院内人员身份" }]}
             >
               <Input placeholder="优先使用院内稳定工号" />
             </Form.Item>
@@ -538,7 +569,7 @@ export default function AdminUsers() {
                 label="登录名"
                 rules={[{ required: true, whitespace: true, message: "请输入登录名" }]}
               >
-                <Input placeholder="建议使用人员编号" />
+                <Input placeholder="建议使用院内人员身份" />
               </Form.Item>
               <Form.Item name="roleCode" label="初始角色">
                 <Select
@@ -568,8 +599,8 @@ export default function AdminUsers() {
               </Form.Item>
               <Form.Item
                 name="externalSubject"
-                label="院内身份标识"
-                rules={[{ required: true, whitespace: true, message: "请输入院内身份标识" }]}
+                label="院内人员身份"
+                rules={[{ required: true, whitespace: true, message: "请输入院内人员身份" }]}
               >
                 <Input />
               </Form.Item>
@@ -664,7 +695,7 @@ export default function AdminUsers() {
                 dataSource={importResult.rows}
                 columns={[
                   { title: "行", dataIndex: "rowNo", width: 60 },
-                  { title: "人员编号", dataIndex: "employeeNo" },
+                  { title: "院内人员身份", dataIndex: "employeeNo" },
                   { title: "姓名", dataIndex: "displayName" },
                   {
                     title: "处理方式",
@@ -705,8 +736,8 @@ export default function AdminUsers() {
           <Space direction="vertical" size="large" className="mk-full-width">
             <Descriptions bordered size="small" column={1} title="人员档案">
               <Descriptions.Item label="姓名">{detail.data.person.displayName}</Descriptions.Item>
-              <Descriptions.Item label="人员编号">
-                {detail.data.person.employeeNo}
+              <Descriptions.Item label="院内人员身份">
+                {personnelIdentityText(detail.data.person.employeeNo, evidenceDetailsEnabled)}
               </Descriptions.Item>
               <Descriptions.Item label="主要任职">
                 {detail.data.primaryAppointment
@@ -731,12 +762,13 @@ export default function AdminUsers() {
                 {accountStateLabel(detail.data.account?.state ?? "NOT_OPENED")}
               </Descriptions.Item>
               <Descriptions.Item label="登录名">
-                {detail.data.account?.username ?? "未开通"}
+                {accountLoginText(detail.data.account?.username, evidenceDetailsEnabled)}
               </Descriptions.Item>
               <Descriptions.Item label="已绑定身份">
-                {detail.data.identities.length > 0
-                  ? detail.data.identities.map((identity) => identity.subjectHint).join("、")
-                  : "未绑定"}
+                {identityBindingText(
+                  detail.data.identities.map((identity) => identity.subjectHint),
+                  evidenceDetailsEnabled,
+                )}
               </Descriptions.Item>
             </Descriptions>
 
@@ -828,7 +860,7 @@ export default function AdminUsers() {
                         <OrgUnitSelect
                           scope="BUSINESS_SCOPE"
                           className="mk-select-wide"
-                          placeholder="搜索组织名称或编码"
+                          placeholder="搜索组织名称或稳定组织身份"
                           onUnitChange={setSelectedRoleOrg}
                         />
                       </Form.Item>

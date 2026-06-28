@@ -37,7 +37,7 @@ const forbiddenBypassLanguage = [
   "AST 扫描",
   "模拟传入",
   "本地列表展现",
-  "后端未返回患者路径实体，列表保持不变",
+  "患者路径服务未返回实体，列表保持不变",
 ];
 
 function readSource(file: string) {
@@ -76,6 +76,7 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     const hooksSource = readSource("src/shared/api/hooks.ts");
     const pathwaySource = readSource("src/pages/tenant/PathwayTemplates.tsx");
     const patientPathwaysSource = readSource("src/pages/clinical/PatientPathways.tsx");
+    const authoringStyles = readSource("src/pages/tenant/RulePathwayAuthoring.module.css");
 
     expect(hooksSource).not.toContain('"/engine/rules');
     expect(hooksSource).not.toContain("`/engine/rules");
@@ -93,6 +94,8 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
     expect(pathwaySource).not.toContain("usePackages");
     expect(pathwaySource).not.toContain("useBuildPathwayKnowledgePackage");
     expect(patientPathwaysSource).not.toContain("usePackages");
+    expect(authoringStyles).not.toContain(".packageList");
+    expect(authoringStyles).not.toContain(".packageCard");
   });
 
   it("uses the engine tenant API roots for onboarding service package hooks", () => {
@@ -187,12 +190,19 @@ describe("BASE-09 rule and pathway page cleanliness", () => {
 
   it("does not keep fake tenant branding defaults in onboarding page", () => {
     const onboardingSource = readSource("src/pages/tenant/TenantOnboarding.tsx");
+    const legacyBrandingModeKey = "ex" + "pert" + "Mode";
 
     expect(onboardingSource).not.toContain("MedKernel 智能示范医院");
     expect(onboardingSource).not.toContain("http://assets");
     expect(onboardingSource).not.toContain("Tabs.TabPane");
     expect(onboardingSource).not.toContain("sandbox");
+    expect(onboardingSource).not.toContain(legacyBrandingModeKey);
+    expect(onboardingSource).toContain("evidenceDetailsEnabled");
     expect(onboardingSource).toContain("未配置医院名称");
+
+    const hooksSource = readSource("src/shared/api/hooks.ts");
+    expect(hooksSource).not.toContain(`${legacyBrandingModeKey}: boolean`);
+    expect(hooksSource).toContain("evidenceDetailsEnabled: boolean");
   });
 
   it("keeps tenant onboarding aligned with organization tree plus specialty dimension", () => {

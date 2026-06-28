@@ -199,7 +199,7 @@ class AuthoringPreviewRunServiceTest {
                 {
                   "startNodeCode": "ASSESS",
                   "nodes": [
-                    {"nodeCode": "ASSESS", "name": "急诊评估"},
+                    {"nodeCode": "ASSESS", "name": "入径评估"},
                     {"nodeCode": "DISPOSITION", "name": "去向决策", "terminal": true}
                   ],
                   "edges": [

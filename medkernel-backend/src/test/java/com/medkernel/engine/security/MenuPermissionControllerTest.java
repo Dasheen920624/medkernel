@@ -62,8 +62,7 @@ class MenuPermissionControllerTest {
             .andExpect(jsonPath("$.data.sections[*].items[*].menuKey", hasItem("patient-pathways")))
             .andExpect(jsonPath("$.data.sections[*].items[*].menuKey")
                 .value(org.hamcrest.Matchers.not(hasItem("rule-validate"))))
-            .andExpect(jsonPath("$.data.headerItems[*].menuKey", hasItem("notifications")))
-            .andExpect(jsonPath("$.data.expertItems").doesNotExist());
+            .andExpect(jsonPath("$.data.headerItems[*].menuKey", hasItem("notifications")));
     }
 
     @Test

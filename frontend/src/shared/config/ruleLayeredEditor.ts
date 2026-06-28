@@ -125,7 +125,7 @@ export interface RuleApplicability {
   };
 }
 
-/** 递归条件组：可嵌套的逻辑容器（与后端 RuleDslEvaluator 递归 all/any 对齐）。 */
+/** 递归条件组：可嵌套的逻辑容器（与服务端 RuleDslEvaluator 递归 all/any 对齐）。 */
 export interface RuleConditionGroup {
   id: string;
   logic: RuleLogic;

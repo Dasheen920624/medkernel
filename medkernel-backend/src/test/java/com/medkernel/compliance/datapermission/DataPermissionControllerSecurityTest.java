@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * SYS-06 PR1 数据权限控制器安全矩阵。
+ * SYS-06 数据权限控制器安全矩阵。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -164,7 +164,7 @@ class DataPermissionControllerSecurityTest {
               "hospitalId": "h-1",
               "departmentId": "cardiology",
               "status": "ACTIVE",
-              "reason": "SYS-06 PR1 行列权限基线"
+              "reason": "SYS-06 行列权限基线"
             }
             """;
     }

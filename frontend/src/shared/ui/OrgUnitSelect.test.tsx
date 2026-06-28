@@ -22,7 +22,7 @@ describe("OrgUnitSelect", () => {
             orgPath: "/platform",
             level: "PLATFORM",
             code: "PLATFORM",
-            name: "平台治理空间",
+            name: "平台治理入口",
             status: "ACTIVE",
           },
           {
@@ -92,7 +92,7 @@ describe("OrgUnitSelect", () => {
 
     await user.click(screen.getByRole("combobox", { name: "组织范围" }));
 
-    expect(screen.queryByText("平台治理空间 · 平台治理层")).not.toBeInTheDocument();
+    expect(screen.queryByText("平台治理入口 · 平台治理层")).not.toBeInTheDocument();
     await user.click(
       await screen.findByText("示范医院 · 医疗服务机构", {
         selector: ".ant-select-item-option-content",

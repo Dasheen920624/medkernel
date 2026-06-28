@@ -35,7 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 随访引擎服务 (GA-ENG-API-09)。
  *
  * <p>负责随访计划生成、任务分页、问卷下发 / 作答、异常回院触发和结果回流。
- * 所有操作均绑定当前请求上下文的租户与追踪 ID；模型未接入时显式返回 {@code MODEL_DISABLED}。
+ * 所有操作均绑定当前请求上下文的租户与追踪 ID；没有可用模型服务时显式返回 {@code MODEL_DISABLED}。
  */
 @Service
 public class FollowupEngineService {

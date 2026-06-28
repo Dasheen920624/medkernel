@@ -3,9 +3,9 @@
   "dependencies": [
     {
       "assetType": "PATHWAY",
-      "assetCode": "PATH.ED.DISPOSITION",
+      "assetCode": "PATH.CLINICAL.CYCLE",
       "assetVersion": "1",
-      "purpose": "沙盘急诊路径入径与推进外圈场景"
+      "purpose": "沙盘路径入径与推进外圈场景"
     }
   ],
   "scenarios": [
@@ -41,22 +41,9 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "result-review",
-          "meta": {
-            "parameters": [
-              {
-                "key": "observationCode",
-                "valueType": "CODE",
-                "required": true
-              },
-              {
-                "key": "criticalThreshold",
-                "valueType": "DECIMAL",
-                "required": true
-              }
-            ]
-          },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["INPATIENT", "OUTPATIENT", "ED"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -149,7 +136,7 @@
             "expectedActionCode": "STRONG_REMINDER"
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-K-MIS",
             "encounterId": "SBX-K-ENC-MIS",
             "facts": {
@@ -192,14 +179,9 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "medication-prescribe",
-          "meta": {
-            "parameters": [
-              { "key": "warfarinAtc", "valueType": "CODE", "required": true },
-              { "key": "aspirinAtc", "valueType": "CODE", "required": true }
-            ]
-          },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["INPATIENT", "OUTPATIENT", "ED"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -301,7 +283,7 @@
             "expectedActionCode": "STRONG_REMINDER"
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-WA-MIS",
             "encounterId": "SBX-WA-ENC-MIS",
             "facts": {
@@ -348,19 +330,9 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "order-sign",
-          "meta": {
-            "parameters": [
-              { "key": "egfrCode", "valueType": "CODE", "required": true },
-              {
-                "key": "egfrRiskBoundary",
-                "valueType": "DECIMAL",
-                "required": true
-              },
-              { "key": "contrastAtc", "valueType": "CODE", "required": true }
-            ]
-          },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["INPATIENT", "OUTPATIENT", "ED"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -474,7 +446,7 @@
             "expectedHit": false
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-CT-MIS",
             "encounterId": "SBX-CT-ENC-MIS",
             "facts": {
@@ -523,22 +495,9 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "patient-view",
-          "meta": {
-            "parameters": [
-              {
-                "key": "chestPainCodes",
-                "valueType": "CODE_LIST",
-                "required": true
-              },
-              {
-                "key": "troponinCodes",
-                "valueType": "CODE_LIST",
-                "required": true
-              }
-            ]
-          },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["ED", "INPATIENT"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -639,7 +598,7 @@
             "expectedActionCode": "REMIND"
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-ACS-MIS",
             "encounterId": "SBX-ACS-ENC-MIS",
             "facts": {
@@ -685,17 +644,9 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "result-review",
-          "meta": {
-            "parameters": [
-              {
-                "key": "criticalReportTypes",
-                "valueType": "CODE_LIST",
-                "required": true
-              }
-            ]
-          },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["INPATIENT", "OUTPATIENT", "ED"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -781,7 +732,7 @@
             "expectedActionCode": "STRONG_REMINDER"
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-RPT-MIS",
             "encounterId": "SBX-RPT-ENC-MIS",
             "facts": {
@@ -829,17 +780,9 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "discharge-sign",
-          "meta": {
-            "parameters": [
-              {
-                "key": "requiredFollowupPlan",
-                "valueType": "STRING",
-                "required": true
-              }
-            ]
-          },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["INPATIENT"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -855,8 +798,17 @@
                 "operator": "exists"
               },
               {
-                "expr": { "field": "followUps[].planType" },
-                "operator": "is_missing"
+                "any": [
+                  {
+                    "expr": { "field": "followUps[].planType" },
+                    "operator": "is_missing"
+                  },
+                  {
+                    "expr": { "field": "followUps[].planType" },
+                    "operator": "in",
+                    "value": ["UNCLASSIFIED"]
+                  }
+                ]
               }
             ]
           },
@@ -934,7 +886,7 @@
             "expectedActionCode": "REMIND"
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-DC-MIS",
             "encounterId": "SBX-DC-ENC-MIS",
             "facts": {
@@ -978,18 +930,9 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "followup-alert",
-          "meta": {
-            "parameters": [
-              { "key": "inrCode", "valueType": "CODE", "required": true },
-              {
-                "key": "abnormalFlags",
-                "valueType": "CODE_LIST",
-                "required": true
-              }
-            ]
-          },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["FOLLOWUP"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -1036,6 +979,7 @@
             "patientId": "SBX-FU-001",
             "encounterId": "SBX-FU-ENC-001",
             "facts": {
+              "encounters": [{ "encounterType": "FOLLOWUP" }],
               "followUps": [
                 { "planType": "ANTICOAGULATION", "abnormalFlag": "HIGH" }
               ],
@@ -1057,6 +1001,7 @@
             "patientId": "SBX-INR-NEG",
             "encounterId": "SBX-INR-ENC-NEG",
             "facts": {
+              "encounters": [{ "encounterType": "FOLLOWUP" }],
               "followUps": [
                 { "planType": "ANTICOAGULATION", "abnormalFlag": "NORMAL" }
               ],
@@ -1076,6 +1021,7 @@
             "patientId": "SBX-INR-BND",
             "encounterId": "SBX-INR-ENC-BND",
             "facts": {
+              "encounters": [{ "encounterType": "FOLLOWUP" }],
               "followUps": [
                 { "planType": "ANTICOAGULATION", "abnormalFlag": "HIGH" }
               ],
@@ -1093,10 +1039,11 @@
             "expectedActionCode": "STRONG_REMINDER"
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-INR-MIS",
             "encounterId": "SBX-INR-ENC-MIS",
             "facts": {
+              "encounters": [{ "encounterType": "FOLLOWUP" }],
               "followUps": [
                 { "planType": "ANTICOAGULATION", "abnormalFlag": "HIGH" }
               ],
@@ -1141,23 +1088,20 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "order-sign",
-          "meta": {
-            "parameters": [
-              {
-                "key": "requiredClaimFields",
-                "valueType": "FIELD_LIST",
-                "required": true
-              }
-            ]
-          },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["INPATIENT"],
             "effective": { "rolloutPercent": 100 }
           },
           "when": {
             "all": [
               { "expr": { "field": "claims[].drgCode" }, "operator": "exists" },
+              {
+                "expr": { "field": "claims[].drgCode" },
+                "operator": "not_in",
+                "value": ["UNASSIGNED"]
+              },
               {
                 "expr": { "field": "claims[].totalCost" },
                 "operator": "exists"
@@ -1192,6 +1136,7 @@
             "patientId": "SBX-INS-001",
             "encounterId": "SBX-INS-ENC-001",
             "facts": {
+              "encounters": [{ "encounterType": "INPATIENT" }],
               "claims": [{ "drgCode": "SBX-DRG-A", "totalCost": 12000 }]
             },
             "expectedHit": true,
@@ -1203,6 +1148,7 @@
             "patientId": "SBX-DRG-NEG",
             "encounterId": "SBX-DRG-ENC-NEG",
             "facts": {
+              "encounters": [{ "encounterType": "INPATIENT" }],
               "claims": [
                 {
                   "drgCode": "SBX-DRG-A",
@@ -1218,6 +1164,7 @@
             "patientId": "SBX-DRG-BND",
             "encounterId": "SBX-DRG-ENC-BND",
             "facts": {
+              "encounters": [{ "encounterType": "INPATIENT" }],
               "claims": [
                 { "drgCode": "SBX-DRG-A", "totalCost": 0, "insurancePaid": 0 }
               ]
@@ -1225,10 +1172,13 @@
             "expectedHit": false
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-DRG-MIS",
             "encounterId": "SBX-DRG-ENC-MIS",
-            "facts": { "claims": [{ "totalCost": 12000 }] },
+            "facts": {
+              "encounters": [{ "encounterType": "INPATIENT" }],
+              "claims": [{ "totalCost": 12000 }]
+            },
             "expectedHit": false
           }
         ]
@@ -1266,17 +1216,9 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "patient-view",
-          "meta": {
-            "parameters": [
-              {
-                "key": "requiredSignedDocuments",
-                "valueType": "CODE_LIST",
-                "required": true
-              }
-            ]
-          },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["INPATIENT"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -1317,6 +1259,7 @@
             "patientId": "SBX-QC-001",
             "encounterId": "SBX-QC-ENC-001",
             "facts": {
+              "encounters": [{ "encounterType": "INPATIENT" }],
               "documents": [
                 {
                   "documentType": "DISCHARGE_SUMMARY",
@@ -1333,6 +1276,7 @@
             "patientId": "SBX-QC-NEG",
             "encounterId": "SBX-QC-ENC-NEG",
             "facts": {
+              "encounters": [{ "encounterType": "INPATIENT" }],
               "documents": [
                 {
                   "documentType": "DISCHARGE_SUMMARY",
@@ -1348,6 +1292,7 @@
             "patientId": "SBX-QC-BND",
             "encounterId": "SBX-QC-ENC-BND",
             "facts": {
+              "encounters": [{ "encounterType": "INPATIENT" }],
               "documents": [
                 {
                   "documentType": "DISCHARGE_SUMMARY",
@@ -1361,10 +1306,11 @@
             "expectedActionCode": "REMIND"
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-QC-MIS",
             "encounterId": "SBX-QC-ENC-MIS",
             "facts": {
+              "encounters": [{ "encounterType": "INPATIENT" }],
               "documents": [{ "contentDigest": "sha256:sbx-qc-mis" }]
             },
             "expectedHit": false
@@ -1404,17 +1350,9 @@
       ],
       "clinicalContent": {
         "dsl": {
-          "trigger": "patient-view",
-          "meta": {
-            "parameters": [
-              {
-                "key": "requiredPatientFields",
-                "valueType": "FIELD_LIST",
-                "required": true
-              }
-            ]
-          },
           "applicability": {
+            "population": {},
+            "orgScope": { "groupIds": [], "hospitalIds": [], "deptIds": [] },
             "settings": ["INPATIENT", "OUTPATIENT", "ED"],
             "effective": { "rolloutPercent": 100 }
           },
@@ -1484,7 +1422,7 @@
             "expectedActionCode": "INFO"
           },
           {
-            "caseType": "MISSING_FIELD",
+            "caseType": "CONFLICT",
             "patientId": "SBX-REC-MIS",
             "encounterId": "SBX-REC-ENC-MIS",
             "facts": { "patient": { "name": "沙盘患者" }, "encounters": [] },

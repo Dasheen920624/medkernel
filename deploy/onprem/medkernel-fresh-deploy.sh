@@ -9,6 +9,8 @@ ENV_FILE="$APP_HOME/conf/medkernel.env"
 SERVICE="${MEDKERNEL_SERVICE:-medkernel}"
 DATABASE="${MEDKERNEL_DATABASE:-medkernel}"
 DATABASE_OWNER="${MEDKERNEL_DATABASE_OWNER:-medkernel}"
+APP_USER="${MEDKERNEL_DEPLOY_APP_USER:-medkernel}"
+APP_GROUP="${MEDKERNEL_DEPLOY_APP_GROUP:-$APP_USER}"
 DEPLOY_COMMAND="${MEDKERNEL_DEPLOY_COMMAND:-/usr/local/bin/medkernel-deploy}"
 PORT=""
 
@@ -16,6 +18,7 @@ JAR=""
 FRONTEND=""
 SERVICE_UNIT=""
 DEPLOY_SCRIPT=""
+NGINX_CONF=""
 SOURCE=""
 EXPECTED_HOST=""
 EXTERNAL_BASE_URL=""
@@ -33,6 +36,7 @@ STAGED_JAR=""
 STAGED_FRONTEND=""
 STAGED_SERVICE_UNIT=""
 STAGED_DEPLOY_SCRIPT=""
+STAGED_NGINX_CONF=""
 RESTORE_DATABASE=""
 DESTRUCTIVE_ACTION_PERFORMED=false
 DATABASE_MUTATION_STARTED=false
@@ -70,6 +74,7 @@ MedKernel PostgreSQL 全新发布
     --frontend /path/to/dist.tar.gz \
     --service-unit /path/to/medkernel.service \
     --deploy-script /path/to/medkernel-deploy.sh \
+    --nginx-conf /path/to/medkernel.nginx.conf \
     --source <完整提交哈希> \
     --expected-host <目标机 hostname> \
     --external-base-url https://<正式域名或具备 SAN 的地址>/medkernel \
@@ -83,8 +88,9 @@ MedKernel PostgreSQL 全新发布
   1. 未显式确认数据库名时拒绝运行。
   2. 先完成数据库备份与隔离恢复验证，之后才允许停服和清库。
   3. 清库后只发布显式指定候选，不从 incoming 自动发现旧包。
-  4. dropdb、制品切换、readiness 或 ERR/INT/TERM 失败时强制恢复旧数据库、配置、systemd 与前后端制品。
-  5. 外部 HTTPS 必须通过可信链、SAN、有效期与严格 curl 校验，禁止跳过证书验证。
+  4. Nginx 配置作为候选合同的一部分安装、校验和回滚，避免嵌入页与公开端点策略漂移。
+  5. dropdb、制品切换、readiness 或 ERR/INT/TERM 失败时强制恢复旧数据库、配置、systemd、Nginx 与前后端制品。
+  6. 外部 HTTPS 必须通过可信链、SAN、有效期与严格 curl 校验，禁止跳过证书验证。
 USAGE
 }
 
@@ -94,6 +100,7 @@ while [ "$#" -gt 0 ]; do
     --frontend) FRONTEND="${2:-}"; shift 2 ;;
     --service-unit) SERVICE_UNIT="${2:-}"; shift 2 ;;
     --deploy-script) DEPLOY_SCRIPT="${2:-}"; shift 2 ;;
+    --nginx-conf) NGINX_CONF="${2:-}"; shift 2 ;;
     --source) SOURCE="${2:-}"; shift 2 ;;
     --expected-host) EXPECTED_HOST="${2:-}"; shift 2 ;;
     --external-base-url) EXTERNAL_BASE_URL="${2:-}"; shift 2 ;;
@@ -188,6 +195,38 @@ database_query() {
   run_as_postgres psql -X -v ON_ERROR_STOP=1 -Atq -d "$database_name" -c "$sql"
 }
 
+reset_public_object_owner() {
+  local database_name="$1"
+  run_as_postgres psql -X -v ON_ERROR_STOP=1 -d "$database_name" <<SQL
+DO \$\$
+DECLARE
+  r record;
+BEGIN
+  EXECUTE format('ALTER SCHEMA public OWNER TO %I', '$DATABASE_OWNER');
+  FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
+    EXECUTE format('ALTER TABLE public.%I OWNER TO %I', r.tablename, '$DATABASE_OWNER');
+  END LOOP;
+  FOR r IN SELECT viewname FROM pg_views WHERE schemaname = 'public' LOOP
+    EXECUTE format('ALTER VIEW public.%I OWNER TO %I', r.viewname, '$DATABASE_OWNER');
+  END LOOP;
+  FOR r IN SELECT matviewname FROM pg_matviews WHERE schemaname = 'public' LOOP
+    EXECUTE format('ALTER MATERIALIZED VIEW public.%I OWNER TO %I', r.matviewname, '$DATABASE_OWNER');
+  END LOOP;
+  FOR r IN SELECT sequencename FROM pg_sequences WHERE schemaname = 'public' LOOP
+    EXECUTE format('ALTER SEQUENCE public.%I OWNER TO %I', r.sequencename, '$DATABASE_OWNER');
+  END LOOP;
+  FOR r IN
+    SELECT p.oid::regprocedure AS signature
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+  LOOP
+    EXECUTE format('ALTER ROUTINE %s OWNER TO %I', r.signature, '$DATABASE_OWNER');
+  END LOOP;
+END \$\$;
+SQL
+}
+
 read_env_value() {
   local key="$1"
   awk -v key="$key" '
@@ -279,6 +318,7 @@ validate_inputs() {
   [ -f "$FRONTEND" ] || die "前端候选不存在：$FRONTEND"
   [ -f "$SERVICE_UNIT" ] || die "systemd 单元候选不存在：$SERVICE_UNIT"
   [ -f "$DEPLOY_SCRIPT" ] || die "服务端发布脚本候选不存在：$DEPLOY_SCRIPT"
+  [ -f "$NGINX_CONF" ] || die "Nginx 配置候选不存在：$NGINX_CONF"
   grep -q '^SuccessExitStatus=143$' "$SERVICE_UNIT" ||
     die "systemd 单元必须把 Java SIGTERM 退出码 143 声明为正常"
   bash -n "$DEPLOY_SCRIPT" || die "服务端发布脚本语法检查失败"
@@ -293,7 +333,7 @@ validate_inputs() {
   if [ "$PRUNE_OLD_BACKUPS" -eq 1 ] && [ "$CONFIRM_PRUNE_BACKUPS" -ne 1 ]; then
     die "清理旧备份还需要 --confirm-prune-backups"
   fi
-  for command_name in pg_dump pg_restore psql createdb dropdb sha256sum tar curl systemctl openssl; do
+  for command_name in pg_dump pg_restore psql createdb dropdb sha256sum tar curl systemctl openssl nginx; do
     require_command "$command_name"
   done
   PORT="$(sed -n 's/^SERVER_PORT=//p' "$ENV_FILE" | head -1 | tr -d '\r')"
@@ -313,6 +353,7 @@ prepare_backup_directory() {
   STAGED_FRONTEND="$BACKUP_DIR/staged/dist.tar.gz"
   STAGED_SERVICE_UNIT="$BACKUP_DIR/staged/medkernel.service"
   STAGED_DEPLOY_SCRIPT="$BACKUP_DIR/staged/medkernel-deploy.sh"
+  STAGED_NGINX_CONF="$BACKUP_DIR/staged/medkernel.nginx.conf"
 }
 
 create_backup() {
@@ -321,6 +362,7 @@ create_backup() {
   install -m 600 "$FRONTEND" "$STAGED_FRONTEND"
   install -m 600 "$SERVICE_UNIT" "$STAGED_SERVICE_UNIT"
   install -m 700 "$DEPLOY_SCRIPT" "$STAGED_DEPLOY_SCRIPT"
+  install -m 600 "$NGINX_CONF" "$STAGED_NGINX_CONF"
 
   [ -f "$APP_HOME/lib/medkernel.jar" ] &&
     install -m 600 "$APP_HOME/lib/medkernel.jar" "$BACKUP_DIR/artifacts/medkernel.jar"
@@ -373,6 +415,8 @@ create_backup() {
       "$(sha256sum "$STAGED_SERVICE_UNIT" | awk '{print $1}')"
     printf 'candidate_deploy_script_sha256=%s\n' \
       "$(sha256sum "$STAGED_DEPLOY_SCRIPT" | awk '{print $1}')"
+    printf 'candidate_nginx_conf_sha256=%s\n' \
+      "$(sha256sum "$STAGED_NGINX_CONF" | awk '{print $1}')"
     printf 'destructive_action_performed=false\n'
   } > "$BACKUP_DIR/evidence/pre-clear.properties"
   (
@@ -395,6 +439,7 @@ verify_backup_restore() {
   run_as_postgres createdb --owner="$DATABASE_OWNER" "$RESTORE_DATABASE"
   run_as_postgres pg_restore --exit-on-error --no-owner --no-acl \
     --dbname "$RESTORE_DATABASE" < "$BACKUP_DIR/database/medkernel.dump"
+  reset_public_object_owner "$RESTORE_DATABASE"
 
   restored_tables="$(
     database_query "$RESTORE_DATABASE" \
@@ -402,7 +447,7 @@ verify_backup_restore() {
   )"
   restored_flyway="$(
     database_query "$RESTORE_DATABASE" \
-      "select version from flyway_schema_history where success order by installed_rank desc limit 1;"
+      "SET ROLE \"$DATABASE_OWNER\"; select version from flyway_schema_history where success order by installed_rank desc limit 1;"
   )"
   [ "$restored_tables" -gt 0 ] || die "隔离恢复后未发现业务表"
   [ -n "$restored_flyway" ] || die "隔离恢复后未发现 Flyway 版本"
@@ -420,12 +465,15 @@ verify_backup_restore() {
 }
 
 apply_runtime_contracts() {
-  info "同步 systemd 单元与服务端发布脚本"
+  info "同步 systemd、Nginx 与服务端发布脚本"
   ARTIFACT_MUTATION_STARTED=true
   RECOVERY_REASON="publish:runtime-contracts"
   install -m 644 "$STAGED_SERVICE_UNIT" "$SYSTEMD_UNIT_PATH"
+  install -m 644 "$STAGED_NGINX_CONF" "$NGINX_CONF_PATH"
   install -m 755 "$STAGED_DEPLOY_SCRIPT" "$APP_HOME/bin/medkernel-deploy.sh"
   ln -sfn "$APP_HOME/bin/medkernel-deploy.sh" "$DEPLOY_COMMAND"
+  nginx -t
+  systemctl reload nginx >/dev/null 2>&1 || nginx -s reload
   systemctl daemon-reload
 }
 
@@ -483,6 +531,24 @@ purge_old_runtime() {
   fi
 }
 
+prepare_managed_runtime_directories() {
+  local literature_root="$APP_HOME/var/platform-knowledge/t-1/literature-materials"
+  info "创建正式知识文献受管资料库目录：$literature_root"
+  mkdir -p "$literature_root"
+  chmod 750 "$APP_HOME/var" "$APP_HOME/var/platform-knowledge" \
+    "$APP_HOME/var/platform-knowledge/t-1" "$literature_root"
+  if id "$APP_USER" >/dev/null 2>&1; then
+    chown -R "$APP_USER:$APP_GROUP" "$APP_HOME/var/platform-knowledge"
+  fi
+}
+
+external_origin() {
+  local authority
+  authority="${EXTERNAL_BASE_URL#https://}"
+  authority="${authority%%/*}"
+  printf 'https://%s' "$authority"
+}
+
 publish_candidate() {
   info "发布显式候选：$SOURCE"
   RECOVERY_REASON="publish:artifacts"
@@ -493,11 +559,16 @@ publish_candidate() {
 }
 
 verify_deployment() {
-  local candidate_jar_sha running_jar_sha manifest_source manifest_commit
+  local candidate_jar_sha running_jar_sha candidate_nginx_sha running_nginx_sha
+  local manifest_source manifest_commit
   local service_status http_code https_code bootstrap_code
+  local embed_code embed_headers_file external_origin_url
   local flyway_version public_tables database_owner expected_public_tables
+  local managed_literature_root
   candidate_jar_sha="$(sha256sum "$STAGED_JAR" | awk '{print $1}')"
   running_jar_sha="$(sha256sum "$APP_HOME/lib/medkernel.jar" | awk '{print $1}')"
+  candidate_nginx_sha="$(sha256sum "$STAGED_NGINX_CONF" | awk '{print $1}')"
+  running_nginx_sha="$(sha256sum "$NGINX_CONF_PATH" | awk '{print $1}')"
   manifest_source="$(sed -n 's/^source=//p' "$APP_HOME/manifest.properties")"
   manifest_commit="$(sed -n 's/^commit=//p' "$APP_HOME/manifest.properties")"
   service_status="$(systemctl is-active "$SERVICE")"
@@ -511,6 +582,10 @@ verify_deployment() {
     "$EXTERNAL_BASE_URL/actuator/health/readiness")"
   bootstrap_code="$(curl "${curl_args[@]}" -o "$BACKUP_DIR/evidence/bootstrap-status.json" -w '%{http_code}' \
     "$EXTERNAL_BASE_URL/api/v1/bootstrap/status")"
+  external_origin_url="$(external_origin)"
+  embed_headers_file="$BACKUP_DIR/evidence/embed-launch-headers.txt"
+  embed_code="$(curl "${curl_args[@]}" --head -o "$embed_headers_file" -w '%{http_code}' \
+    "$external_origin_url/embed/launch?token=deployment-contract")"
   flyway_version="$(
     database_query "$DATABASE" \
       "select version from flyway_schema_history where success order by installed_rank desc limit 1;"
@@ -524,14 +599,22 @@ verify_deployment() {
     database_query postgres \
       "select pg_get_userbyid(datdba) from pg_database where datname='$DATABASE';"
   )"
+  managed_literature_root="$APP_HOME/var/platform-knowledge/t-1/literature-materials"
 
   [ "$candidate_jar_sha" = "$running_jar_sha" ] || die "运行 jar 与候选 SHA-256 不一致"
+  [ "$candidate_nginx_sha" = "$running_nginx_sha" ] || die "运行 Nginx 配置与候选 SHA-256 不一致"
   [ "$manifest_source" = "$SOURCE" ] || die "manifest source 与候选提交不一致"
   [ "$manifest_commit" = "$SOURCE" ] || die "manifest commit 与候选提交不一致"
   [ "$service_status" = "active" ] || die "服务未处于 active"
   [ "$http_code" = "200" ] || die "内部 readiness 未返回 200"
   [ "$https_code" = "200" ] || die "HTTPS readiness 未返回 200"
   [ "$bootstrap_code" = "200" ] || die "bootstrap 状态未返回 200"
+  [ "$embed_code" = "200" ] || die "嵌入启动页未返回 200"
+  grep -qi '^content-security-policy:.*frame-ancestors' "$embed_headers_file" ||
+    die "嵌入启动页缺少 frame-ancestors 策略"
+  if grep -qi '^x-frame-options:' "$embed_headers_file"; then
+    die "嵌入启动页不得返回 X-Frame-Options"
+  fi
   grep -Eq '"initialized"[[:space:]]*:[[:space:]]*false' \
     "$BACKUP_DIR/evidence/bootstrap-status.json" ||
     die "全新数据库不应处于已接管状态"
@@ -540,6 +623,7 @@ verify_deployment() {
   [ "$public_tables" -eq "$expected_public_tables" ] ||
     die "发布后表数量不匹配：期望 ${expected_public_tables}（业务表 ${EXPECTED_BUSINESS_TABLES} + Flyway 1），实际 ${public_tables}"
   [ "$database_owner" = "$DATABASE_OWNER" ] || die "数据库 owner 不匹配"
+  [ -d "$managed_literature_root" ] || die "正式知识文献受管资料库目录不存在"
 
   {
     printf 'source=%s\n' "$SOURCE"
@@ -549,16 +633,20 @@ verify_deployment() {
     printf 'backup_dir=%s\n' "$BACKUP_DIR"
     printf 'candidate_jar_sha256=%s\n' "$candidate_jar_sha"
     printf 'running_jar_sha256=%s\n' "$running_jar_sha"
+    printf 'candidate_nginx_conf_sha256=%s\n' "$candidate_nginx_sha"
+    printf 'running_nginx_conf_sha256=%s\n' "$running_nginx_sha"
     printf 'manifest_source=%s\n' "$manifest_source"
     printf 'manifest_commit=%s\n' "$manifest_commit"
     printf 'service_status=%s\n' "$service_status"
     printf 'readiness_http=%s\n' "$http_code"
     printf 'readiness_https=%s\n' "$https_code"
     printf 'bootstrap_status_http=%s\n' "$bootstrap_code"
+    printf 'embed_launch_http=%s\n' "$embed_code"
     printf 'bootstrap_initialized=false\n'
     printf 'flyway_version=%s\n' "$flyway_version"
     printf 'public_base_tables=%s\n' "$public_tables"
     printf 'database_owner=%s\n' "$database_owner"
+    printf 'managed_literature_material_root=%s\n' "$managed_literature_root"
     printf 'destructive_action_performed=%s\n' "$DESTRUCTIVE_ACTION_PERFORMED"
   } > "$BACKUP_DIR/evidence/post-deploy.properties"
   sha256sum "$BACKUP_DIR"/evidence/* > "$BACKUP_DIR/evidence/SHA256SUMS"
@@ -585,6 +673,7 @@ restore_previous_database() {
   run_as_postgres createdb --owner="$DATABASE_OWNER" "$DATABASE" || return 1
   run_as_postgres pg_restore --exit-on-error --no-owner --no-acl \
     --dbname "$DATABASE" < "$BACKUP_DIR/database/medkernel.dump" || return 1
+  reset_public_object_owner "$DATABASE" || return 1
   ok "发布前数据库已恢复"
 }
 
@@ -682,7 +771,8 @@ restore_previous_release() {
   else
     systemctl disable "$SERVICE" >/dev/null 2>&1 || true
   fi
-  systemctl reload nginx >/dev/null 2>&1 || true
+  nginx -t >/dev/null || return 1
+  systemctl reload nginx >/dev/null 2>&1 || nginx -s reload >/dev/null 2>&1 || return 1
   service_active="$(read_previous_state service_active)"
   [ "$service_active" = active ] || {
     printf '[X] 发布前服务不是 active，无法满足旧版 readiness 恢复合同\n' >&2
@@ -743,6 +833,7 @@ main() {
   stop_service
   recreate_database
   purge_old_runtime
+  prepare_managed_runtime_directories
   publish_candidate
   verify_deployment
   RECOVERY_ARMED=false

@@ -5,7 +5,7 @@ import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
 /**
  * 候选入既有版本/审核链的接收端口（AIK-STD-13，FR-3）。
  *
- * <p>PR4 起真实物化：解析受控源 FK + 目标知识身份 → 经既有版本/审核/替换链落 {@code KnowledgeAssetVersion} +
+ * <p>当前真实物化：解析受控源 FK + 目标知识身份 → 经既有版本/审核/替换链落 {@code KnowledgeAssetVersion} +
  * {@code CandidateClassification}，据审核归口建 {@code ReviewAssignment}；返回真实物化版本引用。
  * 不造平行候选表；解析不出诚实拒收（铁律 #1）。
  */

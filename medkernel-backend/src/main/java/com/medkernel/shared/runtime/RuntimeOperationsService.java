@@ -190,26 +190,26 @@ public class RuntimeOperationsService {
                 "graph-projection",
                 "知识图谱投影",
                 graphEnabled ? STATUS_DEGRADED : STATUS_NOT_CONNECTED,
-                graphEnabled ? "能力开关已开启；真实图谱探活未接入，暂不判定通过" : "能力开关关闭，未连接图谱投影"
+                graphEnabled ? "能力开关已开启；知识图谱连接健康验证未通过，保持降级状态" : "能力开关关闭，未连接图谱投影"
             ),
             new RuntimeDependencyStatus(
                 "search-projection",
                 "知识搜索投影",
                 searchEnabled ? STATUS_DEGRADED : STATUS_NOT_CONNECTED,
-                searchEnabled ? "能力开关已开启；真实搜索探活未接入，暂不判定通过" : "能力开关关闭，未连接搜索投影"
+                searchEnabled ? "能力开关已开启；知识搜索连接健康验证未通过，保持降级状态" : "能力开关关闭，未连接搜索投影"
             ),
             new RuntimeDependencyStatus(
                 "dify-workflow",
                 "模型工作流",
                 difyEnabled ? STATUS_DEGRADED : STATUS_MODEL_DISABLED,
-                difyEnabled ? "能力开关已开启；真实模型工作流探活未接入，暂不判定通过" : "能力开关关闭，模型工作流未启用"
+                difyEnabled ? "能力开关已开启；模型工作流连接健康验证未通过，保持降级状态" : "能力开关关闭，模型工作流未启用"
             ),
             new RuntimeDependencyStatus(
                 "model-gateway",
                 "模型服务",
                 externalProviderEnabled ? STATUS_DEGRADED : STATUS_MODEL_DISABLED,
                 externalProviderEnabled
-                    ? "外部模型服务开关已开启；真实模型服务探活未接入，暂不判定通过"
+                    ? "外部模型服务开关已开启；请在模型能力页完成提供方健康验证，保持降级状态"
                     : "外部模型服务开关关闭，模型能力按无模型规则主链路运行"
             ),
             new RuntimeDependencyStatus(
@@ -217,7 +217,7 @@ public class RuntimeOperationsService {
                 "外部系统连接",
                 externalProviderEnabled ? STATUS_DEGRADED : STATUS_NOT_CONNECTED,
                 externalProviderEnabled
-                    ? "外部系统连接开关已开启；真实外部系统探活未接入，暂不判定通过"
+                    ? "外部系统连接开关已开启；请在服务对接页完成连接健康验证，保持降级状态"
                     : "外部系统连接开关关闭，未连接 HIS/EMR/时间戳等外部系统"
             )
         );
@@ -389,7 +389,7 @@ public class RuntimeOperationsService {
             String.join(" / ", profile.cryptoAlgorithms()),
             allRequired
                 ? "当前运行环境已注册所需国密算法组件。"
-                : "国密算法组件未全部注册，暂不判定通过。",
+                : "国密算法组件未全部注册，保持告警状态。",
             allRequired
                 ? "保留国密自检与组件版本证据。"
                 : "确认 BouncyCastle 或院方国密组件已加载，并运行 SM2/SM3/SM4 自检。",

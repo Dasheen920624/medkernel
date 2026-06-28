@@ -40,7 +40,7 @@ import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.hash.Sha256ContentHash;
 
 /**
- * 候选真实物化 intake 单元测试（AIK-STD-13 PR4）。
+ * 候选真实物化 intake 单元测试（AIK-STD-13）。
  *
  * <p>验证：现有身份物化 + 路由分派计划（归口∪领域）、新建身份壳 find-or-create、GENERAL 去重单角色、源解析失败诚实拒收。
  * 内容域用 {@code engine.knowledge.KnowledgeDomain}（FQN，与同包路由域 {@code production.KnowledgeDomain} 区分）。

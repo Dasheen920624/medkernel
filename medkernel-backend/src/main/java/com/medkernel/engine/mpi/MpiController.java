@@ -59,7 +59,7 @@ public class MpiController {
      * 创建患者主索引。
      */
     @PostMapping("/patients")
-    @PreAuthorize("@perm.has('mpi.write')")
+    @PreAuthorize("@perm.has('mpi.create')")
     public ApiResult<MpiPatient> createPatient(@Valid @RequestBody MpiPatientCreateRequest request) {
         return ApiResult.ok(service.createPatient(request));
     }

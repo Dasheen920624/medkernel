@@ -100,9 +100,10 @@ class RuntimeReleaseControllerTest {
 
         assertThatThrownBy(() -> controller.publishPlatformBaseline(
             new PlatformBaselinePublishRequest(List.of("rule-v1"), List.of())))
-            .isInstanceOf(ApiException.class)
-            .extracting("errorCode")
-            .isEqualTo(ErrorCode.FORBIDDEN);
+            .isInstanceOfSatisfying(ApiException.class, exception -> {
+                assertThat(exception.errorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+                assertThat(exception).hasMessageContaining("只有平台权威范围可以发布平台标准版本");
+            });
     }
 
     @Test

@@ -11078,7 +11078,7 @@
     },
     {
       "name": "mk_compliance_masking_rule",
-      "comment": "SYS-06 后端脱敏规则表，按租户、资源、字段和场景配置脱敏策略",
+      "comment": "SYS-06 脱敏规则表，按租户、资源、字段和场景配置脱敏策略",
       "columns": [
         {
           "name": "id",
@@ -11122,7 +11122,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "敏感字段名，后端调用脱敏服务时按该字段匹配规则"
+          "comment": "敏感字段名，平台执行脱敏策略时按该字段匹配规则"
         },
         {
           "name": "scenario_code",
@@ -12205,7 +12205,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "时序/趋势约束（可选，求值留后续阶段接 RuleDslEvaluator，Spec 1 命中到编码级）"
+          "comment": "时序/趋势约束（可选，发布校验和运行解释按统一规则求值）"
         },
         {
           "name": "citation_id",
@@ -12444,7 +12444,7 @@
     },
     {
       "name": "mk_diagnosis_test_case",
-      "comment": "诊断测试病例：发现集→期望候选/置信，作为发布门禁回归集",
+      "comment": "诊断验证病例：发现集→期望候选/置信，作为发布门禁回归集",
       "columns": [
         {
           "name": "id",
@@ -16761,7 +16761,7 @@
     },
     {
       "name": "mk_experience_saved_view",
-      "comment": "系统保存视图表：按租户、用户和页面保存筛选、列、分页和高级信息配置",
+      "comment": "系统保存视图表：按租户、用户和页面保存筛选、列、分页和证据详情配置",
       "columns": [
         {
           "name": "saved_view_id",
@@ -22713,7 +22713,7 @@
     },
     {
       "name": "mk_knowledge_material_object",
-      "comment": "知识文档原件资料库对象账本：记录受管 URI、真实 SHA-256、后端类型和入库审计，不保存原文字节",
+      "comment": "知识文档原件资料库对象账本：记录受管 URI、真实 SHA-256、资料类型和入库审计，不保存原文字节",
       "columns": [
         {
           "name": "id",
@@ -30293,7 +30293,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "生效开始时间，PR1 可为空，后续发布流写入"
+          "comment": "资产版本生效开始时间；为空表示尚未进入机构生效清单"
         },
         {
           "name": "effective_to",
@@ -30301,7 +30301,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "生效结束时间，PR1 可为空，后续下线或回滚写入"
+          "comment": "资产版本生效结束时间；为空表示仍可被有效清单引用"
         },
         {
           "name": "created_at",
@@ -31450,7 +31450,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "平台发布质量门摘要：结构、术语字段、依赖、安全与影响模拟"
+          "comment": "平台发布质量门摘要：结构、术语字段、依赖、安全与影响评估"
         },
         {
           "name": "rollout_strategy",
@@ -36961,7 +36961,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "回测样本集引用，例如脱敏快照批次或测试用例集合"
+          "comment": "回测样本集引用，例如脱敏快照批次或验证用例集合"
         },
         {
           "name": "sample_count",
@@ -38033,7 +38033,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "规则版本负责人，可确认并推进完整技术发布链"
+          "comment": "规则版本负责人，可确认并推进完整发布链"
         },
         {
           "name": "last_reason",
@@ -40957,12 +40957,12 @@
           "comment": "平台定制 UI 主题色"
         },
         {
-          "name": "expert_mode",
+          "name": "evidence_details_enabled",
           "type": "boolean",
           "nullable": false,
           "default": "FALSE",
           "identity": false,
-          "comment": "是否默认展示高级信息"
+          "comment": "是否默认展示验收证据"
         },
         {
           "name": "custom_branding_json",
@@ -41976,7 +41976,7 @@
     },
     {
       "name": "asset_validation_record",
-      "comment": "资产发布技术校验证据：精确绑定租户、版本和内容哈希，仅记录同步校验结果",
+      "comment": "资产发布安全校验证据：精确绑定租户、版本和内容哈希，仅记录同步校验结果",
       "columns": [
         {
           "name": "id",
@@ -41993,7 +41993,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "不可变技术校验证据标识"
+          "comment": "不可变安全校验证据标识"
         },
         {
           "name": "tenant_id",
@@ -42028,7 +42028,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "同步技术校验是否通过"
+          "comment": "同步安全校验是否通过"
         },
         {
           "name": "summary",
@@ -42037,7 +42037,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "技术校验结果摘要"
+          "comment": "安全校验结果摘要"
         },
         {
           "name": "validated_at",
@@ -42045,7 +42045,7 @@
           "nullable": false,
           "default": "CURRENT_TIMESTAMP",
           "identity": false,
-          "comment": "技术校验完成时间"
+          "comment": "安全校验完成时间"
         },
         {
           "name": "validated_by",
@@ -42054,7 +42054,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "触发技术校验的操作人"
+          "comment": "触发安全校验的操作人"
         },
         {
           "name": "trace_id",

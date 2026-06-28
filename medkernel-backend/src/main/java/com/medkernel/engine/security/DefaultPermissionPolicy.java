@@ -46,7 +46,7 @@ public final class DefaultPermissionPolicy {
             NOTIFICATION_READ, NOTIFICATION_WRITE,
             EMBED_READ, EMBED_WRITE,
             INTEGRATION_READ, INTEGRATION_WRITE, INTEGRATION_EXECUTE,
-            MPI_READ, MPI_WRITE,
+            MPI_READ, MPI_CREATE, MPI_WRITE,
             PROJECTION_READ, PROJECTION_REBUILD,
             WORKBENCH_READINESS_VIEW,
             LIST_EXPORT),
@@ -60,7 +60,7 @@ public final class DefaultPermissionPolicy {
             MENU_ADAPTER_HUB,
             MENU_SYSTEM_PROVIDERS,
             MENU_DOMESTIC_CHECK,
-            MENU_DEV_CONSOLE,
+            MENU_RUNTIME_DIAGNOSTICS,
             MENU_NOTIFICATIONS,
             MENU_NOTIFICATION_SETTINGS);
     }
@@ -129,7 +129,7 @@ public final class DefaultPermissionPolicy {
             PATHWAY_READ, PATHWAY_EXECUTE,
             CONTEXT_READ, EVENT_READ,
             RECOMMENDATION_READ, RECOMMENDATION_WRITE, RECOMMENDATION_ACCEPT,
-            MPI_READ,
+            MPI_READ, MPI_CREATE,
             FOLLOWUP_READ, FOLLOWUP_WRITE,
             WORKFLOW_READ, WORKFLOW_WRITE,
             NOTIFICATION_READ, NOTIFICATION_WRITE,

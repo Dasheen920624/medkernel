@@ -6,14 +6,14 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import DomesticCheck from "./advanced/DomesticCheck";
-import DevConsole from "./advanced/DevConsole";
+import RuntimeDiagnostics from "./system/RuntimeDiagnostics";
 import IdentityBinding from "./compliance/IdentityBinding";
 import SecurityBaseline from "./compliance/SecurityBaseline";
 import {
   downloadDomesticCompatibilityReport,
   useCreateIdentityBinding,
   useDelegatedAuthStatus,
-  useDeveloperApiContracts,
+  useRuntimeDiagnosticsApiContracts,
   useDisablePlugin,
   useGrantPlugin,
   useIdentityBindings,
@@ -32,7 +32,7 @@ import {
 } from "@/shared/api/hooks";
 import type {
   DelegatedAuthStatus,
-  DeveloperApiContractDirectory,
+  RuntimeDiagnosticsApiContractDirectory,
   IdentityBinding as IdentityBindingRecord,
   LoginTenantDirectory,
   PluginList,
@@ -40,12 +40,13 @@ import type {
   SecurityProfile,
 } from "@/shared/api/hooks";
 import * as browserCompatibility from "@/shared/lib/browserCompatibility";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 vi.mock("@/shared/api/hooks", () => ({
   downloadDomesticCompatibilityReport: vi.fn(),
   useCreateIdentityBinding: vi.fn(),
   useDelegatedAuthStatus: vi.fn(),
-  useDeveloperApiContracts: vi.fn(),
+  useRuntimeDiagnosticsApiContracts: vi.fn(),
   useDisablePlugin: vi.fn(),
   useGrantPlugin: vi.fn(),
   useIdentityBindings: vi.fn(),
@@ -78,15 +79,15 @@ const delegatedAuth: DelegatedAuthStatus = {
   enabled: true,
   status: "NOT_CONNECTED",
   providers: ["OIDC", "CAS", "SAML", "国密CA"],
-  message: "院方统一身份入口已开放，但当前未配置真实 IdP 连接器。",
+  message: "院方统一身份入口已开放，请由信息科在身份来源完成配置后启用。",
 };
 
 const tenantDirectory: LoginTenantDirectory = {
   primaryTenants: [
-    { tenantId: "t-platform", name: "平台治理空间", kind: "PLATFORM" },
+    { tenantId: "t-platform", name: "平台治理入口", kind: "PLATFORM" },
     { tenantId: "t-hospital", name: "集团总院", kind: "CUSTOMER" },
   ],
-  platformTenant: { tenantId: "t-platform", name: "平台治理空间", kind: "PLATFORM" },
+  platformTenant: { tenantId: "t-platform", name: "平台治理入口", kind: "PLATFORM" },
   hasCustomerTenants: true,
 };
 
@@ -222,9 +223,9 @@ const runtimeSnapshot: RuntimeOperationsSnapshot = {
     },
     {
       key: "idp",
-      displayName: "统一身份 IdP",
+      displayName: "统一身份来源",
       status: "NOT_CONNECTED",
-      detail: "未配置真实院方 IdP。",
+      detail: "身份来源待配置。",
     },
   ],
   backup: {
@@ -303,7 +304,7 @@ const systemRuntime = {
   runtime: "Java 21",
 };
 
-const developerContracts: DeveloperApiContractDirectory = {
+const runtimeDiagnosticsContracts: RuntimeDiagnosticsApiContractDirectory = {
   contracts: [
     {
       id: "runtime-operations",
@@ -371,6 +372,8 @@ function renderPage(page: React.ReactElement) {
 
 describe("operational control pages", () => {
   beforeEach(() => {
+    useEvidenceDetailsStore.getState().setEnabled(false);
+    window.localStorage.clear();
     vi.mocked(useDelegatedAuthStatus).mockReturnValue(query(delegatedAuth) as never);
     vi.mocked(useIdentityBindings).mockReturnValue(
       query({
@@ -447,7 +450,9 @@ describe("operational control pages", () => {
     vi.mocked(useSecurityProfile).mockReturnValue(query(securityProfile) as never);
     vi.mocked(useRuntimeOperations).mockReturnValue(query(runtimeSnapshot) as never);
     vi.mocked(useSystemRuntime).mockReturnValue(query(systemRuntime) as never);
-    vi.mocked(useDeveloperApiContracts).mockReturnValue(query(developerContracts) as never);
+    vi.mocked(useRuntimeDiagnosticsApiContracts).mockReturnValue(
+      query(runtimeDiagnosticsContracts) as never,
+    );
     vi.mocked(usePlugins).mockReturnValue(query(pluginList) as never);
     vi.mocked(useTraceDiagnosis).mockReturnValue(query(undefined) as never);
     vi.mocked(useRegisterPlugin).mockReturnValue({
@@ -476,18 +481,22 @@ describe("operational control pages", () => {
     expect(screen.getByText(/平台账号与机构统一身份/)).toBeInTheDocument();
     expect(screen.getAllByText("未接通").length).toBeGreaterThan(0);
     expect(screen.getByText("张医生")).toBeInTheDocument();
+    expect(screen.getByText("身份已绑定")).toBeInTheDocument();
+    expect(screen.queryByText("****-001")).not.toBeInTheDocument();
+    expect(screen.getByText(/请由信息科在身份来源完成配置后启用/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
     expect(screen.getByText("****-001")).toBeInTheDocument();
-    expect(screen.getByText(/未配置真实 IdP/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /单个绑定/ }));
     expect(screen.getByRole("dialog", { name: "单个绑定身份来源" })).toBeInTheDocument();
     await user.click(screen.getByRole("combobox", { name: "人员账号" }));
     await user.click(
-      await screen.findByText("李医生 · EMP-002", {
+      await screen.findByText("李医生 · 人员编号：EMP-002", {
         selector: ".ant-select-item-option-content",
       }),
     );
-    await user.type(screen.getByLabelText("院内身份标识"), "EMP-002");
+    await user.type(screen.getByLabelText("院内人员身份"), "EMP-002");
     await user.type(screen.getByLabelText("绑定原因"), "新员工统一身份接入");
     await user.click(screen.getByRole("button", { name: "确认绑定" }));
 
@@ -584,22 +593,39 @@ describe("operational control pages", () => {
     renderPage(<DomesticCheck />);
 
     expect(screen.getByRole("heading", { name: "国产化自检" })).toBeInTheDocument();
-    expect(screen.getByText("WARN")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.queryByText("WARN")).not.toBeInTheDocument();
+    expect(screen.getAllByText("警告").length).toBeGreaterThan(0);
     expect(screen.getByText(/0 项通过，4 项警告/)).toBeInTheDocument();
-    expect(screen.getAllByText("麒麟 / 统信 / openEuler").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("KAE-JDK 21 / BiSheng JDK 21").length).toBeGreaterThan(0);
+    expect(screen.getByText("目标操作系统已登记")).toBeInTheDocument();
+    expect(screen.getByText("目标 JDK 已登记")).toBeInTheDocument();
+    expect(screen.queryByText("麒麟 / 统信 / openEuler")).not.toBeInTheDocument();
+    expect(screen.queryByText("KAE-JDK 21 / BiSheng JDK 21")).not.toBeInTheDocument();
     expect(screen.getByText("达梦")).toBeInTheDocument();
     expect(screen.getByText("人大金仓")).toBeInTheDocument();
     expect(screen.getByText("SM3")).toBeInTheDocument();
     expect(screen.getAllByText("关系数据库").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/不标记通过/).length).toBeGreaterThan(0);
     expect(screen.getByText("国产浏览器")).toBeInTheDocument();
-    expect(screen.getByText(/国产化自检、五方言迁移合同/)).toBeInTheDocument();
+    expect(screen.getByText("验收证据已登记")).toBeInTheDocument();
+    expect(screen.getAllByText("实际值已采集").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("目标值已登记").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("现场证据已登记").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/国产化自检、五方言迁移合同/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/System\.getProperty/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/medkernel\.runtime\.database-dialect/)).not.toBeInTheDocument();
     expect(screen.getByText("当前浏览器能力预检")).toBeInTheDocument();
     expect(screen.getByText("关键与增强浏览器能力均可用。")).toBeInTheDocument();
     expect(screen.getByText("自动化能力预检不替代目标国产浏览器现场确认。")).toBeInTheDocument();
     expect(screen.getByText("安全加密能力")).toBeInTheDocument();
     expect(screen.queryByText("入口暂未激活")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getAllByText("麒麟 / 统信 / openEuler").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("KAE-JDK 21 / BiSheng JDK 21").length).toBeGreaterThan(0);
+    expect(screen.getByText(/国产化自检、五方言迁移合同/)).toBeInTheDocument();
+    expect(screen.getByText(/System\.getProperty/)).toBeInTheDocument();
+    expect(screen.getByText(/medkernel\.runtime\.database-dialect/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /导出报告/ }));
     await waitFor(() => expect(downloadDomesticCompatibilityReport).toHaveBeenCalledTimes(1));
@@ -609,21 +635,25 @@ describe("operational control pages", () => {
     consoleError.mockRestore();
   });
 
-  it("展示接口目录、追踪诊断和插件管理工具", async () => {
+  it("展示服务目录、追踪诊断和插件管理能力", async () => {
     const user = userEvent.setup();
-    renderPage(<DevConsole />);
+    renderPage(<RuntimeDiagnostics />);
 
-    expect(screen.getByRole("heading", { name: "开发者控制台" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "运行诊断" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getByText("系统运行概况")).toBeInTheDocument();
     expect(screen.getAllByText("medkernel").length).toBeGreaterThan(0);
-    expect(screen.getByText("docker-core")).toBeInTheDocument();
+    expect(screen.getByText("容器化部署")).toBeInTheDocument();
+    expect(screen.queryByText("docker-core")).not.toBeInTheDocument();
+    expect(screen.queryByText("classpath:db/migration/postgres")).not.toBeInTheDocument();
     expect(screen.getByText("Java 21")).toBeInTheDocument();
     expect(
-      within(screen.getByTestId("developer-dependencies")).getByText("统一身份 IdP"),
+      within(screen.getByTestId("runtime-dependencies")).getByText("统一身份来源"),
     ).toBeInTheDocument();
     expect(screen.getByText("运行状态服务")).toBeInTheDocument();
-    expect(screen.getByText("rule.publish")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "接口说明" })).toHaveAttribute(
+    expect(screen.getByText("发布规则")).toBeInTheDocument();
+    expect(screen.queryByText("rule.publish")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "服务契约" })).toHaveAttribute(
       "href",
       "/v3/api-docs/medkernel-third-party-integration",
     );
@@ -634,8 +664,31 @@ describe("operational control pages", () => {
 
     await user.click(screen.getByRole("tab", { name: "插件管理" }));
     expect(screen.getByText("病区只读看板")).toBeInTheDocument();
+    expect(screen.queryByText("ward-read-model")).not.toBeInTheDocument();
+    expect(screen.queryByText("read-runtime")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /注册插件/ })).toBeInTheDocument();
     expect(screen.queryByText("入口暂未激活")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /注册插件/ }));
+    expect(screen.getByLabelText("稳定插件能力身份")).toBeInTheDocument();
+    expect(screen.queryByLabelText("插件编码")).not.toBeInTheDocument();
+    expect(screen.queryByText("请输入插件编码")).not.toBeInTheDocument();
+  });
+
+  it("将运行诊断低频证据收进证据详情", async () => {
+    const user = userEvent.setup();
+    renderPage(<RuntimeDiagnostics />);
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("docker-core")).toBeInTheDocument();
+    expect(screen.getByText("classpath:db/migration/postgres")).toBeInTheDocument();
+    expect(screen.getByText("runtime-operations")).toBeInTheDocument();
+    expect(screen.getByText("rule.publish")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "插件管理" }));
+    expect(screen.getByText("ward-read-model")).toBeInTheDocument();
+    expect(screen.getByText("read-runtime")).toBeInTheDocument();
   });
 
   it("does not emit row key or dynamic form key warnings", async () => {
@@ -661,12 +714,13 @@ describe("operational control pages", () => {
     );
 
     try {
-      renderPage(<DevConsole />);
+      renderPage(<RuntimeDiagnostics />);
       fireEvent.click(screen.getByRole("tab", { name: "追踪诊断" }));
       const traceInput = screen.getByPlaceholderText("输入 追踪号");
       fireEvent.change(traceInput, { target: { value: "trace-console" } });
       fireEvent.keyDown(traceInput, { key: "Enter", code: "Enter" });
-      expect(await screen.findByText("PENDING → SUCCEEDED")).toBeInTheDocument();
+      expect(await screen.findByText("待处理 → 成功")).toBeInTheDocument();
+      expect(screen.queryByText("it-ops-1")).not.toBeInTheDocument();
 
       fireEvent.click(screen.getByRole("tab", { name: "插件管理" }));
       fireEvent.click(screen.getByRole("button", { name: /授权/ }));

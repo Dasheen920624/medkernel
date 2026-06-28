@@ -9,8 +9,10 @@ import {
   useMpiPatientDetail,
   useMpiPatients,
   useMpiStats,
+  useSecurityProfile,
   useSplitMpiPatient,
 } from "@/shared/api/hooks";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 import Mpi from "./Mpi";
 
@@ -20,6 +22,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useMpiPatientDetail: vi.fn(),
   useMpiPatients: vi.fn(),
   useMpiStats: vi.fn(),
+  useSecurityProfile: vi.fn(),
   useSplitMpiPatient: vi.fn(),
 }));
 
@@ -28,6 +31,7 @@ const mockUseMergeMpiPatients = vi.mocked(useMergeMpiPatients);
 const mockUseMpiPatientDetail = vi.mocked(useMpiPatientDetail);
 const mockUseMpiPatients = vi.mocked(useMpiPatients);
 const mockUseMpiStats = vi.mocked(useMpiStats);
+const mockUseSecurityProfile = vi.mocked(useSecurityProfile);
 const mockUseSplitMpiPatient = vi.mocked(useSplitMpiPatient);
 
 const MPI_INTERACTION_TIMEOUT_MS = 15_000;
@@ -42,6 +46,26 @@ function renderMpi() {
   );
 }
 
+function securityProfile(
+  permissionCodes = ["mpi.read", "mpi.create", "mpi.write", "system.debug"],
+) {
+  return {
+    data: {
+      permissions: permissionCodes.map((code) => ({
+        code,
+        dimension: "ACTION",
+        target: "mpi",
+        displayName: code,
+        risk: code === "mpi.write" ? "HIGH" : "MEDIUM",
+      })),
+      roles: [{ code: "clinical-user", displayName: "临床使用者", source: "TEST" }],
+      menuKeys: permissionCodes.includes("system.debug") ? ["mpi", "runtime-diagnostics"] : ["mpi"],
+      environmentKeys: ["production"],
+      dataScope: { tenantId: "tenant-A" },
+    },
+  } as unknown as ReturnType<typeof useSecurityProfile>;
+}
+
 describe("Mpi", () => {
   const refetchList = vi.fn();
   const refetchStats = vi.fn();
@@ -51,6 +75,8 @@ describe("Mpi", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    useEvidenceDetailsStore.setState({ enabled: false });
+    mockUseSecurityProfile.mockReturnValue(securityProfile());
     mockUseMpiPatients.mockReturnValue({
       data: {
         items: [
@@ -200,7 +226,7 @@ describe("Mpi", () => {
   });
 
   it(
-    "opens patient 360 detail from the backend MPI detail hook",
+    "opens patient 360 detail without exposing evidence identifiers by default",
     async () => {
       const user = userEvent.setup();
       renderMpi();
@@ -211,9 +237,47 @@ describe("Mpi", () => {
         expect(mockUseMpiPatientDetail).toHaveBeenCalledWith("mpi-real-1");
       });
       expect(screen.getByText("患者 360 视图")).toBeInTheDocument();
-      expect(screen.getAllByText("snapshot-real-1")).toHaveLength(1);
+      expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+      expect(screen.getAllByText("张*三").length).toBeGreaterThan(0);
+      expect(screen.getByText("患者身份与就诊上下文已关联")).toBeInTheDocument();
+      expect(screen.queryByText("snapshot-real-1")).not.toBeInTheDocument();
+      expect(screen.queryByText("pathway-acute-1")).not.toBeInTheDocument();
+      expect(screen.queryByText(/trace-p360-1/)).not.toBeInTheDocument();
+    },
+    MPI_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "reveals MPI audit identifiers only after evidence details are enabled",
+    async () => {
+      const user = userEvent.setup();
+      renderMpi();
+
+      await user.click(screen.getByRole("switch", { name: "证据详情" }));
+      await user.click(screen.getAllByRole("button", { name: /患者360/ })[0]);
+
+      expect(await screen.findByText("snapshot-real-1")).toBeInTheDocument();
       expect(screen.getByText("pathway-acute-1")).toBeInTheDocument();
       expect(screen.getByText(/trace-p360-1/)).toBeInTheDocument();
+    },
+    MPI_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "does not reveal MPI audit identifiers when the role lacks evidence-detail permission",
+    async () => {
+      const user = userEvent.setup();
+      useEvidenceDetailsStore.setState({ enabled: true });
+      mockUseSecurityProfile.mockReturnValue(securityProfile(["mpi.read"]));
+      renderMpi();
+
+      expect(screen.queryByRole("switch", { name: "证据详情" })).not.toBeInTheDocument();
+      await user.click(screen.getAllByRole("button", { name: /患者360/ })[0]);
+
+      expect(await screen.findByText("患者身份与就诊上下文已关联")).toBeInTheDocument();
+      expect(screen.queryByText("snapshot-real-1")).not.toBeInTheDocument();
+      expect(screen.queryByText("pathway-acute-1")).not.toBeInTheDocument();
+      expect(screen.queryByText(/trace-p360-1/)).not.toBeInTheDocument();
     },
     MPI_INTERACTION_TIMEOUT_MS,
   );
@@ -224,7 +288,7 @@ describe("Mpi", () => {
       const user = userEvent.setup();
       renderMpi();
 
-      await user.type(screen.getByPlaceholderText("支持按姓名或 MPI ID 检索..."), "mpi-real-1");
+      await user.type(screen.getByPlaceholderText("支持按姓名或院内患者编号检索..."), "mpi-real-1");
       await user.click(screen.getByRole("combobox", { name: "索引状态" }));
       const activeOptions = await screen.findAllByText("当前有效");
       await user.click(activeOptions[activeOptions.length - 1]);
@@ -243,14 +307,14 @@ describe("Mpi", () => {
   );
 
   it(
-    "merges an active MPI row through the backend mutation and refreshes evidence",
+    "merges an active MPI row through the service mutation and refreshes evidence",
     async () => {
       const user = userEvent.setup();
       renderMpi();
 
       await user.click(screen.getAllByRole("button", { name: /合并患者/ })[0]);
       await user.click(screen.getByRole("combobox", { name: "目标患者" }));
-      await user.click(await screen.findByText("王*五 · mpi-target-1 · ***5678"));
+      await user.click(await screen.findByText("王*五 · 男 · 52 岁 · ***5678"));
       await user.click(screen.getByRole("button", { name: "确认合并" }));
 
       await waitFor(() => {
@@ -267,21 +331,20 @@ describe("Mpi", () => {
   );
 
   it(
-    "renders real MPI rows and creates a patient through the backend mutation",
+    "renders real MPI rows and creates a patient through the service mutation",
     async () => {
       const user = userEvent.setup();
       renderMpi();
 
-      expect(screen.getAllByText("mpi-real-1").length).toBeGreaterThan(0);
       expect(screen.getByText("张*三")).toBeInTheDocument();
-      expect(screen.getByText("mpi-merged-1")).toBeInTheDocument();
-      expect(screen.getByText(/在径路径实例 2 个/)).toBeInTheDocument();
+      expect(screen.getByText("李*四")).toBeInTheDocument();
+      expect(screen.getByText(/活跃路径实例 2 个/)).toBeInTheDocument();
 
       await user.click(screen.getByRole("button", { name: /新增患者/ }));
       expect(screen.queryByText("患者主索引 ID")).not.toBeInTheDocument();
       await user.type(screen.getByPlaceholderText("例如：李*四"), "李*四");
       await user.click(screen.getByRole("combobox", { name: "性别" }));
-      const femaleOptions = await screen.findAllByText("女 (F)");
+      const femaleOptions = await screen.findAllByText("女");
       await user.click(femaleOptions[femaleOptions.length - 1]);
       await user.clear(screen.getByPlaceholderText("例如：36"));
       await user.type(screen.getByPlaceholderText("例如：36"), "41");
@@ -302,6 +365,92 @@ describe("Mpi", () => {
     },
     MPI_INTERACTION_TIMEOUT_MS,
   );
+
+  it(
+    "keeps MPI active patient directory language scoped to the current organization",
+    async () => {
+      const activeDirectoryRefetch = vi.fn();
+      mockUseMpiPatients.mockImplementation((params?: { status?: string; size?: number }) => {
+        if (params?.status === "ACTIVE" && params.size === 50) {
+          return {
+            data: undefined,
+            isLoading: false,
+            isError: true,
+            error: undefined,
+            refetch: activeDirectoryRefetch,
+          } as unknown as ReturnType<typeof useMpiPatients>;
+        }
+
+        return {
+          data: {
+            items: [
+              {
+                id: 1,
+                mpiId: "mpi-real-1",
+                tenantId: "tenant-A",
+                maskedName: "张*三",
+                gender: "M",
+                age: 36,
+                idLast4: "1234",
+                mergedCount: 0,
+                status: "ACTIVE",
+                mergedIntoMpiId: null,
+                createdAt: "2026-06-04T00:00:00Z",
+                createdBy: "doctor-a",
+                updatedAt: "2026-06-04T00:00:00Z",
+                updatedBy: "doctor-a",
+              },
+              {
+                id: 3,
+                mpiId: "mpi-target-1",
+                tenantId: "tenant-A",
+                maskedName: "王*五",
+                gender: "M",
+                age: 52,
+                idLast4: "5678",
+                mergedCount: 0,
+                status: "ACTIVE",
+                mergedIntoMpiId: null,
+                createdAt: "2026-06-04T00:00:00Z",
+                createdBy: "doctor-a",
+                updatedAt: "2026-06-04T00:00:00Z",
+                updatedBy: "doctor-a",
+              },
+            ],
+            total: 2,
+          },
+          isLoading: false,
+          refetch: refetchList,
+        } as unknown as ReturnType<typeof useMpiPatients>;
+      });
+      const user = userEvent.setup();
+
+      renderMpi();
+
+      expect(
+        screen.getByText(/当前组织范围内仍作为主记录使用的患者数；活跃路径实例/),
+      ).toBeInTheDocument();
+
+      await user.click(screen.getAllByRole("button", { name: /合并患者/ })[0]);
+
+      expect(screen.getByText("活跃患者目录暂时不可用")).toBeInTheDocument();
+      expect(
+        screen.getByText("无法读取当前组织范围的活跃患者，请重试后再执行合并。"),
+      ).toBeInTheDocument();
+    },
+    MPI_INTERACTION_TIMEOUT_MS,
+  );
+
+  it("hides create and high-risk merge actions without matching MPI action permissions", () => {
+    mockUseSecurityProfile.mockReturnValue(securityProfile(["mpi.read"]));
+
+    renderMpi();
+
+    expect(screen.queryByRole("button", { name: /新增患者/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /快速合并/ })).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("button", { name: /合并患者/ })).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: /拆分归并/ })).toHaveLength(0);
+  });
 
   it(
     "splits a merged MPI row with an explicit review reason",

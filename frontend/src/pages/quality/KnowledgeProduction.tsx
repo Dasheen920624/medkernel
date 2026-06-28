@@ -1,3 +1,3 @@
-import ModelProductionConsole from "@/pages/knowledge-production/ModelProductionConsole";
+import KnowledgeProductionPage from "@/pages/knowledge-production/KnowledgeProductionPage";
 
-export default ModelProductionConsole;
+export default KnowledgeProductionPage;

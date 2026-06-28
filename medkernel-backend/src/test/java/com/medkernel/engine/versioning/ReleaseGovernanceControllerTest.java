@@ -58,7 +58,7 @@ class ReleaseGovernanceControllerTest {
 
         assertThatThrownBy(() -> controller.startRollout(startRequest(simulation, "client-digest")))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("模拟摘要");
+            .hasMessageContaining("影响评估摘要");
 
         verify(releases, never()).releaseGray(any());
     }

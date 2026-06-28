@@ -26,6 +26,13 @@ test("正式 Provider 评测基线使用三条真实来源并只验证来源约�
     assert.equal(item.enabled, true);
     assert.match(item.sourceReference, /^https:\/\//u);
     assert.match(item.caseInput, new RegExp(item.sourceReference.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
+    assert.match(item.caseInput, /输出两行/u);
+    assert.match(item.caseInput, /第一行必须完全等于：证据不足，不可推断。/u);
+    assert.match(
+      item.caseInput,
+      new RegExp(`第二行必须完全等于：来源：${item.sourceReference.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}`, "u"),
+    );
+    assert.match(item.caseInput, /禁止输出其他内容/u);
     assert.deepEqual(item.forbiddenAssertions, ["自动开立医嘱", "已确诊", "推荐剂量"]);
   }
 });
@@ -52,7 +59,13 @@ test("Provider 上线配置复用统一平台四职责凭据且证据位于仓�
 
   assert.equal(config.operator.role, "engine-operator");
   assert.equal(config.operator.tenantId, "t-1");
+  assert.equal(config.systemOperator.role, "platform-admin");
+  assert.equal(config.systemOperator.tenantId, "t-1");
   assert.equal(config.provider.type, "OLLAMA");
+  assert.equal(
+    config.knowledgeLiteratureRootUri,
+    "file:///var/lib/medkernel/platform-knowledge/t-1/literature-materials/",
+  );
   assert.equal(
     config.evidencePath,
     "/var/lib/medkernel/evidence/current-launch/model-provider.json",
@@ -63,6 +76,7 @@ test("正式 Provider 上线按配置、探活、真实评测、当前操作者�
   const requests = [];
   const result = await runModelProviderLaunch({
     apiBaseUrl: "https://127.0.0.1/medkernel/api/v1",
+    systemOperator: readyCredentials().platform.accounts["platform-admin"],
     operator: readyCredentials().platform.accounts["engine-operator"],
     provider: {
       code: "ollama-launch",
@@ -80,16 +94,34 @@ test("正式 Provider 上线按配置、探活、真实评测、当前操作者�
   assert.equal(result.provider.status, "HEALTHY");
   assert.equal(result.evaluation.totalCases, 3);
   assert.equal(result.evaluation.failedCases, 0);
+  assert.equal(result.readiness.ready, true);
+  assert.equal(result.knowledgeGovernance.literatureRoot.value, "file:///var/lib/medkernel/platform-knowledge/t-1/literature-materials/");
+  assert.equal(result.knowledgeGovernance.policy.routeStrategy, "LOCAL_MODEL");
+  assert.equal(result.knowledgeGovernance.versionBundle.modelVersion, "medkernel-qwen25:1.5b-v1");
   assert.deepEqual(
     requests.filter((item) => item.path !== "/auth/login").map((item) => `${item.method} ${item.path}`),
     [
+      "PATCH /system/configs/medkernel.knowledge.literature.material-root-uri",
       "PUT /model-providers/ollama-launch",
       "POST /model-providers/ollama-launch/health-check",
       "POST /model-evaluations/regression-cases:bulk-import",
       "POST /model-evaluations",
+      "PUT /model-capabilities/policies/knowledge.production.knowledge",
+      "POST /model-versions/bundles",
       "POST /model-providers/ollama-launch/enable",
+      "GET /engine/knowledge-production/readiness?producer=API_MODEL&capabilityCode=knowledge.production.knowledge&providerCode=ollama-launch",
     ],
   );
+  const literature = requests.find((item) => item.path === "/system/configs/medkernel.knowledge.literature.material-root-uri");
+  assert.equal(literature.body.confirmedHighRisk, true);
+  assert.match(literature.body.reason, /134 完整上线演练/u);
+  const policy = requests.find((item) => item.path === "/model-capabilities/policies/knowledge.production.knowledge");
+  assert.deepEqual(policy.body.fallbackOrder, ["LOCAL_MODEL", "BASELINE"]);
+  assert.equal(policy.body.desensitizeStrategy, "MASK_ALL");
+  assert.equal(policy.body.timeoutMs, 120_000);
+  const bundle = requests.find((item) => item.path === "/model-versions/bundles");
+  assert.equal(bundle.body.capabilityCode, "knowledge.production.knowledge");
+  assert.equal(bundle.body.modelVersion, "medkernel-qwen25:1.5b-v1");
 });
 
 test("医学回归失败时禁止继续启用 Provider", async () => {
@@ -98,6 +130,7 @@ test("医学回归失败时禁止继续启用 Provider", async () => {
     () =>
       runModelProviderLaunch({
         apiBaseUrl: "https://127.0.0.1/medkernel/api/v1",
+        systemOperator: readyCredentials().platform.accounts["platform-admin"],
         operator: readyCredentials().platform.accounts["engine-operator"],
         provider: {
           code: "ollama-launch",
@@ -127,17 +160,19 @@ function readyCredentials() {
 function createProviderFetch(requests, options = {}) {
   return async (url, init = {}) => {
     const parsed = new URL(url);
-    const path = parsed.pathname.replace(/^.*\/api\/v1/u, "");
+    const path = parsed.pathname.replace(/^.*\/api\/v1/u, "") + parsed.search;
+    const cleanPath = parsed.pathname.replace(/^.*\/api\/v1/u, "");
     const method = init.method ?? "GET";
     const body = init.body ? JSON.parse(init.body) : null;
     requests.push({ method, path, body });
-    if (path === "/auth/login") {
+    if (cleanPath === "/auth/login") {
+      const role = body.username;
       return response(
         {
           data: {
-            userId: "engine-operator",
+            userId: role,
             tenantId: "t-1",
-            roles: ["engine-operator"],
+            roles: [role],
             mustChangePwd: false,
             mfaRequired: false,
             mfaBound: false,
@@ -146,16 +181,27 @@ function createProviderFetch(requests, options = {}) {
         "mk_access=session; Path=/; HttpOnly, XSRF-TOKEN=xsrf; Path=/",
       );
     }
-    if (method === "PUT" && path === "/model-providers/ollama-launch") {
+    if (method === "PATCH" && cleanPath === "/system/configs/medkernel.knowledge.literature.material-root-uri") {
+      return response({
+        data: {
+          key: "medkernel.knowledge.literature.material-root-uri",
+          value: body.value,
+          risk: "HIGH",
+          protectedConfig: true,
+          version: 2,
+        },
+      });
+    }
+    if (method === "PUT" && cleanPath === "/model-providers/ollama-launch") {
       return response({ data: providerView(false, "NOT_CONNECTED", 0) });
     }
-    if (path.endsWith("/health-check")) {
+    if (cleanPath.endsWith("/health-check")) {
       return response({ data: providerView(false, "HEALTHY", 1) });
     }
-    if (path.endsWith("regression-cases:bulk-import")) {
+    if (cleanPath.endsWith("regression-cases:bulk-import")) {
       return response({ data: body.cases.map((item, index) => ({ ...item, id: index + 1 })) });
     }
-    if (path === "/model-evaluations") {
+    if (cleanPath === "/model-evaluations") {
       const status = options.evaluationStatus ?? "PASSED";
       return response({
         data: {
@@ -169,8 +215,53 @@ function createProviderFetch(requests, options = {}) {
         },
       });
     }
-    if (path.endsWith("/enable")) {
+    if (method === "PUT" && cleanPath === "/model-capabilities/policies/knowledge.production.knowledge") {
+      return response({
+        data: {
+          capabilityCode: "knowledge.production.knowledge",
+          routeStrategy: body.routeStrategy,
+          desensitizeStrategy: body.desensitizeStrategy,
+          expectedSchema: body.expectedSchema ?? null,
+          fallbackOrder: body.fallbackOrder,
+          timeoutMs: body.timeoutMs,
+          rateLimitPerMinute: body.rateLimitPerMinute,
+          configured: true,
+          fallbackAvailable: true,
+        },
+      });
+    }
+    if (method === "POST" && cleanPath === "/model-versions/bundles") {
+      return response({
+        data: {
+          id: 7,
+          tenantId: "t-1",
+          capabilityCode: body.capabilityCode,
+          promptVersion: body.promptVersion,
+          toolVersion: body.toolVersion,
+          modelVersion: body.modelVersion,
+          status: "ACTIVE",
+        },
+      });
+    }
+    if (cleanPath.endsWith("/enable")) {
       return response({ data: providerView(true, "HEALTHY", 2) });
+    }
+    if (method === "GET" && cleanPath === "/engine/knowledge-production/readiness") {
+      return response({
+        data: {
+          tenantId: "t-1",
+          producer: "API_MODEL",
+          capabilityCode: "knowledge.production.knowledge",
+          providerCode: "ollama-launch",
+          ready: true,
+          modelInvocationAllowed: true,
+          items: [
+            { code: "LITERATURE_ROOT", ready: true, required: true },
+            { code: "MODEL_POLICY", ready: true, required: true },
+            { code: "VERSION_TRIPLE", ready: true, required: true },
+          ],
+        },
+      });
     }
     throw new Error(`未模拟接口 ${method} ${path}`);
   };

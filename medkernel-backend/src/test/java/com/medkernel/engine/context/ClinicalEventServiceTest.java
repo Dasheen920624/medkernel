@@ -77,7 +77,7 @@ class ClinicalEventServiceTest {
 
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-event",
-            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
+            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", null, "specialty-A"),
             "tester"));
     }
 

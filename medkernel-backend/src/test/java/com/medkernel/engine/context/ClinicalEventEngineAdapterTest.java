@@ -91,7 +91,7 @@ class ClinicalEventEngineAdapterTest {
         ClinicalEventContext context = new ClinicalEventContext(
             "evt-order",
             "tenant-A",
-            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
+            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", null, "specialty-A"),
             ClinicalEventType.ORDER,
             ClinicalEventTriggerPoint.ORDER_SIGN,
             "MPI-1",
@@ -183,7 +183,7 @@ class ClinicalEventEngineAdapterTest {
         ClinicalEventContext context = new ClinicalEventContext(
             "evt-result-1",
             "tenant-A",
-            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
+            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", null, "specialty-A"),
             ClinicalEventType.REPORT,
             ClinicalEventTriggerPoint.RESULT_REVIEW,
             "MPI-1",
@@ -222,7 +222,7 @@ class ClinicalEventEngineAdapterTest {
         return new ClinicalEventContext(
             "evt-1",
             "tenant-A",
-            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
+            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", null, "specialty-A"),
             ClinicalEventType.DIAGNOSIS,
             ClinicalEventTriggerPoint.PATIENT_VIEW,
             "MPI-1",

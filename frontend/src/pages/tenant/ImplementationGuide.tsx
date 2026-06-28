@@ -20,7 +20,15 @@ import {
 } from "@ant-design/icons";
 import { Link } from "react-router-dom";
 
-import { useImplementationSteps, type ImplementationStep } from "@/shared/api/hooks";
+import {
+  useImplementationSteps,
+  useSecurityProfile,
+  type ImplementationStep,
+} from "@/shared/api/hooks";
+import { customerDisplayText } from "@/shared/config/customerLabels";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageShell } from "@/shared/ui/PageShell";
 import { StepFlow } from "@/shared/ui/StepFlow";
 import type { StepKey } from "@/shared/ui/StepFlow.contract";
@@ -69,8 +77,16 @@ function firstBlockedStep(steps: ImplementationStep[]) {
   return steps.find((step) => step.status === "BLOCKED") ?? null;
 }
 
+function implementationEvidenceText(value: string, evidenceDetailsEnabled: boolean) {
+  return evidenceDetailsEnabled ? value : customerDisplayText(value);
+}
+
 export default function ImplementationGuide() {
   const { data: steps = [], isLoading, isError, refetch } = useImplementationSteps();
+  const securityProfile = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled =
+    canUseEvidenceDetails(securityProfile.data) && globalEvidenceDetails;
 
   if (isLoading) {
     return (
@@ -96,7 +112,8 @@ export default function ImplementationGuide() {
         state="error"
         stateProps={{
           title: "实施步骤读取失败",
-          description: "请重试；若持续失败，请带追踪号联系信息科排查服务空间接口。",
+          description:
+            "请重试；若持续失败，请联系信息科核查实施服务。失败已留痕，可在审计证据中追溯。",
           onRetry: () => refetch(),
         }}
       >
@@ -113,7 +130,7 @@ export default function ImplementationGuide() {
         state="empty"
         stateProps={{
           title: "暂无实施步骤",
-          description: "当前服务机构尚未返回实施步骤，请先确认服务空间与组织范围已建立。",
+          description: "当前服务机构尚未返回实施步骤，请先确认服务机构与组织范围已建立。",
         }}
       >
         <></>
@@ -135,6 +152,7 @@ export default function ImplementationGuide() {
     <PageShell
       title="实施与验收"
       description="按真实就绪状态推进交付准备"
+      extras={<EvidenceDetailsToggle securityProfile={securityProfile.data} />}
       primary={
         primaryTarget ? (
           <Link to={primaryTarget.targetPath}>
@@ -221,16 +239,20 @@ export default function ImplementationGuide() {
                 </div>
 
                 {step.evidence ? (
-                  <Text className={styles.stepEvidence}>{step.evidence}</Text>
+                  <Text className={styles.stepEvidence}>
+                    {implementationEvidenceText(step.evidence, evidenceDetailsEnabled)}
+                  </Text>
                 ) : (
                   <List
                     size="small"
                     split={false}
                     dataSource={step.blockers}
-                    locale={{ emptyText: "后端未返回阻塞原因" }}
+                    locale={{ emptyText: "当前未返回阻塞原因" }}
                     renderItem={(blocker) => (
                       <List.Item className={styles.blockerItem}>
-                        <Text type="warning">{blocker}</Text>
+                        <Text type="warning">
+                          {implementationEvidenceText(blocker, evidenceDetailsEnabled)}
+                        </Text>
                       </List.Item>
                     )}
                   />

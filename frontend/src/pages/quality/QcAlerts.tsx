@@ -21,6 +21,7 @@ import {
   useAcknowledgeQualityAlert,
   useDispatchRectification,
   useOrgUnits,
+  useSecurityProfile,
   useQualityAlerts,
   type QualityAlertsQueryParams,
   type QualityDashboardAlert,
@@ -29,6 +30,9 @@ import {
 import { PageShell } from "@/shared/ui/PageShell";
 import { RectificationAssignmentFields } from "@/shared/ui/RectificationAssignmentFields";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 
 const { Text } = Typography;
 
@@ -42,6 +46,9 @@ interface DispatchFormValues {
 }
 
 export default function QcAlerts() {
+  const security = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const [status, setStatus] = useState<QualityDashboardAlertStatus>("OPEN");
   const [timeScope, setTimeScope] = useState<TimeScope>("TODAY");
   const [severity, setSeverity] = useState<AlertSeverityScope>("HIGH_RISK");
@@ -82,10 +89,7 @@ export default function QcAlerts() {
   const departmentNames = useMemo(
     () =>
       new Map(
-        (departmentsQuery.data?.items ?? []).map((unit) => [
-          unit.id ?? unit.code,
-          `${unit.name} · ${unit.code}`,
-        ]),
+        (departmentsQuery.data?.items ?? []).map((unit) => [unit.id ?? unit.code, unit.name]),
       ),
     [departmentsQuery.data?.items],
   );
@@ -134,7 +138,7 @@ export default function QcAlerts() {
     try {
       const acknowledged = await acknowledgeMutation.mutateAsync(selectedAlert.alertId);
       setSelectedAlert(acknowledged);
-      setDispatchFeedback({ type: "success", text: "预警已确认，后续状态仍由来源事实闭环刷新。" });
+      setDispatchFeedback({ type: "success", text: "预警已确认，状态继续由来源事实闭环刷新。" });
       alertsQuery.refetch();
     } catch (error: unknown) {
       setDispatchFeedback({ type: "error", text: getApiErrorMessage(error, "确认预警失败") });
@@ -147,6 +151,7 @@ export default function QcAlerts() {
       description="按真实预警处置整改"
       extras={
         <Space wrap>
+          <EvidenceDetailsToggle securityProfile={security.data} />
           <Button href="/qc/eval/results">查看评价结果来源</Button>
           <Button
             aria-label="刷新质量问题"
@@ -161,8 +166,8 @@ export default function QcAlerts() {
       stateProps={{
         title: alertsQuery.isError ? parsedError?.message : "当前筛选下暂无真实质量问题",
         description: alertsQuery.isError
-          ? "请稍后重试，或凭追踪号联系信息科核查。"
-          : "后端当前没有返回符合筛选条件的预警。",
+          ? "请稍后重试；若持续失败，请联系信息科核查质量预警服务。失败已留痕，可在审计证据中追溯。"
+          : "当前没有符合筛选条件的预警。",
         traceId: parsedError?.traceId,
         onRetry: () => alertsQuery.refetch(),
       }}
@@ -253,14 +258,22 @@ export default function QcAlerts() {
                             : "未指定"}
                         </Text>
                         <Text type="secondary">阈值</Text>
-                        <Text>{alert.thresholdCode}</Text>
+                        <Text>
+                          {evidenceText(
+                            alert.thresholdCode,
+                            evidenceDetailsEnabled,
+                            "高风险阈值已关联",
+                          )}
+                        </Text>
                       </Space>
-                      <Text>{`证据摘要：${alert.evidenceSummary}`}</Text>
+                      <Text>{`证据摘要：${alertEvidenceSummary(alert, evidenceDetailsEnabled)}`}</Text>
                       <Space wrap>
                         <Text type="secondary">来源</Text>
-                        <Text>{customerEnumLabel(alert.sourceType)}</Text>
-                        <Text type="secondary">追踪号</Text>
-                        <Text>{alert.traceId ?? "未生成追踪号"}</Text>
+                        <Text>{sourceTypeLabel(alert.sourceType)}</Text>
+                        <Text type="secondary">证据</Text>
+                        <Text>
+                          {evidenceText(alert.traceId, evidenceDetailsEnabled, "证据已记录")}
+                        </Text>
                       </Space>
                     </Space>
                   }
@@ -299,7 +312,7 @@ export default function QcAlerts() {
             <Descriptions bordered column={1} size="small">
               <Descriptions.Item label="预警标题">{selectedAlert.title}</Descriptions.Item>
               <Descriptions.Item label="证据摘要">
-                {selectedAlert.evidenceSummary}
+                {alertEvidenceSummary(selectedAlert, evidenceDetailsEnabled)}
               </Descriptions.Item>
               <Descriptions.Item label="状态">{statusTag(selectedAlert.status)}</Descriptions.Item>
               <Descriptions.Item label="级别">
@@ -310,9 +323,11 @@ export default function QcAlerts() {
                   ? (departmentNames.get(selectedAlert.departmentId) ?? selectedAlert.departmentId)
                   : "未指定"}
               </Descriptions.Item>
-              <Descriptions.Item label="来源编号">{selectedAlert.sourceId}</Descriptions.Item>
-              <Descriptions.Item label="追踪号">
-                {selectedAlert.traceId ?? "未生成追踪号"}
+              <Descriptions.Item label="来源事实">
+                {evidenceText(selectedAlert.sourceId, evidenceDetailsEnabled, "来源事实已关联")}
+              </Descriptions.Item>
+              <Descriptions.Item label="证据">
+                {evidenceText(selectedAlert.traceId, evidenceDetailsEnabled, "证据已记录")}
               </Descriptions.Item>
             </Descriptions>
 
@@ -320,7 +335,7 @@ export default function QcAlerts() {
               type="info"
               showIcon
               message="状态闭环口径"
-              description="预警状态由后端来源事实刷新；本页只通过真实整改任务推进闭环，不在前端伪造确认结果。"
+              description="预警状态由来源事实刷新；本页只通过真实整改任务推进闭环，不在前端伪造确认结果。"
             />
 
             {selectedAlert.status === "OPEN" && (
@@ -453,6 +468,40 @@ function alertTypeTag(type: string) {
     return <Tag color="orange">整改逾期</Tag>;
   }
   return <Tag>{customerEnumLabel(type)}</Tag>;
+}
+
+function sourceTypeLabel(type: string) {
+  if (type === "quality_finding") {
+    return "质控问题来源";
+  }
+  if (type === "rectification_task") {
+    return "整改任务来源";
+  }
+  return customerEnumLabel(type);
+}
+
+function alertEvidenceSummary(alert: QualityDashboardAlert, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) {
+    return alert.evidenceSummary;
+  }
+  if (alert.alertType === "HIGH_RISK_FINDING") {
+    return "高风险质控事实仍未闭环";
+  }
+  if (alert.alertType === "OVERDUE_RECTIFICATION") {
+    return "整改任务已逾期";
+  }
+  return "质量证据已记录";
+}
+
+function evidenceText(
+  value: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  businessText: string,
+) {
+  if (evidenceDetailsEnabled) {
+    return value || "--";
+  }
+  return businessText;
 }
 
 function countByStatus(alerts: QualityDashboardAlert[], targetStatus: QualityDashboardAlertStatus) {

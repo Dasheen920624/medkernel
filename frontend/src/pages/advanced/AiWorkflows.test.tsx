@@ -1,6 +1,6 @@
 import { App as AntdApp, ConfigProvider } from "antd";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AxiosAdapter, InternalAxiosRequestConfig } from "axios";
 import { afterEach, describe, expect, it } from "vitest";
@@ -126,11 +126,12 @@ describe("AiWorkflows", () => {
 
     renderPage();
 
-    expect(await screen.findByLabelText("正在读取 AI 能力状态")).toBeInTheDocument();
-    expect(screen.queryByText("当前组织没有已启用的 AI 能力")).not.toBeInTheDocument();
+    expect(await screen.findByLabelText("正在读取模型能力状态")).toBeInTheDocument();
+    expect(screen.queryByText("当前组织没有已启用的模型能力")).not.toBeInTheDocument();
   });
 
   it("只读取真实能力状态，不暴露执行和管理入口", async () => {
+    const user = userEvent.setup();
     const requests: string[] = [];
     apiClient.defaults.adapter = (async (config) => {
       requests.push(`${config.method ?? "get"} ${config.url ?? ""}`);
@@ -145,18 +146,141 @@ describe("AiWorkflows", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "AI 工作流" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "模型能力" })).toBeInTheDocument();
     expect(await screen.findByText("临床知识关联发现")).toBeInTheDocument();
+    expect(screen.getByText(/公网模型可在授权用途内使用患者上下文/)).toBeInTheDocument();
+    expect(screen.getByText(/核心标识字段先遮蔽/)).toBeInTheDocument();
     expect(screen.getByText("临床规则草案拟定")).toBeInTheDocument();
+    expect(screen.queryByText("knowledge.discovery")).not.toBeInTheDocument();
+    expect(screen.queryByText("rule.draft")).not.toBeInTheDocument();
+    expect(screen.queryByText("医院:hospital-a")).not.toBeInTheDocument();
+    expect(screen.queryByText('{"required":["status"]}')).not.toBeInTheDocument();
     expect(screen.getAllByText("基础规则能力").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("服务机构已配置")).toBeInTheDocument();
     expect(screen.getByText("模型能力已关闭")).toBeInTheDocument();
     expect(screen.getByText("默认脱敏")).toBeInTheDocument();
     expect(screen.getByText("全量掩码")).toBeInTheDocument();
-    expect(screen.getByText("医院:hospital-a")).toBeInTheDocument();
+    expect(screen.getAllByText("规则链路可用").length).toBeGreaterThan(0);
     expect(screen.getByText("继承配置")).toBeInTheDocument();
     expect(screen.getByText("未配置专属策略，使用系统无模型规则链路")).toBeInTheDocument();
+    expect(screen.queryByText("基线可用")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /提交|运行|重试|配置|编辑|新增|保存/ })).toBeNull();
     expect(requests).toEqual(["get /security/me", "get /model-capabilities/status"]);
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("knowledge.discovery")).toBeInTheDocument();
+    expect(screen.getByText("rule.draft")).toBeInTheDocument();
+    expect(screen.getByText("医院:hospital-a")).toBeInTheDocument();
+    expect(screen.getByText('{"required":["status"]}')).toBeInTheDocument();
+  });
+
+  it("允许具备权限的实施人员为公网模型使用患者上下文配置外调安全策略", async () => {
+    const user = userEvent.setup();
+    const requests: string[] = [];
+    apiClient.defaults.adapter = (async (config) => {
+      requests.push(`${config.method ?? "get"} ${config.url ?? ""}`);
+      if (config.url === "/security/me") {
+        return response(
+          config,
+          securityProfile(["menu.ai-workflows", "llm.read", "llm.egress.manage"]),
+        );
+      }
+      if (config.url === "/model-capabilities/status" && config.method === "get") {
+        return response(config, {
+          data: [
+            {
+              ...statusItems[0],
+              capabilityCode: "clinical.explanation",
+              displayName: "患者解释生成",
+              routeStrategy: "EXTERNAL_MODEL",
+              fallbackOrder: ["EXTERNAL_MODEL", "LOCAL_MODEL", "BASELINE"],
+              desensitizeStrategy: "DEFAULT",
+            },
+          ],
+        });
+      }
+      if (
+        config.url === "/data-minimization/policies/model-egress/clinical.explanation" &&
+        config.method === "put"
+      ) {
+        expect(JSON.parse(config.data as string)).toEqual({
+          allowedFields: ["prompt"],
+          sensitivityLevel: "HIGH",
+          desensitizationRules: { prompt: "MASK_ALL" },
+          confirmationThresholdLevel: "HIGH",
+        });
+        return response(config, {
+          data: {
+            capabilityCode: "clinical.explanation",
+            allowedFields: '["prompt"]',
+            sensitivityLevel: "HIGH",
+          },
+        });
+      }
+      if (
+        config.url === "/data-minimization/policies/model-egress/confirmations" &&
+        config.method === "post"
+      ) {
+        const confirmation = JSON.parse(config.data as string) as {
+          capabilityCode: string;
+          payloadHash: string;
+          purpose: string;
+        };
+        expect(confirmation).toMatchObject({
+          capabilityCode: "clinical.explanation",
+          purpose: "向患者解释检查结果，仅使用已脱敏字段",
+        });
+        expect(confirmation.payloadHash).toMatch(/^sha256:[a-f0-9]{64}$/);
+        expect(confirmation.payloadHash).not.toBe("sha256:payload-001");
+        return response(config, {
+          data: {
+            id: 7,
+            capabilityCode: "clinical.explanation",
+            payloadHash: confirmation.payloadHash,
+            purpose: "向患者解释检查结果，仅使用已脱敏字段",
+            confirmedBy: "operator-001",
+            confirmedAt: "2026-06-25T19:45:00Z",
+          },
+        });
+      }
+      throw new Error(`未预期接口: ${config.method ?? ""} ${config.url ?? ""}`);
+    }) as AxiosAdapter;
+
+    renderPage();
+
+    expect(await screen.findByText("患者解释生成")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "配置 患者解释生成 外调安全策略" }));
+    const dialog = await screen.findByRole("dialog", { name: "配置外调安全策略" });
+    expect(dialog).toHaveTextContent("公网外部模型可使用患者上下文");
+    expect(dialog).not.toHaveTextContent("字段" + "出" + "域" + "预览");
+    expect(within(dialog).getByText("模型使用字段预览")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("提示词内容").length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByText("全量遮蔽").length).toBeGreaterThan(0);
+    expect(within(dialog).getByText("患者姓名")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("核心标识默认不提供给模型").length).toBeGreaterThan(0);
+    expect(within(dialog).getByText(/高敏用途达到阈值时/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/每次发送给模型前需要责任确认/)).toBeInTheDocument();
+    expect(within(dialog).getByText("本次外调用途确认")).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("脱敏载荷摘要")).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/脱敏摘要由系统根据当前字段预览和用途自动生成/),
+    ).toBeInTheDocument();
+    await user.type(
+      within(dialog).getByLabelText("用途说明"),
+      "向患者解释检查结果，仅使用已脱敏字段",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "记录用途确认" }));
+    await user.click(screen.getByRole("button", { name: "保存外调安全策略" }));
+
+    await waitFor(() =>
+      expect(requests).toContain(
+        "put /data-minimization/policies/model-egress/clinical.explanation",
+      ),
+    );
+    await waitFor(() =>
+      expect(requests).toContain("post /data-minimization/policies/model-egress/confirmations"),
+    );
   });
 
   it("部分能力不可用时显示诚实的部分成功状态", async () => {
@@ -184,8 +308,10 @@ describe("AiWorkflows", () => {
 
     renderPage();
 
-    expect(await screen.findByText("部分 AI 能力当前不可用")).toBeInTheDocument();
-    expect(screen.getByText("1 项能力没有可用路由或基线，其他能力仍可查看。")).toBeInTheDocument();
+    expect(await screen.findByText("部分模型能力当前不可用")).toBeInTheDocument();
+    expect(
+      screen.getByText("1 项能力没有可用路由或规则链路，其他能力仍可查看。"),
+    ).toBeInTheDocument();
     expect(screen.getByText("暂不可用")).toBeInTheDocument();
   });
 
@@ -199,8 +325,8 @@ describe("AiWorkflows", () => {
 
     renderPage();
 
-    expect(await screen.findByText("无权查看 AI 工作流")).toBeInTheDocument();
-    expect(screen.getByText("需要 AI 能力读取权限。")).toBeInTheDocument();
+    expect(await screen.findByText("无权查看模型能力")).toBeInTheDocument();
+    expect(screen.getByText("需要模型能力读取权限。")).toBeInTheDocument();
   });
 
   it("真实能力为空时显示诚实空态", async () => {
@@ -216,7 +342,7 @@ describe("AiWorkflows", () => {
 
     renderPage();
 
-    expect(await screen.findByText("当前组织没有已启用的 AI 能力")).toBeInTheDocument();
+    expect(await screen.findByText("当前组织没有已启用的模型能力")).toBeInTheDocument();
     expect(screen.getByText("未使用本地默认项补齐真实结果。")).toBeInTheDocument();
   });
 
@@ -239,7 +365,7 @@ describe("AiWorkflows", () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(await screen.findByText("AI 能力状态读取失败")).toBeInTheDocument();
+    expect(await screen.findByText("模型能力状态读取失败")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "重新读取" }));
 
     expect(await screen.findByText("临床知识关联发现")).toBeInTheDocument();

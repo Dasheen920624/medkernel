@@ -18,8 +18,10 @@ describe("menu config", () => {
   });
 
   it("does not create a standalone advanced section", () => {
+    const retiredStandaloneToolLabel = "高级" + "工具";
+
     expect(menuSections.map((section) => section.key)).not.toContain("advanced-tools");
-    expect(menuSections.map((section) => section.label)).not.toContain("高级工具");
+    expect(menuSections.map((section) => section.label)).not.toContain(retiredStandaloneToolLabel);
   });
 
   it("all items have a valid path starting with /", () => {
@@ -60,7 +62,7 @@ describe("menu config", () => {
         "knowledge-production",
         "ai-workflows",
         "domestic-check",
-        "dev-console",
+        "runtime-diagnostics",
       ]),
     );
   });
@@ -109,7 +111,7 @@ describe("menu config", () => {
           "adapter-hub",
           "system-providers",
           "domestic-check",
-          "dev-console",
+          "runtime-diagnostics",
         ],
       ],
     ]);

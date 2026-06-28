@@ -1,4 +1,4 @@
-package com.medkernel.engine.developer;
+package com.medkernel.engine.runtime.diagnostics;
 
 import java.util.List;
 
@@ -6,14 +6,14 @@ import com.medkernel.engine.security.PermissionDimension;
 import com.medkernel.shared.audit.AuditAction;
 
 /**
- * 开发者控制台 API 契约目录响应。
+ * 运行诊断 API 契约目录响应。
  *
  * @param contracts 已脱敏服务契约清单
  */
-public record DeveloperApiContractDirectoryResponse(
-    List<DeveloperApiContractResponse> contracts
+public record RuntimeDiagnosticsApiContractDirectoryResponse(
+    List<RuntimeDiagnosticsApiContractResponse> contracts
 ) {
-    public DeveloperApiContractDirectoryResponse {
+    public RuntimeDiagnosticsApiContractDirectoryResponse {
         contracts = List.copyOf(contracts);
     }
 
@@ -31,7 +31,7 @@ public record DeveloperApiContractDirectoryResponse(
      * @param auditPoints 审计声明
      * @param publicEndpoints 明确公开端点
      */
-    public record DeveloperApiContractResponse(
+    public record RuntimeDiagnosticsApiContractResponse(
         String id,
         String title,
         String basePath,
@@ -39,11 +39,11 @@ public record DeveloperApiContractDirectoryResponse(
         String openApiDocumentUrl,
         String fieldContractUrl,
         List<String> openApiPaths,
-        List<DeveloperApiPermissionResponse> permissions,
-        List<DeveloperApiAuditResponse> auditPoints,
+        List<RuntimeDiagnosticsApiPermissionResponse> permissions,
+        List<RuntimeDiagnosticsApiAuditResponse> auditPoints,
         List<String> publicEndpoints
     ) {
-        public DeveloperApiContractResponse {
+        public RuntimeDiagnosticsApiContractResponse {
             openApiPaths = List.copyOf(openApiPaths);
             permissions = List.copyOf(permissions);
             auditPoints = List.copyOf(auditPoints);
@@ -58,7 +58,7 @@ public record DeveloperApiContractDirectoryResponse(
      * @param dimension 权限分类
      * @param purpose 中文用途
      */
-    public record DeveloperApiPermissionResponse(
+    public record RuntimeDiagnosticsApiPermissionResponse(
         String code,
         PermissionDimension dimension,
         String purpose
@@ -72,7 +72,7 @@ public record DeveloperApiContractDirectoryResponse(
      * @param targetType 审计对象类型
      * @param purpose 中文说明
      */
-    public record DeveloperApiAuditResponse(
+    public record RuntimeDiagnosticsApiAuditResponse(
         AuditAction action,
         String targetType,
         String purpose

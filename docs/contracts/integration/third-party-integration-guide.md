@@ -59,7 +59,7 @@
 - `POST /api/v1/engine/integration/onboardings` 创建第三方业务接口接入申请，`accessMode=ADAPTER` 时必须绑定服务机构内真实适配器，`accessMode=FHIR` 时必须声明 `R4` 或 `R5`。
 - `POST /api/v1/engine/integration/onboardings/{id}/advance` 只能按 `REQUESTED` → `AUTH_CONFIGURED` → `MAPPING_CONFIGURED` → `ONLINE` 推进，`OFFLINE` 可用于下线；每次推进必须带阶段证据。
 - 适配器路线进入 `MAPPING_CONFIGURED` 或 `ONLINE` 前必须已有字段映射；缺字段映射返回 `ENG-INTEG-001`，不得用空映射绕过。
-- `ONLINE` 只表示接入配置链路完成，不等于外部系统真实可达；未接入真实连接器时响应仍显示 `NOT_CONNECTED` 阻塞项。
+- `ONLINE` 只表示接入配置链路完成，不等于外部系统真实可达；连接器健康验证未通过或外部不可达时响应仍显示 `NOT_CONNECTED` 阻塞项。
 - `GET /api/v1/engine/integration/onboardings` 供实施台查看所有接入档案及当前阻塞项，不返回幽灵接入或硬编码样例。
 
 ## 区域协同来源
@@ -154,7 +154,7 @@
 
 ## 审计
 
-所有创建、更新、健康检查、Webhook 测试、入站消息、出站消息、重试和死信重放都必须写审计。审计记录至少包含服务机构、组织作用域、用户、traceId、动作、目标对象、结果、错误码和时间。读操作通过日志与 traceId 支撑问题定位。
+所有创建、更新、健康检查、Webhook 验证、入站消息、出站消息、重试和死信重放都必须写审计。审计记录至少包含服务机构、组织作用域、用户、traceId、动作、目标对象、结果、错误码和时间。读操作通过日志与 traceId 支撑问题定位。
 
 ## 验收清单
 

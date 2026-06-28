@@ -45,7 +45,7 @@ class MenuPermissionCatalogTest {
         "graph-explore",
         "ai-workflows",
         "domestic-check",
-        "dev-console");
+        "runtime-diagnostics");
 
     @Test
     void catalogContainsExactlyLockedNavigationEntries() {
@@ -102,7 +102,8 @@ class MenuPermissionCatalogTest {
                 "qc-dashboard", "qc-alerts", "insurance-audit", "qc-eval-sets"),
             "compliance-security", Set.of("admin-audit", "security-baseline"),
             "system-operations", Set.of(
-                "implementation-guide", "adapter-hub", "system-providers", "domestic-check", "dev-console")
+                "implementation-guide", "adapter-hub", "system-providers", "domestic-check",
+                "runtime-diagnostics")
         ));
     }
 

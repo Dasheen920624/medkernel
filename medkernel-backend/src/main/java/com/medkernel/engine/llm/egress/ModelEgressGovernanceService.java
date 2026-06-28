@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
@@ -113,6 +115,23 @@ public class ModelEgressGovernanceService {
             request.payloadHash().trim(),
             "确认模型外调用途 " + code);
         return saved;
+    }
+
+    /**
+     * 分页回看当前租户的模型外调用途确认记录。
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<ModelEgressConfirmation> listConfirmations(PageRequest pageRequest) {
+        String tenantId = requireCurrentTenant();
+        PageRequest safePage = pageRequest == null ? PageRequest.defaults() : pageRequest;
+        long total = confirmationRepo.countByTenantId(tenantId);
+        if (total == 0L) {
+            return PageResponse.empty(safePage);
+        }
+        return PageResponse.of(
+            confirmationRepo.pageByTenantId(tenantId, safePage.offset(), safePage.safeSize()),
+            safePage,
+            total);
     }
 
     private String requireCurrentTenant() {

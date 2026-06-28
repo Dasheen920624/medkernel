@@ -120,11 +120,11 @@ export default function NotificationSettings() {
   const isSaving = savePersonalMutation.isPending || saveSystemMutation.isPending;
   let sourceMessage = "";
   if (currentSettings && mode === "SYSTEM") {
-    sourceMessage = `当前服务机构默认策略 · 版本 ${currentSettings.systemVersion}`;
+    sourceMessage = "当前正在编辑服务机构默认策略";
   } else if (currentSettings?.source === "SYSTEM_DEFAULT") {
-    sourceMessage = "当前使用系统默认策略，保存后形成个人覆盖";
+    sourceMessage = "当前使用服务机构默认策略，保存后形成个人覆盖";
   } else if (currentSettings) {
-    sourceMessage = `当前使用个人偏好 · 版本 ${currentSettings.version}`;
+    sourceMessage = "当前使用个人通知偏好";
   }
 
   useEffect(() => {
@@ -156,7 +156,7 @@ export default function NotificationSettings() {
       };
       if (mode === "SYSTEM") {
         if (!canManageSystem || !systemQuery.data) {
-          message.error("当前账号无权修改系统通知默认策略");
+          message.error("当前账号无权修改服务机构通知默认策略");
           return;
         }
         await saveSystemMutation.mutateAsync({
@@ -164,7 +164,7 @@ export default function NotificationSettings() {
           reason: changeReason?.trim() ?? "",
           expectedVersion: systemQuery.data.systemVersion,
         });
-        message.success("系统通知默认策略已保存");
+        message.success("服务机构通知默认策略已保存");
         await systemQuery.refetch();
       } else {
         await savePersonalMutation.mutateAsync(payload);
@@ -204,7 +204,7 @@ export default function NotificationSettings() {
               value={mode}
               options={[
                 { label: "个人偏好", value: "PERSONAL" },
-                { label: "系统默认", value: "SYSTEM" },
+                { label: "服务机构默认", value: "SYSTEM" },
               ]}
               onChange={setMode}
             />
@@ -225,7 +225,7 @@ export default function NotificationSettings() {
           showIcon
           className="mk-card-gap-bottom"
           message="通知偏好读取失败"
-          description="请检查登录状态、服务空间或后端通知偏好接口。"
+          description="请确认登录状态、组织范围；若持续失败，请联系信息科核查通知偏好配置。"
         />
       )}
 
@@ -249,7 +249,7 @@ export default function NotificationSettings() {
             <Alert
               type="info"
               showIcon
-              message="启用外部通道后会登记外发补偿消息；当前未接真实发送连接器时会明确显示“未连接”，不声明短信、邮件、移动推送、Webhook 或院内消息已完成投递。"
+              message="启用外部通道后会登记外发补偿消息；当前未接真实发送连接器时会明确显示“未连接”，不声明短信、邮件、移动推送、系统回调或院内消息已完成投递。"
             />
             <Space wrap size="large">
               <Form.Item name="inAppEnabled" label="站内信" valuePropName="checked">
@@ -264,8 +264,8 @@ export default function NotificationSettings() {
               <Form.Item name="pushEnabled" label="移动推送" valuePropName="checked">
                 <Switch aria-label="移动推送偏好" />
               </Form.Item>
-              <Form.Item name="webhookEnabled" label="Webhook" valuePropName="checked">
-                <Switch aria-label="Webhook 偏好" />
+              <Form.Item name="webhookEnabled" label="系统回调" valuePropName="checked">
+                <Switch aria-label="系统回调偏好" />
               </Form.Item>
               <Form.Item name="inHospitalMessageEnabled" label="院内消息" valuePropName="checked">
                 <Switch aria-label="院内消息偏好" />
@@ -324,32 +324,29 @@ export default function NotificationSettings() {
                 <Input aria-label="免打扰结束时间" inputMode="numeric" maxLength={5} />
               </Form.Item>
             </Space>
-            <Form.Item name="quietBypassLevels" label="免打扰绕过级别">
+            <Form.Item name="quietBypassLevels" label="免打扰仍提醒级别">
               <Select
                 mode="multiple"
-                aria-label="免打扰绕过级别"
+                aria-label="免打扰仍提醒级别"
                 options={bypassOptions}
                 className="mk-full-width"
               />
             </Form.Item>
             <Space wrap>
-              <Text type="secondary">以上级别始终绕过免打扰。</Text>
+              <Text type="secondary">以上级别在免打扰时段仍会提醒。</Text>
               {currentSettings?.quietActiveNow && <Tag color="blue">当前免打扰生效</Tag>}
-              {mode === "PERSONAL" && currentSettings?.version ? (
-                <Text type="secondary">个人版本 {currentSettings.version}</Text>
-              ) : null}
             </Space>
             {mode === "SYSTEM" && (
               <Form.Item
                 name="changeReason"
                 label="变更原因"
                 rules={[
-                  { required: true, message: "请填写系统默认策略变更原因" },
+                  { required: true, message: "请填写服务机构默认策略变更原因" },
                   { max: 500, message: "变更原因不能超过 500 个字符" },
                 ]}
               >
                 <Input.TextArea
-                  aria-label="系统通知策略变更原因"
+                  aria-label="服务机构通知策略变更原因"
                   rows={3}
                   placeholder="说明适用范围、变更目的和验证方式"
                 />

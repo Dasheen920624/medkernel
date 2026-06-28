@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -11,6 +12,16 @@ import {
   validateLaunchCredentials,
 } from "./launch-account-bootstrap-lib.mjs";
 
+test("上线接管实现使用已移除字段命名而非旧入口命名", () => {
+  const source = readFileSync(
+    new URL("./launch-account-bootstrap-lib.mjs", import.meta.url),
+    "utf8",
+  );
+  const retiredConstantName = ["LEGACY", "FIELDS"].join("_");
+
+  assert.doesNotMatch(source, new RegExp(`\\b${retiredConstantName}\\b`, "u"));
+});
+
 test("上线凭据只包含内置接管身份与平台、演练机构两组四职责账号", () => {
   const plan = buildLaunchCredentialPlan({
     generatedAt: "2026-06-22T08:00:00.000Z",
@@ -21,6 +32,11 @@ test("上线凭据只包含内置接管身份与平台、演练机构两组四�
   assert.deepEqual(Object.keys(plan.rehearsal.accounts), [...ASSIGNABLE_ROLES]);
   assert.equal(plan.platform.tenantId, "t-1");
   assert.equal(plan.rehearsal.tenantId, "t-rehearsal");
+  assert.deepEqual(plan.rehearsal.hospital, {
+    code: "REHEARSAL-HOSPITAL",
+    name: "完整上线演练医院",
+    facilityType: "HOSPITAL",
+  });
   assert.equal(plan.platform.takeover.role, "system-superadmin");
   assert.equal(plan.platform.takeover.assignable, false);
   assert.equal(plan.platform.accounts["engine-operator"].username, "engine-operator");
@@ -45,8 +61,8 @@ test("正式凭据契约拒绝旧字段、临时口令和缺失职责", () => {
     "t-rehearsal",
   );
 
-  const legacy = { ...credentials, roleAccounts: {} };
-  assert.throws(() => validateLaunchCredentials(legacy), /旧凭据字段/u);
+  const retiredShape = { ...credentials, roleAccounts: {} };
+  assert.throws(() => validateLaunchCredentials(retiredShape), /旧凭据字段/u);
 
   const missing = structuredClone(credentials);
   delete missing.rehearsal.accounts.auditor;
@@ -132,7 +148,30 @@ test("全新接管真实完成首登改密、MFA 关闭、两租户四职责与�
   assert.doesNotThrow(() => validateLaunchCredentials(result.credentials));
   assert.equal(calls.filter((call) => call.path === "/compliance/users").length, 7);
   assert.equal(calls.filter((call) => call.path === "/admin/tenants").length, 1);
-  assert.equal(calls.filter((call) => call.path === "/security/me").length, 9);
+  assert.equal(calls.filter((call) => call.path === "/engine/org/org-units/by-level?level=TENANT").length, 1);
+  assert.deepEqual(
+    calls.find((call) => call.path === "/engine/org/org-units")?.body,
+    {
+      parentId: "org-rehearsal-root",
+      level: "FACILITY",
+      code: "REHEARSAL-HOSPITAL",
+      name: "完整上线演练医院",
+      facilityType: "HOSPITAL",
+      status: "ACTIVE",
+    },
+  );
+  const facilityRoleCalls = calls.filter((call) => /\/compliance\/users\/[^/]+\/roles/u.test(call.path));
+  assert.equal(facilityRoleCalls.length, 4);
+  assert.deepEqual(
+    facilityRoleCalls.map((call) => call.body),
+    ASSIGNABLE_ROLES.map((role) => ({
+      roleCode: role,
+      scopeLevel: "FACILITY",
+      scopeCode: "org-rehearsal-hospital",
+    })),
+  );
+  assert.equal(result.evidence.rehearsalHospitalId, "org-rehearsal-hospital");
+  assert.equal(calls.filter((call) => call.path === "/security/me").length, 10);
 });
 
 test("已初始化环境拒绝伪装成全新接管", async () => {
@@ -162,6 +201,7 @@ function stripInitialPasswords(credentials) {
 }
 
 function createSuccessfulBootstrapFetch(calls, plan) {
+  const facilityScopedAccounts = new Set();
   const roleByTenantAndUsername = new Map([
     [`t-1/${plan.platform.takeover.username}`, "system-superadmin"],
     ...Object.values(plan.platform.accounts).map((account) => [
@@ -187,7 +227,7 @@ function createSuccessfulBootstrapFetch(calls, plan) {
 
   return async (url, init = {}) => {
     const parsed = new URL(url);
-    const path = parsed.pathname.replace(/^.*\/api\/v1/u, "");
+    const path = `${parsed.pathname.replace(/^.*\/api\/v1/u, "")}${parsed.search}`;
     const body = init.body ? JSON.parse(init.body) : null;
     const method = init.method ?? "GET";
     calls.push({ method, path, body });
@@ -227,15 +267,36 @@ function createSuccessfulBootstrapFetch(calls, plan) {
     if (path === "/admin/tenants") {
       return response({ data: { tenantId: body.tenantId, adminUsername: body.adminUsername } });
     }
+    if (method === "GET" && path === "/engine/org/org-units/by-level?level=TENANT") {
+      return response({ data: [{ id: "org-rehearsal-root", level: "TENANT", code: "t-rehearsal" }] });
+    }
+    if (method === "POST" && path === "/engine/org/org-units") {
+      return response({ data: { id: "org-rehearsal-hospital", ...body } });
+    }
+    const roleMatch = path.match(/^\/compliance\/users\/([^/]+)\/roles$/u);
+    if (method === "POST" && roleMatch) {
+      facilityScopedAccounts.add(`${plan.rehearsal.tenantId}/${roleMatch[1]}`);
+      return response({
+        data: {
+          userId: roleMatch[1],
+          roles: [{ code: body.roleCode, scopeLevel: body.scopeLevel, scopeCode: body.scopeCode }],
+        },
+      });
+    }
     if (path === "/security/me") {
       const cookie = String(init.headers?.Cookie ?? "");
       assert.match(cookie, /mk_access=/u);
       const lastLogin = [...calls].reverse().find((call) => call.path === "/auth/login");
       const key = `${lastLogin.body.tenantId}/${lastLogin.body.username}`;
+      const scoped = facilityScopedAccounts.has(key);
       return response({
         data: {
           roles: [{ code: roleByTenantAndUsername.get(key) }],
           menuKeys: ["workbench"],
+          dataScope: {
+            tenantId: lastLogin.body.tenantId,
+            hospitalId: scoped ? "org-rehearsal-hospital" : null,
+          },
           mustChangePwd: false,
           mfaRequired: false,
           mfaBound: false,

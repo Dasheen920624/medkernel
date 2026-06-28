@@ -23,6 +23,7 @@ import com.medkernel.engine.versioning.AssetDependencyRepository;
 import com.medkernel.engine.versioning.AssetIdentity;
 import com.medkernel.engine.versioning.AssetIdentityRepository;
 import com.medkernel.engine.versioning.AssetIdentityStatus;
+import com.medkernel.engine.versioning.AssetPublicationStatusSynchronizer;
 import com.medkernel.engine.versioning.AssetTechnicalValidationService;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
@@ -46,6 +47,8 @@ class PlatformBaselineServiceTest {
     private final AssetTechnicalValidationService validation =
         mock(AssetTechnicalValidationService.class);
     private final AssetDependencyRepository dependencies = mock(AssetDependencyRepository.class);
+    private final AssetPublicationStatusSynchronizer publicationSynchronizer =
+        mock(AssetPublicationStatusSynchronizer.class);
     private PlatformBaselineService service;
 
     @BeforeEach
@@ -57,6 +60,7 @@ class PlatformBaselineServiceTest {
             versions,
             validation,
             dependencies,
+            List.of(publicationSynchronizer),
             Clock.fixed(NOW, ZoneOffset.UTC)
         );
         when(releases.save(any(PlatformBaselineRelease.class)))
@@ -132,6 +136,14 @@ class PlatformBaselineServiceTest {
                 && value.status() == AssetVersionStatus.PUBLISHED));
         verify(validation).validateForPublish(knowledgeV2, "operator-A", "trace-A");
         verify(validation).validateForPublish(pathwayV1, "operator-A", "trace-A");
+        verify(publicationSynchronizer).afterPublished(
+            org.mockito.ArgumentMatchers.argThat(value ->
+                value.versionId().equals("path-v1")
+                    && value.assetType() == VersionedAssetType.PATHWAY
+                    && value.status() == AssetVersionStatus.PUBLISHED),
+            org.mockito.ArgumentMatchers.eq(NOW),
+            org.mockito.ArgumentMatchers.eq("operator-A"),
+            org.mockito.ArgumentMatchers.eq("trace-A"));
     }
 
     @Test

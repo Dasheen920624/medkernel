@@ -56,7 +56,7 @@ const Provenance = lazy(() => import("@/pages/advanced/Provenance"));
 const GraphExplore = lazy(() => import("@/pages/advanced/GraphExplore"));
 const AiWorkflows = lazy(() => import("@/pages/advanced/AiWorkflows"));
 const DomesticCheck = lazy(() => import("@/pages/advanced/DomesticCheck"));
-const DevConsole = lazy(() => import("@/pages/advanced/DevConsole"));
+const RuntimeDiagnostics = lazy(() => import("@/pages/system/RuntimeDiagnostics"));
 
 export function AppRouter() {
   return (
@@ -114,7 +114,7 @@ export function AppRouter() {
           <Route path="/advanced/graph" element={<GraphExplore />} />
           <Route path="/advanced/ai-workflows" element={<AiWorkflows />} />
           <Route path="/advanced/domestic" element={<DomesticCheck />} />
-          <Route path="/advanced/dev-console" element={<DevConsole />} />
+          <Route path="/system/runtime-diagnostics" element={<RuntimeDiagnostics />} />
 
           <Route path="*" element={<NotFound />} />
         </Route>

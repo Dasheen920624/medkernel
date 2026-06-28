@@ -6,6 +6,7 @@ import { CheckOutlined, ReloadOutlined, SettingOutlined } from "@ant-design/icon
 import {
   useOrgUnits,
   useReadWorkflowNotification,
+  useSecurityProfile,
   useWorkflowNotificationSettings,
   useWorkflowNotifications,
 } from "@/shared/api/hooks";
@@ -22,7 +23,10 @@ import {
   SOURCE_TRACE_MISSING_TEXT,
   resolveSourceDeepLink,
 } from "@/shared/lib/sourceLink";
-import { PageShell } from "@/shared/ui/PageShell";
+import { findRouteByPath } from "@/shared/config/routes";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
+import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 
 import styles from "./Clinical.module.css";
@@ -61,12 +65,34 @@ const sourceText: Record<WorkflowNotificationSourceType, string> = {
 };
 
 const ORG_UNIT_REFERENCE_PAGE_SIZE = 20;
+const route = findRouteByPath("/notifications");
+const PAGE_META = {
+  title: route?.title ?? "消息通知",
+  experience: route?.experience ?? {
+    primaryRole: "临床使用者",
+    goal: "查看需要关注的通知",
+    defaultView: "未读通知",
+    defaultFilters: [],
+    evidenceDetailContent: ["患者编号", "就诊编号", "来源编号", "追踪号"],
+    interruptionLevel: "info" as const,
+    evidence: "通知来源、外发补偿和已读动作均保留审计证据",
+    dataScale: {
+      expected: "large" as const,
+      pagination: "page" as const,
+      exportStrategy: "none" as const,
+    },
+    riskLevel: "medium" as const,
+  },
+};
 
 export default function Notifications() {
   const [status, setStatus] = useState<WorkflowNotificationStatus | undefined>("UNREAD");
   const [level, setLevel] = useState<WorkflowNotificationLevel | undefined>();
   const [orgUnitId, setOrgUnitId] = useState<string | undefined>();
   const [orgUnitSearch, setOrgUnitSearch] = useState("");
+  const security = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
 
   const queryParams = {
     status,
@@ -114,7 +140,7 @@ export default function Notifications() {
         type="warning"
         showIcon
         message="免打扰状态暂不可确认"
-        description="通知偏好接口暂不可用，请刷新或到设置页确认。"
+        description="通知偏好暂时不可用，请刷新或到通知设置页确认。"
       />
     );
   } else if (notificationSettings?.quietHoursEnabled) {
@@ -159,9 +185,9 @@ export default function Notifications() {
   };
 
   return (
-    <PageShell
-      title="消息通知"
-      description="查看真实业务通知并同步已读状态。"
+    <PageExperienceShell
+      meta={PAGE_META}
+      securityProfile={security.data}
       extras={
         <Space wrap>
           {unreadNotifications.length > 0 && (
@@ -241,7 +267,7 @@ export default function Notifications() {
           showIcon
           className={styles.sectionGap}
           message="通知读取失败"
-          description="请检查登录状态、服务空间或后端通知接口。"
+          description="请确认登录状态、组织范围；若持续失败，请联系信息科核查通知服务。"
         />
       )}
 
@@ -317,12 +343,21 @@ export default function Notifications() {
                       <span>{item.message}</span>
                       <Space wrap className={styles.textSmall}>
                         <span>{sourceText[item.sourceType]}</span>
-                        <span>{item.patientId || "-"}</span>
-                        <span>{item.encounterId || "-"}</span>
-                        <span>来源编号 {item.sourceId}</span>
-                        <span>
-                          {item.traceId ? `追踪号 ${item.traceId}` : SOURCE_TRACE_MISSING_TEXT}
-                        </span>
+                        {item.patientId || item.encounterId ? (
+                          <span>已关联患者上下文</span>
+                        ) : (
+                          <span>未关联患者上下文</span>
+                        )}
+                        {evidenceDetailsEnabled && (
+                          <>
+                            <span>{item.patientId || "患者编号未提供"}</span>
+                            <span>{item.encounterId || "就诊编号未提供"}</span>
+                            <span>来源编号 {item.sourceId}</span>
+                            <span>
+                              {item.traceId ? `追踪号 ${item.traceId}` : SOURCE_TRACE_MISSING_TEXT}
+                            </span>
+                          </>
+                        )}
                       </Space>
                       {externalDeliveries.length > 0 && (
                         <Space wrap className={styles.textSmall}>
@@ -355,6 +390,6 @@ export default function Notifications() {
           }}
         />
       </Card>
-    </PageShell>
+    </PageExperienceShell>
   );
 }

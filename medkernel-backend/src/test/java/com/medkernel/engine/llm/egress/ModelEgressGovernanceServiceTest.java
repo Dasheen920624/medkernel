@@ -17,6 +17,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.medkernel.shared.api.error.ApiException;
+import com.medkernel.shared.api.PageRequest;
+import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
@@ -114,5 +116,34 @@ class ModelEgressGovernanceServiceTest {
         verify(auditRecorder).record(any(AuditAction.class),
             org.mockito.ArgumentMatchers.eq("mk_llm_egress_confirmation"),
             org.mockito.ArgumentMatchers.eq("hash-abc"), any());
+    }
+
+    @Test
+    void listConfirmations_returnsTenantPageForAuditReview() {
+        when(confirmationRepo.countByTenantId("tenant-1")).thenReturn(1L);
+        when(confirmationRepo.pageByTenantId("tenant-1", 0, 20))
+            .thenReturn(List.of(new ModelEgressConfirmation(
+                7L,
+                "tenant-1",
+                "clinical.explanation",
+                "sha256:payload-001",
+                "向患者解释检查结果，仅使用已脱敏字段",
+                "operator-001",
+                java.time.Instant.parse("2026-06-25T19:45:00Z"),
+                java.time.Instant.parse("2026-06-25T19:45:00Z"),
+                "operator-001",
+                java.time.Instant.parse("2026-06-25T19:45:00Z"),
+                "operator-001"
+            )));
+
+        PageResponse<ModelEgressConfirmation> page = service.listConfirmations(new PageRequest(1, 20, null));
+
+        assertThat(page.total()).isEqualTo(1);
+        assertThat(page.items()).singleElement().satisfies(item -> {
+            assertThat(item.capabilityCode()).isEqualTo("clinical.explanation");
+            assertThat(item.payloadHash()).isEqualTo("sha256:payload-001");
+            assertThat(item.purpose()).contains("检查结果");
+            assertThat(item.confirmedBy()).isEqualTo("operator-001");
+        });
     }
 }

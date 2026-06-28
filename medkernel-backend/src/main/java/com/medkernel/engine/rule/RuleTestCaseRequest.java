@@ -8,7 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * 新增规则测试用例的入参（GA-ENG-API-05 {@code POST /api/v1/engine/rule/rules/{ruleId}/test-cases}）。
+ * 新增规则验证用例的入参（GA-ENG-API-05 {@code POST /api/v1/engine/rule/rules/{ruleId}/test-cases}）。
  *
  * <p>{@code caseType} 与 {@code contextSnapshotId} 必填；服务端读取当前租户 ACTIVE 快照并固化资源副本，
  * 不接受客户端提交任意上下文载荷。{@code expectedSeverity}/{@code expectedActionCode} 在期望命中场景下

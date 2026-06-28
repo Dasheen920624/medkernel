@@ -407,7 +407,7 @@ class FhirFacadeServiceTest {
     }
 
     @Test
-    void createsPr4StandardResourcesThroughCanonicalResourceWithoutSecondClinicalModel() throws Exception {
+    void createsStandardResourcesThroughCanonicalResourceWithoutSecondClinicalModel() throws Exception {
         when(adapters.findByAdapterIdAndTenantId("fhir-hub", "tenant-A")).thenReturn(Optional.of(activeFhirAdapter()));
 
         List<StandardCreateCase> cases = pr4StandardCreateCases();

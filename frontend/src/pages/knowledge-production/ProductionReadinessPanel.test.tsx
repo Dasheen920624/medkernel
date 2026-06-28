@@ -39,7 +39,7 @@ describe("ProductionReadinessPanel", () => {
     } as never);
   });
 
-  it("renders all eight server-backed technical gates in production order", () => {
+  it("renders all eight server-backed business gates in production order", () => {
     render(<ProductionReadinessPanel />);
 
     const labels = [
@@ -49,10 +49,11 @@ describe("ProductionReadinessPanel", () => {
       "4. 医学验证用例",
       "5. 医学评测",
       "6. 外调允许范围",
-      "7. 模型策略",
+      "7. 模型生产策略",
       "8. 提示词、工具与模型版本",
     ];
     labels.forEach((label) => expect(screen.getByText(label)).toBeInTheDocument());
+    expect(screen.queryByText("7. 模型策略")).not.toBeInTheDocument();
     expect(screen.getByText(/file:\/\/\/medkernel-data\//)).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "前往处理" })).toHaveLength(7);
     expect(

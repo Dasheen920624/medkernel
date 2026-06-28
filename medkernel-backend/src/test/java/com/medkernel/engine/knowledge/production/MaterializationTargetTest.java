@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import com.medkernel.engine.knowledge.KnowledgeDomain;
 
 /**
- * 物化目标声明单元测试（AIK-STD-13 PR4，二选一校验）。
+ * 物化目标声明单元测试（AIK-STD-13，二选一校验）。
  */
 class MaterializationTargetTest {
 

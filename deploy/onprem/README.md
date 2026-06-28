@@ -229,6 +229,7 @@ sudo bash deploy/onprem/medkernel-fresh-deploy.sh \
   --frontend /path/to/dist.tar.gz \
   --service-unit /path/to/medkernel.service \
   --deploy-script /path/to/medkernel-deploy.sh \
+  --nginx-conf /path/to/medkernel.nginx.conf \
   --source <40位提交哈希> \
   --expected-host <目标机hostname> \
   --external-base-url https://<正式域名>/medkernel \

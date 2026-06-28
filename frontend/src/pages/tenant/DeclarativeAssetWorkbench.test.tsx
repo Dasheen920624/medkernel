@@ -19,11 +19,11 @@ vi.mock("@/shared/api/hooks", () => ({
   useUpdateDeclarativeAsset: () => ({ mutateAsync: apiMocks.update, isPending: false }),
 }));
 
-function renderWorkbench() {
+function renderWorkbench(evidenceDetailsEnabled = false) {
   render(
     <ConfigProvider>
       <AntdApp>
-        <DeclarativeAssetWorkbench canWrite />
+        <DeclarativeAssetWorkbench canWrite evidenceDetailsEnabled={evidenceDetailsEnabled} />
       </AntdApp>
     </ConfigProvider>,
   );
@@ -69,7 +69,8 @@ describe("DeclarativeAssetWorkbench", () => {
     expect(screen.getByRole("tab", { name: "公式与量表" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "医嘱套餐" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "临床提示卡" })).toBeInTheDocument();
-    expect(screen.getByText("VS.NEPHROTOXIC")).toBeInTheDocument();
+    expect(screen.getByText("值集资产已登记")).toBeInTheDocument();
+    expect(screen.queryByText("VS.NEPHROTOXIC")).not.toBeInTheDocument();
     expect(screen.getByText("V1")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "新建值集" }));
@@ -77,12 +78,18 @@ describe("DeclarativeAssetWorkbench", () => {
     expect(screen.getByLabelText("适用范围")).toHaveValue("ALL");
   });
 
+  it("shows raw asset identities only when evidence details are enabled", () => {
+    renderWorkbench(true);
+
+    expect(screen.getByText("VS.NEPHROTOXIC")).toBeInTheDocument();
+  });
+
   it("creates a typed value set instead of accepting an unstructured metadata shell", async () => {
     apiMocks.create.mockResolvedValue({ versionId: "av-vs-2" });
     renderWorkbench();
 
     await userEvent.click(screen.getByRole("button", { name: "新建值集" }));
-    await userEvent.type(screen.getByLabelText("资产编码"), "VS.RENAL.RISK");
+    await userEvent.type(screen.getByLabelText("稳定资产身份"), "VS.RENAL.RISK");
     expect(screen.queryByLabelText("版本号")).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("来源依据"), "国家药典");
     await userEvent.type(screen.getByLabelText("名称"), "肾风险药物");
@@ -113,7 +120,7 @@ describe("DeclarativeAssetWorkbench", () => {
 
     await userEvent.click(screen.getByRole("tab", { name: "临床提示卡" }));
     await userEvent.click(screen.getByRole("button", { name: "新建临床提示卡" }));
-    await userEvent.type(screen.getByLabelText("资产编码"), "ACTION.CKD.REVIEW");
+    await userEvent.type(screen.getByLabelText("稳定资产身份"), "ACTION.CKD.REVIEW");
     await userEvent.type(screen.getByLabelText("来源依据"), "CKD 用药安全指南");
     await userEvent.type(screen.getByLabelText("标题"), "肾功能异常处置");
     expect(screen.getByLabelText("命中后处理")).toBeInTheDocument();
@@ -150,5 +157,56 @@ describe("DeclarativeAssetWorkbench", () => {
       });
     });
     expect(apiMocks.create.mock.calls[0]?.[0].content).not.toHaveProperty("actions");
+  });
+
+  it("uses a business target field for suggested orders without exposing JSON parameters by default", async () => {
+    apiMocks.create.mockResolvedValue({ versionId: "av-action-order" });
+    const user = userEvent.setup();
+    renderWorkbench();
+
+    await user.click(screen.getByRole("tab", { name: "临床提示卡" }));
+    await user.click(screen.getByRole("button", { name: "新建临床提示卡" }));
+    await user.type(screen.getByLabelText("稳定资产身份"), "ACTION.CKD.ORDER");
+    await user.type(screen.getByLabelText("来源依据"), "CKD 用药安全指南");
+    await user.type(screen.getByLabelText("标题"), "肾功能异常医嘱建议");
+    await user.type(screen.getByLabelText("摘要"), "建议医师打开肾功能复核套餐");
+    await user.type(screen.getByLabelText("详细说明"), "只生成建议卡片，医嘱必须由医师逐条确认。");
+    await user.type(screen.getByLabelText("依据名称"), "CKD 指南");
+    await user.type(screen.getByLabelText("可选操作名称"), "打开肾功能复核套餐");
+    await user.click(screen.getByRole("combobox", { name: "可选操作类型" }));
+    await user.click(screen.getByText("建议医嘱"));
+    await user.type(screen.getByLabelText("关联业务对象"), "ORDER.CKD.REVIEW");
+
+    expect(screen.queryByLabelText("操作参数")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "保存草稿" }));
+
+    await waitFor(() => {
+      expect(apiMocks.create).toHaveBeenCalledWith({
+        assetType: "ACTION_CARD",
+        assetIdentity: "ACTION.CKD.ORDER",
+        applicableScope: "ALL",
+        sourceRef: "CKD 用药安全指南",
+        content: {
+          schemaVersion: "1.0",
+          title: "肾功能异常医嘱建议",
+          actionCode: "REMIND",
+          atSeverity: "LOW",
+          indicator: "info",
+          summary: "建议医师打开肾功能复核套餐",
+          detail: "只生成建议卡片，医嘱必须由医师逐条确认。",
+          source: { label: "CKD 指南" },
+          suggestions: [
+            {
+              label: "打开肾功能复核套餐",
+              actionType: "SUGGEST_ORDER",
+              payload: { orderSetRef: "ORDER.CKD.REVIEW" },
+            },
+          ],
+          overrideReasons: [],
+          requiresPhysicianConfirmation: true,
+        },
+      });
+    });
   });
 });

@@ -23,7 +23,7 @@ const GATES = [
     owner: "医疗引擎运营员",
   },
   { code: "EGRESS_GOVERNANCE", label: "外调允许范围", step: "readiness", owner: "医疗引擎运营员" },
-  { code: "MODEL_POLICY", label: "模型策略", step: "readiness", owner: "医疗引擎运营员" },
+  { code: "MODEL_POLICY", label: "模型生产策略", step: "readiness", owner: "医疗引擎运营员" },
   {
     code: "VERSION_TRIPLE",
     label: "提示词、工具与模型版本",
@@ -44,7 +44,10 @@ export default function ProductionReadinessPanel() {
       <PageState
         state="error"
         title="生产前校验读取失败"
-        description={getApiErrorMessage(readiness.error, "请重试，或凭追踪号联系系统管理员。")}
+        description={getApiErrorMessage(
+          readiness.error,
+          "请重试；若持续失败，请联系信息科核查知识生产准备服务。失败已留痕，可在审计证据中追溯。",
+        )}
         onRetry={() => void readiness.refetch()}
       />
     );

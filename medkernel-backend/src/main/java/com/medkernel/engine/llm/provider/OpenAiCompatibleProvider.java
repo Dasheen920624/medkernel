@@ -15,7 +15,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * OpenAI 兼容模型服务适配器（LLM-08 B2，仅外网生产中心可用）。
+ * OpenAI 兼容模型服务适配器（LLM-08 B2，仅公网/生产中心形态可用；患者上下文由网关先脱敏）。
  *
  * <p>调 {@code {endpoint}/v1/chat/completions}；密钥经 {@link ProviderCredentialResolver} 解析，缺失即不可用。
  */

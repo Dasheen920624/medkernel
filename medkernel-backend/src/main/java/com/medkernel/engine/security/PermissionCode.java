@@ -102,15 +102,16 @@ public enum PermissionCode {
     LLM_EGRESS_MANAGE("llm.egress.manage", Risk.HIGH, "管理模型外调允许范围与高敏用途确认"),
     LLM_PROVIDER_MANAGE("llm.provider.manage", Risk.HIGH, "配置模型服务接入（调用地址/加密凭据/启停）"),
     LLM_EVAL_MANAGE("llm.eval.manage", Risk.HIGH, "维护医学验证用例、运行评测并核查证据"),
-    LLM_ENHANCEMENT_MANAGE("llm.enhancement.manage", Risk.HIGH, "维护全业务模型增强接入矩阵（业务点、能力码、基础规则路径、接入状态）"),
+    LLM_ENHANCEMENT_MANAGE("llm.enhancement.manage", Risk.HIGH, "维护全业务模型赋能覆盖矩阵（业务点、能力码、基础规则路径、配置状态）"),
     ENGINE_DATA_READ("engine-data.read", Risk.LOW, "查询引擎数据服务层只读统计（规则/知识使用聚合，按数据分级与权限脱敏）"),
     ENGINE_DATA_EXPORT("engine-data.export", Risk.MEDIUM, "提交与下载引擎数据服务层异步导出（D2 去标识聚合，审批闸控、字段脱敏、小样本抑制）"),
     LIST_EXPORT("list.export", Risk.MEDIUM, "创建和下载大规模列表异步导出文件"),
     INTEGRATION_READ("integration.read", Risk.LOW, "查看第三方适配器、Webhook 和集成日志"),
     INTEGRATION_WRITE("integration.write", Risk.MEDIUM, "创建或修改第三方适配器与 Webhook"),
-    INTEGRATION_EXECUTE("integration.execute", Risk.MEDIUM, "执行适配器健康检查、Webhook 测试、入站验签、出站补偿和死信重放"),
+    INTEGRATION_EXECUTE("integration.execute", Risk.MEDIUM, "执行适配器健康检查、Webhook 验证、入站验签、出站补偿和死信重放"),
     MPI_READ("mpi.read", Risk.LOW, "查看患者主索引列表与统计"),
-    MPI_WRITE("mpi.write", Risk.HIGH, "合并患者主索引"),
+    MPI_CREATE("mpi.create", Risk.MEDIUM, "创建脱敏患者主索引"),
+    MPI_WRITE("mpi.write", Risk.HIGH, "合并、拆分和确认患者主索引"),
     PROJECTION_READ("projection.read", Risk.LOW, "查看投影状态与一致性报告"),
     PROJECTION_REBUILD("projection.rebuild", Risk.HIGH, "从关系库权威源重建投影"),
     WORKBENCH_READINESS_VIEW("workbench:readiness:view", Risk.LOW, "查看验收自检页面"),
@@ -135,7 +136,7 @@ public enum PermissionCode {
     ASSET_RULE("asset.rule", PermissionDimension.ASSET, Risk.MEDIUM, "访问规则资产"),
     ASSET_PATHWAY("asset.pathway", PermissionDimension.ASSET, Risk.MEDIUM, "访问路径资产"),
 
-    // ─── 环境维度（正式应急的细粒度回收在 BASE-02 PR3 承接）───────────────
+    // ─── 环境维度（正式应急按环境权限细粒度回收）───────────────
     ENV_TEST("env.test", PermissionDimension.ENVIRONMENT, Risk.LOW, "访问测试环境"),
     ENV_TRIAL("env.trial", PermissionDimension.ENVIRONMENT, Risk.MEDIUM, "访问试运行环境"),
     ENV_PRODUCTION("env.production", PermissionDimension.ENVIRONMENT, Risk.HIGH, "访问正式环境"),
@@ -177,8 +178,9 @@ public enum PermissionCode {
     MENU_PROVENANCE("menu.provenance", PermissionDimension.MENU, Risk.LOW, "查看来源与血缘"),
     MENU_GRAPH_EXPLORE("menu.graph-explore", PermissionDimension.MENU, Risk.LOW, "查看知识关系"),
     MENU_AI_WORKFLOWS("menu.ai-workflows", PermissionDimension.MENU, Risk.LOW, "查看模型能力"),
-    MENU_DOMESTIC_CHECK("menu.domestic-check", PermissionDimension.MENU, Risk.LOW, "查看国产化核验"),
-    MENU_DEV_CONSOLE("menu.dev-console", PermissionDimension.MENU, Risk.LOW, "查看诊断工具");
+    MENU_DOMESTIC_CHECK("menu.domestic-check", PermissionDimension.MENU, Risk.LOW, "查看国产化自检"),
+    MENU_RUNTIME_DIAGNOSTICS(
+        "menu.runtime-diagnostics", PermissionDimension.MENU, Risk.LOW, "查看运行诊断");
 
     private final String code;
     private final PermissionDimension dimension;

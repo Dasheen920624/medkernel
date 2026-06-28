@@ -8,7 +8,7 @@ import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 规则测试用例持久化仓库（GA-ENG-API-05 发布门禁数据来源）。
+ * 规则验证用例持久化仓库（GA-ENG-API-05 发布门禁数据来源）。
  *
  * <p>按版本聚合用例并支持四类（POSITIVE/NEGATIVE/BOUNDARY/CONFLICT）覆盖度统计。
  */
@@ -16,7 +16,7 @@ import org.springframework.stereotype.Repository;
 public interface RuleTestCaseRepository extends ListCrudRepository<RuleTestCase, Long> {
 
     /**
-     * 按用例业务 ID 与租户 ID 查询单条测试用例，用于用例详情或后续编辑入口。
+     * 按用例业务 ID 与租户 ID 查询单条验证用例，用于用例详情或后续编辑入口。
      */
     Optional<RuleTestCase> findByCaseIdAndTenantId(String caseId, String tenantId);
 

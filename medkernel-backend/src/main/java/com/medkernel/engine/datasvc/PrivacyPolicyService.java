@@ -9,7 +9,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 引擎数据服务层 · 隐私分级策略服务（DATASVC-01 PR2-c，受控工具 {@code validatePrivacyPolicy} 上游）。
+ * 引擎数据服务层 · 隐私分级策略服务（DATASVC-01，受控工具 {@code validatePrivacyPolicy} 上游）。
  *
  * <p>按数据分级 D0–D5 策略（规范 §7 / FR-2）判定某一拟用级别是否准入数据服务/CLI/MCP/模型输入。无上游表，
  * 纯策略判定（判定结果本身为 D0 策略元数据）：D0/D1/D2 准入；D3/D4 在 T6.4 字段级加密账本与字段分级

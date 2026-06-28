@@ -786,7 +786,7 @@ class FollowupEngineServiceTest {
     void backflowResultCreatesFollowupContextSnapshot() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-123",
-            new OrgScope("tenant-1", "group-1", "hospital-1", "campus-1", "site-1", "dept-1", "specialty-1"),
+            new OrgScope("tenant-1", "group-1", "hospital-1", "campus-1", "site-1", "dept-1", null, "specialty-1"),
             "user-1"
         ));
         FollowupPlan plan = new FollowupPlan(1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",

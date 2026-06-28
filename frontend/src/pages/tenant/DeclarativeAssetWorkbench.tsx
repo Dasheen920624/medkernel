@@ -12,6 +12,7 @@ import {
   Table,
   Tabs,
   Tag,
+  Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
@@ -35,6 +36,8 @@ import {
   DECLARATIVE_FORMULA_OPTIONS,
   ORDER_SET_ITEM_TYPE_OPTIONS,
 } from "@/shared/config/declarativeAssetAuthoring";
+
+const { Text } = Typography;
 
 interface FormValues {
   assetIdentity: string;
@@ -65,6 +68,7 @@ interface FormValues {
   suggestions?: Array<{
     label: string;
     actionType: string;
+    targetRef?: string;
     payloadJson?: string;
   }>;
   overrideReasons?: Array<{ reason: string }>;
@@ -105,6 +109,7 @@ function initialValues(type: DeclarativeAssetType): Partial<FormValues> {
       {
         label: "",
         actionType: "ACKNOWLEDGE",
+        targetRef: "",
         payloadJson: "",
       },
     ],
@@ -165,10 +170,8 @@ function valuesFromContent(
           label: typeof suggestion.label === "string" ? suggestion.label : "",
           actionType:
             typeof suggestion.actionType === "string" ? suggestion.actionType : "ACKNOWLEDGE",
-          payloadJson:
-            typeof suggestion.payload === "object" && suggestion.payload !== null
-              ? JSON.stringify(suggestion.payload)
-              : "",
+          targetRef: targetRefFromSuggestionPayload(suggestion),
+          payloadJson: suggestionPayloadJson(suggestion),
         }))
       : undefined,
     overrideReasons: Array.isArray(content.overrideReasons)
@@ -240,7 +243,7 @@ function buildContent(type: DeclarativeAssetType, values: FormValues): Record<st
     suggestions: (values.suggestions ?? []).map((suggestion) => ({
       label: suggestion.label.trim(),
       actionType: suggestion.actionType,
-      ...parseSuggestionPayload(suggestion.payloadJson),
+      ...buildSuggestionPayload(suggestion),
     })),
     overrideReasons: (values.overrideReasons ?? [])
       .map((item) => item.reason.trim())
@@ -248,6 +251,33 @@ function buildContent(type: DeclarativeAssetType, values: FormValues): Record<st
     requiresPhysicianConfirmation:
       shouldRequirePhysicianConfirmation(values) || Boolean(values.requiresPhysicianConfirmation),
   };
+}
+
+function suggestionPayload(suggestion: Record<string, unknown>) {
+  return typeof suggestion.payload === "object" && suggestion.payload !== null
+    ? (suggestion.payload as Record<string, unknown>)
+    : undefined;
+}
+
+function targetPayloadKey(actionType: string | undefined) {
+  if (actionType === "SUGGEST_ORDER") return "orderSetRef";
+  if (actionType === "OPEN_FORM") return "formRef";
+  if (actionType === "NAVIGATE") return "route";
+  return undefined;
+}
+
+function targetRefFromSuggestionPayload(suggestion: Record<string, unknown>) {
+  const key = targetPayloadKey(
+    typeof suggestion.actionType === "string" ? suggestion.actionType : undefined,
+  );
+  const payload = suggestionPayload(suggestion);
+  const targetRef = key ? payload?.[key] : undefined;
+  return typeof targetRef === "string" ? targetRef : "";
+}
+
+function suggestionPayloadJson(suggestion: Record<string, unknown>) {
+  const payload = suggestionPayload(suggestion);
+  return payload ? JSON.stringify(payload) : "";
 }
 
 function parseSuggestionPayload(payloadJson: string | undefined): Record<string, unknown> {
@@ -262,6 +292,24 @@ function parseSuggestionPayload(payloadJson: string | undefined): Record<string,
   return { payload: parsed as Record<string, unknown> };
 }
 
+function buildSuggestionPayload(
+  suggestion: NonNullable<FormValues["suggestions"]>[number],
+): Record<string, unknown> {
+  const advancedPayload = parseSuggestionPayload(suggestion.payloadJson).payload;
+  const payload =
+    typeof advancedPayload === "object" &&
+    advancedPayload !== null &&
+    !Array.isArray(advancedPayload)
+      ? { ...(advancedPayload as Record<string, unknown>) }
+      : {};
+  const key = targetPayloadKey(suggestion.actionType);
+  const targetRef = suggestion.targetRef?.trim();
+  if (key && targetRef) {
+    payload[key] = targetRef;
+  }
+  return Object.keys(payload).length > 0 ? { payload } : {};
+}
+
 function shouldRequirePhysicianConfirmation(values: FormValues): boolean {
   return (
     values.atSeverity === "HIGH" ||
@@ -271,6 +319,42 @@ function shouldRequirePhysicianConfirmation(values: FormValues): boolean {
     values.actionCode === "SUGGEST_ORDER" ||
     (values.suggestions ?? []).some((suggestion) => suggestion.actionType === "SUGGEST_ORDER")
   );
+}
+
+function evidenceText(
+  rawValue: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  businessText: string,
+) {
+  if (!evidenceDetailsEnabled) return businessText;
+  const normalized = rawValue?.trim();
+  return normalized && normalized.length > 0 ? normalized : "未返回";
+}
+
+function declarativeAssetTypeLabel(assetType: DeclarativeAssetType) {
+  return (
+    DECLARATIVE_ASSET_TYPE_OPTIONS.find((item) => item.value === assetType)?.label ?? assetType
+  );
+}
+
+function declarativeAssetIdentityText(
+  asset: DeclarativeAssetSummary,
+  evidenceDetailsEnabled: boolean,
+) {
+  return evidenceText(
+    asset.assetIdentity,
+    evidenceDetailsEnabled,
+    `${declarativeAssetTypeLabel(asset.assetType)}资产已登记`,
+  );
+}
+
+function organizationScopeText(scope: string | undefined, evidenceDetailsEnabled: boolean) {
+  return evidenceText(scope, evidenceDetailsEnabled, "组织范围已配置");
+}
+
+function applicableScopeText(scope: string | undefined, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) return evidenceText(scope, true, "适用范围已配置");
+  return scope === "ALL" ? "全部患者与上下文" : "适用范围已配置";
 }
 
 function ArrayRemoveButton({ onClick }: { onClick: () => void }) {
@@ -449,7 +533,7 @@ function OrderSetFields() {
   );
 }
 
-function ActionCardFields() {
+function ActionCardFields({ evidenceDetailsEnabled }: { evidenceDetailsEnabled: boolean }) {
   return (
     <>
       <Form.Item name="title" label="标题" rules={[{ required: true }]}>
@@ -507,9 +591,30 @@ function ActionCardFields() {
                 >
                   <Select options={ACTION_CARD_SUGGESTION_TYPE_OPTIONS} className="mk-select-md" />
                 </Form.Item>
-                <Form.Item {...field} name={[field.name, "payloadJson"]} label="操作参数">
-                  <Input.TextArea rows={2} placeholder='例如 {"orderSetRef":"ORDER.CKD.REVIEW"}' />
+                <Form.Item
+                  {...field}
+                  name={[field.name, "targetRef"]}
+                  label="关联业务对象"
+                  extra="建议医嘱填医嘱套餐身份；打开记录表单填表单身份；打开相关页面填页面路径。"
+                >
+                  <Input placeholder="例如 ORDER.CKD.REVIEW" />
                 </Form.Item>
+                {evidenceDetailsEnabled ? (
+                  <Form.Item
+                    {...field}
+                    name={[field.name, "payloadJson"]}
+                    label="扩展参数（证据详情）"
+                  >
+                    <Input.TextArea
+                      rows={2}
+                      placeholder='例如 {"orderSetRef":"ORDER.CKD.REVIEW"}'
+                    />
+                  </Form.Item>
+                ) : (
+                  <Form.Item {...field} name={[field.name, "payloadJson"]} hidden>
+                    <Input />
+                  </Form.Item>
+                )}
                 <ArrayRemoveButton onClick={() => remove(field.name)} />
               </Space>
             ))}
@@ -519,6 +624,7 @@ function ActionCardFields() {
                 add({
                   label: "",
                   actionType: "ACKNOWLEDGE",
+                  targetRef: "",
                   payloadJson: "",
                 })
               }
@@ -556,9 +662,13 @@ function ActionCardFields() {
 
 export interface DeclarativeAssetWorkbenchProps {
   canWrite: boolean;
+  evidenceDetailsEnabled?: boolean;
 }
 
-export default function DeclarativeAssetWorkbench({ canWrite }: DeclarativeAssetWorkbenchProps) {
+export default function DeclarativeAssetWorkbench({
+  canWrite,
+  evidenceDetailsEnabled = false,
+}: DeclarativeAssetWorkbenchProps) {
   const { message } = App.useApp();
   const [assetType, setAssetType] = useState<DeclarativeAssetType>("VALUE_SET");
   const [editing, setEditing] = useState<DeclarativeAssetSummary | null>(null);
@@ -568,8 +678,7 @@ export default function DeclarativeAssetWorkbench({ canWrite }: DeclarativeAsset
   const detail = useDeclarativeAsset(editing?.versionId, open && Boolean(editing));
   const create = useCreateDeclarativeAsset();
   const update = useUpdateDeclarativeAsset();
-  const typeLabel =
-    DECLARATIVE_ASSET_TYPE_OPTIONS.find((item) => item.value === assetType)?.label ?? assetType;
+  const typeLabel = declarativeAssetTypeLabel(assetType);
 
   useEffect(() => {
     if (!open || !editing || !detail.data) return;
@@ -613,7 +722,15 @@ export default function DeclarativeAssetWorkbench({ canWrite }: DeclarativeAsset
   };
 
   const columns: ColumnsType<DeclarativeAssetSummary> = [
-    { title: "资产编码", dataIndex: "assetIdentity" },
+    {
+      title: "资产",
+      render: (_value, asset) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{declarativeAssetIdentityText(asset, evidenceDetailsEnabled)}</Text>
+          <Text type="secondary">{declarativeAssetTypeLabel(asset.assetType)}</Text>
+        </Space>
+      ),
+    },
     { title: "版本", dataIndex: "versionNo", width: 100 },
     {
       title: "状态",
@@ -625,11 +742,13 @@ export default function DeclarativeAssetWorkbench({ canWrite }: DeclarativeAsset
     },
     {
       title: "组织范围",
-      dataIndex: "organizationScope",
+      render: (_value, record) =>
+        organizationScopeText(record.organizationScope, evidenceDetailsEnabled),
     },
     {
       title: "适用范围",
-      dataIndex: "applicableScope",
+      render: (_value, record) =>
+        applicableScopeText(record.applicableScope, evidenceDetailsEnabled),
     },
     { title: "来源依据", dataIndex: "sourceRef" },
     {
@@ -702,7 +821,7 @@ export default function DeclarativeAssetWorkbench({ canWrite }: DeclarativeAsset
           disabled={detail.isLoading}
           initialValues={initialValues(assetType)}
         >
-          <Form.Item name="assetIdentity" label="资产编码" rules={[{ required: true }]}>
+          <Form.Item name="assetIdentity" label="稳定资产身份" rules={[{ required: true }]}>
             <Input disabled={Boolean(editing)} />
           </Form.Item>
           <Form.Item
@@ -719,7 +838,9 @@ export default function DeclarativeAssetWorkbench({ canWrite }: DeclarativeAsset
           {assetType === "VALUE_SET" && <ValueSetFields />}
           {assetType === "FORMULA" && <FormulaFields />}
           {assetType === "ORDER_SET" && <OrderSetFields />}
-          {assetType === "ACTION_CARD" && <ActionCardFields />}
+          {assetType === "ACTION_CARD" && (
+            <ActionCardFields evidenceDetailsEnabled={evidenceDetailsEnabled} />
+          )}
         </Form>
       </Modal>
     </Space>

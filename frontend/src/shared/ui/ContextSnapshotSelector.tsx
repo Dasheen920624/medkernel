@@ -10,6 +10,7 @@ interface ContextSnapshotSelectorProps {
   selectedSnapshotId: string;
   onSelect: (snapshotId: string) => void;
   noun?: string;
+  evidenceDetailsEnabled?: boolean;
 }
 
 export function ContextSnapshotSelector({
@@ -20,9 +21,10 @@ export function ContextSnapshotSelector({
   selectedSnapshotId,
   onSelect,
   noun = "临床快照",
+  evidenceDetailsEnabled = false,
 }: ContextSnapshotSelectorProps) {
   if (!enabled) {
-    return <Empty description={`输入患者 ID 或就诊 ID 后读取已生效${noun}`} />;
+    return <Empty description={`输入患者信息或就诊信息后读取已生效${noun}`} />;
   }
   if (loading) {
     return <Alert type="info" showIcon message={`正在读取${noun}`} />;
@@ -37,12 +39,16 @@ export function ContextSnapshotSelector({
     <List
       bordered
       dataSource={snapshots}
-      renderItem={(snapshot) => (
+      renderItem={(snapshot, index) => (
         <List.Item
           actions={[
             <Button
               key="select"
-              aria-label={`选择 ${snapshot.snapshotId}`}
+              aria-label={
+                evidenceDetailsEnabled
+                  ? `选择 ${snapshot.snapshotId}`
+                  : `选择第 ${index + 1} 个${noun}`
+              }
               type={selectedSnapshotId === snapshot.snapshotId ? "primary" : "default"}
               onClick={() => onSelect(snapshot.snapshotId)}
             >
@@ -51,10 +57,18 @@ export function ContextSnapshotSelector({
           ]}
         >
           <List.Item.Meta
-            title={`患者 ${snapshot.patientId} · 就诊 ${snapshot.encounterId}`}
+            title={
+              evidenceDetailsEnabled
+                ? `患者 ${snapshot.patientId} · 就诊 ${snapshot.encounterId}`
+                : "已关联患者与就诊"
+            }
             description={
               <Space wrap size="small">
-                <span>快照 {snapshot.snapshotId}</span>
+                {evidenceDetailsEnabled ? (
+                  <span>快照 {snapshot.snapshotId}</span>
+                ) : (
+                  <span>{noun}已生效</span>
+                )}
                 <Tag color={snapshot.qualityStatus === "VALID" ? "green" : "orange"}>
                   {snapshot.qualityStatus}
                 </Tag>

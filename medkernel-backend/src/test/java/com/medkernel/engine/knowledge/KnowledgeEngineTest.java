@@ -22,6 +22,8 @@ import com.medkernel.engine.versioning.VersionPublishEvidence;
 import com.medkernel.engine.versioning.VersionPublishQualityGate;
 import com.medkernel.engine.knowledge.production.gate.PublicationQualityRecordService;
 import com.medkernel.engine.release.ReleaseSourceLayer;
+import com.medkernel.engine.security.EffectivePermissionService;
+import com.medkernel.engine.security.UserRoleAssignmentRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -61,6 +63,7 @@ class KnowledgeEngineTest {
     private ReleasePort releasePort;
     private PublicationQualityRecordService publicationQualityRecords;
     private AssetScopeResolver assetScopes;
+    private UserRoleAssignmentRepository userRoleAssignments;
     private KnowledgeEffectiveVersionResolver effectiveVersions;
 
     private KnowledgeIdentityService identityService;
@@ -85,6 +88,7 @@ class KnowledgeEngineTest {
         releasePort = Mockito.mock(ReleasePort.class);
         publicationQualityRecords = Mockito.mock(PublicationQualityRecordService.class);
         assetScopes = Mockito.mock(AssetScopeResolver.class);
+        userRoleAssignments = Mockito.mock(UserRoleAssignmentRepository.class);
         effectiveVersions = Mockito.mock(KnowledgeEffectiveVersionResolver.class);
 
         identityService = new KnowledgeIdentityService(
@@ -95,8 +99,10 @@ class KnowledgeEngineTest {
         versionService = new KnowledgeVersionService(
             identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, sourceVerRepo, projectionRefreshPort,
             candidateClassificationRepo, reviewAssignmentRepo, invalidationRepo, affectedCaseTaskRepo,
-            versionedAssets, assetVersions, releasePort, publicationQualityRecords, assetScopes
+            versionedAssets, assetVersions, releasePort, publicationQualityRecords, assetScopes,
+            new EffectivePermissionService(userRoleAssignments)
         );
+        when(userRoleAssignments.findActiveByTenantIdAndUserId(any(), any())).thenReturn(List.of());
         when(assetScopes.resolve(any(), any(OrgScope.class)))
             .thenReturn(new AssetOwnershipScope(
                 ReleaseSourceLayer.PLATFORM, "/__platform__"));

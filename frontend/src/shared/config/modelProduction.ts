@@ -1,7 +1,7 @@
 /**
- * 模型生产控制台的受管枚举目录。
+ * 知识生产入口的受管枚举目录。
  *
- * <p>这些值来自后端模型服务类型与模型能力合同，不是页面模拟数据。
+ * <p>这些值由平台模型服务类型与模型能力合同统一约束，页面只引用受管目录。
  */
 export const MODEL_PROVIDER_TYPE_OPTIONS = [
   { label: "OpenAI 兼容服务", value: "OPENAI_COMPATIBLE" },

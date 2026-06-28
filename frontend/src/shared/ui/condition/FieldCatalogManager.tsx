@@ -471,7 +471,7 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
             showIcon
             type="warning"
             message="字段目录暂不可用"
-            description="当前无法读取 canonical 字段目录，已暂停保存覆盖；请恢复接口后再维护字段元数据。"
+            description="当前无法读取标准字段目录，已暂停保存覆盖；请恢复字段目录服务后再维护字段元数据。"
           />
         ) : null}
         {selectedField ? (

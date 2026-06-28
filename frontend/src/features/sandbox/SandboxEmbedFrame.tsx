@@ -45,10 +45,8 @@ export default function SandboxEmbedFrame({
     return () => window.removeEventListener("message", handleMessage);
   }, [embedOrigin, onDecision]);
 
-  const maskedToken = embedToken
-    ? `${embedToken.slice(0, Math.min(embedToken.length, 8))}...`
-    : "等待生成";
-  const launchAddress = embedUrl ?? "等待场景运行结果";
+  const maskedToken = embedToken ? "已隐藏（由受控嵌入接口和审计记录保留）" : "等待生成";
+  const launchAddress = embedUrl ? "已生成，默认隐藏" : "等待场景运行结果";
   let embedContent;
   if (mode === "IFRAME" && embedUrl) {
     embedContent = (
@@ -79,8 +77,8 @@ export default function SandboxEmbedFrame({
     );
   } else {
     embedContent = (
-      <div className={styles.contractView} aria-label="接口接入说明">
-        <Typography.Text strong>接口接入</Typography.Text>
+      <div className={styles.contractView} aria-label="服务对接说明">
+        <Typography.Text strong>服务对接</Typography.Text>
         <pre className={styles.contractCode}>
           <code>{`接入地址：${launchAddress}
 访问凭证：${maskedToken}
@@ -102,7 +100,7 @@ export default function SandboxEmbedFrame({
           options={[
             { label: "页面嵌入", value: "IFRAME" },
             { label: "脚本接入", value: "SDK" },
-            { label: "接口接入", value: "API" },
+            { label: "服务对接", value: "API" },
           ]}
           onChange={onModeChange}
         />

@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
  * 诊断命中核心：发现集 + 一组诊断标准 → 候选证据 + 置信分级。
  *
  * <p>确定性、可复现（同输入同标准同策略结果一致）；按 finding_term_code 命中。
- * value_constraint / temporal_constraint 的求值是<b>后续阶段挂点</b>（接 RuleDslEvaluator 的 between/unit_compare/temporal）；
+ * value_constraint / temporal_constraint 的精细求值由统一规则求值器扩展；
  * B0 发布门禁会阻断含这些约束的版本，确保进入运行时的知识都能被当前命中核心真实求值。
  */
 @Component

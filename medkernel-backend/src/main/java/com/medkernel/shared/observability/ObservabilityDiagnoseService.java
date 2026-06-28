@@ -13,7 +13,7 @@ import com.medkernel.shared.observability.DiagnoseResponse.StateTransitionEntry;
 /**
  * 可观测诊断查询服务。
  *
- * <p>按 traceId 聚合状态流转和 payload 摘要，供高级信息或开发者控制台定位执行链路。
+ * <p>按 traceId 聚合状态流转和 payload 摘要，供证据详情或运行诊断定位执行链路。
  */
 @Service
 public class ObservabilityDiagnoseService {

@@ -79,7 +79,6 @@ class InheritanceResolverBatchTest {
 
         assertThat(resolved).hasSize(24);
         assertThat(resolved).allSatisfy(item -> {
-            assertThat(item.added()).isFalse();
             assertThat(item.resolution().sourceTier()).isEqualTo(SourceTier.PLATFORM);
         });
         verify(hierarchy, times(1)).findResolutionAncestorsAndSelf(TENANT_ID, "hospital-a");
@@ -130,7 +129,6 @@ class InheritanceResolverBatchTest {
 
         assertThat(resolved).singleElement().satisfies(item -> {
             assertThat(item.identity()).isEqualTo(identity);
-            assertThat(item.added()).isFalse();
             assertThat(item.resolution().version()).isEqualTo(platform);
             assertThat(item.resolution().sourceTier()).isEqualTo(SourceTier.PLATFORM);
         });
@@ -180,6 +178,13 @@ class InheritanceResolverBatchTest {
             item.identity().equals(foreignAdd)
                 || item.identity().equals(localAdd)
                 || item.identity().equals(anotherLocalAdd));
+    }
+
+    @Test
+    void batchResolvedAssetContractOnlyContainsDeclaredIdentityAndResolution() {
+        assertThat(BatchResolvedAsset.class.getRecordComponents())
+            .extracting(java.lang.reflect.RecordComponent::getName)
+            .containsExactly("identity", "resolution");
     }
 
     private OrgUnit org(String id, String parentId, String path, OrgLevel level) {

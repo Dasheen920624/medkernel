@@ -25,7 +25,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 引擎数据服务层 · 知识存在性服务单元测试（DATASVC-01 PR2-b）。
+ * 引擎数据服务层 · 知识存在性服务单元测试（DATASVC-01）。
  *
  * <p>验证：存在返回 {@code exists=true} + D1 元数据 + 审计、<b>真实不存在诚实返回 {@code exists=false} 且
  * 非降级非报错</b>（铁律 #1）、仅上游不可用时诚实标降级（不以「不存在」伪装）。

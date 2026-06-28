@@ -131,7 +131,7 @@ public class SourceCandidateGenerator {
         )));
 
         Map<String, Object> explain = new LinkedHashMap<>();
-        explain.put("message", "受控来源生成的待编著规则草稿，启用前必须补齐临床条件并完成技术验证。");
+        explain.put("message", "受控来源生成的待编著规则草稿，启用前必须补齐临床条件并完成安全复核。");
 
         Map<String, Object> dsl = new LinkedHashMap<>();
         dsl.put("when", when);

@@ -85,6 +85,47 @@ describe("EmbedLaunch", () => {
     expect(screen.queryByText("tr-local-embed-9122")).not.toBeInTheDocument();
   });
 
+  it("keeps patient, encounter and trace identifiers behind contextual evidence details", async () => {
+    renderEmbedLaunch();
+
+    expect(screen.getByText("患者已关联")).toBeInTheDocument();
+    expect(screen.getByText("就诊已关联")).toBeInTheDocument();
+    expect(screen.getByText("触发点: 医嘱录入")).toBeInTheDocument();
+    expect(screen.getByText("合规审计已留痕")).toBeInTheDocument();
+    expect(screen.queryByText("MPI-1001")).not.toBeInTheDocument();
+    expect(screen.queryByText("ENC-2001")).not.toBeInTheDocument();
+    expect(screen.queryByText("trace-real-1")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("患者: MPI-1001")).toBeInTheDocument();
+    expect(screen.getByText("就诊: ENC-2001")).toBeInTheDocument();
+    expect(screen.getByText("trace-real-1")).toBeInTheDocument();
+  });
+
+  it("explains invalid embedded sessions with service institution allow-list language", () => {
+    mockUseEmbedLaunch.mockReturnValue({
+      data: {
+        userId: "doctor-1",
+        roleCode: "clinical-user",
+        tenantId: "tenant-A",
+        patientId: "MPI-1001",
+        encounterId: "ENC-2001",
+        triggerPoint: "ORDER_ENTRY",
+        active: false,
+        traceId: "trace-invalid-1",
+        parentOrigin: "https://unknown.example.com",
+      },
+      isLoading: false,
+      isError: false,
+    } as ReturnType<typeof useEmbedLaunch>);
+
+    renderEmbedLaunch();
+
+    expect(screen.getByText("临床建议会话已安全隔离")).toBeInTheDocument();
+    expect(screen.getByText("来源系统未通过当前服务机构的允许清单校验。")).toBeInTheDocument();
+  });
+
   it("submits the selected card and posts physician feedback only to the validated parent origin", async () => {
     const submitFeedback = vi.fn().mockResolvedValue({
       token: "launch-token",
@@ -130,6 +171,8 @@ describe("EmbedLaunch", () => {
       );
     });
     expect(postMessage).not.toHaveBeenCalledWith(expect.anything(), "*");
+    expect(screen.getByText("建议卡片：建议已记录")).toBeInTheDocument();
+    expect(screen.queryByText("建议卡片：card-1")).not.toBeInTheDocument();
   });
 
   it.each([

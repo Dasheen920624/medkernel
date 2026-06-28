@@ -3,35 +3,41 @@ import type { ReactNode } from "react";
 
 import type { SecurityProfile } from "@/shared/api/hooks";
 
-import { ExpertModeToggle } from "./ExpertModeToggle";
+import { EvidenceDetailsToggle } from "./EvidenceDetailsToggle";
 import { PageShell } from "./PageShell";
+import type { PageStateProps } from "./PageState";
+import type { PageStateKind } from "./PageState.contract";
 import type { RouteExperience } from "./experienceTypes";
 
 interface PageExperienceShellProps {
   meta: { title: string; experience: RouteExperience };
   securityProfile?: Pick<SecurityProfile, "permissions" | "menuKeys">;
-  expertMode?: boolean;
-  onExpertModeChange?: (enabled: boolean) => void;
+  evidenceDetailsEnabled?: boolean;
+  onEvidenceDetailsChange?: (enabled: boolean) => void;
   primary?: ReactNode;
   extras?: ReactNode;
+  state?: PageStateKind;
+  stateProps?: Omit<PageStateProps, "state" | "children">;
   children: ReactNode;
 }
 
 export function PageExperienceShell({
   meta,
   securityProfile,
-  expertMode,
-  onExpertModeChange,
+  evidenceDetailsEnabled,
+  onEvidenceDetailsChange,
   primary,
   extras,
+  state,
+  stateProps,
   children,
 }: PageExperienceShellProps) {
-  const expertControl =
-    meta.experience.expertContent.length > 0 ? (
-      <ExpertModeToggle
+  const evidenceDetailsControl =
+    meta.experience.evidenceDetailContent.length > 0 ? (
+      <EvidenceDetailsToggle
         securityProfile={securityProfile}
-        expertMode={expertMode}
-        onExpertModeChange={onExpertModeChange}
+        evidenceDetailsEnabled={evidenceDetailsEnabled}
+        onEvidenceDetailsChange={onEvidenceDetailsChange}
       />
     ) : null;
 
@@ -40,10 +46,12 @@ export function PageExperienceShell({
       title={meta.title}
       description={meta.experience.goal}
       primary={primary}
+      state={state}
+      stateProps={stateProps}
       extras={
         <Space wrap>
           {extras}
-          {expertControl}
+          {evidenceDetailsControl}
         </Space>
       }
     >

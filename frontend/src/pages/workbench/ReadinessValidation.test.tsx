@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ReadinessValidation from "./ReadinessValidation";
 import type { RuntimeOperationsSnapshot, SecurityProfile } from "@/shared/api/hooks";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 const hookState = vi.hoisted(() => ({
   security: {} as Record<string, unknown>,
@@ -50,7 +51,7 @@ function renderPage() {
   );
 }
 
-function profile(roleCode = "platform-admin"): SecurityProfile {
+function profile(roleCode = "platform-admin", extraPermissions: string[] = []): SecurityProfile {
   return {
     userId: `${roleCode}-1`,
     username: roleCode,
@@ -78,6 +79,13 @@ function profile(roleCode = "platform-admin"): SecurityProfile {
         displayName: "查看验收自检",
         risk: "LOW",
       },
+      ...extraPermissions.map((code) => ({
+        code,
+        dimension: "ACTION" as const,
+        target: code,
+        displayName: code,
+        risk: "LOW" as const,
+      })),
     ],
     menuKeys: ["workbench"],
     environmentKeys: ["production"],
@@ -256,9 +264,9 @@ const knowledgeReadiness = {
   ],
 };
 
-function setLoadedState(roleCode = "platform-admin") {
+function setLoadedState(roleCode = "platform-admin", extraPermissions: string[] = []) {
   hookState.security = {
-    data: profile(roleCode),
+    data: profile(roleCode, extraPermissions),
     isLoading: false,
     isError: false,
   };
@@ -283,13 +291,15 @@ describe("ReadinessValidation", () => {
     hookState.runtimeEnabledCalls = [];
     hookState.knowledgeReadinessEnabledCalls = [];
     navigateSpy.mockReset();
+    useEvidenceDetailsStore.getState().setEnabled(false);
+    window.localStorage.clear();
   });
 
   it("renders honest readiness counts from runtime operations without workbench endpoints", () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "验收自检" })).toBeInTheDocument();
-    expect(screen.getByText("3 通过 / 10 阻塞 / 2 未启用")).toBeInTheDocument();
+    expect(screen.getByText("2 通过 / 4 阻塞 / 2 未启用")).toBeInTheDocument();
     expect(screen.getByText("存在阻塞项，验收前需处理")).toBeInTheDocument();
     expect(screen.getByTestId("readiness-validation-tabs")).toBeInTheDocument();
     expect(screen.getAllByTestId(/^readiness-validation-filter-/)).toHaveLength(3);
@@ -302,6 +312,22 @@ describe("ReadinessValidation", () => {
     renderPage();
 
     expect(screen.queryByText("当前权限不足")).not.toBeInTheDocument();
+    expect(screen.getByText("2 通过 / 4 阻塞 / 2 未启用")).toBeInTheDocument();
+    expect(hookState.runtimeEnabledCalls.at(-1)).toBe(true);
+    expect(hookState.knowledgeReadinessEnabledCalls.at(-1)).toBe(false);
+    const unauthorizedRow = screen.getByTestId(
+      "readiness-validation-item-knowledge-readiness-unauthorized",
+    );
+    expect(within(unauthorizedRow).getAllByText("知识生产上线准备")).toHaveLength(2);
+    expect(within(unauthorizedRow).getByText(/缺少知识生产读取权限/)).toBeInTheDocument();
+    expect(within(unauthorizedRow).queryByText(/knowledge\.read/)).not.toBeInTheDocument();
+  });
+
+  it("queries production readiness only for roles with knowledge read permission", () => {
+    setLoadedState("engine-operator", ["knowledge.read"]);
+
+    renderPage();
+
     expect(screen.getByText("3 通过 / 10 阻塞 / 2 未启用")).toBeInTheDocument();
     expect(hookState.runtimeEnabledCalls.at(-1)).toBe(true);
     expect(hookState.knowledgeReadinessEnabledCalls.at(-1)).toBe(true);
@@ -323,6 +349,7 @@ describe("ReadinessValidation", () => {
   });
 
   it("shows all eight production readiness gates with real configuration destinations", () => {
+    setLoadedState("engine-operator", ["knowledge.read"]);
     renderPage();
 
     const literatureRoot = screen.getByTestId(
@@ -337,10 +364,11 @@ describe("ReadinessValidation", () => {
     );
     expect(within(regressionBaseline).getByText("医学验证用例")).toBeInTheDocument();
     expect(within(regressionBaseline).getByText("通过")).toBeInTheDocument();
-    expect(within(regressionBaseline).getByText(/用例数：3/)).toBeInTheDocument();
+    expect(within(regressionBaseline).queryByText(/用例数：3/)).not.toBeInTheDocument();
 
     const policy = screen.getByTestId("readiness-validation-item-knowledge-MODEL_POLICY");
     expect(within(policy).getByText("能力策略")).toBeInTheDocument();
+    expect(within(policy).queryByText(/rule\.draft/)).not.toBeInTheDocument();
     fireEvent.click(within(policy).getByRole("button", { name: "去修复" }));
     expect(navigateSpy).toHaveBeenLastCalledWith("/advanced/ai-workflows");
 
@@ -380,7 +408,30 @@ describe("ReadinessValidation", () => {
     expect(screen.getByText(/字典同步状态未采集/)).toBeInTheDocument();
   });
 
-  it("shows traceId on runtime errors and keeps one retry primary action", () => {
+  it("defaults to business readiness language and hides low-frequency evidence", () => {
+    setLoadedState("engine-operator", ["knowledge.read"]);
+
+    renderPage();
+
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.getByText("核心数据服务可用")).toBeInTheDocument();
+    expect(screen.queryByText(/classpath:db\/migration\/postgres/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/rule\.draft/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/knowledge\.read/)).not.toBeInTheDocument();
+  });
+
+  it("shows implementation evidence only after evidence details are enabled", () => {
+    setLoadedState("engine-operator", ["knowledge.read"]);
+
+    renderPage();
+    fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText(/postgres · classpath:db\/migration\/postgres/)).toBeInTheDocument();
+    expect(screen.getAllByText(/rule\.draft/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/REGRESSION_BASELINE/)).toBeInTheDocument();
+  });
+
+  it("shows business evidence on runtime errors and keeps one retry primary action", () => {
     hookState.runtime = {
       data: undefined,
       isLoading: false,
@@ -399,7 +450,8 @@ describe("ReadinessValidation", () => {
     renderPage();
 
     expect(screen.getByText("运行环境暂时不可用")).toBeInTheDocument();
-    expect(screen.getByText(/trace-demo-001/)).toBeInTheDocument();
+    expect(screen.getByText(/失败已留痕，可在审计证据中追溯/)).toBeInTheDocument();
+    expect(screen.queryByText(/trace-demo-001/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "重新自检" }));
     expect(hookState.runtime.refetch).toHaveBeenCalledTimes(1);
   });

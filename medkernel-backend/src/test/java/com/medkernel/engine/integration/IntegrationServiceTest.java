@@ -380,6 +380,8 @@ class IntegrationServiceTest {
         assertEquals("ONLINE", online.status());
         assertEquals("NOT_CONNECTED", online.healthStatus(), "上线状态不应伪造外部连接成功");
         assertTrue(online.blockers().stream().anyMatch(item -> item.contains("NOT_CONNECTED")));
+        assertTrue(online.blockers().stream().anyMatch(item -> item.contains("外部连接器待配置或外部不可达")));
+        assertTrue(online.blockers().stream().noneMatch(item -> item.contains("未接入真实外部连接器")));
         assertEquals(2, onboardingRepository.findAllByTenantId(tenantId).size());
     }
 

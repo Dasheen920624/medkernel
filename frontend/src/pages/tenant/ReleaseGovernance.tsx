@@ -34,6 +34,7 @@ import {
   usePublishPlatformBaseline,
   useRollbackHospitalRuntime,
   useSimulateReleaseImpact,
+  useSecurityProfile,
   type ClinicalRuntimeAssetSelection,
   type ClinicalRuntimeRelease,
   type ReleaseImpactSimulationResult,
@@ -43,7 +44,10 @@ import {
   type RuntimeAssetType,
 } from "@/shared/api/hooks";
 import { ENGINE_ASSET_LABELS, RUNTIME_ASSET_OPTIONS } from "@/shared/config/assetCatalog";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 import { PageShell } from "@/shared/ui/PageShell";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import styles from "./ReleaseGovernance.module.css";
 
 const { Text, Title } = Typography;
@@ -52,8 +56,65 @@ function assetKey(assetType: RuntimeAssetType, assetIdentity: string) {
   return `${assetType}|${assetIdentity}`;
 }
 
+function evidenceText(
+  rawValue: string | number | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  businessText: string,
+) {
+  if (!evidenceDetailsEnabled) return businessText;
+  if (rawValue === undefined || rawValue === null || rawValue === "") return "未返回";
+  return String(rawValue);
+}
+
+function assetLabel(assetType: RuntimeAssetType) {
+  return ENGINE_ASSET_LABELS[assetType] ?? "运行";
+}
+
+function assetContentLabel(assetType: RuntimeAssetType) {
+  return `${assetLabel(assetType)}内容`;
+}
+
+function sourceLayerLabel(sourceLayer?: string | null) {
+  if (sourceLayer === "GROUP") return "集团";
+  if (sourceLayer === "HOSPITAL") return "本院";
+  return "平台";
+}
+
+function assetSummaryText(
+  assetType: RuntimeAssetType,
+  evidenceDetailsEnabled: boolean,
+  assetIdentity: string,
+  businessSuffix: string,
+) {
+  return evidenceText(
+    assetIdentity,
+    evidenceDetailsEnabled,
+    `${assetContentLabel(assetType)}${businessSuffix}`,
+  );
+}
+
+function assetActionLabel(
+  action: string,
+  assetType: RuntimeAssetType,
+  versionNo: string | null | undefined,
+  sourceLayer?: string | null,
+) {
+  const sourcePrefix =
+    sourceLayer && sourceLayer !== "PLATFORM" ? sourceLayerLabel(sourceLayer) : "";
+  const versionText = versionNo ? ` ${versionNo}` : "";
+  return `${action}${sourcePrefix}${assetContentLabel(assetType)}${versionText}`;
+}
+
 function shortHash(value: string | null | undefined) {
   return value ? `${value.slice(0, 12)}…` : "—";
+}
+
+function hashEvidenceText(
+  value: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  businessText: string,
+) {
+  return evidenceDetailsEnabled ? shortHash(value) : businessText;
 }
 
 function revision(_prefix: "A" | "H", value: number | null | undefined) {
@@ -98,6 +159,8 @@ function impactIssueSummary(result: ReleaseImpactSimulationResult) {
 
 export default function ReleaseGovernance() {
   const { message } = AntdApp.useApp();
+  const security = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
   const [activeTab, setActiveTab] = useState("platform");
   const [assetType, setAssetType] = useState<RuntimeAssetType>();
   const [keyword, setKeyword] = useState("");
@@ -143,6 +206,7 @@ export default function ReleaseGovernance() {
   const activateHospital = useActivateHospitalRuntime();
   const rollbackHospital = useRollbackHospitalRuntime();
   const simulateReleaseImpact = useSimulateReleaseImpact();
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
 
   const baseline = baselineQuery.data;
   const platformCandidates = platformCandidatesQuery.data?.items ?? [];
@@ -400,8 +464,19 @@ export default function ReleaseGovernance() {
           <Descriptions.Item label="启用内容">
             {currentRuntime.items.filter((item) => item.entryState === "ACTIVE").length} 项
           </Descriptions.Item>
-          <Descriptions.Item label="完整性校验码">
-            <Text code>{shortHash(currentRuntime.release.manifestSha256)}</Text>
+          <Descriptions.Item label="完整性状态">
+            {hashEvidenceText(
+              currentRuntime.release.manifestSha256,
+              evidenceDetailsEnabled,
+              "清单完整性已校验",
+            )}
+          </Descriptions.Item>
+          <Descriptions.Item label="生效版本证据">
+            {evidenceText(
+              currentRuntime.release.releaseId,
+              evidenceDetailsEnabled,
+              "机构生效版本已记录",
+            )}
           </Descriptions.Item>
         </Descriptions>
       </Card>
@@ -427,8 +502,19 @@ export default function ReleaseGovernance() {
             <Descriptions.Item label="发布时间">
               {new Date(baseline.release.publishedAt).toLocaleString()}
             </Descriptions.Item>
-            <Descriptions.Item label="完整性校验码">
-              <Text code>{shortHash(baseline.release.manifestSha256)}</Text>
+            <Descriptions.Item label="完整性状态">
+              {hashEvidenceText(
+                baseline.release.manifestSha256,
+                evidenceDetailsEnabled,
+                "清单完整性已校验",
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="发布证据">
+              {evidenceText(
+                baseline.release.baselineReleaseId,
+                evidenceDetailsEnabled,
+                "平台标准版本已记录",
+              )}
             </Descriptions.Item>
           </Descriptions>
         </Card>
@@ -455,7 +541,7 @@ export default function ReleaseGovernance() {
             />
             <Input.Search
               allowClear
-              placeholder="搜索内容编码或来源"
+              placeholder="搜索内容名称、身份或来源"
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
               className={styles.keywordInput}
@@ -476,7 +562,12 @@ export default function ReleaseGovernance() {
               width: 72,
               render: (_value, candidate) => (
                 <Checkbox
-                  aria-label={`发布 ${candidate.assetIdentity} ${candidate.versionNo}`}
+                  aria-label={assetActionLabel(
+                    "发布",
+                    candidate.assetType,
+                    candidate.versionNo,
+                    candidate.sourceLayer,
+                  )}
                   checked={platformPublishIds.includes(candidate.versionId)}
                   onChange={(event) => togglePlatformCandidate(candidate, event.target.checked)}
                 />
@@ -486,8 +577,17 @@ export default function ReleaseGovernance() {
               title: "内容",
               render: (_value, candidate) => (
                 <Space direction="vertical" size={0}>
-                  <Text strong>{candidate.assetIdentity}</Text>
-                  <Text type="secondary">{ENGINE_ASSET_LABELS[candidate.assetType]}</Text>
+                  <Text strong>
+                    {assetSummaryText(
+                      candidate.assetType,
+                      evidenceDetailsEnabled,
+                      candidate.assetIdentity,
+                      "已准备发布",
+                    )}
+                  </Text>
+                  <Text type="secondary">
+                    {assetContentLabel(candidate.assetType)} · {candidate.versionNo}
+                  </Text>
                 </Space>
               ),
             },
@@ -516,7 +616,7 @@ export default function ReleaseGovernance() {
               width: 72,
               render: (_value, item) => (
                 <Checkbox
-                  aria-label={`停用 ${item.assetIdentity}`}
+                  aria-label={assetActionLabel("停用", item.assetType, item.versionNo)}
                   checked={platformDisabled.some(
                     (candidate) =>
                       assetKey(candidate.assetType, candidate.assetIdentity) ===
@@ -526,11 +626,21 @@ export default function ReleaseGovernance() {
                 />
               ),
             },
-            { title: "内容编码", dataIndex: "assetIdentity" },
             {
-              title: "类型",
-              dataIndex: "assetType",
-              render: (value: RuntimeAssetType) => ENGINE_ASSET_LABELS[value],
+              title: "内容",
+              render: (_value, item) => (
+                <Space direction="vertical" size={0}>
+                  <Text strong>
+                    {assetSummaryText(
+                      item.assetType,
+                      evidenceDetailsEnabled,
+                      item.assetIdentity,
+                      "已在平台标准版本中",
+                    )}
+                  </Text>
+                  <Text type="secondary">{assetContentLabel(item.assetType)}</Text>
+                </Space>
+              ),
             },
             { title: "当前版本", dataIndex: "versionNo", width: 110 },
           ]}
@@ -596,7 +706,7 @@ export default function ReleaseGovernance() {
                     );
                     return (
                       <Checkbox
-                        aria-label={`启用平台内容 ${item.assetIdentity}`}
+                        aria-label={assetActionLabel("启用平台", item.assetType, item.versionNo)}
                         checked={Boolean(selected) && !selected?.versionId}
                         onChange={(event) =>
                           toggleHospitalSelection(
@@ -612,11 +722,21 @@ export default function ReleaseGovernance() {
                     );
                   },
                 },
-                { title: "内容编码", dataIndex: "assetIdentity" },
                 {
-                  title: "类型",
-                  dataIndex: "assetType",
-                  render: (value: RuntimeAssetType) => ENGINE_ASSET_LABELS[value],
+                  title: "内容",
+                  render: (_value, item) => (
+                    <Space direction="vertical" size={0}>
+                      <Text strong>
+                        {assetSummaryText(
+                          item.assetType,
+                          evidenceDetailsEnabled,
+                          item.assetIdentity,
+                          "沿用平台标准版本",
+                        )}
+                      </Text>
+                      <Text type="secondary">{assetContentLabel(item.assetType)}</Text>
+                    </Space>
+                  ),
                 },
                 { title: "基线版本", dataIndex: "versionNo", width: 110 },
               ]}
@@ -641,7 +761,12 @@ export default function ReleaseGovernance() {
                     );
                     return (
                       <Checkbox
-                        aria-label={`启用本地内容 ${candidate.assetIdentity} ${candidate.versionNo}`}
+                        aria-label={assetActionLabel(
+                          "启用",
+                          candidate.assetType,
+                          candidate.versionNo,
+                          candidate.sourceLayer,
+                        )}
                         checked={selected?.versionId === candidate.versionId}
                         onChange={(event) =>
                           toggleHospitalSelection(
@@ -657,11 +782,29 @@ export default function ReleaseGovernance() {
                     );
                   },
                 },
-                { title: "内容编码", dataIndex: "assetIdentity" },
+                {
+                  title: "内容",
+                  render: (_value, candidate) => (
+                    <Space direction="vertical" size={0}>
+                      <Text strong>
+                        {assetSummaryText(
+                          candidate.assetType,
+                          evidenceDetailsEnabled,
+                          candidate.assetIdentity,
+                          "可加入机构生效版本",
+                        )}
+                      </Text>
+                      <Text type="secondary">
+                        {sourceLayerLabel(candidate.sourceLayer)} ·{" "}
+                        {assetContentLabel(candidate.assetType)}
+                      </Text>
+                    </Space>
+                  ),
+                },
                 {
                   title: "来源",
                   dataIndex: "sourceLayer",
-                  render: (value: string) => (value === "GROUP" ? "集团" : "本院"),
+                  render: (value: string) => sourceLayerLabel(value),
                 },
                 { title: "内容版本", dataIndex: "versionNo", width: 110 },
                 {
@@ -713,10 +856,21 @@ export default function ReleaseGovernance() {
                         return (
                           <Space direction="vertical" size={0}>
                             <Text strong>
-                              {candidate?.assetIdentity ?? result.candidateVersionId}
+                              {candidate
+                                ? assetSummaryText(
+                                    candidate.assetType,
+                                    evidenceDetailsEnabled,
+                                    candidate.assetIdentity,
+                                    "已完成影响评估",
+                                  )
+                                : evidenceText(
+                                    result.candidateVersionId,
+                                    evidenceDetailsEnabled,
+                                    "候选内容已完成影响评估",
+                                  )}
                             </Text>
                             <Text type="secondary">
-                              {candidate ? ENGINE_ASSET_LABELS[candidate.assetType] : "运行资产"} ·{" "}
+                              {candidate ? assetContentLabel(candidate.assetType) : "运行内容"} ·{" "}
                               {result.diff.candidateVersionNo ?? candidate?.versionNo ?? "候选版本"}
                             </Text>
                           </Space>
@@ -746,8 +900,9 @@ export default function ReleaseGovernance() {
                               key={`${asset.assetType}|${asset.assetIdentity}|${asset.versionId}`}
                               type="secondary"
                             >
-                              {ENGINE_ASSET_LABELS[asset.assetType]} · {asset.assetIdentity} ·{" "}
-                              {asset.versionNo}
+                              {evidenceDetailsEnabled
+                                ? `${assetLabel(asset.assetType)} · ${asset.assetIdentity} · ${asset.versionNo}`
+                                : `${assetContentLabel(asset.assetType)} · ${asset.versionNo}`}
                             </Text>
                           ))}
                         </Space>
@@ -797,7 +952,17 @@ export default function ReleaseGovernance() {
                 },
                 {
                   title: "平台标准版本",
-                  dataIndex: "platformBaselineReleaseId",
+                  render: (_value, item) =>
+                    evidenceText(
+                      item.platformBaselineReleaseId,
+                      evidenceDetailsEnabled,
+                      "已关联平台标准版本",
+                    ),
+                },
+                {
+                  title: "生效版本证据",
+                  render: (_value, item) =>
+                    evidenceText(item.releaseId, evidenceDetailsEnabled, "机构版本已记录"),
                 },
                 {
                   title: "启用时间",
@@ -838,7 +1003,11 @@ export default function ReleaseGovernance() {
   );
 
   return (
-    <PageShell title="发布治理" description="发布平台标准版本，并为机构确认当前生效版本。">
+    <PageShell
+      title="发布治理"
+      description="发布平台标准版本，并为机构确认当前生效版本。"
+      extras={<EvidenceDetailsToggle securityProfile={security.data} />}
+    >
       {baselineQuery.isError && (
         <Alert
           type="warning"

@@ -109,6 +109,10 @@ systemctl() {
   printf '%s\n' "$*" >> "$TMP_ROOT/systemd-operations.log"
   return 0
 }
+nginx() {
+  printf '%s\n' "$*" >> "$TMP_ROOT/nginx-operations.log"
+  return 0
+}
 curl() {
   printf '%s\n' "$*" >> "$TMP_ROOT/readiness-operations.log"
   printf '200'
@@ -124,6 +128,7 @@ run_failure_case() {
   printf 'candidate-nginx\n' > "$NGINX_CONF_PATH"
   : > "$TMP_ROOT/database-operations.log"
   : > "$TMP_ROOT/systemd-operations.log"
+  : > "$TMP_ROOT/nginx-operations.log"
   : > "$TMP_ROOT/readiness-operations.log"
   RECOVERY_REASON="$reason"
 
@@ -138,6 +143,9 @@ run_failure_case() {
   grep -q 'createdb --owner=medkernel medkernel' "$TMP_ROOT/database-operations.log"
   grep -q 'pg_restore --exit-on-error --no-owner --no-acl --dbname medkernel' \
     "$TMP_ROOT/database-operations.log"
+  grep -q 'psql -X -v ON_ERROR_STOP=1 -d medkernel' "$TMP_ROOT/database-operations.log"
+  grep -q '^-t$' "$TMP_ROOT/nginx-operations.log"
+  grep -q 'reload nginx' "$TMP_ROOT/systemd-operations.log"
   grep -q 'restart medkernel' "$TMP_ROOT/systemd-operations.log"
   test "$(grep -c 'actuator/health/readiness' "$TMP_ROOT/readiness-operations.log")" -ge 2
   grep -q "recovery_reason=$reason" "$BACKUP_DIR/evidence/recovery.properties"

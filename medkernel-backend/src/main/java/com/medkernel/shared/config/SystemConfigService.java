@@ -70,8 +70,8 @@ public class SystemConfigService {
     public static final String KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI_KEY =
         "medkernel.knowledge.literature.material-root-uri";
     public static final String DEFAULT_KNOWLEDGE_LITERATURE_MATERIAL_ROOT_URI = "";
-    // 部署形态：知识生产中心仅用公开资料，可用外部模型服务；
-    // 院内运行环境可处理患者数据，禁外部模型服务，仅本地模型或无模型主链路。
+    // 部署形态：公网/生产中心形态可接入外部模型服务，患者上下文必须经外调安全闸最小化和核心敏感屏蔽；
+    // 院内运行环境可按授权处理必要患者敏感信息，禁外部模型服务，仅本地模型或无模型主链路。
     // 默认取最严格的院内运行环境（安全默认），生产中心须显式配置。
     public static final String DEPLOYMENT_FORM_KEY = "medkernel.deployment.form";
     public static final String DEFAULT_DEPLOYMENT_FORM = "HOSPITAL_RUNTIME";

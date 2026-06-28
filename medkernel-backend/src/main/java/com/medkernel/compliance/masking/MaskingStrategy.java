@@ -1,7 +1,7 @@
 package com.medkernel.compliance.masking;
 
 /**
- * SYS-06 后端脱敏策略。
+ * SYS-06 脱敏策略。
  */
 public enum MaskingStrategy {
     REDACT,

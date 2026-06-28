@@ -14,7 +14,9 @@ import {
   usePatientPathwayVariances,
   usePathwayEntryCandidates,
   usePathwayTemplateDetail,
+  useSecurityProfile,
 } from "@/shared/api/hooks";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 import PatientPathways from "./PatientPathways";
 
@@ -29,6 +31,7 @@ vi.mock("@/shared/api/hooks", () => ({
   usePatientPathwayVariances: vi.fn(),
   usePathwayEntryCandidates: vi.fn(),
   usePathwayTemplateDetail: vi.fn(),
+  useSecurityProfile: vi.fn(),
 }));
 
 const mockUseAdvancePatientPathway = vi.mocked(useAdvancePatientPathway);
@@ -41,6 +44,7 @@ const mockUsePatientPathways = vi.mocked(usePatientPathways);
 const mockUsePatientPathwayVariances = vi.mocked(usePatientPathwayVariances);
 const mockUsePathwayEntryCandidates = vi.mocked(usePathwayEntryCandidates);
 const mockUsePathwayTemplateDetail = vi.mocked(usePathwayTemplateDetail);
+const mockUseSecurityProfile = vi.mocked(useSecurityProfile);
 
 function renderPatientPathways() {
   return render(
@@ -62,6 +66,24 @@ describe("PatientPathways", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    useEvidenceDetailsStore.setState({ enabled: false });
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [
+          { code: "pathway.read", dimension: "ACTION", target: "pathway", displayName: "查看路径" },
+          {
+            code: "system.debug",
+            dimension: "ACTION",
+            target: "system",
+            displayName: "证据详情",
+          },
+        ],
+        roles: [{ code: "clinical-user", displayName: "临床使用者", source: "TEST" }],
+        menuKeys: ["patient-pathways", "runtime-diagnostics"],
+        environmentKeys: ["production"],
+        dataScope: { tenantId: "tenant-A" },
+      },
+    } as unknown as ReturnType<typeof useSecurityProfile>);
     mockUsePathwayEntryCandidates.mockReturnValue({
       data: {
         contextSnapshotId: "ctx-active-1",
@@ -195,6 +217,15 @@ describe("PatientPathways", () => {
             traceId: "trace-clock-1",
           },
         ],
+        outcomeBindings: [
+          {
+            bindingId: "outcome-1",
+            templateId: "pt-1",
+            scope: "TEMPLATE",
+            refCode: "TEMPLATE",
+            indicatorCode: "STROKE.OUTCOME.DOOR_TO_CT",
+          },
+        ],
         traceId: "trace-detail-1",
       },
       refetch: refetchDetail,
@@ -321,7 +352,7 @@ describe("PatientPathways", () => {
     } as unknown as ReturnType<typeof useAdvancePatientPathway>);
   });
 
-  it("renders real patient pathway rows from the backend page instead of session-only state", () => {
+  it("renders patient pathway rows without exposing runtime identifiers by default", () => {
     renderPatientPathways();
 
     expect(mockUsePatientPathways).toHaveBeenCalledWith({
@@ -329,9 +360,46 @@ describe("PatientPathways", () => {
       page: 1,
       size: 10,
     });
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.getByText("已关联患者与就诊")).toBeInTheDocument();
+    expect(screen.queryByText("pp-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("mpi-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("enc-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("暂无患者路径实例")).not.toBeInTheDocument();
+  });
+
+  it("reveals patient pathway identifiers only after evidence details are enabled", async () => {
+    const user = userEvent.setup();
+    renderPatientPathways();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
     expect(screen.getByText("pp-real-1")).toBeInTheDocument();
     expect(screen.getByText("mpi-1")).toBeInTheDocument();
-    expect(screen.queryByText("暂无患者路径实例")).not.toBeInTheDocument();
+    expect(screen.getByText("enc-1")).toBeInTheDocument();
+  });
+
+  it("does not reveal patient pathway identifiers when the role lacks evidence-detail permission", () => {
+    useEvidenceDetailsStore.setState({ enabled: true });
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [
+          { code: "pathway.read", dimension: "ACTION", target: "pathway", displayName: "查看路径" },
+        ],
+        roles: [{ code: "clinical-user", displayName: "临床使用者", source: "TEST" }],
+        menuKeys: ["patient-pathways"],
+        environmentKeys: ["production"],
+        dataScope: { tenantId: "tenant-A" },
+      },
+    } as unknown as ReturnType<typeof useSecurityProfile>);
+
+    renderPatientPathways();
+
+    expect(screen.queryByRole("switch", { name: "证据详情" })).not.toBeInTheDocument();
+    expect(screen.getByText("已关联患者与就诊")).toBeInTheDocument();
+    expect(screen.queryByText("pp-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("mpi-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("enc-1")).not.toBeInTheDocument();
   });
 
   it("loads only runtime-release pathway candidates for the selected snapshot", async () => {
@@ -339,8 +407,9 @@ describe("PatientPathways", () => {
     renderPatientPathways();
 
     await user.click(screen.getByRole("button", { name: /办理患者入径/ }));
-    await user.type(screen.getByPlaceholderText("按患者 ID 查询快照"), "mpi-1");
-    await user.click(screen.getByRole("button", { name: "选择 ctx-active-1" }));
+    const patientInputs = screen.getAllByPlaceholderText("输入姓名、门急诊号或院内患者编号");
+    await user.type(patientInputs[patientInputs.length - 1], "mpi-1");
+    await user.click(screen.getByRole("button", { name: "选择第 1 个临床快照" }));
 
     expect(mockUsePathwayEntryCandidates).toHaveBeenLastCalledWith("ctx-active-1", "patient-view");
   });
@@ -349,11 +418,13 @@ describe("PatientPathways", () => {
     const user = userEvent.setup();
     renderPatientPathways();
 
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
     await user.click(screen.getByRole("button", { name: /办理患者入径/ }));
     expect(screen.queryByLabelText(/选择患者 ID/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/关联就诊 ID/)).not.toBeInTheDocument();
 
-    await user.type(screen.getByPlaceholderText("按患者 ID 查询快照"), "mpi-1");
+    const patientInputs = screen.getAllByPlaceholderText("输入姓名、门急诊号或院内患者编号");
+    await user.type(patientInputs[patientInputs.length - 1], "mpi-1");
     await user.click(screen.getByRole("button", { name: "选择 ctx-active-1" }));
     await user.click(screen.getByRole("combobox", { name: "选择当前运行候选路径" }));
     await user.click(await screen.findByText("卒中急诊路径 · STROKE"));
@@ -368,28 +439,33 @@ describe("PatientPathways", () => {
         startNodeCode: undefined,
       });
     });
+    expect(await screen.findByText("患者已入径，路径列表已刷新")).toBeInTheDocument();
+    expect(screen.queryByText(/患者 mpi-1 入径成功/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trace-enter-1/)).not.toBeInTheDocument();
   }, 15_000);
 
-  it("shows backend clocks and variance evidence in the pathway detail drawer", async () => {
+  it("shows pathway clocks and variance evidence in the pathway detail drawer", async () => {
     const user = userEvent.setup();
     renderPatientPathways();
 
     await user.click(screen.getByRole("button", { name: /办理推进与解释追溯/ }));
 
     expect(mockUsePatientPathwayDetail).toHaveBeenCalledWith("pp-real-1");
-    expect(screen.getByText("患者临床路径推进与解释追溯控制台")).toBeInTheDocument();
-    expect(screen.getByText("clock-1")).toBeInTheDocument();
-    expect(screen.getAllByText(/STROKE.TIME_TO_CT/).length).toBeGreaterThan(0);
-    expect(screen.getByText("急诊 / 第 0 天 / M-ASSESS")).toBeInTheDocument();
+    expect(screen.getByText("患者路径推进与解释追溯")).toBeInTheDocument();
+    expect(screen.queryByText("clock-1")).not.toBeInTheDocument();
+    expect(screen.queryByText(/STROKE.TIME_TO_CT/)).not.toBeInTheDocument();
+    expect(screen.getByText("急诊 / 第 0 天")).toBeInTheDocument();
     expect(screen.getByText("当前里程碑")).toBeInTheDocument();
-    expect(screen.getByText("节点: ASSESS")).toBeInTheDocument();
+    expect(screen.getByText("已绑定 1 个路径环节")).toBeInTheDocument();
     expect(screen.getAllByText("已超时").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/质控记录/).length).toBeGreaterThan(0);
+    expect(screen.getByRole("columnheader", { name: "结局指标身份" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "指标编码" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /查看变异事实与审计线索/ }));
 
     expect(refetchVariances).toHaveBeenCalled();
-    expect(screen.getByText("var-1")).toBeInTheDocument();
+    expect(screen.queryByText("var-1")).not.toBeInTheDocument();
     expect(screen.getByText("影像检查发现高危指征")).toBeInTheDocument();
   });
 
@@ -404,21 +480,22 @@ describe("PatientPathways", () => {
     expect(within(graph).getByText("当前患者位置")).toBeInTheDocument();
     expect(within(graph).getByText("入径评估")).toBeInTheDocument();
     expect(within(graph).getByText("随访复评")).toBeInTheDocument();
-    expect(within(graph).getByText("标准流转：ASSESS → FOLLOWUP")).toBeInTheDocument();
-    expect(within(graph).getByLabelText("路径节点 ASSESS 当前节点")).toBeInTheDocument();
+    expect(within(graph).getByText("标准流转：入径评估 → 随访复评")).toBeInTheDocument();
+    expect(within(graph).getByLabelText("路径节点 入径评估 当前节点")).toBeInTheDocument();
     expect(
       within(graph).getByText("已完成/当前/待执行只读展示，不自动开立或修改医嘱。"),
     ).toBeInTheDocument();
     expect(within(graph).queryByRole("button", { name: /删除/ })).not.toBeInTheDocument();
   });
 
-  it("advances the current node through the backend mutation and refreshes facts", async () => {
+  it("advances the current node through the service mutation and refreshes facts", async () => {
     const user = userEvent.setup();
     renderPatientPathways();
 
     await user.click(screen.getByRole("button", { name: /办理推进与解释追溯/ }));
     await user.click(screen.getByRole("combobox", { name: "指定流转目标节点" }));
-    await user.click(await screen.findByText("随访复评 (FOLLOWUP)"));
+    const nextNodeOptions = await screen.findAllByText("随访复评");
+    await user.click(nextNodeOptions[nextNodeOptions.length - 1]);
     await user.click(screen.getByRole("button", { name: /完成当前节点并推进/ }));
 
     await waitFor(() => {
@@ -436,7 +513,7 @@ describe("PatientPathways", () => {
     expect(refetchPathways).toHaveBeenCalled();
   });
 
-  it("records a variance reason through the backend mutation", async () => {
+  it("records a variance reason through the service mutation", async () => {
     const user = userEvent.setup();
     renderPatientPathways();
 
@@ -449,7 +526,8 @@ describe("PatientPathways", () => {
     await user.click(screen.getByRole("combobox", { name: "处置决策" }));
     await user.click(await screen.findByText("再次进入路径"));
     await user.click(screen.getByRole("combobox", { name: "再入径节点" }));
-    await user.click(await screen.findByText("随访复评 (FOLLOWUP)"));
+    const continueNodeOptions = await screen.findAllByText("随访复评");
+    await user.click(continueNodeOptions[continueNodeOptions.length - 1]);
     await user.type(
       screen.getByPlaceholderText("请输入经医师确认的变异事实说明"),
       "患者突发高危指标",
@@ -499,7 +577,8 @@ describe("PatientPathways", () => {
 
     expect(screen.getByText("患者路径读取失败")).toBeInTheDocument();
     expect(screen.getByText(/患者路径列表读取失败/)).toBeInTheDocument();
-    expect(screen.getByText(/trace-pathway-error/)).toBeInTheDocument();
+    expect(screen.getByText("失败已留痕，可在审计证据中追溯。")).toBeInTheDocument();
+    expect(screen.queryByText(/trace-pathway-error/)).not.toBeInTheDocument();
   });
 
   it("shows a forbidden state when org data scope denies patient pathways", () => {
@@ -523,6 +602,7 @@ describe("PatientPathways", () => {
 
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
     expect(screen.getByText(/数据范围权限不足/)).toBeInTheDocument();
-    expect(screen.getByText(/trace-scope-denied/)).toBeInTheDocument();
+    expect(screen.getByText("失败已留痕，可在审计证据中追溯。")).toBeInTheDocument();
+    expect(screen.queryByText(/trace-scope-denied/)).not.toBeInTheDocument();
   });
 });

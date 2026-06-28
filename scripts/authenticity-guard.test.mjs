@@ -178,6 +178,8 @@ test("前端页面触碰文件会阻断旧规则路径示例占位符回流", as
 });
 
 test("前端生产文件会阻断工作台本地假闭环和业务示例残留", async () => {
+  const workbenchSelfProof = "工作台不" + "伪造汇总数据";
+  const workbenchPlaceholder = "真实工作台" + "聚合数据待接入";
   await withFixture(
     {
       "frontend/src/pages/Dashboard.tsx": `
@@ -194,14 +196,525 @@ test("前端生产文件会阻断工作台本地假闭环和业务示例残留",
           );
         }
       `,
+      "frontend/src/widgets/WorkbenchPanel.tsx": `
+        export function WorkbenchPanel() {
+          return <section><p>${workbenchSelfProof}</p><p>${workbenchPlaceholder}</p></section>;
+        }
+      `,
     },
     async (root) => {
-      const report = await scanFiles(root, ["frontend/src/pages/Dashboard.tsx"]);
+      const report = await scanFiles(root, [
+        "frontend/src/pages/Dashboard.tsx",
+        "frontend/src/widgets/WorkbenchPanel.tsx",
+      ]);
 
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), [
         "frontend.hardcoded-medical-constant",
         "frontend.local-demo-workflow",
+        "frontend.local-demo-workflow",
+      ]);
+    },
+  );
+});
+
+test("前端生产文件会阻断客户面退役演示说明", async () => {
+  const retiredDemoData = "演示" + "数据";
+  const retiredSafetySkeleton = "安全" + "骨架";
+  const fallbackFake = "兜底" + "伪造";
+  await withFixture(
+    {
+      "frontend/src/pages/GraphExplore.tsx": `
+        export function GraphExplore() {
+          return <Result subTitle="未使用本地${retiredDemoData}替代真实结果。" />;
+        }
+      `,
+      "frontend/src/pages/PathwayTemplates.tsx": `
+        export const description = "默认生成评估到处置确认的两节点${retiredSafetySkeleton}。";
+      `,
+      "frontend/src/pages/CdssFatigue.tsx": `
+        export const empty = "暂无来源解释证据，不做任何${fallbackFake}";
+      `,
+      "frontend/src/widgets/WorkbenchPanel.tsx": `
+        export const empty = "当前组织暂无可展示内容，后续来源上线后会自动回灌。";
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/pages/GraphExplore.tsx",
+        "frontend/src/pages/PathwayTemplates.tsx",
+        "frontend/src/pages/CdssFatigue.tsx",
+        "frontend/src/widgets/WorkbenchPanel.tsx",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.retired-demo-copy",
+        "frontend.retired-demo-copy",
+        "frontend.retired-demo-copy",
+        "frontend.retired-demo-copy",
+      ]);
+    },
+  );
+});
+
+test("前端生产文件会阻断客户面工程内部语言", async () => {
+  const developerConsole = "开发者" + "控制台";
+  const technicalReview = "技术" + "验证";
+  const technicalConfig = "技术" + "配置";
+  const technicalGate = "技术" + "门";
+  const technicalField = "技术" + "字段";
+  const technicalValidation = "技术" + "校验";
+  const controlledDebug = "受控" + "调试" + "信息";
+  const oldDiagnosticsLabel = "诊断" + "工具";
+  await withFixture(
+    {
+      "frontend/src/pages/RuntimeDiagnostics.tsx": `
+        export function RuntimeDiagnostics() {
+          return <PageShell title="${developerConsole}" description="请让 SRE 等待${technicalReview}" />;
+        }
+      `,
+      "frontend/src/pages/RuleDefinitions.tsx": `
+        export const label = "L3 ${technicalConfig}";
+      `,
+      "frontend/src/pages/KnowledgeGovernance.tsx": `
+        export const message = "${technicalGate}尚未满足，${technicalField}和${technicalValidation}进入详情";
+      `,
+      "frontend/src/shared/config/routes.ts": `
+        export const route = {
+          title: "${oldDiagnosticsLabel}",
+          experience: readonlyExperience("平台管理员", "核查${controlledDebug}", "最近诊断"),
+        };
+      `,
+      "frontend/src/shared/ui/AsyncExportAction.tsx": `
+        export const fallback = "导出任务接口尚未接入";
+      `,
+      "frontend/src/pages/Notifications.tsx": `
+        export const error = "请检查登录状态、服务空间或后端通知接口。";
+      `,
+      "frontend/src/pages/WorkflowTodos.tsx": `
+        export const error = "请检查登录状态、服务空间或后端工作流接口。";
+      `,
+      "frontend/src/pages/ImplementationGuide.tsx": `
+        export const error = "请带追踪号联系信息科排查服务空间接口。";
+      `,
+      "frontend/src/shared/ui/condition/FieldCatalogManager.tsx": `
+        export const error = "当前无法读取 canonical 字段目录，请恢复接口后再维护字段元数据。";
+      `,
+      "frontend/src/pages/Login.tsx": `
+        export const delegated = "统一身份暂未接入，后端未返回统一身份方式，真实院方 IdP 配置后开放。";
+      `,
+      "frontend/src/pages/QcAlerts.tsx": `
+        export const empty = "后端当前没有返回符合筛选条件的预警。";
+      `,
+      "frontend/src/pages/SecurityBaseline.tsx": `
+        export const description = "统一管理运行配置、数据访问、后端脱敏与互操作测评证据";
+      `,
+      "frontend/src/widgets/AppLayout.tsx": `
+        export const logout = "退出后将清除当前前端会话状态，并由后端清理 httpOnly 登录 Cookie。";
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/pages/RuntimeDiagnostics.tsx",
+        "frontend/src/pages/RuleDefinitions.tsx",
+        "frontend/src/pages/KnowledgeGovernance.tsx",
+        "frontend/src/shared/config/routes.ts",
+        "frontend/src/shared/ui/AsyncExportAction.tsx",
+        "frontend/src/pages/Notifications.tsx",
+        "frontend/src/pages/WorkflowTodos.tsx",
+        "frontend/src/pages/ImplementationGuide.tsx",
+        "frontend/src/shared/ui/condition/FieldCatalogManager.tsx",
+        "frontend/src/pages/Login.tsx",
+        "frontend/src/pages/QcAlerts.tsx",
+        "frontend/src/pages/SecurityBaseline.tsx",
+        "frontend/src/widgets/AppLayout.tsx",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+      ]);
+    },
+  );
+});
+
+test("前端客户面页面标题禁止回流控制台和中枢旧口径", async () => {
+  await withFixture(
+    {
+      "frontend/src/pages/clinical/CdssFatigue.tsx": `
+        export function CdssFatigue() {
+          return <PageShell title="提醒与推荐中枢" />;
+        }
+      `,
+      "frontend/src/pages/clinical/PatientPathways.tsx": `
+        export function PatientPathways() {
+          return <Drawer title="患者临床路径推进与解释追溯控制台" />;
+        }
+      `,
+      "frontend/src/pages/tenant/PathwayTemplates.tsx": `
+        export function PathwayTemplates() {
+          return <PageShell title="路径中枢" />;
+        }
+      `,
+      "frontend/src/pages/tenant/RuleDefinitions.tsx": `
+        export function RuleDefinitions() {
+          return <PageShell title="规则中枢" />;
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/pages/clinical/CdssFatigue.tsx",
+        "frontend/src/pages/clinical/PatientPathways.tsx",
+        "frontend/src/pages/tenant/PathwayTemplates.tsx",
+        "frontend/src/pages/tenant/RuleDefinitions.tsx",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+      ]);
+    },
+  );
+});
+
+test("当前权威文档会阻断旧技术安全门口径", async () => {
+  const technicalSafetyGate = "技术" + "安全门";
+  const technicalEvaluation = "技术" + "评测";
+  const technicalField = "技术" + "字段";
+  const technicalValidation = "技术" + "校验";
+  await withFixture(
+    {
+      "docs/PRODUCT_SCOPE.md": `知识生产包含${technicalSafetyGate}。`,
+      "docs/glossary.md": `模型生成、${technicalEvaluation}和发布。`,
+      "docs/handbook/operations.md": `发布前核查${technicalValidation}和回滚。`,
+      "docs/EXPERIENCE_CONTRACT.md": `默认视图折叠${technicalField}。`,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "docs/PRODUCT_SCOPE.md",
+        "docs/glossary.md",
+        "docs/handbook/operations.md",
+        "docs/EXPERIENCE_CONTRACT.md",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "docs.customer-facing-safety-language",
+        "docs.customer-facing-safety-language",
+        "docs.customer-facing-safety-language",
+        "docs.customer-facing-safety-language",
+      ]);
+    },
+  );
+});
+
+test("当前部署演练文档禁止回流控制台交付形态旧口径", async () => {
+  await withFixture(
+    {
+      "docs/DEPLOYMENT_AND_REHEARSAL.md":
+        "验证控制台、引擎核心、嵌入、API/事件和离线交付物五种形态。",
+    },
+    async (root) => {
+      const report = await scanFiles(root, ["docs/DEPLOYMENT_AND_REHEARSAL.md"]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["docs.retired-product-state-language"]);
+    },
+  );
+});
+
+test("当前权威体验文档禁止回流演示重构旧说法", async () => {
+  await withFixture(
+    {
+      "docs/EXPERIENCE_CONTRACT.md": `
+        新增或改造客户可见页面还必须遵守五条演示重构原则：
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, ["docs/EXPERIENCE_CONTRACT.md"]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["docs.customer-facing-safety-language"]);
+    },
+  );
+});
+
+test("产品验证材料禁止继续使用测试用例或测试病例旧口径", async () => {
+  const testCaseLabel = "测试" + "用例";
+  const testPatientLabel = "测试" + "病例";
+  await withFixture(
+    {
+      "frontend/src/pages/RuleDefinitions.tsx": `
+        export const label = "新增${testCaseLabel}";
+      `,
+      "frontend/src/shared/config/routes.ts": `
+        export const description = "维护诊断身份、诊断标准、鉴别诊断、${testPatientLabel}与来源证据";
+      `,
+      "docs/PRODUCT_SCOPE.md": `
+        诊断知识维护包含${testPatientLabel}发布门禁。
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/rule/RuleEngineService.java": `
+        public class RuleEngineService {
+          String message = "规则${testCaseLabel}未全部通过";
+        }
+      `,
+      "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql": `
+        COMMENT ON TABLE mk_diagnosis_test_case IS '诊断${testPatientLabel}：发现集到期望候选';
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/pages/RuleDefinitions.tsx",
+        "frontend/src/shared/config/routes.ts",
+        "docs/PRODUCT_SCOPE.md",
+        "medkernel-backend/src/main/java/com/medkernel/engine/rule/RuleEngineService.java",
+        "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-safety-language",
+        "db.customer-facing-safety-language",
+        "docs.customer-facing-safety-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+      ]);
+    },
+  );
+});
+
+test("后端与数据库中文注释会阻断旧安全校验口径", async () => {
+  const technicalEvaluation = "技术" + "评测";
+  const impactSimulation = "影响" + "模拟";
+  const backendMasking = "后端" + "脱敏规则表";
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/llm/eval/ModelEvalRun.java": `
+        /** 全部${technicalEvaluation}通过后才能上线。 */
+        public record ModelEvalRun() {}
+      `,
+      "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql": `
+        COMMENT ON COLUMN mk_version_release_plan.quality_gate_summary IS '结构、术语字段、依赖、安全与${impactSimulation}';
+      `,
+      "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json": `
+        {"comment":"SYS-06 ${backendMasking}，按租户、资源、字段和场景配置脱敏策略"}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/llm/eval/ModelEvalRun.java",
+        "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql",
+        "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-safety-language",
+        "db.customer-facing-safety-language",
+        "db.customer-facing-safety-language",
+      ]);
+    },
+  );
+});
+
+test("前后端契约会阻断实施内部口径残留", async () => {
+  const technicalCheck = "技术" + "核验";
+  const technicalReleaseChain = "技术" + "发布链";
+  const sourceVersionTechInfo = "来源版本" + "技术" + "信息";
+  const platformDeveloper = "平台" + "开发者";
+  const publicConsole = "公共生产" + "控制台";
+  const debugBefore = "调试" + "前";
+  const channelDebug = "通道" + "调试";
+  const testPayload = "测试 " + "Payload";
+  const offlineFixture = "offline-" + "fixture";
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/acquisition/AcquisitionController.java": `
+        /** 启用已经完成来源真实性、许可和 robots ${technicalCheck}的资料来源。 */
+        public class AcquisitionController {}
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/security/auth/LoginTenantDirectoryService.java": `
+        /** 平台主租户退到第二层给${platformDeveloper}和运维人员使用。 */
+        public class LoginTenantDirectoryService {}
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/pathway/PathwaySimulationResponse.java": `
+        /** 用于在发布或${debugBefore}回放路径走向。 */
+        public record PathwaySimulationResponse() {}
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/integration/dto/WebhookTestDto.java": `
+        /** 用于在 Webhook 订阅${channelDebug}中传递${testPayload}报文。 */
+        public record WebhookTestDto() {}
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/initialization/KnowledgeInitializationService.java": `
+        public class KnowledgeInitializationService {
+          String message = "${sourceVersionTechInfo}不完整";
+        }
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/FormalKnowledgeProductionPolicy.java": `
+        /** ${publicConsole}只允许经受控模型服务创建正式生产任务。 */
+        public class FormalKnowledgeProductionPolicy {}
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/security/PermissionCode.java": `
+        public enum PermissionCode {
+          INTEGRATION_EXECUTE("执行适配器健康检查、Webhook 测试、入站验签")
+        }
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/llm/eval/ModelEvalService.java": `
+        public class ModelEvalService {
+          String providerCode = "${offlineFixture}";
+        }
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/security/auth/AuthController.java": `
+        public class AuthController {
+          String message = "院方统一身份尚未接入，未配置真实 IdP 连接器";
+        }
+      `,
+      "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql": `
+        COMMENT ON COLUMN rule_governance.author_id IS '规则版本负责人，可确认并推进完整${technicalReleaseChain}';
+      `,
+      "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json": `
+        {"comment":"规则版本负责人，可确认并推进完整${technicalReleaseChain}"}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/acquisition/AcquisitionController.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/security/auth/LoginTenantDirectoryService.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/pathway/PathwaySimulationResponse.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/integration/dto/WebhookTestDto.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/initialization/KnowledgeInitializationService.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/production/FormalKnowledgeProductionPolicy.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/security/PermissionCode.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/llm/eval/ModelEvalService.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/security/auth/AuthController.java",
+        "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql",
+        "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+        "db.customer-facing-safety-language",
+        "db.customer-facing-safety-language",
+      ]);
+    },
+  );
+});
+
+test("领域门面生产契约禁止回流 fixture 验收样本口径", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/domainfacade/DomainFacadeController.java": `
+        /** 列举 X-DOMAIN 17 张领域门面的 B0 fixture 证据。 */
+        @GetMapping("/b0-fixtures")
+        public class DomainFacadeController {}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/domainfacade/DomainFacadeController.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-internal-operation-language",
+        "backend.domain-facade-fixture-language",
+      ]);
+    },
+  );
+});
+
+test("后端生产规则校验禁止继续使用静态校验占位口径", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/rule/RuleEngineService.java": `
+        public class RuleEngineService {
+          void fill(ObjectNode node) {
+            node.put("summary", "临床提示卡引用静态校验占位");
+          }
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/rule/RuleEngineService.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["backend.rule-static-placeholder-language"]);
+    },
+  );
+});
+
+test("上线演练脚本禁止继续使用影响模拟旧口径", async () => {
+  await withFixture(
+    {
+      "scripts/knowledge/full-knowledge-rehearsal-lib.mjs": `
+        export const review = {
+          reason: "低风险上线演练知识：来源、结构、引用、安全门和影响模拟均已核对",
+        };
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "scripts/knowledge/full-knowledge-rehearsal-lib.mjs",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["scripts.impact-simulation-language"]);
+    },
+  );
+});
+
+test("后端发布治理契约禁止回流发布模拟旧口径", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/contract/ServiceContractCatalog.java": `
+        public class ServiceContractCatalog {
+          String title = "发布模拟与灰度治理服务";
+        }
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/versioning/ReleaseGovernanceController.java": `
+        public class ReleaseGovernanceController {
+          String conflict = "模拟摘要已变化，请重新模拟并确认";
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/contract/ServiceContractCatalog.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/versioning/ReleaseGovernanceController.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-safety-language",
+        "backend.customer-facing-safety-language",
       ]);
     },
   );
@@ -229,6 +742,205 @@ test("前端生产文件会阻断默认临床病例文本回流", async () => {
   );
 });
 
+test("路径模板生产文件禁止回流固定急诊原型", async () => {
+  await withFixture(
+    {
+      "frontend/src/pages/tenant/PathwayTemplates.tsx": `
+        const prototype = {
+          title: "急诊处置路径",
+          templateCode: "PATH.ED.DISPOSITION",
+          milestoneCode: "M-ED-ASSESS",
+        };
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/sandbox/SandboxScenarioCatalog.java": `
+        public class SandboxScenarioCatalog {
+          String id = "sbx-pathway-ed";
+          String code = "PATH.ED.DISPOSITION";
+        }
+      `,
+      "scripts/sandbox/seed-scenarios.mjs": `
+        export const pathway = {
+          name: "急诊处置路径",
+          responsibleRole: "急诊医生",
+        };
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/pages/tenant/PathwayTemplates.tsx",
+        "medkernel-backend/src/main/java/com/medkernel/engine/sandbox/SandboxScenarioCatalog.java",
+        "scripts/sandbox/seed-scenarios.mjs",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.pathway-hardcoded-prototype",
+        "frontend.pathway-hardcoded-prototype",
+        "scripts.pathway-hardcoded-prototype",
+      ]);
+    },
+  );
+});
+
+test("后端生产契约会阻断运行状态未接入口吻", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/shared/runtime/RuntimeOperationsService.java": `
+        public class RuntimeOperationsService {
+          String graph = "能力开关已开启；真实图谱探活未接入，暂不判定通过";
+        }
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/llm/ModelGatewayService.java": `
+        public class ModelGatewayService {
+          String message = "当前未接入可用模型服务，未生成候选内容";
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/shared/runtime/RuntimeOperationsService.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/llm/ModelGatewayService.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+      ]);
+    },
+  );
+});
+
+test("后端生产契约会阻断阶段性接入口吻", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/shared/runtime/task/DefaultRuntimeTaskExecutor.java": `
+        public class DefaultRuntimeTaskExecutor {
+          String message = "未接入真实执行器，任务未执行";
+        }
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/parsing/DocumentParseOrchestrationService.java": `
+        public class DocumentParseOrchestrationService {
+          String error = "暂不支持解析格式 WORD，待对应适配器接入";
+        }
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeExportJob.java": `
+        /** 本 PR 提供单机线程池执行器；后续 PR 可替换。 */
+        public class KnowledgeExportJob {}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/shared/runtime/task/DefaultRuntimeTaskExecutor.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/parsing/DocumentParseOrchestrationService.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/KnowledgeExportJob.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+      ]);
+    },
+  );
+});
+
+test("后端与数据库注释会阻断历史阶段口径", async () => {
+  const pr1 = "PR" + "1";
+  const futureGa = "后续 " + "GA-SEC-02";
+  const firstEdition = "首版主要";
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/datasvc/RuleUsageStatsService.java": `
+        /** 引擎数据服务层 · 规则使用统计服务（DATASVC-01 ${pr1}）。 */
+        public class RuleUsageStatsService {}
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/shared/crypto/SmCryptoService.java": `
+        /** FIPS 路径由${futureGa}切换到 bc-fips。 */
+        public class SmCryptoService {}
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/rule/RuleAuthoringMode.java": `
+        /** ${firstEdition}支持 DSL，TEMPLATE/VISUAL 为规则编辑器预留。 */
+        public enum RuleAuthoringMode {}
+      `,
+      "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql": `
+        COMMENT ON COLUMN mk_version_asset_version.effective_from IS '生效开始时间，${pr1} 可为空，后续发布流写入';
+      `,
+      "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json": `
+        {"comment":"生效开始时间，${pr1} 可为空，后续发布流写入"}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/datasvc/RuleUsageStatsService.java",
+        "medkernel-backend/src/main/java/com/medkernel/shared/crypto/SmCryptoService.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/rule/RuleAuthoringMode.java",
+        "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql",
+        "medkernel-backend/src/main/resources/db/schema/medkernel.schema.json",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.historical-stage-language",
+        "backend.historical-stage-language",
+        "backend.historical-stage-language",
+        "db.historical-stage-language",
+        "db.historical-stage-language",
+      ]);
+    },
+  );
+});
+
+test("后端生产注释会阻断投影和标准上下文未完成口吻", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/engine/clinical/model/NoopClinicalProjectionStatusPort.java": `
+        /** 默认图投影状态端口：未接入真实图投影时诚实返回 NOT_SYNCED。 */
+        public class NoopClinicalProjectionStatusPort {}
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/mpi/MpiService.java": `
+        public class MpiService {
+          /** 若暂未接入标准上下文，返回空快照字段而不是构造本地假患者事实。 */
+          public void patientDetail() {}
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/engine/clinical/model/NoopClinicalProjectionStatusPort.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/mpi/MpiService.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+      ]);
+    },
+  );
+});
+
+test("集成契约文档会阻断未接入真实连接器旧口径", async () => {
+  await withFixture(
+    {
+      "docs/contracts/integration/third-party-integration-guide.md": `
+        - ONLINE 不等于外部系统真实可达；未接入真实连接器时响应仍显示 NOT_CONNECTED。
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "docs/contracts/integration/third-party-integration-guide.md",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "docs.integration-contract-current-language",
+      ]);
+    },
+  );
+});
+
 test("前端 catch 成功门禁只检查 catch 代码块内部", async () => {
   await withFixture(
     {
@@ -241,7 +953,7 @@ test("前端 catch 成功门禁只检查 catch 代码块内部", async () => {
             return;
           }
 
-          message.success("后端真实返回后再提示成功");
+          message.success("服务确认成功后再提示成功");
         }
       `,
     },
@@ -294,6 +1006,226 @@ test("共享 API 层禁止导出演示快照供生产页面调用", async () => 
 
       assert.equal(hasBlockingViolations(report), true);
       assert.deepEqual(ruleIds(report), ["frontend.demo-snapshot-export"]);
+    },
+  );
+});
+
+test("共享 API 合同禁止继续使用 Webhook 测试旧口径", async () => {
+  await withFixture(
+    {
+      "frontend/src/shared/api/hooks.ts": `
+        // Webhook 签名生成与双向测试
+        export function useTestWebhookSignature() {}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/shared/api/hooks.ts",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.customer-facing-integration-test-language",
+      ]);
+    },
+  );
+});
+
+test("前端客户面会阻断未上线和低频参数旧口径", async () => {
+  await withFixture(
+    {
+      "frontend/src/pages/advanced/AiWorkflows.tsx": `
+        export const warning = "当前能力不走公网外部模型；如后续切到外部模型，仍需先配置外调安全策略。";
+      `,
+      "frontend/src/pages/tenant/RuleDefinitions.tsx": `
+        export const description = "配置规则资产，完成测试、解释和临床治理。";
+      `,
+      "frontend/src/shared/ui/PageShell.tsx": `
+        /** 默认 1 个主目标内容区，高级参数折叠到子组件内。 */
+        export function PageShell() {}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/pages/advanced/AiWorkflows.tsx",
+        "frontend/src/pages/tenant/RuleDefinitions.tsx",
+        "frontend/src/shared/ui/PageShell.tsx",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+      ]);
+    },
+  );
+});
+
+test("客户面和当前目录会阻断旧态、未来态和模拟态口径", async () => {
+  const futureAccount = "后续" + "账号";
+  const staleHealthConclusion = "旧" + "健康结论";
+  const oldNewCompare = "新旧" + "对比";
+  const pageMockData = "页面" + "模拟数据";
+  const futureRulePath = "后续" + "规则和路径";
+  const futureActionHeading = "强制" + "后续动作";
+  await withFixture(
+    {
+      "frontend/src/pages/Bootstrap.tsx": `
+        export const copy = "只创建第一个接管账号，${futureAccount}进工作台开通";
+      `,
+      "frontend/src/pages/ProviderSetupPanel.tsx": `
+        export const copy = "配置或轮换密钥会强制停用服务并清除${staleHealthConclusion}";
+      `,
+      "frontend/src/pages/SandboxHost.tsx": `
+        export const label = "${oldNewCompare}";
+      `,
+      "frontend/src/shared/config/modelProduction.ts": `
+        export const comment = "这些值来自平台模型服务类型与模型能力合同，不是${pageMockData}。";
+      `,
+      "frontend/src/shared/config/routes.ts": `
+        export const goal = "核查院内码与标准码的映射关系，降低${futureRulePath}执行风险";
+      `,
+      "docs/audit/product-function-catalog.md": `
+        ## 7. ${futureActionHeading}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/pages/Bootstrap.tsx",
+        "frontend/src/pages/ProviderSetupPanel.tsx",
+        "frontend/src/pages/SandboxHost.tsx",
+        "frontend/src/shared/config/modelProduction.ts",
+        "frontend/src/shared/config/routes.ts",
+        "docs/audit/product-function-catalog.md",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "docs.retired-product-state-language",
+        "frontend.retired-product-state-language",
+        "frontend.retired-product-state-language",
+        "frontend.retired-product-state-language",
+        "frontend.retired-product-state-language",
+        "frontend.retired-product-state-language",
+      ]);
+    },
+  );
+});
+
+test("知识生产入口会阻断模型平台化旧名称", async () => {
+  const modelPlatformTitle = "模型生产" + "控制台";
+  await withFixture(
+    {
+      "frontend/src/pages/knowledge-production/KnowledgeProductionPage.tsx": `
+        export const title = "${modelPlatformTitle}";
+      `,
+      "frontend/src/shared/config/routes.ts": `
+        export const route = { path: "/knowledge/production", title: "${modelPlatformTitle}" };
+      `,
+      "docs/audit/product-function-catalog.md": `
+        | /knowledge/production | ${modelPlatformTitle} |
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/pages/knowledge-production/KnowledgeProductionPage.tsx",
+        "frontend/src/shared/config/routes.ts",
+        "docs/audit/product-function-catalog.md",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "docs.retired-product-state-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.customer-facing-engineering-language",
+        "frontend.retired-product-state-language",
+        "frontend.retired-product-state-language",
+      ]);
+    },
+  );
+});
+
+test("共享 API 合同禁止把平台能力写成待上线旧口径", async () => {
+  await withFixture(
+    {
+      "frontend/src/shared/api/hooks.ts": `
+        // 仅保留 engine/* 真接口，以及上线后接入的字典映射 hook，业务包装阶段会渐进新增。
+        export function usePlatformDictionary() {}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/shared/api/hooks.ts",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.shared-api-current-contract-language",
+      ]);
+    },
+  );
+});
+
+test("共享配置禁止把已实现校验写成后续约束旧口径", async () => {
+  await withFixture(
+    {
+      "frontend/src/shared/config/conditionModel.ts": `
+        export interface RuleLeaf {
+          /** 上下文字段路径（后续由字段目录选择器约束；现为文本）。 */
+          fact: string;
+        }
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "frontend/src/shared/config/conditionModel.ts",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "frontend.customer-facing-engineering-language",
+      ]);
+    },
+  );
+});
+
+test("后端生产契约禁止回流实现层和未来接入口径", async () => {
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/compliance/masking/MaskingService.java": `
+        /** SYS-06 后端脱敏规则服务。 */
+        public class MaskingService {}
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/material/ManagedDocumentMaterialStorage.java": `
+        public class ManagedDocumentMaterialStorage {
+          String error = "资料库后端尚未接入读取适配器";
+        }
+      `,
+      "medkernel-backend/src/main/java/com/medkernel/engine/llm/egress/ModelEgressGuard.java": `
+        public class ModelEgressGuard {
+          String comment = "脱敏、审批和留证在后续条目接入";
+        }
+      `,
+      "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql": `
+        COMMENT ON TABLE mk_compliance_masking_rule IS 'SYS-06 后端脱敏规则表';
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/compliance/masking/MaskingService.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/knowledge/material/ManagedDocumentMaterialStorage.java",
+        "medkernel-backend/src/main/java/com/medkernel/engine/llm/egress/ModelEgressGuard.java",
+        "medkernel-backend/src/main/resources/db/migration/postgres/V1__baseline.sql",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), [
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+        "backend.customer-facing-internal-operation-language",
+        "db.customer-facing-safety-language",
+      ]);
     },
   );
 });
@@ -597,6 +1529,33 @@ test("后端占位 Javadoc 门禁只检查 Javadoc 块内部", async () => {
 
       assert.equal(hasBlockingViolations(report), false);
       assert.deepEqual(report.violations, []);
+    },
+  );
+});
+
+test("后端生产注释会阻断早期任务口吻", async () => {
+  const retiredSkeletonIntro = "本类只提供" + "骨架";
+  const retiredTaskPhrase = "任务中" + "实施";
+  await withFixture(
+    {
+      "medkernel-backend/src/main/java/com/medkernel/shared/context/RequestContext.java": `
+        package com.medkernel.shared.context;
+
+        /**
+         * 请求上下文。
+         *
+         * <p>${retiredSkeletonIntro}；JWT 到组织上下文的真实填充在后续${retiredTaskPhrase}。
+         */
+        public final class RequestContext {}
+      `,
+    },
+    async (root) => {
+      const report = await scanFiles(root, [
+        "medkernel-backend/src/main/java/com/medkernel/shared/context/RequestContext.java",
+      ]);
+
+      assert.equal(hasBlockingViolations(report), true);
+      assert.deepEqual(ruleIds(report), ["backend.retired-task-language"]);
     },
   );
 });

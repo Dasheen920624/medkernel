@@ -47,11 +47,15 @@ import {
   type DiagnosisDifferential,
   type DiagnosisTestCase,
   type KnowledgeAssetVersion,
+  type KnowledgeIdentity,
   type VersionPublishEvidence,
 } from "@/shared/api/hooks";
 import { KNOWLEDGE_QUALITY_GATE_OPTIONS } from "@/shared/config/knowledgeReview";
 import { platformTenantId } from "@/shared/config/tenantDictionary";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageState } from "@/shared/ui/PageState";
 
 import styles from "./DiagnosisKnowledgePanel.module.css";
@@ -80,8 +84,31 @@ const DIRECTION_LABEL: Record<string, string> = {
   EXCLUSION: "排除",
 };
 
+const POINTER_TYPE_LABEL: Record<string, string> = {
+  TREATMENT: "治疗建议",
+  WORKUP: "检查建议",
+  PATHWAY: "路径建议",
+};
+
+const POINTER_TARGET_LABEL: Record<string, string> = {
+  RULE: "规则资产",
+  KNOWLEDGE: "知识资产",
+  PATHWAY: "专病路径",
+};
+
+const CONFIDENCE_LABEL: Record<string, string> = {
+  STRONG: "强支持",
+  MODERATE: "中度支持",
+  WEAK: "弱支持",
+  EXCLUDE: "排除",
+};
+
 const DIAGNOSIS_REFERENCE_PAGE_SIZE = 20;
 const DIAGNOSIS_VERSION_PAGE_SIZE = 20;
+
+interface DiagnosisKnowledgePanelProps {
+  evidenceDetailsEnabled?: boolean;
+}
 
 function diagnosisPublishAlert(testCaseCount: number, hasUnsupportedCriterionConstraints: boolean) {
   if (testCaseCount === 0) {
@@ -112,6 +139,19 @@ function versionLabel(version: KnowledgeAssetVersion) {
   }`;
 }
 
+function identityLabel(identity: KnowledgeIdentity, evidenceDetailsEnabled: boolean) {
+  return evidenceDetailsEnabled
+    ? `${identity.subject} · ${identity.identityCode}`
+    : identity.subject;
+}
+
+function constraintLabel(value: string, evidenceDetailsEnabled: boolean, businessLabel: string) {
+  if (evidenceDetailsEnabled) {
+    return value || "不限";
+  }
+  return value ? businessLabel : "不限";
+}
+
 function searchKeyword(value: string) {
   return value.trim() || undefined;
 }
@@ -122,9 +162,15 @@ type DiagnosisPublishFormValues = {
   qualitySummary?: string;
 };
 
-export default function DiagnosisKnowledgePanel() {
+export default function DiagnosisKnowledgePanel({
+  evidenceDetailsEnabled,
+}: DiagnosisKnowledgePanelProps = {}) {
   const { message } = AntdApp.useApp();
   const security = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const mayUseEvidenceDetails = canUseEvidenceDetails(security.data);
+  const effectiveEvidenceDetails =
+    evidenceDetailsEnabled ?? (mayUseEvidenceDetails && globalEvidenceDetails);
   const [identitySearch, setIdentitySearch] = useState("");
   const [diagnosisReferenceSearch, setDiagnosisReferenceSearch] = useState("");
   const [referenceKnowledgeSearch, setReferenceKnowledgeSearch] = useState("");
@@ -285,20 +331,28 @@ export default function DiagnosisKnowledgePanel() {
     if (pointerTargetType === "RULE") {
       return (rulesQuery.data?.items ?? []).map((item) => ({
         value: item.ruleCode,
-        label: `${item.name} · ${item.ruleCode}`,
+        label: effectiveEvidenceDetails ? `${item.name} · ${item.ruleCode}` : item.name,
       }));
     }
     if (pointerTargetType === "PATHWAY") {
       return (pathwaysQuery.data?.items ?? []).map((item) => ({
         value: item.templateCode,
-        label: `${item.name} · ${item.templateCode} · v${item.templateVersion}`,
+        label: effectiveEvidenceDetails
+          ? `${item.name} · ${item.templateCode} · v${item.templateVersion}`
+          : item.name,
       }));
     }
     return referenceKnowledge.map((item) => ({
       value: item.identityCode,
-      label: `${item.subject} · ${item.identityCode}`,
+      label: identityLabel(item, effectiveEvidenceDetails),
     }));
-  }, [pathwaysQuery.data?.items, pointerTargetType, referenceKnowledge, rulesQuery.data?.items]);
+  }, [
+    effectiveEvidenceDetails,
+    pathwaysQuery.data?.items,
+    pointerTargetType,
+    referenceKnowledge,
+    rulesQuery.data?.items,
+  ]);
 
   function resetCareTargetSearch() {
     setReferenceKnowledgeSearch("");
@@ -435,7 +489,12 @@ export default function DiagnosisKnowledgePanel() {
   const readLoading = identitiesQuery.isLoading || (Boolean(identityId) && versionsQuery.isLoading);
 
   const criteriaColumns = [
-    { title: "发现项编码", dataIndex: "findingTermCode", key: "findingTermCode" },
+    {
+      title: effectiveEvidenceDetails ? "发现项编码" : "发现项",
+      dataIndex: "findingTermCode",
+      key: "findingTermCode",
+      render: (value: string) => (effectiveEvidenceDetails ? value : "发现项已登记"),
+    },
     {
       title: "方向",
       dataIndex: "direction",
@@ -447,13 +506,13 @@ export default function DiagnosisKnowledgePanel() {
       title: "值约束",
       dataIndex: "valueConstraint",
       key: "valueConstraint",
-      render: (v: string) => v || "不限",
+      render: (v: string) => constraintLabel(v, effectiveEvidenceDetails, "数值约束已登记"),
     },
     {
       title: "时序约束",
       dataIndex: "temporalConstraint",
       key: "temporalConstraint",
-      render: (v: string) => v || "不限",
+      render: (v: string) => constraintLabel(v, effectiveEvidenceDetails, "时序约束已登记"),
     },
   ];
 
@@ -464,7 +523,8 @@ export default function DiagnosisKnowledgePanel() {
       key: "differentialIdentityId",
       render: (targetIdentityId: number) => {
         const target = identities.find((item) => item.id === targetIdentityId);
-        return target ? `${target.subject} · ${target.identityCode}` : `身份 ${targetIdentityId}`;
+        if (target) return identityLabel(target, effectiveEvidenceDetails);
+        return effectiveEvidenceDetails ? `身份 ${targetIdentityId}` : "鉴别诊断已关联";
       },
     },
     {
@@ -482,13 +542,44 @@ export default function DiagnosisKnowledgePanel() {
   ];
 
   const pointerColumns = [
-    { title: "建议类型", dataIndex: "pointerType", key: "pointerType" },
-    { title: "目标类型", dataIndex: "targetType", key: "targetType" },
     {
-      title: "目标编码",
+      title: "建议类型",
+      dataIndex: "pointerType",
+      key: "pointerType",
+      render: (value: string) =>
+        effectiveEvidenceDetails ? value : (POINTER_TYPE_LABEL[value] ?? customerEnumLabel(value)),
+    },
+    {
+      title: "目标类型",
+      dataIndex: "targetType",
+      key: "targetType",
+      render: (value: string) =>
+        effectiveEvidenceDetails
+          ? value
+          : (POINTER_TARGET_LABEL[value] ?? customerEnumLabel(value)),
+    },
+    {
+      title: effectiveEvidenceDetails ? "目标编码" : "目标资产",
       dataIndex: "targetRef",
       key: "targetRef",
-      render: (value: string) => <span className={styles.code}>{value}</span>,
+      render: (value: string, record: DiagnosisCarePointer) => {
+        if (effectiveEvidenceDetails) return <span className={styles.code}>{value}</span>;
+        if (record.targetType === "RULE") {
+          return (
+            rulesQuery.data?.items.find((item) => item.ruleCode === value)?.name ?? "目标资产已关联"
+          );
+        }
+        if (record.targetType === "PATHWAY") {
+          return (
+            pathwaysQuery.data?.items.find((item) => item.templateCode === value)?.name ??
+            "目标资产已关联"
+          );
+        }
+        return (
+          referenceKnowledge.find((item) => item.identityCode === value)?.subject ??
+          "目标资产已关联"
+        );
+      },
     },
     {
       title: "说明",
@@ -504,18 +595,35 @@ export default function DiagnosisKnowledgePanel() {
   ];
 
   const caseColumns = [
-    { title: "病例编码", dataIndex: "caseCode", key: "caseCode" },
-    { title: "发现项", dataIndex: "findings", key: "findings" },
+    {
+      title: effectiveEvidenceDetails ? "病例编码" : "验证病例",
+      dataIndex: "caseCode",
+      key: "caseCode",
+      render: (value: string) => (effectiveEvidenceDetails ? value : "验证病例已登记"),
+    },
+    {
+      title: "发现项",
+      dataIndex: "findings",
+      key: "findings",
+      render: (value: string) => (effectiveEvidenceDetails ? value : "发现项证据已记录"),
+    },
     {
       title: "期望诊断",
       dataIndex: "expectedIdentityId",
       key: "expectedIdentityId",
       render: (value: number) => {
         const identity = identities.find((item) => item.id === value);
-        return identity ? `${identity.subject} · ${identity.identityCode}` : `身份 ${value}`;
+        if (identity) return identityLabel(identity, effectiveEvidenceDetails);
+        return effectiveEvidenceDetails ? `身份 ${value}` : "期望诊断已关联";
       },
     },
-    { title: "期望置信", dataIndex: "expectedConfidence", key: "expectedConfidence" },
+    {
+      title: "期望置信",
+      dataIndex: "expectedConfidence",
+      key: "expectedConfidence",
+      render: (value: string) =>
+        effectiveEvidenceDetails ? value : (CONFIDENCE_LABEL[value] ?? customerEnumLabel(value)),
+    },
   ];
 
   const tabs = [
@@ -662,7 +770,9 @@ export default function DiagnosisKnowledgePanel() {
         <Card>
           <Descriptions size="small" column={{ xs: 1, md: 3 }}>
             <Descriptions.Item label="诊断">{selectedIdentity?.subject}</Descriptions.Item>
-            <Descriptions.Item label="身份编码">{selectedIdentity?.identityCode}</Descriptions.Item>
+            <Descriptions.Item label={effectiveEvidenceDetails ? "身份编码" : "知识身份"}>
+              {effectiveEvidenceDetails ? selectedIdentity?.identityCode : "知识身份已关联"}
+            </Descriptions.Item>
             <Descriptions.Item label="版本状态">
               <Tag color={editable ? "processing" : "success"}>
                 {selectedVersion
@@ -761,7 +871,7 @@ export default function DiagnosisKnowledgePanel() {
               value={identityId}
               options={identities.map((item) => ({
                 value: item.id,
-                label: `${item.subject} · ${item.identityCode}`,
+                label: identityLabel(item, effectiveEvidenceDetails),
               }))}
               onSearch={setIdentitySearch}
               onChange={(value) => {
@@ -789,6 +899,10 @@ export default function DiagnosisKnowledgePanel() {
             )}
           </div>
           <Space wrap>
+            <EvidenceDetailsToggle
+              securityProfile={security.data}
+              evidenceDetailsEnabled={effectiveEvidenceDetails}
+            />
             <Button
               icon={<PlusOutlined />}
               disabled={!identityId || !can(security.data, "knowledge.write")}
@@ -852,7 +966,7 @@ export default function DiagnosisKnowledgePanel() {
                 </Form.Item>
                 <Form.Item
                   name={["identity", "identitySlug"]}
-                  label="身份标识"
+                  label="稳定诊断身份"
                   rules={[
                     { required: true },
                     {
@@ -863,7 +977,7 @@ export default function DiagnosisKnowledgePanel() {
                 >
                   <Input maxLength={43} placeholder="例如 chronic-kidney-disease" />
                 </Form.Item>
-                <Form.Item name={["identity", "assetSpecialtyId"]} label="专科编码">
+                <Form.Item name={["identity", "assetSpecialtyId"]} label="专科身份">
                   <Input />
                 </Form.Item>
                 <Form.Item name={["identity", "description"]} label="资产说明">
@@ -876,7 +990,7 @@ export default function DiagnosisKnowledgePanel() {
             </Form.Item>
             <Form.Item
               name={["source", "sourceCode"]}
-              label="来源编码"
+              label="稳定来源身份"
               rules={[{ required: true }]}
             >
               <Input />
@@ -1058,8 +1172,8 @@ export default function DiagnosisKnowledgePanel() {
           layout="vertical"
           initialValues={{ direction: "SUPPORTING", weight: "MAJOR" }}
         >
-          <Form.Item name="findingTermCode" label="标准发现项编码" rules={[{ required: true }]}>
-            <Input />
+          <Form.Item name="findingTermCode" label="标准发现项身份" rules={[{ required: true }]}>
+            <Input placeholder="如 EGFR_LOW，用于稳定追溯该发现项" />
           </Form.Item>
           <Form.Item name="direction" label="方向" rules={[{ required: true }]}>
             <Select
@@ -1107,7 +1221,7 @@ export default function DiagnosisKnowledgePanel() {
                 .filter((item) => item.id !== identityId)
                 .map((item) => ({
                   value: item.id,
-                  label: `${item.subject} · ${item.identityCode}`,
+                  label: identityLabel(item, effectiveEvidenceDetails),
                 }))}
               onSearch={setDiagnosisReferenceSearch}
               onChange={() => setDiagnosisReferenceSearch("")}
@@ -1212,14 +1326,14 @@ export default function DiagnosisKnowledgePanel() {
           layout="vertical"
           initialValues={{ expectedConfidence: "STRONG", expectedIdentityId: identityId }}
         >
-          <Form.Item name="caseCode" label="病例编码" rules={[{ required: true }]}>
-            <Input />
+          <Form.Item name="caseCode" label="稳定验证病例身份" rules={[{ required: true }]}>
+            <Input placeholder="如 CKD-CASE-001，用于复算与验收追溯" />
           </Form.Item>
           <Form.Item
             name="findings"
-            label="发现项编码"
+            label="发现项身份"
             rules={[{ required: true }]}
-            extra="多个标准编码使用英文逗号分隔"
+            extra="多个标准发现项身份使用英文逗号分隔"
           >
             <Input.TextArea rows={3} />
           </Form.Item>
@@ -1230,7 +1344,7 @@ export default function DiagnosisKnowledgePanel() {
               placeholder="选择当前有效诊断身份"
               options={diagnosisReferenceOptions.map((item) => ({
                 value: item.id,
-                label: `${item.subject} · ${item.identityCode}`,
+                label: identityLabel(item, effectiveEvidenceDetails),
               }))}
               onSearch={setDiagnosisReferenceSearch}
               onChange={() => setDiagnosisReferenceSearch("")}

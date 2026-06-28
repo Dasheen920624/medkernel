@@ -34,9 +34,13 @@ import com.medkernel.engine.versioning.AssetScopeResolver;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.VersionPublishEvidence;
 import com.medkernel.engine.versioning.VersionPublishQualityGate;
+import com.medkernel.engine.versioning.VersionRollbackCommand;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.engine.release.ReleaseSourceLayer;
+import com.medkernel.engine.security.EffectivePermissionService;
 import com.medkernel.engine.security.RoleCode;
+import com.medkernel.engine.security.UserRoleAssignment;
+import com.medkernel.engine.security.UserRoleAssignmentRepository;
 import com.medkernel.engine.knowledge.production.gate.PublicationQualityRecordService;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -70,6 +74,7 @@ class KnowledgeVersionServiceTest {
     private ReleasePort releasePort;
     private PublicationQualityRecordService publicationQualityRecords;
     private AssetScopeResolver assetScopes;
+    private UserRoleAssignmentRepository userRoleAssignments;
     private KnowledgeVersionService service;
 
     @BeforeEach
@@ -90,10 +95,13 @@ class KnowledgeVersionServiceTest {
         releasePort = Mockito.mock(ReleasePort.class);
         publicationQualityRecords = Mockito.mock(PublicationQualityRecordService.class);
         assetScopes = Mockito.mock(AssetScopeResolver.class);
+        userRoleAssignments = Mockito.mock(UserRoleAssignmentRepository.class);
         service = new KnowledgeVersionService(
             identityRepo, versionRepo, supersessionRepo, citationRepo, sourceDocRepo, sourceVersionRepo, projectionRefreshPort,
             candidateClassificationRepo, reviewAssignmentRepo, invalidationRepo, affectedCaseTaskRepo,
-            versionedAssets, assetVersions, releasePort, publicationQualityRecords, assetScopes);
+            versionedAssets, assetVersions, releasePort, publicationQualityRecords, assetScopes,
+            new EffectivePermissionService(userRoleAssignments));
+        when(userRoleAssignments.findActiveByTenantIdAndUserId(any(), any())).thenReturn(List.of());
         when(assetScopes.resolve(any(), any(OrgScope.class)))
             .thenAnswer(invocation -> {
                 String tenantId = invocation.getArgument(0);
@@ -307,6 +315,167 @@ class KnowledgeVersionServiceTest {
         assertThat(invalidation.getValue().invalidationType().name()).isEqualTo("SUPERSEDED_REPLACEMENT");
         assertThat(invalidation.getValue().reason()).contains("newVersionId=5");
         verify(affectedCaseTaskRepo, times(3)).save(any(AffectedCaseTask.class));
+    }
+
+    @Test
+    void activateRestoredVersionReusesOpenReplacementInvalidationForPreviouslySupersededVersion() {
+        KnowledgeIdentity identity = identity(1L, 11L);
+        KnowledgeAssetVersion v1Active =
+            versionWithVersionNo(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW, "V1");
+        KnowledgeAssetVersion v1Superseded =
+            versionWithVersionNo(5L, 1L, KnowledgeVersionStatus.SUPERSEDED, KnowledgeRiskLevel.LOW, "V1");
+        KnowledgeAssetVersion v2Candidate =
+            versionWithVersionNo(11L, 1L, KnowledgeVersionStatus.UNDER_REVIEW, KnowledgeRiskLevel.LOW, "V2");
+        KnowledgeAssetVersion v2Active =
+            versionWithVersionNo(11L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW, "V2");
+        KnowledgeAssetVersion v2Superseded =
+            versionWithVersionNo(11L, 1L, KnowledgeVersionStatus.SUPERSEDED, KnowledgeRiskLevel.LOW, "V2");
+        KnowledgeInvalidation existingV1Invalidation = new KnowledgeInvalidation(
+            77L,
+            "t-1",
+            1L,
+            5L,
+            KnowledgeInvalidationType.SUPERSEDED_REPLACEMENT,
+            KnowledgeInvalidationStatus.OPEN,
+            KnowledgeRiskLevel.LOW,
+            "知识版本原子替换：oldVersionId=5，newVersionId=11",
+            "tenant:t-1",
+            KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE,
+            "u-99",
+            Instant.now(),
+            false,
+            "trace",
+            Instant.now(),
+            "u-99",
+            Instant.now(),
+            "u-99"
+        );
+        KnowledgeInvalidation resolvedV1Invalidation = new KnowledgeInvalidation(
+            existingV1Invalidation.id(),
+            existingV1Invalidation.tenantId(),
+            existingV1Invalidation.identityId(),
+            existingV1Invalidation.versionId(),
+            existingV1Invalidation.invalidationType(),
+            KnowledgeInvalidationStatus.RESOLVED,
+            existingV1Invalidation.riskLevel(),
+            existingV1Invalidation.reason(),
+            existingV1Invalidation.organizationScope(),
+            existingV1Invalidation.applicableScope(),
+            existingV1Invalidation.authorizedBy(),
+            existingV1Invalidation.invalidatedAt(),
+            existingV1Invalidation.expeditedReviewRequired(),
+            existingV1Invalidation.traceId(),
+            existingV1Invalidation.createdAt(),
+            existingV1Invalidation.createdBy(),
+            existingV1Invalidation.updatedAt(),
+            existingV1Invalidation.updatedBy()
+        );
+        KnowledgeInvalidation existingV2Invalidation = new KnowledgeInvalidation(
+            78L,
+            "t-1",
+            1L,
+            11L,
+            KnowledgeInvalidationType.SUPERSEDED_REPLACEMENT,
+            KnowledgeInvalidationStatus.OPEN,
+            KnowledgeRiskLevel.LOW,
+            "知识版本原子替换：oldVersionId=11，newVersionId=5",
+            "tenant:t-1",
+            KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE,
+            "u-99",
+            Instant.now(),
+            false,
+            "trace",
+            Instant.now(),
+            "u-99",
+            Instant.now(),
+            "u-99"
+        );
+
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L))
+            .thenReturn(Optional.of(identity), Optional.of(identity), Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 11L))
+            .thenReturn(Optional.of(v2Candidate), Optional.of(v2Superseded));
+        when(versionRepo.findByTenantIdAndId("t-1", 5L))
+            .thenReturn(Optional.of(v1Superseded));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
+            .thenReturn(Optional.of(v1Active), Optional.of(v2Active), Optional.of(v1Active));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 11L))
+            .thenReturn(List.of(citation(11L)));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 5L))
+            .thenReturn(List.of(citation(5L)));
+        when(invalidationRepo.findByTenantIdAndVersionIdOrderByInvalidatedAtDesc("t-1", 5L))
+            .thenReturn(List.of(), List.of(existingV1Invalidation), List.of(resolvedV1Invalidation));
+        when(invalidationRepo.findByTenantIdAndVersionIdOrderByInvalidatedAtDesc("t-1", 11L))
+            .thenReturn(List.of(), List.of(), List.of(existingV2Invalidation));
+
+        service.activate(1L, 11L, "发布 V2", 900L);
+        service.activate(1L, 5L, "回滚至 V1", 900L);
+        KnowledgeAssetVersion restored = service.activate(1L, 11L, "恢复 V2", 900L);
+
+        assertThat(restored.id()).isEqualTo(11L);
+        assertThat(restored.status()).isEqualTo(KnowledgeVersionStatus.ACTIVE);
+        verify(supersessionRepo, times(3)).save(any(KnowledgeSupersession.class));
+        ArgumentCaptor<KnowledgeInvalidation> invalidation = ArgumentCaptor.forClass(KnowledgeInvalidation.class);
+        verify(invalidationRepo, times(5)).save(invalidation.capture());
+        assertThat(invalidation.getAllValues().stream().filter(item -> item.id() == null).toList())
+            .extracting(KnowledgeInvalidation::versionId)
+            .containsExactly(5L, 11L);
+        assertThat(invalidation.getAllValues()).anySatisfy(item -> {
+            assertThat(item.id()).isEqualTo(77L);
+            assertThat(item.versionId()).isEqualTo(5L);
+            assertThat(item.status()).isEqualTo(KnowledgeInvalidationStatus.RESOLVED);
+        });
+        assertThat(invalidation.getAllValues()).anySatisfy(item -> {
+            assertThat(item.id()).isEqualTo(77L);
+            assertThat(item.versionId()).isEqualTo(5L);
+            assertThat(item.status()).isEqualTo(KnowledgeInvalidationStatus.OPEN);
+            assertThat(item.reason()).contains("恢复 V2").contains("newVersionId=11");
+        });
+        assertThat(invalidation.getAllValues()).anySatisfy(item -> {
+            assertThat(item.id()).isEqualTo(78L);
+            assertThat(item.versionId()).isEqualTo(11L);
+            assertThat(item.status()).isEqualTo(KnowledgeInvalidationStatus.RESOLVED);
+        });
+    }
+
+    @Test
+    void activateSupersededVersionRollsBackWithdrawnUnifiedVersionInsteadOfRepublishing() {
+        KnowledgeIdentity identity = identity(1L, 11L);
+        KnowledgeAssetVersion rollbackTarget = versionWithVersionNo(
+            5L, 1L, KnowledgeVersionStatus.SUPERSEDED, KnowledgeRiskLevel.LOW, "V1");
+        KnowledgeAssetVersion currentActive = versionWithVersionNo(
+            11L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW, "V2");
+
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 5L)).thenReturn(Optional.of(rollbackTarget));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE))
+            .thenReturn(Optional.of(currentActive));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 5L))
+            .thenReturn(List.of(citation(5L)));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "t-1", VersionedAssetType.KNOWLEDGE, "DRUG.X", "V1"))
+            .thenReturn(Optional.of(unifiedVersion(
+                "DRUG.X", "V1", rollbackTarget.contentHash(),
+                "knowledge-version:DRUG.X:V1", AssetVersionStatus.WITHDRAWN)));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "t-1", VersionedAssetType.KNOWLEDGE, "DRUG.X", "V2"))
+            .thenReturn(Optional.of(unifiedVersion(
+                "DRUG.X", "V2", currentActive.contentHash(),
+                "knowledge-version:DRUG.X:V2", AssetVersionStatus.PUBLISHED)));
+
+        service.activate(1L, 5L, "回滚到上一版权威知识", 900L);
+
+        ArgumentCaptor<VersionRollbackCommand> rollback =
+            ArgumentCaptor.forClass(VersionRollbackCommand.class);
+        verify(releasePort).rollback(rollback.capture());
+        assertThat(rollback.getValue().currentVersionId()).isEqualTo("av-DRUG.X-V2");
+        assertThat(rollback.getValue().targetVersionId()).isEqualTo("av-DRUG.X-V1");
+        assertThat(rollback.getValue().confirmedCurrentVersion()).isEqualTo("V2");
+        assertThat(rollback.getValue().confirmedTargetVersion()).isEqualTo("V1");
+        assertThat(rollback.getValue().confirmedOperation()).isTrue();
+        verify(releasePort, never()).publish(any());
     }
 
     @Test
@@ -1075,6 +1244,81 @@ class KnowledgeVersionServiceTest {
     }
 
     @Test
+    void approveCandidateUsesSourceRefLinkedCanonicalUnifiedVersionWhenVersionNoDiffers() {
+        KnowledgeIdentity identity = identity(1L, 5L);
+        KnowledgeAssetVersion active = version(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
+        KnowledgeAssetVersion candidate = version(22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.LOW);
+        CandidateClassification classification = classification(
+            88L,
+            1L,
+            22L,
+            5L,
+            CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        stubPendingAssignment(classification, candidate, "u-99");
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE)).thenReturn(Optional.of(active));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 22L))
+            .thenReturn(List.of(citation(22L)));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "t-1", VersionedAssetType.KNOWLEDGE, identity.identityCode(), candidate.versionNo()))
+            .thenReturn(Optional.empty());
+        String sourceRef = "knowledge-version:" + identity.identityCode() + ":" + candidate.versionNo();
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndSourceRef(
+            "t-1", VersionedAssetType.KNOWLEDGE, identity.identityCode(), sourceRef))
+            .thenReturn(Optional.of(unifiedVersion(
+                identity.identityCode(), "V1", candidate.contentHash(), sourceRef, AssetVersionStatus.DRAFT)));
+
+        KnowledgeCandidateResponse response = service.reviewCandidate(88L, candidateReviewRequest("t-1"));
+
+        assertThat(response.reasonCode()).isEqualTo("APPROVED");
+        verify(assetVersions).findByTenantIdAndAssetTypeAndAssetIdentityAndSourceRef(
+            "t-1", VersionedAssetType.KNOWLEDGE, identity.identityCode(), sourceRef);
+        verify(releasePort).publish(any());
+        verify(projectionRefreshPort).refreshPublishedVersion("t-1", 1L, 22L, "u-99", "trace");
+    }
+
+    @Test
+    void approveCandidateRejectsSourceRefLinkedUnifiedVersionWhenContentHashDiffers() {
+        KnowledgeIdentity identity = identity(1L, 5L);
+        KnowledgeAssetVersion active = version(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
+        KnowledgeAssetVersion candidate = version(22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.LOW);
+        CandidateClassification classification = classification(
+            88L,
+            1L,
+            22L,
+            5L,
+            CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        stubPendingAssignment(classification, candidate, "u-99");
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE)).thenReturn(Optional.of(active));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 22L))
+            .thenReturn(List.of(citation(22L)));
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndVersionNo(
+            "t-1", VersionedAssetType.KNOWLEDGE, identity.identityCode(), candidate.versionNo()))
+            .thenReturn(Optional.empty());
+        String sourceRef = "knowledge-version:" + identity.identityCode() + ":" + candidate.versionNo();
+        when(assetVersions.findByTenantIdAndAssetTypeAndAssetIdentityAndSourceRef(
+            "t-1", VersionedAssetType.KNOWLEDGE, identity.identityCode(), sourceRef))
+            .thenReturn(Optional.of(unifiedVersion(
+                identity.identityCode(), "V1", sha256("被串线的统一资产内容"), sourceRef, AssetVersionStatus.DRAFT)));
+
+        assertThatThrownBy(() -> service.reviewCandidate(88L, candidateReviewRequest("t-1")))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.CONFLICT);
+        verify(releasePort, never()).publish(any());
+        verify(projectionRefreshPort, never()).refreshPublishedVersion(any(), any(), any(), any(), any());
+    }
+
+    @Test
     void rejectCandidateMarksVersionRejectedWithoutActivationSideEffects() {
         KnowledgeAssetVersion candidate = version(22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.LOW);
         CandidateClassification classification = classification(
@@ -1255,6 +1499,37 @@ class KnowledgeVersionServiceTest {
         assertThat(response.reasonCode()).isEqualTo("APPROVED");
         assertThat(response.candidates().items()).singleElement()
             .satisfies(approved -> assertThat(approved.status()).isEqualTo(KnowledgeVersionStatus.ACTIVE));
+        verify(projectionRefreshPort).refreshPublishedVersion("t-1", 1L, 22L, "u-99", "trace");
+    }
+
+    @Test
+    void assignedRoleApprovalUsesEffectiveTenantRoleWhenJwtAuthorityIsAbsent() {
+        KnowledgeIdentity identity = identity(1L, 5L);
+        KnowledgeAssetVersion active = version(5L, 1L, KnowledgeVersionStatus.ACTIVE, KnowledgeRiskLevel.LOW);
+        KnowledgeAssetVersion candidate = version(
+            22L, 1L, KnowledgeVersionStatus.PENDING_REPLACEMENT_REVIEW, KnowledgeRiskLevel.LOW);
+        CandidateClassification classification = classification(
+            88L, 1L, 22L, 5L, CandidateClassificationType.SAME_IDENTITY_NEW_VERSION,
+            CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW);
+        when(candidateClassificationRepo.findByTenantIdAndId("t-1", 88L)).thenReturn(Optional.of(classification));
+        when(identityRepo.findByTenantIdAndIdForUpdate("t-1", 1L)).thenReturn(Optional.of(identity));
+        when(versionRepo.findByTenantIdAndId("t-1", 22L)).thenReturn(Optional.of(candidate));
+        when(versionRepo.findActiveByEffectiveScope(
+            "t-1", 1L, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE)).thenReturn(Optional.of(active));
+        when(citationRepo.findByTenantIdAndAssetVersionIdOrderByWeightDescIdAsc("t-1", 22L))
+            .thenReturn(List.of(citation(22L)));
+        when(reviewAssignmentRepo.findByTenantIdAndCandidateClassificationIdOrderByCreatedAtAscIdAsc("t-1", 88L))
+            .thenReturn(List.of(assignment(
+                101L, classification, RoleCode.ENGINE_OPERATOR.code(),
+                CandidateReviewStatus.PENDING_REPLACEMENT_REVIEW, null, null)));
+        when(userRoleAssignments.findActiveByTenantIdAndUserId("t-1", "u-99"))
+            .thenReturn(List.of(tenantRoleAssignment("u-99", RoleCode.ENGINE_OPERATOR)));
+        SecurityContextHolder.getContext().setAuthentication(
+            new UsernamePasswordAuthenticationToken("u-99", "N/A", List.of()));
+
+        KnowledgeCandidateResponse response = service.reviewCandidate(88L, candidateReviewRequest("t-1"));
+
+        assertThat(response.reasonCode()).isEqualTo("APPROVED");
         verify(projectionRefreshPort).refreshPublishedVersion("t-1", 1L, 22L, "u-99", "trace");
     }
 
@@ -1529,12 +1804,27 @@ class KnowledgeVersionServiceTest {
                                                            KnowledgeVersionStatus status, KnowledgeRiskLevel risk,
                                                            SourceAuthorityLevel authorityLevel, Long sourceVersionId,
                                                            String organizationScope, String applicableScope) {
+        return versionWithVersionNo(id, tenantId, identityId, status, risk, authorityLevel, sourceVersionId,
+            organizationScope, applicableScope, "v1");
+    }
+
+    private KnowledgeAssetVersion versionWithVersionNo(Long id, Long identityId, KnowledgeVersionStatus status,
+                                                       KnowledgeRiskLevel risk, String versionNo) {
+        return versionWithVersionNo(id, "t-1", identityId, status, risk, SourceAuthorityLevel.B_GUIDELINE,
+            null, "tenant:t-1", KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE, versionNo);
+    }
+
+    private KnowledgeAssetVersion versionWithVersionNo(Long id, String tenantId, Long identityId,
+                                                       KnowledgeVersionStatus status, KnowledgeRiskLevel risk,
+                                                       SourceAuthorityLevel authorityLevel, Long sourceVersionId,
+                                                       String organizationScope, String applicableScope,
+                                                       String versionNo) {
         Instant now = Instant.now();
         String activeScopeKey = status == KnowledgeVersionStatus.ACTIVE
             ? KnowledgeAssetVersion.activeScopeKey(identityId, organizationScope, applicableScope)
             : "version:" + id;
         return new KnowledgeAssetVersion(
-            id, tenantId, identityId, "v1", "label",
+            id, tenantId, identityId, versionNo, "label",
             null, sourceVersionId, sha256("知识版本夹具内容-" + tenantId + "-" + id), null,
             status, risk,
             authorityLevel, null, null, null,
@@ -1607,6 +1897,21 @@ class KnowledgeVersionServiceTest {
             String identityCode,
             String versionNo,
             AssetVersionStatus status) {
+        return unifiedVersion(
+            identityCode,
+            versionNo,
+            sha256(identityCode + ":" + versionNo),
+            "knowledge-version:" + identityCode + ":" + versionNo,
+            status
+        );
+    }
+
+    private AssetVersion unifiedVersion(
+            String identityCode,
+            String versionNo,
+            String contentHash,
+            String sourceRef,
+            AssetVersionStatus status) {
         Instant now = Instant.now();
         return new AssetVersion(
             null,
@@ -1617,12 +1922,12 @@ class KnowledgeVersionServiceTest {
             versionNo,
             "tenant:t-1",
             KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE,
-            sha256(identityCode + ":" + versionNo),
+            contentHash,
             AssetVersionSafetyPolicy.NORMAL,
             AssetVersionOverridePolicy.FREE,
             status,
             "version:av-" + identityCode + "-" + versionNo,
-            "knowledge-version:" + identityCode + ":" + versionNo,
+            sourceRef,
             null,
             null,
             now,
@@ -1698,6 +2003,21 @@ class KnowledgeVersionServiceTest {
                 "u-99",
                 "N/A",
                 List.of(new SimpleGrantedAuthority(role.authority()))));
+    }
+
+    private UserRoleAssignment tenantRoleAssignment(String userId, RoleCode role) {
+        return new UserRoleAssignment(
+            null,
+            "t-1",
+            userId,
+            role.code(),
+            "TENANT",
+            "t-1",
+            "Y",
+            null,
+            "test",
+            null,
+            "test");
     }
 
     private SourceDocument sourceDocument(Long id, SourceAuthorityLevel authorityLevel) {

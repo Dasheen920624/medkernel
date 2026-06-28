@@ -102,6 +102,8 @@ const STAGE_LABEL: Record<string, string> = {
   RENEWAL: "续约",
 };
 
+const WORKBENCH_EVIDENCE_HINT = "失败已留痕，可在审计证据中追溯。";
+
 /**
  * 工作台只读组合现有来源 API，不拥有独立业务数据。
  *
@@ -139,11 +141,11 @@ export function WorkbenchPanel() {
         <PageState
           state="error"
           title="暂时无法核验权限"
-          description={customerSafeDisplayText(
+          description={workbenchSafeErrorMessage(
             parsed.message,
             "暂时无法核验当前角色，请重试或联系信息科。",
+            parsed.traceId,
           )}
-          traceId={parsed.traceId}
         />
       </PageShell>
     );
@@ -178,8 +180,11 @@ export function WorkbenchPanel() {
         <PageState
           state="error"
           title="工作台暂时不可用"
-          description={firstFailure?.message ?? "请稍后重试，或联系信息科检查来源服务。"}
-          traceId={firstFailure?.traceId}
+          description={
+            firstFailure
+              ? workbenchErrorMessage(firstFailure.message, firstFailure.traceId)
+              : "请稍后重试，或联系信息科检查来源服务。"
+          }
         />
       </PageShell>
     );
@@ -277,7 +282,7 @@ function WorkbenchCards({
           <DomainEntryCard
             id="clinical"
             title="临床协同入口"
-            description="进入患者路径、提醒与推荐、随访协同与消息通知；工作台不伪造跨页聚合数量。"
+            description="进入患者路径、提醒与推荐、随访协同与消息通知；各页面展示对应真实数据和处理入口。"
             actions={[
               { label: "患者路径", path: "/pathway/patients" },
               { label: "提醒与推荐", path: "/cdss/fatigue" },
@@ -310,7 +315,7 @@ function WorkbenchCards({
           <DomainEntryCard
             id="knowledge-lineage"
             title="来源、差异与发布"
-            description="追溯知识来源和派生关系，复核术语映射与发布影响，不在工作台伪造汇总数据。"
+            description="追溯知识来源和派生关系，复核术语映射与发布影响；汇总数据以各治理页面为准。"
             actions={[
               { label: "来源与血缘", path: "/advanced/provenance" },
               { label: "术语与字典", path: "/terminology/mapping" },
@@ -323,7 +328,7 @@ function WorkbenchCards({
           <DomainEntryCard
             id="engine-quality"
             title="质量问题与整改"
-            description="处理质量问题、医保审核和评价指标，形成医疗引擎的持续改进闭环。"
+            description="进入质量管理概览核查指标口径、责任对象、整改进度和医保审核入口。"
             actions={[
               { label: "质量问题与整改", path: "/qc/alerts" },
               { label: "医保审核", path: "/qc/insurance" },
@@ -388,7 +393,7 @@ function WorkbenchCards({
           id="quality"
           title="质量问题与整改"
           marker="质量整改入口"
-          description="进入质量管理概览和整改页面查看真实责任对象；工作台不伪造汇总趋势。"
+          description="进入质量管理概览和整改页面查看责任对象、整改进度和复核入口。"
           actions={[
             { label: "质量管理概览", path: "/qc/dashboard" },
             { label: "质量问题与整改", path: "/qc/alerts" },
@@ -401,7 +406,7 @@ function WorkbenchCards({
           id="value"
           title="质量管理"
           marker="质量管理入口"
-          description="进入质量管理概览查看真实指标；暂无工作台独立聚合时只提供入口。"
+          description="进入质量管理概览核查指标口径、责任对象、整改进度和医保审核入口。"
           actions={[
             { label: "质量管理概览", path: "/qc/dashboard" },
             { label: "医保审核", path: "/qc/insurance" },
@@ -587,8 +592,10 @@ function KnowledgeSyncCard({
         if (!graph) {
           return (
             <Space direction="vertical" size="small">
-              <Tag>未接入</Tag>
-              <Text type="secondary">当前状态未返回知识同步来源。</Text>
+              <Tag>知识同步来源待配置</Tag>
+              <Text type="secondary">
+                当前运行状态未返回知识同步来源，请在运行保障中核查图谱投影配置。
+              </Text>
             </Space>
           );
         }
@@ -635,7 +642,7 @@ function AuditChangesCard({
               <Space direction="vertical" size={0}>
                 <Text>{event.summary}</Text>
                 <Text type="secondary">
-                  {event.actorUserId ?? "系统"} · {formatTime(event.occurredAt)}
+                  {auditActorSummary(event.actorUserId)} · {formatTime(event.occurredAt)}
                 </Text>
               </Space>
             </List.Item>
@@ -646,13 +653,17 @@ function AuditChangesCard({
   );
 }
 
+function auditActorSummary(actorUserId?: string | null): string {
+  return actorUserId ? "操作人已登记" : "系统自动处理";
+}
+
 function TodoCard({ onNavigate }: { onNavigate: (path: string) => void }) {
   return (
-    <Card data-testid="workbench-card-todo" title="我的待办" extra={<Tag>暂无</Tag>}>
+    <Card data-testid="workbench-card-todo" title="我的待办" extra={<Tag>无待办</Tag>}>
       <PageState
         state="empty"
         title="当前组织暂无待办"
-        description="当前组织暂无待办，可查看发布治理状态或切换组织。"
+        description="当前组织暂无待办；可进入患者路径、提醒与推荐、随访协同或消息通知查看实时事项。"
         action={
           <Button type="link" onClick={() => onNavigate("/workflow/todos")}>
             查看待办
@@ -749,7 +760,7 @@ function SourceCard<T>({
           <Text>
             {customerSafeDisplayText(parsed.message, `${title}暂时不可用，请重试或联系信息科。`)}
           </Text>
-          {parsed.traceId ? <Text type="secondary">追踪号：{parsed.traceId}</Text> : null}
+          {parsed.traceId ? <Text type="secondary">{WORKBENCH_EVIDENCE_HINT}</Text> : null}
           {drilldownAction}
         </Space>
       </Card>
@@ -762,7 +773,7 @@ function SourceCard<T>({
         <PageState
           state="empty"
           title="暂无数据"
-          description="当前组织暂无可展示内容，后续来源上线后会自动回灌。"
+          description="当前组织暂无可展示内容，请确认组织范围或进入对应页面处理。"
           action={drilldownAction}
         />
       </Card>
@@ -792,24 +803,24 @@ function GovernanceSlices({
 }) {
   if (successPlan.isLoading) {
     return (
-      <Card title="治理切片">
+      <Card title="治理概览">
         <Skeleton active paragraph={{ rows: 2 }} />
       </Card>
     );
   }
 
   if (successPlan.isError) {
-    const parsed = parseApiError(successPlan.error, "治理切片暂时不可用");
+    const parsed = parseApiError(successPlan.error, "治理概览暂时不可用");
     return (
-      <Card title="治理切片">
+      <Card title="治理概览">
         <PageState
           state="error"
-          title="治理切片暂时不可用"
-          description={customerSafeDisplayText(
+          title="治理概览暂时不可用"
+          description={workbenchSafeErrorMessage(
             parsed.message,
-            "治理切片暂时不可用，请重试或联系信息科。",
+            "治理概览暂时不可用，请重试或联系信息科。",
+            parsed.traceId,
           )}
-          traceId={parsed.traceId}
         />
       </Card>
     );
@@ -817,11 +828,11 @@ function GovernanceSlices({
 
   if (!successPlan.data) {
     return (
-      <Card title="治理切片">
+      <Card title="治理概览">
         <PageState
           state="empty"
-          title="暂无治理切片"
-          description="当前服务机构暂无生命周期证据。"
+          title="暂无治理概览"
+          description="当前服务机构暂无可展示的生命周期证据。"
         />
       </Card>
     );
@@ -846,7 +857,7 @@ function GovernanceSlices({
   ];
 
   return (
-    <Card title="治理切片">
+    <Card title="治理概览">
       <Row gutter={[16, 16]}>
         {slices.map((slice) => (
           <Col xs={24} md={8} key={slice.key}>
@@ -918,7 +929,7 @@ function PartialSourceAlert({
                 failure.message,
                 `${failure.name}暂时不可用，请重试或联系信息科。`,
               )}
-              {failure.traceId ? `（追踪号：${failure.traceId}）` : ""}
+              {failure.traceId ? `（${WORKBENCH_EVIDENCE_HINT}）` : ""}
             </Text>
           ))}
         </Space>
@@ -962,6 +973,14 @@ function collectFailures(
       },
     ];
   });
+}
+
+function workbenchErrorMessage(message: string, traceId?: string): string {
+  return traceId ? `${message}；${WORKBENCH_EVIDENCE_HINT}` : message;
+}
+
+function workbenchSafeErrorMessage(message: string, fallback: string, traceId?: string): string {
+  return workbenchErrorMessage(customerSafeDisplayText(message, fallback), traceId);
 }
 
 function resolveScopeLabel(profile?: SecurityProfile): string {

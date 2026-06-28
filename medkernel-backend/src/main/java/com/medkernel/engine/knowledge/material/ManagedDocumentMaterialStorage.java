@@ -17,7 +17,7 @@ import com.medkernel.shared.hash.Sha256ContentHash;
 
 /**
  * 受管资料库存储实现。当前支持现场显式配置的 {@code file://} 本地资料库根；
- * 其他对象/网关协议由后续适配器接入，未接入时诚实阻断，不伪造落库。
+ * 其他对象或网关协议必须配置对应适配器，未配置时诚实阻断，不伪造落库。
  */
 @Service
 public class ManagedDocumentMaterialStorage implements DocumentMaterialStoragePort {
@@ -49,7 +49,7 @@ public class ManagedDocumentMaterialStorage implements DocumentMaterialStoragePo
         KnowledgeMaterialObject object = repository.findByTenantIdAndFileUri(tenantId, fileUri)
             .orElseThrow(() -> ApiException.notFound("文档原件"));
         if (!LOCAL_FILE_BACKEND.equals(object.storageBackend())) {
-            throw new ApiException(ErrorCode.DOWNSTREAM_UNAVAILABLE, "资料库后端尚未接入读取适配器：" + object.storageBackend());
+            throw new ApiException(ErrorCode.DOWNSTREAM_UNAVAILABLE, "资料库读取适配器未配置：" + object.storageBackend());
         }
         try {
             byte[] bytes = Files.readAllBytes(Path.of(URI.create(object.fileUri())));
@@ -77,7 +77,7 @@ public class ManagedDocumentMaterialStorage implements DocumentMaterialStoragePo
         KnowledgeMaterialObject object = repository.findByTenantIdAndFileUri(tenantId, fileUri)
             .orElseThrow(() -> ApiException.notFound("文档原件"));
         if (!LOCAL_FILE_BACKEND.equals(object.storageBackend())) {
-            throw new ApiException(ErrorCode.DOWNSTREAM_UNAVAILABLE, "资料库后端尚未接入删除适配器：" + object.storageBackend());
+            throw new ApiException(ErrorCode.DOWNSTREAM_UNAVAILABLE, "资料库删除适配器未配置：" + object.storageBackend());
         }
         try {
             Files.deleteIfExists(Path.of(URI.create(object.fileUri())));
@@ -90,7 +90,7 @@ public class ManagedDocumentMaterialStorage implements DocumentMaterialStoragePo
     private StoredDocumentMaterial storeNew(DocumentMaterialStoreRequest request, String normalizedHash) {
         URI root = materialRootUri();
         if (!"file".equalsIgnoreCase(root.getScheme())) {
-            throw new ApiException(ErrorCode.DOWNSTREAM_UNAVAILABLE, "资料库后端尚未接入写入适配器：" + root.getScheme());
+            throw new ApiException(ErrorCode.DOWNSTREAM_UNAVAILABLE, "资料库写入适配器未配置：" + root.getScheme());
         }
         Path rootPath = Path.of(root).normalize();
         String safeScope = safeSegment(request.scopeKey(), "资料库作用域不能为空");

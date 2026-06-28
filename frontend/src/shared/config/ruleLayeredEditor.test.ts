@@ -459,7 +459,7 @@ describe("RULE-01 三层规则编辑模型", () => {
     expectFlatTreeRoundTrip(dslToConditionTree(dsl, tree.triggerPoint), tree);
   });
 
-  it("L3 DSL 回填时保留后端已实现的临床算子，不静默降级为 exists", () => {
+  it("L3 DSL 回填时保留服务已实现的临床算子，不静默降级为 exists", () => {
     const dsl = {
       applicability: createDefaultRuleApplicability(),
       when: {
@@ -545,7 +545,7 @@ describe("RULE-01 三层规则编辑模型", () => {
     expect(() => dslToConditionTree(invalid, "result-review")).toThrow("缺少 applicability");
   });
 
-  it("L3 DSL 动作缺少后端必填数组时直接报错，避免提交后才失败", () => {
+  it("L3 DSL 动作缺少服务必填数组时直接报错，避免提交后才失败", () => {
     const action = {
       actionCode: "REMIND",
       atSeverity: "LOW",

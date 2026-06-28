@@ -145,16 +145,41 @@ export function buildModelPrompt(entry, template, revisionNote = "V1 初始候�
     label: section.label,
     required: Boolean(section.required),
   }));
+  const sourceRef = `${entry.source.sourceCode}:${entry.source.versionNo}:${entry.source.anchorPath}`;
+  const templateJson = {
+    domain: entry.domain,
+    subject: entry.subject,
+    clinicalActionable: false,
+    sourceReferences: [
+      {
+        sourceRef,
+        authorityLevel: entry.source.authorityLevel,
+        anchorLabel: entry.source.anchorLabel,
+      },
+    ],
+    limitations: [
+      "仅用于验证 MedKernel 知识生产流程，不构成诊断、处方、剂量、阈值或自动医嘱。",
+      "正式临床内容必须绑定具体原始文件、机构版本、适用范围和人工审核结论。",
+    ],
+    sections: Object.fromEntries(
+      sections.map((section) => [
+        section.key,
+        `${section.label}：只基于受控来源锚点说明来源边界；不可从当前来源推断的内容必须明确写明不可推断。`,
+      ]),
+    ),
+  };
   return [
-    "你是 MedKernel 正式医学知识生产器。只返回一个合法 JSON 对象，不要 Markdown、代码围栏或额外说明。",
+    "你是 MedKernel 正式医学知识生产器。只返回一个合法 JSON 对象，不要 Markdown、代码围栏或额外说明；第一个字符必须是 {，最后一个字符必须是 }。",
     `知识域：${entry.domain}；主题：${entry.subject}；版本演练：${revisionNote}。`,
-    `唯一受控来源：${entry.source.sourceCode}:${entry.source.versionNo}:${entry.source.anchorPath}。`,
+    `唯一受控来源：${sourceRef}。`,
     `来源锚点原文：${entry.source.textExcerpt}`,
     "目标仅是生成低风险的来源说明、结构边界和使用限制；不得补造诊断、剂量、阈值、治疗建议、患者事实或自动医嘱。",
     "每个章节都必须明确：正式临床内容仍须绑定具体原始文件、版本和适用范围；证据不足时写明不可推断。",
     `返回对象字段固定为：domain、subject、clinicalActionable(false)、sourceReferences(数组)、limitations(数组)、sections(对象)。sections 键必须覆盖：${sections
       .map((section) => `${section.key}(${section.label})`)
       .join("、")}。`,
+    "必须严格按以下 JSON 模板返回；顶层字段不得增删，domain、subject、clinicalActionable、sourceReferences.sourceRef 必须保持模板值：",
+    JSON.stringify(templateJson, null, 2),
   ].join("\n");
 }
 
@@ -185,6 +210,14 @@ export function buildPublicationQualityRecordRequest({
     identityId: requirePositiveInteger(identityId, "identityId"),
     versionId: requirePositiveInteger(versionId, "versionId"),
   };
+}
+
+export function isAcceptableShadowRun(shadowRun) {
+  return (
+    (shadowRun?.status === "PASSED" || shadowRun?.status === "PENDING_REVIEW") &&
+    shadowRun.readyForReview === true &&
+    shadowRun.degradationDetected !== true
+  );
 }
 
 export function readRehearsalConfig(env, options = {}) {
@@ -255,6 +288,32 @@ export function writeEvidenceAtomic(outputPath, evidence) {
     renameSync(temporary, normalized);
   } finally {
     if (existsSync(temporary)) rmSync(temporary, { force: true });
+  }
+}
+
+export function formatFullKnowledgeProgress(event) {
+  if (!event || typeof event !== "object") return "[full-knowledge] 进度事件无效";
+  switch (event.type) {
+    case "stage-start":
+      return `[full-knowledge] 开始全知识演练：${event.total} 个知识域，Provider=${event.providerCode}`;
+    case "source-verified":
+      return `[full-knowledge] 来源核验 ${event.completed}/${event.total}：${event.domain} 已核验，还剩 ${event.remaining} 个`;
+    case "domain-start":
+      return `[full-knowledge] 知识生产 ${event.completed + 1}/${event.total}：${event.domain} 开始，剩余 ${event.remaining} 个`;
+    case "domain-complete":
+      return `[full-knowledge] 知识生产 ${event.completed}/${event.total}：${event.domain} 已发布，模型任务 ${event.modelTaskId} 用时 ${formatDuration(event.modelTaskDurationMs)}，还剩 ${event.remaining} 个`;
+    case "version-refresh-start":
+      return `[full-knowledge] 代表知识 V2 生产开始：${event.domain}`;
+    case "version-refresh-complete":
+      return `[full-knowledge] 代表知识 V2 已发布：${event.domain}，模型任务 ${event.modelTaskId} 用时 ${formatDuration(event.modelTaskDurationMs)}`;
+    case "rollback-start":
+      return `[full-knowledge] 开始回滚与恢复验证：${event.identityCode}`;
+    case "rollback-complete":
+      return `[full-knowledge] 回滚与恢复验证完成：${event.identityCode}，当前版本 ${event.restoredActiveVersionId}`;
+    case "stage-complete":
+      return `[full-knowledge] 全知识演练通过：${event.completed}/${event.total} 个知识域，模型任务 ${event.modelTaskCount} 个`;
+    default:
+      return `[full-knowledge] ${event.type ?? "未知进度"} ${event.domain ?? ""}`.trim();
   }
 }
 
@@ -334,7 +393,9 @@ export async function runFullKnowledgeRehearsal(options) {
   }
 
   const requests = [];
+  const progress = createProgressReporter(options?.onProgress, options?.now);
   const startedAt = now(options?.now);
+  const totalDomains = FULL_KNOWLEDGE_DOMAINS.length;
   const evidence = {
     status: "BLOCKED",
     stage: "FULL_FUNCTION_FULL_KNOWLEDGE",
@@ -354,6 +415,12 @@ export async function runFullKnowledgeRehearsal(options) {
     sourceVerification: [],
     knowledge: [],
     versionLifecycle: null,
+    observability: {
+      totalDomains,
+      completedDomains: 0,
+      remainingDomains: totalDomains,
+      modelTasks: [],
+    },
     requests,
     safety: {
       containsCredentials: false,
@@ -363,14 +430,29 @@ export async function runFullKnowledgeRehearsal(options) {
       mfaRequired: false,
     },
   };
+  progress({
+    type: "stage-start",
+    total: totalDomains,
+    completed: 0,
+    remaining: totalDomains,
+    providerCode: config.providerCode,
+  });
 
-  for (const entry of manifest.entries) {
-    evidence.sourceVerification.push(
-      await verifyOfficialSource(entry, {
-        fetchImpl: options?.sourceFetchImpl ?? fetchImpl,
-        now: options?.now,
-      }),
-    );
+  for (const [index, entry] of manifest.entries.entries()) {
+    const verified = await verifyOfficialSource(entry, {
+      fetchImpl: options?.sourceFetchImpl ?? fetchImpl,
+      now: options?.now,
+    });
+    evidence.sourceVerification.push(verified);
+    progress({
+      type: "source-verified",
+      domain: entry.domain,
+      completed: index + 1,
+      total: totalDomains,
+      remaining: totalDomains - index - 1,
+      sourceUrl: entry.source.url,
+      httpStatus: verified.httpStatus,
+    });
   }
 
   const loginResponse = await requestJson({
@@ -420,7 +502,16 @@ export async function runFullKnowledgeRehearsal(options) {
   evidence.readiness = assertReadiness(readinessResponse.data, config);
 
   const produced = new Map();
-  for (const entry of manifest.entries) {
+  for (const [index, entry] of manifest.entries.entries()) {
+    progress({
+      type: "domain-start",
+      phase: "V1",
+      domain: entry.domain,
+      completed: index,
+      total: totalDomains,
+      remaining: totalDomains - index,
+      identityCode: entry.identityCode,
+    });
     const source = await prepareSource({
       ...config,
       fetchImpl,
@@ -440,16 +531,49 @@ export async function runFullKnowledgeRehearsal(options) {
       source,
       targetIdentityId: null,
       revisionNote: "V1 初始候选",
+      now: options?.now,
     });
     produced.set(entry.identityCode, { source, v1: result });
-    evidence.knowledge.push(result.evidence);
+    const completedDomains = index + 1;
+    const knowledgeEvidence = {
+      ...result.evidence,
+      progress: {
+        phase: "V1",
+        sequence: completedDomains,
+        totalDomains,
+        completedDomains,
+        remainingDomains: totalDomains - completedDomains,
+      },
+    };
+    evidence.knowledge.push(knowledgeEvidence);
     evidence.coverage.publishedDomains.push(entry.domain);
+    evidence.observability.completedDomains = completedDomains;
+    evidence.observability.remainingDomains = totalDomains - completedDomains;
+    evidence.observability.modelTasks.push(modelTaskProgress(entry.domain, "V1", result.evidence));
+    progress({
+      type: "domain-complete",
+      phase: "V1",
+      domain: entry.domain,
+      completed: completedDomains,
+      total: totalDomains,
+      remaining: totalDomains - completedDomains,
+      identityCode: entry.identityCode,
+      modelTaskId: result.evidence.modelTaskId,
+      modelTaskDurationMs: result.evidence.modelTaskDurationMs,
+      versionId: result.versionId,
+    });
   }
 
   const rollbackEntry = manifest.entries.find(
     (entry) => entry.identityCode === manifest.rollbackIdentityCode,
   );
   const representative = produced.get(manifest.rollbackIdentityCode);
+  progress({
+    type: "version-refresh-start",
+    phase: "V2",
+    domain: rollbackEntry.domain,
+    identityCode: rollbackEntry.identityCode,
+  });
   const v2 = await produceAndPublish({
     ...config,
     fetchImpl,
@@ -461,6 +585,24 @@ export async function runFullKnowledgeRehearsal(options) {
     source: representative.source,
     targetIdentityId: representative.v1.identityId,
     revisionNote: "V2 演练：补强来源版本、适用边界和不可推断说明",
+    now: options?.now,
+  });
+  evidence.observability.modelTasks.push(modelTaskProgress(rollbackEntry.domain, "V2", v2.evidence));
+  progress({
+    type: "version-refresh-complete",
+    phase: "V2",
+    domain: rollbackEntry.domain,
+    identityCode: rollbackEntry.identityCode,
+    modelTaskId: v2.evidence.modelTaskId,
+    modelTaskDurationMs: v2.evidence.modelTaskDurationMs,
+    versionId: v2.versionId,
+  });
+  progress({
+    type: "rollback-start",
+    domain: rollbackEntry.domain,
+    identityCode: rollbackEntry.identityCode,
+    v1VersionId: representative.v1.versionId,
+    v2VersionId: v2.versionId,
   });
   const rollback = await exerciseRollback({
     ...config,
@@ -473,10 +615,19 @@ export async function runFullKnowledgeRehearsal(options) {
     v2VersionId: v2.versionId,
     v2QualityGateRecordId: v2.qualityGateRecordId,
   });
+  progress({
+    type: "rollback-complete",
+    domain: rollbackEntry.domain,
+    identityCode: rollbackEntry.identityCode,
+    rollbackActiveVersionId: rollback.rollbackActiveVersionId,
+    restoredActiveVersionId: rollback.restoredActiveVersionId,
+    finalStatus: rollback.finalStatus,
+  });
   evidence.versionLifecycle = {
     identityCode: rollbackEntry.identityCode,
     v1VersionId: representative.v1.versionId,
     v2VersionId: v2.versionId,
+    v2ModelTask: modelTaskProgress(rollbackEntry.domain, "V2", v2.evidence),
     ...rollback,
   };
 
@@ -487,6 +638,14 @@ export async function runFullKnowledgeRehearsal(options) {
   }
   evidence.status = "PASSED";
   evidence.finishedAt = now(options?.now);
+  progress({
+    type: "stage-complete",
+    status: evidence.status,
+    total: totalDomains,
+    completed: totalDomains,
+    remaining: 0,
+    modelTaskCount: evidence.observability.modelTasks.length,
+  });
   return redactEvidence(evidence);
 }
 
@@ -605,6 +764,7 @@ async function produceAndPublish(args) {
           identityCode: entry.identityCode,
         },
       };
+  const modelTaskStartedAt = now(args.now);
   const generated = (
     await requestJson({
       ...args,
@@ -630,6 +790,8 @@ async function produceAndPublish(args) {
       label: `${entry.domain} 调用正式模型生成候选`,
     })
   ).data;
+  const modelTaskFinishedAt = now(args.now);
+  const modelTaskDurationMs = elapsedMs(modelTaskStartedAt, modelTaskFinishedAt);
   const candidate = assertModelGeneration(generated, entry.domain);
   const parsedRef = parseCandidateRef(candidate.candidateRef);
 
@@ -713,7 +875,7 @@ async function produceAndPublish(args) {
       body: {
         ...apiContext(args),
         decision: "APPROVE",
-        reason: "低风险上线演练知识：来源、结构、引用、安全门和影响模拟均已核对",
+        reason: "低风险上线演练知识：来源、结构、引用、安全门和影响评估均已核对",
         qualityGateRecordId: qualityRecord.id,
       },
       label: `${entry.domain} 当前责任操作者确认并发布`,
@@ -747,6 +909,9 @@ async function produceAndPublish(args) {
       modelVersion: generated.modelVersion,
       promptVersion: generated.promptVersion,
       toolVersion: generated.toolVersion,
+      modelTaskStartedAt,
+      modelTaskFinishedAt,
+      modelTaskDurationMs,
       candidateRef: candidate.candidateRef,
       classificationId: classification.id,
       versionId: activeVersion.id,
@@ -780,11 +945,7 @@ async function assertTechnicalEvidence(args, jobCode) {
     throw new Error("候选没有进入真实审核分流");
   }
   const finalShadow = shadow.at(-1);
-  if (
-    finalShadow?.status !== "PASSED" ||
-    finalShadow.readyForReview !== true ||
-    finalShadow.degradationDetected === true
-  ) {
+  if (!isAcceptableShadowRun(finalShadow)) {
     throw new Error("候选影子评测未通过或检测到退化");
   }
   return {
@@ -1232,6 +1393,43 @@ function hasText(value) {
 
 function semanticVersion(value) {
   return typeof value === "string" && /^\d+\.\d+\.\d+$/u.test(value);
+}
+
+function createProgressReporter(onProgress, clock) {
+  if (typeof onProgress !== "function") return () => {};
+  return (event) => {
+    onProgress({
+      at: now(clock),
+      ...redactEvidence(event),
+    });
+  };
+}
+
+function modelTaskProgress(domain, phase, evidence) {
+  return {
+    domain,
+    phase,
+    modelTaskId: evidence.modelTaskId,
+    modelMode: evidence.modelMode,
+    modelVersion: evidence.modelVersion,
+    startedAt: evidence.modelTaskStartedAt,
+    finishedAt: evidence.modelTaskFinishedAt,
+    durationMs: evidence.modelTaskDurationMs,
+  };
+}
+
+function elapsedMs(startedAt, finishedAt) {
+  const started = Date.parse(startedAt);
+  const finished = Date.parse(finishedAt);
+  if (!Number.isFinite(started) || !Number.isFinite(finished)) return 0;
+  return Math.max(0, finished - started);
+}
+
+function formatDuration(value) {
+  const milliseconds = Number.isFinite(value) ? Math.max(0, value) : 0;
+  if (milliseconds < 1000) return `${milliseconds}ms`;
+  const seconds = Math.round(milliseconds / 100) / 10;
+  return `${seconds}s`;
 }
 
 function sha256(value) {

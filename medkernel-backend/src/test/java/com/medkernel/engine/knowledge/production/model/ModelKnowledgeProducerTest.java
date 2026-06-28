@@ -19,6 +19,9 @@ import com.medkernel.engine.authoring.GeneratedAssetCandidateService;
 import com.medkernel.engine.authoring.GeneratedAssetDraftResponse;
 import com.medkernel.engine.factory.AssetSourceRef;
 import com.medkernel.engine.factory.KnowledgeAssetEnvelope;
+import com.medkernel.engine.knowledge.KnowledgeIdentity;
+import com.medkernel.engine.knowledge.KnowledgeIdentityRepository;
+import com.medkernel.engine.knowledge.KnowledgeIdentityStatus;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 import com.medkernel.engine.knowledge.SourceAuthorityLevel;
 import com.medkernel.engine.knowledge.production.CandidateSubmissionResponse;
@@ -31,6 +34,7 @@ import com.medkernel.engine.knowledge.production.KnowledgeProductionReadinessIte
 import com.medkernel.engine.knowledge.production.KnowledgeProductionReadinessResponse;
 import com.medkernel.engine.knowledge.production.KnowledgeProductionReadinessService;
 import com.medkernel.engine.knowledge.production.MaterializationTarget;
+import com.medkernel.engine.knowledge.production.NewIdentitySpec;
 import com.medkernel.engine.knowledge.production.ProductionJobStatus;
 import com.medkernel.engine.knowledge.production.ReviewRoutingDecision;
 import com.medkernel.engine.knowledge.production.TargetPipeline;
@@ -45,6 +49,7 @@ import com.medkernel.engine.knowledge.production.triage.GenerationTriageDecision
 import com.medkernel.engine.knowledge.production.triage.GenerationTriageState;
 import com.medkernel.engine.knowledge.production.triage.KnowledgeGenerationTriageService;
 import com.medkernel.engine.llm.ModelGatewayService;
+import com.medkernel.engine.llm.ModelEgressConfirmationChallenge;
 import com.medkernel.engine.llm.ModelTaskRequest;
 import com.medkernel.engine.llm.ModelTaskResponse;
 import com.medkernel.engine.llm.provider.DeploymentForm;
@@ -82,6 +87,7 @@ class ModelKnowledgeProducerTest {
     private final KnowledgeGenerationTriageService triageService = mock(KnowledgeGenerationTriageService.class);
     private final KnowledgeShadowEvaluationService shadowService = mock(KnowledgeShadowEvaluationService.class);
     private final GeneratedAssetCandidateService generatedAssets = mock(GeneratedAssetCandidateService.class);
+    private final KnowledgeIdentityRepository identityRepository = mock(KnowledgeIdentityRepository.class);
 
     private final ModelKnowledgeProducer producer = new ModelKnowledgeProducer(
         jobRepository,
@@ -92,6 +98,7 @@ class ModelKnowledgeProducerTest {
         triageService,
         shadowService,
         generatedAssets,
+        identityRepository,
         new ObjectMapper());
 
     @BeforeEach
@@ -110,6 +117,9 @@ class ModelKnowledgeProducerTest {
         when(production.submitCandidate(eq(JOB_CODE), any(), any())).thenReturn(new CandidateSubmissionResponse(
             "candidate:model:1",
             new ReviewRoutingDecision(RoleCode.ENGINE_OPERATOR, KnowledgeDomain.CLINICAL)));
+        when(identityRepository.findByTenantIdAndId(TENANT, 101L))
+            .thenReturn(Optional.of(identity(101L, "knowledge:htn:model",
+                com.medkernel.engine.knowledge.KnowledgeDomain.GUIDELINE, "高血压知识候选")));
     }
 
     @AfterEach
@@ -259,6 +269,38 @@ class ModelKnowledgeProducerTest {
     }
 
     @Test
+    void newIdentityGenerationCarriesAuthoritativeOutputContextToGateway() {
+        when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(successfulModelTask());
+        ArgumentCaptor<ModelTaskRequest> taskCaptor = ArgumentCaptor.forClass(ModelTaskRequest.class);
+
+        producer.generate(JOB_CODE, requestWithNewIdentity());
+
+        verify(modelGateway).submitTask(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().authoritativeOutputContext())
+            .contains(
+                "\"domain\":\"DIAGNOSTIC_ITEM\"",
+                "\"subject\":\"检验项目说明书来源与使用边界\"",
+                "\"sourceRef\":\"GL-HTN-2024:v1:section-1\"",
+                "\"clinicalActionable\":false");
+    }
+
+    @Test
+    void existingIdentityGenerationCarriesIdentityDomainInAuthoritativeOutputContext() {
+        when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(successfulModelTask());
+        ArgumentCaptor<ModelTaskRequest> taskCaptor = ArgumentCaptor.forClass(ModelTaskRequest.class);
+
+        producer.generate(JOB_CODE, request());
+
+        verify(modelGateway).submitTask(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().authoritativeOutputContext())
+            .contains(
+                "\"domain\":\"GUIDELINE\"",
+                "\"subject\":\"高血压知识候选\"",
+                "\"sourceRef\":\"GL-HTN-2024:v1:section-1\"",
+                "\"clinicalActionable\":false");
+    }
+
+    @Test
     void localFallbackSuccessStillSubmitsCandidateWithFallbackEvidence() {
         when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(successfulLocalFallbackModelTask());
         ArgumentCaptor<KnowledgeAssetEnvelope> envelopeCaptor = ArgumentCaptor.forClass(KnowledgeAssetEnvelope.class);
@@ -283,6 +325,25 @@ class ModelKnowledgeProducerTest {
             .thenReturn(Optional.of(job(KnowledgeProducer.LOCAL_MODEL)));
         when(readinessService.evaluate(KnowledgeProducer.LOCAL_MODEL, CAPABILITY, localProvider))
             .thenReturn(localReady(localProvider));
+        when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(successfulLocalModelTask());
+        ArgumentCaptor<ModelTaskRequest> taskCaptor = ArgumentCaptor.forClass(ModelTaskRequest.class);
+
+        ModelKnowledgeProductionResult result = producer.generate(JOB_CODE, request(localProvider));
+
+        assertThat(result.modelMode()).isEqualTo("B1");
+        assertThat(result.summary().candidates()).singleElement()
+            .satisfies(candidate -> assertThat(candidate.candidateRef()).isEqualTo("candidate:model:1"));
+        verify(modelGateway).submitTask(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().requiredRouteStrategy()).isEqualTo("LOCAL_MODEL");
+        assertThat(taskCaptor.getValue().providerCode()).isEqualTo(localProvider);
+        verify(production).submitCandidate(eq(JOB_CODE), any(KnowledgeAssetEnvelope.class), eq(target()));
+    }
+
+    @Test
+    void apiModelJobUsesLocalRouteWhenReadinessConfirmsHospitalRuntimeLocalProvider() {
+        String localProvider = "ollama-launch";
+        when(readinessService.evaluate(KnowledgeProducer.API_MODEL, CAPABILITY, localProvider))
+            .thenReturn(apiModelHospitalRuntimeReady(localProvider));
         when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(successfulLocalModelTask());
         ArgumentCaptor<ModelTaskRequest> taskCaptor = ArgumentCaptor.forClass(ModelTaskRequest.class);
 
@@ -349,6 +410,38 @@ class ModelKnowledgeProducerTest {
     }
 
     @Test
+    void egressConfirmationRequiredBlocksWithActionableGateBeforeCandidateChain() {
+        when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(new ModelTaskResponse(
+            "task-confirmation", "CONFIRMATION_REQUIRED",
+            "{\"status\":\"CONFIRMATION_REQUIRED\",\"payloadHash\":\"sha256-confirmation-required\"}",
+            "B2", "claude-opus-4", "prompt:aikstd13-v1", "tool:submit-candidate-v1",
+            "[]", null, "HIGH", false, null, 18L, "trace-model",
+            new ModelEgressConfirmationChallenge(
+                CAPABILITY,
+                "sha256-confirmation-required",
+                List.of("prompt"),
+                PROVIDER,
+                "高敏外调需要责任确认")));
+
+        ModelKnowledgeProductionResult result = producer.generate(JOB_CODE, request());
+
+        assertThat(result.egressConfirmation()).isNotNull();
+        assertThat(result.egressConfirmation().payloadHash()).isEqualTo("sha256-confirmation-required");
+        assertThat(result.summary().candidates()).isEmpty();
+        assertThat(result.summary().skipped()).isEmpty();
+        assertThat(result.summary().blocked()).singleElement()
+            .satisfies(blocked -> assertThat(blocked.failedGates()).singleElement()
+                .satisfies(gate -> {
+                    assertThat(gate.code()).isEqualTo(ModelKnowledgeProducer.MODEL_EGRESS_CONFIRMATION_GATE);
+                    assertThat(gate.reason())
+                        .contains("责任确认", "sha256-confirmation-required", "prompt", PROVIDER)
+                        .doesNotContain("降级 B0");
+                }));
+        verify(gateService, never()).evaluate(any(), any());
+        verify(production, never()).submitCandidate(any(), any(), any());
+    }
+
+    @Test
     void failedProviderTaskSkipsWithHonestStatusReason() {
         when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(new ModelTaskResponse(
             "task-provider-timeout", "FAILED", "{\"error\":\"timeout\"}", "B2", "claude-opus-4",
@@ -384,6 +477,23 @@ class ModelKnowledgeProducerTest {
             target());
     }
 
+    private ModelKnowledgeProductionRequest requestWithNewIdentity() {
+        return new ModelKnowledgeProductionRequest(
+            CAPABILITY,
+            "请基于来源锚点生成检验项目说明书来源边界",
+            PROVIDER,
+            60,
+            "launch.diagnostic-item.source-boundary",
+            "检验项目说明书来源与使用边界",
+            List.of(sourceRef()),
+            SourceAuthorityLevel.B_GUIDELINE,
+            KnowledgeRiskLevel.LOW,
+            new MaterializationTarget(null, new NewIdentitySpec(
+                com.medkernel.engine.knowledge.KnowledgeDomain.DIAGNOSTIC_ITEM,
+                "检验项目说明书来源与使用边界",
+                "launch.diagnostic-item.source-boundary")));
+    }
+
     private ModelKnowledgeProductionRequest ruleRequest() {
         return new ModelKnowledgeProductionRequest(
             CAPABILITY,
@@ -404,6 +514,26 @@ class ModelKnowledgeProducerTest {
 
     private AssetSourceRef sourceRef() {
         return new AssetSourceRef("GL-HTN-2024:v1:section-1", SourceAuthorityLevel.B_GUIDELINE);
+    }
+
+    private KnowledgeIdentity identity(Long id, String identityCode,
+                                       com.medkernel.engine.knowledge.KnowledgeDomain domain,
+                                       String subject) {
+        Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        return new KnowledgeIdentity(
+            id,
+            TENANT,
+            identityCode,
+            domain,
+            subject,
+            null,
+            null,
+            KnowledgeIdentityStatus.ACTIVE,
+            null,
+            now,
+            "tester",
+            now,
+            "tester");
     }
 
     private KnowledgeProductionJob job(KnowledgeProducer jobProducer) {
@@ -450,6 +580,25 @@ class ModelKnowledgeProducerTest {
                 KnowledgeProductionReadinessItem.pass("MODEL_PROVIDER", "本地 provider 已健康", providerCode),
                 KnowledgeProductionReadinessItem.pass("MODEL_EVALUATION", "评测通过", "runId=1"),
                 KnowledgeProductionReadinessItem.pass("EGRESS_GOVERNANCE", "本地模型不外调", providerCode),
+                KnowledgeProductionReadinessItem.pass("MODEL_POLICY", "策略匹配", "LOCAL_MODEL"),
+                KnowledgeProductionReadinessItem.pass("VERSION_TRIPLE", "三元组已声明", MODEL_STRATEGY)));
+    }
+
+    private KnowledgeProductionReadinessResponse apiModelHospitalRuntimeReady(String providerCode) {
+        return new KnowledgeProductionReadinessResponse(
+            TENANT,
+            KnowledgeProducer.API_MODEL,
+            CAPABILITY,
+            providerCode,
+            DeploymentForm.HOSPITAL_RUNTIME,
+            false,
+            false,
+            List.of(
+                KnowledgeProductionReadinessItem.pass("LITERATURE_ROOT", "已配置", "s3://mk/lit"),
+                KnowledgeProductionReadinessItem.pass("DEPLOYMENT_FORM", "院内运行态仅允许本地模型调用", "HOSPITAL_RUNTIME"),
+                KnowledgeProductionReadinessItem.pass("MODEL_PROVIDER", "本地 provider 已健康", providerCode),
+                KnowledgeProductionReadinessItem.pass("MODEL_EVALUATION", "评测通过", "runId=1"),
+                KnowledgeProductionReadinessItem.pass("EGRESS_GOVERNANCE", "院内运行态禁止外调", providerCode),
                 KnowledgeProductionReadinessItem.pass("MODEL_POLICY", "策略匹配", "LOCAL_MODEL"),
                 KnowledgeProductionReadinessItem.pass("VERSION_TRIPLE", "三元组已声明", MODEL_STRATEGY)));
     }

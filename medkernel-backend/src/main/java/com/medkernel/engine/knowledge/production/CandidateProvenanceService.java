@@ -18,7 +18,7 @@ import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
 /**
- * 候选生产来源溯源服务（AIK-STD-12 PR1）。
+ * 候选生产来源溯源服务（AIK-STD-12）。
  *
  * <p>审核台候选经生产血缘反查 AI 工厂来源：候选引用 → {@code mk_knowledge_production_candidate} →
  * job → 生产器/管道/模型策略。旁挂只读查询，<b>不改既有候选审核响应</b>（零前端破坏）。

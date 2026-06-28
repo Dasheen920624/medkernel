@@ -26,7 +26,7 @@ class SandboxRuntimeStatusServiceTest {
     void setUpContext() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-status",
-            new OrgScope("tenant-1", null, "hospital-1", null, null, "dept-ed", null, null),
+            new OrgScope("tenant-1", null, "hospital-1", null, null, "dept-pathway", null, null),
             "operator-1"));
     }
 
@@ -43,7 +43,7 @@ class SandboxRuntimeStatusServiceTest {
             "baseline-3", "a".repeat(64), null,
             now, "operator-1", now, "operator-1", "trace-status");
         when(baselines.resolveCurrent()).thenReturn(new SandboxRuntimeBaseline(
-            "sandbox-baseline-1", SandboxRunMode.CURRENT, "tenant-1", "dept-ed",
+            "sandbox-baseline-1", SandboxRunMode.CURRENT, "tenant-1", "dept-pathway",
             release.releaseId(), release.revisionNo(), release.platformBaselineReleaseId(),
             release.manifestSha256(), SandboxResolutionSource.CURRENT_RUNTIME_RELEASE,
             now, new ClinicalRuntimeReleaseContent(release, List.of()), null, null));

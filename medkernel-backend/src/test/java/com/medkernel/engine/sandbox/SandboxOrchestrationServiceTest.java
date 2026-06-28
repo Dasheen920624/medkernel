@@ -98,7 +98,7 @@ class SandboxOrchestrationServiceTest {
     void setUpContext() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-sandbox",
-            new OrgScope("tenant-1", null, "hospital-1", null, null, "dept-ed", null, null),
+            new OrgScope("tenant-1", null, "hospital-1", null, null, "dept-pathway", null, null),
             "doctor-1"));
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(
             "doctor-1", null, "ROLE_CLINICAL_USER"));
@@ -295,7 +295,7 @@ class SandboxOrchestrationServiceTest {
             List.of(),
             "trace-sandbox"));
 
-        SandboxRunResponse response = service.run("sbx-pathway-ed", request());
+        SandboxRunResponse response = service.run("sbx-pathway-cycle", request());
 
         assertThat(response.result()).isEqualTo("PASS");
         assertThat(response.steps()).extracting(SandboxStepTrace::stage)
@@ -316,7 +316,7 @@ class SandboxOrchestrationServiceTest {
             ArgumentCaptor.forClass(PathwayAdvanceRequest.class);
         verify(pathways).advance(advanceCaptor.capture());
         assertThat(advanceCaptor.getValue().eventId())
-            .startsWith("sandbox:sbx-pathway-ed:")
+            .startsWith("sandbox:sbx-pathway-cycle:")
             .endsWith(":advance")
             .hasSizeLessThanOrEqualTo(64);
     }
@@ -426,7 +426,7 @@ class SandboxOrchestrationServiceTest {
             "baseline-runtime-1",
             SandboxRunMode.CURRENT,
             "tenant-1",
-            "dept-ed",
+            "dept-pathway",
             "runtime-release-test",
             7L,
             "platform-baseline-3",
@@ -448,7 +448,7 @@ class SandboxOrchestrationServiceTest {
         when(replayCase.sourceRuntimeReleaseRef()).thenReturn("sha256:" + "6".repeat(64));
         when(replayCase.sourceRuntimeRevisionNo()).thenReturn(4L);
         return new SandboxRuntimeBaseline(
-            "baseline-history-1", SandboxRunMode.HISTORICAL_EXACT, "tenant-1", "dept-ed",
+            "baseline-history-1", SandboxRunMode.HISTORICAL_EXACT, "tenant-1", "dept-pathway",
             null, 4L, null, "a".repeat(64), SandboxResolutionSource.REPLAY_MANIFEST,
             Instant.parse("2026-06-19T00:00:00Z"), null, "replay-1", replay);
     }
@@ -479,8 +479,8 @@ class SandboxOrchestrationServiceTest {
 
     private static PathwayTemplate pathwayTemplate() {
         return new PathwayTemplate(
-            null, "pt-sandbox-ed", "tenant-1", "PATH.ED.DISPOSITION",
-            "急诊处置路径", null, 1,
+            null, "pt-sandbox-cycle", "tenant-1", "PATH.CLINICAL.CYCLE",
+            "基础节点闭环", null, 1,
             PathwayTemplateLevel.HOSPITAL, PathwayTemplateStatus.PUBLISHED,
             PathwayEntryMode.MANUAL_CONFIRM, "ASSESS", "sandbox", "沙盘路径",
             null, null, Instant.now(), "tester", Instant.now(), "tester", "trace-sandbox");
@@ -490,7 +490,7 @@ class SandboxOrchestrationServiceTest {
         Instant now = Instant.now();
         PatientPathway runtime = new PatientPathway(
             null, "pp-sandbox-1", "tenant-1", "SBX-LAB-K-001", "SBX-LAB-K-ENC-001",
-            "pt-sandbox-ed", "release-H1", "av-pathway-v1",
+            "pt-sandbox-cycle", "release-H1", "av-pathway-v1",
             "ASSESS", PatientPathwayStatus.NODE_EXECUTING,
             now, null, null, null, null, now, "tester", now, "tester", "trace-sandbox");
         return new PatientPathwayDetailResponse(

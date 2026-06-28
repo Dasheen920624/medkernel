@@ -1,20 +1,25 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { ConfigProvider } from "antd";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
+
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 import Provenance from "./Provenance";
 
 const mockUseKnowledgeIdentities = vi.fn();
 const mockUseKnowledgeProvenance = vi.fn();
 const mockUseKnowledgeReviewQueue = vi.fn();
+const mockUseSecurityProfile = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useKnowledgeIdentities: (params: unknown) => mockUseKnowledgeIdentities(params),
   useKnowledgeProvenance: (identityId?: number, params?: unknown) =>
     mockUseKnowledgeProvenance(identityId, params),
   useKnowledgeReviewQueue: () => mockUseKnowledgeReviewQueue(),
+  useSecurityProfile: () => mockUseSecurityProfile(),
 }));
 
 function renderPage() {
@@ -38,7 +43,54 @@ function renderPage() {
 }
 
 describe("Provenance", () => {
-  it("renders an exact knowledge source chain instead of the audit snapshot console", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useEvidenceDetailsStore.setState({ enabled: false });
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [{ code: "advanced.read" }, { code: "knowledge.read" }],
+        menuKeys: ["provenance"],
+      },
+      isLoading: false,
+      isError: false,
+    });
+  });
+
+  it("keeps identity loading failures in service institution language", () => {
+    mockUseKnowledgeReviewQueue.mockReturnValue({
+      data: {
+        items: [],
+        page: 1,
+        size: 20,
+        total: 0,
+        hasNext: false,
+        totalEstimated: false,
+      },
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockUseKnowledgeIdentities.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: null,
+      refetch: vi.fn(),
+    });
+    mockUseKnowledgeProvenance.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    expect(screen.getByText("知识身份读取失败")).toBeInTheDocument();
+    expect(screen.getByText("请检查登录权限、服务机构范围或知识服务状态。")).toBeInTheDocument();
+  });
+
+  it("renders business source lineage by default and precise evidence fields on demand", async () => {
+    const user = userEvent.setup();
     mockUseKnowledgeReviewQueue.mockReturnValue({
       data: {
         items: [
@@ -180,9 +232,10 @@ describe("Provenance", () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "知识来源追溯" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("输入知识主题或知识身份")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("输入知识主题或身份编码")).not.toBeInTheDocument();
     expect(screen.getAllByText("瑞舒伐他汀说明书").length).toBeGreaterThan(0);
     expect(screen.getByText("国家药品说明书")).toBeInTheDocument();
-    expect(screen.getByText("section-3.2.1")).toBeInTheDocument();
     expect(screen.getByText("2024 版")).toBeInTheDocument();
     expect(screen.getByText(/1 条引用未能解析/)).toBeInTheDocument();
     expect(screen.getAllByText("药品说明书").length).toBeGreaterThan(0);
@@ -192,7 +245,22 @@ describe("Provenance", () => {
     expect(screen.getByText(/请迁移到新版用药指南/)).toBeInTheDocument();
     expect(screen.queryByText("DRUG")).not.toBeInTheDocument();
     expect(screen.queryByText("ACTIVE")).not.toBeInTheDocument();
+    expect(screen.queryByText("plat:drug:rosuvastatin-guide")).not.toBeInTheDocument();
+    expect(screen.queryByText("SRC.NHC.2026")).not.toBeInTheDocument();
+    expect(screen.queryByText("section-3.2.1")).not.toBeInTheDocument();
+    expect(screen.queryByText(/source-version-hash/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/fragment-hash/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/后继身份 ID/)).not.toBeInTheDocument();
     expect(screen.queryByText("真实证据快照")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getAllByText("plat:drug:rosuvastatin-guide").length).toBeGreaterThan(0);
+    expect(screen.getByText("SRC.NHC.2026")).toBeInTheDocument();
+    expect(screen.getByText("section-3.2.1")).toBeInTheDocument();
+    expect(screen.getByText(/source-version-hash/)).toBeInTheDocument();
+    expect(screen.getByText(/fragment-hash/)).toBeInTheDocument();
+    expect(screen.getByText(/后继身份 ID：2/)).toBeInTheDocument();
     expect(mockUseKnowledgeProvenance).toHaveBeenCalledWith(1, { page: 1, size: 20 });
   });
 });

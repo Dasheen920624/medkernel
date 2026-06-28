@@ -65,15 +65,15 @@ public class ReleaseGovernanceController {
     public ApiResult<VersionReleasePlan> startRollout(
             @Valid @RequestBody StartRolloutRequest request) {
         if (request == null || request.simulation() == null) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "灰度发布必须提交完整模拟参数");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "灰度发布必须提交完整影响评估参数");
         }
         ReleaseSimulationResult confirmed = simulations.simulate(simulationCommand(request.simulation()));
         if (!confirmed.releasable()) {
-            throw new ApiException(ErrorCode.CONFLICT, "发布模拟未通过，不允许进入灰度");
+            throw new ApiException(ErrorCode.CONFLICT, "发布影响评估未通过，不允许进入灰度");
         }
         if (request.confirmedSimulationDigest() == null
                 || !request.confirmedSimulationDigest().equals(confirmed.simulationDigest())) {
-            throw new ApiException(ErrorCode.CONFLICT, "模拟摘要已变化，请重新模拟并确认");
+            throw new ApiException(ErrorCode.CONFLICT, "影响评估摘要已变化，请重新评估并确认");
         }
         SimulationRequest simulation = request.simulation();
         return ApiResult.ok(releases.releaseGray(new VersionReleaseCommand(
@@ -96,7 +96,7 @@ public class ReleaseGovernanceController {
 
     private ReleaseSimulationCommand simulationCommand(SimulationRequest request) {
         if (request == null) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "发布模拟参数不能为空");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "发布影响评估参数不能为空");
         }
         String tenantId = tenantId();
         return new ReleaseSimulationCommand(

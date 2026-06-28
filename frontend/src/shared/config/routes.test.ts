@@ -105,7 +105,12 @@ describe("route metadata", () => {
     expect(findRouteByPath("/advanced/domestic")).toMatchObject({
       sectionKey: "system-operations",
       placement: "primary",
-      menuLabel: "国产化核验",
+      menuLabel: "国产化自检",
+    });
+    expect(findRouteByPath("/system/runtime-diagnostics")).toMatchObject({
+      sectionKey: "system-operations",
+      placement: "primary",
+      menuLabel: "运行诊断",
     });
   });
 
@@ -719,11 +724,12 @@ describe("route metadata", () => {
       pageType: "configuration",
     });
     expect(findRouteByPath("/knowledge/production")).toMatchObject({
-      title: "模型生产控制台",
+      title: "知识生产",
       sectionKey: "knowledge-production",
       menuKey: "knowledge-production",
       requiredPermissions: ["menu.knowledge-production", "knowledge.read"],
-      pageType: "system",
+      pageType: "configuration",
+      stateMachine: "config",
     });
   });
 
@@ -874,7 +880,7 @@ describe("route metadata", () => {
     expect(customerRouteMetas.some((route) => route.placement === "hidden")).toBe(false);
     expect(customerRouteMetas.map((route) => route.path)).toContain("/dashboard");
     expect(customerRouteMetas.map((route) => route.path)).toContain("/notifications");
-    expect(customerRouteMetas.map((route) => route.path)).toContain("/advanced/dev-console");
+    expect(customerRouteMetas.map((route) => route.path)).toContain("/system/runtime-diagnostics");
   });
 
   it("builds breadcrumbs from route metadata", () => {

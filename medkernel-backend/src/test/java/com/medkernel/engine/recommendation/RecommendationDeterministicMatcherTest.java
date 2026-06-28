@@ -227,7 +227,7 @@ class RecommendationDeterministicMatcherTest {
     void resolvesRecommendationRuleThroughOrgInheritanceAndRecordsResolutionSource() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-cdss",
-            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
+            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", null, "specialty-A"),
             "doctor-1"));
         when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
         when(ruleDefinitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(ruleDefinition()));

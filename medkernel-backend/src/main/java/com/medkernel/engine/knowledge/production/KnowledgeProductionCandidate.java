@@ -9,7 +9,7 @@ import org.springframework.data.relational.core.mapping.Table;
 import com.medkernel.engine.knowledge.KnowledgeRiskLevel;
 
 /**
- * 知识候选生产血缘（AIK-STD-13 PR2，FR-5 每候选可回溯）。
+ * 知识候选生产血缘（AIK-STD-13，FR-5 每候选可回溯）。
  *
  * <p>每条提交候选记一行回溯元数据：归属 job（→生产器/管道/模型策略）+ 资产身份 + 真实内容指纹 + 候选引用 + 时点。
  * <b>非资产存储</b>——不存候选正文 / sources 内容（候选物化走既有版本/审核链），本表仅留生产血缘轨迹。

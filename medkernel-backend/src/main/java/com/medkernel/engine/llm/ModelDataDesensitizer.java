@@ -5,7 +5,8 @@ package com.medkernel.engine.llm;
  *
  * <p>纯函数、无状态：模型网关入参脱敏与出域字段脱敏共用同一套规则，杜绝重复实现导致口径漂移。
  * {@code DEFAULT}：手机号、身份证、银行卡、邮箱；{@code MASK_ALL}：在 DEFAULT 基础上再对
- * 「患者/姓名」标注的中文姓名与「病历号/就诊号/住院号/门诊号」标注的编号脱敏；{@code NONE}：不脱敏。
+ * 「患者/姓名」标注的中文姓名、地址类文本与「病历号/就诊号/住院号/门诊号」标注的编号脱敏；
+ * {@code NONE}：不脱敏。
  * 中文正文无词边界，故不用 {@code \\b}，改用数字串前后非数字断言，避免漏脱敏或误伤普通数字。
  */
 public final class ModelDataDesensitizer {
@@ -31,7 +32,11 @@ public final class ModelDataDesensitizer {
         if ("MASK_ALL".equalsIgnoreCase(strategy)) {
             // 5. 「患者/姓名」标注后的 2-4 位中文姓名。
             result = result.replaceAll("(患者|姓名)([:：]?\\s*)[\\u4e00-\\u9fa5]{2,4}", "$1$2**");
-            // 6. 「病历号/就诊号/住院号/门诊号」标注后的字母数字编号。
+            // 6. 地址类核心敏感文本，截断到中文/英文常见句读符。
+            result = result.replaceAll(
+                "(家庭住址|联系地址|住址|地址)([:：]?\\s*)[^，。；;\\n]{3,}",
+                "$1$2[已屏蔽]");
+            // 7. 「病历号/就诊号/住院号/门诊号」标注后的字母数字编号。
             result = result.replaceAll("(病历号|就诊号|住院号|门诊号)([:：]?\\s*)[A-Za-z0-9-]{3,}", "$1$2****");
         }
 

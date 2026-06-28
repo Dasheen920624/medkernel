@@ -5,7 +5,7 @@ export const RULE_GOVERNANCE_STAGES: ReadonlyArray<{
   title: string;
 }> = [
   { key: "DRAFT", title: "草稿" },
-  { key: "REVIEWED", title: "技术验证" },
+  { key: "REVIEWED", title: "安全复核" },
   { key: "SHADOW", title: "影子运行" },
   { key: "CANARY", title: "灰度" },
   { key: "FULL", title: "全量" },

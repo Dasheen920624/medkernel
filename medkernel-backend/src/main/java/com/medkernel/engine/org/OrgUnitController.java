@@ -23,9 +23,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * MedKernel v1.0 GA · 试点准备菜单下的组织单元 API。
+ * MedKernel v1.0 GA · 平台管理入口的组织单元 API。
  *
- * <p>对应宪法 §2.2 "试点准备 → 客户实施向导 / 租户开通" 菜单的后端能力。
+ * <p>支撑租户开通、组织目录、任职范围和数据范围配置，是医疗引擎与知识生产按机构隔离运行的基础能力。
  *
  * <p>访问控制（GA-ENG-BASE-02 范例）：
  * <ul>

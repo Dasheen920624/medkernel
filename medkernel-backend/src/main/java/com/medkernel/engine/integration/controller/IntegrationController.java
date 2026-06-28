@@ -367,10 +367,10 @@ public class IntegrationController {
     }
 
     /**
-     * 手动触发指定 Webhook 通道的回调签名生成与双向测试。
+     * 手动验证指定 Webhook 通道的回调签名生成与双向连通。
      *
-     * @param dto 测试入参 DTO (含要调试的 Webhook ID 与测试 Payload 报文)
-     * @return 包含推导签名结果及通断状态的签名测试响应
+     * @param dto 验证入参 DTO（含 Webhook ID 与验证报文）
+     * @return 包含推导签名结果及通断状态的签名验证响应
      */
     @PostMapping("/webhooks/test")
     @PreAuthorize("@perm.has('integration.execute')")
@@ -382,7 +382,7 @@ public class IntegrationController {
                 AuditAction.EXECUTE,
                 "integration_webhook",
                 dto.webhookId(),
-                "执行 Webhook 签名生成与双向连通测试"
+                "执行 Webhook 签名生成与双向连通验证"
             ));
             return ApiResult.ok(testResult);
         } catch (ApiException e) {
@@ -391,7 +391,7 @@ public class IntegrationController {
                 "integration_webhook",
                 dto.webhookId(),
                 e.errorCode().code(),
-                "执行 Webhook 签名测试失败: " + e.getMessage()
+                "执行 Webhook 签名验证失败: " + e.getMessage()
             ));
             throw e;
         }

@@ -36,7 +36,7 @@ import {
   type RegionalSource,
   type SecurityProfile,
 } from "@/shared/api/hooks";
-import { useExpertModeStore } from "@/shared/lib/expertModeStore";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 import AdapterHub from "./AdapterHub";
 
@@ -479,7 +479,7 @@ describe("AdapterHub", () => {
 
   beforeEach(() => {
     window.localStorage.clear();
-    useExpertModeStore.setState({ enabled: false });
+    useEvidenceDetailsStore.setState({ enabled: false });
     vi.clearAllMocks();
     setupMocks();
   });
@@ -504,6 +504,11 @@ describe("AdapterHub", () => {
     expect(screen.getByText("缺少 EMR 适配器")).toBeInTheDocument();
     expect(screen.getByText("数据接入契约")).toBeInTheDocument();
     expect(screen.getByText("选模板/导入")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("tab", { name: "数据质量看板" }));
+    expect(screen.getByText("尚未生成本轮数据质量报告")).toBeInTheDocument();
+    expect(screen.getByText(/当前服务机构的适配器、字段映射和探活事实/)).toBeInTheDocument();
+
     expect(screen.queryByText(/Webhook 回调订阅安全自研沙箱/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Launch Token/)).not.toBeInTheDocument();
   });
@@ -540,13 +545,31 @@ describe("AdapterHub", () => {
 
     expect(useIntegrationDataContract).toHaveBeenCalledWith(true);
     expect(screen.queryByRole("combobox", { name: "版本号" })).not.toBeInTheDocument();
-    expect(screen.getByText("context-field-contract:runtime-H7")).toBeInTheDocument();
+    expect(screen.getByText("当前机构字段契约已生成")).toBeInTheDocument();
+    expect(screen.queryByText("context-field-contract:runtime-H7")).not.toBeInTheDocument();
     expect(screen.getByText("资源 1 类")).toBeInTheDocument();
     expect(screen.getByText("字段 2 项")).toBeInTheDocument();
     expect(screen.getAllByText("patient.id").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("patient.age").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("必传")).toBeInTheDocument();
     expect(screen.getByText("派生不可写")).toBeInTheDocument();
+  });
+
+  it("does not request the current-hospital data contract outside hospital scope", () => {
+    vi.mocked(useSecurityProfile).mockReturnValue(
+      query({
+        ...profile,
+        dataScope: {
+          ...profile.dataScope,
+          hospitalId: null,
+        },
+      }) as never,
+    );
+
+    renderPage();
+
+    expect(useIntegrationDataContract).toHaveBeenCalledWith(false);
+    expect(screen.getByText("请先切换到具体医院后查看当前生效版本字段要求。")).toBeInTheDocument();
   });
 
   it("keeps required source and data contract configuration visible before any adapter is created", () => {
@@ -576,8 +599,103 @@ describe("AdapterHub", () => {
     expect(screen.queryByText("暂无适配器接入记录")).not.toBeInTheDocument();
   });
 
+  it("默认展示业务接入摘要，证据详情打开后才显示低频技术标识", async () => {
+    vi.mocked(useIntegrationDataContract).mockReturnValue(query(dataContract) as never);
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(screen.getAllByText("HIS 主数据接入").length).toBeGreaterThan(0);
+    expect(screen.getByText("适配器已登记")).toBeInTheDocument();
+    expect(screen.getByText("当前机构字段契约已生成")).toBeInTheDocument();
+    expect(screen.queryByText(/his-main/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/context-field-contract:runtime-H7/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "生成质量报告" }));
+    expect(await screen.findByText("数据质量报告已生成")).toBeInTheDocument();
+    expect(screen.getByText("追踪证据已记录")).toBeInTheDocument();
+    expect(screen.queryByText(/dqr-1/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trace-dqr/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "死信重放" }));
+    expect(screen.getAllByText("消息证据已记录").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("追踪证据已记录").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/msg-failed/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trace-failed/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/msg-dead/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trace-dead/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "接入向导" }));
+    expect(screen.getByText("接入申请已登记")).toBeInTheDocument();
+    expect(screen.queryByText(/onb-his/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "回调通道" }));
+    expect(screen.getByText("回调通道已登记")).toBeInTheDocument();
+    expect(screen.getByText("回调地址已配置")).toBeInTheDocument();
+    expect(screen.queryByText(/clinical-events/)).not.toBeInTheDocument();
+    expect(screen.queryByText(webhook.callbackUrl)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "区域来源" }));
+    expect(screen.getByText("来源已登记")).toBeInTheDocument();
+    expect(screen.getByText("适配器：已绑定")).toBeInTheDocument();
+    expect(screen.getByText("接入申请：已绑定")).toBeInTheDocument();
+    expect(screen.queryByText("来源编号：regional-lab")).not.toBeInTheDocument();
+    expect(screen.queryByText("适配器：his-main")).not.toBeInTheDocument();
+    expect(screen.queryByText("接入申请：onb-his")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(await screen.findByText("来源编号：regional-lab")).toBeInTheDocument();
+    expect(screen.getByText("适配器：his-main")).toBeInTheDocument();
+    expect(screen.getByText("接入申请：onb-his")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "回调通道" }));
+    expect(screen.getByText("clinical-events")).toBeInTheDocument();
+    expect(screen.getByText(webhook.callbackUrl)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "死信重放" }));
+    expect(screen.getByText("msg-failed")).toBeInTheDocument();
+    expect(screen.getByText(/trace-failed/)).toBeInTheDocument();
+  }, 15_000);
+
+  it("uses stable business identity labels for adapter setup", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "新增适配器" }));
+    expect(screen.getByLabelText("稳定适配器身份")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("输入稳定适配器身份")).toBeInTheDocument();
+    expect(screen.queryByLabelText("适配器标识")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("输入真实适配器标识")).not.toBeInTheDocument();
+  });
+
+  it("uses stable business identity labels for onboarding setup", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "接入向导" }));
+    await user.click(screen.getByRole("button", { name: "新增接入申请" }));
+    expect(screen.getByLabelText("稳定接入申请身份")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("输入稳定接入申请身份")).toBeInTheDocument();
+    expect(screen.queryByLabelText("接入申请标识")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("输入真实接入申请标识")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("绑定适配器")).toBeInTheDocument();
+    expect(screen.queryByLabelText("绑定适配器标识")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("回调通道")).toBeInTheDocument();
+    expect(screen.queryByLabelText("回调通道标识")).not.toBeInTheDocument();
+  });
+
+  it("uses stable business identity labels for callback setup", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "回调通道" }));
+    await user.click(screen.getByRole("button", { name: "新增回调通道" }));
+    expect(screen.getByLabelText("稳定回调通道身份")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("例如 clinical-events")).toBeInTheDocument();
+    expect(screen.queryByLabelText("回调标识")).not.toBeInTheDocument();
+  });
+
   it(
-    "creates adapters with the backend protocol contract and structured field mappings",
+    "creates adapters with the service protocol contract and structured field mappings",
     async () => {
       const user = userEvent.setup();
       const createAdapter = mutation(hisAdapter);
@@ -587,7 +705,7 @@ describe("AdapterHub", () => {
       await user.click(screen.getByRole("button", { name: "新增适配器" }));
 
       expect(screen.queryByLabelText("连接与字段映射配置")).not.toBeInTheDocument();
-      fireEvent.change(screen.getByLabelText("适配器标识"), {
+      fireEvent.change(screen.getByLabelText("稳定适配器身份"), {
         target: { value: "his-outpatient" },
       });
       fireEvent.change(screen.getByLabelText("系统名称"), {
@@ -652,11 +770,14 @@ describe("AdapterHub", () => {
 
     renderPage();
     await user.click(screen.getByRole("tab", { name: "回调通道" }));
-    expect(screen.getByText(webhook.callbackUrl)).toBeInTheDocument();
+    expect(screen.getByText("回调地址已配置")).toBeInTheDocument();
+    expect(screen.queryByText(webhook.callbackUrl)).not.toBeInTheDocument();
     expect(screen.queryByText(/whsec_/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "新增回调通道" }));
-    fireEvent.change(screen.getByLabelText("回调标识"), {
+    expect(screen.getByLabelText("稳定回调通道身份")).toBeInTheDocument();
+    expect(screen.queryByLabelText("回调标识")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("稳定回调通道身份"), {
       target: { value: "quality-events" },
     });
     fireEvent.change(screen.getByLabelText("通道名称"), {
@@ -682,20 +803,36 @@ describe("AdapterHub", () => {
     expect(screen.getByText(/仅显示一次/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "我已安全保存" }));
-    fireEvent.change(screen.getByLabelText("签名预览载荷"), {
-      target: { value: '{"event":"clinical.test"}' },
+    expect(screen.queryByLabelText("签名预览载荷")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "预览事件" }));
+    await user.click(
+      await screen.findByText("临床事件联调", { selector: ".ant-select-item-option-content" }),
+    );
+    fireEvent.change(screen.getByLabelText("样例患者（非真实）"), {
+      target: { value: "联调患者（非真实）" },
+    });
+    fireEvent.change(screen.getByLabelText("样例就诊（非真实）"), {
+      target: { value: "门诊联调就诊" },
+    });
+    fireEvent.change(screen.getByLabelText("事件摘要"), {
+      target: { value: "签名预览联调事件" },
     });
     await user.click(screen.getByRole("button", { name: "生成签名预览" }));
 
     expect(testSignature.mutateAsync).toHaveBeenCalledWith({
       webhookId: "clinical-events",
-      payload: '{"event":"clinical.test"}',
+      payload: JSON.stringify({
+        event: "clinical.test",
+        patient: "联调患者（非真实）",
+        encounter: "门诊联调就诊",
+        summary: "签名预览联调事件",
+      }),
     });
-    expect(await screen.findByText("未发起外部连通测试")).toBeInTheDocument();
+    expect(await screen.findByText("签名已在本地生成，未向外部地址发起请求。")).toBeInTheDocument();
     expect(screen.getByText("sha256=preview-signature")).toBeInTheDocument();
   }, 15_000);
 
-  it("registers a graded regional source instead of leaving the backend-only done item unusable", async () => {
+  it("registers a graded regional source instead of leaving the service-only done item unusable", async () => {
     const user = userEvent.setup();
     const registerSource = mutation(regionalSource);
     vi.mocked(useRegisterRegionalSource).mockReturnValue(registerSource as never);
@@ -705,20 +842,24 @@ describe("AdapterHub", () => {
     expect(screen.getByText("区域检验互认平台")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "登记区域来源" }));
-    fireEvent.change(screen.getByLabelText("来源标识"), {
+    expect(screen.getByLabelText("稳定来源身份")).toBeInTheDocument();
+    expect(screen.queryByLabelText("来源标识")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("来源机构身份")).toBeInTheDocument();
+    expect(screen.queryByLabelText("来源机构标识")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("稳定来源身份"), {
       target: { value: "regional-image" },
     });
     fireEvent.change(screen.getByLabelText("区域网络"), {
       target: { value: "区域影像互认平台" },
     });
-    fireEvent.change(screen.getByLabelText("来源机构标识"), {
+    fireEvent.change(screen.getByLabelText("来源机构身份"), {
       target: { value: "hospital-3" },
     });
     fireEvent.change(screen.getByLabelText("来源机构名称"), {
       target: { value: "市三院" },
     });
     await user.click(screen.getByLabelText("可信等级"));
-    await user.click(screen.getByTitle("中风险"));
+    await user.click(screen.getByTitle("中可信"));
     fireEvent.change(screen.getByLabelText("可信证据"), {
       target: { value: "区域互认协议与接口验收单" },
     });
@@ -770,10 +911,12 @@ describe("AdapterHub", () => {
     renderPage();
     await user.click(screen.getByRole("tab", { name: "死信重放" }));
 
-    const failedRow = screen.getByText("msg-failed").closest("tr");
-    const deadRow = screen.getByText("msg-dead").closest("tr");
+    const failedRow = screen.getByText("外部系统断连").closest("tr");
+    const deadRow = screen.getByText("重试超限").closest("tr");
     expect(failedRow).not.toBeNull();
     expect(deadRow).not.toBeNull();
+    expect(screen.queryByText("msg-failed")).not.toBeInTheDocument();
+    expect(screen.queryByText("msg-dead")).not.toBeInTheDocument();
 
     await user.click(within(failedRow as HTMLElement).getByRole("button", { name: "重试" }));
     await user.click(within(deadRow as HTMLElement).getByRole("button", { name: "重放" }));

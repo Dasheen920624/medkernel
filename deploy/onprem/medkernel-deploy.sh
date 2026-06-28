@@ -103,6 +103,38 @@ database_query(){
   run_as_postgres psql -X -v ON_ERROR_STOP=1 -Atq -d "$database_name" -c "$sql"
 }
 
+reset_public_object_owner(){
+  local database_name="$1"
+  run_as_postgres psql -X -v ON_ERROR_STOP=1 -d "$database_name" <<SQL
+DO \$\$
+DECLARE
+  r record;
+BEGIN
+  EXECUTE format('ALTER SCHEMA public OWNER TO %I', '$DATABASE_OWNER');
+  FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
+    EXECUTE format('ALTER TABLE public.%I OWNER TO %I', r.tablename, '$DATABASE_OWNER');
+  END LOOP;
+  FOR r IN SELECT viewname FROM pg_views WHERE schemaname = 'public' LOOP
+    EXECUTE format('ALTER VIEW public.%I OWNER TO %I', r.viewname, '$DATABASE_OWNER');
+  END LOOP;
+  FOR r IN SELECT matviewname FROM pg_matviews WHERE schemaname = 'public' LOOP
+    EXECUTE format('ALTER MATERIALIZED VIEW public.%I OWNER TO %I', r.matviewname, '$DATABASE_OWNER');
+  END LOOP;
+  FOR r IN SELECT sequencename FROM pg_sequences WHERE schemaname = 'public' LOOP
+    EXECUTE format('ALTER SEQUENCE public.%I OWNER TO %I', r.sequencename, '$DATABASE_OWNER');
+  END LOOP;
+  FOR r IN
+    SELECT p.oid::regprocedure AS signature
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+  LOOP
+    EXECUTE format('ALTER ROUTINE %s OWNER TO %I', r.signature, '$DATABASE_OWNER');
+  END LOOP;
+END \$\$;
+SQL
+}
+
 write_backup_checksums(){
   local dir="$1"
   (
@@ -276,6 +308,7 @@ restore_previous_database(){
   run_as_postgres createdb --owner="$DATABASE_OWNER" "$DATABASE" || return 1
   run_as_postgres pg_restore --exit-on-error --no-owner --no-acl \
     --dbname "$DATABASE" < "$dir/database/medkernel.dump" || return 1
+  reset_public_object_owner "$DATABASE" || return 1
   ok "已恢复发布前数据库"
 }
 

@@ -1,5 +1,7 @@
 import { customerSafeDisplayText } from "@/shared/config/customerLabels";
 
+const ERROR_EVIDENCE_RECORDED_TEXT = "失败已留痕，可在审计证据中追溯";
+
 export type ApiFieldName = string | number | Array<string | number>;
 
 export interface ApiProblemFieldError {
@@ -60,11 +62,14 @@ export function parseApiError(error: unknown, fallback: string): ParsedApiError 
 
 export function getApiErrorMessage(error: unknown, fallback: string): string {
   const parsed = parseApiError(error, fallback);
-  const message = customerSafeDisplayText(parsed.message, fallback);
-  if (!parsed.traceId || message.includes(parsed.traceId)) {
+  const rawMessage = parsed.traceId
+    ? removeTraceIdentifier(parsed.message, parsed.traceId)
+    : parsed.message;
+  const message = customerSafeDisplayText(rawMessage, fallback);
+  if (!parsed.traceId || message.includes(ERROR_EVIDENCE_RECORDED_TEXT)) {
     return message;
   }
-  return `${message}（追踪号：${parsed.traceId}）`;
+  return `${message}（${ERROR_EVIDENCE_RECORDED_TEXT}）`;
 }
 
 export function apiFieldErrorsToFormFields(
@@ -139,6 +144,15 @@ function extractHeaderTraceId(error: unknown): string | undefined {
   const headers = (error as ApiErrorLike).response?.headers;
   if (!headers) return undefined;
   return cleanText(headers["x-trace-id"]) ?? cleanText(headers["X-Trace-Id"]);
+}
+
+function removeTraceIdentifier(message: string, traceId: string): string {
+  const escapedTraceId = traceId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return message
+    .replace(new RegExp(`(?:追踪号|traceId|Trace ID)?\\s*[:：]?\\s*${escapedTraceId}`, "g"), "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/[，,；;：:\\s]+$/, "")
+    .trim();
 }
 
 function cleanText(value: unknown): string | undefined {

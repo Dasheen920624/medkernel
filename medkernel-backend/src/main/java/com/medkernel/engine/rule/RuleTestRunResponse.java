@@ -3,7 +3,7 @@ package com.medkernel.engine.rule;
 import java.util.List;
 
 /**
- * 规则测试用例执行响应。
+ * 规则验证用例执行响应。
  */
 public record RuleTestRunResponse(
     String ruleId,

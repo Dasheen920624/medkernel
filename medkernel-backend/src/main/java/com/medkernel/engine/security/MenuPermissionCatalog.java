@@ -11,7 +11,6 @@ import static com.medkernel.engine.security.PermissionCode.MENU_ADAPTER_HUB;
 import static com.medkernel.engine.security.PermissionCode.MENU_CDSS_FATIGUE;
 import static com.medkernel.engine.security.PermissionCode.MENU_CLINICAL_FOLLOWUP;
 import static com.medkernel.engine.security.PermissionCode.MENU_RUNTIME_RELEASES;
-import static com.medkernel.engine.security.PermissionCode.MENU_DEV_CONSOLE;
 import static com.medkernel.engine.security.PermissionCode.MENU_DIAGNOSIS_KNOWLEDGE;
 import static com.medkernel.engine.security.PermissionCode.MENU_DOMESTIC_CHECK;
 import static com.medkernel.engine.security.PermissionCode.MENU_GRAPH_EXPLORE;
@@ -30,6 +29,7 @@ import static com.medkernel.engine.security.PermissionCode.MENU_QC_ALERTS;
 import static com.medkernel.engine.security.PermissionCode.MENU_QC_DASHBOARD;
 import static com.medkernel.engine.security.PermissionCode.MENU_QC_EVAL_SETS;
 import static com.medkernel.engine.security.PermissionCode.MENU_RULE_DEFINITIONS;
+import static com.medkernel.engine.security.PermissionCode.MENU_RUNTIME_DIAGNOSTICS;
 import static com.medkernel.engine.security.PermissionCode.MENU_SANDBOX;
 import static com.medkernel.engine.security.PermissionCode.MENU_SECURITY_BASELINE;
 import static com.medkernel.engine.security.PermissionCode.MENU_SYSTEM_PROVIDERS;
@@ -71,7 +71,7 @@ public final class MenuPermissionCatalog {
             MENU_PROVENANCE, MenuPlacement.PRIMARY),
         menu("knowledge-governance", "graph-explore", "知识关系",
             MENU_GRAPH_EXPLORE, MenuPlacement.PRIMARY),
-        menu("knowledge-production", "knowledge-production", "模型生产控制台",
+        menu("knowledge-production", "knowledge-production", "知识生产",
             MENU_KNOWLEDGE_PRODUCTION, MenuPlacement.PRIMARY),
         menu("knowledge-production", "ai-workflows", "模型能力",
             MENU_AI_WORKFLOWS, MenuPlacement.PRIMARY),
@@ -104,10 +104,10 @@ public final class MenuPermissionCatalog {
             MENU_ADAPTER_HUB, MenuPlacement.PRIMARY),
         menu("system-operations", "system-providers", "运行保障",
             MENU_SYSTEM_PROVIDERS, MenuPlacement.PRIMARY),
-        menu("system-operations", "domestic-check", "国产化核验",
+        menu("system-operations", "domestic-check", "国产化自检",
             MENU_DOMESTIC_CHECK, MenuPlacement.PRIMARY),
-        menu("system-operations", "dev-console", "诊断工具",
-            MENU_DEV_CONSOLE, MenuPlacement.PRIMARY),
+        menu("system-operations", "runtime-diagnostics", "运行诊断",
+            MENU_RUNTIME_DIAGNOSTICS, MenuPlacement.PRIMARY),
         menu("workbench", "notifications", "消息通知", MENU_NOTIFICATIONS, MenuPlacement.HEADER),
         menu("workbench", "notification-settings", "通知偏好",
             MENU_NOTIFICATION_SETTINGS, MenuPlacement.PROFILE));

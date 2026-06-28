@@ -423,7 +423,10 @@ class ModelGatewayServiceTest {
         ApiException ex = assertThrows(ApiException.class, () -> service.submitTask(req));
         assertEquals("ENG-LLM-002", ex.errorCode().code());
         // 失败路径也发 FAILED 审计；且不得落库成功任务
-        verify(isolatedAudit).publishInNewTx(any(AuditEvent.class));
+        ArgumentCaptor<AuditEvent> auditCaptor = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(isolatedAudit).publishInNewTx(auditCaptor.capture());
+        assertEquals("model_capability_task", auditCaptor.getValue().resourceType());
+        assertTrue(auditCaptor.getValue().resourceId().startsWith("task-"));
         verify(taskRepo, never()).save(any(ModelCapabilityTask.class));
     }
 
@@ -831,6 +834,34 @@ class ModelGatewayServiceTest {
     }
 
     @Test
+    void submitTask_externalConfirmationRequiredReturnsActionableChallengeWithoutB0Fallback() {
+        policy("EXTERNAL_MODEL");
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.CLAUDE);
+        resolveProvider("EXTERNAL_MODEL", adapter);
+        when(egressGuard.prepareEgress(any(), any(), anyString(), anyString(), any()))
+            .thenThrow(new com.medkernel.engine.llm.egress.ModelEgressConfirmationRequiredException(
+                "knowledge.extract",
+                "sha256-confirmation-required",
+                java.util.List.of("prompt"),
+                "p1",
+                "能力 knowledge.extract 高敏数据外调未经责任确认，已阻断"));
+
+        ModelTaskResponse resp = service.submitTask(new ModelTaskRequest("knowledge.extract", "提取病史", 60));
+
+        assertEquals("CONFIRMATION_REQUIRED", resp.status());
+        assertEquals("B2", resp.modelMode());
+        assertFalse(resp.fallbackUsed());
+        assertNotNull(resp.egressConfirmation());
+        assertEquals("knowledge.extract", resp.egressConfirmation().capabilityCode());
+        assertEquals("sha256-confirmation-required", resp.egressConfirmation().payloadHash());
+        assertEquals(java.util.List.of("prompt"), resp.egressConfirmation().egressFields());
+        verify(adapter, never()).complete(any(), any());
+        verify(taskRepo).save(argThat(task ->
+            "CONFIRMATION_REQUIRED".equals(task.status())
+                && task.outputContent().contains("sha256-confirmation-required")));
+    }
+
+    @Test
     void submitTask_providerCallFails_degradesToB0() {
         policy("LOCAL_MODEL");
         var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
@@ -953,6 +984,52 @@ class ModelGatewayServiceTest {
         verify(taskRepo).save(argThat(task -> task.fallbackReason().contains("STRUCTURED_OUTPUT_FAILED")));
     }
 
+    @Test
+    void submitTask_repairsMissingAuthoritativeRequiredFieldsBeforeSchemaFallback() {
+        var adapter = providerAdapter(com.medkernel.engine.llm.provider.ProviderType.OLLAMA);
+        resolveProvider("LOCAL_MODEL", adapter);
+        when(policyRepo.findByTenantIdAndCapabilityCodeAndScopeTypeAndScopeRef(
+            "tenant-1", "knowledge.extract", "TENANT", "tenant-1"))
+            .thenReturn(Optional.of(new ModelCapabilityPolicy(
+                1L, "tenant-1", "knowledge.extract", "TENANT", "tenant-1", "LOCAL_MODEL", "MASK_ALL",
+                "{\"required\":[\"domain\",\"subject\",\"sourceReferences\",\"limitations\",\"sections\"]}",
+                null, null, null,
+                Instant.now(), "system", Instant.now(), "system")));
+        when(adapter.complete(any(), any())).thenReturn(
+            new com.medkernel.engine.llm.provider.ProviderCompletion(
+                """
+                    {
+                      "subject": "检验项目说明书来源与使用边界",
+                      "sourceReferences": [{"sourceRef": "LAB:2026:section-1"}],
+                      "limitations": ["仅用于知识生产流程演练"],
+                      "sections": {"scope": "说明来源边界"}
+                    }
+                    """,
+                "qwen2.5:7b", null, "[]"));
+
+        ModelTaskResponse resp = service.submitTask(new ModelTaskRequest(
+            "knowledge.extract",
+            "基于受控来源生成低风险知识候选",
+            60,
+            "LOCAL_MODEL",
+            null,
+            """
+                {
+                  "domain": "DIAGNOSTIC_ITEM",
+                  "subject": "检验项目说明书来源与使用边界",
+                  "sourceReferences": [{"sourceRef": "LAB:2026:section-1"}]
+                }
+                """));
+
+        assertEquals("SUCCEEDED", resp.status());
+        assertEquals("B1", resp.modelMode());
+        assertFalse(resp.fallbackUsed());
+        assertTrue(resp.outputContent().contains("\"domain\":\"DIAGNOSTIC_ITEM\""));
+        verify(taskRepo).save(argThat(task ->
+            task.outputContent().contains("\"domain\":\"DIAGNOSTIC_ITEM\"")
+                && !task.fallbackUsed()));
+    }
+
     private static ModelCapabilityDefinition definition(
             String capabilityCode,
             String displayName,
@@ -990,7 +1067,7 @@ class ModelGatewayServiceTest {
 
     private static String b0Output(String capabilityCode) {
         return "{\"status\":\"NO_MODEL_PROVIDER\",\"capability\":\"" + capabilityCode
-            + "\",\"candidates\":[],\"message\":\"当前未接入可用模型服务，未生成候选内容\"}";
+            + "\",\"candidates\":[],\"message\":\"当前没有可用模型服务，未生成候选内容\"}";
     }
 
     private static ModelCapabilityTask storedTask(String taskId, String tenantId) {

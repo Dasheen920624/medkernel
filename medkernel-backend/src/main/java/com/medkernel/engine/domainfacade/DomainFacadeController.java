@@ -22,11 +22,11 @@ import com.medkernel.shared.datascope.DataScope;
 public class DomainFacadeController {
 
     private final DomainFacadeCatalogService service;
-    private final DomainFacadeB0FixtureService fixtureService;
+    private final DomainFacadeB0EvidenceService evidenceService;
 
-    public DomainFacadeController(DomainFacadeCatalogService service, DomainFacadeB0FixtureService fixtureService) {
+    public DomainFacadeController(DomainFacadeCatalogService service, DomainFacadeB0EvidenceService evidenceService) {
         this.service = service;
-        this.fixtureService = fixtureService;
+        this.evidenceService = evidenceService;
     }
 
     /** 列举 X-DOMAIN 17 张领域门面和业务服务组合目录。 */
@@ -36,11 +36,11 @@ public class DomainFacadeController {
         return ApiResult.ok(service.listDefinitions());
     }
 
-    /** 列举 X-DOMAIN 17 张领域门面的 B0 主链路 fixture 证据。 */
-    @GetMapping("/b0-fixtures")
+    /** 列举 X-DOMAIN 17 张领域门面的 B0 主链路证据。 */
+    @GetMapping("/b0-evidence")
     @PreAuthorize("@perm.has('knowledge.read')")
-    public ApiResult<List<DomainFacadeB0FixtureEvidence>> listB0Fixtures() {
-        return ApiResult.ok(fixtureService.listFixtureEvidence());
+    public ApiResult<List<DomainFacadeB0Evidence>> listB0Evidence() {
+        return ApiResult.ok(evidenceService.listB0Evidence());
     }
 
     /** 查询单个领域门面或业务组合的复用链路。 */
@@ -50,10 +50,10 @@ public class DomainFacadeController {
         return ApiResult.ok(service.requireDefinition(code));
     }
 
-    /** 查询单个领域门面或业务组合的 B0 主链路 fixture 证据。 */
-    @GetMapping("/{code}/b0-fixture")
+    /** 查询单个领域门面或业务组合的 B0 主链路证据。 */
+    @GetMapping("/{code}/b0-evidence")
     @PreAuthorize("@perm.has('knowledge.read')")
-    public ApiResult<DomainFacadeB0FixtureEvidence> getB0Fixture(@PathVariable String code) {
-        return ApiResult.ok(fixtureService.requireFixtureEvidence(code));
+    public ApiResult<DomainFacadeB0Evidence> getB0Evidence(@PathVariable String code) {
+        return ApiResult.ok(evidenceService.requireB0Evidence(code));
     }
 }

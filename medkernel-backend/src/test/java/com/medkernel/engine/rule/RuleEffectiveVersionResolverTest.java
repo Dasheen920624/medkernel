@@ -120,7 +120,7 @@ class RuleEffectiveVersionResolverTest {
     void orgContextMapsInheritanceResultToDomainContent() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace",
-            new OrgScope("tenant-A", null, "hospital-1", null, null, null, null),
+            new OrgScope("tenant-A", null, "hospital-1", null, null, null, null, null),
             "clinical-user"));
         AssetVersion selected = asset("tenant-A", "4", "tenant:tenant-A/hospital:hospital-1");
         when(inheritanceResolver.resolve(org.mockito.ArgumentMatchers.any()))

@@ -533,7 +533,7 @@ public class KnowledgeInitializationService {
         if (blank(version.versionNo()) || !hash(version.contentHash()) || blank(version.fileUri())) {
             throw new ApiException(
                 ErrorCode.BAD_REQUEST,
-                "来源版本技术信息不完整：必须包含版本号、64 位文件摘要和受管原件 URI");
+                "来源版本追溯信息不完整：必须包含版本号、64 位文件摘要和受管原件 URI");
         }
         SourceDocument document = sourceDocuments.findByTenantIdAndId(tenantId, version.sourceDocumentId())
             .orElseThrow(() -> ApiException.notFound("来源文档 id=" + version.sourceDocumentId()));

@@ -20,6 +20,7 @@ import {
   fetchDelegatedAuthStatus,
   fetchDataPermissionPolicies,
   fetchExportConfirmations,
+  fetchModelEgressConfirmations,
   fetchInteropAssessment,
   fetchIdentityBindings,
   fetchMaskingRules,
@@ -37,7 +38,7 @@ import {
   upsertDataPermissionPolicy,
   upsertMaskingRule,
   useCompleteWorkflowTodo,
-  useDeveloperApiContracts,
+  useRuntimeDiagnosticsApiContracts,
   useDisablePlugin,
   useAdvanceIntegrationOnboarding,
   useBatchConfirmTerminologyCandidates,
@@ -115,6 +116,7 @@ import {
   useSubmitModelTask,
   useValidateModelPolicy,
   useSaveModelPolicy,
+  useConfirmModelEgress,
   useCandidateCoexistence,
   useLargeAuditEvents,
   useLocalTerms,
@@ -183,6 +185,7 @@ import {
   useReportFollowupAbnormal,
   useSaveWorkflowNotificationSettings,
   useSaveWorkflowSystemNotificationSettings,
+  type SecurityProfile,
   useSplitMpiPatient,
   useTransferWorkflowTodo,
   useUnfavoriteAuthoringAsset,
@@ -203,7 +206,7 @@ vi.mock("./client", () => ({
   },
 }));
 
-function securityProfile() {
+function securityProfile(): SecurityProfile {
   return {
     userId: "user-1",
     username: "platform-admin",
@@ -231,17 +234,18 @@ function securityProfile() {
     mustChangePwd: false,
     mfaRequired: false,
     mfaBound: true,
+    mfaVerified: true,
   };
 }
 
-function renderApiHook<T>(hook: () => T) {
+function renderApiHook<T>(hook: () => T, profile = securityProfile()) {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
       mutations: { retry: false },
     },
   });
-  client.setQueryData(["security", "me"], securityProfile());
+  client.setQueryData(["security", "me"], profile);
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client }, children);
   return renderHook(hook, { wrapper });
@@ -256,7 +260,7 @@ describe("pathway api contract", () => {
   });
 });
 
-describe("developer console api hooks", () => {
+describe("runtime diagnostics api hooks", () => {
   beforeEach(() => {
     vi.mocked(apiClient.get).mockReset();
     vi.mocked(apiClient.post).mockReset();
@@ -278,7 +282,7 @@ describe("developer console api hooks", () => {
       .mockResolvedValueOnce({ data: { data: diagnosis } })
       .mockResolvedValueOnce({ data: { data: plugins } });
 
-    const directoryHook = renderApiHook(() => useDeveloperApiContracts());
+    const directoryHook = renderApiHook(() => useRuntimeDiagnosticsApiContracts());
     await waitFor(() => expect(directoryHook.result.current.data).toEqual(directory));
 
     const traceHook = renderApiHook(() => useTraceDiagnosis(" trace/1 ", true));
@@ -287,7 +291,7 @@ describe("developer console api hooks", () => {
     const pluginsHook = renderApiHook(() => usePlugins());
     await waitFor(() => expect(pluginsHook.result.current.data).toEqual(plugins));
 
-    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/system/dev-console/api-contracts");
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/system/runtime-diagnostics/api-contracts");
     expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/diagnose/traces/trace%2F1");
     expect(apiClient.get).toHaveBeenNthCalledWith(3, "/plugins");
   });
@@ -423,6 +427,41 @@ describe("model gateway api hooks", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/model-capabilities/tasks", payload);
   });
 
+  it("preserves actionable egress confirmation challenges for real model tasks", async () => {
+    const task = {
+      ...replayedTask,
+      taskId: "task-confirm-1",
+      status: "CONFIRMATION_REQUIRED",
+      modelMode: "B2",
+      fallbackUsed: false,
+      fallbackReason: "",
+      egressConfirmation: {
+        capabilityCode: "knowledge.extract",
+        payloadHash: "sha256-confirmation-required",
+        egressFields: ["prompt"],
+        providerCode: "p1",
+        message: "高敏外调需要责任确认",
+      },
+    };
+    const payload = {
+      capabilityCode: "knowledge.extract",
+      inputData: "公网模型前需要确认的脱敏患者上下文",
+      requiredRouteStrategy: "EXTERNAL_MODEL",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: task } });
+
+    const submitHook = renderApiHook(() => useSubmitModelTask());
+
+    await expect(submitHook.result.current.mutateAsync(payload)).resolves.toMatchObject({
+      status: "CONFIRMATION_REQUIRED",
+      egressConfirmation: {
+        payloadHash: "sha256-confirmation-required",
+        egressFields: ["prompt"],
+      },
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/model-capabilities/tasks", payload);
+  });
+
   it("validates and saves route policy with explicit fallback budget", async () => {
     const validationPayload = {
       capabilityCode: "knowledge.extract",
@@ -498,6 +537,39 @@ describe("model gateway api hooks", () => {
       rateLimitPerMinute: 20,
     });
   });
+
+  it("confirms high-sensitivity model egress purpose through the data minimization endpoint", async () => {
+    const payload = {
+      capabilityCode: "clinical.explanation",
+      payloadHash: "sha256:payload-001",
+      purpose: "向患者解释检查结果，仅使用已脱敏字段",
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        data: {
+          id: 7,
+          tenantId: "tenant-1",
+          capabilityCode: payload.capabilityCode,
+          payloadHash: payload.payloadHash,
+          purpose: payload.purpose,
+          confirmedBy: "operator-001",
+          confirmedAt: "2026-06-25T19:45:00Z",
+        },
+      },
+    });
+
+    const confirmHook = renderApiHook(() => useConfirmModelEgress());
+
+    await expect(confirmHook.result.current.mutateAsync(payload)).resolves.toMatchObject({
+      capabilityCode: "clinical.explanation",
+      purpose: "向患者解释检查结果，仅使用已脱敏字段",
+      confirmedBy: "operator-001",
+    });
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/data-minimization/policies/model-egress/confirmations",
+      payload,
+    );
+  });
 });
 
 describe("medical evaluation api hooks", () => {
@@ -568,7 +640,7 @@ describe("shared runtime api helpers", () => {
     vi.mocked(apiClient.put).mockReset();
   });
 
-  it("downloads the backend generated domestic compatibility report", async () => {
+  it("downloads the generated domestic compatibility report", async () => {
     const reportBlob = new Blob(["MedKernel 国产化自检报告"]);
     vi.mocked(apiClient.get).mockResolvedValueOnce({ data: reportBlob });
 
@@ -678,7 +750,7 @@ describe("shared runtime api helpers", () => {
     });
   });
 
-  it("marks workflow notifications read through the backend endpoint", async () => {
+  it("marks workflow notifications read through the notification endpoint", async () => {
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       data: { data: { notificationId: "notify-real-1", status: "READ" } },
     });
@@ -690,7 +762,7 @@ describe("shared runtime api helpers", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/engine/notifications/notify-real-1/read");
   });
 
-  it("loads notification settings from the backend preference endpoint", async () => {
+  it("loads notification settings from the preference endpoint", async () => {
     vi.mocked(apiClient.get).mockResolvedValueOnce({
       data: {
         data: {
@@ -724,7 +796,7 @@ describe("shared runtime api helpers", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/engine/notifications/settings");
   });
 
-  it("saves notification settings through the backend preference endpoint", async () => {
+  it("saves notification settings through the preference endpoint", async () => {
     vi.mocked(apiClient.put).mockResolvedValueOnce({
       data: {
         data: {
@@ -2505,7 +2577,7 @@ describe("sandbox orchestration api hook", () => {
     vi.mocked(apiClient.post).mockReset();
   });
 
-  it("loads the backend-owned scenario catalog", async () => {
+  it("loads the governed scenario catalog", async () => {
     const response = [
       {
         id: "scenario-1",
@@ -2543,7 +2615,7 @@ describe("sandbox orchestration api hook", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/engine/sandbox/runtime-status");
   });
 
-  it("runs the selected scenario through the backend orchestration endpoint", async () => {
+  it("runs the selected scenario through the orchestration endpoint", async () => {
     const response = {
       scenarioId: "sbx-lab-critical-k",
       traceId: "trace-sandbox-1",
@@ -3004,6 +3076,27 @@ describe("terminology mapping api helpers", () => {
       expect.objectContaining({
         candidateIds: [11],
       }),
+    );
+  });
+
+  it("requires a service institution and role before submitting standard context requests", async () => {
+    const profile = {
+      ...securityProfile(),
+      roles: [],
+      dataScope: { ...securityProfile().dataScope, tenantId: null },
+    };
+    const generate = renderApiHook(() => useGenerateTerminologyCandidates(), profile);
+
+    await expect(
+      generate.result.current.mutateAsync({
+        sourceSystem: "LIS",
+        minimumScore: 0.6,
+        semanticAssistEnabled: false,
+      }),
+    ).rejects.toThrow("标准上下文缺少服务机构或角色，请刷新用户状态后重试。");
+    expect(apiClient.post).not.toHaveBeenCalledWith(
+      "/engine/terminology/mappings/candidates",
+      expect.anything(),
     );
   });
 
@@ -4306,7 +4399,7 @@ describe("experience foundation api helpers", () => {
     });
   });
 
-  it("saves view snapshots as backend JSON definition", async () => {
+  it("saves view snapshots as service JSON definition", async () => {
     const saved = { savedViewId: "sv-1", pageKey: "terminology.mapping" };
     vi.mocked(apiClient.put).mockResolvedValueOnce({ data: { data: saved } });
 
@@ -4319,7 +4412,7 @@ describe("experience foundation api helpers", () => {
         filters: [{ key: "status", value: "DRAFT" }],
         pageRequest: { pageNumber: 1, pageSize: 20, filters: { status: "DRAFT" } },
         visibleColumnKeys: ["status"],
-        expertMode: false,
+        evidenceDetailsEnabled: false,
         capturedAt: "2026-06-01T00:00:00.000Z",
       },
     });
@@ -4358,7 +4451,7 @@ describe("experience foundation api helpers", () => {
         filters: [{ key: "sourceSystem", value: "HIS" }],
         pageRequest: { pageNumber: 1, pageSize: 20, filters: { status: "DRAFT" } },
         visibleColumnKeys: ["status"],
-        expertMode: false,
+        evidenceDetailsEnabled: false,
         capturedAt: "2026-06-01T00:00:00.000Z",
       },
       selectedScope: "currentPage",
@@ -4494,7 +4587,35 @@ describe("experience foundation api helpers", () => {
     });
   });
 
-  it("runs compliance trial and masking preview through audited backend commands", async () => {
+  it("loads model egress confirmations through the data minimization read endpoint", async () => {
+    const confirmations = {
+      items: [
+        {
+          id: 7,
+          capabilityCode: "clinical.explanation",
+          payloadHash: "sha256:payload-001",
+          purpose: "向患者解释检查结果，仅使用已脱敏字段",
+          confirmedBy: "operator-001",
+          confirmedAt: "2026-06-25T19:45:00Z",
+        },
+      ],
+      page: 1,
+      size: 20,
+      total: 1,
+      hasNext: false,
+      totalEstimated: false,
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: confirmations } });
+
+    await expect(fetchModelEgressConfirmations({ page: 1, size: 20 })).resolves.toBe(confirmations);
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/data-minimization/policies/model-egress/confirmations",
+      { params: { page: 1, size: 20 } },
+    );
+  });
+
+  it("runs compliance trial and masking preview through audited service commands", async () => {
     vi.mocked(apiClient.post)
       .mockResolvedValueOnce({
         data: {
@@ -4620,7 +4741,7 @@ describe("experience foundation api helpers", () => {
     await completeConfirmedExportJob({
       confirmationId: "exp-audit-1",
       jobId: "job-audit-1",
-      reason: "后端任务已生成真实文件",
+      reason: "导出任务已生成真实文件",
       expectedVersion: 1,
     });
 
@@ -4650,7 +4771,7 @@ describe("experience foundation api helpers", () => {
       "/compliance/exports/exp-audit-1:complete-from-job",
       {
         jobId: "job-audit-1",
-        reason: "后端任务已生成真实文件",
+        reason: "导出任务已生成真实文件",
         expectedVersion: 1,
       },
     );
@@ -4671,7 +4792,7 @@ describe("experience foundation api helpers", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/experience/theme-preference");
   });
 
-  it("saves only supported theme modes to the backend preference endpoint", async () => {
+  it("saves only supported theme modes to the preference endpoint", async () => {
     const preference = {
       mode: "eye",
       version: 3,
@@ -4873,7 +4994,7 @@ describe("auth identity api helpers", () => {
       enabled: true,
       status: "NOT_CONNECTED",
       providers: ["OIDC", "CAS", "SAML", "国密CA"],
-      message: "院方统一身份入口已开放，但当前未配置真实 IdP 连接器。",
+      message: "院方统一身份入口已开放，请由信息科在身份来源完成配置后启用。",
     };
     vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: status } });
 

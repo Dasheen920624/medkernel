@@ -46,7 +46,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/** 诊断知识服务：标准新增映射+审计、测试病例发布门禁（命中一致放行/不一致 ENG_DX_006）、置信策略回退/缺失 ENG_DX_005。 */
+/** 诊断知识服务：标准新增映射+审计、验证病例发布门禁（命中一致放行/不一致 ENG_DX_006）、置信策略回退/缺失 ENG_DX_005。 */
 class DiagnosisKnowledgeServiceTest {
 
     private DiagnosisCriterionRepository criteria;

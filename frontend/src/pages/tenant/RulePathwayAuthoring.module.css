@@ -460,16 +460,6 @@
   font-size: var(--ant-font-size-sm);
 }
 
-.packageList {
-  max-height: calc(var(--mk-unit) * 300);
-  overflow-y: auto;
-}
-
-.packageCard {
-  background: var(--ant-color-bg-layout);
-  border-color: var(--ant-color-border-secondary);
-}
-
 .linkButton {
   color: var(--ant-color-link);
   font-weight: 600;

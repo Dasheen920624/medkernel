@@ -15,6 +15,9 @@ import { ReloadOutlined } from "@ant-design/icons";
 
 import { useRuntimeOperations, useSecurityProfile } from "@/shared/api/hooks";
 import type { RuntimeDependencyStatus, SecurityProfile } from "@/shared/api/hooks";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 import {
@@ -53,20 +56,37 @@ function dependencyByKey(
   return dependencies?.find((dependency) => dependency.key === key);
 }
 
-function dataScopeText(profile: SecurityProfile): string {
-  const scope = profile.dataScope;
-  return [
-    scope.tenantId,
-    scope.groupId,
-    scope.hospitalId,
-    scope.campusId,
-    scope.siteId,
-    scope.departmentId,
-    scope.wardId,
-    scope.specialtyId,
-  ]
-    .filter(Boolean)
-    .join(" / ");
+function dataScopeText(profile: SecurityProfile, evidenceDetailsEnabled = false): string {
+  const populated: Array<{ label: string; value?: string | null }> = [];
+  const append = (label: string, value?: string | null) => {
+    if (value) populated.push({ label, value });
+  };
+  append("服务机构", profile.dataScope.tenantId);
+  append("集团/联合体", profile.dataScope.groupId);
+  append("医院", profile.dataScope.hospitalId);
+  append("院区", profile.dataScope.campusId);
+  append("基层服务点", profile.dataScope.siteId);
+  append("科室", profile.dataScope.departmentId);
+  append("病区", profile.dataScope.wardId);
+  append("专科", profile.dataScope.specialtyId);
+  if (populated.length === 0) return "未返回范围";
+  return populated.map((field) => (evidenceDetailsEnabled ? field.value : field.label)).join(" / ");
+}
+
+function environmentText(environmentKeys: string[], evidenceDetailsEnabled = false): string {
+  if (environmentKeys.length === 0) return "未返回";
+  if (evidenceDetailsEnabled) return environmentKeys.join(" / ");
+  return `已限定 ${environmentKeys.length} 个运行环境`;
+}
+
+function permissionTargetLabel(target?: string | null) {
+  const labels: Record<string, string> = {
+    system: "平台系统",
+    audit: "审计证据",
+    tenant: "服务机构",
+    knowledge: "知识治理",
+  };
+  return target ? (labels[target] ?? customerEnumLabel(target)) : "未返回";
 }
 
 function mfaEvidence(profile: SecurityProfile): string {
@@ -86,9 +106,11 @@ function hasPermission(profile: SecurityProfile, code: string) {
 function BaselineOverview({
   profile,
   snapshot,
+  evidenceDetailsEnabled,
 }: {
   profile: SecurityProfile;
   snapshot: NonNullable<ReturnType<typeof useRuntimeOperations>["data"]>;
+  evidenceDetailsEnabled: boolean;
 }) {
   const highRiskPermissions = profile.permissions.filter(
     (permission) => permission.risk === "HIGH",
@@ -155,11 +177,14 @@ function BaselineOverview({
         type={profile.mfaRequired && !profile.mfaBound ? "warning" : "success"}
         showIcon
         message={profile.mfaRequired ? "多因素认证全局配置已开启" : "多因素认证全局配置已关闭"}
-        description={`数据范围：${dataScopeText(profile) || "未返回范围"}；运行环境：${snapshot.environment} / ${snapshot.deploymentMode}`}
+        description={`数据范围：${dataScopeText(profile, evidenceDetailsEnabled)}；运行环境：${snapshot.environment} / ${snapshot.deploymentMode}`}
       />
 
       <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
-        <Descriptions.Item label="用户 ID">{profile.userId}</Descriptions.Item>
+        <Descriptions.Item label="账号">{profile.username}</Descriptions.Item>
+        {evidenceDetailsEnabled ? (
+          <Descriptions.Item label="用户 ID">{profile.userId}</Descriptions.Item>
+        ) : null}
         <Descriptions.Item label="角色">
           <Space wrap>
             {profile.roles.map((role) => (
@@ -168,9 +193,12 @@ function BaselineOverview({
           </Space>
         </Descriptions.Item>
         <Descriptions.Item label="菜单权限">{profile.menuKeys.length} 项</Descriptions.Item>
-        <Descriptions.Item label="环境权限">
-          {profile.environmentKeys.join(" / ") || "未返回"}
+        <Descriptions.Item label="运行环境">
+          {environmentText(profile.environmentKeys, evidenceDetailsEnabled)}
         </Descriptions.Item>
+        {evidenceDetailsEnabled ? (
+          <Descriptions.Item label="数据范围编码">{dataScopeText(profile, true)}</Descriptions.Item>
+        ) : null}
       </Descriptions>
 
       <Table<BaselineRow>
@@ -207,8 +235,15 @@ function BaselineOverview({
                 dataIndex: "dimension",
                 render: permissionDimensionLabel,
               },
-              { title: "对象", dataIndex: "target" },
-              { title: "编码", dataIndex: "code" },
+              { title: "对象", dataIndex: "target", render: permissionTargetLabel },
+              ...(evidenceDetailsEnabled
+                ? [
+                    {
+                      title: "编码",
+                      dataIndex: "code",
+                    },
+                  ]
+                : []),
               {
                 title: "风险",
                 dataIndex: "risk",
@@ -225,6 +260,7 @@ function BaselineOverview({
 export default function SecurityBaseline() {
   const security = useSecurityProfile();
   const runtime = useRuntimeOperations();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
 
   if (security.isLoading || runtime.isLoading) {
     return (
@@ -265,17 +301,19 @@ export default function SecurityBaseline() {
   }
 
   const canManage = hasPermission(profile, "system.manage");
+  const evidenceDetailsEnabled = canUseEvidenceDetails(profile) && globalEvidenceDetails;
   return (
     <PageShell
       title="安全基线与系统配置"
-      description="统一管理运行配置、数据访问、后端脱敏与互操作测评证据"
+      description="统一管理运行配置、数据访问、数据脱敏与互操作测评证据"
+      extras={<EvidenceDetailsToggle securityProfile={profile} />}
     >
       {!canManage && (
         <Alert
           type="info"
           showIcon
           message="当前为只读视图"
-          description="只有具备系统管理权限的账号可以修改配置；读取仍按当前服务空间和组织范围隔离。"
+          description="只有具备系统管理权限的账号可以修改配置；读取仍按当前服务机构和组织范围隔离。"
         />
       )}
       <Tabs
@@ -284,27 +322,48 @@ export default function SecurityBaseline() {
           {
             key: "overview",
             label: "基线概览",
-            children: <BaselineOverview profile={profile} snapshot={snapshot} />,
+            children: (
+              <BaselineOverview
+                profile={profile}
+                snapshot={snapshot}
+                evidenceDetailsEnabled={evidenceDetailsEnabled}
+              />
+            ),
           },
           {
             key: "config",
             label: "系统配置",
-            children: <SystemConfigPanel canManage={canManage} />,
+            children: (
+              <SystemConfigPanel
+                canManage={canManage}
+                evidenceDetailsEnabled={evidenceDetailsEnabled}
+              />
+            ),
           },
           {
             key: "data-permission",
             label: "数据权限",
-            children: <DataPermissionPanel canManage={canManage} />,
+            children: (
+              <DataPermissionPanel
+                canManage={canManage}
+                evidenceDetailsEnabled={evidenceDetailsEnabled}
+              />
+            ),
           },
           {
             key: "masking",
             label: "脱敏规则",
-            children: <MaskingRulePanel canManage={canManage} />,
+            children: (
+              <MaskingRulePanel
+                canManage={canManage}
+                evidenceDetailsEnabled={evidenceDetailsEnabled}
+              />
+            ),
           },
           {
             key: "interop",
             label: "互操作测评",
-            children: <InteropAssessmentPanel />,
+            children: <InteropAssessmentPanel evidenceDetailsEnabled={evidenceDetailsEnabled} />,
           },
         ]}
       />

@@ -31,28 +31,32 @@ import {
 
 import { getApiErrorMessage } from "@/shared/api/errors";
 import {
-  useDeveloperApiContracts,
+  useRuntimeDiagnosticsApiContracts,
   useDisablePlugin,
   useGrantPlugin,
   usePlugins,
   useRegisterPlugin,
   useRuntimeOperations,
+  useSecurityProfile,
   useSystemRuntime,
   useTraceDiagnosis,
 } from "@/shared/api/hooks";
 import type {
-  DeveloperApiContract,
   PluginCapabilityType,
   PluginItem,
+  RuntimeDiagnosticsApiContract,
   RuntimeDependencyStatus,
   TracePayloadSummary,
   TraceStateTransition,
 } from "@/shared/api/hooks";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 
-import styles from "./Advanced.module.css";
+import styles from "../advanced/Advanced.module.css";
 
 const { Text } = Typography;
 const { Search } = Input;
@@ -93,6 +97,30 @@ const CAPABILITY_TYPE_LABEL: Record<PluginCapabilityType, string> = {
   READ: "读取",
   EXECUTE: "执行",
   WRITE: "写入",
+};
+
+const DEPLOYMENT_MODE_LABEL: Record<string, string> = {
+  "docker-core": "容器化部署",
+  docker: "容器化部署",
+  local: "本地部署",
+  kubernetes: "集群部署",
+};
+
+const DATABASE_DIALECT_LABEL: Record<string, string> = {
+  postgres: "PostgreSQL",
+  mysql: "MySQL",
+  dm: "达梦",
+  kingbase: "人大金仓",
+  oracle: "Oracle",
+};
+
+const TRACE_STATUS_LABEL: Record<string, string> = {
+  PENDING: "待处理",
+  RUNNING: "处理中",
+  SUCCEEDED: "成功",
+  SUCCESS: "成功",
+  FAILED: "失败",
+  CANCELED: "已取消",
 };
 
 interface RegisterPluginFormValues {
@@ -143,11 +171,84 @@ function formatTime(value?: string | null) {
   }).format(timestamp);
 }
 
-export default function DevConsole() {
+function deploymentModeText(value: string, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) return value;
+  return DEPLOYMENT_MODE_LABEL[value] ?? "已配置部署模式";
+}
+
+function databaseDialectText(value: string, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) return value;
+  return DATABASE_DIALECT_LABEL[value] ?? "已配置关系数据库";
+}
+
+function dependencyDetail(record: RuntimeDependencyStatus, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) return record.detail;
+  if (record.key === "database") {
+    return record.status === "UP" ? "核心数据服务可用" : "核心数据服务需关注";
+  }
+  return record.detail;
+}
+
+function contractServiceText(
+  record: RuntimeDiagnosticsApiContract,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) {
+    return (
+      <Space direction="vertical" size={0}>
+        <Text strong>{record.title}</Text>
+        <Text type="secondary">{record.id}</Text>
+      </Space>
+    );
+  }
+  return <Text strong>{record.title}</Text>;
+}
+
+function contractBasePathText(
+  record: RuntimeDiagnosticsApiContract,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) return record.basePath;
+  return record.publicEndpoints.length > 0 ? "含公开端点" : "登录后按权限访问";
+}
+
+function permissionText(
+  permission: RuntimeDiagnosticsApiContract["permissions"][number],
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) return permission.code;
+  return permission.purpose || customerEnumLabel(permission.code);
+}
+
+function traceStatusText(value: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  if (!value) return "-";
+  if (evidenceDetailsEnabled) return value;
+  return TRACE_STATUS_LABEL[value] ?? STATUS_LABEL[value] ?? customerEnumLabel(value);
+}
+
+function traceActorText(value: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  if (!value) return "系统执行";
+  return evidenceDetailsEnabled ? value : "已记录执行人";
+}
+
+function tracePayloadDigestText(value: string, evidenceDetailsEnabled: boolean) {
+  return evidenceDetailsEnabled ? value : "输入摘要已登记";
+}
+
+function pluginCapabilityText(
+  capability: PluginItem["capabilities"][number],
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) return capability.capabilityKey;
+  return `${capability.serviceContractTitle} · ${CAPABILITY_TYPE_LABEL[capability.capabilityType]}`;
+}
+
+export default function RuntimeDiagnostics() {
   const { message, modal } = App.useApp();
+  const security = useSecurityProfile();
   const systemRuntime = useSystemRuntime();
   const runtime = useRuntimeOperations();
-  const apiContracts = useDeveloperApiContracts();
+  const apiContracts = useRuntimeDiagnosticsApiContracts();
   const plugins = usePlugins();
   const registerPlugin = useRegisterPlugin();
   const grantPlugin = useGrantPlugin();
@@ -160,6 +261,8 @@ export default function DevConsole() {
   const [grantTarget, setGrantTarget] = useState<PluginItem | null>(null);
   const [registerForm] = Form.useForm<RegisterPluginFormValues>();
   const [grantForm] = Form.useForm<GrantPluginFormValues>();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
 
   const contractOptions = useMemo(
     () =>
@@ -186,7 +289,7 @@ export default function DevConsole() {
 
   if (systemRuntime.isLoading || runtime.isLoading) {
     return (
-      <PageShell title="开发者控制台" description="正在读取系统运行摘要">
+      <PageShell title="运行诊断" description="正在读取系统运行摘要">
         <PageState state="loading" />
       </PageShell>
     );
@@ -194,11 +297,11 @@ export default function DevConsole() {
 
   if (systemRuntime.isError || runtime.isError) {
     return (
-      <PageShell title="开发者控制台" description="系统运行摘要读取失败">
+      <PageShell title="运行诊断" description="系统运行摘要读取失败">
         <PageState
           state="error"
-          title="暂时无法读取开发者控制台"
-          description="请稍后重试，或让 SRE 检查系统运行接口。"
+          title="暂时无法读取运行诊断"
+          description="请稍后重试，或让信息科检查系统运行服务。"
           action={
             <Button
               icon={<ReloadOutlined />}
@@ -216,7 +319,7 @@ export default function DevConsole() {
   const rawRuntime = systemRuntime.data;
   if (!operations || !rawRuntime) {
     return (
-      <PageShell title="开发者控制台" description="系统运行摘要暂无数据">
+      <PageShell title="运行诊断" description="系统运行摘要暂无数据">
         <PageState state="empty" title="暂无系统运行摘要" />
       </PageShell>
     );
@@ -290,7 +393,7 @@ export default function DevConsole() {
     apiDirectory = (
       <PageState
         state="error"
-        title="接口目录读取失败"
+        title="服务目录读取失败"
         action={
           <Button icon={<ReloadOutlined />} onClick={() => apiContracts.refetch()}>
             重试
@@ -308,7 +411,7 @@ export default function DevConsole() {
           value={contractKeyword}
           onChange={(event) => setContractKeyword(event.target.value)}
         />
-        <Table<DeveloperApiContract>
+        <Table<RuntimeDiagnosticsApiContract>
           rowKey="id"
           dataSource={filteredContracts}
           pagination={{ pageSize: 10, showSizeChanger: false }}
@@ -316,14 +419,12 @@ export default function DevConsole() {
           columns={[
             {
               title: "服务",
-              render: (_, record) => (
-                <Space direction="vertical" size={0}>
-                  <Text strong>{record.title}</Text>
-                  <Text type="secondary">{record.id}</Text>
-                </Space>
-              ),
+              render: (_, record) => contractServiceText(record, evidenceDetailsEnabled),
             },
-            { title: "基础路径", dataIndex: "basePath" },
+            {
+              title: "访问边界",
+              render: (_, record) => contractBasePathText(record, evidenceDetailsEnabled),
+            },
             {
               title: "版本",
               render: (_, record) => <Tag>{record.contractVersion ?? "v1"}</Tag>,
@@ -334,7 +435,9 @@ export default function DevConsole() {
                 record.permissions.length ? (
                   <Space size={[4, 4]} wrap>
                     {record.permissions.map((permission) => (
-                      <Tag key={permission.code}>{permission.code}</Tag>
+                      <Tag key={permission.code}>
+                        {permissionText(permission, evidenceDetailsEnabled)}
+                      </Tag>
                     ))}
                   </Space>
                 ) : (
@@ -355,11 +458,11 @@ export default function DevConsole() {
                         type="link"
                         size="small"
                         icon={<ApiOutlined />}
-                        aria-label="接口说明"
+                        aria-label="服务契约"
                         href={record.openApiDocumentUrl}
                         target="_blank"
                       >
-                        接口说明
+                        服务契约
                       </Button>
                     ) : null}
                     {record.fieldContractUrl ? (
@@ -416,10 +519,17 @@ export default function DevConsole() {
           columns={[
             {
               title: "状态",
-              render: (_, record) => `${record.fromStatus ?? "-"} → ${record.toStatus ?? "-"}`,
+              render: (_, record) =>
+                `${traceStatusText(record.fromStatus, evidenceDetailsEnabled)} → ${traceStatusText(
+                  record.toStatus,
+                  evidenceDetailsEnabled,
+                )}`,
             },
             { title: "原因", dataIndex: "reason" },
-            { title: "执行人", dataIndex: "actor" },
+            {
+              title: "执行责任",
+              render: (_, record) => traceActorText(record.actor, evidenceDetailsEnabled),
+            },
             {
               title: "时间",
               dataIndex: "occurredAt",
@@ -443,7 +553,11 @@ export default function DevConsole() {
           locale={{ emptyText: "无输入内容摘要" }}
           scroll={{ x: "max-content" }}
           columns={[
-            { title: "摘要", dataIndex: "digest" },
+            {
+              title: "摘要",
+              dataIndex: "digest",
+              render: (value: string) => tracePayloadDigestText(value, evidenceDetailsEnabled),
+            },
             { title: "内容类型", dataIndex: "contentType" },
             { title: "存储", dataIndex: "storageType" },
             {
@@ -510,7 +624,9 @@ export default function DevConsole() {
               render: (_, record) => (
                 <Space direction="vertical" size={0}>
                   <Text strong>{record.displayName}</Text>
-                  <Text type="secondary">{record.pluginCode}</Text>
+                  {evidenceDetailsEnabled ? (
+                    <Text type="secondary">{record.pluginCode}</Text>
+                  ) : null}
                 </Space>
               ),
             },
@@ -541,7 +657,7 @@ export default function DevConsole() {
                       key={capability.capabilityKey}
                       color={capability.capabilityType === "WRITE" ? "warning" : "default"}
                     >
-                      {capability.capabilityKey}
+                      {pluginCapabilityText(capability, evidenceDetailsEnabled)}
                     </Tag>
                   ))}
                 </Space>
@@ -580,22 +696,26 @@ export default function DevConsole() {
 
   return (
     <PageShell
-      title="开发者控制台"
-      description="接口契约、追踪诊断与插件边界"
+      title="运行诊断"
+      description="服务契约、追踪诊断与插件边界"
       extras={
-        <Button
-          icon={<ReloadOutlined />}
-          onClick={() =>
-            void Promise.all([
-              systemRuntime.refetch(),
-              runtime.refetch(),
-              apiContracts.refetch(),
-              plugins.refetch(),
-            ])
-          }
-        >
-          刷新
-        </Button>
+        <Space wrap>
+          <EvidenceDetailsToggle securityProfile={security.data} />
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() =>
+              void Promise.all([
+                security.refetch(),
+                systemRuntime.refetch(),
+                runtime.refetch(),
+                apiContracts.refetch(),
+                plugins.refetch(),
+              ])
+            }
+          >
+            刷新
+          </Button>
+        </Space>
       }
     >
       <Space direction="vertical" size="large" className="mk-full-width">
@@ -618,7 +738,10 @@ export default function DevConsole() {
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <Card>
-              <Statistic title="部署模式" value={operations.deploymentMode} />
+              <Statistic
+                title="部署模式"
+                value={deploymentModeText(operations.deploymentMode, evidenceDetailsEnabled)}
+              />
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
@@ -632,12 +755,16 @@ export default function DevConsole() {
           <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>
             <Descriptions.Item label="服务名">{serviceName}</Descriptions.Item>
             <Descriptions.Item label="运行时">{runtimeValue}</Descriptions.Item>
-            <Descriptions.Item label="数据库">{operations.databaseDialect}</Descriptions.Item>
-            <Descriptions.Item label="迁移路径">{operations.migrationLocation}</Descriptions.Item>
+            <Descriptions.Item label="数据库">
+              {databaseDialectText(operations.databaseDialect, evidenceDetailsEnabled)}
+            </Descriptions.Item>
+            {evidenceDetailsEnabled ? (
+              <Descriptions.Item label="迁移路径">{operations.migrationLocation}</Descriptions.Item>
+            ) : null}
           </Descriptions>
         </Card>
 
-        <Card data-testid="developer-dependencies">
+        <Card data-testid="runtime-dependencies">
           <Table<RuntimeDependencyStatus>
             rowKey="key"
             dataSource={operations.dependencies}
@@ -654,7 +781,10 @@ export default function DevConsole() {
                   </Tag>
                 ),
               },
-              { title: "说明", dataIndex: "detail" },
+              {
+                title: "说明",
+                render: (_, record) => dependencyDetail(record, evidenceDetailsEnabled),
+              },
             ]}
           />
         </Card>
@@ -667,7 +797,7 @@ export default function DevConsole() {
                 label: (
                   <Space size={6}>
                     <ApiOutlined />
-                    接口目录
+                    服务目录
                   </Space>
                 ),
                 children: apiDirectory,
@@ -710,8 +840,8 @@ export default function DevConsole() {
             <Col xs={24} md={12}>
               <Form.Item
                 name="pluginCode"
-                label="插件编码"
-                rules={[{ required: true, message: "请输入插件编码" }]}
+                label="稳定插件能力身份"
+                rules={[{ required: true, message: "请输入稳定插件能力身份" }]}
               >
                 <Input maxLength={128} />
               </Form.Item>

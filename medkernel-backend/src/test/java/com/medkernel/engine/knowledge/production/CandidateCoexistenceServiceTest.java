@@ -122,17 +122,23 @@ class CandidateCoexistenceServiceTest {
     }
 
     @Test
-    void nonPendingCandidateCannotBePresentedAsCoexistence() {
+    void nonPendingCandidateReturnsExplicitNonReviewableViewWithoutHttpConflict() {
         KnowledgeAssetVersion active = version(10L, 1L, "v1", KnowledgeVersionStatus.ACTIVE);
         when(versionRepository.findByTenantIdAndIdentityIdAndVersionNo(TENANT, 1L, "v1"))
             .thenReturn(Optional.of(active));
+        when(versionRepository.findActiveByEffectiveScope(TENANT, 1L, "tenant:" + TENANT,
+            KnowledgeAssetVersion.DEFAULT_APPLICABLE_SCOPE)).thenReturn(Optional.of(active));
 
-        assertThatThrownBy(() -> service.resolve("kv:1:v1"))
-            .isInstanceOf(ApiException.class)
-            .extracting("errorCode")
-            .isEqualTo(ErrorCode.CONFLICT);
+        CandidateCoexistenceView view = service.resolve("kv:1:v1");
 
-        verify(versionRepository, never()).findActiveByEffectiveScope(any(), any(), any(), any());
+        assertThat(view.candidateExecutable()).isFalse();
+        assertThat(view.activeExecutable()).isTrue();
+        assertThat(view.candidateVersion().status()).isEqualTo(KnowledgeVersionStatus.ACTIVE);
+        assertThat(view.activeVersion().status()).isEqualTo(KnowledgeVersionStatus.ACTIVE);
+        assertThat(view.approvalOutcome()).isEqualTo("NOT_REPLACEMENT_REVIEW");
+        assertThat(view.diffSummary()).contains("ACTIVE").contains("未进入待审替换评审");
+        assertThat(view.replacementReminder()).contains("无需共存审核");
+        assertThat(view.safetyNotice()).contains("不参与临床执行");
     }
 
     @Test

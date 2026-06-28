@@ -18,6 +18,7 @@ import {
   type ImplementationStep,
   type OnboardingReadiness,
 } from "@/shared/api/hooks";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 vi.mock("@/shared/api/hooks", () => ({
   useOrgUnits: vi.fn(),
@@ -59,7 +60,7 @@ const baseOrgUnits = {
       id: "org-tenant",
       level: "TENANT",
       code: "T-1",
-      name: "平台治理空间",
+      name: "平台治理入口",
       parentId: null,
       status: "ACTIVE",
     },
@@ -124,7 +125,7 @@ function mockHooks(overrides?: {
       username: "admin",
       roles: [{ code: "platform-admin" }],
       permissions: [],
-      menuKeys: [],
+      menuKeys: ["tenant-onboarding"],
       environmentKeys: [],
       dataScope: {
         tenantId: overrides?.tenantId ?? "tenant-A",
@@ -176,7 +177,7 @@ function mockHooks(overrides?: {
       hospitalName: "人民医院",
       logoUrl: "",
       themeColor: "var(--mk-theme-navy)",
-      expertMode: false,
+      evidenceDetailsEnabled: false,
       customBrandingJson: "{}",
     },
     isLoading: false,
@@ -198,10 +199,12 @@ function mockHooks(overrides?: {
 describe("TenantOnboarding", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useEvidenceDetailsStore.getState().setEnabled(false);
+    window.localStorage.clear();
     mockHooks();
   });
 
-  it("shows backend onboarding readiness blockers and keeps activation disabled", () => {
+  it("shows onboarding readiness blockers and keeps activation disabled", () => {
     renderPage(<TenantOnboarding />);
 
     expect(useOrgUnits).toHaveBeenCalledWith({
@@ -230,12 +233,12 @@ describe("TenantOnboarding", () => {
     await waitFor(() =>
       expect(scope.getByRole("combobox", { name: "机构类型" })).toBeInTheDocument(),
     );
-    await userEvent.type(scope.getByRole("textbox", { name: "组织编码" }), "HOSP-NEW");
+    await userEvent.type(scope.getByRole("textbox", { name: "稳定组织身份" }), "HOSP-NEW");
     await userEvent.type(scope.getByRole("textbox", { name: "组织名称" }), "新建医院");
     fireEvent.mouseDown(scope.getByRole("combobox", { name: "机构类型" }));
     clickSelectOption("综合医院");
     fireEvent.mouseDown(scope.getByRole("combobox", { name: "直接上级" }));
-    fireEvent.click(screen.getByText("平台治理空间（服务机构根节点）"));
+    fireEvent.click(screen.getByText("平台治理入口（服务机构根节点）"));
     await userEvent.click(scope.getByRole("button", { name: /保存组织节点/ }));
 
     await waitFor(() =>
@@ -267,6 +270,36 @@ describe("TenantOnboarding", () => {
     expect(screen.queryByRole("button", { name: /开通租户/ })).not.toBeInTheDocument();
   });
 
+  it("uses implementation evidence language for the branding evidence preference", () => {
+    renderPage(<TenantOnboarding />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /品牌信息/ }));
+    expect(screen.getByLabelText("医院标识图片地址")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Logo URL")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("粘贴院方授权的标识图片地址")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("选择预设主题色或输入品牌色值")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "上线验收证据说明" })).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "默认展开证据详情" })).not.toBeInTheDocument();
+    expect(screen.getByText("业务视图")).toBeInTheDocument();
+  });
+
+  it("keeps organization identifiers in evidence details instead of the default organization view", async () => {
+    const user = userEvent.setup();
+
+    renderPage(<TenantOnboarding />);
+
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.getAllByText("组织已登记").length).toBeGreaterThan(0);
+    expect(screen.queryByText("H-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("org-group")).not.toBeInTheDocument();
+    expect(screen.getByText("来自组织与任职台账")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("H-1")).toBeInTheDocument();
+    expect(screen.getByText("org-group")).toBeInTheDocument();
+  });
+
   it("renders an error state when organization or readiness APIs fail", () => {
     vi.mocked(useOnboardingReadiness).mockReturnValue({
       data: undefined,
@@ -278,10 +311,32 @@ describe("TenantOnboarding", () => {
     renderPage(<TenantOnboarding />);
 
     expect(screen.getByText("机构实施状态读取失败")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "请重试；若持续失败，请联系信息科核查服务机构与组织服务。失败已留痕，可在审计证据中追溯。",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/追踪号/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
   });
 
-  it("仅允许平台治理空间开通服务机构空间", async () => {
+  it("keeps empty readiness guidance in service institution language", () => {
+    mockHooks({
+      readiness: {
+        ...blockedReadiness,
+        steps: [],
+      },
+    });
+
+    renderPage(<TenantOnboarding />);
+
+    expect(screen.getByText("暂无实施就绪步骤")).toBeInTheDocument();
+    expect(
+      screen.getByText("当前服务机构尚未返回实施就绪步骤，请确认服务机构和组织范围已经建立。"),
+    ).toBeInTheDocument();
+  });
+
+  it("仅允许平台治理入口开通服务机构", async () => {
     const provision = vi.fn().mockResolvedValue({
       tenantId: "t-renmin",
       adminUserId: "renmin-admin",
@@ -296,8 +351,8 @@ describe("TenantOnboarding", () => {
     expect(screen.queryByText("组织树")).not.toBeInTheDocument();
     expect(screen.getByText("人民医院")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /开通机构空间/ }));
-    await userEvent.type(screen.getByLabelText("机构空间标识"), "t-renmin");
+    await userEvent.click(screen.getByRole("button", { name: /开通服务机构/ }));
+    await userEvent.type(screen.getByLabelText("稳定服务机构身份"), "t-renmin");
     await userEvent.type(screen.getByLabelText("服务机构名称"), "人民医院");
     await userEvent.type(screen.getByLabelText("首个管理员登录名"), "renmin-admin");
     await userEvent.click(screen.getByRole("button", { name: "确认开通" }));
@@ -310,5 +365,6 @@ describe("TenantOnboarding", () => {
       }),
     );
     expect(await screen.findByText("TenantPwd@9")).toBeInTheDocument();
+    expect(screen.getAllByText(/服务机构/).length).toBeGreaterThan(0);
   });
 });

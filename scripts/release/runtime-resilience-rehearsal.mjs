@@ -15,7 +15,7 @@ async function main() {
   const evidence = await runRuntimeResilienceRehearsal(config);
   writeJsonAtomic(config.evidencePath, evidence);
   process.stdout.write(
-    `PASSED runtime-resilience evidence=${config.evidencePath} b0=${evidence.b0.passedCount}/${evidence.b0.fixtureCount}\n`,
+    `PASSED runtime-resilience evidence=${config.evidencePath} b0=${evidence.b0.passedCount}/${evidence.b0.evidenceCount}\n`,
   );
 }
 

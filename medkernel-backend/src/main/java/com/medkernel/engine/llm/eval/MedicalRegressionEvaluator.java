@@ -16,7 +16,7 @@ import com.medkernel.engine.llm.provider.ProviderCompletion;
  * 医学回归评测器（LLM-07 FR-1/2/3/4）。
  *
  * <p>对候选 provider/版本跑基准集：① 期望短语回归比对；② 引用真实性——要求引用的用例若产出无可回溯引用
- * 判假引用 FAIL；③ 红线——红线用例未命中安全期望即判越红线 FAIL。全部技术校验通过 →
+     * 判假引用 FAIL；③ 红线——红线用例未命中安全期望即判越红线 FAIL。全部安全校验通过 →
  * {@code PASSED}；任一失败 → {@code FAILED}，阻断上线。
  * 纯逻辑、不依赖真实 provider（可对 B0 产出跑回归，铁律 #4）。
  */

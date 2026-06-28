@@ -7,7 +7,7 @@
     {"capabilityCode":"rule.draft","displayName":"临床规则草案拟定","description":"基于可信依据生成待核查的规则草案。","category":"规则引擎","sortOrder":40},
     {"capabilityCode":"pathway.draft","displayName":"临床路径草案拟定","description":"生成待核查的路径节点与变异草案。","category":"路径引擎","sortOrder":50},
     {"capabilityCode":"cdss.explain","displayName":"临床决策解释","description":"将确定性决策依据转换为可追溯说明。","category":"解释追溯","sortOrder":60},
-    {"capabilityCode":"quality.semantic-check","displayName":"病历内涵质控","description":"识别病历中的逻辑缺项与质控风险。","category":"质控改进","sortOrder":70},
+    {"capabilityCode":"quality.semantic-check","displayName":"病历内涵质控","description":"识别病历中的逻辑缺项与质控风险。","category":"质量管理","sortOrder":70},
     {"capabilityCode":"followup.draft","displayName":"随访草案拟定","description":"生成待核查的随访计划与问卷草案。","category":"智能随访","sortOrder":80}
   ],
   "enhancementMatrix": [

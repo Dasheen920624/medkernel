@@ -34,4 +34,32 @@ public record PathwayTemplate(
     @Column("updated_by") String updatedBy,
     @Column("trace_id") String traceId
 ) {
+    public PathwayTemplate withStatus(
+            PathwayTemplateStatus nextStatus,
+            Instant now,
+            String actor,
+            String nextTraceId) {
+        return new PathwayTemplate(
+            id,
+            templateId,
+            tenantId,
+            templateCode,
+            name,
+            diseaseCode,
+            templateVersion,
+            templateLevel,
+            nextStatus,
+            entryMode,
+            startNodeCode,
+            sourceRef,
+            description,
+            entryCriteriaJson,
+            exitCriteriaJson,
+            createdAt,
+            createdBy,
+            now,
+            actor,
+            nextTraceId
+        );
+    }
 }

@@ -217,7 +217,7 @@ class ClinicalEventEngineDispatcherTest {
         return new ClinicalEventContext(
             "evt-1",
             "tenant-A",
-            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", "specialty-A"),
+            new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", null, "specialty-A"),
             ClinicalEventType.DIAGNOSIS,
             ClinicalEventTriggerPoint.PATIENT_VIEW,
             "MPI-1",

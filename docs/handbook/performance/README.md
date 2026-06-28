@@ -14,7 +14,12 @@ BASE_URL=https://target.example k6 run docs/handbook/performance/k6-1000-concurr
 BASE_URL=https://target.example k6 run docs/handbook/performance/k6-llm-degradation.js
 ```
 
-目标地址、测试账号和令牌通过环境变量注入，不写入脚本或仓库。
+目标地址、测试账号和令牌通过环境变量注入，不写入脚本或仓库。脚本读取
+`MEDKERNEL_AUTH_TOKEN` 或 `AUTH_TOKEN` 后附加 `Bearer` 令牌；未注入令牌时只适用于本地或已放行的
+受控压测环境。
+
+脚本只覆盖当前产品模型下的医疗引擎、知识生产、质量管理、平台管理和模型能力入口；不得回流旧
+LLM 路径、历史四域分组或固定患者病例文本。
 
 ## 结果
 

@@ -18,7 +18,7 @@ public record Branding(
     @Column("hospital_name") String hospitalName,
     @Column("logo_url") String logoUrl,
     @Column("theme_color") String themeColor,
-    @Column("expert_mode") Boolean expertMode,
+    @Column("evidence_details_enabled") Boolean evidenceDetailsEnabled,
     @Column("custom_branding_json") String customBrandingJson,
     @Column("created_at") Instant createdAt,
     @Column("created_by") String createdBy,

@@ -12,7 +12,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 /**
  * T7.2 KNOWGEN 专用资产类型代码骨架目录。
  *
- * <p>覆盖评分计算器、规则测试病例、合理用检、核心制度核查、特殊人群剂量与 PGx。目录本身不生产内容，
+ * <p>覆盖评分计算器、规则验证病例、合理用检、核心制度核查、特殊人群剂量与 PGx。目录本身不生产内容，
  * 只为后续真实来源导入提供生成/校验/计算的可运行骨架。
  */
 @Service
@@ -24,7 +24,7 @@ public class KnowgenSpecializedAssetSkeletonRegistry {
         skeleton("KNOWGEN-16", "评分量表与计算器", List.of(VersionedAssetType.FORMULA),
             List.of("inputs", "algorithm", "thresholds", "test_vectors", "source"),
             List.of("GENERATE_DRAFT", "VALIDATE_STRUCTURE", "CALCULATE_FORMULA")),
-        skeleton("KNOWGEN-04", "临床规则与测试病例", List.of(VersionedAssetType.RULE),
+        skeleton("KNOWGEN-04", "临床规则与验证病例", List.of(VersionedAssetType.RULE),
             List.of("trigger", "logic", "action", "risk", "test_cases", "source"),
             BASE_CAPABILITIES),
         skeleton("KNOWGEN-18", "检查检验适当性规则", List.of(VersionedAssetType.RULE),

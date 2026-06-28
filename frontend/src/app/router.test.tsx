@@ -55,15 +55,15 @@ vi.mock("@/shared/api/hooks", () => ({
       enabled: true,
       status: "NOT_CONNECTED",
       providers: ["OIDC", "CAS", "SAML", "国密CA"],
-      message: "院方统一身份入口已开放，但当前未配置真实 IdP 连接器。",
+      message: "院方统一身份入口已开放，请由信息科在身份来源完成配置后启用。",
     },
     isLoading: false,
     isError: false,
   }),
   useLoginTenantDirectory: () => ({
     data: {
-      primaryTenants: [{ tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" }],
-      platformTenant: { tenantId: "t-1", name: "平台治理空间（唯一内置）", kind: "PLATFORM" },
+      primaryTenants: [{ tenantId: "t-1", name: "平台治理入口（唯一内置）", kind: "PLATFORM" }],
+      platformTenant: { tenantId: "t-1", name: "平台治理入口（唯一内置）", kind: "PLATFORM" },
       hasCustomerTenants: false,
     },
     isLoading: false,

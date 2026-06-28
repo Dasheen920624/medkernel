@@ -77,10 +77,10 @@ import com.medkernel.shared.observability.StateTransitionRecorder;
 /**
  * 规则引擎应用服务（GA-ENG-API-05 受控规则资产 + 确定性执行 + 可解释日志）。
  *
- * <p>聚合规则定义、版本、测试用例、执行日志四张表，承担：
+ * <p>聚合规则定义、版本、验证用例、执行日志四张表，承担：
  * <ul>
  *   <li>创建规则与初始草稿版本（DSL 校验失败抛 {@code ENG-RULE-001}）；</li>
- *   <li>新增测试用例并校验状态（仅 {@code DRAFT} 可加）；</li>
+ *   <li>新增验证用例并校验状态（仅 {@code DRAFT} 可加）；</li>
  *   <li>试运行执行：复用 {@link RuleDslEvaluator}，同步写 {@code rule_execution_log} 与状态历史；</li>
  *   <li>发布门禁：要求阳性/阴性/边界/冲突四类用例齐备且全部 PASS，否则抛 {@code ENG-RULE-004}；</li>
  *   <li>真实执行：按触发点匹配统一版本已发布规则集合，返回命中明细 + 最高严重度；</li>
@@ -347,7 +347,7 @@ public class RuleEngineService {
      *
      * <p>旧发布版本继续由统一版本解析器提供运行服务；新版本只切换编辑态指针，
      * 并复制 DSL、解释、适用域、参数绑定和发布门禁用例。测试执行结果不会复制，
-     * 新版本必须重新完成技术验证。
+     * 新版本必须重新完成安全复核。
      */
     @Transactional
     public RuleVersionCreateResponse createNextVersion(String ruleId) {
@@ -549,7 +549,7 @@ public class RuleEngineService {
     }
 
     /**
-     * 装载规则当前版本与全部测试用例的聚合详情。
+     * 装载规则当前版本与全部验证用例的聚合详情。
      *
      * <p>失败：规则不存在抛 {@code ENG-RULE-002}；版本不存在抛 {@code ENG-RULE-003}。
      */
@@ -604,7 +604,7 @@ public class RuleEngineService {
     }
 
     /**
-     * 为指定规则当前版本新增一条测试用例。
+     * 为指定规则当前版本新增一条验证用例。
      *
      * <p>前置：规则必须处于 {@code DRAFT} 状态，否则抛 {@code ENG-RULE-006}；
      * 失败：规则不存在抛 {@code ENG-RULE-002}。
@@ -621,7 +621,7 @@ public class RuleEngineService {
         ensureGovernanceDraft(tenantId, version.versionId());
         ContextSnapshotResponse snapshot = contextSnapshots.findById(request.contextSnapshotId());
         if (snapshot.status() != ContextSnapshotStatus.ACTIVE || snapshot.resources() == null) {
-            throw new ApiException(ErrorCode.ENG_RULE_006, "规则测试用例只能基于已生效标准上下文生成");
+            throw new ApiException(ErrorCode.ENG_RULE_006, "规则验证用例只能基于已生效标准上下文生成");
         }
         String caseId = "rtc-" + UUID.randomUUID();
         RuleTestCase saved = testCases.save(new RuleTestCase(
@@ -629,12 +629,12 @@ public class RuleEngineService {
             snapshot.snapshotId(), writeObject(snapshot.resources()), request.expectedHit(), request.expectedSeverity(),
             request.expectedActionCode(), null, RuleTestCaseStatus.NOT_RUN, null, null,
             now, actor, now, actor, traceId));
-        auditRecorder.record(AuditAction.UPDATE, RULE_ENTITY, ruleId, "新增规则测试用例 " + saved.caseId());
+        auditRecorder.record(AuditAction.UPDATE, RULE_ENTITY, ruleId, "新增规则验证用例 " + saved.caseId());
         return new RuleTestCaseResponse(saved.caseId(), saved.caseType(), saved.lastStatus());
     }
 
     /**
-     * 执行当前版本全部测试用例并回写结果，不推进发布状态。
+     * 执行当前版本全部验证用例并回写结果，不推进发布状态。
      */
     @Transactional
     public RuleTestRunResponse runTests(String ruleId) {
@@ -703,7 +703,7 @@ public class RuleEngineService {
             ensureNoStaticConflicts(rule, version);
             testResults = cases.stream().map(testCase -> runTestCase(version, testCase)).toList();
             if (testResults.stream().anyMatch(result -> result.status() != RuleTestCaseStatus.PASS)) {
-                throw new ApiException(ErrorCode.ENG_RULE_004, "规则测试用例未全部通过");
+                throw new ApiException(ErrorCode.ENG_RULE_004, "规则验证用例未全部通过");
             }
         } else if (target == RuleGovernanceState.SHADOW
                 || target == RuleGovernanceState.CANARY
@@ -2076,7 +2076,7 @@ public class RuleEngineService {
         cases.forEach(testCase -> covered.add(testCase.caseType()));
         if (!covered.containsAll(REQUIRED_CASE_TYPES)) {
             throw new ApiException(ErrorCode.ENG_RULE_004,
-                "规则发布必须覆盖阳性、阴性、边界、冲突四类测试用例");
+                "规则发布必须覆盖阳性、阴性、边界、冲突四类验证用例");
         }
     }
 
@@ -2338,31 +2338,31 @@ public class RuleEngineService {
                 normalizedThen.add(action.deepCopy());
                 continue;
             }
-            normalizedThen.add(staticActionCardReferencePlaceholder(action));
+            normalizedThen.add(actionCardReferenceForValidation(action));
         }
         normalizedDsl.set("then", normalizedThen);
         return normalizedDsl;
     }
 
-    private ObjectNode staticActionCardReferencePlaceholder(JsonNode action) {
+    private ObjectNode actionCardReferenceForValidation(JsonNode action) {
         JsonNode rawRef = action.get("actionCardRef");
         if (rawRef == null || !rawRef.isTextual() || trimToNull(rawRef.asText()) == null) {
             throw new ApiException(ErrorCode.ENG_RULE_001, "临床提示卡引用 actionCardRef 必须是非空文本");
         }
-        ObjectNode placeholder = json.createObjectNode();
-        placeholder.put("actionCardRef", trimToNull(rawRef.asText()));
-        placeholder.put("actionCode", RuleActionCode.REMIND.name());
-        placeholder.put("atSeverity", RuleRiskLevel.LOW.name());
-        placeholder.put("indicator", "info");
-        placeholder.put("summary", "临床提示卡引用静态校验占位");
-        placeholder.put("detail", "真实临床提示卡由机构生效版本统一物化后执行");
+        ObjectNode validationAction = json.createObjectNode();
+        validationAction.put("actionCardRef", trimToNull(rawRef.asText()));
+        validationAction.put("actionCode", RuleActionCode.REMIND.name());
+        validationAction.put("atSeverity", RuleRiskLevel.LOW.name());
+        validationAction.put("indicator", "info");
+        validationAction.put("summary", "临床提示卡引用待机构生效版本物化");
+        validationAction.put("detail", "规则草稿仅校验提示卡引用格式；执行时由机构生效版本物化为真实临床提示卡");
         ObjectNode source = json.createObjectNode();
         source.put("label", "临床提示卡引用");
-        placeholder.set("source", source);
-        placeholder.set("suggestions", json.createArrayNode());
-        placeholder.set("overrideReasons", json.createArrayNode());
-        placeholder.put("requiresPhysicianConfirmation", false);
-        return placeholder;
+        validationAction.set("source", source);
+        validationAction.set("suggestions", json.createArrayNode());
+        validationAction.set("overrideReasons", json.createArrayNode());
+        validationAction.put("requiresPhysicianConfirmation", false);
+        return validationAction;
     }
 
     private void rejectUnknownContextFields(JsonNode dsl) {

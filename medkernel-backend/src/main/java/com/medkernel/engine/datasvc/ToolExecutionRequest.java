@@ -5,7 +5,7 @@ import java.time.Instant;
 import jakarta.validation.constraints.NotBlank;
 
 /**
- * 受控工具执行请求（DATASVC-01 PR2）。
+ * 受控工具执行请求（DATASVC-01）。
  *
  * <p>{@code purpose} 调用用途为必填——MCP/CLI 调用须声明用途，进审计（FR-6）；{@code target} 为单对象类工具
  * （{@code explainRule}/{@code checkKnowledgeExistence} 等）的目标标识（规则 ID / 知识身份编码），需要它的工具

@@ -6,7 +6,7 @@ const REQUIRED_CASES = new Set([
   "POSITIVE",
   "NEGATIVE",
   "BOUNDARY",
-  "MISSING_FIELD",
+  "CONFLICT",
 ]);
 const REQUIRED_SOURCE_FIELDS = new Set([
   "sourceType",
@@ -16,6 +16,13 @@ const REQUIRED_SOURCE_FIELDS = new Set([
   "retrievedAt",
   "applicability",
 ]);
+const CLINICAL_SETTINGS = new Set([
+  "INPATIENT",
+  "OUTPATIENT",
+  "ED",
+  "FOLLOWUP",
+]);
+const ORG_SCOPE_FIELDS = ["groupIds", "hospitalIds", "deptIds"];
 const REMOVED_FIXED_RUNTIME_VERSION_FIELD = "package" + "Version";
 
 export async function loadScenarioRules(
@@ -129,11 +136,22 @@ function validateSources(scenario) {
 function validateClinicalContent(scenario) {
   const content = scenario.clinicalContent;
   if (!content?.dsl || !Array.isArray(content.testCases)) {
-    throw new Error(`沙盘规则 ${scenario.ruleCode} 缺少 DSL 或测试用例`);
+    throw new Error(`沙盘规则 ${scenario.ruleCode} 缺少 DSL 或验证用例`);
   }
-  if (content.dsl.trigger !== scenario.triggerPoint || !content.dsl.when) {
-    throw new Error(`沙盘规则 ${scenario.ruleCode} DSL 触发点或条件无效`);
+  if (Object.hasOwn(content.dsl, "trigger")) {
+    throw new Error(
+      `沙盘规则 ${scenario.ruleCode} DSL 不得包含 trigger`,
+    );
   }
+  if (Object.hasOwn(content.dsl.meta ?? {}, "parameters")) {
+    throw new Error(
+      `沙盘规则 ${scenario.ruleCode} DSL 不得声明未绑定 meta.parameters`,
+    );
+  }
+  if (!content.dsl.when) {
+    throw new Error(`沙盘规则 ${scenario.ruleCode} DSL 条件无效`);
+  }
+  validateApplicability(scenario, content.dsl.applicability);
   if (!Array.isArray(content.dsl.then) || content.dsl.then.length === 0) {
     throw new Error(`沙盘规则 ${scenario.ruleCode} 缺少执行动作`);
   }
@@ -141,7 +159,7 @@ function validateClinicalContent(scenario) {
   for (const required of REQUIRED_CASES) {
     if (!caseTypes.has(required)) {
       throw new Error(
-        `沙盘规则 ${scenario.ruleCode} 缺少 ${required} 测试用例`,
+        `沙盘规则 ${scenario.ruleCode} 缺少 ${required} 验证用例`,
       );
     }
   }
@@ -150,7 +168,7 @@ function validateClinicalContent(scenario) {
     content.testCases.length !== REQUIRED_CASES.size
   ) {
     throw new Error(
-      `沙盘规则 ${scenario.ruleCode} 测试用例类型必须且只能覆盖四类`,
+      `沙盘规则 ${scenario.ruleCode} 验证用例类型必须且只能覆盖四类`,
     );
   }
   for (const testCase of content.testCases) {
@@ -164,6 +182,11 @@ function validateClinicalContent(scenario) {
         `沙盘规则 ${scenario.ruleCode}/${testCase.caseType} 测试数据不完整`,
       );
     }
+    validateTestCaseApplicability(
+      scenario,
+      testCase,
+      content.dsl.applicability.settings,
+    );
   }
   for (const action of content.dsl.then) {
     if (!new Set(["info", "warning", "critical"]).has(action.indicator)) {
@@ -187,6 +210,107 @@ function validateClinicalContent(scenario) {
       throw new Error(`沙盘规则 ${scenario.ruleCode} 未声明不自动执行临床动作`);
     }
   }
+}
+
+function validateTestCaseApplicability(scenario, testCase, settings) {
+  if (settings.includes("ED")) return;
+  const encounters = testCase.facts.encounters;
+  if (
+    !Array.isArray(encounters) ||
+    !encounters.some((item) => settings.includes(item?.encounterType))
+  ) {
+    throw new Error(
+      `沙盘规则 ${scenario.ruleCode}/${testCase.caseType} 缺少匹配适用场景 ${settings.join("|")}`,
+    );
+  }
+}
+
+function validateApplicability(scenario, applicability) {
+  if (!isPlainObject(applicability)) {
+    throw new Error(`沙盘规则 ${scenario.ruleCode} 缺少 applicability`);
+  }
+  const population = applicability.population;
+  if (!isPlainObject(population)) {
+    throw new Error(
+      `沙盘规则 ${scenario.ruleCode} applicability.population 必须是对象`,
+    );
+  }
+  for (const field of ["include", "exclude"]) {
+    if (population[field] !== undefined && !isPlainObject(population[field])) {
+      throw new Error(
+        `沙盘规则 ${scenario.ruleCode} applicability.population.${field} 必须是对象`,
+      );
+    }
+  }
+  const orgScope = applicability.orgScope;
+  if (!isPlainObject(orgScope)) {
+    throw new Error(
+      `沙盘规则 ${scenario.ruleCode} applicability.orgScope 必须是对象`,
+    );
+  }
+  for (const field of ORG_SCOPE_FIELDS) {
+    const values = orgScope[field];
+    if (!Array.isArray(values)) {
+      throw new Error(
+        `沙盘规则 ${scenario.ruleCode} applicability.orgScope.${field} 必须是字符串数组`,
+      );
+    }
+    const unique = new Set();
+    for (const value of values) {
+      if (typeof value !== "string" || !value.trim()) {
+        throw new Error(
+          `沙盘规则 ${scenario.ruleCode} applicability.orgScope.${field} 仅允许非空字符串`,
+        );
+      }
+      if (unique.has(value)) {
+        throw new Error(
+          `沙盘规则 ${scenario.ruleCode} applicability.orgScope.${field} 不允许重复值`,
+        );
+      }
+      unique.add(value);
+    }
+  }
+  if (
+    !Array.isArray(applicability.settings) ||
+    applicability.settings.length === 0
+  ) {
+    throw new Error(
+      `沙盘规则 ${scenario.ruleCode} applicability.settings 至少包含一个临床场景`,
+    );
+  }
+  const uniqueSettings = new Set();
+  for (const setting of applicability.settings) {
+    if (typeof setting !== "string" || !CLINICAL_SETTINGS.has(setting)) {
+      throw new Error(
+        `沙盘规则 ${scenario.ruleCode} applicability.settings 仅允许 INPATIENT/OUTPATIENT/ED/FOLLOWUP`,
+      );
+    }
+    if (uniqueSettings.has(setting)) {
+      throw new Error(
+        `沙盘规则 ${scenario.ruleCode} applicability.settings 不允许重复值`,
+      );
+    }
+    uniqueSettings.add(setting);
+  }
+  if (!isPlainObject(applicability.effective)) {
+    throw new Error(
+      `沙盘规则 ${scenario.ruleCode} applicability.effective 必须是对象`,
+    );
+  }
+  const rolloutPercent = applicability.effective.rolloutPercent;
+  if (
+    !Number.isInteger(rolloutPercent) ||
+    rolloutPercent < 0 ||
+    rolloutPercent > 100
+  ) {
+    throw new Error(
+      `沙盘规则 ${scenario.ruleCode} applicability.effective.rolloutPercent 必须是 0 到 100 的整数`,
+    );
+  }
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 export function selectSeedRules(manifest, seedOnly = "") {

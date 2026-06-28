@@ -16,15 +16,23 @@ public record ModelTaskRequest(
 
     String requiredRouteStrategy,
 
-    String providerCode
+    String providerCode,
+
+    String authoritativeOutputContext
 ) {
     public ModelTaskRequest(String capabilityCode, String inputData, Integer timeoutSeconds) {
-        this(capabilityCode, inputData, timeoutSeconds, null, null);
+        this(capabilityCode, inputData, timeoutSeconds, null, null, null);
+    }
+
+    public ModelTaskRequest(String capabilityCode, String inputData, Integer timeoutSeconds,
+                            String requiredRouteStrategy, String providerCode) {
+        this(capabilityCode, inputData, timeoutSeconds, requiredRouteStrategy, providerCode, null);
     }
 
     public ModelTaskRequest {
         requiredRouteStrategy = blankToNull(requiredRouteStrategy);
         providerCode = blankToNull(providerCode);
+        authoritativeOutputContext = blankToNull(authoritativeOutputContext);
     }
 
     private static String blankToNull(String value) {

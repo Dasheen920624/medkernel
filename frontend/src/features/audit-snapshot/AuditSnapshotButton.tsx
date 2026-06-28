@@ -6,7 +6,7 @@ import { useAuditSnapshot, useSecurityProfile } from "@/shared/api/hooks";
 /**
  * 全局审计快照按钮（与 docs/CONSTITUTION.md §5 第 7 角色对齐）。
  *
- * <p>只允许拥有 {@code audit.export} 的用户调用后端审计接口生成可追溯证据；
+ * <p>只允许拥有 {@code audit.export} 的用户调用审计服务生成可追溯证据；
  * 页面端不自行制造身份、签名或审计上下文。
  */
 export function AuditSnapshotButton({ compact = false }: { compact?: boolean }) {
@@ -22,8 +22,8 @@ export function AuditSnapshotButton({ compact = false }: { compact?: boolean }) 
       return;
     }
     snapshot.mutate(`page:${location.pathname}`, {
-      onSuccess: (data) => {
-        message.success(`审计快照已生成 · ${data.signature ?? data.id}`);
+      onSuccess: () => {
+        message.success("审计快照已生成，可在审计证据中查看");
       },
       onError: () => {
         message.error("审计快照生成失败，请稍后重试");

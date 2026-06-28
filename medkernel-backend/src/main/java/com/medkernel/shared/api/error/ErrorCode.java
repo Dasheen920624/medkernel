@@ -120,7 +120,7 @@ public enum ErrorCode {
     ENG_LLM_007("ENG-LLM-007", 403, "高敏数据外调未经审批，已阻断", ErrorClass.AUTH, false),
     ENG_LLM_008("ENG-LLM-008", 409, "模型服务与版本未通过医学验证评测，禁止上线", ErrorClass.DATA, false),
     ENG_LLM_009("ENG-LLM-009", 403, "当前部署形态（院内运行）禁止启用外部模型服务", ErrorClass.AUTH, false),
-    ENG_LLM_010("ENG-LLM-010", 409, "增强接入矩阵业务点上线须同时具备已登记能力码与基础规则路径", ErrorClass.DATA, false),
+    ENG_LLM_010("ENG-LLM-010", 409, "模型赋能覆盖业务点上线须同时具备已登记能力码与基础规则路径", ErrorClass.DATA, false),
     ENG_LIST_001("ENG-LIST-001", 400, "非法的列表资源类型或排序字段", ErrorClass.INPUT, false),
     ENG_LIST_002("ENG-LIST-002", 404, "异步导出任务不存在", ErrorClass.DATA, false),
     ENG_LIST_003("ENG-LIST-003", 409, "导出任务尚未完成，无法提供下载", ErrorClass.DATA, false),
@@ -166,7 +166,7 @@ public enum ErrorCode {
     ENG_AUTH_011("ENG-AUTH-011", 400, "应急命令缺少确认短语", ErrorClass.AUTH, false),
     ENG_AUTH_012("ENG-AUTH-012", 401, "会话已过期，请重新登录", ErrorClass.AUTH, false),
     ENG_AUTH_013("ENG-AUTH-013", 403, "当前认证模式不允许平台账号登录，请使用院方统一身份入口", ErrorClass.AUTH, false),
-    ENG_AUTH_014("ENG-AUTH-014", 503, "院方统一身份尚未接入，无法完成委托登录", ErrorClass.EXTERNAL, true),
+    ENG_AUTH_014("ENG-AUTH-014", 503, "院方统一身份服务待配置，无法完成委托登录", ErrorClass.EXTERNAL, true),
     ENG_AUTH_015("ENG-AUTH-015", 403, "必须先完成初始密码修改", ErrorClass.AUTH, false),
     ENG_AUTH_016("ENG-AUTH-016", 401, "密码重置 token 无效或已使用", ErrorClass.AUTH, false),
     ENG_AUTH_017("ENG-AUTH-017", 409, "系统已完成首次部署，禁止重复创建内置超级管理员", ErrorClass.AUTH, false),
@@ -182,7 +182,7 @@ public enum ErrorCode {
     ENG_DX_001("ENG-DX-001", 409, "诊断知识版本无效或未发布", ErrorClass.DATA, false),
     ENG_DX_004("ENG-DX-004", 400, "鉴别引用的诊断身份不存在", ErrorClass.DATA, false),
     ENG_DX_005("ENG-DX-005", 409, "诊断置信策略缺失或非法", ErrorClass.DATA, false),
-    ENG_DX_006("ENG-DX-006", 409, "诊断测试病例未通过，不得发布", ErrorClass.DATA, false);
+    ENG_DX_006("ENG-DX-006", 409, "诊断验证病例未通过，不得发布", ErrorClass.DATA, false);
 
     private final String code;
     private final int httpStatus;

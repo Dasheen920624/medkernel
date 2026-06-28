@@ -33,7 +33,7 @@ import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.hash.Sha256ContentHash;
 
 /**
- * 引擎数据服务层 · 受控工具服务（DATASVC-01 PR2，CLI/MCP 共用受控工具执行入口）。
+ * 引擎数据服务层 · 受控工具服务（DATASVC-01，CLI/MCP 共用受控工具执行入口）。
  *
  * <p>把已建的受控读模型服务以「受控工具」形式统一暴露：工具只能经本服务派发到既有受控服务执行，
  * <b>不直连数据库、不绕身份/权限/脱敏/审计/降级</b>（FR-5）。每次执行包裹 FR-4 治理信封
@@ -488,7 +488,7 @@ public class ControlledToolService {
     }
 
     /**
-     * 按数据级别给出后端脱敏策略标识（FR-2）：D0/D1 为已发布元数据无需脱敏，D2 为去标识聚合，
+     * 按数据级别给出脱敏策略标识（FR-2）：D0/D1 为已发布元数据无需脱敏，D2 为去标识聚合，
      * D4 为最小授权上下文（患者引用不可逆脱敏，不输出原始患者字段）；D3/D5 当前工具不暴露，
      * 默认返回最严策略标识（不以宽松策略伪装高敏处理）。
      */
