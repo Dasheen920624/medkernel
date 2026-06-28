@@ -18,6 +18,7 @@ import {
   type ImplementationStep,
   type OnboardingReadiness,
 } from "@/shared/api/hooks";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 vi.mock("@/shared/api/hooks", () => ({
   useOrgUnits: vi.fn(),
@@ -124,7 +125,7 @@ function mockHooks(overrides?: {
       username: "admin",
       roles: [{ code: "platform-admin" }],
       permissions: [],
-      menuKeys: [],
+      menuKeys: ["tenant-onboarding"],
       environmentKeys: [],
       dataScope: {
         tenantId: overrides?.tenantId ?? "tenant-A",
@@ -198,6 +199,8 @@ function mockHooks(overrides?: {
 describe("TenantOnboarding", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useEvidenceDetailsStore.getState().setEnabled(false);
+    window.localStorage.clear();
     mockHooks();
   });
 
@@ -230,7 +233,7 @@ describe("TenantOnboarding", () => {
     await waitFor(() =>
       expect(scope.getByRole("combobox", { name: "机构类型" })).toBeInTheDocument(),
     );
-    await userEvent.type(scope.getByRole("textbox", { name: "组织编码" }), "HOSP-NEW");
+    await userEvent.type(scope.getByRole("textbox", { name: "稳定组织身份" }), "HOSP-NEW");
     await userEvent.type(scope.getByRole("textbox", { name: "组织名称" }), "新建医院");
     fireEvent.mouseDown(scope.getByRole("combobox", { name: "机构类型" }));
     clickSelectOption("综合医院");
@@ -271,7 +274,24 @@ describe("TenantOnboarding", () => {
     renderPage(<TenantOnboarding />);
 
     fireEvent.click(screen.getByRole("tab", { name: /品牌信息/ }));
-    expect(screen.getByRole("switch", { name: "默认展示验收证据" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "默认展开证据详情" })).toBeInTheDocument();
+  });
+
+  it("keeps organization identifiers in evidence details instead of the default organization view", async () => {
+    const user = userEvent.setup();
+
+    renderPage(<TenantOnboarding />);
+
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.getAllByText("组织已登记").length).toBeGreaterThan(0);
+    expect(screen.queryByText("H-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("org-group")).not.toBeInTheDocument();
+    expect(screen.getByText("来自组织与任职台账")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("H-1")).toBeInTheDocument();
+    expect(screen.getByText("org-group")).toBeInTheDocument();
   });
 
   it("renders an error state when organization or readiness APIs fail", () => {
@@ -323,7 +343,7 @@ describe("TenantOnboarding", () => {
     expect(screen.getByText("人民医院")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /开通服务机构/ }));
-    await userEvent.type(screen.getByLabelText("服务机构标识"), "t-renmin");
+    await userEvent.type(screen.getByLabelText("稳定服务机构身份"), "t-renmin");
     await userEvent.type(screen.getByLabelText("服务机构名称"), "人民医院");
     await userEvent.type(screen.getByLabelText("首个管理员登录名"), "renmin-admin");
     await userEvent.click(screen.getByRole("button", { name: "确认开通" }));
