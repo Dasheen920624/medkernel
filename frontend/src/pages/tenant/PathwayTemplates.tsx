@@ -997,7 +997,7 @@ function milestoneOptionLabel(
 ) {
   const phase = cleanText(milestone.phaseName) ?? cleanText(milestone.phaseCode) ?? "未命名阶段";
   const name = cleanText(milestone.name) ?? "未命名里程碑";
-  const code = cleanText(milestone.milestoneCode) ?? "未设置编码";
+  const code = cleanText(milestone.milestoneCode) ?? "未设置身份";
   return `${phase} / ${milestoneDayText(milestone.dayOffset)} / ${name}（${code}）`;
 }
 
@@ -1287,10 +1287,10 @@ function findPathwayTopologyIssues(
 
   const issues: string[] = [];
   for (const code of duplicatedCodes(nodes.map((node) => node.nodeCode))) {
-    issues.push(`节点编码 ${code} 重复，请改为唯一编码。`);
+    issues.push(`节点身份 ${code} 重复，请保持唯一。`);
   }
   for (const code of duplicatedCodes(edges.map((edge) => edge.edgeCode))) {
-    issues.push(`边编码 ${code} 重复，请改为唯一编码。`);
+    issues.push(`流转身份 ${code} 重复，请保持唯一。`);
   }
   if (!nodes.some((node) => node.terminal)) {
     issues.push("至少需要一个终止节点。");
@@ -1299,7 +1299,7 @@ function findPathwayTopologyIssues(
   const nodeCodes = new Set(nodes.map((node) => node.nodeCode).filter(Boolean));
   for (const edge of edges) {
     if (!nodeCodes.has(edge.fromNodeCode) || !nodeCodes.has(edge.toNodeCode)) {
-      issues.push(`边 ${edge.edgeCode || "未编码"} 引用不存在节点，请从已建节点中选择。`);
+      issues.push(`流转 ${edge.edgeCode || "未设置身份"} 引用不存在节点，请从已建节点中选择。`);
     }
   }
 
@@ -1575,7 +1575,7 @@ export default function PathwayTemplates() {
       );
     }
   };
-  // 自动生成不重复的顺序编码（节点 N1/N2…，边 E1/E2…），可改但默认不必手填。
+  // 自动生成不重复的顺序身份（节点 N1/N2…，边 E1/E2…），可改但默认不必手填。
   const nextSeqCode = (
     listName: "nodes" | "edges" | "milestones",
     field: "nodeCode" | "edgeCode" | "milestoneCode",
@@ -1785,11 +1785,11 @@ export default function PathwayTemplates() {
           !cleanText(milestone.milestoneCode) ||
           !cleanText(milestone.name)
         ) {
-          messageApi.error("阶段里程碑必须填写阶段编码、阶段名称、里程碑编码和名称");
+          messageApi.error("阶段里程碑必须填写阶段身份、阶段名称、里程碑身份和名称");
           return;
         }
         if (milestoneCodes.has(milestone.milestoneCode)) {
-          messageApi.error(`里程碑编码 ${milestone.milestoneCode} 重复，请改为唯一编码。`);
+          messageApi.error(`里程碑身份 ${milestone.milestoneCode} 重复，请保持唯一。`);
           return;
         }
         milestoneCodes.add(milestone.milestoneCode);
@@ -1820,7 +1820,7 @@ export default function PathwayTemplates() {
         return;
       }
       if (!activeNodeCodes.has(values.startNodeCode)) {
-        messageApi.error("起始节点编码必须来自 L2 节点画布");
+        messageApi.error("起始节点必须来自 L2 节点画布");
         return;
       }
       const timedNodeWithoutMetric = activeNodes.find(
@@ -1829,7 +1829,7 @@ export default function PathwayTemplates() {
           !metricBindings.some((binding) => binding.nodeCode === node.nodeCode),
       );
       if (timedNodeWithoutMetric) {
-        messageApi.error(`节点 ${timedNodeWithoutMetric.nodeCode} 设置时窗后必须绑定时钟指标编码`);
+        messageApi.error(`节点 ${timedNodeWithoutMetric.nodeCode} 设置时窗后必须绑定时钟指标身份`);
         return;
       }
       const topologyIssuesForSubmit = findPathwayTopologyIssues(
@@ -2092,7 +2092,7 @@ export default function PathwayTemplates() {
 
   const nodeColumns: TableProps<PathwayNode>["columns"] = [
     {
-      title: "节点代码",
+      title: "节点身份",
       dataIndex: "nodeCode",
       render: (code: string) => <Tag color="blue">{code}</Tag>,
     },
@@ -2160,7 +2160,7 @@ export default function PathwayTemplates() {
   ];
 
   const edgeColumns: TableProps<PathwayEdge>["columns"] = [
-    { title: "边代码", dataIndex: "edgeCode" },
+    { title: "流转身份", dataIndex: "edgeCode" },
     {
       title: "源节点",
       dataIndex: "fromNodeCode",
@@ -2187,8 +2187,8 @@ export default function PathwayTemplates() {
   ];
 
   const metricColumns: TableProps<SpecialtyMetricBinding>["columns"] = [
-    { title: "节点代码", dataIndex: "nodeCode" },
-    { title: "指标编码", dataIndex: "metricCode" },
+    { title: "节点身份", dataIndex: "nodeCode" },
+    { title: "指标身份", dataIndex: "metricCode" },
   ];
 
   const outcomeColumns: TableProps<PathwayOutcomeBinding>["columns"] = [
@@ -2202,7 +2202,7 @@ export default function PathwayTemplates() {
       key: "refCode",
       render: (_value, binding) => outcomeRefText(binding),
     },
-    { title: "指标编码", dataIndex: "indicatorCode" },
+    { title: "指标身份", dataIndex: "indicatorCode" },
   ];
 
   const renderPreviewRunEvidence = (evidence: AuthoringPreviewRunEvidence[]) => (
@@ -2354,8 +2354,8 @@ export default function PathwayTemplates() {
             <Col xs={24} sm={12} lg={8}>
               <Form.Item
                 name="templateCode"
-                label="路径模型代码"
-                tooltip="稳定业务编码；同编码修改时由系统自动创建下一版本"
+                label="稳定路径模型身份"
+                tooltip="用于跨版本、发布治理和机构生效版本追溯；同身份修改时由系统自动创建下一版本"
                 rules={[{ required: true }]}
               >
                 <Input placeholder="如 PATH.CARDIO.REVIEW" />
@@ -2364,8 +2364,8 @@ export default function PathwayTemplates() {
             <Col xs={24} sm={12} lg={8}>
               <Form.Item
                 name="diseaseCode"
-                label="病种代码"
-                tooltip="填写真实病种或诊断分组编码，不写临时中文别名"
+                label="适用病种身份"
+                tooltip="填写真实病种、诊断分组或院内路径病种身份，不写临时中文别名"
                 rules={[{ required: true }]}
               >
                 <Input placeholder="如 CARDIO 或 ICD10-I63" />
@@ -2534,7 +2534,7 @@ export default function PathwayTemplates() {
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "phaseCode"]}
-                            label="阶段编码"
+                            label="阶段身份"
                             rules={[{ required: true }]}
                           >
                             <Input placeholder="如 PREOP" />
@@ -2554,7 +2554,7 @@ export default function PathwayTemplates() {
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "milestoneCode"]}
-                            label="里程碑编码"
+                            label="里程碑身份"
                             rules={[{ required: true }]}
                           >
                             <Input placeholder="如 M-PREOP-ASSESS" />
@@ -2722,8 +2722,8 @@ export default function PathwayTemplates() {
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "nodeCode"]}
-                            label="节点编码"
-                            tooltip="新增时自动生成（N1/N2…），可改；用于边连接与起点引用"
+                            label="节点身份"
+                            tooltip="新增时自动生成（N1/N2…），可改；用于流转连接与起点引用"
                             rules={[{ required: true }]}
                           >
                             <Input placeholder="如 N1，可改为 ASSESS" />
@@ -2851,7 +2851,7 @@ export default function PathwayTemplates() {
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "metricCode"]}
-                            label="时钟指标编码"
+                            label="时钟指标身份"
                             tooltip="设置时窗分钟后必填，用于时窗校验与质控时钟"
                             rules={[
                               ({ getFieldValue }) => ({
@@ -2863,7 +2863,7 @@ export default function PathwayTemplates() {
                                   ]);
                                   if (Number(minutes) > 0 && !cleanText(value)) {
                                     return Promise.reject(
-                                      new Error("已设置时窗，请填写时钟指标编码"),
+                                      new Error("已设置时窗，请填写时钟指标身份"),
                                     );
                                   }
                                   return Promise.resolve();
@@ -3046,8 +3046,8 @@ export default function PathwayTemplates() {
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "edgeCode"]}
-                            label="边编码"
-                            tooltip="新增时自动生成（E1/E2…），可改"
+                            label="流转身份"
+                            tooltip="新增时自动生成（E1/E2…），可改；用于路径流转追溯"
                             rules={[{ required: true }]}
                           >
                             <Input placeholder="如 E1，可改为 EDGE.ASSESS.FOLLOWUP" />
@@ -3972,9 +3972,9 @@ export default function PathwayTemplates() {
               <Option value="OFFLINE">已下线</Option>
             </Select>
           </Form.Item>
-          <Form.Item label="病种编码">
+          <Form.Item label="适用病种身份">
             <Input
-              placeholder="输入真实病种编码"
+              placeholder="输入真实病种或诊断分组身份"
               allowClear
               value={diseaseFilter}
               onChange={(event) => setDiseaseFilter(event.target.value)}

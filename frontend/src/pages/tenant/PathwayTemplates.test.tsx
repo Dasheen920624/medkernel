@@ -414,6 +414,29 @@ describe("PathwayTemplates 上线路径维护契约", () => {
     await waitFor(() => expect(apiMocks.createTemplate).not.toHaveBeenCalled());
   });
 
+  it("路径建模表单以稳定业务身份表达结构化路径对象", async () => {
+    const { user, dialog } = await openCreateDialog();
+
+    expect(within(dialog).getByLabelText("稳定路径模型身份")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("适用病种身份")).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("路径模型代码")).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("病种代码")).not.toBeInTheDocument();
+
+    await user.click(within(dialog).getByLabelText("基础节点闭环"));
+    await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
+
+    expect(within(dialog).getByLabelText("阶段身份")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("里程碑身份")).toBeInTheDocument();
+    expect(within(dialog).getAllByLabelText("节点身份").length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByLabelText("时钟指标身份").length).toBeGreaterThan(0);
+    expect(within(dialog).getByLabelText("流转身份")).toBeInTheDocument();
+    expect(within(dialog).queryByText("阶段编码")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("里程碑编码")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("节点编码")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("时钟指标编码")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("边编码")).not.toBeInTheDocument();
+  });
+
   it(
     "路径原型提交由系统自动生成下一草稿版本，不提交旧容器归属",
     async () => {

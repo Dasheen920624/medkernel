@@ -371,7 +371,7 @@ describe("page smoke coverage", () => {
   it("renders the tenant pathway configuration page", () => {
     renderPage(<PathwayTemplates />);
     expect(screen.getByRole("heading", { name: "路径配置" })).toBeInTheDocument();
-    expect(screen.getByText("病种编码")).toBeInTheDocument();
+    expect(screen.getByText("适用病种身份")).toBeInTheDocument();
   });
 
   it("renders the tenant rule configuration page", () => {
