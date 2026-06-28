@@ -2,10 +2,15 @@ import { Alert, Skeleton, Space, Tag, Typography } from "antd";
 
 import { useAuthoringPreview, type AuthoringPreviewSubject } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
+import { customerSafeDisplayText } from "@/shared/config/customerLabels";
 
 import styles from "./AuthoringReadablePreview.module.css";
 
 const { Paragraph, Text } = Typography;
+const PREVIEW_EVIDENCE_TEXT = "预览证据已记录";
+const PREVIEW_WARNING_FALLBACK = "预览生成提示，请核对结构化定义。";
+const FALLBACK_FIELD_LABEL_WARNING = "部分预览内容使用通用字段标签，请核对字段含义。";
+const JSON_PATH_PATTERN = /(?:^|\s)\$(?:\.|\[)/;
 
 interface AuthoringReadablePreviewProps {
   subject: AuthoringPreviewSubject;
@@ -45,25 +50,38 @@ export function AuthoringReadablePreview({
     );
   }
 
+  const readableWarnings = Array.from(
+    new Set((previewQuery.data?.warnings ?? []).map(readablePreviewWarning)),
+  );
+
   return (
     <section className={styles.surface} aria-label={title}>
       <div className={styles.header}>
         <Text strong>{title}</Text>
         <Space size="small" wrap>
           {previewQuery.isFetching && <Tag color="processing">更新中</Tag>}
-          {previewQuery.data?.traceId && <Tag>追踪号：{previewQuery.data.traceId}</Tag>}
+          {previewQuery.data?.traceId && <Tag>{PREVIEW_EVIDENCE_TEXT}</Tag>}
         </Space>
       </div>
       <Paragraph className={styles.text}>{previewQuery.data?.previewText ?? "暂无预览"}</Paragraph>
-      {(previewQuery.data?.warnings.length ?? 0) > 0 && (
+      {readableWarnings.length > 0 && (
         <div className={styles.warningList}>
-          {previewQuery.data?.warnings.map((warning) => (
+          {readableWarnings.map((warning) => (
             <Alert key={warning} type="warning" showIcon message={warning} />
           ))}
         </div>
       )}
     </section>
   );
+}
+
+function readablePreviewWarning(warning: string) {
+  const trimmed = warning.trim();
+  if (JSON_PATH_PATTERN.test(trimmed) || trimmed.includes("兜底字段标签")) {
+    return FALLBACK_FIELD_LABEL_WARNING;
+  }
+
+  return customerSafeDisplayText(trimmed, PREVIEW_WARNING_FALLBACK);
 }
 
 export default AuthoringReadablePreview;

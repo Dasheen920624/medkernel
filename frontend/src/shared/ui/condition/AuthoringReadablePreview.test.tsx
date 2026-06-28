@@ -74,7 +74,11 @@ describe("AuthoringReadablePreview", () => {
 
     expect(await screen.findByText("当 年龄 大于等于 65。")).toBeInTheDocument();
     expect(screen.getByText("可读预览")).toBeInTheDocument();
-    expect(screen.getByText("$.when.all[0] 使用兜底字段标签")).toBeInTheDocument();
+    expect(screen.getByText("预览证据已记录")).toBeInTheDocument();
+    expect(screen.queryByText(/trace-preview/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/追踪号/)).not.toBeInTheDocument();
+    expect(screen.getByText("部分预览内容使用通用字段标签，请核对字段含义。")).toBeInTheDocument();
+    expect(screen.queryByText(/\$\.when/)).not.toBeInTheDocument();
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenCalledWith(
         "/engine/authoring/preview",
