@@ -548,8 +548,8 @@ export default function QcEvalSets() {
 
           <Space wrap>
             <Input
-              aria-label="指标编码筛选"
-              placeholder="按指标名称或编码检索"
+              aria-label="评价指标身份筛选"
+              placeholder="按指标名称或稳定身份检索"
               value={indicatorCode}
               onChange={(event) => setIndicatorCode(event.target.value)}
             />
@@ -622,10 +622,11 @@ export default function QcEvalSets() {
             <div className={styles.formGrid}>
               <Form.Item
                 name="indicatorCode"
-                label="指标编码"
-                rules={[{ required: true, message: "请输入指标编码" }]}
+                label="稳定评价指标身份"
+                rules={[{ required: true, message: "请输入稳定评价指标身份" }]}
+                extra="用于版本发布、质控追溯和跨机构迁移；默认台账仍按指标名称与业务状态展示。"
               >
-                <Input />
+                <Input placeholder="输入稳定评价指标身份" />
               </Form.Item>
               <Form.Item
                 name="name"

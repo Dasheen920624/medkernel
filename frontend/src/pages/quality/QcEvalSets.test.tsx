@@ -193,6 +193,8 @@ describe("QcEvalSets", () => {
     expect(screen.getByRole("heading", { name: "评估指标库" })).toBeInTheDocument();
     expect(screen.getByText("真实评估指标总数")).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.getByLabelText("评价指标身份筛选")).toBeInTheDocument();
+    expect(screen.queryByLabelText("指标编码筛选")).not.toBeInTheDocument();
     expect(screen.getAllByText("指标已登记").length).toBeGreaterThan(0);
     expect(screen.getByText("外科 VTE 风险评估率")).toBeInTheDocument();
     expect(screen.getAllByText("指标证据已记录").length).toBeGreaterThan(0);
@@ -248,7 +250,9 @@ describe("QcEvalSets", () => {
     fireEvent.click(screen.getByRole("button", { name: "新建指标" }));
 
     expect(screen.queryByLabelText("版本号")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("指标编码"), { target: { value: "IND.NEW.VTE" } });
+    fireEvent.change(screen.getByLabelText("稳定评价指标身份"), {
+      target: { value: "IND.NEW.VTE" },
+    });
     fireEvent.change(screen.getByLabelText("指标名称"), { target: { value: "新 VTE 指标" } });
     await userEvent.click(screen.getByRole("combobox", { name: "责任科室" }));
     await userEvent.click(await screen.findByText("骨科 · ORTHO"));
