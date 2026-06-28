@@ -4794,10 +4794,13 @@ export default function RuleDefinitions() {
             <Col span={12}>
               <Form.Item
                 name="ruleCode"
-                label="规则唯一业务编码"
-                rules={[{ required: true, message: "请输入编码，同一服务机构内不可重复" }]}
+                label="稳定规则资产身份"
+                rules={[
+                  { required: true, message: "请输入稳定规则资产身份，同一服务机构内不可重复" },
+                ]}
+                extra="用于发布治理、机构生效版本和审计追溯；默认列表仍按规则名称与业务状态展示。"
               >
-                <Input placeholder="输入规则业务编码" disabled={Boolean(editingRuleId)} />
+                <Input placeholder="输入稳定规则资产身份" disabled={Boolean(editingRuleId)} />
               </Form.Item>
             </Col>
             <Col span={12}>

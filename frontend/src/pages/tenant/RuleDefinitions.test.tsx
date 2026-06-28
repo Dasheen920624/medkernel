@@ -466,7 +466,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     expect(within(dialog).getByLabelText("临床触发场景")).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "创建草稿" }));
     expect(
-      await within(dialog).findByText("请输入编码，同一服务机构内不可重复"),
+      await within(dialog).findByText("请输入稳定规则资产身份，同一服务机构内不可重复"),
     ).toBeInTheDocument();
   });
 
@@ -620,7 +620,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       await user.click(within(dialog).getByLabelText("危急值回报"));
       expect(within(dialog).queryByLabelText("灰度比例")).not.toBeInTheDocument();
 
-      fireEvent.change(within(dialog).getByLabelText("规则唯一业务编码"), {
+      fireEvent.change(within(dialog).getByLabelText("稳定规则资产身份"), {
         target: { value: "RULE.LAB.CRITICAL.K" },
       });
       fireEvent.change(within(dialog).getByLabelText("规则显示名称"), {
@@ -739,7 +739,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
 
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
-      fireEvent.change(within(dialog).getByLabelText("规则唯一业务编码"), {
+      fireEvent.change(within(dialog).getByLabelText("稳定规则资产身份"), {
         target: { value: "RULE.CARDIOLOGY.HR" },
       });
       fireEvent.change(within(dialog).getByLabelText("规则显示名称"), {
@@ -1498,7 +1498,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       await user.click(screen.getByRole("button", { name: /编辑当前草稿/ }));
 
       const dialog = await screen.findByRole("dialog", { name: "编辑 V2 规则草稿" });
-      expect(within(dialog).getByLabelText("规则唯一业务编码")).toBeDisabled();
+      expect(within(dialog).getByLabelText("稳定规则资产身份")).toBeDisabled();
       expect(within(dialog).queryByLabelText("标准上下文" + "包版本")).not.toBeInTheDocument();
       expect(within(dialog).getByLabelText("临床触发场景")).toBeInTheDocument();
       expect(within(dialog).getByLabelText("医学依据/来源")).toHaveValue("院内已审核制度 V1");
@@ -1777,7 +1777,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
 
-      fireEvent.change(within(dialog).getByLabelText("规则唯一业务编码"), {
+      fireEvent.change(within(dialog).getByLabelText("稳定规则资产身份"), {
         target: { value: "RULE.NESTED.PLACEHOLDER" },
       });
       fireEvent.change(within(dialog).getByLabelText("规则显示名称"), {
