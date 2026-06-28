@@ -1121,15 +1121,15 @@ export default function Followup() {
             showIcon
             className={styles.sectionGap}
             message="按临床随访方案填写"
-            description="页面显示医生、护士和实施人员能直接判断的业务内容；保存时同步生成标准编码、依据和版本证据。"
+            description="页面显示医生、护士和实施人员能直接判断的业务内容；保存时同步生成标准身份、依据和版本证据。"
           />
           <div className={styles.formSectionTitle}>方案与适用范围</div>
           <Form.Item
             name="templateCode"
-            label="院内方案编号"
-            rules={[{ required: true, message: "请输入院内方案编号" }]}
+            label="院内随访方案身份"
+            rules={[{ required: true, message: "请输入院内随访方案身份" }]}
           >
-            <Input placeholder="例如 FUP.COPD.DISCHARGE 或 慢阻肺出院随访-2026" />
+            <Input placeholder="例如 慢阻肺出院随访-2026" />
           </Form.Item>
           <Form.Item
             name="name"

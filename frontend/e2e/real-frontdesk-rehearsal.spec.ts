@@ -216,7 +216,7 @@ async function createFollowupTemplateFromUi(
   await page.getByRole("button", { name: /新建模板/ }).click();
   const dialog = page.getByRole("dialog", { name: "新建随访模板" });
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel("院内方案编号").fill(templateCode);
+  await dialog.getByLabel("院内随访方案身份").fill(templateCode);
   await dialog.getByLabel("模板名称").fill(`真实前台慢病随访模板 ${suffix}`);
   await dialog
     .getByLabel("模板说明")

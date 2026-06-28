@@ -639,7 +639,7 @@ describe("Followup", () => {
     expect(screen.queryByLabelText("版本")).not.toBeInTheDocument();
     expect(within(dialog).getByText("方案与适用范围")).toBeInTheDocument();
     expect(within(dialog).getByText("问卷与异常处理")).toBeInTheDocument();
-    expect(within(dialog).getByLabelText("院内方案编号")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("院内随访方案身份")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("适用机构范围")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("随访病种")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("问卷内容模板")).toBeInTheDocument();
@@ -650,14 +650,18 @@ describe("Followup", () => {
     expect(screen.queryByLabelText("适用范围")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("问卷模板标识")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("问题标识")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("院内方案编号")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("问卷模板 ID")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("问题编码")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("来源引用")).not.toBeInTheDocument();
+    expect(screen.queryByText(/标准编码/)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/FUP\\.COPD/)).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("例如 慢阻肺出院随访-2026")).toBeInTheDocument();
     expect(screen.queryByText("p5-hospital")).not.toBeInTheDocument();
     expect(screen.queryByText("FOLLOWUP_QUESTIONNAIRE_DEFAULT")).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue("FIRST_PHASE_FOLLOWUP_TEMPLATE")).not.toBeInTheDocument();
 
-    await user.type(within(dialog).getByLabelText("院内方案编号"), "FUP.COPD.REAL");
+    await user.type(within(dialog).getByLabelText("院内随访方案身份"), "FUP.COPD.REAL");
     await user.type(within(dialog).getByLabelText("模板名称"), "慢阻肺真实随访方案");
     await user.type(
       within(dialog).getByLabelText("模板说明"),
