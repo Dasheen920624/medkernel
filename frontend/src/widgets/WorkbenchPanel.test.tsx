@@ -295,6 +295,8 @@ describe("WorkbenchPanel", () => {
   });
 
   it("renders the platform operations view without customer-visible technical English", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-02T12:00:00Z"));
     renderWorkbench();
 
     expect(screen.getByRole("heading", { name: "平台管理员工作台" })).toBeInTheDocument();
@@ -302,6 +304,9 @@ describe("WorkbenchPanel", () => {
     expect(screen.getByText("外部依赖连通")).toBeInTheDocument();
     expect(screen.getByText(/关系数据库/)).toBeInTheDocument();
     expect(screen.getAllByText(/知识图谱投影/).length).toBeGreaterThan(0);
+    expect(screen.getByText("生效版本发布申请")).toBeInTheDocument();
+    expect(screen.getByText(/操作人已登记/)).toBeInTheDocument();
+    expect(screen.queryByText(/doctor-1/)).not.toBeInTheDocument();
     expect(screen.queryByText(legacyWorkbenchAggregationPlaceholder)).not.toBeInTheDocument();
     expect(screen.queryByText(legacyWorkbenchAggregationApiPlaceholder)).not.toBeInTheDocument();
     expect(screen.queryByText(/暂无工作台独立聚合/)).not.toBeInTheDocument();

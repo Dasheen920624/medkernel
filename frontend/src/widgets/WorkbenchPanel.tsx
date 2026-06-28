@@ -642,7 +642,7 @@ function AuditChangesCard({
               <Space direction="vertical" size={0}>
                 <Text>{event.summary}</Text>
                 <Text type="secondary">
-                  {event.actorUserId ?? "系统"} · {formatTime(event.occurredAt)}
+                  {auditActorSummary(event.actorUserId)} · {formatTime(event.occurredAt)}
                 </Text>
               </Space>
             </List.Item>
@@ -651,6 +651,10 @@ function AuditChangesCard({
       )}
     </SourceCard>
   );
+}
+
+function auditActorSummary(actorUserId?: string | null): string {
+  return actorUserId ? "操作人已登记" : "系统自动处理";
 }
 
 function TodoCard({ onNavigate }: { onNavigate: (path: string) => void }) {
