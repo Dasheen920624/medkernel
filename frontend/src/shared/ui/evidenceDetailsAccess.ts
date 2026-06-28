@@ -11,6 +11,7 @@ const EVIDENCE_DETAIL_PERMISSIONS = new Set([
   "llm.eval.manage",
   "llm.provider.manage",
   "llm.egress.manage",
+  "workbench:readiness:view",
 ]);
 const EVIDENCE_DETAIL_MENU_KEYS = new Set([
   "provenance",

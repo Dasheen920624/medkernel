@@ -373,6 +373,7 @@ function renderPage(page: React.ReactElement) {
 describe("operational control pages", () => {
   beforeEach(() => {
     useEvidenceDetailsStore.getState().setEnabled(false);
+    window.localStorage.clear();
     vi.mocked(useDelegatedAuthStatus).mockReturnValue(query(delegatedAuth) as never);
     vi.mocked(useIdentityBindings).mockReturnValue(
       query({
@@ -480,14 +481,18 @@ describe("operational control pages", () => {
     expect(screen.getByText(/平台账号与机构统一身份/)).toBeInTheDocument();
     expect(screen.getAllByText("未接通").length).toBeGreaterThan(0);
     expect(screen.getByText("张医生")).toBeInTheDocument();
-    expect(screen.getByText("****-001")).toBeInTheDocument();
+    expect(screen.getByText("身份已绑定")).toBeInTheDocument();
+    expect(screen.queryByText("****-001")).not.toBeInTheDocument();
     expect(screen.getByText(/请由信息科在身份来源完成配置后启用/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getByText("****-001")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /单个绑定/ }));
     expect(screen.getByRole("dialog", { name: "单个绑定身份来源" })).toBeInTheDocument();
     await user.click(screen.getByRole("combobox", { name: "人员账号" }));
     await user.click(
-      await screen.findByText("李医生 · EMP-002", {
+      await screen.findByText("李医生 · 人员编号：EMP-002", {
         selector: ".ant-select-item-option-content",
       }),
     );

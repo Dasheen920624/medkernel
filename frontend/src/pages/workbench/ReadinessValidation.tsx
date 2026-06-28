@@ -14,6 +14,9 @@ import {
   type RuntimeOperationsSnapshot,
 } from "@/shared/api/hooks";
 import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageShell } from "@/shared/ui/PageShell";
 import { WorkbenchTabs } from "@/widgets/WorkbenchTabs";
 
@@ -25,6 +28,7 @@ type SelfCheckItem = {
   source: string;
   status: ReadinessStatus;
   reason: string;
+  evidence?: string | null;
   repairPath: string;
   partial: boolean;
 };
@@ -76,6 +80,8 @@ export default function ReadinessValidation() {
   const permissionCodes = new Set(profile?.permissions?.map((permission) => permission.code) ?? []);
   const canQueryRuntime = Boolean(profile && canAccessRoute(READINESS_ROUTE, profile));
   const canQueryKnowledgeReadiness = canQueryRuntime && permissionCodes.has("knowledge.read");
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(profile) && globalEvidenceDetails;
   const runtime = useRuntimeOperations(canQueryRuntime);
   const knowledgeReadiness = useKnowledgeProductionReadiness(
     {
@@ -208,7 +214,12 @@ export default function ReadinessValidation() {
   }
 
   return (
-    <PageShell title="验收自检" description="验收前确认阻塞与去处" primary={retryButton}>
+    <PageShell
+      title="验收自检"
+      description="验收前确认阻塞与去处"
+      primary={retryButton}
+      extras={<EvidenceDetailsToggle securityProfile={profile} />}
+    >
       <Space direction="vertical" size="large" className="mk-full-width">
         <WorkbenchTabs />
         <Alert
@@ -282,7 +293,10 @@ export default function ReadinessValidation() {
                   <Tag color={STATUS_COLOR[status]}>{STATUS_LABEL[status]}</Tag>
                 ),
               },
-              { title: "原因", dataIndex: "reason" },
+              {
+                title: "原因",
+                render: (_, record) => renderReason(record, evidenceDetailsEnabled),
+              },
               {
                 title: "去处",
                 render: (_, record) => (
@@ -325,8 +339,9 @@ function buildRuntimeHealthItem(snapshot: RuntimeOperationsSnapshot): SelfCheckI
     status: status.status,
     reason:
       status.status === "ready"
-        ? `${snapshot.serviceName} 当前整体健康`
-        : `整体健康状态为 ${snapshot.healthStatus}`,
+        ? "运行环境当前整体健康"
+        : "运行环境当前不可验收，请查看健康状态证据",
+    evidence: `${snapshot.serviceName} · ${snapshot.healthStatus}`,
     repairPath: "/system/providers",
     partial: status.partial,
   };
@@ -339,10 +354,15 @@ function buildKnowledgeReadinessItem(item: KnowledgeProductionReadinessItem): Se
     item: KNOWLEDGE_READINESS_LABEL[code] ?? code,
     source: "知识生产上线准备",
     status: knowledgeReadinessStatus(item),
-    reason: item.evidence ? `${item.message}（${item.evidence}）` : item.message,
+    reason: item.message,
+    evidence: knowledgeReadinessEvidence(item),
     repairPath: KNOWLEDGE_READINESS_REPAIR_PATH[code] ?? "/security/baseline",
     partial: false,
   };
+}
+
+function knowledgeReadinessEvidence(item: KnowledgeProductionReadinessItem) {
+  return item.evidence ? `${item.code} · ${item.evidence}` : item.code;
 }
 
 function knowledgeReadinessStatus(item: KnowledgeProductionReadinessItem): SelfCheckItem["status"] {
@@ -359,7 +379,8 @@ function buildKnowledgeReadinessUnavailableItem(error: unknown): SelfCheckItem {
     item: "知识生产上线准备",
     source: "知识生产上线准备",
     status: "blocked",
-    reason: parsed.traceId ? `${parsed.message}（追踪号：${parsed.traceId}）` : parsed.message,
+    reason: parsed.message,
+    evidence: parsed.traceId ? `追踪号：${parsed.traceId}` : null,
     repairPath: "/security/baseline",
     partial: true,
   };
@@ -371,8 +392,8 @@ function buildKnowledgeReadinessUnauthorizedItem(): SelfCheckItem {
     item: "知识生产上线准备",
     source: "知识生产上线准备",
     status: "blocked",
-    reason:
-      "当前角色缺少知识生产读取权限，未采集模型知识生产 readiness；请由医疗引擎运营员或具备 knowledge.read 的角色核查。",
+    reason: "当前角色缺少知识生产读取权限，未采集模型知识生产就绪项；请由医疗引擎运营员核查。",
+    evidence: "缺少权限：knowledge.read",
     repairPath: "/knowledge/production",
     partial: true,
   };
@@ -386,6 +407,7 @@ function buildDependencyItem(dependency: RuntimeDependencyStatus): SelfCheckItem
     source: "依赖健康",
     status: status.status,
     reason: reasonForDependency(dependency, status.status),
+    evidence: `${dependency.status} · ${dependency.detail}`,
     repairPath: repairPathFor(dependency.key),
     partial: status.partial,
   };
@@ -398,8 +420,9 @@ function buildFeatureFlagItem(flag: RuntimeFeatureFlag): SelfCheckItem {
     source: "能力开关",
     status: flag.enabled ? "ready" : "disabled",
     reason: flag.enabled
-      ? `${flag.displayName}已开启`
-      : `${flag.displayName}未启用：${flag.warning ?? flag.description}`,
+      ? `${flag.displayName}已纳入本次验收`
+      : `${flag.displayName}当前未启用，不计入核心验收通过`,
+    evidence: [flag.key, flag.source, flag.description, flag.warning].filter(Boolean).join(" · "),
     repairPath: repairPathFor(flag.key),
     partial: false,
   };
@@ -424,6 +447,12 @@ function buildBackupItem(snapshot: RuntimeOperationsSnapshot): SelfCheckItem {
     source: "运行环境",
     status,
     reason,
+    evidence: [
+      `备份脚本：${snapshot.backup.backupScript}`,
+      `恢复脚本：${snapshot.backup.restoreScript}`,
+      `校验策略：${snapshot.backup.checksumPolicy}`,
+      `演练状态：${snapshot.backup.drillEvidence.status}`,
+    ].join(" · "),
     repairPath: "/system/providers",
     partial: false,
   };
@@ -437,13 +466,28 @@ function statusToReadiness(status: string): { status: ReadinessStatus; partial: 
 }
 
 function reasonForDependency(dependency: RuntimeDependencyStatus, status: ReadinessStatus): string {
-  if (status === "ready") return dependency.detail;
+  if (status === "ready") {
+    if (dependency.key === "database") return "核心数据服务可用";
+    return dependency.detail;
+  }
   if (status === "disabled") return `${dependency.displayName}未启用：${dependency.detail}`;
   if (dependency.status === "UNKNOWN")
     return `${dependency.displayName}状态未采集：${dependency.detail}`;
   if (dependency.status === "NOT_CONNECTED")
     return `${dependency.displayName}未连接：${dependency.detail}`;
   return `${dependency.displayName}不可验收：${dependency.detail}`;
+}
+
+function renderReason(record: SelfCheckItem, evidenceDetailsEnabled: boolean) {
+  if (!evidenceDetailsEnabled || !record.evidence) {
+    return record.reason;
+  }
+  return (
+    <Space direction="vertical" size={2}>
+      <Text>{record.reason}</Text>
+      <Text type="secondary">{record.evidence}</Text>
+    </Space>
+  );
 }
 
 function repairPathFor(key: string): string {
