@@ -274,7 +274,9 @@ describe("TenantOnboarding", () => {
     renderPage(<TenantOnboarding />);
 
     fireEvent.click(screen.getByRole("tab", { name: /品牌信息/ }));
-    expect(screen.getByRole("switch", { name: "默认展开证据详情" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "上线验收证据说明" })).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "默认展开证据详情" })).not.toBeInTheDocument();
+    expect(screen.getByText("业务视图")).toBeInTheDocument();
   });
 
   it("keeps organization identifiers in evidence details instead of the default organization view", async () => {

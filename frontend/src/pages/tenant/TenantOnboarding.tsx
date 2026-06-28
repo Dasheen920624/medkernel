@@ -852,10 +852,10 @@ function CustomerTenantImplementation({
 
                       <Form.Item
                         name="evidenceDetailsEnabled"
-                        label="默认展开证据详情"
+                        label="上线验收证据说明"
                         valuePropName="checked"
                       >
-                        <Switch checkedChildren="展示" unCheckedChildren="精简" />
+                        <Switch checkedChildren="证据说明" unCheckedChildren="业务视图" />
                       </Form.Item>
 
                       <Button
