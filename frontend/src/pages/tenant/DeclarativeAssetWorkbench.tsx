@@ -297,7 +297,9 @@ function buildSuggestionPayload(
 ): Record<string, unknown> {
   const advancedPayload = parseSuggestionPayload(suggestion.payloadJson).payload;
   const payload =
-    typeof advancedPayload === "object" && advancedPayload !== null && !Array.isArray(advancedPayload)
+    typeof advancedPayload === "object" &&
+    advancedPayload !== null &&
+    !Array.isArray(advancedPayload)
       ? { ...(advancedPayload as Record<string, unknown>) }
       : {};
   const key = targetPayloadKey(suggestion.actionType);
@@ -531,11 +533,7 @@ function OrderSetFields() {
   );
 }
 
-function ActionCardFields({
-  evidenceDetailsEnabled,
-}: {
-  evidenceDetailsEnabled: boolean;
-}) {
+function ActionCardFields({ evidenceDetailsEnabled }: { evidenceDetailsEnabled: boolean }) {
   return (
     <>
       <Form.Item name="title" label="标题" rules={[{ required: true }]}>
@@ -607,7 +605,10 @@ function ActionCardFields({
                     name={[field.name, "payloadJson"]}
                     label="扩展参数（证据详情）"
                   >
-                    <Input.TextArea rows={2} placeholder='例如 {"orderSetRef":"ORDER.CKD.REVIEW"}' />
+                    <Input.TextArea
+                      rows={2}
+                      placeholder='例如 {"orderSetRef":"ORDER.CKD.REVIEW"}'
+                    />
                   </Form.Item>
                 ) : (
                   <Form.Item {...field} name={[field.name, "payloadJson"]} hidden>

@@ -103,9 +103,7 @@ describe("AcquisitionSourceGovernancePanel", () => {
     expect(screen.queryByText("https://www.nhc.gov.cn/wjw/index.shtml")).not.toBeInTheDocument();
     expect(screen.queryByText("operator")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /NHC-GUIDELINE/ })).not.toBeInTheDocument();
-    await userEvent.click(
-      screen.getByRole("button", { name: "启用来源 国家卫生健康委指南来源" }),
-    );
+    await userEvent.click(screen.getByRole("button", { name: "启用来源 国家卫生健康委指南来源" }));
     expect(screen.getByText("确认启用来源？")).toBeInTheDocument();
     expect(screen.getByText(/将启用「国家卫生健康委指南来源」/)).toBeInTheDocument();
     expect(screen.queryByText(/NHC-GUIDELINE/)).not.toBeInTheDocument();

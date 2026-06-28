@@ -716,11 +716,11 @@ export default function AdapterHub() {
       key: "messageId",
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{evidenceText(record.messageId, evidenceDetailsEnabled, "消息证据已记录")}</Text>
+          <Text strong>
+            {evidenceText(record.messageId, evidenceDetailsEnabled, "消息证据已记录")}
+          </Text>
           <Text className={styles.identifier}>
-            {evidenceDetailsEnabled
-              ? `追踪号：${record.traceId ?? "暂无"}`
-              : "追踪证据已记录"}
+            {evidenceDetailsEnabled ? `追踪号：${record.traceId ?? "暂无"}` : "追踪证据已记录"}
           </Text>
         </Space>
       ),
@@ -868,7 +868,12 @@ export default function AdapterHub() {
       dataIndex: "callbackUrl",
       key: "callbackUrl",
       render: (value) =>
-        evidenceText(String(value ?? ""), evidenceDetailsEnabled, "回调地址已配置", "未配置回调地址"),
+        evidenceText(
+          String(value ?? ""),
+          evidenceDetailsEnabled,
+          "回调地址已配置",
+          "未配置回调地址",
+        ),
     },
     { title: "订阅事件", dataIndex: "eventsSubscribed", key: "eventsSubscribed" },
     {
@@ -920,7 +925,9 @@ export default function AdapterHub() {
       key: "binding",
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text type="secondary">适配器：{bindingText(record.adapterId, evidenceDetailsEnabled)}</Text>
+          <Text type="secondary">
+            适配器：{bindingText(record.adapterId, evidenceDetailsEnabled)}
+          </Text>
           <Text type="secondary">
             接入申请：{bindingText(record.onboardingId, evidenceDetailsEnabled)}
           </Text>
@@ -1944,7 +1951,7 @@ function QualityReportCard({
           {evidenceText(report.reportId, evidenceDetailsEnabled, "数据质量报告已生成")}
         </Descriptions.Item>
         <Descriptions.Item label="追踪">
-          {evidenceDetailsEnabled ? report.traceId ?? "暂无" : "追踪证据已记录"}
+          {evidenceDetailsEnabled ? (report.traceId ?? "暂无") : "追踪证据已记录"}
         </Descriptions.Item>
         <Descriptions.Item label="断连数量">{report.notConnectedCount}</Descriptions.Item>
         <Descriptions.Item label="配置非法">{report.misconfiguredCount}</Descriptions.Item>

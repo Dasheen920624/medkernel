@@ -122,7 +122,11 @@ const PAGE_META = {
     evidenceDetailContent: ["患者上下文", "待办来源", "追踪号", "责任人编号"],
     interruptionLevel: "info" as const,
     evidence: "待办来源、责任流转和完成转交证据保持可回看",
-    dataScale: { expected: "large" as const, pagination: "page" as const, exportStrategy: "none" as const },
+    dataScale: {
+      expected: "large" as const,
+      pagination: "page" as const,
+      exportStrategy: "none" as const,
+    },
     riskLevel: "medium" as const,
   },
 };
@@ -186,7 +190,8 @@ function buildClinicalQueueFocus(pendingTodos: WorkflowTodo[]) {
 
 function assigneeDisplay(todo: WorkflowTodo, evidenceDetailsEnabled: boolean) {
   if (evidenceDetailsEnabled) return todo.assigneeId || "-";
-  if (todo.assigneeRole) return assigneeRoleText[todo.assigneeRole] ?? customerEnumLabel(todo.assigneeRole);
+  if (todo.assigneeRole)
+    return assigneeRoleText[todo.assigneeRole] ?? customerEnumLabel(todo.assigneeRole);
   return todo.assigneeId ? "已指定责任人" : "-";
 }
 
@@ -617,11 +622,7 @@ export default function WorkflowTodos() {
             />
           </Form.Item>
           <Form.Item name="transferRole" label="接收岗位">
-            <Select
-              allowClear
-              placeholder="选择接收岗位"
-              options={transferRoleOptions}
-            />
+            <Select allowClear placeholder="选择接收岗位" options={transferRoleOptions} />
           </Form.Item>
           <Form.Item
             name="transferReason"

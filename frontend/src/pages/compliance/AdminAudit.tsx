@@ -327,15 +327,7 @@ export default function AdminAudit() {
           "environmentKey",
           "payloadDigest",
         ]
-      : [
-          "summary",
-          "actionCode",
-          "outcome",
-          "signature",
-          "occurredAt",
-          "actor",
-          "resource",
-        ],
+      : ["summary", "actionCode", "outcome", "signature", "occurredAt", "actor", "resource"],
     evidenceDetailsEnabled,
     capturedAt: new Date().toISOString(),
   };
@@ -700,7 +692,7 @@ export default function AdminAudit() {
     },
     {
       title: "脱敏载荷摘要",
-      render: (_value: unknown, confirmation: ModelEgressConfirmation) => (
+      render: (_value: unknown, confirmation: ModelEgressConfirmation) =>
         evidenceDetailsEnabled ? (
           <Text code copyable>
             {confirmation.payloadHash}
@@ -709,8 +701,7 @@ export default function AdminAudit() {
           <Text type="secondary">
             {confirmation.payloadHash ? "脱敏载荷摘要已生成" : "脱敏载荷摘要未生成"}
           </Text>
-        )
-      ),
+        ),
     },
     {
       title: "确认人",

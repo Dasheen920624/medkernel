@@ -195,7 +195,10 @@ function snapshotAssociationText(
   return "患者已关联 · 就诊已关联";
 }
 
-function selectedSnapshotText(snapshotId: string | null | undefined, evidenceDetailsEnabled: boolean) {
+function selectedSnapshotText(
+  snapshotId: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
   return evidenceText(snapshotId, evidenceDetailsEnabled, "临床快照已选择");
 }
 
@@ -1564,7 +1567,9 @@ export default function PathwayTemplates() {
   );
   const detailMilestoneByCode = useMemo(
     () =>
-      new Map((detailData?.milestones ?? []).map((milestone) => [milestone.milestoneCode, milestone])),
+      new Map(
+        (detailData?.milestones ?? []).map((milestone) => [milestone.milestoneCode, milestone]),
+      ),
     [detailData?.milestones],
   );
   const outcomeIndicatorByCode = useMemo(
@@ -1615,9 +1620,7 @@ export default function PathwayTemplates() {
   const detailTrajectoryText = (trajectory: string[] = []) =>
     evidenceDetailsEnabled
       ? trajectory.join(" → ")
-      : trajectory
-          .map((nodeCode, index) => detailNodeReferenceText(nodeCode, index))
-          .join(" → ");
+      : trajectory.map((nodeCode, index) => detailNodeReferenceText(nodeCode, index)).join(" → ");
   const { data: publishedRulesData, isLoading: publishedRulesLoading } = useRuleDefinitions(
     {
       status: "PUBLISHED",
@@ -3624,7 +3627,11 @@ export default function PathwayTemplates() {
               </Descriptions.Item>
               <Descriptions.Item label="起始节点">
                 {detailData.template.startNodeCode
-                  ? evidenceText(detailData.template.startNodeCode, evidenceDetailsEnabled, "起始节点已配置")
+                  ? evidenceText(
+                      detailData.template.startNodeCode,
+                      evidenceDetailsEnabled,
+                      "起始节点已配置",
+                    )
                   : "未设置"}
               </Descriptions.Item>
               <Descriptions.Item label="入径条件" span={detailDescriptionColumn}>
@@ -3850,7 +3857,9 @@ export default function PathwayTemplates() {
                             }}
                             className={styles.snapshotButton}
                           >
-                            <span>{snapshotButtonLabel(snapshot, index, evidenceDetailsEnabled)}</span>
+                            <span>
+                              {snapshotButtonLabel(snapshot, index, evidenceDetailsEnabled)}
+                            </span>
                             <Tag className={styles.tagGap}>
                               {customerDisplayText(snapshot.qualityStatus)}
                             </Tag>
@@ -3883,7 +3892,9 @@ export default function PathwayTemplates() {
                             <Select value={selectedStartNode} onChange={setSimulateStartNode}>
                               {detailExecutableNodes.map((node) => (
                                 <Option key={node.nodeCode} value={node.nodeCode}>
-                                  {evidenceDetailsEnabled ? `${node.name} (${node.nodeCode})` : node.name}
+                                  {evidenceDetailsEnabled
+                                    ? `${node.name} (${node.nodeCode})`
+                                    : node.name}
                                 </Option>
                               ))}
                             </Select>

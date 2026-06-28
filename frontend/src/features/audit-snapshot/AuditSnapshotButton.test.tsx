@@ -87,9 +87,7 @@ describe("AuditSnapshotButton", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /审计快照/ }));
 
-    expect(auditState.messageSuccess).toHaveBeenCalledWith(
-      "审计快照已生成，可在审计证据中查看",
-    );
+    expect(auditState.messageSuccess).toHaveBeenCalledWith("审计快照已生成，可在审计证据中查看");
     expect(auditState.messageSuccess).not.toHaveBeenCalledWith(
       expect.stringContaining("signature-raw-1"),
     );

@@ -389,11 +389,7 @@ export default function AuthoringBatchDrawer({
   const publishPanel = (
     <Space direction="vertical" size="middle" className={styles.fullWidth}>
       <Form layout="vertical" className={styles.form}>
-        <Form.Item
-          label="待发布规则资产"
-          required
-          extra="每行一个稳定规则资产，也可用逗号分隔。"
-        >
+        <Form.Item label="待发布规则资产" required extra="每行一个稳定规则资产，也可用逗号分隔。">
           <TextArea
             aria-label="待发布规则资产"
             value={publishRuleIds}

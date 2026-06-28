@@ -76,7 +76,11 @@ const PAGE_META = {
     evidenceDetailContent: ["患者编号", "就诊编号", "来源编号", "追踪号"],
     interruptionLevel: "info" as const,
     evidence: "通知来源、外发补偿和已读动作均保留审计证据",
-    dataScale: { expected: "large" as const, pagination: "page" as const, exportStrategy: "none" as const },
+    dataScale: {
+      expected: "large" as const,
+      pagination: "page" as const,
+      exportStrategy: "none" as const,
+    },
     riskLevel: "medium" as const,
   },
 };
@@ -350,9 +354,7 @@ export default function Notifications() {
                             <span>{item.encounterId || "就诊编号未提供"}</span>
                             <span>来源编号 {item.sourceId}</span>
                             <span>
-                              {item.traceId
-                                ? `追踪号 ${item.traceId}`
-                                : SOURCE_TRACE_MISSING_TEXT}
+                              {item.traceId ? `追踪号 ${item.traceId}` : SOURCE_TRACE_MISSING_TEXT}
                             </span>
                           </>
                         )}

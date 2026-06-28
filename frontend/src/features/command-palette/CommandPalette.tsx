@@ -53,14 +53,7 @@ export function CommandPalette({ open, onClose, sections = menuSections }: Comma
   }, [open]);
 
   return (
-    <Modal
-      open={open}
-      onCancel={onClose}
-      footer={null}
-      title="命令面板"
-      width={680}
-      destroyOnClose
-    >
+    <Modal open={open} onCancel={onClose} footer={null} title="命令面板" width={680} destroyOnClose>
       <Input.Search
         placeholder="搜索菜单"
         value={q}

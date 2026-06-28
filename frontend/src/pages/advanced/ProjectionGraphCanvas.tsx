@@ -126,11 +126,7 @@ export function ProjectionGraphCanvas({
                 key={node.key}
                 role="button"
                 tabIndex={0}
-                aria-label={nodeEvidenceLabel(
-                  node.label,
-                  node.objectId,
-                  evidenceDetailsEnabled,
-                )}
+                aria-label={nodeEvidenceLabel(node.label, node.objectId, evidenceDetailsEnabled)}
                 className={
                   selectedKey === node.key
                     ? `${styles.graphNode} ${styles.graphNodeSelected}`

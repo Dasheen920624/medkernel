@@ -107,7 +107,10 @@ function accountColor(state?: string | null) {
   return "default";
 }
 
-function personnelIdentityText(employeeNo: string | null | undefined, evidenceDetailsEnabled: boolean) {
+function personnelIdentityText(
+  employeeNo: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
   return evidenceDetailsEnabled && employeeNo ? `人员编号：${employeeNo}` : "人员档案已登记";
 }
 
@@ -118,7 +121,9 @@ function accountLoginText(username: string | null | undefined, evidenceDetailsEn
 
 function identityBindingText(subjectHints: string[], evidenceDetailsEnabled: boolean) {
   if (subjectHints.length === 0) return "未绑定";
-  return evidenceDetailsEnabled ? subjectHints.join("、") : `已绑定 ${subjectHints.length} 个身份来源`;
+  return evidenceDetailsEnabled
+    ? subjectHints.join("、")
+    : `已绑定 ${subjectHints.length} 个身份来源`;
 }
 
 export default function AdminUsers() {
@@ -144,8 +149,7 @@ export default function AdminUsers() {
 
   const security = useSecurityProfile();
   const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
-  const evidenceDetailsEnabled =
-    canUseEvidenceDetails(security.data) && globalEvidenceDetails;
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const personnel = usePersonnel({ page, size, keyword: keyword.trim() || undefined });
   const detail = usePersonnelDetail(selectedPersonId);
   const accountDetail = useComplianceUserDetail(detail.data?.account?.userId ?? null);

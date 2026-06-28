@@ -139,7 +139,11 @@ function readinessPercent(steps: ImplementationStep[]) {
   return Math.round((done / steps.length) * 100);
 }
 
-function evidenceValueText(value: string | null | undefined, evidenceDetailsEnabled: boolean, fallback: string) {
+function evidenceValueText(
+  value: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  fallback: string,
+) {
   return evidenceDetailsEnabled ? value || "未返回" : fallback;
 }
 
@@ -158,11 +162,7 @@ function parentOrgText(
   return parentName ? `${parentName}（上级组织）` : "上级组织已关联";
 }
 
-function PlatformTenantProvisioning({
-  securityProfile,
-}: {
-  securityProfile?: SecurityProfile;
-}) {
+function PlatformTenantProvisioning({ securityProfile }: { securityProfile?: SecurityProfile }) {
   const { message } = App.useApp();
   const [form] = Form.useForm();
   const [formOpen, setFormOpen] = useState(false);
@@ -170,8 +170,7 @@ function PlatformTenantProvisioning({
   const { data: tenants = [], isLoading, isError, refetch } = useTenants();
   const provisionMutation = useProvisionTenant();
   const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
-  const evidenceDetailsEnabled =
-    canUseEvidenceDetails(securityProfile) && globalEvidenceDetails;
+  const evidenceDetailsEnabled = canUseEvidenceDetails(securityProfile) && globalEvidenceDetails;
 
   const columns = useMemo<ColumnsType<TenantSummary>>(
     () => [
@@ -254,7 +253,8 @@ function PlatformTenantProvisioning({
         state="error"
         stateProps={{
           title: "服务机构台账读取失败",
-          description: "请重试；若持续失败，请联系平台运维核查服务机构开通服务。失败已留痕，可在审计证据中追溯。",
+          description:
+            "请重试；若持续失败，请联系平台运维核查服务机构开通服务。失败已留痕，可在审计证据中追溯。",
           onRetry: () => refetch(),
         }}
       >
@@ -354,8 +354,7 @@ function PlatformTenantProvisioning({
               <Text strong>
                 {evidenceValueText(provisioned.tenantId, evidenceDetailsEnabled, "档案")}
               </Text>{" "}
-              与管理员{" "}
-              <Text strong>{provisioned.adminUsername}</Text> 已创建。
+              与管理员 <Text strong>{provisioned.adminUsername}</Text> 已创建。
             </Text>
             {provisioned.tempPassword ? (
               <Alert
@@ -374,11 +373,7 @@ function PlatformTenantProvisioning({
   );
 }
 
-function CustomerTenantImplementation({
-  securityProfile,
-}: {
-  securityProfile?: SecurityProfile;
-}) {
+function CustomerTenantImplementation({ securityProfile }: { securityProfile?: SecurityProfile }) {
   const { message } = App.useApp();
   const [activeTab, setActiveTab] = useState("org");
   const [form] = Form.useForm();
@@ -407,8 +402,7 @@ function CustomerTenantImplementation({
   } = useBranding();
   const updateBrandingMutation = useUpdateBranding();
   const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
-  const evidenceDetailsEnabled =
-    canUseEvidenceDetails(securityProfile) && globalEvidenceDetails;
+  const evidenceDetailsEnabled = canUseEvidenceDetails(securityProfile) && globalEvidenceDetails;
 
   useEffect(() => {
     if (!branding) return;
@@ -422,10 +416,7 @@ function CustomerTenantImplementation({
 
   const orgItems = useMemo(() => orgData?.items ?? [], [orgData?.items]);
   const orgNameById = useMemo(
-    () =>
-      new Map(
-        orgItems.flatMap((item) => (item.id ? [[item.id, item.name] as const] : [])),
-      ),
+    () => new Map(orgItems.flatMap((item) => (item.id ? [[item.id, item.name] as const] : []))),
     [orgItems],
   );
   const readinessSteps = readiness?.steps ?? [];
@@ -453,8 +444,7 @@ function CustomerTenantImplementation({
         title: "组织档案",
         dataIndex: "code",
         key: "code",
-        render: (code: string) =>
-          evidenceValueText(code, evidenceDetailsEnabled, "组织已登记"),
+        render: (code: string) => evidenceValueText(code, evidenceDetailsEnabled, "组织已登记"),
       },
       {
         title: "名称",
@@ -553,7 +543,8 @@ function CustomerTenantImplementation({
         state="error"
         stateProps={{
           title: "机构实施状态读取失败",
-          description: "请重试；若持续失败，请联系信息科核查服务机构与组织服务。失败已留痕，可在审计证据中追溯。",
+          description:
+            "请重试；若持续失败，请联系信息科核查服务机构与组织服务。失败已留痕，可在审计证据中追溯。",
           onRetry: () => {
             void refetchOrgs();
             void refetchReadiness();
@@ -934,7 +925,8 @@ export default function TenantOnboarding() {
         state="error"
         stateProps={{
           title: "无法确认当前服务机构",
-          description: "请重新登录；若持续失败，请联系平台运维排查安全画像。失败已留痕，可在审计证据中追溯。",
+          description:
+            "请重新登录；若持续失败，请联系平台运维排查安全画像。失败已留痕，可在审计证据中追溯。",
           onRetry: () => security.refetch(),
         }}
       >

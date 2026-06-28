@@ -45,7 +45,9 @@ export function ContextSnapshotSelector({
             <Button
               key="select"
               aria-label={
-                evidenceDetailsEnabled ? `选择 ${snapshot.snapshotId}` : `选择第 ${index + 1} 个${noun}`
+                evidenceDetailsEnabled
+                  ? `选择 ${snapshot.snapshotId}`
+                  : `选择第 ${index + 1} 个${noun}`
               }
               type={selectedSnapshotId === snapshot.snapshotId ? "primary" : "default"}
               onClick={() => onSelect(snapshot.snapshotId)}

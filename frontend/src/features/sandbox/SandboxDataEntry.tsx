@@ -73,7 +73,9 @@ export default function SandboxDataEntry({ scenario, running, onRun }: SandboxDa
         <Descriptions.Item label="就诊场景">
           {encounterTypeLabel(scenario.encounterType)}
         </Descriptions.Item>
-        <Descriptions.Item label="触发点">{triggerPointLabel(scenario.triggerPoint)}</Descriptions.Item>
+        <Descriptions.Item label="触发点">
+          {triggerPointLabel(scenario.triggerPoint)}
+        </Descriptions.Item>
         <Descriptions.Item label="参考范围">
           {scenario.referenceRange} {scenario.unit}
         </Descriptions.Item>

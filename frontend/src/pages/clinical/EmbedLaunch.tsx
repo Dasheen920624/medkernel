@@ -221,10 +221,7 @@ export default function EmbedLaunch() {
               : "就诊已关联"}
           </Tag>
           <Tag color="purple" className={styles.contextTag}>
-            {`触发点: ${triggerPointText(
-              launchContext?.triggerPoint,
-              evidenceDetailsEnabled,
-            )}`}
+            {`触发点: ${triggerPointText(launchContext?.triggerPoint, evidenceDetailsEnabled)}`}
           </Tag>
         </div>
         <div className={styles.brandCluster}>
@@ -256,9 +253,7 @@ export default function EmbedLaunch() {
               </Tag>
             </div>
             <div className={styles.feedbackMeta}>
-              {`建议卡片：${
-                evidenceDetailsEnabled ? selectedCardId || "未返回" : "建议已记录"
-              }`}
+              {`建议卡片：${evidenceDetailsEnabled ? selectedCardId || "未返回" : "建议已记录"}`}
             </div>
             {selectedAction === "REJECT" && (
               <div className={styles.rejectReason}>

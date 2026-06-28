@@ -219,7 +219,10 @@ function decisionTraceDisplay(traceId: string | null | undefined, evidenceDetail
   return evidenceDetailsEnabled ? traceId : "已保留";
 }
 
-function historicalStatusDisplay(value: string | null | undefined, evidenceDetailsEnabled: boolean) {
+function historicalStatusDisplay(
+  value: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
   return evidenceLabel(value, HISTORICAL_STATUS_LABELS, "历史状态待核查", evidenceDetailsEnabled);
 }
 
@@ -510,7 +513,9 @@ export default function SandboxHost() {
                 <Descriptions.Item label="运行结论">
                   {result.result === "PASS" ? "真实链路已完成" : "链路未完成"}
                 </Descriptions.Item>
-                <Descriptions.Item label="运行模式">{RUN_MODE_LABELS[result.mode]}</Descriptions.Item>
+                <Descriptions.Item label="运行模式">
+                  {RUN_MODE_LABELS[result.mode]}
+                </Descriptions.Item>
                 <Descriptions.Item label="规则来源">
                   {RESOLUTION_SOURCE_LABELS[result.resolutionSource]}
                 </Descriptions.Item>
@@ -574,12 +579,16 @@ export default function SandboxHost() {
                           {rule.ruleCode}@{rule.assetVersion}
                         </Typography.Text>
                       )}
-                      <Tag>{historicalStatusDisplay(rule.historicalStatus, evidenceDetailsEnabled)}</Tag>
+                      <Tag>
+                        {historicalStatusDisplay(rule.historicalStatus, evidenceDetailsEnabled)}
+                      </Tag>
                       <Tag color={rule.hit ? "error" : "default"}>
                         {rule.hit ? "命中" : "未命中"}
                       </Tag>
                       {rule.severity && (
-                        <Tag color="warning">{severityDisplay(rule.severity, evidenceDetailsEnabled)}</Tag>
+                        <Tag color="warning">
+                          {severityDisplay(rule.severity, evidenceDetailsEnabled)}
+                        </Tag>
                       )}
                     </Space>
                     {rule.actions.map((action, index) => (
@@ -749,7 +758,9 @@ export default function SandboxHost() {
               )}决策`}
               description={
                 <Space size="large" wrap>
-                  <span>卡片：{decisionCardDisplay(latestDecision.cardId, evidenceDetailsEnabled)}</span>
+                  <span>
+                    卡片：{decisionCardDisplay(latestDecision.cardId, evidenceDetailsEnabled)}
+                  </span>
                   <span>
                     状态：
                     {recommendationStatusDisplay(

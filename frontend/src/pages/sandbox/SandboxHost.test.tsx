@@ -561,7 +561,9 @@ describe("SandboxHost", () => {
     fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
     expect(screen.getByText("RULE.RISK.UP")).toBeInTheDocument();
     expect(
-      screen.getByText(/历史：平台标准（PLATFORM） 第 1 版 \/ 命中；当前：机构版本（ORG） 第 2 版 \/ 命中/),
+      screen.getByText(
+        /历史：平台标准（PLATFORM） 第 1 版 \/ 命中；当前：机构版本（ORG） 第 2 版 \/ 命中/,
+      ),
     ).toBeInTheDocument();
   });
 });

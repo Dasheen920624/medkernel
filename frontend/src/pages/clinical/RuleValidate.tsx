@@ -287,11 +287,7 @@ export default function RuleValidate() {
           {status === "DEDUPLICATED" && record.deduplicatedFromExecutionId && (
             <div className={styles.textMuted}>
               首次执行{" "}
-              {evidenceText(
-                record.deduplicatedFromExecutionId,
-                evidenceDetailsEnabled,
-                "已记录",
-              )}
+              {evidenceText(record.deduplicatedFromExecutionId, evidenceDetailsEnabled, "已记录")}
             </div>
           )}
         </div>
@@ -303,7 +299,9 @@ export default function RuleValidate() {
       key: "severity",
       width: 110,
       render: (level: string) => {
-        return <Tag color={severityColor(level)}>{severityText(level, evidenceDetailsEnabled)}</Tag>;
+        return (
+          <Tag color={severityColor(level)}>{severityText(level, evidenceDetailsEnabled)}</Tag>
+        );
       },
     },
     {
@@ -707,20 +705,12 @@ export default function RuleValidate() {
             >
               <Descriptions.Item label={evidenceDetailsEnabled ? "评估执行号" : "执行记录"}>
                 <span className={styles.codeText}>
-                  {evidenceText(
-                    explainData.executionId,
-                    evidenceDetailsEnabled,
-                    "执行记录已关联",
-                  )}
+                  {evidenceText(explainData.executionId, evidenceDetailsEnabled, "执行记录已关联")}
                 </span>
               </Descriptions.Item>
               <Descriptions.Item label={evidenceDetailsEnabled ? "追踪号" : "追踪证据"}>
                 <span className={styles.codeText}>
-                  {evidenceText(
-                    explainData.traceId,
-                    evidenceDetailsEnabled,
-                    "追踪证据已记录",
-                  )}
+                  {evidenceText(explainData.traceId, evidenceDetailsEnabled, "追踪证据已记录")}
                 </span>
               </Descriptions.Item>
               <Descriptions.Item label="触发点">
@@ -730,15 +720,9 @@ export default function RuleValidate() {
                     : clinicalTriggerPointLabel(explainData.triggerPoint)}
                 </span>
               </Descriptions.Item>
-              <Descriptions.Item
-                label={evidenceDetailsEnabled ? "输入内容校验码" : "输入摘要校验"}
-              >
+              <Descriptions.Item label={evidenceDetailsEnabled ? "输入内容校验码" : "输入摘要校验"}>
                 <span className={styles.codeText}>
-                  {evidenceText(
-                    explainData.inputDigest,
-                    evidenceDetailsEnabled,
-                    "输入摘要已校验",
-                  )}
+                  {evidenceText(explainData.inputDigest, evidenceDetailsEnabled, "输入摘要已校验")}
                 </span>
               </Descriptions.Item>
               <Descriptions.Item label="风险评级">

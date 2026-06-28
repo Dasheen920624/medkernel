@@ -45,9 +45,7 @@ export default function SandboxEmbedFrame({
     return () => window.removeEventListener("message", handleMessage);
   }, [embedOrigin, onDecision]);
 
-  const maskedToken = embedToken
-    ? "已隐藏（由受控嵌入接口和审计记录保留）"
-    : "等待生成";
+  const maskedToken = embedToken ? "已隐藏（由受控嵌入接口和审计记录保留）" : "等待生成";
   const launchAddress = embedUrl ? "已生成，默认隐藏" : "等待场景运行结果";
   let embedContent;
   if (mode === "IFRAME" && embedUrl) {

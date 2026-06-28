@@ -255,7 +255,10 @@ function generationStatusText(status?: string) {
   return GENERATION_STATUS_LABEL[status ?? "PENDING"] ?? "生成状态已记录";
 }
 
-function generationPageText(candidatePageUri: string | null | undefined, evidenceDetailsEnabled: boolean) {
+function generationPageText(
+  candidatePageUri: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
   if (evidenceDetailsEnabled) {
     return candidatePageUri ?? "候选分页入口生成中";
   }
@@ -450,7 +453,9 @@ export default function TerminologyMapping() {
       title: "候选",
       dataIndex: "id",
       width: 120,
-      render: (_, candidate) => <Text strong>{candidateLabel(candidate, evidenceDetailsEnabled)}</Text>,
+      render: (_, candidate) => (
+        <Text strong>{candidateLabel(candidate, evidenceDetailsEnabled)}</Text>
+      ),
     },
     {
       title: "语义分",

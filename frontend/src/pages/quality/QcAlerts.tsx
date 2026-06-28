@@ -89,10 +89,7 @@ export default function QcAlerts() {
   const departmentNames = useMemo(
     () =>
       new Map(
-        (departmentsQuery.data?.items ?? []).map((unit) => [
-          unit.id ?? unit.code,
-          unit.name,
-        ]),
+        (departmentsQuery.data?.items ?? []).map((unit) => [unit.id ?? unit.code, unit.name]),
       ),
     [departmentsQuery.data?.items],
   );

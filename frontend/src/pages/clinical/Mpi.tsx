@@ -63,7 +63,11 @@ const PAGE_META = {
     evidenceDetailContent: ["患者主索引编号", "临床快照编号", "路径实例编号", "追踪号"],
     interruptionLevel: "info" as const,
     evidence: "患者身份合并、拆分和 360 视图均保留审计证据",
-    dataScale: { expected: "large" as const, pagination: "page" as const, exportStrategy: "none" as const },
+    dataScale: {
+      expected: "large" as const,
+      pagination: "page" as const,
+      exportStrategy: "none" as const,
+    },
     riskLevel: "medium" as const,
   },
 };
@@ -88,15 +92,15 @@ function genderLabel(gender?: string) {
   return "未知";
 }
 
-function mergedIntoText(patient: MpiPatientDetailResponse["patient"], evidenceDetailsEnabled: boolean) {
+function mergedIntoText(
+  patient: MpiPatientDetailResponse["patient"],
+  evidenceDetailsEnabled: boolean,
+) {
   if (evidenceDetailsEnabled) return patient.mergedIntoMpiId ?? "未合并";
   return patient.mergedIntoMpiId ? "已合并至目标主索引" : "未合并";
 }
 
-function renderPatient360Detail(
-  detail: MpiPatientDetailResponse,
-  evidenceDetailsEnabled: boolean,
-) {
+function renderPatient360Detail(detail: MpiPatientDetailResponse, evidenceDetailsEnabled: boolean) {
   const snapshot = detail.latestContextSnapshot ?? detail.contextSnapshot ?? null;
   const patient = detail.patient;
 
@@ -113,7 +117,9 @@ function renderPatient360Detail(
         <Descriptions.Item label="主索引状态">
           {customerEnumLabel(patient.status)}
         </Descriptions.Item>
-        <Descriptions.Item label="合并指向">{mergedIntoText(patient, evidenceDetailsEnabled)}</Descriptions.Item>
+        <Descriptions.Item label="合并指向">
+          {mergedIntoText(patient, evidenceDetailsEnabled)}
+        </Descriptions.Item>
         <Descriptions.Item label="已并入数">{patient.mergedCount}</Descriptions.Item>
       </Descriptions>
 
@@ -155,18 +161,14 @@ function renderPatient360Detail(
               }
               description={
                 <Space direction="vertical" size={2}>
-                  <Text type="secondary">
-                    路径状态：{customerEnumLabel(pathway.status)}
-                  </Text>
+                  <Text type="secondary">路径状态：{customerEnumLabel(pathway.status)}</Text>
                   <Text type="secondary">
                     当前临床环节：{pathway.currentNodeCode ? "已记录" : "暂无"}
                   </Text>
                   {evidenceDetailsEnabled && (
                     <>
                       <Text type="secondary">模板：{pathway.templateId}</Text>
-                      <Text type="secondary">
-                        当前节点：{pathway.currentNodeCode ?? "暂无"}
-                      </Text>
+                      <Text type="secondary">当前节点：{pathway.currentNodeCode ?? "暂无"}</Text>
                       {pathway.traceId && <Text type="secondary">追踪号：{pathway.traceId}</Text>}
                     </>
                   )}
@@ -520,7 +522,13 @@ export default function Mpi() {
         ),
       },
     ],
-    [canManageMpiIdentity, evidenceDetailsEnabled, showDetailDrawer, showMergeModal, showSplitModal],
+    [
+      canManageMpiIdentity,
+      evidenceDetailsEnabled,
+      showDetailDrawer,
+      showMergeModal,
+      showSplitModal,
+    ],
   );
 
   let detailDrawerContent = <Alert message="暂无患者 360 详情" type="info" showIcon />;
@@ -777,7 +785,8 @@ export default function Mpi() {
               <span>拆分前必须完成人工核查</span>
             </div>
             <div className={styles.warningText}>
-              源患者 {splitPatientRecord?.maskedName ?? "-"} 将恢复为活跃状态，目标主索引的合并计数会同步扣减。
+              源患者 {splitPatientRecord?.maskedName ?? "-"}{" "}
+              将恢复为活跃状态，目标主索引的合并计数会同步扣减。
               {evidenceDetailsEnabled && (
                 <>
                   <br />

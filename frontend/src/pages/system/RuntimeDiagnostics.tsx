@@ -759,9 +759,7 @@ export default function RuntimeDiagnostics() {
               {databaseDialectText(operations.databaseDialect, evidenceDetailsEnabled)}
             </Descriptions.Item>
             {evidenceDetailsEnabled ? (
-              <Descriptions.Item label="迁移路径">
-                {operations.migrationLocation}
-              </Descriptions.Item>
+              <Descriptions.Item label="迁移路径">{operations.migrationLocation}</Descriptions.Item>
             ) : null}
           </Descriptions>
         </Card>

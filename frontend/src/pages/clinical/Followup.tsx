@@ -416,9 +416,7 @@ export default function Followup() {
       key: "subject",
       render: (_value: unknown, record) => (
         <Space wrap>
-          <Tag>
-            {associationText(record.patientId, evidenceDetailsEnabled, "患者")}
-          </Tag>
+          <Tag>{associationText(record.patientId, evidenceDetailsEnabled, "患者")}</Tag>
           <Tag color="blue">
             {associationText(record.encounterId, evidenceDetailsEnabled, "就诊")}
           </Tag>
@@ -919,11 +917,7 @@ export default function Followup() {
               </Descriptions.Item>
               <Descriptions.Item label="随访模板">
                 <Tag color={selectedPlanDetail.templateId ? "purple" : "default"}>
-                  {planTemplateText(
-                    selectedPlanDetail,
-                    templateNameById,
-                    evidenceDetailsEnabled,
-                  )}
+                  {planTemplateText(selectedPlanDetail, templateNameById, evidenceDetailsEnabled)}
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="状态">

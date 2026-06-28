@@ -125,10 +125,7 @@ export default function QcEvalResults() {
   const departmentNames = useMemo(
     () =>
       new Map(
-        (departmentsQuery.data?.items ?? []).map((unit) => [
-          unit.id ?? unit.code,
-          unit.name,
-        ]),
+        (departmentsQuery.data?.items ?? []).map((unit) => [unit.id ?? unit.code, unit.name]),
       ),
     [departmentsQuery.data?.items],
   );
@@ -233,9 +230,7 @@ export default function QcEvalResults() {
       key: "evidence",
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text>
-            {evidenceDetailsEnabled ? record.evidenceSummary : "病历证据已关联"}
-          </Text>
+          <Text>{evidenceDetailsEnabled ? record.evidenceSummary : "病历证据已关联"}</Text>
           {evidenceDetailsEnabled && record.sourceRef ? (
             <Text type="secondary">{record.sourceRef}</Text>
           ) : null}
@@ -255,9 +250,7 @@ export default function QcEvalResults() {
       dataIndex: "traceId",
       key: "traceId",
       render: (traceId: string | undefined) => (
-        <Text type="secondary">
-          {evidenceText(traceId, evidenceDetailsEnabled, "证据已记录")}
-        </Text>
+        <Text type="secondary">{evidenceText(traceId, evidenceDetailsEnabled, "证据已记录")}</Text>
       ),
     },
   ];
@@ -290,9 +283,7 @@ export default function QcEvalResults() {
       key: "link",
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text>
-            {evidenceText(record.indicatorId, evidenceDetailsEnabled, "评价指标已关联")}
-          </Text>
+          <Text>{evidenceText(record.indicatorId, evidenceDetailsEnabled, "评价指标已关联")}</Text>
           <Text type="secondary">
             {evidenceText(record.resultId, evidenceDetailsEnabled, "评价结果已关联")}
           </Text>
@@ -320,9 +311,7 @@ export default function QcEvalResults() {
       dataIndex: "traceId",
       key: "traceId",
       render: (traceId: string | undefined) => (
-        <Text type="secondary">
-          {evidenceText(traceId, evidenceDetailsEnabled, "证据已记录")}
-        </Text>
+        <Text type="secondary">{evidenceText(traceId, evidenceDetailsEnabled, "证据已记录")}</Text>
       ),
     },
     {

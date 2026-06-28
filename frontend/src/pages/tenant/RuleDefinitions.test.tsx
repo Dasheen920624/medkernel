@@ -601,7 +601,9 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
 
       await user.click(within(dialog).getByRole("tab", { name: /即配即试/ }));
       await user.click(within(dialog).getByRole("button", { name: /读取真实快照/ }));
-      expect(await screen.findByText("请输入患者信息或就诊信息后再读取真实快照。")).toBeInTheDocument();
+      expect(
+        await screen.findByText("请输入患者信息或就诊信息后再读取真实快照。"),
+      ).toBeInTheDocument();
       await user.type(within(dialog).getByLabelText("患者信息"), "P-001");
       await user.type(within(dialog).getByLabelText("就诊信息"), "E-001");
       await user.click(within(dialog).getByRole("button", { name: /读取真实快照/ }));
@@ -1201,7 +1203,9 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       expect(within(dialog as HTMLElement).getByLabelText("验证用例就诊信息")).toBeInTheDocument();
       expect(within(dialog as HTMLElement).getByLabelText("期望风险等级")).toBeInTheDocument();
       expect(within(dialog as HTMLElement).getByLabelText("期望处置动作")).toBeInTheDocument();
-      expect(within(dialog as HTMLElement).queryByLabelText("期望动作代码")).not.toBeInTheDocument();
+      expect(
+        within(dialog as HTMLElement).queryByLabelText("期望动作代码"),
+      ).not.toBeInTheDocument();
       expect(within(dialog as HTMLElement).queryByText(/测试输入配置文本/)).not.toBeInTheDocument();
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,

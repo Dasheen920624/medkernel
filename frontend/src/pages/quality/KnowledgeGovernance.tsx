@@ -450,7 +450,11 @@ function renderVersionSourceInfo(
     <Descriptions title="来源与审核" size="small" bordered column={1}>
       <Descriptions.Item label="来源证据">来源证据已记录</Descriptions.Item>
       <Descriptions.Item label="权威分级">
-        {version?.authorityLevel ? <Tag>{sourceAuthorityLabel(version.authorityLevel)}</Tag> : "未分级"}
+        {version?.authorityLevel ? (
+          <Tag>{sourceAuthorityLabel(version.authorityLevel)}</Tag>
+        ) : (
+          "未分级"
+        )}
       </Descriptions.Item>
       <Descriptions.Item label="证据锚点">证据锚点已记录</Descriptions.Item>
       <Descriptions.Item label="审核记录">
@@ -739,11 +743,7 @@ export default function KnowledgeGovernance({
       value: code,
       label: modelCapabilityBusinessLabel(code, evidenceDetailsEnabled),
     }));
-  }, [
-    evidenceDetailsEnabled,
-    modelGenerationJob,
-    productionReadinessQuery.data?.capabilityCode,
-  ]);
+  }, [evidenceDetailsEnabled, modelGenerationJob, productionReadinessQuery.data?.capabilityCode]);
   const modelProviderOptions = useMemo(() => {
     const providerCode = productionReadinessQuery.data?.providerCode;
     return providerCode
@@ -1481,9 +1481,7 @@ export default function KnowledgeGovernance({
       key: "source",
       render: (_, record) => (
         <Space direction="vertical" size={2}>
-          <Text>
-            {candidateSourceText(record, evidenceDetailsEnabled)}
-          </Text>
+          <Text>{candidateSourceText(record, evidenceDetailsEnabled)}</Text>
           <Space size={4} wrap>
             <Tag color={RISK_COLORS[record.riskLevel ?? ""] ?? "default"}>
               {riskLabel(record.riskLevel)}

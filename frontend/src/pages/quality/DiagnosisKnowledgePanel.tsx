@@ -140,7 +140,9 @@ function versionLabel(version: KnowledgeAssetVersion) {
 }
 
 function identityLabel(identity: KnowledgeIdentity, evidenceDetailsEnabled: boolean) {
-  return evidenceDetailsEnabled ? `${identity.subject} · ${identity.identityCode}` : identity.subject;
+  return evidenceDetailsEnabled
+    ? `${identity.subject} · ${identity.identityCode}`
+    : identity.subject;
 }
 
 function constraintLabel(value: string, evidenceDetailsEnabled: boolean, businessLabel: string) {
@@ -563,7 +565,9 @@ export default function DiagnosisKnowledgePanel({
       render: (value: string, record: DiagnosisCarePointer) => {
         if (effectiveEvidenceDetails) return <span className={styles.code}>{value}</span>;
         if (record.targetType === "RULE") {
-          return rulesQuery.data?.items.find((item) => item.ruleCode === value)?.name ?? "目标资产已关联";
+          return (
+            rulesQuery.data?.items.find((item) => item.ruleCode === value)?.name ?? "目标资产已关联"
+          );
         }
         if (record.targetType === "PATHWAY") {
           return (
@@ -571,7 +575,10 @@ export default function DiagnosisKnowledgePanel({
             "目标资产已关联"
           );
         }
-        return referenceKnowledge.find((item) => item.identityCode === value)?.subject ?? "目标资产已关联";
+        return (
+          referenceKnowledge.find((item) => item.identityCode === value)?.subject ??
+          "目标资产已关联"
+        );
       },
     },
     {

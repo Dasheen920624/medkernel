@@ -753,11 +753,13 @@ function versionEvidenceText(
 
 function orgScopeText(applicability: RuleApplicability, evidenceDetailsEnabled: boolean) {
   if (evidenceDetailsEnabled) {
-    return [
-      ...(applicability.orgScope.groupIds ?? []).map((value) => `集团 ${value}`),
-      ...(applicability.orgScope.hospitalIds ?? []).map((value) => `医院 ${value}`),
-      ...(applicability.orgScope.deptIds ?? []).map((value) => `科室 ${value}`),
-    ].join("、") || "当前服务机构全部组织";
+    return (
+      [
+        ...(applicability.orgScope.groupIds ?? []).map((value) => `集团 ${value}`),
+        ...(applicability.orgScope.hospitalIds ?? []).map((value) => `医院 ${value}`),
+        ...(applicability.orgScope.deptIds ?? []).map((value) => `科室 ${value}`),
+      ].join("、") || "当前服务机构全部组织"
+    );
   }
   const parts = [
     applicability.orgScope.groupIds?.length
@@ -1402,10 +1404,7 @@ export default function RuleDefinitions() {
         currentActionIndex === actionIndex
           ? {
               ...action,
-              suggestions: [
-                ...action.suggestions,
-                { label: "", actionType: "ACKNOWLEDGE" },
-              ],
+              suggestions: [...action.suggestions, { label: "", actionType: "ACKNOWLEDGE" }],
             }
           : action,
       ),
@@ -2966,11 +2965,7 @@ export default function RuleDefinitions() {
             {customerDisplayText(snapshot.qualityStatus)}
           </Descriptions.Item>
           <Descriptions.Item label="机构生效版本">
-            {evidenceText(
-              snapshot.runtimeReleaseId,
-              evidenceDetailsEnabled,
-              "机构生效版本已确认",
-            )}
+            {evidenceText(snapshot.runtimeReleaseId, evidenceDetailsEnabled, "机构生效版本已确认")}
           </Descriptions.Item>
           <Descriptions.Item label="缺失字段">
             {snapshot.missingFields?.length ? `${snapshot.missingFields.length} 项` : "无"}
@@ -3053,11 +3048,7 @@ export default function RuleDefinitions() {
             {evidenceText(result.snapshotId, evidenceDetailsEnabled, "试运行快照已关联")}
           </Descriptions.Item>
           <Descriptions.Item label="机构生效版本">
-            {evidenceText(
-              result.runtimeReleaseId,
-              evidenceDetailsEnabled,
-              "机构生效版本已确认",
-            )}
+            {evidenceText(result.runtimeReleaseId, evidenceDetailsEnabled, "机构生效版本已确认")}
           </Descriptions.Item>
           <Descriptions.Item label="追踪证据">
             {evidenceText(result.traceId, evidenceDetailsEnabled, "试运行已留痕")}
@@ -4732,7 +4723,8 @@ export default function RuleDefinitions() {
                         version.versionNo,
                         evidenceDetailsEnabled,
                       )} · ${
-                        RULE_VERSION_STATUS_LABELS[version.status] ?? customerEnumLabel(version.status)
+                        RULE_VERSION_STATUS_LABELS[version.status] ??
+                        customerEnumLabel(version.status)
                       }`}
                     </Tag>
                   ))}

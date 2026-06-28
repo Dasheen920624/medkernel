@@ -22,8 +22,7 @@ type EvaluationFormValues = {
 
 function providerTypeLabel(providerType: ModelProviderGovernanceView["providerType"]) {
   return (
-    MODEL_PROVIDER_TYPE_OPTIONS.find((option) => option.value === providerType)?.label ??
-    "模型服务"
+    MODEL_PROVIDER_TYPE_OPTIONS.find((option) => option.value === providerType)?.label ?? "模型服务"
   );
 }
 

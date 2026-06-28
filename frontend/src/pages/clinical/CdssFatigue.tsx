@@ -82,7 +82,11 @@ const PAGE_META = {
     evidenceDetailContent: ["推荐卡编号", "患者上下文编号", "触发追踪号", "决策输入摘要"],
     interruptionLevel: "info" as const,
     evidence: "推荐触发、医生反馈、知识来源和频次治理均保留审计证据",
-    dataScale: { expected: "large" as const, pagination: "page" as const, exportStrategy: "none" as const },
+    dataScale: {
+      expected: "large" as const,
+      pagination: "page" as const,
+      exportStrategy: "none" as const,
+    },
     riskLevel: "medium" as const,
   },
 };
@@ -287,7 +291,9 @@ function getRecommendationJourneySteps(
         ? textOrDash(diagnose?.ruleId || detail.card.cardCode || detail.card.fatigueKey)
         : riskLabel(detail.card.riskLevel),
       description: "规则引擎与红线检查给出风险级别和推荐动作。",
-      evidence: evidenceDetailsEnabled ? diagnose?.explanationSnapshot || detail.card.summary : undefined,
+      evidence: evidenceDetailsEnabled
+        ? diagnose?.explanationSnapshot || detail.card.summary
+        : undefined,
     },
     {
       title: "知识来源",

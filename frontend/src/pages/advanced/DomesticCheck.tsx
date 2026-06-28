@@ -86,7 +86,11 @@ function statusValueText(status: string, evidenceDetailsEnabled: boolean) {
 function databaseDialectText(value: string, evidenceDetailsEnabled: boolean) {
   if (evidenceDetailsEnabled) return value;
   const normalized = value.toLowerCase();
-  if (normalized.includes("dm") || normalized.includes("dameng") || normalized.includes("kingbase")) {
+  if (
+    normalized.includes("dm") ||
+    normalized.includes("dameng") ||
+    normalized.includes("kingbase")
+  ) {
     return "国产关系库已匹配";
   }
   if (
@@ -107,7 +111,10 @@ function evidenceText(
   return evidenceDetailsEnabled ? value || "未返回" : fallback;
 }
 
-function compatibilityCategoryText(item: RuntimeDomesticCheckItem, evidenceDetailsEnabled: boolean) {
+function compatibilityCategoryText(
+  item: RuntimeDomesticCheckItem,
+  evidenceDetailsEnabled: boolean,
+) {
   if (evidenceDetailsEnabled) return item.category;
   if (item.category === "OS") return "系统环境";
   if (item.category === "DATABASE") return "数据库适配";

@@ -145,12 +145,16 @@ function fieldListLabel(values: string[] | undefined, evidenceDetailsEnabled = f
 
 function scenarioLabel(value?: string | null, evidenceDetailsEnabled = false) {
   const scenario = value || "DEFAULT";
-  return evidenceDetailsEnabled ? scenario : (SCENARIO_LABELS[scenario] ?? customerEnumLabel(scenario));
+  return evidenceDetailsEnabled
+    ? scenario
+    : (SCENARIO_LABELS[scenario] ?? customerEnumLabel(scenario));
 }
 
 function maskingStrategyLabel(value?: string | null, evidenceDetailsEnabled = false) {
   if (!value) return "未返回";
-  return evidenceDetailsEnabled ? value : (MASKING_STRATEGY_LABELS[value] ?? customerEnumLabel(value));
+  return evidenceDetailsEnabled
+    ? value
+    : (MASKING_STRATEGY_LABELS[value] ?? customerEnumLabel(value));
 }
 
 function dataPermissionActionLabel(value?: string | null) {
@@ -161,10 +165,7 @@ function dataPermissionLevelLabel(value?: string | null) {
   return dataPermissionLevels.find((item) => item.value === value)?.label ?? "未识别";
 }
 
-function dataPermissionPolicyHitLabel(
-  policyId?: string | null,
-  evidenceDetailsEnabled = false,
-) {
+function dataPermissionPolicyHitLabel(policyId?: string | null, evidenceDetailsEnabled = false) {
   if (evidenceDetailsEnabled) return policyId ?? "未返回策略";
   return policyId ? "已命中策略" : "未返回策略";
 }
@@ -174,11 +175,7 @@ function configSourceLabel(source?: string | null) {
   return source ? customerEnumLabel(source) : "未返回";
 }
 
-function configValueView(
-  value: string,
-  item: SystemConfigItem,
-  evidenceDetailsEnabled = false,
-) {
+function configValueView(value: string, item: SystemConfigItem, evidenceDetailsEnabled = false) {
   if (item.valueType === "BOOLEAN") {
     return (
       <Tag color={value === "true" ? "success" : "default"}>
@@ -819,9 +816,7 @@ export function DataPermissionPanel({
             </Descriptions.Item>
             <Descriptions.Item label="拒绝字段">
               {renderTagList(
-                trialResult.deniedColumns.map((field) =>
-                  fieldLabel(field, evidenceDetailsEnabled),
-                ),
+                trialResult.deniedColumns.map((field) => fieldLabel(field, evidenceDetailsEnabled)),
               )}
             </Descriptions.Item>
           </Descriptions>
@@ -857,11 +852,7 @@ export function DataPermissionPanel({
           {
             title: "动作",
             dataIndex: "action",
-            render: (value) => (
-              <Tag>
-                {dataPermissionActionLabel(value)}
-              </Tag>
-            ),
+            render: (value) => <Tag>{dataPermissionActionLabel(value)}</Tag>,
           },
           {
             title: "最小范围",
@@ -1390,9 +1381,7 @@ export function InteropAssessmentPanel({
             pagination={false}
             scroll={{ x: "max-content" }}
             columns={[
-              ...(evidenceDetailsEnabled
-                ? [{ title: "指标编码", dataIndex: "itemCode" }]
-                : []),
+              ...(evidenceDetailsEnabled ? [{ title: "指标编码", dataIndex: "itemCode" }] : []),
               { title: "指标", dataIndex: "itemName" },
               {
                 title: "维度",

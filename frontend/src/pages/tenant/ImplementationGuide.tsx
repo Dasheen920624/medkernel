@@ -112,7 +112,8 @@ export default function ImplementationGuide() {
         state="error"
         stateProps={{
           title: "实施步骤读取失败",
-          description: "请重试；若持续失败，请联系信息科核查实施服务。失败已留痕，可在审计证据中追溯。",
+          description:
+            "请重试；若持续失败，请联系信息科核查实施服务。失败已留痕，可在审计证据中追溯。",
           onRetry: () => refetch(),
         }}
       >

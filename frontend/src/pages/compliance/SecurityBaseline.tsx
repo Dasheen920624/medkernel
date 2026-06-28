@@ -70,9 +70,7 @@ function dataScopeText(profile: SecurityProfile, evidenceDetailsEnabled = false)
   append("病区", profile.dataScope.wardId);
   append("专科", profile.dataScope.specialtyId);
   if (populated.length === 0) return "未返回范围";
-  return populated
-    .map((field) => (evidenceDetailsEnabled ? field.value : field.label))
-    .join(" / ");
+  return populated.map((field) => (evidenceDetailsEnabled ? field.value : field.label)).join(" / ");
 }
 
 function environmentText(environmentKeys: string[], evidenceDetailsEnabled = false): string {
@@ -199,9 +197,7 @@ function BaselineOverview({
           {environmentText(profile.environmentKeys, evidenceDetailsEnabled)}
         </Descriptions.Item>
         {evidenceDetailsEnabled ? (
-          <Descriptions.Item label="数据范围编码">
-            {dataScopeText(profile, true)}
-          </Descriptions.Item>
+          <Descriptions.Item label="数据范围编码">{dataScopeText(profile, true)}</Descriptions.Item>
         ) : null}
       </Descriptions>
 

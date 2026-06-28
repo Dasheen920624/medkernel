@@ -82,17 +82,11 @@ function projectionEvidenceText(
   return evidenceDetailsEnabled ? value || "未返回" : fallback;
 }
 
-function objectEvidenceText(
-  objectId: string | null | undefined,
-  evidenceDetailsEnabled: boolean,
-) {
+function objectEvidenceText(objectId: string | null | undefined, evidenceDetailsEnabled: boolean) {
   return projectionEvidenceText(objectId, evidenceDetailsEnabled, "投影对象已同步");
 }
 
-function contentHashText(
-  contentHash: string | null | undefined,
-  evidenceDetailsEnabled: boolean,
-) {
+function contentHashText(contentHash: string | null | undefined, evidenceDetailsEnabled: boolean) {
   return projectionEvidenceText(shortHash(contentHash), evidenceDetailsEnabled, "内容摘要已记录");
 }
 
@@ -100,7 +94,10 @@ function traceEvidenceText(traceId: string | null | undefined, evidenceDetailsEn
   return projectionEvidenceText(traceId, evidenceDetailsEnabled, "追踪证据已记录");
 }
 
-function projectionEndpointText(endpointKey: string | null | undefined, evidenceDetailsEnabled: boolean) {
+function projectionEndpointText(
+  endpointKey: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
   if (evidenceDetailsEnabled) return endpointKey || "未返回";
   const objectType = endpointKey?.split(":")[0];
   return objectType ? `${projectionObjectLabel(objectType)}已关联` : "关系对象已关联";
@@ -158,8 +155,7 @@ export default function GraphExplore() {
   );
   const canRead = permissionCodes.has("projection.read");
   const canRebuild = permissionCodes.has("projection.rebuild");
-  const evidenceDetailsEnabled =
-    canUseEvidenceDetails(securityQuery.data) && globalEvidenceDetails;
+  const evidenceDetailsEnabled = canUseEvidenceDetails(securityQuery.data) && globalEvidenceDetails;
 
   const [targetType, setTargetType] = useState<ProjectionTargetType>("CLINICAL_GRAPH");
   const [keywordInput, setKeywordInput] = useState("");

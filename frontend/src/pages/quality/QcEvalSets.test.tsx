@@ -351,7 +351,9 @@ describe("QcEvalSets", () => {
     fireEvent.click(screen.getByRole("button", { name: "仿真评估" }));
     expect(screen.queryByLabelText("临床快照 ID")).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("可按住院号、门诊号或就诊信息检索")).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("可按住院号、门诊号或就诊标识检索")).not.toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("可按住院号、门诊号或就诊标识检索"),
+    ).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("患者信息"), { target: { value: "patient-real-1" } });
     await waitFor(() =>
       expect(mockUseContextSnapshots).toHaveBeenLastCalledWith(

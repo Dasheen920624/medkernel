@@ -767,11 +767,7 @@ export default function QcEvalSets() {
             </Space>
             <Descriptions bordered column={1}>
               <Descriptions.Item label="指标证据">
-                {evidenceText(
-                  selectedIndicator.indicatorId,
-                  evidenceDetailsEnabled,
-                  "指标已登记",
-                )}
+                {evidenceText(selectedIndicator.indicatorId, evidenceDetailsEnabled, "指标已登记")}
               </Descriptions.Item>
               <Descriptions.Item label="指标名称">{selectedIndicator.name}</Descriptions.Item>
               <Descriptions.Item label="版本">{formatVersion(selectedIndicator)}</Descriptions.Item>
@@ -787,11 +783,7 @@ export default function QcEvalSets() {
               </Descriptions.Item>
               <Descriptions.Item label="来源依据">{selectedIndicator.sourceRef}</Descriptions.Item>
               <Descriptions.Item label="证据">
-                {evidenceText(
-                  selectedIndicator.traceId,
-                  evidenceDetailsEnabled,
-                  "指标证据已记录",
-                )}
+                {evidenceText(selectedIndicator.traceId, evidenceDetailsEnabled, "指标证据已记录")}
               </Descriptions.Item>
             </Descriptions>
             <StepFlow currentStep={stepForIndicator(selectedIndicator)} panelByStep={stepPanels} />
@@ -894,11 +886,7 @@ export default function QcEvalSets() {
           {simulationResult && (
             <Descriptions bordered column={1}>
               <Descriptions.Item label="评估运行">
-                {evidenceText(
-                  simulationResult.runId,
-                  evidenceDetailsEnabled,
-                  "评估运行已记录",
-                )}
+                {evidenceText(simulationResult.runId, evidenceDetailsEnabled, "评估运行已记录")}
               </Descriptions.Item>
               <Descriptions.Item label="运行状态">
                 {customerEnumLabel(simulationResult.status)}
@@ -907,11 +895,7 @@ export default function QcEvalSets() {
               <Descriptions.Item label="缺陷数">{simulationResult.findingCount}</Descriptions.Item>
               <Descriptions.Item label="整改任务">{simulationResult.taskCount}</Descriptions.Item>
               <Descriptions.Item label="证据">
-                {evidenceText(
-                  simulationResult.traceId,
-                  evidenceDetailsEnabled,
-                  "仿真证据已记录",
-                )}
+                {evidenceText(simulationResult.traceId, evidenceDetailsEnabled, "仿真证据已记录")}
               </Descriptions.Item>
             </Descriptions>
           )}

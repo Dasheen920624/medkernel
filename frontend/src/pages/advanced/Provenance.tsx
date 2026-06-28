@@ -151,9 +151,7 @@ function EvidenceList({
               <Descriptions.Item label="发布日期">
                 {formatDateTime(item.publishedAt)}
               </Descriptions.Item>
-              <Descriptions.Item label="引用位置">
-                {item.anchorLabel || "未记录"}
-              </Descriptions.Item>
+              <Descriptions.Item label="引用位置">{item.anchorLabel || "未记录"}</Descriptions.Item>
               <Descriptions.Item label="引用关系">
                 {sourceRelationLabel(item.relation)}
               </Descriptions.Item>
@@ -165,9 +163,7 @@ function EvidenceList({
                   <Descriptions.Item label="片段偏移">
                     {item.startOffset ?? "?"} - {item.endOffset ?? "?"}
                   </Descriptions.Item>
-                  <Descriptions.Item label="排序权重">
-                    {item.weight ?? "未记录"}
-                  </Descriptions.Item>
+                  <Descriptions.Item label="排序权重">{item.weight ?? "未记录"}</Descriptions.Item>
                 </>
               ) : null}
             </Descriptions>

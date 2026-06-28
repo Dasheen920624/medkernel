@@ -55,7 +55,11 @@ const PAGE_META = {
     evidenceDetailContent: ["能力代码", "策略作用域", "输出格式", "外调字段代码"],
     interruptionLevel: "info" as const,
     evidence: "模型能力、路由、降级和外调策略均保留配置来源与审计证据",
-    dataScale: { expected: "large" as const, pagination: "page" as const, exportStrategy: "none" as const },
+    dataScale: {
+      expected: "large" as const,
+      pagination: "page" as const,
+      exportStrategy: "none" as const,
+    },
     riskLevel: "medium" as const,
   },
 };
@@ -360,8 +364,7 @@ export default function AiWorkflows() {
   const canRead = permissionCodes.has("llm.read");
   const canManageEgress = permissionCodes.has("llm.egress.manage");
   const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
-  const evidenceDetailsEnabled =
-    canUseEvidenceDetails(securityQuery.data) && globalEvidenceDetails;
+  const evidenceDetailsEnabled = canUseEvidenceDetails(securityQuery.data) && globalEvidenceDetails;
   const statusQuery = useModelCapabilitiesStatus(canRead);
   const saveEgressPolicy = useSaveModelEgressPolicy();
   const confirmModelEgress = useConfirmModelEgress();

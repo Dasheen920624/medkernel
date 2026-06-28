@@ -608,7 +608,9 @@ describe("WorkflowTodos", () => {
       page: 1,
       size: 20,
     });
-    expect(screen.getByText("请按姓名或院内人员身份选择接收人，岗位用于通知与审计留痕。")).toBeInTheDocument();
+    expect(
+      screen.getByText("请按姓名或院内人员身份选择接收人，岗位用于通知与审计留痕。"),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText("接收角色")).not.toBeInTheDocument();
     expect(screen.queryByText("NURSING")).not.toBeInTheDocument();
 

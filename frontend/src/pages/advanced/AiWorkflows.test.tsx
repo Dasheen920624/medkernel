@@ -263,7 +263,9 @@ describe("AiWorkflows", () => {
     expect(within(dialog).getByText(/每次发送给模型前需要责任确认/)).toBeInTheDocument();
     expect(within(dialog).getByText("本次外调用途确认")).toBeInTheDocument();
     expect(within(dialog).queryByLabelText("脱敏载荷摘要")).not.toBeInTheDocument();
-    expect(within(dialog).getByText(/脱敏摘要由系统根据当前字段预览和用途自动生成/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/脱敏摘要由系统根据当前字段预览和用途自动生成/),
+    ).toBeInTheDocument();
     await user.type(
       within(dialog).getByLabelText("用途说明"),
       "向患者解释检查结果，仅使用已脱敏字段",

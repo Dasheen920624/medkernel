@@ -73,10 +73,21 @@ const PAGE_META = {
     goal: "查看患者路径运行事项",
     defaultView: "待处理节点",
     defaultFilters: [],
-    evidenceDetailContent: ["患者路径实例编号", "患者编号", "就诊编号", "节点编码", "时钟编号", "追踪号"],
+    evidenceDetailContent: [
+      "患者路径实例编号",
+      "患者编号",
+      "就诊编号",
+      "节点编码",
+      "时钟编号",
+      "追踪号",
+    ],
     interruptionLevel: "info" as const,
     evidence: "患者入径、推进、变异和退径均保留路径运行证据",
-    dataScale: { expected: "large" as const, pagination: "page" as const, exportStrategy: "none" as const },
+    dataScale: {
+      expected: "large" as const,
+      pagination: "page" as const,
+      exportStrategy: "none" as const,
+    },
     riskLevel: "medium" as const,
   },
 };
@@ -233,14 +244,22 @@ function pathwayRuntimeNodeState(
   return { label: "待执行", color: "default", variant: "pending" as const };
 }
 
-function nodeDisplayName(nodes: PathwayNode[], nodeCode?: string | null, evidenceDetailsEnabled = false) {
+function nodeDisplayName(
+  nodes: PathwayNode[],
+  nodeCode?: string | null,
+  evidenceDetailsEnabled = false,
+) {
   if (!nodeCode) return "未记录";
   const node = nodes.find((item) => item.nodeCode === nodeCode);
   if (!node) return evidenceDetailsEnabled ? nodeCode : "已配置环节";
   return evidenceDetailsEnabled ? `${node.name} (${node.nodeCode})` : node.name;
 }
 
-function edgeReadableLabel(edge: PathwayEdge, nodes: PathwayNode[], evidenceDetailsEnabled: boolean) {
+function edgeReadableLabel(
+  edge: PathwayEdge,
+  nodes: PathwayNode[],
+  evidenceDetailsEnabled: boolean,
+) {
   return `${pathwayEdgeTypeText(edge.edgeType)}：${nodeDisplayName(
     nodes,
     edge.fromNodeCode,
@@ -645,10 +664,13 @@ export default function PatientPathways() {
       dataIndex: "templateId",
       key: "templateId",
       render: (text: string) => {
-        const templateName = templateDetail?.template.templateId === text
-          ? templateDetail.template.name
-          : undefined;
-        return <Tag color="geekblue">{evidenceDetailsEnabled ? text : (templateName ?? "当前运行路径")}</Tag>;
+        const templateName =
+          templateDetail?.template.templateId === text ? templateDetail.template.name : undefined;
+        return (
+          <Tag color="geekblue">
+            {evidenceDetailsEnabled ? text : (templateName ?? "当前运行路径")}
+          </Tag>
+        );
       },
     },
     {
@@ -659,9 +681,7 @@ export default function PatientPathways() {
         if (record.status === "EXITED") return <Tag color="red">已退径</Tag>;
         if (record.status === "COMPLETED") return <Tag color="green">已完成路径</Tag>;
         return (
-          <Tag color="orange">
-            {nodeDisplayName(templateNodes, c, evidenceDetailsEnabled)}
-          </Tag>
+          <Tag color="orange">{nodeDisplayName(templateNodes, c, evidenceDetailsEnabled)}</Tag>
         );
       },
     },
@@ -992,7 +1012,9 @@ export default function PatientPathways() {
                             } ${state.label}`}
                           >
                             <div className={styles.pathwayRuntimeNodeHeader}>
-                              {evidenceDetailsEnabled && <Tag color="geekblue">{node.nodeCode}</Tag>}
+                              {evidenceDetailsEnabled && (
+                                <Tag color="geekblue">{node.nodeCode}</Tag>
+                              )}
                               <Tag color={state.color}>{state.label}</Tag>
                             </div>
                             <div className={styles.pathwayRuntimeNodeName}>{node.name}</div>
@@ -1140,7 +1162,9 @@ export default function PatientPathways() {
                                       {isCurrent && <Tag color="blue">当前活动</Tag>}
                                     </div>
                                     <div className={`${styles.codeText} ${styles.timelineMuted}`}>
-                                      {evidenceDetailsEnabled ? node.nodeCode : pathwayNodeTypeText(node.nodeType)}
+                                      {evidenceDetailsEnabled
+                                        ? node.nodeCode
+                                        : pathwayNodeTypeText(node.nodeType)}
                                     </div>
 
                                     {activeClock && (
@@ -1511,8 +1535,12 @@ export default function PatientPathways() {
                     children: (
                       <div>
                         <div className={styles.timelineTitle}>
-                          {nodeDisplayName(templateNodes, variance.nodeCode, evidenceDetailsEnabled)} ·{" "}
-                          {customerEnumLabel(variance.varianceType)}
+                          {nodeDisplayName(
+                            templateNodes,
+                            variance.nodeCode,
+                            evidenceDetailsEnabled,
+                          )}{" "}
+                          · {customerEnumLabel(variance.varianceType)}
                         </div>
                         {evidenceDetailsEnabled && (
                           <div className={styles.timelineMeta}>
