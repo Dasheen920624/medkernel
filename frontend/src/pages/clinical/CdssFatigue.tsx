@@ -218,6 +218,14 @@ function getSignalTypeLabel(signalType: string): string {
   return signalTypeLabels[signalType] ?? customerDisplayText(signalType);
 }
 
+function getFatigueSignalPolicyText(
+  signal: RecommendationFatigueSignal,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) return signal.fatigueKey;
+  return signal.signalType === "BLOCK" ? "高危红线必须保留" : "科室/场景频次策略";
+}
+
 function getFatigueProgressPercent(signal: RecommendationFatigueSignal): number {
   if (signal.governanceThreshold <= 0) return 100;
   return Math.min(100, Math.floor((signal.triggerCount / signal.governanceThreshold) * 100));
@@ -1215,7 +1223,9 @@ export default function CdssFatigue() {
                           <div className={styles.contentText}>
                             <span>科室级限频阈值读取 </span>
                             <Tag color="blue" className={styles.inlineTag}>
-                              {FATIGUE_POLICY_CONFIG_KEY}
+                              {evidenceDetailsEnabled
+                                ? FATIGUE_POLICY_CONFIG_KEY
+                                : "配置中心已关联"}
                             </Tag>
                             <span>{selectedFatigueGovernance.description}</span>
                           </div>
@@ -1233,9 +1243,11 @@ export default function CdssFatigue() {
                             className={`${styles.compactCard} ${styles.sectionGap}`}
                           >
                             <Descriptions size="small" column={2}>
-                              <Descriptions.Item label="频次策略标识">
+                              <Descriptions.Item
+                                label={evidenceDetailsEnabled ? "频次策略身份" : "频次策略"}
+                              >
                                 <span className={`${styles.codeText} ${styles.textStrong}`}>
-                                  {signal.fatigueKey}
+                                  {getFatigueSignalPolicyText(signal, evidenceDetailsEnabled)}
                                 </span>
                               </Descriptions.Item>
                               <Descriptions.Item label="治理动作">

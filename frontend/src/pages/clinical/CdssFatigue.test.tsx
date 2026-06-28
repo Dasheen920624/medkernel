@@ -631,10 +631,12 @@ describe("CdssFatigue", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/狼来了|物理拦截|高阶|静音|抑制|疲劳/)).not.toBeInTheDocument();
     expect(await screen.findByText("红线必须保留")).toBeInTheDocument();
-    expect(screen.getByText("medkernel.cdss.fatigue.policy")).toBeInTheDocument();
+    expect(screen.getByText("配置中心已关联")).toBeInTheDocument();
+    expect(screen.queryByText("medkernel.cdss.fatigue.policy")).not.toBeInTheDocument();
     expect(screen.getByText("必须保留确认")).toBeInTheDocument();
     expect(screen.queryByText(/MUTE|BLOCK|SUPPRESSED/)).not.toBeInTheDocument();
-    expect(screen.getAllByText("REDLINE:RDL-DDI-001").length).toBeGreaterThan(0);
+    expect(screen.getByText("高危红线必须保留")).toBeInTheDocument();
+    expect(screen.queryByText("REDLINE:RDL-DDI-001")).not.toBeInTheDocument();
     expect(screen.getByText("9 / 3 次")).toBeInTheDocument();
     expect(screen.getAllByText(/科室级限频阈值/).length).toBeGreaterThan(0);
   });
