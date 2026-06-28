@@ -91,7 +91,7 @@ export default function QcAlerts() {
       new Map(
         (departmentsQuery.data?.items ?? []).map((unit) => [
           unit.id ?? unit.code,
-          `${unit.name} · ${unit.code}`,
+          unit.name,
         ]),
       ),
     [departmentsQuery.data?.items],

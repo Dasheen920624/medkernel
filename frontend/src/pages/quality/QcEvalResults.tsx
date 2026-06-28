@@ -118,7 +118,7 @@ export default function QcEvalResults() {
         .filter((unit) => unit.level === "DEPARTMENT" && unit.status !== "ARCHIVED")
         .map((unit) => ({
           value: unit.id ?? unit.code,
-          label: `${unit.name} · ${unit.code}`,
+          label: unit.name,
         })),
     [departmentsQuery.data?.items],
   );
@@ -127,7 +127,7 @@ export default function QcEvalResults() {
       new Map(
         (departmentsQuery.data?.items ?? []).map((unit) => [
           unit.id ?? unit.code,
-          `${unit.name} · ${unit.code}`,
+          unit.name,
         ]),
       ),
     [departmentsQuery.data?.items],

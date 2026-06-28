@@ -189,6 +189,8 @@ describe("QcEvalResults", () => {
     expect(screen.getAllByText("病历证据已关联").length).toBeGreaterThan(0);
     expect(screen.getAllByText("证据已记录").length).toBeGreaterThan(0);
     expect(screen.getByText("VTE 风险评估缺失")).toBeInTheDocument();
+    expect(screen.getAllByText("心内科").length).toBeGreaterThan(0);
+    expect(screen.queryByText("心内科 · CARDIO")).not.toBeInTheDocument();
     expect(screen.queryByText("IND.VTE.REAL")).not.toBeInTheDocument();
     expect(screen.queryByText("v2")).not.toBeInTheDocument();
     expect(screen.queryByText(/mr-real-1/)).not.toBeInTheDocument();
@@ -257,7 +259,8 @@ describe("QcEvalResults", () => {
 
     await user.click(screen.getByRole("button", { name: "查看问题详情" }));
     await user.click(screen.getByLabelText("责任人"));
-    await user.click(screen.getByText("质控专员 · u-quality-1"));
+    expect(screen.queryByText("质控专员 · u-quality-1")).not.toBeInTheDocument();
+    await user.click(screen.getByText("质控专员"));
     fireEvent.change(screen.getByLabelText("整改截止时间"), {
       target: { value: "2026-06-09T00:00:00Z" },
     });

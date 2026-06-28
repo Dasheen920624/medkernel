@@ -128,7 +128,8 @@ describe("QcAlerts", () => {
     expect(screen.getByText("真实质量问题总数")).toBeInTheDocument();
     expect(screen.getByText("1 条")).toBeInTheDocument();
     expect(screen.getByText("高风险质控问题待闭环：术前记录缺失")).toBeInTheDocument();
-    expect(screen.getByText("心内科 · CARDIO")).toBeInTheDocument();
+    expect(screen.getAllByText("心内科").length).toBeGreaterThan(0);
+    expect(screen.queryByText("心内科 · CARDIO")).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getByText("高风险阈值已关联")).toBeInTheDocument();
     expect(screen.getByText("质控问题来源")).toBeInTheDocument();
@@ -179,7 +180,8 @@ describe("QcAlerts", () => {
     expect(screen.queryByText("trace-alert-p1")).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByLabelText("责任人"));
-    await userEvent.click(screen.getByText("质控专员 · u-quality-1"));
+    expect(screen.queryByText("质控专员 · u-quality-1")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByText("质控专员"));
     await userEvent.click(screen.getByRole("button", { name: "派发整改任务" }));
 
     await waitFor(() => {
