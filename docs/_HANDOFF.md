@@ -52,6 +52,8 @@
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新图谱查询体验优化：`f665c5b7`（`统一图谱查询证据详情体验`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
+- 本地最新验收自检体验优化：`b857b548`（`统一验收自检证据详情体验`）已完成本地验证，尚未同步到 134；
+  134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新审计证据体验优化：`42b9fa1a`（`统一审计证据默认视图体验`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新安全基线体验优化：`55f1121d`（`统一安全基线证据详情体验`）已完成本地验证，尚未同步到 134；
@@ -154,6 +156,9 @@
   第三十刀补齐图谱查询页统一证据详情，医疗引擎运营员、信息科、审计员和实施人员默认看到投影对象已同步、内容摘要已记录、
   追踪证据已记录、业务关系端点和差异事实已记录；objectId、contentHash、traceId、factKey、关系端点原始 key 只在证据详情中展开。
   投影目标、查询、刷新、重建和关系库权威源/投影一致性契约保持不变。
+  第三十一刀补齐验收自检页统一证据详情，院长、信息科长、实施工程师、平台管理员和医疗引擎运营员默认看到上线阻塞、
+  业务原因和修复去处；数据库迁移路径、知识生产 readiness code、模型能力 code、权限 code、服务名和备份脚本只在证据详情中展开。
+  验收自检路由权限、阻塞筛选、去修复导航和身份来源默认视图契约保持不变，同时同步旧运行保障套件避免继续期待默认暴露身份提示。
   后续仍需继续扫描关键临床/患者/质量/运营真实流程与真实全角色复演，不能把用户临时补充点当成唯一优化范围。
 
 ## 当前唯一权威
@@ -365,6 +370,16 @@
   投影目标切换、查询、刷新、重建和关系库权威源/投影一致性契约不变。本地验证通过
   `npm --prefix frontend test -- --run src/pages/advanced/GraphExplore.test.tsx`、
   `npm --prefix frontend test -- --run src/pages/advanced/GraphExplore.test.tsx src/pages/advanced/Provenance.test.tsx src/pages/advanced/AiWorkflows.test.tsx src/pages/advanced/projectionGraph.test.ts src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx src/shared/config/routes.test.ts`、
+  `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
+- 最新验收自检体验切片：
+  `b857b548` 将验收自检页接入统一证据详情；默认面向院长、信息科长、实施工程师、平台管理员和医疗引擎运营员展示
+  运行环境、依赖健康、能力开关、备份恢复和知识生产上线准备的业务放行判断，隐藏数据库迁移路径、服务名、知识生产
+  readiness code、模型能力 code、权限 code 和备份脚本；打开证据详情后仍可追溯完整实施证据。同步
+  `operationalControlPages.test.tsx` 的身份来源旧断言，默认看“身份已绑定”，证据详情打开后才看脱敏身份提示。
+  本地验证通过
+  `npm --prefix frontend test -- --run src/pages/workbench/ReadinessValidation.test.tsx`、
+  `npm --prefix frontend test -- --run src/pages/operationalControlPages.test.tsx`、
+  `npm --prefix frontend test -- --run src/pages/workbench/ReadinessValidation.test.tsx src/pages/compliance/SystemProviders.test.tsx src/pages/operationalControlPages.test.tsx src/shared/config/routes.test.ts src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx`、
   `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
 - 最新审计证据体验切片：
   `42b9fa1a` 将审计证据页默认视图从原始证据编号转为业务可读审计摘要，默认隐藏操作人 ID、追踪号、资源 ID、
