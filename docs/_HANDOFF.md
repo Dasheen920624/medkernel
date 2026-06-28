@@ -20,6 +20,8 @@
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新规则试运行体验优化：`057a61d2`（`统一规则试运行证据详情体验`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
+- 本地最新规则配置体验优化：`81b8281b`（`统一规则配置证据详情体验`）已完成本地验证，尚未同步到 134；
+  134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新临床待办与证据权限优化：`bbbbfc55`（`统一临床待办证据权限门禁`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新提醒推荐体验优化：`cd557ed9`（`统一提醒推荐证据详情体验`）已完成本地验证，尚未同步到 134；
@@ -93,7 +95,11 @@
   实施工程师、信息科、医疗引擎运营员和临床责任人默认看到患者/就诊信息检索、临床快照、机构生效版本、评估留痕、
   规则命中、版本证据、业务处置动作和执行记录；快照号、runtimeReleaseId、traceId、requestId、ruleId、versionId、
   actionCode、executionId、inputDigest 和触发点原始值只在证据详情中展开，规则评估、回放解释和人工继续 API 契约保持不变。
-  后续仍需继续扫描关键临床/患者/质量/运营真实流程与真实全角色复演，不能把用户临时补充点当成唯一优化范围。
+  第二十刀补齐规则配置页统一证据详情，实施工程师、信息科、医疗引擎运营员和临床审核责任人默认看到规则资产、当前版本、
+  患者/就诊信息、临床快照、机构生效版本、试运行留痕、负责人已记录、影响证据已记录、在径患者已关联、业务动作和版本历史；
+  ruleCode、activeVersionId、versionId、suppressedBy、authorId、impactDigest、snapshotId、patientId、encounterId、
+  runtimeReleaseId、traceId、actionCode、影响对象标识和路径/规则原始编码只在证据详情中展开。后续仍需继续扫描关键临床/患者/
+  质量/运营真实流程与真实全角色复演，不能把用户临时补充点当成唯一优化范围。
 
 ## 当前唯一权威
 
@@ -184,6 +190,14 @@
   打开证据详情后仍可追溯完整规则评估、回放解释和人工继续证据。本地验证通过
   `npm --prefix frontend test -- --run src/pages/clinical/RuleValidate.test.tsx`、
   `npm --prefix frontend test -- --run src/pages/clinical/RuleValidate.test.tsx src/pages/clinical/EmbedLaunch.test.tsx src/pages/clinical/CdssFatigue.test.tsx src/pages/clinical/Mpi.test.tsx src/pages/clinical/PatientPathways.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx`、
+  `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
+- 最新规则配置体验切片：
+  `81b8281b` 将规则配置页接入统一证据详情；默认面向实施工程师、信息科、医疗引擎运营员和临床审核责任人展示规则资产、
+  当前版本、患者/就诊信息、临床快照、机构生效版本、试运行留痕、负责人已记录、影响证据已记录、在径患者已关联、业务动作
+  和版本历史，隐藏 ruleCode、activeVersionId、versionId、suppressedBy、authorId、impactDigest、snapshotId、patientId、
+  encounterId、runtimeReleaseId、traceId、actionCode、影响对象标识和路径/规则原始编码；打开证据详情后仍可追溯完整配置、
+  治理、影响分析、试运行和验证用例证据。本地验证通过
+  `npm --prefix frontend test -- --run src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/ReleaseGovernance.test.tsx src/pages/tenant/PathwayTemplates.test.tsx src/pages/clinical/RuleValidate.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx`、
   `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
 - 最新临床待办与权限门禁切片：
   `bbbbfc55` 将协同任务接入统一证据详情，默认展示待办风险、患者上下文和责任岗位，患者/就诊、来源、追踪和责任人编号
@@ -339,12 +353,12 @@
 1. 进入真实前台全角色体验：平台管理员看系统接入与安全基线，医疗引擎运营员看知识生产和版本发布，临床使用者拆分医生、
    护士、药师、医技、质控、患者代理路径，审计员看来源、操作证据和敏感信息边界；信息科长、实施工程师、院长视角看部署、
    权限、全院指标和故障降级。
-2. 已完成沙盘、MPI、患者路径、消息通知、临床快照选择器、临床嵌入启动、规则试运行、协同任务、CDSS 提醒推荐、随访协同、质量管理概览、质量问题来源、质量问题与整改、医保审核、评价指标、知识审核与发布、模型能力、模型服务配置、来源血缘、审计证据、安全基线和运行诊断默认视图/证据详情十九轮本地优化；
+2. 已完成沙盘、MPI、患者路径、消息通知、临床快照选择器、临床嵌入启动、规则试运行、规则配置、协同任务、CDSS 提醒推荐、随访协同、质量管理概览、质量问题来源、质量问题与整改、医保审核、评价指标、知识审核与发布、模型能力、模型服务配置、来源血缘、审计证据、安全基线和运行诊断默认视图/证据详情二十轮本地优化；
    继续优先扫描关键临床/患者真实流程：
    功能分类、页面目标、空态/错态/权限态、流程完整性、操作复杂度、敏感信息处理、证据详情表达都要全局审计。
 3. 优先发现并修复真实产品问题，而不是只优化用户临时指出的点；修复后仍需本地验证、必要时重新构建并在 134 复验。
 4. 下一阶段仍需在 134 执行全角色、全知识、全流程复演；本轮只证明基础真实前台数据路线已跑通，`cd44d8ab`、
-   `eee7b5ee`、`ff32009d`、`057a61d2`、`bbbbfc55`、`cd557ed9`、`7447b560`、`4e04fcc9`、`1abc4b6d`、`42b9fa1a` 与
+   `eee7b5ee`、`ff32009d`、`057a61d2`、`81b8281b`、`bbbbfc55`、`cd557ed9`、`7447b560`、`4e04fcc9`、`1abc4b6d`、`42b9fa1a` 与
    `55f1121d`、`1372686b`、`39bc99d3`、`fed62037`、`43de0669`、`9d58c0e5`、`fa73dae4`、`bfb05120`、
    `558c0720` 尚未部署 134。
 5. 保持本地提交，不推送远程，不合并 `main`；不要提交未跟踪的 `.codex/config.toml`。
