@@ -458,6 +458,12 @@ describe("AppLayout", () => {
     mockViewport(1280);
     await renderLayout();
 
+    const searchTrigger = screen.getByText("搜索").closest("button");
+    expect(searchTrigger).not.toBeNull();
+    fireEvent.mouseEnter(searchTrigger as HTMLButtonElement);
+    await waitFor(() => expect(screen.getByText("命令面板")).toBeInTheDocument());
+    expect(screen.queryByText(/Ctrl|⌘/)).toBeNull();
+
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
 
     expect(screen.getByPlaceholderText("搜索菜单")).toBeInTheDocument();

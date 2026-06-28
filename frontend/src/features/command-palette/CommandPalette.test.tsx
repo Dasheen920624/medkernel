@@ -30,6 +30,8 @@ describe("CommandPalette", () => {
       </MemoryRouter>,
     );
 
+    expect(screen.getByText("命令面板")).toBeInTheDocument();
+    expect(screen.queryByText(/Ctrl|⌘/)).toBeNull();
     expect(screen.getByText("术语与字典")).toBeInTheDocument();
     expect(screen.queryByText("运行诊断")).toBeNull();
     expect(screen.queryByText("/terminology/mapping")).toBeNull();

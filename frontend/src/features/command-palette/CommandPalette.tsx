@@ -57,7 +57,7 @@ export function CommandPalette({ open, onClose, sections = menuSections }: Comma
       open={open}
       onCancel={onClose}
       footer={null}
-      title="命令面板（⌘K / Ctrl+K）"
+      title="命令面板"
       width={680}
       destroyOnClose
     >

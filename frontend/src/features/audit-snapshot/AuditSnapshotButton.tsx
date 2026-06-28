@@ -22,8 +22,8 @@ export function AuditSnapshotButton({ compact = false }: { compact?: boolean }) 
       return;
     }
     snapshot.mutate(`page:${location.pathname}`, {
-      onSuccess: (data) => {
-        message.success(`审计快照已生成 · ${data.signature ?? data.id}`);
+      onSuccess: () => {
+        message.success("审计快照已生成，可在审计证据中查看");
       },
       onError: () => {
         message.error("审计快照生成失败，请稍后重试");

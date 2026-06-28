@@ -520,7 +520,7 @@ export function AppLayout() {
                 />
               </Tooltip>
             ))}
-            <Tooltip title="命令面板 (Ctrl+K)">
+            <Tooltip title="命令面板">
               <Button type="text" icon={<SearchOutlined />} onClick={() => setPaletteOpen(true)}>
                 {isDesktop ? "搜索" : null}
               </Button>
