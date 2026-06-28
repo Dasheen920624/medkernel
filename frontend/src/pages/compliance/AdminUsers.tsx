@@ -595,8 +595,8 @@ export default function AdminUsers() {
               </Form.Item>
               <Form.Item
                 name="externalSubject"
-                label="院内身份标识"
-                rules={[{ required: true, whitespace: true, message: "请输入院内身份标识" }]}
+                label="院内人员身份"
+                rules={[{ required: true, whitespace: true, message: "请输入院内人员身份" }]}
               >
                 <Input />
               </Form.Item>

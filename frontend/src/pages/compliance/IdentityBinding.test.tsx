@@ -148,7 +148,8 @@ describe("身份来源", () => {
 
     expect(screen.getByRole("dialog", { name: "单个绑定身份来源" })).toBeInTheDocument();
     expect(screen.getByText("人员账号")).toBeInTheDocument();
-    expect(screen.getByText("院内身份标识")).toBeInTheDocument();
+    expect(screen.getByText("院内人员身份")).toBeInTheDocument();
+    expect(screen.queryByText("院内身份标识")).not.toBeInTheDocument();
     expect(screen.getByText("按姓名或院内人员身份搜索")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /取\s*消|取消/ }));
@@ -156,5 +157,6 @@ describe("身份来源", () => {
 
     expect(screen.getByRole("dialog", { name: "批量匹配身份来源" })).toBeInTheDocument();
     expect(screen.getByText("按院内人员身份批量匹配，先预检后提交")).toBeInTheDocument();
+    expect(screen.queryByText("院内身份标识")).not.toBeInTheDocument();
   });
 });

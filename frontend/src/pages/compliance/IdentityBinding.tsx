@@ -440,11 +440,11 @@ export default function IdentityBinding() {
           </Form.Item>
           <Form.Item
             name="externalSubject"
-            label="院内身份标识"
+            label="院内人员身份"
             extra="系统只保存不可逆摘要与脱敏提示，不保存身份原文。"
             rules={[
-              { required: true, whitespace: true, message: "请输入院内身份标识" },
-              { max: 512, message: "院内身份标识不能超过 512 个字符" },
+              { required: true, whitespace: true, message: "请输入院内人员身份" },
+              { max: 512, message: "院内人员身份不能超过 512 个字符" },
             ]}
           >
             <Input autoComplete="off" maxLength={512} />
@@ -488,7 +488,7 @@ export default function IdentityBinding() {
             type="info"
             showIcon
             message="按院内人员身份批量匹配，先预检后提交"
-            description="使用人员导入模板填写身份来源和院内身份标识。已有人员会更新身份关系，新人员可同时完成建档与账号开通。"
+            description="使用人员导入模板填写身份来源和院内人员身份。已有人员会更新身份关系，新人员可同时完成建档与账号开通。"
           />
           {!batchResult && (
             <Dragger

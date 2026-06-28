@@ -241,7 +241,9 @@ describe("人员与账号", () => {
     expect(screen.getByLabelText("所属病区")).toBeInTheDocument();
     expect(screen.queryByLabelText("范围编码")).not.toBeInTheDocument();
     expect(screen.getByText("同时开通登录账号")).toBeInTheDocument();
-    expect(screen.getByText("同时绑定院内身份来源")).toBeInTheDocument();
+    await user.click(screen.getByText("同时绑定院内身份来源"));
+    expect(screen.getAllByText("院内人员身份").length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText("院内身份标识")).not.toBeInTheDocument();
     expect(
       screen.getByText("临床使用者", { selector: ".ant-select-selection-item" }),
     ).toBeInTheDocument();
