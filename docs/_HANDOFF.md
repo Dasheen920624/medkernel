@@ -32,6 +32,8 @@
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新知识资产体验优化：`83e5456a`（`统一知识资产证据详情体验`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
+- 本地最新实施验收体验优化：`4a3c649a`（`统一实施验收证据详情体验`）已完成本地验证，尚未同步到 134；
+  134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新临床待办与证据权限优化：`bbbbfc55`（`统一临床待办证据权限门禁`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新提醒推荐体验优化：`cd557ed9`（`统一提醒推荐证据详情体验`）已完成本地验证，尚未同步到 134；
@@ -129,6 +131,9 @@
   配置资产维护区默认看到值集/公式/医嘱套餐/临床提示卡等业务资产、组织范围和适用范围业务摘要；assetCode、assetIdentity、
   organizationScope 和适用表达式只在证据详情中展开。创建/更新草稿仍保留“稳定资产身份”输入并继续提交原始
   assetIdentity、assetId 和结构化正文，保证发布治理和机构生效版本的精确追溯不变。
+  第二十六刀补齐实施验收页统一证据详情，平台管理员、信息科长、实施工程师和院内上线责任人默认看到中文就绪证据和
+  业务阻塞原因，后端返回的 NOT_CONNECTED 等实施状态枚举只在证据详情中展开；实施步骤、阻塞跳转、七步验收流和
+  服务端返回目标页契约保持不变。
   后续仍需继续扫描关键临床/患者/质量/运营真实流程与真实全角色复演，不能把用户临时补充点当成唯一优化范围。
 
 ## 当前唯一权威
@@ -270,6 +275,13 @@
   本地验证通过
   `npm --prefix frontend test -- --run src/pages/tenant/AuthoringAssets.test.tsx src/pages/tenant/DeclarativeAssetWorkbench.test.tsx`、
   `npm --prefix frontend test -- --run src/pages/tenant/AuthoringAssets.test.tsx src/pages/tenant/DeclarativeAssetWorkbench.test.tsx src/pages/tenant/ReleaseGovernance.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx`、
+  `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
+- 最新实施验收体验切片：
+  `4a3c649a` 将实施与验收页接入统一证据详情；默认面向平台管理员、信息科长、实施工程师和院内上线责任人展示中文就绪证据与
+  业务阻塞原因，隐藏后端返回的 NOT_CONNECTED 等实施状态枚举；打开证据详情后仍可追溯原始阻塞文本。实施步骤、配置页跳转、
+  七步验收流和服务端目标路径契约不变。本地验证通过
+  `npm --prefix frontend test -- --run src/pages/tenant/ImplementationGuide.test.tsx`、
+  `npm --prefix frontend test -- --run src/pages/tenant/ImplementationGuide.test.tsx src/pages/tenant/AdapterHub.test.tsx src/pages/tenant/TenantOnboarding.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx src/shared/config/customerLanguageGate.test.ts`、
   `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
 - 最新临床待办与权限门禁切片：
   `bbbbfc55` 将协同任务接入统一证据详情，默认展示待办风险、患者上下文和责任岗位，患者/就诊、来源、追踪和责任人编号
