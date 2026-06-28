@@ -245,7 +245,7 @@ export default function RuleValidate() {
 
   const columns: TableProps<RuleEvaluationItem>["columns"] = [
     {
-      title: "规则 ID",
+      title: "命中规则",
       dataIndex: "ruleId",
       key: "ruleId",
       width: 190,
@@ -256,7 +256,7 @@ export default function RuleValidate() {
       ),
     },
     {
-      title: "版本 ID",
+      title: "版本证据",
       dataIndex: "versionId",
       key: "versionId",
       className: styles.textStrong,
@@ -483,7 +483,7 @@ export default function RuleValidate() {
                 <Descriptions.Item label="质量状态">
                   {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
                 </Descriptions.Item>
-                <Descriptions.Item label="追踪号">
+                <Descriptions.Item label={evidenceDetailsEnabled ? "追踪号" : "快照证据"}>
                   {evidenceText(
                     snapshotDetailQuery.data.traceId,
                     evidenceDetailsEnabled,
@@ -563,7 +563,7 @@ export default function RuleValidate() {
               <div className={styles.resultPanel}>
                 <div className={styles.resultSummary}>
                   <Descriptions size="small" column={2} className={styles.flexGrow}>
-                    <Descriptions.Item label="追踪号">
+                    <Descriptions.Item label={evidenceDetailsEnabled ? "追踪号" : "评估留痕"}>
                       <span className={styles.codeText}>
                         {evidenceText(
                           evaluateResponse.traceId,
@@ -572,7 +572,9 @@ export default function RuleValidate() {
                         )}
                       </span>
                     </Descriptions.Item>
-                    <Descriptions.Item label="评估请求号">
+                    <Descriptions.Item
+                      label={evidenceDetailsEnabled ? "评估请求号" : "评估请求证据"}
+                    >
                       <span className={styles.codeText}>
                         {evidenceText(
                           evaluateResponse.requestId,
@@ -697,7 +699,7 @@ export default function RuleValidate() {
               size="small"
               className={styles.sectionGapLg}
             >
-              <Descriptions.Item label="评估执行号">
+              <Descriptions.Item label={evidenceDetailsEnabled ? "评估执行号" : "执行记录"}>
                 <span className={styles.codeText}>
                   {evidenceText(
                     explainData.executionId,
@@ -706,7 +708,7 @@ export default function RuleValidate() {
                   )}
                 </span>
               </Descriptions.Item>
-              <Descriptions.Item label="追踪号">
+              <Descriptions.Item label={evidenceDetailsEnabled ? "追踪号" : "追踪证据"}>
                 <span className={styles.codeText}>
                   {evidenceText(
                     explainData.traceId,
@@ -722,7 +724,9 @@ export default function RuleValidate() {
                     : clinicalTriggerPointLabel(explainData.triggerPoint)}
                 </span>
               </Descriptions.Item>
-              <Descriptions.Item label="输入内容校验码">
+              <Descriptions.Item
+                label={evidenceDetailsEnabled ? "输入内容校验码" : "输入摘要校验"}
+              >
                 <span className={styles.codeText}>
                   {evidenceText(
                     explainData.inputDigest,

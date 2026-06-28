@@ -186,8 +186,13 @@ describe("RuleValidate", () => {
       });
     });
     expect(screen.getByText("机构生效版本已确认")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "快照证据" })).toBeInTheDocument();
+    expect(screen.getByText("评估留痕")).toBeInTheDocument();
+    expect(screen.getByText("评估请求证据")).toBeInTheDocument();
     expect(screen.getByText("评估已留痕")).toBeInTheDocument();
     expect(screen.getByText("评估请求已记录")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "命中规则" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "版本证据" })).toBeInTheDocument();
     expect(await screen.findByText("规则已命中")).toBeInTheDocument();
     expect(screen.getByText("版本证据已关联")).toBeInTheDocument();
     expect(screen.getByText("必须阻断高危用药")).toBeInTheDocument();
@@ -197,6 +202,10 @@ describe("RuleValidate", () => {
     expect(screen.queryByText("eval-real-1")).not.toBeInTheDocument();
     expect(screen.queryByText("rule-real-1")).not.toBeInTheDocument();
     expect(screen.queryByText("rv-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "规则 ID" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "版本 ID" })).not.toBeInTheDocument();
+    expect(screen.queryByText("追踪号")).not.toBeInTheDocument();
+    expect(screen.queryByText("评估请求号")).not.toBeInTheDocument();
     expect(screen.queryByText("BLOCK")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("switch", { name: "证据详情" }));
