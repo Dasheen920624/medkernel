@@ -92,6 +92,8 @@
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新异步导出留痕体验优化：`2a59104c`（`收敛异步导出默认留痕视图`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
+- 本地最新编排预览留痕体验优化：`223eb652`（`收敛编排预览默认留痕视图`）已完成本地验证，尚未同步到 134；
+  134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 当前目标：完成 MedKernel 全新项目上线级整体梳理与落地，统一平台权威版本与全链路能力，移除旧兼容和冗余设计，
   完善真实功能页面与统一迁移生成，完成代码、契约、前后端、文档、测试、构建核查，并在 134 清库重新部署完成
   全功能与全知识全流程演练。
@@ -205,6 +207,8 @@
   底层错误解析、审计证据页和专业证据组件仍保留追踪号用于授权追溯。
   第四十刀补齐异步导出默认业务留痕视图，术语导出、审计导出等共享导出任务默认展示任务进度和“导出证据已留痕，
   可在审计证据中追溯”，不再直接展示 traceId 或 auditId；导出请求、轮询、下载地址、审计落库和专业审计页追溯契约保持不变。
+  第四十一刀补齐编排预览默认业务留痕视图，规则配置和路径配置共用的可读预览默认展示“预览证据已记录”和业务化校验提醒，
+  不再直接展示 traceId、追踪号或 `$.when.all[0]` 等结构路径；统一创作预览 API、规则/路径草稿提交和后端追踪契约保持不变。
   后续仍需继续扫描关键临床/患者/质量/运营真实流程与真实全角色复演，不能把用户临时补充点当成唯一优化范围。
 
 ## 当前唯一权威
@@ -570,6 +574,13 @@
   `npm --prefix frontend test -- --run src/shared/ui/AsyncExportAction.test.tsx`、
   `npm --prefix frontend test -- --run src/shared/ui/AsyncExportAction.test.tsx src/pages/compliance/AdminAudit.test.tsx src/pages/tenant/TerminologyMapping.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx`、
   `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
+- 最新编排预览留痕体验切片：
+  `223eb652` 将规则配置和路径配置共用的可读预览，从默认展示 traceId/追踪号与 `$.when.all[0]` 等结构路径，
+  收敛为“预览证据已记录”和“部分预览内容使用通用字段标签，请核对字段含义。”等业务反馈；统一创作预览 API 载荷、
+  traceId 返回、规则/路径草稿提交和后端追踪契约不变。本地验证通过
+  `npm --prefix frontend test -- --run src/shared/ui/condition/AuthoringReadablePreview.test.tsx`、
+  `npm --prefix frontend test -- --run src/shared/ui/condition/AuthoringReadablePreview.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/PathwayTemplates.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx`、
+  `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
 - 本地关键验证：
   `npm run typecheck`、`npm test -- --run src/pages/clinical/Followup.test.tsx` 已在 `10f06bea` 前通过；
   该阶段只完成随访字段口径纠偏，`823a2c00` 后已进一步改为业务选项化表单。
@@ -622,10 +633,10 @@
 1. 进入真实前台全角色体验：平台管理员看系统接入与安全基线，医疗引擎运营员看知识生产和版本发布，临床使用者拆分医生、
    护士、药师、医技、质控、患者代理路径，审计员看来源、操作证据和敏感信息边界；信息科长、实施工程师、院长视角看部署、
    权限、全院指标和故障降级。
-2. 已完成沙盘、MPI、患者路径、消息通知、临床快照选择器、临床嵌入启动、规则试运行、规则配置、路径配置、协同任务、CDSS 提醒推荐、随访协同、质量管理概览、质量问题来源、质量问题与整改、医保审核、评价指标、知识审核与发布、公域来源治理、诊断知识维护、术语与字典、全局权限范围、全局入口业务反馈、通知偏好、工作台错误留痕、异步导出留痕、模型能力、模型服务配置、来源血缘、图谱查询、审计证据、安全基线、运行诊断、验收自检和国产化自检默认视图/证据详情多轮本地优化；
+2. 已完成沙盘、MPI、患者路径、消息通知、临床快照选择器、临床嵌入启动、规则试运行、规则配置、路径配置、协同任务、CDSS 提醒推荐、随访协同、质量管理概览、质量问题来源、质量问题与整改、医保审核、评价指标、知识审核与发布、公域来源治理、诊断知识维护、术语与字典、全局权限范围、全局入口业务反馈、通知偏好、工作台错误留痕、异步导出留痕、编排预览留痕、模型能力、模型服务配置、来源血缘、图谱查询、审计证据、安全基线、运行诊断、验收自检和国产化自检默认视图/证据详情多轮本地优化；
    继续优先扫描关键临床/患者真实流程：
    功能分类、页面目标、空态/错态/权限态、流程完整性、操作复杂度、敏感信息处理、证据详情表达都要全局审计。
 3. 优先发现并修复真实产品问题，而不是只优化用户临时指出的点；修复后仍需本地验证、必要时重新构建并在 134 复验。
 4. 下一阶段仍需在 134 执行全角色、全知识、全流程复演；本轮只证明基础真实前台数据路线已跑通，从 `cd44d8ab`
-   到 `2a59104c` 的全角色体验优化提交均尚未部署 134。
+   到 `223eb652` 的全角色体验优化提交均尚未部署 134。
 5. 保持本地提交，不推送远程，不合并 `main`；不要提交未跟踪的 `.codex/config.toml`。
