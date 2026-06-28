@@ -69,7 +69,7 @@ import {
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ADAPTER_PROTOCOL_OPTIONS, canAccessRoute, findRouteByPath } from "@/shared/config/routes";
-import { customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
+import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { OrgUnitSelect } from "@/shared/ui/OrgUnitSelect";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
@@ -172,6 +172,17 @@ const TRUST_LEVEL_COLOR: Record<string, string> = {
   LOW: "red",
 };
 
+const TRUST_LEVEL_LABEL: Record<string, string> = {
+  HIGH: "高可信",
+  MEDIUM: "中可信",
+  LOW: "低可信",
+};
+
+const MESSAGE_DIRECTION_LABEL: Record<string, string> = {
+  INBOUND: "入站",
+  OUTBOUND: "出站",
+};
+
 const MASTER_DATA_RESOURCE_LABEL: Record<
   MasterDataReconciliation["resources"][number]["resourceType"],
   string
@@ -207,6 +218,30 @@ function percent(numerator: number, denominator: number) {
 
 function healthTag(status: string) {
   return <Tag color={HEALTH_COLOR[status] ?? "default"}>{customerEnumLabel(status)}</Tag>;
+}
+
+function trustLevelLabel(value: string) {
+  return TRUST_LEVEL_LABEL[value] ?? customerEnumLabel(value);
+}
+
+function messageDirectionLabel(value: string) {
+  return MESSAGE_DIRECTION_LABEL[value] ?? customerEnumLabel(value);
+}
+
+function evidenceText(
+  rawValue: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  businessText: string,
+  emptyText = "暂无",
+) {
+  if (!evidenceDetailsEnabled) return businessText;
+  const normalized = rawValue?.trim();
+  return normalized && normalized.length > 0 ? normalized : emptyText;
+}
+
+function bindingText(rawValue: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) return evidenceText(rawValue, true, "已绑定", "未绑定");
+  return rawValue ? "已绑定" : "未绑定";
 }
 
 function requiredSourceStatusColor(item: AdapterHubRequiredSourceStatus) {
@@ -575,7 +610,9 @@ export default function AdapterHub() {
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{record.name}</Text>
-          <Text className={styles.identifier}>{record.adapterId}</Text>
+          <Text className={styles.identifier}>
+            {evidenceText(record.adapterId, evidenceDetailsEnabled, "适配器已登记")}
+          </Text>
         </Space>
       ),
     },
@@ -642,23 +679,36 @@ export default function AdapterHub() {
 
   const logColumns: ColumnsType<IntegrationMessageLog> = [
     {
-      title: "消息与追踪号",
+      title: "消息证据",
       key: "messageId",
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{record.messageId}</Text>
-          <Text className={styles.identifier}>追踪号：{record.traceId}</Text>
+          <Text strong>{evidenceText(record.messageId, evidenceDetailsEnabled, "消息证据已记录")}</Text>
+          <Text className={styles.identifier}>
+            {evidenceDetailsEnabled
+              ? `追踪号：${record.traceId ?? "暂无"}`
+              : "追踪证据已记录"}
+          </Text>
         </Space>
       ),
     },
     { title: "系统", dataIndex: "systemName", key: "systemName" },
-    { title: "方向", dataIndex: "direction", key: "direction" },
+    {
+      title: "方向",
+      dataIndex: "direction",
+      key: "direction",
+      render: (value) => messageDirectionLabel(String(value)),
+    },
     { title: "摘要", dataIndex: "payloadSummary", key: "payloadSummary" },
     {
       title: "状态",
       dataIndex: "status",
       key: "status",
-      render: (value) => <Tag color={LOG_STATUS_COLOR[String(value)] ?? "default"}>{value}</Tag>,
+      render: (value) => (
+        <Tag color={LOG_STATUS_COLOR[String(value)] ?? "default"}>
+          {customerEnumLabel(String(value))}
+        </Tag>
+      ),
     },
     {
       title: "重试",
@@ -711,7 +761,9 @@ export default function AdapterHub() {
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{record.name}</Text>
-          <Text className={styles.identifier}>{record.onboardingId}</Text>
+          <Text className={styles.identifier}>
+            {evidenceText(record.onboardingId, evidenceDetailsEnabled, "接入申请已登记")}
+          </Text>
         </Space>
       ),
     },
@@ -722,7 +774,9 @@ export default function AdapterHub() {
       dataIndex: "status",
       key: "status",
       render: (value) => (
-        <Tag color={ONBOARDING_STATUS_COLOR[String(value)] ?? "default"}>{value}</Tag>
+        <Tag color={ONBOARDING_STATUS_COLOR[String(value)] ?? "default"}>
+          {customerEnumLabel(String(value))}
+        </Tag>
       ),
     },
     {
@@ -770,11 +824,19 @@ export default function AdapterHub() {
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{record.name}</Text>
-          <Text className={styles.identifier}>{record.webhookId}</Text>
+          <Text className={styles.identifier}>
+            {evidenceText(record.webhookId, evidenceDetailsEnabled, "回调通道已登记")}
+          </Text>
         </Space>
       ),
     },
-    { title: "回调地址", dataIndex: "callbackUrl", key: "callbackUrl" },
+    {
+      title: "回调地址",
+      dataIndex: "callbackUrl",
+      key: "callbackUrl",
+      render: (value) =>
+        evidenceText(String(value ?? ""), evidenceDetailsEnabled, "回调地址已配置", "未配置回调地址"),
+    },
     { title: "订阅事件", dataIndex: "eventsSubscribed", key: "eventsSubscribed" },
     {
       title: "状态",
@@ -802,7 +864,9 @@ export default function AdapterHub() {
         <Space direction="vertical" size={0}>
           <Text strong>{record.regionalNetworkName}</Text>
           <Text type="secondary">{record.sourceOrganizationName}</Text>
-          <Text className={styles.identifier}>来源编号：{record.sourceId}</Text>
+          <Text className={styles.identifier}>
+            {evidenceDetailsEnabled ? `来源编号：${record.sourceId}` : "来源已登记"}
+          </Text>
         </Space>
       ),
     },
@@ -810,7 +874,11 @@ export default function AdapterHub() {
       title: "可信等级",
       dataIndex: "trustLevel",
       key: "trustLevel",
-      render: (value) => <Tag color={TRUST_LEVEL_COLOR[String(value)] ?? "default"}>{value}</Tag>,
+      render: (value) => (
+        <Tag color={TRUST_LEVEL_COLOR[String(value)] ?? "default"}>
+          {trustLevelLabel(String(value))}
+        </Tag>
+      ),
     },
     { title: "可信证据", dataIndex: "evidenceText", key: "evidenceText" },
     { title: "组织范围", dataIndex: "orgPath", key: "orgPath" },
@@ -819,8 +887,10 @@ export default function AdapterHub() {
       key: "binding",
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text type="secondary">适配器：{record.adapterId ?? "未绑定"}</Text>
-          <Text type="secondary">接入申请：{record.onboardingId ?? "未绑定"}</Text>
+          <Text type="secondary">适配器：{bindingText(record.adapterId, evidenceDetailsEnabled)}</Text>
+          <Text type="secondary">
+            接入申请：{bindingText(record.onboardingId, evidenceDetailsEnabled)}
+          </Text>
         </Space>
       ),
     },
@@ -922,6 +992,7 @@ export default function AdapterHub() {
               loading={dataContractQuery.isFetching}
               contract={dataContractQuery.data}
               error={dataContractQuery.isError}
+              evidenceDetailsEnabled={evidenceDetailsEnabled}
               unavailableReason={
                 !hasHospitalRuntimeScope
                   ? "请先切换到具体医院后查看当前生效版本字段要求。"
@@ -953,13 +1024,20 @@ export default function AdapterHub() {
               type={HEALTH_ALERT_TYPE[healthResult.healthStatus] ?? "warning"}
               showIcon
               message={HEALTH_ALERT_MESSAGE[healthResult.healthStatus] ?? "外部系统当前不可达"}
-              description={`适配器 ${healthResult.adapterId} 返回 ${healthResult.healthStatus}，RTT ${
+              description={`适配器 ${
+                evidenceDetailsEnabled ? healthResult.adapterId : healthResult.name
+              } 当前${customerEnumLabel(healthResult.healthStatus)}，RTT ${
                 healthResult.rttMs > 0 ? `${healthResult.rttMs}ms` : "未测量"
               }。页面仅展示平台记录的真实状态。`}
             />
           )}
 
-          {qualityReport && <QualityReportCard report={qualityReport} />}
+          {qualityReport && (
+            <QualityReportCard
+              report={qualityReport}
+              evidenceDetailsEnabled={evidenceDetailsEnabled}
+            />
+          )}
 
           <Tabs
             defaultActiveKey="adapters"
@@ -1100,7 +1178,10 @@ export default function AdapterHub() {
                 children: (
                   <div className={styles.sectionStack}>
                     {qualityReport ? (
-                      <QualityReportCard report={qualityReport} />
+                      <QualityReportCard
+                        report={qualityReport}
+                        evidenceDetailsEnabled={evidenceDetailsEnabled}
+                      />
                     ) : (
                       <Alert
                         type="info"
@@ -1187,7 +1268,9 @@ export default function AdapterHub() {
                             value={signatureWebhookId}
                             onChange={setSignatureWebhookId}
                             options={webhooks.map((item) => ({
-                              label: `${item.name}（${item.webhookId}）`,
+                              label: evidenceDetailsEnabled
+                                ? `${item.name}（${item.webhookId}）`
+                                : item.name,
                               value: item.webhookId,
                             }))}
                             placeholder="选择已登记通道"
@@ -1349,9 +1432,9 @@ export default function AdapterHub() {
             <Select
               placeholder="选择可信等级"
               options={[
-                { label: riskLabel("HIGH"), value: "HIGH" },
-                { label: riskLabel("MEDIUM"), value: "MEDIUM" },
-                { label: riskLabel("LOW"), value: "LOW" },
+                { label: trustLevelLabel("HIGH"), value: "HIGH" },
+                { label: trustLevelLabel("MEDIUM"), value: "MEDIUM" },
+                { label: trustLevelLabel("LOW"), value: "LOW" },
               ]}
             />
           </Form.Item>
@@ -1704,11 +1787,13 @@ function DataContractPanel({
   loading,
   contract,
   error,
+  evidenceDetailsEnabled,
   unavailableReason,
 }: {
   loading: boolean;
   contract?: IntegrationDataContractResponse;
   error: boolean;
+  evidenceDetailsEnabled: boolean;
   unavailableReason?: string;
 }) {
   const resourceCount = contract ? Object.keys(contract.resources).length : 0;
@@ -1746,13 +1831,21 @@ function DataContractPanel({
         {error && <Alert type="warning" showIcon message="数据接入契约暂时不可用" />}
         {contract ? (
           <Space direction="vertical" size="small">
-            <Text strong>{contract.contractId}</Text>
+            <Text strong>
+              {evidenceText(contract.contractId, evidenceDetailsEnabled, "当前机构字段契约已生成")}
+            </Text>
             <Space wrap>
-              <Tag color="blue">{contract.schemaVersion}</Tag>
+              <Tag color="blue">
+                {evidenceText(contract.schemaVersion, evidenceDetailsEnabled, "字段契约版本已确认")}
+              </Tag>
               <Text>资源 {resourceCount} 类</Text>
               <Text>字段 {contract.fields.length} 项</Text>
             </Space>
-            <Text type="secondary">{contract.accessGuide[0]}</Text>
+            <Text type="secondary">
+              {evidenceDetailsEnabled
+                ? contract.accessGuide[0]
+                : "字段要求由当前机构生效版本自动确定"}
+            </Text>
             <Table
               rowKey="fieldPath"
               dataSource={contract.fields}
@@ -1772,7 +1865,13 @@ function DataContractPanel({
   );
 }
 
-function QualityReportCard({ report }: { report: DataQualityReport }) {
+function QualityReportCard({
+  report,
+  evidenceDetailsEnabled,
+}: {
+  report: DataQualityReport;
+  evidenceDetailsEnabled: boolean;
+}) {
   return (
     <Card title="数据质量报告" className={styles.sectionCard}>
       <div className={styles.qualityGrid}>
@@ -1781,8 +1880,12 @@ function QualityReportCard({ report }: { report: DataQualityReport }) {
         <MetricCard title="时效率" value={report.timelinessRate} suffix="%" />
       </div>
       <Descriptions size="small" column={2}>
-        <Descriptions.Item label="报告 ID">{report.reportId}</Descriptions.Item>
-        <Descriptions.Item label="追踪号">{report.traceId ?? "暂无"}</Descriptions.Item>
+        <Descriptions.Item label="报告">
+          {evidenceText(report.reportId, evidenceDetailsEnabled, "数据质量报告已生成")}
+        </Descriptions.Item>
+        <Descriptions.Item label="追踪">
+          {evidenceDetailsEnabled ? report.traceId ?? "暂无" : "追踪证据已记录"}
+        </Descriptions.Item>
         <Descriptions.Item label="断连数量">{report.notConnectedCount}</Descriptions.Item>
         <Descriptions.Item label="配置非法">{report.misconfiguredCount}</Descriptions.Item>
         <Descriptions.Item label="缺口摘要" span={2}>

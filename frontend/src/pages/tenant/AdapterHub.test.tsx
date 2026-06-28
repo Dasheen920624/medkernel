@@ -545,7 +545,8 @@ describe("AdapterHub", () => {
 
     expect(useIntegrationDataContract).toHaveBeenCalledWith(true);
     expect(screen.queryByRole("combobox", { name: "版本号" })).not.toBeInTheDocument();
-    expect(screen.getByText("context-field-contract:runtime-H7")).toBeInTheDocument();
+    expect(screen.getByText("当前机构字段契约已生成")).toBeInTheDocument();
+    expect(screen.queryByText("context-field-contract:runtime-H7")).not.toBeInTheDocument();
     expect(screen.getByText("资源 1 类")).toBeInTheDocument();
     expect(screen.getByText("字段 2 项")).toBeInTheDocument();
     expect(screen.getAllByText("patient.id").length).toBeGreaterThanOrEqual(1);
@@ -597,6 +598,63 @@ describe("AdapterHub", () => {
     expect(screen.getByText("数据接入契约")).toBeInTheDocument();
     expect(screen.queryByText("暂无适配器接入记录")).not.toBeInTheDocument();
   });
+
+  it("默认展示业务接入摘要，证据详情打开后才显示低频技术标识", async () => {
+    vi.mocked(useIntegrationDataContract).mockReturnValue(query(dataContract) as never);
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(screen.getAllByText("HIS 主数据接入").length).toBeGreaterThan(0);
+    expect(screen.getByText("适配器已登记")).toBeInTheDocument();
+    expect(screen.getByText("当前机构字段契约已生成")).toBeInTheDocument();
+    expect(screen.queryByText(/his-main/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/context-field-contract:runtime-H7/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "生成质量报告" }));
+    expect(await screen.findByText("数据质量报告已生成")).toBeInTheDocument();
+    expect(screen.getByText("追踪证据已记录")).toBeInTheDocument();
+    expect(screen.queryByText(/dqr-1/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trace-dqr/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "死信重放" }));
+    expect(screen.getAllByText("消息证据已记录").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("追踪证据已记录").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/msg-failed/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trace-failed/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/msg-dead/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trace-dead/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "接入向导" }));
+    expect(screen.getByText("接入申请已登记")).toBeInTheDocument();
+    expect(screen.queryByText(/onb-his/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "回调通道" }));
+    expect(screen.getByText("回调通道已登记")).toBeInTheDocument();
+    expect(screen.getByText("回调地址已配置")).toBeInTheDocument();
+    expect(screen.queryByText(/clinical-events/)).not.toBeInTheDocument();
+    expect(screen.queryByText(webhook.callbackUrl)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "区域来源" }));
+    expect(screen.getByText("来源已登记")).toBeInTheDocument();
+    expect(screen.getByText("适配器：已绑定")).toBeInTheDocument();
+    expect(screen.getByText("接入申请：已绑定")).toBeInTheDocument();
+    expect(screen.queryByText("来源编号：regional-lab")).not.toBeInTheDocument();
+    expect(screen.queryByText("适配器：his-main")).not.toBeInTheDocument();
+    expect(screen.queryByText("接入申请：onb-his")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(await screen.findByText("来源编号：regional-lab")).toBeInTheDocument();
+    expect(screen.getByText("适配器：his-main")).toBeInTheDocument();
+    expect(screen.getByText("接入申请：onb-his")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "回调通道" }));
+    expect(screen.getByText("clinical-events")).toBeInTheDocument();
+    expect(screen.getByText(webhook.callbackUrl)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "死信重放" }));
+    expect(screen.getByText("msg-failed")).toBeInTheDocument();
+    expect(screen.getByText(/trace-failed/)).toBeInTheDocument();
+  }, 15_000);
 
   it(
     "creates adapters with the service protocol contract and structured field mappings",
@@ -674,7 +732,8 @@ describe("AdapterHub", () => {
 
     renderPage();
     await user.click(screen.getByRole("tab", { name: "回调通道" }));
-    expect(screen.getByText(webhook.callbackUrl)).toBeInTheDocument();
+    expect(screen.getByText("回调地址已配置")).toBeInTheDocument();
+    expect(screen.queryByText(webhook.callbackUrl)).not.toBeInTheDocument();
     expect(screen.queryByText(/whsec_/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "新增回调通道" }));
@@ -740,7 +799,7 @@ describe("AdapterHub", () => {
       target: { value: "市三院" },
     });
     await user.click(screen.getByLabelText("可信等级"));
-    await user.click(screen.getByTitle("中风险"));
+    await user.click(screen.getByTitle("中可信"));
     fireEvent.change(screen.getByLabelText("可信证据"), {
       target: { value: "区域互认协议与接口验收单" },
     });
@@ -792,10 +851,12 @@ describe("AdapterHub", () => {
     renderPage();
     await user.click(screen.getByRole("tab", { name: "死信重放" }));
 
-    const failedRow = screen.getByText("msg-failed").closest("tr");
-    const deadRow = screen.getByText("msg-dead").closest("tr");
+    const failedRow = screen.getByText("外部系统断连").closest("tr");
+    const deadRow = screen.getByText("重试超限").closest("tr");
     expect(failedRow).not.toBeNull();
     expect(deadRow).not.toBeNull();
+    expect(screen.queryByText("msg-failed")).not.toBeInTheDocument();
+    expect(screen.queryByText("msg-dead")).not.toBeInTheDocument();
 
     await user.click(within(failedRow as HTMLElement).getByRole("button", { name: "重试" }));
     await user.click(within(deadRow as HTMLElement).getByRole("button", { name: "重放" }));
