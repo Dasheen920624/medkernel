@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -1198,6 +1198,64 @@ describe("KnowledgeGovernance", () => {
     await user.click(screen.getByLabelText("创建新身份候选"));
     expect(screen.getByLabelText("新知识身份")).toBeInTheDocument();
     expect(screen.queryByText("新身份编码")).not.toBeInTheDocument();
+  });
+
+  it("uses business choices in model generation instead of exposing raw capability and identity codes", async () => {
+    const user = userEvent.setup();
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        permissions: [{ code: "knowledge.write" }],
+      },
+    });
+    mockUseKnowledgeProductionReadiness.mockReturnValue({
+      data: {
+        tenantId: "tenant-A",
+        producer: "API_MODEL",
+        capabilityCode: "knowledge.production.knowledge",
+        providerCode: "provider-openai",
+        deploymentForm: "EXTERNAL",
+        ready: true,
+        modelInvocationAllowed: true,
+        items: [],
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+
+    renderPage(<KnowledgeProduction />);
+
+    await user.click(screen.getByRole("button", { name: "启动大模型生成" }));
+    const dialog = screen.getByRole("dialog", { name: "生成正式知识候选" });
+
+    expect(within(dialog).getAllByText("正式知识候选生成").length).toBeGreaterThan(0);
+    expect(within(dialog).getByText("统一模型服务")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("知识主题")).toHaveValue("VTE 防治指南");
+    expect(within(dialog).queryByLabelText("资产身份")).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByDisplayValue("knowledge.production.knowledge"),
+    ).not.toBeInTheDocument();
+    expect(within(dialog).queryByDisplayValue("provider-openai")).not.toBeInTheDocument();
+    expect(within(dialog).queryByDisplayValue("KNOW.VTE.GUIDE")).not.toBeInTheDocument();
+    expect(within(dialog).queryByPlaceholderText("例如 KNOW.VTE.GUIDE")).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByPlaceholderText("例如 GL-VTE-2026:v1:section-2"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByPlaceholderText("填写指南章节、制度条款或文献段落定位"),
+    ).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("combobox", { name: "现有知识身份" }));
+    expect(
+      await screen.findByText("VTE 防治指南", { selector: ".ant-select-item-option-content" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("VTE 防治指南 · KNOW.VTE.GUIDE", {
+        selector: ".ant-select-item-option-content",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("starts real model generation for the selected job with controlled source and identity", async () => {

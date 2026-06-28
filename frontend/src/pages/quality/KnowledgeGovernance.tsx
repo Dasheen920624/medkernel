@@ -364,7 +364,6 @@ type ModelGenerationFormValues = {
   prompt: string;
   providerCode?: string;
   timeoutSeconds: number;
-  assetIdentity: string;
   subject: string;
   sourceRef: string;
   trustLevel: KnowledgeSourceAuthorityLevel;
@@ -463,6 +462,43 @@ function renderVersionSourceInfo(
 
 function defaultCapabilityFor(_assetType?: string | null) {
   return "knowledge.production.knowledge";
+}
+
+function modelCapabilityBusinessLabel(
+  code: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (!code) return "正式知识候选生成";
+  const knownLabels: Record<string, string> = {
+    "knowledge.production.knowledge": "正式知识候选生成",
+    "knowledge-generation": "正式知识候选生成",
+  };
+  const label = knownLabels[code] ?? "知识候选生成";
+  return evidenceDetailsEnabled ? `${label} · ${code}` : label;
+}
+
+function modelProviderBusinessLabel(
+  code: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (!code) return "服务端策略选择";
+  const normalized = code.toLowerCase();
+  let label = "已配置模型服务";
+  if (normalized.includes("openai")) {
+    label = "统一模型服务";
+  } else if (normalized.includes("local") || normalized.includes("ollama")) {
+    label = "院内模型服务";
+  }
+  return evidenceDetailsEnabled ? `${label} · ${code}` : label;
+}
+
+function knowledgeIdentityOptionLabel(
+  identity: KnowledgeIdentity,
+  evidenceDetailsEnabled: boolean,
+) {
+  return evidenceDetailsEnabled
+    ? `${identity.subject} · ${identity.identityCode}`
+    : identity.subject;
 }
 
 function classificationFor(
@@ -670,6 +706,39 @@ export default function KnowledgeGovernance({
   const productionJobs = useMemo(
     () => productionJobsQuery.data?.items ?? [],
     [productionJobsQuery.data?.items],
+  );
+  const modelCapabilityOptions = useMemo(() => {
+    const codes = [
+      productionReadinessQuery.data?.capabilityCode,
+      modelGenerationJob ? defaultCapabilityFor(modelGenerationJob.assetType) : undefined,
+    ].filter((code): code is string => Boolean(code));
+    return [...new Set(codes)].map((code) => ({
+      value: code,
+      label: modelCapabilityBusinessLabel(code, evidenceDetailsEnabled),
+    }));
+  }, [
+    evidenceDetailsEnabled,
+    modelGenerationJob,
+    productionReadinessQuery.data?.capabilityCode,
+  ]);
+  const modelProviderOptions = useMemo(() => {
+    const providerCode = productionReadinessQuery.data?.providerCode;
+    return providerCode
+      ? [
+          {
+            value: providerCode,
+            label: modelProviderBusinessLabel(providerCode, evidenceDetailsEnabled),
+          },
+        ]
+      : [];
+  }, [evidenceDetailsEnabled, productionReadinessQuery.data?.providerCode]);
+  const modelTargetIdentityOptions = useMemo(
+    () =>
+      identities.map((identity) => ({
+        value: identity.id,
+        label: knowledgeIdentityOptionLabel(identity, evidenceDetailsEnabled),
+      })),
+    [evidenceDetailsEnabled, identities],
   );
   const selectedProductionJobCode = productionJobCode ?? productionJobs[0]?.jobCode;
   const selectedProductionJob = productionJobs.find(
@@ -911,7 +980,6 @@ export default function KnowledgeGovernance({
       prompt: "",
       providerCode: productionReadinessQuery.data?.providerCode || undefined,
       timeoutSeconds: 90,
-      assetIdentity: targetIdentity?.identityCode || "",
       subject: targetIdentity?.subject || "",
       sourceRef: "",
       trustLevel: "B_GUIDELINE",
@@ -965,14 +1033,29 @@ export default function KnowledgeGovernance({
 
   async function submitModelGeneration(values: ModelGenerationFormValues) {
     if (!modelGenerationJob) return;
+    const selectedTargetIdentity =
+      values.targetMode === "EXISTING"
+        ? identities.find((identity) => identity.id === values.targetIdentityId)
+        : undefined;
+    const newIdentityCode = values.newIdentityCode?.trim() ?? "";
+    const assetIdentity =
+      values.targetMode === "EXISTING" ? selectedTargetIdentity?.identityCode : newIdentityCode;
+    if (!assetIdentity) {
+      message.warning("请选择目标知识身份");
+      return;
+    }
+    const subject =
+      values.targetMode === "EXISTING"
+        ? selectedTargetIdentity?.subject || values.subject.trim()
+        : values.subject.trim();
     const target: KnowledgeModelCandidateRequest["target"] =
       values.targetMode === "EXISTING"
         ? { targetIdentityId: values.targetIdentityId as number }
         : {
             newIdentity: {
               domain: values.newIdentityDomain ?? "OTHER",
-              subject: values.subject.trim(),
-              identityCode: values.newIdentityCode?.trim() ?? "",
+              subject,
+              identityCode: newIdentityCode,
             },
           };
     const request: KnowledgeModelCandidateRequest = {
@@ -980,8 +1063,8 @@ export default function KnowledgeGovernance({
       prompt: values.prompt.trim(),
       providerCode: values.providerCode?.trim() || undefined,
       timeoutSeconds: values.timeoutSeconds,
-      assetIdentity: values.assetIdentity.trim(),
-      subject: values.subject.trim(),
+      assetIdentity,
+      subject,
       sources: [
         {
           sourceRef: values.sourceRef.trim(),
@@ -2700,7 +2783,7 @@ export default function KnowledgeGovernance({
             message={
               evidenceDetailsEnabled
                 ? `生产任务 ${modelGenerationJob?.jobCode ?? ""}`
-                : "当前生产任务已选定"
+                : "正式知识候选生成"
             }
             description="大模型只生成待审核候选；来源锚点、目标身份、生产安全校验、分流和影子评测全部通过后才进入审核，绝不直接生效。"
           />
@@ -2714,15 +2797,19 @@ export default function KnowledgeGovernance({
               <Col xs={24} md={12}>
                 <Form.Item
                   name="capabilityCode"
-                  label="模型能力"
-                  rules={[{ required: true, whitespace: true, message: "请填写模型能力代码" }]}
+                  label="生成能力"
+                  rules={[{ required: true, message: "请选择生成能力" }]}
                 >
-                  <Input placeholder="knowledge.production.knowledge" />
+                  <Select options={modelCapabilityOptions} />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12}>
                 <Form.Item name="providerCode" label="模型服务">
-                  <Input placeholder="留空则由服务端策略选择" />
+                  <Select
+                    allowClear
+                    options={modelProviderOptions}
+                    placeholder="由服务端策略选择"
+                  />
                 </Form.Item>
               </Col>
             </Row>
@@ -2737,16 +2824,7 @@ export default function KnowledgeGovernance({
               />
             </Form.Item>
             <Row gutter={16}>
-              <Col xs={24} md={12}>
-                <Form.Item
-                  name="assetIdentity"
-                  label="资产身份"
-                  rules={[{ required: true, whitespace: true, message: "请填写资产身份" }]}
-                >
-                  <Input placeholder="例如 KNOW.VTE.GUIDE" />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12}>
+              <Col xs={24}>
                 <Form.Item
                   name="subject"
                   label="知识主题"
@@ -2761,7 +2839,7 @@ export default function KnowledgeGovernance({
               label="来源锚点"
               rules={[{ required: true, whitespace: true, message: "请填写可解析的来源锚点" }]}
             >
-              <Input placeholder="例如 GL-VTE-2026:v1:section-2" />
+              <Input placeholder="填写指南章节、制度条款或文献段落定位" />
             </Form.Item>
             <Row gutter={16}>
               <Col xs={24} md={8}>
@@ -2839,10 +2917,15 @@ export default function KnowledgeGovernance({
                     <Select
                       showSearch
                       optionFilterProp="label"
-                      options={identities.map((identity) => ({
-                        value: identity.id,
-                        label: `${identity.subject} · ${identity.identityCode}`,
-                      }))}
+                      options={modelTargetIdentityOptions}
+                      onChange={(identityId) => {
+                        const targetIdentity = identities.find(
+                          (identity) => identity.id === identityId,
+                        );
+                        if (targetIdentity) {
+                          modelGenerationForm.setFieldsValue({ subject: targetIdentity.subject });
+                        }
+                      }}
                       placeholder="选择知识身份"
                     />
                   </Form.Item>
