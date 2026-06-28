@@ -660,6 +660,7 @@ describe("CdssFatigue", () => {
 
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
     expect(screen.getByText(/提醒治理数据范围权限不足/)).toBeInTheDocument();
-    expect(screen.getByText(/trace-remind-scope/)).toBeInTheDocument();
+    expect(screen.getByText(/失败已留痕，可在审计证据中追溯/)).toBeInTheDocument();
+    expect(screen.queryByText(/trace-remind-scope/)).not.toBeInTheDocument();
   });
 });

@@ -563,7 +563,15 @@ describe("Followup", () => {
     renderFollowup();
 
     await user.click(screen.getByRole("button", { name: /生成随访计划/ }));
-    fireEvent.change(screen.getByLabelText("随访快照患者标识"), {
+    expect(screen.getByLabelText("随访快照患者信息")).toBeInTheDocument();
+    expect(screen.getByLabelText("随访快照就诊信息")).toBeInTheDocument();
+    expect(screen.queryByLabelText("随访快照患者标识")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("随访快照就诊标识")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("输入患者信息检索已生效快照")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("可单独按就诊信息检索")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("输入患者标识检索已生效快照")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("可单独按就诊标识检索")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("随访快照患者信息"), {
       target: { value: "patient-real-1" },
     });
     await user.click(screen.getByRole("button", { name: "选择 snapshot-followup-1" }));
@@ -590,8 +598,8 @@ describe("Followup", () => {
         idempotencyKey: "followup-plan-snapshot-followup-1-ftpl-1-HIGH-QUESTIONNAIRE",
       }),
     );
-    expect(screen.queryByLabelText("患者标识")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("就诊标识")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("随访快照患者信息")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("随访快照就诊信息")).not.toBeInTheDocument();
   });
 
   it("shows followup templates and publishes templates with current product wording", async () => {

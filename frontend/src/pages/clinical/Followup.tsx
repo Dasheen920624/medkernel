@@ -788,10 +788,10 @@ export default function Followup() {
       >
         <Form form={generateForm} layout="vertical" className={styles.formGap}>
           <Space wrap className={styles.fullWidth}>
-            <Form.Item label="患者标识">
+            <Form.Item label="患者信息">
               <Input
-                aria-label="随访快照患者标识"
-                placeholder="输入患者标识检索已生效快照"
+                aria-label="随访快照患者信息"
+                placeholder="输入患者信息检索已生效快照"
                 value={snapshotPatientId}
                 onChange={(event) => {
                   setSnapshotPatientId(event.target.value);
@@ -799,10 +799,10 @@ export default function Followup() {
                 }}
               />
             </Form.Item>
-            <Form.Item label="就诊标识">
+            <Form.Item label="就诊信息">
               <Input
-                aria-label="随访快照就诊标识"
-                placeholder="可单独按就诊标识检索"
+                aria-label="随访快照就诊信息"
+                placeholder="可单独按就诊信息检索"
                 value={snapshotEncounterId}
                 onChange={(event) => {
                   setSnapshotEncounterId(event.target.value);
