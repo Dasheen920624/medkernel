@@ -2013,6 +2013,16 @@ describe("KnowledgeGovernance", () => {
           }),
         );
       });
+      expect(
+        await screen.findByText("VTE 防治指南 2026", {
+          selector: ".ant-select-item-option-content",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("VTE 防治指南 2026 · plat:drug:vte-guide-2026", {
+          selector: ".ant-select-item-option-content",
+        }),
+      ).not.toBeInTheDocument();
       await user.click(
         await screen.findByText(/VTE 防治指南 2026/, {
           selector: ".ant-select-item-option-content",

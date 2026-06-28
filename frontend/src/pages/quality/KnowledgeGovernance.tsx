@@ -658,9 +658,9 @@ export default function KnowledgeGovernance({
         )
         .map((identity) => ({
           value: identity.id,
-          label: `${identity.subject} · ${identity.identityCode}`,
+          label: knowledgeIdentityOptionLabel(identity, evidenceDetailsEnabled),
         })),
-    [retirementIdentity?.id, successorsQuery.data?.items],
+    [evidenceDetailsEnabled, retirementIdentity?.id, successorsQuery.data?.items],
   );
   const canScheduleRetirement =
     security.data?.dataScope.tenantId === platformTenantId &&
