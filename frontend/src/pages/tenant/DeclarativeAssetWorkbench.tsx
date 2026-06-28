@@ -12,6 +12,7 @@ import {
   Table,
   Tabs,
   Tag,
+  Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
@@ -35,6 +36,8 @@ import {
   DECLARATIVE_FORMULA_OPTIONS,
   ORDER_SET_ITEM_TYPE_OPTIONS,
 } from "@/shared/config/declarativeAssetAuthoring";
+
+const { Text } = Typography;
 
 interface FormValues {
   assetIdentity: string;
@@ -271,6 +274,42 @@ function shouldRequirePhysicianConfirmation(values: FormValues): boolean {
     values.actionCode === "SUGGEST_ORDER" ||
     (values.suggestions ?? []).some((suggestion) => suggestion.actionType === "SUGGEST_ORDER")
   );
+}
+
+function evidenceText(
+  rawValue: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  businessText: string,
+) {
+  if (!evidenceDetailsEnabled) return businessText;
+  const normalized = rawValue?.trim();
+  return normalized && normalized.length > 0 ? normalized : "未返回";
+}
+
+function declarativeAssetTypeLabel(assetType: DeclarativeAssetType) {
+  return (
+    DECLARATIVE_ASSET_TYPE_OPTIONS.find((item) => item.value === assetType)?.label ?? assetType
+  );
+}
+
+function declarativeAssetIdentityText(
+  asset: DeclarativeAssetSummary,
+  evidenceDetailsEnabled: boolean,
+) {
+  return evidenceText(
+    asset.assetIdentity,
+    evidenceDetailsEnabled,
+    `${declarativeAssetTypeLabel(asset.assetType)}资产已登记`,
+  );
+}
+
+function organizationScopeText(scope: string | undefined, evidenceDetailsEnabled: boolean) {
+  return evidenceText(scope, evidenceDetailsEnabled, "组织范围已配置");
+}
+
+function applicableScopeText(scope: string | undefined, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) return evidenceText(scope, true, "适用范围已配置");
+  return scope === "ALL" ? "全部患者与上下文" : "适用范围已配置";
 }
 
 function ArrayRemoveButton({ onClick }: { onClick: () => void }) {
@@ -556,9 +595,13 @@ function ActionCardFields() {
 
 export interface DeclarativeAssetWorkbenchProps {
   canWrite: boolean;
+  evidenceDetailsEnabled?: boolean;
 }
 
-export default function DeclarativeAssetWorkbench({ canWrite }: DeclarativeAssetWorkbenchProps) {
+export default function DeclarativeAssetWorkbench({
+  canWrite,
+  evidenceDetailsEnabled = false,
+}: DeclarativeAssetWorkbenchProps) {
   const { message } = App.useApp();
   const [assetType, setAssetType] = useState<DeclarativeAssetType>("VALUE_SET");
   const [editing, setEditing] = useState<DeclarativeAssetSummary | null>(null);
@@ -568,8 +611,7 @@ export default function DeclarativeAssetWorkbench({ canWrite }: DeclarativeAsset
   const detail = useDeclarativeAsset(editing?.versionId, open && Boolean(editing));
   const create = useCreateDeclarativeAsset();
   const update = useUpdateDeclarativeAsset();
-  const typeLabel =
-    DECLARATIVE_ASSET_TYPE_OPTIONS.find((item) => item.value === assetType)?.label ?? assetType;
+  const typeLabel = declarativeAssetTypeLabel(assetType);
 
   useEffect(() => {
     if (!open || !editing || !detail.data) return;
@@ -613,7 +655,15 @@ export default function DeclarativeAssetWorkbench({ canWrite }: DeclarativeAsset
   };
 
   const columns: ColumnsType<DeclarativeAssetSummary> = [
-    { title: "资产编码", dataIndex: "assetIdentity" },
+    {
+      title: "资产",
+      render: (_value, asset) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{declarativeAssetIdentityText(asset, evidenceDetailsEnabled)}</Text>
+          <Text type="secondary">{declarativeAssetTypeLabel(asset.assetType)}</Text>
+        </Space>
+      ),
+    },
     { title: "版本", dataIndex: "versionNo", width: 100 },
     {
       title: "状态",
@@ -625,11 +675,13 @@ export default function DeclarativeAssetWorkbench({ canWrite }: DeclarativeAsset
     },
     {
       title: "组织范围",
-      dataIndex: "organizationScope",
+      render: (_value, record) =>
+        organizationScopeText(record.organizationScope, evidenceDetailsEnabled),
     },
     {
       title: "适用范围",
-      dataIndex: "applicableScope",
+      render: (_value, record) =>
+        applicableScopeText(record.applicableScope, evidenceDetailsEnabled),
     },
     { title: "来源依据", dataIndex: "sourceRef" },
     {
@@ -702,7 +754,7 @@ export default function DeclarativeAssetWorkbench({ canWrite }: DeclarativeAsset
           disabled={detail.isLoading}
           initialValues={initialValues(assetType)}
         >
-          <Form.Item name="assetIdentity" label="资产编码" rules={[{ required: true }]}>
+          <Form.Item name="assetIdentity" label="稳定资产身份" rules={[{ required: true }]}>
             <Input disabled={Boolean(editing)} />
           </Form.Item>
           <Form.Item
