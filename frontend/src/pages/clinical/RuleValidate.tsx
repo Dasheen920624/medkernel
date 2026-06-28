@@ -70,6 +70,12 @@ function severityColor(severity?: string | null) {
   return colors[severity ?? ""] ?? "default";
 }
 
+function severityText(severity: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  const businessText = riskLabel(severity || undefined);
+  if (!evidenceDetailsEnabled || !severity) return businessText;
+  return `${businessText}（${severity}）`;
+}
+
 function executionStatusColor(status: string) {
   if (status === "SUCCESS") return "green";
   if (status === "NOT_APPLICABLE") return "default";
@@ -297,7 +303,7 @@ export default function RuleValidate() {
       key: "severity",
       width: 110,
       render: (level: string) => {
-        return <Tag color={severityColor(level)}>{level ? riskLabel(level) : "无"}</Tag>;
+        return <Tag color={severityColor(level)}>{severityText(level, evidenceDetailsEnabled)}</Tag>;
       },
     },
     {
@@ -585,7 +591,7 @@ export default function RuleValidate() {
                     </Descriptions.Item>
                     <Descriptions.Item label="最高严重警示">
                       <Tag color={severityColor(evaluateResponse.highestSeverity)}>
-                        {evaluateResponse.highestSeverity || "NONE"}
+                        {severityText(evaluateResponse.highestSeverity, evidenceDetailsEnabled)}
                       </Tag>
                     </Descriptions.Item>
                     <Descriptions.Item label="有效命中规则数">

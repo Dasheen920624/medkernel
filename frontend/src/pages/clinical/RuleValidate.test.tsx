@@ -260,7 +260,8 @@ describe("RuleValidate", () => {
     await user.click(screen.getByRole("button", { name: /执行匹配校验/ }));
 
     expect(await screen.findByText("安全红线不可忽略")).toBeInTheDocument();
-    expect(screen.getAllByText("CRITICAL").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("极高风险").length).toBeGreaterThan(0);
+    expect(screen.queryByText("CRITICAL")).not.toBeInTheDocument();
     expect(screen.getByText("安全红线禁止忽略")).toBeInTheDocument();
     expect(screen.queryByText("BLOCK")).not.toBeInTheDocument();
     expect(screen.getByText(/该校验只提示和阻断，不自动改写医嘱/)).toBeInTheDocument();
