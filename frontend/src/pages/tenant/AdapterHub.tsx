@@ -1362,7 +1362,7 @@ export default function AdapterHub() {
         confirmLoading={createWebhookMutation.isPending}
       >
         <Form form={webhookForm} layout="vertical">
-          <Form.Item name="webhookId" label="回调标识" rules={[{ required: true }]}>
+          <Form.Item name="webhookId" label="稳定回调通道身份" rules={[{ required: true }]}>
             <Input placeholder="例如 clinical-events" />
           </Form.Item>
           <Form.Item name="name" label="通道名称" rules={[{ required: true }]}>
@@ -1412,13 +1412,13 @@ export default function AdapterHub() {
         confirmLoading={registerRegionalSourceMutation.isPending}
       >
         <Form form={regionalSourceForm} layout="vertical">
-          <Form.Item name="sourceId" label="来源标识" rules={[{ required: true }]}>
+          <Form.Item name="sourceId" label="稳定来源身份" rules={[{ required: true }]}>
             <Input placeholder="例如 regional-lab" />
           </Form.Item>
           <Form.Item name="regionalNetworkName" label="区域网络" rules={[{ required: true }]}>
             <Input placeholder="区域检验互认平台" />
           </Form.Item>
-          <Form.Item name="sourceOrganizationId" label="来源机构标识" rules={[{ required: true }]}>
+          <Form.Item name="sourceOrganizationId" label="来源机构身份" rules={[{ required: true }]}>
             <Input placeholder="来源机构业务标识" />
           </Form.Item>
           <Form.Item
@@ -1499,8 +1499,8 @@ export default function AdapterHub() {
             fieldMappings: [{}],
           }}
         >
-          <Form.Item name="adapterId" label="适配器标识" rules={[{ required: true }]}>
-            <Input placeholder="输入真实适配器标识" />
+          <Form.Item name="adapterId" label="稳定适配器身份" rules={[{ required: true }]}>
+            <Input placeholder="输入稳定适配器身份" />
           </Form.Item>
           <Form.Item name="name" label="系统名称" rules={[{ required: true }]}>
             <Input placeholder="输入院内系统名称" />
@@ -1641,8 +1641,8 @@ export default function AdapterHub() {
         cancelText="取消"
       >
         <Form form={onboardingForm} layout="vertical">
-          <Form.Item name="onboardingId" label="接入申请标识" rules={[{ required: true }]}>
-            <Input placeholder="输入真实接入申请标识" />
+          <Form.Item name="onboardingId" label="稳定接入申请身份" rules={[{ required: true }]}>
+            <Input placeholder="输入稳定接入申请身份" />
           </Form.Item>
           <Form.Item name="name" label="接入申请名称" rules={[{ required: true }]}>
             <Input placeholder="输入接入申请名称" />
@@ -1658,7 +1658,7 @@ export default function AdapterHub() {
               <Option value="FHIR">FHIR 门面</Option>
             </Select>
           </Form.Item>
-          <Form.Item name="adapterId" label="绑定适配器标识">
+          <Form.Item name="adapterId" label="绑定适配器">
             <Select
               allowClear
               showSearch
@@ -1695,7 +1695,7 @@ export default function AdapterHub() {
               notFoundContent="暂无可选组织，请先维护组织架构"
             />
           </Form.Item>
-          <Form.Item name="callbackWebhookId" label="回调通道标识">
+          <Form.Item name="callbackWebhookId" label="回调通道">
             <Select
               allowClear
               showSearch

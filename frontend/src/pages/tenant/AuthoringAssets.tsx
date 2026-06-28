@@ -302,7 +302,7 @@ export default function AuthoringAssets() {
                   </Select>
                   <Input
                     allowClear
-                    placeholder="搜索资产名称或证据编码"
+                    placeholder="搜索资产名称或证据线索"
                     value={keyword}
                     onChange={(event) => setKeyword(event.target.value)}
                     className={styles.keywordInput}

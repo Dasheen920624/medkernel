@@ -112,8 +112,10 @@ describe("AuthoringAssets", () => {
     expect(screen.getByText("CKD 临床路径")).toBeInTheDocument();
     expect(screen.getByText("路径资产已登记")).toBeInTheDocument();
     expect(screen.queryByText("PATH.CKD")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("搜索资产名称或证据线索")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("搜索资产名称或证据编码")).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText("搜索资产名称或证据编码"), {
+    fireEvent.change(screen.getByPlaceholderText("搜索资产名称或证据线索"), {
       target: { value: "CKD" },
     });
     expect(apiMocks.useAuthoringAssets).toHaveBeenLastCalledWith(

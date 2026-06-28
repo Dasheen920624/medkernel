@@ -656,6 +656,44 @@ describe("AdapterHub", () => {
     expect(screen.getByText(/trace-failed/)).toBeInTheDocument();
   }, 15_000);
 
+  it("uses stable business identity labels for adapter setup", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "新增适配器" }));
+    expect(screen.getByLabelText("稳定适配器身份")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("输入稳定适配器身份")).toBeInTheDocument();
+    expect(screen.queryByLabelText("适配器标识")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("输入真实适配器标识")).not.toBeInTheDocument();
+  });
+
+  it("uses stable business identity labels for onboarding setup", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "接入向导" }));
+    await user.click(screen.getByRole("button", { name: "新增接入申请" }));
+    expect(screen.getByLabelText("稳定接入申请身份")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("输入稳定接入申请身份")).toBeInTheDocument();
+    expect(screen.queryByLabelText("接入申请标识")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("输入真实接入申请标识")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("绑定适配器")).toBeInTheDocument();
+    expect(screen.queryByLabelText("绑定适配器标识")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("回调通道")).toBeInTheDocument();
+    expect(screen.queryByLabelText("回调通道标识")).not.toBeInTheDocument();
+  });
+
+  it("uses stable business identity labels for callback setup", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "回调通道" }));
+    await user.click(screen.getByRole("button", { name: "新增回调通道" }));
+    expect(screen.getByLabelText("稳定回调通道身份")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("例如 clinical-events")).toBeInTheDocument();
+    expect(screen.queryByLabelText("回调标识")).not.toBeInTheDocument();
+  });
+
   it(
     "creates adapters with the service protocol contract and structured field mappings",
     async () => {
@@ -667,7 +705,7 @@ describe("AdapterHub", () => {
       await user.click(screen.getByRole("button", { name: "新增适配器" }));
 
       expect(screen.queryByLabelText("连接与字段映射配置")).not.toBeInTheDocument();
-      fireEvent.change(screen.getByLabelText("适配器标识"), {
+      fireEvent.change(screen.getByLabelText("稳定适配器身份"), {
         target: { value: "his-outpatient" },
       });
       fireEvent.change(screen.getByLabelText("系统名称"), {
@@ -737,7 +775,9 @@ describe("AdapterHub", () => {
     expect(screen.queryByText(/whsec_/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "新增回调通道" }));
-    fireEvent.change(screen.getByLabelText("回调标识"), {
+    expect(screen.getByLabelText("稳定回调通道身份")).toBeInTheDocument();
+    expect(screen.queryByLabelText("回调标识")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("稳定回调通道身份"), {
       target: { value: "quality-events" },
     });
     fireEvent.change(screen.getByLabelText("通道名称"), {
@@ -786,13 +826,17 @@ describe("AdapterHub", () => {
     expect(screen.getByText("区域检验互认平台")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "登记区域来源" }));
-    fireEvent.change(screen.getByLabelText("来源标识"), {
+    expect(screen.getByLabelText("稳定来源身份")).toBeInTheDocument();
+    expect(screen.queryByLabelText("来源标识")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("来源机构身份")).toBeInTheDocument();
+    expect(screen.queryByLabelText("来源机构标识")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("稳定来源身份"), {
       target: { value: "regional-image" },
     });
     fireEvent.change(screen.getByLabelText("区域网络"), {
       target: { value: "区域影像互认平台" },
     });
-    fireEvent.change(screen.getByLabelText("来源机构标识"), {
+    fireEvent.change(screen.getByLabelText("来源机构身份"), {
       target: { value: "hospital-3" },
     });
     fireEvent.change(screen.getByLabelText("来源机构名称"), {

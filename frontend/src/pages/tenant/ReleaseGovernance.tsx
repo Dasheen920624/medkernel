@@ -541,7 +541,7 @@ export default function ReleaseGovernance() {
             />
             <Input.Search
               allowClear
-              placeholder="搜索内容编码或来源"
+              placeholder="搜索内容名称、身份或来源"
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
               className={styles.keywordInput}

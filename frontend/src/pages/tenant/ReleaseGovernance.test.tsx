@@ -281,6 +281,8 @@ describe("ReleaseGovernance", () => {
     expect(screen.getByText("当前平台标准版本 第 8 版")).toBeInTheDocument();
     expect(screen.getByText("规则内容已准备发布")).toBeInTheDocument();
     expect(screen.getByText("路径内容已在平台标准版本中")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("搜索内容名称、身份或来源")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("搜索内容编码或来源")).not.toBeInTheDocument();
     expect(
       screen.queryByText(new RegExp(`灰度|覆盖模板|配置${"包"}版本|候选版本 ID`)),
     ).not.toBeInTheDocument();
