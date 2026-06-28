@@ -224,10 +224,37 @@ describe("SandboxHost", () => {
     expect(screen.getAllByText("当前机构生效版本").length).toBeGreaterThan(0);
     expect(screen.getAllByText("外部副作用已关闭")).toHaveLength(2);
 
+    const frame = screen.getByTitle("临床嵌入式终端") as HTMLIFrameElement;
+    fireEvent(
+      window,
+      new MessageEvent("message", {
+        origin: window.location.origin,
+        source: frame.contentWindow,
+        data: {
+          source: "MEDKERNEL_CDSS_EMBED",
+          action: "ADOPT",
+          cardId: "card-1",
+          recommendationStatus: "ADOPTED",
+          traceId: "trace-sandbox-host-1",
+        },
+      }),
+    );
+    expect(await screen.findByText("宿主已收到采纳建议决策")).toBeInTheDocument();
+    expect(screen.getByText("卡片：卡片证据已记录")).toBeInTheDocument();
+    expect(screen.getByText("状态：建议已采纳")).toBeInTheDocument();
+    expect(screen.getByText("追踪证据：已保留")).toBeInTheDocument();
+    expect(screen.queryByText("ADOPT")).not.toBeInTheDocument();
+    expect(screen.queryByText("ADOPTED")).not.toBeInTheDocument();
+    expect(screen.queryByText("card-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("trace-sandbox-host-1")).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
     expect(screen.getByText("trace-sandbox-host-1")).toBeInTheDocument();
     expect(screen.getByText("run-sandbox-host-1")).toBeInTheDocument();
     expect(screen.getByText("baseline-sandbox-host-1")).toBeInTheDocument();
+    expect(screen.getByText("宿主已收到采纳建议（ADOPT）决策")).toBeInTheDocument();
+    expect(screen.getByText("卡片：card-1")).toBeInTheDocument();
+    expect(screen.getByText("状态：建议已采纳（ADOPTED）")).toBeInTheDocument();
   });
 
   it("keeps a truthful failure state when orchestration cannot complete", async () => {
@@ -328,6 +355,11 @@ describe("SandboxHost", () => {
 
     renderSandboxHost();
     fireEvent.click(screen.getByRole("button", { name: /推荐综合卡/ }));
+    expect(screen.getByText("推荐综合卡编排")).toBeInTheDocument();
+    expect(screen.getByText("智能推荐")).toBeInTheDocument();
+    expect(screen.queryByText("RECOMMENDATION_COMPOSITE")).not.toBeInTheDocument();
+    expect(screen.queryByText("recommendation")).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: "运行真实引擎链路" }));
 
     await waitFor(() =>

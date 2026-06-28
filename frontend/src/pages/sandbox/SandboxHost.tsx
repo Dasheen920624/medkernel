@@ -76,6 +76,39 @@ const ACTION_LABELS: Record<string, string> = {
   CATALOG_REQUIRED: "等待场景目录",
 };
 
+const PLAYBOOK_LABELS: Record<string, string> = {
+  RULE_ONLY: "规则直连校验",
+  RECOMMENDATION_COMPOSITE: "推荐综合卡编排",
+  PATHWAY_COMPOSITE: "路径协同编排",
+};
+
+const ENGINE_LABELS: Record<string, string> = {
+  rule: "规则引擎",
+  recommendation: "智能推荐",
+  pathway: "路径引擎",
+  knowledge: "知识服务",
+};
+
+const EMBED_DECISION_ACTION_LABELS: Record<string, string> = {
+  ADOPT: "采纳建议",
+  ACCEPT: "采纳建议",
+  ACKNOWLEDGE: "已知晓",
+  DISMISS: "暂不采纳",
+  REJECT: "拒绝建议",
+  OVERRIDE: "继续执行",
+};
+
+const RECOMMENDATION_STATUS_LABELS: Record<string, string> = {
+  ADOPTED: "建议已采纳",
+  ACCEPTED: "建议已采纳",
+  ACKNOWLEDGED: "已知晓",
+  DISMISSED: "已暂不采纳",
+  REJECTED: "已拒绝",
+  OVERRIDDEN: "已继续执行",
+  COMPLETED: "已处理",
+  PENDING: "待处理",
+};
+
 const SEVERITY_LABELS: Record<string, string> = {
   CRITICAL: "危急风险",
   HIGH: "高风险",
@@ -152,6 +185,38 @@ function evidenceLabel(
 
 function severityDisplay(value: string | null | undefined, evidenceDetailsEnabled: boolean) {
   return evidenceLabel(value, SEVERITY_LABELS, "风险待核查", evidenceDetailsEnabled);
+}
+
+function playbookDisplay(value: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  return evidenceLabel(value, PLAYBOOK_LABELS, "业务编排", evidenceDetailsEnabled);
+}
+
+function engineDisplay(value: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  return evidenceLabel(value, ENGINE_LABELS, "引擎能力", evidenceDetailsEnabled);
+}
+
+function embedDecisionActionDisplay(
+  value: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  return evidenceLabel(value, EMBED_DECISION_ACTION_LABELS, "临床决策", evidenceDetailsEnabled);
+}
+
+function recommendationStatusDisplay(
+  value: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  return evidenceLabel(value, RECOMMENDATION_STATUS_LABELS, "已记录", evidenceDetailsEnabled);
+}
+
+function decisionCardDisplay(cardId: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  if (!cardId) return "未返回";
+  return evidenceDetailsEnabled ? cardId : "卡片证据已记录";
+}
+
+function decisionTraceDisplay(traceId: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  if (!traceId) return "未返回";
+  return evidenceDetailsEnabled ? traceId : "已保留";
 }
 
 function historicalStatusDisplay(value: string | null | undefined, evidenceDetailsEnabled: boolean) {
@@ -627,8 +692,12 @@ export default function SandboxHost() {
                     引擎编排入口
                   </Typography.Title>
                   <Descriptions size="small" column={1}>
-                    <Descriptions.Item label="剧本">{selectedScenario.playbook}</Descriptions.Item>
-                    <Descriptions.Item label="引擎">{selectedScenario.engine}</Descriptions.Item>
+                    <Descriptions.Item label="编排方式">
+                      {playbookDisplay(selectedScenario.playbook, evidenceDetailsEnabled)}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="执行能力">
+                      {engineDisplay(selectedScenario.engine, evidenceDetailsEnabled)}
+                    </Descriptions.Item>
                     {selectedScenario.expectedAssetCode && (
                       <Descriptions.Item label="依赖资产">
                         {selectedScenario.expectedAssetCode}
@@ -668,12 +737,27 @@ export default function SandboxHost() {
             <Alert
               type="success"
               showIcon
-              message={`宿主已收到 ${latestDecision.action} 决策`}
+              message={`宿主已收到${embedDecisionActionDisplay(
+                latestDecision.action,
+                evidenceDetailsEnabled,
+              )}决策`}
               description={
                 <Space size="large" wrap>
-                  <span>卡片：{latestDecision.cardId || "未返回"}</span>
-                  <span>状态：{latestDecision.recommendationStatus || "已记录"}</span>
-                  <span>追踪号：{latestDecision.traceId || result?.traceId || "未返回"}</span>
+                  <span>卡片：{decisionCardDisplay(latestDecision.cardId, evidenceDetailsEnabled)}</span>
+                  <span>
+                    状态：
+                    {recommendationStatusDisplay(
+                      latestDecision.recommendationStatus,
+                      evidenceDetailsEnabled,
+                    )}
+                  </span>
+                  <span>
+                    追踪证据：
+                    {decisionTraceDisplay(
+                      latestDecision.traceId || result?.traceId,
+                      evidenceDetailsEnabled,
+                    )}
+                  </span>
                 </Space>
               }
             />
