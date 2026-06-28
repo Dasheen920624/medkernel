@@ -34,6 +34,8 @@
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新实施验收体验优化：`4a3c649a`（`统一实施验收证据详情体验`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
+- 本地最新服务机构体验优化：`9f82a013`（`统一服务机构证据详情体验`）已完成本地验证，尚未同步到 134；
+  134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新临床待办与证据权限优化：`bbbbfc55`（`统一临床待办证据权限门禁`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新提醒推荐体验优化：`cd557ed9`（`统一提醒推荐证据详情体验`）已完成本地验证，尚未同步到 134；
@@ -134,6 +136,9 @@
   第二十六刀补齐实施验收页统一证据详情，平台管理员、信息科长、实施工程师和院内上线责任人默认看到中文就绪证据和
   业务阻塞原因，后端返回的 NOT_CONNECTED 等实施状态枚举只在证据详情中展开；实施步骤、阻塞跳转、七步验收流和
   服务端返回目标页契约保持不变。
+  第二十七刀补齐服务机构页统一证据详情，平台管理员、信息科长和实施工程师默认看到服务机构已开通、组织已登记、
+  上级组织已关联、组织与任职台账等业务表达；tenantId、组织 code、parentId 和实施就绪原始证据只在证据详情中展开。
+  开通服务机构、创建组织节点和品牌配置提交契约保持不变，身份输入改称稳定服务机构身份/稳定组织身份。
   后续仍需继续扫描关键临床/患者/质量/运营真实流程与真实全角色复演，不能把用户临时补充点当成唯一优化范围。
 
 ## 当前唯一权威
@@ -282,6 +287,14 @@
   七步验收流和服务端目标路径契约不变。本地验证通过
   `npm --prefix frontend test -- --run src/pages/tenant/ImplementationGuide.test.tsx`、
   `npm --prefix frontend test -- --run src/pages/tenant/ImplementationGuide.test.tsx src/pages/tenant/AdapterHub.test.tsx src/pages/tenant/TenantOnboarding.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx src/shared/config/customerLanguageGate.test.ts`、
+  `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
+- 最新服务机构体验切片：
+  `9f82a013` 将服务机构页接入统一证据详情；平台治理入口默认展示服务机构已开通，机构实施入口默认展示组织已登记、
+  上级组织业务关系和组织与任职台账，隐藏 tenantId、组织 code、parentId 和实施就绪原始证据；打开证据详情后仍可追溯
+  完整身份与就绪证据。开通服务机构、创建组织节点和品牌配置提交的 tenantId、code、parentId、evidenceDetailsEnabled
+  契约不变。本地验证通过
+  `npm --prefix frontend test -- --run src/pages/tenant/TenantOnboarding.test.tsx`、
+  `npm --prefix frontend test -- --run src/pages/tenant/TenantOnboarding.test.tsx src/pages/tenant/ImplementationGuide.test.tsx src/pages/tenant/AdapterHub.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx src/shared/config/customerLanguageGate.test.ts`、
   `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
 - 最新临床待办与权限门禁切片：
   `bbbbfc55` 将协同任务接入统一证据详情，默认展示待办风险、患者上下文和责任岗位，患者/就诊、来源、追踪和责任人编号
