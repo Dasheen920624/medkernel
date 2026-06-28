@@ -312,8 +312,11 @@ describe("TenantOnboarding", () => {
 
     expect(screen.getByText("机构实施状态读取失败")).toBeInTheDocument();
     expect(
-      screen.getByText("请重试；若持续失败，请带追踪号联系信息科核查服务机构与组织服务。"),
+      screen.getByText(
+        "请重试；若持续失败，请联系信息科核查服务机构与组织服务。失败已留痕，可在审计证据中追溯。",
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/追踪号/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
   });
 

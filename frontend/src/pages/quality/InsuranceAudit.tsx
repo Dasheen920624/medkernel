@@ -264,7 +264,7 @@ export default function InsuranceAudit() {
       stateProps={{
         title: issuesQuery.isError ? parsedError?.message : "当前筛选下暂无真实医保问题",
         description: issuesQuery.isError
-          ? "请稍后重试，或凭追踪号联系信息科核查。"
+          ? "请稍后重试；若持续失败，请联系信息科核查医保审核服务。失败已留痕，可在审计证据中追溯。"
           : "当前没有符合筛选条件的医保病案问题。",
         traceId: parsedError?.traceId,
         onRetry: () => issuesQuery.refetch(),

@@ -44,7 +44,10 @@ export default function ProductionReadinessPanel() {
       <PageState
         state="error"
         title="生产前校验读取失败"
-        description={getApiErrorMessage(readiness.error, "请重试，或凭追踪号联系系统管理员。")}
+        description={getApiErrorMessage(
+          readiness.error,
+          "请重试；若持续失败，请联系信息科核查知识生产准备服务。失败已留痕，可在审计证据中追溯。",
+        )}
         onRetry={() => void readiness.refetch()}
       />
     );

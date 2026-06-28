@@ -530,7 +530,10 @@ export default function Mpi() {
     detailDrawerContent = (
       <Alert
         message="患者 360 详情暂时不可用"
-        description={getApiErrorMessage(detailError, "请稍后重试，或凭追踪号联系信息科。")}
+        description={getApiErrorMessage(
+          detailError,
+          "请稍后重试；若持续失败，请联系信息科核查患者主索引服务。失败已留痕，可在审计证据中追溯。",
+        )}
         type="error"
         showIcon
         action={

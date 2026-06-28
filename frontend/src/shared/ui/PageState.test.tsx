@@ -1,17 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { Button } from "antd";
 import { PageState } from "./PageState";
 import { PAGE_STATE_KINDS } from "./PageState.contract";
-
-const originalClipboard = navigator.clipboard;
-
-afterEach(() => {
-  Object.defineProperty(navigator, "clipboard", {
-    configurable: true,
-    value: originalClipboard,
-  });
-});
 
 describe("PageState", () => {
   it("locks the exact six page states from the experience contract", () => {
@@ -38,20 +29,28 @@ describe("PageState", () => {
     expect(screen.getByRole("button", { name: "导入离线交付文件" })).toBeInTheDocument();
   });
 
-  it("renders error tracking number and retry action", () => {
+  it("renders error audit evidence hint and retry action without exposing tracking number", () => {
     const retry = vi.fn();
-    const writeText = vi.fn();
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText: writeText.mockResolvedValue(undefined) },
-    });
 
     render(<PageState state="error" traceId="trace-001" onRetry={retry} />);
-    expect(screen.getByText(/trace-001/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /复制追踪号/ }));
-    expect(writeText).toHaveBeenCalledWith("trace-001");
+    expect(screen.getByText(/失败已留痕，可在审计证据中追溯/)).toBeInTheDocument();
+    expect(screen.queryByText(/trace-001/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /复制追踪号/ })).not.toBeInTheDocument();
     screen.getByRole("button", { name: "重试" }).click();
     expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not duplicate the audit evidence hint when the description already includes it", () => {
+    render(
+      <PageState
+        state="error"
+        traceId="trace-002"
+        description="请联系信息科核查。失败已留痕，可在审计证据中追溯。"
+      />,
+    );
+
+    expect(screen.getAllByText(/失败已留痕，可在审计证据中追溯/)).toHaveLength(1);
+    expect(screen.queryByText(/trace-002/)).not.toBeInTheDocument();
   });
 
   it("renders forbidden state without sensitive details", () => {

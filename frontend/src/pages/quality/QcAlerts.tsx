@@ -169,7 +169,7 @@ export default function QcAlerts() {
       stateProps={{
         title: alertsQuery.isError ? parsedError?.message : "当前筛选下暂无真实质量问题",
         description: alertsQuery.isError
-          ? "请稍后重试，或凭追踪号联系信息科核查。"
+          ? "请稍后重试；若持续失败，请联系信息科核查质量预警服务。失败已留痕，可在审计证据中追溯。"
           : "当前没有符合筛选条件的预警。",
         traceId: parsedError?.traceId,
         onRetry: () => alertsQuery.refetch(),

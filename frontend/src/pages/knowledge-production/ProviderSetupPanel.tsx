@@ -355,7 +355,7 @@ export default function ProviderSetupPanel() {
         title="模型服务读取失败"
         description={getApiErrorMessage(
           providers.error ?? security.error,
-          "请重试，或凭追踪号联系系统管理员。",
+          "请重试；若持续失败，请联系信息科核查模型服务配置。失败已留痕，可在审计证据中追溯。",
         )}
         onRetry={() => void providers.refetch()}
       />

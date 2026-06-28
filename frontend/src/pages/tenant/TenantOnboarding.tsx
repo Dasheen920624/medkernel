@@ -254,7 +254,7 @@ function PlatformTenantProvisioning({
         state="error"
         stateProps={{
           title: "服务机构台账读取失败",
-          description: "请重试；若持续失败，请带追踪号联系平台运维核查服务机构开通服务。",
+          description: "请重试；若持续失败，请联系平台运维核查服务机构开通服务。失败已留痕，可在审计证据中追溯。",
           onRetry: () => refetch(),
         }}
       >
@@ -553,7 +553,7 @@ function CustomerTenantImplementation({
         state="error"
         stateProps={{
           title: "机构实施状态读取失败",
-          description: "请重试；若持续失败，请带追踪号联系信息科核查服务机构与组织服务。",
+          description: "请重试；若持续失败，请联系信息科核查服务机构与组织服务。失败已留痕，可在审计证据中追溯。",
           onRetry: () => {
             void refetchOrgs();
             void refetchReadiness();
@@ -934,7 +934,7 @@ export default function TenantOnboarding() {
         state="error"
         stateProps={{
           title: "无法确认当前服务机构",
-          description: "请重新登录；若持续失败，请凭追踪号联系平台运维排查安全画像。",
+          description: "请重新登录；若持续失败，请联系平台运维排查安全画像。失败已留痕，可在审计证据中追溯。",
           onRetry: () => security.refetch(),
         }}
       >

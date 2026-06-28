@@ -153,8 +153,11 @@ describe("ImplementationGuide", () => {
 
     expect(screen.getByText("实施步骤读取失败")).toBeInTheDocument();
     expect(
-      screen.getByText("请重试；若持续失败，请带追踪号联系信息科核查实施服务。"),
+      screen.getByText(
+        "请重试；若持续失败，请联系信息科核查实施服务。失败已留痕，可在审计证据中追溯。",
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/追踪号/)).not.toBeInTheDocument();
     screen.getByRole("button", { name: "重试" }).click();
     expect(apiMocks.implementationStepsRefetch).toHaveBeenCalledTimes(1);
   });

@@ -102,7 +102,7 @@ export default function MedicalEvaluationPanel() {
         title="医学评测条件读取失败"
         description={getApiErrorMessage(
           providers.error ?? security.error,
-          "请重试，或凭追踪号联系系统管理员。",
+          "请重试；若持续失败，请联系信息科核查医学评测服务。失败已留痕，可在审计证据中追溯。",
         )}
       />
     );

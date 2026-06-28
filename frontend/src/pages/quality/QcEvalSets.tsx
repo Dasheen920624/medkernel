@@ -518,7 +518,7 @@ export default function QcEvalSets() {
         stateProps={{
           title: parsedError?.message ?? "正在加载评估指标",
           description: parsedError
-            ? "请稍后重试，或凭追踪号联系信息科核查。"
+            ? "请稍后重试；若持续失败，请联系信息科核查评价指标服务。失败已留痕，可在审计证据中追溯。"
             : "正在读取 EVAL-01 指标版本台账。",
           traceId: parsedError?.traceId,
           onRetry: () => indicatorsQuery.refetch(),
