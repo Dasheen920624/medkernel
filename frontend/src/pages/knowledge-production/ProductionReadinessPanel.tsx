@@ -23,7 +23,7 @@ const GATES = [
     owner: "医疗引擎运营员",
   },
   { code: "EGRESS_GOVERNANCE", label: "外调允许范围", step: "readiness", owner: "医疗引擎运营员" },
-  { code: "MODEL_POLICY", label: "模型策略", step: "readiness", owner: "医疗引擎运营员" },
+  { code: "MODEL_POLICY", label: "模型生产策略", step: "readiness", owner: "医疗引擎运营员" },
   {
     code: "VERSION_TRIPLE",
     label: "提示词、工具与模型版本",
