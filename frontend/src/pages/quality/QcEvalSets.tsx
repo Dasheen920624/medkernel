@@ -856,7 +856,7 @@ export default function QcEvalSets() {
               <Input
                 id="eval-snapshot-encounter"
                 value={snapshotEncounterId}
-                placeholder="可按住院号、门诊号或就诊标识检索"
+                placeholder="可按住院号、门诊号或就诊信息检索"
                 onChange={(event) => {
                   setSnapshotEncounterId(event.target.value);
                   setSimulationSnapshotId("");
