@@ -2531,7 +2531,7 @@ export default function KnowledgeGovernance({
           <Col xs={24} md={8}>
             <Input.Search
               aria-label="知识关键词"
-              placeholder="按主题或编码搜索"
+              placeholder="按主题或知识身份搜索"
               allowClear
               onSearch={(value) => {
                 setKeyword(value);
@@ -2803,8 +2803,8 @@ export default function KnowledgeGovernance({
                     <Col xs={24} md={12}>
                       <Form.Item
                         name="newIdentityCode"
-                        label="新身份编码"
-                        rules={[{ required: true, whitespace: true, message: "请填写新身份编码" }]}
+                        label="新知识身份"
+                        rules={[{ required: true, whitespace: true, message: "请填写新知识身份" }]}
                       >
                         <Input placeholder="例如 KNOW.NEW.001" />
                       </Form.Item>

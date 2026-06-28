@@ -880,6 +880,8 @@ describe("KnowledgeGovernance", () => {
 
     expect(screen.getByRole("heading", { name: "知识审核与发布" })).toBeInTheDocument();
     expect(screen.getByText("待审核候选总数")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("按主题或知识身份搜索")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("按主题或编码搜索")).not.toBeInTheDocument();
     expect(screen.getAllByText("冲突候选").length).toBeGreaterThan(0);
     expect(screen.getByText("高风险候选")).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
@@ -1153,6 +1155,40 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("低风险 1 · 可原子批审")).toBeInTheDocument();
     expect(screen.getByText("中风险 1 · 必须逐条审核")).toBeInTheDocument();
     expect(screen.getByText("高风险 1 · 必须逐条确认并保留证据")).toBeInTheDocument();
+  });
+
+  it("uses knowledge identity language when model generation creates a new target", async () => {
+    const user = userEvent.setup();
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        permissions: [{ code: "knowledge.write" }],
+      },
+    });
+    mockUseKnowledgeProductionReadiness.mockReturnValue({
+      data: {
+        tenantId: "tenant-A",
+        producer: "API_MODEL",
+        capabilityCode: "knowledge.production.knowledge",
+        providerCode: "provider-openai",
+        deploymentForm: "EXTERNAL",
+        ready: true,
+        modelInvocationAllowed: true,
+        items: [],
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+
+    renderPage(<KnowledgeProduction />);
+
+    await user.click(screen.getByRole("button", { name: "启动大模型生成" }));
+    expect(screen.getByText("生成正式知识候选")).toBeInTheDocument();
+    await user.click(screen.getByLabelText("创建新身份候选"));
+    expect(screen.getByLabelText("新知识身份")).toBeInTheDocument();
+    expect(screen.queryByText("新身份编码")).not.toBeInTheDocument();
   });
 
   it("starts real model generation for the selected job with controlled source and identity", async () => {
