@@ -487,7 +487,7 @@ export default function QcEvalResults() {
             ) : null}
 
             <Descriptions bordered column={1}>
-              <Descriptions.Item label="问题编码">
+              <Descriptions.Item label="问题身份">
                 {evidenceText(drawerFinding.findingCode, evidenceDetailsEnabled, "问题已登记")}
               </Descriptions.Item>
               <Descriptions.Item label="关联指标">

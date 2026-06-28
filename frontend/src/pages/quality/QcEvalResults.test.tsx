@@ -210,6 +210,8 @@ describe("QcEvalResults", () => {
 
     expect(mockUseQualityFindingDetail).toHaveBeenLastCalledWith("finding-real-1");
     expect(screen.getByText("问题详情与病历证据")).toBeInTheDocument();
+    expect(screen.getByText("问题身份")).toBeInTheDocument();
+    expect(screen.queryByText("问题编码")).not.toBeInTheDocument();
     expect(screen.getAllByText("问题已登记").length).toBeGreaterThan(0);
     expect(screen.getAllByText("评价指标已关联").length).toBeGreaterThan(0);
     expect(screen.getAllByText("评价结果已关联").length).toBeGreaterThan(0);
