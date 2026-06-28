@@ -425,6 +425,9 @@ describe("PathwayTemplates 上线路径维护契约", () => {
     await user.click(within(dialog).getByLabelText("基础节点闭环"));
     await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
 
+    expect(within(dialog).queryByText("入径评估（ASSESS）")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("出径随访（FOLLOWUP）")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("平均住院日（PATH.OUTCOME.LOS）")).not.toBeInTheDocument();
     expect(within(dialog).getByLabelText("阶段身份")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("里程碑身份")).toBeInTheDocument();
     expect(within(dialog).getAllByLabelText("节点身份").length).toBeGreaterThan(0);

@@ -1017,8 +1017,7 @@ function milestoneOptionLabel(
 ) {
   const phase = cleanText(milestone.phaseName) ?? cleanText(milestone.phaseCode) ?? "未命名阶段";
   const name = cleanText(milestone.name) ?? "未命名里程碑";
-  const code = cleanText(milestone.milestoneCode) ?? "未设置身份";
-  return `${phase} / ${milestoneDayText(milestone.dayOffset)} / ${name}（${code}）`;
+  return `${phase} / ${milestoneDayText(milestone.dayOffset)} / ${name}`;
 }
 
 function normalizeEdgesForCanvas(edges?: PathwayEdgeFormValue[]) {
@@ -1516,9 +1515,9 @@ export default function PathwayTemplates() {
     () =>
       canvasNodes
         .filter((node) => cleanText(node.nodeCode))
-        .map((node) => ({
+        .map((node, index) => ({
           value: node.nodeCode,
-          label: `${cleanText(node.name) ?? "未命名节点"}（${node.nodeCode}）`,
+          label: `${cleanText(node.name) ?? "未命名节点"} · 节点 ${index + 1}`,
         })),
     [canvasNodes],
   );
@@ -1543,7 +1542,7 @@ export default function PathwayTemplates() {
     }
     return [...byCode.entries()].map(([value, label]) => ({
       value,
-      label: `${label}（${value}）`,
+      label,
     }));
   }, [watchedMilestones]);
 
@@ -1551,7 +1550,7 @@ export default function PathwayTemplates() {
     () =>
       (evaluationIndicatorsData?.items ?? []).map((indicator: EvaluationIndicator) => ({
         value: indicator.indicatorCode,
-        label: `${indicator.name}（${indicator.indicatorCode}）`,
+        label: `${indicator.name} · 第 ${indicator.versionNo} 版`,
       })),
     [evaluationIndicatorsData?.items],
   );
