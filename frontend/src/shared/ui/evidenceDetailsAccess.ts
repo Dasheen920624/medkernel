@@ -21,6 +21,7 @@ const EVIDENCE_DETAIL_MENU_KEYS = new Set([
   "implementation-guide",
   "tenant-onboarding",
   "admin-users",
+  "identity-bindings",
   "authoring-assets",
   "domestic-check",
   "runtime-diagnostics",
