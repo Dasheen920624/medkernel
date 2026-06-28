@@ -86,6 +86,8 @@
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新全局入口反馈体验优化：`0fda8064`（`统一全局入口默认业务反馈`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
+- 本地最新通知偏好体验优化：`123fa99e`（`统一通知偏好默认业务视图`）已完成本地验证，尚未同步到 134；
+  134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 当前目标：完成 MedKernel 全新项目上线级整体梳理与落地，统一平台权威版本与全链路能力，移除旧兼容和冗余设计，
   完善真实功能页面与统一迁移生成，完成代码、契约、前后端、文档、测试、构建核查，并在 134 清库重新部署完成
   全功能与全知识全流程演练。
@@ -191,6 +193,9 @@
   不再暴露 tenantId、hospitalId、departmentId、wardId 等实施编码；原始组织范围仍由后端安全画像和审计契约保留。
   第三十七刀补齐全局入口默认业务反馈，命令面板和顶部搜索 tooltip 不再把快捷键作为可见说明，审计快照生成成功后默认反馈
   “可在审计证据中查看”，不再在 toast 暴露签名、快照号等审计技术证据；受保护审计快照 API 调用契约保持不变。
+  第三十八刀补齐通知偏好默认业务视图，医生、护士、患者代理、信息科和平台管理员默认看到个人通知偏好、服务机构默认策略、
+  系统回调、免打扰仍提醒级别等业务表达，不再暴露 Webhook、个人/机构版本号和“绕过”术语；后端提交契约仍保留
+  `webhookEnabled`、`quietBypassLevels`、`subscribedTypes` 和 `expectedVersion` 等结构化字段用于审计与并发控制。
   后续仍需继续扫描关键临床/患者/质量/运营真实流程与真实全角色复演，不能把用户临时补充点当成唯一优化范围。
 
 ## 当前唯一权威
@@ -533,6 +538,14 @@
   本地验证通过
   `npm --prefix frontend test -- --run src/features/command-palette/CommandPalette.test.tsx src/features/audit-snapshot/AuditSnapshotButton.test.tsx src/widgets/AppLayout.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx`、
   `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
+- 最新通知偏好体验切片：
+  `123fa99e` 将通知偏好页默认视图从 Webhook、系统默认、版本号和免打扰绕过级别等实现/审计术语，收敛为系统回调、
+  服务机构默认策略、个人通知偏好和免打扰仍提醒级别等业务表达。保存个人偏好和服务机构默认策略仍向后端提交
+  `webhookEnabled`、`quietBypassLevels`、`subscribedTypes` 与 `expectedVersion`，保证通知投递、审计和并发控制契约不变。
+  本地验证通过
+  `npm --prefix frontend test -- --run src/pages/compliance/NotificationSettings.test.tsx`、
+  `npm --prefix frontend test -- --run src/pages/compliance/NotificationSettings.test.tsx src/widgets/AppLayout.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx src/shared/config/routes.test.ts src/shared/config/menu.test.ts`、
+  `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
 - 本地关键验证：
   `npm run typecheck`、`npm test -- --run src/pages/clinical/Followup.test.tsx` 已在 `10f06bea` 前通过；
   该阶段只完成随访字段口径纠偏，`823a2c00` 后已进一步改为业务选项化表单。
@@ -585,10 +598,10 @@
 1. 进入真实前台全角色体验：平台管理员看系统接入与安全基线，医疗引擎运营员看知识生产和版本发布，临床使用者拆分医生、
    护士、药师、医技、质控、患者代理路径，审计员看来源、操作证据和敏感信息边界；信息科长、实施工程师、院长视角看部署、
    权限、全院指标和故障降级。
-2. 已完成沙盘、MPI、患者路径、消息通知、临床快照选择器、临床嵌入启动、规则试运行、规则配置、路径配置、协同任务、CDSS 提醒推荐、随访协同、质量管理概览、质量问题来源、质量问题与整改、医保审核、评价指标、知识审核与发布、公域来源治理、诊断知识维护、术语与字典、全局权限范围、全局入口业务反馈、模型能力、模型服务配置、来源血缘、图谱查询、审计证据、安全基线、运行诊断、验收自检和国产化自检默认视图/证据详情多轮本地优化；
+2. 已完成沙盘、MPI、患者路径、消息通知、临床快照选择器、临床嵌入启动、规则试运行、规则配置、路径配置、协同任务、CDSS 提醒推荐、随访协同、质量管理概览、质量问题来源、质量问题与整改、医保审核、评价指标、知识审核与发布、公域来源治理、诊断知识维护、术语与字典、全局权限范围、全局入口业务反馈、通知偏好、模型能力、模型服务配置、来源血缘、图谱查询、审计证据、安全基线、运行诊断、验收自检和国产化自检默认视图/证据详情多轮本地优化；
    继续优先扫描关键临床/患者真实流程：
    功能分类、页面目标、空态/错态/权限态、流程完整性、操作复杂度、敏感信息处理、证据详情表达都要全局审计。
 3. 优先发现并修复真实产品问题，而不是只优化用户临时指出的点；修复后仍需本地验证、必要时重新构建并在 134 复验。
 4. 下一阶段仍需在 134 执行全角色、全知识、全流程复演；本轮只证明基础真实前台数据路线已跑通，从 `cd44d8ab`
-   到 `0fda8064` 的全角色体验优化提交均尚未部署 134。
+   到 `123fa99e` 的全角色体验优化提交均尚未部署 134。
 5. 保持本地提交，不推送远程，不合并 `main`；不要提交未跟踪的 `.codex/config.toml`。
