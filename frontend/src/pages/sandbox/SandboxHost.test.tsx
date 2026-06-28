@@ -178,6 +178,9 @@ describe("SandboxHost", () => {
       ],
       snapshotId: "ctx-sbx-1",
       triggerId: "trigger-sbx-1",
+      patientPathwayId: "pathway-instance-sbx-1",
+      followupPlanId: "followup-plan-sbx-1",
+      evaluationRunId: "evaluation-run-sbx-1",
       cardCount: 1,
       embedToken: "masked",
       embedUrl: "/embed/launch?token=masked",
@@ -221,6 +224,12 @@ describe("SandboxHost", () => {
     expect(screen.queryByText("trace-sandbox-host-1")).not.toBeInTheDocument();
     expect(screen.queryByText("run-sandbox-host-1")).not.toBeInTheDocument();
     expect(screen.queryByText("baseline-sandbox-host-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("pathway-instance-sbx-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("followup-plan-sbx-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("evaluation-run-sbx-1")).not.toBeInTheDocument();
+    expect(screen.getByText("路径实例已生成")).toBeInTheDocument();
+    expect(screen.getByText("随访计划已登记")).toBeInTheDocument();
+    expect(screen.getByText("评估运行已记录")).toBeInTheDocument();
     expect(screen.getAllByText("当前机构生效版本").length).toBeGreaterThan(0);
     expect(screen.getAllByText("外部副作用已关闭")).toHaveLength(2);
 
@@ -249,6 +258,9 @@ describe("SandboxHost", () => {
     expect(screen.queryByText("trace-sandbox-host-1")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getByText("pathway-instance-sbx-1")).toBeInTheDocument();
+    expect(screen.getByText("followup-plan-sbx-1")).toBeInTheDocument();
+    expect(screen.getByText("evaluation-run-sbx-1")).toBeInTheDocument();
     expect(screen.getByText("trace-sandbox-host-1")).toBeInTheDocument();
     expect(screen.getByText("run-sandbox-host-1")).toBeInTheDocument();
     expect(screen.getByText("baseline-sandbox-host-1")).toBeInTheDocument();

@@ -529,13 +529,19 @@ export default function SandboxHost() {
                 </Descriptions.Item>
                 <Descriptions.Item label="推荐卡">{result.cardCount}</Descriptions.Item>
                 {result.patientPathwayId && (
-                  <Descriptions.Item label="患者路径">{result.patientPathwayId}</Descriptions.Item>
+                  <Descriptions.Item label="患者路径">
+                    {evidenceDetailsEnabled ? result.patientPathwayId : "路径实例已生成"}
+                  </Descriptions.Item>
                 )}
                 {result.followupPlanId && (
-                  <Descriptions.Item label="随访计划">{result.followupPlanId}</Descriptions.Item>
+                  <Descriptions.Item label="随访计划">
+                    {evidenceDetailsEnabled ? result.followupPlanId : "随访计划已登记"}
+                  </Descriptions.Item>
                 )}
                 {result.evaluationRunId && (
-                  <Descriptions.Item label="评估运行">{result.evaluationRunId}</Descriptions.Item>
+                  <Descriptions.Item label="评估运行">
+                    {evidenceDetailsEnabled ? result.evaluationRunId : "评估运行已记录"}
+                  </Descriptions.Item>
                 )}
                 {evidenceDetailsEnabled && (
                   <>
