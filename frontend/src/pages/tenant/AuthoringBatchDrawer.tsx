@@ -185,7 +185,7 @@ export default function AuthoringBatchDrawer({
 
   const generateRules = async () => {
     try {
-      if (!templateRuleId.trim()) throw new Error("请输入模板规则 ID");
+      if (!templateRuleId.trim()) throw new Error("请输入模板规则资产");
       const reserved = new Set(["ruleCode", "name", "applicableOrgUnitId", "changeSummary"]);
       const rows: AuthoringBatchRuleGenerateRow[] = parseTable(parameterTable).map((row, index) => {
         if (!row.ruleCode || !row.name) throw new Error(`第 ${index + 2} 行缺少 ruleCode 或 name`);
@@ -218,7 +218,7 @@ export default function AuthoringBatchDrawer({
   const analyzeImpacts = async () => {
     const ruleIds = splitLines(publishRuleIds);
     if (!ruleIds.length) {
-      message.error("请输入至少一个规则 ID");
+      message.error("请输入至少一个待发布规则资产");
       return;
     }
     try {
@@ -311,12 +311,12 @@ export default function AuthoringBatchDrawer({
         message="批量生成独立规则草稿"
         description="每行创建一个独立规则版本，自动继承模板的触发绑定；真正上线的版本由发布治理统一选择。"
       />
-      <Form.Item label="模板规则 ID" required>
+      <Form.Item label="模板规则资产" required>
         <Input
-          aria-label="模板规则 ID"
+          aria-label="模板规则资产"
           value={templateRuleId}
           onChange={(event) => setTemplateRuleId(event.target.value)}
-          placeholder="例如 rule-template-ckd"
+          placeholder="输入已审核模板规则的稳定身份"
         />
       </Form.Item>
       <Form.Item
@@ -348,13 +348,17 @@ export default function AuthoringBatchDrawer({
   const publishPanel = (
     <Space direction="vertical" size="middle" className={styles.fullWidth}>
       <Form layout="vertical" className={styles.form}>
-        <Form.Item label="规则 ID" required extra="每行一个规则 ID，也可用逗号分隔。">
+        <Form.Item
+          label="待发布规则资产"
+          required
+          extra="每行一个稳定规则资产，也可用逗号分隔。"
+        >
           <TextArea
-            aria-label="规则 ID"
+            aria-label="待发布规则资产"
             value={publishRuleIds}
             onChange={(event) => setPublishRuleIds(event.target.value)}
             rows={4}
-            placeholder={"rule-ckd-1\nrule-ckd-2"}
+            placeholder={"RULE.CKD.1\nRULE.CKD.2"}
           />
         </Form.Item>
         <Button

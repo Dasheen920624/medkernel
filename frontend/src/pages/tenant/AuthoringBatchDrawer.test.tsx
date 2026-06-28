@@ -82,7 +82,9 @@ describe("AuthoringBatchDrawer", () => {
 
     renderDrawer();
 
-    fireEvent.change(screen.getByLabelText("模板规则 ID"), {
+    expect(screen.getByLabelText("模板规则资产")).toBeInTheDocument();
+    expect(screen.queryByLabelText("模板规则 ID")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("模板规则资产"), {
       target: { value: "rule-template" },
     });
     fireEvent.change(screen.getByLabelText("参数表"), {
@@ -123,7 +125,7 @@ describe("AuthoringBatchDrawer", () => {
 
     renderDrawer();
 
-    fireEvent.change(screen.getByLabelText("模板规则 ID"), {
+    fireEvent.change(screen.getByLabelText("模板规则资产"), {
       target: { value: "rule-template" },
     });
     fireEvent.change(screen.getByLabelText("参数表"), {
@@ -168,7 +170,9 @@ describe("AuthoringBatchDrawer", () => {
 
     renderDrawer();
     await userEvent.click(screen.getByRole("tab", { name: "规则发布" }));
-    fireEvent.change(screen.getByLabelText("规则 ID"), {
+    expect(screen.getByLabelText("待发布规则资产")).toBeInTheDocument();
+    expect(screen.queryByLabelText("规则 ID")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("待发布规则资产"), {
       target: { value: "rule-high" },
     });
     await userEvent.click(screen.getByRole("button", { name: "分析影响" }));
