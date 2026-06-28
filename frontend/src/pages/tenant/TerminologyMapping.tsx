@@ -126,6 +126,13 @@ const RISK_LABEL: Record<TermMapping["riskLevel"], string> = {
   LOW: "低",
 };
 
+const GENERATION_STATUS_LABEL: Record<string, string> = {
+  PENDING: "等待生成",
+  RUNNING: "生成中",
+  SUCCEEDED: "已完成",
+  FAILED: "失败",
+};
+
 const tableColumns: Array<ExperienceColumn<TermMapping>> = [
   { key: "sourceSystem", title: "来源系统", dataIndex: "sourceSystem", always: true },
   { key: "category", title: "类别", dataIndex: "category" },
@@ -217,7 +224,7 @@ function hasPermission(profile: ReturnType<typeof useSecurityProfile>["data"], c
   return profile?.permissions.some((permission) => permission.code === code) ?? false;
 }
 
-function assetScopeOptions(profile: SecurityProfile | undefined) {
+function assetScopeOptions(profile: SecurityProfile | undefined, evidenceDetailsEnabled: boolean) {
   const scope = profile?.dataScope;
   if (!scope) return [];
   const facilityId = scope.siteId ?? scope.hospitalId;
@@ -231,10 +238,28 @@ function assetScopeOptions(profile: SecurityProfile | undefined) {
     .filter((item): item is { level: string; code: string; label: string } => Boolean(item.code))
     .map((item) => ({
       value: `${item.level}|${item.code}`,
-      label: `${item.label} · ${item.code}`,
+      label: evidenceDetailsEnabled ? `${item.label} · ${item.code}` : item.label,
       level: item.level,
       code: item.code,
     }));
+}
+
+function candidateLabel(candidate: TermMappingCandidate, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) {
+    return `候选 ${candidate.id}`;
+  }
+  return candidate.highRiskFlag ? "高危候选" : "普通候选";
+}
+
+function generationStatusText(status?: string) {
+  return GENERATION_STATUS_LABEL[status ?? "PENDING"] ?? "生成状态已记录";
+}
+
+function generationPageText(candidatePageUri: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) {
+    return candidatePageUri ?? "候选分页入口生成中";
+  }
+  return candidatePageUri ? "候选分页入口已生成" : "候选分页入口生成中";
 }
 
 function candidateRiskTag(candidate: TermMappingCandidate) {
@@ -378,7 +403,7 @@ export default function TerminologyMapping() {
     candidateItems.find((candidate) => candidate.id === activeCandidate?.id) ??
     highRiskCandidates[0] ??
     candidateItems[0];
-  const scopeOptions = assetScopeOptions(security.data);
+  const scopeOptions = assetScopeOptions(security.data, evidenceDetailsEnabled);
 
   let pageState: PageStateKind = "ready";
   if (!routeAllowed) pageState = "forbidden";
@@ -425,7 +450,7 @@ export default function TerminologyMapping() {
       title: "候选",
       dataIndex: "id",
       width: 120,
-      render: (id) => <Text strong>#{id}</Text>,
+      render: (_, candidate) => <Text strong>{candidateLabel(candidate, evidenceDetailsEnabled)}</Text>,
     },
     {
       title: "语义分",
@@ -659,7 +684,11 @@ export default function TerminologyMapping() {
         scopeCode: scope.code,
         name: values.name.trim(),
       });
-      message.success(`术语资产 ${created.assetIdentity}@${created.versionNo} 已生成`);
+      message.success(
+        evidenceDetailsEnabled
+          ? `术语资产 ${created.assetIdentity}@${created.versionNo} 已生成`
+          : `术语资产版本 ${created.versionNo} 已生成`,
+      );
     } catch (error) {
       message.error(getApiErrorMessage(error, "术语资产草稿生成失败，请稍后重试"));
       return;
@@ -789,9 +818,12 @@ export default function TerminologyMapping() {
                   className={styles.sectionAlert}
                   message={
                     <Space size="small" wrap>
-                      <Text strong>候选生成任务</Text>
-                      <Text code>{lastGenerationJobCode}</Text>
-                      <Tag>{generationJob.data?.status ?? "PENDING"}</Tag>
+                      <Text strong>
+                        {evidenceDetailsEnabled
+                          ? `候选生成任务 ${lastGenerationJobCode}`
+                          : "候选生成任务已提交"}
+                      </Text>
+                      <Tag>{generationStatusText(generationJob.data?.status)}</Tag>
                     </Space>
                   }
                   description={
@@ -800,7 +832,10 @@ export default function TerminologyMapping() {
                         已生成 <Text strong>{generationJob.data?.generatedCount ?? 0}</Text> 条候选
                       </Text>
                       <Text type="secondary">
-                        {generationJob.data?.candidatePageUri ?? "候选分页入口生成中"}
+                        {generationPageText(
+                          generationJob.data?.candidatePageUri,
+                          evidenceDetailsEnabled,
+                        )}
                       </Text>
                     </Space>
                   }
@@ -989,8 +1024,8 @@ export default function TerminologyMapping() {
         <Form form={buildForm} layout="vertical" preserve={false}>
           <Form.Item
             name="assetIdentity"
-            label="资产编码"
-            rules={[{ required: true, whitespace: true, message: "请输入资产编码" }]}
+            label="稳定术语资产身份"
+            rules={[{ required: true, whitespace: true, message: "请输入稳定术语资产身份" }]}
           >
             <Input maxLength={128} />
           </Form.Item>
@@ -1008,7 +1043,7 @@ export default function TerminologyMapping() {
             type="info"
             showIcon
             message="版本号由系统自动生成"
-            description="同一资产编码首次生成 V1，再次生成 V2、V3；调用方不能手工输入版本号。"
+            description="同一稳定术语资产身份首次生成 V1，再次生成 V2、V3；调用方不能手工输入版本号。"
           />
         </Form>
       </Modal>
