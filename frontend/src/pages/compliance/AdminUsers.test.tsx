@@ -319,6 +319,8 @@ describe("人员与账号", () => {
     expect(await screen.findByText("角色与组织范围")).toBeInTheDocument();
     expect(screen.getByText("科室")).toBeInTheDocument();
     expect(screen.getAllByText("操作").length).toBeGreaterThan(0);
+    expect(screen.getByText("搜索组织名称或稳定组织身份")).toBeInTheDocument();
+    expect(screen.queryByText("搜索组织名称或编码")).not.toBeInTheDocument();
     expect(screen.queryByText("DEPARTMENT")).not.toBeInTheDocument();
     expect(screen.queryByText("ACTION")).not.toBeInTheDocument();
   });

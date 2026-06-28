@@ -195,7 +195,7 @@ export default function SandboxHost() {
   const handleHistoricalRun = async () => {
     const normalizedReplayCaseId = replayCaseId.trim();
     if (!normalizedReplayCaseId) {
-      setRunError("请输入历史重放清单标识");
+      setRunError("请输入历史演练清单");
       return;
     }
     await executeRun({
@@ -447,9 +447,12 @@ export default function SandboxHost() {
                   <div key={`${rule.ruleCode}:${rule.versionId}`}>
                     <Space wrap>
                       <Typography.Text strong>{rule.ruleName}</Typography.Text>
-                      <Typography.Text code>
-                        {rule.ruleCode}@{rule.assetVersion}
-                      </Typography.Text>
+                      <Typography.Text>{`历史版本 ${rule.assetVersion}`}</Typography.Text>
+                      {evidenceDetailsEnabled && (
+                        <Typography.Text code>
+                          {rule.ruleCode}@{rule.assetVersion}
+                        </Typography.Text>
+                      )}
                       <Tag>{rule.historicalStatus}</Tag>
                       <Tag color={rule.hit ? "error" : "default"}>
                         {rule.hit ? "命中" : "未命中"}
@@ -534,8 +537,8 @@ export default function SandboxHost() {
               </Typography.Paragraph>
               <Space direction="vertical">
                 <Input
-                  aria-label="历史重放清单标识"
-                  placeholder="例如 replay-2025-001"
+                  aria-label="历史演练清单"
+                  placeholder="例如 高钾规则历史演练清单"
                   value={replayCaseId}
                   onChange={(event) => setReplayCaseId(event.target.value)}
                 />

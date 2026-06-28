@@ -496,7 +496,7 @@ describe("operational control pages", () => {
         selector: ".ant-select-item-option-content",
       }),
     );
-    await user.type(screen.getByLabelText("院内身份标识"), "EMP-002");
+    await user.type(screen.getByLabelText("院内人员身份"), "EMP-002");
     await user.type(screen.getByLabelText("绑定原因"), "新员工统一身份接入");
     await user.click(screen.getByRole("button", { name: "确认绑定" }));
 
@@ -668,6 +668,11 @@ describe("operational control pages", () => {
     expect(screen.queryByText("read-runtime")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /注册插件/ })).toBeInTheDocument();
     expect(screen.queryByText("入口暂未激活")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /注册插件/ }));
+    expect(screen.getByLabelText("稳定插件能力身份")).toBeInTheDocument();
+    expect(screen.queryByLabelText("插件编码")).not.toBeInTheDocument();
+    expect(screen.queryByText("请输入插件编码")).not.toBeInTheDocument();
   });
 
   it("将运行诊断低频证据收进证据详情", async () => {

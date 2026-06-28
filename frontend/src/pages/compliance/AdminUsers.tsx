@@ -856,7 +856,7 @@ export default function AdminUsers() {
                         <OrgUnitSelect
                           scope="BUSINESS_SCOPE"
                           className="mk-select-wide"
-                          placeholder="搜索组织名称或编码"
+                          placeholder="搜索组织名称或稳定组织身份"
                           onUnitChange={setSelectedRoleOrg}
                         />
                       </Form.Item>

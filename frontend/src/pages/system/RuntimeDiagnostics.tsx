@@ -842,8 +842,8 @@ export default function RuntimeDiagnostics() {
             <Col xs={24} md={12}>
               <Form.Item
                 name="pluginCode"
-                label="插件编码"
-                rules={[{ required: true, message: "请输入插件编码" }]}
+                label="稳定插件能力身份"
+                rules={[{ required: true, message: "请输入稳定插件能力身份" }]}
               >
                 <Input maxLength={128} />
               </Form.Item>

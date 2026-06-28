@@ -380,7 +380,9 @@ describe("SandboxHost", () => {
 
     renderSandboxHost();
     fireEvent.click(screen.getByRole("radio", { name: "历史原样重放" }));
-    fireEvent.change(screen.getByLabelText("历史重放清单标识"), {
+    expect(screen.getByLabelText("历史演练清单")).toBeInTheDocument();
+    expect(screen.queryByLabelText("历史重放清单标识")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("历史演练清单"), {
       target: { value: "replay-2025-001" },
     });
     fireEvent.click(screen.getByRole("button", { name: "按清单原样重放" }));
@@ -396,7 +398,8 @@ describe("SandboxHost", () => {
       }),
     );
     expect(await screen.findByText("历史高钾规则")).toBeInTheDocument();
-    expect(screen.getByText("RULE.OLD.K@7")).toBeInTheDocument();
+    expect(screen.getByText("历史版本 7")).toBeInTheDocument();
+    expect(screen.queryByText("RULE.OLD.K@7")).not.toBeInTheDocument();
     expect(screen.getByText("历史高钾红线")).toBeInTheDocument();
     expect(screen.getAllByText("历史重放清单").length).toBeGreaterThan(0);
     expect(screen.queryByText("上下文原始 JSON")).not.toBeInTheDocument();
@@ -476,7 +479,7 @@ describe("SandboxHost", () => {
 
     renderSandboxHost();
     fireEvent.click(screen.getByRole("radio", { name: "版本差异评估" }));
-    fireEvent.change(screen.getByLabelText("历史重放清单标识"), {
+    fireEvent.change(screen.getByLabelText("历史演练清单"), {
       target: { value: "replay-2025-001" },
     });
     fireEvent.click(screen.getByRole("button", { name: "运行版本差异评估" }));
