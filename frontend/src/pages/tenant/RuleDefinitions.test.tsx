@@ -740,6 +740,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
     "创建规则草稿时提交完整适用域",
     async () => {
       apiMocks.createRule.mockResolvedValue({ ruleId: "rule-new" });
+      apiMocks.ruleListData = { items: [draftRule], total: 1 };
       renderRuleDefinitions();
 
       fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
@@ -759,6 +760,19 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       fireEvent.click(within(dialog).getByText("适用域与生效"));
       expect(await within(dialog).findByText("输入或选择高优先级规则身份")).toBeInTheDocument();
       expect(within(dialog).queryByText("输入或选择高优先级规则编码")).not.toBeInTheDocument();
+      fireEvent.change(dialog.querySelector("#suppressedBy") as HTMLInputElement, {
+        target: { value: "RULE.QC.REVIEW" },
+      });
+      expect(
+        await screen.findByText("规则发布校验核查 · 优先级 100", {
+          selector: ".ant-select-item-option-content",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("RULE.QC.REVIEW · P100 · 规则发布校验核查", {
+          selector: ".ant-select-item-option-content",
+        }),
+      ).not.toBeInTheDocument();
       fireEvent.change(within(dialog).getByLabelText("生效日期"), {
         target: { value: "2026-07-01" },
       });
@@ -805,7 +819,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
             ruleCode: "RULE.CARDIOLOGY.HR",
             ruleType: "QUALITY",
             priority: 100,
-            suppressedBy: undefined,
+            suppressedBy: "RULE.QC.REVIEW",
             dedupeWindowSeconds: 0,
             triggers: [
               {

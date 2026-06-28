@@ -697,6 +697,11 @@ function ruleIdentityText(ruleCode: string | null | undefined, evidenceDetailsEn
   return evidenceText(ruleCode, evidenceDetailsEnabled, "规则资产已登记");
 }
 
+function suppressedRuleOptionLabel(rule: RuleDefinition, evidenceDetailsEnabled: boolean) {
+  const businessLabel = `${rule.name} · 优先级 ${rule.priority}`;
+  return evidenceDetailsEnabled ? `${businessLabel} · ${rule.ruleCode}` : businessLabel;
+}
+
 function versionEvidenceText(
   versionId: string | null | undefined,
   versionNo: number | null | undefined,
@@ -4917,14 +4922,16 @@ export default function RuleDefinitions() {
                   allowClear
                   disabled={Boolean(editingRuleId)}
                   filterOption={(input, option) =>
-                    String(option?.label ?? option?.value ?? "")
-                      .toLowerCase()
-                      .includes(input.toLowerCase())
+                    [option?.label, option?.value].some((candidate) =>
+                      String(candidate ?? "")
+                        .toLowerCase()
+                        .includes(input.toLowerCase()),
+                    )
                   }
                   placeholder="输入或选择高优先级规则身份"
                   options={(listData?.items ?? []).map((rule) => ({
                     value: rule.ruleCode,
-                    label: `${rule.ruleCode} · P${rule.priority} · ${rule.name}`,
+                    label: suppressedRuleOptionLabel(rule, evidenceDetailsEnabled),
                   }))}
                 />
               </Form.Item>
