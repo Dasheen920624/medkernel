@@ -84,6 +84,8 @@
 
 .contextRow,
 .brandStatus,
+.brandCluster,
+.evidenceToggle,
 .cardTitleLeft,
 .recommendationTitle,
 .auditLabel,
@@ -95,6 +97,16 @@
 
 .contextRow {
   flex-wrap: wrap;
+}
+
+.brandCluster {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.evidenceToggle {
+  color: var(--ant-color-text-secondary);
+  font-size: var(--ant-font-size-sm);
 }
 
 .contextLabel,
@@ -352,12 +364,14 @@
 @media (max-width: 48em) {
   .actions,
   .auditBar,
+  .brandCluster,
   .topBar {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .brandStatus {
+  .brandStatus,
+  .evidenceToggle {
     align-self: flex-start;
   }
 

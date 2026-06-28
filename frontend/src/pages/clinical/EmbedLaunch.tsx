@@ -12,6 +12,7 @@ import {
   Modal,
   Radio,
   Spin,
+  Switch,
   Tag,
 } from "antd";
 import {
@@ -49,6 +50,20 @@ const alternateActionReasons: Record<"LATER" | "IGNORE" | "CLOSE", string> = {
   CLOSE: "医师关闭本次建议",
 };
 
+const triggerPointLabels: Record<string, string> = {
+  ORDER_ENTRY: "医嘱录入",
+  CHART_REVIEW: "病历浏览",
+  DISCHARGE_REVIEW: "出院审核",
+  NURSING_REVIEW: "护理评估",
+};
+
+function triggerPointText(triggerPoint?: string | null, evidenceDetailsEnabled = false) {
+  if (evidenceDetailsEnabled) {
+    return triggerPoint || "未返回";
+  }
+  return triggerPointLabels[triggerPoint ?? ""] ?? "业务触发";
+}
+
 export default function EmbedLaunch() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") || "";
@@ -66,6 +81,7 @@ export default function EmbedLaunch() {
   const [customReason, setCustomReason] = useState("");
   const [submittedFeedback, setSubmittedFeedback] = useState(false);
   const [feedbackDelivery, setFeedbackDelivery] = useState<EmbedFeedbackResponse | null>(null);
+  const [evidenceDetailsEnabled, setEvidenceDetailsEnabled] = useState(false);
 
   const submitFeedbackMutation = useSubmitEmbedFeedback();
   const recommendationsEnabled = Boolean(launchContext?.active);
@@ -195,18 +211,36 @@ export default function EmbedLaunch() {
           <Badge status="processing" />
           <span className={styles.contextLabel}>当前就诊上下文</span>
           <Tag color="cyan" className={styles.contextTag}>
-            患者: {launchContext?.patientId}
+            {evidenceDetailsEnabled
+              ? `患者: ${launchContext?.patientId || "未返回"}`
+              : "患者已关联"}
           </Tag>
           <Tag color="blue" className={styles.contextTag}>
-            就诊: {launchContext?.encounterId}
+            {evidenceDetailsEnabled
+              ? `就诊: ${launchContext?.encounterId || "未返回"}`
+              : "就诊已关联"}
           </Tag>
           <Tag color="purple" className={styles.contextTag}>
-            触发点: {launchContext?.triggerPoint}
+            {`触发点: ${triggerPointText(
+              launchContext?.triggerPoint,
+              evidenceDetailsEnabled,
+            )}`}
           </Tag>
         </div>
-        <div className={styles.brandStatus}>
-          <HeartOutlined className={styles.heartIcon} />
-          <span>MedKernel 临床建议已连接</span>
+        <div className={styles.brandCluster}>
+          <div className={styles.brandStatus}>
+            <HeartOutlined className={styles.heartIcon} />
+            <span>MedKernel 临床建议已连接</span>
+          </div>
+          <div className={styles.evidenceToggle}>
+            <span>证据详情</span>
+            <Switch
+              aria-label="证据详情"
+              size="small"
+              checked={evidenceDetailsEnabled}
+              onChange={setEvidenceDetailsEnabled}
+            />
+          </div>
         </div>
       </div>
 
@@ -221,7 +255,11 @@ export default function EmbedLaunch() {
                 {actionLabels[selectedAction]}
               </Tag>
             </div>
-            <div className={styles.feedbackMeta}>建议卡片：{selectedCardId}</div>
+            <div className={styles.feedbackMeta}>
+              {`建议卡片：${
+                evidenceDetailsEnabled ? selectedCardId || "未返回" : "建议已记录"
+              }`}
+            </div>
             {selectedAction === "REJECT" && (
               <div className={styles.rejectReason}>
                 不采纳理由：{rejectReason === "OTHER" ? customReason : rejectReason}
@@ -365,9 +403,12 @@ export default function EmbedLaunch() {
 
       <div className={styles.auditBar}>
         <span className={styles.auditLabel}>
-          <AuditOutlined /> 嵌入式交互合规审计追踪号
+          <AuditOutlined />{" "}
+          {evidenceDetailsEnabled ? "嵌入式交互合规审计追踪号" : "嵌入式交互合规审计"}
         </span>
-        <span className={styles.auditTrace}>{launchContext?.traceId || "暂无追踪号"}</span>
+        <span className={styles.auditTrace}>
+          {evidenceDetailsEnabled ? launchContext?.traceId || "暂无追踪号" : "合规审计已留痕"}
+        </span>
       </div>
 
       <Modal
