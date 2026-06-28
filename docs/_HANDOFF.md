@@ -28,6 +28,8 @@
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新医学评测体验优化：`65f2d0d5`（`统一医学评测证据详情体验`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
+- 本地最新发布治理体验优化：`87df83c5`（`统一发布治理证据详情体验`）已完成本地验证，尚未同步到 134；
+  134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新临床待办与证据权限优化：`bbbbfc55`（`统一临床待办证据权限门禁`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新提醒推荐体验优化：`cd557ed9`（`统一提醒推荐证据详情体验`）已完成本地验证，尚未同步到 134；
@@ -116,6 +118,11 @@
   第二十三刀补齐医学评测页统一证据详情，医疗引擎运营员默认按模型服务类型、模型版本和中文医学能力选择当前交付文件评测，
   providerCode、capabilityCode 和 AntD 下拉 value 里的原始合同码不再默认出现在前台 DOM；打开证据详情后仍可追溯
   原始模型服务编码和能力合同码。医学评测说明同步纳入院外模型只发送脱敏交付内容、院内模型可使用受控上下文的安全边界。
+  第二十四刀补齐发布治理页统一证据详情，平台管理员、医疗引擎运营员、实施工程师、信息科长和院内上线责任人默认看到
+  规则/路径等业务内容、平台标准版本、机构生效版本、发布影响、在用依赖和回滚历史；assetIdentity、baselineReleaseId、
+  runtimeReleaseId、candidateVersionId、manifest hash 和影响资产编码只在证据详情中展开。证据详情权限入口只接当前权威
+  菜单键 `runtime-releases`，不继续扩散历史命名；发布平台标准版本、生成机构生效版本、发布影响评估和回滚 API 载荷保持
+  原始契约不变。
   后续仍需继续扫描关键临床/患者/质量/运营真实流程与真实全角色复演，不能把用户临时补充点当成唯一优化范围。
 
 ## 当前唯一权威
@@ -240,6 +247,15 @@
   后端所需的 providerCode、modelVersion 和 capabilityCode，打开证据详情后可追溯原始模型服务编码和能力合同码。本地验证通过
   `npm --prefix frontend test -- --run src/pages/knowledge-production/MedicalEvaluationPanel.test.tsx`、
   `npm --prefix frontend test -- --run src/pages/knowledge-production/MedicalEvaluationPanel.test.tsx src/pages/knowledge-production/ProviderSetupPanel.test.tsx src/pages/knowledge-production/KnowledgeProductionPage.test.tsx src/pages/knowledge-production/ProductionReadinessPanel.test.tsx src/shared/ui/PageExperienceShell.test.tsx`、
+  `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
+- 最新发布治理体验切片：
+  `87df83c5` 将发布治理页接入统一证据详情；默认面向平台管理员、医疗引擎运营员、实施工程师、信息科长和院内上线责任人
+  展示规则/路径等业务内容、平台标准版本、机构生效版本、发布影响、在用依赖和回滚历史，隐藏 assetIdentity、
+  baselineReleaseId、runtimeReleaseId、candidateVersionId、manifest hash 和影响资产编码；打开证据详情后仍可追溯完整
+  平台标准版本、机构生效版本、发布影响评估和回滚证据。证据详情权限入口只接当前权威菜单键 `runtime-releases`。
+  本地验证通过
+  `npm --prefix frontend test -- --run src/pages/tenant/ReleaseGovernance.test.tsx`、
+  `npm --prefix frontend test -- --run src/pages/tenant/ReleaseGovernance.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/PathwayTemplates.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx`、
   `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
 - 最新临床待办与权限门禁切片：
   `bbbbfc55` 将协同任务接入统一证据详情，默认展示待办风险、患者上下文和责任岗位，患者/就诊、来源、追踪和责任人编号
