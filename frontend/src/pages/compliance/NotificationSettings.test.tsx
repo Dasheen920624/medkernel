@@ -98,6 +98,8 @@ describe("NotificationSettings", () => {
     renderSettings();
 
     expect(screen.getByRole("heading", { name: "通知偏好" })).toBeInTheDocument();
+    expect(screen.getByText("当前使用个人通知偏好")).toBeInTheDocument();
+    expect(screen.queryByText(/版本 3/)).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "站内信偏好" })).toHaveAttribute(
       "aria-checked",
       "true",
@@ -106,7 +108,7 @@ describe("NotificationSettings", () => {
       "aria-checked",
       "false",
     );
-    expect(screen.getByRole("switch", { name: "Webhook 偏好" })).toHaveAttribute(
+    expect(screen.getByRole("switch", { name: "系统回调偏好" })).toHaveAttribute(
       "aria-checked",
       "true",
     );
@@ -121,9 +123,12 @@ describe("NotificationSettings", () => {
     expect(screen.getByRole("checkbox", { name: "安全与危急" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "安全与危急" })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "同步与接入" })).not.toBeChecked();
+    expect(screen.getByText("免打扰仍提醒级别")).toBeInTheDocument();
+    expect(screen.queryByText("免打扰绕过级别")).not.toBeInTheDocument();
     expect(screen.getByText(/未连接/)).toHaveTextContent(
-      "不声明短信、邮件、移动推送、Webhook 或院内消息已完成投递",
+      "不声明短信、邮件、移动推送、系统回调或院内消息已完成投递",
     );
+    expect(screen.queryByText(/Webhook/i)).not.toBeInTheDocument();
     expect(screen.queryByText("默认夜班医生静默")).not.toBeInTheDocument();
   });
 
@@ -132,7 +137,7 @@ describe("NotificationSettings", () => {
     renderSettings();
 
     await user.click(screen.getByRole("switch", { name: "邮件偏好" }));
-    await user.click(screen.getByRole("switch", { name: "Webhook 偏好" }));
+    await user.click(screen.getByRole("switch", { name: "系统回调偏好" }));
     await user.click(screen.getByRole("switch", { name: "院内消息偏好" }));
     await user.clear(screen.getByLabelText("免打扰开始时间"));
     await user.type(screen.getByLabelText("免打扰开始时间"), "21:30");
@@ -229,8 +234,10 @@ describe("NotificationSettings", () => {
     });
     renderSettings();
 
-    await user.click(screen.getByText("系统默认"));
-    await user.type(screen.getByLabelText("系统通知策略变更原因"), "统一院内通知策略");
+    await user.click(screen.getByText("服务机构默认"));
+    expect(screen.getByText("当前正在编辑服务机构默认策略")).toBeInTheDocument();
+    expect(screen.queryByText(/版本 7/)).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("服务机构通知策略变更原因"), "统一院内通知策略");
     await user.click(screen.getByRole("button", { name: "保存通知偏好" }));
 
     await waitFor(() => {
