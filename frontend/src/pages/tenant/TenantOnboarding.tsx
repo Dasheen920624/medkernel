@@ -822,15 +822,15 @@ function CustomerTenantImplementation({
                         label="医院名称"
                         rules={[{ required: true, message: "请输入医院名称" }]}
                       >
-                        <Input placeholder="输入系统左上角显示的医院名称" />
+                        <Input placeholder="输入服务机构展示名称" />
                       </Form.Item>
 
-                      <Form.Item name="logoUrl" label="Logo URL">
-                        <Input placeholder="粘贴院方授权的 HTTPS Logo 地址" />
+                      <Form.Item name="logoUrl" label="医院标识图片地址">
+                        <Input placeholder="粘贴院方授权的标识图片地址" />
                       </Form.Item>
 
                       <Form.Item name="themeColor" label="主题色">
-                        <Input placeholder="选择预设主题色或输入合法 CSS 变量" />
+                        <Input placeholder="选择预设主题色或输入品牌色值" />
                       </Form.Item>
 
                       <Form.Item label="预设主题色">
@@ -880,7 +880,7 @@ function CustomerTenantImplementation({
                           <img
                             src={watchLogoUrl}
                             className={styles.brandPreviewLogo}
-                            alt="医院 Logo"
+                            alt="医院标识"
                           />
                         ) : (
                           <div className={styles.brandPreviewLogoPlaceholder}>院</div>

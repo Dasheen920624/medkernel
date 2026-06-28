@@ -274,6 +274,10 @@ describe("TenantOnboarding", () => {
     renderPage(<TenantOnboarding />);
 
     fireEvent.click(screen.getByRole("tab", { name: /品牌信息/ }));
+    expect(screen.getByLabelText("医院标识图片地址")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Logo URL")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("粘贴院方授权的标识图片地址")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("选择预设主题色或输入品牌色值")).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "上线验收证据说明" })).toBeInTheDocument();
     expect(screen.queryByRole("switch", { name: "默认展开证据详情" })).not.toBeInTheDocument();
     expect(screen.getByText("业务视图")).toBeInTheDocument();
