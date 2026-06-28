@@ -40,6 +40,8 @@
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新质量问题整改体验优化：`9d58c0e5`（`统一质量问题整改证据详情体验`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
+- 本地最新医保审核体验优化：`fa73dae4`（`统一医保审核证据详情体验`）已完成本地验证，尚未同步到 134；
+  134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 当前目标：完成 MedKernel 全新项目上线级整体梳理与落地，统一平台权威版本与全链路能力，移除旧兼容和冗余设计，
   完善真实功能页面与统一迁移生成，完成代码、契约、前后端、文档、测试、构建核查，并在 134 清库重新部署完成
   全功能与全知识全流程演练。
@@ -70,8 +72,11 @@
   统一证据详情，默认展示评价指标已关联、第 N 版评价口径、对象/病历证据已关联、问题已登记、评价结果已关联、评估运行/证据已记录
   与整改任务业务状态；指标 code、病历源 ID、sourceRef、问题 code、indicatorId/resultId/runId、traceId、整改任务号/责任人 ID
   只在证据详情中展开。第十四刀补齐质量问题与整改页统一证据详情，默认展示高风险阈值已关联、质控问题来源、高风险质控事实仍未闭环、
-  来源事实已关联和证据已记录；阈值 code、来源编号、追踪号和包含来源 ID 的证据摘要只在证据详情中展开。后续仍需继续扫描关键临床/患者/
-  质量/运营真实流程与真实全角色复演，不能把用户临时补充点当成唯一优化范围。
+  来源事实已关联和证据已记录；阈值 code、来源编号、追踪号和包含来源 ID 的证据摘要只在证据详情中展开。第十五刀补齐医保审核页统一证据详情，
+  默认展示医保结算已关联、规则依据已关联、费用超阈值证据已记录、机构生效版本已匹配、
+  病案内涵质控/DRG/DIP/医保审核中文结论、评估运行已记录和审核证据已记录；结算事实号、规则编码/版本、问题 ID、评估运行 ID、
+  追踪号和包含结算号的证据摘要只在证据详情中展开。后续仍需继续扫描关键临床/患者/质量/运营真实流程与真实全角色复演，
+  不能把用户临时补充点当成唯一优化范围。
 
 ## 当前唯一权威
 
@@ -229,6 +234,13 @@
   `npm --prefix frontend test -- --run src/pages/quality/QcAlerts.test.tsx`、
   `npm --prefix frontend test -- --run src/pages/quality/QcAlerts.test.tsx src/pages/quality/QcDashboard.test.tsx src/pages/quality/QcEvalResults.test.tsx src/pages/quality/QcEvalSets.test.tsx src/pages/quality/InsuranceAudit.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx`、
   `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
+- 最新医保审核体验切片：
+  `fa73dae4` 将医保审核页接入统一证据详情；默认面向医保审核员、医生、质控和信息科展示业务化医保结算、规则依据、费用超阈值证据、
+  机构版本、病案内涵质控、DRG/DIP 入组和医保审核中文结论，隐藏结算事实号、规则编码/版本、问题 ID、评估运行 ID、追踪号和包含结算号的
+  证据摘要；打开证据详情后仍可追溯完整结算、规则、问题、评估运行和审核证据。本地验证通过
+  `npm --prefix frontend test -- --run src/pages/quality/InsuranceAudit.test.tsx`、
+  `npm --prefix frontend test -- --run src/pages/quality/InsuranceAudit.test.tsx src/pages/quality/QcAlerts.test.tsx src/pages/quality/QcDashboard.test.tsx src/pages/quality/QcEvalResults.test.tsx src/pages/quality/QcEvalSets.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx`、
+  `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
 - 本地关键验证：
   `npm run typecheck`、`npm test -- --run src/pages/clinical/Followup.test.tsx` 已在 `10f06bea` 前通过；
   该阶段只完成随访字段口径纠偏，`823a2c00` 后已进一步改为业务选项化表单。
@@ -281,11 +293,11 @@
 1. 进入真实前台全角色体验：平台管理员看系统接入与安全基线，医疗引擎运营员看知识生产和版本发布，临床使用者拆分医生、
    护士、药师、医技、质控、患者代理路径，审计员看来源、操作证据和敏感信息边界；信息科长、实施工程师、院长视角看部署、
    权限、全院指标和故障降级。
-2. 已完成沙盘、MPI、患者路径、消息通知、临床快照选择器、协同任务、CDSS 提醒推荐、随访协同、质量管理概览、质量问题来源、质量问题与整改、模型能力、模型服务配置、来源血缘、审计证据、安全基线和运行诊断默认视图/证据详情十四轮本地优化；
+2. 已完成沙盘、MPI、患者路径、消息通知、临床快照选择器、协同任务、CDSS 提醒推荐、随访协同、质量管理概览、质量问题来源、质量问题与整改、医保审核、模型能力、模型服务配置、来源血缘、审计证据、安全基线和运行诊断默认视图/证据详情十五轮本地优化；
    继续优先扫描关键临床/患者真实流程：
    功能分类、页面目标、空态/错态/权限态、流程完整性、操作复杂度、敏感信息处理、证据详情表达都要全局审计。
 3. 优先发现并修复真实产品问题，而不是只优化用户临时指出的点；修复后仍需本地验证、必要时重新构建并在 134 复验。
 4. 下一阶段仍需在 134 执行全角色、全知识、全流程复演；本轮只证明基础真实前台数据路线已跑通，`cd44d8ab`、
    `eee7b5ee`、`bbbbfc55`、`cd557ed9`、`7447b560`、`4e04fcc9`、`1abc4b6d`、`42b9fa1a` 与
-   `55f1121d`、`1372686b`、`39bc99d3`、`fed62037`、`43de0669`、`9d58c0e5` 尚未部署 134。
+   `55f1121d`、`1372686b`、`39bc99d3`、`fed62037`、`43de0669`、`9d58c0e5`、`fa73dae4` 尚未部署 134。
 5. 保持本地提交，不推送远程，不合并 `main`；不要提交未跟踪的 `.codex/config.toml`。
