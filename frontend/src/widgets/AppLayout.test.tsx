@@ -503,7 +503,8 @@ describe("AppLayout", () => {
     await screen.findByRole("menuitem", { name: /修改密码/ });
     expect(screen.getAllByText("chen.ming").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("临床医生").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("服务机构 t-1 / 医院 h-1 / 科室 d-1")).toBeInTheDocument();
+    expect(screen.getByText("当前服务机构 / 当前医院 / 当前科室")).toBeInTheDocument();
+    expect(screen.queryByText(/服务机构 t-1/)).toBeNull();
     expect(screen.getByRole("menuitem", { name: /修改密码/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /退出登录/ })).toBeInTheDocument();
   });

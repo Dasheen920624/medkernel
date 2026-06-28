@@ -73,17 +73,17 @@ function organizationSummary(profile: SecurityProfile | undefined) {
     return "组织范围未配置";
   }
   const parts = [
-    ["服务机构", scope.tenantId],
-    ["集团", scope.groupId],
-    ["医院", scope.hospitalId],
-    ["院区", scope.campusId],
-    ["服务点", scope.siteId],
-    ["科室", scope.departmentId],
-    ["病区", scope.wardId],
-    ["专病", scope.specialtyId],
+    ["当前服务机构", scope.tenantId],
+    ["当前集团", scope.groupId],
+    ["当前医院", scope.hospitalId],
+    ["当前院区", scope.campusId],
+    ["当前服务点", scope.siteId],
+    ["当前科室", scope.departmentId],
+    ["当前病区", scope.wardId],
+    ["当前专病", scope.specialtyId],
   ]
     .filter(([, value]) => Boolean(value))
-    .map(([label, value]) => `${label} ${value}`);
+    .map(([label]) => label);
   return parts.length > 0 ? parts.join(" / ") : "组织范围未配置";
 }
 

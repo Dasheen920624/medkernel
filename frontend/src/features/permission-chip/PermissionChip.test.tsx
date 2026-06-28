@@ -94,7 +94,8 @@ describe("PermissionChip", () => {
     expect(screen.getByText("访问脱敏数据")).toBeInTheDocument();
     expect(screen.getByText("访问正式环境")).toBeInTheDocument();
     expect(screen.getByText(/可用环境：正式环境 \/ 应急环境/)).toBeInTheDocument();
-    expect(screen.getByText(/科室 quality/)).toBeInTheDocument();
+    expect(screen.getByText(/数据范围：当前科室/)).toBeInTheDocument();
+    expect(screen.queryByText(/科室 quality/)).toBeNull();
   });
 
   it("distinguishes loaded profile without an assigned role from loading state", () => {
@@ -125,6 +126,7 @@ describe("PermissionChip", () => {
 
     fireEvent.click(screen.getByText("合规审计"));
 
-    expect(screen.getByText(/服务机构 tenant-a/)).toBeInTheDocument();
+    expect(screen.getByText(/数据范围：当前服务机构/)).toBeInTheDocument();
+    expect(screen.queryByText(/服务机构 tenant-a/)).toBeNull();
   });
 });
