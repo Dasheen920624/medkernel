@@ -39,6 +39,7 @@ const PAGE_SIZE = 20;
 
 interface AcquisitionSourceGovernancePanelProps {
   canWrite: boolean;
+  evidenceDetailsEnabled?: boolean;
 }
 
 type SourceDraftForm = Omit<
@@ -66,6 +67,22 @@ function formatDateTime(value?: string | null) {
     : date.toLocaleString("zh-CN", { hour12: false });
 }
 
+function sourceIdentityText(source: KnowledgeAcquisitionSource, evidenceDetailsEnabled: boolean) {
+  return evidenceDetailsEnabled ? source.sourceCode : "来源身份已登记";
+}
+
+function sourceEndpointText(source: KnowledgeAcquisitionSource, evidenceDetailsEnabled: boolean) {
+  return evidenceDetailsEnabled ? source.baseUrl : "入口地址已登记";
+}
+
+function maintenanceOperatorText(
+  source: KnowledgeAcquisitionSource,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (!source.updatedBy) return "未记录";
+  return evidenceDetailsEnabled ? source.updatedBy : "维护人已记录";
+}
+
 function toDraftForm(source: KnowledgeAcquisitionSource): SourceDraftForm {
   return {
     sourceCode: source.sourceCode,
@@ -85,6 +102,7 @@ function toDraftForm(source: KnowledgeAcquisitionSource): SourceDraftForm {
 
 export default function AcquisitionSourceGovernancePanel({
   canWrite,
+  evidenceDetailsEnabled = false,
 }: AcquisitionSourceGovernancePanelProps) {
   const { message } = AntdApp.useApp();
   const [page, setPage] = useState(1);
@@ -146,9 +164,8 @@ export default function AcquisitionSourceGovernancePanel({
       render: (_, source) => (
         <Space direction="vertical" size={0}>
           <Text strong>{source.title}</Text>
-          <Text type="secondary">
-            {source.sourceCode} · {source.publisher}
-          </Text>
+          <Text type="secondary">{source.publisher}</Text>
+          <Text type="secondary">{sourceIdentityText(source, evidenceDetailsEnabled)}</Text>
         </Space>
       ),
     },
@@ -160,7 +177,7 @@ export default function AcquisitionSourceGovernancePanel({
         <Space direction="vertical" size={0}>
           <Text>{source.domain}</Text>
           <Text type="secondary" ellipsis={{ tooltip: source.baseUrl }}>
-            {source.baseUrl}
+            {sourceEndpointText(source, evidenceDetailsEnabled)}
           </Text>
         </Space>
       ),
@@ -184,7 +201,7 @@ export default function AcquisitionSourceGovernancePanel({
       render: (_, source) =>
         source.updatedBy ? (
           <Text>
-            {source.updatedBy}
+            {maintenanceOperatorText(source, evidenceDetailsEnabled)}
             <br />
             <Text type="secondary">{formatDateTime(source.updatedAt)}</Text>
           </Text>
@@ -201,7 +218,7 @@ export default function AcquisitionSourceGovernancePanel({
             <Button
               type="link"
               icon={<EditOutlined />}
-              aria-label={`编辑草稿 ${source.sourceCode}`}
+              aria-label={`编辑来源草稿 ${source.title}`}
               onClick={() => openDraft(source)}
             >
               编辑
@@ -211,7 +228,7 @@ export default function AcquisitionSourceGovernancePanel({
             <Button
               type="link"
               icon={<CheckCircleOutlined />}
-              aria-label={`启用来源 ${source.sourceCode}`}
+              aria-label={`启用来源 ${source.title}`}
               onClick={() => setPendingAction({ type: "enable", source })}
             >
               启用
@@ -221,7 +238,7 @@ export default function AcquisitionSourceGovernancePanel({
             <Button
               type="link"
               danger
-              aria-label={`停用来源 ${source.sourceCode}`}
+              aria-label={`停用来源 ${source.title}`}
               onClick={() => setPendingAction({ type: "disable", source })}
             >
               停用
@@ -323,9 +340,9 @@ export default function AcquisitionSourceGovernancePanel({
         <Form form={form} layout="vertical" onFinish={(values) => void submitDraft(values)}>
           <Form.Item
             name="sourceCode"
-            label="来源编码"
+            label="稳定来源身份"
             rules={[
-              { required: true, message: "请输入来源编码" },
+              { required: true, message: "请输入稳定来源身份" },
               {
                 pattern: /^[A-Z0-9][A-Z0-9._-]{1,127}$/,
                 message: "仅允许大写字母、数字、点、下划线和连字符",
@@ -383,11 +400,16 @@ export default function AcquisitionSourceGovernancePanel({
         onOk={() => void confirmAction()}
         onCancel={() => setPendingAction(undefined)}
       >
-        <Text>
-          {pendingAction?.type === "enable"
-            ? `将启用 ${pendingAction.source.sourceCode}。系统会校验来源配置、许可与 robots 边界。`
-            : `将停用 ${pendingAction?.source.sourceCode ?? "该来源"} 及其自动调度，历史维护记录仍保留。`}
-        </Text>
+        <Space direction="vertical" size={0}>
+          <Text>
+            {pendingAction?.type === "enable"
+              ? `将启用「${pendingAction.source.title}」。系统会校验来源配置、许可与 robots 边界。`
+              : `将停用「${pendingAction?.source.title ?? "该来源"}」及其自动调度，历史维护记录仍保留。`}
+          </Text>
+          {pendingAction && evidenceDetailsEnabled ? (
+            <Text type="secondary">稳定来源身份：{pendingAction.source.sourceCode}</Text>
+          ) : null}
+        </Space>
       </Modal>
     </Card>
   );

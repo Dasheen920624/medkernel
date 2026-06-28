@@ -1880,7 +1880,10 @@ export default function KnowledgeGovernance({
   );
   const productionPipelinePartition = <PipelineBoundaryCard title="双形态生产分区" />;
   const productionAcquisitionGovernance = (
-    <AcquisitionSourceGovernancePanel canWrite={canWriteKnowledge} />
+    <AcquisitionSourceGovernancePanel
+      canWrite={canWriteKnowledge}
+      evidenceDetailsEnabled={evidenceDetailsEnabled}
+    />
   );
   const initializationBatchCard = <Card title="初始化发行批次">{initializationBatchContent}</Card>;
 

@@ -38,11 +38,14 @@ const source = {
   version: 0,
 };
 
-function renderPanel(canWrite = true) {
+function renderPanel(canWrite = true, evidenceDetailsEnabled = false) {
   return render(
     <ConfigProvider>
       <AntdApp>
-        <AcquisitionSourceGovernancePanel canWrite={canWrite} />
+        <AcquisitionSourceGovernancePanel
+          canWrite={canWrite}
+          evidenceDetailsEnabled={evidenceDetailsEnabled}
+        />
       </AntdApp>
     </ConfigProvider>,
   );
@@ -87,17 +90,36 @@ describe("AcquisitionSourceGovernancePanel", () => {
     });
   });
 
-  it("shows governed source evidence and performs an explicit enable confirmation", async () => {
+  it("uses business source wording by default and performs an explicit enable confirmation", async () => {
     renderPanel();
 
     expect(screen.getByText("国家卫生健康委指南来源")).toBeInTheDocument();
+    expect(screen.getByText("国家卫生健康委")).toBeInTheDocument();
+    expect(screen.getByText("来源身份已登记")).toBeInTheDocument();
+    expect(screen.getByText("入口地址已登记")).toBeInTheDocument();
+    expect(screen.getByText("维护人已记录")).toBeInTheDocument();
     expect(screen.getByText("已停用")).toBeInTheDocument();
-    expect(screen.getByText("operator")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "启用来源 NHC-GUIDELINE" }));
+    expect(screen.queryByText("NHC-GUIDELINE")).not.toBeInTheDocument();
+    expect(screen.queryByText("https://www.nhc.gov.cn/wjw/index.shtml")).not.toBeInTheDocument();
+    expect(screen.queryByText("operator")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /NHC-GUIDELINE/ })).not.toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: "启用来源 国家卫生健康委指南来源" }),
+    );
     expect(screen.getByText("确认启用来源？")).toBeInTheDocument();
+    expect(screen.getByText(/将启用「国家卫生健康委指南来源」/)).toBeInTheDocument();
+    expect(screen.queryByText(/NHC-GUIDELINE/)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "确认启用" }));
 
     await waitFor(() => expect(enable).toHaveBeenCalledWith("NHC-GUIDELINE"));
+  });
+
+  it("shows source identifiers and maintenance operator only in evidence details", () => {
+    renderPanel(true, true);
+
+    expect(screen.getByText("NHC-GUIDELINE")).toBeInTheDocument();
+    expect(screen.getByText("https://www.nhc.gov.cn/wjw/index.shtml")).toBeInTheDocument();
+    expect(screen.getByText("operator")).toBeInTheDocument();
   });
 
   it("opens a disabled draft form while keeping legal and robots decisions explicit", async () => {
@@ -106,7 +128,7 @@ describe("AcquisitionSourceGovernancePanel", () => {
     await userEvent.click(screen.getByRole("button", { name: "登记来源草稿" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("登记公域来源草稿")).toBeInTheDocument();
-    expect(screen.getByLabelText("来源编码")).toBeRequired();
+    expect(screen.getByLabelText("稳定来源身份")).toBeRequired();
     expect(screen.getByLabelText("许可裁决")).toHaveValue("");
     expect(screen.getByLabelText("robots 策略")).toHaveValue("");
   });
