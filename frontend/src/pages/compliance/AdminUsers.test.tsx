@@ -3,6 +3,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+
 const previewImport = vi.fn();
 const commitImport = vi.fn();
 const refetchPersonnel = vi.fn();
@@ -86,6 +88,7 @@ vi.mock("@/shared/api/hooks", () => ({
     data: {
       permissions: [{ code: "org.read" }, { code: "org.write" }],
       roles: [{ code: "platform-admin" }],
+      menuKeys: ["admin-users"],
     },
     isLoading: false,
     isError: false,
@@ -186,6 +189,8 @@ describe("人员与账号", () => {
     previewImport.mockReset();
     commitImport.mockReset();
     refetchPersonnel.mockReset();
+    useEvidenceDetailsStore.getState().setEnabled(false);
+    window.localStorage.clear();
     personnelQuery = {
       ...personnelQuery,
       isLoading: false,
@@ -200,11 +205,29 @@ describe("人员与账号", () => {
 
     expect(screen.getByRole("heading", { name: "人员与账号" })).toBeInTheDocument();
     expect(screen.getByText("王医生")).toBeInTheDocument();
+    expect(screen.getByText("人员档案已登记")).toBeInTheDocument();
     expect(screen.getByText("示范医院")).toBeInTheDocument();
     expect(screen.getByText("本机构员工")).toBeInTheDocument();
     expect(screen.getByText("待首次设置密码")).toBeInTheDocument();
+    expect(screen.getByText("登录账号已开通")).toBeInTheDocument();
     expect(screen.getByText("已绑定 1 个")).toBeInTheDocument();
+    expect(screen.queryByText("人员编号：EMP-001")).not.toBeInTheDocument();
+    expect(screen.queryByText("dr.wang")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /批量导入人员/ })).toBeInTheDocument();
+  });
+
+  it("仅在证据详情打开后展示人员编号和登录名", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.queryByText("人员编号：EMP-001")).not.toBeInTheDocument();
+    expect(screen.queryByText("dr.wang")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("人员编号：EMP-001")).toBeInTheDocument();
+    expect(screen.getByText("dr.wang")).toBeInTheDocument();
   });
 
   it("新增人员时组织范围来自组织树，不要求手填范围编码", async () => {
