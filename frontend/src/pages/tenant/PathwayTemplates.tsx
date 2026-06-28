@@ -448,6 +448,16 @@ function cleanText(value?: string | null) {
   return normalized || undefined;
 }
 
+function nodeTypeText(type?: PathwayNodeType | string | null) {
+  if (!type) return "未设置";
+  return nodeTypeOptions.find((option) => option.value === type)?.label ?? customerEnumLabel(type);
+}
+
+function edgeTypeText(type?: PathwayEdgeType | string | null) {
+  if (!type) return "未设置";
+  return edgeTypeOptions.find((option) => option.value === type)?.label ?? customerEnumLabel(type);
+}
+
 function parseConditionJson(value?: string) {
   const normalized = cleanText(value);
   if (!normalized) return undefined;
@@ -822,15 +832,20 @@ function validateRichNodeContracts(nodes: PathwayNodeDraft[], edges: PathwayEdge
   return undefined;
 }
 
-function richNodeConfigSummary(node: PathwayNode) {
+function richNodeConfigSummary(node: PathwayNode, evidenceDetailsEnabled = true) {
   const config = parseLooseJson(node.configJson);
   const orderSetRef = configText(config, "orderSetRef");
-  if (orderSetRef) return `医嘱套餐 ${orderSetRef}`;
+  if (orderSetRef) {
+    return evidenceDetailsEnabled ? `医嘱套餐 ${orderSetRef}` : "医嘱套餐已关联";
+  }
   const clock = configText(config, "clock");
-  if (clock) return `计时 ${clock}`;
+  if (clock) return evidenceDetailsEnabled ? `计时 ${clock}` : "计时规则已配置";
   const clockSla = configObject(config, "clockSla");
   if (clockSla) {
-    return `SLA ${clockSla.baselineEvent ?? "NODE_START"} / ${clockSla.targetMinutes ?? "-"} 分钟`;
+    const targetMinutes = clockSla.targetMinutes ?? "-";
+    return evidenceDetailsEnabled
+      ? `SLA ${clockSla.baselineEvent ?? "NODE_START"} / ${targetMinutes} 分钟`
+      : `SLA 已配置 / ${targetMinutes} 分钟`;
   }
   return "无";
 }
@@ -877,8 +892,13 @@ function outcomeScopeText(scope?: PathwayOutcomeScope | string | null) {
   return "模板";
 }
 
-function outcomeRefText(binding: Pick<PathwayOutcomeBinding, "scope" | "refCode">) {
-  return binding.scope === "TEMPLATE" ? "全模板" : binding.refCode || "-";
+function outcomeRefText(
+  binding: Pick<PathwayOutcomeBinding, "scope" | "refCode">,
+  evidenceDetailsEnabled = true,
+) {
+  if (binding.scope === "TEMPLATE") return "全模板";
+  if (evidenceDetailsEnabled) return binding.refCode || "-";
+  return binding.scope === "MILESTONE" ? "里程碑已关联" : "阶段已关联";
 }
 
 function outcomeBindingKey(
@@ -1535,6 +1555,70 @@ export default function PathwayTemplates() {
       })),
     [evaluationIndicatorsData?.items],
   );
+  const detailNodeByCode = useMemo(
+    () => new Map((detailData?.nodes ?? []).map((node) => [node.nodeCode, node])),
+    [detailData?.nodes],
+  );
+  const detailNodeIndexByCode = useMemo(
+    () => new Map((detailData?.nodes ?? []).map((node, index) => [node.nodeCode, index])),
+    [detailData?.nodes],
+  );
+  const detailMilestoneByCode = useMemo(
+    () =>
+      new Map((detailData?.milestones ?? []).map((milestone) => [milestone.milestoneCode, milestone])),
+    [detailData?.milestones],
+  );
+  const outcomeIndicatorByCode = useMemo(
+    () =>
+      new Map(
+        (evaluationIndicatorsData?.items ?? []).map((indicator: EvaluationIndicator) => [
+          indicator.indicatorCode,
+          indicator.name,
+        ]),
+      ),
+    [evaluationIndicatorsData?.items],
+  );
+  const detailNodeIdentityText = (nodeCode: string, rowIndex: number) =>
+    nodeEvidenceText(nodeCode, rowIndex, evidenceDetailsEnabled);
+  const detailEdgeIdentityText = (edgeCode: string, rowIndex: number) =>
+    evidenceDetailsEnabled ? edgeCode : `第 ${rowIndex + 1} 条路径流转`;
+  const detailNodeReferenceText = (nodeCode?: string | null, fallbackIndex?: number) => {
+    if (evidenceDetailsEnabled) return nodeCode || "未返回";
+    const node = nodeCode ? detailNodeByCode.get(nodeCode) : undefined;
+    const nodeName = cleanText(node?.name);
+    if (nodeName) return nodeName;
+    const nodeIndex = nodeCode ? detailNodeIndexByCode.get(nodeCode) : undefined;
+    if (nodeIndex !== undefined) return nodeEvidenceText(nodeCode ?? "", nodeIndex, false);
+    if (fallbackIndex !== undefined) return nodeEvidenceText(nodeCode ?? "", fallbackIndex, false);
+    return "路径节点已关联";
+  };
+  const detailMilestoneReferenceText = (milestoneCode?: string | null) => {
+    const normalizedCode = cleanText(milestoneCode);
+    if (!normalizedCode) return "未绑定";
+    if (evidenceDetailsEnabled) return normalizedCode;
+    const milestone = detailMilestoneByCode.get(normalizedCode);
+    return milestone?.name ? `里程碑：${milestone.name}` : "里程碑已关联";
+  };
+  const detailMetricReferenceText = (metricCode?: string | null) => {
+    if (evidenceDetailsEnabled) return metricCode || "未返回";
+    return metricCode ? "时钟指标已绑定" : "未绑定";
+  };
+  const detailEdgeConditionText = (condition?: string | null) => {
+    const normalized = cleanText(condition);
+    if (evidenceDetailsEnabled) return normalized ?? "默认流转";
+    return normalized ? "流转条件已配置" : "默认流转";
+  };
+  const detailOutcomeIndicatorText = (indicatorCode?: string | null) => {
+    if (evidenceDetailsEnabled) return indicatorCode || "未返回";
+    const indicatorName = indicatorCode ? outcomeIndicatorByCode.get(indicatorCode) : undefined;
+    return indicatorName ?? (indicatorCode ? "结局指标已绑定" : "未绑定");
+  };
+  const detailTrajectoryText = (trajectory: string[] = []) =>
+    evidenceDetailsEnabled
+      ? trajectory.join(" → ")
+      : trajectory
+          .map((nodeCode, index) => detailNodeReferenceText(nodeCode, index))
+          .join(" → ");
   const { data: publishedRulesData, isLoading: publishedRulesLoading } = useRuleDefinitions(
     {
       status: "PUBLISHED",
@@ -2092,20 +2176,22 @@ export default function PathwayTemplates() {
 
   const nodeColumns: TableProps<PathwayNode>["columns"] = [
     {
-      title: "节点身份",
+      title: evidenceDetailsEnabled ? "节点身份" : "路径节点",
       dataIndex: "nodeCode",
-      render: (code: string) => <Tag color="blue">{code}</Tag>,
+      render: (code: string, _node, index) => (
+        <Tag color="blue">{detailNodeIdentityText(code, index)}</Tag>
+      ),
     },
     { title: "名称", dataIndex: "name", className: styles.textStrong },
     {
       title: "节点类型",
       dataIndex: "nodeType",
-      render: (type: PathwayNodeType) => <Tag color="purple">{type}</Tag>,
+      render: (type: PathwayNodeType) => <Tag color="purple">{nodeTypeText(type)}</Tag>,
     },
     {
       title: "里程碑",
       dataIndex: "milestoneCode",
-      render: (code?: string) => (code ? <Tag color="geekblue">{code}</Tag> : "未绑定"),
+      render: (code?: string) => <Tag color="geekblue">{detailMilestoneReferenceText(code)}</Tag>,
     },
     {
       title: "时窗",
@@ -2115,7 +2201,7 @@ export default function PathwayTemplates() {
     {
       title: "配置引用",
       key: "config",
-      render: (_value, node) => richNodeConfigSummary(node),
+      render: (_value, node) => richNodeConfigSummary(node, evidenceDetailsEnabled),
     },
     {
       title: "RACI",
@@ -2160,35 +2246,49 @@ export default function PathwayTemplates() {
   ];
 
   const edgeColumns: TableProps<PathwayEdge>["columns"] = [
-    { title: "流转身份", dataIndex: "edgeCode" },
+    {
+      title: evidenceDetailsEnabled ? "流转身份" : "路径流转",
+      dataIndex: "edgeCode",
+      render: (code: string, _edge, index) => detailEdgeIdentityText(code, index),
+    },
     {
       title: "源节点",
       dataIndex: "fromNodeCode",
-      render: (code: string) => <Tag color="orange">{code}</Tag>,
+      render: (code: string) => <Tag color="orange">{detailNodeReferenceText(code)}</Tag>,
     },
     {
       title: "目标节点",
       dataIndex: "toNodeCode",
-      render: (code: string) => <Tag color="green">{code}</Tag>,
+      render: (code: string) => <Tag color="green">{detailNodeReferenceText(code)}</Tag>,
     },
     {
       title: "流转类型",
       dataIndex: "edgeType",
-      render: (type: PathwayEdgeType) => <Tag color="cyan">{type}</Tag>,
+      render: (type: PathwayEdgeType) => <Tag color="cyan">{edgeTypeText(type)}</Tag>,
     },
     {
       title: "流转条件配置",
       dataIndex: "conditionJson",
       render: (condition?: string) => (
-        <span className={styles.codeText}>{cleanText(condition) ?? "默认流转"}</span>
+        <span className={evidenceDetailsEnabled ? styles.codeText : undefined}>
+          {detailEdgeConditionText(condition)}
+        </span>
       ),
     },
     { title: "优先级", dataIndex: "priority" },
   ];
 
   const metricColumns: TableProps<SpecialtyMetricBinding>["columns"] = [
-    { title: "节点身份", dataIndex: "nodeCode" },
-    { title: "指标身份", dataIndex: "metricCode" },
+    {
+      title: evidenceDetailsEnabled ? "节点身份" : "路径节点",
+      dataIndex: "nodeCode",
+      render: (code: string) => detailNodeReferenceText(code),
+    },
+    {
+      title: evidenceDetailsEnabled ? "指标身份" : "时钟指标",
+      dataIndex: "metricCode",
+      render: (code: string) => detailMetricReferenceText(code),
+    },
   ];
 
   const outcomeColumns: TableProps<PathwayOutcomeBinding>["columns"] = [
@@ -2200,9 +2300,13 @@ export default function PathwayTemplates() {
     {
       title: "引用对象",
       key: "refCode",
-      render: (_value, binding) => outcomeRefText(binding),
+      render: (_value, binding) => outcomeRefText(binding, evidenceDetailsEnabled),
     },
-    { title: "指标身份", dataIndex: "indicatorCode" },
+    {
+      title: evidenceDetailsEnabled ? "指标身份" : "结局指标",
+      dataIndex: "indicatorCode",
+      render: (code: string) => detailOutcomeIndicatorText(code),
+    },
   ];
 
   const renderPreviewRunEvidence = (evidence: AuthoringPreviewRunEvidence[]) => (
@@ -3581,6 +3685,7 @@ export default function PathwayTemplates() {
                   edgeType: edge.edgeType,
                   priority: edge.priority,
                 }))}
+                evidenceDetailsEnabled={evidenceDetailsEnabled}
               />
               <Table
                 title={() => "阶段与天序里程碑"}
@@ -3607,24 +3712,25 @@ export default function PathwayTemplates() {
                 columns={edgeColumns}
                 className="medkernel-table"
               />
-              {detailData.edges.map((edge) => {
-                const guard = parseLooseJson(edge.conditionJson);
-                if (!guard || typeof guard !== "object" || Array.isArray(guard)) {
-                  return null;
-                }
-                return (
-                  <AuthoringReadablePreview
-                    key={`edge-preview-${edge.edgeId}`}
-                    subject="PATHWAY_GUARD"
-                    dsl={{
-                      guard,
-                      edgeCode: edge.edgeCode,
-                      fromNodeCode: edge.fromNodeCode,
-                      toNodeCode: edge.toNodeCode,
-                    }}
-                  />
-                );
-              })}
+              {evidenceDetailsEnabled &&
+                detailData.edges.map((edge) => {
+                  const guard = parseLooseJson(edge.conditionJson);
+                  if (!guard || typeof guard !== "object" || Array.isArray(guard)) {
+                    return null;
+                  }
+                  return (
+                    <AuthoringReadablePreview
+                      key={`edge-preview-${edge.edgeId}`}
+                      subject="PATHWAY_GUARD"
+                      dsl={{
+                        guard,
+                        edgeCode: edge.edgeCode,
+                        fromNodeCode: edge.fromNodeCode,
+                        toNodeCode: edge.toNodeCode,
+                      }}
+                    />
+                  );
+                })}
               <Table
                 dataSource={detailData.metricBindings}
                 rowKey="bindingId"
@@ -3778,7 +3884,7 @@ export default function PathwayTemplates() {
                             <Select value={selectedStartNode} onChange={setSimulateStartNode}>
                               {detailExecutableNodes.map((node) => (
                                 <Option key={node.nodeCode} value={node.nodeCode}>
-                                  {node.name} ({node.nodeCode})
+                                  {evidenceDetailsEnabled ? `${node.name} (${node.nodeCode})` : node.name}
                                 </Option>
                               ))}
                             </Select>
@@ -3904,7 +4010,7 @@ export default function PathwayTemplates() {
                               {
                                 title: "轨迹",
                                 dataIndex: "nodeTrajectory",
-                                render: (trajectory: string[]) => trajectory.join(" → "),
+                                render: (trajectory: string[]) => detailTrajectoryText(trajectory),
                               },
                               {
                                 title: "最终状态",

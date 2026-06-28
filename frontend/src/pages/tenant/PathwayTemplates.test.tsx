@@ -753,6 +753,87 @@ describe("PathwayTemplates 上线路径维护契约", () => {
   );
 
   it(
+    "路径详情节点画布与回放轨迹默认使用业务名称，证据详情打开后才展示节点和流转身份",
+    async () => {
+      apiMocks.snapshotsData = {
+        items: [
+          {
+            snapshotId: "ctx-path-draft-001",
+            patientId: "P-001",
+            encounterId: "E-001",
+            status: "ACTIVE",
+            qualityStatus: "COMPLETE",
+            createdAt: "2026-06-02T08:00:00Z",
+          },
+        ],
+        total: 1,
+      };
+      apiMocks.snapshotDetailData = {
+        snapshotId: "ctx-path-draft-001",
+        status: "ACTIVE",
+        qualityStatus: "COMPLETE",
+        missingFields: [],
+        mappingStatus: {},
+        resources: {
+          patient: { patientId: "P-001" },
+          observations: [{ code: "OBS.TEST", valueNumeric: 7.1 }],
+        },
+        createdAt: "2026-06-02T08:00:00Z",
+        traceId: "trace-path-draft",
+      };
+      apiMocks.simulatePathway.mockResolvedValue({
+        templateId: "pt-path-published",
+        snapshotId: "ctx-path-draft-001",
+        nodeTrajectory: ["ASSESS", "FOLLOWUP"],
+        finalStatus: "NODE_EXECUTING",
+        contextQualityStatus: "COMPLETE",
+        simulationMode: "SINGLE_SNAPSHOT",
+        replaySteps: [
+          {
+            snapshotId: "ctx-path-draft-001",
+            nodeTrajectory: ["ASSESS", "FOLLOWUP"],
+            finalStatus: "NODE_EXECUTING",
+            contextQualityStatus: "COMPLETE",
+          },
+        ],
+        traceId: "trace-path-sim",
+      });
+
+      const user = await openDetailDrawer(createTemplateDetail(publishedTemplate, "PUBLISHED"));
+      await user.click(screen.getByRole("tab", { name: /节点画布/ }));
+
+      expect(screen.getAllByText("入径评估").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("出径随访").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("第 1 个路径节点").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("第 1 条路径流转").length).toBeGreaterThan(0);
+      expect(screen.queryByText("ASSESS")).not.toBeInTheDocument();
+      expect(screen.queryByText("FOLLOWUP")).not.toBeInTheDocument();
+      expect(screen.queryByText("EDGE.ASSESS.FOLLOWUP")).not.toBeInTheDocument();
+      expect(screen.queryByText("ASSESSMENT")).not.toBeInTheDocument();
+      expect(screen.queryByText("CONDITION")).not.toBeInTheDocument();
+      expect(screen.queryByText("PATH.TIME.ASSESS")).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("tab", { name: /真实快照试运行/ }));
+      await user.type(screen.getByLabelText("患者信息"), "P-001");
+      await user.type(screen.getByLabelText("就诊信息"), "E-001");
+      await user.click(screen.getByRole("button", { name: /读取真实快照/ }));
+      await user.click(await screen.findByRole("button", { name: /第 1 个临床快照/ }));
+      await user.click(screen.getByRole("button", { name: /使用该快照试运行/ }));
+
+      expect(await screen.findByText("入径评估 → 出径随访")).toBeInTheDocument();
+      expect(screen.getAllByText("第 1 个路径节点").length).toBeGreaterThan(0);
+      expect(screen.queryByText("ASSESS → FOLLOWUP")).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("switch", { name: "证据详情" }));
+      expect((await screen.findAllByText("ASSESS")).length).toBeGreaterThan(0);
+      expect(screen.getAllByText("FOLLOWUP").length).toBeGreaterThan(0);
+      expect(screen.getByText("ASSESS → FOLLOWUP")).toBeInTheDocument();
+      expect(screen.getByText("EDGE.ASSESS.FOLLOWUP")).toBeInTheDocument();
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "字段目录不可用时阻断路径条件同步到受控配置",
     async () => {
       apiMocks.contextFieldCatalogError = true;

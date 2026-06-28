@@ -39,6 +39,7 @@ export type PathwayGraphEdge = {
 type PathwayNodeData = PathwayGraphNode & {
   nodeIndex: number;
   editable: boolean;
+  evidenceDetailsEnabled: boolean;
   onDelete?: (nodeIndex: number, nodeCode: string) => void;
   onNudge?: (nodeIndex: number, nodeCode: string, delta: PathwayGraphPosition) => void;
 };
@@ -58,9 +59,43 @@ type PathwayGraphEditorProps = {
   onConnectNodes?: (sourceNodeCode: string, targetNodeCode: string) => void;
   onDeleteNode?: (nodeIndex: number, nodeCode: string) => void;
   onDeleteEdge?: (edgeCode: string) => void;
+  evidenceDetailsEnabled?: boolean;
 };
 
 const KEYBOARD_NUDGE = 16;
+
+const GRAPH_NODE_TYPE_TEXT: Partial<Record<PathwayNodeType, string>> = {
+  SCREENING: "筛查",
+  ASSESSMENT: "评估",
+  EXAM: "检查",
+  LAB: "检验",
+  MEDICATION: "用药",
+  SURGERY: "手术",
+  NURSING: "护理",
+  REHAB: "康复",
+  DISCHARGE: "出院",
+  FOLLOWUP: "随访",
+  QUALITY: "质控",
+  DECISION: "决策分支",
+  PARALLEL: "并行或汇合",
+  WAIT_TIMER: "等待计时",
+  MANUAL_GATE: "人工确认节点",
+  ORDER_SET: "医嘱套餐",
+};
+
+function graphNodeIdentityText(data: PathwayNodeData) {
+  if (data.evidenceDetailsEnabled) return data.nodeCode || "未编码";
+  return `节点 ${data.nodeIndex + 1}`;
+}
+
+function graphNodeTypeText(type: PathwayNodeType) {
+  return GRAPH_NODE_TYPE_TEXT[type] ?? type;
+}
+
+function graphNodeAriaLabel(data: PathwayNodeData) {
+  if (data.evidenceDetailsEnabled) return `路径节点 ${data.nodeCode}`;
+  return `路径节点 ${data.nodeIndex + 1}：${data.name || "未命名节点"}`;
+}
 
 function PathwayNodeCard({ data, selected }: NodeProps<PathwayFlowNode>) {
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -87,12 +122,12 @@ function PathwayNodeCard({ data, selected }: NodeProps<PathwayFlowNode>) {
     <div
       className={`${styles.graphNode} ${selected ? styles.graphNodeSelected : ""}`}
       tabIndex={0}
-      aria-label={`路径节点 ${data.nodeCode}`}
+      aria-label={graphNodeAriaLabel(data)}
       onKeyDown={handleKeyDown}
     >
       <Handle type="target" position={Position.Left} isConnectable={data.editable} />
       <div className={styles.graphNodeHeader}>
-        <Tag color="blue">{data.nodeCode || "未编码"}</Tag>
+        <Tag color="blue">{graphNodeIdentityText(data)}</Tag>
         <div className={styles.graphNodeActions}>
           {data.terminal && <Tag color="green">终止</Tag>}
           {data.editable && (
@@ -111,7 +146,7 @@ function PathwayNodeCard({ data, selected }: NodeProps<PathwayFlowNode>) {
         </div>
       </div>
       <div className={styles.graphNodeName}>{data.name || "未命名节点"}</div>
-      <div className={styles.graphNodeType}>{data.nodeType}</div>
+      <div className={styles.graphNodeType}>{graphNodeTypeText(data.nodeType)}</div>
       <Handle type="source" position={Position.Right} isConnectable={data.editable} />
     </div>
   );
@@ -129,6 +164,7 @@ function PathwayGraphEditorCanvas({
   onConnectNodes,
   onDeleteNode,
   onDeleteEdge,
+  evidenceDetailsEnabled = true,
 }: PathwayGraphEditorProps) {
   const handleDeleteNode = useCallback(
     (nodeIndex: number, nodeCode: string) => {
@@ -147,36 +183,45 @@ function PathwayGraphEditorCanvas({
           ...node,
           nodeIndex: index,
           editable,
+          evidenceDetailsEnabled,
         },
       })),
-    [editable, nodes],
+    [editable, evidenceDetailsEnabled, nodes],
   );
 
   const initialEdges = useMemo<PathwayFlowEdge[]>(() => {
     const nodeIdByCode = new Map<string, string>();
+    const nodeNameByCode = new Map<string, string>();
     initialNodes.forEach((node) => {
       if (!nodeIdByCode.has(node.data.nodeCode)) {
         nodeIdByCode.set(node.data.nodeCode, node.id);
+      }
+      if (!nodeNameByCode.has(node.data.nodeCode)) {
+        nodeNameByCode.set(node.data.nodeCode, node.data.name || `节点 ${node.data.nodeIndex + 1}`);
       }
     });
     return edges.flatMap((edge, index) => {
       const source = nodeIdByCode.get(edge.fromNodeCode);
       const target = nodeIdByCode.get(edge.toNodeCode);
       if (!source || !target) return [];
+      const sourceLabel = nodeNameByCode.get(edge.fromNodeCode) ?? "源节点";
+      const targetLabel = nodeNameByCode.get(edge.toNodeCode) ?? "目标节点";
       return [
         {
           id: `${edge.edgeCode || "EDGE"}::${index}`,
           source,
           target,
-          label: edge.edgeCode,
-          ariaLabel: `流转边 ${edge.edgeCode}：${edge.fromNodeCode} 到 ${edge.toNodeCode}`,
+          label: evidenceDetailsEnabled ? edge.edgeCode : `流转 ${index + 1}`,
+          ariaLabel: evidenceDetailsEnabled
+            ? `流转边 ${edge.edgeCode}：${edge.fromNodeCode} 到 ${edge.toNodeCode}`
+            : `路径流转 ${index + 1}：${sourceLabel} 到 ${targetLabel}`,
           markerEnd: { type: MarkerType.ArrowClosed },
           className: styles.graphEdge,
           data: { edgeCode: edge.edgeCode },
         },
       ];
     });
-  }, [edges, initialNodes]);
+  }, [edges, evidenceDetailsEnabled, initialNodes]);
 
   const nodeCodeByFlowId = useMemo(
     () => new Map(initialNodes.map((node) => [node.id, node.data.nodeCode])),
