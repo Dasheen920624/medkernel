@@ -35,6 +35,7 @@ import {
   useGrayEvaluationIndicator,
   useOrgUnits,
   usePublishEvaluationIndicator,
+  useSecurityProfile,
   useSubmitEvaluationIndicator,
   type EvaluationIndicator,
   type EvaluationIndicatorStatus,
@@ -54,6 +55,9 @@ import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
 import { StepFlow } from "@/shared/ui/StepFlow";
 import type { StepKey } from "@/shared/ui/StepFlow.contract";
 import ConditionTreeEditor from "@/shared/ui/condition/ConditionTreeEditor";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 
 import styles from "./Quality.module.css";
 
@@ -172,6 +176,10 @@ function formatVersion(indicator: EvaluationIndicator) {
 
 export default function QcEvalSets() {
   const { message } = App.useApp();
+  const security = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const canViewEvidenceDetails = canUseEvidenceDetails(security.data);
+  const evidenceDetailsEnabled = canViewEvidenceDetails && globalEvidenceDetails;
   const [form] = Form.useForm<IndicatorFormValues>();
   const [departmentSearch, setDepartmentSearch] = useState("");
   const departmentKeyword = departmentSearch.trim();
@@ -253,10 +261,12 @@ export default function QcEvalSets() {
 
   const columns: ColumnsType<EvaluationIndicator> = [
     {
-      title: "指标编码",
+      title: "指标",
       dataIndex: "indicatorCode",
       key: "indicatorCode",
-      render: (value: string) => <Text strong>{value}</Text>,
+      render: (value: string) => (
+        <Text strong>{evidenceText(value, evidenceDetailsEnabled, "指标已登记")}</Text>
+      ),
     },
     {
       title: "指标名称",
@@ -286,10 +296,14 @@ export default function QcEvalSets() {
       render: (value: EvaluationIndicatorStatus) => statusTag(value),
     },
     {
-      title: "追踪号",
+      title: "证据",
       dataIndex: "traceId",
       key: "traceId",
-      render: (value?: string) => <Text type="secondary">{value ?? "N/A"}</Text>,
+      render: (value?: string) => (
+        <Text type="secondary">
+          {evidenceText(value, evidenceDetailsEnabled, "指标证据已记录")}
+        </Text>
+      ),
     },
     {
       title: "操作",
@@ -414,7 +428,9 @@ export default function QcEvalSets() {
       select_template: <Text type="secondary">当前查询返回 {total} 个真实指标版本。</Text>,
       auto_validate: visibleIndicator ? (
         <Descriptions size="small" column={1}>
-          <Descriptions.Item label="指标">{visibleIndicator.indicatorCode}</Descriptions.Item>
+          <Descriptions.Item label="指标">
+            {evidenceText(visibleIndicator.indicatorCode, evidenceDetailsEnabled, "指标已登记")}
+          </Descriptions.Item>
           <Descriptions.Item label="分母条件">
             {parseDefinitionTree(visibleIndicator.denominatorDefinition)
               ? "条件树可解析"
@@ -452,9 +468,13 @@ export default function QcEvalSets() {
       ) : (
         <Text type="secondary">暂无生效版本。</Text>
       ),
-      evidence_rollback: <Text type="secondary">{visibleIndicator?.traceId ?? "暂无追踪号"}</Text>,
+      evidence_rollback: (
+        <Text type="secondary">
+          {evidenceText(visibleIndicator?.traceId, evidenceDetailsEnabled, "指标证据已记录")}
+        </Text>
+      ),
     }),
-    [total, visibleIndicator],
+    [evidenceDetailsEnabled, total, visibleIndicator],
   );
 
   return (
@@ -473,7 +493,8 @@ export default function QcEvalSets() {
           </Button>
         }
         extras={
-          <>
+          <Space wrap>
+            {canViewEvidenceDetails && <EvidenceDetailsToggle securityProfile={security.data} />}
             <Button
               aria-label="仿真评估"
               icon={<PlayCircleOutlined />}
@@ -491,7 +512,7 @@ export default function QcEvalSets() {
             >
               刷新
             </Button>
-          </>
+          </Space>
         }
         state={pageState}
         stateProps={{
@@ -528,7 +549,7 @@ export default function QcEvalSets() {
           <Space wrap>
             <Input
               aria-label="指标编码筛选"
-              placeholder="指标编码"
+              placeholder="按指标名称或编码检索"
               value={indicatorCode}
               onChange={(event) => setIndicatorCode(event.target.value)}
             />
@@ -692,7 +713,13 @@ export default function QcEvalSets() {
               <Space>
                 <BranchesOutlined />
                 {statusTag(selectedIndicator.status)}
-                <Text strong>{selectedIndicator.indicatorCode}</Text>
+                <Text strong>
+                  {evidenceText(
+                    selectedIndicator.indicatorCode,
+                    evidenceDetailsEnabled,
+                    "指标已登记",
+                  )}
+                </Text>
               </Space>
               <Space wrap>
                 {selectedIndicator.status === "DRAFT" && (
@@ -738,6 +765,13 @@ export default function QcEvalSets() {
               </Space>
             </Space>
             <Descriptions bordered column={1}>
+              <Descriptions.Item label="指标证据">
+                {evidenceText(
+                  selectedIndicator.indicatorId,
+                  evidenceDetailsEnabled,
+                  "指标已登记",
+                )}
+              </Descriptions.Item>
               <Descriptions.Item label="指标名称">{selectedIndicator.name}</Descriptions.Item>
               <Descriptions.Item label="版本">{formatVersion(selectedIndicator)}</Descriptions.Item>
               <Descriptions.Item label="评估主体">
@@ -751,8 +785,12 @@ export default function QcEvalSets() {
                 {selectedIndicator.responsibleDepartmentId}
               </Descriptions.Item>
               <Descriptions.Item label="来源依据">{selectedIndicator.sourceRef}</Descriptions.Item>
-              <Descriptions.Item label="追踪号">
-                {selectedIndicator.traceId ?? "N/A"}
+              <Descriptions.Item label="证据">
+                {evidenceText(
+                  selectedIndicator.traceId,
+                  evidenceDetailsEnabled,
+                  "指标证据已记录",
+                )}
               </Descriptions.Item>
             </Descriptions>
             <StepFlow currentStep={stepForIndicator(selectedIndicator)} panelByStep={stepPanels} />
@@ -802,20 +840,22 @@ export default function QcEvalSets() {
       >
         <Space direction="vertical" size="large" className={styles.fullWidth}>
           <div className={styles.formGrid}>
-            <Form.Item label="患者 ID" htmlFor="eval-snapshot-patient">
+            <Form.Item label="患者信息" htmlFor="eval-snapshot-patient">
               <Input
                 id="eval-snapshot-patient"
                 value={snapshotPatientId}
+                placeholder="输入患者主索引或院内登记号检索临床快照"
                 onChange={(event) => {
                   setSnapshotPatientId(event.target.value);
                   setSimulationSnapshotId("");
                 }}
               />
             </Form.Item>
-            <Form.Item label="就诊 ID" htmlFor="eval-snapshot-encounter">
+            <Form.Item label="就诊信息" htmlFor="eval-snapshot-encounter">
               <Input
                 id="eval-snapshot-encounter"
                 value={snapshotEncounterId}
+                placeholder="可按住院号、门诊号或就诊标识检索"
                 onChange={(event) => {
                   setSnapshotEncounterId(event.target.value);
                   setSimulationSnapshotId("");
@@ -852,20 +892,43 @@ export default function QcEvalSets() {
 
           {simulationResult && (
             <Descriptions bordered column={1}>
-              <Descriptions.Item label="运行 ID">{simulationResult.runId}</Descriptions.Item>
+              <Descriptions.Item label="评估运行">
+                {evidenceText(
+                  simulationResult.runId,
+                  evidenceDetailsEnabled,
+                  "评估运行已记录",
+                )}
+              </Descriptions.Item>
               <Descriptions.Item label="运行状态">
                 {customerEnumLabel(simulationResult.status)}
               </Descriptions.Item>
               <Descriptions.Item label="结果数">{simulationResult.resultCount}</Descriptions.Item>
               <Descriptions.Item label="缺陷数">{simulationResult.findingCount}</Descriptions.Item>
               <Descriptions.Item label="整改任务">{simulationResult.taskCount}</Descriptions.Item>
-              <Descriptions.Item label="追踪号">{simulationResult.traceId}</Descriptions.Item>
+              <Descriptions.Item label="证据">
+                {evidenceText(
+                  simulationResult.traceId,
+                  evidenceDetailsEnabled,
+                  "仿真证据已记录",
+                )}
+              </Descriptions.Item>
             </Descriptions>
           )}
         </Space>
       </Drawer>
     </>
   );
+}
+
+function evidenceText(
+  value: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  businessText: string,
+) {
+  if (evidenceDetailsEnabled) {
+    return value || "--";
+  }
+  return businessText;
 }
 
 function renderDefinitionCard(title: string, definition?: string) {

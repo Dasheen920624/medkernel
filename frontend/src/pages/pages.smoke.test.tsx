@@ -338,8 +338,9 @@ describe("page smoke coverage", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "仿真评估" }));
 
-    expect(screen.getByText("患者 ID")).toBeInTheDocument();
-    expect(screen.getByText("就诊 ID")).toBeInTheDocument();
+    expect(screen.getByText("患者信息")).toBeInTheDocument();
+    expect(screen.getByText("就诊信息")).toBeInTheDocument();
+    expect(screen.queryByText("临床快照 ID")).not.toBeInTheDocument();
     expect(screen.getByText(/输入患者信息或就诊信息后读取已生效临床快照/)).toBeInTheDocument();
   });
 

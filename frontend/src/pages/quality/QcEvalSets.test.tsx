@@ -4,6 +4,8 @@ import { App as AntdApp, ConfigProvider } from "antd";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+
 import QcEvalSets from "./QcEvalSets";
 
 const mockUseEvaluationIndicators = vi.fn();
@@ -15,9 +17,11 @@ const mockUseActivateEvaluationIndicator = vi.fn();
 const mockUseEvaluateSnapshot = vi.fn();
 const mockUseContextSnapshots = vi.fn();
 const mockUseOrgUnits = vi.fn();
+const mockUseSecurityProfile = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useEvaluationIndicators: (params: unknown) => mockUseEvaluationIndicators(params),
+  useSecurityProfile: () => mockUseSecurityProfile(),
   useCreateEvaluationIndicator: () => mockUseCreateEvaluationIndicator(),
   useSubmitEvaluationIndicator: () => mockUseSubmitEvaluationIndicator(),
   usePublishEvaluationIndicator: () => mockUsePublishEvaluationIndicator(),
@@ -79,6 +83,7 @@ let activateIndicator: ReturnType<typeof vi.fn>;
 let evaluateSnapshot: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  useEvidenceDetailsStore.setState({ enabled: false });
   refetch = vi.fn();
   createIndicator = vi.fn().mockResolvedValue(realIndicator);
   submitIndicator = vi.fn().mockResolvedValue({ ...realIndicator, status: "PENDING_REVIEW" });
@@ -95,6 +100,14 @@ beforeEach(() => {
   });
 
   mockUseEvaluationIndicators.mockReset();
+  mockUseSecurityProfile.mockReset();
+  mockUseSecurityProfile.mockReturnValue({
+    data: {
+      permissions: [{ code: "evaluation.read" }],
+      roles: [{ code: "quality-manager", displayName: "质控人员" }],
+      menuKeys: ["qc-eval-sets"],
+    },
+  });
   mockUseOrgUnits.mockReset();
   mockUseOrgUnits.mockReturnValue({
     data: {
@@ -179,9 +192,12 @@ describe("QcEvalSets", () => {
     );
     expect(screen.getByRole("heading", { name: "评估指标库" })).toBeInTheDocument();
     expect(screen.getByText("真实评估指标总数")).toBeInTheDocument();
-    expect(screen.getAllByText("IND.VTE.REAL").length).toBeGreaterThan(0);
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.getAllByText("指标已登记").length).toBeGreaterThan(0);
     expect(screen.getByText("外科 VTE 风险评估率")).toBeInTheDocument();
-    expect(screen.getByText("trace-indicator-real")).toBeInTheDocument();
+    expect(screen.getAllByText("指标证据已记录").length).toBeGreaterThan(0);
+    expect(screen.queryByText("IND.VTE.REAL")).not.toBeInTheDocument();
+    expect(screen.queryByText("trace-indicator-real")).not.toBeInTheDocument();
     expect(screen.getByText("选模板/导入")).toBeInTheDocument();
     expect(screen.getByText("留证据/可回滚")).toBeInTheDocument();
     expect(
@@ -197,6 +213,20 @@ describe("QcEvalSets", () => {
           !button.closest(".ant-drawer"),
       );
     expect(pagePrimaryButtons).toHaveLength(1);
+  });
+
+  it("证据详情打开后展示指标编码、追踪号和发布治理证据", async () => {
+    renderPage();
+
+    await userEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getAllByText("IND.VTE.REAL").length).toBeGreaterThan(0);
+    expect(screen.getByText("trace-indicator-real")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "查看指标详情" }));
+
+    expect(screen.getByText("indicator-real-1")).toBeInTheDocument();
+    expect(screen.getAllByText("trace-indicator-real").length).toBeGreaterThan(0);
   });
 
   it("loads department references without exposing an evaluation package selector", () => {
@@ -316,7 +346,7 @@ describe("QcEvalSets", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "仿真评估" }));
     expect(screen.queryByLabelText("临床快照 ID")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("患者 ID"), { target: { value: "patient-real-1" } });
+    fireEvent.change(screen.getByLabelText("患者信息"), { target: { value: "patient-real-1" } });
     await waitFor(() =>
       expect(mockUseContextSnapshots).toHaveBeenLastCalledWith(
         expect.objectContaining({
@@ -338,7 +368,9 @@ describe("QcEvalSets", () => {
         scenarioCode: "DISCHARGE",
       }),
     );
-    expect(await screen.findByText("run-real-1")).toBeInTheDocument();
-    expect(screen.getByText("trace-run-real")).toBeInTheDocument();
+    expect(await screen.findByText("评估运行已记录")).toBeInTheDocument();
+    expect(screen.getByText("仿真证据已记录")).toBeInTheDocument();
+    expect(screen.queryByText("run-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("trace-run-real")).not.toBeInTheDocument();
   });
 });

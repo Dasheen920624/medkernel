@@ -22,6 +22,7 @@ const EVIDENCE_DETAIL_MENU_KEYS = new Set([
   "qc-dashboard",
   "qc-alerts",
   "insurance-audit",
+  "qc-eval-sets",
 ]);
 
 export type EvidenceDetailsProfile = Partial<Pick<SecurityProfile, "permissions" | "menuKeys">>;
