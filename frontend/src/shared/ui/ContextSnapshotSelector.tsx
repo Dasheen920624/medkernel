@@ -21,7 +21,7 @@ export function ContextSnapshotSelector({
   selectedSnapshotId,
   onSelect,
   noun = "临床快照",
-  evidenceDetailsEnabled = true,
+  evidenceDetailsEnabled = false,
 }: ContextSnapshotSelectorProps) {
   if (!enabled) {
     return <Empty description={`输入患者信息或就诊信息后读取已生效${noun}`} />;

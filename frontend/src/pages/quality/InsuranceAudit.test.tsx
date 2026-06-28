@@ -303,7 +303,7 @@ describe("InsuranceAudit", () => {
     expect(screen.getByPlaceholderText("可按住院号、门诊号或就诊信息检索")).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("可按住院号、门诊号或就诊标识检索")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("患者信息"), { target: { value: "patient-ins" } });
-    await userEvent.click(await screen.findByRole("button", { name: "选择 snapshot-ins" }));
+    await userEvent.click(await screen.findByRole("button", { name: "选择第 1 个病案快照" }));
     await userEvent.click(screen.getByRole("combobox", { name: "责任科室" }));
     await userEvent.click(await screen.findByText("医保管理科 · DEPT-INS"));
     await userEvent.click(screen.getByRole("combobox", { name: "质控指标" }));

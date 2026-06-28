@@ -574,7 +574,7 @@ describe("Followup", () => {
     fireEvent.change(screen.getByLabelText("随访快照患者信息"), {
       target: { value: "patient-real-1" },
     });
-    await user.click(screen.getByRole("button", { name: "选择 snapshot-followup-1" }));
+    await user.click(screen.getByRole("button", { name: "选择第 1 个随访上下文快照" }));
     await user.click(screen.getByLabelText("随访风险分层"));
     await user.click(screen.getByText("高风险"));
     await user.click(screen.getByLabelText("随访模板"));

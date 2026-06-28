@@ -365,7 +365,7 @@ describe("QcEvalSets", () => {
       ),
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "选择 snapshot-real-1" }));
+    fireEvent.click(await screen.findByRole("button", { name: "选择第 1 个临床快照" }));
     fireEvent.click(screen.getByRole("button", { name: "执行仿真评估" }));
 
     await waitFor(() =>
