@@ -83,6 +83,23 @@ const SEVERITY_LABELS: Record<string, string> = {
   LOW: "低风险",
 };
 
+const HISTORICAL_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "当时生效",
+  ENABLED: "当时生效",
+  RETIRED: "历史已退役",
+  DISABLED: "当时停用",
+  ARCHIVED: "历史已归档",
+  DRAFT: "当时草稿",
+};
+
+const RULE_SOURCE_TIER_LABELS: Record<string, string> = {
+  PLATFORM: "平台标准",
+  ORG: "机构版本",
+  TENANT: "机构版本",
+  HOSPITAL: "医院版本",
+  DEPARTMENT: "科室版本",
+};
+
 const route = findRouteByPath("/sandbox");
 
 if (!route?.experience) {
@@ -120,6 +137,39 @@ function actionLabel(value: string) {
 
 function severityLabel(value: string) {
   return SEVERITY_LABELS[value] ?? "风险待核查";
+}
+
+function evidenceLabel(
+  value: string | null | undefined,
+  labels: Record<string, string>,
+  fallback: string,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (!value) return fallback;
+  const label = labels[value] ?? fallback;
+  return evidenceDetailsEnabled ? `${label}（${value}）` : label;
+}
+
+function severityDisplay(value: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  return evidenceLabel(value, SEVERITY_LABELS, "风险待核查", evidenceDetailsEnabled);
+}
+
+function historicalStatusDisplay(value: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  return evidenceLabel(value, HISTORICAL_STATUS_LABELS, "历史状态待核查", evidenceDetailsEnabled);
+}
+
+function ruleSourceTierDisplay(value: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  return evidenceLabel(value, RULE_SOURCE_TIER_LABELS, "来源待核查", evidenceDetailsEnabled);
+}
+
+type ComparableRuleSide = NonNullable<
+  NonNullable<SandboxRunResponse["comparison"]>["differences"][number]["historical"]
+>;
+
+function comparisonSideDisplay(side: ComparableRuleSide, evidenceDetailsEnabled: boolean) {
+  return `${ruleSourceTierDisplay(side.sourceTier, evidenceDetailsEnabled)} 第 ${
+    side.assetVersion
+  } 版 / ${side.hit ? "命中" : "未命中"}`;
 }
 
 function differenceColor(change: SandboxRuleDifferenceType) {
@@ -453,11 +503,13 @@ export default function SandboxHost() {
                           {rule.ruleCode}@{rule.assetVersion}
                         </Typography.Text>
                       )}
-                      <Tag>{rule.historicalStatus}</Tag>
+                      <Tag>{historicalStatusDisplay(rule.historicalStatus, evidenceDetailsEnabled)}</Tag>
                       <Tag color={rule.hit ? "error" : "default"}>
                         {rule.hit ? "命中" : "未命中"}
                       </Tag>
-                      {rule.severity && <Tag color="warning">{rule.severity}</Tag>}
+                      {rule.severity && (
+                        <Tag color="warning">{severityDisplay(rule.severity, evidenceDetailsEnabled)}</Tag>
+                      )}
                     </Space>
                     {rule.actions.map((action, index) => (
                       <Typography.Paragraph key={`${rule.versionId}:action:${index}`}>
@@ -495,7 +547,9 @@ export default function SandboxHost() {
                   <div key={difference.ruleCode}>
                     <Space wrap>
                       <Typography.Text strong>{difference.ruleName}</Typography.Text>
-                      <Typography.Text code>{difference.ruleCode}</Typography.Text>
+                      {evidenceDetailsEnabled && (
+                        <Typography.Text code>{difference.ruleCode}</Typography.Text>
+                      )}
                       {difference.changes.map((change) => (
                         <Tag key={change} color={differenceColor(change)}>
                           {DIFFERENCE_LABELS[change]}
@@ -511,11 +565,11 @@ export default function SandboxHost() {
                       <Typography.Paragraph type="secondary">
                         历史：
                         {difference.historical
-                          ? `${difference.historical.sourceTier} ${difference.historical.assetVersion} / ${difference.historical.hit ? "命中" : "未命中"}`
+                          ? comparisonSideDisplay(difference.historical, evidenceDetailsEnabled)
                           : "缺失"}
                         {"；"}当前：
                         {difference.current
-                          ? `${difference.current.sourceTier} ${difference.current.assetVersion} / ${difference.current.hit ? "命中" : "未命中"}`
+                          ? comparisonSideDisplay(difference.current, evidenceDetailsEnabled)
                           : "缺失"}
                       </Typography.Paragraph>
                     )}

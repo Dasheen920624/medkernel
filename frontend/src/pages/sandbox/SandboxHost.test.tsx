@@ -400,9 +400,18 @@ describe("SandboxHost", () => {
     expect(await screen.findByText("历史高钾规则")).toBeInTheDocument();
     expect(screen.getByText("历史版本 7")).toBeInTheDocument();
     expect(screen.queryByText("RULE.OLD.K@7")).not.toBeInTheDocument();
+    expect(screen.getByText("历史已退役")).toBeInTheDocument();
+    expect(screen.queryByText("RETIRED")).not.toBeInTheDocument();
+    expect(screen.getAllByText("危急风险").length).toBeGreaterThan(0);
+    expect(screen.queryByText("CRITICAL")).not.toBeInTheDocument();
     expect(screen.getByText("历史高钾红线")).toBeInTheDocument();
     expect(screen.getAllByText("历史重放清单").length).toBeGreaterThan(0);
     expect(screen.queryByText("上下文原始 JSON")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getByText("RULE.OLD.K@7")).toBeInTheDocument();
+    expect(screen.getByText("历史已退役（RETIRED）")).toBeInTheDocument();
+    expect(screen.getByText("危急风险（CRITICAL）")).toBeInTheDocument();
   });
 
   it("compares historical and current frozen rules without sending a context override", async () => {
@@ -496,8 +505,19 @@ describe("SandboxHost", () => {
     );
     expect(await screen.findByRole("region", { name: "规则版本差异" })).toBeInTheDocument();
     expect(screen.getByText("高风险变化规则")).toBeInTheDocument();
+    expect(screen.queryByText("RULE.RISK.UP")).not.toBeInTheDocument();
     expect(screen.getByText("严重度升高")).toBeInTheDocument();
     expect(screen.getAllByText("新增命中")).toHaveLength(2);
+    expect(
+      screen.getByText(/历史：平台标准 第 1 版 \/ 命中；当前：机构版本 第 2 版 \/ 命中/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/PLATFORM|ORG/)).not.toBeInTheDocument();
     expect(screen.getByText("8")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getByText("RULE.RISK.UP")).toBeInTheDocument();
+    expect(
+      screen.getByText(/历史：平台标准（PLATFORM） 第 1 版 \/ 命中；当前：机构版本（ORG） 第 2 版 \/ 命中/),
+    ).toBeInTheDocument();
   });
 });
