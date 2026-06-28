@@ -4,6 +4,8 @@ import { ConfigProvider } from "antd";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+
 import InsuranceAudit from "./InsuranceAudit";
 
 const mockUseInsuranceIssues = vi.fn();
@@ -14,6 +16,7 @@ const mockUseRunDrgGrouping = vi.fn();
 const mockUseRunInsuranceAudit = vi.fn();
 const mockUseEvaluationIndicators = vi.fn();
 const mockUseOrgUnits = vi.fn();
+const mockUseSecurityProfile = vi.fn();
 
 vi.mock("@/shared/api/hooks", () => ({
   useContextSnapshotDetail: (snapshotId: string, options: unknown) =>
@@ -24,6 +27,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useEvaluationIndicators: (params: unknown, options: unknown) =>
     mockUseEvaluationIndicators(params, options),
   useOrgUnits: (params: unknown) => mockUseOrgUnits(params),
+  useSecurityProfile: () => mockUseSecurityProfile(),
   useRunQualityCaseReview: () => mockUseRunQualityCaseReview(),
   useRunDrgGrouping: () => mockUseRunDrgGrouping(),
   useRunInsuranceAudit: () => mockUseRunInsuranceAudit(),
@@ -72,7 +76,15 @@ const insuranceIssuesPage = {
 
 describe("InsuranceAudit", () => {
   beforeEach(() => {
+    useEvidenceDetailsStore.setState({ enabled: false });
     vi.clearAllMocks();
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [{ code: "evaluation.read" }],
+        roles: [{ code: "insurance-user", displayName: "医保审核人员" }],
+        menuKeys: ["insurance-audit"],
+      },
+    });
     mockUseOrgUnits.mockReturnValue({
       data: {
         items: [
@@ -159,11 +171,44 @@ describe("InsuranceAudit", () => {
     );
     expect(screen.getByRole("heading", { name: "医保智能审核" })).toBeInTheDocument();
     expect(screen.getByText("真实医保问题总数")).toBeInTheDocument();
-    expect(screen.getByText("claim-real-1")).toBeInTheDocument();
-    expect(screen.getByText("RULE-FEE-A@2026-A")).toBeInTheDocument();
-    expect(screen.getByText("trace-ins-1")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.getByText("医保结算已关联")).toBeInTheDocument();
+    expect(screen.getByText("规则依据已关联")).toBeInTheDocument();
+    expect(screen.getByText(/费用超阈值证据已记录/)).toBeInTheDocument();
+    expect(screen.getByText("证据已记录")).toBeInTheDocument();
+    expect(screen.queryByText("claim-real-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("RULE-FEE-A@2026-A")).not.toBeInTheDocument();
+    expect(screen.queryByText("trace-ins-1")).not.toBeInTheDocument();
     expect(screen.queryByText("医保审核接口尚未接入")).not.toBeInTheDocument();
     expect(screen.queryByText(/本地违规病例样例|申诉闭环/)).not.toBeInTheDocument();
+  });
+
+  it("证据详情打开后展示医保结算、规则和问题追溯字段", async () => {
+    mockUseInsuranceIssues.mockReturnValue({
+      data: insuranceIssuesPage,
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+    mockUseRunQualityCaseReview.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+    mockUseRunDrgGrouping.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+    mockUseRunInsuranceAudit.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+
+    renderPage();
+
+    await userEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("claim-real-1")).toBeInTheDocument();
+    expect(screen.getByText("RULE-FEE-A@2026-A")).toBeInTheDocument();
+    expect(screen.getByText(/结算事实 claim-real-1/)).toBeInTheDocument();
+    expect(screen.getByText("trace-ins-1")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "查看证据" }));
+
+    expect(screen.getByText("ins-fee-1")).toBeInTheDocument();
+    expect(screen.getByText("run-ins-1")).toBeInTheDocument();
+    expect(screen.getAllByText("trace-ins-1").length).toBeGreaterThan(0);
   });
 
   it("loads audit indicator selector through small server-side search pages", async () => {
@@ -255,7 +300,7 @@ describe("InsuranceAudit", () => {
     renderPage();
 
     expect(screen.queryByLabelText("病案快照 ID")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("患者 ID"), { target: { value: "patient-ins" } });
+    fireEvent.change(screen.getByLabelText("患者信息"), { target: { value: "patient-ins" } });
     await userEvent.click(await screen.findByRole("button", { name: "选择 snapshot-ins" }));
     await userEvent.click(screen.getByRole("combobox", { name: "责任科室" }));
     await userEvent.click(await screen.findByText("医保管理科 · DEPT-INS"));
@@ -310,8 +355,12 @@ describe("InsuranceAudit", () => {
       );
     });
     expect(refetch).toHaveBeenCalled();
-    expect(await screen.findByText("ISSUE_FOUND")).toBeInTheDocument();
-    expect(screen.getByText("MISMATCHED")).toBeInTheDocument();
+    expect(await screen.findByText("发现医保问题")).toBeInTheDocument();
+    expect(screen.getByText("DRG/DIP 入组不一致")).toBeInTheDocument();
+    expect(screen.getAllByText("评估运行已记录").length).toBeGreaterThan(0);
+    expect(screen.getByText("审核证据已记录")).toBeInTheDocument();
+    expect(screen.queryByText("run-ins-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("trace-audit")).not.toBeInTheDocument();
     expect(screen.getByText("模型能力已关闭")).toBeInTheDocument();
     expect(screen.getByText("整改任务 1 个")).toBeInTheDocument();
   }, 15_000);

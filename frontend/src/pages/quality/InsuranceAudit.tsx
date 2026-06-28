@@ -31,6 +31,7 @@ import {
   useRunDrgGrouping,
   useRunInsuranceAudit,
   useRunQualityCaseReview,
+  useSecurityProfile,
   type DrgGroupingResponse,
   type InsuranceAuditResponse,
   type InsuranceIssuePageItem,
@@ -42,6 +43,9 @@ import {
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
 import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
+import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 
 const { Text } = Typography;
 const DEPARTMENT_REFERENCE_PAGE_SIZE = 20;
@@ -69,6 +73,9 @@ interface AuditFormValues {
 }
 
 export default function InsuranceAudit() {
+  const security = useSecurityProfile();
+  const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
+  const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const [status, setStatus] = useState<InsuranceIssueStatus>("OPEN");
   const [timeScope, setTimeScope] = useState<TimeScope>("THIS_MONTH");
   const [severity, setSeverity] = useState<QualityFindingSeverity>("P1");
@@ -242,13 +249,16 @@ export default function InsuranceAudit() {
         </Button>
       }
       extras={
-        <Button
-          aria-label="刷新医保问题"
-          icon={<ReloadOutlined />}
-          onClick={() => issuesQuery.refetch()}
-        >
-          刷新
-        </Button>
+        <Space wrap>
+          <EvidenceDetailsToggle securityProfile={security.data} />
+          <Button
+            aria-label="刷新医保问题"
+            icon={<ReloadOutlined />}
+            onClick={() => issuesQuery.refetch()}
+          >
+            刷新
+          </Button>
+        </Space>
       }
       state={resolvePageState(issuesQuery.isLoading, issuesQuery.isError, errorStatus, issues)}
       stateProps={{
@@ -315,22 +325,22 @@ export default function InsuranceAudit() {
           >
             <Space direction="vertical" size="small" className="mk-full-width">
               <Space wrap size="middle" className="mk-full-width">
-                <Form.Item label="患者 ID" htmlFor="insurance-snapshot-patient">
+                <Form.Item label="患者信息" htmlFor="insurance-snapshot-patient">
                   <Input
                     id="insurance-snapshot-patient"
                     value={snapshotPatientId}
-                    placeholder="输入患者 ID 检索已生效病案快照"
+                    placeholder="输入患者主索引或院内登记号检索病案快照"
                     onChange={(event) => {
                       setSnapshotPatientId(event.target.value);
                       setSelectedSnapshotId("");
                     }}
                   />
                 </Form.Item>
-                <Form.Item label="就诊 ID" htmlFor="insurance-snapshot-encounter">
+                <Form.Item label="就诊信息" htmlFor="insurance-snapshot-encounter">
                   <Input
                     id="insurance-snapshot-encounter"
                     value={snapshotEncounterId}
-                    placeholder="可单独按就诊 ID 检索"
+                    placeholder="可按住院号、门诊号或就诊标识检索"
                     onChange={(event) => {
                       setSnapshotEncounterId(event.target.value);
                       setSelectedSnapshotId("");
@@ -352,13 +362,21 @@ export default function InsuranceAudit() {
               {snapshotDetailQuery.data && (
                 <Descriptions bordered size="small" column={3}>
                   <Descriptions.Item label="机构生效版本">
-                    {snapshotDetailQuery.data.runtimeReleaseId || "由服务端按快照确认"}
+                    {evidenceText(
+                      snapshotDetailQuery.data.runtimeReleaseId,
+                      evidenceDetailsEnabled,
+                      "机构生效版本已匹配",
+                    )}
                   </Descriptions.Item>
                   <Descriptions.Item label="质量状态">
                     {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
                   </Descriptions.Item>
-                  <Descriptions.Item label="追踪号">
-                    {snapshotDetailQuery.data.traceId || "未返回"}
+                  <Descriptions.Item label="证据">
+                    {evidenceText(
+                      snapshotDetailQuery.data.traceId,
+                      evidenceDetailsEnabled,
+                      "快照证据已记录",
+                    )}
                   </Descriptions.Item>
                 </Descriptions>
               )}
@@ -517,10 +535,14 @@ export default function InsuranceAudit() {
               {caseReviewResult && (
                 <Descriptions bordered size="small" column={1}>
                   <Descriptions.Item label="病案内涵质控">
-                    {caseReviewResult.reviewStatus}
+                    {caseReviewStatusText(caseReviewResult.reviewStatus)}
                   </Descriptions.Item>
                   <Descriptions.Item label="评估运行">
-                    {caseReviewResult.evaluationRunId}
+                    {evidenceText(
+                      caseReviewResult.evaluationRunId,
+                      evidenceDetailsEnabled,
+                      "评估运行已记录",
+                    )}
                   </Descriptions.Item>
                   <Descriptions.Item label="模型状态">
                     {customerEnumLabel(caseReviewResult.modelStatus)}
@@ -534,7 +556,7 @@ export default function InsuranceAudit() {
               {drgResult && (
                 <Descriptions bordered size="small" column={1}>
                   <Descriptions.Item label="DRG/DIP 入组">
-                    {drgResult.groupingStatus}
+                    {drgGroupingStatusText(drgResult.groupingStatus)}
                   </Descriptions.Item>
                   <Descriptions.Item label="期望 / 实际">
                     {drgResult.expectedGroupCode} / {drgResult.actualGroupCode}
@@ -545,15 +567,21 @@ export default function InsuranceAudit() {
               {auditResult && (
                 <Descriptions bordered size="small" column={1}>
                   <Descriptions.Item label="医保审核状态">
-                    {auditResult.auditStatus}
+                    {insuranceAuditStatusText(auditResult.auditStatus)}
                   </Descriptions.Item>
                   <Descriptions.Item label="评估运行">
-                    {auditResult.evaluationRunId ?? "未生成评估运行"}
+                    {evidenceText(
+                      auditResult.evaluationRunId,
+                      evidenceDetailsEnabled,
+                      "评估运行已记录",
+                    )}
                   </Descriptions.Item>
                   <Descriptions.Item label="命中 / 整改">
                     {auditResult.findingCount} 个命中 / 整改任务 {auditResult.taskCount} 个
                   </Descriptions.Item>
-                  <Descriptions.Item label="追踪号">{auditResult.traceId}</Descriptions.Item>
+                  <Descriptions.Item label="证据">
+                    {evidenceText(auditResult.traceId, evidenceDetailsEnabled, "审核证据已记录")}
+                  </Descriptions.Item>
                 </Descriptions>
               )}
             </Space>
@@ -569,6 +597,7 @@ export default function InsuranceAudit() {
                 actions={[
                   <Button
                     key="evidence"
+                    aria-label="查看证据"
                     icon={<AuditOutlined />}
                     onClick={() => openEvidence(issue)}
                   >
@@ -580,7 +609,9 @@ export default function InsuranceAudit() {
                   avatar={severityTag(issue.severity)}
                   title={
                     <Space wrap>
-                      <Text strong>{issue.claimId}</Text>
+                      <Text strong>
+                        {evidenceText(issue.claimId, evidenceDetailsEnabled, "医保结算已关联")}
+                      </Text>
                       {issueTypeTag(issue.issueType)}
                       {issueStatusTag(issue.status)}
                     </Space>
@@ -589,18 +620,20 @@ export default function InsuranceAudit() {
                     <Space direction="vertical" size={4}>
                       <Space wrap>
                         <Text type="secondary">规则</Text>
-                        <Text>{`${issue.ruleCode}@${issue.ruleVersion}`}</Text>
+                        <Text>{ruleText(issue, evidenceDetailsEnabled)}</Text>
                         <Text type="secondary">科室</Text>
                         <Text>{issue.departmentId ?? "未指定"}</Text>
                       </Space>
-                      <Text>{`证据摘要：${issue.evidenceSummary}`}</Text>
+                      <Text>{`证据摘要：${insuranceEvidenceSummary(issue, evidenceDetailsEnabled)}`}</Text>
                       <Space wrap>
                         <Text type="secondary">金额 / 阈值</Text>
                         <Text>
                           {formatAmount(issue.claimAmount)} / {formatAmount(issue.thresholdAmount)}
                         </Text>
-                        <Text type="secondary">追踪号</Text>
-                        <Text>{issue.traceId ?? "未生成追踪号"}</Text>
+                        <Text type="secondary">证据</Text>
+                        <Text>
+                          {evidenceText(issue.traceId, evidenceDetailsEnabled, "证据已记录")}
+                        </Text>
                       </Space>
                     </Space>
                   }
@@ -626,20 +659,30 @@ export default function InsuranceAudit() {
       >
         {selectedIssue ? (
           <Descriptions bordered column={1} size="small">
-            <Descriptions.Item label="问题 ID">{selectedIssue.issueId}</Descriptions.Item>
-            <Descriptions.Item label="结算事实">{selectedIssue.claimId}</Descriptions.Item>
+            <Descriptions.Item label="医保问题">
+              {evidenceText(selectedIssue.issueId, evidenceDetailsEnabled, "医保问题已登记")}
+            </Descriptions.Item>
+            <Descriptions.Item label="结算事实">
+              {evidenceText(selectedIssue.claimId, evidenceDetailsEnabled, "医保结算已关联")}
+            </Descriptions.Item>
             <Descriptions.Item label="规则依据">
-              {selectedIssue.ruleCode}@{selectedIssue.ruleVersion}
+              {ruleText(selectedIssue, evidenceDetailsEnabled)}
             </Descriptions.Item>
             <Descriptions.Item label="问题状态">
               {issueStatusTag(selectedIssue.status)}
             </Descriptions.Item>
-            <Descriptions.Item label="证据摘要">{selectedIssue.evidenceSummary}</Descriptions.Item>
-            <Descriptions.Item label="评估运行">
-              {selectedIssue.evaluationRunId ?? "未生成评估运行"}
+            <Descriptions.Item label="证据摘要">
+              {insuranceEvidenceSummary(selectedIssue, evidenceDetailsEnabled)}
             </Descriptions.Item>
-            <Descriptions.Item label="追踪号">
-              {selectedIssue.traceId ?? "未生成追踪号"}
+            <Descriptions.Item label="评估运行">
+              {evidenceText(
+                selectedIssue.evaluationRunId,
+                evidenceDetailsEnabled,
+                "评估运行已记录",
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="证据">
+              {evidenceText(selectedIssue.traceId, evidenceDetailsEnabled, "证据已记录")}
             </Descriptions.Item>
           </Descriptions>
         ) : null}
@@ -713,6 +756,82 @@ function issueTypeTag(type: string) {
     return <Tag color="cyan">结算状态</Tag>;
   }
   return <Tag>{customerEnumLabel(type)}</Tag>;
+}
+
+function insuranceEvidenceSummary(
+  issue: Pick<InsuranceIssuePageItem, "issueType" | "evidenceSummary">,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) {
+    return issue.evidenceSummary;
+  }
+  if (issue.issueType === "FEE") {
+    return "费用超阈值证据已记录";
+  }
+  if (issue.issueType === "CODING") {
+    return "编码问题证据已记录";
+  }
+  if (issue.issueType === "DRG") {
+    return "DRG/DIP 问题证据已记录";
+  }
+  if (issue.issueType === "CLAIM_STATUS") {
+    return "结算状态问题证据已记录";
+  }
+  return "医保问题证据已记录";
+}
+
+function ruleText(
+  issue: Pick<InsuranceIssuePageItem, "ruleCode" | "ruleVersion">,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) {
+    return `${issue.ruleCode}@${issue.ruleVersion}`;
+  }
+  return "规则依据已关联";
+}
+
+function caseReviewStatusText(status: string) {
+  if (status === "PASS") {
+    return "病案内涵质控通过";
+  }
+  if (status === "NON_COMPLIANT") {
+    return "病案内涵质控发现问题";
+  }
+  return customerEnumLabel(status);
+}
+
+function drgGroupingStatusText(status: string) {
+  if (status === "MATCHED") {
+    return "DRG/DIP 入组一致";
+  }
+  if (status === "MISMATCHED") {
+    return "DRG/DIP 入组不一致";
+  }
+  return customerEnumLabel(status);
+}
+
+function insuranceAuditStatusText(status: string) {
+  if (status === "ISSUE_FOUND") {
+    return "发现医保问题";
+  }
+  if (status === "NO_ISSUE") {
+    return "未发现医保问题";
+  }
+  if (status === "INSUFFICIENT_DATA") {
+    return "缺少可核验结算事实";
+  }
+  return customerEnumLabel(status);
+}
+
+function evidenceText(
+  value: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  businessText: string,
+) {
+  if (evidenceDetailsEnabled) {
+    return value || "--";
+  }
+  return businessText;
 }
 
 function severityTag(severity: string) {
