@@ -342,7 +342,7 @@ async function openDetailDrawer(
   apiMocks.templateDetailData = detail;
   const user = userEvent.setup();
   renderPathwayTemplates();
-  await screen.findByText(detail.template.templateCode);
+  await screen.findByText(detail.template.name);
   await user.click(screen.getByRole("button", { name: /设计与试运行/ }));
   await screen.findByText("路径配置与真实快照试运行");
   return user;
@@ -589,10 +589,10 @@ describe("PathwayTemplates 上线路径维护契约", () => {
 
       await user.click(within(dialog).getByLabelText("基础节点闭环"));
       await user.click(within(dialog).getByRole("tab", { name: /即配即试/ }));
-      await user.type(within(dialog).getByLabelText("患者 ID"), "P-001");
-      await user.type(within(dialog).getByLabelText("就诊 ID"), "E-001");
+      await user.type(within(dialog).getByLabelText("患者信息"), "P-001");
+      await user.type(within(dialog).getByLabelText("就诊信息"), "E-001");
       await user.click(within(dialog).getByRole("button", { name: /读取真实快照/ }));
-      await user.click(await within(dialog).findByRole("button", { name: /ctx-path-draft-001/ }));
+      await user.click(await within(dialog).findByRole("button", { name: /第 1 个临床快照/ }));
       await user.click(within(dialog).getByRole("button", { name: "运行草稿试运行" }));
 
       await waitFor(() => expect(apiMocks.previewRun).toHaveBeenCalled());
@@ -606,7 +606,13 @@ describe("PathwayTemplates 上线路径维护契约", () => {
       );
       expectNoLegacyPackageKeys(payload);
       expect(await within(dialog).findByText("草稿路径推进到 DISPOSITION")).toBeInTheDocument();
-      expect(within(dialog).getByText("E-ASSESS-DISPOSITION")).toBeInTheDocument();
+      expect(within(dialog).getAllByText("试运行快照已关联").length).toBeGreaterThan(0);
+      expect(within(dialog).getByText("路径边已选择")).toBeInTheDocument();
+      expect(within(dialog).getByText("试运行已留痕")).toBeInTheDocument();
+      expect(within(dialog).queryByText("ctx-path-draft-001")).not.toBeInTheDocument();
+      expect(within(dialog).queryByText("runtime-release-path-1")).not.toBeInTheDocument();
+      expect(within(dialog).queryByText("trace-path-preview-run")).not.toBeInTheDocument();
+      expect(within(dialog).queryByText("E-ASSESS-DISPOSITION")).not.toBeInTheDocument();
       expect(within(dialog).getByText("路径边条件命中")).toBeInTheDocument();
       expect(apiMocks.simulatePathway).not.toHaveBeenCalled();
     },
@@ -622,9 +628,12 @@ describe("PathwayTemplates 上线路径维护契约", () => {
       expect(screen.getByText(/当前路径版本已纳入机构生效版本/)).toBeInTheDocument();
       expect(screen.queryByRole("tab", { name: /7 步流发布/ })).not.toBeInTheDocument();
       expect(
-        screen.getByText("路径拓扑与真实快照试运行是主视图；配置明细用于核查受控配置。"),
+        screen.getByText("路径拓扑与真实快照试运行是主视图；证据详情打开后可追溯受控配置。"),
       ).toBeInTheDocument();
-      expect(screen.getByRole("switch", { name: "配置明细" })).toBeInTheDocument();
+      expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+      expect(screen.getAllByText("路径模板已登记").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("第 2 版已形成").length).toBeGreaterThan(0);
+      expect(screen.queryByText("PATH.CARDIO.REVIEW")).not.toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: /复制为新版本/ }));
 
       const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
@@ -645,6 +654,77 @@ describe("PathwayTemplates 上线路径维护契约", () => {
       expect(payload.outcomeBindings).toEqual(
         expect.arrayContaining([expect.objectContaining({ indicatorCode: "PATH.OUTCOME.LOS" })]),
       );
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "路径详情真实快照试运行默认隐藏快照与追踪标识，证据详情打开后可追溯",
+    async () => {
+      apiMocks.snapshotsData = {
+        items: [
+          {
+            snapshotId: "ctx-path-draft-001",
+            patientId: "P-001",
+            encounterId: "E-001",
+            status: "ACTIVE",
+            qualityStatus: "COMPLETE",
+            createdAt: "2026-06-02T08:00:00Z",
+          },
+        ],
+        total: 1,
+      };
+      apiMocks.snapshotDetailData = {
+        snapshotId: "ctx-path-draft-001",
+        status: "ACTIVE",
+        qualityStatus: "COMPLETE",
+        missingFields: [],
+        mappingStatus: {},
+        resources: {
+          patient: { patientId: "P-001" },
+          observations: [{ code: "OBS.TEST", valueNumeric: 7.1 }],
+        },
+        createdAt: "2026-06-02T08:00:00Z",
+        traceId: "trace-path-draft",
+      };
+      apiMocks.simulatePathway.mockResolvedValue({
+        templateId: "pt-path-published",
+        snapshotId: "ctx-path-draft-001",
+        nodeTrajectory: ["ASSESS", "FOLLOWUP"],
+        finalStatus: "NODE_EXECUTING",
+        contextQualityStatus: "COMPLETE",
+        simulationMode: "SINGLE_SNAPSHOT",
+        replaySteps: [
+          {
+            snapshotId: "ctx-path-draft-001",
+            nodeTrajectory: ["ASSESS", "FOLLOWUP"],
+            finalStatus: "NODE_EXECUTING",
+            contextQualityStatus: "COMPLETE",
+          },
+        ],
+        traceId: "trace-path-sim",
+      });
+
+      const user = await openDetailDrawer(createTemplateDetail(publishedTemplate, "PUBLISHED"));
+      await user.click(screen.getByRole("tab", { name: /真实快照试运行/ }));
+      await user.type(screen.getByLabelText("患者信息"), "P-001");
+      await user.type(screen.getByLabelText("就诊信息"), "E-001");
+      await user.click(screen.getByRole("button", { name: /读取真实快照/ }));
+
+      await user.click(await screen.findByRole("button", { name: /第 1 个临床快照/ }));
+      expect(screen.getByText("临床快照已选择")).toBeInTheDocument();
+      expect(screen.queryByText("ctx-path-draft-001")).not.toBeInTheDocument();
+      expect(screen.queryByText("P-001")).not.toBeInTheDocument();
+      expect(screen.queryByText("E-001")).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: /使用该快照试运行/ }));
+      await waitFor(() => expect(apiMocks.simulatePathway).toHaveBeenCalled());
+      expect(await screen.findByText("第 1 个回放快照")).toBeInTheDocument();
+      expect(screen.queryByText("trace-path-sim")).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("switch", { name: "证据详情" }));
+      expect((await screen.findAllByText("ctx-path-draft-001")).length).toBeGreaterThan(0);
+      expect(screen.getByText("trace-path-draft")).toBeInTheDocument();
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,
   );

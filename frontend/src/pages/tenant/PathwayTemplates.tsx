@@ -145,6 +145,64 @@ function pathwayEntryModeText(mode: PathwayEntryMode | string | undefined) {
   return "自动建议入径";
 }
 
+function evidenceText(
+  value: string | number | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  businessText: string,
+) {
+  if (!evidenceDetailsEnabled) return businessText;
+  if (value === undefined || value === null || value === "") return "未返回";
+  return String(value);
+}
+
+function pathwayIdentityText(
+  templateCode: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  return evidenceText(templateCode, evidenceDetailsEnabled, "路径模板已登记");
+}
+
+function pathwayVersionText(version: number | null | undefined, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) {
+    return version ? `v${version}.0` : "未形成版本";
+  }
+  return version ? `第 ${version} 版已形成` : "尚未形成版本";
+}
+
+function snapshotBusinessLabel(index: number) {
+  return `第 ${index + 1} 个临床快照`;
+}
+
+function replaySnapshotBusinessLabel(index: number) {
+  return `第 ${index + 1} 个回放快照`;
+}
+
+function snapshotButtonLabel(
+  snapshot: ContextSnapshotSummary,
+  index: number,
+  evidenceDetailsEnabled: boolean,
+) {
+  return evidenceDetailsEnabled ? snapshot.snapshotId : snapshotBusinessLabel(index);
+}
+
+function snapshotAssociationText(
+  snapshot: Pick<ContextSnapshotSummary, "patientId" | "encounterId">,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) {
+    return `患者 ${snapshot.patientId || "-"} · 就诊 ${snapshot.encounterId || "-"}`;
+  }
+  return "患者已关联 · 就诊已关联";
+}
+
+function selectedSnapshotText(snapshotId: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  return evidenceText(snapshotId, evidenceDetailsEnabled, "临床快照已选择");
+}
+
+function nodeEvidenceText(nodeCode: string, index: number, evidenceDetailsEnabled: boolean) {
+  return evidenceDetailsEnabled ? nodeCode : `第 ${index + 1} 个路径节点`;
+}
+
 type PathwayNodeDraft = {
   nodeCode: string;
   name: string;
@@ -1286,6 +1344,7 @@ export default function PathwayTemplates() {
   const [fieldManagerOpen, setFieldManagerOpen] = useState<boolean>(false);
   const [createAdvancedConfigEnabled, setCreateAdvancedConfigEnabled] = useState<boolean>(false);
   const [detailAdvancedViewEnabled, setDetailAdvancedViewEnabled] = useState<boolean>(false);
+  const evidenceDetailsEnabled = detailAdvancedViewEnabled;
   const [selectedPathwayPrototype, setSelectedPathwayPrototype] =
     useState<PathwayPrototypeKey>("blank");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -1489,7 +1548,7 @@ export default function PathwayTemplates() {
     () =>
       (publishedRulesData?.items ?? []).map((rule: RuleDefinition) => ({
         value: rule.ruleCode,
-        label: `${rule.name} · ${rule.ruleCode}`,
+        label: rule.name,
         ruleAssetId: rule.ruleId,
       })),
     [publishedRulesData?.items],
@@ -1866,7 +1925,7 @@ export default function PathwayTemplates() {
     const patientId = cleanText(snapshotPatientId);
     const encounterId = cleanText(snapshotEncounterId);
     if (!patientId && !encounterId) {
-      messageApi.error("请输入患者 ID 或就诊 ID 后读取快照");
+      messageApi.error("请输入患者信息或就诊信息后读取快照");
       return;
     }
     setSnapshotQuery({
@@ -1967,10 +2026,12 @@ export default function PathwayTemplates() {
 
   const columns: TableProps<PathwayTemplate>["columns"] = [
     {
-      title: "模板代码",
+      title: "路径身份",
       dataIndex: "templateCode",
       key: "templateCode",
-      render: (text: string) => <Tag color="geekblue">{text}</Tag>,
+      render: (text: string) => (
+        <Tag color="geekblue">{pathwayIdentityText(text, evidenceDetailsEnabled)}</Tag>
+      ),
     },
     {
       title: "路径名称",
@@ -1999,7 +2060,7 @@ export default function PathwayTemplates() {
       title: "版本",
       dataIndex: "templateVersion",
       key: "templateVersion",
-      render: (value: number) => `v${value}.0`,
+      render: (value: number) => pathwayVersionText(value, evidenceDetailsEnabled),
     },
     {
       title: "状态",
@@ -2191,8 +2252,8 @@ export default function PathwayTemplates() {
     return (
       <Space direction="vertical" size="middle" className="mk-full-width">
         <Descriptions bordered size="small" column={1}>
-          <Descriptions.Item label="已选快照">
-            {selectedSnapshotDetail.snapshotId}
+          <Descriptions.Item label="快照证据">
+            {evidenceText(selectedSnapshotDetail.snapshotId, false, "试运行快照已关联")}
           </Descriptions.Item>
           <Descriptions.Item label="状态">
             {customerEnumLabel(selectedSnapshotDetail.status)}
@@ -2236,11 +2297,21 @@ export default function PathwayTemplates() {
         </Space>
         <Descriptions bordered size="small" column={1}>
           <Descriptions.Item label="试运行结果">{result.outcomeText}</Descriptions.Item>
-          <Descriptions.Item label="选中路径边">{result.selectedEdgeCode || "-"}</Descriptions.Item>
-          <Descriptions.Item label="节点轨迹">
-            {result.nodeTrajectory?.join(" → ") || "-"}
+          <Descriptions.Item label="快照证据">
+            {evidenceText(result.snapshotId, false, "试运行快照已关联")}
           </Descriptions.Item>
-          <Descriptions.Item label="追踪号">{result.traceId || "-"}</Descriptions.Item>
+          <Descriptions.Item label="机构生效版本">
+            {evidenceText(result.runtimeReleaseId, false, "机构生效版本已确认")}
+          </Descriptions.Item>
+          <Descriptions.Item label="选中路径边">
+            {evidenceText(result.selectedEdgeCode, false, "路径边已选择")}
+          </Descriptions.Item>
+          <Descriptions.Item label="节点轨迹">
+            {result.nodeTrajectory?.length ? "节点轨迹已记录" : "-"}
+          </Descriptions.Item>
+          <Descriptions.Item label="追踪证据">
+            {evidenceText(result.traceId, false, "试运行已留痕")}
+          </Descriptions.Item>
         </Descriptions>
         {renderPreviewRunEvidence(result.conditionEvidence ?? [])}
       </Space>
@@ -3257,18 +3328,20 @@ export default function PathwayTemplates() {
           <Col xs={24} lg={9}>
             <Space direction="vertical" size="middle" className="mk-full-width">
               <div className={styles.formSection}>
-                <Form.Item label="患者 ID" htmlFor="pathway-create-snapshot-patient-id">
+                <Form.Item label="患者信息" htmlFor="pathway-create-snapshot-patient-id">
                   <Input
                     id="pathway-create-snapshot-patient-id"
                     value={snapshotPatientId}
                     onChange={(event) => setSnapshotPatientId(event.target.value)}
+                    placeholder="输入患者信息检索快照"
                   />
                 </Form.Item>
-                <Form.Item label="就诊 ID" htmlFor="pathway-create-snapshot-encounter-id">
+                <Form.Item label="就诊信息" htmlFor="pathway-create-snapshot-encounter-id">
                   <Input
                     id="pathway-create-snapshot-encounter-id"
                     value={snapshotEncounterId}
                     onChange={(event) => setSnapshotEncounterId(event.target.value)}
+                    placeholder="输入就诊信息检索快照"
                   />
                 </Form.Item>
                 <Button
@@ -3284,7 +3357,7 @@ export default function PathwayTemplates() {
               <div className={styles.snapshotList}>
                 {snapshotList.length > 0 ? (
                   <Space direction="vertical" className="mk-full-width">
-                    {snapshotList.map((snapshot: ContextSnapshotSummary) => (
+                    {snapshotList.map((snapshot: ContextSnapshotSummary, index) => (
                       <Button
                         key={snapshot.snapshotId}
                         type={selectedSnapshotId === snapshot.snapshotId ? "primary" : "default"}
@@ -3294,7 +3367,7 @@ export default function PathwayTemplates() {
                         }}
                         className={styles.snapshotButton}
                       >
-                        <span>{snapshot.snapshotId}</span>
+                        <span>{snapshotBusinessLabel(index)}</span>
                         <Tag className={styles.tagGap}>
                           {customerDisplayText(snapshot.qualityStatus)}
                         </Tag>
@@ -3305,7 +3378,7 @@ export default function PathwayTemplates() {
                   <Empty
                     image={Empty.PRESENTED_IMAGE_SIMPLE}
                     description={
-                      snapshotQuery ? "未读取到已生效快照" : "请输入患者 ID 或就诊 ID 读取真实快照"
+                      snapshotQuery ? "未读取到已生效快照" : "请输入患者信息或就诊信息读取真实快照"
                     }
                   />
                 )}
@@ -3425,14 +3498,14 @@ export default function PathwayTemplates() {
           children: (
             <Descriptions bordered column={detailDescriptionColumn} className={styles.marginTopMd}>
               <Descriptions.Item label="名称">{detailData.template.name}</Descriptions.Item>
-              <Descriptions.Item label="模板代码">
-                {detailData.template.templateCode}
+              <Descriptions.Item label="路径身份">
+                {pathwayIdentityText(detailData.template.templateCode, evidenceDetailsEnabled)}
               </Descriptions.Item>
               <Descriptions.Item label="相关病种">
                 {detailData.template.diseaseCode}
               </Descriptions.Item>
               <Descriptions.Item label="版本">
-                v{detailData.template.templateVersion}.0
+                {pathwayVersionText(detailData.template.templateVersion, evidenceDetailsEnabled)}
               </Descriptions.Item>
               <Descriptions.Item label="层级">
                 {customerEnumLabel(detailData.template.templateLevel)}
@@ -3447,16 +3520,30 @@ export default function PathwayTemplates() {
                 {pathwayEntryModeText(detailData.template.entryMode)}
               </Descriptions.Item>
               <Descriptions.Item label="起始节点">
-                {detailData.template.startNodeCode ?? "未设置"}
+                {detailData.template.startNodeCode
+                  ? evidenceText(detailData.template.startNodeCode, evidenceDetailsEnabled, "起始节点已配置")
+                  : "未设置"}
               </Descriptions.Item>
               <Descriptions.Item label="入径条件" span={detailDescriptionColumn}>
                 <span className={styles.codeText}>
-                  {cleanText(detailData.template.entryCriteriaJson) ?? "未配置"}
+                  {cleanText(detailData.template.entryCriteriaJson)
+                    ? evidenceText(
+                        detailData.template.entryCriteriaJson,
+                        evidenceDetailsEnabled,
+                        "入径条件已配置",
+                      )
+                    : "未配置"}
                 </span>
               </Descriptions.Item>
               <Descriptions.Item label="出径条件" span={detailDescriptionColumn}>
                 <span className={styles.codeText}>
-                  {cleanText(detailData.template.exitCriteriaJson) ?? "未配置"}
+                  {cleanText(detailData.template.exitCriteriaJson)
+                    ? evidenceText(
+                        detailData.template.exitCriteriaJson,
+                        evidenceDetailsEnabled,
+                        "出径条件已配置",
+                      )
+                    : "未配置"}
                 </span>
               </Descriptions.Item>
               <Descriptions.Item label="知识来源" span={detailDescriptionColumn}>
@@ -3608,18 +3695,20 @@ export default function PathwayTemplates() {
                 <Space direction="vertical" size="middle" className="mk-full-width">
                   <div className={styles.formSection}>
                     <Form layout="vertical">
-                      <Form.Item label="患者 ID" htmlFor="pathway-snapshot-patient-id">
+                      <Form.Item label="患者信息" htmlFor="pathway-snapshot-patient-id">
                         <Input
                           id="pathway-snapshot-patient-id"
                           value={snapshotPatientId}
                           onChange={(event) => setSnapshotPatientId(event.target.value)}
+                          placeholder="输入患者信息检索快照"
                         />
                       </Form.Item>
-                      <Form.Item label="就诊 ID" htmlFor="pathway-snapshot-encounter-id">
+                      <Form.Item label="就诊信息" htmlFor="pathway-snapshot-encounter-id">
                         <Input
                           id="pathway-snapshot-encounter-id"
                           value={snapshotEncounterId}
                           onChange={(event) => setSnapshotEncounterId(event.target.value)}
+                          placeholder="输入就诊信息检索快照"
                         />
                       </Form.Item>
                       <Button
@@ -3636,7 +3725,7 @@ export default function PathwayTemplates() {
                   <div className={styles.snapshotList}>
                     {snapshotList.length > 0 ? (
                       <Space direction="vertical" className="mk-full-width">
-                        {snapshotList.map((snapshot: ContextSnapshotSummary) => (
+                        {snapshotList.map((snapshot: ContextSnapshotSummary, index) => (
                           <Button
                             key={snapshot.snapshotId}
                             type={
@@ -3656,10 +3745,13 @@ export default function PathwayTemplates() {
                             }}
                             className={styles.snapshotButton}
                           >
-                            <span>{snapshot.snapshotId}</span>
+                            <span>{snapshotButtonLabel(snapshot, index, evidenceDetailsEnabled)}</span>
                             <Tag className={styles.tagGap}>
                               {customerDisplayText(snapshot.qualityStatus)}
                             </Tag>
+                            <span className={styles.textSmall}>
+                              {snapshotAssociationText(snapshot, evidenceDetailsEnabled)}
+                            </span>
                           </Button>
                         ))}
                       </Space>
@@ -3669,7 +3761,7 @@ export default function PathwayTemplates() {
                         description={
                           snapshotQuery
                             ? "未读取到已生效快照"
-                            : "请输入患者 ID 或就诊 ID 读取真实快照"
+                            : "请输入患者信息或就诊信息读取真实快照"
                         }
                       />
                     )}
@@ -3713,11 +3805,13 @@ export default function PathwayTemplates() {
                                 value={replaySnapshotIds}
                                 onChange={setReplaySnapshotIds}
                                 placeholder="按顺序选择快照"
-                                options={snapshotList.map((snapshot) => ({
+                                options={snapshotList.map((snapshot, index) => ({
                                   value: snapshot.snapshotId,
-                                  label: `${snapshot.snapshotId} / ${customerDisplayText(
-                                    snapshot.qualityStatus,
-                                  )}`,
+                                  label: `${snapshotButtonLabel(
+                                    snapshot,
+                                    index,
+                                    evidenceDetailsEnabled,
+                                  )} / ${customerDisplayText(snapshot.qualityStatus)}`,
                                 }))}
                               />
                             </Form.Item>
@@ -3744,13 +3838,23 @@ export default function PathwayTemplates() {
                     {selectedSnapshotDetail && (
                       <Descriptions bordered size="small" column={detailDescriptionColumn}>
                         <Descriptions.Item label="快照">
-                          {selectedSnapshotDetail.snapshotId}
+                          {selectedSnapshotText(
+                            selectedSnapshotDetail.snapshotId,
+                            evidenceDetailsEnabled,
+                          )}
                         </Descriptions.Item>
                         <Descriptions.Item label="状态">
                           {customerEnumLabel(selectedSnapshotDetail.status)}
                         </Descriptions.Item>
                         <Descriptions.Item label="质量">
                           {customerDisplayText(selectedSnapshotDetail.qualityStatus)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="追踪证据">
+                          {evidenceText(
+                            selectedSnapshotDetail.traceId,
+                            evidenceDetailsEnabled,
+                            "快照追踪已记录",
+                          )}
                         </Descriptions.Item>
                       </Descriptions>
                     )}
@@ -3789,7 +3893,14 @@ export default function PathwayTemplates() {
                             pagination={false}
                             size="small"
                             columns={[
-                              { title: "快照", dataIndex: "snapshotId" },
+                              {
+                                title: "回放快照",
+                                dataIndex: "snapshotId",
+                                render: (snapshotId: string | null | undefined, _step, index) =>
+                                  evidenceDetailsEnabled
+                                    ? snapshotId || "未返回"
+                                    : replaySnapshotBusinessLabel(index),
+                              },
                               {
                                 title: "轨迹",
                                 dataIndex: "nodeTrajectory",
@@ -3817,7 +3928,9 @@ export default function PathwayTemplates() {
                                   <div className={styles.timelineTitle}>
                                     {nodeDetail?.name ?? "未知节点"}
                                   </div>
-                                  <div className={styles.timelineMeta}>{nodeCode}</div>
+                                  <div className={styles.timelineMeta}>
+                                    {nodeEvidenceText(nodeCode, index, evidenceDetailsEnabled)}
+                                  </div>
                                 </>
                               ),
                             };
@@ -3971,12 +4084,12 @@ export default function PathwayTemplates() {
             )}
             <Space className={`mk-flex-between mk-full-width ${styles.marginBottomMd}`}>
               <span className={`${styles.textSmall} ${styles.textSecondary}`}>
-                路径拓扑与真实快照试运行是主视图；配置明细用于核查受控配置。
+                路径拓扑与真实快照试运行是主视图；证据详情打开后可追溯受控配置。
               </span>
               <Space>
-                <span>配置明细</span>
+                <span>证据详情</span>
                 <Switch
-                  aria-label="配置明细"
+                  aria-label="证据详情"
                   checked={detailAdvancedViewEnabled}
                   onChange={toggleDetailAdvancedViewEnabled}
                 />
