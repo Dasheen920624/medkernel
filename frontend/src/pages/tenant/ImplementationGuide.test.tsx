@@ -1,7 +1,10 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 import ImplementationGuide from "./ImplementationGuide";
 
@@ -10,6 +13,10 @@ const apiMocks = vi.hoisted(() => ({
   implementationStepsLoading: false,
   implementationStepsError: false,
   implementationStepsRefetch: vi.fn(),
+  securityProfile: {
+    permissions: [],
+    menuKeys: ["implementation-guide"],
+  },
   successPlanRefetch: vi.fn(),
   transitionSuccessStage: vi.fn(),
 }));
@@ -20,6 +27,9 @@ vi.mock("@/shared/api/hooks", () => ({
     isLoading: apiMocks.implementationStepsLoading,
     isError: apiMocks.implementationStepsError,
     refetch: apiMocks.implementationStepsRefetch,
+  }),
+  useSecurityProfile: () => ({
+    data: apiMocks.securityProfile,
   }),
   useSuccessPlan: () => ({
     data: {
@@ -88,11 +98,13 @@ describe("ImplementationGuide", () => {
     apiMocks.implementationStepsLoading = false;
     apiMocks.implementationStepsError = false;
     apiMocks.implementationStepsRefetch.mockReset();
+    useEvidenceDetailsStore.getState().setEnabled(false);
     apiMocks.successPlanRefetch.mockReset();
     apiMocks.transitionSuccessStage.mockReset();
+    window.localStorage.clear();
   });
 
-  it("renders real implementation steps with blockers and configuration links", () => {
+  it("renders real implementation steps with business blockers and configuration links", () => {
     renderGuide();
 
     expect(screen.getByRole("heading", { name: "实施与验收" })).toBeInTheDocument();
@@ -101,11 +113,25 @@ describe("ImplementationGuide", () => {
     expect(within(organizationStep).getByText("已存在集团、医院和科室组织")).toBeInTheDocument();
     expect(screen.getByText("尚未创建平台管理员")).toBeInTheDocument();
     expect(screen.getByText("医疗引擎运营员未分配医院作用域")).toBeInTheDocument();
-    expect(screen.getByText("HIS 适配器仍为 NOT_CONNECTED")).toBeInTheDocument();
+    expect(screen.getByText("HIS 适配器仍为 未接通")).toBeInTheDocument();
+    expect(screen.queryByText("HIS 适配器仍为 NOT_CONNECTED")).not.toBeInTheDocument();
 
     const adapterStep = screen.getByTestId("implementation-step-adapters");
     const adapterLink = within(adapterStep).getByRole("link", { name: "前往系统接入" });
     expect(adapterLink).toHaveAttribute("href", "/adapter/hub");
+  });
+
+  it("shows raw implementation evidence only after evidence details are enabled", async () => {
+    const user = userEvent.setup();
+
+    renderGuide();
+
+    expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
+    expect(screen.queryByText("HIS 适配器仍为 NOT_CONNECTED")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("HIS 适配器仍为 NOT_CONNECTED")).toBeInTheDocument();
   });
 
   it("shows an empty state instead of a fake success plan when the service returns no steps", () => {
