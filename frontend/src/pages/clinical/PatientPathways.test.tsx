@@ -409,13 +409,14 @@ describe("PatientPathways", () => {
     const user = userEvent.setup();
     renderPatientPathways();
 
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
     await user.click(screen.getByRole("button", { name: /办理患者入径/ }));
     expect(screen.queryByLabelText(/选择患者 ID/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/关联就诊 ID/)).not.toBeInTheDocument();
 
     const patientInputs = screen.getAllByPlaceholderText("输入姓名、门急诊号或院内患者编号");
     await user.type(patientInputs[patientInputs.length - 1], "mpi-1");
-    await user.click(screen.getByRole("button", { name: "选择第 1 个临床快照" }));
+    await user.click(screen.getByRole("button", { name: "选择 ctx-active-1" }));
     await user.click(screen.getByRole("combobox", { name: "选择当前运行候选路径" }));
     await user.click(await screen.findByText("卒中急诊路径 · STROKE"));
     expect(screen.getByText("候选来自当前机构生效版本，确认后才会入径。")).toBeInTheDocument();
@@ -429,6 +430,9 @@ describe("PatientPathways", () => {
         startNodeCode: undefined,
       });
     });
+    expect(await screen.findByText("患者已入径，路径列表已刷新")).toBeInTheDocument();
+    expect(screen.queryByText(/患者 mpi-1 入径成功/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trace-enter-1/)).not.toBeInTheDocument();
   }, 15_000);
 
   it("shows pathway clocks and variance evidence in the pathway detail drawer", async () => {
@@ -562,7 +566,8 @@ describe("PatientPathways", () => {
 
     expect(screen.getByText("患者路径读取失败")).toBeInTheDocument();
     expect(screen.getByText(/患者路径列表读取失败/)).toBeInTheDocument();
-    expect(screen.getByText(/trace-pathway-error/)).toBeInTheDocument();
+    expect(screen.getByText("失败已留痕，可在审计证据中追溯。")).toBeInTheDocument();
+    expect(screen.queryByText(/trace-pathway-error/)).not.toBeInTheDocument();
   });
 
   it("shows a forbidden state when org data scope denies patient pathways", () => {
@@ -586,6 +591,7 @@ describe("PatientPathways", () => {
 
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
     expect(screen.getByText(/数据范围权限不足/)).toBeInTheDocument();
-    expect(screen.getByText(/trace-scope-denied/)).toBeInTheDocument();
+    expect(screen.getByText("失败已留痕，可在审计证据中追溯。")).toBeInTheDocument();
+    expect(screen.queryByText(/trace-scope-denied/)).not.toBeInTheDocument();
   });
 });

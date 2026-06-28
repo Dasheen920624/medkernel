@@ -465,18 +465,14 @@ export default function PatientPathways() {
         message.error("请先选择已生效临床快照");
         return;
       }
-      const res = await enterPathwayMutation.mutateAsync({
+      await enterPathwayMutation.mutateAsync({
         contextSnapshotId: selectedContextSnapshot.snapshotId,
         templateId: values.templateId,
         triggerPoint: PATHWAY_RUNTIME_TRIGGER,
         startNodeCode: values.startNodeCode?.trim() || undefined,
       });
 
-      message.success(
-        evidenceDetailsEnabled
-          ? `患者 ${selectedContextSnapshot.patientId} 入径成功，追踪号: ${res?.traceId || ""}`
-          : "患者已入径，路径列表已刷新",
-      );
+      message.success("患者已入径，路径列表已刷新");
       setEnterModalVisible(false);
       setEnterPatientFilter("");
       setEnterEncounterFilter("");
