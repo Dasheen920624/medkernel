@@ -232,6 +232,8 @@ describe("Provenance", () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "知识来源追溯" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("输入知识主题或知识身份")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("输入知识主题或身份编码")).not.toBeInTheDocument();
     expect(screen.getAllByText("瑞舒伐他汀说明书").length).toBeGreaterThan(0);
     expect(screen.getByText("国家药品说明书")).toBeInTheDocument();
     expect(screen.getByText("2024 版")).toBeInTheDocument();

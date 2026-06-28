@@ -510,7 +510,7 @@ export default function Provenance() {
                 allowClear
                 enterButton="检索"
                 prefix={<SearchOutlined />}
-                placeholder="输入知识主题或身份编码"
+                placeholder="输入知识主题或知识身份"
                 value={keywordInput}
                 onChange={(event) => setKeywordInput(event.target.value)}
                 onSearch={submitSearch}

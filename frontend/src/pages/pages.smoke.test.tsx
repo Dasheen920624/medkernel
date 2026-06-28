@@ -257,7 +257,7 @@ describe("page smoke coverage", () => {
       </MemoryRouter>,
     );
     expect(screen.getByRole("heading", { name: "知识来源追溯" })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("输入知识主题或身份编码")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("输入知识主题或知识身份")).toBeInTheDocument();
     expect(screen.getByText("知识身份")).toBeInTheDocument();
   });
 
