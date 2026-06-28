@@ -222,16 +222,22 @@ describe("AiWorkflows", () => {
         config.url === "/data-minimization/policies/model-egress/confirmations" &&
         config.method === "post"
       ) {
-        expect(JSON.parse(config.data as string)).toEqual({
+        const confirmation = JSON.parse(config.data as string) as {
+          capabilityCode: string;
+          payloadHash: string;
+          purpose: string;
+        };
+        expect(confirmation).toMatchObject({
           capabilityCode: "clinical.explanation",
-          payloadHash: "sha256:payload-001",
           purpose: "向患者解释检查结果，仅使用已脱敏字段",
         });
+        expect(confirmation.payloadHash).toMatch(/^sha256:[a-f0-9]{64}$/);
+        expect(confirmation.payloadHash).not.toBe("sha256:payload-001");
         return response(config, {
           data: {
             id: 7,
             capabilityCode: "clinical.explanation",
-            payloadHash: "sha256:payload-001",
+            payloadHash: confirmation.payloadHash,
             purpose: "向患者解释检查结果，仅使用已脱敏字段",
             confirmedBy: "operator-001",
             confirmedAt: "2026-06-25T19:45:00Z",
@@ -256,7 +262,8 @@ describe("AiWorkflows", () => {
     expect(within(dialog).getByText(/高敏用途达到阈值时/)).toBeInTheDocument();
     expect(within(dialog).getByText(/每次发送给模型前需要责任确认/)).toBeInTheDocument();
     expect(within(dialog).getByText("本次外调用途确认")).toBeInTheDocument();
-    await user.type(within(dialog).getByLabelText("脱敏载荷摘要"), "sha256:payload-001");
+    expect(within(dialog).queryByLabelText("脱敏载荷摘要")).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/脱敏摘要由系统根据当前字段预览和用途自动生成/)).toBeInTheDocument();
     await user.type(
       within(dialog).getByLabelText("用途说明"),
       "向患者解释检查结果，仅使用已脱敏字段",

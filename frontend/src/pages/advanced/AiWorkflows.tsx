@@ -272,6 +272,39 @@ function buildEgressPreviewRows(
   });
 }
 
+async function sha256Text(value: string) {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) {
+    throw new Error("当前浏览器不可生成脱敏摘要，请更换受支持的安全运行环境后重试");
+  }
+  const digest = await subtle.digest("SHA-256", new TextEncoder().encode(value));
+  const hex = Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  return `sha256:${hex}`;
+}
+
+async function buildEgressConfirmationPayloadHash(
+  capability: ModelCapabilityStatusResponse,
+  previewRows: EgressPreviewRow[],
+  purpose: string,
+) {
+  return sha256Text(
+    JSON.stringify({
+      capabilityCode: capability.capabilityCode,
+      displayName: capability.displayName,
+      routeStrategy: capability.routeStrategy,
+      desensitizeStrategy: capability.desensitizeStrategy,
+      fields: previewRows.map((row) => ({
+        field: row.field,
+        status: row.status,
+        coreSensitive: row.coreSensitive,
+      })),
+      purpose,
+    }),
+  );
+}
+
 function egressPreviewStatusColor(item: EgressPreviewRow) {
   if (item.coreSensitive) {
     return "warning";
@@ -340,7 +373,6 @@ export default function AiWorkflows() {
   const [egressCapability, setEgressCapability] = useState<ModelCapabilityStatusResponse | null>(
     null,
   );
-  const [confirmationPayloadHash, setConfirmationPayloadHash] = useState("");
   const [confirmationPurpose, setConfirmationPurpose] = useState("");
   const capabilities = useMemo(() => statusQuery.data ?? [], [statusQuery.data]);
   const egressPreviewRows = useMemo(
@@ -366,7 +398,6 @@ export default function AiWorkflows() {
 
   function openEgressPolicy(item: ModelCapabilityStatusResponse) {
     setEgressCapability(item);
-    setConfirmationPayloadHash("");
     setConfirmationPurpose("");
     egressForm.setFieldsValue({
       allowedFields: ["prompt"],
@@ -378,7 +409,6 @@ export default function AiWorkflows() {
 
   function closeEgressPolicy() {
     setEgressCapability(null);
-    setConfirmationPayloadHash("");
     setConfirmationPurpose("");
     egressForm.resetFields();
   }
@@ -410,20 +440,23 @@ export default function AiWorkflows() {
 
   async function confirmCurrentModelEgressPurpose() {
     if (!egressCapability) return;
-    const payloadHash = confirmationPayloadHash.trim();
     const purpose = confirmationPurpose.trim();
-    if (!payloadHash || !purpose) {
-      message.warning("请填写脱敏载荷摘要和用途说明");
+    if (!purpose) {
+      message.warning("请填写用途说明");
       return;
     }
     try {
+      const payloadHash = await buildEgressConfirmationPayloadHash(
+        egressCapability,
+        egressPreviewRows,
+        purpose,
+      );
       await confirmModelEgress.mutateAsync({
         capabilityCode: egressCapability.capabilityCode,
         payloadHash,
         purpose,
       });
       message.success("外调用途确认已记录");
-      setConfirmationPayloadHash("");
       setConfirmationPurpose("");
     } catch (error: unknown) {
       message.error(getApiErrorMessage(error, "外调用途确认失败"));
@@ -750,17 +783,29 @@ export default function AiWorkflows() {
                 <div className={styles.egressPreviewHeader}>
                   <Text strong>本次外调用途确认</Text>
                   <Text type="secondary">
-                    高敏患者上下文发送给模型前，记录脱敏载荷摘要和业务用途；确认记录进入审计链，不能替代医生确认或自动形成医嘱。
+                    高敏患者上下文发送给模型前，记录业务用途和系统生成的脱敏摘要；确认记录进入审计链，不能替代医生确认或自动形成医嘱。
                   </Text>
                 </div>
-                <Form.Item label="脱敏载荷摘要">
-                  <Input
-                    aria-label="脱敏载荷摘要"
-                    value={confirmationPayloadHash}
-                    onChange={(event) => setConfirmationPayloadHash(event.target.value)}
-                    placeholder="例如 sha256:payload-001"
+                <Alert
+                  type="success"
+                  showIcon
+                  message="脱敏摘要由系统根据当前字段预览和用途自动生成"
+                  description="摘要只用于审计凭证校验，不要求人工填写哈希；核心敏感明文不会写入用途确认。"
+                />
+                {evidenceDetailsEnabled ? (
+                  <Descriptions
+                    className={styles.details}
+                    column={1}
+                    size="small"
+                    items={[
+                      {
+                        key: "digest-policy",
+                        label: "摘要口径",
+                        children: "能力、路由、脱敏策略、字段处理结果和用途说明",
+                      },
+                    ]}
                   />
-                </Form.Item>
+                ) : null}
                 <Form.Item label="用途说明">
                   <Input.TextArea
                     aria-label="用途说明"
