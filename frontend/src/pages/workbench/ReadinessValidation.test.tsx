@@ -431,7 +431,7 @@ describe("ReadinessValidation", () => {
     expect(screen.getByText(/REGRESSION_BASELINE/)).toBeInTheDocument();
   });
 
-  it("shows traceId on runtime errors and keeps one retry primary action", () => {
+  it("shows business evidence on runtime errors and keeps one retry primary action", () => {
     hookState.runtime = {
       data: undefined,
       isLoading: false,
@@ -450,7 +450,8 @@ describe("ReadinessValidation", () => {
     renderPage();
 
     expect(screen.getByText("运行环境暂时不可用")).toBeInTheDocument();
-    expect(screen.getByText(/trace-demo-001/)).toBeInTheDocument();
+    expect(screen.getByText(/失败已留痕，可在审计证据中追溯/)).toBeInTheDocument();
+    expect(screen.queryByText(/trace-demo-001/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "重新自检" }));
     expect(hookState.runtime.refetch).toHaveBeenCalledTimes(1);
   });
