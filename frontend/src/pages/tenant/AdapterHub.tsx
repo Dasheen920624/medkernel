@@ -99,6 +99,12 @@ const LOG_PAGE_SIZE = 10;
 const ADAPTER_PAGE_SIZE = 20;
 const INTEGRATION_MAINTENANCE_PAGE_SIZE = 20;
 
+const signaturePreviewEventOptions = [
+  { value: "clinical.test", label: "临床事件联调" },
+  { value: "quality.alert.opened", label: "质控事件联调" },
+  { value: "mpi.patient.updated", label: "患者主数据变更" },
+];
+
 interface AdapterFieldMappingFormValue {
   sourcePath: string;
   targetPath: string;
@@ -117,6 +123,14 @@ interface AdapterFormValue {
   requestTimeoutMs?: number;
   fieldMappings?: AdapterFieldMappingFormValue[];
   configJson?: string;
+}
+
+interface SignaturePreviewFormValue {
+  eventType?: string;
+  samplePatient?: string;
+  sampleEncounter?: string;
+  summary?: string;
+  payload?: string;
 }
 
 const HTTP_PROTOCOLS = new Set(["REST", "FHIR", "WEBHOOK", "WEBSERVICE"]);
@@ -289,6 +303,25 @@ function pageStateFor({
   if (adaptersError) return "error";
   if (partialError) return "partial";
   return "ready";
+}
+
+function buildSignaturePreviewPayload(
+  values: SignaturePreviewFormValue,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled && values.payload?.trim()) {
+    return values.payload.trim();
+  }
+  const payload: Record<string, string> = {
+    event: values.eventType?.trim() || "clinical.test",
+  };
+  const patient = values.samplePatient?.trim();
+  const encounter = values.sampleEncounter?.trim();
+  const summary = values.summary?.trim();
+  if (patient) payload.patient = patient;
+  if (encounter) payload.encounter = encounter;
+  if (summary) payload.summary = summary;
+  return JSON.stringify(payload);
 }
 
 export default function AdapterHub() {
@@ -553,14 +586,14 @@ export default function AdapterHub() {
 
   async function handleTestWebhookSignature() {
     try {
-      const values = await signatureForm.validateFields();
+      const values = (await signatureForm.validateFields()) as SignaturePreviewFormValue;
       if (!signatureWebhookId) {
         message.warning("请选择回调通道。");
         return;
       }
       const result = await testWebhookSignatureMutation.mutateAsync({
         webhookId: signatureWebhookId,
-        payload: values.payload,
+        payload: buildSignaturePreviewPayload(values, evidenceDetailsEnabled),
       });
       setSignatureResult(result);
     } catch (error: unknown) {
@@ -1262,7 +1295,16 @@ export default function AdapterHub() {
                       scroll={{ x: 900 }}
                     />
                     <Card title="签名预览" className={styles.sectionCard}>
-                      <Form form={signatureForm} layout="vertical">
+                      <Form
+                        form={signatureForm}
+                        layout="vertical"
+                        initialValues={{
+                          eventType: "clinical.test",
+                          samplePatient: "联调患者（非真实）",
+                          sampleEncounter: "门诊联调就诊",
+                          summary: "签名预览联调事件",
+                        }}
+                      >
                         <Form.Item label="回调通道" required>
                           <Select
                             value={signatureWebhookId}
@@ -1277,12 +1319,30 @@ export default function AdapterHub() {
                           />
                         </Form.Item>
                         <Form.Item
-                          name="payload"
-                          label="签名预览载荷"
-                          rules={[{ required: true, message: "请输入签名预览载荷" }]}
+                          name="eventType"
+                          label="预览事件"
+                          rules={[{ required: true, message: "请选择预览事件" }]}
                         >
-                          <Input.TextArea rows={3} placeholder='例如 {"event":"clinical.test"}' />
+                          <Select options={signaturePreviewEventOptions} />
                         </Form.Item>
+                        <Form.Item name="samplePatient" label="样例患者（非真实）">
+                          <Input placeholder="例如 联调患者（非真实）" />
+                        </Form.Item>
+                        <Form.Item name="sampleEncounter" label="样例就诊（非真实）">
+                          <Input placeholder="例如 门诊联调就诊" />
+                        </Form.Item>
+                        <Form.Item name="summary" label="事件摘要">
+                          <Input.TextArea rows={2} placeholder="例如 签名预览联调事件" />
+                        </Form.Item>
+                        {evidenceDetailsEnabled ? (
+                          <Form.Item
+                            name="payload"
+                            label="签名预览载荷"
+                            extra="填写后将覆盖上方业务字段生成的载荷，仅用于核查服务契约。"
+                          >
+                            <Input.TextArea rows={3} placeholder='例如 {"event":"clinical.test"}' />
+                          </Form.Item>
+                        ) : null}
                         <Button
                           loading={testWebhookSignatureMutation.isPending}
                           disabled={!canExecute || webhooks.length === 0}

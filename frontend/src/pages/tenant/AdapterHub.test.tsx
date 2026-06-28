@@ -803,14 +803,30 @@ describe("AdapterHub", () => {
     expect(screen.getByText(/仅显示一次/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "我已安全保存" }));
-    fireEvent.change(screen.getByLabelText("签名预览载荷"), {
-      target: { value: '{"event":"clinical.test"}' },
+    expect(screen.queryByLabelText("签名预览载荷")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "预览事件" }));
+    await user.click(
+      await screen.findByText("临床事件联调", { selector: ".ant-select-item-option-content" }),
+    );
+    fireEvent.change(screen.getByLabelText("样例患者（非真实）"), {
+      target: { value: "联调患者（非真实）" },
+    });
+    fireEvent.change(screen.getByLabelText("样例就诊（非真实）"), {
+      target: { value: "门诊联调就诊" },
+    });
+    fireEvent.change(screen.getByLabelText("事件摘要"), {
+      target: { value: "签名预览联调事件" },
     });
     await user.click(screen.getByRole("button", { name: "生成签名预览" }));
 
     expect(testSignature.mutateAsync).toHaveBeenCalledWith({
       webhookId: "clinical-events",
-      payload: '{"event":"clinical.test"}',
+      payload: JSON.stringify({
+        event: "clinical.test",
+        patient: "联调患者（非真实）",
+        encounter: "门诊联调就诊",
+        summary: "签名预览联调事件",
+      }),
     });
     expect(await screen.findByText("签名已在本地生成，未向外部地址发起请求。")).toBeInTheDocument();
     expect(screen.getByText("sha256=preview-signature")).toBeInTheDocument();
