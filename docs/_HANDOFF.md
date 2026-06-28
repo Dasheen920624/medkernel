@@ -24,6 +24,8 @@
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新路径配置体验优化：`77c8ca3c`（`统一路径配置证据详情体验`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
+- 本地最新系统接入体验优化：`14825309`（`统一系统接入证据详情体验`）已完成本地验证，尚未同步到 134；
+  134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新临床待办与证据权限优化：`bbbbfc55`（`统一临床待办证据权限门禁`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新提醒推荐体验优化：`cd557ed9`（`统一提醒推荐证据详情体验`）已完成本地验证，尚未同步到 134；
@@ -104,6 +106,11 @@
   统一证据详情，实施工程师、信息科、医疗引擎运营员、临床路径负责人和护理/随访协同角色默认看到路径模板已登记、第 N 版已形成、
   患者/就诊信息、临床快照、机构生效版本、路径边已选择、节点轨迹已记录、试运行留痕和回放快照；templateCode、snapshotId、
   patientId、encounterId、runtimeReleaseId、traceId、selectedEdgeCode、节点 code 和回放快照号只在证据详情中展开。
+  第二十二刀补齐系统接入/互操作工作台统一证据详情，信息科、实施工程师、平台管理员、审计员和院内外系统对接人员默认看到
+  适配器已登记、消息证据已记录、追踪证据已记录、接入申请已登记、回调地址已配置、区域来源已登记、绑定链路已确认、
+  当前机构字段契约已生成、数据质量报告已生成和中文可信等级；adapterId、messageId、traceId、onboardingId、webhookId、
+  callbackUrl、sourceId、contractId、schemaVersion、accessGuide 中的 runtimeReleaseId、reportId 和报告追踪号只在
+  证据详情中展开，健康诊断默认按业务系统名和中文状态反馈，区域来源可信等级从“风险”语义修正为“高/中/低可信”。
   后续仍需继续扫描关键临床/患者/质量/运营真实流程与真实全角色复演，不能把用户临时补充点当成唯一优化范围。
 
 ## 当前唯一权威
@@ -211,6 +218,16 @@
   节点 code 和回放快照号；打开证据详情后仍可追溯完整路径模板、真实快照、草稿试运行和详情试运行证据。本地验证通过
   `npm --prefix frontend test -- --run src/pages/tenant/PathwayTemplates.test.tsx`、
   `npm --prefix frontend test -- --run src/pages/tenant/PathwayTemplates.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/ReleaseGovernance.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx`、
+  `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
+- 最新系统接入体验切片：
+  `14825309` 将系统接入/互操作工作台接入统一证据详情；默认面向信息科、实施工程师、平台管理员、审计员和院内外系统对接人员
+  展示适配器已登记、消息证据已记录、追踪证据已记录、接入申请已登记、回调地址已配置、区域来源已登记、绑定链路已确认、
+  当前机构字段契约已生成、数据质量报告已生成、中文消息状态、中文接入阶段和高/中/低可信等级，隐藏 adapterId、
+  messageId、traceId、onboardingId、webhookId、callbackUrl、sourceId、contractId、schemaVersion、runtimeReleaseId、
+  reportId 和报告追踪号；打开证据详情后仍可追溯完整适配器、死信、回调、区域来源、字段契约、健康诊断和质量报告证据。
+  本地验证通过
+  `npm --prefix frontend test -- --run src/pages/tenant/AdapterHub.test.tsx`、
+  `npm --prefix frontend test -- --run src/pages/tenant/AdapterHub.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/PathwayTemplates.test.tsx`、
   `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
 - 最新临床待办与权限门禁切片：
   `bbbbfc55` 将协同任务接入统一证据详情，默认展示待办风险、患者上下文和责任岗位，患者/就诊、来源、追踪和责任人编号
