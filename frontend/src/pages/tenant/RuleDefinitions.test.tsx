@@ -410,7 +410,7 @@ function setActiveSnapshotFixture() {
 async function openDraftRuleDrawer() {
   const user = userEvent.setup();
   renderRuleDefinitions();
-  await screen.findByText("RULE.QC.REVIEW");
+  await screen.findByText("规则发布校验核查");
   await user.click(screen.getByRole("button", { name: "查看配置与试运行" }));
   await screen.findByText("规则配置详情与试运行");
   return user;
@@ -565,10 +565,10 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       });
 
       await user.click(within(dialog).getByRole("tab", { name: /即配即试/ }));
-      await user.type(within(dialog).getByLabelText("患者 ID"), "P-001");
-      await user.type(within(dialog).getByLabelText("就诊 ID"), "E-001");
+      await user.type(within(dialog).getByLabelText("患者信息"), "P-001");
+      await user.type(within(dialog).getByLabelText("就诊信息"), "E-001");
       await user.click(within(dialog).getByRole("button", { name: /读取真实快照/ }));
-      await user.click(await within(dialog).findByText("ctx-001"));
+      await user.click(await within(dialog).findByText("第 1 个临床快照"));
       await user.click(within(dialog).getByRole("button", { name: "运行草稿试运行" }));
 
       await waitFor(() =>
@@ -595,6 +595,12 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       );
       expect(apiMocks.simulateRule).not.toHaveBeenCalled();
       expect(await within(dialog).findByText("草稿规则命中真实快照")).toBeInTheDocument();
+      expect(within(dialog).getAllByText("试运行快照已关联").length).toBeGreaterThan(0);
+      expect(within(dialog).getAllByText("机构生效版本已确认").length).toBeGreaterThan(0);
+      expect(within(dialog).getByText("试运行已留痕")).toBeInTheDocument();
+      expect(within(dialog).queryByText("ctx-001")).not.toBeInTheDocument();
+      expect(within(dialog).queryByText("release-runtime-1")).not.toBeInTheDocument();
+      expect(within(dialog).queryByText("trace-preview-run")).not.toBeInTheDocument();
       expect(within(dialog).getByText("observations[].valueNumeric")).toBeInTheDocument();
       expect(within(dialog).getByText("6 mmol/L >= 6.5")).toBeInTheDocument();
     },
@@ -966,6 +972,101 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   );
 
   it(
+    "规则列表、详情和治理页默认隐藏低频证据，打开证据详情后可追溯原始值",
+    async () => {
+      apiMocks.ruleListData = { items: [draftRule], total: 1 };
+      apiMocks.ruleDetailData = {
+        ...createRuleDetail(),
+        definition: {
+          ...draftRule,
+          suppressedBy: "RULE.PRIOR.HIGH",
+        },
+        versions: [
+          { ...createRuleDetail().version, versionId: "ver-1", versionNo: 1, status: "DRAFT" },
+        ],
+      };
+      apiMocks.impactData = {
+        ruleId: "rule-1",
+        versionId: "ver-1",
+        riskLevel: "HIGH",
+        analysisStatus: "COMPLETE",
+        impactDigest: "sha256:impact-abc",
+        affectedRules: [
+          {
+            objectType: "RULE",
+            objectId: "rule-1",
+            displayName: "规则发布校验核查",
+            impactReason: "当前草稿版本",
+          },
+        ],
+        affectedPathways: [
+          {
+            objectType: "PATHWAY_TEMPLATE",
+            objectId: "pt-1",
+            displayName: "慢阻肺抗凝路径",
+            impactReason: "路径模板节点引用规则 RULE.ANTICOAG",
+          },
+        ],
+        inPathPatients: [
+          {
+            objectType: "PATIENT_PATHWAY",
+            objectId: "ppath-active",
+            displayName: "患者 patient-1 / 就诊 enc-1",
+            impactReason: "当前节点 ASSESS",
+          },
+        ],
+        integrationAdapters: [
+          {
+            objectType: "INTEGRATION_ADAPTER",
+            objectId: "target-clinical",
+            displayName: "院内规则库",
+            impactReason: "机构生效版本 release-H1 同步状态 SUCCESS",
+          },
+        ],
+        unavailableScopes: [],
+        traceId: "trace-impact",
+      };
+
+      const user = userEvent.setup();
+      renderRuleDefinitions();
+
+      expect(await screen.findByText("规则资产已登记")).toBeInTheDocument();
+      expect(screen.getByText("当前版本已形成")).toBeInTheDocument();
+      expect(screen.queryByText("RULE.QC.REVIEW")).not.toBeInTheDocument();
+      expect(screen.queryByText("ver-1")).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "查看配置与试运行" }));
+
+      expect(await screen.findByText("上级规则已关联")).toBeInTheDocument();
+      expect(screen.getByText("第 1 版已形成")).toBeInTheDocument();
+      expect(screen.queryByText("u-1")).not.toBeInTheDocument();
+      expect(screen.queryByText("RULE.PRIOR.HIGH")).not.toBeInTheDocument();
+      expect(screen.queryByText("ver-1")).not.toBeInTheDocument();
+      expect(screen.queryByText("规则编码 RULE.QC.REVIEW")).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("tab", { name: /治理与发布/ }));
+
+      expect(await screen.findByText("负责人已记录")).toBeInTheDocument();
+      expect(screen.getByText("影响证据已记录")).toBeInTheDocument();
+      expect(screen.getByText(/在径患者已关联/)).toBeInTheDocument();
+      expect(screen.queryByText("sha256:impact-abc")).not.toBeInTheDocument();
+      expect(screen.queryByText(/patient-1/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/RULE.ANTICOAG/)).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+      expect((await screen.findAllByText("RULE.QC.REVIEW")).length).toBeGreaterThan(0);
+      expect(screen.getByText("u-1")).toBeInTheDocument();
+      expect(screen.getByText("RULE.PRIOR.HIGH")).toBeInTheDocument();
+      expect(screen.getAllByText(/ver-1/).length).toBeGreaterThan(0);
+      expect(screen.getByText("sha256:impact-abc")).toBeInTheDocument();
+      expect(screen.getByText(/patient-1/)).toBeInTheDocument();
+      expect(screen.getByText(/RULE.ANTICOAG/)).toBeInTheDocument();
+    },
+    RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "从真实上下文快照详情运行规则仿真，不要求人工粘贴配置文本",
     async () => {
       apiMocks.ruleListData = { items: [draftRule], total: 1 };
@@ -997,17 +1098,17 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       expect((await screen.findAllByText(/当前服务机构全部组织/)).length).toBeGreaterThan(0);
       await user.click(screen.getByRole("tab", { name: /真实快照试运行/ }));
       expect(
-        screen.getByText("条件树是主视图；受控配置和解释模板可在配置明细中核查。"),
+        screen.getByText("条件树是主视图；证据详情打开后可追溯受控配置和解释模板。"),
       ).toBeInTheDocument();
-      await user.click(screen.getByRole("switch", { name: "配置明细" }));
+      await user.click(screen.getByRole("switch", { name: "证据详情" }));
 
       expect(screen.queryByText("手工配置文本兜底")).not.toBeInTheDocument();
       expect(
         screen.queryByRole("button", { name: "运行手工配置文本试运行" }),
       ).not.toBeInTheDocument();
 
-      await user.type(screen.getByLabelText("患者 ID"), "P-001");
-      await user.type(screen.getByLabelText("就诊 ID"), "E-001");
+      await user.type(screen.getByLabelText("患者信息"), "P-001");
+      await user.type(screen.getByLabelText("就诊信息"), "E-001");
       await user.click(screen.getByRole("button", { name: "读取真实快照" }));
       await user.click(await screen.findByText("ctx-001"));
       await user.click(screen.getByRole("button", { name: "使用该快照试运行" }));
@@ -1040,8 +1141,8 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       const dialog = title.closest(".ant-modal-content");
       expect(dialog).not.toBeNull();
       expect(dialog?.closest(".ant-modal-wrap")).toHaveStyle({ zIndex: "1100" });
-      expect(within(dialog as HTMLElement).getByLabelText("验证用例患者 ID")).toBeInTheDocument();
-      expect(within(dialog as HTMLElement).getByLabelText("验证用例就诊 ID")).toBeInTheDocument();
+      expect(within(dialog as HTMLElement).getByLabelText("验证用例患者信息")).toBeInTheDocument();
+      expect(within(dialog as HTMLElement).getByLabelText("验证用例就诊信息")).toBeInTheDocument();
       expect(within(dialog as HTMLElement).queryByText(/测试输入配置文本/)).not.toBeInTheDocument();
     },
     RULE_DEFINITION_INTERACTION_TIMEOUT_MS,
@@ -1063,9 +1164,9 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       const dialog = title.closest(".ant-modal-content");
       expect(dialog).not.toBeNull();
       const caseDialog = within(dialog as HTMLElement);
-      await user.type(caseDialog.getByLabelText("验证用例患者 ID"), "P-001");
+      await user.type(caseDialog.getByLabelText("验证用例患者信息"), "P-001");
       await user.click(caseDialog.getByRole("button", { name: "读取已生效快照" }));
-      await user.click(await caseDialog.findByText("ctx-001"));
+      await user.click(await caseDialog.findByText("第 1 个临床快照"));
       await user.click(caseDialog.getByRole("combobox", { name: "用例类别" }));
       await user.click(
         await screen.findByText("阴性不命中用例", {
@@ -1196,10 +1297,12 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       expect(screen.getByText("安全复核")).toBeInTheDocument();
       expect(screen.getByText("影子运行")).toBeInTheDocument();
       expect(screen.getByText("退役")).toBeInTheDocument();
-      expect(screen.getByText("sha256:impact-abc")).toBeInTheDocument();
+      expect(screen.getByText("影响证据已记录")).toBeInTheDocument();
+      expect(screen.queryByText("sha256:impact-abc")).not.toBeInTheDocument();
       expect(screen.getByText("已完成真实影响分析")).toBeInTheDocument();
       expect(screen.getByText(/慢阻肺抗凝路径/)).toBeInTheDocument();
-      expect(screen.getByText(/患者 patient-1/)).toBeInTheDocument();
+      expect(screen.getByText(/在径患者已关联/)).toBeInTheDocument();
+      expect(screen.queryByText(/患者 patient-1/)).not.toBeInTheDocument();
       expect(screen.getByText(/院内规则库/)).toBeInTheDocument();
 
       await user.type(screen.getByLabelText("治理说明"), "已查看影响摘要并确认安全复核");
@@ -1359,8 +1462,8 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
 
     await openDraftRuleDrawer();
 
-    expect(screen.getByText("V2 · 草稿设计中")).toBeInTheDocument();
-    expect(screen.getByText("V1 · 已发布")).toBeInTheDocument();
+    expect(screen.getByText("第 2 版已形成 · 草稿设计中")).toBeInTheDocument();
+    expect(screen.getByText("第 1 版已形成 · 已发布")).toBeInTheDocument();
   });
 
   it(

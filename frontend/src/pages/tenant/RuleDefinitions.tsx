@@ -507,13 +507,8 @@ function highestReadableRisk(tree: RuleConditionTree, fallback: string) {
   }, fallbackRisk);
 }
 
-function readableScope(applicability: RuleApplicability) {
+function readableScope(applicability: RuleApplicability, evidenceDetailsEnabled = false) {
   const settingText = applicability.settings.map((setting) => CLINICAL_SETTING_LABELS[setting]);
-  const orgText = [
-    ...(applicability.orgScope.groupIds ?? []).map((value) => `集团 ${value}`),
-    ...(applicability.orgScope.hospitalIds ?? []).map((value) => `医院 ${value}`),
-    ...(applicability.orgScope.deptIds ?? []).map((value) => `科室 ${value}`),
-  ];
   const effective = applicability.effective;
   const effectiveText = [
     effective.from ? `自 ${effective.from} 起` : "立即生效",
@@ -522,7 +517,7 @@ function readableScope(applicability: RuleApplicability) {
   ].filter(Boolean);
   return [
     settingText.join("、") || "未配置场景",
-    orgText.join("、") || "当前服务机构全部组织",
+    orgScopeText(applicability, evidenceDetailsEnabled),
     effectiveText.join(" · "),
   ].join(" · ");
 }
@@ -540,6 +535,7 @@ function renderRuleReadablePath(
   tree: RuleConditionTree,
   root: RuleConditionGroup | null,
   definition: RuleDefinition,
+  evidenceDetailsEnabled: boolean,
 ) {
   const conditions = root ? collectReadableConditions(root) : tree.conditions;
   const triggerLabel = READABLE_TRIGGER_LABELS[tree.triggerPoint];
@@ -565,11 +561,11 @@ function renderRuleReadablePath(
     {
       title: "触发时点",
       primary: triggerLabel,
-      meta: `规则编码 ${definition.ruleCode}`,
+      meta: evidenceDetailsEnabled ? `规则编码 ${definition.ruleCode}` : "规则资产已登记",
     },
     {
       title: "适用范围",
-      primary: readableScope(tree.applicability),
+      primary: readableScope(tree.applicability, evidenceDetailsEnabled),
       meta: "使用真实组织、场景与灰度约束",
     },
     {
@@ -683,6 +679,103 @@ function renderDriftStatus(status?: string | null) {
   return <Tag>未监测</Tag>;
 }
 
+function evidenceText(
+  value: string | number | null | undefined,
+  evidenceDetailsEnabled: boolean,
+  businessText: string,
+) {
+  if (!evidenceDetailsEnabled) {
+    return businessText;
+  }
+  if (value === undefined || value === null || value === "") {
+    return "未返回";
+  }
+  return String(value);
+}
+
+function ruleIdentityText(ruleCode: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  return evidenceText(ruleCode, evidenceDetailsEnabled, "规则资产已登记");
+}
+
+function versionEvidenceText(
+  versionId: string | null | undefined,
+  versionNo: number | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) {
+    if (versionId && versionNo) return `${versionId} · V${versionNo}`;
+    return versionId || "未返回版本";
+  }
+  if (versionNo) return `第 ${versionNo} 版已形成`;
+  return versionId ? "当前版本已形成" : "尚未形成版本";
+}
+
+function orgScopeText(applicability: RuleApplicability, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) {
+    return [
+      ...(applicability.orgScope.groupIds ?? []).map((value) => `集团 ${value}`),
+      ...(applicability.orgScope.hospitalIds ?? []).map((value) => `医院 ${value}`),
+      ...(applicability.orgScope.deptIds ?? []).map((value) => `科室 ${value}`),
+    ].join("、") || "当前服务机构全部组织";
+  }
+  const parts = [
+    applicability.orgScope.groupIds?.length
+      ? `${applicability.orgScope.groupIds.length} 个集团范围`
+      : null,
+    applicability.orgScope.hospitalIds?.length
+      ? `${applicability.orgScope.hospitalIds.length} 个医院范围`
+      : null,
+    applicability.orgScope.deptIds?.length
+      ? `${applicability.orgScope.deptIds.length} 个科室范围`
+      : null,
+  ].filter(Boolean);
+  return parts.join("、") || "当前服务机构全部组织";
+}
+
+function snapshotBusinessLabel(index: number) {
+  return `第 ${index + 1} 个临床快照`;
+}
+
+function snapshotAssociationText(
+  value: string | null | undefined,
+  label: string,
+  evidenceDetailsEnabled: boolean,
+) {
+  return evidenceText(value, evidenceDetailsEnabled, `${label}已关联`);
+}
+
+function actionDisplayText(
+  action: { summary?: string | null; actionCode?: string | null },
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) {
+    return `${action.summary} · ${action.actionCode}`;
+  }
+  return action.summary || "临床动作已记录";
+}
+
+function impactObjectBusinessName(item: RuleImpactObject, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) {
+    return item.displayName;
+  }
+  if (item.objectType === "PATIENT_PATHWAY") return "在径患者已关联";
+  if (item.objectType === "PATHWAY_TEMPLATE") return item.displayName || "路径模板已关联";
+  if (item.objectType === "INTEGRATION_ADAPTER") return item.displayName || "集成适配器已关联";
+  if (item.objectType === "RULE") return item.displayName || "规则对象已关联";
+  return "影响对象已关联";
+}
+
+function impactObjectReason(item: RuleImpactObject, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) {
+    return item.impactReason;
+  }
+  if (item.objectType === "PATIENT_PATHWAY") return "当前路径节点影响已记录";
+  if (item.objectType === "PATHWAY_TEMPLATE") return "路径引用影响已记录";
+  if (item.objectType === "INTEGRATION_ADAPTER") return "机构同步影响已记录";
+  if (item.objectType === "RULE") return "当前规则版本影响已记录";
+  return "影响原因已记录";
+}
+
 export default function RuleDefinitions() {
   const { message, modal } = AntdApp.useApp();
   const securityQuery = useSecurityProfile();
@@ -708,6 +801,7 @@ export default function RuleDefinitions() {
   const [activeCreateLayer, setActiveCreateLayer] = useState<CreateLayerKey>("l1");
   const [createAdvancedConfigEnabled, setCreateAdvancedConfigEnabled] = useState(false);
   const [detailAdvancedViewEnabled, setDetailAdvancedViewEnabled] = useState(false);
+  const evidenceDetailsEnabled = detailAdvancedViewEnabled;
   const [selectedTemplateKey, setSelectedTemplateKey] =
     useState<RuleTemplateKey>(DEFAULT_TEMPLATE_KEY);
   const [criticalReturnMinutes, setCriticalReturnMinutes] = useState<number>(
@@ -964,7 +1058,7 @@ export default function RuleDefinitions() {
     }
   };
 
-  const toggleDetailAdvancedViewEnabled = (checked: boolean) => {
+  const toggleEvidenceDetailsEnabled = (checked: boolean) => {
     setDetailAdvancedViewEnabled(checked);
     if (!checked && activeDetailLayer === "l3") {
       setActiveDetailLayer("l2");
@@ -2676,10 +2770,12 @@ export default function RuleDefinitions() {
 
   const columns: TableProps<RuleDefinition>["columns"] = [
     {
-      title: "规则编码",
+      title: "规则身份",
       dataIndex: "ruleCode",
       key: "ruleCode",
-      render: (text: string) => <Tag color="blue">{text}</Tag>,
+      render: (text: string) => (
+        <Tag color="blue">{ruleIdentityText(text, evidenceDetailsEnabled)}</Tag>
+      ),
     },
     {
       title: "规则名称",
@@ -2710,7 +2806,11 @@ export default function RuleDefinitions() {
       dataIndex: "activeVersionId",
       key: "activeVersionId",
       render: (value?: string | null) =>
-        value || <span className={styles.textMuted}>尚未形成版本</span>,
+        value ? (
+          evidenceText(value, evidenceDetailsEnabled, "当前版本已形成")
+        ) : (
+          <span className={styles.textMuted}>尚未形成版本</span>
+        ),
     },
     {
       title: "操作",
@@ -2734,7 +2834,7 @@ export default function RuleDefinitions() {
     },
   ];
 
-  const renderSnapshotChoice = (snapshot: ContextSnapshotSummary) => {
+  const renderSnapshotChoice = (snapshot: ContextSnapshotSummary, index: number) => {
     const selected = selectedSnapshotId === snapshot.snapshotId;
     return (
       <Card
@@ -2750,13 +2850,16 @@ export default function RuleDefinitions() {
         <Space direction="vertical" size={2} className="mk-full-width">
           <Space>
             <Badge status={selected ? "processing" : "default"} />
-            <Text strong>{snapshot.snapshotId}</Text>
+            <Text strong>
+              {evidenceDetailsEnabled ? snapshot.snapshotId : snapshotBusinessLabel(index)}
+            </Text>
             <Tag color={snapshot.status === "ACTIVE" ? "green" : "default"}>
               {customerEnumLabel(snapshot.status)}
             </Tag>
           </Space>
           <Text type="secondary">
-            患者 {snapshot.patientId || "-"} · 就诊 {snapshot.encounterId || "-"} · 质量{" "}
+            {snapshotAssociationText(snapshot.patientId, "患者", evidenceDetailsEnabled)} ·{" "}
+            {snapshotAssociationText(snapshot.encounterId, "就诊", evidenceDetailsEnabled)} · 质量{" "}
             {customerDisplayText(snapshot.qualityStatus)}
           </Text>
           {snapshot.createdAt && <Text type="secondary">创建时间 {snapshot.createdAt}</Text>}
@@ -2767,7 +2870,7 @@ export default function RuleDefinitions() {
 
   const renderSnapshotChoices = () => {
     if (!snapshotSearchParams) {
-      return <Empty description="输入患者 ID 或就诊 ID 后读取已生效快照" />;
+      return <Empty description="输入患者信息或就诊信息后读取已生效快照" />;
     }
     if (snapshotsQuery.isLoading) {
       return <Alert type="info" showIcon message="正在读取真实上下文快照列表..." />;
@@ -2823,17 +2926,25 @@ export default function RuleDefinitions() {
     return (
       <Space direction="vertical" size="middle" className="mk-full-width">
         <Descriptions bordered column={1} size="small">
-          <Descriptions.Item label="快照 ID">{snapshot.snapshotId}</Descriptions.Item>
+          <Descriptions.Item label="快照证据">
+            {evidenceText(snapshot.snapshotId, evidenceDetailsEnabled, "临床快照已选择")}
+          </Descriptions.Item>
           <Descriptions.Item label="质量状态">
             {customerDisplayText(snapshot.qualityStatus)}
           </Descriptions.Item>
           <Descriptions.Item label="机构生效版本">
-            {snapshot.runtimeReleaseId || "-"}
+            {evidenceText(
+              snapshot.runtimeReleaseId,
+              evidenceDetailsEnabled,
+              "机构生效版本已确认",
+            )}
           </Descriptions.Item>
           <Descriptions.Item label="缺失字段">
             {snapshot.missingFields?.length ? `${snapshot.missingFields.length} 项` : "无"}
           </Descriptions.Item>
-          <Descriptions.Item label="追踪号">{snapshot.traceId || "-"}</Descriptions.Item>
+          <Descriptions.Item label="追踪证据">
+            {evidenceText(snapshot.traceId, evidenceDetailsEnabled, "快照追踪已记录")}
+          </Descriptions.Item>
         </Descriptions>
         <Button
           type="primary"
@@ -2905,9 +3016,19 @@ export default function RuleDefinitions() {
         </Space>
         <Descriptions bordered column={1} size="small">
           <Descriptions.Item label="试运行结果">{result.outcomeText}</Descriptions.Item>
-          <Descriptions.Item label="快照 ID">{result.snapshotId}</Descriptions.Item>
-          <Descriptions.Item label="机构生效版本">{result.runtimeReleaseId}</Descriptions.Item>
-          <Descriptions.Item label="追踪号">{result.traceId || "-"}</Descriptions.Item>
+          <Descriptions.Item label="快照证据">
+            {evidenceText(result.snapshotId, evidenceDetailsEnabled, "试运行快照已关联")}
+          </Descriptions.Item>
+          <Descriptions.Item label="机构生效版本">
+            {evidenceText(
+              result.runtimeReleaseId,
+              evidenceDetailsEnabled,
+              "机构生效版本已确认",
+            )}
+          </Descriptions.Item>
+          <Descriptions.Item label="追踪证据">
+            {evidenceText(result.traceId, evidenceDetailsEnabled, "试运行已留痕")}
+          </Descriptions.Item>
         </Descriptions>
         {renderPreviewRunEvidence(result.conditionEvidence ?? [])}
       </Space>
@@ -2928,13 +3049,21 @@ export default function RuleDefinitions() {
       <Space direction="vertical" size="middle" className="mk-full-width">
         <Descriptions bordered column={1} size="small">
           <Descriptions.Item label="已选快照">
-            {snapshotDetailQuery.data.snapshotId}
+            {evidenceText(
+              snapshotDetailQuery.data.snapshotId,
+              evidenceDetailsEnabled,
+              "试运行快照已关联",
+            )}
           </Descriptions.Item>
           <Descriptions.Item label="质量状态">
             {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
           </Descriptions.Item>
           <Descriptions.Item label="机构生效版本">
-            {snapshotDetailQuery.data.runtimeReleaseId || "-"}
+            {evidenceText(
+              snapshotDetailQuery.data.runtimeReleaseId,
+              evidenceDetailsEnabled,
+              "机构生效版本已确认",
+            )}
           </Descriptions.Item>
           <Descriptions.Item label="缺失字段">
             {snapshotDetailQuery.data.missingFields?.length
@@ -2966,16 +3095,24 @@ export default function RuleDefinitions() {
     return (
       <Descriptions bordered column={2} size="small">
         <Descriptions.Item label="已选快照">
-          {snapshotDetailQuery.data.snapshotId}
+          {evidenceText(
+            snapshotDetailQuery.data.snapshotId,
+            evidenceDetailsEnabled,
+            "验证快照已关联",
+          )}
         </Descriptions.Item>
         <Descriptions.Item label="质量状态">
           {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
         </Descriptions.Item>
         <Descriptions.Item label="机构生效版本">
-          {snapshotDetailQuery.data.runtimeReleaseId || "-"}
+          {evidenceText(
+            snapshotDetailQuery.data.runtimeReleaseId,
+            evidenceDetailsEnabled,
+            "机构生效版本已确认",
+          )}
         </Descriptions.Item>
-        <Descriptions.Item label="追踪号">
-          {snapshotDetailQuery.data.traceId || "-"}
+        <Descriptions.Item label="追踪证据">
+          {evidenceText(snapshotDetailQuery.data.traceId, evidenceDetailsEnabled, "验证已留痕")}
         </Descriptions.Item>
       </Descriptions>
     );
@@ -2989,7 +3126,8 @@ export default function RuleDefinitions() {
         <Space direction="vertical" size={2}>
           {objects.map((item) => (
             <Text key={`${item.objectType}-${item.objectId}`}>
-              {item.displayName} · {item.impactReason}
+              {impactObjectBusinessName(item, evidenceDetailsEnabled)} ·{" "}
+              {impactObjectReason(item, evidenceDetailsEnabled)}
             </Text>
           ))}
         </Space>
@@ -3003,7 +3141,11 @@ export default function RuleDefinitions() {
         {releaseImpactStatus(impactQuery.data)}
       </Descriptions.Item>
       <Descriptions.Item label="影响摘要">
-        {impactQuery.data?.impactDigest || <Text type="secondary">未返回</Text>}
+        {impactQuery.data?.impactDigest ? (
+          evidenceText(impactQuery.data.impactDigest, evidenceDetailsEnabled, "影响证据已记录")
+        ) : (
+          <Text type="secondary">未返回</Text>
+        )}
       </Descriptions.Item>
       <Descriptions.Item label="规则对象">
         {impactCount(impactQuery.data?.affectedRules)}
@@ -3163,7 +3305,11 @@ export default function RuleDefinitions() {
         <Descriptions.Item label="当前阶段">
           {ruleGovernanceLabel(governanceState)}
         </Descriptions.Item>
-        <Descriptions.Item label="负责人">{governance?.authorId || "暂无"}</Descriptions.Item>
+        <Descriptions.Item label="负责人">
+          {governance?.authorId
+            ? evidenceText(governance.authorId, evidenceDetailsEnabled, "负责人已记录")
+            : "暂无"}
+        </Descriptions.Item>
         <Descriptions.Item label="最近说明">{governance?.lastReason || "暂无"}</Descriptions.Item>
       </Descriptions>
       {governanceState === "DRAFT" && (
@@ -3356,11 +3502,16 @@ export default function RuleDefinitions() {
                 showIcon
                 message={`当前条件根组为「${(detailRoot?.logic ?? detailTree.logic) === "all" ? "全部满足" : "任一满足"}」，支持任意层级嵌套。`}
               />
-              {renderRuleReadablePath(detailTree, detailRoot, detailData.definition)}
+              {renderRuleReadablePath(
+                detailTree,
+                detailRoot,
+                detailData.definition,
+                evidenceDetailsEnabled,
+              )}
               {detailRoot ? (
                 renderReadonlyNode(detailRoot)
               ) : (
-                <Alert type="warning" showIcon message="条件结构无法解析，请打开配置明细核查。" />
+                <Alert type="warning" showIcon message="条件结构无法解析，请打开证据详情核查。" />
               )}
               {Boolean(detailDsl) && (
                 <AuthoringReadablePreview subject="RULE_CONDITION" dsl={detailDsl} />
@@ -3374,17 +3525,7 @@ export default function RuleDefinitions() {
                   </Space>
                 </Descriptions.Item>
                 <Descriptions.Item label="组织范围">
-                  {[
-                    ...(detailTree.applicability.orgScope.groupIds ?? []).map(
-                      (value) => `集团 ${value}`,
-                    ),
-                    ...(detailTree.applicability.orgScope.hospitalIds ?? []).map(
-                      (value) => `医院 ${value}`,
-                    ),
-                    ...(detailTree.applicability.orgScope.deptIds ?? []).map(
-                      (value) => `科室 ${value}`,
-                    ),
-                  ].join("、") || "当前服务机构全部组织"}
+                  {orgScopeText(detailTree.applicability, evidenceDetailsEnabled)}
                 </Descriptions.Item>
                 <Descriptions.Item label="生效范围">
                   {detailTree.applicability.effective.from ?? "立即生效"} 至{" "}
@@ -3399,7 +3540,8 @@ export default function RuleDefinitions() {
                   <Space wrap>
                     {detailTree.actions.map((action, index) => (
                       <Tag key={`${action.actionCode}-${index}`} color={action.indicator}>
-                        {action.summary} · {RISK_LABELS[action.atSeverity]}
+                        {actionDisplayText(action, evidenceDetailsEnabled)} ·{" "}
+                        {RISK_LABELS[action.atSeverity]}
                       </Tag>
                     ))}
                   </Space>
@@ -3413,7 +3555,7 @@ export default function RuleDefinitions() {
             <Alert
               type="warning"
               showIcon
-              message="该版本的配置明细无法无损还原为当前条件树，请打开配置明细核查。"
+              message="该版本的受控配置无法无损还原为当前条件树，请打开证据详情核查。"
             />
           ),
         },
@@ -3567,22 +3709,22 @@ export default function RuleDefinitions() {
                   <Form layout="vertical">
                     <Row gutter={12}>
                       <Col span={12}>
-                        <Form.Item label="患者 ID" htmlFor="rule-snapshot-patient-id">
+                        <Form.Item label="患者信息" htmlFor="rule-snapshot-patient-id">
                           <Input
                             id="rule-snapshot-patient-id"
                             value={snapshotPatientId}
                             onChange={(event) => setSnapshotPatientId(event.target.value)}
-                            placeholder="输入患者主索引"
+                            placeholder="输入患者信息检索快照"
                           />
                         </Form.Item>
                       </Col>
                       <Col span={12}>
-                        <Form.Item label="就诊 ID" htmlFor="rule-snapshot-encounter-id">
+                        <Form.Item label="就诊信息" htmlFor="rule-snapshot-encounter-id">
                           <Input
                             id="rule-snapshot-encounter-id"
                             value={snapshotEncounterId}
                             onChange={(event) => setSnapshotEncounterId(event.target.value)}
-                            placeholder="输入就诊号"
+                            placeholder="输入就诊信息检索快照"
                           />
                         </Form.Item>
                       </Col>
@@ -3616,7 +3758,7 @@ export default function RuleDefinitions() {
                           <Space wrap>
                             {simulateResult.actions.map((action, index) => (
                               <Tag key={`${action.actionCode}-${index}`} color={action.indicator}>
-                                {action.summary} · {action.actionCode}
+                                {actionDisplayText(action, evidenceDetailsEnabled)}
                               </Tag>
                             ))}
                           </Space>
@@ -4327,22 +4469,22 @@ export default function RuleDefinitions() {
               <div className={styles.formSection}>
                 <Row gutter={12}>
                   <Col xs={24} md={12}>
-                    <Form.Item label="患者 ID" htmlFor="rule-create-snapshot-patient-id">
+                    <Form.Item label="患者信息" htmlFor="rule-create-snapshot-patient-id">
                       <Input
                         id="rule-create-snapshot-patient-id"
                         value={snapshotPatientId}
                         onChange={(event) => setSnapshotPatientId(event.target.value)}
-                        placeholder="输入患者主索引"
+                        placeholder="输入患者信息检索快照"
                       />
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={12}>
-                    <Form.Item label="就诊 ID" htmlFor="rule-create-snapshot-encounter-id">
+                    <Form.Item label="就诊信息" htmlFor="rule-create-snapshot-encounter-id">
                       <Input
                         id="rule-create-snapshot-encounter-id"
                         value={snapshotEncounterId}
                         onChange={(event) => setSnapshotEncounterId(event.target.value)}
-                        placeholder="输入就诊号"
+                        placeholder="输入就诊信息检索快照"
                       />
                     </Form.Item>
                   </Col>
@@ -4536,7 +4678,7 @@ export default function RuleDefinitions() {
 
             <Descriptions title="基本元数据" bordered column={2}>
               <Descriptions.Item label="规则编码">
-                {detailData.definition.ruleCode}
+                {ruleIdentityText(detailData.definition.ruleCode, evidenceDetailsEnabled)}
               </Descriptions.Item>
               <Descriptions.Item label="名称">{detailData.definition.name}</Descriptions.Item>
               <Descriptions.Item label="类型">
@@ -4555,7 +4697,13 @@ export default function RuleDefinitions() {
                 {detailData.definition.priority}
               </Descriptions.Item>
               <Descriptions.Item label="显式抑制来源">
-                {detailData.definition.suppressedBy || "未配置"}
+                {detailData.definition.suppressedBy
+                  ? evidenceText(
+                      detailData.definition.suppressedBy,
+                      evidenceDetailsEnabled,
+                      "上级规则已关联",
+                    )
+                  : "未配置"}
               </Descriptions.Item>
               <Descriptions.Item label="同患者去重窗口">
                 {detailData.definition.dedupeWindowSeconds > 0
@@ -4563,15 +4711,22 @@ export default function RuleDefinitions() {
                   : "不去重"}
               </Descriptions.Item>
               <Descriptions.Item label="当前版本">
-                {detailData.version?.versionNo || 0} 版
+                {versionEvidenceText(
+                  detailData.version?.versionId,
+                  detailData.version?.versionNo,
+                  evidenceDetailsEnabled,
+                )}
               </Descriptions.Item>
               <Descriptions.Item label="版本历史" span={2}>
                 <Space wrap>
                   {detailData.versions.map((version) => (
                     <Tag key={version.versionId}>
-                      {`V${version.versionNo} · ${
-                        RULE_VERSION_STATUS_LABELS[version.status] ??
-                        customerEnumLabel(version.status)
+                      {`${versionEvidenceText(
+                        version.versionId,
+                        version.versionNo,
+                        evidenceDetailsEnabled,
+                      )} · ${
+                        RULE_VERSION_STATUS_LABELS[version.status] ?? customerEnumLabel(version.status)
                       }`}
                     </Tag>
                   ))}
@@ -4580,7 +4735,7 @@ export default function RuleDefinitions() {
             </Descriptions>
 
             <Space className="mk-flex-between mk-full-width">
-              <Text type="secondary">条件树是主视图；受控配置和解释模板可在配置明细中核查。</Text>
+              <Text type="secondary">条件树是主视图；证据详情打开后可追溯受控配置和解释模板。</Text>
               <Space>
                 {canWriteRule &&
                   detailData.version.status === "DRAFT" &&
@@ -4598,11 +4753,11 @@ export default function RuleDefinitions() {
                     复制为新版本
                   </Button>
                 )}
-                <Text>配置明细</Text>
+                <Text>证据详情</Text>
                 <Switch
-                  aria-label="配置明细"
+                  aria-label="证据详情"
                   checked={detailAdvancedViewEnabled}
-                  onChange={toggleDetailAdvancedViewEnabled}
+                  onChange={toggleEvidenceDetailsEnabled}
                 />
               </Space>
             </Space>
@@ -4838,24 +4993,24 @@ export default function RuleDefinitions() {
           />
           <Row gutter={12}>
             <Col span={12}>
-              <Form.Item label="患者 ID" htmlFor="rule-case-snapshot-patient-id">
+              <Form.Item label="患者信息" htmlFor="rule-case-snapshot-patient-id">
                 <Input
                   id="rule-case-snapshot-patient-id"
-                  aria-label="验证用例患者 ID"
+                  aria-label="验证用例患者信息"
                   value={snapshotPatientId}
                   onChange={(event) => setSnapshotPatientId(event.target.value)}
-                  placeholder="输入患者主索引"
+                  placeholder="输入患者信息检索快照"
                 />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="就诊 ID" htmlFor="rule-case-snapshot-encounter-id">
+              <Form.Item label="就诊信息" htmlFor="rule-case-snapshot-encounter-id">
                 <Input
                   id="rule-case-snapshot-encounter-id"
-                  aria-label="验证用例就诊 ID"
+                  aria-label="验证用例就诊信息"
                   value={snapshotEncounterId}
                   onChange={(event) => setSnapshotEncounterId(event.target.value)}
-                  placeholder="输入就诊号"
+                  placeholder="输入就诊信息检索快照"
                 />
               </Form.Item>
             </Col>
