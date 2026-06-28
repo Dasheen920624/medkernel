@@ -514,28 +514,31 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   it(
     "规则动作建议使用业务对象配置医嘱建议而不是参数键值",
     async () => {
-      const user = userEvent.setup();
       renderRuleDefinitions();
 
-      await user.click(screen.getByRole("button", { name: /新建规则模板/ }));
+      fireEvent.click(screen.getByRole("button", { name: /新建规则模板/ }));
       const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
-      await user.click(within(dialog).getByRole("switch", { name: "受控配置文本模式" }));
-      await user.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
-      await user.click(within(dialog).getByRole("button", { name: /为提示 1 添加可选操作/ }));
+      fireEvent.click(within(dialog).getByRole("switch", { name: "受控配置文本模式" }));
+      fireEvent.click(within(dialog).getByRole("tab", { name: /L2 条件树/ }));
+      fireEvent.click(within(dialog).getByRole("button", { name: /为提示 1 添加可选操作/ }));
 
-      await user.type(within(dialog).getByLabelText("可选操作名称"), "打开肾功能复核套餐");
-      await user.click(within(dialog).getByRole("combobox", { name: "可选操作类型" }));
-      await user.click(
+      fireEvent.change(within(dialog).getByLabelText("可选操作名称"), {
+        target: { value: "打开肾功能复核套餐" },
+      });
+      fireEvent.mouseDown(within(dialog).getByRole("combobox", { name: "可选操作类型" }));
+      fireEvent.click(
         await screen.findByText("建议医嘱", { selector: ".ant-select-item-option-content" }),
       );
-      await user.type(within(dialog).getByLabelText("关联业务对象"), "ORDER.CKD.REVIEW");
+      fireEvent.change(within(dialog).getByLabelText("关联业务对象"), {
+        target: { value: "ORDER.CKD.REVIEW" },
+      });
 
       expect(within(dialog).queryByText("操作参数")).not.toBeInTheDocument();
       expect(within(dialog).queryByLabelText("参数键")).not.toBeInTheDocument();
       expect(within(dialog).queryByLabelText("参数值")).not.toBeInTheDocument();
 
-      await user.click(within(dialog).getByRole("button", { name: "同步到受控配置" }));
-      await user.click(within(dialog).getByRole("tab", { name: /受控配置文本/ }));
+      fireEvent.click(within(dialog).getByRole("button", { name: "同步到受控配置" }));
+      fireEvent.click(within(dialog).getByRole("tab", { name: /受控配置文本/ }));
       const dslEditor = within(dialog).getByLabelText("规则配置文本") as HTMLTextAreaElement;
       expect(dslEditor.value).toContain('"actionType": "SUGGEST_ORDER"');
       expect(dslEditor.value).toContain('"orderSetRef": "ORDER.CKD.REVIEW"');
