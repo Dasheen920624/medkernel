@@ -36,6 +36,8 @@
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新服务机构体验优化：`9f82a013`（`统一服务机构证据详情体验`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
+- 本地最新人员账号体验优化：`262813d4`（`统一人员账号证据详情体验`）已完成本地验证，尚未同步到 134；
+  134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新临床待办与证据权限优化：`bbbbfc55`（`统一临床待办证据权限门禁`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新提醒推荐体验优化：`cd557ed9`（`统一提醒推荐证据详情体验`）已完成本地验证，尚未同步到 134；
@@ -139,6 +141,9 @@
   第二十七刀补齐服务机构页统一证据详情，平台管理员、信息科长和实施工程师默认看到服务机构已开通、组织已登记、
   上级组织已关联、组织与任职台账等业务表达；tenantId、组织 code、parentId 和实施就绪原始证据只在证据详情中展开。
   开通服务机构、创建组织节点和品牌配置提交契约保持不变，身份输入改称稳定服务机构身份/稳定组织身份。
+  第二十八刀补齐人员与账号页统一证据详情，平台管理员、信息科和人事/实施人员默认看到人员档案已登记、登录账号已开通、
+  任职和身份来源数量；employeeNo、username、身份 subjectHint 只在证据详情中展开。新增、导入、角色范围分配、密码重置和
+  一次性凭证交付契约保持不变，建档输入改称院内人员身份。
   后续仍需继续扫描关键临床/患者/质量/运营真实流程与真实全角色复演，不能把用户临时补充点当成唯一优化范围。
 
 ## 当前唯一权威
@@ -296,6 +301,14 @@
   `npm --prefix frontend test -- --run src/pages/tenant/TenantOnboarding.test.tsx`、
   `npm --prefix frontend test -- --run src/pages/tenant/TenantOnboarding.test.tsx src/pages/tenant/ImplementationGuide.test.tsx src/pages/tenant/AdapterHub.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx src/shared/config/customerLanguageGate.test.ts`、
   `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
+- 最新人员账号体验切片：
+  `262813d4` 将人员与账号页接入统一证据详情；默认面向平台管理员、信息科和人事/实施人员展示人员档案已登记、
+  登录账号已开通、任职和身份来源数量，隐藏 employeeNo、username 和身份 subjectHint；打开证据详情后仍可追溯完整
+  人员身份、登录名和绑定身份。新增人员、批量导入、角色范围分配、密码重置和一次性账号凭证交付契约不变。本地验证通过
+  `npm --prefix frontend test -- --run src/pages/compliance/AdminUsers.test.tsx`、
+  `npm --prefix frontend test -- --run src/pages/compliance/AdminUsers.test.tsx src/pages/tenant/TenantOnboarding.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx src/shared/config/customerLanguageGate.test.ts src/shared/config/routes.test.ts`、
+  `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。仓库当前未发现独立
+  `IdentityBinding.test.tsx` 文件；后续身份来源切片需先补对应测试或并入现有覆盖。
 - 最新临床待办与权限门禁切片：
   `bbbbfc55` 将协同任务接入统一证据详情，默认展示待办风险、患者上下文和责任岗位，患者/就诊、来源、追踪和责任人编号
   只在证据详情中显示；同时补齐 MPI、患者路径、消息通知和协同任务的证据详情权限双门禁，避免本地偏好残留导致无权限角色
