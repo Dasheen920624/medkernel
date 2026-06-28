@@ -492,6 +492,29 @@ function modelProviderBusinessLabel(
   return evidenceDetailsEnabled ? `${label} · ${code}` : label;
 }
 
+const MODEL_EGRESS_FIELD_LABELS: Record<string, string> = {
+  prompt: "生成提示",
+  patientContext: "患者上下文",
+  patient_context: "患者上下文",
+  diagnosis: "诊断信息",
+  medication: "用药信息",
+  lab: "检验检查信息",
+};
+
+function modelPayloadHashText(hash: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  if (!hash) return "未返回脱敏摘要";
+  return evidenceDetailsEnabled ? hash : "脱敏摘要已登记";
+}
+
+function modelEgressFieldsText(
+  fields: string[] | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (!fields?.length) return "未返回字段清单";
+  if (evidenceDetailsEnabled) return fields.join("、");
+  return fields.map((field) => MODEL_EGRESS_FIELD_LABELS[field] ?? "已登记字段").join("、");
+}
+
 function knowledgeIdentityOptionLabel(
   identity: KnowledgeIdentity,
   evidenceDetailsEnabled: boolean,
@@ -2964,18 +2987,31 @@ export default function KnowledgeGovernance({
               }
             />
             <Descriptions column={1} bordered size="small">
-              <Descriptions.Item label="模型能力">
-                {pendingModelEgressConfirmation.challenge.capabilityCode}
+              <Descriptions.Item label={evidenceDetailsEnabled ? "模型能力代码" : "生成能力"}>
+                {modelCapabilityBusinessLabel(
+                  pendingModelEgressConfirmation.challenge.capabilityCode,
+                  evidenceDetailsEnabled,
+                )}
               </Descriptions.Item>
-              <Descriptions.Item label="脱敏载荷摘要">
-                {pendingModelEgressConfirmation.challenge.payloadHash}
+              <Descriptions.Item label={evidenceDetailsEnabled ? "脱敏载荷摘要" : "脱敏摘要"}>
+                {modelPayloadHashText(
+                  pendingModelEgressConfirmation.challenge.payloadHash,
+                  evidenceDetailsEnabled,
+                )}
               </Descriptions.Item>
-              <Descriptions.Item label="拟供模型使用字段">
-                {pendingModelEgressConfirmation.challenge.egressFields.join("、") ||
-                  "未返回字段清单"}
+              <Descriptions.Item
+                label={evidenceDetailsEnabled ? "拟供模型使用字段" : "拟供模型使用信息"}
+              >
+                {modelEgressFieldsText(
+                  pendingModelEgressConfirmation.challenge.egressFields,
+                  evidenceDetailsEnabled,
+                )}
               </Descriptions.Item>
-              <Descriptions.Item label="模型服务">
-                {pendingModelEgressConfirmation.challenge.providerCode || "服务端策略选择"}
+              <Descriptions.Item label={evidenceDetailsEnabled ? "模型服务代码" : "模型服务"}>
+                {modelProviderBusinessLabel(
+                  pendingModelEgressConfirmation.challenge.providerCode,
+                  evidenceDetailsEnabled,
+                )}
               </Descriptions.Item>
             </Descriptions>
             <Form

@@ -1385,8 +1385,17 @@ describe("KnowledgeGovernance", () => {
 
       await waitFor(() => expect(generateModelCandidate).toHaveBeenCalled());
       expect(await screen.findByText("确认模型外调用途")).toBeInTheDocument();
-      expect(screen.getByText(/高敏患者上下文外调前需要责任确认/)).toBeInTheDocument();
-      expect(screen.getByText("sha256-confirmation-required")).toBeInTheDocument();
+      const egressDialog = screen.getByText("确认模型外调用途").closest(".ant-modal");
+      expect(egressDialog).toBeTruthy();
+      const egressScope = within(egressDialog as HTMLElement);
+      expect(egressScope.getByText(/高敏患者上下文外调前需要责任确认/)).toBeInTheDocument();
+      expect(egressScope.getByText("正式知识候选生成")).toBeInTheDocument();
+      expect(egressScope.getByText("统一模型服务")).toBeInTheDocument();
+      expect(egressScope.getByText("脱敏摘要已登记")).toBeInTheDocument();
+      expect(egressScope.getByText("生成提示")).toBeInTheDocument();
+      expect(egressScope.queryByText("sha256-confirmation-required")).not.toBeInTheDocument();
+      expect(egressScope.queryByText("knowledge.production.knowledge")).not.toBeInTheDocument();
+      expect(egressScope.queryByText("provider-openai")).not.toBeInTheDocument();
 
       await user.type(
         screen.getByLabelText("用途说明"),
