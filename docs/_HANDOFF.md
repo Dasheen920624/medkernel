@@ -26,6 +26,8 @@
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新系统接入体验优化：`14825309`（`统一系统接入证据详情体验`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
+- 本地最新医学评测体验优化：`65f2d0d5`（`统一医学评测证据详情体验`）已完成本地验证，尚未同步到 134；
+  134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新临床待办与证据权限优化：`bbbbfc55`（`统一临床待办证据权限门禁`）已完成本地验证，尚未同步到 134；
   134 manifest 仍为 `930745d5eb2a9516b8f1e43fa7e00259ce22f2ca`。
 - 本地最新提醒推荐体验优化：`cd557ed9`（`统一提醒推荐证据详情体验`）已完成本地验证，尚未同步到 134；
@@ -111,6 +113,9 @@
   当前机构字段契约已生成、数据质量报告已生成和中文可信等级；adapterId、messageId、traceId、onboardingId、webhookId、
   callbackUrl、sourceId、contractId、schemaVersion、accessGuide 中的 runtimeReleaseId、reportId 和报告追踪号只在
   证据详情中展开，健康诊断默认按业务系统名和中文状态反馈，区域来源可信等级从“风险”语义修正为“高/中/低可信”。
+  第二十三刀补齐医学评测页统一证据详情，医疗引擎运营员默认按模型服务类型、模型版本和中文医学能力选择当前交付文件评测，
+  providerCode、capabilityCode 和 AntD 下拉 value 里的原始合同码不再默认出现在前台 DOM；打开证据详情后仍可追溯
+  原始模型服务编码和能力合同码。医学评测说明同步纳入院外模型只发送脱敏交付内容、院内模型可使用受控上下文的安全边界。
   后续仍需继续扫描关键临床/患者/质量/运营真实流程与真实全角色复演，不能把用户临时补充点当成唯一优化范围。
 
 ## 当前唯一权威
@@ -228,6 +233,13 @@
   本地验证通过
   `npm --prefix frontend test -- --run src/pages/tenant/AdapterHub.test.tsx`、
   `npm --prefix frontend test -- --run src/pages/tenant/AdapterHub.test.tsx src/pages/pages.smoke.test.tsx src/shared/ui/PageExperienceShell.test.tsx src/pages/tenant/RuleDefinitions.test.tsx src/pages/tenant/PathwayTemplates.test.tsx`、
+  `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
+- 最新医学评测体验切片：
+  `65f2d0d5` 将知识生产医学评测页接入共享证据详情；默认面向医疗引擎运营员展示模型服务类型、模型版本、中文医学能力和
+  院外脱敏/院内受控上下文安全边界，隐藏 providerCode、capabilityCode 以及 AntD 下拉 value 中的原始合同码；提交时仍映射回
+  后端所需的 providerCode、modelVersion 和 capabilityCode，打开证据详情后可追溯原始模型服务编码和能力合同码。本地验证通过
+  `npm --prefix frontend test -- --run src/pages/knowledge-production/MedicalEvaluationPanel.test.tsx`、
+  `npm --prefix frontend test -- --run src/pages/knowledge-production/MedicalEvaluationPanel.test.tsx src/pages/knowledge-production/ProviderSetupPanel.test.tsx src/pages/knowledge-production/KnowledgeProductionPage.test.tsx src/pages/knowledge-production/ProductionReadinessPanel.test.tsx src/shared/ui/PageExperienceShell.test.tsx`、
   `npm --prefix frontend run typecheck`、`npm --prefix frontend run lint`、`git diff --check`。
 - 最新临床待办与权限门禁切片：
   `bbbbfc55` 将协同任务接入统一证据详情，默认展示待办风险、患者上下文和责任岗位，患者/就诊、来源、追踪和责任人编号
