@@ -90,6 +90,29 @@ class ContextFieldCatalogDraftServiceTest {
     }
 
     @Test
+    void snapshotDraftWritesCustomerReadableDescriptionWhenWorkingCatalogDescriptionIsBlank() throws Exception {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-field-catalog-description", OrgScope.tenant("tenant-A"), "operator-A"));
+        when(catalog.query(null, null)).thenReturn(List.of(
+            descriptor("observations[].valueNumeric", "检验数值", "number", null, false, " ")
+        ));
+        when(versions.findByTenantIdAndAssetTypeAndAssetIdentityAndStatus(
+            "tenant-A", VersionedAssetType.FIELD_CATALOG,
+            "FIELD.CATALOG.CLINICAL_CONTEXT", AssetVersionStatus.DRAFT
+        )).thenReturn(List.of());
+        when(versionService.registerDraft(any())).thenReturn(version("av-field-catalog-v1", "V1"));
+
+        service.snapshotDraft();
+
+        ArgumentCaptor<AssetVersionRegisterCommand> command =
+            ArgumentCaptor.forClass(AssetVersionRegisterCommand.class);
+        verify(versionService).registerDraft(command.capture());
+        JsonNode root = new ObjectMapper().readTree(command.getValue().content());
+        assertThat(root.path("fields").get(0).path("description").asText())
+            .isEqualTo("检验数值字段说明");
+    }
+
+    @Test
     void updatesTheSingleUnpublishedDraftInsteadOfAllocatingAnotherVersion() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-update", OrgScope.tenant("tenant-A"), "operator-B"));
@@ -142,9 +165,19 @@ class ContextFieldCatalogDraftServiceTest {
             String dataType,
             String codeSystem,
             boolean derived) {
+        return descriptor(fieldPath, displayName, dataType, codeSystem, derived, "字段说明");
+    }
+
+    private static ContextFieldDescriptor descriptor(
+            String fieldPath,
+            String displayName,
+            String dataType,
+            String codeSystem,
+            boolean derived,
+            String description) {
         return new ContextFieldDescriptor(
             "临床上下文", "基础字段", fieldPath.startsWith("extensions.") ? "Extension" : "Observation",
-            fieldPath, displayName, dataType, null, codeSystem, "字段说明",
+            fieldPath, displayName, dataType, null, codeSystem, description,
             "TENANT", "field-1", derived);
     }
 

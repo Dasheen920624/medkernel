@@ -2,6 +2,13 @@ import { expect, type APIResponse, type Page } from "@playwright/test";
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 
+import {
+  ROLE_ACCOUNT_CODES,
+  resolveRoleCredentialOverrides,
+  type RoleAccountCode,
+  type RoleCredentialOverrides,
+} from "./e2eRoleCredentials";
+
 export const apiBase = requireEnv("E2E_API_BASE_URL");
 export const appBase = (process.env.E2E_BASE_URL?.trim() || "http://localhost:5173").replace(
   /\/+$/,
@@ -10,14 +17,9 @@ export const appBase = (process.env.E2E_BASE_URL?.trim() || "http://localhost:51
 const frontendApiBase = resolveFrontendApiBase(appBase);
 export const tenantId = "t-1";
 const defaultPassword = "Mk@2026dev";
-export const roleAccounts = [
-  "platform-admin",
-  "engine-operator",
-  "clinical-user",
-  "auditor",
-] as const;
+export const roleAccounts = ROLE_ACCOUNT_CODES;
 
-export type RoleAccount = (typeof roleAccounts)[number];
+export type RoleAccount = RoleAccountCode;
 
 const credentialsConfigured = Boolean(process.env.E2E_ROLE_CREDENTIALS_FILE?.trim());
 const credentialOverrides = loadCredentialOverrides();
@@ -25,11 +27,12 @@ const credentialOverrides = loadCredentialOverrides();
 export async function ensureReadySession(page: Page, role: RoleAccount) {
   await resetRoleSession(page);
   const password = stablePassword(role);
+  const username = usernameFor(role);
   let currentPassword = password;
-  let login = await loginWith(page, role, password);
+  let login = await loginWith(page, username, password);
   if (!login.ok() && !credentialsConfigured) {
     currentPassword = defaultPassword;
-    login = await loginWith(page, role, defaultPassword);
+    login = await loginWith(page, username, defaultPassword);
   }
   await expectOk(login, `${role} 登录`);
   let result = (await login.json()).data;
@@ -52,7 +55,7 @@ export async function ensureReadySession(page: Page, role: RoleAccount) {
     } else {
       await expectOk(change, `${role} 首次改密`);
     }
-    const relogin = await loginWith(page, role, password);
+    const relogin = await loginWith(page, username, password);
     await expectOk(relogin, `${role} 改密后重新登录`);
     result = (await relogin.json()).data;
     if (process.env.E2E_EXPECT_MFA_DISABLED === "1") {
@@ -70,7 +73,7 @@ export async function ensureReadySession(page: Page, role: RoleAccount) {
       code: totp(setup.secret),
     });
     await expectOk(verifyResponse, `${role} 验证 MFA`);
-    const relogin = await loginWith(page, role, password);
+    const relogin = await loginWith(page, username, password);
     await expectOk(relogin, `${role} MFA 后重新登录`);
   }
   await loginWithFrontend(page, role, password);
@@ -98,7 +101,7 @@ export async function loginFromPlatformPage(page: Page, role: RoleAccount) {
     await expect(page.getByRole("heading", { name: "登录平台治理" })).toBeVisible();
   }
 
-  await page.getByLabel("工号 / 账号").fill(role);
+  await page.getByLabel("工号 / 账号").fill(usernameFor(role));
   await page.getByLabel("密码").fill(stablePassword(role));
   await page.getByRole("button", { name: "进入工作台" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
@@ -114,8 +117,9 @@ export async function loginWith(page: Page, username: string, password: string) 
 }
 
 async function loginWithFrontend(page: Page, role: RoleAccount, password: string) {
+  const username = usernameFor(role);
   const response = await page.request.post(`${frontendApiBase}/auth/login`, {
-    data: { username: role, password, tenantId: tenantIdFor(role) },
+    data: { username, password, tenantId: tenantIdFor(role) },
     headers: {
       "Content-Type": "application/json",
       "X-Trace-Id": `e2e-front-login-${role}-${Date.now()}`,
@@ -179,6 +183,10 @@ export function stablePassword(role: RoleAccount) {
   return credentialOverrides[role]?.password ?? `Mk@2026${role.replace(/-/g, "")}`;
 }
 
+function usernameFor(role: RoleAccount) {
+  return credentialOverrides[role]?.username ?? role;
+}
+
 export function resolveFrontendApiBase(baseUrl: string) {
   const normalized = baseUrl.trim().replace(/\/+$/, "");
   const pathname = new URL(normalized).pathname.replace(/\/+$/, "");
@@ -187,49 +195,19 @@ export function resolveFrontendApiBase(baseUrl: string) {
 }
 
 function tenantIdFor(username: string) {
-  return credentialOverrides[username]?.tenantId ?? tenantId;
+  return credentialFor(username)?.tenantId ?? tenantId;
+}
+
+function credentialFor(principal: string) {
+  const byRole = credentialOverrides[principal as RoleAccount];
+  if (byRole) return byRole;
+  return Object.values(credentialOverrides).find((credential) => credential.username === principal);
 }
 
 function loadCredentialOverrides() {
   const file = process.env.E2E_ROLE_CREDENTIALS_FILE?.trim();
-  if (!file) return {} as Record<string, { password?: string; tenantId?: string }>;
-  const source = JSON.parse(readFileSync(file, "utf8")) as {
-    schemaVersion?: string;
-    status?: string;
-    platform?: {
-      tenantId?: string;
-      accounts?: Record<
-        string,
-        {
-          tenantId?: string;
-          username?: string;
-          role?: string;
-          password?: string;
-        }
-      >;
-    };
-  };
-  if (source.schemaVersion !== "1.0.0" || source.status !== "READY") {
-    throw new Error("E2E 上线凭据必须使用 READY 状态的 1.0.0 契约");
-  }
-  if (!source.platform || source.platform.tenantId !== tenantId || !source.platform.accounts) {
-    throw new Error("E2E 上线凭据缺少平台主租户账号");
-  }
-  const accounts = source.platform.accounts;
-  return Object.fromEntries(
-    roleAccounts.map((role) => {
-      const account = accounts[role];
-      if (
-        account?.tenantId !== tenantId ||
-        account.username !== role ||
-        account.role !== role ||
-        !account.password
-      ) {
-        throw new Error(`E2E 上线凭据缺少有效的 ${role} 账号`);
-      }
-      return [role, { password: account.password, tenantId: account.tenantId }];
-    }),
-  );
+  if (!file) return {} as Partial<RoleCredentialOverrides>;
+  return resolveRoleCredentialOverrides(JSON.parse(readFileSync(file, "utf8")));
 }
 
 function requireEnv(name: string) {

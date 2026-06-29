@@ -85,6 +85,46 @@ class RuntimeReleaseFieldCatalogResolverTest {
     }
 
     @Test
+    void normalizesBlankDescriptionFromExistingRuntimeReleaseContent() {
+        String content = """
+            {
+              "schemaVersion": "1.0",
+              "fields": [
+                {
+                  "category": "检验检查",
+                  "group": "检验",
+                  "resourceType": "Observation",
+                  "fieldPath": "observations[].valueNumeric",
+                  "displayName": "检验数值",
+                  "dataType": "number",
+                  "unit": null,
+                  "codeSystem": null,
+                  "description": "",
+                  "derived": false
+                }
+              ]
+            }
+            """;
+        when(assets.resolve(
+            "tenant-A",
+            "runtime-blank-description",
+            VersionedAssetType.FIELD_CATALOG,
+            ContextFieldCatalogAssets.CLINICAL_CONTEXT_IDENTITY))
+            .thenReturn(Optional.of(new ResolvedDeclarativeAsset(
+                VersionedAssetType.FIELD_CATALOG,
+                ContextFieldCatalogAssets.CLINICAL_CONTEXT_IDENTITY,
+                "V8",
+                "runtime-blank-description",
+                content,
+                "hash-field-catalog")));
+
+        var fields = resolver.resolve("tenant-A", "runtime-blank-description");
+
+        assertThat(fields).singleElement()
+            .satisfies(field -> assertThat(field.description()).isEqualTo("检验数值字段说明"));
+    }
+
+    @Test
     void rejectsRuntimeReleaseWithoutFieldCatalogAsset() {
         when(assets.resolve(
             "tenant-A",

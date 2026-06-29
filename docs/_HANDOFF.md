@@ -378,6 +378,22 @@
 - 修复后目标集：`20 passed / 2 failed`，剩余为真实前台值集旧标签。
 - 修复值集/MPI 后，真实前台单独重跑：`2 passed (1.4m)`。
 - 完整回归重跑：`52 passed (17.2m)`，随后独立全角色 E2E 再跑 `1 passed (59.6s)`。
+- 真实前台继续演练补充（`2026-06-29T22:43:13+08:00`）：
+  - 上线 READY 凭据权威路径是 `/zoesoft/medkernel/var/credentials/current-launch.json`，当前包含
+    `platform` 与 `rehearsal` 两组四职责账号；真实前台演练必须优先使用 `rehearsal` 机构账号，避免把业务数据写入平台治理租户。
+    `/zoesoft/medkernel/conf/medkernel-accounts.json` 是旧汇总文件，不再作为当前前台演练登录权威。
+  - 按 `rehearsal` 四职责账号重跑真实前台时，适配器由前台真实创建成功，但
+    `GET /medkernel/api/v1/engine/integration/data-contract` 返回 `400`：
+    机构生效运行版本字段目录存在历史空白 `description`，后端运行解析器把低风险元数据缺口升级成页面不可用。
+  - 已本地修复：E2E 登录支持读取 READY 凭据中的 `rehearsal` 四职责账号；运行字段目录解析与草稿生成会把空白字段说明规范化为
+    `展示名 + 字段说明`，既保护历史生效版本，又避免继续产生空白说明。
+  - 本地验证通过：
+    `npm --prefix frontend test -- e2eRoleCredentials.test.ts e2eAuthCredentialContract.test.ts`（`3 passed`）；
+    `mvn -f medkernel-backend/pom.xml -Dtest=RuntimeReleaseFieldCatalogResolverTest,ContextFieldCatalogDraftServiceTest test`（`7 passed`）；
+    `npm --prefix frontend run typecheck`；
+    `git diff --check`。
+  - 下一动作：构建当前分支后端包，用 134 现有 `/zoesoft/medkernel/bin/medkernel-deploy.sh` 做日常更新，
+    再复核 `data-contract` 与真实前台 E2E；若仍出现页面交互、分类、权限或敏感信息问题，继续按全角色体验优化闭环。
 
 ## 下一步
 
@@ -385,8 +401,8 @@
 2. 目标环境上线前补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
 3. 路由级角色视角已覆盖所有认证路由；下一批应转向真实前台逐角色操作演练与页面交互细节优化，
    重点看操作步数、默认筛选、证据详情开关、权限提示、患者敏感信息屏蔽和高风险确认是否仍有不顺。
-4. 进入 134 或等价目标环境时，先按现有模式跑通清库、V1、部署、四职责登录、全知识与全流程演练；
-   基础路线稳定后，再做全角色真实前台操作体验优化，避免基础问题反复遮蔽产品问题。
+4. 134 下一步先部署当前本地字段目录修复，复跑数据接入契约与真实前台 E2E；基础路线稳定后，
+   再做全角色真实前台操作体验优化，避免基础问题反复遮蔽产品问题。
 5. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；
    优先把角色职责、证据边界、不可自动化医疗动作沉到路由或共享体验契约。
 6. 继续保持证据详情边界：默认业务视图不暴露追踪号、原始标识、技术编码；需要时通过受控证据详情展开。
