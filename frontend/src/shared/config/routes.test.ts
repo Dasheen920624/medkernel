@@ -275,6 +275,96 @@ describe("route metadata", () => {
     ]);
   });
 
+  it("为临床协同和运行诊断入口登记全视角职责边界", () => {
+    expect(findRouteByPath("/mpi")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "医生",
+        responsibility: "查阅授权范围内的患者 360 与身份状态",
+        boundary: "只能使用已授权患者事实，不处理身份合并",
+      },
+      {
+        role: "信息科",
+        responsibility: "复核重复身份、合并拆分和跨系统标识质量",
+        boundary: "高风险合并拆分必须保留复核理由和审计证据",
+      },
+    ]);
+    expect(findRouteByPath("/pathway/patients")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "医生",
+        responsibility: "查看患者路径节点、变异原因和下一步建议",
+        boundary: "路径建议不能自动替代医嘱或病程记录",
+      },
+      {
+        role: "护士",
+        responsibility: "跟进路径节点任务、随访提醒和执行状态",
+        boundary: "护理记录进入协同任务，不直接改变路径版本",
+      },
+      {
+        role: "患者代理",
+        responsibility: "接收随访提醒和回院提示",
+        boundary: "患者反馈需由临床人员复核后进入处置",
+      },
+    ]);
+    expect(findRouteByPath("/workflow/todos")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "医生",
+        responsibility: "处理临床确认、会诊和复核类待办",
+        boundary: "完成待办只记录协同结论，不自动开立医嘱",
+      },
+      {
+        role: "护士",
+        responsibility: "接收护理执行、随访和转交任务",
+        boundary: "转交必须选择院内人员和原因",
+      },
+      {
+        role: "药师",
+        responsibility: "处理用药复核和风险提醒待办",
+        boundary: "药师意见不替代医师最终确认",
+      },
+    ]);
+    expect(findRouteByPath("/notifications")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "临床使用者",
+        responsibility: "查看与本人职责相关的未读提醒和协同通知",
+        boundary: "通知只提示关注，不直接完成业务动作",
+      },
+      {
+        role: "平台管理员",
+        responsibility: "识别账号、配置和运行类通知",
+        boundary: "配置变更仍需进入对应管理页面完成",
+      },
+      {
+        role: "审计员",
+        responsibility: "关注导出、验签和高风险操作通知",
+        boundary: "通知摘要默认不展示低频证据编号",
+      },
+    ]);
+    expect(findRouteByPath("/advanced/domestic")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "信息科",
+        responsibility: "核查国产数据库、国密、浏览器和中间件适配状态",
+        boundary: "未通过项必须保留阻断原因，不能标记为兼容",
+      },
+      {
+        role: "实施工程师",
+        responsibility: "按现场环境补齐驱动、证书和运行参数",
+        boundary: "现场修复需回写配置中心或部署脚本，不靠口头交接",
+      },
+    ]);
+    expect(findRouteByPath("/system/runtime-diagnostics")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "信息科",
+        responsibility: "查看运行诊断、追踪链路和故障定位信息",
+        boundary: "证据详情权限外不展示追踪号和原始载荷",
+      },
+      {
+        role: "审计员",
+        responsibility: "核对诊断链是否具备审计追溯和导出证据",
+        boundary: "只能验证证据，不修改运行状态",
+      },
+    ]);
+  });
+
   it("does not keep hidden demo-only routes in the production router metadata", () => {
     expect(routeMetas.map((route) => route.path)).not.toContain("/demo/step-flow");
     expect(routeMetas.some((route) => route.title.includes("StepFlow"))).toBe(false);
