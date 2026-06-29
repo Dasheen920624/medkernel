@@ -127,6 +127,13 @@ function hasPermission(profile: SecurityProfile | undefined, code: string) {
   return profile?.permissions.some((permission) => permission.code === code) ?? false;
 }
 
+function publishImpactDigest(template: FollowupTemplateResponse) {
+  const templateIdentity = template.templateCode
+    ? `${template.templateCode}@v${template.versionNo}`
+    : `${template.name}@v${template.versionNo}`;
+  return `仅影响新生成随访计划：${templateIdentity}`.slice(0, 128);
+}
+
 export default function Followup() {
   const { message: messageApi } = AntdApp.useApp();
   const security = useSecurityProfile();
@@ -335,9 +342,7 @@ export default function Followup() {
       await publishTemplateMutation.mutateAsync({
         templateId: template.templateId,
         request: {
-          impactDigest:
-            template.contentHash ||
-            `followup-template-${template.templateId}-v${template.versionNo}`,
+          impactDigest: publishImpactDigest(template),
           reason: "随访模板发布",
         },
       });

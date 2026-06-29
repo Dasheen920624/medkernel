@@ -472,6 +472,30 @@
       `mvn -f medkernel-backend/pom.xml -Dtest=DefaultPermissionPolicyTest,EffectivePermissionServiceTest test` 失败 3 项。
     - 绿灯：同两条命令重跑通过，前端 `65` 项、后端 `16` 项；`npm --prefix frontend run typecheck` 通过；`git diff --check` 通过。
   - 下一步：本地阶段提交后用该提交通过 `/zoesoft/medkernel/bin/medkernel-deploy.sh` 日常更新 134，再重跑深度真实前台 E2E。
+- 真实前台深度随访发布生效域二次红绿闭环（`2026-06-29T23:48:00+08:00`）：
+  - 已将上一阶段提交 `f111ff88` 部署到 134，manifest 记录
+    `commit=f111ff88b2d47676abf06bda285cabcb7fb9353c`，readiness HTTP 200；
+    重新跑深度真实前台 E2E 时，前五段真实前台操作均通过且无浏览器、服务端、网络错误。
+  - 二次红灯发生在医疗引擎运营员发布随访模板：前端按钮与权限入口均正确，但后端返回
+    `发布命令与版本生效域不一致`。
+  - 根因：随访模板表中的 `organization_scope` 保存的是前台业务选项标签（如 `p5-hospital`），
+    版本资产表中的 `organization_scope` 保存的是运行发布门禁使用的规范机构路径
+    （如 `/t-rehearsal/REHEARSAL-HOSPITAL`）；发布命令误用模板业务标签，导致
+    `VersionReleaseService` 正确拒绝不一致命令。
+  - 已本地修复：
+    - 后端发布命令改用关联 `AssetVersion` 的规范机构路径与适用范围，不放宽版本门禁。
+    - 前端发布影响摘要不再把 `contentHash` 直接展示给运营员，改为
+      `仅影响新生成随访计划：模板编码@版本`，保持业务可读。
+  - 红绿证据：
+    - 红灯：`npm --prefix frontend test -- Followup.test.tsx` 失败，实际发布摘要仍为技术 hash；
+      `mvn -f medkernel-backend/pom.xml -Dtest=FollowupTemplateServiceTest test` 失败，发布命令目标机构仍为
+      `p5-hospital`。
+    - 绿灯：`npm --prefix frontend test -- Followup.test.tsx` 通过，`13` 项；
+      `mvn -f medkernel-backend/pom.xml -Dtest=FollowupTemplateServiceTest test` 通过，`7` 项；
+      `npm --prefix frontend test -- Followup.test.tsx routes.test.ts` 通过，`65` 项；
+      `mvn -f medkernel-backend/pom.xml -Dtest=FollowupTemplateServiceTest,DefaultPermissionPolicyTest,EffectivePermissionServiceTest test`
+      通过，`23` 项；`npm --prefix frontend run typecheck` 与 `git diff --check` 通过。
+  - 下一步：提交本地阶段版本后部署 134，再重跑深度真实前台 E2E，确认发布、生成计划、患者/代理回收和异常回院全链路真实通过。
 
 ## 下一步
 

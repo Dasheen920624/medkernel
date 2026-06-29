@@ -173,6 +173,59 @@ class FollowupTemplateServiceTest {
     }
 
     @Test
+    void publishTemplateUsesCanonicalAssetVersionScopeInsteadOfBusinessScopeLabel() {
+        FollowupTemplate template = new FollowupTemplate(
+            null,
+            "ftpl-real",
+            "tenant-1",
+            "FUP.REAL",
+            1,
+            "真实前台慢病随访模板",
+            "按前台业务选项创建",
+            "p5-hospital",
+            "COPD",
+            """
+                [{"taskType":"QUESTIONNAIRE","delayDays":7,"questionnaireTemplateId":"QUESTIONNAIRE.COPD.01"}]
+                """,
+            """
+                {"templateId":"QUESTIONNAIRE.COPD.01","fields":[{"code":"dyspnea","type":"TEXT"}]}
+                """,
+            """
+                {"condition":"dyspnea worsens","action":"RETURN_VISIT","notify":"FOLLOWUP_TEAM"}
+                """,
+            "REAL_FRONTDESK_FOLLOWUP_TEMPLATE",
+            "av-real",
+            Instant.parse("2026-06-14T00:00:00Z"),
+            "user-1",
+            Instant.parse("2026-06-14T00:00:00Z"),
+            "user-1",
+            "trace-followup-template"
+        );
+        when(templates.findByTemplateIdAndTenantId("ftpl-real", "tenant-1"))
+            .thenReturn(Optional.of(template));
+        when(assetVersions.findByVersionIdAndTenantId("av-real", "tenant-1"))
+            .thenReturn(Optional.of(assetVersion(
+                "av-real", "FUP.REAL", "1", "/tenant-1/REHEARSAL-HOSPITAL", "COPD",
+                AssetVersionStatus.DRAFT
+            )));
+
+        service.publish(
+            "ftpl-real",
+            new FollowupTemplatePublishRequest(
+                "仅影响新生成随访计划",
+                "随访模板结构、术语绑定和异常处置已复核"
+            )
+        );
+
+        ArgumentCaptor<VersionReleaseCommand> commandCaptor =
+            ArgumentCaptor.forClass(VersionReleaseCommand.class);
+        verify(releasePort).publish(commandCaptor.capture());
+        assertThat(commandCaptor.getValue().targetOrgPath())
+            .isEqualTo("/tenant-1/REHEARSAL-HOSPITAL");
+        assertThat(commandCaptor.getValue().applicableScope()).isEqualTo("COPD");
+    }
+
+    @Test
     void listTemplatesUsesRepositoryFilterPaginationInsteadOfTenantSnapshot() {
         FollowupTemplate template = template("ftpl-1", "av-followup-1");
         when(templates.countByFilter("tenant-1", "%copd%", "PUBLISHED"))
@@ -257,6 +310,17 @@ class FollowupTemplateServiceTest {
             String assetIdentity,
             String versionNo,
             AssetVersionStatus status) {
+        return assetVersion(versionId, assetIdentity, versionNo, "tenant:tenant-1",
+            "riskLevel in [MEDIUM,HIGH]", status);
+    }
+
+    private AssetVersion assetVersion(
+            String versionId,
+            String assetIdentity,
+            String versionNo,
+            String organizationScope,
+            String applicableScope,
+            AssetVersionStatus status) {
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
         return new AssetVersion(
             null,
@@ -265,8 +329,8 @@ class FollowupTemplateServiceTest {
             VersionedAssetType.FOLLOWUP,
             assetIdentity,
             versionNo,
-            "tenant:tenant-1",
-            "riskLevel in [MEDIUM,HIGH]",
+            organizationScope,
+            applicableScope,
             "a".repeat(64),
             AssetVersionSafetyPolicy.NORMAL,
             AssetVersionOverridePolicy.FREE,

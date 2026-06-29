@@ -657,7 +657,7 @@ describe("Followup", () => {
       expect(followupHookMocks.publishTemplate).toHaveBeenCalledWith({
         templateId: "ftpl-draft",
         request: {
-          impactDigest: "sm3:draft-template",
+          impactDigest: "仅影响新生成随访计划：FUP.DRAFT@v1",
           reason: "随访模板发布",
         },
       }),
