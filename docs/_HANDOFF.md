@@ -128,8 +128,9 @@
 
 - 统一迁移生成：`node scripts/db/generate-migrations.mjs --check` 通过。
 - 脚本门禁：
-  `node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs deploy/onprem/tests/validate-medkernel-post-rehearsal-verify.sh`
-  通过，138 tests passed。
+  `node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`
+  通过；发布后验收脚本契约需单独执行
+  `bash deploy/onprem/tests/validate-medkernel-post-rehearsal-verify.sh`。
 - 前端：`npm --prefix frontend run verify` 通过，111 files / 867 tests passed。
 - 前端构建：`npm --prefix frontend run build` 通过。
 - 后端：`mvn -f medkernel-backend/pom.xml test` 通过，3042 tests，0 failures，0 errors，7 skipped
@@ -139,6 +140,42 @@
   `node scripts/db/generate-migrations.mjs --check`、
   `bash scripts/check-comment-zh.sh --self-test && bash scripts/check-comment-zh.sh --mode=full`、
   `git diff --check` 均通过。
+
+## 本次最终核查（codex/final-handoff-product-optimization）
+
+- Git 事实核查：
+  - `git fetch --prune` 成功。
+  - `git status --short --branch`：`## codex/final-handoff-product-optimization`。
+  - `git log --oneline --decorate -3`：本地分支最新为
+    `2b4d854d docs: 校准接力文档与134主线映射`，下一个提交为
+    `1561ba6b (origin/main, origin/HEAD, main) 完善全角色上线演练与134复演闭环 (#653)`。
+  - `git branch -a`：远端仅 `origin/main` 与 `origin/HEAD -> origin/main`。
+- 文档接力核查：
+  - 已重读本文件和 `PRODUCT_SCOPE.md` 第 17 节 AI 接力检查。
+  - 已用旧分支名、旧远端基线、旧“本地候选”标签和旧“远端未完成”措辞逐项查询本文件；
+    除本条核查说明外无旧事实残留。
+  - `git diff --check` 通过。
+- 关键门禁：
+  - 误用命令复盘：
+    `node --test ... deploy/onprem/tests/validate-medkernel-post-rehearsal-verify.sh`
+    会在 Node v24 下把 `.sh` 当 JavaScript 解析，并因 `set -euo pipefail` 失败；后续不要复制该旧组合命令。
+  - 正确 Node 门禁：
+    `node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-coverage-audit.test.mjs`
+    通过，`tests 80` / `pass 80` / `fail 0`。
+  - 发布后验收脚本契约：
+    `bash deploy/onprem/tests/validate-medkernel-post-rehearsal-verify.sh` 通过，
+    输出 `onprem post rehearsal verification script contract passed`。
+  - 真实性 inventory：
+    `node scripts/authenticity-guard.mjs --mode=inventory` 通过，扫描 `2105` 个文件，未发现阻断项。
+  - 配置边界 inventory：
+    `node scripts/config-boundary-guard.mjs --mode=inventory` 通过，扫描 `1906` 个文件，未发现阻断项。
+  - 迁移规约 inventory：
+    `node scripts/migration-convention-guard.mjs --mode=inventory` 通过，扫描 `5` 个文件，未发现阻断项。
+  - 中文注释：
+    `bash scripts/check-comment-zh.sh --self-test` 通过，`7 pass, 0 fail`；
+    `bash scripts/check-comment-zh.sh --mode=full` 通过，engine/shared 类级 Javadoc 和三方言 COMMENT 覆盖均为 `100%`。
+  - 统一迁移生成：
+    `node scripts/db/generate-migrations.mjs --check` 通过。
 
 ## 调试记录
 
