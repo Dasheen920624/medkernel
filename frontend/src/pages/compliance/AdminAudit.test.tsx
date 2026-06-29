@@ -238,6 +238,10 @@ describe("AdminAudit", () => {
     const user = userEvent.setup();
     render(<AdminAudit />);
 
+    expect(screen.getByText("审计治理边界")).toBeInTheDocument();
+    expect(screen.getByText("审计事件", { selector: ".ant-tag" })).toBeInTheDocument();
+    expect(screen.getByText("导出证据")).toBeInTheDocument();
+    expect(screen.getByText("模型外调确认", { selector: ".ant-tag" })).toBeInTheDocument();
     expect(screen.getByText("导出")).toBeInTheDocument();
     expect(screen.queryByText("auditor-1")).not.toBeInTheDocument();
     expect(screen.queryByText("追踪号 trace-7")).not.toBeInTheDocument();

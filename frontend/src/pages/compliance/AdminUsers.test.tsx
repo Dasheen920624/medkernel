@@ -204,6 +204,10 @@ describe("人员与账号", () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "人员与账号" })).toBeInTheDocument();
+    expect(screen.getByText("人员治理边界")).toBeInTheDocument();
+    expect(screen.getByText("任职")).toBeInTheDocument();
+    expect(screen.getByText("登录账号")).toBeInTheDocument();
+    expect(screen.getByText("组织范围")).toBeInTheDocument();
     expect(screen.getByText("王医生")).toBeInTheDocument();
     expect(screen.getByText("人员档案已登记")).toBeInTheDocument();
     expect(screen.getByText("示范医院")).toBeInTheDocument();

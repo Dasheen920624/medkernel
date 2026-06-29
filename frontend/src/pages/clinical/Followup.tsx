@@ -561,6 +561,36 @@ export default function Followup() {
       description="按当前组织范围查看随访计划、患者问卷回收、护士代填和异常回院处理。"
       extras={<EvidenceDetailsToggle securityProfile={security.data} />}
     >
+      <div className={`${styles.surface} ${styles.capabilitySurface}`}>
+        <div className={styles.sectionTitle}>
+          <CheckCircleOutlined className={styles.iconInfo} />
+          <span>随访办理边界</span>
+        </div>
+        <div className={styles.capabilityGrid}>
+          <div className={styles.capabilityItem}>
+            <Tag color="blue">护士</Tag>
+            <span className={styles.textStrong}>护士代填办理</span>
+            <span className={styles.textSmall}>
+              可代录真实回访内容并标记提交来源，不能替患者或医生生成临床结论。
+            </span>
+          </div>
+          <div className={styles.capabilityItem}>
+            <Tag color="green">患者代理</Tag>
+            <span className={styles.textStrong}>患者自填</span>
+            <span className={styles.textStrong}>患者报告回收</span>
+            <span className={styles.textSmall}>
+              患者问卷回收保留随访来源，医护人员按真实反馈继续处理。
+            </span>
+          </div>
+          <div className={styles.capabilityItem}>
+            <Tag color="volcano">异常回院</Tag>
+            <span className={styles.textStrong}>异常回院处理</span>
+            <span className={styles.textSmall}>
+              异常症状登记后生成回院任务和通知证据，不替代医生复核与线下处置。
+            </span>
+          </div>
+        </div>
+      </div>
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}

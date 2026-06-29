@@ -319,6 +319,11 @@ describe("CdssFatigue", () => {
 
     expect(screen.getByRole("heading", { name: "提醒与推荐" })).toBeInTheDocument();
     expect(screen.getByText("推荐链路总览")).toBeInTheDocument();
+    expect(screen.getByText("临床处置边界")).toBeInTheDocument();
+    expect(screen.getByText("必须医师确认")).toBeInTheDocument();
+    expect(screen.getByText("联合用药 / DDI 用药风险")).toBeInTheDocument();
+    expect(screen.getByText("医技报告解读")).toBeInTheDocument();
+    expect(screen.getByText("不会改写已签发报告")).toBeInTheDocument();
     expect(screen.getByText("按患者信息 / 风险 / 证据线索查推荐")).toBeInTheDocument();
     expect(screen.getByLabelText("患者或证据线索")).toBeInTheDocument();
     expect(mockUseClinicalRecommendationCards).toHaveBeenCalledWith({

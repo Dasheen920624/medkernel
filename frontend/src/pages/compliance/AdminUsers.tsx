@@ -456,6 +456,21 @@ export default function AdminUsers() {
         }
       >
         <Space direction="vertical" size="middle" className="mk-full-width">
+          <Alert
+            type="info"
+            showIcon
+            message="人员治理边界"
+            description={
+              <Space wrap>
+                <Tag color="blue">任职</Tag>
+                <Text>人员必须绑定真实机构、科室、病区或岗位后参与业务。</Text>
+                <Tag color="green">登录账号</Tag>
+                <Text>账号开通、停用、重置和身份来源均保留审计证据。</Text>
+                <Tag color="purple">组织范围</Tag>
+                <Text>角色授权必须选择组织范围，按集团、医院、科室或病区生效。</Text>
+              </Space>
+            }
+          />
           <Input.Search
             allowClear
             aria-label="搜索人员"
