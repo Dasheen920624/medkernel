@@ -800,6 +800,21 @@ export default function AdminAudit() {
         <Alert
           type="info"
           showIcon
+          message="审计治理边界"
+          description={
+            <Space wrap>
+              <Tag color="blue">审计事件</Tag>
+              <Text>按时间、操作人、动作和对象追溯当前组织范围内的关键操作。</Text>
+              <Tag color="green">导出证据</Tag>
+              <Text>导出前先确认筛选范围和业务原因，导出文件保留可验签证据。</Text>
+              <Tag color="purple">模型外调确认</Tag>
+              <Text>模型外调用途、确认人和脱敏载荷摘要进入审计链。</Text>
+            </Space>
+          }
+        />
+        <Alert
+          type="info"
+          showIcon
           icon={<SafetyCertificateOutlined />}
           message="审计链已启用"
           description="事件按服务机构与组织范围隔离并保留摘要、签名和追踪号；受控导出与模型外调用途确认均登记确认人、业务原因和可验摘要。"

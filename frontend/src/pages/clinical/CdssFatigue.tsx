@@ -732,6 +732,35 @@ export default function CdssFatigue() {
         </div>
       </div>
 
+      <div className={`${styles.surface} ${styles.capabilitySurface}`}>
+        <div className={styles.sectionTitle}>
+          <CheckCircleOutlined className={styles.iconInfo} />
+          <span>临床处置边界</span>
+        </div>
+        <div className={styles.capabilityGrid}>
+          <div className={styles.capabilityItem}>
+            <Tag color="volcano">医生</Tag>
+            <span className={styles.textStrong}>必须医师确认</span>
+            <span className={styles.textSmall}>
+              高风险提醒只生成待确认建议，采纳、不采纳和医嘱执行均由医生在业务系统确认。
+            </span>
+          </div>
+          <div className={styles.capabilityItem}>
+            <Tag color="purple">药师</Tag>
+            <span className={styles.textStrong}>联合用药 / DDI 用药风险</span>
+            <span className={styles.textSmall}>
+              高风险用药提醒进入药师复核视角，来源证据与医生反馈保持同链路追溯。
+            </span>
+          </div>
+          <div className={styles.capabilityItem}>
+            <Tag color="geekblue">医技</Tag>
+            <span className={styles.textStrong}>医技报告解读</span>
+            <span className={styles.textStrong}>不会改写已签发报告</span>
+            <span className={styles.textSmall}>报告解读仅辅助阅读，不自动开立医嘱。</span>
+          </div>
+        </div>
+      </div>
+
       <div className={`${styles.surface} ${styles.filterSurface}`}>
         <div className={`${styles.sectionTitle} ${styles.sectionGap}`}>
           <SearchOutlined className={styles.iconInfo} />

@@ -271,6 +271,11 @@ describe("Followup", () => {
     expect(
       screen.getByText(/按当前组织范围查看随访计划、患者问卷回收、护士代填和异常回院处理/),
     ).toBeInTheDocument();
+    expect(screen.getByText("随访办理边界")).toBeInTheDocument();
+    expect(screen.getByText("护士代填办理")).toBeInTheDocument();
+    expect(screen.getByText("患者自填")).toBeInTheDocument();
+    expect(screen.getByText(/患者报告/)).toBeInTheDocument();
+    expect(screen.getByText("异常回院处理")).toBeInTheDocument();
     expect(screen.getByText("当前范围随访计划")).toBeInTheDocument();
     expect(screen.getByText("当前范围执行中计划")).toBeInTheDocument();
     expect(screen.getByText("当前范围已完成任务")).toBeInTheDocument();
@@ -538,7 +543,9 @@ describe("Followup", () => {
     await screen.findByText("问卷回收");
     await user.click(screen.getByRole("button", { name: /填\s*报/ }));
     await user.click(screen.getByLabelText("提交来源"));
-    await user.click(await screen.findByText("护士代填"));
+    await user.click(
+      await screen.findByText("护士代填", { selector: ".ant-select-item-option-content" }),
+    );
     fireEvent.change(screen.getByLabelText("问卷回收内容"), {
       target: { value: "患者电话随访反馈今日咳嗽减轻，护士代为录入。" },
     });

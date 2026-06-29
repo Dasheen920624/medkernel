@@ -126,6 +126,23 @@ const REQUIRED_LAUNCH_COVERAGE = Object.freeze({
       "PROFESSIONAL_COLLABORATION",
     ],
   },
+  stakeholderViews: {
+    label: "全角色真实体验视角",
+    codes: [
+      "PHYSICIAN",
+      "NURSE",
+      "PHARMACIST",
+      "MEDICAL_TECHNICIAN",
+      "QUALITY_CONTROLLER",
+      "PATIENT_PROXY",
+      "PLATFORM_ADMIN",
+      "ENGINE_OPERATOR",
+      "AUDITOR",
+      "IT_MANAGER",
+      "IMPLEMENTATION_ENGINEER",
+      "HOSPITAL_EXECUTIVE",
+    ],
+  },
   thirdPartySystemFamilies: {
     label: "全部第三方系统族",
     codes: [

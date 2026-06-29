@@ -48,6 +48,24 @@ test("完整覆盖审计复用统一阶段门禁并生成上线范围矩阵", ()
   assert.equal(evidence.coverage.versionedAssets.length, 13);
   assert.equal(evidence.coverage.knowledgeDomains.length, 11);
   assert.equal(evidence.coverage.scenarios.length, 41);
+  assert.equal(evidence.coverage.stakeholderViews.length, 12);
+  assert.deepEqual(
+    evidence.coverage.stakeholderViews.map((item) => item.code),
+    [
+      "PHYSICIAN",
+      "NURSE",
+      "PHARMACIST",
+      "MEDICAL_TECHNICIAN",
+      "QUALITY_CONTROLLER",
+      "PATIENT_PROXY",
+      "PLATFORM_ADMIN",
+      "ENGINE_OPERATOR",
+      "AUDITOR",
+      "IT_MANAGER",
+      "IMPLEMENTATION_ENGINEER",
+      "HOSPITAL_EXECUTIVE",
+    ],
+  );
 });
 
 test("完整覆盖审计遇到任一前置阶段失败时拒绝生成 PASSED 证据", () => {

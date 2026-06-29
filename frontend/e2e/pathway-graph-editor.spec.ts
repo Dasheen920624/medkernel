@@ -99,7 +99,7 @@ test.describe("线2路径图编辑器真实验收", () => {
     await openNodeCanvas(dialog);
     await dialog.getByRole("button", { name: "添加节点" }).click();
 
-    await dialog.getByLabel("节点编码").fill("CLOCK");
+    await dialog.getByLabel("节点身份").fill("CLOCK");
     await dialog.getByLabel("节点名称").fill("关键时钟");
     await dialog.getByLabel("时窗分钟").fill("60");
 

@@ -254,6 +254,7 @@ verify_full_system_evidence() {
     (.coverage.scenarios | allPassed(41)) and
     (.coverage.deliveryShapes | allPassed(5)) and
     (.coverage.serviceCombinations | allPassed(7)) and
+    (.coverage.stakeholderViews | allPassed(12)) and
     (.coverage.thirdPartySystemFamilies | allPassed(13)) and
     (.coverage.organizationLevels | allPassed(9)) and
     (.coverage.specialDiseaseStages | allPassed(10)) and

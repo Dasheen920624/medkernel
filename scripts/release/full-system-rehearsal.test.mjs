@@ -188,6 +188,7 @@ test("八阶段证据全部满足正式条件时才生成 PASSED 总索引", asy
   assert.equal(result.coverage.standardPatientResources.length, 13);
   assert.equal(result.coverage.deliveryShapes.length, 5);
   assert.equal(result.coverage.serviceCombinations.length, 7);
+  assert.equal(result.coverage.stakeholderViews.length, 12);
   assert.equal(written.length, 1);
   assert.equal(written[0].value.status, "PASSED");
 });

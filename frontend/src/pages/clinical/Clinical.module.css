@@ -466,6 +466,29 @@
   margin-bottom: calc(var(--mk-unit) * 20);
 }
 
+.capabilitySurface {
+  padding: calc(var(--mk-unit) * 20);
+  margin-bottom: calc(var(--mk-unit) * 20);
+}
+
+.capabilityGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: calc(var(--mk-unit) * 12);
+  margin-top: calc(var(--mk-unit) * 16);
+}
+
+.capabilityItem {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--mk-unit) * 8);
+  min-width: 0;
+  padding: calc(var(--mk-unit) * 12);
+  background: var(--ant-color-bg-layout);
+  border: var(--mk-line-width) solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius);
+}
+
 .inlineForm {
   display: grid;
   grid-template-columns:
@@ -996,7 +1019,8 @@
   }
 
   .journeyPillGrid,
-  .journeyGrid {
+  .journeyGrid,
+  .capabilityGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1040,7 +1064,8 @@
   }
 
   .journeyPillGrid,
-  .journeyGrid {
+  .journeyGrid,
+  .capabilityGrid {
     grid-template-columns: 1fr;
   }
 
