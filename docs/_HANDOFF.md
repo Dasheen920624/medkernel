@@ -256,6 +256,31 @@
   - `git diff --check` 通过。
   - `npm --prefix frontend run verify` 通过，`111` 个测试文件、`871` 个测试全部通过。
 
+## 最终门禁核查补充
+
+- 本轮在 `codex/final-handoff-product-optimization` 本地分支执行，不推送远程、不合并 `main`。
+- 前端：
+  - `npm --prefix frontend run verify` 通过，`111` 个测试文件、`871` 个测试全部通过。
+  - `npm --prefix frontend run build` 通过，Vite 生产构建完成。
+- 后端：
+  - `mvn -f medkernel-backend/pom.xml test` 通过，`3042` 个测试统计，`0` failures、`0` errors、`7` skipped。
+  - 跳过项来自当前本机未提供 Docker/Testcontainers 环境，PostgreSQL 与容器化多方言 smoke 未在本机真实执行；
+    已登记到 `docs/audit/deferred-issues.md` 的 `DEFER-002`，目标环境需补真实容器或目标库 surefire 证据。
+- 仓库门禁：
+  - `node --test scripts/authenticity-guard.test.mjs` 通过，`51` 项。
+  - `node scripts/authenticity-guard.mjs --mode=inventory` 通过，扫描 `2105` 个文件，未发现阻断项。
+  - `node --test scripts/config-boundary-guard.test.mjs` 通过，`2` 项。
+  - `node scripts/config-boundary-guard.mjs --mode=inventory` 通过，扫描 `1906` 个文件，未发现阻断项。
+  - `node --test scripts/migration-convention-guard.test.mjs` 通过，`14` 项。
+  - `node scripts/migration-convention-guard.mjs --mode=inventory` 通过，扫描 `5` 个迁移文件，未发现阻断项。
+  - `node --test scripts/db/generate-migrations.test.mjs` 通过，`8` 项；`node scripts/db/generate-migrations.mjs --check` 退出码 `0`。
+  - `node --test scripts/performance-contract-guard.test.mjs` 通过，`4` 项。
+  - `bash scripts/check-comment-zh.sh --self-test` 通过，`7` 项。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过，引擎/共享层 Javadoc 与 oracle/postgres/kingbase V1 表注释均为 `100%`。
+  - `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-account-bootstrap.test.mjs scripts/release/launch-coverage-audit.test.mjs scripts/release/model-provider-launch.test.mjs scripts/release/platform-baseline-bootstrap.test.mjs scripts/release/runtime-resilience-rehearsal.test.mjs scripts/knowledge/full-knowledge-rehearsal.test.mjs scripts/sandbox/scenario-rules.test.mjs scripts/sandbox/seed-scenarios.test.mjs scripts/git-scan-files.test.mjs`
+    通过，`70` 项。
+  - `git diff --check` 通过。
+
 ## 调试记录
 
 - 初始完整 E2E 红灯：`38 passed / 7 failed / 5 did not run`。
@@ -270,8 +295,11 @@
 ## 下一步
 
 1. 基于 `codex/final-handoff-product-optimization` 继续本地阶段提交；不推送远程，不直接改写 `main`。
-2. 下一批产品级全视角优化建议优先看仍未纳入路由级 `stakeholderViews` 的高风险入口：
+2. 目标环境上线前补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
+3. 下一批产品级全视角优化建议优先看仍未纳入路由级 `stakeholderViews` 的高风险入口：
    服务机构、实施与验收、发布治理、规则配置、路径配置、术语字典、安全与配置、来源与血缘、知识关系和模型能力。
-3. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；
+4. 进入 134 或等价目标环境时，先按现有模式跑通清库、V1、部署、四职责登录、全知识与全流程演练；
+   基础路线稳定后，再做全角色真实前台操作体验优化，避免基础问题反复遮蔽产品问题。
+5. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；
    优先把角色职责、证据边界、不可自动化医疗动作沉到路由或共享体验契约。
-4. 继续保持证据详情边界：默认业务视图不暴露追踪号、原始标识、技术编码；需要时通过受控证据详情展开。
+6. 继续保持证据详情边界：默认业务视图不暴露追踪号、原始标识、技术编码；需要时通过受控证据详情展开。
