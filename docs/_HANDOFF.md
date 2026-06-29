@@ -434,15 +434,37 @@
   - 绿色验证：
     `npm --prefix frontend test -- Followup.test.tsx Mpi.test.tsx DeclarativeAssetWorkbench.test.tsx AdapterHub.test.tsx e2eAuthCredentialContract.test.ts e2eRoleCredentials.test.ts`
     通过，`48` 项；`npm --prefix frontend run typecheck` 通过；`git diff --check` 通过。
+- 全角色真实前台操作体验优化首轮闭环（`2026-06-29T23:16:17+08:00`）：
+  - 已按真实前台顺序先跑通全角色页面进入与基础能力识别，再修复发现的问题；本轮仍使用 `rehearsal` 四职责账号、
+    `https://193.112.107.134/medkernel/api/v1` 后端和本地 `http://localhost:5173` 前台代理，不新增远程部署。
+  - 12 类角色视角 E2E 覆盖医生、护士、患者代理、药师、医技、质控、医疗引擎运营员、平台管理员、审计员、
+    信息科长、实施工程师、院长；复跑结果：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-current/report/results.json`，
+    `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`、耗时 `40403.024ms`。
+    运行记录
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-current/artifacts/stakeholder-view-rehearsal-b11d5-务视角均能通过四职责账号进入真实页面并看到对应业务能力-chromium/attachments/stakeholder-view-runtime-records-ec412cc1b632722b1f006a577616089694cdf2b9.json`
+    显示 12 个角色段落均为 `browserErrors=0`、`serverErrors=0`、`networkFailures=0`。
+  - 本轮真实复演先红后绿：医疗引擎运营员进入 `/knowledge/production` 时触发
+    `GET /engine/knowledge/identities/1/candidates` 的 404。根因是生产中心复用了治理评审队列查询，
+    即使 `mode=production` 也会加载“待审核候选”接口；已修正为仅在 `mode=review` 时传入身份并发起候选查询，
+    生产中心保留身份选择能力但不再误打评审台接口。
+  - “高级信息/证据详情”表达已统一优化为“追溯证据”：默认业务视图不显式包装成专家模式，也不把技术细节放在独立产品空间；
+    展开入口用 tooltip 说明“审计追溯、原始标识和受控诊断字段”，开关 `aria-label="证据详情"` 保留给可访问性和既有自动化。
+    已覆盖共享 `EvidenceDetailsToggle` 以及 `/rule/validate`、`/embed/launch`、`/pathway/templates`、
+    `/rule/definitions` 四个手写入口，并新增源代码守卫防止裸露 `证据详情` 标签回退。
+  - 绿色验证：
+    `npm --prefix frontend test -- PageExperienceShell.test.tsx operationalControlPages.test.tsx RuleValidate.test.tsx EmbedLaunch.test.tsx PathwayTemplates.test.tsx RuleDefinitions.test.tsx KnowledgeGovernance.test.tsx`
+    通过；`npm --prefix frontend run typecheck` 通过；`git diff --check` 通过。
 
 ## 下一步
 
 1. 基于 `codex/final-handoff-product-optimization` 继续本地阶段提交；不推送远程，不直接改写 `main`。
 2. 目标环境上线前补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
 3. 路由级角色视角已覆盖所有认证路由；下一批应转向真实前台逐角色操作演练与页面交互细节优化，
-   重点看操作步数、默认筛选、证据详情开关、权限提示、患者敏感信息屏蔽和高风险确认是否仍有不顺。
-4. 134 已完成字段目录修复部署、数据接入契约复核与真实前台基础路线复演；下一阶段进入全角色真实前台操作体验优化，
-   逐页从医生、护士、患者/代理、药师、医技、质控、信息科、实施工程师、审计员、院长等视角找流程和交互问题。
+   重点看操作步数、默认筛选、追溯证据开关、权限提示、患者敏感信息屏蔽和高风险确认是否仍有不顺。
+4. 134 已完成字段目录修复部署、数据接入契约复核、真实前台基础路线复演和全角色页面进入首轮复演；
+   下一阶段继续做逐页真实操作，不只看页面可进入，还要从医生、护士、患者/代理、药师、医技、质控、信息科、
+   实施工程师、审计员、院长等视角提交真实表单、触发真实状态变化并修复流程和交互问题。
 5. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；
    优先把角色职责、证据边界、不可自动化医疗动作沉到路由或共享体验契约。
-6. 继续保持证据详情边界：默认业务视图不暴露追踪号、原始标识、技术编码；需要时通过受控证据详情展开。
+6. 继续保持追溯证据边界：默认业务视图不暴露追踪号、原始标识、技术编码；需要时通过受控追溯证据展开。

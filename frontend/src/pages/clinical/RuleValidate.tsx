@@ -13,6 +13,7 @@ import {
   Button,
   Table,
   Tag,
+  Tooltip,
   Descriptions,
   Alert,
   message,
@@ -401,7 +402,9 @@ export default function RuleValidate() {
       description="向规则引擎输入真实脱敏上下文，实时观测匹配命中情况，进行可信解释与归因追溯。"
       extras={
         <Space size="small">
-          <span>证据详情</span>
+          <Tooltip title="展开审计追溯、原始标识和受控诊断字段">
+            <span>追溯证据</span>
+          </Tooltip>
           <Switch
             aria-label="证据详情"
             checked={evidenceDetailsEnabled}

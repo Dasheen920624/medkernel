@@ -26,6 +26,7 @@ import {
   Tabs,
   Tag,
   Timeline,
+  Tooltip,
 } from "antd";
 import type { BadgeProps, RadioChangeEvent, TableProps, TabsProps } from "antd";
 import {
@@ -4203,7 +4204,9 @@ export default function PathwayTemplates() {
                 路径拓扑与真实快照试运行是主视图；证据详情打开后可追溯受控配置。
               </span>
               <Space>
-                <span>证据详情</span>
+                <Tooltip title="展开审计追溯、原始标识和受控诊断字段">
+                  <span>追溯证据</span>
+                </Tooltip>
                 <Switch
                   aria-label="证据详情"
                   checked={detailAdvancedViewEnabled}

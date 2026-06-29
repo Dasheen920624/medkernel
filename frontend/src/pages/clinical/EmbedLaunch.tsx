@@ -14,6 +14,7 @@ import {
   Spin,
   Switch,
   Tag,
+  Tooltip,
 } from "antd";
 import {
   AuditOutlined,
@@ -230,7 +231,9 @@ export default function EmbedLaunch() {
             <span>MedKernel 临床建议已连接</span>
           </div>
           <div className={styles.evidenceToggle}>
-            <span>证据详情</span>
+            <Tooltip title="展开审计追溯、原始标识和受控诊断字段">
+              <span>追溯证据</span>
+            </Tooltip>
             <Switch
               aria-label="证据详情"
               size="small"

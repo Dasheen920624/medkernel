@@ -1082,6 +1082,14 @@ describe("KnowledgeGovernance", () => {
     expect(screen.queryByRole("button", { name: /生成|AI 生成|创建候选/ })).not.toBeInTheDocument();
   });
 
+  it("does not load review-desk candidates while rendering the production center", () => {
+    renderPage(<KnowledgeProduction />);
+
+    expect(
+      mockUseKnowledgeCandidates.mock.calls.every(([identityId]) => identityId === undefined),
+    ).toBe(true);
+  });
+
   it("blocks production job creation while model production prerequisites are not ready", () => {
     mockUseSecurityProfile.mockReturnValue({
       data: {

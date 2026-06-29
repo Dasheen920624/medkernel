@@ -539,6 +539,21 @@ describe("operational control pages", () => {
     expect(source).not.toMatch(/\bmessage,\s*\n?\} from "antd"/);
   });
 
+  it("does not render evidence disclosure as a bare technical details label", () => {
+    const files = [
+      "src/pages/clinical/RuleValidate.tsx",
+      "src/pages/clinical/EmbedLaunch.tsx",
+      "src/pages/tenant/PathwayTemplates.tsx",
+      "src/pages/tenant/RuleDefinitions.tsx",
+      "src/shared/ui/EvidenceDetailsToggle.tsx",
+    ];
+
+    for (const file of files) {
+      const source = readFileSync(resolve(process.cwd(), file), "utf8");
+      expect(source, file).not.toMatch(/<(?:span|Text)>证据详情<\/(?:span|Text)>/);
+    }
+  });
+
   it("renders security baseline from current profile and runtime facts", () => {
     renderPage(<SecurityBaseline />);
 

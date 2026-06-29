@@ -86,6 +86,28 @@ describe("PageExperienceShell", () => {
     expect(screen.queryByRole("switch", { name: "证据详情" })).not.toBeInTheDocument();
   });
 
+  it("labels evidence disclosure as traceable evidence instead of a technical expert mode", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ConfigProvider>
+        <PageExperienceShell
+          meta={{ title: "审计", experience }}
+          securityProfile={evidenceDetailProfile}
+        >
+          审计内容
+        </PageExperienceShell>
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByText("追溯证据")).toBeInTheDocument();
+    expect(screen.queryByText("专家模式")).not.toBeInTheDocument();
+
+    await user.hover(screen.getByText("追溯证据"));
+
+    expect(await screen.findByText("展开审计追溯、原始标识和受控诊断字段")).toBeInTheDocument();
+  });
+
   it("uses one shared evidence details preference across page shells", async () => {
     const user = userEvent.setup();
 

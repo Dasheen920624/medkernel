@@ -814,7 +814,8 @@ export default function KnowledgeGovernance({
     setSelectedCandidateId(undefined);
   }, [selectedIdentityId]);
 
-  const candidatesQuery = useKnowledgeCandidates(selectedIdentityId, {
+  const reviewSelectedIdentityId = mode === "review" ? selectedIdentityId : undefined;
+  const candidatesQuery = useKnowledgeCandidates(reviewSelectedIdentityId, {
     page: candidatePage,
     size: KNOWLEDGE_CANDIDATE_PAGE_SIZE,
   });

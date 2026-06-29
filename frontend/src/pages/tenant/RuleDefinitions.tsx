@@ -4751,7 +4751,9 @@ export default function RuleDefinitions() {
                     复制为新版本
                   </Button>
                 )}
-                <Text>证据详情</Text>
+                <Tooltip title="展开审计追溯、原始标识和受控诊断字段">
+                  <Text>追溯证据</Text>
+                </Tooltip>
                 <Switch
                   aria-label="证据详情"
                   checked={detailAdvancedViewEnabled}
