@@ -287,6 +287,37 @@
   - `npm --prefix frontend test -- routes.test.ts` 通过，`50` 个测试全部通过。
   - `npm --prefix frontend run verify` 通过，`111` 个测试文件、`872` 个测试全部通过。
 
+## 第二轮全角色体验优化第五批落地
+
+- 本阶段继续覆盖剩余真实前台与交付入口，并新增全局守卫，避免后续新增认证路由遗漏角色视角：
+  `/dashboard`、`/`、`/workbench/readiness-validation`、`/sandbox`、`/qc/alerts`、`/qc/insurance`、
+  `/qc/eval/sets`、`/qc/eval/results`、`/knowledge/institution`、`/knowledge/diagnosis`、
+  `/authoring/assets`、`/rule/validate`、`/notifications/settings`、`/embed/launch`。
+- 路由级 `stakeholderViews` 已新增第五批职责边界：
+  - 工作台与验收自检：临床使用者、院长、平台管理员、实施工程师、信息科分别看到本人待办、运行态势、阻塞项和
+    readiness 证据；工作台不直接完成医疗处置，高风险配置仍回到对应页面确认，无权限或未连接必须诚实展示。
+  - 全真体验沙盘与嵌入式终端：临床使用者/医生以真实上下文体验规则、路径和嵌入建议；信息科核查嵌入来源、
+    宿主回调和访问凭证生命周期；沙盘不写生产诊疗记录，嵌入结果不直接写回医嘱。
+  - 质量问题、医保审核、评价指标和评价来源：质控负责人、临床科室负责人、医保审核员、医生、数据治理人员、
+    审计员分别处理整改、审核、指标配置、仿真样本和证据链；整改/审核/考核结论均需人工确认和证据闭环。
+  - 机构知识、诊断知识和知识资产：医疗引擎运营员、临床专家、实施工程师分别维护机构覆盖、诊断知识、资产复用和上线适配；
+    机构覆盖不改写平台标准源，诊断知识不自动生成患者诊断结论，资产库不直接发布运行版本。
+  - 规则试运行和通知偏好：医生/临床专家查看规则解释并复核误报，临床使用者/平台管理员配置个人与机构通知；
+    试运行不自动开嘱，静默设置不能关闭红线提醒。
+- 新增守卫：
+  - `routes.test.ts` 新增“为所有认证路由登记客户可读的角色视角”，扫描所有 `requireAuth=true` 路由。
+  - 当前缺口扫描只剩未认证入口 `/login` 与 `/bootstrap`；所有认证路由均已登记 `stakeholderViews`。
+- TDD 红灯证据：
+  - `npm --prefix frontend test -- routes.test.ts` 初次失败，
+    `为剩余真实前台与交付入口登记全视角职责边界` 断言发现 `/dashboard` 尚未登记 `stakeholderViews`。
+  - 新增全局守卫后，`npm --prefix frontend test -- routes.test.ts` 再次失败，缺口为隐藏认证落点 `/`。
+- 绿色验证：
+  - `npm --prefix frontend test -- routes.test.ts` 通过，`52` 个测试全部通过。
+  - `npm --prefix frontend run verify` 通过，`111` 个测试文件、`874` 个测试全部通过。
+  - 缺口扫描：
+    `npm exec -- tsx -e 'import { routeMetas } from "./src/shared/config/routes"; ...'`
+    仅输出 `/login` 与 `/bootstrap` 两个未认证入口。
+
 ## 最终门禁核查补充
 
 - 本轮在 `codex/final-handoff-product-optimization` 本地分支执行，不推送远程、不合并 `main`。
@@ -352,8 +383,8 @@
 
 1. 基于 `codex/final-handoff-product-optimization` 继续本地阶段提交；不推送远程，不直接改写 `main`。
 2. 目标环境上线前补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
-3. 下一批产品级全视角优化建议优先看仍未纳入路由级 `stakeholderViews` 的入口：
-   质控告警、医保审核、评价指标、知识资产、机构知识本地化、沙盒、通知偏好、嵌入式入口和工作台验收自检。
+3. 路由级角色视角已覆盖所有认证路由；下一批应转向真实前台逐角色操作演练与页面交互细节优化，
+   重点看操作步数、默认筛选、证据详情开关、权限提示、患者敏感信息屏蔽和高风险确认是否仍有不顺。
 4. 进入 134 或等价目标环境时，先按现有模式跑通清库、V1、部署、四职责登录、全知识与全流程演练；
    基础路线稳定后，再做全角色真实前台操作体验优化，避免基础问题反复遮蔽产品问题。
 5. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；

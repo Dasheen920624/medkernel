@@ -500,6 +500,185 @@ describe("route metadata", () => {
     ]);
   });
 
+  it("为剩余真实前台与交付入口登记全视角职责边界", () => {
+    const expectViews = (
+      path: string,
+      views: Array<{ role: string; responsibility: string; boundary: string }>,
+    ) => {
+      expect(findRouteByPath(path)?.experience?.stakeholderViews).toEqual(views);
+    };
+
+    expectViews("/dashboard", [
+      {
+        role: "临床使用者",
+        responsibility: "查看本人待办、患者协同入口和风险提醒",
+        boundary: "工作台只汇总入口，不直接完成医疗处置",
+      },
+      {
+        role: "院长",
+        responsibility: "查看上线运行态势、质量风险和整改趋势",
+        boundary: "只看治理态势，不展开患者敏感明细",
+      },
+      {
+        role: "平台管理员",
+        responsibility: "识别账号、配置和运行阻塞项",
+        boundary: "高风险配置仍需进入对应管理页面确认",
+      },
+    ]);
+    expectViews("/workbench/readiness-validation", [
+      {
+        role: "实施工程师",
+        responsibility: "核查验收阻塞项、修复入口和交接状态",
+        boundary: "不能手工把未通过来源标记为已通过",
+      },
+      {
+        role: "信息科",
+        responsibility: "复核 Provider、备份、知识 readiness 和权限阻塞",
+        boundary: "无权限或未连接必须诚实展示",
+      },
+    ]);
+    expectViews("/sandbox", [
+      {
+        role: "临床使用者",
+        responsibility: "用真实上下文体验规则、路径和嵌入终端",
+        boundary: "沙盘运行不写入生产诊疗记录",
+      },
+      {
+        role: "医疗引擎运营员",
+        responsibility: "验证引擎版本、场景证据和宿主反馈闭环",
+        boundary: "沙盘通过不替代发布验收",
+      },
+    ]);
+    expectViews("/qc/alerts", [
+      {
+        role: "质控负责人",
+        responsibility: "处理质量问题、分派整改和复核闭环",
+        boundary: "整改必须保留责任人、期限和复核证据",
+      },
+      {
+        role: "临床科室负责人",
+        responsibility: "查看本科室问题依据并提交整改反馈",
+        boundary: "质量页面不直接修改病历或医嘱",
+      },
+    ]);
+    expectViews("/qc/insurance", [
+      {
+        role: "医保审核员",
+        responsibility: "核对医保问题、DRG 分组和规则依据",
+        boundary: "审核意见需人工确认，不自动拒付或扣费",
+      },
+      {
+        role: "医生",
+        responsibility: "查看问题依据并补充临床说明",
+        boundary: "说明进入审核链，不绕过医保复核",
+      },
+    ]);
+    expectViews("/qc/eval/sets", [
+      {
+        role: "质控负责人",
+        responsibility: "维护评价指标、适用范围和发布节奏",
+        boundary: "未完成发布证据前不能全量启用",
+      },
+      {
+        role: "数据治理人员",
+        responsibility: "核对字段目录、条件逻辑和仿真样本",
+        boundary: "仿真结果不直接形成真实考核结论",
+      },
+    ]);
+    expectViews("/qc/eval/results", [
+      {
+        role: "质控负责人",
+        responsibility: "追溯质量问题来源并派发整改",
+        boundary: "发现来源只是证据，不直接形成处罚结论",
+      },
+      {
+        role: "审计员",
+        responsibility: "核查评价结果、问题链路和导出证据",
+        boundary: "只能验证证据，不修改整改状态",
+      },
+    ]);
+    expectViews("/knowledge/institution", [
+      {
+        role: "医疗引擎运营员",
+        responsibility: "维护机构定制、换基线和恢复平台标准",
+        boundary: "机构覆盖不改写平台标准源",
+      },
+      {
+        role: "临床专家",
+        responsibility: "复核本地差异的医学合理性",
+        boundary: "本地差异必须绑定来源和版本证据",
+      },
+    ]);
+    expectViews("/knowledge/diagnosis", [
+      {
+        role: "临床专家",
+        responsibility: "维护诊断标准、鉴别诊断和验证病例",
+        boundary: "诊断知识不自动生成患者诊断结论",
+      },
+      {
+        role: "医疗引擎运营员",
+        responsibility: "管理诊断身份、版本和发布门禁",
+        boundary: "发布前必须通过验证病例和来源证据",
+      },
+    ]);
+    expectViews("/authoring/assets", [
+      {
+        role: "医疗引擎运营员",
+        responsibility: "编目、收藏和复用规则路径资产",
+        boundary: "资产库不直接发布运行版本",
+      },
+      {
+        role: "实施工程师",
+        responsibility: "复用模板加速机构上线配置",
+        boundary: "复用后仍需机构适配和验证",
+      },
+    ]);
+    expectViews("/rule/validate", [
+      {
+        role: "医生",
+        responsibility: "试运行规则提示并查看解释依据",
+        boundary: "试运行结果必须人工确认，不自动开嘱",
+      },
+      {
+        role: "临床专家",
+        responsibility: "复核规则命中逻辑和误报线索",
+        boundary: "试运行不能替代发布验证",
+      },
+    ]);
+    expectViews("/notifications/settings", [
+      {
+        role: "临床使用者",
+        responsibility: "配置个人提醒渠道、静默时段和订阅范围",
+        boundary: "静默设置不能关闭红线提醒",
+      },
+      {
+        role: "平台管理员",
+        responsibility: "维护服务机构默认通知策略",
+        boundary: "高风险通知策略变更必须留审计",
+      },
+    ]);
+    expectViews("/embed/launch", [
+      {
+        role: "医生",
+        responsibility: "在 HIS/EMR 嵌入终端查看建议和路径",
+        boundary: "嵌入结果不直接写回医嘱",
+      },
+      {
+        role: "信息科",
+        responsibility: "核查嵌入来源、宿主回调和访问凭证生命周期",
+        boundary: "访问凭证不展示，过期后不能复用",
+      },
+    ]);
+  });
+
+  it("为所有认证路由登记客户可读的角色视角", () => {
+    const missingRoutes = routeMetas
+      .filter((route) => route.requireAuth && !route.experience?.stakeholderViews?.length)
+      .map((route) => route.path);
+
+    expect(missingRoutes).toEqual([]);
+  });
+
   it("does not keep hidden demo-only routes in the production router metadata", () => {
     expect(routeMetas.map((route) => route.path)).not.toContain("/demo/step-flow");
     expect(routeMetas.some((route) => route.title.includes("StepFlow"))).toBe(false);

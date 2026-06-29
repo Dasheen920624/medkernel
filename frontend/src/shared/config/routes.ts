@@ -374,6 +374,229 @@ const aiWorkflowsExperience: RouteExperience = {
   ],
 };
 
+const dashboardExperience: RouteExperience = {
+  ...readonlyExperience(
+    "平台管理员 / 医疗引擎运营员 / 临床使用者 / 审计员",
+    "查看当前运行状态和需要跟进的事项",
+    "当前重点事项",
+  ),
+  stakeholderViews: [
+    {
+      role: "临床使用者",
+      responsibility: "查看本人待办、患者协同入口和风险提醒",
+      boundary: "工作台只汇总入口，不直接完成医疗处置",
+    },
+    {
+      role: "院长",
+      responsibility: "查看上线运行态势、质量风险和整改趋势",
+      boundary: "只看治理态势，不展开患者敏感明细",
+    },
+    {
+      role: "平台管理员",
+      responsibility: "识别账号、配置和运行阻塞项",
+      boundary: "高风险配置仍需进入对应管理页面确认",
+    },
+  ],
+};
+
+const authoringAssetsExperience: RouteExperience = {
+  ...readonlyExperience("医疗引擎运营员", "编目、收藏和复用规则路径资产", "最近更新资产", "large"),
+  stakeholderViews: [
+    {
+      role: "医疗引擎运营员",
+      responsibility: "编目、收藏和复用规则路径资产",
+      boundary: "资产库不直接发布运行版本",
+    },
+    {
+      role: "实施工程师",
+      responsibility: "复用模板加速机构上线配置",
+      boundary: "复用后仍需机构适配和验证",
+    },
+  ],
+};
+
+const ruleValidateExperience: RouteExperience = {
+  ...readonlyExperience("临床使用者", "核查规则提示的依据和状态", "最近提示", "large"),
+  stakeholderViews: [
+    {
+      role: "医生",
+      responsibility: "试运行规则提示并查看解释依据",
+      boundary: "试运行结果必须人工确认，不自动开嘱",
+    },
+    {
+      role: "临床专家",
+      responsibility: "复核规则命中逻辑和误报线索",
+      boundary: "试运行不能替代发布验证",
+    },
+  ],
+};
+
+const sandboxExperience: RouteExperience = {
+  primaryRole: "临床使用者 / 医疗引擎运营员",
+  goal: "以院内业务系统视角验证真实引擎调用、嵌入终端和反馈闭环",
+  defaultView: "可运行场景与最近一次路径证据",
+  defaultFilters: [],
+  evidenceDetailContent: ["调用明细", "服务端事实", "追踪号"],
+  interruptionLevel: "strong",
+  evidence: "每次运行保留上下文、推荐、访问凭证与宿主反馈追踪号",
+  dataScale: { expected: "small", pagination: "page", exportStrategy: "none" },
+  riskLevel: "high",
+  stakeholderViews: [
+    {
+      role: "临床使用者",
+      responsibility: "用真实上下文体验规则、路径和嵌入终端",
+      boundary: "沙盘运行不写入生产诊疗记录",
+    },
+    {
+      role: "医疗引擎运营员",
+      responsibility: "验证引擎版本、场景证据和宿主反馈闭环",
+      boundary: "沙盘通过不替代发布验收",
+    },
+  ],
+};
+
+const qualityAlertsExperience: RouteExperience = {
+  ...readonlyExperience("医疗引擎运营员", "处理质量问题与整改事项", "高风险待处理", "large"),
+  stakeholderViews: [
+    {
+      role: "质控负责人",
+      responsibility: "处理质量问题、分派整改和复核闭环",
+      boundary: "整改必须保留责任人、期限和复核证据",
+    },
+    {
+      role: "临床科室负责人",
+      responsibility: "查看本科室问题依据并提交整改反馈",
+      boundary: "质量页面不直接修改病历或医嘱",
+    },
+  ],
+};
+
+const insuranceAuditExperience: RouteExperience = {
+  ...readonlyExperience("医疗引擎运营员", "核查医保审核问题与依据", "待审核问题", "large"),
+  stakeholderViews: [
+    {
+      role: "医保审核员",
+      responsibility: "核对医保问题、DRG 分组和规则依据",
+      boundary: "审核意见需人工确认，不自动拒付或扣费",
+    },
+    {
+      role: "医生",
+      responsibility: "查看问题依据并补充临床说明",
+      boundary: "说明进入审核链，不绕过医保复核",
+    },
+  ],
+};
+
+const qualityEvalSetsExperience: RouteExperience = {
+  ...readonlyExperience("医疗引擎运营员", "核查评价指标配置状态", "待维护指标", "large"),
+  stakeholderViews: [
+    {
+      role: "质控负责人",
+      responsibility: "维护评价指标、适用范围和发布节奏",
+      boundary: "未完成发布证据前不能全量启用",
+    },
+    {
+      role: "数据治理人员",
+      responsibility: "核对字段目录、条件逻辑和仿真样本",
+      boundary: "仿真结果不直接形成真实考核结论",
+    },
+  ],
+};
+
+const qualityEvalResultsExperience: RouteExperience = {
+  ...readonlyExperience("医疗引擎运营员", "查看评价结果来源和待改进事项", "近期评价", "large"),
+  stakeholderViews: [
+    {
+      role: "质控负责人",
+      responsibility: "追溯质量问题来源并派发整改",
+      boundary: "发现来源只是证据，不直接形成处罚结论",
+    },
+    {
+      role: "审计员",
+      responsibility: "核查评价结果、问题链路和导出证据",
+      boundary: "只能验证证据，不修改整改状态",
+    },
+  ],
+};
+
+const institutionKnowledgeExperience: RouteExperience = {
+  ...readonlyExperience(
+    "医疗引擎运营员",
+    "维护院内覆盖、机构定制、换基线和恢复平台标准",
+    "机构知识血缘",
+    "large",
+  ),
+  stakeholderViews: [
+    {
+      role: "医疗引擎运营员",
+      responsibility: "维护机构定制、换基线和恢复平台标准",
+      boundary: "机构覆盖不改写平台标准源",
+    },
+    {
+      role: "临床专家",
+      responsibility: "复核本地差异的医学合理性",
+      boundary: "本地差异必须绑定来源和版本证据",
+    },
+  ],
+};
+
+const diagnosisKnowledgeExperience: RouteExperience = {
+  ...readonlyExperience(
+    "医疗引擎运营员",
+    "维护诊断身份、诊断标准、鉴别诊断、验证病例与来源证据",
+    "诊断知识台账",
+    "large",
+  ),
+  stakeholderViews: [
+    {
+      role: "临床专家",
+      responsibility: "维护诊断标准、鉴别诊断和验证病例",
+      boundary: "诊断知识不自动生成患者诊断结论",
+    },
+    {
+      role: "医疗引擎运营员",
+      responsibility: "管理诊断身份、版本和发布门禁",
+      boundary: "发布前必须通过验证病例和来源证据",
+    },
+  ],
+};
+
+const notificationSettingsExperience: RouteExperience = {
+  ...readonlyExperience(
+    "平台管理员 / 医疗引擎运营员 / 临床使用者 / 审计员",
+    "配置个人通知偏好与服务机构默认策略",
+    "当前配置",
+  ),
+  stakeholderViews: [
+    {
+      role: "临床使用者",
+      responsibility: "配置个人提醒渠道、静默时段和订阅范围",
+      boundary: "静默设置不能关闭红线提醒",
+    },
+    {
+      role: "平台管理员",
+      responsibility: "维护服务机构默认通知策略",
+      boundary: "高风险通知策略变更必须留审计",
+    },
+  ],
+};
+
+const embedLaunchExperience: RouteExperience = {
+  ...readonlyExperience("临床使用者", "在院内宿主系统中查看嵌入式建议和路径", "当前嵌入上下文"),
+  stakeholderViews: [
+    {
+      role: "医生",
+      responsibility: "在 HIS/EMR 嵌入终端查看建议和路径",
+      boundary: "嵌入结果不直接写回医嘱",
+    },
+    {
+      role: "信息科",
+      responsibility: "核查嵌入来源、宿主回调和访问凭证生命周期",
+      boundary: "访问凭证不展示，过期后不能复用",
+    },
+  ],
+};
+
 export const ADAPTER_PROTOCOL_OPTIONS = [
   { label: "HL7 v2", value: "HL7" },
   { label: "FHIR", value: "FHIR" },
@@ -647,6 +870,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     breadcrumb: ["工作台"],
     requireAuth: true,
     hidden: true,
+    experience: dashboardExperience,
     pageType: "workbench",
   },
   {
@@ -659,11 +883,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     menuLabel: "工作台",
     placement: "primary",
     navigationOrder: 1,
-    experience: readonlyExperience(
-      "平台管理员 / 医疗引擎运营员 / 临床使用者 / 审计员",
-      "查看当前运行状态和需要跟进的事项",
-      "当前重点事项",
-    ),
+    experience: dashboardExperience,
     pageType: "workbench",
   },
   {
@@ -710,6 +930,18 @@ const routeMetaInputs: RouteMetaInput[] = [
       evidence: "复用运行环境快照和权限画像，不新增工作台专属服务",
       dataScale: { expected: "small", pagination: "page", exportStrategy: "disabled" },
       riskLevel: "low",
+      stakeholderViews: [
+        {
+          role: "实施工程师",
+          responsibility: "核查验收阻塞项、修复入口和交接状态",
+          boundary: "不能手工把未通过来源标记为已通过",
+        },
+        {
+          role: "信息科",
+          responsibility: "复核 Provider、备份、知识 readiness 和权限阻塞",
+          boundary: "无权限或未连接必须诚实展示",
+        },
+      ],
     },
     pageType: "workbench",
     requiresStepFlow: false,
@@ -768,12 +1000,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "hidden",
     hidden: true,
     requiredPermissions: ["rule.read", "pathway.read"],
-    experience: readonlyExperience(
-      "医疗引擎运营员",
-      "编目、收藏和复用规则路径资产",
-      "最近更新资产",
-      "large",
-    ),
+    experience: authoringAssetsExperience,
     pageType: "configuration",
     stateMachine: "config",
   },
@@ -913,7 +1140,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     // 临床执行侧（医师人工确认危急值提醒），只需 rule.read；不要求 menu.rule-definitions（治理侧菜单），
     // 否则临床使用者无法完成医师确认闭环。
     requiredPermissions: ["rule.read"],
-    experience: readonlyExperience("临床使用者", "核查规则提示的依据和状态", "最近提示", "large"),
+    experience: ruleValidateExperience,
     pageType: "configuration",
     stateMachine: "config",
   },
@@ -994,17 +1221,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 6,
     requiredPermissions: ["menu.sandbox", "sandbox.run"],
-    experience: {
-      primaryRole: "临床使用者 / 医疗引擎运营员",
-      goal: "以院内业务系统视角验证真实引擎调用、嵌入终端和反馈闭环",
-      defaultView: "可运行场景与最近一次路径证据",
-      defaultFilters: [],
-      evidenceDetailContent: ["调用明细", "服务端事实", "追踪号"],
-      interruptionLevel: "strong",
-      evidence: "每次运行保留上下文、推荐、访问凭证与宿主反馈追踪号",
-      dataScale: { expected: "small", pagination: "page", exportStrategy: "none" },
-      riskLevel: "high",
-    },
+    experience: sandboxExperience,
     pageType: "review",
   },
   {
@@ -1032,12 +1249,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 2,
     requiredPermissions: ["menu.qc-alerts", "evaluation.read"],
-    experience: readonlyExperience(
-      "医疗引擎运营员",
-      "处理质量问题与整改事项",
-      "高风险待处理",
-      "large",
-    ),
+    experience: qualityAlertsExperience,
     pageType: "list",
     stateMachine: "alert",
   },
@@ -1052,12 +1264,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 3,
     requiredPermissions: ["menu.insurance-audit", "evaluation.read"],
-    experience: readonlyExperience(
-      "医疗引擎运营员",
-      "核查医保审核问题与依据",
-      "待审核问题",
-      "large",
-    ),
+    experience: insuranceAuditExperience,
     pageType: "review",
     stateMachine: "config",
   },
@@ -1072,7 +1279,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 4,
     requiredPermissions: ["menu.qc-eval-sets", "evaluation.read"],
-    experience: readonlyExperience("医疗引擎运营员", "核查评价指标配置状态", "待维护指标", "large"),
+    experience: qualityEvalSetsExperience,
     pageType: "configuration",
     stateMachine: "config",
   },
@@ -1085,12 +1292,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "hidden",
     hidden: true,
     requiredPermissions: ["menu.qc-alerts", "evaluation.read"],
-    experience: readonlyExperience(
-      "医疗引擎运营员",
-      "查看评价结果来源和待改进事项",
-      "近期评价",
-      "large",
-    ),
+    experience: qualityEvalResultsExperience,
     pageType: "list",
   },
   {
@@ -1119,12 +1321,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 1.25,
     requiredPermissions: ["menu.institution-knowledge", "knowledge.write"],
-    experience: readonlyExperience(
-      "医疗引擎运营员",
-      "维护院内覆盖、机构定制、换基线和恢复平台标准",
-      "机构知识血缘",
-      "large",
-    ),
+    experience: institutionKnowledgeExperience,
     pageType: "configuration",
     stateMachine: "config",
   },
@@ -1139,12 +1336,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 1.5,
     requiredPermissions: ["menu.diagnosis-knowledge", "knowledge.read"],
-    experience: readonlyExperience(
-      "医疗引擎运营员",
-      "维护诊断身份、诊断标准、鉴别诊断、验证病例与来源证据",
-      "诊断知识台账",
-      "large",
-    ),
+    experience: diagnosisKnowledgeExperience,
     pageType: "configuration",
     stateMachine: "config",
   },
@@ -1258,11 +1450,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     menuLabel: "通知偏好",
     placement: "profile",
     navigationOrder: 1,
-    experience: readonlyExperience(
-      "平台管理员 / 医疗引擎运营员 / 临床使用者 / 审计员",
-      "配置个人通知偏好与服务机构默认策略",
-      "当前配置",
-    ),
+    experience: notificationSettingsExperience,
     pageType: "configuration",
     stateMachine: "config",
   },
@@ -1342,6 +1530,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     sectionKey: "clinical-collaboration",
     placement: "embedded",
     hidden: true,
+    experience: embedLaunchExperience,
     pageType: "system",
   },
   {
