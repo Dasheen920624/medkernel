@@ -365,6 +365,141 @@ describe("route metadata", () => {
     ]);
   });
 
+  it("为上线配置与知识建模入口登记全视角职责边界", () => {
+    expect(findRouteByPath("/onboarding/guide")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "实施工程师",
+        responsibility: "按上线阶段推进机构开通、联调、验收和交接",
+        boundary: "未完成验收证据时不能标记上线完成",
+      },
+      {
+        role: "信息科",
+        responsibility: "确认网络、账号、接口、证书和备份恢复满足上线条件",
+        boundary: "现场问题需回写配置或待处理清单，不靠口头承诺",
+      },
+    ]);
+    expect(findRouteByPath("/tenant/onboarding")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "平台管理员",
+        responsibility: "维护服务机构、组织层级、数据范围和上线状态",
+        boundary: "组织范围变更必须保留版本与审计记录",
+      },
+      {
+        role: "院方管理员",
+        responsibility: "核对院区、科室、岗位与启用范围是否符合真实运营",
+        boundary: "确认范围不授予超出职责的数据权限",
+      },
+    ]);
+    expect(findRouteByPath("/config/releases")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "医疗引擎运营员",
+        responsibility: "发布平台标准版本并生成机构生效版本",
+        boundary: "发布必须绑定迁移、回滚和验证证据",
+      },
+      {
+        role: "实施工程师",
+        responsibility: "核对目标机构生效版本、灰度范围和回滚窗口",
+        boundary: "上线窗口外不能直接替换生产版本",
+      },
+    ]);
+    expect(findRouteByPath("/pathway/templates")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "临床专家",
+        responsibility: "复核路径节点、变异规则和退出条件",
+        boundary: "专家确认不绕过版本发布和机构适配",
+      },
+      {
+        role: "医疗引擎运营员",
+        responsibility: "配置路径模板、机构覆盖和验证用例",
+        boundary: "路径模板不能自动改写患者当前医嘱",
+      },
+    ]);
+    expect(findRouteByPath("/rule/definitions")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "临床专家",
+        responsibility: "确认触发条件、建议动作和禁忌边界",
+        boundary: "医学意见需进入规则版本证据，不直接上线",
+      },
+      {
+        role: "医疗引擎运营员",
+        responsibility: "维护规则 DSL、字段条件、测试用例和灰度范围",
+        boundary: "高风险规则必须完成逐条责任确认",
+      },
+    ]);
+    expect(findRouteByPath("/terminology/mapping")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "医疗引擎运营员",
+        responsibility: "确认院内码、标准码和来源系统映射",
+        boundary: "冲突映射未处理前不能进入发布链",
+      },
+      {
+        role: "信息科",
+        responsibility: "核对接口字段、值域版本和上游系统变更",
+        boundary: "只修正映射事实，不修改上游业务数据",
+      },
+    ]);
+    expect(findRouteByPath("/security/baseline")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "平台管理员",
+        responsibility: "维护运行配置、数据权限和脱敏策略",
+        boundary: "安全策略变更必须通过版本校验和审计",
+      },
+      {
+        role: "审计员",
+        responsibility: "核查权限、脱敏、互操作测评和导出证据",
+        boundary: "只验证证据，不直接放宽安全策略",
+      },
+    ]);
+    expect(findRouteByPath("/security/identity-binding")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "平台管理员",
+        responsibility: "维护账号、员工号、统一身份和证书绑定",
+        boundary: "绑定冲突未解除时不能激活新身份",
+      },
+      {
+        role: "信息科",
+        responsibility: "核对身份源、证书状态和国密接入一致性",
+        boundary: "证书异常必须进入运行诊断或待处理清单",
+      },
+    ]);
+    expect(findRouteByPath("/advanced/provenance")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "医疗引擎运营员",
+        responsibility: "追溯知识来源、版本血缘和运行引用",
+        boundary: "默认不展示原始载荷和低频技术标识",
+      },
+      {
+        role: "审计员",
+        responsibility: "核验证据链、导出记录和签名状态",
+        boundary: "只能追溯证据，不修改知识版本",
+      },
+    ]);
+    expect(findRouteByPath("/advanced/graph")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "临床专家",
+        responsibility: "查看知识关系、适应证、禁忌和相互作用",
+        boundary: "图谱关系仅作复核依据，不自动形成诊疗结论",
+      },
+      {
+        role: "医疗引擎运营员",
+        responsibility: "核查图谱投影、来源版本和同步状态",
+        boundary: "图谱不可用时必须诚实降级",
+      },
+    ]);
+    expect(findRouteByPath("/advanced/ai-workflows")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "医疗引擎运营员",
+        responsibility: "查看模型能力、任务编排、评测和降级状态",
+        boundary: "模型结果只进入候选或辅助链路，不自动发布",
+      },
+      {
+        role: "模型安全负责人",
+        responsibility: "核查院内/公网模型患者上下文使用与脱敏策略",
+        boundary: "外部模型使用患者信息时必须屏蔽核心敏感标识",
+      },
+    ]);
+  });
+
   it("does not keep hidden demo-only routes in the production router metadata", () => {
     expect(routeMetas.map((route) => route.path)).not.toContain("/demo/step-flow");
     expect(routeMetas.some((route) => route.title.includes("StepFlow"))).toBe(false);

@@ -137,6 +137,18 @@ const terminologyMappingExperience: RouteExperience = {
   evidence: "候选、高危确认、冲突处置、发布和回滚均保留审计与证据入口",
   dataScale: { expected: "large", pagination: "page", exportStrategy: "async" },
   riskLevel: "medium",
+  stakeholderViews: [
+    {
+      role: "医疗引擎运营员",
+      responsibility: "确认院内码、标准码和来源系统映射",
+      boundary: "冲突映射未处理前不能进入发布链",
+    },
+    {
+      role: "信息科",
+      responsibility: "核对接口字段、值域版本和上游系统变更",
+      boundary: "只修正映射事实，不修改上游业务数据",
+    },
+  ],
 };
 
 const auditExperience: RouteExperience = {
@@ -191,6 +203,18 @@ const securityBaselineExperience: RouteExperience = {
   evidence: "配置、权限、脱敏和测评变更均由平台校验并保留版本与审计证据",
   dataScale: { expected: "small", pagination: "page", exportStrategy: "none" },
   riskLevel: "high",
+  stakeholderViews: [
+    {
+      role: "平台管理员",
+      responsibility: "维护运行配置、数据权限和脱敏策略",
+      boundary: "安全策略变更必须通过版本校验和审计",
+    },
+    {
+      role: "审计员",
+      responsibility: "核查权限、脱敏、互操作测评和导出证据",
+      boundary: "只验证证据，不直接放宽安全策略",
+    },
+  ],
 };
 
 const identityBindingExperience: RouteExperience = {
@@ -203,6 +227,151 @@ const identityBindingExperience: RouteExperience = {
   evidence: "绑定与解绑均校验唯一性和版本，并保留服务机构与组织范围隔离的审计证据",
   dataScale: { expected: "large", pagination: "page", exportStrategy: "none" },
   riskLevel: "high",
+  stakeholderViews: [
+    {
+      role: "平台管理员",
+      responsibility: "维护账号、员工号、统一身份和证书绑定",
+      boundary: "绑定冲突未解除时不能激活新身份",
+    },
+    {
+      role: "信息科",
+      responsibility: "核对身份源、证书状态和国密接入一致性",
+      boundary: "证书异常必须进入运行诊断或待处理清单",
+    },
+  ],
+};
+
+const implementationGuideExperience: RouteExperience = {
+  ...readonlyExperience("平台管理员", "按步骤完成机构开通、联调和验收", "待完成步骤"),
+  stakeholderViews: [
+    {
+      role: "实施工程师",
+      responsibility: "按上线阶段推进机构开通、联调、验收和交接",
+      boundary: "未完成验收证据时不能标记上线完成",
+    },
+    {
+      role: "信息科",
+      responsibility: "确认网络、账号、接口、证书和备份恢复满足上线条件",
+      boundary: "现场问题需回写配置或待处理清单，不靠口头承诺",
+    },
+  ],
+};
+
+const tenantOnboardingExperience: RouteExperience = {
+  ...readonlyExperience("平台管理员", "开通服务机构或配置当前服务机构", "待配置组织"),
+  stakeholderViews: [
+    {
+      role: "平台管理员",
+      responsibility: "维护服务机构、组织层级、数据范围和上线状态",
+      boundary: "组织范围变更必须保留版本与审计记录",
+    },
+    {
+      role: "院方管理员",
+      responsibility: "核对院区、科室、岗位与启用范围是否符合真实运营",
+      boundary: "确认范围不授予超出职责的数据权限",
+    },
+  ],
+};
+
+const releaseGovernanceExperience: RouteExperience = {
+  ...readonlyExperience(
+    "医疗引擎运营员",
+    "发布平台标准版本并为机构生成精确、可追溯的生效版本",
+    "平台标准版本与机构生效版本",
+    "large",
+  ),
+  stakeholderViews: [
+    {
+      role: "医疗引擎运营员",
+      responsibility: "发布平台标准版本并生成机构生效版本",
+      boundary: "发布必须绑定迁移、回滚和验证证据",
+    },
+    {
+      role: "实施工程师",
+      responsibility: "核对目标机构生效版本、灰度范围和回滚窗口",
+      boundary: "上线窗口外不能直接替换生产版本",
+    },
+  ],
+};
+
+const pathwayTemplateExperience: RouteExperience = {
+  ...readonlyExperience("医疗引擎运营员", "核查路径模板准备状态", "待处理路径", "large"),
+  stakeholderViews: [
+    {
+      role: "临床专家",
+      responsibility: "复核路径节点、变异规则和退出条件",
+      boundary: "专家确认不绕过版本发布和机构适配",
+    },
+    {
+      role: "医疗引擎运营员",
+      responsibility: "配置路径模板、机构覆盖和验证用例",
+      boundary: "路径模板不能自动改写患者当前医嘱",
+    },
+  ],
+};
+
+const ruleDefinitionExperience: RouteExperience = {
+  ...readonlyExperience("医疗引擎运营员", "核查规则资产准备状态", "待处理规则", "large"),
+  stakeholderViews: [
+    {
+      role: "临床专家",
+      responsibility: "确认触发条件、建议动作和禁忌边界",
+      boundary: "医学意见需进入规则版本证据，不直接上线",
+    },
+    {
+      role: "医疗引擎运营员",
+      responsibility: "维护规则 DSL、字段条件、测试用例和灰度范围",
+      boundary: "高风险规则必须完成逐条责任确认",
+    },
+  ],
+};
+
+const provenanceExperience: RouteExperience = {
+  ...readonlyExperience("医疗引擎运营员 / 审计员", "追溯来源与运行证据", "最近来源", "large"),
+  stakeholderViews: [
+    {
+      role: "医疗引擎运营员",
+      responsibility: "追溯知识来源、版本血缘和运行引用",
+      boundary: "默认不展示原始载荷和低频技术标识",
+    },
+    {
+      role: "审计员",
+      responsibility: "核验证据链、导出记录和签名状态",
+      boundary: "只能追溯证据，不修改知识版本",
+    },
+  ],
+};
+
+const graphExperience: RouteExperience = {
+  ...readonlyExperience("医疗引擎运营员", "核查知识关系查询结果", "最近查询", "large"),
+  stakeholderViews: [
+    {
+      role: "临床专家",
+      responsibility: "查看知识关系、适应证、禁忌和相互作用",
+      boundary: "图谱关系仅作复核依据，不自动形成诊疗结论",
+    },
+    {
+      role: "医疗引擎运营员",
+      responsibility: "核查图谱投影、来源版本和同步状态",
+      boundary: "图谱不可用时必须诚实降级",
+    },
+  ],
+};
+
+const aiWorkflowsExperience: RouteExperience = {
+  ...readonlyExperience("医疗引擎运营员", "核查当前组织 AI 能力与降级状态", "能力状态", "large"),
+  stakeholderViews: [
+    {
+      role: "医疗引擎运营员",
+      responsibility: "查看模型能力、任务编排、评测和降级状态",
+      boundary: "模型结果只进入候选或辅助链路，不自动发布",
+    },
+    {
+      role: "模型安全负责人",
+      responsibility: "核查院内/公网模型患者上下文使用与脱敏策略",
+      boundary: "外部模型使用患者信息时必须屏蔽核心敏感标识",
+    },
+  ],
 };
 
 export const ADAPTER_PROTOCOL_OPTIONS = [
@@ -556,7 +725,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 1,
     requiredPermissions: ["menu.implementation-guide", "tenant.read"],
-    experience: readonlyExperience("平台管理员", "按步骤完成机构开通、联调和验收", "待完成步骤"),
+    experience: implementationGuideExperience,
     pageType: "configuration",
     stateMachine: "config",
   },
@@ -571,7 +740,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 1,
     requiredPermissions: ["menu.tenant-onboarding", "tenant.read"],
-    experience: readonlyExperience("平台管理员", "开通服务机构或配置当前服务机构", "待配置组织"),
+    experience: tenantOnboardingExperience,
     pageType: "configuration",
     stateMachine: "config",
   },
@@ -586,12 +755,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 2,
     requiredPermissions: ["menu.runtime-releases", "asset.read"],
-    experience: readonlyExperience(
-      "医疗引擎运营员",
-      "发布平台标准版本并为机构生成精确、可追溯的生效版本",
-      "平台标准版本与机构生效版本",
-      "large",
-    ),
+    experience: releaseGovernanceExperience,
     pageType: "configuration",
     stateMachine: "config",
   },
@@ -624,7 +788,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 5,
     requiredPermissions: ["menu.pathway-templates", "pathway.read"],
-    experience: readonlyExperience("医疗引擎运营员", "核查路径模板准备状态", "待处理路径", "large"),
+    experience: pathwayTemplateExperience,
     pageType: "configuration",
     stateMachine: "config",
   },
@@ -639,7 +803,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 4,
     requiredPermissions: ["menu.rule-definitions", "rule.read"],
-    experience: readonlyExperience("医疗引擎运营员", "核查规则资产准备状态", "待处理规则", "large"),
+    experience: ruleDefinitionExperience,
     pageType: "configuration",
     stateMachine: "config",
   },
@@ -1113,12 +1277,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 6,
     requiredPermissions: ["menu.provenance", "knowledge.read"],
-    experience: readonlyExperience(
-      "医疗引擎运营员 / 审计员",
-      "追溯来源与运行证据",
-      "最近来源",
-      "large",
-    ),
+    experience: provenanceExperience,
     pageType: "advanced",
   },
   {
@@ -1132,7 +1291,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 7,
     requiredPermissions: ["menu.graph-explore", "projection.read"],
-    experience: readonlyExperience("医疗引擎运营员", "核查知识关系查询结果", "最近查询", "large"),
+    experience: graphExperience,
     pageType: "advanced",
   },
   {
@@ -1146,12 +1305,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 2,
     requiredPermissions: ["menu.ai-workflows", "llm.read"],
-    experience: readonlyExperience(
-      "医疗引擎运营员",
-      "核查当前组织 AI 能力与降级状态",
-      "能力状态",
-      "large",
-    ),
+    experience: aiWorkflowsExperience,
     pageType: "advanced",
   },
   {

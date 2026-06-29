@@ -256,6 +256,37 @@
   - `git diff --check` 通过。
   - `npm --prefix frontend run verify` 通过，`111` 个测试文件、`871` 个测试全部通过。
 
+## 第二轮全角色体验优化第四批落地
+
+- 本阶段继续覆盖上线配置、机构开通、知识建模和安全治理入口，优先处理院方管理员、信息科、实施工程师、临床专家、
+  医疗引擎运营员、审计员和模型安全负责人共同使用时容易误解的职责边界：
+  `/onboarding/guide`、`/tenant/onboarding`、`/config/releases`、`/pathway/templates`、
+  `/rule/definitions`、`/terminology/mapping`、`/security/baseline`、`/security/identity-binding`、
+  `/advanced/provenance`、`/advanced/graph`、`/advanced/ai-workflows`。
+- 路由级 `stakeholderViews` 已新增第四批职责边界：
+  - `/onboarding/guide`：实施工程师推进开通、联调、验收和交接；信息科确认网络、账号、接口、证书和备份恢复。
+    未完成验收证据不能标记上线完成，现场问题必须回写配置或待处理清单。
+  - `/tenant/onboarding`：平台管理员维护服务机构、组织层级、数据范围和上线状态；院方管理员核对院区、科室、岗位与启用范围。
+    组织范围变更需留版本与审计，确认范围不授予超职责数据权限。
+  - `/config/releases`：医疗引擎运营员发布平台标准版本并生成机构生效版本；实施工程师核对机构生效版本、灰度范围和回滚窗口。
+    发布必须绑定迁移、回滚和验证证据，上线窗口外不能直接替换生产版本。
+  - `/pathway/templates`：临床专家复核路径节点、变异规则和退出条件；医疗引擎运营员配置模板、机构覆盖和验证用例。
+    专家确认不绕过版本发布，路径模板不能自动改写患者当前医嘱。
+  - `/rule/definitions`：临床专家确认触发条件、建议动作和禁忌边界；医疗引擎运营员维护 DSL、字段条件、测试用例和灰度范围。
+    高风险规则必须完成逐条责任确认，医学意见进入版本证据后再走发布。
+  - `/terminology/mapping`：医疗引擎运营员确认院内码、标准码和来源系统映射；信息科核对接口字段、值域版本和上游系统变更。
+    冲突映射未处理前不能进入发布链，也不在本页修改上游业务数据。
+  - `/security/baseline` 与 `/security/identity-binding`：平台管理员维护安全策略和身份绑定，审计员/信息科核验证据、证书和国密一致性。
+    安全策略变更必须版本校验和审计，绑定冲突未解除不能激活新身份。
+  - `/advanced/provenance`、`/advanced/graph`、`/advanced/ai-workflows`：来源血缘、图谱关系和模型能力分别明确审计追溯、临床专家复核、
+    模型安全负责人患者上下文外调/脱敏职责；图谱或模型不可用时诚实降级，模型结果只进入候选或辅助链路，不自动发布。
+- TDD 红灯证据：
+  - `npm --prefix frontend test -- routes.test.ts` 初次失败，
+    `为上线配置与知识建模入口登记全视角职责边界` 断言发现 `/onboarding/guide` 尚未登记 `stakeholderViews`。
+- 绿色验证：
+  - `npm --prefix frontend test -- routes.test.ts` 通过，`50` 个测试全部通过。
+  - `npm --prefix frontend run verify` 通过，`111` 个测试文件、`872` 个测试全部通过。
+
 ## 最终门禁核查补充
 
 - 本轮在 `codex/final-handoff-product-optimization` 本地分支执行，不推送远程、不合并 `main`。
@@ -280,6 +311,31 @@
   - `node --test scripts/release/full-system-rehearsal.test.mjs scripts/release/launch-account-bootstrap.test.mjs scripts/release/launch-coverage-audit.test.mjs scripts/release/model-provider-launch.test.mjs scripts/release/platform-baseline-bootstrap.test.mjs scripts/release/runtime-resilience-rehearsal.test.mjs scripts/knowledge/full-knowledge-rehearsal.test.mjs scripts/sandbox/scenario-rules.test.mjs scripts/sandbox/seed-scenarios.test.mjs scripts/git-scan-files.test.mjs`
     通过，`70` 项。
   - `git diff --check` 通过。
+- 134 只读复核补充（`2026-06-29T22:12:42+08:00`）：
+  - 只读 SSH 复核未重新部署、未清库、未写入远端；本地分支仍只做本地提交，不推送远程。
+  - 服务状态：`medkernel=active`、`nginx=active`、`postgresql=active`、`medkernel=enabled`。
+  - 后端真实监听端口为 `127.0.0.1:18080`；正确内部 readiness 为
+    `http://127.0.0.1:18080/medkernel/actuator/health/readiness`，返回 `{"status":"UP"}`。
+  - 正确严格 TLS readiness 为
+    `https://127.0.0.1/medkernel/actuator/health/readiness`，使用
+    `/zoesoft/medkernel/nginx/ssl/server.crt` 校验，返回 `{"status":"UP"}`。
+  - 不要再把 `127.0.0.1:8080` 当作 MedKernel 后端端口；134 上 `:8080` 由 nginx/其他 server block 监听，
+    无 Host 直连出现 `Empty reply from server` 是入口误用，不代表后端 down。
+  - manifest 仍为候选部署提交 `228b16a8d8da8eb5747af9ab1cefcc2716c0dc2d`，
+    `deployedAt=2026-06-29T15:37:16+08:00`，`jarSha256=e420ffac8c3ff791ebd02913500982826e87486031d2253aef46fba54137cd0c`。
+  - 数据库：public 表 `208`，业务表 `207`，Flyway 成功版本 `1`。
+  - `full-system.json`：`status=PASSED`，`stageCount=8`，失败阶段 `0`。
+  - `full-knowledge.json`：`status=PASSED`，阶段 `FULL_FUNCTION_FULL_KNOWLEDGE`，`11/11` 知识域发布，`requests=220`，
+    `readinessReady=true`。
+  - `runtime-resilience.json`：`status=PASSED`，`providerCode=ollama-launch`，B0 `17/17`，恢复后
+    `providerStatus=HEALTHY`、`readinessReady=true`、`modelInvocationAllowed=true`。
+  - `launch-coverage.json`：`status=PASSED`，`scenarios=41`、`stakeholderViews=12`、`deliveryShapes=5`、
+    `versionedAssets=13`、`standardPatientResources=13`、`knowledgeDomains=11`，所有阶段通过。
+  - `release-acceptance.properties`：`release_status=PASSED`、`strict_tls_verified=true`、
+    `full_system_stage_count=8`、`database_restore_status=PASSED`。
+  - `/zoesoft/mimoModel` 为 `root:root`、`600`、普通文件，字段名包含 `key`、`baseUrl`、`model`；密钥未写入仓库、
+    未写入接力、后续回复也不得展示。公网/外部模型可以使用患者上下文，但必须走核心敏感标识屏蔽、字段预览和责任确认；
+    院内/本地模型可在授权和审计边界内使用必要患者信息。
 
 ## 调试记录
 
@@ -296,8 +352,8 @@
 
 1. 基于 `codex/final-handoff-product-optimization` 继续本地阶段提交；不推送远程，不直接改写 `main`。
 2. 目标环境上线前补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
-3. 下一批产品级全视角优化建议优先看仍未纳入路由级 `stakeholderViews` 的高风险入口：
-   服务机构、实施与验收、发布治理、规则配置、路径配置、术语字典、安全与配置、来源与血缘、知识关系和模型能力。
+3. 下一批产品级全视角优化建议优先看仍未纳入路由级 `stakeholderViews` 的入口：
+   质控告警、医保审核、评价指标、知识资产、机构知识本地化、沙盒、通知偏好、嵌入式入口和工作台验收自检。
 4. 进入 134 或等价目标环境时，先按现有模式跑通清库、V1、部署、四职责登录、全知识与全流程演练；
    基础路线稳定后，再做全角色真实前台操作体验优化，避免基础问题反复遮蔽产品问题。
 5. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；
