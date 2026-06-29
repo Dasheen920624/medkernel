@@ -57,7 +57,7 @@ async function createAdapterFromUi(
   await page.getByRole("button", { name: "新增适配器" }).click();
   const dialog = page.getByRole("dialog", { name: "新增适配器" });
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel("适配器标识").fill(adapterId);
+  await dialog.getByLabel("稳定适配器身份").fill(adapterId);
   await dialog.getByLabel("系统名称").fill(`真实演练 HIS ${suffix}`);
   await dialog.getByLabel("服务地址").fill("https://his.real-frontdesk.example.test/api");
   await dialog.getByLabel("来源字段路径").fill("/patient/identifier");
@@ -95,7 +95,7 @@ async function createValueSetFromUi(
   await page.getByRole("button", { name: "新建值集" }).click();
   const dialog = page.getByRole("dialog", { name: "新建值集" });
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel("资产编码").fill(assetIdentity);
+  await dialog.getByLabel("稳定资产身份").fill(assetIdentity);
   await dialog.getByLabel("适用范围").fill("ALL");
   await dialog.getByLabel("来源依据").fill("真实前台演练：院内药品目录脱敏样例");
   await dialog.getByLabel("名称", { exact: true }).fill(`真实前台药品值集 ${suffix}`);
@@ -158,7 +158,7 @@ async function createMpiPatientFromUi(
   await ensureReadySession(page, "clinical-user");
   clearRuntime(runtime);
   await page.goto("/mpi", { waitUntil: "networkidle" });
-  await expect(page.getByRole("heading", { name: "患者主索引 MPI" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "患者索引" })).toBeVisible();
   await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
   await expectNoRootOverflow(page, "患者主索引桌面");
 

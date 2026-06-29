@@ -123,8 +123,7 @@ test.describe("四个客户职责角色任务旅程", () => {
             message: `${role} 主动作应进入真实目标页`,
           })
           .toBe(journey?.primaryAction.path);
-        await page.waitForLoadState("networkidle");
-        await expect(page.locator("main")).toBeVisible();
+        await waitForMainContent(page, `${role} 主动作 · ${viewport.name}`);
         await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
         await expectNoRootOverflow(page, `${role} 主动作 · ${viewport.name}`);
         expect(serverErrors, `${role} 主动作 · ${viewport.name} 不应产生 HTTP 错误`).toEqual([]);
@@ -194,4 +193,14 @@ async function expectNoRootOverflow(page: Page, label: string) {
   expect(dimensions.documentWidth, `${label} 页面根节点不应横向溢出`).toBeLessThanOrEqual(
     dimensions.viewportWidth,
   );
+}
+
+async function waitForMainContent(page: Page, label: string) {
+  await page.waitForLoadState("domcontentloaded");
+  await expect(page.locator(".ant-spin-spinning"), `${label} 不应停留在加载中`).toHaveCount(0, {
+    timeout: 30_000,
+  });
+  await expect(page.locator("main"), `${label} 应展示主内容`).toBeVisible({
+    timeout: 30_000,
+  });
 }

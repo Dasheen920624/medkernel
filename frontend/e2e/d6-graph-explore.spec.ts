@@ -6,7 +6,6 @@ import {
   apiBase,
   ensureReadySession,
   expectOk,
-  loginFromPlatformPage,
   patchApi,
   postApi,
 } from "./support/auth";
@@ -29,7 +28,6 @@ test.describe("D6 图谱查询真实验收", () => {
     expect(rebuilt.projectionCount).toBe(rebuilt.sourceCount);
 
     await ensureReadySession(page, "engine-operator");
-    await loginFromPlatformPage(page, "engine-operator");
 
     await page.goto("/advanced/graph");
     await expect(page.getByRole("heading", { name: "图谱查询" })).toBeVisible();
@@ -41,6 +39,9 @@ test.describe("D6 图谱查询真实验收", () => {
     expect(await nodes.count()).toBeGreaterThan(0);
     await nodes.first().click();
     const detail = page.locator("aside");
+    await expect(detail.getByText("追踪证据", { exact: true })).toBeVisible();
+    await expect(detail.getByText("追踪证据已记录", { exact: true })).toBeVisible();
+    await page.getByRole("switch", { name: "证据详情" }).click();
     await expect(detail.getByText("追踪号", { exact: true })).toBeVisible();
     await expect(detail.getByText("未返回", { exact: true })).toHaveCount(0);
     await expectNoRootOverflow(page);
