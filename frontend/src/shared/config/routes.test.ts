@@ -151,6 +151,67 @@ describe("route metadata", () => {
     });
   });
 
+  it("为多角色真实前台页面登记客户可读的角色视角", () => {
+    expect(findRouteByPath("/cdss/fatigue")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "医生",
+        responsibility: "确认高风险提醒并登记采纳或不采纳理由",
+        boundary: "不会自动生成医嘱",
+      },
+      {
+        role: "药师",
+        responsibility: "复核联合用药和 DDI 风险",
+        boundary: "只记录复核意见，不替代医师确认",
+      },
+      {
+        role: "医技",
+        responsibility: "生成报告解读供临床参考",
+        boundary: "不会改写已签发报告",
+      },
+    ]);
+    expect(findRouteByPath("/clinical/followup")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "护士",
+        responsibility: "代填随访问卷并登记来源",
+        boundary: "不能替患者或医生生成临床结论",
+      },
+      {
+        role: "患者代理",
+        responsibility: "回收患者自填问卷和报告",
+        boundary: "只进入随访任务，不直接形成诊疗决策",
+      },
+      {
+        role: "医生",
+        responsibility: "复核异常回院事件",
+        boundary: "复核后再进入线下处置或医嘱系统",
+      },
+    ]);
+    expect(findRouteByPath("/admin/users")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "平台管理员",
+        responsibility: "维护人员、任职、登录账号与组织范围",
+        boundary: "临时密码只在受控激活流程展示",
+      },
+      {
+        role: "实施工程师",
+        responsibility: "按机构上线阶段批量导入人员",
+        boundary: "预检冲突未修正时不会写入任一行",
+      },
+    ]);
+    expect(findRouteByPath("/admin/audit")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "审计员",
+        responsibility: "追溯审计事件、导出证据与验签结果",
+        boundary: "默认不展示追踪号、事件编号和载荷摘要",
+      },
+      {
+        role: "信息科",
+        responsibility: "用诊断链定位系统运行问题",
+        boundary: "诊断链需具备证据详情权限后展开",
+      },
+    ]);
+  });
+
   it("does not keep hidden demo-only routes in the production router metadata", () => {
     expect(routeMetas.map((route) => route.path)).not.toContain("/demo/step-flow");
     expect(routeMetas.some((route) => route.title.includes("StepFlow"))).toBe(false);

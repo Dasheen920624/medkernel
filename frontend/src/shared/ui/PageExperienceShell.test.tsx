@@ -19,6 +19,22 @@ const experience: RouteExperience = {
   riskLevel: "medium",
 };
 
+const multiStakeholderExperience = {
+  ...experience,
+  stakeholderViews: [
+    {
+      role: "医生",
+      responsibility: "确认高风险提醒并登记采纳或不采纳理由",
+      boundary: "不会自动生成医嘱",
+    },
+    {
+      role: "药师",
+      responsibility: "复核联合用药风险",
+      boundary: "只记录复核意见，不替代医师确认",
+    },
+  ],
+} as RouteExperience;
+
 const evidenceDetailProfile = {
   permissions: [
     {
@@ -99,5 +115,26 @@ describe("PageExperienceShell", () => {
     expect(switches[0]).toBeChecked();
     expect(switches[1]).toBeChecked();
     expect(window.localStorage.getItem("medkernel.evidence-details.enabled")).toBe("true");
+  });
+
+  it("renders stakeholder responsibilities when a page serves multiple frontline roles", () => {
+    render(
+      <ConfigProvider>
+        <PageExperienceShell
+          meta={{ title: "提醒与推荐", experience: multiStakeholderExperience }}
+          securityProfile={evidenceDetailProfile}
+        >
+          推荐内容
+        </PageExperienceShell>
+      </ConfigProvider>,
+    );
+
+    expect(screen.getByText("角色视角")).toBeInTheDocument();
+    expect(screen.getByText("医生")).toBeInTheDocument();
+    expect(screen.getByText("确认高风险提醒并登记采纳或不采纳理由")).toBeInTheDocument();
+    expect(screen.getByText("不会自动生成医嘱")).toBeInTheDocument();
+    expect(screen.getByText("药师")).toBeInTheDocument();
+    expect(screen.getByText("复核联合用药风险")).toBeInTheDocument();
+    expect(screen.getByText("只记录复核意见，不替代医师确认")).toBeInTheDocument();
   });
 });

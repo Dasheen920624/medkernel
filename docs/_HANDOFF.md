@@ -146,7 +146,7 @@
 - Git 事实核查：
   - `git fetch --prune` 成功。
   - `git status --short --branch`：`## codex/final-handoff-product-optimization`。
-  - `git log --oneline --decorate -3`：本地分支最新为
+  - 阶段二提交后的 `git log --oneline --decorate -3`：本地分支最新为
     `2b4d854d docs: 校准接力文档与134主线映射`，下一个提交为
     `1561ba6b (origin/main, origin/HEAD, main) 完善全角色上线演练与134复演闭环 (#653)`。
   - `git branch -a`：远端仅 `origin/main` 与 `origin/HEAD -> origin/main`。
@@ -177,6 +177,33 @@
   - 统一迁移生成：
     `node scripts/db/generate-migrations.mjs --check` 通过。
 
+## 第二轮全角色体验优化首批落地
+
+- 本阶段从真实前台继续收敛“同一页面服务多角色”时的客户可读语义，先选已完成 134 演练且跨角色最集中的四个入口：
+  `/cdss/fatigue`、`/clinical/followup`、`/admin/users`、`/admin/audit`。
+- 新增路由级 `stakeholderViews` 体验契约，字段为 `role` / `responsibility` / `boundary`；
+  `PageExperienceShell` 在页面顶部渲染“角色视角”，让医生、护士、患者代理、药师、医技、平台管理员、
+  实施工程师、审计员、信息科等角色的职责与边界来自路由单一真相源，而不是散落在页面文案中。
+- 已登记的首批角色边界：
+  - `/cdss/fatigue`：医生确认高风险提醒且不自动生成医嘱；药师复核联合用药和 DDI 且不替代医师确认；
+    医技生成报告解读但不改写已签发报告。
+  - `/clinical/followup`：护士代填并登记来源；患者代理回收自填问卷和报告但不直接形成诊疗决策；
+    医生复核异常回院后再进入线下处置或医嘱系统。
+  - `/admin/users`：平台管理员维护人员、任职、账号与组织范围；实施工程师可批量导入，但冲突未修正时不写入。
+  - `/admin/audit`：审计员追溯事件、导出证据与验签结果；信息科诊断链需具备证据详情权限后展开。
+- TDD 红灯证据：
+  - `npm --prefix frontend test -- PageExperienceShell.test.tsx` 初次失败，页面未渲染“角色视角”。
+  - `npm --prefix frontend test -- routes.test.ts` 初次失败，目标路由缺少 `stakeholderViews`。
+  - 首次 `npm --prefix frontend run verify` 因 `frontend/src/shared/config/routes.ts` 格式未更新在
+    `format:check` 失败；已用 Prettier 修正。
+  - 第二次全量前端 verify 因 `不会改写已签发报告` 同时出现在路由角色摘要和原页面能力区，旧测试用
+    `getByText` 误判重复；已改为断言至少存在一条，保留合法重复业务边界。
+- 绿色验证：
+  - `npm --prefix frontend test -- PageExperienceShell.test.tsx` 通过，`3` 个测试通过。
+  - `npm --prefix frontend test -- routes.test.ts` 通过，`47` 个测试通过。
+  - `npm --prefix frontend test -- CdssFatigue.test.tsx` 通过，`9` 个测试通过。
+  - `npm --prefix frontend run verify` 通过，`111` 个测试文件、`869` 个测试全部通过。
+
 ## 调试记录
 
 - 初始完整 E2E 红灯：`38 passed / 7 failed / 5 did not run`。
@@ -190,9 +217,9 @@
 
 ## 下一步
 
-1. 基于 `codex/final-handoff-product-optimization` 做本地阶段提交；不推送远程，不直接改写 `main`。
-2. 先跑轻量最终核查：文档接力核查、`git status`、关键门禁脚本；如需加固，再跑前端 verify、后端 test、
-   迁移 check。
-3. 第二轮回到产品级全视角优化：医生、护士、患者、药师、医技、质控、信息科、实施、院长、平台管理员、
-   审计员等从真实前台操作继续发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题。
+1. 基于 `codex/final-handoff-product-optimization` 继续本地阶段提交；不推送远程，不直接改写 `main`。
+2. 下一批产品级全视角优化建议优先看仍未纳入路由级 `stakeholderViews` 的高风险入口：
+   质控、院长、医疗引擎运营员、专病管理、知识治理与数据互操作页面。
+3. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；
+   优先把角色职责、证据边界、不可自动化医疗动作沉到路由或共享体验契约。
 4. 继续保持证据详情边界：默认业务视图不暴露追踪号、原始标识、技术编码；需要时通过受控证据详情展开。
