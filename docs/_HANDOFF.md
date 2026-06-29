@@ -455,6 +455,23 @@
   - 绿色验证：
     `npm --prefix frontend test -- PageExperienceShell.test.tsx operationalControlPages.test.tsx RuleValidate.test.tsx EmbedLaunch.test.tsx PathwayTemplates.test.tsx RuleDefinitions.test.tsx KnowledgeGovernance.test.tsx`
     通过；`npm --prefix frontend run typecheck` 通过；`git diff --check` 通过。
+- 真实前台深度随访链路红绿闭环（`2026-06-29T23:31:25+08:00`）：
+  - 在基础五段真实前台数据路线后，继续把随访链路延伸到“创建模板草稿 → 发布模板 → 生成随访计划 → 患者/代理问卷回收 → 异常回院登记”。
+  - 首次深度 E2E 红灯：临床账号在 `/clinical/followup` 可看到草稿模板的“发布模板”按钮，点击后后端按
+    `followup.publish` 正确拒绝，返回 `403 权限不足`；这说明后端医疗安全边界正确，但前端交互把不可执行动作暴露给临床用户。
+  - 根因与产品决策：
+    - 临床使用者可以创建随访模板草稿与生成/办理计划，但不得发布模板版本。
+    - 医疗引擎运营员已有 `followup.read/write/publish`，但缺 `menu.clinical-followup`，导致“有发布权限、无真实前台入口”。
+    - 随访协同页面补充医疗引擎运营员视角：发布模板只形成受控模板版本，不替代临床复核，也不直接生成患者计划。
+  - 已本地修复：
+    - 后端默认权限策略为医疗引擎运营员补齐 `menu.clinical-followup`，并用菜单快照与有效权限测试守住边界。
+    - 前端随访模板列表按 `followup.publish` 决定动作可见性；无发布权限时显示“需运营发布 / 医疗引擎运营员复核后用于新计划”，避免临床用户点击后才 403。
+    - 真实前台深度 E2E 改为临床账号创建模板、运营账号发布模板、临床账号继续生成计划与办理反馈，符合职责分工。
+  - 红绿证据：
+    - 红灯：`npm --prefix frontend test -- Followup.test.tsx routes.test.ts` 失败 2 项；
+      `mvn -f medkernel-backend/pom.xml -Dtest=DefaultPermissionPolicyTest,EffectivePermissionServiceTest test` 失败 3 项。
+    - 绿灯：同两条命令重跑通过，前端 `65` 项、后端 `16` 项；`npm --prefix frontend run typecheck` 通过；`git diff --check` 通过。
+  - 下一步：本地阶段提交后用该提交通过 `/zoesoft/medkernel/bin/medkernel-deploy.sh` 日常更新 134，再重跑深度真实前台 E2E。
 
 ## 下一步
 

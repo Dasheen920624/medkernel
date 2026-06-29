@@ -108,6 +108,7 @@ public final class DefaultPermissionPolicy {
             MENU_GRAPH_EXPLORE,
             MENU_KNOWLEDGE_PRODUCTION,
             MENU_AI_WORKFLOWS,
+            MENU_CLINICAL_FOLLOWUP,
             MENU_SANDBOX,
             MENU_QC_DASHBOARD,
             MENU_QC_ALERTS,

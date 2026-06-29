@@ -51,6 +51,35 @@ function renderFollowup() {
   );
 }
 
+function grantFollowupPublishPermission() {
+  const current = followupHookMocks.useSecurityProfile();
+  followupHookMocks.useSecurityProfile.mockReturnValue({
+    ...current,
+    data: {
+      ...current.data,
+      roles: [
+        {
+          code: "engine-operator",
+          displayName: "医疗引擎运营员",
+          source: "PLATFORM_SEED",
+          scopeLevel: "HOSPITAL",
+          scopeCode: "hospital-A",
+        },
+      ],
+      permissions: [
+        ...current.data.permissions,
+        {
+          code: "followup.publish",
+          dimension: "ACTION",
+          target: "FOLLOWUP",
+          displayName: "发布随访模板版本",
+          risk: "HIGH",
+        },
+      ],
+    },
+  });
+}
+
 describe("Followup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -611,6 +640,7 @@ describe("Followup", () => {
 
   it("shows followup templates and publishes templates with current product wording", async () => {
     const user = userEvent.setup();
+    grantFollowupPublishPermission();
     renderFollowup();
 
     await user.click(screen.getByRole("tab", { name: "随访模板" }));
@@ -633,6 +663,19 @@ describe("Followup", () => {
       }),
     );
     expect(screen.queryByText(/第一阶段|模板治理|随访模板资产|运行期/)).not.toBeInTheDocument();
+  });
+
+  it("临床使用者只能创建随访模板草稿，不能看到会触发权限失败的发布动作", async () => {
+    const user = userEvent.setup();
+    renderFollowup();
+
+    await user.click(screen.getByRole("tab", { name: "随访模板" }));
+
+    const row = screen.getByRole("row", { name: /待发布模板/ });
+    expect(within(row).queryByRole("button", { name: /发布模板/ })).not.toBeInTheDocument();
+    expect(within(row).getByText("需运营发布")).toBeInTheDocument();
+    expect(within(row).getByText("医疗引擎运营员复核后用于新计划")).toBeInTheDocument();
+    expect(followupHookMocks.publishTemplate).not.toHaveBeenCalled();
   });
 
   it("创建随访模板时使用业务选项生成可审计的标准契约", async () => {

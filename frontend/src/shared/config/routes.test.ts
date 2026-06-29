@@ -185,6 +185,11 @@ describe("route metadata", () => {
         responsibility: "复核异常回院事件",
         boundary: "复核后再进入线下处置或医嘱系统",
       },
+      {
+        role: "医疗引擎运营员",
+        responsibility: "发布随访模板版本并确认影响范围",
+        boundary: "发布模板不替代临床复核，也不直接生成患者计划",
+      },
     ]);
     expect(findRouteByPath("/admin/users")?.experience?.stakeholderViews).toEqual([
       {

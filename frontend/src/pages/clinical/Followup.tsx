@@ -50,6 +50,7 @@ import type {
   FollowupPlanDetailResponse,
   FollowupPlanStatus,
   FollowupTemplateResponse,
+  SecurityProfile,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
@@ -122,11 +123,16 @@ function planTemplateText(
   return `${templateName}${version}`;
 }
 
+function hasPermission(profile: SecurityProfile | undefined, code: string) {
+  return profile?.permissions.some((permission) => permission.code === code) ?? false;
+}
+
 export default function Followup() {
   const { message: messageApi } = AntdApp.useApp();
   const security = useSecurityProfile();
   const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
   const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
+  const canPublishFollowupTemplate = hasPermission(security.data, "followup.publish");
   const [activeTab, setActiveTab] = useState("plans");
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [generateModalVisible, setGenerateModalVisible] = useState(false);
@@ -543,6 +549,11 @@ export default function Followup() {
       render: (_value: unknown, record) =>
         record.assetStatus === "PUBLISHED" ? (
           <Tag color="green">可用于计划生成</Tag>
+        ) : !canPublishFollowupTemplate ? (
+          <Space direction="vertical" size={0}>
+            <Tag color="gold">需运营发布</Tag>
+            <span className={styles.textMuted}>医疗引擎运营员复核后用于新计划</span>
+          </Space>
         ) : (
           <Button
             type="link"

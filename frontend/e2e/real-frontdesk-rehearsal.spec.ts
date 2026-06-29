@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 
-import { ensureReadySession } from "./support/auth";
+import { apiBase, ensureReadySession, expectOk } from "./support/auth";
 
 type RuntimeCollectors = {
   browserErrors: string[];
@@ -12,6 +12,12 @@ type RuntimeCollectors = {
 type RuntimeRecord = RuntimeCollectors & {
   stage: string;
   url: string;
+};
+
+type ContextSnapshotSummary = {
+  snapshotId: string;
+  patientId: string;
+  encounterId?: string | null;
 };
 
 test.describe.configure({ mode: "serial" });
@@ -31,7 +37,21 @@ test.describe("全前台真实操作演练", () => {
       await createValueSetFromUi(page, testInfo, runtime, records, suffix);
       await configureModelEgressPolicyFromUi(page, testInfo, runtime, records);
       await createMpiPatientFromUi(page, testInfo, runtime, records);
-      await createFollowupTemplateFromUi(page, testInfo, runtime, records, suffix);
+      const followupTemplate = await createFollowupTemplateFromUi(
+        page,
+        testInfo,
+        runtime,
+        records,
+        suffix,
+      );
+      await publishFollowupTemplateFromUi(page, testInfo, runtime, records, followupTemplate);
+      await generateFollowupPlanAndHandlePatientFeedbackFromUi(
+        page,
+        testInfo,
+        runtime,
+        records,
+        followupTemplate,
+      );
     } finally {
       await attachRuntimeRecords(testInfo, records);
     }
@@ -233,11 +253,122 @@ async function createFollowupTemplateFromUi(
   await dialog.getByRole("button", { name: /创\s*建/ }).click();
   const response = await responsePromise;
   expect(response.ok(), "前台提交随访模板应返回成功").toBe(true);
-  const result = (await response.json()) as { data?: { templateCode?: string } };
+  const result = (await response.json()) as {
+    data?: { templateId?: string; templateCode?: string; name?: string };
+  };
+  expect(result.data?.templateId, "随访模板创建响应应返回稳定模板身份").toBeTruthy();
   expect(result.data?.templateCode).toBe(templateCode);
   await expect(dialog).toBeHidden({ timeout: 20_000 });
   await captureEvidence(page, testInfo, "real-frontdesk-followup-template");
   recordCleanRuntime(page, "前台创建随访模板", runtime, records);
+  return {
+    templateId: result.data?.templateId ?? "",
+    templateCode,
+    name: result.data?.name ?? `真实前台慢病随访模板 ${suffix}`,
+  };
+}
+
+async function publishFollowupTemplateFromUi(
+  page: Page,
+  testInfo: TestInfo,
+  runtime: RuntimeCollectors,
+  records: RuntimeRecord[],
+  template: { templateId: string; templateCode: string; name: string },
+) {
+  await ensureReadySession(page, "engine-operator");
+  clearRuntime(runtime);
+  await page.goto("/clinical/followup", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "随访协同" })).toBeVisible();
+  await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
+  await page.getByRole("tab", { name: "随访模板" }).click();
+  await page.getByPlaceholder("按模板名称或适用范围检索").fill(template.name);
+  await expect(page.getByText(template.name)).toBeVisible({ timeout: 20_000 });
+
+  const row = page.getByRole("row", { name: new RegExp(escapeRegExp(template.name)) }).first();
+  await expect(row).toBeVisible();
+  const responsePromise = waitForPost(
+    page,
+    `/api/v1/engine/followup/templates/${template.templateId}/publish`,
+  );
+  await row.getByRole("button", { name: "发布模板" }).click();
+  const response = await responsePromise;
+  expect(response.ok(), "前台发布随访模板应返回成功").toBe(true);
+  const result = (await response.json()) as { data?: { assetStatus?: string; templateId?: string } };
+  expect(result.data?.templateId).toBe(template.templateId);
+  expect(result.data?.assetStatus).toBe("PUBLISHED");
+  await expect(row.getByText("可用于计划生成")).toBeVisible({ timeout: 20_000 });
+  await captureEvidence(page, testInfo, "real-frontdesk-followup-template-published");
+  recordCleanRuntime(page, "前台发布随访模板", runtime, records);
+}
+
+async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
+  page: Page,
+  testInfo: TestInfo,
+  runtime: RuntimeCollectors,
+  records: RuntimeRecord[],
+  template: { templateId: string; name: string },
+) {
+  await ensureReadySession(page, "clinical-user");
+  const snapshot = await fetchFirstActiveContextSnapshot(page);
+  clearRuntime(runtime);
+  await page.goto("/clinical/followup", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "随访协同" })).toBeVisible();
+  await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
+  await expectNoRootOverflow(page, "随访协同计划办理桌面");
+
+  await page.getByRole("button", { name: "生成随访计划" }).click();
+  const dialog = page.getByRole("dialog", { name: "生成随访计划" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("随访快照患者信息").fill(snapshot.patientId);
+  await expect(dialog.getByRole("button", { name: "选择第 1 个随访上下文快照" })).toBeVisible({
+    timeout: 20_000,
+  });
+  await dialog.getByRole("button", { name: "选择第 1 个随访上下文快照" }).click();
+  await chooseDialogOption(page, dialog, "随访风险分层", "中风险");
+  await chooseDialogOption(page, dialog, "随访模板", template.name);
+
+  const responsePromise = waitForPost(page, "/api/v1/engine/followup/plans/generate");
+  await dialog.getByRole("button", { name: "生成" }).click();
+  const response = await responsePromise;
+  expect(response.ok(), "前台生成随访计划应返回成功").toBe(true);
+  const result = (await response.json()) as { data?: { planId?: string; tasks?: Array<unknown> } };
+  expect(result.data?.planId, "随访计划生成响应应返回计划身份").toBeTruthy();
+  expect(result.data?.tasks?.length ?? 0, "随访计划应生成可办理任务").toBeGreaterThan(0);
+  await expect(dialog).toBeHidden({ timeout: 20_000 });
+  await expect(page.getByRole("dialog", { name: "随访计划办理" })).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await page.getByRole("button", { name: "填报" }).first().click();
+  await chooseDialogOption(page, page.getByRole("dialog", { name: "随访计划办理" }), "提交来源", "患者自填");
+  await page
+    .getByLabel("问卷回收内容")
+    .fill("真实前台演练：患者自述夜间咳嗽加重，已按医嘱用药，未填写姓名、电话、住址或证件号。");
+  const questionnaireResponsePromise = waitForPost(page, "/api/v1/engine/followup/questionnaires");
+  await page.getByRole("button", { name: "提交问卷" }).click();
+  const questionnaireResponse = await questionnaireResponsePromise;
+  expect(questionnaireResponse.ok(), "前台提交随访问卷应返回成功").toBe(true);
+  await expect(page.getByText("请选择一个待办随访任务后提交问卷回收内容")).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await chooseDialogOption(
+    page,
+    page.getByRole("dialog", { name: "随访计划办理" }),
+    "回院风险等级",
+    "高风险",
+  );
+  await page.getByLabel("异常症状或情况").fill("患者报告胸闷加重并伴活动后气促，需要回院复核。");
+  await page
+    .getByLabel("医护处理建议")
+    .fill("护士已提示尽快回院，由责任医生复核后决定线下处置，不在本页自动开嘱。");
+  const abnormalResponsePromise = waitForPost(page, "/api/v1/engine/followup/abnormal-reports");
+  await page.getByRole("button", { name: "登记异常回院" }).click();
+  const abnormalResponse = await abnormalResponsePromise;
+  expect(abnormalResponse.ok(), "前台登记异常回院应返回成功").toBe(true);
+  await expect(page.getByText("异常回院证据已登记")).toBeVisible({ timeout: 20_000 });
+  await captureEvidence(page, testInfo, "real-frontdesk-followup-plan-questionnaire-abnormal");
+  recordCleanRuntime(page, "前台生成随访计划并完成问卷与异常回院登记", runtime, records);
 }
 
 async function chooseDialogOption(page: Page, dialog: Locator, label: string, option: string) {
@@ -282,6 +413,24 @@ function waitForPut(page: Page, path: string) {
     (response) => response.request().method() === "PUT" && response.url().includes(path),
     { timeout: 30_000 },
   );
+}
+
+async function fetchFirstActiveContextSnapshot(page: Page): Promise<ContextSnapshotSummary> {
+  const response = await page.request.get(`${apiBase}/engine/context/snapshots`, {
+    params: {
+      status: "ACTIVE",
+      page: "1",
+      size: "1",
+      sort: "createdAt,desc",
+    },
+    headers: { "X-Trace-Id": `e2e-context-snapshot-${Date.now()}` },
+  });
+  await expectOk(response, "读取已生效临床快照");
+  const result = (await response.json()) as { data?: { items?: ContextSnapshotSummary[] } };
+  const snapshot = result.data?.items?.[0];
+  expect(snapshot?.snapshotId, "真实前台深度演练需要至少一条已生效上下文快照").toBeTruthy();
+  expect(snapshot?.patientId, "上下文快照必须带患者上下文").toBeTruthy();
+  return snapshot as ContextSnapshotSummary;
 }
 
 function collectRuntime(page: Page): RuntimeCollectors {

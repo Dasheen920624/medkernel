@@ -82,6 +82,22 @@ class EffectivePermissionServiceTest {
     }
 
     @Test
+    void engineOperatorCanReachFollowupTemplatePublishingDeskWithoutClinicalExecutionAuthority() {
+        when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "engine-1"))
+            .thenReturn(List.of());
+
+        var profile = service.resolve(
+            auth("engine-1", RoleCode.ENGINE_OPERATOR),
+            OrgScope.tenant("t-1"),
+            "engine-1");
+
+        assertThat(profile.menuKeys()).contains("clinical-followup");
+        assertThat(profile.permissionCodes())
+            .contains(PermissionCode.FOLLOWUP_READ.code(), PermissionCode.FOLLOWUP_PUBLISH.code())
+            .doesNotContain(PermissionCode.RECOMMENDATION_ACCEPT.code(), PermissionCode.PATHWAY_EXECUTE.code());
+    }
+
+    @Test
     void platformAdministrationDoesNotAcquireEnginePublishingOrEmergencyPermissions() {
         when(userRoleAssignmentRepository.findActiveByTenantIdAndUserId("t-1", "admin-1"))
             .thenReturn(List.of());
