@@ -812,6 +812,7 @@ export default function DeclarativeAssetWorkbench({
         cancelText="取消"
         width={920}
         confirmLoading={create.isPending || update.isPending}
+        forceRender
         destroyOnClose
       >
         {detail.isError && <Alert type="error" message="资产正文读取失败，暂不能编辑。" />}

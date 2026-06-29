@@ -21,10 +21,11 @@
   同步统一迁移生成与全系统演练覆盖矩阵，并完成代码、契约、前后端、文档、测试、构建核查。
 - #650、#651、#652、#653 均已合入远端 `main`；当前 `main` 的上线候选状态为
   “已合并 + 134 已完成清库复演”。
-- 134 已按 squash 前候选 `228b16a8d8da8eb5747af9ab1cefcc2716c0dc2d` 清库重新部署，并完成全功能、全知识、
+- 134 的清库复演基线为 squash 前候选 `228b16a8d8da8eb5747af9ab1cefcc2716c0dc2d`，已完成全功能、全知识、
   全流程、全角色真实演练闭环；该候选内容已通过 #653 squash 合入远端 `main` 的
-  `1561ba6bef8777dcef76432696f43de4277fdd3f`。不要再把旧“未推送/未合并 main”、
-  “134 未更新/未复演”或旧 `9d19fb3` 证据当作当前事实。
+  `1561ba6bef8777dcef76432696f43de4277fdd3f`。之后 134 已在该清库基线上做日常更新部署至本地分支
+  `11e9e38a0588`，用于字段契约与真实前台复演修复验证。不要再把旧“未推送/未合并 main”、
+  “134 未更新/未复演”、旧 `9d19fb3` 证据或清库基线 manifest 当作当前运行版本。
 
 ## 本轮落地结论
 
@@ -36,12 +37,14 @@
   - `deployedAt=2026-06-29T15:37:16+08:00`。
   - `jarSha256=e420ffac8c3ff791ebd02913500982826e87486031d2253aef46fba54137cd0c`。
 - 134 与 main 提交映射：
-  - 134 manifest 记录的是 #653 squash 前候选提交
+  - 134 清库复演时 manifest 记录的是 #653 squash 前候选提交
     `228b16a8d8da8eb5747af9ab1cefcc2716c0dc2d`。
   - 远端 `main` 当前提交为 #653 squash 后提交
     `1561ba6bef8777dcef76432696f43de4277fdd3f`。
   - 发布证据可按“134 候选部署提交 `228b16a8` 等价合入 `main@1561ba6b`”理解；
     后续若重做正式发布制品，应以新的 `main` 提交重新写入 manifest。
+  - `2026-06-29T22:45:48+08:00` 后，134 当前运行 manifest 已更新为本地分支提交
+    `11e9e38a0588`；该更新是基于清库环境的日常修复部署，不改变 #653 清库复演基线证据的归属。
 - 清库部署后数据库验证：
   - public base tables：`208`（207 业务表 + `flyway_schema_history`）。
   - 业务表数：`207`。
@@ -56,6 +59,20 @@
   `SSL_CERT_FILE` 覆盖系统 CA。
 - 模型提供方：`ollama-launch`，类型 `OLLAMA`，端点 `http://127.0.0.1:11434`，
   模型版本 `medkernel-qwen25:1.5b-v1`。
+
+## 134 当前运行版本补充
+
+- `2026-06-29T22:45:48+08:00`，134 使用
+  `/zoesoft/medkernel/bin/medkernel-deploy.sh` 完成日常更新部署：
+  - source / commit：`11e9e38a0588`（`fix: 修复真实演练字段契约与凭据租户`）。
+  - jarSha256：`c36f82b1f9e85d1345591efa81c895606aaf14efed57f1c02586e7891d2b8623`。
+  - 部署前备份：`/zoesoft/medkernel/backups/deploy-20260629-224545`。
+  - readiness：HTTP 200，`{"status":"UP"}`。
+- 该更新修复真实前台继续演练发现的字段契约历史空白说明问题；清库数据与 #653 全系统复演证据仍沿用
+  `228b16a8` 基线，不把本次日常部署伪装成重新清库。
+- 部署后用 `rehearsal` 四职责账号经真实 cookie 会话直接复核
+  `GET /engine/integration/data-contract`，返回 HTTP 200，字段数 `61`；不要使用 bearer token 复核该接口，
+  当前登录态为 httpOnly cookie 会话。
 
 ## 134 证据
 
@@ -352,7 +369,9 @@
     `/zoesoft/medkernel/nginx/ssl/server.crt` 校验，返回 `{"status":"UP"}`。
   - 不要再把 `127.0.0.1:8080` 当作 MedKernel 后端端口；134 上 `:8080` 由 nginx/其他 server block 监听，
     无 Host 直连出现 `Empty reply from server` 是入口误用，不代表后端 down。
-  - manifest 仍为候选部署提交 `228b16a8d8da8eb5747af9ab1cefcc2716c0dc2d`，
+  - `2026-06-29T22:12:42+08:00` 只读复核时，manifest 记录候选部署提交
+    `228b16a8d8da8eb5747af9ab1cefcc2716c0dc2d`；
+    `2026-06-29T22:45:48+08:00` 后已更新为 `11e9e38a0588`，见上方“134 当前运行版本补充”。
     `deployedAt=2026-06-29T15:37:16+08:00`，`jarSha256=e420ffac8c3ff791ebd02913500982826e87486031d2253aef46fba54137cd0c`。
   - 数据库：public 表 `208`，业务表 `207`，Flyway 成功版本 `1`。
   - `full-system.json`：`status=PASSED`，`stageCount=8`，失败阶段 `0`。
@@ -392,8 +411,29 @@
     `mvn -f medkernel-backend/pom.xml -Dtest=RuntimeReleaseFieldCatalogResolverTest,ContextFieldCatalogDraftServiceTest test`（`7 passed`）；
     `npm --prefix frontend run typecheck`；
     `git diff --check`。
-  - 下一动作：构建当前分支后端包，用 134 现有 `/zoesoft/medkernel/bin/medkernel-deploy.sh` 做日常更新，
-    再复核 `data-contract` 与真实前台 E2E；若仍出现页面交互、分类、权限或敏感信息问题，继续按全角色体验优化闭环。
+  - 当时待办已完成：已构建当前分支后端包，用 134 现有 `/zoesoft/medkernel/bin/medkernel-deploy.sh` 做日常更新，
+    并复核 `data-contract` 与真实前台 E2E；继续按全角色体验优化闭环处理页面交互、分类、权限和敏感信息问题。
+- 真实前台基础路线复演闭环（`2026-06-29T23:05:55+08:00`）：
+  - 已完成 134 日常更新部署至 `11e9e38a0588`，readiness HTTP 200；部署后直接复核
+    `GET /engine/integration/data-contract` 返回 HTTP 200，字段数 `61`。
+  - 真实前台 E2E 使用 `rehearsal` 四职责账号、`https://193.112.107.134/medkernel/api/v1` 后端和本地
+    `http://localhost:5173` 前台代理重跑通过：
+    `/tmp/medkernel-e2e-codex3/evidence-current/report/results.json`，
+    `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`、耗时 `25431.015ms`。
+  - 本次复演数据由前台真实操作产生，覆盖“创建系统接入适配器、创建知识值集草稿、配置模型外调安全策略、
+    创建脱敏患者主索引、创建随访模板”5 段；运行记录
+    `/tmp/medkernel-e2e-codex3/evidence-current/artifacts/real-frontdesk-rehearsal-全-1ad6c-、外调策略、患者资源与临床随访数据均由前台页面提交产生-chromium/attachments/real-frontdesk-runtime-records-e34ba4d525b7c7b672ceab165fff687799cbf884.json`
+    显示每段 `browserErrors=0`、`serverErrors=0`、`networkFailures=0`。
+  - 复演暴露并已本地修复：
+    - 134 后端生产 cookie 为 `Secure`，本地 HTTP 前台代理无法直接持有会话；E2E 仅在 loopback HTTP 代理下镜像
+      Secure cookie 为本地测试 cookie，生产安全策略不降级。
+    - `/adapter/hub` 数据契约默认表格过技术化且长字段路径造成横向溢出；默认视图收敛为“字段名称 / 接入字段 / 接入要求”，
+      字段结构、类型、单位/字典、说明进入可展开详情，避免误导实施人员先看内部编码。
+    - `AdapterHub`、`Mpi`、`Followup` 改用 AntD `App.useApp()` 消除静态 message 上下文警告；
+      `DeclarativeAssetWorkbench` 与 `Mpi` 弹窗表单增加受控挂载，消除未连接表单实例警告。
+  - 绿色验证：
+    `npm --prefix frontend test -- Followup.test.tsx Mpi.test.tsx DeclarativeAssetWorkbench.test.tsx AdapterHub.test.tsx e2eAuthCredentialContract.test.ts e2eRoleCredentials.test.ts`
+    通过，`48` 项；`npm --prefix frontend run typecheck` 通过；`git diff --check` 通过。
 
 ## 下一步
 
@@ -401,8 +441,8 @@
 2. 目标环境上线前补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
 3. 路由级角色视角已覆盖所有认证路由；下一批应转向真实前台逐角色操作演练与页面交互细节优化，
    重点看操作步数、默认筛选、证据详情开关、权限提示、患者敏感信息屏蔽和高风险确认是否仍有不顺。
-4. 134 下一步先部署当前本地字段目录修复，复跑数据接入契约与真实前台 E2E；基础路线稳定后，
-   再做全角色真实前台操作体验优化，避免基础问题反复遮蔽产品问题。
+4. 134 已完成字段目录修复部署、数据接入契约复核与真实前台基础路线复演；下一阶段进入全角色真实前台操作体验优化，
+   逐页从医生、护士、患者/代理、药师、医技、质控、信息科、实施工程师、审计员、院长等视角找流程和交互问题。
 5. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；
    优先把角色职责、证据边界、不可自动化医疗动作沉到路由或共享体验契约。
 6. 继续保持证据详情边界：默认业务视图不暴露追踪号、原始标识、技术编码；需要时通过受控证据详情展开。

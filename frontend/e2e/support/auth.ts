@@ -126,6 +126,7 @@ async function loginWithFrontend(page: Page, role: RoleAccount, password: string
     },
   });
   await expectOk(response, `${role} 前台代理登录`);
+  await mirrorSecureCookiesForLocalProxy(page, response);
 }
 
 async function resetRoleSession(page: Page) {
@@ -208,6 +209,61 @@ function loadCredentialOverrides() {
   const file = process.env.E2E_ROLE_CREDENTIALS_FILE?.trim();
   if (!file) return {} as Partial<RoleCredentialOverrides>;
   return resolveRoleCredentialOverrides(JSON.parse(readFileSync(file, "utf8")));
+}
+
+async function mirrorSecureCookiesForLocalProxy(page: Page, response: APIResponse) {
+  const frontendUrl = new URL(frontendApiBase);
+  if (frontendUrl.protocol !== "http:" || !isLoopbackHost(frontendUrl.hostname)) {
+    return;
+  }
+  const cookies = response
+    .headersArray()
+    .filter((header) => header.name.toLowerCase() === "set-cookie")
+    .map((header) => parseSetCookieForLocalProxy(header.value, frontendUrl.origin))
+    .filter((cookie): cookie is NonNullable<ReturnType<typeof parseSetCookieForLocalProxy>> =>
+      Boolean(cookie),
+    );
+  if (cookies.length > 0) {
+    await page.context().addCookies(cookies);
+  }
+}
+
+export function parseSetCookieForLocalProxy(header: string, origin: string) {
+  const [nameValue, ...attributes] = header.split(";");
+  const separator = nameValue.indexOf("=");
+  if (separator <= 0) return null;
+  const secure = attributes.some((attribute) => attribute.trim().toLowerCase() === "secure");
+  if (!secure) return null;
+  const name = nameValue.slice(0, separator).trim();
+  const value = nameValue.slice(separator + 1).trim();
+  if (!name || !value) return null;
+  const sameSite = sameSiteAttribute(cookieAttribute(attributes, "samesite"));
+  return {
+    name,
+    value,
+    url: origin,
+    httpOnly: attributes.some((attribute) => attribute.trim().toLowerCase() === "httponly"),
+    secure: false,
+    sameSite,
+  };
+}
+
+function cookieAttribute(attributes: string[], name: string) {
+  const prefix = `${name.toLowerCase()}=`;
+  const match = attributes.find((attribute) => attribute.trim().toLowerCase().startsWith(prefix));
+  if (!match) return undefined;
+  return match.trim().slice(prefix.length);
+}
+
+function sameSiteAttribute(value?: string) {
+  const normalized = value?.toLowerCase();
+  if (normalized === "lax") return "Lax" as const;
+  if (normalized === "none") return "None" as const;
+  return "Strict" as const;
+}
+
+function isLoopbackHost(hostname: string) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
 }
 
 function requireEnv(name: string) {

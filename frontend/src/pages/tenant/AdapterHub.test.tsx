@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ConfigProvider, message } from "antd";
+import { App as AntdApp, ConfigProvider, message } from "antd";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -464,7 +464,9 @@ function setupMocks() {
 function renderPage() {
   return render(
     <ConfigProvider>
-      <AdapterHub />
+      <AntdApp>
+        <AdapterHub />
+      </AntdApp>
     </ConfigProvider>,
   );
 }
@@ -607,6 +609,9 @@ describe("AdapterHub", () => {
     expect(screen.getAllByText("HIS 主数据接入").length).toBeGreaterThan(0);
     expect(screen.getByText("适配器已登记")).toBeInTheDocument();
     expect(screen.getByText("当前机构字段契约已生成")).toBeInTheDocument();
+    expect(screen.getByText("患者标识")).toBeInTheDocument();
+    expect(screen.getByText("接入要求")).toBeInTheDocument();
+    expect(screen.queryByText("字段结构")).not.toBeInTheDocument();
     expect(screen.queryByText(/his-main/)).not.toBeInTheDocument();
     expect(screen.queryByText(/context-field-contract:runtime-H7/)).not.toBeInTheDocument();
 

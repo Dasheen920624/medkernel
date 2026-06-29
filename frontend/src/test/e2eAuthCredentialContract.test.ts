@@ -61,6 +61,31 @@ describe("E2E credential contract", () => {
       "https://193.112.107.134/medkernel/api/v1",
     );
   });
+
+  it("mirrors secure backend cookies only as local proxy cookies for HTTP frontdesk rehearsal", async () => {
+    process.env.E2E_API_BASE_URL = "https://127.0.0.1/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+
+    const cookie = auth.parseSetCookieForLocalProxy(
+      "mk_access=jwt-value; Path=/medkernel; Max-Age=1800; Secure; HttpOnly; SameSite=Strict",
+      "http://127.0.0.1:5173",
+    );
+
+    expect(cookie).toMatchObject({
+      name: "mk_access",
+      value: "jwt-value",
+      url: "http://127.0.0.1:5173",
+      secure: false,
+      httpOnly: true,
+      sameSite: "Strict",
+    });
+    expect(
+      auth.parseSetCookieForLocalProxy(
+        "mk_access=jwt-value; Path=/medkernel; HttpOnly; SameSite=Strict",
+        "http://127.0.0.1:5173",
+      ),
+    ).toBeNull();
+  });
 });
 
 function account(role: string) {

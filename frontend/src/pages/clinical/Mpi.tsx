@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import {
+  App as AntdApp,
   Table,
   Alert,
   Button,
@@ -14,7 +15,6 @@ import {
   Tag,
   Tooltip,
   Space,
-  message,
   Typography,
   Badge,
 } from "antd";
@@ -185,6 +185,7 @@ function renderPatient360Detail(detail: MpiPatientDetailResponse, evidenceDetail
 }
 
 export default function Mpi() {
+  const { message: messageApi } = AntdApp.useApp();
   const [keyword, setKeyword] = useState("");
   const [status, setStatus] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
@@ -309,7 +310,7 @@ export default function Mpi() {
         idempotencyKey: createIdempotencyKey,
       });
 
-      message.success(
+      messageApi.success(
         evidenceDetailsEnabled
           ? `患者主索引 ${result.mpiId} 已创建，列表和统计已刷新`
           : "患者主索引已创建，列表和统计已刷新",
@@ -320,7 +321,7 @@ export default function Mpi() {
       refetchStats();
     } catch (error: unknown) {
       if (applyApiFieldErrors(createForm, error)) return;
-      message.error(getApiErrorMessage(error, "创建失败，请检查患者主索引信息"));
+      messageApi.error(getApiErrorMessage(error, "创建失败，请检查患者主索引信息"));
     }
   };
 
@@ -334,7 +335,7 @@ export default function Mpi() {
         idempotencyKey: splitIdempotencyKey,
       });
 
-      message.success(result?.message || "患者主索引合并关系已拆分");
+      messageApi.success(result?.message || "患者主索引合并关系已拆分");
       setIsSplitModalVisible(false);
       setSplitPatientRecord(null);
       splitForm.resetFields();
@@ -342,7 +343,7 @@ export default function Mpi() {
       refetchStats();
     } catch (error: unknown) {
       if (applyApiFieldErrors(splitForm, error)) return;
-      message.error(getApiErrorMessage(error, "拆分失败，请检查主索引状态"));
+      messageApi.error(getApiErrorMessage(error, "拆分失败，请检查主索引状态"));
     }
   };
 
@@ -351,7 +352,7 @@ export default function Mpi() {
     try {
       const values = await mergeForm.validateFields();
       if (values.sourceMpiId === values.targetMpiId) {
-        message.error("源患者与目标患者不能是同一个患者，无法合并！");
+        messageApi.error("源患者与目标患者不能是同一个患者，无法合并！");
         return;
       }
 
@@ -361,7 +362,7 @@ export default function Mpi() {
         idempotencyKey: mergeIdempotencyKey,
       });
 
-      message.success(result?.message || "患者主索引合并成功，已记录审计证据");
+      messageApi.success(result?.message || "患者主索引合并成功，已记录审计证据");
       setIsMergeModalVisible(false);
       mergeForm.resetFields();
 
@@ -372,10 +373,10 @@ export default function Mpi() {
       if (applyApiFieldErrors(mergeForm, error)) return;
       const parsed = parseApiError(error, "合并失败，请核查患者身份信息");
       if (parsed.code === "MPI_MERGE_REQUIRES_REVIEW") {
-        message.warning(parsed.message);
+        messageApi.warning(parsed.message);
         return;
       }
-      message.error(getApiErrorMessage(error, "合并失败，请核查患者身份信息"));
+      messageApi.error(getApiErrorMessage(error, "合并失败，请核查患者身份信息"));
     }
   };
 
@@ -718,6 +719,7 @@ export default function Mpi() {
           okText="保存患者"
           cancelText="取消返回"
           width={560}
+          forceRender
           destroyOnClose
         >
           <Form form={createForm} layout="vertical">
@@ -777,6 +779,7 @@ export default function Mpi() {
           okText="确认拆分"
           cancelText="取消返回"
           width={560}
+          forceRender
           destroyOnClose
         >
           <div className={styles.warningBox}>
@@ -822,6 +825,7 @@ export default function Mpi() {
           okText="确认合并"
           cancelText="取消返回"
           width={560}
+          forceRender
           destroyOnClose
         >
           {/* 安全警告说明 */}

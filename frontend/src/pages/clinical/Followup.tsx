@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   Alert,
+  App as AntdApp,
   Badge,
   Button,
   Card,
@@ -20,7 +21,6 @@ import {
   Table,
   Tabs,
   Tag,
-  message,
 } from "antd";
 import type { BadgeProps, TableProps } from "antd";
 import {
@@ -123,6 +123,7 @@ function planTemplateText(
 }
 
 export default function Followup() {
+  const { message: messageApi } = AntdApp.useApp();
   const security = useSecurityProfile();
   const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
   const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
@@ -262,7 +263,7 @@ export default function Followup() {
         ),
       });
 
-      message.success("随访计划已生成，请在计划列表查看");
+      messageApi.success("随访计划已生成，请在计划列表查看");
       setGenerateModalVisible(false);
       generateForm.resetFields();
       setSnapshotPatientId("");
@@ -272,7 +273,7 @@ export default function Followup() {
       await refreshFollowupData();
     } catch (error: unknown) {
       if (applyApiFieldErrors(generateForm, error)) return;
-      message.error(getApiErrorMessage(error, "随访计划生成失败"));
+      messageApi.error(getApiErrorMessage(error, "随访计划生成失败"));
     }
   };
 
@@ -312,14 +313,14 @@ export default function Followup() {
         sourceRef: values.sourceRef,
       });
 
-      message.success("随访模板已创建，请发布后用于计划生成");
+      messageApi.success("随访模板已创建，请发布后用于计划生成");
       setTemplateModalVisible(false);
       templateForm.resetFields();
       setTemplatePage(1);
       await templatesQuery.refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(templateForm, error)) return;
-      message.error(getApiErrorMessage(error, "随访模板创建失败"));
+      messageApi.error(getApiErrorMessage(error, "随访模板创建失败"));
     }
   };
 
@@ -334,16 +335,16 @@ export default function Followup() {
           reason: "随访模板发布",
         },
       });
-      message.success("随访模板已发布，可用于新随访计划");
+      messageApi.success("随访模板已发布，可用于新随访计划");
       await Promise.all([templatesQuery.refetch(), publishedTemplatesQuery.refetch()]);
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "随访模板发布失败"));
+      messageApi.error(getApiErrorMessage(error, "随访模板发布失败"));
     }
   };
 
   const handleSubmitQuestionnaire = async () => {
     if (!selectedTask?.questionnaireTemplateId) {
-      message.error("当前任务没有可用问卷模板，不能提交问卷。");
+      messageApi.error("当前任务没有可用问卷模板，不能提交问卷。");
       return;
     }
     try {
@@ -364,13 +365,13 @@ export default function Followup() {
         executorType: values.executorType,
       });
 
-      message.success("随访问卷内容已提交，请以刷新后的任务状态为准");
+      messageApi.success("随访问卷内容已提交，请以刷新后的任务状态为准");
       questionnaireForm.resetFields();
       setSelectedTaskId(null);
       await refreshFollowupData();
     } catch (error: unknown) {
       if (applyApiFieldErrors(questionnaireForm, error)) return;
-      message.error(getApiErrorMessage(error, "问卷提交失败"));
+      messageApi.error(getApiErrorMessage(error, "问卷提交失败"));
     }
   };
 
@@ -390,12 +391,12 @@ export default function Followup() {
       });
 
       setAbnormalEvidence(response);
-      message.warning("异常回院已登记，请以审计与刷新后的任务状态为准");
+      messageApi.warning("异常回院已登记，请以审计与刷新后的任务状态为准");
       abnormalForm.resetFields();
       await refreshFollowupData();
     } catch (error: unknown) {
       if (applyApiFieldErrors(abnormalForm, error)) return;
-      message.error(getApiErrorMessage(error, "异常回院登记失败"));
+      messageApi.error(getApiErrorMessage(error, "异常回院登记失败"));
     }
   };
 

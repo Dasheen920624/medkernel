@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import {
   Alert,
+  App as AntdApp,
   Button,
   Card,
   Descriptions,
@@ -17,7 +18,6 @@ import {
   Tabs,
   Tag,
   Typography,
-  message,
 } from "antd";
 import {
   ApiOutlined,
@@ -325,6 +325,7 @@ function buildSignaturePreviewPayload(
 }
 
 export default function AdapterHub() {
+  const { message: messageApi } = AntdApp.useApp();
   const [adapterPage, setAdapterPage] = useState(1);
   const [logPage, setLogPage] = useState(1);
   const [onboardingPage, setOnboardingPage] = useState(1);
@@ -463,14 +464,14 @@ export default function AdapterHub() {
         protocolType: values.protocolType,
         configJson,
       });
-      message.success("适配器已提交到接入总线。");
+      messageApi.success("适配器已提交到接入总线。");
       setAdapterModalOpen(false);
       adapterForm.resetFields();
       void adaptersQuery.refetch();
       void statusQuery.refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(adapterForm, error)) return;
-      message.error(getApiErrorMessage(error, "创建适配器失败，请检查参数"));
+      messageApi.error(getApiErrorMessage(error, "创建适配器失败，请检查参数"));
     }
   }
 
@@ -485,11 +486,11 @@ export default function AdapterHub() {
           status: adapter.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE",
         },
       });
-      message.success("适配器状态已更新。");
+      messageApi.success("适配器状态已更新。");
       void adaptersQuery.refetch();
       void statusQuery.refetch();
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "更新适配器状态失败"));
+      messageApi.error(getApiErrorMessage(error, "更新适配器状态失败"));
     }
   }
 
@@ -500,14 +501,14 @@ export default function AdapterHub() {
       void adaptersQuery.refetch();
       void statusQuery.refetch();
       if (result.healthStatus === "HEALTHY") {
-        message.success("健康检查完成。");
+        messageApi.success("健康检查完成。");
       } else if (result.healthStatus === "MISCONFIGURED") {
-        message.error("连接配置无效，请修正后重试。");
+        messageApi.error("连接配置无效，请修正后重试。");
       } else {
-        message.warning("外部系统当前不可达。");
+        messageApi.warning("外部系统当前不可达。");
       }
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "健康检查失败"));
+      messageApi.error(getApiErrorMessage(error, "健康检查失败"));
     }
   }
 
@@ -516,29 +517,29 @@ export default function AdapterHub() {
       const report = await qualityReportMutation.mutateAsync();
       setQualityReport(report);
       void statusQuery.refetch();
-      message.success("数据质量报告已生成。");
+      messageApi.success("数据质量报告已生成。");
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "生成质量报告失败"));
+      messageApi.error(getApiErrorMessage(error, "生成质量报告失败"));
     }
   }
 
   async function handleRetryMessage(messageId: string) {
     try {
       await retryMessageMutation.mutateAsync(messageId);
-      message.success("已提交重试请求。");
+      messageApi.success("已提交重试请求。");
       void logsQuery.refetch();
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "重试失败"));
+      messageApi.error(getApiErrorMessage(error, "重试失败"));
     }
   }
 
   async function handleReplayDeadLetter(messageId: string) {
     try {
       await replayDeadLetterMutation.mutateAsync(messageId);
-      message.success("已提交死信重放请求。");
+      messageApi.success("已提交死信重放请求。");
       void logsQuery.refetch();
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "死信重放失败"));
+      messageApi.error(getApiErrorMessage(error, "死信重放失败"));
     }
   }
 
@@ -546,13 +547,13 @@ export default function AdapterHub() {
     try {
       const values = await onboardingForm.validateFields();
       await createOnboardingMutation.mutateAsync(values);
-      message.success("接入申请已创建。");
+      messageApi.success("接入申请已创建。");
       setOnboardingModalOpen(false);
       onboardingForm.resetFields();
       void onboardingsQuery.refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(onboardingForm, error)) return;
-      message.error(getApiErrorMessage(error, "创建接入申请失败"));
+      messageApi.error(getApiErrorMessage(error, "创建接入申请失败"));
     }
   }
 
@@ -563,10 +564,10 @@ export default function AdapterHub() {
         targetStatus: "ONLINE",
         evidenceText: adapterEvidenceText(onboarding),
       });
-      message.success("接入阶段推进请求已提交。");
+      messageApi.success("接入阶段推进请求已提交。");
       void onboardingsQuery.refetch();
     } catch (error: unknown) {
-      message.error(getApiErrorMessage(error, "推进接入阶段失败"));
+      messageApi.error(getApiErrorMessage(error, "推进接入阶段失败"));
     }
   }
 
@@ -580,7 +581,7 @@ export default function AdapterHub() {
       void webhooksQuery.refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(webhookForm, error)) return;
-      message.error(getApiErrorMessage(error, "创建回调通道失败"));
+      messageApi.error(getApiErrorMessage(error, "创建回调通道失败"));
     }
   }
 
@@ -588,7 +589,7 @@ export default function AdapterHub() {
     try {
       const values = (await signatureForm.validateFields()) as SignaturePreviewFormValue;
       if (!signatureWebhookId) {
-        message.warning("请选择回调通道。");
+        messageApi.warning("请选择回调通道。");
         return;
       }
       const result = await testWebhookSignatureMutation.mutateAsync({
@@ -598,7 +599,7 @@ export default function AdapterHub() {
       setSignatureResult(result);
     } catch (error: unknown) {
       if (applyApiFieldErrors(signatureForm, error)) return;
-      message.error(getApiErrorMessage(error, "生成签名预览失败"));
+      messageApi.error(getApiErrorMessage(error, "生成签名预览失败"));
     }
   }
 
@@ -617,20 +618,20 @@ export default function AdapterHub() {
         ...(values.onboardingId?.trim() ? { onboardingId: values.onboardingId.trim() } : {}),
       };
       await registerRegionalSourceMutation.mutateAsync(payload);
-      message.success("区域来源已登记并纳入可信分级。");
+      messageApi.success("区域来源已登记并纳入可信分级。");
       setRegionalSourceModalOpen(false);
       regionalSourceForm.resetFields();
       void regionalSourcesQuery.refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(regionalSourceForm, error)) return;
-      message.error(getApiErrorMessage(error, "登记区域来源失败"));
+      messageApi.error(getApiErrorMessage(error, "登记区域来源失败"));
     }
   }
 
   function handleLoadMasterDataReconciliation() {
     const source = masterDataSourceInput.trim().toUpperCase();
     if (!source) {
-      message.warning("请输入来源系统。");
+      messageApi.warning("请输入来源系统。");
       return;
     }
     setMasterDataSource(source);
@@ -1865,20 +1866,35 @@ function DataContractPanel({
 }) {
   const resourceCount = contract ? Object.keys(contract.resources).length : 0;
   const fieldColumns: ColumnsType<IntegrationDataContractResponse["fields"][number]> = [
-    { title: "标准字段", dataIndex: "fieldPath", key: "fieldPath", width: 180 },
+    {
+      title: "字段名称",
+      dataIndex: "displayName",
+      key: "displayName",
+      width: "42%",
+      render: (_value, field) => (
+        <Space direction="vertical" size={0} className={styles.contractFieldCell}>
+          <Text strong>{field.displayName}</Text>
+          <Text type="secondary" className={styles.contractFieldCode}>
+            {field.fieldPath}
+          </Text>
+        </Space>
+      ),
+    },
     {
       title: "接入字段",
       key: "payload",
-      width: 160,
-      render: (_value, field) => `${field.payloadKey}.${field.propertyName}`,
+      width: "36%",
+      render: (_value, field) => (
+        <Text className={styles.contractFieldCode}>
+          {field.payloadKey}.{field.propertyName}
+        </Text>
+      ),
     },
-    { title: "字段结构", dataIndex: "jsonSchemaType", key: "jsonSchemaType", width: 96 },
-    { title: "类型", dataIndex: "dataType", key: "dataType", width: 96 },
     {
-      title: "接入",
+      title: "接入要求",
       dataIndex: "externalWritable",
       key: "externalWritable",
-      width: 112,
+      width: 96,
       render: (externalWritable: boolean, field) =>
         externalWritable ? (
           <Tag color={field.required ? "red" : "green"}>{field.required ? "必传" : "可接入"}</Tag>
@@ -1886,7 +1902,6 @@ function DataContractPanel({
           <Tag color="orange">派生不可写</Tag>
         ),
     },
-    { title: "说明", dataIndex: "description", key: "description" },
   ];
   return (
     <Card title="数据接入契约" className={styles.sectionCard}>
@@ -1914,12 +1929,33 @@ function DataContractPanel({
                 : "字段要求由当前机构生效版本自动确定"}
             </Text>
             <Table
+              className={styles.contractTable}
               rowKey="fieldPath"
               dataSource={contract.fields}
               columns={fieldColumns}
               pagination={{ pageSize: 6, hideOnSinglePage: true }}
               size="small"
-              scroll={{ x: 860 }}
+              tableLayout="fixed"
+              expandable={{
+                expandedRowRender: (field) => (
+                  <Descriptions
+                    className={styles.contractFieldDetails}
+                    size="small"
+                    column={1}
+                    items={[
+                      { key: "resource", label: "资源", children: field.resourceType },
+                      { key: "schema", label: "字段结构", children: field.jsonSchemaType },
+                      { key: "type", label: "数据类型", children: field.dataType },
+                      {
+                        key: "unit",
+                        label: "单位/字典",
+                        children: [field.unit, field.codeSystem].filter(Boolean).join(" / ") || "无",
+                      },
+                      { key: "description", label: "说明", children: field.description },
+                    ]}
+                  />
+                ),
+              }}
             />
           </Space>
         ) : (
