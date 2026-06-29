@@ -212,6 +212,69 @@ describe("route metadata", () => {
     ]);
   });
 
+  it("为高风险治理与运维页面登记全视角职责边界", () => {
+    expect(findRouteByPath("/qc/dashboard")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "院长",
+        responsibility: "查看全院质量趋势、风险聚类和整改成效",
+        boundary: "只呈现治理态势，不直接下发临床处置或考核结论",
+      },
+      {
+        role: "质控负责人",
+        responsibility: "定位高风险问题并分派整改责任",
+        boundary: "整改闭环需保留责任人、期限和复核证据",
+      },
+    ]);
+    expect(findRouteByPath("/knowledge/governance")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "医疗引擎运营员",
+        responsibility: "审核知识候选并完成发布、驳回、替换或恢复",
+        boundary: "发布前必须保留来源、验证病例和责任确认",
+      },
+      {
+        role: "临床专家",
+        responsibility: "复核医学内容、适用人群和禁忌边界",
+        boundary: "专家意见进入治理记录，不绕过平台发布门禁",
+      },
+    ]);
+    expect(findRouteByPath("/knowledge/production")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "医疗引擎运营员",
+        responsibility: "配置模型服务、医学评测和知识候选生成",
+        boundary: "模型输出只进入候选治理链，不自动发布",
+      },
+      {
+        role: "模型安全负责人",
+        responsibility: "确认公网模型患者上下文外调策略和字段预览",
+        boundary: "核心敏感标识默认屏蔽，发送前需要责任确认",
+      },
+    ]);
+    expect(findRouteByPath("/adapter/hub")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "信息科",
+        responsibility: "核查院内系统连接、字段映射、死信和健康状态",
+        boundary: "断连必须诚实暴露为未连接，不伪造成可用",
+      },
+      {
+        role: "实施工程师",
+        responsibility: "完成协议联调、回放校验和上线前数据质量确认",
+        boundary: "联调通过不等于生产启用，仍需发布审批",
+      },
+    ]);
+    expect(findRouteByPath("/system/providers")?.experience?.stakeholderViews).toEqual([
+      {
+        role: "信息科",
+        responsibility: "核查数据库、知识图谱、模型服务和备份恢复状态",
+        boundary: "模型或图谱不可用时必须展示降级原因",
+      },
+      {
+        role: "平台管理员",
+        responsibility: "确认运行保障项是否满足上线和恢复要求",
+        boundary: "不能用手工口径覆盖健康检查和恢复证据",
+      },
+    ]);
+  });
+
   it("does not keep hidden demo-only routes in the production router metadata", () => {
     expect(routeMetas.map((route) => route.path)).not.toContain("/demo/step-flow");
     expect(routeMetas.some((route) => route.title.includes("StepFlow"))).toBe(false);

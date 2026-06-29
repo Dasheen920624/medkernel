@@ -204,6 +204,29 @@
   - `npm --prefix frontend test -- CdssFatigue.test.tsx` 通过，`9` 个测试通过。
   - `npm --prefix frontend run verify` 通过，`111` 个测试文件、`869` 个测试全部通过。
 
+## 第二轮全角色体验优化第二批落地
+
+- 本阶段继续按真实前台和全角色视角扩展高风险入口，优先处理“职责容易混淆、医疗边界容易误解、运行状态容易被包装成成功”的页面：
+  `/qc/dashboard`、`/knowledge/governance`、`/knowledge/production`、`/adapter/hub`、`/system/providers`。
+- 路由级 `stakeholderViews` 已新增第二批职责边界：
+  - `/qc/dashboard`：院长查看全院质量趋势和整改成效，但不直接下发临床处置或考核结论；
+    质控负责人定位高风险问题并分派整改责任，整改闭环必须保留责任人、期限和复核证据。
+  - `/knowledge/governance`：医疗引擎运营员审核知识候选并执行发布/驳回/替换/恢复；
+    临床专家复核医学内容、适用人群和禁忌边界，专家意见进入治理记录但不绕过平台发布门禁。
+  - `/knowledge/production`：医疗引擎运营员配置模型服务、医学评测和知识候选生成；
+    模型安全负责人确认公网模型患者上下文外调策略和字段预览，核心敏感标识默认屏蔽，发送前需要责任确认。
+  - `/adapter/hub`：信息科核查院内系统连接、字段映射、死信和健康状态；
+    实施工程师完成协议联调、回放校验和上线前数据质量确认，联调通过不等于生产启用。
+  - `/system/providers`：信息科核查数据库、知识图谱、模型服务和备份恢复状态；
+    平台管理员确认运行保障项是否满足上线和恢复要求，不能用手工口径覆盖健康检查和恢复证据。
+- TDD 红灯证据：
+  - `npm --prefix frontend test -- routes.test.ts` 初次失败，
+    `为高风险治理与运维页面登记全视角职责边界` 断言发现 `/qc/dashboard` 尚未登记 `stakeholderViews`。
+- 绿色验证：
+  - `npm --prefix frontend test -- routes.test.ts` 通过，`48` 个测试全部通过。
+  - `git diff --check` 通过。
+  - `npm --prefix frontend run verify` 通过，`111` 个测试文件、`870` 个测试全部通过。
+
 ## 调试记录
 
 - 初始完整 E2E 红灯：`38 passed / 7 failed / 5 did not run`。
@@ -219,7 +242,7 @@
 
 1. 基于 `codex/final-handoff-product-optimization` 继续本地阶段提交；不推送远程，不直接改写 `main`。
 2. 下一批产品级全视角优化建议优先看仍未纳入路由级 `stakeholderViews` 的高风险入口：
-   质控、院长、医疗引擎运营员、专病管理、知识治理与数据互操作页面。
+   专病管理、患者索引、患者路径、协同任务、消息通知、国产化自检与运行诊断。
 3. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；
    优先把角色职责、证据边界、不可自动化医疗动作沉到路由或共享体验契约。
 4. 继续保持证据详情边界：默认业务视图不暴露追踪号、原始标识、技术编码；需要时通过受控证据详情展开。

@@ -251,6 +251,92 @@ const adapterHubExperience: RouteExperience = {
   evidence: "适配器启停、健康检查、死信重放、数据质量报告均保留审计证据",
   dataScale: { expected: "large", pagination: "page", exportStrategy: "async" },
   riskLevel: "medium",
+  stakeholderViews: [
+    {
+      role: "信息科",
+      responsibility: "核查院内系统连接、字段映射、死信和健康状态",
+      boundary: "断连必须诚实暴露为未连接，不伪造成可用",
+    },
+    {
+      role: "实施工程师",
+      responsibility: "完成协议联调、回放校验和上线前数据质量确认",
+      boundary: "联调通过不等于生产启用，仍需发布审批",
+    },
+  ],
+};
+
+const qualityDashboardExperience: RouteExperience = {
+  ...readonlyExperience("医疗引擎运营员", "查看质量风险与改进进展", "本期风险概览"),
+  stakeholderViews: [
+    {
+      role: "院长",
+      responsibility: "查看全院质量趋势、风险聚类和整改成效",
+      boundary: "只呈现治理态势，不直接下发临床处置或考核结论",
+    },
+    {
+      role: "质控负责人",
+      responsibility: "定位高风险问题并分派整改责任",
+      boundary: "整改闭环需保留责任人、期限和复核证据",
+    },
+  ],
+};
+
+const knowledgeGovernanceExperience: RouteExperience = {
+  ...readonlyExperience(
+    "医疗引擎运营员",
+    "审核知识候选并完成发布、驳回、替换或恢复",
+    "待治理知识",
+    "large",
+  ),
+  stakeholderViews: [
+    {
+      role: "医疗引擎运营员",
+      responsibility: "审核知识候选并完成发布、驳回、替换或恢复",
+      boundary: "发布前必须保留来源、验证病例和责任确认",
+    },
+    {
+      role: "临床专家",
+      responsibility: "复核医学内容、适用人群和禁忌边界",
+      boundary: "专家意见进入治理记录，不绕过平台发布门禁",
+    },
+  ],
+};
+
+const knowledgeProductionExperience: RouteExperience = {
+  ...readonlyExperience(
+    "医疗引擎运营员",
+    "在同一页面完成模型服务、医学评测、安全门和大模型知识候选生成",
+    "知识生产步骤",
+    "large",
+  ),
+  stakeholderViews: [
+    {
+      role: "医疗引擎运营员",
+      responsibility: "配置模型服务、医学评测和知识候选生成",
+      boundary: "模型输出只进入候选治理链，不自动发布",
+    },
+    {
+      role: "模型安全负责人",
+      responsibility: "确认公网模型患者上下文外调策略和字段预览",
+      boundary: "核心敏感标识默认屏蔽，发送前需要责任确认",
+    },
+  ],
+};
+
+const systemProvidersExperience: RouteExperience = {
+  ...readonlyExperience("平台管理员", "核查依赖服务、备份恢复与国产化运行状态", "异常优先"),
+  stakeholderViews: [
+    {
+      role: "信息科",
+      responsibility: "核查数据库、知识图谱、模型服务和备份恢复状态",
+      boundary: "模型或图谱不可用时必须展示降级原因",
+    },
+    {
+      role: "平台管理员",
+      responsibility: "确认运行保障项是否满足上线和恢复要求",
+      boundary: "不能用手工口径覆盖健康检查和恢复证据",
+    },
+  ],
 };
 
 const routeMetaInputs: RouteMetaInput[] = [
@@ -662,7 +748,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 1,
     requiredPermissions: ["menu.qc-dashboard", "evaluation.read"],
-    experience: readonlyExperience("医疗引擎运营员", "查看质量风险与改进进展", "本期风险概览"),
+    experience: qualityDashboardExperience,
     pageType: "dashboard",
   },
   {
@@ -748,12 +834,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 1,
     requiredPermissions: ["menu.knowledge-governance", "knowledge.review"],
-    experience: readonlyExperience(
-      "医疗引擎运营员",
-      "审核知识候选并完成发布、驳回、替换或恢复",
-      "待治理知识",
-      "large",
-    ),
+    experience: knowledgeGovernanceExperience,
     pageType: "review",
     stateMachine: "config",
   },
@@ -808,12 +889,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 1,
     requiredPermissions: ["menu.knowledge-production", "knowledge.read"],
-    experience: readonlyExperience(
-      "医疗引擎运营员",
-      "在同一页面完成模型服务、医学评测、安全门和大模型知识候选生成",
-      "知识生产步骤",
-      "large",
-    ),
+    experience: knowledgeProductionExperience,
     pageType: "configuration",
     stateMachine: "config",
   },
@@ -899,11 +975,7 @@ const routeMetaInputs: RouteMetaInput[] = [
     placement: "primary",
     navigationOrder: 3,
     requiredPermissions: ["menu.system-providers", "system.read"],
-    experience: readonlyExperience(
-      "平台管理员",
-      "核查依赖服务、备份恢复与国产化运行状态",
-      "异常优先",
-    ),
+    experience: systemProvidersExperience,
     pageType: "system",
   },
   {
