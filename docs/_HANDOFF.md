@@ -15,8 +15,10 @@
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
-  `schemaVersion=1.0.0` 文件，运行时只读取 canonical `platform.accounts` 四职责账号；
-  `rehearsal`、`roleAccounts`、`platformRoleAccounts`、`customerTenant` 等旧兼容块均不得作为登录权威。
+  `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
+  真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
+  `rehearsal` 是当前 1.0 契约中的完整上线演练机构块，不是旧兼容入口；
+  `roleAccounts`、`platformRoleAccounts`、`customerTenant` 等旧 root 账号字段不得作为登录权威。
 
 ## 当前目标闭环结论
 
@@ -74,7 +76,7 @@
   - readiness：HTTP 200，`{"status":"UP"}`。
 - 该更新修复真实前台继续演练发现的字段契约历史空白说明问题；清库数据与 #653 全系统复演证据仍沿用
   `228b16a8` 基线，不把本次日常部署伪装成重新清库。
-- 部署后用 canonical `platform.accounts` 四职责账号经真实 cookie 会话直接复核
+- 部署后用 canonical `platform.accounts` 平台治理账号经真实 cookie 会话直接复核
   `GET /engine/integration/data-contract`，返回 HTTP 200，字段数 `61`；不要使用 bearer token 复核该接口，
   当前登录态为 httpOnly cookie 会话。
 - `2026-06-29T23:44:37+08:00`，134 继续使用本地分支提交
@@ -472,9 +474,10 @@
 - 修复值集/MPI 后，真实前台单独重跑：`2 passed (1.4m)`。
 - 完整回归重跑：`52 passed (17.2m)`，随后独立全角色 E2E 再跑 `1 passed (59.6s)`。
 - 真实前台继续演练补充（`2026-06-29T22:43:13+08:00`，已按当前账号契约校正）：
-  - 上线 READY 凭据权威路径是 `/zoesoft/medkernel/var/credentials/current-launch.json`；当前代码只读取
-    canonical `platform.accounts` 四职责账号。若历史文件中仍残留 `rehearsal` 块，只能视作被忽略的旧兼容字段，
-    不得继续作为真实前台登录权威。`/zoesoft/medkernel/conf/medkernel-accounts.json` 是旧汇总文件，不再作为当前前台演练登录权威。
+  - 上线 READY 凭据权威路径是 `/zoesoft/medkernel/var/credentials/current-launch.json`；当前代码读取
+    canonical `platform.accounts` 与 `rehearsal.accounts` 两个作用域。平台治理复核显式使用
+    `platform.accounts`；真实前台机构业务链路默认使用已绑定医院范围的 `rehearsal.accounts`。
+    `/zoesoft/medkernel/conf/medkernel-accounts.json` 是旧汇总文件，不再作为当前前台演练登录权威。
   - 前台真实账号重跑时，适配器由前台真实创建成功，但
     `GET /medkernel/api/v1/engine/integration/data-contract` 返回 `400`：
     机构生效运行版本字段目录存在历史空白 `description`，后端运行解析器把低风险元数据缺口升级成页面不可用。
@@ -490,7 +493,7 @@
 - 真实前台基础路线复演闭环（`2026-06-29T23:05:55+08:00`）：
   - 已完成 134 日常更新部署至 `11e9e38a0588`，readiness HTTP 200；部署后直接复核
     `GET /engine/integration/data-contract` 返回 HTTP 200，字段数 `61`。
-  - 真实前台 E2E 使用 canonical `platform.accounts` 四职责账号、`https://193.112.107.134/medkernel/api/v1` 后端和本地
+  - 真实前台 E2E 使用 canonical `rehearsal.accounts` 机构四职责账号、`https://193.112.107.134/medkernel/api/v1` 后端和本地
     `http://localhost:5173` 前台代理重跑通过：
     `/tmp/medkernel-e2e-codex3/evidence-current/report/results.json`，
     `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`、耗时 `25431.015ms`。
@@ -509,7 +512,7 @@
     `npm --prefix frontend test -- Followup.test.tsx Mpi.test.tsx DeclarativeAssetWorkbench.test.tsx AdapterHub.test.tsx e2eAuthCredentialContract.test.ts e2eRoleCredentials.test.ts`
     通过，`48` 项；`npm --prefix frontend run typecheck` 通过；`git diff --check` 通过。
 - 全角色真实前台操作体验优化首轮闭环（`2026-06-29T23:16:17+08:00`）：
-  - 已按真实前台顺序先跑通全角色页面进入与基础能力识别，再修复发现的问题；本轮使用 canonical `platform.accounts` 四职责账号、
+  - 已按真实前台顺序先跑通全角色页面进入与基础能力识别，再修复发现的问题；本轮使用 canonical `rehearsal.accounts` 机构四职责账号、
     `https://193.112.107.134/medkernel/api/v1` 后端和本地 `http://localhost:5173` 前台代理，不新增远程部署。
   - 12 类角色视角 E2E 覆盖医生、护士、患者代理、药师、医技、质控、医疗引擎运营员、平台管理员、审计员、
     信息科长、实施工程师、院长；复跑结果：
@@ -742,16 +745,38 @@
     格式检查以及 `productRoleJourneys.test.ts` 账号契约门禁问题。
   - 产品决策：患者 360 建立当前就诊上下文时，`诊断/随访病种` 改为前台真实录入，
     不再提供固定病种列表或默认 `J44.900`；就诊类型与风险分层保留为共享业务枚举。
-  - 账号契约决策：E2E 上线凭据只读取 READY `schemaVersion=1.0.0` 的 canonical
-    `platform.accounts` 四职责账号；`rehearsal` 等历史兼容块即使残留在文件中也不得作为登录权威。
+  - 账号契约决策：E2E 上线凭据读取 READY `schemaVersion=1.0.0` 的 canonical
+    `platform.accounts` 与 `rehearsal.accounts` 两个作用域；真实前台默认使用 `rehearsal.accounts`，
+    平台治理与平台知识生产显式使用 `platform.accounts`。`roleAccounts`、`platformRoleAccounts`、
+    `customerTenant` 等旧 root 账号字段不得作为登录权威。
   - 同步修复：`frontend/e2e/real-frontdesk-rehearsal.spec.ts` 改为从前台输入真实病种主题；
     `Followup.tsx` 的模板操作与快照版本提示改为显式分支；`auth.ts` 与
-    `e2eRoleCredentials.ts` 移除非权威账号读取路径。
+    `e2eRoleCredentials.ts` 移除旧 root 账号读取路径。
   - 验证：
     `npm --prefix frontend test -- Mpi.test.tsx Followup.test.tsx` 通过，`25` 项；
     `npm --prefix frontend test -- e2eRoleCredentials.test.ts e2eAuthCredentialContract.test.ts productRoleJourneys.test.ts`
     通过，`13` 项；
     `npm --prefix frontend run verify` 通过，`112` 个测试文件、`886` 项测试。
+- E2E 账号作用域回归修正与真实前台复演（`2026-06-30T11:04:30+08:00`）：
+  - 红灯：在本地最新前台 + 134 后端重跑深度真实前台 E2E 时，医疗引擎运营员发布随访模板返回
+    `400 平台发布质量校验未全部通过`。发布接口诊断已补充 status/body，运行时 HTTP 错误采集也覆盖本地代理
+    `/api/v1/` 路径。
+  - 根因：上一轮把 `rehearsal.accounts` 错判为旧兼容块，导致真实前台机构链路使用
+    `platform.accounts` 的平台主租户 `t-1` 登录；后端将随访模板发布正确识别为平台资产发布并要求五项质量门。
+    真实前台机构业务不应写入平台主源，也不应放松平台质量门。
+  - 修复：`frontend/e2e/support/e2eRoleCredentials.ts` 与 `auth.ts` 同时持有 `platform` 和
+    `rehearsal` 两个 canonical 作用域；`ensureReadySession` 默认使用 `rehearsal.accounts`，
+    `loginFromPlatformPage`、D6 模型能力和图谱投影验收显式使用 `platform.accounts`。
+  - 验证：
+    `npm --prefix frontend test -- e2eRoleCredentials.test.ts e2eAuthCredentialContract.test.ts productRoleJourneys.test.ts`
+    通过，`13` 项；真实前台深度 E2E：
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-scope-fix-final/report/results.json`，
+    `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，耗时 `32411.865ms`。
+    `npm --prefix frontend run typecheck` 通过；`npm --prefix frontend run verify` 通过，
+    `112` 个测试文件、`886` 项测试。
+  - 运行记录：
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-scope-fix-final/artifacts/real-frontdesk-rehearsal-全-1ad6c-、外调策略、患者资源与临床随访数据均由前台页面提交产生-chromium/real-frontdesk-runtime-records.json`；
+    8 段真实前台操作均通过且 `browserErrors=0`、`serverErrors=0`、`networkFailures=0`。
 
 ## 下一步
 

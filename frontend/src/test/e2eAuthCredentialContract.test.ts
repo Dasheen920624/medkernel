@@ -33,10 +33,19 @@ describe("E2E credential contract", () => {
         platform: {
           tenantId: "t-1",
           accounts: {
-            "platform-admin": account("platform-admin"),
-            "engine-operator": account("engine-operator"),
-            "clinical-user": account("clinical-user"),
-            auditor: account("auditor"),
+            "platform-admin": account("platform-admin", "t-1", "platform"),
+            "engine-operator": account("engine-operator", "t-1", "platform"),
+            "clinical-user": account("clinical-user", "t-1", "platform"),
+            auditor: account("auditor", "t-1", "platform"),
+          },
+        },
+        rehearsal: {
+          tenantId: "t-rehearsal",
+          accounts: {
+            "platform-admin": account("platform-admin", "t-rehearsal", "rehearsal"),
+            "engine-operator": account("engine-operator", "t-rehearsal", "rehearsal"),
+            "clinical-user": account("clinical-user", "t-rehearsal", "rehearsal"),
+            auditor: account("auditor", "t-rehearsal", "rehearsal"),
           },
         },
       }),
@@ -53,7 +62,10 @@ describe("E2E credential contract", () => {
       "clinical-user",
       "auditor",
     ]);
-    expect(auth.stablePassword("engine-operator")).toBe("secret-engine-operator");
+    expect(auth.stablePassword("engine-operator")).toBe("secret-rehearsal-engine-operator");
+    expect(auth.stablePassword("engine-operator", "platform")).toBe(
+      "secret-platform-engine-operator",
+    );
     expect(auth.resolveFrontendApiBase("http://localhost:5173")).toBe(
       "http://localhost:5173/medkernel/api/v1",
     );
@@ -88,12 +100,12 @@ describe("E2E credential contract", () => {
   });
 });
 
-function account(role: string) {
+function account(role: string, tenantId: string, prefix: string) {
   return {
-    tenantId: "t-1",
-    username: role,
+    tenantId,
+    username: `${prefix}-${role}`,
     role,
-    password: `secret-${role}`,
+    password: `secret-${prefix}-${role}`,
   };
 }
 

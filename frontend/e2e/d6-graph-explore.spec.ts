@@ -2,32 +2,24 @@ import { createHash } from "node:crypto";
 
 import { expect, test, type Page } from "@playwright/test";
 
-import {
-  apiBase,
-  ensureReadySession,
-  expectOk,
-  patchApi,
-  postApi,
-} from "./support/auth";
+import { apiBase, ensureReadySession, expectOk, patchApi, postApi } from "./support/auth";
 
 test.describe.configure({ mode: "serial" });
 
 test.describe("D6 图谱查询真实验收", () => {
-  test("医疗引擎运营员可重建并探索真实知识投影", async ({
-    page,
-  }, testInfo) => {
+  test("医疗引擎运营员可重建并探索真实知识投影", async ({ page }, testInfo) => {
     const browserErrors = collectBrowserErrors(page);
 
     await enableGraphProjection(page);
     await seedActiveKnowledge(page);
-    await ensureReadySession(page, "engine-operator");
+    await ensureReadySession(page, "engine-operator", "platform");
     const rebuild = await postApi(page, "/projections/knowledge-graph/rebuild", {});
     await expectOk(rebuild, "重建知识关系投影");
     const rebuilt = (await rebuild.json()).data;
     expect(rebuilt.sourceCount).toBeGreaterThan(0);
     expect(rebuilt.projectionCount).toBe(rebuilt.sourceCount);
 
-    await ensureReadySession(page, "engine-operator");
+    await ensureReadySession(page, "engine-operator", "platform");
 
     await page.goto("/advanced/graph");
     await expect(page.getByRole("heading", { name: "图谱查询" })).toBeVisible();
@@ -59,7 +51,7 @@ test.describe("D6 图谱查询真实验收", () => {
   test("医疗引擎运营员在移动端可查询图谱且页面无根级横向溢出", async ({ page }, testInfo) => {
     const browserErrors = collectBrowserErrors(page);
     await page.setViewportSize({ width: 390, height: 844 });
-    await ensureReadySession(page, "engine-operator");
+    await ensureReadySession(page, "engine-operator", "platform");
     await page.goto("/advanced/graph");
 
     await expect(page.getByRole("heading", { name: "图谱查询" })).toBeVisible();
@@ -80,7 +72,7 @@ test.describe("D6 图谱查询真实验收", () => {
 });
 
 async function enableGraphProjection(page: Page) {
-  await ensureReadySession(page, "platform-admin");
+  await ensureReadySession(page, "platform-admin", "platform");
   const key = "medkernel.runtime.feature-flags.graph-projection.enabled";
   const response = await page.request.get(
     `${apiBase}/system/configs?prefix=${encodeURIComponent("medkernel.runtime.feature-flags")}`,
@@ -105,14 +97,16 @@ async function enableGraphProjection(page: Page) {
 }
 
 async function seedActiveKnowledge(page: Page) {
-  await ensureReadySession(page, "engine-operator");
+  await ensureReadySession(page, "engine-operator", "platform");
   const existing = await rebuildKnowledgeProjection(page, "检查已有知识关系投影源");
   if (existing.sourceCount > 0) return;
 
   const suffix = Date.now();
   const seed = await createModelKnowledgeSeed(page, suffix);
   const rebuilt = await rebuildKnowledgeProjection(page, "种子知识发布后重建知识关系投影");
-  expect(rebuilt.sourceCount, `图谱种子知识 ${seed.identityCode} 必须进入投影源`).toBeGreaterThan(0);
+  expect(rebuilt.sourceCount, `图谱种子知识 ${seed.identityCode} 必须进入投影源`).toBeGreaterThan(
+    0,
+  );
 }
 
 async function rebuildKnowledgeProjection(page: Page, label: string) {
@@ -257,19 +251,15 @@ async function registerGraphKnowledgeSource(page: Page, suffix: number) {
   await expectOk(source, "登记图谱种子受控来源");
   const sourceDocument = (await source.json()).data as { id: number };
 
-  const version = await postApi(
-    page,
-    `/engine/knowledge/sources/${sourceDocument.id}/versions`,
-    {
-      ...apiContext(`e2e-graph-source-version-${suffix}`),
-      versionNo,
-      publishedAt: "2026-06-25T00:00:00Z",
-      contentHash: sha256(content),
-      fileUri: `repository://e2e/graph-source-boundary-${suffix}`,
-      language: "zh-CN",
-      content,
-    },
-  );
+  const version = await postApi(page, `/engine/knowledge/sources/${sourceDocument.id}/versions`, {
+    ...apiContext(`e2e-graph-source-version-${suffix}`),
+    versionNo,
+    publishedAt: "2026-06-25T00:00:00Z",
+    contentHash: sha256(content),
+    fileUri: `repository://e2e/graph-source-boundary-${suffix}`,
+    language: "zh-CN",
+    content,
+  });
   await expectOk(version, "登记图谱种子来源版本");
   const sourceVersion = (await version.json()).data as { id: number };
 

@@ -103,10 +103,12 @@ describe("product role journeys", () => {
     expect(authSource).toContain("e2e-session-refresh");
   });
 
-  it("E2E only reads the canonical platform account contract", () => {
+  it("E2E reads canonical platform and institution account contracts only", () => {
     const authSource = readFileSync(resolve(process.cwd(), "e2e/support/auth.ts"), "utf8");
 
     expect(authSource).toContain("source.platform.accounts");
+    expect(authSource).toContain("source.rehearsal.accounts");
+    expect(authSource).toContain('const defaultCredentialScope: RoleCredentialScope = "rehearsal"');
     expect(authSource).toContain('source.schemaVersion !== "1.0.0"');
     expect(authSource).toContain("if (!change.ok() && !credentialsConfigured)");
     expect(authSource).not.toContain("source.roleAccounts");

@@ -4,9 +4,10 @@ import { readFileSync } from "node:fs";
 
 import {
   ROLE_ACCOUNT_CODES,
-  resolveRoleCredentialOverrides,
+  resolveLaunchCredentialScopes,
   type RoleAccountCode,
-  type RoleCredentialOverrides,
+  type RoleCredentialScope,
+  type ScopedRoleCredentialOverrides,
 } from "./e2eRoleCredentials";
 
 export const apiBase = requireEnv("E2E_API_BASE_URL");
@@ -18,21 +19,26 @@ const frontendApiBase = resolveFrontendApiBase(appBase);
 export const tenantId = "t-1";
 const defaultPassword = "Mk@2026dev";
 export const roleAccounts = ROLE_ACCOUNT_CODES;
+const defaultCredentialScope: RoleCredentialScope = "rehearsal";
 
 export type RoleAccount = RoleAccountCode;
 
 const credentialsConfigured = Boolean(process.env.E2E_ROLE_CREDENTIALS_FILE?.trim());
 const credentialOverrides = loadCredentialOverrides();
 
-export async function ensureReadySession(page: Page, role: RoleAccount) {
+export async function ensureReadySession(
+  page: Page,
+  role: RoleAccount,
+  scope: RoleCredentialScope = defaultCredentialScope,
+) {
   await resetRoleSession(page);
-  const password = stablePassword(role);
-  const username = usernameFor(role);
+  const password = stablePassword(role, scope);
+  const username = usernameFor(role, scope);
   let currentPassword = password;
-  let login = await loginWith(page, username, password);
+  let login = await loginWith(page, username, password, scope);
   if (!login.ok() && !credentialsConfigured) {
     currentPassword = defaultPassword;
-    login = await loginWith(page, username, defaultPassword);
+    login = await loginWith(page, username, defaultPassword, scope);
   }
   await expectOk(login, `${role} 登录`);
   let result = (await login.json()).data;
@@ -55,7 +61,7 @@ export async function ensureReadySession(page: Page, role: RoleAccount) {
     } else {
       await expectOk(change, `${role} 首次改密`);
     }
-    const relogin = await loginWith(page, username, password);
+    const relogin = await loginWith(page, username, password, scope);
     await expectOk(relogin, `${role} 改密后重新登录`);
     result = (await relogin.json()).data;
     if (process.env.E2E_EXPECT_MFA_DISABLED === "1") {
@@ -73,10 +79,10 @@ export async function ensureReadySession(page: Page, role: RoleAccount) {
       code: totp(setup.secret),
     });
     await expectOk(verifyResponse, `${role} 验证 MFA`);
-    const relogin = await loginWith(page, username, password);
+    const relogin = await loginWith(page, username, password, scope);
     await expectOk(relogin, `${role} MFA 后重新登录`);
   }
-  await loginWithFrontend(page, role, password);
+  await loginWithFrontend(page, role, password, scope);
   const frontendProfile = await page.request.get(`${frontendApiBase}/security/me`, {
     headers: { "X-Trace-Id": `e2e-front-profile-${role}-${Date.now()}` },
   });
@@ -94,6 +100,7 @@ export async function loginFromPlatformPage(page: Page, role: RoleAccount) {
   await page.context().clearCookies();
   await page.goto("/login");
   await expectLoginPageReady(page);
+  const scope: RoleCredentialScope = "platform";
 
   const platformTenantSwitch = page.getByRole("button", { name: "平台治理" });
   if (await platformTenantSwitch.isVisible()) {
@@ -101,8 +108,8 @@ export async function loginFromPlatformPage(page: Page, role: RoleAccount) {
     await expect(page.getByRole("heading", { name: "登录平台治理" })).toBeVisible();
   }
 
-  await page.getByLabel("工号 / 账号").fill(usernameFor(role));
-  await page.getByLabel("密码").fill(stablePassword(role));
+  await page.getByLabel("工号 / 账号").fill(usernameFor(role, scope));
+  await page.getByLabel("密码").fill(stablePassword(role, scope));
   await page.getByRole("button", { name: "进入工作台" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 }
@@ -112,14 +119,28 @@ export async function expectLoginPageReady(page: Page) {
   await expect(page.getByRole("heading", { name: /登录(?:平台治理|机构工作台)/ })).toBeVisible();
 }
 
-export async function loginWith(page: Page, username: string, password: string) {
-  return postApi(page, "/auth/login", { username, password, tenantId: tenantIdFor(username) });
+export async function loginWith(
+  page: Page,
+  username: string,
+  password: string,
+  scope: RoleCredentialScope = defaultCredentialScope,
+) {
+  return postApi(page, "/auth/login", {
+    username,
+    password,
+    tenantId: tenantIdFor(username, scope),
+  });
 }
 
-async function loginWithFrontend(page: Page, role: RoleAccount, password: string) {
-  const username = usernameFor(role);
+async function loginWithFrontend(
+  page: Page,
+  role: RoleAccount,
+  password: string,
+  scope: RoleCredentialScope,
+) {
+  const username = usernameFor(role, scope);
   const response = await page.request.post(`${frontendApiBase}/auth/login`, {
-    data: { username, password, tenantId: tenantIdFor(role) },
+    data: { username, password, tenantId: tenantIdFor(role, scope) },
     headers: {
       "Content-Type": "application/json",
       "X-Trace-Id": `e2e-front-login-${role}-${Date.now()}`,
@@ -180,12 +201,15 @@ export async function expectOk(response: APIResponse, label: string) {
   }
 }
 
-export function stablePassword(role: RoleAccount) {
-  return credentialOverrides[role]?.password ?? `Mk@2026${role.replace(/-/g, "")}`;
+export function stablePassword(
+  role: RoleAccount,
+  scope: RoleCredentialScope = defaultCredentialScope,
+) {
+  return credentialOverrides[scope]?.[role]?.password ?? `Mk@2026${role.replace(/-/g, "")}`;
 }
 
-function usernameFor(role: RoleAccount) {
-  return credentialOverrides[role]?.username ?? role;
+function usernameFor(role: RoleAccount, scope: RoleCredentialScope = defaultCredentialScope) {
+  return credentialOverrides[scope]?.[role]?.username ?? role;
 }
 
 export function resolveFrontendApiBase(baseUrl: string) {
@@ -195,19 +219,21 @@ export function resolveFrontendApiBase(baseUrl: string) {
   return `${normalized}${contextPath}/api/v1`;
 }
 
-function tenantIdFor(username: string) {
-  return credentialFor(username)?.tenantId ?? tenantId;
+function tenantIdFor(username: string, scope: RoleCredentialScope = defaultCredentialScope) {
+  return credentialFor(username, scope)?.tenantId ?? tenantId;
 }
 
-function credentialFor(principal: string) {
-  const byRole = credentialOverrides[principal as RoleAccount];
+function credentialFor(principal: string, scope: RoleCredentialScope = defaultCredentialScope) {
+  const byRole = credentialOverrides[scope]?.[principal as RoleAccount];
   if (byRole) return byRole;
-  return Object.values(credentialOverrides).find((credential) => credential.username === principal);
+  return Object.values(credentialOverrides[scope] ?? {}).find(
+    (credential) => credential.username === principal,
+  );
 }
 
 function loadCredentialOverrides() {
   const file = process.env.E2E_ROLE_CREDENTIALS_FILE?.trim();
-  if (!file) return {} as Partial<RoleCredentialOverrides>;
+  if (!file) return {} as Partial<ScopedRoleCredentialOverrides>;
   const parsed = JSON.parse(readFileSync(file, "utf8"));
   const source =
     parsed && typeof parsed === "object" && !Array.isArray(parsed)
@@ -215,10 +241,19 @@ function loadCredentialOverrides() {
           schemaVersion?: unknown;
           status?: unknown;
           platform?: { tenantId?: unknown; accounts?: unknown };
+          rehearsal?: { tenantId?: unknown; accounts?: unknown };
         })
       : null;
   if (!source || source.schemaVersion !== "1.0.0" || source.status !== "READY") {
     throw new Error("E2E 上线凭据必须使用 READY 状态的 1.0.0 契约");
+  }
+  const retiredCredentialFields = [
+    "role" + "Accounts",
+    "platform" + "RoleAccounts",
+    "customer" + "Tenant",
+  ];
+  if (retiredCredentialFields.some((field) => hasOwnField(source, field))) {
+    throw new Error("E2E 上线凭据不得包含已移除旧账号字段");
   }
   if (
     !source.platform ||
@@ -230,14 +265,32 @@ function loadCredentialOverrides() {
   ) {
     throw new Error("E2E 上线凭据缺少 canonical platform.accounts 四职责账号");
   }
-  return resolveRoleCredentialOverrides({
+  if (
+    !source.rehearsal ||
+    typeof source.rehearsal !== "object" ||
+    Array.isArray(source.rehearsal) ||
+    !source.rehearsal.accounts ||
+    typeof source.rehearsal.accounts !== "object" ||
+    Array.isArray(source.rehearsal.accounts)
+  ) {
+    throw new Error("E2E 上线凭据缺少 canonical rehearsal.accounts 机构四职责账号");
+  }
+  return resolveLaunchCredentialScopes({
     schemaVersion: source.schemaVersion,
     status: source.status,
     platform: {
       tenantId: source.platform.tenantId,
       accounts: source.platform.accounts,
     },
+    rehearsal: {
+      tenantId: source.rehearsal.tenantId,
+      accounts: source.rehearsal.accounts,
+    },
   });
+}
+
+function hasOwnField(source: object, field: string) {
+  return Object.prototype.hasOwnProperty.call(source, field);
 }
 
 async function mirrorSecureCookiesForLocalProxy(page: Page, response: APIResponse) {

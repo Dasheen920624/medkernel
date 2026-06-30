@@ -15,26 +15,61 @@ export type RoleCredentialOverride = {
 };
 
 export type RoleCredentialOverrides = Record<RoleAccountCode, RoleCredentialOverride>;
+export type RoleCredentialScope = "platform" | "rehearsal";
+export type ScopedRoleCredentialOverrides = Record<RoleCredentialScope, RoleCredentialOverrides>;
 
 type CredentialBlock = {
   tenantId?: unknown;
   accounts?: unknown;
 };
 
-export function resolveRoleCredentialOverrides(source: unknown): RoleCredentialOverrides {
+export function resolveLaunchCredentialScopes(source: unknown): ScopedRoleCredentialOverrides {
   const contract = requireRecord(source, "E2E 上线凭据");
   if (contract.schemaVersion !== "1.0.0" || contract.status !== "READY") {
     throw new Error("E2E 上线凭据必须使用 READY 状态的 1.0.0 契约");
   }
 
-  if (!contract.platform || typeof contract.platform !== "object" || Array.isArray(contract.platform)) {
+  if (
+    !contract.platform ||
+    typeof contract.platform !== "object" ||
+    Array.isArray(contract.platform)
+  ) {
     throw new Error("E2E 上线凭据缺少 canonical platform.accounts 四职责账号");
   }
   const platform = contract.platform as CredentialBlock;
-  if (!platform.accounts || typeof platform.accounts !== "object" || Array.isArray(platform.accounts)) {
+  if (
+    !platform.accounts ||
+    typeof platform.accounts !== "object" ||
+    Array.isArray(platform.accounts)
+  ) {
     throw new Error("E2E 上线凭据缺少 canonical platform.accounts 四职责账号");
   }
-  return parseCredentialBlock("平台治理", platform);
+  if (
+    !contract.rehearsal ||
+    typeof contract.rehearsal !== "object" ||
+    Array.isArray(contract.rehearsal)
+  ) {
+    throw new Error("E2E 上线凭据缺少 canonical rehearsal.accounts 机构四职责账号");
+  }
+  const rehearsal = contract.rehearsal as CredentialBlock;
+  if (
+    !rehearsal.accounts ||
+    typeof rehearsal.accounts !== "object" ||
+    Array.isArray(rehearsal.accounts)
+  ) {
+    throw new Error("E2E 上线凭据缺少 canonical rehearsal.accounts 机构四职责账号");
+  }
+  return {
+    platform: parseCredentialBlock("平台治理", platform),
+    rehearsal: parseCredentialBlock("上线机构", rehearsal),
+  };
+}
+
+export function resolveRoleCredentialOverrides(
+  source: unknown,
+  scope: RoleCredentialScope = "rehearsal",
+): RoleCredentialOverrides {
+  return resolveLaunchCredentialScopes(source)[scope];
 }
 
 function parseCredentialBlock(label: string, block: unknown): RoleCredentialOverrides {
@@ -42,7 +77,10 @@ function parseCredentialBlock(label: string, block: unknown): RoleCredentialOver
   const tenantId = requireText((record as CredentialBlock).tenantId, `${label}租户`);
   const accounts = requireRecord((record as CredentialBlock).accounts, `${label}账号`);
   return Object.fromEntries(
-    ROLE_ACCOUNT_CODES.map((role) => [role, parseRoleAccount(label, tenantId, role, accounts[role])]),
+    ROLE_ACCOUNT_CODES.map((role) => [
+      role,
+      parseRoleAccount(label, tenantId, role, accounts[role]),
+    ]),
   ) as RoleCredentialOverrides;
 }
 

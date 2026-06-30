@@ -362,8 +362,12 @@ async function publishFollowupTemplateFromUi(
   );
   await row.getByRole("button", { name: "发布模板" }).click();
   const response = await responsePromise;
-  expect(response.ok(), "前台发布随访模板应返回成功").toBe(true);
-  const result = (await response.json()) as {
+  const responseText = await response.text();
+  expect(
+    response.ok(),
+    `前台发布随访模板应返回成功 status=${response.status()} body=${responseText}`,
+  ).toBe(true);
+  const result = JSON.parse(responseText) as {
     data?: { assetStatus?: string; templateId?: string };
   };
   expect(result.data?.templateId).toBe(template.templateId);
@@ -543,8 +547,9 @@ function collectBrowserErrors(page: Page) {
 function collectServerErrors(page: Page) {
   const errors: string[] = [];
   page.on("response", (response) => {
-    if (response.status() >= 400 && response.url().includes("/medkernel/")) {
-      errors.push(`${response.status()} ${response.request().method()} ${response.url()}`);
+    const url = response.url();
+    if (response.status() >= 400 && (url.includes("/medkernel/") || url.includes("/api/v1/"))) {
+      errors.push(`${response.status()} ${response.request().method()} ${url}`);
     }
   });
   return errors;
