@@ -11,7 +11,7 @@
 - 远程分支已清理：`origin` 仅保留 `main`（另有 `origin/HEAD -> origin/main`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前分支最新产品代码提交为本文件所在提交（本阶段：全知识平台基线发布链路修复）；
+- 当前分支最新产品代码提交为本文件所在提交（本阶段：全知识平台基线与 Provider 重跑幂等修复）；
   其前序产品提交为 `3d9f9c0155a9278387b6ec98438d3b72d8956590`
   （`fix: 对齐前台报告快照签发人字段`）、
   `c68e127f608dd1b8fc7dc64181727fa477610ab6`
@@ -80,6 +80,42 @@
 - 下一步继续主线：提交本地阶段版本后，将最新本地 HEAD 完整发布到 134；使用全知识 manifest 重刷平台基线，确认
   11 个知识资产进入 `platform_baseline_item` 且机构运行版本读取到 `KNOWLEDGE`；随后重跑沙箱种子、运行时韧性和
   全角色真实前台 E2E，重点复核“前台创建报告上下文 -> 医技报告解读非空 -> 协同待办 -> 打开报告上下文”闭环。
+
+### 134 复演推进补充（Provider 重跑幂等红灯）
+
+- `c214d520a71d5fe7a27ae1bf92a31e252223cc3a` 已完整发布到 134，readiness HTTP 200；
+  jar sha256 `b4f16c5bd031a13a5175c5d9184216a1a1b382daf439a8585ee8a6b42505fb2d`，
+  远端备份 `/zoesoft/medkernel/backups/deploy-20260630-211502`。
+- 平台基线刷新已通过：
+  `/tmp/medkernel-e2e-codex3/platform-baseline-c214d520.json`，新基线
+  `baseline-01KWCARX1J3K657DD9Z3YV88A0`，`refreshed=true`，字段目录 ACTIVE，
+  11 个全知识资产 `ACTIVE`，`missingIdentities=[]`。
+- 沙箱铺底已通过：
+  `/tmp/medkernel-e2e-codex3/sandbox-c214d520/seed-summary.json`，最终机构运行版本
+  `runtime-01KWCATHY6QR8GJS30D7B88WX9`，绑定新平台基线，`ready=true`、`externalSideEffects=false`；
+  运行版本明细复核为 `80` 个资产，其中 `FIELD_CATALOG=1`、`KNOWLEDGE=11`、`RULE=10`、`VALUE_SET=4`、
+  `FOLLOWUP=53`、`PATHWAY=1`。
+- 运行韧性红灯：
+  `/tmp/medkernel-e2e-codex3/runtime-resilience-c214d520.json` 未生成，脚本在 Provider 恢复阶段失败；
+  初始错误为停用后 readiness 除 `MODEL_PROVIDER` 外还阻断 `MODEL_EVALUATION`，恢复 `enable` 又因医学评测门禁 409。
+  进一步定位发现模型并非真实失败：最近评测记录为 `6/6 PASSED`、`failedCases=0`、无伪引用/红线/幻觉；真实根因是
+  Provider 上线脚本和后端批量导入都不幂等，重复上线会重复导入 3 条医学回归用例，评测总数从 3 变 6，而脚本仍硬性要求
+  `totalCases === 3`，导致把“已有基线全部通过”误判为“医学回归失败”。
+- 已本地修复：
+  - `model-provider-launch` 先读取已有 Provider 关系库版本，重配时用当前 `expectedVersion`，避免恢复演练 409；
+    Provider 登记后允许保持 `HEALTHY` 中间态，但仍必须通过真实 health-check、医学回归、策略、版本组合后才能启用。
+  - 医学评测断言改为 `totalCases >= 本次清单数` 且 `passedCases == totalCases`、`failedCases=0`、无伪引用/红线/幻觉，
+    兼容已有更大基线，但不放宽任何失败门禁。
+  - `MedicalRegressionCaseManagementService.bulkImport` 按租户、能力码、`caseInput` 幂等 upsert，重复导入更新既有用例并保留创建审计，
+    不再无限堆叠重复回归基线。
+- 红绿验证：
+  - 红灯：`node --test scripts/release/model-provider-launch.test.mjs` 在“重新上线使用当前关系库版本”和
+    “已有 6 条全通过评测”场景失败。
+  - 红灯：`mvn -Dtest=MedicalRegressionCaseManagementServiceTest test` 新增“批量导入同用例不重复”用例失败。
+  - 绿灯：`node --test scripts/release/model-provider-launch.test.mjs` 通过，`5` 项。
+  - 绿灯：`mvn -Dtest=MedicalRegressionCaseManagementServiceTest test` 通过，`10` 项。
+- 下一步：提交本地幂等修复后重新完整发布 134，再执行 Provider 恢复、运行韧性复演和全角色真实前台 E2E；不要把
+  `NODE_TLS_REJECT_UNAUTHORIZED=0` 记为产品 TLS 待办，它仅用于当前 134 自签证书演练客户端。
 
 ## 上一阶段交接（2026-06-30 前台报告事实进入上下文与协同待办闭环）
 
@@ -1331,12 +1367,13 @@
 
 ## 下一步
 
-1. 先把“全知识平台基线发布链路修复”提交到本地分支，不推送远程、不合并 `main`。
-2. 将最新本地 HEAD 完整发布到 134；发布后用全知识 manifest 重刷平台标准基线，确认 11 个 `KNOWLEDGE`
-   资产进入活动平台基线，再让沙箱生成机构生效运行版本。
-3. 在 134 直接入口重跑全功能、全知识、全流程演练；报告解读链路必须从前台真实操作产生患者、就诊上下文和报告事实，
+1. 先把“Provider 重跑幂等与医学回归用例 upsert”提交到本地分支，不推送远程、不合并 `main`。
+2. 将最新本地 HEAD 重新完整发布到 134；随后重跑 Provider 上线恢复，确认 `ollama-launch` 启用、医学评测全通过、
+   知识生产 readiness 全绿。
+3. 重跑运行韧性演练，确认停用期间只有 `MODEL_PROVIDER` 是必需阻断项，B0 `17/17` 通过，恢复后 Provider 重新启用。
+4. 在 134 直接入口重跑全功能、全知识、全流程演练；报告解读链路必须从前台真实操作产生患者、就诊上下文和报告事实，
    并看到非空报告解读、协同待办和“打开报告上下文”闭环。
-4. 基础数据路线走通后，进入全角色真实操作与产品体验优化：医生、护士、患者/代理、药师、医技、质控、信息科长、
+5. 基础数据路线走通后，进入全角色真实操作与产品体验优化：医生、护士、患者/代理、药师、医技、质控、信息科长、
    实施工程师、审计员、院长等视角都要提交真实表单、触发真实状态变化；发现页面分类、流程、语义、权限、敏感信息、
    高风险确认或模型双模式安全问题，按最优方案直接优化。
-5. 目标环境上线前仍需补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
+6. 目标环境上线前仍需补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。

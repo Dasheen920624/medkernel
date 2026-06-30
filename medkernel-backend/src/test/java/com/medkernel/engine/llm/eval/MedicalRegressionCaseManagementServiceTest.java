@@ -33,6 +33,8 @@ class MedicalRegressionCaseManagementServiceTest {
         service = new MedicalRegressionCaseManagementService(repository, auditRecorder);
         RequestContext.restore(new RequestContext.Snapshot("trace-regression", OrgScope.tenant("tenant-1"), "quality-001"));
         when(repository.save(any(MedicalRegressionCase.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(repository.findByTenantIdAndCapabilityCodeAndCaseInput(any(), any(), any()))
+            .thenReturn(Optional.empty());
     }
 
     @AfterEach
@@ -129,6 +131,31 @@ class MedicalRegressionCaseManagementServiceTest {
             .containsExactly("2026.1", "2026.2");
         verify(repository).save(argThat(saved -> "knowledge.extract".equals(saved.capabilityCode())
             && "source-version:88#extract".equals(saved.sourceReference())));
+    }
+
+    @Test
+    void bulkImportUpdatesExistingCaseByCapabilityAndInputWithoutDuplicating() {
+        MedicalRegressionCase existing = caseRow(17L, "tenant-1", "N");
+        when(repository.findByTenantIdAndCapabilityCodeAndCaseInput(
+            "tenant-1",
+            "rule.draft",
+            "请依据真实来源判断候选知识是否必须阻断。"))
+            .thenReturn(Optional.of(existing));
+        MedicalRegressionCaseBulkImportRequest request = new MedicalRegressionCaseBulkImportRequest(List.of(
+            request("rule.draft", "2026.9", "source-version:99#dose-limit")));
+
+        List<MedicalRegressionCase> imported = service.bulkImport(request);
+
+        assertThat(imported).singleElement().satisfies(item -> {
+            assertThat(item.id()).isEqualTo(17L);
+            assertThat(item.caseVersion()).isEqualTo("2026.9");
+            assertThat(item.sourceReference()).isEqualTo("source-version:99#dose-limit");
+            assertThat(item.enabledFlag()).isEqualTo("Y");
+            assertThat(item.createdBy()).isEqualTo("seed");
+            assertThat(item.updatedBy()).isEqualTo("quality-001");
+        });
+        verify(repository).save(argThat(saved -> saved.id().equals(17L)
+            && "source-version:99#dose-limit".equals(saved.sourceReference())));
     }
 
     @Test

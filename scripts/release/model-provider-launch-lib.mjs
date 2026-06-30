@@ -16,6 +16,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
 const API_ALLOWLIST = Object.freeze([
   ["POST", /^\/auth\/login$/u],
   ["PATCH", /^\/system\/configs\/medkernel\.knowledge\.literature\.material-root-uri$/u],
+  ["GET", /^\/model-providers\/[a-z0-9][a-z0-9._-]{0,63}$/u],
   ["PUT", /^\/model-providers\/[a-z0-9][a-z0-9._-]{0,63}$/u],
   ["POST", /^\/model-providers\/[a-z0-9][a-z0-9._-]{0,63}\/health-check$/u],
   ["POST", /^\/model-evaluations\/regression-cases:bulk-import$/u],
@@ -191,6 +192,20 @@ export async function runModelProviderLaunch(options) {
   assertOperatorLogin(login.data, operator);
   const session = authenticatedSession(login.headers);
 
+  const existingProvider = await requestJson({
+    apiBaseUrl,
+    fetchImpl,
+    requests,
+    session,
+    method: "GET",
+    path: `/model-providers/${provider.code}`,
+    label: "读取已有模型 Provider 版本",
+    acceptedStatuses: [200, 404],
+  });
+  const expectedVersion = existingProvider.status === 200
+    ? requireProviderVersion(existingProvider.data)
+    : null;
+
   const configured = await requestJson({
     apiBaseUrl,
     fetchImpl,
@@ -202,11 +217,11 @@ export async function runModelProviderLaunch(options) {
       providerType: provider.type,
       endpointUri: provider.endpoint,
       modelVersion: provider.modelVersion,
-      expectedVersion: null,
+      expectedVersion,
     },
     label: "登记正式模型 Provider",
   });
-  assertProviderView(configured.data, provider, false, "NOT_CONNECTED");
+  assertConfiguredProviderView(configured.data, provider);
 
   const health = await requestJson({
     apiBaseUrl,
@@ -405,6 +420,31 @@ function assertProviderView(data, provider, enabled, status) {
   }
 }
 
+function assertConfiguredProviderView(data, provider) {
+  if (
+    !data ||
+    data.providerCode !== provider.code ||
+    data.providerType !== provider.type ||
+    data.endpointUri !== provider.endpoint ||
+    data.modelVersion !== provider.modelVersion
+  ) {
+    throw new Error("Provider 治理快照与正式上线配置不一致");
+  }
+  if (data.enabled !== false || !["NOT_CONNECTED", "HEALTHY"].includes(data.status)) {
+    throw new Error("Provider 登记后必须保持未启用，且状态只能为 NOT_CONNECTED 或 HEALTHY");
+  }
+  if (!Number.isInteger(data.version) || data.version < 0) {
+    throw new Error("Provider 治理快照缺少有效关系库版本");
+  }
+}
+
+function requireProviderVersion(data) {
+  if (!data || !Number.isInteger(data.version) || data.version < 0) {
+    throw new Error("已有 Provider 治理快照缺少有效关系库版本");
+  }
+  return data.version;
+}
+
 function assertPassedEvaluation(data, expectedTotal) {
   const fakeCitation = booleanFlag(data?.fakeCitationDetected);
   const redLine = booleanFlag(data?.redLineBreach);
@@ -412,8 +452,8 @@ function assertPassedEvaluation(data, expectedTotal) {
   if (
     !data ||
     data.status !== "PASSED" ||
-    data.totalCases !== expectedTotal ||
-    data.passedCases !== expectedTotal ||
+    data.totalCases < expectedTotal ||
+    data.passedCases !== data.totalCases ||
     data.failedCases !== 0 ||
     fakeCitation !== false ||
     redLine !== false ||
@@ -545,13 +585,15 @@ async function requestJson(options) {
     ok: response.ok,
     label: options.label,
   });
-  if (!response.ok || payload?.success === false) {
+  const acceptedStatuses = new Set(options.acceptedStatuses ?? []);
+  const accepted = response.ok || acceptedStatuses.has(response.status);
+  if (!accepted || (payload?.success === false && !acceptedStatuses.has(response.status))) {
     throw new Error(
       `${options.label} 失败（HTTP ${response.status}，${payload?.code ?? "NO_CODE"}）：` +
         `${payload?.detail ?? payload?.message ?? "无错误详情"}`,
     );
   }
-  return { data: payload?.data, headers: response.headers };
+  return { data: payload?.data, headers: response.headers, status: response.status };
 }
 
 function authenticatedSession(headers) {

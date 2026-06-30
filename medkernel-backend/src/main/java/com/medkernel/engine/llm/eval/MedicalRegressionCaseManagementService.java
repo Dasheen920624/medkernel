@@ -68,8 +68,54 @@ public class MedicalRegressionCaseManagementService {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "批量导入至少需要 1 条真实医学回归用例");
         }
         return request.cases().stream()
-            .map(this::create)
+            .map(this::upsertImportedCase)
             .toList();
+    }
+
+    private MedicalRegressionCase upsertImportedCase(MedicalRegressionCaseRequest request) {
+        Instant now = now();
+        String actor = currentActor();
+        MedicalRegressionCase candidate = toEntity(request, null, now, actor);
+        return repository.findByTenantIdAndCapabilityCodeAndCaseInput(
+                candidate.tenantId(), candidate.capabilityCode(), candidate.caseInput())
+            .map(existing -> updateImportedCase(existing, candidate, now, actor))
+            .orElseGet(() -> createImportedCase(candidate));
+    }
+
+    private MedicalRegressionCase createImportedCase(MedicalRegressionCase candidate) {
+        MedicalRegressionCase created = repository.save(candidate);
+        auditRecorder.record(AuditAction.CREATE, "mk_llm_regression_case", created.capabilityCode(),
+            "导入医学回归基准用例 " + created.capabilityCode() + "/" + created.caseVersion());
+        return created;
+    }
+
+    private MedicalRegressionCase updateImportedCase(
+            MedicalRegressionCase existing,
+            MedicalRegressionCase candidate,
+            Instant now,
+            String actor) {
+        MedicalRegressionCase updated = repository.save(new MedicalRegressionCase(
+            existing.id(),
+            existing.tenantId(),
+            candidate.capabilityCode(),
+            candidate.caseDomain(),
+            candidate.caseInput(),
+            candidate.expectedPhrase(),
+            candidate.expectedTermsJson(),
+            candidate.forbiddenAssertionsJson(),
+            candidate.minScore(),
+            candidate.redLineType(),
+            candidate.sourceReference(),
+            candidate.citationRequired(),
+            candidate.caseVersion(),
+            candidate.enabledFlag(),
+            existing.createdAt(),
+            existing.createdBy(),
+            now,
+            actor));
+        auditRecorder.record(AuditAction.UPDATE, "mk_llm_regression_case", String.valueOf(existing.id()),
+            "更新医学回归基准用例 " + updated.capabilityCode() + "/" + updated.caseVersion());
+        return updated;
     }
 
     @Transactional

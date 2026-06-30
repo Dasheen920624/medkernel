@@ -102,6 +102,7 @@ test("正式 Provider 上线按配置、探活、真实评测、当前操作者�
     requests.filter((item) => item.path !== "/auth/login").map((item) => `${item.method} ${item.path}`),
     [
       "PATCH /system/configs/medkernel.knowledge.literature.material-root-uri",
+      "GET /model-providers/ollama-launch",
       "PUT /model-providers/ollama-launch",
       "POST /model-providers/ollama-launch/health-check",
       "POST /model-evaluations/regression-cases:bulk-import",
@@ -115,6 +116,8 @@ test("正式 Provider 上线按配置、探活、真实评测、当前操作者�
   const literature = requests.find((item) => item.path === "/system/configs/medkernel.knowledge.literature.material-root-uri");
   assert.equal(literature.body.confirmedHighRisk, true);
   assert.match(literature.body.reason, /134 完整上线演练/u);
+  const providerConfig = requests.find((item) => item.path === "/model-providers/ollama-launch" && item.method === "PUT");
+  assert.equal(providerConfig.body.expectedVersion, null);
   const policy = requests.find((item) => item.path === "/model-capabilities/policies/knowledge.production.knowledge");
   assert.deepEqual(policy.body.fallbackOrder, ["LOCAL_MODEL", "BASELINE"]);
   assert.equal(policy.body.desensitizeStrategy, "MASK_ALL");
@@ -122,6 +125,30 @@ test("正式 Provider 上线按配置、探活、真实评测、当前操作者�
   const bundle = requests.find((item) => item.path === "/model-versions/bundles");
   assert.equal(bundle.body.capabilityCode, "knowledge.production.knowledge");
   assert.equal(bundle.body.modelVersion, "medkernel-qwen25:1.5b-v1");
+});
+
+test("正式 Provider 重新上线时使用当前关系库版本避免恢复演练冲突", async () => {
+  const requests = [];
+  const result = await runModelProviderLaunch({
+    apiBaseUrl: "https://127.0.0.1/medkernel/api/v1",
+    systemOperator: readyCredentials().platform.accounts["platform-admin"],
+    operator: readyCredentials().platform.accounts["engine-operator"],
+    provider: {
+      code: "ollama-launch",
+      type: "OLLAMA",
+      endpoint: "http://127.0.0.1:11434",
+      modelVersion: "medkernel-qwen25:1.5b-v1",
+    },
+    manifest,
+    fetchImpl: createProviderFetch(requests, {
+      existingProviderVersion: 7,
+      evaluationTotalCases: 6,
+    }),
+  });
+
+  assert.equal(result.status, "PASSED");
+  const providerConfig = requests.find((item) => item.path === "/model-providers/ollama-launch" && item.method === "PUT");
+  assert.equal(providerConfig.body.expectedVersion, 7);
 });
 
 test("医学回归失败时禁止继续启用 Provider", async () => {
@@ -192,7 +219,21 @@ function createProviderFetch(requests, options = {}) {
         },
       });
     }
+    if (method === "GET" && cleanPath === "/model-providers/ollama-launch") {
+      if (options.existingProviderVersion === undefined) {
+        return response(
+          { success: false, code: "ENG-API-004", message: "模型服务不存在" },
+          "",
+          404,
+        );
+      }
+      return response({ data: providerView(false, "HEALTHY", options.existingProviderVersion) });
+    }
     if (method === "PUT" && cleanPath === "/model-providers/ollama-launch") {
+      if (options.existingProviderVersion !== undefined) {
+        assert.equal(body.expectedVersion, options.existingProviderVersion);
+        return response({ data: providerView(false, "HEALTHY", options.existingProviderVersion + 1) });
+      }
       return response({ data: providerView(false, "NOT_CONNECTED", 0) });
     }
     if (cleanPath.endsWith("/health-check")) {
@@ -203,11 +244,12 @@ function createProviderFetch(requests, options = {}) {
     }
     if (cleanPath === "/model-evaluations") {
       const status = options.evaluationStatus ?? "PASSED";
+      const totalCases = options.evaluationTotalCases ?? 3;
       return response({
         data: {
           id: 9,
-          totalCases: 3,
-          passedCases: status === "PASSED" ? 3 : 2,
+          totalCases,
+          passedCases: status === "PASSED" ? totalCases : totalCases - 1,
           failedCases: status === "PASSED" ? 0 : 1,
           fakeCitationDetected: status === "PASSED" ? "N" : "Y",
           redLineBreach: status === "PASSED" ? "N" : "Y",
@@ -280,11 +322,11 @@ function providerView(enabled, status, version) {
   };
 }
 
-function response(payload, setCookie = "") {
+function response(payload, setCookie = "", status = 200) {
   const text = JSON.stringify(payload);
   return {
-    ok: true,
-    status: 200,
+    ok: status >= 200 && status < 300,
+    status,
     headers: { get: (name) => (name.toLowerCase() === "set-cookie" ? setCookie : null) },
     text: async () => text,
   };
