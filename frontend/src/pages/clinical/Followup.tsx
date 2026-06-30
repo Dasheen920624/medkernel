@@ -296,8 +296,14 @@ export default function Followup() {
       setSnapshotPatientId("");
       setSnapshotEncounterId("");
       setSelectedSnapshotId("");
+      if (response.patientId) {
+        setPatientFilter(response.patientId);
+        setPlanPage(1);
+      }
       setSelectedPlanId(response.planId);
-      await refreshFollowupData();
+      if (!response.patientId) {
+        await refreshFollowupData();
+      }
     } catch (error: unknown) {
       if (applyApiFieldErrors(generateForm, error)) return;
       messageApi.error(getApiErrorMessage(error, "随访计划生成失败"));
@@ -976,7 +982,7 @@ export default function Followup() {
         title="随访计划办理"
         aria-label="随访计划办理"
         width={860}
-        open={!!selectedPlanId}
+        open={Boolean(selectedPlanId && selectedPlanDetail)}
         onClose={() => {
           setSelectedPlanId(null);
           setSelectedTaskId(null);
