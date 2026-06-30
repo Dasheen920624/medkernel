@@ -592,11 +592,29 @@
       初次失败，页面未展示旧快照版本提示。
     - 绿灯：同命令重跑通过；随后 `npm --prefix frontend test -- Followup.test.tsx` 通过，`14` 项；
       `npm --prefix frontend run typecheck`、`npx prettier --write ...` 与 `git diff --check` 通过。
-  - 下一步：提交本地阶段版本后，用该提交重跑 134 深度真实前台 E2E；若通过，再补记证据并继续逐角色真实操作优化。
+  - 后续状态：本阶段已提交为 `d78967d8`；重跑深度真实前台 E2E 后发现临床账号误触发发布治理当前版本查询的新红灯，见下一条记录。
+- 真实前台深度随访临床权限懒加载红绿闭环（`2026-06-30T10:07:30+08:00`）：
+  - 使用本地提交 `d78967d8` 重跑 134 深度真实前台 E2E，证据目录
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-d78967d8`；
+    前四段真实操作通过，红灯发生在“前台创建随访模板”阶段的运行记录检查。
+  - 根因：随访页全局调用 `/engine/releases/hospitals/{hospitalId}/runtime-releases/current`。
+    临床使用者按权限矩阵没有 `asset.read`，不能读取发布治理明细；页面在模板页加载时产生 `403 GET`，
+    虽然模板创建成功，但这属于真实前台噪声和权限边界错误。
+  - 产品决策：
+    - 不给临床使用者追加 `asset.read`，避免为旧快照提示扩大治理资产明细访问面。
+    - 当前机构版本查询仅在用户具备 `asset.read`、打开生成计划弹窗并已选择上下文快照时启用；
+      普通临床用户保持按快照锁定版本的业务提示，不触发治理接口。
+    - 后续若需要所有临床用户主动看到“旧快照是否为当前版本”的布尔提示，应新增后端脱敏状态字段，而不是复用治理明细接口。
+  - 红绿证据：
+    - 红灯：`npm --prefix frontend test -- Followup.test.tsx -t '普通临床用户未进入生成计划时不请求发布治理当前版本'`
+      初次失败，`useCurrentHospitalRuntime` 收到 `hospital-A`。
+    - 绿灯：同命令与旧快照提示测试重跑通过；随后 `npm --prefix frontend test -- Followup.test.tsx` 通过，`15` 项；
+      `npm --prefix frontend run typecheck`、`npx prettier --write ...` 与 `git diff --check` 通过。
+  - 下一步：提交本地阶段版本后，继续用新提交重跑 134 深度真实前台 E2E。
 
 ## 下一步
 
-1. 基于 `codex/final-handoff-product-optimization` 提交当前旧快照版本提示与真实演练顺序阶段版本；不推送远程，不直接改写 `main`。
+1. 基于 `codex/final-handoff-product-optimization` 提交当前临床权限懒加载阶段版本；不推送远程，不直接改写 `main`。
 2. 目标环境上线前补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
 3. 用新本地提交重跑 134 深度真实前台 E2E；如果失败，先定位根因再优化页面、权限、数据契约或流程。
 4. 路由级角色视角已覆盖所有认证路由；后续继续转向真实前台逐角色操作演练与页面交互细节优化，

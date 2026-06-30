@@ -82,6 +82,26 @@ function grantFollowupPublishPermission() {
   });
 }
 
+function grantRuntimeReadPermission() {
+  const current = followupHookMocks.useSecurityProfile();
+  followupHookMocks.useSecurityProfile.mockReturnValue({
+    ...current,
+    data: {
+      ...current.data,
+      permissions: [
+        ...current.data.permissions,
+        {
+          code: "asset.read",
+          dimension: "ACTION",
+          target: "ASSET",
+          displayName: "查看值集、计算公式、医嘱套餐与临床提示卡",
+          risk: "LOW",
+        },
+      ],
+    },
+  });
+}
+
 describe("Followup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -339,6 +359,12 @@ describe("Followup", () => {
     expect(
       screen.getByText((_content, element) => element?.textContent === "14.7%"),
     ).toBeInTheDocument();
+  });
+
+  it("普通临床用户未进入生成计划时不请求发布治理当前版本", () => {
+    renderFollowup();
+
+    expect(followupHookMocks.useCurrentHospitalRuntime).toHaveBeenCalledWith(undefined);
   });
 
   it("默认用临床业务语言展示随访计划并收起低频证据", async () => {
@@ -659,6 +685,7 @@ describe("Followup", () => {
 
   it("提醒旧机构生效版本快照不会自动套用新发布模板", async () => {
     const user = userEvent.setup();
+    grantRuntimeReadPermission();
     followupHookMocks.useCurrentHospitalRuntime.mockReturnValue({
       data: {
         release: {

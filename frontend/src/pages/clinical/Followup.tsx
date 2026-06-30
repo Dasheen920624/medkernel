@@ -187,8 +187,11 @@ export default function Followup() {
   const publishTemplateMutation = usePublishFollowupTemplate();
   const submitQuestionnaireMutation = useSubmitFollowupQuestionnaire();
   const reportAbnormalMutation = useReportFollowupAbnormal();
+  const canReadRuntimeRelease = hasPermission(security.data, "asset.read");
   const currentHospitalRuntimeQuery = useCurrentHospitalRuntime(
-    security.data?.dataScope?.hospitalId ?? undefined,
+    canReadRuntimeRelease && generateModalVisible && selectedSnapshotId
+      ? (security.data?.dataScope?.hospitalId ?? undefined)
+      : undefined,
   );
   const templateKeyword = templateSearch.trim();
   const publishedTemplateKeyword = publishedTemplateSearch.trim();
