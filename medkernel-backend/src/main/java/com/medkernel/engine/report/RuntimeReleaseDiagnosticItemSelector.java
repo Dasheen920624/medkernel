@@ -54,14 +54,15 @@ public class RuntimeReleaseDiagnosticItemSelector {
             if (identity.domain() != KnowledgeDomain.DIAGNOSTIC_ITEM) {
                 continue;
             }
+            String contentHash = requireText(item.contentHash(), "医技项目说明书内容指纹");
             KnowledgeAssetVersion version = versions
-                .findByTenantIdAndIdentityIdAndVersionNo(
+                .findByTenantIdAndIdentityIdAndContentHash(
                     item.sourceTenantId(),
                     identity.id(),
-                    requireText(item.versionNo(), "医技项目说明书版本"))
+                    contentHash)
                 .orElseThrow(() -> invalid(
-                    "机构生效版本锁定医技项目说明书版本不存在："
-                        + item.assetIdentity() + "@" + item.versionNo()));
+                    "机构生效版本锁定医技项目说明书内容不存在："
+                        + item.assetIdentity() + "#" + contentHash));
             if (version.status() != KnowledgeVersionStatus.ACTIVE) {
                 throw invalid(
                     "机构生效版本锁定医技项目说明书版本未激活："

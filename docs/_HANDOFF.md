@@ -1374,16 +1374,35 @@
     `npm --prefix frontend run typecheck` 通过；`npm --prefix frontend run verify` 通过，
     `113` 个测试文件 / `890` 个测试通过；`npm --prefix frontend run build` 通过；`git diff --check` 通过。
   - 阶段提交：`e8f50553`（`test: 增加医技报告解读前台动作`），未推送远程。
+- 134 全链路复演暴露医技项目说明书版本映射问题（`2026-06-30T21:45:10+08:00`）：
+  - 现有模式前台全链路复演重新跑到 `MEDICAL_TECHNICIAN` 时失败：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-0f0728c5-deployed-direct134/report/results.json`，
+    `POST /engine/recommendations/report-interpretation` 返回 `ENG-ASSET-002`：
+    `机构生效版本锁定医技项目说明书版本不存在：launch.diagnostic-item.lab-test-boundary@V1`。
+  - 根因已用 134 只读 API 证实：平台基线锁定统一资产版本
+    `launch.diagnostic-item.lab-test-boundary@V1`，`contentHash=247f8dfd3e722ce494a86784f1ba12a07a96f2263f35f5cdaa6b9b0a0b977ca3`；
+    但知识专表同一内容的 ACTIVE 版本号是
+    `ai-draft-task-1f750370b62a4738bbf97ce375286816`。报告解读选择器把统一资产 `versionNo`
+    误当知识专表 `versionNo` 回查，导致真实运行版本不可用。
+  - 已本地修复：
+    - `RuntimeReleaseDiagnosticItemSelector` 改为按机构生效版本锁定的 `contentHash`
+      回连 `KnowledgeAssetVersion`，不再混用统一资产版本号和知识专表版本号；错误文案改为指向内容指纹。
+    - `RuntimeReleaseDiagnosticItemSelectorTest` 新增回归用例
+      `resolvesUnifiedAssetVersionToKnowledgeVersionByContentHash`，覆盖统一资产 `V1`
+      与知识版本 `ai-draft-task-*` 不一致但内容指纹一致的真实上线场景。
+  - 红绿验证：
+    - 红灯：`mvn -Dtest=RuntimeReleaseDiagnosticItemSelectorTest test`
+      初次失败于新增用例，错误为 `机构生效版本锁定医技项目说明书版本不存在：LAB.POTASSIUM@V1`。
+    - 绿灯：`mvn -Dtest=RuntimeReleaseDiagnosticItemSelectorTest test` 通过，`3` 项；
+      `mvn -Dtest=RuntimeReleaseDiagnosticItemSelectorTest,ReportInterpretationServiceTest,ReportInterpretationControllerSecurityTest test`
+      通过，`13` 项。
+  - 待执行：提交本地分支后，把该提交重新部署到 134，复跑全角色前台演练，确认医技报告解读响应非空、协同待办和报告上下文闭环恢复。
 
 ## 下一步
 
-1. 先把“历史重复医学回归用例收敛”提交到本地分支，不推送远程、不合并 `main`。
-2. 将最新本地 HEAD 重新完整发布到 134；随后重跑 Provider 上线恢复，确认历史重复用例被收敛、`ollama-launch` 启用、医学评测全通过、
-   知识生产 readiness 全绿。
-3. 重跑运行韧性演练，确认停用期间只有 `MODEL_PROVIDER` 是必需阻断项，B0 `17/17` 通过，恢复后 Provider 重新启用。
-4. 在 134 直接入口重跑全功能、全知识、全流程演练；报告解读链路必须从前台真实操作产生患者、就诊上下文和报告事实，
+1. 将最新本地 HEAD 重新完整发布到 134，复跑全功能、全知识、全流程前台演练；报告解读链路必须从前台真实操作产生患者、就诊上下文和报告事实，
    并看到非空报告解读、协同待办和“打开报告上下文”闭环。
-5. 基础数据路线走通后，进入全角色真实操作与产品体验优化：医生、护士、患者/代理、药师、医技、质控、信息科长、
+2. 基础数据路线走通后，进入全角色真实操作与产品体验优化：医生、护士、患者/代理、药师、医技、质控、信息科长、
    实施工程师、审计员、院长等视角都要提交真实表单、触发真实状态变化；发现页面分类、流程、语义、权限、敏感信息、
    高风险确认或模型双模式安全问题，按最优方案直接优化。
-6. 目标环境上线前仍需补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
+3. 目标环境上线前仍需补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。

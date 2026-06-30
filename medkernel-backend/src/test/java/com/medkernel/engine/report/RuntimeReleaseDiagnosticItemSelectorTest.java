@@ -61,9 +61,11 @@ class RuntimeReleaseDiagnosticItemSelectorTest {
         stubIdentity(PlatformTenant.ID, "LAB.POTASSIUM", 100L, KnowledgeDomain.DIAGNOSTIC_ITEM, "血钾检验说明书");
         stubIdentity("tenant-A", "IMG.CT.CHEST", 200L, KnowledgeDomain.DIAGNOSTIC_ITEM, "胸部 CT 说明书");
         stubIdentity(PlatformTenant.ID, "GUIDE.CAP", 300L, KnowledgeDomain.GUIDELINE, "肺炎诊疗指南");
-        when(versions.findByTenantIdAndIdentityIdAndVersionNo(PlatformTenant.ID, 100L, "v1.0"))
+        when(versions.findByTenantIdAndIdentityIdAndContentHash(
+                PlatformTenant.ID, 100L, platformItem.contentHash()))
             .thenReturn(Optional.of(version(10L, PlatformTenant.ID, 100L, "v1.0", SourceAuthorityLevel.B_GUIDELINE)));
-        when(versions.findByTenantIdAndIdentityIdAndVersionNo("tenant-A", 200L, "v2.0"))
+        when(versions.findByTenantIdAndIdentityIdAndContentHash(
+                "tenant-A", 200L, hospitalItem.contentHash()))
             .thenReturn(Optional.of(version(20L, "tenant-A", 200L, "v2.0", SourceAuthorityLevel.C_CONSENSUS_LITERATURE)));
 
         List<RuntimeDiagnosticItemReference> selected = selector.select("tenant-A", "release-report-1");
@@ -81,13 +83,42 @@ class RuntimeReleaseDiagnosticItemSelectorTest {
     }
 
     @Test
+    void resolvesUnifiedAssetVersionToKnowledgeVersionByContentHash() {
+        String contentHash = "c".repeat(64);
+        ClinicalRuntimeReleaseItem platformItem =
+            item(PlatformTenant.ID, "LAB.POTASSIUM", "V1", contentHash,
+                ReleaseSourceLayer.PLATFORM, ReleaseEntryState.ACTIVE);
+        when(runtime.resolve("tenant-A", "release-report-1")).thenReturn(new ClinicalRuntimeReleaseContent(
+            release(), List.of(platformItem)));
+        stubIdentity(PlatformTenant.ID, "LAB.POTASSIUM", 100L, KnowledgeDomain.DIAGNOSTIC_ITEM, "血钾检验说明书");
+        when(versions.findByTenantIdAndIdentityIdAndContentHash(PlatformTenant.ID, 100L, contentHash))
+            .thenReturn(Optional.of(version(
+                10L,
+                PlatformTenant.ID,
+                100L,
+                "ai-draft-task-diagnostic-item",
+                KnowledgeVersionStatus.ACTIVE,
+                SourceAuthorityLevel.B_GUIDELINE,
+                contentHash)));
+
+        List<RuntimeDiagnosticItemReference> selected = selector.select("tenant-A", "release-report-1");
+
+        assertThat(selected)
+            .extracting(
+                RuntimeDiagnosticItemReference::knowledgeVersionId,
+                RuntimeDiagnosticItemReference::versionNo)
+            .containsExactly(tuple(10L, "ai-draft-task-diagnostic-item"));
+    }
+
+    @Test
     void rejectsRuntimeReleaseWhenPinnedDiagnosticItemVersionIsNotActive() {
         ClinicalRuntimeReleaseItem item =
             item("tenant-A", "IMG.CT.CHEST", "v2.0", ReleaseSourceLayer.HOSPITAL, ReleaseEntryState.ACTIVE);
         when(runtime.resolve("tenant-A", "release-report-1")).thenReturn(new ClinicalRuntimeReleaseContent(
             release(), List.of(item)));
         stubIdentity("tenant-A", "IMG.CT.CHEST", 200L, KnowledgeDomain.DIAGNOSTIC_ITEM, "胸部 CT 说明书");
-        when(versions.findByTenantIdAndIdentityIdAndVersionNo("tenant-A", 200L, "v2.0"))
+        when(versions.findByTenantIdAndIdentityIdAndContentHash(
+                "tenant-A", 200L, item.contentHash()))
             .thenReturn(Optional.of(version(
                 20L, "tenant-A", 200L, "v2.0", KnowledgeVersionStatus.SUPERSEDED)));
 
@@ -144,6 +175,16 @@ class RuntimeReleaseDiagnosticItemSelectorTest {
             String versionNo,
             ReleaseSourceLayer sourceLayer,
             ReleaseEntryState entryState) {
+        return item(sourceTenantId, identityCode, versionNo, "b".repeat(64), sourceLayer, entryState);
+    }
+
+    private ClinicalRuntimeReleaseItem item(
+            String sourceTenantId,
+            String identityCode,
+            String versionNo,
+            String contentHash,
+            ReleaseSourceLayer sourceLayer,
+            ReleaseEntryState entryState) {
         return new ClinicalRuntimeReleaseItem(
             1L,
             "release-report-1",
@@ -154,7 +195,7 @@ class RuntimeReleaseDiagnosticItemSelectorTest {
             entryState,
             "asset-version-" + identityCode,
             versionNo,
-            "b".repeat(64),
+            contentHash,
             NOW,
             "tester",
             "trace-report"
@@ -186,6 +227,17 @@ class RuntimeReleaseDiagnosticItemSelectorTest {
             String versionNo,
             KnowledgeVersionStatus status,
             SourceAuthorityLevel authority) {
+        return version(id, tenantId, identityId, versionNo, status, authority, "h" + id);
+    }
+
+    private KnowledgeAssetVersion version(
+            Long id,
+            String tenantId,
+            Long identityId,
+            String versionNo,
+            KnowledgeVersionStatus status,
+            SourceAuthorityLevel authority,
+            String contentHash) {
         return new KnowledgeAssetVersion(
             id,
             tenantId,
@@ -194,7 +246,7 @@ class RuntimeReleaseDiagnosticItemSelectorTest {
             null,
             null,
             null,
-            "h" + id,
+            contentHash,
             "[]",
             status,
             KnowledgeRiskLevel.LOW,
