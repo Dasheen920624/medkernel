@@ -102,11 +102,13 @@ export async function loginFromPlatformPage(page: Page, role: RoleAccount) {
   await expectLoginPageReady(page);
   const scope: RoleCredentialScope = "platform";
 
-  const platformTenantSwitch = page.getByRole("button", { name: "平台治理" });
-  if (await platformTenantSwitch.isVisible()) {
-    await platformTenantSwitch.click();
-    await expect(page.getByRole("heading", { name: "登录平台治理" })).toBeVisible();
-  }
+  const platformTenantSwitch = page
+    .locator('[aria-label="登录类型切换"]')
+    .getByRole("button", { name: "平台治理", exact: true });
+  await expect(platformTenantSwitch).toBeVisible();
+  await platformTenantSwitch.click();
+  await expect(platformTenantSwitch).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("heading", { name: "登录平台治理" })).toBeVisible();
 
   await page.getByLabel("工号 / 账号").fill(usernameFor(role, scope));
   await page.getByLabel("密码").fill(stablePassword(role, scope));

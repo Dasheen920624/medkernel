@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -97,6 +97,15 @@ describe("E2E credential contract", () => {
         "http://127.0.0.1:5173",
       ),
     ).toBeNull();
+  });
+
+  it("keeps platform UI login bound to the explicit login type switch", () => {
+    const source = readFileSync("e2e/support/auth.ts", "utf8");
+
+    expect(source).toContain("locator('[aria-label=\"登录类型切换\"]')");
+    expect(source).toContain('getByRole("button", { name: "平台治理", exact: true })');
+    expect(source).toContain('toHaveAttribute("aria-pressed", "true")');
+    expect(source).toContain('getByRole("heading", { name: "登录平台治理" })');
   });
 });
 

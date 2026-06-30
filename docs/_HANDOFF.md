@@ -179,6 +179,26 @@
   - 8 段全部由前台页面提交产生，覆盖系统接入适配器、知识值集草稿、模型外调安全策略、
     脱敏患者主索引、随访模板创建、随访模板发布、当前就诊上下文快照、随访计划生成与问卷/异常回院登记；
     每段 `browserErrors=0`、`serverErrors=0`、`networkFailures=0`。
+- `2026-06-30T11:18:19+08:00`，补跑平台 D6 Playwright 验收时先发现 E2E 登录助手问题：
+  `loginFromPlatformPage` 对“平台治理”按钮使用全页/标签式宽定位，直接访问 134 登录页时可能未可靠进入平台治理模式，
+  导致平台账号被当作机构账号提交并停留在登录页；该问题属于本地 E2E 验收助手，不是 134 应用制品变更。
+  失败证据：
+  `/tmp/medkernel-e2e-codex3/evidence-d6-ai-10104fbb-direct134-scope-switch/report/results.json`，
+  Playwright `expected=0`、`unexpected=1`、`skipped=1`、`flaky=0`，耗时 `11198.88ms`。
+- 随后已在当前本地分支修复平台登录助手：限定
+  `[aria-label="登录类型切换"]` 容器内精确点击“平台治理”，并断言 `aria-pressed=true` 与
+  “登录平台治理”标题后才提交平台账号；新增契约测试防止回退到宽定位。
+  - 小范围验证：`npm --prefix frontend test -- e2eAuthCredentialContract.test.ts`，
+    `1` 个测试文件 / `3` 个测试通过；`npm --prefix frontend run typecheck` 通过。
+  - 全量前端验证：`npm --prefix frontend run verify` 通过，`112` 个测试文件 / `887` 个测试通过；
+    `git diff --check` 通过。
+  - D6 模型能力复跑：
+    `/tmp/medkernel-e2e-codex3/evidence-d6-ai-10104fbb-direct134-strict-switch/report/results.json`，
+    Playwright `expected=2`、`unexpected=0`、`skipped=0`、`flaky=0`，耗时 `14181.026ms`。
+  - D6 图谱探索复跑：
+    `/tmp/medkernel-e2e-codex3/evidence-d6-graph-10104fbb-direct134-strict-switch/report/results.json`，
+    Playwright `expected=2`、`unexpected=0`、`skipped=0`、`flaky=0`，耗时 `17336.199ms`。
+  - 这次没有重新部署 134；134 运行前端仍是 `10104fbb` 前端-only 制品，修复的是本地验收入口的稳定性。
 
 ## 134 证据
 
