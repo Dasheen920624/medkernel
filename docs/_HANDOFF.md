@@ -11,11 +11,13 @@
 - 远程分支已清理：`origin` 仅保留 `main`（另有 `origin/HEAD -> origin/main`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前分支已继续追加本地阶段提交；134 后端 jar / manifest 仍为本地提交
-  `b4ec9f2d37d962af943af7f0b2acfbe307797a02`，134 前端-only 制品已更新到本地提交
-  `3f5ec881b542d8f98c3df2a066f1db30441c162a`，用于 `/medkernel` 前缀深链、审计导出验签和系统接入数据质量报告真实动作复演。
-- 当前分支最新代码阶段提交为 `e8f50553`（`test: 增加医技报告解读前台动作`）；
-  该提交只更新全角色 E2E 验收脚本，134 运行制品仍是上述后端 `b4ec9f2d` + 前端 `3f5ec881`。
+- 当前分支最新本地提交为 `b06a0e1a86c2d2147da2529103e9f42976c298eb`
+  （`fix: 补齐推荐详情抽屉可访问名称`），上一阶段关键代码提交为
+  `21caf969bcec81a849a7ccc12c03d5afcab2e62d`
+  （`fix: 统一推荐运行包触发契约`）。
+- 134 当前后端 jar / manifest 与前端制品均已全量发布到
+  `b06a0e1a86c2d2147da2529103e9f42976c298eb`；旧 `b4ec9f2d`、`3f5ec881`、
+  `e8f50553` 只作为历史阶段证据，不再代表当前 134 运行版本。
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
@@ -24,6 +26,69 @@
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
   `rehearsal` 是当前 1.0 契约中的完整上线演练机构块，不是旧兼容入口；
   `roleAccounts`、`platformRoleAccounts`、`customerTenant` 等旧 root 账号字段不得作为登录权威。
+
+## 最新阶段交接（2026-06-30 推荐运行包触发契约）
+
+- 本阶段定位并修复药师真实前台复演的推荐卡断链：前台已能创建患者、当前就诊上下文和当前用药资源，
+  但旧实现仍按规则 DSL 内的历史 `trigger` 字段筛选推荐规则；当前权威设计已改为
+  `clinical_runtime_release_item` + `asset_trigger_binding` 绑定运行包触发点，且华法林/阿司匹林规则绑定的是
+  `medication-prescribe`。旧匹配器使用 `order-sign` 和 DSL `trigger` 会得到 `NO_CARD`。
+- 修复内容：
+  - 后端推荐匹配改为按上下文快照 `runtimeReleaseId` 与请求 `triggerType` 调用
+    `RuntimeReleaseRuleSelector`，加载机构运行包中精确规则版本，不再依赖 DSL `trigger`。
+  - 推荐卡来源摘要、解释 JSON 与 `recommendation_source` 补齐运行包证据：
+    `runtimeReleaseId`、`assetVersionId`、`assetVersionNo`、`sourceLayer`、`contentHash`。
+  - 前台“登记触发评估”触发时点改用统一 `CLINICAL_TRIGGER_POINT_OPTIONS`，
+    删除页面内硬编码的旧 `order-select/order-sign` 偏差；全角色 E2E 药师路径选择“开立用药”。
+  - 第二轮 134 复演发现“推荐详情与反馈闭环”抽屉缺少可访问名称；已给抽屉补 `aria-label`，
+    并用 `getByRole("dialog", { name: "推荐详情与反馈闭环" })` 单测锁住，避免真实用户和自动化都找不到弹层。
+- 本地验证证据：
+  - TDD 红灯：`mvn -Dtest=RecommendationDeterministicMatcherTest#matchesRuntimeBoundRuleWithoutLegacyDslTriggerField test`
+    在修复前失败，现象为期望 1 张卡但实际 0 张卡。
+  - 后端定向：`mvn -Dtest=RecommendationDeterministicMatcherTest,RuntimeReleaseRuleSelectorTest test`
+    通过，`11` 个测试 0 失败。
+  - 后端全量：`mvn test` 通过，`3050` 个测试 0 失败，`7` 个 Docker/Testcontainers 条件用例因本机无 Docker 跳过。
+  - 前端目标：`npm --prefix frontend test -- CdssFatigue.test.tsx` 通过，`10` 个测试 0 失败。
+  - 前端全量：`npm --prefix frontend run verify` 通过，`113` 个测试文件 / `892` 个测试 0 失败；
+    覆盖 lint、stylelint、T-GATE lint、Prettier、typecheck、Vitest。
+  - `git diff --check` 通过。
+- 134 部署证据：
+  - 命令：`deploy/onprem/mk-publish.sh --source b06a0e1a86c2d2147da2529103e9f42976c298eb`。
+  - manifest：`source=commit=b06a0e1a86c2d2147da2529103e9f42976c298eb`。
+  - `deployedAt=2026-06-30T14:51:50+08:00`。
+  - `jarSha256=7a3d36c335966ac56e637def4e52662d788d8107c05e82b521187e3fe8f5619c`。
+  - 部署前备份：`/zoesoft/medkernel/backups/deploy-20260630-145148`。
+  - readiness：HTTP 200，`{"status":"UP"}`；服务 `active/enabled`，`NRestarts=0`。
+- 134 直接入口全角色复演：
+  - 命令入口：
+    `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=https://193.112.107.134/medkernel E2E_API_BASE_URL=https://193.112.107.134/medkernel/api/v1 E2E_IGNORE_HTTPS_ERRORS=1 E2E_ROLE_CREDENTIALS_FILE=/tmp/medkernel-e2e-codex3/current-launch.json`。
+  - 报告：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-runtime-trigger-b06a0e1a-direct134/report/results.json`。
+  - Playwright：`1 passed`，耗时约 `1.2m`。
+  - 运行记录：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-runtime-trigger-b06a0e1a-direct134/artifacts/stakeholder-view-rehearsal-b11d5-务视角均能通过四职责账号进入真实页面并看到对应业务能力-chromium/stakeholder-view-runtime-records.json`。
+  - 12 类视角均无 `browserErrors/serverErrors/networkFailures`：医生、护士、药师、医技、质控、患者代理、平台管理员、
+    医疗引擎运营员、审计员、信息科长、实施工程师、院长。
+- 134 数据库证据：
+  - 推荐触发：`rt-482a3954-b69f-42d7-b27e-d8023f470e16`，
+    `trigger_type=medication-prescribe`，`runtime_release_id=runtime-01KWBMTPBYHY1S9396BZN1TFN5`，
+    `status=EVALUATED`，`created_at=2026-06-30 14:53:10.049612`。
+  - 推荐卡：`rc-d9077c8d-672d-49da-bf25-5fecacd9249e`，
+    `card_code=RULE.SBX.MED.WARFARIN.ASA.v1`，标题“华法林与阿司匹林联用风险演练”，
+    `risk_level=HIGH`，`status=VIEWED`。
+  - 药师复核反馈：`rf-870e115c-1286-4f53-b9d2-593ad1579ddc`，
+    `feedback_type=VIEW_SOURCE`，`operator_role=PHARMACIST`，
+    `reason_code=PHARMACIST_REVIEWED`。
+  - 来源证据：推荐卡 `source_summary` 与 `recommendation_source.summary` 均包含
+    `运行版本=runtime-01KWBMTPBYHY1S9396BZN1TFN5`、
+    `asset_version=av-01KW954WVWB1K7X2AT8XK9ZMZE`、`来源层=HOSPITAL`、
+    `content_hash=d1df2f71b8aac38c80d205a5eb848e4834321147aaa2df238659d59b8b208251`。
+- 当前 TLS/ACME 判断：134 的可信公网 TLS/ACME 入站不是本阶段阻塞项；当前直接入口复演使用
+  `/medkernel` 路径和测试信任策略完成。只有进入正式公网可信证书/域名交付阶段时，才需要单独把 ACME 入站纳入运维任务。
+- 下一步必须继续主线：基础演练模式已经走通；后续进入“全真实前台操作 + 全视角产品体验优化”阶段，
+  从医生、护士、药师、患者/患者代理、医技、质控、医疗产品经理、医疗产品体验师、实施工程师、信息科长、
+  院长、审计、平台治理、医疗引擎运营等角度继续真实操作，发现功能分类、流程完整性、交互复杂度、理解歧义、
+  敏感信息处理、模型双模式使用边界等问题即按最优方案修复，不只处理用户临时点名的问题。
 
 ## 当前目标闭环结论
 
