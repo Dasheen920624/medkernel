@@ -503,6 +503,7 @@ describe("CdssFatigue", () => {
 
     await user.click(screen.getByRole("button", { name: /查看与人机反馈/ }));
 
+    expect(await screen.findByRole("dialog", { name: "推荐详情与反馈闭环" })).toBeInTheDocument();
     expect(await screen.findByText("这条推荐是怎么来的")).toBeInTheDocument();
     expect(screen.getAllByText("触发事件").length).toBeGreaterThan(0);
     expect(screen.getAllByText("命中规则").length).toBeGreaterThan(0);

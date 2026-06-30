@@ -1037,6 +1037,7 @@ export default function CdssFatigue() {
       </Modal>
 
       <Drawer
+        aria-label="推荐详情与反馈闭环"
         title={
           <div className={styles.drawerTitle}>
             <BookOutlined className={styles.iconInfo} />
