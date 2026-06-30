@@ -177,6 +177,46 @@ class WorkflowTodoRepositoryTest {
     }
 
     @Test
+    void visibleAssigneeScopeOrdersReportInterpretationBeforeEarlierFollowupRows() {
+        seedRoleAssignment("doctor-1", "clinical-user");
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        for (int index = 0; index < 12; index++) {
+            repository.save(sample(
+                "todo-followup-" + index,
+                WorkflowTodoSourceType.FOLLOWUP_TASK,
+                "followup-" + index,
+                WorkflowPriority.HIGH,
+                "patient-followup-" + index,
+                null,
+                now.plusSeconds(index + 1)));
+        }
+        repository.save(sample(
+            "todo-report",
+            WorkflowTodoSourceType.REPORT_INTERPRETATION,
+            "card-report",
+            WorkflowPriority.HIGH,
+            "patient-report",
+            null,
+            null));
+
+        List<WorkflowTodo> page = repository.pageByVisibleAssigneeScope(
+            "tenant-A",
+            "PENDING",
+            null,
+            null,
+            null,
+            "doctor-1",
+            null,
+            null,
+            0,
+            10);
+
+        assertThat(page).extracting(WorkflowTodo::todoId)
+            .startsWith("todo-report")
+            .doesNotContain("todo-followup-10", "todo-followup-11");
+    }
+
+    @Test
     void visibleAssigneeScopeUsesOrgClosureForUnassignedRows() {
         seedOrgTree();
         seedRoleAssignment("doctor-1", "clinical-user");
@@ -250,7 +290,7 @@ class WorkflowTodoRepositoryTest {
 
         assertThat(total).isEqualTo(4);
         assertThat(page).extracting(WorkflowTodo::todoId)
-            .containsExactly("todo-own", "todo-hospital", "todo-department", "todo-tenant");
+            .containsExactly("todo-own", "todo-hospital", "todo-tenant", "todo-department");
     }
 
     @Test
@@ -297,6 +337,50 @@ class WorkflowTodoRepositoryTest {
         assertThat(total).isEqualTo(1);
         assertThat(page).extracting(WorkflowTodo::todoId)
             .containsExactly("todo-pathway-clinical");
+    }
+
+    @Test
+    void selectedOrganizationFilterOrdersReportInterpretationBeforeEarlierFollowupRows() {
+        seedOrgTree();
+        seedRoleAssignment("doctor-1", "clinical-user");
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        for (int index = 0; index < 12; index++) {
+            repository.save(sample(
+                "todo-selected-followup-" + index,
+                WorkflowTodoSourceType.FOLLOWUP_TASK,
+                "selected-followup-" + index,
+                WorkflowPriority.HIGH,
+                "patient-followup-" + index,
+                null,
+                "dept-a",
+                now.plusSeconds(index + 1)));
+        }
+        repository.save(sample(
+            "todo-selected-report",
+            WorkflowTodoSourceType.REPORT_INTERPRETATION,
+            "card-selected-report",
+            WorkflowPriority.HIGH,
+            "patient-report",
+            null,
+            "dept-a",
+            null));
+
+        List<WorkflowTodo> page = repository.pageByVisibleAssigneeScopeAndOrgUnitFilter(
+            "tenant-A",
+            "PENDING",
+            null,
+            null,
+            null,
+            "doctor-1",
+            "dept-a",
+            null,
+            "facility-a",
+            0,
+            10);
+
+        assertThat(page).extracting(WorkflowTodo::todoId)
+            .startsWith("todo-selected-report")
+            .doesNotContain("todo-selected-followup-10", "todo-selected-followup-11");
     }
 
     @Test

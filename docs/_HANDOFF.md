@@ -11,8 +11,10 @@
 - 远程分支已清理：`origin` 仅保留 `main`（另有 `origin/HEAD -> origin/main`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前分支最新产品代码提交为本文件所在提交（本阶段：报告解读协同待办可见性与旧投影重分类）；
-  其前序产品提交为 `cd5e58a0e766d2d84d1d966f4ae2d57381aade82`
+- 当前分支最新产品代码提交为本文件所在提交（本阶段：报告解读协同待办分页排序）；
+  其前序产品提交为 `653c19cb4c7b4c2302d23e252371a17cec8c5966`
+  （`fix: 修复报告解读协同待办可见性`）、
+  `cd5e58a0e766d2d84d1d966f4ae2d57381aade82`
   （`fix: 统一推荐知识来源租户定位`）、
   `44b2b9c2962691d6647185b187e8a50c5a8be8e6`
   （`fix: 修复报告解读知识版本映射`）、
@@ -34,9 +36,10 @@
   （`fix: 补齐推荐详情抽屉可访问名称`）和
   `21caf969bcec81a849a7ccc12c03d5afcab2e62d`
   （`fix: 统一推荐运行包触发契约`）。
-- 134 当前已完整部署 `cd5e58a0e766d2d84d1d966f4ae2d57381aade82`；该部署已修复报告解读知识版本映射
-  和知识来源租户安全门，医技报告解读接口已返回非空结果。最新复演断点是报告解读卡片存在但未投影为
-  `REPORT_INTERPRETATION/clinical-user` 可见协同待办，导致 `/workflow/todos` 仍显示“报告解读 0 项”。
+- 134 当前已完整部署 `653c19cb4c7b4c2302d23e252371a17cec8c5966`；该部署已修复报告解读知识版本映射、
+  知识来源租户安全门、报告解读待办分类和 `clinical-user` 可见性。最新复演断点是报告解读待办已存在，
+  但 `/workflow/todos?status=PENDING&page=1&size=20` 的服务端分页先返回大量随访任务，导致前台首屏汇总仍显示
+  “报告解读 0 项”。
   旧 `3d9f9c`、`c68e127f`、`b4ec9f2d`、`3f5ec881`、`e8f50553` 只作为历史阶段证据，
   不再代表当前 134 运行版本。
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
@@ -48,7 +51,42 @@
   `rehearsal` 是当前 1.0 契约中的完整上线演练机构块，不是旧兼容入口；
   `roleAccounts`、`platformRoleAccounts`、`customerTenant` 等旧 root 账号字段不得作为登录权威。
 
-## 最新阶段交接（2026-06-30 报告解读协同待办可见性修复）
+## 最新阶段交接（2026-06-30 报告解读协同待办分页排序修复）
+
+- 134 已部署 `653c19cb4c7b4c2302d23e252371a17cec8c5966`：
+  `jarSha256=f04353ba9ccb01df7c892be06076f39a6800bab0ad43a25495b49e9162a83e2d`，
+  远端备份 `/zoesoft/medkernel/backups/deploy-20260630-221817`，readiness HTTP 200 / `{"status":"UP"}`，
+  服务 `active/enabled`、`MainPID=1526356`。
+- 部署后全角色前台演练继续卡在医技链路协同任务页：
+  `/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-653c19cb-deployed-direct134/report/results.json`。
+  页面首屏显示“今日先处理 10 项待处理 / 安全复核 0 项 / 报告解读 0 项 / 护理任务 0 项 / 高优先 10 项”，
+  前 10 条均为 `FOLLOWUP_TASK`。
+- 134 只读 API 复核结论：
+  - `/engine/recommendations/cards?scenarioCode=S36&page=1&size=20` 返回 `total=2` 条报告解读推荐卡。
+  - `/engine/recommendations/cards?triggerPoint=result-review&page=1&size=20` 返回 `total=2` 条报告解读推荐卡。
+  - `/engine/workflow/todos?status=PENDING&sourceType=REPORT_INTERPRETATION&page=1&size=20` 返回 `total=2`，
+    两条均为 `sourceType=REPORT_INTERPRETATION`、`assigneeRole=clinical-user`、`deepLink=/cdss/fatigue?cardId=...`。
+  - `/engine/workflow/todos?status=PENDING&page=1&size=20` 返回 `total=102`，第一页仍被随访任务占满。
+- 根因：前端 `WorkflowTodos` 只能对服务端返回的当前页排序和汇总；`WorkflowTodoRepository` 服务端分页排序只把
+  `SAFETY_REVIEW` 置顶，然后按优先级和到期时间排序。报告解读待办 `due_at=NULL`，会被大量更早到期的高优先随访任务挤出第一页，
+  所以前台在真实分页下看不到报告解读项。断点不在报告解读生成、知识版本、租户安全门、角色可见性或 TLS/ACME。
+- 已本地修复：
+  - 三个待办分页查询统一增加业务来源优先级：`SAFETY_REVIEW -> REPORT_INTERPRETATION -> RECOMMENDATION_CARD ->
+    PATHWAY_NODE -> NURSING_TASK -> FOLLOWUP_TASK -> BEDSIDE_KNOWLEDGE -> 其他`，排序发生在数据库分页前。
+  - 普通可见范围查询先保留“分派给当前用户”的个人任务优先，再进入业务来源排序；机构筛选查询保持未分派组织任务优先后再按来源排序。
+  - 补齐仓储回归，覆盖普通可见范围和选中机构筛选两条路径：12 条更早到期高优先随访任务存在时，报告解读仍进入第一页。
+- 红绿验证：
+  - 后端红灯：新增 `visibleAssigneeScopeOrdersReportInterpretationBeforeEarlierFollowupRows` 与
+    `selectedOrganizationFilterOrdersReportInterpretationBeforeEarlierFollowupRows` 后，修复前第一页均返回随访任务而失败。
+  - 后端绿灯：`mvn -Dtest=WorkflowTodoRepositoryTest#visibleAssigneeScopeOrdersReportInterpretationBeforeEarlierFollowupRows+selectedOrganizationFilterOrdersReportInterpretationBeforeEarlierFollowupRows test`
+    通过，`2` 项；`mvn -Dtest=WorkflowTodoRepositoryTest test` 通过，`12` 项。
+  - 组合回归：`mvn -Dtest=WorkflowCollaborationServiceTest,WorkflowTodoRepositoryTest,RuntimeReleaseDiagnosticItemSelectorTest,ReportInterpretationServiceTest,ReportInterpretationControllerSecurityTest,ClinicalSafetyGuardTest,RecommendationEngineServiceTest,RecommendationDeterministicMatcherTest,DiagnosisAssistServiceTest,DiagnosisAssistApiContractTest test`
+    通过，`104` 项。
+  - `git diff --check` 通过。
+- 下一步：提交本地阶段版本后把新 HEAD 完整发布到 134，复跑全角色前台演练，重点确认
+  “前台真实建立报告事实 -> 报告解读非空 -> 协同待办第一页显示报告解读项 -> 打开报告上下文”闭环。
+
+## 上一阶段交接（2026-06-30 报告解读协同待办可见性修复）
 
 - 134 已部署 `cd5e58a0e766d2d84d1d966f4ae2d57381aade82`：
   `jarSha256=5b13dc2c3d69ea10dfd5867fa2f05147946367b2ef1b1974d75bd53febbb7ac8`，

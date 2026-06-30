@@ -280,7 +280,16 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
           AND (:assigneeId IS NULL OR assignee_id = :assigneeId)
           AND (:patientId IS NULL OR patient_id = :patientId)
         ORDER BY
-          CASE WHEN source_type = 'SAFETY_REVIEW' THEN 0 ELSE 1 END,
+          CASE source_type
+            WHEN 'SAFETY_REVIEW' THEN 0
+            WHEN 'REPORT_INTERPRETATION' THEN 1
+            WHEN 'RECOMMENDATION_CARD' THEN 2
+            WHEN 'PATHWAY_NODE' THEN 3
+            WHEN 'NURSING_TASK' THEN 4
+            WHEN 'FOLLOWUP_TASK' THEN 5
+            WHEN 'BEDSIDE_KNOWLEDGE' THEN 6
+            ELSE 7
+          END,
           CASE priority
             WHEN 'CRITICAL' THEN 0
             WHEN 'HIGH' THEN 1
@@ -354,7 +363,17 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
             )
           )
         ORDER BY
-          CASE WHEN source_type = 'SAFETY_REVIEW' THEN 0 ELSE 1 END,
+          CASE WHEN assignee_id = :currentUserId THEN 0 ELSE 1 END,
+          CASE source_type
+            WHEN 'SAFETY_REVIEW' THEN 0
+            WHEN 'REPORT_INTERPRETATION' THEN 1
+            WHEN 'RECOMMENDATION_CARD' THEN 2
+            WHEN 'PATHWAY_NODE' THEN 3
+            WHEN 'NURSING_TASK' THEN 4
+            WHEN 'FOLLOWUP_TASK' THEN 5
+            WHEN 'BEDSIDE_KNOWLEDGE' THEN 6
+            ELSE 7
+          END,
           CASE priority
             WHEN 'CRITICAL' THEN 0
             WHEN 'HIGH' THEN 1
@@ -434,7 +453,16 @@ public interface WorkflowTodoRepository extends ListCrudRepository<WorkflowTodo,
           )
         ORDER BY
           CASE WHEN assignee_id IS NULL THEN 0 ELSE 1 END,
-          CASE WHEN source_type = 'SAFETY_REVIEW' THEN 0 ELSE 1 END,
+          CASE source_type
+            WHEN 'SAFETY_REVIEW' THEN 0
+            WHEN 'REPORT_INTERPRETATION' THEN 1
+            WHEN 'RECOMMENDATION_CARD' THEN 2
+            WHEN 'PATHWAY_NODE' THEN 3
+            WHEN 'NURSING_TASK' THEN 4
+            WHEN 'FOLLOWUP_TASK' THEN 5
+            WHEN 'BEDSIDE_KNOWLEDGE' THEN 6
+            ELSE 7
+          END,
           CASE priority
             WHEN 'CRITICAL' THEN 0
             WHEN 'HIGH' THEN 1
