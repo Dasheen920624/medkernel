@@ -49,6 +49,11 @@ import {
 import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
 import { findRouteByPath } from "@/shared/config/routes";
 import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
+import {
+  contextRiskLevelOptions,
+  defaultContextSnapshotFormValues,
+  frontdeskEncounterTypeOptions,
+} from "@/shared/config/clinicalContext";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
@@ -75,25 +80,6 @@ const PAGE_META = {
     riskLevel: "medium" as const,
   },
 };
-
-const ENCOUNTER_OPTIONS: Array<{ label: string; value: FrontdeskEncounterType }> = [
-  { label: "门诊复诊", value: "OUTPATIENT" },
-  { label: "住院就诊", value: "INPATIENT" },
-  { label: "急诊就诊", value: "ED" },
-  { label: "随访回收", value: "FOLLOWUP" },
-];
-
-const DISEASE_OPTIONS = [
-  { label: "慢阻肺", code: "J44.900" },
-  { label: "高血压", code: "I10.x00" },
-  { label: "2 型糖尿病", code: "E11.900" },
-];
-
-const RISK_OPTIONS: Array<{ label: string; value: ContextSnapshotCreatePayload["riskLevel"] }> = [
-  { label: "低风险", value: "LOW" },
-  { label: "中风险", value: "MEDIUM" },
-  { label: "高风险", value: "HIGH" },
-];
 
 type ContextSnapshotFormValues = {
   encounterType: FrontdeskEncounterType;
@@ -344,12 +330,7 @@ export default function Mpi() {
   const showContextSnapshotModal = useCallback(
     (patient: MpiPatient) => {
       contextSnapshotForm.resetFields();
-      contextSnapshotForm.setFieldsValue({
-        encounterType: "OUTPATIENT",
-        diseaseCode: "J44.900",
-        riskLevel: "MEDIUM",
-        reason: "患者 360 已完成身份核查，建立当前就诊上下文用于随访、路径和 CDSS。",
-      });
+      contextSnapshotForm.setFieldsValue(defaultContextSnapshotFormValues);
       setContextSnapshotPatient(patient);
       setContextSnapshotIdempotencyKey(`context-snapshot-${crypto.randomUUID()}`);
       setIsContextModalVisible(true);
@@ -387,12 +368,12 @@ export default function Mpi() {
     if (!contextSnapshotPatient) return;
     try {
       const values = await contextSnapshotForm.validateFields();
-      const disease = DISEASE_OPTIONS.find((option) => option.code === values.diseaseCode);
+      const diseaseText = values.diseaseCode.trim();
       await createContextSnapshotMutation.mutateAsync({
         patient: contextSnapshotPatient,
         encounterType: values.encounterType,
-        diseaseCode: values.diseaseCode,
-        diseaseName: disease?.label ?? values.diseaseCode,
+        diseaseCode: diseaseText,
+        diseaseName: diseaseText,
         riskLevel: values.riskLevel,
         reason: values.reason.trim(),
         idempotencyKey: contextSnapshotIdempotencyKey,
@@ -953,32 +934,26 @@ export default function Mpi() {
               label="就诊类型"
               rules={[{ required: true, message: "请选择就诊类型" }]}
             >
-              <Select aria-label="就诊类型" options={ENCOUNTER_OPTIONS} />
+              <Select aria-label="就诊类型" options={frontdeskEncounterTypeOptions} />
             </Form.Item>
             <Form.Item
               name="diseaseCode"
               label="诊断/随访病种"
-              rules={[{ required: true, message: "请选择诊断或随访病种" }]}
+              rules={[{ required: true, whitespace: true, message: "请输入诊断或随访病种" }]}
             >
-              <Select
-                aria-label="诊断/随访病种"
-                options={DISEASE_OPTIONS.map((option) => ({
-                  label: option.label,
-                  value: option.code,
-                }))}
-              />
+              <Input aria-label="诊断/随访病种" placeholder="输入当前诊断、病种或随访主题" />
             </Form.Item>
             <Form.Item
               name="riskLevel"
               label="风险分层"
               rules={[{ required: true, message: "请选择风险分层" }]}
             >
-              <Select aria-label="风险分层" options={RISK_OPTIONS} />
+              <Select aria-label="风险分层" options={contextRiskLevelOptions} />
             </Form.Item>
             <Form.Item
               name="reason"
               label="建立原因"
-              rules={[{ required: true, message: "请输入建立原因" }]}
+              rules={[{ required: true, whitespace: true, message: "请输入建立原因" }]}
             >
               <Input.TextArea
                 aria-label="建立原因"

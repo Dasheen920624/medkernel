@@ -30,7 +30,7 @@ const rehearsalAccounts = Object.fromEntries(
 );
 
 describe("E2E 上线职责凭据契约", () => {
-  it("优先使用演练机构四职责账号，避免真实前台数据落入平台治理租户", () => {
+  it("只使用 canonical platform.accounts 四职责账号，不读取非权威账号块", () => {
     const credentials = resolveRoleCredentialOverrides({
       schemaVersion: "1.0.0",
       status: "READY",
@@ -45,14 +45,27 @@ describe("E2E 上线职责凭据契约", () => {
     });
 
     expect(credentials["platform-admin"]).toMatchObject({
-      tenantId: "t-rehearsal",
-      username: "rehearsal-platform-admin",
-      password: "rehearsal-platform-admin",
+      tenantId: "t-1",
+      username: "platform-admin",
+      password: "platform-platform-admin",
     });
-    expect(credentials["clinical-user"].tenantId).toBe("t-rehearsal");
+    expect(credentials["clinical-user"].tenantId).toBe("t-1");
   });
 
-  it("缺少演练机构账号时保留平台四职责账号作为本地开发回退", () => {
+  it("缺少平台四职责账号时拒绝继续运行", () => {
+    expect(() =>
+      resolveRoleCredentialOverrides({
+        schemaVersion: "1.0.0",
+        status: "READY",
+        rehearsal: {
+          tenantId: "t-rehearsal",
+          accounts: rehearsalAccounts,
+        },
+      }),
+    ).toThrow("E2E 上线凭据缺少 canonical platform.accounts 四职责账号");
+  });
+
+  it("读取平台四职责账号作为唯一上线演练身份", () => {
     const credentials = resolveRoleCredentialOverrides({
       schemaVersion: "1.0.0",
       status: "READY",

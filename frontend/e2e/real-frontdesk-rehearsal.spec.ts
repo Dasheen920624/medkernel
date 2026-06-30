@@ -257,7 +257,7 @@ async function createContextSnapshotFromUi(
   const dialog = page.getByRole("dialog", { name: "建立当前就诊上下文" });
   await expect(dialog).toBeVisible();
   await chooseDialogOption(page, dialog, "就诊类型", "门诊复诊");
-  await chooseDialogOption(page, dialog, "诊断/随访病种", "慢阻肺");
+  await dialog.getByLabel("诊断/随访病种").fill("真实前台慢病随访主题");
   await chooseDialogOption(page, dialog, "风险分层", "中风险");
   await dialog
     .getByLabel("建立原因")

@@ -420,6 +420,9 @@ describe("Mpi", () => {
       await user.click(screen.getAllByRole("button", { name: /患者360/ })[0]);
       expect((await screen.findAllByText("暂无已生效上下文")).length).toBeGreaterThan(0);
       await user.click(screen.getByRole("button", { name: "建立当前就诊上下文" }));
+      const diseaseInput = screen.getByLabelText("诊断/随访病种");
+      await user.clear(diseaseInput);
+      await user.type(diseaseInput, "真实前台慢病随访主题");
       const reasonInput = screen.getByLabelText("建立原因");
       await user.clear(reasonInput);
       await user.type(reasonInput, "真实前台演练：随访计划生成前由医生确认当前就诊上下文。");
@@ -434,8 +437,8 @@ describe("Mpi", () => {
             age: 67,
           }),
           encounterType: "OUTPATIENT",
-          diseaseCode: "J44.900",
-          diseaseName: "慢阻肺",
+          diseaseCode: "真实前台慢病随访主题",
+          diseaseName: "真实前台慢病随访主题",
           riskLevel: "MEDIUM",
           reason: "真实前台演练：随访计划生成前由医生确认当前就诊上下文。",
           idempotencyKey: expect.any(String),

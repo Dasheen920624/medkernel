@@ -208,7 +208,36 @@ function credentialFor(principal: string) {
 function loadCredentialOverrides() {
   const file = process.env.E2E_ROLE_CREDENTIALS_FILE?.trim();
   if (!file) return {} as Partial<RoleCredentialOverrides>;
-  return resolveRoleCredentialOverrides(JSON.parse(readFileSync(file, "utf8")));
+  const parsed = JSON.parse(readFileSync(file, "utf8"));
+  const source =
+    parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as {
+          schemaVersion?: unknown;
+          status?: unknown;
+          platform?: { tenantId?: unknown; accounts?: unknown };
+        })
+      : null;
+  if (!source || source.schemaVersion !== "1.0.0" || source.status !== "READY") {
+    throw new Error("E2E 上线凭据必须使用 READY 状态的 1.0.0 契约");
+  }
+  if (
+    !source.platform ||
+    typeof source.platform !== "object" ||
+    Array.isArray(source.platform) ||
+    !source.platform.accounts ||
+    typeof source.platform.accounts !== "object" ||
+    Array.isArray(source.platform.accounts)
+  ) {
+    throw new Error("E2E 上线凭据缺少 canonical platform.accounts 四职责账号");
+  }
+  return resolveRoleCredentialOverrides({
+    schemaVersion: source.schemaVersion,
+    status: source.status,
+    platform: {
+      tenantId: source.platform.tenantId,
+      accounts: source.platform.accounts,
+    },
+  });
 }
 
 async function mirrorSecureCookiesForLocalProxy(page: Page, response: APIResponse) {

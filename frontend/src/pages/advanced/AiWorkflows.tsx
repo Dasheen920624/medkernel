@@ -384,7 +384,8 @@ export default function AiWorkflows() {
   const confirmModelEgress = useConfirmModelEgress();
   const [egressForm] = Form.useForm<EgressPolicyForm>();
   const selectedEgressOperator = Form.useWatch("operator", egressForm) as
-    ModelEgressDesensitizationOperator | undefined;
+    | ModelEgressDesensitizationOperator
+    | undefined;
   const selectedAllowedFields = Form.useWatch("allowedFields", egressForm) as string[] | undefined;
   const [egressCapability, setEgressCapability] = useState<ModelCapabilityStatusResponse | null>(
     null,

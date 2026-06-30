@@ -27,13 +27,14 @@ export function resolveRoleCredentialOverrides(source: unknown): RoleCredentialO
     throw new Error("E2E 上线凭据必须使用 READY 状态的 1.0.0 契约");
   }
 
-  if ("rehearsal" in contract && contract.rehearsal != null) {
-    return parseCredentialBlock("演练机构", contract.rehearsal);
+  if (!contract.platform || typeof contract.platform !== "object" || Array.isArray(contract.platform)) {
+    throw new Error("E2E 上线凭据缺少 canonical platform.accounts 四职责账号");
   }
-  if ("platform" in contract && contract.platform != null) {
-    return parseCredentialBlock("平台治理", contract.platform);
+  const platform = contract.platform as CredentialBlock;
+  if (!platform.accounts || typeof platform.accounts !== "object" || Array.isArray(platform.accounts)) {
+    throw new Error("E2E 上线凭据缺少 canonical platform.accounts 四职责账号");
   }
-  throw new Error("E2E 上线凭据缺少平台或演练机构四职责账号");
+  return parseCredentialBlock("平台治理", platform);
 }
 
 function parseCredentialBlock(label: string, block: unknown): RoleCredentialOverrides {

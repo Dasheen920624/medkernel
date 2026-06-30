@@ -17,7 +17,14 @@ export type RouteSectionKey =
 export type RoutePlacement = "primary" | "header" | "profile" | "hidden" | "embedded";
 
 export type PageType =
-  "auth" | "workbench" | "list" | "configuration" | "dashboard" | "review" | "advanced" | "system";
+  | "auth"
+  | "workbench"
+  | "list"
+  | "configuration"
+  | "dashboard"
+  | "review"
+  | "advanced"
+  | "system";
 
 export interface RouteMeta {
   path: string;

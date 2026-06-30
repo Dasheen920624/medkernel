@@ -1949,7 +1949,8 @@ function DataContractPanel({
                       {
                         key: "unit",
                         label: "单位/字典",
-                        children: [field.unit, field.codeSystem].filter(Boolean).join(" / ") || "无",
+                        children:
+                          [field.unit, field.codeSystem].filter(Boolean).join(" / ") || "无",
                       },
                       { key: "description", label: "说明", children: field.description },
                     ]}
