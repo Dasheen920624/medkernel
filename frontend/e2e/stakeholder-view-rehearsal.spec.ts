@@ -1,4 +1,4 @@
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 
 import { appPath, ensureReadySession, type RoleAccount } from "./support/auth";
@@ -10,7 +10,11 @@ type StakeholderView = {
   path: string;
   heading: string | RegExp;
   markers: Array<string | RegExp>;
-  action?: "QUALITY_DRILLDOWN" | "AUDIT_EXPORT_VERIFY" | "ADAPTER_QUALITY_REPORT";
+  action?:
+    | "QUALITY_DRILLDOWN"
+    | "AUDIT_EXPORT_VERIFY"
+    | "ADAPTER_QUALITY_REPORT"
+    | "REPORT_INTERPRETATION";
 };
 
 type RuntimeRecord = {
@@ -57,6 +61,7 @@ const stakeholderViews: StakeholderView[] = [
     path: "/cdss/fatigue",
     heading: "提醒与推荐",
     markers: ["生成报告解读", "不会改写已签发报告"],
+    action: "REPORT_INTERPRETATION",
   },
   {
     code: "QUALITY_CONTROLLER",
@@ -180,6 +185,9 @@ async function assertStakeholderView(
   }
 
   const actions = await performStakeholderAction(page, view);
+  if (view.action) {
+    expect(actions.length, `${view.label} 视角应记录至少一个真实前台动作`).toBeGreaterThan(0);
+  }
   await expectNoRootOverflow(page, view.label);
   const record = {
     code: view.code,
@@ -214,6 +222,9 @@ async function performStakeholderAction(page: Page, view: StakeholderView) {
   }
   if (view.action === "ADAPTER_QUALITY_REPORT") {
     return performAdapterQualityReportAction(page, view);
+  }
+  if (view.action === "REPORT_INTERPRETATION") {
+    return performReportInterpretationAction(page, view);
   }
 
   return [];
@@ -339,6 +350,122 @@ async function performAdapterQualityReportAction(page: Page, view: StakeholderVi
   return ["生成系统接入数据质量报告"];
 }
 
+async function performReportInterpretationAction(page: Page, view: StakeholderView) {
+  const snapshot = await createContextSnapshotForReportInterpretation(page, view);
+  await page.goto(appPath("/cdss/fatigue"), { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle");
+  await expect(
+    page.locator("main").getByRole("heading", { name: "提醒与推荐" }).first(),
+    `${view.label} 应能进入提醒与推荐页生成医技报告解读`,
+  ).toBeVisible({ timeout: 30_000 });
+
+  await page.getByRole("button", { name: "生成报告解读" }).click();
+  const dialog = page.getByRole("dialog", { name: "生成医技报告解读" });
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+  await dialog.getByLabel("患者信息").fill(snapshot.patientId);
+  if (snapshot.encounterId) {
+    await dialog.getByLabel("就诊信息").fill(snapshot.encounterId);
+  }
+  await expect(dialog.getByRole("button", { name: "选择第 1 个临床快照" })).toBeVisible({
+    timeout: 30_000,
+  });
+  await dialog.getByRole("button", { name: "选择第 1 个临床快照" }).click();
+
+  const interpretResponsePromise = waitForPost(
+    page,
+    "/engine/recommendations/report-interpretation",
+  );
+  await dialog.getByRole("button", { name: "生成报告解读" }).click();
+  const interpretResponse = await interpretResponsePromise;
+  const interpretText = await interpretResponse.text();
+  expect(
+    interpretResponse.ok(),
+    `${view.label} 生成医技报告解读应返回成功 status=${interpretResponse.status()} body=${interpretText}`,
+  ).toBe(true);
+  const interpretation = JSON.parse(interpretText) as { data?: { interpretations?: unknown[] } };
+  expect(
+    Array.isArray(interpretation.data?.interpretations),
+    `${view.label} 医技报告解读响应应返回 interpretations 数组`,
+  ).toBe(true);
+  await expect(dialog).toBeHidden({ timeout: 20_000 });
+  return ["前台建立医技报告上下文并生成报告解读"];
+}
+
+async function createContextSnapshotForReportInterpretation(page: Page, view: StakeholderView) {
+  await page.goto(appPath("/mpi"), { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle");
+  await expect(
+    page.locator("main").getByRole("heading", { name: "患者索引" }).first(),
+    `${view.label} 生成报告解读前应能进入患者索引建立脱敏上下文`,
+  ).toBeVisible({ timeout: 30_000 });
+
+  await page.getByRole("button", { name: "新增患者" }).click();
+  const patientDialog = page.getByRole("dialog", { name: /新增患者主索引/ });
+  await expect(patientDialog).toBeVisible({ timeout: 10_000 });
+  const idLast4 = String(Date.now()).slice(-4);
+  const maskedName = `技*${idLast4.slice(-1)}`;
+  await patientDialog.getByLabel("脱敏姓名").fill(maskedName);
+  const genderCombobox = patientDialog.getByRole("combobox", { name: "性别" });
+  await genderCombobox.click();
+  await genderCombobox.press("ArrowDown");
+  await genderCombobox.press("Enter");
+  await patientDialog.getByRole("spinbutton", { name: "年龄" }).fill("66");
+  await patientDialog.getByLabel("身份证后四位").fill(idLast4);
+
+  const patientResponsePromise = waitForPost(page, "/engine/mpi/patients");
+  await patientDialog.getByRole("button", { name: "保存患者" }).click();
+  const patientResponse = await patientResponsePromise;
+  const patientText = await patientResponse.text();
+  expect(
+    patientResponse.ok(),
+    `${view.label} 创建脱敏患者主索引应返回成功 status=${patientResponse.status()} body=${patientText}`,
+  ).toBe(true);
+  const patient = JSON.parse(patientText) as { data?: { mpiId?: string } };
+  const patientId = patient.data?.mpiId;
+  expect(patientId, `${view.label} 创建脱敏患者后应返回患者身份`).toBeTruthy();
+  await expect(patientDialog).toBeHidden({ timeout: 20_000 });
+
+  await page.getByPlaceholder("支持按姓名或院内患者编号检索...").fill(maskedName);
+  await page.getByRole("button", { name: /检索过滤/ }).click();
+  const row = page
+    .getByRole("row", { name: new RegExp(`${escapeRegExp(maskedName)}.*${idLast4}`) })
+    .first();
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  await row.getByRole("button", { name: /患者360/ }).click();
+  await expect(page.getByRole("button", { name: "建立当前就诊上下文" })).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.getByRole("button", { name: "建立当前就诊上下文" }).click();
+
+  const contextDialog = page.getByRole("dialog", { name: "建立当前就诊上下文" });
+  await expect(contextDialog).toBeVisible({ timeout: 10_000 });
+  await chooseDialogOption(page, contextDialog, "就诊类型", "门诊复诊");
+  await contextDialog.getByLabel("诊断/随访病种").fill("真实前台医技报告解读主题");
+  await chooseDialogOption(page, contextDialog, "风险分层", "中风险");
+  await contextDialog
+    .getByLabel("建立原因")
+    .fill("全角色真实演练：为医技报告解读建立当前就诊上下文，不写入患者明文身份。");
+
+  const contextResponsePromise = waitForPost(page, "/engine/context/snapshots");
+  await contextDialog.getByRole("button", { name: "生成上下文快照" }).click();
+  const contextResponse = await contextResponsePromise;
+  const contextText = await contextResponse.text();
+  expect(
+    contextResponse.ok(),
+    `${view.label} 建立当前就诊上下文应返回成功 status=${contextResponse.status()} body=${contextText}`,
+  ).toBe(true);
+  const context = JSON.parse(contextText) as {
+    data?: { snapshotId?: string; resources?: { encounters?: Array<{ encounterId?: string }> } };
+  };
+  expect(context.data?.snapshotId, `${view.label} 上下文创建响应应返回快照身份`).toBeTruthy();
+  await expect(contextDialog).toBeHidden({ timeout: 20_000 });
+  await expect(page.getByText("当前就诊上下文已建立")).toBeVisible({ timeout: 20_000 });
+  return {
+    patientId: patientId ?? "",
+    encounterId: context.data?.resources?.encounters?.[0]?.encounterId ?? null,
+  };
+}
+
 function collectRuntime(page: Page) {
   return {
     browserErrors: collectBrowserErrors(page),
@@ -419,6 +546,19 @@ function waitForPost(page: Page, path: string) {
     (response) => response.request().method() === "POST" && response.url().includes(path),
     { timeout: 60_000 },
   );
+}
+
+async function chooseDialogOption(page: Page, dialog: Locator, label: string, optionText: string) {
+  const combobox = dialog.getByRole("combobox", { name: new RegExp(escapeRegExp(label)) }).first();
+  const select = combobox.locator(
+    "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
+  );
+  await select.locator(".ant-select-selector").click();
+  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
+  await expect(dropdown).toBeVisible({ timeout: 5_000 });
+  const optionLocator = dropdown.getByText(optionText, { exact: true }).last();
+  await expect(optionLocator).toBeVisible({ timeout: 20_000 });
+  await optionLocator.click();
 }
 
 function escapeRegExp(value: string) {
