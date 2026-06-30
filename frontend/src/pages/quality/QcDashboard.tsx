@@ -644,9 +644,16 @@ function formatMetricValue(metric: QualityValueMetric): string {
   if (metric.status !== "AVAILABLE" || metric.value === null) {
     return "暂不可用";
   }
-  if (metric.unit === "%") {
+  const unit = metric.unit?.trim().toUpperCase();
+  if (unit === "%" || unit === "RATE" || unit === "PERCENT") {
     const percent = metric.value <= 1 ? metric.value * 100 : metric.value;
     return `${percent.toFixed(1)}%`;
+  }
+  if (unit === "CASE_COUNT") {
+    return `${metric.value.toLocaleString()} 例`;
+  }
+  if (unit === "COUNT") {
+    return `${metric.value.toLocaleString()} 项`;
   }
   return `${metric.value.toLocaleString()}${metric.unit ? ` ${metric.unit}` : ""}`;
 }

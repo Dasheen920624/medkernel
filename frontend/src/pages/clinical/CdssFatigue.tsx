@@ -241,6 +241,11 @@ function getRecommendationStatusLabel(status: string): string {
   );
 }
 
+function getInterruptLevelLabel(level?: string | null): string {
+  if (!level) return "未分级";
+  return interruptLevelLabels[level] ?? "级别待确认";
+}
+
 function getFeedbackTypeLabel(feedbackType: RecommendationFeedbackType): string {
   return feedbackTypeLabels[feedbackType] ?? customerEnumLabel(feedbackType);
 }
@@ -730,7 +735,7 @@ export default function CdssFatigue() {
         const colors = { HARD: "purple", SOFT: "volcano", NONE: "default" };
         return (
           <Tag color={colors[level as keyof typeof colors] || "blue"}>
-            {interruptLevelLabels[level] ?? "未识别级别"}
+            {getInterruptLevelLabel(level)}
           </Tag>
         );
       },
@@ -756,7 +761,10 @@ export default function CdssFatigue() {
           SUPPRESSED: { status: "default", text: getRecommendationStatusLabel("SUPPRESSED") },
           EXPIRED: { status: "default", text: getRecommendationStatusLabel("EXPIRED") },
         };
-        const current = config[status] ?? { status: "default", text: "未识别状态" };
+        const current = config[status] ?? {
+          status: "default",
+          text: getRecommendationStatusLabel(status),
+        };
         return <Badge status={current.status} text={current.text} />;
       },
     },
@@ -1177,7 +1185,7 @@ export default function CdssFatigue() {
               </Descriptions.Item>
               <Descriptions.Item label="拦截定位">
                 <Tag color={detailData.card.interruptLevel === "HARD" ? "purple" : "volcano"}>
-                  {interruptLevelLabels[detailData.card.interruptLevel] ?? "未识别级别"}
+                  {getInterruptLevelLabel(detailData.card.interruptLevel)}
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="提醒频次策略" span={3}>

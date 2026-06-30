@@ -427,7 +427,7 @@ describe("route metadata", () => {
       },
       {
         role: "医疗引擎运营员",
-        responsibility: "维护规则 DSL、字段条件、测试用例和灰度范围",
+        responsibility: "维护触发条件、建议动作、验证病例和分阶段上线范围",
         boundary: "高风险规则必须完成逐条责任确认",
       },
     ]);

@@ -38,7 +38,7 @@ describe("roleCatalog", () => {
 
   it("does not translate retired role codes", () => {
     retiredRoleCodes.forEach((role) => {
-      expect(roleLabel(role)).toBe("未识别角色");
+      expect(roleLabel(role)).toBe("角色待确认");
     });
   });
 });

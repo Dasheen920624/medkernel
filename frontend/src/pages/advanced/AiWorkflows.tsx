@@ -204,6 +204,40 @@ function modelDataBoundaryText(item: ModelCapabilityStatusResponse) {
   return "当前能力不走模型外调；切换到公网外部模型前必须先配置外调安全策略，切换到院内本地模型前必须确认授权和审计边界。";
 }
 
+function modelDataBoundarySummary(item: ModelCapabilityStatusResponse) {
+  const externalEnabled =
+    item.routeStrategy === "EXTERNAL_MODEL" || item.fallbackOrder.includes("EXTERNAL_MODEL");
+  const localEnabled =
+    item.routeStrategy === "LOCAL_MODEL" || item.fallbackOrder.includes("LOCAL_MODEL");
+
+  if (externalEnabled && localEnabled) {
+    return {
+      color: "geekblue",
+      label: "双路径患者上下文",
+      description: "公网遮蔽核心标识，院内按授权使用必要信息",
+    };
+  }
+  if (externalEnabled) {
+    return {
+      color: "blue",
+      label: "公网患者上下文",
+      description: "允许授权用途，核心标识先遮蔽",
+    };
+  }
+  if (localEnabled) {
+    return {
+      color: "cyan",
+      label: "院内授权患者上下文",
+      description: "按授权使用必要信息，日志不留患者明文",
+    };
+  }
+  return {
+    color: "default",
+    label: "无模型外调",
+    description: "当前走规则链路，切换模型前需确认安全边界",
+  };
+}
+
 type EgressPolicyForm = {
   allowedFields: string[];
   operator: ModelEgressDesensitizationOperator;
@@ -523,8 +557,16 @@ export default function AiWorkflows() {
     {
       title: "数据边界",
       key: "dataBoundary",
-      width: 320,
-      render: (_value, item) => <Text type="secondary">{modelDataBoundaryText(item)}</Text>,
+      width: 220,
+      render: (_value, item) => {
+        const boundary = modelDataBoundarySummary(item);
+        return (
+          <div className={styles.statusCell}>
+            <Tag color={boundary.color}>{boundary.label}</Tag>
+            <Text type="secondary">{boundary.description}</Text>
+          </div>
+        );
+      },
     },
     {
       title: "结构约束",
@@ -579,14 +621,16 @@ export default function AiWorkflows() {
     columns.push({
       title: "外调安全",
       key: "egressPolicy",
-      width: 120,
+      width: 160,
       render: (_value, item) => (
         <Tooltip title="配置字段允许范围、脱敏规则和责任确认阈值">
           <Button
             aria-label={`配置 ${item.displayName} 外调安全策略`}
             icon={<SafetyCertificateOutlined />}
             onClick={() => openEgressPolicy(item)}
-          />
+          >
+            配置外调安全
+          </Button>
         </Tooltip>
       ),
     });

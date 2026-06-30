@@ -1031,25 +1031,25 @@ export default function Mpi() {
             <Form.Item name="currentMedicationText" label="当前用药">
               <Input.TextArea
                 aria-label="当前用药"
-                placeholder="可选，多个药品用顿号或逗号分隔，例如：华法林、阿司匹林"
+                placeholder="可选，填写当前用药名称，多个项目用顿号或逗号分隔"
                 rows={2}
               />
             </Form.Item>
             <Text strong>已签发医技报告（可选）</Text>
             <Form.Item name="diagnosticReportType" label="医技报告项目">
-              <Input aria-label="医技报告项目" placeholder="可选，例如：血钾检验或 LAB.POTASSIUM" />
+              <Input aria-label="医技报告项目" placeholder="可选，填写已签发医技报告项目名称" />
             </Form.Item>
             <Form.Item name="diagnosticReportConclusion" label="报告结论">
               <Input.TextArea
                 aria-label="报告结论"
-                placeholder="可选，填写已签发报告结论，例如：血钾 6.3 mmol/L，危急值，已复核"
+                placeholder="可选，概括已签发报告结论、复核状态与需关注事项"
                 rows={2}
               />
             </Form.Item>
             <Form.Item name="diagnosticReportKeyFindingsText" label="异常重点">
               <Input.TextArea
                 aria-label="异常重点"
-                placeholder="可选，多个重点用顿号或逗号分隔，例如：血钾升高、危急值"
+                placeholder="可选，多个重点用顿号或逗号分隔，避免录入患者核心标识明文"
                 rows={2}
               />
             </Form.Item>

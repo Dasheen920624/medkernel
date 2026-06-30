@@ -158,11 +158,15 @@ function maskingStrategyLabel(value?: string | null, evidenceDetailsEnabled = fa
 }
 
 function dataPermissionActionLabel(value?: string | null) {
-  return dataPermissionActions.find((item) => item.value === value)?.label ?? "未识别";
+  return (
+    dataPermissionActions.find((item) => item.value === value)?.label ?? customerEnumLabel(value)
+  );
 }
 
 function dataPermissionLevelLabel(value?: string | null) {
-  return dataPermissionLevels.find((item) => item.value === value)?.label ?? "未识别";
+  return (
+    dataPermissionLevels.find((item) => item.value === value)?.label ?? customerEnumLabel(value)
+  );
 }
 
 function dataPermissionPolicyHitLabel(policyId?: string | null, evidenceDetailsEnabled = false) {

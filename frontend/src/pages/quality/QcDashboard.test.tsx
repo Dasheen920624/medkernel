@@ -173,6 +173,53 @@ describe("QcDashboard", () => {
     expect(screen.queryByText(/485|92\.8|演示/)).not.toBeInTheDocument();
   });
 
+  it("renders backend metric unit codes as院长可读的业务单位", () => {
+    mockUseQualityDashboard.mockReturnValue({
+      data: {
+        ...dashboardData,
+        valueMetrics: {
+          metrics: [
+            {
+              ...dashboardData.valueMetrics.metrics[0],
+              id: "ADOPTION_RATE",
+              metricCode: "ADOPTION_RATE",
+              displayName: "采纳率",
+              value: 1,
+              unit: "RATE",
+            },
+            {
+              ...dashboardData.valueMetrics.metrics[0],
+              id: "MISSED_CASE_REVIEW",
+              metricCode: "MISSED_CASE_REVIEW",
+              displayName: "漏报回溯",
+              value: 0,
+              unit: "CASE_COUNT",
+            },
+          ],
+        },
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+    mockUseQualityDashboardDrilldown.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    expect(screen.getByText("采纳率")).toBeInTheDocument();
+    expect(screen.getByText("100.0%")).toBeInTheDocument();
+    expect(screen.getByText("漏报回溯")).toBeInTheDocument();
+    expect(screen.getByText("0 例")).toBeInTheDocument();
+    expect(screen.queryByText("1 RATE")).not.toBeInTheDocument();
+    expect(screen.queryByText("0 CASE_COUNT")).not.toBeInTheDocument();
+  });
+
   it("默认用业务语言打开下钻证据并收起低频追溯编号", async () => {
     mockUseQualityDashboard.mockReturnValue({
       data: dashboardData,

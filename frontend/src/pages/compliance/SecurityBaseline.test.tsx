@@ -477,6 +477,42 @@ describe("SecurityBaseline", () => {
     expect(screen.getByText("sha256:emr-export-001")).toBeInTheDocument();
   });
 
+  it("uses confirmable labels for unknown data permission action and level", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useDataPermissionPolicies).mockReturnValue(
+      query({
+        items: [
+          {
+            policyId: "policy-new-enum",
+            tenantId: "t-1",
+            resourceType: "clinical_case",
+            action: "SHARE_WITH_RESEARCH",
+            minDataLevel: "REGION_NETWORK",
+            allowedColumns: ["patientId"],
+            status: "ACTIVE",
+            version: 1,
+            createdAt: "2026-06-06T00:00:00Z",
+            createdBy: "security-admin",
+            updatedAt: "2026-06-06T00:00:00Z",
+            updatedBy: "security-admin",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+        totalEstimated: false,
+      }) as never,
+    );
+
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "数据权限" }));
+
+    expect(screen.getAllByText("状态待确认").length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText("未识别")).not.toBeInTheDocument();
+  });
+
   it("treats globally disabled multi-factor authentication as a valid passing configuration", () => {
     const currentProfile = vi.mocked(useSecurityProfile)().data;
     vi.mocked(useSecurityProfile).mockReturnValue(

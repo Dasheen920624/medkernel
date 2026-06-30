@@ -120,7 +120,7 @@ function milestoneStatusText(status?: string) {
     PENDING: "待执行",
     OVERDUE: "已超期",
   };
-  return status ? (text[status] ?? "未识别状态") : "待执行";
+  return status ? (text[status] ?? "状态待确认") : "待执行";
 }
 
 function clockStatusColor(status?: string) {
@@ -139,7 +139,7 @@ function clockStatusText(status?: string) {
     MISSING_DATA: "缺少数据",
     VARIANCE: "变异暂停",
   };
-  return status ? (text[status] ?? "未识别状态") : "未记录";
+  return status ? (text[status] ?? "状态待确认") : "未记录";
 }
 
 function clockEscalationText(level?: string) {
@@ -149,7 +149,7 @@ function clockEscalationText(level?: string) {
     REPORT: "上报",
     QUALITY_RECORD: "质控记录",
   };
-  return level ? (text[level] ?? "未识别级别") : "未升级";
+  return level ? (text[level] ?? "级别待确认") : "未升级";
 }
 
 function outcomeScopeText(scope?: string) {

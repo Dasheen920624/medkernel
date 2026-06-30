@@ -201,11 +201,52 @@ describe("AiWorkflows", () => {
 
     expect(await screen.findByText("院内病情摘要")).toBeInTheDocument();
     expect(screen.getByText("本地模型策略")).toBeInTheDocument();
+    expect(screen.getByText("院内授权患者上下文")).toBeInTheDocument();
+    expect(screen.getByText("按授权使用必要信息，日志不留患者明文")).toBeInTheDocument();
     expect(
-      screen.getByText(
+      screen.queryByText(
         "院内本地模型可在授权范围内使用必要患者信息；日志、证据和用途确认只保留处理边界与调用摘要，不记录患者明文。",
       ),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
+  });
+
+  it("模型能力列表用可扫描边界摘要和明确外调安全入口", async () => {
+    apiClient.defaults.adapter = (async (config) => {
+      if (config.url === "/security/me") {
+        return response(
+          config,
+          securityProfile(["menu.ai-workflows", "llm.read", "llm.egress.manage"]),
+        );
+      }
+      if (config.url === "/model-capabilities/status" && config.method === "get") {
+        return response(config, {
+          data: [
+            {
+              ...statusItems[0],
+              capabilityCode: "clinical.explanation",
+              displayName: "患者解释生成",
+              routeStrategy: "EXTERNAL_MODEL",
+              fallbackOrder: ["EXTERNAL_MODEL", "LOCAL_MODEL", "BASELINE"],
+              desensitizeStrategy: "DEFAULT",
+            },
+          ],
+        });
+      }
+      throw new Error(`未预期接口: ${config.method ?? ""} ${config.url ?? ""}`);
+    }) as AxiosAdapter;
+
+    renderPage();
+
+    expect(await screen.findByText("患者解释生成")).toBeInTheDocument();
+    expect(screen.getByText("双路径患者上下文")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "公网外部模型可在授权用途内使用患者上下文，运行时仍会先执行字段允许范围、核心敏感遮蔽、责任确认和证据留痕；院内本地模型可按授权使用必要患者信息，但日志、证据和用途确认不记录患者明文。",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "配置 患者解释生成 外调安全策略" }),
+    ).toHaveTextContent("配置外调安全");
   });
 
   it("允许具备权限的实施人员为公网模型使用患者上下文配置外调安全策略", async () => {
