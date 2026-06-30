@@ -446,23 +446,25 @@ describe("CdssFatigue", () => {
       expect(screen.queryByLabelText(/上下文 JSON/)).not.toBeInTheDocument();
       await user.type(screen.getByLabelText("患者信息"), "patient-real-1");
       await user.click(screen.getByRole("button", { name: "选择第 1 个临床快照" }));
+      await user.click(screen.getByLabelText("触发时点"));
+      await user.click(await screen.findByText("开立用药"));
       await user.click(screen.getByRole("button", { name: "执行推荐评估" }));
 
       await waitFor(() => expect(evaluateRecommendations).toHaveBeenCalled());
       const request = evaluateRecommendations.mock.calls[0]?.[0];
       expect(request).toEqual(
         expect.objectContaining({
-          triggerType: "order-sign",
-          scenarioCode: "order-sign",
+          triggerType: "medication-prescribe",
+          scenarioCode: "medication-prescribe",
           contextSnapshotId: "snapshot-rec-1",
           patientId: "patient-real-1",
           encounterId: "enc-real-1",
         }),
       );
       expect(request.triggerCode).toMatch(
-        /^CDSS-MANUAL-order-sign-snapshot-rec-1-[a-z0-9]+-[a-z0-9]+$/,
+        /^CDSS-MANUAL-medication-prescribe-snapshot-rec-1-[a-z0-9]+-[a-z0-9]+$/,
       );
-      expect(request.triggerCode).not.toBe("CDSS-MANUAL-order-sign");
+      expect(request.triggerCode).not.toBe("CDSS-MANUAL-medication-prescribe");
       expect(request.triggerCode.length).toBeLessThanOrEqual(128);
     },
     CDSS_INTERACTION_TIMEOUT_MS,

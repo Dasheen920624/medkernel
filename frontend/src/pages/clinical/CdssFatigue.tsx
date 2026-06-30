@@ -64,6 +64,7 @@ import { customerDisplayText, customerEnumLabel, riskLabel } from "@/shared/conf
 import { findRouteByPath } from "@/shared/config/routes";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { roleLabel } from "@/shared/config/roleCatalog";
+import { CLINICAL_TRIGGER_POINT_OPTIONS } from "@/shared/config/clinicalTriggerPoints";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import styles from "./Clinical.module.css";
@@ -1001,11 +1002,10 @@ export default function CdssFatigue() {
           {triggerModalMode === "RECOMMENDATION" && (
             <Form.Item name="triggerType" label="触发时点" rules={[{ required: true }]}>
               <Select
-                options={[
-                  { value: "patient-view", label: "查看患者" },
-                  { value: "order-select", label: "选择医嘱" },
-                  { value: "order-sign", label: "签署医嘱" },
-                ]}
+                options={CLINICAL_TRIGGER_POINT_OPTIONS.map(({ value, label }) => ({
+                  value,
+                  label,
+                }))}
               />
             </Form.Item>
           )}

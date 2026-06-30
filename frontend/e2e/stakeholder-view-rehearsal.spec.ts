@@ -653,7 +653,7 @@ async function createRecommendationCardForStakeholderAction(page: Page, view: St
     timeout: 30_000,
   });
   await dialog.getByRole("button", { name: "选择第 1 个临床快照" }).click();
-  await chooseDialogOption(page, dialog, "触发时点", "签署医嘱");
+  await chooseDialogOption(page, dialog, "触发时点", "开立用药");
 
   const evaluateResponsePromise = waitForPost(page, "/engine/recommendations:evaluate");
   await dialog.getByRole("button", { name: "执行推荐评估" }).click();

@@ -3,9 +3,7 @@ package com.medkernel.engine.recommendation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -49,19 +47,20 @@ import com.medkernel.engine.rule.RuleDefinitionRepository;
 import com.medkernel.engine.rule.RuleDefinitionStatus;
 import com.medkernel.engine.rule.RuleDslAssetMaterializer;
 import com.medkernel.engine.rule.RuleDslEvaluator;
-import com.medkernel.engine.rule.RuleEffectiveVersionResolver;
 import com.medkernel.engine.rule.RuleRiskLevel;
 import com.medkernel.engine.rule.RuleType;
 import com.medkernel.engine.rule.RuleVersion;
+import com.medkernel.engine.rule.RuleVersionRepository;
 import com.medkernel.engine.rule.RuleVersionStatus;
+import com.medkernel.engine.rule.RuntimeReleaseRuleSelector;
+import com.medkernel.engine.rule.RuntimeRuleReference;
+import com.medkernel.engine.rule.RuntimeRuleSelection;
 import com.medkernel.engine.safety.ClinicalRedlineMatcher;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
 import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
-import com.medkernel.engine.versioning.ResolvedAssetVersion;
 import com.medkernel.engine.versioning.ResolvedDeclarativeAsset;
-import com.medkernel.engine.versioning.SourceTier;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
@@ -74,8 +73,8 @@ class RecommendationDeterministicMatcherTest {
 
     private final ContextSnapshotService snapshots = mock(ContextSnapshotService.class);
     private final RuleDefinitionRepository ruleDefinitions = mock(RuleDefinitionRepository.class);
-    private final RuleEffectiveVersionResolver effectiveRuleVersions =
-        mock(RuleEffectiveVersionResolver.class);
+    private final RuleVersionRepository ruleVersions = mock(RuleVersionRepository.class);
+    private final RuntimeReleaseRuleSelector runtimeRuleSelector = mock(RuntimeReleaseRuleSelector.class);
     private final RuleApplicabilityRepository ruleApplicabilities =
         mock(RuleApplicabilityRepository.class);
     private final PatientPathwayRepository patientPathways = mock(PatientPathwayRepository.class);
@@ -87,7 +86,8 @@ class RecommendationDeterministicMatcherTest {
     private final RecommendationDeterministicMatcher matcher = new RecommendationDeterministicMatcher(
         snapshots,
         ruleDefinitions,
-        effectiveRuleVersions,
+        ruleVersions,
+        runtimeRuleSelector,
         new RuleDslEvaluator(json),
         new RuleApplicabilityService(
             ruleApplicabilities, new RuleApplicabilityEvaluator(json), json),
@@ -101,6 +101,8 @@ class RecommendationDeterministicMatcherTest {
     @BeforeEach
     void setUp() {
         when(redlineMatcher.match(any(), any(), any())).thenReturn(List.of());
+        when(runtimeRuleSelector.select(anyString(), anyString(), anyString()))
+            .thenReturn(new RuntimeRuleSelection("runtime-release-test", "baseline-test", List.of()));
     }
 
     @AfterEach
@@ -154,14 +156,27 @@ class RecommendationDeterministicMatcherTest {
     }
 
     @Test
-    void reviewedRuleDoesNotProduceRecommendationBeforeUnifiedActivation() {
+    void matchesRuntimeBoundRuleWithoutLegacyDslTriggerField() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-cdss", OrgScope.tenant("tenant-A"), "doctor-1"));
         when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
         when(ruleDefinitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(ruleDefinition()));
-        when(effectiveRuleVersions.resolve(
-            "tenant-A", "RISK_GENDER", "ALL"))
-            .thenReturn(Optional.empty());
+        stubRuleResolution(ruleDefinition(), ruleVersionWithoutLegacyTrigger(), null);
+
+        List<RecommendationCardRequest> matches =
+            matcher.match(triggerRequestWithoutPathway("medication-prescribe"));
+
+        assertThat(matches).singleElement().satisfies(card -> {
+            assertThat(card.cardCode()).isEqualTo("RULE.RISK_GENDER.v1");
+            assertThat(card.explanationJson()).contains("patient.gender");
+        });
+    }
+
+    @Test
+    void reviewedRuleDoesNotProduceRecommendationBeforeUnifiedActivation() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-cdss", OrgScope.tenant("tenant-A"), "doctor-1"));
+        when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
 
         List<RecommendationCardRequest> matches = matcher.match(triggerRequestWithoutPathway());
 
@@ -224,24 +239,13 @@ class RecommendationDeterministicMatcherTest {
     }
 
     @Test
-    void resolvesRecommendationRuleThroughOrgInheritanceAndRecordsResolutionSource() {
+    void recordsRuntimeReleaseAssetSourceWhenBuildingRecommendation() {
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-cdss",
             new OrgScope("tenant-A", "group-A", "hospital-A", "campus-A", "site-A", "dept-A", null, "specialty-A"),
             "doctor-1"));
         when(snapshots.findById("snapshot-1")).thenReturn(snapshot());
-        when(ruleDefinitions.findPublishedByTenantId("tenant-A")).thenReturn(List.of(ruleDefinition()));
-        when(ruleDefinitions.findPublishedByTenantId("t-1")).thenReturn(List.of(platformRuleDefinition()));
-        ResolvedAssetVersion resolution = new ResolvedAssetVersion(
-            tenantOverrideRuleAsset(),
-            "dept-A",
-            false,
-            true,
-            false,
-            null,
-            SourceTier.ORG
-        );
-        stubRuleResolution(ruleDefinition(), ruleVersionNo("rv-risk-v2", 2), resolution);
+        stubRuleResolution(ruleDefinition(), ruleVersionNo("rv-risk-v2", 2), tenantOverrideRuleAsset());
         stubKnowledgeResolution(knowledgeIdentity(), knowledgeVersion());
 
         List<RecommendationCardRequest> matches = matcher.match(triggerRequestWithoutPathway());
@@ -251,17 +255,21 @@ class RecommendationDeterministicMatcherTest {
         assertThat(card.cardCode()).isEqualTo("RULE.RISK_GENDER.v2");
         assertThat(card.sourceSummary())
             .contains("RISK_GENDER")
-            .contains("来源=ORG")
+            .contains("运行版本=runtime-release-test")
+            .contains("asset_version=av-RISK_GENDER-2")
+            .contains("来源层=HOSPITAL")
             .contains("sha256:tenant-rule-v2");
         RecommendationSourceRequest ruleSource = card.sources().get(0);
         assertThat(ruleSource.sourceHash()).isEqualTo("sha256:tenant-rule-v2");
-        assertThat(ruleSource.summary()).contains("ORG").contains("dept-A");
+        assertThat(ruleSource.summary())
+            .contains("运行版本=runtime-release-test")
+            .contains("asset_version=av-RISK_GENDER-2")
+            .contains("来源层=HOSPITAL");
         assertThat(card.explanationJson())
-            .contains("\"sourceTier\":\"ORG\"")
-            .contains("\"sourceOrgPath\":\"dept-A\"")
+            .contains("\"runtimeReleaseId\":\"runtime-release-test\"")
+            .contains("\"assetVersionId\":\"av-RISK_GENDER-2\"")
+            .contains("\"sourceLayer\":\"HOSPITAL\"")
             .contains("\"contentHash\":\"sha256:tenant-rule-v2\"");
-        verify(effectiveRuleVersions).resolve(
-            "tenant-A", "RISK_GENDER", "ALL");
     }
 
     @Test
@@ -314,8 +322,12 @@ class RecommendationDeterministicMatcherTest {
     }
 
     private RecommendationTriggerRequest triggerRequestWithoutPathway() {
+        return triggerRequestWithoutPathway("order-sign");
+    }
+
+    private RecommendationTriggerRequest triggerRequestWithoutPathway(String triggerType) {
         return new RecommendationTriggerRequest(
-            "TRG.ORDER", "order-sign", "event-1", "snapshot-1",
+            "TRG.ORDER", triggerType, "event-1", "snapshot-1",
             "patient-1", "enc-1", null, "WARD_ORDER",
             "sha256:trigger", Instant.now(), List.of());
     }
@@ -339,14 +351,38 @@ class RecommendationDeterministicMatcherTest {
     private void stubRuleResolution(
             RuleDefinition rule,
             RuleVersion version,
-            ResolvedAssetVersion resolution) {
-        AssetVersion assetVersion = resolution == null
+            AssetVersion assetVersionOverride) {
+        AssetVersion assetVersion = assetVersionOverride == null
             ? ruleAsset(rule.tenantId(), version.versionNo())
-            : resolution.version();
-        when(effectiveRuleVersions.resolve(
-            eq("tenant-A"), eq(rule.ruleCode()), anyString()))
-            .thenReturn(Optional.of(new RuleEffectiveVersionResolver.ResolvedRuleVersion(
-                rule, version, assetVersion, resolution)));
+            : assetVersionOverride;
+        when(runtimeRuleSelector.select("tenant-A", "runtime-release-test", "order-sign"))
+            .thenReturn(new RuntimeRuleSelection(
+                "runtime-release-test",
+                "baseline-test",
+                List.of(new RuntimeRuleReference(
+                    rule.tenantId(),
+                    rule.ruleId(),
+                    version.versionId(),
+                    assetVersion.versionId(),
+                    assetVersion.versionNo(),
+                    assetVersion.contentHash(),
+                    "HOSPITAL"))));
+        when(runtimeRuleSelector.select("tenant-A", "runtime-release-test", "medication-prescribe"))
+            .thenReturn(new RuntimeRuleSelection(
+                "runtime-release-test",
+                "baseline-test",
+                List.of(new RuntimeRuleReference(
+                    rule.tenantId(),
+                    rule.ruleId(),
+                    version.versionId(),
+                    assetVersion.versionId(),
+                    assetVersion.versionNo(),
+                    assetVersion.contentHash(),
+                    "HOSPITAL"))));
+        when(ruleDefinitions.findByRuleIdAndTenantId(rule.ruleId(), rule.tenantId()))
+            .thenReturn(Optional.of(rule));
+        when(ruleVersions.findByVersionIdAndTenantId(version.versionId(), version.tenantId()))
+            .thenReturn(Optional.of(version));
     }
 
     private void stubKnowledgeResolution(
@@ -461,6 +497,36 @@ class RecommendationDeterministicMatcherTest {
 
     private RuleVersion ruleVersion() {
         return ruleVersionForSetting("INPATIENT");
+    }
+
+    private RuleVersion ruleVersionWithoutLegacyTrigger() {
+        Instant now = Instant.now();
+        String dsl = """
+            {
+              "applicability": {
+                "population": {},
+                "orgScope": {},
+                "settings": ["INPATIENT"],
+                "effective": {"rolloutPercent": 100}
+              },
+              "when": {
+                "fact": "patient.gender",
+                "operator": "equals",
+                "value": "FEMALE"
+              },
+              "then": [
+                {"actionCode": "REMIND", "atSeverity": "MEDIUM", "indicator": "warning", "summary": "请结合上下文复核性别相关风险", "detail": "请结合上下文复核性别相关风险", "source": {"label": "规则测试来源"}, "suggestions": [], "overrideReasons": []}
+              ],
+              "explain": {
+                "summary": "规则命中性别相关风险"
+              }
+            }
+            """;
+        return new RuleVersion(
+            13L, "rv-risk-v1", "tenant-A", "rule-risk", 1,
+            "knowledge:RISK_GENDER", "发布性别风险评估", dsl, "{\"summary\":\"规则解释\"}",
+            RuleVersionStatus.PUBLISHED, now, "reviewer", null,
+            now, "tester", now, "tester", "trace-cdss");
     }
 
     private RuleVersion ruleVersionNo(String versionId, int versionNo) {
@@ -625,7 +691,8 @@ class RecommendationDeterministicMatcherTest {
         return new RecommendationDeterministicMatcher(
             snapshots,
             ruleDefinitions,
-            effectiveRuleVersions,
+            ruleVersions,
+            runtimeRuleSelector,
             evaluator,
             new RuleApplicabilityService(
                 ruleApplicabilities, new RuleApplicabilityEvaluator(json), json),

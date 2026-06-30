@@ -99,7 +99,8 @@ public class RuntimeReleaseRuleSelector {
                 );
             }
             selectedRules.add(new RuntimeRuleReference(
-                rule.tenantId(), rule.ruleId(), pinnedVersion.versionId()));
+                rule.tenantId(), rule.ruleId(), pinnedVersion.versionId(),
+                item.versionId(), item.versionNo(), item.contentHash(), item.sourceLayer().name()));
         }
         ClinicalRuntimeRelease release = content.release();
         return new RuntimeRuleSelection(
