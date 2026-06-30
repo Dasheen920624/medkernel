@@ -17,14 +17,7 @@ export type RouteSectionKey =
 export type RoutePlacement = "primary" | "header" | "profile" | "hidden" | "embedded";
 
 export type PageType =
-  | "auth"
-  | "workbench"
-  | "list"
-  | "configuration"
-  | "dashboard"
-  | "review"
-  | "advanced"
-  | "system";
+  "auth" | "workbench" | "list" | "configuration" | "dashboard" | "review" | "advanced" | "system";
 
 export interface RouteMeta {
   path: string;
@@ -369,7 +362,7 @@ const aiWorkflowsExperience: RouteExperience = {
     {
       role: "模型安全负责人",
       responsibility: "核查院内/公网模型患者上下文使用与脱敏策略",
-      boundary: "外部模型使用患者信息时必须屏蔽核心敏感标识",
+      boundary: "公网模型屏蔽核心敏感标识；院内模型按授权使用必要信息并保留处理边界",
     },
   ],
 };
@@ -709,8 +702,8 @@ const knowledgeProductionExperience: RouteExperience = {
     },
     {
       role: "模型安全负责人",
-      responsibility: "确认公网模型患者上下文外调策略和字段预览",
-      boundary: "核心敏感标识默认屏蔽，发送前需要责任确认",
+      responsibility: "确认院内/公网模型患者上下文使用、字段预览和用途确认",
+      boundary: "公网模型屏蔽核心敏感标识；院内模型按授权使用必要信息并保留处理边界",
     },
   ],
 };

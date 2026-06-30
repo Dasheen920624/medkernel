@@ -143,8 +143,6 @@ function configurationModeLabel(item: ModelCapabilityStatusResponse) {
 
 function capabilityDetails(item: ModelCapabilityStatusResponse, evidenceDetailsEnabled: boolean) {
   const scopeLabel = `${policyScopeView[item.policyScopeType] ?? customerEnumLabel(item.policyScopeType)}:${item.policyScopeRef}`;
-  const externalEnabled =
-    item.routeStrategy === "EXTERNAL_MODEL" || item.fallbackOrder.includes("EXTERNAL_MODEL");
   return (
     <Descriptions className={styles.details} column={{ xs: 1, sm: 2, lg: 3 }} size="small">
       {evidenceDetailsEnabled ? (
@@ -175,9 +173,7 @@ function capabilityDetails(item: ModelCapabilityStatusResponse, evidenceDetailsE
         {customerDisplayText(item.fallbackReason)}
       </Descriptions.Item>
       <Descriptions.Item label="外调边界" span={3}>
-        {externalEnabled
-          ? "公网外部模型可在授权用途内使用患者上下文，运行时仍会先执行字段允许范围、核心敏感遮蔽、责任确认和证据留痕。"
-          : "当前能力不走公网外部模型；切换到外部模型前必须先配置外调安全策略。"}
+        {modelDataBoundaryText(item)}
       </Descriptions.Item>
       {evidenceDetailsEnabled && item.expectedSchema ? (
         <Descriptions.Item label="输出格式明细" span={3}>
@@ -188,6 +184,24 @@ function capabilityDetails(item: ModelCapabilityStatusResponse, evidenceDetailsE
       ) : null}
     </Descriptions>
   );
+}
+
+function modelDataBoundaryText(item: ModelCapabilityStatusResponse) {
+  const externalEnabled =
+    item.routeStrategy === "EXTERNAL_MODEL" || item.fallbackOrder.includes("EXTERNAL_MODEL");
+  const localEnabled =
+    item.routeStrategy === "LOCAL_MODEL" || item.fallbackOrder.includes("LOCAL_MODEL");
+
+  if (externalEnabled && localEnabled) {
+    return "公网外部模型可在授权用途内使用患者上下文，运行时仍会先执行字段允许范围、核心敏感遮蔽、责任确认和证据留痕；院内本地模型可按授权使用必要患者信息，但日志、证据和用途确认不记录患者明文。";
+  }
+  if (externalEnabled) {
+    return "公网外部模型可在授权用途内使用患者上下文，运行时仍会先执行字段允许范围、核心敏感遮蔽、责任确认和证据留痕。";
+  }
+  if (localEnabled) {
+    return "院内本地模型可在授权范围内使用必要患者信息；日志、证据和用途确认只保留处理边界与调用摘要，不记录患者明文。";
+  }
+  return "当前能力不走模型外调；切换到公网外部模型前必须先配置外调安全策略，切换到院内本地模型前必须确认授权和审计边界。";
 }
 
 type EgressPolicyForm = {
@@ -370,8 +384,7 @@ export default function AiWorkflows() {
   const confirmModelEgress = useConfirmModelEgress();
   const [egressForm] = Form.useForm<EgressPolicyForm>();
   const selectedEgressOperator = Form.useWatch("operator", egressForm) as
-    | ModelEgressDesensitizationOperator
-    | undefined;
+    ModelEgressDesensitizationOperator | undefined;
   const selectedAllowedFields = Form.useWatch("allowedFields", egressForm) as string[] | undefined;
   const [egressCapability, setEgressCapability] = useState<ModelCapabilityStatusResponse | null>(
     null,
@@ -505,6 +518,12 @@ export default function AiWorkflows() {
       key: "desensitizeStrategy",
       width: 130,
       render: (value: string) => desensitizeStrategyView[value] ?? customerEnumLabel(value),
+    },
+    {
+      title: "数据边界",
+      key: "dataBoundary",
+      width: 320,
+      render: (_value, item) => <Text type="secondary">{modelDataBoundaryText(item)}</Text>,
     },
     {
       title: "结构约束",

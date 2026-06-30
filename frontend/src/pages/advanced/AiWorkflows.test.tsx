@@ -175,6 +175,39 @@ describe("AiWorkflows", () => {
     expect(screen.getByText('{"required":["status"]}')).toBeInTheDocument();
   });
 
+  it("本地模型能力说明授权使用必要患者信息但日志证据不留明文", async () => {
+    apiClient.defaults.adapter = (async (config) => {
+      if (config.url === "/security/me") {
+        return response(config, securityProfile(["menu.ai-workflows", "llm.read"]));
+      }
+      if (config.url === "/model-capabilities/status" && config.method === "get") {
+        return response(config, {
+          data: [
+            {
+              ...statusItems[0],
+              capabilityCode: "clinical.local-summary",
+              displayName: "院内病情摘要",
+              routeStrategy: "LOCAL_MODEL",
+              fallbackOrder: ["LOCAL_MODEL", "BASELINE"],
+              desensitizeStrategy: "NONE",
+            },
+          ],
+        });
+      }
+      throw new Error(`未预期接口: ${config.method ?? ""} ${config.url ?? ""}`);
+    }) as AxiosAdapter;
+
+    renderPage();
+
+    expect(await screen.findByText("院内病情摘要")).toBeInTheDocument();
+    expect(screen.getByText("本地模型策略")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "院内本地模型可在授权范围内使用必要患者信息；日志、证据和用途确认只保留处理边界与调用摘要，不记录患者明文。",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("允许具备权限的实施人员为公网模型使用患者上下文配置外调安全策略", async () => {
     const user = userEvent.setup();
     const requests: string[] = [];
