@@ -610,6 +610,22 @@
       初次失败，`useCurrentHospitalRuntime` 收到 `hospital-A`。
     - 绿灯：同命令与旧快照提示测试重跑通过；随后 `npm --prefix frontend test -- Followup.test.tsx` 通过，`15` 项；
       `npm --prefix frontend run typecheck`、`npx prettier --write ...` 与 `git diff --check` 通过。
+  - 后续状态：本阶段已提交为 `3abbae20`；重跑深度真实前台 E2E 后生成计划已成功，新红灯变为办理抽屉无可访问名称，见下一条记录。
+- 真实前台深度随访办理抽屉可访问性红绿闭环（`2026-06-30T10:11:30+08:00`）：
+  - 使用本地提交 `3abbae20` 重跑 134 深度真实前台 E2E，证据目录
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-3abbae20`；
+    前七段真实操作均无浏览器、服务端、网络错误，随访计划生成接口返回成功并生成可办理任务。
+  - 新红灯：脚本等待 `getByRole('dialog', { name: '随访计划办理' })` 超时。
+    错误快照显示页面已打开办理抽屉，但 AntD Drawer 的 `role=dialog` 没有可访问名称，读屏和自动化都只能看到匿名 dialog。
+  - 产品决策：
+    - “随访计划办理”是临床高频工作面板，必须有稳定可访问名称，方便键盘、读屏、自动化和实施验收定位。
+    - 修复页面而不是让 E2E 改成按裸文本查找。
+  - 红绿证据：
+    - 红灯：`npm --prefix frontend test -- Followup.test.tsx -t '默认用临床业务语言展示随访计划并收起低频证据'`
+      初次失败，无法按 `dialog` + `随访计划办理` 找到办理抽屉。
+    - 绿灯：给 Drawer 补 `aria-label="随访计划办理"` 后同命令通过；随后
+      `npm --prefix frontend test -- Followup.test.tsx` 通过，`15` 项；
+      `npm --prefix frontend run typecheck`、`npx prettier --write ...` 与 `git diff --check` 通过。
   - 下一步：提交本地阶段版本后，继续用新提交重跑 134 深度真实前台 E2E。
 
 ## 下一步

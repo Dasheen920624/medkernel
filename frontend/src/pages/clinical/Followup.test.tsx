@@ -383,6 +383,7 @@ describe("Followup", () => {
 
     await user.click(screen.getByRole("button", { name: /查看与办理/ }));
     await screen.findByText("随访任务");
+    expect(screen.getByRole("dialog", { name: "随访计划办理" })).toBeInTheDocument();
     expect(screen.getAllByText("患者已关联").length).toBeGreaterThan(0);
     expect(screen.getAllByText("就诊已关联").length).toBeGreaterThan(0);
     expect(screen.getAllByText("慢阻肺").length).toBeGreaterThan(0);

@@ -962,6 +962,7 @@ export default function Followup() {
 
       <Drawer
         title="随访计划办理"
+        aria-label="随访计划办理"
         width={860}
         open={!!selectedPlanId}
         onClose={() => {
