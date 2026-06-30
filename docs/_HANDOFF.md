@@ -14,6 +14,8 @@
 - 当前分支已继续追加本地阶段提交；134 后端 jar / manifest 仍为本地提交
   `b4ec9f2d37d962af943af7f0b2acfbe307797a02`，134 前端-only 制品已更新到本地提交
   `3f5ec881b542d8f98c3df2a066f1db30441c162a`，用于 `/medkernel` 前缀深链、审计导出验签和系统接入数据质量报告真实动作复演。
+- 当前分支最新代码阶段提交为 `e8f50553`（`test: 增加医技报告解读前台动作`）；
+  该提交只更新全角色 E2E 验收脚本，134 运行制品仍是上述后端 `b4ec9f2d` + 前端 `3f5ec881`。
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
@@ -981,6 +983,37 @@
     12 类视角均为 `browserErrors=0`、`serverErrors=0`、`networkFailures=0`；其中 `IT_MANAGER` 与
     `IMPLEMENTATION_ENGINEER` 记录动作 `生成系统接入数据质量报告`，`AUDITOR` 仍记录审计导出验签动作，
     `QUALITY_CONTROLLER` 与 `HOSPITAL_EXECUTIVE` 仍记录质量下钻动作。
+- 全角色真实操作医技报告解读闭环（`2026-06-30T12:31:44+08:00`）：
+  - 本阶段把医技视角从“可进入 CDSS 提醒与推荐页并看到报告解读能力”推进到真实动作：
+    经前台 `/mpi` 新增脱敏患者、进入患者 360、建立当前就诊上下文，再回到 `/cdss/fatigue`
+    输入患者/就诊信息、选择已生效临床快照并触发真实
+    `POST /engine/recommendations/report-interpretation` 生成医技报告解读。
+  - 红灯与根因：
+    - 首次给 `MEDICAL_TECHNICIAN` 标记动作后，E2E 明确失败：
+      `/tmp/medkernel-e2e-codex3/evidence-stakeholder-medtech-report-red-direct134/report/results.json`，
+      根因是脚本仍只读页面，未执行真实前台动作。
+    - 第二次直接在 CDSS 页点击“生成报告解读”失败：
+      `/tmp/medkernel-e2e-codex3/evidence-stakeholder-medtech-report-action-direct134/report/results.json`，
+      错误快照显示对话框为空态“输入患者信息或就诊信息后读取已生效临床快照”，生成按钮保持禁用。
+    - 产品判断：后端不应为医技默认列出全量 ACTIVE 快照，否则会扩大患者上下文暴露面；当前安全边界正确。
+      但医技真实工作流仍缺少更自然的“报告工作清单 / 患者交接入口”，后续应优化为从业务上下文进入报告解读，
+      避免医技人员手填患者和就诊内部标识。
+  - 已本地修复：
+    - `stakeholder-view-rehearsal.spec.ts` 要求所有带 `action` 的角色至少记录一个真实前台动作，防止只进页面误判完成。
+    - 医技动作改为完整真实前台链路：创建脱敏患者主索引、建立当前就诊上下文、选择快照并生成报告解读；
+      全程不写入患者姓名、证件号、电话或住址。
+  - 直接访问 134 前端入口复演：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-medtech-report-action-context-direct134/report/results.json`，
+    Playwright `expected=1`、`unexpected=0`、`skipped=0`、`flaky=0`，耗时 `34395.852ms`。
+  - 运行记录：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-medtech-report-action-context-direct134/artifacts/stakeholder-view-rehearsal-b11d5-务视角均能通过四职责账号进入真实页面并看到对应业务能力-chromium/stakeholder-view-runtime-records.json`。
+    12 类视角均为 `browserErrors=0`、`serverErrors=0`、`networkFailures=0`；其中 `MEDICAL_TECHNICIAN`
+    记录动作 `前台建立医技报告上下文并生成报告解读`，`IT_MANAGER` 与 `IMPLEMENTATION_ENGINEER`
+    仍记录系统接入数据质量报告动作，`AUDITOR` 仍记录审计导出验签动作。
+  - 本地验证：
+    `npm --prefix frontend run typecheck` 通过；`npm --prefix frontend run verify` 通过，
+    `113` 个测试文件 / `890` 个测试通过；`npm --prefix frontend run build` 通过；`git diff --check` 通过。
+  - 阶段提交：`e8f50553`（`test: 增加医技报告解读前台动作`），未推送远程。
 
 ## 下一步
 
@@ -989,9 +1022,11 @@
    重点看操作步数、默认筛选、追溯证据开关、权限提示、患者敏感信息屏蔽和高风险确认是否仍有不顺。
 3. 134 已完成字段目录修复部署、数据接入契约复核、真实前台基础路线复演、深度随访全链路复演和
    `/medkernel` 直接入口复演；全角色真实操作已完成质量下钻、医生 CDSS 推荐评估、审计导出验签和
-   系统接入数据质量报告动作验收；
+   系统接入数据质量报告、医技报告解读动作验收；
    下一阶段继续做逐页真实操作，不只看页面可进入，还要从医生、护士、患者/代理、药师、医技、质控、信息科、
    实施工程师、审计员、院长等视角提交真实表单、触发真实状态变化并修复流程和交互问题。
 4. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；
    优先把角色职责、证据边界、不可自动化医疗动作沉到路由或共享体验契约。
-5. 继续保持追溯证据边界：默认业务视图不暴露追踪号、原始标识、技术编码；需要时通过受控追溯证据展开。
+5. 医技报告解读已通过“MPI/患者 360 建上下文 → CDSS 生成解读”走通；后续产品优化应补“报告工作清单 /
+   患者交接入口”，让医技从真实检查报告或待解读任务进入，而不是记忆或手填患者/就诊标识。
+6. 继续保持追溯证据边界：默认业务视图不暴露追踪号、原始标识、技术编码；需要时通过受控追溯证据展开。
