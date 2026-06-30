@@ -421,6 +421,24 @@ function renderPatientContextCell(
   return patientId ? "已关联患者" : "未关联患者";
 }
 
+function recommendationEvaluationMessage(res: {
+  visibleCardCount: number;
+  suppressedCardCount: number;
+}) {
+  const visibleCount = res.visibleCardCount;
+  const suppressedCount = res.suppressedCardCount;
+  if (visibleCount === 0 && suppressedCount === 0) {
+    return "推荐评估已完成：本次未新增可见提醒；当前列表已刷新存量提醒。";
+  }
+  if (visibleCount === 0) {
+    return `推荐评估已完成：本次未新增可见提醒，频次策略暂缓 ${suppressedCount} 张；当前列表已刷新存量提醒。`;
+  }
+  if (suppressedCount === 0) {
+    return `推荐评估已完成：本次新增可见提醒 ${visibleCount} 张。`;
+  }
+  return `推荐评估已完成：本次新增可见提醒 ${visibleCount} 张，频次策略暂缓 ${suppressedCount} 张。`;
+}
+
 /** 计算输入载荷的真实 SHA-256 摘要（不伪造哈希）。 */
 export default function CdssFatigue() {
   const location = useLocation();
@@ -601,9 +619,7 @@ export default function CdssFatigue() {
         encounterId: selectedSnapshot.encounterId || undefined,
       });
 
-      message.success(
-        `推荐评估已完成：展示 ${res.visibleCardCount} 张，频次策略减少展示 ${res.suppressedCardCount} 张。`,
-      );
+      message.success(recommendationEvaluationMessage(res));
       closeTriggerModal();
       refetchCards();
     } catch (error: unknown) {

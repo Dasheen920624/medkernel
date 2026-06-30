@@ -285,6 +285,15 @@ describe("Mpi", () => {
     MPI_INTERACTION_TIMEOUT_MS,
   );
 
+  it("uses Chinese business wording for gender distribution stats", () => {
+    renderMpi();
+
+    expect(screen.getByText("群体性别分布")).toBeInTheDocument();
+    expect(screen.getByText("男性 1 人 / 女性 0 人")).toBeInTheDocument();
+    expect(screen.queryByText(/M\/F/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/男: 1 \| 女: 0/)).not.toBeInTheDocument();
+  });
+
   it(
     "opens report interpretation from patient 360 current context without exposing identifiers in the page",
     async () => {

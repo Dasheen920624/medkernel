@@ -355,6 +355,10 @@ describe("AiWorkflows", () => {
     await waitFor(() =>
       expect(requests).toContain("post /data-minimization/policies/model-egress/confirmations"),
     );
+    expect(await screen.findByText("外调安全已配置")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "调整 患者解释生成 外调安全策略" }),
+    ).toHaveTextContent("调整外调安全");
   });
 
   it("部分能力不可用时显示诚实的部分成功状态", async () => {

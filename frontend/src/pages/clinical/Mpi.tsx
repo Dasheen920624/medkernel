@@ -778,16 +778,16 @@ export default function Mpi() {
 
           <div className={styles.statCard}>
             <div className={styles.statHeader}>
-              <span className={styles.statTitle}>群体性别比分布 (M/F)</span>
+              <span className={styles.statTitle}>群体性别分布</span>
               <UserOutlined className={`${styles.statIcon} ${styles.statIconInfo}`} />
             </div>
             <div className={`${styles.statValue} ${styles.genderValue}`}>
               {statsLoading
                 ? "..."
-                : `男: ${stats?.genderCounts?.M ?? 0} | 女: ${stats?.genderCounts?.F ?? 0}`}
+                : `男性 ${stats?.genderCounts?.M ?? 0} 人 / 女性 ${stats?.genderCounts?.F ?? 0} 人`}
             </div>
             <div className={styles.statSubtext}>
-              未知性别/其他: {statsLoading ? "..." : (stats?.genderCounts?.UNKNOWN ?? 0)} 人
+              性别待确认/其他 {statsLoading ? "..." : (stats?.genderCounts?.UNKNOWN ?? 0)} 人
             </div>
           </div>
         </div>

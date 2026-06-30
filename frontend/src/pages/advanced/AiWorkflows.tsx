@@ -141,6 +141,10 @@ function configurationModeLabel(item: ModelCapabilityStatusResponse) {
   return item.inherited ? "继承配置" : "当前作用域配置";
 }
 
+function isExternalModelAvailable(item: ModelCapabilityStatusResponse) {
+  return item.routeStrategy === "EXTERNAL_MODEL" || item.fallbackOrder.includes("EXTERNAL_MODEL");
+}
+
 function capabilityDetails(item: ModelCapabilityStatusResponse, evidenceDetailsEnabled: boolean) {
   const scopeLabel = `${policyScopeView[item.policyScopeType] ?? customerEnumLabel(item.policyScopeType)}:${item.policyScopeRef}`;
   return (
@@ -187,8 +191,7 @@ function capabilityDetails(item: ModelCapabilityStatusResponse, evidenceDetailsE
 }
 
 function modelDataBoundaryText(item: ModelCapabilityStatusResponse) {
-  const externalEnabled =
-    item.routeStrategy === "EXTERNAL_MODEL" || item.fallbackOrder.includes("EXTERNAL_MODEL");
+  const externalEnabled = isExternalModelAvailable(item);
   const localEnabled =
     item.routeStrategy === "LOCAL_MODEL" || item.fallbackOrder.includes("LOCAL_MODEL");
 
@@ -205,8 +208,7 @@ function modelDataBoundaryText(item: ModelCapabilityStatusResponse) {
 }
 
 function modelDataBoundarySummary(item: ModelCapabilityStatusResponse) {
-  const externalEnabled =
-    item.routeStrategy === "EXTERNAL_MODEL" || item.fallbackOrder.includes("EXTERNAL_MODEL");
+  const externalEnabled = isExternalModelAvailable(item);
   const localEnabled =
     item.routeStrategy === "LOCAL_MODEL" || item.fallbackOrder.includes("LOCAL_MODEL");
 
@@ -425,10 +427,17 @@ export default function AiWorkflows() {
     null,
   );
   const [confirmationPurpose, setConfirmationPurpose] = useState("");
+  const [configuredEgressCapabilityCodes, setConfiguredEgressCapabilityCodes] = useState<string[]>(
+    [],
+  );
   const capabilities = useMemo(() => statusQuery.data ?? [], [statusQuery.data]);
   const egressPreviewRows = useMemo(
     () => buildEgressPreviewRows(selectedAllowedFields ?? ["prompt"], selectedEgressOperator),
     [selectedAllowedFields, selectedEgressOperator],
+  );
+  const configuredEgressCapabilityCodeSet = useMemo(
+    () => new Set(configuredEgressCapabilityCodes),
+    [configuredEgressCapabilityCodes],
   );
 
   const summary = useMemo(
@@ -482,6 +491,11 @@ export default function AiWorkflows() {
           confirmationThresholdLevel: values.confirmationThresholdLevel,
         },
       });
+      setConfiguredEgressCapabilityCodes((codes) =>
+        codes.includes(egressCapability.capabilityCode)
+          ? codes
+          : [...codes, egressCapability.capabilityCode],
+      );
       message.success("外调安全策略已保存");
       closeEgressPolicy();
     } catch (error: unknown) {
@@ -622,17 +636,29 @@ export default function AiWorkflows() {
       title: "外调安全",
       key: "egressPolicy",
       width: 160,
-      render: (_value, item) => (
-        <Tooltip title="配置字段允许范围、脱敏规则和责任确认阈值">
-          <Button
-            aria-label={`配置 ${item.displayName} 外调安全策略`}
-            icon={<SafetyCertificateOutlined />}
-            onClick={() => openEgressPolicy(item)}
-          >
-            配置外调安全
-          </Button>
-        </Tooltip>
-      ),
+      render: (_value, item) => {
+        const egressConfigured = configuredEgressCapabilityCodeSet.has(item.capabilityCode);
+        const actionLabel = egressConfigured ? "调整外调安全" : "配置外调安全";
+        const ariaAction = egressConfigured ? "调整" : "配置";
+        const requiresEgressBoundary = isExternalModelAvailable(item);
+        return (
+          <div className={styles.statusCell}>
+            {egressConfigured ? <Tag color="success">外调安全已配置</Tag> : null}
+            {!egressConfigured && requiresEgressBoundary ? (
+              <Text type="secondary">使用前配置字段与责任确认</Text>
+            ) : null}
+            <Tooltip title="配置字段允许范围、脱敏规则和责任确认阈值">
+              <Button
+                aria-label={`${ariaAction} ${item.displayName} 外调安全策略`}
+                icon={<SafetyCertificateOutlined />}
+                onClick={() => openEgressPolicy(item)}
+              >
+                {actionLabel}
+              </Button>
+            </Tooltip>
+          </div>
+        );
+      },
     });
   }
 

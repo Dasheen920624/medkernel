@@ -455,6 +455,16 @@ describe("CdssFatigue", () => {
     "evaluates recommendations from a selected ACTIVE snapshot without manual JSON",
     async () => {
       const user = userEvent.setup();
+      evaluateRecommendations.mockResolvedValueOnce({
+        triggerId: "trigger-evaluated-empty",
+        status: "EVALUATED",
+        totalCardCount: 0,
+        visibleCardCount: 0,
+        suppressedCardCount: 0,
+        modelStatus: "MODEL_DISABLED",
+        cards: [],
+        traceId: "trace-evaluate-empty",
+      });
       renderCdssFatigue();
 
       await user.click(screen.getByRole("button", { name: /登记触发评估/ }));
@@ -466,6 +476,11 @@ describe("CdssFatigue", () => {
       await user.click(screen.getByRole("button", { name: "执行推荐评估" }));
 
       await waitFor(() => expect(evaluateRecommendations).toHaveBeenCalled());
+      expect(
+        await screen.findByText(/推荐评估已完成：本次未新增可见提醒；当前列表已刷新存量提醒/),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/推荐评估已完成：展示 0 张/)).not.toBeInTheDocument();
+      expect(screen.getByText("抗凝用药风险提醒")).toBeInTheDocument();
       const request = evaluateRecommendations.mock.calls[0]?.[0];
       expect(request).toEqual(
         expect.objectContaining({
