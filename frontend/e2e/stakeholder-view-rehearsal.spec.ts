@@ -568,9 +568,17 @@ async function performReportInterpretationAction(page: Page, view: StakeholderVi
   await expect(dialog.getByText("已从患者 360 带入当前上下文")).toBeVisible({
     timeout: 10_000,
   });
-  await expect(dialog.getByDisplayValue(snapshot.patientId)).toHaveCount(0);
+  await expectDialogInputValueAbsent(
+    dialog,
+    snapshot.patientId,
+    `${view.label} 医技报告解读弹窗不应暴露患者主索引`,
+  );
   if (snapshot.encounterId) {
-    await expect(dialog.getByDisplayValue(snapshot.encounterId)).toHaveCount(0);
+    await expectDialogInputValueAbsent(
+      dialog,
+      snapshot.encounterId,
+      `${view.label} 医技报告解读弹窗不应暴露就诊号`,
+    );
   }
 
   const interpretResponsePromise = waitForPost(
@@ -1100,6 +1108,18 @@ async function chooseDialogOption(page: Page, dialog: Locator, label: string, op
   const optionLocator = dropdown.getByText(optionText, { exact: true }).last();
   await expect(optionLocator).toBeVisible({ timeout: 20_000 });
   await optionLocator.click();
+}
+
+async function expectDialogInputValueAbsent(dialog: Locator, value: string, message: string) {
+  const matchingInputCount = await dialog.locator("input, textarea").evaluateAll((elements, expected) => {
+    return elements.filter((element) => {
+      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+        return element.value === expected;
+      }
+      return false;
+    }).length;
+  }, value);
+  expect(matchingInputCount, message).toBe(0);
 }
 
 async function selectFirstDialogOption(page: Page, dialog: Locator, label: string) {

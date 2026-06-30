@@ -11,16 +11,20 @@
 - 远程分支已清理：`origin` 仅保留 `main`（另有 `origin/HEAD -> origin/main`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前分支最新本地代码提交为 `cf0140ebe80b3bf58c24b58924b215c1a7ad35c4`
-  （`fix: 完善全角色前台演练与随访办理体验`）；上一阶段推荐运行包触发修复代码提交为
+- 当前分支最新产品代码提交为 `a15d225c47fdd62da172cdaf41dea976c6ab9dc4`
+  （`fix: 修正患者360报告解读菜单权限`）；其前序产品提交为
+  `9dd3231946d3afd62a576750db07d384be0066db`
+  （`fix: 优化医技报告解读前台入口`）和
+  `cf0140ebe80b3bf58c24b58924b215c1a7ad35c4`
+  （`fix: 完善全角色前台演练与随访办理体验`）。上一阶段推荐运行包触发修复代码提交为
   `b06a0e1a86c2d2147da2529103e9f42976c298eb`
   （`fix: 补齐推荐详情抽屉可访问名称`）和
   `21caf969bcec81a849a7ccc12c03d5afcab2e62d`
   （`fix: 统一推荐运行包触发契约`）。
 - 134 当前后端 jar / manifest 仍为
-  `b06a0e1a86c2d2147da2529103e9f42976c298eb`；`2026-06-30T15:41:05+08:00`
+  `b06a0e1a86c2d2147da2529103e9f42976c298eb`；`2026-06-30T19:55:46+08:00`
   已做前端-only 发布，前端 dist 来源为
-  `cf0140ebe80b3bf58c24b58924b215c1a7ad35c4`。后续接力不要把 jar manifest
+  `a15d225c47fdd62da172cdaf41dea976c6ab9dc4`。后续接力不要把 jar manifest
   误解为最新前端来源；旧 `b4ec9f2d`、`3f5ec881`、`e8f50553` 只作为历史阶段证据，
   不再代表当前 134 运行版本。
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
@@ -32,7 +36,54 @@
   `rehearsal` 是当前 1.0 契约中的完整上线演练机构块，不是旧兼容入口；
   `roleAccounts`、`platformRoleAccounts`、`customerTenant` 等旧 root 账号字段不得作为登录权威。
 
-## 最新阶段交接（2026-06-30 全角色真实前台动作与随访办理体验）
+## 最新阶段交接（2026-06-30 患者360带入医技报告解读入口）
+
+- 本阶段根据全角色真实前台体验继续优化医技报告解读：旧路径要求医技在 CDSS 弹窗中手填
+  `patientId/encounterId`，对真实用户不自然，也会把内部标识暴露到操作层。现改为从 MPI 患者 360 已建立的
+  当前就诊上下文进入 CDSS：患者 360 抽屉在已有关联快照时显示“生成报告解读”，跳转到提醒与推荐页后自动打开
+  “生成医技报告解读”弹窗，并只携带 `contextSnapshotId` 调用报告解读接口；弹窗显示“已从患者 360 带入当前上下文”，
+  不在输入框暴露患者主索引或就诊号。
+- 产品与权限修复：
+  - `frontend/src/pages/clinical/Mpi.tsx`：患者 360 抽屉新增报告解读入口，使用 React Router state
+    携带快照和脱敏患者标签，不把内部标识写进 URL。
+  - `frontend/src/pages/clinical/CdssFatigue.tsx`：支持路由 state 自动打开报告解读弹窗；报告解读可只用
+    `contextSnapshotId` 生成，推荐评估仍保持原有患者/就诊上下文选择。
+  - 134 部署 `9dd3231946d3afd62a576750db07d384be0066db` 后，全角色 E2E 暴露真实账号权限偏差：
+    `clinical-user` 有 `menu.cdss-fatigue`/`menuKeys` 可见菜单，但没有 `cdss.read`；页面入口被误藏。
+    `a15d225c47fdd62da172cdaf41dea976c6ab9dc4` 已修正为菜单可见或 `cdss.read` 任一满足即可显示入口。
+  - E2E 自身随后暴露一处测试 API 偏差：Playwright `Locator` 没有 Testing Library 的
+    `getByDisplayValue`；已改为原生 `locator("input, textarea").evaluateAll(...)` 检查弹窗输入值不含
+    `patientId/encounterId`，不影响 134 应用制品。
+- 本地验证证据：
+  - `npm --prefix frontend test -- Mpi.test.tsx` 通过，`11` 个测试 0 失败。
+  - `npm --prefix frontend run typecheck` 通过。
+  - `npm --prefix frontend run verify` 通过，`113` 个测试文件 / `894` 个测试 0 失败；覆盖
+    lint、stylelint、T-GATE lint、Prettier、typecheck、Vitest。
+  - E2E 断言修正后再次运行 `npm --prefix frontend run typecheck` 通过。
+- 134 前端-only 发布证据：
+  - 当前有效命令：`deploy/onprem/mk-publish.sh --frontend --source a15d225c47fdd62da172cdaf41dea976c6ab9dc4`。
+  - 远端备份：`/zoesoft/medkernel/backups/deploy-20260630-195519`。
+  - readiness：`2026-06-30T19:55:46+08:00` HTTP 200，`{"status":"UP"}`；服务
+    `active/enabled`，`NRestarts=0`，`MainPID=1450583`。
+  - 关键前端制品：`frontend/dist/assets/Mpi-DIdqgTi-.js`、
+    `frontend/dist/assets/CdssFatigue-CF6Ml0KD.js`、`frontend/dist/assets/index-40d5DH4N.js`。
+  - 注意：本次为前端-only 发布，`/zoesoft/medkernel/manifest.properties` 仍记录后端 jar 的
+    `source/commit=b06a0e1a86c2d2147da2529103e9f42976c298eb`。
+- 134 部署后直接入口全角色复演：
+  - 有效报告：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-a15d225c-deployed-direct134-rerun/report/results.json`。
+  - Playwright：`1 passed`，耗时约 `1.3m`；`stats.expected=1`，`errors=[]`。
+  - 运行记录：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-a15d225c-deployed-direct134-rerun/artifacts/stakeholder-view-rehearsal-b11d5-务视角均能通过四职责账号进入真实页面并看到对应业务能力-chromium/stakeholder-view-runtime-records.json`。
+  - runtime JSON 核对：`count=12`，12 个视角均有动作记录，
+    `browserErrors/serverErrors/networkFailures=[]`；医技动作记录为
+    `从患者360带入当前上下文并生成医技报告解读`。
+- 下一步继续主线：当前基础演练模式与 134 直接入口全角色动作均已走通；后续继续进入“真实前台操作 + 全视角产品体验优化”，
+  继续从医生、护士、患者/代理、药师、医技、质控、信息科长、实施工程师、医疗引擎运营员、审计、院长、医疗产品经理、
+  医疗产品体验师等角度逐页操作。重点但不限于：报告工作清单/医技交接入口、模型双模式与敏感信息使用边界、
+  高级信息的渐进呈现方式、默认筛选、证据详情、流程分类、低打扰六态和部署验收闭环。
+
+## 上一阶段交接（2026-06-30 全角色真实前台动作与随访办理体验）
 
 - 本阶段把 `stakeholder-view-rehearsal.spec.ts` 从“部分角色只进入页面看标记”推进为
   “十二类业务视角均有真实前台动作”：医生登记医师采纳反馈、护士生成并办理随访、药师复核联合用药风险、
@@ -86,7 +137,7 @@
   重点看报告工作清单/医技交接入口、随访办理生成后自动聚焦、模型双模式敏感信息治理、默认筛选和证据详情渐进呈现，
   发现流程分类、交互复杂度、语义误导、功能缺口或安全边界问题继续按最优方案修复。
 
-## 上一阶段交接（2026-06-30 推荐运行包触发契约）
+## 更早阶段交接（2026-06-30 推荐运行包触发契约）
 
 - 本阶段定位并修复药师真实前台复演的推荐卡断链：前台已能创建患者、当前就诊上下文和当前用药资源，
   但旧实现仍按规则 DSL 内的历史 `trigger` 字段筛选推荐规则；当前权威设计已改为
