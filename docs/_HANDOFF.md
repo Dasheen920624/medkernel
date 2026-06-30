@@ -5,15 +5,17 @@
 
 ## 当前主线
 
-- 最新远端主线：`origin/main` / `main` / 合并前本地 `HEAD` 均为
+- 最新远端主线：`origin/main` 与本地 `main` 均为
   `1561ba6bef8777dcef76432696f43de4277fdd3f`
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 远程分支已清理：`origin` 仅保留 `main`（另有 `origin/HEAD -> origin/main`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前分支最新产品代码提交为 `691b50e8ce94727992cf01cdf09d64986ad7e4b6`
-  （`fix: 优化全角色前台体验语言`）；
-  其前序产品提交为 `3c61cc186a24dfab20a49229e49974c33f32ed5d`
+- 当前分支最新产品代码提交为 `a4618fb04d5b09a1b329198134ace89c54be965b`
+  （`fix: 优化前台体验反馈一致性`）；
+  其前序产品提交为 `691b50e8ce94727992cf01cdf09d64986ad7e4b6`
+  （`fix: 优化全角色前台体验语言`）、
+  `3c61cc186a24dfab20a49229e49974c33f32ed5d`
   （`fix: 置顶报告解读协同待办分页排序`）、
   `653c19cb4c7b4c2302d23e252371a17cec8c5966`
   （`fix: 修复报告解读协同待办可见性`）、
@@ -39,11 +41,12 @@
   （`fix: 补齐推荐详情抽屉可访问名称`）和
   `21caf969bcec81a849a7ccc12c03d5afcab2e62d`
   （`fix: 统一推荐运行包触发契约`）。
-- 134 当前仍完整部署 `3c61cc186a24dfab20a49229e49974c33f32ed5d`；该部署已修复报告解读知识版本映射、
-  知识来源租户安全门、报告解读待办分类和 `clinical-user` 可见性，并修复协同待办服务端分页排序。
-  既有模式全角色前台复演已通过。本地最新产品提交 `691b50e8ce94727992cf01cdf09d64986ad7e4b6`
-  是全视角真实前台体验优化第一批，尚未部署到 134；下一步需发布到 134 后复跑真实前台演练。
-  旧 `3d9f9c`、`c68e127f`、`b4ec9f2d`、`3f5ec881`、`e8f50553` 只作为历史阶段证据，
+- 134 当前完整部署 `a4618fb04d5b09a1b329198134ace89c54be965b`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260630-231815`，manifest
+  `deployedAt=2026-06-30T23:18:17+08:00`，`jarSha256=bdaa3fe3e57566167a1f1090e79a94e5e8a22f284b43e21ef99cb5d95777b30e`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=1557741`、`NRestarts=0`。
+  该部署已完成 `stakeholder-view-rehearsal.spec.ts` 与 `real-frontdesk-rehearsal.spec.ts` 直接访问 134 复演。
+  旧 `e7a052f5`、`3c61cc`、`3d9f9c`、`c68e127f`、`b4ec9f2d`、`3f5ec881`、`e8f50553` 只作为历史阶段证据，
   不再代表当前 134 运行版本。
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
@@ -53,6 +56,50 @@
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
   `rehearsal` 是当前 1.0 契约中的完整上线演练机构块，不是旧兼容入口；
   `roleAccounts`、`platformRoleAccounts`、`customerTenant` 等旧 root 账号字段不得作为登录权威。
+
+## 最新阶段交接（2026-06-30 全视角真实前台体验优化第二批与134复演）
+
+- 第一批全视角体验修复提交 `691b50e8ce94727992cf01cdf09d64986ad7e4b6` 后，已用交接提交
+  `e7a052f52789b651d39d78fc8458675e2cd4db76` 完整发布到 134：
+  备份 `/zoesoft/medkernel/backups/deploy-20260630-225931`，
+  `jarSha256=951f35f82429c00eae39222bf554ef8687357652768b6985d912e7b39d7d755e`，
+  `deployedAt=2026-06-30T22:59:33+08:00`，readiness HTTP 200 / `{"status":"UP"}`。
+  直接访问 134 的 `stakeholder-view-rehearsal.spec.ts` 通过，`12` 个职责动作均有前台真实操作记录且
+  `browserErrors/serverErrors/networkFailures` 均为 `0`；`real-frontdesk-rehearsal.spec.ts` 通过，`9` 段前台数据链路均由页面提交产生。
+- 复演截图继续暴露第二批产品体验问题：模型外调安全策略保存后列表仍像未配置；CDSS 推荐评估在没有新增卡片时提示
+  “展示 0 张”，与已刷新存量提醒的页面状态冲突；MPI 群体指标暴露 `M/F` 与 `男: | 女:` 这种业务不自然写法。
+- 已本地修复并提交 `a4618fb04d5b09a1b329198134ace89c54be965b`
+  （`fix: 优化前台体验反馈一致性`）：
+  - 模型能力页保存外调安全策略后，列表即时显示“外调安全已配置”，入口改为“调整外调安全”；路由来源仍保留真实的
+    “系统默认”，不把路由配置和外调安全策略混成一个概念。
+  - CDSS 推荐评估 toast 区分“本次新增可见提醒 / 频次策略暂缓 / 本次未新增可见提醒”，不再出现“展示 0 张”的误导反馈。
+  - MPI 群体性别指标改为“群体性别分布”“男性 X 人 / 女性 Y 人”“性别待确认/其他 X 人”。
+- 红绿验证：
+  - 红灯：`AiWorkflows.test.tsx` 新增外调保存后列表反馈断言失败；`CdssFatigue.test.tsx` 新增 0 新增卡片提示断言失败；
+    `Mpi.test.tsx` 新增中文业务表述断言失败。
+  - 绿灯：`npm --prefix frontend test -- AiWorkflows.test.tsx CdssFatigue.test.tsx Mpi.test.tsx customerLanguageGate.test.ts`
+    通过，`4` 个文件 / `37` 项；`npm --prefix frontend run verify` 通过，`113` 个测试文件 / `902` 项；
+    `npm --prefix frontend run build` 通过。
+  - 仓库门禁：`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`node scripts/authenticity-guard.mjs --mode=inventory` 扫描 `2109` 个文件无阻断；
+    `node scripts/config-boundary-guard.mjs --mode=inventory` 扫描 `1908` 个文件无阻断；
+    `bash scripts/check-comment-zh.sh --self-test` 通过，`7 pass`；`git diff --check` 通过；
+    前台生产源码扫描 `推荐评估已完成：展示 0 张|群体性别比分布|M/F|男: .*女:|未识别状态|未识别级别|未识别角色` 无命中。
+- 134 当前复演证据：
+  - 已部署 `a4618fb04d5b09a1b329198134ace89c54be965b`，备份
+    `/zoesoft/medkernel/backups/deploy-20260630-231815`，
+    `jarSha256=bdaa3fe3e57566167a1f1090e79a94e5e8a22f284b43e21ef99cb5d95777b30e`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=1557741`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-a4618fb0-deployed-direct134`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    运行记录 `12` 个职责动作全部 `actions=1`，浏览器错误、服务端错误、网络失败均为 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-a4618fb0-deployed-direct134`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (34.0s)`；
+    运行记录 `9` 段真实前台链路全部 `browserErrors/serverErrors/networkFailures=0`。
+  - 截图复核：模型能力页显示“外调安全已配置 / 调整外调安全”；CDSS toast 显示“本次未新增可见提醒；当前列表已刷新存量提醒”；
+    MPI 指标显示“群体性别分布 / 男性 0 人 / 女性 112 人 / 性别待确认/其他 28 人”。
+- 下一步继续第三批全视角真实操作优化，不推送远程 `main`：重点看前台反复演练后的数据堆叠与筛选、接入适配器质量报告长明细可读性、
+  值集草稿重复登记可区分性、随访计划日期和办理状态表达、以及医生/护士/患者/药师/医技/质控/信息科长/院长/平台运营剩余入口的真实工作负担。
 
 ## 最新阶段交接（2026-06-30 全视角真实前台体验优化第一批）
 
@@ -82,9 +129,8 @@
     `node scripts/config-boundary-guard.mjs --mode=inventory` 扫描 `1908` 个文件，未发现阻断项；
     `bash scripts/check-comment-zh.sh --self-test` 通过，`7 pass`；`git diff --check` 通过；
     前台生产源码扫描 `未识别状态|未识别级别|未识别角色|未识别` 无命中。
-- 待执行：提交本接力文档后，把最新本地 HEAD 完整发布到 134，复跑
-  `stakeholder-view-rehearsal.spec.ts` 与 `real-frontdesk-rehearsal.spec.ts`；确认模型能力页、质控驾驶舱、MPI 上下文、
-  CDSS/路径状态和数据权限页在真实前台入口均使用新体验。通过后继续第二批全视角真实操作优化，不推送远程 `main`。
+- 后续状态：第一批已在 `e7a052f52789b651d39d78fc8458675e2cd4db76` 发布到 134 并复演通过；
+  复演继续发现第二批反馈一致性问题，已由 `a4618fb04d5b09a1b329198134ace89c54be965b` 修复、部署并再次复演通过。
 
 ## 上一阶段交接（2026-06-30 报告解读协同待办分页排序修复）
 
