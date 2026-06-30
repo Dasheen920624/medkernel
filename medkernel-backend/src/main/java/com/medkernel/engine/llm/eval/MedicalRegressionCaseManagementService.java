@@ -76,10 +76,17 @@ public class MedicalRegressionCaseManagementService {
         Instant now = now();
         String actor = currentActor();
         MedicalRegressionCase candidate = toEntity(request, null, now, actor);
-        return repository.findByTenantIdAndCapabilityCodeAndCaseInput(
-                candidate.tenantId(), candidate.capabilityCode(), candidate.caseInput())
-            .map(existing -> updateImportedCase(existing, candidate, now, actor))
-            .orElseGet(() -> createImportedCase(candidate));
+        List<MedicalRegressionCase> existingCases =
+            repository.findAllByTenantIdAndCapabilityCodeAndCaseInputOrderByUpdatedAtDesc(
+                candidate.tenantId(), candidate.capabilityCode(), candidate.caseInput());
+        if (existingCases.isEmpty()) {
+            return createImportedCase(candidate);
+        }
+        MedicalRegressionCase updated = updateImportedCase(existingCases.getFirst(), candidate, now, actor);
+        existingCases.stream()
+            .skip(1)
+            .forEach(duplicate -> disableDuplicateImportedCase(duplicate, now, actor));
+        return updated;
     }
 
     private MedicalRegressionCase createImportedCase(MedicalRegressionCase candidate) {
@@ -116,6 +123,33 @@ public class MedicalRegressionCaseManagementService {
         auditRecorder.record(AuditAction.UPDATE, "mk_llm_regression_case", String.valueOf(existing.id()),
             "更新医学回归基准用例 " + updated.capabilityCode() + "/" + updated.caseVersion());
         return updated;
+    }
+
+    private void disableDuplicateImportedCase(MedicalRegressionCase duplicate, Instant now, String actor) {
+        if ("N".equalsIgnoreCase(duplicate.enabledFlag())) {
+            return;
+        }
+        MedicalRegressionCase disabled = repository.save(new MedicalRegressionCase(
+            duplicate.id(),
+            duplicate.tenantId(),
+            duplicate.capabilityCode(),
+            duplicate.caseDomain(),
+            duplicate.caseInput(),
+            duplicate.expectedPhrase(),
+            duplicate.expectedTermsJson(),
+            duplicate.forbiddenAssertionsJson(),
+            duplicate.minScore(),
+            duplicate.redLineType(),
+            duplicate.sourceReference(),
+            duplicate.citationRequired(),
+            duplicate.caseVersion(),
+            "N",
+            duplicate.createdAt(),
+            duplicate.createdBy(),
+            now,
+            actor));
+        auditRecorder.record(AuditAction.UPDATE, "mk_llm_regression_case", String.valueOf(disabled.id()),
+            "停用重复医学回归基准用例 " + disabled.capabilityCode() + "/" + disabled.caseVersion());
     }
 
     @Transactional

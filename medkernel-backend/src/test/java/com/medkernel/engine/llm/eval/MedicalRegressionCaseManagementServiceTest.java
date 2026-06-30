@@ -33,8 +33,8 @@ class MedicalRegressionCaseManagementServiceTest {
         service = new MedicalRegressionCaseManagementService(repository, auditRecorder);
         RequestContext.restore(new RequestContext.Snapshot("trace-regression", OrgScope.tenant("tenant-1"), "quality-001"));
         when(repository.save(any(MedicalRegressionCase.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(repository.findByTenantIdAndCapabilityCodeAndCaseInput(any(), any(), any()))
-            .thenReturn(Optional.empty());
+        when(repository.findAllByTenantIdAndCapabilityCodeAndCaseInputOrderByUpdatedAtDesc(any(), any(), any()))
+            .thenReturn(List.of());
     }
 
     @AfterEach
@@ -136,11 +136,11 @@ class MedicalRegressionCaseManagementServiceTest {
     @Test
     void bulkImportUpdatesExistingCaseByCapabilityAndInputWithoutDuplicating() {
         MedicalRegressionCase existing = caseRow(17L, "tenant-1", "N");
-        when(repository.findByTenantIdAndCapabilityCodeAndCaseInput(
+        when(repository.findAllByTenantIdAndCapabilityCodeAndCaseInputOrderByUpdatedAtDesc(
             "tenant-1",
             "rule.draft",
             "请依据真实来源判断候选知识是否必须阻断。"))
-            .thenReturn(Optional.of(existing));
+            .thenReturn(List.of(existing));
         MedicalRegressionCaseBulkImportRequest request = new MedicalRegressionCaseBulkImportRequest(List.of(
             request("rule.draft", "2026.9", "source-version:99#dose-limit")));
 
@@ -156,6 +156,29 @@ class MedicalRegressionCaseManagementServiceTest {
         });
         verify(repository).save(argThat(saved -> saved.id().equals(17L)
             && "source-version:99#dose-limit".equals(saved.sourceReference())));
+    }
+
+    @Test
+    void bulkImportKeepsLatestCaseAndDisablesOlderDuplicates() {
+        MedicalRegressionCase newest = caseRow(18L, "tenant-1", "Y");
+        MedicalRegressionCase older = caseRow(17L, "tenant-1", "Y");
+        when(repository.findAllByTenantIdAndCapabilityCodeAndCaseInputOrderByUpdatedAtDesc(
+            "tenant-1",
+            "rule.draft",
+            "请依据真实来源判断候选知识是否必须阻断。"))
+            .thenReturn(List.of(newest, older));
+        MedicalRegressionCaseBulkImportRequest request = new MedicalRegressionCaseBulkImportRequest(List.of(
+            request("rule.draft", "2026.10", "source-version:100#dose-limit")));
+
+        MedicalRegressionCase imported = service.bulkImport(request).getFirst();
+
+        assertThat(imported.id()).isEqualTo(18L);
+        verify(repository).save(argThat(saved -> saved.id().equals(18L)
+            && "Y".equals(saved.enabledFlag())
+            && "source-version:100#dose-limit".equals(saved.sourceReference())));
+        verify(repository).save(argThat(saved -> saved.id().equals(17L)
+            && "N".equals(saved.enabledFlag())
+            && "quality-001".equals(saved.updatedBy())));
     }
 
     @Test

@@ -114,7 +114,17 @@
   - 红灯：`mvn -Dtest=MedicalRegressionCaseManagementServiceTest test` 新增“批量导入同用例不重复”用例失败。
   - 绿灯：`node --test scripts/release/model-provider-launch.test.mjs` 通过，`5` 项。
   - 绿灯：`mvn -Dtest=MedicalRegressionCaseManagementServiceTest test` 通过，`10` 项。
-- 下一步：提交本地幂等修复后重新完整发布 134，再执行 Provider 恢复、运行韧性复演和全角色真实前台 E2E；不要把
+- 57f3fa96 二次发布补充：
+  - `57f3fa9636b64a50b31e20dc2ac94251764e63b1` 已完整发布到 134，readiness HTTP 200；
+    jar sha256 `03e34d6bfe0fe71170a0383cdb4fe4f82bc92a7e9862333c75b1de0291400b43`，
+    远端备份 `/zoesoft/medkernel/backups/deploy-20260630-212915`。
+  - Provider 恢复继续红灯：`model-provider-launch` 在“导入正式医学回归基线”返回 500。只读 API 复核确认历史上已有
+    3 组重复启用回归用例（共 6 条），重复 key 分别来自 guideline/drug/diagnosis 三个上线基线；因此
+    `Optional findByTenantIdAndCapabilityCodeAndCaseInput` 在真实重复数据上会触发多行异常。
+  - 已本地继续修复：新增按同租户/能力码/`caseInput` 返回列表的仓库查询；批量导入使用更新时间倒序列表，更新最新一条并保持启用，
+    自动停用旧重复用例，保留创建审计并记录停用审计。这样既清理历史重复，又保证后续重复上线不会继续堆叠基线。
+  - 绿灯：`mvn -Dtest=MedicalRegressionCaseManagementServiceTest,MedicalRegressionRepositoryTest test` 通过，`16` 项。
+- 下一步：提交本地历史重复收敛修复后重新完整发布 134，再执行 Provider 恢复、运行韧性复演和全角色真实前台 E2E；不要把
   `NODE_TLS_REJECT_UNAUTHORIZED=0` 记为产品 TLS 待办，它仅用于当前 134 自签证书演练客户端。
 
 ## 上一阶段交接（2026-06-30 前台报告事实进入上下文与协同待办闭环）
@@ -1367,8 +1377,8 @@
 
 ## 下一步
 
-1. 先把“Provider 重跑幂等与医学回归用例 upsert”提交到本地分支，不推送远程、不合并 `main`。
-2. 将最新本地 HEAD 重新完整发布到 134；随后重跑 Provider 上线恢复，确认 `ollama-launch` 启用、医学评测全通过、
+1. 先把“历史重复医学回归用例收敛”提交到本地分支，不推送远程、不合并 `main`。
+2. 将最新本地 HEAD 重新完整发布到 134；随后重跑 Provider 上线恢复，确认历史重复用例被收敛、`ollama-launch` 启用、医学评测全通过、
    知识生产 readiness 全绿。
 3. 重跑运行韧性演练，确认停用期间只有 `MODEL_PROVIDER` 是必需阻断项，B0 `17/17` 通过，恢复后 Provider 重新启用。
 4. 在 134 直接入口重跑全功能、全知识、全流程演练；报告解读链路必须从前台真实操作产生患者、就诊上下文和报告事实，
