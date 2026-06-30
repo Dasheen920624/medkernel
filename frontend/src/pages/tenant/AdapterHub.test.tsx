@@ -540,6 +540,29 @@ describe("AdapterHub", () => {
     expect(useRegionalSources).toHaveBeenCalledWith({ page: 1, size: 20 });
   });
 
+  it("keeps repeated onboarding applications distinguishable by latest maintenance time", async () => {
+    vi.mocked(useIntegrationOnboardings).mockReturnValue(
+      query(
+        pageData(
+          Array.from({ length: 20 }, (_, index) => ({
+            ...onboarding,
+            onboardingId: `onb-frontdesk-${index + 1}`,
+            name: "接入配置已登记",
+            updatedAt: new Date(Date.UTC(2026, 5, 30 - index, 15, 18, 0)).toISOString(),
+          })),
+          24,
+        ),
+      ) as never,
+    );
+
+    renderPage();
+
+    await userEvent.click(screen.getByRole("tab", { name: "接入向导" }));
+    const bodyRows = screen.getAllByRole("row").slice(1);
+    expect(within(bodyRows[0]).getByText("最近更新 2026年06月30日 23:18")).toBeInTheDocument();
+    expect(screen.getByText("共 24 条接入申请，当前显示 1-20 条")).toBeInTheDocument();
+  });
+
   it("loads the data contract summary from the current hospital runtime", () => {
     vi.mocked(useIntegrationDataContract).mockReturnValue(query(dataContract) as never);
 

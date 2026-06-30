@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -82,6 +82,33 @@ describe("DeclarativeAssetWorkbench", () => {
     renderWorkbench(true);
 
     expect(screen.getByText("VS.NEPHROTOXIC")).toBeInTheDocument();
+  });
+
+  it("keeps repeated frontdesk-created drafts distinguishable by latest maintenance time", () => {
+    apiMocks.useDeclarativeAssets.mockReturnValue({
+      data: {
+        items: Array.from({ length: 12 }, (_, index) => ({
+          versionId: `av-vs-${index + 1}`,
+          assetType: "VALUE_SET",
+          assetIdentity: `VS.REHEARSAL.${index + 1}`,
+          versionNo: "V1",
+          status: "DRAFT",
+          organizationScope: "tenant:tenant-A",
+          applicableScope: "ALL",
+          sourceRef: "真实前台演练：院内药品目录脱敏样例",
+          updatedAt: new Date(Date.UTC(2026, 5, 30 - index, 15, 18, 0)).toISOString(),
+        })),
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderWorkbench();
+
+    const bodyRows = screen.getAllByRole("row").slice(1);
+    expect(within(bodyRows[0]).getByText("最新维护 2026年06月30日 23:18")).toBeInTheDocument();
+    expect(screen.getByText("共 12 条配置资产，当前显示 1-10 条")).toBeInTheDocument();
   });
 
   it("creates a typed value set instead of accepting an unstructured metadata shell", async () => {

@@ -99,6 +99,16 @@ const LOG_PAGE_SIZE = 10;
 const ADAPTER_PAGE_SIZE = 20;
 const INTEGRATION_MAINTENANCE_PAGE_SIZE = 20;
 
+const BUSINESS_TIME_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: "Asia/Shanghai",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
 const signaturePreviewEventOptions = [
   { value: "clinical.test", label: "临床事件联调" },
   { value: "quality.alert.opened", label: "质控事件联调" },
@@ -228,6 +238,15 @@ function hasPermission(profile: SecurityProfile | undefined, code: string) {
 function percent(numerator: number, denominator: number) {
   if (denominator <= 0) return 0;
   return Math.round((numerator / denominator) * 100);
+}
+
+function businessTimeText(value: string | null | undefined, prefix: string) {
+  if (!value) return `${prefix}待确认`;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return `${prefix}待确认`;
+  const parts = BUSINESS_TIME_FORMATTER.formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${prefix} ${values.year}年${values.month}月${values.day}日 ${values.hour}:${values.minute}`;
 }
 
 function healthTag(status: string) {
@@ -804,6 +823,15 @@ export default function AdapterHub() {
     { title: "来源系统", dataIndex: "sourceSystem", key: "sourceSystem" },
     { title: "业务场景", dataIndex: "businessScenario", key: "businessScenario" },
     {
+      title: "最近更新",
+      dataIndex: "updatedAt",
+      key: "updatedAt",
+      width: 190,
+      render: (value: string) => (
+        <Text type="secondary">{businessTimeText(value, "最近更新")}</Text>
+      ),
+    },
+    {
       title: "阶段",
       dataIndex: "status",
       key: "status",
@@ -1266,6 +1294,8 @@ export default function AdapterHub() {
                         pageSize: INTEGRATION_MAINTENANCE_PAGE_SIZE,
                         total: onboardingsQuery.data?.total ?? 0,
                         onChange: setOnboardingPage,
+                        showTotal: (total, range) =>
+                          `共 ${total} 条接入申请，当前显示 ${range[0]}-${range[1]} 条`,
                       }}
                       scroll={{ x: 900 }}
                     />

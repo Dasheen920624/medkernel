@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   App,
@@ -38,6 +38,16 @@ import {
 } from "@/shared/config/declarativeAssetAuthoring";
 
 const { Text } = Typography;
+
+const MAINTENANCE_TIME_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: "Asia/Shanghai",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
 
 interface FormValues {
   assetIdentity: string;
@@ -329,6 +339,20 @@ function evidenceText(
   if (!evidenceDetailsEnabled) return businessText;
   const normalized = rawValue?.trim();
   return normalized && normalized.length > 0 ? normalized : "未返回";
+}
+
+function updatedAtTime(asset: DeclarativeAssetSummary) {
+  const time = Date.parse(asset.updatedAt);
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function maintenanceTimeText(updatedAt: string | undefined) {
+  if (!updatedAt) return "维护时间待确认";
+  const date = new Date(updatedAt);
+  if (Number.isNaN(date.getTime())) return "维护时间待确认";
+  const parts = MAINTENANCE_TIME_FORMATTER.formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `最新维护 ${values.year}年${values.month}月${values.day}日 ${values.hour}:${values.minute}`;
 }
 
 function declarativeAssetTypeLabel(assetType: DeclarativeAssetType) {
@@ -679,6 +703,14 @@ export default function DeclarativeAssetWorkbench({
   const create = useCreateDeclarativeAsset();
   const update = useUpdateDeclarativeAsset();
   const typeLabel = declarativeAssetTypeLabel(assetType);
+  const assets = useMemo(
+    () =>
+      [...(list.data?.items ?? [])].sort((left, right) => {
+        const timeDelta = updatedAtTime(right) - updatedAtTime(left);
+        return timeDelta !== 0 ? timeDelta : right.versionId.localeCompare(left.versionId);
+      }),
+    [list.data?.items],
+  );
 
   useEffect(() => {
     if (!open || !editing || !detail.data) return;
@@ -732,6 +764,12 @@ export default function DeclarativeAssetWorkbench({
       ),
     },
     { title: "版本", dataIndex: "versionNo", width: 100 },
+    {
+      title: "维护时间",
+      dataIndex: "updatedAt",
+      width: 190,
+      render: (updatedAt: string) => <Text type="secondary">{maintenanceTimeText(updatedAt)}</Text>,
+    },
     {
       title: "状态",
       dataIndex: "status",
@@ -794,10 +832,15 @@ export default function DeclarativeAssetWorkbench({
       </Button>
       <Table
         rowKey="versionId"
-        dataSource={list.data?.items ?? []}
+        dataSource={assets}
         columns={columns}
         loading={list.isLoading}
-        pagination={false}
+        pagination={{
+          pageSize: 10,
+          showSizeChanger: false,
+          showTotal: (total, range) =>
+            `共 ${total} 条配置资产，当前显示 ${range[0]}-${range[1]} 条`,
+        }}
         locale={{
           emptyText: list.isError ? "配置资产读取失败，请重试" : `暂无${typeLabel}`,
         }}
