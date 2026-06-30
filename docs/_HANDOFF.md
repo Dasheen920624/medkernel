@@ -125,6 +125,24 @@
   - 8 段全部由前台页面提交产生，覆盖系统接入适配器、知识值集草稿、模型外调安全策略、
     脱敏患者主索引、随访模板创建、随访模板发布、当前就诊上下文快照、随访计划生成与问卷/异常回院登记；
     每段 `browserErrors=0`、`serverErrors=0`、`networkFailures=0`。
+- `2026-06-30T10:35:59+08:00`，134 使用
+  `deploy/onprem/mk-publish.sh --frontend --source 567955babc4a269da764d0f097a0e5bbdcff01f5`
+  完成最新前端-only 制品更新：
+  - 前端来源：`567955babc4a269da764d0f097a0e5bbdcff01f5`
+    （包含 `e1e52ffa fix: 明确模型双模式患者上下文边界` 与复演证据文档）。
+  - 部署前备份：`/zoesoft/medkernel/backups/deploy-20260630-103531`。
+  - 前端 dist：`/zoesoft/medkernel/frontend/dist`，部署替换 `273` 个文件。
+  - 关键前端制品：
+    `/zoesoft/medkernel/frontend/dist/assets/AiWorkflows-Cpjw5pf8.js`
+    sha256=`bddcd2d9dd540ef7643f1dd63b14b11a46fb0cdd367867e0904d77a5cda1554e`；
+    `/zoesoft/medkernel/frontend/dist/assets/Followup-DFBnAnlo.js`
+    sha256=`0ba73a0e3e76710c7a0d6562f8338199cfd38d140d9acc9eb0fff660e0c8f50f`；
+    `/zoesoft/medkernel/frontend/dist/assets/index-AWyuKPSR.js`
+    sha256=`74054ddd181cc725de4443d6bf4cac8b7fb5c004568bb2def255feabbca747a2`。
+  - readiness：HTTP 200，`{"status":"UP"}`，服务 `active/enabled`，`NRestarts=0`。
+  - 注意：本次仍为前端-only 发布，`/zoesoft/medkernel/manifest.properties` 仍记录后端 jar 的
+    `source/commit=02b47944237fea5df89c519bf7613fb4b6c6f5ed`；后续接力不要把 jar manifest
+    误解为前端 dist 来源。
 
 ## 134 证据
 
@@ -708,6 +726,13 @@
     `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-e1e52ffa/artifacts/real-frontdesk-rehearsal-全-1ad6c-、外调策略、患者资源与临床随访数据均由前台页面提交产生-chromium/real-frontdesk-runtime-records.json`。
   - 8 段真实前台操作均通过，包含“前台配置模型外调安全策略”；每段
     `browserErrors=0`、`serverErrors=0`、`networkFailures=0`。
+  - 发布到 134 后直接入口复演：
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-567955ba-direct134/report/results.json`，
+    `expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，耗时 `30157.849ms`。
+  - 直接入口运行记录：
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-567955ba-direct134/artifacts/real-frontdesk-rehearsal-全-1ad6c-、外调策略、患者资源与临床随访数据均由前台页面提交产生-chromium/real-frontdesk-runtime-records.json`。
+  - 直接访问 `https://193.112.107.134/medkernel` 的 8 段真实前台操作均通过，
+    每段 `browserErrors=0`、`serverErrors=0`、`networkFailures=0`。
 
 ## 下一步
 
