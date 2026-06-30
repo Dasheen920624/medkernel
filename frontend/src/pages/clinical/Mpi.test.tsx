@@ -61,10 +61,17 @@ function securityProfile(
     "mpi.create",
     "mpi.write",
     "context.write",
-    "cdss.read",
+    "menu.cdss-fatigue",
     "system.debug",
   ],
 ) {
+  const menuKeys = ["mpi"];
+  if (permissionCodes.includes("menu.cdss-fatigue") || permissionCodes.includes("cdss.read")) {
+    menuKeys.push("cdss-fatigue");
+  }
+  if (permissionCodes.includes("system.debug")) {
+    menuKeys.push("runtime-diagnostics");
+  }
   return {
     data: {
       permissions: permissionCodes.map((code) => ({
@@ -75,7 +82,7 @@ function securityProfile(
         risk: code === "mpi.write" ? "HIGH" : "MEDIUM",
       })),
       roles: [{ code: "clinical-user", displayName: "临床使用者", source: "TEST" }],
-      menuKeys: permissionCodes.includes("system.debug") ? ["mpi", "runtime-diagnostics"] : ["mpi"],
+      menuKeys,
       environmentKeys: ["production"],
       dataScope: { tenantId: "tenant-A" },
     },

@@ -95,6 +95,14 @@ function hasPermission(profile: SecurityProfile | undefined, code: string) {
   return profile?.permissions.some((permission) => permission.code === code) ?? false;
 }
 
+function canOpenMenu(profile: SecurityProfile | undefined, menuKey: string) {
+  return (
+    profile?.menuKeys?.includes(menuKey) ||
+    profile?.permissions.some((permission) => permission.code === `menu.${menuKey}`) ||
+    false
+  );
+}
+
 function snapshotEncounterId(
   snapshot:
     | MpiPatientDetailResponse["latestContextSnapshot"]
@@ -226,7 +234,8 @@ export default function Mpi() {
   const canCreatePatient = hasPermission(security.data, "mpi.create");
   const canManageMpiIdentity = hasPermission(security.data, "mpi.write");
   const canCreateContextSnapshot = hasPermission(security.data, "context.write");
-  const canReadCdss = hasPermission(security.data, "cdss.read");
+  const canOpenCdssFatigue =
+    hasPermission(security.data, "cdss.read") || canOpenMenu(security.data, "cdss-fatigue");
 
   // 查询参数缓存，以便在点击查询时才触发真正的 API 过滤
   const [filterKeyword, setFilterKeyword] = useState("");
@@ -671,7 +680,7 @@ export default function Mpi() {
           }
         />
       );
-    } else if (canReadCdss && patient.status === "ACTIVE" && hasSnapshot) {
+    } else if (canOpenCdssFatigue && patient.status === "ACTIVE" && hasSnapshot) {
       contextAction = (
         <Alert
           message="已关联当前就诊上下文"
