@@ -11,7 +11,8 @@
 - 远程分支已清理：`origin` 仅保留 `main`（另有 `origin/HEAD -> origin/main`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前分支最新产品代码提交为本文件所在提交（本阶段：报告解读协同待办分页排序）；
+- 当前分支最新产品代码提交为 `3c61cc186a24dfab20a49229e49974c33f32ed5d`
+  （`fix: 置顶报告解读协同待办分页排序`）；
   其前序产品提交为 `653c19cb4c7b4c2302d23e252371a17cec8c5966`
   （`fix: 修复报告解读协同待办可见性`）、
   `cd5e58a0e766d2d84d1d966f4ae2d57381aade82`
@@ -36,10 +37,9 @@
   （`fix: 补齐推荐详情抽屉可访问名称`）和
   `21caf969bcec81a849a7ccc12c03d5afcab2e62d`
   （`fix: 统一推荐运行包触发契约`）。
-- 134 当前已完整部署 `653c19cb4c7b4c2302d23e252371a17cec8c5966`；该部署已修复报告解读知识版本映射、
-  知识来源租户安全门、报告解读待办分类和 `clinical-user` 可见性。最新复演断点是报告解读待办已存在，
-  但 `/workflow/todos?status=PENDING&page=1&size=20` 的服务端分页先返回大量随访任务，导致前台首屏汇总仍显示
-  “报告解读 0 项”。
+- 134 当前已完整部署 `3c61cc186a24dfab20a49229e49974c33f32ed5d`；该部署已修复报告解读知识版本映射、
+  知识来源租户安全门、报告解读待办分类和 `clinical-user` 可见性，并修复协同待办服务端分页排序。
+  既有模式全角色前台复演已通过，下一阶段按用户要求进入全视角真实前台操作与产品体验优化。
   旧 `3d9f9c`、`c68e127f`、`b4ec9f2d`、`3f5ec881`、`e8f50553` 只作为历史阶段证据，
   不再代表当前 134 运行版本。
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
@@ -83,8 +83,20 @@
   - 组合回归：`mvn -Dtest=WorkflowCollaborationServiceTest,WorkflowTodoRepositoryTest,RuntimeReleaseDiagnosticItemSelectorTest,ReportInterpretationServiceTest,ReportInterpretationControllerSecurityTest,ClinicalSafetyGuardTest,RecommendationEngineServiceTest,RecommendationDeterministicMatcherTest,DiagnosisAssistServiceTest,DiagnosisAssistApiContractTest test`
     通过，`104` 项。
   - `git diff --check` 通过。
-- 下一步：提交本地阶段版本后把新 HEAD 完整发布到 134，复跑全角色前台演练，重点确认
-  “前台真实建立报告事实 -> 报告解读非空 -> 协同待办第一页显示报告解读项 -> 打开报告上下文”闭环。
+- 134 复演通过：
+  - 已部署 `3c61cc186a24dfab20a49229e49974c33f32ed5d`：
+    `jarSha256=c79801052bc64e4ca2205b4e6a11c8ab86664e0f14e84a8095efc926c9091a01`，
+    远端备份 `/zoesoft/medkernel/backups/deploy-20260630-223228`，readiness HTTP 200 / `{"status":"UP"}`，
+    服务 `active/enabled`、`MainPID=1533792`。
+  - 只读 API 探针：`/engine/workflow/todos?status=PENDING&page=1&size=20` 返回 `total=102`，第一页前两条为
+    `REPORT_INTERPRETATION`；`/engine/workflow/todos?status=PENDING&sourceType=REPORT_INTERPRETATION&page=1&size=20`
+    返回 `total=2`，角色均为 `clinical-user`。
+  - 全角色前台 E2E：
+    `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=https://193.112.107.134/medkernel E2E_API_BASE_URL=https://193.112.107.134/medkernel/api/v1 E2E_IGNORE_HTTPS_ERRORS=1 E2E_ROLE_CREDENTIALS_FILE=/tmp/medkernel-e2e-codex3/current-launch.json E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-3c61cc18-deployed-direct134 npm --prefix frontend run e2e -- stakeholder-view-rehearsal.spec.ts --project=chromium`
+    通过，`1 passed (1.3m)`。
+- 下一步：从“既有模式数据路线走通”切换到用户要求的全视角真实前台体验优化；按患者、医生、护士、药师、医技、
+  医疗产品经理、实施工程师、信息科长、院长、审计/质控、平台运营等角色真实操作，发现功能分类、流程完整性、交互复杂度、
+  高级信息呈现、敏感信息使用与脱敏、大模型双模式配置等问题后，按最优决策继续修复并阶段提交。
 
 ## 上一阶段交接（2026-06-30 报告解读协同待办可见性修复）
 
