@@ -139,6 +139,48 @@ class ReportInterpretationServiceTest {
     }
 
     @Test
+    void matchesUserFriendlyLabReportToSpecificAndGenericDiagnosticItemKnowledge() {
+        when(snapshots.findById("snap-report")).thenReturn(snapshot(List.of(
+            report(
+                "report-k-1",
+                "血钾检验",
+                "血钾 6.3 mmol/L，危急值，已复核",
+                List.of("血钾升高", "危急值")),
+            report(
+                "report-generic-1",
+                "LAB.UNKNOWN",
+                "血常规结果异常，建议结合病情复核",
+                List.of("检验结果异常")))));
+        when(diagnosticItems.select("t-1", "runtime-release-report")).thenReturn(List.of(
+            new RuntimeDiagnosticItemReference(
+                "t-1",
+                100L,
+                "LAB.POTASSIUM",
+                "血钾检验说明书",
+                21L,
+                "v1.0",
+                SourceAuthorityLevel.B_GUIDELINE.name(),
+                "hash-potassium"),
+            new RuntimeDiagnosticItemReference(
+                "t-1",
+                101L,
+                "launch.diagnostic-item.lab-test-boundary",
+                "检验项目说明书来源与使用边界",
+                22L,
+                "2026.06",
+                SourceAuthorityLevel.C_CONSENSUS_LITERATURE.name(),
+                "hash-lab-boundary")));
+
+        ReportInterpretationResponse response = service.interpret(new ReportInterpretationRequest("snap-report"));
+
+        assertThat(response.interpretations()).hasSize(2);
+        assertThat(response.interpretations()).extracting(ReportInterpretationItem::reportId)
+            .containsExactly("report-k-1", "report-generic-1");
+        assertThat(response.interpretations()).extracting(ReportInterpretationItem::itemName)
+            .containsExactly("血钾检验说明书", "检验项目说明书来源与使用边界");
+    }
+
+    @Test
     void emptyStateDoesNotPersistRecommendationCard() {
         when(snapshots.findById("snap-report")).thenReturn(snapshot(List.of(report(
             "report-plain-1",

@@ -11,8 +11,9 @@
 - 远程分支已清理：`origin` 仅保留 `main`（另有 `origin/HEAD -> origin/main`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前分支最新产品代码提交为 `5a2d502f37daef6c6bb0853690723752c19f0924`
-  （`fix: 优化协同任务报告解读入口`）；其前序产品提交为
+- 当前分支最新产品代码提交为本文件所在提交（本阶段：前台报告事实进入上下文并生成报告解读协同待办）；
+  其前序产品提交为 `5a2d502f37daef6c6bb0853690723752c19f0924`
+  （`fix: 优化协同任务报告解读入口`）、
   `a15d225c47fdd62da172cdaf41dea976c6ab9dc4`
   （`fix: 修正患者360报告解读菜单权限`）、
   `9dd3231946d3afd62a576750db07d384be0066db`
@@ -26,9 +27,9 @@
 - 134 当前后端 jar / manifest 仍为
   `b06a0e1a86c2d2147da2529103e9f42976c298eb`；`2026-06-30T20:08:01+08:00`
   已做前端-only 发布，前端 dist 来源为
-  `5a2d502f37daef6c6bb0853690723752c19f0924`。后续接力不要把 jar manifest
-  误解为最新前端来源；旧 `b4ec9f2d`、`3f5ec881`、`e8f50553` 只作为历史阶段证据，
-  不再代表当前 134 运行版本。
+  `5a2d502f37daef6c6bb0853690723752c19f0924`。本阶段代码尚未部署 134；后续应做一次后端+前端完整发布，
+  再跑全角色真实前台演练。后续接力不要把 jar manifest 误解为最新前端来源；
+  旧 `b4ec9f2d`、`3f5ec881`、`e8f50553` 只作为历史阶段证据，不再代表当前 134 运行版本。
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
@@ -38,7 +39,45 @@
   `rehearsal` 是当前 1.0 契约中的完整上线演练机构块，不是旧兼容入口；
   `roleAccounts`、`platformRoleAccounts`、`customerTenant` 等旧 root 账号字段不得作为登录权威。
 
-## 最新阶段交接（2026-06-30 协同任务报告解读入口）
+## 最新阶段交接（2026-06-30 前台报告事实进入上下文与协同待办闭环）
+
+- 根因结论：上一轮 134 直达复核看到“报告解读 0 项”，不能只优化协同任务入口文案。
+  真实断点在前台建立当前就诊上下文时，表单只采集诊断、症状、用药与检验，`frontdeskSnapshotRequest`
+  固定发送 `diagnosticReports: []`；E2E 也只断言报告解读接口返回 200 和数组类型，未要求非空解读与协同待办。
+  因此真实用户即使从患者 360 进入“生成报告解读”，快照里仍没有已签发报告事实，后端自然无法生成
+  `REPORT_INTERPRETATION` 待办。
+- 产品与代码修复：
+  - `frontend/src/pages/clinical/Mpi.tsx` 在“建立当前就诊上下文”补入“已签发医技报告（可选）”，支持填写医技报告项目、
+    报告结论、异常重点；若只填一部分报告字段会提示“请同时填写医技报告项目和报告结论，或清空报告字段”，避免半截报告事实进入快照。
+  - `frontend/src/shared/api/hooks.ts` 将前台报告字段转换为标准 `diagnosticReports` 资源，记录
+    `MEDKERNEL_FRONTDESK` 来源、签发时间、关键发现、质量状态和 `diagnosticReportCount`，不再发送空报告数组。
+  - `medkernel-backend/src/main/java/com/medkernel/engine/report/ReportInterpretationService.java`
+    放宽报告项目匹配：支持用户友好项目名（如“血钾检验”）命中特定知识条目，也支持真正通用的检验/影像边界条目；
+    同时限制通用兜底只命中通用说明书，避免一个具体报告误配多个具体知识。
+  - `frontend/e2e/stakeholder-view-rehearsal.spec.ts` 将医技动作升级为完整闭环：前台创建含血钾危急值报告的当前上下文，
+    从患者 360 带入报告解读，断言 `interpretations.length > 0`，再进入 `/workflow/todos` 断言出现“报告解读 X 项”
+    与“打开报告上下文”。
+- TDD 与定向验证证据：
+  - 红灯：`npm --prefix frontend test -- Mpi.test.tsx -t "creates a current clinical context snapshot"`
+    修复前失败，页面不存在“医技报告项目”字段。
+  - 红灯：`mvn -Dtest=ReportInterpretationServiceTest#matchesUserFriendlyLabReportToSpecificAndGenericDiagnosticItemKnowledge test`
+    修复前报告解读数为 `0`。
+  - 绿灯：`npm --prefix frontend test -- Mpi.test.tsx` 通过，`11` 个测试 0 失败。
+  - 绿灯：`npm --prefix frontend test -- hooks.test.ts -t frontdesk` 通过，前台快照转换包含
+    `diagnosticReports` 与 `diagnosticReportCount=1`。
+  - 绿灯：`mvn -Dtest=ReportInterpretationServiceTest,WorkflowCollaborationServiceTest#listTodosProjectsClinicalRecommendationTypesIntoCollaborationSources test`
+    通过，报告解读匹配与协同待办投影均保持绿色。
+- 全量验证证据：
+  - 后端：`mvn test` 通过，`3051` 个测试 0 失败，`7` 个 Docker/Testcontainers 条件用例因本机无 Docker 跳过。
+  - 前端：首次与后端全量并发运行 `npm --prefix frontend run verify` 时，7 个既有长交互测试出现 5 秒超时；
+    后端结束后单独复跑完整 `npm --prefix frontend run verify` 通过，`113` 个测试文件 / `897` 个测试 0 失败，
+    覆盖 lint、stylelint、T-GATE lint、Prettier、typecheck、Vitest。
+  - `git diff --check` 通过。
+- 下一步继续主线：本阶段只做本地提交，尚未发布 134。下一阶段应使用本阶段本地提交做后端+前端完整发布，
+  再跑 134 全角色真实前台演练，重点复核“创建患者/当前上下文/医技报告解读/协同任务待办/打开报告上下文”闭环；
+  之后继续全视角真实产品体验优化，覆盖模型双模式敏感信息、患者/医生/护士/医技/药师/质控/院长/信息科/实施/审计等角色。
+
+## 上一阶段交接（2026-06-30 协同任务报告解读入口）
 
 - 本阶段继续从全角色真实前台体验推进“报告工作清单/医技交接入口”：`WorkflowTodos`
   已经通过证据详情权限隐藏患者与追踪标识，但报告解读待办仍会被常规护理/随访任务排序淹没，来源跳转按钮也仍叫

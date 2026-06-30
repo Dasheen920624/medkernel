@@ -597,8 +597,22 @@ async function performReportInterpretationAction(page: Page, view: StakeholderVi
     Array.isArray(interpretation.data?.interpretations),
     `${view.label} 医技报告解读响应应返回 interpretations 数组`,
   ).toBe(true);
+  expect(
+    interpretation.data?.interpretations?.length ?? 0,
+    `${view.label} 医技报告解读必须基于前台录入的已签发报告生成至少 1 项结果`,
+  ).toBeGreaterThan(0);
   await expect(dialog).toBeHidden({ timeout: 20_000 });
-  return ["从患者360带入当前上下文并生成医技报告解读"];
+  await page.goto(appPath("/workflow/todos"), { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle");
+  await expect(
+    page.locator("main").getByRole("heading", { name: "协同任务" }).first(),
+    `${view.label} 应能在协同任务查看报告解读闭环待办`,
+  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/报告解读 [1-9]\d* 项/u)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("link", { name: "打开报告上下文" }).first()).toBeVisible({
+    timeout: 30_000,
+  });
+  return ["从患者360带入当前上下文并生成医技报告解读，协同任务出现报告解读待办"];
 }
 
 async function performFollowupPlanAction(
@@ -913,6 +927,9 @@ async function createContextSnapshotForReportInterpretation(page: Page, view: St
   return createContextSnapshotForStakeholderAction(page, view, {
     namePrefix: "技",
     diagnosis: "真实前台医技报告解读主题",
+    diagnosticReportType: "血钾检验",
+    diagnosticReportConclusion: "血钾 6.3 mmol/L，危急值，已复核",
+    diagnosticReportKeyFindingsText: "血钾升高、危急值",
     reason: "全角色真实演练：为医技报告解读建立当前就诊上下文，不写入患者明文身份。",
   });
 }
@@ -924,6 +941,9 @@ async function createContextSnapshotForStakeholderAction(
     namePrefix: string;
     diagnosis: string;
     currentMedicationText?: string;
+    diagnosticReportType?: string;
+    diagnosticReportConclusion?: string;
+    diagnosticReportKeyFindingsText?: string;
     reason: string;
   },
 ) {
@@ -980,6 +1000,15 @@ async function createContextSnapshotForStakeholderAction(
   await chooseDialogOption(page, contextDialog, "风险分层", "中风险");
   if (options.currentMedicationText) {
     await contextDialog.getByLabel("当前用药").fill(options.currentMedicationText);
+  }
+  if (options.diagnosticReportType) {
+    await contextDialog.getByLabel("医技报告项目").fill(options.diagnosticReportType);
+  }
+  if (options.diagnosticReportConclusion) {
+    await contextDialog.getByLabel("报告结论").fill(options.diagnosticReportConclusion);
+  }
+  if (options.diagnosticReportKeyFindingsText) {
+    await contextDialog.getByLabel("异常重点").fill(options.diagnosticReportKeyFindingsText);
   }
   await contextDialog.getByLabel("建立原因").fill(options.reason);
 

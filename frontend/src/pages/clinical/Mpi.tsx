@@ -88,6 +88,9 @@ type ContextSnapshotFormValues = {
   diseaseCode: string;
   riskLevel: ContextSnapshotCreatePayload["riskLevel"];
   currentMedicationText?: string;
+  diagnosticReportType?: string;
+  diagnosticReportConclusion?: string;
+  diagnosticReportKeyFindingsText?: string;
   reason: string;
 };
 
@@ -408,6 +411,18 @@ export default function Mpi() {
       const values = await contextSnapshotForm.validateFields();
       const diseaseText = values.diseaseCode.trim();
       const currentMedicationText = values.currentMedicationText?.trim();
+      const diagnosticReportType = values.diagnosticReportType?.trim();
+      const diagnosticReportConclusion = values.diagnosticReportConclusion?.trim();
+      const diagnosticReportKeyFindingsText = values.diagnosticReportKeyFindingsText?.trim();
+      const hasDiagnosticReportInput = !!(
+        diagnosticReportType ||
+        diagnosticReportConclusion ||
+        diagnosticReportKeyFindingsText
+      );
+      if (hasDiagnosticReportInput && (!diagnosticReportType || !diagnosticReportConclusion)) {
+        messageApi.error("请同时填写医技报告项目和报告结论，或清空报告字段");
+        return;
+      }
       await createContextSnapshotMutation.mutateAsync({
         patient: contextSnapshotPatient,
         encounterType: values.encounterType,
@@ -415,6 +430,9 @@ export default function Mpi() {
         diseaseName: diseaseText,
         riskLevel: values.riskLevel,
         ...(currentMedicationText ? { currentMedicationText } : {}),
+        ...(diagnosticReportType ? { diagnosticReportType } : {}),
+        ...(diagnosticReportConclusion ? { diagnosticReportConclusion } : {}),
+        ...(diagnosticReportKeyFindingsText ? { diagnosticReportKeyFindingsText } : {}),
         reason: values.reason.trim(),
         idempotencyKey: contextSnapshotIdempotencyKey,
       });
@@ -982,8 +1000,8 @@ export default function Mpi() {
           destroyOnClose
         >
           <Alert
-            message="仅写入脱敏患者标识、当前就诊、诊断、风险分层与必要用药事实"
-            description="本操作用于生成随访、路径、CDSS 和药师复核共用的标准上下文，不会自动开嘱，也不会写入患者姓名、证件号、电话或住址。"
+            message="仅写入脱敏患者标识、当前就诊、诊断、风险分层、必要用药与已签发报告事实"
+            description="本操作用于生成随访、路径、CDSS、药师复核和报告解读共用的标准上下文，不会自动开嘱，也不会写入患者姓名、证件号、电话或住址。"
             type="info"
             showIcon
             className={styles.modalFormItem}
@@ -1014,6 +1032,24 @@ export default function Mpi() {
               <Input.TextArea
                 aria-label="当前用药"
                 placeholder="可选，多个药品用顿号或逗号分隔，例如：华法林、阿司匹林"
+                rows={2}
+              />
+            </Form.Item>
+            <Text strong>已签发医技报告（可选）</Text>
+            <Form.Item name="diagnosticReportType" label="医技报告项目">
+              <Input aria-label="医技报告项目" placeholder="可选，例如：血钾检验或 LAB.POTASSIUM" />
+            </Form.Item>
+            <Form.Item name="diagnosticReportConclusion" label="报告结论">
+              <Input.TextArea
+                aria-label="报告结论"
+                placeholder="可选，填写已签发报告结论，例如：血钾 6.3 mmol/L，危急值，已复核"
+                rows={2}
+              />
+            </Form.Item>
+            <Form.Item name="diagnosticReportKeyFindingsText" label="异常重点">
+              <Input.TextArea
+                aria-label="异常重点"
+                placeholder="可选，多个重点用顿号或逗号分隔，例如：血钾升高、危急值"
                 rows={2}
               />
             </Form.Item>

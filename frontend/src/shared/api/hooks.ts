@@ -6667,6 +6667,9 @@ export interface ContextSnapshotCreatePayload {
   diseaseName: string;
   riskLevel: "LOW" | "MEDIUM" | "HIGH";
   currentMedicationText?: string;
+  diagnosticReportType?: string;
+  diagnosticReportConclusion?: string;
+  diagnosticReportKeyFindingsText?: string;
   reason: string;
   idempotencyKey: string;
 }
@@ -6727,6 +6730,39 @@ function buildFrontdeskMedicationResources(
   }));
 }
 
+function splitFrontdeskKeyFindings(value: string | undefined) {
+  return (value?.split(/[,\n;，、；]/u) ?? []).map((item) => item.trim()).filter(Boolean);
+}
+
+function buildFrontdeskDiagnosticReportResources(
+  payload: ContextSnapshotCreatePayload,
+  profile: SecurityProfile | undefined,
+  now: string,
+) {
+  const reportType = payload.diagnosticReportType?.trim();
+  const conclusion = payload.diagnosticReportConclusion?.trim();
+  if (!reportType || !conclusion) {
+    return [];
+  }
+  const reportId = `report-${crypto.randomUUID()}`;
+  return [
+    {
+      reportId,
+      reportType,
+      conclusion,
+      keyFindings: splitFrontdeskKeyFindings(payload.diagnosticReportKeyFindingsText),
+      interpreterId: profile?.userId ?? null,
+      signedAt: now,
+      sourceSystem: "MEDKERNEL_FRONTDESK",
+      sourceRecordId: reportId,
+      mappedVersion: "FRONTDESK_CONTEXT_V1",
+      eventTime: now,
+      receivedTime: now,
+      qualityStatus: "VALID",
+    },
+  ];
+}
+
 function frontdeskSnapshotRequest(
   payload: ContextSnapshotCreatePayload,
   profile: SecurityProfile | undefined,
@@ -6742,6 +6778,7 @@ function frontdeskSnapshotRequest(
     payload.patient.mpiId,
     now,
   );
+  const diagnosticReports = buildFrontdeskDiagnosticReportResources(payload, profile, now);
   const request = withStandardApiContext(
     {
       patientId: payload.patient.mpiId,
@@ -6797,7 +6834,7 @@ function frontdeskSnapshotRequest(
         ],
         nursingAssessments: [],
         observations: [],
-        diagnosticReports: [],
+        diagnosticReports,
         medications,
         procedures: [],
         documents: [],
@@ -6811,6 +6848,7 @@ function frontdeskSnapshotRequest(
               reason: payload.reason,
               riskLevel: payload.riskLevel,
               currentMedicationCount: medications.length,
+              diagnosticReportCount: diagnosticReports.length,
             },
           },
         },

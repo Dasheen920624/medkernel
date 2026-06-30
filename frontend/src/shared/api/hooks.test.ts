@@ -2984,6 +2984,9 @@ describe("mpi api helpers", () => {
         diseaseName: "房颤随访",
         riskLevel: "HIGH",
         currentMedicationText: "华法林、阿司匹林、华法林",
+        diagnosticReportType: "血钾检验",
+        diagnosticReportConclusion: "血钾 6.3 mmol/L，危急值，已复核",
+        diagnosticReportKeyFindingsText: "血钾升高、危急值",
         reason: "药师联合用药复核",
         idempotencyKey: "context-snapshot-med-1",
       });
@@ -2992,7 +2995,20 @@ describe("mpi api helpers", () => {
     const requestBody = vi.mocked(apiClient.post).mock.calls[0]?.[1] as {
       resources?: {
         medications?: Array<{ code?: string; displayName?: string; prescriptionStatus?: string }>;
-        extensions?: { local?: { frontdeskContext?: { currentMedicationCount?: number } } };
+        diagnosticReports?: Array<{
+          reportType?: string;
+          conclusion?: string;
+          keyFindings?: string[];
+          qualityStatus?: string;
+        }>;
+        extensions?: {
+          local?: {
+            frontdeskContext?: {
+              currentMedicationCount?: number;
+              diagnosticReportCount?: number;
+            };
+          };
+        };
       };
     };
     expect(apiClient.post).toHaveBeenCalledWith("/engine/context/snapshots", expect.any(Object), {
@@ -3013,8 +3029,19 @@ describe("mpi api helpers", () => {
       ]),
     );
     expect(requestBody.resources?.medications).toHaveLength(2);
+    expect(requestBody.resources?.diagnosticReports).toEqual([
+      expect.objectContaining({
+        reportType: "血钾检验",
+        conclusion: "血钾 6.3 mmol/L，危急值，已复核",
+        keyFindings: ["血钾升高", "危急值"],
+        qualityStatus: "VALID",
+      }),
+    ]);
     expect(requestBody.resources?.extensions?.local?.frontdeskContext?.currentMedicationCount).toBe(
       2,
+    );
+    expect(requestBody.resources?.extensions?.local?.frontdeskContext?.diagnosticReportCount).toBe(
+      1,
     );
   });
 });

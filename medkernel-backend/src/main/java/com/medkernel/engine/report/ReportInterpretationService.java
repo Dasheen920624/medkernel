@@ -107,15 +107,36 @@ public class ReportInterpretationService {
         String conclusion = normalize(report.conclusion());
         String findings = normalize(String.join(" ", safeList(report.keyFindings())));
         return items.stream()
-            .filter(item -> {
-                String code = normalize(item.itemCode());
-                String name = normalize(item.itemName());
-                return reportType.equals(code)
-                    || reportType.contains(code)
-                    || code.contains(reportType)
-                    || (!name.isBlank() && (conclusion.contains(name) || findings.contains(name)));
-            })
+            .filter(item -> matchesDiagnosticItem(reportType, conclusion, findings, item))
             .findFirst();
+    }
+
+    private boolean matchesDiagnosticItem(
+            String reportType,
+            String conclusion,
+            String findings,
+            RuntimeDiagnosticItemReference item) {
+        String code = normalize(item.itemCode());
+        String name = normalize(item.itemName());
+        String reportText = (reportType + " " + conclusion + " " + findings).trim();
+        if ((!reportType.isBlank() && reportType.equals(code))
+                || (!reportType.isBlank() && !code.isBlank() && (reportType.contains(code) || code.contains(reportType)))
+                || (!name.isBlank() && (conclusion.contains(name) || findings.contains(name)))) {
+            return true;
+        }
+        if (!reportType.isBlank() && !name.isBlank() && name.contains(reportType)) {
+            return true;
+        }
+        return matchesDiagnosticFamily(reportText, code + " " + name);
+    }
+
+    private boolean matchesDiagnosticFamily(String reportText, String itemText) {
+        if (containsAny(reportText, List.of("lab", "检验", "serum", "blood"))
+                && containsAny(itemText, List.of("lab-test", "检验项目", "medical tests"))) {
+            return true;
+        }
+        return containsAny(reportText, List.of("exam", "image", "影像", "检查", "ct", "mri", "超声", "x线"))
+            && containsAny(itemText, List.of("exam-boundary", "image-boundary", "diagnostic-item", "检查项目", "医技项目"));
     }
 
     private ReportInterpretationItem interpret(
