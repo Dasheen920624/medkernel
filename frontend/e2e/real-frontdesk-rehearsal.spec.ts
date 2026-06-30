@@ -411,7 +411,10 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
     timeout: 20_000,
   });
 
-  await page.getByRole("button", { name: "填报" }).first().click();
+  await page
+    .getByRole("button", { name: /填\s*报/ })
+    .first()
+    .click();
   await chooseDialogOption(
     page,
     page.getByRole("dialog", { name: "随访计划办理" }),

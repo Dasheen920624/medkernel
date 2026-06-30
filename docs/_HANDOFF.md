@@ -626,6 +626,16 @@
     - 绿灯：给 Drawer 补 `aria-label="随访计划办理"` 后同命令通过；随后
       `npm --prefix frontend test -- Followup.test.tsx` 通过，`15` 项；
       `npm --prefix frontend run typecheck`、`npx prettier --write ...` 与 `git diff --check` 通过。
+  - 后续状态：本阶段已提交为 `2bc288ce`；重跑深度真实前台 E2E 后办理抽屉可定位，新红灯变为“填报”按钮中文空白定位，见下一条记录。
+- 真实前台深度随访按钮定位红绿闭环（`2026-06-30T10:20:30+08:00`）：
+  - 使用本地提交 `2bc288ce` 重跑 134 深度真实前台 E2E，证据目录
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-2bc288ce`；
+    前七段真实操作无浏览器、服务端、网络错误，生成计划后已打开“随访计划办理”抽屉。
+  - 新红灯：脚本等待 `getByRole('button', { name: '填报' })` 直到 420 秒超时；
+    AntD 中文按钮可访问名称为 `填 报`，页面单测已使用 `/填\s*报/` 兼容。
+  - 修复：E2E 同步改用 `/填\s*报/` 定位问卷填报按钮，不改变产品行为。
+  - 验证：`npm --prefix frontend run typecheck`、`npx prettier --write frontend/e2e/real-frontdesk-rehearsal.spec.ts`
+    与 `git diff --check` 通过。
   - 下一步：提交本地阶段版本后，继续用新提交重跑 134 深度真实前台 E2E。
 
 ## 下一步
