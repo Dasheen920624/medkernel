@@ -52,6 +52,7 @@ test.describe("全前台真实操作演练", () => {
       );
       await publishFollowupTemplateFromUi(page, testInfo, runtime, records, followupTemplate);
       const snapshot = await createContextSnapshotFromUi(page, testInfo, runtime, records, patient);
+      await runCdssRecommendationFromUi(page, testInfo, runtime, records, snapshot);
       await generateFollowupPlanAndHandlePatientFeedbackFromUi(
         page,
         testInfo,
@@ -284,6 +285,53 @@ async function createContextSnapshotFromUi(
     patientId: patient.mpiId,
     encounterId: result.data?.resources?.encounters?.[0]?.encounterId ?? null,
   };
+}
+
+async function runCdssRecommendationFromUi(
+  page: Page,
+  testInfo: TestInfo,
+  runtime: RuntimeCollectors,
+  records: RuntimeRecord[],
+  snapshot: ContextSnapshotSummary,
+) {
+  await ensureReadySession(page, "clinical-user");
+  clearRuntime(runtime);
+  await page.goto("/cdss/fatigue", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "提醒与推荐" })).toBeVisible();
+  await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
+  await expectNoRootOverflow(page, "提醒与推荐桌面");
+
+  await page.getByRole("button", { name: "登记触发评估" }).click();
+  const dialog = page.getByRole("dialog", { name: "登记一次推荐触发评估" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("患者信息").fill(snapshot.patientId);
+  if (snapshot.encounterId) {
+    await dialog.getByLabel("就诊信息").fill(snapshot.encounterId);
+  }
+  await expect(dialog.getByRole("button", { name: "选择第 1 个临床快照" })).toBeVisible({
+    timeout: 20_000,
+  });
+  await dialog.getByRole("button", { name: "选择第 1 个临床快照" }).click();
+  await chooseDialogOption(page, dialog, "触发时点", "查看患者");
+
+  const responsePromise = waitForPost(page, "/api/v1/engine/recommendations:evaluate");
+  await dialog.getByRole("button", { name: "执行推荐评估" }).click();
+  const response = await responsePromise;
+  const responseText = await response.text();
+  expect(
+    response.ok(),
+    `医生从前台触发 CDSS 推荐评估应返回成功 status=${response.status()} body=${responseText}`,
+  ).toBe(true);
+  const result = JSON.parse(responseText) as {
+    data?: { visibleCardCount?: number; suppressedCardCount?: number };
+  };
+  expect(
+    result.data?.visibleCardCount ?? -1,
+    "推荐评估响应应返回展示卡片数量",
+  ).toBeGreaterThanOrEqual(0);
+  await expect(dialog).toBeHidden({ timeout: 20_000 });
+  await captureEvidence(page, testInfo, "real-frontdesk-cdss-recommendation");
+  recordCleanRuntime(page, "医生从前台已生效快照触发 CDSS 推荐评估", runtime, records);
 }
 
 async function createFollowupTemplateFromUi(

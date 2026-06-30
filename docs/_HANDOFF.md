@@ -847,6 +847,21 @@
     12 类视角均为 `browserErrors=0`、`serverErrors=0`、`networkFailures=0`，其中 `QUALITY_CONTROLLER` 与
     `HOSPITAL_EXECUTIVE` 均记录动作 `切换质量下钻类型并读取整改证据`。
   - 同步修复：该 E2E 的 HTTP 错误采集同时覆盖 `/medkernel/` 和本地代理 `/api/v1/`，避免后续本地代理复演漏报服务端错误。
+- 真实前台深度演练补入医生 CDSS 动作（`2026-06-30T11:42:00+08:00`）：
+  - 本阶段把深度真实前台链路从“建数据并完成随访闭环”继续推进到“医生消费已生效临床上下文”：
+    在前台创建脱敏患者、建立当前就诊上下文快照后，医生进入 `/cdss/fatigue`，打开“登记触发评估”，
+    从前台选择第 1 个已生效临床快照，触发真实 `POST /engine/recommendations:evaluate` 推荐评估；
+    响应成功后再继续生成随访计划、患者/代理问卷回收和异常回院登记。
+  - 直接访问 134 前端入口复演：
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-cdss-action-direct134/report/results.json`，
+    Playwright `expected=1`、`unexpected=0`、`skipped=0`、`flaky=0`，耗时 `33880.608ms`。
+  - 运行记录：
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-cdss-action-direct134/artifacts/real-frontdesk-rehearsal-全-1ad6c-、外调策略、患者资源与临床随访数据均由前台页面提交产生-chromium/real-frontdesk-runtime-records.json`。
+  - 9 段真实前台操作均通过且 `browserErrors=0`、`serverErrors=0`、`networkFailures=0`：
+    创建系统接入适配器、创建知识值集草稿、配置模型外调安全策略、创建脱敏患者主索引、创建随访模板、
+    发布随访模板、建立当前就诊上下文快照、医生触发 CDSS 推荐评估、生成随访计划并完成问卷与异常回院登记。
+  - 提交前验证：`git diff --check` 通过；`npm --prefix frontend run verify` 通过，
+    `112` 个测试文件 / `887` 个测试通过。
 
 ## 下一步
 
@@ -854,7 +869,7 @@
 2. 路由级角色视角已覆盖所有认证路由；后续继续转向真实前台逐角色操作演练与页面交互细节优化，
    重点看操作步数、默认筛选、追溯证据开关、权限提示、患者敏感信息屏蔽和高风险确认是否仍有不顺。
 3. 134 已完成字段目录修复部署、数据接入契约复核、真实前台基础路线复演、深度随访全链路复演和
-   `10104fbb` 直接入口复演；全角色真实操作已启动首批质量下钻动作验收；
+   `10104fbb` 直接入口复演；全角色真实操作已完成首批质量下钻动作和医生 CDSS 推荐评估动作验收；
    下一阶段继续做逐页真实操作，不只看页面可进入，还要从医生、护士、患者/代理、药师、医技、质控、信息科、
    实施工程师、审计员、院长等视角提交真实表单、触发真实状态变化并修复流程和交互问题。
 4. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；
