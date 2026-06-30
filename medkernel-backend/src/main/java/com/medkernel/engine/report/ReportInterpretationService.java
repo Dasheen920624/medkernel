@@ -14,6 +14,7 @@ import com.medkernel.engine.context.ContextSnapshotResponse;
 import com.medkernel.engine.context.ContextSnapshotService;
 import com.medkernel.engine.context.ContextSnapshotStatus;
 import com.medkernel.engine.context.canonical.CanonicalDiagnosticReport;
+import com.medkernel.engine.recommendation.KnowledgeSourceLocator;
 import com.medkernel.engine.recommendation.RecommendationCardRequest;
 import com.medkernel.engine.recommendation.RecommendationCardType;
 import com.medkernel.engine.recommendation.RecommendationEngineService;
@@ -230,6 +231,7 @@ public class ReportInterpretationService {
             : RecommendationInterruptLevel.INFO;
         String versionNo = source == null ? item.versionNo() : source.versionNo();
         String sourceHash = source == null ? null : source.contentHash();
+        String sourceTenantId = source == null ? null : source.sourceTenantId();
         return new RecommendationCardRequest(
             "report-" + item.reportId(),
             cardType(item.reportType()),
@@ -241,16 +243,16 @@ public class ReportInterpretationService {
             true,
             false,
             "医技项目说明书 " + display(item.itemName()) + " " + display(versionNo),
-            explanationJson(item, runtimeReleaseId, sourceHash),
+            explanationJson(item, runtimeReleaseId, sourceTenantId, sourceHash),
             "report:" + item.reportId(),
             null,
             null,
             List.of(new RecommendationSourceRequest(
                 RecommendationSourceType.KNOWLEDGE,
-                String.valueOf(item.sourceVersionId()),
+                item.itemCode(),
                 item.versionNo(),
                 item.itemName(),
-                item.itemCode(),
+                KnowledgeSourceLocator.citationLocator(sourceTenantId, item.sourceVersionId()),
                 sourceHash,
                 "医技项目说明书"))
         );
@@ -264,13 +266,18 @@ public class ReportInterpretationService {
         return RecommendationCardType.EXAM;
     }
 
-    private String explanationJson(ReportInterpretationItem item, String runtimeReleaseId, String sourceHash) {
+    private String explanationJson(
+            ReportInterpretationItem item,
+            String runtimeReleaseId,
+            String sourceTenantId,
+            String sourceHash) {
         try {
             return objectMapper.writeValueAsString(Map.of(
                 "reportId", item.reportId(),
                 "runtimeReleaseId", runtimeReleaseId,
                 "itemCode", item.itemCode(),
                 "itemName", item.itemName(),
+                "sourceTenantId", sourceTenantId == null ? "" : sourceTenantId,
                 "sourceVersionId", item.sourceVersionId(),
                 "sourceContentHash", sourceHash == null ? "" : sourceHash,
                 "criticalRisk", item.criticalRisk(),

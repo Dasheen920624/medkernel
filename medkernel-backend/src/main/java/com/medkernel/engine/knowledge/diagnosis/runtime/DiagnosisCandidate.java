@@ -13,7 +13,7 @@ public record DiagnosisCandidate(
     List<String> supporting, List<String> refuting, List<String> missingRequired,
     List<DiagnosisDifferentialSuggestion> differentials,
     List<DiagnosisCareSuggestion> careSuggestions,
-    String authorityLevel, boolean redline, Long sourceVersionId
+    String authorityLevel, boolean redline, String sourceTenantId, Long sourceVersionId
 ) {
     public DiagnosisCandidate {
         supporting = supporting == null ? List.of() : List.copyOf(supporting);

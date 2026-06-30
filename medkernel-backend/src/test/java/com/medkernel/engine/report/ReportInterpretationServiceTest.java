@@ -27,6 +27,7 @@ import com.medkernel.engine.recommendation.RecommendationEngineService;
 import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.recommendation.RecommendationTriggerRequest;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 
 import org.junit.jupiter.api.AfterEach;
@@ -73,7 +74,7 @@ class ReportInterpretationServiceTest {
             List.of("血钾升高", "危急值")))));
         when(diagnosticItems.select("t-1", "runtime-release-report")).thenReturn(List.of(
             new RuntimeDiagnosticItemReference(
-                "t-1",
+                PlatformTenant.ID,
                 100L,
                 "LAB.POTASSIUM",
                 "血钾检验说明书",
@@ -133,8 +134,11 @@ class ReportInterpretationServiceTest {
             assertThat(card.suggestedAction()).contains("不改写已签发报告", "不自动开立医嘱");
             assertThat(card.sourceSummary()).contains("医技项目说明书", "v1.0");
             assertThat(card.explanationJson()).contains("report-k-1", "runtime-release-report", "hash-potassium");
-            assertThat(card.sources()).singleElement().satisfies(source ->
-                assertThat(source.sourceRefId()).isEqualTo("21"));
+            assertThat(card.sources()).singleElement().satisfies(source -> {
+                assertThat(source.sourceRefId()).isEqualTo("LAB.POTASSIUM");
+                assertThat(source.citationLocator())
+                    .isEqualTo("knowledge_version:" + PlatformTenant.ID + ":21");
+            });
         });
     }
 

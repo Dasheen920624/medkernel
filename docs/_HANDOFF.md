@@ -1397,6 +1397,35 @@
       `mvn -Dtest=RuntimeReleaseDiagnosticItemSelectorTest,ReportInterpretationServiceTest,ReportInterpretationControllerSecurityTest test`
       通过，`13` 项。
   - 待执行：提交本地分支后，把该提交重新部署到 134，复跑全角色前台演练，确认医技报告解读响应非空、协同待办和报告上下文闭环恢复。
+- 134 全链路复演暴露知识来源租户丢失问题（`2026-06-30T21:56:00+08:00`）：
+  - `44b2b9c2962691d6647185b187e8a50c5a8be8e6` 已发布到 134：
+    `jarSha256=6f29a1da6b60e4e5515d353887ba19473f5df88d79b4a939666dc0eddd8011d4`，
+    备份 `/zoesoft/medkernel/backups/deploy-20260630-214708`，readiness HTTP 200 / `{"status":"UP"}`。
+  - 复跑全角色前台演练：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-44b2b9c2-deployed-direct134/report/results.json`，
+    前三类视角（医生、护士、药师）真实动作通过，`MEDICAL_TECHNICIAN`
+    在 `POST /engine/recommendations/report-interpretation` 被安全门拦截：
+    `ENG-API-007 知识版本不存在或不可用于新临床命中 versionId=5`。
+  - 根因：
+    - 报告解读卡片把知识版本内部主键直接写入 `sourceRefId`，安全门把纯数字按当前医疗机构租户校验；
+      平台基线知识实际属于平台来源租户，当前机构租户下没有同一主键。
+    - 同类风险也存在于 CDSS 规则命中的知识来源和鉴别诊断候选：运行时选择器已保留 `sourceTenantId`，
+      但推荐来源定位器未把来源租户带过安全门。
+  - 已本地修复：
+    - 新增 `KnowledgeSourceLocator`，统一生成 / 解析
+      `knowledge_version:<sourceTenantId>:<versionId>`；安全门保留旧格式
+      `knowledge_version:<versionId>` 和纯数字来源兼容，但新格式按来源租户校验 ACTIVE 状态。
+    - 报告解读、规则命中、诊断辅助三条链路统一把 `sourceRefId` 改为知识身份码，
+      把 `citationLocator` 改为带来源租户的知识版本定位器；`DiagnosisCandidate`
+      保留运行时诊断知识来源租户，避免平台诊断知识落推荐卡时再按医院租户误查。
+  - 红绿验证：
+    - 红灯：`mvn -Dtest=ClinicalSafetyGuardTest,ReportInterpretationServiceTest,RecommendationDeterministicMatcherTest,DiagnosisAssistServiceTest test`
+      初次失败于三处旧格式断言：规则命中仍为 `knowledge_version:100`，
+      诊断辅助来源仍为 `10`，报告解读来源仍为 `21`。
+    - 绿灯：`mvn -Dtest=ClinicalSafetyGuardTest,ReportInterpretationServiceTest,RecommendationDeterministicMatcherTest,DiagnosisAssistServiceTest,DiagnosisAssistApiContractTest test`
+      通过，`31` 项；进一步 `mvn -Dtest=RuntimeReleaseDiagnosticItemSelectorTest,ReportInterpretationServiceTest,ReportInterpretationControllerSecurityTest,ClinicalSafetyGuardTest,RecommendationEngineServiceTest,RecommendationDeterministicMatcherTest,DiagnosisAssistServiceTest,DiagnosisAssistApiContractTest test`
+      通过，`64` 项。
+  - 待执行：提交本地分支后，把新提交重新部署到 134，复跑全角色前台演练；若通过，再进入全角色真实体验优化阶段。
 
 ## 下一步
 

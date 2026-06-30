@@ -151,7 +151,7 @@ class RecommendationDeterministicMatcherTest {
             .containsExactly("rule-risk", "RISK_GENDER", "snapshot-1", "pathway-1");
         RecommendationSourceRequest knowledge = card.sources().get(1);
         assertThat(knowledge.sourceVersion()).isEqualTo("2026.1");
-        assertThat(knowledge.citationLocator()).isEqualTo("knowledge_version:100");
+        assertThat(knowledge.citationLocator()).isEqualTo("knowledge_version:tenant-A:100");
         assertThat(knowledge.sourceHash()).isEqualTo("sha256:knowledge-risk-gender");
     }
 

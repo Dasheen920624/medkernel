@@ -274,7 +274,7 @@ public class RecommendationDeterministicMatcher {
             identity.identityCode(),
             version.versionNo(),
             identity.subject(),
-            "knowledge_version:" + version.id(),
+            KnowledgeSourceLocator.citationLocator(knowledge.sourceTenantId(), version.id()),
             version.contentHash(),
             "已审核知识版本 " + version.versionNo()
         );
