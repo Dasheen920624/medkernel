@@ -11,9 +11,11 @@
 - 远程分支已清理：`origin` 仅保留 `main`（另有 `origin/HEAD -> origin/main`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前分支最新产品代码提交为 `3c61cc186a24dfab20a49229e49974c33f32ed5d`
-  （`fix: 置顶报告解读协同待办分页排序`）；
-  其前序产品提交为 `653c19cb4c7b4c2302d23e252371a17cec8c5966`
+- 当前分支最新产品代码提交为 `691b50e8ce94727992cf01cdf09d64986ad7e4b6`
+  （`fix: 优化全角色前台体验语言`）；
+  其前序产品提交为 `3c61cc186a24dfab20a49229e49974c33f32ed5d`
+  （`fix: 置顶报告解读协同待办分页排序`）、
+  `653c19cb4c7b4c2302d23e252371a17cec8c5966`
   （`fix: 修复报告解读协同待办可见性`）、
   `cd5e58a0e766d2d84d1d966f4ae2d57381aade82`
   （`fix: 统一推荐知识来源租户定位`）、
@@ -37,9 +39,10 @@
   （`fix: 补齐推荐详情抽屉可访问名称`）和
   `21caf969bcec81a849a7ccc12c03d5afcab2e62d`
   （`fix: 统一推荐运行包触发契约`）。
-- 134 当前已完整部署 `3c61cc186a24dfab20a49229e49974c33f32ed5d`；该部署已修复报告解读知识版本映射、
+- 134 当前仍完整部署 `3c61cc186a24dfab20a49229e49974c33f32ed5d`；该部署已修复报告解读知识版本映射、
   知识来源租户安全门、报告解读待办分类和 `clinical-user` 可见性，并修复协同待办服务端分页排序。
-  既有模式全角色前台复演已通过，下一阶段按用户要求进入全视角真实前台操作与产品体验优化。
+  既有模式全角色前台复演已通过。本地最新产品提交 `691b50e8ce94727992cf01cdf09d64986ad7e4b6`
+  是全视角真实前台体验优化第一批，尚未部署到 134；下一步需发布到 134 后复跑真实前台演练。
   旧 `3d9f9c`、`c68e127f`、`b4ec9f2d`、`3f5ec881`、`e8f50553` 只作为历史阶段证据，
   不再代表当前 134 运行版本。
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
@@ -51,7 +54,39 @@
   `rehearsal` 是当前 1.0 契约中的完整上线演练机构块，不是旧兼容入口；
   `roleAccounts`、`platformRoleAccounts`、`customerTenant` 等旧 root 账号字段不得作为登录权威。
 
-## 最新阶段交接（2026-06-30 报告解读协同待办分页排序修复）
+## 最新阶段交接（2026-06-30 全视角真实前台体验优化第一批）
+
+- 既有模式已在 134 跑通后，进入用户要求的全视角真实前台体验优化。基于
+  `stakeholder-view-rehearsal` 与 `real-frontdesk-rehearsal` 直接访问 134 的截图和运行记录，先收敛第一批会误导医生、护士、
+  患者代理、药师、医技、质控、信息科长、实施工程师、院长和平台运营的前台问题。
+- 已本地修复并提交 `691b50e8ce94727992cf01cdf09d64986ad7e4b6`
+  （`fix: 优化全角色前台体验语言`）：
+  - 模型能力页不再在列表反复展示长段技术说明，改为“公网患者上下文 / 院内授权患者上下文 / 双路径患者上下文”可扫描摘要；
+    公网外调入口按钮显式显示“配置外调安全”，完整边界仍进入展开详情，符合“不是取消高级信息，而是更好体现”的新定义。
+  - 客户可见未知枚举统一改为“状态待确认”或“角色待确认”，不再显示“未识别状态 / 未识别级别 / 未识别角色”；
+    覆盖 CDSS 推荐、路径、数据权限、通用标签和角色目录。
+  - 院长/质控驾驶舱指标单位把 `RATE`、`PERCENT`、`CASE_COUNT`、`COUNT` 转成 `100.0%`、`0 例`、`0 项`
+    等业务读法，不再暴露 `1 RATE`、`0 CASE_COUNT`。
+  - MPI 建立上下文弹窗去掉固定药品、检验值和项目编码示例，改为真实录入说明与患者核心标识提醒，避免医学常量和患者敏感信息误导。
+  - 规则维护职责从“DSL / 测试用例”改为“触发条件、建议动作、验证病例和分阶段上线范围”，继续隐藏工程内部语言。
+- 红绿验证：
+  - 红灯：`customerLanguageGate.test.ts` 新增通用标签兜底断言后失败，`orgLevelLabel("UNEXPECTED_SCOPE_LEVEL")`
+    仍返回“未识别”；`roleCatalog.test.ts` 失败于旧角色仍返回“未识别角色”；`SecurityBaseline.test.tsx`
+    失败于未知数据权限动作/层级未显示“状态待确认”；`AiWorkflows.test.tsx` 旧断言仍要求列表显示长段本地模型说明；
+    `QcDashboard.test.tsx` 新增指标单位断言后找不到 `100.0%`；真实性 inventory 报出 MPI 医学常量和路由 DSL 文案。
+  - 绿灯：`npm --prefix frontend test -- customerLanguageGate.test.ts roleCatalog.test.ts SecurityBaseline.test.tsx QcDashboard.test.tsx CdssFatigue.test.tsx PatientPathways.test.tsx AiWorkflows.test.tsx`
+    通过，`54` 项；`npm --prefix frontend test -- Mpi.test.tsx routes.test.ts pages.smoke.test.tsx` 通过，`89` 项。
+  - 完整前端验证：`npm --prefix frontend run verify` 通过，`113` 个测试文件 / `901` 个测试通过；`npm --prefix frontend run build` 通过。
+  - 仓库门禁：`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`node scripts/authenticity-guard.mjs --mode=inventory` 扫描 `2109` 个文件，未发现阻断项；
+    `node scripts/config-boundary-guard.mjs --mode=inventory` 扫描 `1908` 个文件，未发现阻断项；
+    `bash scripts/check-comment-zh.sh --self-test` 通过，`7 pass`；`git diff --check` 通过；
+    前台生产源码扫描 `未识别状态|未识别级别|未识别角色|未识别` 无命中。
+- 待执行：提交本接力文档后，把最新本地 HEAD 完整发布到 134，复跑
+  `stakeholder-view-rehearsal.spec.ts` 与 `real-frontdesk-rehearsal.spec.ts`；确认模型能力页、质控驾驶舱、MPI 上下文、
+  CDSS/路径状态和数据权限页在真实前台入口均使用新体验。通过后继续第二批全视角真实操作优化，不推送远程 `main`。
+
+## 上一阶段交接（2026-06-30 报告解读协同待办分页排序修复）
 
 - 134 已部署 `653c19cb4c7b4c2302d23e252371a17cec8c5966`：
   `jarSha256=f04353ba9ccb01df7c892be06076f39a6800bab0ad43a25495b49e9162a83e2d`，
