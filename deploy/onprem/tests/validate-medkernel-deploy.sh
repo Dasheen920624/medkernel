@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SCRIPT="$ROOT/deploy/onprem/medkernel-deploy.sh"
 SERVICE_UNIT="$ROOT/deploy/onprem/templates/medkernel.service"
+NGINX_TEMPLATE="$ROOT/deploy/onprem/templates/medkernel.nginx.conf"
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
@@ -54,6 +55,18 @@ grep -q "trap .*TERM" "$SCRIPT"
 grep -q 'medkernel.service' "$SCRIPT"
 grep -q 'medkernel.conf' "$SCRIPT"
 grep -q 'health_check' "$SCRIPT"
+grep -q 'location = /medkernel ' "$NGINX_TEMPLATE"
+grep -q 'location /medkernel/api/' "$NGINX_TEMPLATE"
+grep -q 'location /medkernel/ {' "$NGINX_TEMPLATE"
+if awk '
+  /location \/medkernel\/ \{/ { in_spa = 1 }
+  in_spa && /proxy_pass http:\/\/medkernel_backend/ { found = 1 }
+  in_spa && /^    \}/ { in_spa = 0 }
+  END { exit found ? 0 : 1 }
+' "$NGINX_TEMPLATE"; then
+  printf '/medkernel SPA deep links must not be proxied to backend\n' >&2
+  exit 1
+fi
 if grep -q -- '--no-rollback' "$SCRIPT"; then
   printf 'deployment script still allows mandatory rollback to be disabled\n' >&2
   exit 1

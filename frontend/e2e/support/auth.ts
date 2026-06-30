@@ -98,7 +98,7 @@ export async function ensureReadySession(
 
 export async function loginFromPlatformPage(page: Page, role: RoleAccount) {
   await page.context().clearCookies();
-  await page.goto("/login");
+  await page.goto(appPath("/login"));
   await expectLoginPageReady(page);
   const scope: RoleCredentialScope = "platform";
 
@@ -162,11 +162,13 @@ async function resetRoleSession(page: Page) {
     }),
   ]);
   await page.context().clearCookies();
-  await page.goto(`/login?e2e-session-reset=${Date.now()}`, { waitUntil: "domcontentloaded" });
+  await page.goto(appPath(`/login?e2e-session-reset=${Date.now()}`), {
+    waitUntil: "domcontentloaded",
+  });
 }
 
 async function reloadFrontendSession(page: Page, role: RoleAccount) {
-  await page.goto(`/dashboard?e2e-session-refresh=${role}-${Date.now()}`, {
+  await page.goto(appPath(`/dashboard?e2e-session-refresh=${role}-${Date.now()}`), {
     waitUntil: "domcontentloaded",
   });
   await expect(page.getByRole("button", { name: "当前用户菜单" })).toBeVisible({
@@ -219,6 +221,14 @@ export function resolveFrontendApiBase(baseUrl: string) {
   const pathname = new URL(normalized).pathname.replace(/\/+$/, "");
   const contextPath = pathname.endsWith("/medkernel") ? "" : "/medkernel";
   return `${normalized}${contextPath}/api/v1`;
+}
+
+export function appPath(path: string) {
+  const basePath = new URL(appBase).pathname.replace(/\/+$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  if (!basePath || basePath === "/") return normalizedPath;
+  if (normalizedPath === "/") return basePath;
+  return `${basePath}${normalizedPath}`;
 }
 
 function tenantIdFor(username: string, scope: RoleCredentialScope = defaultCredentialScope) {

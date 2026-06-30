@@ -1,7 +1,7 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 
-import { ensureReadySession, type RoleAccount } from "./support/auth";
+import { appPath, ensureReadySession, type RoleAccount } from "./support/auth";
 
 type StakeholderView = {
   code: string;
@@ -10,7 +10,7 @@ type StakeholderView = {
   path: string;
   heading: string | RegExp;
   markers: Array<string | RegExp>;
-  action?: "QUALITY_DRILLDOWN" | "AUDIT_EXPORT_VERIFY";
+  action?: "QUALITY_DRILLDOWN" | "AUDIT_EXPORT_VERIFY" | "ADAPTER_QUALITY_REPORT";
 };
 
 type RuntimeRecord = {
@@ -107,6 +107,7 @@ const stakeholderViews: StakeholderView[] = [
     path: "/system/runtime-diagnostics",
     heading: "运行诊断",
     markers: ["服务契约", "追踪诊断", "插件边界"],
+    action: "ADAPTER_QUALITY_REPORT",
   },
   {
     code: "IMPLEMENTATION_ENGINEER",
@@ -115,6 +116,7 @@ const stakeholderViews: StakeholderView[] = [
     path: "/onboarding/guide",
     heading: "实施与验收",
     markers: ["实施步骤真实状态", "阻塞项", "下一配置页"],
+    action: "ADAPTER_QUALITY_REPORT",
   },
   {
     code: "HOSPITAL_EXECUTIVE",
@@ -157,7 +159,7 @@ async function assertStakeholderView(
 ) {
   await ensureReadySession(page, view.role);
   clearRuntime(runtime);
-  await page.goto(view.path, { waitUntil: "domcontentloaded" });
+  await page.goto(appPath(view.path), { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
 
   await expect(
@@ -209,6 +211,9 @@ async function performStakeholderAction(page: Page, view: StakeholderView) {
   }
   if (view.action === "AUDIT_EXPORT_VERIFY") {
     return performAuditExportVerifyAction(page, view);
+  }
+  if (view.action === "ADAPTER_QUALITY_REPORT") {
+    return performAdapterQualityReportAction(page, view);
   }
 
   return [];
@@ -307,6 +312,31 @@ async function performAuditExportVerifyAction(page: Page, view: StakeholderView)
   await expect(evidenceDialog.getByText("证据验签通过")).toBeVisible({ timeout: 20_000 });
 
   return ["确认审计导出范围、生成导出文件并验签导出证据"];
+}
+
+async function performAdapterQualityReportAction(page: Page, view: StakeholderView) {
+  await page.goto(appPath("/adapter/hub"), { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle");
+  await expect(
+    page.locator("main").getByRole("heading", { name: "系统接入" }).first(),
+    `${view.label} 应能进入系统接入页生成上线前数据质量报告`,
+  ).toBeVisible({ timeout: 30_000 });
+
+  await page.getByRole("tab", { name: "数据质量看板" }).click();
+  const reportResponsePromise = waitForPost(page, "/engine/integration/data-quality/reports");
+  await page.getByRole("button", { name: "生成质量报告" }).click();
+  const reportResponse = await reportResponsePromise;
+  const reportText = await reportResponse.text();
+  expect(
+    reportResponse.ok(),
+    `${view.label} 生成系统接入数据质量报告应返回成功 status=${reportResponse.status()} body=${reportText}`,
+  ).toBe(true);
+
+  const reportCard = page.locator(".ant-card").filter({ hasText: "数据质量报告" }).last();
+  await expect(reportCard).toBeVisible({ timeout: 30_000 });
+  await expect(reportCard.getByText("数据质量报告已生成")).toBeVisible({ timeout: 30_000 });
+  await expect(reportCard.getByText("缺口摘要")).toBeVisible();
+  return ["生成系统接入数据质量报告"];
 }
 
 function collectRuntime(page: Page) {

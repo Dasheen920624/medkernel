@@ -7,6 +7,7 @@ import type * as AuthSupport from "../../e2e/support/auth.ts";
 
 const envSnapshot = {
   E2E_API_BASE_URL: process.env.E2E_API_BASE_URL,
+  E2E_BASE_URL: process.env.E2E_BASE_URL,
   E2E_ROLE_CREDENTIALS_FILE: process.env.E2E_ROLE_CREDENTIALS_FILE,
 };
 
@@ -18,6 +19,7 @@ afterEach(() => {
     tempDir = null;
   }
   restoreEnv("E2E_API_BASE_URL", envSnapshot.E2E_API_BASE_URL);
+  restoreEnv("E2E_BASE_URL", envSnapshot.E2E_BASE_URL);
   restoreEnv("E2E_ROLE_CREDENTIALS_FILE", envSnapshot.E2E_ROLE_CREDENTIALS_FILE);
 });
 
@@ -52,6 +54,7 @@ describe("E2E credential contract", () => {
       "utf8",
     );
     process.env.E2E_API_BASE_URL = "https://127.0.0.1/medkernel/api/v1";
+    process.env.E2E_BASE_URL = "https://193.112.107.134/medkernel";
     process.env.E2E_ROLE_CREDENTIALS_FILE = credentialsPath;
 
     const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
@@ -71,6 +74,9 @@ describe("E2E credential contract", () => {
     );
     expect(auth.resolveFrontendApiBase("https://193.112.107.134/medkernel")).toBe(
       "https://193.112.107.134/medkernel/api/v1",
+    );
+    expect(auth.appPath("/dashboard?e2e-session-refresh=clinical-user")).toBe(
+      "/medkernel/dashboard?e2e-session-refresh=clinical-user",
     );
   });
 

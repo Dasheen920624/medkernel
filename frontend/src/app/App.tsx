@@ -7,6 +7,7 @@ import { AppRouter } from "./router";
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { useThemeStore } from "@/shared/lib/themeStore";
 import { createThemeConfig } from "@/shared/config/theme";
+import { resolveBrowserBasename } from "./browserBasename";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -14,6 +15,7 @@ const queryClient = new QueryClient({
 
 export default function App() {
   const mode = useThemeStore((s) => s.mode);
+  const browserBasename = resolveBrowserBasename();
 
   const themeConfig = useMemo(() => {
     const prefersDark =
@@ -26,7 +28,7 @@ export default function App() {
       <AntdApp>
         <AppErrorBoundary>
           <QueryClientProvider client={queryClient}>
-            <BrowserRouter>
+            <BrowserRouter basename={browserBasename}>
               <AppRouter />
             </BrowserRouter>
           </QueryClientProvider>
