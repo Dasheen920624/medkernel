@@ -828,6 +828,25 @@
   - 运行记录：
     `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-scope-fix-final/artifacts/real-frontdesk-rehearsal-全-1ad6c-、外调策略、患者资源与临床随访数据均由前台页面提交产生-chromium/real-frontdesk-runtime-records.json`；
     8 段真实前台操作均通过且 `browserErrors=0`、`serverErrors=0`、`networkFailures=0`。
+- 全角色真实操作首批推进（`2026-06-30T11:35:53+08:00`）：
+  - 基线：直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts`，12 类业务视角全部可进入真实页面并看到职责能力；
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-view-7336125a-direct134/report/results.json`，
+    Playwright `expected=1`、`unexpected=0`、`skipped=0`、`flaky=0`，耗时约 `24.8s`。
+  - 本阶段把该 E2E 从“可进入/可读”推进到首批真实动作：质控负责人和院长在 `/qc/dashboard`
+    均先切换“下钻类型=整改证据”触发真实服务端 `/engine/quality/dashboard/drilldown` 查询，再打开“真实下钻证据”抽屉核验证据包。
+  - 红灯与根因：首次动作断言因“真实下钻证据”同时命中抽屉标题与空态描述失败；第二次误把下钻类型选择器放到抽屉内，
+    但产品真实交互里该选择器位于主页面过滤区；第三次直接点击 AntD combobox input 被当前值文本拦截。
+    已按真实用户路径修复为：主页面点击 Select 外层选择器 → 选择“整改证据” → 等待服务端下钻响应 → 打开抽屉核验证据。
+  - 绿色证据：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-action-7336125a-direct134-select-wrapper/report/results.json`，
+    Playwright `expected=1`、`unexpected=0`、`skipped=0`、`flaky=0`，耗时 `25675.827ms`。
+  - 提交前验证：`git diff --check` 通过；`npm --prefix frontend run verify` 通过，
+    `112` 个测试文件 / `887` 个测试通过。
+  - 运行记录：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-action-7336125a-direct134-select-wrapper/artifacts/stakeholder-view-rehearsal-b11d5-务视角均能通过四职责账号进入真实页面并看到对应业务能力-chromium/stakeholder-view-runtime-records.json`；
+    12 类视角均为 `browserErrors=0`、`serverErrors=0`、`networkFailures=0`，其中 `QUALITY_CONTROLLER` 与
+    `HOSPITAL_EXECUTIVE` 均记录动作 `切换质量下钻类型并读取整改证据`。
+  - 同步修复：该 E2E 的 HTTP 错误采集同时覆盖 `/medkernel/` 和本地代理 `/api/v1/`，避免后续本地代理复演漏报服务端错误。
 
 ## 下一步
 
@@ -835,7 +854,7 @@
 2. 路由级角色视角已覆盖所有认证路由；后续继续转向真实前台逐角色操作演练与页面交互细节优化，
    重点看操作步数、默认筛选、追溯证据开关、权限提示、患者敏感信息屏蔽和高风险确认是否仍有不顺。
 3. 134 已完成字段目录修复部署、数据接入契约复核、真实前台基础路线复演、深度随访全链路复演和
-   `10104fbb` 直接入口复演；
+   `10104fbb` 直接入口复演；全角色真实操作已启动首批质量下钻动作验收；
    下一阶段继续做逐页真实操作，不只看页面可进入，还要从医生、护士、患者/代理、药师、医技、质控、信息科、
    实施工程师、审计员、院长等视角提交真实表单、触发真实状态变化并修复流程和交互问题。
 4. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；

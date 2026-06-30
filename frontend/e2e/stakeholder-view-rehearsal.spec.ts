@@ -10,6 +10,7 @@ type StakeholderView = {
   path: string;
   heading: string | RegExp;
   markers: Array<string | RegExp>;
+  action?: "QUALITY_DRILLDOWN";
 };
 
 type RuntimeRecord = {
@@ -18,6 +19,7 @@ type RuntimeRecord = {
   role: RoleAccount;
   path: string;
   url: string;
+  actions: string[];
   browserErrors: string[];
   serverErrors: string[];
   networkFailures: string[];
@@ -63,6 +65,7 @@ const stakeholderViews: StakeholderView[] = [
     path: "/qc/dashboard",
     heading: "质量管理概览",
     markers: ["真实指标", "下钻问题证据", "导出证据"],
+    action: "QUALITY_DRILLDOWN",
   },
   {
     code: "PATIENT_PROXY",
@@ -119,6 +122,7 @@ const stakeholderViews: StakeholderView[] = [
     path: "/qc/dashboard",
     heading: "质量管理概览",
     markers: ["质量成效", "风险热力", "闭环"],
+    action: "QUALITY_DRILLDOWN",
   },
 ];
 
@@ -172,6 +176,7 @@ async function assertStakeholderView(
     ).toBeVisible({ timeout: 30_000 });
   }
 
+  const actions = await performStakeholderAction(page, view);
   await expectNoRootOverflow(page, view.label);
   const record = {
     code: view.code,
@@ -179,6 +184,7 @@ async function assertStakeholderView(
     role: view.role,
     path: view.path,
     url: page.url(),
+    actions,
     browserErrors: [...runtime.browserErrors],
     serverErrors: [...runtime.serverErrors],
     networkFailures: [...runtime.networkFailures],
@@ -194,6 +200,34 @@ async function assertStakeholderView(
     path: screenshotPath,
     contentType: "image/png",
   });
+}
+
+async function performStakeholderAction(page: Page, view: StakeholderView) {
+  if (view.action !== "QUALITY_DRILLDOWN") {
+    return [];
+  }
+
+  const typeSelect = page
+    .getByRole("combobox", { name: "下钻类型" })
+    .locator(
+      "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
+    );
+  await typeSelect.locator(".ant-select-selector").click({ force: true });
+  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
+  await expect(dropdown).toBeVisible({ timeout: 5_000 });
+  const responsePromise = waitForGet(page, "/engine/quality/dashboard/drilldown");
+  await dropdown.getByText("整改证据", { exact: true }).click();
+  const response = await responsePromise;
+  expect(response.ok(), `${view.label} 切换下钻证据应返回真实服务端结果`).toBe(true);
+
+  await page.getByRole("button", { name: "下钻问题证据" }).click();
+  const drawer = page.locator(".ant-drawer-content").filter({ hasText: "真实下钻证据" }).last();
+  await expect(drawer).toBeVisible({ timeout: 20_000 });
+  await expect(drawer.getByText("真实下钻证据", { exact: true })).toBeVisible();
+  await expect(
+    drawer.getByText(/证据包已生成|已按当前筛选范围记录|证据导出编号/u).first(),
+  ).toBeVisible({ timeout: 20_000 });
+  return ["切换质量下钻类型并读取整改证据"];
 }
 
 function collectRuntime(page: Page) {
@@ -218,7 +252,8 @@ function collectBrowserErrors(page: Page) {
 function collectServerErrors(page: Page) {
   const errors: string[] = [];
   page.on("response", (response) => {
-    if (response.status() >= 400 && response.url().includes("/medkernel/")) {
+    const url = response.url();
+    if (response.status() >= 400 && (url.includes("/medkernel/") || url.includes("/api/v1/"))) {
       errors.push(`${response.status()} ${response.request().method()} ${response.url()}`);
     }
   });
@@ -261,4 +296,11 @@ async function attachRuntimeRecords(testInfo: TestInfo, records: RuntimeRecord[]
     path: recordPath,
     contentType: "application/json",
   });
+}
+
+function waitForGet(page: Page, path: string) {
+  return page.waitForResponse(
+    (response) => response.request().method() === "GET" && response.url().includes(path),
+    { timeout: 30_000 },
+  );
 }
