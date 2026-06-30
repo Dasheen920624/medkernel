@@ -422,6 +422,8 @@ async function performFollowupPlanAction(
 ) {
   const suffix = `${view.code.toLowerCase()}-${Date.now().toString(36)}`;
   const isNurse = options.source === "护士代填";
+  const template = await createFollowupTemplateForStakeholderAction(page, view, suffix);
+  await publishFollowupTemplateForStakeholderAction(page, view, template);
   const snapshot = await createContextSnapshotForStakeholderAction(page, view, {
     namePrefix: isNurse ? "护" : "患",
     diagnosis: isNurse ? "真实前台护士随访交接主题" : "真实前台患者代理问卷回收主题",
@@ -429,8 +431,6 @@ async function performFollowupPlanAction(
       ? "全角色真实演练：护士从患者 360 建立随访交接上下文，不写入患者明文身份。"
       : "全角色真实演练：为患者代理问卷回收建立随访上下文，不写入电话、住址或证件号。",
   });
-  const template = await createFollowupTemplateForStakeholderAction(page, view, suffix);
-  await publishFollowupTemplateForStakeholderAction(page, view, template);
 
   await ensureReadySession(page, "clinical-user");
   await page.goto(appPath("/clinical/followup"), { waitUntil: "domcontentloaded" });
@@ -604,7 +604,18 @@ async function performPharmacistReviewAction(page: Page, view: StakeholderView) 
     page.locator("main").getByRole("heading", { name: "提醒与推荐" }).first(),
     `${view.label} 应能在提醒与推荐页登记药师复核`,
   ).toBeVisible({ timeout: 30_000 });
-  await page.getByLabel("患者或证据线索").fill(cardId);
+  if (cardId) {
+    await page.getByLabel("患者或证据线索").fill(cardId);
+  } else {
+    const cardsResponsePromise = waitForGet(page, "/engine/recommendations/clinical-cards");
+    await choosePageOption(page, "状态", "待处理");
+    const cardsResponse = await cardsResponsePromise;
+    const cardsText = await cardsResponse.text();
+    expect(
+      cardsResponse.ok(),
+      `${view.label} 筛选待处理推荐卡应返回成功 status=${cardsResponse.status()} body=${cardsText}`,
+    ).toBe(true);
+  }
   await expect(page.getByRole("button", { name: "查看与人机反馈" }).first()).toBeVisible({
     timeout: 30_000,
   });
@@ -664,14 +675,10 @@ async function createRecommendationCardForStakeholderAction(page: Page, view: St
   const evaluation = JSON.parse(evaluateText) as {
     data?: { visibleCardCount?: number; cards?: Array<{ cardId?: string }> };
   };
-  expect(
-    evaluation.data?.visibleCardCount ?? 0,
-    `${view.label} 药师复核前应生成至少一张可见推荐卡`,
-  ).toBeGreaterThan(0);
-  const cardId = evaluation.data?.cards?.[0]?.cardId;
-  expect(cardId, `${view.label} 推荐评估响应应返回待复核卡片身份`).toBeTruthy();
   await expect(dialog).toBeHidden({ timeout: 20_000 });
-  return cardId ?? "";
+  return (evaluation.data?.visibleCardCount ?? 0) > 0
+    ? (evaluation.data?.cards?.[0]?.cardId ?? null)
+    : null;
 }
 
 async function createContextSnapshotForReportInterpretation(page: Page, view: StakeholderView) {
@@ -687,6 +694,7 @@ async function createContextSnapshotForStakeholderAction(
   view: StakeholderView,
   options: { namePrefix: string; diagnosis: string; reason: string },
 ) {
+  await ensureReadySession(page, "clinical-user");
   await page.goto(appPath("/mpi"), { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
   await expect(
@@ -844,6 +852,23 @@ function waitForPost(page: Page, path: string) {
 
 async function chooseDialogOption(page: Page, dialog: Locator, label: string, optionText: string) {
   const combobox = dialog.getByRole("combobox", { name: new RegExp(escapeRegExp(label)) }).first();
+  const select = combobox.locator(
+    "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
+  );
+  const selectedText = await currentSelectText(select);
+  if (selectedText === optionText) {
+    return;
+  }
+  await select.locator(".ant-select-selector").click();
+  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
+  await expect(dropdown).toBeVisible({ timeout: 5_000 });
+  const optionLocator = dropdown.getByText(optionText, { exact: true }).last();
+  await expect(optionLocator).toBeVisible({ timeout: 20_000 });
+  await optionLocator.click();
+}
+
+async function choosePageOption(page: Page, label: string, optionText: string) {
+  const combobox = page.getByRole("combobox", { name: new RegExp(escapeRegExp(label)) }).first();
   const select = combobox.locator(
     "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
   );

@@ -448,9 +448,10 @@ describe("CdssFatigue", () => {
       await user.click(screen.getByRole("button", { name: "选择第 1 个临床快照" }));
       await user.click(screen.getByRole("button", { name: "执行推荐评估" }));
 
-      await waitFor(() =>
-        expect(evaluateRecommendations).toHaveBeenCalledWith({
-          triggerCode: "CDSS-MANUAL-order-sign",
+      await waitFor(() => expect(evaluateRecommendations).toHaveBeenCalled());
+      const request = evaluateRecommendations.mock.calls[0]?.[0];
+      expect(request).toEqual(
+        expect.objectContaining({
           triggerType: "order-sign",
           scenarioCode: "order-sign",
           contextSnapshotId: "snapshot-rec-1",
@@ -458,6 +459,11 @@ describe("CdssFatigue", () => {
           encounterId: "enc-real-1",
         }),
       );
+      expect(request.triggerCode).toMatch(
+        /^CDSS-MANUAL-order-sign-snapshot-rec-1-[a-z0-9]+-[a-z0-9]+$/,
+      );
+      expect(request.triggerCode).not.toBe("CDSS-MANUAL-order-sign");
+      expect(request.triggerCode.length).toBeLessThanOrEqual(128);
     },
     CDSS_INTERACTION_TIMEOUT_MS,
   );

@@ -12,6 +12,7 @@ import jakarta.validation.constraints.Size;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.relational.core.conversion.DbActionExecutionException;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -112,6 +113,20 @@ class GlobalExceptionHandlerTest {
             .andExpect(jsonPath("$.code").value("ENG-API-007"))
             .andExpect(jsonPath("$.errorClass").value("DATA"))
             .andExpect(jsonPath("$.retryable").value(false))
+            .andExpect(jsonPath("$.traceId").exists());
+    }
+
+    @Test
+    void dbActionExecutionWrappingDataIntegrityReturnsConflictWithoutSqlDetails() throws Exception {
+        mvc.perform(post("/test/db-action-data-integrity"))
+            .andExpect(status().isConflict())
+            .andExpect(content().string(not(containsString("duplicate key"))))
+            .andExpect(content().string(not(containsString("uk_rec_trigger_tenant_code"))))
+            .andExpect(content().string(not(containsString("SQL"))))
+            .andExpect(jsonPath("$.title").value("资源冲突"))
+            .andExpect(jsonPath("$.status").value(409))
+            .andExpect(jsonPath("$.detail").value("数据约束冲突，请检查唯一字段或引用关系后重试"))
+            .andExpect(jsonPath("$.code").value("ENG-API-007"))
             .andExpect(jsonPath("$.traceId").exists());
     }
 
@@ -258,6 +273,12 @@ class GlobalExceptionHandlerTest {
         public ApiResult<Void> dataIntegrity() {
             throw new DataIntegrityViolationException(
                 "duplicate key value violates unique constraint \"users_email_key\" SQL [insert into users]");
+        }
+
+        @PostMapping("/db-action-data-integrity")
+        public ApiResult<Void> dbActionDataIntegrity() {
+            throw new DbActionExecutionException(null, new DataIntegrityViolationException(
+                "duplicate key value violates unique constraint \"uk_rec_trigger_tenant_code\" SQL [insert]"));
         }
 
         @GetMapping("/permission-denied")

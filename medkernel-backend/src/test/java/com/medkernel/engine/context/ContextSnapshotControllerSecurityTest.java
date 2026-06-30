@@ -26,7 +26,7 @@ import com.medkernel.shared.context.RequestContext;
  * <ul>
  *   <li>未授权访问 → 403</li>
  *   <li>有权限但缺租户 → 400 ENG-BASE-001（DataScopeAspect 兜底）</li>
- *   <li>权限矩阵符合 DefaultPermissionPolicy：DOCTOR/NURSE 可读不可写；IT_OPS 可读可写</li>
+ *   <li>权限矩阵符合 DefaultPermissionPolicy：临床使用者可读并可建立前台上下文；审计只读不可写</li>
  * </ul>
  */
 @SpringBootTest
@@ -55,20 +55,22 @@ class ContextSnapshotControllerSecurityTest {
 
     @Test
     @WithMockUser(authorities = "ROLE_CLINICAL_USER")
-    void doctorCannotCreateSnapshot() throws Exception {
+    void doctorCanCreateSnapshotButDataScopeFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/context/snapshots")
                 .contentType("application/json")
                 .content(VALID_BODY))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
 
     @Test
     @WithMockUser(authorities = "ROLE_CLINICAL_USER")
-    void nurseCannotCreateSnapshot() throws Exception {
+    void nurseCanCreateSnapshotButDataScopeFailsOnMissingTenant() throws Exception {
         mvc.perform(post("/api/v1/engine/context/snapshots")
                 .contentType("application/json")
                 .content(VALID_BODY))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("ENG-BASE-001"));
     }
 
     @Test

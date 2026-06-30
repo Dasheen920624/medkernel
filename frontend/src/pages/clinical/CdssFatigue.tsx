@@ -71,6 +71,7 @@ import styles from "./Clinical.module.css";
 const { TextArea } = Input;
 const { Option } = Select;
 const FATIGUE_POLICY_CONFIG_KEY = "medkernel.cdss.fatigue.policy";
+let manualRecommendationTriggerSequence = 0;
 const route = findRouteByPath("/cdss/fatigue");
 const PAGE_META = {
   title: route?.title ?? "提醒与推荐",
@@ -117,6 +118,27 @@ const feedbackTypeLabels: Record<RecommendationFeedbackType, string> = {
   DEFER: "稍后处理",
   DISMISS: "关闭忽略",
 };
+
+function buildManualRecommendationTriggerCode(triggerType: string, snapshotId: string) {
+  manualRecommendationTriggerSequence = (manualRecommendationTriggerSequence + 1) % 46_656;
+  const suffix = `${Date.now().toString(36)}-${manualRecommendationTriggerSequence.toString(36)}`;
+  const prefix = [
+    "CDSS-MANUAL",
+    sanitizeTriggerCodePart(triggerType),
+    sanitizeTriggerCodePart(snapshotId),
+  ].join("-");
+  const maxPrefixLength = 128 - suffix.length - 1;
+  return `${prefix.slice(0, Math.max(1, maxPrefixLength))}-${suffix}`;
+}
+
+function sanitizeTriggerCodePart(value: string) {
+  const normalized = value
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return normalized || "NA";
+}
 
 const signalTypeLabels: Record<string, string> = {
   MUTE: "减少展示",
@@ -522,7 +544,10 @@ export default function CdssFatigue() {
       const values = await triggerForm.validateFields();
 
       const res = await triggerCdssMutation.mutateAsync({
-        triggerCode: `CDSS-MANUAL-${values.triggerType}`,
+        triggerCode: buildManualRecommendationTriggerCode(
+          values.triggerType,
+          selectedSnapshot.snapshotId,
+        ),
         triggerType: values.triggerType,
         scenarioCode: values.triggerType,
         contextSnapshotId: selectedSnapshot.snapshotId,
