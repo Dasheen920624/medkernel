@@ -39,7 +39,8 @@ test.describe("全前台真实操作演练", () => {
 
     try {
       await page.setViewportSize({ width: 1440, height: 960 });
-      await createAdapterFromUi(page, testInfo, runtime, records, suffix);
+      const adapterId = await createAdapterFromUi(page, testInfo, runtime, records, suffix);
+      await createIntegrationOnboardingFromUi(page, testInfo, runtime, records, suffix, adapterId);
       await createValueSetFromUi(page, testInfo, runtime, records, suffix);
       await configureModelEgressPolicyFromUi(page, testInfo, runtime, records);
       const patient = await createMpiPatientFromUi(page, testInfo, runtime, records);
@@ -73,7 +74,7 @@ async function createAdapterFromUi(
   runtime: RuntimeCollectors,
   records: RuntimeRecord[],
   suffix: string,
-) {
+): Promise<string> {
   await ensureReadySession(page, "platform-admin");
   clearRuntime(runtime);
   await page.goto("/adapter/hub", { waitUntil: "networkidle" });
@@ -102,6 +103,55 @@ async function createAdapterFromUi(
   await expect(dialog).toBeHidden({ timeout: 20_000 });
   await captureEvidence(page, testInfo, "real-frontdesk-adapter");
   recordCleanRuntime(page, "前台创建系统接入适配器", runtime, records);
+  return adapterId;
+}
+
+async function createIntegrationOnboardingFromUi(
+  page: Page,
+  testInfo: TestInfo,
+  runtime: RuntimeCollectors,
+  records: RuntimeRecord[],
+  suffix: string,
+  adapterId: string,
+) {
+  await ensureReadySession(page, "platform-admin");
+  clearRuntime(runtime);
+  await page.goto("/adapter/hub", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "系统接入" })).toBeVisible();
+  await page.getByRole("tab", { name: "接入向导" }).click();
+  await expectNoRootOverflow(page, "系统接入接入向导桌面");
+
+  const onboardingId = `onb-${adapterId}`;
+  await expect(page.getByRole("button", { name: "新增接入申请" })).toBeEnabled();
+  await page.getByRole("button", { name: "新增接入申请" }).click();
+  const dialog = page.getByRole("dialog", { name: "新增接入申请" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("稳定接入申请身份").fill(onboardingId);
+  await dialog.getByLabel("接入申请名称").fill(`真实演练接入申请 ${suffix}`);
+  await dialog.getByLabel("绑定适配器").click();
+  await page.keyboard.type(`真实演练 HIS ${suffix}`);
+  const adapterOption = page.getByText(`真实演练 HIS ${suffix} · REST`, { exact: true });
+  await expect(adapterOption).toBeVisible({ timeout: 20_000 });
+  await adapterOption.click();
+  await dialog.getByLabel("来源系统").fill("HIS");
+  await dialog.getByLabel("业务场景").fill("门诊患者主数据");
+  await dialog.getByLabel("组织范围").click();
+  const facilityOption = page.getByText(/医疗服务机构$/).first();
+  await expect(facilityOption).toBeVisible({ timeout: 20_000 });
+  await facilityOption.click();
+
+  const responsePromise = waitForPost(page, "/api/v1/engine/integration/onboardings");
+  await dialog.getByRole("button", { name: "提交申请" }).click();
+  const response = await responsePromise;
+  expect(response.ok(), "前台提交接入申请应返回成功").toBe(true);
+  const result = (await response.json()) as { data?: { onboardingId?: string } };
+  expect(result.data?.onboardingId).toBe(onboardingId);
+  await expect(dialog).toBeHidden({ timeout: 20_000 });
+  await expect(page.getByText(`真实演练接入申请 ${suffix}`)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("columnheader", { name: "最近更新" })).toBeVisible();
+  await expect(page.getByText(/共 \d+ 条接入申请，当前显示 1-\d+ 条/)).toBeVisible();
+  await captureEvidence(page, testInfo, "real-frontdesk-onboarding");
+  recordCleanRuntime(page, "前台创建系统接入申请", runtime, records);
 }
 
 async function createValueSetFromUi(
