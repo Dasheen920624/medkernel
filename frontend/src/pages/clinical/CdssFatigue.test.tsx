@@ -513,6 +513,8 @@ describe("CdssFatigue", () => {
     expect(screen.queryByText(/兜底伪造/)).not.toBeInTheDocument();
     expect(screen.queryByText(/trace-rec/)).not.toBeInTheDocument();
     expect(screen.queryByText(/doctor-real-1/)).not.toBeInTheDocument();
+    expect(await screen.findByText("已记录反馈与复核")).toBeInTheDocument();
+    expect(screen.queryByText("已记录医师反馈")).not.toBeInTheDocument();
     expect(await screen.findByText("医生 · 采纳建议")).toBeInTheDocument();
     expect(screen.getAllByText("已确认风险，按指南处理。").length).toBeGreaterThan(0);
     expect(screen.getAllByText("不采纳建议").length).toBeGreaterThan(0);
@@ -535,6 +537,29 @@ describe("CdssFatigue", () => {
         reasonCode: "CONFIRMED",
         reasonText: "医师确认采纳提醒建议",
         operatorRole: "DOCTOR",
+      });
+    });
+    expect(submitFeedback.mock.calls[0][0]).not.toHaveProperty("operatorId");
+  });
+
+  it("allows pharmacists to record a medication risk review without pretending to be the physician", async () => {
+    const user = userEvent.setup();
+    renderCdssFatigue();
+
+    await user.click(screen.getByRole("button", { name: /查看与人机反馈/ }));
+    await user.click(await screen.findByRole("tab", { name: /药师复核/ }));
+    await user.type(
+      screen.getByLabelText("药师复核说明"),
+      "已复核联合用药风险，建议医生结合出血风险确认。",
+    );
+    await user.click(screen.getByRole("button", { name: "登记药师复核" }));
+
+    await waitFor(() => {
+      expect(submitFeedback).toHaveBeenCalledWith({
+        feedbackType: "VIEW_SOURCE",
+        reasonCode: "PHARMACIST_REVIEWED",
+        reasonText: "已复核联合用药风险，建议医生结合出血风险确认。",
+        operatorRole: "PHARMACIST",
       });
     });
     expect(submitFeedback.mock.calls[0][0]).not.toHaveProperty("operatorId");

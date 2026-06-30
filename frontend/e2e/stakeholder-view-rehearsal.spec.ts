@@ -14,7 +14,10 @@ type StakeholderView = {
     | "QUALITY_DRILLDOWN"
     | "AUDIT_EXPORT_VERIFY"
     | "ADAPTER_QUALITY_REPORT"
-    | "REPORT_INTERPRETATION";
+    | "REPORT_INTERPRETATION"
+    | "FOLLOWUP_NURSE_HANDOFF"
+    | "PHARMACIST_REVIEW"
+    | "PATIENT_PROXY_QUESTIONNAIRE";
 };
 
 type RuntimeRecord = {
@@ -45,6 +48,7 @@ const stakeholderViews: StakeholderView[] = [
     path: "/clinical/followup",
     heading: "随访协同",
     markers: ["护士代填", "问卷回收", "异常回院处理"],
+    action: "FOLLOWUP_NURSE_HANDOFF",
   },
   {
     code: "PHARMACIST",
@@ -53,6 +57,7 @@ const stakeholderViews: StakeholderView[] = [
     path: "/cdss/fatigue",
     heading: "提醒与推荐",
     markers: ["药师复核", /联合用药|用药风险|DDI/u],
+    action: "PHARMACIST_REVIEW",
   },
   {
     code: "MEDICAL_TECHNICIAN",
@@ -79,6 +84,7 @@ const stakeholderViews: StakeholderView[] = [
     path: "/clinical/followup",
     heading: "随访协同",
     markers: ["患者问卷回收", "患者自填", "患者报告"],
+    action: "PATIENT_PROXY_QUESTIONNAIRE",
   },
   {
     code: "PLATFORM_ADMIN",
@@ -225,6 +231,24 @@ async function performStakeholderAction(page: Page, view: StakeholderView) {
   }
   if (view.action === "REPORT_INTERPRETATION") {
     return performReportInterpretationAction(page, view);
+  }
+  if (view.action === "FOLLOWUP_NURSE_HANDOFF") {
+    return performFollowupPlanAction(page, view, {
+      source: "护士代填",
+      questionnaire: "护士代填记录：患者反馈夜间咳嗽增加，已提醒遵医嘱复诊；未写入患者明文身份。",
+      abnormal: true,
+    });
+  }
+  if (view.action === "PHARMACIST_REVIEW") {
+    return performPharmacistReviewAction(page, view);
+  }
+  if (view.action === "PATIENT_PROXY_QUESTIONNAIRE") {
+    return performFollowupPlanAction(page, view, {
+      source: "患者自填",
+      questionnaire:
+        "患者代理回收：患者自述活动后气促较前增加，已知晓回院提醒；不填写电话、住址或证件号。",
+      abnormal: false,
+    });
   }
 
   return [];
@@ -391,19 +415,290 @@ async function performReportInterpretationAction(page: Page, view: StakeholderVi
   return ["前台建立医技报告上下文并生成报告解读"];
 }
 
+async function performFollowupPlanAction(
+  page: Page,
+  view: StakeholderView,
+  options: { source: "护士代填" | "患者自填"; questionnaire: string; abnormal: boolean },
+) {
+  const suffix = `${view.code.toLowerCase()}-${Date.now().toString(36)}`;
+  const isNurse = options.source === "护士代填";
+  const snapshot = await createContextSnapshotForStakeholderAction(page, view, {
+    namePrefix: isNurse ? "护" : "患",
+    diagnosis: isNurse ? "真实前台护士随访交接主题" : "真实前台患者代理问卷回收主题",
+    reason: isNurse
+      ? "全角色真实演练：护士从患者 360 建立随访交接上下文，不写入患者明文身份。"
+      : "全角色真实演练：为患者代理问卷回收建立随访上下文，不写入电话、住址或证件号。",
+  });
+  const template = await createFollowupTemplateForStakeholderAction(page, view, suffix);
+  await publishFollowupTemplateForStakeholderAction(page, view, template);
+
+  await ensureReadySession(page, "clinical-user");
+  await page.goto(appPath("/clinical/followup"), { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle");
+  await expect(
+    page.locator("main").getByRole("heading", { name: "随访协同" }).first(),
+    `${view.label} 应能进入随访协同页生成并办理随访计划`,
+  ).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "生成随访计划" }).click();
+  const dialog = page.getByRole("dialog", { name: "生成随访计划" });
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+  await dialog.getByLabel("随访快照患者信息").fill(snapshot.patientId);
+  await expect(dialog.getByRole("button", { name: "选择第 1 个随访上下文快照" })).toBeVisible({
+    timeout: 30_000,
+  });
+  await dialog.getByRole("button", { name: "选择第 1 个随访上下文快照" }).click();
+  await chooseDialogOption(page, dialog, "随访风险分层", "中风险");
+  await searchDialogOption(page, dialog, "随访模板", template.name, template.name);
+
+  const planResponsePromise = waitForPost(page, "/engine/followup/plans/generate");
+  await dialog.getByRole("button", { name: /生\s*成/ }).click();
+  const planResponse = await planResponsePromise;
+  const planText = await planResponse.text();
+  expect(
+    planResponse.ok(),
+    `${view.label} 生成随访计划应返回成功 status=${planResponse.status()} body=${planText}`,
+  ).toBe(true);
+  const plan = JSON.parse(planText) as { data?: { planId?: string; tasks?: Array<unknown> } };
+  expect(plan.data?.planId, `${view.label} 随访计划生成响应应返回计划身份`).toBeTruthy();
+  expect(plan.data?.tasks?.length ?? 0, `${view.label} 随访计划应生成可办理任务`).toBeGreaterThan(
+    0,
+  );
+  await expect(dialog).toBeHidden({ timeout: 20_000 });
+
+  const drawer = page.getByRole("dialog", { name: "随访计划办理" });
+  await expect(drawer).toBeVisible({ timeout: 30_000 });
+  await drawer
+    .getByRole("button", { name: /填\s*报/ })
+    .first()
+    .click();
+  await chooseDialogOption(page, drawer, "提交来源", options.source);
+  await drawer.getByLabel("问卷回收内容").fill(options.questionnaire);
+  const questionnaireResponsePromise = waitForPost(page, "/engine/followup/questionnaires");
+  await drawer.getByRole("button", { name: "提交问卷" }).click();
+  const questionnaireResponse = await questionnaireResponsePromise;
+  const questionnaireText = await questionnaireResponse.text();
+  expect(
+    questionnaireResponse.ok(),
+    `${view.label} 提交随访问卷应返回成功 status=${questionnaireResponse.status()} body=${questionnaireText}`,
+  ).toBe(true);
+  await expect(drawer.getByText("请选择一个待办随访任务后提交问卷回收内容")).toBeVisible({
+    timeout: 20_000,
+  });
+
+  if (!options.abnormal) {
+    return ["生成随访计划并完成患者代理问卷回收"];
+  }
+
+  await chooseDialogOption(page, drawer, "回院风险等级", "高风险");
+  await drawer
+    .getByLabel("异常症状或情况")
+    .fill("护士随访发现夜间咳嗽与活动后气促加重，需要回院复核。");
+  await drawer
+    .getByLabel("医护处理建议")
+    .fill("护士已提示患者尽快回院，由责任医生复核后决定线下处置；本页不自动开嘱。");
+  const abnormalResponsePromise = waitForPost(page, "/engine/followup/abnormal-reports");
+  await drawer.getByRole("button", { name: "登记异常回院" }).click();
+  const abnormalResponse = await abnormalResponsePromise;
+  const abnormalText = await abnormalResponse.text();
+  expect(
+    abnormalResponse.ok(),
+    `${view.label} 登记异常回院应返回成功 status=${abnormalResponse.status()} body=${abnormalText}`,
+  ).toBe(true);
+  await expect(drawer.getByText("异常回院证据已登记")).toBeVisible({ timeout: 20_000 });
+  return ["生成随访计划并完成护士代填问卷与异常回院登记"];
+}
+
+async function createFollowupTemplateForStakeholderAction(
+  page: Page,
+  view: StakeholderView,
+  suffix: string,
+) {
+  await ensureReadySession(page, "clinical-user");
+  await page.goto(appPath("/clinical/followup"), { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle");
+  await expect(
+    page.locator("main").getByRole("heading", { name: "随访协同" }).first(),
+    `${view.label} 应能进入随访协同页创建随访模板`,
+  ).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("tab", { name: "随访模板" }).click();
+
+  const templateCode = `FUP.STAKEHOLDER.${suffix.toUpperCase()}`;
+  const templateName = `全角色${view.label}随访模板 ${suffix}`;
+  await page.getByRole("button", { name: /新建模板/ }).click();
+  const dialog = page.getByRole("dialog", { name: "新建随访模板" });
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+  await dialog.getByLabel("院内随访方案身份").fill(templateCode);
+  await dialog.getByLabel("模板名称").fill(templateName);
+  await dialog
+    .getByLabel("模板说明")
+    .fill("全角色真实前台演练创建；不包含患者姓名、电话、住址、证件号等核心敏感信息。");
+  await chooseDialogOption(page, dialog, "适用机构范围", "当前医院");
+  await chooseDialogOption(page, dialog, "随访病种", "慢阻肺");
+  await chooseDialogOption(page, dialog, "问卷内容模板", "真实前台慢病随访问卷");
+  await chooseDialogOption(page, dialog, "核心随访问题", "呼吸困难变化");
+  await dialog.getByLabel("异常触发条件").fill("呼吸困难加重、血氧下降或患者主动报告异常");
+  await dialog.getByLabel("通知对象").fill("责任医生与随访护士");
+  await chooseDialogOption(page, dialog, "院内依据", "真实前台演练随访制度");
+
+  const templateResponsePromise = waitForPost(page, "/engine/followup/templates");
+  await dialog.getByRole("button", { name: /创\s*建/ }).click();
+  const templateResponse = await templateResponsePromise;
+  const templateText = await templateResponse.text();
+  expect(
+    templateResponse.ok(),
+    `${view.label} 创建随访模板应返回成功 status=${templateResponse.status()} body=${templateText}`,
+  ).toBe(true);
+  const template = JSON.parse(templateText) as {
+    data?: { templateId?: string; templateCode?: string; name?: string };
+  };
+  expect(template.data?.templateId, `${view.label} 随访模板创建响应应返回模板身份`).toBeTruthy();
+  expect(template.data?.templateCode).toBe(templateCode);
+  await expect(dialog).toBeHidden({ timeout: 20_000 });
+  return {
+    templateId: template.data?.templateId ?? "",
+    templateCode,
+    name: template.data?.name ?? templateName,
+  };
+}
+
+async function publishFollowupTemplateForStakeholderAction(
+  page: Page,
+  view: StakeholderView,
+  template: { templateId: string; templateCode: string; name: string },
+) {
+  await ensureReadySession(page, "engine-operator");
+  await page.goto(appPath("/clinical/followup"), { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle");
+  await expect(
+    page.locator("main").getByRole("heading", { name: "随访协同" }).first(),
+    `${view.label} 应能进入随访模板治理页发布模板`,
+  ).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("tab", { name: "随访模板" }).click();
+  await page.getByPlaceholder("按模板名称或适用范围检索").fill(template.name);
+  await expect(page.getByText(template.name)).toBeVisible({ timeout: 30_000 });
+
+  const row = page.getByRole("row", { name: new RegExp(escapeRegExp(template.name)) }).first();
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  const publishResponsePromise = waitForPost(
+    page,
+    `/engine/followup/templates/${template.templateId}/publish`,
+  );
+  await row.getByRole("button", { name: "发布模板" }).click();
+  const publishResponse = await publishResponsePromise;
+  const publishText = await publishResponse.text();
+  expect(
+    publishResponse.ok(),
+    `${view.label} 发布随访模板应返回成功 status=${publishResponse.status()} body=${publishText}`,
+  ).toBe(true);
+  const published = JSON.parse(publishText) as {
+    data?: { assetStatus?: string; templateId?: string };
+  };
+  expect(published.data?.templateId).toBe(template.templateId);
+  expect(published.data?.assetStatus).toBe("PUBLISHED");
+  await expect(row.getByText("可用于计划生成")).toBeVisible({ timeout: 30_000 });
+}
+
+async function performPharmacistReviewAction(page: Page, view: StakeholderView) {
+  const cardId = await createRecommendationCardForStakeholderAction(page, view);
+  await expect(
+    page.locator("main").getByRole("heading", { name: "提醒与推荐" }).first(),
+    `${view.label} 应能在提醒与推荐页登记药师复核`,
+  ).toBeVisible({ timeout: 30_000 });
+  await page.getByLabel("患者或证据线索").fill(cardId);
+  await expect(page.getByRole("button", { name: "查看与人机反馈" }).first()).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.getByRole("button", { name: "查看与人机反馈" }).first().click();
+  const drawer = page.getByRole("dialog", { name: "推荐详情与反馈闭环" });
+  await expect(drawer).toBeVisible({ timeout: 20_000 });
+  await drawer.getByRole("tab", { name: "药师复核" }).click();
+  await drawer
+    .getByLabel("药师复核说明")
+    .fill("药师已复核联合用药风险，建议医生结合出血风险确认；未填写患者明文身份。");
+  const reviewResponsePromise = waitForPost(page, "/engine/recommendations/cards/");
+  await drawer.getByRole("button", { name: "登记药师复核" }).click();
+  const reviewResponse = await reviewResponsePromise;
+  const reviewText = await reviewResponse.text();
+  expect(
+    reviewResponse.ok(),
+    `${view.label} 登记药师复核应返回成功 status=${reviewResponse.status()} body=${reviewText}`,
+  ).toBe(true);
+  await expect(drawer.getByText(/药师\s*·\s*完成复核/u)).toBeVisible({ timeout: 30_000 });
+  return ["前台建立药师复核上下文、触发推荐评估并登记联合用药风险复核"];
+}
+
+async function createRecommendationCardForStakeholderAction(page: Page, view: StakeholderView) {
+  const snapshot = await createContextSnapshotForStakeholderAction(page, view, {
+    namePrefix: "药",
+    diagnosis: "真实前台药师联合用药复核主题",
+    reason: "全角色真实演练：为药师联合用药复核建立当前就诊上下文，不写入患者明文身份。",
+  });
+  await page.goto(appPath("/cdss/fatigue"), { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle");
+  await expect(
+    page.locator("main").getByRole("heading", { name: "提醒与推荐" }).first(),
+    `${view.label} 应能进入提醒与推荐页触发药师复核所需推荐卡`,
+  ).toBeVisible({ timeout: 30_000 });
+
+  await page.getByRole("button", { name: "登记触发评估" }).click();
+  const dialog = page.getByRole("dialog", { name: "登记一次推荐触发评估" });
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+  await dialog.getByLabel("患者信息").fill(snapshot.patientId);
+  if (snapshot.encounterId) {
+    await dialog.getByLabel("就诊信息").fill(snapshot.encounterId);
+  }
+  await expect(dialog.getByRole("button", { name: "选择第 1 个临床快照" })).toBeVisible({
+    timeout: 30_000,
+  });
+  await dialog.getByRole("button", { name: "选择第 1 个临床快照" }).click();
+  await chooseDialogOption(page, dialog, "触发时点", "签署医嘱");
+
+  const evaluateResponsePromise = waitForPost(page, "/engine/recommendations:evaluate");
+  await dialog.getByRole("button", { name: "执行推荐评估" }).click();
+  const evaluateResponse = await evaluateResponsePromise;
+  const evaluateText = await evaluateResponse.text();
+  expect(
+    evaluateResponse.ok(),
+    `${view.label} 触发推荐评估应返回成功 status=${evaluateResponse.status()} body=${evaluateText}`,
+  ).toBe(true);
+  const evaluation = JSON.parse(evaluateText) as {
+    data?: { visibleCardCount?: number; cards?: Array<{ cardId?: string }> };
+  };
+  expect(
+    evaluation.data?.visibleCardCount ?? 0,
+    `${view.label} 药师复核前应生成至少一张可见推荐卡`,
+  ).toBeGreaterThan(0);
+  const cardId = evaluation.data?.cards?.[0]?.cardId;
+  expect(cardId, `${view.label} 推荐评估响应应返回待复核卡片身份`).toBeTruthy();
+  await expect(dialog).toBeHidden({ timeout: 20_000 });
+  return cardId ?? "";
+}
+
 async function createContextSnapshotForReportInterpretation(page: Page, view: StakeholderView) {
+  return createContextSnapshotForStakeholderAction(page, view, {
+    namePrefix: "技",
+    diagnosis: "真实前台医技报告解读主题",
+    reason: "全角色真实演练：为医技报告解读建立当前就诊上下文，不写入患者明文身份。",
+  });
+}
+
+async function createContextSnapshotForStakeholderAction(
+  page: Page,
+  view: StakeholderView,
+  options: { namePrefix: string; diagnosis: string; reason: string },
+) {
   await page.goto(appPath("/mpi"), { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
   await expect(
     page.locator("main").getByRole("heading", { name: "患者索引" }).first(),
-    `${view.label} 生成报告解读前应能进入患者索引建立脱敏上下文`,
+    `${view.label} 应能进入患者索引建立脱敏上下文`,
   ).toBeVisible({ timeout: 30_000 });
 
   await page.getByRole("button", { name: "新增患者" }).click();
   const patientDialog = page.getByRole("dialog", { name: /新增患者主索引/ });
   await expect(patientDialog).toBeVisible({ timeout: 10_000 });
   const idLast4 = String(Date.now()).slice(-4);
-  const maskedName = `技*${idLast4.slice(-1)}`;
+  const maskedName = `${options.namePrefix}*${idLast4.slice(-1)}`;
   await patientDialog.getByLabel("脱敏姓名").fill(maskedName);
   const genderCombobox = patientDialog.getByRole("combobox", { name: "性别" });
   await genderCombobox.click();
@@ -440,11 +735,9 @@ async function createContextSnapshotForReportInterpretation(page: Page, view: St
   const contextDialog = page.getByRole("dialog", { name: "建立当前就诊上下文" });
   await expect(contextDialog).toBeVisible({ timeout: 10_000 });
   await chooseDialogOption(page, contextDialog, "就诊类型", "门诊复诊");
-  await contextDialog.getByLabel("诊断/随访病种").fill("真实前台医技报告解读主题");
+  await contextDialog.getByLabel("诊断/随访病种").fill(options.diagnosis);
   await chooseDialogOption(page, contextDialog, "风险分层", "中风险");
-  await contextDialog
-    .getByLabel("建立原因")
-    .fill("全角色真实演练：为医技报告解读建立当前就诊上下文，不写入患者明文身份。");
+  await contextDialog.getByLabel("建立原因").fill(options.reason);
 
   const contextResponsePromise = waitForPost(page, "/engine/context/snapshots");
   await contextDialog.getByRole("button", { name: "生成上下文快照" }).click();
@@ -462,6 +755,7 @@ async function createContextSnapshotForReportInterpretation(page: Page, view: St
   await expect(page.getByText("当前就诊上下文已建立")).toBeVisible({ timeout: 20_000 });
   return {
     patientId: patientId ?? "",
+    snapshotId: context.data?.snapshotId ?? "",
     encounterId: context.data?.resources?.encounters?.[0]?.encounterId ?? null,
   };
 }
@@ -553,12 +847,51 @@ async function chooseDialogOption(page: Page, dialog: Locator, label: string, op
   const select = combobox.locator(
     "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
   );
+  const selectedText = await currentSelectText(select);
+  if (selectedText === optionText) {
+    return;
+  }
   await select.locator(".ant-select-selector").click();
   const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
   await expect(dropdown).toBeVisible({ timeout: 5_000 });
   const optionLocator = dropdown.getByText(optionText, { exact: true }).last();
   await expect(optionLocator).toBeVisible({ timeout: 20_000 });
   await optionLocator.click();
+}
+
+async function searchDialogOption(
+  page: Page,
+  dialog: Locator,
+  label: string,
+  searchText: string,
+  optionText: string,
+) {
+  const combobox = dialog.getByRole("combobox", { name: new RegExp(escapeRegExp(label)) }).first();
+  const select = combobox.locator(
+    "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
+  );
+  await select.locator(".ant-select-selector").click();
+  await combobox.fill(searchText);
+  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
+  await expect(dropdown).toBeVisible({ timeout: 5_000 });
+  const optionLocator = dropdown
+    .getByText(new RegExp(`^${escapeRegExp(optionText)}(\\s*·.*)?$`))
+    .last();
+  await expect(optionLocator).toBeVisible({ timeout: 20_000 });
+  await optionLocator.click();
+}
+
+async function currentSelectText(select: Locator) {
+  const selected = select.locator(".ant-select-selection-item").first();
+  if ((await selected.count()) === 0) {
+    return "";
+  }
+  const title = await selected.getAttribute("title", { timeout: 1_000 }).catch(() => null);
+  if (title) {
+    return title.trim();
+  }
+  const text = await selected.textContent({ timeout: 1_000 }).catch(() => null);
+  return text?.trim() ?? "";
 }
 
 function escapeRegExp(value: string) {

@@ -111,8 +111,11 @@ const recommendationStatusLabels: Record<RecommendationCardStatus, string> = {
 };
 
 const feedbackTypeLabels: Record<RecommendationFeedbackType, string> = {
+  VIEW_SOURCE: "查看依据",
   ACCEPT: "采纳建议",
   REJECT: "不采纳建议",
+  DEFER: "稍后处理",
+  DISMISS: "关闭忽略",
 };
 
 const signalTypeLabels: Record<string, string> = {
@@ -216,6 +219,27 @@ function getRecommendationStatusLabel(status: string): string {
 
 function getFeedbackTypeLabel(feedbackType: RecommendationFeedbackType): string {
   return feedbackTypeLabels[feedbackType] ?? customerEnumLabel(feedbackType);
+}
+
+function getFeedbackTimelineLabel(item: {
+  feedbackType: RecommendationFeedbackType;
+  operatorRole?: string | null;
+}) {
+  if (item.operatorRole === "PHARMACIST" && item.feedbackType === "VIEW_SOURCE") {
+    return "完成复核";
+  }
+  return getFeedbackTypeLabel(item.feedbackType);
+}
+
+function getFeedbackTimelineColor(item: {
+  feedbackType: RecommendationFeedbackType;
+  operatorRole?: string | null;
+}) {
+  if (item.operatorRole === "PHARMACIST") return "blue";
+  if (item.feedbackType === "ACCEPT") return "green";
+  if (item.feedbackType === "REJECT") return "red";
+  if (item.feedbackType === "DEFER") return "orange";
+  return "gray";
 }
 
 function getSignalTypeLabel(signalType: string): string {
@@ -367,8 +391,9 @@ export default function CdssFatigue() {
   const [riskFilter, setRiskFilter] = useState<RecommendationRiskLevel | undefined>(undefined);
   const [quickSearch, setQuickSearch] = useState<string>("");
 
-  // 医师反馈表单绑定
+  // 医师反馈与药师复核表单绑定
   const [feedbackForm] = Form.useForm();
+  const [pharmacistReviewForm] = Form.useForm();
   const [triggerForm] = Form.useForm();
   const security = useSecurityProfile();
   const globalEvidenceDetails = useEvidenceDetailsStore((state) => state.enabled);
@@ -561,6 +586,30 @@ export default function CdssFatigue() {
     } catch (error: unknown) {
       if (applyApiFieldErrors(feedbackForm, error)) return;
       message.error(getApiErrorMessage(error, "反馈提交失败，卡片可能已过期或已处于终止态"));
+    }
+  };
+
+  const handlePharmacistReview = async () => {
+    if (!selectedCardId) return;
+    try {
+      const values = await pharmacistReviewForm.validateFields();
+      await feedbackMutation.mutateAsync({
+        feedbackType: "VIEW_SOURCE",
+        reasonCode: "PHARMACIST_REVIEWED",
+        reasonText: values.reviewNote,
+        operatorRole: "PHARMACIST",
+      });
+
+      message.success("已登记药师复核；医生确认与医嘱执行仍在院内业务系统完成。");
+      pharmacistReviewForm.resetFields();
+      refetchCards();
+      refetchDetail();
+      refetchSources();
+      refetchFatigue();
+      refetchDiagnose();
+    } catch (error: unknown) {
+      if (applyApiFieldErrors(pharmacistReviewForm, error)) return;
+      message.error(getApiErrorMessage(error, "药师复核登记失败，请确认提醒卡仍可处理"));
     }
   };
 
@@ -1062,17 +1111,17 @@ export default function CdssFatigue() {
 
             {detailData.feedback.length > 0 && (
               <Card size="small" className={`${styles.detailCard} ${styles.sectionGapLg}`}>
-                <div className={`${styles.textStrong} ${styles.sectionGap}`}>已记录医师反馈</div>
+                <div className={`${styles.textStrong} ${styles.sectionGap}`}>已记录反馈与复核</div>
                 <Timeline
                   items={detailData.feedback.map((item) => ({
                     key: item.feedbackId,
-                    color: item.feedbackType === "ACCEPT" ? "green" : "red",
+                    color: getFeedbackTimelineColor(item),
                     children: (
                       <div>
                         <div className={styles.timelineTitle}>
                           {evidenceDetailsEnabled
-                            ? `${item.operatorId} · ${clinicalRoleLabel(item.operatorRole || "DOCTOR")} · ${getFeedbackTypeLabel(item.feedbackType)}`
-                            : `${clinicalRoleLabel(item.operatorRole || "DOCTOR")} · ${getFeedbackTypeLabel(item.feedbackType)}`}
+                            ? `${item.operatorId} · ${clinicalRoleLabel(item.operatorRole || "DOCTOR")} · ${getFeedbackTimelineLabel(item)}`
+                            : `${clinicalRoleLabel(item.operatorRole || "DOCTOR")} · ${getFeedbackTimelineLabel(item)}`}
                         </div>
                         <div className={styles.timelineMeta}>
                           {item.reasonText || item.reasonCode || "未记录说明"}
@@ -1138,6 +1187,46 @@ export default function CdssFatigue() {
                         <Empty description="该提醒卡暂无来源解释证据；请结合患者病情与院内制度复核。" />
                       )}
                     </div>
+                  ),
+                },
+
+                {
+                  key: "pharmacist-review",
+                  disabled: detailData.card.status !== "PENDING",
+                  label: (
+                    <span>
+                      <AuditOutlined /> 药师复核
+                    </span>
+                  ),
+                  children: (
+                    <Card className={`${styles.detailCard} ${styles.marginTopSm}`}>
+                      <Form form={pharmacistReviewForm} layout="vertical">
+                        <Alert
+                          message="药师复核只登记联合用药和 DDI 风险复核证据；医生确认、医嘱调整和线下处置仍由院内业务系统完成。"
+                          type="info"
+                          showIcon
+                          className={styles.sectionGap}
+                        />
+                        <Form.Item
+                          name="reviewNote"
+                          label="药师复核说明"
+                          rules={[{ required: true, message: "请输入药师复核说明" }]}
+                        >
+                          <TextArea
+                            rows={3}
+                            placeholder="记录联合用药、禁忌、剂量或监测建议，不填写患者姓名、电话、证件号等核心敏感信息"
+                          />
+                        </Form.Item>
+                        <Button
+                          type="primary"
+                          onClick={handlePharmacistReview}
+                          loading={feedbackMutation.isPending}
+                          className={styles.fullWidth}
+                        >
+                          登记药师复核
+                        </Button>
+                      </Form>
+                    </Card>
                   ),
                 },
 
