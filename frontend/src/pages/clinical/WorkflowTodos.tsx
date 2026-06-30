@@ -91,11 +91,11 @@ const priorityRank: Record<WorkflowPriority, number> = {
 
 const sourceRank: Record<WorkflowTodoSourceType, number> = {
   SAFETY_REVIEW: 0,
-  PATHWAY_NODE: 1,
+  REPORT_INTERPRETATION: 1,
   RECOMMENDATION_CARD: 2,
-  FOLLOWUP_TASK: 3,
+  PATHWAY_NODE: 3,
   NURSING_TASK: 4,
-  REPORT_INTERPRETATION: 5,
+  FOLLOWUP_TASK: 5,
   BEDSIDE_KNOWLEDGE: 6,
 };
 
@@ -107,6 +107,16 @@ const sourceText: Record<WorkflowTodoSourceType, string> = {
   REPORT_INTERPRETATION: "报告解读",
   BEDSIDE_KNOWLEDGE: "床旁知识",
   PATHWAY_NODE: "路径节点",
+};
+
+const sourceActionText: Record<WorkflowTodoSourceType, string> = {
+  FOLLOWUP_TASK: "打开随访记录",
+  SAFETY_REVIEW: "打开复核来源",
+  RECOMMENDATION_CARD: "打开提醒来源",
+  NURSING_TASK: "打开护理任务",
+  REPORT_INTERPRETATION: "打开报告上下文",
+  BEDSIDE_KNOWLEDGE: "打开知识卡",
+  PATHWAY_NODE: "打开路径节点",
 };
 
 const ORG_UNIT_REFERENCE_PAGE_SIZE = 20;
@@ -175,6 +185,7 @@ function buildClinicalQueueFocus(pendingTodos: WorkflowTodo[]) {
   if (pendingTodos.length === 0) return "暂无待处理任务";
 
   const sourceFocus = (Object.keys(sourceRank) as WorkflowTodoSourceType[])
+    .sort((left, right) => sourceRank[left] - sourceRank[right])
     .map((source) => ({
       source,
       count: countTodos(pendingTodos, "sourceType", source),
@@ -205,6 +216,16 @@ function patientContextDisplay(todo: WorkflowTodo, evidenceDetailsEnabled: boole
     );
   }
   return todo.patientId ? "已关联患者" : "-";
+}
+
+function sourceLinkUnavailableText(sourceType: WorkflowTodoSourceType) {
+  return sourceType === "REPORT_INTERPRETATION"
+    ? "报告入口暂不可跳转"
+    : SOURCE_LINK_UNAVAILABLE_TEXT;
+}
+
+function sourceLinkMissingText(sourceType: WorkflowTodoSourceType) {
+  return sourceType === "REPORT_INTERPRETATION" ? "待报告来源补充跳转" : SOURCE_LINK_MISSING_TEXT;
 }
 
 export default function WorkflowTodos() {
@@ -282,6 +303,7 @@ export default function WorkflowTodos() {
   );
   const safetyReviewCount = countTodos(pendingTodos, "sourceType", "SAFETY_REVIEW");
   const nursingTaskCount = countTodos(pendingTodos, "sourceType", "NURSING_TASK");
+  const reportInterpretationCount = countTodos(pendingTodos, "sourceType", "REPORT_INTERPRETATION");
   const criticalCount = countTodos(pendingTodos, "priority", "CRITICAL");
   const highPriorityCount = countTodos(pendingTodos, "priority", "HIGH");
   const queueFocus = buildClinicalQueueFocus(pendingTodos);
@@ -396,24 +418,25 @@ export default function WorkflowTodos() {
       key: "action",
       render: (_value, record) => {
         const sourceLink = resolveSourceDeepLink(record.deepLink);
+        const sourceActionLabel = sourceActionText[record.sourceType];
         return (
           <Space size={4}>
             {sourceLink && (
               <Button
                 type="link"
-                aria-label="打开来源"
+                aria-label={sourceActionLabel}
                 icon={<LinkOutlined />}
                 href={sourceLink}
                 className={styles.buttonLink}
               >
-                打开来源
+                {sourceActionLabel}
               </Button>
             )}
             {!sourceLink && record.deepLink && (
-              <Tag color="default">{SOURCE_LINK_UNAVAILABLE_TEXT}</Tag>
+              <Tag color="default">{sourceLinkUnavailableText(record.sourceType)}</Tag>
             )}
             {!sourceLink && !record.deepLink && (
-              <Tag color="default">{SOURCE_LINK_MISSING_TEXT}</Tag>
+              <Tag color="default">{sourceLinkMissingText(record.sourceType)}</Tag>
             )}
             <Button
               type="link"
@@ -467,6 +490,7 @@ export default function WorkflowTodos() {
         <Space wrap size={[8, 8]}>
           <Tag color="blue">{pendingTodos.length} 项待处理</Tag>
           <Tag color="red">安全复核 {safetyReviewCount} 项</Tag>
+          <Tag color="cyan">报告解读 {reportInterpretationCount} 项</Tag>
           <Tag color="purple">护理任务 {nursingTaskCount} 项</Tag>
           <Tag color="red">危急 {criticalCount} 项</Tag>
           <Tag color="volcano">高优先 {highPriorityCount} 项</Tag>

@@ -306,6 +306,68 @@ describe("WorkflowTodos", () => {
     expect(screen.getByText("先处理安全复核，再处理护理任务")).toBeInTheDocument();
   });
 
+  it("surfaces report interpretation work as a clinical queue focus instead of burying it behind routine tasks", () => {
+    workflowHookMocks.useWorkflowTodos.mockReturnValue({
+      data: {
+        items: [
+          {
+            todoId: "todo-safety-1",
+            sourceType: "SAFETY_REVIEW",
+            sourceId: "withdrawal:patient-real-1",
+            title: "安全撤回复核任务",
+            summary: "旧版禁忌知识撤回后需要复核患者病例",
+            priority: "CRITICAL",
+            status: "PENDING",
+            assigneeId: "doctor-real-1",
+            assigneeRole: "DOCTOR",
+            patientId: "patient-real-1",
+          },
+          {
+            todoId: "todo-report-1",
+            sourceType: "REPORT_INTERPRETATION",
+            sourceId: "report:patient-real-1",
+            title: "检验报告解读待办",
+            summary: "最新检验结果需要医技完成辅助解读",
+            priority: "HIGH",
+            status: "PENDING",
+            assigneeId: "technician-real-1",
+            assigneeRole: "TECHNICIAN",
+            patientId: "patient-real-1",
+          },
+          {
+            todoId: "todo-nursing-1",
+            sourceType: "NURSING_TASK",
+            sourceId: "nursing:patient-real-2",
+            title: "压疮风险评估",
+            summary: "护理评估提示风险升高",
+            priority: "HIGH",
+            status: "PENDING",
+            assigneeId: "nurse-real-1",
+            assigneeRole: "NURSE",
+            patientId: "patient-real-2",
+          },
+        ],
+        page: 0,
+        size: 10,
+        total: 3,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: workflowHookMocks.refetchTodos,
+    });
+
+    renderWorkflowTodos();
+
+    expect(screen.getByText("报告解读 1 项")).toBeInTheDocument();
+    expect(screen.getByText("先处理安全复核，再处理报告解读")).toBeInTheDocument();
+    const reportTitle = screen.getByText("检验报告解读待办");
+    const nursingTitle = screen.getByText("压疮风险评估");
+    expect(reportTitle.compareDocumentPosition(nursingTitle)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
   it("passes selected organization scope to the server-side todo query", async () => {
     const user = userEvent.setup();
     renderWorkflowTodos();
@@ -493,10 +555,47 @@ describe("WorkflowTodos", () => {
 
     renderWorkflowTodos();
 
-    expect(screen.getByRole("link", { name: "打开来源" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "打开随访记录" })).toHaveAttribute(
       "href",
       "/clinical/followup?taskId=return-task-1",
     );
+  });
+
+  it("uses a report-context action label for report interpretation todos", () => {
+    workflowHookMocks.useWorkflowTodos.mockReturnValue({
+      data: {
+        items: [
+          {
+            todoId: "todo-report-1",
+            sourceType: "REPORT_INTERPRETATION",
+            sourceId: "report:patient-real-1",
+            title: "检验报告解读待办",
+            summary: "最新检验结果需要医技完成辅助解读",
+            priority: "HIGH",
+            status: "PENDING",
+            assigneeId: "technician-real-1",
+            assigneeRole: "TECHNICIAN",
+            patientId: "patient-real-1",
+            deepLink: "/cdss/fatigue",
+          },
+        ],
+        page: 0,
+        size: 10,
+        total: 1,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: workflowHookMocks.refetchTodos,
+    });
+
+    renderWorkflowTodos();
+
+    expect(screen.getByRole("link", { name: "打开报告上下文" })).toHaveAttribute(
+      "href",
+      "/cdss/fatigue",
+    );
+    expect(screen.queryByRole("link", { name: "打开来源" })).not.toBeInTheDocument();
   });
 
   it("does not expose unsafe source jumps from workflow todos", () => {
@@ -541,6 +640,38 @@ describe("WorkflowTodos", () => {
     expect(screen.queryByRole("link", { name: "打开来源" })).not.toBeInTheDocument();
     expect(screen.queryByText("来源暂不可跳转")).not.toBeInTheDocument();
     expect(screen.getByText("来源未提供跳转")).toBeInTheDocument();
+  });
+
+  it("tells medical technicians when a report interpretation todo still lacks a report entrance", () => {
+    workflowHookMocks.useWorkflowTodos.mockReturnValue({
+      data: {
+        items: [
+          {
+            todoId: "todo-report-missing-link",
+            sourceType: "REPORT_INTERPRETATION",
+            sourceId: "report:patient-real-1",
+            title: "检验报告解读待办",
+            summary: "最新检验结果需要医技完成辅助解读",
+            priority: "HIGH",
+            status: "PENDING",
+            assigneeRole: "TECHNICIAN",
+            patientId: "patient-real-1",
+          },
+        ],
+        page: 0,
+        size: 10,
+        total: 1,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: workflowHookMocks.refetchTodos,
+    });
+
+    renderWorkflowTodos();
+
+    expect(screen.getByText("待报告来源补充跳转")).toBeInTheDocument();
+    expect(screen.queryByText("来源未提供跳转")).not.toBeInTheDocument();
   });
 
   it("shows an honest trace status when workflow todos have no trace id", async () => {
