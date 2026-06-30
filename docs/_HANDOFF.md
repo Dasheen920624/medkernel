@@ -11,13 +11,18 @@
 - 远程分支已清理：`origin` 仅保留 `main`（另有 `origin/HEAD -> origin/main`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前分支最新本地提交为 `b06a0e1a86c2d2147da2529103e9f42976c298eb`
-  （`fix: 补齐推荐详情抽屉可访问名称`），上一阶段关键代码提交为
+- 当前分支最新本地代码提交为 `cf0140ebe80b3bf58c24b58924b215c1a7ad35c4`
+  （`fix: 完善全角色前台演练与随访办理体验`）；上一阶段推荐运行包触发修复代码提交为
+  `b06a0e1a86c2d2147da2529103e9f42976c298eb`
+  （`fix: 补齐推荐详情抽屉可访问名称`）和
   `21caf969bcec81a849a7ccc12c03d5afcab2e62d`
   （`fix: 统一推荐运行包触发契约`）。
-- 134 当前后端 jar / manifest 与前端制品均已全量发布到
-  `b06a0e1a86c2d2147da2529103e9f42976c298eb`；旧 `b4ec9f2d`、`3f5ec881`、
-  `e8f50553` 只作为历史阶段证据，不再代表当前 134 运行版本。
+- 134 当前后端 jar / manifest 仍为
+  `b06a0e1a86c2d2147da2529103e9f42976c298eb`；`2026-06-30T15:41:05+08:00`
+  已做前端-only 发布，前端 dist 来源为
+  `cf0140ebe80b3bf58c24b58924b215c1a7ad35c4`。后续接力不要把 jar manifest
+  误解为最新前端来源；旧 `b4ec9f2d`、`3f5ec881`、`e8f50553` 只作为历史阶段证据，
+  不再代表当前 134 运行版本。
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
@@ -27,7 +32,61 @@
   `rehearsal` 是当前 1.0 契约中的完整上线演练机构块，不是旧兼容入口；
   `roleAccounts`、`platformRoleAccounts`、`customerTenant` 等旧 root 账号字段不得作为登录权威。
 
-## 最新阶段交接（2026-06-30 推荐运行包触发契约）
+## 最新阶段交接（2026-06-30 全角色真实前台动作与随访办理体验）
+
+- 本阶段把 `stakeholder-view-rehearsal.spec.ts` 从“部分角色只进入页面看标记”推进为
+  “十二类业务视角均有真实前台动作”：医生登记医师采纳反馈、护士生成并办理随访、药师复核联合用药风险、
+  医技生成报告解读、质控与院长下钻整改证据、患者代理完成问卷、平台管理员新增实施人员档案、
+  医疗引擎运营员登记/健康检查模型服务、审计员导出验签、信息科长与实施工程师生成系统接入数据质量报告。
+- 代码修复：
+  - E2E 显式断言 12 类视角不得缺少 `action`，运行记录新增 `entryUrl/finalUrl`，避免信息科长/实施工程师
+    跳转到 `/adapter/hub` 后覆盖原始入口证据。
+  - 医疗引擎运营员动作改为模型服务治理：空环境先通过前台“登记模型服务”创建院内 Ollama 配置
+    `http://127.0.0.1:11434` / `medkernel-qwen25:1.5b-v1`，保持停用、不写密钥、不启用；
+    已有服务时执行真实健康检查并复核生产前校验阻断状态。
+  - 随访办理动作改为真实用户路径：生成计划后用本次脱敏患者线索收窄列表，再打开“查看与办理”，
+    防止分页旧数据把新计划挤出当前页。
+  - 前台随访页体验同步优化：生成随访计划成功后自动切到本次患者线索和第一页；只有计划详情已加载时才打开
+    “随访计划办理”抽屉，避免护士/患者代理看到只有标题的空抽屉。
+- 真实问题与处置：
+  - 134 机构环境没有登记模型服务时，旧演练直接寻找“健康检查”按钮会失败；已改为先登记无密钥、停用的模型服务，
+    符合“无模型可运行”和“院内/公网模型分边界治理”的诚实降级。
+  - 随访计划生成后，旧前台用旧筛选刷新列表并立即打开抽屉，用户会看到空抽屉或找不到刚生成计划；已按患者线索自动收窄，
+    E2E 也按同一路径办理。
+  - “生产前校验”在页面中多处出现，严格模式下需要收敛到首个精确可见项，避免测试误报。
+- 本地验证证据：
+  - `npm --prefix frontend test -- Followup.test.tsx` 通过，`15` 个测试 0 失败。
+  - `npm --prefix frontend run typecheck` 通过。
+  - `npm --prefix frontend run verify` 通过，`113` 个测试文件 / `892` 个测试 0 失败；覆盖
+    lint、stylelint、T-GATE lint、Prettier、typecheck、Vitest。
+  - `git diff --check` 通过。
+- 134 前端-only 发布证据：
+  - 命令：`deploy/onprem/mk-publish.sh --frontend --source cf0140ebe80b3bf58c24b58924b215c1a7ad35c4`。
+  - 远端备份：`/zoesoft/medkernel/backups/deploy-20260630-154038`。
+  - 前端 dist 替换 `273` 个文件；readiness：HTTP 200，`{"status":"UP"}`；
+    服务 `active/enabled`，`NRestarts=0`。
+  - 关键前端制品：`frontend/dist/assets/Followup-BN3ypFks.js`
+    sha256=`f960d09babe8a81e29dec088a518ccf38f922039c6fb5804062715801fe49144`；
+    `frontend/dist/assets/index-TTsQv-0k.js`
+    sha256=`6c40c43b414438fdec6b9e19db93122c97aba76c16feea76cfd562698c70f5d8`。
+  - 注意：本次为前端-only 发布，`/zoesoft/medkernel/manifest.properties` 仍记录后端 jar 的
+    `source/commit=b06a0e1a86c2d2147da2529103e9f42976c298eb`。
+- 134 部署后直接入口全角色复演：
+  - 命令入口：
+    `E2E_EXTERNAL_DEPLOYMENT=1 E2E_BASE_URL=https://193.112.107.134/medkernel E2E_API_BASE_URL=https://193.112.107.134/medkernel/api/v1 E2E_IGNORE_HTTPS_ERRORS=1 E2E_ROLE_CREDENTIALS_FILE=/tmp/medkernel-e2e-codex3/current-launch.json`。
+  - 报告：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-cf0140eb-deployed-direct134/report/results.json`。
+  - Playwright：`1 passed`，耗时约 `1.3m`。
+  - 运行记录：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-cf0140eb-deployed-direct134/artifacts/stakeholder-view-rehearsal-b11d5-务视角均能通过四职责账号进入真实页面并看到对应业务能力-chromium/stakeholder-view-runtime-records.json`。
+  - runtime JSON 核对：`count=12`，`missingActions=[]`，`browserErrors/serverErrors/networkFailures=[]`。
+    12 类视角动作分别覆盖医生、护士、药师、医技、质控、患者代理、平台管理员、医疗引擎运营员、审计员、信息科长、
+    实施工程师和院长。
+- 下一步继续主线：当前“全角色均有真实前台动作”已跑通；后续继续做逐页真实操作和产品体验优化，
+  重点看报告工作清单/医技交接入口、随访办理生成后自动聚焦、模型双模式敏感信息治理、默认筛选和证据详情渐进呈现，
+  发现流程分类、交互复杂度、语义误导、功能缺口或安全边界问题继续按最优方案修复。
+
+## 上一阶段交接（2026-06-30 推荐运行包触发契约）
 
 - 本阶段定位并修复药师真实前台复演的推荐卡断链：前台已能创建患者、当前就诊上下文和当前用药资源，
   但旧实现仍按规则 DSL 内的历史 `trigger` 字段筛选推荐规则；当前权威设计已改为
