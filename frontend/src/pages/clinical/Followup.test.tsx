@@ -20,6 +20,7 @@ const followupHookMocks = vi.hoisted(() => ({
   useFollowupTemplates: vi.fn(),
   useContextSnapshotDetail: vi.fn(),
   useContextSnapshots: vi.fn(),
+  useCurrentHospitalRuntime: vi.fn(),
   useGenerateFollowupPlan: vi.fn(),
   usePublishFollowupTemplate: vi.fn(),
   useReportFollowupAbnormal: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useFollowupTemplates: followupHookMocks.useFollowupTemplates,
   useContextSnapshotDetail: followupHookMocks.useContextSnapshotDetail,
   useContextSnapshots: followupHookMocks.useContextSnapshots,
+  useCurrentHospitalRuntime: followupHookMocks.useCurrentHospitalRuntime,
   useGenerateFollowupPlan: followupHookMocks.useGenerateFollowupPlan,
   usePublishFollowupTemplate: followupHookMocks.usePublishFollowupTemplate,
   useReportFollowupAbnormal: followupHookMocks.useReportFollowupAbnormal,
@@ -283,6 +285,23 @@ describe("Followup", () => {
       isLoading: false,
       isError: false,
     }));
+    followupHookMocks.useCurrentHospitalRuntime.mockReturnValue({
+      data: {
+        release: {
+          releaseId: "runtime-release-followup",
+          tenantId: "tenant-A",
+          hospitalId: "hospital-A",
+          revisionNo: 1,
+          platformBaselineReleaseId: "baseline-A8",
+          manifestSha256: "a".repeat(64),
+          activatedAt: "2026-06-30T00:00:00Z",
+          activatedBy: "engine-operator",
+        },
+        items: [],
+      },
+      isLoading: false,
+      isError: false,
+    });
     followupHookMocks.useReportFollowupAbnormal.mockReturnValue({
       isPending: false,
       mutateAsync: followupHookMocks.reportAbnormal,
@@ -636,6 +655,37 @@ describe("Followup", () => {
     );
     expect(screen.queryByLabelText("随访快照患者信息")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("随访快照就诊信息")).not.toBeInTheDocument();
+  });
+
+  it("提醒旧机构生效版本快照不会自动套用新发布模板", async () => {
+    const user = userEvent.setup();
+    followupHookMocks.useCurrentHospitalRuntime.mockReturnValue({
+      data: {
+        release: {
+          releaseId: "runtime-release-current",
+          tenantId: "tenant-A",
+          hospitalId: "hospital-A",
+          revisionNo: 2,
+          platformBaselineReleaseId: "baseline-A8",
+          manifestSha256: "b".repeat(64),
+          activatedAt: "2026-06-30T01:00:00Z",
+          activatedBy: "engine-operator",
+        },
+        items: [],
+      },
+      isLoading: false,
+      isError: false,
+    });
+    renderFollowup();
+
+    await user.click(screen.getByRole("button", { name: /生成随访计划/ }));
+    fireEvent.change(screen.getByLabelText("随访快照患者信息"), {
+      target: { value: "patient-real-1" },
+    });
+    await user.click(screen.getByRole("button", { name: "选择第 1 个随访上下文快照" }));
+
+    expect(await screen.findByText("所选快照不是当前机构生效版本")).toBeInTheDocument();
+    expect(screen.getByText(/新发布的随访模板不会自动套用到旧快照/)).toBeInTheDocument();
   });
 
   it("shows followup templates and publishes templates with current product wording", async () => {

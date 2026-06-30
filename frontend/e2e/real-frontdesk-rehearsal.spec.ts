@@ -43,7 +43,6 @@ test.describe("全前台真实操作演练", () => {
       await createValueSetFromUi(page, testInfo, runtime, records, suffix);
       await configureModelEgressPolicyFromUi(page, testInfo, runtime, records);
       const patient = await createMpiPatientFromUi(page, testInfo, runtime, records);
-      const snapshot = await createContextSnapshotFromUi(page, testInfo, runtime, records, patient);
       const followupTemplate = await createFollowupTemplateFromUi(
         page,
         testInfo,
@@ -52,6 +51,7 @@ test.describe("全前台真实操作演练", () => {
         suffix,
       );
       await publishFollowupTemplateFromUi(page, testInfo, runtime, records, followupTemplate);
+      const snapshot = await createContextSnapshotFromUi(page, testInfo, runtime, records, patient);
       await generateFollowupPlanAndHandlePatientFeedbackFromUi(
         page,
         testInfo,

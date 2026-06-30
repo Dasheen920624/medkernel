@@ -44,6 +44,7 @@ import {
   useSubmitFollowupQuestionnaire,
   useReportFollowupAbnormal,
   useSecurityProfile,
+  useCurrentHospitalRuntime,
 } from "@/shared/api/hooks";
 import type {
   FollowupAbnormalReportResponse,
@@ -186,6 +187,9 @@ export default function Followup() {
   const publishTemplateMutation = usePublishFollowupTemplate();
   const submitQuestionnaireMutation = useSubmitFollowupQuestionnaire();
   const reportAbnormalMutation = useReportFollowupAbnormal();
+  const currentHospitalRuntimeQuery = useCurrentHospitalRuntime(
+    security.data?.dataScope?.hospitalId ?? undefined,
+  );
   const templateKeyword = templateSearch.trim();
   const publishedTemplateKeyword = publishedTemplateSearch.trim();
   const templatesQuery = useFollowupTemplates({
@@ -216,6 +220,13 @@ export default function Followup() {
   const snapshotDetailQuery = useContextSnapshotDetail(selectedSnapshotId, {
     enabled: generateModalVisible && Boolean(selectedSnapshotId),
   });
+  const selectedSnapshotRuntimeId = snapshotDetailQuery.data?.runtimeReleaseId ?? null;
+  const currentHospitalRuntimeId = currentHospitalRuntimeQuery.data?.release.releaseId ?? null;
+  const selectedSnapshotRuntimeIsStale = Boolean(
+    selectedSnapshotRuntimeId &&
+    currentHospitalRuntimeId &&
+    selectedSnapshotRuntimeId !== currentHospitalRuntimeId,
+  );
 
   const displayPlans = useMemo(() => apiPlansData?.items ?? [], [apiPlansData?.items]);
   const templates = useMemo(() => templatesQuery.data?.items ?? [], [templatesQuery.data?.items]);
@@ -874,6 +885,21 @@ export default function Followup() {
                 {customerDisplayText(snapshotDetailQuery.data.qualityStatus)}
               </Descriptions.Item>
             </Descriptions>
+          ) : null}
+          {selectedSnapshotRuntimeIsStale ? (
+            <Alert
+              type="warning"
+              showIcon
+              message="所选快照不是当前机构生效版本"
+              description="新发布的随访模板不会自动套用到旧快照；请建立新的当前就诊上下文后再生成计划。"
+            />
+          ) : snapshotDetailQuery.data ? (
+            <Alert
+              type="info"
+              showIcon
+              message="随访计划按所选快照锁定版本生成"
+              description="模板、规则和字段目录以快照中的机构生效版本为准，避免临床事实串版。"
+            />
           ) : null}
           <Form.Item
             name="contextSnapshotId"
