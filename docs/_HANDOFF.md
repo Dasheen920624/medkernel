@@ -11,9 +11,11 @@
 - 远程分支已清理：`origin` 仅保留 `main`（另有 `origin/HEAD -> origin/main`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前分支最新产品代码提交为 `a4618fb04d5b09a1b329198134ace89c54be965b`
-  （`fix: 优化前台体验反馈一致性`）；
-  其前序产品提交为 `691b50e8ce94727992cf01cdf09d64986ad7e4b6`
+- 当前分支最新产品代码提交为 `57eec00c742bc3b8a7981521e09b1ddc93b3b40a`
+  （`fix: 优化演练数据列表可辨识性`）；
+  其前序产品提交为 `a4618fb04d5b09a1b329198134ace89c54be965b`
+  （`fix: 优化前台体验反馈一致性`）、
+  `691b50e8ce94727992cf01cdf09d64986ad7e4b6`
   （`fix: 优化全角色前台体验语言`）、
   `3c61cc186a24dfab20a49229e49974c33f32ed5d`
   （`fix: 置顶报告解读协同待办分页排序`）、
@@ -46,8 +48,9 @@
   `deployedAt=2026-06-30T23:18:17+08:00`，`jarSha256=bdaa3fe3e57566167a1f1090e79a94e5e8a22f284b43e21ef99cb5d95777b30e`，
   readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=1557741`、`NRestarts=0`。
   该部署已完成 `stakeholder-view-rehearsal.spec.ts` 与 `real-frontdesk-rehearsal.spec.ts` 直接访问 134 复演。
+  本地最新产品提交 `57eec00c742bc3b8a7981521e09b1ddc93b3b40a` 尚未部署到 134，下一步需发布后复跑真实前台演练。
   旧 `e7a052f5`、`3c61cc`、`3d9f9c`、`c68e127f`、`b4ec9f2d`、`3f5ec881`、`e8f50553` 只作为历史阶段证据，
-  不再代表当前 134 运行版本。
+  不再代表当前 134 运行版本；`57eec00c` 代表当前本地待发布版本。
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
@@ -56,6 +59,28 @@
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
   `rehearsal` 是当前 1.0 契约中的完整上线演练机构块，不是旧兼容入口；
   `roleAccounts`、`platformRoleAccounts`、`customerTenant` 等旧 root 账号字段不得作为登录权威。
+
+## 最新阶段交接（2026-06-30 全视角真实前台体验优化第三批）
+
+- 基于 `a4618fb0` 直接访问 134 真实前台截图继续体验：值集维护页在多轮演练后出现大量同名“值集资产已登记”
+  草稿，且无维护时间与分页，平台运营/实施/信息科长无法快速辨认最新前台提交；系统接入页“接入向导”已有服务端分页，
+  但大量同类接入申请只显示“接入申请已登记 / 字段映射已配置 / 未接通”，缺少最近更新时间和总量说明。
+- 已本地修复并提交 `57eec00c742bc3b8a7981521e09b1ddc93b3b40a`
+  （`fix: 优化演练数据列表可辨识性`）：
+  - 配置资产维护表按最近维护时间倒序展示，补“维护时间”列，显示“最新维护 yyyy年MM月dd日 HH:mm”，并开启每页 10 条分页与总量说明。
+  - 接入向导表补“最近更新”列，显示“最近更新 yyyy年MM月dd日 HH:mm”，并在分页上显示“共 N 条接入申请，当前显示 x-y 条”。
+  - 未新增后端契约，不删除真实演练数据；用已有 `updatedAt` 让重复前台数据可区分，保留证据详情开关原有行为。
+- 红绿验证：
+  - 红灯：`npm --prefix frontend test -- DeclarativeAssetWorkbench.test.tsx -t "keeps repeated"` 失败于首行找不到
+    “最新维护 2026年06月30日 23:18”；`npm --prefix frontend test -- AdapterHub.test.tsx -t "keeps repeated onboarding"`
+    失败于首行找不到“最近更新 2026年06月30日 23:18”。
+  - 绿灯：上述两个目标用例均通过；`npm --prefix frontend test -- DeclarativeAssetWorkbench.test.tsx AdapterHub.test.tsx`
+    通过，`2` 个文件 / `25` 项。
+  - 完整前端验证：`npm --prefix frontend run verify` 通过，`113` 个测试文件 / `904` 项；`npm --prefix frontend run build` 通过；
+    `git diff --check` 通过。
+- 待执行：把 `57eec00c742bc3b8a7981521e09b1ddc93b3b40a` 完整发布到 134，复跑
+  `stakeholder-view-rehearsal.spec.ts` 与 `real-frontdesk-rehearsal.spec.ts`；截图确认值集维护和接入向导在真实 134 页面显示维护/更新时间与分页总量。
+  通过后继续第四批全视角优化，优先看随访日期中文化、质量报告长明细阅读负担、患者/医生/护士/药师/医技剩余入口操作负担。
 
 ## 最新阶段交接（2026-06-30 全视角真实前台体验优化第二批与134复演）
 
@@ -98,8 +123,8 @@
     运行记录 `9` 段真实前台链路全部 `browserErrors/serverErrors/networkFailures=0`。
   - 截图复核：模型能力页显示“外调安全已配置 / 调整外调安全”；CDSS toast 显示“本次未新增可见提醒；当前列表已刷新存量提醒”；
     MPI 指标显示“群体性别分布 / 男性 0 人 / 女性 112 人 / 性别待确认/其他 28 人”。
-- 下一步继续第三批全视角真实操作优化，不推送远程 `main`：重点看前台反复演练后的数据堆叠与筛选、接入适配器质量报告长明细可读性、
-  值集草稿重复登记可区分性、随访计划日期和办理状态表达、以及医生/护士/患者/药师/医技/质控/信息科长/院长/平台运营剩余入口的真实工作负担。
+- 后续状态：第三批已优先收敛“前台反复演练后的数据堆叠与可辨识性”，见上方
+  `57eec00c742bc3b8a7981521e09b1ddc93b3b40a`；该提交尚未发布到 134。
 
 ## 最新阶段交接（2026-06-30 全视角真实前台体验优化第一批）
 
