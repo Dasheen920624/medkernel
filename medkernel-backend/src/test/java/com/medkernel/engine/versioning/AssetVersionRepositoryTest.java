@@ -18,6 +18,7 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.data.relational.core.conversion.DbActionExecutionException;
 import org.springframework.test.context.TestPropertySource;
 
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.ids.Ulid;
 
 @DataJdbcTest
@@ -94,6 +95,36 @@ class AssetVersionRepositoryTest {
             .containsExactly(tenantA);
     }
 
+    @Test
+    void platformReleaseCandidatesIncludeDraftAndPublishedButExcludeWithdrawn() {
+        AssetVersion draft = repository.save(platformSample(
+            newVersionId(),
+            VersionedAssetType.RULE,
+            "RULE.CKD",
+            "V2",
+            AssetVersionStatus.DRAFT));
+        AssetVersion published = repository.save(platformSample(
+            newVersionId(),
+            VersionedAssetType.KNOWLEDGE,
+            "KNOW.REPORT.LAB",
+            "V1",
+            AssetVersionStatus.PUBLISHED));
+        repository.save(platformSample(
+            newVersionId(),
+            VersionedAssetType.PATHWAY,
+            "PATH.OLD",
+            "V1",
+            AssetVersionStatus.WITHDRAWN));
+
+        assertThat(repository.pagePlatformReleaseCandidates(
+            PlatformTenant.ID, null, null, 0, 20))
+            .extracting(AssetVersion::versionId)
+            .containsExactlyInAnyOrder(draft.versionId(), published.versionId());
+        assertThat(repository.countPlatformReleaseCandidates(
+            PlatformTenant.ID, null, null))
+            .isEqualTo(2L);
+    }
+
     private AssetVersion sample(
             String versionId,
             String versionNo,
@@ -131,6 +162,39 @@ class AssetVersionRepositoryTest {
             now,
             "reviewer-1",
             "trace-sys04"
+        );
+    }
+
+    private AssetVersion platformSample(
+            String versionId,
+            VersionedAssetType assetType,
+            String assetIdentity,
+            String versionNo,
+            AssetVersionStatus status) {
+        Instant now = Instant.parse("2026-06-03T08:00:00Z");
+        String activeScopeKey = "version:" + versionId;
+        return new AssetVersion(
+            null,
+            versionId,
+            PlatformTenant.ID,
+            assetType,
+            assetIdentity,
+            versionNo,
+            "/platform",
+            "ALL",
+            "123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0",
+            AssetVersionSafetyPolicy.NORMAL,
+            AssetVersionOverridePolicy.FREE,
+            status,
+            activeScopeKey,
+            "platform/" + assetIdentity,
+            null,
+            null,
+            now,
+            "engine-operator",
+            now,
+            "engine-operator",
+            "trace-platform"
         );
     }
 

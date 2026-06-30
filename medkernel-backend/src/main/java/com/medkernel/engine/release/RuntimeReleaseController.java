@@ -61,7 +61,7 @@ public class RuntimeReleaseController {
     }
 
     /**
-     * 分页查询可进入下一平台标准版本的草稿资产。
+     * 分页查询可进入下一平台标准版本的草稿或已发布资产。
      */
     @GetMapping("/platform-baselines/candidates")
     @PreAuthorize("@perm.has('platform.publish')")

@@ -129,6 +129,20 @@ function completeStageEvidence() {
         versionNo: "1",
       },
       baseline: { baselineReleaseId: "baseline-1", revisionNo: 1 },
+      knowledge: {
+        manifestCode: "MEDKERNEL-FULL-KNOWLEDGE-REHEARSAL",
+        releaseVersion: "1.0.0",
+        requiredCount: 11,
+        activeCount: 11,
+        missingIdentities: [],
+      },
+      knowledgeAssets: knowledgeDomains().map((domain) => ({
+        assetType: "KNOWLEDGE",
+        assetIdentity: `launch.${domain.toLowerCase()}.asset`,
+        entryState: "ACTIVE",
+        versionId: `knowledge-${domain.toLowerCase()}-v1`,
+        versionNo: "V1",
+      })),
     },
     sandbox: {
       results: Array.from({ length: 10 }, (_, index) => ({ ruleCode: `R${index}`, result: "PASS" })),
@@ -173,4 +187,11 @@ function completeStageEvidence() {
     },
     "browser-e2e": { stats: { expected: 82, unexpected: 0, flaky: 0 } },
   };
+}
+
+function knowledgeDomains() {
+  return [
+    "GUIDELINE", "DRUG", "PATHWAY_KNOWLEDGE", "NURSING", "DIAGNOSTIC_ITEM", "TCM",
+    "PROTOCOL", "POLICY", "LITERATURE", "OTHER", "DIAGNOSIS",
+  ];
 }

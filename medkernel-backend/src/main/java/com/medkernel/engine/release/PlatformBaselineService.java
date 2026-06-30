@@ -80,7 +80,7 @@ public class PlatformBaselineService {
     }
 
     /**
-     * 发布任意数量、任意类型的草稿变更为一个完整平台标准版本。
+     * 将任意数量、任意类型的草稿或已发布资产版本纳入一个完整平台标准版本。
      */
     @Transactional
     public PlatformBaselineRelease publish(PlatformBaselinePublishCommand command) {
@@ -111,16 +111,19 @@ public class PlatformBaselineService {
                 DraftEntry.disabled(identity.assetType(), identity.assetIdentity()));
         }
 
-        Map<AssetKey, AssetVersion> changedVersions = new LinkedHashMap<>();
+        Map<AssetKey, AssetVersion> requestedVersions = new LinkedHashMap<>();
+        Map<AssetKey, AssetVersion> draftVersions = new LinkedHashMap<>();
         for (String versionId : command.publishVersionIds()) {
             AssetVersion version = versions
                 .findByVersionIdAndTenantId(required(versionId, "资产版本 ID"), PlatformTenant.ID)
                 .orElseThrow(() -> new ApiException(
-                    ErrorCode.NOT_FOUND, "平台草稿版本不存在: " + versionId));
+                    ErrorCode.NOT_FOUND, "平台资产版本不存在: " + versionId));
             requireRuntimeType(version.assetType());
-            if (version.status() != AssetVersionStatus.DRAFT) {
+            if (version.status() != AssetVersionStatus.DRAFT
+                    && version.status() != AssetVersionStatus.PUBLISHED) {
                 throw new ApiException(
-                        ErrorCode.CONFLICT, "只有草稿版本可以进入新的平台标准版本: " + version.versionId());
+                        ErrorCode.CONFLICT,
+                        "只有草稿或已发布版本可以进入新的平台标准版本: " + version.versionId());
             }
             AssetKey key = new AssetKey(version.assetType(), version.assetIdentity());
             AssetIdentity identity = knownIdentities.get(key);
@@ -132,8 +135,11 @@ public class PlatformBaselineService {
                 throw new ApiException(
                     ErrorCode.CONFLICT, "退役资产身份不能发布新版本: " + key.identity());
             }
-            validation.validateForPublish(version, actor, command.traceId());
-            if (changedVersions.putIfAbsent(key, version) != null) {
+            if (version.status() == AssetVersionStatus.DRAFT) {
+                validation.validateForPublish(version, actor, command.traceId());
+                draftVersions.put(key, version);
+            }
+            if (requestedVersions.putIfAbsent(key, version) != null) {
                 throw validation("同一稳定资产身份一次只能发布一个版本: " + key.identity());
             }
             manifest.put(key, DraftEntry.active(version));
@@ -153,7 +159,7 @@ public class PlatformBaselineService {
             if (disabledKeys.putIfAbsent(key, Boolean.TRUE) != null) {
                 throw validation("同一稳定资产身份不能重复停用: " + key.identity());
             }
-            if (changedVersions.containsKey(key)) {
+            if (requestedVersions.containsKey(key)) {
                 throw validation("同一稳定资产身份不能同时发布和停用: " + key.identity());
             }
             manifest.put(key, DraftEntry.disabled(key.type(), key.identity()));
@@ -161,7 +167,7 @@ public class PlatformBaselineService {
 
         assertDependencyClosure(manifest);
         Instant now = clock.instant();
-        for (AssetVersion version : changedVersions.values()) {
+        for (AssetVersion version : draftVersions.values()) {
             AssetVersion published = versions.save(version.withStatusAndWindow(
                 AssetVersionStatus.PUBLISHED,
                 "version:" + version.versionId(),

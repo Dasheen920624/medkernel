@@ -6,12 +6,14 @@ import {
   selectLaunchAccount,
   validateLaunchCredentials,
 } from "./launch-account-bootstrap-lib.mjs";
+import { validateFullKnowledgeManifest } from "../knowledge/full-knowledge-rehearsal-lib.mjs";
 
 const FIELD_CATALOG_IDENTITY = "FIELD.CATALOG.CLINICAL_CONTEXT";
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const API_ALLOWLIST = Object.freeze([
   ["POST", /^\/auth\/login$/u],
   ["GET", /^\/engine\/releases\/platform-baselines\/current$/u],
+  ["GET", /^\/engine\/releases\/platform-baselines\/candidates\?/u],
   ["POST", /^\/engine\/context\/field-catalog\/drafts$/u],
   ["POST", /^\/engine\/releases\/platform-baselines$/u],
 ]);
@@ -38,10 +40,23 @@ export function readPlatformBaselineBootstrapConfig(env, options = {}) {
   );
   const credentials = parseJson(readFile(credentialsPath), "统一上线凭据");
   validateLaunchCredentials(credentials);
+  const knowledgeManifestPath = hasText(env.FULL_KNOWLEDGE_MANIFEST_PATH)
+    ? path.resolve(env.FULL_KNOWLEDGE_MANIFEST_PATH)
+    : hasText(env.LAUNCH_PLATFORM_BASELINE_KNOWLEDGE_MANIFEST_PATH)
+    ? path.resolve(env.LAUNCH_PLATFORM_BASELINE_KNOWLEDGE_MANIFEST_PATH)
+    : null;
+  const knowledgeManifest = knowledgeManifestPath
+    ? validateFullKnowledgeManifest(parseJson(
+        readFile(knowledgeManifestPath),
+        "全知识演练清单",
+      ))
+    : null;
   return {
     apiBaseUrl: normalizeApiBaseUrl(env.LAUNCH_API_BASE_URL),
     credentialsPath,
     evidencePath,
+    knowledgeManifestPath,
+    knowledgeManifest,
     operator: selectLaunchAccount(credentials, "platform", "engine-operator"),
   };
 }
@@ -54,6 +69,12 @@ export async function runPlatformBaselineBootstrap(options) {
 
   const requests = [];
   const startedAt = now(options?.now);
+  const knowledgeManifest = options?.knowledgeManifest
+    ? validateFullKnowledgeManifest(options.knowledgeManifest)
+    : null;
+  const requiredKnowledgeIdentities = knowledgeManifest
+    ? knowledgeManifest.entries.map((entry) => entry.identityCode)
+    : [];
   const login = await requestJson({
     apiBaseUrl,
     fetchImpl,
@@ -80,15 +101,83 @@ export async function runPlatformBaselineBootstrap(options) {
     label: "读取当前平台标准版本",
     acceptedStatuses: [200, 404],
   });
+  let knowledgeCandidates = [];
+  if (requiredKnowledgeIdentities.length > 0) {
+    knowledgeCandidates = await fetchRequiredKnowledgeCandidates({
+      apiBaseUrl,
+      fetchImpl,
+      requests,
+      session,
+      requiredKnowledgeIdentities,
+    });
+  }
   if (current.status === 200) {
     const fieldCatalog = requireFieldCatalogItem(current.data, "当前平台标准版本");
+    const currentKnowledge = summarizeKnowledgeCoverage(
+      current.data,
+      requiredKnowledgeIdentities,
+    );
+    if (currentKnowledge.missingIdentities.length === 0) {
+      return evidence({
+        startedAt,
+        finishedAt: now(options?.now),
+        operator,
+        baselineDetail: current.data,
+        fieldCatalog,
+        knowledgeManifest,
+        knowledgeAssets: currentKnowledge.activeAssets,
+        reused: true,
+        refreshed: false,
+        requests,
+      });
+    }
+
+    await requestJson({
+      apiBaseUrl,
+      fetchImpl,
+      requests,
+      session,
+      method: "POST",
+      path: "/engine/releases/platform-baselines",
+      body: {
+        publishVersionIds: knowledgeCandidates
+          .filter((candidate) =>
+            currentKnowledge.missingIdentities.includes(candidate.assetIdentity),
+          )
+          .map((candidate) => candidate.versionId),
+        disabledAssets: [],
+      },
+      label: "刷新平台字段目录与全知识权威基线",
+    });
+
+    const refreshed = await requestJson({
+      apiBaseUrl,
+      fetchImpl,
+      requests,
+      session,
+      method: "GET",
+      path: "/engine/releases/platform-baselines/current",
+      label: "回读平台字段目录与全知识权威基线",
+    });
+    const refreshedFieldCatalog = requireFieldCatalogItem(
+      refreshed.data,
+      "刷新后的平台标准版本",
+    );
+    const refreshedKnowledge = requireKnowledgeCoverage(
+      refreshed.data,
+      requiredKnowledgeIdentities,
+      "刷新后的平台标准版本",
+    );
     return evidence({
       startedAt,
       finishedAt: now(options?.now),
       operator,
-      baselineDetail: current.data,
-      fieldCatalog,
-      reused: true,
+      baselineDetail: refreshed.data,
+      fieldCatalog: refreshedFieldCatalog,
+      knowledgeManifest,
+      knowledgeAssets: refreshedKnowledge.activeAssets,
+      reused: false,
+      refreshed: true,
       requests,
     });
   }
@@ -112,10 +201,15 @@ export async function runPlatformBaselineBootstrap(options) {
     method: "POST",
     path: "/engine/releases/platform-baselines",
     body: {
-      publishVersionIds: [draftVersion.versionId],
+      publishVersionIds: [
+        draftVersion.versionId,
+        ...knowledgeCandidates.map((candidate) => candidate.versionId),
+      ],
       disabledAssets: [],
     },
-    label: "发布平台字段目录权威基线",
+    label: requiredKnowledgeIdentities.length > 0
+      ? "发布平台字段目录与全知识权威基线"
+      : "发布平台字段目录权威基线",
   });
 
   const published = await requestJson({
@@ -125,12 +219,19 @@ export async function runPlatformBaselineBootstrap(options) {
     session,
     method: "GET",
     path: "/engine/releases/platform-baselines/current",
-    label: "回读平台字段目录权威基线",
+    label: requiredKnowledgeIdentities.length > 0
+      ? "回读平台字段目录与全知识权威基线"
+      : "回读平台字段目录权威基线",
   });
   const fieldCatalog = requireFieldCatalogItem(published.data, "发布后的平台标准版本");
   if (fieldCatalog.versionId !== draftVersion.versionId) {
     throw new Error("字段目录平台基线未绑定刚发布的字段目录草稿");
   }
+  const knowledgeCoverage = requireKnowledgeCoverage(
+    published.data,
+    requiredKnowledgeIdentities,
+    "发布后的平台标准版本",
+  );
 
   return evidence({
     startedAt,
@@ -139,7 +240,10 @@ export async function runPlatformBaselineBootstrap(options) {
     baselineDetail: published.data,
     draftVersion,
     fieldCatalog,
+    knowledgeManifest,
+    knowledgeAssets: knowledgeCoverage.activeAssets,
     reused: false,
+    refreshed: false,
     requests,
   });
 }
@@ -152,6 +256,7 @@ function evidence(args) {
     startedAt: args.startedAt,
     finishedAt: args.finishedAt,
     reused: args.reused,
+    refreshed: args.refreshed === true,
     operator: {
       tenantId: args.operator.tenantId,
       userId: args.operator.userId,
@@ -173,8 +278,109 @@ function evidence(args) {
       versionNo: args.fieldCatalog.versionNo,
       contentHash: args.fieldCatalog.contentHash ?? null,
     },
+    knowledge: args.knowledgeManifest
+      ? {
+          manifestCode: args.knowledgeManifest.manifestCode,
+          releaseVersion: args.knowledgeManifest.releaseVersion,
+          requiredCount: args.knowledgeManifest.entries.length,
+          activeCount: args.knowledgeAssets.length,
+          missingIdentities: [],
+        }
+      : null,
+    knowledgeAssets: args.knowledgeAssets.map((item) => ({
+      assetType: item.assetType,
+      assetIdentity: item.assetIdentity,
+      entryState: item.entryState,
+      versionId: item.versionId,
+      versionNo: item.versionNo,
+      contentHash: item.contentHash ?? null,
+    })),
     requests: args.requests,
   };
+}
+
+async function fetchRequiredKnowledgeCandidates(args) {
+  const response = await requestJson({
+    apiBaseUrl: args.apiBaseUrl,
+    fetchImpl: args.fetchImpl,
+    requests: args.requests,
+    session: args.session,
+    method: "GET",
+    path: "/engine/releases/platform-baselines/candidates?assetType=KNOWLEDGE&page=1&size=200",
+    label: "查询可进入平台标准版本的全知识资产",
+  });
+  const candidates = Array.isArray(response.data?.items) ? response.data.items : [];
+  const byIdentity = new Map();
+  for (const candidate of candidates) {
+    if (
+      candidate?.assetType !== "KNOWLEDGE" ||
+      !hasText(candidate.assetIdentity) ||
+      !hasText(candidate.versionId) ||
+      !hasText(String(candidate.versionNo ?? "")) ||
+      !["DRAFT", "PUBLISHED"].includes(candidate.status)
+    ) {
+      continue;
+    }
+    if (!byIdentity.has(candidate.assetIdentity)) {
+      byIdentity.set(candidate.assetIdentity, {
+        assetType: candidate.assetType,
+        assetIdentity: candidate.assetIdentity,
+        versionId: candidate.versionId,
+        versionNo: String(candidate.versionNo),
+        status: candidate.status,
+      });
+    }
+  }
+  const missing = args.requiredKnowledgeIdentities.filter(
+    (identity) => !byIdentity.has(identity),
+  );
+  if (missing.length > 0) {
+    throw new Error(`全知识平台基线缺少可发布候选版本：${missing.join(", ")}`);
+  }
+  return args.requiredKnowledgeIdentities.map((identity) => byIdentity.get(identity));
+}
+
+function summarizeKnowledgeCoverage(detail, requiredKnowledgeIdentities) {
+  if (requiredKnowledgeIdentities.length === 0) {
+    return { activeAssets: [], missingIdentities: [] };
+  }
+  const required = new Set(requiredKnowledgeIdentities);
+  const activeAssets = extractActiveKnowledgeAssets(detail)
+    .filter((item) => required.has(item.assetIdentity));
+  const activeIdentities = new Set(activeAssets.map((item) => item.assetIdentity));
+  return {
+    activeAssets,
+    missingIdentities: requiredKnowledgeIdentities.filter(
+      (identity) => !activeIdentities.has(identity),
+    ),
+  };
+}
+
+function requireKnowledgeCoverage(detail, requiredKnowledgeIdentities, label) {
+  const coverage = summarizeKnowledgeCoverage(detail, requiredKnowledgeIdentities);
+  if (coverage.missingIdentities.length > 0) {
+    throw new Error(`${label}缺少 ACTIVE 全知识平台基线：${coverage.missingIdentities.join(", ")}`);
+  }
+  return coverage;
+}
+
+function extractActiveKnowledgeAssets(detail) {
+  return (Array.isArray(detail?.items) ? detail.items : [])
+    .filter((item) =>
+      item?.assetType === "KNOWLEDGE" &&
+      item.entryState === "ACTIVE" &&
+      hasText(item.assetIdentity) &&
+      hasText(item.versionId) &&
+      hasText(String(item.versionNo ?? "")),
+    )
+    .map((item) => ({
+      assetType: item.assetType,
+      assetIdentity: item.assetIdentity,
+      entryState: item.entryState,
+      versionId: item.versionId,
+      versionNo: String(item.versionNo),
+      contentHash: item.contentHash ?? null,
+    }));
 }
 
 function requireFieldCatalogDraft(data) {

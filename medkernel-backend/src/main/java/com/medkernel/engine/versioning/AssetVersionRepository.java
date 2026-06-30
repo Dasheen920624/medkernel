@@ -86,7 +86,7 @@ public interface AssetVersionRepository extends ListCrudRepository<AssetVersion,
     @Query("""
         SELECT * FROM mk_version_asset_version
         WHERE tenant_id = :tenantId
-          AND status = 'DRAFT'
+          AND status IN ('DRAFT', 'PUBLISHED')
           AND (:assetType IS NULL OR asset_type = :assetType)
           AND (
             :keyword IS NULL
@@ -107,7 +107,7 @@ public interface AssetVersionRepository extends ListCrudRepository<AssetVersion,
     @Query("""
         SELECT COUNT(*) FROM mk_version_asset_version
         WHERE tenant_id = :tenantId
-          AND status = 'DRAFT'
+          AND status IN ('DRAFT', 'PUBLISHED')
           AND (:assetType IS NULL OR asset_type = :assetType)
           AND (
             :keyword IS NULL

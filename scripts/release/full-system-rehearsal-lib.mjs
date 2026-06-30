@@ -322,8 +322,24 @@ export function buildFullSystemStagePlan(config) {
       },
     },
     {
+      id: "full-knowledge",
+      label: "11 域全知识与 V2 回滚恢复",
+      command: process.execPath,
+      args: ["scripts/knowledge/full-knowledge-rehearsal.mjs"],
+      cwd: config.repoRoot,
+      evidencePath: knowledgeEvidence,
+      env: {
+        ...common,
+        FULL_KNOWLEDGE_API_BASE_URL: config.apiBaseUrl,
+        FULL_KNOWLEDGE_CREDENTIALS_FILE: config.credentialsPath,
+        FULL_KNOWLEDGE_MANIFEST_PATH: config.manifestPath,
+        FULL_KNOWLEDGE_PROVIDER_CODE: config.provider.code,
+        FULL_KNOWLEDGE_EVIDENCE_PATH: knowledgeEvidence,
+      },
+    },
+    {
       id: "platform-baseline",
-      label: "平台字段目录权威基线",
+      label: "平台字段目录与全知识权威基线",
       command: process.execPath,
       args: ["scripts/release/platform-baseline-bootstrap.mjs"],
       cwd: config.repoRoot,
@@ -332,6 +348,7 @@ export function buildFullSystemStagePlan(config) {
         ...common,
         LAUNCH_API_BASE_URL: config.apiBaseUrl,
         LAUNCH_CREDENTIALS_FILE: config.credentialsPath,
+        FULL_KNOWLEDGE_MANIFEST_PATH: config.manifestPath,
         LAUNCH_PLATFORM_BASELINE_EVIDENCE_PATH: platformBaselineEvidence,
       },
     },
@@ -347,22 +364,6 @@ export function buildFullSystemStagePlan(config) {
         DRILL_BASE_URL: new URL(config.webBaseUrl).origin,
         DRILL_EVIDENCE_DIR: sandboxRoot,
         LAUNCH_CREDENTIALS_FILE: config.credentialsPath,
-      },
-    },
-    {
-      id: "full-knowledge",
-      label: "11 域全知识与 V2 回滚恢复",
-      command: process.execPath,
-      args: ["scripts/knowledge/full-knowledge-rehearsal.mjs"],
-      cwd: config.repoRoot,
-      evidencePath: knowledgeEvidence,
-      env: {
-        ...common,
-        FULL_KNOWLEDGE_API_BASE_URL: config.apiBaseUrl,
-        FULL_KNOWLEDGE_CREDENTIALS_FILE: config.credentialsPath,
-        FULL_KNOWLEDGE_MANIFEST_PATH: config.manifestPath,
-        FULL_KNOWLEDGE_PROVIDER_CODE: config.provider.code,
-        FULL_KNOWLEDGE_EVIDENCE_PATH: knowledgeEvidence,
       },
     },
     {
@@ -573,10 +574,26 @@ export function validateStageEvidence(stageId, evidence) {
       ) {
         throw new Error("字段目录平台基线未完整发布为当前平台标准版本");
       }
+      if (
+        evidence.knowledge?.requiredCount !== 11 ||
+        evidence.knowledge?.activeCount !== 11 ||
+        !Array.isArray(evidence.knowledgeAssets) ||
+        evidence.knowledgeAssets.length !== 11 ||
+        evidence.knowledgeAssets.some((item) =>
+          item?.assetType !== "KNOWLEDGE" ||
+          item.entryState !== "ACTIVE" ||
+          typeof item.versionId !== "string" ||
+          !item.versionId.trim() ||
+          typeof item.assetIdentity !== "string" ||
+          !item.assetIdentity.trim())
+      ) {
+        throw new Error("全知识平台基线未完整发布为当前平台标准版本");
+      }
       return {
         baselineReleaseId: evidence.baseline.baselineReleaseId,
         revisionNo: evidence.baseline.revisionNo,
         fieldCatalogVersion: evidence.fieldCatalog.versionId,
+        knowledgeActiveCount: evidence.knowledge.activeCount,
       };
     case "sandbox":
       if (

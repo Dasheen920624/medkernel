@@ -11,8 +11,12 @@
 - 远程分支已清理：`origin` 仅保留 `main`（另有 `origin/HEAD -> origin/main`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前分支最新产品代码提交为本文件所在提交（本阶段：前台报告事实进入上下文并生成报告解读协同待办）；
-  其前序产品提交为 `5a2d502f37daef6c6bb0853690723752c19f0924`
+- 当前分支最新产品代码提交为本文件所在提交（本阶段：全知识平台基线发布链路修复）；
+  其前序产品提交为 `3d9f9c0155a9278387b6ec98438d3b72d8956590`
+  （`fix: 对齐前台报告快照签发人字段`）、
+  `c68e127f608dd1b8fc7dc64181727fa477610ab6`
+  （`fix: 走通报告解读协同待办真实数据链路`）、
+  `5a2d502f37daef6c6bb0853690723752c19f0924`
   （`fix: 优化协同任务报告解读入口`）、
   `a15d225c47fdd62da172cdaf41dea976c6ab9dc4`
   （`fix: 修正患者360报告解读菜单权限`）、
@@ -24,12 +28,11 @@
   （`fix: 补齐推荐详情抽屉可访问名称`）和
   `21caf969bcec81a849a7ccc12c03d5afcab2e62d`
   （`fix: 统一推荐运行包触发契约`）。
-- 134 当前后端 jar / manifest 为 `c68e127f608dd1b8fc7dc64181727fa477610ab6`；
-  `2026-06-30T20:36:08+08:00` 已做后端+前端完整发布，jar sha256
-  `45cad4da8069f5643b133ea9d1c5a730ea5c481783929868ce2f6c941e1660e4`，备份
-  `/zoesoft/medkernel/backups/deploy-20260630-203606`。该部署后首轮 E2E 暴露前端报告资源仍带非标准
-  `interpreterId` 字段，后端拒绝未知字段并返回 400；本文件所在热修提交改为标准 `signedBy`，尚需重新发布 134
-  并复演。旧 `b4ec9f2d`、`3f5ec881`、`e8f50553` 只作为历史阶段证据，不再代表当前 134 运行版本。
+- 134 当前阶段修复前的最后完整部署为 `3d9f9c0155a9278387b6ec98438d3b72d8956590`；
+  该部署已修复 `interpreterId` 非标准字段 400，前台临床快照中 `DIAGNOSTIC_REPORT` 真实存在且使用
+  `signedBy`。复演继续失败在医技报告解读返回 `0` 项，根因不是前端表单缺报告事实，而是机构生效运行版本未包含
+  `KNOWLEDGE` 平台基线条目。旧 `c68e127f` 是上一轮 400 失败部署，`b4ec9f2d`、`3f5ec881`、`e8f50553`
+  只作为历史阶段证据，不再代表当前 134 运行版本。
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
@@ -39,7 +42,46 @@
   `rehearsal` 是当前 1.0 契约中的完整上线演练机构块，不是旧兼容入口；
   `roleAccounts`、`platformRoleAccounts`、`customerTenant` 等旧 root 账号字段不得作为登录权威。
 
-## 最新阶段交接（2026-06-30 前台报告事实进入上下文与协同待办闭环）
+## 最新阶段交接（2026-06-30 全知识平台基线与全链路演练顺序修复）
+
+- 根因结论：134 上 `3d9f9c` 部署后，前台已能创建标准 `DIAGNOSTIC_REPORT` 快照，报告类型
+  `血钾检验`、结论 `血钾 6.3 mmol/L，危急值，已复核`、签发人 `signedBy=clinical-user` 均真实存在；
+  但当前机构运行版本 `runtime-01KWC8YNE8F97KMQCCMYEE96FB` 的 `platform_baseline_item` 没有任何
+  `KNOWLEDGE` 条目，只有字段目录、随访、路径和规则。报告解读返回 0 的直接原因是运行时知识未进入机构生效版本。
+- 设计根因：全系统演练顺序原来是 `platform-baseline -> sandbox -> full-knowledge`，平台标准基线只发布字段目录；
+  后续全知识虽然已在平台租户生成 11 个 `PUBLISHED` 知识资产版本，但 `PlatformBaselineService` 只允许
+  `DRAFT` 进入新基线，导致已发布全知识无法作为权威平台基线激活。不能让报告服务跨租户直接读取 `t-1` 知识，
+  因为机构运行版本必须继续以平台基线和机构生效版本为唯一运行权威。
+- 已本地修复：
+  - `PlatformBaselineService` 支持将 `DRAFT` 或 `PUBLISHED` 资产版本纳入新的平台标准版本；只有草稿会执行发布校验、
+    状态迁移和发布通知，已发布版本只作为新基线 `ACTIVE` 条目激活，不重复发布。
+  - `AssetVersionRepository` 的平台基线候选查询改为返回 `DRAFT/PUBLISHED`；控制器、查询服务说明和测试命名同步改为
+    “草稿或已发布资产”，避免后续 AI 继续按旧草稿逻辑设计。
+  - `platform-baseline-bootstrap` 读取全知识 manifest，通过公开候选接口
+    `/engine/releases/platform-baselines/candidates` 获取 11 个已发布知识候选；若当前基线缺全知识，会创建新平台标准版本并回读确认
+    11 个知识资产均为 `ACTIVE`。
+  - `full-system-rehearsal` 顺序改为
+    `account-bootstrap -> model-provider -> full-knowledge -> platform-baseline -> sandbox -> runtime-resilience -> browser-e2e -> launch-coverage`；
+    发布覆盖审计要求平台基线证据必须包含 `11/11` 全知识活动资产，防止“全知识已生成但未进入运行基线”再次被误判为通过。
+- 本地验证证据：
+  - `node --test scripts/release/platform-baseline-bootstrap.test.mjs scripts/release/full-system-rehearsal.test.mjs`
+    通过，`11` 项。
+  - `node --test scripts/release/launch-coverage-audit.test.mjs scripts/release/full-system-rehearsal.test.mjs scripts/release/platform-baseline-bootstrap.test.mjs`
+    通过，`14` 项。
+  - 发布脚本全套目标集通过，`71` 项：
+    `full-system-rehearsal`、账号引导、发布覆盖、模型供应商、平台基线、运行时韧性、全知识、沙箱规则、沙箱种子和 git 扫描测试。
+  - `mvn -Dtest=PlatformBaselineServiceTest,AssetVersionRepositoryTest test` 通过，`11` 项；
+    `mvn -Dtest=PlatformBaselineServiceTest,AssetVersionRepositoryTest,ReleaseCandidateQueryServiceTest test` 通过，`13` 项；
+    追加 `mvn -Dtest=ReleaseCandidateQueryServiceTest test` 通过，`2` 项。
+  - `npm --prefix frontend run verify` 通过，`113` 个测试文件 / `897` 个测试 0 失败，覆盖 lint、stylelint、
+    T-GATE lint、Prettier、typecheck、Vitest。
+  - `mvn test` 通过，`3053` 个测试 0 failures / 0 errors，`7` 个 Docker/Testcontainers 条件用例因本机无 Docker 跳过。
+  - `git diff --check` 通过。
+- 下一步继续主线：提交本地阶段版本后，将最新本地 HEAD 完整发布到 134；使用全知识 manifest 重刷平台基线，确认
+  11 个知识资产进入 `platform_baseline_item` 且机构运行版本读取到 `KNOWLEDGE`；随后重跑沙箱种子、运行时韧性和
+  全角色真实前台 E2E，重点复核“前台创建报告上下文 -> 医技报告解读非空 -> 协同待办 -> 打开报告上下文”闭环。
+
+## 上一阶段交接（2026-06-30 前台报告事实进入上下文与协同待办闭环）
 
 - 根因结论：上一轮 134 直达复核看到“报告解读 0 项”，不能只优化协同任务入口文案。
   真实断点在前台建立当前就诊上下文时，表单只采集诊断、症状、用药与检验，`frontdeskSnapshotRequest`
@@ -1289,16 +1331,12 @@
 
 ## 下一步
 
-1. 目标环境上线前补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
-2. 路由级角色视角已覆盖所有认证路由；后续继续转向真实前台逐角色操作演练与页面交互细节优化，
-   重点看操作步数、默认筛选、追溯证据开关、权限提示、患者敏感信息屏蔽和高风险确认是否仍有不顺。
-3. 134 已完成字段目录修复部署、数据接入契约复核、真实前台基础路线复演、深度随访全链路复演和
-   `/medkernel` 直接入口复演；全角色真实操作已完成质量下钻、医生 CDSS 推荐评估、审计导出验签和
-   系统接入数据质量报告、医技报告解读动作验收；
-   下一阶段继续做逐页真实操作，不只看页面可进入，还要从医生、护士、患者/代理、药师、医技、质控、信息科、
-   实施工程师、审计员、院长等视角提交真实表单、触发真实状态变化并修复流程和交互问题。
-4. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；
-   优先把角色职责、证据边界、不可自动化医疗动作沉到路由或共享体验契约。
-5. 医技报告解读已通过“MPI/患者 360 建上下文 → CDSS 生成解读”走通；后续产品优化应补“报告工作清单 /
-   患者交接入口”，让医技从真实检查报告或待解读任务进入，而不是记忆或手填患者/就诊标识。
-6. 继续保持追溯证据边界：默认业务视图不暴露追踪号、原始标识、技术编码；需要时通过受控追溯证据展开。
+1. 先把“全知识平台基线发布链路修复”提交到本地分支，不推送远程、不合并 `main`。
+2. 将最新本地 HEAD 完整发布到 134；发布后用全知识 manifest 重刷平台标准基线，确认 11 个 `KNOWLEDGE`
+   资产进入活动平台基线，再让沙箱生成机构生效运行版本。
+3. 在 134 直接入口重跑全功能、全知识、全流程演练；报告解读链路必须从前台真实操作产生患者、就诊上下文和报告事实，
+   并看到非空报告解读、协同待办和“打开报告上下文”闭环。
+4. 基础数据路线走通后，进入全角色真实操作与产品体验优化：医生、护士、患者/代理、药师、医技、质控、信息科长、
+   实施工程师、审计员、院长等视角都要提交真实表单、触发真实状态变化；发现页面分类、流程、语义、权限、敏感信息、
+   高风险确认或模型双模式安全问题，按最优方案直接优化。
+5. 目标环境上线前仍需补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。

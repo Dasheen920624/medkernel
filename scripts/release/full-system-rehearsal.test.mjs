@@ -24,9 +24,9 @@ test("整套演练固定覆盖四职责、Provider、平台基线、沙盘、11 
     [
       "account-bootstrap",
       "model-provider",
+      "full-knowledge",
       "platform-baseline",
       "sandbox",
-      "full-knowledge",
       "runtime-resilience",
       "browser-e2e",
       "launch-coverage",
@@ -34,12 +34,13 @@ test("整套演练固定覆盖四职责、Provider、平台基线、沙盘、11 
   );
   assert.equal(plan[0].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
   assert.equal(plan[1].env.FULL_KNOWLEDGE_MANIFEST_PATH, MANIFEST_PATH);
-  assert.equal(plan[2].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
-  assert.equal(plan[2].env.LAUNCH_PLATFORM_BASELINE_EVIDENCE_PATH.endsWith("/platform-baseline.json"), true);
-  assert.equal(plan[2].label, "平台字段目录权威基线");
+  assert.equal(plan[2].env.FULL_KNOWLEDGE_PROVIDER_CODE, "ollama-launch");
   assert.equal(plan[3].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
-  assert.equal(plan[3].label, "演练机构十规则四十用例与机构生效版本");
-  assert.equal(plan[4].env.FULL_KNOWLEDGE_PROVIDER_CODE, "ollama-launch");
+  assert.equal(plan[3].env.FULL_KNOWLEDGE_MANIFEST_PATH, MANIFEST_PATH);
+  assert.equal(plan[3].env.LAUNCH_PLATFORM_BASELINE_EVIDENCE_PATH.endsWith("/platform-baseline.json"), true);
+  assert.equal(plan[3].label, "平台字段目录与全知识权威基线");
+  assert.equal(plan[4].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
+  assert.equal(plan[4].label, "演练机构十规则四十用例与机构生效版本");
   assert.equal(plan[5].env.RUNTIME_RESILIENCE_PROVIDER_CODE, "ollama-launch");
   assert.equal(plan[5].env.LAUNCH_CREDENTIALS_FILE, config.credentialsPath);
   assert.equal(plan[6].cwd.endsWith("/frontend"), true);
@@ -97,25 +98,11 @@ test("任一阶段退出失败立即阻断整场且不执行后续阶段", async
           executed.push(stage.id);
           return { exitCode: stage.id === "sandbox" ? 9 : 0 };
         },
-        readJson: (_path, stage) =>
-          stage.id === "account-bootstrap"
-            ? { status: "PASSED", verifiedAccountCount: 9 }
-            : stage.id === "model-provider"
-            ? {
-                status: "PASSED",
-                provider: { enabled: true, status: "HEALTHY" },
-                evaluation: {
-                  status: "PASSED",
-                  totalCases: 3,
-                  passedCases: 3,
-                  failedCases: 0,
-                }
-              }
-            : platformBaselineEvidence(),
+        readJson: (_path, stage) => completeStageEvidence()[stage.id],
       }),
     /sandbox 阶段失败/u,
   );
-  assert.deepEqual(executed, ["account-bootstrap", "model-provider", "platform-baseline", "sandbox"]);
+  assert.deepEqual(executed, ["account-bootstrap", "model-provider", "full-knowledge", "platform-baseline", "sandbox"]);
 });
 
 test("八阶段证据全部满足正式条件时才生成 PASSED 总索引", async () => {
@@ -210,8 +197,8 @@ test("整套演练持续输出八阶段进度并在总索引记录阶段耗时",
       (event) =>
         event.type === "stage-complete" &&
         event.stageId === "full-knowledge" &&
-        event.completed === 5 &&
-        event.remaining === 3 &&
+        event.completed === 3 &&
+        event.remaining === 5 &&
         event.durationMs > 0,
     ),
   );
@@ -239,6 +226,13 @@ test("完整上线覆盖矩阵缺项、跳过或未知时证据门禁拒绝放�
       baseline: { revisionNo: 1 },
     }),
     /字段目录平台基线/u,
+  );
+  assert.throws(
+    () => validateStageEvidence("platform-baseline", {
+      ...platformBaselineEvidence(),
+      knowledgeAssets: platformBaselineEvidence().knowledgeAssets.slice(0, 10),
+    }),
+    /全知识平台基线/u,
   );
   assert.throws(
     () => validateStageEvidence("full-knowledge", {
@@ -343,6 +337,23 @@ function platformBaselineEvidence() {
       baselineReleaseId: "baseline-1",
       revisionNo: 1,
     },
+    knowledge: {
+      manifestCode: "MEDKERNEL-FULL-KNOWLEDGE-REHEARSAL",
+      releaseVersion: "1.0.0",
+      requiredCount: 11,
+      activeCount: 11,
+      missingIdentities: [],
+    },
+    knowledgeAssets: [
+      "GUIDELINE", "DRUG", "PATHWAY_KNOWLEDGE", "NURSING", "DIAGNOSTIC_ITEM", "TCM",
+      "PROTOCOL", "POLICY", "LITERATURE", "OTHER", "DIAGNOSIS",
+    ].map((domain) => ({
+      assetType: "KNOWLEDGE",
+      assetIdentity: `launch.${domain.toLowerCase()}.asset`,
+      entryState: "ACTIVE",
+      versionId: `knowledge-${domain.toLowerCase()}-v1`,
+      versionNo: "V1",
+    })),
   };
 }
 
