@@ -636,7 +636,19 @@
   - 修复：E2E 同步改用 `/填\s*报/` 定位问卷填报按钮，不改变产品行为。
   - 验证：`npm --prefix frontend run typecheck`、`npx prettier --write frontend/e2e/real-frontdesk-rehearsal.spec.ts`
     与 `git diff --check` 通过。
-  - 下一步：提交本地阶段版本后，继续用新提交重跑 134 深度真实前台 E2E。
+  - 后续状态：本阶段已提交为 `b4504e67`；用该提交重跑 134 深度真实前台 E2E 已通过，见下一条记录。
+- 真实前台深度随访全链路通过证据（`2026-06-30T10:20:51+08:00`）：
+  - 使用本地提交 `b4504e670b9e`、134 后端
+    `https://193.112.107.134/medkernel/api/v1` 与本地前台代理 `http://127.0.0.1:5173` 重跑深度真实前台 E2E：
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-b4504e67/report/results.json`。
+  - Playwright 结果：`expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，耗时 `28893.151ms`。
+  - 运行记录：
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-b4504e67/artifacts/real-frontdesk-rehearsal-全-1ad6c-、外调策略、患者资源与临床随访数据均由前台页面提交产生-chromium/attachments/real-frontdesk-runtime-records-b687b06e8135c4f9e1961788df76c0477e2db8ad.json`。
+  - 8 段均由前台真实操作产生且 `browserErrors=[]`、`serverErrors=[]`、`networkFailures=[]`：
+    创建系统接入适配器、创建知识值集草稿、配置模型外调安全策略、创建脱敏患者主索引、创建随访模板、
+    发布随访模板、建立当前就诊上下文快照、生成随访计划并完成问卷与异常回院登记。
+  - 说明：本次 E2E 使用本地 Vite 前台代理验证最新前端代码与 134 后端真实联动；
+    若要让 134 nginx 直接服务最新页面，需要再发布前端制品并记录 manifest，不推送远程 `main`。
 
 ## 下一步
 
