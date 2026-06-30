@@ -12,6 +12,16 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import com.medkernel.engine.context.ClinicalRuntimeAssetSelection;
+import com.medkernel.engine.context.ClinicalRuntimeRelease;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseCommand;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseContent;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseContentResolver;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseItem;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseService;
+import com.medkernel.engine.context.CurrentClinicalRuntimeReleaseResolver;
+import com.medkernel.engine.release.ReleaseEntryState;
+import com.medkernel.engine.release.ReleaseSourceLayer;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
 import com.medkernel.engine.versioning.AssetVersionRepository;
@@ -22,6 +32,7 @@ import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.VersionReleaseCommand;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.api.PageRequest;
@@ -48,6 +59,12 @@ class FollowupTemplateServiceTest {
     private ReleasePort releasePort;
     @Mock
     private AuditRecorder auditRecorder;
+    @Mock
+    private CurrentClinicalRuntimeReleaseResolver currentRuntimeReleaseResolver;
+    @Mock
+    private ClinicalRuntimeReleaseContentResolver runtimeContentResolver;
+    @Mock
+    private ClinicalRuntimeReleaseService runtimeReleaseService;
 
     private FollowupTemplateService service;
 
@@ -57,7 +74,14 @@ class FollowupTemplateServiceTest {
             "trace-followup-template", OrgScope.tenant("tenant-1"), "user-1"
         ));
         service = new FollowupTemplateService(
-            templates, versionedAssets, assetVersions, releasePort, auditRecorder
+            templates,
+            versionedAssets,
+            assetVersions,
+            releasePort,
+            auditRecorder,
+            currentRuntimeReleaseResolver,
+            runtimeContentResolver,
+            runtimeReleaseService
         );
     }
 
@@ -226,6 +250,88 @@ class FollowupTemplateServiceTest {
     }
 
     @Test
+    void publishTemplateActivatesCurrentHospitalRuntimeReleaseWithoutDroppingExistingAssets() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-followup-template",
+            new OrgScope("tenant-1", null, "hospital-1", null, null, null, null, null),
+            "user-1"
+        ));
+        FollowupTemplate template = template("ftpl-1", "av-followup-1");
+        AssetVersion version = assetVersion(
+            "av-followup-1",
+            "FUP.COPD",
+            "1",
+            "/tenant-1/hospital-1",
+            "riskLevel in [MEDIUM,HIGH]",
+            AssetVersionStatus.DRAFT
+        );
+        ClinicalRuntimeRelease current = runtimeRelease("runtime-current", 12L);
+        when(templates.findByTemplateIdAndTenantId("ftpl-1", "tenant-1"))
+            .thenReturn(Optional.of(template));
+        when(assetVersions.findByVersionIdAndTenantId("av-followup-1", "tenant-1"))
+            .thenReturn(Optional.of(version));
+        when(currentRuntimeReleaseResolver.resolve(any(OrgScope.class)))
+            .thenReturn(current);
+        when(runtimeContentResolver.resolve("tenant-1", "runtime-current"))
+            .thenReturn(new ClinicalRuntimeReleaseContent(
+                current,
+                List.of(
+                    runtimeItem(
+                        ReleaseSourceLayer.PLATFORM,
+                        VersionedAssetType.FIELD_CATALOG,
+                        "FIELD.CANONICAL",
+                        "field-v1",
+                        "V1"
+                    ),
+                    runtimeItem(
+                        ReleaseSourceLayer.HOSPITAL,
+                        VersionedAssetType.RULE,
+                        "RULE.COPD",
+                        "rule-v1",
+                        "V1"
+                    ),
+                    runtimeItem(
+                        ReleaseSourceLayer.HOSPITAL,
+                        VersionedAssetType.FOLLOWUP,
+                        "FUP.COPD",
+                        "old-followup-v1",
+                        "V1"
+                    )
+                )
+            ));
+
+        service.publish(
+            "ftpl-1",
+            new FollowupTemplatePublishRequest(
+                "仅影响新生成随访计划",
+                "随访模板结构、术语绑定和异常处置已复核"
+            )
+        );
+
+        ArgumentCaptor<ClinicalRuntimeReleaseCommand> commandCaptor =
+            ArgumentCaptor.forClass(ClinicalRuntimeReleaseCommand.class);
+        verify(runtimeReleaseService).activate(commandCaptor.capture());
+        ClinicalRuntimeReleaseCommand command = commandCaptor.getValue();
+        assertThat(command.tenantId()).isEqualTo("tenant-1");
+        assertThat(command.hospitalId()).isEqualTo("hospital-1");
+        assertThat(command.platformBaselineReleaseId()).isEqualTo("baseline-A8");
+        assertThat(command.expectedCurrentReleaseId()).isEqualTo("runtime-current");
+        assertThat(command.activeAssets())
+            .extracting(
+                ClinicalRuntimeAssetSelection::assetType,
+                ClinicalRuntimeAssetSelection::assetIdentity,
+                ClinicalRuntimeAssetSelection::versionId)
+            .containsExactly(
+                org.assertj.core.groups.Tuple.tuple(
+                    VersionedAssetType.FIELD_CATALOG, "FIELD.CANONICAL", null),
+                org.assertj.core.groups.Tuple.tuple(
+                    VersionedAssetType.RULE, "RULE.COPD", "rule-v1"),
+                org.assertj.core.groups.Tuple.tuple(
+                    VersionedAssetType.FOLLOWUP, "FUP.COPD", "av-followup-1")
+            );
+    }
+
+    @Test
     void listTemplatesUsesRepositoryFilterPaginationInsteadOfTenantSnapshot() {
         FollowupTemplate template = template("ftpl-1", "av-followup-1");
         when(templates.countByFilter("tenant-1", "%copd%", "PUBLISHED"))
@@ -302,6 +408,48 @@ class FollowupTemplateServiceTest {
                 {"condition":"dyspnea >= 4","action":"RETURN_VISIT","notify":"FOLLOWUP_TEAM"}
                 """,
             "hospital://followup/copd"
+        );
+    }
+
+    private ClinicalRuntimeRelease runtimeRelease(String releaseId, long revisionNo) {
+        Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        return new ClinicalRuntimeRelease(
+            null,
+            releaseId,
+            "tenant-1",
+            "hospital-1",
+            revisionNo,
+            "baseline-A8",
+            "b".repeat(64),
+            null,
+            now,
+            "user-1",
+            now,
+            "user-1",
+            "trace-followup-template"
+        );
+    }
+
+    private ClinicalRuntimeReleaseItem runtimeItem(
+            ReleaseSourceLayer sourceLayer,
+            VersionedAssetType assetType,
+            String assetIdentity,
+            String versionId,
+            String versionNo) {
+        return new ClinicalRuntimeReleaseItem(
+            null,
+            "runtime-current",
+            sourceLayer == ReleaseSourceLayer.PLATFORM ? PlatformTenant.ID : "tenant-1",
+            sourceLayer,
+            assetType,
+            assetIdentity,
+            ReleaseEntryState.ACTIVE,
+            versionId,
+            versionNo,
+            "c".repeat(64),
+            Instant.parse("2026-06-14T00:00:00Z"),
+            "user-1",
+            "trace-followup-template"
         );
     }
 

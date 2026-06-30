@@ -397,10 +397,10 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
   });
   await dialog.getByRole("button", { name: "选择第 1 个随访上下文快照" }).click();
   await chooseDialogOption(page, dialog, "随访风险分层", "中风险");
-  await chooseDialogOption(page, dialog, "随访模板", template.name);
+  await searchDialogOption(page, dialog, "随访模板", template.name, template.name);
 
   const responsePromise = waitForPost(page, "/api/v1/engine/followup/plans/generate");
-  await dialog.getByRole("button", { name: "生成" }).click();
+  await dialog.getByRole("button", { name: /生\s*成/ }).click();
   const response = await responsePromise;
   expect(response.ok(), "前台生成随访计划应返回成功").toBe(true);
   const result = (await response.json()) as { data?: { planId?: string; tasks?: Array<unknown> } };
@@ -465,13 +465,39 @@ async function chooseDialogOption(page: Page, dialog: Locator, label: string, op
   await optionLocator.click();
 }
 
+async function searchDialogOption(
+  page: Page,
+  dialog: Locator,
+  label: string,
+  searchText: string,
+  optionText: string,
+) {
+  const combobox = dialog.getByRole("combobox", { name: new RegExp(escapeRegExp(label)) }).first();
+  const select = combobox.locator(
+    "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
+  );
+  await select.locator(".ant-select-selector").click();
+  await combobox.fill(searchText);
+  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
+  await expect(dropdown).toBeVisible({ timeout: 5_000 });
+  const optionLocator = dropdown
+    .getByText(new RegExp(`^${escapeRegExp(optionText)}(\\s*·.*)?$`))
+    .last();
+  await expect(optionLocator).toBeVisible({ timeout: 20_000 });
+  await optionLocator.click();
+}
+
 async function currentSelectText(select: Locator) {
   const selected = select.locator(".ant-select-selection-item").first();
-  const title = await selected.getAttribute("title");
+  if ((await selected.count()) === 0) {
+    return "";
+  }
+  const title = await selected.getAttribute("title", { timeout: 1_000 }).catch(() => null);
   if (title) {
     return title.trim();
   }
-  return ((await selected.textContent()) ?? "").trim();
+  const text = await selected.textContent({ timeout: 1_000 }).catch(() => null);
+  return text?.trim() ?? "";
 }
 
 function escapeRegExp(value: string) {

@@ -81,7 +81,14 @@
   - jarSha256：`8f696f6e885c44838144709e0a65574038e3e5f8d91ab74f684e8883d9cd76d3`。
   - 部署前备份：`/zoesoft/medkernel/backups/deploy-20260629-234435`。
   - readiness：HTTP 200，`{"status":"UP"}`；`systemctl is-active medkernel` 为 `active`。
-- 当前工作树正在修复 `8fa23c9c` 部署后深度真实前台复演暴露的“新建 MPI 患者缺少前台临床上下文快照入口”缺口；
+- `2026-06-30T09:31:44+08:00`，134 已部署本地分支提交
+  `363e5990998e1647ac3cc6b3ee932aab7d6b47d2`
+  （`fix: 补齐患者360上下文生成链路`）：
+  - source / commit：`363e5990998e1647ac3cc6b3ee932aab7d6b47d2`。
+  - jarSha256：`e88102b67fdf6a41d0ec2a8a4f29310b150929eab0b8d2991652d05900afb1f9`。
+  - 部署前备份：`/zoesoft/medkernel/backups/deploy-20260630-093142`。
+  - readiness：HTTP 200，`{"status":"UP"}`。
+- 当前工作树正在修复 `363e5990` 部署后深度真实前台复演暴露的“随访模板发布成功但未进入当前机构生效版本，生成计划被门禁拒绝”缺口；
   该修复尚未部署到 134，下一次部署后 manifest 应更新为新本地提交。
 
 ## 134 证据
@@ -528,10 +535,44 @@
       `mvn -f medkernel-backend/pom.xml -Dtest=DefaultPermissionPolicyTest,EffectivePermissionServiceTest test` 通过，`16` 项；
       `npm --prefix frontend run typecheck`、`npx prettier --write ...`（unchanged）与 `git diff --check` 通过。
   - 下一步：提交本地阶段版本后部署 134，再重跑深度真实前台 E2E，确认新建患者、上下文快照、随访计划、患者/代理回收和异常回院全链路均由前台真实操作产生。
+- 真实前台深度随访运行时启用红绿闭环（`2026-06-30T09:52:18+08:00`）：
+  - 已将上一阶段提交 `363e5990` 部署到 134，manifest 记录
+    `commit=363e5990998e1647ac3cc6b3ee932aab7d6b47d2`，readiness HTTP 200；
+    继续跑深度真实前台 E2E 时，前七段真实操作均成功：
+    创建系统接入适配器、创建知识值集草稿、配置模型外调安全策略、创建脱敏患者主索引、
+    建立当前就诊上下文快照、创建随访模板、发布随访模板。
+  - E2E 辅助脚本已随真实页面行为校准：
+    上下文空态断言改为命中 `alert`，空选择框读取不再等待不存在的 `.ant-select-selection-item`，
+    随访模板选择使用服务端搜索，生成按钮按可访问名称空白兼容匹配。
+  - 最新红灯发生在生成随访计划：
+    后端返回 `当前机构生效版本未启用随访模板: <templateId>`。
+  - 根因：
+    - `VersionReleaseService.publish` 只把统一资产版本置为 `PUBLISHED` 并记录发布计划/激活事务。
+    - `FollowupEngineService` 生成计划时严格通过上下文快照锁定的 `runtimeReleaseId` 读取
+      `clinical_runtime_release_item`。
+    - 随访模板发布成功后没有生成下一版机构生效版本，因此 UI 文案“可用于计划生成”和运行时门禁事实不一致。
+  - 产品决策：
+    - 不绕过机构生效版本门禁；生成计划继续只消费当前机构生效版本锁定的 FOLLOWUP 资产。
+    - 医院上下文内发布随访模板时，基于当前机构生效版本复制全部 ACTIVE 资产选择，替换/加入新 FOLLOWUP 模板，
+      再调用 `ClinicalRuntimeReleaseService.activate` 生成下一版不可变机构生效版本。
+    - 无医院上下文的纯资产发布仍只完成统一版本发布，避免后台治理动作隐式改变某家医院运行版本。
+  - 已本地修复：
+    - `FollowupTemplateService` 显式依赖当前机构生效版本解析、内容解析和机构版本激活服务。
+    - 发布模板后若当前请求带医院上下文且新模板尚未在当前 release 中 ACTIVE，则生成完整 active selection：
+      平台资产保留平台选择，本地/集团/医院资产保留精确 versionId，同身份旧随访模板替换为新版本。
+  - 红绿证据：
+    - 红灯：`mvn -f medkernel-backend/pom.xml -Dtest=FollowupTemplateServiceTest#publishTemplateActivatesCurrentHospitalRuntimeReleaseWithoutDroppingExistingAssets test`
+      失败于缺少运行时启用构造/行为。
+    - 绿灯：同命令重跑通过；随后
+      `mvn -f medkernel-backend/pom.xml -Dtest=FollowupTemplateServiceTest,RuntimeReleaseFollowupTemplateSelectorTest,FollowupEngineServiceTest test`
+      通过，`29` 项。
+    - `npm --prefix frontend run typecheck`、`npx prettier --write frontend/e2e/real-frontdesk-rehearsal.spec.ts`
+      （unchanged）与 `git diff --check` 通过。
+  - 下一步：提交本地阶段版本后部署 134，再重跑深度真实前台 E2E，确认发布模板后生成计划、患者/代理回收和异常回院全链路真实通过。
 
 ## 下一步
 
-1. 基于 `codex/final-handoff-product-optimization` 提交当前患者 360 上下文入口阶段版本；不推送远程，不直接改写 `main`。
+1. 基于 `codex/final-handoff-product-optimization` 提交当前随访模板运行时启用阶段版本；不推送远程，不直接改写 `main`。
 2. 目标环境上线前补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
 3. 部署新本地提交到 134 后，重跑深度真实前台 E2E；如果失败，先定位根因再优化页面、权限、数据契约或流程。
 4. 路由级角色视角已覆盖所有认证路由；后续继续转向真实前台逐角色操作演练与页面交互细节优化，

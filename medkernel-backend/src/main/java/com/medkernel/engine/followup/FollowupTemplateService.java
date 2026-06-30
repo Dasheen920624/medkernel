@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +16,16 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.context.ClinicalRuntimeAssetSelection;
+import com.medkernel.engine.context.ClinicalRuntimeRelease;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseCommand;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseContent;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseContentResolver;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseItem;
+import com.medkernel.engine.context.ClinicalRuntimeReleaseService;
+import com.medkernel.engine.context.CurrentClinicalRuntimeReleaseResolver;
+import com.medkernel.engine.release.ReleaseEntryState;
+import com.medkernel.engine.release.ReleaseSourceLayer;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
 import com.medkernel.engine.versioning.AssetVersionRepository;
@@ -31,6 +42,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
+import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.ids.Ulid;
 
@@ -47,19 +59,29 @@ public class FollowupTemplateService {
     private final AssetVersionRepository assetVersions;
     private final ReleasePort releasePort;
     private final AuditRecorder auditRecorder;
+    private final CurrentClinicalRuntimeReleaseResolver currentRuntimeReleaseResolver;
+    private final ClinicalRuntimeReleaseContentResolver runtimeContentResolver;
+    private final ClinicalRuntimeReleaseService runtimeReleaseService;
     private final ObjectMapper json = new ObjectMapper();
 
+    @Autowired
     public FollowupTemplateService(
             FollowupTemplateRepository templates,
             AssetVersionService versionedAssets,
             AssetVersionRepository assetVersions,
             ReleasePort releasePort,
-            AuditRecorder auditRecorder) {
+            AuditRecorder auditRecorder,
+            CurrentClinicalRuntimeReleaseResolver currentRuntimeReleaseResolver,
+            ClinicalRuntimeReleaseContentResolver runtimeContentResolver,
+            ClinicalRuntimeReleaseService runtimeReleaseService) {
         this.templates = templates;
         this.versionedAssets = versionedAssets;
         this.assetVersions = assetVersions;
         this.releasePort = releasePort;
         this.auditRecorder = auditRecorder;
+        this.currentRuntimeReleaseResolver = currentRuntimeReleaseResolver;
+        this.runtimeContentResolver = runtimeContentResolver;
+        this.runtimeReleaseService = runtimeReleaseService;
     }
 
     /**
@@ -185,18 +207,24 @@ public class FollowupTemplateService {
                 "当前随访模板版本不可发布: " + version.status()
             );
         }
+        Instant now = Instant.now();
+        String actor = actor();
+        AssetVersion publishedVersion = version.status() == AssetVersionStatus.PUBLISHED
+            ? version
+            : version.withStatus(
+                AssetVersionStatus.PUBLISHED,
+                version.activeScopeKey(),
+                now,
+                actor
+            );
+        activateCurrentHospitalRuntimeRelease(template, publishedVersion, actor, RequestContext.currentTraceId());
         auditRecorder.record(
             AuditAction.PUBLISH,
             "mk_followup_template",
             template.templateId(),
             "发布随访模板 " + template.templateCode() + "@" + template.versionNo()
         );
-        return response(template, version.withStatus(
-            AssetVersionStatus.PUBLISHED,
-            version.activeScopeKey(),
-            Instant.now(),
-            actor()
-        ));
+        return response(template, publishedVersion);
     }
 
     @Transactional(readOnly = true)
@@ -236,6 +264,69 @@ public class FollowupTemplateService {
             actor(),
             RequestContext.currentTraceId(),
             null
+        );
+    }
+
+    private void activateCurrentHospitalRuntimeRelease(
+            FollowupTemplate template,
+            AssetVersion version,
+            String actor,
+            String traceId) {
+        OrgScope scope = RequestContext.currentOrgScope();
+        if (scope == null || normalize(scope.hospitalId()) == null) {
+            return;
+        }
+        ClinicalRuntimeRelease current = currentRuntimeReleaseResolver.resolve(scope);
+        ClinicalRuntimeReleaseContent content =
+            runtimeContentResolver.resolve(template.tenantId(), current.releaseId());
+        boolean alreadyActive = content.items().stream()
+            .anyMatch(item -> item.entryState() == ReleaseEntryState.ACTIVE
+                && item.assetType() == VersionedAssetType.FOLLOWUP
+                && template.templateCode().equals(item.assetIdentity())
+                && version.versionId().equals(item.versionId()));
+        if (alreadyActive) {
+            return;
+        }
+
+        List<ClinicalRuntimeAssetSelection> activeAssets = new ArrayList<>();
+        for (ClinicalRuntimeReleaseItem item : content.items()) {
+            if (item.entryState() != ReleaseEntryState.ACTIVE) {
+                continue;
+            }
+            if (item.assetType() == VersionedAssetType.FOLLOWUP
+                    && template.templateCode().equals(item.assetIdentity())) {
+                continue;
+            }
+            activeAssets.add(selectionFromRuntimeItem(item));
+        }
+        activeAssets.add(ClinicalRuntimeAssetSelection.local(
+            VersionedAssetType.FOLLOWUP,
+            template.templateCode(),
+            version.versionId()
+        ));
+
+        runtimeReleaseService.activate(new ClinicalRuntimeReleaseCommand(
+            template.tenantId(),
+            current.hospitalId(),
+            current.platformBaselineReleaseId(),
+            current.releaseId(),
+            activeAssets,
+            actor,
+            traceId
+        ));
+    }
+
+    private ClinicalRuntimeAssetSelection selectionFromRuntimeItem(ClinicalRuntimeReleaseItem item) {
+        if (item.sourceLayer() == ReleaseSourceLayer.PLATFORM) {
+            return ClinicalRuntimeAssetSelection.platform(
+                item.assetType(),
+                item.assetIdentity()
+            );
+        }
+        return ClinicalRuntimeAssetSelection.local(
+            item.assetType(),
+            item.assetIdentity(),
+            required(item.versionId(), "机构生效版本本地资产版本 ID")
         );
     }
 
