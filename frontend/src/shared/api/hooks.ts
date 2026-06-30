@@ -127,6 +127,20 @@ function withStandardApiContext<T extends object>(
   };
 }
 
+function currentOrgUnitId(profile: SecurityProfile | undefined): string {
+  const dataScope = profile?.dataScope;
+  return (
+    dataScope?.wardId ||
+    dataScope?.departmentId ||
+    dataScope?.siteId ||
+    dataScope?.campusId ||
+    dataScope?.hospitalId ||
+    dataScope?.groupId ||
+    dataScope?.tenantId ||
+    ""
+  );
+}
+
 // ──────────────────────────────────────────
 // 平台管理 · 审计证据日志（BASE-04 已落地）
 // ──────────────────────────────────────────
@@ -6640,6 +6654,138 @@ export function useContextSnapshotDetail(
         `/engine/context/snapshots/${snapshotId}`,
       );
       return data.data;
+    },
+  });
+}
+
+export type FrontdeskEncounterType = "OUTPATIENT" | "INPATIENT" | "ED" | "FOLLOWUP";
+
+export interface ContextSnapshotCreatePayload {
+  patient: Pick<MpiPatient, "mpiId" | "maskedName" | "gender" | "age">;
+  encounterType: FrontdeskEncounterType;
+  diseaseCode: string;
+  diseaseName: string;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  reason: string;
+  idempotencyKey: string;
+}
+
+function estimatedBirthDateFromAge(age: number) {
+  const currentYear = new Date().getFullYear();
+  const birthYear = Math.max(1900, currentYear - Math.max(0, Math.floor(age)));
+  return `${birthYear}-01-01`;
+}
+
+function frontdeskSnapshotRequest(
+  payload: ContextSnapshotCreatePayload,
+  profile: SecurityProfile | undefined,
+) {
+  const now = new Date().toISOString();
+  const orgUnitId = currentOrgUnitId(profile);
+  if (!orgUnitId) {
+    throw new Error("缺少当前组织范围，无法建立临床上下文。");
+  }
+  const encounterId = `enc-${crypto.randomUUID()}`;
+  const request = withStandardApiContext(
+    {
+      patientId: payload.patient.mpiId,
+      encounterId,
+      orgUnitId,
+      resources: {
+        patient: {
+          mpi: payload.patient.mpiId,
+          name: payload.patient.maskedName,
+          birthDate: estimatedBirthDateFromAge(payload.patient.age),
+          gender: payload.patient.gender,
+          specialPopulations: [],
+          sourceSystem: "MEDKERNEL_FRONTDESK",
+          sourceRecordId: payload.patient.mpiId,
+          mappedVersion: "FRONTDESK_CONTEXT_V1",
+          eventTime: now,
+          receivedTime: now,
+          qualityStatus: "VALID",
+        },
+        allergyIntolerances: [],
+        encounters: [
+          {
+            encounterId,
+            encounterType: payload.encounterType,
+            admissionTime: now,
+            dischargeTime: null,
+            departmentId: profile?.dataScope?.departmentId ?? null,
+            attendingDoctorId: profile?.userId ?? null,
+            bedId: null,
+            sourceSystem: "MEDKERNEL_FRONTDESK",
+            sourceRecordId: encounterId,
+            mappedVersion: "FRONTDESK_CONTEXT_V1",
+            eventTime: now,
+            receivedTime: now,
+            qualityStatus: "VALID",
+          },
+        ],
+        conditions: [
+          {
+            conditionId: `cond-${crypto.randomUUID()}`,
+            code: payload.diseaseCode,
+            codeSystem: "ICD-10",
+            displayName: payload.diseaseName,
+            stage: null,
+            severity: payload.riskLevel,
+            sourceSystem: "MEDKERNEL_FRONTDESK",
+            sourceRecordId: payload.patient.mpiId,
+            mappedVersion: "FRONTDESK_CONTEXT_V1",
+            onsetTime: now,
+            receivedTime: now,
+            qualityStatus: "VALID",
+          },
+        ],
+        nursingAssessments: [],
+        observations: [],
+        diagnosticReports: [],
+        medications: [],
+        procedures: [],
+        documents: [],
+        carePlans: [],
+        followUps: [],
+        claims: [],
+        extensions: {
+          local: {
+            frontdeskContext: {
+              source: "MPI_PATIENT_360",
+              reason: payload.reason,
+              riskLevel: payload.riskLevel,
+            },
+          },
+        },
+      },
+    },
+    profile,
+  );
+  return {
+    ...request,
+    request_id: payload.idempotencyKey,
+  };
+}
+
+export function useCreateContextSnapshot(profile: SecurityProfile | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: ContextSnapshotCreatePayload) => {
+      const { data } = await apiClient.post<{ data: ContextSnapshotResponse }>(
+        "/engine/context/snapshots",
+        frontdeskSnapshotRequest(payload, profile),
+        { headers: { "Idempotency-Key": payload.idempotencyKey } },
+      );
+      return data.data;
+    },
+    onSuccess: async (_data, payload) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["context", "snapshots"] }),
+        queryClient.invalidateQueries({ queryKey: ["engine", "mpi", "patients"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["engine", "mpi", "patients", payload.patient.mpiId],
+        }),
+      ]);
     },
   });
 }

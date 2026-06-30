@@ -4,6 +4,7 @@ import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  useCreateContextSnapshot,
   useCreateMpiPatient,
   useMergeMpiPatients,
   useMpiPatientDetail,
@@ -17,6 +18,7 @@ import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import Mpi from "./Mpi";
 
 vi.mock("@/shared/api/hooks", () => ({
+  useCreateContextSnapshot: vi.fn(),
   useCreateMpiPatient: vi.fn(),
   useMergeMpiPatients: vi.fn(),
   useMpiPatientDetail: vi.fn(),
@@ -27,6 +29,7 @@ vi.mock("@/shared/api/hooks", () => ({
 }));
 
 const mockUseCreateMpiPatient = vi.mocked(useCreateMpiPatient);
+const mockUseCreateContextSnapshot = vi.mocked(useCreateContextSnapshot);
 const mockUseMergeMpiPatients = vi.mocked(useMergeMpiPatients);
 const mockUseMpiPatientDetail = vi.mocked(useMpiPatientDetail);
 const mockUseMpiPatients = vi.mocked(useMpiPatients);
@@ -47,7 +50,7 @@ function renderMpi() {
 }
 
 function securityProfile(
-  permissionCodes = ["mpi.read", "mpi.create", "mpi.write", "system.debug"],
+  permissionCodes = ["mpi.read", "mpi.create", "mpi.write", "context.write", "system.debug"],
 ) {
   return {
     data: {
@@ -70,8 +73,10 @@ describe("Mpi", () => {
   const refetchList = vi.fn();
   const refetchStats = vi.fn();
   const createPatient = vi.fn();
+  const createContextSnapshot = vi.fn();
   const mergePatient = vi.fn();
   const splitPatient = vi.fn();
+  const refetchDetail = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -189,8 +194,20 @@ describe("Mpi", () => {
       },
       isLoading: false,
       isError: false,
-      refetch: vi.fn(),
+      refetch: refetchDetail,
     } as unknown as ReturnType<typeof useMpiPatientDetail>);
+    createContextSnapshot.mockResolvedValue({
+      snapshotId: "ctx-new-1",
+      status: "ACTIVE",
+      runtimeReleaseId: "runtime-release-1",
+      qualityStatus: "VALID",
+      missingFields: [],
+      mappingStatus: {},
+    });
+    mockUseCreateContextSnapshot.mockReturnValue({
+      mutateAsync: createContextSnapshot,
+      isPending: false,
+    } as unknown as ReturnType<typeof useCreateContextSnapshot>);
     mergePatient.mockResolvedValue({
       status: "MERGED",
       sourceMpiId: "mpi-real-1",
@@ -362,6 +379,70 @@ describe("Mpi", () => {
       });
       expect(refetchList).toHaveBeenCalled();
       expect(refetchStats).toHaveBeenCalled();
+    },
+    MPI_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "creates a current clinical context snapshot from patient 360 before follow-up workflows",
+    async () => {
+      mockUseMpiPatientDetail.mockReturnValue({
+        data: {
+          patient: {
+            id: 1,
+            mpiId: "mpi-real-1",
+            tenantId: "tenant-A",
+            maskedName: "张*三",
+            gender: "M",
+            age: 67,
+            idLast4: "1234",
+            mergedCount: 0,
+            status: "ACTIVE",
+            mergedIntoMpiId: null,
+            createdAt: "2026-06-04T00:00:00Z",
+            createdBy: "doctor-a",
+            updatedAt: "2026-06-04T00:00:00Z",
+            updatedBy: "doctor-a",
+          },
+          latestContextSnapshot: null,
+          contextSnapshot: null,
+          activePathwayCount: 0,
+          activePathways: [],
+          traceId: "trace-p360-1",
+        },
+        isLoading: false,
+        isError: false,
+        refetch: refetchDetail,
+      } as unknown as ReturnType<typeof useMpiPatientDetail>);
+      const user = userEvent.setup();
+      renderMpi();
+
+      await user.click(screen.getAllByRole("button", { name: /患者360/ })[0]);
+      expect((await screen.findAllByText("暂无已生效上下文")).length).toBeGreaterThan(0);
+      await user.click(screen.getByRole("button", { name: "建立当前就诊上下文" }));
+      const reasonInput = screen.getByLabelText("建立原因");
+      await user.clear(reasonInput);
+      await user.type(reasonInput, "真实前台演练：随访计划生成前由医生确认当前就诊上下文。");
+      await user.click(screen.getByRole("button", { name: "生成上下文快照" }));
+
+      await waitFor(() => {
+        expect(createContextSnapshot).toHaveBeenCalledWith({
+          patient: expect.objectContaining({
+            mpiId: "mpi-real-1",
+            maskedName: "张*三",
+            gender: "M",
+            age: 67,
+          }),
+          encounterType: "OUTPATIENT",
+          diseaseCode: "J44.900",
+          diseaseName: "慢阻肺",
+          riskLevel: "MEDIUM",
+          reason: "真实前台演练：随访计划生成前由医生确认当前就诊上下文。",
+          idempotencyKey: expect.any(String),
+        });
+      });
+      expect(refetchDetail).toHaveBeenCalled();
+      expect(refetchList).toHaveBeenCalled();
     },
     MPI_INTERACTION_TIMEOUT_MS,
   );

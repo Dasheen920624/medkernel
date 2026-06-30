@@ -24,7 +24,7 @@
 - 134 的清库复演基线为 squash 前候选 `228b16a8d8da8eb5747af9ab1cefcc2716c0dc2d`，已完成全功能、全知识、
   全流程、全角色真实演练闭环；该候选内容已通过 #653 squash 合入远端 `main` 的
   `1561ba6bef8777dcef76432696f43de4277fdd3f`。之后 134 已在该清库基线上做日常更新部署至本地分支
-  `11e9e38a0588`，用于字段契约与真实前台复演修复验证。不要再把旧“未推送/未合并 main”、
+  `8fa23c9c80fc`，用于字段契约、随访发布和真实前台复演修复验证。不要再把旧“未推送/未合并 main”、
   “134 未更新/未复演”、旧 `9d19fb3` 证据或清库基线 manifest 当作当前运行版本。
 
 ## 本轮落地结论
@@ -43,8 +43,9 @@
     `1561ba6bef8777dcef76432696f43de4277fdd3f`。
   - 发布证据可按“134 候选部署提交 `228b16a8` 等价合入 `main@1561ba6b`”理解；
     后续若重做正式发布制品，应以新的 `main` 提交重新写入 manifest。
-  - `2026-06-29T22:45:48+08:00` 后，134 当前运行 manifest 已更新为本地分支提交
-    `11e9e38a0588`；该更新是基于清库环境的日常修复部署，不改变 #653 清库复演基线证据的归属。
+  - `2026-06-29T23:44:37+08:00` 后，134 当前运行 manifest 已更新为本地分支提交
+    `8fa23c9c80fc23b0c72a991060fbbbfb2412c224`；该更新是基于清库环境的日常修复部署，
+    不改变 #653 清库复演基线证据的归属。
 - 清库部署后数据库验证：
   - public base tables：`208`（207 业务表 + `flyway_schema_history`）。
   - 业务表数：`207`。
@@ -73,6 +74,15 @@
 - 部署后用 `rehearsal` 四职责账号经真实 cookie 会话直接复核
   `GET /engine/integration/data-contract`，返回 HTTP 200，字段数 `61`；不要使用 bearer token 复核该接口，
   当前登录态为 httpOnly cookie 会话。
+- `2026-06-29T23:44:37+08:00`，134 继续使用本地分支提交
+  `8fa23c9c80fc23b0c72a991060fbbbfb2412c224` 完成日常更新部署：
+  - source / commit：`8fa23c9c80fc23b0c72a991060fbbbfb2412c224`
+    （`fix: 修复随访发布生效域`）。
+  - jarSha256：`8f696f6e885c44838144709e0a65574038e3e5f8d91ab74f684e8883d9cd76d3`。
+  - 部署前备份：`/zoesoft/medkernel/backups/deploy-20260629-234435`。
+  - readiness：HTTP 200，`{"status":"UP"}`；`systemctl is-active medkernel` 为 `active`。
+- 当前工作树正在修复 `8fa23c9c` 部署后深度真实前台复演暴露的“新建 MPI 患者缺少前台临床上下文快照入口”缺口；
+  该修复尚未部署到 134，下一次部署后 manifest 应更新为新本地提交。
 
 ## 134 证据
 
@@ -371,7 +381,8 @@
     无 Host 直连出现 `Empty reply from server` 是入口误用，不代表后端 down。
   - `2026-06-29T22:12:42+08:00` 只读复核时，manifest 记录候选部署提交
     `228b16a8d8da8eb5747af9ab1cefcc2716c0dc2d`；
-    `2026-06-29T22:45:48+08:00` 后已更新为 `11e9e38a0588`，见上方“134 当前运行版本补充”。
+    `2026-06-29T23:44:37+08:00` 后已更新为 `8fa23c9c80fc23b0c72a991060fbbbfb2412c224`，
+    见上方“134 当前运行版本补充”。
     `deployedAt=2026-06-29T15:37:16+08:00`，`jarSha256=e420ffac8c3ff791ebd02913500982826e87486031d2253aef46fba54137cd0c`。
   - 数据库：public 表 `208`，业务表 `207`，Flyway 成功版本 `1`。
   - `full-system.json`：`status=PASSED`，`stageCount=8`，失败阶段 `0`。
@@ -496,16 +507,38 @@
       `mvn -f medkernel-backend/pom.xml -Dtest=FollowupTemplateServiceTest,DefaultPermissionPolicyTest,EffectivePermissionServiceTest test`
       通过，`23` 项；`npm --prefix frontend run typecheck` 与 `git diff --check` 通过。
   - 下一步：提交本地阶段版本后部署 134，再重跑深度真实前台 E2E，确认发布、生成计划、患者/代理回收和异常回院全链路真实通过。
+- 真实前台深度随访上下文入口红绿闭环（`2026-06-30T09:24:00+08:00`）：
+  - 已将上一阶段提交 `8fa23c9c` 部署到 134，manifest 记录
+    `commit=8fa23c9c80fc23b0c72a991060fbbbfb2412c224`，readiness HTTP 200；
+    重新跑深度真实前台 E2E 时，随访模板发布已通过，新的红灯变为
+    `真实前台深度演练需要至少一条已生效上下文快照`。
+  - 根因：E2E 先通过前台真实创建了脱敏 MPI 患者，但旧路线仍从后台查询“已有 ACTIVE 快照”；
+    真实产品缺少医生从患者 360 为新患者建立当前就诊上下文的前台入口，导致随访、路径和 CDSS 的共同前置条件无法由真实操作产生。
+  - 产品决策：
+    - `/mpi` 患者 360 在“暂无已生效上下文”时提供“建立当前就诊上下文”动作。
+    - 表单只写入脱敏患者、当前就诊、诊断/随访病种、风险分层和建立原因；不自动开嘱，不写入姓名、证件号、电话或住址。
+    - 临床使用者补齐 `context.write`，用于建立临床上下文快照；仍不授予随访模板发布等治理权限。
+    - 深度真实前台 E2E 改为“前台创建 MPI 患者 → 患者 360 建立上下文快照 → 创建模板 → 运营发布 → 生成计划 → 患者/代理回收 → 异常回院登记”，不再依赖历史预置快照。
+  - 红绿证据：
+    - 红灯：`npm --prefix frontend test -- Mpi.test.tsx` 初次失败，患者 360 缺少上下文创建入口；
+      `mvn -f medkernel-backend/pom.xml -Dtest=DefaultPermissionPolicyTest test` 初次失败，临床使用者缺少 `CONTEXT_WRITE`。
+    - 绿灯：`npm --prefix frontend test -- Mpi.test.tsx` 通过，`10` 项；
+      `npm --prefix frontend test -- Mpi.test.tsx Followup.test.tsx routes.test.ts` 通过，`75` 项；
+      `mvn -f medkernel-backend/pom.xml -Dtest=DefaultPermissionPolicyTest test` 通过，`9` 项；
+      `mvn -f medkernel-backend/pom.xml -Dtest=DefaultPermissionPolicyTest,EffectivePermissionServiceTest test` 通过，`16` 项；
+      `npm --prefix frontend run typecheck`、`npx prettier --write ...`（unchanged）与 `git diff --check` 通过。
+  - 下一步：提交本地阶段版本后部署 134，再重跑深度真实前台 E2E，确认新建患者、上下文快照、随访计划、患者/代理回收和异常回院全链路均由前台真实操作产生。
 
 ## 下一步
 
-1. 基于 `codex/final-handoff-product-optimization` 继续本地阶段提交；不推送远程，不直接改写 `main`。
+1. 基于 `codex/final-handoff-product-optimization` 提交当前患者 360 上下文入口阶段版本；不推送远程，不直接改写 `main`。
 2. 目标环境上线前补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
-3. 路由级角色视角已覆盖所有认证路由；下一批应转向真实前台逐角色操作演练与页面交互细节优化，
+3. 部署新本地提交到 134 后，重跑深度真实前台 E2E；如果失败，先定位根因再优化页面、权限、数据契约或流程。
+4. 路由级角色视角已覆盖所有认证路由；后续继续转向真实前台逐角色操作演练与页面交互细节优化，
    重点看操作步数、默认筛选、追溯证据开关、权限提示、患者敏感信息屏蔽和高风险确认是否仍有不顺。
-4. 134 已完成字段目录修复部署、数据接入契约复核、真实前台基础路线复演和全角色页面进入首轮复演；
+5. 134 已完成字段目录修复部署、数据接入契约复核、真实前台基础路线复演和全角色页面进入首轮复演；
    下一阶段继续做逐页真实操作，不只看页面可进入，还要从医生、护士、患者/代理、药师、医技、质控、信息科、
    实施工程师、审计员、院长等视角提交真实表单、触发真实状态变化并修复流程和交互问题。
-5. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；
+6. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；
    优先把角色职责、证据边界、不可自动化医疗动作沉到路由或共享体验契约。
-6. 继续保持追溯证据边界：默认业务视图不暴露追踪号、原始标识、技术编码；需要时通过受控追溯证据展开。
+7. 继续保持追溯证据边界：默认业务视图不暴露追踪号、原始标识、技术编码；需要时通过受控追溯证据展开。

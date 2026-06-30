@@ -178,6 +178,7 @@ class DefaultPermissionPolicyTest {
             .contains(
                 PermissionCode.RECOMMENDATION_ACCEPT,
                 PermissionCode.PATHWAY_EXECUTE,
+                PermissionCode.CONTEXT_WRITE,
                 PermissionCode.MPI_CREATE,
                 PermissionCode.FOLLOWUP_WRITE,
                 PermissionCode.WORKFLOW_WRITE,

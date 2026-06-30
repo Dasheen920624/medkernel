@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, type ReactNode } from "react";
 import {
   App as AntdApp,
   Table,
@@ -28,8 +28,10 @@ import {
   CalendarOutlined,
   UserAddOutlined,
   BranchesOutlined,
+  FileDoneOutlined,
 } from "@ant-design/icons";
 import {
+  useCreateContextSnapshot,
   useCreateMpiPatient,
   useMpiPatientDetail,
   useMpiPatients,
@@ -41,6 +43,8 @@ import {
   type MpiPatient,
   type MpiPatientDetailResponse,
   type SecurityProfile,
+  type ContextSnapshotCreatePayload,
+  type FrontdeskEncounterType,
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage, parseApiError } from "@/shared/api/errors";
 import { findRouteByPath } from "@/shared/config/routes";
@@ -72,6 +76,32 @@ const PAGE_META = {
   },
 };
 
+const ENCOUNTER_OPTIONS: Array<{ label: string; value: FrontdeskEncounterType }> = [
+  { label: "门诊复诊", value: "OUTPATIENT" },
+  { label: "住院就诊", value: "INPATIENT" },
+  { label: "急诊就诊", value: "ED" },
+  { label: "随访回收", value: "FOLLOWUP" },
+];
+
+const DISEASE_OPTIONS = [
+  { label: "慢阻肺", code: "J44.900" },
+  { label: "高血压", code: "I10.x00" },
+  { label: "2 型糖尿病", code: "E11.900" },
+];
+
+const RISK_OPTIONS: Array<{ label: string; value: ContextSnapshotCreatePayload["riskLevel"] }> = [
+  { label: "低风险", value: "LOW" },
+  { label: "中风险", value: "MEDIUM" },
+  { label: "高风险", value: "HIGH" },
+];
+
+type ContextSnapshotFormValues = {
+  encounterType: FrontdeskEncounterType;
+  diseaseCode: string;
+  riskLevel: ContextSnapshotCreatePayload["riskLevel"];
+  reason: string;
+};
+
 function hasPermission(profile: SecurityProfile | undefined, code: string) {
   return profile?.permissions.some((permission) => permission.code === code) ?? false;
 }
@@ -100,7 +130,11 @@ function mergedIntoText(
   return patient.mergedIntoMpiId ? "已合并至目标主索引" : "未合并";
 }
 
-function renderPatient360Detail(detail: MpiPatientDetailResponse, evidenceDetailsEnabled: boolean) {
+function renderPatient360Detail(
+  detail: MpiPatientDetailResponse,
+  evidenceDetailsEnabled: boolean,
+  contextAction?: ReactNode,
+) {
   const snapshot = detail.latestContextSnapshot ?? detail.contextSnapshot ?? null;
   const patient = detail.patient;
 
@@ -143,6 +177,8 @@ function renderPatient360Detail(detail: MpiPatientDetailResponse, evidenceDetail
           {snapshot?.qualityStatus ? customerDisplayText(snapshot.qualityStatus) : "暂无"}
         </Descriptions.Item>
       </Descriptions>
+
+      {contextAction}
 
       <List
         header={`在径路径 ${detail.activePathwayCount} 个`}
@@ -195,6 +231,7 @@ export default function Mpi() {
   const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
   const canCreatePatient = hasPermission(security.data, "mpi.create");
   const canManageMpiIdentity = hasPermission(security.data, "mpi.write");
+  const canCreateContextSnapshot = hasPermission(security.data, "context.write");
 
   // 查询参数缓存，以便在点击查询时才触发真正的 API 过滤
   const [filterKeyword, setFilterKeyword] = useState("");
@@ -223,19 +260,24 @@ export default function Mpi() {
 
   // 合并数据突变
   const createMutation = useCreateMpiPatient();
+  const createContextSnapshotMutation = useCreateContextSnapshot(security.data);
   const mergeMutation = useMergeMpiPatients();
   const splitMutation = useSplitMpiPatient();
 
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
+  const [isContextModalVisible, setIsContextModalVisible] = useState(false);
   // 合并弹窗状态
   const [isMergeModalVisible, setIsMergeModalVisible] = useState(false);
   const [isSplitModalVisible, setIsSplitModalVisible] = useState(false);
   const [splitPatientRecord, setSplitPatientRecord] = useState<MpiPatient | null>(null);
   const [detailMpiId, setDetailMpiId] = useState<string | undefined>(undefined);
   const [createIdempotencyKey, setCreateIdempotencyKey] = useState("");
+  const [contextSnapshotIdempotencyKey, setContextSnapshotIdempotencyKey] = useState("");
+  const [contextSnapshotPatient, setContextSnapshotPatient] = useState<MpiPatient | null>(null);
   const [mergeIdempotencyKey, setMergeIdempotencyKey] = useState("");
   const [splitIdempotencyKey, setSplitIdempotencyKey] = useState("");
   const [createForm] = Form.useForm<MpiPatientCreatePayload>();
+  const [contextSnapshotForm] = Form.useForm<ContextSnapshotFormValues>();
   const [mergeForm] = Form.useForm<{ sourceMpiId: string; targetMpiId: string }>();
   const [splitForm] = Form.useForm<{ reviewReason: string }>();
   const selectedSourceMpiId = Form.useWatch("sourceMpiId", mergeForm);
@@ -299,6 +341,22 @@ export default function Mpi() {
     setDetailMpiId(record.mpiId);
   }, []);
 
+  const showContextSnapshotModal = useCallback(
+    (patient: MpiPatient) => {
+      contextSnapshotForm.resetFields();
+      contextSnapshotForm.setFieldsValue({
+        encounterType: "OUTPATIENT",
+        diseaseCode: "J44.900",
+        riskLevel: "MEDIUM",
+        reason: "患者 360 已完成身份核查，建立当前就诊上下文用于随访、路径和 CDSS。",
+      });
+      setContextSnapshotPatient(patient);
+      setContextSnapshotIdempotencyKey(`context-snapshot-${crypto.randomUUID()}`);
+      setIsContextModalVisible(true);
+    },
+    [contextSnapshotForm],
+  );
+
   const handleCreateSubmit = async () => {
     try {
       const values = await createForm.validateFields();
@@ -322,6 +380,33 @@ export default function Mpi() {
     } catch (error: unknown) {
       if (applyApiFieldErrors(createForm, error)) return;
       messageApi.error(getApiErrorMessage(error, "创建失败，请检查患者主索引信息"));
+    }
+  };
+
+  const handleCreateContextSnapshotSubmit = async () => {
+    if (!contextSnapshotPatient) return;
+    try {
+      const values = await contextSnapshotForm.validateFields();
+      const disease = DISEASE_OPTIONS.find((option) => option.code === values.diseaseCode);
+      await createContextSnapshotMutation.mutateAsync({
+        patient: contextSnapshotPatient,
+        encounterType: values.encounterType,
+        diseaseCode: values.diseaseCode,
+        diseaseName: disease?.label ?? values.diseaseCode,
+        riskLevel: values.riskLevel,
+        reason: values.reason.trim(),
+        idempotencyKey: contextSnapshotIdempotencyKey,
+      });
+
+      messageApi.success("当前就诊上下文已建立，可用于随访、路径和 CDSS");
+      setIsContextModalVisible(false);
+      setContextSnapshotPatient(null);
+      contextSnapshotForm.resetFields();
+      refetchDetail();
+      refetchList();
+    } catch (error: unknown) {
+      if (applyApiFieldErrors(contextSnapshotForm, error)) return;
+      messageApi.error(getApiErrorMessage(error, "建立上下文失败，请核查患者 360 与机构生效版本"));
     }
   };
 
@@ -553,7 +638,31 @@ export default function Mpi() {
       />
     );
   } else if (patientDetail) {
-    detailDrawerContent = renderPatient360Detail(patientDetail, evidenceDetailsEnabled);
+    const patient = patientDetail.patient;
+    const hasSnapshot = !!(patientDetail.latestContextSnapshot ?? patientDetail.contextSnapshot);
+    const contextAction =
+      canCreateContextSnapshot && patient.status === "ACTIVE" && !hasSnapshot ? (
+        <Alert
+          message="暂无已生效上下文"
+          description="建立当前就诊上下文后，随访、路径和 CDSS 将统一使用该患者的标准临床快照。"
+          type="info"
+          showIcon
+          action={
+            <Button
+              aria-label="建立当前就诊上下文"
+              icon={<FileDoneOutlined />}
+              onClick={() => showContextSnapshotModal(patient)}
+            >
+              建立当前就诊上下文
+            </Button>
+          }
+        />
+      ) : null;
+    detailDrawerContent = renderPatient360Detail(
+      patientDetail,
+      evidenceDetailsEnabled,
+      contextAction,
+    );
   }
 
   return (
@@ -806,6 +915,76 @@ export default function Mpi() {
               rules={[{ required: true, message: "请输入人工核查结论" }]}
             >
               <Input.TextArea placeholder="请输入人工核查结论" rows={4} />
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        <Modal
+          title={
+            <Space>
+              <FileDoneOutlined />
+              <span>建立当前就诊上下文</span>
+            </Space>
+          }
+          open={isContextModalVisible}
+          onOk={handleCreateContextSnapshotSubmit}
+          onCancel={() => {
+            setIsContextModalVisible(false);
+            setContextSnapshotPatient(null);
+          }}
+          confirmLoading={createContextSnapshotMutation.isPending}
+          okText="生成上下文快照"
+          cancelText="取消返回"
+          width={560}
+          zIndex={1300}
+          forceRender
+          destroyOnClose
+        >
+          <Alert
+            message="仅写入脱敏患者标识、当前就诊、诊断与风险分层"
+            description="本操作用于生成随访、路径和 CDSS 共用的标准上下文，不会自动开嘱，也不会写入患者姓名、证件号、电话或住址。"
+            type="info"
+            showIcon
+            className={styles.modalFormItem}
+          />
+          <Form form={contextSnapshotForm} layout="vertical">
+            <Form.Item
+              name="encounterType"
+              label="就诊类型"
+              rules={[{ required: true, message: "请选择就诊类型" }]}
+            >
+              <Select aria-label="就诊类型" options={ENCOUNTER_OPTIONS} />
+            </Form.Item>
+            <Form.Item
+              name="diseaseCode"
+              label="诊断/随访病种"
+              rules={[{ required: true, message: "请选择诊断或随访病种" }]}
+            >
+              <Select
+                aria-label="诊断/随访病种"
+                options={DISEASE_OPTIONS.map((option) => ({
+                  label: option.label,
+                  value: option.code,
+                }))}
+              />
+            </Form.Item>
+            <Form.Item
+              name="riskLevel"
+              label="风险分层"
+              rules={[{ required: true, message: "请选择风险分层" }]}
+            >
+              <Select aria-label="风险分层" options={RISK_OPTIONS} />
+            </Form.Item>
+            <Form.Item
+              name="reason"
+              label="建立原因"
+              rules={[{ required: true, message: "请输入建立原因" }]}
+            >
+              <Input.TextArea
+                aria-label="建立原因"
+                placeholder="说明本次建立上下文的业务原因"
+                rows={4}
+              />
             </Form.Item>
           </Form>
         </Modal>

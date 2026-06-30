@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 
-import { apiBase, ensureReadySession, expectOk } from "./support/auth";
+import { ensureReadySession } from "./support/auth";
 
 type RuntimeCollectors = {
   browserErrors: string[];
@@ -20,6 +20,12 @@ type ContextSnapshotSummary = {
   encounterId?: string | null;
 };
 
+type MpiPatientCreated = {
+  mpiId: string;
+  maskedName: string;
+  idLast4: string;
+};
+
 test.describe.configure({ mode: "serial" });
 
 test.describe("全前台真实操作演练", () => {
@@ -36,7 +42,8 @@ test.describe("全前台真实操作演练", () => {
       await createAdapterFromUi(page, testInfo, runtime, records, suffix);
       await createValueSetFromUi(page, testInfo, runtime, records, suffix);
       await configureModelEgressPolicyFromUi(page, testInfo, runtime, records);
-      await createMpiPatientFromUi(page, testInfo, runtime, records);
+      const patient = await createMpiPatientFromUi(page, testInfo, runtime, records);
+      const snapshot = await createContextSnapshotFromUi(page, testInfo, runtime, records, patient);
       const followupTemplate = await createFollowupTemplateFromUi(
         page,
         testInfo,
@@ -51,6 +58,7 @@ test.describe("全前台真实操作演练", () => {
         runtime,
         records,
         followupTemplate,
+        snapshot,
       );
     } finally {
       await attachRuntimeRecords(testInfo, records);
@@ -174,7 +182,7 @@ async function createMpiPatientFromUi(
   testInfo: TestInfo,
   runtime: RuntimeCollectors,
   records: RuntimeRecord[],
-) {
+): Promise<MpiPatientCreated> {
   await ensureReadySession(page, "clinical-user");
   clearRuntime(runtime);
   await page.goto("/mpi", { waitUntil: "networkidle" });
@@ -214,6 +222,68 @@ async function createMpiPatientFromUi(
   await expect(dialog).toBeHidden({ timeout: 20_000 });
   await captureEvidence(page, testInfo, "real-frontdesk-mpi-patient");
   recordCleanRuntime(page, "前台创建脱敏患者主索引", runtime, records);
+  return {
+    mpiId: result.data?.mpiId ?? "",
+    maskedName,
+    idLast4,
+  };
+}
+
+async function createContextSnapshotFromUi(
+  page: Page,
+  testInfo: TestInfo,
+  runtime: RuntimeCollectors,
+  records: RuntimeRecord[],
+  patient: MpiPatientCreated,
+): Promise<ContextSnapshotSummary> {
+  await ensureReadySession(page, "clinical-user");
+  clearRuntime(runtime);
+  await page.goto("/mpi", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "患者索引" })).toBeVisible();
+  await page.getByPlaceholder("支持按姓名或院内患者编号检索...").fill(patient.maskedName);
+  await page.getByRole("button", { name: /检索过滤/ }).click();
+  const row = page
+    .getByRole("row", {
+      name: new RegExp(`${escapeRegExp(patient.maskedName)}.*${patient.idLast4}`),
+    })
+    .first();
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  await row.getByRole("button", { name: /患者360/ }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "暂无已生效上下文" })).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.getByRole("button", { name: "建立当前就诊上下文" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "建立当前就诊上下文" });
+  await expect(dialog).toBeVisible();
+  await chooseDialogOption(page, dialog, "就诊类型", "门诊复诊");
+  await chooseDialogOption(page, dialog, "诊断/随访病种", "慢阻肺");
+  await chooseDialogOption(page, dialog, "风险分层", "中风险");
+  await dialog
+    .getByLabel("建立原因")
+    .fill("真实前台演练：医生从患者 360 建立当前就诊上下文，用于随访计划生成。");
+
+  const responsePromise = waitForPost(page, "/api/v1/engine/context/snapshots");
+  await dialog.getByRole("button", { name: "生成上下文快照" }).click();
+  const response = await responsePromise;
+  const responseBody = await response.text();
+  expect(
+    response.ok(),
+    `前台建立当前就诊上下文应返回成功 status=${response.status()} body=${responseBody}`,
+  ).toBe(true);
+  const result = JSON.parse(responseBody) as {
+    data?: { snapshotId?: string; resources?: { encounters?: Array<{ encounterId?: string }> } };
+  };
+  expect(result.data?.snapshotId, "上下文创建响应应返回快照身份").toBeTruthy();
+  await expect(dialog).toBeHidden({ timeout: 20_000 });
+  await expect(page.getByText("当前就诊上下文已建立")).toBeVisible({ timeout: 20_000 });
+  await captureEvidence(page, testInfo, "real-frontdesk-context-snapshot");
+  recordCleanRuntime(page, "前台建立当前就诊上下文快照", runtime, records);
+  return {
+    snapshotId: result.data?.snapshotId ?? "",
+    patientId: patient.mpiId,
+    encounterId: result.data?.resources?.encounters?.[0]?.encounterId ?? null,
+  };
 }
 
 async function createFollowupTemplateFromUi(
@@ -293,7 +363,9 @@ async function publishFollowupTemplateFromUi(
   await row.getByRole("button", { name: "发布模板" }).click();
   const response = await responsePromise;
   expect(response.ok(), "前台发布随访模板应返回成功").toBe(true);
-  const result = (await response.json()) as { data?: { assetStatus?: string; templateId?: string } };
+  const result = (await response.json()) as {
+    data?: { assetStatus?: string; templateId?: string };
+  };
   expect(result.data?.templateId).toBe(template.templateId);
   expect(result.data?.assetStatus).toBe("PUBLISHED");
   await expect(row.getByText("可用于计划生成")).toBeVisible({ timeout: 20_000 });
@@ -307,9 +379,9 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
   runtime: RuntimeCollectors,
   records: RuntimeRecord[],
   template: { templateId: string; name: string },
+  snapshot: ContextSnapshotSummary,
 ) {
   await ensureReadySession(page, "clinical-user");
-  const snapshot = await fetchFirstActiveContextSnapshot(page);
   clearRuntime(runtime);
   await page.goto("/clinical/followup", { waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { name: "随访协同" })).toBeVisible();
@@ -340,7 +412,12 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
   });
 
   await page.getByRole("button", { name: "填报" }).first().click();
-  await chooseDialogOption(page, page.getByRole("dialog", { name: "随访计划办理" }), "提交来源", "患者自填");
+  await chooseDialogOption(
+    page,
+    page.getByRole("dialog", { name: "随访计划办理" }),
+    "提交来源",
+    "患者自填",
+  );
   await page
     .getByLabel("问卷回收内容")
     .fill("真实前台演练：患者自述夜间咳嗽加重，已按医嘱用药，未填写姓名、电话、住址或证件号。");
@@ -413,24 +490,6 @@ function waitForPut(page: Page, path: string) {
     (response) => response.request().method() === "PUT" && response.url().includes(path),
     { timeout: 30_000 },
   );
-}
-
-async function fetchFirstActiveContextSnapshot(page: Page): Promise<ContextSnapshotSummary> {
-  const response = await page.request.get(`${apiBase}/engine/context/snapshots`, {
-    params: {
-      status: "ACTIVE",
-      page: "1",
-      size: "1",
-      sort: "createdAt,desc",
-    },
-    headers: { "X-Trace-Id": `e2e-context-snapshot-${Date.now()}` },
-  });
-  await expectOk(response, "读取已生效临床快照");
-  const result = (await response.json()) as { data?: { items?: ContextSnapshotSummary[] } };
-  const snapshot = result.data?.items?.[0];
-  expect(snapshot?.snapshotId, "真实前台深度演练需要至少一条已生效上下文快照").toBeTruthy();
-  expect(snapshot?.patientId, "上下文快照必须带患者上下文").toBeTruthy();
-  return snapshot as ContextSnapshotSummary;
 }
 
 function collectRuntime(page: Page): RuntimeCollectors {
