@@ -11,8 +11,9 @@
 - 远程分支已清理：`origin` 仅保留 `main`（另有 `origin/HEAD -> origin/main`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前分支已继续追加本地阶段提交；134 当前运行部署已更新到本地提交
-  `b4ec9f2d37d962af943af7f0b2acfbe307797a02`，用于审计导出验签真实动作复演。
+- 当前分支已继续追加本地阶段提交；134 后端 jar / manifest 仍为本地提交
+  `b4ec9f2d37d962af943af7f0b2acfbe307797a02`，134 前端-only 制品已更新到本地提交
+  `3f5ec881b542d8f98c3df2a066f1db30441c162a`，用于 `/medkernel` 前缀深链、审计导出验签和系统接入数据质量报告真实动作复演。
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
@@ -210,6 +211,29 @@
   - 部署前备份：`/zoesoft/medkernel/backups/deploy-20260630-115649`。
   - readiness：HTTP 200，`{"status":"UP"}`，服务 `active/enabled`，`NRestarts=0`。
   - 注意：该提交仍只在本地分支，不代表已推送或合入远端 `main`。
+- `2026-06-30T12:13:12+08:00`，134 已把本地 nginx 模板应用到
+  `/etc/nginx/conf.d/medkernel.conf`：
+  - 备份：`/zoesoft/medkernel/backups/nginx-medkernel-conf-20260630-121312`。
+  - 配置 sha256：`429445f32db81a5de654d5e45cf155158bd0bdf35673bf62665d258f1bac3b8f`。
+  - 分流事实：`/medkernel` 与 `/medkernel/*` 返回前端 SPA HTML；`/medkernel/api/` 与
+    `/medkernel/actuator/health` 反代后端；`/medkernel/dashboard` HTTP 200 / `text/html`，
+    `/medkernel/api/v1/auth/login-tenants` HTTP 200 / `application/json`。
+- `2026-06-30T12:20:46+08:00`，134 使用
+  `deploy/onprem/mk-publish.sh --frontend --source 3f5ec881b542d8f98c3df2a066f1db30441c162a`
+  完成前端-only 制品更新：
+  - 前端来源：`3f5ec881b542d8f98c3df2a066f1db30441c162a`
+    （`fix: 修复前缀入口与接入报告复演`）。
+  - 部署前备份：`/zoesoft/medkernel/backups/deploy-20260630-122046`。
+  - 前端 dist：`/zoesoft/medkernel/frontend/dist`，部署替换 `273` 个文件。
+  - 关键前端制品：
+    `/zoesoft/medkernel/frontend/dist/index.html`
+    sha256=`0e21eee0903bfcf471f93b7f14d53dbdb13953ba2d56e49c6435cdd1f2414ff0`；
+    `/zoesoft/medkernel/frontend/dist/assets/index-zernYgri.js`
+    sha256=`67b885abb7577a56292bb40512ec4f25a51d1f3bac33fc540fef2405dd9f34c0`。
+  - readiness：HTTP 200，`{"status":"UP"}`，服务 `active/enabled`，`NRestarts=0`。
+  - 注意：本次为前端-only 发布，`/zoesoft/medkernel/manifest.properties` 仍记录后端 jar 的
+    `source/commit=b4ec9f2d37d962af943af7f0b2acfbe307797a02`；后续接力不要把 jar manifest
+    误解为前端 dist 来源。
 
 ## 134 证据
 
@@ -909,6 +933,54 @@
     `/tmp/medkernel-e2e-codex3/evidence-stakeholder-audit-action-b4ec9f2d-direct134-rerun/artifacts/stakeholder-view-rehearsal-b11d5-务视角均能通过四职责账号进入真实页面并看到对应业务能力-chromium/stakeholder-view-runtime-records.json`。
     12 类视角均为 `browserErrors=0`、`serverErrors=0`、`networkFailures=0`；其中 `AUDITOR` 记录动作
     `确认审计导出范围、生成导出文件并验签导出证据`，质控与院长仍记录质量下钻动作。
+- `/medkernel` 前缀深链与系统接入质量报告动作闭环（`2026-06-30T12:22:04+08:00`）：
+  - 本阶段把全角色复演从质量下钻、医生 CDSS 和审计导出验签继续推进到信息科长/实施工程师真实动作：
+    两个视角进入 `/adapter/hub` 的“数据质量看板”，点击“生成质量报告”，触发真实
+    `POST /engine/integration/data-quality/reports`，并以页面持久状态
+    “数据质量报告已生成 / 缺口摘要”作为验收锚点。
+  - 红灯与根因：
+    - E2E 增加接入质量报告动作后，直接使用根路径访问 134 可通过，但路径不是当前上线入口
+      `https://193.112.107.134/medkernel`，不符合真实入站。
+    - E2E 改为按 `E2E_BASE_URL=/medkernel` 拼接前端路径后，`/medkernel/dashboard` 先被 nginx 反代到后端，
+      返回 `ENG-API-005 接口不存在：dashboard`。根因是 nginx 模板把整个 `/medkernel/` 交给后端，
+      没有把 SPA 深链与 API 分流。
+    - nginx 分流修复后，`/medkernel/dashboard` 已返回 HTML，但前端 `BrowserRouter` 未设置 basename，
+      把 `/medkernel/cdss/fatigue` 当成业务路由并进入“未找到页面”。根因是前端入口未识别 on-premise 部署前缀。
+  - 已本地修复：
+    - `deploy/onprem/templates/medkernel.nginx.conf` 明确 `/medkernel/api/` 与
+      `/medkernel/actuator/health` 反代后端，`/medkernel` 与 `/medkernel/*` 返回 SPA；
+      `deploy/onprem/tests/validate-medkernel-deploy.sh` 增加守卫，阻断 `/medkernel/` SPA 深链再次被 proxy 到后端。
+    - `frontend/src/app/browserBasename.ts` 新增 `/medkernel` basename 推导，`App.tsx` 将该 basename 传给
+      `BrowserRouter`；本地根路径和嵌入页保持默认 basename。
+    - `frontend/e2e/support/auth.ts` 新增 `appPath()`，所有真实前台 E2E 跳转按 `E2E_BASE_URL` 的 context path
+      进入页面，避免本地代理和 134 直接入口行为分裂。
+  - 红绿验证：
+    - 红灯：`npm --prefix frontend test -- App.test.tsx` 初次失败，`resolveBrowserBasename is not a function`；
+      首次 `npm --prefix frontend run verify` 失败于 `react-refresh/only-export-components`，
+      根因是纯函数放在 `App.tsx` 里，已拆到独立模块。
+    - 绿灯：`npm --prefix frontend test -- App.test.tsx` 通过，`2` 项；
+      `npm --prefix frontend test -- e2eAuthCredentialContract.test.ts` 通过，`3` 项；
+      `npm --prefix frontend test -- router.test.tsx` 通过，`6` 项；
+      `bash deploy/onprem/tests/validate-medkernel-deploy.sh` 通过；
+      `npm --prefix frontend run typecheck` 通过；
+      `npm --prefix frontend run verify` 通过，`113` 个测试文件 / `890` 个测试通过；
+      `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+  - 134 发布和入口探测：
+    - nginx 模板已应用到 134，配置 sha256 为
+      `429445f32db81a5de654d5e45cf155158bd0bdf35673bf62665d258f1bac3b8f`。
+    - 前端-only 发布来源为本地提交
+      `3f5ec881b542d8f98c3df2a066f1db30441c162a`，备份
+      `/zoesoft/medkernel/backups/deploy-20260630-122046`，readiness HTTP 200 / `{"status":"UP"}`。
+    - 入口探测：`/medkernel/dashboard` HTTP 200 / `text/html` 且正文开头为 `<!doctype html>`；
+      `/medkernel/api/v1/auth/login-tenants` HTTP 200 / `application/json`。
+  - 直接访问 134 前端入口复演：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-adapter-quality-action-medkernel-prefix-3f5ec881-direct134/report/results.json`，
+    Playwright `expected=1`、`unexpected=0`、`skipped=0`、`flaky=0`，耗时 `30449.198ms`。
+  - 运行记录：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-adapter-quality-action-medkernel-prefix-3f5ec881-direct134/artifacts/stakeholder-view-rehearsal-b11d5-务视角均能通过四职责账号进入真实页面并看到对应业务能力-chromium/stakeholder-view-runtime-records.json`。
+    12 类视角均为 `browserErrors=0`、`serverErrors=0`、`networkFailures=0`；其中 `IT_MANAGER` 与
+    `IMPLEMENTATION_ENGINEER` 记录动作 `生成系统接入数据质量报告`，`AUDITOR` 仍记录审计导出验签动作，
+    `QUALITY_CONTROLLER` 与 `HOSPITAL_EXECUTIVE` 仍记录质量下钻动作。
 
 ## 下一步
 
@@ -916,7 +988,8 @@
 2. 路由级角色视角已覆盖所有认证路由；后续继续转向真实前台逐角色操作演练与页面交互细节优化，
    重点看操作步数、默认筛选、追溯证据开关、权限提示、患者敏感信息屏蔽和高风险确认是否仍有不顺。
 3. 134 已完成字段目录修复部署、数据接入契约复核、真实前台基础路线复演、深度随访全链路复演和
-   `10104fbb` 直接入口复演；全角色真实操作已完成质量下钻、医生 CDSS 推荐评估和审计导出验签动作验收；
+   `/medkernel` 直接入口复演；全角色真实操作已完成质量下钻、医生 CDSS 推荐评估、审计导出验签和
+   系统接入数据质量报告动作验收；
    下一阶段继续做逐页真实操作，不只看页面可进入，还要从医生、护士、患者/代理、药师、医技、质控、信息科、
    实施工程师、审计员、院长等视角提交真实表单、触发真实状态变化并修复流程和交互问题。
 4. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；
