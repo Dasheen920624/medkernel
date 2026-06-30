@@ -112,6 +112,19 @@
   - 注意：本次为前端-only 发布，`/zoesoft/medkernel/manifest.properties` 仍记录后端 jar 的
     `source/commit=02b47944237fea5df89c519bf7613fb4b6c6f5ed`；后续接力不要把 jar manifest
     误解为前端 dist 来源。
+- `2026-06-30T10:27:17+08:00`，部署后直接访问 134 前端入口完成真实前台深度复演：
+  - 命令入口：`E2E_EXTERNAL_DEPLOYMENT=1`，
+    `E2E_BASE_URL=https://193.112.107.134/medkernel`，
+    `E2E_API_BASE_URL=https://193.112.107.134/medkernel/api/v1`，
+    `E2E_IGNORE_HTTPS_ERRORS=1`。
+  - 报告：
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-42188807-direct134/report/results.json`。
+  - Playwright：`expected=1`，`unexpected=0`，`flaky=0`，`skipped=0`，耗时 `38343.012ms`。
+  - 运行记录：
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-42188807-direct134/artifacts/real-frontdesk-rehearsal-全-1ad6c-、外调策略、患者资源与临床随访数据均由前台页面提交产生-chromium/real-frontdesk-runtime-records.json`。
+  - 8 段全部由前台页面提交产生，覆盖系统接入适配器、知识值集草稿、模型外调安全策略、
+    脱敏患者主索引、随访模板创建、随访模板发布、当前就诊上下文快照、随访计划生成与问卷/异常回院登记；
+    每段 `browserErrors=0`、`serverErrors=0`、`networkFailures=0`。
 
 ## 134 证据
 
