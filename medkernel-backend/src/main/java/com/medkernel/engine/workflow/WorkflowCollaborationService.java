@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -634,8 +635,9 @@ public class WorkflowCollaborationService {
         if (existing.isEmpty() && sourceType != WorkflowTodoSourceType.RECOMMENDATION_CARD) {
             existing = todos.findRecommendationDerivedByTenantIdAndSourceId(tenantId, row.cardId());
         }
-        WorkflowTodo todo = existing.orElseGet(
-            () -> todos.save(fromRecommendationCardTodo(ctx, row, sourceType)));
+        WorkflowTodo todo = existing
+            .map(current -> alignOpenRecommendationTodo(ctx, row, sourceType, current))
+            .orElseGet(() -> todos.save(fromRecommendationCardTodo(ctx, row, sourceType)));
         createPendingTodoNotificationIfAbsent(ctx, todo);
     }
 
@@ -765,6 +767,60 @@ public class WorkflowCollaborationService {
             SYSTEM_ACTOR,
             createdAt,
             SYSTEM_ACTOR);
+    }
+
+    private WorkflowTodo alignOpenRecommendationTodo(
+            RequestContext.Snapshot ctx,
+            RecommendationWorkflowTodoRow row,
+            WorkflowTodoSourceType sourceType,
+            WorkflowTodo existing) {
+        if (!isOpenWorkflowTodo(existing) || !requiresRecommendationTodoAlignment(row, sourceType, existing)) {
+            return existing;
+        }
+        Instant now = Instant.now();
+        return todos.save(new WorkflowTodo(
+            existing.id(),
+            existing.todoId(),
+            existing.tenantId(),
+            defaultText(existing.orgUnitId(), currentOrgUnitId(ctx)),
+            sourceType,
+            row.cardId(),
+            defaultText(row.title(), recommendationFallbackTitle(sourceType)),
+            recommendationSummary(row),
+            recommendationPriority(row.riskLevel()),
+            existing.status(),
+            existing.assigneeId(),
+            recommendationAssigneeRole(sourceType),
+            row.patientId(),
+            row.encounterId(),
+            row.expiresAt(),
+            "/cdss/fatigue?cardId=" + row.cardId(),
+            existing.completionReason(),
+            existing.completedAt(),
+            existing.completedBy(),
+            existing.transferredTo(),
+            existing.transferReason(),
+            defaultText(row.traceId(), existing.traceId()),
+            existing.createdAt(),
+            existing.createdBy(),
+            now,
+            SYSTEM_ACTOR));
+    }
+
+    private static boolean requiresRecommendationTodoAlignment(
+            RecommendationWorkflowTodoRow row,
+            WorkflowTodoSourceType sourceType,
+            WorkflowTodo existing) {
+        return existing.sourceType() != sourceType
+            || !Objects.equals(existing.assigneeRole(), recommendationAssigneeRole(sourceType))
+            || !Objects.equals(existing.sourceId(), row.cardId())
+            || !Objects.equals(existing.title(), defaultText(row.title(), recommendationFallbackTitle(sourceType)))
+            || !Objects.equals(existing.summary(), recommendationSummary(row))
+            || existing.priority() != recommendationPriority(row.riskLevel())
+            || !Objects.equals(existing.patientId(), row.patientId())
+            || !Objects.equals(existing.encounterId(), row.encounterId())
+            || !Objects.equals(existing.dueAt(), row.expiresAt())
+            || !Objects.equals(existing.deepLink(), "/cdss/fatigue?cardId=" + row.cardId());
     }
 
     private WorkflowNotification fromFollowupNotification(
@@ -1083,14 +1139,14 @@ public class WorkflowCollaborationService {
         if (normalized == null) {
             return false;
         }
-        String upper = normalized.toUpperCase(Locale.ROOT);
+        String upper = normalized.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "_");
         return upper.contains("REPORT")
             || upper.contains("RESULT_REVIEW")
             || upper.contains("DIAGNOSTIC");
     }
 
     private static String recommendationAssigneeRole(WorkflowTodoSourceType sourceType) {
-        return sourceType == WorkflowTodoSourceType.NURSING_TASK ? "NURSING" : "DOCTOR";
+        return sourceType == WorkflowTodoSourceType.NURSING_TASK ? "NURSING" : "clinical-user";
     }
 
     private static String recommendationFallbackTitle(WorkflowTodoSourceType sourceType) {

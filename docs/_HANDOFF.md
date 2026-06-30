@@ -11,8 +11,14 @@
 - 远程分支已清理：`origin` 仅保留 `main`（另有 `origin/HEAD -> origin/main`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前分支最新产品代码提交为本文件所在提交（本阶段：全知识平台基线与 Provider 重跑幂等修复）；
-  其前序产品提交为 `3d9f9c0155a9278387b6ec98438d3b72d8956590`
+- 当前分支最新产品代码提交为本文件所在提交（本阶段：报告解读协同待办可见性与旧投影重分类）；
+  其前序产品提交为 `cd5e58a0e766d2d84d1d966f4ae2d57381aade82`
+  （`fix: 统一推荐知识来源租户定位`）、
+  `44b2b9c2962691d6647185b187e8a50c5a8be8e6`
+  （`fix: 修复报告解读知识版本映射`）、
+  `0f0728c5218869c8cf132fb68351c2bbbffda64e`
+  （`fix: 收敛重复医学回归基线`）和
+  `3d9f9c0155a9278387b6ec98438d3b72d8956590`
   （`fix: 对齐前台报告快照签发人字段`）、
   `c68e127f608dd1b8fc7dc64181727fa477610ab6`
   （`fix: 走通报告解读协同待办真实数据链路`）、
@@ -28,11 +34,11 @@
   （`fix: 补齐推荐详情抽屉可访问名称`）和
   `21caf969bcec81a849a7ccc12c03d5afcab2e62d`
   （`fix: 统一推荐运行包触发契约`）。
-- 134 当前阶段修复前的最后完整部署为 `3d9f9c0155a9278387b6ec98438d3b72d8956590`；
-  该部署已修复 `interpreterId` 非标准字段 400，前台临床快照中 `DIAGNOSTIC_REPORT` 真实存在且使用
-  `signedBy`。复演继续失败在医技报告解读返回 `0` 项，根因不是前端表单缺报告事实，而是机构生效运行版本未包含
-  `KNOWLEDGE` 平台基线条目。旧 `c68e127f` 是上一轮 400 失败部署，`b4ec9f2d`、`3f5ec881`、`e8f50553`
-  只作为历史阶段证据，不再代表当前 134 运行版本。
+- 134 当前已完整部署 `cd5e58a0e766d2d84d1d966f4ae2d57381aade82`；该部署已修复报告解读知识版本映射
+  和知识来源租户安全门，医技报告解读接口已返回非空结果。最新复演断点是报告解读卡片存在但未投影为
+  `REPORT_INTERPRETATION/clinical-user` 可见协同待办，导致 `/workflow/todos` 仍显示“报告解读 0 项”。
+  旧 `3d9f9c`、`c68e127f`、`b4ec9f2d`、`3f5ec881`、`e8f50553` 只作为历史阶段证据，
+  不再代表当前 134 运行版本。
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
@@ -42,7 +48,51 @@
   `rehearsal` 是当前 1.0 契约中的完整上线演练机构块，不是旧兼容入口；
   `roleAccounts`、`platformRoleAccounts`、`customerTenant` 等旧 root 账号字段不得作为登录权威。
 
-## 最新阶段交接（2026-06-30 全知识平台基线与全链路演练顺序修复）
+## 最新阶段交接（2026-06-30 报告解读协同待办可见性修复）
+
+- 134 已部署 `cd5e58a0e766d2d84d1d966f4ae2d57381aade82`：
+  `jarSha256=5b13dc2c3d69ea10dfd5867fa2f05147946367b2ef1b1974d75bd53febbb7ac8`，
+  远端备份 `/zoesoft/medkernel/backups/deploy-20260630-215751`，readiness HTTP 200 / `{"status":"UP"}`，
+  服务 `active/enabled`、`MainPID=1515628`。
+- 部署后全角色前台演练继续推进到医技链路，报告解读接口已能成功返回非空解读，但协同任务页断言
+  “报告解读 [1-9] 项”超时：
+  `/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-cd5e58a0-deployed-direct134/report/results.json`。
+  页面当时显示 `报告解读 0 项`，前 10 条均为高优先随访任务。
+- 134 只读 API 复核结论：
+  - `/engine/recommendations/cards?scenarioCode=S36&page=1&size=10` 返回 1 条待处理 LAB 报告解读卡片
+    `rc-ed528998-6b55-4aba-8bb1-8f5fe2c8f38f`，标题“医技报告解读：血钾检验”，
+    `scenarioCode=S36`、`triggerPoint=result-review`。
+  - `/engine/workflow/todos?status=PENDING&sourceType=REPORT_INTERPRETATION&page=1&size=5` 返回 `total=0`；
+    `/engine/workflow/todos?status=PENDING&sourceType=FOLLOWUP_TASK&page=1&size=5` 返回 `total=79`。
+  - 这说明报告卡片真实存在，断点在推荐卡投影到协同待办后的分类和可见角色，不是报告解读接口、知识安全门或前端按钮。
+- 根因：
+  - `WorkflowCollaborationService.containsReportSignal` 只识别 `RESULT_REVIEW`，未识别真实触发点
+    `result-review`，导致 LAB/EXAM 报告卡被投成 `RECOMMENDATION_CARD` 而非 `REPORT_INTERPRETATION`。
+  - 推荐来源待办默认分派到旧角色 `DOCTOR`，而当前上线职责账号使用统一 `clinical-user` 角色；
+    仓储可见性按 `user_role_assignment.role_code` 匹配，导致临床账号看不到待办。
+  - 已经投影过的旧待办即使新规则识别为报告解读，也会被 `findRecommendationDerivedByTenantIdAndSourceId`
+    找到后直接复用，不会自动从 `RECOMMENDATION_CARD/DOCTOR` 纠正为 `REPORT_INTERPRETATION/clinical-user`。
+- 已本地修复：
+  - 报告触发识别先把非字母数字字符统一归一为 `_`，覆盖 `result-review`、`RESULT_REVIEW`、
+    `REPORT_*` 和 `DIAGNOSTIC_*`。
+  - 推荐来源待办除护理任务仍分派 `NURSING` 外，临床推荐、报告解读和床旁知识统一分派给 `clinical-user`。
+  - 同步推荐来源待办时，对仍处于 `PENDING/IN_PROGRESS` 的旧投影做幂等对齐：保留原 `todoId`、
+    创建审计和完成/转交流程字段，只更新来源类型、角色、标题摘要、优先级、患者/就诊上下文、到期时间和 deep link；
+    已完成/已转交待办不重新打开。
+  - 前台 `WorkflowTodos` 将 `clinical-user`/`CLINICAL_USER` 显示为“临床使用者”，不再裸显技术码或“未识别状态”。
+- 红绿验证：
+  - 后端红灯：`mvn -Dtest=WorkflowCollaborationServiceTest#listTodosProjectsClinicalRecommendationTypesIntoCollaborationSources+listTodosReclassifiesOpenRecommendationTodoWhenReportInterpretationContractChanges test`
+    初次失败，真实 `result-review` 被投为 `RECOMMENDATION_CARD`，旧待办没有保留 `todo-report-legacy`。
+  - 后端绿灯：同命令通过，`2` 项；进一步
+    `mvn -Dtest=WorkflowCollaborationServiceTest,WorkflowTodoRepositoryTest test` 通过，`38` 项。
+  - 前端红灯：`npm --prefix frontend run test -- WorkflowTodos.test.tsx` 初次失败，`clinical-user` 显示为“未识别状态”。
+  - 前端绿灯：同命令通过，`18` 项。
+  - 组合回归：`mvn -Dtest=WorkflowCollaborationServiceTest,WorkflowTodoRepositoryTest,RuntimeReleaseDiagnosticItemSelectorTest,ReportInterpretationServiceTest,ReportInterpretationControllerSecurityTest,ClinicalSafetyGuardTest,RecommendationEngineServiceTest,RecommendationDeterministicMatcherTest,DiagnosisAssistServiceTest,DiagnosisAssistApiContractTest test`
+    通过，`102` 项。
+- 下一步：本地提交后把新 HEAD 完整发布到 134，复跑全角色前台演练，重点确认
+  “前台真实建立报告事实 -> 报告解读非空 -> 协同待办显示报告解读项 -> 打开报告上下文”闭环。
+
+## 上一阶段交接（2026-06-30 全知识平台基线与全链路演练顺序修复）
 
 - 根因结论：134 上 `3d9f9c` 部署后，前台已能创建标准 `DIAGNOSTIC_REPORT` 快照，报告类型
   `血钾检验`、结论 `血钾 6.3 mmol/L，危急值，已复核`、签发人 `signedBy=clinical-user` 均真实存在；

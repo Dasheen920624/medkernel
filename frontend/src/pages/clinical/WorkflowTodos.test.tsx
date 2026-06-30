@@ -81,7 +81,7 @@ describe("WorkflowTodos", () => {
             priority: "HIGH",
             status: "PENDING",
             assigneeId: "doctor-real-1",
-            assigneeRole: "DOCTOR",
+            assigneeRole: "clinical-user",
             patientId: "patient-real-1",
             encounterId: "enc-real-1",
             dueAt: "2026-06-04T08:00:00Z",
@@ -181,7 +181,7 @@ describe("WorkflowTodos", () => {
     expect(screen.getByText("处理当前岗位待办事项")).toBeInTheDocument();
     expect(screen.getByText("随访异常复核")).toBeInTheDocument();
     expect(screen.getByText("已关联患者")).toBeInTheDocument();
-    expect(screen.getByText("随访异常复核").closest("tr")).toHaveTextContent("医生");
+    expect(screen.getByText("随访异常复核").closest("tr")).toHaveTextContent("临床使用者");
     expect(screen.getByText("来源与追踪证据已保留")).toBeInTheDocument();
     expect(screen.queryByText("patient-real-1")).not.toBeInTheDocument();
     expect(screen.queryByText("return-task-1")).not.toBeInTheDocument();

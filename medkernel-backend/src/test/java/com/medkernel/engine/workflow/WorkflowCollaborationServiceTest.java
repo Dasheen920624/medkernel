@@ -1278,8 +1278,8 @@ class WorkflowCollaborationServiceTest {
                 now,
                 "patient-1",
                 "enc-1",
-                "REPORT_SUBMIT",
-                "REPORT_REVIEW"),
+                "result-review",
+                "S36"),
             new RecommendationWorkflowTodoRow(
                 "card-knowledge-1",
                 RecommendationCardType.KNOWLEDGE,
@@ -1304,9 +1304,9 @@ class WorkflowCollaborationServiceTest {
             workflowTodo("todo-nursing-1", WorkflowTodoSourceType.NURSING_TASK,
                 "card-nursing-1", "压疮风险护理评估", "patient-1", "enc-1", "NURSING", "trace-nursing", now),
             workflowTodo("todo-report-1", WorkflowTodoSourceType.REPORT_INTERPRETATION,
-                "card-report-1", "检验报告解读", "patient-1", "enc-1", "DOCTOR", "trace-report", now),
+                "card-report-1", "检验报告解读", "patient-1", "enc-1", "clinical-user", "trace-report", now),
             workflowTodo("todo-knowledge-1", WorkflowTodoSourceType.BEDSIDE_KNOWLEDGE,
-                "card-knowledge-1", "床旁知识卡", "patient-1", "enc-1", "DOCTOR", "trace-knowledge", now)));
+                "card-knowledge-1", "床旁知识卡", "patient-1", "enc-1", "clinical-user", "trace-knowledge", now)));
 
         PageResponse<WorkflowTodoResponse> page = service.listTodos(
             new WorkflowTodoFilter(null, null, null, null, null),
@@ -1325,7 +1325,59 @@ class WorkflowCollaborationServiceTest {
                 WorkflowTodoSourceType.REPORT_INTERPRETATION,
                 WorkflowTodoSourceType.BEDSIDE_KNOWLEDGE);
         assertThat(todoCaptor.getAllValues()).extracting(WorkflowTodo::assigneeRole)
-            .containsExactly("NURSING", "DOCTOR", "DOCTOR");
+            .containsExactly("NURSING", "clinical-user", "clinical-user");
+    }
+
+    @Test
+    void listTodosReclassifiesOpenRecommendationTodoWhenReportInterpretationContractChanges() {
+        Instant now = Instant.parse("2026-06-04T08:00:00Z");
+        when(followupTasks.pageOpenWorkflowRows("tenant-A", 0, 200)).thenReturn(List.of());
+        when(affectedTasks.pageByTenantId("tenant-A", 0, 200)).thenReturn(List.of());
+        when(recommendationCards.pageOpenWorkflowRows("tenant-A", 0, 200)).thenReturn(List.of(
+            new RecommendationWorkflowTodoRow(
+                "card-report-legacy",
+                RecommendationCardType.LAB,
+                "医技报告解读：血钾检验",
+                "报告结果触发复核建议",
+                RecommendationRiskLevel.HIGH,
+                RecommendationCardStatus.PENDING,
+                now.plusSeconds(3600),
+                "trace-report-legacy",
+                now,
+                "patient-1",
+                "enc-1",
+                "result-review",
+                "S36")));
+        when(todos.findByTenantIdAndSourceTypeAndSourceId(
+                "tenant-A",
+                WorkflowTodoSourceType.REPORT_INTERPRETATION,
+                "card-report-legacy"))
+            .thenReturn(Optional.empty());
+        when(todos.findRecommendationDerivedByTenantIdAndSourceId("tenant-A", "card-report-legacy"))
+            .thenReturn(Optional.of(workflowTodo(
+                "todo-report-legacy",
+                WorkflowTodoSourceType.RECOMMENDATION_CARD,
+                "card-report-legacy",
+                "医技报告解读：血钾检验",
+                "patient-1",
+                "enc-1",
+                "DOCTOR",
+                "trace-report-legacy",
+                now)));
+        when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.listTodos(
+            new WorkflowTodoFilter(null, null, null, null, null),
+            new PageRequest(1, 20, null));
+
+        ArgumentCaptor<WorkflowTodo> todoCaptor = ArgumentCaptor.forClass(WorkflowTodo.class);
+        verify(todos).save(todoCaptor.capture());
+        WorkflowTodo saved = todoCaptor.getValue();
+        assertThat(saved.todoId()).isEqualTo("todo-report-legacy");
+        assertThat(saved.sourceType()).isEqualTo(WorkflowTodoSourceType.REPORT_INTERPRETATION);
+        assertThat(saved.sourceId()).isEqualTo("card-report-legacy");
+        assertThat(saved.assigneeRole()).isEqualTo("clinical-user");
+        assertThat(saved.deepLink()).isEqualTo("/cdss/fatigue?cardId=card-report-legacy");
     }
 
     @Test

@@ -142,6 +142,8 @@ const PAGE_META = {
 };
 
 const assigneeRoleText: Record<string, string> = {
+  "clinical-user": "临床使用者",
+  CLINICAL_USER: "临床使用者",
   DOCTOR: "医生",
   NURSE: "护士",
   NURSING: "护理",
