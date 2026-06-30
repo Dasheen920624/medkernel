@@ -95,6 +95,23 @@
   - jarSha256：`44a3c78b490ecd3a9478b56e7a7a20d391ed7ceab4f132f0eb86dac5e2f4db30`。
   - 部署前备份：`/zoesoft/medkernel/backups/deploy-20260630-095437`。
   - readiness：HTTP 200，`{"status":"UP"}`，服务 `active/enabled`，`NRestarts=0`。
+- `2026-06-30T10:22:47+08:00`，134 使用
+  `deploy/onprem/mk-publish.sh --frontend --source 4218880758d687106fd5f434625974a73619898d`
+  完成前端-only 制品更新：
+  - 前端来源：`4218880758d687106fd5f434625974a73619898d`
+    （`docs: 记录随访深度前台演练通过`，包含随访旧快照提醒、版本查询按权限懒加载、
+    随访办理抽屉可访问名称和深度前台演练证据提交）。
+  - 部署前备份：`/zoesoft/medkernel/backups/deploy-20260630-102219`。
+  - 前端 dist：`/zoesoft/medkernel/frontend/dist`，部署替换 `273` 个文件。
+  - 关键前端制品：
+    `/zoesoft/medkernel/frontend/dist/assets/Followup-lq9mgwTp.js`
+    sha256=`c05918deb33268b2ec2da560e78520d94d279e8db0c481716a4821d3d96f6bf9`；
+    `/zoesoft/medkernel/frontend/dist/assets/index-BA0FDXyY.js`
+    sha256=`bef95ba378676ab656b5997f4afcc316a650721e01176dd19d51f5e630454260`。
+  - readiness：HTTP 200，`{"status":"UP"}`，服务 `active/enabled`，`NRestarts=0`。
+  - 注意：本次为前端-only 发布，`/zoesoft/medkernel/manifest.properties` 仍记录后端 jar 的
+    `source/commit=02b47944237fea5df89c519bf7613fb4b6c6f5ed`；后续接力不要把 jar manifest
+    误解为前端 dist 来源。
 
 ## 134 证据
 
