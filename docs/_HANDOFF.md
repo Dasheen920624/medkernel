@@ -699,17 +699,24 @@
     `npm --prefix frontend test -- AiWorkflows.test.tsx` 通过，`8` 项；
     `npm --prefix frontend test -- routes.test.ts` 通过，`52` 项；
     `npm --prefix frontend run typecheck` 与 `git diff --check` 通过。
+  - 阶段提交：`e1e52ffa`（`fix: 明确模型双模式患者上下文边界`），未推送远程。
+  - 提交后复演：使用本地最新前端 `http://127.0.0.1:5173` 与 134 后端
+    `https://193.112.107.134/medkernel/api/v1` 重跑真实前台深度 E2E：
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-e1e52ffa/report/results.json`。
+  - Playwright：`expected=1`，`unexpected=0`，`flaky=0`，`skipped=0`，耗时 `30853.299ms`。
+  - 运行记录：
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-e1e52ffa/artifacts/real-frontdesk-rehearsal-全-1ad6c-、外调策略、患者资源与临床随访数据均由前台页面提交产生-chromium/real-frontdesk-runtime-records.json`。
+  - 8 段真实前台操作均通过，包含“前台配置模型外调安全策略”；每段
+    `browserErrors=0`、`serverErrors=0`、`networkFailures=0`。
 
 ## 下一步
 
-1. 基于 `codex/final-handoff-product-optimization` 提交模型能力双模式患者上下文边界阶段版本；
-   不推送远程，不直接改写 `main`。
-2. 目标环境上线前补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
-3. 路由级角色视角已覆盖所有认证路由；后续继续转向真实前台逐角色操作演练与页面交互细节优化，
+1. 目标环境上线前补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
+2. 路由级角色视角已覆盖所有认证路由；后续继续转向真实前台逐角色操作演练与页面交互细节优化，
    重点看操作步数、默认筛选、追溯证据开关、权限提示、患者敏感信息屏蔽和高风险确认是否仍有不顺。
-4. 134 已完成字段目录修复部署、数据接入契约复核、真实前台基础路线复演、深度随访全链路复演和直接入口复演；
+3. 134 已完成字段目录修复部署、数据接入契约复核、真实前台基础路线复演、深度随访全链路复演和直接入口复演；
    下一阶段继续做逐页真实操作，不只看页面可进入，还要从医生、护士、患者/代理、药师、医技、质控、信息科、
    实施工程师、审计员、院长等视角提交真实表单、触发真实状态变化并修复流程和交互问题。
-5. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；
+4. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；
    优先把角色职责、证据边界、不可自动化医疗动作沉到路由或共享体验契约。
-6. 继续保持追溯证据边界：默认业务视图不暴露追踪号、原始标识、技术编码；需要时通过受控追溯证据展开。
+5. 继续保持追溯证据边界：默认业务视图不暴露追踪号、原始标识、技术编码；需要时通过受控追溯证据展开。
