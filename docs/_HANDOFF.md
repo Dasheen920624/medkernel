@@ -11,6 +11,8 @@
 - 远程分支已清理：`origin` 仅保留 `main`（另有 `origin/HEAD -> origin/main`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 当前分支已继续追加本地阶段提交；134 当前运行部署已更新到本地提交
+  `b4ec9f2d37d962af943af7f0b2acfbe307797a02`，用于审计导出验签真实动作复演。
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
@@ -199,6 +201,15 @@
     `/tmp/medkernel-e2e-codex3/evidence-d6-graph-10104fbb-direct134-strict-switch/report/results.json`，
     Playwright `expected=2`、`unexpected=0`、`skipped=0`、`flaky=0`，耗时 `17336.199ms`。
   - 这次没有重新部署 134；134 运行前端仍是 `10104fbb` 前端-only 制品，修复的是本地验收入口的稳定性。
+- `2026-06-30T11:56:51+08:00`，134 使用
+  `deploy/onprem/mk-publish.sh --source b4ec9f2d37d962af943af7f0b2acfbe307797a02` 完成后端 + 前端全量发布：
+  - source / commit：`b4ec9f2d37d962af943af7f0b2acfbe307797a02`
+    （`fix: 打通审计导出完成验签闭环`）。
+  - jarSha256：`eaddcc12da4173ab0c25d47fb66d05223215c3772dffb2fce239358a3d21a1d4`。
+  - jar 大小：`99026082` bytes；前端 dist 部署替换 `273` 个文件。
+  - 部署前备份：`/zoesoft/medkernel/backups/deploy-20260630-115649`。
+  - readiness：HTTP 200，`{"status":"UP"}`，服务 `active/enabled`，`NRestarts=0`。
+  - 注意：该提交仍只在本地分支，不代表已推送或合入远端 `main`。
 
 ## 134 证据
 
@@ -862,6 +873,42 @@
     发布随访模板、建立当前就诊上下文快照、医生触发 CDSS 推荐评估、生成随访计划并完成问卷与异常回院登记。
   - 提交前验证：`git diff --check` 通过；`npm --prefix frontend run verify` 通过，
     `112` 个测试文件 / `887` 个测试通过。
+- 全角色真实操作第二批审计导出验签闭环（`2026-06-30T11:59:42+08:00`）：
+  - 本阶段把审计员视角从“可进入审计与证据页”推进到真实动作：前台确认导出范围、生成已确认导出文件、
+    完成导出确认登记、打开导出证据并触发真实 `POST /compliance/evidence/snapshots/{id}:verify` 验签。
+  - 红灯与根因：
+    - 首次本地前端 + 134 后端复演时，审计员生成导出文件返回
+      `409 ENG-API-007 导出确认资源类型与作业不一致`。
+    - 后端导出确认服务把确认资源规范化为 `audit_event`，大列表导出作业把资源类型规范化为 `AUDIT_EVENT`，
+      完成门禁按字符串字面值比较，导致合法同一资源被拒绝。
+    - 134 全量发布后直接入口复演又暴露测试断言偏差：接口完成成功后页面持久状态是导出记录行的
+      “已导出 / 下载文件 / 查看证据”，不是长期展示“导出已完成”临时提示；已把 E2E 锚点改为持久业务状态。
+  - 已本地修复：
+    - `ExportConfirmationGateService` 对资源类型使用同一 lower-snake 规范化后比较；导出范围 JSON 仍严格一致校验，
+      不放宽受控导出边界。
+    - `AdminAudit` 在已确认导出作业成功后调用
+      `/compliance/exports/{confirmationId}:complete-from-job`，并刷新导出记录，让审计员能看到“已导出”、下载文件和证据入口。
+    - `stakeholder-view-rehearsal.spec.ts` 为审计员新增真实动作，并用导出记录行、下载链接、证据按钮和验签结果作为验收锚点。
+  - 红绿验证：
+    - 红灯：`mvn -f medkernel-backend/pom.xml -Dtest=ExportConfirmationGateServiceTest test`
+      初次失败，复现资源类型字面值不一致；`npm --prefix frontend test -- AdminAudit.test.tsx -t "marks a confirmed audit export as completed"`
+      初次失败，复现前台未完成导出确认登记。
+    - 绿灯：`npm --prefix frontend test -- AdminAudit.test.tsx` 通过，`11` 项；
+      `mvn -f medkernel-backend/pom.xml -Dtest=ExportConfirmationGateServiceTest,ExportConfirmationServiceTest,LargeListEngineServiceTest test`
+      通过，`31` 项；`npm --prefix frontend run typecheck` 通过；`git diff --check` 通过。
+    - 提交前全量前端验证：`npm --prefix frontend run verify` 通过，
+      `112` 个测试文件 / `888` 个测试通过。
+  - 134 发布证据：
+    `source=commit=b4ec9f2d37d962af943af7f0b2acfbe307797a02`，
+    `jarSha256=eaddcc12da4173ab0c25d47fb66d05223215c3772dffb2fce239358a3d21a1d4`，
+    备份 `/zoesoft/medkernel/backups/deploy-20260630-115649`，readiness HTTP 200 / `{"status":"UP"}`。
+  - 直接访问 134 前端入口复演：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-audit-action-b4ec9f2d-direct134-rerun/report/results.json`，
+    Playwright `expected=1`、`unexpected=0`、`skipped=0`、`flaky=0`，耗时 `27778.771ms`。
+  - 运行记录：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-audit-action-b4ec9f2d-direct134-rerun/artifacts/stakeholder-view-rehearsal-b11d5-务视角均能通过四职责账号进入真实页面并看到对应业务能力-chromium/stakeholder-view-runtime-records.json`。
+    12 类视角均为 `browserErrors=0`、`serverErrors=0`、`networkFailures=0`；其中 `AUDITOR` 记录动作
+    `确认审计导出范围、生成导出文件并验签导出证据`，质控与院长仍记录质量下钻动作。
 
 ## 下一步
 
@@ -869,7 +916,7 @@
 2. 路由级角色视角已覆盖所有认证路由；后续继续转向真实前台逐角色操作演练与页面交互细节优化，
    重点看操作步数、默认筛选、追溯证据开关、权限提示、患者敏感信息屏蔽和高风险确认是否仍有不顺。
 3. 134 已完成字段目录修复部署、数据接入契约复核、真实前台基础路线复演、深度随访全链路复演和
-   `10104fbb` 直接入口复演；全角色真实操作已完成首批质量下钻动作和医生 CDSS 推荐评估动作验收；
+   `10104fbb` 直接入口复演；全角色真实操作已完成质量下钻、医生 CDSS 推荐评估和审计导出验签动作验收；
    下一阶段继续做逐页真实操作，不只看页面可进入，还要从医生、护士、患者/代理、药师、医技、质控、信息科、
    实施工程师、审计员、院长等视角提交真实表单、触发真实状态变化并修复流程和交互问题。
 4. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；

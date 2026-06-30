@@ -286,7 +286,8 @@ async function performAuditExportVerifyAction(page: Page, view: StakeholderView)
     completeResponse.ok(),
     `${view.label} 完成审计导出记录应返回成功 status=${completeResponse.status()} body=${completeText}`,
   ).toBe(true);
-  await expect(page.getByText("导出已完成")).toBeVisible({ timeout: 60_000 });
+  await expect(row).toContainText("已导出", { timeout: 60_000 });
+  await expect(row.getByRole("link", { name: "下载文件" })).toBeVisible({ timeout: 30_000 });
 
   await expect(row.getByRole("button", { name: `查看证据 ${confirmationId}` })).toBeVisible({
     timeout: 30_000,
