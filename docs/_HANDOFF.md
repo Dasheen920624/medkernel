@@ -148,6 +148,37 @@
   - 注意：本次仍为前端-only 发布，`/zoesoft/medkernel/manifest.properties` 仍记录后端 jar 的
     `source/commit=02b47944237fea5df89c519bf7613fb4b6c6f5ed`；后续接力不要把 jar manifest
     误解为前端 dist 来源。
+- `2026-06-30T11:12:51+08:00`，134 使用
+  `deploy/onprem/mk-publish.sh --frontend --source 10104fbb834c412863c66fc5a38c28e7047ea47f`
+  完成当前分支最新前端-only 制品更新：
+  - 前端来源：`10104fbb834c412863c66fc5a38c28e7047ea47f`
+    （包含患者 360 真实病种录入、E2E 双作用域账号契约与真实前台最终复演证据）。
+  - 部署前备份：`/zoesoft/medkernel/backups/deploy-20260630-111223`。
+  - 前端 dist：`/zoesoft/medkernel/frontend/dist`，部署替换 `273` 个文件。
+  - 关键前端制品：
+    `/zoesoft/medkernel/frontend/dist/assets/Mpi-CLRXDNN3.js`
+    sha256=`4607dfdb1b6ac0beae1b05a78c695c5172d921eeb2569d91b56190afa00b5497`；
+    `/zoesoft/medkernel/frontend/dist/assets/Followup-DqYukseh.js`
+    sha256=`a175074ba1490c90ee8d18356dca7649cbd6db2e400e2fb94874121e51da2a12`；
+    `/zoesoft/medkernel/frontend/dist/assets/index-C-_Zoztk.js`
+    sha256=`462b6a451931a3f26ae760ba56c0e13859d0b65ac7e9ed170ae9bcaf4d2e6b87`。
+  - readiness：HTTP 200，`{"status":"UP"}`，`systemctl is-active medkernel` 为 `active`。
+  - 注意：本次仍为前端-only 发布，`/zoesoft/medkernel/manifest.properties` 仍记录后端 jar 的
+    `source/commit=02b47944237fea5df89c519bf7613fb4b6c6f5ed`；后续接力不要把 jar manifest
+    误解为前端 dist 来源。
+- `2026-06-30T11:13:33+08:00`，部署后直接访问 134 前端入口完成真实前台深度复演：
+  - 命令入口：`E2E_EXTERNAL_DEPLOYMENT=1`，
+    `E2E_BASE_URL=https://193.112.107.134/medkernel`，
+    `E2E_API_BASE_URL=https://193.112.107.134/medkernel/api/v1`，
+    `E2E_IGNORE_HTTPS_ERRORS=1`。
+  - 报告：
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-10104fbb-direct134/report/results.json`。
+  - Playwright：`expected=1`、`unexpected=0`、`flaky=0`、`skipped=0`，耗时 `30976.758ms`。
+  - 运行记录：
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-10104fbb-direct134/artifacts/real-frontdesk-rehearsal-全-1ad6c-、外调策略、患者资源与临床随访数据均由前台页面提交产生-chromium/real-frontdesk-runtime-records.json`。
+  - 8 段全部由前台页面提交产生，覆盖系统接入适配器、知识值集草稿、模型外调安全策略、
+    脱敏患者主索引、随访模板创建、随访模板发布、当前就诊上下文快照、随访计划生成与问卷/异常回院登记；
+    每段 `browserErrors=0`、`serverErrors=0`、`networkFailures=0`。
 
 ## 134 证据
 
@@ -783,7 +814,8 @@
 1. 目标环境上线前补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
 2. 路由级角色视角已覆盖所有认证路由；后续继续转向真实前台逐角色操作演练与页面交互细节优化，
    重点看操作步数、默认筛选、追溯证据开关、权限提示、患者敏感信息屏蔽和高风险确认是否仍有不顺。
-3. 134 已完成字段目录修复部署、数据接入契约复核、真实前台基础路线复演、深度随访全链路复演和直接入口复演；
+3. 134 已完成字段目录修复部署、数据接入契约复核、真实前台基础路线复演、深度随访全链路复演和
+   `10104fbb` 直接入口复演；
    下一阶段继续做逐页真实操作，不只看页面可进入，还要从医生、护士、患者/代理、药师、医技、质控、信息科、
    实施工程师、审计员、院长等视角提交真实表单、触发真实状态变化并修复流程和交互问题。
 4. 每一批继续从真实前台操作发现页面分类、流程复杂度、语义误导、功能缺口和数据安全问题；
