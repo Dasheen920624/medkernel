@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Table,
   Button,
@@ -67,6 +67,7 @@ import { roleLabel } from "@/shared/config/roleCatalog";
 import { CLINICAL_TRIGGER_POINT_OPTIONS } from "@/shared/config/clinicalTriggerPoints";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
+import { useLocation, useNavigate } from "react-router-dom";
 import styles from "./Clinical.module.css";
 
 const { TextArea } = Input;
@@ -290,6 +291,24 @@ type RecommendationJourneyStep = {
 };
 type TriggerModalMode = "RECOMMENDATION" | "REPORT_INTERPRETATION";
 
+type ReportInterpretationRouteState = {
+  reportInterpretation?: {
+    snapshotId?: string;
+    patientLabel?: string;
+  };
+};
+
+function getReportInterpretationRouteState(state: unknown) {
+  if (!state || typeof state !== "object") return null;
+  const routeState = state as ReportInterpretationRouteState;
+  const request = routeState.reportInterpretation;
+  if (!request?.snapshotId) return null;
+  return {
+    snapshotId: request.snapshotId,
+    patientLabel: request.patientLabel ?? "",
+  };
+}
+
 function textOrDash(value?: string | null) {
   return value && value.trim() ? value : "暂无";
 }
@@ -399,6 +418,8 @@ function renderPatientContextCell(
 
 /** 计算输入载荷的真实 SHA-256 摘要（不伪造哈希）。 */
 export default function CdssFatigue() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [triggerModalVisible, setTriggerModalVisible] = useState<boolean>(false);
   const [triggerModalMode, setTriggerModalMode] = useState<TriggerModalMode>("RECOMMENDATION");
@@ -406,6 +427,7 @@ export default function CdssFatigue() {
   const [snapshotPatientId, setSnapshotPatientId] = useState("");
   const [snapshotEncounterId, setSnapshotEncounterId] = useState("");
   const [selectedSnapshotId, setSelectedSnapshotId] = useState("");
+  const [prefilledSnapshotLabel, setPrefilledSnapshotLabel] = useState("");
 
   // 分页与过滤状态
   const [page, setPage] = useState<number>(1);
@@ -503,6 +525,19 @@ export default function CdssFatigue() {
     (snapshot) => snapshot.snapshotId === selectedSnapshotId,
   );
 
+  useEffect(() => {
+    const reportInterpretation = getReportInterpretationRouteState(location.state);
+    if (!reportInterpretation) return;
+
+    setTriggerModalMode("REPORT_INTERPRETATION");
+    setSnapshotPatientId("");
+    setSnapshotEncounterId("");
+    setSelectedSnapshotId(reportInterpretation.snapshotId);
+    setPrefilledSnapshotLabel(reportInterpretation.patientLabel || "患者 360 当前患者");
+    setTriggerModalVisible(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
+
   // 突变动作
   const triggerCdssMutation = useEvaluateRecommendations();
   const reportInterpretationMutation = useInterpretDiagnosticReport();
@@ -525,20 +560,25 @@ export default function CdssFatigue() {
   // 已生效临床快照是评估上下文的唯一来源；生效内容由服务端按机构当前版本解析。
   const handleTriggerCdss = async () => {
     try {
-      if (!selectedSnapshot) {
+      if (!selectedSnapshotId) {
         message.error("请先选择已生效临床快照");
         return;
       }
 
       if (triggerModalMode === "REPORT_INTERPRETATION") {
         const res = await reportInterpretationMutation.mutateAsync({
-          contextSnapshotId: selectedSnapshot.snapshotId,
+          contextSnapshotId: selectedSnapshotId,
         });
         message.success(
           `报告解读已生成：${res.interpretations.length} 项；相关提示已进入临床提示卡。`,
         );
         closeTriggerModal();
         refetchCards();
+        return;
+      }
+
+      if (!selectedSnapshot) {
+        message.error("请先选择已生效临床快照");
         return;
       }
 
@@ -580,6 +620,7 @@ export default function CdssFatigue() {
     setSnapshotPatientId("");
     setSnapshotEncounterId("");
     setSelectedSnapshotId("");
+    setPrefilledSnapshotLabel("");
     triggerForm.resetFields();
   };
 
@@ -981,6 +1022,7 @@ export default function CdssFatigue() {
                   onChange={(event) => {
                     setSnapshotPatientId(event.target.value);
                     setSelectedSnapshotId("");
+                    setPrefilledSnapshotLabel("");
                   }}
                 />
               </Form.Item>
@@ -994,6 +1036,7 @@ export default function CdssFatigue() {
                   onChange={(event) => {
                     setSnapshotEncounterId(event.target.value);
                     setSelectedSnapshotId("");
+                    setPrefilledSnapshotLabel("");
                   }}
                 />
               </Form.Item>
@@ -1009,15 +1052,25 @@ export default function CdssFatigue() {
               />
             </Form.Item>
           )}
-          <ContextSnapshotSelector
-            enabled={hasSnapshotFilter}
-            loading={snapshotsQuery.isLoading}
-            error={snapshotsQuery.isError}
-            snapshots={snapshotsQuery.data?.items ?? []}
-            selectedSnapshotId={selectedSnapshotId}
-            onSelect={setSelectedSnapshotId}
-            evidenceDetailsEnabled={evidenceDetailsEnabled}
-          />
+          {prefilledSnapshotLabel && selectedSnapshotId ? (
+            <Alert
+              message="已从患者 360 带入当前上下文"
+              description={`${prefilledSnapshotLabel} 的已生效临床快照已选定；如需更换患者或就诊，请在上方重新检索。`}
+              type="success"
+              showIcon
+              className={styles.sectionGap}
+            />
+          ) : (
+            <ContextSnapshotSelector
+              enabled={hasSnapshotFilter}
+              loading={snapshotsQuery.isLoading}
+              error={snapshotsQuery.isError}
+              snapshots={snapshotsQuery.data?.items ?? []}
+              selectedSnapshotId={selectedSnapshotId}
+              onSelect={setSelectedSnapshotId}
+              evidenceDetailsEnabled={evidenceDetailsEnabled}
+            />
+          )}
           {snapshotDetailQuery.data && (
             <Descriptions bordered size="small" column={3} className={styles.sectionGap}>
               <Descriptions.Item label="机构生效版本">

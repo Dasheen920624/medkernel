@@ -29,7 +29,9 @@ import {
   UserAddOutlined,
   BranchesOutlined,
   FileDoneOutlined,
+  ReadOutlined,
 } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
 import {
   useCreateContextSnapshot,
   useCreateMpiPatient,
@@ -103,6 +105,10 @@ function snapshotEncounterId(
   return "暂无";
 }
 
+function getPatientDetailSnapshot(detail: MpiPatientDetailResponse) {
+  return detail.latestContextSnapshot ?? detail.contextSnapshot ?? null;
+}
+
 function genderLabel(gender?: string) {
   if (gender === "M") return "男";
   if (gender === "F") return "女";
@@ -122,7 +128,7 @@ function renderPatient360Detail(
   evidenceDetailsEnabled: boolean,
   contextAction?: ReactNode,
 ) {
-  const snapshot = detail.latestContextSnapshot ?? detail.contextSnapshot ?? null;
+  const snapshot = getPatientDetailSnapshot(detail);
   const patient = detail.patient;
 
   return (
@@ -209,6 +215,7 @@ function renderPatient360Detail(
 
 export default function Mpi() {
   const { message: messageApi } = AntdApp.useApp();
+  const navigate = useNavigate();
   const [keyword, setKeyword] = useState("");
   const [status, setStatus] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
@@ -219,6 +226,7 @@ export default function Mpi() {
   const canCreatePatient = hasPermission(security.data, "mpi.create");
   const canManageMpiIdentity = hasPermission(security.data, "mpi.write");
   const canCreateContextSnapshot = hasPermission(security.data, "context.write");
+  const canReadCdss = hasPermission(security.data, "cdss.read");
 
   // 查询参数缓存，以便在点击查询时才触发真正的 API 过滤
   const [filterKeyword, setFilterKeyword] = useState("");
@@ -337,6 +345,26 @@ export default function Mpi() {
       setIsContextModalVisible(true);
     },
     [contextSnapshotForm],
+  );
+
+  const openReportInterpretation = useCallback(
+    (detail: MpiPatientDetailResponse) => {
+      const snapshot = getPatientDetailSnapshot(detail);
+      if (!snapshot) {
+        messageApi.warning("请先建立当前就诊上下文，再生成报告解读");
+        return;
+      }
+
+      navigate("/cdss/fatigue", {
+        state: {
+          reportInterpretation: {
+            snapshotId: snapshot.snapshotId,
+            patientLabel: detail.patient.maskedName,
+          },
+        },
+      });
+    },
+    [messageApi, navigate],
   );
 
   const handleCreateSubmit = async () => {
@@ -623,9 +651,10 @@ export default function Mpi() {
     );
   } else if (patientDetail) {
     const patient = patientDetail.patient;
-    const hasSnapshot = !!(patientDetail.latestContextSnapshot ?? patientDetail.contextSnapshot);
-    const contextAction =
-      canCreateContextSnapshot && patient.status === "ACTIVE" && !hasSnapshot ? (
+    const hasSnapshot = !!getPatientDetailSnapshot(patientDetail);
+    let contextAction: ReactNode = null;
+    if (canCreateContextSnapshot && patient.status === "ACTIVE" && !hasSnapshot) {
+      contextAction = (
         <Alert
           message="暂无已生效上下文"
           description="建立当前就诊上下文后，随访、路径和 CDSS 将统一使用该患者的标准临床快照。"
@@ -641,7 +670,26 @@ export default function Mpi() {
             </Button>
           }
         />
-      ) : null;
+      );
+    } else if (canReadCdss && patient.status === "ACTIVE" && hasSnapshot) {
+      contextAction = (
+        <Alert
+          message="已关联当前就诊上下文"
+          description="可直接带入该患者当前临床快照生成医技报告解读；报告解读仅辅助阅读，不改写已签发报告。"
+          type="success"
+          showIcon
+          action={
+            <Button
+              aria-label="生成报告解读"
+              icon={<ReadOutlined />}
+              onClick={() => openReportInterpretation(patientDetail)}
+            >
+              生成报告解读
+            </Button>
+          }
+        />
+      );
+    }
     detailDrawerContent = renderPatient360Detail(
       patientDetail,
       evidenceDetailsEnabled,

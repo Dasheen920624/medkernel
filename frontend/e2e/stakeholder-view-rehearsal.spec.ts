@@ -554,24 +554,24 @@ async function registerModelProviderForStakeholderAction(page: Page, view: Stake
 
 async function performReportInterpretationAction(page: Page, view: StakeholderView) {
   const snapshot = await createContextSnapshotForReportInterpretation(page, view);
-  await page.goto(appPath("/cdss/fatigue"), { waitUntil: "domcontentloaded" });
-  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("button", { name: "生成报告解读" })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.getByRole("button", { name: "生成报告解读" }).click();
+
   await expect(
     page.locator("main").getByRole("heading", { name: "提醒与推荐" }).first(),
     `${view.label} 应能进入提醒与推荐页生成医技报告解读`,
   ).toBeVisible({ timeout: 30_000 });
-
-  await page.getByRole("button", { name: "生成报告解读" }).click();
   const dialog = page.getByRole("dialog", { name: "生成医技报告解读" });
   await expect(dialog).toBeVisible({ timeout: 10_000 });
-  await dialog.getByLabel("患者信息").fill(snapshot.patientId);
-  if (snapshot.encounterId) {
-    await dialog.getByLabel("就诊信息").fill(snapshot.encounterId);
-  }
-  await expect(dialog.getByRole("button", { name: "选择第 1 个临床快照" })).toBeVisible({
-    timeout: 30_000,
+  await expect(dialog.getByText("已从患者 360 带入当前上下文")).toBeVisible({
+    timeout: 10_000,
   });
-  await dialog.getByRole("button", { name: "选择第 1 个临床快照" }).click();
+  await expect(dialog.getByDisplayValue(snapshot.patientId)).toHaveCount(0);
+  if (snapshot.encounterId) {
+    await expect(dialog.getByDisplayValue(snapshot.encounterId)).toHaveCount(0);
+  }
 
   const interpretResponsePromise = waitForPost(
     page,
@@ -590,7 +590,7 @@ async function performReportInterpretationAction(page: Page, view: StakeholderVi
     `${view.label} 医技报告解读响应应返回 interpretations 数组`,
   ).toBe(true);
   await expect(dialog).toBeHidden({ timeout: 20_000 });
-  return ["前台建立医技报告上下文并生成报告解读"];
+  return ["从患者360带入当前上下文并生成医技报告解读"];
 }
 
 async function performFollowupPlanAction(

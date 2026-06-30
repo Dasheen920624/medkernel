@@ -17,6 +17,12 @@ import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 import Mpi from "./Mpi";
 
+const navigateMock = vi.hoisted(() => vi.fn());
+
+vi.mock("react-router-dom", () => ({
+  useNavigate: () => navigateMock,
+}));
+
 vi.mock("@/shared/api/hooks", () => ({
   useCreateContextSnapshot: vi.fn(),
   useCreateMpiPatient: vi.fn(),
@@ -50,7 +56,14 @@ function renderMpi() {
 }
 
 function securityProfile(
-  permissionCodes = ["mpi.read", "mpi.create", "mpi.write", "context.write", "system.debug"],
+  permissionCodes = [
+    "mpi.read",
+    "mpi.create",
+    "mpi.write",
+    "context.write",
+    "cdss.read",
+    "system.debug",
+  ],
 ) {
   return {
     data: {
@@ -80,6 +93,7 @@ describe("Mpi", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    navigateMock.mockClear();
     useEvidenceDetailsStore.setState({ enabled: false });
     mockUseSecurityProfile.mockReturnValue(securityProfile());
     mockUseMpiPatients.mockReturnValue({
@@ -260,6 +274,30 @@ describe("Mpi", () => {
       expect(screen.queryByText("snapshot-real-1")).not.toBeInTheDocument();
       expect(screen.queryByText("pathway-acute-1")).not.toBeInTheDocument();
       expect(screen.queryByText(/trace-p360-1/)).not.toBeInTheDocument();
+    },
+    MPI_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "opens report interpretation from patient 360 current context without exposing identifiers in the page",
+    async () => {
+      const user = userEvent.setup();
+      renderMpi();
+
+      await user.click(screen.getAllByRole("button", { name: /患者360/ })[0]);
+      expect(await screen.findByText("患者身份与就诊上下文已关联")).toBeInTheDocument();
+      expect(screen.queryByText("snapshot-real-1")).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "生成报告解读" }));
+
+      expect(navigateMock).toHaveBeenCalledWith("/cdss/fatigue", {
+        state: {
+          reportInterpretation: {
+            snapshotId: "snapshot-real-1",
+            patientLabel: "张*三",
+          },
+        },
+      });
     },
     MPI_INTERACTION_TIMEOUT_MS,
   );

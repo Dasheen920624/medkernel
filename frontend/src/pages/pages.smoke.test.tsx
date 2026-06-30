@@ -357,13 +357,27 @@ describe("page smoke coverage", () => {
   });
 
   it("renders the clinical mpi console", () => {
-    renderPage(<Mpi />);
+    renderPage(
+      <MemoryRouter
+        initialEntries={["/mpi"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Mpi />
+      </MemoryRouter>,
+    );
     expect(screen.getByRole("heading", { name: "患者索引" })).toBeInTheDocument();
     expect(screen.getByText(/活跃患者主索引/)).toBeInTheDocument();
   });
 
   it("renders the clinical reminder and recommendation page", () => {
-    renderPage(<CdssFatigue />);
+    renderPage(
+      <MemoryRouter
+        initialEntries={["/cdss/fatigue"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <CdssFatigue />
+      </MemoryRouter>,
+    );
     expect(screen.getByRole("heading", { name: "提醒与推荐" })).toBeInTheDocument();
     expect(screen.getByText("全部状态")).toBeInTheDocument();
   });

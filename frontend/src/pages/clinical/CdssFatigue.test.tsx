@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -23,6 +23,19 @@ import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import CdssFatigue from "./CdssFatigue";
 
 const CDSS_INTERACTION_TIMEOUT_MS = 15_000;
+const navigateMock = vi.hoisted(() => vi.fn());
+const locationStateMock = vi.hoisted(() => ({ current: null as unknown }));
+
+vi.mock("react-router-dom", () => ({
+  useLocation: () => ({
+    pathname: "/cdss/fatigue",
+    search: "",
+    hash: "",
+    key: "test",
+    state: locationStateMock.current,
+  }),
+  useNavigate: () => navigateMock,
+}));
 
 vi.mock("@/shared/api/hooks", () => ({
   useClinicalRecommendationCards: vi.fn(),
@@ -76,6 +89,8 @@ describe("CdssFatigue", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    navigateMock.mockClear();
+    locationStateMock.current = null;
     useEvidenceDetailsStore.setState({ enabled: false });
     mockUseSecurityProfile.mockReturnValue({
       data: {
@@ -486,6 +501,43 @@ describe("CdssFatigue", () => {
       await user.click(screen.getByRole("button", { name: "选择第 1 个临床快照" }));
       const confirmButtons = screen.getAllByRole("button", { name: "生成报告解读" });
       await user.click(confirmButtons[confirmButtons.length - 1]);
+
+      await waitFor(() =>
+        expect(interpretDiagnosticReport).toHaveBeenCalledWith({
+          contextSnapshotId: "snapshot-rec-1",
+        }),
+      );
+      expect(evaluateRecommendations).not.toHaveBeenCalled();
+    },
+    CDSS_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
+    "generates report interpretation from patient 360 route state without asking the operator to re-search identifiers",
+    async () => {
+      locationStateMock.current = {
+        reportInterpretation: {
+          snapshotId: "snapshot-rec-1",
+          patientLabel: "张*三",
+        },
+      };
+      const user = userEvent.setup();
+      renderCdssFatigue();
+
+      const dialog = await screen.findByRole("dialog", { name: "生成医技报告解读" });
+      expect(screen.getByLabelText("患者信息")).toHaveValue("");
+      expect(screen.getByLabelText("就诊信息")).toHaveValue("");
+      expect(screen.queryByDisplayValue("patient-real-1")).not.toBeInTheDocument();
+      expect(screen.queryByDisplayValue("enc-real-1")).not.toBeInTheDocument();
+      expect(screen.getByText("已从患者 360 带入当前上下文")).toBeInTheDocument();
+      expect(screen.getByText(/张\*三/)).toBeInTheDocument();
+      expect(screen.queryByLabelText("触发时点")).not.toBeInTheDocument();
+      expect(navigateMock).toHaveBeenCalledWith("/cdss/fatigue", {
+        replace: true,
+        state: null,
+      });
+
+      await user.click(within(dialog).getByRole("button", { name: "生成报告解读" }));
 
       await waitFor(() =>
         expect(interpretDiagnosticReport).toHaveBeenCalledWith({
