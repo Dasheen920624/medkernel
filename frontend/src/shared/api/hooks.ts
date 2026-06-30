@@ -6666,6 +6666,7 @@ export interface ContextSnapshotCreatePayload {
   diseaseCode: string;
   diseaseName: string;
   riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  currentMedicationText?: string;
   reason: string;
   idempotencyKey: string;
 }
@@ -6674,6 +6675,56 @@ function estimatedBirthDateFromAge(age: number) {
   const currentYear = new Date().getFullYear();
   const birthYear = Math.max(1900, currentYear - Math.max(0, Math.floor(age)));
   return `${birthYear}-01-01`;
+}
+
+const frontdeskMedicationAliases: Record<string, { code: string; displayName: string }> = {
+  B01AA03: { code: "B01AA03", displayName: "华法林" },
+  WARFARIN: { code: "B01AA03", displayName: "华法林" },
+  华法林: { code: "B01AA03", displayName: "华法林" },
+  华法林钠: { code: "B01AA03", displayName: "华法林" },
+  B01AC06: { code: "B01AC06", displayName: "阿司匹林" },
+  ASPIRIN: { code: "B01AC06", displayName: "阿司匹林" },
+  阿司匹林: { code: "B01AC06", displayName: "阿司匹林" },
+  阿司匹林肠溶片: { code: "B01AC06", displayName: "阿司匹林" },
+};
+
+function normalizeFrontdeskMedicationToken(token: string) {
+  const cleaned = token.trim().replace(/\s+/g, " ");
+  if (!cleaned) return null;
+  const alias =
+    frontdeskMedicationAliases[cleaned] ?? frontdeskMedicationAliases[cleaned.toUpperCase()];
+  return alias ?? { code: cleaned, displayName: cleaned };
+}
+
+function buildFrontdeskMedicationResources(
+  medicationText: string | undefined,
+  patientId: string,
+  now: string,
+) {
+  const uniqueMedications = new Map<string, { code: string; displayName: string }>();
+  for (const token of medicationText?.split(/[,\n;，、；]/u) ?? []) {
+    const medication = normalizeFrontdeskMedicationToken(token);
+    if (medication && !uniqueMedications.has(medication.code)) {
+      uniqueMedications.set(medication.code, medication);
+    }
+  }
+  return Array.from(uniqueMedications.values()).map((medication) => ({
+    medicationId: `med-${crypto.randomUUID()}`,
+    code: medication.code,
+    displayName: medication.displayName,
+    dose: null,
+    doseUnit: null,
+    route: null,
+    frequency: null,
+    durationDays: null,
+    prescriptionStatus: "ACTIVE",
+    sourceSystem: "MEDKERNEL_FRONTDESK",
+    sourceRecordId: `${patientId}:${medication.code}`,
+    mappedVersion: "FRONTDESK_CONTEXT_V1",
+    eventTime: now,
+    receivedTime: now,
+    qualityStatus: "VALID",
+  }));
 }
 
 function frontdeskSnapshotRequest(
@@ -6686,6 +6737,11 @@ function frontdeskSnapshotRequest(
     throw new Error("缺少当前组织范围，无法建立临床上下文。");
   }
   const encounterId = `enc-${crypto.randomUUID()}`;
+  const medications = buildFrontdeskMedicationResources(
+    payload.currentMedicationText,
+    payload.patient.mpiId,
+    now,
+  );
   const request = withStandardApiContext(
     {
       patientId: payload.patient.mpiId,
@@ -6742,7 +6798,7 @@ function frontdeskSnapshotRequest(
         nursingAssessments: [],
         observations: [],
         diagnosticReports: [],
-        medications: [],
+        medications,
         procedures: [],
         documents: [],
         carePlans: [],
@@ -6754,6 +6810,7 @@ function frontdeskSnapshotRequest(
               source: "MPI_PATIENT_360",
               reason: payload.reason,
               riskLevel: payload.riskLevel,
+              currentMedicationCount: medications.length,
             },
           },
         },

@@ -423,6 +423,8 @@ describe("Mpi", () => {
       const diseaseInput = screen.getByLabelText("诊断/随访病种");
       await user.clear(diseaseInput);
       await user.type(diseaseInput, "真实前台慢病随访主题");
+      const medicationInput = screen.getByLabelText("当前用药");
+      await user.type(medicationInput, "华法林、阿司匹林");
       const reasonInput = screen.getByLabelText("建立原因");
       await user.clear(reasonInput);
       await user.type(reasonInput, "真实前台演练：随访计划生成前由医生确认当前就诊上下文。");
@@ -440,6 +442,7 @@ describe("Mpi", () => {
           diseaseCode: "真实前台慢病随访主题",
           diseaseName: "真实前台慢病随访主题",
           riskLevel: "MEDIUM",
+          currentMedicationText: "华法林、阿司匹林",
           reason: "真实前台演练：随访计划生成前由医生确认当前就诊上下文。",
           idempotencyKey: expect.any(String),
         });

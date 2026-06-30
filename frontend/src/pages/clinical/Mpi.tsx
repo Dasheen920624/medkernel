@@ -85,6 +85,7 @@ type ContextSnapshotFormValues = {
   encounterType: FrontdeskEncounterType;
   diseaseCode: string;
   riskLevel: ContextSnapshotCreatePayload["riskLevel"];
+  currentMedicationText?: string;
   reason: string;
 };
 
@@ -369,12 +370,14 @@ export default function Mpi() {
     try {
       const values = await contextSnapshotForm.validateFields();
       const diseaseText = values.diseaseCode.trim();
+      const currentMedicationText = values.currentMedicationText?.trim();
       await createContextSnapshotMutation.mutateAsync({
         patient: contextSnapshotPatient,
         encounterType: values.encounterType,
         diseaseCode: diseaseText,
         diseaseName: diseaseText,
         riskLevel: values.riskLevel,
+        ...(currentMedicationText ? { currentMedicationText } : {}),
         reason: values.reason.trim(),
         idempotencyKey: contextSnapshotIdempotencyKey,
       });
@@ -922,8 +925,8 @@ export default function Mpi() {
           destroyOnClose
         >
           <Alert
-            message="仅写入脱敏患者标识、当前就诊、诊断与风险分层"
-            description="本操作用于生成随访、路径和 CDSS 共用的标准上下文，不会自动开嘱，也不会写入患者姓名、证件号、电话或住址。"
+            message="仅写入脱敏患者标识、当前就诊、诊断、风险分层与必要用药事实"
+            description="本操作用于生成随访、路径、CDSS 和药师复核共用的标准上下文，不会自动开嘱，也不会写入患者姓名、证件号、电话或住址。"
             type="info"
             showIcon
             className={styles.modalFormItem}
@@ -949,6 +952,13 @@ export default function Mpi() {
               rules={[{ required: true, message: "请选择风险分层" }]}
             >
               <Select aria-label="风险分层" options={contextRiskLevelOptions} />
+            </Form.Item>
+            <Form.Item name="currentMedicationText" label="当前用药">
+              <Input.TextArea
+                aria-label="当前用药"
+                placeholder="可选，多个药品用顿号或逗号分隔，例如：华法林、阿司匹林"
+                rows={2}
+              />
             </Form.Item>
             <Form.Item
               name="reason"

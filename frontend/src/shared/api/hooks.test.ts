@@ -120,6 +120,7 @@ import {
   useCandidateCoexistence,
   useLargeAuditEvents,
   useLocalTerms,
+  useCreateContextSnapshot,
   useCreateMpiPatient,
   useMergeMpiPatients,
   useMpiPatientDetail,
@@ -2951,6 +2952,69 @@ describe("mpi api helpers", () => {
       "/engine/mpi/patients/mpi-source%2F1:split",
       { reviewReason: "误合并复核" },
       { headers: { "Idempotency-Key": "mpi-split-1" } },
+    );
+  });
+
+  it("converts frontdesk current medications into canonical context resources", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        data: {
+          snapshotId: "ctx-med-1",
+          status: "ACTIVE",
+          runtimeReleaseId: "runtime-release-1",
+          qualityStatus: "VALID",
+          missingFields: [],
+          mappingStatus: {},
+        },
+      },
+    });
+
+    const createHook = renderApiHook(() => useCreateContextSnapshot(securityProfile()));
+
+    await act(async () => {
+      await createHook.result.current.mutateAsync({
+        patient: {
+          mpiId: "mpi-real-1",
+          maskedName: "张*三",
+          gender: "M",
+          age: 67,
+        },
+        encounterType: "OUTPATIENT",
+        diseaseCode: "I48",
+        diseaseName: "房颤随访",
+        riskLevel: "HIGH",
+        currentMedicationText: "华法林、阿司匹林、华法林",
+        reason: "药师联合用药复核",
+        idempotencyKey: "context-snapshot-med-1",
+      });
+    });
+
+    const requestBody = vi.mocked(apiClient.post).mock.calls[0]?.[1] as {
+      resources?: {
+        medications?: Array<{ code?: string; displayName?: string; prescriptionStatus?: string }>;
+        extensions?: { local?: { frontdeskContext?: { currentMedicationCount?: number } } };
+      };
+    };
+    expect(apiClient.post).toHaveBeenCalledWith("/engine/context/snapshots", expect.any(Object), {
+      headers: { "Idempotency-Key": "context-snapshot-med-1" },
+    });
+    expect(requestBody.resources?.medications).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "B01AA03",
+          displayName: "华法林",
+          prescriptionStatus: "ACTIVE",
+        }),
+        expect.objectContaining({
+          code: "B01AC06",
+          displayName: "阿司匹林",
+          prescriptionStatus: "ACTIVE",
+        }),
+      ]),
+    );
+    expect(requestBody.resources?.medications).toHaveLength(2);
+    expect(requestBody.resources?.extensions?.local?.frontdeskContext?.currentMedicationCount).toBe(
+      2,
     );
   });
 });

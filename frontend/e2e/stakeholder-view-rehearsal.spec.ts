@@ -604,18 +604,8 @@ async function performPharmacistReviewAction(page: Page, view: StakeholderView) 
     page.locator("main").getByRole("heading", { name: "提醒与推荐" }).first(),
     `${view.label} 应能在提醒与推荐页登记药师复核`,
   ).toBeVisible({ timeout: 30_000 });
-  if (cardId) {
-    await page.getByLabel("患者或证据线索").fill(cardId);
-  } else {
-    const cardsResponsePromise = waitForGet(page, "/engine/recommendations/clinical-cards");
-    await choosePageOption(page, "状态", "待处理");
-    const cardsResponse = await cardsResponsePromise;
-    const cardsText = await cardsResponse.text();
-    expect(
-      cardsResponse.ok(),
-      `${view.label} 筛选待处理推荐卡应返回成功 status=${cardsResponse.status()} body=${cardsText}`,
-    ).toBe(true);
-  }
+  expect(cardId, `${view.label} 药师复核应由当前前台用药上下文生成推荐卡`).toBeTruthy();
+  await page.getByLabel("患者或证据线索").fill(cardId ?? "");
   await expect(page.getByRole("button", { name: "查看与人机反馈" }).first()).toBeVisible({
     timeout: 30_000,
   });
@@ -642,6 +632,7 @@ async function createRecommendationCardForStakeholderAction(page: Page, view: St
   const snapshot = await createContextSnapshotForStakeholderAction(page, view, {
     namePrefix: "药",
     diagnosis: "真实前台药师联合用药复核主题",
+    currentMedicationText: "华法林、阿司匹林",
     reason: "全角色真实演练：为药师联合用药复核建立当前就诊上下文，不写入患者明文身份。",
   });
   await page.goto(appPath("/cdss/fatigue"), { waitUntil: "domcontentloaded" });
@@ -692,7 +683,7 @@ async function createContextSnapshotForReportInterpretation(page: Page, view: St
 async function createContextSnapshotForStakeholderAction(
   page: Page,
   view: StakeholderView,
-  options: { namePrefix: string; diagnosis: string; reason: string },
+  options: { namePrefix: string; diagnosis: string; currentMedicationText?: string; reason: string },
 ) {
   await ensureReadySession(page, "clinical-user");
   await page.goto(appPath("/mpi"), { waitUntil: "domcontentloaded" });
@@ -745,6 +736,9 @@ async function createContextSnapshotForStakeholderAction(
   await chooseDialogOption(page, contextDialog, "就诊类型", "门诊复诊");
   await contextDialog.getByLabel("诊断/随访病种").fill(options.diagnosis);
   await chooseDialogOption(page, contextDialog, "风险分层", "中风险");
+  if (options.currentMedicationText) {
+    await contextDialog.getByLabel("当前用药").fill(options.currentMedicationText);
+  }
   await contextDialog.getByLabel("建立原因").fill(options.reason);
 
   const contextResponsePromise = waitForPost(page, "/engine/context/snapshots");
@@ -852,23 +846,6 @@ function waitForPost(page: Page, path: string) {
 
 async function chooseDialogOption(page: Page, dialog: Locator, label: string, optionText: string) {
   const combobox = dialog.getByRole("combobox", { name: new RegExp(escapeRegExp(label)) }).first();
-  const select = combobox.locator(
-    "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
-  );
-  const selectedText = await currentSelectText(select);
-  if (selectedText === optionText) {
-    return;
-  }
-  await select.locator(".ant-select-selector").click();
-  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
-  await expect(dropdown).toBeVisible({ timeout: 5_000 });
-  const optionLocator = dropdown.getByText(optionText, { exact: true }).last();
-  await expect(optionLocator).toBeVisible({ timeout: 20_000 });
-  await optionLocator.click();
-}
-
-async function choosePageOption(page: Page, label: string, optionText: string) {
-  const combobox = page.getByRole("combobox", { name: new RegExp(escapeRegExp(label)) }).first();
   const select = combobox.locator(
     "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
   );
