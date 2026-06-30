@@ -2999,6 +2999,8 @@ describe("mpi api helpers", () => {
           reportType?: string;
           conclusion?: string;
           keyFindings?: string[];
+          signedBy?: string | null;
+          interpreterId?: string | null;
           qualityStatus?: string;
         }>;
         extensions?: {
@@ -3034,9 +3036,11 @@ describe("mpi api helpers", () => {
         reportType: "血钾检验",
         conclusion: "血钾 6.3 mmol/L，危急值，已复核",
         keyFindings: ["血钾升高", "危急值"],
+        signedBy: "user-1",
         qualityStatus: "VALID",
       }),
     ]);
+    expect(requestBody.resources?.diagnosticReports?.[0]).not.toHaveProperty("interpreterId");
     expect(requestBody.resources?.extensions?.local?.frontdeskContext?.currentMedicationCount).toBe(
       2,
     );

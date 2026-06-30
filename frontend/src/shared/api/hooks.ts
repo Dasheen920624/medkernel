@@ -6751,7 +6751,7 @@ function buildFrontdeskDiagnosticReportResources(
       reportType,
       conclusion,
       keyFindings: splitFrontdeskKeyFindings(payload.diagnosticReportKeyFindingsText),
-      interpreterId: profile?.userId ?? null,
+      signedBy: profile?.userId ?? null,
       signedAt: now,
       sourceSystem: "MEDKERNEL_FRONTDESK",
       sourceRecordId: reportId,

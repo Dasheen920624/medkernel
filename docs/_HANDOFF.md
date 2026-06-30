@@ -24,12 +24,12 @@
   （`fix: 补齐推荐详情抽屉可访问名称`）和
   `21caf969bcec81a849a7ccc12c03d5afcab2e62d`
   （`fix: 统一推荐运行包触发契约`）。
-- 134 当前后端 jar / manifest 仍为
-  `b06a0e1a86c2d2147da2529103e9f42976c298eb`；`2026-06-30T20:08:01+08:00`
-  已做前端-only 发布，前端 dist 来源为
-  `5a2d502f37daef6c6bb0853690723752c19f0924`。本阶段代码尚未部署 134；后续应做一次后端+前端完整发布，
-  再跑全角色真实前台演练。后续接力不要把 jar manifest 误解为最新前端来源；
-  旧 `b4ec9f2d`、`3f5ec881`、`e8f50553` 只作为历史阶段证据，不再代表当前 134 运行版本。
+- 134 当前后端 jar / manifest 为 `c68e127f608dd1b8fc7dc64181727fa477610ab6`；
+  `2026-06-30T20:36:08+08:00` 已做后端+前端完整发布，jar sha256
+  `45cad4da8069f5643b133ea9d1c5a730ea5c481783929868ce2f6c941e1660e4`，备份
+  `/zoesoft/medkernel/backups/deploy-20260630-203606`。该部署后首轮 E2E 暴露前端报告资源仍带非标准
+  `interpreterId` 字段，后端拒绝未知字段并返回 400；本文件所在热修提交改为标准 `signedBy`，尚需重新发布 134
+  并复演。旧 `b4ec9f2d`、`3f5ec881`、`e8f50553` 只作为历史阶段证据，不再代表当前 134 运行版本。
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
@@ -73,7 +73,18 @@
     后端结束后单独复跑完整 `npm --prefix frontend run verify` 通过，`113` 个测试文件 / `897` 个测试 0 失败，
     覆盖 lint、stylelint、T-GATE lint、Prettier、typecheck、Vitest。
   - `git diff --check` 通过。
-- 下一步继续主线：本阶段只做本地提交，尚未发布 134。下一阶段应使用本阶段本地提交做后端+前端完整发布，
+- 134 首轮发布与真实复演补充：
+  - 完整发布 `c68e127f608dd1b8fc7dc64181727fa477610ab6` 成功，readiness HTTP 200，manifest
+    `source/commit=c68e127f608dd1b8fc7dc64181727fa477610ab6`。
+  - 部署后全角色复演失败在医技链路建立当前就诊上下文：`POST /engine/context/snapshots` 返回 400，
+    `traceId=696eac14-0856-42aa-9589-fa2c904d51a5`，原因是前端新增诊断报告资源使用了非标准字段
+    `interpreterId`，后端标准 DTO 只接受 `signedBy`。
+  - 热修 TDD：先将 `frontend/src/shared/api/hooks.test.ts` 断言改为必须输出 `signedBy` 且不得出现
+    `interpreterId`，`npm --prefix frontend test -- hooks.test.ts -t frontdesk` 红灯；随后
+    `frontend/src/shared/api/hooks.ts` 改为 `signedBy: profile.userId`，定向测试转绿。
+  - 热修验证：`npm --prefix frontend test -- Mpi.test.tsx -t "creates a current clinical context snapshot"` 通过；
+    `npm --prefix frontend run verify` 通过，`113` 个测试文件 / `897` 个测试 0 失败；`git diff --check` 通过。
+- 下一步继续主线：热修提交后应使用最新本地 HEAD 重新做 134 后端+前端完整发布，
   再跑 134 全角色真实前台演练，重点复核“创建患者/当前上下文/医技报告解读/协同任务待办/打开报告上下文”闭环；
   之后继续全视角真实产品体验优化，覆盖模型双模式敏感信息、患者/医生/护士/医技/药师/质控/院长/信息科/实施/审计等角色。
 
