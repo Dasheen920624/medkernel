@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   useConfirmExport,
+  useCompleteConfirmedExportJob,
   useExportConfirmations,
   useLargeAuditEvents,
   useLargeListExportJob,
@@ -20,6 +21,7 @@ import { buildAuditEventQuery } from "./auditQuery";
 
 vi.mock("@/shared/api/hooks", () => ({
   useConfirmExport: vi.fn(),
+  useCompleteConfirmedExportJob: vi.fn(),
   useExportConfirmations: vi.fn(),
   useLargeAuditEvents: vi.fn(),
   useLargeListExportJob: vi.fn(),
@@ -119,6 +121,7 @@ describe("AdminAudit", () => {
   const confirmExport = vi.fn();
   const submitExport = vi.fn();
   const pollExport = vi.fn();
+  const completeConfirmedExport = vi.fn();
   const verifyEvidence = vi.fn();
   const traceDiagnosis = {
     traceId: "trace-7",
@@ -162,6 +165,13 @@ describe("AdminAudit", () => {
       downloadUrl: "/download/job-audit-1",
     });
     pollExport.mockResolvedValue(undefined);
+    completeConfirmedExport.mockResolvedValue({
+      ...confirmations[0],
+      status: "EXPORTED",
+      exportEvidenceId: "evd-audit-confirmed-file",
+      exportDigest: "sha256:confirmed-file",
+      version: 2,
+    });
     verifyEvidence.mockResolvedValue({
       evidenceId: "evd-audit-exported-file",
       isValid: true,
@@ -211,6 +221,10 @@ describe("AdminAudit", () => {
     } as never);
     vi.mocked(useLargeListExportJob).mockReturnValue({ mutateAsync: pollExport } as never);
     vi.mocked(useSubmitLargeListExport).mockReturnValue({ mutateAsync: submitExport } as never);
+    vi.mocked(useCompleteConfirmedExportJob).mockReturnValue({
+      mutateAsync: completeConfirmedExport,
+      isPending: false,
+    } as never);
     vi.mocked(useVerifyEvidence).mockReturnValue({
       mutateAsync: verifyEvidence,
       isPending: false,
@@ -446,6 +460,24 @@ describe("AdminAudit", () => {
           }),
         }),
       ),
+    );
+  });
+
+  it("marks a confirmed audit export as completed after the file job succeeds", async () => {
+    const user = userEvent.setup();
+    render(<AdminAudit />);
+
+    await user.click(screen.getByRole("tab", { name: "导出记录" }));
+    await user.click(screen.getByRole("button", { name: "生成导出文件 exp-audit-confirmed" }));
+    await user.click(screen.getByRole("button", { name: "确认生成导出文件" }));
+
+    await waitFor(() =>
+      expect(completeConfirmedExport).toHaveBeenCalledWith({
+        confirmationId: "exp-audit-confirmed",
+        jobId: "job-audit-1",
+        reason: "复核失败事件",
+        expectedVersion: 1,
+      }),
     );
   });
 

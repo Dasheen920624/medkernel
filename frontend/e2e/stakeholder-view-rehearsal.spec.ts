@@ -10,7 +10,7 @@ type StakeholderView = {
   path: string;
   heading: string | RegExp;
   markers: Array<string | RegExp>;
-  action?: "QUALITY_DRILLDOWN";
+  action?: "QUALITY_DRILLDOWN" | "AUDIT_EXPORT_VERIFY";
 };
 
 type RuntimeRecord = {
@@ -98,6 +98,7 @@ const stakeholderViews: StakeholderView[] = [
     path: "/admin/audit",
     heading: "审计与证据",
     markers: ["审计事件", "导出证据", "模型外调确认"],
+    action: "AUDIT_EXPORT_VERIFY",
   },
   {
     code: "IT_MANAGER",
@@ -164,10 +165,10 @@ async function assertStakeholderView(
     `${view.label} 应进入 ${view.path} 的真实主页面`,
   ).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
-  await expect(page.locator(".ant-spin-spinning"), `${view.label} 页面不应停留在加载中`).toHaveCount(
-    0,
-    { timeout: 30_000 },
-  );
+  await expect(
+    page.locator(".ant-spin-spinning"),
+    `${view.label} 页面不应停留在加载中`,
+  ).toHaveCount(0, { timeout: 30_000 });
 
   for (const marker of view.markers) {
     await expect(
@@ -203,10 +204,17 @@ async function assertStakeholderView(
 }
 
 async function performStakeholderAction(page: Page, view: StakeholderView) {
-  if (view.action !== "QUALITY_DRILLDOWN") {
-    return [];
+  if (view.action === "QUALITY_DRILLDOWN") {
+    return performQualityDrilldownAction(page, view);
+  }
+  if (view.action === "AUDIT_EXPORT_VERIFY") {
+    return performAuditExportVerifyAction(page, view);
   }
 
+  return [];
+}
+
+async function performQualityDrilldownAction(page: Page, view: StakeholderView) {
   const typeSelect = page
     .getByRole("combobox", { name: "下钻类型" })
     .locator(
@@ -228,6 +236,76 @@ async function performStakeholderAction(page: Page, view: StakeholderView) {
     drawer.getByText(/证据包已生成|已按当前筛选范围记录|证据导出编号/u).first(),
   ).toBeVisible({ timeout: 20_000 });
   return ["切换质量下钻类型并读取整改证据"];
+}
+
+async function performAuditExportVerifyAction(page: Page, view: StakeholderView) {
+  const reason = `审计员复核导出证据 ${Date.now()}`;
+  await page.getByRole("button", { name: "确认导出范围" }).click();
+  const confirmDialog = page.getByRole("dialog", { name: "确认导出范围" });
+  await expect(confirmDialog).toBeVisible({ timeout: 10_000 });
+  await confirmDialog.getByLabel("导出原因").fill(reason);
+
+  const confirmResponsePromise = waitForPost(page, "/compliance/exports:confirm");
+  await confirmDialog.getByRole("button", { name: "确认范围" }).click();
+  const confirmResponse = await confirmResponsePromise;
+  const confirmText = await confirmResponse.text();
+  expect(
+    confirmResponse.ok(),
+    `${view.label} 确认审计导出范围应返回成功 status=${confirmResponse.status()} body=${confirmText}`,
+  ).toBe(true);
+  const confirmation = JSON.parse(confirmText) as { data?: { confirmationId?: string } };
+  const confirmationId = confirmation.data?.confirmationId;
+  expect(confirmationId, `${view.label} 确认导出范围应返回确认编号`).toBeTruthy();
+
+  await page.getByRole("tab", { name: "导出记录" }).click();
+  const row = page.getByRole("row").filter({ hasText: confirmationId ?? "" });
+  await expect(row).toBeVisible({ timeout: 20_000 });
+
+  const exportResponsePromise = waitForPost(page, "/large-lists/exports");
+  const completeResponsePromise = waitForPost(
+    page,
+    `/compliance/exports/${confirmationId}:complete-from-job`,
+  );
+  await row
+    .getByRole("button", {
+      name: new RegExp(`生成导出文件\\s+${escapeRegExp(confirmationId ?? "")}`),
+    })
+    .click();
+  const exportDialog = page.getByRole("dialog", { name: "生成已确认导出文件" });
+  await expect(exportDialog).toBeVisible({ timeout: 10_000 });
+  await exportDialog.getByRole("button", { name: "确认生成导出文件" }).click();
+  const exportResponse = await exportResponsePromise;
+  const exportText = await exportResponse.text();
+  expect(
+    exportResponse.ok(),
+    `${view.label} 生成审计导出文件应返回成功 status=${exportResponse.status()} body=${exportText}`,
+  ).toBe(true);
+  const completeResponse = await completeResponsePromise;
+  const completeText = await completeResponse.text();
+  expect(
+    completeResponse.ok(),
+    `${view.label} 完成审计导出记录应返回成功 status=${completeResponse.status()} body=${completeText}`,
+  ).toBe(true);
+  await expect(page.getByText("导出已完成")).toBeVisible({ timeout: 60_000 });
+
+  await expect(row.getByRole("button", { name: `查看证据 ${confirmationId}` })).toBeVisible({
+    timeout: 30_000,
+  });
+  await row.getByRole("button", { name: `查看证据 ${confirmationId}` }).click();
+  const evidenceDialog = page.getByRole("dialog", { name: "导出证据" });
+  await expect(evidenceDialog).toBeVisible({ timeout: 10_000 });
+
+  const verifyResponsePromise = waitForPost(page, "/compliance/evidence/snapshots/");
+  await evidenceDialog.getByRole("button", { name: "验签导出证据" }).click();
+  const verifyResponse = await verifyResponsePromise;
+  const verifyText = await verifyResponse.text();
+  expect(
+    verifyResponse.ok(),
+    `${view.label} 验签导出证据应返回成功 status=${verifyResponse.status()} body=${verifyText}`,
+  ).toBe(true);
+  await expect(evidenceDialog.getByText("证据验签通过")).toBeVisible({ timeout: 20_000 });
+
+  return ["确认审计导出范围、生成导出文件并验签导出证据"];
 }
 
 function collectRuntime(page: Page) {
@@ -303,4 +381,15 @@ function waitForGet(page: Page, path: string) {
     (response) => response.request().method() === "GET" && response.url().includes(path),
     { timeout: 30_000 },
   );
+}
+
+function waitForPost(page: Page, path: string) {
+  return page.waitForResponse(
+    (response) => response.request().method() === "POST" && response.url().includes(path),
+    { timeout: 60_000 },
+  );
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

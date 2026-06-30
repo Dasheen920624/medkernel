@@ -28,6 +28,7 @@ import { useState } from "react";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import {
   useConfirmExport,
+  useCompleteConfirmedExportJob,
   useExportConfirmations,
   useLargeAuditEvents,
   useLargeListExportJob,
@@ -53,6 +54,7 @@ import { ExperienceFilterBar } from "@/shared/ui/ExperienceFilterBar";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { PageState } from "@/shared/ui/PageState";
 import type {
+  AsyncExportJob,
   AsyncExportRequest,
   ExperienceFilterValue,
   ExperienceViewSnapshot,
@@ -291,6 +293,7 @@ export default function AdminAudit() {
     canReviewModelEgress,
   );
   const confirmExport = useConfirmExport();
+  const completeExportConfirmation = useCompleteConfirmedExportJob();
   const verifyEvidence = useVerifyEvidence();
   const traceDiagnosis = useTraceDiagnosis(diagnosisTraceId, Boolean(diagnosisTraceId));
 
@@ -468,6 +471,36 @@ export default function AdminAudit() {
     setVerifyTargetId(undefined);
     setVerifyResult(undefined);
     setVerifyError(undefined);
+  }
+
+  async function completeConfirmedExportIfJobSucceeded(
+    confirmation: ExportConfirmation,
+    job: AsyncExportJob,
+  ) {
+    if (job.status !== "succeeded") {
+      return job;
+    }
+    await completeExportConfirmation.mutateAsync({
+      confirmationId: confirmation.confirmationId,
+      jobId: job.jobId,
+      reason: confirmation.reason,
+      expectedVersion: confirmation.version,
+    });
+    await confirmations.refetch();
+    return job;
+  }
+
+  async function submitConfirmedExport(
+    confirmation: ExportConfirmation,
+    request: AsyncExportRequest,
+  ) {
+    const job = await submitExport.mutateAsync(request);
+    return completeConfirmedExportIfJobSucceeded(confirmation, job);
+  }
+
+  async function pollConfirmedExport(confirmation: ExportConfirmation, jobId: string) {
+    const job = await pollExport.mutateAsync(jobId);
+    return completeConfirmedExportIfJobSucceeded(confirmation, job);
   }
 
   async function verifyEvidenceById(evidenceId: string) {
@@ -648,8 +681,8 @@ export default function AdminAudit() {
                 buttonAriaLabel={`生成导出文件 ${confirmation.confirmationId}`}
                 modalTitle="生成已确认导出文件"
                 submitLabel="确认生成导出文件"
-                onSubmit={submitExport.mutateAsync}
-                onPoll={pollExport.mutateAsync}
+                onSubmit={(request) => submitConfirmedExport(confirmation, request)}
+                onPoll={(jobId) => pollConfirmedExport(confirmation, jobId)}
               />
               {evidenceButton(confirmation)}
             </Space>

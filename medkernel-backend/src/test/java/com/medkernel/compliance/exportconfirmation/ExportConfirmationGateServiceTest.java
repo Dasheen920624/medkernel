@@ -42,6 +42,21 @@ class ExportConfirmationGateServiceTest {
     }
 
     @Test
+    void confirmedAuditExportAcceptsLargeListResourceNotation() {
+        String snapshot = "{\"resourceType\":\"AUDIT_EVENT\",\"filters\":{},"
+            + "\"selectedScope\":\"FILTERED_RESULT\"}";
+        when(repository.findByTenantIdAndConfirmationId("t-1", "exp-audit"))
+            .thenReturn(Optional.of(confirmation("CONFIRMED", "audit_event", snapshot)));
+
+        assertThatCode(() -> gate.requireConfirmedForExport(
+            "t-1",
+            "exp-audit",
+            "AUDIT_EVENT",
+            snapshot
+        )).doesNotThrowAnyException();
+    }
+
+    @Test
     void missingConfirmationIsForbidden() {
         when(repository.findByTenantIdAndConfirmationId("t-1", "exp-x"))
             .thenReturn(Optional.empty());
