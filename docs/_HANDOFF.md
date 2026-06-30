@@ -11,8 +11,10 @@
 - 远程分支已清理：`origin` 仅保留 `main`（另有 `origin/HEAD -> origin/main`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前分支最新产品代码提交为 `a15d225c47fdd62da172cdaf41dea976c6ab9dc4`
-  （`fix: 修正患者360报告解读菜单权限`）；其前序产品提交为
+- 当前分支最新产品代码提交为 `5a2d502f37daef6c6bb0853690723752c19f0924`
+  （`fix: 优化协同任务报告解读入口`）；其前序产品提交为
+  `a15d225c47fdd62da172cdaf41dea976c6ab9dc4`
+  （`fix: 修正患者360报告解读菜单权限`）、
   `9dd3231946d3afd62a576750db07d384be0066db`
   （`fix: 优化医技报告解读前台入口`）和
   `cf0140ebe80b3bf58c24b58924b215c1a7ad35c4`
@@ -22,9 +24,9 @@
   `21caf969bcec81a849a7ccc12c03d5afcab2e62d`
   （`fix: 统一推荐运行包触发契约`）。
 - 134 当前后端 jar / manifest 仍为
-  `b06a0e1a86c2d2147da2529103e9f42976c298eb`；`2026-06-30T19:55:46+08:00`
+  `b06a0e1a86c2d2147da2529103e9f42976c298eb`；`2026-06-30T20:08:01+08:00`
   已做前端-only 发布，前端 dist 来源为
-  `a15d225c47fdd62da172cdaf41dea976c6ab9dc4`。后续接力不要把 jar manifest
+  `5a2d502f37daef6c6bb0853690723752c19f0924`。后续接力不要把 jar manifest
   误解为最新前端来源；旧 `b4ec9f2d`、`3f5ec881`、`e8f50553` 只作为历史阶段证据，
   不再代表当前 134 运行版本。
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
@@ -36,7 +38,52 @@
   `rehearsal` 是当前 1.0 契约中的完整上线演练机构块，不是旧兼容入口；
   `roleAccounts`、`platformRoleAccounts`、`customerTenant` 等旧 root 账号字段不得作为登录权威。
 
-## 最新阶段交接（2026-06-30 患者360带入医技报告解读入口）
+## 最新阶段交接（2026-06-30 协同任务报告解读入口）
+
+- 本阶段继续从全角色真实前台体验推进“报告工作清单/医技交接入口”：`WorkflowTodos`
+  已经通过证据详情权限隐藏患者与追踪标识，但报告解读待办仍会被常规护理/随访任务排序淹没，来源跳转按钮也仍叫
+  “打开来源”，对医技、医生和护士不够像真实工作队列。
+- 产品优化：
+  - `frontend/src/pages/clinical/WorkflowTodos.tsx` 将 `REPORT_INTERPRETATION` 提升为安全复核后的高优先协同来源，
+    “今日先处理”摘要新增“报告解读 X 项”，队列焦点可显示“先处理安全复核，再处理报告解读”。
+  - 来源跳转按钮按业务来源命名：报告解读为“打开报告上下文”，随访为“打开随访记录”，护理、提醒、路径、知识卡等也使用对应业务文案；
+    不再把所有入口都泛化为“打开来源”。
+  - 报告解读待办没有 deep link 时显示“待报告来源补充跳转”，报告 deep link 不安全时显示“报告入口暂不可跳转”，
+    让实施和信息科能定位是来源系统/任务生成链路缺入口，而不是用户误操作。
+- TDD 与本地验证证据：
+  - 红灯：`npm --prefix frontend test -- WorkflowTodos.test.tsx` 先失败，`4 failed | 14 passed`；
+    缺少“报告解读 1 项”、缺少“打开随访记录/打开报告上下文”、报告缺跳转仍显示通用“来源未提供跳转”。
+  - 绿灯：`npm --prefix frontend test -- WorkflowTodos.test.tsx` 通过，`18` 个测试 0 失败。
+  - 完整前端：`npm --prefix frontend run verify` 通过，`113` 个测试文件 / `897` 个测试 0 失败；覆盖
+    lint、stylelint、T-GATE lint、Prettier、typecheck、Vitest。
+  - `git diff --check` 通过。
+- 134 前端-only 发布证据：
+  - 命令：`deploy/onprem/mk-publish.sh --frontend --source 5a2d502f37daef6c6bb0853690723752c19f0924`。
+  - 远端备份：`/zoesoft/medkernel/backups/deploy-20260630-200734`。
+  - readiness：`2026-06-30T20:08:01+08:00` HTTP 200，`{"status":"UP"}`；服务
+    `active/enabled`，`NRestarts=0`，`MainPID=1457096`。
+  - 关键前端制品：`frontend/dist/assets/WorkflowTodos-76c6zipo.js`、
+    `frontend/dist/assets/CdssFatigue-DTFSbLkD.js`、`frontend/dist/assets/Mpi-DnxRWbzH.js`、
+    `frontend/dist/assets/index-LXpKaVxM.js`。
+  - 注意：本次为前端-only 发布，`/zoesoft/medkernel/manifest.properties` 仍记录后端 jar 的
+    `source/commit=b06a0e1a86c2d2147da2529103e9f42976c298eb`。
+- 134 部署后复演证据：
+  - 全角色直接入口报告：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-5a2d502f-deployed-direct134/report/results.json`。
+  - Playwright：`1 passed`，耗时约 `1.3m`；`stats.expected=1`，`errors=[]`。
+  - 运行记录：
+    `/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-5a2d502f-deployed-direct134/artifacts/stakeholder-view-rehearsal-b11d5-务视角均能通过四职责账号进入真实页面并看到对应业务能力-chromium/stakeholder-view-runtime-records.json`。
+  - runtime JSON 核对：`count=12`，12 个视角均有动作记录，
+    `browserErrors/serverErrors/networkFailures=[]`。
+  - 协同任务直达复核：
+    `/tmp/medkernel-e2e-codex3/evidence-workflow-todos-5a2d502f-direct134/workflow-todos-record.json`，
+    134 `/workflow/todos` 正常渲染，“报告解读 0 项”可见，通用“打开来源”链接数 `0`，
+    `browserErrors/serverErrors/networkFailures=[]`。
+- 下一步继续主线：协同任务已具备更自然的报告解读工作队列表达，但当前 134 现有数据里报告解读待办为 `0`；
+  后续真实全流程应继续补“从报告生成/报告解读结果自动沉淀协同待办”的端到端动作，另继续审查模型双模式敏感信息、
+  高级信息渐进呈现、患者/护士端低打扰流程和院长/信息科视角证据聚合。
+
+## 上一阶段交接（2026-06-30 患者360带入医技报告解读入口）
 
 - 本阶段根据全角色真实前台体验继续优化医技报告解读：旧路径要求医技在 CDSS 弹窗中手填
   `patientId/encounterId`，对真实用户不自然，也会把内部标识暴露到操作层。现改为从 MPI 患者 360 已建立的
