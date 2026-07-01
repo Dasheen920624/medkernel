@@ -45,6 +45,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class InsuranceQualityService {
+    private static final String MANUAL_INSURANCE_RULE_INDICATOR_ID = "INSURANCE_RULE_MANUAL";
+
     private final JdbcTemplate jdbc;
     private final ContextSnapshotRepository snapshots;
     private final ClinicalClaimRepository claims;
@@ -168,6 +170,9 @@ public class InsuranceQualityService {
 
     /**
      * 按版本化规则审核真实医保结算事实，命中后联动评估整改闭环。
+     *
+     * <p>当机构尚未初始化生效评价指标时，前台可提交手工医保规则依据，本服务直接登记
+     * 医保质控问题和整改任务，并在证据中明确“未绑定生效质控指标”，不伪造评价指标。
      */
     @Transactional
     public InsuranceAuditResponse insuranceAudit(InsuranceAuditRequest request) {
@@ -185,8 +190,10 @@ public class InsuranceQualityService {
 
         List<InsuranceIssueResponse> issues = new ArrayList<>();
         List<EvaluationResultRequest> results = new ArrayList<>();
+        List<ManualInsuranceRectificationSeed> manualSeeds = new ArrayList<>();
         List<String> newIssueIds = new ArrayList<>();
         Instant now = Instant.now();
+        boolean manualRule = isManualInsuranceRule(request.indicatorId());
         for (ClinicalClaim claim : scopedClaims) {
             for (InsuranceAuditRuleRequest rule : request.rules()) {
                 if (!matches(rule, claim)) {
@@ -205,13 +212,20 @@ public class InsuranceQualityService {
                 issues.add(issue);
                 if (existing.isEmpty()) {
                     newIssueIds.add(issueId);
-                    results.add(resultForIssue(request, snapshot, claim, issue, rule));
+                    if (manualRule) {
+                        manualSeeds.add(new ManualInsuranceRectificationSeed(issue, claim, rule));
+                    } else {
+                        results.add(resultForIssue(request, snapshot, claim, issue, rule));
+                    }
                 }
             }
         }
 
         if (issues.isEmpty()) {
             return new InsuranceAuditResponse(auditId, InsuranceAuditStatus.NO_ISSUE, List.of(), null, 0, 0, traceId());
+        }
+        if (!manualSeeds.isEmpty()) {
+            return createManualInsuranceRectifications(auditId, tenantId, snapshot, request, newIssueIds, manualSeeds, now);
         }
         if (results.isEmpty()) {
             return new InsuranceAuditResponse(auditId, InsuranceAuditStatus.ISSUE_FOUND, issues, null, 0, 0, traceId());
@@ -261,6 +275,100 @@ public class InsuranceQualityService {
         return new InsuranceAuditResponse(
             auditId, InsuranceAuditStatus.ISSUE_FOUND, refreshed, run.runId(),
             run.findingCount(), run.taskCount(), run.traceId());
+    }
+
+    private InsuranceAuditResponse createManualInsuranceRectifications(
+            String auditId,
+            String tenantId,
+            ContextSnapshot snapshot,
+            InsuranceAuditRequest request,
+            List<String> newIssueIds,
+            List<ManualInsuranceRectificationSeed> seeds,
+            Instant now) {
+        String actor = actor();
+        String traceId = traceId();
+        String manualRunId = "ins-run-" + shortDigest(tenantId, snapshot.snapshotId(), request.scenarioCode(),
+            rulesDigest(request.rules()));
+        int findingCount = 0;
+        int taskCount = 0;
+        for (ManualInsuranceRectificationSeed seed : seeds) {
+            InsuranceIssueResponse issue = seed.issue();
+            String findingId = "qf-ins-" + shortDigest(tenantId, issue.issueId(), seed.claim().claimId());
+            String resultId = "ins-res-" + shortDigest(tenantId, snapshot.snapshotId(), issue.issueId());
+            String taskId = "rct-ins-" + shortDigest(tenantId, findingId, request.responsibleDepartmentId());
+            String findingCode = "INSURANCE." + issue.issueId();
+            String evidenceSummary = issue.evidenceSummary()
+                + "；未绑定生效质控指标，按本次医保规则依据直接派发整改。";
+            Long existingFinding = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                FROM quality_finding
+                WHERE tenant_id = ? AND finding_id = ?
+                """, Long.class, tenantId, findingId);
+            if (existingFinding == null || existingFinding == 0L) {
+                jdbc.update("""
+                    INSERT INTO quality_finding (
+                        finding_id, tenant_id, run_id, result_id, indicator_id,
+                        finding_code, title, description, severity, status, evidence_summary,
+                        responsible_department_id, due_at,
+                        created_at, created_by, updated_at, updated_by, trace_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    findingId, tenantId, manualRunId, resultId, MANUAL_INSURANCE_RULE_INDICATOR_ID,
+                    findingCode, "医保审核问题：" + seed.rule().description(),
+                    "医保审核命中本次规则 " + seed.rule().ruleCode() + "@" + seed.rule().ruleVersion()
+                        + "，当前机构未绑定生效质控指标，由医保审核服务直接派发整改。",
+                    seed.rule().severity().name(), "ASSIGNED", evidenceSummary,
+                    request.responsibleDepartmentId(), Timestamp.from(request.dueAt()),
+                    Timestamp.from(now), actor, Timestamp.from(now), actor, traceId);
+                findingCount++;
+            }
+            Long existingTask = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                FROM rectification_task
+                WHERE tenant_id = ? AND task_id = ?
+                """, Long.class, tenantId, taskId);
+            if (existingTask == null || existingTask == 0L) {
+                jdbc.update("""
+                    INSERT INTO rectification_task (
+                        task_id, tenant_id, finding_id, responsible_department_id,
+                        assignee_user_id, status, due_at,
+                        rectification_summary, evidence_ref, submitted_at, submitted_by, closed_at,
+                        created_at, created_by, updated_at, updated_by, trace_id
+                    ) VALUES (?, ?, ?, ?, NULL, ?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?, ?, ?, ?)
+                    """,
+                    taskId, tenantId, findingId, request.responsibleDepartmentId(), "ASSIGNED",
+                    Timestamp.from(request.dueAt()), Timestamp.from(now), actor,
+                    Timestamp.from(now), actor, traceId);
+                taskCount++;
+            }
+            jdbc.update("""
+                UPDATE mk_quality_insurance_issue
+                   SET status = ?,
+                       finding_id = ?,
+                       updated_at = ?,
+                       updated_by = ?,
+                       trace_id = ?
+                 WHERE tenant_id = ?
+                   AND issue_id = ?
+                """,
+                InsuranceIssueStatus.RECTIFICATION_CREATED.name(), findingId,
+                Timestamp.from(now), actor, traceId, tenantId, issue.issueId());
+        }
+        return new InsuranceAuditResponse(
+            auditId, InsuranceAuditStatus.ISSUE_FOUND,
+            refreshedIssues(tenantId, newIssueIds), null, findingCount, taskCount, traceId);
+    }
+
+    private List<InsuranceIssueResponse> refreshedIssues(String tenantId, List<String> issueIds) {
+        String placeholders = placeholders(issueIds.size());
+        List<Object> selectArgs = new ArrayList<>();
+        selectArgs.add(tenantId);
+        selectArgs.addAll(issueIds);
+        return jdbc.query("""
+            SELECT * FROM mk_quality_insurance_issue
+            WHERE tenant_id = ? AND issue_id IN (%s)
+            ORDER BY created_at ASC, issue_id ASC
+            """.formatted(placeholders), this::mapIssue, selectArgs.toArray());
     }
 
     private InsuranceIssueResponse insertIssue(
@@ -329,6 +437,10 @@ public class InsuranceQualityService {
         }
         return hasText(rule.requiredClaimType())
             && !rule.requiredClaimType().equalsIgnoreCase(nullToBlank(claim.claimType()));
+    }
+
+    private boolean isManualInsuranceRule(String indicatorId) {
+        return MANUAL_INSURANCE_RULE_INDICATOR_ID.equals(indicatorId);
     }
 
     private String evidenceSummary(ClinicalClaim claim, InsuranceAuditRuleRequest rule) {
@@ -514,6 +626,13 @@ public class InsuranceQualityService {
 
     private String placeholders(int size) {
         return String.join(", ", java.util.Collections.nCopies(size, "?"));
+    }
+
+    private record ManualInsuranceRectificationSeed(
+        InsuranceIssueResponse issue,
+        ClinicalClaim claim,
+        InsuranceAuditRuleRequest rule
+    ) {
     }
 
     private Instant toInstant(Timestamp timestamp) {

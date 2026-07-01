@@ -56,6 +56,8 @@ class InsuranceQualityServiceTest {
     @AfterEach
     void clear() {
         RequestContext.clear();
+        jdbc.update("DELETE FROM rectification_task");
+        jdbc.update("DELETE FROM quality_finding");
         jdbc.update("DELETE FROM mk_quality_insurance_issue");
         jdbc.update("DELETE FROM mk_quality_drg_grouping");
         jdbc.update("DELETE FROM mk_quality_case_review");
@@ -153,6 +155,54 @@ class InsuranceQualityServiceTest {
                 assertThat(finding.dueAt()).isEqualTo(now.plusSeconds(604800));
             });
         });
+    }
+
+    @Test
+    void insuranceAuditManualRuleCreatesDirectRectificationWithoutActiveIndicator() {
+        Instant now = Instant.parse("2026-06-05T02:15:00Z");
+        seedSnapshot("tenant-A", "snapshot-manual-ins", "patient-manual-ins", "enc-manual-ins", now);
+        seedClaim("tenant-A", "claim-manual-ins", "patient-manual-ins", "enc-manual-ins",
+            new BigDecimal("1500.00"), now);
+
+        InsuranceAuditResponse response = withTenant("tenant-A", () -> service.insuranceAudit(
+            new InsuranceAuditRequest(
+                "snapshot-manual-ins",
+                "A9",
+                "INSURANCE_RULE_MANUAL",
+                "dept-insurance",
+                now.plusSeconds(604800),
+                List.of(new InsuranceAuditRuleRequest(
+                    "RULE-FEE-MANUAL",
+                    "2026-A",
+                    InsuranceIssueType.FEE,
+                    QualityFindingSeverity.P1,
+                    new BigDecimal("1000.00"),
+                    null,
+                    null,
+                    "费用超过本次医保规则阈值")))));
+
+        assertThat(response.auditStatus()).isEqualTo(InsuranceAuditStatus.ISSUE_FOUND);
+        assertThat(response.evaluationRunId()).isNull();
+        assertThat(response.findingCount()).isEqualTo(1);
+        assertThat(response.taskCount()).isEqualTo(1);
+        assertThat(response.issues()).singleElement().satisfies(issue ->
+            assertThat(issue.status()).isEqualTo(InsuranceIssueStatus.RECTIFICATION_CREATED));
+        assertThat(jdbc.queryForObject("""
+            SELECT COUNT(*) FROM quality_finding
+            WHERE tenant_id = 'tenant-A'
+              AND indicator_id = 'INSURANCE_RULE_MANUAL'
+              AND evidence_summary LIKE '%未绑定生效质控指标%'
+            """, Long.class)).isEqualTo(1L);
+        assertThat(jdbc.queryForObject("""
+            SELECT COUNT(*)
+            FROM rectification_task t
+            JOIN quality_finding f
+              ON f.tenant_id = t.tenant_id
+             AND f.finding_id = t.finding_id
+            WHERE t.tenant_id = 'tenant-A'
+              AND f.indicator_id = 'INSURANCE_RULE_MANUAL'
+            """, Long.class)).isEqualTo(1L);
+        verify(evaluations, never()).run(any());
     }
 
     @Test
