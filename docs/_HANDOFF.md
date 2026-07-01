@@ -10,16 +10,17 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `d3d6138eb29a572a69a22684dedfc6ec00291cca`
-  （`fix: 收敛知识生产模型唯一表述`）；已包含第十二批医保结算到质控整改数据路线、
-  第十三批质量/医保默认信息层级收敛，以及第十四批知识生产治理语义收敛。
-- 当前 134 已发布应用为 `d3d6138eb29a572a69a22684dedfc6ec00291cca`；第十四批已发布并完成真实前台与全职责复演。
-- 134 当前完整部署 `d3d6138eb29a572a69a22684dedfc6ec00291cca`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260701-221752`，manifest
-  `deployedAt=2026-07-01T22:17:55+08:00`，
-  `jarSha256=4a0da314f707cd69db03bdc97a70956cf59fb1a8a2a424239ad51ee0c860d6ea`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2277761`、`NRestarts=0`。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第十四批版本已完成真实前台与全职责 E2E。
+- 当前已发布应用代码提交为 `79c2201e84281509d4fd45f5d9c81b2141b16ab4`
+  （`fix: 收敛知识生产上线准备证据`）；已包含第十二批医保结算到质控整改数据路线、
+  第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
+  以及第十六批知识生产上线准备默认证据收敛。
+- 当前 134 已发布应用为 `79c2201e84281509d4fd45f5d9c81b2141b16ab4`；第十六批已发布并完成真实前台与全职责复演。
+- 134 当前完整部署 `79c2201e84281509d4fd45f5d9c81b2141b16ab4`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260701-232032`，manifest
+  `deployedAt=2026-07-01T23:20:34+08:00`，
+  `jarSha256=12da4e2adcaca869ad4746a770ab50a26058e1feb671b05757fbbfb61798ef1c`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2311462`、`NRestarts=0`。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第十六批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -514,7 +515,8 @@
   版本、发布、机构生效、运行引用和诊断选择器链路，未发现必须推翻的结构证据。
   已确认的真实冲突是旧公共生产策略把正式入口收窄为 API_MODEL，并阻断 `/generate` 的来源/模板候选生成，
   与 `PRODUCT_SCOPE` 中“人工维护、来源解析、确定性校验、模型候选、审核发布、无模型 B0 可运行”不一致。
-- 已本地修复但尚未发布 134：
+- 已本地修复并提交 `e1675b64e8ee2749d5ece7b37fdc11cb08f828ea`
+  （`fix: 打通知识生产统一入口与证据层级`）：
   - `ProductionReadinessPanel` 默认只显示“证据已记录 / 证据待补齐”，来源路径、模型 Provider、能力、
     策略、版本三元组等低频追溯字段进入统一“证据详情”开关；不再恢复旧“专家模式 / 技术细节”表达。
   - 生产前校验和演练文档统一使用“模型使用边界 / 患者上下文模型使用边界”；公网模型可使用患者上下文，
@@ -538,16 +540,73 @@
   - 收尾核查：`git diff --check` 通过；旧误导表述
     `正式知识生产仅允许|正式知识生产不再接受|只允许通过受控模型|外调允许范围缺失，已降级|外调安全策略|模型外调安全策略`
     在 `frontend/src`、`medkernel-backend/src`、`docs` 中无命中；医保域直接写整改 owner 表的 SQL 扫描无命中。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source e1675b64e8ee2749d5ece7b37fdc11cb08f828ea`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260701-230309`，
+    manifest `deployedAt=2026-07-01T23:03:12+08:00`，
+    `jarSha256=0ab178da5adcf1ff9ea65807124538b7ff95b5fbd030cb0faeec52a3dc7875b7`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2301801`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-e1675b64-knowledge-unified-production-ready`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (40.8s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `11` 段真实前台链路，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-e1675b64-knowledge-unified-production-ready`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `12` 类职责视角，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - 截图复核继续暴露下一处真实体验问题：
+    `stakeholder-engine_operator.png` 中知识生产页底部“模型生产上线准备”仍默认展示
+    `LITERATURE_ROOT`、`MODEL_PROVIDER`、`VERSION_TRIPLE`、`file:///...` 和能力编码等低频追溯字段，
+    作为第十六批继续收敛的问题来源。
+
+## 最新阶段交接（2026-07-01 第十六批·知识生产上线准备默认证据收敛）
+
+- 用户关于知识治理/诊断知识维护的提问只作为全局风险假设处理，不直接认定当前设计错误。
+  本批先回读 `CONSTITUTION`、`PRODUCT_SCOPE` 与 `EXPERIENCE_CONTRACT`：统一知识生产仍要求人工维护、
+  来源解析、模型候选、审核发布和无模型 B0 主链并存；技术对象、路径、能力编码、模型版本和追溯字段
+  默认应进入“证据详情”，普通职责视图使用可解释业务语言。
+- 已本地修复并提交 `79c2201e84281509d4fd45f5d9c81b2141b16ab4`
+  （`fix: 收敛知识生产上线准备证据`）：
+  - `KnowledgeGovernance` 的“模型生产上线准备”表格使用业务前置项名称：
+    文献资料库、部署形态、模型服务、医学验证用例、医学验证评测、模型使用边界、能力策略、
+    提示词/工具/模型版本。
+  - 默认只显示“证据已记录 / 证据待补齐”；打开“证据详情”后才展示原始 readiness code、
+    来源路径、能力编码、模型 Provider 和版本三元组。
+  - 下游证据为空态和正常态复用同一列定义，避免同一页面上半区已收敛、底部表格又回到原始字段。
+- 红绿与本地验证：
+  - 红灯：`npm --prefix frontend test -- KnowledgeGovernance.test.tsx -t "默认用业务语言展示模型生产上线准备"`
+    在旧实现下失败，页面默认找不到“文献资料库”，并继续暴露原始前置项编码。
+  - 绿灯：同一目标用例通过；`npm --prefix frontend test -- KnowledgeGovernance.test.tsx ProductionReadinessPanel.test.tsx`
+    通过，`39` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `916` 项；
+    `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source 79c2201e84281509d4fd45f5d9c81b2141b16ab4`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260701-232032`，
+    manifest `deployedAt=2026-07-01T23:20:34+08:00`，
+    `jarSha256=12da4e2adcaca869ad4746a770ab50a26058e1feb671b05757fbbfb61798ef1c`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2311462`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-79c2201e-knowledge-readiness-evidence`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (42.2s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `11` 段真实前台链路，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-79c2201e-knowledge-readiness-evidence`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.2m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `12` 类职责视角，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - 截图复核：`stakeholder-engine_operator.png` 中“生产前校验 / 模型生产上线准备”默认显示
+    “文献资料库、部署形态、模型服务、医学验证用例、模型使用边界、提示词/工具/模型版本”等业务名称，
+    证据列为“证据已记录”；未再默认展示 `LITERATURE_ROOT`、`MODEL_PROVIDER`、`VERSION_TRIPLE`、
+    `file:///...` 或 `knowledge.production.knowledge`。
 
 ## 下一步
 
-1. 将第十五批本地提交后发布到 134，直接访问 134 复跑 `real-frontdesk-rehearsal.spec.ts` 与
-   `stakeholder-view-rehearsal.spec.ts`，重点核查知识生产统一入口、模型使用边界、证据详情和医保整改 owner
-   边界在真实前台操作中未回退。
-2. 继续全视角真实操作与产品体验优化：重点回看患者/医生/护士/药师/医技剩余入口操作路径、
+1. 继续全视角真实操作与产品体验优化：重点回看患者/医生/护士/药师/医技剩余入口操作路径、
    宽表默认可读性、高级信息呈现方式、质量管理下钻与整改闭环，发现不合理产品设计直接按当前权威标准优化。
-3. 继续复核真实前台演练截图里的质量下钻、长表格和随访办理抽屉在窄屏 / 多任务量下的滚动与按钮可达性，
+2. 继续复核真实前台演练截图里的质量下钻、长表格和随访办理抽屉在窄屏 / 多任务量下的滚动与按钮可达性，
    发现遮挡、重复识别困难、操作路径过长或职责边界不清时直接按现行体验契约修复。
+3. 继续按统一知识治理视角回看诊断知识维护、机构知识、来源血缘、发布治理和知识生产之间的边界；
+   只有发现与原始权威文档冲突或真实前台体验误导时才调整结构，不因单个疑问盲目拆改。
 4. `DEFER-003` 关闭前，公网 `mimo-public` 只保留“已受管登记但未启用”的诚实状态；拿到有效外部凭据后，
    重新运行 Provider 上线脚本并补充全知识生产真实模型证据。
 5. 目标环境上线前仍需补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
