@@ -453,6 +453,24 @@
   margin-top: calc(var(--mk-unit) * 16);
 }
 
+.drawerActionBar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  gap: calc(var(--mk-unit) * 12);
+  padding-top: calc(var(--mk-unit) * 12);
+  padding-bottom: calc(var(--mk-unit) * 16);
+  margin-top: calc(var(--mk-unit) * 8);
+  background: var(--ant-color-bg-container);
+  border-top: var(--mk-line-width) solid var(--ant-color-border-secondary);
+}
+
+.drawerActionBar :global(.ant-btn) {
+  min-height: calc(var(--mk-unit) * 40);
+}
+
 .formSectionTitle {
   margin: calc(var(--mk-unit) * 12) 0 calc(var(--mk-unit) * 8);
   color: var(--ant-color-text);
@@ -1068,6 +1086,14 @@
   }
 
   .actionItem :global(.ant-btn) {
+    width: 100%;
+  }
+
+  .drawerActionBar {
+    justify-content: stretch;
+  }
+
+  .drawerActionBar :global(.ant-btn) {
     width: 100%;
   }
 

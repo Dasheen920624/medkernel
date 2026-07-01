@@ -1121,14 +1121,16 @@ export default function Followup() {
                   >
                     <TextArea rows={4} placeholder="请录入来自真实随访渠道的回收内容" />
                   </Form.Item>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    icon={<CheckCircleOutlined />}
-                    loading={submitQuestionnaireMutation.isPending}
-                  >
-                    提交问卷
-                  </Button>
+                  <div role="group" aria-label="问卷回收操作" className={styles.drawerActionBar}>
+                    <Button
+                      type="primary"
+                      htmlType="submit"
+                      icon={<CheckCircleOutlined />}
+                      loading={submitQuestionnaireMutation.isPending}
+                    >
+                      提交问卷
+                    </Button>
+                  </div>
                 </Form>
               ) : (
                 <Alert type="info" showIcon message="请选择一个待办随访任务后提交问卷回收内容" />
@@ -1164,16 +1166,18 @@ export default function Followup() {
                 >
                   <TextArea rows={3} placeholder="请录入当前医护人员给出的处理建议" />
                 </Form.Item>
-                <Button
-                  type="primary"
-                  danger
-                  htmlType="submit"
-                  icon={<WarningOutlined />}
-                  loading={reportAbnormalMutation.isPending}
-                  disabled={selectedPlanDetail.status !== "ACTIVE"}
-                >
-                  登记异常回院
-                </Button>
+                <div role="group" aria-label="异常回院登记操作" className={styles.drawerActionBar}>
+                  <Button
+                    type="primary"
+                    danger
+                    htmlType="submit"
+                    icon={<WarningOutlined />}
+                    loading={reportAbnormalMutation.isPending}
+                    disabled={selectedPlanDetail.status !== "ACTIVE"}
+                  >
+                    登记异常回院
+                  </Button>
+                </div>
               </Form>
               {abnormalEvidence && (
                 <Alert

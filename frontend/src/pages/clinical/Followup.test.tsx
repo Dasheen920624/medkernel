@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
@@ -6,6 +9,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 
 import Followup from "./Followup";
+
+const clinicalCss = readFileSync(
+  resolve(process.cwd(), "src/pages/clinical/Clinical.module.css"),
+  "utf8",
+);
 
 const followupHookMocks = vi.hoisted(() => ({
   createTemplate: vi.fn(),
@@ -646,7 +654,10 @@ describe("Followup", () => {
     fireEvent.change(screen.getByLabelText("医护处理建议"), {
       target: { value: "安排回院复核并通知责任医生" },
     });
-    await user.click(screen.getByRole("button", { name: /登记异常回院/ }));
+    const actionGroup = screen.getByRole("group", { name: "异常回院登记操作" });
+    const submitButton = within(actionGroup).getByRole("button", { name: /登记异常回院/ });
+    expect(actionGroup).toContainElement(submitButton);
+    await user.click(submitButton);
 
     await waitFor(() => expect(followupHookMocks.reportAbnormal).toHaveBeenCalledTimes(1));
     const request = followupHookMocks.reportAbnormal.mock.calls[0][0];
@@ -670,6 +681,14 @@ describe("Followup", () => {
     expect(screen.queryByText("trace-followup-1")).not.toBeInTheDocument();
     expect(screen.queryByText("event-return-1")).not.toBeInTheDocument();
     expect(screen.queryByText(/异常事件|上报/)).not.toBeInTheDocument();
+  });
+
+  it("随访办理抽屉用固定底部操作区避免异常回院按钮被视口裁切", () => {
+    expect(clinicalCss).toMatch(/\.drawerActionBar\s*\{[^}]*position:\s*sticky\s*;/s);
+    expect(clinicalCss).toMatch(/\.drawerActionBar\s*\{[^}]*bottom:\s*0\s*;/s);
+    expect(clinicalCss).toMatch(
+      /\.drawerActionBar\s*\{[^}]*padding-bottom:\s*calc\(var\(--mk-unit\) \* 16\)\s*;/s,
+    );
   });
 
   it("证据详情打开后展示异常回院登记的完整追溯编号", async () => {
