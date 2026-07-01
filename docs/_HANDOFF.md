@@ -10,18 +10,18 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `bc74aba34157c7540a877c6ac466886ee3516eb4`
-  （`fix: 收敛质量下钻默认追溯信息`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前已发布应用代码提交为 `325afd3c9ac8312960c13d25d3fbddb18df750f9`
+  （`fix: 收敛协同任务默认列宽`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
   第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
-  第十九批系统接入默认技术信息收敛，以及第二十批质量下钻默认追溯信息收敛。
-- 当前 134 已发布应用为 `bc74aba34157c7540a877c6ac466886ee3516eb4`；第二十批已发布并完成真实前台与全职责复演。
-- 134 当前完整部署 `bc74aba34157c7540a877c6ac466886ee3516eb4`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260702-014352`，manifest
-  `deployedAt=2026-07-02T01:43:54+08:00`，
-  `jarSha256=331e9028cffada0a1c68c55dac31586f169ddc9b80415d0b5b7916c272cece79`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2389329`、`NRestarts=0`。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十批版本已完成真实前台与全职责 E2E。
+  第十九批系统接入默认技术信息收敛、第二十批质量下钻默认追溯信息收敛，以及第二十一批协同任务列表可读性收敛。
+- 当前 134 已发布应用为 `325afd3c9ac8312960c13d25d3fbddb18df750f9`；第二十一批已发布并完成真实前台与全职责复演。
+- 134 当前完整部署 `325afd3c9ac8312960c13d25d3fbddb18df750f9`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-020115`，manifest
+  `deployedAt=2026-07-02T02:01:18+08:00`，
+  `jarSha256=2d88e0e042df019c586ff084db30c8b6d4e2ad6f7d9673ef1d0777d4205207b2`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2399435`、`NRestarts=0`。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十一批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -30,6 +30,46 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-02 全视角真实前台体验优化第二十一批·协同任务列表可读性）
+
+- 基于第二十批 134 全职责截图继续按医技、医生、护士、信息科和实施验收视角核查，发现
+  `/workflow/todos` 协同任务在多轮真实前台演练后出现近 300 条报告解读待办。旧表格主列过窄导致
+  医技读报告任务时需要逐行扫很高的行块；首轮修正 `a1c9f2bcbbbddf2176a8882b1f66f8efb89a788a`
+  发布到 134 后，截图复核又发现右侧操作列在默认视口被截断。因此 `a1c9f2bc` 只作为中间问题证据，
+  不得作为最终上线验收或交接引用。
+- 已本地修复并提交：
+  - `a1c9f2bcbbbddf2176a8882b1f66f8efb89a788a`（`fix: 优化协同任务列表可读性`）：
+    初步为协同任务表格设置固定布局、主待办阅读列、业务摘要行高和横向滚动宽度。
+  - `325afd3c9ac8312960c13d25d3fbddb18df750f9`（`fix: 收敛协同任务默认列宽`）：
+    将默认滚动宽度收敛为 `1040`，待办主列保留 `340`，来源、患者、责任岗位、截止、优先级、
+    状态和操作列按默认桌面视口重新分配，确保报告上下文动作与完成/转交图标在默认画面可见。
+    本批不改变协同任务业务契约、证据详情权限、服务端分页或真实数据来源。
+- 红绿验证：
+  - 红灯：`npm --prefix frontend test -- WorkflowTodos.test.tsx -t "keeps report interpretation rows scannable|keeps the workflow todo table contained"`
+    在 `a1c9f2bc` 宽度下失败，暴露仍为 `scroll={{ x: 1200 }}` 与 `width: 380`。
+  - 绿灯：同一目标用例通过，`2` 项；`npm --prefix frontend test -- WorkflowTodos.test.tsx`
+    通过，`20` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `920` 项；
+    `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source 325afd3c9ac8312960c13d25d3fbddb18df750f9`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260702-020115`，manifest
+    `deployedAt=2026-07-02T02:01:18+08:00`，
+    `jarSha256=2d88e0e042df019c586ff084db30c8b6d4e2ad6f7d9673ef1d0777d4205207b2`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2399435`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-325afd3c-workflow-readable-fit`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，运行记录 `12` 类视角、`12` 次真实动作、
+    `errors=0`。截图 `stakeholder-medical_technician.png` 显示协同任务主列可读，右侧
+    “打开报告上下文”和操作图标完整可见，未再出现截断。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-325afd3c-workflow-readable-fit`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (35.9s)`；
+    运行记录 `11` 段真实前台链路均由页面提交产生，`errors=0`。
+- 用户关于“诊断知识维护与整体知识管理是否契合、知识治理是否满足全链路核心知识管理及生产”的问题，
+  已登记为后续全局产品一致性校验点；这不是当前结论。继续主线时需先按
+  `CONSTITUTION` / `PRODUCT_SCOPE` / 功能目录 / 职责矩阵深读判断，再决定是否需要调整知识治理结构，
+  禁止把单点疑问直接改成片面设计变更。
 
 ## 最新阶段交接（2026-06-30 全视角真实前台体验优化第三批）
 
