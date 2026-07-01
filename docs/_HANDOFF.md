@@ -10,14 +10,14 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前 134 已发布应用为 `ce36f55c3e4b4e88e0f83ee23472ab3d9132f6ba`
-  （`fix: 使用中文院内时间填写整改截止`）；第五批质量整改截止时间体验优化已发布并复演。
-- 134 当前完整部署 `ce36f55c3e4b4e88e0f83ee23472ab3d9132f6ba`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260701-123246`，manifest
-  `deployedAt=2026-07-01T12:32:48+08:00`，
-  `jarSha256=4f4a8098720bab50a2e7319731b63c5869eee7ae017f9d8541c2c6747b5e060d`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=1965458`、`NRestarts=0`。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第五批版本已完成真实前台与全职责 E2E。
+- 当前 134 已发布应用为 `767fa18f50fc02408f7ecc58a9fb57caa20e50a7`
+  （`test: 更新真实演练模型安全边界流程`）；第六批模型安全边界体验优化已发布并复演。
+- 134 当前完整部署 `767fa18f50fc02408f7ecc58a9fb57caa20e50a7`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260701-130501`，manifest
+  `deployedAt=2026-07-01T13:05:03+08:00`，
+  `jarSha256=3e5d581263aed00fda2a01d9ea46edf325b7e2981e82da6f7cd750dd314dfe81`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=1983099`、`NRestarts=0`。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第六批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -160,12 +160,56 @@
     显示医保审核页“整改截止时间”为 `2026年07月15日 08:30`，输入 `type=text`，
     placeholder 为 `例如 2026年07月15日 08:30`，旧斜杠日期 / ISO 可见值为空，字段周边未发现遮挡。
 
+## 最新阶段交接（2026-07-01 全视角真实前台体验优化第六批·模型安全边界）
+
+- 基于用户补充的院外/院内大模型双模式要求，以及第五批 134 复演后的模型能力页截图继续核查，发现原页面把
+  无模型规则链路、院内本地模型和公网外部模型都归入“外调安全”，会误导医疗引擎运营员、信息科长、
+  实施工程师和审计员：无模型状态应是预设边界，院内本地模型应体现授权边界，公网模型应体现严格脱敏边界。
+  后端 `ModelEgressGuard` 当前仍会对直接核心标识做强处理，本批前台不宣称院内模型可原文外泄核心敏感信息。
+- 已本地修复并提交：
+  - `609842c7f4947c3b3cc1519a3beaa30fdf55fb77`（`fix: 区分模型安全边界配置语义`）：
+    模型能力页改为按运行方式展示“安全边界已预设 / 院内授权已配置 / 公网安全已配置”，对应操作为
+    “预设安全边界 / 配置或调整院内授权 / 配置或调整公网安全”，弹窗标题与保存按钮同步区分。
+  - `fe59c5732ce3007be79646c6e25b0e3d80f62cd6`（`test: 适配模型能力真实安全边界`）：
+    单测与 D6 验收改为断言真实安全边界语义，不再寻找旧“外调安全”入口。
+  - `767fa18f50fc02408f7ecc58a9fb57caa20e50a7`（`test: 更新真实演练模型安全边界流程`）：
+    真实前台与全角色演练脚本改用“模型安全边界”流程，并修复 Ant Select 隐藏选项命中导致的真实浏览器不稳定。
+- 体验口径：
+  - 公网模型：可在授权用途内使用患者上下文，但姓名、证件号、手机号、地址、患者编号等核心标识字段先遮蔽。
+  - 院内本地模型：按授权使用必要患者信息，日志与证据不保留患者明文，并保留敏感信息处理边界。
+  - 无模型规则链路：只预设未来切换模型前的安全字段与责任确认，不改变当前 B0 规则链路。
+  - 旧“外调结果 / 外调允许字段 / 外调安全”前台文案已替换为“模型使用结果 / 模型允许字段 / 模型安全边界”。
+- 本地验证证据：
+  - 红灯：旧实现下 `npm --prefix frontend test -- AiWorkflows.test.tsx` 失败于旧“配置外调安全”入口与旧弹窗标题。
+  - 绿灯：`npm --prefix frontend test -- AiWorkflows.test.tsx` 通过，`10` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `908` 项；
+    `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source 767fa18f50fc02408f7ecc58a9fb57caa20e50a7`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260701-130501`，
+    manifest `deployedAt=2026-07-01T13:05:03+08:00`，
+    `jarSha256=3e5d581263aed00fda2a01d9ea46edf325b7e2981e82da6f7cd750dd314dfe81`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=1983099`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-d6-ai-workflows-767fa18f-safety-boundary`
+    直接访问 134 运行 `d6-ai-workflows.spec.ts --project=chromium` 通过，`2 passed (17.5s)`；
+    report stats 为 `expected=2`、`unexpected=0`、`flaky=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-767fa18f-model-boundary`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    运行记录 `12` 类视角（医生、护士、药师、医技、质控、患者代理、平台管理员、医疗引擎运营员、
+    审计员、信息科长、实施工程师、院长）均有 `actions=1`，浏览器错误、服务端错误、网络失败均为 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-767fa18f-model-boundary`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (35.0s)`；
+    运行记录 `10` 段真实前台链路均由页面提交产生，包含“前台配置模型安全边界策略”，全部
+    `browserErrors/serverErrors/networkFailures=0`。
+  - 截图复核：`ai-workflows-desktop.png` 与 `ai-workflows-mobile.png` 显示“患者上下文模型使用边界”
+    说明，移动端纵向可读；`real-frontdesk-model-safety-boundary.png` 显示保存反馈
+    “模型安全边界已保存”，列表列名为“模型安全边界”，未再出现旧“外调安全”误导文案。
+
 ## 下一步
 
-1. 继续第六批全视角真实操作与产品体验优化：医生、护士、患者/代理、药师、医技、质控、信息科长、
-   实施工程师、审计员、院长等视角都要提交真实表单、触发真实状态变化；继续关注质量报告长明细阅读负担、
-   患者/医生/护士/药师/医技剩余入口操作负担、模型双模式安全配置与实际前台交互。
-2. 继续保留大模型双模式安全边界：公网模型可使用患者信息但必须严格屏蔽核心敏感信息；
-   院内本地模型可按授权使用患者信息，但仍要记录用途、边界和敏感信息处理。
+1. 继续全视角真实操作与产品体验优化：重点回看质量报告长明细阅读负担、患者/医生/护士/药师/医技剩余入口
+   操作路径、宽表默认可读性、高级信息呈现方式，发现不合理产品设计直接按当前权威标准优化。
+2. 读取并脱敏登记 134 服务器 `/zoesoft/mimoModel` 中可用模型信息，核对公网 API / Codex CLI / 院内本地模型
+   的配置入口与安全边界是否能落到真实产品流程；不得泄露密钥或患者核心敏感信息。
 3. 目标环境上线前仍需补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
 4. 当前分支继续只做本地提交；最终全链路确认无问题后再统一处理远程 `main`。
