@@ -577,8 +577,10 @@ describe("AdapterHub", () => {
     expect(screen.queryByText("context-field-contract:runtime-H7")).not.toBeInTheDocument();
     expect(screen.getByText("资源 1 类")).toBeInTheDocument();
     expect(screen.getByText("字段 2 项")).toBeInTheDocument();
-    expect(screen.getAllByText("patient.id").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("patient.age").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("患者信息 · 可由外部系统接入").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("患者信息 · 平台自动派生").length).toBeGreaterThan(0);
+    expect(screen.queryByText("patient.id")).not.toBeInTheDocument();
+    expect(screen.queryByText("patient.age")).not.toBeInTheDocument();
     expect(screen.getByText("必传")).toBeInTheDocument();
     expect(screen.getByText("派生不可写")).toBeInTheDocument();
   });
@@ -629,6 +631,12 @@ describe("AdapterHub", () => {
 
   it("默认展示业务接入摘要，证据详情打开后才显示低频技术标识", async () => {
     vi.mocked(useIntegrationDataContract).mockReturnValue(query(dataContract) as never);
+    vi.mocked(useGenerateDataQualityReport).mockReturnValue(
+      mutation({
+        ...qualityReport,
+        gapSummary: "连通核查时效缺口：1/66；NOT_CONNECTED 适配器：66",
+      }) as never,
+    );
     const user = userEvent.setup();
     renderPage();
 
@@ -636,8 +644,10 @@ describe("AdapterHub", () => {
     expect(screen.getByText("适配器已登记")).toBeInTheDocument();
     expect(screen.getByText("当前机构字段契约已生成")).toBeInTheDocument();
     expect(screen.getByText("患者标识")).toBeInTheDocument();
+    expect(screen.getByText("患者信息 · 可由外部系统接入")).toBeInTheDocument();
     expect(screen.getByText("接入要求")).toBeInTheDocument();
     expect(screen.queryByText("字段结构")).not.toBeInTheDocument();
+    expect(screen.queryByText("patient.id")).not.toBeInTheDocument();
     expect(screen.queryByText(/his-main/)).not.toBeInTheDocument();
     expect(screen.queryByText(/context-field-contract:runtime-H7/)).not.toBeInTheDocument();
 
@@ -646,9 +656,13 @@ describe("AdapterHub", () => {
     expect(screen.getByText("上线判断：暂缓上线")).toBeInTheDocument();
     expect(screen.getByText(/先处理 1 个断连接入、1 个配置非法接入/)).toBeInTheDocument();
     expect(screen.getByText(/再补齐字段映射缺口/)).toBeInTheDocument();
-    expect(screen.getByText(/报告缺口：HIS 断连，LIS 配置非法/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/报告缺口：连通核查时效缺口：1\/66；未接通适配器：66/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/NOT_CONNECTED/)).not.toBeInTheDocument();
     expect(screen.queryByText(/缺口摘要：/)).not.toBeInTheDocument();
     expect(screen.getByText("缺口摘要")).toBeInTheDocument();
+    expect(screen.getByText("连通核查时效缺口：1/66；未接通适配器：66")).toBeInTheDocument();
     expect(screen.getByText("追踪证据已记录")).toBeInTheDocument();
     expect(screen.queryByText(/dqr-1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/trace-dqr/)).not.toBeInTheDocument();
@@ -681,6 +695,9 @@ describe("AdapterHub", () => {
     expect(screen.queryByText("接入申请：onb-his")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect((await screen.findAllByText("patient.id")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("patient.age").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/NOT_CONNECTED/).length).toBeGreaterThan(0);
     expect(await screen.findByText("来源编号：regional-lab")).toBeInTheDocument();
     expect(screen.getByText("适配器：his-main")).toBeInTheDocument();
     expect(screen.getByText("接入申请：onb-his")).toBeInTheDocument();

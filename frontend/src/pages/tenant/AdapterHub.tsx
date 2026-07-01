@@ -69,7 +69,7 @@ import {
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ADAPTER_PROTOCOL_OPTIONS, canAccessRoute, findRouteByPath } from "@/shared/config/routes";
-import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
 import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { OrgUnitSelect } from "@/shared/ui/OrgUnitSelect";
@@ -207,6 +207,24 @@ const MASTER_DATA_RESOURCE_LABEL: Record<
   LOCAL_TERM: "院内字典",
 };
 
+const CONTRACT_RESOURCE_LABEL: Record<string, string> = {
+  Patient: "患者信息",
+  Encounter: "就诊信息",
+  AllergyIntolerance: "过敏与不良反应",
+  Condition: "诊断与问题",
+  Observation: "检验检查观测",
+  DiagnosticReport: "医技报告",
+  MedicationRequest: "用药医嘱",
+  MedicationAdministration: "用药执行",
+  Procedure: "诊疗操作",
+  ServiceRequest: "医嘱申请",
+  CarePlan: "照护计划",
+  DocumentReference: "临床文书",
+  Coverage: "医保与支付",
+  Organization: "机构信息",
+  Practitioner: "医务人员",
+};
+
 const TERM_CATEGORY_OPTIONS = [
   { value: "DIAGNOSIS", label: "诊断" },
   { value: "PROCEDURE", label: "手术/操作" },
@@ -273,6 +291,34 @@ function adapterEvidenceText(onboarding: IntegrationOnboarding) {
   return `字段映射 ${onboarding.mappedFieldCount} 项，健康状态 ${customerEnumLabel(
     onboarding.healthStatus,
   )}，缺口 ${onboarding.blockers.length} 项。`;
+}
+
+function contractResourceLabel(resourceType: string | null | undefined) {
+  return resourceType ? (CONTRACT_RESOURCE_LABEL[resourceType] ?? "标准患者资源") : "标准患者资源";
+}
+
+function contractFieldAccessText(field: IntegrationDataContractResponse["fields"][number]) {
+  const accessText = field.externalWritable ? "可由外部系统接入" : "平台自动派生";
+  return `${contractResourceLabel(field.resourceType)} · ${accessText}`;
+}
+
+function contractFieldStructureText(field: IntegrationDataContractResponse["fields"][number]) {
+  if (field.externalWritable) return field.required ? "外部系统必传" : "外部系统可传";
+  return "由平台按确定性规则派生";
+}
+
+function contractFieldDataText(field: IntegrationDataContractResponse["fields"][number]) {
+  return field.required ? "必填业务字段" : "可选业务字段";
+}
+
+function qualityGapSummaryText(
+  summary: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  const rawText = summary?.trim();
+  if (!rawText) return "平台未返回额外报告缺口";
+  if (evidenceDetailsEnabled) return rawText;
+  return customerDisplayText(rawText).replace(/([\u3400-\u9fff])\s+(适配器|接入|系统)/g, "$1$2");
 }
 
 function getErrorTrace(error: unknown) {
@@ -1888,9 +1934,11 @@ function DataContractPanel({
       render: (_value, field) => (
         <Space direction="vertical" size={0} className={styles.contractFieldCell}>
           <Text strong>{field.displayName}</Text>
-          <Text type="secondary" className={styles.contractFieldCode}>
-            {field.fieldPath}
-          </Text>
+          {evidenceDetailsEnabled && (
+            <Text type="secondary" className={styles.contractFieldCode}>
+              {field.fieldPath}
+            </Text>
+          )}
         </Space>
       ),
     },
@@ -1899,8 +1947,10 @@ function DataContractPanel({
       key: "payload",
       width: "36%",
       render: (_value, field) => (
-        <Text className={styles.contractFieldCode}>
-          {field.payloadKey}.{field.propertyName}
+        <Text className={evidenceDetailsEnabled ? styles.contractFieldCode : undefined}>
+          {evidenceDetailsEnabled
+            ? `${field.payloadKey}.${field.propertyName}`
+            : contractFieldAccessText(field)}
         </Text>
       ),
     },
@@ -1957,9 +2007,27 @@ function DataContractPanel({
                     size="small"
                     column={1}
                     items={[
-                      { key: "resource", label: "资源", children: field.resourceType },
-                      { key: "schema", label: "字段结构", children: field.jsonSchemaType },
-                      { key: "type", label: "数据类型", children: field.dataType },
+                      {
+                        key: "resource",
+                        label: "资源",
+                        children: evidenceDetailsEnabled
+                          ? field.resourceType
+                          : contractResourceLabel(field.resourceType),
+                      },
+                      {
+                        key: "schema",
+                        label: evidenceDetailsEnabled ? "字段结构" : "接入结构",
+                        children: evidenceDetailsEnabled
+                          ? field.jsonSchemaType
+                          : contractFieldStructureText(field),
+                      },
+                      {
+                        key: "type",
+                        label: evidenceDetailsEnabled ? "数据类型" : "数据口径",
+                        children: evidenceDetailsEnabled
+                          ? field.dataType
+                          : contractFieldDataText(field),
+                      },
                       {
                         key: "unit",
                         label: "单位/字典",
@@ -1990,7 +2058,8 @@ function QualityReportCard({
   report: DataQualityReport;
   evidenceDetailsEnabled: boolean;
 }) {
-  const action = buildQualityReportAction(report);
+  const action = buildQualityReportAction(report, evidenceDetailsEnabled);
+  const gapSummary = qualityGapSummaryText(report.gapSummary, evidenceDetailsEnabled);
   return (
     <Card title="数据质量报告" className={styles.sectionCard}>
       <Alert
@@ -2014,14 +2083,14 @@ function QualityReportCard({
         <Descriptions.Item label="断连数量">{report.notConnectedCount}</Descriptions.Item>
         <Descriptions.Item label="配置非法">{report.misconfiguredCount}</Descriptions.Item>
         <Descriptions.Item label="缺口摘要" span={2}>
-          {report.gapSummary}
+          {gapSummary}
         </Descriptions.Item>
       </Descriptions>
     </Card>
   );
 }
 
-function buildQualityReportAction(report: DataQualityReport) {
+function buildQualityReportAction(report: DataQualityReport, evidenceDetailsEnabled: boolean) {
   const blocking =
     report.notConnectedCount > 0 ||
     report.misconfiguredCount > 0 ||
@@ -2047,7 +2116,10 @@ function buildQualityReportAction(report: DataQualityReport) {
   return {
     blocking,
     message: "上线判断：暂缓上线",
-    description: `${firstStep}，${gapText}。报告缺口：${report.gapSummary || "平台未返回额外报告缺口"}`,
+    description: `${firstStep}，${gapText}。报告缺口：${qualityGapSummaryText(
+      report.gapSummary,
+      evidenceDetailsEnabled,
+    )}`,
   };
 }
 
