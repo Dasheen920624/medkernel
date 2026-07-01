@@ -10,16 +10,16 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `89a641fabd5b5e48c326b2183cde8dfd43232dfd`
-  （`fix: 隐藏随访患者过滤原始标识`）；已包含第七批 `mimoModel` 发布脚本能力、第八批质量报告体验优化、第九批协同任务摘要优化与第十批随访患者过滤器脱敏体验，
+- 当前已发布应用代码提交为 `c9ac9ea2226952aa6133e72925a5fc11bda8bff4`
+  （`fix: 办理随访时收起背景列表`）；已包含第七批 `mimoModel` 发布脚本能力、第八批质量报告体验优化、第九批协同任务摘要优化、第十批随访患者过滤器脱敏体验与第十一批随访办理焦点收敛，
   后续文档交接提交不改变 134 应用包。
-- 当前 134 已发布应用为 `89a641fabd5b5e48c326b2183cde8dfd43232dfd`；第十批随访患者过滤器原始标识收敛已发布并复演。
-- 134 当前完整部署 `89a641fabd5b5e48c326b2183cde8dfd43232dfd`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260701-144721`，manifest
-  `deployedAt=2026-07-01T14:47:23+08:00`，
-  `jarSha256=84d2c8bc2d1b461309577b41336a3e653c0cb6043a0f9cd3b9a2d944d5cadd37`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2037866`、`NRestarts=0`。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第十批版本已完成真实前台与全职责 E2E。
+- 当前 134 已发布应用为 `c9ac9ea2226952aa6133e72925a5fc11bda8bff4`；第十一批随访办理背景列表收敛已发布并复演。
+- 134 当前完整部署 `c9ac9ea2226952aa6133e72925a5fc11bda8bff4`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260701-151012`，manifest
+  `deployedAt=2026-07-01T15:10:14+08:00`，
+  `jarSha256=19633f0c98db574fee758a24a7bab7bce1365e74bff03e65cf4415cc5ca10dac`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2050289`、`NRestarts=0`。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第十一批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -371,11 +371,49 @@
     “已筛选刚生成计划的患者”，不再显示 `mpi-*`；随访计划列表仍正常展示患者/就诊已关联、病种、方案、
     任务进度与办理入口。
 
+## 最新阶段交接（2026-07-01 第十一批·随访办理焦点收敛）
+
+- 基于第十批真实前台截图继续按护士、患者代理、医生和随访实施视角体验，发现
+  `real-frontdesk-followup-plan-questionnaire-abnormal.png` 中“随访计划办理”抽屉打开后，背景随访计划表仍透过遮罩清晰可读。
+  护士登记异常回院、患者代理代填问卷时会被底部计划列表抢视线，也容易误解为当前表单的一部分。
+- 处理中曾本地提交并短暂发布 `3ffeaa61a11a18b2adcf66ad6307421258bbeb7c`
+  （`fix: 提升随访办理抽屉层级`），但 134 截图复核显示背景计划表仍然可读；该提交只保留为根因证据，
+  **不是完成态，不作为后续接力依据**。
+- 最终已本地修复并提交 `c9ac9ea2226952aa6133e72925a5fc11bda8bff4`
+  （`fix: 办理随访时收起背景列表`）：
+  - `Followup` 统一计算随访办理抽屉打开状态，并在抽屉打开时隐藏背景“随访计划列表”区域。
+  - 背景计划列表新增明确 `aria-label="随访计划列表"`，方便无障碍边界与自动化验收；抽屉关闭后列表恢复。
+  - 抽屉仍保留显式层级 `1200`，但完成态以“背景列表不可见”为验收标准，而不是仅调层级。
+- 红绿与本地验证：
+  - 红灯：`npm --prefix frontend test -- Followup.test.tsx -t "办理抽屉打开后收起背景计划列表"`
+    在旧实现下失败，页面没有可识别的“随访计划列表”边界，也无法保证抽屉打开时背景列表不可见。
+  - 绿灯：同一目标用例通过；`npm --prefix frontend test -- Followup.test.tsx`
+    通过，`17` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `911` 项；
+    过程中仍只有既有 `antd Timeline.Item` 弃用警告。
+  - `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source c9ac9ea2226952aa6133e72925a5fc11bda8bff4`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260701-151012`，
+    manifest `deployedAt=2026-07-01T15:10:14+08:00`，
+    `jarSha256=19633f0c98db574fee758a24a7bab7bce1365e74bff03e65cf4415cc5ca10dac`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2050289`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-c9ac9ea2-followup-drawer-focus`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `12` 条职责视角记录、`4` 类登录职责覆盖，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-c9ac9ea2-followup-drawer-focus`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (34.1s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `10` 段真实前台链路均由页面提交产生，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - 截图复核：`real-frontdesk-followup-plan-questionnaire-abnormal.png` 中办理抽屉打开后不再显示底部随访计划表，
+    左侧背景仅保留弱化的页面上下文；患者过滤器继续显示“已筛选刚生成计划的患者”，未回退到 `mpi-*`。
+
 ## 下一步
 
 1. 继续全视角真实操作与产品体验优化：重点回看患者/医生/护士/药师/医技剩余入口操作路径、
    宽表默认可读性、高级信息呈现方式、质量管理下钻与整改闭环，发现不合理产品设计直接按当前权威标准优化。
-2. 继续复核真实前台演练截图里的随访办理抽屉、质量下钻和长表格在窄屏 / 高数据量下的默认可读性，
+2. 继续复核真实前台演练截图里的质量下钻、长表格和随访办理抽屉在窄屏 / 多任务量下的滚动与按钮可达性，
    发现遮挡、重复识别困难、操作路径过长或职责边界不清时直接按现行体验契约修复。
 3. `DEFER-003` 关闭前，公网 `mimo-public` 只保留“已受管登记但未启用”的诚实状态；拿到有效外部凭据后，
    重新运行 Provider 上线脚本并补充全知识生产真实模型证据。
