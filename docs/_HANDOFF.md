@@ -10,17 +10,17 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `79c2201e84281509d4fd45f5d9c81b2141b16ab4`
-  （`fix: 收敛知识生产上线准备证据`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前已发布应用代码提交为 `39e8c298dd52f065eee377678cbd0320ff34e8ea`
+  （`fix: 隐藏医保审核快照原始标识`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
-  以及第十六批知识生产上线准备默认证据收敛。
-- 当前 134 已发布应用为 `79c2201e84281509d4fd45f5d9c81b2141b16ab4`；第十六批已发布并完成真实前台与全职责复演。
-- 134 当前完整部署 `79c2201e84281509d4fd45f5d9c81b2141b16ab4`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260701-232032`，manifest
-  `deployedAt=2026-07-01T23:20:34+08:00`，
-  `jarSha256=12da4e2adcaca869ad4746a770ab50a26058e1feb671b05757fbbfb61798ef1c`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2311462`、`NRestarts=0`。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第十六批版本已完成真实前台与全职责 E2E。
+  第十六批知识生产上线准备默认证据收敛，以及第十七批医保审核快照默认标识收敛。
+- 当前 134 已发布应用为 `39e8c298dd52f065eee377678cbd0320ff34e8ea`；第十七批已发布并完成真实前台与全职责复演。
+- 134 当前完整部署 `39e8c298dd52f065eee377678cbd0320ff34e8ea`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260701-233410`，manifest
+  `deployedAt=2026-07-01T23:34:12+08:00`，
+  `jarSha256=5d25f9dc56bce3e67a944ef757ae54c602490c78b37631b1b882f2ba864e3b9f`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2318953`、`NRestarts=0`。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第十七批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -599,6 +599,44 @@
     证据列为“证据已记录”；未再默认展示 `LITERATURE_ROOT`、`MODEL_PROVIDER`、`VERSION_TRIPLE`、
     `file:///...` 或 `knowledge.production.knowledge`。
 
+## 最新阶段交接（2026-07-01 第十七批·医保审核快照默认标识收敛）
+
+- 基于第十六批 134 真实前台截图继续按医保审核员、质控、实施工程师和信息科视角核查，发现
+  `real-frontdesk-insurance-quality-rectification.png` 的“医保病案审核输入”在选中病案快照后默认把
+  原始患者/就诊标识显示进“患者信息 / 就诊信息”输入框。该标识对业务操作没有帮助，容易让普通角色误以为
+  需要手工理解 `mpi-*`、`enc-*` 这类内部追溯值；真实查询仍必须保留，原始标识应进入证据详情。
+- 已本地修复并提交 `39e8c298dd52f065eee377678cbd0320ff34e8ea`
+  （`fix: 隐藏医保审核快照原始标识`）：
+  - `InsuranceAudit` 拆分真实查询值与默认可见值：选中病案快照后继续用真实 patient/encounter
+    标识查询和提交，但输入框默认显示“已关联患者 / 已关联就诊”。
+  - `ContextSnapshotSelector` 在医保审核页只有打开“追溯证据”时才展示原始患者、就诊和快照标识；
+    默认病案卡片仅保留“病案快照已生效 / 质量状态 / 证据”等业务信息。
+  - 真实前台 E2E 已补充断言：选择病案快照后，“患者信息”值为“已关联患者”，存在就诊时“就诊信息”值为
+    “已关联就诊”，防止后续回退为裸标识。
+- 红绿与本地验证：
+  - 红灯：`npm --prefix frontend test -- InsuranceAudit.test.tsx -t "选中病案快照后默认用业务文本展示患者与就诊线索"`
+    在旧实现下失败，输入框仍显示 `patient-ins`。
+  - 绿灯：同一目标用例通过；`npm --prefix frontend test -- InsuranceAudit.test.tsx` 通过，`7` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `917` 项；
+    `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source 39e8c298dd52f065eee377678cbd0320ff34e8ea`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260701-233410`，
+    manifest `deployedAt=2026-07-01T23:34:12+08:00`，
+    `jarSha256=5d25f9dc56bce3e67a944ef757ae54c602490c78b37631b1b882f2ba864e3b9f`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2318953`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-39e8c298-insurance-snapshot-evidence`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (40.9s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `11` 段真实前台链路，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-39e8c298-insurance-snapshot-evidence`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `12` 类职责视角，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - 截图复核：`real-frontdesk-insurance-quality-rectification.png` 中“患者信息 / 就诊信息”输入框默认显示
+    “已关联患者 / 已关联就诊”；医保问题列表仍显示“当前机构、规则依据已关联、证据已记录”等业务摘要，
+    未再默认裸露患者/就诊原始标识。
+
 ## 下一步
 
 1. 继续全视角真实操作与产品体验优化：重点回看患者/医生/护士/药师/医技剩余入口操作路径、
@@ -606,7 +644,7 @@
 2. 继续复核真实前台演练截图里的质量下钻、长表格和随访办理抽屉在窄屏 / 多任务量下的滚动与按钮可达性，
    发现遮挡、重复识别困难、操作路径过长或职责边界不清时直接按现行体验契约修复。
 3. 继续按统一知识治理视角回看诊断知识维护、机构知识、来源血缘、发布治理和知识生产之间的边界；
-   只有发现与原始权威文档冲突或真实前台体验误导时才调整结构，不因单个疑问盲目拆改。
+   当前不因单个疑问盲目拆改，只有发现与原始权威文档冲突或真实前台体验误导时才调整结构。
 4. `DEFER-003` 关闭前，公网 `mimo-public` 只保留“已受管登记但未启用”的诚实状态；拿到有效外部凭据后，
    重新运行 Provider 上线脚本并补充全知识生产真实模型证据。
 5. 目标环境上线前仍需补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
