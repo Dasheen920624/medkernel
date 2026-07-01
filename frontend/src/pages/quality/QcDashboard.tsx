@@ -40,6 +40,7 @@ import type {
 import { PageShell } from "@/shared/ui/PageShell";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 
@@ -678,8 +679,7 @@ function qualitySourceLabel(sourceType: string): string {
 }
 
 function formatDateTime(value: string | null | undefined): string {
-  if (!value) return "--";
-  return value.replace("T", " ").slice(0, 16);
+  return formatClinicalDateTime(value, "--");
 }
 
 function getResponseStatus(error: unknown): number | undefined {

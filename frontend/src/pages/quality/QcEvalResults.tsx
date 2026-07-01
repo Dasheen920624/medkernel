@@ -7,7 +7,6 @@ import {
   Drawer,
   Empty,
   Form,
-  Input,
   Select,
   Space,
   Table,
@@ -44,8 +43,14 @@ import type {
 import { PageShell } from "@/shared/ui/PageShell";
 import type { PageStateKind } from "@/shared/ui/PageState.contract";
 import { RectificationAssignmentFields } from "@/shared/ui/RectificationAssignmentFields";
+import { RectificationDueAtField } from "@/shared/ui/RectificationDueAtField";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import {
+  clinicalDateTimeInputToIso,
+  formatClinicalDateTime,
+  formatClinicalDateTimeInputValue,
+} from "@/shared/lib/dateTimeText";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 
@@ -164,7 +169,7 @@ export default function QcEvalResults() {
       return;
     }
     const responsibleDepartmentIdValue = values.responsibleDepartmentId.trim();
-    const dueAt = values.dueAt.trim();
+    const dueAt = clinicalDateTimeInputToIso(values.dueAt);
     try {
       await dispatchMutation.mutateAsync({
         request: {
@@ -558,13 +563,7 @@ export default function QcEvalResults() {
                   preserve={false}
                 >
                   <RectificationAssignmentFields />
-                  <Form.Item
-                    name="dueAt"
-                    label="整改截止时间"
-                    rules={[{ required: true, message: "请输入整改截止时间" }]}
-                  >
-                    <Input />
-                  </Form.Item>
+                  <RectificationDueAtField />
                   <Button
                     aria-label="派发整改任务"
                     type="primary"
@@ -742,11 +741,11 @@ function defaultDueAt(value: string | undefined) {
   if (!value) {
     return "";
   }
-  return value;
+  return formatClinicalDateTimeInputValue(value);
 }
 
 function formatTime(value: string | undefined) {
-  return value ? value.replace("T", " ").slice(0, 16) : "--";
+  return formatClinicalDateTime(value, "--");
 }
 
 function evidenceText(

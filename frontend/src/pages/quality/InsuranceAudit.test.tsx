@@ -314,6 +314,8 @@ describe("InsuranceAudit", () => {
     expect(screen.queryByLabelText("场景编码")).not.toBeInTheDocument();
     expect(screen.getByLabelText("医保规则依据")).toBeInTheDocument();
     expect(screen.queryByLabelText("规则编码")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("整改截止时间")).toHaveAttribute("type", "datetime-local");
+    expect(screen.queryByPlaceholderText("例如 2026-06-12T00:00:00Z")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("审核场景"), { target: { value: "A9" } });
     fireEvent.change(screen.getByLabelText("DRG 分组器版本"), {
       target: { value: "GROUPER-2026" },
@@ -329,7 +331,7 @@ describe("InsuranceAudit", () => {
     fireEvent.change(screen.getByLabelText("依据版本"), { target: { value: "2026-A" } });
     fireEvent.change(screen.getByLabelText("费用阈值"), { target: { value: "1000" } });
     fireEvent.change(screen.getByLabelText("整改截止时间"), {
-      target: { value: "2026-06-12T00:00:00Z" },
+      target: { value: "2026-06-12T08:00" },
     });
     fireEvent.change(screen.getByLabelText("规则说明"), {
       target: { value: "费用超过版本化规则阈值" },
@@ -355,6 +357,7 @@ describe("InsuranceAudit", () => {
       expect(insuranceAudit).toHaveBeenCalledWith(
         expect.objectContaining({
           indicatorId: "indicator-insurance",
+          dueAt: "2026-06-12T00:00:00.000Z",
           rules: [
             expect.objectContaining({
               ruleCode: "RULE-FEE-A",

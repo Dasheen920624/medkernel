@@ -258,11 +258,12 @@ describe("QcEvalResults", () => {
     renderPage();
 
     await user.click(screen.getByRole("button", { name: "查看问题详情" }));
+    expect(screen.getByLabelText("整改截止时间")).toHaveAttribute("type", "datetime-local");
     await user.click(screen.getByLabelText("责任人"));
     expect(screen.queryByText("质控专员 · u-quality-1")).not.toBeInTheDocument();
     await user.click(screen.getByText("质控专员"));
     fireEvent.change(screen.getByLabelText("整改截止时间"), {
-      target: { value: "2026-06-09T00:00:00Z" },
+      target: { value: "2026-06-09T08:00" },
     });
 
     await user.click(screen.getByRole("button", { name: "派发整改任务" }));
@@ -274,7 +275,7 @@ describe("QcEvalResults", () => {
             findingId: "finding-real-1",
             responsibleDepartmentId: "dept-cardio",
             assigneeUserId: "u-quality-1",
-            dueAt: "2026-06-09T00:00:00Z",
+            dueAt: "2026-06-09T00:00:00.000Z",
           },
           idempotencyKey: expect.stringContaining("finding-real-1"),
         }),

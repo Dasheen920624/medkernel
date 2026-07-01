@@ -173,6 +173,8 @@ describe("QcAlerts", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "查看处置证据" }));
     expect(screen.getByText("预警处置证据")).toBeInTheDocument();
+    expect(screen.getByLabelText("整改截止时间")).toHaveAttribute("type", "datetime-local");
+    expect(screen.getByLabelText("整改截止时间")).toHaveValue("2026-06-12T17:00");
     expect(screen.getAllByText("高风险质控事实仍未闭环").length).toBeGreaterThan(0);
     expect(screen.getByText("来源事实已关联")).toBeInTheDocument();
     expect(screen.getAllByText("证据已记录").length).toBeGreaterThan(0);
@@ -191,6 +193,7 @@ describe("QcAlerts", () => {
             findingId: "finding-p1",
             responsibleDepartmentId: "dept-cardio",
             assigneeUserId: "u-quality-1",
+            dueAt: "2026-06-12T09:00:00.000Z",
           }),
         }),
       );

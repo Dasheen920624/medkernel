@@ -7,7 +7,6 @@ import {
   Drawer,
   Empty,
   Form,
-  Input,
   List,
   Select,
   Space,
@@ -29,8 +28,13 @@ import {
 } from "@/shared/api/hooks";
 import { PageShell } from "@/shared/ui/PageShell";
 import { RectificationAssignmentFields } from "@/shared/ui/RectificationAssignmentFields";
+import { RectificationDueAtField } from "@/shared/ui/RectificationDueAtField";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import {
+  clinicalDateTimeInputToIso,
+  formatClinicalDateTimeInputValue,
+} from "@/shared/lib/dateTimeText";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 
@@ -366,13 +370,7 @@ export default function QcAlerts() {
                   preserve={false}
                 >
                   <RectificationAssignmentFields />
-                  <Form.Item
-                    name="dueAt"
-                    label="整改截止时间"
-                    rules={[{ required: true, message: "请输入整改截止时间" }]}
-                  >
-                    <Input />
-                  </Form.Item>
+                  <RectificationDueAtField />
                   <Button
                     aria-label="派发整改任务"
                     type="primary"
@@ -521,18 +519,14 @@ function isSafetyAlert(alert: QualityDashboardAlert) {
 function defaultDueAt(createdAt: string | null | undefined) {
   const base = createdAt ? new Date(createdAt) : new Date();
   if (Number.isNaN(base.getTime())) {
-    return new Date().toISOString();
+    return formatClinicalDateTimeInputValue(new Date().toISOString());
   }
   base.setDate(base.getDate() + 7);
-  return base.toISOString();
+  return formatClinicalDateTimeInputValue(base.toISOString());
 }
 
 function normalizeDueAt(value: string) {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-  return parsed.toISOString();
+  return clinicalDateTimeInputToIso(value);
 }
 
 function optionalText(value: string | undefined) {

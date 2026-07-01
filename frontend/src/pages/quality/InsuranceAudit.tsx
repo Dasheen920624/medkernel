@@ -44,8 +44,10 @@ import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
 import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
 import { PageShell } from "@/shared/ui/PageShell";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { clinicalDateTimeInputToIso } from "@/shared/lib/dateTimeText";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
+import { RectificationDueAtField } from "@/shared/ui/RectificationDueAtField";
 
 const { Text } = Typography;
 const DEPARTMENT_REFERENCE_PAGE_SIZE = 20;
@@ -196,7 +198,7 @@ export default function InsuranceAudit() {
         ...base,
         scenarioCode,
         indicatorId: values.indicatorId.trim(),
-        dueAt: values.dueAt.trim(),
+        dueAt: clinicalDateTimeInputToIso(values.dueAt),
         rules: [
           {
             ruleCode: values.ruleCode.trim(),
@@ -424,13 +426,7 @@ export default function InsuranceAudit() {
                 >
                   <Input placeholder="输入本次医保审核场景" />
                 </Form.Item>
-                <Form.Item
-                  label="整改截止时间"
-                  name="dueAt"
-                  rules={[{ required: true, message: "请输入 ISO-8601 截止时间" }]}
-                >
-                  <Input placeholder="例如 2026-06-12T00:00:00Z" />
-                </Form.Item>
+                <RectificationDueAtField />
               </Space>
               <Space wrap size="middle" className="mk-full-width">
                 <Form.Item

@@ -1,4 +1,5 @@
 const CLINICAL_TIME_ZONE = "Asia/Shanghai";
+const CLINICAL_TIME_ZONE_OFFSET_MINUTES = 8 * 60;
 
 const clinicalDateFormatter = new Intl.DateTimeFormat("zh-CN", {
   timeZone: CLINICAL_TIME_ZONE,
@@ -42,6 +43,10 @@ function formatterParts(formatter: Intl.DateTimeFormat, date: Date) {
   return parts;
 }
 
+function pad2(value: number) {
+  return String(value).padStart(2, "0");
+}
+
 export function formatClinicalDate(value?: string | null, fallback = "日期待确认") {
   const date = parseDate(value);
   if (!date) return fallback;
@@ -61,4 +66,32 @@ export function formatClinicalDateTimeWithSeconds(value?: string | null, fallbac
   if (!date) return fallback;
   const parts = formatterParts(clinicalDateTimeSecondFormatter, date);
   return `${parts.year}年${parts.month}月${parts.day}日 ${parts.hour}:${parts.minute}:${parts.second}`;
+}
+
+export function formatClinicalDateTimeInputValue(value?: string | null) {
+  const date = parseDate(value);
+  if (!date) return "";
+  const clinicalTime = new Date(date.getTime() + CLINICAL_TIME_ZONE_OFFSET_MINUTES * 60_000);
+  return `${clinicalTime.getUTCFullYear()}-${pad2(clinicalTime.getUTCMonth() + 1)}-${pad2(
+    clinicalTime.getUTCDate(),
+  )}T${pad2(clinicalTime.getUTCHours())}:${pad2(clinicalTime.getUTCMinutes())}`;
+}
+
+export function clinicalDateTimeInputToIso(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return "";
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(trimmed);
+  if (!match) return trimmed;
+  const [, year, month, day, hour, minute, second = "00"] = match;
+  const utcTime =
+    Date.UTC(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second),
+    ) -
+    CLINICAL_TIME_ZONE_OFFSET_MINUTES * 60_000;
+  return new Date(utcTime).toISOString();
 }

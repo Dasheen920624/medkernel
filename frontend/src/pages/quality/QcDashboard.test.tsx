@@ -165,6 +165,9 @@ describe("QcDashboard", () => {
     expect(screen.getByText("医保违规减少")).toBeInTheDocument();
     expect(screen.getByText("暂不可用")).toBeInTheDocument();
     expect(screen.getByText("P1 问题聚集")).toBeInTheDocument();
+    expect(screen.getByText("生成时间：2026年06月05日 18:00")).toBeInTheDocument();
+    expect(screen.getAllByText("计算时间：2026年06月05日 18:00").length).toBeGreaterThan(0);
+    expect(screen.queryByText("生成时间：2026-06-05 10:00")).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.queryByText("RECTIFICATION_CLOSURE_RATE")).not.toBeInTheDocument();
     expect(screen.queryByText("risk-high")).not.toBeInTheDocument();
