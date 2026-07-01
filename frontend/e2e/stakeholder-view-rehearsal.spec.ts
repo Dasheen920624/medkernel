@@ -1134,7 +1134,10 @@ async function chooseDialogOption(page: Page, dialog: Locator, label: string, op
   await select.locator(".ant-select-selector").click();
   const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
   await expect(dropdown).toBeVisible({ timeout: 5_000 });
-  const optionLocator = dropdown.getByText(optionText, { exact: true }).last();
+  const optionLocator = dropdown
+    .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
+    .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(optionText)}\\s*$`) })
+    .first();
   await expect(optionLocator).toBeVisible({ timeout: 20_000 });
   await optionLocator.click();
 }
@@ -1185,8 +1188,9 @@ async function searchDialogOption(
   const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
   await expect(dropdown).toBeVisible({ timeout: 5_000 });
   const optionLocator = dropdown
-    .getByText(new RegExp(`^${escapeRegExp(optionText)}(\\s*·.*)?$`))
-    .last();
+    .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
+    .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(optionText)}(\\s*·.*)?\\s*$`) })
+    .first();
   await expect(optionLocator).toBeVisible({ timeout: 20_000 });
   await optionLocator.click();
 }

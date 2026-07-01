@@ -29,7 +29,7 @@ type MpiPatientCreated = {
 test.describe.configure({ mode: "serial" });
 
 test.describe("全前台真实操作演练", () => {
-  test("平台接入、知识资产、外调策略、患者资源与临床随访数据均由前台页面提交产生", async ({
+  test("平台接入、知识资产、模型安全边界、患者资源与临床随访数据均由前台页面提交产生", async ({
     page,
   }, testInfo) => {
     test.setTimeout(420_000);
@@ -204,19 +204,33 @@ async function configureModelEgressPolicyFromUi(
   await page.goto("/advanced/ai-workflows", { waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { name: "模型能力" })).toBeVisible();
   await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
-  await expectNoRootOverflow(page, "模型能力外调安全策略桌面");
+  await expectNoRootOverflow(page, "模型能力安全边界桌面");
 
-  const policyButton = page.getByRole("button", { name: /配置 .+ 外调安全策略/ }).first();
+  const policyButton = page
+    .getByRole("button", {
+      name: /预设 .+ 模型安全边界|配置 .+ 院内模型授权边界|调整 .+ 院内模型授权边界|配置 .+ 公网模型安全策略|调整 .+ 公网模型安全策略/,
+    })
+    .first();
   await expect(policyButton).toBeEnabled();
   await policyButton.click();
-  const dialog = page.getByRole("dialog", { name: "配置外调安全策略" });
+  const dialog = page.getByRole("dialog", {
+    name: /预设模型安全边界|配置院内模型授权边界|配置公网模型安全策略/,
+  });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText("公网外部模型可使用患者上下文")).toBeVisible();
+  await expect(
+    dialog.getByText(
+      /当前能力仍走无模型规则链路|院内本地模型按授权使用患者上下文|公网外部模型可使用患者上下文/,
+    ),
+  ).toBeVisible();
 
   const responsePromise = waitForPut(page, "/api/v1/data-minimization/policies/model-egress/");
-  await dialog.getByRole("button", { name: "保存外调安全策略" }).click();
+  await dialog
+    .getByRole("button", {
+      name: /保存安全边界预设|保存院内授权边界|保存公网安全策略/,
+    })
+    .click();
   const response = await responsePromise;
-  expect(response.ok(), "前台提交模型外调安全策略应返回成功").toBe(true);
+  expect(response.ok(), "前台提交模型安全边界策略应返回成功").toBe(true);
   const result = (await response.json()) as {
     data?: { allowedFields?: string; sensitivityLevel?: string; guardrailLockedFlag?: string };
   };
@@ -224,8 +238,8 @@ async function configureModelEgressPolicyFromUi(
   expect(result.data?.sensitivityLevel).toBe("HIGH");
   expect(result.data?.guardrailLockedFlag).toBe("Y");
   await expect(dialog).toBeHidden({ timeout: 20_000 });
-  await captureEvidence(page, testInfo, "real-frontdesk-model-egress-policy");
-  recordCleanRuntime(page, "前台配置模型外调安全策略", runtime, records);
+  await captureEvidence(page, testInfo, "real-frontdesk-model-safety-boundary");
+  recordCleanRuntime(page, "前台配置模型安全边界策略", runtime, records);
 }
 
 async function createMpiPatientFromUi(
@@ -565,7 +579,10 @@ async function chooseDialogOption(page: Page, dialog: Locator, label: string, op
   await select.locator(".ant-select-selector").click();
   const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
   await expect(dropdown).toBeVisible({ timeout: 5_000 });
-  const optionLocator = dropdown.getByText(option, { exact: true }).last();
+  const optionLocator = dropdown
+    .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
+    .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(option)}\\s*$`) })
+    .first();
   await expect(optionLocator).toBeVisible({ timeout: 5_000 });
   await optionLocator.click();
 }
@@ -586,8 +603,9 @@ async function searchDialogOption(
   const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
   await expect(dropdown).toBeVisible({ timeout: 5_000 });
   const optionLocator = dropdown
-    .getByText(new RegExp(`^${escapeRegExp(optionText)}(\\s*·.*)?$`))
-    .last();
+    .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
+    .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(optionText)}(\\s*·.*)?\\s*$`) })
+    .first();
   await expect(optionLocator).toBeVisible({ timeout: 20_000 });
   await optionLocator.click();
 }
