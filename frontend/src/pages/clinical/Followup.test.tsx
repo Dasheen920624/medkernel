@@ -686,6 +686,42 @@ describe("Followup", () => {
     expect(screen.queryByLabelText("随访快照就诊信息")).not.toBeInTheDocument();
   });
 
+  it("keeps generated plan patient identifiers out of the visible follow-up filter", async () => {
+    const user = userEvent.setup();
+    followupHookMocks.generatePlan.mockResolvedValue({
+      planId: "plan-real-1",
+      patientId: "mpi-01KWE6CK9MD11VREALFILTER",
+    });
+    renderFollowup();
+
+    await user.click(screen.getByRole("button", { name: /生成随访计划/ }));
+    fireEvent.change(screen.getByLabelText("随访快照患者信息"), {
+      target: { value: "patient-real-1" },
+    });
+    await user.click(screen.getByRole("button", { name: "选择第 1 个随访上下文快照" }));
+    await user.click(screen.getByLabelText("随访风险分层"));
+    await user.click(screen.getByText("高风险"));
+    await user.click(screen.getByLabelText("随访模板"));
+    await user.click(
+      await screen.findByText("慢阻肺出院随访 · v1", {
+        selector: ".ant-select-item-option-content",
+      }),
+    );
+    await user.click(
+      within(screen.getByRole("dialog", { name: "生成随访计划" })).getByRole("button", {
+        name: /生 成/,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(followupHookMocks.useFollowupPlans).toHaveBeenCalledWith(
+        expect.objectContaining({ patientId: "mpi-01KWE6CK9MD11VREALFILTER" }),
+      ),
+    );
+    expect(screen.getByPlaceholderText("按患者线索检索")).toHaveValue("已筛选刚生成计划的患者");
+    expect(screen.queryByDisplayValue("mpi-01KWE6CK9MD11VREALFILTER")).not.toBeInTheDocument();
+  });
+
   it("提醒旧机构生效版本快照不会自动套用新发布模板", async () => {
     const user = userEvent.setup();
     grantRuntimeReadPermission();

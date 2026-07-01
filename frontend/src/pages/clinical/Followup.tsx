@@ -74,6 +74,7 @@ import styles from "./Clinical.module.css";
 const { TextArea } = Input;
 const FOLLOWUP_PLAN_PAGE_SIZE = 20;
 const FOLLOWUP_TEMPLATE_PAGE_SIZE = 20;
+const GENERATED_PATIENT_FILTER_TEXT = "已筛选刚生成计划的患者";
 
 const planStatusConfig: Record<FollowupPlanStatus, { status: BadgeProps["status"]; text: string }> =
   {
@@ -146,7 +147,8 @@ export default function Followup() {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [generateModalVisible, setGenerateModalVisible] = useState(false);
   const [templateModalVisible, setTemplateModalVisible] = useState(false);
-  const [patientFilter, setPatientFilter] = useState("");
+  const [patientFilterQuery, setPatientFilterQuery] = useState("");
+  const [patientFilterDisplay, setPatientFilterDisplay] = useState("");
   const [planPage, setPlanPage] = useState(1);
   const [templatePage, setTemplatePage] = useState(1);
   const [templateSearch, setTemplateSearch] = useState("");
@@ -170,7 +172,7 @@ export default function Followup() {
     isLoading,
     isError,
   } = useFollowupPlans({
-    patientId: patientFilter.trim() || undefined,
+    patientId: patientFilterQuery.trim() || undefined,
     page: planPage,
     size: FOLLOWUP_PLAN_PAGE_SIZE,
   });
@@ -180,7 +182,7 @@ export default function Followup() {
     isLoading: statsLoading,
     isError: statsError,
   } = useFollowupStats({
-    patientId: patientFilter.trim() || undefined,
+    patientId: patientFilterQuery.trim() || undefined,
   });
 
   const generatePlanMutation = useGenerateFollowupPlan();
@@ -298,7 +300,8 @@ export default function Followup() {
       setSnapshotEncounterId("");
       setSelectedSnapshotId("");
       if (response.patientId) {
-        setPatientFilter(response.patientId);
+        setPatientFilterQuery(response.patientId);
+        setPatientFilterDisplay(GENERATED_PATIENT_FILTER_TEXT);
         setPlanPage(1);
       }
       setSelectedPlanId(response.planId);
@@ -721,9 +724,10 @@ export default function Followup() {
                 <Input
                   placeholder="按患者线索检索"
                   allowClear
-                  value={patientFilter}
+                  value={patientFilterDisplay}
                   onChange={(event) => {
-                    setPatientFilter(event.target.value);
+                    setPatientFilterQuery(event.target.value);
+                    setPatientFilterDisplay(event.target.value);
                     setPlanPage(1);
                   }}
                   onPressEnter={() => void refreshFollowupData()}
