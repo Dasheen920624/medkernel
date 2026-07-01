@@ -396,6 +396,16 @@ describe("Followup", () => {
     expect(screen.queryByText("FOLLOWUP_QUESTIONNAIRE_DEFAULT")).not.toBeInTheDocument();
   });
 
+  it("办理抽屉打开后保持在计划列表上方，避免背景列表干扰护士操作", async () => {
+    const user = userEvent.setup();
+    renderFollowup();
+
+    await user.click(screen.getByRole("button", { name: /查看与办理/ }));
+    const drawer = await screen.findByRole("dialog", { name: "随访计划办理" });
+
+    expect(drawer.closest(".ant-drawer")).toHaveStyle({ zIndex: "1200" });
+  });
+
   it("证据详情打开后可追溯随访计划、患者、模板和任务原始标识", async () => {
     const user = userEvent.setup();
     renderFollowup();

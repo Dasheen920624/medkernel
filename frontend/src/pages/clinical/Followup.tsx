@@ -75,6 +75,7 @@ const { TextArea } = Input;
 const FOLLOWUP_PLAN_PAGE_SIZE = 20;
 const FOLLOWUP_TEMPLATE_PAGE_SIZE = 20;
 const GENERATED_PATIENT_FILTER_TEXT = "已筛选刚生成计划的患者";
+const FOLLOWUP_HANDLING_DRAWER_Z_INDEX = 1200;
 
 const planStatusConfig: Record<FollowupPlanStatus, { status: BadgeProps["status"]; text: string }> =
   {
@@ -987,6 +988,7 @@ export default function Followup() {
         title="随访计划办理"
         aria-label="随访计划办理"
         width={860}
+        zIndex={FOLLOWUP_HANDLING_DRAWER_Z_INDEX}
         open={Boolean(selectedPlanId && selectedPlanDetail)}
         onClose={() => {
           setSelectedPlanId(null);
