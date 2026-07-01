@@ -10,16 +10,16 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前 134 已发布应用为 `767fa18f50fc02408f7ecc58a9fb57caa20e50a7`
-  （`test: 更新真实演练模型安全边界流程`）；第六批模型安全边界体验优化已发布并复演。
-- 当前本地脚本最新提交为 `07ff36c3de53433f43ea3bad281e1ff5827667b3`
-  （`fix: 接入mimo模型运行配置`）；该提交只改发布脚本与脚本测试，未改变 134 已发布应用包。
-- 134 当前完整部署 `767fa18f50fc02408f7ecc58a9fb57caa20e50a7`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260701-130501`，manifest
-  `deployedAt=2026-07-01T13:05:03+08:00`，
-  `jarSha256=3e5d581263aed00fda2a01d9ea46edf325b7e2981e82da6f7cd750dd314dfe81`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=1983099`、`NRestarts=0`。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第六批版本已完成真实前台与全职责 E2E。
+- 当前已发布应用代码提交为 `662a19b373e1fb6025cb4d84e482db3892e301b4`
+  （`fix: 避免质量报告摘要标签冲突`）；已包含第七批 `mimoModel` 发布脚本能力与第八批质量报告体验优化，
+  后续文档交接提交不改变 134 应用包。
+- 当前 134 已发布应用为 `662a19b373e1fb6025cb4d84e482db3892e301b4`；第八批质量报告处理摘要体验优化已发布并复演。
+- 134 当前完整部署 `662a19b373e1fb6025cb4d84e482db3892e301b4`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260701-134901`，manifest
+  `deployedAt=2026-07-01T13:49:03+08:00`，
+  `jarSha256=522522403195c6e8b94a7a5c75cc1b2536d69b98a24cfbbd10e77733561f8b37`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2006750`、`NRestarts=0`。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第八批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -244,13 +244,61 @@
   - 回归组合：`node --test scripts/release/model-provider-launch.test.mjs scripts/release/full-system-rehearsal.test.mjs scripts/release/runtime-resilience-rehearsal.test.mjs`
     通过，`19` 项。
   - `git diff --check` 通过；敏感扫描只命中 `example.com` 测试假数据和环境变量名。
-- 本批没有变更后端/前端应用包，不需要重新部署 134；当前 134 应用仍是第六批
-  `767fa18f50fc02408f7ecc58a9fb57caa20e50a7`。
+- 第七批没有变更后端/前端应用包，因此当时未重新部署 134；随后第八批应用变更已重新发布，
+  当前 134 版本以本文“当前主线”和第八批交接为准。
+
+## 最新阶段交接（2026-07-01 第八批·质量报告处理摘要与复演）
+
+- 基于第七批后的“质量报告长明细阅读负担”和全角色体验继续核查，发现两类上线级体验缺口：
+  - 质量管理概览在部分指标不可计算时只给低层指标说明，质控、院长和信息科长难以快速判断当前筛选页应该先处理什么。
+  - 系统接入的数据质量报告生成后只有指标和缺口明细，实施工程师和信息科长需要自行推断是否暂缓上线、先处理断连还是字段映射。
+- 已本地修复并提交：
+  - `190dcddb3b46796ac6d959a624bb61fea85a77c1`（`fix: 强化质量报告处理摘要`）：
+    `QcDashboard` 增加“当前页处理摘要”，按当前页严重程度、状态和科室筛选给出处理顺序；
+    `AdapterHub` 在数据质量报告中增加“上线判断：暂缓上线 / 可继续接入验收”和先后处理顺序。
+  - `662a19b373e1fb6025cb4d84e482db3892e301b4`（`fix: 避免质量报告摘要标签冲突`）：
+    修正 `190dcddb` 引入的行动摘要文案冲突；报告详情字段继续叫“缺口摘要”，上方行动判断改为“报告缺口”，避免用户和严格 E2E 都被同一卡片内的重复标签误导。
+- 红绿与本地验证：
+  - 红灯：`npm --prefix frontend test -- QcDashboard.test.tsx AdapterHub.test.tsx`
+    在旧实现下失败于找不到“当前页处理摘要”和“上线判断：暂缓上线”。
+  - 绿灯：上述目标测试通过，`2` 个文件 / `24` 项。
+  - 标签冲突红灯：`npm --prefix frontend test -- AdapterHub.test.tsx -t "默认展示业务接入摘要"`
+    在旧文案下失败于找不到“报告缺口：HIS 断连，LIS 配置非法”。
+  - 标签冲突绿灯：同一目标用例通过；`npm --prefix frontend test -- AdapterHub.test.tsx`
+    通过，`19` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `908` 项；
+    过程中仍只有既有 `antd Timeline.Item` 弃用警告。
+  - `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 曾用 `190dcddb3b46796ac6d959a624bb61fea85a77c1` 发布到 134；
+    备份 `/zoesoft/medkernel/backups/deploy-20260701-134031`，
+    manifest `deployedAt=2026-07-01T13:40:33+08:00`，
+    `jarSha256=33d1e466e5eedd08a68c33c2d85529244068b1a97db4cd055f794be2db73ccd0`，
+    readiness HTTP 200 / `{"status":"UP"}`。该版本在全职责 E2E 暴露“缺口摘要”文案重复导致的严格定位歧义，
+    只作为根因证据，不作为最终交付证据。
+  - 已用 `deploy/onprem/mk-publish.sh --source 662a19b373e1fb6025cb4d84e482db3892e301b4`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260701-134901`，
+    manifest `deployedAt=2026-07-01T13:49:03+08:00`，
+    `jarSha256=522522403195c6e8b94a7a5c75cc1b2536d69b98a24cfbbd10e77733561f8b37`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2006750`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-662a19b3-quality-summary-fixed`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.4m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `12` 类视角均有 `actions=1`，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-662a19b3-quality-summary-fixed`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (34.6s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `10` 段真实前台链路均为页面提交产生，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - 截图复核：`stakeholder-it_manager.png` 显示数据质量报告行动区使用“报告缺口”，详情字段仍保留“缺口摘要”；
+    `stakeholder-quality_controller.png` 与 `stakeholder-hospital_executive.png` 显示质量概览处理摘要可见且未遮挡；
+    `real-frontdesk-onboarding.png` 显示前台新增接入申请与最近更新时间；
+    `real-frontdesk-value-set.png` 显示前台新增值集按最新维护时间排序；
+    `real-frontdesk-model-safety-boundary.png` 显示模型安全边界仍按患者上下文脱敏 / 院内授权口径呈现。
 
 ## 下一步
 
-1. 继续全视角真实操作与产品体验优化：重点回看质量报告长明细阅读负担、患者/医生/护士/药师/医技剩余入口
-   操作路径、宽表默认可读性、高级信息呈现方式，发现不合理产品设计直接按当前权威标准优化。
+1. 继续全视角真实操作与产品体验优化：重点回看患者/医生/护士/药师/医技剩余入口操作路径、
+   宽表默认可读性、高级信息呈现方式、质量管理下钻与整改闭环，发现不合理产品设计直接按当前权威标准优化。
 2. `DEFER-003` 关闭前，公网 `mimo-public` 只保留“已受管登记但未启用”的诚实状态；拿到有效外部凭据后，
    重新运行 Provider 上线脚本并补充全知识生产真实模型证据。
 3. 目标环境上线前仍需补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
