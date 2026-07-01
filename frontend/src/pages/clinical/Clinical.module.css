@@ -256,6 +256,27 @@
   overflow: hidden;
 }
 
+.workflowTodoPrimaryColumn {
+  vertical-align: top;
+}
+
+.workflowTodoContent {
+  min-width: 0;
+  width: 100%;
+}
+
+.workflowTodoSummary {
+  line-height: 1.6;
+}
+
+.workflowTodoEvidence {
+  margin-top: calc(var(--mk-unit) * 4);
+}
+
+.workflowTodoActionColumn {
+  vertical-align: top;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;

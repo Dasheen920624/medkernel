@@ -163,8 +163,24 @@ describe("WorkflowTodos", () => {
 
     expect(source).toContain("className={styles.tablePanel}");
     expect(source).toContain('tableLayout="fixed"');
-    expect(source).toContain("scroll={{ x: 760 }}");
+    expect(source).toContain("scroll={{ x: 1200 }}");
     expect(styles).toMatch(/\.tablePanel\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/s);
+  });
+
+  it("keeps report interpretation rows scannable by reserving the todo column as the primary reading lane", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/pages/clinical/WorkflowTodos.tsx"), {
+      encoding: "utf8",
+    });
+    const styles = readFileSync(resolve(process.cwd(), "src/pages/clinical/Clinical.module.css"), {
+      encoding: "utf8",
+    });
+
+    expect(source).toContain("className: styles.workflowTodoPrimaryColumn");
+    expect(source).toContain("width: 380");
+    expect(source).toContain("scroll={{ x: 1200 }}");
+    expect(styles).toMatch(/\.workflowTodoPrimaryColumn\s*\{[^}]*vertical-align:\s*top;/s);
+    expect(styles).toMatch(/\.workflowTodoContent\s*\{[^}]*min-width:\s*0;/s);
+    expect(styles).toMatch(/\.workflowTodoSummary\s*\{[^}]*line-height:\s*1\.6;/s);
   });
 
   it("renders real workflow todos from the unified API instead of the old placeholder", () => {

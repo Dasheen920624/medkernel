@@ -374,37 +374,44 @@ export default function WorkflowTodos() {
       title: "待办",
       dataIndex: "title",
       key: "title",
-      render: (_value, record) => (
-        <Space direction="vertical" size={2}>
-          <span className={styles.textStrong}>{record.title}</span>
-          <span className={styles.textSmall}>
-            {workflowTodoSummaryText(record, evidenceDetailsEnabled)}
-          </span>
-          <Space wrap size={8} className={styles.textSmall}>
-            {evidenceDetailsEnabled ? (
-              <>
-                <span>来源编号 {record.sourceId}</span>
-                <span>
-                  {record.traceId ? `追踪号 ${record.traceId}` : SOURCE_TRACE_MISSING_TEXT}
-                </span>
-              </>
-            ) : (
-              <span>来源与追踪证据已保留</span>
-            )}
+      width: 380,
+      className: styles.workflowTodoPrimaryColumn,
+      render: (_value, record) => {
+        const summaryText = workflowTodoSummaryText(record, evidenceDetailsEnabled);
+        return (
+          <Space direction="vertical" size={2} className={styles.workflowTodoContent}>
+            <span className={styles.textStrong}>{record.title}</span>
+            <span className={`${styles.textSmall} ${styles.workflowTodoSummary}`}>
+              {summaryText}
+            </span>
+            <Space wrap size={8} className={`${styles.textSmall} ${styles.workflowTodoEvidence}`}>
+              {evidenceDetailsEnabled ? (
+                <>
+                  <span>来源编号 {record.sourceId}</span>
+                  <span>
+                    {record.traceId ? `追踪号 ${record.traceId}` : SOURCE_TRACE_MISSING_TEXT}
+                  </span>
+                </>
+              ) : (
+                <span>来源与追踪证据已保留</span>
+              )}
+            </Space>
           </Space>
-        </Space>
-      ),
+        );
+      },
     },
     {
       title: "来源",
       dataIndex: "sourceType",
       key: "sourceType",
+      width: 100,
       render: (value: WorkflowTodoSourceType) => <Tag>{sourceText[value]}</Tag>,
     },
     {
       title: "患者",
       dataIndex: "patientId",
       key: "patientId",
+      width: 112,
       render: (_value: string | null | undefined, record) =>
         patientContextDisplay(record, evidenceDetailsEnabled),
     },
@@ -412,6 +419,7 @@ export default function WorkflowTodos() {
       title: evidenceDetailsEnabled ? "责任人" : "责任岗位",
       dataIndex: "assigneeId",
       key: "assigneeId",
+      width: 120,
       render: (_value: string | null | undefined, record) =>
         assigneeDisplay(record, evidenceDetailsEnabled),
     },
@@ -419,12 +427,14 @@ export default function WorkflowTodos() {
       title: "截止",
       dataIndex: "dueAt",
       key: "dueAt",
+      width: 120,
       render: (value?: string | null) => formatDateTime(value),
     },
     {
       title: "优先级",
       dataIndex: "priority",
       key: "priority",
+      width: 96,
       render: (value: WorkflowPriority) => (
         <Tag color={priorityColor[value]}>{priorityText[value] ?? customerEnumLabel(value)}</Tag>
       ),
@@ -433,6 +443,7 @@ export default function WorkflowTodos() {
       title: "状态",
       dataIndex: "status",
       key: "status",
+      width: 96,
       render: (value: WorkflowTodoStatus) => (
         <Badge status={statusBadge[value]} text={statusText[value] ?? customerEnumLabel(value)} />
       ),
@@ -440,6 +451,8 @@ export default function WorkflowTodos() {
     {
       title: "操作",
       key: "action",
+      width: 176,
+      className: styles.workflowTodoActionColumn,
       render: (_value, record) => {
         const sourceLink = resolveSourceDeepLink(record.deepLink);
         const sourceActionLabel = sourceActionText[record.sourceType];
@@ -604,7 +617,7 @@ export default function WorkflowTodos() {
           dataSource={visibleTodos}
           loading={isLoading}
           tableLayout="fixed"
-          scroll={{ x: 760 }}
+          scroll={{ x: 1200 }}
           pagination={{
             pageSize: 10,
             total: data?.total ?? 0,
