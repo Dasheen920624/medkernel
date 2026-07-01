@@ -10,14 +10,14 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前 134 已发布应用为 `936aa955b998a0912fa4c569f7bb6bc1dd3d4598`
-  （`fix: 统一前台临床日期时间表达`）；第四批前台日期时间体验优化已发布并复演。
-- 134 当前完整部署 `936aa955b998a0912fa4c569f7bb6bc1dd3d4598`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260701-120414`，manifest
-  `deployedAt=2026-07-01T12:04:20+08:00`，
-  `jarSha256=7c0381b3dfb2249abef7c8d6b400c3ea8addae5ed9d9dbedd4c84433cc5d7b43`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=1950067`、`NRestarts=0`。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第四批版本已完成真实前台与全职责 E2E。
+- 当前 134 已发布应用为 `ce36f55c3e4b4e88e0f83ee23472ab3d9132f6ba`
+  （`fix: 使用中文院内时间填写整改截止`）；第五批质量整改截止时间体验优化已发布并复演。
+- 134 当前完整部署 `ce36f55c3e4b4e88e0f83ee23472ab3d9132f6ba`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260701-123246`，manifest
+  `deployedAt=2026-07-01T12:32:48+08:00`，
+  `jarSha256=4f4a8098720bab50a2e7319731b63c5869eee7ae017f9d8541c2c6747b5e060d`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=1965458`、`NRestarts=0`。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第五批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -119,9 +119,50 @@
     `real-frontdesk-followup-plan-questionnaire-abnormal.png` 的随访截止日期均为中文日期；
     可见入口未再出现浏览器地区化斜杠日期，表格换行可读且未发现重叠。
 
+## 最新阶段交接（2026-07-01 全视角真实前台体验优化第五批·质量整改截止时间）
+
+- 基于第四批 134 复演继续按质控、医保审核、院长质量下钻和实施验收视角核查，发现
+  `a1a55176d45518d01a132593f8e35a303e5c79e1` 虽已把整改截止时间从裸 ISO 文本改为日期输入，
+  但浏览器原生 `datetime-local` 在 134 可见渲染为 `07/15/2026, 08:30 AM`，会造成院内中文时间口径
+  与前台真实操作不一致。坏例截图已留在
+  `/tmp/medkernel-e2e-codex3/evidence-quality-dueat-field-a1a55176/insurance-dueat-field.png`，
+  该提交不得作为最终交付证据引用。
+- 已本地修复并提交 `ce36f55c3e4b4e88e0f83ee23472ab3d9132f6ba`
+  （`fix: 使用中文院内时间填写整改截止`）：
+  - `RectificationDueAtField` 改为受控中文院内时间输入，提示为“例如 2026年07月15日 08:30”，
+    统一校验“yyyy年MM月dd日 HH:mm”格式，避免浏览器按地区显示斜杠日期或 AM/PM。
+  - `dateTimeText` 将整改截止时间输入格式统一为中文临床时间，提交时换算为 UTC ISO；
+    保留旧 `YYYY-MM-DDTHH:mm` 解析兜底，避免已有表单状态或自动填充破坏后端契约。
+  - 质控预警、评价结果派发整改和医保审核派整改三条流程均继续向后端提交同一 UTC ISO，
+    前台不再展示技术 ISO 或浏览器地区化时间。
+- 红绿验证：
+  - 红灯：`npm --prefix frontend test -- dateTimeText.test.ts QcAlerts.test.tsx QcEvalResults.test.tsx InsuranceAudit.test.tsx`
+    在旧实现下失败，暴露 `formatClinicalDateTimeInputValue` 仍输出 `2026-06-08T08:00`，
+    `clinicalDateTimeInputToIso` 对中文院内时间原样透传。
+  - 绿灯：`npm --prefix frontend test -- dateTimeText.test.ts QcAlerts.test.tsx QcEvalResults.test.tsx InsuranceAudit.test.tsx QcDashboard.test.tsx`
+    通过，`5` 个文件 / `21` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `907` 项；
+    `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source ce36f55c3e4b4e88e0f83ee23472ab3d9132f6ba`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260701-123246`，
+    manifest `deployedAt=2026-07-01T12:32:48+08:00`，
+    `jarSha256=4f4a8098720bab50a2e7319731b63c5869eee7ae017f9d8541c2c6747b5e060d`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=1965458`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-ce36f55c-quality-dueat-cn`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.4m)`；
+    运行记录 `12` 个职责视角均有真实动作，浏览器错误、服务端错误、网络失败均为 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-ce36f55c-quality-dueat-cn`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (37.5s)`；
+    运行记录 `10` 段真实前台链路均由页面提交产生，浏览器错误、服务端错误、网络失败均为 `0`。
+  - 针对问题本身的人工式浏览器核查：
+    `/tmp/medkernel-e2e-codex3/evidence-quality-dueat-field-ce36f55c/insurance-dueat-field-cn.png`
+    显示医保审核页“整改截止时间”为 `2026年07月15日 08:30`，输入 `type=text`，
+    placeholder 为 `例如 2026年07月15日 08:30`，旧斜杠日期 / ISO 可见值为空，字段周边未发现遮挡。
+
 ## 下一步
 
-1. 继续第五批全视角真实操作与产品体验优化：医生、护士、患者/代理、药师、医技、质控、信息科长、
+1. 继续第六批全视角真实操作与产品体验优化：医生、护士、患者/代理、药师、医技、质控、信息科长、
    实施工程师、审计员、院长等视角都要提交真实表单、触发真实状态变化；继续关注质量报告长明细阅读负担、
    患者/医生/护士/药师/医技剩余入口操作负担、模型双模式安全配置与实际前台交互。
 2. 继续保留大模型双模式安全边界：公网模型可使用患者信息但必须严格屏蔽核心敏感信息；
