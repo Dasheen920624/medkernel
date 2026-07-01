@@ -290,6 +290,72 @@ describe("QcDashboard", () => {
     );
   });
 
+  it("默认隐藏下钻整改任务原始编号并用真实条数说明证据包", async () => {
+    mockUseQualityDashboard.mockReturnValue({
+      data: dashboardData,
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+    mockUseQualityDashboardDrilldown.mockReturnValue({
+      data: {
+        type: "RECTIFICATION",
+        items: [
+          {
+            sourceType: "rectification_task",
+            sourceId: "rct-ins-raw-001",
+            departmentId: "dept-card",
+            severity: "P1",
+            status: "ASSIGNED",
+            title: "整改任务 rct-ins-raw-001",
+            evidenceSummary: "医保问题整改任务 rct-ins-raw-001 已派发。",
+            occurredAt: "2026-06-05T09:00:00Z",
+            traceId: "trace-rct-raw-001",
+          },
+          {
+            sourceType: "rectification_task",
+            sourceId: "rct-ins-raw-002",
+            departmentId: "dept-card",
+            severity: "P1",
+            status: "ASSIGNED",
+            title: "整改任务 rct-ins-raw-002",
+            evidenceSummary: "医保问题整改任务 rct-ins-raw-002 已派发。",
+            occurredAt: "2026-06-05T09:10:00Z",
+            traceId: "trace-rct-raw-002",
+          },
+        ],
+        evidenceExport: {
+          exportId: "SVC-QUALITY-01.RECTIFICATION.0.20",
+          generatedAt: "2026-06-05T10:00:00Z",
+          scopeDigest: "digest-real",
+          itemCount: undefined as unknown as number,
+          items: [],
+        },
+        offset: 0,
+        limit: 20,
+        total: 2,
+        hasNext: false,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    await userEvent.click(screen.getByRole("button", { name: "下钻问题证据" }));
+
+    expect(screen.getAllByText("整改任务 · 已派发")).toHaveLength(2);
+    expect(screen.getByText(/当前页 2 项，共 2 项/)).toBeInTheDocument();
+    expect(screen.getAllByText("整改任务证据已关联，责任科室需按当前状态复核闭环。")).toHaveLength(
+      2,
+    );
+    expect(screen.queryByText(/undefined 项证据/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/rct-ins-raw/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trace-rct-raw/)).not.toBeInTheDocument();
+  });
+
   it("证据详情打开后展示质控指标、热力、预警和下钻导出的完整追溯字段", async () => {
     mockUseQualityDashboard.mockReturnValue({
       data: dashboardData,

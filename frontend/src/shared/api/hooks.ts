@@ -5926,7 +5926,7 @@ export interface QualityEvidenceExport {
   exportId: string;
   generatedAt: string;
   scopeDigest: string;
-  itemCount: number;
+  itemCount?: number;
   items: unknown[];
 }
 

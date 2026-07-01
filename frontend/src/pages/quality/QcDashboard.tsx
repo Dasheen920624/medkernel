@@ -568,7 +568,7 @@ function formatAlertEvidenceSummary(
 
 function containsTraceEvidenceToken(value: string) {
   return (
-    /\b(?:claim|enc|mpi|run|trace|finding|task)-[A-Za-z0-9-]+/.test(value) ||
+    /\b(?:claim|enc|mpi|run|trace|finding|task|rct)-[A-Za-z0-9-]+/.test(value) ||
     /\b[A-Z][A-Z0-9_.-]+@[0-9A-Za-z_.-]+\b/.test(value)
   );
 }
@@ -632,7 +632,7 @@ function EvidenceDrawer({
             description={
               evidenceDetailsEnabled
                 ? `生成时间：${formatDateTime(query.data.evidenceExport.generatedAt)}；证据范围摘要：${query.data.evidenceExport.scopeDigest}`
-                : `已按当前筛选范围记录 ${query.data.evidenceExport.itemCount} 项证据；生成时间：${formatDateTime(query.data.evidenceExport.generatedAt)}`
+                : `已按当前筛选条件生成证据包；当前页 ${items.length} 项，共 ${query.data.total} 项。生成时间：${formatDateTime(query.data.evidenceExport.generatedAt)}`
             }
           />
         )}
@@ -727,6 +727,8 @@ function EvidenceItem({
   scopeDepartmentLabels: Map<string, string>;
   evidenceDetailsEnabled: boolean;
 }) {
+  const title = formatDrilldownItemTitle(item, evidenceDetailsEnabled);
+  const evidenceSummary = formatDrilldownItemEvidenceSummary(item, evidenceDetailsEnabled);
   return (
     <List.Item>
       <Space direction="vertical" size={4} className={styles.fullWidth}>
@@ -735,11 +737,11 @@ function EvidenceItem({
             <Tag color={item.severity === "P0" || item.severity === "P1" ? "error" : "default"}>
               {customerEnumLabel(item.severity)}
             </Tag>
-            <Text strong>{item.title}</Text>
+            <Text strong>{title}</Text>
           </Space>
           <Text type="secondary">{formatDateTime(item.occurredAt)}</Text>
         </Space>
-        <Text>{item.evidenceSummary}</Text>
+        <Text>{evidenceSummary}</Text>
         <Space wrap size={4}>
           <Tag>
             {formatDepartmentName(
@@ -763,6 +765,36 @@ function EvidenceItem({
       </Space>
     </List.Item>
   );
+}
+
+function formatDrilldownItemTitle(
+  item: QualityDashboardDrilldownItem,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled || !containsTraceEvidenceToken(item.title)) {
+    return item.title;
+  }
+  return `${qualitySourceLabel(item.sourceType)} · ${customerEnumLabel(item.status)}`;
+}
+
+function formatDrilldownItemEvidenceSummary(
+  item: QualityDashboardDrilldownItem,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled || !containsTraceEvidenceToken(item.evidenceSummary)) {
+    return item.evidenceSummary;
+  }
+  const normalized = item.sourceType.toUpperCase();
+  if (normalized === "RECTIFICATION_TASK") {
+    return "整改任务证据已关联，责任科室需按当前状态复核闭环。";
+  }
+  if (normalized === "QUALITY_FINDING") {
+    return "质控问题证据已关联，需按当前状态闭环处理。";
+  }
+  if (normalized === "QUALITY_ALERT") {
+    return "质控预警证据已关联，需按当前状态处理。";
+  }
+  return "下钻证据已关联，需按当前状态处理。";
 }
 
 function isDashboardEmpty(dashboard: QualityDashboardResponse): boolean {

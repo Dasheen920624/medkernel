@@ -342,6 +342,7 @@ async function performQualityDrilldownAction(page: Page, view: StakeholderView) 
   await expect(
     drawer.getByText(/证据包已生成|已按当前筛选范围记录|证据导出编号/u).first(),
   ).toBeVisible({ timeout: 20_000 });
+  await expectDrawerSettledInViewport(page, drawer, `${view.label} 下钻证据抽屉`);
   return ["切换质量下钻类型并读取整改证据"];
 }
 
@@ -1117,6 +1118,26 @@ async function expectNoRootOverflow(page: Page, label: string) {
   expect(dimensions.documentWidth, `${label} 页面根节点不应横向溢出`).toBeLessThanOrEqual(
     dimensions.viewportWidth,
   );
+}
+
+async function expectDrawerSettledInViewport(page: Page, drawer: Locator, label: string) {
+  await expect
+    .poll(
+      async () => {
+        const [box, viewport] = await Promise.all([drawer.boundingBox(), page.viewportSize()]);
+        if (!box || !viewport) {
+          return false;
+        }
+        const left = Math.round(box.x);
+        const right = Math.round(box.x + box.width);
+        return left >= 0 && right <= viewport.width;
+      },
+      {
+        message: `${label} 应在截图前完全进入当前视口`,
+        timeout: 5_000,
+      },
+    )
+    .toBe(true);
 }
 
 async function attachRuntimeRecords(testInfo: TestInfo, records: RuntimeRecord[]) {
