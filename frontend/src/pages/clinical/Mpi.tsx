@@ -91,6 +91,9 @@ type ContextSnapshotFormValues = {
   diagnosticReportType?: string;
   diagnosticReportConclusion?: string;
   diagnosticReportKeyFindingsText?: string;
+  insuranceClaimDrgCode?: string;
+  insuranceClaimTotalCost?: number | null;
+  insuranceClaimPaidAmount?: number | null;
   reason: string;
 };
 
@@ -423,6 +426,30 @@ export default function Mpi() {
         messageApi.error("请同时填写医技报告项目和报告结论，或清空报告字段");
         return;
       }
+      const insuranceClaimDrgCode = values.insuranceClaimDrgCode?.trim();
+      const insuranceClaimTotalCost = values.insuranceClaimTotalCost ?? undefined;
+      const insuranceClaimPaidAmount = values.insuranceClaimPaidAmount ?? undefined;
+      const hasInsuranceClaimInput =
+        !!insuranceClaimDrgCode ||
+        insuranceClaimTotalCost !== undefined ||
+        insuranceClaimPaidAmount !== undefined;
+      if (
+        hasInsuranceClaimInput &&
+        (!insuranceClaimDrgCode ||
+          insuranceClaimTotalCost === undefined ||
+          insuranceClaimTotalCost <= 0)
+      ) {
+        messageApi.error("请同时填写 DRG/DIP 分组和本次结算金额，或清空医保结算字段");
+        return;
+      }
+      if (
+        insuranceClaimPaidAmount !== undefined &&
+        insuranceClaimTotalCost !== undefined &&
+        insuranceClaimPaidAmount > insuranceClaimTotalCost
+      ) {
+        messageApi.error("医保支付金额不能大于本次结算金额");
+        return;
+      }
       await createContextSnapshotMutation.mutateAsync({
         patient: contextSnapshotPatient,
         encounterType: values.encounterType,
@@ -433,6 +460,13 @@ export default function Mpi() {
         ...(diagnosticReportType ? { diagnosticReportType } : {}),
         ...(diagnosticReportConclusion ? { diagnosticReportConclusion } : {}),
         ...(diagnosticReportKeyFindingsText ? { diagnosticReportKeyFindingsText } : {}),
+        ...(insuranceClaimDrgCode && insuranceClaimTotalCost !== undefined
+          ? {
+              insuranceClaimDrgCode,
+              insuranceClaimTotalCost,
+              ...(insuranceClaimPaidAmount !== undefined ? { insuranceClaimPaidAmount } : {}),
+            }
+          : {}),
         reason: values.reason.trim(),
         idempotencyKey: contextSnapshotIdempotencyKey,
       });
@@ -1000,7 +1034,7 @@ export default function Mpi() {
           destroyOnClose
         >
           <Alert
-            message="仅写入脱敏患者标识、当前就诊、诊断、风险分层、必要用药与已签发报告事实"
+            message="仅写入脱敏患者标识、当前就诊、诊断、风险分层、必要用药、已签发报告与医保结算事实"
             description="本操作用于生成随访、路径、CDSS、药师复核和报告解读共用的标准上下文，不会自动开嘱，也不会写入患者姓名、证件号、电话或住址。"
             type="info"
             showIcon
@@ -1051,6 +1085,28 @@ export default function Mpi() {
                 aria-label="异常重点"
                 placeholder="可选，多个重点用顿号或逗号分隔，避免录入患者核心标识明文"
                 rows={2}
+              />
+            </Form.Item>
+            <Text strong>医保结算事实（可选）</Text>
+            <Form.Item name="insuranceClaimDrgCode" label="DRG/DIP 分组">
+              <Input aria-label="DRG/DIP 分组" placeholder="可选，填写本次结算分组编码" />
+            </Form.Item>
+            <Form.Item name="insuranceClaimTotalCost" label="本次结算金额">
+              <InputNumber
+                aria-label="本次结算金额"
+                min={0}
+                precision={2}
+                className={styles.fullWidth}
+                placeholder="可选，填写本次医保审核需要核验的结算金额"
+              />
+            </Form.Item>
+            <Form.Item name="insuranceClaimPaidAmount" label="医保支付金额">
+              <InputNumber
+                aria-label="医保支付金额"
+                min={0}
+                precision={2}
+                className={styles.fullWidth}
+                placeholder="可选，填写医保支付金额"
               />
             </Form.Item>
             <Form.Item

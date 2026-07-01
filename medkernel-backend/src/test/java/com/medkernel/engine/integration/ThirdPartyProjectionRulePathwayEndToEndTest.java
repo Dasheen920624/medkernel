@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medkernel.engine.clinical.model.ClinicalClaimRepository;
 import com.medkernel.engine.context.CanonicalResource;
 import com.medkernel.engine.context.CanonicalResourceRepository;
 import com.medkernel.engine.context.ClinicalEvent;
@@ -261,6 +262,7 @@ class ThirdPartyProjectionRulePathwayEndToEndTest {
             resources,
             idemRepo,
             new ContextValidator(),
+            mock(ClinicalClaimRepository.class),
             runtimeReleases,
             terminology,
             auditRecorder,

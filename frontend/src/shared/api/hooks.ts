@@ -6670,6 +6670,9 @@ export interface ContextSnapshotCreatePayload {
   diagnosticReportType?: string;
   diagnosticReportConclusion?: string;
   diagnosticReportKeyFindingsText?: string;
+  insuranceClaimDrgCode?: string;
+  insuranceClaimTotalCost?: number;
+  insuranceClaimPaidAmount?: number;
   reason: string;
   idempotencyKey: string;
 }
@@ -6763,6 +6766,35 @@ function buildFrontdeskDiagnosticReportResources(
   ];
 }
 
+function frontdeskClaimAmount(value: number | undefined) {
+  if (value === undefined || !Number.isFinite(value) || value <= 0) return null;
+  return Math.round(value * 100) / 100;
+}
+
+function buildFrontdeskClaimResources(payload: ContextSnapshotCreatePayload, now: string) {
+  const drgCode = payload.insuranceClaimDrgCode?.trim();
+  const totalCost = frontdeskClaimAmount(payload.insuranceClaimTotalCost);
+  if (!drgCode || totalCost === null) {
+    return [];
+  }
+  const claimId = `claim-${crypto.randomUUID()}`;
+  const insurancePaid = frontdeskClaimAmount(payload.insuranceClaimPaidAmount);
+  return [
+    {
+      claimId,
+      drgCode,
+      totalCost,
+      insurancePaid,
+      sourceSystem: "MEDKERNEL_FRONTDESK",
+      sourceRecordId: claimId,
+      mappedVersion: "FRONTDESK_CONTEXT_V1",
+      eventTime: now,
+      receivedTime: now,
+      qualityStatus: "VALID",
+    },
+  ];
+}
+
 function frontdeskSnapshotRequest(
   payload: ContextSnapshotCreatePayload,
   profile: SecurityProfile | undefined,
@@ -6779,6 +6811,7 @@ function frontdeskSnapshotRequest(
     now,
   );
   const diagnosticReports = buildFrontdeskDiagnosticReportResources(payload, profile, now);
+  const claims = buildFrontdeskClaimResources(payload, now);
   const request = withStandardApiContext(
     {
       patientId: payload.patient.mpiId,
@@ -6840,7 +6873,7 @@ function frontdeskSnapshotRequest(
         documents: [],
         carePlans: [],
         followUps: [],
-        claims: [],
+        claims,
         extensions: {
           local: {
             frontdeskContext: {
@@ -6849,6 +6882,7 @@ function frontdeskSnapshotRequest(
               riskLevel: payload.riskLevel,
               currentMedicationCount: medications.length,
               diagnosticReportCount: diagnosticReports.length,
+              claimCount: claims.length,
             },
           },
         },

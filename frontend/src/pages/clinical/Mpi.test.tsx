@@ -482,6 +482,13 @@ describe("Mpi", () => {
       await user.type(screen.getByLabelText("医技报告项目"), "血钾检验");
       await user.type(screen.getByLabelText("报告结论"), "血钾 6.3 mmol/L，危急值，已复核");
       await user.type(screen.getByLabelText("异常重点"), "血钾升高、危急值");
+      expect(screen.getByText("医保结算事实（可选）")).toBeInTheDocument();
+      await user.clear(screen.getByLabelText("DRG/DIP 分组"));
+      await user.type(screen.getByLabelText("DRG/DIP 分组"), "DRG-REAL-A");
+      await user.clear(screen.getByLabelText("本次结算金额"));
+      await user.type(screen.getByLabelText("本次结算金额"), "1280.50");
+      await user.clear(screen.getByLabelText("医保支付金额"));
+      await user.type(screen.getByLabelText("医保支付金额"), "860.00");
       const reasonInput = screen.getByLabelText("建立原因");
       await user.clear(reasonInput);
       await user.type(reasonInput, "真实前台演练：随访计划生成前由医生确认当前就诊上下文。");
@@ -503,6 +510,9 @@ describe("Mpi", () => {
           diagnosticReportType: "血钾检验",
           diagnosticReportConclusion: "血钾 6.3 mmol/L，危急值，已复核",
           diagnosticReportKeyFindingsText: "血钾升高、危急值",
+          insuranceClaimDrgCode: "DRG-REAL-A",
+          insuranceClaimTotalCost: 1280.5,
+          insuranceClaimPaidAmount: 860,
           reason: "真实前台演练：随访计划生成前由医生确认当前就诊上下文。",
           idempotencyKey: expect.any(String),
         });

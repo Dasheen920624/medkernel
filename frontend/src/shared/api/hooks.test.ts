@@ -2987,6 +2987,9 @@ describe("mpi api helpers", () => {
         diagnosticReportType: "血钾检验",
         diagnosticReportConclusion: "血钾 6.3 mmol/L，危急值，已复核",
         diagnosticReportKeyFindingsText: "血钾升高、危急值",
+        insuranceClaimDrgCode: "DRG-REAL-A",
+        insuranceClaimTotalCost: 1280.5,
+        insuranceClaimPaidAmount: 860,
         reason: "药师联合用药复核",
         idempotencyKey: "context-snapshot-med-1",
       });
@@ -2995,6 +2998,15 @@ describe("mpi api helpers", () => {
     const requestBody = vi.mocked(apiClient.post).mock.calls[0]?.[1] as {
       resources?: {
         medications?: Array<{ code?: string; displayName?: string; prescriptionStatus?: string }>;
+        claims?: Array<{
+          claimId?: string;
+          drgCode?: string;
+          totalCost?: number;
+          insurancePaid?: number;
+          sourceSystem?: string;
+          sourceRecordId?: string;
+          qualityStatus?: string;
+        }>;
         diagnosticReports?: Array<{
           reportType?: string;
           conclusion?: string;
@@ -3008,6 +3020,7 @@ describe("mpi api helpers", () => {
             frontdeskContext?: {
               currentMedicationCount?: number;
               diagnosticReportCount?: number;
+              claimCount?: number;
             };
           };
         };
@@ -3041,12 +3054,26 @@ describe("mpi api helpers", () => {
       }),
     ]);
     expect(requestBody.resources?.diagnosticReports?.[0]).not.toHaveProperty("interpreterId");
+    expect(requestBody.resources?.claims).toHaveLength(1);
+    const claim = requestBody.resources?.claims?.[0];
+    expect(claim).toEqual(
+      expect.objectContaining({
+        drgCode: "DRG-REAL-A",
+        totalCost: 1280.5,
+        insurancePaid: 860,
+        sourceSystem: "MEDKERNEL_FRONTDESK",
+        qualityStatus: "VALID",
+      }),
+    );
+    expect(claim?.claimId).toMatch(/^claim-/);
+    expect(claim?.sourceRecordId).toBe(claim?.claimId);
     expect(requestBody.resources?.extensions?.local?.frontdeskContext?.currentMedicationCount).toBe(
       2,
     );
     expect(requestBody.resources?.extensions?.local?.frontdeskContext?.diagnosticReportCount).toBe(
       1,
     );
+    expect(requestBody.resources?.extensions?.local?.frontdeskContext?.claimCount).toBe(1);
   });
 });
 

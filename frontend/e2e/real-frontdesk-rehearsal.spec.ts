@@ -29,7 +29,7 @@ type MpiPatientCreated = {
 test.describe.configure({ mode: "serial" });
 
 test.describe("全前台真实操作演练", () => {
-  test("平台接入、知识资产、模型安全边界、患者资源与临床随访数据均由前台页面提交产生", async ({
+  test("平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生", async ({
     page,
   }, testInfo) => {
     test.setTimeout(420_000);
@@ -53,6 +53,7 @@ test.describe("全前台真实操作演练", () => {
       );
       await publishFollowupTemplateFromUi(page, testInfo, runtime, records, followupTemplate);
       const snapshot = await createContextSnapshotFromUi(page, testInfo, runtime, records, patient);
+      await runInsuranceAuditFromUi(page, testInfo, runtime, records, snapshot);
       await runCdssRecommendationFromUi(page, testInfo, runtime, records, snapshot);
       await generateFollowupPlanAndHandlePatientFeedbackFromUi(
         page,
@@ -324,9 +325,12 @@ async function createContextSnapshotFromUi(
   await chooseDialogOption(page, dialog, "就诊类型", "门诊复诊");
   await dialog.getByLabel("诊断/随访病种").fill("真实前台慢病随访主题");
   await chooseDialogOption(page, dialog, "风险分层", "中风险");
+  await dialog.getByLabel("DRG/DIP 分组").fill("DRG-REAL-A");
+  await dialog.getByLabel("本次结算金额").fill("1280.50");
+  await dialog.getByLabel("医保支付金额").fill("860.00");
   await dialog
     .getByLabel("建立原因")
-    .fill("真实前台演练：医生从患者 360 建立当前就诊上下文，用于随访计划生成。");
+    .fill("真实前台演练：医生从患者 360 建立当前就诊上下文，用于医保审核与随访计划生成。");
 
   const responsePromise = waitForPost(page, "/api/v1/engine/context/snapshots");
   await dialog.getByRole("button", { name: "生成上下文快照" }).click();
@@ -343,12 +347,82 @@ async function createContextSnapshotFromUi(
   await expect(dialog).toBeHidden({ timeout: 20_000 });
   await expect(page.getByText("当前就诊上下文已建立")).toBeVisible({ timeout: 20_000 });
   await captureEvidence(page, testInfo, "real-frontdesk-context-snapshot");
-  recordCleanRuntime(page, "前台建立当前就诊上下文快照", runtime, records);
+  recordCleanRuntime(page, "前台建立当前就诊上下文与医保结算事实快照", runtime, records);
   return {
     snapshotId: result.data?.snapshotId ?? "",
     patientId: patient.mpiId,
     encounterId: result.data?.resources?.encounters?.[0]?.encounterId ?? null,
   };
+}
+
+async function runInsuranceAuditFromUi(
+  page: Page,
+  testInfo: TestInfo,
+  runtime: RuntimeCollectors,
+  records: RuntimeRecord[],
+  snapshot: ContextSnapshotSummary,
+) {
+  await ensureReadySession(page, "engine-operator");
+  clearRuntime(runtime);
+  await page.goto("/qc/insurance", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "医保智能审核" })).toBeVisible();
+  await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
+  await expectNoRootOverflow(page, "医保智能审核桌面");
+
+  await page.getByLabel("患者信息").fill(snapshot.patientId);
+  if (snapshot.encounterId) {
+    await page.getByLabel("就诊信息").fill(snapshot.encounterId);
+  }
+  await expect(page.getByRole("button", { name: "选择第 1 个病案快照" })).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.getByRole("button", { name: "选择第 1 个病案快照" }).click();
+  await choosePageSelectOption(page, "责任科室");
+  await choosePageSelectOption(page, "质控指标");
+
+  await page.getByLabel("审核场景").fill("A9");
+  await page.getByLabel("整改截止时间").fill("2026年07月15日 08:30");
+  await page.getByLabel("DRG 分组器版本").fill("GROUPER-2026");
+  await page.getByLabel("期望入组").fill("DRG-REAL-A");
+  await page.getByLabel("实际入组").fill("DRG-REAL-B");
+  await page
+    .getByLabel("入组说明")
+    .fill("真实前台演练：基于当前病案快照和医保结算事实完成 DRG/DIP 入组复核。");
+  await page.getByLabel("医保规则依据").fill("INS.REAL.FRONTDESK.FEE");
+  await page.getByLabel("依据版本").fill("2026.07");
+  await page.getByLabel("费用阈值").fill("1000");
+  await page
+    .getByLabel("规则说明")
+    .fill("结算金额超过当前演练阈值，需要责任科室提交整改证据。");
+
+  const caseReviewPromise = waitForPost(page, "/api/v1/engine/quality/case-review");
+  const drgPromise = waitForPost(page, "/api/v1/engine/quality/drg-grouping");
+  const auditPromise = waitForPost(page, "/api/v1/engine/quality/insurance-audit");
+  await page.getByRole("button", { name: "执行审核并派整改" }).click();
+  const [caseReviewResponse, drgResponse, auditResponse] = await Promise.all([
+    caseReviewPromise,
+    drgPromise,
+    auditPromise,
+  ]);
+  expect(caseReviewResponse.ok(), "前台执行病案内涵质控应返回成功").toBe(true);
+  expect(drgResponse.ok(), "前台执行 DRG/DIP 分组应返回成功").toBe(true);
+  const auditResponseText = await auditResponse.text();
+  expect(
+    auditResponse.ok(),
+    `前台执行医保审核应返回成功 status=${auditResponse.status()} body=${auditResponseText}`,
+  ).toBe(true);
+  const audit = JSON.parse(auditResponseText) as {
+    data?: { auditStatus?: string; findingCount?: number; taskCount?: number; issues?: Array<unknown> };
+  };
+  expect(audit.data?.auditStatus, "真实结算事实应触发医保问题").toBe("ISSUE_FOUND");
+  expect(audit.data?.findingCount ?? 0, "医保审核应联动质量问题").toBeGreaterThan(0);
+  expect(audit.data?.taskCount ?? 0, "医保审核应派发整改任务").toBeGreaterThan(0);
+  expect(audit.data?.issues?.length ?? 0, "医保审核应返回问题明细").toBeGreaterThan(0);
+  await expect(
+    page.getByText("医保审核已基于真实结算事实执行，命中问题已由服务联动整改闭环。"),
+  ).toBeVisible({ timeout: 20_000 });
+  await captureEvidence(page, testInfo, "real-frontdesk-insurance-quality-rectification");
+  recordCleanRuntime(page, "前台执行医保审核并联动质量整改", runtime, records);
 }
 
 async function runCdssRecommendationFromUi(
@@ -605,6 +679,21 @@ async function searchDialogOption(
   const optionLocator = dropdown
     .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
     .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(optionText)}(\\s*·.*)?\\s*$`) })
+    .first();
+  await expect(optionLocator).toBeVisible({ timeout: 20_000 });
+  await optionLocator.click();
+}
+
+async function choosePageSelectOption(page: Page, label: string) {
+  const combobox = page.getByRole("combobox", { name: new RegExp(escapeRegExp(label)) }).first();
+  const select = combobox.locator(
+    "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
+  );
+  await select.locator(".ant-select-selector").click();
+  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
+  await expect(dropdown).toBeVisible({ timeout: 10_000 });
+  const optionLocator = dropdown
+    .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
     .first();
   await expect(optionLocator).toBeVisible({ timeout: 20_000 });
   await optionLocator.click();
