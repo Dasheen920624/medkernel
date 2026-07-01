@@ -10,21 +10,18 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `7dc7a847ff8a0fbc192a21a616dc932a1b2f23f4`
-  （`fix: 收敛系统接入默认技术信息`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前已发布应用代码提交为 `bc74aba34157c7540a877c6ac466886ee3516eb4`
+  （`fix: 收敛质量下钻默认追溯信息`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
   第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
-  以及第十九批系统接入默认技术信息收敛。
-- 当前本地分支已包含第十九批演练防护提交 `c972408f1a38b8dacebccfea49076bbe0047f8fe`
-  （`test: 固化系统接入默认层级演练`），只改 E2E 演练证据脚本，不改变 134 应用包；
-  134 应用包来源仍以 `7dc7a847ff8a0fbc192a21a616dc932a1b2f23f4` 为准。
-- 当前 134 已发布应用为 `7dc7a847ff8a0fbc192a21a616dc932a1b2f23f4`；第十九批已发布并完成真实前台与全职责复演。
-- 134 当前完整部署 `7dc7a847ff8a0fbc192a21a616dc932a1b2f23f4`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260702-011747`，manifest
-  `deployedAt=2026-07-02T01:17:49+08:00`，
-  `jarSha256=b2d40353650caeb198e56b63d6bacf38a3fb4bb0f6b5928a5142b885c59228ec`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2374979`、`NRestarts=0`。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第十九批版本已完成真实前台与全职责 E2E。
+  第十九批系统接入默认技术信息收敛，以及第二十批质量下钻默认追溯信息收敛。
+- 当前 134 已发布应用为 `bc74aba34157c7540a877c6ac466886ee3516eb4`；第二十批已发布并完成真实前台与全职责复演。
+- 134 当前完整部署 `bc74aba34157c7540a877c6ac466886ee3516eb4`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-014352`，manifest
+  `deployedAt=2026-07-02T01:43:54+08:00`，
+  `jarSha256=331e9028cffada0a1c68c55dac31586f169ddc9b80415d0b5b7916c272cece79`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2389329`、`NRestarts=0`。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -735,12 +732,56 @@
   - 截图复核：`stakeholder-it_manager.png` 显示“过敏与不良反应 · 可由外部系统接入”、
     “未接通适配器：67”，默认“追溯证据”关闭；未再默认展示 `allergyIntolerance.*` 或 `NOT_CONNECTED`。
 
+## 最新阶段交接（2026-07-02 第二十批·质量下钻默认追溯信息收敛）
+
+- 基于第十九批 134 全职责截图继续按质控、院长、实施工程师和信息科视角核查，发现
+  `stakeholder-quality_controller.png` 的质量下钻抽屉截图起初像是只露出窄条。经浏览器探针复现，
+  根因是 Playwright 在 Ant Drawer 进入动画未结束时截图：打开瞬间抽屉仍在视口外，约 700ms 后布局正常。
+  该问题属于演练取证时序，不是产品布局缺陷；已在全职责 E2E 等抽屉完全进入视口后再截图。
+- 同一复核继续发现真实产品问题：质量下钻默认层展示 `整改任务 rct-ins-*` 等原始整改任务编号，
+  且证据包说明使用前端期望的 `itemCount`，而后端真实 `QualityEvidenceExport` 契约只提供
+  `exportId/generatedAt/scopeDigest/items`，导致默认文案可能出现 `undefined 项证据`。按体验契约，
+  原始追溯编号应进入“追溯证据”，普通质控/管理视角应看到业务状态和真实页内条数。
+- 已本地修复并提交 `bc74aba34157c7540a877c6ac466886ee3516eb4`
+  （`fix: 收敛质量下钻默认追溯信息`）：
+  - `QcDashboard` 默认将含追溯 token 的下钻标题转为“整改任务 · 已派发”等业务名称，
+    证据摘要转为“整改任务证据已关联，责任科室需按当前状态复核闭环。”。
+  - 证据包说明改为“当前页 N 项，共 M 项”，使用真实 `items.length` 与 `total`，不再依赖不存在的
+    `itemCount` 字段；`QualityEvidenceExport.itemCount` 类型改为可选以匹配后端契约。
+  - 打开“追溯证据”后仍保留原始标题、sourceId、traceId、exportId、scopeDigest 等完整追溯字段。
+  - 全职责 E2E 增加抽屉视口稳定等待，避免截图在动画中间截取导致误判。
+- 红绿与本地验证：
+  - 红灯：`npm --prefix frontend test -- QcDashboard.test.tsx -t "默认隐藏下钻整改任务原始编号"`
+    在旧实现下失败，默认层找不到“整改任务 · 已派发”，并暴露原始整改任务编号。
+  - 绿灯：同一目标用例与既有“默认用业务语言打开下钻证据 / 证据详情打开后展示”用例通过，`3` 项；
+    `npm --prefix frontend test -- QcDashboard.test.tsx` 通过，`8` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `919` 项；过程中仅有既有
+    `antd Timeline.Item` 弃用警告。
+  - `npm --prefix frontend run build` 通过；`git diff --check` 通过；全职责 E2E 脚本 Prettier 检查通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source bc74aba34157c7540a877c6ac466886ee3516eb4`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260702-014352`，
+    manifest `deployedAt=2026-07-02T01:43:54+08:00`，
+    `jarSha256=331e9028cffada0a1c68c55dac31586f169ddc9b80415d0b5b7916c272cece79`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2389329`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-bc74aba3-quality-drilldown-business`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `12` 类职责视角均有真实动作，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-bc74aba3-quality-drilldown-business`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (36.8s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `11` 段真实前台链路，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - 截图复核：`stakeholder-quality_controller.png` 的“真实下钻证据”抽屉已完整进入视口，默认显示
+    “整改任务 · 已派发”“当前页 11 项，共 11 项”，未再默认展示 `rct-ins-*`、`trace-rct-*`
+    或 `undefined 项证据`；质量概览主页面和待处理问题列表仍保持业务可读。
+
 ## 下一步
 
 1. 继续全视角真实操作与产品体验优化：重点回看患者、医生、护士、药师、医技、质控、信息科长、
    实施工程师、院长等剩余入口操作路径、宽表默认可读性、高级信息呈现方式、质量管理下钻与整改闭环，
    发现不合理产品设计直接按当前权威标准优化。
-2. 继续复核真实前台演练截图里的质量下钻、长表格和随访办理抽屉在窄屏 / 多任务量下的滚动与按钮可达性，
+2. 继续复核真实前台演练截图里的医技协同任务、长表格和随访办理抽屉在窄屏 / 多任务量下的滚动与按钮可达性，
    发现遮挡、重复识别困难、操作路径过长或职责边界不清时直接按现行体验契约修复。
 3. 继续按统一知识治理视角回看诊断知识维护、机构知识、来源血缘、发布治理和知识生产之间的边界；
    当前不因单个疑问盲目拆改，只有发现与原始权威文档冲突或真实前台体验误导时才调整结构。
