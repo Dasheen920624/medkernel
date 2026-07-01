@@ -72,6 +72,105 @@ test("Provider 上线配置复用统一平台四职责凭据且证据位于仓�
   );
 });
 
+test("Provider 上线配置可读取服务器 mimoModel 三行配置且不把密钥写入证据", () => {
+  const credentials = readyCredentials();
+  const config = readModelProviderLaunchConfig(
+    {
+      LAUNCH_API_BASE_URL: "https://127.0.0.1/medkernel/api/v1",
+      LAUNCH_CREDENTIALS_FILE: "/var/lib/medkernel/credentials/current-launch.json",
+      LAUNCH_MODEL_PROVIDER_CODE: "mimo-public",
+      LAUNCH_MODEL_PROFILE_FILE: "/zoesoft/mimoModel",
+      FULL_KNOWLEDGE_MANIFEST_PATH: MANIFEST_PATH,
+      MEDKERNEL_RUNTIME_ROOT: "/var/lib/medkernel",
+    },
+    {
+      repoRoot: "/workspace/medkernel",
+      readFile: (file) => {
+        if (file === MANIFEST_PATH) return readFileSync(file, "utf8");
+        if (file === "/zoesoft/mimoModel") {
+          return [
+            "sk-live-secret-token-with-colon:medical",
+            "model.example.com/v1/chat/completions",
+            "qwen2.5:latest",
+          ].join("\n");
+        }
+        return JSON.stringify(credentials);
+      },
+    },
+  );
+
+  assert.equal(config.provider.code, "mimo-public");
+  assert.equal(config.provider.type, "OPENAI_COMPATIBLE");
+  assert.equal(config.provider.endpoint, "https://model.example.com");
+  assert.equal(config.provider.modelVersion, "qwen2.5:latest");
+  assert.equal(config.provider.credential, "sk-live-secret-token-with-colon:medical");
+  assert.equal(config.providerProfilePath, "/zoesoft/mimoModel");
+});
+
+test("Provider 上线配置兼容 mimoModel 键值冒号格式", () => {
+  const credentials = readyCredentials();
+  const config = readModelProviderLaunchConfig(
+    {
+      LAUNCH_API_BASE_URL: "https://127.0.0.1/medkernel/api/v1",
+      LAUNCH_CREDENTIALS_FILE: "/var/lib/medkernel/credentials/current-launch.json",
+      LAUNCH_MODEL_PROVIDER_CODE: "mimo-public",
+      LAUNCH_MODEL_PROFILE_FILE: "/zoesoft/mimoModel",
+      FULL_KNOWLEDGE_MANIFEST_PATH: MANIFEST_PATH,
+      MEDKERNEL_RUNTIME_ROOT: "/var/lib/medkernel",
+    },
+    {
+      repoRoot: "/workspace/medkernel",
+      readFile: (file) => {
+        if (file === MANIFEST_PATH) return readFileSync(file, "utf8");
+        if (file === "/zoesoft/mimoModel") {
+          return [
+            "api_key: sk-live-secret-token-with-colon:medical",
+            "base_url: model.example.com/v1/chat/completions",
+            "model: qwen2.5:latest",
+          ].join("\n");
+        }
+        return JSON.stringify(credentials);
+      },
+    },
+  );
+
+  assert.equal(config.provider.endpoint, "https://model.example.com");
+  assert.equal(config.provider.modelVersion, "qwen2.5:latest");
+  assert.equal(config.provider.credential, "sk-live-secret-token-with-colon:medical");
+});
+
+test("Provider 上线配置兼容 mimoModel 键值与裸凭据混合格式", () => {
+  const credentials = readyCredentials();
+  const config = readModelProviderLaunchConfig(
+    {
+      LAUNCH_API_BASE_URL: "https://127.0.0.1/medkernel/api/v1",
+      LAUNCH_CREDENTIALS_FILE: "/var/lib/medkernel/credentials/current-launch.json",
+      LAUNCH_MODEL_PROVIDER_CODE: "mimo-public",
+      LAUNCH_MODEL_PROFILE_FILE: "/zoesoft/mimoModel",
+      FULL_KNOWLEDGE_MANIFEST_PATH: MANIFEST_PATH,
+      MEDKERNEL_RUNTIME_ROOT: "/var/lib/medkernel",
+    },
+    {
+      repoRoot: "/workspace/medkernel",
+      readFile: (file) => {
+        if (file === MANIFEST_PATH) return readFileSync(file, "utf8");
+        if (file === "/zoesoft/mimoModel") {
+          return [
+            "endpoint: token-plan-cn.example.com/v1/chat/completions",
+            "sk-live-secret-token-with-colon:medical",
+            "model: qwen2.5:latest",
+          ].join("\n");
+        }
+        return JSON.stringify(credentials);
+      },
+    },
+  );
+
+  assert.equal(config.provider.endpoint, "https://token-plan-cn.example.com");
+  assert.equal(config.provider.modelVersion, "qwen2.5:latest");
+  assert.equal(config.provider.credential, "sk-live-secret-token-with-colon:medical");
+});
+
 test("正式 Provider 上线按配置、探活、真实评测、当前操作者确认顺序启用", async () => {
   const requests = [];
   const result = await runModelProviderLaunch({
@@ -125,6 +224,57 @@ test("正式 Provider 上线按配置、探活、真实评测、当前操作者�
   const bundle = requests.find((item) => item.path === "/model-versions/bundles");
   assert.equal(bundle.body.capabilityCode, "knowledge.production.knowledge");
   assert.equal(bundle.body.modelVersion, "medkernel-qwen25:1.5b-v1");
+});
+
+test("公网 Provider 上线先保存受管凭据并使用外部模型脱敏策略", async () => {
+  const requests = [];
+  const provider = {
+    code: "mimo-public",
+    type: "OPENAI_COMPATIBLE",
+    endpoint: "https://model.example.com",
+    modelVersion: "qwen2.5:latest",
+    credential: "sk-live-secret-token-with-colon:medical",
+  };
+  const result = await runModelProviderLaunch({
+    apiBaseUrl: "https://127.0.0.1/medkernel/api/v1",
+    systemOperator: readyCredentials().platform.accounts["platform-admin"],
+    operator: readyCredentials().platform.accounts["engine-operator"],
+    provider,
+    manifest,
+    fetchImpl: createProviderFetch(requests, { provider }),
+    now: () => "2026-06-22T08:20:00.000Z",
+  });
+
+  assert.equal(result.status, "PASSED");
+  assert.equal(result.provider.type, "OPENAI_COMPATIBLE");
+  assert.equal(result.provider.credentialConfigured, true);
+  assert.equal(result.provider.credentialLast4, "ical");
+  assert.equal(Object.hasOwn(result.provider, "credential"), false);
+  assert.deepEqual(
+    requests.filter((item) => item.path !== "/auth/login").map((item) => `${item.method} ${item.path}`),
+    [
+      "PATCH /system/configs/medkernel.knowledge.literature.material-root-uri",
+      "GET /model-providers/mimo-public",
+      "PUT /model-providers/mimo-public",
+      "PUT /model-providers/mimo-public/credential",
+      "POST /model-providers/mimo-public/health-check",
+      "POST /model-evaluations/regression-cases:bulk-import",
+      "POST /model-evaluations",
+      "PUT /model-capabilities/policies/knowledge.production.knowledge",
+      "POST /model-versions/bundles",
+      "POST /model-providers/mimo-public/enable",
+      "GET /engine/knowledge-production/readiness?producer=API_MODEL&capabilityCode=knowledge.production.knowledge&providerCode=mimo-public",
+    ],
+  );
+  const credential = requests.find((item) => item.path === "/model-providers/mimo-public/credential");
+  assert.equal(credential.body.credential, provider.credential);
+  assert.equal(credential.body.expectedVersion, null);
+  assert.equal(credential.body.confirmedHighRisk, true);
+  assert.match(credential.body.reason, /134 完整上线演练/u);
+  const policy = requests.find((item) => item.path === "/model-capabilities/policies/knowledge.production.knowledge");
+  assert.equal(policy.body.routeStrategy, "EXTERNAL_MODEL");
+  assert.deepEqual(policy.body.fallbackOrder, ["EXTERNAL_MODEL", "LOCAL_MODEL", "BASELINE"]);
+  assert.equal(policy.body.desensitizeStrategy, "MASK_ALL");
 });
 
 test("正式 Provider 重新上线时使用当前关系库版本避免恢复演练冲突", async () => {
@@ -185,6 +335,13 @@ function readyCredentials() {
 }
 
 function createProviderFetch(requests, options = {}) {
+  const fixture = options.provider ?? {
+    code: "ollama-launch",
+    type: "OLLAMA",
+    endpoint: "http://127.0.0.1:11434",
+    modelVersion: "medkernel-qwen25:1.5b-v1",
+  };
+  let credentialConfigured = false;
   return async (url, init = {}) => {
     const parsed = new URL(url);
     const path = parsed.pathname.replace(/^.*\/api\/v1/u, "") + parsed.search;
@@ -219,7 +376,7 @@ function createProviderFetch(requests, options = {}) {
         },
       });
     }
-    if (method === "GET" && cleanPath === "/model-providers/ollama-launch") {
+    if (method === "GET" && cleanPath === `/model-providers/${fixture.code}`) {
       if (options.existingProviderVersion === undefined) {
         return response(
           { success: false, code: "ENG-API-004", message: "模型服务不存在" },
@@ -227,17 +384,25 @@ function createProviderFetch(requests, options = {}) {
           404,
         );
       }
-      return response({ data: providerView(false, "HEALTHY", options.existingProviderVersion) });
+      return response({
+        data: providerView(false, "HEALTHY", options.existingProviderVersion, fixture, credentialConfigured),
+      });
     }
-    if (method === "PUT" && cleanPath === "/model-providers/ollama-launch") {
+    if (method === "PUT" && cleanPath === `/model-providers/${fixture.code}`) {
       if (options.existingProviderVersion !== undefined) {
         assert.equal(body.expectedVersion, options.existingProviderVersion);
-        return response({ data: providerView(false, "HEALTHY", options.existingProviderVersion + 1) });
+        return response({
+          data: providerView(false, "HEALTHY", options.existingProviderVersion + 1, fixture, credentialConfigured),
+        });
       }
-      return response({ data: providerView(false, "NOT_CONNECTED", 0) });
+      return response({ data: providerView(false, "NOT_CONNECTED", 0, fixture, credentialConfigured) });
+    }
+    if (method === "PUT" && cleanPath === `/model-providers/${fixture.code}/credential`) {
+      credentialConfigured = true;
+      return response({ data: providerView(false, "NOT_CONNECTED", 1, fixture, credentialConfigured) });
     }
     if (cleanPath.endsWith("/health-check")) {
-      return response({ data: providerView(false, "HEALTHY", 1) });
+      return response({ data: providerView(false, "HEALTHY", 1, fixture, credentialConfigured) });
     }
     if (cleanPath.endsWith("regression-cases:bulk-import")) {
       return response({ data: body.cases.map((item, index) => ({ ...item, id: index + 1 })) });
@@ -286,7 +451,7 @@ function createProviderFetch(requests, options = {}) {
       });
     }
     if (cleanPath.endsWith("/enable")) {
-      return response({ data: providerView(true, "HEALTHY", 2) });
+      return response({ data: providerView(true, "HEALTHY", 2, fixture, credentialConfigured) });
     }
     if (method === "GET" && cleanPath === "/engine/knowledge-production/readiness") {
       return response({
@@ -294,7 +459,7 @@ function createProviderFetch(requests, options = {}) {
           tenantId: "t-1",
           producer: "API_MODEL",
           capabilityCode: "knowledge.production.knowledge",
-          providerCode: "ollama-launch",
+          providerCode: fixture.code,
           ready: true,
           modelInvocationAllowed: true,
           items: [
@@ -309,13 +474,20 @@ function createProviderFetch(requests, options = {}) {
   };
 }
 
-function providerView(enabled, status, version) {
+function providerView(enabled, status, version, fixture = {
+  code: "ollama-launch",
+  type: "OLLAMA",
+  endpoint: "http://127.0.0.1:11434",
+  modelVersion: "medkernel-qwen25:1.5b-v1",
+}, credentialConfigured = false) {
   return {
-    providerCode: "ollama-launch",
-    providerType: "OLLAMA",
-    endpointUri: "http://127.0.0.1:11434",
-    credentialConfigured: false,
-    modelVersion: "medkernel-qwen25:1.5b-v1",
+    providerCode: fixture.code,
+    providerType: fixture.type,
+    endpointUri: fixture.endpoint,
+    credentialConfigured,
+    credentialLast4: credentialConfigured ? "ical" : null,
+    credentialVersion: credentialConfigured ? 1 : null,
+    modelVersion: fixture.modelVersion,
     enabled,
     status,
     version,

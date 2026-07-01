@@ -9,7 +9,7 @@ import {
 import { validateFullKnowledgeManifest } from "../knowledge/full-knowledge-rehearsal-lib.mjs";
 
 const CAPABILITY = "knowledge.production.knowledge";
-const PROVIDER_TYPES = new Set(["OLLAMA"]);
+const PROVIDER_TYPES = new Set(["OLLAMA", "OPENAI_COMPATIBLE", "CLAUDE", "DIFY"]);
 const REGRESSION_DOMAINS = Object.freeze(["GUIDELINE", "DRUG", "DIAGNOSIS"]);
 const FORBIDDEN_ASSERTIONS = Object.freeze(["自动开立医嘱", "已确诊", "推荐剂量"]);
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -18,6 +18,7 @@ const API_ALLOWLIST = Object.freeze([
   ["PATCH", /^\/system\/configs\/medkernel\.knowledge\.literature\.material-root-uri$/u],
   ["GET", /^\/model-providers\/[a-z0-9][a-z0-9._-]{0,63}$/u],
   ["PUT", /^\/model-providers\/[a-z0-9][a-z0-9._-]{0,63}$/u],
+  ["PUT", /^\/model-providers\/[a-z0-9][a-z0-9._-]{0,63}\/credential$/u],
   ["POST", /^\/model-providers\/[a-z0-9][a-z0-9._-]{0,63}\/health-check$/u],
   ["POST", /^\/model-evaluations\/regression-cases:bulk-import$/u],
   ["POST", /^\/model-evaluations$/u],
@@ -62,9 +63,6 @@ export function readModelProviderLaunchConfig(env, options = {}) {
     "LAUNCH_API_BASE_URL",
     "LAUNCH_CREDENTIALS_FILE",
     "LAUNCH_MODEL_PROVIDER_CODE",
-    "LAUNCH_MODEL_PROVIDER_TYPE",
-    "LAUNCH_MODEL_PROVIDER_ENDPOINT",
-    "LAUNCH_MODEL_VERSION",
     "FULL_KNOWLEDGE_MANIFEST_PATH",
   ];
   for (const key of requiredKeys) {
@@ -86,6 +84,12 @@ export function readModelProviderLaunchConfig(env, options = {}) {
     repoRoot,
     "Provider 上线证据路径",
   );
+  const providerProfilePath = hasText(env.LAUNCH_MODEL_PROFILE_FILE)
+    ? outsideRepo(env.LAUNCH_MODEL_PROFILE_FILE, repoRoot, "模型 Provider 运行配置文件")
+    : null;
+  const providerProfile = providerProfilePath
+    ? parseMimoModelProfile(readFile(providerProfilePath), providerProfilePath)
+    : {};
 
   const credentials = parseJson(
     readFile(credentialsPath),
@@ -95,12 +99,13 @@ export function readModelProviderLaunchConfig(env, options = {}) {
   const manifest = parseJson(readFile(manifestPath), "全知识清单");
   validateFullKnowledgeManifest(manifest);
 
-  const providerType = requireText(
-    env.LAUNCH_MODEL_PROVIDER_TYPE,
-    "LAUNCH_MODEL_PROVIDER_TYPE",
+  const providerType = (
+    env.LAUNCH_MODEL_PROVIDER_TYPE?.trim() ||
+    providerProfile.providerType ||
+    inferProviderType(providerProfile.endpoint)
   ).toUpperCase();
   if (!PROVIDER_TYPES.has(providerType)) {
-    throw new Error("134 正式上线脚本当前只允许无出域的 OLLAMA Provider");
+    throw new Error("不支持的正式模型 Provider 类型");
   }
 
   return {
@@ -117,10 +122,18 @@ export function readModelProviderLaunchConfig(env, options = {}) {
     provider: {
       code: normalizeProviderCode(env.LAUNCH_MODEL_PROVIDER_CODE),
       type: providerType,
-      endpoint: normalizeProviderEndpoint(env.LAUNCH_MODEL_PROVIDER_ENDPOINT),
-      modelVersion: requireText(env.LAUNCH_MODEL_VERSION, "LAUNCH_MODEL_VERSION"),
+      endpoint: normalizeProviderEndpoint(
+        env.LAUNCH_MODEL_PROVIDER_ENDPOINT?.trim() || providerProfile.endpoint,
+        providerType,
+      ),
+      modelVersion: requireText(
+        env.LAUNCH_MODEL_VERSION?.trim() || providerProfile.modelVersion,
+        "LAUNCH_MODEL_VERSION",
+      ),
+      credential: env.LAUNCH_MODEL_PROVIDER_CREDENTIAL?.trim() || providerProfile.credential || null,
     },
     manifest,
+    providerProfilePath,
   };
 }
 
@@ -222,6 +235,35 @@ export async function runModelProviderLaunch(options) {
     label: "登记正式模型 Provider",
   });
   assertConfiguredProviderView(configured.data, provider);
+  let credentialVersion = existingProvider.status === 200
+    ? existingProvider.data?.credentialVersion ?? null
+    : null;
+  let credentialConfigured =
+    existingProvider.status === 200 && existingProvider.data?.credentialConfigured === true;
+
+  if (hasText(provider.credential)) {
+    const credential = await requestJson({
+      apiBaseUrl,
+      fetchImpl,
+      requests,
+      session,
+      method: "PUT",
+      path: `/model-providers/${provider.code}/credential`,
+      body: {
+        credential: provider.credential,
+        reason: "134 完整上线演练：从受控运行配置文件导入模型服务凭据",
+        expectedVersion: credentialVersion,
+        confirmedHighRisk: true,
+      },
+      label: "保存正式模型 Provider 受管凭据",
+    });
+    assertCredentialConfigured(credential.data, provider);
+    credentialVersion = credential.data.credentialVersion ?? credentialVersion;
+    credentialConfigured = true;
+  }
+  if (isExternalProviderType(provider.type) && !credentialConfigured) {
+    throw new Error("公网模型 Provider 必须配置受管凭据或复用已登记凭据");
+  }
 
   const health = await requestJson({
     apiBaseUrl,
@@ -272,10 +314,10 @@ export async function runModelProviderLaunch(options) {
     session,
     method: "PUT",
     path: `/model-capabilities/policies/${CAPABILITY}`,
-    body: buildKnowledgeProductionPolicy(),
+    body: buildKnowledgeProductionPolicy(provider),
     label: "保存正式知识生产模型能力策略",
   });
-  assertKnowledgeProductionPolicy(policy.data);
+  assertKnowledgeProductionPolicy(policy.data, provider);
 
   const versionBundle = await requestJson({
     apiBaseUrl,
@@ -348,6 +390,8 @@ export async function runModelProviderLaunch(options) {
       enabled: enabled.data.enabled,
       status: enabled.data.status,
       version: enabled.data.version,
+      credentialConfigured: enabled.data.credentialConfigured === true,
+      credentialLast4: enabled.data.credentialLast4 ?? null,
     },
     evaluation: {
       runId: evaluation.data.id,
@@ -474,29 +518,37 @@ function assertLiteratureRoot(data, expectedUri) {
   }
 }
 
-function buildKnowledgeProductionPolicy() {
+function buildKnowledgeProductionPolicy(provider) {
+  const external = isExternalProviderType(provider.type);
   return {
-    routeStrategy: "LOCAL_MODEL",
+    routeStrategy: external ? "EXTERNAL_MODEL" : "LOCAL_MODEL",
     desensitizeStrategy: "MASK_ALL",
     expectedSchema: JSON.stringify({
       required: ["domain", "subject", "sourceReferences", "limitations", "sections"],
     }),
-    fallbackOrder: ["LOCAL_MODEL", "BASELINE"],
+    fallbackOrder: external
+      ? ["EXTERNAL_MODEL", "LOCAL_MODEL", "BASELINE"]
+      : ["LOCAL_MODEL", "BASELINE"],
     timeoutMs: 120_000,
     rateLimitPerMinute: 6,
   };
 }
 
-function assertKnowledgeProductionPolicy(data) {
+function assertKnowledgeProductionPolicy(data, provider) {
+  const external = isExternalProviderType(provider.type);
+  const expectedRoute = external ? "EXTERNAL_MODEL" : "LOCAL_MODEL";
+  const expectedFallback = external
+    ? "EXTERNAL_MODEL,LOCAL_MODEL,BASELINE"
+    : "LOCAL_MODEL,BASELINE";
   if (
     !data ||
     data.capabilityCode !== CAPABILITY ||
-    data.routeStrategy !== "LOCAL_MODEL" ||
+    data.routeStrategy !== expectedRoute ||
     data.desensitizeStrategy !== "MASK_ALL" ||
     !Array.isArray(data.fallbackOrder) ||
-    data.fallbackOrder.join(",") !== "LOCAL_MODEL,BASELINE"
+    data.fallbackOrder.join(",") !== expectedFallback
   ) {
-    throw new Error("正式知识生产模型能力策略未按本地模型安全路线保存");
+    throw new Error("正式知识生产模型能力策略未按模型安全路线保存");
   }
 }
 
@@ -524,9 +576,20 @@ function buildKnowledgeProductionVersionBundle(manifest, provider) {
       providerCode: provider.code,
       providerType: provider.type,
       modelVersion: provider.modelVersion,
-      egress: "LOCAL_ONLY",
+      egress: isExternalProviderType(provider.type) ? "EXTERNAL_MASKED" : "LOCAL_ONLY",
     }),
   };
+}
+
+function assertCredentialConfigured(data, provider) {
+  if (
+    !data ||
+    data.providerCode !== provider.code ||
+    data.providerType !== provider.type ||
+    data.credentialConfigured !== true
+  ) {
+    throw new Error("Provider 受管凭据未保存为脱敏治理快照");
+  }
 }
 
 function assertVersionBundle(data, provider) {
@@ -636,12 +699,13 @@ function requireProvider(provider) {
     throw new Error("模型 Provider 配置必须是对象");
   }
   const type = requireText(provider.type, "provider.type").toUpperCase();
-  if (!PROVIDER_TYPES.has(type)) throw new Error("134 正式上线只允许 OLLAMA Provider");
+  if (!PROVIDER_TYPES.has(type)) throw new Error("不支持的正式模型 Provider 类型");
   return {
     code: normalizeProviderCode(provider.code),
     type,
-    endpoint: normalizeProviderEndpoint(provider.endpoint),
+    endpoint: normalizeProviderEndpoint(provider.endpoint, type),
     modelVersion: requireText(provider.modelVersion, "provider.modelVersion"),
+    credential: hasText(provider.credential) ? provider.credential.trim() : null,
   };
 }
 
@@ -653,8 +717,13 @@ function normalizeProviderCode(value) {
   return code;
 }
 
-function normalizeProviderEndpoint(value) {
-  const parsed = new URL(requireText(value, "Provider 端点"));
+function normalizeProviderEndpoint(value, providerType = "OPENAI_COMPATIBLE") {
+  const raw = requireText(value, "Provider 端点");
+  const type = requireText(providerType, "provider.type").toUpperCase();
+  const candidate = /^[a-z][a-z0-9+.-]*:\/\//iu.test(raw)
+    ? raw
+    : `${isExternalProviderType(type) ? "https" : "http"}://${raw}`;
+  const parsed = new URL(candidate);
   if (
     !/^https?:$/u.test(parsed.protocol) ||
     !parsed.hostname ||
@@ -665,7 +734,125 @@ function normalizeProviderEndpoint(value) {
   ) {
     throw new Error("Provider 端点必须是不含凭据、查询和片段的 HTTP(S) 地址");
   }
+  if (isExternalProviderType(type) && parsed.protocol !== "https:") {
+    throw new Error("公网模型 Provider 端点必须使用 HTTPS");
+  }
+  normalizeProviderBasePath(parsed, type);
   return parsed.toString().replace(/\/$/u, "");
+}
+
+function normalizeProviderBasePath(parsed, providerType) {
+  if (String(providerType).toUpperCase() !== "OPENAI_COMPATIBLE") return;
+  const pathName = parsed.pathname.replace(/\/+$/u, "");
+  for (const suffix of ["/v1/chat/completions", "/v1/models", "/v1"]) {
+    if (pathName.endsWith(suffix)) {
+      parsed.pathname = pathName.slice(0, -suffix.length) || "/";
+      return;
+    }
+  }
+}
+
+function parseMimoModelProfile(raw, label) {
+  const lines = String(raw ?? "")
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+  if (lines.length === 0) throw new Error(`${label} 未包含模型 Provider 配置`);
+
+  const keyed = {};
+  const bare = [];
+  for (const line of lines) {
+    const separator = profileKeyValueSeparator(line);
+    if (separator > 0) {
+      const key = normalizeProfileKey(line.slice(0, separator));
+      const value = line.slice(separator + 1).trim();
+      if (key && value) keyed[key] = value;
+    } else {
+      bare.push(line);
+    }
+  }
+  if (Object.keys(keyed).length > 0) {
+    const inferred = inferBareProfile(bare, label, false);
+    return {
+      providerType: keyed.providerType,
+      endpoint: keyed.endpoint ?? inferred.endpoint,
+      modelVersion: keyed.modelVersion ?? inferred.modelVersion,
+      credential: keyed.credential ?? inferred.credential,
+    };
+  }
+  return inferBareProfile(bare, label, true);
+}
+
+function inferBareProfile(bare, label, strict) {
+  if (bare.length !== 3) {
+    if (strict) throw new Error(`${label} 的无键名格式必须是三行：凭据、端点、模型版本`);
+    if (bare.length === 0) return {};
+  }
+
+  const endpointIndex = bare.findIndex(looksLikeEndpoint);
+  const credentialIndex = bare.findIndex((line, index) => index !== endpointIndex && looksLikeCredential(line));
+  const modelIndex = bare.findIndex(
+    (line, index) => index !== endpointIndex && index !== credentialIndex && looksLikeModelVersion(line),
+  );
+  if (endpointIndex < 0 || modelIndex < 0 || credentialIndex < 0) {
+    if (strict) throw new Error(`${label} 的三行格式无法识别端点、模型版本与凭据`);
+  }
+  return {
+    endpoint: endpointIndex >= 0 ? bare[endpointIndex] : undefined,
+    modelVersion: modelIndex >= 0 ? bare[modelIndex] : undefined,
+    credential: credentialIndex >= 0 ? bare[credentialIndex] : undefined,
+  };
+}
+
+function profileKeyValueSeparator(line) {
+  const equals = line.indexOf("=");
+  if (equals > 0) return equals;
+  const colon = line.indexOf(":");
+  if (colon <= 0 || /^[a-z][a-z0-9+.-]*:\/\//iu.test(line)) return -1;
+  return normalizeProfileKey(line.slice(0, colon)) ? colon : -1;
+}
+
+function normalizeProfileKey(raw) {
+  const key = raw.trim().toLowerCase().replace(/[-\s]/gu, "_");
+  if (["provider_type", "type"].includes(key)) return "providerType";
+  if (["endpoint", "endpoint_uri", "base_url", "baseurl", "url"].includes(key)) return "endpoint";
+  if (["model", "model_version", "modelversion"].includes(key)) return "modelVersion";
+  if (["credential", "api_key", "apikey", "token", "secret", "password"].includes(key)) {
+    return "credential";
+  }
+  return null;
+}
+
+function looksLikeEndpoint(value) {
+  const text = value.trim();
+  if (/^https?:\/\//iu.test(text)) return true;
+  return /^[a-z0-9.-]+(?::\d+)?\/[^\s]+$/iu.test(text) && text.includes(".");
+}
+
+function looksLikeModelVersion(value) {
+  const text = value.trim();
+  return /^[a-z0-9][a-z0-9._:/+-]{1,127}$/iu.test(text)
+    && !looksLikeEndpoint(text)
+    && !looksLikeCredential(text);
+}
+
+function looksLikeCredential(value) {
+  const text = value.trim();
+  return /(sk-|token|secret|key|bearer)/iu.test(text) || text.length >= 32;
+}
+
+function inferProviderType(endpoint) {
+  if (!hasText(endpoint)) return "OPENAI_COMPATIBLE";
+  const normalized = endpoint.trim().toLowerCase();
+  if (/^(https?:\/\/)?(127\.0\.0\.1|localhost)(:\d+)?/u.test(normalized)
+      || normalized.includes("ollama")) {
+    return "OLLAMA";
+  }
+  return "OPENAI_COMPATIBLE";
+}
+
+function isExternalProviderType(type) {
+  return ["OPENAI_COMPATIBLE", "CLAUDE", "DIFY"].includes(String(type ?? "").toUpperCase());
 }
 
 function defaultKnowledgeLiteratureRootUri(runtimeRoot) {
