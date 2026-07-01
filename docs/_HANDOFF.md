@@ -10,19 +10,19 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `3f8e1be7b2ac22f378f26d9720e9a52b07840068`
-  （`fix: 明确诊断知识统一治理边界`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前已发布应用代码提交为 `f2eb3683a94361d39acba5c55ea29ff438d611a8`
+  （`fix: 固定随访办理底部操作区`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
   第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
   第十九批系统接入默认技术信息收敛、第二十批质量下钻默认追溯信息收敛、第二十一批协同任务列表可读性收敛，
-  以及第二十二批诊断知识统一治理边界收敛。
-- 当前 134 已发布应用为 `3f8e1be7b2ac22f378f26d9720e9a52b07840068`；第二十二批已发布并完成真实前台与全职责复演。
-- 134 当前完整部署 `3f8e1be7b2ac22f378f26d9720e9a52b07840068`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260702-021233`，manifest
-  `deployedAt=2026-07-02T02:12:35+08:00`，
-  `jarSha256=175570b0852df5f40ebac08421a884029947d2589860da16088e2705ff77bf4b`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2405856`、`NRestarts=0`。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十二批版本已完成真实前台与全职责 E2E。
+  第二十二批诊断知识统一治理边界收敛，以及第二十三批随访办理底部操作区收敛。
+- 当前 134 已发布应用为 `f2eb3683a94361d39acba5c55ea29ff438d611a8`；第二十三批已发布并完成真实前台与全职责复演。
+- 134 当前完整部署 `f2eb3683a94361d39acba5c55ea29ff438d611a8`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-022813`，manifest
+  `deployedAt=2026-07-02T02:28:15+08:00`，
+  `jarSha256=959bd1a294c925014463bd31769a517f95dd19c584c1a3f8b4691edc8f3d2cf0`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2414696`、`NRestarts=0`。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十三批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -31,6 +31,45 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-02 全视角真实前台体验优化第二十三批·随访办理底部操作区）
+
+- 基于第二十二批 134 真实前台截图继续按护士、患者/代理、医生、院内实施和信息科视角检查，
+  发现 `/clinical/followup` 的“随访计划办理”抽屉在 1440×968 视口下，异常回院登记表的
+  “登记异常回院”按钮贴在视口底部并被裁掉一截。虽然 E2E 能点击成功，但护士真实办理异常回院时
+  会以为按钮未完整加载或需要额外滚动，属于临床闭环操作可见性问题。
+- 已本地修复并提交 `f2eb3683a94361d39acba5c55ea29ff438d611a8`
+  （`fix: 固定随访办理底部操作区`）：
+  - 问卷提交与异常回院登记按钮分别进入 `role="group"` 的“问卷回收操作”和“异常回院登记操作”语义区。
+  - 新增 `.drawerActionBar`，在抽屉内容中使用 `position: sticky; bottom: 0`、底部安全留白和容器背景，
+    保证长表单内主操作完整可见；移动窄屏下按钮自动铺满宽度。
+  - 本批不改变随访计划生成、问卷回收、异常回院后端契约，不新增患者隐私字段，不改变医护责任边界。
+- 红绿验证：
+  - 红灯：`npm --prefix frontend test -- Followup.test.tsx -t "默认用业务结果展示异常回院登记证据|随访办理抽屉用固定底部操作区"`
+    在旧实现下失败，暴露找不到“异常回院登记操作”语义组，且 CSS 中不存在 `.drawerActionBar` sticky 底部合约。
+  - 绿灯：同一目标用例通过，`2` 项；`npm --prefix frontend test -- Followup.test.tsx`
+    通过，`19` 项。
+  - 受影响临床集合：`npm --prefix frontend test -- Followup.test.tsx CdssFatigue.test.tsx PatientPathways.test.tsx WorkflowTodos.test.tsx`
+    通过，`4` 个文件 / `61` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `921` 项；
+    `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source f2eb3683a94361d39acba5c55ea29ff438d611a8`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260702-022813`，manifest
+    `deployedAt=2026-07-02T02:28:15+08:00`，
+    `jarSha256=959bd1a294c925014463bd31769a517f95dd19c584c1a3f8b4691edc8f3d2cf0`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2414696`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-f2eb3683-followup-action-bar`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (40.8s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，运行记录 `11` 段真实前台链路均由页面提交产生，
+    `errors=0`。截图 `real-frontdesk-followup-plan-questionnaire-abnormal-812a675e7fa1def06b0ec1162d43efe3f89d260e.png`
+    显示“登记异常回院”按钮完整固定在右下操作区，底部未再被视口裁切。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-f2eb3683-followup-action-bar`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，运行记录 `12` 类视角、`errors=0`。
+- 下一轮主线候选：第二十三批扫描中还发现系统接入/字段映射截图存在很长的字段明细和接入申请列表，
+  会稀释信息科和实施工程师的首屏目标；后续应先核查产品文档与现有分页/字段契约，再判断是否做默认折叠、
+  分页或摘要化处理。
 
 ## 最新阶段交接（2026-07-02 全视角真实前台体验优化第二十二批·诊断知识统一治理边界）
 
