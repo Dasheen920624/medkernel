@@ -120,6 +120,30 @@ const sourceActionText: Record<WorkflowTodoSourceType, string> = {
   PATHWAY_NODE: "打开路径节点",
 };
 
+const sourceBusinessSummary: Record<WorkflowTodoSourceType, string> = {
+  FOLLOWUP_TASK: "随访反馈需要按患者当前状态完成复核和闭环。",
+  SAFETY_REVIEW: "高风险事项需要完成责任复核后才能继续流转。",
+  RECOMMENDATION_CARD: "临床提醒需要结合患者上下文确认采纳、暂不采纳或转交。",
+  NURSING_TASK: "护理任务需要按当前护理计划完成处理并记录结果。",
+  REPORT_INTERPRETATION: "报告结果需要结合患者上下文完成辅助解读，处理结论需由医技或医生确认。",
+  BEDSIDE_KNOWLEDGE: "床旁知识需要结合当前场景核对后再用于临床参考。",
+  PATHWAY_NODE: "路径节点需要按患者当前路径状态完成推进或记录变异。",
+};
+
+const technicalSummaryPattern =
+  /(?:\bruntime-[A-Za-z0-9_-]+|触发点[:：]\s*[A-Za-z0-9_.:-]+|\btrigger(?:Point)?[:：=]\s*[A-Za-z0-9_.:-]+)/i;
+
+function workflowTodoSummaryText(record: WorkflowTodo, evidenceDetailsEnabled: boolean) {
+  const summary = record.summary?.trim();
+  if (evidenceDetailsEnabled) {
+    return summary || sourceBusinessSummary[record.sourceType];
+  }
+  if (!summary || technicalSummaryPattern.test(summary)) {
+    return sourceBusinessSummary[record.sourceType];
+  }
+  return summary;
+}
+
 const ORG_UNIT_REFERENCE_PAGE_SIZE = 20;
 const TRANSFER_USER_REFERENCE_PAGE_SIZE = 20;
 const route = findRouteByPath("/workflow/todos");
@@ -353,7 +377,9 @@ export default function WorkflowTodos() {
       render: (_value, record) => (
         <Space direction="vertical" size={2}>
           <span className={styles.textStrong}>{record.title}</span>
-          <span className={styles.textSmall}>{record.summary}</span>
+          <span className={styles.textSmall}>
+            {workflowTodoSummaryText(record, evidenceDetailsEnabled)}
+          </span>
           <Space wrap size={8} className={styles.textSmall}>
             {evidenceDetailsEnabled ? (
               <>

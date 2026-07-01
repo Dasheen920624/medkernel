@@ -598,6 +598,50 @@ describe("WorkflowTodos", () => {
     expect(screen.queryByRole("link", { name: "打开来源" })).not.toBeInTheDocument();
   });
 
+  it("keeps runtime release and trigger identifiers inside evidence details for report todos", async () => {
+    const user = userEvent.setup();
+    workflowHookMocks.useWorkflowTodos.mockReturnValue({
+      data: {
+        items: [
+          {
+            todoId: "todo-report-runtime",
+            sourceType: "REPORT_INTERPRETATION",
+            sourceId: "report:patient-real-1",
+            title: "医技报告解读：血钾检验",
+            summary:
+              "已登记报告「血钾检验」结合当前机构生效版本 runtime-01KWC6Q7ZXG7B4MJQQ3PTYJJYY 中的「检验项目说明书来源与使用边界」生成辅助解读，触发点：result-review",
+            priority: "HIGH",
+            status: "PENDING",
+            assigneeId: "technician-real-1",
+            assigneeRole: "TECHNICIAN",
+            patientId: "patient-real-1",
+            deepLink: "/cdss/fatigue",
+            traceId: "trace-report-runtime",
+          },
+        ],
+        page: 0,
+        size: 10,
+        total: 1,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: workflowHookMocks.refetchTodos,
+    });
+
+    renderWorkflowTodos();
+
+    expect(screen.getByText("医技报告解读：血钾检验")).toBeInTheDocument();
+    expect(screen.getByText(/报告结果需要结合患者上下文完成辅助解读/)).toBeInTheDocument();
+    expect(screen.queryByText(/runtime-01KWC6Q7ZXG7B4MJQQ3PTYJJYY/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/result-review/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText(/runtime-01KWC6Q7ZXG7B4MJQQ3PTYJJYY/)).toBeInTheDocument();
+    expect(screen.getByText(/触发点：result-review/)).toBeInTheDocument();
+  });
+
   it("does not expose unsafe source jumps from workflow todos", () => {
     workflowHookMocks.useWorkflowTodos.mockReturnValue({
       data: {
