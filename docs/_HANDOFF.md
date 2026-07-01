@@ -10,14 +10,14 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前 134 已发布应用仍为 `5cc9faddee2bebbf626908c9d33e08b14f3eb8b3`；
-  本地分支正在收口第四批前台日期时间体验优化，尚未发布到 134。
-- 134 当前完整部署 `5cc9faddee2bebbf626908c9d33e08b14f3eb8b3`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260630-233935`，manifest
-  `deployedAt=2026-06-30T23:39:37+08:00`，
-  `jarSha256=81ad71ad224a088a460ed893b84981f3cc8c7b85ebcf4e522f405592d6cf3546`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=1568905`、`NRestarts=0`。
-- 第四批改动涉及前端应用行为；本地提交后需要按提交版本重发 134，并复跑真实前台与全职责 E2E。
+- 当前 134 已发布应用为 `936aa955b998a0912fa4c569f7bb6bc1dd3d4598`
+  （`fix: 统一前台临床日期时间表达`）；第四批前台日期时间体验优化已发布并复演。
+- 134 当前完整部署 `936aa955b998a0912fa4c569f7bb6bc1dd3d4598`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260701-120414`，manifest
+  `deployedAt=2026-07-01T12:04:20+08:00`，
+  `jarSha256=7c0381b3dfb2249abef7c8d6b400c3ea8addae5ed9d9dbedd4c84433cc5d7b43`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=1950067`、`NRestarts=0`。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第四批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -68,7 +68,7 @@
 - E2E 补强验证：补强后的 `real-frontdesk-rehearsal.spec.ts --project=chromium` 直接访问 134 通过；
   补强后再次运行 `npm --prefix frontend run verify` 通过，`113` 个测试文件 / `904` 项；`git diff --check` 通过。
 
-## 最新阶段交接（2026-07-01 全视角真实前台体验优化第四批·本地验证）
+## 最新阶段交接（2026-07-01 全视角真实前台体验优化第四批·本地验证与134复演）
 
 - 基于第三批 134 真实前台截图与全角色复演，继续按医生、护士、患者/代理、药师、医技、
   质控、信息科、实施工程师、审计员、院长等视角核查，发现日期时间表达仍有全局体验风险：
@@ -102,16 +102,29 @@
   - `npm --prefix frontend run build` 通过；`git diff --check` 通过。
   - 反查 `rg "toLocaleString\\(|toLocaleDateString\\(|new Intl\\.DateTimeFormat"`：
     日期时间格式仅剩统一 helper；其余 `toLocaleString` 均为金额/计数数字格式。
-- 本阶段尚未发布 134；下一步需先提交本地分支，再按该提交版本重发 134，并复跑真实前台深链路与全职责视角 E2E。
+- 本地提交 `936aa955b998a0912fa4c569f7bb6bc1dd3d4598`
+  （`fix: 统一前台临床日期时间表达`）已生成，暂不推送远程。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source 936aa955b998a0912fa4c569f7bb6bc1dd3d4598`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260701-120414`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-936aa955-deployed-direct134`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    运行记录 `12` 个职责视角均有真实动作，浏览器错误、服务端错误、网络失败均为 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-936aa955-date-e2e`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (34.4s)`；
+    运行记录 `10` 段真实前台链路均由页面提交产生，浏览器错误、服务端错误、网络失败均为 `0`。
+  - 关键截图复核：`real-frontdesk-onboarding.png` 显示“最近更新 2026年07月01日 12:06”；
+    `real-frontdesk-value-set.png` 显示“最新维护 2026年07月01日 12:06”；
+    `real-frontdesk-followup-plan-questionnaire-abnormal.png` 的随访截止日期均为中文日期；
+    可见入口未再出现浏览器地区化斜杠日期，表格换行可读且未发现重叠。
 
 ## 下一步
 
-1. 提交第四批日期时间体验优化到当前本地分支；暂不推送远程 `main`。
-2. 用第四批提交版本重发 134，并复跑直接访问 134 的真实前台深链路与全职责视角 E2E；截图核查随访、
-   路径、CDSS、系统接入、模型/安全/审计/上线治理等入口不再出现浏览器地区化日期。
-3. 继续第五批全视角真实操作与产品体验优化：医生、护士、患者/代理、药师、医技、质控、信息科长、
+1. 继续第五批全视角真实操作与产品体验优化：医生、护士、患者/代理、药师、医技、质控、信息科长、
    实施工程师、审计员、院长等视角都要提交真实表单、触发真实状态变化；继续关注质量报告长明细阅读负担、
    患者/医生/护士/药师/医技剩余入口操作负担、模型双模式安全配置与实际前台交互。
-4. 继续保留大模型双模式安全边界：公网模型可使用患者信息但必须严格屏蔽核心敏感信息；
+2. 继续保留大模型双模式安全边界：公网模型可使用患者信息但必须严格屏蔽核心敏感信息；
    院内本地模型可按授权使用患者信息，但仍要记录用途、边界和敏感信息处理。
-5. 目标环境上线前仍需补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
+3. 目标环境上线前仍需补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
+4. 当前分支继续只做本地提交；最终全链路确认无问题后再统一处理远程 `main`。
