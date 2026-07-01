@@ -202,10 +202,12 @@ export default function InsuranceAudit() {
         responsibleDepartmentId: values.responsibleDepartmentId.trim(),
       };
       const scenarioCode = values.scenarioCode.trim();
-      const caseReview = await caseReviewMutation.mutateAsync({
-        ...base,
-        scenarioCode,
-      });
+      const caseReview = useManualIndicatorOption
+        ? null
+        : await caseReviewMutation.mutateAsync({
+            ...base,
+            scenarioCode,
+          });
       const drgGrouping = await drgMutation.mutateAsync({
         ...base,
         grouperVersion: values.grouperVersion.trim(),
@@ -413,7 +415,7 @@ export default function InsuranceAudit() {
                 <Alert
                   type="info"
                   showIcon
-                  message="未读取到已生效质控指标，先按本次医保规则依据归档。"
+                  message="未读取到已生效质控指标，先跳过内涵质控并按本次医保规则依据归档。"
                 />
               ) : null}
 

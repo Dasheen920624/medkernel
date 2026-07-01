@@ -395,16 +395,21 @@ async function runInsuranceAuditFromUi(
     .getByLabel("规则说明")
     .fill("结算金额超过当前演练阈值，需要责任科室提交整改证据。");
 
-  const caseReviewPromise = waitForPost(page, "/api/v1/engine/quality/case-review");
+  const skipsCaseReview = await page
+    .getByText("先跳过内涵质控")
+    .isVisible()
+    .catch(() => false);
+  const caseReviewPromise = skipsCaseReview
+    ? null
+    : waitForPost(page, "/api/v1/engine/quality/case-review");
   const drgPromise = waitForPost(page, "/api/v1/engine/quality/drg-grouping");
   const auditPromise = waitForPost(page, "/api/v1/engine/quality/insurance-audit");
   await page.getByRole("button", { name: "执行审核并派整改" }).click();
-  const [caseReviewResponse, drgResponse, auditResponse] = await Promise.all([
-    caseReviewPromise,
-    drgPromise,
-    auditPromise,
-  ]);
-  expect(caseReviewResponse.ok(), "前台执行病案内涵质控应返回成功").toBe(true);
+  const [drgResponse, auditResponse] = await Promise.all([drgPromise, auditPromise]);
+  if (caseReviewPromise) {
+    const caseReviewResponse = await caseReviewPromise;
+    expect(caseReviewResponse.ok(), "前台执行病案内涵质控应返回成功").toBe(true);
+  }
   expect(drgResponse.ok(), "前台执行 DRG/DIP 分组应返回成功").toBe(true);
   const auditResponseText = await auditResponse.text();
   expect(
