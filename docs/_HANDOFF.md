@@ -10,17 +10,19 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `39e8c298dd52f065eee377678cbd0320ff34e8ea`
-  （`fix: 隐藏医保审核快照原始标识`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前已发布应用代码提交为 `c2552dcabc03264995cdf6f2eadb1ec9a747d26e`
+  （`fix: 收敛随访模板默认展示`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
-  第十六批知识生产上线准备默认证据收敛，以及第十七批医保审核快照默认标识收敛。
-- 当前 134 已发布应用为 `39e8c298dd52f065eee377678cbd0320ff34e8ea`；第十七批已发布并完成真实前台与全职责复演。
-- 134 当前完整部署 `39e8c298dd52f065eee377678cbd0320ff34e8ea`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260701-233410`，manifest
-  `deployedAt=2026-07-01T23:34:12+08:00`，
-  `jarSha256=5d25f9dc56bce3e67a944ef757ae54c602490c78b37631b1b882f2ba864e3b9f`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2318953`、`NRestarts=0`。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第十七批版本已完成真实前台与全职责 E2E。
+  第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛，以及第十八批随访模板默认展示收敛。
+- 当前本地分支最新提交为 `7980cb36`（`test: 收敛随访模板演练证据`），只改 E2E 演练证据脚本，
+  不改变 134 应用包；134 应用包来源仍以 `c2552dcabc03264995cdf6f2eadb1ec9a747d26e` 为准。
+- 当前 134 已发布应用为 `c2552dcabc03264995cdf6f2eadb1ec9a747d26e`；第十八批已发布并完成真实前台与全职责复演。
+- 134 当前完整部署 `c2552dcabc03264995cdf6f2eadb1ec9a747d26e`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260701-235217`，manifest
+  `deployedAt=2026-07-01T23:52:20+08:00`，
+  `jarSha256=06c2f3e170d209ed76227740c4f99c69543e18f02506f26db7bea422a493e499`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2328873`、`NRestarts=0`。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第十八批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -636,6 +638,49 @@
   - 截图复核：`real-frontdesk-insurance-quality-rectification.png` 中“患者信息 / 就诊信息”输入框默认显示
     “已关联患者 / 已关联就诊”；医保问题列表仍显示“当前机构、规则依据已关联、证据已记录”等业务摘要，
     未再默认裸露患者/就诊原始标识。
+
+## 最新阶段交接（2026-07-02 第十八批·随访模板默认展示与演练证据收敛）
+
+- 基于第十七批 134 全职责截图继续按患者代理、护士和临床随访办理视角核查，发现
+  `stakeholder-patient_proxy.png` 的随访计划办理抽屉默认展示了
+  `全角色患者代理随访模板 patient_proxy-mr28o43q · v1`。该后缀是演练运行标识，不应出现在普通业务视图；
+  版本也应使用院内可读表达。原始模板身份仍需保留在证据详情和接口断言中。
+- 已本地修复并提交 `c2552dcabc03264995cdf6f2eadb1ec9a747d26e`
+  （`fix: 收敛随访模板默认展示`）：
+  - `Followup` 将随访模板默认展示收敛为业务名称和“第 N 版”，不再默认展示运行后缀或 `· vN`。
+  - 随访模板列表、已发布模板选择器和随访计划办理抽屉复用同一业务展示；证据详情打开后仍可追溯
+    `templateId/templateCode/versionNo`。
+  - 新增单测覆盖“随访计划默认隐藏演练模板运行后缀，证据详情才展示模板原始标识”。
+- 复演脚本进一步本地提交 `7980cb36`（`test: 收敛随访模板演练证据`）：
+  - 真实前台与全职责 E2E 创建随访模板时使用中文业务批次名，例如
+    “上线复演 07月02日 01时00分16秒”，避免截图中出现 `patient_proxy-*` 或 base36 运行码。
+  - 发布模板时先用业务展示名检索，再定位本轮“待发布”行；发布后重新确认“可用于计划生成”行，
+    避免历史重复数据误导脚本。
+  - 生成随访计划时也用业务展示名搜索；原始 `template.name` 只用于接口返回和“默认视图不得出现原始名”的断言。
+- 红绿与本地验证：
+  - 红灯：`npm --prefix frontend test -- Followup.test.tsx -t "随访计划默认隐藏演练模板运行后缀"`
+    在旧实现下失败，页面找不到“全角色患者代理随访模板（第 1 版）”。
+  - 绿灯：同一目标用例通过；`npm --prefix frontend test -- Followup.test.tsx` 通过，`18` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `918` 项；
+    `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source c2552dcabc03264995cdf6f2eadb1ec9a747d26e`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260701-235217`，
+    manifest `deployedAt=2026-07-01T23:52:20+08:00`，
+    `jarSha256=06c2f3e170d209ed76227740c4f99c69543e18f02506f26db7bea422a493e499`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2328873`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-c2552dca-followup-template-display-cn-batch`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (34.1s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `11` 段真实前台链路，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-c2552dca-followup-template-display-cn-batch`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.2m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `12` 类职责视角，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - 截图复核：`real-frontdesk-followup-template-published.png` 显示“真实前台慢病随访模板（上线复演
+    07月02日 01时00分16秒）/ 第 1 版 / 已发布 / 可用于计划生成”；`stakeholder-patient_proxy.png`
+    显示“全角色患者代理随访模板（上线复演 07月02日 01时01分42秒）（第 1 版）”，默认视图未再显示
+    `patient_proxy-*`、裸 `templateId` 或 `· v1`。
 
 ## 下一步
 
