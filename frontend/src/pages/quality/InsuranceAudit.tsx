@@ -131,12 +131,18 @@ export default function InsuranceAudit() {
     },
     { enabled: true },
   );
-  const departmentOptions = (departmentsQuery.data?.items ?? [])
-    .filter((unit) => unit.level === "DEPARTMENT" && unit.status === "ACTIVE" && Boolean(unit.id))
-    .map((unit) => ({
-      value: unit.id as string,
-      label: `${unit.name} · ${unit.code}`,
-    }));
+  const departmentUnits = (departmentsQuery.data?.items ?? []).filter(
+    (unit) => unit.level === "DEPARTMENT" && unit.status === "ACTIVE" && Boolean(unit.id),
+  );
+  const departmentOptions = departmentUnits.map((unit) => ({
+    value: unit.id as string,
+    label: `${unit.name} · ${unit.code}`,
+  }));
+  const departmentNames = new Map(departmentUnits.map((unit) => [unit.id as string, unit.name]));
+  const scopeDepartmentLabels = useMemo(
+    () => buildScopeDepartmentLabels(security.data?.dataScope),
+    [security.data?.dataScope],
+  );
   const indicatorOptions = (indicatorsQuery.data?.items ?? []).map((indicator) => ({
     value: indicator.indicatorId,
     label: `${indicator.name} · ${indicator.indicatorCode} · v${indicator.versionNo}`,
@@ -657,7 +663,14 @@ export default function InsuranceAudit() {
                         <Text type="secondary">规则</Text>
                         <Text>{ruleText(issue, evidenceDetailsEnabled)}</Text>
                         <Text type="secondary">科室</Text>
-                        <Text>{issue.departmentId ?? "未指定"}</Text>
+                        <Text>
+                          {formatDepartmentName(
+                            issue.departmentId,
+                            departmentNames,
+                            scopeDepartmentLabels,
+                            evidenceDetailsEnabled,
+                          )}
+                        </Text>
                       </Space>
                       <Text>{`证据摘要：${insuranceEvidenceSummary(issue, evidenceDetailsEnabled)}`}</Text>
                       <Space wrap>
@@ -705,6 +718,14 @@ export default function InsuranceAudit() {
             </Descriptions.Item>
             <Descriptions.Item label="问题状态">
               {issueStatusTag(selectedIssue.status)}
+            </Descriptions.Item>
+            <Descriptions.Item label="责任科室">
+              {formatDepartmentName(
+                selectedIssue.departmentId,
+                departmentNames,
+                scopeDepartmentLabels,
+                evidenceDetailsEnabled,
+              )}
             </Descriptions.Item>
             <Descriptions.Item label="证据摘要">
               {insuranceEvidenceSummary(selectedIssue, evidenceDetailsEnabled)}
@@ -921,6 +942,47 @@ function resolveScopeDepartmentOption(dataScope: SecurityProfile["dataScope"] | 
   }
   const [label, value] = fallback;
   return { value: value as string, label };
+}
+
+function buildScopeDepartmentLabels(dataScope: SecurityProfile["dataScope"] | undefined) {
+  const labels = new Map<string, string>();
+  const candidates: Array<[string, string | null | undefined]> = [
+    ["当前科室", dataScope?.departmentId],
+    ["当前病区", dataScope?.wardId],
+    ["当前站点", dataScope?.siteId],
+    ["当前院区", dataScope?.campusId],
+    ["当前机构", dataScope?.hospitalId],
+    ["当前集团", dataScope?.groupId],
+    ["当前租户", dataScope?.tenantId],
+  ];
+  for (const [label, rawValue] of candidates) {
+    const value = rawValue?.trim();
+    if (value && !labels.has(value)) {
+      labels.set(value, label);
+    }
+  }
+  return labels;
+}
+
+function formatDepartmentName(
+  departmentId: string | null | undefined,
+  departmentNames: Map<string, string>,
+  scopeDepartmentLabels: Map<string, string>,
+  evidenceDetailsEnabled: boolean,
+) {
+  const normalized = departmentId?.trim();
+  if (!normalized) {
+    return "未指定";
+  }
+  const catalogName = departmentNames.get(normalized);
+  if (catalogName) {
+    return catalogName;
+  }
+  const scopeLabel = scopeDepartmentLabels.get(normalized);
+  if (scopeLabel) {
+    return evidenceDetailsEnabled ? `${scopeLabel} · ${normalized}` : scopeLabel;
+  }
+  return evidenceDetailsEnabled ? normalized : "未匹配组织";
 }
 
 function numberOrUndefined(value?: string) {

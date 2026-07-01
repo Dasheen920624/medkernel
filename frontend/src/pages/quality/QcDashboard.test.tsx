@@ -399,6 +399,45 @@ describe("QcDashboard", () => {
     expect(screen.getByText("科室：当前机构 · hospital-rehearsal")).toBeInTheDocument();
   });
 
+  it("默认收起医保质控待处置摘要中的结算与规则追溯编号", async () => {
+    mockUseQualityDashboard.mockReturnValue({
+      data: {
+        ...dashboardData,
+        activeAlerts: [
+          {
+            ...dashboardData.activeAlerts[0],
+            title: "高风险质控问题待闭环",
+            evidenceSummary:
+              "结算事实 claim-raw-1；规则 INS.REAL.FRONTDESK.FEE@2026.07；金额 1280.50；阈值 1000；结算金额超过当前演练阈值，需要责任科室提交整改证据。",
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+    mockUseQualityDashboardDrilldown.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    expect(
+      screen.getByText("医保审核问题已形成整改证据，需责任科室按规则阈值提交整改。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/claim-raw-1/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/INS\.REAL\.FRONTDESK/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText(/结算事实 claim-raw-1/)).toBeInTheDocument();
+    expect(screen.getByText(/INS\.REAL\.FRONTDESK\.FEE@2026\.07/)).toBeInTheDocument();
+  });
+
   it("filters the dashboard with a real department selection", async () => {
     mockUseQualityDashboard.mockReturnValue({
       data: dashboardData,

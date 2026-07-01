@@ -524,7 +524,7 @@ function AlertList({
               </Space>
               <Text type="secondary">{formatDateTime(alert.createdAt)}</Text>
             </Space>
-            <Text>{alert.evidenceSummary}</Text>
+            <Text>{formatAlertEvidenceSummary(alert, evidenceDetailsEnabled)}</Text>
             <Space wrap size={4}>
               <Tag>
                 科室：
@@ -544,6 +544,32 @@ function AlertList({
         </List.Item>
       )}
     />
+  );
+}
+
+function formatAlertEvidenceSummary(
+  alert: Pick<QualityDashboardAlert, "alertType" | "actualValue" | "evidenceSummary">,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) {
+    return alert.evidenceSummary;
+  }
+  if (containsTraceEvidenceToken(alert.evidenceSummary)) {
+    if (/医保|结算|规则|阈值/.test(alert.evidenceSummary)) {
+      return "医保审核问题已形成整改证据，需责任科室按规则阈值提交整改。";
+    }
+    if (alert.alertType === "HIGH_RISK_FINDING") {
+      return `${formatCount(alert.actualValue ?? 0)}项高风险质控问题仍需闭环处理。`;
+    }
+    return "质控证据已记录，需按当前状态处理。";
+  }
+  return alert.evidenceSummary;
+}
+
+function containsTraceEvidenceToken(value: string) {
+  return (
+    /\b(?:claim|enc|mpi|run|trace|finding|task)-[A-Za-z0-9-]+/.test(value) ||
+    /\b[A-Z][A-Z0-9_.-]+@[0-9A-Za-z_.-]+\b/.test(value)
   );
 }
 

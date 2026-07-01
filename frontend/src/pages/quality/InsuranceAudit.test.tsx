@@ -61,7 +61,7 @@ const insuranceIssuesPage = {
       claimAmount: 1200,
       thresholdAmount: 1000,
       evidenceSummary: "结算事实 claim-real-1；规则 RULE-FEE-A@2026-A；金额 1200.00；阈值 1000.00",
-      departmentId: "医保办",
+      departmentId: "hospital-rehearsal",
       evaluationRunId: "run-ins-1",
       traceId: "trace-ins-1",
       createdAt: "2026-06-05T00:00:00Z",
@@ -83,6 +83,16 @@ describe("InsuranceAudit", () => {
         permissions: [{ code: "evaluation.read" }],
         roles: [{ code: "insurance-user", displayName: "医保审核人员" }],
         menuKeys: ["insurance-audit"],
+        dataScope: {
+          tenantId: "tenant-rehearsal",
+          groupId: null,
+          hospitalId: "hospital-rehearsal",
+          campusId: null,
+          siteId: null,
+          departmentId: null,
+          wardId: null,
+          specialtyId: null,
+        },
       },
     });
     mockUseOrgUnits.mockReturnValue({
@@ -174,10 +184,12 @@ describe("InsuranceAudit", () => {
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getByText("医保结算已关联")).toBeInTheDocument();
     expect(screen.getByText("规则依据已关联")).toBeInTheDocument();
+    expect(screen.getByText("当前机构")).toBeInTheDocument();
     expect(screen.getByText(/费用超阈值证据已记录/)).toBeInTheDocument();
     expect(screen.getByText("证据已记录")).toBeInTheDocument();
     expect(screen.queryByText("claim-real-1")).not.toBeInTheDocument();
     expect(screen.queryByText("RULE-FEE-A@2026-A")).not.toBeInTheDocument();
+    expect(screen.queryByText("hospital-rehearsal")).not.toBeInTheDocument();
     expect(screen.queryByText("trace-ins-1")).not.toBeInTheDocument();
     expect(screen.queryByText("医保审核接口尚未接入")).not.toBeInTheDocument();
     expect(screen.queryByText(/本地违规病例样例|申诉闭环/)).not.toBeInTheDocument();
@@ -201,6 +213,7 @@ describe("InsuranceAudit", () => {
 
     expect(screen.getByText("claim-real-1")).toBeInTheDocument();
     expect(screen.getByText("RULE-FEE-A@2026-A")).toBeInTheDocument();
+    expect(screen.getByText("当前机构 · hospital-rehearsal")).toBeInTheDocument();
     expect(screen.getByText(/结算事实 claim-real-1/)).toBeInTheDocument();
     expect(screen.getByText("trace-ins-1")).toBeInTheDocument();
 
