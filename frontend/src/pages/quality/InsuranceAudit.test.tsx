@@ -334,7 +334,8 @@ describe("InsuranceAudit", () => {
     fireEvent.change(screen.getByLabelText("患者信息"), { target: { value: "patient-ins" } });
     await userEvent.click(await screen.findByRole("button", { name: "选择第 1 个病案快照" }));
     await userEvent.click(screen.getByRole("combobox", { name: "责任科室" }));
-    await userEvent.click(await screen.findByText("当前机构 · hospital-rehearsal"));
+    await userEvent.click(await screen.findByText("当前机构"));
+    expect(screen.queryByText("当前机构 · hospital-rehearsal")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("combobox", { name: "质控指标" }));
     await userEvent.click(await screen.findByText("按本次规则归档"));
     fireEvent.change(screen.getByLabelText("审核场景"), { target: { value: "A9" } });
@@ -492,6 +493,12 @@ describe("InsuranceAudit", () => {
       );
     });
     expect(refetch).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockUseInsuranceIssues).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: "RECTIFICATION_CREATED", severity: "P1" }),
+      );
+    });
+    expect(screen.getByTitle("已派整改")).toBeInTheDocument();
     expect(await screen.findByText("发现医保问题")).toBeInTheDocument();
     expect(screen.getByText("DRG/DIP 入组不一致")).toBeInTheDocument();
     expect(screen.getAllByText("评估运行已记录").length).toBeGreaterThan(0);

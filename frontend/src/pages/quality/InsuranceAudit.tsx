@@ -236,6 +236,9 @@ export default function InsuranceAudit() {
       setCaseReviewResult(caseReview);
       setDrgResult(drgGrouping);
       setAuditResult(audit);
+      if (audit.auditStatus === "ISSUE_FOUND" && audit.taskCount > 0) {
+        setStatus("RECTIFICATION_CREATED");
+      }
       setAuditFeedback({
         type: "success",
         text:
@@ -917,7 +920,7 @@ function resolveScopeDepartmentOption(dataScope: SecurityProfile["dataScope"] | 
     return null;
   }
   const [label, value] = fallback;
-  return { value: value as string, label: `${label} · ${value}` };
+  return { value: value as string, label };
 }
 
 function numberOrUndefined(value?: string) {

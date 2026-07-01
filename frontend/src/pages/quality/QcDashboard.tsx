@@ -36,6 +36,7 @@ import type {
   QualityDashboardHeatmapCell,
   QualityDashboardResponse,
   QualityValueMetric,
+  SecurityProfile,
 } from "@/shared/api/hooks";
 import { PageShell } from "@/shared/ui/PageShell";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
@@ -77,6 +78,10 @@ export default function QcDashboard() {
     label: `${unit.name} · ${unit.code}`,
   }));
   const departmentNames = new Map(departments.map((unit) => [unit.id ?? unit.code, unit.name]));
+  const scopeDepartmentLabels = useMemo(
+    () => buildScopeDepartmentLabels(security.data?.dataScope),
+    [security.data?.dataScope],
+  );
 
   const dashboardParams = useMemo(() => {
     const range = resolveTimeRange(timeScope);
@@ -290,6 +295,7 @@ export default function QcDashboard() {
             <HeatmapList
               cells={dashboard.heatmap}
               departmentNames={departmentNames}
+              scopeDepartmentLabels={scopeDepartmentLabels}
               evidenceDetailsEnabled={evidenceDetailsEnabled}
             />
           </Card>
@@ -305,6 +311,7 @@ export default function QcDashboard() {
           <AlertList
             alerts={dashboard.activeAlerts}
             departmentNames={departmentNames}
+            scopeDepartmentLabels={scopeDepartmentLabels}
             evidenceDetailsEnabled={evidenceDetailsEnabled}
           />
         </Card>
@@ -315,6 +322,7 @@ export default function QcDashboard() {
           query={drilldownQuery}
           page={drilldownPage}
           departmentNames={departmentNames}
+          scopeDepartmentLabels={scopeDepartmentLabels}
           evidenceDetailsEnabled={evidenceDetailsEnabled}
           onPageChange={setDrilldownPage}
           onClose={() => setDrawerOpen(false)}
@@ -352,13 +360,56 @@ function MetricCard({
   );
 }
 
+function buildScopeDepartmentLabels(dataScope: SecurityProfile["dataScope"] | undefined) {
+  const labels = new Map<string, string>();
+  const candidates: Array<[string, string | null | undefined]> = [
+    ["当前科室", dataScope?.departmentId],
+    ["当前病区", dataScope?.wardId],
+    ["当前站点", dataScope?.siteId],
+    ["当前院区", dataScope?.campusId],
+    ["当前机构", dataScope?.hospitalId],
+    ["当前集团", dataScope?.groupId],
+    ["当前租户", dataScope?.tenantId],
+  ];
+  for (const [label, rawValue] of candidates) {
+    const value = rawValue?.trim();
+    if (value && !labels.has(value)) {
+      labels.set(value, label);
+    }
+  }
+  return labels;
+}
+
+function formatDepartmentName(
+  departmentId: string | null | undefined,
+  departmentNames: Map<string, string>,
+  scopeDepartmentLabels: Map<string, string>,
+  evidenceDetailsEnabled: boolean,
+) {
+  const normalized = departmentId?.trim();
+  if (!normalized) {
+    return "全院";
+  }
+  const catalogName = departmentNames.get(normalized);
+  if (catalogName) {
+    return catalogName;
+  }
+  const scopeLabel = scopeDepartmentLabels.get(normalized);
+  if (scopeLabel) {
+    return evidenceDetailsEnabled ? `${scopeLabel} · ${normalized}` : scopeLabel;
+  }
+  return evidenceDetailsEnabled ? normalized : "未匹配组织";
+}
+
 function HeatmapList({
   cells,
   departmentNames,
+  scopeDepartmentLabels,
   evidenceDetailsEnabled,
 }: {
   cells: QualityDashboardHeatmapCell[];
   departmentNames: Map<string, string>;
+  scopeDepartmentLabels: Map<string, string>;
   evidenceDetailsEnabled: boolean;
 }) {
   if (cells.length === 0) {
@@ -373,9 +424,12 @@ function HeatmapList({
             <Space className={styles.rowBetween} wrap>
               <Space wrap>
                 <Text strong>
-                  {cell.departmentId
-                    ? (departmentNames.get(cell.departmentId) ?? cell.departmentId)
-                    : "全院"}
+                  {formatDepartmentName(
+                    cell.departmentId,
+                    departmentNames,
+                    scopeDepartmentLabels,
+                    evidenceDetailsEnabled,
+                  )}
                 </Text>
                 <Tag color={cell.highRiskFindings > 0 ? "error" : "default"}>
                   {cell.maxSeverity || "未分级"}
@@ -446,10 +500,12 @@ function ValueMetricList({
 function AlertList({
   alerts,
   departmentNames,
+  scopeDepartmentLabels,
   evidenceDetailsEnabled,
 }: {
   alerts: QualityDashboardAlert[];
   departmentNames: Map<string, string>;
+  scopeDepartmentLabels: Map<string, string>;
   evidenceDetailsEnabled: boolean;
 }) {
   if (alerts.length === 0) {
@@ -471,9 +527,13 @@ function AlertList({
             <Text>{alert.evidenceSummary}</Text>
             <Space wrap size={4}>
               <Tag>
-                {alert.departmentId
-                  ? `科室：${departmentNames.get(alert.departmentId) ?? alert.departmentId}`
-                  : "全院"}
+                科室：
+                {formatDepartmentName(
+                  alert.departmentId,
+                  departmentNames,
+                  scopeDepartmentLabels,
+                  evidenceDetailsEnabled,
+                )}
               </Tag>
               <Tag>{qualitySourceLabel(alert.sourceType)}</Tag>
               {evidenceDetailsEnabled && alert.traceId ? (
@@ -493,6 +553,7 @@ function EvidenceDrawer({
   query,
   page,
   departmentNames,
+  scopeDepartmentLabels,
   evidenceDetailsEnabled,
   onPageChange,
   onClose,
@@ -502,12 +563,18 @@ function EvidenceDrawer({
   query: ReturnType<typeof useQualityDashboardDrilldown>;
   page: number;
   departmentNames: Map<string, string>;
+  scopeDepartmentLabels: Map<string, string>;
   evidenceDetailsEnabled: boolean;
   onPageChange: (page: number) => void;
   onClose: () => void;
 }) {
   const items = query.data?.items ?? [];
-  const actionSummary = buildDrilldownActionSummary(items, departmentNames);
+  const actionSummary = buildDrilldownActionSummary(
+    items,
+    departmentNames,
+    scopeDepartmentLabels,
+    evidenceDetailsEnabled,
+  );
   return (
     <Drawer title="真实下钻证据" width={720} open={open} onClose={onClose} destroyOnClose>
       <Space direction="vertical" size="middle" className={styles.fullWidth}>
@@ -561,6 +628,7 @@ function EvidenceDrawer({
             <EvidenceItem
               item={item}
               departmentNames={departmentNames}
+              scopeDepartmentLabels={scopeDepartmentLabels}
               evidenceDetailsEnabled={evidenceDetailsEnabled}
             />
           )}
@@ -582,14 +650,19 @@ function EvidenceDrawer({
 function buildDrilldownActionSummary(
   items: QualityDashboardDrilldownItem[],
   departmentNames: Map<string, string>,
+  scopeDepartmentLabels: Map<string, string>,
+  evidenceDetailsEnabled: boolean,
 ) {
   const highRiskCount = items.filter((item) => isHighRiskSeverity(item.severity)).length;
   const openCount = items.filter((item) => isOpenQualityStatus(item.status)).length;
   const departmentCounts = new Map<string, number>();
   for (const item of items) {
-    const departmentName = item.departmentId
-      ? (departmentNames.get(item.departmentId) ?? item.departmentId)
-      : "全院";
+    const departmentName = formatDepartmentName(
+      item.departmentId,
+      departmentNames,
+      scopeDepartmentLabels,
+      evidenceDetailsEnabled,
+    );
     departmentCounts.set(departmentName, (departmentCounts.get(departmentName) ?? 0) + 1);
   }
   const departmentSummary = [...departmentCounts.entries()]
@@ -620,10 +693,12 @@ function isOpenQualityStatus(value: string) {
 function EvidenceItem({
   item,
   departmentNames,
+  scopeDepartmentLabels,
   evidenceDetailsEnabled,
 }: {
   item: QualityDashboardDrilldownItem;
   departmentNames: Map<string, string>;
+  scopeDepartmentLabels: Map<string, string>;
   evidenceDetailsEnabled: boolean;
 }) {
   return (
@@ -641,9 +716,12 @@ function EvidenceItem({
         <Text>{item.evidenceSummary}</Text>
         <Space wrap size={4}>
           <Tag>
-            {item.departmentId
-              ? (departmentNames.get(item.departmentId) ?? item.departmentId)
-              : "全院"}
+            {formatDepartmentName(
+              item.departmentId,
+              departmentNames,
+              scopeDepartmentLabels,
+              evidenceDetailsEnabled,
+            )}
           </Tag>
           <Tag>{customerEnumLabel(item.status)}</Tag>
           <Tag>{qualitySourceLabel(item.sourceType)}</Tag>

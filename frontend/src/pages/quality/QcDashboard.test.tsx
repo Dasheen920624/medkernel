@@ -346,6 +346,59 @@ describe("QcDashboard", () => {
     expect(screen.getByText(/证据范围摘要：digest-real/)).toBeInTheDocument();
   });
 
+  it("默认将当前组织范围显示为业务标签，证据详情才展开原始组织编号", async () => {
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [{ code: "evaluation.read" }],
+        roles: [{ code: "quality-user", displayName: "质控人员" }],
+        menuKeys: ["qc-dashboard"],
+        dataScope: {
+          tenantId: "tenant-rehearsal",
+          groupId: null,
+          hospitalId: "hospital-rehearsal",
+          campusId: null,
+          siteId: null,
+          departmentId: null,
+          wardId: null,
+          specialtyId: null,
+        },
+      },
+    });
+    mockUseOrgUnits.mockReturnValue({
+      data: { items: [] },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseQualityDashboard.mockReturnValue({
+      data: {
+        ...dashboardData,
+        heatmap: [{ ...dashboardData.heatmap[0], departmentId: "hospital-rehearsal" }],
+        activeAlerts: [{ ...dashboardData.activeAlerts[0], departmentId: "hospital-rehearsal" }],
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+    mockUseQualityDashboardDrilldown.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    expect(screen.getByText("当前机构")).toBeInTheDocument();
+    expect(screen.getByText("科室：当前机构")).toBeInTheDocument();
+    expect(screen.queryByText(/hospital-rehearsal/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("当前机构 · hospital-rehearsal")).toBeInTheDocument();
+    expect(screen.getByText("科室：当前机构 · hospital-rehearsal")).toBeInTheDocument();
+  });
+
   it("filters the dashboard with a real department selection", async () => {
     mockUseQualityDashboard.mockReturnValue({
       data: dashboardData,
