@@ -21,14 +21,14 @@ export default function KnowledgeProductionPage() {
   return (
     <PageShell
       title="知识生产"
-      description="在同一页面完成模型服务配置、医学评测、生产前校验和大模型知识候选生成"
+      description="在同一页面完成模型服务配置、医学评测、生产前校验和知识候选治理"
     >
       <Space direction="vertical" size="large" className={styles.consoleStack}>
         <Alert
           type="info"
           showIcon
-          message="正式知识只允许大模型生产"
-          description="模型生成内容始终先进入候选治理链；生产前校验未满足时不会退回无模型规则链路，也不会成为有效知识。"
+          message="正式知识不得绕过统一治理链"
+          description="人工维护、来源解析和模型生成都只能形成草稿或候选；无模型时仍可完成来源登记、人工维护、确定性校验、审核发布。"
         />
         <Card>
           <Steps

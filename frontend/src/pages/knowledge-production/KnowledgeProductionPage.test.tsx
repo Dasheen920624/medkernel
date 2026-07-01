@@ -35,6 +35,11 @@ describe("KnowledgeProductionPage", () => {
     }
     expect(screen.getByText("provider-panel")).toBeInTheDocument();
     expect(screen.getByText("evaluation-panel")).toBeInTheDocument();
+    expect(screen.getByText("正式知识不得绕过统一治理链")).toBeInTheDocument();
+    expect(
+      screen.getByText(/无模型时仍可完成来源登记、人工维护、确定性校验、审核发布/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("正式知识只允许大模型生产")).not.toBeInTheDocument();
     expect(screen.queryByText("独立复核")).not.toBeInTheDocument();
     expect(screen.getByText("readiness-panel")).toBeInTheDocument();
     expect(screen.getByText("production-panel")).toBeInTheDocument();
