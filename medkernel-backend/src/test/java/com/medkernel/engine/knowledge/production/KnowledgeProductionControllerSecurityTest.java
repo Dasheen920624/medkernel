@@ -118,8 +118,12 @@ class KnowledgeProductionControllerSecurityTest {
         + "\"target\":{\"targetIdentityId\":5}}";
 
     private ProductionJobResponse jobResponse() {
+        return jobResponse(KnowledgeProducer.API_MODEL);
+    }
+
+    private ProductionJobResponse jobResponse(KnowledgeProducer producer) {
         return new ProductionJobResponse("job-1", "tenant-1", "run-1", VersionedAssetType.KNOWLEDGE,
-            KnowledgeProducer.API_MODEL, TargetPipeline.TENANT_OVERLAY, KnowledgeDomain.GENERAL, null,
+            producer, TargetPipeline.TENANT_OVERLAY, KnowledgeDomain.GENERAL, null,
             ProductionJobStatus.PENDING, 0, Instant.now());
     }
 
@@ -152,16 +156,18 @@ class KnowledgeProductionControllerSecurityTest {
     }
 
     @Test
-    void engineOperatorCannotCreateNonModelJobThroughFormalEndpoint() throws Exception {
+    void engineOperatorCanCreateManualJobThroughUnifiedFormalEndpoint() throws Exception {
+        when(service.createJob(any())).thenReturn(jobResponse(KnowledgeProducer.MANUAL));
+
         mockMvc.perform(post("/api/v1/engine/knowledge-production/jobs")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("engine-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
+                .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(NON_MODEL_JOB_BODY))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.detail").value("正式知识生产仅允许通过受控模型服务生产"));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.producer").value("MANUAL"));
 
-        verify(service, never()).createJob(any());
+        verify(service).createJob(any());
     }
 
     @Test
@@ -181,17 +187,17 @@ class KnowledgeProductionControllerSecurityTest {
     }
 
     @Test
-    void engineOperatorCannotGenerateB0CandidatesThroughFormalEndpoint() throws Exception {
+    void engineOperatorCanGenerateSourceCandidatesThroughUnifiedFormalEndpoint() throws Exception {
+        when(generationService.generate(any())).thenReturn(new GenerationSummary(List.of(), List.of(), List.of()));
+
         mockMvc.perform(post("/api/v1/engine/knowledge-production/generate")
                 .with(jwt().jwt(token -> token.subject("u").claim("tenant_id", "tenant-1")
                     .claim("roles", List.of("engine-operator")))
-                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
+                .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR")))
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(GENERATE_BODY))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.detail")
-                .value("正式知识生产不再接受无模型候选生成，请使用受控模型服务生产任务"));
+            .andExpect(status().isOk());
 
-        verify(generationService, never()).generate(any());
+        verify(generationService).generate(any());
     }
 
     @Test

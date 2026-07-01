@@ -26,6 +26,9 @@ import com.medkernel.engine.evaluation.EvaluationRunRequest;
 import com.medkernel.engine.evaluation.EvaluationRunResponse;
 import com.medkernel.engine.evaluation.EvaluationRunType;
 import com.medkernel.engine.evaluation.EvaluationSubjectType;
+import com.medkernel.engine.evaluation.ManualQualityRectificationBridge;
+import com.medkernel.engine.evaluation.ManualQualityRectificationBridge.ManualQualityRectificationCommand;
+import com.medkernel.engine.evaluation.ManualQualityRectificationBridge.ManualQualityRectificationResult;
 import com.medkernel.engine.evaluation.QualityFindingRequest;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
@@ -51,16 +54,19 @@ public class InsuranceQualityService {
     private final ContextSnapshotRepository snapshots;
     private final ClinicalClaimRepository claims;
     private final EvaluationEngineService evaluations;
+    private final ManualQualityRectificationBridge manualRectifications;
 
     public InsuranceQualityService(
             JdbcTemplate jdbc,
             ContextSnapshotRepository snapshots,
             ClinicalClaimRepository claims,
-            EvaluationEngineService evaluations) {
+            EvaluationEngineService evaluations,
+            ManualQualityRectificationBridge manualRectifications) {
         this.jdbc = jdbc;
         this.snapshots = snapshots;
         this.claims = claims;
         this.evaluations = evaluations;
+        this.manualRectifications = manualRectifications;
     }
 
     /**
@@ -299,46 +305,30 @@ public class InsuranceQualityService {
             String findingCode = "INSURANCE." + issue.issueId();
             String evidenceSummary = issue.evidenceSummary()
                 + "；未绑定生效质控指标，按本次医保规则依据直接派发整改。";
-            Long existingFinding = jdbc.queryForObject("""
-                SELECT COUNT(*)
-                FROM quality_finding
-                WHERE tenant_id = ? AND finding_id = ?
-                """, Long.class, tenantId, findingId);
-            if (existingFinding == null || existingFinding == 0L) {
-                jdbc.update("""
-                    INSERT INTO quality_finding (
-                        finding_id, tenant_id, run_id, result_id, indicator_id,
-                        finding_code, title, description, severity, status, evidence_summary,
-                        responsible_department_id, due_at,
-                        created_at, created_by, updated_at, updated_by, trace_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    findingId, tenantId, manualRunId, resultId, MANUAL_INSURANCE_RULE_INDICATOR_ID,
-                    findingCode, "医保审核问题：" + seed.rule().description(),
+            ManualQualityRectificationResult rectification = manualRectifications.ensureAssignedTask(
+                new ManualQualityRectificationCommand(
+                    tenantId,
+                    findingId,
+                    taskId,
+                    manualRunId,
+                    resultId,
+                    MANUAL_INSURANCE_RULE_INDICATOR_ID,
+                    findingCode,
+                    "医保审核问题：" + seed.rule().description(),
                     "医保审核命中本次规则 " + seed.rule().ruleCode() + "@" + seed.rule().ruleVersion()
-                        + "，当前机构未绑定生效质控指标，由医保审核服务直接派发整改。",
-                    seed.rule().severity().name(), "ASSIGNED", evidenceSummary,
-                    request.responsibleDepartmentId(), Timestamp.from(request.dueAt()),
-                    Timestamp.from(now), actor, Timestamp.from(now), actor, traceId);
+                        + "，当前机构未绑定生效质控指标，由医保审核服务发起整改。",
+                    seed.rule().severity(),
+                    evidenceSummary,
+                    request.responsibleDepartmentId(),
+                    null,
+                    request.dueAt(),
+                    now,
+                    actor,
+                    traceId));
+            if (rectification.findingCreated()) {
                 findingCount++;
             }
-            Long existingTask = jdbc.queryForObject("""
-                SELECT COUNT(*)
-                FROM rectification_task
-                WHERE tenant_id = ? AND task_id = ?
-                """, Long.class, tenantId, taskId);
-            if (existingTask == null || existingTask == 0L) {
-                jdbc.update("""
-                    INSERT INTO rectification_task (
-                        task_id, tenant_id, finding_id, responsible_department_id,
-                        assignee_user_id, status, due_at,
-                        rectification_summary, evidence_ref, submitted_at, submitted_by, closed_at,
-                        created_at, created_by, updated_at, updated_by, trace_id
-                    ) VALUES (?, ?, ?, ?, NULL, ?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?, ?, ?, ?)
-                    """,
-                    taskId, tenantId, findingId, request.responsibleDepartmentId(), "ASSIGNED",
-                    Timestamp.from(request.dueAt()), Timestamp.from(now), actor,
-                    Timestamp.from(now), actor, traceId);
+            if (rectification.taskCreated()) {
                 taskCount++;
             }
             jdbc.update("""

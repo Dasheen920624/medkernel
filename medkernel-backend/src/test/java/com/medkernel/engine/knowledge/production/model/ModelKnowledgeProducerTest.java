@@ -398,13 +398,13 @@ class ModelKnowledgeProducerTest {
         when(modelGateway.submitTask(any(ModelTaskRequest.class))).thenReturn(new ModelTaskResponse(
             "task-b0", "DEGRADED", "{\"status\":\"B0_BASELINE\"}", "B0", "B0-Deterministic-Baseline",
             "baseline", "gateway-default", "[]", null, null, true,
-            "EGRESS_BLOCKED：外调允许范围缺失，已降级 B0", 25L, "trace-model"));
+            "EGRESS_BLOCKED：模型使用边界缺失，已降级 B0", 25L, "trace-model"));
 
         ModelKnowledgeProductionResult result = producer.generate(JOB_CODE, request());
 
         assertThat(result.summary().candidates()).isEmpty();
         assertThat(result.summary().skipped()).singleElement()
-            .satisfies(skipped -> assertThat(skipped.reason()).contains("B0", "外调"));
+            .satisfies(skipped -> assertThat(skipped.reason()).contains("B0", "模型使用边界"));
         verify(gateService, never()).evaluate(any(), any());
         verify(production, never()).submitCandidate(any(), any(), any());
     }
@@ -561,7 +561,7 @@ class ModelKnowledgeProducerTest {
                 KnowledgeProductionReadinessItem.pass("LITERATURE_ROOT", "已配置", "s3://mk/lit"),
                 KnowledgeProductionReadinessItem.pass("MODEL_PROVIDER", "provider 已健康", PROVIDER),
                 KnowledgeProductionReadinessItem.pass("MODEL_EVALUATION", "评测通过", "runId=1"),
-                KnowledgeProductionReadinessItem.pass("EGRESS_GOVERNANCE", "外调允许范围已配置", CAPABILITY),
+                KnowledgeProductionReadinessItem.pass("EGRESS_GOVERNANCE", "公网模型使用边界已配置", CAPABILITY),
                 KnowledgeProductionReadinessItem.pass("VERSION_TRIPLE", "三元组已声明", MODEL_STRATEGY)));
     }
 
@@ -579,7 +579,7 @@ class ModelKnowledgeProducerTest {
                 KnowledgeProductionReadinessItem.pass("DEPLOYMENT_FORM", "本地模型生产器允许运行", "HOSPITAL_RUNTIME"),
                 KnowledgeProductionReadinessItem.pass("MODEL_PROVIDER", "本地 provider 已健康", providerCode),
                 KnowledgeProductionReadinessItem.pass("MODEL_EVALUATION", "评测通过", "runId=1"),
-                KnowledgeProductionReadinessItem.pass("EGRESS_GOVERNANCE", "本地模型不外调", providerCode),
+                KnowledgeProductionReadinessItem.pass("EGRESS_GOVERNANCE", "院内本地模型使用边界已配置", providerCode),
                 KnowledgeProductionReadinessItem.pass("MODEL_POLICY", "策略匹配", "LOCAL_MODEL"),
                 KnowledgeProductionReadinessItem.pass("VERSION_TRIPLE", "三元组已声明", MODEL_STRATEGY)));
     }
@@ -598,7 +598,7 @@ class ModelKnowledgeProducerTest {
                 KnowledgeProductionReadinessItem.pass("DEPLOYMENT_FORM", "院内运行态仅允许本地模型调用", "HOSPITAL_RUNTIME"),
                 KnowledgeProductionReadinessItem.pass("MODEL_PROVIDER", "本地 provider 已健康", providerCode),
                 KnowledgeProductionReadinessItem.pass("MODEL_EVALUATION", "评测通过", "runId=1"),
-                KnowledgeProductionReadinessItem.pass("EGRESS_GOVERNANCE", "院内运行态禁止外调", providerCode),
+                KnowledgeProductionReadinessItem.pass("EGRESS_GOVERNANCE", "院内本地模型使用边界已配置", providerCode),
                 KnowledgeProductionReadinessItem.pass("MODEL_POLICY", "策略匹配", "LOCAL_MODEL"),
                 KnowledgeProductionReadinessItem.pass("VERSION_TRIPLE", "三元组已声明", MODEL_STRATEGY)));
     }

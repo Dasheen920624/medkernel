@@ -507,13 +507,45 @@
     来源解析、模型生成都进入草稿或候选治理；`stakeholder-hospital_executive.png` 与
     `real-frontdesk-insurance-quality-rectification.png` 显示第十三批质量/医保默认信息层级未回退。
 
+## 最新阶段交接（2026-07-01 第十五批·知识生产统一入口与证据层级）
+
+- 继续按用户原始诉求和权威文档复核“知识治理是否满足全链路、诊断知识维护是否契合统一知识管理”：
+  诊断知识维护仍按统一知识治理下的专业工作区理解，不因疑问本身直接改结构；当前代码已有共同身份、
+  版本、发布、机构生效、运行引用和诊断选择器链路，未发现必须推翻的结构证据。
+  已确认的真实冲突是旧公共生产策略把正式入口收窄为 API_MODEL，并阻断 `/generate` 的来源/模板候选生成，
+  与 `PRODUCT_SCOPE` 中“人工维护、来源解析、确定性校验、模型候选、审核发布、无模型 B0 可运行”不一致。
+- 已本地修复但尚未发布 134：
+  - `ProductionReadinessPanel` 默认只显示“证据已记录 / 证据待补齐”，来源路径、模型 Provider、能力、
+    策略、版本三元组等低频追溯字段进入统一“证据详情”开关；不再恢复旧“专家模式 / 技术细节”表达。
+  - 生产前校验和演练文档统一使用“模型使用边界 / 患者上下文模型使用边界”；公网模型可使用患者上下文，
+    但核心敏感信息需屏蔽并保留责任确认；院内本地模型支持必要患者信息处理且不记录明文敏感信息。
+  - `FormalKnowledgeProductionPolicy` 改为校验所有生产方式都进入统一候选/草稿治理链；
+    `/jobs` 支持 `MANUAL`、来源解析和受控模型等 `KnowledgeProducer`，资产类型按可发布运行配置校验；
+    `/generate` 不再被旧策略直接拒绝，模型生成仍受 readiness、模型网关和安全边界控制。
+  - 医保手工规则派整改不再由 `quality.insurance` 直接写 `quality_finding`、`rectification_task`；
+    新增 `ManualQualityRectificationBridge`，在 `engine.evaluation` owner 边界内幂等创建问题和整改任务。
+- 红绿与验证证据：
+  - 红灯：旧实现下 `ProductionReadinessPanel.test.tsx` 会直接暴露 `file:///medkernel-data/`、
+    `mimo-public`、能力和版本三元组；`KnowledgeProductionReadinessServiceTest` 仍使用“外调允许范围”；
+    `FormalKnowledgeProductionPolicyTest` 和 `KnowledgeProductionControllerSecurityTest` 仍要求拒绝人工/B0 入口；
+    完整 `mvn test` 暴露 `DomainOwnershipContractTest`，指出 `InsuranceQualityService` 写入 evaluation owner 表。
+  - 绿灯：`mvn -Dtest=FormalKnowledgeProductionPolicyTest,KnowledgeProductionControllerSecurityTest,KnowledgeProductionReadinessServiceTest,ModelKnowledgeProducerTest test`
+    通过，`63` 项；`mvn -Dtest=DomainOwnershipContractTest,InsuranceQualityServiceTest test` 通过，`10` 项；
+    完整 `mvn test` 通过，`3061` 项、`0` 失败、`0` 错误、`7` 跳过。
+  - 前端：`npm --prefix frontend test -- AiWorkflows.test.tsx ProductionReadinessPanel.test.tsx ReadinessValidation.test.tsx`
+    通过，`23` 项；完整 `npm --prefix frontend run verify` 通过，`114` 个测试文件 / `915` 项；
+    `npm --prefix frontend run build` 通过。
+  - 收尾核查：`git diff --check` 通过；旧误导表述
+    `正式知识生产仅允许|正式知识生产不再接受|只允许通过受控模型|外调允许范围缺失，已降级|外调安全策略|模型外调安全策略`
+    在 `frontend/src`、`medkernel-backend/src`、`docs` 中无命中；医保域直接写整改 owner 表的 SQL 扫描无命中。
+
 ## 下一步
 
-1. 继续全视角真实操作与产品体验优化：重点回看患者/医生/护士/药师/医技剩余入口操作路径、
+1. 将第十五批本地提交后发布到 134，直接访问 134 复跑 `real-frontdesk-rehearsal.spec.ts` 与
+   `stakeholder-view-rehearsal.spec.ts`，重点核查知识生产统一入口、模型使用边界、证据详情和医保整改 owner
+   边界在真实前台操作中未回退。
+2. 继续全视角真实操作与产品体验优化：重点回看患者/医生/护士/药师/医技剩余入口操作路径、
    宽表默认可读性、高级信息呈现方式、质量管理下钻与整改闭环，发现不合理产品设计直接按当前权威标准优化。
-2. 对“知识治理是否已满足全系统核心知识全链路”和“诊断知识维护是否契合统一知识管理”做原始文档驱动的全局复核：
-   先映射 13 类可发布资产、11 个知识内容分类、来源/候选/审核/发布/机构生效/运行引用/证据/回滚链路；
-   诊断知识维护默认视为统一治理中的专业工作区，只有证据显示旁路或误导时才改结构。
 3. 继续复核真实前台演练截图里的质量下钻、长表格和随访办理抽屉在窄屏 / 多任务量下的滚动与按钮可达性，
    发现遮挡、重复识别困难、操作路径过长或职责边界不清时直接按现行体验契约修复。
 4. `DEFER-003` 关闭前，公网 `mimo-public` 只保留“已受管登记但未启用”的诚实状态；拿到有效外部凭据后，

@@ -16,6 +16,7 @@ import com.medkernel.engine.evaluation.EvaluationResultLevel;
 import com.medkernel.engine.evaluation.EvaluationRunRequest;
 import com.medkernel.engine.evaluation.EvaluationRunResponse;
 import com.medkernel.engine.evaluation.EvaluationRunStatus;
+import com.medkernel.engine.evaluation.ManualQualityRectificationBridge;
 import com.medkernel.engine.evaluation.QualityFindingSeverity;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
@@ -35,7 +36,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 
 @DataJdbcTest
-@Import(InsuranceQualityService.class)
+@Import({ InsuranceQualityService.class, ManualQualityRectificationBridge.class })
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @TestPropertySource(properties = {

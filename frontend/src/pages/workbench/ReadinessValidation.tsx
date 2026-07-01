@@ -56,7 +56,7 @@ const KNOWLEDGE_READINESS_LABEL: Record<string, string> = {
   MODEL_PROVIDER: "模型服务",
   REGRESSION_BASELINE: "医学验证用例",
   MODEL_EVALUATION: "医学验证评测",
-  EGRESS_GOVERNANCE: "外调允许范围",
+  EGRESS_GOVERNANCE: "模型使用边界",
   MODEL_POLICY: "能力策略",
   VERSION_TRIPLE: "提示词、工具与模型版本",
 };

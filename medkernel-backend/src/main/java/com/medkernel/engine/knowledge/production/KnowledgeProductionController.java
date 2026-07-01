@@ -88,7 +88,7 @@ public class KnowledgeProductionController {
     @PostMapping("/jobs")
     @PreAuthorize("@perm.has('knowledge.write')")
     public ApiResult<ProductionJobResponse> createJob(@Valid @RequestBody ProductionJobRequest request) {
-        formalProductionPolicy.requireApiModel(request);
+        formalProductionPolicy.requireSupportedFormalJob(request);
         return ApiResult.ok(service.createJob(request));
     }
 
@@ -180,7 +180,6 @@ public class KnowledgeProductionController {
     @PostMapping("/generate")
     @PreAuthorize("@perm.has('knowledge.write')")
     public ApiResult<GenerationSummary> generate(@Valid @RequestBody CandidateGenerationRequest request) {
-        formalProductionPolicy.rejectB0Generation();
         return ApiResult.ok(generationService.generate(request));
     }
 

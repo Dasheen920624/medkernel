@@ -37,7 +37,7 @@ import com.medkernel.shared.context.RequestContext;
 /**
  * 知识生产模型 readiness 闸测试。
  *
- * <p>上线准备只聚合真实前置事实；缺文献根、缺模型服务、缺评测、缺外调允许范围或缺提示词、工具和模型版本组合均阻断模型生成。
+ * <p>上线准备只聚合真实前置事实；缺文献根、缺模型服务、缺评测、缺模型使用边界或缺提示词、工具和模型版本组合均阻断模型生成。
  */
 class KnowledgeProductionReadinessServiceTest {
 
@@ -208,7 +208,7 @@ class KnowledgeProductionReadinessServiceTest {
             .singleElement()
             .satisfies(item -> {
                 assertThat(item.ready()).isFalse();
-                assertThat(item.message()).contains("外调允许范围");
+                assertThat(item.message()).contains("公网模型使用边界");
             });
     }
 
@@ -275,7 +275,7 @@ class KnowledgeProductionReadinessServiceTest {
         assertThat(response.modelInvocationAllowed()).isTrue();
         assertThat(response.items()).filteredOn(item -> "EGRESS_GOVERNANCE".equals(item.code()))
             .singleElement()
-            .satisfies(item -> assertThat(item.message()).contains("本地模型不外调"));
+            .satisfies(item -> assertThat(item.message()).contains("院内本地模型使用边界"));
     }
 
     @Test

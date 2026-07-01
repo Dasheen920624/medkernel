@@ -305,7 +305,7 @@ describe("AiWorkflows", () => {
     ).toHaveTextContent("调整安全边界");
   });
 
-  it("允许具备权限的实施人员为公网模型使用患者上下文配置外调安全策略", async () => {
+  it("允许具备权限的实施人员为公网模型使用患者上下文配置模型安全边界", async () => {
     const user = userEvent.setup();
     const requests: string[] = [];
     apiClient.defaults.adapter = (async (config) => {

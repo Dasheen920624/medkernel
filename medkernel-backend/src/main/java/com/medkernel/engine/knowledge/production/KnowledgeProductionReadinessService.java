@@ -280,7 +280,7 @@ public class KnowledgeProductionReadinessService {
         if (provider.isPresent() && providerType(provider.get()).map(type -> !type.external()).orElse(false)) {
             return KnowledgeProductionReadinessItem.pass(
                 "EGRESS_GOVERNANCE",
-                "本地模型不外调，外调允许范围不作为前置",
+                "院内本地模型使用边界已配置，患者上下文按院内授权处理",
                 "模型服务：" + provider.get().providerCode());
         }
         Optional<ModelEgressWhitelist> whitelist =
@@ -290,18 +290,18 @@ public class KnowledgeProductionReadinessService {
         if (!policy.valid()) {
             return KnowledgeProductionReadinessItem.block(
                 "EGRESS_GOVERNANCE",
-                "外部模型生产的外调允许范围不可执行；高敏内容仍由运行时逐次责任确认",
+                "公网模型使用边界不可执行；核心敏感信息屏蔽和责任确认仍会逐次拦截",
                 "能力：" + capability + "；原因：" + policy.reason());
         }
         if (!policy.allowedFields().contains("prompt")) {
             return KnowledgeProductionReadinessItem.block(
                 "EGRESS_GOVERNANCE",
-                "知识生产外调允许范围必须包含经脱敏的提示词内容",
+                "知识生产模型使用边界必须包含经脱敏的提示词内容",
                 "能力：" + capability);
         }
         return KnowledgeProductionReadinessItem.pass(
             "EGRESS_GOVERNANCE",
-            "外部模型外调允许范围已配置；高敏内容将由运行时逐次责任确认",
+            "公网模型使用边界已配置；核心敏感信息将先屏蔽并保留责任确认",
             "能力：" + capability);
     }
 
