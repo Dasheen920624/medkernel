@@ -423,6 +423,14 @@ async function performAdapterQualityReportAction(page: Page, view: StakeholderVi
     page.locator("main").getByRole("heading", { name: "系统接入" }).first(),
     `${view.label} 应能进入系统接入页生成上线前数据质量报告`,
   ).toBeVisible({ timeout: 30_000 });
+  await expect(
+    page.getByText(/过敏与不良反应 · 可由外部系统接入|患者信息 · 可由外部系统接入/).first(),
+    `${view.label} 系统接入默认层应展示业务接入口径`,
+  ).toBeVisible({ timeout: 30_000 });
+  await expect(
+    page.locator("main").getByText(/allergyIntolerance\.|NOT_CONNECTED/),
+    `${view.label} 系统接入默认层不应泄漏技术字段路径或原始枚举`,
+  ).toHaveCount(0);
 
   await page.getByRole("tab", { name: "数据质量看板" }).click();
   const reportResponsePromise = waitForPost(page, "/engine/integration/data-quality/reports");
@@ -438,6 +446,14 @@ async function performAdapterQualityReportAction(page: Page, view: StakeholderVi
   await expect(reportCard).toBeVisible({ timeout: 30_000 });
   await expect(reportCard.getByText("数据质量报告已生成")).toBeVisible({ timeout: 30_000 });
   await expect(reportCard.getByText("缺口摘要")).toBeVisible();
+  await expect(
+    reportCard.getByText("未接通适配器").first(),
+    `${view.label} 数据质量报告默认摘要应使用业务可读文案`,
+  ).toBeVisible({ timeout: 30_000 });
+  await expect(
+    reportCard.getByText(/NOT_CONNECTED/),
+    `${view.label} 数据质量报告默认摘要不应展示原始枚举`,
+  ).toHaveCount(0);
   return ["生成系统接入数据质量报告"];
 }
 
