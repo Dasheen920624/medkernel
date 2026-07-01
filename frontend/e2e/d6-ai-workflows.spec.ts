@@ -19,9 +19,18 @@ test.describe("D6 模型能力真实验收", () => {
     await expect(page.getByText("基础规则能力").first()).toBeVisible();
     await expect(page.getByText("规则链路可用").first()).toBeVisible();
     await expect(page.getByText("未配置专属策略，使用系统无模型规则链路").first()).toBeVisible();
-    await expect(page.getByRole("button", { name: /预设 .+ 模型安全边界/ })).toHaveCount(9);
+    await expect(
+      page.getByRole("button", {
+        name: /预设 .+ 模型安全边界|配置 .+ 院内模型授权边界|调整 .+ 院内模型授权边界|配置 .+ 公网模型安全策略|调整 .+ 公网模型安全策略/,
+      }),
+    ).toHaveCount(9);
+    await expect(page.getByRole("button", { name: /预设 .+ 模型安全边界/ })).toHaveCount(8);
+    await expect(
+      page.getByRole("button", { name: "配置 正式医学知识生产 院内模型授权边界" }),
+    ).toContainText("配置院内授权");
     await expect(page.getByText("预设安全边界").first()).toBeVisible();
     await expect(page.getByText("外调安全已配置")).toHaveCount(0);
+    await expect(page.getByText("配置外调安全")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /提交|运行|重试|编辑|新增|保存/ })).toHaveCount(
       0,
     );
