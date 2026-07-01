@@ -163,7 +163,7 @@ describe("WorkflowTodos", () => {
 
     expect(source).toContain("className={styles.tablePanel}");
     expect(source).toContain('tableLayout="fixed"');
-    expect(source).toContain("scroll={{ x: 1200 }}");
+    expect(source).toContain("scroll={{ x: 1040 }}");
     expect(styles).toMatch(/\.tablePanel\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/s);
   });
 
@@ -176,8 +176,8 @@ describe("WorkflowTodos", () => {
     });
 
     expect(source).toContain("className: styles.workflowTodoPrimaryColumn");
-    expect(source).toContain("width: 380");
-    expect(source).toContain("scroll={{ x: 1200 }}");
+    expect(source).toContain("width: 340");
+    expect(source).toContain("scroll={{ x: 1040 }}");
     expect(styles).toMatch(/\.workflowTodoPrimaryColumn\s*\{[^}]*vertical-align:\s*top;/s);
     expect(styles).toMatch(/\.workflowTodoContent\s*\{[^}]*min-width:\s*0;/s);
     expect(styles).toMatch(/\.workflowTodoSummary\s*\{[^}]*line-height:\s*1\.6;/s);

@@ -374,7 +374,7 @@ export default function WorkflowTodos() {
       title: "待办",
       dataIndex: "title",
       key: "title",
-      width: 380,
+      width: 340,
       className: styles.workflowTodoPrimaryColumn,
       render: (_value, record) => {
         const summaryText = workflowTodoSummaryText(record, evidenceDetailsEnabled);
@@ -404,14 +404,14 @@ export default function WorkflowTodos() {
       title: "来源",
       dataIndex: "sourceType",
       key: "sourceType",
-      width: 100,
+      width: 88,
       render: (value: WorkflowTodoSourceType) => <Tag>{sourceText[value]}</Tag>,
     },
     {
       title: "患者",
       dataIndex: "patientId",
       key: "patientId",
-      width: 112,
+      width: 96,
       render: (_value: string | null | undefined, record) =>
         patientContextDisplay(record, evidenceDetailsEnabled),
     },
@@ -419,7 +419,7 @@ export default function WorkflowTodos() {
       title: evidenceDetailsEnabled ? "责任人" : "责任岗位",
       dataIndex: "assigneeId",
       key: "assigneeId",
-      width: 120,
+      width: 104,
       render: (_value: string | null | undefined, record) =>
         assigneeDisplay(record, evidenceDetailsEnabled),
     },
@@ -427,14 +427,14 @@ export default function WorkflowTodos() {
       title: "截止",
       dataIndex: "dueAt",
       key: "dueAt",
-      width: 120,
+      width: 88,
       render: (value?: string | null) => formatDateTime(value),
     },
     {
       title: "优先级",
       dataIndex: "priority",
       key: "priority",
-      width: 96,
+      width: 88,
       render: (value: WorkflowPriority) => (
         <Tag color={priorityColor[value]}>{priorityText[value] ?? customerEnumLabel(value)}</Tag>
       ),
@@ -443,7 +443,7 @@ export default function WorkflowTodos() {
       title: "状态",
       dataIndex: "status",
       key: "status",
-      width: 96,
+      width: 88,
       render: (value: WorkflowTodoStatus) => (
         <Badge status={statusBadge[value]} text={statusText[value] ?? customerEnumLabel(value)} />
       ),
@@ -451,7 +451,7 @@ export default function WorkflowTodos() {
     {
       title: "操作",
       key: "action",
-      width: 176,
+      width: 148,
       className: styles.workflowTodoActionColumn,
       render: (_value, record) => {
         const sourceLink = resolveSourceDeepLink(record.deepLink);
@@ -617,7 +617,7 @@ export default function WorkflowTodos() {
           dataSource={visibleTodos}
           loading={isLoading}
           tableLayout="fixed"
-          scroll={{ x: 1200 }}
+          scroll={{ x: 1040 }}
           pagination={{
             pageSize: 10,
             total: data?.total ?? 0,
