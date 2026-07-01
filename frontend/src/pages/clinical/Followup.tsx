@@ -262,6 +262,7 @@ export default function Followup() {
   const selectedPlanDetail = displayPlans.find((plan) => plan.planId === selectedPlanId);
   const selectedTask =
     selectedPlanDetail?.tasks.find((task) => task.taskId === selectedTaskId) ?? null;
+  const followupHandlingDrawerOpen = Boolean(selectedPlanId && selectedPlanDetail);
 
   const stats = statsData ?? {
     totalPlans: 0,
@@ -777,7 +778,7 @@ export default function Followup() {
             />
           )}
 
-          <Card>
+          <Card aria-label="随访计划列表" hidden={followupHandlingDrawerOpen}>
             <Table
               columns={columns}
               dataSource={displayPlans}
@@ -989,7 +990,7 @@ export default function Followup() {
         aria-label="随访计划办理"
         width={860}
         zIndex={FOLLOWUP_HANDLING_DRAWER_Z_INDEX}
-        open={Boolean(selectedPlanId && selectedPlanDetail)}
+        open={followupHandlingDrawerOpen}
         onClose={() => {
           setSelectedPlanId(null);
           setSelectedTaskId(null);
