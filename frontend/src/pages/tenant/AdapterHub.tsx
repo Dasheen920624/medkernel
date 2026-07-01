@@ -2047,7 +2047,7 @@ function buildQualityReportAction(report: DataQualityReport) {
   return {
     blocking,
     message: "上线判断：暂缓上线",
-    description: `${firstStep}，${gapText}。缺口摘要：${report.gapSummary || "平台未返回额外缺口摘要"}`,
+    description: `${firstStep}，${gapText}。报告缺口：${report.gapSummary || "平台未返回额外报告缺口"}`,
   };
 }
 

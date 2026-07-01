@@ -646,6 +646,9 @@ describe("AdapterHub", () => {
     expect(screen.getByText("上线判断：暂缓上线")).toBeInTheDocument();
     expect(screen.getByText(/先处理 1 个断连接入、1 个配置非法接入/)).toBeInTheDocument();
     expect(screen.getByText(/再补齐字段映射缺口/)).toBeInTheDocument();
+    expect(screen.getByText(/报告缺口：HIS 断连，LIS 配置非法/)).toBeInTheDocument();
+    expect(screen.queryByText(/缺口摘要：/)).not.toBeInTheDocument();
+    expect(screen.getByText("缺口摘要")).toBeInTheDocument();
     expect(screen.getByText("追踪证据已记录")).toBeInTheDocument();
     expect(screen.queryByText(/dqr-1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/trace-dqr/)).not.toBeInTheDocument();
