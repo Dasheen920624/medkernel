@@ -156,7 +156,7 @@ export default function InsuranceAudit() {
     !indicatorsQuery.isLoading &&
     !indicatorsQuery.isError;
   const effectiveIndicatorOptions = useManualIndicatorOption
-    ? [{ value: MANUAL_INSURANCE_RULE_INDICATOR_ID, label: "按本次医保规则依据归档" }]
+    ? [{ value: MANUAL_INSURANCE_RULE_INDICATOR_ID, label: "按本次规则归档" }]
     : indicatorOptions;
   const patientFilter = snapshotPatientId.trim();
   const encounterFilter = snapshotEncounterId.trim();

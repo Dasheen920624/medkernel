@@ -336,7 +336,7 @@ describe("InsuranceAudit", () => {
     await userEvent.click(screen.getByRole("combobox", { name: "责任科室" }));
     await userEvent.click(await screen.findByText("当前机构 · hospital-rehearsal"));
     await userEvent.click(screen.getByRole("combobox", { name: "质控指标" }));
-    await userEvent.click(await screen.findByText("按本次医保规则依据归档"));
+    await userEvent.click(await screen.findByText("按本次规则归档"));
     fireEvent.change(screen.getByLabelText("审核场景"), { target: { value: "A9" } });
     fireEvent.change(screen.getByLabelText("DRG 分组器版本"), {
       target: { value: "GROUPER-2026" },
