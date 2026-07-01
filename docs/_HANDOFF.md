@@ -10,18 +10,19 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `325afd3c9ac8312960c13d25d3fbddb18df750f9`
-  （`fix: 收敛协同任务默认列宽`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前已发布应用代码提交为 `3f8e1be7b2ac22f378f26d9720e9a52b07840068`
+  （`fix: 明确诊断知识统一治理边界`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
   第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
-  第十九批系统接入默认技术信息收敛、第二十批质量下钻默认追溯信息收敛，以及第二十一批协同任务列表可读性收敛。
-- 当前 134 已发布应用为 `325afd3c9ac8312960c13d25d3fbddb18df750f9`；第二十一批已发布并完成真实前台与全职责复演。
-- 134 当前完整部署 `325afd3c9ac8312960c13d25d3fbddb18df750f9`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260702-020115`，manifest
-  `deployedAt=2026-07-02T02:01:18+08:00`，
-  `jarSha256=2d88e0e042df019c586ff084db30c8b6d4e2ad6f7d9673ef1d0777d4205207b2`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2399435`、`NRestarts=0`。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十一批版本已完成真实前台与全职责 E2E。
+  第十九批系统接入默认技术信息收敛、第二十批质量下钻默认追溯信息收敛、第二十一批协同任务列表可读性收敛，
+  以及第二十二批诊断知识统一治理边界收敛。
+- 当前 134 已发布应用为 `3f8e1be7b2ac22f378f26d9720e9a52b07840068`；第二十二批已发布并完成真实前台与全职责复演。
+- 134 当前完整部署 `3f8e1be7b2ac22f378f26d9720e9a52b07840068`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-021233`，manifest
+  `deployedAt=2026-07-02T02:12:35+08:00`，
+  `jarSha256=175570b0852df5f40ebac08421a884029947d2589860da16088e2705ff77bf4b`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2405856`、`NRestarts=0`。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十二批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -30,6 +31,49 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-02 全视角真实前台体验优化第二十二批·诊断知识统一治理边界）
+
+- 针对用户提出的“诊断知识维护和整体知识治理是否不契合、知识治理是否满足全链路核心知识管理及生产”
+  的疑问，已先深读 `CONSTITUTION`、`PRODUCT_SCOPE`、`ARCHITECTURE`、`EXPERIENCE_CONTRACT`
+  与当前路由/页面实现再判断。结论：诊断知识维护本身属于知识治理下的诊断语义资产维护入口，
+  复用 `KnowledgeIdentity` / `KnowledgeVersion` 和发布链路；它不应被盲目并入知识审核工作台，
+  也不应删除为“旧兼容”。需要收敛的是页面与职责契约的表达，让操作者明确诊断维护不能绕过知识审核、
+  平台标准版本或机构生效版本。
+- 已本地修复并提交 `3f8e1be7b2ac22f378f26d9720e9a52b07840068`
+  （`fix: 明确诊断知识统一治理边界`）：
+  - `/knowledge/diagnosis` 页面说明改为“在统一知识治理下维护诊断身份、诊断标准、鉴别诊断、验证病例与来源证据；
+    发布后再进入平台标准版本或机构生效版本。”
+  - 路由体验契约改为“在统一知识治理下维护诊断身份、诊断标准、鉴别关系、验证病例和来源证据”；
+    医疗引擎运营员职责改为“管理诊断语义资产、版本和统一发布门禁”，边界改为
+    “诊断维护不绕过知识审核、平台标准版本或机构生效版本”。
+  - 本批不改菜单层级、不合并诊断维护与知识审核、不新增专家模式；只把已有统一治理关系写进可见页面和路由契约。
+- 红绿验证：
+  - 红灯：`npm --prefix frontend test -- DiagnosisKnowledgeMaintenance.test.tsx routes.test.ts -t "hosts manual diagnosis maintenance|separates knowledge review from manual diagnosis"`
+    在旧实现下失败，暴露页面说明和路由目标仍是普通“诊断身份/标准/证据”维护口径，缺少统一治理与平台/机构生效边界。
+  - 绿灯：`npm --prefix frontend test -- DiagnosisKnowledgeMaintenance.test.tsx routes.test.ts -t "hosts manual diagnosis maintenance|separates knowledge review from manual diagnosis|为高风险治理与运维页面登记全视角职责边界"`
+    通过，`3` 项；`npm --prefix frontend test -- routes.test.ts DiagnosisKnowledgeMaintenance.test.tsx`
+    通过，`53` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `920` 项；
+    `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source 3f8e1be7b2ac22f378f26d9720e9a52b07840068`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260702-021233`，manifest
+    `deployedAt=2026-07-02T02:12:35+08:00`，
+    `jarSha256=175570b0852df5f40ebac08421a884029947d2589860da16088e2705ff77bf4b`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2405856`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-3f8e1be7-diagnosis-governance-boundary`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，运行记录 `12` 类视角、`errors=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-3f8e1be7-diagnosis-governance-boundary`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (35.4s)`；
+    运行记录 `11` 段真实前台链路均由页面提交产生，`errors=0`。
+  - 聚焦真实页面校验：机构 `engine-operator` 登录 134 后直达 `/knowledge/diagnosis`，断言
+    “诊断知识维护”标题、统一治理说明、“诊断知识身份”下拉和“新建诊断资产”按钮均可见；
+    截图 `/tmp/medkernel-e2e-codex3/evidence-diagnosis-governance-page-3f8e1be7.png`
+    显示该页仍位于“知识治理”菜单下，说明文案无截断，主表单与只读状态可见。
+- 后续继续主线全局体验优化：用户的知识治理疑问已处理为“边界口径明确”而非结构性推倒重做。
+  如后续再发现知识治理不能覆盖某类核心知识生产/发布链路，应先回到权威文档与真实前台流程证据判断，再做结构调整。
 
 ## 最新阶段交接（2026-07-02 全视角真实前台体验优化第二十一批·协同任务列表可读性）
 
