@@ -338,7 +338,7 @@ public class ContextSnapshotService {
         String claimId = hasText(claim.claimId()) ? claim.claimId() : "claim-" + UUID.randomUUID();
         String sourceId = ContextSnapshotRequest.firstNonBlank(claim.sourceRecordId(), claimId);
         Instant now = Instant.now();
-        clinicalClaims.save(new ClinicalClaim(
+        clinicalClaims.insert(new ClinicalClaim(
             claimId,
             snapshot.tenantId(),
             ContextSnapshotRequest.firstNonBlank(snapshot.orgPath(), snapshot.orgUnitId(), snapshot.tenantId()),

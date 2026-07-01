@@ -122,7 +122,7 @@ class ContextSnapshotServiceTest {
         service.create(request("MPI-1", "ENC-1", "ORG-1", withClaim), null);
 
         ArgumentCaptor<ClinicalClaim> claim = ArgumentCaptor.forClass(ClinicalClaim.class);
-        verify(clinicalClaims).save(claim.capture());
+        verify(clinicalClaims).insert(claim.capture());
         assertThat(claim.getValue()).satisfies(saved -> {
             assertThat(saved.claimId()).isEqualTo("claim-frontdesk-1");
             assertThat(saved.tenantId()).isEqualTo("tenant-A");
