@@ -1990,8 +1990,15 @@ function QualityReportCard({
   report: DataQualityReport;
   evidenceDetailsEnabled: boolean;
 }) {
+  const action = buildQualityReportAction(report);
   return (
     <Card title="数据质量报告" className={styles.sectionCard}>
+      <Alert
+        type={action.blocking ? "warning" : "success"}
+        showIcon
+        message={action.message}
+        description={action.description}
+      />
       <div className={styles.qualityGrid}>
         <MetricCard title="必填率" value={report.requiredFieldRate} suffix="%" />
         <MetricCard title="映射率" value={report.mappingRate} suffix="%" />
@@ -2012,6 +2019,36 @@ function QualityReportCard({
       </Descriptions>
     </Card>
   );
+}
+
+function buildQualityReportAction(report: DataQualityReport) {
+  const blocking =
+    report.notConnectedCount > 0 ||
+    report.misconfiguredCount > 0 ||
+    report.requiredFieldRate < 100 ||
+    report.mappingRate < 100 ||
+    report.timelinessRate < 100;
+  if (!blocking) {
+    return {
+      blocking,
+      message: "上线判断：可继续接入验收",
+      description: "当前报告未发现断连、配置非法、字段映射或时效缺口，可进入接入验收和证据归档。",
+    };
+  }
+
+  const blockers = [];
+  if (report.notConnectedCount > 0) blockers.push(`${report.notConnectedCount} 个断连接入`);
+  if (report.misconfiguredCount > 0) blockers.push(`${report.misconfiguredCount} 个配置非法接入`);
+  const firstStep = blockers.length > 0 ? `先处理 ${blockers.join("、")}` : "先补齐数据质量缺口";
+  const gapText =
+    report.mappingRate < 100
+      ? "再补齐字段映射缺口，并核对必填字段和时效要求"
+      : "再核对必填字段和时效要求";
+  return {
+    blocking,
+    message: "上线判断：暂缓上线",
+    description: `${firstStep}，${gapText}。缺口摘要：${report.gapSummary || "平台未返回额外缺口摘要"}`,
+  };
 }
 
 function MetricCard({ title, value, suffix }: { title: string; value: number; suffix?: string }) {

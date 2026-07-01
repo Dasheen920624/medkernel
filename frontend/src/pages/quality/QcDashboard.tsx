@@ -507,6 +507,7 @@ function EvidenceDrawer({
   onClose: () => void;
 }) {
   const items = query.data?.items ?? [];
+  const actionSummary = buildDrilldownActionSummary(items, departmentNames);
   return (
     <Drawer title="真实下钻证据" width={720} open={open} onClose={onClose} destroyOnClose>
       <Space direction="vertical" size="middle" className={styles.fullWidth}>
@@ -543,6 +544,15 @@ function EvidenceDrawer({
           />
         )}
 
+        {items.length > 0 && (
+          <Alert
+            type={actionSummary.highRiskCount > 0 ? "warning" : "info"}
+            showIcon
+            message="当前页处理摘要"
+            description={actionSummary.description}
+          />
+        )}
+
         <List
           loading={query.isLoading}
           dataSource={items}
@@ -567,6 +577,44 @@ function EvidenceDrawer({
       </Space>
     </Drawer>
   );
+}
+
+function buildDrilldownActionSummary(
+  items: QualityDashboardDrilldownItem[],
+  departmentNames: Map<string, string>,
+) {
+  const highRiskCount = items.filter((item) => isHighRiskSeverity(item.severity)).length;
+  const openCount = items.filter((item) => isOpenQualityStatus(item.status)).length;
+  const departmentCounts = new Map<string, number>();
+  for (const item of items) {
+    const departmentName = item.departmentId
+      ? (departmentNames.get(item.departmentId) ?? item.departmentId)
+      : "全院";
+    departmentCounts.set(departmentName, (departmentCounts.get(departmentName) ?? 0) + 1);
+  }
+  const departmentSummary = [...departmentCounts.entries()]
+    .slice(0, 3)
+    .map(([name, count]) => `${name} ${count} 项`)
+    .join("，");
+  const priorityText =
+    highRiskCount > 0
+      ? `先处理 ${highRiskCount} 项高风险证据`
+      : `先处理 ${openCount || items.length} 项未闭环证据`;
+  const openText = openCount > 0 ? `未闭环 ${openCount} 项` : "当前页均已闭环或豁免";
+  return {
+    highRiskCount,
+    description: `${priorityText}；${departmentSummary || "全院 0 项"}，${openText}。建议进入“质量问题与整改”派发、复核或关闭整改。`,
+  };
+}
+
+function isHighRiskSeverity(value: string) {
+  const normalized = value.toUpperCase();
+  return normalized === "P0" || normalized === "P1";
+}
+
+function isOpenQualityStatus(value: string) {
+  const normalized = value.toUpperCase();
+  return !["CLOSED", "WAIVED", "RESOLVED", "DONE", "COMPLETED"].includes(normalized);
 }
 
 function EvidenceItem({

@@ -272,6 +272,10 @@ describe("QcDashboard", () => {
       expect.objectContaining({ type: "FINDING", page: 1, size: 20 }),
     );
     expect(screen.getByText("真实下钻证据")).toBeInTheDocument();
+    expect(screen.getByText("当前页处理摘要")).toBeInTheDocument();
+    expect(screen.getByText(/先处理 1 项高风险证据/)).toBeInTheDocument();
+    expect(screen.getByText(/心内科 1 项/)).toBeInTheDocument();
+    expect(screen.getByText(/未闭环 1 项/)).toBeInTheDocument();
     expect(screen.getByText("病例 A 质控缺陷")).toBeInTheDocument();
     expect(screen.getByText("证据包已生成")).toBeInTheDocument();
     expect(screen.getByText("来源已关联")).toBeInTheDocument();

@@ -643,6 +643,9 @@ describe("AdapterHub", () => {
 
     await user.click(screen.getByRole("button", { name: "生成质量报告" }));
     expect(await screen.findByText("数据质量报告已生成")).toBeInTheDocument();
+    expect(screen.getByText("上线判断：暂缓上线")).toBeInTheDocument();
+    expect(screen.getByText(/先处理 1 个断连接入、1 个配置非法接入/)).toBeInTheDocument();
+    expect(screen.getByText(/再补齐字段映射缺口/)).toBeInTheDocument();
     expect(screen.getByText("追踪证据已记录")).toBeInTheDocument();
     expect(screen.queryByText(/dqr-1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/trace-dqr/)).not.toBeInTheDocument();
