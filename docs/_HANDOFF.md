@@ -10,16 +10,16 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `0ecfe3eca3412e7470314c1ed6a96d176a2ad6e0`
-  （`fix: 收起协同任务技术摘要`）；已包含第七批 `mimoModel` 发布脚本能力、第八批质量报告体验优化与第九批协同任务摘要优化，
+- 当前已发布应用代码提交为 `89a641fabd5b5e48c326b2183cde8dfd43232dfd`
+  （`fix: 隐藏随访患者过滤原始标识`）；已包含第七批 `mimoModel` 发布脚本能力、第八批质量报告体验优化、第九批协同任务摘要优化与第十批随访患者过滤器脱敏体验，
   后续文档交接提交不改变 134 应用包。
-- 当前 134 已发布应用为 `0ecfe3eca3412e7470314c1ed6a96d176a2ad6e0`；第九批协同任务技术摘要收敛已发布并复演。
-- 134 当前完整部署 `0ecfe3eca3412e7470314c1ed6a96d176a2ad6e0`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260701-143550`，manifest
-  `deployedAt=2026-07-01T14:35:52+08:00`，
-  `jarSha256=34a7d07b34535be3e2488b358cb8b824b66af9cdbb6487679e3b5f9b014c71d7`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2031483`、`NRestarts=0`。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第九批版本已完成真实前台与全职责 E2E。
+- 当前 134 已发布应用为 `89a641fabd5b5e48c326b2183cde8dfd43232dfd`；第十批随访患者过滤器原始标识收敛已发布并复演。
+- 134 当前完整部署 `89a641fabd5b5e48c326b2183cde8dfd43232dfd`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260701-144721`，manifest
+  `deployedAt=2026-07-01T14:47:23+08:00`，
+  `jarSha256=84d2c8bc2d1b461309577b41336a3e653c0cb6043a0f9cd3b9a2d944d5cadd37`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2037866`、`NRestarts=0`。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第十批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -334,12 +334,49 @@
     院内授权使用必要信息的模型安全边界呈现；`real-frontdesk-followup-plan-questionnaire-abnormal.png`
     暴露出下一批待处理问题：随访页患者过滤器仍显示 `mpi-*` 原始患者标识。
 
+## 最新阶段交接（2026-07-01 第十批·随访患者过滤器原始标识收敛）
+
+- 基于第九批真实前台复演继续按护士、患者代理、医生和随访实施视角核查，发现
+  `real-frontdesk-followup-plan-questionnaire-abnormal.png` 的“按患者线索检索”输入框在生成随访计划后显示
+  `mpi-*` 原始患者标识。该标识虽然用于后端精确过滤，但不应作为默认前台可见文本暴露给普通临床操作路径。
+- 已本地修复并提交 `89a641fabd5b5e48c326b2183cde8dfd43232dfd`
+  （`fix: 隐藏随访患者过滤原始标识`）：
+  - `Followup` 将患者过滤器拆为真实查询值与可见业务文本；生成随访计划后继续用后端返回的真实 `patientId`
+    查询计划和统计，但输入框显示“已筛选刚生成计划的患者”。
+  - 手工输入仍按用户输入作为患者线索查询；清空输入会同步清空真实查询值。
+  - 表格和抽屉继续沿用“患者已关联 / 就诊已关联”的默认业务摘要，证据详情打开后仍可追溯计划、患者、模板和任务原始标识。
+- 红绿与本地验证：
+  - 红灯：`npm --prefix frontend test -- Followup.test.tsx -t "keeps generated plan patient identifiers"`
+    在旧实现下失败，输入框实际值为 `mpi-01KWE6CK9MD11VREALFILTER`，而不是业务文本。
+  - 绿灯：同一目标用例通过；`npm --prefix frontend test -- Followup.test.tsx`
+    通过，`16` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `910` 项；
+    过程中仍只有既有 `antd Timeline.Item` 弃用警告。
+  - `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source 89a641fabd5b5e48c326b2183cde8dfd43232dfd`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260701-144721`，
+    manifest `deployedAt=2026-07-01T14:47:23+08:00`，
+    `jarSha256=84d2c8bc2d1b461309577b41336a3e653c0cb6043a0f9cd3b9a2d944d5cadd37`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2037866`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-89a641fa-followup-filter`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `12` 类视角均有真实动作，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-89a641fa-followup-filter`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (34.6s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `10` 段真实前台链路均由页面提交产生，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - 截图复核：`real-frontdesk-followup-plan-questionnaire-abnormal.png` 中患者过滤器显示
+    “已筛选刚生成计划的患者”，不再显示 `mpi-*`；随访计划列表仍正常展示患者/就诊已关联、病种、方案、
+    任务进度与办理入口。
+
 ## 下一步
 
-1. 第十批优先处理随访页患者过滤器默认显示 `mpi-*` 原始患者标识的问题：患者/护士/医生主路径应显示患者业务名称、
-   就诊状态或脱敏身份摘要，原始 MPI / snapshot / trace 标识只进证据详情。
-2. 继续全视角真实操作与产品体验优化：重点回看患者/医生/护士/药师/医技剩余入口操作路径、
+1. 继续全视角真实操作与产品体验优化：重点回看患者/医生/护士/药师/医技剩余入口操作路径、
    宽表默认可读性、高级信息呈现方式、质量管理下钻与整改闭环，发现不合理产品设计直接按当前权威标准优化。
+2. 继续复核真实前台演练截图里的随访办理抽屉、质量下钻和长表格在窄屏 / 高数据量下的默认可读性，
+   发现遮挡、重复识别困难、操作路径过长或职责边界不清时直接按现行体验契约修复。
 3. `DEFER-003` 关闭前，公网 `mimo-public` 只保留“已受管登记但未启用”的诚实状态；拿到有效外部凭据后，
    重新运行 Provider 上线脚本并补充全知识生产真实模型证据。
 4. 目标环境上线前仍需补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
