@@ -34,7 +34,9 @@ describe("DiagnosisKnowledgeMaintenance", () => {
     expect(screen.getByRole("heading", { name: "诊断知识维护" })).toBeInTheDocument();
     expect(screen.getByText("诊断知识维护工作台")).toBeInTheDocument();
     expect(
-      screen.getByText("维护诊断身份、诊断标准、鉴别诊断、验证病例与来源证据。"),
+      screen.getByText(
+        "在统一知识治理下维护诊断身份、诊断标准、鉴别诊断、验证病例与来源证据；发布后再进入平台标准版本或机构生效版本。",
+      ),
     ).toBeInTheDocument();
   });
 });

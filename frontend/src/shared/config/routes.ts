@@ -543,7 +543,7 @@ const institutionKnowledgeExperience: RouteExperience = {
 const diagnosisKnowledgeExperience: RouteExperience = {
   ...readonlyExperience(
     "医疗引擎运营员",
-    "维护诊断身份、诊断标准、鉴别诊断、验证病例与来源证据",
+    "在统一知识治理下维护诊断身份、诊断标准、鉴别关系、验证病例和来源证据",
     "诊断知识台账",
     "large",
   ),
@@ -555,8 +555,8 @@ const diagnosisKnowledgeExperience: RouteExperience = {
     },
     {
       role: "医疗引擎运营员",
-      responsibility: "管理诊断身份、版本和发布门禁",
-      boundary: "发布前必须通过验证病例和来源证据",
+      responsibility: "管理诊断语义资产、版本和统一发布门禁",
+      boundary: "诊断维护不绕过知识审核、平台标准版本或机构生效版本",
     },
   ],
 };

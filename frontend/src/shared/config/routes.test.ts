@@ -622,8 +622,8 @@ describe("route metadata", () => {
       },
       {
         role: "医疗引擎运营员",
-        responsibility: "管理诊断身份、版本和发布门禁",
-        boundary: "发布前必须通过验证病例和来源证据",
+        responsibility: "管理诊断语义资产、版本和统一发布门禁",
+        boundary: "诊断维护不绕过知识审核、平台标准版本或机构生效版本",
       },
     ]);
     expectViews("/authoring/assets", [
@@ -908,6 +908,14 @@ describe("route metadata", () => {
       placement: "primary",
       requiredPermissions: ["menu.diagnosis-knowledge", "knowledge.read"],
       pageType: "configuration",
+    });
+    expect(findRouteByPath("/knowledge/diagnosis")?.experience?.goal).toBe(
+      "在统一知识治理下维护诊断身份、诊断标准、鉴别关系、验证病例和来源证据",
+    );
+    expect(findRouteByPath("/knowledge/diagnosis")?.experience?.stakeholderViews).toContainEqual({
+      role: "医疗引擎运营员",
+      responsibility: "管理诊断语义资产、版本和统一发布门禁",
+      boundary: "诊断维护不绕过知识审核、平台标准版本或机构生效版本",
     });
   });
 
