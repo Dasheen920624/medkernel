@@ -54,6 +54,8 @@ const { Text } = Typography;
 const DEPARTMENT_REFERENCE_PAGE_SIZE = 20;
 const AUDIT_INDICATOR_REFERENCE_PAGE_SIZE = 20;
 const MANUAL_INSURANCE_RULE_INDICATOR_ID = "INSURANCE_RULE_MANUAL";
+const LINKED_PATIENT_DISPLAY_TEXT = "已关联患者";
+const LINKED_ENCOUNTER_DISPLAY_TEXT = "已关联就诊";
 
 type TimeScope = "THIS_MONTH" | "LAST_7_DAYS" | "ALL";
 
@@ -90,6 +92,8 @@ export default function InsuranceAudit() {
   const [auditResult, setAuditResult] = useState<InsuranceAuditResponse | null>(null);
   const [snapshotPatientId, setSnapshotPatientId] = useState("");
   const [snapshotEncounterId, setSnapshotEncounterId] = useState("");
+  const [snapshotPatientDisplay, setSnapshotPatientDisplay] = useState("");
+  const [snapshotEncounterDisplay, setSnapshotEncounterDisplay] = useState("");
   const [selectedSnapshotId, setSelectedSnapshotId] = useState("");
   const [auditFeedback, setAuditFeedback] = useState<{
     type: "success" | "error";
@@ -178,6 +182,7 @@ export default function InsuranceAudit() {
     },
     { enabled: hasSnapshotFilter },
   );
+  const snapshotSummaries = snapshotsQuery.data?.items ?? [];
   const snapshotDetailQuery = useContextSnapshotDetail(selectedSnapshotId, {
     enabled: Boolean(selectedSnapshotId),
   });
@@ -255,6 +260,20 @@ export default function InsuranceAudit() {
       issuesQuery.refetch();
     } catch (error: unknown) {
       setAuditFeedback({ type: "error", text: getApiErrorMessage(error, "医保审核执行失败") });
+    }
+  }
+
+  function selectSnapshot(snapshotId: string) {
+    setSelectedSnapshotId(snapshotId);
+    const selectedSnapshot = snapshotSummaries.find(
+      (snapshot) => snapshot.snapshotId === snapshotId,
+    );
+    if (!selectedSnapshot) return;
+    setSnapshotPatientId(selectedSnapshot.patientId);
+    setSnapshotPatientDisplay(LINKED_PATIENT_DISPLAY_TEXT);
+    if (selectedSnapshot.encounterId) {
+      setSnapshotEncounterId(selectedSnapshot.encounterId);
+      setSnapshotEncounterDisplay(LINKED_ENCOUNTER_DISPLAY_TEXT);
     }
   }
 
@@ -360,10 +379,11 @@ export default function InsuranceAudit() {
                 <Form.Item label="患者信息" htmlFor="insurance-snapshot-patient">
                   <Input
                     id="insurance-snapshot-patient"
-                    value={snapshotPatientId}
+                    value={snapshotPatientDisplay}
                     placeholder="输入患者主索引或院内登记号检索病案快照"
                     onChange={(event) => {
                       setSnapshotPatientId(event.target.value);
+                      setSnapshotPatientDisplay(event.target.value);
                       setSelectedSnapshotId("");
                     }}
                   />
@@ -371,10 +391,11 @@ export default function InsuranceAudit() {
                 <Form.Item label="就诊信息" htmlFor="insurance-snapshot-encounter">
                   <Input
                     id="insurance-snapshot-encounter"
-                    value={snapshotEncounterId}
+                    value={snapshotEncounterDisplay}
                     placeholder="可按住院号、门诊号或就诊信息检索"
                     onChange={(event) => {
                       setSnapshotEncounterId(event.target.value);
+                      setSnapshotEncounterDisplay(event.target.value);
                       setSelectedSnapshotId("");
                     }}
                   />
@@ -385,10 +406,11 @@ export default function InsuranceAudit() {
                 enabled={hasSnapshotFilter}
                 loading={snapshotsQuery.isLoading}
                 error={snapshotsQuery.isError}
-                snapshots={snapshotsQuery.data?.items ?? []}
+                snapshots={snapshotSummaries}
                 selectedSnapshotId={selectedSnapshotId}
-                onSelect={setSelectedSnapshotId}
+                onSelect={selectSnapshot}
                 noun="病案快照"
+                evidenceDetailsEnabled={evidenceDetailsEnabled}
               />
 
               {snapshotDetailQuery.data && (

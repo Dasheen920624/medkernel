@@ -224,6 +224,40 @@ describe("InsuranceAudit", () => {
     expect(screen.getAllByText("trace-ins-1").length).toBeGreaterThan(0);
   });
 
+  it("选中病案快照后默认用业务文本展示患者与就诊线索，证据详情才展示原始标识", async () => {
+    mockUseInsuranceIssues.mockReturnValue({
+      data: { ...insuranceIssuesPage, items: [], total: 0 },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+    mockUseRunQualityCaseReview.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+    mockUseRunDrgGrouping.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+    mockUseRunInsuranceAudit.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText("患者信息"), { target: { value: "patient-ins" } });
+    fireEvent.change(screen.getByLabelText("就诊信息"), { target: { value: "encounter-ins" } });
+    await userEvent.click(await screen.findByRole("button", { name: "选择第 1 个病案快照" }));
+
+    expect(screen.getByLabelText("患者信息")).toHaveValue("已关联患者");
+    expect(screen.getByLabelText("就诊信息")).toHaveValue("已关联就诊");
+    expect(screen.queryByDisplayValue("patient-ins")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("encounter-ins")).not.toBeInTheDocument();
+    expect(screen.queryByText("患者 patient-ins · 就诊 encounter-ins")).not.toBeInTheDocument();
+    expect(mockUseContextSnapshots).toHaveBeenLastCalledWith(
+      expect.objectContaining({ patientId: "patient-ins", encounterId: "encounter-ins" }),
+      expect.objectContaining({ enabled: true }),
+    );
+
+    await userEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("患者 patient-ins · 就诊 encounter-ins")).toBeInTheDocument();
+    expect(screen.getByText("快照 snapshot-ins")).toBeInTheDocument();
+  });
+
   it("loads audit indicator selector through small server-side search pages", async () => {
     mockUseInsuranceIssues.mockReturnValue({
       data: insuranceIssuesPage,

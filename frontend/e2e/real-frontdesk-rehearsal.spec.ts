@@ -377,6 +377,10 @@ async function runInsuranceAuditFromUi(
     timeout: 20_000,
   });
   await page.getByRole("button", { name: "选择第 1 个病案快照" }).click();
+  await expect(page.getByLabel("患者信息")).toHaveValue("已关联患者");
+  if (snapshot.encounterId) {
+    await expect(page.getByLabel("就诊信息")).toHaveValue("已关联就诊");
+  }
   await choosePageSelectOption(page, "责任科室");
   await choosePageSelectOption(page, "质控指标");
 
@@ -391,9 +395,7 @@ async function runInsuranceAuditFromUi(
   await page.getByLabel("医保规则依据").fill("INS.REAL.FRONTDESK.FEE");
   await page.getByLabel("依据版本").fill("2026.07");
   await page.getByLabel("费用阈值").fill("1000");
-  await page
-    .getByLabel("规则说明")
-    .fill("结算金额超过当前演练阈值，需要责任科室提交整改证据。");
+  await page.getByLabel("规则说明").fill("结算金额超过当前演练阈值，需要责任科室提交整改证据。");
 
   const skipsCaseReview = await page
     .getByText("先跳过内涵质控")
@@ -417,7 +419,12 @@ async function runInsuranceAuditFromUi(
     `前台执行医保审核应返回成功 status=${auditResponse.status()} body=${auditResponseText}`,
   ).toBe(true);
   const audit = JSON.parse(auditResponseText) as {
-    data?: { auditStatus?: string; findingCount?: number; taskCount?: number; issues?: Array<unknown> };
+    data?: {
+      auditStatus?: string;
+      findingCount?: number;
+      taskCount?: number;
+      issues?: Array<unknown>;
+    };
   };
   expect(audit.data?.auditStatus, "真实结算事实应触发医保问题").toBe("ISSUE_FOUND");
   expect(audit.data?.findingCount ?? 0, "医保审核应联动质量问题").toBeGreaterThan(0);
