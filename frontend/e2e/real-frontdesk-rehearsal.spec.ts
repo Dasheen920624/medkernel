@@ -500,7 +500,7 @@ async function createFollowupTemplateFromUi(
   await expectNoRootOverflow(page, "随访协同模板桌面");
 
   const templateCode = `FUP.REAL.FRONTDESK.${suffix.toUpperCase()}`;
-  const templateDisplayName = "真实前台慢病随访模板";
+  const templateDisplayName = `真实前台慢病随访模板（${businessRehearsalBatchLabel(suffix)}）`;
   const templateName = `${templateDisplayName} ${suffix}`;
   await expect(page.getByRole("button", { name: /新建模板/ })).toBeEnabled();
   await page.getByRole("button", { name: /新建模板/ }).click();
@@ -552,11 +552,11 @@ async function publishFollowupTemplateFromUi(
   await expect(page.getByRole("heading", { name: "随访协同" })).toBeVisible();
   await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
   await page.getByRole("tab", { name: "随访模板" }).click();
-  await page.getByPlaceholder("按模板名称或适用范围检索").fill(template.name);
-  await expect(page.getByText(template.displayName)).toBeVisible({ timeout: 20_000 });
+  await page.getByPlaceholder("按模板名称或适用范围检索").fill(template.displayName);
 
   const row = page
     .getByRole("row", { name: new RegExp(escapeRegExp(template.displayName)) })
+    .filter({ hasText: "待发布" })
     .first();
   await expect(row).toBeVisible();
   const responsePromise = waitForPost(
@@ -575,7 +575,11 @@ async function publishFollowupTemplateFromUi(
   };
   expect(result.data?.templateId).toBe(template.templateId);
   expect(result.data?.assetStatus).toBe("PUBLISHED");
-  await expect(row.getByText("可用于计划生成")).toBeVisible({ timeout: 20_000 });
+  const publishedRow = page
+    .getByRole("row", { name: new RegExp(escapeRegExp(template.displayName)) })
+    .filter({ hasText: "可用于计划生成" })
+    .first();
+  await expect(publishedRow).toBeVisible({ timeout: 20_000 });
   await captureEvidence(page, testInfo, "real-frontdesk-followup-template-published");
   recordCleanRuntime(page, "前台发布随访模板", runtime, records);
 }
@@ -604,7 +608,7 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
   });
   await dialog.getByRole("button", { name: "选择第 1 个随访上下文快照" }).click();
   await chooseDialogOption(page, dialog, "随访风险分层", "中风险");
-  await searchDialogOption(page, dialog, "随访模板", template.name, template.displayName);
+  await searchDialogOption(page, dialog, "随访模板", template.displayName, template.displayName);
 
   const responsePromise = waitForPost(page, "/api/v1/engine/followup/plans/generate");
   await dialog.getByRole("button", { name: /生\s*成/ }).click();
@@ -739,6 +743,31 @@ async function currentSelectText(select: Locator) {
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function businessRehearsalBatchLabel(suffix: string) {
+  const rawTimestamp = suffix.split("-").at(-1) ?? suffix;
+  const timestamp = Number.parseInt(rawTimestamp, 36);
+  if (!Number.isFinite(timestamp)) {
+    return "上线复演本轮";
+  }
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  })
+    .formatToParts(new Date(timestamp))
+    .reduce<Record<string, string>>((acc, part) => {
+      if (part.type !== "literal") {
+        acc[part.type] = part.value;
+      }
+      return acc;
+    }, {});
+  return `上线复演 ${parts.month}月${parts.day}日 ${parts.hour}时${parts.minute}分${parts.second}秒`;
 }
 
 function waitForPost(page: Page, path: string) {

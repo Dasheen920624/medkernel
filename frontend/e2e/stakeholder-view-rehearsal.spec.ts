@@ -648,7 +648,7 @@ async function performFollowupPlanAction(
   });
   await dialog.getByRole("button", { name: "选择第 1 个随访上下文快照" }).click();
   await chooseDialogOption(page, dialog, "随访风险分层", "中风险");
-  await searchDialogOption(page, dialog, "随访模板", template.name, template.displayName);
+  await searchDialogOption(page, dialog, "随访模板", template.displayName, template.displayName);
 
   const planResponsePromise = waitForPost(page, "/engine/followup/plans/generate");
   await dialog.getByRole("button", { name: /生\s*成/ }).click();
@@ -771,7 +771,9 @@ async function createFollowupTemplateForStakeholderAction(
   await page.getByRole("tab", { name: "随访模板" }).click();
 
   const templateCode = `FUP.STAKEHOLDER.${suffix.toUpperCase()}`;
-  const templateDisplayName = `全角色${view.label}随访模板`;
+  const templateDisplayName = `全角色${view.label}随访模板（${businessRehearsalBatchLabel(
+    suffix,
+  )}）`;
   const templateName = `${templateDisplayName} ${suffix}`;
   await page.getByRole("button", { name: /新建模板/ }).click();
   const dialog = page.getByRole("dialog", { name: "新建随访模板" });
@@ -824,11 +826,11 @@ async function publishFollowupTemplateForStakeholderAction(
     `${view.label} 应能进入随访模板治理页发布模板`,
   ).toBeVisible({ timeout: 30_000 });
   await page.getByRole("tab", { name: "随访模板" }).click();
-  await page.getByPlaceholder("按模板名称或适用范围检索").fill(template.name);
-  await expect(page.getByText(template.displayName)).toBeVisible({ timeout: 30_000 });
+  await page.getByPlaceholder("按模板名称或适用范围检索").fill(template.displayName);
 
   const row = page
     .getByRole("row", { name: new RegExp(escapeRegExp(template.displayName)) })
+    .filter({ hasText: "待发布" })
     .first();
   await expect(row).toBeVisible({ timeout: 20_000 });
   const publishResponsePromise = waitForPost(
@@ -847,7 +849,11 @@ async function publishFollowupTemplateForStakeholderAction(
   };
   expect(published.data?.templateId).toBe(template.templateId);
   expect(published.data?.assetStatus).toBe("PUBLISHED");
-  await expect(row.getByText("可用于计划生成")).toBeVisible({ timeout: 30_000 });
+  const publishedRow = page
+    .getByRole("row", { name: new RegExp(escapeRegExp(template.displayName)) })
+    .filter({ hasText: "可用于计划生成" })
+    .first();
+  await expect(publishedRow).toBeVisible({ timeout: 30_000 });
 }
 
 async function performPharmacistReviewAction(page: Page, view: StakeholderView) {
@@ -1148,14 +1154,16 @@ async function chooseDialogOption(page: Page, dialog: Locator, label: string, op
 }
 
 async function expectDialogInputValueAbsent(dialog: Locator, value: string, message: string) {
-  const matchingInputCount = await dialog.locator("input, textarea").evaluateAll((elements, expected) => {
-    return elements.filter((element) => {
-      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
-        return element.value === expected;
-      }
-      return false;
-    }).length;
-  }, value);
+  const matchingInputCount = await dialog
+    .locator("input, textarea")
+    .evaluateAll((elements, expected) => {
+      return elements.filter((element) => {
+        if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+          return element.value === expected;
+        }
+        return false;
+      }).length;
+    }, value);
   expect(matchingInputCount, message).toBe(0);
 }
 
@@ -1217,4 +1225,29 @@ async function currentSelectText(select: Locator) {
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function businessRehearsalBatchLabel(suffix: string) {
+  const rawTimestamp = suffix.split("-").at(-1) ?? suffix;
+  const timestamp = Number.parseInt(rawTimestamp, 36);
+  if (!Number.isFinite(timestamp)) {
+    return "上线复演本轮";
+  }
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  })
+    .formatToParts(new Date(timestamp))
+    .reduce<Record<string, string>>((acc, part) => {
+      if (part.type !== "literal") {
+        acc[part.type] = part.value;
+      }
+      return acc;
+    }, {});
+  return `上线复演 ${parts.month}月${parts.day}日 ${parts.hour}时${parts.minute}分${parts.second}秒`;
 }
