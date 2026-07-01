@@ -96,6 +96,7 @@ const taskTypeOptions = [
   { value: "LAB", label: "检验报告跟踪" },
   { value: "OUTPATIENT", label: "门诊复诊" },
 ];
+const TEMPLATE_RUN_SUFFIX_PATTERN = /\s+(?:[a-z]+(?:_[a-z]+)*-[a-z0-9]{6,}|[a-z0-9]{8,})$/i;
 
 function optionLabel(
   options: Array<{ value: string; label: string }>,
@@ -115,15 +116,27 @@ function associationText(
   return value ? `${businessLabel}已关联` : `${businessLabel}未关联`;
 }
 
+function templateBusinessName(name: string | null | undefined, fallback = "已绑定随访方案") {
+  const trimmed = name?.trim();
+  if (!trimmed) return fallback;
+  if (!/^(全角色|真实前台)/.test(trimmed)) return trimmed;
+  return trimmed.replace(TEMPLATE_RUN_SUFFIX_PATTERN, "").trim() || trimmed;
+}
+
+function templateVersionText(version: number | null | undefined, evidenceDetailsEnabled: boolean) {
+  if (!version) return "";
+  return evidenceDetailsEnabled ? ` · v${version}` : `（第 ${version} 版）`;
+}
+
 function planTemplateText(
   plan: Pick<FollowupPlanDetailResponse, "templateId" | "templateVersion">,
   templateNameById: Map<string, string>,
   evidenceDetailsEnabled: boolean,
 ) {
   if (!plan.templateId) return "未绑定随访方案";
-  const version = plan.templateVersion ? ` · v${plan.templateVersion}` : "";
+  const version = templateVersionText(plan.templateVersion, evidenceDetailsEnabled);
   if (evidenceDetailsEnabled) return `${plan.templateId}${version}`;
-  const templateName = templateNameById.get(plan.templateId) ?? "已绑定随访方案";
+  const templateName = templateBusinessName(templateNameById.get(plan.templateId));
   return `${templateName}${version}`;
 }
 
@@ -255,7 +268,10 @@ export default function Followup() {
     () =>
       publishedTemplates.map((template) => ({
         value: template.templateId,
-        label: `${template.name} · v${template.versionNo}`,
+        label: `${templateBusinessName(template.name)}${templateVersionText(
+          template.versionNo,
+          false,
+        )}`,
       })),
     [publishedTemplates],
   );
@@ -534,9 +550,11 @@ export default function Followup() {
       key: "name",
       render: (name: string, record) => (
         <Space direction="vertical" size={0}>
-          <span className={styles.textStrong}>{name}</span>
+          <span className={styles.textStrong}>{templateBusinessName(name, "随访模板")}</span>
           <span className={styles.textMuted}>
-            {evidenceDetailsEnabled ? `${record.templateCode} · ` : ""}v{record.versionNo}
+            {evidenceDetailsEnabled
+              ? `${record.templateCode} · v${record.versionNo}`
+              : `第 ${record.versionNo} 版`}
           </span>
         </Space>
       ),

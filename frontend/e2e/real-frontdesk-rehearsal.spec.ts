@@ -500,12 +500,14 @@ async function createFollowupTemplateFromUi(
   await expectNoRootOverflow(page, "随访协同模板桌面");
 
   const templateCode = `FUP.REAL.FRONTDESK.${suffix.toUpperCase()}`;
+  const templateDisplayName = "真实前台慢病随访模板";
+  const templateName = `${templateDisplayName} ${suffix}`;
   await expect(page.getByRole("button", { name: /新建模板/ })).toBeEnabled();
   await page.getByRole("button", { name: /新建模板/ }).click();
   const dialog = page.getByRole("dialog", { name: "新建随访模板" });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("院内随访方案身份").fill(templateCode);
-  await dialog.getByLabel("模板名称").fill(`真实前台慢病随访模板 ${suffix}`);
+  await dialog.getByLabel("模板名称").fill(templateName);
   await dialog
     .getByLabel("模板说明")
     .fill("真实前台演练创建；不包含患者姓名、证件号、电话、住址等核心敏感信息。");
@@ -532,7 +534,8 @@ async function createFollowupTemplateFromUi(
   return {
     templateId: result.data?.templateId ?? "",
     templateCode,
-    name: result.data?.name ?? `真实前台慢病随访模板 ${suffix}`,
+    name: result.data?.name ?? templateName,
+    displayName: templateDisplayName,
   };
 }
 
@@ -541,7 +544,7 @@ async function publishFollowupTemplateFromUi(
   testInfo: TestInfo,
   runtime: RuntimeCollectors,
   records: RuntimeRecord[],
-  template: { templateId: string; templateCode: string; name: string },
+  template: { templateId: string; templateCode: string; name: string; displayName: string },
 ) {
   await ensureReadySession(page, "engine-operator");
   clearRuntime(runtime);
@@ -550,9 +553,11 @@ async function publishFollowupTemplateFromUi(
   await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
   await page.getByRole("tab", { name: "随访模板" }).click();
   await page.getByPlaceholder("按模板名称或适用范围检索").fill(template.name);
-  await expect(page.getByText(template.name)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(template.displayName)).toBeVisible({ timeout: 20_000 });
 
-  const row = page.getByRole("row", { name: new RegExp(escapeRegExp(template.name)) }).first();
+  const row = page
+    .getByRole("row", { name: new RegExp(escapeRegExp(template.displayName)) })
+    .first();
   await expect(row).toBeVisible();
   const responsePromise = waitForPost(
     page,
@@ -580,7 +585,7 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
   testInfo: TestInfo,
   runtime: RuntimeCollectors,
   records: RuntimeRecord[],
-  template: { templateId: string; name: string },
+  template: { templateId: string; name: string; displayName: string },
   snapshot: ContextSnapshotSummary,
 ) {
   await ensureReadySession(page, "clinical-user");
@@ -599,7 +604,7 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
   });
   await dialog.getByRole("button", { name: "选择第 1 个随访上下文快照" }).click();
   await chooseDialogOption(page, dialog, "随访风险分层", "中风险");
-  await searchDialogOption(page, dialog, "随访模板", template.name, template.name);
+  await searchDialogOption(page, dialog, "随访模板", template.name, template.displayName);
 
   const responsePromise = waitForPost(page, "/api/v1/engine/followup/plans/generate");
   await dialog.getByRole("button", { name: /生\s*成/ }).click();
@@ -612,6 +617,12 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
   await expect(page.getByRole("dialog", { name: "随访计划办理" })).toBeVisible({
     timeout: 20_000,
   });
+  await expect(
+    page.getByRole("dialog", { name: "随访计划办理" }).getByText(template.displayName).first(),
+  ).toBeVisible({ timeout: 20_000 });
+  await expect(
+    page.getByRole("dialog", { name: "随访计划办理" }).getByText(template.name),
+  ).toHaveCount(0);
 
   await page
     .getByRole("button", { name: /填\s*报/ })
@@ -690,7 +701,9 @@ async function searchDialogOption(
   await expect(dropdown).toBeVisible({ timeout: 5_000 });
   const optionLocator = dropdown
     .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
-    .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(optionText)}(\\s*·.*)?\\s*$`) })
+    .filter({
+      hasText: new RegExp(`^\\s*${escapeRegExp(optionText)}(?:\\s*·.*|（.*）)?\\s*$`),
+    })
     .first();
   await expect(optionLocator).toBeVisible({ timeout: 20_000 });
   await optionLocator.click();

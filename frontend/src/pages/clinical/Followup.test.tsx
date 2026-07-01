@@ -373,7 +373,7 @@ describe("Followup", () => {
 
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getByText("慢阻肺")).toBeInTheDocument();
-    expect(screen.getByText("慢阻肺出院随访 · v1")).toBeInTheDocument();
+    expect(screen.getByText("慢阻肺出院随访（第 1 版）")).toBeInTheDocument();
     expect(screen.getByText("患者已关联")).toBeInTheDocument();
     expect(screen.getByText("就诊已关联")).toBeInTheDocument();
     expect(screen.queryByText("plan-real-1")).not.toBeInTheDocument();
@@ -387,13 +387,82 @@ describe("Followup", () => {
     expect(screen.getAllByText("患者已关联").length).toBeGreaterThan(0);
     expect(screen.getAllByText("就诊已关联").length).toBeGreaterThan(0);
     expect(screen.getAllByText("慢阻肺").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("慢阻肺出院随访 · v1").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("慢阻肺出院随访（第 1 版）").length).toBeGreaterThan(0);
     expect(screen.getByText("第 1 项")).toBeInTheDocument();
     expect(screen.getByText("问卷回收")).toBeInTheDocument();
     expect(screen.getByText("截止：2026年06月08日")).toBeInTheDocument();
     expect(screen.queryByText("截止：6/8/2026")).not.toBeInTheDocument();
     expect(screen.queryByText("task-questionnaire-1")).not.toBeInTheDocument();
     expect(screen.queryByText("FOLLOWUP_QUESTIONNAIRE_DEFAULT")).not.toBeInTheDocument();
+  });
+
+  it("随访计划默认隐藏演练模板运行后缀，证据详情才展示模板原始标识", async () => {
+    const user = userEvent.setup();
+    followupHookMocks.useFollowupPlans.mockReturnValue({
+      data: {
+        items: [
+          {
+            planId: "plan-patient-proxy-1",
+            tenantId: "tenant-A",
+            patientId: "patient-proxy-1",
+            encounterId: "enc-proxy-1",
+            diseaseCode: "COPD",
+            templateId: "ftpl-patient-proxy",
+            templateVersion: 1,
+            status: "ACTIVE",
+            tasks: [],
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: followupHookMocks.refetchPlans,
+    });
+    followupHookMocks.useFollowupTemplates.mockReturnValue({
+      data: {
+        items: [
+          {
+            templateId: "ftpl-patient-proxy",
+            templateCode: "FUP.STAKEHOLDER.PATIENT_PROXY",
+            versionNo: 1,
+            name: "全角色患者代理随访模板 patient_proxy-mr28o43q",
+            description: "全角色真实前台演练模板",
+            organizationScope: "p5-hospital",
+            applicableScope: "COPD",
+            questionnaireDefinition: "{}",
+            abnormalActionDefinition: "{}",
+            assetStatus: "PUBLISHED",
+            contentHash: "sm3:patient-proxy-template",
+            tasks: [],
+            traceId: "trace-patient-proxy-template",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    renderFollowup();
+
+    expect(screen.getByText("全角色患者代理随访模板（第 1 版）")).toBeInTheDocument();
+    expect(screen.queryByText(/patient_proxy-mr28o43q/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/· v1/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /查看与办理/ }));
+    await screen.findByRole("dialog", { name: "随访计划办理" });
+    expect(screen.getAllByText("全角色患者代理随访模板（第 1 版）").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/patient_proxy-mr28o43q/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getAllByText("ftpl-patient-proxy · v1").length).toBeGreaterThan(0);
   });
 
   it("办理抽屉打开后收起背景计划列表，避免干扰护士操作", async () => {
@@ -677,7 +746,7 @@ describe("Followup", () => {
     await user.click(screen.getByText("高风险"));
     await user.click(screen.getByLabelText("随访模板"));
     await user.click(
-      await screen.findByText("慢阻肺出院随访 · v1", {
+      await screen.findByText("慢阻肺出院随访（第 1 版）", {
         selector: ".ant-select-item-option-content",
       }),
     );
@@ -717,7 +786,7 @@ describe("Followup", () => {
     await user.click(screen.getByText("高风险"));
     await user.click(screen.getByLabelText("随访模板"));
     await user.click(
-      await screen.findByText("慢阻肺出院随访 · v1", {
+      await screen.findByText("慢阻肺出院随访（第 1 版）", {
         selector: ".ant-select-item-option-content",
       }),
     );
