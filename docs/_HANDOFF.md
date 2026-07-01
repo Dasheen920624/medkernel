@@ -10,16 +10,16 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `c9ac9ea2226952aa6133e72925a5fc11bda8bff4`
-  （`fix: 办理随访时收起背景列表`）；已包含第七批 `mimoModel` 发布脚本能力、第八批质量报告体验优化、第九批协同任务摘要优化、第十批随访患者过滤器脱敏体验与第十一批随访办理焦点收敛，
-  后续文档交接提交不改变 134 应用包。
-- 当前 134 已发布应用为 `c9ac9ea2226952aa6133e72925a5fc11bda8bff4`；第十一批随访办理背景列表收敛已发布并复演。
-- 134 当前完整部署 `c9ac9ea2226952aa6133e72925a5fc11bda8bff4`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260701-151012`，manifest
-  `deployedAt=2026-07-01T15:10:14+08:00`，
-  `jarSha256=19633f0c98db574fee758a24a7bab7bce1365e74bff03e65cf4415cc5ca10dac`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2050289`、`NRestarts=0`。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第十一批版本已完成真实前台与全职责 E2E。
+- 当前已发布应用代码提交为 `d3d6138eb29a572a69a22684dedfc6ec00291cca`
+  （`fix: 收敛知识生产模型唯一表述`）；已包含第十二批医保结算到质控整改数据路线、
+  第十三批质量/医保默认信息层级收敛，以及第十四批知识生产治理语义收敛。
+- 当前 134 已发布应用为 `d3d6138eb29a572a69a22684dedfc6ec00291cca`；第十四批已发布并完成真实前台与全职责复演。
+- 134 当前完整部署 `d3d6138eb29a572a69a22684dedfc6ec00291cca`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260701-221752`，manifest
+  `deployedAt=2026-07-01T22:17:55+08:00`，
+  `jarSha256=4a0da314f707cd69db03bdc97a70956cf59fb1a8a2a424239ad51ee0c860d6ea`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2277761`、`NRestarts=0`。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第十四批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -409,13 +409,114 @@
   - 截图复核：`real-frontdesk-followup-plan-questionnaire-abnormal.png` 中办理抽屉打开后不再显示底部随访计划表，
     左侧背景仅保留弱化的页面上下文；患者过滤器继续显示“已筛选刚生成计划的患者”，未回退到 `mpi-*`。
 
+## 最新阶段交接（2026-07-01 第十二批·医保结算到质控整改数据路线）
+
+- 按用户要求先沿现有演练模式把基础数据路线走通，暂不跳到全视角大改。真实前台演练暴露医保结算声明、
+  医保审核、内涵质控和整改任务之间存在多处基础阻塞：前台声明插入语义不稳、缺科室/指标主数据时不能形成
+  真实问题、手工医保规则归档选项命名歧义，以及没有生效质控指标时医保审核无法继续派整改。
+- 已本地修复并提交：
+  - `c8811583d`（`fix: 打通前台医保结算与质控整改`）：补通前台医保结算、审核和整改联动。
+  - `aff61347`（`fix: 修复前台医保声明插入语义`）：修复 `mk_clinical_claim` assigned-id 插入语义。
+  - `ec8baca3`（`fix: 解除医保审核主数据空目录阻塞`）：缺责任科室或指标目录时使用当前组织和手工规则兜底。
+  - `082802d9`（`fix: 避免医保规则归档选项命名冲突`）：将“按本次医保规则依据归档”收敛为“按本次规则归档”。
+  - `1d76bd6a`（`fix: 医保审核缺指标时跳过内涵质控`）：无生效质控指标时先跳过病例质控扫描，继续 DRG 与医保审核。
+  - `0c4d0868`（`fix: 支持医保手工规则直接派整改`）：后端支持 `INSURANCE_RULE_MANUAL` 直接生成
+    `quality_finding` 与 `rectification_task`，并把医保问题置为已派整改。
+- 验证证据：
+  - `mvn -Dtest=InsuranceQualityServiceTest#insuranceAuditManualRuleCreatesDirectRectificationWithoutActiveIndicator test`
+    通过；`mvn -Dtest=InsuranceQualityServiceTest test` 通过，`7` 项。
+  - `git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source 0c4d08686d71db8640548abe0817ac41d13949c6`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260701-161705`，
+    manifest `deployedAt=2026-07-01T16:17:07+08:00`，
+    `jarSha256=e33badb698b9289e6d00c6982488bbba49540fd31b2f0e5b5b3df7ea01455b2a`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2087387`、`NRestarts=0`。
+  - 直接访问 134 复跑 `real-frontdesk-rehearsal.spec.ts --project=chromium` 与
+    `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过；真实前台证据目录
+    `/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-0c4d0868-insurance-quality`，
+    全角色证据目录 `/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-0c4d0868`。
+  - 截图复核显示基础数据路线已走通，但医保/质量默认页面仍有低频追溯字段和原始组织标识暴露，
+    作为第十三批继续收敛的问题来源。
+
+## 最新阶段交接（2026-07-01 第十三批·质量医保默认信息层级）
+
+- 基于第十二批 134 复演继续按院长、质控、医保审核员和实施视角核查，发现功能已走通但默认信息层级不够业务化：
+  医保问题列表默认展示原始组织 ID，质量管理概览待处置问题摘要默认展示 `claim-*`、医保规则编号和阈值追溯。
+  这些字段对默认业务判断帮助有限，应进入证据详情，避免误导普通角色。
+- 已本地修复并提交：
+  - `8e650db5`（`fix: 收敛质量默认信息层级`）：先收敛质量默认摘要和组织显示；该版本复演通过，
+    但截图继续发现医保列表仍有原始组织 ID，保留为中间证据。
+  - `3e343b69`（`fix: 收起质量医保追溯字段`）：`InsuranceAudit` 使用组织范围显示“当前机构”等业务标签，
+    原始组织 ID 仅在证据详情展示；`QcDashboard` 默认用业务摘要表达医保质控待处置问题，证据详情打开后追溯
+    `claim`、规则编号、阈值等低频字段。
+- 红绿与本地验证：
+  - 红灯：`npm --prefix frontend test -- InsuranceAudit.test.tsx QcDashboard.test.tsx`
+    在旧实现下失败于默认找不到“当前机构”、证据详情找不到“当前机构 · hospital-rehearsal”，以及质量概览默认摘要未收敛。
+  - 绿灯：同一命令通过，`2` 个文件 / `13` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `914` 项；
+    `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source 3e343b695e24d49e17029a235d6390c84510aa43`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260701-220355`，
+    manifest `deployedAt=2026-07-01T22:03:58+08:00`，
+    `jarSha256=f5ce56d62091892997b0425e4b9f36ee33ee143e4bdabff18b12a48bc3530268`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2270111`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-3e343b69-quality-evidence-defaults`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (42.7s)`；
+    运行记录 `11` 段，浏览器错误、服务端错误、网络失败均为 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-3e343b69-quality-evidence-defaults`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.4m)`；
+    运行记录 `12` 类视角，浏览器错误、服务端错误、网络失败均为 `0`。
+  - 截图复核：`real-frontdesk-insurance-quality-rectification.png` 的医保问题列表默认显示“当前机构”、
+    “规则依据已关联”和“证据已记录”；`stakeholder-hospital_executive.png` 的待处置问题默认摘要不再裸露
+    `claim-*` 或医保规则编号。
+
+## 最新阶段交接（2026-07-01 第十四批·知识生产治理语义）
+
+- 用户提出“诊断知识维护与整体知识管理是否怪怪的、知识治理是否已满足全链路”的疑问；该疑问只作为全局风险假设，
+  不等于当前诊断知识设计错误。已按原始权威文档核查：`CONSTITUTION`、`PRODUCT_SCOPE` 与 `ARCHITECTURE`
+  均要求人工维护、来源解析、确定性校验、审核发布和无模型 B0 主链可运行，大模型只生成候选、草稿或解释，
+  不能直接成为正式知识，也不能是唯一生产方式。
+- 基于上述权威约束，仅修复一个明确冲突的前台口径，不扩展重构诊断知识维护：
+  - 本地提交 `d3d6138eb29a572a69a22684dedfc6ec00291cca`
+    （`fix: 收敛知识生产模型唯一表述`）。
+  - `/knowledge/production` 从“正式知识只允许大模型生产”改为“正式知识不得绕过统一治理链”；
+    说明人工维护、来源解析和模型生成都只能形成草稿或候选，无模型时仍可完成来源登记、人工维护、
+    确定性校验和审核发布。
+  - 生产前校验中的 `EGRESS_GOVERNANCE` 前台标签从“外调允许范围”收敛为“模型使用边界”，和模型安全边界口径一致。
+- 红绿与本地验证：
+  - 红灯：`npm --prefix frontend test -- KnowledgeProductionPage.test.tsx ProductionReadinessPanel.test.tsx`
+    在旧实现下失败于找不到“正式知识不得绕过统一治理链”和“6. 模型使用边界”。
+  - 绿灯：同一命令通过，`2` 个文件 / `2` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `914` 项；
+    `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source d3d6138eb29a572a69a22684dedfc6ec00291cca`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260701-221752`，
+    manifest `deployedAt=2026-07-01T22:17:55+08:00`，
+    `jarSha256=4a0da314f707cd69db03bdc97a70956cf59fb1a8a2a424239ad51ee0c860d6ea`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2277761`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-d3d6138e-knowledge-production-wording`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (43.6s)`；
+    运行记录 `11` 段，浏览器错误、服务端错误、网络失败均为 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-d3d6138e-knowledge-production-wording`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.4m)`；
+    运行记录 `12` 类视角，浏览器错误、服务端错误、网络失败均为 `0`。
+  - 截图复核：`stakeholder-engine_operator.png` 显示“正式知识不得绕过统一治理链”，并说明人工维护、
+    来源解析、模型生成都进入草稿或候选治理；`stakeholder-hospital_executive.png` 与
+    `real-frontdesk-insurance-quality-rectification.png` 显示第十三批质量/医保默认信息层级未回退。
+
 ## 下一步
 
 1. 继续全视角真实操作与产品体验优化：重点回看患者/医生/护士/药师/医技剩余入口操作路径、
    宽表默认可读性、高级信息呈现方式、质量管理下钻与整改闭环，发现不合理产品设计直接按当前权威标准优化。
-2. 继续复核真实前台演练截图里的质量下钻、长表格和随访办理抽屉在窄屏 / 多任务量下的滚动与按钮可达性，
+2. 对“知识治理是否已满足全系统核心知识全链路”和“诊断知识维护是否契合统一知识管理”做原始文档驱动的全局复核：
+   先映射 13 类可发布资产、11 个知识内容分类、来源/候选/审核/发布/机构生效/运行引用/证据/回滚链路；
+   诊断知识维护默认视为统一治理中的专业工作区，只有证据显示旁路或误导时才改结构。
+3. 继续复核真实前台演练截图里的质量下钻、长表格和随访办理抽屉在窄屏 / 多任务量下的滚动与按钮可达性，
    发现遮挡、重复识别困难、操作路径过长或职责边界不清时直接按现行体验契约修复。
-3. `DEFER-003` 关闭前，公网 `mimo-public` 只保留“已受管登记但未启用”的诚实状态；拿到有效外部凭据后，
+4. `DEFER-003` 关闭前，公网 `mimo-public` 只保留“已受管登记但未启用”的诚实状态；拿到有效外部凭据后，
    重新运行 Provider 上线脚本并补充全知识生产真实模型证据。
-4. 目标环境上线前仍需补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
-5. 当前分支继续只做本地提交；最终全链路确认无问题后再统一处理远程 `main`。
+5. 目标环境上线前仍需补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
+6. 当前分支继续只做本地提交；最终全链路确认无问题后再统一处理远程 `main`。
