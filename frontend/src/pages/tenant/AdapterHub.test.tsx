@@ -506,6 +506,8 @@ describe("AdapterHub", () => {
     expect(screen.getByText("缺少 EMR 适配器")).toBeInTheDocument();
     expect(screen.getByText("数据接入契约")).toBeInTheDocument();
     expect(screen.getByText("选模板/导入")).toBeInTheDocument();
+    expect(screen.getAllByText("2026年06月03日 16:00").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/6\/3\/2026/)).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("tab", { name: "数据质量看板" }));
     expect(screen.getByText("尚未生成本轮数据质量报告")).toBeInTheDocument();
@@ -526,6 +528,7 @@ describe("AdapterHub", () => {
     expect(screen.getByText("batch-20260614-001")).toBeInTheDocument();
     expect(screen.getByText("院内人员")).toBeInTheDocument();
     expect(screen.getByText("860")).toBeInTheDocument();
+    expect(screen.getByText("2026年06月14日 08:30")).toBeInTheDocument();
   });
 
   it("does not load a package selector for the current runtime data contract", () => {
@@ -659,6 +662,7 @@ describe("AdapterHub", () => {
     await user.click(screen.getByRole("tab", { name: "回调通道" }));
     expect(screen.getByText("回调通道已登记")).toBeInTheDocument();
     expect(screen.getByText("回调地址已配置")).toBeInTheDocument();
+    expect(screen.getAllByText("2026年06月03日 16:00").length).toBeGreaterThan(0);
     expect(screen.queryByText(/clinical-events/)).not.toBeInTheDocument();
     expect(screen.queryByText(webhook.callbackUrl)).not.toBeInTheDocument();
 

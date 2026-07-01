@@ -70,6 +70,7 @@ import {
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ADAPTER_PROTOCOL_OPTIONS, canAccessRoute, findRouteByPath } from "@/shared/config/routes";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { OrgUnitSelect } from "@/shared/ui/OrgUnitSelect";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
@@ -98,16 +99,6 @@ const PAGE_META: { title: string; experience: RouteExperience } = {
 const LOG_PAGE_SIZE = 10;
 const ADAPTER_PAGE_SIZE = 20;
 const INTEGRATION_MAINTENANCE_PAGE_SIZE = 20;
-
-const BUSINESS_TIME_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
-  timeZone: "Asia/Shanghai",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
 
 const signaturePreviewEventOptions = [
   { value: "clinical.test", label: "临床事件联调" },
@@ -241,12 +232,7 @@ function percent(numerator: number, denominator: number) {
 }
 
 function businessTimeText(value: string | null | undefined, prefix: string) {
-  if (!value) return `${prefix}待确认`;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return `${prefix}待确认`;
-  const parts = BUSINESS_TIME_FORMATTER.formatToParts(date);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${prefix} ${values.year}年${values.month}月${values.day}日 ${values.hour}:${values.minute}`;
+  return `${prefix} ${formatClinicalDateTime(value, "待确认")}`;
 }
 
 function healthTag(status: string) {
@@ -702,7 +688,7 @@ export default function AdapterHub() {
       dataIndex: "lastHeartbeatAt",
       key: "lastHeartbeatAt",
       render: (value) => (
-        <Text type="secondary">{value ? new Date(String(value)).toLocaleString() : "暂无"}</Text>
+        <Text type="secondary">{formatClinicalDateTime(String(value), "暂无")}</Text>
       ),
     },
     {
@@ -919,7 +905,7 @@ export default function AdapterHub() {
       title: "更新时间",
       dataIndex: "updatedAt",
       key: "updatedAt",
-      render: (value) => new Date(String(value)).toLocaleString(),
+      render: (value) => formatClinicalDateTime(String(value)),
     },
   ];
 
@@ -1213,9 +1199,7 @@ export default function AdapterHub() {
                             {masterDataQuery.data.cursor ?? "尚无游标"}
                           </Descriptions.Item>
                           <Descriptions.Item label="最近同步">
-                            {masterDataQuery.data.lastSyncedAt
-                              ? new Date(masterDataQuery.data.lastSyncedAt).toLocaleString()
-                              : "尚未同步"}
+                            {formatClinicalDateTime(masterDataQuery.data.lastSyncedAt, "尚未同步")}
                           </Descriptions.Item>
                         </Descriptions>
                         <Table
@@ -1825,7 +1809,7 @@ function FieldMappingPanel({ items }: { items: AdapterHubSourceStatus[] }) {
               <Descriptions.Item label="状态">{healthTag(item.healthStatus)}</Descriptions.Item>
               <Descriptions.Item label="映射字段">{item.mappedFieldCount}</Descriptions.Item>
               <Descriptions.Item label="最近探活">
-                {item.lastHeartbeatAt ? new Date(item.lastHeartbeatAt).toLocaleString() : "暂无"}
+                {formatClinicalDateTime(item.lastHeartbeatAt, "暂无")}
               </Descriptions.Item>
               <Descriptions.Item label="缺口" span={2}>
                 {item.gaps.length === 0 ? (

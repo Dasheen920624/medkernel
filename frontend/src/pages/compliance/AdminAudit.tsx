@@ -47,6 +47,7 @@ import {
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { MODEL_CAPABILITY_OPTIONS } from "@/shared/config/modelProduction";
 import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
+import { formatClinicalDateTimeWithSeconds } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { AsyncExportAction } from "@/shared/ui/AsyncExportAction";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
@@ -90,17 +91,7 @@ function filterValue(filters: readonly ExperienceFilterValue[], key: string) {
 
 function formatTime(value?: string | null) {
   if (!value) return "-";
-  const timestamp = Date.parse(value);
-  if (Number.isNaN(timestamp)) return value;
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).format(timestamp);
+  return formatClinicalDateTimeWithSeconds(value, value);
 }
 
 function hasPermission(
@@ -982,7 +973,7 @@ export default function AdminAudit() {
             <Descriptions bordered size="small" column={1}>
               <Descriptions.Item label="摘要">{selectedAuditEvent.summary}</Descriptions.Item>
               <Descriptions.Item label="发生时间">
-                {new Date(selectedAuditEvent.occurredAt).toLocaleString()}
+                {formatTime(selectedAuditEvent.occurredAt)}
               </Descriptions.Item>
               <Descriptions.Item label="操作人">
                 {selectedAuditEvent.actorUserId ?? "系统"}

@@ -236,7 +236,23 @@ describe("CdssFatigue", () => {
       refetch: refetchFatigue,
     } as unknown as ReturnType<typeof useRecommendationFatigueSignals>);
     mockUseRecommendationTriggerDiagnose.mockReturnValue({
-      data: null,
+      data: {
+        executionId: "exec-real-1",
+        triggerId: "trigger-real-1",
+        ruleId: "rule-real-1",
+        riskLevel: "HIGH",
+        inputPayloadSummary: "已读取患者当前上下文、医嘱与检验摘要",
+        explanationSnapshot: "命中抗凝联合用药风险，需医师复核。",
+        statusHistory: [
+          {
+            status: "EVALUATED",
+            changedAt: "2026-06-04T00:00:00Z",
+            changedBy: "engine",
+            summary: "完成规则求值并生成提醒卡。",
+          },
+        ],
+        traceId: "trace-diagnose",
+      },
       refetch: refetchDiagnose,
     } as unknown as ReturnType<typeof useRecommendationTriggerDiagnose>);
     mockUseContextSnapshots.mockReturnValue({
@@ -582,6 +598,10 @@ describe("CdssFatigue", () => {
     expect(screen.getAllByText("待办 / 通知").length).toBeGreaterThan(0);
     expect(screen.getAllByText("医生反馈").length).toBeGreaterThan(0);
     expect(screen.getAllByText("药师复核").length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: /查看决策依据/ }));
+    expect(await screen.findByText("推荐决策依据与审计证据")).toBeInTheDocument();
+    expect(screen.getByText("2026年06月04日 08:00")).toBeInTheDocument();
+    expect(screen.queryByText(/6\/4\/2026/)).not.toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: /临床指南与来源证据/ }));
     expect(
       screen.getByText("该提醒卡暂无来源解释证据；请结合患者病情与院内制度复核。"),

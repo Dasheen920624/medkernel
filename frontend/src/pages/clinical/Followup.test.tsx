@@ -390,6 +390,8 @@ describe("Followup", () => {
     expect(screen.getAllByText("慢阻肺出院随访 · v1").length).toBeGreaterThan(0);
     expect(screen.getByText("第 1 项")).toBeInTheDocument();
     expect(screen.getByText("问卷回收")).toBeInTheDocument();
+    expect(screen.getByText("截止：2026年06月08日")).toBeInTheDocument();
+    expect(screen.queryByText("截止：6/8/2026")).not.toBeInTheDocument();
     expect(screen.queryByText("task-questionnaire-1")).not.toBeInTheDocument();
     expect(screen.queryByText("FOLLOWUP_QUESTIONNAIRE_DEFAULT")).not.toBeInTheDocument();
   });

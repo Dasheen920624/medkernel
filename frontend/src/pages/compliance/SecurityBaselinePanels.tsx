@@ -53,14 +53,14 @@ import {
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { PageState } from "@/shared/ui/PageState";
 
 const { Text } = Typography;
 
 function formatDateTime(value?: string | null) {
   if (!value) return "未返回";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  return formatClinicalDateTime(value, value);
 }
 
 function statusTag(status: string) {

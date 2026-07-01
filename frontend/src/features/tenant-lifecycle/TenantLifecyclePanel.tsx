@@ -26,6 +26,7 @@ import { useSuccessPlan, useTransitionSuccessStage } from "@/shared/api/hooks";
 import { tenantLifecycleStages } from "@/shared/config/tenantLifecycleStages";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { customerSafeDisplayText } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import styles from "./TenantLifecyclePanel.module.css";
 
 const { Text, Paragraph } = Typography;
@@ -260,7 +261,8 @@ export function TenantLifecyclePanel() {
             <Space size="middle">
               {data.updatedAt && (
                 <span className={styles.auditText}>
-                  <ClockCircleOutlined /> 更新时间：{new Date(data.updatedAt).toLocaleString()}
+                  <ClockCircleOutlined /> 更新时间：
+                  {formatClinicalDateTime(data.updatedAt, data.updatedAt)}
                 </span>
               )}
               {data.updatedBy && (

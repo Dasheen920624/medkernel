@@ -31,6 +31,7 @@ import {
   MODEL_CAPABILITY_OPTIONS,
   MODEL_PROVIDER_TYPE_OPTIONS,
 } from "@/shared/config/modelProduction";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
@@ -79,8 +80,7 @@ function credentialLabel(provider: ModelProviderGovernanceView) {
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false });
+  return formatClinicalDateTime(value, value);
 }
 
 function providerTypeLabel(providerType: ModelProviderGovernanceView["providerType"]) {

@@ -159,6 +159,7 @@ import {
   type ClinicalTriggerPoint,
 } from "@/shared/config/clinicalTriggerPoints";
 import { customerDisplayText, customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import styles from "./RulePathwayAuthoring.module.css";
 
 const { TextArea } = Input;
@@ -704,9 +705,7 @@ function formatSignedRate(rate?: number | null) {
 
 function formatDateTime(value?: string | null) {
   if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("zh-CN", { hour12: false });
+  return formatClinicalDateTime(value, value);
 }
 
 function renderDriftStatus(status?: string | null) {

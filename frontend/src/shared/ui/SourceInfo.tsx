@@ -1,5 +1,7 @@
 import { Alert, Descriptions, Space, Tag, Typography } from "antd";
 
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
+
 const { Text } = Typography;
 
 interface SourceInfoProps {
@@ -13,8 +15,7 @@ interface SourceInfoProps {
 
 function formatDateTime(value?: string | null) {
   if (!value) return "未审核";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false });
+  return formatClinicalDateTime(value, value);
 }
 
 export function SourceInfo({

@@ -43,6 +43,7 @@ import {
   type ClinicalTriggerPoint,
 } from "@/shared/config/clinicalTriggerPoints";
 import { customerDisplayText, customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import styles from "./Clinical.module.css";
 
 function isCriticalSeverity(severity?: string | null) {
@@ -783,13 +784,5 @@ function executionStatusLabel(status: string) {
 }
 
 function formatTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(date);
+  return formatClinicalDateTime(value, value);
 }

@@ -67,6 +67,7 @@ import { roleLabel } from "@/shared/config/roleCatalog";
 import { CLINICAL_TRIGGER_POINT_OPTIONS } from "@/shared/config/clinicalTriggerPoints";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { useLocation, useNavigate } from "react-router-dom";
 import styles from "./Clinical.module.css";
 
@@ -1617,7 +1618,7 @@ export default function CdssFatigue() {
                     <div className={`${styles.rowBetween} ${styles.timelineTitle}`}>
                       <span>状态：{customerEnumLabel(h.status)}</span>
                       <span className={styles.timelineMuted}>
-                        {new Date(h.changedAt).toLocaleString()}
+                        {formatClinicalDateTime(h.changedAt)}
                       </span>
                     </div>
                     <div className={styles.timelineMeta}>

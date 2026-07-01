@@ -38,6 +38,7 @@ import {
   type ProductRoleAction,
   type ProductRoleKind,
 } from "@/shared/config/productRoleJourneys";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { PageShell } from "@/shared/ui/PageShell";
 import { PageState } from "@/shared/ui/PageState";
 
@@ -1124,5 +1125,5 @@ function resolveRoleView(profile?: SecurityProfile): RoleView {
 
 function formatTime(value?: string | null): string {
   if (!value) return "暂无";
-  return new Date(value).toLocaleString();
+  return formatClinicalDateTime(value, value);
 }

@@ -60,6 +60,7 @@ import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import styles from "./Clinical.module.css";
 
 const { TextArea } = Input;
@@ -159,7 +160,7 @@ function outcomeScopeText(scope?: string) {
 }
 
 function formatDateTime(value?: string) {
-  return value ? new Date(value).toLocaleString() : "未记录";
+  return formatClinicalDateTime(value);
 }
 
 function pathwayNodeTypeText(type?: string) {
@@ -940,9 +941,7 @@ export default function PatientPathways() {
                 />
               </Descriptions.Item>
               <Descriptions.Item label="准入时间" span={pathwayFactColumn}>
-                {detailData.patientPathway.enteredAt
-                  ? new Date(detailData.patientPathway.enteredAt).toLocaleString()
-                  : "未知"}
+                {formatClinicalDateTime(detailData.patientPathway.enteredAt, "未知")}
               </Descriptions.Item>
             </Descriptions>
 
@@ -1587,9 +1586,7 @@ export default function PatientPathways() {
                           </div>
                         )}
                         <div className={`${styles.timelineMeta} ${styles.timelineMuted}`}>
-                          {variance.createdAt
-                            ? new Date(variance.createdAt).toLocaleString()
-                            : "未返回时间"}
+                          {formatClinicalDateTime(variance.createdAt, "未返回时间")}
                         </div>
                       </div>
                     ),

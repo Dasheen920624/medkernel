@@ -50,6 +50,7 @@ import type {
   TraceStateTransition,
 } from "@/shared/api/hooks";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { formatClinicalDateTimeWithSeconds } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
@@ -158,17 +159,7 @@ function runtimeText(snapshot: Record<string, unknown> | undefined, keys: string
 
 function formatTime(value?: string | null) {
   if (!value) return "-";
-  const timestamp = Date.parse(value);
-  if (Number.isNaN(timestamp)) return value;
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).format(timestamp);
+  return formatClinicalDateTimeWithSeconds(value, value);
 }
 
 function deploymentModeText(value: string, evidenceDetailsEnabled: boolean) {

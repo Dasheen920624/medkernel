@@ -19,7 +19,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "gen:types": "node -e \"const {spawnSync}=require('node:child_process'); const url=process.env.MEDKERNEL_OPENAPI_URL; if(!url){console.error('缺少 MEDKERNEL_OPENAPI_URL'); process.exit(1);} const result=spawnSync('openapi-typescript',[url,'-o','src/shared/api/generated-types.ts'],{stdio:'inherit',shell:true}); process.exit(result.status ?? 1);\"",
-    "verify": "npm run lint && npm run stylelint && npm run test:lint-rules && npm run format:check && npm run typecheck && npm test",
+    "verify": "npm run lint && npm run stylelint && npm run test:lint-rules && npm run format:check && npm run typecheck && CI=true npm test",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
     "e2e:report": "playwright show-report e2e-report"

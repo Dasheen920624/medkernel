@@ -41,6 +41,7 @@ import { KNOWLEDGE_DOMAIN_OPTIONS, type KnowledgeDomain } from "@/shared/config/
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { findRouteByPath } from "@/shared/config/routes";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
@@ -100,9 +101,7 @@ function sourceRelationLabel(value?: string | null) {
 
 function formatDateTime(value?: string | null) {
   if (!value) return "未记录";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+  return formatClinicalDateTime(value, value);
 }
 
 function versionLabel(version: KnowledgeAssetVersion) {

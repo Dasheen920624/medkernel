@@ -20,6 +20,7 @@ import { PageState } from "@/shared/ui/PageState";
 import { useRuntimeOperations, useSecurityProfile } from "@/shared/api/hooks";
 import type { RuntimeDependencyStatus, RuntimeFeatureFlag } from "@/shared/api/hooks";
 import { customerEnumLabel, riskLabel } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import type { RouteExperience } from "@/shared/ui/experienceTypes";
@@ -116,8 +117,7 @@ function formatDateTime(value?: string | null) {
   if (!value) {
     return "未提供";
   }
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false });
+  return formatClinicalDateTime(value, value);
 }
 
 function backupReadinessLabel(backup: { enabled: boolean; drillEvidence: { status: string } }) {

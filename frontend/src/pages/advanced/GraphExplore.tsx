@@ -36,6 +36,7 @@ import type {
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
@@ -109,9 +110,7 @@ function diffEvidenceText(factKey: string, index: number, evidenceDetailsEnabled
 
 function formatDateTime(value?: string | null) {
   if (!value) return "未返回";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+  return formatClinicalDateTime(value, value);
 }
 
 function statusTag(status?: ProjectionSyncStatus | string | null) {

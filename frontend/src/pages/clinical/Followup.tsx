@@ -57,6 +57,7 @@ import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
 import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { formatClinicalDate } from "@/shared/lib/dateTimeText";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 import {
@@ -1042,7 +1043,7 @@ export default function Followup() {
                           <span className={styles.textMuted}>{task.questionnaireTemplateId}</span>
                         ) : null}
                         <span className={styles.textMuted}>
-                          截止：{new Date(task.dueDate).toLocaleDateString()}
+                          截止：{formatClinicalDate(task.dueDate)}
                         </span>
                       </Space>
                       {task.taskType === "QUESTIONNAIRE" &&

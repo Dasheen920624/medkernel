@@ -27,6 +27,7 @@ import {
   type DeclarativeAssetUpsertPayload,
 } from "@/shared/api/hooks";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import {
   ACTION_CARD_ACTION_OPTIONS,
   ACTION_CARD_INDICATOR_OPTIONS,
@@ -38,16 +39,6 @@ import {
 } from "@/shared/config/declarativeAssetAuthoring";
 
 const { Text } = Typography;
-
-const MAINTENANCE_TIME_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
-  timeZone: "Asia/Shanghai",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
 
 interface FormValues {
   assetIdentity: string;
@@ -348,11 +339,8 @@ function updatedAtTime(asset: DeclarativeAssetSummary) {
 
 function maintenanceTimeText(updatedAt: string | undefined) {
   if (!updatedAt) return "维护时间待确认";
-  const date = new Date(updatedAt);
-  if (Number.isNaN(date.getTime())) return "维护时间待确认";
-  const parts = MAINTENANCE_TIME_FORMATTER.formatToParts(date);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `最新维护 ${values.year}年${values.month}月${values.day}日 ${values.hour}:${values.minute}`;
+  const formatted = formatClinicalDateTime(updatedAt, "");
+  return formatted ? `最新维护 ${formatted}` : "维护时间待确认";
 }
 
 function declarativeAssetTypeLabel(assetType: DeclarativeAssetType) {

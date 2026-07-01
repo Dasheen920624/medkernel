@@ -44,6 +44,7 @@ import {
   type RuntimeAssetType,
 } from "@/shared/api/hooks";
 import { ENGINE_ASSET_LABELS, RUNTIME_ASSET_OPTIONS } from "@/shared/config/assetCatalog";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 import { PageShell } from "@/shared/ui/PageShell";
@@ -500,7 +501,7 @@ export default function ReleaseGovernance() {
           <Descriptions size="small" column={3}>
             <Descriptions.Item label="启用内容">{baseline.items.length} 项</Descriptions.Item>
             <Descriptions.Item label="发布时间">
-              {new Date(baseline.release.publishedAt).toLocaleString()}
+              {formatClinicalDateTime(baseline.release.publishedAt, baseline.release.publishedAt)}
             </Descriptions.Item>
             <Descriptions.Item label="完整性状态">
               {hashEvidenceText(
@@ -967,7 +968,7 @@ export default function ReleaseGovernance() {
                 {
                   title: "启用时间",
                   dataIndex: "activatedAt",
-                  render: (value: string) => (value ? new Date(value).toLocaleString() : "—"),
+                  render: (value: string) => formatClinicalDateTime(value, "—"),
                 },
                 {
                   title: "操作",

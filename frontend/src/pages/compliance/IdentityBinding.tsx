@@ -45,6 +45,7 @@ import {
   identityProviderLabel,
   importRowStatusLabel,
 } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
@@ -71,16 +72,7 @@ function hasPermission(profile: SecurityProfile | undefined, code: string) {
 }
 
 function formatTime(value: string) {
-  const timestamp = Date.parse(value);
-  if (Number.isNaN(timestamp)) return "时间未知";
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(timestamp);
+  return formatClinicalDateTime(value, "时间未知");
 }
 
 function personnelEvidenceText(

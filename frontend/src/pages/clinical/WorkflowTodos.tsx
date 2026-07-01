@@ -43,6 +43,7 @@ import {
   resolveSourceDeepLink,
 } from "@/shared/lib/sourceLink";
 import { findRouteByPath } from "@/shared/config/routes";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { PageExperienceShell } from "@/shared/ui/PageExperienceShell";
@@ -160,12 +161,7 @@ const transferRoleOptions = Object.entries(assigneeRoleText).map(([value, label]
 
 function formatDateTime(value?: string | null) {
   if (!value) return "-";
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
+  return formatClinicalDateTime(value, value);
 }
 
 function compareDateTime(left?: string | null, right?: string | null) {

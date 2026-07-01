@@ -38,6 +38,7 @@ import {
 } from "@/shared/api/hooks";
 import { applyApiFieldErrors, getApiErrorMessage } from "@/shared/api/errors";
 import { platformTenantId } from "@/shared/config/tenantDictionary";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import styles from "./Bootstrap.module.css";
 
 const { Title, Text, Paragraph } = Typography;
@@ -148,9 +149,7 @@ function normalizePhase(value: unknown): BootstrapPhase {
 
 function formatTime(value: string | null) {
   if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("zh-CN", { hour12: false });
+  return formatClinicalDateTime(value, value);
 }
 
 export default function Bootstrap() {

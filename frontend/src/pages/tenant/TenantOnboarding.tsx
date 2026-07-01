@@ -52,6 +52,7 @@ import {
   customerEnumLabel,
   facilityTypeLabels,
 } from "@/shared/config/customerLabels";
+import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
@@ -205,7 +206,7 @@ function PlatformTenantProvisioning({ securityProfile }: { securityProfile?: Sec
         title: "开通时间",
         dataIndex: "createdAt",
         key: "createdAt",
-        render: (createdAt: string) => new Date(createdAt).toLocaleString(),
+        render: (createdAt: string) => formatClinicalDateTime(createdAt, createdAt),
       },
     ],
     [evidenceDetailsEnabled],
@@ -421,9 +422,7 @@ function CustomerTenantImplementation({ securityProfile }: { securityProfile?: S
   );
   const readinessSteps = readiness?.steps ?? [];
   const blockerCount = readiness?.blockers.length ?? 0;
-  const checkedAt = readiness?.checkedAt
-    ? new Date(readiness.checkedAt).toLocaleString()
-    : "未返回";
+  const checkedAt = formatClinicalDateTime(readiness?.checkedAt, "未返回");
   const selectedLevel = Form.useWatch("level", form) as OrgLevelCode | undefined;
   const watchHospitalName =
     Form.useWatch("hospitalName", brandForm) ?? branding?.hospitalName ?? "未配置医院名称";

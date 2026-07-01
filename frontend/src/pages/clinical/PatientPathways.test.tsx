@@ -461,12 +461,15 @@ describe("PatientPathways", () => {
     expect(screen.getAllByText(/质控记录/).length).toBeGreaterThan(0);
     expect(screen.getByRole("columnheader", { name: "结局指标身份" })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "指标编码" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("2026年06月04日 08:00").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/6\/4\/2026/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /查看变异事实与审计线索/ }));
 
     expect(refetchVariances).toHaveBeenCalled();
     expect(screen.queryByText("var-1")).not.toBeInTheDocument();
     expect(screen.getByText("影像检查发现高危指征")).toBeInTheDocument();
+    expect(screen.getByText("2026年06月04日 09:00")).toBeInTheDocument();
   });
 
   it("shows the full pathway graph as a doctor read-only view with the current node highlighted", async () => {
