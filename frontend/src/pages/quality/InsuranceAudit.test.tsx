@@ -314,7 +314,11 @@ describe("InsuranceAudit", () => {
     expect(screen.queryByLabelText("场景编码")).not.toBeInTheDocument();
     expect(screen.getByLabelText("医保规则依据")).toBeInTheDocument();
     expect(screen.queryByLabelText("规则编码")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("整改截止时间")).toHaveAttribute("type", "datetime-local");
+    expect(screen.getByLabelText("整改截止时间")).not.toHaveAttribute("type", "datetime-local");
+    expect(screen.getByLabelText("整改截止时间")).toHaveAttribute(
+      "placeholder",
+      "例如 2026年07月15日 08:30",
+    );
     expect(screen.queryByPlaceholderText("例如 2026-06-12T00:00:00Z")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("审核场景"), { target: { value: "A9" } });
     fireEvent.change(screen.getByLabelText("DRG 分组器版本"), {
@@ -331,7 +335,7 @@ describe("InsuranceAudit", () => {
     fireEvent.change(screen.getByLabelText("依据版本"), { target: { value: "2026-A" } });
     fireEvent.change(screen.getByLabelText("费用阈值"), { target: { value: "1000" } });
     fireEvent.change(screen.getByLabelText("整改截止时间"), {
-      target: { value: "2026-06-12T08:00" },
+      target: { value: "2026年06月12日 08:00" },
     });
     fireEvent.change(screen.getByLabelText("规则说明"), {
       target: { value: "费用超过版本化规则阈值" },

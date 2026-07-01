@@ -43,10 +43,6 @@ function formatterParts(formatter: Intl.DateTimeFormat, date: Date) {
   return parts;
 }
 
-function pad2(value: number) {
-  return String(value).padStart(2, "0");
-}
-
 export function formatClinicalDate(value?: string | null, fallback = "日期待确认") {
   const date = parseDate(value);
   if (!date) return fallback;
@@ -69,29 +65,70 @@ export function formatClinicalDateTimeWithSeconds(value?: string | null, fallbac
 }
 
 export function formatClinicalDateTimeInputValue(value?: string | null) {
-  const date = parseDate(value);
-  if (!date) return "";
-  const clinicalTime = new Date(date.getTime() + CLINICAL_TIME_ZONE_OFFSET_MINUTES * 60_000);
-  return `${clinicalTime.getUTCFullYear()}-${pad2(clinicalTime.getUTCMonth() + 1)}-${pad2(
-    clinicalTime.getUTCDate(),
-  )}T${pad2(clinicalTime.getUTCHours())}:${pad2(clinicalTime.getUTCMinutes())}`;
+  return formatClinicalDateTime(value, "");
 }
 
 export function clinicalDateTimeInputToIso(value?: string | null) {
   const trimmed = value?.trim();
   if (!trimmed) return "";
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(trimmed);
+  const match =
+    /^(\d{4})年(\d{2})月(\d{2})日\s+(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(trimmed) ??
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(trimmed);
   if (!match) return trimmed;
   const [, year, month, day, hour, minute, second = "00"] = match;
+  return clinicalDateTimePartsToIso(year, month, day, hour, minute, second) ?? trimmed;
+}
+
+export function isClinicalDateTimeInputValue(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return false;
+  const match = /^(\d{4})年(\d{2})月(\d{2})日\s+(\d{2}):(\d{2})$/.exec(trimmed);
+  if (!match) return false;
+  const [, year, month, day, hour, minute] = match;
+  return clinicalDateTimePartsToIso(year, month, day, hour, minute, "00") !== null;
+}
+
+function clinicalDateTimePartsToIso(
+  yearText: string,
+  monthText: string,
+  dayText: string,
+  hourText: string,
+  minuteText: string,
+  secondText: string,
+) {
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31 ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59 ||
+    second < 0 ||
+    second > 59
+  ) {
+    return null;
+  }
   const utcTime =
-    Date.UTC(
-      Number(year),
-      Number(month) - 1,
-      Number(day),
-      Number(hour),
-      Number(minute),
-      Number(second),
-    ) -
+    Date.UTC(year, month - 1, day, hour, minute, second) -
     CLINICAL_TIME_ZONE_OFFSET_MINUTES * 60_000;
+  const clinicalTime = new Date(utcTime + CLINICAL_TIME_ZONE_OFFSET_MINUTES * 60_000);
+  if (
+    clinicalTime.getUTCFullYear() !== year ||
+    clinicalTime.getUTCMonth() + 1 !== month ||
+    clinicalTime.getUTCDate() !== day ||
+    clinicalTime.getUTCHours() !== hour ||
+    clinicalTime.getUTCMinutes() !== minute ||
+    clinicalTime.getUTCSeconds() !== second
+  ) {
+    return null;
+  }
   return new Date(utcTime).toISOString();
 }
