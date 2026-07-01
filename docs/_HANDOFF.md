@@ -12,6 +12,8 @@
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
 - 当前 134 已发布应用为 `767fa18f50fc02408f7ecc58a9fb57caa20e50a7`
   （`test: 更新真实演练模型安全边界流程`）；第六批模型安全边界体验优化已发布并复演。
+- 当前本地脚本最新提交为 `07ff36c3de53433f43ea3bad281e1ff5827667b3`
+  （`fix: 接入mimo模型运行配置`）；该提交只改发布脚本与脚本测试，未改变 134 已发布应用包。
 - 134 当前完整部署 `767fa18f50fc02408f7ecc58a9fb57caa20e50a7`；远端备份
   `/zoesoft/medkernel/backups/deploy-20260701-130501`，manifest
   `deployedAt=2026-07-01T13:05:03+08:00`，
@@ -205,11 +207,51 @@
     说明，移动端纵向可读；`real-frontdesk-model-safety-boundary.png` 显示保存反馈
     “模型安全边界已保存”，列表列名为“模型安全边界”，未再出现旧“外调安全”误导文案。
 
+## 最新阶段交接（2026-07-01 第七批·134 mimoModel 运行配置接入）
+
+- 基于用户补充“院外支持的大模型信息维护在 134 服务器 `/zoesoft/mimoModel`”继续主线核查。
+  该文件是受控运行配置，不提交仓库；本批只记录脱敏形态与运行结果，不输出或保存真实密钥。
+- 已本地修复并提交 `07ff36c3de53433f43ea3bad281e1ff5827667b3`
+  （`fix: 接入mimo模型运行配置`）：
+  - `scripts/release/model-provider-launch-lib.mjs` 支持 `LAUNCH_MODEL_PROFILE_FILE` 从仓库外读取
+    `mimoModel` 风格配置，兼容三行裸值、`key=value`、`key: value`、键值与裸凭据混合格式。
+  - Provider 类型从只允许 `OLLAMA` 扩展到 `OLLAMA / OPENAI_COMPATIBLE / CLAUDE / DIFY`；
+    公网 Provider 默认要求 HTTPS，凭据走 `/model-providers/{code}/credential` 受管保存。
+  - OpenAI 兼容端点归一化为后端适配器需要的根地址：配置文件若给出 `/v1/chat/completions`、
+    `/v1/models` 或 `/v1`，发布脚本保存为后端拼接 `/v1/...` 前的根路径，避免重复 `/v1`。
+  - 公网模型能力策略使用 `EXTERNAL_MODEL` + `MASK_ALL` + `EXTERNAL_MASKED` 证据描述；
+    院内/本地模型保持 `LOCAL_MODEL` + `LOCAL_ONLY` 路线，不把凭据写入上线证据。
+- 真实 134 配置解析证据（脱敏）：
+  - `/zoesoft/mimoModel` 已复制到本机临时受控路径并设为 `0600`；文件内容未打印。
+  - 解析结果为 `providerCode=mimo-public`、`providerType=OPENAI_COMPATIBLE`、
+    `endpointProtocol=https:`、`endpointPath=/`、`credentialPresent=true`；
+    模型版本只确认已解析，不记录真实值。
+- 真实 134 Provider 上线结果：
+  - 使用 `node --use-system-ca scripts/release/model-provider-launch.mjs` 访问
+    `https://193.112.107.134/medkernel/api/v1`，脚本按预期先登记 Provider 并保存受管凭据，
+    但后端健康检查后停止，错误为“Provider 状态必须为 enabled=false, status=HEALTHY”。
+  - 134 关系库脱敏视图：`mimo-public` 当前 `enabled=false`、`status=NOT_CONNECTED`、
+    `credentialConfigured=true`、`endpointPath=/`；Provider 未启用，未进入医学回归、策略发布或版本组合发布。
+  - 根因复核：修正前后端日志显示旧路径为 HTTP 404；本批端点修正后上游返回 HTTP 401。
+    使用同一解析器直接探测上游 `/v1/models` 与 `/v1/chat/completions` 均为 HTTP 401，
+    响应体错误为 `Invalid API Key`。因此当前阻断是 134 文件中的外部模型凭据无效或已过期，
+    不是发布脚本端点解析、后端 Provider 保存或前台模型安全边界问题。
+  - 已登记外部环境待处理项 `DEFER-003`；拿到有效凭据前不得强行启用公网 Provider，也不得伪造模型上线通过。
+- 验证证据：
+  - 红灯：`node --test scripts/release/model-provider-launch.test.mjs` 在旧端点归一化下失败，
+    三种 `mimoModel` 输入均错误保留 `/v1`。
+  - 绿灯：`node --test scripts/release/model-provider-launch.test.mjs` 通过，`9` 项。
+  - 回归组合：`node --test scripts/release/model-provider-launch.test.mjs scripts/release/full-system-rehearsal.test.mjs scripts/release/runtime-resilience-rehearsal.test.mjs`
+    通过，`19` 项。
+  - `git diff --check` 通过；敏感扫描只命中 `example.com` 测试假数据和环境变量名。
+- 本批没有变更后端/前端应用包，不需要重新部署 134；当前 134 应用仍是第六批
+  `767fa18f50fc02408f7ecc58a9fb57caa20e50a7`。
+
 ## 下一步
 
 1. 继续全视角真实操作与产品体验优化：重点回看质量报告长明细阅读负担、患者/医生/护士/药师/医技剩余入口
    操作路径、宽表默认可读性、高级信息呈现方式，发现不合理产品设计直接按当前权威标准优化。
-2. 读取并脱敏登记 134 服务器 `/zoesoft/mimoModel` 中可用模型信息，核对公网 API / Codex CLI / 院内本地模型
-   的配置入口与安全边界是否能落到真实产品流程；不得泄露密钥或患者核心敏感信息。
+2. `DEFER-003` 关闭前，公网 `mimo-public` 只保留“已受管登记但未启用”的诚实状态；拿到有效外部凭据后，
+   重新运行 Provider 上线脚本并补充全知识生产真实模型证据。
 3. 目标环境上线前仍需补跑 `DEFER-002` 中的 Docker/Testcontainers 或目标库迁移 smoke，并保留脱敏 surefire 证据。
 4. 当前分支继续只做本地提交；最终全链路确认无问题后再统一处理远程 `main`。
