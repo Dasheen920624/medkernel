@@ -39,6 +39,7 @@ import {
   type InsuranceIssuesQueryParams,
   type QualityCaseReviewResponse,
   type QualityFindingSeverity,
+  type SecurityProfile,
 } from "@/shared/api/hooks";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
 import { customerDisplayText, customerEnumLabel } from "@/shared/config/customerLabels";
@@ -52,6 +53,7 @@ import { RectificationDueAtField } from "@/shared/ui/RectificationDueAtField";
 const { Text } = Typography;
 const DEPARTMENT_REFERENCE_PAGE_SIZE = 20;
 const AUDIT_INDICATOR_REFERENCE_PAGE_SIZE = 20;
+const MANUAL_INSURANCE_RULE_INDICATOR_ID = "INSURANCE_RULE_MANUAL";
 
 type TimeScope = "THIS_MONTH" | "LAST_7_DAYS" | "ALL";
 
@@ -139,6 +141,23 @@ export default function InsuranceAudit() {
     value: indicator.indicatorId,
     label: `${indicator.name} · ${indicator.indicatorCode} · v${indicator.versionNo}`,
   }));
+  const scopeDepartmentOption = resolveScopeDepartmentOption(security.data?.dataScope);
+  const useScopeDepartmentOption =
+    Boolean(scopeDepartmentOption) &&
+    departmentOptions.length === 0 &&
+    !departmentKeyword &&
+    !departmentsQuery.isLoading &&
+    !departmentsQuery.isError;
+  const effectiveDepartmentOptions =
+    useScopeDepartmentOption && scopeDepartmentOption ? [scopeDepartmentOption] : departmentOptions;
+  const useManualIndicatorOption =
+    indicatorOptions.length === 0 &&
+    !indicatorKeyword &&
+    !indicatorsQuery.isLoading &&
+    !indicatorsQuery.isError;
+  const effectiveIndicatorOptions = useManualIndicatorOption
+    ? [{ value: MANUAL_INSURANCE_RULE_INDICATOR_ID, label: "按本次医保规则依据归档" }]
+    : indicatorOptions;
   const patientFilter = snapshotPatientId.trim();
   const encounterFilter = snapshotEncounterId.trim();
   const hasSnapshotFilter = Boolean(patientFilter || encounterFilter);
@@ -383,6 +402,21 @@ export default function InsuranceAudit() {
                 </Descriptions>
               )}
 
+              {useScopeDepartmentOption ? (
+                <Alert
+                  type="info"
+                  showIcon
+                  message="未读取到可选科室，已使用当前组织范围作为责任归属。"
+                />
+              ) : null}
+              {useManualIndicatorOption ? (
+                <Alert
+                  type="info"
+                  showIcon
+                  message="未读取到已生效质控指标，先按本次医保规则依据归档。"
+                />
+              ) : null}
+
               <Space wrap size="middle" className="mk-full-width">
                 <Form.Item
                   label="责任科室"
@@ -395,7 +429,7 @@ export default function InsuranceAudit() {
                     onSearch={setDepartmentSearch}
                     onClear={() => setDepartmentSearch("")}
                     placeholder="选择责任科室"
-                    options={departmentOptions}
+                    options={effectiveDepartmentOptions}
                     loading={departmentsQuery.isLoading}
                     notFoundContent="暂无可选科室"
                   />
@@ -412,7 +446,7 @@ export default function InsuranceAudit() {
                     onSearch={setIndicatorSearch}
                     onClear={() => setIndicatorSearch("")}
                     placeholder="选择已生效指标"
-                    options={indicatorOptions}
+                    options={effectiveIndicatorOptions}
                     loading={indicatorsQuery.isLoading}
                     notFoundContent="暂无已生效质控指标"
                   />
@@ -864,6 +898,24 @@ function formatAmount(value: number | null) {
 function optionalText(value?: string | null) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function resolveScopeDepartmentOption(dataScope: SecurityProfile["dataScope"] | undefined) {
+  const candidates: Array<[string, string | null | undefined]> = [
+    ["当前科室", dataScope?.departmentId],
+    ["当前病区", dataScope?.wardId],
+    ["当前站点", dataScope?.siteId],
+    ["当前院区", dataScope?.campusId],
+    ["当前机构", dataScope?.hospitalId],
+    ["当前集团", dataScope?.groupId],
+    ["当前租户", dataScope?.tenantId],
+  ];
+  const fallback = candidates.find(([, value]) => Boolean(value?.trim()));
+  if (!fallback) {
+    return null;
+  }
+  const [label, value] = fallback;
+  return { value: value as string, label: `${label} · ${value}` };
 }
 
 function numberOrUndefined(value?: string) {

@@ -255,6 +255,124 @@ describe("InsuranceAudit", () => {
     });
   });
 
+  it("keeps the audit flow usable when department and indicator catalogs are not initialized", async () => {
+    const refetch = vi.fn();
+    const caseReview = vi.fn().mockResolvedValue({
+      reviewId: "case-review-scope",
+      reviewStatus: "COMPLIANT",
+      evaluationRunId: "run-case-scope",
+      resultCount: 1,
+      findingCount: 0,
+      taskCount: 0,
+      modelStatus: "MODEL_DISABLED",
+      modelDowngradeReason: "MODEL_DISABLED_DETERMINISTIC_RULES",
+      traceId: "trace-case-scope",
+    });
+    const drgGrouping = vi.fn().mockResolvedValue({
+      groupingId: "drg-scope",
+      groupingStatus: "MATCHED",
+      expectedGroupCode: "DRG-A",
+      actualGroupCode: "DRG-A",
+      grouperVersion: "GROUPER-2026",
+      explanation: "主数据未初始化时仍可按当前机构归属审核",
+      traceId: "trace-drg-scope",
+    });
+    const insuranceAudit = vi.fn().mockResolvedValue({
+      auditId: "audit-scope",
+      auditStatus: "NO_ISSUE",
+      issues: [],
+      evaluationRunId: "run-ins-scope",
+      findingCount: 0,
+      taskCount: 0,
+      traceId: "trace-audit-scope",
+    });
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [{ code: "evaluation.read" }],
+        roles: [{ code: "insurance-user", displayName: "医保审核人员" }],
+        menuKeys: ["insurance-audit"],
+        dataScope: {
+          tenantId: "tenant-rehearsal",
+          groupId: null,
+          hospitalId: "hospital-rehearsal",
+          campusId: null,
+          siteId: null,
+          departmentId: null,
+          specialtyId: null,
+        },
+      },
+    });
+    mockUseOrgUnits.mockReturnValue({
+      data: { items: [] },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseEvaluationIndicators.mockReturnValue({
+      data: { items: [] },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseInsuranceIssues.mockReturnValue({
+      data: { ...insuranceIssuesPage, items: [], total: 0 },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch,
+    });
+    mockUseRunQualityCaseReview.mockReturnValue({ mutateAsync: caseReview, isPending: false });
+    mockUseRunDrgGrouping.mockReturnValue({ mutateAsync: drgGrouping, isPending: false });
+    mockUseRunInsuranceAudit.mockReturnValue({ mutateAsync: insuranceAudit, isPending: false });
+
+    renderPage();
+
+    expect(
+      screen.getByText("未读取到可选科室，已使用当前组织范围作为责任归属。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("未读取到已生效质控指标，先按本次医保规则依据归档。"),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("患者信息"), { target: { value: "patient-ins" } });
+    await userEvent.click(await screen.findByRole("button", { name: "选择第 1 个病案快照" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "责任科室" }));
+    await userEvent.click(await screen.findByText("当前机构 · hospital-rehearsal"));
+    await userEvent.click(screen.getByRole("combobox", { name: "质控指标" }));
+    await userEvent.click(await screen.findByText("按本次医保规则依据归档"));
+    fireEvent.change(screen.getByLabelText("审核场景"), { target: { value: "A9" } });
+    fireEvent.change(screen.getByLabelText("DRG 分组器版本"), {
+      target: { value: "GROUPER-2026" },
+    });
+    fireEvent.change(screen.getByLabelText("期望入组"), { target: { value: "DRG-A" } });
+    fireEvent.change(screen.getByLabelText("实际入组"), { target: { value: "DRG-A" } });
+    fireEvent.change(screen.getByLabelText("入组说明"), {
+      target: { value: "主数据未初始化时仍可审核" },
+    });
+    fireEvent.change(screen.getByLabelText("医保规则依据"), {
+      target: { value: "RULE-MANUAL-A" },
+    });
+    fireEvent.change(screen.getByLabelText("依据版本"), { target: { value: "2026-A" } });
+    fireEvent.change(screen.getByLabelText("整改截止时间"), {
+      target: { value: "2026年06月12日 08:00" },
+    });
+    fireEvent.change(screen.getByLabelText("规则说明"), {
+      target: { value: "按本次医保规则依据归档" },
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "执行审核并派整改" }));
+
+    await waitFor(() => {
+      expect(caseReview).toHaveBeenCalledWith(
+        expect.objectContaining({
+          responsibleDepartmentId: "hospital-rehearsal",
+        }),
+      );
+      expect(insuranceAudit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          indicatorId: "INSURANCE_RULE_MANUAL",
+        }),
+      );
+    });
+  }, 15_000);
+
   it("runs case review, DRG grouping and insurance audit through the real B0 endpoints", async () => {
     const refetch = vi.fn();
     const caseReview = vi.fn().mockResolvedValue({
