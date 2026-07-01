@@ -10,19 +10,21 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `c2552dcabc03264995cdf6f2eadb1ec9a747d26e`
-  （`fix: 收敛随访模板默认展示`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前已发布应用代码提交为 `7dc7a847ff8a0fbc192a21a616dc932a1b2f23f4`
+  （`fix: 收敛系统接入默认技术信息`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
-  第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛，以及第十八批随访模板默认展示收敛。
-- 当前本地分支最新提交为 `7980cb36`（`test: 收敛随访模板演练证据`），只改 E2E 演练证据脚本，
-  不改变 134 应用包；134 应用包来源仍以 `c2552dcabc03264995cdf6f2eadb1ec9a747d26e` 为准。
-- 当前 134 已发布应用为 `c2552dcabc03264995cdf6f2eadb1ec9a747d26e`；第十八批已发布并完成真实前台与全职责复演。
-- 134 当前完整部署 `c2552dcabc03264995cdf6f2eadb1ec9a747d26e`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260701-235217`，manifest
-  `deployedAt=2026-07-01T23:52:20+08:00`，
-  `jarSha256=06c2f3e170d209ed76227740c4f99c69543e18f02506f26db7bea422a493e499`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2328873`、`NRestarts=0`。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第十八批版本已完成真实前台与全职责 E2E。
+  第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
+  以及第十九批系统接入默认技术信息收敛。
+- 当前本地分支已包含第十九批演练防护提交 `c972408f1a38b8dacebccfea49076bbe0047f8fe`
+  （`test: 固化系统接入默认层级演练`），只改 E2E 演练证据脚本，不改变 134 应用包；
+  134 应用包来源仍以 `7dc7a847ff8a0fbc192a21a616dc932a1b2f23f4` 为准。
+- 当前 134 已发布应用为 `7dc7a847ff8a0fbc192a21a616dc932a1b2f23f4`；第十九批已发布并完成真实前台与全职责复演。
+- 134 当前完整部署 `7dc7a847ff8a0fbc192a21a616dc932a1b2f23f4`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-011747`，manifest
+  `deployedAt=2026-07-02T01:17:49+08:00`，
+  `jarSha256=b2d40353650caeb198e56b63d6bacf38a3fb4bb0f6b5928a5142b885c59228ec`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2374979`、`NRestarts=0`。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第十九批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -682,10 +684,62 @@
     显示“全角色患者代理随访模板（上线复演 07月02日 01时01分42秒）（第 1 版）”，默认视图未再显示
     `patient_proxy-*`、裸 `templateId` 或 `· v1`。
 
+## 最新阶段交接（2026-07-02 第十九批·系统接入默认技术信息收敛）
+
+- 基于第十八批 134 全职责截图继续按信息科长、实施工程师、平台管理员和院长视角核查，发现
+  `stakeholder-it_manager.png` 的系统接入页默认展示 `allergyIntolerance.category`、
+  `allergyIntolerance.code`、`allergyIntolerance.codeSystem` 和 `NOT_CONNECTED 适配器`。
+  这些是契约字段路径与原始枚举，普通职责视图应显示业务接入口径；原始字段仍需保留在统一“追溯证据”开关中。
+- 已本地修复并提交 `7dc7a847ff8a0fbc192a21a616dc932a1b2f23f4`
+  （`fix: 收敛系统接入默认技术信息`）：
+  - `AdapterHub` 的数据接入契约默认显示“患者信息 / 过敏与不良反应 / 可由外部系统接入 /
+    平台自动派生”等业务文案；打开“追溯证据”后才展示 resource、schema、字段路径、payload key 与数据类型。
+  - 数据质量报告默认将 `NOT_CONNECTED` 转为“未接通适配器”，报告行动建议和缺口摘要统一业务表达；
+    追溯证据打开后仍可看到原始 gap summary。
+  - `AdapterHub.test.tsx` 覆盖默认隐藏技术字段路径、证据详情展示原始字段，以及质量报告默认隐藏原始枚举。
+- 已补充演练脚本防回归并本地提交 `c972408f1a38b8dacebccfea49076bbe0047f8fe`
+  （`test: 固化系统接入默认层级演练`）：
+  - 全职责 E2E 在信息科长系统接入动作中断言默认层必须出现业务接入口径。
+  - 同时断言默认层和数据质量报告不得出现 `allergyIntolerance.*` 或 `NOT_CONNECTED`。
+  - 首次补断言复跑的 `...adapter-default-evidence-asserted` 目录失败于 Playwright strict mode：
+    “未接通适配器”同时出现在行动建议和缺口摘要，属于测试断言命中多个可见业务文案，不是产品回退；
+    已改为首个可见业务文案 + 原始枚举为 0 后复跑通过。
+- 红绿与本地验证：
+  - 红灯：`npm --prefix frontend test -- AdapterHub.test.tsx -t "默认展示业务接入摘要|loads the data contract summary"`
+    在旧实现下失败，页面找不到“患者信息 · 可由外部系统接入”。
+  - 绿灯：同一目标用例通过，`2` 项；`npm --prefix frontend test -- AdapterHub.test.tsx`
+    通过，`19` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `918` 项；
+    `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source 7dc7a847ff8a0fbc192a21a616dc932a1b2f23f4`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260702-011747`，
+    manifest `deployedAt=2026-07-02T01:17:49+08:00`，
+    `jarSha256=b2d40353650caeb198e56b63d6bacf38a3fb4bb0f6b5928a5142b885c59228ec`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2374979`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-7dc7a847-adapter-default-evidence`
+    直接访问 134 运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (40.7s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `11` 段，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-7dc7a847-adapter-default-evidence`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.2m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `12` 类职责视角，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - 补强脚本后再次用
+    `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-7dc7a847-adapter-default-evidence-asserted2`
+    直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.2m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`；运行记录 `12` 类职责视角，
+    浏览器错误、服务端错误、网络失败均为 `0`。
+  - 首次无显式 E2E 环境变量运行失败于 `E2E_API_BASE_URL 未配置`，根因是 shell 环境缺失，不是产品失败；
+    后续均显式使用 READY 状态 `E2E_ROLE_CREDENTIALS_FILE` 与 134 API 地址复跑。
+  - 截图复核：`stakeholder-it_manager.png` 显示“过敏与不良反应 · 可由外部系统接入”、
+    “未接通适配器：67”，默认“追溯证据”关闭；未再默认展示 `allergyIntolerance.*` 或 `NOT_CONNECTED`。
+
 ## 下一步
 
-1. 继续全视角真实操作与产品体验优化：重点回看患者/医生/护士/药师/医技剩余入口操作路径、
-   宽表默认可读性、高级信息呈现方式、质量管理下钻与整改闭环，发现不合理产品设计直接按当前权威标准优化。
+1. 继续全视角真实操作与产品体验优化：重点回看患者、医生、护士、药师、医技、质控、信息科长、
+   实施工程师、院长等剩余入口操作路径、宽表默认可读性、高级信息呈现方式、质量管理下钻与整改闭环，
+   发现不合理产品设计直接按当前权威标准优化。
 2. 继续复核真实前台演练截图里的质量下钻、长表格和随访办理抽屉在窄屏 / 多任务量下的滚动与按钮可达性，
    发现遮挡、重复识别困难、操作路径过长或职责边界不清时直接按现行体验契约修复。
 3. 继续按统一知识治理视角回看诊断知识维护、机构知识、来源血缘、发布治理和知识生产之间的边界；
