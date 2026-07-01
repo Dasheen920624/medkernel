@@ -210,7 +210,7 @@ describe("AiWorkflows", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("模型能力列表用可扫描边界摘要和明确外调安全入口", async () => {
+  it("模型能力列表用可扫描边界摘要和明确公网安全入口", async () => {
     apiClient.defaults.adapter = (async (config) => {
       if (config.url === "/security/me") {
         return response(
@@ -245,8 +245,64 @@ describe("AiWorkflows", () => {
       ),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "配置 患者解释生成 外调安全策略" }),
-    ).toHaveTextContent("配置外调安全");
+      screen.getByRole("button", { name: "配置 患者解释生成 公网模型安全策略" }),
+    ).toHaveTextContent("配置公网安全");
+  });
+
+  it("无模型规则链路只能预设安全边界，不误导为已经外调", async () => {
+    const user = userEvent.setup();
+    const requests: string[] = [];
+    apiClient.defaults.adapter = (async (config) => {
+      requests.push(`${config.method ?? "get"} ${config.url ?? ""}`);
+      if (config.url === "/security/me") {
+        return response(
+          config,
+          securityProfile(["menu.ai-workflows", "llm.read", "llm.egress.manage"]),
+        );
+      }
+      if (config.url === "/model-capabilities/status" && config.method === "get") {
+        return response(config, { data: [statusItems[0]] });
+      }
+      if (
+        config.url === "/data-minimization/policies/model-egress/knowledge.discovery" &&
+        config.method === "put"
+      ) {
+        return response(config, {
+          data: {
+            capabilityCode: "knowledge.discovery",
+            allowedFields: '["prompt"]',
+            sensitivityLevel: "HIGH",
+          },
+        });
+      }
+      throw new Error(`未预期接口: ${config.method ?? ""} ${config.url ?? ""}`);
+    }) as AxiosAdapter;
+
+    renderPage();
+
+    expect(await screen.findByText("临床知识关联发现")).toBeInTheDocument();
+    expect(screen.getByText("无模型外调")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "预设 临床知识关联发现 模型安全边界" }),
+    ).toHaveTextContent("预设安全边界");
+    expect(screen.queryByText("外调安全已配置")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "预设 临床知识关联发现 模型安全边界" }));
+    const dialog = await screen.findByRole("dialog", { name: "预设模型安全边界" });
+    expect(dialog).toHaveTextContent("当前能力仍走无模型规则链路");
+    expect(dialog).not.toHaveTextContent("公网外部模型可使用患者上下文");
+    await user.click(screen.getByRole("button", { name: "保存安全边界预设" }));
+
+    await waitFor(() =>
+      expect(requests).toContain(
+        "put /data-minimization/policies/model-egress/knowledge.discovery",
+      ),
+    );
+    expect(await screen.findByText("安全边界已预设")).toBeInTheDocument();
+    expect(screen.queryByText("外调安全已配置")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "调整 临床知识关联发现 模型安全边界" }),
+    ).toHaveTextContent("调整安全边界");
   });
 
   it("允许具备权限的实施人员为公网模型使用患者上下文配置外调安全策略", async () => {
@@ -324,8 +380,8 @@ describe("AiWorkflows", () => {
     renderPage();
 
     expect(await screen.findByText("患者解释生成")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "配置 患者解释生成 外调安全策略" }));
-    const dialog = await screen.findByRole("dialog", { name: "配置外调安全策略" });
+    await user.click(screen.getByRole("button", { name: "配置 患者解释生成 公网模型安全策略" }));
+    const dialog = await screen.findByRole("dialog", { name: "配置公网模型安全策略" });
     expect(dialog).toHaveTextContent("公网外部模型可使用患者上下文");
     expect(dialog).not.toHaveTextContent("字段" + "出" + "域" + "预览");
     expect(within(dialog).getByText("模型使用字段预览")).toBeInTheDocument();
@@ -345,7 +401,7 @@ describe("AiWorkflows", () => {
       "向患者解释检查结果，仅使用已脱敏字段",
     );
     await user.click(within(dialog).getByRole("button", { name: "记录用途确认" }));
-    await user.click(screen.getByRole("button", { name: "保存外调安全策略" }));
+    await user.click(screen.getByRole("button", { name: "保存公网安全策略" }));
 
     await waitFor(() =>
       expect(requests).toContain(
@@ -355,10 +411,10 @@ describe("AiWorkflows", () => {
     await waitFor(() =>
       expect(requests).toContain("post /data-minimization/policies/model-egress/confirmations"),
     );
-    expect(await screen.findByText("外调安全已配置")).toBeInTheDocument();
+    expect(await screen.findByText("公网安全已配置")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "调整 患者解释生成 外调安全策略" }),
-    ).toHaveTextContent("调整外调安全");
+      screen.getByRole("button", { name: "调整 患者解释生成 公网模型安全策略" }),
+    ).toHaveTextContent("调整公网安全");
   });
 
   it("部分能力不可用时显示诚实的部分成功状态", async () => {
