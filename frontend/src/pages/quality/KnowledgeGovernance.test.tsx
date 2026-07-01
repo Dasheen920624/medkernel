@@ -1104,6 +1104,84 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByRole("button", { name: "创建生产任务" })).toBeDisabled();
   });
 
+  it("默认用业务语言展示模型生产上线准备，证据详情打开后才展示原始追溯字段", async () => {
+    const user = userEvent.setup();
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        dataScope: { tenantId: "tenant-A" },
+        menuKeys: ["knowledge-production"],
+        permissions: [{ code: "knowledge.write" }, { code: "asset.read" }],
+      },
+    });
+    mockUseKnowledgeProductionReadiness.mockReturnValue({
+      data: {
+        tenantId: "tenant-A",
+        producer: "API_MODEL",
+        capabilityCode: "knowledge.production.knowledge",
+        providerCode: "provider-openai",
+        deploymentForm: "EXTERNAL",
+        ready: false,
+        modelInvocationAllowed: false,
+        items: [
+          {
+            code: "LITERATURE_ROOT",
+            ready: true,
+            required: true,
+            message: "平台知识文献资料库根地址已配置",
+            evidence: "file:///zoesoft/medkernel/var/platform-knowledge/literature-materials/",
+          },
+          {
+            code: "MODEL_PROVIDER",
+            ready: false,
+            required: true,
+            message: "未发现匹配的模型服务",
+            evidence: "生产方式：模型服务生产",
+          },
+          {
+            code: "EGRESS_GOVERNANCE",
+            ready: false,
+            required: true,
+            message: "公网模型使用边界不可执行",
+            evidence: "能力：knowledge.production.knowledge；原因：未配置字段允许字段",
+          },
+          {
+            code: "VERSION_TRIPLE",
+            ready: false,
+            required: true,
+            message: "已生效模型版本、提示词和工具版本组合不可执行",
+            evidence:
+              "能力：knowledge.production.knowledge；原因：当前能力方案未包含提示词、工具与模型版本组合",
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+
+    renderPage(<KnowledgeProduction />);
+
+    expect(screen.getByText("文献资料库")).toBeInTheDocument();
+    expect(screen.getByText("模型服务")).toBeInTheDocument();
+    expect(screen.getByText("模型使用边界")).toBeInTheDocument();
+    expect(screen.getByText("提示词、工具与模型版本")).toBeInTheDocument();
+    expect(screen.getAllByText("证据已记录").length).toBeGreaterThan(0);
+    expect(screen.queryByText("LITERATURE_ROOT")).not.toBeInTheDocument();
+    expect(screen.queryByText("MODEL_PROVIDER")).not.toBeInTheDocument();
+    expect(screen.queryByText("VERSION_TRIPLE")).not.toBeInTheDocument();
+    expect(screen.queryByText(/file:\/\/\/zoesoft/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/knowledge\.production\.knowledge/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("文献资料库 · LITERATURE_ROOT")).toBeInTheDocument();
+    expect(screen.getByText("模型服务 · MODEL_PROVIDER")).toBeInTheDocument();
+    expect(screen.getByText("提示词、工具与模型版本 · VERSION_TRIPLE")).toBeInTheDocument();
+    expect(screen.getByText(/file:\/\/\/zoesoft/)).toBeInTheDocument();
+    expect(screen.getAllByText(/knowledge\.production\.knowledge/).length).toBeGreaterThan(0);
+  });
+
   it("creates production jobs and exposes only persisted initialization batches for bulk approval", async () => {
     const user = userEvent.setup();
     mockUseSecurityProfile.mockReturnValue({

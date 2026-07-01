@@ -208,6 +208,17 @@ const PRODUCTION_JOB_STATUS_LABELS: Record<string, string> = {
   CANCELLED: "已中止",
 };
 
+const PRODUCTION_READINESS_LABELS: Record<string, string> = {
+  LITERATURE_ROOT: "文献资料库",
+  DEPLOYMENT_FORM: "部署形态",
+  MODEL_PROVIDER: "模型服务",
+  REGRESSION_BASELINE: "医学验证用例",
+  MODEL_EVALUATION: "医学验证评测",
+  EGRESS_GOVERNANCE: "模型使用边界",
+  MODEL_POLICY: "能力策略",
+  VERSION_TRIPLE: "提示词、工具与模型版本",
+};
+
 function producerLabel(producer?: string) {
   if (!producer) return "未知来源";
   return PRODUCER_LABELS[producer] ?? producer;
@@ -216,6 +227,11 @@ function producerLabel(producer?: string) {
 function tableText(value?: string | number | null, fallback = "无") {
   const text = value === undefined || value === null || value === "" ? fallback : String(value);
   return <span className={styles.wrapCell}>{text}</span>;
+}
+
+function productionReadinessLabel(code: string, evidenceDetailsEnabled: boolean) {
+  const label = PRODUCTION_READINESS_LABELS[code] ?? "生产前置条件";
+  return evidenceDetailsEnabled ? `${label} · ${code}` : label;
 }
 
 function pipelineMeta(pipeline?: string | null) {
@@ -1504,7 +1520,12 @@ export default function KnowledgeGovernance({
   ];
 
   const productionReadinessColumns: ColumnsType<KnowledgeProductionReadinessItem> = [
-    { title: "前置项", dataIndex: "code", width: 180, render: (value) => tableText(value) },
+    {
+      title: "前置项",
+      dataIndex: "code",
+      width: 220,
+      render: (value: string) => tableText(productionReadinessLabel(value, evidenceDetailsEnabled)),
+    },
     {
       title: "状态",
       dataIndex: "ready",
@@ -1518,7 +1539,8 @@ export default function KnowledgeGovernance({
       title: "证据",
       dataIndex: "evidence",
       width: 360,
-      render: (value?: string | null) => tableText(value, "无"),
+      render: (value?: string | null) =>
+        tableText(evidenceText(value, evidenceDetailsEnabled, value ? "证据已记录" : "证据待补齐")),
     },
   ];
 
@@ -2041,21 +2063,12 @@ export default function KnowledgeGovernance({
         <Card title="模型生产上线准备">
           <Table
             rowKey="code"
-            columns={[
-              { title: "前置项", dataIndex: "code" },
-              {
-                title: "状态",
-                dataIndex: "ready",
-                render: (ready: boolean) => (
-                  <Tag color={ready ? "success" : "error"}>{ready ? "满足" : "阻断"}</Tag>
-                ),
-              },
-              { title: "说明", dataIndex: "message" },
-              { title: "证据", dataIndex: "evidence" },
-            ]}
+            columns={productionReadinessColumns}
             dataSource={productionReadinessQuery.data?.items ?? []}
             pagination={false}
+            scroll={{ x: 1036 }}
             size="small"
+            tableLayout="fixed"
           />
         </Card>
         <PageState
