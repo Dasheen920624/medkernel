@@ -263,4 +263,101 @@ describe("Provenance", () => {
     expect(screen.getByText(/后继身份 ID：2/)).toBeInTheDocument();
     expect(mockUseKnowledgeProvenance).toHaveBeenCalledWith(1, { page: 1, size: 20 });
   });
+
+  it("默认隐藏版本沿革中的模型任务标识，证据详情才展示原始版次", async () => {
+    const user = userEvent.setup();
+    const technicalVersionNo = "ai-draft-task-1fa4b8cd6f454241a2b0e8225918c455";
+    mockUseKnowledgeReviewQueue.mockReturnValue({
+      data: {
+        items: [],
+        page: 1,
+        size: 20,
+        total: 0,
+        hasNext: false,
+        totalEstimated: false,
+      },
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockUseKnowledgeIdentities.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: 1,
+            tenantId: "t-1",
+            identityCode: "plat:guideline:ckd",
+            domain: "GUIDELINE",
+            subject: "慢性肾病指南来源",
+            status: "ACTIVE",
+            currentVersionId: 22,
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockUseKnowledgeProvenance.mockReturnValue({
+      data: {
+        identity: {
+          id: 1,
+          tenantId: "t-1",
+          identityCode: "plat:guideline:ckd",
+          domain: "GUIDELINE",
+          subject: "慢性肾病指南来源",
+          status: "ACTIVE",
+          currentVersionId: 22,
+        },
+        currentVersionId: 22,
+        versions: {
+          items: [
+            {
+              id: 22,
+              tenantId: "t-1",
+              identityId: 1,
+              versionNo: technicalVersionNo,
+              versionLabel: technicalVersionNo,
+              status: "ACTIVE",
+              authorityLevel: "A_GUIDELINE",
+              gradeQuality: "HIGH",
+              effectiveFrom: "2026-06-29T07:55:00Z",
+            },
+          ],
+          page: 1,
+          size: 20,
+          total: 1,
+          hasNext: false,
+          totalEstimated: false,
+        },
+        supersessions: {
+          items: [],
+          page: 1,
+          size: 20,
+          total: 0,
+          hasNext: false,
+          totalEstimated: false,
+        },
+        sourceEvidence: [],
+        unresolvedCitationCount: 0,
+        partial: false,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    expect(screen.getAllByText("当前权威版本").length).toBeGreaterThan(0);
+    expect(screen.getByText("版本来源已记录")).toBeInTheDocument();
+    expect(screen.queryByText(/ai-draft-task/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getAllByText(new RegExp(technicalVersionNo)).length).toBeGreaterThan(0);
+  });
 });
