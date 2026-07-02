@@ -437,7 +437,7 @@ describe("Followup", () => {
             templateId: "ftpl-patient-proxy",
             templateCode: "FUP.STAKEHOLDER.PATIENT_PROXY",
             versionNo: 1,
-            name: "全角色患者代理随访模板 patient_proxy-mr28o43q",
+            name: "全角色患者代理随访模板（上线复演 07月02日 21时14分58秒） patient_proxy-mr28o43q",
             description: "全角色真实前台演练模板",
             organizationScope: "p5-hospital",
             applicableScope: "COPD",
@@ -461,12 +461,14 @@ describe("Followup", () => {
     renderFollowup();
 
     expect(screen.getByText("全角色患者代理随访模板（第 1 版）")).toBeInTheDocument();
+    expect(screen.queryByText(/上线复演/)).not.toBeInTheDocument();
     expect(screen.queryByText(/patient_proxy-mr28o43q/)).not.toBeInTheDocument();
     expect(screen.queryByText(/· v1/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /查看与办理/ }));
     await screen.findByRole("dialog", { name: "随访计划办理" });
     expect(screen.getAllByText("全角色患者代理随访模板（第 1 版）").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/上线复演/)).not.toBeInTheDocument();
     expect(screen.queryByText(/patient_proxy-mr28o43q/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("switch", { name: "证据详情" }));

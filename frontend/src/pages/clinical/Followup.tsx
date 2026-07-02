@@ -97,6 +97,7 @@ const taskTypeOptions = [
   { value: "OUTPATIENT", label: "门诊复诊" },
 ];
 const TEMPLATE_RUN_SUFFIX_PATTERN = /\s+(?:[a-z]+(?:_[a-z]+)*-[a-z0-9]{6,}|[a-z0-9]{8,})$/i;
+const TEMPLATE_REHEARSAL_BATCH_PATTERN = /\s*[（(]\s*上线复演[^）)]*[）)]/g;
 
 function optionLabel(
   options: Array<{ value: string; label: string }>,
@@ -120,7 +121,12 @@ function templateBusinessName(name: string | null | undefined, fallback = "已�
   const trimmed = name?.trim();
   if (!trimmed) return fallback;
   if (!/^(全角色|真实前台)/.test(trimmed)) return trimmed;
-  return trimmed.replace(TEMPLATE_RUN_SUFFIX_PATTERN, "").trim() || trimmed;
+  return (
+    trimmed
+      .replace(TEMPLATE_REHEARSAL_BATCH_PATTERN, "")
+      .replace(TEMPLATE_RUN_SUFFIX_PATTERN, "")
+      .trim() || trimmed
+  );
 }
 
 function templateVersionText(version: number | null | undefined, evidenceDetailsEnabled: boolean) {
