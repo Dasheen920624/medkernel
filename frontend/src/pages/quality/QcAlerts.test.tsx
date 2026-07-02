@@ -125,8 +125,9 @@ describe("QcAlerts", () => {
     expect(screen.getByRole("combobox", { name: "预警级别" })).toBeInTheDocument();
     expect(screen.queryByLabelText("科室范围")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "质量问题" })).toBeInTheDocument();
-    expect(screen.getByText("真实质量问题总数")).toBeInTheDocument();
+    expect(screen.getByText("当前筛选问题总数")).toBeInTheDocument();
     expect(screen.getByText("1 条")).toBeInTheDocument();
+    expect(screen.getByText("共 1 条质量问题，当前显示 1-1 条")).toBeInTheDocument();
     expect(screen.getByText("高风险质控问题待闭环：术前记录缺失")).toBeInTheDocument();
     expect(screen.getAllByText("心内科").length).toBeGreaterThan(0);
     expect(screen.queryByText("心内科 · CARDIO")).not.toBeInTheDocument();
@@ -143,6 +144,66 @@ describe("QcAlerts", () => {
     );
     expect(screen.queryByText("PDCA 质控整改与专家复核中心")).not.toBeInTheDocument();
     expect(screen.queryByText(/TRACE_NOT_FOUND|_TRACE/)).not.toBeInTheDocument();
+  });
+
+  it("keeps accumulated quality alerts reachable through server pagination", async () => {
+    mockUseQualityAlerts.mockImplementation((params: { page?: number } = {}) => {
+      const page = params.page ?? 1;
+      const pageItems = Array.from({ length: 20 }, (_, index) => ({
+        ...alertsData.items[0],
+        alertId: `HIGH_RISK_FINDING:quality_finding:finding-page-${page}-${index + 1}`,
+        sourceId: `finding-page-${page}-${index + 1}`,
+        title: `高风险质控问题第 ${page}-${index + 1} 项`,
+      }));
+      return {
+        data: {
+          ...alertsData,
+          items: pageItems,
+          offset: (page - 1) * 20,
+          limit: 20,
+          total: 45,
+          hasNext: page < 3,
+        },
+        isLoading: false,
+        isError: false,
+        error: undefined,
+        refetch: vi.fn(),
+      };
+    });
+    mockUseDispatchRectification.mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    });
+    mockUseAcknowledgeQualityAlert.mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    });
+
+    renderPage();
+
+    expect(mockUseQualityAlerts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "OPEN", severity: "HIGH_RISK", page: 1, size: 20 }),
+    );
+    expect(screen.getByText("当前筛选问题总数")).toBeInTheDocument();
+    expect(screen.getByText("共 45 条质量问题，当前显示 1-20 条")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByTitle("2"));
+
+    await waitFor(() => {
+      expect(mockUseQualityAlerts).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: "OPEN", severity: "HIGH_RISK", page: 2, size: 20 }),
+      );
+    });
+    expect(screen.getByText("共 45 条质量问题，当前显示 21-40 条")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "预警级别" }));
+    await userEvent.click(screen.getByText("全部级别"));
+
+    await waitFor(() => {
+      expect(mockUseQualityAlerts).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: "OPEN", severity: "ALL", page: 1, size: 20 }),
+      );
+    });
   });
 
   it("dispatches a real rectification task from a quality finding alert", async () => {

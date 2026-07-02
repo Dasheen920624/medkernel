@@ -8,6 +8,7 @@ import {
   Empty,
   Form,
   List,
+  Pagination,
   Select,
   Space,
   Tag,
@@ -42,6 +43,7 @@ const { Text } = Typography;
 
 type TimeScope = "TODAY" | "LAST_7_DAYS" | "ALL";
 type AlertSeverityScope = "HIGH_RISK" | "P0" | "P1" | "P2" | "P3" | "ALL";
+const ALERT_PAGE_SIZE = 20;
 
 interface DispatchFormValues {
   responsibleDepartmentId: string;
@@ -56,6 +58,7 @@ export default function QcAlerts() {
   const [status, setStatus] = useState<QualityDashboardAlertStatus>("OPEN");
   const [timeScope, setTimeScope] = useState<TimeScope>("TODAY");
   const [severity, setSeverity] = useState<AlertSeverityScope>("HIGH_RISK");
+  const [alertPage, setAlertPage] = useState(1);
   const [selectedAlert, setSelectedAlert] = useState<QualityDashboardAlert | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [dispatchFeedback, setDispatchFeedback] = useState<{
@@ -70,10 +73,10 @@ export default function QcAlerts() {
       ...range,
       status,
       severity,
-      page: 1,
-      size: 20,
+      page: alertPage,
+      size: ALERT_PAGE_SIZE,
     };
-  }, [severity, status, timeScope]);
+  }, [alertPage, severity, status, timeScope]);
 
   const alertsQuery = useQualityAlerts(alertsParams);
   const departmentsQuery = useOrgUnits({
@@ -86,6 +89,8 @@ export default function QcAlerts() {
   const dispatchMutation = useDispatchRectification();
   const acknowledgeMutation = useAcknowledgeQualityAlert();
   const alertItems = alertsQuery.data?.items ?? [];
+  const alertsTotal = alertsQuery.data?.total ?? 0;
+  const alertOffset = alertsQuery.data?.offset ?? (alertPage - 1) * ALERT_PAGE_SIZE;
   const errorStatus = getResponseStatus(alertsQuery.error);
   const parsedError = alertsQuery.isError
     ? parseApiError(alertsQuery.error, "质量问题读取失败")
@@ -183,7 +188,10 @@ export default function QcAlerts() {
               aria-label="预警状态"
               value={status}
               className="mk-select-narrow"
-              onChange={setStatus}
+              onChange={(value) => {
+                setStatus(value);
+                setAlertPage(1);
+              }}
               options={[
                 { value: "OPEN", label: "未处置" },
                 { value: "ACKNOWLEDGED", label: "已确认" },
@@ -194,7 +202,10 @@ export default function QcAlerts() {
               aria-label="预警时间"
               value={timeScope}
               className="mk-select-narrow"
-              onChange={setTimeScope}
+              onChange={(value) => {
+                setTimeScope(value);
+                setAlertPage(1);
+              }}
               options={[
                 { value: "TODAY", label: "今日" },
                 { value: "LAST_7_DAYS", label: "近 7 日" },
@@ -205,7 +216,10 @@ export default function QcAlerts() {
               aria-label="预警级别"
               value={severity}
               className="mk-select-narrow"
-              onChange={setSeverity}
+              onChange={(value) => {
+                setSeverity(value);
+                setAlertPage(1);
+              }}
               options={[
                 { value: "HIGH_RISK", label: "高风险" },
                 { value: "P0", label: "安全红线" },
@@ -219,12 +233,24 @@ export default function QcAlerts() {
         </Card>
 
         <Space wrap size="middle" className="mk-full-width">
-          <MetricCard title="真实质量问题总数" value={`${alertsQuery.data?.total ?? 0} 条`} />
-          <MetricCard title="待处置问题" value={`${countByStatus(alertItems, "OPEN")} 个待处置`} />
-          <MetricCard title="医疗安全问题" value={`${countSafetyAlerts(alertItems)} 个安全级`} />
+          <MetricCard title="当前筛选问题总数" value={`${alertsTotal} 条`} />
+          <MetricCard
+            title="当前页待处置"
+            value={`${countByStatus(alertItems, "OPEN")} 个待处置`}
+          />
+          <MetricCard title="当前页医疗安全" value={`${countSafetyAlerts(alertItems)} 个安全级`} />
         </Space>
 
-        <Card>
+        <Card
+          title="质量问题列表"
+          extra={
+            alertItems.length > 0 ? (
+              <Text type="secondary">
+                {formatAlertPageSummary(alertsTotal, alertOffset, alertItems.length)}
+              </Text>
+            ) : null
+          }
+        >
           <List
             dataSource={alertItems}
             locale={{
@@ -285,6 +311,15 @@ export default function QcAlerts() {
               </List.Item>
             )}
           />
+          {alertsTotal > ALERT_PAGE_SIZE && (
+            <Pagination
+              current={alertPage}
+              pageSize={ALERT_PAGE_SIZE}
+              total={alertsTotal}
+              showSizeChanger={false}
+              onChange={setAlertPage}
+            />
+          )}
         </Card>
       </Space>
 
@@ -508,6 +543,12 @@ function countByStatus(alerts: QualityDashboardAlert[], targetStatus: QualityDas
 
 function countSafetyAlerts(alerts: QualityDashboardAlert[]) {
   return alerts.filter(isSafetyAlert).length;
+}
+
+function formatAlertPageSummary(total: number, offset: number, currentCount: number) {
+  const start = currentCount === 0 ? 0 : offset + 1;
+  const end = currentCount === 0 ? 0 : Math.min(offset + currentCount, total);
+  return `共 ${total} 条质量问题，当前显示 ${start}-${end} 条`;
 }
 
 function isSafetyAlert(alert: QualityDashboardAlert) {
