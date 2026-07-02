@@ -10,8 +10,8 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `ef662ced1ca68723bed92aabd66440a833fde4b3`
-  （`fix: 澄清临床提醒采纳率口径`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前本地最新应用代码提交为 `85178d98189bb68971bdf8a9c1fe8d16c8006985`
+  （`fix: 处理诊断知识技术版次兜底`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
   第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
   第十九批系统接入默认技术信息收敛、第二十批质量下钻默认追溯信息收敛、第二十一批协同任务列表可读性收敛，
@@ -19,23 +19,27 @@
   第二十四批系统接入字段映射缺口分页摘要收敛、第二十五批医保问题服务端翻页收敛，
   第二十六批系统接入质量报告单一呈现收敛、第二十七批接入阻塞项默认文案收敛、
   第二十八批质量问题服务端翻页收敛、第二十九批质量概览待办密度收敛、第三十批模型能力默认表格层级收敛，
-  第三十一批随访模板演练批次默认展示收敛，以及第三十二批临床提醒采纳率口径收敛。
-- 当前 134 已发布应用为 `ef662ced1ca68723bed92aabd66440a833fde4b3`；第三十二批已发布并完成真实前台、
-  全职责复演和 CDSS 指标口径现场校验。第三十三批仅修正全职责演练证据截图等待契约，未改应用代码，
-  不需要重发 134。
-- 134 当前完整部署 `ef662ced1ca68723bed92aabd66440a833fde4b3`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260702-214224`，manifest
+  第三十一批随访模板演练批次默认展示收敛、第三十二批临床提醒采纳率口径收敛、第三十三批人员详情抽屉证据稳定性，
+  以及第三十四批诊断知识技术版次默认展示收敛。
+- 134 当前后端/JAR 完整部署仍为 `ef662ced1ca68723bed92aabd66440a833fde4b3`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-214224`，manifest 仍记录
   `deployedAt=2026-07-02T21:42:27+08:00`，
-  `jarSha256=ef79a21c1ccc2700a787d67bd4d81685a8a4119d9b0612210e598b25ea47efce`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=3035812`、`NRestarts=0`。
+  `jarSha256=ef79a21c1ccc2700a787d67bd4d81685a8a4119d9b0612210e598b25ea47efce`。不要把该 manifest
+  误读成当前前端 dist 版本。
+- 134 当前前端 dist 已于 `2026-07-02 23:05:02` 用
+  `deploy/onprem/mk-publish.sh --frontend --source 85178d98189bb68971bdf8a9c1fe8d16c8006985` 发布；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-230434`，readiness HTTP 200 / `{"status":"UP"}`，
+  服务 `active/enabled`、`MainPID=3080865`、`NRestarts=0`；线上 `index.html` 指向
+  `/assets/index-BD-VYSKB.js`，诊断知识 chunk 为 `/assets/DiagnosisKnowledgeMaintenance-ClrLytd6.js`。
 - 134 对外 E2E 入口使用 `https://193.112.107.134/medkernel` 与
   `https://193.112.107.134/medkernel/api/v1`，当前证书按现场自签/非可信处理，Playwright 需带
   `E2E_IGNORE_HTTPS_ERRORS=1`。后端 `18080` 只监听 `127.0.0.1`，不要从外网使用
   `http://193.112.107.134:18080` 作为演练入口。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第三十二批应用版本已完成真实前台与全职责 E2E。
-- 当前本地 E2E 脚本契约最新提交为 `aa372e0a12cdcd6d5d9e22b5fc33ff4c2085ecd9`
-  （`test: 等待人员详情抽屉落入视口`），包含随访模板默认名定位和平台管理员人员详情抽屉截图落位等待；
-  只影响后续演练证据采集，不代表 134 应用代码再次发布。
+- 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。描述 134 状态时必须区分
+  后端 manifest 提交 `ef662ced` 与当前线上前端 dist 提交 `85178d98`。
+- 当前本地最新提交为 `85178d98189bb68971bdf8a9c1fe8d16c8006985`；E2E 脚本契约最新专项提交为
+  `aa372e0a12cdcd6d5d9e22b5fc33ff4c2085ecd9`（`test: 等待人员详情抽屉落入视口`），包含随访模板默认名定位和
+  平台管理员人员详情抽屉截图落位等待。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -44,6 +48,54 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-02 全视角真实前台体验优化第三十四批·诊断知识技术版次默认展示收敛）
+
+- 用户再次强调“疑问只是线索，不代表当前设计实现错误”，本批按 `CONSTITUTION`、`PRODUCT_SCOPE`、
+  `EXPERIENCE_CONTRACT`、功能目录和职责矩阵复核后确认：`/knowledge/diagnosis` 仍是统一知识治理下的诊断语义资产
+  专业维护入口；诊断身份、诊断标准、鉴别诊断、验证病例、来源证据、机构生效版本和模型候选仍走统一知识生产/审核/发布链。
+  本批不拆第二套知识系统、不新增旧式“专家模式”，只处理真实前台默认层暴露技术版次的问题。
+- 基于第三十三批后 134 线上截图继续做医生、护士、患者代理、医疗引擎运营员、信息科、实施、质控和院长视角检查，
+  发现 `/knowledge/diagnosis` 版本选择器默认显示 `ai-draft-task-... · 已生效`。该值是模型生产任务技术标识，
+  默认暴露会让业务用户误以为诊断知识版本由模型任务直接命名，违反“技术对象默认隐藏到证据详情”和“模型只产候选不产事实”的体验边界；
+  但不构成诊断知识归属结构错误。
+- 已本地修复并提交两批应用代码：
+  - `65ae62415315a12bf238e1535d6051d8cc58a65c`（`fix: 收敛诊断知识版本默认展示`）：先处理
+    `versionLabel` 为技术标识、`versionNo` 为业务版次时的默认展示，将技术值只放入证据详情。
+  - `85178d98189bb68971bdf8a9c1fe8d16c8006985`（`fix: 处理诊断知识技术版次兜底`）：线上 API 证明
+    `versionNo` 与 `versionLabel` 可能同时为 `ai-draft-task-...`；默认展示改为按状态兜底，例如“当前生效版本”，
+    原始技术标识仅在证据详情开启后披露。
+- 代码与测试范围：
+  - `frontend/src/pages/quality/DiagnosisKnowledgePanel.tsx` 识别 AI draft、model task、hash/UUID 类技术版次；
+    默认优先使用业务 `versionLabel`，其次业务 `versionNo`，两者都不可读时使用状态化业务文案。
+  - `frontend/src/pages/quality/DiagnosisKnowledgePanel.test.tsx` 覆盖“技术 versionLabel + 业务 versionNo”和
+    “versionNo/versionLabel 同为模型任务标识”两种真实风险。
+  - 本批不改后端契约、不改诊断资产身份模型、不改审核发布、不改来源血缘、不改患者敏感信息或模型网关策略。
+- 红绿验证与构建：
+  - 两个新增用例均先在旧实现下红灯，再在修复后通过。
+  - `npm --prefix frontend test -- DiagnosisKnowledgePanel.test.tsx` 通过，`19` 项。
+  - `npm --prefix frontend run lint` 通过；`npm --prefix frontend run typecheck` 通过；
+    `npm --prefix frontend run format:check` 通过。
+  - `npm --prefix frontend run verify` 通过，`114` 个测试文件 / `930` 项。
+  - `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与现场验证：
+  - 已执行 `deploy/onprem/mk-publish.sh --frontend --source 85178d98189bb68971bdf8a9c1fe8d16c8006985`；
+    这是前端-only 发布，后端/JAR manifest 仍显示完整部署提交 `ef662ced1ca68723bed92aabd66440a833fde4b3`。
+  - 远端备份 `/zoesoft/medkernel/backups/deploy-20260702-230434`；readiness HTTP 200 /
+    `{"status":"UP"}`；服务 `active/enabled`、`MainPID=3080865`、`NRestarts=0`。
+  - 线上 `index.html` 指向 `/assets/index-BD-VYSKB.js`；诊断知识 chunk
+    `/assets/DiagnosisKnowledgeMaintenance-ClrLytd6.js` 含“当前生效版本”兜底逻辑。
+  - 诊断知识在线专项检查通过，证据目录
+    `/tmp/medkernel-e2e-codex3/evidence-diagnosis-version-label-85178d98`；截图
+    `diagnosis-knowledge-default.png` 显示版本选择器为“当前生效版本 · 已生效”，默认页面未再出现
+    `ai-draft-task` 技术标识。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-85178d98`
+    通过 134 HTTPS 入站运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (41.6s)`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-85178d98`
+    通过 134 HTTPS 入站运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`。
+- 后续继续主线全局体验优化：诊断知识结构当前仍符合原始诉求；下一轮继续按医生、护士、患者/代理、药师、医技、
+  医保办、质控、信息科、实施、院长、平台治理和知识生产运营视角，从最新 134 真实前台与全职责证据继续检查
+  知识治理全链路、患者信息与模型安全、随访异常闭环、质量整改、系统接入阻断、权限职责、默认信息层级和上线门禁。
 
 ## 最新阶段交接（2026-07-02 全视角真实前台体验优化第三十三批·人员详情抽屉证据稳定性）
 
@@ -57,7 +109,7 @@
   （`test: 等待人员详情抽屉落入视口`）：
   - 复用已有 `expectDrawerSettledInViewport` 等待平台管理员“人员详情抽屉”完全落入 1440 宽视口后再继续断言和截图。
   - 本批不修改 `AdminUsers` 应用代码、不改变人员建档、任职、账号、身份来源、角色授权或审计契约。
-  - 本批不需要重发 134；134 当前应用仍为 `ef662ced1ca68723bed92aabd66440a833fde4b3`。
+  - 该批当时不需要重发 134；后续前端 dist 已在第三十四批更新，当前状态以本文件顶部为准。
 - 验证与复演：
   - `npm --prefix frontend run typecheck` 通过。
   - `npm --prefix frontend run format:check` 通过。
