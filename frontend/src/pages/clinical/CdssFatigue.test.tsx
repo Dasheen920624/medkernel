@@ -371,7 +371,8 @@ describe("CdssFatigue", () => {
     expect(screen.getAllByText("住院医嘱").length).toBeGreaterThan(0);
     expect(screen.getByText("已采纳")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
-    expect(screen.getByText("采纳率")).toBeInTheDocument();
+    expect(screen.getByText("已处理采纳率")).toBeInTheDocument();
+    expect(screen.getByText("待处理 1 项不计入")).toBeInTheDocument();
     expect(screen.getByText("66.7%")).toBeInTheDocument();
   });
 

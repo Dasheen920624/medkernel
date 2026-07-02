@@ -507,6 +507,7 @@ export default function CdssFatigue() {
     status: statusFilter,
     riskLevel: riskFilter,
   });
+  const pendingRecommendationCount = statsData?.pendingCount ?? 0;
 
   const { data: detailData, refetch: refetchDetail } = useRecommendationCardDetail(
     selectedCardId || "",
@@ -996,10 +997,11 @@ export default function CdssFatigue() {
           </div>
         </div>
         <div className={styles.metricCard}>
-          <div className={styles.metricLabel}>采纳率</div>
+          <div className={styles.metricLabel}>已处理采纳率</div>
           <div className={`${styles.metricNumber} ${styles.metricRate}`}>
             {statsData?.acceptanceRatePercent ?? 0}%
           </div>
+          <div className={styles.textSmall}>待处理 {pendingRecommendationCount} 项不计入</div>
         </div>
       </div>
 
