@@ -591,6 +591,31 @@ describe("AdapterHub", () => {
     expect(screen.getByText("共 24 条接入申请，当前显示 1-20 条")).toBeInTheDocument();
   });
 
+  it("keeps onboarding blockers in business language until evidence details are enabled", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useIntegrationOnboardings).mockReturnValue(
+      query(
+        pageData([
+          {
+            ...onboarding,
+            blockers: ["HIS 适配器仍为 NOT_CONNECTED", "LIS 适配器仍为 MISCONFIGURED"],
+          },
+        ]),
+      ) as never,
+    );
+
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "接入向导" }));
+    expect(screen.getByText("HIS 适配器仍为 未接通")).toBeInTheDocument();
+    expect(screen.getByText("LIS 适配器仍为 配置不完整")).toBeInTheDocument();
+    expect(screen.queryByText(/NOT_CONNECTED|MISCONFIGURED/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getByText("HIS 适配器仍为 NOT_CONNECTED")).toBeInTheDocument();
+    expect(screen.getByText("LIS 适配器仍为 MISCONFIGURED")).toBeInTheDocument();
+  });
+
   it("keeps the generated data quality report in one place when operators open the quality dashboard", async () => {
     const user = userEvent.setup();
     renderPage();

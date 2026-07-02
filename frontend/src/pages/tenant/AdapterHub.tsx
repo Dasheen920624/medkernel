@@ -893,7 +893,9 @@ export default function AdapterHub() {
         ) : (
           <ul className={styles.gapList}>
             {record.blockers.map((blocker) => (
-              <li key={blocker}>{blocker}</li>
+              <li key={blocker}>
+                {evidenceText(blocker, evidenceDetailsEnabled, customerDisplayText(blocker))}
+              </li>
             ))}
           </ul>
         ),
