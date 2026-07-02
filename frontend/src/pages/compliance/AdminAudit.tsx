@@ -83,6 +83,19 @@ const MODEL_EGRESS_CAPABILITY_LABELS = new Map<string, string>([
   ...MODEL_CAPABILITY_OPTIONS.map((option) => [option.value, option.label] as const),
   ["clinical.explanation", "临床解释与患者沟通"],
 ]);
+const AUDIT_EXPORT_REF_PATTERN =
+  /\baudit_event\/exp-audit-event-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi;
+const FOLLOWUP_TEMPLATE_REF_PATTERN = /\bFUP\.STAKEHOLDER\.[A-Z0-9._-]+(?:@\d+)?\b/g;
+const CDSS_CONTEXT_REF_PATTERN =
+  /\bCDSS-MANUAL-[a-z0-9._-]+-ctx-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:-[a-z0-9._-]+)*\b/gi;
+const REPORT_CONTEXT_REF_PATTERN =
+  /\bREPORT-ctx-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi;
+const MODEL_PROVIDER_RUN_REF_PATTERN = /\bstakeholder-ollama-[a-z0-9]+\b/gi;
+const RUN_SUFFIX_REF_PATTERN =
+  /\b(?:patient_proxy|real_frontdesk|stakeholder|frontdesk)-[a-z0-9]+\b/gi;
+const UUID_REF_PATTERN =
+  /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi;
+const LONG_HASH_REF_PATTERN = /\b[a-f0-9]{24,}\b/gi;
 
 function filterValue(filters: readonly ExperienceFilterValue[], key: string) {
   const value = filters.find((filter) => filter.key === key)?.value;
@@ -136,6 +149,20 @@ function auditResourceLabel(
     ? (labels[resourceType] ?? customerEnumLabel(resourceType))
     : "业务对象";
   return `${resourceLabel}${evidenceDetailsEnabled && resourceId ? ` ${resourceId}` : ""}`;
+}
+
+function auditSummaryLabel(summary?: string | null, evidenceDetailsEnabled = true) {
+  const value = summary?.trim() || "未返回摘要";
+  if (evidenceDetailsEnabled) return value;
+  return value
+    .replace(AUDIT_EXPORT_REF_PATTERN, "审计导出任务")
+    .replace(FOLLOWUP_TEMPLATE_REF_PATTERN, "随访模板")
+    .replace(CDSS_CONTEXT_REF_PATTERN, "临床推荐评估")
+    .replace(REPORT_CONTEXT_REF_PATTERN, "报告解读任务")
+    .replace(MODEL_PROVIDER_RUN_REF_PATTERN, "院外模型服务")
+    .replace(RUN_SUFFIX_REF_PATTERN, "已记录批次")
+    .replace(UUID_REF_PATTERN, "已记录对象")
+    .replace(LONG_HASH_REF_PATTERN, "已记录校验值");
 }
 
 function auditActorLabel(actorUserId?: string | null, evidenceDetailsEnabled = true) {
@@ -334,7 +361,7 @@ export default function AdminAudit() {
       render: (_value: unknown, record: AuditEventRow) => (
         <div className={styles.auditEventCell}>
           <Space size="small" wrap>
-            <Text strong>{record.summary || "未返回摘要"}</Text>
+            <Text strong>{auditSummaryLabel(record.summary, evidenceDetailsEnabled)}</Text>
             <Tag>{auditActionLabel(record.actionCode)}</Tag>
             {outcomeTag(record.outcome)}
           </Space>
@@ -375,7 +402,7 @@ export default function AdminAudit() {
             aria-label={
               evidenceDetailsEnabled
                 ? `查看详情 ${record.eventId}`
-                : `查看详情 ${record.summary || "审计事件"}`
+                : `查看详情 ${auditSummaryLabel(record.summary, false)}`
             }
             icon={<EyeOutlined />}
             onClick={() => {

@@ -280,6 +280,77 @@ describe("AdminAudit", () => {
     );
   });
 
+  it("默认将审计摘要中的低频对象编号收进证据详情", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useLargeAuditEvents).mockReturnValue(
+      query({
+        ...firstPage,
+        items: [
+          {
+            ...firstPage.items[0],
+            id: "11",
+            eventId: "evt-11",
+            summary:
+              "确认敏感数据导出：audit_event/exp-audit-event-8eac2263-e727-4931-976e-8f17b6b85949；原因：审计员复核",
+            resourceType: "audit_event",
+            resourceId: "exp-audit-event-8eac2263-e727-4931-976e-8f17b6b85949",
+          },
+          {
+            ...firstPage.items[0],
+            id: "12",
+            eventId: "evt-12",
+            summary: "发布随访模板 FUP.STAKEHOLDER.PATIENT_PROXY-MR3OBIIY@1",
+            resourceType: "followup_template",
+            resourceId: "FUP.STAKEHOLDER.PATIENT_PROXY-MR3OBIIY",
+          },
+          {
+            ...firstPage.items[0],
+            id: "13",
+            eventId: "evt-13",
+            summary:
+              "评估推荐触发 CDSS-MANUAL-medication-prescribe-ctx-0b5df86b-6c0d-42e7-871c-e79df49c8bf2-mr3ob8q2-1",
+            resourceType: "recommendation",
+            resourceId: "ctx-0b5df86b-6c0d-42e7-871c-e79df49c8bf2",
+          },
+          {
+            ...firstPage.items[0],
+            id: "14",
+            eventId: "evt-14",
+            summary: "探测模型服务 stakeholder-ollama-mr0c0kb8，连接状态=连接正常",
+            resourceType: "model_provider",
+            resourceId: "stakeholder-ollama-mr0c0kb8",
+          },
+        ],
+      }) as never,
+    );
+
+    render(<AdminAudit />);
+
+    expect(
+      screen.getByText("确认敏感数据导出：审计导出任务；原因：审计员复核"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("发布随访模板 随访模板")).toBeInTheDocument();
+    expect(screen.getByText("评估推荐触发 临床推荐评估")).toBeInTheDocument();
+    expect(screen.getByText("探测模型服务 院外模型服务，连接状态=连接正常")).toBeInTheDocument();
+    expect(screen.queryByText(/exp-audit-event-/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/FUP\.STAKEHOLDER/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/CDSS-MANUAL/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/stakeholder-ollama/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(
+      screen.getAllByText(/exp-audit-event-8eac2263-e727-4931-976e-8f17b6b85949/).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText(/FUP\.STAKEHOLDER\.PATIENT_PROXY-MR3OBIIY/).length).toBeGreaterThan(
+      0,
+    );
+    expect(
+      screen.getAllByText(/CDSS-MANUAL-medication-prescribe-ctx-0b5df86b/).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText(/stakeholder-ollama-mr0c0kb8/).length).toBeGreaterThan(0);
+  });
+
   it("keeps audit readers out of export confirmation queries and controls", () => {
     vi.mocked(useSecurityProfile).mockReturnValue(
       query({
