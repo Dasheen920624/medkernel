@@ -10,8 +10,8 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前本地最新应用代码提交为 `85178d98189bb68971bdf8a9c1fe8d16c8006985`
-  （`fix: 处理诊断知识技术版次兜底`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前本地最新应用代码提交为 `3bda50704de9ca101d13b0a88dca82149095ed4a`
+  （`fix: 收敛知识资产随访模板默认名`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
   第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
   第十九批系统接入默认技术信息收敛、第二十批质量下钻默认追溯信息收敛、第二十一批协同任务列表可读性收敛，
@@ -20,24 +20,24 @@
   第二十六批系统接入质量报告单一呈现收敛、第二十七批接入阻塞项默认文案收敛、
   第二十八批质量问题服务端翻页收敛、第二十九批质量概览待办密度收敛、第三十批模型能力默认表格层级收敛，
   第三十一批随访模板演练批次默认展示收敛、第三十二批临床提醒采纳率口径收敛、第三十三批人员详情抽屉证据稳定性，
-  以及第三十四批诊断知识技术版次默认展示收敛。
+  第三十四批诊断知识技术版次默认展示收敛，以及第三十五批知识资产随访模板默认名收敛。
 - 134 当前后端/JAR 完整部署仍为 `ef662ced1ca68723bed92aabd66440a833fde4b3`；远端备份
   `/zoesoft/medkernel/backups/deploy-20260702-214224`，manifest 仍记录
   `deployedAt=2026-07-02T21:42:27+08:00`，
   `jarSha256=ef79a21c1ccc2700a787d67bd4d81685a8a4119d9b0612210e598b25ea47efce`。不要把该 manifest
   误读成当前前端 dist 版本。
-- 134 当前前端 dist 已于 `2026-07-02 23:05:02` 用
-  `deploy/onprem/mk-publish.sh --frontend --source 85178d98189bb68971bdf8a9c1fe8d16c8006985` 发布；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260702-230434`，readiness HTTP 200 / `{"status":"UP"}`，
-  服务 `active/enabled`、`MainPID=3080865`、`NRestarts=0`；线上 `index.html` 指向
-  `/assets/index-BD-VYSKB.js`，诊断知识 chunk 为 `/assets/DiagnosisKnowledgeMaintenance-ClrLytd6.js`。
+- 134 当前前端 dist 已于 `2026-07-02 23:22:09` 完成 readiness 验证，发布命令为
+  `deploy/onprem/mk-publish.sh --frontend --source 3bda50704de9ca101d13b0a88dca82149095ed4a`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-232141`，readiness HTTP 200 / `{"status":"UP"}`，
+  服务 `active/enabled`、`MainPID=3090601`、`NRestarts=0`；线上 `index.html` 指向
+  `/assets/index-D0_B-_0m.js`，知识资产 chunk 为 `/assets/AuthoringAssets-IlvuMrMU.js`。
 - 134 对外 E2E 入口使用 `https://193.112.107.134/medkernel` 与
   `https://193.112.107.134/medkernel/api/v1`，当前证书按现场自签/非可信处理，Playwright 需带
   `E2E_IGNORE_HTTPS_ERRORS=1`。后端 `18080` 只监听 `127.0.0.1`，不要从外网使用
   `http://193.112.107.134:18080` 作为演练入口。
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。描述 134 状态时必须区分
-  后端 manifest 提交 `ef662ced` 与当前线上前端 dist 提交 `85178d98`。
-- 当前本地最新提交为 `85178d98189bb68971bdf8a9c1fe8d16c8006985`；E2E 脚本契约最新专项提交为
+  后端 manifest 提交 `ef662ced` 与当前线上前端 dist 提交 `3bda5070`。
+- 当前应用代码最新提交为 `3bda50704de9ca101d13b0a88dca82149095ed4a`；E2E 脚本契约最新专项提交为
   `aa372e0a12cdcd6d5d9e22b5fc33ff4c2085ecd9`（`test: 等待人员详情抽屉落入视口`），包含随访模板默认名定位和
   平台管理员人员详情抽屉截图落位等待。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
@@ -48,6 +48,54 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-02 全视角真实前台体验优化第三十五批·知识资产随访模板默认名收敛）
+
+- 本批继续按用户强调的“疑问只是线索，不代表当前设计实现错误”执行，先对照 `CONSTITUTION`、`PRODUCT_SCOPE`、
+  `EXPERIENCE_CONTRACT`、功能目录和职责矩阵判断：`/authoring/assets` 是统一知识资产库，随访模板作为可复用资产在此编目、
+  收藏、标签维护和批量处理，仍应与 `/clinical/followup` 的业务展示层一致；本批不拆出第二套随访资产库、不新增旧式
+  “专家模式”，也不改变随访模板发布、计划生成或患者异常回院闭环。
+- 基于第三十四批后 134 线上截图和可见文本扫描继续做医生、护士、患者代理、实施、信息科、知识生产运营和院长视角检查，
+  发现 `/authoring/assets` 默认资产列表仍显示真实前台操作生成的随访模板原始名，例如
+  `全角色患者代理随访模板（上线复演 ...） patient_proxy-...`，而 `/clinical/followup` 已默认展示业务名。
+  这会让护士、实施和知识运营误把演练批次/运行后缀当成模板业务名称，违反“技术对象默认隐藏到证据详情”的体验边界；
+  但不构成知识治理结构错误。
+- 已本地修复并提交 `3bda50704de9ca101d13b0a88dca82149095ed4a`
+  （`fix: 收敛知识资产随访模板默认名`）：
+  - `frontend/src/pages/tenant/AuthoringAssets.tsx` 对 `FOLLOWUP` 资产默认清理“上线复演”批次和运行后缀，
+    默认展示“全角色患者代理随访模板”等业务名。
+  - 原始资产名称、资产编码和真实创建数据继续保留；开启“证据详情”后仍展示原始名与 `FUP.STAKEHOLDER...` 资产编码。
+  - 本批不改后端契约、不改资产身份、不改随访模板发布状态、不改患者敏感信息或模型网关策略。
+- 红绿验证与构建：
+  - 新增 `frontend/src/pages/tenant/AuthoringAssets.test.tsx` 用例
+    “默认隐藏随访模板资产的演练批次和运行后缀，证据详情才展示原始标识”，先在旧实现下红灯，再在修复后通过。
+  - `npm --prefix frontend test -- AuthoringAssets.test.tsx` 通过，`5` 项。
+  - `npm --prefix frontend run typecheck`、`npm --prefix frontend run format:check`、`git diff --check` 均通过。
+  - `npm --prefix frontend run verify` 通过，`114` 个测试文件 / `931` 项；`npm --prefix frontend run build` 通过。
+- 134 发布与现场验证：
+  - 已执行 `deploy/onprem/mk-publish.sh --frontend --source 3bda50704de9ca101d13b0a88dca82149095ed4a`；
+    这是前端-only 发布，远端 manifest 仍正确显示完整后端/JAR 部署提交
+    `ef662ced1ca68723bed92aabd66440a833fde4b3`。
+  - 远端备份 `/zoesoft/medkernel/backups/deploy-20260702-232141`；外部 readiness HTTP 200 /
+    `{"status":"UP"}`；SSH 只读复核服务 `active/enabled`、`MainPID=3090601`、`NRestarts=0`，
+    本机健康 `{"status":"UP","groups":["liveness","readiness"]}`。
+  - 线上 `index.html` 指向 `/assets/index-D0_B-_0m.js`；`/assets/AuthoringAssets-IlvuMrMU.js`
+    含随访资产默认名清洗逻辑。
+  - 知识资产在线专项检查通过，证据目录
+    `/tmp/medkernel-e2e-codex3/evidence-authoring-assets-followup-name-3bda5070`；
+    `authoring-assets-default.png` 与 `authoring-assets-evidence-details.png` 均为 `1440x1145`，
+    默认层不再显示“上线复演”、`patient_proxy-...` 和 `FUP.STAKEHOLDER...`，证据详情开启后展示原始标识。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-3bda5070`
+    通过 134 HTTPS 入站运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (42.4s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`、`duration=42363.06ms`，
+    `11` 段真实前台运行记录错误合计 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-3bda5070`
+    通过 134 HTTPS 入站运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.4m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`、`duration=81828.898ms`，
+    `12` 类业务视角运行记录错误合计 `0`。
+- 后续继续主线全局体验优化：当前知识治理目录和诊断知识维护仍符合原始诉求；下一轮继续按医生、护士、患者/代理、
+  药师、医技、医保办、质控、信息科、实施、院长、平台治理和知识生产运营视角，从最新 134 真实前台与全职责证据继续检查
+  知识治理全链路、患者信息与模型安全、随访异常闭环、质量整改、系统接入阻断、权限职责、默认信息层级和上线门禁。
 
 ## 最新阶段交接（2026-07-02 全视角真实前台体验优化第三十四批·诊断知识技术版次默认展示收敛）
 
