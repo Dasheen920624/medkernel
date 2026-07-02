@@ -10,26 +10,27 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `ab108aba45e38e71c18489055131c86e098840b6`
-  （`fix: 补齐质量问题服务端翻页`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前已发布应用代码提交为 `d08c3319f53350360c98cfe7ab4b4a522f872c36`
+  （`fix: 收敛质量概览待办密度`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
   第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
   第十九批系统接入默认技术信息收敛、第二十批质量下钻默认追溯信息收敛、第二十一批协同任务列表可读性收敛，
   第二十二批诊断知识统一治理边界收敛、第二十三批随访办理底部操作区收敛，
   第二十四批系统接入字段映射缺口分页摘要收敛、第二十五批医保问题服务端翻页收敛，
-  第二十六批系统接入质量报告单一呈现收敛、第二十七批接入阻塞项默认文案收敛，以及第二十八批质量问题服务端翻页收敛。
-- 当前 134 已发布应用为 `ab108aba45e38e71c18489055131c86e098840b6`；第二十八批已发布并完成真实前台、
-  全职责复演、前台补量复演和质量问题翻页聚焦现场校验。
-- 134 当前完整部署 `ab108aba45e38e71c18489055131c86e098840b6`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260702-203005`，manifest
-  `deployedAt=2026-07-02T20:30:08+08:00`，
-  `jarSha256=edbc1db248ef9eb2097923f94b465e83200402dc13fe3dc30c4ff6893525a620`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2995486`、`NRestarts=0`。
+  第二十六批系统接入质量报告单一呈现收敛、第二十七批接入阻塞项默认文案收敛、
+  第二十八批质量问题服务端翻页收敛，以及第二十九批质量概览待办密度收敛。
+- 当前 134 已发布应用为 `d08c3319f53350360c98cfe7ab4b4a522f872c36`；第二十九批已发布并完成真实前台、
+  全职责复演和质量概览待办密度聚焦现场校验。
+- 134 当前完整部署 `d08c3319f53350360c98cfe7ab4b4a522f872c36`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-205258`，manifest
+  `deployedAt=2026-07-02T20:53:00+08:00`，
+  `jarSha256=3f5210db07f5ca8d8d2643fc68c1137cf8b8d759a8a89a09607f0f932bcfc425`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=3008175`、`NRestarts=0`。
 - 134 对外 E2E 入口使用 `https://193.112.107.134/medkernel` 与
   `https://193.112.107.134/medkernel/api/v1`，当前证书按现场自签/非可信处理，Playwright 需带
   `E2E_IGNORE_HTTPS_ERRORS=1`。后端 `18080` 只监听 `127.0.0.1`，不要从外网使用
   `http://193.112.107.134:18080` 作为演练入口。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十八批版本已完成真实前台与全职责 E2E。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十九批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -38,6 +39,48 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-02 全视角真实前台体验优化第二十九批·质量概览待办密度）
+
+- 基于第二十八批 134 全职责截图继续按院长、质控、信息科、实施和医务管理视角检查，发现
+  `/qc/dashboard` 的“待处置问题”卡片直接展示后端驾驶舱返回的前 `20` 条 `activeAlerts`。后端同时提供
+  `summary.activeAlerts` 全量计数，完整工单页 `/qc/alerts` 已具备服务端分页；因此驾驶舱不应变成第二个长列表。
+  回查 `PRODUCT_SCOPE` 与 `EXPERIENCE_CONTRACT` 后确认，质量概览页面目标是指标、风险热力、下钻证据与少量最高优先行动，
+  完整问题处理应回到质量问题列表。当前实现会让院长和质控人员在首屏里被重复长待办淹没，也会误以为驾驶舱承担完整工单处理。
+- 用户关于“诊断知识维护与整体知识管理是否契合”的问题继续作为全局判断线索处理，不作为片面改动指令：
+  文档确认诊断知识是统一知识治理下的专业维护入口，本批不改变知识治理结构、不新增第二套知识系统，也不新增旧式“专家模式”。
+- 已本地修复并提交 `d08c3319f53350360c98cfe7ab4b4a522f872c36`
+  （`fix: 收敛质量概览待办密度`）：
+  - 质量概览卡片标题从“待处置问题”调整为“最高优先问题”，默认只展示前 `5` 条最高优先行动。
+  - 卡片标题区展示“共 N 条待处置问题，当前展示 x 条”，并提供“查看全部质量问题”链接跳转 `/qc/alerts`。
+  - 本批不改变后端驾驶舱契约、质量下钻、质量问题服务端分页、整改闭环、知识治理、患者敏感信息或模型安全边界。
+- 红绿验证：
+  - 红灯：`npm --prefix frontend test -- QcDashboard.test.tsx -t "keeps dashboard actions concise"`
+    在旧实现下失败，暴露找不到“最高优先问题”和“共 N 条待处置问题，当前展示 5 条”摘要，驾驶舱仍把第 `6` 条问题显示在主卡片内。
+  - 绿灯：同一目标用例通过；`npm --prefix frontend test -- QcDashboard.test.tsx` 通过，`9` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `927` 项；其中保留既有
+    Antd `Timeline.Item` deprecation warning；`npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source d08c3319f53350360c98cfe7ab4b4a522f872c36`
+    完整发布到 134；远端备份 `/zoesoft/medkernel/backups/deploy-20260702-205258`，manifest
+    `deployedAt=2026-07-02T20:53:00+08:00`，
+    `jarSha256=3f5210db07f5ca8d8d2643fc68c1137cf8b8d759a8a89a09607f0f932bcfc425`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=3008175`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-d08c3319-qc-dashboard-action-preview`
+    通过 134 HTTPS 入站运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (48.6s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，运行记录错误合计 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-d08c3319-qc-dashboard-action-preview`
+    通过 134 HTTPS 入站运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，`12` 类业务视角运行记录错误合计 `0`。
+  - 聚焦现场校验：上线凭据契约只有四职责账号，院长/质控质量视角按既有演练使用 `engine-operator` 进入；
+    曾用不存在的 `hospital-executive` 凭据键登录失败，确认为脚本角色键错误而非产品缺陷。机构 `engine-operator`
+    登录 134 后直达 `/qc/dashboard`，断言“最高优先问题”显示
+    “共 22 条待处置问题，当前展示 5 条”，且“查看全部质量问题”可跳转 `/qc/alerts`。截图
+    `/tmp/medkernel-e2e-codex3/evidence-qc-dashboard-action-preview-focused-d08c3319/qc-dashboard-action-preview.png`
+    尺寸为 `1440x1897`。
+- 后续继续主线全局体验优化：本批只收敛质量概览驾驶舱行动密度，不改变质量问题完整处理页。
+  下一轮继续按医生、护士、患者/代理、药师、医技、医保办、质控、信息科、实施、院长等全视角，从真实前台截图和操作流里检查
+  知识生产、系统接入、临床随访、患者资源、模型安全边界、权限职责、默认层级和运行可达性的缺口。
 
 ## 最新阶段交接（2026-07-02 全视角真实前台体验优化第二十八批·质量问题服务端翻页）
 
