@@ -49,6 +49,8 @@ const assetTypeLabels: Record<string, string> = {
   PATHWAY: "路径",
   FOLLOWUP: "随访模板",
 };
+const FOLLOWUP_ASSET_RUN_SUFFIX_PATTERN = /\s+(?:[a-z]+(?:_[a-z]+)*-[a-z0-9]{6,}|[a-z0-9]{8,})$/i;
+const FOLLOWUP_ASSET_REHEARSAL_BATCH_PATTERN = /\s*[（(]\s*上线复演[^）)]*[）)]/g;
 
 function assetTypeColor(type: string) {
   const colors: Record<string, string> = {
@@ -72,6 +74,22 @@ function evidenceText(
 function assetBusinessText(asset: AuthoringAssetLibraryItem, evidenceDetailsEnabled: boolean) {
   const label = assetTypeLabels[asset.assetType] ?? customerEnumLabel(asset.assetType);
   return evidenceText(asset.assetCode, evidenceDetailsEnabled, `${label}资产已登记`);
+}
+
+function followupAssetBusinessName(name: string) {
+  const trimmed = name.trim();
+  if (!/^(全角色|真实前台)/.test(trimmed)) return trimmed;
+  return (
+    trimmed
+      .replace(FOLLOWUP_ASSET_REHEARSAL_BATCH_PATTERN, "")
+      .replace(FOLLOWUP_ASSET_RUN_SUFFIX_PATTERN, "")
+      .trim() || trimmed
+  );
+}
+
+function assetDisplayName(asset: AuthoringAssetLibraryItem, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled || asset.assetType !== "FOLLOWUP") return asset.name;
+  return followupAssetBusinessName(asset.name);
 }
 
 function statusColor(status: string) {
@@ -176,7 +194,7 @@ export default function AuthoringAssets() {
       key: "name",
       render: (_value, asset) => (
         <div className={styles.assetName}>
-          <Text strong>{asset.name}</Text>
+          <Text strong>{assetDisplayName(asset, evidenceDetailsEnabled)}</Text>
           <Text type="secondary" className={styles.codeText}>
             {assetBusinessText(asset, evidenceDetailsEnabled)}
           </Text>
