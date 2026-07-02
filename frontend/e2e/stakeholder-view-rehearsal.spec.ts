@@ -201,6 +201,7 @@ async function assertStakeholderView(
     page.locator(".ant-spin-spinning"),
     `${view.label} 页面不应停留在加载中`,
   ).toHaveCount(0, { timeout: 30_000 });
+  await setEvidenceDetails(page, false);
 
   for (const marker of view.markers) {
     await expect(
@@ -366,8 +367,12 @@ async function performAuditExportVerifyAction(page: Page, view: StakeholderView)
   expect(confirmationId, `${view.label} 确认导出范围应返回确认编号`).toBeTruthy();
 
   await page.getByRole("tab", { name: "导出记录" }).click();
-  const row = page.getByRole("row").filter({ hasText: confirmationId ?? "" });
+  await setEvidenceDetails(page, false);
+
+  const row = page.getByRole("row").filter({ hasText: reason });
   await expect(row).toBeVisible({ timeout: 20_000 });
+  await expect(row).toContainText("审计导出任务");
+  await expect(row).not.toContainText(confirmationId ?? "");
 
   const exportResponsePromise = waitForPost(page, "/large-lists/exports");
   const completeResponsePromise = waitForPost(
@@ -376,7 +381,7 @@ async function performAuditExportVerifyAction(page: Page, view: StakeholderView)
   );
   await row
     .getByRole("button", {
-      name: new RegExp(`生成导出文件\\s+${escapeRegExp(confirmationId ?? "")}`),
+      name: "生成导出文件 审计导出任务",
     })
     .click();
   const exportDialog = page.getByRole("dialog", { name: "生成已确认导出文件" });
@@ -397,6 +402,11 @@ async function performAuditExportVerifyAction(page: Page, view: StakeholderView)
   await expect(row).toContainText("已导出", { timeout: 60_000 });
   await expect(row.getByRole("link", { name: "下载文件" })).toBeVisible({ timeout: 30_000 });
 
+  await expect(row.getByRole("button", { name: "查看证据 审计导出任务" })).toBeVisible({
+    timeout: 30_000,
+  });
+  await setEvidenceDetails(page, true);
+  await expect(row).toContainText(confirmationId ?? "");
   await expect(row.getByRole("button", { name: `查看证据 ${confirmationId}` })).toBeVisible({
     timeout: 30_000,
   });
@@ -424,6 +434,7 @@ async function performAdapterQualityReportAction(page: Page, view: StakeholderVi
     page.locator("main").getByRole("heading", { name: "系统接入" }).first(),
     `${view.label} 应能进入系统接入页生成上线前数据质量报告`,
   ).toBeVisible({ timeout: 30_000 });
+  await setEvidenceDetails(page, false);
   await expect(
     page.getByText(/过敏与不良反应 · 可由外部系统接入|患者信息 · 可由外部系统接入/).first(),
     `${view.label} 系统接入默认层应展示业务接入口径`,
@@ -1268,6 +1279,17 @@ async function currentSelectText(select: Locator) {
   }
   const text = await selected.textContent({ timeout: 1_000 }).catch(() => null);
   return text?.trim() ?? "";
+}
+
+async function setEvidenceDetails(page: Page, enabled: boolean) {
+  const toggle = page.getByRole("switch", { name: "证据详情" });
+  const visible = await toggle.isVisible({ timeout: 2_000 }).catch(() => false);
+  if (!visible) return;
+  const checked = (await toggle.getAttribute("aria-checked")) === "true";
+  if (checked !== enabled) {
+    await toggle.click();
+  }
+  await expect(toggle).toHaveAttribute("aria-checked", enabled ? "true" : "false");
 }
 
 function escapeRegExp(value: string) {
