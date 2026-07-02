@@ -10,27 +10,30 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `1d3a0c248d6cc79f3596d68422ced1be23828071`
-  （`fix: 收敛模型能力默认表格层级`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前已发布应用代码提交为 `ca58c7ab1b1a8e86e9888c94b3e5dd4790b5afc4`
+  （`fix: 收敛随访模板演练批次展示`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
   第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
   第十九批系统接入默认技术信息收敛、第二十批质量下钻默认追溯信息收敛、第二十一批协同任务列表可读性收敛，
   第二十二批诊断知识统一治理边界收敛、第二十三批随访办理底部操作区收敛，
   第二十四批系统接入字段映射缺口分页摘要收敛、第二十五批医保问题服务端翻页收敛，
   第二十六批系统接入质量报告单一呈现收敛、第二十七批接入阻塞项默认文案收敛、
-  第二十八批质量问题服务端翻页收敛、第二十九批质量概览待办密度收敛，以及第三十批模型能力默认表格层级收敛。
-- 当前 134 已发布应用为 `1d3a0c248d6cc79f3596d68422ced1be23828071`；第三十批已发布并完成真实前台、
-  全职责复演和模型能力默认表格聚焦现场校验。
-- 134 当前完整部署 `1d3a0c248d6cc79f3596d68422ced1be23828071`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260702-211236`，manifest
-  `deployedAt=2026-07-02T21:12:38+08:00`，
-  `jarSha256=b7c0478394d4bf9ea45f53aa1a6fd2a37be5554e642194be0b5a725947a937d8`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=3019006`、`NRestarts=0`。
+  第二十八批质量问题服务端翻页收敛、第二十九批质量概览待办密度收敛、第三十批模型能力默认表格层级收敛，
+  以及第三十一批随访模板演练批次默认展示收敛。
+- 当前 134 已发布应用为 `ca58c7ab1b1a8e86e9888c94b3e5dd4790b5afc4`；第三十一批已发布并完成真实前台、
+  全职责复演和随访模板默认展示现场校验。
+- 134 当前完整部署 `ca58c7ab1b1a8e86e9888c94b3e5dd4790b5afc4`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-212459`，manifest
+  `deployedAt=2026-07-02T21:25:01+08:00`，
+  `jarSha256=4df6192f497b5b0bc0849a056b79352aebe8514fe3f46c4db0d1e796855d0490`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=3026008`、`NRestarts=0`。
 - 134 对外 E2E 入口使用 `https://193.112.107.134/medkernel` 与
   `https://193.112.107.134/medkernel/api/v1`，当前证书按现场自签/非可信处理，Playwright 需带
   `E2E_IGNORE_HTTPS_ERRORS=1`。后端 `18080` 只监听 `127.0.0.1`，不要从外网使用
   `http://193.112.107.134:18080` 作为演练入口。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第三十批版本已完成真实前台与全职责 E2E。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第三十一批版本已完成真实前台与全职责 E2E。
+- 当前本地 E2E 脚本契约最新提交为 `8a02caa3c28b035a891efcc969c9e288bdc29649`
+  （`test: 对齐随访模板默认名演练`），只用于后续演练按前台默认业务名定位；不代表 134 应用代码再次发布。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -39,6 +42,59 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-02 全视角真实前台体验优化第三十一批·随访模板演练批次默认展示）
+
+- 用户强调“当前是完美实现原始诉求的所有目标，疑问不能片面盲改”，本批继续按 `CONSTITUTION`、
+  `PRODUCT_SCOPE`、`EXPERIENCE_CONTRACT` 和真实前台证据判断：不拆改知识治理、不新增旧式“专家模式”，
+  只修复真实演练暴露的随访模板默认展示层级问题。
+- 基于第三十批 134 真实前台与全职责截图继续按护士、患者/代理、医生、实施和信息科视角检查，
+  发现 `/clinical/followup` 的随访模板列表、模板选择器和随访计划办理抽屉虽已隐藏随机运行后缀，
+  但真实演练批次名仍以“上线复演 07月02日 21时14分58秒”等形式出现在默认业务界面。
+  这会让护士和患者代理把批次时间理解为模板名称的一部分，也会让实施验收误判前台默认层仍在展示测试标识。
+- 已本地修复并提交 `ca58c7ab1b1a8e86e9888c94b3e5dd4790b5afc4`
+  （`fix: 收敛随访模板演练批次展示`）：
+  - 对真实演练模板前缀“真实前台”“全角色”补齐批次标识清洗，默认只展示业务名和版本，例如
+    “真实前台慢病随访模板（第 1 版）”“全角色患者代理随访模板（第 1 版）”。
+  - 原始模板名、批次时间、运行后缀仍作为创建数据、接口身份和证据追溯保留；不改变后端契约、模板发布、
+    随访计划生成、患者敏感信息处理或审计证据。
+  - 本批不把所有括号内容机械清空，只针对当前演练命名模式收敛默认显示，避免误伤真实业务模板名称。
+- 随后本地提交 `8a02caa3c28b035a891efcc969c9e288bdc29649`
+  （`test: 对齐随访模板默认名演练`）：E2E 仍用带批次的原始名从前台创建真实模板，但默认定位和断言改为业务名，
+  并断言计划办理抽屉不出现“上线复演”和原始运行名；该提交只更新演练脚本，不需要重发 134 应用包。
+- 红绿验证：
+  - 红灯：`npm --prefix frontend test -- Followup.test.tsx -t "随访计划默认隐藏演练模板运行后缀"`
+    在旧实现下失败，暴露批次名仍阻断“全角色患者代理随访模板（第 1 版）”的默认业务展示。
+  - 绿灯：同一目标用例通过；`npm --prefix frontend test -- Followup.test.tsx` 通过，`19` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `928` 项；其中保留既有
+    Antd `Timeline.Item` deprecation warning；`npm --prefix frontend run build` 通过；`git diff --check` 通过。
+  - E2E 脚本提交前后补跑 `npm --prefix frontend run typecheck`、`npm --prefix frontend run format:check`
+    与 `git diff --check` 均通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source ca58c7ab1b1a8e86e9888c94b3e5dd4790b5afc4`
+    完整发布到 134；远端备份 `/zoesoft/medkernel/backups/deploy-20260702-212459`，manifest
+    `deployedAt=2026-07-02T21:25:01+08:00`，
+    `jarSha256=4df6192f497b5b0bc0849a056b79352aebe8514fe3f46c4db0d1e796855d0490`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=3026008`、`NRestarts=0`。
+  - 首次通过 134 HTTPS 入站复跑
+    `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-ca58c7ab-followup-template-batch-display`
+    暴露旧脚本仍用“真实前台慢病随访模板（上线复演 ...）”查找默认行，结果为 `expected=0`、
+    `unexpected=1`、`flaky=0`、`duration=32470.359ms`。截图 `test-failed-1.png` 显示产品前台已只展示
+    “真实前台慢病随访模板 / 第 1 版”，因此根因是演练脚本契约未随默认展示调整，不是产品回归。
+  - 对齐脚本后，
+    `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-ca58c7ab-followup-template-batch-display-rerun`
+    通过 134 HTTPS 入站运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (41.1s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，`11` 段真实前台运行记录错误合计 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-ca58c7ab-followup-template-batch-display`
+    通过 134 HTTPS 入站运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，`12` 类业务视角运行记录错误合计 `0`。
+  - 截图复核：`real-frontdesk-followup-template-published.png` 尺寸 `1440x2512`，默认搜索和表格行只显示
+    “真实前台慢病随访模板”“第 1 版”；`stakeholder-patient_proxy.png` 与 `stakeholder-nurse.png`
+    均为 `1440x968`，随访计划办理抽屉展示“全角色患者代理随访模板（第 1 版）”，未在默认层展示“上线复演”批次名。
+- 后续继续主线全局体验优化：本批只收敛演练批次默认展示和演练脚本定位契约，不改变随访模板的真实创建、
+  发布、计划生成、患者问卷回收或异常回院登记流程。下一轮继续按医生、护士、患者/代理、药师、医技、
+  医保办、质控、信息科、实施、院长等全视角，从真实前台操作和截图中检查知识治理、临床随访、患者资源、
+  质量整改、系统接入、模型安全边界、权限职责、默认层级和运行可达性的剩余缺口。
 
 ## 最新阶段交接（2026-07-02 全视角真实前台体验优化第三十批·模型能力默认表格层级）
 
