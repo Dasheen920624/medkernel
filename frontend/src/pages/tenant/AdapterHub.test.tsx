@@ -543,6 +543,31 @@ describe("AdapterHub", () => {
     expect(useRegionalSources).toHaveBeenCalledWith({ page: 1, size: 20 });
   });
 
+  it("keeps field mapping gaps paginated instead of expanding every source by default", () => {
+    vi.mocked(useAdapterHubStatus).mockReturnValue(
+      query({
+        ...status,
+        totalAdapters: 24,
+        mappedAdapters: 24,
+        sources: Array.from({ length: 24 }, (_, index) => ({
+          ...status.sources[0],
+          adapterId: `adapter-${index + 1}`,
+          name: `接入来源 ${index + 1}`,
+          mappedFieldCount: index + 1,
+          gaps: [`缺口 ${index + 1}`],
+        })),
+      }) as never,
+    );
+
+    renderPage();
+
+    expect(screen.getByText("共 24 个接入来源，当前显示 1-10 个")).toBeInTheDocument();
+    expect(screen.getByText("接入来源 10")).toBeInTheDocument();
+    expect(screen.getByText("缺口 10")).toBeInTheDocument();
+    expect(screen.queryByText("接入来源 11")).not.toBeInTheDocument();
+    expect(screen.queryByText("缺口 11")).not.toBeInTheDocument();
+  });
+
   it("keeps repeated onboarding applications distinguishable by latest maintenance time", async () => {
     vi.mocked(useIntegrationOnboardings).mockReturnValue(
       query(

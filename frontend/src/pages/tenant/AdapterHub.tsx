@@ -99,6 +99,7 @@ const PAGE_META: { title: string; experience: RouteExperience } = {
 const LOG_PAGE_SIZE = 10;
 const ADAPTER_PAGE_SIZE = 20;
 const INTEGRATION_MAINTENANCE_PAGE_SIZE = 20;
+const FIELD_MAPPING_PAGE_SIZE = 10;
 
 const signaturePreviewEventOptions = [
   { value: "clinical.test", label: "临床事件联调" },
@@ -1843,34 +1844,79 @@ export default function AdapterHub() {
 }
 
 function FieldMappingPanel({ items }: { items: AdapterHubSourceStatus[] }) {
+  const columns: ColumnsType<AdapterHubSourceStatus> = [
+    {
+      title: "接入来源",
+      key: "name",
+      render: (_, item) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{item.name}</Text>
+          <Text type="secondary">{item.protocolType}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "健康状态",
+      dataIndex: "healthStatus",
+      key: "healthStatus",
+      width: 120,
+      render: (value) => healthTag(String(value)),
+    },
+    {
+      title: "映射字段",
+      dataIndex: "mappedFieldCount",
+      key: "mappedFieldCount",
+      width: 110,
+    },
+    {
+      title: "最近探活",
+      dataIndex: "lastHeartbeatAt",
+      key: "lastHeartbeatAt",
+      width: 170,
+      render: (value) => <Text type="secondary">{formatClinicalDateTime(value, "暂无")}</Text>,
+    },
+    {
+      title: "接入缺口",
+      key: "gaps",
+      render: (_, item) =>
+        item.gaps.length === 0 ? (
+          <Text type="secondary">无缺口</Text>
+        ) : (
+          <Space direction="vertical" size={0} className="mk-full-width">
+            {item.gaps.slice(0, 2).map((gap) => (
+              <Text key={gap}>{gap}</Text>
+            ))}
+            {item.gaps.length > 2 && (
+              <Text type="secondary">另有 {item.gaps.length - 2} 项缺口</Text>
+            )}
+          </Space>
+        ),
+    },
+  ];
+
   return (
     <Card title="字段映射与缺口" className={styles.sectionCard}>
       {items.length === 0 ? (
         <Text type="secondary">暂无字段映射来源状态。</Text>
       ) : (
-        <Space direction="vertical" size="middle" className="mk-full-width">
-          {items.map((item) => (
-            <Descriptions key={item.adapterId} bordered size="small" column={2}>
-              <Descriptions.Item label="适配器">{item.name}</Descriptions.Item>
-              <Descriptions.Item label="状态">{healthTag(item.healthStatus)}</Descriptions.Item>
-              <Descriptions.Item label="映射字段">{item.mappedFieldCount}</Descriptions.Item>
-              <Descriptions.Item label="最近探活">
-                {formatClinicalDateTime(item.lastHeartbeatAt, "暂无")}
-              </Descriptions.Item>
-              <Descriptions.Item label="缺口" span={2}>
-                {item.gaps.length === 0 ? (
-                  <Text type="secondary">无</Text>
-                ) : (
-                  <ul className={styles.gapList}>
-                    {item.gaps.map((gap) => (
-                      <li key={gap}>{gap}</li>
-                    ))}
-                  </ul>
-                )}
-              </Descriptions.Item>
-            </Descriptions>
-          ))}
-        </Space>
+        <Table
+          rowKey="adapterId"
+          columns={columns}
+          dataSource={items}
+          size="small"
+          tableLayout="fixed"
+          pagination={
+            items.length > FIELD_MAPPING_PAGE_SIZE
+              ? {
+                  pageSize: FIELD_MAPPING_PAGE_SIZE,
+                  showSizeChanger: false,
+                  showTotal: (total, range) =>
+                    `共 ${total} 个接入来源，当前显示 ${range[0]}-${range[1]} 个`,
+                }
+              : false
+          }
+          scroll={{ x: 760 }}
+        />
       )}
     </Card>
   );
