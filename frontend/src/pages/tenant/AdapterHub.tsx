@@ -1277,19 +1277,14 @@ export default function AdapterHub() {
                 label: "数据质量看板",
                 children: (
                   <div className={styles.sectionStack}>
-                    {qualityReport ? (
-                      <QualityReportCard
-                        report={qualityReport}
-                        evidenceDetailsEnabled={evidenceDetailsEnabled}
-                      />
-                    ) : (
+                    {!qualityReport ? (
                       <Alert
                         type="info"
                         showIcon
                         message="尚未生成本轮数据质量报告"
                         description="点击页面右上角“生成质量报告”，平台会基于当前服务机构的适配器、字段映射和探活事实生成快照。"
                       />
-                    )}
+                    ) : null}
                     <div className={styles.qualityGrid}>
                       <MetricCard title="未连接" value={status?.notConnectedAdapters ?? 0} />
                       <MetricCard title="配置非法" value={status?.misconfiguredAdapters ?? 0} />

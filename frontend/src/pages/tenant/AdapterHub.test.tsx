@@ -591,6 +591,23 @@ describe("AdapterHub", () => {
     expect(screen.getByText("共 24 条接入申请，当前显示 1-20 条")).toBeInTheDocument();
   });
 
+  it("keeps the generated data quality report in one place when operators open the quality dashboard", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "生成质量报告" }));
+    expect(await screen.findByText("数据质量报告已生成")).toBeInTheDocument();
+    expect(screen.getAllByText("数据质量报告")).toHaveLength(1);
+
+    await user.click(screen.getByRole("tab", { name: "数据质量看板" }));
+
+    expect(screen.getAllByText("数据质量报告")).toHaveLength(1);
+    expect(screen.queryByText("尚未生成本轮数据质量报告")).not.toBeInTheDocument();
+    expect(screen.getAllByText("未连接").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("配置非法").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("字段映射覆盖").length).toBeGreaterThan(0);
+  });
+
   it("loads the data contract summary from the current hospital runtime", () => {
     vi.mocked(useIntegrationDataContract).mockReturnValue(query(dataContract) as never);
 
