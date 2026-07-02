@@ -10,24 +10,25 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `3c6fe153241ebba6245241109b130eb2a9df19a2`
-  （`fix: 收敛系统接入字段映射缺口展示`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前已发布应用代码提交为 `0c273f55c0020410fb136419b1dd8a281fd503c7`
+  （`fix: 补齐医保问题服务端翻页`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
   第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
   第十九批系统接入默认技术信息收敛、第二十批质量下钻默认追溯信息收敛、第二十一批协同任务列表可读性收敛，
   第二十二批诊断知识统一治理边界收敛、第二十三批随访办理底部操作区收敛，
-  以及第二十四批系统接入字段映射缺口分页摘要收敛。
-- 当前 134 已发布应用为 `3c6fe153241ebba6245241109b130eb2a9df19a2`；第二十四批已发布并完成真实前台与全职责复演。
-- 134 当前完整部署 `3c6fe153241ebba6245241109b130eb2a9df19a2`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260702-193110`，manifest
-  `deployedAt=2026-07-02T19:31:15+08:00`，
-  `jarSha256=dc9dcce5a7f9143c3f7687528daf51dcec1dbd4b6e7df4b67fa82bc182834e16`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2962539`、`NRestarts=0`。
+  第二十四批系统接入字段映射缺口分页摘要收敛，以及第二十五批医保问题服务端翻页收敛。
+- 当前 134 已发布应用为 `0c273f55c0020410fb136419b1dd8a281fd503c7`；第二十五批已发布并完成真实前台、
+  全职责复演和医保审核聚焦现场校验。
+- 134 当前完整部署 `0c273f55c0020410fb136419b1dd8a281fd503c7`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-194804`，manifest
+  `deployedAt=2026-07-02T19:48:07+08:00`，
+  `jarSha256=aba8cb65ef48748b05ed498e81110e5a3e727e7b95ebe462aed1b66ff953c5a2`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2971969`、`NRestarts=0`。
 - 134 对外 E2E 入口使用 `https://193.112.107.134/medkernel` 与
   `https://193.112.107.134/medkernel/api/v1`，当前证书按现场自签/非可信处理，Playwright 需带
   `E2E_IGNORE_HTTPS_ERRORS=1`。后端 `18080` 只监听 `127.0.0.1`，不要从外网使用
   `http://193.112.107.134:18080` 作为演练入口。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十四批版本已完成真实前台与全职责 E2E。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十五批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -36,6 +37,50 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-02 全视角真实前台体验优化第二十五批·医保问题服务端翻页）
+
+- 基于第二十四批 134 真实前台截图继续按医保办、医生、质控、信息科和院长视角检查，发现
+  `/qc/insurance` 的“医保问题列表”不是设计方向错误：它仍按真实病案快照、B0 医保审核、整改闭环和证据详情工作。
+  但回查 `PRODUCT_SCOPE` 与 `EXPERIENCE_CONTRACT` 后确认，医保问题属于列表/审核队列，必须服务端分页并给出当前范围；
+  当前实现虽然调用 `useInsuranceIssues({ page, size })`，却把前端页码固定为 `page: 1, size: 20`，且无翻页控件。
+  真实前台多轮演练后，已派整改问题会累积，医保办和质控人员无法到达第二页，容易误以为只有第一页数据。
+- 已本地修复并提交 `0c273f55c0020410fb136419b1dd8a281fd503c7`
+  （`fix: 补齐医保问题服务端翻页`）：
+  - 新增医保问题页码状态，默认每页 `10` 条；列表底部展示
+    “共 N 条医保问题，当前显示 x-y 条”，并通过独立 `Pagination` 驱动服务端 `page` 参数，避免 Antd List 客户端二次切片。
+  - 问题状态、时间、级别筛选变化和执行医保审核后回到第一页；“未处理问题”指标改为“当前页未处理”，避免
+    总量大于当前页时误导为全量未处理数。
+  - 本批不改变医保审核、DRG/DIP 分组、病案内涵质控、质量整改、证据详情、患者敏感信息和后端接口契约；
+    不把用户关于知识治理的疑问转成片面结构调整。
+- 红绿验证：
+  - 红灯：`npm --prefix frontend test -- InsuranceAudit.test.tsx -t "keeps accumulated insurance issues reachable"`
+    在旧实现下失败，暴露最后一次 `useInsuranceIssues` 仍收到 `page: 1, size: 20`，找不到服务端分页范围文案。
+  - 绿灯：同一目标用例通过；`npm --prefix frontend test -- InsuranceAudit.test.tsx` 通过，`8` 项。
+  - 完整前端门禁：首次 `npm --prefix frontend run verify` 停在 Prettier 格式检查，已用
+    `npx prettier --write src/pages/quality/InsuranceAudit.tsx src/pages/quality/InsuranceAudit.test.tsx` 修正；
+    复跑 `npm --prefix frontend run verify` 通过，`114` 个测试文件 / `923` 项；`npm --prefix frontend run build` 通过；
+    `git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source 0c273f55c0020410fb136419b1dd8a281fd503c7`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260702-194804`，manifest
+    `deployedAt=2026-07-02T19:48:07+08:00`，
+    `jarSha256=aba8cb65ef48748b05ed498e81110e5a3e727e7b95ebe462aed1b66ff953c5a2`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2971969`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-0c273f55-insurance-pagination`
+    通过 134 HTTPS 入站运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (42.1s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，运行记录 `11` 段真实前台链路均由页面提交产生，
+    `errors=0`。截图 `real-frontdesk-insurance-quality-rectification.png` 尺寸为 `1440x3291`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-0c273f55-insurance-pagination`
+    通过 134 HTTPS 入站运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，运行记录 `12` 类业务视角、`errors=0`。
+  - 聚焦现场校验：机构 `engine-operator` 登录 134 后直达 `/qc/insurance`，默认“未处理”筛选当前为 `0` 条，这是因为
+    本轮真实演练生成的问题已进入“已派整改”状态，不是分页回归；切换到“已派整改”后断言页面显示
+    “共 17 条医保问题，当前显示 1-10 条”，截图
+    `/tmp/medkernel-e2e-codex3/evidence-insurance-pagination-focused-0c273f55.png` 尺寸为 `1440x2814`。
+- 后续继续主线全局体验优化：本批收敛的是医保问题列表可达性和信息密度，不改医保审核业务边界。
+  下一轮继续按医生、护士、患者/代理、药师、医技、医保办、质控、信息科、实施、院长等全视角从真实前台截图和操作流里找
+  分类、流程、默认层级、隐私处理和运行可达性的缺口；用户关于知识治理契合度的问题继续作为全局判断线索，不作为盲改依据。
 
 ## 最新阶段交接（2026-07-02 全视角真实前台体验优化第二十四批·系统接入字段映射缺口分页摘要）
 
