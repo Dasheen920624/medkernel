@@ -351,6 +351,41 @@ describe("AdminAudit", () => {
     expect(screen.getAllByText(/stakeholder-ollama-mr0c0kb8/).length).toBeGreaterThan(0);
   });
 
+  it("默认将导出记录中的审计导出编号收进证据详情", async () => {
+    const user = userEvent.setup();
+    const confirmationId = "exp-audit-event-8eac2263-e727-4931-976e-8f17b6b85949-export";
+    vi.mocked(useExportConfirmations).mockReturnValue(
+      query({
+        items: [
+          {
+            ...confirmations[1],
+            confirmationId,
+            confirmationEvidenceId:
+              "evd-exp-audit-event-8eac2263-e727-4931-976e-8f17b6b85949-confirmation",
+            exportEvidenceId: "evd-exp-audit-event-8eac2263-e727-4931-976e-8f17b6b85949-export",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        totalPages: 1,
+      }) as never,
+    );
+
+    render(<AdminAudit />);
+
+    await user.click(screen.getByRole("tab", { name: "导出记录" }));
+
+    expect(screen.getByText("审计导出任务")).toBeInTheDocument();
+    expect(screen.queryByText(/exp-audit-event-/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /exp-audit-event-/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText(confirmationId)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: `查看证据 ${confirmationId}` })).toBeInTheDocument();
+  });
+
   it("keeps audit readers out of export confirmation queries and controls", () => {
     vi.mocked(useSecurityProfile).mockReturnValue(
       query({

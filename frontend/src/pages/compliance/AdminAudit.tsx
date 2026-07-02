@@ -85,6 +85,8 @@ const MODEL_EGRESS_CAPABILITY_LABELS = new Map<string, string>([
 ]);
 const AUDIT_EXPORT_REF_PATTERN =
   /\baudit_event\/exp-audit-event-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi;
+const AUDIT_EXPORT_CONFIRMATION_REF_PATTERN =
+  /\b(?:evd-)?exp-audit-event-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:-(?:confirmation|export))?\b/gi;
 const FOLLOWUP_TEMPLATE_REF_PATTERN = /\bFUP\.STAKEHOLDER\.[A-Z0-9._-]+(?:@\d+)?\b/g;
 const CDSS_CONTEXT_REF_PATTERN =
   /\bCDSS-MANUAL-[a-z0-9._-]+-ctx-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:-[a-z0-9._-]+)*\b/gi;
@@ -156,6 +158,7 @@ function auditSummaryLabel(summary?: string | null, evidenceDetailsEnabled = tru
   if (evidenceDetailsEnabled) return value;
   return value
     .replace(AUDIT_EXPORT_REF_PATTERN, "审计导出任务")
+    .replace(AUDIT_EXPORT_CONFIRMATION_REF_PATTERN, "审计导出任务")
     .replace(FOLLOWUP_TEMPLATE_REF_PATTERN, "随访模板")
     .replace(CDSS_CONTEXT_REF_PATTERN, "临床推荐评估")
     .replace(REPORT_CONTEXT_REF_PATTERN, "报告解读任务")
@@ -168,6 +171,13 @@ function auditSummaryLabel(summary?: string | null, evidenceDetailsEnabled = tru
 function auditActorLabel(actorUserId?: string | null, evidenceDetailsEnabled = true) {
   if (evidenceDetailsEnabled) return actorUserId ?? "系统";
   return actorUserId ? "已记录操作人" : "系统操作";
+}
+
+function auditExportConfirmationLabel(
+  confirmationId?: string | null,
+  evidenceDetailsEnabled = true,
+) {
+  return auditSummaryLabel(confirmationId?.trim() || "导出任务已记录", evidenceDetailsEnabled);
 }
 
 function signatureStatusLabel(signature?: string | null) {
@@ -534,9 +544,13 @@ export default function AdminAudit() {
 
   function evidenceButton(confirmation: ExportConfirmation) {
     if (!confirmation.confirmationEvidenceId && !confirmation.exportEvidenceId) return null;
+    const confirmationLabel = auditExportConfirmationLabel(
+      confirmation.confirmationId,
+      evidenceDetailsEnabled,
+    );
     return (
       <Button
-        aria-label={`查看证据 ${confirmation.confirmationId}`}
+        aria-label={`查看证据 ${confirmationLabel}`}
         icon={<FileProtectOutlined />}
         onClick={() => openEvidence(confirmation)}
       >
@@ -660,7 +674,9 @@ export default function AdminAudit() {
       render: (_value: unknown, confirmation: ExportConfirmation) => (
         <Space direction="vertical" size={0}>
           <Text strong>{confirmation.reason}</Text>
-          <Text type="secondary">{confirmation.confirmationId}</Text>
+          <Text type="secondary">
+            {auditExportConfirmationLabel(confirmation.confirmationId, evidenceDetailsEnabled)}
+          </Text>
         </Space>
       ),
     },
@@ -696,7 +712,10 @@ export default function AdminAudit() {
                   }
                 }
                 buttonLabel="生成文件"
-                buttonAriaLabel={`生成导出文件 ${confirmation.confirmationId}`}
+                buttonAriaLabel={`生成导出文件 ${auditExportConfirmationLabel(
+                  confirmation.confirmationId,
+                  evidenceDetailsEnabled,
+                )}`}
                 modalTitle="生成已确认导出文件"
                 submitLabel="确认生成导出文件"
                 onSubmit={(request) => submitConfirmedExport(confirmation, request)}
