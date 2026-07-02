@@ -10,27 +10,27 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `d08c3319f53350360c98cfe7ab4b4a522f872c36`
-  （`fix: 收敛质量概览待办密度`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前已发布应用代码提交为 `1d3a0c248d6cc79f3596d68422ced1be23828071`
+  （`fix: 收敛模型能力默认表格层级`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
   第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
   第十九批系统接入默认技术信息收敛、第二十批质量下钻默认追溯信息收敛、第二十一批协同任务列表可读性收敛，
   第二十二批诊断知识统一治理边界收敛、第二十三批随访办理底部操作区收敛，
   第二十四批系统接入字段映射缺口分页摘要收敛、第二十五批医保问题服务端翻页收敛，
   第二十六批系统接入质量报告单一呈现收敛、第二十七批接入阻塞项默认文案收敛、
-  第二十八批质量问题服务端翻页收敛，以及第二十九批质量概览待办密度收敛。
-- 当前 134 已发布应用为 `d08c3319f53350360c98cfe7ab4b4a522f872c36`；第二十九批已发布并完成真实前台、
-  全职责复演和质量概览待办密度聚焦现场校验。
-- 134 当前完整部署 `d08c3319f53350360c98cfe7ab4b4a522f872c36`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260702-205258`，manifest
-  `deployedAt=2026-07-02T20:53:00+08:00`，
-  `jarSha256=3f5210db07f5ca8d8d2643fc68c1137cf8b8d759a8a89a09607f0f932bcfc425`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=3008175`、`NRestarts=0`。
+  第二十八批质量问题服务端翻页收敛、第二十九批质量概览待办密度收敛，以及第三十批模型能力默认表格层级收敛。
+- 当前 134 已发布应用为 `1d3a0c248d6cc79f3596d68422ced1be23828071`；第三十批已发布并完成真实前台、
+  全职责复演和模型能力默认表格聚焦现场校验。
+- 134 当前完整部署 `1d3a0c248d6cc79f3596d68422ced1be23828071`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-211236`，manifest
+  `deployedAt=2026-07-02T21:12:38+08:00`，
+  `jarSha256=b7c0478394d4bf9ea45f53aa1a6fd2a37be5554e642194be0b5a725947a937d8`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=3019006`、`NRestarts=0`。
 - 134 对外 E2E 入口使用 `https://193.112.107.134/medkernel` 与
   `https://193.112.107.134/medkernel/api/v1`，当前证书按现场自签/非可信处理，Playwright 需带
   `E2E_IGNORE_HTTPS_ERRORS=1`。后端 `18080` 只监听 `127.0.0.1`，不要从外网使用
   `http://193.112.107.134:18080` 作为演练入口。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十九批版本已完成真实前台与全职责 E2E。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第三十批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -39,6 +39,48 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-02 全视角真实前台体验优化第三十批·模型能力默认表格层级）
+
+- 用户强调“知识治理/模型能力问题只是疑问，不能片面盲改”，本批先回查 `CONSTITUTION`、`PRODUCT_SCOPE`
+  与 `EXPERIENCE_CONTRACT`：模型能力属于知识生产公共能力，必须经统一模型能力网关接入且无模型 B0 可运行；
+  不创建独立模型入口、独立发布流程、独立证据格式或独立权限体系；客户可见默认表格列数需收敛，追溯字段、
+  长文本、审计字段进入详情。由此确认本批只做默认层级优化，不改知识治理结构、不新增旧式“专家模式”。
+- 基于第二十九批 134 真实前台截图继续按信息科、实施、知识生产运营、医生/护士安全边界和院长治理视角检查，
+  发现 `/advanced/ai-workflows` 的模型能力表默认展示“数据保护、结构约束、降级顺序、策略来源”等低频治理列，
+  导致能力身份与“模型安全边界”动作被横向技术列隔开；多行无模型基线看起来像重复的“无模型外调”，
+  容易让实施人员误判页面是在展示技术审计宽表，而不是统一模型能力网关下的能力清单和安全动作。
+- 已本地修复并提交 `1d3a0c248d6cc79f3596d68422ced1be23828071`
+  （`fix: 收敛模型能力默认表格层级`）：
+  - 默认表格保留“能力、运行方式、数据边界、当前状态、模型安全边界”，把业务分类并入能力单元格标签。
+  - “数据保护、结构约束、降级顺序、策略来源、能力编码、schema、fallback order”等低频治理与追溯信息继续留在行展开和证据详情中。
+  - 本批不改变模型能力后端契约、公网/院内模型安全策略、患者敏感信息处理、知识生产入口、发布治理或无模型 B0 主链。
+- 红绿验证：
+  - 红灯：`npm --prefix frontend test -- AiWorkflows.test.tsx -t "默认模型能力表聚焦能力身份"`
+    在旧实现下失败，暴露默认列仍包含“数据保护”等技术列。
+  - 绿灯：同一目标用例通过；`npm --prefix frontend test -- AiWorkflows.test.tsx` 通过，`11` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `928` 项；其中保留既有
+    Antd `Timeline.Item` deprecation warning；`npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source 1d3a0c248d6cc79f3596d68422ced1be23828071`
+    完整发布到 134；远端备份 `/zoesoft/medkernel/backups/deploy-20260702-211236`，manifest
+    `deployedAt=2026-07-02T21:12:38+08:00`，
+    `jarSha256=b7c0478394d4bf9ea45f53aa1a6fd2a37be5554e642194be0b5a725947a937d8`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=3019006`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-1d3a0c24-model-capability-table-focus`
+    通过 134 HTTPS 入站运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (44.6s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，运行记录错误合计 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-1d3a0c24-model-capability-table-focus`
+    通过 134 HTTPS 入站运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.4m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，`12` 类业务视角运行记录错误合计 `0`。
+  - 聚焦现场校验：机构 `engine-operator` 登录 134 后直达 `/advanced/ai-workflows`，默认列为
+    “详情、能力、运行方式、数据边界、当前状态、模型安全边界”，不再有“数据保护、结构约束、降级顺序、策略来源”
+    默认列；前三行可直接看到“临床知识关联发现、正式医学知识生产、电子病历语义实体提取”等能力身份及其无模型基线。
+    截图 `/tmp/medkernel-e2e-codex3/evidence-model-capability-table-focused-1d3a0c24/model-capability-table-focus.png`
+    尺寸为 `1440x1587`。
+- 后续继续主线全局体验优化：下一轮继续按医生、护士、患者/代理、药师、医技、医保办、质控、信息科、实施、
+  院长等全视角，从真实前台操作和截图中检查知识生产、系统接入、临床随访、患者资源、质量整改、
+  模型安全边界、权限职责、默认层级和运行可达性的剩余缺口。
 
 ## 最新阶段交接（2026-07-02 全视角真实前台体验优化第二十九批·质量概览待办密度）
 
