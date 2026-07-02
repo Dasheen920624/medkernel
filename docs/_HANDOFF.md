@@ -10,8 +10,8 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前本地最新应用代码提交为 `3bda50704de9ca101d13b0a88dca82149095ed4a`
-  （`fix: 收敛知识资产随访模板默认名`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前本地最新应用代码提交为 `cb768abf3810e7259bb7d529c924317986f3b143`
+  （`fix: 收敛来源血缘版本默认展示`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
   第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
   第十九批系统接入默认技术信息收敛、第二十批质量下钻默认追溯信息收敛、第二十一批协同任务列表可读性收敛，
@@ -20,24 +20,24 @@
   第二十六批系统接入质量报告单一呈现收敛、第二十七批接入阻塞项默认文案收敛、
   第二十八批质量问题服务端翻页收敛、第二十九批质量概览待办密度收敛、第三十批模型能力默认表格层级收敛，
   第三十一批随访模板演练批次默认展示收敛、第三十二批临床提醒采纳率口径收敛、第三十三批人员详情抽屉证据稳定性，
-  第三十四批诊断知识技术版次默认展示收敛，以及第三十五批知识资产随访模板默认名收敛。
+  第三十四批诊断知识技术版次默认展示收敛、第三十五批知识资产随访模板默认名收敛，以及第三十六批来源血缘版本沿革默认展示收敛。
 - 134 当前后端/JAR 完整部署仍为 `ef662ced1ca68723bed92aabd66440a833fde4b3`；远端备份
   `/zoesoft/medkernel/backups/deploy-20260702-214224`，manifest 仍记录
   `deployedAt=2026-07-02T21:42:27+08:00`，
   `jarSha256=ef79a21c1ccc2700a787d67bd4d81685a8a4119d9b0612210e598b25ea47efce`。不要把该 manifest
   误读成当前前端 dist 版本。
-- 134 当前前端 dist 已于 `2026-07-02 23:22:09` 完成 readiness 验证，发布命令为
-  `deploy/onprem/mk-publish.sh --frontend --source 3bda50704de9ca101d13b0a88dca82149095ed4a`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260702-232141`，readiness HTTP 200 / `{"status":"UP"}`，
-  服务 `active/enabled`、`MainPID=3090601`、`NRestarts=0`；线上 `index.html` 指向
-  `/assets/index-D0_B-_0m.js`，知识资产 chunk 为 `/assets/AuthoringAssets-IlvuMrMU.js`。
+- 134 当前前端 dist 已于 `2026-07-02 23:39:08` 完成 readiness 验证，发布命令为
+  `deploy/onprem/mk-publish.sh --frontend --source cb768abf3810e7259bb7d529c924317986f3b143`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-233840`，readiness HTTP 200 / `{"status":"UP"}`，
+  服务 `active/enabled`、`MainPID=3100253`、`NRestarts=0`；线上 `index.html` 指向
+  `/assets/index-DUDHd3oN.js`，来源血缘 chunk 为 `/assets/Provenance-xLhXC7ea.js`。
 - 134 对外 E2E 入口使用 `https://193.112.107.134/medkernel` 与
   `https://193.112.107.134/medkernel/api/v1`，当前证书按现场自签/非可信处理，Playwright 需带
   `E2E_IGNORE_HTTPS_ERRORS=1`。后端 `18080` 只监听 `127.0.0.1`，不要从外网使用
   `http://193.112.107.134:18080` 作为演练入口。
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。描述 134 状态时必须区分
-  后端 manifest 提交 `ef662ced` 与当前线上前端 dist 提交 `3bda5070`。
-- 当前应用代码最新提交为 `3bda50704de9ca101d13b0a88dca82149095ed4a`；E2E 脚本契约最新专项提交为
+  后端 manifest 提交 `ef662ced` 与当前线上前端 dist 提交 `cb768abf`。
+- 当前应用代码最新提交为 `cb768abf3810e7259bb7d529c924317986f3b143`；E2E 脚本契约最新专项提交为
   `aa372e0a12cdcd6d5d9e22b5fc33ff4c2085ecd9`（`test: 等待人员详情抽屉落入视口`），包含随访模板默认名定位和
   平台管理员人员详情抽屉截图落位等待。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
@@ -48,6 +48,60 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-02 全视角真实前台体验优化第三十六批·来源血缘版本沿革默认展示收敛）
+
+- 用户强调“疑问只是线索，不代表当前设计实现错误”，本批先对照 `CONSTITUTION`、`PRODUCT_SCOPE`、
+  `EXPERIENCE_CONTRACT`、功能目录、职责矩阵和路由契约判断：`/advanced/provenance` 仍是统一知识治理、
+  来源血缘、版本沿革和审计证据的权威入口；版本技术标识应进入证据详情，默认层服务医生、护士、实施、信息科、
+  知识生产运营和院长理解“当前权威版本/历史版本/来源已记录”。本批不拆第二套血缘系统、不新增旧式“专家模式”，
+  也不改变知识资产、诊断知识、模型任务或来源血缘后端契约。
+- 基于第三十五批后 134 线上截图和可见文本扫描继续做全角色默认层检查，扫描文件为
+  `/tmp/medkernel-e2e-codex3/visible-technical-scan-3bda5070.json`。`/authoring/assets`、
+  `/knowledge/diagnosis`、知识生产和模型能力页面已收敛；`/advanced/provenance` 的“版本沿革”仍默认显示
+  `ai-draft-task-...`。这会让业务用户误以为权威知识版本直接由模型任务命名，违反“模型只产候选不产事实”和
+  “低频技术对象默认收进证据详情”的体验边界；但不构成来源血缘归属或知识治理结构错误。
+- 已本地修复并提交 `cb768abf3810e7259bb7d529c924317986f3b143`
+  （`fix: 收敛来源血缘版本默认展示`）：
+  - `frontend/src/pages/advanced/Provenance.tsx` 识别 `ai-draft-task`、`model-task`、长 hash 和 UUID 类技术版次。
+  - 默认版本沿革优先显示业务 `versionLabel` 或业务 `versionNo`；两者均为技术标识时按状态展示
+    “当前权威版本”“历史版本”等业务文案，副文本展示“版本来源已记录”。
+  - 原始 `versionNo`、模型任务标识和技术版次不丢失；开启“证据详情”后仍显示原始标识，供审计、实施排障和血缘核查使用。
+  - 本批不改后端 API、不改版本身份、不改模型生成知识、不改患者敏感信息策略、不改变来源血缘的审计证据保存方式。
+- 红绿验证与构建：
+  - 新增 `frontend/src/pages/advanced/Provenance.test.tsx` 用例
+    “默认隐藏版本沿革中的模型任务标识，证据详情才展示原始版次”，先在旧实现下红灯，暴露默认层找不到
+    “版本来源已记录”且仍展示 `ai-draft-task`。
+  - `npm --prefix frontend test -- Provenance.test.tsx -t "默认隐藏版本沿革中的模型任务标识"` 通过。
+  - `npm --prefix frontend test -- Provenance.test.tsx` 通过，`3` 项。
+  - `npm --prefix frontend run typecheck`、`npm --prefix frontend run format:check`、`git diff --check` 均通过。
+  - `npm --prefix frontend run verify` 通过，`114` 个测试文件 / `932` 项；保留既有 Antd `Timeline.Item`
+    deprecation warning。`npm --prefix frontend run build` 通过。
+- 134 发布与现场验证：
+  - 已执行 `deploy/onprem/mk-publish.sh --frontend --source cb768abf3810e7259bb7d529c924317986f3b143`；
+    这是前端-only 发布，远端 manifest 仍正确显示完整后端/JAR 部署提交
+    `ef662ced1ca68723bed92aabd66440a833fde4b3`。
+  - 远端备份 `/zoesoft/medkernel/backups/deploy-20260702-233840`；外部 readiness HTTP 200 /
+    `{"status":"UP"}`；SSH 只读复核服务 `active/enabled`、`MainPID=3100253`、`NRestarts=0`，
+    本机健康 `{"status":"UP","groups":["liveness","readiness"]}`。
+  - 线上 `index.html` 指向 `/assets/index-DUDHd3oN.js`；`/assets/Provenance-xLhXC7ea.js`
+    含“版本来源已记录”默认文案、技术版次识别和证据详情原始标识展示逻辑。
+  - 来源血缘在线专项检查通过，证据目录
+    `/tmp/medkernel-e2e-codex3/evidence-provenance-version-label-cb768abf`；
+    `provenance-default.png` 为 `1440x1221`，默认层显示“版本来源已记录”且不显示 `ai-draft-task`；
+    `provenance-evidence-details.png` 为 `1440x1392`，开启证据详情后显示原始 `ai-draft-task-...` 标识。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-cb768abf`
+    通过 134 HTTPS 入站运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (42.7s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`、`duration=42666.296ms`，
+    `11` 段真实前台运行记录错误合计 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-cb768abf`
+    通过 134 HTTPS 入站运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`、`duration=80131.44ms`，
+    `12` 类业务视角运行记录错误合计 `0`。
+- 后续继续主线全局体验优化：当前知识治理目录、诊断知识维护和来源血缘仍符合原始诉求；下一轮继续按医生、护士、
+  患者/代理、药师、医技、医保办、质控、信息科、实施、院长、平台治理和知识生产运营视角，从最新 134 真实前台、
+  全职责证据和可见文本扫描继续检查知识治理全链路、患者信息与模型安全、随访异常闭环、质量整改、系统接入阻断、
+  权限职责、默认信息层级、上线门禁和文档/契约一致性。
 
 ## 最新阶段交接（2026-07-02 全视角真实前台体验优化第三十五批·知识资产随访模板默认名收敛）
 
