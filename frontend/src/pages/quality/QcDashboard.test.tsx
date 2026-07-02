@@ -176,6 +176,48 @@ describe("QcDashboard", () => {
     expect(screen.queryByText(/485|92\.8|演示/)).not.toBeInTheDocument();
   });
 
+  it("keeps dashboard actions concise and links accumulated alerts to the full worklist", () => {
+    const activeAlerts = Array.from({ length: 8 }, (_, index) => ({
+      ...dashboardData.activeAlerts[0],
+      alertId: `alert-preview-${index + 1}`,
+      sourceId: `finding-preview-${index + 1}`,
+      title: `高优先待处置问题 ${index + 1}`,
+      createdAt: `2026-06-05T10:${String(index).padStart(2, "0")}:00Z`,
+      updatedAt: `2026-06-05T10:${String(index).padStart(2, "0")}:00Z`,
+    }));
+    mockUseQualityDashboard.mockReturnValue({
+      data: {
+        ...dashboardData,
+        summary: {
+          ...dashboardData.summary,
+          activeAlerts: activeAlerts.length,
+        },
+        activeAlerts,
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+    mockUseQualityDashboardDrilldown.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    expect(screen.getByText("最高优先问题")).toBeInTheDocument();
+    expect(screen.getByText("共 8 条待处置问题，当前展示 5 条")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "查看全部质量问题" })).toHaveAttribute(
+      "href",
+      "/qc/alerts",
+    );
+    expect(screen.getByText("高优先待处置问题 5")).toBeInTheDocument();
+    expect(screen.queryByText("高优先待处置问题 6")).not.toBeInTheDocument();
+  });
+
   it("renders backend metric unit codes as院长可读的业务单位", () => {
     mockUseQualityDashboard.mockReturnValue({
       data: {

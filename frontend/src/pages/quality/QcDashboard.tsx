@@ -50,6 +50,7 @@ import styles from "./Quality.module.css";
 const { Text, Title } = Typography;
 
 type TimeScope = "CURRENT_MONTH" | "LAST_30_DAYS" | "ALL";
+const DASHBOARD_ALERT_PREVIEW_LIMIT = 5;
 
 export default function QcDashboard() {
   const security = useSecurityProfile();
@@ -307,9 +308,31 @@ export default function QcDashboard() {
           </Card>
         </div>
 
-        <Card title="待处置问题">
+        <Card
+          title="最高优先问题"
+          extra={
+            <Space wrap>
+              {dashboard.summary.activeAlerts > 0 ? (
+                <Text type="secondary">
+                  {formatDashboardAlertPreviewSummary(
+                    dashboard.summary.activeAlerts,
+                    Math.min(dashboard.activeAlerts.length, DASHBOARD_ALERT_PREVIEW_LIMIT),
+                  )}
+                </Text>
+              ) : null}
+              <Button
+                aria-label="查看全部质量问题"
+                href="/qc/alerts"
+                icon={<SearchOutlined />}
+                size="small"
+              >
+                查看全部质量问题
+              </Button>
+            </Space>
+          }
+        >
           <AlertList
-            alerts={dashboard.activeAlerts}
+            alerts={dashboard.activeAlerts.slice(0, DASHBOARD_ALERT_PREVIEW_LIMIT)}
             departmentNames={departmentNames}
             scopeDepartmentLabels={scopeDepartmentLabels}
             evidenceDetailsEnabled={evidenceDetailsEnabled}
@@ -823,6 +846,10 @@ function resolveTimeRange(scope: TimeScope): { from?: string; to?: string } {
 
 function formatCount(value: number): string {
   return `${value} 项`;
+}
+
+function formatDashboardAlertPreviewSummary(total: number, visibleCount: number): string {
+  return `共 ${total} 条待处置问题，当前展示 ${visibleCount} 条`;
 }
 
 function formatMetricValue(metric: QualityValueMetric): string {
