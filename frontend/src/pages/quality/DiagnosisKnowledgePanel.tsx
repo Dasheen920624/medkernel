@@ -170,16 +170,60 @@ function businessVersionNoLabel(value: unknown) {
   return versionNo;
 }
 
+function statusVersionLabel(status: string) {
+  if (status === "ACTIVE") {
+    return "当前生效版本";
+  }
+  if (status === "DRAFT") {
+    return "草稿版本";
+  }
+  if (status === "CANDIDATE" || status === "PENDING_REPLACEMENT_REVIEW") {
+    return "候选版本";
+  }
+  if (status === "UNDER_REVIEW") {
+    return "审核中版本";
+  }
+  if (status === "SUPERSEDED") {
+    return "历史版本";
+  }
+  if (status === "WITHDRAWN") {
+    return "已撤回版本";
+  }
+  if (status === "REJECTED") {
+    return "已驳回版本";
+  }
+  return "知识版本";
+}
+
+function technicalVersionEvidence(...values: unknown[]) {
+  const unique = new Set<string>();
+  for (const value of values) {
+    const label = normalizedText(value);
+    if (label && isTechnicalVersionLabel(label)) {
+      unique.add(label);
+    }
+  }
+  return Array.from(unique);
+}
+
+function businessSafeVersionLabel(status: string, rawVersionLabel: string, rawVersionNo: string) {
+  if (rawVersionLabel && !isTechnicalVersionLabel(rawVersionLabel)) {
+    return rawVersionLabel;
+  }
+  if (rawVersionNo && !isTechnicalVersionLabel(rawVersionNo)) {
+    return businessVersionNoLabel(rawVersionNo);
+  }
+  return statusVersionLabel(status);
+}
+
 function versionLabel(version: KnowledgeAssetVersion, evidenceDetailsEnabled: boolean) {
   const rawVersionLabel = normalizedText(version.versionLabel);
-  const technicalLabel = isTechnicalVersionLabel(rawVersionLabel);
-  const safeLabel =
-    !technicalLabel && rawVersionLabel
-      ? rawVersionLabel
-      : businessVersionNoLabel(version.versionNo);
+  const rawVersionNo = normalizedText(version.versionNo);
+  const safeLabel = businessSafeVersionLabel(version.status, rawVersionLabel, rawVersionNo);
   const statusLabel = VERSION_STATUS_LABEL[version.status] ?? customerEnumLabel(version.status);
-  if (technicalLabel && evidenceDetailsEnabled) {
-    return `${safeLabel} · ${rawVersionLabel} · ${statusLabel}`;
+  const technicalEvidence = technicalVersionEvidence(rawVersionLabel, rawVersionNo);
+  if (evidenceDetailsEnabled && technicalEvidence.length > 0) {
+    return `${safeLabel} · ${technicalEvidence.join(" · ")} · ${statusLabel}`;
   }
   return `${safeLabel} · ${statusLabel}`;
 }

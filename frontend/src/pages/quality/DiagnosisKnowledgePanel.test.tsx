@@ -229,6 +229,31 @@ describe("DiagnosisKnowledgePanel", () => {
     });
   });
 
+  it("没有业务版次时默认用状态版名替代模型任务标识", async () => {
+    const technicalVersion = {
+      ...activeVersion,
+      versionNo: "ai-draft-task-b6d43db7078b4445a08dadcaf1",
+      versionLabel: "ai-draft-task-b6d43db7078b4445a08dadcaf1",
+    };
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([technicalVersion])));
+
+    const { unmount } = renderPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText("当前生效版本 · 已生效")).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/ai-draft-task/)).not.toBeInTheDocument();
+
+    unmount();
+    renderPanel(true);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("当前生效版本 · ai-draft-task-b6d43db7078b4445a08dadcaf1 · 已生效"),
+      ).toBeInTheDocument();
+    });
+  });
+
   it("reveals diagnosis identity evidence only when evidence details are enabled", async () => {
     renderPanel(true);
 
