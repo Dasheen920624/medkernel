@@ -500,7 +500,8 @@ async function createFollowupTemplateFromUi(
   await expectNoRootOverflow(page, "随访协同模板桌面");
 
   const templateCode = `FUP.REAL.FRONTDESK.${suffix.toUpperCase()}`;
-  const templateDisplayName = `真实前台慢病随访模板（${businessRehearsalBatchLabel(suffix)}）`;
+  const templateDefaultName = "真实前台慢病随访模板";
+  const templateDisplayName = `${templateDefaultName}（${businessRehearsalBatchLabel(suffix)}）`;
   const templateName = `${templateDisplayName} ${suffix}`;
   await expect(page.getByRole("button", { name: /新建模板/ })).toBeEnabled();
   await page.getByRole("button", { name: /新建模板/ }).click();
@@ -536,6 +537,7 @@ async function createFollowupTemplateFromUi(
     templateCode,
     name: result.data?.name ?? templateName,
     displayName: templateDisplayName,
+    defaultName: templateDefaultName,
   };
 }
 
@@ -544,7 +546,13 @@ async function publishFollowupTemplateFromUi(
   testInfo: TestInfo,
   runtime: RuntimeCollectors,
   records: RuntimeRecord[],
-  template: { templateId: string; templateCode: string; name: string; displayName: string },
+  template: {
+    templateId: string;
+    templateCode: string;
+    name: string;
+    displayName: string;
+    defaultName: string;
+  },
 ) {
   await ensureReadySession(page, "engine-operator");
   clearRuntime(runtime);
@@ -552,10 +560,10 @@ async function publishFollowupTemplateFromUi(
   await expect(page.getByRole("heading", { name: "随访协同" })).toBeVisible();
   await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
   await page.getByRole("tab", { name: "随访模板" }).click();
-  await page.getByPlaceholder("按模板名称或适用范围检索").fill(template.displayName);
+  await page.getByPlaceholder("按模板名称或适用范围检索").fill(template.defaultName);
 
   const row = page
-    .getByRole("row", { name: new RegExp(escapeRegExp(template.displayName)) })
+    .getByRole("row", { name: new RegExp(escapeRegExp(template.defaultName)) })
     .filter({ hasText: "待发布" })
     .first();
   await expect(row).toBeVisible();
@@ -576,7 +584,7 @@ async function publishFollowupTemplateFromUi(
   expect(result.data?.templateId).toBe(template.templateId);
   expect(result.data?.assetStatus).toBe("PUBLISHED");
   const publishedRow = page
-    .getByRole("row", { name: new RegExp(escapeRegExp(template.displayName)) })
+    .getByRole("row", { name: new RegExp(escapeRegExp(template.defaultName)) })
     .filter({ hasText: "可用于计划生成" })
     .first();
   await expect(publishedRow).toBeVisible({ timeout: 20_000 });
@@ -589,7 +597,7 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
   testInfo: TestInfo,
   runtime: RuntimeCollectors,
   records: RuntimeRecord[],
-  template: { templateId: string; name: string; displayName: string },
+  template: { templateId: string; name: string; displayName: string; defaultName: string },
   snapshot: ContextSnapshotSummary,
 ) {
   await ensureReadySession(page, "clinical-user");
@@ -608,7 +616,7 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
   });
   await dialog.getByRole("button", { name: "选择第 1 个随访上下文快照" }).click();
   await chooseDialogOption(page, dialog, "随访风险分层", "中风险");
-  await searchDialogOption(page, dialog, "随访模板", template.displayName, template.displayName);
+  await searchDialogOption(page, dialog, "随访模板", template.defaultName, template.defaultName);
 
   const responsePromise = waitForPost(page, "/api/v1/engine/followup/plans/generate");
   await dialog.getByRole("button", { name: /生\s*成/ }).click();
@@ -622,8 +630,9 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
     timeout: 20_000,
   });
   await expect(
-    page.getByRole("dialog", { name: "随访计划办理" }).getByText(template.displayName).first(),
+    page.getByRole("dialog", { name: "随访计划办理" }).getByText(template.defaultName).first(),
   ).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("dialog", { name: "随访计划办理" }).getByText(/上线复演/)).toHaveCount(0);
   await expect(
     page.getByRole("dialog", { name: "随访计划办理" }).getByText(template.name),
   ).toHaveCount(0);

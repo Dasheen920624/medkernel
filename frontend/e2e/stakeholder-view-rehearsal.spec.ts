@@ -665,7 +665,7 @@ async function performFollowupPlanAction(
   });
   await dialog.getByRole("button", { name: "选择第 1 个随访上下文快照" }).click();
   await chooseDialogOption(page, dialog, "随访风险分层", "中风险");
-  await searchDialogOption(page, dialog, "随访模板", template.displayName, template.displayName);
+  await searchDialogOption(page, dialog, "随访模板", template.defaultName, template.defaultName);
 
   const planResponsePromise = waitForPost(page, "/engine/followup/plans/generate");
   await dialog.getByRole("button", { name: /生\s*成/ }).click();
@@ -685,7 +685,7 @@ async function performFollowupPlanAction(
   const drawer = await openFollowupPlanDrawerForTemplate(
     page,
     view,
-    template.displayName,
+    template.defaultName,
     snapshot.patientId,
   );
   const fillButton = drawer.getByRole("button", { name: /填\s*报/ }).first();
@@ -693,6 +693,7 @@ async function performFollowupPlanAction(
     timeout: 30_000,
   });
   await expect(drawer.getByText(template.name)).toHaveCount(0);
+  await expect(drawer.getByText(/上线复演/)).toHaveCount(0);
   await fillButton.click();
   await chooseDialogOption(page, drawer, "提交来源", options.source);
   await drawer.getByLabel("问卷回收内容").fill(options.questionnaire);
@@ -788,7 +789,8 @@ async function createFollowupTemplateForStakeholderAction(
   await page.getByRole("tab", { name: "随访模板" }).click();
 
   const templateCode = `FUP.STAKEHOLDER.${suffix.toUpperCase()}`;
-  const templateDisplayName = `全角色${view.label}随访模板（${businessRehearsalBatchLabel(
+  const templateDefaultName = `全角色${view.label}随访模板`;
+  const templateDisplayName = `${templateDefaultName}（${businessRehearsalBatchLabel(
     suffix,
   )}）`;
   const templateName = `${templateDisplayName} ${suffix}`;
@@ -827,13 +829,20 @@ async function createFollowupTemplateForStakeholderAction(
     templateCode,
     name: template.data?.name ?? templateName,
     displayName: templateDisplayName,
+    defaultName: templateDefaultName,
   };
 }
 
 async function publishFollowupTemplateForStakeholderAction(
   page: Page,
   view: StakeholderView,
-  template: { templateId: string; templateCode: string; name: string; displayName: string },
+  template: {
+    templateId: string;
+    templateCode: string;
+    name: string;
+    displayName: string;
+    defaultName: string;
+  },
 ) {
   await ensureReadySession(page, "engine-operator");
   await page.goto(appPath("/clinical/followup"), { waitUntil: "domcontentloaded" });
@@ -843,10 +852,10 @@ async function publishFollowupTemplateForStakeholderAction(
     `${view.label} 应能进入随访模板治理页发布模板`,
   ).toBeVisible({ timeout: 30_000 });
   await page.getByRole("tab", { name: "随访模板" }).click();
-  await page.getByPlaceholder("按模板名称或适用范围检索").fill(template.displayName);
+  await page.getByPlaceholder("按模板名称或适用范围检索").fill(template.defaultName);
 
   const row = page
-    .getByRole("row", { name: new RegExp(escapeRegExp(template.displayName)) })
+    .getByRole("row", { name: new RegExp(escapeRegExp(template.defaultName)) })
     .filter({ hasText: "待发布" })
     .first();
   await expect(row).toBeVisible({ timeout: 20_000 });
@@ -867,7 +876,7 @@ async function publishFollowupTemplateForStakeholderAction(
   expect(published.data?.templateId).toBe(template.templateId);
   expect(published.data?.assetStatus).toBe("PUBLISHED");
   const publishedRow = page
-    .getByRole("row", { name: new RegExp(escapeRegExp(template.displayName)) })
+    .getByRole("row", { name: new RegExp(escapeRegExp(template.defaultName)) })
     .filter({ hasText: "可用于计划生成" })
     .first();
   await expect(publishedRow).toBeVisible({ timeout: 30_000 });
