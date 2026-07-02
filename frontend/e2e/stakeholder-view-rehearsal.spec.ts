@@ -496,6 +496,7 @@ async function performPlatformAdminPersonnelAction(page: Page, view: Stakeholder
   await row.getByRole("button", { name: "查看" }).click();
   const drawer = page.locator(".ant-drawer-content").filter({ hasText: "人员档案" }).last();
   await expect(drawer).toBeVisible({ timeout: 20_000 });
+  await expectDrawerSettledInViewport(page, drawer, `${view.label} 人员详情抽屉`);
   await expect(drawer.getByText(displayName, { exact: true }).first()).toBeVisible();
   await expect(drawer.getByText("账号与身份来源")).toBeVisible();
   await expect(drawer.getByText("未开通", { exact: true }).first()).toBeVisible();
