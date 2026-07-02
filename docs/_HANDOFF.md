@@ -10,8 +10,8 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `ca58c7ab1b1a8e86e9888c94b3e5dd4790b5afc4`
-  （`fix: 收敛随访模板演练批次展示`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前已发布应用代码提交为 `ef662ced1ca68723bed92aabd66440a833fde4b3`
+  （`fix: 澄清临床提醒采纳率口径`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
   第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
   第十九批系统接入默认技术信息收敛、第二十批质量下钻默认追溯信息收敛、第二十一批协同任务列表可读性收敛，
@@ -19,19 +19,19 @@
   第二十四批系统接入字段映射缺口分页摘要收敛、第二十五批医保问题服务端翻页收敛，
   第二十六批系统接入质量报告单一呈现收敛、第二十七批接入阻塞项默认文案收敛、
   第二十八批质量问题服务端翻页收敛、第二十九批质量概览待办密度收敛、第三十批模型能力默认表格层级收敛，
-  以及第三十一批随访模板演练批次默认展示收敛。
-- 当前 134 已发布应用为 `ca58c7ab1b1a8e86e9888c94b3e5dd4790b5afc4`；第三十一批已发布并完成真实前台、
-  全职责复演和随访模板默认展示现场校验。
-- 134 当前完整部署 `ca58c7ab1b1a8e86e9888c94b3e5dd4790b5afc4`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260702-212459`，manifest
-  `deployedAt=2026-07-02T21:25:01+08:00`，
-  `jarSha256=4df6192f497b5b0bc0849a056b79352aebe8514fe3f46c4db0d1e796855d0490`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=3026008`、`NRestarts=0`。
+  第三十一批随访模板演练批次默认展示收敛，以及第三十二批临床提醒采纳率口径收敛。
+- 当前 134 已发布应用为 `ef662ced1ca68723bed92aabd66440a833fde4b3`；第三十二批已发布并完成真实前台、
+  全职责复演和 CDSS 指标口径现场校验。
+- 134 当前完整部署 `ef662ced1ca68723bed92aabd66440a833fde4b3`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-214224`，manifest
+  `deployedAt=2026-07-02T21:42:27+08:00`，
+  `jarSha256=ef79a21c1ccc2700a787d67bd4d81685a8a4119d9b0612210e598b25ea47efce`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=3035812`、`NRestarts=0`。
 - 134 对外 E2E 入口使用 `https://193.112.107.134/medkernel` 与
   `https://193.112.107.134/medkernel/api/v1`，当前证书按现场自签/非可信处理，Playwright 需带
   `E2E_IGNORE_HTTPS_ERRORS=1`。后端 `18080` 只监听 `127.0.0.1`，不要从外网使用
   `http://193.112.107.134:18080` 作为演练入口。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第三十一批版本已完成真实前台与全职责 E2E。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第三十二批版本已完成真实前台与全职责 E2E。
 - 当前本地 E2E 脚本契约最新提交为 `8a02caa3c28b035a891efcc969c9e288bdc29649`
   （`test: 对齐随访模板默认名演练`），只用于后续演练按前台默认业务名定位；不代表 134 应用代码再次发布。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
@@ -42,6 +42,48 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-02 全视角真实前台体验优化第三十二批·临床提醒采纳率口径）
+
+- 用户强调“疑问只是线索，不能片面盲改；当前目标是完美实现原始诉求”，本批继续先回查 `CONSTITUTION`、
+  `PRODUCT_SCOPE` 与 `EXPERIENCE_CONTRACT`：CDSS 的核心是低打扰、医师确认、反馈闭环和价值指标，
+  不允许自动开嘱或替代医生确认。由此确认本批只澄清默认指标口径，不改推荐算法、不改后端统计、不改医师反馈流程。
+- 基于第三十一批 134 真实前台截图继续按医生、药师、护士、医技、质控和院长视角检查，发现
+  `/cdss/fatigue` 顶部指标同时显示“待处理 45、已采纳 61、不采纳 0、采纳率 100%”。后端采纳率实际是
+  已作出采纳/不采纳决定中的采纳比例，未处理提醒不进入分母；默认标题只写“采纳率”会让医生、药师和管理者误读为
+  全部提醒已采纳，削弱“待处理”与医师确认的医疗安全含义。
+- 已本地修复并提交 `ef662ced1ca68723bed92aabd66440a833fde4b3`
+  （`fix: 澄清临床提醒采纳率口径`）：
+  - 指标卡标题从“采纳率”改为“已处理采纳率”。
+  - 指标值下方新增“待处理 N 项不计入”小字说明，明确分母只来自已采纳 + 不采纳的已处理闭环。
+  - 本批不改变 `acceptanceRatePercent` 后端口径、推荐卡状态、医生采纳/不采纳、药师复核、报告解读、
+    患者上下文或 CDSS 医疗安全边界。
+- 红绿验证：
+  - 红灯：`npm --prefix frontend test -- CdssFatigue.test.tsx -t "renders clinical reminder cards"`
+    在旧实现下失败，暴露页面找不到“已处理采纳率”和“待处理 1 项不计入”。
+  - 绿灯：同一目标用例通过；`npm --prefix frontend test -- CdssFatigue.test.tsx` 通过，`11` 项；
+    保留既有 Antd `Timeline.Item` deprecation warning。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `928` 项；其中保留既有
+    Antd `Timeline.Item` deprecation warning；`npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source ef662ced1ca68723bed92aabd66440a833fde4b3`
+    完整发布到 134；远端备份 `/zoesoft/medkernel/backups/deploy-20260702-214224`，manifest
+    `deployedAt=2026-07-02T21:42:27+08:00`，
+    `jarSha256=ef79a21c1ccc2700a787d67bd4d81685a8a4119d9b0612210e598b25ea47efce`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=3035812`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-ef662ced-cdss-acceptance-rate`
+    通过 134 HTTPS 入站运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (42.2s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，`11` 段真实前台运行记录错误合计 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-ef662ced-cdss-acceptance-rate`
+    通过 134 HTTPS 入站运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.6m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，`12` 类业务视角运行记录错误合计 `0`。
+  - 截图复核：`real-frontdesk-cdss-recommendation.png` 尺寸 `1440x1841`，默认指标显示“提醒总数 169、
+    待处理 46、已采纳 62、不采纳 0、已处理采纳率 100%”，且小字标明“待处理 46 项不计入”；
+    `stakeholder-physician.png` 与 `stakeholder-pharmacist.png` 均为 `1440x1256`。
+- 后续继续主线全局体验优化：本批只澄清临床提醒默认统计口径，不改变 CDSS 推荐、医师确认、药师复核、
+  医技报告解读或人机反馈。下一轮继续按医生、护士、患者/代理、药师、医技、医保办、质控、信息科、
+  实施、院长等全视角，从最新 134 真实前台截图和操作流继续检查知识治理、患者资源、质量整改、
+  系统接入、模型安全边界、权限职责、默认层级和运行可达性的剩余缺口。
 
 ## 最新阶段交接（2026-07-02 全视角真实前台体验优化第三十一批·随访模板演练批次默认展示）
 
