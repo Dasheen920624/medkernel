@@ -10,26 +10,26 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `ba69a8e9e4fc6118da75072725de1542d201afe2`
-  （`fix: 收敛系统接入质量报告重复展示`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前已发布应用代码提交为 `98ebed20c08303e3b216afe9e96d2919a8bbc347`
+  （`fix: 收敛接入阻塞项默认文案`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
   第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
   第十九批系统接入默认技术信息收敛、第二十批质量下钻默认追溯信息收敛、第二十一批协同任务列表可读性收敛，
   第二十二批诊断知识统一治理边界收敛、第二十三批随访办理底部操作区收敛，
   第二十四批系统接入字段映射缺口分页摘要收敛、第二十五批医保问题服务端翻页收敛，
-  以及第二十六批系统接入质量报告单一呈现收敛。
-- 当前 134 已发布应用为 `ba69a8e9e4fc6118da75072725de1542d201afe2`；第二十六批已发布并完成真实前台、
-  全职责复演和系统接入质量报告聚焦现场校验。
-- 134 当前完整部署 `ba69a8e9e4fc6118da75072725de1542d201afe2`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260702-200426`，manifest
-  `deployedAt=2026-07-02T20:04:29+08:00`，
-  `jarSha256=fa2356ab2a8f9b13b6a704254e52cdddfdfa6d3a01dd16caa836b4d3cb064002`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2981026`、`NRestarts=0`。
+  第二十六批系统接入质量报告单一呈现收敛，以及第二十七批接入阻塞项默认文案收敛。
+- 当前 134 已发布应用为 `98ebed20c08303e3b216afe9e96d2919a8bbc347`；第二十七批已发布并完成真实前台、
+  全职责复演和接入向导阻塞项聚焦现场校验。
+- 134 当前完整部署 `98ebed20c08303e3b216afe9e96d2919a8bbc347`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-201601`，manifest
+  `deployedAt=2026-07-02T20:16:03+08:00`，
+  `jarSha256=77da944171329643daf238ec5f726ea1d4a2b98a2b2b5f63c78acfe3e70d2059`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2987652`、`NRestarts=0`。
 - 134 对外 E2E 入口使用 `https://193.112.107.134/medkernel` 与
   `https://193.112.107.134/medkernel/api/v1`，当前证书按现场自签/非可信处理，Playwright 需带
   `E2E_IGNORE_HTTPS_ERRORS=1`。后端 `18080` 只监听 `127.0.0.1`，不要从外网使用
   `http://193.112.107.134:18080` 作为演练入口。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十六批版本已完成真实前台与全职责 E2E。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十七批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -38,6 +38,45 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-02 全视角真实前台体验优化第二十七批·接入阻塞项默认文案）
+
+- 基于第二十六批 134 新截图继续按实施工程师、信息科长和平台管理员视角检查，发现 `/adapter/hub`
+  的“接入向导”标签页在阻塞项列默认展示后端原始枚举，例如 `NOT_CONNECTED`。此前质量报告和默认摘要层已收敛，
+  但接入申请表格仍原样渲染 `record.blockers`；真实实施验收时会把“未接通”理解成技术枚举或误以为需要按枚举配置。
+  回查 `EXPERIENCE_CONTRACT` 与现有 `customerDisplayText` 契约后确认，应把阻塞项纳入同一默认业务语言/证据详情原文机制。
+- 已本地修复并提交 `98ebed20c08303e3b216afe9e96d2919a8bbc347`
+  （`fix: 收敛接入阻塞项默认文案`）：
+  - 接入向导阻塞项默认使用 `customerDisplayText`，将 `NOT_CONNECTED`、`MISCONFIGURED` 等原始状态转换为
+    “未接通”“配置不完整”等业务语言。
+  - 打开“证据详情”后仍展示后端原始阻塞值，保留实施排障与审计追溯能力。
+  - 本批不改变接入申请、适配器健康检查、字段映射、数据质量报告或后端契约；只补齐默认层级防线。
+- 红绿验证：
+  - 红灯：`npm --prefix frontend test -- AdapterHub.test.tsx -t "keeps onboarding blockers in business language"`
+    在旧实现下失败，暴露接入向导找不到“未接通/配置不完整”业务文案，阻塞项仍为原始枚举。
+  - 绿灯：同一目标用例通过；`npm --prefix frontend test -- AdapterHub.test.tsx` 通过，`22` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `925` 项；其中保留既有
+    Antd `Timeline.Item` deprecation warning；`npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source 98ebed20c08303e3b216afe9e96d2919a8bbc347`
+    完整发布到 134；远端备份 `/zoesoft/medkernel/backups/deploy-20260702-201601`，manifest
+    `deployedAt=2026-07-02T20:16:03+08:00`，
+    `jarSha256=77da944171329643daf238ec5f726ea1d4a2b98a2b2b5f63c78acfe3e70d2059`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2987652`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-98ebed20-onboarding-blockers-business-text`
+    通过 134 HTTPS 入站运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (40.8s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，运行记录错误合计 `0`；接入向导截图
+    `real-frontdesk-onboarding.png` 尺寸为 `1440x4359`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-98ebed20-onboarding-blockers-business-text`
+    通过 134 HTTPS 入站运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，`12` 类业务视角运行记录错误合计 `0`；
+    实施工程师截图 `stakeholder-implementation_engineer.png` 尺寸为 `1440x2317`。
+  - 聚焦现场校验：机构 `platform-admin` 登录 134 后直达 `/adapter/hub` 并切到“接入向导”，断言默认表格中
+    `NOT_CONNECTED|MISCONFIGURED` 计数为 `0`，且能看到“未接通/配置不完整”业务文案。截图
+    `/tmp/medkernel-e2e-codex3/evidence-onboarding-blockers-focused-98ebed20/onboarding-blockers-business-text.png`
+    尺寸为 `1440x4359`。
+- 后续继续主线全局体验优化：本批只修默认阻塞项表达，不改变断连诚实降级。下一轮继续按全角色截图检查
+  系统接入、知识生产、质量概览、临床随访和患者代理等高频页面的默认层级、流程可达性和隐私呈现。
 
 ## 最新阶段交接（2026-07-02 全视角真实前台体验优化第二十六批·系统接入质量报告单一呈现）
 
