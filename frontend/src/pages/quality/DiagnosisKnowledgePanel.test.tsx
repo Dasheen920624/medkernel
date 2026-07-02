@@ -204,6 +204,29 @@ describe("DiagnosisKnowledgePanel", () => {
     expect(screen.queryByText(/DX\.CKD/)).not.toBeInTheDocument();
   });
 
+  it("uses business wording for diagnosis criterion weight by default", async () => {
+    hooks.useDiagnosisCriteria.mockReturnValue(
+      query([
+        {
+          id: 1,
+          findingTermCode: "EGFR_LOW",
+          direction: "SUPPORTING",
+          weight: "MAJOR",
+          valueConstraint: null,
+          temporalConstraint: null,
+        },
+      ]),
+    );
+
+    renderPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText("发现项已登记")).toBeInTheDocument();
+    });
+    expect(screen.getByText("主要")).toBeInTheDocument();
+    expect(screen.queryByText("MAJOR")).not.toBeInTheDocument();
+  });
+
   it("默认隐藏模型生产任务版本标识，仅在证据细节中披露", async () => {
     const technicalVersion = {
       ...activeVersion,

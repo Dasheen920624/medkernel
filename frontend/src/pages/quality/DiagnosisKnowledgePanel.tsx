@@ -93,6 +93,11 @@ const DIRECTION_LABEL: Record<string, string> = {
   EXCLUSION: "排除",
 };
 
+const WEIGHT_LABEL: Record<string, string> = {
+  MAJOR: "主要",
+  MINOR: "次要",
+};
+
 const POINTER_TYPE_LABEL: Record<string, string> = {
   TREATMENT: "治疗建议",
   WORKUP: "检查建议",
@@ -590,7 +595,13 @@ export default function DiagnosisKnowledgePanel({
       key: "direction",
       render: (value: string) => <Tag>{DIRECTION_LABEL[value] ?? customerEnumLabel(value)}</Tag>,
     },
-    { title: "权重", dataIndex: "weight", key: "weight" },
+    {
+      title: "权重",
+      dataIndex: "weight",
+      key: "weight",
+      render: (value: string) =>
+        effectiveEvidenceDetails ? value : (WEIGHT_LABEL[value] ?? customerEnumLabel(value)),
+    },
     {
       title: "值约束",
       dataIndex: "valueConstraint",
