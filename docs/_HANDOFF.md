@@ -10,25 +10,26 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `0c273f55c0020410fb136419b1dd8a281fd503c7`
-  （`fix: 补齐医保问题服务端翻页`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前已发布应用代码提交为 `ba69a8e9e4fc6118da75072725de1542d201afe2`
+  （`fix: 收敛系统接入质量报告重复展示`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
   第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
   第十九批系统接入默认技术信息收敛、第二十批质量下钻默认追溯信息收敛、第二十一批协同任务列表可读性收敛，
   第二十二批诊断知识统一治理边界收敛、第二十三批随访办理底部操作区收敛，
-  第二十四批系统接入字段映射缺口分页摘要收敛，以及第二十五批医保问题服务端翻页收敛。
-- 当前 134 已发布应用为 `0c273f55c0020410fb136419b1dd8a281fd503c7`；第二十五批已发布并完成真实前台、
-  全职责复演和医保审核聚焦现场校验。
-- 134 当前完整部署 `0c273f55c0020410fb136419b1dd8a281fd503c7`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260702-194804`，manifest
-  `deployedAt=2026-07-02T19:48:07+08:00`，
-  `jarSha256=aba8cb65ef48748b05ed498e81110e5a3e727e7b95ebe462aed1b66ff953c5a2`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2971969`、`NRestarts=0`。
+  第二十四批系统接入字段映射缺口分页摘要收敛、第二十五批医保问题服务端翻页收敛，
+  以及第二十六批系统接入质量报告单一呈现收敛。
+- 当前 134 已发布应用为 `ba69a8e9e4fc6118da75072725de1542d201afe2`；第二十六批已发布并完成真实前台、
+  全职责复演和系统接入质量报告聚焦现场校验。
+- 134 当前完整部署 `ba69a8e9e4fc6118da75072725de1542d201afe2`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-200426`，manifest
+  `deployedAt=2026-07-02T20:04:29+08:00`，
+  `jarSha256=fa2356ab2a8f9b13b6a704254e52cdddfdfa6d3a01dd16caa836b4d3cb064002`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2981026`、`NRestarts=0`。
 - 134 对外 E2E 入口使用 `https://193.112.107.134/medkernel` 与
   `https://193.112.107.134/medkernel/api/v1`，当前证书按现场自签/非可信处理，Playwright 需带
   `E2E_IGNORE_HTTPS_ERRORS=1`。后端 `18080` 只监听 `127.0.0.1`，不要从外网使用
   `http://193.112.107.134:18080` 作为演练入口。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十五批版本已完成真实前台与全职责 E2E。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十六批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -37,6 +38,49 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-02 全视角真实前台体验优化第二十六批·系统接入质量报告单一呈现）
+
+- 基于第二十五批 134 真实前台与全职责截图继续按信息科长、实施工程师、平台管理员和院内运维视角检查，
+  发现 `/adapter/hub` 生成“数据质量报告”后，同一份报告同时出现在主流程影响区和“数据质量看板”标签页中。
+  这不是系统接入设计方向错误，也不需要把质量报告拆成新专家模式；回查 `PRODUCT_SCOPE` 与
+  `EXPERIENCE_CONTRACT` 后确认，数据质量报告属于接入上线验收的单一证据，质量看板应承载未连接、配置非法、
+  字段映射覆盖等汇总指标。重复展示会让信息科和实施人员误以为存在两份报告或两个验收来源。
+- 已本地修复并提交 `ba69a8e9e4fc6118da75072725de1542d201afe2`
+  （`fix: 收敛系统接入质量报告重复展示`）：
+  - 保留生成后的 `QualityReportCard` 在主流程区域作为唯一报告入口；
+    “数据质量看板”在报告生成后不再重复渲染同一报告，也不再显示“尚未生成本轮数据质量报告”的空态。
+  - 质量看板仍展示“未连接”“配置非法”“字段映射覆盖”等业务指标；未生成报告时仍保留原有引导空态。
+  - 本批不改变系统接入、字段映射、接入申请、质量报告后端契约、知识治理结构或高级信息呈现机制；
+    用户关于知识治理契合度的疑问继续作为全局判断线索，不作为片面结构改动依据。
+- 红绿验证：
+  - 红灯：`npm --prefix frontend test -- AdapterHub.test.tsx -t "keeps the generated data quality report in one place"`
+    在旧实现下失败，暴露切到“数据质量看板”后 exact “数据质量报告”标题出现 `2` 次。
+  - 绿灯：同一目标用例通过；`npm --prefix frontend test -- AdapterHub.test.tsx` 通过，`21` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `924` 项；其中保留既有
+    Antd `Timeline.Item` deprecation warning；`npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source ba69a8e9e4fc6118da75072725de1542d201afe2`
+    完整发布到 134；短哈希曾被发布脚本拒绝，随后按完整 40 位哈希发布成功。远端备份
+    `/zoesoft/medkernel/backups/deploy-20260702-200426`，manifest
+    `deployedAt=2026-07-02T20:04:29+08:00`，
+    `jarSha256=fa2356ab2a8f9b13b6a704254e52cdddfdfa6d3a01dd16caa836b4d3cb064002`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2981026`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-ba69a8e9-adapter-quality-report-single`
+    通过 134 HTTPS 入站运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (41.3s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，运行记录 `11` 段真实前台链路均由页面提交产生，
+    浏览器/服务端/网络错误合计 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-ba69a8e9-adapter-quality-report-single`
+    通过 134 HTTPS 入站运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，`12` 类业务视角运行记录错误合计 `0`。
+    信息科长与实施工程师截图均为 `1440x2317`，生成质量报告后不再出现同一报告上下重复呈现。
+  - 聚焦现场校验：机构 `platform-admin` 登录 134 后直达 `/adapter/hub`，切到“数据质量看板”并点击
+    “生成质量报告”，断言 exact “数据质量报告”标题计数为 `1`，且“尚未生成本轮数据质量报告”计数为 `0`。
+    截图 `/tmp/medkernel-e2e-codex3/evidence-adapter-quality-report-focused-ba69a8e9/adapter-quality-report-single.png`
+    尺寸为 `1440x2317`。
+- 后续继续主线全局体验优化：本批只收敛系统接入质量报告的单一证据呈现，不改变接入工作台的信息架构。
+  下一轮继续从真实前台与全职责截图里按医生、护士、患者/代理、药师、医技、医保办、质控、信息科、实施、院长等
+  全视角寻找分类、流程、默认层级、隐私处理和运行可达性的缺口。
 
 ## 最新阶段交接（2026-07-02 全视角真实前台体验优化第二十五批·医保问题服务端翻页）
 
