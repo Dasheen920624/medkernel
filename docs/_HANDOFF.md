@@ -10,19 +10,24 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前已发布应用代码提交为 `f2eb3683a94361d39acba5c55ea29ff438d611a8`
-  （`fix: 固定随访办理底部操作区`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前已发布应用代码提交为 `3c6fe153241ebba6245241109b130eb2a9df19a2`
+  （`fix: 收敛系统接入字段映射缺口展示`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
   第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
   第十九批系统接入默认技术信息收敛、第二十批质量下钻默认追溯信息收敛、第二十一批协同任务列表可读性收敛，
-  第二十二批诊断知识统一治理边界收敛，以及第二十三批随访办理底部操作区收敛。
-- 当前 134 已发布应用为 `f2eb3683a94361d39acba5c55ea29ff438d611a8`；第二十三批已发布并完成真实前台与全职责复演。
-- 134 当前完整部署 `f2eb3683a94361d39acba5c55ea29ff438d611a8`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260702-022813`，manifest
-  `deployedAt=2026-07-02T02:28:15+08:00`，
-  `jarSha256=959bd1a294c925014463bd31769a517f95dd19c584c1a3f8b4691edc8f3d2cf0`，
-  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2414696`、`NRestarts=0`。
-- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十三批版本已完成真实前台与全职责 E2E。
+  第二十二批诊断知识统一治理边界收敛、第二十三批随访办理底部操作区收敛，
+  以及第二十四批系统接入字段映射缺口分页摘要收敛。
+- 当前 134 已发布应用为 `3c6fe153241ebba6245241109b130eb2a9df19a2`；第二十四批已发布并完成真实前台与全职责复演。
+- 134 当前完整部署 `3c6fe153241ebba6245241109b130eb2a9df19a2`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-193110`，manifest
+  `deployedAt=2026-07-02T19:31:15+08:00`，
+  `jarSha256=dc9dcce5a7f9143c3f7687528daf51dcec1dbd4b6e7df4b67fa82bc182834e16`，
+  readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2962539`、`NRestarts=0`。
+- 134 对外 E2E 入口使用 `https://193.112.107.134/medkernel` 与
+  `https://193.112.107.134/medkernel/api/v1`，当前证书按现场自签/非可信处理，Playwright 需带
+  `E2E_IGNORE_HTTPS_ERRORS=1`。后端 `18080` 只监听 `127.0.0.1`，不要从外网使用
+  `http://193.112.107.134:18080` 作为演练入口。
+- 后续只有应用代码再次变更时才需要按新提交版本重发 134；当前第二十四批版本已完成真实前台与全职责 E2E。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -31,6 +36,46 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-02 全视角真实前台体验优化第二十四批·系统接入字段映射缺口分页摘要）
+
+- 基于第二十三批 134 真实前台截图继续按信息科长、实施工程师、平台治理员和院内运维视角检查，
+  发现 `/adapter/hub` 的“字段映射与缺口”面板把所有接入来源逐项展开为 `Descriptions`。
+  真实前台多轮演练后，系统接入截图高度达到 `1440x13234`，首屏已有必接系统、数据接入契约和适配器目录，
+  但字段缺口长展开会稀释“断连、映射缺口、健康诊断、质量报告”这一页主目标。回查 `PRODUCT_SCOPE`
+  与 `EXPERIENCE_CONTRACT` 后确认：系统接入能力不能删，接入申请普通列表默认 20 条仍符合契约；
+  应收敛的是字段映射缺口的默认信息层级。
+- 已本地修复并提交 `3c6fe153241ebba6245241109b130eb2a9df19a2`
+  （`fix: 收敛系统接入字段映射缺口展示`）：
+  - “字段映射与缺口”改为小表格，默认每页 `10` 个接入来源，保留总量文案
+    “共 N 个接入来源，当前显示 x-y 个”。
+  - 默认列展示接入来源、健康状态、映射字段、最近探活和“接入缺口”；每行只摘要前 `2` 项缺口，
+    更多缺口显示剩余数量，避免重复来源把页面无限拉长。
+  - 本批不改变适配器、字段映射、接入申请、回调通道、区域来源、健康检查、死信和数据质量后端契约；
+    不新增专家模式，不把系统接入能力拆出当前工作台。
+- 红绿验证：
+  - 红灯：`npm --prefix frontend test -- AdapterHub.test.tsx -t "keeps field mapping gaps paginated"`
+    在旧实现下失败，暴露找不到字段映射分页总量文案，且第 11 个来源仍默认展开在第一页。
+  - 绿灯：同一目标用例通过；`npm --prefix frontend test -- AdapterHub.test.tsx`
+    通过，`20` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `922` 项；
+    `npm --prefix frontend run build` 通过；`git diff --check` 通过。
+- 134 发布与复演：
+  - 已用 `deploy/onprem/mk-publish.sh --source 3c6fe153241ebba6245241109b130eb2a9df19a2`
+    完整发布到 134；备份 `/zoesoft/medkernel/backups/deploy-20260702-193110`，manifest
+    `deployedAt=2026-07-02T19:31:15+08:00`，
+    `jarSha256=dc9dcce5a7f9143c3f7687528daf51dcec1dbd4b6e7df4b67fa82bc182834e16`，
+    readiness HTTP 200 / `{"status":"UP"}`，服务 `active/enabled`、`MainPID=2962539`、`NRestarts=0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-3c6fe153-adapter-field-mapping-pagination-https`
+    通过 134 HTTPS 入站运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (44.2s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，运行记录 `11` 段真实前台链路均由页面提交产生，
+    `errors=0`。截图 `real-frontdesk-adapter.png` 尺寸降为 `1440x4348`，字段映射缺口面板显示
+    “共 72 个接入来源，当前显示 1-10 个”，页面不再被逐来源长描述拉到一万多像素。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-3c6fe153-adapter-field-mapping-pagination`
+    通过 134 HTTPS 入站运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，`12` 类业务视角截图均已生成。
+- 后续继续主线全局体验优化：系统接入长页候选已处理为“字段映射缺口分页摘要”而非删除能力。
+  下一轮继续从真实前台与全职责截图里找影响医生、护士、患者/代理、信息科、实施、院长等角色理解和操作效率的问题。
 
 ## 最新阶段交接（2026-07-02 全视角真实前台体验优化第二十三批·随访办理底部操作区）
 
@@ -67,9 +112,7 @@
   - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-f2eb3683-followup-action-bar`
     直接访问 134 运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
     report stats 为 `expected=1`、`unexpected=0`、`flaky=0`，运行记录 `12` 类视角、`errors=0`。
-- 下一轮主线候选：第二十三批扫描中还发现系统接入/字段映射截图存在很长的字段明细和接入申请列表，
-  会稀释信息科和实施工程师的首屏目标；后续应先核查产品文档与现有分页/字段契约，再判断是否做默认折叠、
-  分页或摘要化处理。
+- 第二十三批扫描发现的系统接入/字段映射长页问题已在第二十四批处理；后续以第二十四批交接为准。
 
 ## 最新阶段交接（2026-07-02 全视角真实前台体验优化第二十二批·诊断知识统一治理边界）
 
