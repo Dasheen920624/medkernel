@@ -463,11 +463,6 @@ function egressPreviewStatusColor(item: EgressPreviewRow) {
   return "blue";
 }
 
-function renderExpectedSchema(value: string | null, evidenceDetailsEnabled: boolean) {
-  if (!value) return "未配置";
-  return evidenceDetailsEnabled ? <Text code>{value}</Text> : "已配置";
-}
-
 const egressPreviewColumns: TableProps<EgressPreviewRow>["columns"] = [
   {
     title: "字段",
@@ -636,10 +631,13 @@ export default function AiWorkflows() {
     {
       title: "能力",
       key: "capability",
-      width: 320,
+      width: 340,
       render: (_value, item) => (
         <div className={styles.capabilityCell}>
-          <Text strong>{item.displayName}</Text>
+          <div className={styles.capabilityHeading}>
+            <Text strong>{item.displayName}</Text>
+            <Tag color="blue">{item.category}</Tag>
+          </div>
           <Text type="secondary">{item.description}</Text>
           {evidenceDetailsEnabled ? (
             <Text code className={styles.capabilityCode}>
@@ -650,27 +648,14 @@ export default function AiWorkflows() {
       ),
     },
     {
-      title: "业务分类",
-      dataIndex: "category",
-      key: "category",
-      width: 140,
-    },
-    {
       title: "运行方式",
       dataIndex: "routeStrategy",
       key: "routeStrategy",
-      width: 150,
+      width: 128,
       render: (value: string) => {
         const view = routeView(value);
         return <Tag color={view.color}>{view.label}</Tag>;
       },
-    },
-    {
-      title: "数据保护",
-      dataIndex: "desensitizeStrategy",
-      key: "desensitizeStrategy",
-      width: 130,
-      render: (value: string) => desensitizeStrategyView[value] ?? customerEnumLabel(value),
     },
     {
       title: "数据边界",
@@ -687,43 +672,9 @@ export default function AiWorkflows() {
       },
     },
     {
-      title: "结构约束",
-      dataIndex: "expectedSchema",
-      key: "expectedSchema",
-      width: 120,
-      render: (value: string | null) => renderExpectedSchema(value, evidenceDetailsEnabled),
-    },
-    {
-      title: "降级顺序",
-      key: "fallbackOrder",
-      width: 180,
-      render: (_value, item) => (
-        <Text type="secondary">{fallbackOrderLabel(item.fallbackOrder)}</Text>
-      ),
-    },
-    {
-      title: "策略来源",
-      key: "policyScope",
-      width: 180,
-      render: (_value, item) => {
-        const scopeLabel = `${policyScopeView[item.policyScopeType] ?? customerEnumLabel(item.policyScopeType)}:${item.policyScopeRef}`;
-        const modeLabel = configurationModeLabel(item);
-        return (
-          <div className={styles.statusCell}>
-            <Tag color={item.configured ? "processing" : "default"}>{modeLabel}</Tag>
-            {evidenceDetailsEnabled ? (
-              <Text code>{scopeLabel}</Text>
-            ) : (
-              <Text type="secondary">按组织范围生效</Text>
-            )}
-          </div>
-        );
-      },
-    },
-    {
       title: "当前状态",
       key: "status",
-      width: 260,
+      width: 240,
       render: (_value, item) => {
         const view = availabilityView(item);
         return (
@@ -739,7 +690,7 @@ export default function AiWorkflows() {
     columns.push({
       title: "模型安全边界",
       key: "egressPolicy",
-      width: 160,
+      width: 150,
       render: (_value, item) => {
         const egressConfigured = configuredEgressCapabilityCodeSet.has(item.capabilityCode);
         const boundaryView = modelSafetyBoundaryView(item, egressConfigured);
@@ -879,7 +830,7 @@ export default function AiWorkflows() {
               dataSource={capabilities}
               loading={statusQuery.isLoading}
               pagination={false}
-              scroll={{ x: 1184 }}
+              scroll={{ x: canManageEgress ? 1120 : 960 }}
               tableLayout="fixed"
               expandable={{
                 expandedRowRender: (item) => capabilityDetails(item, evidenceDetailsEnabled),

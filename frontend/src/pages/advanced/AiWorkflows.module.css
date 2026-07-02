@@ -45,6 +45,14 @@
   gap: calc(var(--mk-unit) * 4);
 }
 
+.capabilityHeading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: calc(var(--mk-unit) * 6);
+  flex-wrap: wrap;
+}
+
 .capabilityCode {
   width: fit-content;
   overflow-wrap: anywhere;

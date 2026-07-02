@@ -155,24 +155,30 @@ describe("AiWorkflows", () => {
     expect(screen.queryByText("rule.draft")).not.toBeInTheDocument();
     expect(screen.queryByText("医院:hospital-a")).not.toBeInTheDocument();
     expect(screen.queryByText('{"required":["status"]}')).not.toBeInTheDocument();
-    expect(screen.getAllByText("基础规则能力").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("基础规则能力").length).toBeGreaterThan(0);
     expect(screen.getByText("服务机构已配置")).toBeInTheDocument();
     expect(screen.getByText("模型能力已关闭")).toBeInTheDocument();
-    expect(screen.getByText("默认脱敏")).toBeInTheDocument();
-    expect(screen.getByText("全量掩码")).toBeInTheDocument();
+    expect(screen.queryByText("默认脱敏")).not.toBeInTheDocument();
+    expect(screen.queryByText("全量掩码")).not.toBeInTheDocument();
     expect(screen.getAllByText("规则链路可用").length).toBeGreaterThan(0);
-    expect(screen.getByText("继承配置")).toBeInTheDocument();
+    expect(screen.queryByText("继承配置")).not.toBeInTheDocument();
     expect(screen.getByText("未配置专属策略，使用系统无模型规则链路")).toBeInTheDocument();
     expect(screen.queryByText("基线可用")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /提交|运行|重试|配置|编辑|新增|保存/ })).toBeNull();
     expect(requests).toEqual(["get /security/me", "get /model-capabilities/status"]);
 
     await user.click(screen.getByRole("switch", { name: "证据详情" }));
+    const expandButtons = screen.getAllByRole("button", { name: "Expand row" });
+    await user.click(expandButtons[0]);
+    await user.click(expandButtons[1]);
 
-    expect(screen.getByText("knowledge.discovery")).toBeInTheDocument();
-    expect(screen.getByText("rule.draft")).toBeInTheDocument();
+    expect(screen.getAllByText("knowledge.discovery").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("rule.draft").length).toBeGreaterThan(0);
     expect(screen.getByText("医院:hospital-a")).toBeInTheDocument();
     expect(screen.getByText('{"required":["status"]}')).toBeInTheDocument();
+    expect(screen.getByText("默认脱敏")).toBeInTheDocument();
+    expect(screen.getByText("全量掩码")).toBeInTheDocument();
+    expect(screen.getByText("继承配置")).toBeInTheDocument();
   });
 
   it("本地模型能力说明授权使用必要患者信息但日志证据不留明文", async () => {
@@ -247,6 +253,34 @@ describe("AiWorkflows", () => {
     expect(
       screen.getByRole("button", { name: "配置 患者解释生成 公网模型安全策略" }),
     ).toHaveTextContent("配置公网安全");
+  });
+
+  it("默认模型能力表聚焦能力身份、运行方式和安全动作", async () => {
+    apiClient.defaults.adapter = (async (config) => {
+      if (config.url === "/security/me") {
+        return response(
+          config,
+          securityProfile(["menu.ai-workflows", "llm.read", "llm.egress.manage"]),
+        );
+      }
+      if (config.url === "/model-capabilities/status" && config.method === "get") {
+        return response(config, { data: statusItems });
+      }
+      throw new Error(`未预期接口: ${config.method ?? ""} ${config.url ?? ""}`);
+    }) as AxiosAdapter;
+
+    renderPage();
+
+    expect(await screen.findByText("临床知识关联发现")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "能力" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "运行方式" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "数据边界" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "当前状态" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "模型安全边界" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "数据保护" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "结构约束" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "降级顺序" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "策略来源" })).not.toBeInTheDocument();
   });
 
   it("无模型规则链路只能预设安全边界，不误导为已经外调", async () => {
