@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   List,
+  Pagination,
   Select,
   Space,
   Tag,
@@ -53,6 +54,7 @@ import { RectificationDueAtField } from "@/shared/ui/RectificationDueAtField";
 const { Text } = Typography;
 const DEPARTMENT_REFERENCE_PAGE_SIZE = 20;
 const AUDIT_INDICATOR_REFERENCE_PAGE_SIZE = 20;
+const INSURANCE_ISSUE_PAGE_SIZE = 10;
 const MANUAL_INSURANCE_RULE_INDICATOR_ID = "INSURANCE_RULE_MANUAL";
 const LINKED_PATIENT_DISPLAY_TEXT = "已关联患者";
 const LINKED_ENCOUNTER_DISPLAY_TEXT = "已关联就诊";
@@ -85,6 +87,7 @@ export default function InsuranceAudit() {
   const [status, setStatus] = useState<InsuranceIssueStatus>("OPEN");
   const [timeScope, setTimeScope] = useState<TimeScope>("THIS_MONTH");
   const [severity, setSeverity] = useState<QualityFindingSeverity>("P1");
+  const [issuePage, setIssuePage] = useState(1);
   const [selectedIssue, setSelectedIssue] = useState<InsuranceIssuePageItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [caseReviewResult, setCaseReviewResult] = useState<QualityCaseReviewResponse | null>(null);
@@ -109,10 +112,10 @@ export default function InsuranceAudit() {
       ...range,
       status,
       severity,
-      page: 1,
-      size: 20,
+      page: issuePage,
+      size: INSURANCE_ISSUE_PAGE_SIZE,
     };
-  }, [severity, status, timeScope]);
+  }, [issuePage, severity, status, timeScope]);
 
   const issuesQuery = useInsuranceIssues(issueParams);
   const departmentKeyword = departmentSearch.trim();
@@ -191,6 +194,13 @@ export default function InsuranceAudit() {
   const auditMutation = useRunInsuranceAudit();
 
   const issues = issuesQuery.data?.items ?? [];
+  const issueTotal = issuesQuery.data?.total ?? 0;
+  const issueRangeStart = issueTotal > 0 ? (issuePage - 1) * INSURANCE_ISSUE_PAGE_SIZE + 1 : 0;
+  const issueRangeEnd = Math.min(issuePage * INSURANCE_ISSUE_PAGE_SIZE, issueTotal);
+  const issueRangeText =
+    issueTotal > 0
+      ? `共 ${issueTotal} 条医保问题，当前显示 ${issueRangeStart}-${issueRangeEnd} 条`
+      : "";
   const parsedError = issuesQuery.isError
     ? parseApiError(issuesQuery.error, "医保病案问题读取失败")
     : null;
@@ -247,6 +257,7 @@ export default function InsuranceAudit() {
       setCaseReviewResult(caseReview);
       setDrgResult(drgGrouping);
       setAuditResult(audit);
+      setIssuePage(1);
       if (audit.auditStatus === "ISSUE_FOUND" && audit.taskCount > 0) {
         setStatus("RECTIFICATION_CREATED");
       }
@@ -328,7 +339,10 @@ export default function InsuranceAudit() {
               aria-label="问题状态"
               value={status}
               className="mk-select-narrow"
-              onChange={setStatus}
+              onChange={(value) => {
+                setStatus(value);
+                setIssuePage(1);
+              }}
               options={[
                 { value: "OPEN", label: "未处理" },
                 { value: "RECTIFICATION_CREATED", label: "已派整改" },
@@ -340,7 +354,10 @@ export default function InsuranceAudit() {
               aria-label="问题时间"
               value={timeScope}
               className="mk-select-narrow"
-              onChange={setTimeScope}
+              onChange={(value) => {
+                setTimeScope(value);
+                setIssuePage(1);
+              }}
               options={[
                 { value: "THIS_MONTH", label: "本月" },
                 { value: "LAST_7_DAYS", label: "近 7 日" },
@@ -351,7 +368,10 @@ export default function InsuranceAudit() {
               aria-label="问题级别"
               value={severity}
               className="mk-select-narrow"
-              onChange={setSeverity}
+              onChange={(value) => {
+                setSeverity(value);
+                setIssuePage(1);
+              }}
               options={[
                 { value: "P1", label: "高金额/高风险" },
                 { value: "P0", label: "安全红线" },
@@ -588,7 +608,7 @@ export default function InsuranceAudit() {
 
         <Space wrap size="middle" className="mk-full-width">
           <MetricCard title="真实医保问题总数" value={`${issuesQuery.data?.total ?? 0} 条`} />
-          <MetricCard title="未处理问题" value={`${countOpenIssues(issues)} 个`} />
+          <MetricCard title="当前页未处理" value={`${countOpenIssues(issues)} 个`} />
           <MetricCard title="最近审核整改" value={latestRectificationText(auditResult)} />
         </Space>
 
@@ -655,6 +675,23 @@ export default function InsuranceAudit() {
           <List
             dataSource={issues}
             locale={{ emptyText: <Empty description="当前筛选下暂无真实医保问题" /> }}
+            footer={
+              issueTotal > 0 ? (
+                <Space direction="vertical" size="small" className="mk-full-width">
+                  <Text type="secondary">{issueRangeText}</Text>
+                  {issueTotal > INSURANCE_ISSUE_PAGE_SIZE ? (
+                    <Pagination
+                      current={issuePage}
+                      pageSize={INSURANCE_ISSUE_PAGE_SIZE}
+                      total={issueTotal}
+                      showSizeChanger={false}
+                      size="small"
+                      onChange={setIssuePage}
+                    />
+                  ) : null}
+                </Space>
+              ) : null
+            }
             renderItem={(issue) => (
               <List.Item
                 actions={[

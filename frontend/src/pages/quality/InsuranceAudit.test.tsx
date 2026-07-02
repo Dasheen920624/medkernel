@@ -74,6 +74,25 @@ const insuranceIssuesPage = {
   totalEstimated: false,
 };
 
+function insuranceIssuePageItem(index: number) {
+  return {
+    issueId: `ins-fee-${index}`,
+    claimId: `claim-real-${index}`,
+    issueType: "FEE",
+    severity: "P1",
+    status: "OPEN",
+    ruleCode: "RULE-FEE-A",
+    ruleVersion: "2026-A",
+    claimAmount: 1200 + index,
+    thresholdAmount: 1000,
+    evidenceSummary: `结算事实 claim-real-${index}；规则 RULE-FEE-A@2026-A；金额 ${1200 + index}.00；阈值 1000.00`,
+    departmentId: "hospital-rehearsal",
+    evaluationRunId: `run-ins-${index}`,
+    traceId: `trace-ins-${index}`,
+    createdAt: "2026-06-05T00:00:00Z",
+  };
+}
+
 describe("InsuranceAudit", () => {
   beforeEach(() => {
     useEvidenceDetailsStore.setState({ enabled: false });
@@ -177,7 +196,7 @@ describe("InsuranceAudit", () => {
     renderPage();
 
     expect(mockUseInsuranceIssues).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "OPEN", severity: "P1", page: 1, size: 20 }),
+      expect.objectContaining({ status: "OPEN", severity: "P1", page: 1, size: 10 }),
     );
     expect(screen.getByRole("heading", { name: "医保智能审核" })).toBeInTheDocument();
     expect(screen.getByText("真实医保问题总数")).toBeInTheDocument();
@@ -193,6 +212,51 @@ describe("InsuranceAudit", () => {
     expect(screen.queryByText("trace-ins-1")).not.toBeInTheDocument();
     expect(screen.queryByText("医保审核接口尚未接入")).not.toBeInTheDocument();
     expect(screen.queryByText(/本地违规病例样例|申诉闭环/)).not.toBeInTheDocument();
+  });
+
+  it("keeps accumulated insurance issues reachable through server-side pagination", async () => {
+    mockUseInsuranceIssues.mockImplementation((params: { page?: number; size?: number }) => {
+      const page = params.page ?? 1;
+      const size = params.size ?? 10;
+      const start = (page - 1) * size + 1;
+      const end = Math.min(page * size, 15);
+      return {
+        data: {
+          items: Array.from({ length: end - start + 1 }, (_, offset) =>
+            insuranceIssuePageItem(start + offset),
+          ),
+          page,
+          size,
+          total: 15,
+          hasNext: end < 15,
+          totalEstimated: false,
+        },
+        isLoading: false,
+        isError: false,
+        error: undefined,
+        refetch: vi.fn(),
+      };
+    });
+    mockUseRunQualityCaseReview.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+    mockUseRunDrgGrouping.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+    mockUseRunInsuranceAudit.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+
+    renderPage();
+
+    expect(mockUseInsuranceIssues).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, size: 10 }),
+    );
+    expect(screen.getByText("共 15 条医保问题，当前显示 1-10 条")).toBeInTheDocument();
+    expect(screen.getByText("当前页未处理")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByTitle("2"));
+
+    await waitFor(() => {
+      expect(mockUseInsuranceIssues).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2, size: 10 }),
+      );
+    });
+    expect(screen.getByText("共 15 条医保问题，当前显示 11-15 条")).toBeInTheDocument();
   });
 
   it("证据详情打开后展示医保结算、规则和问题追溯字段", async () => {
