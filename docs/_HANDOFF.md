@@ -10,8 +10,8 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前本地最新应用代码提交为 `cb768abf3810e7259bb7d529c924317986f3b143`
-  （`fix: 收敛来源血缘版本默认展示`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前本地最新应用代码提交为 `5f06c4241bc632727aa1fb133612b833c6c0c7e4`
+  （`fix: 收敛审计摘要默认标识`）；已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
   第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
   第十九批系统接入默认技术信息收敛、第二十批质量下钻默认追溯信息收敛、第二十一批协同任务列表可读性收敛，
@@ -20,24 +20,25 @@
   第二十六批系统接入质量报告单一呈现收敛、第二十七批接入阻塞项默认文案收敛、
   第二十八批质量问题服务端翻页收敛、第二十九批质量概览待办密度收敛、第三十批模型能力默认表格层级收敛，
   第三十一批随访模板演练批次默认展示收敛、第三十二批临床提醒采纳率口径收敛、第三十三批人员详情抽屉证据稳定性，
-  第三十四批诊断知识技术版次默认展示收敛、第三十五批知识资产随访模板默认名收敛，以及第三十六批来源血缘版本沿革默认展示收敛。
+  第三十四批诊断知识技术版次默认展示收敛、第三十五批知识资产随访模板默认名收敛、第三十六批来源血缘版本沿革默认展示收敛，
+  以及第三十七批审计摘要默认标识收敛。
 - 134 当前后端/JAR 完整部署仍为 `ef662ced1ca68723bed92aabd66440a833fde4b3`；远端备份
   `/zoesoft/medkernel/backups/deploy-20260702-214224`，manifest 仍记录
   `deployedAt=2026-07-02T21:42:27+08:00`，
   `jarSha256=ef79a21c1ccc2700a787d67bd4d81685a8a4119d9b0612210e598b25ea47efce`。不要把该 manifest
   误读成当前前端 dist 版本。
-- 134 当前前端 dist 已于 `2026-07-02 23:39:08` 完成 readiness 验证，发布命令为
-  `deploy/onprem/mk-publish.sh --frontend --source cb768abf3810e7259bb7d529c924317986f3b143`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260702-233840`，readiness HTTP 200 / `{"status":"UP"}`，
-  服务 `active/enabled`、`MainPID=3100253`、`NRestarts=0`；线上 `index.html` 指向
-  `/assets/index-DUDHd3oN.js`，来源血缘 chunk 为 `/assets/Provenance-xLhXC7ea.js`。
+- 134 当前前端 dist 已于 `2026-07-03 00:00:04 +08:00` 完成 readiness 验证，发布命令为
+  `deploy/onprem/mk-publish.sh --frontend --source 5f06c4241bc632727aa1fb133612b833c6c0c7e4`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260702-235936`，readiness HTTP 200 / `{"status":"UP"}`，
+  服务 `active/enabled`、`MainPID=3112035`、`NRestarts=0`；线上 `index.html` 指向
+  `/assets/index-C43jXdDJ.js`，审计管理 chunk 为 `/assets/AdminAudit-CQc2pDzw.js`。
 - 134 对外 E2E 入口使用 `https://193.112.107.134/medkernel` 与
   `https://193.112.107.134/medkernel/api/v1`，当前证书按现场自签/非可信处理，Playwright 需带
   `E2E_IGNORE_HTTPS_ERRORS=1`。后端 `18080` 只监听 `127.0.0.1`，不要从外网使用
   `http://193.112.107.134:18080` 作为演练入口。
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。描述 134 状态时必须区分
-  后端 manifest 提交 `ef662ced` 与当前线上前端 dist 提交 `cb768abf`。
-- 当前应用代码最新提交为 `cb768abf3810e7259bb7d529c924317986f3b143`；E2E 脚本契约最新专项提交为
+  后端 manifest 提交 `ef662ced` 与当前线上前端 dist 提交 `5f06c424`。
+- 当前应用代码最新提交为 `5f06c4241bc632727aa1fb133612b833c6c0c7e4`；E2E 脚本契约最新专项提交为
   `aa372e0a12cdcd6d5d9e22b5fc33ff4c2085ecd9`（`test: 等待人员详情抽屉落入视口`），包含随访模板默认名定位和
   平台管理员人员详情抽屉截图落位等待。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
@@ -48,6 +49,60 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-03 全视角真实前台体验优化第三十七批·审计摘要默认标识收敛）
+
+- 用户强调“知识治理疑问只是疑问，不能盲目片面修改”，本批继续先对照 `CONSTITUTION`、`PRODUCT_SCOPE`、
+  `EXPERIENCE_CONTRACT`、功能目录、职责矩阵和路由契约判断：`/admin/audit` 是平台治理审计入口，默认层应服务信息科、
+  实施、审计员、平台治理和院长快速理解“谁在什么业务对象上做了什么”，不应默认暴露低频对象编号、长 hash、模型运行号或
+  CDSS 上下文 ID；原始标识仍必须保留在证据详情中供审计追溯。`/adapter/hub` 默认出现 `Webhook` 属于受支持接入协议，
+  与产品范围和接入契约一致，本批不改。
+- 基于第三十六批后 134 线上可见文本扫描继续做全角色默认层检查，扫描文件
+  `/tmp/medkernel-e2e-codex3/visible-technical-scan-cb768abf.json` 覆盖 `16` 个页面且页面错误为 `0`；
+  其中 `/admin/audit` 默认摘要仍可见 `exp-audit-event-...`、`FUP.STAKEHOLDER...`、`CDSS-MANUAL-...`、
+  `stakeholder-ollama-...` 等真实前台操作产生的底层标识。这会误导业务用户把审计摘要理解成技术日志，不符合
+  “技术对象默认收进高级信息/证据详情”的新定义；但审计证据归属和后端契约本身没有错误。
+- 已本地修复并提交 `5f06c4241bc632727aa1fb133612b833c6c0c7e4`
+  （`fix: 收敛审计摘要默认标识`）：
+  - `frontend/src/pages/compliance/AdminAudit.tsx` 新增默认摘要清洗，将审计导出任务、随访模板、临床推荐评估、
+    报告解读任务、院外模型服务、运行批次、对象编号和校验值类技术标识替换为业务文案。
+  - 原始 `summary`、`resourceId`、trace/event/context/model provider 标识继续保留；开启“证据详情”后仍显示原始证据。
+  - 本批不改后端 API、不改审计事件身份、不改模型网关或患者敏感信息策略、不拆第二套审计日志。
+- 红绿验证与构建：
+  - 新增 `frontend/src/pages/compliance/AdminAudit.test.tsx` 用例
+    “默认将审计摘要中的低频对象编号收进证据详情”，先在旧实现下红灯，再在修复后通过。
+  - `npm --prefix frontend test -- AdminAudit.test.tsx` 通过，`12` 项。
+  - `npm --prefix frontend run typecheck`、`npm --prefix frontend run format:check`、`git diff --check` 均通过。
+  - `npm --prefix frontend run verify` 通过，`114` 个测试文件 / `933` 项；保留既有 Antd `Timeline.Item`
+    deprecation warning。`npm --prefix frontend run build` 通过，生成审计 chunk `/assets/AdminAudit-CQc2pDzw.js`。
+- 134 发布与现场验证：
+  - 已执行 `deploy/onprem/mk-publish.sh --frontend --source 5f06c4241bc632727aa1fb133612b833c6c0c7e4`；
+    这是前端-only 发布，远端 manifest 仍正确显示完整后端/JAR 部署提交
+    `ef662ced1ca68723bed92aabd66440a833fde4b3`。
+  - 远端备份 `/zoesoft/medkernel/backups/deploy-20260702-235936`；外部 readiness HTTP 200 /
+    `{"status":"UP"}`；SSH 只读复核服务 `active/enabled`、`MainPID=3112035`、`NRestarts=0`。
+  - 线上 `index.html` 指向 `/assets/index-C43jXdDJ.js`；`/assets/AdminAudit-CQc2pDzw.js`
+    含“审计导出任务”“随访模板”“临床推荐评估”“院外模型服务”等默认文案和证据详情原始标识展示逻辑。
+  - 审计摘要在线专项检查通过，证据目录
+    `/tmp/medkernel-e2e-codex3/evidence-admin-audit-summary-label-5f06c424`；
+    `admin-audit-default.png` 为 `1440x2943`，默认层 `defaultRawCount=0` 且可见
+    “审计导出任务”“随访模板”“临床推荐评估”“院外模型服务”；`admin-audit-evidence-details.png` 为
+    `1440x4296`，开启证据详情后 `evidenceRawCount=13`。
+  - 重新运行 134 可见文本扫描，文件
+    `/tmp/medkernel-e2e-codex3/visible-technical-scan-5f06c424.json`；`16` 个页面错误为 `0`，
+    仅 `/adapter/hub` 保留协议词 `Webhook`，按产品和路由契约接受。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-5f06c424`
+    通过 134 HTTPS 入站运行 `real-frontdesk-rehearsal.spec.ts --project=chromium` 通过，`1 passed (40.6s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`、`duration=40555.854ms`，
+    `11` 段真实前台运行记录错误合计 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-5f06c424`
+    通过 134 HTTPS 入站运行 `stakeholder-view-rehearsal.spec.ts --project=chromium` 通过，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`、`duration=80811.627ms`，
+    `12` 类业务视角运行记录错误合计 `0`。
+- 后续继续主线全局体验优化：当前知识治理目录、诊断知识维护、来源血缘和审计治理仍符合原始诉求；下一轮继续按医生、
+  护士、患者/代理、药师、医技、医保办、质控、信息科、实施、院长、平台治理和知识生产运营视角，从最新 134 真实前台、
+  全职责证据和可见文本扫描继续检查知识治理全链路、患者信息与模型安全、随访异常闭环、质量整改、系统接入阻断、
+  权限职责、默认信息层级、上线门禁和文档/契约一致性。
 
 ## 最新阶段交接（2026-07-02 全视角真实前台体验优化第三十六批·来源血缘版本沿革默认展示收敛）
 
