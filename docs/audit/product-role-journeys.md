@@ -9,7 +9,7 @@
 <!-- role:platform-admin -->
 | 平台管理员 | 平台管理员工作台 | `管理账号` → `/admin/users` | 安全与配置；实施与验收；系统接入 |
 <!-- role:engine-operator -->
-| 医疗引擎运营员 | 医疗引擎运营员工作台 | `生成与发布知识` → `/knowledge/production` | 知识审核与发布；质量问题与整改；来源与血缘 |
+| 医疗引擎运营员 | 医疗引擎运营员工作台 | `进入知识生产` → `/knowledge/production` | 知识审核发布中心；质量问题与整改；来源与血缘 |
 <!-- role:clinical-user -->
 | 临床使用者 | 临床使用者工作台 | `处理协同任务` → `/workflow/todos` | 患者路径；提醒与推荐；随访协同 |
 <!-- role:auditor -->
@@ -19,8 +19,8 @@
 
 | 职责 | 菜单键（按目录顺序） |
 |---|---|
-| 平台管理员 | `workbench, tenant-onboarding, admin-users, identity-bindings, admin-audit, security-baseline, implementation-guide, adapter-hub, system-providers, domestic-check, runtime-diagnostics, notifications, notification-settings` |
-| 医疗引擎运营员 | `workbench, knowledge-governance, institution-knowledge, diagnosis-knowledge, runtime-releases, terminology-mapping, rule-definitions, pathway-templates, provenance, graph-explore, knowledge-production, ai-workflows, sandbox, qc-dashboard, qc-alerts, insurance-audit, qc-eval-sets, admin-audit, notifications, notification-settings` |
+| 平台管理员 | `workbench, tenant-onboarding, admin-users, identity-bindings, admin-audit, security-baseline, implementation-guide, adapter-hub, system-providers, runtime-diagnostics, domestic-check, notifications, notification-settings` |
+| 医疗引擎运营员 | `workbench, knowledge-governance, runtime-releases, institution-knowledge, diagnosis-knowledge, terminology-mapping, rule-definitions, pathway-templates, provenance, graph-explore, knowledge-production, ai-workflows, sandbox, qc-dashboard, qc-alerts, insurance-audit, qc-eval-sets, admin-audit, notifications, notification-settings` |
 | 临床使用者 | `workbench, mpi, patient-pathways, cdss-fatigue, workflow-todos, clinical-followup, sandbox, notifications, notification-settings` |
 | 审计员 | `workbench, provenance, admin-audit, security-baseline, notifications, notification-settings` |
 

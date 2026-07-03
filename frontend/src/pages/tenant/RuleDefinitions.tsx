@@ -801,7 +801,7 @@ function impactObjectBusinessName(item: RuleImpactObject, evidenceDetailsEnabled
     return item.displayName;
   }
   if (item.objectType === "PATIENT_PATHWAY") return "在径患者已关联";
-  if (item.objectType === "PATHWAY_TEMPLATE") return item.displayName || "路径模板已关联";
+  if (item.objectType === "PATHWAY_TEMPLATE") return item.displayName || "临床路径已关联";
   if (item.objectType === "INTEGRATION_ADAPTER") return item.displayName || "集成适配器已关联";
   if (item.objectType === "RULE") return item.displayName || "规则对象已关联";
   return "影响对象已关联";
@@ -3173,7 +3173,7 @@ export default function RuleDefinitions() {
       <Descriptions.Item label="规则对象">
         {impactCount(impactQuery.data?.affectedRules)}
       </Descriptions.Item>
-      <Descriptions.Item label="路径模板">
+      <Descriptions.Item label="临床路径">
         {impactCount(impactQuery.data?.affectedPathways)}
       </Descriptions.Item>
       <Descriptions.Item label="在径患者">
@@ -4564,8 +4564,8 @@ export default function RuleDefinitions() {
 
   return (
     <PageShell
-      title="规则配置"
-      description="配置规则资产，完成验证、解释和临床治理。"
+      title="临床规则"
+      description="维护临床规则资产，完成验证、解释和临床治理。"
       primary={
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
           新建规则模板
@@ -4646,7 +4646,7 @@ export default function RuleDefinitions() {
       <Drawer
         title={
           <div className={styles.drawerTitle}>
-            <span>规则配置详情与试运行</span>
+            <span>临床规则详情与试运行</span>
             {detailData && detailData.governance.state !== "RETIRED" && (
               <Button type="primary" onClick={() => setActiveDetailLayer("release")}>
                 进入治理流
@@ -4797,7 +4797,7 @@ export default function RuleDefinitions() {
                 rules={[
                   { required: true, message: "请输入稳定规则资产身份，同一服务机构内不可重复" },
                 ]}
-                extra="用于发布治理、机构生效版本和审计追溯；默认列表仍按规则名称与业务状态展示。"
+                extra="用于机构生效版本和审计追溯；默认列表仍按规则名称与业务状态展示。"
               >
                 <Input placeholder="输入稳定规则资产身份" disabled={Boolean(editingRuleId)} />
               </Form.Item>

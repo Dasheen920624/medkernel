@@ -293,7 +293,7 @@ describe("AppLayout", () => {
     mockViewport(1280);
     await renderLayout();
 
-    expect(screen.getAllByText("术语与字典").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("术语字典").length).toBeGreaterThan(0);
     expect(screen.getAllByText("知识治理").length).toBeGreaterThan(0);
     expect(screen.getByText("字典映射内容")).toBeInTheDocument();
   });
@@ -306,7 +306,7 @@ describe("AppLayout", () => {
 
     expect(header).not.toBeNull();
     expect(within(header as HTMLElement).getByText("知识治理")).toBeInTheDocument();
-    expect(within(header as HTMLElement).getAllByText("术语与字典")).toHaveLength(1);
+    expect(within(header as HTMLElement).getAllByText("术语字典")).toHaveLength(1);
     expect(header?.querySelector(".mk-route-title")).toBeNull();
   });
 
@@ -360,7 +360,7 @@ describe("AppLayout", () => {
     mockViewport(1280);
     const { rerenderLayout } = await renderLayout("/dashboard");
 
-    expect(screen.queryByText("术语与字典")).toBeNull();
+    expect(screen.queryByText("术语字典")).toBeNull();
 
     securityProfileState.value = {
       data: permissionProfile(["workbench", "terminology-mapping"]),
@@ -372,7 +372,7 @@ describe("AppLayout", () => {
     await waitFor(() =>
       expect(within(navigation as HTMLElement).getByText("知识治理")).toBeInTheDocument(),
     );
-    expect(within(navigation as HTMLElement).getByText("术语与字典")).toBeInTheDocument();
+    expect(within(navigation as HTMLElement).getByText("术语字典")).toBeInTheDocument();
   });
 
   it("does not render the workbench before an effective permission profile is available", async () => {

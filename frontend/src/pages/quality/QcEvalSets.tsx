@@ -678,7 +678,7 @@ export default function QcEvalSets() {
                 type="info"
                 showIcon
                 message="指标版本独立维护"
-                description="创建时只形成指标草稿版本；通过发布治理后，再由机构生效版本确定真正上线的版本。"
+                description="创建时只形成指标草稿版本；经机构生效版本确认后，才成为真正上线的版本。"
               />
             </div>
             <Form.Item

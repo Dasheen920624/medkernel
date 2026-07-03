@@ -166,7 +166,7 @@ function renderPage(page: React.ReactElement) {
 describe("page smoke coverage", () => {
   it("renders the unified release governance console", () => {
     renderPage(<ReleaseGovernance />);
-    expect(screen.getByRole("heading", { name: "发布治理" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "机构生效版本" })).toBeInTheDocument();
     expect(screen.queryByText("配置" + "包与发布")).not.toBeInTheDocument();
   });
 
@@ -346,7 +346,7 @@ describe("page smoke coverage", () => {
 
   it("renders the knowledge governance page through the real candidate loading state", () => {
     renderPage(<KnowledgeGovernance />);
-    expect(screen.getByRole("heading", { name: "知识审核与发布" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "知识审核发布中心" })).toBeInTheDocument();
     expect(screen.getByText("正在加载知识候选审核")).toBeInTheDocument();
   });
 
@@ -384,13 +384,13 @@ describe("page smoke coverage", () => {
 
   it("renders the tenant pathway configuration page", () => {
     renderPage(<PathwayTemplates />);
-    expect(screen.getByRole("heading", { name: "路径配置" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "临床路径库" })).toBeInTheDocument();
     expect(screen.getByText("适用病种身份")).toBeInTheDocument();
   });
 
   it("renders the tenant rule configuration page", () => {
     renderPage(<RuleDefinitions />);
-    expect(screen.getByRole("heading", { name: "规则配置" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "临床规则" })).toBeInTheDocument();
     expect(screen.getByText("全部评级")).toBeInTheDocument();
   });
 
@@ -403,6 +403,6 @@ describe("page smoke coverage", () => {
 
   it("renders the tenant terminology-mapping console", () => {
     renderPage(<TerminologyMapping />);
-    expect(screen.getByRole("heading", { name: "术语与字典" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "术语字典" })).toBeInTheDocument();
   });
 });

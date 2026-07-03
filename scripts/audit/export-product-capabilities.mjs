@@ -92,19 +92,19 @@ const routeDecisions = {
   "/pathway/templates": {
     decision: "MOVE",
     targetDomain: "知识治理",
-    targetEntry: "路径配置",
-    task: "配置、审核、发布和回滚临床路径模板",
+    targetEntry: "临床路径库",
+    task: "维护、审核、发布和回滚临床路径版本",
   },
   "/rule/definitions": {
     decision: "MOVE",
     targetDomain: "知识治理",
-    targetEntry: "规则配置",
+    targetEntry: "临床规则",
     task: "配置、试运行、审核和发布临床规则",
   },
   "/terminology/mapping": {
     decision: "MOVE",
     targetDomain: "知识治理",
-    targetEntry: "术语与字典",
+    targetEntry: "术语字典",
     task: "维护院内术语映射、冲突和高风险确认",
   },
   "/adapter/hub": {
@@ -134,7 +134,7 @@ const routeDecisions = {
   "/rule/validate": {
     decision: "MERGE",
     targetDomain: "知识治理",
-    targetEntry: "规则配置 / 试运行",
+    targetEntry: "临床规则 / 试运行",
     task: "并入规则试运行与提醒详情，不保留客户独立菜单",
   },
   "/workflow/todos": {
@@ -194,25 +194,25 @@ const routeDecisions = {
   "/knowledge/governance": {
     decision: "MOVE",
     targetDomain: "知识治理",
-    targetEntry: "知识审核与发布",
+    targetEntry: "知识审核发布中心",
     task: "审核统一候选池中的平台主源或机构派生差异并发布、退修或驳回",
   },
   "/knowledge/institution": {
     decision: "SPLIT",
     targetDomain: "知识治理",
-    targetEntry: "机构知识",
+    targetEntry: "机构知识库",
     task: "从平台标准派生机构版本、查看机构覆盖血缘并恢复平台标准",
   },
   "/knowledge/diagnosis": {
     decision: "SPLIT",
     targetDomain: "知识治理",
-    targetEntry: "诊断知识维护",
+    targetEntry: "诊断知识库",
     task: "维护诊断身份、诊断标准、鉴别诊断、验证病例与来源证据",
   },
   "/knowledge/production": {
     decision: "SPLIT",
     targetDomain: "知识生产",
-    targetEntry: "知识生产",
+    targetEntry: "知识生产工作台",
     task: "核查知识生产 readiness、生产 job、候选血缘、门禁、8 态、影子证据和高敏患者上下文用途确认重试",
   },
   "/admin/users": {
@@ -272,7 +272,7 @@ const routeDecisions = {
   "/advanced/domestic": {
     decision: "MOVE",
     targetDomain: "系统运维",
-    targetEntry: "国产化自检",
+    targetEntry: "国产化适配自检",
     task: "核查国产化适配与部署证据",
   },
   "/system/runtime-diagnostics": {

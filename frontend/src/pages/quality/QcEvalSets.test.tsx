@@ -217,7 +217,7 @@ describe("QcEvalSets", () => {
     expect(pagePrimaryButtons).toHaveLength(1);
   });
 
-  it("证据详情打开后展示指标编码、追踪号和发布治理证据", async () => {
+  it("证据详情打开后展示指标编码、追踪号和机构生效版本证据", async () => {
     renderPage();
 
     await userEvent.click(screen.getByRole("switch", { name: "证据详情" }));

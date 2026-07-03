@@ -80,9 +80,9 @@ describe("menu config", () => {
         "knowledge-governance",
         [
           "knowledge-governance",
+          "runtime-releases",
           "institution-knowledge",
           "diagnosis-knowledge",
-          "runtime-releases",
           "terminology-mapping",
           "rule-definitions",
           "pathway-templates",
@@ -110,8 +110,8 @@ describe("menu config", () => {
           "implementation-guide",
           "adapter-hub",
           "system-providers",
-          "domestic-check",
           "runtime-diagnostics",
+          "domestic-check",
         ],
       ],
     ]);

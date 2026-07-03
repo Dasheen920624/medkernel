@@ -2714,15 +2714,15 @@ export default function KnowledgeGovernance({
 
   const pageMeta = {
     review: {
-      title: "知识审核与发布",
+      title: "知识审核发布中心",
       description: "统一审核知识候选、发布结论和替换恢复",
     },
     institution: {
-      title: "机构知识",
+      title: "机构知识库",
       description: "维护院内覆盖、机构定制、换基线和恢复平台标准",
     },
     production: {
-      title: "知识生产",
+      title: "知识生产工作台",
       description: "核查生产流水线的上线准备、生产任务、生产安全校验、8 态分流和影子证据",
     },
   }[mode];
@@ -2736,7 +2736,7 @@ export default function KnowledgeGovernance({
 
   let pageExtras: ReactNode = (
     <Button
-      aria-label="刷新知识审核与发布"
+      aria-label="刷新知识审核发布中心"
       icon={<ReloadOutlined />}
       onClick={() => {
         void identitiesQuery.refetch();
@@ -2749,7 +2749,7 @@ export default function KnowledgeGovernance({
   if (mode === "institution") {
     pageExtras = (
       <Button
-        aria-label="刷新机构知识"
+        aria-label="刷新机构知识库"
         icon={<ReloadOutlined />}
         onClick={() => void customizationsQuery.refetch()}
       >
@@ -2759,7 +2759,7 @@ export default function KnowledgeGovernance({
   } else if (mode === "production") {
     pageExtras = (
       <Button
-        aria-label="刷新知识生产"
+        aria-label="刷新知识生产工作台"
         icon={<ReloadOutlined />}
         onClick={() => {
           void productionReadinessQuery.refetch();

@@ -661,7 +661,7 @@ export default function PatientPathways() {
           },
         ]),
     {
-      title: "路径模板",
+      title: "当前路径",
       dataIndex: "templateId",
       key: "templateId",
       render: (text: string) => {
@@ -869,8 +869,8 @@ export default function PatientPathways() {
           ) : (
             <Alert type="info" showIcon message="候选来自当前机构生效版本，确认后才会入径。" />
           )}
-          <Form.Item name="startNodeCode" label="起始临床推进节点 (可选，留空使用模板起点)">
-            <Input placeholder="留空使用已发布模板的起始节点" />
+          <Form.Item name="startNodeCode" label="起始临床推进节点 (可选，留空使用路径起点)">
+            <Input placeholder="留空使用已发布临床路径的起始节点" />
           </Form.Item>
         </Form>
       </Modal>
@@ -904,7 +904,7 @@ export default function PatientPathways() {
                   <Descriptions.Item label="就诊编号">
                     <span className={styles.codeText}>{detailData.patientPathway.encounterId}</span>
                   </Descriptions.Item>
-                  <Descriptions.Item label="路径模板编号">
+                  <Descriptions.Item label="临床路径版本编号">
                     <Tag color="geekblue">{detailData.patientPathway.templateId}</Tag>
                   </Descriptions.Item>
                   <Descriptions.Item label="入径实例编号">
@@ -963,7 +963,7 @@ export default function PatientPathways() {
                         {templateDetail.template.description &&
                         templateDetail.template.description !== templateDetail.template.name
                           ? templateDetail.template.description
-                          : "按已发布路径模板显示运行态全貌。"}
+                          : "按已发布临床路径版本显示运行态全貌。"}
                       </div>
                     </div>
                     <Tag color="blue" className={styles.pathwayCurrentTag}>

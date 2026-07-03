@@ -1005,8 +1005,8 @@ export default function ReleaseGovernance() {
 
   return (
     <PageShell
-      title="发布治理"
-      description="发布平台标准版本，并为机构确认当前生效版本。"
+      title="机构生效版本"
+      description="维护平台标准版本，并为机构确认当前生效版本。"
       extras={<EvidenceDetailsToggle securityProfile={security.data} />}
     >
       {baselineQuery.isError && (

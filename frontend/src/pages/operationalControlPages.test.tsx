@@ -607,7 +607,7 @@ describe("operational control pages", () => {
     );
     renderPage(<DomesticCheck />);
 
-    expect(screen.getByRole("heading", { name: "国产化自检" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "国产化适配自检" })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.queryByText("WARN")).not.toBeInTheDocument();
     expect(screen.getAllByText("警告").length).toBeGreaterThan(0);

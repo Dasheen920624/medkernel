@@ -54,6 +54,26 @@ class MenuPermissionCatalogTest {
     }
 
     @Test
+    void customerVisibleMenuLabelsUseMedicalTaskNames() {
+        assertThat(MenuPermissionCatalog.allMenus())
+            .extracting(
+                MenuPermissionCatalog.MenuPermission::menuKey,
+                MenuPermissionCatalog.MenuPermission::displayName)
+            .contains(
+                org.assertj.core.groups.Tuple.tuple("knowledge-governance", "知识审核发布中心"),
+                org.assertj.core.groups.Tuple.tuple("institution-knowledge", "机构知识库"),
+                org.assertj.core.groups.Tuple.tuple("diagnosis-knowledge", "诊断知识库"),
+                org.assertj.core.groups.Tuple.tuple("runtime-releases", "机构生效版本"),
+                org.assertj.core.groups.Tuple.tuple("terminology-mapping", "术语字典"),
+                org.assertj.core.groups.Tuple.tuple("rule-definitions", "临床规则"),
+                org.assertj.core.groups.Tuple.tuple("pathway-templates", "临床路径库"),
+                org.assertj.core.groups.Tuple.tuple("knowledge-production", "知识生产工作台"),
+                org.assertj.core.groups.Tuple.tuple("ai-workflows", "模型能力"),
+                org.assertj.core.groups.Tuple.tuple("domestic-check", "国产化适配自检"),
+                org.assertj.core.groups.Tuple.tuple("runtime-diagnostics", "运行诊断"));
+    }
+
+    @Test
     void everyCatalogMenuHasRegisteredMenuPermissionCode() {
         assertThat(MenuPermissionCatalog.allMenus())
             .hasSize(34)

@@ -26,6 +26,16 @@ describe("product role journeys", () => {
       ["clinical-user", "/workflow/todos"],
       ["auditor", "/admin/audit"],
     ]);
+    expect(
+      PRODUCT_ROLE_JOURNEYS.find((journey) => journey.roleCode === "engine-operator"),
+    ).toMatchObject({
+      primaryAction: { label: "进入知识生产", path: "/knowledge/production" },
+      highFrequencyActions: [
+        { label: "知识审核发布中心", path: "/knowledge/governance" },
+        { label: "质量问题与整改", path: "/qc/alerts" },
+        { label: "来源与血缘", path: "/advanced/provenance" },
+      ],
+    });
   });
 
   it("keeps every role task on a customer entry instead of hidden diagnostic routes", () => {
@@ -61,6 +71,14 @@ describe("product role journeys", () => {
       "评估结果",
       "审计日志",
       "运行状态",
+      "生成与发布知识",
+      "知识审核与发布",
+      "诊断知识维护",
+      "发布治理",
+      "规则配置",
+      "路径配置",
+      "模型服务",
+      "运行核查",
     ].forEach((legacyLabel) => expect(serialized).not.toContain(legacyLabel));
   });
 

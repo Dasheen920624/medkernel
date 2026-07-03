@@ -83,7 +83,7 @@ const PAGE_SIZE = 20;
 const route = findRouteByPath("/terminology/mapping");
 
 if (!route?.experience) {
-  throw new Error("术语与字典页面缺少体验声明");
+  throw new Error("术语字典页面缺少体验声明");
 }
 
 const PAGE_META: { title: string; experience: RouteExperience } = {
@@ -945,7 +945,7 @@ export default function TerminologyMapping() {
               type="info"
               showIcon
               message="术语维护与上线修订分离"
-              description="本页维护院内字典、标准字典和映射版本；正式上线时由发布治理选择进入平台标准版本或机构生效版本。"
+              description="本页维护院内字典、标准字典和映射版本；正式上线时在机构生效版本页面确认进入平台标准版本或当前机构生效版本。"
             />
           </Space>
         )}

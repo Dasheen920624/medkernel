@@ -369,7 +369,7 @@ describe("Followup", () => {
     ).toBeInTheDocument();
   });
 
-  it("普通临床用户未进入生成计划时不请求发布治理当前版本", () => {
+  it("普通临床用户未进入生成计划时不请求机构生效版本", () => {
     renderFollowup();
 
     expect(followupHookMocks.useCurrentHospitalRuntime).toHaveBeenCalledWith(undefined);

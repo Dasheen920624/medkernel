@@ -302,12 +302,12 @@ function WorkbenchCards({
         <Col xs={24} lg={12}>
           <DomainEntryCard
             id="knowledge-governance"
-            title="知识审核与发布"
+            title="知识审核发布中心"
             marker="平台主源与机构派生"
             description="治理平台主源、机构派生、版本差异、审核发布和恢复平台标准，全程保留不可变血缘。"
             actions={[
-              { label: "知识审核与发布", path: "/knowledge/governance" },
-              { label: "发布治理", path: "/config/releases" },
+              { label: "知识审核发布中心", path: "/knowledge/governance" },
+              { label: "机构生效版本", path: "/config/releases" },
             ]}
             onNavigate={onNavigate}
           />
@@ -319,7 +319,7 @@ function WorkbenchCards({
             description="追溯知识来源和派生关系，复核术语映射与发布影响；汇总数据以各治理页面为准。"
             actions={[
               { label: "来源与血缘", path: "/advanced/provenance" },
-              { label: "术语与字典", path: "/terminology/mapping" },
+              { label: "术语字典", path: "/terminology/mapping" },
               { label: "知识关系", path: "/advanced/graph" },
             ]}
             onNavigate={onNavigate}

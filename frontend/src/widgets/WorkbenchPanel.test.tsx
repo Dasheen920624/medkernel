@@ -213,7 +213,7 @@ const successPlan: SuccessPlan = {
   tenantId: "t-1",
   currentStage: "PILOT",
   healthScore: 86,
-  activatedModules: "发布治理,审计",
+  activatedModules: "机构生效版本,审计",
   activatedPathways: "",
   updatedAt: "2026-06-01T00:00:00Z",
   updatedBy: "platform-admin",
@@ -265,7 +265,7 @@ function expectedLandingFor(roleCode: string, displayName: string) {
   const journey = findProductRoleJourney(roleCode);
   const markerByKind = {
     operations: "系统健康",
-    knowledge: "知识审核与发布",
+    knowledge: "知识审核发布中心",
     access: "人员与账号",
     clinical: "我的待办",
     "clinical-governance": "临床知识治理",
@@ -333,8 +333,8 @@ describe("WorkbenchPanel", () => {
     setLoadedState("engine-operator", "医疗引擎运营员");
     const knowledge = renderWorkbench();
     expect(screen.getByRole("heading", { name: "医疗引擎运营员工作台" })).toBeInTheDocument();
-    expect(screen.getAllByText("知识审核与发布").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /生成与发布知识/ })).toBeInTheDocument();
+    expect(screen.getAllByText("知识审核发布中心").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /进入知识生产/ })).toBeInTheDocument();
     expect(screen.getAllByText("质量问题与整改").length).toBeGreaterThan(0);
     expect(
       screen.getByText("进入质量管理概览核查指标口径、责任对象、整改进度和医保审核入口。"),
@@ -346,7 +346,7 @@ describe("WorkbenchPanel", () => {
     renderWorkbench();
     expect(screen.getByRole("heading", { name: "临床使用者工作台" })).toBeInTheDocument();
     expect(screen.getByText("临床协同入口")).toBeInTheDocument();
-    expect(screen.queryByText("知识审核与发布")).not.toBeInTheDocument();
+    expect(screen.queryByText("知识审核发布中心")).not.toBeInTheDocument();
   });
 
   it("prioritizes my todo state for clinical users without fabricating task counts", () => {
@@ -398,7 +398,7 @@ describe("WorkbenchPanel", () => {
     renderWorkbench();
 
     expect(screen.getByRole("heading", { name: "医疗引擎运营员工作台" })).toBeInTheDocument();
-    expect(screen.getAllByText("知识审核与发布").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("知识审核发布中心").length).toBeGreaterThan(0);
     expect(screen.getAllByText("质量问题与整改").length).toBeGreaterThan(0);
     expect(
       screen.getByText(

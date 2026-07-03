@@ -21,7 +21,7 @@ public enum PermissionCode {
     ORG_WRITE("org.write", Risk.MEDIUM, "新增 / 修改组织单元"),
     ORG_PUBLISH("org.publish", Risk.HIGH, "激活 / 暂停 / 归档组织单元"),
 
-    // ─── 服务机构与发布治理（GA-ENG-API-10）────────────────────────────
+    // ─── 服务机构与机构生效版本（GA-ENG-API-10）────────────────────────────
     TENANT_READ("tenant.read", Risk.LOW, "查看服务机构与生命周期"),
     TENANT_WRITE("tenant.write", Risk.HIGH, "开通 / 关闭服务机构"),
     RELEASE_READ("release.read", Risk.LOW, "查看平台标准版本与机构生效版本"),
@@ -52,10 +52,10 @@ public enum PermissionCode {
     RULE_OVERRIDE("rule.override", Risk.HIGH, "记录阻断或强提醒的人工越权理由"),
 
     // ─── 路径（GA-ENG-PATH-01）─────────────────────────────────
-    PATHWAY_READ("pathway.read", Risk.LOW, "查看路径模板 / 患者路径"),
-    PATHWAY_WRITE("pathway.write", Risk.MEDIUM, "编辑路径模板"),
+    PATHWAY_READ("pathway.read", Risk.LOW, "查看临床路径版本 / 患者路径"),
+    PATHWAY_WRITE("pathway.write", Risk.MEDIUM, "编辑临床路径版本"),
     PATHWAY_EXECUTE("pathway.execute", Risk.MEDIUM, "患者入径与路径节点推进"),
-    PATHWAY_PUBLISH("pathway.publish", Risk.HIGH, "发布路径模板"),
+    PATHWAY_PUBLISH("pathway.publish", Risk.HIGH, "发布临床路径版本"),
 
     // ─── CDSS / 推荐（GA-ENG-CDSS-01）──────────────────────────
     RECOMMENDATION_READ("recommendation.read", Risk.LOW, "查看推荐 / 提醒"),
@@ -145,10 +145,10 @@ public enum PermissionCode {
     // ─── INFRA-05 入口维度：32 主导航 + 1 页头 + 1 个人入口 ─────────
     MENU_IMPLEMENTATION_GUIDE("menu.implementation-guide", PermissionDimension.MENU, Risk.LOW, "查看实施与验收"),
     MENU_TENANT_ONBOARDING("menu.tenant-onboarding", PermissionDimension.MENU, Risk.LOW, "查看服务机构"),
-    MENU_RUNTIME_RELEASES("menu.runtime-releases", PermissionDimension.MENU, Risk.LOW, "查看发布治理"),
-    MENU_PATHWAY_TEMPLATES("menu.pathway-templates", PermissionDimension.MENU, Risk.LOW, "查看路径配置"),
-    MENU_RULE_DEFINITIONS("menu.rule-definitions", PermissionDimension.MENU, Risk.LOW, "查看规则配置"),
-    MENU_TERMINOLOGY_MAPPING("menu.terminology-mapping", PermissionDimension.MENU, Risk.LOW, "查看术语与字典"),
+    MENU_RUNTIME_RELEASES("menu.runtime-releases", PermissionDimension.MENU, Risk.LOW, "查看机构生效版本"),
+    MENU_PATHWAY_TEMPLATES("menu.pathway-templates", PermissionDimension.MENU, Risk.LOW, "查看临床路径库"),
+    MENU_RULE_DEFINITIONS("menu.rule-definitions", PermissionDimension.MENU, Risk.LOW, "查看临床规则"),
+    MENU_TERMINOLOGY_MAPPING("menu.terminology-mapping", PermissionDimension.MENU, Risk.LOW, "查看术语字典"),
     MENU_ADAPTER_HUB("menu.adapter-hub", PermissionDimension.MENU, Risk.LOW, "查看系统接入"),
     MENU_MPI("menu.mpi", PermissionDimension.MENU, Risk.LOW, "查看患者索引"),
     MENU_PATIENT_PATHWAYS("menu.patient-pathways", PermissionDimension.MENU, Risk.LOW, "查看患者路径"),
@@ -162,13 +162,13 @@ public enum PermissionCode {
     MENU_INSURANCE_AUDIT("menu.insurance-audit", PermissionDimension.MENU, Risk.LOW, "查看医保审核"),
     MENU_QC_EVAL_SETS("menu.qc-eval-sets", PermissionDimension.MENU, Risk.LOW, "查看评价指标"),
     MENU_KNOWLEDGE_GOVERNANCE(
-        "menu.knowledge-governance", PermissionDimension.MENU, Risk.LOW, "查看知识审核与发布"),
+        "menu.knowledge-governance", PermissionDimension.MENU, Risk.LOW, "查看知识审核发布中心"),
     MENU_INSTITUTION_KNOWLEDGE(
-        "menu.institution-knowledge", PermissionDimension.MENU, Risk.LOW, "查看机构知识"),
+        "menu.institution-knowledge", PermissionDimension.MENU, Risk.LOW, "查看机构知识库"),
     MENU_DIAGNOSIS_KNOWLEDGE(
-        "menu.diagnosis-knowledge", PermissionDimension.MENU, Risk.LOW, "查看诊断知识维护"),
+        "menu.diagnosis-knowledge", PermissionDimension.MENU, Risk.LOW, "查看诊断知识库"),
     MENU_KNOWLEDGE_PRODUCTION(
-        "menu.knowledge-production", PermissionDimension.MENU, Risk.LOW, "查看知识生产"),
+        "menu.knowledge-production", PermissionDimension.MENU, Risk.LOW, "查看知识生产工作台"),
     MENU_ADMIN_USERS("menu.admin-users", PermissionDimension.MENU, Risk.LOW, "查看人员与账号"),
     MENU_IDENTITY_BINDINGS("menu.identity-bindings", PermissionDimension.MENU, Risk.LOW, "查看身份来源"),
     MENU_ADMIN_AUDIT("menu.admin-audit", PermissionDimension.MENU, Risk.LOW, "查看审计与证据"),
@@ -178,7 +178,7 @@ public enum PermissionCode {
     MENU_PROVENANCE("menu.provenance", PermissionDimension.MENU, Risk.LOW, "查看来源与血缘"),
     MENU_GRAPH_EXPLORE("menu.graph-explore", PermissionDimension.MENU, Risk.LOW, "查看知识关系"),
     MENU_AI_WORKFLOWS("menu.ai-workflows", PermissionDimension.MENU, Risk.LOW, "查看模型能力"),
-    MENU_DOMESTIC_CHECK("menu.domestic-check", PermissionDimension.MENU, Risk.LOW, "查看国产化自检"),
+    MENU_DOMESTIC_CHECK("menu.domestic-check", PermissionDimension.MENU, Risk.LOW, "查看国产化适配自检"),
     MENU_RUNTIME_DIAGNOSTICS(
         "menu.runtime-diagnostics", PermissionDimension.MENU, Risk.LOW, "查看运行诊断");
 

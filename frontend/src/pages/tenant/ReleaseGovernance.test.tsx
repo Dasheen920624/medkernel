@@ -277,10 +277,10 @@ describe("ReleaseGovernance", () => {
   it("publishes the selected platform draft and explicit tombstone as the next platform standard version", async () => {
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "发布治理" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "机构生效版本" })).toBeInTheDocument();
     expect(screen.getByText("当前平台标准版本 第 8 版")).toBeInTheDocument();
-    expect(screen.getByText("规则内容已准备发布")).toBeInTheDocument();
-    expect(screen.getByText("路径内容已在平台标准版本中")).toBeInTheDocument();
+    expect(screen.getByText("临床规则内容已准备发布")).toBeInTheDocument();
+    expect(screen.getByText("临床路径内容已在平台标准版本中")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("搜索内容名称、身份或来源")).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("搜索内容编码或来源")).not.toBeInTheDocument();
     expect(
@@ -289,8 +289,8 @@ describe("ReleaseGovernance", () => {
     expect(screen.queryByText("RULE.CKD")).not.toBeInTheDocument();
     expect(screen.queryByText("PATH.OLD")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByLabelText("发布规则内容 V2"));
-    fireEvent.click(screen.getByLabelText("停用路径内容 V1"));
+    fireEvent.click(screen.getByLabelText("发布临床规则内容 V2"));
+    fireEvent.click(screen.getByLabelText("停用临床路径内容 V1"));
     fireEvent.click(screen.getByRole("button", { name: "发布新平台标准版本" }));
 
     await waitFor(() =>
@@ -308,8 +308,8 @@ describe("ReleaseGovernance", () => {
     fireEvent.click(await screen.findByText(/中心医院/));
 
     expect(await screen.findByText("当前机构生效版本 第 9 版")).toBeInTheDocument();
-    expect(screen.getByLabelText("启用平台规则内容 V1")).toBeChecked();
-    fireEvent.click(screen.getByLabelText("启用本院路径内容 V3"));
+    expect(screen.getByLabelText("启用平台临床规则内容 V1")).toBeChecked();
+    fireEvent.click(screen.getByLabelText("启用本院临床路径内容 V3"));
     fireEvent.click(screen.getByRole("button", { name: "评估发布影响" }));
     await screen.findByText("可发布");
     fireEvent.click(screen.getByRole("button", { name: "生成新机构生效版本" }));
@@ -338,7 +338,7 @@ describe("ReleaseGovernance", () => {
     fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
     fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
     fireEvent.click(await screen.findByText(/中心医院/));
-    fireEvent.click(screen.getByLabelText("启用本院路径内容 V3"));
+    fireEvent.click(screen.getByLabelText("启用本院临床路径内容 V3"));
     fireEvent.click(screen.getByRole("button", { name: "生成新机构生效版本" }));
 
     expect(activateHospitalAsync).not.toHaveBeenCalled();
@@ -349,7 +349,7 @@ describe("ReleaseGovernance", () => {
     fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
     fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
     fireEvent.click(await screen.findByText(/中心医院/));
-    fireEvent.click(screen.getByLabelText("启用本院路径内容 V3"));
+    fireEvent.click(screen.getByLabelText("启用本院临床路径内容 V3"));
     fireEvent.click(screen.getByRole("button", { name: "评估发布影响" }));
 
     await waitFor(() =>
@@ -371,7 +371,7 @@ describe("ReleaseGovernance", () => {
     expect(await screen.findByText("可发布")).toBeInTheDocument();
     expect(screen.getByText("回放病例 12 例，变化 2 例")).toBeInTheDocument();
     expect(screen.getByText("影响 1 项在用资产")).toBeInTheDocument();
-    expect(screen.getByText("规则内容 · V3")).toBeInTheDocument();
+    expect(screen.getByText("临床规则内容 · V3")).toBeInTheDocument();
     expect(screen.queryByText("RULE.ANEMIA")).not.toBeInTheDocument();
   });
 
@@ -379,8 +379,8 @@ describe("ReleaseGovernance", () => {
     renderPage();
 
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
-    expect(screen.getByText("规则内容已准备发布")).toBeInTheDocument();
-    expect(screen.getByText("路径内容已在平台标准版本中")).toBeInTheDocument();
+    expect(screen.getByText("临床规则内容已准备发布")).toBeInTheDocument();
+    expect(screen.getByText("临床路径内容已在平台标准版本中")).toBeInTheDocument();
     expect(screen.queryByText("RULE.CKD")).not.toBeInTheDocument();
     expect(screen.queryByText("PATH.OLD")).not.toBeInTheDocument();
 
@@ -388,8 +388,8 @@ describe("ReleaseGovernance", () => {
     fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
     fireEvent.click(await screen.findByText(/中心医院/));
 
-    expect(await screen.findByText("规则内容沿用平台标准版本")).toBeInTheDocument();
-    expect(screen.getByText("路径内容可加入机构生效版本")).toBeInTheDocument();
+    expect(await screen.findByText("临床规则内容沿用平台标准版本")).toBeInTheDocument();
+    expect(screen.getByText("临床路径内容可加入机构生效版本")).toBeInTheDocument();
     expect(screen.queryByText("PATH.CKD.LOCAL")).not.toBeInTheDocument();
     expect(screen.queryByText("runtime-H9")).not.toBeInTheDocument();
     expect(screen.queryByText("baseline-A8")).not.toBeInTheDocument();

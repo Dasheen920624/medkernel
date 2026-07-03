@@ -330,8 +330,8 @@ function createTemplateDetail(
 async function openCreateDialog() {
   const user = userEvent.setup();
   renderPathwayTemplates();
-  await user.click(screen.getByRole("button", { name: /新建路径模板/ }));
-  const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+  await user.click(screen.getByRole("button", { name: /新建临床路径/ }));
+  const dialog = await screen.findByRole("dialog", { name: "新建临床路径模型" });
   return { user, dialog };
 }
 
@@ -344,7 +344,7 @@ async function openDetailDrawer(
   renderPathwayTemplates();
   await screen.findByText(detail.template.name);
   await user.click(screen.getByRole("button", { name: /设计与试运行/ }));
-  await screen.findByText("路径配置与真实快照试运行");
+  await screen.findByText("临床路径详情与真实快照试运行");
   return user;
 }
 
@@ -657,12 +657,12 @@ describe("PathwayTemplates 上线路径维护契约", () => {
         screen.getByText("路径拓扑与真实快照试运行是主视图；证据详情打开后可追溯受控配置。"),
       ).toBeInTheDocument();
       expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
-      expect(screen.getAllByText("路径模板已登记").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("临床路径已登记").length).toBeGreaterThan(0);
       expect(screen.getAllByText("第 2 版已形成").length).toBeGreaterThan(0);
       expect(screen.queryByText("PATH.CARDIO.REVIEW")).not.toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: /复制为新版本/ }));
 
-      const dialog = await screen.findByRole("dialog", { name: "新建路径模板模型" });
+      const dialog = await screen.findByRole("dialog", { name: "新建临床路径模型" });
       expect(within(dialog).queryByLabelText("归属路径知识" + "包")).not.toBeInTheDocument();
       await user.click(within(dialog).getByRole("button", { name: /OK|确 定|确定/ }));
 

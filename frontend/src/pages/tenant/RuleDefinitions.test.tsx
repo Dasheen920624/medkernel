@@ -412,7 +412,7 @@ async function openDraftRuleDrawer() {
   renderRuleDefinitions();
   await screen.findByText("规则发布校验核查");
   await user.click(screen.getByRole("button", { name: "查看配置与试运行" }));
-  await screen.findByText("规则配置详情与试运行");
+  await screen.findByText("临床规则详情与试运行");
   return user;
 }
 
@@ -1065,7 +1065,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
             objectType: "PATHWAY_TEMPLATE",
             objectId: "pt-1",
             displayName: "慢阻肺抗凝路径",
-            impactReason: "路径模板节点引用规则 RULE.ANTICOAG",
+            impactReason: "临床路径节点引用规则 RULE.ANTICOAG",
           },
         ],
         inPathPatients: [
@@ -1322,7 +1322,7 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
             objectType: "PATHWAY_TEMPLATE",
             objectId: "pt-1",
             displayName: "慢阻肺抗凝路径",
-            impactReason: "路径模板节点引用规则 RULE.ANTICOAG",
+            impactReason: "临床路径节点引用规则 RULE.ANTICOAG",
           },
         ],
         inPathPatients: [

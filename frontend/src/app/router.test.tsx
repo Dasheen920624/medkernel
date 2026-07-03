@@ -170,7 +170,7 @@ vi.mock("@/pages/workbench/ReadinessValidation", () => ({
 }));
 
 vi.mock("@/pages/tenant/ReleaseGovernance", () => ({
-  default: () => <div>发布治理</div>,
+  default: () => <div>机构生效版本</div>,
 }));
 
 function renderRouter(initialPath: string) {
@@ -230,7 +230,7 @@ describe("AppRouter", () => {
     securityProfileState.value = { data: runtimeReleaseProfile(), isError: false };
     renderRouter("/config/releases");
 
-    expect((await screen.findAllByText("发布治理")).length).toBeGreaterThanOrEqual(2);
+    expect((await screen.findAllByText("机构生效版本")).length).toBeGreaterThanOrEqual(2);
   });
 
   it("routes the WORKBENCH-02 readiness validation page through the protected layout", async () => {

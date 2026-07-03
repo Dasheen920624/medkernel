@@ -878,7 +878,7 @@ describe("KnowledgeGovernance", () => {
     );
     expect(mockUseKnowledgeCandidates).toHaveBeenLastCalledWith(42, { page: 1, size: 20 });
 
-    expect(screen.getByRole("heading", { name: "知识审核与发布" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "知识审核发布中心" })).toBeInTheDocument();
     expect(screen.getByText("待审核候选总数")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("按主题或知识身份搜索")).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("按主题或编码搜索")).not.toBeInTheDocument();
@@ -923,7 +923,7 @@ describe("KnowledgeGovernance", () => {
   it("keeps review desk focused on candidate review without institution or production tabs", () => {
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "知识审核与发布" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "知识审核发布中心" })).toBeInTheDocument();
     expect(screen.getByText("待审核候选总数")).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "机构知识" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "知识生产" })).not.toBeInTheDocument();
@@ -954,7 +954,7 @@ describe("KnowledgeGovernance", () => {
 
     renderPage(<InstitutionKnowledge />);
 
-    expect(screen.getByRole("heading", { name: "机构知识" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "机构知识库" })).toBeInTheDocument();
     expect(screen.getByText("平台标准知识")).toBeInTheDocument();
     expect(screen.getAllByText("平台主源只读").length).toBeGreaterThan(0);
     expect(screen.getByText("机构知识血缘")).toBeInTheDocument();

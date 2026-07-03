@@ -688,7 +688,7 @@ export default function RuntimeDiagnostics() {
   return (
     <PageShell
       title="运行诊断"
-      description="服务契约、追踪诊断与插件边界"
+      description="服务契约、运行证据与故障定位"
       extras={
         <Space wrap>
           <EvidenceDetailsToggle securityProfile={security.data} />

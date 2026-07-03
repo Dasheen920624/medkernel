@@ -31,7 +31,7 @@ function backendDefaultMenuSnapshots(): Map<string, string[]> {
 describe("route metadata", () => {
   it("registers every current frontend page route", () => {
     expect(routeMetas.length).toBeGreaterThanOrEqual(36);
-    expect(findRouteByPath("/terminology/mapping")?.title).toBe("术语与字典");
+    expect(findRouteByPath("/terminology/mapping")?.title).toBe("术语字典");
     expect(findRouteByPath("/advanced/graph")?.placement).toBe("primary");
   });
 
@@ -105,7 +105,7 @@ describe("route metadata", () => {
     expect(findRouteByPath("/advanced/domestic")).toMatchObject({
       sectionKey: "system-operations",
       placement: "primary",
-      menuLabel: "国产化自检",
+      menuLabel: "国产化适配自检",
     });
     expect(findRouteByPath("/system/runtime-diagnostics")).toMatchObject({
       sectionKey: "system-operations",
@@ -359,12 +359,12 @@ describe("route metadata", () => {
     expect(findRouteByPath("/system/runtime-diagnostics")?.experience?.stakeholderViews).toEqual([
       {
         role: "信息科",
-        responsibility: "查看运行诊断、追踪链路和故障定位信息",
+        responsibility: "查看运行诊断、运行证据和故障定位信息",
         boundary: "证据详情权限外不展示追踪号和原始载荷",
       },
       {
         role: "审计员",
-        responsibility: "核对诊断链是否具备审计追溯和导出证据",
+        responsibility: "核对运行证据链是否具备审计追溯和导出证据",
         boundary: "只能验证证据，不修改运行状态",
       },
     ]);
@@ -415,8 +415,8 @@ describe("route metadata", () => {
       },
       {
         role: "医疗引擎运营员",
-        responsibility: "配置路径模板、机构覆盖和验证用例",
-        boundary: "路径模板不能自动改写患者当前医嘱",
+        responsibility: "维护临床路径版本、机构覆盖和验证用例",
+        boundary: "临床路径不能自动改写患者当前医嘱",
       },
     ]);
     expect(findRouteByPath("/rule/definitions")?.experience?.stakeholderViews).toEqual([
@@ -850,11 +850,11 @@ describe("route metadata", () => {
     ).toBe(false);
   });
 
-  it("uses one release governance entry without retaining the old package route", () => {
+  it("uses one effective-version entry without retaining the old package route", () => {
     const route = findRouteByPath("/config/releases");
 
     expect(route?.requiredPermissions).toEqual(["menu.runtime-releases", "asset.read"]);
-    expect(route?.menuLabel).toBe("发布治理");
+    expect(route?.menuLabel).toBe("机构生效版本");
     expect(
       canAccessRoute(route, {
         roles: [{ code: "platform-admin" }],
@@ -878,7 +878,7 @@ describe("route metadata", () => {
     ).toBe(false);
   });
 
-  it("requires domain read permissions for rule and pathway configuration workspaces", () => {
+  it("requires domain read permissions for clinical rule and pathway library workspaces", () => {
     expect(findRouteByPath("/pathway/templates")?.requiredPermissions).toEqual([
       "menu.pathway-templates",
       "pathway.read",
@@ -889,10 +889,10 @@ describe("route metadata", () => {
     ]);
   });
 
-  it("separates knowledge review from manual diagnosis knowledge maintenance", () => {
+  it("separates knowledge publishing from the diagnosis knowledge library", () => {
     expect(findRouteByPath("/knowledge/governance")).toMatchObject({
-      title: "知识审核与发布",
-      menuLabel: "知识审核与发布",
+      title: "知识审核发布中心",
+      menuLabel: "知识审核发布中心",
       pageType: "review",
     });
     expect(findRouteByPath("/knowledge/governance")?.experience?.goal).toBe(
@@ -900,11 +900,11 @@ describe("route metadata", () => {
     );
 
     expect(findRouteByPath("/knowledge/diagnosis")).toMatchObject({
-      title: "诊断知识维护",
-      breadcrumb: ["知识治理", "诊断知识维护"],
+      title: "诊断知识库",
+      breadcrumb: ["知识治理", "诊断知识库"],
       sectionKey: "knowledge-governance",
       menuKey: "diagnosis-knowledge",
-      menuLabel: "诊断知识维护",
+      menuLabel: "诊断知识库",
       placement: "primary",
       requiredPermissions: ["menu.diagnosis-knowledge", "knowledge.read"],
       pageType: "configuration",
@@ -1251,21 +1251,21 @@ describe("route metadata", () => {
 
   it("splits review, institution maintenance and production into separate lifecycle entries", () => {
     expect(findRouteByPath("/knowledge/governance")).toMatchObject({
-      title: "知识审核与发布",
+      title: "知识审核发布中心",
       sectionKey: "knowledge-governance",
       menuKey: "knowledge-governance",
       requiredPermissions: ["menu.knowledge-governance", "knowledge.review"],
       pageType: "review",
     });
     expect(findRouteByPath("/knowledge/institution")).toMatchObject({
-      title: "机构知识",
+      title: "机构知识库",
       sectionKey: "knowledge-governance",
       menuKey: "institution-knowledge",
       requiredPermissions: ["menu.institution-knowledge", "knowledge.write"],
       pageType: "configuration",
     });
     expect(findRouteByPath("/knowledge/production")).toMatchObject({
-      title: "知识生产",
+      title: "知识生产工作台",
       sectionKey: "knowledge-production",
       menuKey: "knowledge-production",
       requiredPermissions: ["menu.knowledge-production", "knowledge.read"],

@@ -57,9 +57,9 @@ export type EngineAssetType = (typeof ENGINE_ASSET_TYPES)[number];
 
 export const ENGINE_ASSET_LABELS: Readonly<Record<EngineAssetType, string>> = {
   KNOWLEDGE: "知识",
-  TERMINOLOGY: "术语与字典",
-  RULE: "规则",
-  PATHWAY: "路径",
+  TERMINOLOGY: "术语字典",
+  RULE: "临床规则",
+  PATHWAY: "临床路径",
   EVALUATION: "评价指标",
   FOLLOWUP: "随访",
   FIELD_CATALOG: "字段目录",
@@ -83,7 +83,7 @@ export const AUTHORING_ASSET_TYPES = [
   "FOLLOWUP",
 ] as const satisfies readonly EngineAssetType[];
 
-/** 发布治理必须能识别统一版本底座的全部资产类型。 */
+/** 机构生效版本必须能识别统一版本底座的全部资产类型。 */
 export const RELEASE_ASSET_TYPES = ENGINE_ASSET_TYPES;
 
 /** 可进入平台标准版本或机构生效版本的正式配置资产。 */

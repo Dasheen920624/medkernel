@@ -39,8 +39,8 @@ const { Text, Title } = Typography;
 const targetLabelByPath: Record<string, string> = {
   "/tenant/onboarding": "机构实施配置",
   "/adapter/hub": "系统接入",
-  "/config/releases": "发布治理",
-  "/terminology/mapping": "术语与字典",
+  "/config/releases": "机构生效版本",
+  "/terminology/mapping": "术语字典",
 };
 
 function targetLabel(path: string) {

@@ -20,7 +20,7 @@ export default function KnowledgeProductionPage() {
 
   return (
     <PageShell
-      title="知识生产"
+      title="知识生产工作台"
       description="在同一页面完成模型服务配置、医学评测、生产前校验和知识候选治理"
     >
       <Space direction="vertical" size="large" className={styles.consoleStack}>

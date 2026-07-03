@@ -160,7 +160,7 @@ function pathwayIdentityText(
   templateCode: string | null | undefined,
   evidenceDetailsEnabled: boolean,
 ) {
-  return evidenceText(templateCode, evidenceDetailsEnabled, "路径模板已登记");
+  return evidenceText(templateCode, evidenceDetailsEnabled, "临床路径已登记");
 }
 
 function pathwayVersionText(version: number | null | undefined, evidenceDetailsEnabled: boolean) {
@@ -1954,7 +1954,7 @@ export default function PathwayTemplates() {
         outcomeBindings,
       });
 
-      messageApi.success("专病路径模板草稿创建成功");
+      messageApi.success("专病临床路径草稿创建成功");
       setCreateTemplateVisible(false);
       templateForm.resetFields();
       setSelectedPathwayPrototype("blank");
@@ -1967,7 +1967,7 @@ export default function PathwayTemplates() {
         return;
       }
       if (applyApiFieldErrors(templateForm, error)) return;
-      messageApi.error(getApiErrorMessage(error, "创建路径模板失败"));
+      messageApi.error(getApiErrorMessage(error, "创建临床路径失败"));
     }
   };
 
@@ -2462,7 +2462,7 @@ export default function PathwayTemplates() {
               <Form.Item
                 name="templateCode"
                 label="稳定路径模型身份"
-                tooltip="用于跨版本、发布治理和机构生效版本追溯；同身份修改时由系统自动创建下一版本"
+                tooltip="用于跨版本、机构生效版本和审计追溯；同身份修改时由系统自动创建下一版本"
                 rules={[{ required: true }]}
               >
                 <Input placeholder="如 PATH.CARDIO.REVIEW" />
@@ -3593,7 +3593,7 @@ export default function PathwayTemplates() {
     detailAlertType = "success";
   } else if (immutableVersion) {
     detailAlertMessage =
-      "当前内容版本已发布但未必正在机构生效；启停、升级和回滚统一在发布治理页面完成。";
+      "当前内容版本已发布但未必正在机构生效；启停、升级和回滚统一在机构生效版本页面完成。";
     detailAlertType = "warning";
   }
 
@@ -4071,8 +4071,8 @@ export default function PathwayTemplates() {
 
   return (
     <PageShell
-      title="路径配置"
-      description="配置并维护专病临床路径，使用统一条件树、规则引用和真实快照试运行；上线生效由发布治理统一管理。"
+      title="临床路径库"
+      description="维护专病临床路径，使用统一条件树、规则引用和真实快照试运行；上线生效由机构生效版本统一管理。"
     >
       <div className={`${styles.surface} ${styles.filterSurface}`}>
         <Form layout="inline" className={styles.inlineForm}>
@@ -4110,7 +4110,7 @@ export default function PathwayTemplates() {
                 setCreateTemplateVisible(true);
               }}
             >
-              新建路径模板
+              新建临床路径
             </Button>
           </Form.Item>
         </Form>
@@ -4134,7 +4134,7 @@ export default function PathwayTemplates() {
       </div>
 
       <Modal
-        title="新建路径模板模型"
+        title="新建临床路径模型"
         open={createTemplateVisible}
         onOk={handleCreateTemplate}
         onCancel={() => {
@@ -4164,7 +4164,7 @@ export default function PathwayTemplates() {
       </Modal>
 
       <Drawer
-        title="路径配置与真实快照试运行"
+        title="临床路径详情与真实快照试运行"
         width="min(1080px, 100vw)"
         onClose={() => {
           setSelectedTemplateId(null);
