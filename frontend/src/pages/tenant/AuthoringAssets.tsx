@@ -397,7 +397,12 @@ export default function AuthoringAssets() {
       </Modal>
 
       {batchOpen && (
-        <AuthoringBatchDrawer open canWrite={canWrite} onClose={() => setBatchOpen(false)} />
+        <AuthoringBatchDrawer
+          open
+          canWrite={canWrite}
+          evidenceDetailsEnabled={evidenceDetailsEnabled}
+          onClose={() => setBatchOpen(false)}
+        />
       )}
       <FieldCatalogManager open={fieldCatalogOpen} onClose={() => setFieldCatalogOpen(false)} />
     </PageShell>

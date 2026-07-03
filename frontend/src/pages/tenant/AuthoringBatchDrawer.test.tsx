@@ -10,13 +10,30 @@ const apiMocks = vi.hoisted(() => ({
   analyze: vi.fn(),
   publish: vi.fn(),
   batchJobParams: [] as unknown[],
+  batchJobs: [] as Array<{
+    jobId: string;
+    jobType: "RULE_GENERATE" | "RULE_PUBLISH";
+    status: "RUNNING" | "SUCCEEDED" | "PARTIAL_SUCCESS" | "FAILED";
+    totalCount: number;
+    successCount: number;
+    failureCount: number;
+    updatedAt: string;
+    items: [];
+  }>,
 }));
 
 vi.mock("@/shared/api/hooks", () => ({
   useAuthoringBatchJobs: (params?: unknown) => {
     apiMocks.batchJobParams.push(params ?? {});
     return {
-      data: { items: [], page: 1, size: 20, total: 0, totalEstimated: false, hasNext: false },
+      data: {
+        items: apiMocks.batchJobs,
+        page: 1,
+        size: 20,
+        total: apiMocks.batchJobs.length,
+        totalEstimated: false,
+        hasNext: false,
+      },
       isLoading: false,
       refetch: vi.fn(),
     };
@@ -35,11 +52,16 @@ vi.mock("@/shared/api/hooks", () => ({
   }),
 }));
 
-function renderDrawer() {
+function renderDrawer({ evidenceDetailsEnabled = false } = {}) {
   render(
     <ConfigProvider>
       <AntdApp>
-        <AuthoringBatchDrawer open canWrite onClose={vi.fn()} />
+        <AuthoringBatchDrawer
+          open
+          canWrite
+          evidenceDetailsEnabled={evidenceDetailsEnabled}
+          onClose={vi.fn()}
+        />
       </AntdApp>
     </ConfigProvider>,
   );
@@ -53,6 +75,7 @@ describe("AuthoringBatchDrawer", () => {
       }
     });
     apiMocks.batchJobParams = [];
+    apiMocks.batchJobs = [];
   });
 
   it("loads batch job records through server pagination", () => {
@@ -121,8 +144,36 @@ describe("AuthoringBatchDrawer", () => {
         ],
       });
     });
-    expect(screen.getByText("批量任务 abj-generate 执行结束")).toBeInTheDocument();
+    expect(screen.getByText("批量任务执行结束")).toBeInTheDocument();
+    expect(screen.getByText("批量任务已登记")).toBeInTheDocument();
+    expect(screen.queryByText(/abj-generate/)).not.toBeInTheDocument();
     expect(screen.getByText("成功")).toBeInTheDocument();
+  });
+
+  it("keeps batch job identifiers in evidence details", async () => {
+    apiMocks.batchJobs = [
+      {
+        jobId: "abj-record",
+        jobType: "RULE_GENERATE",
+        status: "SUCCEEDED",
+        totalCount: 2,
+        successCount: 2,
+        failureCount: 0,
+        updatedAt: "2026-07-03T10:00:00+08:00",
+        items: [],
+      },
+    ];
+
+    renderDrawer();
+    await userEvent.click(screen.getByRole("tab", { name: "任务记录" }));
+
+    expect(screen.getByText("批量任务已登记")).toBeInTheDocument();
+    expect(screen.queryByText(/abj-record/)).not.toBeInTheDocument();
+
+    renderDrawer({ evidenceDetailsEnabled: true });
+    await userEvent.click(screen.getAllByRole("tab", { name: "任务记录" })[1]);
+
+    expect(screen.getByText("批量任务编号：abj-record")).toBeInTheDocument();
   });
 
   it("keeps batch API failures in hospital language", async () => {

@@ -43,6 +43,7 @@ const AUTHORING_BATCH_JOB_PAGE_SIZE = 20;
 interface AuthoringBatchDrawerProps {
   open: boolean;
   canWrite: boolean;
+  evidenceDetailsEnabled?: boolean;
   onClose: () => void;
 }
 
@@ -160,6 +161,10 @@ function localFailureMessage(error: unknown, fallback: string): string {
   return customerSafeDisplayText(error.message, fallback);
 }
 
+function batchJobEvidenceText(jobId: string, evidenceDetailsEnabled: boolean) {
+  return evidenceDetailsEnabled ? `批量任务编号：${jobId}` : "批量任务已登记";
+}
+
 function jobStatusColor(status: string) {
   if (status === "SUCCEEDED") return "success";
   if (status === "PARTIAL_SUCCESS") return "warning";
@@ -180,6 +185,7 @@ function isHighRisk(item: AuthoringBatchRuleImpactItem) {
 export default function AuthoringBatchDrawer({
   open,
   canWrite,
+  evidenceDetailsEnabled = false,
   onClose,
 }: AuthoringBatchDrawerProps) {
   const { message } = AntdApp.useApp();
@@ -214,7 +220,7 @@ export default function AuthoringBatchDrawer({
       const job = await operation();
       setLastJob(job);
       setJobPage(1);
-      message.success(`批量任务 ${job.jobId} 已记录`);
+      message.success(evidenceDetailsEnabled ? `批量任务 ${job.jobId} 已记录` : "批量任务已记录");
       return job;
     } catch (error) {
       message.error(getApiErrorMessage(error, fallback));
@@ -465,7 +471,11 @@ export default function AuthoringBatchDrawer({
   );
 
   const recentColumns: ColumnsType<AuthoringBatchJobResponse> = [
-    { title: "任务号", dataIndex: "jobId", key: "jobId" },
+    {
+      title: "任务记录",
+      key: "job",
+      render: (_value, job) => batchJobEvidenceText(job.jobId, evidenceDetailsEnabled),
+    },
     {
       title: "类型",
       dataIndex: "jobType",
@@ -526,9 +536,12 @@ export default function AuthoringBatchDrawer({
             <Alert
               type={jobAlertType(lastJob.status)}
               showIcon
-              message={`批量任务 ${lastJob.jobId} 执行结束`}
+              message={
+                evidenceDetailsEnabled ? `批量任务 ${lastJob.jobId} 执行结束` : "批量任务执行结束"
+              }
               description={
                 <Space wrap>
+                  <Text>{batchJobEvidenceText(lastJob.jobId, evidenceDetailsEnabled)}</Text>
                   <Text>成功 {lastJob.successCount}</Text>
                   <Text>失败 {lastJob.failureCount}</Text>
                   <Tag color={jobStatusColor(lastJob.status)}>
