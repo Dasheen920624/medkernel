@@ -10,10 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第三十九批已完成阶段交接提交为 `3453078c92c993df950a499e1da14ca89bd671d4`
-  （`docs: 记录诊断知识前台产数闭环`）；第四十二批最新应用代码提交为
+- 第四十二批已完成阶段交接提交为 `07b3fa907f7b83e5e34bf028fabad08f91442d93`
+  （`docs: 记录系统接入健康检查文案复演`）；第四十三批最新应用代码提交为
+  `95bb816292f59833005df4761866dd9d89886cb4`
+  （`fix: 收敛知识生产工作区层级`），其前置第四十二批应用提交
   `2dbd668fde81540a4fc19ce9acd38b931cf7c2d2`
-  （`fix: 收敛系统接入健康检查默认文案`），其前置第四十一批应用提交
+  （`fix: 收敛系统接入健康检查默认文案`）、第四十一批应用提交
   `3ddd979b3151e3eb1d40712e76b513e4cdce260c`
   （`fix: 强化模型外调核心标识遮蔽`）、第四十批应用提交
   `8889efc754b6c192708ddb118a5b9fa7d03cb28e`
@@ -32,7 +34,7 @@
   第三十一批随访模板演练批次默认展示收敛、第三十二批临床提醒采纳率口径收敛、第三十三批人员详情抽屉证据稳定性，
   第三十四批诊断知识技术版次默认展示收敛、第三十五批知识资产随访模板默认名收敛、第三十六批来源血缘版本沿革默认展示收敛，
   第三十七批审计摘要默认标识收敛、第三十八批审计导出记录默认标识收敛、第四十批默认可见低频标识清零，
-  第四十一批模型外调核心标识遮蔽，以及第四十二批系统接入健康检查默认文案收敛。
+  第四十一批模型外调核心标识遮蔽、第四十二批系统接入健康检查默认文案收敛，以及第四十三批知识生产工作区层级收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -40,20 +42,20 @@
   `commit=3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
   `deployedAt=2026-07-03T12:38:13+08:00`、
   `jarSha256=37da0f4b8d42e040408ab530714f68228e8060a21f6690146d8cb58126ca96ec`；readiness HTTP 200 /
-  `{"status":"UP"}`，服务 `active/enabled`、最近一次前端-only 发布后 `MainPID=3572266`、`NRestarts=0`。
-- 134 当前前端 dist 来自 `2dbd668fde81540a4fc19ce9acd38b931cf7c2d2` 的前端-only 发布；命令为
-  `deploy/onprem/mk-publish.sh --frontend --source 2dbd668fde81540a4fc19ce9acd38b931cf7c2d2`，远端备份
-  `/zoesoft/medkernel/backups/deploy-20260703-135615`。这是前端-only 发布，后端 manifest/JAR 继续记录
+  `{"status":"UP"}`，服务 `active/enabled`、最近一次前端-only 发布后 `MainPID=3600701`、`NRestarts=0`。
+- 134 当前前端 dist 来自 `95bb816292f59833005df4761866dd9d89886cb4` 的前端-only 发布；命令为
+  `deploy/onprem/mk-publish.sh --frontend --source 95bb816292f59833005df4761866dd9d89886cb4`，远端备份
+  `/zoesoft/medkernel/backups/deploy-20260703-144653`。这是前端-only 发布，后端 manifest/JAR 继续记录
   `3ddd979b3151e3eb1d40712e76b513e4cdce260c` 是正确状态，不要误判为前端未更新。外部 `index.html` 指向
-  `/assets/index-DQOxo0OJ.js`，`/assets/AdapterHub-Dx-tUxAO.js` HTTP 200 / `41243` 字节。
+  `/assets/index-DYTh-Ceu.js`，`/assets/KnowledgeProduction-ClNuDXyb.js` HTTP 200 / `20735` 字节。
 - 134 对外 E2E 入口使用 `https://193.112.107.134/medkernel` 与
   `https://193.112.107.134/medkernel/api/v1`，当前证书按现场自签/非可信处理，Playwright 需带
   `E2E_IGNORE_HTTPS_ERRORS=1`。后端 `18080` 只监听 `127.0.0.1`，不要从外网使用
   `http://193.112.107.134:18080` 作为演练入口。
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
-  “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`2dbd668fde81540a4fc19ce9acd38b931cf7c2d2`”，
+  “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `2dbd668fde81540a4fc19ce9acd38b931cf7c2d2`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `95bb816292f59833005df4761866dd9d89886cb4`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -63,6 +65,54 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-03 全视角真实前台体验优化第四十三批·知识生产工作区层级收敛）
+
+- 用户关于“诊断知识维护和整体知识管理是否不契合、知识治理是否满足全链路核心知识生产管理”的问题只作为全局体验线索，
+  不代表现行设计错误。本批回到 `PRODUCT_SCOPE`、功能目录与职责矩阵核对：诊断知识维护仍是统一知识治理下的内容域入口；
+  `/knowledge/production` 承载来源登记、人工维护、模型候选、确定性校验、审核发布前的统一生产流水；模型只生成候选，
+  正式知识不得绕过统一治理链。因此本批没有拆第二套知识管理，没有新增旧式“专家模式”，也没有片面改 IA。
+- 真实可优化点落在 `/knowledge/production` 页面层级：页面把 `KnowledgeProductionWorkspace` 再包进标题为“开始生产”的
+  `Card`，而工作区内部已经按“公域来源治理 / 双形态生产分区 / 初始化发行批次 / 模型生产上线准备”等业务分区自带卡片。
+  这个外层卡片形成卡片套卡片，也让统一知识生产页面像临时拼接模块，不符合当前体验契约。
+- 已本地提交 `95bb816292f59833005df4761866dd9d89886cb4`
+  （`fix: 收敛知识生产工作区层级`）：
+  - `frontend/src/pages/knowledge-production/KnowledgeProductionPage.tsx` 移除“开始生产”外层 `Card`，
+    `section#production` 直接承载 `KnowledgeProductionWorkspace`，保留步骤条、上线准备、模型服务、医学评测和工作区内部业务分区。
+  - `frontend/src/pages/knowledge-production/KnowledgeProductionPage.test.tsx` 增加红绿断言：
+    生产工作区不得再被外层 `.ant-card` 包裹。
+- 本地验证：
+  - 目标测试先红灯：`npm --prefix frontend test -- KnowledgeProductionPage.test.tsx -t "does not wrap the production workspace"`
+    在旧实现下命中外层 `.ant-card`；修复后同命令通过。
+  - `npm --prefix frontend test -- KnowledgeProductionPage.test.tsx` 通过，`2` 项。
+  - `npm --prefix frontend run verify` 通过，`114` 个测试文件 / `939` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `/assets/index-DYTh-Ceu.js` 与
+    `/assets/KnowledgeProduction-ClNuDXyb.js`。
+  - `git diff --check` 通过。
+- 134 前端-only 发布与验证：
+  - 已执行 `deploy/onprem/mk-publish.sh --frontend --source 95bb816292f59833005df4761866dd9d89886cb4`；
+    远端备份 `/zoesoft/medkernel/backups/deploy-20260703-144653`。本次只更新前端 dist，后端/JAR manifest 仍是
+    `/zoesoft/medkernel/manifest.properties` 记录的 `source=3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+    `commit=3ddd979b3151e3eb1d40712e76b513e4cdce260c`、`deployedAt=2026-07-03T12:38:13+08:00`、
+    `jarSha256=37da0f4b8d42e040408ab530714f68228e8060a21f6690146d8cb58126ca96ec`。
+  - 远端服务 `active/enabled`、`MainPID=3600701`、`NRestarts=0`；公网 readiness HTTP 200 /
+    `{"status":"UP"}`。外部 `index.html` `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，指向
+    `/assets/index-DYTh-Ceu.js`；`/assets/KnowledgeProduction-ClNuDXyb.js` HTTP 200 / `20735` 字节。
+- 134 真实前台复演与页面层级回证：
+  - 首次复跑 `stakeholder-view-rehearsal.spec.ts` 未带 READY `E2E_ROLE_CREDENTIALS_FILE`，触发默认账号登录
+    `401 ENG-AUTH-001`；根因是验证输入错误，不是产品流程失败。随后确认
+    `/tmp/medkernel-e2e-codex3/secure/current-launch.json` 为 `schemaVersion=1.0.0`、`status=READY`，
+    `platform.accounts` 与 `rehearsal.accounts` 均包含四职责账号。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-95bb8162-ready`
+    通过 134 HTTPS 入站运行 `stakeholder-view-rehearsal.spec.ts --project=chromium`，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`skipped=0`、`unexpected=0`、`flaky=0`、`duration=78602.672ms`。
+    运行记录覆盖 `12` 类业务视角，浏览器错误、HTTP 错误、网络失败均为 `0`。
+  - 直连 `/knowledge/production` DOM 检查确认：`section#production` 存在，直接子元素不是 `.ant-card`，
+    默认页面不存在“开始生产”外层卡片标题，仍可见“模型生产上线准备”；工作区内部业务卡片保留。
+- 后续继续主线全局体验优化：本批只收敛知识生产工作区的页面层级，不改变统一知识治理与诊断知识维护的产品归属判断。
+  下一轮继续从全角色真实前台、知识 11 域生产/治理、模型公网/院内双模式与患者敏感信息处理、医保质控闭环、系统接入、
+  迁移、文档、测试、构建和部署证据广度优先核查；用户提问是线索，仍需按原始产品诉求和权威文档全局判断。
 
 ## 最新阶段交接（2026-07-03 全视角真实前台体验优化第四十二批·系统接入健康检查默认文案收敛）
 
