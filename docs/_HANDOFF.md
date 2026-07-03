@@ -10,10 +10,14 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第五十批已完成阶段交接提交为 `b091eecf1f7fccdfec2c1b523f7877b5e065f87`
-  （`docs: 记录临床路径公开口径复演`）；第五十一批最新应用代码提交为
+- 第五十一批已完成阶段交接提交为 `184c831c6e1d48cd4ce3189fbc6b04a637448e31`
+  （`docs: 记录沙盘智能协同口径复演`）；第五十二批最新应用代码提交为
+  `2a97de1738226b46e528e4b0445af4348227bf42`
+  （`fix: 收敛批量规则基准资产口径`）。其前置本地提交包括第五十一批应用提交
   `e4720e932c8f53f99ccfa3f3b8d4e16ad3777560`
-  （`fix: 收敛沙盘智能协同口径`）。其前置本地提交包括第五十批应用提交
+  （`fix: 收敛沙盘智能协同口径`）、第五十批阶段交接提交
+  `b091eecf1f7fccdfec2c1b523f7877b5e065f87`
+  （`docs: 记录临床路径公开口径复演`）、第五十批应用提交
   `34bb45bc50591d57671f3dbbc426f63368ac342d`
   （`fix: 收敛临床路径公开口径`）、第四十九批阶段交接提交
   `a687b1a4a4913d1026db607d818bf8b7e5234e71`
@@ -65,7 +69,7 @@
   第四十一批模型外调核心标识遮蔽、第四十二批系统接入健康检查默认文案收敛、第四十三批知识生产工作区层级收敛，
   第四十四批全局菜单命名与顺序收敛、第四十五批国产化适配自检权威文案收敛、第四十六批知识生产候选治理与规则路径前台文案收敛，
   第四十七批未找到页面工程态文案收敛、第四十八批全真体验沙盘当前机构口径收敛，第四十九批菜单服务与临床路径前台口径收敛，
-  第五十批临床路径公开口径收敛，以及第五十一批全真体验沙盘智能协同口径收敛。
+  第五十批临床路径公开口径收敛、第五十一批全真体验沙盘智能协同口径收敛，以及第五十二批批量规则基准资产口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -86,7 +90,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `e4720e932c8f53f99ccfa3f3b8d4e16ad3777560`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `2a97de1738226b46e528e4b0445af4348227bf42`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -96,6 +100,48 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-03 全视角真实前台体验优化第五十二批·批量规则基准资产口径收敛）
+
+- 本批继续按“菜单名称、临床路径模板含义和全角色医疗产品体验需整体评审”的要求，回看一级菜单、路由职责、功能目录与真实前台。
+  结论：第四十四批确定的一级菜单顺序仍成立，`知识治理`、`知识生产`、`临床协同` 等分组和 `诊断知识库`、`临床路径库`
+  等入口名继续符合当前产品范围；真实缺口在 `/authoring/assets` 的批量规则生成抽屉和后端 authoring 公开中文仍使用
+  “模板规则资产 / 已审核模板规则 / 模板参数 / 自动继承模板 / 规则模板”等说法。该功能实际是选择一条已审核规则作为基准，再按参数表批量生成独立规则草稿，不应暗示引用模板或套用临时模板。
+- 已本地提交 `2a97de1738226b46e528e4b0445af4348227bf42`
+  （`fix: 收敛批量规则基准资产口径`）：
+  - `AuthoringBatchDrawer` 将可见表单、提示、占位符和校验从“模板规则资产 / 模板参数 / 自动继承模板”收敛为
+    “基准规则资产 / 批量参数 / 沿用基准规则的触发绑定”，并补充反向断言，防止旧称回流。
+  - `routes.ts` 将 `/authoring/assets` 实施工程师职责从“复用模板加速机构上线配置”改为“复用基准资产加速机构上线配置”，仍保留
+    “复用后需机构适配和验证”的医疗安全边界。
+  - 后端 authoring 批量生成控制器、服务、请求、参数行和规则适配器的公开 Javadoc / 错误详情统一改为“基准规则 / 批量参数”，保留
+    `templateRuleId`、`AuthoringBatchRuleTemplate` 等 API 与内部兼容身份，不把兼容字段名升级为前台术语。
+- 本地验证：
+  - 红绿核验：`npm --prefix frontend test -- AuthoringBatchDrawer.test.tsx -t "generates one rule draft"` 先失败于旧实现仍显示
+    “模板规则资产 / 模板参数 / 已审核模板规则”，实现后通过，`1` 项。
+  - 前端相关回归：`npm --prefix frontend test -- AuthoringBatchDrawer.test.tsx AuthoringAssets.test.tsx routes.test.ts productRoleJourneys.test.ts`
+    最终通过，`4` 个测试文件 / `71` 项；首次相关回归只暴露 `routes.test.ts` 仍期待旧“复用模板”职责，已同步修正后复跑通过。
+  - 后端相关回归：`/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -Dtest=AuthoringBatchJobServiceTest,AuthoringBatchJobControllerTest test`
+    通过，`7` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `943` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `AuthoringAssets-BpThNdlT.js`、`PathwayTemplates-Gi2TBzX1.js`、
+    `RuntimeDiagnostics-BjMfisFG.js`、`SandboxHost-KlOaVBHV.js`、`index-CX1R1xpD.js`、`index-XMjG4gr3.css` 等前端产物。
+  - `/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -DskipTests package` 通过，生成
+    `medkernel-backend/target/medkernel-backend-1.0.0-SNAPSHOT.jar` 与 SBOM。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node scripts/audit/export-product-capabilities.mjs --check` 通过；
+    `node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check` 与 `git diff --cached --check` 均通过。
+  - 旧口径扫描：`rg -n "复用模板|模板规则|规则模板|模板参数|自动继承模板" frontend/src/pages frontend/src/shared/config medkernel-backend/src/main/java/com/medkernel/engine/authoring docs/audit/product-function-catalog.md docs/audit/product-role-journeys.md --glob '!**/*.test.ts' --glob '!**/*.test.tsx' --glob '!**/target/**'`
+    无生产命中；更宽扫描仅命中测试反向断言、LLM 模型矩阵测试夹具和 `_HANDOFF` 历史描述，生产前台与 authoring 公开契约无旧口径残留。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`；公网首页 HTTP 200，`Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，
+  `index.html` 指向 `/assets/index-DYTh-Ceu.js`、`/assets/index-XMjG4gr3.css`、
+  `/assets/vendor-data-D9EFEnEk.js`、`/assets/vendor-react-C5ap-Sga.css`、`/assets/vendor-react-bdrMx_IT.js`。
+  134 映射仍按当前已核定事实保持：后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `2a97de17` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、菜单分布、构建门禁、134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-03 全视角真实前台体验优化第五十一批·全真体验沙盘智能协同口径收敛）
 
