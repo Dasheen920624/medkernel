@@ -44,4 +44,10 @@ describe("KnowledgeProductionPage", () => {
     expect(screen.getByText("readiness-panel")).toBeInTheDocument();
     expect(screen.getByText("production-panel")).toBeInTheDocument();
   });
+
+  it("does not wrap the production workspace in another card", () => {
+    render(<KnowledgeProductionPage />);
+
+    expect(screen.getByText("production-panel").closest(".ant-card")).toBeNull();
+  });
 });

@@ -51,9 +51,7 @@ export default function KnowledgeProductionPage() {
           <ProductionReadinessPanel />
         </section>
         <section id="production" aria-label="开始生产" className={styles.section}>
-          <Card title="开始生产">
-            <KnowledgeProductionWorkspace />
-          </Card>
+          <KnowledgeProductionWorkspace />
         </section>
       </Space>
     </PageShell>
