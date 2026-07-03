@@ -10,10 +10,14 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第五十三批已完成阶段交接提交为 `b96ba67856ee6b0a124ec36ae84615f6fce8f306`
-  （`docs: 记录临床规则推荐口径复演`）；第五十四批最新应用代码提交为
+- 第五十四批已完成阶段交接提交为 `8637710c05e6cf68e3a0ac6e08e8f25dd30afd52`
+  （`docs: 记录患者路径证据口径复演`）；第五十五批最新应用代码提交为
+  `01bf139f2fb5e8ef90a24e17defb4e40a4e1a13f`
+  （`fix: 收敛安全配置运行环境口径`）。其前置本地提交包括第五十四批应用提交
   `691a5397b2ca50f60b4a3636ef3216f0d5c657f9`
-  （`fix: 收敛患者路径证据口径`）。其前置本地提交包括第五十三批应用提交
+  （`fix: 收敛患者路径证据口径`）、第五十三批阶段交接提交
+  `b96ba67856ee6b0a124ec36ae84615f6fce8f306`
+  （`docs: 记录临床规则推荐口径复演`）、第五十三批应用提交
   `ea76cbb69f6d39115ca32608161ad8c470ff7430`
   （`fix: 收敛临床规则与推荐前台口径`）、第五十二批阶段交接提交
   `b5a72c7e055b48f0f481e607887dcd43938a884c`
@@ -78,7 +82,7 @@
   第四十四批全局菜单命名与顺序收敛、第四十五批国产化适配自检权威文案收敛、第四十六批知识生产候选治理与规则路径前台文案收敛，
   第四十七批未找到页面工程态文案收敛、第四十八批全真体验沙盘当前机构口径收敛，第四十九批菜单服务与临床路径前台口径收敛，
   第五十批临床路径公开口径收敛、第五十一批全真体验沙盘智能协同口径收敛、第五十二批批量规则基准资产口径收敛，
-  第五十三批临床规则与提醒推荐前台口径收敛，以及第五十四批患者路径证据口径收敛。
+  第五十三批临床规则与提醒推荐前台口径收敛、第五十四批患者路径证据口径收敛，以及第五十五批安全配置运行环境口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -99,7 +103,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `691a5397b2ca50f60b4a3636ef3216f0d5c657f9`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `01bf139f2fb5e8ef90a24e17defb4e40a4e1a13f`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -109,6 +113,45 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-03 全视角真实前台体验优化第五十五批·安全配置运行环境口径收敛）
+
+- 本批继续按全局菜单、医疗场景名称和全角色体验要求复核权威目录、职责旅程与真实前台。结论：
+  第四十四批确定的菜单名称与顺序仍成立，真实缺口不在菜单，而在 `/compliance/security-baseline` 安全配置页默认摘要仍把
+  `snapshot.environment / snapshot.deploymentMode` 直接展示为 `container / docker-core`。对平台治理、实施运维和医院安全管理员而言，
+  默认页应表达为可确认的运行环境与部署形态；原始运行标识只属于证据详情。
+- 已本地提交 `01bf139f2fb5e8ef90a24e17defb4e40a4e1a13f`
+  （`fix: 收敛安全配置运行环境口径`）：
+  - `SecurityBaseline` 的运行环境摘要默认改为“容器运行环境 / 容器化部署”等客户可读口径，未知值降级为可确认状态；
+    证据详情打开后仍保留 `container / docker-core` 等原始证据，满足审计追溯。
+  - `SecurityBaseline.test.tsx` 增加默认可读口径、默认隐藏 `container` / `docker-core`、证据详情打开后展示原始值的断言，
+    防止运行环境技术标识再次回流到默认前台。
+- 本地验证：
+  - 红绿核验：`npm --prefix frontend test -- SecurityBaseline.test.tsx -t "unifies runtime baseline|reveals security identifiers"`
+    在旧实现下先失败于“运行环境：容器运行环境 / 容器化部署”缺失；实现后通过，`2` 项。
+  - 前端相关回归：`npm --prefix frontend test -- SecurityBaseline.test.tsx` 通过，`10` 项；
+    `npm --prefix frontend test -- SecurityBaseline.test.tsx SystemProviders.test.tsx operationalControlPages.test.tsx` 通过，
+    `3` 个测试文件 / `24` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `944` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `SecurityBaseline-Dtxf-Fu8.js`、`index-Bb9kSRL2.js`、
+    `index-XMjG4gr3.css` 等前端产物。
+  - `/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -DskipTests package` 通过，生成
+    `medkernel-backend/target/medkernel-backend-1.0.0-SNAPSHOT.jar` 与 SBOM。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node scripts/audit/export-product-capabilities.mjs --check` 通过；
+    `node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check` 与应用提交前 `git diff --cached --check` 均通过。
+  - 同类扫描：`rg -n "container / docker-core|运行环境：\$\{snapshot\.environment\}|snapshot\.environment\} / \$\{snapshot\.deploymentMode\}|部署模式\" value=\{data\.deploymentMode\}" frontend/src/pages frontend/src/widgets --glob '!**/*.test.ts' --glob '!**/*.test.tsx'`
+    仅命中 `SystemProviders` 的证据详情分支；`SystemProviders.test.tsx` 已覆盖默认隐藏实现细节、打开证据详情后展示低频诊断。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`；公网首页 HTTP 200，`Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，
+  `index.html` 指向 `/assets/index-DYTh-Ceu.js`、`/assets/index-XMjG4gr3.css`、
+  `/assets/vendor-data-D9EFEnEk.js`、`/assets/vendor-react-C5ap-Sga.css`、`/assets/vendor-react-bdrMx_IT.js`。
+  134 映射仍按当前已核定事实保持：后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `01bf139f` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、菜单分布、构建门禁、134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-03 全视角真实前台体验优化第五十四批·患者路径证据口径收敛）
 
