@@ -1775,7 +1775,7 @@ class WorkflowCollaborationServiceTest {
                 "evt-report-1",
                 "clinical-event:evt-report-1",
                 "临床同步事件已处理",
-                "LIS 的报告查看事件已进入临床事件引擎并完成处理",
+                "LIS 的报告查看事件已进入临床事件协同链路并完成处理",
                 WorkflowNotificationLevel.INFO,
                 WorkflowNotificationStatus.UNREAD,
                 null,
@@ -1798,7 +1798,9 @@ class WorkflowCollaborationServiceTest {
         assertThat(page.items()).singleElement()
             .satisfies(item -> {
                 assertThat(item.sourceType()).isEqualTo(WorkflowNotificationSourceType.SYNC_EVENT);
-                assertThat(item.message()).contains("报告查看事件", "已进入临床事件引擎");
+                assertThat(item.message())
+                    .contains("报告查看事件", "已进入临床事件协同链路")
+                    .doesNotContain("临床事件引擎");
                 assertThat(item.patientId()).isEqualTo("patient-1");
                 assertThat(item.encounterId()).isEqualTo("enc-1");
                 assertThat(item.deepLink()).contains("evt-report-1");

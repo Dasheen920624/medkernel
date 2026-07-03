@@ -869,7 +869,7 @@ public class WorkflowCollaborationService {
             event.eventId(),
             dedupeKey,
             "临床同步事件已处理",
-            sourceSystem + " 的" + eventTriggerText(event) + "已进入临床事件引擎并完成处理",
+            sourceSystem + " 的" + eventTriggerText(event) + "已进入临床事件协同链路并完成处理",
             WorkflowNotificationLevel.INFO,
             WorkflowNotificationStatus.UNREAD,
             null,

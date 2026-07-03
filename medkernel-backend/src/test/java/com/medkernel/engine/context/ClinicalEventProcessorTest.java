@@ -106,6 +106,8 @@ class ClinicalEventProcessorTest {
             auditSummaryCap.capture());
         assertThat(auditSummaryCap.getValue())
             .contains("处理临床事件成功 type=DIAGNOSIS")
+            .contains("capabilities=")
+            .doesNotContain("engines=")
             .contains("RULE:DISPATCHED:已接收")
             .contains("PATHWAY:DISPATCHED:已接收")
             .contains("CDSS:DISPATCHED:已接收");

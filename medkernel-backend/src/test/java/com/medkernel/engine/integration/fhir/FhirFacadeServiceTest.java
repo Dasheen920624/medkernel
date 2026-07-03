@@ -136,7 +136,9 @@ class FhirFacadeServiceTest {
 
         assertThat(response.status()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.body().path("resourceType").asText()).isEqualTo("OperationOutcome");
-        assertThat(response.body().toString()).contains("NOT_CONNECTED").doesNotContain("MPI-001");
+        assertThat(response.body().toString())
+            .contains("NOT_CONNECTED", "进入临床事件协同链路")
+            .doesNotContain("MPI-001", "临床事件引擎");
 
         ArgumentCaptor<CanonicalResource> resourceCaptor = ArgumentCaptor.forClass(CanonicalResource.class);
         verify(resources).save(resourceCaptor.capture());
@@ -170,6 +172,9 @@ class FhirFacadeServiceTest {
             ArgumentCaptor.forClass(IntegrationOutboundRequestDto.class);
         verify(integration).enqueueOutboundMessage(org.mockito.Mockito.eq("tenant-A"), outboundCaptor.capture());
         assertThat(outboundCaptor.getValue().adapterId()).isEqualTo("fhir-hub");
+        assertThat(outboundCaptor.getValue().payloadSummary())
+            .contains("标准临床事件链路")
+            .doesNotContain("标准引擎");
         assertThat(outboundCaptor.getValue().payload().path("canonicalResourceId").asText()).isEqualTo("101");
     }
 

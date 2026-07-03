@@ -198,7 +198,7 @@ public class ClinicalEventEngineDispatcher {
     private ClinicalEventEngineAdapter adapter(ClinicalEventEngine engine) {
         ClinicalEventEngineAdapter adapter = adapters.get(engine);
         if (adapter == null) {
-            throw new ApiException(ErrorCode.ENG_EVENT_005, "缺少临床事件引擎适配器: " + engine);
+            throw new ApiException(ErrorCode.ENG_EVENT_005, "缺少临床事件链路适配器: " + engine);
         }
         return adapter;
     }

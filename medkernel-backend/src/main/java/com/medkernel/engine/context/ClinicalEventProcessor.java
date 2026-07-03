@@ -201,7 +201,7 @@ public class ClinicalEventProcessor {
             TransitionError.of(errorCode.code(), errorCode.errorClass(),
                 result.engine() + ": " + result.message(), source.retryCount(), null));
         auditPublisher.publish(AuditEvent.failure(AuditAction.EXECUTE, ENTITY_TYPE, source.eventId(),
-            errorCode.code(), "临床事件下游引擎不可用 engine=" + result.engine()));
+            errorCode.code(), "临床事件下游能力不可用 code=" + result.engine()));
         return ClinicalEventStatus.FAILED;
     }
 
@@ -214,7 +214,7 @@ public class ClinicalEventProcessor {
         if (!hasText(engines)) {
             return "处理临床事件成功 type=" + event.eventType();
         }
-        return "处理临床事件成功 type=" + event.eventType() + " engines=" + engines;
+        return "处理临床事件成功 type=" + event.eventType() + " capabilities=" + engines;
     }
 
     private String trimForAudit(String value) {

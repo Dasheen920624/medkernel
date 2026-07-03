@@ -342,7 +342,7 @@ describe("Notifications", () => {
             sourceId: "evt-report-1",
             dedupeKey: "clinical-event:evt-report-1",
             title: "临床同步事件已处理",
-            message: "LIS 的报告查看事件已进入临床事件引擎并完成处理。",
+            message: "LIS 的报告查看事件已进入临床事件协同链路并完成处理。",
             level: "INFO",
             status: "UNREAD",
             recipientId: "doctor-real-1",
@@ -362,6 +362,12 @@ describe("Notifications", () => {
     renderNotifications();
 
     expect(screen.getByText("同步事件")).toBeInTheDocument();
+    expect(
+      screen.getByText("LIS 的报告查看事件已进入临床事件协同链路并完成处理。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("LIS 的报告查看事件已进入临床事件引擎并完成处理。"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("SYNC_EVENT")).not.toBeInTheDocument();
   });
 

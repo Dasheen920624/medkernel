@@ -10,7 +10,7 @@ import org.springframework.stereotype.Repository;
  * 临床事件（Clinical Event）核心数据库仓储接口。
  *
  * <p>提供针对实时临床就诊、诊断、医嘱变更事件的持久化、多条件筛选及分页检索支持，
- * 支撑 GA-ENG-API-02 临床事件引擎的审计与诊断回放。
+ * 支撑 GA-ENG-API-02 临床事件链路的审计与诊断回放。
  */
 @Repository
 public interface ClinicalEventRepository extends ListCrudRepository<ClinicalEvent, Long> {

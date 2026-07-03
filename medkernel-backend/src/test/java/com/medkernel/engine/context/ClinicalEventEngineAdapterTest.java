@@ -57,6 +57,9 @@ class ClinicalEventEngineAdapterTest {
         assertThat(result.engine()).isEqualTo(ClinicalEventEngine.RULE);
         assertThat(result.status()).isEqualTo(ClinicalEventEngineDispatchStatus.DISPATCHED);
         assertThat(result.downstreamReferenceId()).isEqualTo("eval-1");
+        assertThat(result.message())
+            .contains("临床规则已接收")
+            .doesNotContain("规则引擎");
         ArgumentCaptor<String> triggerCap = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<JsonNode> contextCap = ArgumentCaptor.forClass(JsonNode.class);
         ArgumentCaptor<String> eventCap = ArgumentCaptor.forClass(String.class);
