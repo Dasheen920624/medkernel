@@ -601,7 +601,7 @@ export default function PatientPathways() {
       title: "引用",
       key: "refCode",
       render: (_value, binding) =>
-        binding.scope === "TEMPLATE" ? "全模板" : binding.refCode || "-",
+        binding.scope === "TEMPLATE" ? "全路径" : binding.refCode || "-",
     },
     { title: "结局指标身份", dataIndex: "indicatorCode" },
   ];

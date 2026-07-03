@@ -331,7 +331,7 @@ async function openCreateDialog() {
   const user = userEvent.setup();
   renderPathwayTemplates();
   await user.click(screen.getByRole("button", { name: /新建临床路径/ }));
-  const dialog = await screen.findByRole("dialog", { name: "新建临床路径模型" });
+  const dialog = await screen.findByRole("dialog", { name: "新建临床路径" });
   return { user, dialog };
 }
 
@@ -417,8 +417,9 @@ describe("PathwayTemplates 上线路径维护契约", () => {
   it("路径建模表单以稳定业务身份表达结构化路径对象", async () => {
     const { user, dialog } = await openCreateDialog();
 
-    expect(within(dialog).getByLabelText("稳定路径模型身份")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("稳定临床路径身份")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("适用病种身份")).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("稳定路径模型身份")).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText("路径模型代码")).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText("病种代码")).not.toBeInTheDocument();
 
@@ -484,7 +485,8 @@ describe("PathwayTemplates 上线路径维护契约", () => {
     async () => {
       const { user, dialog } = await openCreateDialog();
 
-      expect(within(dialog).getByRole("tab", { name: /基础模板/ })).toBeInTheDocument();
+      expect(within(dialog).getByRole("tab", { name: /基础信息/ })).toBeInTheDocument();
+      expect(within(dialog).queryByText(/临床路径模型|基础模板/)).not.toBeInTheDocument();
       expect(within(dialog).getByRole("tab", { name: /节点画布/ })).toBeInTheDocument();
       expect(within(dialog).queryByRole("tab", { name: /受控配置文本/ })).not.toBeInTheDocument();
 
@@ -662,7 +664,7 @@ describe("PathwayTemplates 上线路径维护契约", () => {
       expect(screen.queryByText("PATH.CARDIO.REVIEW")).not.toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: /复制为新版本/ }));
 
-      const dialog = await screen.findByRole("dialog", { name: "新建临床路径模型" });
+      const dialog = await screen.findByRole("dialog", { name: "新建临床路径" });
       expect(within(dialog).queryByLabelText("归属路径知识" + "包")).not.toBeInTheDocument();
       await user.click(within(dialog).getByRole("button", { name: /OK|确 定|确定/ }));
 

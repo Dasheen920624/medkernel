@@ -32,7 +32,7 @@ function expectFlatTreeRoundTrip(restored: RuleConditionTree, tree: RuleConditio
 }
 
 describe("RULE-01 三层规则编辑模型", () => {
-  it("L1 模板实例化为可编辑 L2 条件树，不内置具体患者、药品或诊断值", () => {
+  it("L1 规则原型实例化为可编辑 L2 条件树，不内置具体患者、药品或诊断值", () => {
     const tree = instantiateRuleTemplate("drug_safety_review");
 
     expect(tree.logic).toBe("all");

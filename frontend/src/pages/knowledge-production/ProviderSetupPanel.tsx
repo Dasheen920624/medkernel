@@ -413,7 +413,7 @@ export default function ProviderSetupPanel() {
             type="info"
             showIcon
             message="密钥只加密保存，保存后不再回显"
-            description="配置或轮换密钥会强制停用服务并清除最近一次健康结论；必须重新探活、评测并受控启用。"
+            description="配置或轮换密钥会强制停用服务并清除最近一次健康结论；必须重新健康检查、评测并受控启用。"
           />
           {!canManage && security.data ? (
             <Alert
@@ -493,7 +493,7 @@ export default function ProviderSetupPanel() {
           type="warning"
           showIcon
           message="本操作会清除当前凭据"
-          description="模型服务将被强制停用并失去最近一次健康结论；如需恢复，必须重新配置密钥、探活、评测和受控启用。"
+          description="模型服务将被强制停用并失去最近一次健康结论；如需恢复，必须重新配置密钥、健康检查、评测和受控启用。"
         />
         <Form
           form={removalForm}

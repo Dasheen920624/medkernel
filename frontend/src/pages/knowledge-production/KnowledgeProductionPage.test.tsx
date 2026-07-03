@@ -25,7 +25,7 @@ describe("KnowledgeProductionPage", () => {
     render(<KnowledgeProductionPage />);
 
     expect(screen.getByRole("heading", { name: "知识生产工作台" })).toBeInTheDocument();
-    const labels = ["模型服务与密钥", "医学评测", "生产前校验", "开始生产"];
+    const labels = ["模型服务与密钥", "医学评测", "生产前校验", "候选治理"];
     for (let index = 1; index < labels.length; index += 1) {
       const previous = screen.getAllByText(labels[index - 1], { exact: true })[0];
       const current = screen.getAllByText(labels[index], { exact: true })[0];
@@ -41,6 +41,7 @@ describe("KnowledgeProductionPage", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("正式知识只允许大模型生产")).not.toBeInTheDocument();
     expect(screen.queryByText("独立复核")).not.toBeInTheDocument();
+    expect(screen.queryByText("开始生产")).not.toBeInTheDocument();
     expect(screen.getByText("readiness-panel")).toBeInTheDocument();
     expect(screen.getByText("production-panel")).toBeInTheDocument();
   });

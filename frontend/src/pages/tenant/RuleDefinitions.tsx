@@ -3492,7 +3492,7 @@ export default function RuleDefinitions() {
           key: "l1",
           label: (
             <span>
-              <ApartmentOutlined /> L1 模板
+              <ApartmentOutlined /> L1 基础信息
             </span>
           ),
           children: (
@@ -3829,7 +3829,7 @@ export default function RuleDefinitions() {
       key: "l1",
       label: (
         <span>
-          <ApartmentOutlined /> L1 模板
+          <ApartmentOutlined /> L1 基础信息
         </span>
       ),
       children: (
@@ -3837,7 +3837,7 @@ export default function RuleDefinitions() {
           <Alert
             type="info"
             showIcon
-            message="模板只提供规则结构，不内置患者、药品、诊断或剂量常量；提交前必须在 L2 填写真实上下文字段。"
+            message="规则原型只提供规则结构，不内置患者、药品、诊断或剂量常量；提交前必须在 L2 填写真实上下文字段。"
             className={styles.marginBottomMd}
           />
           <Radio.Group
@@ -4568,7 +4568,7 @@ export default function RuleDefinitions() {
       description="维护临床规则资产，完成验证、解释和临床治理。"
       primary={
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
-          新建规则模板
+          新建临床规则
         </Button>
       }
       state={pageState}

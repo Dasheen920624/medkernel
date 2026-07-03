@@ -37,7 +37,7 @@ export default function KnowledgeProductionPage() {
               { title: "模型服务与密钥" },
               { title: "医学评测" },
               { title: "生产前校验" },
-              { title: "开始生产" },
+              { title: "候选治理" },
             ]}
           />
         </Card>
@@ -50,7 +50,7 @@ export default function KnowledgeProductionPage() {
         <section id="readiness" aria-label="生产前校验" className={styles.section}>
           <ProductionReadinessPanel />
         </section>
-        <section id="production" aria-label="开始生产" className={styles.section}>
+        <section id="production" aria-label="候选治理" className={styles.section}>
           <KnowledgeProductionWorkspace />
         </section>
       </Space>

@@ -356,10 +356,10 @@ type SnapshotQuery = {
 type PathwayPrototypeKey = "blank" | "basic_cycle";
 
 const templateLevelOptions: Array<{ value: PathwayTemplateLevel; label: string }> = [
-  { value: "STANDARD", label: "平台标准模板" },
-  { value: "HOSPITAL", label: "医院模板" },
-  { value: "DEPARTMENT", label: "科室模板" },
-  { value: "SPECIALTY", label: "专科模板" },
+  { value: "STANDARD", label: "平台标准路径" },
+  { value: "HOSPITAL", label: "医院路径" },
+  { value: "DEPARTMENT", label: "科室路径" },
+  { value: "SPECIALTY", label: "专科路径" },
 ];
 
 const pathwayEntryModeOptions: Array<{ value: PathwayEntryMode; label: string }> = [
@@ -404,7 +404,7 @@ const edgeTypeOptions: Array<{ value: PathwayEdgeType; label: string }> = [
 ];
 
 const outcomeScopeOptions: Array<{ value: PathwayOutcomeScope; label: string }> = [
-  { value: "TEMPLATE", label: "模板" },
+  { value: "TEMPLATE", label: "全路径" },
   { value: "PHASE", label: "阶段" },
   { value: "MILESTONE", label: "里程碑" },
 ];
@@ -893,14 +893,14 @@ function normalizeOutcomeBindings(bindings?: PathwayOutcomeBindingInput[]) {
 function outcomeScopeText(scope?: PathwayOutcomeScope | string | null) {
   if (scope === "PHASE") return "阶段";
   if (scope === "MILESTONE") return "里程碑";
-  return "模板";
+  return "全路径";
 }
 
 function outcomeRefText(
   binding: Pick<PathwayOutcomeBinding, "scope" | "refCode">,
   evidenceDetailsEnabled = true,
 ) {
-  if (binding.scope === "TEMPLATE") return "全模板";
+  if (binding.scope === "TEMPLATE") return "全路径";
   if (evidenceDetailsEnabled) return binding.refCode || "-";
   return binding.scope === "MILESTONE" ? "里程碑已关联" : "阶段已关联";
 }
@@ -2428,7 +2428,7 @@ export default function PathwayTemplates() {
   const createLayerItems: TabsProps["items"] = [
     {
       key: "l1",
-      label: "基础模板",
+      label: "基础信息",
       children: (
         <div className={styles.editorSection}>
           <Form.Item label="路径原型">
@@ -2452,7 +2452,7 @@ export default function PathwayTemplates() {
           </Form.Item>
           <Row gutter={16}>
             <Col xs={24}>
-              <Form.Item name="name" label="路径模型名称" rules={[{ required: true }]}>
+              <Form.Item name="name" label="路径名称" rules={[{ required: true }]}>
                 <Input placeholder="如 心血管路径复核" />
               </Form.Item>
             </Col>
@@ -2461,7 +2461,7 @@ export default function PathwayTemplates() {
             <Col xs={24} sm={12} lg={8}>
               <Form.Item
                 name="templateCode"
-                label="稳定路径模型身份"
+                label="稳定临床路径身份"
                 tooltip="用于跨版本、机构生效版本和审计追溯；同身份修改时由系统自动创建下一版本"
                 rules={[{ required: true }]}
               >
@@ -3601,7 +3601,7 @@ export default function PathwayTemplates() {
     ? [
         {
           key: "l1",
-          label: "基础模板",
+          label: "基础信息",
           children: (
             <Descriptions bordered column={detailDescriptionColumn} className={styles.marginTopMd}>
               <Descriptions.Item label="名称">{detailData.template.name}</Descriptions.Item>
@@ -4127,14 +4127,14 @@ export default function PathwayTemplates() {
             pageSize: size,
             total: listData?.total || 0,
             onChange: (nextPage) => setPage(nextPage),
-            showTotal: (total) => `共 ${total} 个临床受控路径模型`,
+            showTotal: (total) => `共 ${total} 条临床路径`,
           }}
           className="medkernel-table"
         />
       </div>
 
       <Modal
-        title="新建临床路径模型"
+        title="新建临床路径"
         open={createTemplateVisible}
         onOk={handleCreateTemplate}
         onCancel={() => {

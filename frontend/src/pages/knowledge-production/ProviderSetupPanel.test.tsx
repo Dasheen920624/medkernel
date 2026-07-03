@@ -105,6 +105,8 @@ describe("ProviderSetupPanel", () => {
     expect(screen.getByText("尾号 1234")).toBeInTheDocument();
     expect(screen.getByText("待健康检查")).toBeInTheDocument();
     expect(screen.queryByText(/sk-/)).not.toBeInTheDocument();
+    expect(screen.getByText(/必须重新健康检查、评测并受控启用/)).toBeInTheDocument();
+    expect(screen.queryByText(/探活/)).not.toBeInTheDocument();
   });
 
   it("hides provider implementation identifiers by default and reveals them as evidence details", async () => {
