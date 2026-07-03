@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 诊断知识维护 API（归 knowledge 客户面，复用知识读写权限）。
+ * 诊断知识库 API（归 knowledge 客户面，复用知识读写权限）。
  *
  * <p>标准 / 鉴别 / 指针 / 验证病例 add 走 {@code knowledge.write}、list 走 {@code knowledge.read}；
  * 发布激活版本走 {@code knowledge.publish}（与 KnowledgeVersionController.activate 一致，HIGH 风险），

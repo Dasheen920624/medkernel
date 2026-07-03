@@ -35,7 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 诊断知识维护服务：标准 / 鉴别 / 指针 / 验证病例 CRUD + 以验证病例全绿为发布门禁。
+ * 诊断知识库服务：标准 / 鉴别 / 指针 / 验证病例 CRUD + 以验证病例全绿为发布门禁。
  *
  * <p>发布走 {@link #publishDiagnosis}：先 {@link #publishGate} 复算全部验证病例，分级与期望一致才调通用版本激活；
  * 不一致抛 {@code ENG_DX_006}，门禁真正生效（非死方法）。置信策略可按租户/科室覆盖，未覆盖回退平台主租户 t-1 DEFAULT。

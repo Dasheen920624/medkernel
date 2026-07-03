@@ -3,7 +3,7 @@ package com.medkernel.engine.quality.dashboard;
 import java.time.Instant;
 
 /**
- * 质控驾驶舱下钻明细。
+ * 质量管理概览下钻明细。
  */
 public record QualityDashboardDrilldownItem(
     String sourceType,

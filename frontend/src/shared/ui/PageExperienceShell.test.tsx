@@ -59,7 +59,7 @@ describe("PageExperienceShell", () => {
     const { rerender } = render(
       <ConfigProvider>
         <PageExperienceShell
-          meta={{ title: "字典映射", experience }}
+          meta={{ title: "术语字典", experience }}
           securityProfile={evidenceDetailProfile}
         >
           内容
@@ -75,7 +75,7 @@ describe("PageExperienceShell", () => {
     rerender(
       <ConfigProvider>
         <PageExperienceShell
-          meta={{ title: "字典映射", experience }}
+          meta={{ title: "术语字典", experience }}
           securityProfile={normalProfile}
         >
           内容

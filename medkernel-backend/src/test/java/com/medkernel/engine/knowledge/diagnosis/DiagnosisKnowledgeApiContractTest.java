@@ -28,7 +28,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * 诊断知识维护 API 安全/契约：认证、knowledge.read/write/publish 权限矩阵、@DataScope 租户门、发布门禁 ENG-DX-006 → 409。
+ * 诊断知识库 API 安全/契约：认证、knowledge.read/write/publish 权限矩阵、@DataScope 租户门、发布门禁 ENG-DX-006 → 409。
  *
  * <p>角色权限取自 DefaultPermissionPolicy：MEDICAL_AFFAIRS 有 read/write/publish；DOCTOR 有 read 无 publish；GUEST 无知识权限。
  */

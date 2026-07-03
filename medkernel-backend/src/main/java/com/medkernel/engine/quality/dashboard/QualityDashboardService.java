@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * SVC-QUALITY-01 质控驾驶舱聚合服务。
+ * SVC-QUALITY-01 质量管理概览聚合服务。
  *
  * <p>本服务只读 EVAL/OPT-08/整改事实形成聚合与下钻，并幂等刷新质控预警 read-model。
  */

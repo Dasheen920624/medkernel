@@ -122,8 +122,8 @@ async function renderLayout(initialPath = "/terminology/mapping") {
               <Route path="/login" element={<div>登录页入口</div>} />
               <Route element={<AppLayout />}>
                 <Route path="/dashboard" element={<div>工作台内容</div>} />
-                <Route path="/terminology/mapping" element={<div>字典映射内容</div>} />
-                <Route path="/qc/dashboard" element={<div>质控驾驶舱内容</div>} />
+                <Route path="/terminology/mapping" element={<div>术语字典内容</div>} />
+                <Route path="/qc/dashboard" element={<div>质量管理概览内容</div>} />
               </Route>
             </Routes>
           </MemoryRouter>
@@ -295,7 +295,7 @@ describe("AppLayout", () => {
 
     expect(screen.getAllByText("术语字典").length).toBeGreaterThan(0);
     expect(screen.getAllByText("知识治理").length).toBeGreaterThan(0);
-    expect(screen.getByText("字典映射内容")).toBeInTheDocument();
+    expect(screen.getByText("术语字典内容")).toBeInTheDocument();
   });
 
   it("renders nested routes as one breadcrumb line in the header", async () => {
@@ -315,7 +315,7 @@ describe("AppLayout", () => {
     await renderLayout();
 
     expect(document.querySelector(".ant-layout-sider")).toBeNull();
-    expect(screen.getByText("字典映射内容")).toBeInTheDocument();
+    expect(screen.getByText("术语字典内容")).toBeInTheDocument();
 
     await act(async () => {
       fireEvent.click(screen.getAllByRole("button")[0]);
@@ -334,7 +334,7 @@ describe("AppLayout", () => {
 
     expect(screen.queryByText("知识治理")).toBeNull();
     expect(screen.getAllByText("质量管理").length).toBeGreaterThan(0);
-    expect(screen.getByText("质控驾驶舱内容")).toBeInTheDocument();
+    expect(screen.getByText("质量管理概览内容")).toBeInTheDocument();
   });
 
   it("does not display a hard-coded identity beside the effective permission profile", async () => {
@@ -426,7 +426,7 @@ describe("AppLayout", () => {
     mockViewport(1280);
     await renderLayout();
 
-    expect(screen.queryByText("字典映射内容")).toBeNull();
+    expect(screen.queryByText("术语字典内容")).toBeNull();
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
   });
 
@@ -440,7 +440,7 @@ describe("AppLayout", () => {
     mockViewport(1280);
     await renderLayout();
 
-    expect(screen.queryByText("字典映射内容")).toBeNull();
+    expect(screen.queryByText("术语字典内容")).toBeNull();
     expect(screen.getByText("当前权限不足")).toBeInTheDocument();
   });
 

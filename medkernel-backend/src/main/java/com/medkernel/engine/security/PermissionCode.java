@@ -43,7 +43,7 @@ public enum PermissionCode {
     // ─── 字典（GA-ENG-TERM-01）─────────────────────────────────
     TERM_READ("term.read", Risk.LOW, "查看标准字典 / 院内映射"),
     TERM_WRITE("term.write", Risk.MEDIUM, "修改字典 / 映射"),
-    TERM_PUBLISH("term.publish", Risk.HIGH, "发布字典映射版本"),
+    TERM_PUBLISH("term.publish", Risk.HIGH, "发布术语字典版本"),
 
     // ─── 规则（GA-ENG-RULE-01）─────────────────────────────────
     RULE_READ("rule.read", Risk.LOW, "查看规则"),
@@ -117,7 +117,7 @@ public enum PermissionCode {
     WORKBENCH_READINESS_VIEW("workbench:readiness:view", Risk.LOW, "查看验收自检页面"),
     WORKFLOW_READ("workflow.read", Risk.LOW, "查看临床协同待办"),
     WORKFLOW_WRITE("workflow.write", Risk.MEDIUM, "完成或转交临床协同待办"),
-    NOTIFICATION_READ("notification.read", Risk.LOW, "查看通知中心"),
+    NOTIFICATION_READ("notification.read", Risk.LOW, "查看消息通知"),
     NOTIFICATION_WRITE("notification.write", Risk.LOW, "标记通知已读和保存通知偏好"),
 
     // ─── 菜单维度 ────────────────────────────────────────────────
@@ -131,7 +131,7 @@ public enum PermissionCode {
 
     // ─── 资产维度（知识、字典、规则、路径和机构生效版本的授权边界）──────────────────
     ASSET_RUNTIME_RELEASE("asset.runtime-release", PermissionDimension.ASSET, Risk.MEDIUM, "访问机构生效版本明细"),
-    ASSET_DICTIONARY("asset.dictionary", PermissionDimension.ASSET, Risk.MEDIUM, "访问字典映射资产"),
+    ASSET_DICTIONARY("asset.dictionary", PermissionDimension.ASSET, Risk.MEDIUM, "访问术语字典资产"),
     ASSET_KNOWLEDGE("asset.knowledge", PermissionDimension.ASSET, Risk.MEDIUM, "访问知识资产"),
     ASSET_RULE("asset.rule", PermissionDimension.ASSET, Risk.MEDIUM, "访问规则资产"),
     ASSET_PATHWAY("asset.pathway", PermissionDimension.ASSET, Risk.MEDIUM, "访问路径资产"),

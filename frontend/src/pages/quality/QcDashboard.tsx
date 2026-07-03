@@ -110,7 +110,7 @@ export default function QcDashboard() {
   const isEmpty = Boolean(dashboard && isDashboardEmpty(dashboard));
   const errorStatus = getResponseStatus(dashboardQuery.error);
   const errorDetail = dashboardQuery.error
-    ? parseApiError(dashboardQuery.error, "质控驾驶舱读取失败")
+    ? parseApiError(dashboardQuery.error, "质量管理概览读取失败")
     : undefined;
 
   const primaryAction = (
@@ -162,7 +162,7 @@ export default function QcDashboard() {
         extras={extraActions}
         state={errorStatus === 403 ? "forbidden" : "error"}
         stateProps={{
-          title: errorStatus === 403 ? "当前权限不足" : "质控驾驶舱读取失败",
+          title: errorStatus === 403 ? "当前权限不足" : "质量管理概览读取失败",
           description: getApiErrorMessage(
             dashboardQuery.error,
             "请检查登录权限、组织范围或质控服务状态。",

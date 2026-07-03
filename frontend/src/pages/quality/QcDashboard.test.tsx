@@ -176,6 +176,27 @@ describe("QcDashboard", () => {
     expect(screen.queryByText(/485|92\.8|演示/)).not.toBeInTheDocument();
   });
 
+  it("uses the current quality overview name in error states", () => {
+    mockUseQualityDashboard.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: { response: { status: 500, data: { message: "服务暂时不可用" } } },
+      refetch: vi.fn(),
+    });
+    mockUseQualityDashboardDrilldown.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    expect(screen.getByText("质量管理概览读取失败")).toBeInTheDocument();
+    expect(screen.queryByText(/质控驾驶舱/)).not.toBeInTheDocument();
+  });
+
   it("keeps dashboard actions concise and links accumulated alerts to the full worklist", () => {
     const activeAlerts = Array.from({ length: 8 }, (_, index) => ({
       ...dashboardData.activeAlerts[0],

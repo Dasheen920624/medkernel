@@ -432,7 +432,7 @@ export default function TerminologyMapping() {
     requestSnapshot: snapshot(),
     selectedScope: "currentPage",
     selectionSnapshot,
-    reason: "导出字典映射核查结果",
+    reason: "导出术语字典核查结果",
   });
 
   const stepPanels = useMemo(

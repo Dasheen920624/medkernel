@@ -102,14 +102,14 @@ const profile: SecurityProfile = {
       code: "term.read",
       dimension: "ACTION",
       target: "terminology",
-      displayName: "读取字典映射",
+      displayName: "读取术语字典",
       risk: "LOW",
     },
     {
       code: "term.write",
       dimension: "ACTION",
       target: "terminology",
-      displayName: "维护字典映射",
+      displayName: "维护术语字典",
       risk: "MEDIUM",
     },
   ],
@@ -630,7 +630,10 @@ describe("TerminologyMapping", () => {
     await userEvent.click(screen.getByRole("button", { name: "提交导出任务" }));
 
     expect(submit).toHaveBeenCalledWith(
-      expect.objectContaining({ resourceType: "TERMINOLOGY_MAPPING" }),
+      expect.objectContaining({
+        resourceType: "TERMINOLOGY_MAPPING",
+        reason: "导出术语字典核查结果",
+      }),
     );
     expect(await screen.findByText("导出已完成")).toBeInTheDocument();
   });

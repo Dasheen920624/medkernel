@@ -26,7 +26,7 @@ public final class TerminologyRequests {
 /**
  * API-04 写入类请求的标准上下文字段。
  *
- * <p>标准上下文只校验操作者和组织范围；字典映射快照、版本明细和导出文件不再通过通用版本定位门槛传递。
+ * <p>标准上下文只校验操作者和组织范围；术语字典快照、版本明细和导出文件不再通过通用版本定位门槛传递。
  */
 record TerminologyApiContext(
     @JsonProperty("request_id") String requestId,
@@ -55,7 +55,7 @@ record TerminologyApiContext(
             errors.add(new ApiError("role_codes", "NotEmpty", "标准上下文 role_codes 不能为空"));
         }
         if (!errors.isEmpty()) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "字典映射 API 缺少统一入参字段", errors, null);
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "术语字典 API 缺少统一入参字段", errors, null);
         }
         if (currentTenantId != null && !currentTenantId.isBlank() && !currentTenantId.equals(tenantId)) {
             throw new ApiException(ErrorCode.ORG_SCOPE_DENIED, "请求租户与当前会话租户不一致");

@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * SVC-QUALITY-01 质控驾驶舱 API。
+ * SVC-QUALITY-01 质量管理概览 API。
  *
  * <p>提供院级聚合、下钻证据与预警列表，所有结果按当前租户上下文过滤。
  */
@@ -29,7 +29,7 @@ public class QualityDashboardController {
     }
 
     /**
-     * 查询质控驾驶舱聚合视图，并幂等刷新确定性预警 read-model。
+     * 查询质量管理概览聚合视图，并幂等刷新确定性预警 read-model。
      */
     @GetMapping("/dashboard")
     @PreAuthorize("@perm.has('evaluation.read')")

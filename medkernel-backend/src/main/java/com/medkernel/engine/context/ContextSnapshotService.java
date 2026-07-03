@@ -50,7 +50,7 @@ import com.medkernel.shared.context.RequestContext;
  * 标准上下文核心业务编排。
  *
  * <p>承担 GA-ENG-API-01 三接口（创建 / 按 ID 查 / 按患者或就诊列表）的业务规则：
- * 当前机构生效版本锁定、schema 缺失字段分级、quality_status 聚合、字典映射端口调用、
+ * 当前机构生效版本锁定、schema 缺失字段分级、quality_status 聚合、术语映射端口调用、
  * 幂等键命中复用与失败兜底。
  *
  * <p>所有方法从 {@link RequestContext} 取 tenantId / userId / traceId，

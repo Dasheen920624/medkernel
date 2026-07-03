@@ -17,7 +17,7 @@ import type {
  *
  * GA-ENG-BASE-09 净化：删除 W3-W7 旧业务 hook，仅保留 engine/* 平台 API、
  * compliance/audit/* 与 /security/me、/system/* 合法运行底座 hook，
- * 以及 GA-ENG-API-04 字典映射 hook；新增业务包装必须绑定真实平台 API。
+ * 以及 GA-ENG-API-04 术语字典 hook；新增业务包装必须绑定真实平台 API。
  */
 
 // ──────────────────────────────────────────
@@ -775,7 +775,7 @@ export function useRebuildProjection() {
 }
 
 // ──────────────────────────────────────────
-// 字典映射 · GA-ENG-API-04 已上线（engine/terminology）
+// 术语字典 · GA-ENG-API-04 已上线（engine/terminology）
 // ──────────────────────────────────────────
 const TERMINOLOGY_API_ROOT = "/engine/terminology";
 
@@ -7222,7 +7222,7 @@ export function useReportFollowupAbnormal() {
 }
 
 // ──────────────────────────────────────────
-// 临床协同 · 统一待办与通知中心（SVC-CLINICAL-03）
+// 临床协同 · 统一待办与消息通知（SVC-CLINICAL-03）
 // ──────────────────────────────────────────
 export type WorkflowTodoSourceType =
   | "FOLLOWUP_TASK"

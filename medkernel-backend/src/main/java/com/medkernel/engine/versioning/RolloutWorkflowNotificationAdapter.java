@@ -14,7 +14,7 @@ import com.medkernel.engine.workflow.WorkflowNotificationStatus;
 import com.medkernel.shared.ids.Ulid;
 
 /**
- * 灰度暂停到统一通知中心的适配器。
+ * 灰度暂停到消息通知的适配器。
  */
 @Component
 public class RolloutWorkflowNotificationAdapter implements RolloutPauseNotifier {

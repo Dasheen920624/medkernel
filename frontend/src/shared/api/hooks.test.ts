@@ -3326,7 +3326,7 @@ describe("terminology mapping api helpers", () => {
       assetIdentity: "TERM.LAB",
       scopeLevel: "FACILITY",
       scopeCode: "hospital-A",
-      name: "检验字典映射",
+      name: "检验术语字典",
     });
 
     expect(apiClient.post).toHaveBeenCalledWith(
@@ -4637,7 +4637,7 @@ describe("experience foundation api helpers", () => {
         capturedAt: "2026-06-01T00:00:00.000Z",
       },
       selectedScope: "currentPage",
-      reason: "导出字典映射核查结果",
+      reason: "导出术语字典核查结果",
       idempotencyKey: "idem-from-action",
     });
 
@@ -4649,7 +4649,7 @@ describe("experience foundation api helpers", () => {
         filters: { status: "DRAFT", sourceSystem: "HIS" },
         selectedScope: "CURRENT_PAGE",
       },
-      reason: "导出字典映射核查结果",
+      reason: "导出术语字典核查结果",
       idempotencyKey: "idem-from-action",
     });
     expect(apiClient.post).toHaveBeenNthCalledWith(

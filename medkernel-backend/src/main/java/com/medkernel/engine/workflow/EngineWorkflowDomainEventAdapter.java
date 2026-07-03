@@ -17,7 +17,7 @@ import com.medkernel.engine.quality.dashboard.QualityDashboardAlertType;
 import org.springframework.stereotype.Component;
 
 /**
- * 引擎领域事件到协同中心与质控驾驶舱的统一适配器。
+ * 引擎领域事件到协同中心与质量管理概览的统一适配器。
  */
 @Component
 public class EngineWorkflowDomainEventAdapter implements EngineDomainEventPort {

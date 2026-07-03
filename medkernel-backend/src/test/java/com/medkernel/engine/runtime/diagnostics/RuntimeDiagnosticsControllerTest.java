@@ -47,6 +47,14 @@ class RuntimeDiagnosticsControllerTest {
             .andExpect(jsonPath("$.data.contracts[*].id", hasItem("runtime-operations")))
             .andExpect(jsonPath("$.data.contracts[*].id", hasItem("observability-diagnose")))
             .andExpect(jsonPath("$.data.contracts[*].id", hasItem("third-party-knowledge-runtime")))
+            .andExpect(jsonPath("$.data.contracts[?(@.id == 'diagnosis-knowledge')].title",
+                hasItem("诊断知识库服务")))
+            .andExpect(jsonPath("$.data.contracts[?(@.id == 'quality-dashboard')].title",
+                hasItem("质量管理概览服务")))
+            .andExpect(jsonPath("$.data.contracts[?(@.id == 'terminology')].title",
+                hasItem("术语字典服务")))
+            .andExpect(jsonPath("$.data.contracts[?(@.id == 'workflow-notification')].title",
+                hasItem("消息通知服务")))
             .andExpect(jsonPath(
                 "$.data.contracts[?(@.id == 'third-party-knowledge-runtime')].contractVersion",
                 hasItem("v1")))
@@ -63,6 +71,10 @@ class RuntimeDiagnosticsControllerTest {
             .andExpect(content().string(not(containsString("com.medkernel"))))
             .andExpect(content().string(not(containsString("passwordHash"))))
             .andExpect(content().string(not(containsString("accessToken"))))
-            .andExpect(content().string(not(containsString("refreshToken"))));
+            .andExpect(content().string(not(containsString("refreshToken"))))
+            .andExpect(content().string(not(containsString("诊断知识维护服务"))))
+            .andExpect(content().string(not(containsString("质控驾驶舱"))))
+            .andExpect(content().string(not(containsString("字典映射"))))
+            .andExpect(content().string(not(containsString("临床通知中心服务"))));
     }
 }

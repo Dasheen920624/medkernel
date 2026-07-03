@@ -156,7 +156,8 @@ function clockEscalationText(level?: string) {
 function outcomeScopeText(scope?: string) {
   if (scope === "PHASE") return "阶段";
   if (scope === "MILESTONE") return "里程碑";
-  return "模板";
+  if (scope === "TEMPLATE") return "全路径";
+  return "范围待确认";
 }
 
 function formatDateTime(value?: string) {
@@ -330,7 +331,7 @@ export default function PatientPathways() {
     selectedPathwayId || "",
   );
 
-  // 同时拉取该路径的模板拓扑节点详情，用于左侧 Milestone Timeline 精准对比绘制
+  // 同时拉取该路径的标准拓扑节点详情，用于左侧 Milestone Timeline 精准对比绘制。
   const { data: templateDetail } = usePathwayTemplateDetail(
     detailData?.patientPathway.templateId || "",
   );
@@ -1256,7 +1257,7 @@ export default function PatientPathways() {
                             onFinish={handleCompleteAdvance}
                           >
                             <Alert
-                              message="标准推进：完成当前节点并进入下一个标准路径节点。系统会按模板出边计算下一步并刷新关键时钟。"
+                              message="标准推进：完成当前节点并进入下一个标准路径节点。系统会按临床路径出边计算下一步并刷新关键时钟。"
                               type="success"
                               showIcon
                               className={styles.sectionGap}

@@ -460,8 +460,10 @@ describe("PatientPathways", () => {
     expect(screen.getAllByText("已超时").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/质控记录/).length).toBeGreaterThan(0);
     expect(screen.getByRole("columnheader", { name: "结局指标身份" })).toBeInTheDocument();
-    expect(screen.getByText("全路径")).toBeInTheDocument();
+    expect(screen.getAllByText("全路径").length).toBeGreaterThan(0);
     expect(screen.queryByText("全模板")).not.toBeInTheDocument();
+    expect(screen.getByText(/系统会按临床路径出边计算下一步/)).toBeInTheDocument();
+    expect(screen.queryByText(/系统会按模板出边/)).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "指标编码" })).not.toBeInTheDocument();
     expect(screen.getAllByText("2026年06月04日 08:00").length).toBeGreaterThan(0);
     expect(screen.queryByText(/6\/4\/2026/)).not.toBeInTheDocument();
