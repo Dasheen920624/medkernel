@@ -10,10 +10,14 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第五十八批已完成阶段交接提交为 `6f162420b7e051a75be934a0dddaa1874597c310`
-  （`docs: 记录临床路径时窗校验口径复演`）；第五十九批最新应用代码提交为
+- 第五十九批已完成阶段交接提交为 `ab7fe656bb14805e4f1f52d9169c4bb9d74d7b9e`
+  （`docs: 记录验收与生产目录口径复演`）；第六十批最新应用代码提交为
+  `4de1116aa2b4cf13d5a22b3ce8b6c83701232fdb`
+  （`fix: 收敛导出与批量任务编号层级`）。其前置本地提交包括第五十九批应用提交
   `ae2557ba4b2772934b055bae120a9dc8be12004e`
-  （`fix: 收敛验收与生产目录前台口径`）。其前置本地提交包括第五十八批应用提交
+  （`fix: 收敛验收与生产目录前台口径`）、第五十八批阶段交接提交
+  `6f162420b7e051a75be934a0dddaa1874597c310`
+  （`docs: 记录临床路径时窗校验口径复演`）、第五十八批应用提交
   `5e406100cfc808a327d42fc4dd668eb7529915b8`
   （`fix: 收敛临床路径时窗校验口径`）、第五十七批阶段交接提交
   `b7b8604c04c3b9b265c5ccd39c938ed79e822fb3`
@@ -100,7 +104,7 @@
   第五十批临床路径公开口径收敛、第五十一批全真体验沙盘智能协同口径收敛、第五十二批批量规则基准资产口径收敛，
   第五十三批临床规则与提醒推荐前台口径收敛、第五十四批患者路径证据口径收敛、第五十五批安全配置运行环境口径收敛，
   第五十六批临床事件协同链路口径收敛、第五十七批临床路径责任分工口径收敛、第五十八批临床路径时窗校验口径收敛，
-  以及第五十九批验收与生产目录前台口径收敛。
+  第五十九批验收与生产目录前台口径收敛，以及第六十批导出与批量任务编号层级收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -121,7 +125,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `ae2557ba4b2772934b055bae120a9dc8be12004e`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `4de1116aa2b4cf13d5a22b3ce8b6c83701232fdb`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -131,6 +135,47 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-03 全视角真实前台体验优化第六十批·导出与批量任务编号层级收敛）
+
+- 本批继续按医疗产品体验、全角色真实前台和证据详情契约复核。结论：菜单命名与顺序仍沿第四十四批保持；
+  `诊断知识库`、`临床路径库`、`随访模板` 等当前名称仍符合各自功能语义。新发现的真实体验缺口在审计导出、术语导出和资产批量处理：
+  共用 `AsyncExportAction` 默认直接展示导出 `jobId`，`AuthoringBatchDrawer` 默认成功提示、结果标题和任务记录列直接展示批量任务 `jobId`。
+  对审计员、实施人员、医疗引擎运营员而言，任务编号属于低频证据，不应成为默认主链路；但在证据详情开启时应保留可追溯编号。
+- 已本地提交 `4de1116aa2b4cf13d5a22b3ce8b6c83701232fdb`
+  （`fix: 收敛导出与批量任务编号层级`）：
+  - `AsyncExportAction` 默认展示“导出任务已登记”，只在当前视图 `evidenceDetailsEnabled=true` 时展示“导出任务编号：...”，
+    仍使用真实 `jobId` 轮询和下载，不改变后端契约。
+  - `AuthoringBatchDrawer` 新增 `evidenceDetailsEnabled` 入参；批量任务成功提示、结果标题和任务记录列默认展示“批量任务已登记 / 批量任务执行结束”，
+    证据详情开启后展示“批量任务编号：...”。
+  - `AuthoringAssets` 将当前页面证据详情状态传入批量处理抽屉，保持资产库、批量任务和字段配置的证据层级一致。
+- 本地验证：
+  - 红绿核验：`npm --prefix frontend test -- AsyncExportAction.test.tsx -t "job id|evidence details"` 在旧实现下先失败于默认仍显示
+    `job-1` 且证据详情未显示“导出任务编号：job-evidence”；实现后通过，`2` 项。
+  - 红绿核验：`npm --prefix frontend test -- AuthoringBatchDrawer.test.tsx -t "job identifiers|generates one rule"` 在旧实现下先失败于默认仍显示
+    `abj-generate / abj-record`；实现后通过，`2` 项。
+  - 相关回归：`npm --prefix frontend test -- AsyncExportAction.test.tsx` 通过，`6` 项；
+    `npm --prefix frontend test -- AuthoringBatchDrawer.test.tsx` 通过，`6` 项；
+    `npm --prefix frontend test -- AsyncExportAction.test.tsx AuthoringBatchDrawer.test.tsx TerminologyMapping.test.tsx AdminAudit.test.tsx`
+    通过，`38` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `947` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `AuthoringAssets-DlalhOgX.js`、`TerminologyMapping-tJuz-86E.js`、
+    `AdminAudit-C-PkQbq6.js`、`KnowledgeGovernance-ByZ2ykkJ.js`、`index-DqgAVJAd.js` 等前端产物。
+  - `node scripts/audit/export-product-capabilities.mjs --check` 通过；`bash scripts/check-comment-zh.sh --mode=full` 通过；
+    `node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+  - 旧编号裸露扫描：
+    `rg -n "<Text>任务编号|任务号|批量任务 [^\n$]*\\$\\{|批量任务 [A-Za-z0-9_-]+|导出任务编号：job|批量任务编号：abj" frontend/src/shared frontend/src/pages --glob '!**/*.test.ts' --glob '!**/*.test.tsx'`
+    无命中。剩余知识生产 `生产任务编号` 仅在证据详情或详情展开中展示，符合当前证据层级。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头 `Date=Fri, 03 Jul 2026 15:04:55 GMT`；
+  公网首页 HTTP 200，`Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`。
+  134 映射仍按当前已核定事实保持：后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `4de1116a` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、菜单分布、构建门禁、134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-03 全视角真实前台体验优化第五十九批·验收与生产目录前台口径收敛）
 
