@@ -405,7 +405,7 @@ const authoringAssetsExperience: RouteExperience = {
     {
       role: "医疗引擎运营员",
       responsibility: "编目、收藏和复用规则路径资产",
-      boundary: "资产库不直接发布运行版本",
+      boundary: "资产库不直接发布机构生效版本",
     },
     {
       role: "实施工程师",
@@ -555,7 +555,7 @@ const diagnosisKnowledgeExperience: RouteExperience = {
     },
     {
       role: "医疗引擎运营员",
-      responsibility: "管理诊断语义资产、版本和统一发布门禁",
+      responsibility: "管理诊断语义资产、版本和统一发布校验",
       boundary: "诊断维护不绕过知识审核、平台标准版本或机构生效版本",
     },
   ],
@@ -689,7 +689,7 @@ const knowledgeGovernanceExperience: RouteExperience = {
     {
       role: "临床专家",
       responsibility: "复核医学内容、适用人群和禁忌边界",
-      boundary: "专家意见进入治理记录，不绕过平台发布门禁",
+      boundary: "专家意见进入治理记录，不绕过平台发布校验",
     },
   ],
 };
@@ -938,7 +938,7 @@ const routeMetaInputs: RouteMetaInput[] = [
         },
         {
           role: "信息科",
-          responsibility: "复核 Provider、备份、知识 readiness 和权限阻塞",
+          responsibility: "复核模型服务、备份恢复、知识生产准备和权限阻塞",
           boundary: "无权限或未连接必须诚实展示",
         },
       ],

@@ -122,4 +122,11 @@ describe("product function catalog", () => {
     );
     expect(catalog).toContain("<!-- capability:menu:menu@sandbox decision=KEEP -->");
   });
+
+  it("keeps route customer tasks in hospital-facing language", () => {
+    const catalog = readCatalog();
+
+    expect(catalog).not.toContain("知识生产 readiness");
+    expect(catalog).not.toContain("生产 job");
+  });
 });

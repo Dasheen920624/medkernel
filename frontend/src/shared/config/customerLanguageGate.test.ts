@@ -34,7 +34,9 @@ const visiblePropertyNames = new Set([
   "label",
   "message",
   "placeholder",
+  "responsibility",
   "title",
+  "boundary",
   "defaultView",
 ]);
 const visibleArrayPropertyNames = new Set(["evidenceDetailContent"]);

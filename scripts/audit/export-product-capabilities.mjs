@@ -213,7 +213,7 @@ const routeDecisions = {
     decision: "SPLIT",
     targetDomain: "知识生产",
     targetEntry: "知识生产工作台",
-    task: "核查知识生产 readiness、生产 job、候选血缘、门禁、8 态、影子证据和高敏患者上下文用途确认重试",
+    task: "核查知识生产准备、生产任务、候选血缘、安全校验、八类状态、影子证据和高敏患者上下文用途确认重试",
   },
   "/admin/users": {
     decision: "MOVE",
