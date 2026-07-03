@@ -42,6 +42,13 @@ const STATUS_LABEL: Record<string, string> = {
   UNKNOWN: "未知",
 };
 
+const DEPLOYMENT_MODE_LABEL: Record<string, string> = {
+  "docker-core": "容器化部署",
+  docker: "容器化部署",
+  local: "本地部署",
+  kubernetes: "集群部署",
+};
+
 type BaselineRow = {
   key: string;
   item: string;
@@ -77,6 +84,19 @@ function environmentText(environmentKeys: string[], evidenceDetailsEnabled = fal
   if (environmentKeys.length === 0) return "未返回";
   if (evidenceDetailsEnabled) return environmentKeys.join(" / ");
   return `已限定 ${environmentKeys.length} 个运行环境`;
+}
+
+function runtimeEnvironmentText(
+  environment: string,
+  deploymentMode: string,
+  evidenceDetailsEnabled = false,
+): string {
+  if (evidenceDetailsEnabled) return `${environment || "未返回"} / ${deploymentMode || "未返回"}`;
+  const environmentLabel = environment ? customerEnumLabel(environment) : "运行环境待确认";
+  const deploymentModeLabel = deploymentMode
+    ? (DEPLOYMENT_MODE_LABEL[deploymentMode] ?? "已配置部署模式")
+    : "部署形态待确认";
+  return `${environmentLabel} / ${deploymentModeLabel}`;
 }
 
 function permissionTargetLabel(target?: string | null) {
@@ -177,7 +197,11 @@ function BaselineOverview({
         type={profile.mfaRequired && !profile.mfaBound ? "warning" : "success"}
         showIcon
         message={profile.mfaRequired ? "多因素认证全局配置已开启" : "多因素认证全局配置已关闭"}
-        description={`数据范围：${dataScopeText(profile, evidenceDetailsEnabled)}；运行环境：${snapshot.environment} / ${snapshot.deploymentMode}`}
+        description={`数据范围：${dataScopeText(profile, evidenceDetailsEnabled)}；运行环境：${runtimeEnvironmentText(
+          snapshot.environment,
+          snapshot.deploymentMode,
+          evidenceDetailsEnabled,
+        )}`}
       />
 
       <Descriptions bordered size="small" column={{ xs: 1, md: 2 }}>

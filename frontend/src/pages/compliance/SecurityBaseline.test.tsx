@@ -411,9 +411,12 @@ describe("SecurityBaseline", () => {
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getByText("关系数据库")).toBeInTheDocument();
     expect(screen.getByText("已限定 1 个运行环境")).toBeInTheDocument();
+    expect(screen.getByText(/运行环境：容器运行环境 \/ 容器化部署/)).toBeInTheDocument();
     expect(screen.queryByText("u-admin")).not.toBeInTheDocument();
     expect(screen.queryByText("system.manage")).not.toBeInTheDocument();
     expect(screen.queryByText("prod")).not.toBeInTheDocument();
+    expect(screen.queryByText("container")).not.toBeInTheDocument();
+    expect(screen.queryByText("docker-core")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "系统配置" }));
     expect(screen.getByText("口令最小长度")).toBeInTheDocument();
@@ -458,6 +461,7 @@ describe("SecurityBaseline", () => {
     expect(screen.getByText("u-admin")).toBeInTheDocument();
     expect(screen.getByText("system.manage")).toBeInTheDocument();
     expect(screen.getByText("prod")).toBeInTheDocument();
+    expect(screen.getByText(/运行环境：container \/ docker-core/)).toBeInTheDocument();
     expect(screen.getByText("t-1 / g-1 / h-1")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "系统配置" }));
