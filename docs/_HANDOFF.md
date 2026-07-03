@@ -10,10 +10,14 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第四十六批已完成阶段交接提交为 `484ad513869d52280002f2e8c75036ef76d73944`
-  （`docs: 记录知识生产候选治理文案复演`）；第四十七批最新应用代码提交为
+- 第四十七批已完成阶段交接提交为 `172658530152fef3439f456b4b2dbf996fedfc8d`
+  （`docs: 记录未找到页面文案复演`）；第四十八批最新应用代码提交为
+  `d6e6db93f361bb8ffe6f750a75e9143445ebdf1b`
+  （`fix: 收敛沙盘当前机构口径`）。其前置本地提交包括第四十七批应用提交
   `eed002f1eeb880217c30525b1843c26bd4436e9c`
-  （`fix: 收敛未找到页面工程态文案`）。其前置本地提交包括第四十六批应用提交
+  （`fix: 收敛未找到页面工程态文案`）、第四十六批阶段交接提交
+  `484ad513869d52280002f2e8c75036ef76d73944`
+  （`docs: 记录知识生产候选治理文案复演`）、第四十六批应用提交
   `24687d0fcb9cc48173a2005c490456008e8a7cad`
   （`fix: 收敛知识生产与规则路径前台文案`）、第四十五批应用提交
   `54a5161befb248970bc24ab645ebf97b73bbcfbf`
@@ -50,7 +54,7 @@
   第三十七批审计摘要默认标识收敛、第三十八批审计导出记录默认标识收敛、第四十批默认可见低频标识清零，
   第四十一批模型外调核心标识遮蔽、第四十二批系统接入健康检查默认文案收敛、第四十三批知识生产工作区层级收敛，
   第四十四批全局菜单命名与顺序收敛、第四十五批国产化适配自检权威文案收敛、第四十六批知识生产候选治理与规则路径前台文案收敛，
-  以及第四十七批未找到页面工程态文案收敛。
+  第四十七批未找到页面工程态文案收敛，以及第四十八批全真体验沙盘当前机构口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -71,7 +75,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `eed002f1eeb880217c30525b1843c26bd4436e9c`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `d6e6db93f361bb8ffe6f750a75e9143445ebdf1b`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -81,6 +85,52 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-03 全视角真实前台体验优化第四十八批·全真体验沙盘当前机构口径收敛）
+
+- 本批继续按全局医疗产品体验复核“演练/沙盘”相关前台与引擎口径。`/sandbox` 作为功能目录中的
+  “全真体验沙盘”入口本身仍是合规产品能力；`历史重放清单`、`演练/复演`作为验证场景概念也需要保留。真实问题在于
+  “演练机构”被用于默认错误提示、运行基线注释、历史重放归属校验和迁移 COMMENT，容易让客户误解为系统使用虚构机构或演示租户，
+  与当前 1.0 契约中 `rehearsal` 是完整上线演练机构块的事实不一致。因此本批只收敛该误导词，保留沙盘、历史重放与当前机构生效版本的真实边界。
+- 已本地提交 `d6e6db93f361bb8ffe6f750a75e9143445ebdf1b`
+  （`fix: 收敛沙盘当前机构口径`）：
+  - `frontend/src/pages/sandbox/SandboxHost.tsx` 将运行准备不足提示从“演练机构尚未发布可用版本”收敛为
+    “当前机构尚未发布可用版本”，并同步 `SandboxHost.test.tsx` 断言默认层不得出现“演练机构”。
+  - `medkernel-backend/src/main/java/com/medkernel/engine/sandbox/**` 将沙盘目录、运行基线解析、历史重放和绑定模式中的客户可见 /
+    可审计说明统一为“当前机构 / 当前机构生效版本”；历史重放跨机构错误改为“历史重放清单不属于当前机构”。
+  - 五方言基线迁移与 `medkernel.schema.json` 将 `mk_sandbox_run.replay_case_id` COMMENT 收敛为
+    “HISTORICAL_EXACT 或 COMPARE 使用的当前机构历史重放清单标识”，保持数据库权威注释与后端契约一致。
+  - `SandboxScenarioControllerSecurityTest`、`SandboxRuntimeBaselineResolverTest` 补齐当前机构口径回归，并防止“演练机构”回流。
+- 本地验证：
+  - 红绿核验：`npm --prefix frontend test -- SandboxHost.test.tsx -t "uses dynamic runtime readiness"` 先失败于旧实现缺少
+    “当前机构尚未发布可用版本”，实现后通过。
+  - 红绿核验：`/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -Dtest=SandboxScenarioControllerSecurityTest,SandboxRuntimeBaselineResolverTest test`
+    先失败于后端目录说明与历史重放错误仍使用“演练机构”，实现后 `9` 项通过。
+  - `npm --prefix frontend test -- SandboxHost.test.tsx routes.test.ts menu.test.ts productRoleJourneys.test.ts`
+    通过，`4` 个测试文件 / `74` 项。
+  - `/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -Dtest='Sandbox*Test' test` 通过，`44` 项。
+  - `npm --prefix frontend run verify` 通过，`114` 个测试文件 / `939` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `SandboxHost-Ceue0Cru.js` 与 `index-DR6cLAbA.js` 等前端产物。
+  - `/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -DskipTests package` 通过，生成
+    `medkernel-backend/target/medkernel-backend-1.0.0-SNAPSHOT.jar` 与 SBOM。
+  - `node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - `node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`git diff --check` 通过。
+  - `rg -n "演练机构" frontend/src/pages/sandbox medkernel-backend/src/main/java/com/medkernel/engine/sandbox medkernel-backend/src/main/resources/db medkernel-backend/src/test/java/com/medkernel/engine/sandbox --glob '!**/target/**'`
+    仅命中测试中的反向断言，生产前台、引擎代码与迁移 COMMENT 无“演练机构”残留。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 readiness HTTP 200 /
+  `{"status":"UP"}`，后端 manifest 仍为 `source=3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  `commit=3ddd979b3151e3eb1d40712e76b513e4cdce260c`、`deployedAt=2026-07-03T12:38:13+08:00`、
+  `jarSha256=37da0f4b8d42e040408ab530714f68228e8060a21f6690146d8cb58126ca96ec`，服务 `active/enabled`、
+  `MainPID=3600701`、`NRestarts=0`。公网首页 `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，
+  `index.html` 指向 `/assets/index-DYTh-Ceu.js`，`/assets/index-DYTh-Ceu.js` HTTP 200 / `876520` 字节，
+  `/assets/KnowledgeProduction-ClNuDXyb.js` HTTP 200 / `20735` 字节；因此 134 仍是
+  后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，
+  不要把本地 `d6e6db93` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、构建门禁、134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-03 全视角真实前台体验优化第四十七批·未找到页面工程态文案收敛）
 
