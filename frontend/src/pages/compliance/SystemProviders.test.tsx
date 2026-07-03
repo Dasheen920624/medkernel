@@ -187,6 +187,8 @@ describe("SystemProviders", () => {
     ).toBeGreaterThan(0);
     expect(screen.getByText("演练通过")).toBeInTheDocument();
     expect(screen.getByText("迁移校验：96 条")).toBeInTheDocument();
+    expect(screen.getByText("国产化适配档案")).toBeInTheDocument();
+    expect(screen.queryByText("国产化 profile")).not.toBeInTheDocument();
     expect(screen.getByText(/2026/)).toBeInTheDocument();
     expect(screen.getAllByText(/麒麟 \/ 统信 \/ openEuler/).length).toBeGreaterThan(0);
     expect(
@@ -277,6 +279,8 @@ describe("SystemProviders", () => {
     fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
 
     expect(screen.getByText("docker-core")).toBeInTheDocument();
+    expect(screen.getByText("当前部署档案：dev / container")).toBeInTheDocument();
+    expect(screen.queryByText("当前 profile：dev / container")).not.toBeInTheDocument();
     expect(screen.getByText("postgres")).toBeInTheDocument();
     expect(screen.getByText("classpath:db/migration/postgres")).toBeInTheDocument();
     expect(screen.getByText("./deploy/docker/scripts/backup.sh")).toBeInTheDocument();

@@ -311,7 +311,7 @@ export default function SystemProviders() {
             </Card>
           </Col>
           <Col xs={24} lg={12}>
-            <Card title="国产化 profile">
+            <Card title="国产化适配档案">
               <Space direction="vertical" size="small" className="mk-full-width">
                 <Typography.Text>目标操作系统：{data.domesticProfile.targetOs}</Typography.Text>
                 <Typography.Text>目标 JDK：{data.domesticProfile.targetJdk}</Typography.Text>
@@ -336,7 +336,7 @@ export default function SystemProviders() {
             <Alert
               type={data.healthStatus === "UP" ? "success" : "warning"}
               showIcon
-              message={`当前 profile：${data.activeProfiles.join(" / ") || "default"}`}
+              message={`当前部署档案：${data.activeProfiles.join(" / ") || "默认档案"}`}
               description={
                 <Space size="small" wrap>
                   <Typography.Text>迁移路径：</Typography.Text>
