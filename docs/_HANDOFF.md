@@ -10,10 +10,14 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第五十九批已完成阶段交接提交为 `ab7fe656bb14805e4f1f52d9169c4bb9d74d7b9e`
-  （`docs: 记录验收与生产目录口径复演`）；第六十批最新应用代码提交为
+- 第六十批已完成阶段交接提交为 `eb60ceec79f67cbf8027059aca0ba843453f5785`
+  （`docs: 记录导出与批量任务编号复演`）；第六十一批最新应用代码提交为
+  `8652321c49d23f7a160699e9445293811080c9bc`
+  （`fix: 收敛质控指标影响范围前台口径`）。其前置本地提交包括第六十批应用提交
   `4de1116aa2b4cf13d5a22b3ce8b6c83701232fdb`
-  （`fix: 收敛导出与批量任务编号层级`）。其前置本地提交包括第五十九批应用提交
+  （`fix: 收敛导出与批量任务编号层级`）、第五十九批阶段交接提交
+  `ab7fe656bb14805e4f1f52d9169c4bb9d74d7b9e`
+  （`docs: 记录验收与生产目录口径复演`）、第五十九批应用提交
   `ae2557ba4b2772934b055bae120a9dc8be12004e`
   （`fix: 收敛验收与生产目录前台口径`）、第五十八批阶段交接提交
   `6f162420b7e051a75be934a0dddaa1874597c310`
@@ -104,7 +108,8 @@
   第五十批临床路径公开口径收敛、第五十一批全真体验沙盘智能协同口径收敛、第五十二批批量规则基准资产口径收敛，
   第五十三批临床规则与提醒推荐前台口径收敛、第五十四批患者路径证据口径收敛、第五十五批安全配置运行环境口径收敛，
   第五十六批临床事件协同链路口径收敛、第五十七批临床路径责任分工口径收敛、第五十八批临床路径时窗校验口径收敛，
-  第五十九批验收与生产目录前台口径收敛，以及第六十批导出与批量任务编号层级收敛。
+  第五十九批验收与生产目录前台口径收敛、第六十批导出与批量任务编号层级收敛，
+  以及第六十一批质控指标影响范围前台口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -125,7 +130,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `4de1116aa2b4cf13d5a22b3ce8b6c83701232fdb`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `8652321c49d23f7a160699e9445293811080c9bc`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -135,6 +140,49 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-03 全视角真实前台体验优化第六十一批·质控指标影响范围前台口径收敛）
+
+- 本批继续按医疗产品体验、全角色真实前台和证据详情契约复核。结论：第四十四批全局菜单命名与顺序仍成立；
+  `诊断知识库`、`临床路径库`、`随访模板` 等当前名称继续符合功能语义。新发现的真实体验缺口在质控评估指标库：
+  默认指标台账、七步影响预览、详情抽屉和新建表单仍可能直出 `responsibleDepartmentId`、`DISCHARGE+24H`、
+  `p5-hospital` 等低频契约值。对质控人员、医疗引擎运营员和实施人员而言，默认应读到责任科室名称、临床时间窗和机构范围；
+  原始契约值只在证据详情中服务追溯。
+- 已本地提交 `8652321c49d23f7a160699e9445293811080c9bc`
+  （`fix: 收敛质控指标影响范围前台口径`）：
+  - 新增 `qualityEvaluationCatalog` 作为质控评价时间窗和组织范围的共享业务选项目录，避免在业务页内联硬编码选项数组。
+  - `QcEvalSets` 默认用组织目录把责任科室身份显示为科室名称；时间窗显示为“出院后 24 小时”等临床语言；
+    组织范围显示为“当前医院 / 全院 / 当前服务机构”等业务语言，无法识别的低频契约值默认降级为“已配置”。
+  - 新建指标表单把时间窗口和组织范围改为业务选项；提交给后端的 `timeWindow`、`organizationScope` 契约值保持稳定，
+    不改变真实评估指标创建、发布和快照试运行链路。
+  - 证据详情开启后仍可追溯原始指标身份、时间窗、组织范围和 trace 字段。
+- 本地验证：
+  - 红绿核验：`npm --prefix frontend test -- QcEvalSets.test.tsx -t "默认用业务语言展示责任科室"`
+    在旧实现下先失败于找不到“骨科”；实现后通过。
+  - 补充约束：`npm --prefix frontend test -- QcEvalSets.test.tsx -t "默认用业务语言展示责任科室|creates a draft indicator"`
+    通过，`2` 项，覆盖默认详情展示与新建表单业务选项，同时确认 payload 仍提交稳定契约值。
+  - 页面回归：`npm --prefix frontend test -- QcEvalSets.test.tsx` 通过，`8` 项；
+    `npm --prefix frontend test -- QcEvalSets.test.tsx QcEvalResults.test.tsx QcAlerts.test.tsx QcDashboard.test.tsx`
+    通过，`4` 个测试文件 / `28` 项。
+  - 完整前端门禁：首次 `npm --prefix frontend run verify` 因页面内 `*_OPTIONS` 数组触发
+    `medkernel/no-page-mock`，已改为共享配置目录后重跑；最终通过，`114` 个测试文件 / `948` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `QcEvalSets-Bsmy26hD.js`、`Quality-CyanocAS.css`、
+    `index-BR_r-Tgd.js` 等前端产物。
+  - `node scripts/audit/export-product-capabilities.mjs --check` 通过；`bash scripts/check-comment-zh.sh --mode=full`
+    通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+  - 裸露扫描：
+    `rg -n 'dept-ortho|DISCHARGE\+24H|p5-hospital|responsibleDepartmentId\}|responsibleDepartmentId</|responsibleDepartmentId\s*·|timeWindow\}|organizationScope\}' frontend/src/pages/quality --glob '!**/*.test.ts' --glob '!**/*.test.tsx'`
+    剩余命中均为共享选项目录/表单提交初值或 `QcEvalResults`、`QcAlerts` 的幂等键函数，不是默认可见前台文案。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头 `Date=Fri, 03 Jul 2026 15:29:00 GMT`；
+  公网首页 HTTP 200，`Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`。
+  134 映射仍按当前已核定事实保持：后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `8652321c` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、菜单分布、构建门禁、134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-03 全视角真实前台体验优化第六十批·导出与批量任务编号层级收敛）
 
