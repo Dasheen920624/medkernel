@@ -219,6 +219,21 @@ const PRODUCTION_READINESS_LABELS: Record<string, string> = {
   VERSION_TRIPLE: "提示词、工具与模型版本",
 };
 
+const PRODUCTION_GATE_LABELS: Record<string, string> = {
+  SOURCE_ANCHOR: "来源锚点",
+  SHADOW_READY: "影子评测",
+  SOURCE_PRESENT: "来源证据",
+  SOURCE_LICENSE: "来源授权",
+  ANCHOR_COMPLETE: "来源锚点",
+  AUTHORITY_CONFLICT: "权威冲突",
+  CONTENT_FORMAT: "内容结构",
+  AUTHORITY_LEVEL: "权威等级",
+  APPLICABLE_SCOPE: "适用范围",
+  CLINICAL_REDLINE: "临床红线",
+  REVIEW_ELEMENTS: "审核要素",
+  PUBLICATION_QUALITY_RECORD: "发布质量记录",
+};
+
 function producerLabel(producer?: string) {
   if (!producer) return "未知来源";
   return PRODUCER_LABELS[producer] ?? producer;
@@ -231,6 +246,12 @@ function tableText(value?: string | number | null, fallback = "无") {
 
 function productionReadinessLabel(code: string, evidenceDetailsEnabled: boolean) {
   const label = PRODUCTION_READINESS_LABELS[code] ?? "生产前置条件";
+  return evidenceDetailsEnabled ? `${label} · ${code}` : label;
+}
+
+function productionGateLabel(code: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  if (!code) return "未返回校验项";
+  const label = PRODUCTION_GATE_LABELS[code] ?? "生产安全校验项";
   return evidenceDetailsEnabled ? `${label} · ${code}` : label;
 }
 
@@ -1656,7 +1677,8 @@ export default function KnowledgeGovernance({
       title: "生产安全校验",
       dataIndex: "gateCode",
       width: 220,
-      render: (value?: string | null) => tableText(value, "未返回门禁"),
+      render: (value?: string | null) =>
+        tableText(productionGateLabel(value, evidenceDetailsEnabled)),
     },
     {
       title: "结果",
@@ -1676,7 +1698,7 @@ export default function KnowledgeGovernance({
 
   const productionTriageColumns: ColumnsType<GenerationTriage> = [
     {
-      title: "8 态",
+      title: "八类状态",
       dataIndex: "triageState",
       width: 220,
       render: (value: string) => (
@@ -2097,7 +2119,7 @@ export default function KnowledgeGovernance({
         ? `生产安全校验结果：${getApiErrorMessage(productionGateResultsQuery.error, "生产安全校验结果读取失败")}`
         : null,
       productionTriageResultsQuery.isError
-        ? `8 态分流：${getApiErrorMessage(productionTriageResultsQuery.error, "8 态分流读取失败")}`
+        ? `八类状态分流：${getApiErrorMessage(productionTriageResultsQuery.error, "八类状态分流读取失败")}`
         : null,
       productionShadowRunsQuery.isError
         ? `影子评测：${getApiErrorMessage(productionShadowRunsQuery.error, "影子评测读取失败")}`
@@ -2201,7 +2223,7 @@ export default function KnowledgeGovernance({
                     <Space size="middle" wrap>
                       <Text>生成候选 {selectedProductionJob.candidateCount} 条</Text>
                       <Text>生产安全校验 {productionGateResults.length} 项</Text>
-                      <Text>8 态 {productionTriageResults.length} 条</Text>
+                      <Text>八类状态 {productionTriageResults.length} 条</Text>
                       <Text>影子评测 {productionShadowRuns.length} 次</Text>
                     </Space>
                     <Progress
@@ -2289,9 +2311,9 @@ export default function KnowledgeGovernance({
             </Card>
           </Col>
           <Col xs={24} xl={12}>
-            <Card title="8 态分流">
+            <Card title="八类状态分流">
               <Space direction="vertical" size="middle" className="mk-full-width">
-                <Text strong>8 态队列</Text>
+                <Text strong>八类状态队列</Text>
                 <Space size={[8, 8]} wrap>
                   {KNOWLEDGE_TRIAGE_STATE_META.map((item) => (
                     <Space key={item.state} size={4}>
@@ -2723,7 +2745,7 @@ export default function KnowledgeGovernance({
     },
     production: {
       title: "知识生产工作台",
-      description: "核查生产流水线的上线准备、生产任务、生产安全校验、8 态分流和影子证据",
+      description: "核查生产流水线的上线准备、生产任务、生产安全校验、八类状态分流和影子证据",
     },
   }[mode];
 
