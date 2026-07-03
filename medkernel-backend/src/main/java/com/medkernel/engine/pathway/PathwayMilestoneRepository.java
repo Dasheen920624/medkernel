@@ -9,7 +9,7 @@ import org.springframework.stereotype.Repository;
 /**
  * 路径阶段里程碑仓库。
  *
- * <p>按模板读取阶段、天序和里程碑定义，供模板详情、发布影响和患者运行态判定使用。
+ * <p>按临床路径读取阶段、天序和里程碑定义，供路径详情、发布影响和患者运行态判定使用。
  */
 @Repository
 public interface PathwayMilestoneRepository extends ListCrudRepository<PathwayMilestone, Long> {
@@ -20,7 +20,7 @@ public interface PathwayMilestoneRepository extends ListCrudRepository<PathwayMi
     Optional<PathwayMilestone> findByMilestoneIdAndTenantId(String milestoneId, String tenantId);
 
     /**
-     * 查询模板里程碑列表，并按阶段天序顺序升序排列。
+     * 查询临床路径里程碑列表，并按阶段天序顺序升序排列。
      */
     List<PathwayMilestone> findByTemplateIdAndTenantIdOrderBySortOrderAsc(String templateId, String tenantId);
 }

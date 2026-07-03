@@ -94,6 +94,25 @@ const scenarios = [
     statusReason: "运行时解析",
     input: { kind: "orchestration" },
   },
+  {
+    id: "sbx-pathway-composite",
+    serviceLine: "engine-orchestration",
+    engine: "pathway",
+    playbook: "PATHWAY_COMPOSITE",
+    triggerPoint: "patient-view",
+    title: "路径协同编排",
+    narrative: "使用当前机构临床路径运行。",
+    hostSummary: "院内业务系统路径协同",
+    patientId: "patient-4",
+    encounterId: "encounter-4",
+    expectedRuleCode: null,
+    expectedAction: "SUGGEST_ORDER",
+    expectedSeverity: "MEDIUM",
+    expectedAssetCode: null,
+    status: "runtime-check",
+    statusReason: "运行时解析",
+    input: { kind: "orchestration" },
+  },
 ] as const;
 
 function renderSandboxHost() {
@@ -300,6 +319,14 @@ describe("SandboxHost", () => {
     expect(screen.queryByText(/演练机构/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "运行真实引擎链路" })).not.toBeInTheDocument();
     expect(sandboxHookMocks.run).not.toHaveBeenCalled();
+  });
+
+  it("uses clinical pathway wording instead of engine terminology", () => {
+    renderSandboxHost();
+    fireEvent.click(screen.getByRole("button", { name: /路径协同编排/ }));
+
+    expect(screen.getByText("临床路径")).toBeInTheDocument();
+    expect(screen.queryByText("路径引擎")).not.toBeInTheDocument();
   });
 
   it("shows the current institution effective version without exposing package selectors", () => {

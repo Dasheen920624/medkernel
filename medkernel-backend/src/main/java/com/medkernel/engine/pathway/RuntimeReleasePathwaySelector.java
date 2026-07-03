@@ -20,7 +20,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 /**
  * 按机构生效版本、触发用途和触发点选择精确路径版本。
  *
- * <p>选择结果只来自不可变机构生效版本条目，不读取当前模板指针，也不接受调用方指定版本或领域作为运行路由。
+ * <p>选择结果只来自不可变机构生效版本条目，不读取当前路径指针，也不接受调用方指定版本或领域作为运行路由。
  */
 @Component
 public class RuntimeReleasePathwaySelector {
@@ -60,7 +60,7 @@ public class RuntimeReleasePathwaySelector {
     }
 
     /**
-     * 确认医师选择的模板确实属于本次触发产生的候选路径。
+     * 确认医师选择的临床路径确实属于本次触发产生的候选路径。
      */
     public RuntimePathwayReference requireEntryCandidate(
             String tenantId,

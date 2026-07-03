@@ -9,7 +9,7 @@ import org.springframework.stereotype.Repository;
 /**
  * 路径结局指标绑定仓库。
  *
- * <p>按模板读取结局指标绑定，用于发布影响分析、患者路径详情和包资产内容。
+ * <p>按临床路径读取结局指标绑定，用于发布影响分析、患者路径详情和包资产内容。
  */
 @Repository
 public interface PathwayOutcomeBindingRepository extends ListCrudRepository<PathwayOutcomeBinding, Long> {

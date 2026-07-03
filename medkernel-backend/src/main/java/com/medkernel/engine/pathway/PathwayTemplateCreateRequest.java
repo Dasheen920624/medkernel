@@ -11,9 +11,9 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * 创建路径模板请求。
+ * 创建临床路径请求。
  *
- * <p>一次性携带模板主数据、阶段里程碑、节点、边和指标绑定，保存为可发布前校验的草稿资产。
+ * <p>一次性携带路径主数据、阶段里程碑、节点、边和指标绑定，保存为可发布前校验的草稿资产。
  */
 public record PathwayTemplateCreateRequest(
     @JsonProperty("request_id") String requestId,

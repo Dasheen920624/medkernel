@@ -35,7 +35,7 @@ import com.medkernel.shared.hash.Sha256ContentHash;
 /**
  * P11 标准互操作映射服务。
  *
- * <p>服务只做规则 DSL / 路径模板与 CDS Hooks、CQL、Arden、FHIR PlanDefinition、GLIF 的确定性结构映射；
+ * <p>服务只做规则 DSL / 临床路径与 CDS Hooks、CQL、Arden、FHIR PlanDefinition、GLIF 的确定性结构映射；
  * 不新建第二套规则或路径运行时，也不绕过既有引擎校验、发布和审计流程。
  */
 @Service
@@ -166,11 +166,11 @@ public class InteroperabilityMappingService {
     }
 
     /**
-     * 将路径模板草稿导出为 FHIR PlanDefinition 与 GLIF 概念结构。
+     * 将临床路径草稿导出为 FHIR PlanDefinition 与 GLIF 概念结构。
      */
     public PathwayStandardMapping exportPathwayToPlanDefinition(PathwayTemplateCreateRequest request) {
         if (request == null) {
-            throw invalidPathway("路径导出必须提供模板草稿");
+            throw invalidPathway("路径导出必须提供临床路径草稿");
         }
         ObjectNode planDefinition = buildPlanDefinition(request);
         ObjectNode glif = buildGlif(request);
@@ -178,7 +178,7 @@ public class InteroperabilityMappingService {
     }
 
     /**
-     * 从 PlanDefinition 映射回导路径模板草稿；完整语义以 MedKernel 扩展中的草稿为准。
+     * 从 PlanDefinition 映射回导临床路径草稿；完整语义以 MedKernel 扩展中的草稿为准。
      */
     public PathwayTemplateCreateRequest importPathwayFromPlanDefinition(PathwayStandardMapping mapping) {
         if (mapping == null || mapping.planDefinition() == null) {

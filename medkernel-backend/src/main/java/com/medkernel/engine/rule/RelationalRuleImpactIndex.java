@@ -66,13 +66,13 @@ class RelationalRuleImpactIndex implements RuleImpactIndex {
             .forEach(node -> templates.findByTemplateIdAndTenantId(node.templateId(), tenantId)
                 .ifPresent(template -> result.putIfAbsent(template.templateId(), new ImpactedTemplate(
                     template,
-                    "路径模板节点引用规则 " + rule.ruleCode() + "（节点 " + node.nodeCode() + "）"))));
+                    "临床路径节点引用规则 " + rule.ruleCode() + "（节点 " + node.nodeCode() + "）"))));
         edges.findByTenantIdAndRuleReference(tenantId, rule.ruleId(), rule.ruleCode(), version.versionId()).stream()
             .filter(edge -> containsRuleReference(tokens, edge.conditionJson()))
             .forEach(edge -> templates.findByTemplateIdAndTenantId(edge.templateId(), tenantId)
                 .ifPresent(template -> result.putIfAbsent(template.templateId(), new ImpactedTemplate(
                     template,
-                    "路径模板流转条件引用规则 " + rule.ruleCode() + "（边 " + edge.edgeCode() + "）"))));
+                    "临床路径流转条件引用规则 " + rule.ruleCode() + "（边 " + edge.edgeCode() + "）"))));
         return result;
     }
 
@@ -81,7 +81,7 @@ class RelationalRuleImpactIndex implements RuleImpactIndex {
             "PATIENT_PATHWAY",
             runtime.patientPathwayId(),
             "患者 " + runtime.patientId() + " / 就诊 " + runtime.encounterId(),
-            "路径模板 " + template.templateCode() + " 受规则引用影响；当前节点 "
+            "临床路径 " + template.templateCode() + " 受规则引用影响；当前节点 "
                 + runtime.currentNodeCode() + "，状态 " + runtime.status());
     }
 

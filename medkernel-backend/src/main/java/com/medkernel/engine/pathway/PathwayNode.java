@@ -7,7 +7,7 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 路径模板中的临床节点。
+ * 临床路径中的临床节点。
  *
  * <p>保存节点编码、节点类型、所属里程碑、执行顺序、RACI 角色、依赖条件、时间窗、终止/禁用标记和配置摘要。
  */

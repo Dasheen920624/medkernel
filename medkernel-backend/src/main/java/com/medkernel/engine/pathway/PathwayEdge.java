@@ -7,7 +7,7 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 路径模板中的节点连接边。
+ * 临床路径中的节点连接边。
  *
  * <p>描述源节点、目标节点、分支类型、条件摘要和优先级，是确定性推进器选择下一节点的依据。
  */

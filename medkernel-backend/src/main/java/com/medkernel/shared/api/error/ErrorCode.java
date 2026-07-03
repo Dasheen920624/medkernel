@@ -69,10 +69,10 @@ public enum ErrorCode {
     UNIT_INCOMPATIBLE("UNIT_INCOMPATIBLE", 400, "临床单位不可安全换算", ErrorClass.INPUT, false),
     INSUFFICIENT_DATA("INSUFFICIENT_DATA", 400, "临床计算缺少必要数据", ErrorClass.DATA, false),
 
-    ENG_PATHWAY_001("ENG-PATHWAY-001", 400, "路径模板校验失败", ErrorClass.INPUT, false),
-    ENG_PATHWAY_002("ENG-PATHWAY-002", 404, "路径模板不存在", ErrorClass.DATA, false),
+    ENG_PATHWAY_001("ENG-PATHWAY-001", 400, "临床路径校验失败", ErrorClass.INPUT, false),
+    ENG_PATHWAY_002("ENG-PATHWAY-002", 404, "临床路径不存在", ErrorClass.DATA, false),
     ENG_PATHWAY_003("ENG-PATHWAY-003", 404, "患者路径不存在", ErrorClass.DATA, false),
-    ENG_PATHWAY_004("ENG-PATHWAY-004", 409, "路径模板发布校验失败", ErrorClass.DATA, false),
+    ENG_PATHWAY_004("ENG-PATHWAY-004", 409, "临床路径发布校验失败", ErrorClass.DATA, false),
     ENG_PATHWAY_005("ENG-PATHWAY-005", 409, "当前路径状态不允许该操作", ErrorClass.DATA, false),
     ENG_PATHWAY_006("ENG-PATHWAY-006", 400, "路径推进事件不合法", ErrorClass.INPUT, false),
     ENG_PATHWAY_007("ENG-PATHWAY-007", 404, "路径运行资产不存在", ErrorClass.DATA, false),

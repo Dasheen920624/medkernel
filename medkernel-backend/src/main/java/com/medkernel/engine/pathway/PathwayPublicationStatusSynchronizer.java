@@ -13,7 +13,7 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 路径统一资产版本发布后的模板投影状态同步器。
+ * 路径统一资产版本发布后的临床路径投影状态同步器。
  */
 @Component
 public class PathwayPublicationStatusSynchronizer implements AssetPublicationStatusSynchronizer {
@@ -38,7 +38,7 @@ public class PathwayPublicationStatusSynchronizer implements AssetPublicationSta
         }
         int templateVersion = AssetVersionNumbers.intSequence(
             publishedVersion.versionNo(),
-            "路径模板版本");
+            "临床路径版本");
         PathwayTemplate template = templates
             .findByTenantIdAndTemplateCodeAndTemplateVersion(
                 publishedVersion.tenantId(),
@@ -46,7 +46,7 @@ public class PathwayPublicationStatusSynchronizer implements AssetPublicationSta
                 templateVersion)
             .orElseThrow(() -> new ApiException(
                 ErrorCode.ENG_PATHWAY_004,
-                "路径资产版本缺少模板投影，禁止发布: "
+                "路径资产版本缺少临床路径投影，禁止发布: "
                     + publishedVersion.assetIdentity() + "@" + publishedVersion.versionNo()));
         if (template.status() == PathwayTemplateStatus.PUBLISHED) {
             return;
@@ -54,7 +54,7 @@ public class PathwayPublicationStatusSynchronizer implements AssetPublicationSta
         if (template.status() != PathwayTemplateStatus.DRAFT) {
             throw new ApiException(
                 ErrorCode.CONFLICT,
-                "路径模板当前状态不允许同步发布: "
+                "临床路径当前状态不允许同步发布: "
                     + template.templateCode() + "@" + template.templateVersion()
                     + "=" + template.status());
         }

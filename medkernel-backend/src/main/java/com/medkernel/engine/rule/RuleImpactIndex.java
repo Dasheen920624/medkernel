@@ -15,7 +15,7 @@ interface RuleImpactIndex {
         return (tenantId, rule, version) -> new RuleImpactIndexSnapshot(
             List.of(), List.of(), List.of(),
             List.of(
-                "PATHWAY_TEMPLATE: 当前缺少规则到路径模板的真实反向索引，未伪造路径影响",
+                "PATHWAY_TEMPLATE: 当前缺少规则到临床路径的真实反向索引，未伪造路径影响",
                 "PATIENT_PATHWAY: 当前缺少规则到在径患者的真实反向索引，未伪造患者影响",
                 "SYNC_TARGET: 当前缺少 SYS-04 发布同步目标关联，未伪造同步目标"
             ));

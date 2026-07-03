@@ -71,13 +71,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.dao.DuplicateKeyException;
 
 /**
- * 路径引擎应用服务（路径模板 + 患者路径实例 + 确定性推进）。
+ * 临床路径应用服务（临床路径 + 患者路径实例 + 确定性推进）。
  *
- * <p>聚合路径模板、节点、边、患者路径、变异、关键时钟和指标绑定，
+ * <p>聚合临床路径、节点、边、患者路径、变异、关键时钟和指标绑定，
  * 承担：
  * <ul>
  *   <li>专病路径资产的草稿创建、版本化查询和真实快照试运行；</li>
- *   <li>基于已发布模板创建患者路径实例并初始化节点关键时钟；</li>
+ *   <li>基于已发布临床路径创建患者路径实例并初始化节点关键时钟；</li>
  *   <li>按确定性推进器处理完成、变异和退出事件，并保存审计事实；</li>
  *   <li>输出试运行轨迹和诊断解释，支撑后续路径画布与临床嵌入式提醒。</li>
  * </ul>
@@ -116,7 +116,7 @@ public class PathwayEngineService {
     private final AuthoringFeatureGate authoringFeatureGate;
 
     /**
-     * 注入路径引擎闭环所需仓库、推进器、审计发布器、状态记录器、诊断装配器和 JSON 工具。
+     * 注入临床路径闭环所需仓库、推进器、审计发布器、状态记录器、诊断装配器和 JSON 工具。
      */
     @Autowired
     public PathwayEngineService(PathwayTemplateRepository templates,
@@ -299,9 +299,9 @@ public class PathwayEngineService {
     }
 
     /**
-     * 创建路径模板草稿，并一次性持久化模板节点、路径边和专病指标绑定。
+     * 创建临床路径草稿，并一次性持久化临床节点、路径边和专病指标绑定。
      *
-     * <p>路径是独立版本资产，不依附旧容器；版本号由稳定模板编码自动递增。
+     * <p>路径是独立版本资产，不依附旧容器；版本号由稳定路径编码自动递增。
      */
     @Transactional
     public PathwayTemplateDetailResponse createTemplate(PathwayTemplateCreateRequest request) {
@@ -398,7 +398,7 @@ public class PathwayEngineService {
         transitions.record(TEMPLATE_ENTITY, templateId, null, PathwayTemplateStatus.DRAFT.name(),
             "CREATE_PATHWAY_TEMPLATE", null);
         auditRecorder.record(AuditAction.CREATE, TEMPLATE_ENTITY, templateId,
-            "创建路径模板 " + request.templateCode());
+            "创建临床路径 " + request.templateCode());
         return new PathwayTemplateDetailResponse(
             template, savedMilestones, savedNodes, savedEdges, savedBindings, savedOutcomeBindings,
             nextTemplateVersionNo(template), assetVersion.status(), traceId);
@@ -426,7 +426,7 @@ public class PathwayEngineService {
         AssetVersion assetVersion = findPathwayAssetVersion(template)
             .orElseThrow(() -> new ApiException(
                 ErrorCode.ENG_PATHWAY_005,
-                "路径模板缺少统一资产版本，不能入径: "
+                "临床路径缺少统一资产版本，不能入径: "
                     + template.templateCode() + "@" + template.templateVersion()
             ));
         if (assetVersion.status() == AssetVersionStatus.PUBLISHED) {
@@ -434,7 +434,7 @@ public class PathwayEngineService {
         }
         throw new ApiException(
             ErrorCode.ENG_PATHWAY_005,
-            "路径模板尚未进入当前机构生效版本，不能入径: "
+            "临床路径尚未进入当前机构生效版本，不能入径: "
                 + template.templateCode() + "@" + template.templateVersion()
         );
     }
@@ -502,9 +502,9 @@ public class PathwayEngineService {
             List<PathwayOutcomeBinding> graphOutcomeBindings) {
         LinkedHashSet<AssetDependencyDeclaration> declarations = new LinkedHashSet<>();
         addDependencyDeclarations(
-            declarations, template.entryCriteriaJson(), "路径模板入径条件 " + template.templateCode());
+            declarations, template.entryCriteriaJson(), "临床路径入径条件 " + template.templateCode());
         addDependencyDeclarations(
-            declarations, template.exitCriteriaJson(), "路径模板出径条件 " + template.templateCode());
+            declarations, template.exitCriteriaJson(), "临床路径出径条件 " + template.templateCode());
         for (PathwayMilestone milestone : nullToEmpty(graphMilestones)) {
             addDependencyDeclarations(
                 declarations,
@@ -562,7 +562,7 @@ public class PathwayEngineService {
     }
 
     /**
-     * 按状态、病种和模板编码过滤分页查询路径模板。
+     * 按状态、病种和路径编码过滤分页查询临床路径。
      *
      * <p>过滤条件为 {@code null} 时不进入 SQL；分页总数与行集分别由仓库 count/page 查询提供。
      */
@@ -618,9 +618,9 @@ public class PathwayEngineService {
     }
 
     /**
-     * 装配路径模板详情。
+     * 装配临床路径详情。
      *
-     * <p>返回模板主表、按阶段顺序排列的里程碑、按顺序排列的节点、按优先级排列的边和按节点排列的指标绑定。
+     * <p>返回路径主表、按阶段顺序排列的里程碑、按顺序排列的节点、按优先级排列的边和按节点排列的指标绑定。
      */
     @Transactional(readOnly = true)
     public PathwayTemplateDetailResponse templateDetail(String templateId) {
@@ -705,9 +705,9 @@ public class PathwayEngineService {
     }
 
     /**
-     * 为患者创建路径实例并进入模板起始节点或请求指定起点。
+     * 为患者创建路径实例并进入临床路径起始节点或请求指定起点。
      *
-     * <p>仅允许基于统一版本状态为 {@code ACTIVE} 的模板入径；成功后创建首个
+     * <p>仅允许基于统一版本状态为 {@code ACTIVE} 的临床路径入径；成功后创建首个
      * {@link ClinicalClock} 关键时钟。
      */
     @Transactional
@@ -1009,7 +1009,7 @@ public class PathwayEngineService {
     }
 
     /**
-     * 接收临床事件统一上下文，作为路径引擎后续入径/推进监听的稳定入口。
+     * 接收临床事件统一上下文，作为临床路径后续入径/推进监听的稳定入口。
      *
      * <p>D0 只建立上下文入口，不在这里自动创建患者路径实例；D3 路径业务卡会基于该入口补充匹配规则。
      */
@@ -1027,7 +1027,7 @@ public class PathwayEngineService {
     }
 
     /**
-     * 基于模板图和可选目标节点序列试运行路径推进。
+     * 基于临床路径图和可选目标节点序列试运行路径推进。
      *
      * <p>试运行只返回节点轨迹与最终状态，不创建患者路径、不写变异、不创建关键时钟。
      */
@@ -1177,7 +1177,7 @@ public class PathwayEngineService {
         if (!runtime.templateId().equals(selected.templateId())) {
             throw new ApiException(
                 ErrorCode.ENG_PATHWAY_006,
-                "患者路径模板与固定路径版本不一致：" + runtime.patientPathwayId()
+                "患者临床路径与固定路径版本不一致：" + runtime.patientPathwayId()
             );
         }
         EffectivePathwayTemplate effective = runtimeTemplate(selected);
@@ -1271,7 +1271,7 @@ public class PathwayEngineService {
     /**
      * 生成患者路径实例的诊断解释响应。
      *
-     * <p>诊断响应包含路径实例当前状态、模板引用、内联证据摘要和 traceId，用于排查路径推进结果。
+     * <p>诊断响应包含路径实例当前状态、路径版本引用、内联证据摘要和 traceId，用于排查路径推进结果。
      */
     @Transactional(readOnly = true)
     public DiagnoseResponse diagnose(String patientPathwayId) {
@@ -1389,7 +1389,7 @@ public class PathwayEngineService {
         }
         switch (scope) {
             case TEMPLATE -> {
-                // 模板级绑定使用固定 ref，便于唯一约束与资产快照稳定。
+                // 全路径级绑定使用固定 ref，便于唯一约束与资产快照稳定。
             }
             case PHASE -> {
                 if (isBlank(refCode) || !phaseCodes.contains(refCode)) {
@@ -1535,10 +1535,10 @@ public class PathwayEngineService {
             hasTerminal = hasTerminal || Boolean.TRUE.equals(node.terminalFlag());
         }
         if (isBlank(template.startNodeCode()) || !nodeCodes.contains(template.startNodeCode())) {
-            throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径模板缺少有效起始节点");
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004, "临床路径缺少有效起始节点");
         }
         if (!hasTerminal) {
-            throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径模板缺少终止节点");
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004, "临床路径缺少终止节点");
         }
         Set<String> nodesWithOutgoing = new HashSet<>();
         for (PathwayEdge edge : executableEdges) {
@@ -1652,17 +1652,17 @@ public class PathwayEngineService {
             List<PathwayEdge> graphEdges,
             List<PathwayOutcomeBinding> graphOutcomeBindings) {
         JsonNode entryCriteria = readJsonOrEmpty(
-            template.entryCriteriaJson(), "路径模板入径条件 " + template.templateCode(),
+            template.entryCriteriaJson(), "临床路径入径条件 " + template.templateCode(),
             ErrorCode.ENG_PATHWAY_004);
         AssetReferenceConsistency.requireStableAssetReferences(
-            entryCriteria, ErrorCode.ENG_PATHWAY_004, "路径模板 " + template.templateCode() + " 入径条件");
-        validateContextFieldReferences(entryCriteria, "路径模板 " + template.templateCode() + " 入径条件");
+            entryCriteria, ErrorCode.ENG_PATHWAY_004, "临床路径 " + template.templateCode() + " 入径条件");
+        validateContextFieldReferences(entryCriteria, "临床路径 " + template.templateCode() + " 入径条件");
         JsonNode exitCriteria = readJsonOrEmpty(
-            template.exitCriteriaJson(), "路径模板出径条件 " + template.templateCode(),
+            template.exitCriteriaJson(), "临床路径出径条件 " + template.templateCode(),
             ErrorCode.ENG_PATHWAY_004);
         AssetReferenceConsistency.requireStableAssetReferences(
-            exitCriteria, ErrorCode.ENG_PATHWAY_004, "路径模板 " + template.templateCode() + " 出径条件");
-        validateContextFieldReferences(exitCriteria, "路径模板 " + template.templateCode() + " 出径条件");
+            exitCriteria, ErrorCode.ENG_PATHWAY_004, "临床路径 " + template.templateCode() + " 出径条件");
+        validateContextFieldReferences(exitCriteria, "临床路径 " + template.templateCode() + " 出径条件");
         for (PathwayNode node : nullToEmpty(graphNodes)) {
             JsonNode dependency = readJsonOrEmpty(
                 node.dependencyJson(), "路径节点依赖 " + node.nodeCode(), ErrorCode.ENG_PATHWAY_004);
@@ -2197,7 +2197,7 @@ public class PathwayEngineService {
     private PathwayTemplate findTemplate(String templateId, String tenantId) {
         return templates.findByTemplateIdAndTenantId(templateId, tenantId)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PATHWAY_002,
-                "路径模板不存在: " + templateId));
+                "临床路径不存在: " + templateId));
     }
 
     private Set<String> pathwayNodeCodeSet(List<PathwayNode> graphNodes) {
@@ -2227,11 +2227,11 @@ public class PathwayEngineService {
             return new EffectivePathwayTemplate(local.get(), tenantId);
         }
         if (PlatformTenant.isPlatformTenant(tenantId)) {
-            throw new ApiException(ErrorCode.ENG_PATHWAY_002, "路径模板不存在: " + templateId);
+            throw new ApiException(ErrorCode.ENG_PATHWAY_002, "临床路径不存在: " + templateId);
         }
         PathwayTemplate platform = templates.findByTemplateIdAndTenantId(templateId, PlatformTenant.ID)
             .orElseThrow(() -> new ApiException(ErrorCode.ENG_PATHWAY_002,
-                "路径模板不存在: " + templateId));
+                "临床路径不存在: " + templateId));
         return templates.findByTenantIdAndTemplateCodeAndTemplateVersion(
                 tenantId, platform.templateCode(), platform.templateVersion())
             .filter(this::hasActivePathwayAssetVersion)
@@ -2240,7 +2240,7 @@ public class PathwayEngineService {
     }
 
     /**
-     * 按患者入径时保存的模板 ID 读取固定版本，禁止在运行中重新解析到后续激活版本。
+     * 按患者入径时保存的路径 ID 读取固定版本，禁止在运行中重新解析到后续激活版本。
      */
     private EffectivePathwayTemplate findPinnedRuntimeTemplate(String templateId, String tenantId) {
         Optional<PathwayTemplate> local = templates.findByTemplateIdAndTenantId(templateId, tenantId);
@@ -2254,7 +2254,7 @@ public class PathwayEngineService {
                 return new EffectivePathwayTemplate(platform.get(), PlatformTenant.ID);
             }
         }
-        throw new ApiException(ErrorCode.ENG_PATHWAY_002, "患者路径绑定的模板版本不存在: " + templateId);
+        throw new ApiException(ErrorCode.ENG_PATHWAY_002, "患者路径绑定的临床路径版本不存在: " + templateId);
     }
 
     private EffectivePathwayTemplate runtimeTemplate(RuntimePathwayReference selected) {
@@ -2262,13 +2262,13 @@ public class PathwayEngineService {
             .findByTemplateIdAndTenantId(selected.templateId(), selected.sourceTenantId())
             .orElseThrow(() -> new ApiException(
                 ErrorCode.ENG_PATHWAY_002,
-                "机构生效版本锁定的路径模板不存在: " + selected.templateId()
+                "机构生效版本锁定的临床路径不存在: " + selected.templateId()
             ));
         if (!selected.templateCode().equals(template.templateCode())
                 || selected.versionNo() != template.templateVersion()) {
             throw new ApiException(
                 ErrorCode.ENG_PATHWAY_006,
-                "机构生效版本路径版本与模板正文不一致: " + selected.pathwayVersionId()
+                "机构生效版本路径版本与路径正文不一致: " + selected.pathwayVersionId()
             );
         }
         return new EffectivePathwayTemplate(template, selected.sourceTenantId());
@@ -2293,8 +2293,8 @@ public class PathwayEngineService {
                 targetOrgUnitId
             ));
         } catch (ApiException exception) {
-            // 草稿模板在当前组织闭包内尚无任何 PUBLISHED 有效版本时，解析器按契约抛 NOT_FOUND。
-            // 此处回退本地模板（含未发布草稿），由调用方按本地版本投影详情/影响/试运行预览，
+            // 草稿临床路径在当前组织闭包内尚无任何 PUBLISHED 有效版本时，解析器按契约抛 NOT_FOUND。
+            // 此处回退本地临床路径（含未发布草稿），由调用方按本地版本投影详情/影响/试运行预览，
             // 避免把 NOT_FOUND 透传给前台导致路径编排流被堵死。
             if (exception.errorCode() == ErrorCode.NOT_FOUND) {
                 return Optional.empty();
@@ -2302,7 +2302,7 @@ public class PathwayEngineService {
             throw exception;
         }
         if (resolved.disabled()) {
-            throw new ApiException(ErrorCode.ENG_PATHWAY_002, "路径模板已在当前组织停用");
+            throw new ApiException(ErrorCode.ENG_PATHWAY_002, "临床路径已在当前组织停用");
         }
         if (resolved.version() == null) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_002, "当前组织未解析到有效路径版本");
@@ -2340,7 +2340,7 @@ public class PathwayEngineService {
 
     private void ensureTemplateDraft(PathwayTemplate template) {
         if (template.status() != PathwayTemplateStatus.DRAFT) {
-            throw new ApiException(ErrorCode.ENG_PATHWAY_005, "当前路径模板状态不允许发布");
+            throw new ApiException(ErrorCode.ENG_PATHWAY_005, "当前临床路径状态不允许发布");
         }
     }
 

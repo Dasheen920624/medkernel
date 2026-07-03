@@ -7,9 +7,9 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 路径模板中的阶段里程碑。
+ * 临床路径中的阶段里程碑。
  *
- * <p>保存阶段、天序、预期完成点和达成判定条件，用于路径模板结构化查看和患者运行态达成判定。
+ * <p>保存阶段、天序、预期完成点和达成判定条件，用于临床路径结构化查看和患者运行态达成判定。
  */
 @Table("pathway_milestone")
 public record PathwayMilestone(

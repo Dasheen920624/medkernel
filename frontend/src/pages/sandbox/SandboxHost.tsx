@@ -85,7 +85,7 @@ const PLAYBOOK_LABELS: Record<string, string> = {
 const ENGINE_LABELS: Record<string, string> = {
   rule: "规则引擎",
   recommendation: "智能推荐",
-  pathway: "路径引擎",
+  pathway: "临床路径",
   knowledge: "知识服务",
 };
 

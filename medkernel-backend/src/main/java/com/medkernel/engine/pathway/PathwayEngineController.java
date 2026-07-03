@@ -20,9 +20,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 路径引擎 REST 入口（GA-ENG-API-06 {@code /api/v1/engine/pathway/**}）。
+ * 临床路径 REST 入口（GA-ENG-API-06 {@code /api/v1/engine/pathway/**}）。
  *
- * <p>承担路径模板、试运行、患者入径、节点推进、变异与关键时钟的 HTTP 合同；
+ * <p>承担临床路径、试运行、患者入径、节点推进、变异与关键时钟的 HTTP 合同；
  * 权限由 {@code pathway.read}/{@code pathway.write}/{@code pathway.execute} 拆分控制，
  * 租户隔离由类级 {@link DataScope}{@code (requireTenant=true)} 兜底。
  */
@@ -34,14 +34,14 @@ public class PathwayEngineController {
     private final PathwayEngineService service;
 
     /**
-     * 注入路径引擎应用服务，控制器仅负责 HTTP 参数、权限入口与统一响应包装。
+     * 注入临床路径应用服务，控制器仅负责 HTTP 参数、权限入口与统一响应包装。
      */
     public PathwayEngineController(PathwayEngineService service) {
         this.service = service;
     }
 
     /**
-     * 创建路径模板草稿，并一次性保存节点、边和质控指标绑定。
+     * 创建临床路径草稿，并一次性保存节点、边和质控指标绑定。
      *
      * <p>权限：{@code pathway.write}；版本号由服务端按稳定路径编码自动递增。
      */
@@ -55,7 +55,7 @@ public class PathwayEngineController {
     }
 
     /**
-     * 按状态、病种和模板编码过滤分页查询路径模板。
+     * 按状态、病种和路径编码过滤分页查询临床路径。
      *
      * <p>权限：{@code pathway.read}；过滤参数均可选，{@code null} 表示不过滤。
      */
@@ -75,9 +75,9 @@ public class PathwayEngineController {
     }
 
     /**
-     * 查看路径模板详情，包括模板主数据、节点、边和指标绑定。
+     * 查看临床路径详情，包括路径主数据、节点、边和指标绑定。
      *
-     * <p>权限：{@code pathway.read}；模板不存在时抛出 {@code ENG-PATHWAY-002}。
+     * <p>权限：{@code pathway.read}；临床路径不存在时抛出 {@code ENG-PATHWAY-002}。
      */
     @GetMapping("/pathway-templates/{templateId}")
     @PreAuthorize("@perm.has('pathway.read')")
@@ -102,7 +102,7 @@ public class PathwayEngineController {
     /**
      * 为患者创建路径实例并进入起始节点。
      *
-     * <p>权限：{@code pathway.execute}；仅允许基于已发布模板入径，成功后创建首个关键时钟。
+     * <p>权限：{@code pathway.execute}；仅允许基于已发布临床路径入径，成功后创建首个关键时钟。
      */
     @PostMapping("/patient-pathways/enter")
     @PreAuthorize("@perm.has('pathway.execute')")

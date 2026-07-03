@@ -9,7 +9,7 @@ import jakarta.validation.constraints.NotNull;
 /**
  * 创建路径边的请求片段。
  *
- * <p>用于在创建模板时声明节点之间的可达关系、分支类型、条件摘要和推进优先级。
+ * <p>用于在创建临床路径时声明节点之间的可达关系、分支类型、条件摘要和推进优先级。
  */
 public record PathwayEdgeRequest(
     @NotBlank String edgeCode,

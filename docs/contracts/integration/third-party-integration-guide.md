@@ -83,8 +83,8 @@
 
 - `POST /api/v1/engine/interoperability/rules/cds-hooks:export` 将规则草稿 DSL 导出为 CDS Hooks 服务声明、Card、CQL 与 Arden 概念映射。
 - `POST /api/v1/engine/interoperability/rules/cds-hooks:import` 从映射回导规则草稿，完整语义以 MedKernel DSL 扩展为准。
-- `POST /api/v1/engine/interoperability/pathways/plan-definition:export` 将路径模板草稿导出为 FHIR PlanDefinition 与 GLIF 概念映射。
-- `POST /api/v1/engine/interoperability/pathways/plan-definition:import` 从映射回导路径模板草稿；回导后仍走既有路径创建、校验和发布流程。
+- `POST /api/v1/engine/interoperability/pathways/plan-definition:export` 将临床路径草稿导出为 FHIR PlanDefinition 与 GLIF 概念映射。
+- `POST /api/v1/engine/interoperability/pathways/plan-definition:import` 从映射回导临床路径草稿；回导后仍走既有路径创建、校验和发布流程。
 
 ## OpenAPI
 

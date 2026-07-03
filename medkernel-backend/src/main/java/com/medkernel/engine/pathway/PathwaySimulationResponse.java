@@ -10,7 +10,7 @@ import com.medkernel.engine.context.QualityStatus;
 /**
  * 路径试运行响应。
  *
- * <p>返回模板 ID、可选真实快照证据、节点轨迹、最终状态和 traceId，用于在发布或复核前回放路径走向。
+ * <p>返回临床路径 ID、可选真实快照证据、节点轨迹、最终状态和 traceId，用于在发布或复核前回放路径走向。
  */
 public record PathwaySimulationResponse(
     String templateId,

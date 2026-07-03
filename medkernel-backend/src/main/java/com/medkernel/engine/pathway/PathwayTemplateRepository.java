@@ -8,37 +8,37 @@ import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 路径模板仓库。
+ * 临床路径仓库。
  *
- * <p>保存专病路径模板主数据，支持按状态、病种和模板编码进行租户内分页检索。
+ * <p>保存专病临床路径主数据，支持按状态、病种和路径编码进行租户内分页检索。
  */
 @Repository
 public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTemplate, Long> {
 
     /**
-     * 按模板业务 ID 和租户查询路径模板。
+     * 按路径业务 ID 和租户查询临床路径。
      */
     Optional<PathwayTemplate> findByTemplateIdAndTenantId(String templateId, String tenantId);
 
     /**
-     * 按租户、模板编码和版本查询模板，用于版本唯一性判断。
+     * 按租户、路径编码和版本查询临床路径，用于版本唯一性判断。
      */
     Optional<PathwayTemplate> findByTenantIdAndTemplateCodeAndTemplateVersion(
         String tenantId, String templateCode, Integer templateVersion);
 
     /**
-     * 读取同一稳定模板编码的最高历史版本，用于在回滚后继续生成单调递增版本号。
+     * 读取同一稳定路径编码的最高历史版本，用于在回滚后继续生成单调递增版本号。
      */
     Optional<PathwayTemplate> findTopByTenantIdAndTemplateCodeOrderByTemplateVersionDesc(
         String tenantId, String templateCode);
 
     /**
-     * 按真实来源引用查询模板，用于知识安全撤回后的路径影响扫描。
+     * 按真实来源引用查询临床路径，用于知识安全撤回后的路径影响扫描。
      */
     List<PathwayTemplate> findByTenantIdAndSourceRef(String tenantId, String sourceRef);
 
     /**
-     * 按可选状态、病种和模板编码分页查询路径模板。
+     * 按可选状态、病种和路径编码分页查询临床路径。
      */
     @Query("""
         SELECT * FROM pathway_template
@@ -55,7 +55,7 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
                                        int offset, int limit);
 
     /**
-     * 与分页查询同口径的完整列表，用于平台主源与租户覆盖层的有效模板合并。
+     * 与分页查询同口径的完整列表，用于平台主源与租户覆盖层的有效路径合并。
      */
     @Query("""
         SELECT * FROM pathway_template
@@ -70,7 +70,7 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
                                        String templateCode, String keyword);
 
     /**
-     * 统计可选过滤条件下的路径模板总数。
+     * 统计可选过滤条件下的临床路径总数。
      */
     @Query("""
         SELECT COUNT(*) FROM pathway_template
@@ -84,9 +84,9 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
                        String templateCode, String keyword);
 
     /**
-     * 统计租户本地模板与平台已发布模板合并后的有效总数。
+     * 统计租户本地临床路径与平台已发布路径合并后的有效总数。
      *
-     * <p>平台模板保持平台主源语义；本地同编码同版本模板优先覆盖平台模板。
+     * <p>平台路径保持平台主源语义；本地同编码同版本临床路径优先覆盖平台路径。
      */
     @Query("""
         SELECT COUNT(*) FROM (
@@ -124,7 +124,7 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
                                 String templateCode, String keyword);
 
     /**
-     * 分页读取租户本地模板与平台已发布模板合并后的有效模板。
+     * 分页读取租户本地临床路径与平台已发布路径合并后的有效路径。
      */
     @Query("""
         SELECT * FROM (
@@ -165,7 +165,7 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
                                                 int offset, int limit);
 
     /**
-     * 统一创作资产库按标签、收藏和关键字分页查询路径模板，避免全量租户快照。
+     * 统一创作资产库按标签、收藏和关键字分页查询临床路径，避免全量租户快照。
      */
     @Query("""
         SELECT pt.*
@@ -204,7 +204,7 @@ public interface PathwayTemplateRepository extends ListCrudRepository<PathwayTem
         int limit);
 
     /**
-     * 与 {@link #pageForAuthoringLibrary} 同口径统计路径模板数。
+     * 与 {@link #pageForAuthoringLibrary} 同口径统计临床路径数。
      */
     @Query("""
         SELECT COUNT(*)

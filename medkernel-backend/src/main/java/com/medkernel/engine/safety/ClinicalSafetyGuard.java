@@ -53,7 +53,7 @@ public class ClinicalSafetyGuard {
         }
         KnowledgeSourceLocator.parse(template.sourceRef(), template.tenantId(), false)
             .ifPresent(ref -> assertVersionActive(
-                ref.tenantId(), ref.versionId(), "路径模板引用已撤回知识版本"));
+                ref.tenantId(), ref.versionId(), "临床路径引用已撤回知识版本"));
     }
 
     private void assertVersionActive(String tenantId, Long versionId, String message) {

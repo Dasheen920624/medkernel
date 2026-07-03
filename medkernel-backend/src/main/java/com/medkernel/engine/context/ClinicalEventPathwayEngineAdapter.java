@@ -6,7 +6,7 @@ import com.medkernel.engine.pathway.PathwayEngineService;
 import com.medkernel.engine.pathway.PathwayEventDispatchResponse;
 
 /**
- * 临床事件到路径引擎上下文入口的适配器。
+ * 临床事件到临床路径上下文入口的适配器。
  */
 @Component
 public class ClinicalEventPathwayEngineAdapter implements ClinicalEventEngineAdapter {
@@ -26,6 +26,6 @@ public class ClinicalEventPathwayEngineAdapter implements ClinicalEventEngineAda
     public ClinicalEventEngineDispatchResult dispatch(ClinicalEventContext context) {
         PathwayEventDispatchResponse response = pathways.dispatchClinicalEvent(context);
         return ClinicalEventEngineDispatchResult.dispatched(
-            engine(), response.eventId(), "路径引擎已接收临床事件上下文");
+            engine(), response.eventId(), "临床路径已接收临床事件上下文");
     }
 }
