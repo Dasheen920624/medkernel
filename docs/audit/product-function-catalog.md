@@ -90,7 +90,7 @@
 | `/clinical/followup` | 随访协同 | clinical-collaboration | clinical-followup | primary | RENAME | 临床协同 | 随访协同 | 生成随访计划、处理任务和异常回院事件 |
 <!-- capability:route:route@%2Fsandbox decision=KEEP -->
 <!-- route:/sandbox -->
-| `/sandbox` | 全真体验沙盘 | clinical-collaboration | sandbox | primary | KEEP | 临床协同 | 全真体验沙盘 | 以院内业务系统视角复演真实引擎、嵌入终端与人工反馈闭环 |
+| `/sandbox` | 全真体验沙盘 | clinical-collaboration | sandbox | primary | KEEP | 临床协同 | 全真体验沙盘 | 以院内业务系统视角复演真实医疗智能链路、嵌入终端与人工反馈闭环 |
 <!-- capability:route:route@%2Fqc%2Fdashboard decision=RENAME -->
 <!-- route:/qc/dashboard -->
 | `/qc/dashboard` | 质量管理概览 | quality-management | qc-dashboard | primary | RENAME | 质量管理 | 质量管理概览 | 查看质量风险、运营趋势并下钻到责任问题 |

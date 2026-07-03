@@ -61,6 +61,8 @@ class RuntimeDiagnosticsControllerTest {
                 hasItem("创建临床路径草稿和患者路径")))
             .andExpect(jsonPath("$.data.contracts[?(@.id == 'pathway')].auditPoints[*].purpose",
                 hasItem("发布临床路径版本")))
+            .andExpect(jsonPath("$.data.contracts[?(@.id == 'sandbox')].auditPoints[*].purpose",
+                hasItem("按当前机构生效版本编排真实医疗智能链路并记录复演轨迹")))
             .andExpect(jsonPath(
                 "$.data.contracts[?(@.id == 'third-party-knowledge-runtime')].contractVersion",
                 hasItem("v1")))
@@ -84,6 +86,7 @@ class RuntimeDiagnosticsControllerTest {
             .andExpect(content().string(not(containsString("临床通知中心服务"))))
             .andExpect(content().string(not(containsString("路径引擎服务"))))
             .andExpect(content().string(not(containsString("路径模板"))))
-            .andExpect(content().string(not(containsString("路径包、模板"))));
+            .andExpect(content().string(not(containsString("路径包、模板"))))
+            .andExpect(content().string(not(containsString("真实引擎链路"))));
     }
 }

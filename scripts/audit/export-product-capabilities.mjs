@@ -159,7 +159,7 @@ const routeDecisions = {
     decision: "KEEP",
     targetDomain: "临床协同",
     targetEntry: "全真体验沙盘",
-    task: "以院内业务系统视角复演真实引擎、嵌入终端与人工反馈闭环",
+    task: "以院内业务系统视角复演真实医疗智能链路、嵌入终端与人工反馈闭环",
   },
   "/qc/dashboard": {
     decision: "RENAME",

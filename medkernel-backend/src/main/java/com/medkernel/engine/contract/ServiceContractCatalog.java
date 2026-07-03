@@ -502,7 +502,7 @@ public final class ServiceContractCatalog {
             "/api/v1/engine/sandbox",
             permissions("sandbox.run"),
             audits(audit(
-                AuditAction.EXECUTE, "sandbox_scenario", "按当前机构生效版本编排真实引擎链路并记录复演轨迹"))),
+                AuditAction.EXECUTE, "sandbox_scenario", "按当前机构生效版本编排真实医疗智能链路并记录复演轨迹"))),
         contract("sandbox-replay", "沙盘历史原样重放清单服务",
             "com.medkernel.engine.sandbox.replay.SandboxReplayController",
             "/api/v1/engine/sandbox/replay-cases",

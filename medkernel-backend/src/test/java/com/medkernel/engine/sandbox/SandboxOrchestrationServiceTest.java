@@ -374,6 +374,8 @@ class SandboxOrchestrationServiceTest {
             .hasSizeLessThanOrEqualTo(64);
         assertThat(requestCaptor.getValue().candidateCards()).singleElement().satisfies(card -> {
             assertThat(card.suggestedAction()).isEqualTo("SUGGEST_ORDER");
+            assertThat(card.summary()).isEqualTo("沙盘智能协同根据标准上下文生成可追溯的人工确认建议。");
+            assertThat(card.summary()).doesNotContain("引擎");
             assertThat(card.requiresPhysicianConfirmation()).isTrue();
             assertThat(card.sources()).isNotEmpty();
         });

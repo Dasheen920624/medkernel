@@ -44,7 +44,7 @@ import styles from "./SandboxHost.module.css";
 const SERVICE_LINE_LABELS = {
   "clinical-collaboration": "临床协同",
   "quality-improvement": "质量改进",
-  "engine-orchestration": "引擎编排",
+  "engine-orchestration": "医疗智能协同",
 } as const;
 
 const RESOLUTION_SOURCE_LABELS: Record<SandboxResolutionSource, string> = {
@@ -165,7 +165,7 @@ function sourceLabel(mode: SandboxRunMode, runtimeSourceLabel: string) {
 }
 
 function actionLabel(value: string) {
-  return ACTION_LABELS[value] ?? "引擎处置建议";
+  return ACTION_LABELS[value] ?? "协同处置建议";
 }
 
 function severityLabel(value: string) {
@@ -192,7 +192,7 @@ function playbookDisplay(value: string | null | undefined, evidenceDetailsEnable
 }
 
 function engineDisplay(value: string | null | undefined, evidenceDetailsEnabled: boolean) {
-  return evidenceLabel(value, ENGINE_LABELS, "引擎能力", evidenceDetailsEnabled);
+  return evidenceLabel(value, ENGINE_LABELS, "协同能力", evidenceDetailsEnabled);
 }
 
 function embedDecisionActionDisplay(
@@ -301,7 +301,7 @@ export default function SandboxHost() {
       });
       setResult(response);
       if (response.result === "PASS") {
-        message.success("真实引擎链路已完成");
+        message.success("真实协同链路已完成");
       } else {
         setRunError("沙盘链路未完整通过，请根据路径证据定位失败步骤");
       }
@@ -704,7 +704,7 @@ export default function SandboxHost() {
                   aria-labelledby="sandbox-orchestration-title"
                 >
                   <Typography.Title id="sandbox-orchestration-title" level={5}>
-                    引擎编排入口
+                    医疗智能协同入口
                   </Typography.Title>
                   <Descriptions size="small" column={1}>
                     <Descriptions.Item label="编排方式">
@@ -722,11 +722,11 @@ export default function SandboxHost() {
                   <Button
                     type="primary"
                     icon={<PlayCircleOutlined />}
-                    aria-label="运行真实引擎链路"
+                    aria-label="运行真实协同链路"
                     loading={runMutation.isPending}
                     onClick={handleOrchestrationRun}
                   >
-                    运行真实引擎链路
+                    运行真实协同链路
                   </Button>
                 </section>
               )}

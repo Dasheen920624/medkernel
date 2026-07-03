@@ -82,7 +82,7 @@ const scenarios = [
     playbook: "RECOMMENDATION_COMPOSITE",
     triggerPoint: "patient-view",
     title: "推荐综合卡",
-    narrative: "真实引擎编排。",
+    narrative: "真实协同编排。",
     hostSummary: "院内业务系统综合编排",
     patientId: "patient-3",
     encounterId: "encounter-3",
@@ -329,6 +329,16 @@ describe("SandboxHost", () => {
     expect(screen.queryByText("路径引擎")).not.toBeInTheDocument();
   });
 
+  it("uses hospital-facing collaboration wording for orchestration scenarios", () => {
+    renderSandboxHost();
+    fireEvent.click(screen.getByRole("button", { name: /推荐综合卡/ }));
+
+    expect(screen.getByText("医疗智能协同")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "医疗智能协同入口" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "运行真实协同链路" })).toBeInTheDocument();
+    expect(screen.queryByText(/引擎编排|真实引擎|引擎能力|引擎处置建议/)).not.toBeInTheDocument();
+  });
+
   it("shows the current institution effective version without exposing package selectors", () => {
     sandboxHookMocks.useSandboxRuntimeStatus.mockReturnValue({
       data: {
@@ -399,7 +409,7 @@ describe("SandboxHost", () => {
     expect(screen.queryByText("RECOMMENDATION_COMPOSITE")).not.toBeInTheDocument();
     expect(screen.queryByText("recommendation")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "运行真实引擎链路" }));
+    fireEvent.click(screen.getByRole("button", { name: "运行真实协同链路" }));
 
     await waitFor(() =>
       expect(sandboxHookMocks.run).toHaveBeenCalledWith({

@@ -433,7 +433,7 @@ const ruleValidateExperience: RouteExperience = {
 
 const sandboxExperience: RouteExperience = {
   primaryRole: "临床使用者 / 医疗引擎运营员",
-  goal: "以院内业务系统视角验证真实引擎调用、嵌入终端和反馈闭环",
+  goal: "以院内业务系统视角验证真实医疗智能链路、嵌入终端和反馈闭环",
   defaultView: "可运行场景与最近一次路径证据",
   defaultFilters: [],
   evidenceDetailContent: ["调用明细", "服务端事实", "追踪号"],
@@ -449,7 +449,7 @@ const sandboxExperience: RouteExperience = {
     },
     {
       role: "医疗引擎运营员",
-      responsibility: "验证引擎版本、场景证据和宿主反馈闭环",
+      responsibility: "验证规则、路径、推荐等能力版本、场景证据和宿主反馈闭环",
       boundary: "沙盘通过不替代发布验收",
     },
   ],

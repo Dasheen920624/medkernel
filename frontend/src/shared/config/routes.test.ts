@@ -114,6 +114,19 @@ describe("route metadata", () => {
     });
   });
 
+  it("uses hospital-facing wording for sandbox route experience", () => {
+    const sandboxExperience = findRouteByPath("/sandbox")?.experience;
+    expect(sandboxExperience?.goal).toBe(
+      "以院内业务系统视角验证真实医疗智能链路、嵌入终端和反馈闭环",
+    );
+    expect(
+      [
+        sandboxExperience?.goal,
+        sandboxExperience?.stakeholderViews?.map((view) => view.responsibility).join(" "),
+      ].join(" "),
+    ).not.toMatch(/真实引擎|引擎调用|引擎版本/);
+  });
+
   it("keeps paths unique", () => {
     const paths = routeMetas.map((route) => route.path);
     expect(new Set(paths).size).toBe(paths.length);
@@ -550,7 +563,7 @@ describe("route metadata", () => {
       },
       {
         role: "医疗引擎运营员",
-        responsibility: "验证引擎版本、场景证据和宿主反馈闭环",
+        responsibility: "验证规则、路径、推荐等能力版本、场景证据和宿主反馈闭环",
         boundary: "沙盘通过不替代发布验收",
       },
     ]);
