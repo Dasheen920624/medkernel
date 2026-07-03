@@ -807,6 +807,8 @@ describe("PathwayTemplates 上线路径维护契约", () => {
       const user = await openDetailDrawer(createTemplateDetail(publishedTemplate, "PUBLISHED"));
       await user.click(screen.getByRole("tab", { name: /节点画布/ }));
 
+      expect(screen.getByText("责任分工")).toBeInTheDocument();
+      expect(screen.queryByText("RACI")).not.toBeInTheDocument();
       expect(screen.getAllByText("入径评估").length).toBeGreaterThan(0);
       expect(screen.getAllByText("出径随访").length).toBeGreaterThan(0);
       expect(screen.getAllByText("第 1 个路径节点").length).toBeGreaterThan(0);

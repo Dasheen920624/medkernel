@@ -2445,7 +2445,7 @@ public class PathwayEngineService {
             }
             return normalizedRoles(roles);
         } catch (JsonProcessingException exception) {
-            throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径节点 RACI 角色无法解析", exception);
+            throw new ApiException(ErrorCode.ENG_PATHWAY_004, "路径节点责任分工角色无法解析", exception);
         }
     }
 

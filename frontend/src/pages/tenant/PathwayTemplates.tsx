@@ -2207,7 +2207,7 @@ export default function PathwayTemplates() {
       render: (_value, node) => richNodeConfigSummary(node, evidenceDetailsEnabled),
     },
     {
-      title: "RACI",
+      title: "责任分工",
       key: "raci",
       render: (_value, node) =>
         raciSummary({
