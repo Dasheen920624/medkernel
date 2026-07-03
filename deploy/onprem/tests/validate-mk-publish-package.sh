@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SCRIPT="$ROOT/deploy/onprem/mk-publish.sh"
 POWERSHELL_SCRIPT="$ROOT/deploy/onprem/mk-publish.ps1"
+DEPLOY_SCRIPT="$ROOT/deploy/onprem/medkernel-deploy.sh"
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
@@ -25,6 +26,9 @@ if grep -q 'rev-parse --short HEAD' "$SCRIPT"; then
 fi
 grep -q '工作树存在未提交改动' "$SCRIPT"
 grep -q '发布来源必须是当前 HEAD 的完整 40 位提交哈希' "$SCRIPT"
+grep -q '前端-only 发布不会改写运行 manifest' "$SCRIPT"
+grep -q '前端-only 发布不会改写运行 manifest' "$POWERSHELL_SCRIPT"
+grep -q '前端-only 发布不会改写运行 manifest' "$DEPLOY_SCRIPT"
 if grep -q -- '--skip-build' "$SCRIPT"; then
   printf 'shell publisher exposed forbidden skip-build option\n' >&2
   exit 1

@@ -263,6 +263,8 @@ sudo bash deploy/onprem/medkernel-post-rehearsal-verify.sh \
 独立验收必须从数据库、服务、外部 HTTPS 和证据目录重新核对结果，不得只读取演练脚本的
 “通过”标记。最后再次备份演练后数据库，在隔离库恢复并验证关键主体、资产、机构生效版本、患者
 资源和执行证据，再删除隔离库。
+`--expected-source` 校验运行 manifest/JAR 来源；前端-only 发布不会改写运行 `manifest.properties`，
+前端 dist 的来源需用首页 `index`/`assets` 与发布命令 `--source` 另行追溯。
 
 ## 7. 证据边界
 
