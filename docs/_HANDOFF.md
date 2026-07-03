@@ -10,10 +10,14 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第五十六批已完成阶段交接提交为 `ec3b7170c7112421f147a55506b355fc984fdf08`
-  （`docs: 记录临床事件协同链路口径复演`）；第五十七批最新应用代码提交为
+- 第五十七批已完成阶段交接提交为 `b7b8604c04c3b9b265c5ccd39c938ed79e822fb3`
+  （`docs: 记录临床路径责任分工口径复演`）；第五十八批最新应用代码提交为
+  `5e406100cfc808a327d42fc4dd668eb7529915b8`
+  （`fix: 收敛临床路径时窗校验口径`）。其前置本地提交包括第五十七批应用提交
   `1b47acb632319ac0b1ce980d4a580c2018a65ed5`
-  （`fix: 收敛临床路径责任分工口径`）。其前置本地提交包括第五十六批应用提交
+  （`fix: 收敛临床路径责任分工口径`）、第五十六批阶段交接提交
+  `ec3b7170c7112421f147a55506b355fc984fdf08`
+  （`docs: 记录临床事件协同链路口径复演`）、第五十六批应用提交
   `67a15e48bc0c3d56f84b79e63f7f75add6e08261`
   （`fix: 收敛临床事件协同链路口径`）、第五十五批阶段交接提交
   `c732c9f72c86dabb25ba3d220705f09c669db33c`
@@ -91,7 +95,7 @@
   第四十七批未找到页面工程态文案收敛、第四十八批全真体验沙盘当前机构口径收敛，第四十九批菜单服务与临床路径前台口径收敛，
   第五十批临床路径公开口径收敛、第五十一批全真体验沙盘智能协同口径收敛、第五十二批批量规则基准资产口径收敛，
   第五十三批临床规则与提醒推荐前台口径收敛、第五十四批患者路径证据口径收敛、第五十五批安全配置运行环境口径收敛，
-  第五十六批临床事件协同链路口径收敛，以及第五十七批临床路径责任分工口径收敛。
+  第五十六批临床事件协同链路口径收敛、第五十七批临床路径责任分工口径收敛，以及第五十八批临床路径时窗校验口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -112,7 +116,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `1b47acb632319ac0b1ce980d4a580c2018a65ed5`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `5e406100cfc808a327d42fc4dd668eb7529915b8`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -122,6 +126,54 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-03 全视角真实前台体验优化第五十八批·临床路径时窗校验口径收敛）
+
+- 本批继续按全局菜单、医疗产品体验和全角色职责旅程复核。结论：第四十四批菜单命名与顺序仍成立；
+  `临床路径库` 不改成“临床路径模板”，避免把当前路径版本治理入口误解为单纯引用模板；`医疗引擎运营员` 仍是固定职责角色名。
+  新发现的真实体验缺口在 `/pathway/templates` 的时窗建模与后端路径校验：默认表单和错误消息仍可见
+  `SLA基准`、`计时 clock`、`clockSla`、`clock 或 timeWindowMinutes` 等内部字段口径。按
+  `EXPERIENCE_CONTRACT` 的“路径时窗用时窗校验”和 `CONSTITUTION` §14 客户面隐藏技术对象要求，
+  前台与服务错误应表达为“时窗校验 / 计时规则”；内部字段和契约仍保持 `clockSla`、`clock`、`timeWindowMinutes`。
+- 已本地提交 `5e406100cfc808a327d42fc4dd668eb7529915b8`
+  （`fix: 收敛临床路径时窗校验口径`）：
+  - `PathwayTemplates` 将时窗配置表单标签从 `SLA基准` 改为“时窗校验基准”，等待计时配置从 `计时 clock`
+    改为“计时规则”，占位示例改为医疗可读的“24 小时后提醒”。
+  - `PathwayTemplates` 的路径时窗错误与节点配置摘要从 `SLA / min / target / max` 收敛为“时窗校验分钟 / 最早 / 目标 / 最晚”，
+    默认摘要展示“时窗校验已配置”，证据详情展示中文基准事件。
+  - `PathwayEngineService` 与 `PathwayProgressor` 面向调用方的等待计时、关键时窗、结构化配置和基准事件错误消息不再外露
+    `clockSla`、`targetMinutes`、`clock 或 timeWindowMinutes`；`ClinicalClockEscalationLevel` 中文 Javadoc 同步改为“路径时窗校验展示”。
+- 本地验证：
+  - 红绿核验：`npm --prefix frontend test -- PathwayTemplates.test.tsx -t "路径建模表单"` 在旧实现下先失败于找不到
+    “时窗校验基准”；实现并格式化后通过，`1` 项。
+  - 后端红绿核验：在 `medkernel-backend` 目录执行
+    `/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -Dtest=PathwayEngineServiceTest#createTemplateRejectsTimedNodeWithoutClinicalClockSla test`
+    在旧实现下先失败于错误消息仍为“关键时钟节点 ASSESS 缺少 clockSla”；实现后通过，`1` 项。
+  - 前端相关回归：`npm --prefix frontend test -- PathwayTemplates.test.tsx` 通过，`10` 项。
+  - 后端路径相关回归：在 `medkernel-backend` 目录执行
+    `/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -Dtest=PathwayEngineServiceTest,PathwayRuntimeContractTest,PathwayProgressorTest test`
+    通过，`88` 项。
+  - 完整前端门禁：首次 `npm --prefix frontend run verify` 在 Prettier 检查提示两个触碰文件需格式化，已用 Prettier 修正后重跑；
+    最终 `npm --prefix frontend run verify` 通过，`114` 个测试文件 / `944` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `PathwayTemplates-BJXTPwe4.js`、`index-CB2yioFH.js`、
+    `index-XMjG4gr3.css` 等前端产物。
+  - 在 `medkernel-backend` 目录执行 `/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -DskipTests package` 通过，
+    生成 `medkernel-backend/target/medkernel-backend-1.0.0-SNAPSHOT.jar` 与 SBOM。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node scripts/audit/export-product-capabilities.mjs --check` 通过；
+    `node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+  - 旧口径扫描：
+    `rg -n "SLA基准|计时 clock|临床时钟 SLA|SLA 时限|clock 或 timeWindowMinutes|缺少 clockSla|的 clockSla|targetMinutes 必须|SLA 基准事件|SLA 已配置|SLA " frontend/src/pages/tenant/PathwayTemplates.tsx medkernel-backend/src/main/java/com/medkernel/engine/pathway medkernel-backend/src/test/java/com/medkernel/engine/pathway/PathwayEngineServiceTest.java --glob '!**/target/**'`
+    无命中；内部类名、字段名、事件名仍按既有契约保留。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头 `Date=Fri, 03 Jul 2026 14:28:13 GMT`；
+  公网首页 HTTP 200，`Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`。
+  134 映射仍按当前已核定事实保持：后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `5e406100` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、菜单分布、构建门禁、134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-03 全视角真实前台体验优化第五十七批·临床路径责任分工口径收敛）
 
