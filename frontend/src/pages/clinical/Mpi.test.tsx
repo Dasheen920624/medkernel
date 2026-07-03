@@ -329,6 +329,8 @@ describe("Mpi", () => {
 
       expect(await screen.findByText("snapshot-real-1")).toBeInTheDocument();
       expect(screen.getByText("pathway-acute-1")).toBeInTheDocument();
+      expect(screen.getByText("临床路径版本编号：tpl-stroke-v1")).toBeInTheDocument();
+      expect(screen.queryByText("模板：tpl-stroke-v1")).not.toBeInTheDocument();
       expect(screen.getByText(/trace-p360-1/)).toBeInTheDocument();
     },
     MPI_INTERACTION_TIMEOUT_MS,

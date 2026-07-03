@@ -210,7 +210,7 @@ function renderPatient360Detail(
                   </Text>
                   {evidenceDetailsEnabled && (
                     <>
-                      <Text type="secondary">模板：{pathway.templateId}</Text>
+                      <Text type="secondary">临床路径版本编号：{pathway.templateId}</Text>
                       <Text type="secondary">当前节点：{pathway.currentNodeCode ?? "暂无"}</Text>
                       {pathway.traceId && <Text type="secondary">追踪号：{pathway.traceId}</Text>}
                     </>
