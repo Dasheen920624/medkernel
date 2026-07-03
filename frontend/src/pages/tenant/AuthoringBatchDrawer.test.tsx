@@ -82,12 +82,16 @@ describe("AuthoringBatchDrawer", () => {
 
     renderDrawer();
 
-    expect(screen.getByLabelText("模板规则资产")).toBeInTheDocument();
+    expect(screen.getByLabelText("基准规则资产")).toBeInTheDocument();
+    expect(screen.queryByLabelText("模板规则资产")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("模板规则 ID")).not.toBeInTheDocument();
+    expect(screen.getByText(/沿用基准规则的触发绑定/)).toBeInTheDocument();
     expect(screen.getByLabelText("批量规则草稿表")).toBeInTheDocument();
     expect(screen.queryByLabelText("参数表")).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/ruleCode,name,threshold/)).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("模板规则资产"), {
+    expect(screen.queryByText(/模板参数/)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/已审核模板规则/)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("基准规则资产"), {
       target: { value: "rule-template" },
     });
     fireEvent.change(screen.getByLabelText("批量规则草稿表"), {
@@ -128,7 +132,7 @@ describe("AuthoringBatchDrawer", () => {
 
     renderDrawer();
 
-    fireEvent.change(screen.getByLabelText("模板规则资产"), {
+    fireEvent.change(screen.getByLabelText("基准规则资产"), {
       target: { value: "rule-template" },
     });
     fireEvent.change(screen.getByLabelText("批量规则草稿表"), {

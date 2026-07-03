@@ -8,7 +8,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 
 /**
- * 模板乘参数表批量生成规则请求。
+ * 基于基准规则和参数表批量生成规则请求。
  */
 public record AuthoringBatchRuleGenerateRequest(
     @NotBlank String templateRuleId,

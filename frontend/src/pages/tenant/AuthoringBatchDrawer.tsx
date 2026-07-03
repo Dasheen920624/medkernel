@@ -224,7 +224,7 @@ export default function AuthoringBatchDrawer({
 
   const generateRules = async () => {
     try {
-      if (!templateRuleId.trim()) throw new Error("请输入模板规则资产");
+      if (!templateRuleId.trim()) throw new Error("请输入基准规则资产");
       const reserved = new Set(["ruleCode", "name", "applicableOrgUnitId", "changeSummary"]);
       const rows: AuthoringBatchRuleGenerateRow[] = parseTable(parameterTable).map((row, index) => {
         if (!row.ruleCode || !row.name) {
@@ -350,20 +350,20 @@ export default function AuthoringBatchDrawer({
         type="info"
         showIcon
         message="批量生成独立规则草稿"
-        description="每行创建一个独立规则版本，自动继承模板的触发绑定；真正上线的版本由机构生效版本统一选择。"
+        description="每行创建一个独立规则版本，沿用基准规则的触发绑定；真正上线的版本由机构生效版本统一选择。"
       />
-      <Form.Item label="模板规则资产" required>
+      <Form.Item label="基准规则资产" required>
         <Input
-          aria-label="模板规则资产"
+          aria-label="基准规则资产"
           value={templateRuleId}
           onChange={(event) => setTemplateRuleId(event.target.value)}
-          placeholder="输入已审核模板规则的稳定身份"
+          placeholder="输入已审核基准规则的稳定身份"
         />
       </Form.Item>
       <Form.Item
         label="批量规则草稿表"
         required
-        extra="至少包含规则身份和规则名称；阈值、启用等列会作为模板参数。可直接粘贴 Excel 表格。"
+        extra="至少包含规则身份和规则名称；阈值、启用等列会作为批量参数。可直接粘贴 Excel 表格。"
       >
         <TextArea
           aria-label="批量规则草稿表"

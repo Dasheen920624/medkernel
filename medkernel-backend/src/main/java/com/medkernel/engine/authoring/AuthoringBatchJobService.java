@@ -58,7 +58,7 @@ public class AuthoringBatchJobService {
     }
 
     /**
-     * 使用一条参数化规则模板与参数表生成独立草稿。
+     * 使用一条基准规则与参数表生成独立草稿。
      */
     public AuthoringBatchJobResponse generateRules(AuthoringBatchRuleGenerateRequest request) {
         requireFeature();

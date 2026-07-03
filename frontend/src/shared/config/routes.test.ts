@@ -647,7 +647,7 @@ describe("route metadata", () => {
       },
       {
         role: "实施工程师",
-        responsibility: "复用模板加速机构上线配置",
+        responsibility: "复用基准资产加速机构上线配置",
         boundary: "复用后仍需机构适配和验证",
       },
     ]);

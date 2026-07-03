@@ -46,8 +46,8 @@ public class RuleEngineAuthoringBatchAdapter implements AuthoringBatchRulePort {
             detail.triggerBindings().stream().map(this::triggerInput).toList(),
             detail.definition().applicableOrgUnitId(),
             detail.version().sourceRef(),
-            readJson(detail.version().dslJson(), "规则模板 DSL 无法解析"),
-            readJson(detail.version().explanationJson(), "规则模板解释无法解析"));
+            readJson(detail.version().dslJson(), "基准规则 DSL 无法解析"),
+            readJson(detail.version().explanationJson(), "基准规则解释无法解析"));
     }
 
     @Override
@@ -88,7 +88,7 @@ public class RuleEngineAuthoringBatchAdapter implements AuthoringBatchRulePort {
         } catch (JsonProcessingException exception) {
             throw new ApiException(
                 ErrorCode.INTERNAL_ERROR,
-                "规则模板触发绑定必需字段无法解析",
+                "基准规则触发绑定必需字段无法解析",
                 exception
             );
         }
