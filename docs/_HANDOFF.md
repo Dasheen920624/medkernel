@@ -11,9 +11,17 @@
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
 - 第四十二批已完成阶段交接提交为 `07b3fa907f7b83e5e34bf028fabad08f91442d93`
-  （`docs: 记录系统接入健康检查文案复演`）；第四十三批最新应用代码提交为
+  （`docs: 记录系统接入健康检查文案复演`）；第四十四批最新应用代码提交为
+  `b80735791243e989c1253ae94a19aa25fa289553`
+  （`fix: 优化全局菜单命名与顺序`）。其前置本地提交包括
+  `2068d35de48326bf442e79455fd2a9bc21dd5f5b`
+  （`docs: 澄清前端发布证据映射`）、
+  `0552b0c1f86c606efedd61538f50ddc671661210`
+  （`fix: 收敛运行保障国产化档案文案`）、
+  `882f33f8e1e4520fdfa64a741e36c6b312f954b4`
+  （`docs: 记录知识生产工作区层级复演`）、第四十三批应用提交
   `95bb816292f59833005df4761866dd9d89886cb4`
-  （`fix: 收敛知识生产工作区层级`），其前置第四十二批应用提交
+  （`fix: 收敛知识生产工作区层级`），以及第四十二批应用提交
   `2dbd668fde81540a4fc19ce9acd38b931cf7c2d2`
   （`fix: 收敛系统接入健康检查默认文案`）、第四十一批应用提交
   `3ddd979b3151e3eb1d40712e76b513e4cdce260c`
@@ -34,7 +42,8 @@
   第三十一批随访模板演练批次默认展示收敛、第三十二批临床提醒采纳率口径收敛、第三十三批人员详情抽屉证据稳定性，
   第三十四批诊断知识技术版次默认展示收敛、第三十五批知识资产随访模板默认名收敛、第三十六批来源血缘版本沿革默认展示收敛，
   第三十七批审计摘要默认标识收敛、第三十八批审计导出记录默认标识收敛、第四十批默认可见低频标识清零，
-  第四十一批模型外调核心标识遮蔽、第四十二批系统接入健康检查默认文案收敛，以及第四十三批知识生产工作区层级收敛。
+  第四十一批模型外调核心标识遮蔽、第四十二批系统接入健康检查默认文案收敛、第四十三批知识生产工作区层级收敛，
+  以及第四十四批全局菜单命名与顺序收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -55,16 +64,68 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `95bb816292f59833005df4761866dd9d89886cb4`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `b80735791243e989c1253ae94a19aa25fa289553`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
   `rehearsal` 是当前 1.0 契约中的完整上线演练机构块，不是旧兼容入口；
   `roleAccounts`、`platformRoleAccounts`、`customerTenant` 等旧 root 账号字段不得作为登录权威。
-- 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
+- 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-03 全视角真实前台体验优化第四十四批·全局菜单命名与顺序收敛）
+
+- 用户连续追问“诊断知识维护”菜单名、“临床路径模板”是否像引用模板、是否全部功能都评审和调整。结论：
+  本批按 `CONSTITUTION`、`PRODUCT_SCOPE`、`EXPERIENCE_CONTRACT`、功能目录与职责矩阵做全局评审，覆盖所有主导航、
+  职责旅程和客户可见一级入口；实际改动只落在客户容易误解的菜单名、顺序、页面标题、权限菜单与目录证据上，
+  没有把内部 API、服务契约、历史场景编号、测试黑名单或高级证据字段做无差别改名。
+- 已本地提交 `b80735791243e989c1253ae94a19aa25fa289553`
+  （`fix: 优化全局菜单命名与顺序`）：
+  - 知识治理菜单顺序统一为：`知识审核发布中心` → `机构生效版本` → `机构知识库` → `诊断知识库` →
+    `术语字典` → `临床规则` → `临床路径库` → `来源与血缘` → `知识关系`。
+  - 知识生产菜单统一为：`知识生产工作台` → `模型能力`；系统运维菜单统一为：
+    `实施与验收` → `系统接入` → `运行保障` → `运行诊断` → `国产化适配自检`。
+  - `诊断知识维护` 收敛为 `诊断知识库`，表达为知识域资产入口而不是后台维护动作；
+    `临床路径模板`/`路径配置` 的客户可见入口收敛为 `临床路径库`，页面动作使用“新建临床路径”“临床路径版本”，
+    避免误读成可被引用的模板库。`临床规则`、`术语字典`、`机构生效版本`、`知识审核发布中心`同步前端、
+    后端权限菜单、功能目录和职责矩阵。
+  - 保留 `模型能力` 与 `运行诊断`：前者符合模型供应、评测、脱敏和外调边界的能力治理语义；
+    后者符合医疗系统运行证据与故障定位语义。未恢复旧式“模型服务”“运行核查”。
+- 主要变更范围：
+  - `frontend/src/shared/config/routes.ts`、`menu.test.ts`、`routes.test.ts`、`productRoleJourneys.ts` 与相关页面测试，
+    统一主导航文案、导航排序和角色旅程断言。
+  - `frontend/src/pages/quality/*`、`frontend/src/pages/tenant/*`、`frontend/src/pages/clinical/PatientPathways.tsx`、
+    `frontend/src/pages/system/RuntimeDiagnostics.tsx`、`frontend/src/pages/advanced/DomesticCheck.tsx`、`frontend/src/widgets/WorkbenchPanel.tsx`
+    同步页面标题、按钮、空态、抽屉和默认业务文案。
+  - `medkernel-backend/src/main/java/com/medkernel/engine/security/MenuPermissionCatalog.java` 与
+    `PermissionCode.java` 同步菜单权限展示名；`MenuPermissionCatalogTest`、`DefaultPermissionPolicyTest` 补齐菜单名与顺序回归。
+  - `scripts/audit/export-product-capabilities.mjs` 与 `docs/audit/product-function-catalog.md`、`docs/audit/product-role-journeys.md`
+    同步权威功能目录和角色旅程。
+- 本地验证：
+  - `node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - `npm --prefix frontend test -- routes.test.ts menu.test.ts productRoleJourneys.test.ts AppLayout.test.tsx CommandPalette.test.tsx pages.smoke.test.tsx DiagnosisKnowledgeMaintenance.test.tsx KnowledgeProductionPage.test.tsx WorkbenchPanel.test.tsx KnowledgeGovernance.test.tsx operationalControlPages.test.tsx ReleaseGovernance.test.tsx PathwayTemplates.test.tsx RuleDefinitions.test.tsx Followup.test.tsx QcEvalSets.test.tsx RulePathwayCleanliness.test.ts`
+    通过，`17` 个测试文件 / `268` 项。
+  - `/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -Dtest=MenuPermissionCatalogTest,DefaultPermissionPolicyTest test`
+    通过，`16` 项；`/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -Dtest=PermissionCodeTest,PermissionDimensionModelTest test`
+    通过，`8` 项。
+  - `npm --prefix frontend run verify` 通过，`114` 个测试文件 / `939` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过。
+  - `/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn test` 通过，`Tests run: 3063, Failures: 0, Errors: 0, Skipped: 7`；
+    `7` 个跳过项仍为本地 Docker/Testcontainers 不可用导致的既有受控跳过。
+  - `/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -DskipTests package` 通过，生成
+    `medkernel-backend-1.0.0-SNAPSHOT.jar`。
+  - `node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`git diff --check` 通过。
+  - 旧菜单名扫描仅剩 `frontend/src/shared/config/productRoleJourneys.test.ts` 中用于防回归的黑名单断言。
+- 本批没有发布到 134，也没有推送远程或合并 `main`。134 仍按当前主线记录保持：
+  后端/JAR 为 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist 为
+  `95bb816292f59833005df4761866dd9d89886cb4` 的前端-only 发布；不能把本地 `b8073579` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续基于当前工作区和权威文件做全角色真实前台体验、134 证据映射、
+  测试、构建、部署和远程 main 收口核查。下一轮如继续涉及客户可见 IA，仍按“全局评审、只改真实误解点”的口径处理。
 
 ## 最新阶段交接（2026-07-03 全视角真实前台体验优化第四十三批·知识生产工作区层级收敛）
 
