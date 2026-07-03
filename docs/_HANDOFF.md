@@ -10,8 +10,13 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 当前本地最新应用代码提交为 `720a0150abdadb7d67832289181bb18f40ce714e`
-  （`fix: 收敛审计导出记录默认标识`）；已包含第十二批医保结算到质控整改数据路线、
+- 当前本地分支 HEAD 为 `f98997cd2c1d2c94a7cf74b4f4fceef44c37a1ef`
+  （`test: 稳定诊断知识前台演练确认按钮`）；当前最新应用代码提交为
+  `f259032508da61e1e466070cbbacab5e04cb37fb`
+  （`fix: 对齐标准上下文严格契约`）。本阶段已在 `f461a1c50653725569c60e148808d69c5097f620`
+  （`feat: 补齐标准术语前台登记链路`）补齐标准术语前台登记和诊断标准选择闭环，`f98997cd` 仅修正
+  E2E 对 AntD “确 定”按钮可访问名称的匹配。
+- 当前本地最新应用代码已包含第十二批医保结算到质控整改数据路线、
   第十三批质量/医保默认信息层级、第十四批知识生产治理语义、第十五批知识生产统一入口与证据层级，
   第十六批知识生产上线准备默认证据收敛、第十七批医保审核快照默认标识收敛、第十八批随访模板默认展示收敛，
   第十九批系统接入默认技术信息收敛、第二十批质量下钻默认追溯信息收敛、第二十一批协同任务列表可读性收敛，
@@ -27,21 +32,22 @@
   `deployedAt=2026-07-02T21:42:27+08:00`，
   `jarSha256=ef79a21c1ccc2700a787d67bd4d81685a8a4119d9b0612210e598b25ea47efce`。不要把该 manifest
   误读成当前前端 dist 版本。
-- 134 当前前端 dist 已于 `2026-07-03 00:20:14 +08:00` 完成 readiness 验证，发布命令为
-  `deploy/onprem/mk-publish.sh --frontend --source 720a0150abdadb7d67832289181bb18f40ce714e`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260703-001946`，readiness HTTP 200 / `{"status":"UP"}`，
-  服务 `active/enabled`、`MainPID=3123231`、`NRestarts=0`；线上 `index.html` 指向
-  `/assets/index-Smc9w3rX.js`，审计管理 chunk 为 `/assets/AdminAudit-BO1NBPCu.js`。
+- 134 当前前端 dist 已于 `2026-07-03 10:12:04 +08:00` 完成 readiness 验证，发布命令为
+  `deploy/onprem/mk-publish.sh --frontend --source f259032508da61e1e466070cbbacab5e04cb37fb`；远端备份
+  `/zoesoft/medkernel/backups/deploy-20260703-101136`，readiness HTTP 200 / `{"status":"UP"}`，
+  服务 `active/enabled`、`MainPID=3447816`、`NRestarts=0`；线上 `index.html` 指向
+  `/assets/index-CoUz4TdF.js`，诊断知识维护 chunk 为
+  `/assets/DiagnosisKnowledgeMaintenance-Bw9vAZIW.js`，术语与字典 chunk 为
+  `/assets/TerminologyMapping-yJ8Jhg-x.js`。
 - 134 对外 E2E 入口使用 `https://193.112.107.134/medkernel` 与
   `https://193.112.107.134/medkernel/api/v1`，当前证书按现场自签/非可信处理，Playwright 需带
   `E2E_IGNORE_HTTPS_ERRORS=1`。后端 `18080` 只监听 `127.0.0.1`，不要从外网使用
   `http://193.112.107.134:18080` 作为演练入口。
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。描述 134 状态时必须区分
-  后端 manifest 提交 `ef662ced` 与当前线上前端 dist 提交 `720a0150`。
-- 当前应用代码最新提交为 `720a0150abdadb7d67832289181bb18f40ce714e`；当前本地分支 HEAD / E2E
-  脚本契约最新专项提交为 `598e3fc6fd75f121283aefcfd5edfe2a2f2272e5`
-  （`test: 隔离全角色证据详情状态`），包含审计导出记录默认层断言、证据详情原始编号追溯断言，以及跨角色视角的
-  证据详情状态复位。
+  后端 manifest 提交 `ef662ced` 与当前线上前端 dist 提交 `f2590325`。
+- 当前应用代码最新提交为 `f259032508da61e1e466070cbbacab5e04cb37fb`；当前本地分支 HEAD / E2E
+  脚本契约最新专项提交为 `f98997cd2c1d2c94a7cf74b4f4fceef44c37a1ef`
+  （`test: 稳定诊断知识前台演练确认按钮`），包含诊断知识前台专项演练对 AntD “确 定”按钮可访问名称的兼容。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
@@ -50,6 +56,72 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-03 全视角真实前台体验优化第三十九批·诊断知识前台产数闭环）
+
+- 用户强调“知识治理/诊断知识维护只是疑问，不代表当前设计实现错误”，本批继续按 `CONSTITUTION`、
+  `PRODUCT_SCOPE`、`EXPERIENCE_CONTRACT`、功能目录和职责矩阵判断：诊断知识维护仍应归入统一知识治理，
+  不是拆第二套知识管理；真实缺口在于诊断标准维护仍容易让运营员手输发现项编码，导致标准术语权威维护与诊断标准引用割裂。
+  因此本批只补齐“前台登记标准术语 -> 诊断标准选择已生效标准术语 -> 验证病例复算”的真实产数闭环，
+  不改变知识治理 IA、不新增旧式“专家模式”、不改后端知识身份归属。
+- 已本地提交 `f461a1c50653725569c60e148808d69c5097f620`
+  （`feat: 补齐标准术语前台登记链路`）：
+  - `frontend/src/pages/tenant/TerminologyMapping.tsx` 新增“登记标准术语”前台弹窗，可维护标准体系、标准编码、
+    术语类别、标准名称、规范名称、版本号和依据说明；共享 `TERM_CATEGORY_OPTIONS`，避免页面自建分类口径。
+  - `frontend/src/shared/api/hooks.ts` 新增 `useRegisterStandardTerm`，调用
+    `/engine/terminology/terms/standard` 并携带统一标准上下文；成功后刷新标准字典。
+  - `frontend/src/pages/quality/DiagnosisKnowledgePanel.tsx` 将“标准发现项身份”从手输编码改为已生效标准术语远程搜索选择，
+    默认只展示业务名称，证据详情中仍可追溯标准体系与术语编码。
+  - `frontend/e2e/diagnosis-knowledge-maintenance.spec.ts` 改为先从“术语与字典”前台登记标准术语，再进入“诊断知识维护”
+    选择该标准术语新增诊断标准和验证病例，避免演练数据绕过前台或依赖预置码。
+- 线上首次部署 `f461a1c5` 后，诊断专项 E2E 在标准术语登记 POST 处返回 `400 ENG-API-001`；
+  根因不是产品结构问题，而是后端 `spring.jackson.deserialization.fail-on-unknown-properties=true` 且术语写入 DTO
+  未声明 `ward_id`，前端统一标准上下文把安全画像中的病区字段也带入请求。已本地提交
+  `f259032508da61e1e466070cbbacab5e04cb37fb`（`fix: 对齐标准上下文严格契约`）：
+  - 通用 `standardApiContext` 不再发送未被标准写入 DTO 声明的 `ward_id`。
+  - 临床上下文快照请求仍显式保留 `ward_id`，因为 `ContextSnapshotRequest` 已声明该字段，且 `orgUnitId`
+    继续按最细组织范围取病区。
+  - `frontend/src/shared/api/hooks.test.ts` 增加病区场景断言：标准术语登记请求不带 `ward_id`，前台临床快照请求保留
+    `ward_id` 与病区 `orgUnitId`。
+- 已本地提交 `f98997cd2c1d2c94a7cf74b4f4fceef44c37a1ef`
+  （`test: 稳定诊断知识前台演练确认按钮`）：诊断专项 E2E 兼容 AntD 默认确认按钮可访问名称 `确 定`。
+  这是测试点击器稳定性修正，不改变产品代码；真实用户点击不受影响。
+- 红绿验证与构建：
+  - `useRegisterStandardTerm` 请求契约先在旧实现下红灯，暴露 `ward_id` 会进入严格写请求；修复后目标测试通过。
+  - `npm --prefix frontend test -- hooks.test.ts` 通过，`127` 项。
+  - `npm --prefix frontend test -- TerminologyMapping.test.tsx`、`npm --prefix frontend test -- DiagnosisKnowledgePanel.test.tsx`
+    在本批相关改动后均通过；合计覆盖标准术语登记、诊断标准标准术语选择和页面交互。
+  - `npm --prefix frontend run verify` 通过，`114` 个测试文件 / `938` 项；保留既有 AntD `Timeline.Item`
+    deprecation warning。`npm --prefix frontend run build` 通过，生成
+    `/assets/DiagnosisKnowledgeMaintenance-Bw9vAZIW.js` 与 `/assets/TerminologyMapping-yJ8Jhg-x.js`。
+- 134 发布与现场验证：
+  - 已执行 `deploy/onprem/mk-publish.sh --frontend --source f259032508da61e1e466070cbbacab5e04cb37fb`；
+    这是前端-only 发布，远端 manifest 仍正确显示完整后端/JAR 部署提交
+    `ef662ced1ca68723bed92aabd66440a833fde4b3`。
+  - 远端备份 `/zoesoft/medkernel/backups/deploy-20260703-101136`；外部 readiness HTTP 200 /
+    `{"status":"UP"}`；服务 `active/enabled`、`MainPID=3447816`、`NRestarts=0`；后端 jar sha256 仍为
+    `ef79a21c1ccc2700a787d67bd4d81685a8a4119d9b0612210e598b25ea47efce`。
+  - 线上 `index.html` 指向 `/assets/index-CoUz4TdF.js`；
+    `/medkernel/assets/DiagnosisKnowledgeMaintenance-Bw9vAZIW.js` 与
+    `/medkernel/assets/TerminologyMapping-yJ8Jhg-x.js` 均 HTTP 200，`Last-Modified=2026-07-03 02:11:30 GMT`。
+- 134 演练回证：
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-diagnosis-maintenance-f2590325b`
+    通过 134 HTTPS 入站运行 `diagnosis-knowledge-maintenance.spec.ts --project=chromium`，`1 passed (13.5s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`、`duration=13454.458ms`。证据截图：
+    `.../diagnosis-knowledge-maintenance.png`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-real-frontdesk-deep-f2590325`
+    通过 134 HTTPS 入站运行 `real-frontdesk-rehearsal.spec.ts --project=chromium`，`1 passed (39.8s)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`、`duration=39806.174ms`。运行记录覆盖
+    `11` 段真实前台数据路线，错误合计 `0`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-f2590325`
+    通过 134 HTTPS 入站运行 `stakeholder-view-rehearsal.spec.ts --project=chromium`，`1 passed (1.3m)`；
+    report stats 为 `expected=1`、`unexpected=0`、`flaky=0`、`duration=78361.47ms`。运行记录覆盖 `12`
+    类业务视角，错误合计 `0`。
+- 后续继续主线全局体验优化：不要把本批诊断知识前台闭环理解成只优化用户点名的问题；下一轮继续按医生、护士、
+  患者/代理、药师、医技、医保办、质控、信息科、实施、院长、平台治理和知识生产运营视角，从最新 134 真实前台、
+  全职责证据和可见文本扫描继续检查知识治理生产/维护/来源/诊断知识、模型公网/内网双模式与患者敏感信息处理、
+  质控医保整改闭环、系统接入阻断、权限职责、默认信息层级、上线门禁和文档/契约一致性。本批未重跑独立可见技术词扫描；
+  后续复用既有扫描口径执行，不临时发明第二套扫描规则。
 
 ## 最新阶段交接（2026-07-03 全视角真实前台体验优化第三十八批·审计导出记录默认标识收敛）
 
