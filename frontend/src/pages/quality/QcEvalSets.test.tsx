@@ -231,6 +231,40 @@ describe("QcEvalSets", () => {
     expect(screen.getAllByText("trace-indicator-real").length).toBeGreaterThan(0);
   });
 
+  it("默认用业务语言展示责任科室、时间窗口和组织范围", async () => {
+    const user = userEvent.setup();
+    mockUseEvaluationIndicators.mockReturnValue({
+      data: {
+        items: [
+          {
+            ...realIndicator,
+            responsibleDepartmentId: "dept-ortho",
+            timeWindow: "DISCHARGE+24H",
+            organizationScope: "p5-hospital",
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch,
+    });
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "查看指标详情" }));
+
+    expect(screen.getAllByText("骨科").length).toBeGreaterThan(0);
+    expect(screen.getByText("出院后 24 小时")).toBeInTheDocument();
+    expect(screen.getByText("当前医院")).toBeInTheDocument();
+    expect(screen.queryByText("dept-ortho")).not.toBeInTheDocument();
+    expect(screen.queryByText("DISCHARGE+24H")).not.toBeInTheDocument();
+    expect(screen.queryByText("p5-hospital")).not.toBeInTheDocument();
+  });
+
   it("loads department references without exposing an evaluation package selector", () => {
     renderPage();
 
@@ -256,6 +290,9 @@ describe("QcEvalSets", () => {
     fireEvent.change(screen.getByLabelText("指标名称"), { target: { value: "新 VTE 指标" } });
     await userEvent.click(screen.getByRole("combobox", { name: "责任科室" }));
     await userEvent.click(await screen.findByText("骨科 · ORTHO"));
+    expect(screen.getAllByText("出院后 24 小时").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("全院").length).toBeGreaterThan(0);
+    expect(screen.queryByText("DISCHARGE+24H")).not.toBeInTheDocument();
     expect(screen.getByText("指标版本独立维护")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("来源依据"), { target: { value: "院内真实指南 2026" } });
 
@@ -275,6 +312,8 @@ describe("QcEvalSets", () => {
       expect.objectContaining({
         indicatorCode: "IND.NEW.VTE",
         name: "新 VTE 指标",
+        timeWindow: "DISCHARGE+24H",
+        organizationScope: "全院",
         responsibleDepartmentId: "dept-ortho",
       }),
     );

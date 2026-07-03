@@ -49,6 +49,12 @@ import {
   validateTree,
   type RuleGroup,
 } from "@/shared/config/conditionModel";
+import {
+  qualityOrganizationScopeLabels,
+  qualityOrganizationScopeOptions,
+  qualityTimeWindowLabels,
+  qualityTimeWindowOptions,
+} from "@/shared/config/qualityEvaluationCatalog";
 import { PageShell } from "@/shared/ui/PageShell";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { ContextSnapshotSelector } from "@/shared/ui/ContextSnapshotSelector";
@@ -127,9 +133,62 @@ const STATUS_COLORS: Record<EvaluationIndicatorStatus, string> = {
 };
 const DEPARTMENT_REFERENCE_PAGE_SIZE = 20;
 
+const TIME_WINDOW_ANCHOR_LABELS: Record<string, string> = {
+  ADMISSION: "入院",
+  DISCHARGE: "出院",
+  SURGERY: "手术",
+  VISIT: "就诊",
+};
+
 function optionalText(value?: string) {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
+}
+
+function hasChineseText(value: string) {
+  return /[\u4e00-\u9fa5]/.test(value);
+}
+
+function departmentDisplayText(
+  departmentId: string | null | undefined,
+  departmentNames: Map<string, string>,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) return departmentId || "--";
+  if (!departmentId) return "责任科室未返回";
+  return (
+    departmentNames.get(departmentId) ??
+    (hasChineseText(departmentId) ? departmentId : "责任科室已关联")
+  );
+}
+
+function timeWindowDisplayText(value: string | null | undefined, evidenceDetailsEnabled: boolean) {
+  if (evidenceDetailsEnabled) return value || "--";
+  if (!value) return "时间窗口未返回";
+  if (hasChineseText(value)) return value;
+  if (qualityTimeWindowLabels[value]) return qualityTimeWindowLabels[value];
+
+  const match = value.match(/^(ADMISSION|DISCHARGE|SURGERY|VISIT)([+-])(\d+)(H|D)$/);
+  if (match) {
+    const [, anchor, direction, amount, unit] = match;
+    const anchorLabel = TIME_WINDOW_ANCHOR_LABELS[anchor] ?? "关键节点";
+    const directionLabel = direction === "+" ? "后" : "前";
+    const unitLabel = unit === "H" ? "小时" : "天";
+    return `${anchorLabel}${directionLabel} ${Number(amount)} ${unitLabel}`;
+  }
+
+  return "时间窗口已配置";
+}
+
+function organizationScopeDisplayText(
+  value: string | null | undefined,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled) return value || "--";
+  if (!value) return "组织范围未返回";
+  if (qualityOrganizationScopeLabels[value]) return qualityOrganizationScopeLabels[value];
+  if (hasChineseText(value)) return value;
+  return "组织范围已配置";
 }
 
 function getResponseStatus(error: unknown): number | undefined {
@@ -197,6 +256,15 @@ export default function QcEvalSets() {
       value: unit.id as string,
       label: `${unit.name} · ${unit.code}`,
     }));
+  const departmentNames = useMemo(
+    () =>
+      new Map(
+        (departmentsQuery.data?.items ?? [])
+          .filter((unit) => unit.level === "DEPARTMENT" && unit.status === "ACTIVE" && unit.id)
+          .map((unit) => [unit.id as string, unit.name]),
+      ),
+    [departmentsQuery.data?.items],
+  );
   const [status, setStatus] = useState<EvaluationIndicatorStatus | undefined>();
   const [subjectType, setSubjectType] = useState<EvaluationSubjectType | undefined>();
   const [indicatorCode, setIndicatorCode] = useState("");
@@ -288,6 +356,9 @@ export default function QcEvalSets() {
       title: "责任科室",
       dataIndex: "responsibleDepartmentId",
       key: "responsibleDepartmentId",
+      render: (value: string) => (
+        <Text>{departmentDisplayText(value, departmentNames, evidenceDetailsEnabled)}</Text>
+      ),
     },
     {
       title: "状态",
@@ -445,8 +516,13 @@ export default function QcEvalSets() {
       ),
       impact_preview: visibleIndicator ? (
         <Text type="secondary">
-          {visibleIndicator.responsibleDepartmentId} · {visibleIndicator.timeWindow} ·{" "}
-          {visibleIndicator.organizationScope}
+          {departmentDisplayText(
+            visibleIndicator.responsibleDepartmentId,
+            departmentNames,
+            evidenceDetailsEnabled,
+          )}{" "}
+          · {timeWindowDisplayText(visibleIndicator.timeWindow, evidenceDetailsEnabled)} ·{" "}
+          {organizationScopeDisplayText(visibleIndicator.organizationScope, evidenceDetailsEnabled)}
         </Text>
       ) : (
         <Text type="secondary">暂无影响范围。</Text>
@@ -474,7 +550,7 @@ export default function QcEvalSets() {
         </Text>
       ),
     }),
-    [evidenceDetailsEnabled, total, visibleIndicator],
+    [departmentNames, evidenceDetailsEnabled, total, visibleIndicator],
   );
 
   return (
@@ -663,16 +739,16 @@ export default function QcEvalSets() {
               <Form.Item
                 name="timeWindow"
                 label="时间窗口"
-                rules={[{ required: true, message: "请输入时间窗口" }]}
+                rules={[{ required: true, message: "请选择时间窗口" }]}
               >
-                <Input />
+                <Select options={qualityTimeWindowOptions} />
               </Form.Item>
               <Form.Item
                 name="organizationScope"
                 label="组织范围"
-                rules={[{ required: true, message: "请输入组织范围" }]}
+                rules={[{ required: true, message: "请选择组织范围" }]}
               >
-                <Input />
+                <Select options={qualityOrganizationScopeOptions} />
               </Form.Item>
               <Alert
                 type="info"
@@ -774,12 +850,21 @@ export default function QcEvalSets() {
               <Descriptions.Item label="评估主体">
                 {SUBJECT_LABELS[selectedIndicator.subjectType]}
               </Descriptions.Item>
-              <Descriptions.Item label="时间窗口">{selectedIndicator.timeWindow}</Descriptions.Item>
+              <Descriptions.Item label="时间窗口">
+                {timeWindowDisplayText(selectedIndicator.timeWindow, evidenceDetailsEnabled)}
+              </Descriptions.Item>
               <Descriptions.Item label="组织范围">
-                {selectedIndicator.organizationScope}
+                {organizationScopeDisplayText(
+                  selectedIndicator.organizationScope,
+                  evidenceDetailsEnabled,
+                )}
               </Descriptions.Item>
               <Descriptions.Item label="责任科室">
-                {selectedIndicator.responsibleDepartmentId}
+                {departmentDisplayText(
+                  selectedIndicator.responsibleDepartmentId,
+                  departmentNames,
+                  evidenceDetailsEnabled,
+                )}
               </Descriptions.Item>
               <Descriptions.Item label="来源依据">{selectedIndicator.sourceRef}</Descriptions.Item>
               <Descriptions.Item label="证据">
