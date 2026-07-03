@@ -222,7 +222,9 @@ describe("AppRouter", () => {
     securityProfileState.value = { data: authenticatedProfile(), isError: false };
     renderRouter("/demo/step-flow");
 
-    expect(await screen.findByText("此功能待 W3 业务域任务实装")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "未找到页面" })).toBeInTheDocument();
+    expect(screen.getByText(/当前地址没有对应的业务页面/)).toBeInTheDocument();
+    expect(screen.queryByText(/W3|业务域任务实装/)).not.toBeInTheDocument();
     expect(screen.queryByText("暂时无法核验权限")).toBeNull();
   });
 
@@ -238,6 +240,6 @@ describe("AppRouter", () => {
     renderRouter("/workbench/readiness-validation");
 
     expect(await screen.findByText("运行验收自检")).toBeInTheDocument();
-    expect(screen.queryByText("此功能待 W3 业务域任务实装")).toBeNull();
+    expect(screen.queryByText(/W3|业务域任务实装/)).toBeNull();
   });
 });
