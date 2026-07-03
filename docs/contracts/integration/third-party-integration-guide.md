@@ -50,7 +50,7 @@
 
 联调前通过 `GET /api/v1/engine/terminology/mappings/coverage?standardSystem={system}&codes={code}` 检查标准编码覆盖度；只有 `COVERED` 表示当前服务机构存在已确认院内对照。标准字典由平台主空间统一维护，`LocalTerm` 与 `TermMapping` 只表达当前服务机构差异；正式映射版本由机构生效版本锁定后参与临床归一。
 
-术语与字典页面独立负责标准术语、本地术语、映射确认和下一版本快照的维护。适配器配置不得保存
+术语字典页面独立负责标准术语、本地术语、映射确认和下一版本快照的维护。适配器配置不得保存
 `termMappingId`；运行配置只声明 `targetDictionaryKey` 与 `category`，由临床事件携带的
 实际映射版本由服务端锁定的 `runtimeReleaseId` 及其中精确资产版本决定，调用方不得自行选择。
 

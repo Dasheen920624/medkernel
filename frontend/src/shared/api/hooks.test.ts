@@ -643,7 +643,7 @@ describe("shared runtime api helpers", () => {
   });
 
   it("downloads the generated domestic compatibility report", async () => {
-    const reportBlob = new Blob(["MedKernel 国产化自检报告"]);
+    const reportBlob = new Blob(["MedKernel 国产化适配自检报告"]);
     vi.mocked(apiClient.get).mockResolvedValueOnce({ data: reportBlob });
 
     const result = await downloadDomesticCompatibilityReport();

@@ -57,4 +57,4 @@ medkernel:
         - SM2
         - SM3
         - SM4
-      evidence: 国产化自检、五方言迁移合同、备份恢复摘要、国密算法 smoke
+      evidence: 国产化适配自检、五方言迁移合同、备份恢复摘要、国密算法 smoke

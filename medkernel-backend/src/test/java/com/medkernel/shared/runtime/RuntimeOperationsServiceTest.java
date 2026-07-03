@@ -88,7 +88,7 @@ class RuntimeOperationsServiceTest {
         String report = fixture(properties).service().domesticReport();
 
         assertThat(report)
-            .contains("MedKernel 国产化自检报告")
+            .contains("MedKernel 国产化适配自检报告")
             .contains("整体状态: WARN")
             .contains("关系数据库")
             .contains("postgres")

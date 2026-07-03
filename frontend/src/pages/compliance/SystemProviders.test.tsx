@@ -100,7 +100,7 @@ const snapshot = {
     targetJdk: "KAE-JDK 21 / BiSheng JDK 21",
     databaseVendors: ["达梦", "人大金仓"],
     cryptoAlgorithms: ["SM2", "SM3", "SM4"],
-    evidence: "国产化自检、五方言迁移合同、国密算法 smoke",
+    evidence: "国产化适配自检、五方言迁移合同、国密算法 smoke",
   },
   domesticCompatibility: {
     overallStatus: "WARN",

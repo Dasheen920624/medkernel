@@ -250,7 +250,7 @@ const runtimeSnapshot: RuntimeOperationsSnapshot = {
     targetJdk: "KAE-JDK 21 / BiSheng JDK 21",
     databaseVendors: ["达梦", "人大金仓"],
     cryptoAlgorithms: ["SM2", "SM3", "SM4"],
-    evidence: "国产化自检、五方言迁移合同、国密算法 smoke",
+    evidence: "国产化适配自检、五方言迁移合同、国密算法 smoke",
   },
   domesticCompatibility: {
     overallStatus: "WARN",
@@ -468,7 +468,7 @@ describe("operational control pages", () => {
       isPending: false,
     } as never);
     vi.mocked(downloadDomesticCompatibilityReport).mockResolvedValue(
-      new Blob(["MedKernel 国产化自检报告"]),
+      new Blob(["MedKernel 国产化适配自检报告"]),
     );
   }, 15_000);
 
@@ -626,7 +626,7 @@ describe("operational control pages", () => {
     expect(screen.getAllByText("实际值已采集").length).toBeGreaterThan(0);
     expect(screen.getAllByText("目标值已登记").length).toBeGreaterThan(0);
     expect(screen.getAllByText("现场证据已登记").length).toBeGreaterThan(0);
-    expect(screen.queryByText(/国产化自检、五方言迁移合同/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/国产化适配自检、五方言迁移合同/)).not.toBeInTheDocument();
     expect(screen.queryByText(/System\.getProperty/)).not.toBeInTheDocument();
     expect(screen.queryByText(/medkernel\.runtime\.database-dialect/)).not.toBeInTheDocument();
     expect(screen.getByText("当前浏览器能力预检")).toBeInTheDocument();
@@ -638,7 +638,7 @@ describe("operational control pages", () => {
     await user.click(screen.getByRole("switch", { name: "证据详情" }));
     expect(screen.getAllByText("麒麟 / 统信 / openEuler").length).toBeGreaterThan(0);
     expect(screen.getAllByText("KAE-JDK 21 / BiSheng JDK 21").length).toBeGreaterThan(0);
-    expect(screen.getByText(/国产化自检、五方言迁移合同/)).toBeInTheDocument();
+    expect(screen.getByText(/国产化适配自检、五方言迁移合同/)).toBeInTheDocument();
     expect(screen.getByText(/System\.getProperty/)).toBeInTheDocument();
     expect(screen.getByText(/medkernel\.runtime\.database-dialect/)).toBeInTheDocument();
 

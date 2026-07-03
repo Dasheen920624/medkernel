@@ -220,8 +220,8 @@ function readBlobAsText(blob: Blob): Promise<string> {
     reader.onload = () =>
       typeof reader.result === "string"
         ? resolve(reader.result)
-        : reject(new Error("国产化自检报告不是文本内容"));
-    reader.onerror = () => reject(reader.error ?? new Error("国产化自检报告读取失败"));
+        : reject(new Error("国产化适配自检报告不是文本内容"));
+    reader.onerror = () => reject(reader.error ?? new Error("国产化适配自检报告读取失败"));
     reader.readAsText(blob, "UTF-8");
   });
 }

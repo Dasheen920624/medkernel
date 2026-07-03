@@ -161,7 +161,7 @@ describe("SecurityBaseline", () => {
           targetJdk: "BiSheng JDK 21",
           databaseVendors: ["达梦"],
           cryptoAlgorithms: ["SM3"],
-          evidence: "国产化自检",
+          evidence: "国产化适配自检",
         },
         domesticCompatibility: {
           overallStatus: "WARN",
