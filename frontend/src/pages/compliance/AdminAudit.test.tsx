@@ -320,6 +320,14 @@ describe("AdminAudit", () => {
             resourceType: "model_provider",
             resourceId: "stakeholder-ollama-mr0c0kb8",
           },
+          {
+            ...firstPage.items[0],
+            id: "15",
+            eventId: "evt-15",
+            summary: "创建标准上下文 quality=VALID patient=mpi-01KWJWWP2FQCRJ2X5JJVBJYJV2",
+            resourceType: "context_snapshot",
+            resourceId: "ctx-01KWJWWP2FQCRJ2X5JJVBJYJV2",
+          },
         ],
       }) as never,
     );
@@ -332,10 +340,13 @@ describe("AdminAudit", () => {
     expect(screen.getByText("发布随访模板 随访模板")).toBeInTheDocument();
     expect(screen.getByText("评估推荐触发 临床推荐评估")).toBeInTheDocument();
     expect(screen.getByText("探测模型服务 院外模型服务，连接状态=连接正常")).toBeInTheDocument();
+    expect(screen.getByText("创建标准上下文 质量已通过 患者已关联")).toBeInTheDocument();
     expect(screen.queryByText(/exp-audit-event-/)).not.toBeInTheDocument();
     expect(screen.queryByText(/FUP\.STAKEHOLDER/)).not.toBeInTheDocument();
     expect(screen.queryByText(/CDSS-MANUAL/)).not.toBeInTheDocument();
     expect(screen.queryByText(/stakeholder-ollama/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/quality=VALID/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/mpi-01KWJWWP2FQCRJ2X5JJVBJYJV2/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("switch", { name: "证据详情" }));
 
@@ -349,6 +360,8 @@ describe("AdminAudit", () => {
       screen.getAllByText(/CDSS-MANUAL-medication-prescribe-ctx-0b5df86b/).length,
     ).toBeGreaterThan(0);
     expect(screen.getAllByText(/stakeholder-ollama-mr0c0kb8/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/quality=VALID/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/mpi-01KWJWWP2FQCRJ2X5JJVBJYJV2/).length).toBeGreaterThan(0);
   });
 
   it("默认将导出记录中的审计导出编号收进证据详情", async () => {

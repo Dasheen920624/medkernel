@@ -95,6 +95,10 @@ const REPORT_CONTEXT_REF_PATTERN =
 const MODEL_PROVIDER_RUN_REF_PATTERN = /\bstakeholder-ollama-[a-z0-9]+\b/gi;
 const RUN_SUFFIX_REF_PATTERN =
   /\b(?:patient_proxy|real_frontdesk|stakeholder|frontdesk)-[a-z0-9]+\b/gi;
+const CONTEXT_QUALITY_REF_PATTERN = /\bquality=([A-Z_]+)\b/g;
+const CONTEXT_PATIENT_REF_PATTERN = /\bpatient=mpi-[A-Za-z0-9_.:-]+\b/gi;
+const CLINICAL_INTERNAL_REF_PATTERN =
+  /\b(?:mpi|enc|ctx|claim|cond|diag|rule|pathway)-[A-Za-z0-9][A-Za-z0-9_.:-]{5,}\b/gi;
 const UUID_REF_PATTERN =
   /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi;
 const LONG_HASH_REF_PATTERN = /\b[a-f0-9]{24,}\b/gi;
@@ -153,6 +157,14 @@ function auditResourceLabel(
   return `${resourceLabel}${evidenceDetailsEnabled && resourceId ? ` ${resourceId}` : ""}`;
 }
 
+function contextQualityLabel(status?: string | null) {
+  const normalized = status?.toUpperCase();
+  if (normalized === "VALID") return "质量已通过";
+  if (normalized === "INVALID" || normalized === "FAILED") return "质量待复核";
+  if (normalized === "PARTIAL" || normalized === "MISSING") return "质量待补齐";
+  return "质量已记录";
+}
+
 function auditSummaryLabel(summary?: string | null, evidenceDetailsEnabled = true) {
   const value = summary?.trim() || "未返回摘要";
   if (evidenceDetailsEnabled) return value;
@@ -164,6 +176,9 @@ function auditSummaryLabel(summary?: string | null, evidenceDetailsEnabled = tru
     .replace(REPORT_CONTEXT_REF_PATTERN, "报告解读任务")
     .replace(MODEL_PROVIDER_RUN_REF_PATTERN, "院外模型服务")
     .replace(RUN_SUFFIX_REF_PATTERN, "已记录批次")
+    .replace(CONTEXT_QUALITY_REF_PATTERN, (_match, status: string) => contextQualityLabel(status))
+    .replace(CONTEXT_PATIENT_REF_PATTERN, "患者已关联")
+    .replace(CLINICAL_INTERNAL_REF_PATTERN, "已记录临床对象")
     .replace(UUID_REF_PATTERN, "已记录对象")
     .replace(LONG_HASH_REF_PATTERN, "已记录校验值");
 }
