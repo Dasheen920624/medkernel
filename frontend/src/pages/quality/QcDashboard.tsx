@@ -392,7 +392,7 @@ function buildScopeDepartmentLabels(dataScope: SecurityProfile["dataScope"] | un
     ["当前院区", dataScope?.campusId],
     ["当前机构", dataScope?.hospitalId],
     ["当前集团", dataScope?.groupId],
-    ["当前租户", dataScope?.tenantId],
+    ["当前服务机构", dataScope?.tenantId],
   ];
   for (const [label, rawValue] of candidates) {
     const value = rawValue?.trim();

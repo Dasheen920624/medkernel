@@ -528,6 +528,60 @@ describe("QcDashboard", () => {
     expect(screen.getByText("科室：当前机构 · hospital-rehearsal")).toBeInTheDocument();
   });
 
+  it("仅有服务机构范围时默认不显示租户口径", async () => {
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [{ code: "evaluation.read" }],
+        roles: [{ code: "quality-user", displayName: "质控人员" }],
+        menuKeys: ["qc-dashboard"],
+        dataScope: {
+          tenantId: "tenant-rehearsal",
+          groupId: null,
+          hospitalId: null,
+          campusId: null,
+          siteId: null,
+          departmentId: null,
+          wardId: null,
+          specialtyId: null,
+        },
+      },
+    });
+    mockUseOrgUnits.mockReturnValue({
+      data: { items: [] },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseQualityDashboard.mockReturnValue({
+      data: {
+        ...dashboardData,
+        heatmap: [{ ...dashboardData.heatmap[0], departmentId: "tenant-rehearsal" }],
+        activeAlerts: [{ ...dashboardData.activeAlerts[0], departmentId: "tenant-rehearsal" }],
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+    mockUseQualityDashboardDrilldown.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    expect(screen.getByText("当前服务机构")).toBeInTheDocument();
+    expect(screen.getByText("科室：当前服务机构")).toBeInTheDocument();
+    expect(screen.queryByText(/当前租户/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/tenant-rehearsal/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("当前服务机构 · tenant-rehearsal")).toBeInTheDocument();
+    expect(screen.getByText("科室：当前服务机构 · tenant-rehearsal")).toBeInTheDocument();
+  });
+
   it("默认收起医保质控待处置摘要中的结算与规则追溯编号", async () => {
     mockUseQualityDashboard.mockReturnValue({
       data: {

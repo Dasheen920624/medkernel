@@ -214,6 +214,54 @@ describe("InsuranceAudit", () => {
     expect(screen.queryByText(/本地违规病例样例|申诉闭环/)).not.toBeInTheDocument();
   });
 
+  it("仅有服务机构范围时默认不显示租户口径", async () => {
+    mockUseSecurityProfile.mockReturnValue({
+      data: {
+        permissions: [{ code: "evaluation.read" }],
+        roles: [{ code: "insurance-user", displayName: "医保审核人员" }],
+        menuKeys: ["insurance-audit"],
+        dataScope: {
+          tenantId: "tenant-rehearsal",
+          groupId: null,
+          hospitalId: null,
+          campusId: null,
+          siteId: null,
+          departmentId: null,
+          wardId: null,
+          specialtyId: null,
+        },
+      },
+    });
+    mockUseOrgUnits.mockReturnValue({
+      data: { items: [] },
+      isLoading: false,
+      isError: false,
+    });
+    mockUseInsuranceIssues.mockReturnValue({
+      data: {
+        ...insuranceIssuesPage,
+        items: [{ ...insuranceIssuesPage.items[0], departmentId: "tenant-rehearsal" }],
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+    mockUseRunQualityCaseReview.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+    mockUseRunDrgGrouping.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+    mockUseRunInsuranceAudit.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+
+    renderPage();
+
+    expect(screen.getByText("当前服务机构")).toBeInTheDocument();
+    expect(screen.queryByText(/当前租户/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/tenant-rehearsal/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("当前服务机构 · tenant-rehearsal")).toBeInTheDocument();
+  });
+
   it("keeps accumulated insurance issues reachable through server-side pagination", async () => {
     mockUseInsuranceIssues.mockImplementation((params: { page?: number; size?: number }) => {
       const page = params.page ?? 1;
