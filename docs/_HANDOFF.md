@@ -10,10 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第四十二批已完成阶段交接提交为 `07b3fa907f7b83e5e34bf028fabad08f91442d93`
-  （`docs: 记录系统接入健康检查文案复演`）；第四十五批最新应用代码提交为
+- 第四十五批已完成阶段交接提交为 `c3d99dbc348d764f506314b8ad4675a7c13a57a7`
+  （`docs: 记录国产化适配文案复演`）；第四十六批最新应用代码提交为
+  `24687d0fcb9cc48173a2005c490456008e8a7cad`
+  （`fix: 收敛知识生产与规则路径前台文案`）。其前置本地提交包括第四十五批应用提交
   `54a5161befb248970bc24ab645ebf97b73bbcfbf`
-  （`fix: 收敛国产化适配自检权威文案`）。其前置本地提交包括第四十四批应用提交
+  （`fix: 收敛国产化适配自检权威文案`）、第四十四批应用提交
   `b80735791243e989c1253ae94a19aa25fa289553`
   （`fix: 优化全局菜单命名与顺序`）、
   `2068d35de48326bf442e79455fd2a9bc21dd5f5b`
@@ -45,7 +47,7 @@
   第三十四批诊断知识技术版次默认展示收敛、第三十五批知识资产随访模板默认名收敛、第三十六批来源血缘版本沿革默认展示收敛，
   第三十七批审计摘要默认标识收敛、第三十八批审计导出记录默认标识收敛、第四十批默认可见低频标识清零，
   第四十一批模型外调核心标识遮蔽、第四十二批系统接入健康检查默认文案收敛、第四十三批知识生产工作区层级收敛，
-  第四十四批全局菜单命名与顺序收敛，以及第四十五批国产化适配自检权威文案收敛。
+  第四十四批全局菜单命名与顺序收敛、第四十五批国产化适配自检权威文案收敛，以及第四十六批知识生产候选治理与规则路径前台文案收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -66,7 +68,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `54a5161befb248970bc24ab645ebf97b73bbcfbf`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `24687d0fcb9cc48173a2005c490456008e8a7cad`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -76,6 +78,49 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-03 全视角真实前台体验优化第四十六批·知识生产候选治理与规则路径前台文案收敛）
+
+- 本批接续第四十五批，按用户关于“诊断知识维护”“临床路径模板是否像引用模板”“是否全部功能都评审和调整”的连续线索，回到
+  `CONSTITUTION`、`PRODUCT_SCOPE`、`EXPERIENCE_CONTRACT`、功能目录与职责矩阵做全局判断。结论仍是：只改真实客户可见误解点，
+  不把内部 API、受控配置、互操作对象、测试黑名单或确有模板含义的技术概念做无差别改名。
+- 已本地提交 `24687d0fcb9cc48173a2005c490456008e8a7cad`
+  （`fix: 收敛知识生产与规则路径前台文案`）：
+  - `/knowledge/production` 将阶段和区块“开始生产”收敛为“候选治理”，匹配“大模型只生成候选、正式知识进入统一治理”的医疗安全边界；
+    模型服务密钥变更/移除提示中的“探活”收敛为“健康检查”，保持与系统接入、模型服务治理的客户语言一致。
+  - `/pathway/templates` 与 `/clinical/patient-pathways` 将客户面“临床路径模型 / 基础模板 / 平台标准模板 / 全模板 /
+    稳定路径模型身份”等易误解表述收敛为“临床路径 / 基础信息 / 平台标准路径 / 全路径 / 稳定临床路径身份”；
+    保留内部 `templateCode`、路径配置文本、结局绑定枚举等真实契约，不破坏版本生效与审计追溯。
+  - `/rule/definitions` 将默认动作和一级页签“新建规则模板 / L1 模板”收敛为“新建临床规则 / L1 基础信息”，并把创建提示改为
+    “规则原型只提供规则结构”；保留“受控配置文本 / 规则配置文本 / 解释模板 / 模板占位符”等确有高级配置或文本模板含义的术语。
+  - 同步补齐 `KnowledgeProductionPage`、`ProviderSetupPanel`、`PathwayTemplates`、`PatientPathways`、`RuleDefinitions` 与
+    `ruleLayeredEditor` 相关回归断言，旧词仅允许留在测试反向断言或黑名单中。
+- 本地验证：
+  - 红绿核验先覆盖目标断言：`候选治理`、`必须重新健康检查、评测并受控启用`、`新建临床路径`、
+    `稳定临床路径身份`、`全路径`、`新建临床规则`、`L1 基础信息` 均先由目标测试暴露旧实现，再实现后通过。
+  - `node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - `npm --prefix frontend test -- routes.test.ts menu.test.ts productRoleJourneys.test.ts KnowledgeProductionPage.test.tsx ProviderSetupPanel.test.tsx PathwayTemplates.test.tsx RuleDefinitions.test.tsx PatientPathways.test.tsx WorkbenchPanel.test.tsx`
+    通过，`9` 个测试文件 / `144` 项。
+  - `npm --prefix frontend run verify` 通过，`114` 个测试文件 / `939` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `KnowledgeProduction-uCFbb5G9.js`、`PatientPathways-EaYebLkd.js`、
+    `PathwayTemplates-BNcsNlMO.js`、`RuleDefinitions-Dj3O8w8D.js` 等前端产物。
+  - `node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`git diff --check` 通过。
+  - 旧词复扫 `诊断知识维护|临床路径模板|临床路径模型|路径模型|基础模板|平台标准模板|医院模板|科室模板|专科模板|全模板|开始生产|探活|发布治理|术语与字典|国产化自检|运行核查|新建规则模板|L1 模板`
+    在生产前端、后端安全菜单、权威文档和审计脚本中无客户可见残留；命中仅为测试中的 `not.toBeInTheDocument()` / 黑名单断言。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 readiness HTTP 200 /
+  `{"status":"UP"}`，后端 manifest 仍为 `source=3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  `commit=3ddd979b3151e3eb1d40712e76b513e4cdce260c`、`deployedAt=2026-07-03T12:38:13+08:00`、
+  `jarSha256=37da0f4b8d42e040408ab530714f68228e8060a21f6690146d8cb58126ca96ec`，服务 `active/enabled`、
+  `MainPID=3600701`、`NRestarts=0`。公网首页 `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，
+  `index.html` 指向 `/assets/index-DYTh-Ceu.js`，`/assets/KnowledgeProduction-ClNuDXyb.js` HTTP 200 /
+  `20735` 字节；因此 134 仍是后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `24687d0f` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续基于当前工作区和权威文件做全角色真实前台体验、134 证据映射、测试构建、
+  部署和远程 `main` 收口核查。下一轮继续按“全局评审、只改真实误解点、保留真实契约术语”的口径推进。
 
 ## 最新阶段交接（2026-07-03 全视角真实前台体验优化第四十五批·国产化适配自检权威文案收敛）
 
