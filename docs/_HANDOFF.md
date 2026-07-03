@@ -10,10 +10,14 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第五十一批已完成阶段交接提交为 `184c831c6e1d48cd4ce3189fbc6b04a637448e31`
-  （`docs: 记录沙盘智能协同口径复演`）；第五十二批最新应用代码提交为
+- 第五十二批已完成阶段交接提交为 `b5a72c7e055b48f0f481e607887dcd43938a884c`
+  （`docs: 记录批量规则基准资产口径复演`）；第五十三批最新应用代码提交为
+  `ea76cbb69f6d39115ca32608161ad8c470ff7430`
+  （`fix: 收敛临床规则与推荐前台口径`）。其前置本地提交包括第五十二批应用提交
   `2a97de1738226b46e528e4b0445af4348227bf42`
-  （`fix: 收敛批量规则基准资产口径`）。其前置本地提交包括第五十一批应用提交
+  （`fix: 收敛批量规则基准资产口径`）、第五十一批阶段交接提交
+  `184c831c6e1d48cd4ce3189fbc6b04a637448e31`
+  （`docs: 记录沙盘智能协同口径复演`）、第五十一批应用提交
   `e4720e932c8f53f99ccfa3f3b8d4e16ad3777560`
   （`fix: 收敛沙盘智能协同口径`）、第五十批阶段交接提交
   `b091eecf1f7fccdfec2c1b523f7877b5e065f87`
@@ -69,7 +73,8 @@
   第四十一批模型外调核心标识遮蔽、第四十二批系统接入健康检查默认文案收敛、第四十三批知识生产工作区层级收敛，
   第四十四批全局菜单命名与顺序收敛、第四十五批国产化适配自检权威文案收敛、第四十六批知识生产候选治理与规则路径前台文案收敛，
   第四十七批未找到页面工程态文案收敛、第四十八批全真体验沙盘当前机构口径收敛，第四十九批菜单服务与临床路径前台口径收敛，
-  第五十批临床路径公开口径收敛、第五十一批全真体验沙盘智能协同口径收敛，以及第五十二批批量规则基准资产口径收敛。
+  第五十批临床路径公开口径收敛、第五十一批全真体验沙盘智能协同口径收敛、第五十二批批量规则基准资产口径收敛，
+  以及第五十三批临床规则与提醒推荐前台口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -90,7 +95,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `2a97de1738226b46e528e4b0445af4348227bf42`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `ea76cbb69f6d39115ca32608161ad8c470ff7430`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -100,6 +105,55 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-03 全视角真实前台体验优化第五十三批·临床规则与提醒推荐前台口径收敛）
+
+- 本批继续按“菜单名称需从全局视角、医疗产品体验和全角色评估”的要求，复核权威目录与真实前台。结论：
+  第四十四批确定的一级菜单顺序和 `诊断知识库`、`临床路径库`、`临床规则`、`提醒与推荐`、`知识资产` 等入口名仍成立；
+  真实缺口在用户可见页面和运行诊断公开服务目录中仍残留“规则引擎 / 推荐引擎 / 引擎资产 / 智能推荐”工程口径。
+  这些词会让临床使用者、医疗引擎运营员和平台运维角色把业务任务误读成后台模块或算法引擎，因此本批只收敛客户可见中文，
+  保留 `RuleEngine*`、`/api/v1/engine/rule` 等内部类名、英文路径和兼容字段。
+- 已本地提交 `ea76cbb69f6d39115ca32608161ad8c470ff7430`
+  （`fix: 收敛临床规则与推荐前台口径`）：
+  - `RuleValidate` 页面描述从“向规则引擎输入”改为“使用真实脱敏上下文试运行临床规则”，锁定 `/rule/validate`
+    属于知识治理下的临床规则试运行任务。
+  - `CdssFatigue` 推荐详情与触发评估弹窗将“规则引擎 / 推荐引擎 / 红线检查”收敛为
+    “临床规则 / 提醒与推荐 / 安全红线”，保持模型不可用时走确定性规则链路的医疗安全说明。
+  - `EmbedLaunch` 嵌入式空状态从“确认推荐引擎已生成建议”改为“确认提醒与推荐已生成有效建议”，避免 HIS/EMR 前台露出后台模块名。
+  - `SandboxHost` 将执行能力标签从“规则引擎 / 智能推荐”改为“临床规则 / 提醒与推荐”，与沙盘入口的医疗智能协同口径一致。
+  - `AuthoringAssets` 页面说明从“复用全部引擎资产”改为“复用医疗知识与配置资产”，匹配功能目录中的知识资产边界。
+  - 运行诊断服务目录将 `rule` 服务标题从“规则引擎服务”改为“临床规则服务”；规则 API 缺统一入参的公开错误详情改为
+    “临床规则 API 缺少统一入参字段”。英文路径、权限码和内部控制器名保持不变。
+- 本地验证：
+  - 红绿核验：`npm --prefix frontend test -- RuleValidate.test.tsx CdssFatigue.test.tsx EmbedLaunch.test.tsx AuthoringAssets.test.tsx SandboxHost.test.tsx operationalControlPages.test.tsx`
+    在旧实现下先失败于“推荐引擎 / 引擎资产 / 规则引擎 / 智能推荐”等旧称仍可见或新称缺失；实现并同步测试预期后通过，
+    `6` 个测试文件 / `49` 项。
+  - 红绿核验：`/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -Dtest=RuntimeDiagnosticsControllerTest#apiContractDirectoryReturnsSanitizedServiceContracts,RuleEngineApiContractTest#createRequiresUnifiedContextFields test`
+    在 `medkernel-backend` 目录下先失败于运行诊断仍返回“规则引擎服务”和规则 API 错误详情仍使用旧称；实现后通过，`2` 项。
+  - 后端相关回归：`/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -Dtest=RuntimeDiagnosticsControllerTest,RuleEngineApiContractTest test`
+    通过，`16` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `944` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `RuleValidate-FfO52N4I.js`、`CdssFatigue-Vrk0eejM.js`、
+    `EmbedLaunch-LkvUqUiR.js`、`SandboxHost-6qUEB8aR.js`、`AuthoringAssets-BEnN4R6y.js`、
+    `RuntimeDiagnostics-DFGngJ7a.js`、`index-Cx3Axzie.js`、`index-XMjG4gr3.css` 等前端产物。
+  - `/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -DskipTests package` 通过，生成
+    `medkernel-backend/target/medkernel-backend-1.0.0-SNAPSHOT.jar` 与 SBOM。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node scripts/audit/export-product-capabilities.mjs --check` 通过；
+    `node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check` 与应用提交前 `git diff --cached --check` 均通过。
+  - 旧口径扫描：`rg -n "规则引擎|推荐引擎|引擎资产|向规则引擎|智能推荐" frontend/src/pages frontend/src/shared/config frontend/src/features frontend/src/widgets --glob '!**/*.test.ts' --glob '!**/*.test.tsx'`
+    无生产命中；`rg -n "规则引擎服务|规则引擎 API 缺少统一入参字段|推荐引擎服务|引擎资产" medkernel-backend/src/main/java medkernel-backend/src/test/java frontend/src --glob '!**/target/**'`
+    仅命中测试反向断言，生产前台与公开服务契约无本批旧口径残留。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`；公网首页 HTTP 200，`Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，
+  `index.html` 指向 `/assets/index-DYTh-Ceu.js`、`/assets/index-XMjG4gr3.css`、
+  `/assets/vendor-data-D9EFEnEk.js`、`/assets/vendor-react-C5ap-Sga.css`、`/assets/vendor-react-bdrMx_IT.js`。
+  134 映射仍按当前已核定事实保持：后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `ea76cbb6` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、菜单分布、构建门禁、134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-03 全视角真实前台体验优化第五十二批·批量规则基准资产口径收敛）
 
