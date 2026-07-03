@@ -10,10 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第四十八批已完成阶段交接提交为 `e6597c0b688dd86e7894652f96890320ef282eb2`
-  （`docs: 记录沙盘当前机构口径复演`）；第四十九批最新应用代码提交为
+- 第四十九批已完成阶段交接提交为 `a687b1a4a4913d1026db607d818bf8b7e5234e71`
+  （`docs: 记录菜单服务口径复演`）；第五十批最新应用代码提交为
+  `34bb45bc50591d57671f3dbbc426f63368ac342d`
+  （`fix: 收敛临床路径公开口径`）。其前置本地提交包括第四十九批应用提交
   `d109291c85dfa973b5362e8ff97e769537da79b0`
-  （`fix: 收敛菜单服务与临床路径前台口径`）。其前置本地提交包括第四十八批应用提交
+  （`fix: 收敛菜单服务与临床路径前台口径`）、第四十八批应用提交
   `d6e6db93f361bb8ffe6f750a75e9143445ebdf1b`
   （`fix: 收敛沙盘当前机构口径`）、第四十七批阶段交接提交
   `172658530152fef3439f456b4b2dbf996fedfc8d`
@@ -58,7 +60,8 @@
   第三十七批审计摘要默认标识收敛、第三十八批审计导出记录默认标识收敛、第四十批默认可见低频标识清零，
   第四十一批模型外调核心标识遮蔽、第四十二批系统接入健康检查默认文案收敛、第四十三批知识生产工作区层级收敛，
   第四十四批全局菜单命名与顺序收敛、第四十五批国产化适配自检权威文案收敛、第四十六批知识生产候选治理与规则路径前台文案收敛，
-  第四十七批未找到页面工程态文案收敛、第四十八批全真体验沙盘当前机构口径收敛，以及第四十九批菜单服务与临床路径前台口径收敛。
+  第四十七批未找到页面工程态文案收敛、第四十八批全真体验沙盘当前机构口径收敛，第四十九批菜单服务与临床路径前台口径收敛，
+  以及第五十批临床路径公开口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -79,7 +82,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `d109291c85dfa973b5362e8ff97e769537da79b0`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `34bb45bc50591d57671f3dbbc426f63368ac342d`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -89,6 +92,52 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-03 全视角真实前台体验优化第五十批·临床路径公开口径收敛）
+
+- 本批接续用户对“临床路径模板是否像引用模板”和“菜单名称需符合医疗场景”的全局线索，在第四十九批前台口径基础上继续复核
+  `pathway` 后端服务契约、规则影响、互操作、安全撤回、沙盘前台标签和公开错误信息。结论：第四十四批菜单顺序和
+  `临床路径库` 入口仍成立；真实缺口是后端公开中文、运行诊断服务标题、规则影响原因、沙盘执行能力标签和 API 错误仍残留
+  “路径模板 / 路径引擎”等技术口径，容易让客户误解为引用模板或后台引擎模块。本批将客户可见和公开契约中文统一收敛为
+  “临床路径 / 路径版本 / 路径编码”，保留 `PathwayTemplate`、`PATHWAY_TEMPLATE`、`/pathway-templates`
+  等英文代码、对象类型和 API 路径作为兼容身份，不作为菜单或前台展示名。
+- 已本地提交 `34bb45bc50591d57671f3dbbc426f63368ac342d`
+  （`fix: 收敛临床路径公开口径`）：
+  - 运行诊断服务契约将 `pathway` 标题从“路径引擎服务”收敛为“临床路径服务”，审计目的同步为
+    “创建临床路径草稿和患者路径 / 发布临床路径版本”。
+  - 路径域公开 Javadoc、错误详情、审计摘要、发布校验、机构生效版本解析、互操作导入导出、安全撤回、沙盘编排和规则影响原因统一使用
+    “临床路径”业务口径；规则影响中患者在径说明改为“临床路径 <路径编码> 受规则引用影响”。
+  - 全真体验沙盘的 `pathway` 执行能力标签由“路径引擎”改为“临床路径”，并补充路径协同场景测试，防止客户前台再次露出工程态能力名。
+  - 集成指南中 FHIR 互操作示例的路径草稿说明同步为“临床路径草稿”，避免文档与后端公开合同脱节。
+- 本地验证：
+  - 红绿核验：`/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -Dtest=RuntimeDiagnosticsControllerTest,RelationalRuleImpactIndexTest test`
+    先失败于旧实现仍返回“路径引擎服务 / 路径模板节点引用规则”，实现后通过，`3` 项。
+  - 红绿核验：`npm --prefix frontend test -- SandboxHost.test.tsx -t "uses clinical pathway wording"` 先失败于沙盘路径场景找不到“临床路径”，
+    实现并补足路径协同场景夹具后通过。
+  - 前端沙盘回归：`npm --prefix frontend test -- SandboxHost.test.tsx` 通过，`9` 项。
+  - 后端相关回归：`/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -Dtest=RuntimeDiagnosticsControllerTest,RelationalRuleImpactIndexTest,RelationalRuleImpactIndexRepositoryTest,PathwayEngineServiceTest,PathwayEngineApiContractTest,PathwayEngineControllerSecurityTest,InteroperabilityMappingServiceTest,InteroperabilityControllerSecurityTest,ClinicalSafetyGuardTest,SandboxOrchestrationServiceTest test`
+    通过，`104` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `941` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `SandboxHost-gQKzmCwC.js`、`PatientPathways-MQN0rv6B.js`、
+    `PathwayTemplates-i8BHLzRr.js`、`RuntimeDiagnostics-DoBU59AJ.js`、`index-COU56ji3.js` 等前端产物。
+  - `/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -DskipTests package` 通过，生成
+    `medkernel-backend/target/medkernel-backend-1.0.0-SNAPSHOT.jar` 与 SBOM。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node scripts/audit/export-product-capabilities.mjs --check` 通过；
+    `node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check` 通过。
+  - 旧口径扫描：`rg -n "路径引擎" medkernel-backend/src/main/java medkernel-backend/src/test/java frontend/src docs --glob '!**/target/**'`
+    仅命中 `SandboxHost.test.tsx` 和 `RuntimeDiagnosticsControllerTest` 的反向断言；`rg -n "路径模板|临床路径模板|路径包、模板" ...`
+    仅命中 `_HANDOFF` 历史描述和测试反向断言，生产前台与后端公开契约无旧路径口径残留。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`；公网首页 HTTP 200，`Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，
+  `index.html` 指向 `/assets/index-DYTh-Ceu.js`、`/assets/index-XMjG4gr3.css`、
+  `/assets/vendor-data-D9EFEnEk.js`、`/assets/vendor-react-C5ap-Sga.css`、`/assets/vendor-react-bdrMx_IT.js`。
+  134 映射仍按当前已核定事实保持：后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `34bb45bc` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、菜单分布、构建门禁、134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-03 全视角真实前台体验优化第四十九批·菜单服务与临床路径前台口径收敛）
 
