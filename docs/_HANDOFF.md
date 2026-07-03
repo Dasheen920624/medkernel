@@ -11,9 +11,11 @@
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
 - 第四十二批已完成阶段交接提交为 `07b3fa907f7b83e5e34bf028fabad08f91442d93`
-  （`docs: 记录系统接入健康检查文案复演`）；第四十四批最新应用代码提交为
+  （`docs: 记录系统接入健康检查文案复演`）；第四十五批最新应用代码提交为
+  `54a5161befb248970bc24ab645ebf97b73bbcfbf`
+  （`fix: 收敛国产化适配自检权威文案`）。其前置本地提交包括第四十四批应用提交
   `b80735791243e989c1253ae94a19aa25fa289553`
-  （`fix: 优化全局菜单命名与顺序`）。其前置本地提交包括
+  （`fix: 优化全局菜单命名与顺序`）、
   `2068d35de48326bf442e79455fd2a9bc21dd5f5b`
   （`docs: 澄清前端发布证据映射`）、
   `0552b0c1f86c606efedd61538f50ddc671661210`
@@ -43,7 +45,7 @@
   第三十四批诊断知识技术版次默认展示收敛、第三十五批知识资产随访模板默认名收敛、第三十六批来源血缘版本沿革默认展示收敛，
   第三十七批审计摘要默认标识收敛、第三十八批审计导出记录默认标识收敛、第四十批默认可见低频标识清零，
   第四十一批模型外调核心标识遮蔽、第四十二批系统接入健康检查默认文案收敛、第四十三批知识生产工作区层级收敛，
-  以及第四十四批全局菜单命名与顺序收敛。
+  第四十四批全局菜单命名与顺序收敛，以及第四十五批国产化适配自检权威文案收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -64,7 +66,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `b80735791243e989c1253ae94a19aa25fa289553`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `54a5161befb248970bc24ab645ebf97b73bbcfbf`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -74,6 +76,47 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-03 全视角真实前台体验优化第四十五批·国产化适配自检权威文案收敛）
+
+- 本批接续第四十四批菜单命名收敛继续做权威口径复扫：应用主导航已统一，但
+  `PRODUCT_SCOPE`、`CONSTITUTION`、第三方集成指南和运行保障证据仍残留“发布治理”“术语与字典”“国产化自检”等旧入口/短名。
+  这些不是内部类名，而会影响后续接力、集成方阅读和运行保障报告，因此按当前医疗产品语言继续收敛。
+- 已本地提交 `54a5161befb248970bc24ab645ebf97b73bbcfbf`
+  （`fix: 收敛国产化适配自检权威文案`）：
+  - `docs/PRODUCT_SCOPE.md` 将六层能力中的“发布治理”收敛为“版本生效治理”，
+    将模型赋能矩阵“术语与字典”收敛为“术语字典”，将 S5/S6 场景名收敛为“临床规则 / 临床路径”，
+    将平台管理客户任务中的“国产化自检”收敛为“国产化适配自检”。
+  - `docs/CONSTITUTION.md` 入口承载规则同步“国产化适配自检”；`docs/contracts/integration/third-party-integration-guide.md`
+    将集成方可见的“术语与字典页面”同步为“术语字典页面”。
+  - `RuntimeProperties`、`RuntimeOperationsService`、`RuntimeOperationsController`、`application.yml`、
+    `application-govcloud.yml`、前端导出校验和相关测试同步“国产化适配自检报告 / 证据”。
+  - 保留“模型服务”“路径模板”“规则配置文本 / 路径配置文本”等仍有真实技术或受控配置含义的术语；
+    未对内部 API、互操作标准对象、数据模型或测试黑名单做破坏性改名。
+- 本地验证：
+  - `rg -n "发布治理|术语与字典|规则配置|路径配置|国产化自检" docs --glob '!docs/_HANDOFF.md'`
+    无命中。
+  - `rg -n "国产化自检" frontend/src medkernel-backend/src/main medkernel-backend/src/test docs --glob '!docs/_HANDOFF.md'`
+    无命中。
+  - `npm --prefix frontend test -- operationalControlPages.test.tsx SystemProviders.test.tsx SecurityBaseline.test.tsx hooks.test.ts`
+    通过，`4` 个测试文件 / `151` 项。
+  - `/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -Dtest=RuntimeOperationsServiceTest,RuntimeOperationsControllerTest test`
+    通过，`8` 项。
+  - `npm --prefix frontend run verify` 通过，`114` 个测试文件 / `939` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `/Users/zhikunzheng/local/apache-maven-3.9.9/bin/mvn -DskipTests package` 通过，生成
+    `medkernel-backend-1.0.0-SNAPSHOT.jar`。
+  - `node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`git diff --check` 通过。
+- 远端状态核查：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮读取核实
+  `origin/main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 公网首页
+  `https://193.112.107.134/medkernel/` HTTP 200，`Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`；
+  正确 readiness 路径 `https://193.112.107.134/medkernel/actuator/health/readiness` HTTP 200 /
+  `{"status":"UP"}`。134 仍是后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`；不要把本地 `54a5161b` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；下一轮继续从全角色真实前台、权威文档、测试构建、134 证据映射和最终远程收口
+  广度优先核查。若继续发现客户可见旧入口词，先判断是否为真实客户体验问题，再按最小上线级改动处理。
 
 ## 最新阶段交接（2026-07-03 全视角真实前台体验优化第四十四批·全局菜单命名与顺序收敛）
 
