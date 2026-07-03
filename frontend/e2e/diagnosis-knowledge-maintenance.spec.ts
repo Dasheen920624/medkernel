@@ -158,7 +158,7 @@ async function waitForPost(page: Page, path: string) {
 }
 
 async function clickDialogOk(dialog: ReturnType<Page["getByRole"]>) {
-  await dialog.getByRole("button", { name: /OK|确定/u }).click();
+  await dialog.getByRole("button", { name: /OK|确\s*定/u }).click();
 }
 
 function collectBrowserErrors(page: Page) {
