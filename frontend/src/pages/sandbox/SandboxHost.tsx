@@ -495,7 +495,7 @@ export default function SandboxHost() {
                 type="warning"
                 showIcon
                 message="机构生效版本未就绪"
-                description={runtimeStatus.reason || "演练机构尚未发布可用版本。"}
+                description={runtimeStatus.reason || "当前机构尚未发布可用版本。"}
               />
             )}
           {scenariosQuery.isError && (

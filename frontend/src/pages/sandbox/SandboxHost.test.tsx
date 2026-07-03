@@ -63,7 +63,7 @@ const scenarios = [
     playbook: "RULE_ONLY",
     triggerPoint: "order-sign",
     title: "抗菌药物处方复核",
-    narrative: "使用演练机构规则运行。",
+    narrative: "使用当前机构规则运行。",
     hostSummary: "院内业务系统处方复核",
     patientId: "patient-2",
     encounterId: "encounter-2",
@@ -284,7 +284,6 @@ describe("SandboxHost", () => {
       data: {
         ready: false,
         reasonCode: "SANDBOX_RUNTIME_BASELINE_MISSING",
-        reason: "演练机构尚未发布沙盘生效版本",
         targetOrgUnitId: "hospital-sandbox-1",
         assetCount: 0,
         externalSideEffects: false,
@@ -297,7 +296,8 @@ describe("SandboxHost", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /抗菌药物处方复核/ }));
 
-    expect(await screen.findByText(/演练机构尚未发布沙盘生效版本/)).toBeInTheDocument();
+    expect(await screen.findByText("当前机构尚未发布可用版本。")).toBeInTheDocument();
+    expect(screen.queryByText(/演练机构/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "运行真实引擎链路" })).not.toBeInTheDocument();
     expect(sandboxHookMocks.run).not.toHaveBeenCalled();
   });

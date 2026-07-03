@@ -7616,7 +7616,7 @@ COMMENT ON COLUMN mk_sandbox_run.created_at IS '创建时间';
 COMMENT ON COLUMN mk_sandbox_run.created_by IS '创建人';
 COMMENT ON COLUMN mk_sandbox_run.updated_at IS '更新时间';
 COMMENT ON COLUMN mk_sandbox_run.updated_by IS '更新人';
-COMMENT ON COLUMN mk_sandbox_run.replay_case_id IS 'HISTORICAL_EXACT 或 COMPARE 使用的演练机构历史重放清单标识';
+COMMENT ON COLUMN mk_sandbox_run.replay_case_id IS 'HISTORICAL_EXACT 或 COMPARE 使用的当前机构历史重放清单标识';
 COMMENT ON TABLE mk_security_bootstrap_init_token IS '首次部署一次性 init token：仅保存 SHA-256 摘要，用于全新生产环境安全接管';
 COMMENT ON COLUMN mk_security_bootstrap_init_token.id IS '数据库主键';
 COMMENT ON COLUMN mk_security_bootstrap_init_token.token_id IS '业务字段：token_id';

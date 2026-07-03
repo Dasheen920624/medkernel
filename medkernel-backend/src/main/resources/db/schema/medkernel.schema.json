@@ -28756,7 +28756,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "HISTORICAL_EXACT 或 COMPARE 使用的演练机构历史重放清单标识"
+          "comment": "HISTORICAL_EXACT 或 COMPARE 使用的当前机构历史重放清单标识"
         }
       ],
       "primaryKey": {

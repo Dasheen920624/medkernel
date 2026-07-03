@@ -66,7 +66,9 @@ class SandboxScenarioControllerSecurityTest {
             .andExpect(jsonPath("$.data[0].id").value("sbx-lab-critical-k"))
             .andExpect(jsonPath("$.data[0].input.kind").value("numeric"))
             .andExpect(jsonPath("$.data[0].input.defaultValue").isNumber())
-            .andExpect(jsonPath("$.data[0].input.upperReferenceValue").isNumber());
+            .andExpect(jsonPath("$.data[0].input.upperReferenceValue").isNumber())
+            .andExpect(jsonPath("$.data[0].statusReason")
+                .value("运行时按当前机构生效版本解析并校验资产；目录不固化机构生效版本"));
     }
 
     @Test
