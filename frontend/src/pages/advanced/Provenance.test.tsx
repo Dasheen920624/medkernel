@@ -264,9 +264,10 @@ describe("Provenance", () => {
     expect(mockUseKnowledgeProvenance).toHaveBeenCalledWith(1, { page: 1, size: 20 });
   });
 
-  it("默认隐藏版本沿革中的模型任务标识，证据详情才展示原始版次", async () => {
+  it("默认隐藏版本沿革中的技术版次和前台演练后缀，证据详情才展示原始版次", async () => {
     const user = userEvent.setup();
     const technicalVersionNo = "ai-draft-task-1fa4b8cd6f454241a2b0e8225918c455";
+    const rehearsalVersionNo = "frontdesk-mr4azc3b";
     mockUseKnowledgeReviewQueue.mockReturnValue({
       data: {
         items: [],
@@ -326,6 +327,17 @@ describe("Provenance", () => {
               gradeQuality: "HIGH",
               effectiveFrom: "2026-06-29T07:55:00Z",
             },
+            {
+              id: 21,
+              tenantId: "t-1",
+              identityId: 1,
+              versionNo: rehearsalVersionNo,
+              versionLabel: rehearsalVersionNo,
+              status: "CANDIDATE",
+              authorityLevel: "B_EXPERT_CONSENSUS",
+              gradeQuality: "MEDIUM",
+              effectiveFrom: "2026-06-20T07:55:00Z",
+            },
           ],
           page: 1,
           size: 20,
@@ -353,11 +365,14 @@ describe("Provenance", () => {
     renderPage();
 
     expect(screen.getAllByText("当前权威版本").length).toBeGreaterThan(0);
-    expect(screen.getByText("版本来源已记录")).toBeInTheDocument();
+    expect(screen.getByText("候选版本")).toBeInTheDocument();
+    expect(screen.getAllByText("版本来源已记录").length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByText(/ai-draft-task/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/frontdesk-mr4azc3b/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("switch", { name: "证据详情" }));
 
     expect(screen.getAllByText(new RegExp(technicalVersionNo)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(new RegExp(rehearsalVersionNo)).length).toBeGreaterThan(0);
   });
 });

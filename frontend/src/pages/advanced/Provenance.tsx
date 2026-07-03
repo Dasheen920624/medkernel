@@ -76,6 +76,7 @@ const route = findRouteByPath("/advanced/provenance");
 const TECHNICAL_VERSION_LABEL_PATTERNS = [
   /^ai-draft-task-[a-z0-9-]+$/i,
   /^model-task-[a-z0-9-]+$/i,
+  /^(?:patient_proxy|real_frontdesk|stakeholder|frontdesk)-[a-z0-9]+$/i,
   /^[0-9a-f]{32,}$/i,
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
 ];
