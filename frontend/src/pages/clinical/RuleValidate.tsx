@@ -400,7 +400,7 @@ export default function RuleValidate() {
   return (
     <PageShell
       title="规则试运行"
-      description="向规则引擎输入真实脱敏上下文，实时观测匹配命中情况，进行可信解释与归因追溯。"
+      description="使用真实脱敏上下文试运行临床规则，实时查看命中情况、可信解释与归因追溯。"
       extras={
         <Space size="small">
           <Tooltip title="展开审计追溯、原始标识和受控诊断字段">

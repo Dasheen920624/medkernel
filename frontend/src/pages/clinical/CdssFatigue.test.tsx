@@ -486,6 +486,12 @@ describe("CdssFatigue", () => {
 
       await user.click(screen.getByRole("button", { name: /登记触发评估/ }));
       expect(screen.queryByLabelText(/上下文 JSON/)).not.toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "提醒与推荐将读取所选已生效临床快照，执行已激活临床规则与安全红线；模型不可用时保持确定性规则链路。",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/推荐引擎/)).not.toBeInTheDocument();
       await user.type(screen.getByLabelText("患者信息"), "patient-real-1");
       await user.click(screen.getByRole("button", { name: "选择第 1 个临床快照" }));
       await user.click(screen.getByLabelText("触发时点"));
@@ -591,6 +597,8 @@ describe("CdssFatigue", () => {
     expect(await screen.findByText("这条推荐是怎么来的")).toBeInTheDocument();
     expect(screen.getAllByText("触发事件").length).toBeGreaterThan(0);
     expect(screen.getAllByText("命中规则").length).toBeGreaterThan(0);
+    expect(screen.getByText("临床规则与安全红线给出风险级别和推荐动作。")).toBeInTheDocument();
+    expect(screen.queryByText(/规则引擎/)).not.toBeInTheDocument();
     expect(screen.getAllByText("知识来源").length).toBeGreaterThan(0);
     expect(
       screen.getAllByText("该卡片暂未返回来源解释，暂不展示来源证据。").length,

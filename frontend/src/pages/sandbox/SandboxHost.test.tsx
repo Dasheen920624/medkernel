@@ -329,6 +329,14 @@ describe("SandboxHost", () => {
     expect(screen.queryByText("路径引擎")).not.toBeInTheDocument();
   });
 
+  it("uses clinical rule wording instead of engine module terminology", () => {
+    renderSandboxHost();
+    fireEvent.click(screen.getByRole("button", { name: /抗菌药物处方复核/ }));
+
+    expect(screen.getByText("临床规则")).toBeInTheDocument();
+    expect(screen.queryByText("规则引擎")).not.toBeInTheDocument();
+  });
+
   it("uses hospital-facing collaboration wording for orchestration scenarios", () => {
     renderSandboxHost();
     fireEvent.click(screen.getByRole("button", { name: /推荐综合卡/ }));
@@ -405,7 +413,7 @@ describe("SandboxHost", () => {
     renderSandboxHost();
     fireEvent.click(screen.getByRole("button", { name: /推荐综合卡/ }));
     expect(screen.getByText("推荐综合卡编排")).toBeInTheDocument();
-    expect(screen.getByText("智能推荐")).toBeInTheDocument();
+    expect(screen.getByText("提醒与推荐")).toBeInTheDocument();
     expect(screen.queryByText("RECOMMENDATION_COMPOSITE")).not.toBeInTheDocument();
     expect(screen.queryByText("recommendation")).not.toBeInTheDocument();
 

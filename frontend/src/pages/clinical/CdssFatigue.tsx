@@ -362,7 +362,7 @@ function getRecommendationJourneySteps(
       status: evidenceDetailsEnabled
         ? textOrDash(diagnose?.ruleId || detail.card.cardCode || detail.card.fatigueKey)
         : riskLabel(detail.card.riskLevel),
-      description: "规则引擎与红线检查给出风险级别和推荐动作。",
+      description: "临床规则与安全红线给出风险级别和推荐动作。",
       evidence: evidenceDetailsEnabled
         ? diagnose?.explanationSnapshot || detail.card.summary
         : undefined,
@@ -1027,7 +1027,7 @@ export default function CdssFatigue() {
           message={
             triggerModalMode === "REPORT_INTERPRETATION"
               ? "系统将读取所选已生效临床快照中的医技报告，并按机构生效版本生成辅助解读；不会改写已签发报告，也不会自动开立医嘱。"
-              : "推荐引擎将读取所选已生效临床快照，执行已激活规则与红线检查；模型不可用时保持确定性规则链路。"
+              : "提醒与推荐将读取所选已生效临床快照，执行已激活临床规则与安全红线；模型不可用时保持确定性规则链路。"
           }
           type="info"
           showIcon

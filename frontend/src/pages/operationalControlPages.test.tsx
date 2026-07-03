@@ -317,7 +317,7 @@ const runtimeDiagnosticsContracts: RuntimeDiagnosticsApiContractDirectory = {
     },
     {
       id: "rule",
-      title: "规则引擎服务",
+      title: "临床规则服务",
       basePath: "/api/v1/engine/rule",
       openApiPaths: ["/api/v1/engine/rule/**"],
       permissions: [{ code: "rule.publish", dimension: "ACTION", purpose: "发布规则" }],

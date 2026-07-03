@@ -171,6 +171,10 @@ describe("RuleValidate", () => {
     const user = userEvent.setup();
     renderRuleValidate();
 
+    expect(
+      screen.getByText("使用真实脱敏上下文试运行临床规则，实时查看命中情况、可信解释与归因追溯。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/规则引擎/)).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "触发时点" })).toBeInTheDocument();
     expect(screen.getByText("签署医嘱")).toBeInTheDocument();
 

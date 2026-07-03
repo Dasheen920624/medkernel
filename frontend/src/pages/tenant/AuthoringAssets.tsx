@@ -295,7 +295,7 @@ export default function AuthoringAssets() {
   return (
     <PageShell
       title="统一资产库"
-      description="检索、收藏、维护和复用全部引擎资产"
+      description="检索、收藏、维护和复用医疗知识与配置资产"
       extras={<EvidenceDetailsToggle securityProfile={security.data} />}
     >
       <Tabs

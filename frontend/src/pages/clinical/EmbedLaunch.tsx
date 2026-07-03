@@ -307,7 +307,7 @@ export default function EmbedLaunch() {
               }
             />
             <div className={styles.helperText}>
-              请确认推荐引擎已为当前就诊生成有效建议，或返回工作站重新触发。
+              请确认提醒与推荐已为当前就诊生成有效建议，或返回工作站重新触发。
             </div>
           </div>
         )}

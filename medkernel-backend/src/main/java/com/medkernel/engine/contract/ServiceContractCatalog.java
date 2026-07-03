@@ -515,7 +515,7 @@ public final class ServiceContractCatalog {
             "/api/v1/engine/cds-hooks:evaluate",
             permissions("recommendation.accept"),
             audits(audit(AuditAction.EXECUTE, "recommendation_trigger", "开医嘱实时 CDS 求值"))),
-        contract("rule", "规则引擎服务",
+        contract("rule", "临床规则服务",
             "com.medkernel.engine.rule.RuleEngineController", "/api/v1/engine/rule",
             permissions("rule.write", "rule.read", "rule.publish", "rule.override"),
             audits(

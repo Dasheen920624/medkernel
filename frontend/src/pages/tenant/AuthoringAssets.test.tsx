@@ -109,6 +109,8 @@ describe("AuthoringAssets", () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "统一资产库" })).toBeInTheDocument();
+    expect(screen.getByText("检索、收藏、维护和复用医疗知识与配置资产")).toBeInTheDocument();
+    expect(screen.queryByText(/引擎资产/)).not.toBeInTheDocument();
     expect(screen.getByText("CKD 临床路径")).toBeInTheDocument();
     expect(screen.getByText("路径资产已登记")).toBeInTheDocument();
     expect(screen.queryByText("PATH.CKD")).not.toBeInTheDocument();

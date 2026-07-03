@@ -41,7 +41,7 @@ public record RuleApiContext(
             errors.add(new ApiError("role_codes", "NotEmpty", "标准上下文 role_codes 不能为空"));
         }
         if (!errors.isEmpty()) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "规则引擎 API 缺少统一入参字段", errors, null);
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "临床规则 API 缺少统一入参字段", errors, null);
         }
         if (currentTenantId != null && !currentTenantId.isBlank() && !currentTenantId.equals(tenantId)) {
             throw new ApiException(ErrorCode.ORG_SCOPE_DENIED, "请求租户与当前会话租户不一致");
