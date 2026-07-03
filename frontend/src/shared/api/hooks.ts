@@ -84,7 +84,6 @@ type StandardApiContextFields = {
   campus_id?: string | null;
   site_id?: string | null;
   department_id?: string | null;
-  ward_id?: string | null;
   specialty_id?: string | null;
   user_id: string;
   role_codes: string[];
@@ -109,7 +108,6 @@ function standardApiContext(profile: SecurityProfile | undefined): StandardApiCo
     campus_id: profile.dataScope.campusId,
     site_id: profile.dataScope.siteId,
     department_id: profile.dataScope.departmentId,
-    ward_id: profile.dataScope.wardId,
     specialty_id: profile.dataScope.specialtyId,
     user_id: profile.userId,
     role_codes: roleCodes,
@@ -6845,6 +6843,7 @@ function frontdeskSnapshotRequest(
       patientId: payload.patient.mpiId,
       encounterId,
       orgUnitId,
+      ward_id: profile?.dataScope?.wardId ?? null,
       resources: {
         patient: {
           mpi: payload.patient.mpiId,

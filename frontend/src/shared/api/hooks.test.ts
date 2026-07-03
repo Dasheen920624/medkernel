@@ -2970,7 +2970,12 @@ describe("mpi api helpers", () => {
       },
     });
 
-    const createHook = renderApiHook(() => useCreateContextSnapshot(securityProfile()));
+    const wardScopedProfile = securityProfile();
+    wardScopedProfile.dataScope.wardId = "ward-A";
+    const createHook = renderApiHook(
+      () => useCreateContextSnapshot(wardScopedProfile),
+      wardScopedProfile,
+    );
 
     await act(async () => {
       await createHook.result.current.mutateAsync({
@@ -2997,6 +3002,8 @@ describe("mpi api helpers", () => {
     });
 
     const requestBody = vi.mocked(apiClient.post).mock.calls[0]?.[1] as {
+      ward_id?: string | null;
+      orgUnitId?: string;
       resources?: {
         medications?: Array<{ code?: string; displayName?: string; prescriptionStatus?: string }>;
         claims?: Array<{
@@ -3030,6 +3037,8 @@ describe("mpi api helpers", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/engine/context/snapshots", expect.any(Object), {
       headers: { "Idempotency-Key": "context-snapshot-med-1" },
     });
+    expect(requestBody.ward_id).toBe("ward-A");
+    expect(requestBody.orgUnitId).toBe("ward-A");
     expect(requestBody.resources?.medications).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -3125,7 +3134,9 @@ describe("terminology mapping api helpers", () => {
       },
     });
 
-    const register = renderApiHook(() => useRegisterStandardTerm());
+    const wardScopedProfile = securityProfile();
+    wardScopedProfile.dataScope.wardId = "ward-A";
+    const register = renderApiHook(() => useRegisterStandardTerm(), wardScopedProfile);
     const term = await register.result.current.mutateAsync({
       standardSystem: "TERM.LAB",
       termCode: "TERM.LAB.FRONTDESK.K",
@@ -3137,6 +3148,8 @@ describe("terminology mapping api helpers", () => {
     });
 
     expect(term.status).toBe("ACTIVE");
+    const requestBody = vi.mocked(apiClient.post).mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(requestBody).not.toHaveProperty("ward_id");
     expect(apiClient.post).toHaveBeenCalledWith(
       "/engine/terminology/terms/standard",
       expect.objectContaining({
