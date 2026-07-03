@@ -11,9 +11,11 @@
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
 - 第三十九批已完成阶段交接提交为 `3453078c92c993df950a499e1da14ca89bd671d4`
-  （`docs: 记录诊断知识前台产数闭环`）；第四十一批最新应用代码提交为
+  （`docs: 记录诊断知识前台产数闭环`）；第四十二批最新应用代码提交为
+  `2dbd668fde81540a4fc19ce9acd38b931cf7c2d2`
+  （`fix: 收敛系统接入健康检查默认文案`），其前置第四十一批应用提交
   `3ddd979b3151e3eb1d40712e76b513e4cdce260c`
-  （`fix: 强化模型外调核心标识遮蔽`），其前置第四十批应用提交
+  （`fix: 强化模型外调核心标识遮蔽`）、第四十批应用提交
   `8889efc754b6c192708ddb118a5b9fa7d03cb28e`
   （`fix: 隐藏来源血缘演练版次标识`）和前置应用提交
   `70a0925cda2b642665ac930396c2d1e3eec06db1`
@@ -30,28 +32,28 @@
   第三十一批随访模板演练批次默认展示收敛、第三十二批临床提醒采纳率口径收敛、第三十三批人员详情抽屉证据稳定性，
   第三十四批诊断知识技术版次默认展示收敛、第三十五批知识资产随访模板默认名收敛、第三十六批来源血缘版本沿革默认展示收敛，
   第三十七批审计摘要默认标识收敛、第三十八批审计导出记录默认标识收敛、第四十批默认可见低频标识清零，
-  以及第四十一批模型外调核心标识遮蔽。
-- 134 当前后端/JAR 与前端 dist 已全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
+  第四十一批模型外调核心标识遮蔽，以及第四十二批系统接入健康检查默认文案收敛。
+- 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
   `source=3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
   `commit=3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
   `deployedAt=2026-07-03T12:38:13+08:00`、
   `jarSha256=37da0f4b8d42e040408ab530714f68228e8060a21f6690146d8cb58126ca96ec`；readiness HTTP 200 /
-  `{"status":"UP"}`，服务 `active/enabled`、`MainPID=3529053`、`NRestarts=0`。
-- 134 当前前端 dist 同步来自 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`，发布脚本记录 `279` 个 dist 文件；
-  外部 `index.html` 指向 `/assets/index-BncdEiiY.js`，关键 chunk 均已外部 HTTPS 入口 HTTP 200：
-  `/assets/AiWorkflows-CCyQ-Uj6.js`、`/assets/DiagnosisKnowledgeMaintenance-C-32OJv0.js`、
-  `/assets/TerminologyMapping-DBXa5VBu.js`、`/assets/AdminAudit-D9bSrb46.js`、
-  `/assets/Provenance-jJCIbbSY.js`。
+  `{"status":"UP"}`，服务 `active/enabled`、最近一次前端-only 发布后 `MainPID=3572266`、`NRestarts=0`。
+- 134 当前前端 dist 来自 `2dbd668fde81540a4fc19ce9acd38b931cf7c2d2` 的前端-only 发布；命令为
+  `deploy/onprem/mk-publish.sh --frontend --source 2dbd668fde81540a4fc19ce9acd38b931cf7c2d2`，远端备份
+  `/zoesoft/medkernel/backups/deploy-20260703-135615`。这是前端-only 发布，后端 manifest/JAR 继续记录
+  `3ddd979b3151e3eb1d40712e76b513e4cdce260c` 是正确状态，不要误判为前端未更新。外部 `index.html` 指向
+  `/assets/index-DQOxo0OJ.js`，`/assets/AdapterHub-Dx-tUxAO.js` HTTP 200 / `41243` 字节。
 - 134 对外 E2E 入口使用 `https://193.112.107.134/medkernel` 与
   `https://193.112.107.134/medkernel/api/v1`，当前证书按现场自签/非可信处理，Playwright 需带
   `E2E_IGNORE_HTTPS_ERRORS=1`。后端 `18080` 只监听 `127.0.0.1`，不要从外网使用
   `http://193.112.107.134:18080` 作为演练入口。
-- 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 后端 manifest
-  与前端 dist 已重新统一到 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`，不要继续沿用旧的 `ef662ced` /
-  `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；当前本地分支仍只本地提交，
+- 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
+  “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`2dbd668fde81540a4fc19ce9acd38b931cf7c2d2`”，
+  不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
+- 当前应用代码最新提交为 `2dbd668fde81540a4fc19ce9acd38b931cf7c2d2`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -61,6 +63,51 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-03 全视角真实前台体验优化第四十二批·系统接入健康检查默认文案收敛）
+
+- 本批继续按原始产品目标和权威文档全局判断：不因“诊断知识维护/知识治理是否怪”的疑问拆出第二套知识系统；
+  也不恢复旧式“专家模式”。在 134 复演、页面截图和同口径可见文本扫描后，真实可优化点落在 `/adapter/hub`：
+  信息科长与实施工程师默认视角仍看到 `RTT`、`最近探活/探活事实` 等工程排障词，容易把系统接入工作台误读为技术日志页。
+  `HTTP`、`FHIR`、`Webhook`、`WebService`、`REST` 属于系统接入契约必要术语，本批保留。
+- 已本地提交 `2dbd668fde81540a4fc19ce9acd38b931cf7c2d2`
+  （`fix: 收敛系统接入健康检查默认文案`）：
+  - `frontend/src/pages/tenant/AdapterHub.tsx` 将默认表格、连通性结果、质量报告空态和字段映射面板里的
+    `RTT` / `最近探活` / `探活事实` 收敛为 `响应耗时` / `最近健康检查` / `健康检查事实`；
+    连接状态说明改为“实时健康检查”，保留协议名和高级证据字段。
+  - `frontend/src/pages/tenant/AdapterHub.test.tsx` 增加红绿断言：默认工作台必须出现“响应耗时”“最近健康检查”，
+    且不再出现 `RTT`、`最近探活`。
+- 本地验证：
+  - 目标测试先红灯：`npm --prefix frontend test -- AdapterHub.test.tsx -t "renders the unified adapter workspace"`
+    在旧实现下找不到“响应耗时”；修复后同命令通过。
+  - `npm --prefix frontend test -- AdapterHub.test.tsx` 通过，`22` 项。
+  - `npm --prefix frontend run verify` 通过，`114` 个测试文件 / `938` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `/assets/index-DQOxo0OJ.js` 与
+    `/assets/AdapterHub-Dx-tUxAO.js`。
+  - `git diff --check` 通过。
+- 134 前端-only 发布与验证：
+  - 已执行 `deploy/onprem/mk-publish.sh --frontend --source 2dbd668fde81540a4fc19ce9acd38b931cf7c2d2`；
+    远端备份 `/zoesoft/medkernel/backups/deploy-20260703-135615`。本次只更新前端 dist，后端/JAR manifest 保持
+    `3ddd979b3151e3eb1d40712e76b513e4cdce260c` 与 jar 指纹
+    `37da0f4b8d42e040408ab530714f68228e8060a21f6690146d8cb58126ca96ec`。
+  - 远端服务 `active/enabled`、`MainPID=3572266`、`NRestarts=0`；公网 readiness HTTP 200 /
+    `{"status":"UP"}`。外部 `index.html` `Last-Modified=Fri, 03 Jul 2026 05:56:08 GMT`，指向
+    `/assets/index-DQOxo0OJ.js`；`/assets/AdapterHub-Dx-tUxAO.js` HTTP 200 / `41243` 字节。
+- 134 真实前台复演与扫描回证：
+  - 直连 `/adapter/hub` 页面文本检查确认 `hasResponseDuration=true`、`hasLatestHealthCheck=true`、
+    `hasRtt=false`、`hasOldProbeText=false`。
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-stakeholder-full-actions-2dbd668f`
+    通过 134 HTTPS 入站运行 `stakeholder-view-rehearsal.spec.ts --project=chromium`，`1 passed (1.4m)`；
+    report stats 为 `expected=1`、`skipped=0`、`unexpected=0`、`flaky=0`、`duration=82105.601ms`。
+    十二类业务视角运行记录均无浏览器错误、HTTP 错误、网络失败；信息科长与实施工程师均完成系统接入数据质量报告生成动作。
+  - 可见文本扫描 `/tmp/medkernel-e2e-codex3/visible-technical-scan-2dbd668f.json` 覆盖 `16` 个页面，
+    `completed=16`、`pagesWithErrors=0`、`pagesWithMatches=0`、`unacceptedMatches=0`；仅 `/adapter/hub`
+    命中 `HTTP`、`FHIR`、`Webhook`、`WebService`、`REST` 五个已接受协议术语。
+- 后续继续主线全局体验优化：第四十二批只是系统接入默认语言的一处真实收敛，不代表长目标完成。下一轮继续深读
+  `PRODUCT_SCOPE`、功能目录、职责矩阵和现有真实复演证据，从知识生产/治理是否覆盖全链路核心知识、模型公网/院内双模式、
+  医患护药技质控医保信息实施院长等角色体验、迁移、文档、构建和部署证据继续广度优先核查；用户问题只作为线索，
+  不片面推翻已符合原始诉求的设计。
 
 ## 最新阶段交接（2026-07-03 全视角真实前台体验优化第四十一批·模型外调核心标识遮蔽与134全量复演）
 
