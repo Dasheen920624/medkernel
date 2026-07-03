@@ -781,7 +781,7 @@ export function useRebuildProjection() {
 // ──────────────────────────────────────────
 const TERMINOLOGY_API_ROOT = "/engine/terminology";
 
-type TermCategory =
+export type TermCategory =
   | "DIAGNOSIS"
   | "PROCEDURE"
   | "DRUG"
@@ -811,6 +811,17 @@ export interface StandardTerm {
   createdBy?: string;
   updatedAt?: string;
   updatedBy?: string;
+}
+
+export interface StandardTermRegistrationPayload {
+  standardSystem: string;
+  termCode: string;
+  category: TermCategory;
+  displayName: string;
+  normalizedName?: string;
+  versionNo: string;
+  sourceVersionId?: number | null;
+  evidenceText?: string;
 }
 
 export interface LocalTerm {
@@ -2495,6 +2506,23 @@ export function useStandardTerms(params: StandardTermsParams = {}) {
         { params: requestParams },
       );
       return data.data;
+    },
+  });
+}
+
+export function useRegisterStandardTerm() {
+  const security = useSecurityProfile();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: StandardTermRegistrationPayload) => {
+      const { data } = await apiClient.post<{ data: StandardTerm }>(
+        `${TERMINOLOGY_API_ROOT}/terms/standard`,
+        withStandardApiContext(payload, security.data),
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["terminology", "standard-terms"] });
     },
   });
 }

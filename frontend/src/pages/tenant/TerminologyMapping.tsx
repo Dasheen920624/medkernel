@@ -18,7 +18,12 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { CheckCircleOutlined, SafetyCertificateOutlined, SyncOutlined } from "@ant-design/icons";
+import {
+  CheckCircleOutlined,
+  PlusCircleOutlined,
+  SafetyCertificateOutlined,
+  SyncOutlined,
+} from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 
 import {
@@ -30,6 +35,7 @@ import {
   useLargeListExportJob,
   useLocalTerms,
   useRejectTerminologyCandidate,
+  useRegisterStandardTerm,
   useResolveTerminologyConflict,
   useSaveView,
   useSavedViews,
@@ -42,11 +48,13 @@ import {
   useTerminologyMappings,
   type MappingConflict,
   type SecurityProfile,
+  type StandardTermRegistrationPayload,
   type TermMapping,
   type TermMappingCandidate,
 } from "@/shared/api/hooks";
 import { getApiErrorMessage } from "@/shared/api/errors";
 import { canAccessRoute, findRouteByPath } from "@/shared/config/routes";
+import { TERM_CATEGORY_OPTIONS } from "@/shared/config/terminology";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { AsyncExportAction } from "@/shared/ui/AsyncExportAction";
 import { EvidenceDetailDrawer, type EvidenceDetailSection } from "@/shared/ui/EvidenceDetailDrawer";
@@ -296,11 +304,13 @@ export default function TerminologyMapping() {
   const [conflictOpen, setConflictOpen] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
   const [lastGenerationJobCode, setLastGenerationJobCode] = useState<string>();
+  const [standardTermOpen, setStandardTermOpen] = useState(false);
   const [buildOpen, setBuildOpen] = useState(false);
   const [confirmForm] = Form.useForm();
   const [rejectForm] = Form.useForm();
   const [conflictForm] = Form.useForm();
   const [generateForm] = Form.useForm();
+  const [standardTermForm] = Form.useForm<StandardTermRegistrationPayload>();
   const [buildForm] = Form.useForm();
 
   const security = useSecurityProfile();
@@ -336,6 +346,7 @@ export default function TerminologyMapping() {
   const generateCandidates = useGenerateTerminologyCandidates();
   const generationJob = useTerminologyCandidateGenerationJob(lastGenerationJobCode);
   const batchConfirmCandidates = useBatchConfirmTerminologyCandidates();
+  const registerStandardTerm = useRegisterStandardTerm();
   const createAssetDraft = useCreateTerminologyAssetDraft();
 
   useEffect(() => {
@@ -627,6 +638,42 @@ export default function TerminologyMapping() {
     setGenerateOpen(true);
   }
 
+  function openRegisterStandardTerm() {
+    standardTermForm.setFieldsValue({
+      standardSystem: "TERM.LAB",
+      category: "LAB",
+      versionNo: "2026.07",
+    });
+    setStandardTermOpen(true);
+  }
+
+  async function submitStandardTermRegistration() {
+    let values: StandardTermRegistrationPayload;
+    try {
+      values = await standardTermForm.validateFields();
+    } catch {
+      return;
+    }
+    const displayName = values.displayName.trim();
+    try {
+      const term = await registerStandardTerm.mutateAsync({
+        standardSystem: values.standardSystem.trim(),
+        termCode: values.termCode.trim(),
+        category: values.category,
+        displayName,
+        normalizedName: values.normalizedName?.trim() || displayName,
+        versionNo: values.versionNo.trim(),
+        evidenceText: values.evidenceText?.trim() || undefined,
+      });
+      message.success(`标准术语 ${term.displayName} 已登记`);
+      setStandardTermOpen(false);
+      standardTermForm.resetFields();
+      void standardTerms.refetch();
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "标准术语登记失败，请核对编码、版本和权限"));
+    }
+  }
+
   async function submitCandidateGeneration() {
     let values: {
       sourceSystem: string;
@@ -726,6 +773,14 @@ export default function TerminologyMapping() {
             onSubmit={submitExport.mutateAsync}
             onPoll={pollExport.mutateAsync}
           />
+          <Button
+            aria-label="登记标准术语"
+            icon={<PlusCircleOutlined aria-hidden="true" />}
+            disabled={!canWrite}
+            onClick={openRegisterStandardTerm}
+          >
+            登记标准术语
+          </Button>
           <Button
             aria-label="生成候选"
             icon={<SyncOutlined aria-hidden="true" />}
@@ -1015,6 +1070,65 @@ export default function TerminologyMapping() {
           </Form.Item>
           <Form.Item name="semanticAssistEnabled" valuePropName="checked">
             <Checkbox>启用语义辅助</Checkbox>
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title="登记标准术语"
+        open={standardTermOpen}
+        onCancel={() => setStandardTermOpen(false)}
+        onOk={() => void submitStandardTermRegistration()}
+        okText="提交登记"
+        destroyOnClose
+      >
+        <Form form={standardTermForm} layout="vertical" preserve={false}>
+          <Alert
+            type="info"
+            showIcon
+            className={styles.sectionAlert}
+            message="登记后可被规则、路径和诊断标准引用"
+            description="同一标准体系、编码和版本重复提交时按幂等更新处理，不生成重复标准码。"
+          />
+          <Form.Item
+            name="standardSystem"
+            label="标准体系"
+            rules={[{ required: true, whitespace: true, message: "请输入标准体系" }]}
+          >
+            <Input maxLength={64} />
+          </Form.Item>
+          <Form.Item
+            name="termCode"
+            label="标准编码"
+            rules={[{ required: true, whitespace: true, message: "请输入标准编码" }]}
+          >
+            <Input maxLength={128} />
+          </Form.Item>
+          <Form.Item name="category" label="术语类别" rules={[{ required: true }]}>
+            <Select options={TERM_CATEGORY_OPTIONS} />
+          </Form.Item>
+          <Form.Item
+            name="displayName"
+            label="标准名称"
+            rules={[{ required: true, whitespace: true, message: "请输入标准名称" }]}
+          >
+            <Input maxLength={255} />
+          </Form.Item>
+          <Form.Item name="normalizedName" label="规范名称">
+            <Input maxLength={512} placeholder="不填时使用标准名称" />
+          </Form.Item>
+          <Form.Item
+            name="versionNo"
+            label="版本号"
+            rules={[{ required: true, whitespace: true, message: "请输入版本号" }]}
+          >
+            <Input maxLength={64} />
+          </Form.Item>
+          <Form.Item
+            name="evidenceText"
+            label="依据说明"
+            rules={[{ required: true, whitespace: true, message: "请输入依据说明" }]}
+          >
+            <Input.TextArea rows={3} maxLength={1024} />
           </Form.Item>
         </Form>
       </Modal>

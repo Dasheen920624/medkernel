@@ -11,6 +11,7 @@ import {
   useLargeListExportJob,
   useLocalTerms,
   useRejectTerminologyCandidate,
+  useRegisterStandardTerm,
   useResolveTerminologyConflict,
   useSaveView,
   useSavedViews,
@@ -44,6 +45,7 @@ vi.mock("@/shared/api/hooks", () => ({
   useLargeListExportJob: vi.fn(),
   useLocalTerms: vi.fn(),
   useRejectTerminologyCandidate: vi.fn(),
+  useRegisterStandardTerm: vi.fn(),
   useResolveTerminologyConflict: vi.fn(),
   useSaveView: vi.fn(),
   useSavedViews: vi.fn(),
@@ -272,6 +274,7 @@ function configureQuery(
   } as never);
   vi.mocked(useConfirmTerminologyCandidate).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useRejectTerminologyCandidate).mockReturnValue({ mutateAsync: vi.fn() } as never);
+  vi.mocked(useRegisterStandardTerm).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useResolveTerminologyConflict).mockReturnValue({ mutateAsync: vi.fn() } as never);
   vi.mocked(useBatchConfirmTerminologyCandidates).mockReturnValue({
     mutateAsync: vi.fn(),
@@ -358,6 +361,45 @@ describe("TerminologyMapping", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "查看 1" }));
     expect(screen.getByText("实施核查证据")).toBeInTheDocument();
+  });
+
+  it("registers a standard terminology entry from the standard dictionary workspace", async () => {
+    const register = vi.fn().mockResolvedValue({
+      ...standardTerm,
+      standardSystem: "TERM.LAB",
+      termCode: "TERM.LAB.FRONTDESK.K",
+      displayName: "前台演练血钾",
+      versionNo: "2026.07",
+    });
+    const refetch = vi.fn();
+    vi.mocked(useRegisterStandardTerm).mockReturnValue({ mutateAsync: register } as never);
+    vi.mocked(useStandardTerms).mockReturnValue({
+      data: pageData([]),
+      isLoading: false,
+      isError: false,
+      refetch,
+    } as never);
+
+    renderPage();
+    await userEvent.click(screen.getByRole("button", { name: "登记标准术语" }));
+    await userEvent.clear(screen.getByLabelText("标准体系"));
+    await userEvent.type(screen.getByLabelText("标准体系"), "TERM.LAB");
+    await userEvent.type(screen.getByLabelText("标准编码"), "TERM.LAB.FRONTDESK.K");
+    await userEvent.type(screen.getByLabelText("标准名称"), "前台演练血钾");
+    await userEvent.type(screen.getByLabelText("依据说明"), "上线演练登记标准术语");
+    await userEvent.click(screen.getByRole("button", { name: "提交登记" }));
+
+    expect(register).toHaveBeenCalledWith({
+      standardSystem: "TERM.LAB",
+      termCode: "TERM.LAB.FRONTDESK.K",
+      category: "LAB",
+      displayName: "前台演练血钾",
+      normalizedName: "前台演练血钾",
+      versionNo: "2026.07",
+      evidenceText: "上线演练登记标准术语",
+    });
+    expect(refetch).toHaveBeenCalled();
+    expect(await screen.findByText(/标准术语 前台演练血钾 已登记/)).toBeInTheDocument();
   });
 
   it("starts and tracks candidate generation without a package version", async () => {

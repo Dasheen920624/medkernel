@@ -22,6 +22,7 @@ const hooks = vi.hoisted(() => ({
   useAddDiagnosisCarePointer: vi.fn(),
   useAddDiagnosisTestCase: vi.fn(),
   usePublishDiagnosis: vi.fn(),
+  useStandardTerms: vi.fn(),
 }));
 
 vi.mock("@/shared/api/hooks", () => hooks);
@@ -95,6 +96,24 @@ beforeEach(() => {
   hooks.useDiagnosisDifferentials.mockReturnValue(query([]));
   hooks.useDiagnosisCarePointers.mockReturnValue(query([]));
   hooks.useDiagnosisTestCases.mockReturnValue(query([]));
+  hooks.useStandardTerms.mockReturnValue(
+    query({
+      items: [
+        {
+          id: 88,
+          tenantId: "tenant-1",
+          standardSystem: "TERM.LAB",
+          termCode: "TERM.LAB.FRONTDESK.K",
+          category: "LAB",
+          displayName: "前台演练血钾",
+          normalizedName: "前台演练血钾",
+          versionNo: "2026.07",
+          status: "ACTIVE",
+        },
+      ],
+      total: 1,
+    }),
+  );
   hooks.useSecurityProfile.mockReturnValue(
     query({
       dataScope: { tenantId: "tenant-a" },
@@ -583,5 +602,27 @@ describe("DiagnosisKnowledgePanel", () => {
     expect(screen.getByText("多个标准发现项身份使用英文逗号分隔")).toBeInTheDocument();
     expect(screen.queryByText("病例编码")).not.toBeInTheDocument();
     expect(screen.queryByText("发现项编码")).not.toBeInTheDocument();
+  });
+
+  it("offers active standard terminology choices when operators add criteria", async () => {
+    const user = userEvent.setup();
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([editableVersion])));
+
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: /新增标准/ }));
+
+    expect(hooks.useStandardTerms).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "ACTIVE",
+        keyword: undefined,
+        page: 1,
+        size: 50,
+      }),
+    );
+    await user.click(screen.getByRole("combobox", { name: "标准发现项身份" }));
+    expect(screen.getByText("前台演练血钾")).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("如 EGFR_LOW，用于稳定追溯该发现项"),
+    ).not.toBeInTheDocument();
   });
 });

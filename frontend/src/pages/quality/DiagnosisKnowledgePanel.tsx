@@ -41,6 +41,7 @@ import {
   usePublishDiagnosis,
   useRuleDefinitions,
   useSecurityProfile,
+  useStandardTerms,
   type DiagnosisAssetCreatePayload,
   type DiagnosisCarePointer,
   type DiagnosisCriterion,
@@ -267,6 +268,7 @@ export default function DiagnosisKnowledgePanel({
     evidenceDetailsEnabled ?? (mayUseEvidenceDetails && globalEvidenceDetails);
   const [identitySearch, setIdentitySearch] = useState("");
   const [diagnosisReferenceSearch, setDiagnosisReferenceSearch] = useState("");
+  const [criterionTermSearch, setCriterionTermSearch] = useState("");
   const [referenceKnowledgeSearch, setReferenceKnowledgeSearch] = useState("");
   const [ruleSearch, setRuleSearch] = useState("");
   const [pathwaySearch, setPathwaySearch] = useState("");
@@ -325,6 +327,13 @@ export default function DiagnosisKnowledgePanel({
     },
     { enabled: can(security.data, "pathway.read") },
   );
+  const criterionTermsQuery = useStandardTerms({
+    status: "ACTIVE",
+    keyword: searchKeyword(criterionTermSearch),
+    page: 1,
+    size: 50,
+    sort: "updatedAt,desc",
+  });
   const [identityId, setIdentityId] = useState<number>();
   const [versionPage, setVersionPage] = useState(1);
   const versionsQuery = useKnowledgeVersions(identityId, {
@@ -336,6 +345,16 @@ export default function DiagnosisKnowledgePanel({
   const selectedIdentity = identities.find((item) => item.id === identityId);
   const selectedVersion = versions.find((item) => item.id === versionId);
   const editable = Boolean(selectedVersion && EDITABLE_STATUSES.has(selectedVersion.status));
+  const criterionTermOptions = useMemo(
+    () =>
+      (criterionTermsQuery.data?.items ?? []).map((term) => ({
+        value: term.termCode,
+        label: effectiveEvidenceDetails
+          ? `${term.displayName} · ${term.standardSystem} · ${term.termCode}`
+          : term.displayName,
+      })),
+    [criterionTermsQuery.data?.items, effectiveEvidenceDetails],
+  );
   const diagnosisReferenceOptions = useMemo(() => {
     if (!selectedIdentity || diagnosisReferences.some((item) => item.id === selectedIdentity.id)) {
       return diagnosisReferences;
@@ -469,6 +488,12 @@ export default function DiagnosisKnowledgePanel({
   function openDraft(mode: "asset" | "version") {
     assetForm.resetFields();
     setDraftMode(mode);
+  }
+
+  function openCriterionModal() {
+    setCriterionTermSearch("");
+    criterionForm.resetFields();
+    setCriterionOpen(true);
   }
 
   async function submitDraft() {
@@ -737,7 +762,7 @@ export default function DiagnosisKnowledgePanel({
             <Button
               icon={<PlusOutlined />}
               disabled={!editable || !can(security.data, "knowledge.write")}
-              onClick={() => setCriterionOpen(true)}
+              onClick={openCriterionModal}
             >
               新增标准
             </Button>
@@ -1276,7 +1301,15 @@ export default function DiagnosisKnowledgePanel({
           initialValues={{ direction: "SUPPORTING", weight: "MAJOR" }}
         >
           <Form.Item name="findingTermCode" label="标准发现项身份" rules={[{ required: true }]}>
-            <Input placeholder="如 EGFR_LOW，用于稳定追溯该发现项" />
+            <Select
+              showSearch
+              filterOption={false}
+              options={criterionTermOptions}
+              loading={criterionTermsQuery.isLoading}
+              onSearch={setCriterionTermSearch}
+              placeholder="搜索标准术语名称或编码"
+              notFoundContent="暂无可用标准术语"
+            />
           </Form.Item>
           <Form.Item name="direction" label="方向" rules={[{ required: true }]}>
             <Select

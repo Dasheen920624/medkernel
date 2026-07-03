@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { apiBase, appPath, ensureReadySession, expectOk } from "./support/auth";
+import { appPath, ensureReadySession, expectOk } from "./support/auth";
 
 type StandardTerm = {
   standardSystem: string;
@@ -18,8 +18,8 @@ test.describe("诊断知识维护真实前台链路", () => {
     const networkFailures = collectNetworkFailures(page);
 
     await ensureReadySession(page, "engine-operator");
-    const findingTerm = await findRunnableFindingTerm(page);
     const suffix = Date.now().toString(36);
+    const findingTerm = await registerFindingTermFromFrontend(page, suffix);
     const subject = `前台诊断维护演练${suffix}`;
     const sourceContent = `${subject} 来源原文：当 ${findingTerm.displayName ?? "标准发现项"} 与临床事实一致时，需登记为结构化诊断标准，并保留验证病例复算证据。`;
     const evidenceExcerpt = "需登记为结构化诊断标准，并保留验证病例复算证据";
@@ -68,7 +68,7 @@ test.describe("诊断知识维护真实前台链路", () => {
     await page.getByRole("button", { name: /新增标准/ }).click();
     const criterionDialog = page.getByRole("dialog", { name: "新增诊断标准" });
     await expect(criterionDialog).toBeVisible({ timeout: 10_000 });
-    await criterionDialog.getByLabel("标准发现项身份").fill(findingTerm.termCode);
+    await selectCriterionFindingTerm(page, criterionDialog, findingTerm);
     const criterionResponsePromise = waitForPost(page, "/criteria");
     await clickDialogOk(criterionDialog);
     const criterionResponse = await criterionResponsePromise;
@@ -105,25 +105,44 @@ test.describe("诊断知识维护真实前台链路", () => {
   });
 });
 
-async function findRunnableFindingTerm(page: Page): Promise<StandardTerm> {
-  for (const standardSystem of ["TERM.DIAGNOSIS", "TERM.LAB", "TERM.DRUG", "TERM.PROCEDURE"]) {
-    const response = await page.request.get(`${apiBase}/engine/terminology/terms/standard`, {
-      params: {
-        page: "1",
-        size: "20",
-        standardSystem,
-        status: "ACTIVE",
-      },
-      headers: { "X-Trace-Id": `e2e-diagnosis-term-${Date.now()}` },
-    });
-    await expectOk(response, `查询 ${standardSystem} 标准术语`);
-    const body = (await response.json()) as { data?: { items?: StandardTerm[] } };
-    const term = body.data?.items?.find((item) => item.termCode);
-    if (term) {
-      return term;
-    }
-  }
-  throw new Error("未找到可用于诊断标准的 TERM-01 活跃标准术语");
+async function registerFindingTermFromFrontend(page: Page, suffix: string): Promise<StandardTerm> {
+  const termCode = `TERM.LAB.FRONTDESK.${suffix.toUpperCase()}`;
+  const displayName = `前台演练发现项${suffix}`;
+
+  await page.goto(appPath("/terminology/mapping"), { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle");
+  await setEvidenceDetails(page, false);
+  await expect(page.getByRole("heading", { name: "术语与字典" })).toBeVisible({
+    timeout: 30_000,
+  });
+
+  await page.getByRole("button", { name: "登记标准术语" }).click();
+  const dialog = page.getByRole("dialog", { name: "登记标准术语" });
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+  await dialog.getByLabel("标准体系").fill("TERM.LAB");
+  await dialog.getByLabel("标准编码").fill(termCode);
+  await dialog.getByLabel("标准名称").fill(displayName);
+  await dialog.getByLabel("依据说明").fill("真实前台演练登记的诊断标准发现项");
+
+  const responsePromise = waitForPost(page, "/engine/terminology/terms/standard");
+  await dialog.getByRole("button", { name: "提交登记" }).click();
+  const response = await responsePromise;
+  await expectOk(response, "前台登记标准术语");
+  await expect(dialog).toBeHidden({ timeout: 20_000 });
+
+  return { standardSystem: "TERM.LAB", termCode, displayName };
+}
+
+async function selectCriterionFindingTerm(
+  page: Page,
+  dialog: ReturnType<Page["getByRole"]>,
+  findingTerm: StandardTerm,
+) {
+  const selector = dialog.getByRole("combobox", { name: "标准发现项身份" });
+  await selector.click();
+  await selector.fill(findingTerm.displayName ?? findingTerm.termCode);
+  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)");
+  await dropdown.getByText(findingTerm.displayName ?? findingTerm.termCode, { exact: true }).click();
 }
 
 async function setEvidenceDetails(page: Page, enabled: boolean) {

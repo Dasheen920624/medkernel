@@ -43,6 +43,7 @@ import {
   useAdvanceIntegrationOnboarding,
   useBatchConfirmTerminologyCandidates,
   useCreateTerminologyAssetDraft,
+  useRegisterStandardTerm,
   useActivateEvaluationIndicator,
   useAuthoringAssets,
   useAuthoringBatchJobs,
@@ -3105,6 +3106,52 @@ describe("terminology mapping api helpers", () => {
     expect(apiClient.get).toHaveBeenNthCalledWith(2, "/engine/terminology/terms/local", {
       params: { page: 1, size: 20, sourceSystem: "LIS", status: "UNMAPPED" },
     });
+  });
+
+  it("registers a standard terminology entry with standard context fields", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        data: {
+          id: 88,
+          standardSystem: "TERM.LAB",
+          termCode: "TERM.LAB.FRONTDESK.K",
+          category: "LAB",
+          displayName: "前台演练血钾",
+          normalizedName: "前台演练血钾",
+          versionNo: "2026.07",
+          status: "ACTIVE",
+          evidenceText: "上线演练登记标准术语",
+        },
+      },
+    });
+
+    const register = renderApiHook(() => useRegisterStandardTerm());
+    const term = await register.result.current.mutateAsync({
+      standardSystem: "TERM.LAB",
+      termCode: "TERM.LAB.FRONTDESK.K",
+      category: "LAB",
+      displayName: "前台演练血钾",
+      normalizedName: "前台演练血钾",
+      versionNo: "2026.07",
+      evidenceText: "上线演练登记标准术语",
+    });
+
+    expect(term.status).toBe("ACTIVE");
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/engine/terminology/terms/standard",
+      expect.objectContaining({
+        request_id: "00000000-0000-4000-8000-000000000004",
+        trace_id: "00000000-0000-4000-8000-000000000004",
+        tenant_id: "tenant-A",
+        role_codes: ["platform-admin"],
+        standardSystem: "TERM.LAB",
+        termCode: "TERM.LAB.FRONTDESK.K",
+        category: "LAB",
+        displayName: "前台演练血钾",
+        versionNo: "2026.07",
+        evidenceText: "上线演练登记标准术语",
+      }),
+    );
   });
 
   it("loads candidates and conflicts from terminology roots", async () => {
