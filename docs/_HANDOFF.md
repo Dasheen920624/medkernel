@@ -10,10 +10,14 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第六十批已完成阶段交接提交为 `eb60ceec79f67cbf8027059aca0ba843453f5785`
-  （`docs: 记录导出与批量任务编号复演`）；第六十一批最新应用代码提交为
+- 第六十一批已完成阶段交接提交为 `6eafbfea4c2f19458f296cb52a046e7294ad5a9d`
+  （`docs: 记录质控指标影响范围口径复演`）；第六十二批最新应用代码提交为
+  `1c87961e779ecaf125bc49c23670e6c1589ffffa`
+  （`fix: 收敛质量域组织范围前台口径`）。其前置本地提交包括第六十一批应用提交
   `8652321c49d23f7a160699e9445293811080c9bc`
-  （`fix: 收敛质控指标影响范围前台口径`）。其前置本地提交包括第六十批应用提交
+  （`fix: 收敛质控指标影响范围前台口径`）、第六十批阶段交接提交
+  `eb60ceec79f67cbf8027059aca0ba843453f5785`
+  （`docs: 记录导出与批量任务编号复演`）、第六十批应用提交
   `4de1116aa2b4cf13d5a22b3ce8b6c83701232fdb`
   （`fix: 收敛导出与批量任务编号层级`）、第五十九批阶段交接提交
   `ab7fe656bb14805e4f1f52d9169c4bb9d74d7b9e`
@@ -109,7 +113,7 @@
   第五十三批临床规则与提醒推荐前台口径收敛、第五十四批患者路径证据口径收敛、第五十五批安全配置运行环境口径收敛，
   第五十六批临床事件协同链路口径收敛、第五十七批临床路径责任分工口径收敛、第五十八批临床路径时窗校验口径收敛，
   第五十九批验收与生产目录前台口径收敛、第六十批导出与批量任务编号层级收敛，
-  以及第六十一批质控指标影响范围前台口径收敛。
+  第六十一批质控指标影响范围前台口径收敛，以及第六十二批质量域组织范围前台口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -130,7 +134,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `8652321c49d23f7a160699e9445293811080c9bc`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `1c87961e779ecaf125bc49c23670e6c1589ffffa`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -140,6 +144,44 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第六十二批·质量域组织范围前台口径收敛）
+
+- 本批继续按医疗产品体验、全角色真实前台和证据详情契约复核。结论：第四十四批全局菜单命名与顺序仍成立；
+  `诊断知识库`、`临床路径库`、`随访模板` 等当前名称继续符合功能语义。新发现的真实体验缺口在质量域组织范围：
+  `QcDashboard` 与 `InsuranceAudit` 在只具备 `tenantId` 服务机构范围、且组织目录未返回可读名称时，默认把范围显示为“当前租户”。
+  按体验契约中客户前台使用“服务机构 / 机构”语言的要求，质控人员和医保审核人员默认应读到“当前服务机构”；
+  原始 `tenantId` 只在证据详情中服务追溯。
+- 已本地提交 `1c87961e779ecaf125bc49c23670e6c1589ffffa`
+  （`fix: 收敛质量域组织范围前台口径`）：
+  - `QcDashboard` 的质控热力图和主动提醒组织范围兜底从“当前租户”收敛为“当前服务机构”，证据详情开启后仍显示
+    `当前服务机构 · tenant-rehearsal` 这类可追溯组合。
+  - `InsuranceAudit` 的范围筛选默认项和医保问题列表组织范围兜底同样收敛为“当前服务机构”，避免医保审核人员在主链路读到租户技术口径。
+  - 未改变后端 `dataScope.tenantId` 契约、查询参数、分页或审核链路，只调整默认前台语言层级。
+- 本地验证：
+  - 红绿核验：`npm --prefix frontend test -- QcDashboard.test.tsx InsuranceAudit.test.tsx -t "仅有服务机构范围"`
+    在旧实现下先失败于找不到“当前服务机构”且仍展示“当前租户”；实现后通过，`2` 项。
+  - 相关回归：
+    `npm --prefix frontend test -- QcDashboard.test.tsx InsuranceAudit.test.tsx QcAlerts.test.tsx QcEvalResults.test.tsx QcEvalSets.test.tsx`
+    通过，`5` 个测试文件 / `38` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `950` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `QcDashboard-C_OEa8u_.js`、`InsuranceAudit-D5R-FNg-.js`、
+    `Quality-CyanocAS.css`、`index-Dd6dzlHu.js` 等前端产物。
+  - `node scripts/audit/export-product-capabilities.mjs --check` 通过；`bash scripts/check-comment-zh.sh --mode=full`
+    通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+  - 旧口径裸露扫描：
+    `rg -n "当前租户" frontend/src/pages frontend/src/widgets frontend/src/shared/config --glob '!**/*.test.ts' --glob '!**/*.test.tsx'`
+    无生产前台命中。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头 `Date=Fri, 03 Jul 2026 23:41:04 GMT`；
+  公网首页 HTTP 200，`Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`。
+  134 映射仍按当前已核定事实保持：后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `1c87961e` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、菜单分布、构建门禁、134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-03 全视角真实前台体验优化第六十一批·质控指标影响范围前台口径收敛）
 
