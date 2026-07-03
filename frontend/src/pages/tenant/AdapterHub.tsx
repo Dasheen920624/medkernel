@@ -715,7 +715,7 @@ export default function AdapterHub() {
       render: (value) => healthTag(String(value)),
     },
     {
-      title: "RTT",
+      title: "响应耗时",
       dataIndex: "rttMs",
       key: "rttMs",
       render: (value) => <Text>{Number(value) > 0 ? `${value}ms` : "未测量"}</Text>,
@@ -731,7 +731,7 @@ export default function AdapterHub() {
       ),
     },
     {
-      title: "最近探活",
+      title: "最近健康检查",
       dataIndex: "lastHeartbeatAt",
       key: "lastHeartbeatAt",
       render: (value) => (
@@ -1130,7 +1130,7 @@ export default function AdapterHub() {
               message={HEALTH_ALERT_MESSAGE[healthResult.healthStatus] ?? "外部系统当前不可达"}
               description={`适配器 ${
                 evidenceDetailsEnabled ? healthResult.adapterId : healthResult.name
-              } 当前${customerEnumLabel(healthResult.healthStatus)}，RTT ${
+              } 当前${customerEnumLabel(healthResult.healthStatus)}，响应耗时 ${
                 healthResult.rttMs > 0 ? `${healthResult.rttMs}ms` : "未测量"
               }。页面仅展示平台记录的真实状态。`}
             />
@@ -1154,7 +1154,7 @@ export default function AdapterHub() {
                     <Alert
                       type="info"
                       showIcon
-                      message="连接状态来自实时探活"
+                      message="连接状态来自实时健康检查"
                       description="HTTP、FHIR、Webhook 和 WebService 使用真实连接器；外部不可达显示“未连接”，配置非法显示“配置不完整”。"
                     />
                     <Table
@@ -1284,7 +1284,7 @@ export default function AdapterHub() {
                         type="info"
                         showIcon
                         message="尚未生成本轮数据质量报告"
-                        description="点击页面右上角“生成质量报告”，平台会基于当前服务机构的适配器、字段映射和探活事实生成快照。"
+                        description="点击页面右上角“生成质量报告”，平台会基于当前服务机构的适配器、字段映射和健康检查事实生成快照。"
                       />
                     ) : null}
                     <div className={styles.qualityGrid}>
@@ -1670,7 +1670,7 @@ export default function AdapterHub() {
                   <Space align="start" wrap className="mk-full-width">
                     <Form.Item
                       name="healthPath"
-                      label="探活路径"
+                      label="健康检查路径"
                       rules={[{ pattern: /^\/(?!\/)/, message: "请输入以 / 开头的站内路径" }]}
                     >
                       <Input placeholder="/health" />
@@ -1866,7 +1866,7 @@ function FieldMappingPanel({ items }: { items: AdapterHubSourceStatus[] }) {
       width: 110,
     },
     {
-      title: "最近探活",
+      title: "最近健康检查",
       dataIndex: "lastHeartbeatAt",
       key: "lastHeartbeatAt",
       width: 170,

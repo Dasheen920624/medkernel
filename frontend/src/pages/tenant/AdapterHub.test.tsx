@@ -503,6 +503,10 @@ describe("AdapterHub", () => {
     expect(screen.getByText("HIS 医院信息系统")).toBeInTheDocument();
     expect(screen.getByText("EMR 电子病历系统")).toBeInTheDocument();
     expect(screen.getByText("LIS 检验信息系统")).toBeInTheDocument();
+    expect(screen.getAllByText("响应耗时").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("最近健康检查").length).toBeGreaterThan(0);
+    expect(screen.queryByText("RTT")).not.toBeInTheDocument();
+    expect(screen.queryByText("最近探活")).not.toBeInTheDocument();
     expect(screen.getByText("缺少 EMR 适配器")).toBeInTheDocument();
     expect(screen.getByText("数据接入契约")).toBeInTheDocument();
     expect(screen.getByText("选模板/导入")).toBeInTheDocument();
@@ -511,7 +515,7 @@ describe("AdapterHub", () => {
 
     await userEvent.click(screen.getByRole("tab", { name: "数据质量看板" }));
     expect(screen.getByText("尚未生成本轮数据质量报告")).toBeInTheDocument();
-    expect(screen.getByText(/当前服务机构的适配器、字段映射和探活事实/)).toBeInTheDocument();
+    expect(screen.getByText(/当前服务机构的适配器、字段映射和健康检查事实/)).toBeInTheDocument();
 
     expect(screen.queryByText(/Webhook 回调订阅安全自研沙箱/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Launch Token/)).not.toBeInTheDocument();
