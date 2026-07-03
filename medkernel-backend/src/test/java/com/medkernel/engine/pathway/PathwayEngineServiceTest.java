@@ -640,7 +640,8 @@ class PathwayEngineServiceTest {
 
         assertThatThrownBy(() -> service.createTemplate(request))
             .isInstanceOf(ApiException.class)
-            .hasMessageContaining("缺少 clockSla")
+            .hasMessageContaining("缺少时窗校验配置")
+            .hasMessageNotContaining("clockSla")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_PATHWAY_004);
         verify(versionedAssets, never()).registerDraft(any());

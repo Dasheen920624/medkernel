@@ -434,6 +434,18 @@ describe("PathwayTemplates 上线路径维护契约", () => {
     expect(within(dialog).getAllByLabelText("节点身份").length).toBeGreaterThan(0);
     expect(within(dialog).getAllByLabelText("时钟指标身份").length).toBeGreaterThan(0);
     expect(within(dialog).getByLabelText("流转身份")).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getAllByLabelText("时窗分钟")[0], {
+      target: { value: "60" },
+    });
+    await waitFor(() => expect(within(dialog).getByLabelText("时窗校验基准")).toBeInTheDocument());
+    expect(within(dialog).queryByLabelText("SLA基准")).not.toBeInTheDocument();
+
+    await user.click(within(dialog).getAllByLabelText("节点类型")[0]);
+    await user.click(screen.getByText("等待计时"));
+    await waitFor(() => expect(within(dialog).getByLabelText("计时规则")).toBeInTheDocument());
+    expect(within(dialog).queryByLabelText("计时 clock")).not.toBeInTheDocument();
+
     expect(within(dialog).queryByText("阶段编码")).not.toBeInTheDocument();
     expect(within(dialog).queryByText("里程碑编码")).not.toBeInTheDocument();
     expect(within(dialog).queryByText("节点编码")).not.toBeInTheDocument();

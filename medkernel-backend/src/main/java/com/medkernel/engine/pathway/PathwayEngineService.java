@@ -1750,7 +1750,7 @@ public class PathwayEngineService {
         String clock = nodeConfigText(node, "clock");
         if (isBlank(clock) && node.timeWindowMinutes() == null) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_004,
-                "等待计时节点 " + node.nodeCode() + " 缺少 clock 或 timeWindowMinutes");
+                "等待计时节点 " + node.nodeCode() + " 缺少计时规则或时窗分钟");
         }
         boolean hasTimerGuard = outgoing.stream().anyMatch(edge -> edge.edgeType() == PathwayEdgeType.CONDITION);
         if (!hasTimerGuard) {
@@ -1803,7 +1803,7 @@ public class PathwayEngineService {
         ClinicalClockSlaConfig config = optionalClockSlaConfig(node);
         if (config == null) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_004,
-                "关键时钟节点 " + node.nodeCode() + " 缺少 clockSla");
+                "关键时钟节点 " + node.nodeCode() + " 缺少时窗校验配置");
         }
         return config;
     }
@@ -1815,20 +1815,20 @@ public class PathwayEngineService {
         }
         if (!clockSla.isObject()) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_004,
-                "关键时钟节点 " + node.nodeCode() + " 的 clockSla 必须是结构化对象");
+                "关键时钟节点 " + node.nodeCode() + " 的时窗校验配置必须是结构化对象");
         }
-        String baselineEvent = requiredText(clockSla, "baselineEvent", node, "SLA 基准事件");
+        String baselineEvent = requiredText(clockSla, "baselineEvent", node, "时窗校验基准");
         validateBaselineEvent(baselineEvent, node);
-        Integer minMinutes = requiredNonNegativeInt(clockSla, "minMinutes", node);
-        Integer targetMinutes = requiredNonNegativeInt(clockSla, "targetMinutes", node);
-        Integer maxMinutes = requiredNonNegativeInt(clockSla, "maxMinutes", node);
+        Integer minMinutes = requiredNonNegativeInt(clockSla, "minMinutes", node, "最早分钟");
+        Integer targetMinutes = requiredNonNegativeInt(clockSla, "targetMinutes", node, "目标分钟");
+        Integer maxMinutes = requiredNonNegativeInt(clockSla, "maxMinutes", node, "最晚分钟");
         if (targetMinutes <= 0) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_004,
-                "关键时钟节点 " + node.nodeCode() + " 的 targetMinutes 必须大于 0");
+                "关键时钟节点 " + node.nodeCode() + " 的目标分钟必须大于 0");
         }
         if (minMinutes > targetMinutes || targetMinutes > maxMinutes) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_004,
-                "关键时钟节点 " + node.nodeCode() + " 的 SLA 时限必须满足 min <= target <= max");
+                "关键时钟节点 " + node.nodeCode() + " 的时窗校验分钟必须满足最早 <= 目标 <= 最晚");
         }
         List<ClockEscalationThreshold> escalations = escalationThresholds(clockSla.path("escalations"), node);
         return new ClinicalClockSlaConfig(baselineEvent, minMinutes, targetMinutes, maxMinutes, escalations);
@@ -1855,11 +1855,11 @@ public class PathwayEngineService {
         return value.asText().trim();
     }
 
-    private Integer requiredNonNegativeInt(JsonNode source, String field, PathwayNode node) {
+    private Integer requiredNonNegativeInt(JsonNode source, String field, PathwayNode node, String label) {
         JsonNode value = source.get(field);
         if (value == null || value.isNull() || !value.canConvertToInt() || value.asInt() < 0) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_004,
-                "关键时钟节点 " + node.nodeCode() + " 的 " + field + " 必须是非负整数");
+                "关键时钟节点 " + node.nodeCode() + " 的 " + label + " 必须是非负整数");
         }
         return value.asInt();
     }
@@ -1867,7 +1867,7 @@ public class PathwayEngineService {
     private void validateBaselineEvent(String baselineEvent, PathwayNode node) {
         if (!Set.of("NODE_START", "PATHWAY_ENTRY", "ADMISSION").contains(baselineEvent)) {
             throw new ApiException(ErrorCode.ENG_PATHWAY_004,
-                "关键时钟节点 " + node.nodeCode() + " 不支持 SLA 基准事件: " + baselineEvent);
+                "关键时钟节点 " + node.nodeCode() + " 不支持时窗校验基准: " + baselineEvent);
         }
     }
 
@@ -1894,7 +1894,7 @@ public class PathwayEngineService {
                 throw new ApiException(ErrorCode.ENG_PATHWAY_004,
                     "关键时钟节点 " + node.nodeCode() + " 的超时升级策略不能配置 NONE");
             }
-            Integer afterMinutes = requiredNonNegativeInt(item, "afterMinutes", node);
+            Integer afterMinutes = requiredNonNegativeInt(item, "afterMinutes", node, "升级等待分钟");
             thresholds.put(level, new ClockEscalationThreshold(level, afterMinutes));
         }
         for (ClinicalClockEscalationLevel required : List.of(
@@ -1916,7 +1916,7 @@ public class PathwayEngineService {
             case "PATHWAY_ENTRY" -> pathwayEnteredAt == null ? now : pathwayEnteredAt;
             case "ADMISSION" -> admissionTime(resources, node);
             default -> throw new ApiException(ErrorCode.ENG_PATHWAY_004,
-                "关键时钟节点 " + node.nodeCode() + " 不支持 SLA 基准事件: " + sla.baselineEvent());
+                "关键时钟节点 " + node.nodeCode() + " 不支持时窗校验基准: " + sla.baselineEvent());
         };
     }
 

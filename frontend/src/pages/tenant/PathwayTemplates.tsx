@@ -392,6 +392,11 @@ const clockBaselineEventOptions = [
   { value: "ADMISSION", label: "入院时间" },
 ];
 
+function clockBaselineEventText(value?: unknown) {
+  if (typeof value !== "string" || value.trim().length === 0) return "节点开始";
+  return clockBaselineEventOptions.find((option) => option.value === value)?.label ?? "自定义基准";
+}
+
 const edgeTypeOptions: Array<{ value: PathwayEdgeType; label: string }> = [
   { value: "DEFAULT", label: "默认流转" },
   { value: "CONDITION", label: "条件流转" },
@@ -761,7 +766,7 @@ function normalizeClockSlaConfig(value: unknown, timeWindowMinutes?: number) {
 function clockSlaError(node: PathwayNodeDraft) {
   if (!node.timeWindowMinutes || node.timeWindowMinutes <= 0) return undefined;
   const clockSla = configObject(node.config, "clockSla");
-  if (!clockSla) return `关键时钟节点 ${node.nodeCode} 必须配置临床时钟 SLA`;
+  if (!clockSla) return `关键时钟节点 ${node.nodeCode} 必须配置时窗校验规则`;
   const minMinutes = Number(clockSla.minMinutes);
   const targetMinutes = Number(clockSla.targetMinutes);
   const maxMinutes = Number(clockSla.maxMinutes);
@@ -770,7 +775,7 @@ function clockSlaError(node: PathwayNodeDraft) {
     !Number.isFinite(targetMinutes) ||
     !Number.isFinite(maxMinutes)
   ) {
-    return `关键时钟节点 ${node.nodeCode} 的 SLA 时限必须完整`;
+    return `关键时钟节点 ${node.nodeCode} 的时窗校验分钟必须完整`;
   }
   if (
     minMinutes < 0 ||
@@ -778,7 +783,7 @@ function clockSlaError(node: PathwayNodeDraft) {
     maxMinutes < targetMinutes ||
     minMinutes > targetMinutes
   ) {
-    return `关键时钟节点 ${node.nodeCode} 的 SLA 时限必须满足 min <= target <= max`;
+    return `关键时钟节点 ${node.nodeCode} 的时窗校验分钟必须满足最早 <= 目标 <= 最晚`;
   }
   return undefined;
 }
@@ -815,7 +820,7 @@ function validateRichNodeContracts(nodes: PathwayNodeDraft[], edges: PathwayEdge
       const hasClock = configText(node.config, "clock") !== undefined;
       const hasTimerGuard = outgoing.some((edge) => edge.edgeType === "CONDITION");
       if (!hasClock && !node.timeWindowMinutes) {
-        return `等待计时节点 ${node.nodeCode} 必须填写 clock 或时窗分钟`;
+        return `等待计时节点 ${node.nodeCode} 必须填写计时规则或时窗分钟`;
       }
       if (!hasTimerGuard) {
         return `等待计时节点 ${node.nodeCode} 必须配置计时条件边`;
@@ -843,13 +848,13 @@ function richNodeConfigSummary(node: PathwayNode, evidenceDetailsEnabled = true)
     return evidenceDetailsEnabled ? `医嘱套餐 ${orderSetRef}` : "医嘱套餐已关联";
   }
   const clock = configText(config, "clock");
-  if (clock) return evidenceDetailsEnabled ? `计时 ${clock}` : "计时规则已配置";
+  if (clock) return evidenceDetailsEnabled ? `计时规则 ${clock}` : "计时规则已配置";
   const clockSla = configObject(config, "clockSla");
   if (clockSla) {
     const targetMinutes = clockSla.targetMinutes ?? "-";
     return evidenceDetailsEnabled
-      ? `SLA ${clockSla.baselineEvent ?? "NODE_START"} / ${targetMinutes} 分钟`
-      : `SLA 已配置 / ${targetMinutes} 分钟`;
+      ? `时窗校验 ${clockBaselineEventText(clockSla.baselineEvent)} / 目标 ${targetMinutes} 分钟`
+      : `时窗校验已配置 / 目标 ${targetMinutes} 分钟`;
   }
   return "无";
 }
@@ -3008,7 +3013,7 @@ export default function PathwayTemplates() {
                             <Form.Item
                               {...fieldProps}
                               name={[field.name, "config", "clockSla", "baselineEvent"]}
-                              label="SLA基准"
+                              label="时窗校验基准"
                             >
                               <Select
                                 allowClear
@@ -3095,9 +3100,9 @@ export default function PathwayTemplates() {
                               <Form.Item
                                 {...fieldProps}
                                 name={[field.name, "config", "clock"]}
-                                label="计时 clock"
+                                label="计时规则"
                               >
-                                <Input placeholder="如 AFTER_24H" />
+                                <Input placeholder="如 24 小时后提醒" />
                               </Form.Item>
                             </Col>
                           )}

@@ -288,7 +288,7 @@ public class PathwayProgressor {
             evidence.put("pathway.timerWindowMinutes", current.timeWindowMinutes());
         }
         if (isBlank(clock) && current.timeWindowMinutes() == null) {
-            throw new ApiException(ErrorCode.ENG_PATHWAY_006, "等待计时节点缺少 clock 或 timeWindowMinutes");
+            throw new ApiException(ErrorCode.ENG_PATHWAY_006, "等待计时节点缺少计时规则或时窗分钟");
         }
     }
 
