@@ -10,10 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第四十五批已完成阶段交接提交为 `c3d99dbc348d764f506314b8ad4675a7c13a57a7`
-  （`docs: 记录国产化适配文案复演`）；第四十六批最新应用代码提交为
+- 第四十六批已完成阶段交接提交为 `484ad513869d52280002f2e8c75036ef76d73944`
+  （`docs: 记录知识生产候选治理文案复演`）；第四十七批最新应用代码提交为
+  `eed002f1eeb880217c30525b1843c26bd4436e9c`
+  （`fix: 收敛未找到页面工程态文案`）。其前置本地提交包括第四十六批应用提交
   `24687d0fcb9cc48173a2005c490456008e8a7cad`
-  （`fix: 收敛知识生产与规则路径前台文案`）。其前置本地提交包括第四十五批应用提交
+  （`fix: 收敛知识生产与规则路径前台文案`）、第四十五批应用提交
   `54a5161befb248970bc24ab645ebf97b73bbcfbf`
   （`fix: 收敛国产化适配自检权威文案`）、第四十四批应用提交
   `b80735791243e989c1253ae94a19aa25fa289553`
@@ -47,7 +49,8 @@
   第三十四批诊断知识技术版次默认展示收敛、第三十五批知识资产随访模板默认名收敛、第三十六批来源血缘版本沿革默认展示收敛，
   第三十七批审计摘要默认标识收敛、第三十八批审计导出记录默认标识收敛、第四十批默认可见低频标识清零，
   第四十一批模型外调核心标识遮蔽、第四十二批系统接入健康检查默认文案收敛、第四十三批知识生产工作区层级收敛，
-  第四十四批全局菜单命名与顺序收敛、第四十五批国产化适配自检权威文案收敛，以及第四十六批知识生产候选治理与规则路径前台文案收敛。
+  第四十四批全局菜单命名与顺序收敛、第四十五批国产化适配自检权威文案收敛、第四十六批知识生产候选治理与规则路径前台文案收敛，
+  以及第四十七批未找到页面工程态文案收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -68,7 +71,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `24687d0fcb9cc48173a2005c490456008e8a7cad`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `eed002f1eeb880217c30525b1843c26bd4436e9c`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -78,6 +81,34 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-03 全视角真实前台体验优化第四十七批·未找到页面工程态文案收敛）
+
+- 本批在继续全角色前台体验核查时，从路由、页面标题和工程态旧词扫描发现 `/demo/step-flow` 等已移除路径的兜底页仍显示
+  “此功能待 W3 业务域任务实装”。这是客户可见的阶段/工程话术，会误导为功能未交付，且与 `routes.ts` 的“未找到页面”权威标题不一致。
+- 已本地提交 `eed002f1eeb880217c30525b1843c26bd4436e9c`
+  （`fix: 收敛未找到页面工程态文案`）：
+  - `frontend/src/pages/NotFound.tsx` 将 AntD `Result` 从 `info` 改为 `404`，标题收敛为语义二级标题“未找到页面”，说明改为
+    “当前地址没有对应的业务页面，请返回工作台或通过菜单进入已授权功能。”，保留“返回工作台”恢复路径。
+  - `frontend/src/app/router.test.tsx` 锁定已移除演示路径进入可恢复 404 页，并阻断 `W3 / 业务域任务实装` 工程话术回流。
+- 本地验证：
+  - 红绿核验：`npm --prefix frontend test -- router.test.tsx -t "routes a removed StepFlow demo URL"` 先失败于旧实现找不到“未找到页面”语义标题，
+    实现后通过，`1` 项。
+  - `npm --prefix frontend test -- router.test.tsx routes.test.ts menu.test.ts productRoleJourneys.test.ts AppLayout.test.tsx`
+    通过，`5` 个测试文件 / `96` 项。
+  - `npm --prefix frontend run verify` 通过，`114` 个测试文件 / `939` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `NotFound-Df-knVZ0.js` 与 `index-DokjENyf.js` 等前端产物。
+  - `node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - `node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`git diff --check` 通过。
+  - `rg -n "此功能待 W3|业务域任务实装|待 W3|W3" frontend/src/pages frontend/src/app frontend/src/widgets docs/PRODUCT_SCOPE.md docs/CONSTITUTION.md docs/EXPERIENCE_CONTRACT.md docs/audit/product-function-catalog.md docs/audit/product-role-journeys.md --glob '!docs/_HANDOFF.md'`
+    只命中 `router.test.tsx` 的反向断言，生产前台和权威文档无客户可见残留。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。134 仍按当前主线事实保持：
+  后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`；不要把本地
+  `eed002f1` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、构建门禁、134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-03 全视角真实前台体验优化第四十六批·知识生产候选治理与规则路径前台文案收敛）
 
