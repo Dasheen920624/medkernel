@@ -33,9 +33,13 @@ public class ModelEgressGuard {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Set<String> DIRECT_IDENTIFIER_FIELDS = Set.of(
         "name", "fullname", "patientname", "username",
-        "patientid", "patientref", "mpiid", "idcard", "idnumber", "idlast4", "nationalid",
+        "patientid", "patientref", "patientmpi", "patientno", "patientcode", "patientnumber",
+        "mpi", "mpiid", "mrn", "medicalrecordno", "medicalrecordnumber", "chartno", "recordno",
+        "encounterid", "encounterno", "visitid", "visitno", "admissionno", "inpatientno", "outpatientno",
+        "idcard", "idnumber", "idlast4", "nationalid",
         "phone", "mobile", "telephone", "email", "address",
-        "姓名", "患者姓名", "患者编号", "身份证", "身份证号", "身份证后四位", "电话", "手机号", "邮箱", "住址");
+        "姓名", "患者姓名", "患者编号", "院内患者编号", "病历号", "就诊号", "住院号", "门诊号",
+        "身份证", "身份证号", "身份证后四位", "电话", "手机号", "邮箱", "住址");
 
     private final ModelEgressWhitelistRepository whitelistRepo;
     private final ModelEgressConfirmationRepository confirmationRepo;
