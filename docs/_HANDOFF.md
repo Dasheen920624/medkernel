@@ -11,9 +11,11 @@
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
 - 第三十九批已完成阶段交接提交为 `3453078c92c993df950a499e1da14ca89bd671d4`
-  （`docs: 记录诊断知识前台产数闭环`）；第四十批最新应用代码提交为
+  （`docs: 记录诊断知识前台产数闭环`）；第四十一批最新应用代码提交为
+  `3ddd979b3151e3eb1d40712e76b513e4cdce260c`
+  （`fix: 强化模型外调核心标识遮蔽`），其前置第四十批应用提交
   `8889efc754b6c192708ddb118a5b9fa7d03cb28e`
-  （`fix: 隐藏来源血缘演练版次标识`），其前置应用提交
+  （`fix: 隐藏来源血缘演练版次标识`）和前置应用提交
   `70a0925cda2b642665ac930396c2d1e3eec06db1`
   （`fix: 收敛审计摘要临床内部标识`）已一并包含。`f461a1c5` / `f2590325` / `f98997cd`
   仍分别对应第三十九批标准术语登记、标准上下文严格契约和诊断专项 E2E 按钮稳定性修正。
@@ -27,27 +29,29 @@
   第二十八批质量问题服务端翻页收敛、第二十九批质量概览待办密度收敛、第三十批模型能力默认表格层级收敛，
   第三十一批随访模板演练批次默认展示收敛、第三十二批临床提醒采纳率口径收敛、第三十三批人员详情抽屉证据稳定性，
   第三十四批诊断知识技术版次默认展示收敛、第三十五批知识资产随访模板默认名收敛、第三十六批来源血缘版本沿革默认展示收敛，
-  第三十七批审计摘要默认标识收敛、第三十八批审计导出记录默认标识收敛，以及第四十批默认可见低频标识清零。
-- 134 当前后端/JAR 完整部署仍为 `ef662ced1ca68723bed92aabd66440a833fde4b3`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260702-214224`，manifest 仍记录
-  `deployedAt=2026-07-02T21:42:27+08:00`，
-  `jarSha256=ef79a21c1ccc2700a787d67bd4d81685a8a4119d9b0612210e598b25ea47efce`。不要把该 manifest
-  误读成当前前端 dist 版本。
-- 134 当前前端 dist 已于 `2026-07-03 11:26:48 +08:00` 完成 readiness 验证，发布命令为
-  `deploy/onprem/mk-publish.sh --frontend --source 8889efc754b6c192708ddb118a5b9fa7d03cb28e`；远端备份
-  `/zoesoft/medkernel/backups/deploy-20260703-112621`，readiness HTTP 200 / `{"status":"UP"}`，
-  服务 `active/enabled`、`MainPID=3489204`、`NRestarts=0`；线上 `index.html` 指向
-  `/assets/index-BncdEiiY.js`，诊断知识维护 chunk 为
-  `/assets/DiagnosisKnowledgeMaintenance-C-32OJv0.js`，术语与字典 chunk 为
-  `/assets/TerminologyMapping-DBXa5VBu.js`，审计页 chunk 为
-  `/assets/AdminAudit-D9bSrb46.js`，来源血缘 chunk 为 `/assets/Provenance-jJCIbbSY.js`。
+  第三十七批审计摘要默认标识收敛、第三十八批审计导出记录默认标识收敛、第四十批默认可见低频标识清零，
+  以及第四十一批模型外调核心标识遮蔽。
+- 134 当前后端/JAR 与前端 dist 已全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
+  `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
+  `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
+  `source=3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  `commit=3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  `deployedAt=2026-07-03T12:38:13+08:00`、
+  `jarSha256=37da0f4b8d42e040408ab530714f68228e8060a21f6690146d8cb58126ca96ec`；readiness HTTP 200 /
+  `{"status":"UP"}`，服务 `active/enabled`、`MainPID=3529053`、`NRestarts=0`。
+- 134 当前前端 dist 同步来自 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`，发布脚本记录 `279` 个 dist 文件；
+  外部 `index.html` 指向 `/assets/index-BncdEiiY.js`，关键 chunk 均已外部 HTTPS 入口 HTTP 200：
+  `/assets/AiWorkflows-CCyQ-Uj6.js`、`/assets/DiagnosisKnowledgeMaintenance-C-32OJv0.js`、
+  `/assets/TerminologyMapping-DBXa5VBu.js`、`/assets/AdminAudit-D9bSrb46.js`、
+  `/assets/Provenance-jJCIbbSY.js`。
 - 134 对外 E2E 入口使用 `https://193.112.107.134/medkernel` 与
   `https://193.112.107.134/medkernel/api/v1`，当前证书按现场自签/非可信处理，Playwright 需带
   `E2E_IGNORE_HTTPS_ERRORS=1`。后端 `18080` 只监听 `127.0.0.1`，不要从外网使用
   `http://193.112.107.134:18080` 作为演练入口。
-- 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。描述 134 状态时必须区分
-  后端 manifest 提交 `ef662ced` 与当前线上前端 dist 提交 `8889efc7`。
-- 当前应用代码最新提交为 `8889efc754b6c192708ddb118a5b9fa7d03cb28e`；当前本地分支仍只本地提交，
+- 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 后端 manifest
+  与前端 dist 已重新统一到 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`，不要继续沿用旧的 `ef662ced` /
+  `8889efc7` 拆分描述。
+- 当前应用代码最新提交为 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -57,6 +61,66 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-03 全视角真实前台体验优化第四十一批·模型外调核心标识遮蔽与134全量复演）
+
+- 用户补充“大模型双模式与公网部署也可能使用患者信息”，并再次强调诊断知识维护/知识治理疑问只是全局考量输入，
+  不代表现行设计错误。本批先回到 `CONSTITUTION`、`PRODUCT_SCOPE`、`EXPERIENCE_CONTRACT`、功能目录与职责矩阵：
+  诊断知识维护仍属于统一知识治理；知识生产/维护/来源/诊断知识不应拆成第二套知识系统，也不应恢复旧式“专家模式”。
+  真实缺口在模型网关外调安全：公网模型可在授权场景使用患者上下文，但必须最小化并遮蔽核心敏感标识；院内本地模型可使用必要敏感信息，
+  但同样要经过授权、边界和审计。
+- 已本地提交 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`
+  （`fix: 强化模型外调核心标识遮蔽`）：
+  - `ModelEgressGuard` 原有直接标识字段覆盖 `patientId`、`mpiId` 等常见字段，但未覆盖院内真实结构化上下文常见写法
+    `patientMpi`、`mrn`、`medicalRecordNo`、`encounterId`、`visitNo` 等；当脱敏操作配置为 `NONE` 时，这些字段可能作为
+    结构化上下文原样外调。
+  - `medkernel-backend/src/main/java/com/medkernel/engine/llm/egress/ModelEgressGuard.java`
+    扩展直接标识字段集，覆盖 `patientmpi`、`patientno`、`patientcode`、`patientnumber`、`mpi`、`mrn`、
+    `medicalrecordno`、`medicalrecordnumber`、`chartno`、`recordno`、`encounterid`、`encounterno`、
+    `visitid`、`visitno`、`admissionno`、`inpatientno`、`outpatientno`，以及中文 `院内患者编号`、`病历号`、
+    `就诊号`、`住院号`、`门诊号`。
+  - `medkernel-backend/src/test/java/com/medkernel/engine/llm/egress/ModelEgressGuardTest.java`
+    增加红绿用例 `noneOperatorMasksHospitalPatientIdentifiersInStructuredContext`：结构化 `clinicalContext` 在规则为
+    `NONE` 时仍必须清空院内患者/就诊核心标识，同时保留 `ageYears`、`diagnosisText` 等必要非核心敏感临床上下文。
+- 本地验证：
+  - 目标测试先红灯：`mvn -Dtest=ModelEgressGuardTest#noneOperatorMasksHospitalPatientIdentifiersInStructuredContext test`
+    在旧实现下失败，返回 payload 仍含 `patientMpi=mpi-20260703001` 等标识；修复后同命令通过。
+  - `mvn -Dtest=ModelEgressGuardTest test` 通过，`16` 项。
+  - `mvn -Dtest=ModelGatewayServiceTest,KnowledgeProductionReadinessServiceTest,ModelKnowledgeProducerTest,ModelEgressGovernanceServiceTest test`
+    通过，`72` 项。
+  - `mvn test` 通过，`Tests run: 3062, Failures: 0, Errors: 0, Skipped: 7`；`7` 个跳过项仍为本地
+    Docker/Testcontainers 不可用导致的既有受控跳过。
+  - T-GATE：`node --test scripts/authenticity-guard.test.mjs` 通过 `51` 项；
+    `node --test scripts/config-boundary-guard.test.mjs` 通过 `2` 项；
+    `node --test scripts/migration-convention-guard.test.mjs` 通过 `14` 项；
+    `node --test scripts/performance-contract-guard.test.mjs` 通过 `4` 项；`git diff --check` 通过；
+    `bash scripts/check-comment-zh.sh --mode=full` 通过；`mvn -DskipTests package` 通过并生成
+    `medkernel-backend-1.0.0-SNAPSHOT.jar`。
+- 134 全量发布与外部入口验证：
+  - 已执行 `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`；
+    远端备份 `/zoesoft/medkernel/backups/deploy-20260703-123810`，jar 指纹
+    `37da0f4b8d42e040408ab530714f68228e8060a21f6690146d8cb58126ca96ec`，manifest 与前端 dist 均绑定
+    `3ddd979b3151e3eb1d40712e76b513e4cdce260c`。
+  - 远端服务 `active/enabled`、`MainPID=3529053`、`NRestarts=0`；本机和公网 readiness 均 HTTP 200 /
+    `{"status":"UP"}`。`https://193.112.107.134/medkernel/` HTTP 200，`Last-Modified=Fri, 03 Jul 2026 04:36:46 GMT`，
+    安全响应头包含 `X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`Strict-Transport-Security`。
+  - 线上关键资源均 HTTP 200：`index-BncdEiiY.js` `876520` 字节，`AiWorkflows-CCyQ-Uj6.js` `21053` 字节，
+    `DiagnosisKnowledgeMaintenance-C-32OJv0.js` `24561` 字节，`TerminologyMapping-DBXa5VBu.js` `25829` 字节，
+    `AdminAudit-D9bSrb46.js` `21901` 字节，`Provenance-jJCIbbSY.js` `12662` 字节。
+- 134 真实前台复演：
+  - `E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-codex3/evidence-3ddd979b-134-final-core`
+    通过 134 HTTPS 入站运行
+    `d6-ai-workflows.spec.ts`、`diagnosis-knowledge-maintenance.spec.ts`、`real-frontdesk-rehearsal.spec.ts`、
+    `stakeholder-view-rehearsal.spec.ts`，`5 passed (2.5m)`；report stats 为 `expected=5`、`skipped=0`、
+    `unexpected=0`、`flaky=0`、`duration=149951.092ms`。
+  - 全前台运行记录覆盖 `11` 段真实页面提交路线：系统接入适配器、接入申请、知识值集草稿、模型安全边界、脱敏患者 MPI、
+    随访模板创建/发布、当前就诊上下文与医保结算事实快照、医保审核联动质量整改、CDSS 推荐评估、随访计划/问卷/异常回院；
+    浏览器错误、HTTP 错误、网络失败均为 `0`。
+  - 十二类业务视角运行记录覆盖医生、护士、药师、医技、质控、患者代理、平台管理员、医疗引擎运营员、审计员、信息科长、
+    实施工程师、院长；每个视角均有真实前台动作，浏览器错误、HTTP 错误、网络失败均为 `0`。
+- 后续继续主线全局体验优化：本批确认知识治理/诊断知识维护总体方向不拆分，并补齐模型外调核心标识遮蔽的真实缺口；
+  长目标仍未完成。下一轮继续从全角色真实前台、知识生产/治理、模型公网/院内双模式、患者敏感信息处理、质量医保整改、
+  系统接入、权限职责、迁移、文档、构建和部署证据继续广度优先核查，不因单个用户疑问片面改结构。
 
 ## 最新阶段交接（2026-07-03 全视角真实前台体验优化第四十批·默认可见低频标识清零）
 
