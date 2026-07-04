@@ -320,6 +320,46 @@ function objectProperties(node) {
   return values;
 }
 
+function extractRouteSections() {
+  const sourceText = readFileSync(routesPath, "utf8");
+  const sourceFile = ts.createSourceFile(
+    routesPath,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  let sectionArray;
+
+  sourceFile.forEachChild((node) => {
+    if (!ts.isVariableStatement(node)) return;
+    for (const declaration of node.declarationList.declarations) {
+      if (
+        ts.isIdentifier(declaration.name) &&
+        declaration.name.text === "routeSections" &&
+        declaration.initializer &&
+        ts.isArrayLiteralExpression(declaration.initializer)
+      ) {
+        sectionArray = declaration.initializer;
+      }
+    }
+  });
+
+  if (!sectionArray) {
+    throw new Error("未找到 routeSections 主导航分组");
+  }
+
+  return sectionArray.elements
+    .filter(ts.isObjectLiteralExpression)
+    .map((element) => {
+      const section = objectProperties(element);
+      if (!section.label) {
+        throw new Error(`主导航分组 ${section.key ?? "未知"} 缺少中文名称`);
+      }
+      return section;
+    });
+}
+
 function extractRoutes() {
   const sourceText = readFileSync(routesPath, "utf8");
   const sourceFile = ts.createSourceFile(
@@ -578,7 +618,7 @@ function countByDecision(items) {
   );
 }
 
-function renderCatalog({ routes, menus, pages, controllers, batches }) {
+function renderCatalog({ routes, menus, pages, controllers, batches, routeSections }) {
   const routeByMenu = new Map(
     routes
       .filter((route) => route.menuKey)
@@ -601,6 +641,7 @@ function renderCatalog({ routes, menus, pages, controllers, batches }) {
   const decisionSummary = countByDecision(allCapabilities)
     .map(([decision, count]) => `| ${decision} | ${count} |`)
     .join("\n");
+  const targetCustomerDomains = routeSections.map((section) => section.label).join("、");
 
   const routeRows = routes
     .map(
@@ -650,7 +691,7 @@ function renderCatalog({ routes, menus, pages, controllers, batches }) {
 - 页面与页内组件：${pages.length} 项。
 - 后端控制器：${controllers.length} 项。
 - 批量、导入、导出和异步任务承载类：${batches.length} 项。
-- 目标客户业务域：工作台、机构与人员、知识治理、临床协同、质量管理、合规安全、系统运维。
+- 目标客户业务域：${targetCustomerDomains}。
 - 专业能力按普通功能归入所属业务域并由权限控制；仅服务外部系统的能力只保留接口契约。
 
 | 裁决 | 数量 |
@@ -698,12 +739,13 @@ ${batchRows}
 }
 
 function generateCatalog() {
+  const routeSections = extractRouteSections();
   const routes = extractRoutes();
   const menus = extractMenus();
   const pages = extractPages(routes);
   const controllers = extractControllers();
   const batches = extractBatchCapabilities();
-  return renderCatalog({ routes, menus, pages, controllers, batches });
+  return renderCatalog({ routes, menus, pages, controllers, batches, routeSections });
 }
 
 function main() {

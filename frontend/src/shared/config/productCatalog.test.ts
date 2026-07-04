@@ -129,4 +129,11 @@ describe("product function catalog", () => {
     expect(catalog).not.toContain("知识生产 readiness");
     expect(catalog).not.toContain("生产 job");
   });
+
+  it("summarizes every primary sidebar domain in the inventory conclusion", () => {
+    const catalog = readCatalog();
+    const domainLine = catalog.match(/^- 目标客户业务域：(.+)。$/m);
+
+    expect(domainLine?.[1].split("、")).toEqual(menuSections.map((section) => section.label));
+  });
 });
