@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第八十批最新应用提交为 `0322041c2ddc0b3c97db0ead209eaed191219957`
-  （`fix: 收敛工作台运行底座默认层`）。其前置本地提交包括第七十九批阶段交接提交
+- 第八十一批最新应用提交为 `66a429a4ef00663abc3247f47112f16d0a3ac9d0`
+  （`fix: 收敛诊断知识库职责边界口径`）。其前置本地提交包括第八十批阶段交接提交
+  `f158744e394ffa11bd8853d3ae519f58645bba4c`
+  （`docs: 记录工作台运行底座默认层复演`）、第八十批应用提交
+  `0322041c2ddc0b3c97db0ead209eaed191219957`
+  （`fix: 收敛工作台运行底座默认层`）、第七十九批阶段交接提交
   `c244e72ec8605c5ddbe5a5ef17991c33ff632f15`
   （`docs: 记录随访模板默认业务口径复演`）、第七十九批应用提交
   `90dce703a9848147e7f4d02ff43b0f35fc22e7e0`
@@ -194,7 +198,7 @@
   第七十三批安全与配置前台入口口径收敛、第七十四批工作台知识关系同步口径收敛，
   第七十五批质量管理概览默认真实口径收敛、第七十六批质量评价默认真实口径收敛，
   第七十七批评价指标默认术语统一、第七十八批临床路径层级前台口径收敛，
-  第七十九批随访模板默认业务口径收敛，以及第八十批工作台运行底座默认层收敛。
+  第七十九批随访模板默认业务口径收敛、第八十批工作台运行底座默认层收敛，以及第八十一批诊断知识库职责边界口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -215,7 +219,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `0322041c2ddc0b3c97db0ead209eaed191219957`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `66a429a4ef00663abc3247f47112f16d0a3ac9d0`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -225,6 +229,50 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第八十一批·诊断知识库职责边界口径收敛）
+
+- 本批继续按用户对诊断知识入口命名、临床路径模板语义和全局菜单医疗场景契合度的线索做广度复核。结论：
+  第四十四批全局菜单名和顺序仍成立，`/knowledge/diagnosis` 在路由、菜单、后端菜单和功能目录中均为 `诊断知识库`，
+  生产代码没有旧客户入口名残留。新发现的真实体验缺口在路由体验元数据：诊断知识库的医疗引擎运营员职责边界仍写作
+  `诊断维护不绕过知识审核、平台标准版本或机构生效版本`。该短语不是菜单名，但会进入页面体验说明、职责视角测试和目录语境，
+  容易把“诊断知识库”拉回后台维护动作。本批收敛为 `诊断知识发布不绕过知识审核、平台标准版本或机构生效版本`；
+  菜单、路由路径、权限、后端 API、数据库、构建配置和 134 发布配置均未改变。
+- 已本地提交 `66a429a4ef00663abc3247f47112f16d0a3ac9d0`
+  （`fix: 收敛诊断知识库职责边界口径`）：
+  - `frontend/src/shared/config/routes.ts` 将 `diagnosisKnowledgeExperience` 的运营员边界从 `诊断维护...`
+    改为 `诊断知识发布...`，保持统一知识治理、平台标准版本和机构生效版本的边界不变。
+  - `frontend/src/shared/config/routes.test.ts` 同步锁定诊断知识库职责视角和路由元数据，避免旧后台动作词回流。
+- 本地验证：
+  - 红绿核验：先改测试后执行
+    `npm --prefix frontend test -- routes.test.ts -t "separates knowledge publishing from the diagnosis knowledge library|keeps stakeholder-specific views"`
+    在旧实现下失败，明确仍返回 `诊断维护不绕过知识审核、平台标准版本或机构生效版本`；实现后同命令通过，`1` 项。
+  - 关联配置回归：
+    `npm --prefix frontend test -- routes.test.ts menu.test.ts productRoleJourneys.test.ts productCatalog.test.ts DiagnosisKnowledgeMaintenance.test.tsx`
+    通过，`5` 个测试文件 / `76` 项。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - 旧词扫描：
+    `rg -n "诊断维护|诊断知识维护" frontend/src --glob '!**/*.test.*' --glob '!**/*.spec.*'`
+    无输出；含测试扫描仅命中 `productRoleJourneys.test.ts` 的旧词反向防回流清单。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `959` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `DiagnosisKnowledgeMaintenance-By6C-nVv.js`、
+    `Dashboard-BTSeoag4.js`、`index-CpT8rvel.js` 等前端产物。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 公网首页
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 04:55:14 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，外部 `index.html` 仍指向
+  `/assets/index-DYTh-Ceu.js`、`/assets/vendor-react-bdrMx_IT.js`、`/assets/vendor-data-D9EFEnEk.js`、
+  `/assets/vendor-react-C5ap-Sga.css`、`/assets/index-XMjG4gr3.css`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头
+  `Date=Sat, 04 Jul 2026 04:55:14 GMT`，`X-Trace-Id=7836d1ab-86c4-4d8b-9c42-89f0f22987d3`。
+  当前 134 映射仍是后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、前端 dist=
+  `95bb816292f59833005df4761866dd9d89886cb4`；不得把本地 `66a429a4` 记为已部署。
+- 下一步继续沿全局菜单、全角色职责旅程、真实前台默认层做广度优先复核；优先处理可真实落地的产品体验、
+  契约、测试、构建和文档问题；不使用子代理、不咨询、不推送远程 `main`。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第八十批·工作台运行底座默认层收敛）
 
