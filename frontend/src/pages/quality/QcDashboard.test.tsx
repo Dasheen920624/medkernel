@@ -157,7 +157,10 @@ describe("QcDashboard", () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "质量管理概览" })).toBeInTheDocument();
-    expect(screen.getByText("真实质控问题总数")).toBeInTheDocument();
+    expect(screen.getByText("质量指标、风险热力与整改闭环")).toBeInTheDocument();
+    expect(screen.getByText("质控问题总数")).toBeInTheDocument();
+    expect(screen.queryByText("真实指标、风险热力与闭环价值")).not.toBeInTheDocument();
+    expect(screen.queryByText("真实质控问题总数")).not.toBeInTheDocument();
     expect(screen.getByText("12 项")).toBeInTheDocument();
     expect(screen.getByText("心内科")).toBeInTheDocument();
     expect(screen.getByText("整改闭环率")).toBeInTheDocument();
@@ -174,6 +177,40 @@ describe("QcDashboard", () => {
     expect(screen.queryByText("追踪号：trace-alert")).not.toBeInTheDocument();
     expect(screen.queryByText("质控驾驶舱汇总接口尚未接入")).not.toBeInTheDocument();
     expect(screen.queryByText(/485|92\.8|演示/)).not.toBeInTheDocument();
+  });
+
+  it("uses quality management wording when the current scope has no overview data", () => {
+    mockUseQualityDashboard.mockReturnValue({
+      data: {
+        ...dashboardData,
+        summary: {
+          totalFindings: 0,
+          openFindings: 0,
+          closedFindings: 0,
+          waivedFindings: 0,
+          overdueRectificationTasks: 0,
+          activeAlerts: 0,
+        },
+        heatmap: [],
+        valueMetrics: { metrics: [] },
+        activeAlerts: [],
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+    mockUseQualityDashboardDrilldown.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    expect(screen.getByText("当前筛选下暂无质控数据")).toBeInTheDocument();
+    expect(screen.queryByText("当前筛选下暂无真实质控数据")).not.toBeInTheDocument();
   });
 
   it("uses the current quality overview name in error states", () => {
@@ -334,7 +371,8 @@ describe("QcDashboard", () => {
     expect(mockUseQualityDashboardDrilldown).toHaveBeenCalledWith(
       expect.objectContaining({ type: "FINDING", page: 1, size: 20 }),
     );
-    expect(screen.getByText("真实下钻证据")).toBeInTheDocument();
+    expect(screen.getByText("问题下钻证据")).toBeInTheDocument();
+    expect(screen.queryByText("真实下钻证据")).not.toBeInTheDocument();
     expect(screen.getByText("当前页处理摘要")).toBeInTheDocument();
     expect(screen.getByText(/先处理 1 项高风险证据/)).toBeInTheDocument();
     expect(screen.getByText(/心内科 1 项/)).toBeInTheDocument();

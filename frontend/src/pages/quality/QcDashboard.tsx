@@ -50,6 +50,8 @@ import styles from "./Quality.module.css";
 const { Text, Title } = Typography;
 
 type TimeScope = "CURRENT_MONTH" | "LAST_30_DAYS" | "ALL";
+const PAGE_TITLE = "质量管理概览";
+const PAGE_DESCRIPTION = "质量指标、风险热力与整改闭环";
 const DASHBOARD_ALERT_PREVIEW_LIMIT = 5;
 
 export default function QcDashboard() {
@@ -142,8 +144,8 @@ export default function QcDashboard() {
   if (dashboardQuery.isLoading) {
     return (
       <PageShell
-        title="质量管理概览"
-        description="真实指标、风险热力与闭环价值"
+        title={PAGE_TITLE}
+        description={PAGE_DESCRIPTION}
         primary={primaryAction}
         extras={extraActions}
         state="loading"
@@ -156,8 +158,8 @@ export default function QcDashboard() {
   if (dashboardQuery.isError) {
     return (
       <PageShell
-        title="质量管理概览"
-        description="真实指标、风险热力与闭环价值"
+        title={PAGE_TITLE}
+        description={PAGE_DESCRIPTION}
         primary={primaryAction}
         extras={extraActions}
         state={errorStatus === 403 ? "forbidden" : "error"}
@@ -179,13 +181,13 @@ export default function QcDashboard() {
   if (!dashboard || isEmpty) {
     return (
       <PageShell
-        title="质量管理概览"
-        description="真实指标、风险热力与闭环价值"
+        title={PAGE_TITLE}
+        description={PAGE_DESCRIPTION}
         primary={primaryAction}
         extras={extraActions}
         state="empty"
         stateProps={{
-          title: "当前筛选下暂无真实质控数据",
+          title: "当前筛选下暂无质控数据",
           description: "质控汇总服务暂未返回问题、预警或质量成效。",
         }}
       >
@@ -196,8 +198,8 @@ export default function QcDashboard() {
 
   return (
     <PageShell
-      title="质量管理概览"
-      description="真实指标、风险热力与闭环价值"
+      title={PAGE_TITLE}
+      description={PAGE_DESCRIPTION}
       primary={primaryAction}
       extras={extraActions}
     >
@@ -268,7 +270,7 @@ export default function QcDashboard() {
         <div className={styles.statsGrid}>
           <MetricCard
             icon={<AuditOutlined className={styles.iconLarge} />}
-            label="真实质控问题总数"
+            label="质控问题总数"
             value={formatCount(dashboard.summary.totalFindings)}
           />
           <MetricCard
@@ -436,7 +438,7 @@ function HeatmapList({
   evidenceDetailsEnabled: boolean;
 }) {
   if (cells.length === 0) {
-    return <Empty description="暂无真实科室风险热力" />;
+    return <Empty description="暂无科室风险热力" />;
   }
   return (
     <List
@@ -485,7 +487,7 @@ function ValueMetricList({
   evidenceDetailsEnabled: boolean;
 }) {
   if (metrics.length === 0) {
-    return <Empty description="暂无真实质量成效" />;
+    return <Empty description="暂无质量成效" />;
   }
   return (
     <List
@@ -625,7 +627,7 @@ function EvidenceDrawer({
     evidenceDetailsEnabled,
   );
   return (
-    <Drawer title="真实下钻证据" width={720} open={open} onClose={onClose} destroyOnClose>
+    <Drawer title="问题下钻证据" width={720} open={open} onClose={onClose} destroyOnClose>
       <Space direction="vertical" size="middle" className={styles.fullWidth}>
         <Space className={styles.rowBetween} wrap>
           <Tag color="processing">{customerEnumLabel(drilldownType)}</Tag>
@@ -672,7 +674,7 @@ function EvidenceDrawer({
         <List
           loading={query.isLoading}
           dataSource={items}
-          locale={{ emptyText: <Empty description="暂无真实下钻证据" /> }}
+          locale={{ emptyText: <Empty description="暂无问题下钻证据" /> }}
           renderItem={(item) => (
             <EvidenceItem
               item={item}
