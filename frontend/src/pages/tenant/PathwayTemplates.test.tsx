@@ -425,76 +425,88 @@ describe("PathwayTemplates 临床路径库治理契约", () => {
     await waitFor(() => expect(apiMocks.createTemplate).not.toHaveBeenCalled());
   });
 
-  it("路径建模表单以稳定业务身份表达结构化路径对象", async () => {
-    const { user, dialog } = await openCreateDialog();
+  it(
+    "路径建模表单以稳定业务身份表达结构化路径对象",
+    async () => {
+      const { user, dialog } = await openCreateDialog();
 
-    expect(within(dialog).getByLabelText("稳定临床路径身份")).toBeInTheDocument();
-    expect(within(dialog).getByLabelText("适用病种身份")).toBeInTheDocument();
-    expect(within(dialog).getByPlaceholderText("如 xinxueguan-lujing-fuhe")).toBeInTheDocument();
-    expect(
-      within(dialog).getByPlaceholderText("如 xinxueguanbing 或 ICD10-I63"),
-    ).toBeInTheDocument();
-    expect(within(dialog).queryByLabelText("稳定路径模型身份")).not.toBeInTheDocument();
-    expect(within(dialog).queryByLabelText("路径模型代码")).not.toBeInTheDocument();
-    expect(within(dialog).queryByLabelText("病种代码")).not.toBeInTheDocument();
-    expect(within(dialog).queryByPlaceholderText("如 PATH.CARDIO.REVIEW")).not.toBeInTheDocument();
-    expect(within(dialog).queryByPlaceholderText("如 CARDIO 或 ICD10-I63")).not.toBeInTheDocument();
+      expect(within(dialog).getByLabelText("稳定临床路径身份")).toBeInTheDocument();
+      expect(within(dialog).getByLabelText("适用病种身份")).toBeInTheDocument();
+      expect(within(dialog).getByPlaceholderText("如 xinxueguan-lujing-fuhe")).toBeInTheDocument();
+      expect(
+        within(dialog).getByPlaceholderText("如 xinxueguanbing 或 ICD10-I63"),
+      ).toBeInTheDocument();
+      expect(within(dialog).queryByLabelText("稳定路径模型身份")).not.toBeInTheDocument();
+      expect(within(dialog).queryByLabelText("路径模型代码")).not.toBeInTheDocument();
+      expect(within(dialog).queryByLabelText("病种代码")).not.toBeInTheDocument();
+      expect(
+        within(dialog).queryByPlaceholderText("如 PATH.CARDIO.REVIEW"),
+      ).not.toBeInTheDocument();
+      expect(
+        within(dialog).queryByPlaceholderText("如 CARDIO 或 ICD10-I63"),
+      ).not.toBeInTheDocument();
 
-    await user.click(within(dialog).getByLabelText("基础节点闭环"));
-    await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
+      await user.click(within(dialog).getByLabelText("基础节点闭环"));
+      await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
 
-    expect(within(dialog).queryByText("入径评估（ASSESS）")).not.toBeInTheDocument();
-    expect(within(dialog).queryByText("出径随访（FOLLOWUP）")).not.toBeInTheDocument();
-    expect(within(dialog).queryByText("平均住院日（PATH.OUTCOME.LOS）")).not.toBeInTheDocument();
-    expect(within(dialog).getByLabelText("阶段身份")).toBeInTheDocument();
-    expect(within(dialog).getByLabelText("里程碑身份")).toBeInTheDocument();
-    expect(within(dialog).getAllByLabelText("节点身份").length).toBeGreaterThan(0);
-    expect(within(dialog).getAllByLabelText("时钟指标身份").length).toBeGreaterThan(0);
-    expect(within(dialog).getByLabelText("流转身份")).toBeInTheDocument();
-    expect(within(dialog).getByPlaceholderText("如 shuqian")).toBeInTheDocument();
-    expect(within(dialog).getByPlaceholderText("如 shuqian-rujing-pinggu")).toBeInTheDocument();
-    expect(
-      within(dialog).getAllByPlaceholderText("如 N1，可改为 rujing-pinggu").length,
-    ).toBeGreaterThan(0);
-    expect(
-      within(dialog).getAllByPlaceholderText("如 rujing-pinggu-shichuang").length,
-    ).toBeGreaterThan(0);
-    expect(
-      within(dialog).getByPlaceholderText("如 E1，可改为 rujing-daosuifang"),
-    ).toBeInTheDocument();
-    expect(within(dialog).queryByPlaceholderText("如 PREOP")).not.toBeInTheDocument();
-    expect(within(dialog).queryByPlaceholderText("如 M-PREOP-ASSESS")).not.toBeInTheDocument();
-    expect(within(dialog).queryByPlaceholderText("如 N1，可改为 ASSESS")).not.toBeInTheDocument();
-    expect(within(dialog).queryByPlaceholderText("如 PATH.TIME.ASSESS")).not.toBeInTheDocument();
-    expect(
-      within(dialog).queryByPlaceholderText("如 E1，可改为 EDGE.ASSESS.FOLLOWUP"),
-    ).not.toBeInTheDocument();
+      expect(within(dialog).queryByText("入径评估（ASSESS）")).not.toBeInTheDocument();
+      expect(within(dialog).queryByText("出径随访（FOLLOWUP）")).not.toBeInTheDocument();
+      expect(within(dialog).queryByText("平均住院日（PATH.OUTCOME.LOS）")).not.toBeInTheDocument();
+      expect(within(dialog).getByLabelText("阶段身份")).toBeInTheDocument();
+      expect(within(dialog).getByLabelText("里程碑身份")).toBeInTheDocument();
+      expect(within(dialog).getAllByLabelText("节点身份").length).toBeGreaterThan(0);
+      expect(within(dialog).getAllByLabelText("时钟指标身份").length).toBeGreaterThan(0);
+      expect(within(dialog).getByLabelText("流转身份")).toBeInTheDocument();
+      expect(within(dialog).getByPlaceholderText("如 shuqian")).toBeInTheDocument();
+      expect(within(dialog).getByPlaceholderText("如 shuqian-rujing-pinggu")).toBeInTheDocument();
+      expect(
+        within(dialog).getAllByPlaceholderText("如 N1，可改为 rujing-pinggu").length,
+      ).toBeGreaterThan(0);
+      expect(
+        within(dialog).getAllByPlaceholderText("如 rujing-pinggu-shichuang").length,
+      ).toBeGreaterThan(0);
+      expect(
+        within(dialog).getByPlaceholderText("如 E1，可改为 rujing-daosuifang"),
+      ).toBeInTheDocument();
+      expect(within(dialog).queryByPlaceholderText("如 PREOP")).not.toBeInTheDocument();
+      expect(within(dialog).queryByPlaceholderText("如 M-PREOP-ASSESS")).not.toBeInTheDocument();
+      expect(within(dialog).queryByPlaceholderText("如 N1，可改为 ASSESS")).not.toBeInTheDocument();
+      expect(within(dialog).queryByPlaceholderText("如 PATH.TIME.ASSESS")).not.toBeInTheDocument();
+      expect(
+        within(dialog).queryByPlaceholderText("如 E1，可改为 EDGE.ASSESS.FOLLOWUP"),
+      ).not.toBeInTheDocument();
 
-    fireEvent.change(within(dialog).getAllByLabelText("时窗分钟")[0], {
-      target: { value: "60" },
-    });
-    await waitFor(() => expect(within(dialog).getByLabelText("时窗校验基准")).toBeInTheDocument());
-    expect(within(dialog).queryByLabelText("SLA基准")).not.toBeInTheDocument();
+      fireEvent.change(within(dialog).getAllByLabelText("时窗分钟")[0], {
+        target: { value: "60" },
+      });
+      await waitFor(() =>
+        expect(within(dialog).getByLabelText("时窗校验基准")).toBeInTheDocument(),
+      );
+      expect(within(dialog).queryByLabelText("SLA基准")).not.toBeInTheDocument();
 
-    await user.click(within(dialog).getAllByLabelText("节点类型")[0]);
-    await user.click(screen.getByText("医嘱套餐"));
-    await waitFor(() => expect(within(dialog).getByLabelText("医嘱套餐引用")).toBeInTheDocument());
-    expect(
-      within(dialog).getByPlaceholderText("如 ganranxing-xiuke-yizhu-taocan"),
-    ).toBeInTheDocument();
-    expect(within(dialog).queryByPlaceholderText("如 sepsis-order-set")).not.toBeInTheDocument();
+      await user.click(within(dialog).getAllByLabelText("节点类型")[0]);
+      await user.click(screen.getByText("医嘱套餐"));
+      await waitFor(() =>
+        expect(within(dialog).getByLabelText("医嘱套餐引用")).toBeInTheDocument(),
+      );
+      expect(
+        within(dialog).getByPlaceholderText("如 ganranxing-xiuke-yizhu-taocan"),
+      ).toBeInTheDocument();
+      expect(within(dialog).queryByPlaceholderText("如 sepsis-order-set")).not.toBeInTheDocument();
 
-    await user.click(within(dialog).getAllByLabelText("节点类型")[0]);
-    await user.click(screen.getByText("等待计时"));
-    await waitFor(() => expect(within(dialog).getByLabelText("计时规则")).toBeInTheDocument());
-    expect(within(dialog).queryByLabelText("计时 clock")).not.toBeInTheDocument();
+      await user.click(within(dialog).getAllByLabelText("节点类型")[0]);
+      await user.click(screen.getByText("等待计时"));
+      await waitFor(() => expect(within(dialog).getByLabelText("计时规则")).toBeInTheDocument());
+      expect(within(dialog).queryByLabelText("计时 clock")).not.toBeInTheDocument();
 
-    expect(within(dialog).queryByText("阶段编码")).not.toBeInTheDocument();
-    expect(within(dialog).queryByText("里程碑编码")).not.toBeInTheDocument();
-    expect(within(dialog).queryByText("节点编码")).not.toBeInTheDocument();
-    expect(within(dialog).queryByText("时钟指标编码")).not.toBeInTheDocument();
-    expect(within(dialog).queryByText("边编码")).not.toBeInTheDocument();
-  });
+      expect(within(dialog).queryByText("阶段编码")).not.toBeInTheDocument();
+      expect(within(dialog).queryByText("里程碑编码")).not.toBeInTheDocument();
+      expect(within(dialog).queryByText("节点编码")).not.toBeInTheDocument();
+      expect(within(dialog).queryByText("时钟指标编码")).not.toBeInTheDocument();
+      expect(within(dialog).queryByText("边编码")).not.toBeInTheDocument();
+    },
+    PATHWAY_INTERACTION_TIMEOUT_MS,
+  );
 
   it("结局指标绑定引用已生效评价指标", async () => {
     const { user, dialog } = await openCreateDialog();
@@ -516,6 +528,8 @@ describe("PathwayTemplates 临床路径库治理契约", () => {
     renderPathwayTemplates();
 
     expect(await screen.findByText("平台标准路径")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "路径操作" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "管理动作" })).not.toBeInTheDocument();
     expect(screen.queryByText("STANDARD")).not.toBeInTheDocument();
 
     const user = userEvent.setup();
@@ -940,6 +954,10 @@ describe("PathwayTemplates 临床路径库治理契约", () => {
       expect(
         within(dialog).getByText("字段目录暂不可用，路径条件不能同步到受控配置。"),
       ).toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: "查看字段目录" })).toBeInTheDocument();
+      expect(
+        within(dialog).queryByRole("button", { name: "管理字段目录" }),
+      ).not.toBeInTheDocument();
       expect(within(dialog).getByRole("button", { name: /同步到受控配置/ })).toBeDisabled();
     },
     PATHWAY_INTERACTION_TIMEOUT_MS,

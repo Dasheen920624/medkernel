@@ -2168,7 +2168,7 @@ export default function PathwayTemplates() {
       render: pathwayContentStatus,
     },
     {
-      title: "管理动作",
+      title: "路径操作",
       key: "action",
       render: (record: PathwayTemplate) => (
         <Button
@@ -2556,10 +2556,10 @@ export default function PathwayTemplates() {
                 </Button>
                 <Button
                   icon={<ApartmentOutlined />}
-                  aria-label="管理字段目录"
+                  aria-label="查看字段目录"
                   onClick={() => setFieldManagerOpen(true)}
                 >
-                  管理字段目录
+                  查看字段目录
                 </Button>
               </div>
             </div>

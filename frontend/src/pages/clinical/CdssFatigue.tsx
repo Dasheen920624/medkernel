@@ -787,7 +787,7 @@ export default function CdssFatigue() {
       },
     },
     {
-      title: "管理",
+      title: "反馈操作",
       key: "action",
       render: (record: ClinicalRecommendationCard) => (
         <Button

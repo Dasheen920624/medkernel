@@ -503,6 +503,10 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
       expect(within(dialog).getByText("临床算子")).toBeInTheDocument();
       expect(within(dialog).queryByText("条件片段")).not.toBeInTheDocument();
       expect(within(dialog).queryByRole("button", { name: /片段库/ })).not.toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: "查看字段目录" })).toBeInTheDocument();
+      expect(
+        within(dialog).queryByRole("button", { name: "管理字段目录" }),
+      ).not.toBeInTheDocument();
       expect(within(dialog).getByText("可读预览")).toBeInTheDocument();
       expect(within(dialog).getByText("当 年龄 大于等于 65。")).toBeInTheDocument();
       fireEvent.change(dialog.querySelector("#rule-condition-fact") as HTMLInputElement, {

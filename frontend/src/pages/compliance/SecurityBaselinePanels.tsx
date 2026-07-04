@@ -319,7 +319,7 @@ export function SystemConfigPanel({
               )}
               <Text type="secondary">
                 正式知识生产前必须通过配置中心维护受管本地磁盘、对象存储或 HTTPS 网关等资料库，禁止
-                tmp 临时目录和代码内置厂商地址。
+                临时目录和代码内置厂商地址。
               </Text>
             </Space>
           }

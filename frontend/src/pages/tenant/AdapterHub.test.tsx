@@ -814,6 +814,31 @@ describe("AdapterHub", () => {
     expect(screen.queryByLabelText("回调通道标识")).not.toBeInTheDocument();
   });
 
+  it("points empty organization scope setup to 服务机构 instead of abstract org maintenance", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useOrgUnits).mockReturnValue(
+      query({
+        items: [],
+        page: 1,
+        size: 500,
+        total: 0,
+        hasNext: false,
+        totalEstimated: false,
+      }) as never,
+    );
+
+    renderPage();
+
+    await user.click(screen.getByRole("tab", { name: "接入向导" }));
+    await user.click(screen.getByRole("button", { name: "新增接入申请" }));
+    await user.click(screen.getByLabelText("组织范围"));
+
+    expect(
+      await screen.findByText("暂无可选组织，请先到“服务机构”补充组织节点。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("暂无可选组织，请先维护组织架构")).not.toBeInTheDocument();
+  });
+
   it("uses stable business identity labels for callback setup", async () => {
     const user = userEvent.setup();
     renderPage();

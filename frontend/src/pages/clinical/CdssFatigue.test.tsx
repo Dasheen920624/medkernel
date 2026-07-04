@@ -369,6 +369,8 @@ describe("CdssFatigue", () => {
     expect(screen.queryByText("patient-real-1")).not.toBeInTheDocument();
     expect(screen.queryByText("trace-rec")).not.toBeInTheDocument();
     expect(screen.getAllByText("住院医嘱").length).toBeGreaterThan(0);
+    expect(screen.getByRole("columnheader", { name: "反馈操作" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "管理" })).not.toBeInTheDocument();
     expect(screen.getByText("已采纳")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
     expect(screen.getByText("已处理采纳率")).toBeInTheDocument();

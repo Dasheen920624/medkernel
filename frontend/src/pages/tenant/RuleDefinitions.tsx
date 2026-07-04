@@ -4442,10 +4442,10 @@ export default function RuleDefinitions() {
             </Button>
             <Button
               icon={<ApartmentOutlined />}
-              aria-label="管理字段目录"
+              aria-label="查看字段目录"
               onClick={() => setFieldManagerOpen(true)}
             >
-              管理字段目录
+              查看字段目录
             </Button>
           </Space>
         </Space>

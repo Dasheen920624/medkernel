@@ -1615,7 +1615,7 @@ export default function AdapterHub() {
               scope="BUSINESS_SCOPE"
               valueMode="PATH"
               placeholder="从组织树选择适用范围"
-              notFoundContent="暂无可选组织，请先维护组织架构"
+              notFoundContent="暂无可选组织，请先到“服务机构”补充组织节点。"
             />
           </Form.Item>
         </Form>
@@ -1835,7 +1835,7 @@ export default function AdapterHub() {
               scope="BUSINESS_SCOPE"
               valueMode="PATH"
               placeholder="从组织树选择适用范围"
-              notFoundContent="暂无可选组织，请先维护组织架构"
+              notFoundContent="暂无可选组织，请先到“服务机构”补充组织节点。"
             />
           </Form.Item>
           <Form.Item name="callbackWebhookId" label="回调通道">

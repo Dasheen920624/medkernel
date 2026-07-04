@@ -86,7 +86,7 @@ if (!route?.experience) {
 }
 
 const PAGE_META: { title: string; experience: RouteExperience } = {
-  title: "知识来源追溯",
+  title: "来源与血缘",
   experience: route.experience,
 };
 

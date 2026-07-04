@@ -207,7 +207,7 @@ describe("SecurityBaseline", () => {
           displayName: "平台知识文献资料库根地址",
           risk: "HIGH",
           owner: "平台知识治理组 / 信息科",
-          description: "主平台知识管理服务器使用的正式文献资料库根地址，禁止使用 tmp 临时目录。",
+          description: "主平台知识管理服务器使用的正式文献资料库根地址，禁止使用临时目录。",
           source: "PLATFORM_SEED",
           protectedConfig: true,
           version: 1,

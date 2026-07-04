@@ -799,7 +799,7 @@ export default function DeclarativeAssetWorkbench({
         type="info"
         showIcon
         message="配置资产按类型编目"
-        description="每类资产按结构校验，版本号自动递增；发布时会选择值集、公式、医嘱套餐和临床提示卡的精确版本。已发布内容不可原地修改。字段目录与完整路径分别由各自工作台管理。"
+        description="每类资产按结构校验，版本号自动递增；发布时会选择值集、公式、医嘱套餐和临床提示卡的精确版本。已发布内容不可原地修改。字段目录与完整路径分别在对应工作台维护。"
       />
       <Tabs
         activeKey={assetType}
