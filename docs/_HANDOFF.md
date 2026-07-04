@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第九十批最新应用提交为 `30114152426d375b0c792b8e92ffc3f2a92268d7`
-  （`fix: 收敛临床规则任务口径`）。其前置本地提交包括第八十九批阶段交接提交
+- 第九十一批最新应用提交为 `7cfd8494aa4d53f43ed103a82669ebf8a925fe08`
+  （`fix: 收敛机构生效版本任务口径`）。其前置本地提交包括第九十批阶段交接提交
+  `b68223a6e7f4f94636546c639e1da427726a109f`
+  （`docs: 记录临床规则任务口径复演`）、第九十批应用提交
+  `30114152426d375b0c792b8e92ffc3f2a92268d7`
+  （`fix: 收敛临床规则任务口径`）、第八十九批阶段交接提交
   `78200ea95625ee20ea9ee46e801035e935cee313`
   （`docs: 记录评价指标任务口径复演`）、第八十九批应用提交
   `58c01f7546bad98d3c1022b6f939d78cb4b1cbb4`
@@ -237,7 +241,8 @@
   第七十九批随访模板默认业务口径收敛、第八十批工作台运行底座默认层收敛、第八十一批诊断知识库职责边界口径收敛，
   第八十二批诊断知识表单示例口径收敛、第八十三批临床路径建模示例口径收敛、第八十四批批量规则默认示例口径收敛，
   第八十五批七步流来源选择口径收敛、第八十六批资产编目入口口径收敛、第八十七批诊断知识库任务口径收敛、
-  第八十八批临床路径库任务口径收敛、第八十九批评价指标任务口径收敛，以及第九十批临床规则任务口径收敛。
+  第八十八批临床路径库任务口径收敛、第八十九批评价指标任务口径收敛、第九十批临床规则任务口径收敛，
+  以及第九十一批机构生效版本任务口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -258,7 +263,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `30114152426d375b0c792b8e92ffc3f2a92268d7`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `7cfd8494aa4d53f43ed103a82669ebf8a925fe08`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -268,6 +273,56 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第九十一批·机构生效版本任务口径收敛）
+
+- 本批继续按全局菜单、医疗产品体验和全角色职责旅程复核。结论：左侧菜单 `机构生效版本` 与当前知识治理发布顺序仍成立，
+  比“版本维护”“发布配置”更贴合医院对当前运行版本、回滚证据和机构确认的心智，不需要重命名或重排；真实缺口是
+  `/config/releases` 页面说明和产品功能目录任务仍使用“维护平台标准版本 / 机构生效版本”口径，容易让运营角色误解为
+  直接维护已发布版本。按 `CONSTITUTION` 统一最小发布流、`PRODUCT_SCOPE` 的平台标准版本与机构生效版本边界、
+  `EXPERIENCE_CONTRACT` 的医院任务语言，本批仅将客户可见任务收敛为“发布平台标准版本、生成机构生效版本并保留影响和回滚证据”；
+  菜单键、菜单顺序、权限、后端 API、数据库、构建配置和 134 发布配置均未改变。
+- 已本地提交 `7cfd8494aa4d53f43ed103a82669ebf8a925fe08`
+  （`fix: 收敛机构生效版本任务口径`）：
+  - `frontend/src/pages/tenant/ReleaseGovernance.tsx` 将页面说明从
+    `维护平台标准版本，并为机构确认当前生效版本。` 改为
+    `发布平台标准版本，为机构生成可回滚的当前生效版本。`。
+  - `scripts/audit/export-product-capabilities.mjs` 将 `/config/releases` 产品目录任务改为
+    `发布平台标准版本、生成机构生效版本并保留影响和回滚证据`，并重新生成
+    `docs/audit/product-function-catalog.md`，保持目录文档由同一生成器产出。
+  - `ReleaseGovernance.test.tsx` 与 `productCatalog.test.ts` 正向锁定新口径，并反向阻断旧“维护平台标准版本”语义回流。
+- 本地验证：
+  - 红灯：先改测试后执行
+    `npm --prefix frontend test -- ReleaseGovernance.test.tsx productCatalog.test.ts -t "publishes the selected platform draft|hospital-facing language"`
+    在旧实现下失败，明确命中发布页仍展示 `维护平台标准版本，并为机构确认当前生效版本。`，且产品功能目录缺少新的
+    `/config/releases` 任务行。
+  - 绿灯：实现后同一命令通过，`2` 项；关联回归
+    `npm --prefix frontend test -- ReleaseGovernance.test.tsx routes.test.ts menu.test.ts productCatalog.test.ts productRoleJourneys.test.ts pages.smoke.test.tsx`
+    通过，`6` 个测试文件 / `108` 项。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - 旧口径扫描：
+    `rg -n "维护平台标准版本|维护平台标准版本、机构生效版本|为机构确认当前生效版本" frontend/src docs/audit/product-function-catalog.md scripts/audit/export-product-capabilities.mjs --glob '!**/*.test.ts' --glob '!**/*.test.tsx'`
+    无输出；旧语义只保留在测试反向断言中。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项。
+  - 完整前端门禁：首次 `npm --prefix frontend run verify` 在 `format:check` 因
+    `ReleaseGovernance.test.tsx` 新增长中文断言未按 Prettier 折行而失败；执行
+    `npm exec prettier -- --write src/pages/tenant/ReleaseGovernance.test.tsx` 后重跑
+    `npm --prefix frontend run verify` 通过，`114` 个测试文件 / `960` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `ReleaseGovernance-B_3ZG0Jb.js`、`index-D9URhpzW.js` 等前端产物。
+  - `git diff --check`、应用提交前 `git diff --cached --check` 均通过；`scripts/audit/export-product-capabilities.mjs`
+    仅出现既有 CRLF/LF 提示，实际 staged diff 只有目标行变更。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 公网首页
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 06:17:17 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`；readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health/readiness` 返回 HTTP 200 / `{"status":"UP"}`，
+  `X-Trace-Id=383ff086-18af-4b46-8a4b-cdd49149575c`。当前 134 映射仍是
+  后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`；
+  不得把本地 `7cfd8494` 记为已部署。
+- 下一步继续沿全局菜单、全角色职责旅程、真实前台默认层做广度优先复核；优先处理可真实落地的产品体验、
+  契约、测试、构建和文档问题；不使用子代理、不咨询、不推送远程 `main`。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第九十批·临床规则任务口径收敛）
 
