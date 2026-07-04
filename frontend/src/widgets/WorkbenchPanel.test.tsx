@@ -271,7 +271,7 @@ function expectedLandingFor(roleCode: string, displayName: string) {
     "clinical-governance": "临床知识治理",
     medication: "药事安全复核",
     diagnostic: "医技协同",
-    quality: "质量管理概览",
+    quality: "质量风险概览",
     audit: "最近变化",
     tenant: "治理概览",
   } as const;
@@ -302,7 +302,7 @@ describe("WorkbenchPanel", () => {
     expect(screen.getByRole("heading", { name: "平台管理员工作台" })).toBeInTheDocument();
     expect(screen.getByText("系统健康")).toBeInTheDocument();
     expect(screen.getByText("外部依赖连通")).toBeInTheDocument();
-    expect(screen.getByText("运行保障可查看数据库和依赖明细")).toBeInTheDocument();
+    expect(screen.getByText("服务运行保障可查看数据库和依赖明细")).toBeInTheDocument();
     expect(screen.getByText(/运行数据服务/)).toBeInTheDocument();
     expect(screen.queryByText(/数据库：/)).not.toBeInTheDocument();
     expect(screen.queryByText(/关系数据库/)).not.toBeInTheDocument();
@@ -343,7 +343,7 @@ describe("WorkbenchPanel", () => {
     expect(screen.getByRole("button", { name: /进入知识生产/ })).toBeInTheDocument();
     expect(screen.getAllByText("质量问题与整改").length).toBeGreaterThan(0);
     expect(
-      screen.getByText("进入质量管理概览核查指标口径、责任对象、整改进度和医保审核入口。"),
+      screen.getByText("进入质量风险概览核查指标口径、责任对象、整改进度和医保审核入口。"),
     ).toBeInTheDocument();
     expect(screen.queryByText("临床协同入口")).not.toBeInTheDocument();
     knowledge.unmount();
@@ -608,7 +608,9 @@ describe("WorkbenchPanel", () => {
     expect(screen.getByRole("heading", { name: "平台管理员工作台" })).toBeInTheDocument();
     expect(screen.getByText("知识关系同步来源待配置")).toBeInTheDocument();
     expect(
-      screen.getByText("当前运行状态未返回知识关系同步来源，请在运行保障中核查知识关系同步配置。"),
+      screen.getByText(
+        "当前运行状态未返回知识关系同步来源，请在服务运行保障中核查知识关系同步配置。",
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/图谱投影配置/)).not.toBeInTheDocument();
     expect(screen.queryByText("未接入")).not.toBeInTheDocument();

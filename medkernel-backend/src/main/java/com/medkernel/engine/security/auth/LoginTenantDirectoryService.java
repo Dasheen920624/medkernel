@@ -11,7 +11,7 @@ import com.medkernel.shared.context.PlatformTenant;
 /**
  * 登录前租户字典服务。
  *
- * <p>客户 / 集团租户存在时优先作为登录第一层；平台主租户永远唯一，退到第二层给平台接管和运行保障人员使用。
+ * <p>客户 / 集团租户存在时优先作为登录第一层；平台主租户永远唯一，退到第二层给平台接管和服务运行保障人员使用。
  */
 @Service
 public class LoginTenantDirectoryService {

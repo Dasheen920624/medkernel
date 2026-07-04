@@ -248,7 +248,7 @@ describe("page smoke coverage", () => {
 
   it("renders the model capability status page", () => {
     renderPage(<AiWorkflows />);
-    expect(screen.getByRole("heading", { name: "模型能力" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "模型能力与安全" })).toBeInTheDocument();
   });
 
   it("renders the knowledge provenance console", () => {

@@ -156,7 +156,7 @@ describe("QcDashboard", () => {
 
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "质量管理概览" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "质量风险概览" })).toBeInTheDocument();
     expect(screen.getByText("质量指标、风险热力与整改闭环")).toBeInTheDocument();
     expect(screen.getByText("质控问题总数")).toBeInTheDocument();
     expect(screen.queryByText("真实指标、风险热力与闭环价值")).not.toBeInTheDocument();
@@ -230,7 +230,7 @@ describe("QcDashboard", () => {
 
     renderPage();
 
-    expect(screen.getByText("质量管理概览读取失败")).toBeInTheDocument();
+    expect(screen.getByText("质量风险概览读取失败")).toBeInTheDocument();
     expect(screen.queryByText(/质控驾驶舱/)).not.toBeInTheDocument();
   });
 

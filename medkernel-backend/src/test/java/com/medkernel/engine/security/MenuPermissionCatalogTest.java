@@ -68,7 +68,9 @@ class MenuPermissionCatalogTest {
                 org.assertj.core.groups.Tuple.tuple("rule-definitions", "临床规则"),
                 org.assertj.core.groups.Tuple.tuple("pathway-templates", "临床路径库"),
                 org.assertj.core.groups.Tuple.tuple("knowledge-production", "知识生产工作台"),
-                org.assertj.core.groups.Tuple.tuple("ai-workflows", "模型能力"),
+                org.assertj.core.groups.Tuple.tuple("ai-workflows", "模型能力与安全"),
+                org.assertj.core.groups.Tuple.tuple("qc-dashboard", "质量风险概览"),
+                org.assertj.core.groups.Tuple.tuple("system-providers", "服务运行保障"),
                 org.assertj.core.groups.Tuple.tuple("domestic-check", "国产化适配自检"),
                 org.assertj.core.groups.Tuple.tuple("runtime-diagnostics", "运行诊断"));
     }

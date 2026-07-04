@@ -100,7 +100,7 @@ describe("route metadata", () => {
     expect(findRouteByPath("/advanced/ai-workflows")).toMatchObject({
       sectionKey: "knowledge-production",
       placement: "primary",
-      menuLabel: "模型能力",
+      menuLabel: "模型能力与安全",
     });
     expect(findRouteByPath("/advanced/domestic")).toMatchObject({
       sectionKey: "system-operations",
@@ -287,7 +287,7 @@ describe("route metadata", () => {
       },
       {
         role: "平台管理员",
-        responsibility: "确认运行保障项是否满足上线和恢复要求",
+        responsibility: "确认服务运行保障项是否满足上线和恢复要求",
         boundary: "不能用手工口径覆盖健康检查和恢复证据",
       },
     ]);
@@ -510,7 +510,7 @@ describe("route metadata", () => {
     expect(findRouteByPath("/advanced/ai-workflows")?.experience?.stakeholderViews).toEqual([
       {
         role: "医疗引擎运营员",
-        responsibility: "查看模型能力、任务编排、评测和降级状态",
+        responsibility: "查看模型能力、安全边界、评测和降级状态",
         boundary: "模型结果只进入候选或辅助链路，不自动发布",
       },
       {
@@ -1452,7 +1452,7 @@ describe("route metadata", () => {
   });
 
   it("builds breadcrumbs from route metadata", () => {
-    expect(getRouteBreadcrumb("/qc/dashboard")).toEqual(["质量管理", "质量管理概览"]);
+    expect(getRouteBreadcrumb("/qc/dashboard")).toEqual(["质量管理", "质量风险概览"]);
     expect(getRouteBreadcrumb("/missing")).toEqual(["未找到页面"]);
   });
 

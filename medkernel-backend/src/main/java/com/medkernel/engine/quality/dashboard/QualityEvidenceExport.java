@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * 质量管理概览证据导出载荷。
+ * 质量风险概览证据导出载荷。
  *
  * <p>当前以 JSON 证据导出返回真实来源明细，后续页面可据此下载。
  */

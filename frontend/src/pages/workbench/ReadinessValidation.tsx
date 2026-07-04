@@ -335,7 +335,7 @@ function buildRuntimeHealthItem(snapshot: RuntimeOperationsSnapshot): SelfCheckI
   return {
     key: "runtime-health",
     item: "运行环境",
-    source: "运行保障",
+    source: "服务运行保障",
     status: status.status,
     reason:
       status.status === "ready"

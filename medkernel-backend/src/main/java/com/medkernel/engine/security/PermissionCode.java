@@ -157,7 +157,7 @@ public enum PermissionCode {
     MENU_NOTIFICATIONS("menu.notifications", PermissionDimension.MENU, Risk.LOW, "查看消息通知"),
     MENU_CLINICAL_FOLLOWUP("menu.clinical-followup", PermissionDimension.MENU, Risk.LOW, "查看随访协同"),
     MENU_SANDBOX("menu.sandbox", PermissionDimension.MENU, Risk.LOW, "查看全真体验沙盘"),
-    MENU_QC_DASHBOARD("menu.qc-dashboard", PermissionDimension.MENU, Risk.LOW, "查看质量与运营概览"),
+    MENU_QC_DASHBOARD("menu.qc-dashboard", PermissionDimension.MENU, Risk.LOW, "查看质量风险概览"),
     MENU_QC_ALERTS("menu.qc-alerts", PermissionDimension.MENU, Risk.LOW, "查看质量问题与整改"),
     MENU_INSURANCE_AUDIT("menu.insurance-audit", PermissionDimension.MENU, Risk.LOW, "查看医保审核"),
     MENU_QC_EVAL_SETS("menu.qc-eval-sets", PermissionDimension.MENU, Risk.LOW, "查看评价指标"),
@@ -173,11 +173,11 @@ public enum PermissionCode {
     MENU_IDENTITY_BINDINGS("menu.identity-bindings", PermissionDimension.MENU, Risk.LOW, "查看身份来源"),
     MENU_ADMIN_AUDIT("menu.admin-audit", PermissionDimension.MENU, Risk.LOW, "查看审计与证据"),
     MENU_SECURITY_BASELINE("menu.security-baseline", PermissionDimension.MENU, Risk.LOW, "查看安全与配置"),
-    MENU_SYSTEM_PROVIDERS("menu.system-providers", PermissionDimension.MENU, Risk.LOW, "查看运行保障"),
+    MENU_SYSTEM_PROVIDERS("menu.system-providers", PermissionDimension.MENU, Risk.LOW, "查看服务运行保障"),
     MENU_NOTIFICATION_SETTINGS("menu.notification-settings", PermissionDimension.MENU, Risk.LOW, "查看通知偏好"),
     MENU_PROVENANCE("menu.provenance", PermissionDimension.MENU, Risk.LOW, "查看来源与血缘"),
     MENU_GRAPH_EXPLORE("menu.graph-explore", PermissionDimension.MENU, Risk.LOW, "查看知识关系"),
-    MENU_AI_WORKFLOWS("menu.ai-workflows", PermissionDimension.MENU, Risk.LOW, "查看模型能力"),
+    MENU_AI_WORKFLOWS("menu.ai-workflows", PermissionDimension.MENU, Risk.LOW, "查看模型能力与安全"),
     MENU_DOMESTIC_CHECK("menu.domestic-check", PermissionDimension.MENU, Risk.LOW, "查看国产化适配自检"),
     MENU_RUNTIME_DIAGNOSTICS(
         "menu.runtime-diagnostics", PermissionDimension.MENU, Risk.LOW, "查看运行诊断");

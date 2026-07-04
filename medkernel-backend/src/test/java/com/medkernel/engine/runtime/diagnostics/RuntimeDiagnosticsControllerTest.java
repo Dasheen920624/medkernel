@@ -50,7 +50,7 @@ class RuntimeDiagnosticsControllerTest {
             .andExpect(jsonPath("$.data.contracts[?(@.id == 'diagnosis-knowledge')].title",
                 hasItem("诊断知识库服务")))
             .andExpect(jsonPath("$.data.contracts[?(@.id == 'quality-dashboard')].title",
-                hasItem("质量管理概览服务")))
+                hasItem("质量风险概览服务")))
             .andExpect(jsonPath("$.data.contracts[?(@.id == 'terminology')].title",
                 hasItem("术语字典服务")))
             .andExpect(jsonPath("$.data.contracts[?(@.id == 'workflow-notification')].title",

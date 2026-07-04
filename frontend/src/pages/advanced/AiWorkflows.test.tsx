@@ -146,7 +146,7 @@ describe("AiWorkflows", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "模型能力" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "模型能力与安全" })).toBeInTheDocument();
     expect(await screen.findByText("临床知识关联发现")).toBeInTheDocument();
     expect(screen.getByText(/公网模型可在授权用途内使用患者上下文/)).toBeInTheDocument();
     expect(screen.getByText(/核心标识字段先遮蔽/)).toBeInTheDocument();
@@ -493,7 +493,7 @@ describe("AiWorkflows", () => {
 
     renderPage();
 
-    expect(await screen.findByText("无权查看模型能力")).toBeInTheDocument();
+    expect(await screen.findByText("无权查看模型能力与安全")).toBeInTheDocument();
     expect(screen.getByText("需要模型能力读取权限。")).toBeInTheDocument();
   });
 

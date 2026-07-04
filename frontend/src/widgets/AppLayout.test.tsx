@@ -123,7 +123,7 @@ async function renderLayout(initialPath = "/terminology/mapping") {
               <Route element={<AppLayout />}>
                 <Route path="/dashboard" element={<div>工作台内容</div>} />
                 <Route path="/terminology/mapping" element={<div>术语字典内容</div>} />
-                <Route path="/qc/dashboard" element={<div>质量管理概览内容</div>} />
+                <Route path="/qc/dashboard" element={<div>质量风险概览内容</div>} />
               </Route>
             </Routes>
           </MemoryRouter>
@@ -334,7 +334,7 @@ describe("AppLayout", () => {
 
     expect(screen.queryByText("知识治理")).toBeNull();
     expect(screen.getAllByText("质量管理").length).toBeGreaterThan(0);
-    expect(screen.getByText("质量管理概览内容")).toBeInTheDocument();
+    expect(screen.getByText("质量风险概览内容")).toBeInTheDocument();
   });
 
   it("does not display a hard-coded identity beside the effective permission profile", async () => {

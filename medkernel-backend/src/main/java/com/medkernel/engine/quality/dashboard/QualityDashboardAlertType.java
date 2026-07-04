@@ -1,7 +1,7 @@
 package com.medkernel.engine.quality.dashboard;
 
 /**
- * 质量管理概览预警类型。
+ * 质量风险概览预警类型。
  */
 public enum QualityDashboardAlertType {
     HIGH_RISK_FINDING,

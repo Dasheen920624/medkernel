@@ -359,11 +359,16 @@ const graphExperience: RouteExperience = {
 };
 
 const aiWorkflowsExperience: RouteExperience = {
-  ...readonlyExperience("医疗引擎运营员", "核查当前组织 AI 能力与降级状态", "能力状态", "large"),
+  ...readonlyExperience(
+    "医疗引擎运营员",
+    "核查当前组织模型能力、安全边界与降级状态",
+    "能力与安全状态",
+    "large",
+  ),
   stakeholderViews: [
     {
       role: "医疗引擎运营员",
-      responsibility: "查看模型能力、任务编排、评测和降级状态",
+      responsibility: "查看模型能力、安全边界、评测和降级状态",
       boundary: "模型结果只进入候选或辅助链路，不自动发布",
     },
     {
@@ -725,7 +730,7 @@ const systemProvidersExperience: RouteExperience = {
     },
     {
       role: "平台管理员",
-      responsibility: "确认运行保障项是否满足上线和恢复要求",
+      responsibility: "确认服务运行保障项是否满足上线和恢复要求",
       boundary: "不能用手工口径覆盖健康检查和恢复证据",
     },
   ],
@@ -1231,12 +1236,12 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
   {
     path: "/qc/dashboard",
-    title: "质量管理概览",
-    breadcrumb: ["质量管理", "质量管理概览"],
+    title: "质量风险概览",
+    breadcrumb: ["质量管理", "质量风险概览"],
     requireAuth: true,
     sectionKey: "quality-management",
     menuKey: "qc-dashboard",
-    menuLabel: "质量管理概览",
+    menuLabel: "质量风险概览",
     placement: "primary",
     navigationOrder: 1,
     requiredPermissions: ["menu.qc-dashboard", "evaluation.read"],
@@ -1433,12 +1438,12 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
   {
     path: "/system/providers",
-    title: "运行保障",
-    breadcrumb: ["系统运维", "运行保障"],
+    title: "服务运行保障",
+    breadcrumb: ["系统运维", "服务运行保障"],
     requireAuth: true,
     sectionKey: "system-operations",
     menuKey: "system-providers",
-    menuLabel: "运行保障",
+    menuLabel: "服务运行保障",
     placement: "primary",
     navigationOrder: 3,
     requiredPermissions: ["menu.system-providers", "system.read"],
@@ -1489,12 +1494,12 @@ const routeMetaInputs: RouteMetaInput[] = [
   },
   {
     path: "/advanced/ai-workflows",
-    title: "模型能力",
-    breadcrumb: ["知识生产", "模型能力"],
+    title: "模型能力与安全",
+    breadcrumb: ["知识生产", "模型能力与安全"],
     requireAuth: true,
     sectionKey: "knowledge-production",
     menuKey: "ai-workflows",
-    menuLabel: "模型能力",
+    menuLabel: "模型能力与安全",
     placement: "primary",
     navigationOrder: 2,
     requiredPermissions: ["menu.ai-workflows", "llm.read"],

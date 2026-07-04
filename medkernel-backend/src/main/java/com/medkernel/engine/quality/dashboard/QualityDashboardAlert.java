@@ -8,7 +8,7 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 质量管理概览预警实体。
+ * 质量风险概览预警实体。
  *
  * <p>保存阈值越界预警的来源事实、当前状态、阈值证据、作用域、审计字段与 trace。
  */

@@ -330,7 +330,7 @@ function WorkbenchCards({
           <DomainEntryCard
             id="engine-quality"
             title="质量问题与整改"
-            description="进入质量管理概览核查指标口径、责任对象、整改进度和医保审核入口。"
+            description="进入质量风险概览核查指标口径、责任对象、整改进度和医保审核入口。"
             actions={[
               { label: "质量问题与整改", path: "/qc/alerts" },
               { label: "医保审核", path: "/qc/insurance" },
@@ -395,9 +395,9 @@ function WorkbenchCards({
           id="quality"
           title="质量问题与整改"
           marker="质量整改入口"
-          description="进入质量管理概览和整改页面查看责任对象、整改进度和复核入口。"
+          description="进入质量风险概览和整改页面查看责任对象、整改进度和复核入口。"
           actions={[
-            { label: "质量管理概览", path: "/qc/dashboard" },
+            { label: "质量风险概览", path: "/qc/dashboard" },
             { label: "质量问题与整改", path: "/qc/alerts" },
           ]}
           onNavigate={onNavigate}
@@ -408,9 +408,9 @@ function WorkbenchCards({
           id="value"
           title="质量管理"
           marker="质量管理入口"
-          description="进入质量管理概览核查指标口径、责任对象、整改进度和医保审核入口。"
+          description="进入质量风险概览核查指标口径、责任对象、整改进度和医保审核入口。"
           actions={[
-            { label: "质量管理概览", path: "/qc/dashboard" },
+            { label: "质量风险概览", path: "/qc/dashboard" },
             { label: "医保审核", path: "/qc/insurance" },
           ]}
           onNavigate={onNavigate}
@@ -503,14 +503,14 @@ function SystemHealthCard({
       id="system"
       title="系统健康"
       query={runtime}
-      drilldown={{ label: "查看运行保障", path: "/system/providers" }}
+      drilldown={{ label: "查看服务运行保障", path: "/system/providers" }}
       onNavigate={onNavigate}
     >
       {(data) => (
         <Space direction="vertical" size="small">
           <StatusTag status={data.healthStatus} />
           <Text>当前环境：{customerDisplayText(data.environment)}</Text>
-          <Text type="secondary">运行保障可查看数据库和依赖明细</Text>
+          <Text type="secondary">服务运行保障可查看数据库和依赖明细</Text>
         </Space>
       )}
     </SourceCard>
@@ -529,7 +529,7 @@ function SimpleRuntimeCard({
       id="runtime-simple"
       title="整体运行"
       query={runtime}
-      drilldown={{ label: "查看运行保障", path: "/system/providers" }}
+      drilldown={{ label: "查看服务运行保障", path: "/system/providers" }}
       onNavigate={onNavigate}
     >
       {(data) => (
@@ -596,7 +596,7 @@ function KnowledgeSyncCard({
             <Space direction="vertical" size="small">
               <Tag>知识关系同步来源待配置</Tag>
               <Text type="secondary">
-                当前运行状态未返回知识关系同步来源，请在运行保障中核查知识关系同步配置。
+                当前运行状态未返回知识关系同步来源，请在服务运行保障中核查知识关系同步配置。
               </Text>
             </Space>
           );
@@ -977,7 +977,7 @@ function workbenchDependencyDetail(dependency: RuntimeDependencyStatus) {
       ? "知识关系同步可用，可进入知识关系复核来源、适应证、禁忌和相互作用。"
       : "知识关系同步未连接；核心业务继续使用关系库权威数据。";
   }
-  return customerSafeDisplayText(dependency.detail, "依赖状态待确认，请在运行保障中核查。");
+  return customerSafeDisplayText(dependency.detail, "依赖状态待确认，请在服务运行保障中核查。");
 }
 
 function StatusTag({ status }: { status: string }) {

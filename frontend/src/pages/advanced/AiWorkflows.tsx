@@ -42,8 +42,8 @@ import styles from "./AiWorkflows.module.css";
 
 const { Text } = Typography;
 
-const MODEL_CAPABILITY_TITLE = "模型能力";
-const MODEL_CAPABILITY_DESCRIPTION = "核查模型能力、路由与降级状态";
+const MODEL_CAPABILITY_TITLE = "模型能力与安全";
+const MODEL_CAPABILITY_DESCRIPTION = "核查模型能力、安全边界与降级状态";
 const route = findRouteByPath("/advanced/ai-workflows");
 const PAGE_META = {
   title: route?.title ?? MODEL_CAPABILITY_TITLE,
@@ -726,7 +726,7 @@ export default function AiWorkflows() {
   if (securityQuery.isError || !canRead) {
     return (
       <PageShell title={MODEL_CAPABILITY_TITLE} description={MODEL_CAPABILITY_DESCRIPTION}>
-        <Result status="403" title="无权查看模型能力" subTitle="需要模型能力读取权限。" />
+        <Result status="403" title="无权查看模型能力与安全" subTitle="需要模型能力读取权限。" />
       </PageShell>
     );
   }

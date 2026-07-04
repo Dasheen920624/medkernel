@@ -120,7 +120,7 @@ class RuntimeOperationsServiceTest {
                 .doesNotContain("未接入")
                 .doesNotContain("暂不判定通过"));
         assertThat(dependencyDetail(snapshot, "graph-projection")).contains("连接健康验证");
-        assertThat(dependencyDetail(snapshot, "model-gateway")).contains("模型能力页");
+        assertThat(dependencyDetail(snapshot, "model-gateway")).contains("模型能力与安全页");
     }
 
     private RuntimeOperationsFixture fixture(RuntimeProperties properties) {

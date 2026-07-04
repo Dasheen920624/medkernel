@@ -50,7 +50,7 @@ import styles from "./Quality.module.css";
 const { Text, Title } = Typography;
 
 type TimeScope = "CURRENT_MONTH" | "LAST_30_DAYS" | "ALL";
-const PAGE_TITLE = "质量管理概览";
+const PAGE_TITLE = "质量风险概览";
 const PAGE_DESCRIPTION = "质量指标、风险热力与整改闭环";
 const DASHBOARD_ALERT_PREVIEW_LIMIT = 5;
 
@@ -112,7 +112,7 @@ export default function QcDashboard() {
   const isEmpty = Boolean(dashboard && isDashboardEmpty(dashboard));
   const errorStatus = getResponseStatus(dashboardQuery.error);
   const errorDetail = dashboardQuery.error
-    ? parseApiError(dashboardQuery.error, "质量管理概览读取失败")
+    ? parseApiError(dashboardQuery.error, "质量风险概览读取失败")
     : undefined;
 
   const primaryAction = (
@@ -164,7 +164,7 @@ export default function QcDashboard() {
         extras={extraActions}
         state={errorStatus === 403 ? "forbidden" : "error"}
         stateProps={{
-          title: errorStatus === 403 ? "当前权限不足" : "质量管理概览读取失败",
+          title: errorStatus === 403 ? "当前权限不足" : "质量风险概览读取失败",
           description: getApiErrorMessage(
             dashboardQuery.error,
             "请检查登录权限、组织范围或质控服务状态。",

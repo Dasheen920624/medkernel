@@ -3,7 +3,7 @@ package com.medkernel.engine.quality.dashboard;
 import java.util.List;
 
 /**
- * 质量管理概览下钻响应。
+ * 质量风险概览下钻响应。
  */
 public record QualityDashboardDrilldownResponse(
     QualityDashboardDrilldownType type,

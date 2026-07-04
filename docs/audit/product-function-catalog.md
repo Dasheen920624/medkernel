@@ -93,7 +93,7 @@
 | `/sandbox` | 全真体验沙盘 | clinical-collaboration | sandbox | primary | KEEP | 临床协同 | 全真体验沙盘 | 以院内业务系统视角复演真实医疗智能链路、嵌入终端与人工反馈闭环 |
 <!-- capability:route:route@%2Fqc%2Fdashboard decision=RENAME -->
 <!-- route:/qc/dashboard -->
-| `/qc/dashboard` | 质量管理概览 | quality-management | qc-dashboard | primary | RENAME | 质量管理 | 质量管理概览 | 查看质量风险、运营趋势并下钻到责任问题 |
+| `/qc/dashboard` | 质量风险概览 | quality-management | qc-dashboard | primary | RENAME | 质量管理 | 质量风险概览 | 查看质量风险、运营趋势并下钻到责任问题 |
 <!-- capability:route:route@%2Fqc%2Falerts decision=RENAME -->
 <!-- route:/qc/alerts -->
 | `/qc/alerts` | 质量问题与整改 | quality-management | qc-alerts | primary | RENAME | 质量管理 | 质量问题与整改 | 确认问题、派发整改、复核并闭环 |
@@ -132,7 +132,7 @@
 | `/security/baseline` | 安全与配置 | compliance-security | security-baseline | primary | MOVE | 合规安全 | 安全与配置 | 维护安全基线、系统配置、数据权限和脱敏策略 |
 <!-- capability:route:route@%2Fsystem%2Fproviders decision=RENAME -->
 <!-- route:/system/providers -->
-| `/system/providers` | 运行保障 | system-operations | system-providers | primary | RENAME | 系统运维 | 运行保障 | 查看外部依赖、备份恢复、降级和部署健康状态 |
+| `/system/providers` | 服务运行保障 | system-operations | system-providers | primary | RENAME | 系统运维 | 服务运行保障 | 查看外部依赖、备份恢复、降级和部署健康状态 |
 <!-- capability:route:route@%2Fnotifications%2Fsettings decision=MOVE -->
 <!-- route:/notifications/settings -->
 | `/notifications/settings` | 通知偏好 | workbench | notification-settings | profile | MOVE | 工作台 | 通知偏好（个人菜单） | 维护个人通知偏好和有权限的机构默认策略 |
@@ -144,7 +144,7 @@
 | `/advanced/graph` | 知识关系 | knowledge-governance | graph-explore | primary | MOVE | 知识治理 | 知识关系 | 查询可重建的知识关系投影 |
 <!-- capability:route:route@%2Fadvanced%2Fai-workflows decision=MOVE -->
 <!-- route:/advanced/ai-workflows -->
-| `/advanced/ai-workflows` | 模型能力 | knowledge-production | ai-workflows | primary | MOVE | 知识生产 | 模型能力 | 查看模型能力、任务和诚实降级状态 |
+| `/advanced/ai-workflows` | 模型能力与安全 | knowledge-production | ai-workflows | primary | MOVE | 知识生产 | 模型能力与安全 | 查看模型能力、安全边界和诚实降级状态 |
 <!-- capability:route:route@%2Fadvanced%2Fdomestic decision=MOVE -->
 <!-- route:/advanced/domestic -->
 | `/advanced/domestic` | 国产化适配自检 | system-operations | domestic-check | primary | MOVE | 系统运维 | 国产化适配自检 | 核查国产化适配与部署证据 |
@@ -206,7 +206,7 @@
 | `knowledge-production` | 知识生产工作台 | `knowledge-production` | primary | `MENU_KNOWLEDGE_PRODUCTION` | SPLIT | 知识生产 | 知识生产工作台 |
 <!-- capability:menu:menu@ai-workflows decision=MOVE -->
 <!-- menu:ai-workflows -->
-| `ai-workflows` | 模型能力 | `knowledge-production` | primary | `MENU_AI_WORKFLOWS` | MOVE | 知识生产 | 模型能力 |
+| `ai-workflows` | 模型能力与安全 | `knowledge-production` | primary | `MENU_AI_WORKFLOWS` | MOVE | 知识生产 | 模型能力与安全 |
 <!-- capability:menu:menu@mpi decision=MOVE -->
 <!-- menu:mpi -->
 | `mpi` | 患者索引 | `clinical-collaboration` | primary | `MENU_MPI` | MOVE | 临床协同 | 患者索引 |
@@ -227,7 +227,7 @@
 | `sandbox` | 全真体验沙盘 | `clinical-collaboration` | primary | `MENU_SANDBOX` | KEEP | 临床协同 | 全真体验沙盘 |
 <!-- capability:menu:menu@qc-dashboard decision=RENAME -->
 <!-- menu:qc-dashboard -->
-| `qc-dashboard` | 质量管理概览 | `quality-management` | primary | `MENU_QC_DASHBOARD` | RENAME | 质量管理 | 质量管理概览 |
+| `qc-dashboard` | 质量风险概览 | `quality-management` | primary | `MENU_QC_DASHBOARD` | RENAME | 质量管理 | 质量风险概览 |
 <!-- capability:menu:menu@qc-alerts decision=RENAME -->
 <!-- menu:qc-alerts -->
 | `qc-alerts` | 质量问题与整改 | `quality-management` | primary | `MENU_QC_ALERTS` | RENAME | 质量管理 | 质量问题与整改 |
@@ -251,7 +251,7 @@
 | `adapter-hub` | 系统接入 | `system-operations` | primary | `MENU_ADAPTER_HUB` | MOVE | 系统运维 | 系统接入 |
 <!-- capability:menu:menu@system-providers decision=RENAME -->
 <!-- menu:system-providers -->
-| `system-providers` | 运行保障 | `system-operations` | primary | `MENU_SYSTEM_PROVIDERS` | RENAME | 系统运维 | 运行保障 |
+| `system-providers` | 服务运行保障 | `system-operations` | primary | `MENU_SYSTEM_PROVIDERS` | RENAME | 系统运维 | 服务运行保障 |
 <!-- capability:menu:menu@runtime-diagnostics decision=MOVE -->
 <!-- menu:runtime-diagnostics -->
 | `runtime-diagnostics` | 运行诊断 | `system-operations` | primary | `MENU_RUNTIME_DIAGNOSTICS` | MOVE | 系统运维 | 运行诊断 |
@@ -278,7 +278,7 @@
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2FNotFound.tsx decision=KEEP -->
 | `frontend/src/pages/NotFound.tsx` | `*` | KEEP | 系统反馈 | 未找到页面 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fadvanced%2FAiWorkflows.tsx decision=MOVE -->
-| `frontend/src/pages/advanced/AiWorkflows.tsx` | `/advanced/ai-workflows` | MOVE | 知识生产 | 模型能力 |
+| `frontend/src/pages/advanced/AiWorkflows.tsx` | `/advanced/ai-workflows` | MOVE | 知识生产 | 模型能力与安全 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fadvanced%2FDomesticCheck.tsx decision=MOVE -->
 | `frontend/src/pages/advanced/DomesticCheck.tsx` | `/advanced/domestic` | MOVE | 系统运维 | 国产化适配自检 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fadvanced%2FGraphExplore.tsx decision=MOVE -->
@@ -316,7 +316,7 @@
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fcompliance%2FSecurityBaselinePanels.tsx decision=MERGE -->
 | `frontend/src/pages/compliance/SecurityBaselinePanels.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fcompliance%2FSystemProviders.tsx decision=RENAME -->
-| `frontend/src/pages/compliance/SystemProviders.tsx` | `/system/providers` | RENAME | 系统运维 | 运行保障 |
+| `frontend/src/pages/compliance/SystemProviders.tsx` | `/system/providers` | RENAME | 系统运维 | 服务运行保障 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fknowledge-production%2FKnowledgeProductionPage.tsx decision=MERGE -->
 | `frontend/src/pages/knowledge-production/KnowledgeProductionPage.tsx` | `页内组件` | MERGE | 对应父页面 | 页内组件 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fknowledge-production%2FMedicalEvaluationPanel.tsx decision=MERGE -->
@@ -342,7 +342,7 @@
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FQcAlerts.tsx decision=RENAME -->
 | `frontend/src/pages/quality/QcAlerts.tsx` | `/qc/alerts` | RENAME | 质量管理 | 质量问题与整改 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FQcDashboard.tsx decision=RENAME -->
-| `frontend/src/pages/quality/QcDashboard.tsx` | `/qc/dashboard` | RENAME | 质量管理 | 质量管理概览 |
+| `frontend/src/pages/quality/QcDashboard.tsx` | `/qc/dashboard` | RENAME | 质量管理 | 质量风险概览 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FQcEvalResults.tsx decision=MERGE -->
 | `frontend/src/pages/quality/QcEvalResults.tsx` | `/qc/eval/results` | MERGE | 质量管理 | 质量问题与整改 |
 <!-- capability:page:page@frontend%2Fsrc%2Fpages%2Fquality%2FQcEvalSets.tsx decision=RENAME -->

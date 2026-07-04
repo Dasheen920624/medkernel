@@ -209,7 +209,7 @@ public class RuntimeOperationsService {
                 "模型服务",
                 externalProviderEnabled ? STATUS_DEGRADED : STATUS_MODEL_DISABLED,
                 externalProviderEnabled
-                    ? "外部模型服务开关已开启；请在模型能力页完成提供方健康验证，保持降级状态"
+                    ? "外部模型服务开关已开启；请在模型能力与安全页完成提供方健康验证，保持降级状态"
                     : "外部模型服务开关关闭，模型能力按无模型规则主链路运行"
             ),
             new RuntimeDependencyStatus(

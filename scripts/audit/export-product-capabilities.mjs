@@ -164,7 +164,7 @@ const routeDecisions = {
   "/qc/dashboard": {
     decision: "RENAME",
     targetDomain: "质量管理",
-    targetEntry: "质量管理概览",
+    targetEntry: "质量风险概览",
     task: "查看质量风险、运营趋势并下钻到责任问题",
   },
   "/qc/alerts": {
@@ -242,7 +242,7 @@ const routeDecisions = {
   "/system/providers": {
     decision: "RENAME",
     targetDomain: "系统运维",
-    targetEntry: "运行保障",
+    targetEntry: "服务运行保障",
     task: "查看外部依赖、备份恢复、降级和部署健康状态",
   },
   "/notifications/settings": {
@@ -266,8 +266,8 @@ const routeDecisions = {
   "/advanced/ai-workflows": {
     decision: "MOVE",
     targetDomain: "知识生产",
-    targetEntry: "模型能力",
-    task: "查看模型能力、任务和诚实降级状态",
+    targetEntry: "模型能力与安全",
+    task: "查看模型能力、安全边界和诚实降级状态",
   },
   "/advanced/domestic": {
     decision: "MOVE",

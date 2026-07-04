@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
- * 质量管理概览预警响应。
+ * 质量风险概览预警响应。
  */
 public record QualityDashboardAlertResponse(
     String alertId,
