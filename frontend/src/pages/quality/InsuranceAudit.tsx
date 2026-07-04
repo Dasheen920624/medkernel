@@ -295,8 +295,8 @@ export default function InsuranceAudit() {
 
   return (
     <PageShell
-      title="医保智能审核"
-      description="按真实结算事实核查病案"
+      title="医保审核"
+      description="核查医保问题、依据和处置结果"
       primary={
         <Button
           aria-label="执行审核并派整改"
@@ -324,7 +324,7 @@ export default function InsuranceAudit() {
       }
       state={resolvePageState(issuesQuery.isLoading, issuesQuery.isError, errorStatus, issues)}
       stateProps={{
-        title: issuesQuery.isError ? parsedError?.message : "当前筛选下暂无真实医保问题",
+        title: issuesQuery.isError ? parsedError?.message : "当前筛选下暂无医保问题",
         description: issuesQuery.isError
           ? "请稍后重试；若持续失败，请联系信息科核查医保审核服务。失败已留痕，可在审计证据中追溯。"
           : "当前没有符合筛选条件的医保病案问题。",
@@ -607,7 +607,7 @@ export default function InsuranceAudit() {
         ) : null}
 
         <Space wrap size="middle" className="mk-full-width">
-          <MetricCard title="真实医保问题总数" value={`${issuesQuery.data?.total ?? 0} 条`} />
+          <MetricCard title="医保问题总数" value={`${issuesQuery.data?.total ?? 0} 条`} />
           <MetricCard title="当前页未处理" value={`${countOpenIssues(issues)} 个`} />
           <MetricCard title="最近审核整改" value={latestRectificationText(auditResult)} />
         </Space>
@@ -674,7 +674,7 @@ export default function InsuranceAudit() {
         <Card title="医保问题列表">
           <List
             dataSource={issues}
-            locale={{ emptyText: <Empty description="当前筛选下暂无真实医保问题" /> }}
+            locale={{ emptyText: <Empty description="当前筛选下暂无医保问题" /> }}
             footer={
               issueTotal > 0 ? (
                 <Space direction="vertical" size="small" className="mk-full-width">

@@ -198,8 +198,10 @@ describe("InsuranceAudit", () => {
     expect(mockUseInsuranceIssues).toHaveBeenCalledWith(
       expect.objectContaining({ status: "OPEN", severity: "P1", page: 1, size: 10 }),
     );
-    expect(screen.getByRole("heading", { name: "医保智能审核" })).toBeInTheDocument();
-    expect(screen.getByText("真实医保问题总数")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "医保审核" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "医保智能审核" })).not.toBeInTheDocument();
+    expect(screen.getByText("医保问题总数")).toBeInTheDocument();
+    expect(screen.queryByText("真实医保问题总数")).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getByText("医保结算已关联")).toBeInTheDocument();
     expect(screen.getByText("规则依据已关联")).toBeInTheDocument();
@@ -682,7 +684,9 @@ describe("InsuranceAudit", () => {
 
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "医保智能审核" })).toBeInTheDocument();
-    expect(screen.getByText("当前筛选下暂无真实医保问题")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "医保审核" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "医保智能审核" })).not.toBeInTheDocument();
+    expect(screen.getByText("当前筛选下暂无医保问题")).toBeInTheDocument();
+    expect(screen.queryByText("当前筛选下暂无真实医保问题")).not.toBeInTheDocument();
   });
 });

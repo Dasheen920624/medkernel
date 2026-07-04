@@ -219,14 +219,18 @@ describe("page smoke coverage", () => {
 
   it("renders the quality qc-alerts page with the real empty state", () => {
     renderPage(<QcAlerts />);
-    expect(screen.getByRole("heading", { name: "质量问题" })).toBeInTheDocument();
-    expect(screen.getByText("当前筛选下暂无真实质量问题")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "质量问题与整改" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "质量问题" })).not.toBeInTheDocument();
+    expect(screen.getByText("当前筛选下暂无待整改质量问题")).toBeInTheDocument();
+    expect(screen.queryByText("当前筛选下暂无真实质量问题")).not.toBeInTheDocument();
   });
 
   it("renders the quality insurance-audit page with the real empty state", () => {
     renderPage(<InsuranceAudit />);
-    expect(screen.getByRole("heading", { name: "医保智能审核" })).toBeInTheDocument();
-    expect(screen.getByText("当前筛选下暂无真实医保问题")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "医保审核" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "医保智能审核" })).not.toBeInTheDocument();
+    expect(screen.getByText("当前筛选下暂无医保问题")).toBeInTheDocument();
+    expect(screen.queryByText("当前筛选下暂无真实医保问题")).not.toBeInTheDocument();
   });
 
   it("renders the compliance admin-users console", () => {

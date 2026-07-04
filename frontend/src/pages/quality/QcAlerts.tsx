@@ -156,8 +156,8 @@ export default function QcAlerts() {
 
   return (
     <PageShell
-      title="质量问题"
-      description="按真实预警处置整改"
+      title="质量问题与整改"
+      description="确认质量问题、派发整改、复核并闭环"
       extras={
         <Space wrap>
           <EvidenceDetailsToggle securityProfile={security.data} />
@@ -173,7 +173,7 @@ export default function QcAlerts() {
       }
       state={resolvePageState(alertsQuery.isLoading, alertsQuery.isError, errorStatus, alertItems)}
       stateProps={{
-        title: alertsQuery.isError ? parsedError?.message : "当前筛选下暂无真实质量问题",
+        title: alertsQuery.isError ? parsedError?.message : "当前筛选下暂无待整改质量问题",
         description: alertsQuery.isError
           ? "请稍后重试；若持续失败，请联系信息科核查质量预警服务。失败已留痕，可在审计证据中追溯。"
           : "当前没有符合筛选条件的预警。",
@@ -242,7 +242,7 @@ export default function QcAlerts() {
         </Space>
 
         <Card
-          title="质量问题列表"
+          title="质量问题与整改列表"
           extra={
             alertItems.length > 0 ? (
               <Text type="secondary">
@@ -254,7 +254,7 @@ export default function QcAlerts() {
           <List
             dataSource={alertItems}
             locale={{
-              emptyText: <Empty description="当前筛选下暂无真实质量问题" />,
+              emptyText: <Empty description="当前筛选下暂无待整改质量问题" />,
             }}
             renderItem={(alert) => (
               <List.Item
