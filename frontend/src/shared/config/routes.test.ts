@@ -630,7 +630,7 @@ describe("route metadata", () => {
     expectViews("/knowledge/diagnosis", [
       {
         role: "临床专家",
-        responsibility: "维护诊断标准、鉴别诊断和验证病例",
+        responsibility: "编审诊断标准、鉴别诊断和验证病例",
         boundary: "诊断知识不自动生成患者诊断结论",
       },
       {
@@ -923,7 +923,10 @@ describe("route metadata", () => {
       pageType: "configuration",
     });
     expect(findRouteByPath("/knowledge/diagnosis")?.experience?.goal).toBe(
-      "在统一知识治理下维护诊断身份、诊断标准、鉴别关系、验证病例和来源证据",
+      "在统一知识治理下管理诊断身份、诊断标准、鉴别关系、验证病例和来源证据",
+    );
+    expect(findRouteByPath("/knowledge/diagnosis")?.experience?.goal).not.toContain(
+      "维护" + "诊断身份",
     );
     expect(findRouteByPath("/knowledge/diagnosis")?.experience?.stakeholderViews).toContainEqual({
       role: "医疗引擎运营员",

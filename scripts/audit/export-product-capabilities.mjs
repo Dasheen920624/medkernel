@@ -207,7 +207,7 @@ const routeDecisions = {
     decision: "SPLIT",
     targetDomain: "知识治理",
     targetEntry: "诊断知识库",
-    task: "维护诊断身份、诊断标准、鉴别诊断、验证病例与来源证据",
+    task: "管理诊断身份、诊断标准、鉴别诊断、验证病例与来源证据",
   },
   "/knowledge/production": {
     decision: "SPLIT",

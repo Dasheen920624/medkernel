@@ -774,7 +774,7 @@ describe("KnowledgeGovernance", () => {
     KNOWLEDGE_GOVERNANCE_INTERACTION_TIMEOUT_MS,
   );
 
-  it("keeps diagnosis maintenance out of the review workspace while the candidate queue is loading", () => {
+  it("keeps the diagnosis knowledge library out of the review workspace while the candidate queue is loading", () => {
     mockUseKnowledgeIdentities.mockReturnValue({
       data: undefined,
       refetch: refetchIdentities,

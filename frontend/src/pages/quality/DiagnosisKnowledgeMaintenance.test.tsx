@@ -28,15 +28,21 @@ function renderPage() {
 }
 
 describe("DiagnosisKnowledgeMaintenance", () => {
-  it("hosts manual diagnosis maintenance outside the review workspace", () => {
+  it("hosts the diagnosis knowledge library outside the review workspace", () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "诊断知识库" })).toBeInTheDocument();
     expect(screen.getByText("诊断知识库工作台")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "在统一知识治理下维护诊断身份、诊断标准、鉴别诊断、验证病例与来源证据；发布后再进入平台标准版本或机构生效版本。",
+        "在统一知识治理下管理诊断身份、诊断标准、鉴别诊断、验证病例与来源证据；发布后再进入平台标准版本或机构生效版本。",
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "在统一知识治理下" +
+          "维护诊断身份、诊断标准、鉴别诊断、验证病例与来源证据；发布后再进入平台标准版本或机构生效版本。",
+      ),
+    ).not.toBeInTheDocument();
   });
 });
