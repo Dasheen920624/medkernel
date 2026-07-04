@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * SVC-QUALITY-01 质量风险概览聚合服务。
  *
- * <p>本服务只读 EVAL/OPT-08/整改事实形成聚合与下钻，并幂等刷新质控预警 read-model。
+ * <p>本服务只读 EVAL/OPT-08/整改事实形成聚合与下钻，并幂等刷新质量风险提醒 read-model。
  */
 @Service
 public class QualityDashboardService {
@@ -63,12 +63,12 @@ public class QualityDashboardService {
     @Transactional
     public QualityDashboardAlertResponse acknowledgeAlert(String alertId) {
         if (alertId == null || alertId.isBlank()) {
-            throw ApiException.notFound("质控预警");
+            throw ApiException.notFound("质量风险提醒");
         }
         String tenantId = tenantId();
         QualityDashboardAlertResponse current = alertById(tenantId, alertId);
         if (current.status() == QualityDashboardAlertStatus.RESOLVED) {
-            throw ApiException.conflict("质控预警已闭环，不能确认");
+            throw ApiException.conflict("质量风险提醒已闭环，不能确认");
         }
         if (current.status() == QualityDashboardAlertStatus.ACKNOWLEDGED) {
             return current;
@@ -361,7 +361,7 @@ public class QualityDashboardService {
                AND alert_id = ?
             """, (rs, rowNum) -> alertResponse(rs), tenantId, alertId);
         if (rows.isEmpty()) {
-            throw ApiException.notFound("质控预警");
+            throw ApiException.notFound("质量风险提醒");
         }
         return rows.getFirst();
     }

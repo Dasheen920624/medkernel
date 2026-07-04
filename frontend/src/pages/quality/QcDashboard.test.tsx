@@ -457,6 +457,71 @@ describe("QcDashboard", () => {
     expect(screen.queryByText(/trace-rct-raw/)).not.toBeInTheDocument();
   });
 
+  it("质量风险来源使用医疗场景口径而不是旧质控预警入口名", async () => {
+    mockUseQualityDashboard.mockReturnValue({
+      data: {
+        ...dashboardData,
+        activeAlerts: [
+          {
+            ...dashboardData.activeAlerts[0],
+            sourceType: "quality_alert",
+            sourceId: "alert-risk-raw-001",
+            title: "质量提醒 alert-risk-raw-001",
+            evidenceSummary: "质量提醒 alert-risk-raw-001 已触发。",
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch: vi.fn(),
+    });
+    mockUseQualityDashboardDrilldown.mockReturnValue({
+      data: {
+        type: "ALERT",
+        items: [
+          {
+            sourceType: "quality_alert",
+            sourceId: "alert-risk-raw-001",
+            departmentId: "dept-card",
+            severity: "P1",
+            status: "OPEN",
+            title: "质量提醒 alert-risk-raw-001",
+            evidenceSummary: "质量提醒 alert-risk-raw-001 已触发。",
+            occurredAt: "2026-06-05T09:00:00Z",
+            traceId: "trace-alert-risk-raw-001",
+          },
+        ],
+        evidenceExport: {
+          exportId: "SVC-QUALITY-01.ALERT.0.20",
+          generatedAt: "2026-06-05T10:00:00Z",
+          scopeDigest: "digest-real",
+          itemCount: 1,
+          items: [],
+        },
+        offset: 0,
+        limit: 20,
+        total: 1,
+        hasNext: false,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderPage();
+
+    expect(screen.getAllByText("质量风险提醒").length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText("质控预警")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "下钻问题证据" }));
+
+    expect(screen.getAllByText("质量风险提醒").length).toBeGreaterThan(1);
+    expect(screen.getByText("质量风险提醒证据已关联，需按当前状态处理。")).toBeInTheDocument();
+    expect(screen.queryByText(/质控预警/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/alert-risk-raw/)).not.toBeInTheDocument();
+  });
+
   it("证据详情打开后展示质控指标、热力、预警和下钻导出的完整追溯字段", async () => {
     mockUseQualityDashboard.mockReturnValue({
       data: dashboardData,

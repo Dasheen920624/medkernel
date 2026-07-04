@@ -545,7 +545,7 @@ function AlertList({
             <Space className={styles.rowBetween} wrap>
               <Space wrap>
                 <Tag color="error">{customerEnumLabel(alert.severity)}</Tag>
-                <Text strong>{alert.title}</Text>
+                <Text strong>{formatAlertPreviewTitle(alert, evidenceDetailsEnabled)}</Text>
               </Space>
               <Text type="secondary">{formatDateTime(alert.createdAt)}</Text>
             </Space>
@@ -572,6 +572,16 @@ function AlertList({
   );
 }
 
+function formatAlertPreviewTitle(
+  alert: Pick<QualityDashboardAlert, "sourceType" | "title">,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (evidenceDetailsEnabled || !containsTraceEvidenceToken(alert.title)) {
+    return alert.title;
+  }
+  return qualitySourceLabel(alert.sourceType);
+}
+
 function formatAlertEvidenceSummary(
   alert: Pick<QualityDashboardAlert, "alertType" | "actualValue" | "evidenceSummary">,
   evidenceDetailsEnabled: boolean,
@@ -593,7 +603,7 @@ function formatAlertEvidenceSummary(
 
 function containsTraceEvidenceToken(value: string) {
   return (
-    /\b(?:claim|enc|mpi|run|trace|finding|task|rct)-[A-Za-z0-9-]+/.test(value) ||
+    /\b(?:alert|claim|enc|mpi|run|trace|finding|task|rct)-[A-Za-z0-9-]+/.test(value) ||
     /\b[A-Z][A-Z0-9_.-]+@[0-9A-Za-z_.-]+\b/.test(value)
   );
 }
@@ -817,7 +827,7 @@ function formatDrilldownItemEvidenceSummary(
     return "质控问题证据已关联，需按当前状态闭环处理。";
   }
   if (normalized === "QUALITY_ALERT") {
-    return "质控预警证据已关联，需按当前状态处理。";
+    return "质量风险提醒证据已关联，需按当前状态处理。";
   }
   return "下钻证据已关联，需按当前状态处理。";
 }
@@ -886,7 +896,7 @@ function heatmapBusinessLabel(cell: QualityDashboardHeatmapCell): string {
 function qualitySourceLabel(sourceType: string): string {
   const normalized = sourceType.toUpperCase();
   if (normalized === "QUALITY_FINDING") return "质控问题";
-  if (normalized === "QUALITY_ALERT") return "质控预警";
+  if (normalized === "QUALITY_ALERT") return "质量风险提醒";
   if (normalized === "RECTIFICATION_TASK") return "整改任务";
   return customerEnumLabel(normalized);
 }

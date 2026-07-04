@@ -58,7 +58,7 @@ public class QualityDashboardController {
     }
 
     /**
-     * 查询质控预警列表。
+     * 查询质量风险提醒列表。
      */
     @GetMapping("/alerts")
     @PreAuthorize("@perm.has('evaluation.read')")
@@ -77,7 +77,7 @@ public class QualityDashboardController {
     }
 
     /**
-     * 确认一个仍需跟踪的质控预警。
+     * 确认一个仍需跟踪的质量风险提醒。
      */
     @PostMapping("/alerts/{alertId}/acknowledge")
     @PreAuthorize("@perm.has('evaluation.review')")

@@ -253,7 +253,7 @@ class QualityDashboardServiceTest {
 
         assertThatThrownBy(() -> withTenant("tenant-B",
             () -> service.acknowledgeAlert("HIGH_RISK_FINDING:quality_finding:qf-critical")))
-            .hasMessageContaining("质控预警 不存在");
+            .hasMessageContaining("质量风险提醒 不存在");
     }
 
     @Test
