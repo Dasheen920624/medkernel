@@ -556,7 +556,7 @@ const diagnosisKnowledgeExperience: RouteExperience = {
     {
       role: "医疗引擎运营员",
       responsibility: "管理诊断语义资产、版本和统一发布校验",
-      boundary: "诊断维护不绕过知识审核、平台标准版本或机构生效版本",
+      boundary: "诊断知识发布不绕过知识审核、平台标准版本或机构生效版本",
     },
   ],
 };
