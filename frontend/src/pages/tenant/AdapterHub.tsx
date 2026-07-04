@@ -266,6 +266,16 @@ function messageDirectionLabel(value: string) {
   return MESSAGE_DIRECTION_LABEL[value] ?? customerEnumLabel(value);
 }
 
+function sourceStatusText(value: string, evidenceDetailsEnabled: boolean) {
+  let label = customerEnumLabel(value);
+  if (value === "ACTIVE") {
+    label = "启用中";
+  } else if (value === "SUSPENDED") {
+    label = "已挂起";
+  }
+  return evidenceDetailsEnabled ? `${label}（${value}）` : label;
+}
+
 function evidenceText(
   rawValue: string | null | undefined,
   evidenceDetailsEnabled: boolean,
@@ -1002,7 +1012,14 @@ export default function AdapterHub() {
       title: "状态",
       dataIndex: "status",
       key: "status",
-      render: (value) => <Tag color={value === "ACTIVE" ? "green" : "default"}>{value}</Tag>,
+      render: (value) => {
+        const statusValue = String(value);
+        return (
+          <Tag color={ADAPTER_STATUS_COLOR[statusValue] ?? "default"}>
+            {sourceStatusText(statusValue, evidenceDetailsEnabled)}
+          </Tag>
+        );
+      },
     },
   ];
 

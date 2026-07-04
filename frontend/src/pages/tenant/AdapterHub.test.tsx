@@ -761,6 +761,8 @@ describe("AdapterHub", () => {
     expect(screen.getByText("来源已登记")).toBeInTheDocument();
     expect(screen.getByText("适配器：已绑定")).toBeInTheDocument();
     expect(screen.getByText("接入申请：已绑定")).toBeInTheDocument();
+    expect(screen.getAllByText("启用中").length).toBeGreaterThan(0);
+    expect(screen.queryByText("ACTIVE")).not.toBeInTheDocument();
     expect(screen.queryByText("来源编号：regional-lab")).not.toBeInTheDocument();
     expect(screen.queryByText("适配器：his-main")).not.toBeInTheDocument();
     expect(screen.queryByText("接入申请：onb-his")).not.toBeInTheDocument();
@@ -770,6 +772,7 @@ describe("AdapterHub", () => {
     expect(screen.getAllByText("patient.age").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/NOT_CONNECTED/).length).toBeGreaterThan(0);
     expect(await screen.findByText("来源编号：regional-lab")).toBeInTheDocument();
+    expect(screen.getByText("启用中（ACTIVE）")).toBeInTheDocument();
     expect(screen.getByText("适配器：his-main")).toBeInTheDocument();
     expect(screen.getByText("接入申请：onb-his")).toBeInTheDocument();
 
