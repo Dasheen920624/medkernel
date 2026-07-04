@@ -625,7 +625,7 @@ describe("route metadata", () => {
     expectViews("/knowledge/institution", [
       {
         role: "医疗引擎运营员",
-        responsibility: "维护机构定制、换基线和恢复平台标准",
+        responsibility: "治理机构差异、换基线和恢复平台标准",
         boundary: "机构覆盖不改写平台标准源",
       },
       {
@@ -634,6 +634,10 @@ describe("route metadata", () => {
         boundary: "本地差异必须绑定来源和版本证据",
       },
     ]);
+    expect(findRouteByPath("/knowledge/institution")?.experience?.goal).toBe(
+      "治理院内覆盖、机构差异、换基线和恢复平台标准",
+    );
+    expect(findRouteByPath("/knowledge/institution")?.experience?.goal).not.toContain("维护");
     expectViews("/knowledge/diagnosis", [
       {
         role: "临床专家",

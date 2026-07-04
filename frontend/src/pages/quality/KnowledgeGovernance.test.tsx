@@ -955,6 +955,13 @@ describe("KnowledgeGovernance", () => {
     renderPage(<InstitutionKnowledge />);
 
     expect(screen.getByRole("heading", { name: "机构知识库" })).toBeInTheDocument();
+    expect(screen.getByText("治理院内覆盖、机构差异、换基线和恢复平台标准")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "机构差异版本会复制当前平台版本及完整证据链；发布后只影响所选组织及其继承范围，随时可以恢复平台标准。",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("机构定制会复制当前平台版本及完整证据链")).not.toBeInTheDocument();
     expect(screen.getByText("平台标准知识")).toBeInTheDocument();
     expect(screen.getAllByText("平台主源只读").length).toBeGreaterThan(0);
     expect(screen.getByText("机构知识血缘")).toBeInTheDocument();
@@ -976,8 +983,9 @@ describe("KnowledgeGovernance", () => {
 
     expect(screen.getByText("当前位于平台治理入口")).toBeInTheDocument();
     expect(
-      screen.getByText("平台负责维护权威标准；机构定制、发布和恢复操作在对应医疗机构内完成。"),
+      screen.getByText("平台负责管理权威标准；机构差异、发布和恢复操作在对应医疗机构内完成。"),
     ).toBeInTheDocument();
+    expect(screen.queryByText("平台负责维护权威标准")).not.toBeInTheDocument();
   });
 
   it("separates platform-source and tenant-overlay production lanes with visible ownership labels", async () => {

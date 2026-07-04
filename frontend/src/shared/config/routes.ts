@@ -522,14 +522,14 @@ const qualityEvalResultsExperience: RouteExperience = {
 const institutionKnowledgeExperience: RouteExperience = {
   ...readonlyExperience(
     "医疗引擎运营员",
-    "维护院内覆盖、机构定制、换基线和恢复平台标准",
+    "治理院内覆盖、机构差异、换基线和恢复平台标准",
     "机构知识血缘",
     "large",
   ),
   stakeholderViews: [
     {
       role: "医疗引擎运营员",
-      responsibility: "维护机构定制、换基线和恢复平台标准",
+      responsibility: "治理机构差异、换基线和恢复平台标准",
       boundary: "机构覆盖不改写平台标准源",
     },
     {

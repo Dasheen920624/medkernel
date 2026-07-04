@@ -2671,7 +2671,7 @@ export default function KnowledgeGovernance({
         type="info"
         showIcon
         message="当前位于平台治理入口"
-        description="平台负责维护权威标准；机构定制、发布和恢复操作在对应医疗机构内完成。"
+        description="平台负责管理权威标准；机构差异、发布和恢复操作在对应医疗机构内完成。"
       />
     );
   } else {
@@ -2681,7 +2681,7 @@ export default function KnowledgeGovernance({
           type="info"
           showIcon
           message="默认复用平台标准，只有确需调整时才创建机构版本"
-          description="机构定制会复制当前平台版本及完整证据链；发布后只影响所选组织及其继承范围，随时可以恢复平台标准。"
+          description="机构差异版本会复制当前平台版本及完整证据链；发布后只影响所选组织及其继承范围，随时可以恢复平台标准。"
         />
         <PipelineBoundaryCard />
         <Card title="平台标准知识">
@@ -2800,7 +2800,7 @@ export default function KnowledgeGovernance({
     },
     institution: {
       title: "机构知识库",
-      description: "维护院内覆盖、机构定制、换基线和恢复平台标准",
+      description: "治理院内覆盖、机构差异、换基线和恢复平台标准",
     },
     production: {
       title: "知识生产工作台",
