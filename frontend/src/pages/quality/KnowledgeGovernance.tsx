@@ -1754,7 +1754,7 @@ export default function KnowledgeGovernance({
 
   const productionTriageColumns: ColumnsType<GenerationTriage> = [
     {
-      title: "八类状态",
+      title: "分流结果",
       dataIndex: "triageState",
       width: 220,
       render: (value: string) => (
@@ -2178,7 +2178,7 @@ export default function KnowledgeGovernance({
         ? `生产安全校验结果：${getApiErrorMessage(productionGateResultsQuery.error, "生产安全校验结果读取失败")}`
         : null,
       productionTriageResultsQuery.isError
-        ? `八类状态分流：${getApiErrorMessage(productionTriageResultsQuery.error, "八类状态分流读取失败")}`
+        ? `候选分流：${getApiErrorMessage(productionTriageResultsQuery.error, "候选分流读取失败")}`
         : null,
       productionShadowRunsQuery.isError
         ? `影子评测：${getApiErrorMessage(productionShadowRunsQuery.error, "影子评测读取失败")}`
@@ -2282,7 +2282,7 @@ export default function KnowledgeGovernance({
                     <Space size="middle" wrap>
                       <Text>生成候选 {selectedProductionJob.candidateCount} 条</Text>
                       <Text>生产安全校验 {productionGateResults.length} 项</Text>
-                      <Text>八类状态 {productionTriageResults.length} 条</Text>
+                      <Text>候选分流 {productionTriageResults.length} 条</Text>
                       <Text>影子评测 {productionShadowRuns.length} 次</Text>
                     </Space>
                     <Progress
@@ -2370,9 +2370,9 @@ export default function KnowledgeGovernance({
             </Card>
           </Col>
           <Col xs={24} xl={12}>
-            <Card title="八类状态分流">
+            <Card title="候选分流">
               <Space direction="vertical" size="middle" className="mk-full-width">
-                <Text strong>八类状态队列</Text>
+                <Text strong>候选分流队列</Text>
                 <Space size={[8, 8]} wrap>
                   {KNOWLEDGE_TRIAGE_STATE_META.map((item) => (
                     <Space key={item.state} size={4}>
@@ -2804,7 +2804,7 @@ export default function KnowledgeGovernance({
     },
     production: {
       title: "知识生产工作台",
-      description: "核查生产流水线的上线准备、生产任务、生产安全校验、八类状态分流和影子证据",
+      description: "核查生产流水线的上线准备、生产任务、生产安全校验、候选分流和影子证据",
     },
   }[mode];
 

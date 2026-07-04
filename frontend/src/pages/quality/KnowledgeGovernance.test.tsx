@@ -1056,8 +1056,10 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getAllByText("模型生产策略").length).toBeGreaterThan(1);
     expect(screen.getAllByText("生产任务已登记").length).toBeGreaterThan(0);
     expect(screen.getByText("模型生产策略已配置")).toBeInTheDocument();
-    expect(screen.getByText("八类状态分流")).toBeInTheDocument();
-    expect(screen.getByText("八类状态队列")).toBeInTheDocument();
+    expect(screen.getAllByText("候选分流").length).toBeGreaterThan(0);
+    expect(screen.getByText("候选分流队列")).toBeInTheDocument();
+    expect(screen.queryByText("八类状态分流")).not.toBeInTheDocument();
+    expect(screen.queryByText("八类状态队列")).not.toBeInTheDocument();
     expect(screen.queryByText("job-ai-1")).not.toBeInTheDocument();
     expect(screen.queryByText("gpt-pipeline")).not.toBeInTheDocument();
     expect(screen.queryByText("SOURCE_ANCHOR")).not.toBeInTheDocument();
@@ -1071,7 +1073,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getAllByText("统一模型服务").length).toBeGreaterThan(0);
     expect(screen.getByText("生产安全校验结果")).toBeInTheDocument();
     expect(screen.getByText("来源锚点 · SOURCE_ANCHOR")).toBeInTheDocument();
-    expect(screen.getByText("八类状态分流")).toBeInTheDocument();
+    expect(screen.getAllByText("候选分流").length).toBeGreaterThan(0);
     expect(screen.getByText("冲突仲裁 · CONFLICT")).toBeInTheDocument();
     expect(screen.getByText("影子评测")).toBeInTheDocument();
     expect(screen.getByText("误报率超过阈值")).toBeInTheDocument();
@@ -1708,7 +1710,8 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("Agent 进度与中止")).toBeInTheDocument();
     expect(screen.getByText("Agent 工具")).toBeInTheDocument();
     expect(screen.getByText("生成候选 4 条")).toBeInTheDocument();
-    expect(screen.getByText("八类状态队列")).toBeInTheDocument();
+    expect(screen.getByText("候选分流队列")).toBeInTheDocument();
+    expect(screen.queryByText("八类状态队列")).not.toBeInTheDocument();
     expect(screen.queryByText("8 态队列")).not.toBeInTheDocument();
     for (const label of [
       "新资产",

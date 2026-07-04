@@ -117,7 +117,7 @@
 | `/knowledge/diagnosis` | 诊断知识库 | knowledge-governance | diagnosis-knowledge | primary | SPLIT | 知识治理 | 诊断知识库 | 维护诊断身份、诊断标准、鉴别诊断、验证病例与来源证据 |
 <!-- capability:route:route@%2Fknowledge%2Fproduction decision=SPLIT -->
 <!-- route:/knowledge/production -->
-| `/knowledge/production` | 知识生产工作台 | knowledge-production | knowledge-production | primary | SPLIT | 知识生产 | 知识生产工作台 | 核查知识生产准备、生产任务、候选血缘、安全校验、八类状态、影子证据和高敏患者上下文用途确认重试 |
+| `/knowledge/production` | 知识生产工作台 | knowledge-production | knowledge-production | primary | SPLIT | 知识生产 | 知识生产工作台 | 核查知识生产准备、生产任务、候选血缘、安全校验、候选分流、影子证据和高敏患者上下文用途确认重试 |
 <!-- capability:route:route@%2Fadmin%2Fusers decision=MOVE -->
 <!-- route:/admin/users -->
 | `/admin/users` | 人员与账号 | organization-people | admin-users | primary | MOVE | 机构与人员 | 人员与账号 | 维护自然人、任职、账号、职责和组织范围 |
