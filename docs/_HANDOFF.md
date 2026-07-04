@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第一百批最新应用提交为 `ef3afbfc877e340aea85a2484eb80a4ca91e9e52`
-  （`fix: 收敛登录入口与工作台主动作口径`）。其前置本地提交包括第九十九批阶段交接提交
+- 第一百零一批最新应用提交为 `0abba88f4e63db2bd165af1419add30d4341f1b3`
+  （`fix: 收敛页面动作口径`）。其前置本地提交包括第一百批阶段交接提交
+  `a62896490dd1e489835805b20761f9d5531f5a67`
+  （`docs: 记录登录入口与工作台主动作复演`）、第一百批应用提交
+  `ef3afbfc877e340aea85a2484eb80a4ca91e9e52`
+  （`fix: 收敛登录入口与工作台主动作口径`）、第九十九批阶段交接提交
   `c8cff43e2c0376a21a9da8ee7a9573fd122564c1`
   （`docs: 记录初始化提示菜单名复演`）、第九十九批应用提交
   `a800aa8b986330d0a620e325cfbe59edefe516da`
@@ -302,16 +306,64 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `ef3afbfc877e340aea85a2484eb80a4ca91e9e52`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `0abba88f4e63db2bd165af1419add30d4341f1b3`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
   `rehearsal` 是当前 1.0 契约中的完整上线演练机构块，不是旧兼容入口；
   `roleAccounts`、`platformRoleAccounts`、`customerTenant` 等旧 root 账号字段不得作为登录权威。
-- 当前用户约束：全程按最优决策执行，不中途咨询；允许使用子代理提升效率；每阶段更新接力并提交到本地分支；
+- 当前用户约束：全程按最优决策执行，不中途咨询；后续不使用子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第一百零一批·页面动作口径收敛）
+
+- 本批基于全局菜单、产品目录、职责旅程和医疗场景体验继续复核页面级动作口径。结论：当前菜单 IA 与顺序不改；
+  `诊断知识维护` 已按权威入口收敛为 `诊断知识库`，`临床路径模板` 已收敛为 `临床路径库`，避免被理解为引用模板。
+  本批只修正页面内用户可见标题、标签、空态和表格列名，不改路由、菜单顺序、后端 API、数据库或 134 发布状态。
+- 已本地提交 `0abba88f4e63db2bd165af1419add30d4341f1b3`
+  （`fix: 收敛页面动作口径`）：
+  - `Provenance` 页面标题从“知识来源追溯”统一为权威入口名“来源与血缘”。
+  - `RuntimeDiagnostics` 将前台“插件管理 / 注册插件 / 插件列表”等技术色彩入口收敛为“扩展能力 / 登记扩展能力 /
+    扩展能力读取失败”等医疗运行语境；后台变量和 API 契约仍保持 `plugin*`，未改数据模型。
+  - `RuleDefinitions`、`PathwayTemplates` 将“管理字段目录”收敛为“查看字段目录”；`PathwayTemplates` 表格列
+    “管理动作”改为“路径操作”；`CdssFatigue` 表格列“管理”改为“反馈操作”。
+  - `SecurityBaselinePanels` 默认文案去掉 `tmp` 技术 token；`DeclarativeAssetWorkbench` 将泛化“各自工作台管理”
+    收敛为“对应工作台维护”。
+  - `AdapterHub` 组织范围空态从抽象“维护组织架构”改为指向权威菜单“服务机构”；同时修复 `OrgUnitSelect`
+    原本覆盖页面级 `notFoundContent` 的问题，保留组织目录读取失败时的诚实错误态。
+- 本地验证：
+  - 红灯：先改测试后执行
+    `npm --prefix frontend test -- Provenance.test.tsx operationalControlPages.test.tsx RuleDefinitions.test.tsx PathwayTemplates.test.tsx CdssFatigue.test.tsx SecurityBaseline.test.tsx DeclarativeAssetWorkbench.test.tsx`
+    在旧实现下失败，DOM 仍展示“知识来源追溯 / 插件管理 / 管理字段目录 / 管理动作”等旧口径；新增
+    `AdapterHub.test.tsx -t "points empty organization"` 在旧 `OrgUnitSelect` 下失败，证明页面级空态被覆盖。
+  - 定向绿灯：
+    `npm --prefix frontend test -- Provenance.test.tsx operationalControlPages.test.tsx RuleDefinitions.test.tsx PathwayTemplates.test.tsx CdssFatigue.test.tsx SecurityBaseline.test.tsx DeclarativeAssetWorkbench.test.tsx AdapterHub.test.tsx`
+    通过，`8` 个测试文件 / `103` 项。
+  - 菜单、路由、产品目录和烟测：
+    `npm --prefix frontend test -- pages.smoke.test.tsx productCatalog.test.ts menu.test.ts routes.test.ts productRoleJourneys.test.ts`
+    通过，`5` 个测试文件 / `101` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `963` 项；包含 lint、
+    stylelint、真实性/视觉自定义规则、Prettier、TypeScript 与全量 Vitest；仅保留既有 AntD `Timeline.Item`
+    deprecation warning。
+  - 生产构建：`npm --prefix frontend run build` 通过，Vite 构建完成；`Provenance-CjVyFA6v.js`、
+    `RuntimeDiagnostics-BrwwTTbw.js`、`AdapterHub-CQOh_SVr.js` 等新产物生成。
+  - 旧口径生产源码反扫：
+    `rg -n "知识来源追溯|插件管理|注册插件|插件列表读取失败|暂无插件|稳定插件能力身份|插件授权|管理字段目录|管理动作|tmp 临时目录|字段目录与完整路径分别由各自工作台管理|暂无可选组织，请先维护组织架构" frontend/src --glob '!**/*.test.ts' --glob '!**/*.test.tsx'`
+    返回 `NO_MATCH`；旧语义只保留在测试反向断言与本接力记录中。
+  - `git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 12:32:05 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，`ETag="6a475ada-340"`；
+  `https://193.112.107.134/medkernel/api/v1/auth/login-tenants` 返回
+  `primaryTenants[0].tenantId=t-rehearsal`、`name=完整上线演练机构`、`platformTenant.tenantId=t-1`、
+  `name=平台治理入口（唯一内置）`、`hasCustomerTenants=true`，`traceId=f013bab8-b07f-45d5-b467-90ff2bdd6980`。
+  当前 134 映射仍是后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、前端
+  dist=`95bb816292f59833005df4761866dd9d89886cb4`；不要把本地 `0abba88f` 记为已部署。
+- 下一步：后续不使用子代理；继续按权威文档、产品目录、职责旅程和真实前台体验广度优先复核。优先看登录后全角色
+  高频页面中的泛化“管理 / 维护 / 模板 / 配置”是否仍误导职责或对象边界；发现真实产品体验、流程、前后端、
+  文档、测试、构建、部署问题，直接按上线级最优方案修复并本地提交。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第一百批·登录入口首屏与工作台主动作口径收敛）
 
@@ -369,7 +421,7 @@
   `PathwayTemplates.tsx` 的“管理字段目录”是否改为“查看字段目录”；`PathwayTemplates.tsx` 的“管理动作”是否改为
   “路径操作”；`AdapterHub.tsx` 组织空态、`SecurityBaselinePanels.tsx` 临时文件口径、
   `DeclarativeAssetWorkbench.tsx` 泛化“管理”文案与 `CdssFatigue.tsx` 表格“管理”列名。继续按最优决策执行，
-  不咨询；允许使用子代理提升效率，但所有结论以本地代码、权威文档和实测为准。
+  不咨询；后续不使用子代理，所有结论以本地代码、权威文档和实测为准。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第九十九批·初始化提示菜单名校准）
 
@@ -411,7 +463,7 @@
   不得把本地 `a800aa8b` 记为已部署。
 - 下一步继续沿全局菜单、全角色职责旅程、真实前台默认层做广度优先复核；重点继续检查人员与账号、
   服务机构、机构知识、知识生产和质量治理之间的入口边界，发现可真实落地的问题直接按权威标准修复；
-  允许使用子代理提升并行核查效率，不咨询，不推送远程 `main`。
+  后续不使用子代理，不咨询，不推送远程 `main`。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第九十八批·服务机构状态口径收敛）
 
@@ -462,7 +514,7 @@
   不得把本地 `96699172` 记为已部署。
 - 下一步继续沿全局菜单、全角色职责旅程、真实前台默认层做广度优先复核；重点继续检查人员与账号、
   服务机构、机构知识、知识生产和质量治理之间的入口边界，发现可真实落地的问题直接按权威标准修复；
-  允许使用子代理提升并行核查效率，不咨询，不推送远程 `main`。
+  后续不使用子代理，不咨询，不推送远程 `main`。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第九十七批·临床路径起始结构口径收敛）
 
