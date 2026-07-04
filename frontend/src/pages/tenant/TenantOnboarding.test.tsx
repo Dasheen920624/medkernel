@@ -336,6 +336,36 @@ describe("TenantOnboarding", () => {
     ).toBeInTheDocument();
   });
 
+  it("服务机构范围加载态沿用菜单名，不回流管理口径", () => {
+    vi.mocked(useSecurityProfile).mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+      refetch: vi.fn(),
+    } as never);
+
+    renderPage(<TenantOnboarding />);
+
+    expect(screen.getByRole("heading", { name: "服务机构" })).toBeInTheDocument();
+    expect(screen.getByText("正在确认服务机构范围")).toBeInTheDocument();
+    expect(screen.queryByText("服务机构管理")).not.toBeInTheDocument();
+  });
+
+  it("服务机构范围异常态沿用菜单名，不回流管理口径", () => {
+    vi.mocked(useSecurityProfile).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      refetch: vi.fn(),
+    } as never);
+
+    renderPage(<TenantOnboarding />);
+
+    expect(screen.getByRole("heading", { name: "服务机构" })).toBeInTheDocument();
+    expect(screen.getByText("无法确认当前服务机构")).toBeInTheDocument();
+    expect(screen.queryByText("服务机构管理")).not.toBeInTheDocument();
+  });
+
   it("仅允许平台治理入口开通服务机构", async () => {
     const provision = vi.fn().mockResolvedValue({
       tenantId: "t-renmin",

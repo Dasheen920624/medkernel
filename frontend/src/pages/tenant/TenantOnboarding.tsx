@@ -902,7 +902,7 @@ export default function TenantOnboarding() {
   if (security.isLoading) {
     return (
       <PageShell
-        title="服务机构管理"
+        title="服务机构"
         description="读取当前服务机构"
         state="loading"
         stateProps={{
@@ -919,7 +919,7 @@ export default function TenantOnboarding() {
   if (security.isError || !tenantId) {
     return (
       <PageShell
-        title="服务机构管理"
+        title="服务机构"
         description="当前服务机构不可用"
         state="error"
         stateProps={{
