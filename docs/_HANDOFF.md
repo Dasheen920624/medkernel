@@ -10,10 +10,14 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第六十六批已完成阶段交接提交为 `e1f16076bb7058617a4f7954d5292ceec625652f`
-  （`docs: 记录知识生产分流状态口径复演`）；第六十七批最新应用代码提交为
+- 第六十七批已完成阶段交接提交为 `8629e5ff8cfff27301d7aae689a3fef625ca74ae`
+  （`docs: 记录知识生产候选分流口径复演`）；第六十八批最新应用/目录提交为
+  `9b4c4daab336c5a890fe5b7f0928a4035ff2fac2`
+  （`fix: 校准产品目录知识生产业务域`）。其前置本地提交包括第六十七批应用提交
   `01b6c6270e8b1b2b9138e80c2bd60ce321a99898`
-  （`fix: 收敛知识生产候选分流前台口径`）。其前置本地提交包括第六十六批应用提交
+  （`fix: 收敛知识生产候选分流前台口径`）、第六十六批阶段交接提交
+  `e1f16076bb7058617a4f7954d5292ceec625652f`
+  （`docs: 记录知识生产分流状态口径复演`）、第六十六批应用提交
   `08e3cc4d7cc6801ca850f543c8ce3c475a5f4c7c`
   （`fix: 收敛知识生产分流状态前台口径`）、第六十五批阶段交接提交
   `fb2df0c6a5d80f63fd17ee8040d7b0092562b1ef`
@@ -135,8 +139,8 @@
   第五十九批验收与生产目录前台口径收敛、第六十批导出与批量任务编号层级收敛，
   第六十一批质控指标影响范围前台口径收敛、第六十二批质量域组织范围前台口径收敛，
   第六十三批知识生产校验状态前台口径收敛、第六十四批沙盘机构生效版本前台口径收敛，
-  第六十五批系统接入区域来源状态前台口径收敛、第六十六批知识生产分流状态前台口径收敛，
-  以及第六十七批知识生产候选分流前台口径收敛。
+  第六十五批系统接入区域来源状态前台口径收敛、第六十六批知识生产分流状态前台口径收敛、
+  第六十七批知识生产候选分流前台口径收敛，以及第六十八批产品目录知识生产业务域校准。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -157,7 +161,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `01b6c6270e8b1b2b9138e80c2bd60ce321a99898`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `9b4c4daab336c5a890fe5b7f0928a4035ff2fac2`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -167,6 +171,46 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第六十八批·产品目录知识生产业务域校准）
+
+- 本批继续按全局菜单、权威功能目录和职责旅程复核。结论：第四十四批全局菜单命名与顺序仍成立；
+  `routeSections`、`menu.test.ts`、`routes.test.ts` 和职责旅程已经明确主导航是 8 个业务域，其中“知识生产”是独立域。
+  新发现的事实缺口在生成的 `product-function-catalog.md`：库存结论仍写成 7 个目标客户业务域，漏掉“知识生产”，
+  虽然下方路由和后端菜单行已归属到知识生产。该缺口会误导后续菜单评审和产品范围核查，必须由生成器而不是手改文档修正。
+- 已本地提交 `9b4c4daab336c5a890fe5b7f0928a4035ff2fac2`
+  （`fix: 校准产品目录知识生产业务域`）：
+  - `scripts/audit/export-product-capabilities.mjs` 新增 `extractRouteSections()`，从 `routes.ts` 的主导航分组读取中文域名，
+    `renderCatalog()` 不再硬编码目标客户业务域列表。
+  - `frontend/src/shared/config/productCatalog.test.ts` 新增库存结论域名断言，要求产品目录中的目标客户业务域与 `menuSections`
+    完全同序一致。
+  - 重新生成 `docs/audit/product-function-catalog.md`，库存结论现为“工作台、机构与人员、知识治理、知识生产、临床协同、
+    质量管理、合规安全、系统运维”。
+  - 未改变前台菜单顺序、权限、路由、后端 API、数据库或 134 发布配置，只校准权威目录事实与生成器防回归。
+- 本地验证：
+  - 红绿核验：`npm --prefix frontend test -- productCatalog.test.ts -t "summarizes every primary sidebar domain"`
+    在旧实现下先失败，收到 7 个域且缺少“知识生产”；实现与重新生成目录后通过。
+  - 关联配置回归：`npm --prefix frontend test -- productCatalog.test.ts menu.test.ts routes.test.ts` 通过，
+    `3` 个测试文件 / `66` 项。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过；目录 diff 只改变库存结论中的“知识生产”域。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `951` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `KnowledgeGovernance-Ce9gV4kY.js`、`KnowledgeProduction-leGk0UQ2.js`、
+    `index-C5ETtOXr.js` 等前端产物。
+  - `npm --prefix frontend run format:check` 通过；`git diff --check`、应用提交前 `git diff --cached --check` 均通过
+    （Git 对触碰的脚本文件提示下次按仓库规则转 LF，实际 diff 未膨胀）。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头 `Date=Sat, 04 Jul 2026 01:53:14 GMT`，
+  `X-Trace-Id=7b25d62e-b415-482c-a0bc-a89801e2d014`；公网首页 HTTP 200，
+  `Date=Sat, 04 Jul 2026 01:53:13 GMT`，`Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`。
+  134 映射仍按当前已核定事实保持：后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `9b4c4daa` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、菜单分布、构建门禁、
+  134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第六十七批·知识生产候选分流前台口径收敛）
 
