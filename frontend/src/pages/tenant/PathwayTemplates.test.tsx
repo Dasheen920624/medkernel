@@ -528,10 +528,12 @@ describe("PathwayTemplates 临床路径库治理契约", () => {
   });
 
   it(
-    "路径原型提交由系统自动生成下一草稿版本，不提交旧容器归属",
+    "起始结构提交由系统自动生成下一草稿版本，不提交旧容器归属",
     async () => {
       const { user, dialog } = await openCreateDialog();
 
+      expect(within(dialog).getByText("起始结构")).toBeInTheDocument();
+      expect(within(dialog).queryByText("路径原型")).not.toBeInTheDocument();
       await user.click(within(dialog).getByLabelText("基础节点闭环"));
       await user.click(within(dialog).getByRole("button", { name: /OK|确 定|确定/ }));
 
@@ -572,7 +574,7 @@ describe("PathwayTemplates 临床路径库治理契约", () => {
       const { user, dialog } = await openCreateDialog();
 
       expect(within(dialog).getByRole("tab", { name: /基础信息/ })).toBeInTheDocument();
-      expect(within(dialog).queryByText(/临床路径模型|基础模板/)).not.toBeInTheDocument();
+      expect(within(dialog).queryByText(/临床路径模型|基础模板|路径原型/)).not.toBeInTheDocument();
       expect(within(dialog).getByRole("tab", { name: /节点画布/ })).toBeInTheDocument();
       expect(within(dialog).queryByRole("tab", { name: /受控配置文本/ })).not.toBeInTheDocument();
 

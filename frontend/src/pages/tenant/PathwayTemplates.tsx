@@ -2443,7 +2443,7 @@ export default function PathwayTemplates() {
       label: "基础信息",
       children: (
         <div className={styles.editorSection}>
-          <Form.Item label="路径原型">
+          <Form.Item label="起始结构">
             <Radio.Group
               value={selectedPathwayPrototype}
               onChange={(event: RadioChangeEvent) =>
