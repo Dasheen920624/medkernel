@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第九十五批最新应用提交为 `5da7ae7738ce2e98543f5602d4fc2ae3365c24a4`
-  （`fix: 收敛登录平台治理口径`）。其前置本地提交包括第九十四批阶段交接提交
+- 第九十六批最新应用提交为 `29b219cac27de363023457c49149d49eeaac609a`
+  （`fix: 收敛机构差异版本操作口径`）。其前置本地提交包括第九十五批阶段交接提交
+  `d0b7425381a0b8d3e6224d41fbfe7ac96927384d`
+  （`docs: 记录登录平台治理口径复演`）、第九十五批应用提交
+  `5da7ae7738ce2e98543f5602d4fc2ae3365c24a4`
+  （`fix: 收敛登录平台治理口径`）、第九十四批阶段交接提交
   `905037be5df9f9057e37db7e35cd9e186d110308`
   （`docs: 记录机构知识库任务口径复演`）、第九十四批应用提交
   `bbeed1a0b2af476ab0c1e8bc8bece2136a4719d5`
@@ -259,7 +263,7 @@
   第八十五批七步流来源选择口径收敛、第八十六批资产编目入口口径收敛、第八十七批诊断知识库任务口径收敛、
   第八十八批临床路径库任务口径收敛、第八十九批评价指标任务口径收敛、第九十批临床规则任务口径收敛，
   第九十一批机构生效版本任务口径收敛、第九十二批术语字典任务口径收敛、第九十三批系统接入任务口径收敛，
-  第九十四批机构知识库任务口径收敛，以及第九十五批登录平台治理口径收敛。
+  第九十四批机构知识库任务口径收敛、第九十五批登录平台治理口径收敛，以及第九十六批机构差异版本操作口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -280,7 +284,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `5da7ae7738ce2e98543f5602d4fc2ae3365c24a4`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `29b219cac27de363023457c49149d49eeaac609a`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -290,6 +294,54 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第九十六批·机构差异版本操作口径收敛）
+
+- 本批继续按全局菜单、医疗产品体验和全角色职责旅程复核。结论：`机构知识库` 菜单名与顺序仍符合
+  “从平台标准派生机构版本、查看机构覆盖血缘并恢复平台标准”的客户任务，不应改成实现层或流程型入口。
+  真实缺口是页内动作、表头、弹窗和共享标签仍使用“机构定制 / 定制原因 / 定制草稿”，容易让医疗机构用户误解为
+  随意复制或私改平台标准。按 `CONSTITUTION` 客户面禁止暴露实现缩写、唯一权威知识与机构差异不回写平台标准的边界，
+  本批将前台可见口径统一为“机构差异版本 / 差异原因 / 机构差异草稿”；接口枚举、mutation、后端 API、
+  数据库、产品目录、菜单 IA 与 134 发布配置均未改变。
+- 已本地提交 `29b219cac27de363023457c49149d49eeaac609a`
+  （`fix: 收敛机构差异版本操作口径`）：
+  - `frontend/src/pages/quality/KnowledgeGovernance.tsx` 将派生、发布、恢复链路中的按钮、表头、弹窗、
+    成功/失败提示和权限提示统一为机构差异版本语言。
+  - `frontend/src/shared/config/customerLabels.ts` 将 `LOCAL_CUSTOMIZATION`、`DRAFT` 的客户标签改为
+    “机构差异版本”“机构差异草稿”，保留接口枚举不变。
+  - `KnowledgeGovernance.test.tsx` 正向锁定“创建机构差异版本 / 差异原因 / 机构差异草稿 / 发布机构差异版本”，
+    反向阻断旧“机构定制 / 定制原因 / 定制草稿”回流。
+- 本地验证：
+  - 红灯：先改测试后执行
+    `npm --prefix frontend test -- KnowledgeGovernance.test.tsx -t "derive|standalone maintenance entry"`
+    在旧实现下失败，页面仍只有“定制为本机构版本”和旧表头；补充发布用例后同链路继续锁定新口径。
+  - 绿灯：实现后执行
+    `npm --prefix frontend test -- KnowledgeGovernance.test.tsx -t "derive|publish|standalone maintenance entry"`
+    通过，`3` 项；关联回归
+    `npm --prefix frontend test -- KnowledgeGovernance.test.tsx customerLanguageGate.test.ts routes.test.ts menu.test.ts pages.smoke.test.tsx`
+    通过，`5` 个测试文件 / `127` 项。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过；本批未改变自动生成产品目录。
+  - 旧口径扫描：
+    `rg -n "机构定制|定制原因|定制草稿|定制为本机构版本|创建定制草稿|创建机构知识定制|发布机构定制|历史定制|发布机构版本|无机构定制权限|定制机构知识" frontend/src docs/audit/product-function-catalog.md docs/audit/product-role-journeys.md --glob '!**/*.test.ts' --glob '!**/*.test.tsx'`
+    无输出；旧语义只保留在测试反向断言中。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `960` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `KnowledgeGovernance-lG-Kj6Hh.js`、`InstitutionKnowledge-B32uhtkM.js`、
+    `index-DPZRomS3.js` 等前端产物。
+  - `git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 权威公网入口为
+  `https://193.112.107.134/medkernel/`，HTTP 200，`Date=Sat, 04 Jul 2026 07:12:14 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，`ETag="6a475ada-340"`；
+  readiness 使用 `https://193.112.107.134/medkernel/actuator/health/readiness` 返回 HTTP 200 /
+  `{"status":"UP"}`，`X-Trace-Id=2946c9cd-a80b-4258-97c9-5151124bc4ff`。当前 134 映射仍是
+  后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`；
+  不得把本地 `29b219ca` 记为已部署。排查时确认 `192.168.1.134:8080` 与公网
+  `193.112.107.134:18080` 均不是权威演练入口，其中 `18080` 按手册仅监听服务器回环地址。
+- 下一步继续沿全局菜单、全角色职责旅程、真实前台默认层做广度优先复核；优先处理可真实落地的产品体验、
+  契约、测试、构建和文档问题；不使用子代理、不咨询、不推送远程 `main`。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第九十五批·登录平台治理口径收敛）
 
