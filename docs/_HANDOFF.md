@@ -10,6 +10,39 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百零九批最新应用提交为 `104f43a99ac65fb75c74477a2f27d9d768183bea`
+  （`fix: 收敛质量风险提醒口径`）。本批未使用子代理、未推送远程、未合并 `main`；
+  继续以宪章、产品范围、体验契约、功能目录和四职责旅程为准复核质量域前台体验。发现
+  `/qc/dashboard` 已作为 `质量风险概览`，`/qc/alerts` 已作为 `质量问题与整改`，但质量看板默认风险来源、
+  下钻证据摘要、后端错误消息和 API 说明仍使用旧入口式表述 `质控预警`，会让院方质控人员和医疗引擎运营员误以为
+  当前对象是后台预警配置，而不是需要跟踪的医疗质量风险提醒。现将前端默认来源口径收敛为 `质量风险提醒`，
+  对含 `alert-*` 等追溯令牌的预览标题默认收起为业务来源；证据详情打开后仍展示原始追溯字段。后端
+  `QualityDashboardService` 的未找到 / 已闭环错误消息、`QualityDashboardController` 和过滤 DTO 中文说明同步收敛为
+  `质量风险提醒`；表名、枚举、接口字段与持久化契约不改。
+- 第一百零九批验证：前端先补 `QcDashboard` 用例并在旧实现上跑出预期失败
+  （`npm --prefix frontend run test -- QcDashboard -t "质量风险来源"` 无法找到 `质量风险提醒`）；
+  后端先改 `QualityDashboardServiceTest` 期望，`mvn -f medkernel-backend/pom.xml -Dtest=QualityDashboardServiceTest#acknowledgeAlertIsTenantScopedAndRejectsMissingAlert test`
+  在旧实现上失败，实际消息仍为 `质控预警 不存在`。修正后同两个窄测均通过；随后
+  `npm --prefix frontend run test -- QcDashboard QcAlerts productRoleJourneys routes` 通过
+  （4 个文件、81 个测试），
+  `mvn -f medkernel-backend/pom.xml -Dtest=QualityDashboardServiceTest test` 通过（8 个测试），
+  `npm --prefix frontend exec prettier -- --check frontend/src/pages/quality/QcDashboard.tsx frontend/src/pages/quality/QcDashboard.test.tsx`
+  通过，`git diff --check` 和 `git diff --cached --check` 均退出码 0。旧词扫描
+  `rg -n "质控预警" frontend/src medkernel-backend/src/main/java medkernel-backend/src/test/java docs/CONSTITUTION.md docs/PRODUCT_SCOPE.md docs/EXPERIENCE_CONTRACT.md docs/audit/product-function-catalog.md docs/audit/product-role-journeys.md`
+  仅剩测试里的“不得出现旧词”断言。重门禁：`npm --prefix frontend run build` 通过，
+  `npm --prefix frontend run verify` 通过（114 个测试文件、965 个测试；仅出现既有 antd Timeline deprecation warning），
+  `mvn -f medkernel-backend/pom.xml test` 通过（3064 个测试、0 failures、0 errors、7 skipped；
+  Docker/Testcontainers 多方言容器用例因本机无 Docker 按既有条件跳过）。
+- 第一百零九批开工核查：`origin/main` 仍为
+  `1561ba6bef8777dcef76432696f43de4277fdd3f`
+  （`完善全角色上线演练与134复演闭环 (#653)`）；本批应用提交前本地分支领先 `origin/main` 297 个提交，
+  应用提交后领先 298 个提交。134 当前公网首页 `https://193.112.107.134/medkernel/` HTTP 200，
+  `Date=Sat, 04 Jul 2026 16:51:47 GMT`，`Content-Length=832`；正确 readiness 端点
+  `https://193.112.107.134/medkernel/actuator/health/readiness` HTTP 200 / `{"status":"UP"}`，
+  `X-Trace-Id=885a6f94-3d85-40de-93bb-f69ab446b696`。误打
+  `https://193.112.107.134/medkernel/api/actuator/health/readiness` 返回 HTTP 401，不作为 readiness 发布证据。
+  本批本地应用提交尚未发布到 134、尚未推送远程、尚未合并 `main`。
+- 下一步继续主线：不使用子代理；继续按全角色真实前台体验广度复核剩余上线级问题，阶段完成后继续更新本文件并本地提交。
 - 第一百零八批最新应用提交为 `1ce52eea11d04facbeb3285ac08131bd1043ff23`
   （`fix: 校准临床工作台协同入口`）。本批未使用子代理、未推送远程、未合并 `main`；
   继续按宪章、体验契约、功能目录和四职责旅程复核全角色前台体验。发现临床使用者工作台的“临床协同入口”
@@ -34,7 +67,6 @@
   readiness `https://193.112.107.134/medkernel/actuator/health/readiness` HTTP 200 /
   `{"status":"UP"}`，`X-Trace-Id=b5422552-0561-40e5-8314-611b9321b466`。本批本地应用提交尚未发布到
   134、尚未推送远程、尚未合并 `main`。
-- 下一步继续主线：不使用子代理；按十二角色真实前台体验广度复核剩余上线级问题，阶段完成后继续更新本文件并本地提交。
 - 第一百零七批最新应用提交为 `542ae273e8a0616f967fcfb253d967d9bc140af6`
   （`fix: 优化工作台职责筛选口径`）。本批未使用子代理、未推送远程、未合并 `main`；
   以宪章、体验契约和四职责旅程为准，继续全角色前台体验复核，发现工作台三项默认筛选对所有职责统一展示
