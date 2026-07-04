@@ -265,9 +265,12 @@ export default function AuthoringAssets() {
     return (
       <PageShell
         title="统一资产库"
-        description="检索、收藏和复用创作资产"
+        description="检索、收藏和复用医疗资产"
         state="loading"
-        stateProps={{ title: "正在加载统一资产库", description: "正在读取规则、路径和随访模板。" }}
+        stateProps={{
+          title: "正在加载统一资产库",
+          description: "正在读取规则、路径、随访和配置资产。",
+        }}
       >
         <></>
       </PageShell>
@@ -283,7 +286,7 @@ export default function AuthoringAssets() {
         stateProps={{
           title: "统一资产库读取失败",
           description:
-            "请重试；若持续失败，请联系信息科排查创作资产服务。失败已留痕，可在审计证据中追溯。",
+            "请重试；若持续失败，请联系信息科排查医疗资产服务。失败已留痕，可在审计证据中追溯。",
           onRetry: () => assetsQuery.refetch(),
         }}
       >
@@ -295,7 +298,7 @@ export default function AuthoringAssets() {
   return (
     <PageShell
       title="统一资产库"
-      description="检索、收藏、维护和复用医疗知识与配置资产"
+      description="检索、收藏、编目和复用医疗知识与配置资产"
       extras={<EvidenceDetailsToggle securityProfile={security.data} />}
     >
       <Tabs
@@ -359,11 +362,11 @@ export default function AuthoringAssets() {
           },
           {
             key: "configuration",
-            label: "配置资产维护",
+            label: "字段与配置资产",
             children: (
               <Space direction="vertical" size="middle" className="mk-full-width">
                 <Button disabled={!canWriteFields} onClick={() => setFieldCatalogOpen(true)}>
-                  维护字段目录
+                  字段目录
                 </Button>
                 <DeclarativeAssetWorkbench
                   canWrite={canWriteDeclarative}

@@ -1,8 +1,8 @@
 /**
- * 上下文字段目录维护抽屉。
+ * 字段目录草稿抽屉。
  *
- * <p>具备 {@code context.write} 权限的当前授权责任人维护工作字段目录：平台字段只允许覆盖展示元数据，院内新增字段统一进入
- * {@code extensions.local.*} 命名空间并形成真实运行数据落点。当前维护结果显式固化为统一资产草稿后，
+ * <p>具备 {@code context.write} 权限的当前授权责任人编排工作字段目录：平台字段只允许覆盖展示元数据，院内新增字段统一进入
+ * {@code extensions.local.*} 命名空间并形成真实运行数据落点。当前调整结果显式固化为统一资产草稿后，
  * 才可进入平台标准版本或机构生效版本；当前已生效版本始终保持不可变。
  */
 import { useEffect, useMemo, useState } from "react";
@@ -300,13 +300,13 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
   ];
 
   return (
-    <Drawer title="上下文字段目录维护" width={920} open={open} onClose={onClose} destroyOnClose>
+    <Drawer title="字段目录草稿" width={920} open={open} onClose={onClose} destroyOnClose>
       <Space direction="vertical" size="large" className="mk-full-width">
         <Alert
           showIcon
           type="info"
-          message="这里维护下一版本的字段工作目录"
-          description="维护结果需固化为自动编号的字段目录草稿，才可进入平台标准版本或机构生效版本；当前已激活版本不会被直接修改。"
+          message="这里编排下一版本的字段目录"
+          description="本次调整需固化为自动编号的字段目录草稿，才可进入平台标准版本或机构生效版本；当前已激活版本不会被直接修改。"
         />
         {!canManage ? (
           <Alert
@@ -322,7 +322,7 @@ export function FieldCatalogManager({ open, onClose }: FieldCatalogManagerProps)
             disabled={!canManage}
             onClick={beginOverride}
           >
-            维护平台字段覆盖
+            调整平台字段展示
           </Button>
           <Button
             type={mode === "extension" ? "primary" : "default"}

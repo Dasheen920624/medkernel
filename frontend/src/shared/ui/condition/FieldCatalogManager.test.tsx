@@ -44,7 +44,7 @@ function renderManager() {
   );
 }
 
-describe("FieldCatalogManager 字段目录维护（P2/P5）", () => {
+describe("FieldCatalogManager 字段目录草稿（P2/P5）", () => {
   beforeEach(() => {
     apiMocks.create.mockReset();
     apiMocks.update.mockReset();
@@ -103,6 +103,15 @@ describe("FieldCatalogManager 字段目录维护（P2/P5）", () => {
 
   it("展示平台(只读)与租户(可删)字段并区分来源", () => {
     renderManager();
+    expect(screen.getByText("字段目录草稿")).toBeInTheDocument();
+    expect(screen.getByText("这里编排下一版本的字段目录")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "本次调整需固化为自动编号的字段目录草稿，才可进入平台标准版本或机构生效版本；当前已激活版本不会被直接修改。",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("上下文字段目录维护")).not.toBeInTheDocument();
+    expect(screen.queryByText("这里维护下一版本的字段工作目录")).not.toBeInTheDocument();
     expect(screen.getByText("medications[].code")).toBeInTheDocument();
     expect(screen.getByText("observations[].code")).toBeInTheDocument();
     expect(screen.getByText("medications.code")).toBeInTheDocument();
@@ -248,7 +257,8 @@ describe("FieldCatalogManager 字段目录维护（P2/P5）", () => {
     renderManager();
 
     expect(screen.getByText("当前账号仅可查看字段目录")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "维护平台字段覆盖" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "调整平台字段展示" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "维护平台字段覆盖" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "新增院内扩展字段" })).toBeDisabled();
     expect(screen.getByRole("button", { name: /保存覆盖/ })).toBeDisabled();
     expect(screen.getByLabelText("删除覆盖 observations[].code")).toBeDisabled();
