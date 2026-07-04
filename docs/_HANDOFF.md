@@ -10,6 +10,21 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百零二批最新应用提交为 `673e6aa2ca4dc88ee65a63f96199803b1ea62ce7`
+  （`fix: 收敛随访方案前台口径`）。本批未使用子代理、未推送远程、未合并 `main`；
+  以权威产品/体验/职责文件和当前代码为准，将临床随访资产在前台、权限展示、审计摘要、资产编目、
+  职责演练、后端用户可见消息、5 方言迁移注释和架构文档中的业务口径从“随访模板”收敛为
+  “随访方案”。`FollowupTemplate*` 类名、`templateId` 等接口字段、表名/列名与既有持久化契约保持不变；
+  证据详情继续展示后端原始名称/分类，用于证明兼容历史数据且不污染业务默认视图。
+- 第一百零二批验证：先改 `Followup`、`AdminAudit`、`AuthoringAssets`、`routes` 相关测试并跑出旧词预期失败；
+  修正后 `npm --prefix frontend run test -- Followup AdminAudit AuthoringAssets routes` 通过
+  （4 个文件、90 个测试），`npm --prefix frontend run build` 通过，`npm --prefix frontend run verify` 通过
+  （114 个测试文件、963 个测试），
+  `mvn -f medkernel-backend/pom.xml -Dtest=FollowupTemplateServiceTest,RuntimeReleaseFollowupTemplateSelectorTest test`
+  通过（10 个测试），`mvn -f medkernel-backend/pom.xml test` 通过
+  （3064 个测试、0 failures、0 errors、7 skipped；Docker/Testcontainers 多方言容器用例因本机无 Docker 按既有条件跳过）。
+- 下一步继续主线：保持不使用子代理；继续全角色真实前台体验优化，优先处理登录界面滚动条与登录文案措辞，
+  并继续按全局医疗场景评审剩余菜单名称、顺序分布和 134 / squash main 发布证据映射。
 - 第一百零一批最新应用提交为 `0abba88f4e63db2bd165af1419add30d4341f1b3`
   （`fix: 收敛页面动作口径`）。其前置本地提交包括第一百批阶段交接提交
   `a62896490dd1e489835805b20761f9d5531f5a67`
