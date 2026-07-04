@@ -938,9 +938,11 @@ describe("Followup", () => {
       "面向出院后慢阻肺患者的护士回收与医生复核流程",
     );
     await user.click(within(dialog).getByLabelText("问卷内容模板"));
-    await user.click(await screen.findByText("真实前台慢病随访问卷"));
+    await user.click(await screen.findByText("慢病随访问卷"));
+    expect(screen.queryByText("真实前台慢病随访问卷")).not.toBeInTheDocument();
     await user.click(within(dialog).getByLabelText("院内依据"));
-    await user.click(await screen.findByText("真实前台演练随访制度"));
+    await user.click(await screen.findByText("慢病随访管理制度"));
+    expect(screen.queryByText("真实前台演练随访制度")).not.toBeInTheDocument();
 
     await user.click(within(dialog).getByRole("button", { name: /创\s*建/ }));
 

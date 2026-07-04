@@ -18,7 +18,7 @@ export const followupDiseaseOptions: FollowupTemplateOption[] = [
 
 export const questionnaireTemplateOptions: FollowupTemplateOption[] = [
   { value: "FOLLOWUP_QUESTIONNAIRE_DEFAULT", label: "默认出院随访问卷" },
-  { value: "FOLLOWUP_QUESTIONNAIRE_REAL_FRONTDESK", label: "真实前台慢病随访问卷" },
+  { value: "FOLLOWUP_QUESTIONNAIRE_REAL_FRONTDESK", label: "慢病随访问卷" },
   { value: "FOLLOWUP_QUESTIONNAIRE_CARDIO_METABOLIC", label: "心脑代谢随访问卷" },
 ];
 
@@ -30,7 +30,7 @@ export const followupQuestionOptions: FollowupTemplateOption[] = [
 
 export const followupSourceOptions: FollowupTemplateOption[] = [
   { value: "FOLLOWUP_TEMPLATE_STANDARD", label: "院内随访制度" },
-  { value: "REAL_FRONTDESK_FOLLOWUP_TEMPLATE", label: "真实前台演练随访制度" },
+  { value: "REAL_FRONTDESK_FOLLOWUP_TEMPLATE", label: "慢病随访管理制度" },
   { value: "DISCHARGE_PLAN_FOLLOWUP_POLICY", label: "出院计划随访要求" },
 ];
 
