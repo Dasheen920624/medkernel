@@ -41,13 +41,13 @@ const assetTypeOptions: Array<{ value: EngineAssetType | "ALL"; label: string }>
   { value: "ALL", label: "全部资产" },
   { value: "RULE", label: "规则" },
   { value: "PATHWAY", label: "路径" },
-  { value: "FOLLOWUP", label: "随访模板" },
+  { value: "FOLLOWUP", label: "随访方案" },
 ];
 
 const assetTypeLabels: Record<string, string> = {
   RULE: "规则",
   PATHWAY: "路径",
-  FOLLOWUP: "随访模板",
+  FOLLOWUP: "随访方案",
 };
 const FOLLOWUP_ASSET_RUN_SUFFIX_PATTERN = /\s+(?:[a-z]+(?:_[a-z]+)*-[a-z0-9]{6,}|[a-z0-9]{8,})$/i;
 const FOLLOWUP_ASSET_REHEARSAL_BATCH_PATTERN = /\s*[（(]\s*上线复演[^）)]*[）)]/g;
@@ -78,18 +78,26 @@ function assetBusinessText(asset: AuthoringAssetLibraryItem, evidenceDetailsEnab
 
 function followupAssetBusinessName(name: string) {
   const trimmed = name.trim();
-  if (!/^(全角色|真实前台)/.test(trimmed)) return trimmed;
-  return (
+  if (!/^(全角色|真实前台)/.test(trimmed)) {
+    return trimmed.replace(/随访模板/g, "随访方案").replace(/模板/g, "方案");
+  }
+  const cleaned =
     trimmed
       .replace(FOLLOWUP_ASSET_REHEARSAL_BATCH_PATTERN, "")
       .replace(FOLLOWUP_ASSET_RUN_SUFFIX_PATTERN, "")
-      .trim() || trimmed
-  );
+      .trim() || trimmed;
+  return cleaned.replace(/随访模板/g, "随访方案").replace(/模板/g, "方案");
 }
 
 function assetDisplayName(asset: AuthoringAssetLibraryItem, evidenceDetailsEnabled: boolean) {
   if (evidenceDetailsEnabled || asset.assetType !== "FOLLOWUP") return asset.name;
   return followupAssetBusinessName(asset.name);
+}
+
+function assetCategoryText(asset: AuthoringAssetLibraryItem, evidenceDetailsEnabled: boolean) {
+  if (!asset.category) return null;
+  if (evidenceDetailsEnabled || asset.assetType !== "FOLLOWUP") return asset.category;
+  return asset.category.replace(/随访模板/g, "随访方案").replace(/模板/g, "方案");
 }
 
 function statusColor(status: string) {
@@ -214,7 +222,7 @@ export default function AuthoringAssets() {
       key: "tags",
       render: (_value, asset) => (
         <Space size="small" wrap>
-          {asset.category && <Tag>{asset.category}</Tag>}
+          {asset.category && <Tag>{assetCategoryText(asset, evidenceDetailsEnabled)}</Tag>}
           {asset.tags.map((item) => (
             <Tag key={item}>{item}</Tag>
           ))}

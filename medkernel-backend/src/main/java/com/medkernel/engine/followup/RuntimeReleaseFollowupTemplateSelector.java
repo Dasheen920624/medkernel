@@ -15,10 +15,10 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 从机构生效版本中解析本次临床可使用的随访模板版本。
+ * 从机构生效版本中解析本次临床可使用的随访方案版本。
  *
- * <p>随访计划生成不得按模板 ID 直接读取全租户已发布模板；必须由机构生效版本锁定
- * {@code FOLLOWUP} 资产身份、版本号和内容摘要后，再反查对应模板实体。
+ * <p>随访计划生成不得按方案 ID 直接读取全租户已发布方案；必须由机构生效版本锁定
+ * {@code FOLLOWUP} 资产身份、版本号和内容摘要后，再反查对应方案实体。
  */
 @Component
 public class RuntimeReleaseFollowupTemplateSelector {
@@ -40,7 +40,7 @@ public class RuntimeReleaseFollowupTemplateSelector {
             String tenantId,
             String runtimeReleaseId,
             String templateId) {
-        String requestedTemplateId = required(templateId, "随访模板 ID");
+        String requestedTemplateId = required(templateId, "随访方案 ID");
         ClinicalRuntimeReleaseContent content = resolve(tenantId, runtimeReleaseId);
         for (ClinicalRuntimeReleaseItem item : content.items()) {
             if (item.entryState() != ReleaseEntryState.ACTIVE
@@ -52,7 +52,7 @@ public class RuntimeReleaseFollowupTemplateSelector {
                 return template;
             }
         }
-        throw invalid("当前机构生效版本未启用随访模板: " + requestedTemplateId);
+        throw invalid("当前机构生效版本未启用随访方案: " + requestedTemplateId);
     }
 
     private FollowupTemplate resolveTemplate(ClinicalRuntimeReleaseItem item) {
@@ -75,10 +75,10 @@ public class RuntimeReleaseFollowupTemplateSelector {
             .findByTenantIdAndTemplateCodeAndVersionNo(
                 item.sourceTenantId(), item.assetIdentity(), versionNo)
             .orElseThrow(() -> invalid(
-                "机构生效版本锁定随访模板实体不存在：" + item.assetIdentity() + "@" + item.versionNo()));
+                "机构生效版本锁定随访方案实体不存在：" + item.assetIdentity() + "@" + item.versionNo()));
         if (!version.versionId().equals(template.assetVersionId())) {
             throw invalid(
-                "随访模板实体与运行资产版本不一致：" + template.templateId());
+                "随访方案实体与运行资产版本不一致：" + template.templateId());
         }
         return template;
     }
@@ -95,9 +95,9 @@ public class RuntimeReleaseFollowupTemplateSelector {
 
     private static int parseVersionNo(String value, String templateCode) {
         try {
-            return AssetVersionNumbers.intSequence(value, "随访模板版本");
+            return AssetVersionNumbers.intSequence(value, "随访方案版本");
         } catch (ApiException exception) {
-            throw invalid("运行随访模板版本号无效：" + templateCode + "@" + value, exception);
+            throw invalid("运行随访方案版本号无效：" + templateCode + "@" + value, exception);
         }
     }
 

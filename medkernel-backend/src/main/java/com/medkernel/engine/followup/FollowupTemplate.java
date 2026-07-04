@@ -7,9 +7,9 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
- * 随访配置模板不可变版本。
+ * 随访方案不可变版本。
  *
- * <p>模板只保存任务、问卷和异常处置定义，不保存患者、就诊、作答等运行数据。
+ * <p>方案只保存任务、问卷和异常处置定义，不保存患者、就诊、作答等运行数据。
  */
 @Table("mk_followup_template")
 public record FollowupTemplate(

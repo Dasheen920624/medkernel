@@ -47,7 +47,7 @@ import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.ids.Ulid;
 
 /**
- * 随访模板资产服务。
+ * 随访方案资产服务。
  */
 @Service
 public class FollowupTemplateService {
@@ -85,12 +85,12 @@ public class FollowupTemplateService {
     }
 
     /**
-     * 创建不可变模板草稿并登记统一配置资产版本。
+     * 创建不可变方案草稿并登记统一配置资产版本。
      */
     @Transactional
     public FollowupTemplateResponse create(FollowupTemplateCreateRequest request) {
         String tenantId = tenantId();
-        String templateCode = required(request.templateCode(), "模板编码");
+        String templateCode = required(request.templateCode(), "院内随访方案身份");
         int versionNo = allocateNextVersion(tenantId, templateCode);
         validateTasks(request.tasks());
         JsonNode questionnaire = requireObject(request.questionnaireDefinition(), "问卷定义");
@@ -132,7 +132,7 @@ public class FollowupTemplateService {
                 tenantId,
                 templateCode,
                 versionNo,
-                required(request.name(), "模板名称"),
+                required(request.name(), "方案名称"),
                 normalize(request.description()),
                 request.organizationScope().trim(),
                 request.applicableScope().trim(),
@@ -150,7 +150,7 @@ public class FollowupTemplateService {
         } catch (DuplicateKeyException exception) {
             throw new ApiException(
                 ErrorCode.CONFLICT,
-                "随访模板版本并发创建冲突，请刷新后重试: " + templateCode + "@" + versionNo,
+                "随访方案版本并发创建冲突，请刷新后重试: " + templateCode + "@" + versionNo,
                 exception
             );
         }
@@ -158,13 +158,13 @@ public class FollowupTemplateService {
             AuditAction.CREATE,
             "mk_followup_template",
             templateId,
-            "创建随访模板 " + templateCode + "@" + versionNo
+            "创建随访方案 " + templateCode + "@" + versionNo
         );
         return response(saved, assetVersion);
     }
 
     /**
-     * 按发布状态与关键词分页读取当前租户的随访模板。
+     * 按发布状态与关键词分页读取当前租户的随访方案。
      */
     @Transactional(readOnly = true)
     public PageResponse<FollowupTemplateResponse> list(
@@ -188,7 +188,7 @@ public class FollowupTemplateService {
     }
 
     /**
-     * 依次完成审核流并全量发布模板版本。
+     * 依次完成审核流并全量发布方案版本。
      */
     @Transactional
     public FollowupTemplateResponse publish(
@@ -204,7 +204,7 @@ public class FollowupTemplateService {
         } else if (version.status() != AssetVersionStatus.PUBLISHED) {
             throw new ApiException(
                 ErrorCode.CONFLICT,
-                "当前随访模板版本不可发布: " + version.status()
+                "当前随访方案版本不可发布: " + version.status()
             );
         }
         Instant now = Instant.now();
@@ -222,7 +222,7 @@ public class FollowupTemplateService {
             AuditAction.PUBLISH,
             "mk_followup_template",
             template.templateId(),
-            "发布随访模板 " + template.templateCode() + "@" + template.versionNo()
+            "发布随访方案 " + template.templateCode() + "@" + template.versionNo()
         );
         return response(template, publishedVersion);
     }
@@ -232,7 +232,7 @@ public class FollowupTemplateService {
         FollowupTemplate template = requireTemplate(templateId);
         AssetVersion version = requireAssetVersion(template);
         if (version.status() != AssetVersionStatus.PUBLISHED) {
-            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访模板尚未发布: " + templateId);
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访方案尚未发布: " + templateId);
         }
         return template;
     }
@@ -241,7 +241,7 @@ public class FollowupTemplateService {
         try {
             return json.readValue(template.taskDefinitionJson(), TASK_LIST);
         } catch (JsonProcessingException exception) {
-            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访模板任务定义损坏", exception);
+            throw new ApiException(ErrorCode.ENG_FOLLOW_004, "随访方案任务定义损坏", exception);
         }
     }
 
@@ -352,8 +352,8 @@ public class FollowupTemplateService {
     }
 
     private FollowupTemplate requireTemplate(String templateId) {
-        return templates.findByTemplateIdAndTenantId(required(templateId, "模板 ID"), tenantId())
-            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "随访模板不存在: " + templateId));
+        return templates.findByTemplateIdAndTenantId(required(templateId, "方案 ID"), tenantId())
+            .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "随访方案不存在: " + templateId));
     }
 
     private static String normalizeKeyword(String value) {
@@ -367,26 +367,26 @@ public class FollowupTemplateService {
         return assetVersions.findByVersionIdAndTenantId(template.assetVersionId(), template.tenantId())
             .orElseThrow(() -> new ApiException(
                 ErrorCode.ENG_FOLLOW_004,
-                "随访模板缺少统一资产版本: " + template.templateId()
+                "随访方案缺少统一资产版本: " + template.templateId()
             ));
     }
 
     private void validateTasks(List<FollowupTemplateTaskInput> tasks) {
         if (tasks == null || tasks.isEmpty()) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "随访模板至少包含一个任务");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "随访方案至少包含一个任务");
         }
         List<FollowupTaskType> seen = new ArrayList<>();
         for (FollowupTemplateTaskInput task : tasks) {
             if (task == null || task.taskType() == null || task.delayDays() == null
                     || task.delayDays() < 0 || task.delayDays() > 3650) {
-                throw new ApiException(ErrorCode.VALIDATION_FAILED, "随访模板任务定义不完整");
+                throw new ApiException(ErrorCode.VALIDATION_FAILED, "随访方案任务定义不完整");
             }
             if (!seen.add(task.taskType())) {
-                throw new ApiException(ErrorCode.CONFLICT, "随访模板任务类型重复: " + task.taskType());
+                throw new ApiException(ErrorCode.CONFLICT, "随访方案任务类型重复: " + task.taskType());
             }
             if (task.taskType() == FollowupTaskType.QUESTIONNAIRE
                     && normalize(task.questionnaireTemplateId()) == null) {
-                throw new ApiException(ErrorCode.VALIDATION_FAILED, "问卷任务必须绑定问卷模板 ID");
+                throw new ApiException(ErrorCode.VALIDATION_FAILED, "问卷任务必须绑定问卷内容");
             }
         }
     }
@@ -433,7 +433,7 @@ public class FollowupTemplateService {
         try {
             return json.readTree(value);
         } catch (JsonProcessingException exception) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "随访模板 JSON 定义不合法", exception);
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "随访方案 JSON 定义不合法", exception);
         }
     }
 
@@ -441,7 +441,7 @@ public class FollowupTemplateService {
         try {
             return json.writeValueAsString(value);
         } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("随访模板内容序列化失败", exception);
+            throw new IllegalStateException("随访方案内容序列化失败", exception);
         }
     }
 

@@ -182,7 +182,7 @@ class FollowupTemplateServiceTest {
             "ftpl-1",
             new FollowupTemplatePublishRequest(
                 "impact-followup-template-1",
-                "随访模板结构、术语绑定和异常处置已复核"
+                "随访方案结构、术语绑定和异常处置已复核"
             )
         );
 
@@ -204,7 +204,7 @@ class FollowupTemplateServiceTest {
             "tenant-1",
             "FUP.REAL",
             1,
-            "真实前台慢病随访模板",
+            "真实前台慢病随访方案",
             "按前台业务选项创建",
             "p5-hospital",
             "COPD",
@@ -237,7 +237,7 @@ class FollowupTemplateServiceTest {
             "ftpl-real",
             new FollowupTemplatePublishRequest(
                 "仅影响新生成随访计划",
-                "随访模板结构、术语绑定和异常处置已复核"
+                "随访方案结构、术语绑定和异常处置已复核"
             )
         );
 
@@ -304,7 +304,7 @@ class FollowupTemplateServiceTest {
             "ftpl-1",
             new FollowupTemplatePublishRequest(
                 "仅影响新生成随访计划",
-                "随访模板结构、术语绑定和异常处置已复核"
+                "随访方案结构、术语绑定和异常处置已复核"
             )
         );
 

@@ -82,7 +82,7 @@ function grantFollowupPublishPermission() {
           code: "followup.publish",
           dimension: "ACTION",
           target: "FOLLOWUP",
-          displayName: "发布随访模板版本",
+          displayName: "发布随访方案版本",
           risk: "HIGH",
         },
       ],
@@ -251,7 +251,7 @@ describe("Followup", () => {
             templateId: "ftpl-draft",
             templateCode: "FUP.DRAFT",
             versionNo: 1,
-            name: "待发布模板",
+            name: "待发布方案",
             organizationScope: "p5-hospital",
             applicableScope: "COPD",
             questionnaireDefinition: "{}",
@@ -460,14 +460,16 @@ describe("Followup", () => {
     });
     renderFollowup();
 
-    expect(screen.getByText("全角色患者代理随访模板（第 1 版）")).toBeInTheDocument();
+    expect(screen.getByText("全角色患者代理随访方案（第 1 版）")).toBeInTheDocument();
+    expect(screen.queryByText("全角色患者代理随访模板（第 1 版）")).not.toBeInTheDocument();
     expect(screen.queryByText(/上线复演/)).not.toBeInTheDocument();
     expect(screen.queryByText(/patient_proxy-mr28o43q/)).not.toBeInTheDocument();
     expect(screen.queryByText(/· v1/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /查看与办理/ }));
     await screen.findByRole("dialog", { name: "随访计划办理" });
-    expect(screen.getAllByText("全角色患者代理随访模板（第 1 版）").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("全角色患者代理随访方案（第 1 版）").length).toBeGreaterThan(0);
+    expect(screen.queryByText("全角色患者代理随访模板（第 1 版）")).not.toBeInTheDocument();
     expect(screen.queryByText(/上线复演/)).not.toBeInTheDocument();
     expect(screen.queryByText(/patient_proxy-mr28o43q/)).not.toBeInTheDocument();
 
@@ -614,7 +616,7 @@ describe("Followup", () => {
       sort: "updatedAt,desc",
     });
 
-    await user.click(screen.getByRole("tab", { name: "随访模板" }));
+    await user.click(screen.getByRole("tab", { name: "随访方案" }));
     await user.click(screen.getByTitle("2"));
 
     await waitFor(() => {
@@ -628,8 +630,8 @@ describe("Followup", () => {
     await user.click(screen.getByRole("tab", { name: "计划执行" }));
     await user.click(screen.getByRole("button", { name: /生成随访计划/ }));
     const generateDialog = screen.getByRole("dialog", { name: "生成随访计划" });
-    await user.click(within(generateDialog).getByLabelText("随访模板"));
-    await user.type(within(generateDialog).getByLabelText("随访模板"), "FUP.COPD.2026");
+    await user.click(within(generateDialog).getByLabelText("随访方案"));
+    await user.type(within(generateDialog).getByLabelText("随访方案"), "FUP.COPD.2026");
 
     await waitFor(() => {
       expect(followupHookMocks.useFollowupTemplates).toHaveBeenCalledWith({
@@ -765,7 +767,7 @@ describe("Followup", () => {
     await user.click(screen.getByRole("button", { name: "选择第 1 个随访上下文快照" }));
     await user.click(screen.getByLabelText("随访风险分层"));
     await user.click(screen.getByText("高风险"));
-    await user.click(screen.getByLabelText("随访模板"));
+    await user.click(screen.getByLabelText("随访方案"));
     await user.click(
       await screen.findByText("慢阻肺出院随访（第 1 版）", {
         selector: ".ant-select-item-option-content",
@@ -805,7 +807,7 @@ describe("Followup", () => {
     await user.click(screen.getByRole("button", { name: "选择第 1 个随访上下文快照" }));
     await user.click(screen.getByLabelText("随访风险分层"));
     await user.click(screen.getByText("高风险"));
-    await user.click(screen.getByLabelText("随访模板"));
+    await user.click(screen.getByLabelText("随访方案"));
     await user.click(
       await screen.findByText("慢阻肺出院随访（第 1 版）", {
         selector: ".ant-select-item-option-content",
@@ -826,7 +828,7 @@ describe("Followup", () => {
     expect(screen.queryByDisplayValue("mpi-01KWE6CK9MD11VREALFILTER")).not.toBeInTheDocument();
   });
 
-  it("提醒旧机构生效版本快照不会自动套用新发布模板", async () => {
+  it("提醒旧机构生效版本快照不会自动套用新发布方案", async () => {
     const user = userEvent.setup();
     grantRuntimeReadPermission();
     followupHookMocks.useCurrentHospitalRuntime.mockReturnValue({
@@ -855,56 +857,63 @@ describe("Followup", () => {
     await user.click(screen.getByRole("button", { name: "选择第 1 个随访上下文快照" }));
 
     expect(await screen.findByText("所选快照不是当前机构生效版本")).toBeInTheDocument();
-    expect(screen.getByText(/新发布的随访模板不会自动套用到旧快照/)).toBeInTheDocument();
+    expect(screen.getByText(/新发布的随访方案不会自动套用到旧快照/)).toBeInTheDocument();
+    expect(screen.queryByText(/新发布的随访模板不会自动套用到旧快照/)).not.toBeInTheDocument();
   });
 
-  it("shows followup templates and publishes templates with current product wording", async () => {
+  it("shows followup protocols and publishes protocols with current product wording", async () => {
     const user = userEvent.setup();
     grantFollowupPublishPermission();
     renderFollowup();
 
-    await user.click(screen.getByRole("tab", { name: "随访模板" }));
+    await user.click(screen.getByRole("tab", { name: "随访方案" }));
 
     expect(screen.getByText("慢阻肺出院随访")).toBeInTheDocument();
-    expect(screen.getAllByText("待发布模板").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("随访模板").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("待发布方案").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("随访方案").length).toBeGreaterThan(0);
     expect(
-      screen.getByText("模板发布后才能用于生成随访计划，已生成计划继续保留原模板版本。"),
+      screen.getByText("方案发布后才能用于生成随访计划，已生成计划继续保留原方案版本。"),
     ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /发布模板/ }));
+    expect(
+      screen.queryByText("模板发布后才能用于生成随访计划，已生成计划继续保留原模板版本。"),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /发布方案/ }));
 
     await waitFor(() =>
       expect(followupHookMocks.publishTemplate).toHaveBeenCalledWith({
         templateId: "ftpl-draft",
         request: {
           impactDigest: "仅影响新生成随访计划：FUP.DRAFT@v1",
-          reason: "随访模板发布",
+          reason: "随访方案发布",
         },
       }),
     );
-    expect(screen.queryByText(/第一阶段|模板治理|随访模板资产|运行期/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/第一阶段|模板治理|随访模板资产|运行期|发布模板/),
+    ).not.toBeInTheDocument();
   });
 
-  it("临床使用者只能创建随访模板草稿，不能看到会触发权限失败的发布动作", async () => {
+  it("临床使用者只能创建随访方案草稿，不能看到会触发权限失败的发布动作", async () => {
     const user = userEvent.setup();
     renderFollowup();
 
-    await user.click(screen.getByRole("tab", { name: "随访模板" }));
+    await user.click(screen.getByRole("tab", { name: "随访方案" }));
 
-    const row = screen.getByRole("row", { name: /待发布模板/ });
+    const row = screen.getByRole("row", { name: /待发布方案/ });
+    expect(within(row).queryByRole("button", { name: /发布方案/ })).not.toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: /发布模板/ })).not.toBeInTheDocument();
     expect(within(row).getByText("需运营发布")).toBeInTheDocument();
     expect(within(row).getByText("医疗引擎运营员复核后用于新计划")).toBeInTheDocument();
     expect(followupHookMocks.publishTemplate).not.toHaveBeenCalled();
   });
 
-  it("创建随访模板时使用业务选项生成可审计的标准契约", async () => {
+  it("创建随访方案时使用业务选项生成可审计的标准契约", async () => {
     const user = userEvent.setup();
     renderFollowup();
 
-    await user.click(screen.getByRole("tab", { name: "随访模板" }));
-    await user.click(screen.getByRole("button", { name: /新建模板/ }));
-    const dialog = screen.getByRole("dialog", { name: "新建随访模板" });
+    await user.click(screen.getByRole("tab", { name: "随访方案" }));
+    await user.click(screen.getByRole("button", { name: /新建方案/ }));
+    const dialog = screen.getByRole("dialog", { name: "新建随访方案" });
 
     expect(screen.queryByLabelText("版本")).not.toBeInTheDocument();
     expect(within(dialog).getByText("方案与适用范围")).toBeInTheDocument();
@@ -912,7 +921,7 @@ describe("Followup", () => {
     expect(within(dialog).getByLabelText("院内随访方案身份")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("适用机构范围")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("随访病种")).toBeInTheDocument();
-    expect(within(dialog).getByLabelText("问卷内容模板")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("问卷内容")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("核心随访问题")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("院内依据")).toBeInTheDocument();
     expect(screen.queryByLabelText("模板编码")).not.toBeInTheDocument();
@@ -932,12 +941,12 @@ describe("Followup", () => {
     expect(screen.queryByDisplayValue("FIRST_PHASE_FOLLOWUP_TEMPLATE")).not.toBeInTheDocument();
 
     await user.type(within(dialog).getByLabelText("院内随访方案身份"), "FUP.COPD.REAL");
-    await user.type(within(dialog).getByLabelText("模板名称"), "慢阻肺真实随访方案");
+    await user.type(within(dialog).getByLabelText("方案名称"), "慢阻肺真实随访方案");
     await user.type(
-      within(dialog).getByLabelText("模板说明"),
+      within(dialog).getByLabelText("方案说明"),
       "面向出院后慢阻肺患者的护士回收与医生复核流程",
     );
-    await user.click(within(dialog).getByLabelText("问卷内容模板"));
+    await user.click(within(dialog).getByLabelText("问卷内容"));
     await user.click(await screen.findByText("慢病随访问卷"));
     expect(screen.queryByText("真实前台慢病随访问卷")).not.toBeInTheDocument();
     await user.click(within(dialog).getByLabelText("院内依据"));

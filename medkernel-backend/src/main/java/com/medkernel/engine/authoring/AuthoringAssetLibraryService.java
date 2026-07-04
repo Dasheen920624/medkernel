@@ -62,7 +62,7 @@ public class AuthoringAssetLibraryService {
     }
 
     /**
-     * 合并规则、路径和随访模板到统一资产库。
+     * 合并规则、路径和随访方案到统一资产库。
      */
     @Transactional(readOnly = true)
     public PageResponse<AuthoringAssetLibraryItem> list(AuthoringAssetLibraryQuery query) {
@@ -376,7 +376,7 @@ public class AuthoringAssetLibraryService {
             template.templateId(),
             template.templateCode(),
             template.name(),
-            category(profile, "随访模板"),
+            category(profile, "随访方案"),
             tags(profile),
             String.valueOf(template.versionNo()),
             status,
@@ -465,7 +465,7 @@ public class AuthoringAssetLibraryService {
             case PATHWAY -> pathways.findByTemplateIdAndTenantId(assetId, tenantId)
                 .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "路径资产不存在: " + assetId));
             case FOLLOWUP -> followupTemplates.findByTemplateIdAndTenantId(assetId, tenantId)
-                .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "随访模板资产不存在: " + assetId));
+                .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "随访方案资产不存在: " + assetId));
             default -> throw new ApiException(ErrorCode.ENG_ASSET_002, "当前资产类型不在资产库支持范围: " + assetType);
         }
     }

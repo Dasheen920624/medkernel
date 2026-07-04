@@ -171,7 +171,7 @@ function auditSummaryLabel(summary?: string | null, evidenceDetailsEnabled = tru
   return value
     .replace(AUDIT_EXPORT_REF_PATTERN, "审计导出任务")
     .replace(AUDIT_EXPORT_CONFIRMATION_REF_PATTERN, "审计导出任务")
-    .replace(FOLLOWUP_TEMPLATE_REF_PATTERN, "随访模板")
+    .replace(FOLLOWUP_TEMPLATE_REF_PATTERN, "随访方案")
     .replace(CDSS_CONTEXT_REF_PATTERN, "临床推荐评估")
     .replace(REPORT_CONTEXT_REF_PATTERN, "报告解读任务")
     .replace(MODEL_PROVIDER_RUN_REF_PATTERN, "院外模型服务")

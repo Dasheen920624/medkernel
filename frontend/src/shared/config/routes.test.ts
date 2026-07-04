@@ -200,8 +200,8 @@ describe("route metadata", () => {
       },
       {
         role: "医疗引擎运营员",
-        responsibility: "发布随访模板版本并确认影响范围",
-        boundary: "发布模板不替代临床复核，也不直接生成患者计划",
+        responsibility: "发布随访方案版本并确认影响范围",
+        boundary: "发布方案不替代临床复核，也不直接生成患者计划",
       },
     ]);
     expect(findRouteByPath("/admin/users")?.experience?.stakeholderViews).toEqual([

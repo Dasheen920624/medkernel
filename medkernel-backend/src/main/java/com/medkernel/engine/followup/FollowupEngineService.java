@@ -323,7 +323,7 @@ public class FollowupEngineService {
     public FollowupQuestionnaireResponse dispatchQuestionnaire(FollowupQuestionnaireRequest request) {
         RequestContext.Snapshot ctx = requireContext();
         String tenantId = ctx.orgScope().tenantId();
-        String formData = normalizeJsonObject(request.formData(), "问卷模板载荷");
+        String formData = normalizeJsonObject(request.formData(), "问卷内容载荷");
         String answerData = normalizeOptionalJsonObject(request.answerData(), "问卷作答载荷");
         Optional<FollowupQuestionnaire> existing =
             existingQuestionnaireByIdempotency(tenantId, request.idempotencyKey());
@@ -635,7 +635,7 @@ public class FollowupEngineService {
         FollowupTemplate template = hasText(request.templateId())
             ? runtimeTemplates.requireByTemplateId(
                 tenantId,
-                requiredRuntimeRelease(request.runtimeReleaseId(), "随访模板"),
+                requiredRuntimeRelease(request.runtimeReleaseId(), "随访方案"),
                 request.templateId())
             : null;
         List<ResolvedTask> tasks = resolveTasks(request, template);

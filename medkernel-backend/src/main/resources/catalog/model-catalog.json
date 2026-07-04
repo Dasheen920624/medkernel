@@ -19,7 +19,7 @@
     {"businessPoint":"pathway","businessName":"临床路径草案拟定","capabilityCode":"pathway.draft","b0Path":"确定性路径模板基线","accessStatus":"ACTIVE","sortOrder":50},
     {"businessPoint":"cdss","businessName":"临床决策解释","capabilityCode":"cdss.explain","b0Path":"确定性决策依据解释基线","accessStatus":"ACTIVE","sortOrder":60},
     {"businessPoint":"quality","businessName":"病历内涵质控","capabilityCode":"quality.semantic-check","b0Path":"确定性质控规则基线","accessStatus":"ACTIVE","sortOrder":70},
-    {"businessPoint":"followup","businessName":"随访草案拟定","capabilityCode":"followup.draft","b0Path":"确定性随访模板基线","accessStatus":"ACTIVE","sortOrder":80},
+    {"businessPoint":"followup","businessName":"随访草案拟定","capabilityCode":"followup.draft","b0Path":"确定性随访方案基线","accessStatus":"ACTIVE","sortOrder":80},
     {"businessPoint":"nursing","businessName":"护理知识增强","capabilityCode":null,"b0Path":null,"accessStatus":"PENDING","sortOrder":90},
     {"businessPoint":"report","businessName":"报告解读增强","capabilityCode":null,"b0Path":null,"accessStatus":"PENDING","sortOrder":100}
   ]

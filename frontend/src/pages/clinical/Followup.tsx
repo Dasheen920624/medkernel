@@ -117,16 +117,20 @@ function associationText(
   return value ? `${businessLabel}已关联` : `${businessLabel}未关联`;
 }
 
+function followupProtocolText(value: string) {
+  return value.replace(/随访模板/g, "随访方案").replace(/模板/g, "方案");
+}
+
 function templateBusinessName(name: string | null | undefined, fallback = "已绑定随访方案") {
   const trimmed = name?.trim();
   if (!trimmed) return fallback;
-  if (!/^(全角色|真实前台)/.test(trimmed)) return trimmed;
-  return (
+  if (!/^(全角色|真实前台)/.test(trimmed)) return followupProtocolText(trimmed);
+  const cleaned =
     trimmed
       .replace(TEMPLATE_REHEARSAL_BATCH_PATTERN, "")
       .replace(TEMPLATE_RUN_SUFFIX_PATTERN, "")
-      .trim() || trimmed
-  );
+      .trim() || trimmed;
+  return followupProtocolText(cleaned);
 }
 
 function templateVersionText(version: number | null | undefined, evidenceDetailsEnabled: boolean) {
@@ -374,14 +378,14 @@ export default function Followup() {
         sourceRef: values.sourceRef,
       });
 
-      messageApi.success("随访模板已创建，请发布后用于计划生成");
+      messageApi.success("随访方案已创建，请发布后用于计划生成");
       setTemplateModalVisible(false);
       templateForm.resetFields();
       setTemplatePage(1);
       await templatesQuery.refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(templateForm, error)) return;
-      messageApi.error(getApiErrorMessage(error, "随访模板创建失败"));
+      messageApi.error(getApiErrorMessage(error, "随访方案创建失败"));
     }
   };
 
@@ -391,19 +395,19 @@ export default function Followup() {
         templateId: template.templateId,
         request: {
           impactDigest: publishImpactDigest(template),
-          reason: "随访模板发布",
+          reason: "随访方案发布",
         },
       });
-      messageApi.success("随访模板已发布，可用于新随访计划");
+      messageApi.success("随访方案已发布，可用于新随访计划");
       await Promise.all([templatesQuery.refetch(), publishedTemplatesQuery.refetch()]);
     } catch (error: unknown) {
-      messageApi.error(getApiErrorMessage(error, "随访模板发布失败"));
+      messageApi.error(getApiErrorMessage(error, "随访方案发布失败"));
     }
   };
 
   const handleSubmitQuestionnaire = async () => {
     if (!selectedTask?.questionnaireTemplateId) {
-      messageApi.error("当前任务没有可用问卷模板，不能提交问卷。");
+      messageApi.error("当前任务没有可用问卷内容，不能提交问卷。");
       return;
     }
     try {
@@ -551,12 +555,12 @@ export default function Followup() {
 
   const templateColumns: TableProps<FollowupTemplateResponse>["columns"] = [
     {
-      title: "模板名称",
+      title: "方案名称",
       dataIndex: "name",
       key: "name",
       render: (name: string, record) => (
         <Space direction="vertical" size={0}>
-          <span className={styles.textStrong}>{templateBusinessName(name, "随访模板")}</span>
+          <span className={styles.textStrong}>{templateBusinessName(name, "随访方案")}</span>
           <span className={styles.textMuted}>
             {evidenceDetailsEnabled
               ? `${record.templateCode} · v${record.versionNo}`
@@ -620,7 +624,7 @@ export default function Followup() {
             loading={publishTemplateMutation.isPending}
             className={styles.buttonLink}
           >
-            发布模板
+            发布方案
           </Button>
         );
       },
@@ -634,7 +638,7 @@ export default function Followup() {
         type="warning"
         showIcon
         message="所选快照不是当前机构生效版本"
-        description="新发布的随访模板不会自动套用到旧快照；请建立新的当前就诊上下文后再生成计划。"
+        description="新发布的随访方案不会自动套用到旧快照；请建立新的当前就诊上下文后再生成计划。"
       />
     );
   } else if (snapshotDetailQuery.data) {
@@ -643,7 +647,7 @@ export default function Followup() {
         type="info"
         showIcon
         message="随访计划按所选快照锁定版本生成"
-        description="模板、规则和字段目录以快照中的机构生效版本为准，避免临床事实串版。"
+        description="随访方案、规则和字段目录以快照中的机构生效版本为准，避免临床事实串版。"
       />
     );
   }
@@ -689,7 +693,7 @@ export default function Followup() {
         onChange={setActiveTab}
         items={[
           { key: "plans", label: "计划执行" },
-          { key: "templates", label: "随访模板" },
+          { key: "templates", label: "随访方案" },
         ]}
       />
       {activeTab === "plans" ? (
@@ -825,18 +829,18 @@ export default function Followup() {
           <Row gutter={[16, 16]}>
             <Col xs={24} sm={8}>
               <Card>
-                <Statistic title="模板总数" value={templates.length} />
+                <Statistic title="方案总数" value={templates.length} />
               </Card>
             </Col>
             <Col xs={24} sm={8}>
               <Card>
-                <Statistic title="已发布模板" value={publishedTemplates.length} />
+                <Statistic title="已发布方案" value={publishedTemplates.length} />
               </Card>
             </Col>
             <Col xs={24} sm={8}>
               <Card>
                 <Statistic
-                  title="待发布模板"
+                  title="待发布方案"
                   value={
                     templates.filter((template) => template.assetStatus !== "PUBLISHED").length
                   }
@@ -847,13 +851,13 @@ export default function Followup() {
           <Card>
             <Space wrap className={styles.rowBetween}>
               <Space direction="vertical" size={0}>
-                <span className={styles.textStrong}>随访模板</span>
+                <span className={styles.textStrong}>随访方案</span>
                 <span className={styles.textMuted}>
-                  模板发布后才能用于生成随访计划，已生成计划继续保留原模板版本。
+                  方案发布后才能用于生成随访计划，已生成计划继续保留原方案版本。
                 </span>
               </Space>
               <Input
-                placeholder="按模板名称或适用范围检索"
+                placeholder="按方案名称或适用范围检索"
                 allowClear
                 value={templateSearch}
                 onChange={(event) => {
@@ -867,7 +871,7 @@ export default function Followup() {
                 icon={<PlusOutlined />}
                 onClick={() => setTemplateModalVisible(true)}
               >
-                新建模板
+                新建方案
               </Button>
             </Space>
           </Card>
@@ -877,14 +881,14 @@ export default function Followup() {
               dataSource={templates}
               rowKey="templateId"
               loading={templatesQuery.isLoading}
-              locale={{ emptyText: "当前暂无随访模板" }}
+              locale={{ emptyText: "当前暂无随访方案" }}
               pagination={{
                 current: templatesQuery.data?.page ?? templatePage,
                 pageSize: templatesQuery.data?.size ?? FOLLOWUP_TEMPLATE_PAGE_SIZE,
                 total: templatesQuery.data?.total ?? templates.length,
                 showSizeChanger: false,
                 onChange: (page) => setTemplatePage(page),
-                showTotal: (total) => `共 ${total} 个随访模板`,
+                showTotal: (total) => `共 ${total} 个随访方案`,
               }}
             />
           </Card>
@@ -983,8 +987,8 @@ export default function Followup() {
           </Form.Item>
           <Form.Item
             name="templateId"
-            label="随访模板"
-            rules={[{ required: true, message: "请选择已发布随访模板" }]}
+            label="随访方案"
+            rules={[{ required: true, message: "请选择已发布随访方案" }]}
           >
             <Select
               showSearch
@@ -994,8 +998,8 @@ export default function Followup() {
               onClear={() => setPublishedTemplateSearch("")}
               loading={publishedTemplatesQuery.isLoading}
               options={templateOptions}
-              placeholder="选择已发布随访模板"
-              notFoundContent="当前暂无已发布随访模板"
+              placeholder="选择已发布随访方案"
+              notFoundContent="当前暂无已发布随访方案"
             />
           </Form.Item>
           <Form.Item
@@ -1042,7 +1046,7 @@ export default function Followup() {
                   ? selectedPlanDetail.diseaseCode
                   : optionLabel(followupDiseaseOptions, selectedPlanDetail.diseaseCode)}
               </Descriptions.Item>
-              <Descriptions.Item label="随访模板">
+              <Descriptions.Item label="随访方案">
                 <Tag color={selectedPlanDetail.templateId ? "purple" : "default"}>
                   {planTemplateText(selectedPlanDetail, templateNameById, evidenceDetailsEnabled)}
                 </Tag>
@@ -1222,7 +1226,7 @@ export default function Followup() {
         )}
       </Drawer>
       <Modal
-        title="新建随访模板"
+        title="新建随访方案"
         open={templateModalVisible}
         width={720}
         onOk={handleCreateTemplate}
@@ -1258,12 +1262,12 @@ export default function Followup() {
           </Form.Item>
           <Form.Item
             name="name"
-            label="模板名称"
-            rules={[{ required: true, message: "请输入模板名称" }]}
+            label="方案名称"
+            rules={[{ required: true, message: "请输入方案名称" }]}
           >
             <Input placeholder="例如 慢阻肺出院随访" />
           </Form.Item>
-          <Form.Item name="description" label="模板说明">
+          <Form.Item name="description" label="方案说明">
             <TextArea rows={2} placeholder="说明适用场景、随访目标和触发条件" />
           </Form.Item>
           <Row gutter={12}>
@@ -1309,8 +1313,8 @@ export default function Followup() {
           </Row>
           <Form.Item
             name="questionnaireTemplateId"
-            label="问卷内容模板"
-            rules={[{ required: true, message: "请选择问卷内容模板" }]}
+            label="问卷内容"
+            rules={[{ required: true, message: "请选择问卷内容" }]}
           >
             <Select options={questionnaireTemplateOptions} />
           </Form.Item>

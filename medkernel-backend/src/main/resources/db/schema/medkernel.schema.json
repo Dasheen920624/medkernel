@@ -4348,7 +4348,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "随访计划生成时锁定的机构生效版本 ID；使用随访模板时必填"
+          "comment": "随访计划生成时锁定的机构生效版本 ID；使用随访方案时必填"
         },
         {
           "name": "status",
@@ -4453,7 +4453,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "生成计划所绑定的已发布随访模板ID"
+          "comment": "生成计划所绑定的已发布随访方案ID"
         },
         {
           "name": "template_version",
@@ -4461,7 +4461,7 @@
           "nullable": true,
           "default": null,
           "identity": false,
-          "comment": "生成计划所绑定的随访模板版本号"
+          "comment": "生成计划所绑定的随访方案版本号"
         }
       ],
       "primaryKey": {
@@ -13814,7 +13814,7 @@
     },
     {
       "name": "mk_engine_authoring_asset_profile",
-      "comment": "统一创作资产库元数据表：保存规则、路径、随访模板及独立配置资产的分类与标签",
+      "comment": "统一创作资产库元数据表：保存规则、路径、随访方案及独立配置资产的分类与标签",
       "columns": [
         {
           "name": "id",
@@ -13840,7 +13840,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "资产类型：规则、路径、随访模板及独立配置资产统一枚举"
+          "comment": "资产类型：规则、路径、随访方案及独立配置资产统一枚举"
         },
         {
           "name": "asset_id",
@@ -17553,7 +17553,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "随访模板稳定业务ID"
+          "comment": "随访方案稳定业务ID"
         },
         {
           "name": "tenant_id",
@@ -17571,7 +17571,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "随访模板业务编码"
+          "comment": "随访方案业务编码"
         },
         {
           "name": "version_no",
@@ -17579,7 +17579,7 @@
           "nullable": false,
           "default": null,
           "identity": false,
-          "comment": "随访模板不可变版本号"
+          "comment": "随访方案不可变版本号"
         },
         {
           "name": "name",

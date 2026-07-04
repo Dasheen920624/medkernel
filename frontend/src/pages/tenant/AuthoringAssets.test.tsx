@@ -160,7 +160,7 @@ describe("AuthoringAssets", () => {
     expect(screen.getByText("独立配置资产编目区：证据已展开")).toBeInTheDocument();
   });
 
-  it("默认隐藏随访模板资产的演练批次和运行后缀，证据详情才展示原始标识", async () => {
+  it("默认隐藏随访方案资产的演练批次和运行后缀，证据详情才展示原始标识", async () => {
     apiMocks.useAuthoringAssets.mockReturnValue({
       data: {
         items: [
@@ -185,7 +185,9 @@ describe("AuthoringAssets", () => {
 
     renderPage();
 
-    expect(screen.getByText("全角色患者代理随访模板")).toBeInTheDocument();
+    expect(screen.getByText("全角色患者代理随访方案")).toBeInTheDocument();
+    expect(screen.getAllByText("随访方案").length).toBeGreaterThan(0);
+    expect(screen.queryByText("全角色患者代理随访模板")).not.toBeInTheDocument();
     expect(screen.queryByText(/上线复演/)).not.toBeInTheDocument();
     expect(screen.queryByText(/patient_proxy-mr28o43q/i)).not.toBeInTheDocument();
     expect(screen.queryByText("FUP.STAKEHOLDER.PATIENT_PROXY-MR28O43Q")).not.toBeInTheDocument();
@@ -197,6 +199,7 @@ describe("AuthoringAssets", () => {
         "全角色患者代理随访模板（上线复演 07月02日 21时14分58秒） patient_proxy-mr28o43q",
       ),
     ).toBeInTheDocument();
+    expect(screen.getByText("随访模板")).toBeInTheDocument();
     expect(screen.getByText("FUP.STAKEHOLDER.PATIENT_PROXY-MR28O43Q")).toBeInTheDocument();
   });
 

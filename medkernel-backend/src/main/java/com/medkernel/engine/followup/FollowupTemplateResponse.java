@@ -6,7 +6,7 @@ import java.util.List;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 
 /**
- * 随访模板响应。
+ * 随访方案响应。
  */
 public record FollowupTemplateResponse(
     String templateId,

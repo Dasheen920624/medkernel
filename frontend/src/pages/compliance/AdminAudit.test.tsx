@@ -299,7 +299,7 @@ describe("AdminAudit", () => {
             ...firstPage.items[0],
             id: "12",
             eventId: "evt-12",
-            summary: "发布随访模板 FUP.STAKEHOLDER.PATIENT_PROXY-MR3OBIIY@1",
+            summary: "发布随访方案 FUP.STAKEHOLDER.PATIENT_PROXY-MR3OBIIY@1",
             resourceType: "followup_template",
             resourceId: "FUP.STAKEHOLDER.PATIENT_PROXY-MR3OBIIY",
           },
@@ -337,7 +337,8 @@ describe("AdminAudit", () => {
     expect(
       screen.getByText("确认敏感数据导出：审计导出任务；原因：审计员复核"),
     ).toBeInTheDocument();
-    expect(screen.getByText("发布随访模板 随访模板")).toBeInTheDocument();
+    expect(screen.getByText("发布随访方案 随访方案")).toBeInTheDocument();
+    expect(screen.queryByText("发布随访方案 随访模板")).not.toBeInTheDocument();
     expect(screen.getByText("评估推荐触发 临床推荐评估")).toBeInTheDocument();
     expect(screen.getByText("探测模型服务 院外模型服务，连接状态=连接正常")).toBeInTheDocument();
     expect(screen.getByText("创建标准上下文 质量已通过 患者已关联")).toBeInTheDocument();

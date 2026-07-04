@@ -677,7 +677,7 @@ async function performFollowupPlanAction(
   });
   await dialog.getByRole("button", { name: "选择第 1 个随访上下文快照" }).click();
   await chooseDialogOption(page, dialog, "随访风险分层", "中风险");
-  await searchDialogOption(page, dialog, "随访模板", template.defaultName, template.defaultName);
+  await searchDialogOption(page, dialog, "随访方案", template.defaultName, template.defaultName);
 
   const planResponsePromise = waitForPost(page, "/engine/followup/plans/generate");
   await dialog.getByRole("button", { name: /生\s*成/ }).click();
@@ -796,27 +796,25 @@ async function createFollowupTemplateForStakeholderAction(
   await page.waitForLoadState("networkidle");
   await expect(
     page.locator("main").getByRole("heading", { name: "随访协同" }).first(),
-    `${view.label} 应能进入随访协同页创建随访模板`,
+    `${view.label} 应能进入随访协同页创建随访方案`,
   ).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("tab", { name: "随访模板" }).click();
+  await page.getByRole("tab", { name: "随访方案" }).click();
 
   const templateCode = `FUP.STAKEHOLDER.${suffix.toUpperCase()}`;
-  const templateDefaultName = `全角色${view.label}随访模板`;
-  const templateDisplayName = `${templateDefaultName}（${businessRehearsalBatchLabel(
-    suffix,
-  )}）`;
+  const templateDefaultName = `全角色${view.label}随访方案`;
+  const templateDisplayName = `${templateDefaultName}（${businessRehearsalBatchLabel(suffix)}）`;
   const templateName = `${templateDisplayName} ${suffix}`;
-  await page.getByRole("button", { name: /新建模板/ }).click();
-  const dialog = page.getByRole("dialog", { name: "新建随访模板" });
+  await page.getByRole("button", { name: /新建方案/ }).click();
+  const dialog = page.getByRole("dialog", { name: "新建随访方案" });
   await expect(dialog).toBeVisible({ timeout: 10_000 });
   await dialog.getByLabel("院内随访方案身份").fill(templateCode);
-  await dialog.getByLabel("模板名称").fill(templateName);
+  await dialog.getByLabel("方案名称").fill(templateName);
   await dialog
-    .getByLabel("模板说明")
+    .getByLabel("方案说明")
     .fill("全角色真实前台演练创建；不包含患者姓名、电话、住址、证件号等核心敏感信息。");
   await chooseDialogOption(page, dialog, "适用机构范围", "当前医院");
   await chooseDialogOption(page, dialog, "随访病种", "慢阻肺");
-  await chooseDialogOption(page, dialog, "问卷内容模板", "真实前台慢病随访问卷");
+  await chooseDialogOption(page, dialog, "问卷内容", "真实前台慢病随访问卷");
   await chooseDialogOption(page, dialog, "核心随访问题", "呼吸困难变化");
   await dialog.getByLabel("异常触发条件").fill("呼吸困难加重、血氧下降或患者主动报告异常");
   await dialog.getByLabel("通知对象").fill("责任医生与随访护士");
@@ -828,12 +826,12 @@ async function createFollowupTemplateForStakeholderAction(
   const templateText = await templateResponse.text();
   expect(
     templateResponse.ok(),
-    `${view.label} 创建随访模板应返回成功 status=${templateResponse.status()} body=${templateText}`,
+    `${view.label} 创建随访方案应返回成功 status=${templateResponse.status()} body=${templateText}`,
   ).toBe(true);
   const template = JSON.parse(templateText) as {
     data?: { templateId?: string; templateCode?: string; name?: string };
   };
-  expect(template.data?.templateId, `${view.label} 随访模板创建响应应返回模板身份`).toBeTruthy();
+  expect(template.data?.templateId, `${view.label} 随访方案创建响应应返回方案身份`).toBeTruthy();
   expect(template.data?.templateCode).toBe(templateCode);
   await expect(dialog).toBeHidden({ timeout: 20_000 });
   return {
@@ -861,10 +859,10 @@ async function publishFollowupTemplateForStakeholderAction(
   await page.waitForLoadState("networkidle");
   await expect(
     page.locator("main").getByRole("heading", { name: "随访协同" }).first(),
-    `${view.label} 应能进入随访模板治理页发布模板`,
+    `${view.label} 应能进入随访方案治理页发布方案`,
   ).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("tab", { name: "随访模板" }).click();
-  await page.getByPlaceholder("按模板名称或适用范围检索").fill(template.defaultName);
+  await page.getByRole("tab", { name: "随访方案" }).click();
+  await page.getByPlaceholder("按方案名称或适用范围检索").fill(template.defaultName);
 
   const row = page
     .getByRole("row", { name: new RegExp(escapeRegExp(template.defaultName)) })
@@ -875,12 +873,12 @@ async function publishFollowupTemplateForStakeholderAction(
     page,
     `/engine/followup/templates/${template.templateId}/publish`,
   );
-  await row.getByRole("button", { name: "发布模板" }).click();
+  await row.getByRole("button", { name: "发布方案" }).click();
   const publishResponse = await publishResponsePromise;
   const publishText = await publishResponse.text();
   expect(
     publishResponse.ok(),
-    `${view.label} 发布随访模板应返回成功 status=${publishResponse.status()} body=${publishText}`,
+    `${view.label} 发布随访方案应返回成功 status=${publishResponse.status()} body=${publishText}`,
   ).toBe(true);
   const published = JSON.parse(publishText) as {
     data?: { assetStatus?: string; templateId?: string };

@@ -86,13 +86,13 @@ public final class ServiceContractCatalog {
             audits(
                 audit(AuditAction.CREATE, "mk_version_asset_version", "创建声明式配置资产草稿版本"),
                 audit(AuditAction.UPDATE, "mk_version_asset_version", "更新声明式配置资产草稿正文"))),
-        contract("followup-template", "随访模板配置资产服务",
+        contract("followup-template", "随访方案配置资产服务",
             "com.medkernel.engine.followup.FollowupTemplateController",
             "/api/v1/engine/followup/templates",
             permissions("followup.read", "followup.write", "followup.publish"),
             audits(
-                audit(AuditAction.CREATE, "mk_followup_template", "创建随访模板不可变草稿版本"),
-                audit(AuditAction.PUBLISH, "mk_followup_template", "发布随访模板统一资产版本"))),
+                audit(AuditAction.CREATE, "mk_followup_template", "创建随访方案不可变草稿版本"),
+                audit(AuditAction.PUBLISH, "mk_followup_template", "发布随访方案统一资产版本"))),
         contract("authoring-batch", "创作批量任务服务",
             "com.medkernel.engine.authoring.AuthoringBatchJobController",
             "/api/v1/engine/authoring/batch",
