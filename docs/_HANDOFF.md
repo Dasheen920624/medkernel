@@ -10,6 +10,20 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百零七批最新应用提交为 `542ae273e8a0616f967fcfb253d967d9bc140af6`
+  （`fix: 优化工作台职责筛选口径`）。本批未使用子代理、未推送远程、未合并 `main`；
+  以宪章、体验契约和四职责旅程为准，继续全角色前台体验复核，发现工作台三项默认筛选对所有职责统一展示
+  “病种”，会把平台管理员、审计员和全医疗资产运营误收窄成临床病种视角。现改为按职责展示第三筛选维度：
+  平台管理员为“上线状态”，医疗引擎运营员为“资产类型”，临床使用者为“临床场景”，审计员为“证据类型”；
+  仍保持默认筛选 3 项、主按钮 1 个、职责高频任务不超过 3 个。
+- 第一百零七批验证：先改 `WorkbenchPanel` 测试，`npm --prefix frontend run test -- WorkbenchPanel -t "default filter"`
+  在旧实现上预期失败（2 个测试失败、15 个跳过）；实现职责筛选维度后同命令通过（2 个测试通过、15 个跳过）。
+  随后 `npm --prefix frontend run test -- WorkbenchPanel productRoleJourneys pages.smoke` 通过
+  （3 个文件、52 个测试），
+  `npm --prefix frontend exec prettier -- --check frontend/src/widgets/WorkbenchPanel.tsx frontend/src/widgets/WorkbenchPanel.test.tsx`
+  通过，`npm --prefix frontend run build` 通过，`npm --prefix frontend run verify` 通过
+  （114 个测试文件、964 个测试），`git diff --check` 退出码 0。
+- 下一步继续主线：不使用子代理；按十二角色真实前台体验广度复核剩余上线级问题，阶段完成后继续更新本文件并本地提交。
 - 第一百零六批最新应用提交为 `52c5344a151231924363849005b1e51bbfb959ea`
   （`fix: 收敛平台管理员工作台建议动作`）。本批未使用子代理、未推送远程、未合并 `main`；
   以十二角色真实前台体验、菜单权限和运行职责边界为准，修正平台管理员工作台“本周建议动作”。
@@ -22,7 +36,6 @@
   `npm --prefix frontend exec prettier -- --check frontend/src/widgets/WorkbenchPanel.tsx frontend/src/widgets/WorkbenchPanel.test.tsx`
   通过，`npm --prefix frontend run build` 通过，`npm --prefix frontend run verify` 通过
   （114 个测试文件、963 个测试），`git diff --check` 退出码 0。
-- 下一步继续主线：不使用子代理；按十二角色真实前台体验广度复核剩余上线级问题，阶段完成后继续更新本文件并本地提交。
 - 第一百零四批最新应用提交为 `ec4a973f03a0a629d5204cd6461ee7d281df8e57`
   （`fix: 收敛全局菜单医疗场景命名`）。本批未使用子代理、未推送远程、未合并 `main`；
   以宪章、产品范围、体验契约、功能目录和十二角色职责为准，从医疗产品全局视角复核菜单命名与分布。
