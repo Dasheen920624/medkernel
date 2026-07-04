@@ -81,7 +81,7 @@ const routeDecisions = {
     decision: "MERGE",
     targetDomain: "知识治理",
     targetEntry: "机构生效版本",
-    task: "维护平台标准版本、机构生效版本、发布影响和回滚证据",
+    task: "发布平台标准版本、生成机构生效版本并保留影响和回滚证据",
   },
   "/authoring/assets": {
     decision: "MERGE",

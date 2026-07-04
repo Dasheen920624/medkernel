@@ -278,6 +278,12 @@ describe("ReleaseGovernance", () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "机构生效版本" })).toBeInTheDocument();
+    expect(
+      screen.getByText("发布平台标准版本，为机构生成可回滚的当前生效版本。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("维护平台标准版本，并为机构确认当前生效版本。"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("当前平台标准版本 第 8 版")).toBeInTheDocument();
     expect(screen.getByText("临床规则内容已准备发布")).toBeInTheDocument();
     expect(screen.getByText("临床路径内容已在平台标准版本中")).toBeInTheDocument();
