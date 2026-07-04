@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第九十九批最新应用提交为 `a800aa8b986330d0a620e325cfbe59edefe516da`
-  （`fix: 校准初始化提示菜单名`）。其前置本地提交包括第九十八批阶段交接提交
+- 第一百批最新应用提交为 `ef3afbfc877e340aea85a2484eb80a4ca91e9e52`
+  （`fix: 收敛登录入口与工作台主动作口径`）。其前置本地提交包括第九十九批阶段交接提交
+  `c8cff43e2c0376a21a9da8ee7a9573fd122564c1`
+  （`docs: 记录初始化提示菜单名复演`）、第九十九批应用提交
+  `a800aa8b986330d0a620e325cfbe59edefe516da`
+  （`fix: 校准初始化提示菜单名`）、第九十八批阶段交接提交
   `f9ac02060fc3c94f5f996194f6dc5900413ea311`
   （`docs: 记录服务机构状态口径复演`）、第九十八批应用提交
   `96699172a2824d2be51c12cdda3e1cd54c668eab`
@@ -277,7 +281,7 @@
   第九十一批机构生效版本任务口径收敛、第九十二批术语字典任务口径收敛、第九十三批系统接入任务口径收敛，
   第九十四批机构知识库任务口径收敛、第九十五批登录平台治理口径收敛，第九十六批机构差异版本操作口径收敛，
   第九十七批临床路径起始结构口径收敛、第九十八批服务机构状态口径收敛，
-  以及第九十九批初始化提示菜单名校准。
+  第九十九批初始化提示菜单名校准，以及第一百批登录入口首屏与工作台主动作口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -298,7 +302,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `a800aa8b986330d0a620e325cfbe59edefe516da`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `ef3afbfc877e340aea85a2484eb80a4ca91e9e52`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -308,6 +312,64 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；允许使用子代理提升效率；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第一百批·登录入口首屏与工作台主动作口径收敛）
+
+- 本批基于用户补充反馈“登录界面有滑动滚动条、整体界面和文字措辞需优化”，结合全局菜单、全角色职责旅程、
+  医疗产品体验与 134 真实登录租户状态复核。结论：登录入口不应再使用泛化“账号”口径；机构用户应表达为
+  院内登录名 / 工号，平台入口应表达为平台治理登录名；平台管理员工作台唯一主动作应对齐权威菜单
+  `人员与账号`，但按钮语义要从泛化“管理账号”收敛为“维护人员与账号”。登录页首屏滚动根因是页面
+  `min-height` 与上下 padding 未纳入 border-box，再叠加卡片内容密度导致初始视口溢出。
+- 已本地提交 `ef3afbfc877e340aea85a2484eb80a4ca91e9e52`
+  （`fix: 收敛登录入口与工作台主动作口径`）：
+  - `frontend/src/pages/Login.tsx` 将标题收敛为“进入平台治理 / 进入机构工作台”，登录字段收敛为
+    “工号 / 登录名”，占位、帮助、统一身份与安全策略文案改为医疗机构登录与平台治理口径；不改变登录 API、
+    租户选择、权限或路由。
+  - `frontend/src/pages/Login.module.css` 使用 `100dvh`、`border-box` 和更紧凑的卡片/表单间距，保留备案、
+    统一身份和登录帮助信息，同时消除桌面与窄屏首屏默认纵向滚动。
+  - `frontend/src/shared/config/productRoleJourneys.ts` 与
+    `docs/audit/product-role-journeys.md` 将平台管理员旅程主动作从“管理账号”改为“维护人员与账号”，摘要同步
+    “人员账号、系统接入、运行配置和上线验收”；`WorkbenchPanel` 与登录冒烟测试同步正向锁定新口径，并反向阻断
+    “管理账号 / 登录平台治理 / 工号 / 账号”等旧口径回流。
+- 本地验证：
+  - 定向回归：
+    `npm --prefix frontend test -- Login.test.tsx WorkbenchPanel.test.tsx productRoleJourneys.test.ts pages.smoke.test.tsx`
+    通过，`4` 个测试文件 / `73` 项。
+  - 生产构建：`npm --prefix frontend run build` 通过，生成 `Login-BczseoeM.js` / `Login-bfo8LQ4r.css` 等产物。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `962` 项；仅保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - 产品目录一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过；本批未改变自动生成产品目录。
+  - 中文注释与真实性门禁：`bash scripts/check-comment-zh.sh --mode=full` 通过，engine/shared 类级 Javadoc 与
+    oracle/postgres/kingbase 建表 COMMENT 覆盖均为 `100%`；`node --test scripts/authenticity-guard.test.mjs`
+    通过，`51` 项。
+  - 首屏滚动复测：本地 Vite
+    `VITE_API_PROXY_TARGET=https://193.112.107.134 MEDKERNEL_API_PROXY_ALLOW_SELF_SIGNED=true npm --prefix frontend run dev -- --host 127.0.0.1 --port 5182`
+    下，Playwright 测得桌面 `1365x768` 为
+    `documentScrollHeight=768 / bodyScrollHeight=768 / innerHeight=768 / hasInitialVerticalOverflow=false`，
+    手机 `390x844` 为
+    `documentScrollHeight=844 / bodyScrollHeight=844 / innerHeight=844 / hasInitialVerticalOverflow=false`；截图保存在
+    `/tmp/medkernel-login-check/desktop-1365x768.png` 与 `/tmp/medkernel-login-check/mobile-390x844.png` 并已目检，
+    未见内容互相遮挡或挤出首屏。
+  - 旧口径扫描：
+    `rg -n "管理账号|账号与权限|账号管理|权限管理|登录平台治理|登录机构工作台|工号 / 账号|请输入平台治理账号|请输入工号或机构账号|使用平台治理账号继续|使用管理员开通的账号" frontend/src docs/audit/product-role-journeys.md docs/audit/product-function-catalog.md --glob '!**/*.test.ts' --glob '!**/*.test.tsx'`
+    返回 `NO_MATCH`；旧语义只保留在测试反向断言中。
+  - `git diff --check` 与应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 10:56:58 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，`ETag="6a475ada-340"`；
+  `https://193.112.107.134/medkernel/api/v1/auth/login-tenants` 返回 `primaryTenants[0].tenantId=t-rehearsal`、
+  `name=完整上线演练机构`、`platformTenant.tenantId=t-1`、`name=平台治理入口（唯一内置）`、
+  `hasCustomerTenants=true`，`traceId=786c9621-bbc9-46d9-91bf-dc2fa8938224`。当前 134 映射仍是
+  后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`；
+  不得把本地 `ef3afbfc` 记为已部署。
+- 并行核查结论与下一步：菜单 IA / 职责旅程核查未发现需要改菜单顺序或结构的问题；“临床路径模板”当前已收敛为
+  `临床路径库`，避免被理解成引用模板。下一阶段继续做页面级业务措辞广度优先收敛，优先核查并可落地候选包括：
+  `frontend/src/pages/advanced/Provenance.tsx` 标题“知识来源追溯”是否改为“来源与血缘”；
+  `RuntimeDiagnostics.tsx` 的“插件管理”是否收敛为“扩展能力”；`RuleDefinitions.tsx` /
+  `PathwayTemplates.tsx` 的“管理字段目录”是否改为“查看字段目录”；`PathwayTemplates.tsx` 的“管理动作”是否改为
+  “路径操作”；`AdapterHub.tsx` 组织空态、`SecurityBaselinePanels.tsx` 临时文件口径、
+  `DeclarativeAssetWorkbench.tsx` 泛化“管理”文案与 `CdssFatigue.tsx` 表格“管理”列名。继续按最优决策执行，
+  不咨询；允许使用子代理提升效率，但所有结论以本地代码、权威文档和实测为准。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第九十九批·初始化提示菜单名校准）
 
