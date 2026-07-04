@@ -693,16 +693,16 @@ describe("KnowledgeGovernance", () => {
 
       renderPage(<InstitutionKnowledge />);
       expect(mockUseKnowledgeCustomizations).toHaveBeenCalledWith({ page: 1, size: 20 }, true);
-      await user.click(screen.getByRole("button", { name: /定制为本机构版本/ }));
-      expect(screen.getByRole("dialog", { name: /定制机构知识/ })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: /创建机构差异版本/ }));
+      expect(screen.getByRole("dialog", { name: /创建机构差异版本/ })).toBeInTheDocument();
       await user.click(screen.getByRole("combobox", { name: "生效机构" }));
       await user.click(
         await screen.findByText("示范医院 · 医疗服务机构", {
           selector: ".ant-select-item-option-content",
         }),
       );
-      await user.type(screen.getByLabelText("定制原因"), "适配本院诊疗流程");
-      await user.click(screen.getByRole("button", { name: "创建定制草稿" }));
+      await user.type(screen.getByLabelText("差异原因"), "适配本院诊疗流程");
+      await user.click(screen.getByRole("button", { name: "创建差异草稿" }));
 
       await waitFor(() =>
         expect(createCustomization).toHaveBeenCalledWith({
@@ -759,7 +759,9 @@ describe("KnowledgeGovernance", () => {
       });
 
       renderPage(<InstitutionKnowledge />);
-      await user.click(screen.getByRole("button", { name: "发布机构版本" }));
+      expect(screen.getByText("机构差异草稿")).toBeInTheDocument();
+      expect(screen.getByText("差异原因")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "发布机构差异版本" }));
 
       await user.type(screen.getByLabelText("发布依据"), "医务与质控联合复核通过");
       await user.click(screen.getByRole("button", { name: "确认发布" }));
@@ -966,7 +968,11 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getAllByText("平台主源只读").length).toBeGreaterThan(0);
     expect(screen.getByText("机构知识血缘")).toBeInTheDocument();
     expect(screen.getAllByText("院内覆盖可治理").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /定制为本机构版本/ })).toBeInTheDocument();
+    expect(screen.getByText("差异原因")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /创建机构差异版本/ })).toBeInTheDocument();
+    expect(screen.queryByText("机构定制")).not.toBeInTheDocument();
+    expect(screen.queryByText("定制原因")).not.toBeInTheDocument();
+    expect(screen.queryByText("定制草稿")).not.toBeInTheDocument();
     expect(screen.queryByText("待审核候选总数")).not.toBeInTheDocument();
     expect(screen.queryByText("模型生产上线准备")).not.toBeInTheDocument();
   });

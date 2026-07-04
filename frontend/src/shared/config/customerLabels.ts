@@ -95,12 +95,12 @@ export const connectionStatusLabels: LabelMap = {
 
 export const knowledgeSourceLabels: LabelMap = {
   PLATFORM_STANDARD: "平台标准",
-  LOCAL_CUSTOMIZATION: "机构定制",
+  LOCAL_CUSTOMIZATION: "机构差异版本",
   LOCAL_ORIGINAL: "机构自建",
 };
 
 export const knowledgeCustomizationStatusLabels: LabelMap = {
-  DRAFT: "定制草稿",
+  DRAFT: "机构差异草稿",
   ACTIVE: "机构使用中",
   RESTORED: "已恢复平台标准",
 };

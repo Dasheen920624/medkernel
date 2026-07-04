@@ -1322,11 +1322,11 @@ export default function KnowledgeGovernance({
         applicableScope: values.applicableScope,
         reason: values.reason.trim(),
       });
-      message.success("已从平台标准创建机构定制草稿");
+      message.success("已从平台标准创建机构差异草稿");
       customizeForm.resetFields();
       setCustomizeIdentity(undefined);
     } catch (error) {
-      message.error(getApiErrorMessage(error, "创建机构知识定制失败"));
+      message.error(getApiErrorMessage(error, "创建机构差异版本失败"));
     }
   }
 
@@ -1338,13 +1338,13 @@ export default function KnowledgeGovernance({
           customizationId: customizationAction.item.customizationId,
           reason: values.reason.trim(),
         });
-        message.success("机构定制已发布并在目标组织生效");
+        message.success("机构差异版本已发布并在目标组织生效");
       } else {
         await restorePlatformKnowledge.mutateAsync({
           customizationId: customizationAction.item.customizationId,
           reason: values.reason.trim(),
         });
-        message.success("已恢复使用平台标准，历史定制继续保留");
+        message.success("已恢复使用平台标准，历史机构差异继续保留");
       }
       customizationActionForm.resetFields();
       setCustomizationAction(undefined);
@@ -1352,7 +1352,7 @@ export default function KnowledgeGovernance({
       message.error(
         getApiErrorMessage(
           error,
-          customizationAction.type === "publish" ? "发布机构定制失败" : "恢复平台标准失败",
+          customizationAction.type === "publish" ? "发布机构差异版本失败" : "恢复平台标准失败",
         ),
       );
     }
@@ -1441,7 +1441,7 @@ export default function KnowledgeGovernance({
                 setCustomizeIdentity(record);
               }}
             >
-              定制为本机构版本
+              创建机构差异版本
             </Button>
           )}
         </Space>
@@ -1485,7 +1485,7 @@ export default function KnowledgeGovernance({
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text>{record.specialtyId || "未限定专科"}</Text>
-          <Text type="secondary">机构版本继承平台证据链后单独审核发布</Text>
+          <Text type="secondary">机构差异版本继承平台证据链后单独审核发布</Text>
         </Space>
       ),
     },
@@ -1500,10 +1500,10 @@ export default function KnowledgeGovernance({
               setCustomizeIdentity(record);
             }}
           >
-            定制为本机构版本
+            创建机构差异版本
           </Button>
         ) : (
-          <Text type="secondary">无机构定制权限</Text>
+          <Text type="secondary">无机构差异治理权限</Text>
         ),
     },
   ];
@@ -2604,7 +2604,7 @@ export default function KnowledgeGovernance({
       ),
     },
     {
-      title: "定制原因",
+      title: "差异原因",
       dataIndex: "reason",
       render: (value: string | null) => value || "未填写",
     },
@@ -2618,7 +2618,7 @@ export default function KnowledgeGovernance({
               type="primary"
               onClick={() => setCustomizationAction({ type: "publish", item: record })}
             >
-              发布机构版本
+              发布机构差异版本
             </Button>
           )}
           {record.status === "ACTIVE" && canRestoreCustomization && (
@@ -2680,7 +2680,7 @@ export default function KnowledgeGovernance({
         <Alert
           type="info"
           showIcon
-          message="默认复用平台标准，只有确需调整时才创建机构版本"
+          message="默认复用平台标准，只有确需调整时才创建机构差异版本"
           description="机构差异版本会复制当前平台版本及完整证据链；发布后只影响所选组织及其继承范围，随时可以恢复平台标准。"
         />
         <PipelineBoundaryCard />
@@ -3134,9 +3134,9 @@ export default function KnowledgeGovernance({
       </Modal>
 
       <Modal
-        title={`定制机构知识${customizeIdentity ? ` · ${customizeIdentity.subject}` : ""}`}
+        title={`创建机构差异版本${customizeIdentity ? ` · ${customizeIdentity.subject}` : ""}`}
         open={Boolean(customizeIdentity)}
-        okText="创建定制草稿"
+        okText="创建差异草稿"
         cancelText="取消"
         confirmLoading={createCustomization.isPending}
         onOk={() => customizeForm.submit()}
@@ -3170,10 +3170,10 @@ export default function KnowledgeGovernance({
           </Form.Item>
           <Form.Item
             name="reason"
-            label="定制原因"
+            label="差异原因"
             rules={[
-              { required: true, whitespace: true, message: "请说明为什么需要机构定制" },
-              { min: 4, message: "定制原因至少 4 个字符" },
+              { required: true, whitespace: true, message: "请说明为什么需要机构差异版本" },
+              { min: 4, message: "差异原因至少 4 个字符" },
             ]}
           >
             <Input.TextArea rows={4} maxLength={1000} showCount />
@@ -3182,7 +3182,7 @@ export default function KnowledgeGovernance({
       </Modal>
 
       <Modal
-        title={customizationAction?.type === "publish" ? "发布机构知识" : "恢复平台标准"}
+        title={customizationAction?.type === "publish" ? "发布机构差异版本" : "恢复平台标准"}
         open={Boolean(customizationAction)}
         okText={customizationAction?.type === "publish" ? "确认发布" : "确认恢复"}
         cancelText="取消"
