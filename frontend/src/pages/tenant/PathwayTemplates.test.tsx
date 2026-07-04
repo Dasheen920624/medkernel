@@ -465,6 +465,25 @@ describe("PathwayTemplates 上线路径维护契约", () => {
     expect(within(dialog).queryByText("选择已生效评估指标")).not.toBeInTheDocument();
   });
 
+  it("路径层级在列表与详情使用临床路径业务名称", async () => {
+    const detail = createTemplateDetail(publishedTemplate, "PUBLISHED");
+    apiMocks.templateListData = { items: [detail.template], total: 1 };
+    apiMocks.templateDetailData = detail;
+
+    renderPathwayTemplates();
+
+    expect(await screen.findByText("平台标准路径")).toBeInTheDocument();
+    expect(screen.queryByText("STANDARD")).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /设计与试运行/ }));
+    await screen.findByText("临床路径详情与真实快照试运行");
+
+    expect(screen.getAllByText("平台标准路径").length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText("STANDARD")).not.toBeInTheDocument();
+    expect(screen.queryByText("状态待确认")).not.toBeInTheDocument();
+  });
+
   it(
     "路径原型提交由系统自动生成下一草稿版本，不提交旧容器归属",
     async () => {

@@ -362,6 +362,12 @@ const templateLevelOptions: Array<{ value: PathwayTemplateLevel; label: string }
   { value: "SPECIALTY", label: "专科路径" },
 ];
 
+function pathwayTemplateLevelText(level?: PathwayTemplateLevel | string | null) {
+  return (
+    templateLevelOptions.find((option) => option.value === level)?.label ?? customerEnumLabel(level)
+  );
+}
+
 const pathwayEntryModeOptions: Array<{ value: PathwayEntryMode; label: string }> = [
   { value: "AUTO_SUGGEST", label: "自动建议入径" },
   { value: "MANUAL_CONFIRM", label: "人工确认入径" },
@@ -2141,6 +2147,7 @@ export default function PathwayTemplates() {
       title: "层级",
       dataIndex: "templateLevel",
       key: "templateLevel",
+      render: pathwayTemplateLevelText,
     },
     {
       title: "入径",
@@ -3620,7 +3627,7 @@ export default function PathwayTemplates() {
                 {pathwayVersionText(detailData.template.templateVersion, evidenceDetailsEnabled)}
               </Descriptions.Item>
               <Descriptions.Item label="层级">
-                {customerEnumLabel(detailData.template.templateLevel)}
+                {pathwayTemplateLevelText(detailData.template.templateLevel)}
               </Descriptions.Item>
               <Descriptions.Item label="状态">
                 {pathwayContentStatus(detailData.template.status)}
