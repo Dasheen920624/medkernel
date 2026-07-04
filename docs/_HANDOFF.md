@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第七十三批最新应用提交为 `9ce90c04ffcbfa99be2054d5c16ed09b798202a9`
-  （`fix: 收敛安全与配置前台入口口径`）。其前置本地提交包括第七十二批阶段交接提交
+- 第七十四批最新应用提交为 `bb5c552600ce6d51a93bbd9a731c1c64a0ac4dc4`
+  （`fix: 收敛工作台知识关系同步口径`）。其前置本地提交包括第七十三批阶段交接提交
+  `2676d85e4e082fb1aa28ba7b3a08d215feac1127`
+  （`docs: 记录安全与配置前台入口口径复演`）、第七十三批应用提交
+  `9ce90c04ffcbfa99be2054d5c16ed09b798202a9`
+  （`fix: 收敛安全与配置前台入口口径`）、第七十二批阶段交接提交
   `05c3b49b9003088f37c0a01599320d552ef439d5`
   （`docs: 记录质量管理前台入口口径复演`）、第七十二批应用提交
   `b10c3d9e00e3cc48c5385bd9f992c54f05e50e83`
@@ -163,7 +167,7 @@
   第六十七批知识生产候选分流前台口径收敛、第六十八批产品目录知识生产业务域校准，
   第六十九批职责旅程随访协同菜单快照校准、第七十批知识关系前台入口口径收敛，
   第七十一批评价指标前台入口口径收敛、第七十二批质量管理前台入口口径收敛，
-  以及第七十三批安全与配置前台入口口径收敛。
+  第七十三批安全与配置前台入口口径收敛，以及第七十四批工作台知识关系同步口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -184,7 +188,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `9ce90c04ffcbfa99be2054d5c16ed09b798202a9`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `bb5c552600ce6d51a93bbd9a731c1c64a0ac4dc4`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -194,6 +198,52 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第七十四批·工作台知识关系同步口径收敛）
+
+- 本批继续按全局菜单、医疗产品体验和全角色真实前台复核。结论：第四十四批全局菜单命名与顺序仍成立；
+  `docs/audit/product-function-catalog.md`、职责旅程和 `frontend/src/shared/config/routes.ts` 均将
+  `/advanced/graph` 定义为 `知识关系`，用于查看知识之间的来源、适应证、禁忌和相互作用关系。
+  但平台管理员工作台默认层仍把运行依赖显示为 `知识图谱投影`，下钻按钮为 `查看知识图谱`，缺少依赖时提示
+  `核查图谱投影配置`。这会让平台管理员和医疗引擎运营员从首屏误以为进入的是图数据库运维对象，而不是
+  可复核的知识关系同步状态。本批仅收敛工作台默认层；运行保障和证据语境中的图投影/图谱技术边界继续保留在
+  对应运维页面与后端契约中。
+- 已本地提交 `bb5c552600ce6d51a93bbd9a731c1c64a0ac4dc4`
+  （`fix: 收敛工作台知识关系同步口径`）：
+  - `frontend/src/widgets/WorkbenchPanel.tsx` 将知识同步卡片标题统一为 `知识关系同步`，下钻按钮改为
+    `查看知识关系`，仍指向既有 `/advanced/graph`。
+  - 同文件新增工作台依赖展示映射，将运行快照中的 `graph-projection` 默认显示为 `知识关系同步`；当图关系依赖未连接时，
+    默认说明改为“知识关系同步未连接；核心业务继续使用关系库权威数据”，不再把图谱投影能力开关暴露在首屏。
+  - 缺少 graph 依赖时，空态从 `知识同步来源待配置` / `图谱投影配置` 收敛为
+    `知识关系同步来源待配置` / `知识关系同步配置`。
+  - `frontend/src/widgets/WorkbenchPanel.test.tsx` 锁定平台管理员工作台新口径，并反向拦截
+    `知识图谱投影`、`图谱投影能力开关`、`图谱投影配置` 回流。
+  - 未改变菜单顺序、路由路径、权限、后端 API、运行保障数据契约、数据库、目录生成脚本或 134 发布配置。
+- 本地验证：
+  - 红绿核验：`npm --prefix frontend test -- WorkbenchPanel.test.tsx -t "renders the platform operations view|shows actionable knowledge sync status"`
+    在旧页面下先失败，明确显示找不到 `知识关系同步` 和 `知识关系同步来源待配置`；实现后通过，`2` 项。
+  - 生产旧词扫描：`rg -n "查看知识图谱|图谱投影配置|知识同步来源待配置|未返回知识同步来源|图谱投影能力开关|知识图谱投影" frontend/src/widgets/WorkbenchPanel.tsx frontend/src -g '*.ts' -g '*.tsx' --glob '!**/*.test.ts' --glob '!**/*.test.tsx'`
+    无输出；包含测试的同词扫描仅命中测试夹具和反向断言。
+  - 关联配置回归：`npm --prefix frontend test -- WorkbenchPanel.test.tsx productRoleJourneys.test.ts routes.test.ts menu.test.ts productCatalog.test.ts`
+    通过，`5` 个测试文件 / `91` 项。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `953` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `Dashboard-C14d2DOP.js`、`GraphExplore-D7jiwTwq.js`、
+    `index-DzYiSxfY.js` 等前端产物。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 公网首页
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 02:45:38 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，外部 `index.html` 仍指向
+  `/assets/index-DYTh-Ceu.js`；134 readiness 使用 `https://193.112.107.134/medkernel/actuator/health`
+  返回 HTTP 200 / `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头
+  `Date=Sat, 04 Jul 2026 02:45:38 GMT`，`X-Trace-Id=ec3a6d15-f9c3-4e7b-acef-0e202702faeb`。
+  134 映射仍按当前已核定事实保持：后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `bb5c5526` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、菜单分布、构建门禁、
+  134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第七十三批·安全与配置前台入口口径收敛）
 
