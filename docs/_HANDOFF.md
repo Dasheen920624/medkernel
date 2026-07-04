@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第七十一批最新应用提交为 `609d49f37f9c364d9b55beb01a0e754da8e5fa70`
-  （`fix: 收敛评价指标前台入口口径`）。其前置本地提交包括第七十批阶段交接提交
+- 第七十二批最新应用提交为 `b10c3d9e00e3cc48c5385bd9f992c54f05e50e83`
+  （`fix: 收敛质量管理前台入口口径`）。其前置本地提交包括第七十一批阶段交接提交
+  `112765d1c3a54b740237d485ac3c15a0379365f8`
+  （`docs: 记录评价指标前台入口口径复演`）、第七十一批应用提交
+  `609d49f37f9c364d9b55beb01a0e754da8e5fa70`
+  （`fix: 收敛评价指标前台入口口径`）、第七十批阶段交接提交
   `e16a37bea5230807c1d6a9bcad10da5380483175`
   （`docs: 记录知识关系前台入口口径复演`）、第七十批应用提交
   `050278b0c4a77576293462224ca1eb39e808d8d2`
@@ -154,7 +158,7 @@
   第六十五批系统接入区域来源状态前台口径收敛、第六十六批知识生产分流状态前台口径收敛、
   第六十七批知识生产候选分流前台口径收敛、第六十八批产品目录知识生产业务域校准，
   第六十九批职责旅程随访协同菜单快照校准、第七十批知识关系前台入口口径收敛，
-  以及第七十一批评价指标前台入口口径收敛。
+  第七十一批评价指标前台入口口径收敛，以及第七十二批质量管理前台入口口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -175,7 +179,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `609d49f37f9c364d9b55beb01a0e754da8e5fa70`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `b10c3d9e00e3cc48c5385bd9f992c54f05e50e83`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -185,6 +189,58 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第七十二批·质量管理前台入口口径收敛）
+
+- 本批继续按全局菜单、医疗产品体验和全角色真实前台复核。结论：第四十四批全局菜单命名与顺序仍成立；
+  `docs/audit/product-function-catalog.md`、职责旅程和 `frontend/src/shared/config/routes.ts` 均将
+  `/qc/alerts` 定义为 `质量问题与整改`、将 `/qc/insurance` 定义为 `医保审核`。但页面首屏仍分别显示
+  `质量问题`、`医保智能审核`，且空态和统计卡混用 `真实质量问题` / `真实医保问题`。这会让医疗引擎运营员、
+  医保审核员和院方质量管理人员误以为进入的是单纯问题列表或营销化智能工具，而不是质量问题确认、整改派发、
+  医保问题核查和处置闭环。本批按功能目录“确认问题、派发整改、复核并闭环”和“核查医保问题、依据和处置结果”
+  收敛页面入口；不扩大菜单顺序、路由、权限和数据契约。
+- 已本地提交 `b10c3d9e00e3cc48c5385bd9f992c54f05e50e83`
+  （`fix: 收敛质量管理前台入口口径`）：
+  - `frontend/src/pages/quality/QcAlerts.tsx` 将 PageShell 标题改为 `质量问题与整改`，说明改为
+    “确认质量问题、派发整改、复核并闭环”；首屏空态和列表空态改为 `当前筛选下暂无待整改质量问题`，
+    列表标题改为 `质量问题与整改列表`。
+  - `frontend/src/pages/quality/InsuranceAudit.tsx` 将 PageShell 标题改为 `医保审核`，说明改为
+    “核查医保问题、依据和处置结果”；首屏空态和列表空态改为 `当前筛选下暂无医保问题`，总数卡改为
+    `医保问题总数`。
+  - `frontend/src/pages/quality/QcAlerts.test.tsx`、`frontend/src/pages/quality/InsuranceAudit.test.tsx`
+    和 `frontend/src/pages/pages.smoke.test.tsx` 同步锁定新入口，并反向拦截 `医保智能审核`、
+    `真实医保问题总数`、`当前筛选下暂无真实医保问题`、`当前筛选下暂无真实质量问题` 回流。
+  - 未改变菜单顺序、路由路径、权限、后端 API、数据库、目录生成脚本或 134 发布配置。
+- 本地验证：
+  - 红绿核验：`npm --prefix frontend test -- QcAlerts.test.tsx -t "renders real quality alerts|keeps the table usable"`
+    在旧页面下先失败，明确显示可访问 heading 仍是 `质量问题`；`npm --prefix frontend test -- InsuranceAudit.test.tsx -t "renders real insurance issues|keeps the audit flow usable"`
+    在旧页面下先失败，明确显示可访问 heading 仍是 `医保智能审核`。
+  - 定点回归：`npm --prefix frontend test -- QcAlerts.test.tsx -t "renders real quality alerts|uses an honest empty state"`
+    通过，`2` 项；`npm --prefix frontend test -- InsuranceAudit.test.tsx -t "renders real insurance issues|keeps the audit flow usable|uses an honest empty state"`
+    通过，`3` 项；`npm --prefix frontend test -- pages.smoke.test.tsx -t "renders the quality qc-alerts|renders the quality insurance-audit"`
+    通过，`2` 项。
+  - 旧词扫描：`rg -n "医保智能审核|真实医保问题总数|当前筛选下暂无真实医保问题|按真实结算事实核查病案|按真实预警处置整改|当前筛选下暂无真实质量问题|质量问题列表" frontend/src docs/audit -g '*.ts' -g '*.tsx' -g '*.md'`
+    仅命中测试中的反向断言。
+  - 关联配置回归：`npm --prefix frontend test -- QcAlerts.test.tsx InsuranceAudit.test.tsx pages.smoke.test.tsx productCatalog.test.ts routes.test.ts menu.test.ts`
+    通过，`6` 个测试文件 / `107` 项。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `952` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `QcAlerts-c3t54jRj.js`、`InsuranceAudit-CYtgqTdc.js`、
+    `Quality-CyanocAS.css`、`index-BbEskb4R.js` 等前端产物。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 公网首页
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 02:30:46 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，外部 `index.html` 仍指向
+  `/assets/index-DYTh-Ceu.js`；134 readiness 使用 `https://193.112.107.134/medkernel/actuator/health`
+  返回 HTTP 200 / `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头
+  `Date=Sat, 04 Jul 2026 02:30:46 GMT`，`X-Trace-Id=555acd84-41a8-46e9-ab12-4338078b46f9`。
+  134 映射仍按当前已核定事实保持：后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `b10c3d9e` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、菜单分布、构建门禁、
+  134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第七十一批·评价指标前台入口口径收敛）
 
