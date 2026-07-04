@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第八十四批最新应用提交为 `df1135ca32b6980f2bcfb86e523e182b85030dd0`
-  （`fix: 收敛批量规则默认示例口径`）。其前置本地提交包括第八十三批阶段交接提交
+- 第八十五批最新应用提交为 `b748e260301b849f5f615954751828f56c925b8f`
+  （`fix: 收敛七步流来源选择口径`）。其前置本地提交包括第八十四批阶段交接提交
+  `a962b613ae72bc1e76dec1028acfc750a0dbb5dd`
+  （`docs: 记录批量规则示例口径复演`）、第八十四批应用提交
+  `df1135ca32b6980f2bcfb86e523e182b85030dd0`
+  （`fix: 收敛批量规则默认示例口径`）、第八十三批阶段交接提交
   `ac9a65f2f3d8ae6ae77db7a33afb1d86be4b3207`
   （`docs: 记录临床路径建模示例复演`）、第八十三批应用提交
   `8ad454f29f42f610a88dc3a11691224d8ac9caa5`
@@ -211,7 +215,8 @@
   第七十五批质量管理概览默认真实口径收敛、第七十六批质量评价默认真实口径收敛，
   第七十七批评价指标默认术语统一、第七十八批临床路径层级前台口径收敛，
   第七十九批随访模板默认业务口径收敛、第八十批工作台运行底座默认层收敛、第八十一批诊断知识库职责边界口径收敛，
-  第八十二批诊断知识表单示例口径收敛、第八十三批临床路径建模示例口径收敛，以及第八十四批批量规则默认示例口径收敛。
+  第八十二批诊断知识表单示例口径收敛、第八十三批临床路径建模示例口径收敛、第八十四批批量规则默认示例口径收敛，
+  以及第八十五批七步流来源选择口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -232,7 +237,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `df1135ca32b6980f2bcfb86e523e182b85030dd0`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `b748e260301b849f5f615954751828f56c925b8f`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -242,6 +247,54 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第八十五批·七步流来源选择口径收敛）
+
+- 本批继续按全局菜单、医疗产品体验和全角色职责旅程复核。结论：第四十四批全局菜单名与顺序仍成立，
+  `临床路径库` 不应回到“模板”口径；新发现的体验缺口在共享 7 步配置流和系统接入说明。权威宪章 §4 定义的最小发布流为
+  “创建/导入/生成草稿 → 自动校验与测试 → 依赖闭包和影响分析 → 当前授权责任人确认发布 → 纳入机构生效版本并留证/可回滚”，
+  并未要求把第一步表达为模板选择。默认“选模板/导入 / 从专病模板或文件开始”会让系统接入、评价指标等非模板型配置页误读为
+  必须先引用模板。本批仅收敛客户可见七步流标题、说明和系统接入页说明；内部 `select_template` 状态键、发布流状态机、菜单、
+  路由、权限、后端 API、数据契约、数据库、构建配置和 134 发布配置均未改变。
+- 已本地提交 `b748e260301b849f5f615954751828f56c925b8f`
+  （`fix: 收敛七步流来源选择口径`）：
+  - `frontend/src/shared/ui/StepFlow.contract.ts` 将共享七步流第一步标题从 `选模板/导入` 改为
+    `选来源/导入`，说明从 `从专病模板或文件开始` 改为 `从院内来源、既有资产或文件开始`。
+  - `frontend/src/pages/tenant/AdapterHub.tsx` 将系统接入页“适配器接入 7 步流”说明同步为
+    `选来源/导入 → 自动校验 → 看影响 → 提交审核 → 灰度发布 → 全量 → 留证据/可回滚`。
+  - `frontend/src/shared/ui/StepFlow.test.tsx`、`frontend/src/pages/tenant/AdapterHub.test.tsx`、
+    `frontend/src/pages/quality/QcEvalSets.test.tsx` 锁定新口径并反向阻断旧 `选模板/导入` 回流。
+- 本地验证：
+  - 红绿核验：先改测试后执行
+    `npm --prefix frontend test -- StepFlow.test.tsx AdapterHub.test.tsx QcEvalSets.test.tsx -t "locks the exact 7-step|renders the unified adapter workspace|loads real indicators"`
+    在旧实现下失败，`StepFlow` 仍返回 `选模板/导入`，系统接入和评价指标页均找不到 `选来源/导入`；实现后同命令通过，
+    `3` 个测试文件 / `3` 项目标用例。
+  - 关联配置回归：
+    `npm --prefix frontend test -- StepFlow.test.tsx AdapterHub.test.tsx QcEvalSets.test.tsx pages.smoke.test.tsx routes.test.ts menu.test.ts productCatalog.test.ts productRoleJourneys.test.ts`
+    通过，`8` 个测试文件 / `136` 项。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - 旧口径扫描：
+    `rg -n "选模板/导入|从专病模板或文件开始|适配器属于配置类资产，必须按“选模板" frontend/src docs/_HANDOFF.md`
+    仅命中测试反向断言；生产文件无旧可见口径残留。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `960` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `StepFlow-CqnEf_X5.js`、`AdapterHub-CeSaQq8U.js`、
+    `QcEvalSets-CWQGf6pR.js`、`index-0cD17mx9.js` 等前端产物。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 公网首页
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 05:22:58 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，外部 `index.html` 仍指向
+  `/assets/index-DYTh-Ceu.js`、`/assets/vendor-react-bdrMx_IT.js`、`/assets/vendor-data-D9EFEnEk.js`、
+  `/assets/vendor-react-C5ap-Sga.css`、`/assets/index-XMjG4gr3.css`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头
+  `Date=Sat, 04 Jul 2026 05:22:58 GMT`，`X-Trace-Id=613b739e-c07b-430e-ac92-f624e4c4f5b7`。
+  当前 134 映射仍是后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、前端 dist=
+  `95bb816292f59833005df4761866dd9d89886cb4`；不得把本地 `b748e260` 记为已部署。
+- 下一步继续沿全局菜单、全角色职责旅程、真实前台默认层做广度优先复核；优先处理可真实落地的产品体验、
+  契约、测试、构建和文档问题；不使用子代理、不咨询、不推送远程 `main`。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第八十四批·批量规则默认示例口径收敛）
 
