@@ -10,6 +10,45 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百一十一批最新应用提交为 `c8006c9e936723be6b52c37d71efc1332ec172c5`
+  （`fix: 统一质量问题前台口径`）。本批未使用子代理、未推送远程、未合并 `main`；
+  继续以宪章、产品范围、体验契约、功能目录和四职责旅程为准复核质量域前台体验。发现
+  `/qc/dashboard`、`/qc/eval/results` 和质量看板后端提醒标题仍残留“质控问题/质控证据”等内部治理口径，
+  容易让院方质量人员把页面理解为后台质控配置或抽象质控事实，而不是需要闭环处置的医疗质量问题。
+  现将前台统计、入口卡片、空态、下钻证据、错误消息、权限说明和后端提醒标题收敛为 `质量问题`、
+  `质量问题与整改入口`、`质量问题来源`、`质量证据` 和 `高风险质量问题待闭环`；保留
+  `quality_finding` 等接口字段、枚举、表结构、ID 与持久化契约不变，并在后端对历史标题中的
+  `质控问题/质控事实` 做用户可见标题归一化。
+- 第一百一十一批验证：先补 `QcDashboard`、`QcEvalResults`、`QcAlerts` 与
+  `QualityDashboardServiceTest#alertRefreshIsIdempotentAndAlertsEndpointFiltersOpenStatus` 用例，
+  旧实现上 `npm --prefix frontend run test -- QcDashboard QcEvalResults QcAlerts` 预期失败，
+  其中 `/qc/eval/results` 仍展示 `质控问题与整改入口` 和 `当前没有符合筛选条件的评价结果或问题。`；
+  后端窄测旧实现也失败，实际提醒标题仍为 `高风险质控问题待闭环：质控问题 qf-critical`。
+  修正后 `npm --prefix frontend run test -- QcDashboard QcEvalResults QcAlerts` 通过
+  （3 个文件、25 个测试），
+  `mvn -f medkernel-backend/pom.xml -Dtest=QualityDashboardServiceTest#alertRefreshIsIdempotentAndAlertsEndpointFiltersOpenStatus test`
+  通过；随后 `npm --prefix frontend run test -- QcDashboard QcEvalResults QcAlerts productRoleJourneys routes customerLanguageGate`
+  通过（6 个文件、92 个测试），
+  `mvn -f medkernel-backend/pom.xml -Dtest=QualityDashboardServiceTest,QualityDashboardControllerSecurityTest,MenuPermissionCatalogTest,DefaultPermissionPolicyTest,EvaluationEngineServiceTest test`
+  通过（53 个测试）。提交前重门禁：`git diff --check` 与 `git diff --cached --check` 均退出码 0，
+  `npm --prefix frontend run build` 通过，`npm --prefix frontend run verify` 通过
+  （114 个测试文件、966 个测试；仅出现既有 antd Timeline deprecation warning），
+  `mvn -f medkernel-backend/pom.xml test` 通过（3064 个测试、0 failures、0 errors、7 skipped；
+  Docker/Testcontainers 多方言容器用例因本机无 Docker 按既有条件跳过）。旧词扫描
+  `rg -n "质控问题|质控事实|质控证据|质量预警|预警服务|预警状态|预警时间|预警级别|预警处置|确认预警|预警标题|确认预警失败" ...`
+  仅剩测试里的反向断言、`QualityDashboardServiceTest` 的历史种子数据和
+  `QualityDashboardService#qualityProblemTitle` 的兼容归一化字面量。
+- 第一百一十一批开工/收尾核查：`origin/main` 仍为
+  `1561ba6bef8777dcef76432696f43de4277fdd3f`
+  （`完善全角色上线演练与134复演闭环 (#653)`）；本批应用提交前本地分支领先 `origin/main` 301 个提交，
+  应用提交后领先 302 个提交。134 当前公网首页 `https://193.112.107.134/medkernel/` HTTP 200，
+  `Date=Sat, 04 Jul 2026 20:37:41 GMT`，`Content-Length=832`，仍指向
+  `/assets/index-DYTh-Ceu.js`、`/assets/vendor-react-bdrMx_IT.js`、`/assets/vendor-data-D9EFEnEk.js`、
+  `/assets/vendor-react-C5ap-Sga.css`、`/assets/index-XMjG4gr3.css`；正确 readiness 端点
+  `https://193.112.107.134/medkernel/actuator/health/readiness` HTTP 200 / `{"status":"UP"}`，
+  `X-Trace-Id=032f195d-ab8e-4de0-8713-befb247fb7d0`。本批本地应用提交尚未发布到 134、尚未推送远程、
+  尚未合并 `main`。
+- 下一步继续主线：不使用子代理；继续按全角色真实前台体验广度复核剩余上线级问题，阶段完成后继续更新本文件并本地提交。
 - 第一百一十批最新应用提交为 `75c7fb3bee5241f12fd30e7a027dd010e9345d67`
   （`fix: 收敛质量整改前台口径`）。本批未使用子代理、未推送远程、未合并 `main`；
   继续以宪章、产品范围、体验契约、功能目录和四职责旅程为准复核质量域前台体验。发现
