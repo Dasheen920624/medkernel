@@ -29,7 +29,26 @@
   `npm --prefix frontend run verify` 通过（114 个测试文件、963 个测试），`git diff --check` 退出码 0
   （仅提示 `scripts/audit/export-product-capabilities.mjs` 行尾将转 LF），旧词扫描未发现
   `质量管理概览` 或裸 `运行保障` 残留，仅保留两处有意的领域字段 `模型能力`。
-- 下一步继续主线：不使用子代理；继续校准 134 / squash main 发布证据映射，并按十二角色真实前台体验广度复核剩余上线级问题。
+- 第一百零五批 134 / squash main 发布证据映射核查只更新文档，不产生应用提交、不使用子代理、
+  不推送远程、不合并 `main`。新鲜核查结果：本地 `main`、本地 `origin/main` 与远端
+  `refs/heads/main` 均为 `1561ba6bef8777dcef76432696f43de4277fdd3f`
+  （`完善全角色上线演练与134复演闭环 (#653)`）；当前分支 HEAD 为交接提交 `dabb740b`，
+  包含 `origin/main` 且本地领先 290 个提交，未进入远程 `main`。
+- 第一百零五批 134 新鲜公网证据：`https://193.112.107.134/medkernel/` HTTP 200，
+  `Date=Sat, 04 Jul 2026 16:27:43 GMT`，`index.html` 832 字节，仍指向
+  `/assets/index-DYTh-Ceu.js`、`/assets/vendor-react-bdrMx_IT.js`、`/assets/vendor-data-D9EFEnEk.js`；
+  `/assets/index-DYTh-Ceu.js` HTTP 200 / 876520 字节，
+  `/assets/KnowledgeProduction-ClNuDXyb.js` HTTP 200 / 20735 字节。readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health/readiness` 返回 HTTP 200 /
+  `{"status":"UP"}`，`X-Trace-Id=0c7a3a0c-1edc-4233-bd21-5d92deb21250`；登录租户入口
+  `https://193.112.107.134/medkernel/api/v1/auth/login-tenants` 返回 HTTP 200，
+  `success=true`、`hasCustomerTenants=true`、`primaryTenants[0].tenantId=t-rehearsal`、
+  `primaryTenants[0].name=完整上线演练机构`、`X-Trace-Id=c449f3d2-96e8-4fa9-a841-bcac72622637`。
+- 第一百零五批映射结论：134 已部署后端/JAR 仍是完整发布
+  `3ddd979b3151e3eb1d40712e76b513e4cdce260c`，134 已部署前端 dist 仍是前端-only 发布
+  `95bb816292f59833005df4761866dd9d89886cb4`；本地最新应用提交 `ec4a973f03a0a629d5204cd6461ee7d281df8e57`
+  和当前交接提交尚未发布到 134、尚未推送远程、尚未合并 `main`，后续不得把本地提交误写为 134 已上线。
+- 下一步继续主线：不使用子代理；按十二角色真实前台体验广度复核剩余上线级问题，阶段完成后继续更新本文件并本地提交。
 - 第一百零三批最新应用提交为 `690e86e71968622688ee0dc15a3b8c7f695aad07`
   （`fix: 优化登录页单屏体验`）。本批未使用子代理、未推送远程、未合并 `main`；
   将登录页默认措辞从“平台治理登录名 / 集团医疗智能中枢”等偏治理后台话术，收敛为
@@ -352,8 +371,8 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `0abba88f4e63db2bd165af1419add30d4341f1b3`；当前本地分支仍只本地提交，
-  不推送远程 `main`。
+- 当前本地最新应用代码提交为 `ec4a973f03a0a629d5204cd6461ee7d281df8e57`；当前本地分支仍只本地提交，
+  不推送远程 `main`，不得把本地最新应用提交误记为 134 已部署版本。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
   真实前台、客户职责旅程与机构业务链路默认读取 canonical `rehearsal.accounts`。
