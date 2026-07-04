@@ -10,6 +10,37 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百一十批最新应用提交为 `75c7fb3bee5241f12fd30e7a027dd010e9345d67`
+  （`fix: 收敛质量整改前台口径`）。本批未使用子代理、未推送远程、未合并 `main`；
+  继续以宪章、产品范围、体验契约、功能目录和四职责旅程为准复核质量域前台体验。发现
+  `/qc/alerts` 已作为 `质量问题与整改`，但页面筛选、抽屉、确认动作、来源标签和错误态服务名仍以
+  “预警/质控问题/质控事实/质量预警服务”表达，容易把院方质量人员的整改闭环任务误理解为后台预警配置。
+  现将前台可见口径收敛为 `处置状态`、`发现时间`、`风险级别`、`质量风险处置证据`、`确认风险提醒`、
+  `质量问题来源`、`高风险质量问题仍未闭环` 和 `质量问题与整改服务`；`QualityDashboardAlert`
+  接口字段、枚举、ID、持久化与后端契约不改。
+- 第一百一十批验证：先补 `QcAlerts` 错误态用例并在旧实现上跑出预期失败
+  （`npm --prefix frontend run test -- QcAlerts -t "错误态使用质量问题与整改服务口径"` 无法找到
+  `质量问题与整改服务`，DOM 中仍为 `质量预警服务`）；随后扩展同页契约，`npm --prefix frontend run test -- QcAlerts`
+  在旧实现上 5 项失败，覆盖 `风险级别`、`质量风险处置证据`、`确认风险提醒` 和错误态服务名。修正后
+  `npm --prefix frontend run test -- QcAlerts` 通过（7 个测试），
+  `npm --prefix frontend run test -- QcAlerts QcDashboard productRoleJourneys routes` 通过
+  （4 个文件、82 个测试），
+  `npm --prefix frontend exec prettier -- --check frontend/src/pages/quality/QcAlerts.tsx frontend/src/pages/quality/QcAlerts.test.tsx`
+  通过，`git diff --check` 与 `git diff --cached --check` 均退出码 0。重门禁：
+  `npm --prefix frontend run build` 通过，`npm --prefix frontend run verify` 通过
+  （114 个测试文件、966 个测试；仅出现既有 antd Timeline deprecation warning）。本批仅改前端页面与测试，
+  未触及后端实现或迁移。
+- 第一百一十批开工/收尾核查：`origin/main` 仍为
+  `1561ba6bef8777dcef76432696f43de4277fdd3f`
+  （`完善全角色上线演练与134复演闭环 (#653)`）；本批应用提交后本地分支领先 `origin/main` 300 个提交。
+  134 当前公网首页 `https://193.112.107.134/medkernel/` HTTP 200，
+  `Date=Sat, 04 Jul 2026 20:23:07 GMT`，`Content-Length=832`，仍指向
+  `/assets/index-DYTh-Ceu.js`、`/assets/vendor-react-bdrMx_IT.js`、`/assets/vendor-data-D9EFEnEk.js`、
+  `/assets/vendor-react-C5ap-Sga.css`、`/assets/index-XMjG4gr3.css`；正确 readiness 端点
+  `https://193.112.107.134/medkernel/actuator/health/readiness` HTTP 200 / `{"status":"UP"}`，
+  `X-Trace-Id=dc563d5b-d71a-43ce-9162-cc75a1746c7e`。本批本地应用提交尚未发布到 134、尚未推送远程、
+  尚未合并 `main`。
+- 下一步继续主线：不使用子代理；继续按全角色真实前台体验广度复核剩余上线级问题，阶段完成后继续更新本文件并本地提交。
 - 第一百零九批最新应用提交为 `104f43a99ac65fb75c74477a2f27d9d768183bea`
   （`fix: 收敛质量风险提醒口径`）。本批未使用子代理、未推送远程、未合并 `main`；
   继续以宪章、产品范围、体验契约、功能目录和四职责旅程为准复核质量域前台体验。发现
