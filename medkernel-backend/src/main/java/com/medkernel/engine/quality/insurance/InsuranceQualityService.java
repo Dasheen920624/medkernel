@@ -178,7 +178,7 @@ public class InsuranceQualityService {
      * 按版本化规则审核真实医保结算事实，命中后联动评估整改闭环。
      *
      * <p>当机构尚未初始化生效评价指标时，前台可提交手工医保规则依据，本服务直接登记
-     * 医保质控问题和整改任务，并在证据中明确“未绑定生效质控指标”，不伪造评价指标。
+     * 医保质量问题和整改任务，并在证据中明确“未绑定生效质控指标”，不伪造评价指标。
      */
     @Transactional
     public InsuranceAuditResponse insuranceAudit(InsuranceAuditRequest request) {

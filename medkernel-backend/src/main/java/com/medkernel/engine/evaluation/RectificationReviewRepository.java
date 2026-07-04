@@ -14,7 +14,7 @@ import org.springframework.stereotype.Repository;
 public interface RectificationReviewRepository extends ListCrudRepository<RectificationReview, Long> {
 
     /**
-     * 按质控问题 ID 与租户 ID 查询全部复核记录，按复核时间升序用于详情展示。
+     * 按质量问题 ID 与租户 ID 查询全部复核记录，按复核时间升序用于详情展示。
      */
     List<RectificationReview> findByFindingIdAndTenantIdOrderByReviewedAtAsc(String findingId, String tenantId);
 }

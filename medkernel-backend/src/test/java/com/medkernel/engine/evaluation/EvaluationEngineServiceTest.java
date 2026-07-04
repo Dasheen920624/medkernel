@@ -356,6 +356,8 @@ class EvaluationEngineServiceTest {
             "qf-1", new RectificationSubmitRequest("补录风险评估记录", "proof-1"));
         assertThat(submitted.findingStatus()).isEqualTo(QualityFindingStatus.REMEDIATING);
         assertThat(submitted.taskStatus()).isEqualTo(RectificationTaskStatus.SUBMITTED);
+        verify(auditRecorder).record(AuditAction.UPDATE, "quality_finding", "qf-1",
+            "提交质量问题整改 task-1");
 
         QualityFinding remediating = finding("qf-1", QualityFindingSeverity.P1, QualityFindingStatus.REMEDIATING);
         RectificationTask submittedTask = task("task-1", RectificationTaskStatus.SUBMITTED);
@@ -368,7 +370,8 @@ class EvaluationEngineServiceTest {
         assertThat(approved.findingStatus()).isEqualTo(QualityFindingStatus.CLOSED);
         assertThat(approved.taskStatus()).isEqualTo(RectificationTaskStatus.CLOSED);
         verify(reviews).save(any(RectificationReview.class));
-        verify(auditRecorder).record(eq(AuditAction.REVIEW), eq("quality_finding"), eq("qf-1"), any());
+        verify(auditRecorder).record(AuditAction.REVIEW, "quality_finding", "qf-1",
+            "复核质量问题整改 APPROVED");
     }
 
     @Test
@@ -381,6 +384,8 @@ class EvaluationEngineServiceTest {
         assertThatThrownBy(() -> service.reviewRectification("qf-p0", new RectificationReviewRequest(
                 RectificationReviewDecision.WAIVED, "申请豁免", null)))
             .isInstanceOf(ApiException.class)
+            .hasMessageContaining("P0 质量问题不得通过普通复核豁免")
+            .hasMessageNotContaining("质控问题")
             .extracting("errorCode")
             .isEqualTo(ErrorCode.ENG_EVAL_007);
     }
@@ -406,7 +411,7 @@ class EvaluationEngineServiceTest {
         verify(assignments).requireActiveDepartment("dept-quality");
         verify(assignments).requireActiveUserIfPresent("head-quality");
         verify(auditRecorder).record(AuditAction.CREATE, "rectification_task",
-            task.getValue().taskId(), "派发质控整改 qf-new");
+            task.getValue().taskId(), "派发质量问题整改 qf-new");
 
         RectificationTask existing = new RectificationTask(
             task.getValue().id(), task.getValue().taskId(), task.getValue().tenantId(),
@@ -689,8 +694,10 @@ class EvaluationEngineServiceTest {
             .contains("分子达标规则校验")
             .contains("patient.completed");
         assertThat(finding.getValue().evidenceSummary())
+            .contains("系统自动评估扫描质量证据支撑")
             .contains("分子达标规则校验")
-            .contains("patient.completed");
+            .contains("patient.completed")
+            .doesNotContain("质控证据");
     }
 
     @Test

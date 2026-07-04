@@ -76,7 +76,7 @@ public class SandboxScenarioCatalog {
             "sbx-followup-closed-loop", "followup", "FOLLOWUP", "随访异常回院闭环",
             "SBX-FU-001", "SBX-FU-ENC-001", "FOLLOWUP", "HIGH", null));
         register(outerScenario(
-            "sbx-evaluation-closed-loop", "evaluation", "EVALUATION", "质控整改复核闭环",
+            "sbx-evaluation-closed-loop", "evaluation", "EVALUATION", "质量问题整改复核闭环",
             "SBX-QC-001", "SBX-QC-ENC-001", "EVALUATION", "MEDIUM", null));
         register(outerScenario(
             "sbx-embed-modes", "embed", "EMBED", "嵌入三模式契约",

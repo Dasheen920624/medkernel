@@ -7,10 +7,10 @@ import com.medkernel.shared.api.error.ErrorCode;
 import org.springframework.stereotype.Service;
 
 /**
- * 手工质控整改桥接服务。
+ * 手工质量问题整改桥接服务。
  *
  * <p>外部业务域只提供已确认的问题事实；本服务在 evaluation owner 边界内创建
- * {@code quality_finding} 与 {@code rectification_task}，保证质控问题和整改任务的单一归属。
+ * {@code quality_finding} 与 {@code rectification_task}，保证质量问题和整改任务的单一归属。
  */
 @Service
 public class ManualQualityRectificationBridge {
@@ -25,7 +25,7 @@ public class ManualQualityRectificationBridge {
     }
 
     /**
-     * 幂等创建手工质控问题和对应整改任务。
+     * 幂等创建手工质量问题和对应整改任务。
      */
     public ManualQualityRectificationResult ensureAssignedTask(ManualQualityRectificationCommand command) {
         requireCommand(command);
@@ -98,7 +98,7 @@ public class ManualQualityRectificationBridge {
                 || command.now() == null
                 || !hasText(command.actor())
                 || !hasText(command.traceId())) {
-            throw new ApiException(ErrorCode.ENG_EVAL_001, "手工质控整改命令缺少必要字段");
+            throw new ApiException(ErrorCode.ENG_EVAL_001, "手工质量问题整改命令缺少必要字段");
         }
     }
 
@@ -107,7 +107,7 @@ public class ManualQualityRectificationBridge {
     }
 
     /**
-     * 手工质控整改所需的最小事实。
+     * 手工质量问题整改所需的最小事实。
      */
     public record ManualQualityRectificationCommand(
         String tenantId,
@@ -131,7 +131,7 @@ public class ManualQualityRectificationBridge {
     }
 
     /**
-     * 手工质控整改幂等创建结果。
+     * 手工质量问题整改幂等创建结果。
      */
     public record ManualQualityRectificationResult(
         String findingId,

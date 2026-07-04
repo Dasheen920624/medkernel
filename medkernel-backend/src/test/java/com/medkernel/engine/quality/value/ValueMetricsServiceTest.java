@@ -108,6 +108,29 @@ class ValueMetricsServiceTest {
         assertMetric(response, ValueMetricCode.INSURANCE_VIOLATION_REDUCTION,
             ValueMetricStatus.NOT_AVAILABLE, null, null, null);
         assertThat(metric(response, ValueMetricCode.ADOPTION_RATE).formulaVersion()).isEqualTo("OPT-08.v1");
+        ValueMetricResponse falsePositive = metric(response, ValueMetricCode.FALSE_POSITIVE_RATE);
+        assertThat(falsePositive.formula())
+            .isEqualTo("已豁免质量问题 / 已复核质量问题")
+            .doesNotContain("质控问题");
+        assertThat(falsePositive.explanation())
+            .contains("质量问题")
+            .doesNotContain("质控问题");
+        assertThat(falsePositive.dataSources()).singleElement().satisfies(source -> {
+            assertThat(source.sourceName()).isEqualTo("质量问题闭环事实");
+            assertThat(source.evidence())
+                .contains("CLOSED / WAIVED 质量问题")
+                .doesNotContain("质控问题");
+        });
+        ValueMetricResponse missedCase = metric(response, ValueMetricCode.MISSED_CASE_RETROSPECTIVE);
+        assertThat(missedCase.explanation())
+            .contains("质量问题事实编码 MISSED.*")
+            .doesNotContain("质控问题");
+        assertThat(missedCase.dataSources()).singleElement().satisfies(source -> {
+            assertThat(source.sourceName()).isEqualTo("漏报回溯质量问题");
+            assertThat(source.evidence())
+                .contains("MISSED. 开头的质量问题")
+                .doesNotContain("质控问题");
+        });
         assertThat(metric(response, ValueMetricCode.INSURANCE_VIOLATION_REDUCTION).explanation())
             .contains("需要完整时间窗");
     }

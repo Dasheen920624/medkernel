@@ -8,7 +8,7 @@ import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 质控问题持久化仓库（GA-ENG-API-08）。
+ * 质量问题持久化仓库（GA-ENG-API-08）。
  *
  * <p>支持按问题 ID 查询详情、按结果回放问题、按租户浏览最新问题，以及按严重度、状态和责任科室分页查询。
  */
@@ -16,7 +16,7 @@ import org.springframework.stereotype.Repository;
 public interface QualityFindingRepository extends ListCrudRepository<QualityFinding, Long> {
 
     /**
-     * 按问题业务 ID 与租户 ID 查询单个质控问题。
+     * 按问题业务 ID 与租户 ID 查询单个质量问题。
      */
     Optional<QualityFinding> findByFindingIdAndTenantId(String findingId, String tenantId);
 
@@ -26,7 +26,7 @@ public interface QualityFindingRepository extends ListCrudRepository<QualityFind
     List<QualityFinding> findByResultIdAndTenantIdOrderByCreatedAtAsc(String resultId, String tenantId);
 
     /**
-     * 按租户列出质控问题，按创建时间倒序用于管理端浏览。
+     * 按租户列出质量问题，按创建时间倒序用于管理端浏览。
      */
     List<QualityFinding> findByTenantIdOrderByCreatedAtDesc(String tenantId);
 
@@ -44,7 +44,7 @@ public interface QualityFindingRepository extends ListCrudRepository<QualityFind
     long countByFilter(String tenantId, String severity, String status, String departmentId);
 
     /**
-     * 与 {@link #countByFilter} 同口径分页查询质控问题，按创建时间倒序返回。
+     * 与 {@link #countByFilter} 同口径分页查询质量问题，按创建时间倒序返回。
      */
     @Query("""
         SELECT *

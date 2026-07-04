@@ -205,7 +205,7 @@ public final class ServiceContractCatalog {
             "/api/v1/engine/rectifications",
             permissions("evaluation.read", "evaluation.remediate", "evaluation.review"),
             audits(
-                audit(AuditAction.CREATE, "rectification_task", "派发质控整改任务"),
+                audit(AuditAction.CREATE, "rectification_task", "派发质量问题整改任务"),
                 audit(AuditAction.UPDATE, "rectification_task", "提交整改说明和证据"),
                 audit(AuditAction.REVIEW, "quality_finding", "复核或豁免整改任务"))),
         contract("value-metrics", "价值指标与 ROI 服务",

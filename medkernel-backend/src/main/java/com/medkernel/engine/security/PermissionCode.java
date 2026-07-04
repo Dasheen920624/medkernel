@@ -88,7 +88,7 @@ public enum PermissionCode {
     RECOMMENDATION_WRITE("recommendation.write", Risk.MEDIUM, "创建推荐触发和候选提醒事实"),
     EVALUATION_EXECUTE("evaluation.execute", Risk.MEDIUM, "接收评估运行和结果事实"),
     EVALUATION_REMEDIATE("evaluation.remediate", Risk.MEDIUM, "提交质量问题整改证据"),
-    EVALUATION_REVIEW("evaluation.review", Risk.HIGH, "复核质控整改并关闭问题"),
+    EVALUATION_REVIEW("evaluation.review", Risk.HIGH, "复核质量问题整改并关闭问题"),
     FOLLOWUP_READ("followup.read", Risk.LOW, "查看随访计划与任务列表"),
     FOLLOWUP_WRITE("followup.write", Risk.MEDIUM, "智能生成随访计划、触发任务、提交问卷与回传异常事件"),
     FOLLOWUP_PUBLISH("followup.publish", Risk.HIGH, "发布随访方案版本"),

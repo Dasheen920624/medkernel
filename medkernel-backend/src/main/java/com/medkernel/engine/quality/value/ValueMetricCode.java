@@ -8,7 +8,7 @@ package com.medkernel.engine.quality.value;
  */
 public enum ValueMetricCode {
     ADOPTION_RATE("采纳率", "已采纳推荐卡 / 已闭环推荐卡", "RATE"),
-    FALSE_POSITIVE_RATE("误报率", "已豁免质控问题 / 已复核质控问题", "RATE"),
+    FALSE_POSITIVE_RATE("误报率", "已豁免质量问题 / 已复核质量问题", "RATE"),
     MISSED_CASE_RETROSPECTIVE("漏报回溯", "漏报回溯问题数", "CASE_COUNT"),
     PATHWAY_COMPLETION_RATE("路径完成率", "已完成患者路径 / 已入径患者路径", "RATE"),
     RECTIFICATION_CLOSURE_RATE("整改闭环率", "已关闭或豁免整改任务 / 全部整改任务", "RATE"),

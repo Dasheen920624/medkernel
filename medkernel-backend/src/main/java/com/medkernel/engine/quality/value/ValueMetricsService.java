@@ -104,21 +104,21 @@ public class ValueMetricsService {
     private ValueMetricResponse falsePositiveRate(String tenantId, ValueMetricFilter filter, Instant now) {
         if (filter.hasUnsupportedOrgScope()) {
             return notAvailableForScope(ValueMetricCode.FALSE_POSITIVE_RATE, filter, now,
-                "quality_finding", "质控问题闭环事实");
+                "quality_finding", "质量问题闭环事实");
         }
         long waived = countQualityFindings(tenantId, filter, "WAIVED", false);
         long closed = countQualityFindings(tenantId, filter, "CLOSED", false);
         long denominator = waived + closed;
         return ratioMetric(ValueMetricCode.FALSE_POSITIVE_RATE, waived, denominator, now,
-            source("quality_finding", "质控问题闭环事实", ValueMetricStatus.AVAILABLE,
-                "统计 CLOSED / WAIVED 质控问题，WAIVED 视为误报豁免"),
-            "误报率来自质控问题复核闭环结果");
+            source("quality_finding", "质量问题闭环事实", ValueMetricStatus.AVAILABLE,
+                "统计 CLOSED / WAIVED 质量问题，WAIVED 视为误报豁免"),
+            "误报率来自质量问题复核闭环结果");
     }
 
     private ValueMetricResponse missedCaseRetrospective(String tenantId, ValueMetricFilter filter, Instant now) {
         if (filter.hasUnsupportedOrgScope()) {
             return notAvailableForScope(ValueMetricCode.MISSED_CASE_RETROSPECTIVE, filter, now,
-                "quality_finding", "漏报回溯质控问题");
+                "quality_finding", "漏报回溯质量问题");
         }
         long missed = countQualityFindings(tenantId, filter, null, true);
         BigDecimal value = BigDecimal.valueOf(missed).setScale(4, RoundingMode.HALF_UP);
@@ -133,9 +133,9 @@ public class ValueMetricsService {
             BigDecimal.valueOf(missed),
             value,
             ValueMetricCode.MISSED_CASE_RETROSPECTIVE.unit(),
-            List.of(source("quality_finding", "漏报回溯质控问题", ValueMetricStatus.AVAILABLE,
-                "finding_code 以 MISSED. 开头的质控问题")),
-            "漏报回溯以质控问题事实编码 MISSED.* 为可追溯来源",
+            List.of(source("quality_finding", "漏报回溯质量问题", ValueMetricStatus.AVAILABLE,
+                "finding_code 以 MISSED. 开头的质量问题")),
+            "漏报回溯以质量问题事实编码 MISSED.* 为可追溯来源",
             now);
     }
 

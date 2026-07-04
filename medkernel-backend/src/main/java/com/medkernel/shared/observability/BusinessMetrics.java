@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
  *   <li>medkernel_tenant_onboarding_total — 租户开通累计数（平台管理）
  *   <li>medkernel_pathway_active — 当前在径患者数（医疗引擎 gauge）
  *   <li>medkernel_cdss_alerts_total — CDSS 提醒发出累计数（医疗引擎）
- *   <li>medkernel_quality_findings_open — 当前未闭环质控问题数（质量管理 gauge）
+ *   <li>medkernel_quality_findings_open — 当前未闭环质量问题数（质量管理 gauge）
  *   <li>medkernel_audit_chain_signed_total — 已验签审计条目累计数（平台管理）
  * </ul>
  *
@@ -77,7 +77,7 @@ public class BusinessMetrics {
             .register(registry);
 
         Gauge.builder("medkernel_quality_findings_open", openFindings, AtomicLong::doubleValue)
-            .description("质量管理：当前未闭环质控问题数")
+            .description("质量管理：当前未闭环质量问题数")
             .register(registry);
     }
 

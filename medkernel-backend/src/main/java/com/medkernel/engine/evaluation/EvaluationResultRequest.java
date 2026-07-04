@@ -10,7 +10,7 @@ import jakarta.validation.constraints.NotNull;
 /**
  * 评估运行中的单条结果请求。
  *
- * <p>绑定当前生效指标、评估对象、结果等级、证据摘要和可选质控问题；接口只接收受控事实，不自动计算结果。
+ * <p>绑定当前生效指标、评估对象、结果等级、证据摘要和可选质量问题；接口只接收受控事实，不自动计算结果。
  */
 public record EvaluationResultRequest(
     @NotBlank String indicatorId,
