@@ -302,7 +302,10 @@ describe("WorkbenchPanel", () => {
     expect(screen.getByRole("heading", { name: "平台管理员工作台" })).toBeInTheDocument();
     expect(screen.getByText("系统健康")).toBeInTheDocument();
     expect(screen.getByText("外部依赖连通")).toBeInTheDocument();
-    expect(screen.getByText(/关系数据库/)).toBeInTheDocument();
+    expect(screen.getByText("运行保障可查看数据库和依赖明细")).toBeInTheDocument();
+    expect(screen.getByText(/运行数据服务/)).toBeInTheDocument();
+    expect(screen.queryByText(/数据库：/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/关系数据库/)).not.toBeInTheDocument();
     expect(screen.getAllByText(/知识关系同步/).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /查看知识关系/ })).toBeInTheDocument();
     expect(screen.queryByText(/知识图谱投影/)).not.toBeInTheDocument();
@@ -447,7 +450,8 @@ describe("WorkbenchPanel", () => {
     expect(screen.queryByText(/追踪号/)).not.toBeInTheDocument();
     expect(screen.getAllByText("失败已留痕，可在审计证据中追溯。").length).toBeGreaterThan(0);
     expect(screen.getByText("系统健康")).toBeInTheDocument();
-    expect(screen.getByText(/关系数据库/)).toBeInTheDocument();
+    expect(screen.getByText(/运行数据服务/)).toBeInTheDocument();
+    expect(screen.queryByText(/关系数据库/)).not.toBeInTheDocument();
   });
 
   it("uses an actionable empty state instead of future-source promises", () => {

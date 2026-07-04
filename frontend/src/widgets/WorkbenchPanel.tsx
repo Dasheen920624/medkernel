@@ -510,7 +510,7 @@ function SystemHealthCard({
         <Space direction="vertical" size="small">
           <StatusTag status={data.healthStatus} />
           <Text>当前环境：{customerDisplayText(data.environment)}</Text>
-          <Text type="secondary">数据库：{customerDisplayText(data.databaseDialect)}</Text>
+          <Text type="secondary">运行保障可查看数据库和依赖明细</Text>
         </Space>
       )}
     </SourceCard>
@@ -957,9 +957,16 @@ function isKnowledgeRelationDependency(dependency: RuntimeDependencyStatus) {
   return dependency.key.includes("graph");
 }
 
+function isDatabaseDependency(dependency: RuntimeDependencyStatus) {
+  return dependency.key.includes("database") || dependency.displayName.includes("数据库");
+}
+
 function workbenchDependencyDisplayName(dependency: RuntimeDependencyStatus) {
   if (isKnowledgeRelationDependency(dependency)) {
     return KNOWLEDGE_RELATION_SYNC_LABEL;
+  }
+  if (isDatabaseDependency(dependency)) {
+    return "运行数据服务";
   }
   return customerDisplayText(dependency.displayName);
 }
