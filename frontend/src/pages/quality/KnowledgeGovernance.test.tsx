@@ -1072,7 +1072,7 @@ describe("KnowledgeGovernance", () => {
     expect(screen.getByText("生产安全校验结果")).toBeInTheDocument();
     expect(screen.getByText("来源锚点 · SOURCE_ANCHOR")).toBeInTheDocument();
     expect(screen.getByText("八类状态分流")).toBeInTheDocument();
-    expect(screen.getByText("CONFLICT")).toBeInTheDocument();
+    expect(screen.getByText("冲突仲裁 · CONFLICT")).toBeInTheDocument();
     expect(screen.getByText("影子评测")).toBeInTheDocument();
     expect(screen.getByText("误报率超过阈值")).toBeInTheDocument();
     expect(screen.getByTestId("production-readiness-table")).toBeInTheDocument();
@@ -1629,20 +1629,20 @@ describe("KnowledgeGovernance", () => {
     });
     mockUseKnowledgeProductionTriageResults.mockReturnValue({
       data: [
-        "NEW_ASSET",
-        "DUPLICATE",
-        "MINOR_REVISION",
-        "MAJOR_UPGRADE",
-        "CONFLICT",
-        "DOWNGRADE",
-        "DEPRECATION",
-        "UNCERTAIN",
-      ].map((triageState) => ({
+        ["NEW_ASSET", "SUBMIT_REVIEW", "未指定现有知识身份，按新知识身份候选进入审核"],
+        ["DUPLICATE", "SKIP_DUPLICATE", "content_hash 与既有版本一致，跳过重复入审"],
+        ["MINOR_REVISION", "MERGE_REVIEW", "同一知识身份内容变更，按小修订进入对照审核"],
+        ["MAJOR_UPGRADE", "UPGRADE_REVIEW", "候选来源高于现行版本，进入升级审核"],
+        ["CONFLICT", "CONFLICT_REVIEW", "候选声明与现行版本存在冲突，进入冲突仲裁审核"],
+        ["DOWNGRADE", "DOWNGRADE_REVIEW", "候选来源低于现行版本，进入降级风险审核"],
+        ["DEPRECATION", "RETIREMENT_REVIEW", "候选声明废止现行知识，进入废止审核"],
+        ["UNCERTAIN", "MANUAL_REVIEW", "缺少现行基线或判定依据不足，人工分流"],
+      ].map(([triageState, action, basis]) => ({
         jobCode: "job-agent-7",
         contentHash: triageState.toLowerCase(),
         triageState,
-        action: `${triageState}_ACTION`,
-        basis: `${triageState} 分流依据`,
+        action,
+        basis,
       })),
       isLoading: false,
       isError: false,
@@ -1722,6 +1722,32 @@ describe("KnowledgeGovernance", () => {
     ]) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
+    for (const rawText of [
+      "NEW_ASSET",
+      "DUPLICATE",
+      "MINOR_REVISION",
+      "MAJOR_UPGRADE",
+      "CONFLICT",
+      "DOWNGRADE",
+      "DEPRECATION",
+      "UNCERTAIN",
+      "SUBMIT_REVIEW",
+      "SKIP_DUPLICATE",
+      "MERGE_REVIEW",
+      "UPGRADE_REVIEW",
+      "CONFLICT_REVIEW",
+      "DOWNGRADE_REVIEW",
+      "RETIREMENT_REVIEW",
+      "MANUAL_REVIEW",
+      "PASSED",
+      "content_hash",
+    ]) {
+      expect(screen.queryByText(new RegExp(rawText))).not.toBeInTheDocument();
+    }
+    expect(screen.getAllByText("进入审核").length).toBeGreaterThan(0);
+    expect(screen.getByText("跳过重复")).toBeInTheDocument();
+    expect(screen.getByText(/内容摘要 与既有版本一致/)).toBeInTheDocument();
+    expect(screen.getAllByText("通过").length).toBeGreaterThan(0);
     expect(screen.getByText("待审候选版本")).toBeInTheDocument();
     expect(screen.getByText("现行权威版本")).toBeInTheDocument();
     expect(screen.getByText("2026.07")).toBeInTheDocument();

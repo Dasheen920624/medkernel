@@ -87,6 +87,7 @@ import {
   type VersionPublishEvidence,
 } from "@/shared/api/hooks";
 import {
+  customerDisplayText,
   knowledgeCustomizationStatusLabel,
   knowledgeDomainLabel,
   knowledgeSourceLabel,
@@ -206,6 +207,22 @@ const PRODUCTION_JOB_STATUS_LABELS: Record<string, string> = {
   COMPLETED: "已完成",
   FAILED: "失败",
   CANCELLED: "已中止",
+  PASSED: "通过",
+};
+
+const TRIAGE_STATE_LABELS = Object.fromEntries(
+  KNOWLEDGE_TRIAGE_STATE_META.map((item) => [item.state, item.label]),
+) as Record<string, string>;
+
+const TRIAGE_ACTION_LABELS: Record<string, string> = {
+  SUBMIT_REVIEW: "进入审核",
+  SKIP_DUPLICATE: "跳过重复",
+  MERGE_REVIEW: "合并对照审核",
+  UPGRADE_REVIEW: "升级审核",
+  CONFLICT_REVIEW: "冲突仲裁审核",
+  DOWNGRADE_REVIEW: "降级风险审核",
+  RETIREMENT_REVIEW: "废止退役审核",
+  MANUAL_REVIEW: "人工分流",
 };
 
 const PRODUCTION_READINESS_LABELS: Record<string, string> = {
@@ -358,6 +375,45 @@ function triageLabel(state?: string | null) {
   return (
     KNOWLEDGE_TRIAGE_STATE_META.find((item) => item.state === state)?.label ?? state ?? "未分流"
   );
+}
+
+function codeTokenPattern(code: string) {
+  return new RegExp(
+    `(^|[^A-Za-z0-9_])${code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=$|[^A-Za-z0-9_])`,
+    "g",
+  );
+}
+
+function replaceKnownProductionTokens(value: string) {
+  return Object.entries({ ...TRIAGE_STATE_LABELS, ...TRIAGE_ACTION_LABELS }).reduce(
+    (text, [code, label]) => text.replace(codeTokenPattern(code), `$1${label}`),
+    value,
+  );
+}
+
+function triageStateText(state: string, evidenceDetailsEnabled: boolean) {
+  const label = triageLabel(state);
+  return evidenceDetailsEnabled ? `${label} · ${state}` : label;
+}
+
+function triageActionText(action?: string | null, evidenceDetailsEnabled = false) {
+  if (!action) return "未返回动作";
+  const label = TRIAGE_ACTION_LABELS[action] ?? "分流动作已记录";
+  return evidenceDetailsEnabled ? `${label} · ${action}` : label;
+}
+
+function triageBasisText(value?: string | null) {
+  if (!value) return "未返回依据";
+  return replaceKnownProductionTokens(customerDisplayText(value)).replace(
+    /(^|[^A-Za-z0-9_])content_hash(?=$|[^A-Za-z0-9_])/g,
+    "$1内容摘要",
+  );
+}
+
+function productionStatusText(status?: string | null, evidenceDetailsEnabled = false) {
+  if (!status) return "未返回状态";
+  const label = PRODUCTION_JOB_STATUS_LABELS[status] ?? customerDisplayText(status);
+  return evidenceDetailsEnabled ? `${label} · ${status}` : label;
 }
 
 function reviewTaskReminder(coexistence?: CandidateCoexistenceView) {
@@ -1709,9 +1765,8 @@ export default function KnowledgeGovernance({
               (value === "CONFLICT" ? "error" : "processing")
             }
           >
-            {triageLabel(value)}
+            {triageStateText(value, evidenceDetailsEnabled)}
           </Tag>
-          <Text type="secondary">{value}</Text>
         </Space>
       ),
     },
@@ -1719,13 +1774,13 @@ export default function KnowledgeGovernance({
       title: "动作",
       dataIndex: "action",
       width: 180,
-      render: (value?: string | null) => tableText(value, "未返回动作"),
+      render: (value?: string | null) => tableText(triageActionText(value, evidenceDetailsEnabled)),
     },
     {
       title: "依据",
       dataIndex: "basis",
       width: 420,
-      render: (value?: string | null) => tableText(value, "未返回依据"),
+      render: (value?: string | null) => tableText(triageBasisText(value)),
     },
   ];
 
@@ -1734,7 +1789,11 @@ export default function KnowledgeGovernance({
       title: "状态",
       dataIndex: "status",
       width: 140,
-      render: (value: string) => <Tag color={productionStatusColor(value)}>{value}</Tag>,
+      render: (value: string) => (
+        <Tag color={productionStatusColor(value)}>
+          {productionStatusText(value, evidenceDetailsEnabled)}
+        </Tag>
+      ),
     },
     {
       title: "样本",
