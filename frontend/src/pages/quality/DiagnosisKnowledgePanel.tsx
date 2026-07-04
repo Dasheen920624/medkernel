@@ -1103,7 +1103,7 @@ export default function DiagnosisKnowledgePanel({
                     },
                   ]}
                 >
-                  <Input maxLength={43} placeholder="例如 chronic-kidney-disease" />
+                  <Input maxLength={43} placeholder="例如 manxing-shenbing" />
                 </Form.Item>
                 <Form.Item name={["identity", "assetSpecialtyId"]} label="专科身份">
                   <Input />
@@ -1180,7 +1180,7 @@ export default function DiagnosisKnowledgePanel({
               label="受控文件地址"
               rules={[{ required: true }]}
             >
-              <Input placeholder="repository://..." />
+              <Input placeholder="粘贴受控资料库地址或院内文档链接" />
             </Form.Item>
             <Form.Item
               className={styles.fullRow}
@@ -1463,7 +1463,7 @@ export default function DiagnosisKnowledgePanel({
           initialValues={{ expectedConfidence: "STRONG", expectedIdentityId: identityId }}
         >
           <Form.Item name="caseCode" label="稳定验证病例身份" rules={[{ required: true }]}>
-            <Input placeholder="如 CKD-CASE-001，用于复算与验收追溯" />
+            <Input placeholder="如 manxing-shenbing-case-001，用于复算与验收追溯" />
           </Form.Item>
           <Form.Item
             name="findings"

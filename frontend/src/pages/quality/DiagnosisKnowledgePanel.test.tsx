@@ -482,6 +482,11 @@ describe("DiagnosisKnowledgePanel", () => {
     renderPanel();
     fireEvent.click(screen.getByRole("button", { name: /新建诊断资产/ }));
 
+    expect(screen.getByPlaceholderText("例如 manxing-shenbing")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("粘贴受控资料库地址或院内文档链接")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("例如 chronic-kidney-disease")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("repository://...")).not.toBeInTheDocument();
+
     fillField("诊断名称", "验收诊断");
     fillField("稳定诊断身份", "acceptance-diagnosis");
     fillField("来源标题", "验收指南");
@@ -598,6 +603,12 @@ describe("DiagnosisKnowledgePanel", () => {
     await user.click(screen.getByRole("button", { name: /新增病例/ }));
 
     expect(screen.getByLabelText("稳定验证病例身份")).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("如 manxing-shenbing-case-001，用于复算与验收追溯"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("如 CKD-CASE-001，用于复算与验收追溯"),
+    ).not.toBeInTheDocument();
     expect(screen.getByLabelText("发现项身份")).toBeInTheDocument();
     expect(screen.getByText("多个标准发现项身份使用英文逗号分隔")).toBeInTheDocument();
     expect(screen.queryByText("病例编码")).not.toBeInTheDocument();
