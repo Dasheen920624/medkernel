@@ -303,7 +303,10 @@ describe("Login", () => {
     fireEvent.click(screen.getByRole("button", { name: "平台治理" }));
 
     expect(screen.getByText("平台治理入口")).toBeInTheDocument();
-    expect(screen.getByText(/仅供平台治理、知识标准维护和系统运维人员使用/)).toBeInTheDocument();
+    expect(
+      screen.getByText("仅供平台治理、知识标准治理和系统运维人员使用；机构差异不会改写平台标准。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/知识标准维护|机构定制不会回写平台标准/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "平台治理" })).toHaveAttribute(
       "aria-pressed",
       "true",

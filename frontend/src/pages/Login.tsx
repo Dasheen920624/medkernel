@@ -82,7 +82,7 @@ function getPlatformContextDescription({
     return "正在等待服务端返回可登录的机构。";
   }
   if (isPlatformLayer && hasCustomerTenants) {
-    return "仅供平台治理、知识标准维护和系统运维人员使用；机构定制不会回写平台标准。";
+    return "仅供平台治理、知识标准治理和系统运维人员使用；机构差异不会改写平台标准。";
   }
   return platformTenantDescription;
 }
