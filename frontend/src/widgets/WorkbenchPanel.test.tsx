@@ -590,6 +590,13 @@ describe("WorkbenchPanel", () => {
     expect(screen.getAllByTestId(/^workbench-governance-slice-/)).toHaveLength(3);
     expect(screen.getByText("本周建议动作")).toBeInTheDocument();
     expect(screen.getByText("核对实施进度")).toBeInTheDocument();
+    expect(screen.getByText("查看实施阶段、系统接入状态与上线准备项。")).toBeInTheDocument();
+    expect(screen.queryByText("查看实施阶段、机构生效版本与上线准备项。")).not.toBeInTheDocument();
+    expect(screen.getByText("核对服务运行保障")).toBeInTheDocument();
+    expect(screen.queryByText("复核生效版本")).not.toBeInTheDocument();
+    const weeklyActionButtons = screen.getAllByRole("button", { name: "进入" });
+    fireEvent.click(weeklyActionButtons[1]);
+    expect(navigateSpy).toHaveBeenLastCalledWith("/system/providers");
     expect(hookState.successPlanEnabledCalls).toContain(true);
   });
 

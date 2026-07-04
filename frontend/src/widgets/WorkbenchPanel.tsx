@@ -1062,14 +1062,14 @@ function resolveWeeklyActions(
       {
         key: "implementation",
         title: "核对实施进度",
-        description: "查看实施阶段、机构生效版本与上线准备项。",
+        description: "查看实施阶段、系统接入状态与上线准备项。",
         path: "/onboarding/guide",
       },
       {
-        key: "runtime-releases",
-        title: "复核生效版本",
-        description: "确认当前机构启用的平台标准版本和完整内容组合。",
-        path: "/config/releases",
+        key: "system-providers",
+        title: "核对服务运行保障",
+        description: "确认服务依赖、备份恢复和降级状态满足上线要求。",
+        path: "/system/providers",
       },
     );
     return actions;
