@@ -126,13 +126,18 @@ describe("product function catalog", () => {
   it("keeps route customer tasks in hospital-facing language", () => {
     const catalog = readCatalog();
     const retiredDiagnosisTask = "维护" + "诊断身份、诊断标准、鉴别诊断、验证病例与来源证据";
+    const retiredPathwayTask = "维护" + "、审核、发布和回滚临床路径版本";
 
     expect(catalog).not.toContain("知识生产 readiness");
     expect(catalog).not.toContain("生产 job");
     expect(catalog).toContain(
+      "| `/pathway/templates` | 临床路径库 | knowledge-governance | pathway-templates | primary | MOVE | 知识治理 | 临床路径库 | 编排、审核、发布和回滚临床路径版本 |",
+    );
+    expect(catalog).toContain(
       "| `/knowledge/diagnosis` | 诊断知识库 | knowledge-governance | diagnosis-knowledge | primary | SPLIT | 知识治理 | 诊断知识库 | 管理诊断身份、诊断标准、鉴别诊断、验证病例与来源证据 |",
     );
     expect(catalog).not.toContain(retiredDiagnosisTask);
+    expect(catalog).not.toContain(retiredPathwayTask);
   });
 
   it("summarizes every primary sidebar domain in the inventory conclusion", () => {

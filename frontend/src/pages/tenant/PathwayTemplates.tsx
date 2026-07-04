@@ -4084,7 +4084,7 @@ export default function PathwayTemplates() {
   return (
     <PageShell
       title="临床路径库"
-      description="维护专病临床路径，使用统一条件树、规则引用和真实快照试运行；上线生效由机构生效版本统一管理。"
+      description="编排专病临床路径，使用统一条件树、规则引用和真实快照试运行；上线生效由机构生效版本统一管理。"
     >
       <div className={`${styles.surface} ${styles.filterSurface}`}>
         <Form layout="inline" className={styles.inlineForm}>

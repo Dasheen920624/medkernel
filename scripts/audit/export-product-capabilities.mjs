@@ -93,7 +93,7 @@ const routeDecisions = {
     decision: "MOVE",
     targetDomain: "知识治理",
     targetEntry: "临床路径库",
-    task: "维护、审核、发布和回滚临床路径版本",
+    task: "编排、审核、发布和回滚临床路径版本",
   },
   "/rule/definitions": {
     decision: "MOVE",

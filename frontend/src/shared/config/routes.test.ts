@@ -428,7 +428,7 @@ describe("route metadata", () => {
       },
       {
         role: "医疗引擎运营员",
-        responsibility: "维护临床路径版本、机构覆盖和验证用例",
+        responsibility: "编排临床路径版本、机构覆盖和验证用例",
         boundary: "临床路径不能自动改写患者当前医嘱",
       },
     ]);

@@ -57,7 +57,7 @@
 | `/authoring/assets` | 知识资产 | knowledge-governance | — | hidden | MERGE | 知识治理 | 知识资产 | 在统一知识资产页内编目、复用和批量处理资产 |
 <!-- capability:route:route@%2Fpathway%2Ftemplates decision=MOVE -->
 <!-- route:/pathway/templates -->
-| `/pathway/templates` | 临床路径库 | knowledge-governance | pathway-templates | primary | MOVE | 知识治理 | 临床路径库 | 维护、审核、发布和回滚临床路径版本 |
+| `/pathway/templates` | 临床路径库 | knowledge-governance | pathway-templates | primary | MOVE | 知识治理 | 临床路径库 | 编排、审核、发布和回滚临床路径版本 |
 <!-- capability:route:route@%2Frule%2Fdefinitions decision=MOVE -->
 <!-- route:/rule/definitions -->
 | `/rule/definitions` | 临床规则 | knowledge-governance | rule-definitions | primary | MOVE | 知识治理 | 临床规则 | 配置、试运行、审核和发布临床规则 |

@@ -364,7 +364,7 @@ function expectNoLegacyPackageKeys(payload: Record<string, unknown>) {
   expect(payload).not.toHaveProperty("package_version");
 }
 
-describe("PathwayTemplates 上线路径维护契约", () => {
+describe("PathwayTemplates 临床路径库治理契约", () => {
   beforeEach(() => {
     apiMocks.templateListData = { items: [], total: 0 };
     apiMocks.templateDetailData = null;
@@ -397,9 +397,20 @@ describe("PathwayTemplates 上线路径维护契约", () => {
     apiMocks.snapshotQueryParams = [];
   });
 
-  it("路径维护不再展示旧归属、手工版本与路径专属发布入口", async () => {
+  it("路径库不再展示旧归属、手工版本与路径专属发布入口", async () => {
     const { user, dialog } = await openCreateDialog();
 
+    expect(
+      screen.getByText(
+        "编排专病临床路径，使用统一条件树、规则引用和真实快照试运行；上线生效由机构生效版本统一管理。",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "维护" +
+          "专病临床路径，使用统一条件树、规则引用和真实快照试运行；上线生效由机构生效版本统一管理。",
+      ),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: new RegExp(`管理路径知识${"包"}`) }),
     ).not.toBeInTheDocument();
