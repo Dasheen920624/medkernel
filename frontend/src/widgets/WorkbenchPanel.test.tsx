@@ -303,7 +303,10 @@ describe("WorkbenchPanel", () => {
     expect(screen.getByText("系统健康")).toBeInTheDocument();
     expect(screen.getByText("外部依赖连通")).toBeInTheDocument();
     expect(screen.getByText(/关系数据库/)).toBeInTheDocument();
-    expect(screen.getAllByText(/知识图谱投影/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/知识关系同步/).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /查看知识关系/ })).toBeInTheDocument();
+    expect(screen.queryByText(/知识图谱投影/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/图谱投影能力开关/)).not.toBeInTheDocument();
     expect(screen.getByText("生效版本发布申请")).toBeInTheDocument();
     expect(screen.getByText(/操作人已登记/)).toBeInTheDocument();
     expect(screen.queryByText(/doctor-1/)).not.toBeInTheDocument();
@@ -598,10 +601,11 @@ describe("WorkbenchPanel", () => {
     renderWorkbench();
 
     expect(screen.getByRole("heading", { name: "平台管理员工作台" })).toBeInTheDocument();
-    expect(screen.getByText("知识同步来源待配置")).toBeInTheDocument();
+    expect(screen.getByText("知识关系同步来源待配置")).toBeInTheDocument();
     expect(
-      screen.getByText("当前运行状态未返回知识同步来源，请在运行保障中核查图谱投影配置。"),
+      screen.getByText("当前运行状态未返回知识关系同步来源，请在运行保障中核查知识关系同步配置。"),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/图谱投影配置/)).not.toBeInTheDocument();
     expect(screen.queryByText("未接入")).not.toBeInTheDocument();
   });
 });

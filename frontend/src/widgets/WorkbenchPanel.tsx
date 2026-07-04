@@ -104,6 +104,7 @@ const STAGE_LABEL: Record<string, string> = {
 };
 
 const WORKBENCH_EVIDENCE_HINT = "失败已留痕，可在审计证据中追溯。";
+const KNOWLEDGE_RELATION_SYNC_LABEL = "知识关系同步";
 
 /**
  * 工作台只读组合现有来源 API，不拥有独立业务数据。
@@ -583,19 +584,19 @@ function KnowledgeSyncCard({
   return (
     <SourceCard
       id="knowledge"
-      title="知识同步"
+      title={KNOWLEDGE_RELATION_SYNC_LABEL}
       query={runtime}
-      drilldown={{ label: "查看知识图谱", path: "/advanced/graph" }}
+      drilldown={{ label: "查看知识关系", path: "/advanced/graph" }}
       onNavigate={onNavigate}
     >
       {(data) => {
-        const graph = data.dependencies.find((item) => item.key.includes("graph"));
+        const graph = data.dependencies.find(isKnowledgeRelationDependency);
         if (!graph) {
           return (
             <Space direction="vertical" size="small">
-              <Tag>知识同步来源待配置</Tag>
+              <Tag>知识关系同步来源待配置</Tag>
               <Text type="secondary">
-                当前运行状态未返回知识同步来源，请在运行保障中核查图谱投影配置。
+                当前运行状态未返回知识关系同步来源，请在运行保障中核查知识关系同步配置。
               </Text>
             </Space>
           );
@@ -603,8 +604,8 @@ function KnowledgeSyncCard({
         return (
           <Space direction="vertical" size="small">
             <StatusTag status={graph.status} />
-            <Text>{graph.displayName}</Text>
-            <Text type="secondary">{graph.detail}</Text>
+            <Text>{workbenchDependencyDisplayName(graph)}</Text>
+            <Text type="secondary">{workbenchDependencyDetail(graph)}</Text>
           </Space>
         );
       }}
@@ -944,12 +945,32 @@ function DependencyList({ dependencies }: { dependencies: RuntimeDependencyStatu
     <Space size={[8, 8]} wrap>
       {dependencies.map((dependency) => (
         <Tag key={dependency.key} color={STATUS_COLOR[dependency.status] ?? "default"}>
-          {dependency.displayName} ·{" "}
+          {workbenchDependencyDisplayName(dependency)} ·{" "}
           {STATUS_LABEL[dependency.status] ?? customerEnumLabel(dependency.status)}
         </Tag>
       ))}
     </Space>
   );
+}
+
+function isKnowledgeRelationDependency(dependency: RuntimeDependencyStatus) {
+  return dependency.key.includes("graph");
+}
+
+function workbenchDependencyDisplayName(dependency: RuntimeDependencyStatus) {
+  if (isKnowledgeRelationDependency(dependency)) {
+    return KNOWLEDGE_RELATION_SYNC_LABEL;
+  }
+  return customerDisplayText(dependency.displayName);
+}
+
+function workbenchDependencyDetail(dependency: RuntimeDependencyStatus) {
+  if (isKnowledgeRelationDependency(dependency)) {
+    return dependency.status === "UP"
+      ? "知识关系同步可用，可进入知识关系复核来源、适应证、禁忌和相互作用。"
+      : "知识关系同步未连接；核心业务继续使用关系库权威数据。";
+  }
+  return customerSafeDisplayText(dependency.detail, "依赖状态待确认，请在运行保障中核查。");
 }
 
 function StatusTag({ status }: { status: string }) {
