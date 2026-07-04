@@ -423,7 +423,7 @@ export default function TerminologyMapping() {
   if (!routeAllowed) pageState = "forbidden";
   else if (query.isLoading) pageState = "loading";
   else if (query.isError) pageState = "error";
-  // 只要还有待审候选或待裁冲突，维护工作台必须保持可见，不得被映射空态吞没。
+  // 只要还有待审候选或待裁冲突，术语工作区必须保持可见，不得被映射空态吞没。
   else if (mappingItems.length === 0 && candidateItems.length === 0 && conflictItems.length === 0)
     pageState = "empty";
 
@@ -868,7 +868,7 @@ export default function TerminologyMapping() {
                   showIcon
                   className={styles.sectionAlert}
                   message="高危近似"
-                  description="当前队列包含高危近似候选，系统禁用批量确认；必须由当前维护者逐条核对并留依据。"
+                  description="当前队列包含高危近似候选，系统禁用批量确认；必须由当前责任人逐条核对并留依据。"
                 />
               )}
               {lastGenerationJobCode && (
@@ -944,8 +944,8 @@ export default function TerminologyMapping() {
             <Alert
               type="info"
               showIcon
-              message="术语维护与上线修订分离"
-              description="本页维护院内字典、标准字典和映射版本；正式上线时在机构生效版本页面确认进入平台标准版本或当前机构生效版本。"
+              message="术语校准与上线生效分离"
+              description="本页校准院内字典、标准字典和映射版本；正式上线时在机构生效版本页面确认进入平台标准版本或当前机构生效版本。"
             />
           </Space>
         )}

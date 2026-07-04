@@ -140,7 +140,7 @@ const terminologyMappingExperience: RouteExperience = {
   stakeholderViews: [
     {
       role: "医疗引擎运营员",
-      responsibility: "确认院内码、标准码和来源系统映射",
+      responsibility: "校准院内码、标准码和来源系统映射",
       boundary: "冲突映射未处理前不能进入发布链",
     },
     {

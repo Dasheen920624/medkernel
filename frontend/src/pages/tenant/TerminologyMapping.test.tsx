@@ -350,7 +350,18 @@ describe("TerminologyMapping", () => {
     expect(screen.getByRole("button", { name: "生成术语版本" })).toBeEnabled();
     expect(screen.getByText("候选映射")).toBeInTheDocument();
     expect(screen.getByText("冲突待裁")).toBeInTheDocument();
-    expect(screen.getByText("术语维护与上线修订分离")).toBeInTheDocument();
+    expect(screen.getByText("术语校准与上线生效分离")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "本页校准院内字典、标准字典和映射版本；正式上线时在机构生效版本页面确认进入平台标准版本或当前机构生效版本。",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("术语维护与上线修订分离")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "本页维护院内字典、标准字典和映射版本；正式上线时在机构生效版本页面确认进入平台标准版本或当前机构生效版本。",
+      ),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "发布映射包" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "回滚映射包" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "批量确认候选" })).toBeDisabled();

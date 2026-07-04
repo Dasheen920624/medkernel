@@ -63,7 +63,7 @@
 | `/rule/definitions` | 临床规则 | knowledge-governance | rule-definitions | primary | MOVE | 知识治理 | 临床规则 | 配置、试运行、审核和发布临床规则 |
 <!-- capability:route:route@%2Fterminology%2Fmapping decision=MOVE -->
 <!-- route:/terminology/mapping -->
-| `/terminology/mapping` | 术语字典 | knowledge-governance | terminology-mapping | primary | MOVE | 知识治理 | 术语字典 | 维护院内术语映射、冲突和高风险确认 |
+| `/terminology/mapping` | 术语字典 | knowledge-governance | terminology-mapping | primary | MOVE | 知识治理 | 术语字典 | 校准院内术语映射、裁定冲突并逐条确认高危近似 |
 <!-- capability:route:route@%2Fadapter%2Fhub decision=MOVE -->
 <!-- route:/adapter/hub -->
 | `/adapter/hub` | 系统接入 | system-operations | adapter-hub | primary | MOVE | 系统运维 | 系统接入 | 由集成和实施角色维护外部系统接入及失败补偿 |

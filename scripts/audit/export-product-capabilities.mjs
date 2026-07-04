@@ -105,7 +105,7 @@ const routeDecisions = {
     decision: "MOVE",
     targetDomain: "知识治理",
     targetEntry: "术语字典",
-    task: "维护院内术语映射、冲突和高风险确认",
+    task: "校准院内术语映射、裁定冲突并逐条确认高危近似",
   },
   "/adapter/hub": {
     decision: "MOVE",
