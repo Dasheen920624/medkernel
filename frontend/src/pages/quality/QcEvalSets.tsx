@@ -319,7 +319,7 @@ export default function QcEvalSets() {
   const total = indicatorsQuery.data?.total ?? indicators.length;
   const visibleIndicator = selectedIndicator ?? indicators[0] ?? null;
   const parsedError = indicatorsQuery.isError
-    ? parseApiError(indicatorsQuery.error, "评估指标读取失败")
+    ? parseApiError(indicatorsQuery.error, "评价指标读取失败")
     : null;
   const pageState = resolvePageState(
     indicatorsQuery.isLoading,
@@ -424,12 +424,12 @@ export default function QcEvalSets() {
         responsibleDepartmentId: values.responsibleDepartmentId.trim(),
         sourceRef: values.sourceRef.trim(),
       });
-      message.success("评估指标草稿已创建");
+      message.success("评价指标草稿已创建");
       setCreateOpen(false);
       indicatorsQuery.refetch();
     } catch (error: unknown) {
       if (applyApiFieldErrors(form, error)) return;
-      message.error(getApiErrorMessage(error, "评估指标创建失败"));
+      message.error(getApiErrorMessage(error, "评价指标创建失败"));
     }
   }
 
@@ -556,8 +556,8 @@ export default function QcEvalSets() {
   return (
     <>
       <PageShell
-        title="评估指标库"
-        description="按真实指标版本维护质控口径"
+        title="评价指标"
+        description="维护质控评价指标、影响分析和发布状态"
         primary={
           <Button
             aria-label="新建指标"
@@ -592,7 +592,7 @@ export default function QcEvalSets() {
         }
         state={pageState}
         stateProps={{
-          title: parsedError?.message ?? "正在加载评估指标",
+          title: parsedError?.message ?? "正在加载评价指标",
           description: parsedError
             ? "请稍后重试；若持续失败，请联系信息科核查评价指标服务。失败已留痕，可在审计证据中追溯。"
             : "正在读取 EVAL-01 指标版本台账。",
@@ -603,7 +603,7 @@ export default function QcEvalSets() {
         <Space direction="vertical" size="large" className={styles.fullWidth}>
           <Space wrap>
             <Card size="small">
-              <Text type="secondary">真实评估指标总数</Text>
+              <Text type="secondary">评价指标总数</Text>
               <Title level={3} className="mk-title-tight">
                 {total}
               </Title>
@@ -666,7 +666,7 @@ export default function QcEvalSets() {
               dataSource={indicators}
               loading={indicatorsQuery.isLoading}
               pagination={{ pageSize: 20, total, showSizeChanger: false }}
-              locale={{ emptyText: <Empty description="当前筛选下暂无真实评估指标" /> }}
+              locale={{ emptyText: <Empty description="当前筛选下暂无评价指标" /> }}
             />
           </Card>
 
@@ -675,7 +675,7 @@ export default function QcEvalSets() {
       </PageShell>
 
       <Modal
-        title="新建评估指标"
+        title="新建评价指标"
         open={createOpen}
         width={980}
         okText="创建指标草稿"

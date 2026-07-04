@@ -334,7 +334,8 @@ describe("page smoke coverage", () => {
 
   it("renders the quality qc-eval-sets simulation with real snapshot filters", async () => {
     renderPage(<QcEvalSets />);
-    expect(screen.getByRole("heading", { name: "评估指标库" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "评价指标" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "评估指标库" })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "仿真评估" }));
 

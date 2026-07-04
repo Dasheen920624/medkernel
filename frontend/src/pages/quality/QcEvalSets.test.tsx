@@ -190,8 +190,10 @@ describe("QcEvalSets", () => {
     expect(mockUseEvaluationIndicators).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, size: 20 }),
     );
-    expect(screen.getByRole("heading", { name: "评估指标库" })).toBeInTheDocument();
-    expect(screen.getByText("真实评估指标总数")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "评价指标" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "评估指标库" })).not.toBeInTheDocument();
+    expect(screen.getByText("评价指标总数")).toBeInTheDocument();
+    expect(screen.queryByText("真实评估指标总数")).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getByLabelText("评价指标身份筛选")).toBeInTheDocument();
     expect(screen.queryByLabelText("指标编码筛选")).not.toBeInTheDocument();
@@ -283,6 +285,8 @@ describe("QcEvalSets", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "新建指标" }));
 
+    expect(screen.getByRole("dialog", { name: "新建评价指标" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "新建评估指标" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("版本号")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("稳定评价指标身份"), {
       target: { value: "IND.NEW.VTE" },
