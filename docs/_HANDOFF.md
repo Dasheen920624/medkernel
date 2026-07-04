@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第八十三批最新应用提交为 `8ad454f29f42f610a88dc3a11691224d8ac9caa5`
-  （`fix: 收敛临床路径建模示例口径`）。其前置本地提交包括第八十二批阶段交接提交
+- 第八十四批最新应用提交为 `df1135ca32b6980f2bcfb86e523e182b85030dd0`
+  （`fix: 收敛批量规则默认示例口径`）。其前置本地提交包括第八十三批阶段交接提交
+  `ac9a65f2f3d8ae6ae77db7a33afb1d86be4b3207`
+  （`docs: 记录临床路径建模示例复演`）、第八十三批应用提交
+  `8ad454f29f42f610a88dc3a11691224d8ac9caa5`
+  （`fix: 收敛临床路径建模示例口径`）、第八十二批阶段交接提交
   `83b92fba8f3ff68d0b70e8b034a7c059341ea0d6`
   （`docs: 记录诊断知识表单示例复演`）、第八十二批应用提交
   `6a7682444f228eba6677c9b3c209b786020f7f53`
@@ -207,7 +211,7 @@
   第七十五批质量管理概览默认真实口径收敛、第七十六批质量评价默认真实口径收敛，
   第七十七批评价指标默认术语统一、第七十八批临床路径层级前台口径收敛，
   第七十九批随访模板默认业务口径收敛、第八十批工作台运行底座默认层收敛、第八十一批诊断知识库职责边界口径收敛，
-  第八十二批诊断知识表单示例口径收敛，以及第八十三批临床路径建模示例口径收敛。
+  第八十二批诊断知识表单示例口径收敛、第八十三批临床路径建模示例口径收敛，以及第八十四批批量规则默认示例口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -228,7 +232,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `8ad454f29f42f610a88dc3a11691224d8ac9caa5`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `df1135ca32b6980f2bcfb86e523e182b85030dd0`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -238,6 +242,55 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第八十四批·批量规则默认示例口径收敛）
+
+- 本批继续按全局菜单、医疗产品体验和全角色职责旅程复核。结论：第四十四批全局菜单名与顺序仍成立，
+  `诊断知识库`、`临床路径库`、`知识生产工作台`、`规则发布` 等入口不需要继续改名；新发现的体验缺口在
+  `AuthoringBatchDrawer` 的批量规则默认示例。批量生成与批量发布仍必须使用稳定规则身份，以便知识审核、机构生效版本和审计追溯；
+  但默认占位仍展示 `CKD-阈值-45`、`CKD 阈值 1`、`RULE.CKD.1` 等疾病/技术混合样例，容易让院内运营员把规则发布误解为
+  英文疾病模板或内部编码填写页。本批仅将默认示例改为院内可读的拼音业务身份和中文规则名称；菜单、路由、权限、后端 API、
+  数据契约、数据库、构建配置和 134 发布配置均未改变。
+- 已本地提交 `df1135ca32b6980f2bcfb86e523e182b85030dd0`
+  （`fix: 收敛批量规则默认示例口径`）：
+  - `frontend/src/pages/tenant/AuthoringBatchDrawer.tsx` 将基准规则资产占位从
+    `输入已审核基准规则的稳定身份` 改为 `如 weijizhi-huidan-jichu-guize`。
+  - 同抽屉将批量生成表格示例从 `CKD-阈值-45,CKD 阈值 1,45,true` 改为
+    `lujing-jiedian-yuqi-tixing,路径节点逾期提醒,3,true`。
+  - 同抽屉将批量发布规则身份示例从 `RULE.CKD.1 / RULE.CKD.2` 改为
+    `lujing-jiedian-yuqi-tixing / weijizhi-huidan-shixian`。
+  - `frontend/src/pages/tenant/AuthoringBatchDrawer.test.tsx` 增加默认占位回归，正向锁定院内业务身份，反向阻断旧 CKD/RULE.CKD 示例。
+- 本地验证：
+  - 红绿核验：先改测试后执行
+    `npm --prefix frontend test -- AuthoringBatchDrawer.test.tsx -t "uses hospital-facing rule identities"`
+    在旧实现下失败，明确找不到 `如 weijizhi-huidan-jichu-guize`；实现后同命令通过，`1` 项。期间发现多行
+    placeholder 精确匹配受 Testing Library 规范化影响，已将测试改为按关键业务身份匹配，不改变产品实现。
+  - 关联配置回归：
+    `npm --prefix frontend test -- AuthoringBatchDrawer.test.tsx AuthoringAssets.test.tsx pages.smoke.test.tsx productCatalog.test.ts routes.test.ts menu.test.ts productRoleJourneys.test.ts`
+    通过，`7` 个测试文件 / `113` 项。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - 旧占位扫描：
+    `rg -n "CKD-阈值-45|CKD 阈值 1|RULE\\.CKD\\.1|RULE\\.CKD\\.2|输入已审核基准规则的稳定身份" frontend/src/pages/tenant/AuthoringBatchDrawer.tsx`
+    无输出，生产文件无旧默认占位残留；测试文件仅保留反向断言和既有契约夹具。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `960` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `AuthoringAssets-D8twlqww.js`、`RuleDefinitions-DzVLWcRx.js`、
+    `index-DyjCtNjm.js` 等前端产物。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 公网首页
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 05:16:55 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，外部 `index.html` 仍指向
+  `/assets/index-DYTh-Ceu.js`、`/assets/vendor-react-bdrMx_IT.js`、`/assets/vendor-data-D9EFEnEk.js`、
+  `/assets/vendor-react-C5ap-Sga.css`、`/assets/index-XMjG4gr3.css`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头
+  `Date=Sat, 04 Jul 2026 05:16:55 GMT`，`X-Trace-Id=468962c5-a4ca-45c4-8547-e9c032335d5b`。
+  当前 134 映射仍是后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、前端 dist=
+  `95bb816292f59833005df4761866dd9d89886cb4`；不得把本地 `df1135ca` 记为已部署。
+- 下一步继续沿全局菜单、全角色职责旅程、真实前台默认层做广度优先复核；优先处理可真实落地的产品体验、
+  契约、测试、构建和文档问题；不使用子代理、不咨询、不推送远程 `main`。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第八十三批·临床路径建模示例口径收敛）
 
