@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第七十九批最新应用提交为 `90dce703a9848147e7f4d02ff43b0f35fc22e7e0`
-  （`fix: 收敛随访模板默认业务口径`）。其前置本地提交包括第七十八批阶段交接提交
+- 第八十批最新应用提交为 `0322041c2ddc0b3c97db0ead209eaed191219957`
+  （`fix: 收敛工作台运行底座默认层`）。其前置本地提交包括第七十九批阶段交接提交
+  `c244e72ec8605c5ddbe5a5ef17991c33ff632f15`
+  （`docs: 记录随访模板默认业务口径复演`）、第七十九批应用提交
+  `90dce703a9848147e7f4d02ff43b0f35fc22e7e0`
+  （`fix: 收敛随访模板默认业务口径`）、第七十八批阶段交接提交
   `9a3dfac17bb114342d616130ec3fc48e02a080cc`
   （`docs: 记录临床路径层级前台口径复演`）、第七十八批应用提交
   `4384ab19b37250ac1d0923f08d4b1f7b5c05e1e8`
@@ -190,7 +194,7 @@
   第七十三批安全与配置前台入口口径收敛、第七十四批工作台知识关系同步口径收敛，
   第七十五批质量管理概览默认真实口径收敛、第七十六批质量评价默认真实口径收敛，
   第七十七批评价指标默认术语统一、第七十八批临床路径层级前台口径收敛，
-  以及第七十九批随访模板默认业务口径收敛。
+  第七十九批随访模板默认业务口径收敛，以及第八十批工作台运行底座默认层收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -211,7 +215,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `90dce703a9848147e7f4d02ff43b0f35fc22e7e0`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `0322041c2ddc0b3c97db0ead209eaed191219957`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -221,6 +225,56 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第八十批·工作台运行底座默认层收敛）
+
+- 本批继续按全局菜单、医疗产品体验和全角色真实前台复核。结论：第四十四批全局菜单命名与顺序仍成立；
+  `docs/EXPERIENCE_CONTRACT.md` 要求默认层说用户任务、低频技术对象收进高级信息。平台管理员工作台的
+  `系统健康` 和 `外部依赖连通` 是角色首屏运营视图，不应直接展示 `数据库：postgres`、`关系数据库 · 正常`。
+  数据库方言、迁移位置、依赖明细仍属于 `/system/providers`、运行诊断和安全基线语境；工作台只提示可进入运行保障核查，
+  并将依赖标签映射为 `运行数据服务`，避免把技术底座当作医疗产品主任务。菜单、路由、权限、运行保障 API、后端、
+  数据库、构建配置和 134 发布配置均未改变。
+- 已本地提交 `0322041c2ddc0b3c97db0ead209eaed191219957`
+  （`fix: 收敛工作台运行底座默认层`）：
+  - `frontend/src/widgets/WorkbenchPanel.tsx` 将平台工作台 `系统健康` 卡片中的
+    `数据库：...` 改为 `运行保障可查看数据库和依赖明细`。
+  - 同文件新增工作台依赖展示映射：运行快照中的数据库依赖在工作台默认层显示为 `运行数据服务`；
+    `知识关系同步` 映射保持第七十四批业务口径；原始 `database`、`displayName`、`detail` 等契约值继续保留给运行保障详情。
+  - `frontend/src/widgets/WorkbenchPanel.test.tsx` 增加默认层和部分来源失败场景反向断言，阻断
+    `数据库：` 与 `关系数据库` 回流平台工作台首屏。
+- 本地验证：
+  - 红绿核验：先改测试后执行
+    `npm --prefix frontend test -- WorkbenchPanel.test.tsx -t "renders the platform operations view without customer-visible technical English"`
+    在旧实现下失败，明确找不到 `运行保障可查看数据库和依赖明细`；实现第一步后继续暴露 `关系数据库 · 正常`，
+    最终加入工作台依赖映射后同命令通过，`1` 项。
+  - `npm --prefix frontend test -- WorkbenchPanel.test.tsx` 通过，`16` 项。
+  - 关联配置回归：
+    `npm --prefix frontend test -- WorkbenchPanel.test.tsx pages.smoke.test.tsx productCatalog.test.ts routes.test.ts menu.test.ts productRoleJourneys.test.ts`
+    通过，`6` 个测试文件 / `117` 项。
+  - 生产工作台扫描：
+    `rg -n "数据库：|关系数据库" frontend/src/widgets/WorkbenchPanel.tsx frontend/src/widgets/WorkbenchPanel.test.tsx`
+    仅命中测试夹具和反向断言；`rg -n "数据库：|关系数据库" frontend/src --glob '!**/*.test.*' --glob '!**/*.spec.*'`
+    仅命中安全基线、运行诊断和国产化自检等运行保障/合规明细页面。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `959` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `Dashboard-CxLK2_Pw.js`、`index-B1bGHYLa.js`、
+    `SystemProviders-BVkJXjDM.js` 等前端产物。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 公网首页
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 04:49:59 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，外部 `index.html` 仍指向
+  `/assets/index-DYTh-Ceu.js`、`/assets/vendor-react-bdrMx_IT.js`、`/assets/vendor-data-D9EFEnEk.js`、
+  `/assets/vendor-react-C5ap-Sga.css`、`/assets/index-XMjG4gr3.css`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头
+  `Date=Sat, 04 Jul 2026 04:49:59 GMT`，`X-Trace-Id=ad4dd6b2-d5ae-46ee-b0fd-05fa4d72526c`。
+  当前 134 映射仍是后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、前端 dist=
+  `95bb816292f59833005df4761866dd9d89886cb4`；不得把本地 `0322041c` 记为已部署。
+- 下一步继续沿全局菜单、全角色职责旅程、真实前台默认层做广度优先复核；优先处理可真实落地的产品体验、
+  契约、测试、构建和文档问题；不使用子代理、不咨询、不推送远程 `main`。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第七十九批·随访模板默认业务口径收敛）
 
