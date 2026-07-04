@@ -348,12 +348,12 @@ const graphExperience: RouteExperience = {
     {
       role: "临床专家",
       responsibility: "查看知识关系、适应证、禁忌和相互作用",
-      boundary: "图谱关系仅作复核依据，不自动形成诊疗结论",
+      boundary: "知识关系仅作复核依据，不自动形成诊疗结论",
     },
     {
       role: "医疗引擎运营员",
-      responsibility: "核查图谱投影、来源版本和同步状态",
-      boundary: "图谱不可用时必须诚实降级",
+      responsibility: "核查知识关系投影、来源版本和同步状态",
+      boundary: "知识关系不可用时必须诚实降级",
     },
   ],
 };

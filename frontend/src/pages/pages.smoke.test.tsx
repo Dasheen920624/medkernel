@@ -238,8 +238,8 @@ describe("page smoke coverage", () => {
 
   it("renders the knowledge graph page with projection-source messaging", () => {
     renderPage(<GraphExplore />);
-    expect(screen.getByRole("heading", { name: "图谱查询" })).toBeInTheDocument();
-    expect(screen.getByText("关系库权威源的可重建投影")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "知识关系" })).toBeInTheDocument();
+    expect(screen.getByText("查看知识之间的来源、适应证、禁忌和相互作用关系")).toBeInTheDocument();
   });
 
   it("renders the model capability status page", () => {

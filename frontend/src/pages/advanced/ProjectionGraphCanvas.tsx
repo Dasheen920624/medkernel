@@ -49,7 +49,7 @@ export function ProjectionGraphCanvas({
   );
 
   if (graph.nodes.length === 0) {
-    return <Empty description="当前查询范围没有可展示的投影关系" />;
+    return <Empty description="当前查询范围没有可展示的知识关系" />;
   }
 
   return (
@@ -57,7 +57,7 @@ export function ProjectionGraphCanvas({
       <Space className={styles.graphControls} size="small">
         <Tooltip title="缩小">
           <Button
-            aria-label="缩小图谱"
+            aria-label="缩小关系图"
             icon={<MinusOutlined />}
             disabled={zoomIndex === 0}
             onClick={() => setZoomIndex((value) => Math.max(0, value - 1))}
@@ -72,7 +72,7 @@ export function ProjectionGraphCanvas({
         </Tooltip>
         <Tooltip title="放大">
           <Button
-            aria-label="放大图谱"
+            aria-label="放大关系图"
             icon={<PlusOutlined />}
             disabled={zoomIndex === ZOOM_CLASSES.length - 1}
             onClick={() => setZoomIndex((value) => Math.min(ZOOM_CLASSES.length - 1, value + 1))}
@@ -84,7 +84,7 @@ export function ProjectionGraphCanvas({
         <div className={`${styles.graphCanvas} ${ZOOM_CLASSES[zoomIndex]}`}>
           <svg
             role="group"
-            aria-label="投影关系图"
+            aria-label="知识关系图"
             className={styles.graphEdges}
             viewBox="0 0 100 100"
             preserveAspectRatio="none"
