@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第八十八批最新应用提交为 `e901e739ffab92bf66f6438d306cf68b3cfe63c4`
-  （`fix: 收敛临床路径库任务口径`）。其前置本地提交包括第八十七批阶段交接提交
+- 第八十九批最新应用提交为 `58c01f7546bad98d3c1022b6f939d78cb4b1cbb4`
+  （`fix: 收敛评价指标任务口径`）。其前置本地提交包括第八十八批阶段交接提交
+  `25d797f2b499cf5872decb4a7f96739e6f249765`
+  （`docs: 记录临床路径库任务口径复演`）、第八十八批应用提交
+  `e901e739ffab92bf66f6438d306cf68b3cfe63c4`
+  （`fix: 收敛临床路径库任务口径`）、第八十七批阶段交接提交
   `448d93e957a0fee9757c60e7455cf359e8921be8`
   （`docs: 记录诊断知识库任务口径复演`）、第八十七批应用提交
   `e4bcc19f4e8b8380368a1c71684a037a35002223`
@@ -228,8 +232,8 @@
   第七十七批评价指标默认术语统一、第七十八批临床路径层级前台口径收敛，
   第七十九批随访模板默认业务口径收敛、第八十批工作台运行底座默认层收敛、第八十一批诊断知识库职责边界口径收敛，
   第八十二批诊断知识表单示例口径收敛、第八十三批临床路径建模示例口径收敛、第八十四批批量规则默认示例口径收敛，
-  第八十五批七步流来源选择口径收敛、第八十六批资产编目入口口径收敛、第八十七批诊断知识库任务口径收敛，
-  以及第八十八批临床路径库任务口径收敛。
+  第八十五批七步流来源选择口径收敛、第八十六批资产编目入口口径收敛、第八十七批诊断知识库任务口径收敛、
+  第八十八批临床路径库任务口径收敛，以及第八十九批评价指标任务口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -250,7 +254,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `e901e739ffab92bf66f6438d306cf68b3cfe63c4`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `58c01f7546bad98d3c1022b6f939d78cb4b1cbb4`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -260,6 +264,56 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第八十九批·评价指标任务口径收敛）
+
+- 本批继续按全局菜单、医疗产品体验和全角色职责旅程复核。结论：左侧菜单 `评价指标` 属于质量管理域，
+  仍比“评估指标库”或“质控指标维护”更适合医院质控负责人心智，不需要重命名或重排；本批发现的真实缺口是
+  `/qc/eval/sets` 页面说明、路由职责和自动生成功能目录仍使用“维护评价指标 / 待维护指标”口径。
+  按 `PRODUCT_SCOPE` 对 EVALUATION 资产的定义、`CONSTITUTION` 统一最小发布流和 `EXPERIENCE_CONTRACT`
+  的医院语言要求，本批仅把客户可见任务收敛为“定义评价指标、试算影响分析并发布生效”；菜单键、菜单顺序、权限、后端 API、
+  数据库、构建配置和 134 发布配置均未改变。
+- 已本地提交 `58c01f7546bad98d3c1022b6f939d78cb4b1cbb4`
+  （`fix: 收敛评价指标任务口径`）：
+  - `frontend/src/pages/quality/QcEvalSets.tsx` 将页面说明从
+    `维护质控评价指标、影响分析和发布状态` 改为
+    `定义质控评价指标，试算影响范围并通过机构生效版本统一发布。`，并把创建弹窗提示从
+    `指标版本独立维护` 改为 `指标草稿统一发布`，强调通过安全复核并纳入机构生效版本后才真正上线。
+  - `frontend/src/shared/config/routes.ts` 将评价指标 route experience goal 从 `核查评价指标配置状态` 改为
+    `核查评价指标发布状态`，默认视图从 `待维护指标` 改为 `待处理指标`；质控负责人职责从
+    `维护评价指标、适用范围和发布节奏` 改为 `定义评价指标口径、适用范围和发布节奏`。
+  - `scripts/audit/export-product-capabilities.mjs` 与 `docs/audit/product-function-catalog.md` 将
+    `/qc/eval/sets` 唯一客户任务同步为 `定义评价指标、试算影响分析并发布生效`。
+  - `QcEvalSets.test.tsx`、`routes.test.ts` 和 `productCatalog.test.ts` 正向锁定新口径，并反向阻断
+    “维护质控评价指标”“维护评价指标”“待维护指标”“指标版本独立维护”等旧语义回流。
+- 本地验证：
+  - 红灯：先改测试后执行
+    `npm --prefix frontend test -- QcEvalSets.test.tsx routes.test.ts productCatalog.test.ts -t "loads real indicators|creates a draft indicator|为剩余真实前台|hospital-facing language"`
+    在旧实现下失败，明确命中 4 个预期缺口：页面仍展示“维护质控评价指标”，弹窗仍展示“指标版本独立维护”，
+    路由 goal 仍是“核查评价指标配置状态”，功能目录仍未出现新的评价指标客户任务。
+  - 绿灯：实现后同一命令通过，`3` 个测试文件 / `4` 项目标用例。
+  - 评价指标与菜单目录关联回归：
+    `npm --prefix frontend test -- QcEvalSets.test.tsx QcEvalResults.test.tsx routes.test.ts menu.test.ts productCatalog.test.ts productRoleJourneys.test.ts pages.smoke.test.tsx`
+    通过，`7` 个测试文件 / `116` 项。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - 旧口径扫描：
+    `rg -n "维护质控评价指标|维护评价指标|待维护指标|指标版本独立维护|核查评价指标配置状态" frontend/src docs/audit/product-function-catalog.md scripts/audit/export-product-capabilities.mjs --glob '!**/*.test.tsx' --glob '!**/*.test.ts'`
+    无输出；全量扫描也无输出。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `960` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `QcEvalSets-BsjMOlAc.js`、`index-dU9RfWM-.js` 等前端产物。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 公网首页
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 05:58:33 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`；readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health/readiness` 返回 HTTP 200 / `{"status":"UP"}`，
+  `X-Trace-Id=e07f5545-d3d2-4146-803c-024def3c0fff`。当前 134 映射仍是
+  后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`；
+  不得把本地 `58c01f75` 记为已部署。
+- 下一步继续沿全局菜单、全角色职责旅程、真实前台默认层做广度优先复核；优先处理可真实落地的产品体验、
+  契约、测试、构建和文档问题；不使用子代理、不咨询、不推送远程 `main`。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第八十八批·临床路径库任务口径收敛）
 
