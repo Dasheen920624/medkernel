@@ -2477,7 +2477,7 @@ export default function PathwayTemplates() {
                 tooltip="用于跨版本、机构生效版本和审计追溯；同身份修改时由系统自动创建下一版本"
                 rules={[{ required: true }]}
               >
-                <Input placeholder="如 PATH.CARDIO.REVIEW" />
+                <Input placeholder="如 xinxueguan-lujing-fuhe" />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} lg={8}>
@@ -2487,7 +2487,7 @@ export default function PathwayTemplates() {
                 tooltip="填写真实病种、诊断分组或院内路径病种身份，不写临时中文别名"
                 rules={[{ required: true }]}
               >
-                <Input placeholder="如 CARDIO 或 ICD10-I63" />
+                <Input placeholder="如 xinxueguanbing 或 ICD10-I63" />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} lg={8}>
@@ -2656,7 +2656,7 @@ export default function PathwayTemplates() {
                             label="阶段身份"
                             rules={[{ required: true }]}
                           >
-                            <Input placeholder="如 PREOP" />
+                            <Input placeholder="如 shuqian" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} sm={12} lg={6}>
@@ -2676,7 +2676,7 @@ export default function PathwayTemplates() {
                             label="里程碑身份"
                             rules={[{ required: true }]}
                           >
-                            <Input placeholder="如 M-PREOP-ASSESS" />
+                            <Input placeholder="如 shuqian-rujing-pinggu" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} sm={12} lg={6}>
@@ -2845,7 +2845,7 @@ export default function PathwayTemplates() {
                             tooltip="新增时自动生成（N1/N2…），可改；用于流转连接与起点引用"
                             rules={[{ required: true }]}
                           >
-                            <Input placeholder="如 N1，可改为 ASSESS" />
+                            <Input placeholder="如 N1，可改为 rujing-pinggu" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} sm={12} lg={6}>
@@ -2990,7 +2990,7 @@ export default function PathwayTemplates() {
                               }),
                             ]}
                           >
-                            <Input placeholder="如 PATH.TIME.ASSESS" />
+                            <Input placeholder="如 rujing-pinggu-shichuang" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} sm={12} lg={4}>
@@ -3098,7 +3098,7 @@ export default function PathwayTemplates() {
                                 label="医嘱套餐引用"
                                 rules={[{ required: true, message: "请填写医嘱套餐引用" }]}
                               >
-                                <Input placeholder="如 sepsis-order-set" />
+                                <Input placeholder="如 ganranxing-xiuke-yizhu-taocan" />
                               </Form.Item>
                             </Col>
                           )}
@@ -3169,7 +3169,7 @@ export default function PathwayTemplates() {
                             tooltip="新增时自动生成（E1/E2…），可改；用于路径流转追溯"
                             rules={[{ required: true }]}
                           >
-                            <Input placeholder="如 E1，可改为 EDGE.ASSESS.FOLLOWUP" />
+                            <Input placeholder="如 E1，可改为 rujing-daosuifang" />
                           </Form.Item>
                         </Col>
                         <Col xs={24} sm={12} lg={6}>
