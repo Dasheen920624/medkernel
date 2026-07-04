@@ -453,6 +453,18 @@ describe("PathwayTemplates 上线路径维护契约", () => {
     expect(within(dialog).queryByText("边编码")).not.toBeInTheDocument();
   });
 
+  it("结局指标绑定引用已生效评价指标", async () => {
+    const { user, dialog } = await openCreateDialog();
+
+    await user.click(within(dialog).getByRole("tab", { name: /节点画布/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /添加结局指标/ }));
+
+    expect(within(dialog).getByText("评价指标")).toBeInTheDocument();
+    expect(within(dialog).getByText("选择已生效评价指标")).toBeInTheDocument();
+    expect(within(dialog).queryByText("评估指标")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("选择已生效评估指标")).not.toBeInTheDocument();
+  });
+
   it(
     "路径原型提交由系统自动生成下一草稿版本，不提交旧容器归属",
     async () => {

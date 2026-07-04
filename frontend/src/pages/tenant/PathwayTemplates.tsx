@@ -2777,18 +2777,18 @@ export default function PathwayTemplates() {
                           <Form.Item
                             {...fieldProps}
                             name={[field.name, "indicatorCode"]}
-                            label="评估指标"
+                            label="评价指标"
                             rules={[{ required: true }]}
                           >
                             <Select
                               showSearch
                               allowClear
                               filterOption={false}
-                              placeholder="选择已生效评估指标"
+                              placeholder="选择已生效评价指标"
                               options={outcomeIndicatorOptions}
                               onSearch={setOutcomeIndicatorSearch}
                               onClear={() => setOutcomeIndicatorSearch("")}
-                              notFoundContent="暂无已生效评估指标"
+                              notFoundContent="暂无已生效评价指标"
                             />
                           </Form.Item>
                         </Col>
