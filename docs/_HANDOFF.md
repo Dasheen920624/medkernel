@@ -10,6 +10,31 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百零八批最新应用提交为 `1ce52eea11d04facbeb3285ac08131bd1043ff23`
+  （`fix: 校准临床工作台协同入口`）。本批未使用子代理、未推送远程、未合并 `main`；
+  继续按宪章、体验契约、功能目录和四职责旅程复核全角色前台体验。发现临床使用者工作台的“临床协同入口”
+  把 `消息通知` 放在临床卡片第三动作，并在空待办说明中与患者路径、提醒推荐、随访协同并列，和职责旅程中的临床高频任务
+  `患者路径 / 提醒与推荐 / 随访协同` 不一致，也会把应位于全局页眉的通知入口误包装成临床协同主链路。现将卡片第三动作改为
+  `随访协同` 并进入 `/clinical/followup`，空待办说明同步收敛为患者路径、提醒与推荐或随访协同；`消息通知`
+  继续保留为全局页眉通知与通知设置能力。
+- 第一百零八批验证：先改 `WorkbenchPanel` 测试并在旧实现上跑出预期失败
+  （`npm --prefix frontend run test -- WorkbenchPanel -t "prioritizes my todo"` 因旧空待办说明仍包含消息通知而失败）；
+  修正后同命令通过（1 个测试通过、16 个跳过）。随后
+  `npm --prefix frontend run test -- WorkbenchPanel productRoleJourneys Notifications AppLayout routes` 通过
+  （6 个文件、123 个测试），
+  `npm --prefix frontend exec prettier -- --check frontend/src/widgets/WorkbenchPanel.tsx frontend/src/widgets/WorkbenchPanel.test.tsx`
+  通过，`npm --prefix frontend run build` 通过，`npm --prefix frontend run verify` 通过
+  （114 个测试文件、964 个测试；仅出现既有 antd Timeline deprecation warning），`git diff --check`
+  和 `git diff --cached --check` 均退出码 0。
+- 第一百零八批开工核查：`origin/main` 仍为
+  `1561ba6bef8777dcef76432696f43de4277fdd3f`
+  （`完善全角色上线演练与134复演闭环 (#653)`）；本批应用提交前本地分支领先 `origin/main` 295 个提交。
+  134 当前公网首页 `https://193.112.107.134/medkernel/` HTTP 200，
+  `Date=Sat, 04 Jul 2026 16:43:08 GMT`，`Content-Length=832`；
+  readiness `https://193.112.107.134/medkernel/actuator/health/readiness` HTTP 200 /
+  `{"status":"UP"}`，`X-Trace-Id=b5422552-0561-40e5-8314-611b9321b466`。本批本地应用提交尚未发布到
+  134、尚未推送远程、尚未合并 `main`。
+- 下一步继续主线：不使用子代理；按十二角色真实前台体验广度复核剩余上线级问题，阶段完成后继续更新本文件并本地提交。
 - 第一百零七批最新应用提交为 `542ae273e8a0616f967fcfb253d967d9bc140af6`
   （`fix: 优化工作台职责筛选口径`）。本批未使用子代理、未推送远程、未合并 `main`；
   以宪章、体验契约和四职责旅程为准，继续全角色前台体验复核，发现工作台三项默认筛选对所有职责统一展示
@@ -23,7 +48,6 @@
   `npm --prefix frontend exec prettier -- --check frontend/src/widgets/WorkbenchPanel.tsx frontend/src/widgets/WorkbenchPanel.test.tsx`
   通过，`npm --prefix frontend run build` 通过，`npm --prefix frontend run verify` 通过
   （114 个测试文件、964 个测试），`git diff --check` 退出码 0。
-- 下一步继续主线：不使用子代理；按十二角色真实前台体验广度复核剩余上线级问题，阶段完成后继续更新本文件并本地提交。
 - 第一百零六批最新应用提交为 `52c5344a151231924363849005b1e51bbfb959ea`
   （`fix: 收敛平台管理员工作台建议动作`）。本批未使用子代理、未推送远程、未合并 `main`；
   以十二角色真实前台体验、菜单权限和运行职责边界为准，修正平台管理员工作台“本周建议动作”。
