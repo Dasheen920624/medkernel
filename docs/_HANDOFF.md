@@ -10,10 +10,14 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第六十五批已完成阶段交接提交为 `fb2df0c6a5d80f63fd17ee8040d7b0092562b1ef`
-  （`docs: 记录区域来源状态口径复演`）；第六十六批最新应用代码提交为
+- 第六十六批已完成阶段交接提交为 `e1f16076bb7058617a4f7954d5292ceec625652f`
+  （`docs: 记录知识生产分流状态口径复演`）；第六十七批最新应用代码提交为
+  `01b6c6270e8b1b2b9138e80c2bd60ce321a99898`
+  （`fix: 收敛知识生产候选分流前台口径`）。其前置本地提交包括第六十六批应用提交
   `08e3cc4d7cc6801ca850f543c8ce3c475a5f4c7c`
-  （`fix: 收敛知识生产分流状态前台口径`）。其前置本地提交包括第六十五批应用提交
+  （`fix: 收敛知识生产分流状态前台口径`）、第六十五批阶段交接提交
+  `fb2df0c6a5d80f63fd17ee8040d7b0092562b1ef`
+  （`docs: 记录区域来源状态口径复演`）、第六十五批应用提交
   `8b7a01c3dee997b65011f731e98bb168e9db5c5d`
   （`fix: 收敛区域来源状态前台口径`）、第六十四批阶段交接提交
   `f7cb2cc64b66d8b8f17b17beeb66fba4cd6c3818`
@@ -131,7 +135,8 @@
   第五十九批验收与生产目录前台口径收敛、第六十批导出与批量任务编号层级收敛，
   第六十一批质控指标影响范围前台口径收敛、第六十二批质量域组织范围前台口径收敛，
   第六十三批知识生产校验状态前台口径收敛、第六十四批沙盘机构生效版本前台口径收敛，
-  第六十五批系统接入区域来源状态前台口径收敛，以及第六十六批知识生产分流状态前台口径收敛。
+  第六十五批系统接入区域来源状态前台口径收敛、第六十六批知识生产分流状态前台口径收敛，
+  以及第六十七批知识生产候选分流前台口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -152,7 +157,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `08e3cc4d7cc6801ca850f543c8ce3c475a5f4c7c`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `01b6c6270e8b1b2b9138e80c2bd60ce321a99898`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -162,6 +167,48 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第六十七批·知识生产候选分流前台口径收敛）
+
+- 本批继续按医疗产品体验、全角色真实前台、菜单分布和职责旅程复核。结论：第四十四批全局菜单命名与顺序仍成立；
+  `诊断知识库`、`临床路径库`、`随访模板`、`医疗引擎运营员` 等名称与角色口径继续符合权威功能目录和职责旅程。
+  新发现的真实体验缺口在知识生产：页面和产品目录仍把前台任务称为“八类状态分流 / 八类状态队列”。“八类状态”是底层候选治理事实，
+  但对平台知识生产、平台治理、医疗引擎运营员和院内知识维护人员而言，默认菜单与任务区应读到“候选分流”，
+  原始八类分类只应留在实现、数据和证据追溯语义里。
+- 已本地提交 `01b6c6270e8b1b2b9138e80c2bd60ce321a99898`
+  （`fix: 收敛知识生产候选分流前台口径`）：
+  - `KnowledgeGovernance` 将生产页说明、进度摘要、卡片标题和队列标题统一收敛为“候选分流 / 候选分流队列”，
+    表格列从“八类状态”收敛为“分流结果”，错误摘要从“八类状态分流”收敛为“候选分流”。
+  - `KnowledgeGovernance.test.tsx` 增加默认层不得出现“八类状态分流 / 八类状态队列”的断言，
+    继续保留新资产、冲突仲裁、进入审核等业务状态验证。
+  - `scripts/audit/export-product-capabilities.mjs` 与生成的 `docs/audit/product-function-catalog.md` 同步将
+    `/knowledge/production` 任务描述中的“八类状态”更新为“候选分流”，避免功能目录和前台口径分叉。
+  - 未改变知识生产 API、后端数据契约、候选状态枚举、影子评测或 134 发布配置，只调整默认前台任务命名和产品目录映射。
+- 本地验证：
+  - 红绿核验：`npm --prefix frontend test -- KnowledgeGovernance.test.tsx -t "renders the knowledge production center|shows agent progress"`
+    在旧实现下先失败于找不到“候选分流 / 候选分流队列”，实现后通过；完整
+    `npm --prefix frontend test -- KnowledgeGovernance.test.tsx` 通过，`1` 个测试文件 / `37` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `950` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `KnowledgeGovernance-Ce9gV4kY.js`、`KnowledgeProduction-leGk0UQ2.js`、
+    `index-C5ETtOXr.js` 等前端产物。
+  - `npm --prefix frontend run format:check` 通过；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+  - `node scripts/audit/export-product-capabilities.mjs --check` 通过；`bash scripts/check-comment-zh.sh --mode=full`
+    通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项。
+  - 前台旧口径扫描：
+    `rg -n "八类状态|8 态分流|8 态队列" frontend/src docs/PRODUCT_SCOPE.md docs/EXPERIENCE_CONTRACT.md docs/audit/product-function-catalog.md docs/audit/product-role-journeys.md scripts/audit/export-product-capabilities.mjs --glob '!**/*.test.ts' --glob '!**/*.test.tsx'`
+    无输出；旧词仅保留在测试负断言中，防止回退。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头 `Date=Sat, 04 Jul 2026 01:45:16 GMT`，
+  `X-Trace-Id=f6fe381f-8f38-4f87-a4ce-86d5a3718afb`；公网首页 HTTP 200，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`。
+  134 映射仍按当前已核定事实保持：后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `01b6c627` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、菜单分布、构建门禁、
+  134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第六十六批·知识生产分流状态前台口径收敛）
 
