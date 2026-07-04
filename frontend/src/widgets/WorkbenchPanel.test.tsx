@@ -526,8 +526,32 @@ describe("WorkbenchPanel", () => {
     expect(document.querySelectorAll(".ant-btn-primary")).toHaveLength(1);
     expect(screen.getAllByTestId(/^workbench-filter-/)).toHaveLength(3);
     expect(screen.getByText("组织范围")).toBeInTheDocument();
-    expect(screen.getByText("病种")).toBeInTheDocument();
+    expect(screen.getByText("上线状态")).toBeInTheDocument();
+    expect(screen.queryByText("病种")).not.toBeInTheDocument();
     expect(screen.getByText("时间")).toBeInTheDocument();
+  });
+
+  it("uses responsibility-specific default filter dimensions for all launch roles", () => {
+    const expectedFilterLabels = new Map([
+      ["platform-admin", "上线状态"],
+      ["engine-operator", "资产类型"],
+      ["clinical-user", "临床场景"],
+      ["auditor", "证据类型"],
+    ]);
+
+    ROLE_OPTIONS.forEach(({ code, name }) => {
+      setLoadedState(code, name);
+
+      const { unmount } = renderWorkbench();
+
+      expect(screen.getAllByTestId(/^workbench-filter-/)).toHaveLength(3);
+      expect(screen.getByText("组织范围")).toBeInTheDocument();
+      expect(screen.getByText(expectedFilterLabels.get(code) ?? "")).toBeInTheDocument();
+      expect(screen.getByText("时间")).toBeInTheDocument();
+      expect(screen.queryByText("病种")).not.toBeInTheDocument();
+
+      unmount();
+    });
   });
 
   it("applies the time filter to recent audit changes", () => {

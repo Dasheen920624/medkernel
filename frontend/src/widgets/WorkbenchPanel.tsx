@@ -105,6 +105,12 @@ const STAGE_LABEL: Record<string, string> = {
 
 const WORKBENCH_EVIDENCE_HINT = "失败已留痕，可在审计证据中追溯。";
 const KNOWLEDGE_RELATION_SYNC_LABEL = "知识关系同步";
+const ROLE_FILTER_DIMENSIONS: Record<ProductRoleKind, { label: string; value: string }> = {
+  operations: { label: "上线状态", value: "全部状态" },
+  knowledge: { label: "资产类型", value: "全部资产" },
+  clinical: { label: "临床场景", value: "全部场景" },
+  audit: { label: "证据类型", value: "全部证据" },
+};
 
 /**
  * 工作台只读组合现有来源 API，不拥有独立业务数据。
@@ -211,6 +217,7 @@ export function WorkbenchPanel() {
         {sourceFailures.length > 0 ? <PartialSourceAlert failures={sourceFailures} /> : null}
         <WorkbenchFilters
           profile={profile}
+          roleKind={view.kind}
           timeFilter={timeFilter}
           onTimeFilterChange={setTimeFilter}
         />
@@ -422,14 +429,17 @@ function WorkbenchCards({
 
 function WorkbenchFilters({
   profile,
+  roleKind,
   timeFilter,
   onTimeFilterChange,
 }: {
   profile?: SecurityProfile;
+  roleKind: ProductRoleKind;
   timeFilter: TimeFilter;
   onTimeFilterChange: (value: TimeFilter) => void;
 }) {
   const scopeLabel = resolveScopeLabel(profile);
+  const roleFilter = ROLE_FILTER_DIMENSIONS[roleKind];
   return (
     <Card title="当前视图筛选" data-testid="workbench-default-filters">
       <Space wrap>
@@ -441,12 +451,12 @@ function WorkbenchFilters({
             options={[{ label: scopeLabel, value: scopeLabel }]}
           />
         </Space>
-        <Space direction="vertical" size={2} data-testid="workbench-filter-disease">
-          <Text type="secondary">病种</Text>
+        <Space direction="vertical" size={2} data-testid="workbench-filter-role-dimension">
+          <Text type="secondary">{roleFilter.label}</Text>
           <Select
-            aria-label="病种"
-            value="全部病种"
-            options={[{ label: "全部病种", value: "全部病种" }]}
+            aria-label={roleFilter.label}
+            value={roleFilter.value}
+            options={[{ label: roleFilter.value, value: roleFilter.value }]}
           />
         </Space>
         <Space direction="vertical" size={2} data-testid="workbench-filter-time">
