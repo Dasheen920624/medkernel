@@ -28,7 +28,10 @@ import styles from "./Login.module.css";
 const { Title, Text } = Typography;
 
 const helpItems = [
-  { label: "首次登录", value: "使用人员与账号中开通的登录名进入，首次登录按医院策略修改密码。" },
+  {
+    label: "首次登录",
+    value: "使用院内工号或人员与账号中开通的登录名进入，首次登录按医院策略修改密码。",
+  },
   { label: "忘记密码", value: "请联系平台管理员或本院信息科重置密码，重置与交付会进入审计证据。" },
   { label: "统一身份", value: "统一身份由身份来源配置；未就绪时仅展示状态，不生成跳转入口。" },
 ];
@@ -82,7 +85,7 @@ function getPlatformContextDescription({
     return "正在等待服务端返回可登录的机构。";
   }
   if (isPlatformLayer && hasCustomerTenants) {
-    return "仅供平台治理、知识标准治理和系统运维人员使用；机构差异不会改写平台标准。";
+    return "面向平台管理员、知识标准治理员和系统运维人员；机构差异不会改写平台标准。";
   }
   return platformTenantDescription;
 }
@@ -267,6 +270,9 @@ export default function Login() {
     isError: delegatedAuthStatus.isError,
     error: delegatedAuthStatus.error,
   });
+  const pageClassName = [styles.page, showSso || showHelp ? styles.pageExpanded : ""]
+    .filter(Boolean)
+    .join(" ");
   useEffect(() => {
     const tenantStillVisible = visibleTenants.some(
       (tenant) => tenant.tenantId === selectedTenantId,
@@ -286,7 +292,7 @@ export default function Login() {
     <main
       aria-busy={login.isPending}
       aria-label="登录 MedKernel 工作台"
-      className={styles.page}
+      className={pageClassName}
       style={loginThemeStyle}
     >
       <div className={styles.themeSwitcher}>
@@ -305,7 +311,7 @@ export default function Login() {
                   MedKernel
                 </Text>
                 <Text type="secondary" className={styles.brandSubtitle}>
-                  集团医疗智能中枢
+                  医疗知识与决策支持平台
                 </Text>
               </div>
             </div>
@@ -313,7 +319,7 @@ export default function Login() {
               {isPlatformLayer ? "进入平台治理" : "进入机构工作台"}
             </Title>
             <Text type="secondary">
-              {canUseDelegatedLogin ? "选择机构后使用院内登录名" : "使用平台治理登录名"}
+              {canUseDelegatedLogin ? "选择机构后使用院内账号登录" : "使用平台管理员账号登录"}
             </Text>
           </div>
 
@@ -383,7 +389,7 @@ export default function Login() {
             >
               <Input
                 prefix={<UserOutlined />}
-                placeholder={isPlatformLayer ? "请输入平台治理登录名" : "请输入工号或院内登录名"}
+                placeholder={isPlatformLayer ? "请输入平台管理员登录名" : "请输入工号或院内账号"}
                 size="large"
                 autoComplete="username"
               />
@@ -424,7 +430,7 @@ export default function Login() {
                   })}
                 </div>
                 <Text type="secondary" className={styles.helperText}>
-                  请选择本次工作的集团、医院或医疗服务机构。
+                  选择本次登录所在的集团、医院或医疗服务机构。
                 </Text>
               </div>
             ) : (
@@ -436,7 +442,7 @@ export default function Login() {
                     {platformContextDescription}
                   </Text>
                   <Text type="secondary" className={styles.helperText}>
-                    {activeTenant ? "平台标准、人员权限与系统运维入口" : "无可登录机构"}
+                    {activeTenant ? "平台标准、人员权限与系统运维" : "无可登录机构"}
                   </Text>
                 </div>
               </div>
@@ -460,7 +466,7 @@ export default function Login() {
 
           <div className={styles.policyStrip}>
             <SafetyCertificateOutlined aria-hidden="true" />
-            <Text>系统按医院策略自动校验多因素认证、国密通道与会话安全。</Text>
+            <Text>系统会按医院安全策略校验多因素认证、国密通道和会话安全。</Text>
           </div>
 
           {bootstrapStatus.data?.initialized === false && (
@@ -559,7 +565,7 @@ export default function Login() {
 
           <footer className={`${styles.complianceFooter} ${styles.compactFooter}`}>
             <Text type="secondary" className={styles.helperText}>
-              用户协议 · 隐私政策 · 个人信息收集清单由部署方在正式上线前配置
+              用户协议、隐私政策和个人信息收集清单由平台运维在上线前配置
             </Text>
             <Text type="secondary" className={styles.helperText}>
               ICP 备案号待填 · 公安备案号待填 · 等保 2.0 三级 · 商密评测预审中

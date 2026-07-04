@@ -1,23 +1,32 @@
 .page {
   min-height: 100vh;
   min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   box-sizing: border-box;
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, calc(var(--mk-unit) * 480));
   place-items: center;
   justify-content: center;
-  gap: calc(var(--mk-unit) * 16);
-  padding-block: clamp(calc(var(--mk-unit) * 32), 5.5vh, calc(var(--mk-unit) * 40))
-    clamp(calc(var(--mk-unit) * 20), 4vh, calc(var(--mk-unit) * 24));
+  gap: calc(var(--mk-unit) * 10);
+  overflow: clip;
+  padding-block: clamp(calc(var(--mk-unit) * 20), 3.5vh, calc(var(--mk-unit) * 28))
+    clamp(calc(var(--mk-unit) * 16), 3vh, calc(var(--mk-unit) * 20));
   padding-inline: clamp(calc(var(--mk-unit) * 20), 5vw, calc(var(--mk-unit) * 64));
   color: var(--mk-login-text);
   background: var(--mk-login-page-bg);
 }
 
+.pageExpanded {
+  height: auto;
+  align-items: start;
+  overflow-y: auto;
+}
+
 .themeSwitcher {
   position: absolute;
-  top: calc(var(--mk-unit) * 24);
+  top: calc(var(--mk-unit) * 16);
   right: clamp(calc(var(--mk-unit) * 16), 6vw, calc(var(--mk-unit) * 72));
   z-index: 1;
   padding: calc(var(--mk-unit) * 4);
@@ -35,7 +44,7 @@
 }
 
 .loginCard :global(.ant-card-body) {
-  padding: calc(var(--mk-unit) * 18);
+  padding: calc(var(--mk-unit) * 16);
 }
 
 .page :global(.ant-form-item-label > label),
@@ -77,18 +86,18 @@
 .cardStack {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--mk-unit) * 8);
+  gap: calc(var(--mk-unit) * 7);
 }
 
 .cardHeader {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--mk-unit) * 2);
+  gap: calc(var(--mk-unit) * 1);
 }
 
 .brandLockup {
   display: grid;
-  grid-template-columns: calc(var(--mk-unit) * 38) minmax(0, 1fr);
+  grid-template-columns: calc(var(--mk-unit) * 36) minmax(0, 1fr);
   gap: calc(var(--mk-unit) * 8);
   align-items: center;
   margin-bottom: 0;
@@ -96,8 +105,8 @@
 
 .brandMark {
   display: grid;
-  width: calc(var(--mk-unit) * 38);
-  height: calc(var(--mk-unit) * 38);
+  width: calc(var(--mk-unit) * 36);
+  height: calc(var(--mk-unit) * 36);
   place-items: center;
   border: calc(var(--mk-unit) * 1) solid var(--mk-login-primary-border);
   border-radius: var(--mk-login-radius);
@@ -157,7 +166,7 @@
   display: flex;
   gap: calc(var(--mk-unit) * 8);
   align-items: flex-start;
-  padding: calc(var(--mk-unit) * 6) calc(var(--mk-unit) * 8);
+  padding: calc(var(--mk-unit) * 5) calc(var(--mk-unit) * 8);
   border: calc(var(--mk-unit) * 1) solid var(--mk-login-border);
   border-radius: var(--mk-login-radius);
   color: var(--mk-login-text-secondary);
@@ -227,8 +236,8 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: calc(var(--mk-unit) * 10);
   align-items: start;
-  margin-bottom: calc(var(--mk-unit) * 16);
-  padding: calc(var(--mk-unit) * 10) calc(var(--mk-unit) * 12);
+  margin-bottom: calc(var(--mk-unit) * 12);
+  padding: calc(var(--mk-unit) * 8) calc(var(--mk-unit) * 10);
   border: calc(var(--mk-unit) * 1) solid var(--mk-login-border);
   border-radius: var(--mk-login-radius);
   color: var(--mk-login-text-secondary);
@@ -248,7 +257,7 @@
 .utilityRow {
   display: flex;
   justify-content: center;
-  gap: calc(var(--mk-unit) * 12);
+  gap: calc(var(--mk-unit) * 10);
   padding-top: 0;
   border-top: calc(var(--mk-unit) * 1) solid var(--mk-login-border);
 }
@@ -321,6 +330,14 @@
 
 .compactFooter {
   gap: calc(var(--mk-unit) * 1);
+}
+
+@media (max-height: 44rem) {
+  .page {
+    height: auto;
+    align-items: start;
+    overflow-y: auto;
+  }
 }
 
 @media (max-width: 53.75em) {
