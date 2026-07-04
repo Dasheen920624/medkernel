@@ -132,7 +132,7 @@ export default function QcAlerts() {
       });
       setDispatchFeedback({
         type: "success",
-        text: "整改任务已派发，预警状态将随来源事实闭环刷新。",
+        text: "整改任务已派发，处置状态将随来源事实闭环刷新。",
       });
       alertsQuery.refetch();
     } catch (error: unknown) {
@@ -147,10 +147,13 @@ export default function QcAlerts() {
     try {
       const acknowledged = await acknowledgeMutation.mutateAsync(selectedAlert.alertId);
       setSelectedAlert(acknowledged);
-      setDispatchFeedback({ type: "success", text: "预警已确认，状态继续由来源事实闭环刷新。" });
+      setDispatchFeedback({
+        type: "success",
+        text: "风险提醒已确认，处置状态继续由来源事实闭环刷新。",
+      });
       alertsQuery.refetch();
     } catch (error: unknown) {
-      setDispatchFeedback({ type: "error", text: getApiErrorMessage(error, "确认预警失败") });
+      setDispatchFeedback({ type: "error", text: getApiErrorMessage(error, "确认风险提醒失败") });
     }
   }
 
@@ -175,8 +178,8 @@ export default function QcAlerts() {
       stateProps={{
         title: alertsQuery.isError ? parsedError?.message : "当前筛选下暂无待整改质量问题",
         description: alertsQuery.isError
-          ? "请稍后重试；若持续失败，请联系信息科核查质量预警服务。失败已留痕，可在审计证据中追溯。"
-          : "当前没有符合筛选条件的预警。",
+          ? "请稍后重试；若持续失败，请联系信息科核查质量问题与整改服务。失败已留痕，可在审计证据中追溯。"
+          : "当前没有符合筛选条件的质量问题。",
         traceId: parsedError?.traceId,
         onRetry: () => alertsQuery.refetch(),
       }}
@@ -185,7 +188,7 @@ export default function QcAlerts() {
         <Card>
           <Space wrap size="middle" align="center">
             <Select
-              aria-label="预警状态"
+              aria-label="处置状态"
               value={status}
               className="mk-select-narrow"
               onChange={(value) => {
@@ -199,7 +202,7 @@ export default function QcAlerts() {
               ]}
             />
             <Select
-              aria-label="预警时间"
+              aria-label="发现时间"
               value={timeScope}
               className="mk-select-narrow"
               onChange={(value) => {
@@ -213,7 +216,7 @@ export default function QcAlerts() {
               ]}
             />
             <Select
-              aria-label="预警级别"
+              aria-label="风险级别"
               value={severity}
               className="mk-select-narrow"
               onChange={(value) => {
@@ -327,7 +330,7 @@ export default function QcAlerts() {
         title={
           <Space>
             <AuditOutlined />
-            <span>预警处置证据</span>
+            <span>质量风险处置证据</span>
           </Space>
         }
         placement="right"
@@ -344,12 +347,12 @@ export default function QcAlerts() {
                 showIcon
                 icon={<WarningOutlined />}
                 message="医疗安全问题保持显性处置"
-                description="当前预警来自高风险质控事实，未闭环前不会在本页默认静默。"
+                description="当前风险提醒来自高风险质量问题，未闭环前不会在本页默认静默。"
               />
             )}
 
             <Descriptions bordered column={1} size="small">
-              <Descriptions.Item label="预警标题">{selectedAlert.title}</Descriptions.Item>
+              <Descriptions.Item label="质量风险标题">{selectedAlert.title}</Descriptions.Item>
               <Descriptions.Item label="证据摘要">
                 {alertEvidenceSummary(selectedAlert, evidenceDetailsEnabled)}
               </Descriptions.Item>
@@ -374,17 +377,17 @@ export default function QcAlerts() {
               type="info"
               showIcon
               message="状态闭环口径"
-              description="预警状态由来源事实刷新；本页只通过真实整改任务推进闭环，不在前端伪造确认结果。"
+              description="处置状态由来源事实刷新；本页只通过真实整改任务推进闭环，不在前端伪造确认结果。"
             />
 
             {selectedAlert.status === "OPEN" && (
               <Button
-                aria-label="确认预警"
+                aria-label="确认风险提醒"
                 icon={<AuditOutlined />}
                 loading={acknowledgeMutation.isPending}
                 onClick={onAcknowledgeAlert}
               >
-                确认预警
+                确认风险提醒
               </Button>
             )}
 
@@ -421,8 +424,8 @@ export default function QcAlerts() {
               <Alert
                 type="info"
                 showIcon
-                message="当前预警不支持直接派发"
-                description="只有未处置的质控问题来源预警可在本页派发整改任务。"
+                message="当前质量风险提醒不支持直接派发"
+                description="只有未处置的质量问题来源提醒可在本页派发整改任务。"
               />
             )}
           </Space>
@@ -505,7 +508,7 @@ function alertTypeTag(type: string) {
 
 function sourceTypeLabel(type: string) {
   if (type === "quality_finding") {
-    return "质控问题来源";
+    return "质量问题来源";
   }
   if (type === "rectification_task") {
     return "整改任务来源";
@@ -518,7 +521,7 @@ function alertEvidenceSummary(alert: QualityDashboardAlert, evidenceDetailsEnabl
     return alert.evidenceSummary;
   }
   if (alert.alertType === "HIGH_RISK_FINDING") {
-    return "高风险质控事实仍未闭环";
+    return "高风险质量问题仍未闭环";
   }
   if (alert.alertType === "OVERDUE_RECTIFICATION") {
     return "整改任务已逾期";

@@ -122,7 +122,12 @@ describe("QcAlerts", () => {
     expect(mockUseQualityAlerts).toHaveBeenCalledWith(
       expect.objectContaining({ status: "OPEN", severity: "HIGH_RISK", page: 1, size: 20 }),
     );
-    expect(screen.getByRole("combobox", { name: "预警级别" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "处置状态" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "发现时间" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "风险级别" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "预警状态" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "预警时间" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "预警级别" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("科室范围")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "质量问题与整改" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "质量问题" })).not.toBeInTheDocument();
@@ -134,7 +139,8 @@ describe("QcAlerts", () => {
     expect(screen.queryByText("心内科 · CARDIO")).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getByText("高风险阈值已关联")).toBeInTheDocument();
-    expect(screen.getByText("质控问题来源")).toBeInTheDocument();
+    expect(screen.getByText("质量问题来源")).toBeInTheDocument();
+    expect(screen.queryByText("质控问题来源")).not.toBeInTheDocument();
     expect(screen.getByText("证据已记录")).toBeInTheDocument();
     expect(screen.queryByText("trace-alert-p1")).not.toBeInTheDocument();
     expect(screen.queryByText("OPEN_P0_P1_FINDING")).not.toBeInTheDocument();
@@ -197,7 +203,7 @@ describe("QcAlerts", () => {
     });
     expect(screen.getByText("共 45 条质量问题，当前显示 21-40 条")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("combobox", { name: "预警级别" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "风险级别" }));
     await userEvent.click(screen.getByText("全部级别"));
 
     await waitFor(() => {
@@ -234,11 +240,11 @@ describe("QcAlerts", () => {
     renderPage();
 
     await userEvent.click(screen.getByRole("button", { name: "查看处置证据" }));
-    expect(screen.getByText("预警处置证据")).toBeInTheDocument();
+    expect(screen.getByText("质量风险处置证据")).toBeInTheDocument();
     expect(screen.getByLabelText("整改截止时间")).not.toHaveAttribute("type", "datetime-local");
     expect(screen.getByLabelText("整改截止时间")).toHaveValue("2026年06月12日 17:00");
     expect(screen.queryByDisplayValue("2026-06-12T17:00")).not.toBeInTheDocument();
-    expect(screen.getAllByText("高风险质控事实仍未闭环").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("高风险质量问题仍未闭环").length).toBeGreaterThan(0);
     expect(screen.getByText("来源事实已关联")).toBeInTheDocument();
     expect(screen.getAllByText("证据已记录").length).toBeGreaterThan(0);
     expect(screen.queryByText("finding-p1")).not.toBeInTheDocument();
@@ -264,7 +270,7 @@ describe("QcAlerts", () => {
     expect(refetch).toHaveBeenCalled();
   });
 
-  it("证据详情打开后展示预警阈值、来源和追踪原始字段", async () => {
+  it("证据详情打开后展示风险阈值、来源和追踪原始字段", async () => {
     mockUseQualityAlerts.mockReturnValue({
       data: alertsData,
       isLoading: false,
@@ -320,12 +326,47 @@ describe("QcAlerts", () => {
     renderPage();
 
     await userEvent.click(screen.getByRole("button", { name: "查看处置证据" }));
-    await userEvent.click(screen.getByRole("button", { name: "确认预警" }));
+    await userEvent.click(screen.getByRole("button", { name: "确认风险提醒" }));
 
     await waitFor(() => {
       expect(acknowledge).toHaveBeenCalledWith("HIGH_RISK_FINDING:quality_finding:finding-p1");
     });
     expect(refetch).toHaveBeenCalled();
+  });
+
+  it("错误态使用质量问题与整改服务口径而不是旧质量预警服务", () => {
+    mockUseQualityAlerts.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: {
+        response: {
+          data: {
+            detail: "质量问题读取失败",
+            traceId: "trace-qc-alert-error",
+          },
+        },
+      },
+      refetch: vi.fn(),
+    });
+    mockUseDispatchRectification.mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    });
+    mockUseAcknowledgeQualityAlert.mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    });
+
+    renderPage();
+
+    expect(screen.getByText("质量问题读取失败")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "请稍后重试；若持续失败，请联系信息科核查质量问题与整改服务。失败已留痕，可在审计证据中追溯。",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/质量预警服务/)).not.toBeInTheDocument();
   });
 
   it("uses an honest empty state when the real alerts API has no rows", () => {
