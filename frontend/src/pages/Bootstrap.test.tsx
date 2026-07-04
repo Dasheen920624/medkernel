@@ -99,10 +99,10 @@ describe("Bootstrap", () => {
     expect(screen.getByText("系统已完成首次部署")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "初始管理员已经建立，请返回登录。账号进入账号与权限处理，集团、医院和其他服务机构进入服务机构页处理。",
+        "初始管理员已经建立，请返回登录。账号进入人员与账号处理，集团、医院和其他服务机构进入服务机构页处理。",
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/服务机构管理|工作台内维护/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/账号与权限|服务机构管理|工作台内维护/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText("部署接管码")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "返回登录" }));
     expect(screen.getByText("登录页占位")).toBeInTheDocument();

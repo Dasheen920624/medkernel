@@ -427,7 +427,7 @@ export default function Bootstrap() {
           <Result
             status="success"
             title="系统已完成首次部署"
-            subTitle="初始管理员已经建立，请返回登录。账号进入账号与权限处理，集团、医院和其他服务机构进入服务机构页处理。"
+            subTitle="初始管理员已经建立，请返回登录。账号进入人员与账号处理，集团、医院和其他服务机构进入服务机构页处理。"
             extra={[
               <Button
                 aria-label="返回登录"
