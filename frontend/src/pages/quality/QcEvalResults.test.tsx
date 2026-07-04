@@ -180,7 +180,10 @@ describe("QcEvalResults", () => {
     );
 
     expect(screen.getByRole("heading", { name: "质量问题来源" })).toBeInTheDocument();
-    expect(screen.getByText("真实评价结果总数")).toBeInTheDocument();
+    expect(screen.getByText("按评价结果追溯问题证据")).toBeInTheDocument();
+    expect(screen.getByText("评价结果总数")).toBeInTheDocument();
+    expect(screen.queryByText("按真实评价结果追溯问题证据")).not.toBeInTheDocument();
+    expect(screen.queryByText("真实评价结果总数")).not.toBeInTheDocument();
     expect(screen.getByText("待整改问题总数")).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getAllByText("评价指标已关联").length).toBeGreaterThan(0);
@@ -202,6 +205,29 @@ describe("QcEvalResults", () => {
     expect(
       screen.queryByText(/485|152|92\.8|TRACE_NOT_FOUND|本地违规病例样例/),
     ).not.toBeInTheDocument();
+  });
+
+  it("uses quality source wording when there are no evaluation results", () => {
+    mockUseEvaluationResults.mockReturnValue({
+      data: { items: [], page: 1, size: 20, total: 0, hasNext: false },
+      refetch: refetchResults,
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+    mockUseQualityFindings.mockReturnValue({
+      data: { items: [], page: 1, size: 20, total: 0, hasNext: false },
+      refetch: refetchFindings,
+      isLoading: false,
+      isError: false,
+      error: undefined,
+    });
+
+    renderPage();
+
+    expect(screen.getByText("当前筛选下暂无评价结果")).toBeInTheDocument();
+    expect(screen.queryByText("当前筛选下暂无真实评价结果")).not.toBeInTheDocument();
+    expect(screen.queryByText("暂无真实评价结果")).not.toBeInTheDocument();
   });
 
   it("opens a real quality finding detail drawer with evidence and lifecycle facts", async () => {

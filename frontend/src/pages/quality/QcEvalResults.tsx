@@ -338,7 +338,7 @@ export default function QcEvalResults() {
     <>
       <PageShell
         title="质量问题来源"
-        description="按真实评价结果追溯问题证据"
+        description="按评价结果追溯问题证据"
         extras={
           <Space wrap>
             <EvidenceDetailsToggle securityProfile={security.data} />
@@ -355,7 +355,7 @@ export default function QcEvalResults() {
           findings,
         )}
         stateProps={{
-          title: parsedError?.message ?? "当前筛选下暂无真实评价结果",
+          title: parsedError?.message ?? "当前筛选下暂无评价结果",
           description: parsedError
             ? "请稍后重试；若持续失败，请联系信息科核查质量问题来源服务。失败已留痕，可在审计证据中追溯。"
             : "当前没有符合筛选条件的评价结果或问题。",
@@ -410,7 +410,7 @@ export default function QcEvalResults() {
           <Space wrap size="middle" className="mk-full-width">
             <MetricCard
               icon={<DatabaseOutlined />}
-              title="真实评价结果总数"
+              title="评价结果总数"
               value={`${metrics.totalResults} 例`}
             />
             <MetricCard
@@ -438,7 +438,7 @@ export default function QcEvalResults() {
               columns={resultColumns}
               rowKey={(record) => record.resultId}
               loading={resultsQuery.isLoading}
-              locale={{ emptyText: <Empty description="暂无真实评价结果" /> }}
+              locale={{ emptyText: <Empty description="暂无评价结果" /> }}
               pagination={{
                 total: resultsQuery.data?.total ?? 0,
                 pageSize: 20,

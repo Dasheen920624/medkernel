@@ -219,6 +219,21 @@ describe("QcEvalSets", () => {
     expect(pagePrimaryButtons).toHaveLength(1);
   });
 
+  it("uses evaluation indicator wording when no indicator version is selected", () => {
+    mockUseEvaluationIndicators.mockReturnValue({
+      data: { items: [], page: 1, size: 20, total: 0, hasNext: false },
+      isLoading: false,
+      isError: false,
+      error: undefined,
+      refetch,
+    });
+
+    renderPage();
+
+    expect(screen.getByText("当前查询返回 0 个评价指标版本。")).toBeInTheDocument();
+    expect(screen.queryByText("当前查询返回 0 个真实指标版本。")).not.toBeInTheDocument();
+  });
+
   it("证据详情打开后展示指标编码、追踪号和机构生效版本证据", async () => {
     renderPage();
 

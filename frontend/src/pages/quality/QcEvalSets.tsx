@@ -496,7 +496,7 @@ export default function QcEvalSets() {
 
   const stepPanels = useMemo(
     () => ({
-      select_template: <Text type="secondary">当前查询返回 {total} 个真实指标版本。</Text>,
+      select_template: <Text type="secondary">当前查询返回 {total} 个评价指标版本。</Text>,
       auto_validate: visibleIndicator ? (
         <Descriptions size="small" column={1}>
           <Descriptions.Item label="指标">
