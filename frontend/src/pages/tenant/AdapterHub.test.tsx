@@ -509,7 +509,9 @@ describe("AdapterHub", () => {
     expect(screen.queryByText("最近探活")).not.toBeInTheDocument();
     expect(screen.getByText("缺少 EMR 适配器")).toBeInTheDocument();
     expect(screen.getByText("数据接入契约")).toBeInTheDocument();
-    expect(screen.getByText("选模板/导入")).toBeInTheDocument();
+    expect(screen.getByText("选来源/导入")).toBeInTheDocument();
+    expect(screen.getByText(/选来源\/导入 → 自动校验 → 看影响/)).toBeInTheDocument();
+    expect(screen.queryByText("选模板/导入")).not.toBeInTheDocument();
     expect(screen.getAllByText("2026年06月03日 16:00").length).toBeGreaterThan(0);
     expect(screen.queryByText(/6\/3\/2026/)).not.toBeInTheDocument();
 

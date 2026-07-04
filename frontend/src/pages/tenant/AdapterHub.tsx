@@ -1129,7 +1129,7 @@ export default function AdapterHub() {
                 <Space direction="vertical" size="small">
                   <Text strong>适配器接入 7 步流</Text>
                   <Text type="secondary">
-                    适配器属于配置类资产，必须按“选模板/导入 → 自动校验 → 看影响 → 提交审核 →
+                    适配器属于配置类资产，必须按“选来源/导入 → 自动校验 → 看影响 → 提交审核 →
                     灰度发布 → 全量 → 留证据/可回滚”留证。
                   </Text>
                   <Text type="secondary">

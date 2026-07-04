@@ -202,7 +202,8 @@ describe("QcEvalSets", () => {
     expect(screen.getAllByText("指标证据已记录").length).toBeGreaterThan(0);
     expect(screen.queryByText("IND.VTE.REAL")).not.toBeInTheDocument();
     expect(screen.queryByText("trace-indicator-real")).not.toBeInTheDocument();
-    expect(screen.getByText("选模板/导入")).toBeInTheDocument();
+    expect(screen.getByText("选来源/导入")).toBeInTheDocument();
+    expect(screen.queryByText("选模板/导入")).not.toBeInTheDocument();
     expect(screen.getByText("留证据/可回滚")).toBeInTheDocument();
     expect(
       screen.queryByText(/接口尚未接入|本地违规病例样例|TRACE_NOT_FOUND/),
