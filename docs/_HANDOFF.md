@@ -10,10 +10,14 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第六十七批已完成阶段交接提交为 `8629e5ff8cfff27301d7aae689a3fef625ca74ae`
-  （`docs: 记录知识生产候选分流口径复演`）；第六十八批最新应用/目录提交为
+- 第六十八批已完成阶段交接提交为 `6b9f2e2c677f4c32bcaa46766932d26b8086b545`
+  （`docs: 记录产品目录知识生产业务域复演`）；第六十九批最新应用/目录提交为
+  `14a62a587c58517482b891cd71f07249d045d677`
+  （`fix: 校准职责旅程随访协同菜单快照`）。其前置本地提交包括第六十八批应用提交
   `9b4c4daab336c5a890fe5b7f0928a4035ff2fac2`
-  （`fix: 校准产品目录知识生产业务域`）。其前置本地提交包括第六十七批应用提交
+  （`fix: 校准产品目录知识生产业务域`）、第六十七批阶段交接提交
+  `8629e5ff8cfff27301d7aae689a3fef625ca74ae`
+  （`docs: 记录知识生产候选分流口径复演`）、第六十七批应用提交
   `01b6c6270e8b1b2b9138e80c2bd60ce321a99898`
   （`fix: 收敛知识生产候选分流前台口径`）、第六十六批阶段交接提交
   `e1f16076bb7058617a4f7954d5292ceec625652f`
@@ -140,7 +144,8 @@
   第六十一批质控指标影响范围前台口径收敛、第六十二批质量域组织范围前台口径收敛，
   第六十三批知识生产校验状态前台口径收敛、第六十四批沙盘机构生效版本前台口径收敛，
   第六十五批系统接入区域来源状态前台口径收敛、第六十六批知识生产分流状态前台口径收敛、
-  第六十七批知识生产候选分流前台口径收敛，以及第六十八批产品目录知识生产业务域校准。
+  第六十七批知识生产候选分流前台口径收敛、第六十八批产品目录知识生产业务域校准，
+  以及第六十九批职责旅程随访协同菜单快照校准。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -161,7 +166,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `9b4c4daab336c5a890fe5b7f0928a4035ff2fac2`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `14a62a587c58517482b891cd71f07249d045d677`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -171,6 +176,45 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第六十九批·职责旅程随访协同菜单快照校准）
+
+- 本批继续按全局菜单、医疗产品职责和全角色真实前台复核。结论：第四十四批全局菜单命名与顺序仍成立；
+  `诊断知识库`、`临床路径库`、`随访模板`、`医疗引擎运营员` 等当前口径不需要再改名。新发现的事实缺口在
+  `docs/audit/product-role-journeys.md`：医疗引擎运营员的完整菜单快照漏掉 `clinical-followup`。后端
+  `DefaultPermissionPolicyTest` 已把该入口授予医疗引擎运营员，因为随访模板发布、影响范围确认和版本治理属于引擎运营职责；
+  临床使用者继续通过同一入口处理患者随访任务。该缺口会误导职责菜单评审，需同步文档并加测试防回归。
+- 已本地提交 `14a62a587c58517482b891cd71f07249d045d677`
+  （`fix: 校准职责旅程随访协同菜单快照`）：
+  - `docs/audit/product-role-journeys.md` 将医疗引擎运营员菜单快照补齐 `clinical-followup`，并保持后端权限目录顺序。
+  - `frontend/src/shared/config/productRoleJourneys.test.ts` 新增后端默认权限快照解析与职责旅程文档快照解析，
+    要求四职责完整菜单快照与 `DefaultPermissionPolicyTest` 同步。
+  - 未改变前台菜单名称、菜单顺序、路由、后端权限策略、API、数据库或 134 发布配置；本批只校准职责旅程事实和防回归门禁。
+- 本地验证：
+  - 红绿核验：`npm --prefix frontend test -- productRoleJourneys.test.ts -t "keeps the complete menu snapshots"`
+    在旧文档下先失败，差异明确显示医疗引擎运营员缺少 `clinical-followup`；补齐文档并修正测试辅助类型后通过。
+  - 关联配置回归：`npm --prefix frontend test -- productRoleJourneys.test.ts productCatalog.test.ts menu.test.ts routes.test.ts`
+    通过，`4` 个测试文件 / `75` 项。
+  - 权限目录定点回归：`mvn -q -Dtest=DefaultPermissionPolicyTest,MenuPermissionCatalogTest test`
+    在 `medkernel-backend` 目录下通过；根目录 `-pl medkernel-backend` 不适用当前 Maven reactor，已改用模块目录执行。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `952` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `KnowledgeGovernance-Ce9gV4kY.js`、`KnowledgeProduction-leGk0UQ2.js`、
+    `Followup-BOT-XlB9.js`、`index-C5ETtOXr.js` 等前端产物。
+  - `npm --prefix frontend run format:check` 通过；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头 `Date=Sat, 04 Jul 2026 02:01:21 GMT`，
+  `X-Trace-Id=457cad2a-9f25-445b-add4-c05ff230d44c`；公网首页 HTTP 200，
+  `Date=Sat, 04 Jul 2026 02:01:21 GMT`，`Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`。
+  134 映射仍按当前已核定事实保持：后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `14a62a58` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、菜单分布、构建门禁、
+  134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第六十八批·产品目录知识生产业务域校准）
 
