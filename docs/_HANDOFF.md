@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第九十七批最新应用提交为 `868205296a043ab32ca8959806da64b25ad06c38`
-  （`fix: 收敛临床路径起始结构口径`）。其前置本地提交包括第九十六批阶段交接提交
+- 第九十八批最新应用提交为 `96699172a2824d2be51c12cdda3e1cd54c668eab`
+  （`fix: 收敛服务机构状态口径`）。其前置本地提交包括第九十七批阶段交接提交
+  `5294afb81a3ccf1c870cf8bd48a14f98069ae127`
+  （`docs: 记录临床路径起始结构口径复演`）、第九十七批应用提交
+  `868205296a043ab32ca8959806da64b25ad06c38`
+  （`fix: 收敛临床路径起始结构口径`）、第九十六批阶段交接提交
   `ae85fd11339fc3f02a83e3a85a9a4f156da0c03b`
   （`docs: 记录机构差异版本操作口径复演`）、第九十六批应用提交
   `29b219cac27de363023457c49149d49eeaac609a`
@@ -268,7 +272,7 @@
   第八十八批临床路径库任务口径收敛、第八十九批评价指标任务口径收敛、第九十批临床规则任务口径收敛，
   第九十一批机构生效版本任务口径收敛、第九十二批术语字典任务口径收敛、第九十三批系统接入任务口径收敛，
   第九十四批机构知识库任务口径收敛、第九十五批登录平台治理口径收敛，第九十六批机构差异版本操作口径收敛，
-  以及第九十七批临床路径起始结构口径收敛。
+  第九十七批临床路径起始结构口径收敛，以及第九十八批服务机构状态口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -289,7 +293,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `868205296a043ab32ca8959806da64b25ad06c38`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `96699172a2824d2be51c12cdda3e1cd54c668eab`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -299,6 +303,57 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第九十八批·服务机构状态口径收敛）
+
+- 本批继续按全局菜单、医疗产品体验和全角色职责旅程复核服务机构入口。结论：`服务机构` 菜单名与
+  机构与人员域排序仍符合权威产品目录，不应改回“机构管理”或“服务机构管理”；真实缺口是初始化接管和
+  服务机构页加载/异常状态仍残留“管理 / 工作台内维护”口径，用户不知道该去哪个具体菜单。按医疗现场
+  平台治理视角，本批将可见状态收敛为具体入口：账号进入“账号与权限”，集团、医院和其他服务机构进入
+  “服务机构”页；菜单键、菜单顺序、权限、路由、后端 API、数据库、产品目录、职责旅程与 134 发布配置均未改变。
+- 已本地提交 `96699172a2824d2be51c12cdda3e1cd54c668eab`
+  （`fix: 收敛服务机构状态口径`）：
+  - `frontend/src/pages/tenant/TenantOnboarding.tsx` 将服务机构范围加载态与异常态标题从
+    “服务机构管理”改为“服务机构”。
+  - `frontend/src/pages/Bootstrap.tsx` 将系统已初始化提示从“账号与服务机构统一在工作台内维护”改为
+    “账号进入账号与权限处理，集团、医院和其他服务机构进入服务机构页处理”；并将首次接管完成分支的
+    “服务机构管理中维护”收敛为“服务机构页中处理”。
+  - `TenantOnboarding.test.tsx`、`Bootstrap.test.tsx` 正向锁定新状态口径，并反向阻断“服务机构管理 /
+    工作台内维护”回流。
+- 本地验证：
+  - 红灯：先改测试后执行
+    `npm --prefix frontend test -- TenantOnboarding.test.tsx -t "服务机构范围"` 在旧实现下失败，
+    加载态/异常态仍展示“服务机构管理”；`npm --prefix frontend test -- Bootstrap.test.tsx -t "通过 token 后创建初始管理员"`
+    在旧实现下也先失败，随后根因复查确认该用例属于首次改密提示分支，具体菜单指引应落在系统已初始化状态。
+  - 绿灯：实现并校正测试覆盖点后，
+    `npm --prefix frontend test -- Bootstrap.test.tsx -t "系统已初始化时直接访问接管页|通过 token 后创建初始管理员"`
+    通过，`1` 个测试文件 / `2` 项；`npm --prefix frontend test -- TenantOnboarding.test.tsx -t "服务机构范围"`
+    通过，`1` 个测试文件 / `2` 项。
+  - 关联回归：
+    `npm --prefix frontend test -- TenantOnboarding.test.tsx Bootstrap.test.tsx routes.test.ts menu.test.ts productCatalog.test.ts productRoleJourneys.test.ts pages.smoke.test.tsx`
+    通过，`7` 个测试文件 / `123` 项。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过；本批未改变自动生成产品目录。
+  - 旧口径扫描：
+    `rg -n "服务机构管理|机构管理|工作台内维护" frontend/src docs/audit/product-function-catalog.md docs/audit/product-role-journeys.md --glob '!**/*.test.ts' --glob '!**/*.test.tsx'`
+    无输出；旧语义只保留在测试反向断言中。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `962` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `Bootstrap-C2C-LjGj.js`、`TenantOnboarding-Hf2gEjQf.js`、
+    `PathwayTemplates-Cy-pAoyh.js`、`index-OYP-Qei7.js` 等前端产物。
+  - `git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 权威公网入口
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 07:29:30 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，`ETag="6a475ada-340"`；
+  readiness 使用 `https://193.112.107.134/medkernel/actuator/health/readiness` 返回 HTTP 200 /
+  `{"status":"UP"}`，`X-Trace-Id=560b5f7e-a532-4dd9-86fa-159e340f7e9d`。当前 134 映射仍是
+  后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`；
+  不得把本地 `96699172` 记为已部署。
+- 下一步继续沿全局菜单、全角色职责旅程、真实前台默认层做广度优先复核；重点继续检查账号与权限、
+  服务机构、机构知识、知识生产和质量治理之间的入口边界，发现可真实落地的问题直接按权威标准修复；
+  不使用子代理、不咨询、不推送远程 `main`。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第九十七批·临床路径起始结构口径收敛）
 
