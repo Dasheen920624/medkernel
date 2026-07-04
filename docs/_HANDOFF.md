@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第七十五批最新应用提交为 `e9670a65270ab1e3e365cfcf038e94beb9eaa335`
-  （`fix: 收敛质量概览默认真实口径`）。其前置本地提交包括第七十四批阶段交接提交
+- 第七十六批最新应用提交为 `1267b484af12c35640cbaa010ebc58a99854b0c0`
+  （`fix: 收敛质量评价默认真实口径`）。其前置本地提交包括第七十五批阶段交接提交
+  `f9a4c679764f4eedba1691bf1876435908c06d71`
+  （`docs: 记录质量概览默认真实口径复演`）、第七十五批应用提交
+  `e9670a65270ab1e3e365cfcf038e94beb9eaa335`
+  （`fix: 收敛质量概览默认真实口径`）、第七十四批阶段交接提交
   `f0532f4e26bcaf954eeaa9fb77a6cb9cac9d5e8a6`
   （`docs: 记录工作台知识关系同步口径复演`）、第七十四批应用提交
   `bb5c552600ce6d51a93bbd9a731c1c64a0ac4dc4`
@@ -172,7 +176,7 @@
   第六十九批职责旅程随访协同菜单快照校准、第七十批知识关系前台入口口径收敛，
   第七十一批评价指标前台入口口径收敛、第七十二批质量管理前台入口口径收敛，
   第七十三批安全与配置前台入口口径收敛、第七十四批工作台知识关系同步口径收敛，
-  以及第七十五批质量管理概览默认真实口径收敛。
+  第七十五批质量管理概览默认真实口径收敛，以及第七十六批质量评价默认真实口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -193,7 +197,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `e9670a65270ab1e3e365cfcf038e94beb9eaa335`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `1267b484af12c35640cbaa010ebc58a99854b0c0`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -203,6 +207,62 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第七十六批·质量评价默认真实口径收敛）
+
+- 本批继续按全局菜单、医疗产品体验和全角色真实前台复核。结论：第四十四批全局菜单命名与顺序仍成立；
+  `docs/audit/product-function-catalog.md` 将 `/qc/eval/sets` 定义为 `评价指标`，用于维护评价指标、影响分析和发布状态；
+  `/qc/eval/results` 是隐藏来源视图，并入 `质量问题与整改`，用于把评估结果作为问题发现和整改页来源；
+  `docs/PRODUCT_SCOPE.md` S11 明确质量域产物是评价结果、质量问题和整改闭环。页面默认层仍出现
+  `按真实评价结果追溯问题证据`、`真实评价结果总数`、`当前筛选下暂无真实评价结果`、
+  `当前查询返回 ... 个真实指标版本`。这些词适合测试夹具和真实性门禁，不适合质控办、科主任和运营人员的质量评价默认视图。
+  本批仅收敛质量评价结果和评价指标版本的默认业务语言；规则试运行中的 `真实上下文快照` 仍是业务对象，未改动。
+- 已本地提交 `1267b484af12c35640cbaa010ebc58a99854b0c0`
+  （`fix: 收敛质量评价默认真实口径`）：
+  - `frontend/src/pages/quality/QcEvalResults.tsx` 将描述改为 `按评价结果追溯问题证据`，
+    空态改为 `当前筛选下暂无评价结果` / `暂无评价结果`，指标卡改为 `评价结果总数`。
+  - `frontend/src/pages/quality/QcEvalSets.tsx` 将 7 步配置流选模板阶段从
+    `当前查询返回 ... 个真实指标版本` 收敛为 `当前查询返回 ... 个评价指标版本`。
+  - `frontend/src/pages/quality/QcEvalResults.test.tsx`、`frontend/src/pages/quality/QcEvalSets.test.tsx`
+    和 `frontend/src/pages/pages.smoke.test.tsx` 增加默认层与空态反向断言，阻断旧 `真实评价...` /
+    `真实指标版本` 口径回流。
+  - 未改变质量域菜单、路由、权限、后端 API、数据契约、服务端分页、数据库、构建配置或 134 发布配置。
+- 本地验证：
+  - 红绿核验：先改测试后执行
+    `npm --prefix frontend test -- QcEvalResults.test.tsx QcEvalSets.test.tsx -t "loads real results|uses quality source wording|loads real indicators"`
+    在旧实现下失败，明确显示找不到 `按评价结果追溯问题证据`、`当前筛选下暂无评价结果`、
+    `当前查询返回 ... 个评价指标版本`；实现并校正 7 步流测试场景后，同类命令
+    `npm --prefix frontend test -- QcEvalResults.test.tsx QcEvalSets.test.tsx -t "loads real results|uses quality source wording|loads real indicators|uses evaluation indicator wording"`
+    通过，`4` 项。
+  - 烟测根因与修复：首次完整 `npm --prefix frontend run verify` 在
+    `pages.smoke.test.tsx > renders the quality qc-eval-results console` 失败，根因为烟测仍断言旧
+    `当前筛选下暂无真实评价结果`；同步烟测为 `当前筛选下暂无评价结果` 后，定向
+    `npm --prefix frontend test -- pages.smoke.test.tsx -t "renders the quality qc-eval-results console"`
+    通过，随后完整前端门禁通过。
+  - 生产旧词扫描：
+    `rg -n "按真实评价结果追溯问题证据|当前筛选下暂无真实评价结果|真实评价结果总数|暂无真实评价结果|真实指标版本" frontend/src/pages/quality/QcEvalResults.tsx frontend/src/pages/quality/QcEvalSets.tsx`
+    无输出；包含测试的同词扫描仅命中反向断言。
+  - 关联配置回归：
+    `npm --prefix frontend test -- QcEvalResults.test.tsx QcEvalSets.test.tsx QcAlerts.test.tsx QcDashboard.test.tsx productCatalog.test.ts routes.test.ts menu.test.ts`
+    通过，`7` 个测试文件 / `98` 项。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `956` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `QcEvalResults-DklLnfPl.js`、`QcEvalSets-tXCAzIY1.js`、
+    `index-DND9jmju.js` 等前端产物。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 公网首页
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 03:06:51 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，外部 `index.html` 仍指向
+  `/assets/index-DYTh-Ceu.js`；134 readiness 使用 `https://193.112.107.134/medkernel/actuator/health`
+  返回 HTTP 200 / `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头
+  `Date=Sat, 04 Jul 2026 03:06:51 GMT`，`X-Trace-Id=5ca19f6a-9918-45d3-af7f-8bc2707d6c12`。
+  134 映射仍按当前已核定事实保持：后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `1267b484` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、菜单分布、构建门禁、
+  134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第七十五批·质量管理概览默认真实口径收敛）
 
