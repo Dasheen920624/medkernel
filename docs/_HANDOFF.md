@@ -10,6 +10,19 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百零六批最新应用提交为 `52c5344a151231924363849005b1e51bbfb959ea`
+  （`fix: 收敛平台管理员工作台建议动作`）。本批未使用子代理、未推送远程、未合并 `main`；
+  以十二角色真实前台体验、菜单权限和运行职责边界为准，修正平台管理员工作台“本周建议动作”。
+  原建议把平台管理员引向 `/config/releases` 的“机构生效版本”，容易越过平台管理员默认菜单与资产发布职责边界；
+  现改为“核对服务运行保障”并进入 `/system/providers`，同时将实施进度说明收敛为
+  “查看实施阶段、系统接入状态与上线准备项。”，避免把运行侧生效版本误包装成平台管理员的默认复核动作。
+- 第一百零六批验证：先在 `WorkbenchPanel` 测试中补入“核对服务运行保障”与新实施说明断言并跑出预期失败；
+  修正后 `npm --prefix frontend run test -- WorkbenchPanel -t "shows lifecycle governance slices"` 通过，
+  `npm --prefix frontend run test -- WorkbenchPanel productRoleJourneys routes` 通过（3 个文件、78 个测试），
+  `npm --prefix frontend exec prettier -- --check frontend/src/widgets/WorkbenchPanel.tsx frontend/src/widgets/WorkbenchPanel.test.tsx`
+  通过，`npm --prefix frontend run build` 通过，`npm --prefix frontend run verify` 通过
+  （114 个测试文件、963 个测试），`git diff --check` 退出码 0。
+- 下一步继续主线：不使用子代理；按十二角色真实前台体验广度复核剩余上线级问题，阶段完成后继续更新本文件并本地提交。
 - 第一百零四批最新应用提交为 `ec4a973f03a0a629d5204cd6461ee7d281df8e57`
   （`fix: 收敛全局菜单医疗场景命名`）。本批未使用子代理、未推送远程、未合并 `main`；
   以宪章、产品范围、体验契约、功能目录和十二角色职责为准，从医疗产品全局视角复核菜单命名与分布。
@@ -32,7 +45,7 @@
 - 第一百零五批 134 / squash main 发布证据映射核查只更新文档，不产生应用提交、不使用子代理、
   不推送远程、不合并 `main`。新鲜核查结果：本地 `main`、本地 `origin/main` 与远端
   `refs/heads/main` 均为 `1561ba6bef8777dcef76432696f43de4277fdd3f`
-  （`完善全角色上线演练与134复演闭环 (#653)`）；当前分支 HEAD 为交接提交 `dabb740b`，
+  （`完善全角色上线演练与134复演闭环 (#653)`）；当批核查基点为交接提交 `dabb740b`，
   包含 `origin/main` 且本地领先 290 个提交，未进入远程 `main`。
 - 第一百零五批 134 新鲜公网证据：`https://193.112.107.134/medkernel/` HTTP 200，
   `Date=Sat, 04 Jul 2026 16:27:43 GMT`，`index.html` 832 字节，仍指向
@@ -46,9 +59,8 @@
   `primaryTenants[0].name=完整上线演练机构`、`X-Trace-Id=c449f3d2-96e8-4fa9-a841-bcac72622637`。
 - 第一百零五批映射结论：134 已部署后端/JAR 仍是完整发布
   `3ddd979b3151e3eb1d40712e76b513e4cdce260c`，134 已部署前端 dist 仍是前端-only 发布
-  `95bb816292f59833005df4761866dd9d89886cb4`；本地最新应用提交 `ec4a973f03a0a629d5204cd6461ee7d281df8e57`
-  和当前交接提交尚未发布到 134、尚未推送远程、尚未合并 `main`，后续不得把本地提交误写为 134 已上线。
-- 下一步继续主线：不使用子代理；按十二角色真实前台体验广度复核剩余上线级问题，阶段完成后继续更新本文件并本地提交。
+  `95bb816292f59833005df4761866dd9d89886cb4`；本地第一百零四批及后续应用提交
+  均尚未发布到 134、尚未推送远程、尚未合并 `main`，后续不得把本地提交误写为 134 已上线。
 - 第一百零三批最新应用提交为 `690e86e71968622688ee0dc15a3b8c7f695aad07`
   （`fix: 优化登录页单屏体验`）。本批未使用子代理、未推送远程、未合并 `main`；
   将登录页默认措辞从“平台治理登录名 / 集团医疗智能中枢”等偏治理后台话术，收敛为
