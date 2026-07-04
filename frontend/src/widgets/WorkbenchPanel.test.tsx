@@ -521,7 +521,8 @@ describe("WorkbenchPanel", () => {
   it("renders one role-specific primary action and three default filters", () => {
     renderWorkbench();
 
-    expect(screen.getByRole("button", { name: /管理账号/ })).toHaveClass("ant-btn-primary");
+    expect(screen.getByRole("button", { name: /维护人员与账号/ })).toHaveClass("ant-btn-primary");
+    expect(screen.queryByRole("button", { name: /管理账号/ })).not.toBeInTheDocument();
     expect(document.querySelectorAll(".ant-btn-primary")).toHaveLength(1);
     expect(screen.getAllByTestId(/^workbench-filter-/)).toHaveLength(3);
     expect(screen.getByText("组织范围")).toBeInTheDocument();

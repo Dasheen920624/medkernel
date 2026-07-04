@@ -28,9 +28,9 @@ import styles from "./Login.module.css";
 const { Title, Text } = Typography;
 
 const helpItems = [
-  { label: "首次登录", value: "使用管理员开通的账号进入，首次登录后按医院策略改密。" },
-  { label: "忘记密码", value: "请联系本院管理员重置密码，重置操作会进入审计留痕。" },
-  { label: "统一身份", value: "统一身份状态由服务返回；待配置时页面只展示状态，不伪造入口。" },
+  { label: "首次登录", value: "使用人员与账号中开通的登录名进入，首次登录按医院策略修改密码。" },
+  { label: "忘记密码", value: "请联系平台管理员或本院信息科重置密码，重置与交付会进入审计证据。" },
+  { label: "统一身份", value: "统一身份由身份来源配置；未就绪时仅展示状态，不生成跳转入口。" },
 ];
 
 const delegatedConnectionStatusLabel = (state: string) => {
@@ -310,10 +310,10 @@ export default function Login() {
               </div>
             </div>
             <Title level={2} className={styles.cardTitle}>
-              {isPlatformLayer ? "登录平台治理" : "登录机构工作台"}
+              {isPlatformLayer ? "进入平台治理" : "进入机构工作台"}
             </Title>
             <Text type="secondary">
-              {canUseDelegatedLogin ? "使用所在机构账号继续" : "使用平台治理账号继续"}
+              {canUseDelegatedLogin ? "选择机构后使用院内登录名" : "使用平台治理登录名"}
             </Text>
           </div>
 
@@ -377,13 +377,13 @@ export default function Login() {
             onFinish={handleSubmit}
           >
             <Form.Item
-              label="工号 / 账号"
+              label="工号 / 登录名"
               name="username"
-              rules={[{ required: true, message: "请输入工号或账号" }]}
+              rules={[{ required: true, message: "请输入工号或登录名" }]}
             >
               <Input
                 prefix={<UserOutlined />}
-                placeholder={isPlatformLayer ? "请输入平台治理账号" : "请输入工号或机构账号"}
+                placeholder={isPlatformLayer ? "请输入平台治理登录名" : "请输入工号或院内登录名"}
                 size="large"
                 autoComplete="username"
               />
@@ -436,7 +436,7 @@ export default function Login() {
                     {platformContextDescription}
                   </Text>
                   <Text type="secondary" className={styles.helperText}>
-                    {activeTenant ? "平台标准与全局治理入口" : "无可登录机构"}
+                    {activeTenant ? "平台标准、人员权限与系统运维入口" : "无可登录机构"}
                   </Text>
                 </div>
               </div>
@@ -460,7 +460,7 @@ export default function Login() {
 
           <div className={styles.policyStrip}>
             <SafetyCertificateOutlined aria-hidden="true" />
-            <Text>系统将按医院策略自动校验多因素认证、国密通道与会话安全。</Text>
+            <Text>系统按医院策略自动校验多因素认证、国密通道与会话安全。</Text>
           </div>
 
           {bootstrapStatus.data?.initialized === false && (

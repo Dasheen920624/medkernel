@@ -290,9 +290,9 @@ describe("page smoke coverage", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole("heading", { name: "登录平台治理" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "进入平台治理" })).toBeInTheDocument();
     expect(screen.getByText("MedKernel")).toBeInTheDocument();
-    expect(screen.getByText("使用平台治理账号继续")).toBeInTheDocument();
+    expect(screen.getByText("使用平台治理登录名")).toBeInTheDocument();
     expect(await screen.findByText("平台治理入口")).toBeInTheDocument();
     expect(screen.queryByLabelText("登录类型切换")).not.toBeInTheDocument();
     expect(screen.queryByText("安全审计已开启")).toBeNull();
