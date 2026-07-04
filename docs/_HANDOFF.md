@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第八十六批最新应用提交为 `e5490c79c8cb1907e602db4208e54e1f7b25e8ec`
-  （`fix: 收敛资产编目入口口径`）。其前置本地提交包括第八十五批阶段交接提交
+- 第八十七批最新应用提交为 `e4bcc19f4e8b8380368a1c71684a037a35002223`
+  （`fix: 收敛诊断知识库任务口径`）。其前置本地提交包括第八十六批阶段交接提交
+  `a49defb4a3f17c7dab073927d3c26cdb461f6b9d`
+  （`docs: 记录资产编目入口口径复演`）、第八十六批应用提交
+  `e5490c79c8cb1907e602db4208e54e1f7b25e8ec`
+  （`fix: 收敛资产编目入口口径`）、第八十五批阶段交接提交
   `d117c80251b88e3312ee8b574b312f33b60402b3`
   （`docs: 记录七步流来源口径复演`）、第八十五批应用提交
   `b748e260301b849f5f615954751828f56c925b8f`
@@ -251,6 +255,64 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第八十七批·诊断知识库任务口径收敛）
+
+- 本批继续按全局菜单、医疗产品体验和全角色职责旅程复核。结论：第四十四批菜单名与顺序仍成立，
+  `诊断知识库` 作为左侧客户任务入口比“诊断知识维护”更符合医院知识库心智，`临床路径库` 也不应退回“模板”或“配置”口径；
+  本批发现的真实缺口是诊断知识库页面、路由体验和功能目录仍把唯一客户任务写成
+  “维护诊断身份 / 维护诊断标准”，容易让临床专家和医疗引擎运营员误解为后台修表或直接改写当前运行版本。
+  按 `CONSTITUTION` 的统一知识治理与最小生命周期、`EXPERIENCE_CONTRACT` 的医院语言要求，本批仅收敛
+  `/knowledge/diagnosis` 的页面说明、路由职责、自动生成目录和测试快照为
+  “管理诊断身份 / 编审诊断标准”；菜单键、菜单顺序、权限、后端 API、数据库、构建配置和 134 发布配置均未改变。
+- 已本地提交 `e4bcc19f4e8b8380368a1c71684a037a35002223`
+  （`fix: 收敛诊断知识库任务口径`）：
+  - `frontend/src/pages/quality/DiagnosisKnowledgeMaintenance.tsx` 将页面说明从
+    `在统一知识治理下维护诊断身份、诊断标准、鉴别诊断、验证病例与来源证据` 改为
+    `在统一知识治理下管理诊断身份、诊断标准、鉴别诊断、验证病例与来源证据`，继续强调发布后再进入平台标准版本或机构生效版本。
+  - `frontend/src/shared/config/routes.ts` 将诊断知识库 route experience goal 同步为
+    `在统一知识治理下管理诊断身份、诊断标准、鉴别关系、验证病例和来源证据`，临床专家职责从
+    `维护诊断标准、鉴别诊断和验证病例` 改为 `编审诊断标准、鉴别诊断和验证病例`；医疗引擎运营员职责仍保留
+    诊断语义资产、版本和统一发布校验边界。
+  - `scripts/audit/export-product-capabilities.mjs` 与 `docs/audit/product-function-catalog.md` 将
+    `/knowledge/diagnosis` 唯一客户任务同步为
+    `管理诊断身份、诊断标准、鉴别诊断、验证病例与来源证据`。
+  - `DiagnosisKnowledgeMaintenance.test.tsx`、`routes.test.ts`、`productCatalog.test.ts`、
+    `productRoleJourneys.test.ts` 和 `KnowledgeGovernance.test.tsx` 正向锁定新口径，并继续反向阻断
+    `诊断知识维护`、`维护诊断身份` 等旧入口语义回流。
+- 本地验证：
+  - 红灯：先改测试后执行
+    `npm --prefix frontend test -- DiagnosisKnowledgeMaintenance.test.tsx routes.test.ts productCatalog.test.ts productRoleJourneys.test.ts KnowledgeGovernance.test.tsx -t "diagnosis knowledge library|separates knowledge publishing|hospital-facing language|removed domain|review workspace|stakeholder views"`
+    在旧实现下失败，明确命中 3 个预期缺口：页面找不到新的“管理诊断身份”说明，路由 goal 仍是“维护诊断身份”，功能目录仍未出现新的诊断知识库客户任务。
+  - 绿灯：实现后同一命令通过，`5` 个测试文件 / `6` 项目标用例。
+  - 诊断知识库与菜单目录关联回归：
+    `npm --prefix frontend test -- DiagnosisKnowledgeMaintenance.test.tsx DiagnosisKnowledgePanel.test.tsx KnowledgeGovernance.test.tsx routes.test.ts menu.test.ts productCatalog.test.ts productRoleJourneys.test.ts`
+    通过，`7` 个测试文件 / `134` 项。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - 生产旧口径扫描：
+    `rg -n "诊断知识维护|维护诊断身份|维护诊断标准|manual diagnosis maintenance|diagnosis maintenance" frontend/src docs/audit/product-function-catalog.md scripts/audit/export-product-capabilities.mjs --glob '!**/*.test.tsx' --glob '!**/*.test.ts'`
+    无输出；全量扫描只剩 `DiagnosisKnowledgeMaintenance.test.tsx` 中的反向断言。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `960` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `DiagnosisKnowledgeMaintenance-cCtAMBx-.js`、
+    `DiagnosisKnowledgeMaintenance-B6Vrc1aI.css` 等前端产物。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 公网首页
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 05:36:23 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，外部 `index.html` 仍指向
+  `/assets/index-DYTh-Ceu.js`、`/assets/vendor-react-bdrMx_IT.js`、`/assets/vendor-data-D9EFEnEk.js`、
+  `/assets/vendor-react-C5ap-Sga.css`、`/assets/index-XMjG4gr3.css`；134 health 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头
+  `Date=Sat, 04 Jul 2026 05:42:15 GMT`，`X-Trace-Id=e3cff176-6677-4c30-aef0-0400a6a60c31`；
+  readiness 使用 `https://193.112.107.134/medkernel/actuator/health/readiness` 返回 HTTP 200 /
+  `{"status":"UP"}`，`X-Trace-Id=a781b16f-d516-46ca-83ab-eb443b2f321d`。当前 134 映射仍是
+  后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`；
+  不得把本地 `e4bcc19f` 记为已部署。
+- 下一步继续沿全局菜单、全角色职责旅程、真实前台默认层做广度优先复核；优先处理可真实落地的产品体验、
+  契约、测试、构建和文档问题；不使用子代理、不咨询、不推送远程 `main`。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第八十六批·资产编目入口口径收敛）
 
