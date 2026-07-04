@@ -367,15 +367,20 @@ describe("WorkbenchPanel", () => {
     expect(within(todoCard).getByText("当前组织暂无待办")).toBeInTheDocument();
     expect(
       within(todoCard).getByText(
-        "当前组织暂无待办；可进入患者路径、提醒与推荐、随访协同或消息通知查看实时事项。",
+        "当前组织暂无待办；可进入患者路径、提醒与推荐或随访协同查看实时事项。",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/发布治理状态/)).not.toBeInTheDocument();
+    const clinicalCard = screen.getByTestId("workbench-card-clinical");
     expect(
-      screen.getByText(
-        "进入患者路径、提醒与推荐、随访协同与消息通知；各页面展示对应真实数据和处理入口。",
+      within(clinicalCard).getByText(
+        "进入患者路径、提醒与推荐和随访协同；各页面展示对应真实数据和处理入口。",
       ),
     ).toBeInTheDocument();
+    expect(within(clinicalCard).getByRole("button", { name: "随访协同" })).toBeInTheDocument();
+    expect(
+      within(clinicalCard).queryByRole("button", { name: "消息通知" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("外部依赖连通")).not.toBeInTheDocument();
     expect(screen.queryByText("该域未启用")).not.toBeInTheDocument();
     expect(screen.queryByText(legacyWorkbenchSelfProofPattern)).not.toBeInTheDocument();
@@ -383,6 +388,8 @@ describe("WorkbenchPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "患者路径" }));
     expect(navigateSpy).toHaveBeenCalledWith("/pathway/patients");
+    fireEvent.click(within(clinicalCard).getByRole("button", { name: "随访协同" }));
+    expect(navigateSpy).toHaveBeenLastCalledWith("/clinical/followup");
   });
 
   it("does not query system or audit sources for clinical users without source permissions", () => {

@@ -291,11 +291,11 @@ function WorkbenchCards({
           <DomainEntryCard
             id="clinical"
             title="临床协同入口"
-            description="进入患者路径、提醒与推荐、随访协同与消息通知；各页面展示对应真实数据和处理入口。"
+            description="进入患者路径、提醒与推荐和随访协同；各页面展示对应真实数据和处理入口。"
             actions={[
               { label: "患者路径", path: "/pathway/patients" },
               { label: "提醒与推荐", path: "/cdss/fatigue" },
-              { label: "消息通知", path: "/notifications" },
+              { label: "随访协同", path: "/clinical/followup" },
             ]}
             onNavigate={onNavigate}
           />
@@ -675,7 +675,7 @@ function TodoCard({ onNavigate }: { onNavigate: (path: string) => void }) {
       <PageState
         state="empty"
         title="当前组织暂无待办"
-        description="当前组织暂无待办；可进入患者路径、提醒与推荐、随访协同或消息通知查看实时事项。"
+        description="当前组织暂无待办；可进入患者路径、提醒与推荐或随访协同查看实时事项。"
         action={
           <Button type="link" onClick={() => onNavigate("/workflow/todos")}>
             查看待办
