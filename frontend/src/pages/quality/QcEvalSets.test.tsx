@@ -192,6 +192,10 @@ describe("QcEvalSets", () => {
     );
     expect(screen.getByRole("heading", { name: "评价指标" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "评估指标库" })).not.toBeInTheDocument();
+    expect(
+      screen.getByText("定义质控评价指标，试算影响范围并通过机构生效版本统一发布。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("维护" + "质控评价指标、影响分析和发布状态")).not.toBeInTheDocument();
     expect(screen.getByText("评价指标总数")).toBeInTheDocument();
     expect(screen.queryByText("真实评估指标总数")).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
@@ -328,7 +332,8 @@ describe("QcEvalSets", () => {
     expect(screen.getAllByText("出院后 24 小时").length).toBeGreaterThan(0);
     expect(screen.getAllByText("全院").length).toBeGreaterThan(0);
     expect(screen.queryByText("DISCHARGE+24H")).not.toBeInTheDocument();
-    expect(screen.getByText("指标版本独立维护")).toBeInTheDocument();
+    expect(screen.getByText("指标草稿统一发布")).toBeInTheDocument();
+    expect(screen.queryByText("指标版本独立" + "维护")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("来源依据"), { target: { value: "院内真实指南 2026" } });
 
     const factInputs = screen.getAllByRole("combobox", { name: "上下文字段路径" });

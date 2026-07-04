@@ -488,11 +488,11 @@ const insuranceAuditExperience: RouteExperience = {
 };
 
 const qualityEvalSetsExperience: RouteExperience = {
-  ...readonlyExperience("医疗引擎运营员", "核查评价指标配置状态", "待维护指标", "large"),
+  ...readonlyExperience("医疗引擎运营员", "核查评价指标发布状态", "待处理指标", "large"),
   stakeholderViews: [
     {
       role: "质控负责人",
-      responsibility: "维护评价指标、适用范围和发布节奏",
+      responsibility: "定义评价指标口径、适用范围和发布节奏",
       boundary: "未完成发布证据前不能全量启用",
     },
     {

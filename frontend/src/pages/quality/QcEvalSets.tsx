@@ -557,7 +557,7 @@ export default function QcEvalSets() {
     <>
       <PageShell
         title="评价指标"
-        description="维护质控评价指标、影响分析和发布状态"
+        description="定义质控评价指标，试算影响范围并通过机构生效版本统一发布。"
         primary={
           <Button
             aria-label="新建指标"
@@ -753,8 +753,8 @@ export default function QcEvalSets() {
               <Alert
                 type="info"
                 showIcon
-                message="指标版本独立维护"
-                description="创建时只形成指标草稿版本；经机构生效版本确认后，才成为真正上线的版本。"
+                message="指标草稿统一发布"
+                description="创建时只形成指标草稿版本；通过安全复核并纳入机构生效版本后，才成为真正上线的版本。"
               />
             </div>
             <Form.Item

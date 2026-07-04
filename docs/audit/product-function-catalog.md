@@ -102,7 +102,7 @@
 | `/qc/insurance` | 医保审核 | quality-management | insurance-audit | primary | RENAME | 质量管理 | 医保审核 | 核查医保问题、依据和处置结果 |
 <!-- capability:route:route@%2Fqc%2Feval%2Fsets decision=RENAME -->
 <!-- route:/qc/eval/sets -->
-| `/qc/eval/sets` | 评价指标 | quality-management | qc-eval-sets | primary | RENAME | 质量管理 | 评价指标 | 维护评价指标、影响分析和发布状态 |
+| `/qc/eval/sets` | 评价指标 | quality-management | qc-eval-sets | primary | RENAME | 质量管理 | 评价指标 | 定义评价指标、试算影响分析并发布生效 |
 <!-- capability:route:route@%2Fqc%2Feval%2Fresults decision=MERGE -->
 <!-- route:/qc/eval/results -->
 | `/qc/eval/results` | 质量问题来源 | quality-management | — | hidden | MERGE | 质量管理 | 质量问题与整改 | 评估结果作为问题发现和整改页的来源视图 |

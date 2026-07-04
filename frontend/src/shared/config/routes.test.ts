@@ -591,10 +591,14 @@ describe("route metadata", () => {
         boundary: "说明进入审核链，不绕过医保复核",
       },
     ]);
+    expect(findRouteByPath("/qc/eval/sets")?.experience?.goal).toBe("核查评价指标发布状态");
+    expect(findRouteByPath("/qc/eval/sets")?.experience?.defaultView).toBe("待处理指标");
+    expect(findRouteByPath("/qc/eval/sets")?.experience?.goal).not.toContain("配置状态");
+    expect(findRouteByPath("/qc/eval/sets")?.experience?.defaultView).not.toContain("维护");
     expectViews("/qc/eval/sets", [
       {
         role: "质控负责人",
-        responsibility: "维护评价指标、适用范围和发布节奏",
+        responsibility: "定义评价指标口径、适用范围和发布节奏",
         boundary: "未完成发布证据前不能全量启用",
       },
       {

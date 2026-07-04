@@ -183,7 +183,7 @@ const routeDecisions = {
     decision: "RENAME",
     targetDomain: "质量管理",
     targetEntry: "评价指标",
-    task: "维护评价指标、影响分析和发布状态",
+    task: "定义评价指标、试算影响分析并发布生效",
   },
   "/qc/eval/results": {
     decision: "MERGE",
