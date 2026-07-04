@@ -66,7 +66,7 @@
 | `/terminology/mapping` | 术语字典 | knowledge-governance | terminology-mapping | primary | MOVE | 知识治理 | 术语字典 | 校准院内术语映射、裁定冲突并逐条确认高危近似 |
 <!-- capability:route:route@%2Fadapter%2Fhub decision=MOVE -->
 <!-- route:/adapter/hub -->
-| `/adapter/hub` | 系统接入 | system-operations | adapter-hub | primary | MOVE | 系统运维 | 系统接入 | 由集成和实施角色维护外部系统接入及失败补偿 |
+| `/adapter/hub` | 系统接入 | system-operations | adapter-hub | primary | MOVE | 系统运维 | 系统接入 | 治理外部系统接入、字段映射、健康检查和失败补偿 |
 <!-- capability:route:route@%2Fmpi decision=MOVE -->
 <!-- route:/mpi -->
 | `/mpi` | 患者索引 | clinical-collaboration | mpi | primary | MOVE | 临床协同 | 患者索引 | 在授权范围内核查患者主索引和合并拆分问题 |

@@ -111,7 +111,7 @@ const routeDecisions = {
     decision: "MOVE",
     targetDomain: "系统运维",
     targetEntry: "系统接入",
-    task: "由集成和实施角色维护外部系统接入及失败补偿",
+    task: "治理外部系统接入、字段映射、健康检查和失败补偿",
   },
   "/mpi": {
     decision: "MOVE",

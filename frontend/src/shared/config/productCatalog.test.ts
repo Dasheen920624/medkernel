@@ -130,6 +130,7 @@ describe("product function catalog", () => {
     const retiredDiagnosisTask = "维护" + "诊断身份、诊断标准、鉴别诊断、验证病例与来源证据";
     const retiredPathwayTask = "维护" + "、审核、发布和回滚临床路径版本";
     const retiredEvaluationTask = "维护" + "评价指标、影响分析和发布状态";
+    const retiredAdapterTask = "维护" + "外部系统接入及失败补偿";
 
     expect(catalog).not.toContain("知识生产 readiness");
     expect(catalog).not.toContain("生产 job");
@@ -148,11 +149,15 @@ describe("product function catalog", () => {
     expect(catalog).toContain(
       "| `/knowledge/diagnosis` | 诊断知识库 | knowledge-governance | diagnosis-knowledge | primary | SPLIT | 知识治理 | 诊断知识库 | 管理诊断身份、诊断标准、鉴别诊断、验证病例与来源证据 |",
     );
+    expect(catalog).toContain(
+      "| `/adapter/hub` | 系统接入 | system-operations | adapter-hub | primary | MOVE | 系统运维 | 系统接入 | 治理外部系统接入、字段映射、健康检查和失败补偿 |",
+    );
     expect(catalog).not.toContain(retiredReleaseTask);
     expect(catalog).not.toContain(retiredTerminologyTask);
     expect(catalog).not.toContain(retiredDiagnosisTask);
     expect(catalog).not.toContain(retiredPathwayTask);
     expect(catalog).not.toContain(retiredEvaluationTask);
+    expect(catalog).not.toContain(retiredAdapterTask);
   });
 
   it("summarizes every primary sidebar domain in the inventory conclusion", () => {
