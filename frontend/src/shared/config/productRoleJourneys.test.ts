@@ -5,6 +5,40 @@ import { ROLE_OPTIONS } from "./roleCatalog";
 import { PRODUCT_ROLE_JOURNEYS } from "./productRoleJourneys";
 import { findRouteByPath } from "./routes";
 
+function backendDefaultMenuSnapshots(): Map<string, string[]> {
+  const source = readFileSync(
+    resolve(
+      process.cwd(),
+      "../medkernel-backend/src/test/java/com/medkernel/engine/security/DefaultPermissionPolicyTest.java",
+    ),
+    "utf8",
+  );
+  const snapshots = new Map<string, string[]>();
+  const entryPattern = /"([a-z-]+)", List\.of\(([\s\S]*?)\)(?=,\n\s*"[a-z-]+"|\n\s*\);)/g;
+  for (const match of source.matchAll(entryPattern)) {
+    const roleCode = match[1];
+    const menuKeys = Array.from(match[2].matchAll(/"([^"]+)"/g), (quoted) => quoted[1]);
+    snapshots.set(roleCode, menuKeys);
+  }
+  return snapshots;
+}
+
+function reportMenuSnapshots(report: string): Map<string, string[]> {
+  const roleNameToCode: Map<string, string> = new Map(
+    ROLE_OPTIONS.map((role) => [role.name, role.code]),
+  );
+  const snapshots = new Map<string, string[]>();
+  for (const match of report.matchAll(/^\| ([^|]+) \| `([^`]+)` \|$/gm)) {
+    const roleCode = roleNameToCode.get(match[1].trim());
+    if (!roleCode) continue;
+    snapshots.set(
+      roleCode,
+      match[2].split(",").map((menuKey) => menuKey.trim()),
+    );
+  }
+  return snapshots;
+}
+
 describe("product role journeys", () => {
   it("defines one explicit default workbench journey for all four launch roles", () => {
     expect(PRODUCT_ROLE_JOURNEYS.map((journey) => journey.roleCode)).toEqual(
@@ -95,6 +129,17 @@ describe("product role journeys", () => {
         `\`${journey.primaryAction.label}\` → \`${journey.primaryAction.path}\``,
       );
     });
+  });
+
+  it("keeps the complete menu snapshots synchronized with the backend permission policy", () => {
+    const report = readFileSync(
+      resolve(process.cwd(), "../docs/audit/product-role-journeys.md"),
+      "utf8",
+    );
+    const reportSnapshots = reportMenuSnapshots(report);
+    const backendSnapshots = backendDefaultMenuSnapshots();
+
+    expect(reportSnapshots).toEqual(backendSnapshots);
   });
 
   it("keeps the role journey E2E gate strict about browser and server errors", () => {
