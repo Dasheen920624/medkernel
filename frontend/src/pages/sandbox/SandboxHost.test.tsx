@@ -243,9 +243,11 @@ describe("SandboxHost", () => {
     expect(screen.queryByText("trace-sandbox-host-1")).not.toBeInTheDocument();
     expect(screen.queryByText("run-sandbox-host-1")).not.toBeInTheDocument();
     expect(screen.queryByText("baseline-sandbox-host-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("runtime-sandbox-1")).not.toBeInTheDocument();
     expect(screen.queryByText("pathway-instance-sbx-1")).not.toBeInTheDocument();
     expect(screen.queryByText("followup-plan-sbx-1")).not.toBeInTheDocument();
     expect(screen.queryByText("evaluation-run-sbx-1")).not.toBeInTheDocument();
+    expect(screen.getAllByText("当前机构生效版本 · 第 7 版").length).toBeGreaterThan(0);
     expect(screen.getByText("路径实例已生成")).toBeInTheDocument();
     expect(screen.getByText("随访计划已登记")).toBeInTheDocument();
     expect(screen.getByText("评估运行已记录")).toBeInTheDocument();
@@ -283,6 +285,7 @@ describe("SandboxHost", () => {
     expect(screen.getByText("trace-sandbox-host-1")).toBeInTheDocument();
     expect(screen.getByText("run-sandbox-host-1")).toBeInTheDocument();
     expect(screen.getByText("baseline-sandbox-host-1")).toBeInTheDocument();
+    expect(screen.getAllByText("runtime-sandbox-1 · 第 7 版").length).toBeGreaterThan(0);
     expect(screen.getByText("宿主已收到采纳建议（ADOPT）决策")).toBeInTheDocument();
     expect(screen.getByText("卡片：card-1")).toBeInTheDocument();
     expect(screen.getByText("状态：建议已采纳（ADOPTED）")).toBeInTheDocument();
@@ -369,7 +372,11 @@ describe("SandboxHost", () => {
     renderSandboxHost();
 
     expect(screen.getByText("当前机构生效版本")).toBeInTheDocument();
-    expect(screen.getByText("第 9 版 · runtime-platform-1")).toBeInTheDocument();
+    expect(screen.getByText("当前机构生效版本 · 第 9 版")).toBeInTheDocument();
+    expect(screen.queryByText("runtime-platform-1")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getByText("runtime-platform-1 · 第 9 版")).toBeInTheDocument();
   });
 
   it("shows a product-facing scenario catalog warning when the catalog cannot be read", () => {
@@ -489,6 +496,7 @@ describe("SandboxHost", () => {
     expect(await screen.findByText("历史高钾规则")).toBeInTheDocument();
     expect(screen.getByText("历史版本 7")).toBeInTheDocument();
     expect(screen.queryByText("RULE.OLD.K@7")).not.toBeInTheDocument();
+    expect(screen.queryByText("sha256:old-7")).not.toBeInTheDocument();
     expect(screen.getByText("历史已退役")).toBeInTheDocument();
     expect(screen.queryByText("RETIRED")).not.toBeInTheDocument();
     expect(screen.getAllByText("危急风险").length).toBeGreaterThan(0);
@@ -498,6 +506,7 @@ describe("SandboxHost", () => {
     expect(screen.queryByText("上下文原始 JSON")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getByText("sha256:old-7 · 第 4 版")).toBeInTheDocument();
     expect(screen.getByText("RULE.OLD.K@7")).toBeInTheDocument();
     expect(screen.getByText("历史已退役（RETIRED）")).toBeInTheDocument();
     expect(screen.getByText("危急风险（CRITICAL）")).toBeInTheDocument();
@@ -601,9 +610,11 @@ describe("SandboxHost", () => {
       screen.getByText(/历史：平台标准 第 1 版 \/ 命中；当前：机构版本 第 2 版 \/ 命中/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/PLATFORM|ORG/)).not.toBeInTheDocument();
+    expect(screen.queryByText("runtime-current-2")).not.toBeInTheDocument();
     expect(screen.getByText("8")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(screen.getByText("runtime-current-2 · 第 2 版")).toBeInTheDocument();
     expect(screen.getByText("RULE.RISK.UP")).toBeInTheDocument();
     expect(
       screen.getByText(

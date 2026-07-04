@@ -164,6 +164,19 @@ function sourceLabel(mode: SandboxRunMode, runtimeSourceLabel: string) {
   return "历史重放清单";
 }
 
+function runtimeReleaseDisplay(
+  releaseRef: string | null | undefined,
+  revisionNo: number | null | undefined,
+  source: string,
+  evidenceDetailsEnabled: boolean,
+) {
+  if (!releaseRef) return "未记录";
+  const revisionLabel = revisionNo ? `第 ${revisionNo} 版` : "已记录";
+  return evidenceDetailsEnabled
+    ? `${releaseRef} · ${revisionLabel}`
+    : `${source} · ${revisionLabel}`;
+}
+
 function actionLabel(value: string) {
   return ACTION_LABELS[value] ?? "协同处置建议";
 }
@@ -274,9 +287,12 @@ export default function SandboxHost() {
     ? RESOLUTION_SOURCE_LABELS[runtimeStatus.resolutionSource]
     : "尚未解析";
   const currentRuntimeLabel = runtimeStatus?.ready
-    ? `第 ${runtimeStatus.runtimeRevisionNo ?? "?"} 版 · ${
-        runtimeStatus.runtimeReleaseId ?? "未知生效版本"
-      }`
+    ? runtimeReleaseDisplay(
+        runtimeStatus.runtimeReleaseId,
+        runtimeStatus.runtimeRevisionNo,
+        "当前机构生效版本",
+        evidenceDetailsEnabled,
+      )
     : "未就绪";
   const selectedRuntimeLabel = runtimeLabel(runMode, replayCaseId, currentRuntimeLabel);
 
@@ -523,11 +539,12 @@ export default function SandboxHost() {
                   <Descriptions.Item label="重放清单">{result.replayCaseId}</Descriptions.Item>
                 )}
                 <Descriptions.Item label="机构生效版本">
-                  {result.runtimeReleaseRef
-                    ? `${result.runtimeReleaseRef}${
-                        result.runtimeRevisionNo ? ` · 第 ${result.runtimeRevisionNo} 版` : ""
-                      }`
-                    : "未记录"}
+                  {runtimeReleaseDisplay(
+                    result.runtimeReleaseRef,
+                    result.runtimeRevisionNo,
+                    RESOLUTION_SOURCE_LABELS[result.resolutionSource],
+                    evidenceDetailsEnabled,
+                  )}
                 </Descriptions.Item>
                 <Descriptions.Item label="安全边界">
                   {result.externalSideEffects ? "外部副作用未关闭" : "外部副作用已关闭"}
