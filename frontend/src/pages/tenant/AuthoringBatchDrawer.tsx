@@ -363,7 +363,7 @@ export default function AuthoringBatchDrawer({
           aria-label="基准规则资产"
           value={templateRuleId}
           onChange={(event) => setTemplateRuleId(event.target.value)}
-          placeholder="输入已审核基准规则的稳定身份"
+          placeholder="如 weijizhi-huidan-jichu-guize"
         />
       </Form.Item>
       <Form.Item
@@ -376,7 +376,9 @@ export default function AuthoringBatchDrawer({
           value={parameterTable}
           onChange={(event) => setParameterTable(event.target.value)}
           rows={9}
-          placeholder={"规则身份,规则名称,阈值,启用\nCKD-阈值-45,CKD 阈值 1,45,true"}
+          placeholder={
+            "规则身份,规则名称,阈值,启用\nlujing-jiedian-yuqi-tixing,路径节点逾期提醒,3,true"
+          }
         />
       </Form.Item>
       <Button
@@ -401,7 +403,7 @@ export default function AuthoringBatchDrawer({
             value={publishRuleIds}
             onChange={(event) => setPublishRuleIds(event.target.value)}
             rows={4}
-            placeholder={"RULE.CKD.1\nRULE.CKD.2"}
+            placeholder={"lujing-jiedian-yuqi-tixing\nweijizhi-huidan-shixian"}
           />
         </Form.Item>
         <Button

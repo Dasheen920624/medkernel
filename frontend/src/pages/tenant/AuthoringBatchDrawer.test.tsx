@@ -92,6 +92,19 @@ describe("AuthoringBatchDrawer", () => {
     expect(screen.getByText("批量生成独立规则草稿")).toBeInTheDocument();
   });
 
+  it("uses hospital-facing rule identities in batch placeholders", async () => {
+    renderDrawer();
+
+    expect(screen.getByPlaceholderText("如 weijizhi-huidan-jichu-guize")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/lujing-jiedian-yuqi-tixing/)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/CKD-阈值-45/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("tab", { name: "规则发布" }));
+
+    expect(screen.getByPlaceholderText(/weijizhi-huidan-shixian/)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/RULE\.CKD/)).not.toBeInTheDocument();
+  });
+
   it("generates one rule draft per pasted parameter row", async () => {
     apiMocks.generate.mockResolvedValue({
       jobId: "abj-generate",
