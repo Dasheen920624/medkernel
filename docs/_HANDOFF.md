@@ -10,10 +10,14 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第六十二批已完成阶段交接提交为 `43418a945944eb83fac64d9ee77c0a4434ce8041`
-  （`docs: 记录质量域组织范围口径复演`）；第六十三批最新应用代码提交为
+- 第六十三批已完成阶段交接提交为 `e678e7de6717e88f8e098f1d76f3c56a7b7b6ec8`
+  （`docs: 记录知识生产校验状态口径复演`）；第六十四批最新应用代码提交为
+  `d8c376de2f700078f3b73877049942dbec3ecaba`
+  （`fix: 收敛沙盘机构生效版本前台口径`）。其前置本地提交包括第六十三批应用提交
   `d3b64d1b3b42cc7e93586856e1dbf12b1b7245ec`
-  （`fix: 收敛知识生产校验状态前台口径`）。其前置本地提交包括第六十二批应用提交
+  （`fix: 收敛知识生产校验状态前台口径`）、第六十二批阶段交接提交
+  `43418a945944eb83fac64d9ee77c0a4434ce8041`
+  （`docs: 记录质量域组织范围口径复演`）、第六十二批应用提交
   `1c87961e779ecaf125bc49c23670e6c1589ffffa`
   （`fix: 收敛质量域组织范围前台口径`）、第六十一批阶段交接提交
   `6eafbfea4c2f19458f296cb52a046e7294ad5a9d`
@@ -118,7 +122,7 @@
   第五十六批临床事件协同链路口径收敛、第五十七批临床路径责任分工口径收敛、第五十八批临床路径时窗校验口径收敛，
   第五十九批验收与生产目录前台口径收敛、第六十批导出与批量任务编号层级收敛，
   第六十一批质控指标影响范围前台口径收敛、第六十二批质量域组织范围前台口径收敛，
-  以及第六十三批知识生产校验状态前台口径收敛。
+  第六十三批知识生产校验状态前台口径收敛，以及第六十四批沙盘机构生效版本前台口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -139,7 +143,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `d3b64d1b3b42cc7e93586856e1dbf12b1b7245ec`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `d8c376de2f700078f3b73877049942dbec3ecaba`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -149,6 +153,47 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第六十四批·沙盘机构生效版本前台口径收敛）
+
+- 本批继续按医疗产品体验、全角色真实前台和证据详情契约复核。结论：第四十四批全局菜单命名与顺序仍成立；
+  `诊断知识库`、`临床路径库`、`随访模板` 等当前名称继续符合功能语义。新发现的真实体验缺口在全真体验沙盘：
+  当前机构运行摘要、运行结果、历史重放和版本对比默认可能展示 `runtime-platform-1`、`runtime-sandbox-1`、
+  `runtime-current-2`、`sha256:old-7` 等低频运行发布引用。对临床医生、质控人员、医疗引擎运营员和实施人员而言，
+  默认应读到“当前机构生效版本 · 第 N 版”或清晰来源加版本；原始运行发布引用只应在证据详情中服务追溯。
+- 已本地提交 `d8c376de2f700078f3b73877049942dbec3ecaba`
+  （`fix: 收敛沙盘机构生效版本前台口径`）：
+  - `SandboxHost` 新增机构生效版本展示函数，默认用来源与版本号呈现运行版本，证据详情开启后再组合展示
+    `runtime-sandbox-1 · 第 7 版`、`sha256:old-7 · 第 4 版` 等原始追溯引用。
+  - 当前机构运行摘要默认从 `第 9 版 · runtime-platform-1` 收敛为“当前机构生效版本 · 第 9 版”；
+    沙盘运行结果、不可变历史重放和历史/当前对比同样默认隐藏运行发布引用。
+  - 未改变沙盘运行、历史重放、版本对比、运行结果或后端运行版本契约，只调整默认前台语言层级。
+- 本地验证：
+  - 红绿核验：
+    `npm --prefix frontend test -- SandboxHost.test.tsx -t "runs the selected scenario|current institution effective version|immutable historical|compares historical"`
+    在旧实现下先失败于找不到“当前机构生效版本 · 第 7 版 / 第 9 版”且仍展示原始运行发布引用；实现后通过。
+  - 页面回归：`npm --prefix frontend test -- SandboxHost.test.tsx` 通过，`1` 个测试文件 / `11` 项。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `950` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `SandboxHost-CgTRFBF7.js`、`KnowledgeGovernance-C6CJIs_z.js`、
+    `index-C_Ts6tef.js` 等前端产物。
+  - `node scripts/audit/export-product-capabilities.mjs --check` 通过；`bash scripts/check-comment-zh.sh --mode=full`
+    通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+  - 运行发布引用裸露扫描：
+    `rg -n "runtimeReleaseId|runtimeReleaseRef|runtime-[A-Za-z0-9_-]+|sha256:old|第 [0-9?]+ 版 · runtime|runtime.*第" frontend/src/pages/sandbox frontend/src/features/sandbox --glob '!**/*.test.ts' --glob '!**/*.test.tsx'`
+    仅命中沙盘状态字面量 `runtime-check` 与 `SandboxHost` 中作为证据详情输入的 `runtimeReleaseId` /
+    `runtimeReleaseRef`，未发现默认前台展示模式。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头 `Date=Sat, 04 Jul 2026 00:03:07 GMT`，
+  `X-Trace-Id=2a2aef02-9c4c-42f4-8461-787f322edd31`；公网首页 HTTP 200，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`。
+  134 映射仍按当前已核定事实保持：后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `d8c376de` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、菜单分布、构建门禁、
+  134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第六十三批·知识生产校验状态前台口径收敛）
 
