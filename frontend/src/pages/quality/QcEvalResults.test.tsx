@@ -185,6 +185,8 @@ describe("QcEvalResults", () => {
     expect(screen.queryByText("按真实评价结果追溯问题证据")).not.toBeInTheDocument();
     expect(screen.queryByText("真实评价结果总数")).not.toBeInTheDocument();
     expect(screen.getByText("待整改问题总数")).toBeInTheDocument();
+    expect(screen.getByText("质量问题与整改入口")).toBeInTheDocument();
+    expect(screen.queryByText("质控问题与整改入口")).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getAllByText("评价指标已关联").length).toBeGreaterThan(0);
     expect(screen.getByText("第 2 版评价口径")).toBeInTheDocument();
@@ -226,8 +228,10 @@ describe("QcEvalResults", () => {
     renderPage();
 
     expect(screen.getByText("当前筛选下暂无评价结果")).toBeInTheDocument();
+    expect(screen.getByText("当前没有符合筛选条件的评价结果或质量问题。")).toBeInTheDocument();
     expect(screen.queryByText("当前筛选下暂无真实评价结果")).not.toBeInTheDocument();
     expect(screen.queryByText("暂无真实评价结果")).not.toBeInTheDocument();
+    expect(screen.queryByText("当前没有符合筛选条件的评价结果或问题。")).not.toBeInTheDocument();
   });
 
   it("opens a real quality finding detail drawer with evidence and lifecycle facts", async () => {

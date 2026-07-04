@@ -41,7 +41,7 @@ public class QualityDashboardController {
     }
 
     /**
-     * 按来源类型下钻到真实质控证据。
+     * 按来源类型下钻到真实质量证据。
      */
     @GetMapping("/dashboard/drilldown")
     @PreAuthorize("@perm.has('evaluation.read')")

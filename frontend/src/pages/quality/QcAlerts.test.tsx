@@ -52,7 +52,7 @@ const alertsData = {
       thresholdCode: "OPEN_P0_P1_FINDING",
       thresholdValue: 0,
       actualValue: 1,
-      title: "高风险质控问题待闭环：术前记录缺失",
+      title: "高风险质量问题待闭环：术前记录缺失",
       evidenceSummary: "评估问题 finding-p1 仍未闭环",
       createdAt: "2026-06-05T09:00:00Z",
       updatedAt: "2026-06-05T10:00:00Z",
@@ -134,7 +134,8 @@ describe("QcAlerts", () => {
     expect(screen.getByText("当前筛选问题总数")).toBeInTheDocument();
     expect(screen.getByText("1 条")).toBeInTheDocument();
     expect(screen.getByText("共 1 条质量问题，当前显示 1-1 条")).toBeInTheDocument();
-    expect(screen.getByText("高风险质控问题待闭环：术前记录缺失")).toBeInTheDocument();
+    expect(screen.getByText("高风险质量问题待闭环：术前记录缺失")).toBeInTheDocument();
+    expect(screen.queryByText("高风险质控问题待闭环：术前记录缺失")).not.toBeInTheDocument();
     expect(screen.getAllByText("心内科").length).toBeGreaterThan(0);
     expect(screen.queryByText("心内科 · CARDIO")).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
@@ -160,7 +161,7 @@ describe("QcAlerts", () => {
         ...alertsData.items[0],
         alertId: `HIGH_RISK_FINDING:quality_finding:finding-page-${page}-${index + 1}`,
         sourceId: `finding-page-${page}-${index + 1}`,
-        title: `高风险质控问题第 ${page}-${index + 1} 项`,
+        title: `高风险质量问题第 ${page}-${index + 1} 项`,
       }));
       return {
         data: {

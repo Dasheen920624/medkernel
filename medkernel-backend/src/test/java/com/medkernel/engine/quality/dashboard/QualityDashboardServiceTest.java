@@ -192,6 +192,13 @@ class QualityDashboardServiceTest {
         assertThat(response.items())
             .extracting(QualityDashboardAlertResponse::status)
             .containsOnly(QualityDashboardAlertStatus.OPEN);
+        assertThat(response.items())
+            .filteredOn(alert -> alert.sourceId().equals("qf-critical"))
+            .singleElement()
+            .satisfies(alert -> {
+                assertThat(alert.title()).contains("高风险质量问题待闭环");
+                assertThat(alert.title()).doesNotContain("质控问题");
+            });
         assertThat(alerts.count()).isEqualTo(2);
     }
 

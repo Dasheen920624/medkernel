@@ -334,7 +334,7 @@ export const customerEnumLabels: LabelMap = {
   ACHIEVED: "已达成",
   CURRENT: "当前阶段",
   OVERDUE: "已逾期",
-  FINDING: "质控问题",
+  FINDING: "质量问题",
   RECTIFICATION: "整改任务",
   ALERT: "预警",
   PLATFORM_SEED: "平台内置",

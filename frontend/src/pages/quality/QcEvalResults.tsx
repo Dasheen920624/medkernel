@@ -358,7 +358,7 @@ export default function QcEvalResults() {
           title: parsedError?.message ?? "当前筛选下暂无评价结果",
           description: parsedError
             ? "请稍后重试；若持续失败，请联系信息科核查质量问题来源服务。失败已留痕，可在审计证据中追溯。"
-            : "当前没有符合筛选条件的评价结果或问题。",
+            : "当前没有符合筛选条件的评价结果或质量问题。",
           traceId: parsedError?.traceId,
           onRetry: refreshAll,
         }}
@@ -447,13 +447,13 @@ export default function QcEvalResults() {
             />
           </Card>
 
-          <Card title="质控问题与整改入口">
+          <Card title="质量问题与整改入口">
             <Table
               dataSource={findings}
               columns={findingColumns}
               rowKey={(record) => record.findingId}
               loading={findingsQuery.isLoading}
-              locale={{ emptyText: <Empty description="暂无待整改质控问题" /> }}
+              locale={{ emptyText: <Empty description="暂无待整改质量问题" /> }}
               pagination={{
                 total: findingsQuery.data?.total ?? 0,
                 pageSize: 20,

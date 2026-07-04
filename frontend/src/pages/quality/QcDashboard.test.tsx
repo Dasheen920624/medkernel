@@ -158,9 +158,10 @@ describe("QcDashboard", () => {
 
     expect(screen.getByRole("heading", { name: "质量风险概览" })).toBeInTheDocument();
     expect(screen.getByText("质量指标、风险热力与整改闭环")).toBeInTheDocument();
-    expect(screen.getByText("质控问题总数")).toBeInTheDocument();
+    expect(screen.getByText("质量问题总数")).toBeInTheDocument();
     expect(screen.queryByText("真实指标、风险热力与闭环价值")).not.toBeInTheDocument();
-    expect(screen.queryByText("真实质控问题总数")).not.toBeInTheDocument();
+    expect(screen.queryByText("真实质量问题总数")).not.toBeInTheDocument();
+    expect(screen.queryByText("质控问题总数")).not.toBeInTheDocument();
     expect(screen.getByText("12 项")).toBeInTheDocument();
     expect(screen.getByText("心内科")).toBeInTheDocument();
     expect(screen.getByText("整改闭环率")).toBeInTheDocument();
@@ -692,7 +693,7 @@ describe("QcDashboard", () => {
         activeAlerts: [
           {
             ...dashboardData.activeAlerts[0],
-            title: "高风险质控问题待闭环",
+            title: "高风险质量问题待闭环",
             evidenceSummary:
               "结算事实 claim-raw-1；规则 INS.REAL.FRONTDESK.FEE@2026.07；金额 1280.50；阈值 1000；结算金额超过当前演练阈值，需要责任科室提交整改证据。",
           },

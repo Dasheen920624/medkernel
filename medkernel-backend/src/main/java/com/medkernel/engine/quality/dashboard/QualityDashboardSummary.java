@@ -3,7 +3,7 @@ package com.medkernel.engine.quality.dashboard;
 /**
  * 质量风险概览院级汇总。
  *
- * @param totalFindings 质控问题总数
+ * @param totalFindings 质量问题总数
  * @param openFindings 待闭环问题数
  * @param closedFindings 已关闭问题数
  * @param waivedFindings 已豁免问题数

@@ -184,7 +184,7 @@ public class QualityDashboardService {
             upsertAlert(tenantId, QualityDashboardAlertType.HIGH_RISK_FINDING,
                 "quality_finding", rs.getString("source_id"), rs.getString("department_id"), severity,
                 "OPEN_P0_P1_FINDING", BigDecimal.ZERO, BigDecimal.ONE,
-                "高风险质控问题待闭环：" + rs.getString("title"),
+                "高风险质量问题待闭环：" + qualityProblemTitle(rs.getString("title")),
                 rs.getString("evidence_summary"), toInstant(rs.getTimestamp("created_at")),
                 now, rs.getString("trace_id"));
         }, query.params().toArray());
@@ -576,11 +576,18 @@ public class QualityDashboardService {
                 nullToBlank(item.departmentId()),
                 nullToBlank(item.traceId())));
         }
-        return Sha256ContentHash.sha256(String.join("\n", parts), "质控证据导出范围不能为空");
+        return Sha256ContentHash.sha256(String.join("\n", parts), "质量证据导出范围不能为空");
     }
 
     private String nullToBlank(String value) {
         return value == null ? "" : value;
+    }
+
+    private String qualityProblemTitle(String title) {
+        if (title == null || title.isBlank()) {
+            return "未命名质量问题";
+        }
+        return title.replace("质控问题", "质量问题").replace("质控事实", "质量事实");
     }
 
     private String tenantId() {

@@ -90,8 +90,8 @@ public enum ErrorCode {
     ENG_EVAL_002("ENG-EVAL-002", 404, "评估指标不存在", ErrorClass.DATA, false),
     ENG_EVAL_003("ENG-EVAL-003", 409, "当前指标状态不允许该操作", ErrorClass.DATA, false),
     ENG_EVAL_004("ENG-EVAL-004", 409, "评估运行引用了未激活指标", ErrorClass.DATA, false),
-    ENG_EVAL_005("ENG-EVAL-005", 404, "质控问题或整改任务不存在", ErrorClass.DATA, false),
-    ENG_EVAL_006("ENG-EVAL-006", 400, "高风险质控问题缺少责任、期限或证据", ErrorClass.INPUT, false),
+    ENG_EVAL_005("ENG-EVAL-005", 404, "质量问题或整改任务不存在", ErrorClass.DATA, false),
+    ENG_EVAL_006("ENG-EVAL-006", 400, "高风险质量问题缺少责任、期限或证据", ErrorClass.INPUT, false),
     ENG_EVAL_007("ENG-EVAL-007", 409, "整改或复核状态冲突", ErrorClass.DATA, false),
     ENG_EVAL_008("ENG-EVAL-008", 409, "整改或复核幂等键与请求内容冲突", ErrorClass.DATA, false),
 

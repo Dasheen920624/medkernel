@@ -270,7 +270,7 @@ export default function QcDashboard() {
         <div className={styles.statsGrid}>
           <MetricCard
             icon={<AuditOutlined className={styles.iconLarge} />}
-            label="质控问题总数"
+            label="质量问题总数"
             value={formatCount(dashboard.summary.totalFindings)}
           />
           <MetricCard
@@ -594,9 +594,9 @@ function formatAlertEvidenceSummary(
       return "医保审核问题已形成整改证据，需责任科室按规则阈值提交整改。";
     }
     if (alert.alertType === "HIGH_RISK_FINDING") {
-      return `${formatCount(alert.actualValue ?? 0)}项高风险质控问题仍需闭环处理。`;
+      return `${formatCount(alert.actualValue ?? 0)}项高风险质量问题仍需闭环处理。`;
     }
-    return "质控证据已记录，需按当前状态处理。";
+    return "质量证据已记录，需按当前状态处理。";
   }
   return alert.evidenceSummary;
 }
@@ -824,7 +824,7 @@ function formatDrilldownItemEvidenceSummary(
     return "整改任务证据已关联，责任科室需按当前状态复核闭环。";
   }
   if (normalized === "QUALITY_FINDING") {
-    return "质控问题证据已关联，需按当前状态闭环处理。";
+    return "质量问题证据已关联，需按当前状态闭环处理。";
   }
   if (normalized === "QUALITY_ALERT") {
     return "质量风险提醒证据已关联，需按当前状态处理。";
@@ -895,7 +895,7 @@ function heatmapBusinessLabel(cell: QualityDashboardHeatmapCell): string {
 
 function qualitySourceLabel(sourceType: string): string {
   const normalized = sourceType.toUpperCase();
-  if (normalized === "QUALITY_FINDING") return "质控问题";
+  if (normalized === "QUALITY_FINDING") return "质量问题";
   if (normalized === "QUALITY_ALERT") return "质量风险提醒";
   if (normalized === "RECTIFICATION_TASK") return "整改任务";
   return customerEnumLabel(normalized);

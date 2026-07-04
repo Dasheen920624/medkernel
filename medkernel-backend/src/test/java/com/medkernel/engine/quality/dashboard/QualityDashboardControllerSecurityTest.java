@@ -88,7 +88,7 @@ class QualityDashboardControllerSecurityTest {
         when(service.acknowledgeAlert("alert-1")).thenReturn(new QualityDashboardAlertResponse(
             "alert-1", QualityDashboardAlertType.HIGH_RISK_FINDING, QualityDashboardAlertStatus.ACKNOWLEDGED,
             "dept-a", "quality_finding", "qf-1", "P1", "OPEN_P0_P1_FINDING",
-            null, null, "高风险质控问题待闭环", "证据", Instant.EPOCH, Instant.EPOCH, "trace-1"));
+            null, null, "高风险质量问题待闭环", "证据", Instant.EPOCH, Instant.EPOCH, "trace-1"));
 
         mvc.perform(post("/api/v1/engine/quality/alerts/alert-1/acknowledge")
                 .with(jwt().jwt(token -> token
