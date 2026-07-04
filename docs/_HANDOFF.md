@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第七十八批最新应用提交为 `4384ab19b37250ac1d0923f08d4b1f7b5c05e1e8`
-  （`fix: 收敛临床路径层级前台口径`）。其前置本地提交包括第七十七批阶段交接提交
+- 第七十九批最新应用提交为 `90dce703a9848147e7f4d02ff43b0f35fc22e7e0`
+  （`fix: 收敛随访模板默认业务口径`）。其前置本地提交包括第七十八批阶段交接提交
+  `9a3dfac17bb114342d616130ec3fc48e02a080cc`
+  （`docs: 记录临床路径层级前台口径复演`）、第七十八批应用提交
+  `4384ab19b37250ac1d0923f08d4b1f7b5c05e1e8`
+  （`fix: 收敛临床路径层级前台口径`）、第七十七批阶段交接提交
   `68bb943a924e483e7b69fdb38b8188fbb6239e61`
   （`docs: 记录评价指标默认术语复演`）、第七十七批应用提交
   `0c94be2b4d7dfd0d0500771cfd762d6fab8e5063`
@@ -185,7 +189,8 @@
   第七十一批评价指标前台入口口径收敛、第七十二批质量管理前台入口口径收敛，
   第七十三批安全与配置前台入口口径收敛、第七十四批工作台知识关系同步口径收敛，
   第七十五批质量管理概览默认真实口径收敛、第七十六批质量评价默认真实口径收敛，
-  第七十七批评价指标默认术语统一，以及第七十八批临床路径层级前台口径收敛。
+  第七十七批评价指标默认术语统一、第七十八批临床路径层级前台口径收敛，
+  以及第七十九批随访模板默认业务口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -206,7 +211,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `4384ab19b37250ac1d0923f08d4b1f7b5c05e1e8`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `90dce703a9848147e7f4d02ff43b0f35fc22e7e0`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -216,6 +221,50 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第七十九批·随访模板默认业务口径收敛）
+
+- 本批继续按全局菜单、医疗产品体验和全角色真实前台复核。结论：菜单 IA 与第六十九批“随访协同”职责旅程仍成立；
+  问题不在菜单顺序，而在 `/clinical/followup` 的“新建随访模板”默认下拉选项。`docs/EXPERIENCE_CONTRACT.md`
+  明确客户面默认说业务任务，不放阶段名或技术对象；旧字典把问卷选项显示为 `真实前台慢病随访问卷`，
+  把院内依据显示为 `真实前台演练随访制度`，这会把上线复演阶段词带入真实临床随访配置。新口径改为
+  `慢病随访问卷` 与 `慢病随访管理制度`；底层 value、API 字段、菜单、路由、权限、服务端分页、后端、
+  数据库、构建配置和 134 发布配置均未改变。
+- 已本地提交 `90dce703a9848147e7f4d02ff43b0f35fc22e7e0`
+  （`fix: 收敛随访模板默认业务口径`）：
+  - `frontend/src/shared/config/followupTemplateCatalog.ts` 仅替换随访模板创建表单的客户可见 label：
+    `FOLLOWUP_QUESTIONNAIRE_REAL_FRONTDESK` 继续作为契约值，前台显示 `慢病随访问卷`；
+    `REAL_FRONTDESK_FOLLOWUP_TEMPLATE` 继续作为契约值，前台显示 `慢病随访管理制度`。
+  - `frontend/src/pages/clinical/Followup.test.tsx` 将随访模板创建用例改为点击新业务名称，并反向断言
+    `真实前台慢病随访问卷` 与 `真实前台演练随访制度` 不回流默认前台；提交 payload 仍断言原有契约 value。
+- 本地验证：
+  - 红绿核验：`npm --prefix frontend test -- Followup.test.tsx -t "创建随访模板时使用业务选项生成可审计的标准契约"`
+    在旧实现下先失败，明确找不到 `慢病随访问卷`；实现后通过，`1` 项。
+  - 关联配置回归：
+    `npm --prefix frontend test -- Followup.test.tsx pages.smoke.test.tsx productCatalog.test.ts routes.test.ts menu.test.ts productRoleJourneys.test.ts`
+    通过，`6` 个测试文件 / `120` 项。
+  - 生产旧词扫描：
+    `rg -n "真实前台慢病随访问卷|真实前台演练随访制度" frontend/src --glob '!**/*.test.*' --glob '!**/*.spec.*'`
+    无输出。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `959` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `Followup-DmvzQMPS.js`、`index-CIstSJTI.js`、
+    `Clinical-D4ESWhZ0.css` 等前端产物。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 公网首页
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 04:42:18 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，外部 `index.html` 仍指向
+  `/assets/index-DYTh-Ceu.js`、`/assets/vendor-react-C5ap-Sga.css`、`/assets/index-XMjG4gr3.css`；
+  134 readiness 使用 `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头
+  `Date=Sat, 04 Jul 2026 04:42:18 GMT`，`X-Trace-Id=69c227cc-2dc1-4977-9663-5adfce2c49c2`。
+  当前 134 映射仍是后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、前端 dist=
+  `95bb816292f59833005df4761866dd9d89886cb4`；不得把本地 `90dce703` 记为已部署。
+- 下一步继续沿全局菜单、全角色职责旅程、真实前台默认层做广度优先复核；优先处理可真实落地的产品体验、
+  契约、测试、构建和文档问题；不使用子代理、不咨询、不推送远程 `main`。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第七十八批·临床路径层级前台口径收敛）
 
