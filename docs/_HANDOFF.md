@@ -10,6 +10,49 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百一十二批最新应用提交为 `c4ca70701195925be2453803291c5ff10880dd08`
+  （`fix: 收敛质量问题整改口径`）。本批未使用子代理、未推送远程、未合并 `main`；
+  继续以宪章、产品范围、体验契约、功能目录和四职责旅程为准，从医疗产品全局视角复核质量域剩余前台可见口径。
+  发现前端菜单与页面已收敛为 `质量问题` 后，后端价值指标、监控指标说明、质量评估审计摘要、
+  权限目录和全真体验沙盘场景仍残留 `质控问题/质控证据/质控整改` 等内部治理表达，会让院方质量人员、
+  临床科室负责人和运营人员把当前对象理解为后台质控配置，而不是需要被发现、派发、提交和复核闭环的医疗质量问题。
+  现将用户可见价值指标公式、指标来源、自动评估证据、派发/提交/复核审计摘要、P0 豁免错误消息、
+  权限说明、沙盘场景名和公共 Javadoc 收敛为 `质量问题`、`质量证据`、`质量问题整改`；
+  保留 `quality_finding`、接口字段、枚举、实体、表结构、ID、幂等和持久化契约不变。
+- 第一百一十二批验证：先补 `ValueMetricsServiceTest`、`BusinessMetricsTest`、
+  `EvaluationEngineServiceTest`、`PermissionDimensionModelTest` 与 `SandboxScenarioCatalogTest`
+  用例并在旧实现上跑出预期失败，分别捕获旧公式 `已豁免质控问题 / 已复核质控问题`、监控说明
+  `质量管理：当前未闭环质控问题数`、P0 普通豁免错误 `P0 质控问题不得通过普通复核豁免`、
+  自动评估证据 `系统自动评估扫描质控证据支撑。`、审计摘要 `派发质控整改 qf-new` /
+  `提交质控整改 task-1`、权限说明 `复核质控整改并关闭问题` 和沙盘场景 `质控整改复核闭环`。
+  修正后窄测 `mvn -f medkernel-backend/pom.xml -Dtest=ValueMetricsServiceTest,BusinessMetricsTest,EvaluationEngineServiceTest#p0FindingCannotBeWaivedByOrdinaryReview test`
+  通过（8 个测试），
+  `mvn -f medkernel-backend/pom.xml -Dtest=EvaluationEngineServiceTest#rectificationSubmissionAndApprovalCloseFinding+dispatchRectificationCreatesTaskForNewFindingAndRejectsChangedReplay+evaluateSnapshotPersistsRuleExplanationIntoResultAndFindingEvidence test`
+  通过（3 个测试），
+  `mvn -f medkernel-backend/pom.xml -Dtest=PermissionDimensionModelTest#permissionCatalogDoesNotExposeLegacyPackageContainerBoundaries,SandboxScenarioCatalogTest#registersTheCompleteScenarioMatrixAndAllTenRuleScenariosReachRuntimeResolution test`
+  通过（2 个测试）。随后质量域后端扩展套件
+  `mvn -f medkernel-backend/pom.xml -Dtest=ValueMetricsServiceTest,BusinessMetricsTest,EvaluationEngineServiceTest,QualityDashboardServiceTest,QualityDashboardControllerSecurityTest,PermissionDimensionModelTest,MenuPermissionCatalogTest,DefaultPermissionPolicyTest,SandboxScenarioCatalogTest,SandboxOrchestrationServiceTest,ServiceContractGovernanceTest,RuntimeDiagnosticsControllerTest,EmrLevelServiceTest,EmrLevelControllerSecurityTest test`
+  通过（97 个测试），`npm --prefix frontend run test -- QcDashboard QcAlerts QcEvalResults productRoleJourneys routes customerLanguageGate`
+  通过（6 个文件、92 个测试），`npm --prefix frontend run build` 通过，
+  `npm --prefix frontend run verify` 通过（114 个测试文件、966 个测试；仅出现既有 antd Timeline deprecation warning），
+  `mvn -f medkernel-backend/pom.xml test` 通过（3064 个测试、0 failures、0 errors、7 skipped；
+  Docker/Testcontainers 多方言容器用例因本机无 Docker 按既有条件跳过），`git diff --check` 与
+  `git diff --cached --check` 均退出码 0。旧词扫描
+  `rg -n "质控问题|质控事实|质控证据|质控整改|手工质控整改|派发质控|提交质控|复核质控" ...`
+  仅剩前端测试里的反向断言和 `QualityDashboardService#qualityProblemTitle` 的历史标题兼容归一化字面量；
+  菜单旧名扫描 `rg -n "诊断知识维护|临床路径模板|质量管理概览|质控预警" ...`
+  仅剩测试里的反向断言和职责旅程旧词黑名单。
+- 第一百一十二批开工/收尾核查：`origin/main` 仍为
+  `1561ba6bef8777dcef76432696f43de4277fdd3f`
+  （`完善全角色上线演练与134复演闭环 (#653)`）；本批应用提交前本地分支领先 `origin/main` 303 个提交，
+  应用提交后领先 304 个提交。134 当前公网首页 `https://193.112.107.134/medkernel/` HTTP 200，
+  `Date=Sat, 04 Jul 2026 20:57:25 GMT`，`Content-Length=832`，仍指向
+  `/assets/index-DYTh-Ceu.js`、`/assets/vendor-react-bdrMx_IT.js`、`/assets/vendor-data-D9EFEnEk.js`、
+  `/assets/vendor-react-C5ap-Sga.css`、`/assets/index-XMjG4gr3.css`；正确 readiness 端点
+  `https://193.112.107.134/medkernel/actuator/health/readiness` HTTP 200 / `{"status":"UP"}`，
+  `X-Trace-Id=ef631444-93bd-4ef5-a227-1b565b517d32`。本批本地应用提交尚未发布到 134、尚未推送远程、
+  尚未合并 `main`。
+- 下一步继续主线：不使用子代理；继续按全角色真实前台体验广度复核剩余上线级问题，阶段完成后继续更新本文件并本地提交。
 - 第一百一十一批最新应用提交为 `c8006c9e936723be6b52c37d71efc1332ec172c5`
   （`fix: 统一质量问题前台口径`）。本批未使用子代理、未推送远程、未合并 `main`；
   继续以宪章、产品范围、体验契约、功能目录和四职责旅程为准复核质量域前台体验。发现
