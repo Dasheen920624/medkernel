@@ -4565,7 +4565,7 @@ export default function RuleDefinitions() {
   return (
     <PageShell
       title="临床规则"
-      description="维护临床规则资产，完成验证、解释和临床治理。"
+      description="配置临床规则草稿，完成试运行、影响分析、安全复核并纳入机构生效版本。"
       primary={
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
           新建临床规则
@@ -4876,8 +4876,8 @@ export default function RuleDefinitions() {
               <Alert
                 showIcon
                 type="info"
-                message="规则版本独立维护"
-                description="规则发布时由平台标准版本或机构生效版本选择上线版本；创作阶段不绑定上线范围或离线交付文件。"
+                message="规则草稿统一发布"
+                description="创建或编辑只形成规则草稿版本；完成试运行、安全复核并纳入平台标准版本或机构生效版本后，才会参与临床运行。"
               />
             </Col>
           </Row>

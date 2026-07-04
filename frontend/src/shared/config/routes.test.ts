@@ -432,7 +432,10 @@ describe("route metadata", () => {
         boundary: "临床路径不能自动改写患者当前医嘱",
       },
     ]);
-    expect(findRouteByPath("/rule/definitions")?.experience?.stakeholderViews).toEqual([
+    const ruleDefinitionsExperience = findRouteByPath("/rule/definitions")?.experience;
+    expect(ruleDefinitionsExperience?.goal).toBe("核查临床规则发布准备");
+    expect(ruleDefinitionsExperience?.defaultView).toBe("待处理规则");
+    expect(ruleDefinitionsExperience?.stakeholderViews).toEqual([
       {
         role: "临床专家",
         responsibility: "确认触发条件、建议动作和禁忌边界",
@@ -440,7 +443,7 @@ describe("route metadata", () => {
       },
       {
         role: "医疗引擎运营员",
-        responsibility: "维护触发条件、建议动作、验证病例和分阶段上线范围",
+        responsibility: "配置触发条件、建议动作、验证病例和上线影响范围",
         boundary: "高风险规则必须完成逐条责任确认",
       },
     ]);

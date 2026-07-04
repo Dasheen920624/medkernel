@@ -311,7 +311,7 @@ const pathwayTemplateExperience: RouteExperience = {
 };
 
 const ruleDefinitionExperience: RouteExperience = {
-  ...readonlyExperience("医疗引擎运营员", "核查规则资产准备状态", "待处理规则", "large"),
+  ...readonlyExperience("医疗引擎运营员", "核查临床规则发布准备", "待处理规则", "large"),
   stakeholderViews: [
     {
       role: "临床专家",
@@ -320,7 +320,7 @@ const ruleDefinitionExperience: RouteExperience = {
     },
     {
       role: "医疗引擎运营员",
-      responsibility: "维护触发条件、建议动作、验证病例和分阶段上线范围",
+      responsibility: "配置触发条件、建议动作、验证病例和上线影响范围",
       boundary: "高风险规则必须完成逐条责任确认",
     },
   ],

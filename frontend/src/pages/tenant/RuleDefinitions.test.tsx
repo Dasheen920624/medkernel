@@ -459,11 +459,24 @@ describe("RuleDefinitions 三层规则编辑体验", () => {
   it("创建规则不绑定旧上线容器，并允许一个版本绑定多个临床触发场景", async () => {
     renderRuleDefinitions();
 
+    expect(
+      screen.getByText("配置临床规则草稿，完成试运行、影响分析、安全复核并纳入机构生效版本。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("维护临床规则资产，完成验证、解释和临床治理。"),
+    ).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: /新建临床规则/ }));
 
     const dialog = await screen.findByRole("dialog", { name: "创建新临床规则" });
     expect(within(dialog).queryByLabelText("标准上下文" + "包版本")).not.toBeInTheDocument();
-    expect(within(dialog).getByText("规则版本独立维护")).toBeInTheDocument();
+    expect(within(dialog).getByText("规则草稿统一发布")).toBeInTheDocument();
+    expect(within(dialog).queryByText("规则版本独立维护")).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "创建或编辑只形成规则草稿版本；完成试运行、安全复核并纳入平台标准版本或机构生效版本后，才会参与临床运行。",
+      ),
+    ).toBeInTheDocument();
     expect(within(dialog).getByLabelText("临床触发场景")).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "创建草稿" }));
     expect(
