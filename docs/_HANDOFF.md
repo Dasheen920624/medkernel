@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第八十五批最新应用提交为 `b748e260301b849f5f615954751828f56c925b8f`
-  （`fix: 收敛七步流来源选择口径`）。其前置本地提交包括第八十四批阶段交接提交
+- 第八十六批最新应用提交为 `e5490c79c8cb1907e602db4208e54e1f7b25e8ec`
+  （`fix: 收敛资产编目入口口径`）。其前置本地提交包括第八十五批阶段交接提交
+  `d117c80251b88e3312ee8b574b312f33b60402b3`
+  （`docs: 记录七步流来源口径复演`）、第八十五批应用提交
+  `b748e260301b849f5f615954751828f56c925b8f`
+  （`fix: 收敛七步流来源选择口径`）、第八十四批阶段交接提交
   `a962b613ae72bc1e76dec1028acfc750a0dbb5dd`
   （`docs: 记录批量规则示例口径复演`）、第八十四批应用提交
   `df1135ca32b6980f2bcfb86e523e182b85030dd0`
@@ -216,7 +220,7 @@
   第七十七批评价指标默认术语统一、第七十八批临床路径层级前台口径收敛，
   第七十九批随访模板默认业务口径收敛、第八十批工作台运行底座默认层收敛、第八十一批诊断知识库职责边界口径收敛，
   第八十二批诊断知识表单示例口径收敛、第八十三批临床路径建模示例口径收敛、第八十四批批量规则默认示例口径收敛，
-  以及第八十五批七步流来源选择口径收敛。
+  第八十五批七步流来源选择口径收敛，以及第八十六批资产编目入口口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -237,7 +241,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `b748e260301b849f5f615954751828f56c925b8f`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `e5490c79c8cb1907e602db4208e54e1f7b25e8ec`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -247,6 +251,61 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第八十六批·资产编目入口口径收敛）
+
+- 本批继续按全局菜单、医疗产品体验和全角色职责旅程复核。结论：第四十四批全局菜单名与顺序仍成立，
+  `诊断知识库`、`临床路径库`、`知识审核发布中心`、`知识生产工作台` 等左侧菜单不需要继续改名或重排；新发现的真实体验缺口在
+  `/authoring/assets` 的隐藏页内资产入口与字段目录抽屉。该页虽然不占左侧主菜单，但客户可见的 `配置资产维护`、`维护字段目录`、
+  `上下文字段目录维护`、`医疗配置资产独立维护` 等词会继续强化“维护”像低层后台修表的感受，也容易让院内运营员误解为直接修改当前运行版本。
+  按 `CONSTITUTION` 的统一最小发布流与 `EXPERIENCE_CONTRACT` 的医院语言要求，本批仅收敛可见命名和说明为
+  “编目 / 字段与配置资产 / 字段目录 / 字段目录草稿 / 调整平台字段展示”；菜单键、路由、权限、后端 API、数据契约、数据库、构建配置和
+  134 发布配置均未改变。
+- 已本地提交 `e5490c79c8cb1907e602db4208e54e1f7b25e8ec`
+  （`fix: 收敛资产编目入口口径`）：
+  - `frontend/src/pages/tenant/AuthoringAssets.tsx` 将统一资产库说明改为
+    `检索、收藏、编目和复用医疗知识与配置资产`，页内标签从 `配置资产维护` 改为 `字段与配置资产`，字段入口从
+    `维护字段目录` 改为 `字段目录`，加载和错误状态同步从“创作资产”收敛为医疗资产语言。
+  - `frontend/src/shared/ui/condition/FieldCatalogManager.tsx` 将抽屉标题从 `上下文字段目录维护` 改为
+    `字段目录草稿`，提示改为 `这里编排下一版本的字段目录`，说明改为本次调整需固化为草稿后才可进入平台标准版本或机构生效版本，
+    按钮从 `维护平台字段覆盖` 改为 `调整平台字段展示`。
+  - `frontend/src/pages/tenant/DeclarativeAssetWorkbench.tsx` 将说明从 `医疗配置资产独立维护` 改为
+    `配置资产按类型编目`，并把字段目录与完整路径的关系表述为各自工作台管理。
+  - `frontend/src/pages/tenant/AuthoringAssets.test.tsx`、`frontend/src/shared/ui/condition/FieldCatalogManager.test.tsx`、
+    `frontend/src/pages/tenant/DeclarativeAssetWorkbench.test.tsx` 正向锁定新口径并反向阻断旧“维护”入口回流。
+- 本地验证：
+  - 红绿核验：先改测试后执行
+    `npm --prefix frontend test -- AuthoringAssets.test.tsx FieldCatalogManager.test.tsx DeclarativeAssetWorkbench.test.tsx -t "searches unified assets|keeps asset codes|surfaces independent|展示平台|无 context.write|shows four"`
+    在旧实现下失败，明确找不到 `配置资产按类型编目`、`字段目录草稿`、`字段与配置资产` 等新口径；实现后同命令通过，
+    `3` 个测试文件 / `6` 项目标用例。
+  - 关联资产与菜单回归：
+    `npm --prefix frontend test -- AuthoringAssets.test.tsx FieldCatalogManager.test.tsx DeclarativeAssetWorkbench.test.tsx PathwayTemplates.test.tsx routes.test.ts menu.test.ts productCatalog.test.ts productRoleJourneys.test.ts`
+    通过，`8` 个测试文件 / `107` 项。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - 生产旧口径扫描：
+    `rg -n "配置资产维护|维护字段目录|维护平台字段覆盖|上下文字段目录维护|医疗配置资产独立维护|字段目录与完整路径分别由各自工作台维护|检索、收藏、维护和复用|这里维护下一版本|维护结果需固化" frontend/src --glob '!**/*.test.tsx' --glob '!**/*.test.ts'`
+    无输出；测试文件仅保留反向断言，`PathwayTemplates.test.tsx` 仍有一个不相关权限夹具 `维护字段目录`。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `960` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `AuthoringAssets-C6FNc56h.js`、`FieldCatalogManager-OBa3-Tnn.js`、
+    `index-DDzH_WR4.js` 等前端产物。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 公网首页
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 05:25:57 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，外部 `index.html` 仍指向
+  `/assets/index-DYTh-Ceu.js`、`/assets/vendor-react-bdrMx_IT.js`、`/assets/vendor-data-D9EFEnEk.js`、
+  `/assets/vendor-react-C5ap-Sga.css`、`/assets/index-XMjG4gr3.css`；134 health 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头
+  `Date=Sat, 04 Jul 2026 05:26:45 GMT`，`X-Trace-Id=e2e15388-a8d5-4d8-b889e-b51abc2d4ee7`；
+  readiness 使用 `https://193.112.107.134/medkernel/actuator/health/readiness` 返回 HTTP 200 /
+  `{"status":"UP"}`，`X-Trace-Id=d3dc14d2-3d16-417b-9ef9-5c3f50ecfa89`。当前 134 映射仍是
+  后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`；
+  不得把本地 `e5490c79` 记为已部署。
+- 下一步继续沿全局菜单、全角色职责旅程、真实前台默认层做广度优先复核；优先处理可真实落地的产品体验、
+  契约、测试、构建和文档问题；不使用子代理、不咨询、不推送远程 `main`。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第八十五批·七步流来源选择口径收敛）
 
