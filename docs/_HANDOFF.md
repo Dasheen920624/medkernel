@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第八十一批最新应用提交为 `66a429a4ef00663abc3247f47112f16d0a3ac9d0`
-  （`fix: 收敛诊断知识库职责边界口径`）。其前置本地提交包括第八十批阶段交接提交
+- 第八十二批最新应用提交为 `6a7682444f228eba6677c9b3c209b786020f7f53`
+  （`fix: 收敛诊断知识表单示例口径`）。其前置本地提交包括第八十一批阶段交接提交
+  `af769750b97c6f1a43c562d77457e0df7d7c9c06`
+  （`docs: 记录诊断知识库职责边界复演`）、第八十一批应用提交
+  `66a429a4ef00663abc3247f47112f16d0a3ac9d0`
+  （`fix: 收敛诊断知识库职责边界口径`）、第八十批阶段交接提交
   `f158744e394ffa11bd8853d3ae519f58645bba4c`
   （`docs: 记录工作台运行底座默认层复演`）、第八十批应用提交
   `0322041c2ddc0b3c97db0ead209eaed191219957`
@@ -198,7 +202,8 @@
   第七十三批安全与配置前台入口口径收敛、第七十四批工作台知识关系同步口径收敛，
   第七十五批质量管理概览默认真实口径收敛、第七十六批质量评价默认真实口径收敛，
   第七十七批评价指标默认术语统一、第七十八批临床路径层级前台口径收敛，
-  第七十九批随访模板默认业务口径收敛、第八十批工作台运行底座默认层收敛，以及第八十一批诊断知识库职责边界口径收敛。
+  第七十九批随访模板默认业务口径收敛、第八十批工作台运行底座默认层收敛、第八十一批诊断知识库职责边界口径收敛，
+  以及第八十二批诊断知识表单示例口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -219,7 +224,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `66a429a4ef00663abc3247f47112f16d0a3ac9d0`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `6a7682444f228eba6677c9b3c209b786020f7f53`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -229,6 +234,54 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第八十二批·诊断知识表单示例口径收敛）
+
+- 本批继续按用户对诊断知识维护入口、全局菜单医疗语境和全角色前台体验的线索做广度复核。结论：
+  第四十四批全局菜单命名与顺序仍成立，`诊断知识库` 作为菜单名继续比“诊断知识维护”更符合统一知识治理和发布职责；
+  新发现的体验缺口在 `/quality/DiagnosisKnowledgePanel.tsx` 的诊断资产与验证病例表单。稳定业务身份字段本身是契约必需，
+  但默认占位仍使用英文疾病 slug、`repository://...` 和 `CKD-CASE-001`，会让医疗运营人员误以为需要填写技术仓库地址或英文测试编号。
+  本批仅把占位示例收敛为院内可理解的慢病诊断知识示例和受控资料链接提示；菜单、路由、权限、后端 API、数据契约、数据库、
+  构建配置和 134 发布配置均未改变。
+- 已本地提交 `6a7682444f228eba6677c9b3c209b786020f7f53`
+  （`fix: 收敛诊断知识表单示例口径`）：
+  - `frontend/src/pages/quality/DiagnosisKnowledgePanel.tsx` 将稳定诊断身份占位从
+    `例如 chronic-kidney-disease` 改为 `例如 manxing-shenbing`，保留字段校验与提交值不变。
+  - 同页将受控文件地址占位从 `repository://...` 改为 `粘贴受控资料库地址或院内文档链接`，明确这是受控来源线索而非技术协议要求。
+  - 同页将稳定验证病例身份占位从 `如 CKD-CASE-001，用于复算与验收追溯` 改为
+    `如 manxing-shenbing-case-001，用于复算与验收追溯`。
+  - `frontend/src/pages/quality/DiagnosisKnowledgePanel.test.tsx` 增加新占位正向断言和旧技术/英文示例反向断言，阻断回流。
+- 本地验证：
+  - 红绿核验：先改测试后执行
+    `npm --prefix frontend test -- DiagnosisKnowledgePanel.test.tsx -t "creates a diagnosis asset exactly once|uses stable business identity wording"`
+    在旧实现下失败，明确找不到 `例如 manxing-shenbing` 与
+    `如 manxing-shenbing-case-001，用于复算与验收追溯`；实现后同命令通过，`2` 项。
+  - 关联配置回归：
+    `npm --prefix frontend test -- DiagnosisKnowledgePanel.test.tsx DiagnosisKnowledgeMaintenance.test.tsx routes.test.ts productCatalog.test.ts menu.test.ts productRoleJourneys.test.ts`
+    通过，`6` 个测试文件 / `97` 项。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - 旧占位扫描：
+    `rg -n "chronic-kidney-disease|repository://\\.\\.\\.|CKD-CASE-001" frontend/src/pages/quality/DiagnosisKnowledgePanel.tsx frontend/src/pages/quality/DiagnosisKnowledgePanel.test.tsx`
+    仅命中测试反向断言；生产文件无旧占位残留。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `959` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `DiagnosisKnowledgeMaintenance-VeqXshNJ.js`、
+    `Dashboard-Bffzjclb.js`、`index-BoB7APkS.js` 等前端产物。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 公网首页
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 05:01:21 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，外部 `index.html` 仍指向
+  `/assets/index-DYTh-Ceu.js`、`/assets/vendor-react-bdrMx_IT.js`、`/assets/vendor-data-D9EFEnEk.js`、
+  `/assets/vendor-react-C5ap-Sga.css`、`/assets/index-XMjG4gr3.css`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头
+  `Date=Sat, 04 Jul 2026 05:01:21 GMT`，`X-Trace-Id=554bf63b-db04-4a09-904b-564c9ad5b19d`。
+  当前 134 映射仍是后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、前端 dist=
+  `95bb816292f59833005df4761866dd9d89886cb4`；不得把本地 `6a768244` 记为已部署。
+- 下一步继续沿全局菜单、全角色职责旅程、真实前台默认层做广度优先复核；优先处理可真实落地的产品体验、
+  契约、测试、构建和文档问题；不使用子代理、不咨询、不推送远程 `main`。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第八十一批·诊断知识库职责边界口径收敛）
 
