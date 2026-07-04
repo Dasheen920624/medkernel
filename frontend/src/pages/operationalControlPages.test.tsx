@@ -557,7 +557,8 @@ describe("operational control pages", () => {
   it("renders security baseline from current profile and runtime facts", () => {
     renderPage(<SecurityBaseline />);
 
-    expect(screen.getByRole("heading", { name: "安全基线与系统配置" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "安全与配置" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "安全基线与系统配置" })).not.toBeInTheDocument();
     expect(screen.getByText("平台管理员")).toBeInTheDocument();
     expect(screen.getAllByText("多因素认证已绑定").length).toBeGreaterThan(0);
     expect(screen.getAllByText("高风险权限").length).toBeGreaterThan(0);

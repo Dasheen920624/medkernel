@@ -407,7 +407,8 @@ describe("SecurityBaseline", () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "安全基线与系统配置" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "安全与配置" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "安全基线与系统配置" })).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getByText("关系数据库")).toBeInTheDocument();
     expect(screen.getByText("已限定 1 个运行环境")).toBeInTheDocument();
@@ -451,6 +452,18 @@ describe("SecurityBaseline", () => {
     expect(screen.getByText("电子病历评级证据导出")).toBeInTheDocument();
     expect(screen.queryByText("sha256:emr-export-001")).not.toBeInTheDocument();
   }, 15_000);
+
+  it("uses customer-facing wording when security or runtime data is empty", () => {
+    vi.mocked(useSecurityProfile).mockReturnValue(query(null) as never);
+
+    renderPage();
+
+    expect(screen.getByRole("heading", { name: "安全与配置" })).toBeInTheDocument();
+    expect(screen.getByText("安全与配置暂无数据")).toBeInTheDocument();
+    expect(screen.getByText("暂无安全与配置状态")).toBeInTheDocument();
+    expect(screen.queryByText("安全与配置合同暂无数据")).not.toBeInTheDocument();
+    expect(screen.queryByText("暂无安全基线状态")).not.toBeInTheDocument();
+  });
 
   it("reveals security identifiers only through evidence details", async () => {
     const user = userEvent.setup();

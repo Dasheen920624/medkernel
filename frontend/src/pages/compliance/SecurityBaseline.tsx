@@ -32,6 +32,8 @@ import {
   SystemConfigPanel,
 } from "./SecurityBaselinePanels";
 
+const SECURITY_PAGE_TITLE = "安全与配置";
+
 const STATUS_LABEL: Record<string, string> = {
   UP: "正常",
   DEGRADED: "降级",
@@ -288,7 +290,7 @@ export default function SecurityBaseline() {
 
   if (security.isLoading || runtime.isLoading) {
     return (
-      <PageShell title="安全基线与系统配置" description="正在读取安全画像与运行环境">
+      <PageShell title={SECURITY_PAGE_TITLE} description="正在读取安全画像与运行环境">
         <PageState state="loading" />
       </PageShell>
     );
@@ -296,10 +298,10 @@ export default function SecurityBaseline() {
 
   if (security.isError || runtime.isError) {
     return (
-      <PageShell title="安全基线与系统配置" description="安全基线状态读取失败">
+      <PageShell title={SECURITY_PAGE_TITLE} description="安全与配置状态读取失败">
         <PageState
           state="error"
-          title="暂时无法读取安全基线"
+          title="暂时无法读取安全与配置状态"
           description="请稍后重试，或让信息科检查安全画像与运行环境。"
           action={
             <Space wrap>
@@ -318,8 +320,8 @@ export default function SecurityBaseline() {
   const snapshot = runtime.data;
   if (!profile || !snapshot) {
     return (
-      <PageShell title="安全基线与系统配置" description="安全基线合同暂无数据">
-        <PageState state="empty" title="暂无安全基线状态" />
+      <PageShell title={SECURITY_PAGE_TITLE} description="安全与配置暂无数据">
+        <PageState state="empty" title="暂无安全与配置状态" />
       </PageShell>
     );
   }
@@ -328,7 +330,7 @@ export default function SecurityBaseline() {
   const evidenceDetailsEnabled = canUseEvidenceDetails(profile) && globalEvidenceDetails;
   return (
     <PageShell
-      title="安全基线与系统配置"
+      title={SECURITY_PAGE_TITLE}
       description="统一管理运行配置、数据访问、数据脱敏与互操作测评证据"
       extras={<EvidenceDetailsToggle securityProfile={profile} />}
     >
