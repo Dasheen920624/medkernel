@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第七十六批最新应用提交为 `1267b484af12c35640cbaa010ebc58a99854b0c0`
-  （`fix: 收敛质量评价默认真实口径`）。其前置本地提交包括第七十五批阶段交接提交
+- 第七十七批最新应用提交为 `0c94be2b4d7dfd0d0500771cfd762d6fab8e5063`
+  （`fix: 统一评价指标默认术语`）。其前置本地提交包括第七十六批阶段交接提交
+  `3d60a2ab5d8ffe8358268d5f27a23b3f3a35f64c`
+  （`docs: 记录质量评价默认真实口径复演`）、第七十六批应用提交
+  `1267b484af12c35640cbaa010ebc58a99854b0c0`
+  （`fix: 收敛质量评价默认真实口径`）、第七十五批阶段交接提交
   `f9a4c679764f4eedba1691bf1876435908c06d71`
   （`docs: 记录质量概览默认真实口径复演`）、第七十五批应用提交
   `e9670a65270ab1e3e365cfcf038e94beb9eaa335`
@@ -176,7 +180,8 @@
   第六十九批职责旅程随访协同菜单快照校准、第七十批知识关系前台入口口径收敛，
   第七十一批评价指标前台入口口径收敛、第七十二批质量管理前台入口口径收敛，
   第七十三批安全与配置前台入口口径收敛、第七十四批工作台知识关系同步口径收敛，
-  第七十五批质量管理概览默认真实口径收敛，以及第七十六批质量评价默认真实口径收敛。
+  第七十五批质量管理概览默认真实口径收敛、第七十六批质量评价默认真实口径收敛，
+  以及第七十七批评价指标默认术语统一。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -197,7 +202,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `1267b484af12c35640cbaa010ebc58a99854b0c0`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `0c94be2b4d7dfd0d0500771cfd762d6fab8e5063`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -207,6 +212,57 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第七十七批·评价指标默认术语统一）
+
+- 本批继续按全局菜单、医疗产品体验和全角色真实前台复核。结论：第四十四批全局菜单命名与顺序仍成立；
+  `docs/audit/product-function-catalog.md` 将 `/qc/eval/sets` 定义为质量管理域的 `评价指标`，
+  任务是维护评价指标、影响分析和发布状态；`/pathway/templates` 定义为知识治理域的 `临床路径库`，
+  任务是维护、审核、发布和回滚临床路径版本。临床路径结局指标绑定引用的是已生效评价指标，不应另起
+  `评估指标` 资产口径；`QcEvalSets` 加载态中的 `EVAL-01` 属于技术编号，也不应出现在默认前台层。
+  本批仅统一评价指标默认可见术语；`评估主体`、`仿真评估` 等表示动作或主体的业务词继续保留，后端 API、
+  `indicatorCode` 字段、菜单顺序、权限、服务端分页、数据库、构建配置和 134 发布配置均未改变。
+- 已本地提交 `0c94be2b4d7dfd0d0500771cfd762d6fab8e5063`
+  （`fix: 统一评价指标默认术语`）：
+  - `frontend/src/pages/quality/QcEvalSets.tsx` 将加载说明从
+    `正在读取 EVAL-01 指标版本台账。` 收敛为 `正在读取评价指标版本台账。`。
+  - `frontend/src/pages/tenant/PathwayTemplates.tsx` 将结局指标绑定表单的标签、占位和空列表提示从
+    `评估指标` / `选择已生效评估指标` / `暂无已生效评估指标` 统一为
+    `评价指标` / `选择已生效评价指标` / `暂无已生效评价指标`。
+  - `frontend/src/shared/ui/StepFlow.tsx` 将共享 7 步流注释中的同一资产名同步为 `评价指标`。
+  - `frontend/src/pages/quality/QcEvalSets.test.tsx`、`frontend/src/pages/tenant/PathwayTemplates.test.tsx`
+    增加加载态与临床路径结局指标绑定反向断言，阻断 `EVAL-01` 与旧 `评估指标` 口径回流。
+- 本地验证：
+  - 红绿核验：`npm --prefix frontend test -- QcEvalSets.test.tsx -t "uses business wording while loading evaluation indicators"`
+    在旧实现下先失败，明确显示页面仍为 `正在读取 EVAL-01 指标版本台账。`；实现后通过，`1` 项。
+  - 红绿核验：路径表单用例先按真实用户动作修正为“空白路径 → 节点画布 → 添加结局指标”，并规避 ReactFlow
+    SVG marker 对 `getByLabelText` 的 jsdom 选择器干扰；临时还原旧 `评估指标` 实现后执行
+    `npm --prefix frontend test -- PathwayTemplates.test.tsx -t "结局指标绑定引用已生效评价指标"` 失败，
+    明确找不到 `评价指标`；恢复新实现后同命令通过，`1` 项。
+  - 生产旧词扫描：
+    `rg -n "评估指标|EVAL-01" frontend/src/pages/quality/QcEvalSets.tsx frontend/src/pages/tenant/PathwayTemplates.tsx frontend/src/shared/ui/StepFlow.tsx`
+    无输出；包含测试的旧词扫描仅命中反向断言。
+  - 关联配置回归：
+    `npm --prefix frontend test -- QcEvalSets.test.tsx PathwayTemplates.test.tsx pages.smoke.test.tsx productCatalog.test.ts routes.test.ts menu.test.ts`
+    通过，`6` 个测试文件 / `113` 项。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `958` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `QcEvalSets-DNi0J8Ac.js`、`PathwayTemplates-BHwxDTHg.js`、
+    `StepFlow-Db3oPus5.js`、`index-DETlYp-g.js` 等前端产物。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 公网首页
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 03:23:50 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，外部 `index.html` 仍指向
+  `/assets/index-DYTh-Ceu.js`；134 readiness 使用 `https://193.112.107.134/medkernel/actuator/health`
+  返回 HTTP 200 / `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头
+  `Date=Sat, 04 Jul 2026 03:23:50 GMT`，`X-Trace-Id=f3e8b89b-f9dd-4089-a5ce-7050ad19b39e`。
+  134 映射仍按当前已核定事实保持：后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `0c94be2b` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、菜单分布、构建门禁、
+  134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第七十六批·质量评价默认真实口径收敛）
 
