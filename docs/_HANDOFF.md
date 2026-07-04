@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第七十四批最新应用提交为 `bb5c552600ce6d51a93bbd9a731c1c64a0ac4dc4`
-  （`fix: 收敛工作台知识关系同步口径`）。其前置本地提交包括第七十三批阶段交接提交
+- 第七十五批最新应用提交为 `e9670a65270ab1e3e365cfcf038e94beb9eaa335`
+  （`fix: 收敛质量概览默认真实口径`）。其前置本地提交包括第七十四批阶段交接提交
+  `f0532f4e26bcaf954eeaa9fb77a6cb9cac9d5e8a6`
+  （`docs: 记录工作台知识关系同步口径复演`）、第七十四批应用提交
+  `bb5c552600ce6d51a93bbd9a731c1c64a0ac4dc4`
+  （`fix: 收敛工作台知识关系同步口径`）、第七十三批阶段交接提交
   `2676d85e4e082fb1aa28ba7b3a08d215feac1127`
   （`docs: 记录安全与配置前台入口口径复演`）、第七十三批应用提交
   `9ce90c04ffcbfa99be2054d5c16ed09b798202a9`
@@ -167,7 +171,8 @@
   第六十七批知识生产候选分流前台口径收敛、第六十八批产品目录知识生产业务域校准，
   第六十九批职责旅程随访协同菜单快照校准、第七十批知识关系前台入口口径收敛，
   第七十一批评价指标前台入口口径收敛、第七十二批质量管理前台入口口径收敛，
-  第七十三批安全与配置前台入口口径收敛，以及第七十四批工作台知识关系同步口径收敛。
+  第七十三批安全与配置前台入口口径收敛、第七十四批工作台知识关系同步口径收敛，
+  以及第七十五批质量管理概览默认真实口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -188,7 +193,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `bb5c552600ce6d51a93bbd9a731c1c64a0ac4dc4`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `e9670a65270ab1e3e365cfcf038e94beb9eaa335`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -198,6 +203,58 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第七十五批·质量管理概览默认真实口径收敛）
+
+- 本批继续按全局菜单、医疗产品体验和全角色真实前台复核。结论：第四十四批全局菜单命名与顺序仍成立；
+  `docs/audit/product-function-catalog.md`、职责旅程和 `frontend/src/shared/config/routes.ts` 均将
+  `/qc/dashboard` 定义为 `质量管理概览`，用于查看质量风险、运营趋势并下钻到责任问题；
+  `docs/PRODUCT_SCOPE.md` 的质量域强调评价结果、质量问题与整改闭环。页面主标题已正确，但默认层仍出现
+  `真实指标、风险热力与闭环价值`、`真实质控问题总数`、`当前筛选下暂无真实质控数据`、`真实下钻证据`
+  等实现真实性强调。该表达适合门禁和证据说明，不适合医疗质量管理首屏，会让质控办、科主任和运营角色把
+  “真实”误读为指标品类或证据状态。本批仅收敛质量概览页面默认业务口径；证据详情、接口、路由、权限、
+  服务端分页、数据库、菜单顺序和 134 发布配置均未改变。
+- 已本地提交 `e9670a65270ab1e3e365cfcf038e94beb9eaa335`
+  （`fix: 收敛质量概览默认真实口径`）：
+  - `frontend/src/pages/quality/QcDashboard.tsx` 将页面描述统一为
+    `质量指标、风险热力与整改闭环`，并在加载、错误、空态和正常态共用同一页面常量。
+  - 同文件把默认指标名从 `真实质控问题总数` 收敛为 `质控问题总数`；空态从
+    `当前筛选下暂无真实质控数据` / `暂无真实科室风险热力` / `暂无真实质量成效` 收敛为
+    `当前筛选下暂无质控数据` / `暂无科室风险热力` / `暂无质量成效`。
+  - 质量问题下钻抽屉从 `真实下钻证据` / `暂无真实下钻证据` 收敛为
+    `问题下钻证据` / `暂无问题下钻证据`，保留原有证据列表、分页和下钻类型。
+  - `frontend/src/pages/quality/QcDashboard.test.tsx` 增加质量概览默认层、空态和下钻抽屉反向断言，
+    阻断旧 `真实...` 口径回流。
+  - 未改变质量域菜单、路由、接口、权限、后端 API、数据契约、构建配置或 134 发布配置。
+- 本地验证：
+  - 红绿核验：先改测试后执行
+    `npm --prefix frontend test -- QcDashboard.test.tsx -t "renders real dashboard aggregation|uses quality management wording|默认用业务语言打开下钻证据"`
+    在旧页面下失败，明确显示找不到 `质量指标、风险热力与整改闭环`、`当前筛选下暂无质控数据`、
+    `问题下钻证据`；实现后同命令通过，`3` 项。
+  - 旧词扫描：
+    `rg -n "真实指标、风险热力与闭环价值|当前筛选下暂无真实质控数据|真实质控问题总数|暂无真实科室风险热力|暂无真实质量成效|真实下钻证据|暂无真实下钻证据" frontend/src/pages/quality/QcDashboard.tsx`
+    无输出；包含测试的同词扫描仅命中反向断言。
+  - 关联配置回归：
+    `npm --prefix frontend test -- QcDashboard.test.tsx pages.smoke.test.tsx QcAlerts.test.tsx InsuranceAudit.test.tsx QcEvalSets.test.tsx productCatalog.test.ts routes.test.ts menu.test.ts`
+    通过，`8` 个测试文件 / `127` 项。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `954` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `QcDashboard-DIXMoyTU.js`、`Quality-CyanocAS.css`、
+    `index-tzhCk-9a.js` 等前端产物。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 公网首页
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 02:54:10 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，外部 `index.html` 仍指向
+  `/assets/index-DYTh-Ceu.js`；134 readiness 使用 `https://193.112.107.134/medkernel/actuator/health`
+  返回 HTTP 200 / `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头
+  `Date=Sat, 04 Jul 2026 02:54:10 GMT`，`X-Trace-Id=57d4225b-6d88-4024-990a-d1f9dc4cf518`。
+  134 映射仍按当前已核定事实保持：后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、
+  前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`，不要把本地 `e9670a65` 误写为已上线。
+- 后续继续长目标：不再开子代理，不中途咨询；继续广度优先核查真实前台、职责旅程、菜单分布、构建门禁、
+  134 证据映射和最终远程收口条件。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第七十四批·工作台知识关系同步口径收敛）
 
