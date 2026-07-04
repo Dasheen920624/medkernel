@@ -10,8 +10,12 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
-- 第八十二批最新应用提交为 `6a7682444f228eba6677c9b3c209b786020f7f53`
-  （`fix: 收敛诊断知识表单示例口径`）。其前置本地提交包括第八十一批阶段交接提交
+- 第八十三批最新应用提交为 `8ad454f29f42f610a88dc3a11691224d8ac9caa5`
+  （`fix: 收敛临床路径建模示例口径`）。其前置本地提交包括第八十二批阶段交接提交
+  `83b92fba8f3ff68d0b70e8b034a7c059341ea0d6`
+  （`docs: 记录诊断知识表单示例复演`）、第八十二批应用提交
+  `6a7682444f228eba6677c9b3c209b786020f7f53`
+  （`fix: 收敛诊断知识表单示例口径`）、第八十一批阶段交接提交
   `af769750b97c6f1a43c562d77457e0df7d7c9c06`
   （`docs: 记录诊断知识库职责边界复演`）、第八十一批应用提交
   `66a429a4ef00663abc3247f47112f16d0a3ac9d0`
@@ -203,7 +207,7 @@
   第七十五批质量管理概览默认真实口径收敛、第七十六批质量评价默认真实口径收敛，
   第七十七批评价指标默认术语统一、第七十八批临床路径层级前台口径收敛，
   第七十九批随访模板默认业务口径收敛、第八十批工作台运行底座默认层收敛、第八十一批诊断知识库职责边界口径收敛，
-  以及第八十二批诊断知识表单示例口径收敛。
+  第八十二批诊断知识表单示例口径收敛，以及第八十三批临床路径建模示例口径收敛。
 - 134 当前后端/JAR 仍来自全量部署 `3ddd979b3151e3eb1d40712e76b513e4cdce260c`；发布命令为
   `deploy/onprem/mk-publish.sh --source 3ddd979b3151e3eb1d40712e76b513e4cdce260c`。远端备份
   `/zoesoft/medkernel/backups/deploy-20260703-123810`；manifest 记录
@@ -224,7 +228,7 @@
 - 后续如只改前端可按新提交版本执行前端-only 重发；如改后端/JAR 或迁移才需要完整发布。当前 134 状态是
   “后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`，前端 dist=`95bb816292f59833005df4761866dd9d89886cb4`”，
   不要继续沿用旧的 `ef662ced` / `8889efc7` 拆分描述。
-- 当前应用代码最新提交为 `6a7682444f228eba6677c9b3c209b786020f7f53`；当前本地分支仍只本地提交，
+- 当前应用代码最新提交为 `8ad454f29f42f610a88dc3a11691224d8ac9caa5`；当前本地分支仍只本地提交，
   不推送远程 `main`。
 - 当前上线 E2E 职责账号契约：`E2E_ROLE_CREDENTIALS_FILE` 必须指向 READY 状态
   `schemaVersion=1.0.0` 文件；平台治理与平台知识生产显式读取 canonical `platform.accounts`，
@@ -234,6 +238,55 @@
 - 当前用户约束：全程按最优决策执行，不中途咨询；后续不要开子代理；每阶段更新接力并提交到本地分支；
   最终统一确认前不推送远程 `main`。
 - `.codex/config.toml` 为未跟踪本地配置，不提交。
+
+## 最新阶段交接（2026-07-04 全视角真实前台体验优化第八十三批·临床路径建模示例口径收敛）
+
+- 本批继续围绕用户对“临床路径模板”是否像引用模板含义的担心做全局复核。结论：第四十四批菜单命名与第七十八批
+  `临床路径库` 口径仍成立，菜单和路由不再暴露 `临床路径模板`；新发现的真实体验缺口在新建临床路径建模表单。
+  表单中的稳定路径、病种、阶段、里程碑、节点、时钟、医嘱套餐和流转身份都是版本治理、机构生效和审计追溯所需，
+  不能移除；但默认占位仍以 `PATH.CARDIO.REVIEW`、`PREOP`、`M-PREOP-ASSESS`、`PATH.TIME.ASSESS`、
+  `sepsis-order-set`、`EDGE.ASSESS.FOLLOWUP` 等工程式例子呈现，容易把“路径库”误读成技术模板或内部编码填写页。
+  本批仅将默认示例改为院内路径可理解的拼音业务身份，并保留 `ICD10-I63` 作为可选标准病种身份示例；菜单、路由、
+  权限、后端 API、数据契约、数据库、构建配置和 134 发布配置均未改变。
+- 已本地提交 `8ad454f29f42f610a88dc3a11691224d8ac9caa5`
+  （`fix: 收敛临床路径建模示例口径`）：
+  - `frontend/src/pages/tenant/PathwayTemplates.tsx` 将新建临床路径基础信息占位收敛为
+    `如 xinxueguan-lujing-fuhe`、`如 xinxueguanbing 或 ICD10-I63`。
+  - 同页将节点画布中的阶段、里程碑、节点、时钟指标、医嘱套餐和流转身份占位收敛为
+    `如 shuqian`、`如 shuqian-rujing-pinggu`、`如 N1，可改为 rujing-pinggu`、
+    `如 rujing-pinggu-shichuang`、`如 ganranxing-xiuke-yizhu-taocan`、`如 E1，可改为 rujing-daosuifang`。
+  - `frontend/src/pages/tenant/PathwayTemplates.test.tsx` 扩展路径建模表单回归，锁定新占位并反向断言旧工程式示例不再回流。
+- 本地验证：
+  - 红绿核验：先改测试后执行
+    `npm --prefix frontend test -- PathwayTemplates.test.tsx -t "路径建模表单以稳定业务身份表达结构化路径对象"`
+    在旧实现下失败，明确找不到 `如 xinxueguan-lujing-fuhe`；实现后同命令通过，`1` 项。期间发现多节点同占位导致测试唯一性断言不合理，
+    已按多节点表单事实改为 `getAllByPlaceholderText`，不改变产品实现。
+  - 关联配置回归：
+    `npm --prefix frontend test -- PathwayTemplates.test.tsx pages.smoke.test.tsx productCatalog.test.ts routes.test.ts menu.test.ts productRoleJourneys.test.ts`
+    通过，`6` 个测试文件 / `113` 项。
+  - 生成一致性：`node scripts/audit/export-product-capabilities.mjs --check` 通过。
+  - 旧占位扫描：
+    `rg -n "PATH\\.CARDIO\\.REVIEW|CARDIO 或 ICD10-I63|M-PREOP-ASSESS|如 PREOP|如 N1，可改为 ASSESS|PATH\\.TIME\\.ASSESS|sepsis-order-set|EDGE\\.ASSESS\\.FOLLOWUP" frontend/src/pages/tenant/PathwayTemplates.tsx frontend/src/pages/tenant/PathwayTemplates.test.tsx`
+    仅命中测试夹具、payload 契约断言和反向断言；生产文件无旧默认占位残留。
+  - 完整前端门禁：`npm --prefix frontend run verify` 通过，`114` 个测试文件 / `959` 项；保留既有 AntD
+    `Timeline.Item` deprecation warning。
+  - `npm --prefix frontend run build` 通过，生成 `PathwayTemplates-D0UZDBWq.js`、`Dashboard-CJ22CjjL.js`、
+    `index-wleQcgEG.js` 等前端产物。
+  - `bash scripts/check-comment-zh.sh --mode=full` 通过；`node --test scripts/authenticity-guard.test.mjs scripts/config-boundary-guard.test.mjs scripts/migration-convention-guard.test.mjs scripts/performance-contract-guard.test.mjs`
+    通过，`71` 项；`git diff --check`、应用提交前 `git diff --cached --check` 均通过。
+- 134 证据映射：本批只做本地提交，没有发布到 134、没有推送远程、没有合并 `main`。本轮核实
+  `origin/main` 与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`；134 公网首页
+  `https://193.112.107.134/medkernel/` HTTP 200，`Date=Sat, 04 Jul 2026 05:08:47 GMT`，
+  `Last-Modified=Fri, 03 Jul 2026 06:46:50 GMT`，`Content-Length=832`，外部 `index.html` 仍指向
+  `/assets/index-DYTh-Ceu.js`、`/assets/vendor-react-bdrMx_IT.js`、`/assets/vendor-data-D9EFEnEk.js`、
+  `/assets/vendor-react-C5ap-Sga.css`、`/assets/index-XMjG4gr3.css`；134 readiness 使用
+  `https://193.112.107.134/medkernel/actuator/health` 返回 HTTP 200 /
+  `{"status":"UP","groups":["liveness","readiness"]}`，响应时间头
+  `Date=Sat, 04 Jul 2026 05:08:47 GMT`，`X-Trace-Id=53774559-8a39-46ce-8815-e3f51230fd80`。
+  当前 134 映射仍是后端/JAR=`3ddd979b3151e3eb1d40712e76b513e4cdce260c`、前端 dist=
+  `95bb816292f59833005df4761866dd9d89886cb4`；不得把本地 `8ad454f2` 记为已部署。
+- 下一步继续沿全局菜单、全角色职责旅程、真实前台默认层做广度优先复核；优先处理可真实落地的产品体验、
+  契约、测试、构建和文档问题；不使用子代理、不咨询、不推送远程 `main`。
 
 ## 最新阶段交接（2026-07-04 全视角真实前台体验优化第八十二批·诊断知识表单示例口径收敛）
 
