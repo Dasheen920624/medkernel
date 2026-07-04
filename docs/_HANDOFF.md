@@ -10,6 +10,26 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百零四批最新应用提交为 `ec4a973f03a0a629d5204cd6461ee7d281df8e57`
+  （`fix: 收敛全局菜单医疗场景命名`）。本批未使用子代理、未推送远程、未合并 `main`；
+  以宪章、产品范围、体验契约、功能目录和十二角色职责为准，从医疗产品全局视角复核菜单命名与分布。
+  结论：保留 `诊断知识库`、`临床路径库`、`全真体验沙盘` 等已契合业务对象的入口；
+  不采用 `临床路径模板` 作为前台菜单名，避免被理解为引用模板；一级分组和菜单顺序保持现状，
+  继续按“知识治理 / 知识生产 / 临床协同 / 质量管理 / 系统运维”的职责链路组织。
+  本批将 `质量管理概览` 收敛为 `质量风险概览`，将 `运行保障` 收敛为 `服务运行保障`，
+  将 `模型能力` 菜单与页面标题收敛为 `模型能力与安全`；领域字段中的“模型能力”作为能力对象名保留。
+- 第一百零四批验证：先改 `routes`、`AiWorkflows`、`QcDashboard`、`WorkbenchPanel` 相关测试并跑出旧菜单名预期失败；
+  后端 `MenuPermissionCatalogTest` 也先跑出旧权限菜单名预期失败。修正后
+  `npm --prefix frontend run test -- routes AiWorkflows QcDashboard WorkbenchPanel SystemProviders pages.smoke AppLayout`
+  通过（7 个文件、146 个测试），
+  `mvn -f medkernel-backend/pom.xml -Dtest=MenuPermissionCatalogTest,RuntimeDiagnosticsControllerTest,RuntimeOperationsServiceTest test`
+  通过（13 个测试），`npm --prefix frontend run build` 通过，
+  `mvn -f medkernel-backend/pom.xml test` 通过
+  （3064 个测试、0 failures、0 errors、7 skipped；Docker/Testcontainers 多方言容器用例因本机无 Docker 按既有条件跳过），
+  `npm --prefix frontend run verify` 通过（114 个测试文件、963 个测试），`git diff --check` 退出码 0
+  （仅提示 `scripts/audit/export-product-capabilities.mjs` 行尾将转 LF），旧词扫描未发现
+  `质量管理概览` 或裸 `运行保障` 残留，仅保留两处有意的领域字段 `模型能力`。
+- 下一步继续主线：不使用子代理；继续校准 134 / squash main 发布证据映射，并按十二角色真实前台体验广度复核剩余上线级问题。
 - 第一百零三批最新应用提交为 `690e86e71968622688ee0dc15a3b8c7f695aad07`
   （`fix: 优化登录页单屏体验`）。本批未使用子代理、未推送远程、未合并 `main`；
   将登录页默认措辞从“平台治理登录名 / 集团医疗智能中枢”等偏治理后台话术，收敛为
@@ -21,8 +41,7 @@
   `npm --prefix frontend run build` 通过，Playwright 预览验证 `http://127.0.0.1:4173/login`
   在 1280×720 与 390×844 视口均为 `scrollHeight == clientHeight`、默认外层 `overflow: clip`，
   `npm --prefix frontend run verify` 通过（114 个测试文件、963 个测试）。
-- 下一步继续主线：保持不使用子代理；继续按全局医疗场景评审剩余菜单名称与顺序分布，
-  并继续校准 134 / squash main 发布证据映射。
+- 第一百零三批后续项中的全局菜单名称与顺序分布复核已由第一百零四批处理。
 - 第一百零二批最新应用提交为 `673e6aa2ca4dc88ee65a63f96199803b1ea62ce7`
   （`fix: 收敛随访方案前台口径`）。本批未使用子代理、未推送远程、未合并 `main`；
   以权威产品/体验/职责文件和当前代码为准，将临床随访资产在前台、权限展示、审计摘要、资产编目、
