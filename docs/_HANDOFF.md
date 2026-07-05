@@ -10,6 +10,46 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百二十二批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，而是补齐 S1/S14 服务机构开通、机构管理员首登、组织树建设、人员建档、
+  科室职责范围、临床账号首登和 `/security/me` 登录画像的真实前台闭环。本批使用只读子代理
+  Nietzsche 审查服务机构演练与后端权限画像缺口，子代理未改文件；本批不推送远程、不合并
+  `main`。
+- 第一百二十二批修复范围：新增 `service-organization-frontdesk.spec.ts`，平台管理员从
+  `/tenant/onboarding` 前台开通新服务机构并捕获真实 `POST /api/v1/admin/tenants` 的
+  `adminUserId` / 一次性密码；新机构管理员完成真实首登改密后，从前台创建 FACILITY 医院与
+  DEPARTMENT 科室，随后在 `/admin/users` 建立临床人员档案、开通登录账号、追加
+  `clinical-user` + `DEPARTMENT` 职责范围，再由临床账号完成首登改密并回读 `/security/me`
+  验证 tenant / hospital / department dataScope、角色 scope 与菜单画像，最后回读
+  `/engine/org/org-units` 证明组织树真实落库。清理逻辑按审查意见改为使用新机构管理员会话停用
+  临床账号和机构管理员账号，所有清理响应走 `expectOk`，不再吞掉 `.catch(() => null)`。
+- 第一百二十二批后端权限与画像修复：`ComplianceUserService` 的角色作用域校验从只拦跨租户
+  TENANT 范围，收紧为 TENANT 必须当前租户，FACILITY / DEPARTMENT / WARD 等组织范围必须是
+  当前租户 ACTIVE 组织且 `scopeLevel` 与组织实际层级一致，SPECIALTY 也必须能在当前租户
+  ACTIVE 组织目录中找到挂载专科，避免自由编码职责范围写入。`EffectivePermissionService`
+  修复同一 roleCode 的 JWT 空范围覆盖真实 assignment scope，以及同一角色多个适用组织范围互相
+  覆盖的问题；权限计算改从角色视图 code 去重，保证 key 拆分后权限不丢失。
+- 第一百二十二批红绿与调试事实：新增后端回归先复现了三个真实缺口：外部角色同步在收紧组织校验后
+  红于 `组织 dept-1 不存在`；同一 `clinical-user` 多范围画像只剩 DEPARTMENT；SPECIALTY 自由编码
+  仍可返回 200。随后分别补齐 mock ACTIVE 组织、角色 assignment key 与 SPECIALTY 目录校验，并用
+  `ComplianceUserCredentialFlowTest`、`SecurityMeControllerTest`、
+  `EffectivePermissionServiceTest`、`ComplianceUserExternalRoleSyncTest` 锁住缺口。前端新增
+  `e2eAuthCredentialContract.test.ts` 合同，要求服务机构演练必须覆盖开通、首登、组织树、人员账号、
+  清理函数、`adminUserId`、`/security/me` 和禁止吞失败清理。
+- 第一百二十二批验证证据：目标真实前台 E2E
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium service-organization-frontdesk.spec.ts`
+  通过（1 passed）；`npm --prefix frontend run test -- e2eAuthCredentialContract -t
+  "service organization rehearsal"` 通过；触达文件 Prettier check 通过；后端窄测
+  `mvn -f medkernel-backend/pom.xml -Dtest=ComplianceUserCredentialFlowTest,SecurityMeControllerTest,EffectivePermissionServiceTest,ComplianceUserExternalRoleSyncTest,TenantProvisioningControllerTest,OrgUnitControllerSecurityTest test`
+  通过（49 tests）；前端重门禁 `npm --prefix frontend run verify` 通过（115 files，1003 tests，仅既有
+  AntD Timeline warning）；后端全量 `mvn -f medkernel-backend/pom.xml test` 通过（3080 tests，
+  0 failures，0 errors，7 skipped；本机 Docker 不可用导致 Testcontainers 多方言 / 空 Postgres
+  smoke 按既有条件跳过）。
+- 第一百二十二批后续主线：本批仍未发布到 134，尚未做 134 清库重新部署，也未完成全功能与全知识
+  全流程复演；不能把服务机构与账号闭环等同于总目标完成。下一步继续按全角色真实操作扩面，优先覆盖
+  评价指标发布驱动医保 / 质量链路、运行保障与备份恢复、身份来源绑定、平台标准版本 / 医院 runtime
+  全资产闭包、134 空库首启迁移和全知识流程复演；发现红点先复现、定根因，再按上线级标准修复，
+  不做片面优化。
 - 第一百二十一批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是
   登录页或文案单点优化，而是补齐产品范围中“开启 MFA 后必须完成真实 TOTP 登录验证”的
   P0 安全演练证据。本批只做本地提交，不推送远程、不合并 `main`；已使用只读子代理 Darwin

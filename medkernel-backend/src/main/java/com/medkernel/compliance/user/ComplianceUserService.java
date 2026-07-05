@@ -29,12 +29,15 @@ import com.medkernel.engine.security.auth.CredentialAdminService;
 import com.medkernel.engine.security.auth.CredentialCreationResult;
 import com.medkernel.engine.security.auth.PasswordResetTokenResponse;
 import com.medkernel.engine.security.auth.ResetPasswordResponse;
+import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.engine.org.OrgUnitRepository;
+import com.medkernel.engine.org.OrgUnitStatus;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
+import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 
@@ -551,8 +554,28 @@ public class ComplianceUserService {
         if (scopeCode.isBlank()) {
             throw new ApiException(ErrorCode.BAD_REQUEST, "作用域编码不能为空");
         }
-        if ("TENANT".equals(scopeLevel) && !tenantId().equals(scopeCode)) {
-            throw ApiException.forbidden("租户级角色只能绑定当前租户");
+        if ("TENANT".equals(scopeLevel)) {
+            if (!tenantId().equals(scopeCode)) {
+                throw ApiException.forbidden("租户级角色只能绑定当前租户");
+            }
+            return;
+        }
+        if ("SPECIALTY".equals(scopeLevel)) {
+            boolean active = organizations.findByTenantIdAndSpecialtyIdOrderByCodeAsc(tenantId(), scopeCode)
+                .stream()
+                .anyMatch(OrgUnit::isActive);
+            if (!active) {
+                throw new ApiException(ErrorCode.BAD_REQUEST, "专科不存在或未启用");
+            }
+            return;
+        }
+        OrgLevel expectedLevel = OrgLevel.valueOf(scopeLevel);
+        OrgUnit unit = organizations.findByTenantIdAndId(tenantId(), scopeCode)
+            .filter(item -> item.status() == OrgUnitStatus.ACTIVE)
+            .orElseThrow(() -> ApiException.notFound("组织 " + scopeCode));
+        if (unit.level() != expectedLevel) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED,
+                "角色作用域层级 " + scopeLevel + " 与组织 " + unit.name() + " 的实际层级 " + unit.level() + " 不一致");
         }
     }
 

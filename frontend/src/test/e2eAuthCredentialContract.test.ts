@@ -394,6 +394,25 @@ describe("E2E credential contract", () => {
     expect(source).toContain("/compliance/users/${encodeURIComponent(userId)}/status");
     expect(source).toContain('status: "DISABLED"');
   });
+
+  it("requires service organization rehearsal to cover first-login organization tree setup", () => {
+    const source = readFileSync("e2e/service-organization-frontdesk.spec.ts", "utf8");
+
+    expect(source).toContain("provisionServiceOrganizationFromUi");
+    expect(source).toContain("completeTenantAdminFirstLoginFromUi");
+    expect(source).toContain("createFacilityAndDepartmentFromUi");
+    expect(source).toContain("createClinicalUserWithDepartmentScopeFromUi");
+    expect(source).toContain("disableProvisionedAccountsFromAdminSession");
+    expect(source).toContain("adminUserId");
+    expect(source).toContain("/engine/org/org-units");
+    expect(source).toContain("/compliance/personnel");
+    expect(source).toContain("/security/me");
+    expect(source).toContain("停用服务机构演练临床账号");
+    expect(source).toContain("停用服务机构演练管理员账号");
+    expect(source).toContain("assertProvisionedOrgTree");
+    expect(source).toContain("assertClinicalUserSecurityScope");
+    expect(source).not.toContain(".catch(() => null)");
+  });
 });
 
 function account(role: string, tenantId: string, prefix: string) {

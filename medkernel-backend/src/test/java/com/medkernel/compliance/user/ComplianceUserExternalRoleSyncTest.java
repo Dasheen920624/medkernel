@@ -18,7 +18,9 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
+import com.medkernel.engine.org.OrgUnit;
 import com.medkernel.engine.org.OrgUnitRepository;
+import com.medkernel.engine.org.OrgUnitStatus;
 import com.medkernel.engine.security.EffectivePermissionService;
 import com.medkernel.engine.security.PlatformCredentialRepository;
 import com.medkernel.engine.security.TenantUser;
@@ -27,6 +29,7 @@ import com.medkernel.engine.security.UserRoleAssignment;
 import com.medkernel.engine.security.UserRoleAssignmentRepository;
 import com.medkernel.engine.security.auth.CredentialAdminService;
 import com.medkernel.shared.audit.AuditRecorder;
+import com.medkernel.shared.context.OrgLevel;
 import com.medkernel.shared.context.OrgScope;
 import com.medkernel.shared.context.RequestContext;
 
@@ -39,6 +42,7 @@ class ComplianceUserExternalRoleSyncTest {
     private TenantUserRepository users;
     private PlatformCredentialRepository credentials;
     private UserRoleAssignmentRepository assignments;
+    private OrgUnitRepository orgUnits;
     private ComplianceUserService service;
 
     @BeforeEach
@@ -46,10 +50,17 @@ class ComplianceUserExternalRoleSyncTest {
         users = mock(TenantUserRepository.class);
         credentials = mock(PlatformCredentialRepository.class);
         assignments = mock(UserRoleAssignmentRepository.class);
+        orgUnits = mock(OrgUnitRepository.class);
         when(users.findByTenantIdAndUserId(TENANT, USER)).thenReturn(Optional.of(
             new TenantUser(
                 1L, TENANT, USER, "王医生", "ACTIVE", 1L,
                 Instant.now(), ACTOR, Instant.now(), ACTOR, "trace")));
+        when(orgUnits.findByTenantIdAndId(TENANT, "dept-1")).thenReturn(Optional.of(
+            new OrgUnit(
+                "dept-1", "facility-1", TENANT, "/facility-1/dept-1",
+                OrgLevel.DEPARTMENT, "D001", "心内科",
+                null, null, "CARDIOLOGY",
+                OrgUnitStatus.ACTIVE, Instant.now(), ACTOR, Instant.now(), ACTOR)));
         when(assignments.findByTenantIdAndUserIdAndRoleCodeAndScopeLevelAndScopeCode(
             TENANT, USER, "engine-operator", "DEPARTMENT", "dept-1"))
             .thenReturn(Optional.empty());
@@ -61,7 +72,7 @@ class ComplianceUserExternalRoleSyncTest {
             mock(CredentialAdminService.class),
             mock(EffectivePermissionService.class),
             mock(AuditRecorder.class),
-            mock(OrgUnitRepository.class));
+            orgUnits);
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-sync", OrgScope.tenant(TENANT), ACTOR));
     }
