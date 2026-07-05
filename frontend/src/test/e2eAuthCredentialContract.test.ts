@@ -425,6 +425,23 @@ describe("E2E credential contract", () => {
     expect(source).toContain("evaluationRunId");
     expect(source).toContain("INSURANCE_RULE_MANUAL");
   });
+
+  it("requires identity binding frontdesk rehearsal to prove bind, unbind and plaintext-safety", () => {
+    const source = readFileSync("e2e/identity-binding-frontdesk.spec.ts", "utf8");
+
+    expect(source).toContain("bindIdentitySourceFromUi");
+    expect(source).toContain("unbindIdentitySourceFromUi");
+    expect(source).toContain("assertIdentityPlaintextIsNotPersisted");
+    expect(source).toContain("cleanupIdentityBindingRehearsal");
+    expect(source).toContain("Promise.allSettled");
+    expect(source).toContain(":unbind");
+    expect(source).toContain("/compliance/identity-bindings");
+    expect(source).toContain('postApi(page, "/compliance/identity-bindings"');
+    expect(source).toContain("externalSubjectDigest");
+    expect(source).toContain("expectedVersion");
+    expect(source).toContain("UNBOUND");
+    expect(source).not.toContain("page.request.post(`${apiBase}/compliance/identity-bindings`");
+  });
 });
 
 function account(role: string, tenantId: string, prefix: string) {

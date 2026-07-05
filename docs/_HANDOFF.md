@@ -10,6 +10,51 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百二十四批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面 UI 优化，而是补齐身份来源绑定真实前台上线演练切片：平台管理员先在
+  `/admin/users` 前台创建两个真实临时人员账号，再进入 `/security/identity-binding` 真实前台对
+  其中一个人员执行院内工号绑定，随后验证同一外部身份不能复用到第二个真实人员、前台列表不返回身份原文
+  或摘要字段、绑定可通过“解除身份来源”前台弹层按乐观版本解绑，最后停用两名临时账号。本批使用只读子代理
+  Goodall 审查身份来源演练覆盖、XSRF 写请求路径、清理污染和不落库证据；子代理未改文件，反馈中的清理和
+  持久化证据风险已在主线程修复；本批不推送远程、不合并 `main`。
+- 第一百二十四批修复范围：新增 `frontend/e2e/identity-binding-frontdesk.spec.ts`，真实操作
+  `/admin/users` 新增人员、记录一次性凭证弹层、断言人员建档不预置身份来源，再真实操作
+  `/security/identity-binding` 单个绑定、重复外部身份冲突和解绑。重复绑定检查使用
+  `postApi(page, "/compliance/identity-bindings", ...)`，确保带同一会话的 `X-XSRF-TOKEN` 页面安全凭证；
+  清理逻辑新增 `cleanupIdentityBindingRehearsal`，失败路径也会先读取当前绑定状态，必要时用 API
+  后备解绑，再通过 `Promise.allSettled` 并行停用两个临时账号并汇总清理失败，避免一个清理失败挡住另一个。
+  `frontend/src/test/e2eAuthCredentialContract.test.ts` 新增源码合同，锁住身份来源演练必须覆盖绑定、解绑、
+  原文安全、`postApi` 写请求和失败路径清理。`IdentityBindingControllerTest` 加强后端契约：保存后断言
+  `subjectHint` 仅为脱敏尾号，并通过 `INFORMATION_SCHEMA.COLUMNS` 确认
+  `mk_compliance_identity_binding` 不存在 `EXTERNAL_SUBJECT` / `EXTERNAL_IDENTITY` /
+  `SUBJECT_PLAINTEXT` 原文字段。
+- 第一百二十四批红点根因与定位修复：强化“第二真实用户复用同一外部身份必须冲突”后，目标 E2E 初始红于
+  `duplicateResponse.status()` 期望 409、实际 403。按系统调试先复现并把响应 body 打入断言，确认 403
+  为 `缺少或不匹配的页面安全凭证`，不是业务重复身份判断；根因是重复绑定请求裸用
+  `page.request.post(${apiBase}/compliance/identity-bindings)`，绕过了现有 E2E 写请求工具对后端
+  `XSRF-TOKEN` 的读取和 `X-XSRF-TOKEN` 头注入。改为 `postApi` 后请求进入后端业务层，返回
+  409 且包含“该外部身份已绑定其他用户”。子代理随后指出“原文不落库”不能只靠前台列表不展示证明、
+  失败路径清理可能污染，已分别用后端列级契约和并行后备清理补齐。
+- 第一百二十四批红绿事实：合同测试先红于
+  `expected ... to contain 'cleanupIdentityBindingRehearsal'`，实现失败路径清理后转绿。目标真实前台
+  E2E 先红于 403 页面安全凭证，改走 `postApi` 后转绿；加强清理后再次复跑仍通过。后端
+  `IdentityBindingControllerTest#createsBindingWithoutPersistingExternalIdentityPlaintext` 在既有
+  digest 断言基础上新增脱敏提示和原文字段不存在断言，配合实体和迁移约束证明持久化层不保存外部身份原文。
+- 第一百二十四批验证证据：`npm --prefix frontend run test -- e2eAuthCredentialContract -t
+  "identity binding frontdesk"` 通过（1 passed，15 skipped；曾先红后绿）；触达文件 Prettier check
+  `npm --prefix frontend exec prettier -- --check frontend/e2e/identity-binding-frontdesk.spec.ts
+  frontend/src/test/e2eAuthCredentialContract.test.ts` 通过；目标真实前台 E2E
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium identity-binding-frontdesk.spec.ts`
+  通过（1 passed，约 13.4 秒）；`npm --prefix frontend run test -- IdentityBinding operationalControlPages
+  e2eAuthCredentialContract` 通过（29 tests）；`npm --prefix frontend exec tsc -- --noEmit --pretty false
+  --skipLibCheck false --project frontend/tsconfig.json` 通过；后端窄测
+  `mvn -f medkernel-backend/pom.xml -Dtest=IdentityBindingControllerTest,IdentityBindingExternalSyncTest test`
+  通过（14 tests）；前端重门禁 `npm --prefix frontend run verify` 通过（115 files，1005 tests，仅既有
+  AntD Timeline warning）。
+- 第一百二十四批后续主线：本批仍未发布到 134，尚未做 134 清库重新部署，也未完成全功能与全知识全流程
+  复演；不能把身份来源绑定切片等同于总目标完成。下一步继续按全角色真实操作扩面，优先覆盖 134 空库首启
+  与统一迁移、全资产 runtime 闭包复核、备份恢复与重启恢复、运行保障、全知识流程复演，以及跨角色真实
+  前台体验中尚未跑透的端到端缺口；发现红点继续先复现、定根因，再按上线级标准修复，不做片面优化。
 - 第一百二十三批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面 UI 优化，而是补齐 ACTIVE CLAIM 评价指标从前台创建、复核、发布、灰度、全量激活，
   再纳入本地上线演练医院机构生效版本，最后驱动 `/qc/insurance` 真实医保审核、绑定
