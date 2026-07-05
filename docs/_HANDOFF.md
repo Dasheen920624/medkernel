@@ -10,6 +10,49 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百一十三批最新应用提交为 `01e10939c20e4128e5b5bfc8ada3e54971a794f4`
+  （`fix: 收敛质量评价前台口径`）。本批未使用子代理、未推送远程、未合并 `main`；
+  继续以宪章、产品范围、体验契约、功能目录和四职责旅程为准，从全角色医疗产品体验复核质量域、
+  临床路径和租户实施入口的剩余用户可见名称。结论：一级菜单顺序和全局分布保持现状，继续保留
+  `诊断知识库`、`临床路径库`、`质量风险概览`、`质量问题与整改` 和 `评价指标`；不采用
+  `临床路径模板` 作为前台菜单名，避免被理解为引用模板。现将前台对象和服务口径中残留的
+  `质控指标`、`质控缺陷`、`质控追溯`、`质控服务状态`、`科室质控`、`质控时钟`、
+  `生效质控指标`、`自动质控` 等收敛为 `评价指标`、`质量缺陷`、`质量追溯`、
+  `质量管理服务状态`、`科室质量评价`、`质量评价时钟`、`生效评价指标`、`自动质量评价`；
+  保留 `质控人员`、`病历内涵质控`、`医保质控` 等作为院内职责或业务活动名称，不改接口字段、
+  枚举、表结构、ID、幂等和持久化契约。
+- 第一百一十三批验证：先补 `QcEvalSets`、`QcEvalResults`、`InsuranceAudit`、
+  `QcDashboard`、`PatientPathways`、`TenantLifecyclePanel`、`PermissionDimensionModelTest`、
+  `InsuranceQualityServiceTest` 与 `QualityDashboardServiceTest` 等用例，在旧实现上跑出预期失败，
+  捕获 `定义质控评价指标`、`科室质控`、`质控追溯`、`质控缺陷`、`质控服务状态`、
+  `关联质控指标`、`质控指标达成与物理验收`、`发布质控指标` 和 `未绑定生效质控指标`
+  等旧口径。修正后窄测 `npm --prefix frontend run test -- PatientPathways TenantLifecyclePanel`
+  通过（2 个文件、14 个测试），
+  `mvn -f medkernel-backend/pom.xml -Dtest=PermissionDimensionModelTest#permissionCatalogDoesNotExposeLegacyPackageContainerBoundaries test`
+  通过（1 个测试），`npm --prefix frontend run test -- QcDashboard` 通过（13 个测试）；
+  扩展套件
+  `npm --prefix frontend run test -- QcEvalSets QcEvalResults InsuranceAudit QcDashboard PatientPathways TenantLifecyclePanel PathwayTemplates productRoleJourneys routes customerLanguageGate`
+  通过（10 个文件、130 个测试），
+  `mvn -f medkernel-backend/pom.xml -Dtest=InsuranceQualityServiceTest,QualityDashboardServiceTest,PermissionDimensionModelTest,PathwayEngineServiceTest,MenuPermissionCatalogTest,DefaultPermissionPolicyTest,EvaluationEngineServiceTest test`
+  通过（124 个测试）。重门禁：`npm --prefix frontend run build` 通过，
+  `mvn -f medkernel-backend/pom.xml test` 通过（3064 个测试、0 failures、0 errors、7 skipped；
+  Docker/Testcontainers 多方言容器用例因本机无 Docker 按既有条件跳过），
+  `npm --prefix frontend run verify` 通过（114 个测试文件、967 个测试），`git diff --check`
+  与 `git diff --cached --check` 均退出码 0。旧词扫描
+  `rg -n "质控评价|质控缺陷|质控追溯|科室质控|质控时钟|生效质控指标|自动质控|质控指标|质控服务状态|当前筛选下暂无质控数据|质控汇总服务|质量管理概览|诊断知识维护|临床路径模板" ...`
+  仅剩测试反向断言、`QualityDashboardService` 的历史标题兼容归一化字面量、历史种子数据和
+  `RuntimeDiagnosticsControllerTest` 的旧诊断菜单名负断言。
+- 第一百一十三批开工/收尾核查：`git fetch origin main` 后远端 `refs/heads/main` 仍为
+  `1561ba6bef8777dcef76432696f43de4277fdd3f`
+  （`完善全角色上线演练与134复演闭环 (#653)`）；应用提交前本地分支领先 `origin/main` 305 个提交，
+  应用提交后领先 306 个提交。134 当前公网首页 `https://193.112.107.134/medkernel/` HTTP 200，
+  `Date=Sun, 05 Jul 2026 04:04:06 GMT`，`Content-Length=832`，仍指向
+  `/assets/index-DYTh-Ceu.js`、`/assets/vendor-react-bdrMx_IT.js`、`/assets/vendor-data-D9EFEnEk.js`、
+  `/assets/vendor-react-C5ap-Sga.css`、`/assets/index-XMjG4gr3.css`；正确 readiness 端点
+  `https://193.112.107.134/medkernel/actuator/health/readiness` HTTP 200 / `{"status":"UP"}`，
+  `X-Trace-Id=34b6f3c4-d9d6-4286-8899-c580ed4dca1a`。本批本地应用提交尚未发布到 134、尚未推送远程、
+  尚未合并 `main`。
+- 下一步继续主线：不使用子代理；继续按全角色真实前台体验广度复核剩余上线级问题，阶段完成后继续更新本文件并本地提交。
 - 第一百一十二批最新应用提交为 `c4ca70701195925be2453803291c5ff10880dd08`
   （`fix: 收敛质量问题整改口径`）。本批未使用子代理、未推送远程、未合并 `main`；
   继续以宪章、产品范围、体验契约、功能目录和四职责旅程为准，从医疗产品全局视角复核质量域剩余前台可见口径。
