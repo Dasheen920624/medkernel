@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   Alert,
+  App,
   Badge,
   Button,
   Card,
@@ -11,7 +12,6 @@ import {
   Space,
   Table,
   Tag,
-  message,
 } from "antd";
 import type { BadgeProps, TableProps } from "antd";
 import {
@@ -94,16 +94,20 @@ const sourceRank: Record<WorkflowTodoSourceType, number> = {
   SAFETY_REVIEW: 0,
   REPORT_INTERPRETATION: 1,
   RECOMMENDATION_CARD: 2,
-  PATHWAY_NODE: 3,
-  NURSING_TASK: 4,
-  FOLLOWUP_TASK: 5,
-  BEDSIDE_KNOWLEDGE: 6,
+  RULE_EVENT: 3,
+  PATHWAY_EVENT: 4,
+  PATHWAY_NODE: 5,
+  NURSING_TASK: 6,
+  FOLLOWUP_TASK: 7,
+  BEDSIDE_KNOWLEDGE: 8,
 };
 
 const sourceText: Record<WorkflowTodoSourceType, string> = {
   FOLLOWUP_TASK: "随访任务",
   SAFETY_REVIEW: "安全复核",
   RECOMMENDATION_CARD: "临床提醒",
+  RULE_EVENT: "规则事件",
+  PATHWAY_EVENT: "路径事件",
   NURSING_TASK: "护理任务",
   REPORT_INTERPRETATION: "报告解读",
   BEDSIDE_KNOWLEDGE: "床旁知识",
@@ -114,6 +118,8 @@ const sourceActionText: Record<WorkflowTodoSourceType, string> = {
   FOLLOWUP_TASK: "打开随访记录",
   SAFETY_REVIEW: "打开复核来源",
   RECOMMENDATION_CARD: "打开提醒来源",
+  RULE_EVENT: "打开规则事件",
+  PATHWAY_EVENT: "打开路径事件",
   NURSING_TASK: "打开护理任务",
   REPORT_INTERPRETATION: "打开报告上下文",
   BEDSIDE_KNOWLEDGE: "打开知识卡",
@@ -124,6 +130,8 @@ const sourceBusinessSummary: Record<WorkflowTodoSourceType, string> = {
   FOLLOWUP_TASK: "随访反馈需要按患者当前状态完成复核和闭环。",
   SAFETY_REVIEW: "高风险事项需要完成责任复核后才能继续流转。",
   RECOMMENDATION_CARD: "临床提醒需要结合患者上下文确认采纳、暂不采纳或转交。",
+  RULE_EVENT: "规则事件需要结合患者上下文完成责任复核，确认后才能继续流转。",
+  PATHWAY_EVENT: "路径事件需要结合患者当前路径状态完成复核，必要时记录变异原因。",
   NURSING_TASK: "护理任务需要按当前护理计划完成处理并记录结果。",
   REPORT_INTERPRETATION: "报告结果需要结合患者上下文完成辅助解读，处理结论需由医技或医生确认。",
   BEDSIDE_KNOWLEDGE: "床旁知识需要结合当前场景核对后再用于临床参考。",
@@ -251,6 +259,7 @@ function sourceLinkMissingText(sourceType: WorkflowTodoSourceType) {
 }
 
 export default function WorkflowTodos() {
+  const { message } = App.useApp();
   const [status, setStatus] = useState<WorkflowTodoStatus | undefined>("PENDING");
   const [priority, setPriority] = useState<WorkflowPriority | undefined>();
   const [sourceType, setSourceType] = useState<WorkflowTodoSourceType | undefined>();
@@ -547,6 +556,8 @@ export default function WorkflowTodos() {
               { value: "PENDING", label: "待处理" },
               { value: "IN_PROGRESS", label: "处理中" },
               { value: "COMPLETED", label: "已完成" },
+              { value: "TRANSFERRED", label: "已转交" },
+              { value: "CANCELLED", label: "已取消" },
             ]}
           />
           <Select
@@ -574,6 +585,8 @@ export default function WorkflowTodos() {
               { value: "FOLLOWUP_TASK", label: "随访任务" },
               { value: "SAFETY_REVIEW", label: "安全复核" },
               { value: "PATHWAY_NODE", label: "路径节点" },
+              { value: "RULE_EVENT", label: "规则事件" },
+              { value: "PATHWAY_EVENT", label: "路径事件" },
               { value: "RECOMMENDATION_CARD", label: "临床提醒" },
               { value: "NURSING_TASK", label: "护理任务" },
               { value: "REPORT_INTERPRETATION", label: "报告解读" },

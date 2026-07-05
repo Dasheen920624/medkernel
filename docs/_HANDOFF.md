@@ -10,6 +10,40 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百一十九批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或局部 UI 优化，而是把协同任务从“报告解读待办出现”推进到医技真实前台完成、服务端持久化、
+  已完成筛选回看和后端来源枚举完整中文呈现。本批使用 2 个只读子代理辅助核查 `/workflow/todos` 与
+  `/qc/alerts`，子代理未改文件；本批不推送远程、不合并 `main`。
+- 第一百一十九批修复范围：`WorkflowTodos` 待办状态筛选补齐后端真实状态 `TRANSFERRED` / `CANCELLED`
+  的“已转交 / 已取消”回看入口；协同来源类型补齐后端真实 `RULE_EVENT` / `PATHWAY_EVENT`，页面标签、
+  来源跳转按钮、业务摘要、来源筛选和前端 API 类型均使用“规则事件 / 路径事件”，避免真实投影扩面后暴露裸枚举。
+  `WorkflowTodos` 从 Ant Design 静态 `message` 切到 `App.useApp()`，修复真实浏览器完成待办时的
+  `Static function can not consume context` 警告。`stakeholder-view-rehearsal.spec.ts` 的医技报告解读链路
+  不再只断言协同待办出现，而是在 `/workflow/todos` 点击“完成”、填写完成说明，断言
+  `POST /engine/workflow/todos/{todoId}/complete` 返回 `COMPLETED`、`completedBy` 和完成说明，再切到
+  “已完成”并用本次 `todoId` 验证真实列表接口与表格行可回看，避免历史演练数据污染。
+- 第一百一十九批红绿与调试事实：新增协同来源单测后，旧实现跑
+  `npm --prefix frontend run test -- WorkflowTodos -t "source labels"` 预期失败，找不到“规则事件”；
+  补齐类型和映射后同命令通过。目标 E2E 首次复跑失败于 `WorkflowTodos` 静态 `message` 触发 AntD
+  App 上下文 warning，已改 `App.useApp()` 并补完成待办无 warning 回归；第二次复跑完成动作已成功，
+  但本地演练库存在上次失败留下的同类已完成报告解读行，严格 locator 命中 2 行，已改为绑定本次完成响应
+  `todoId` 并同时验证接口 items 与表格 `data-row-key`。
+- 第一百一十九批验证证据：触达文件 Prettier check
+  `npm --prefix frontend exec prettier -- --check frontend/src/pages/clinical/WorkflowTodos.tsx frontend/src/pages/clinical/WorkflowTodos.test.tsx frontend/src/shared/api/hooks.ts frontend/e2e/stakeholder-view-rehearsal.spec.ts`
+  通过；`npm --prefix frontend run test -- WorkflowTodos` 通过（22 tests）；
+  `npm --prefix frontend run test -- WorkflowTodos hooks productRoleJourneys routes` 通过（4 files，214 tests）；
+  目标真实前台 E2E
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium stakeholder-view-rehearsal.spec.ts`
+  通过（1 passed，约 1.4 分钟）；`npm --prefix frontend run build` 通过；`npm --prefix frontend run verify`
+  通过（114 test files，988 tests，仅既有 antd Timeline deprecation warning）；
+  `git diff --check && git diff --cached --check` 退出码 0。本批未改后端代码，未跑后端全量。
+- 第一百一十九批后续主线：本批仍未发布到 134、尚未做 134 清库重新部署，也未完成全功能与全知识全流程复演。
+  `/workflow/todos` 子代理确认“升级”仅在功能目录出现，前后端真实链路无升级按钮/API，不能作为已落地点伪演；
+  后续如要保留该功能名，需先补真实契约，否则应收敛目录口径。`/qc/alerts` 子代理确认质量问题前台当前只到
+  确认提醒和派发整改，后端已有提交整改、复核、豁免/关闭接口，但前台未接入；下一批可优先补质量整改提交、
+  复核、关闭真实前台闭环并用 E2E 验证。继续按全角色真实操作扩面到服务机构开通与组织树、评价指标发布驱动
+  医保/质量链路、MFA 真实开启后登录、运行保障/备份恢复、身份来源绑定、平台标准版本/医院 runtime 全资产闭包、
+  134 空库首启与迁移证据；发现红点先复现和定根因，再做上线级修复，不做片面优化。
 - 第一百一十六批本地收尾：接续 `2058e000` 未完成上线演练交接，仍按全角色真实前台、
   真实服务链路和上线门禁推进，不把本轮工作降级成菜单或文案单点优化。本批未推送远程、
   未合并 `main`；用户已允许使用子代理，但本批现有长门禁和修复均在当前线程完成，未实际使用子代理。

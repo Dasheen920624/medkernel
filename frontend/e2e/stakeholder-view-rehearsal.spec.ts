@@ -651,7 +651,9 @@ async function performReportInterpretationAction(page: Page, view: StakeholderVi
     interpretResponse.ok(),
     `${view.label} 生成医技报告解读应返回成功 status=${interpretResponse.status()} body=${interpretText}`,
   ).toBe(true);
-  const interpretation = JSON.parse(interpretText) as { data?: { interpretations?: unknown[] } };
+  const interpretation = JSON.parse(interpretText) as {
+    data?: { interpretations?: Array<{ reportType?: string }> };
+  };
   expect(
     Array.isArray(interpretation.data?.interpretations),
     `${view.label} 医技报告解读响应应返回 interpretations 数组`,
@@ -660,6 +662,7 @@ async function performReportInterpretationAction(page: Page, view: StakeholderVi
     interpretation.data?.interpretations?.length ?? 0,
     `${view.label} 医技报告解读必须基于前台录入的已签发报告生成至少 1 项结果`,
   ).toBeGreaterThan(0);
+  const interpretedReportType = interpretation.data?.interpretations?.[0]?.reportType ?? "血钾检验";
   await expect(dialog).toBeHidden({ timeout: 20_000 });
   await page.goto(appPath("/workflow/todos"), { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
@@ -671,7 +674,65 @@ async function performReportInterpretationAction(page: Page, view: StakeholderVi
   await expect(page.getByRole("link", { name: "打开报告上下文" }).first()).toBeVisible({
     timeout: 30_000,
   });
-  return ["从患者360带入当前上下文并生成医技报告解读，协同任务出现报告解读待办"];
+  const todoRow = page
+    .getByRole("row")
+    .filter({ hasText: "报告解读" })
+    .filter({ hasText: interpretedReportType })
+    .first();
+  await expect(todoRow, `${view.label} 应能定位本次报告解读协同待办`).toBeVisible({
+    timeout: 30_000,
+  });
+  const completeResponsePromise = waitForPost(page, "/engine/workflow/todos/");
+  await todoRow.getByRole("button", { name: "完成" }).click();
+  const completeDialog = page.getByRole("dialog", { name: "完成待办" });
+  await expect(completeDialog).toBeVisible({ timeout: 10_000 });
+  await completeDialog
+    .getByLabel("完成说明")
+    .fill("医技已复核报告解读提示，确认仅作为辅助说明，不改写已签发报告。");
+  await completeDialog.getByRole("button", { name: "确认完成" }).click();
+  const completeResponse = await completeResponsePromise;
+  const completeText = await completeResponse.text();
+  expect(
+    completeResponse.ok(),
+    `${view.label} 完成报告解读协同待办应返回成功 status=${completeResponse.status()} body=${completeText}`,
+  ).toBe(true);
+  const completedTodo = JSON.parse(completeText) as {
+    data?: { todoId?: string; status?: string; completionReason?: string; completedBy?: string };
+  };
+  const completedTodoId = completedTodo.data?.todoId;
+  expect(completedTodoId, `${view.label} 完成待办响应应返回待办编号`).toBeTruthy();
+  expect(completedTodo.data?.status, `${view.label} 完成待办后状态应为已完成`).toBe("COMPLETED");
+  expect(
+    completedTodo.data?.completionReason ?? "",
+    `${view.label} 完成待办应持久化完成说明`,
+  ).toContain("医技已复核报告解读提示");
+  expect(completedTodo.data?.completedBy, `${view.label} 完成待办应记录办理人`).toBeTruthy();
+  await expect(completeDialog).toBeHidden({ timeout: 20_000 });
+  const completedTodosResponsePromise = waitForGet(page, "/engine/workflow/todos");
+  await choosePageSelectOption(page, "待办状态", "已完成");
+  const completedTodosResponse = await completedTodosResponsePromise;
+  const completedTodosText = await completedTodosResponse.text();
+  expect(
+    completedTodosResponse.ok(),
+    `${view.label} 切换已完成协同待办应返回成功 status=${completedTodosResponse.status()} body=${completedTodosText}`,
+  ).toBe(true);
+  const completedTodosPayload = JSON.parse(completedTodosText) as {
+    data?: { items?: Array<{ todoId?: string; status?: string }> };
+  };
+  expect(
+    completedTodosPayload.data?.items?.some(
+      (item) => item.todoId === completedTodoId && item.status === "COMPLETED",
+    ),
+    `${view.label} 已完成筛选接口应返回本次完成的报告解读待办`,
+  ).toBe(true);
+  const completedTodoRow = page.locator(`tr[data-row-key="${completedTodoId}"]`).first();
+  await expect(
+    completedTodoRow,
+    `${view.label} 完成后应能在已完成筛选中回看本次报告解读待办`,
+  ).toBeVisible({ timeout: 30_000 });
+  await expect(completedTodoRow).toContainText("报告解读");
+  await expect(completedTodoRow).toContainText(interpretedReportType);
+  return ["从患者360带入当前上下文并生成医技报告解读，协同任务完成报告解读待办"];
 }
 
 async function performFollowupPlanAction(
@@ -1255,6 +1316,26 @@ function waitForPut(page: Page, path: string) {
 
 async function chooseDialogOption(page: Page, dialog: Locator, label: string, optionText: string) {
   const combobox = dialog.getByRole("combobox", { name: new RegExp(escapeRegExp(label)) }).first();
+  const select = combobox.locator(
+    "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
+  );
+  const selectedText = await currentSelectText(select);
+  if (selectedText === optionText) {
+    return;
+  }
+  await select.locator(".ant-select-selector").click();
+  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
+  await expect(dropdown).toBeVisible({ timeout: 5_000 });
+  const optionLocator = dropdown
+    .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
+    .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(optionText)}\\s*$`) })
+    .first();
+  await expect(optionLocator).toBeVisible({ timeout: 20_000 });
+  await optionLocator.click();
+}
+
+async function choosePageSelectOption(page: Page, label: string, optionText: string) {
+  const combobox = page.getByRole("combobox", { name: new RegExp(escapeRegExp(label)) }).first();
   const select = combobox.locator(
     "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
   );

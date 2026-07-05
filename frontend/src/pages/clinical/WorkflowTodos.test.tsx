@@ -409,6 +409,37 @@ describe("WorkflowTodos", () => {
     });
   });
 
+  it("lets clinical users review transferred and cancelled todos through server-side status filters", async () => {
+    const user = userEvent.setup();
+    renderWorkflowTodos();
+
+    await user.click(screen.getByRole("combobox", { name: "待办状态" }));
+    await user.click(await screen.findByText("已转交"));
+
+    await waitFor(() => {
+      expect(workflowHookMocks.useWorkflowTodos).toHaveBeenLastCalledWith({
+        status: "TRANSFERRED",
+        priority: undefined,
+        sourceType: undefined,
+        page: 1,
+        size: 10,
+      });
+    });
+
+    await user.click(screen.getByRole("combobox", { name: "待办状态" }));
+    await user.click(await screen.findByText("已取消"));
+
+    await waitFor(() => {
+      expect(workflowHookMocks.useWorkflowTodos).toHaveBeenLastCalledWith({
+        status: "CANCELLED",
+        priority: undefined,
+        sourceType: undefined,
+        page: 1,
+        size: 10,
+      });
+    });
+  });
+
   it("renders clinical collaboration source labels without exposing service enum names", () => {
     workflowHookMocks.useWorkflowTodos.mockReturnValue({
       data: {
@@ -463,10 +494,30 @@ describe("WorkflowTodos", () => {
             status: "PENDING",
             patientId: "patient-real-1",
           },
+          {
+            todoId: "todo-rule-event-1",
+            sourceType: "RULE_EVENT",
+            sourceId: "rule:override-1",
+            title: "规则事件复核",
+            summary: "规则触发后需要责任医生确认",
+            priority: "HIGH",
+            status: "PENDING",
+            patientId: "patient-real-1",
+          },
+          {
+            todoId: "todo-pathway-event-1",
+            sourceType: "PATHWAY_EVENT",
+            sourceId: "pathway:variance-1",
+            title: "路径事件复核",
+            summary: "临床路径变异需要责任人确认",
+            priority: "MEDIUM",
+            status: "PENDING",
+            patientId: "patient-real-1",
+          },
         ],
         page: 0,
         size: 10,
-        total: 5,
+        total: 7,
         hasNext: false,
       },
       isError: false,
@@ -481,11 +532,15 @@ describe("WorkflowTodos", () => {
     expect(screen.getByText("床旁知识")).toBeInTheDocument();
     expect(screen.getByText("临床提醒")).toBeInTheDocument();
     expect(screen.getByText("路径节点")).toBeInTheDocument();
+    expect(screen.getByText("规则事件")).toBeInTheDocument();
+    expect(screen.getByText("路径事件")).toBeInTheDocument();
     expect(screen.queryByText("NURSING_TASK")).not.toBeInTheDocument();
     expect(screen.queryByText("REPORT_INTERPRETATION")).not.toBeInTheDocument();
     expect(screen.queryByText("BEDSIDE_KNOWLEDGE")).not.toBeInTheDocument();
     expect(screen.queryByText("RECOMMENDATION_CARD")).not.toBeInTheDocument();
     expect(screen.queryByText("PATHWAY_NODE")).not.toBeInTheDocument();
+    expect(screen.queryByText("RULE_EVENT")).not.toBeInTheDocument();
+    expect(screen.queryByText("PATHWAY_EVENT")).not.toBeInTheDocument();
   });
 
   it("keeps safety review todos ahead of lower-risk follow-up rows", () => {
@@ -788,6 +843,23 @@ describe("WorkflowTodos", () => {
       });
     });
     expect(workflowHookMocks.refetchTodos).toHaveBeenCalled();
+  });
+
+  it("uses App scoped messages after completing workflow todos", async () => {
+    const user = userEvent.setup();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    renderWorkflowTodos();
+
+    await user.click(screen.getByRole("button", { name: "完成" }));
+    await user.type(screen.getByLabelText("完成说明"), "已完成真实随访处理");
+    await user.click(screen.getByRole("button", { name: "确认完成" }));
+
+    await waitFor(() => expect(workflowHookMocks.completeTodo).toHaveBeenCalled());
+    const warningText = [...consoleError.mock.calls, ...consoleWarn.mock.calls].flat().join("\n");
+    expect(warningText).not.toContain("Static function can not consume context");
+    consoleError.mockRestore();
+    consoleWarn.mockRestore();
   });
 
   it("lets clinical users transfer todos by selecting a person and role in hospital language", async () => {
