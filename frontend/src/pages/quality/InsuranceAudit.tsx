@@ -466,7 +466,7 @@ export default function InsuranceAudit() {
                 <Alert
                   type="info"
                   showIcon
-                  message="未读取到已生效质控指标，先跳过内涵质控并按本次医保规则依据归档。"
+                  message="未读取到已生效评价指标，将按本次医保规则依据归档并生成整改任务。"
                 />
               ) : null}
 
@@ -488,9 +488,9 @@ export default function InsuranceAudit() {
                   />
                 </Form.Item>
                 <Form.Item
-                  label="质控指标"
+                  label="评价指标"
                   name="indicatorId"
-                  rules={[{ required: true, message: "请选择质控指标" }]}
+                  rules={[{ required: true, message: "请选择评价指标" }]}
                 >
                   <Select
                     showSearch
@@ -501,7 +501,7 @@ export default function InsuranceAudit() {
                     placeholder="选择已生效指标"
                     options={effectiveIndicatorOptions}
                     loading={indicatorsQuery.isLoading}
-                    notFoundContent="暂无已生效质控指标"
+                    notFoundContent="暂无已生效评价指标"
                   />
                 </Form.Item>
               </Space>
@@ -617,7 +617,7 @@ export default function InsuranceAudit() {
             <Space direction="vertical" size="middle" className="mk-full-width">
               {caseReviewResult && (
                 <Descriptions bordered size="small" column={1}>
-                  <Descriptions.Item label="病案内涵质控">
+                  <Descriptions.Item label="病案内涵质量评价">
                     {caseReviewStatusText(caseReviewResult.reviewStatus)}
                   </Descriptions.Item>
                   <Descriptions.Item label="评估运行">
@@ -907,10 +907,10 @@ function ruleText(
 
 function caseReviewStatusText(status: string) {
   if (status === "PASS") {
-    return "病案内涵质控通过";
+    return "病案内涵质量评价通过";
   }
   if (status === "NON_COMPLIANT") {
-    return "病案内涵质控发现问题";
+    return "病案内涵质量评价发现问题";
   }
   return customerEnumLabel(status);
 }

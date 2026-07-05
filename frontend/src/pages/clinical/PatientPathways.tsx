@@ -423,7 +423,7 @@ export default function PatientPathways() {
                   </Tag>
                   <span>升级: {clockEscalationText(clock.escalationLevel)}</span>
                   {evidenceDetailsEnabled && clock.metricCode && (
-                    <span>指标: {clock.metricCode}</span>
+                    <span>关联评价指标: {clock.metricCode}</span>
                   )}
                   <span>目标: {formatDateTime(clock.targetDueAt ?? clock.dueAt)}</span>
                   <span>最晚: {formatDateTime(clock.maxDueAt)}</span>
@@ -1038,7 +1038,7 @@ export default function PatientPathways() {
                                   {clockStatusText(activeClock.status)}
                                 </Tag>
                                 {evidenceDetailsEnabled && activeClock.metricCode && (
-                                  <span>{activeClock.metricCode}</span>
+                                  <span>评价指标: {activeClock.metricCode}</span>
                                 )}
                               </div>
                             )}
@@ -1212,7 +1212,7 @@ export default function PatientPathways() {
                                         </div>
                                         {evidenceDetailsEnabled && activeClock.metricCode && (
                                           <div className={styles.timelineMeta}>
-                                            关联质控指标: {activeClock.metricCode}
+                                            关联评价指标: {activeClock.metricCode}
                                           </div>
                                         )}
                                       </div>

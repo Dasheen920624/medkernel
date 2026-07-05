@@ -210,7 +210,8 @@ describe("QcDashboard", () => {
 
     renderPage();
 
-    expect(screen.getByText("当前筛选下暂无质控数据")).toBeInTheDocument();
+    expect(screen.getByText("当前筛选下暂无质量数据")).toBeInTheDocument();
+    expect(screen.queryByText("当前筛选下暂无质控数据")).not.toBeInTheDocument();
     expect(screen.queryByText("当前筛选下暂无真实质控数据")).not.toBeInTheDocument();
   });
 
@@ -219,7 +220,7 @@ describe("QcDashboard", () => {
       data: undefined,
       isLoading: false,
       isError: true,
-      error: { response: { status: 500, data: { message: "服务暂时不可用" } } },
+      error: { response: { status: 500, data: {} } },
       refetch: vi.fn(),
     });
     mockUseQualityDashboardDrilldown.mockReturnValue({
@@ -232,7 +233,9 @@ describe("QcDashboard", () => {
     renderPage();
 
     expect(screen.getByText("质量风险概览读取失败")).toBeInTheDocument();
+    expect(screen.getByText("请检查登录权限、组织范围或质量管理服务状态。")).toBeInTheDocument();
     expect(screen.queryByText(/质控驾驶舱/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/质控服务状态/)).not.toBeInTheDocument();
   });
 
   it("keeps dashboard actions concise and links accumulated alerts to the full worklist", () => {
@@ -378,7 +381,8 @@ describe("QcDashboard", () => {
     expect(screen.getByText(/先处理 1 项高风险证据/)).toBeInTheDocument();
     expect(screen.getByText(/心内科 1 项/)).toBeInTheDocument();
     expect(screen.getByText(/未闭环 1 项/)).toBeInTheDocument();
-    expect(screen.getByText("病例 A 质控缺陷")).toBeInTheDocument();
+    expect(screen.getByText("病例 A 质量缺陷")).toBeInTheDocument();
+    expect(screen.queryByText("病例 A 质控缺陷")).not.toBeInTheDocument();
     expect(screen.getByText("证据包已生成")).toBeInTheDocument();
     expect(screen.getByText("来源已关联")).toBeInTheDocument();
     expect(screen.queryByText("追踪号：trace-finding")).not.toBeInTheDocument();
@@ -523,7 +527,7 @@ describe("QcDashboard", () => {
     expect(screen.queryByText(/alert-risk-raw/)).not.toBeInTheDocument();
   });
 
-  it("证据详情打开后展示质控指标、热力、预警和下钻导出的完整追溯字段", async () => {
+  it("证据详情打开后展示质量指标、热力、风险提醒和下钻导出的完整追溯字段", async () => {
     mockUseQualityDashboard.mockReturnValue({
       data: dashboardData,
       isLoading: false,

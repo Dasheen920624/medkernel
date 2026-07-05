@@ -476,6 +476,17 @@ describe("PatientPathways", () => {
     expect(screen.getByText("2026年06月04日 09:00")).toBeInTheDocument();
   });
 
+  it("uses evaluation indicator wording for pathway clock evidence", async () => {
+    const user = userEvent.setup();
+    renderPatientPathways();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+    await user.click(screen.getByRole("button", { name: /办理推进与解释追溯/ }));
+
+    expect(screen.getByText("关联评价指标: STROKE.TIME_TO_CT")).toBeInTheDocument();
+    expect(screen.queryByText(/关联质控指标/)).not.toBeInTheDocument();
+  });
+
   it("shows the full pathway graph as a doctor read-only view with the current node highlighted", async () => {
     const user = userEvent.setup();
     renderPatientPathways();

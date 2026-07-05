@@ -1791,7 +1791,7 @@ public class PathwayEngineService {
             if (node.timeWindowMinutes() != null && node.timeWindowMinutes() > 0
                     && !boundNodes.contains(node.nodeCode())) {
                 throw new ApiException(ErrorCode.PATHWAY_CLOCK_MISSING,
-                    "节点 " + node.nodeCode() + " 设置了关键时限但未绑定质控指标");
+                    "节点 " + node.nodeCode() + " 设置了关键时限但未绑定评价指标");
             }
             if (node.timeWindowMinutes() != null && node.timeWindowMinutes() > 0) {
                 requireClockSlaConfig(node);

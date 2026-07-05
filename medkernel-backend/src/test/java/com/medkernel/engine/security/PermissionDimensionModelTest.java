@@ -54,9 +54,12 @@ class PermissionDimensionModelTest {
             .as("资产边界不再用旧容器标签表达")
             .noneMatch(name -> name.contains(removedConfigContainerLabel)
                 || name.contains(removedKnowledgeContainerLabel))
-            .doesNotContain("复核质控整改并关闭问题");
+            .doesNotContain("复核质控整改并关闭问题")
+            .doesNotContain("发布质控指标");
         assertThat(PermissionCode.EVALUATION_REVIEW.displayName())
             .isEqualTo("复核质量问题整改并关闭问题");
+        assertThat(PermissionCode.EVALUATION_PUBLISH.displayName())
+            .isEqualTo("发布评价指标");
     }
 
     @Test

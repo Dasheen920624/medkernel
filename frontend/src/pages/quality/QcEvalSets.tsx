@@ -104,7 +104,7 @@ const RELEASE_ACTION_SUCCESS: Record<IndicatorReleaseAction, string> = {
 const SUBJECT_LABELS: Record<EvaluationSubjectType, string> = {
   PATIENT: "患者主体",
   MEDICAL_RECORD: "临床病历",
-  DEPARTMENT: "科室质控",
+  DEPARTMENT: "科室质量评价",
   DOCTOR: "医师效能",
   DISEASE: "专病包",
   PATHWAY: "临床路径",
@@ -557,7 +557,7 @@ export default function QcEvalSets() {
     <>
       <PageShell
         title="评价指标"
-        description="定义质控评价指标，试算影响范围并通过机构生效版本统一发布。"
+        description="定义质量评价指标，试算影响范围并通过机构生效版本统一发布。"
         primary={
           <Button
             aria-label="新建指标"
@@ -700,7 +700,7 @@ export default function QcEvalSets() {
                 name="indicatorCode"
                 label="稳定评价指标身份"
                 rules={[{ required: true, message: "请输入稳定评价指标身份" }]}
-                extra="用于版本发布、质控追溯和跨机构迁移；默认台账仍按指标名称与业务状态展示。"
+                extra="用于版本发布、质量追溯和跨机构迁移；默认台账仍按指标名称与业务状态展示。"
               >
                 <Input placeholder="输入稳定评价指标身份" />
               </Form.Item>

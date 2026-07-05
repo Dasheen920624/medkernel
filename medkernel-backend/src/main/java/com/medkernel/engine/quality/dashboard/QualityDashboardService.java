@@ -587,7 +587,10 @@ public class QualityDashboardService {
         if (title == null || title.isBlank()) {
             return "未命名质量问题";
         }
-        return title.replace("质控问题", "质量问题").replace("质控事实", "质量事实");
+        return title
+            .replace("质控问题", "质量问题")
+            .replace("质控事实", "质量事实")
+            .replace("质控缺陷", "质量缺陷");
     }
 
     private String tenantId() {

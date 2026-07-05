@@ -301,7 +301,7 @@
   border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
 }
 
-/* 质控指标卡 */
+/* 质量指标卡 */
 .indicatorCard {
   border: calc(var(--mk-unit) * 1) solid var(--ant-color-border-secondary);
   border-radius: var(--ant-border-radius-lg);

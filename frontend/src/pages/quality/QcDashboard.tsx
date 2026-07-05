@@ -167,7 +167,7 @@ export default function QcDashboard() {
           title: errorStatus === 403 ? "当前权限不足" : "质量风险概览读取失败",
           description: getApiErrorMessage(
             dashboardQuery.error,
-            "请检查登录权限、组织范围或质控服务状态。",
+            "请检查登录权限、组织范围或质量管理服务状态。",
           ),
           traceId: errorDetail?.traceId,
           onRetry: () => dashboardQuery.refetch(),
@@ -187,8 +187,8 @@ export default function QcDashboard() {
         extras={extraActions}
         state="empty"
         stateProps={{
-          title: "当前筛选下暂无质控数据",
-          description: "质控汇总服务暂未返回问题、预警或质量成效。",
+          title: "当前筛选下暂无质量数据",
+          description: "质量汇总服务暂未返回问题、风险提醒或质量成效。",
         }}
       >
         <></>
@@ -577,7 +577,7 @@ function formatAlertPreviewTitle(
   evidenceDetailsEnabled: boolean,
 ) {
   if (evidenceDetailsEnabled || !containsTraceEvidenceToken(alert.title)) {
-    return alert.title;
+    return normalizeQualityWording(alert.title);
   }
   return qualitySourceLabel(alert.sourceType);
 }
@@ -651,7 +651,10 @@ function EvidenceDrawer({
             type="error"
             showIcon
             message="下钻证据读取失败"
-            description={getApiErrorMessage(query.error, "请检查权限、组织范围或质控服务状态。")}
+            description={getApiErrorMessage(
+              query.error,
+              "请检查权限、组织范围或质量管理服务状态。",
+            )}
           />
         )}
 
@@ -807,9 +810,16 @@ function formatDrilldownItemTitle(
   evidenceDetailsEnabled: boolean,
 ) {
   if (evidenceDetailsEnabled || !containsTraceEvidenceToken(item.title)) {
-    return item.title;
+    return normalizeQualityWording(item.title);
   }
   return `${qualitySourceLabel(item.sourceType)} · ${customerEnumLabel(item.status)}`;
+}
+
+function normalizeQualityWording(value: string) {
+  return value
+    .replace(/质控问题/g, "质量问题")
+    .replace(/质控事实/g, "质量事实")
+    .replace(/质控缺陷/g, "质量缺陷");
 }
 
 function formatDrilldownItemEvidenceSummary(

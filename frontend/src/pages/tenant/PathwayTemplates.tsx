@@ -2971,7 +2971,7 @@ export default function PathwayTemplates() {
                             {...fieldProps}
                             name={[field.name, "metricCode"]}
                             label="时钟指标身份"
-                            tooltip="设置时窗分钟后必填，用于时窗校验与质控时钟"
+                            tooltip="设置时窗分钟后必填，用于时窗校验与质量评价时钟"
                             rules={[
                               ({ getFieldValue }) => ({
                                 validator(_rule, value) {

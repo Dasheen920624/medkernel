@@ -187,6 +187,8 @@ describe("QcEvalResults", () => {
     expect(screen.getByText("待整改问题总数")).toBeInTheDocument();
     expect(screen.getByText("质量问题与整改入口")).toBeInTheDocument();
     expect(screen.queryByText("质控问题与整改入口")).not.toBeInTheDocument();
+    expect(screen.getAllByText("质量缺陷").length).toBeGreaterThan(0);
+    expect(screen.queryByText("质控缺陷")).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
     expect(screen.getAllByText("评价指标已关联").length).toBeGreaterThan(0);
     expect(screen.getByText("第 2 版评价口径")).toBeInTheDocument();

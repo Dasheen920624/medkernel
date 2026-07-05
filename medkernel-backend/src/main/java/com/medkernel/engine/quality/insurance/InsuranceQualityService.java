@@ -178,7 +178,7 @@ public class InsuranceQualityService {
      * 按版本化规则审核真实医保结算事实，命中后联动评估整改闭环。
      *
      * <p>当机构尚未初始化生效评价指标时，前台可提交手工医保规则依据，本服务直接登记
-     * 医保质量问题和整改任务，并在证据中明确“未绑定生效质控指标”，不伪造评价指标。
+     * 医保质量问题和整改任务，并在证据中明确“未绑定生效评价指标”，不伪造评价指标。
      */
     @Transactional
     public InsuranceAuditResponse insuranceAudit(InsuranceAuditRequest request) {
@@ -304,7 +304,7 @@ public class InsuranceQualityService {
             String taskId = "rct-ins-" + shortDigest(tenantId, findingId, request.responsibleDepartmentId());
             String findingCode = "INSURANCE." + issue.issueId();
             String evidenceSummary = issue.evidenceSummary()
-                + "；未绑定生效质控指标，按本次医保规则依据直接派发整改。";
+                + "；未绑定生效评价指标，按本次医保规则依据直接派发整改。";
             ManualQualityRectificationResult rectification = manualRectifications.ensureAssignedTask(
                 new ManualQualityRectificationCommand(
                     tenantId,
@@ -316,7 +316,7 @@ public class InsuranceQualityService {
                     findingCode,
                     "医保审核问题：" + seed.rule().description(),
                     "医保审核命中本次规则 " + seed.rule().ruleCode() + "@" + seed.rule().ruleVersion()
-                        + "，当前机构未绑定生效质控指标，由医保审核服务发起整改。",
+                        + "，当前机构未绑定生效评价指标，由医保审核服务发起整改。",
                     seed.rule().severity(),
                     evidenceSummary,
                     request.responsibleDepartmentId(),

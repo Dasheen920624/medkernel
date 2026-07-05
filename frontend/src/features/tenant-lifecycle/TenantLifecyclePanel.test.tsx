@@ -43,6 +43,8 @@ describe("TenantLifecyclePanel", () => {
     const steps = lifecycleCard?.querySelector(".ant-steps");
 
     expect(steps).toHaveClass("ant-steps-vertical");
+    expect(screen.getByText("质量指标达成与物理验收")).toBeInTheDocument();
+    expect(screen.queryByText("质控指标达成与物理验收")).not.toBeInTheDocument();
   });
 
   it("keeps lifecycle load failures in hospital language", () => {

@@ -1951,7 +1951,7 @@ class PathwayEngineServiceTest {
             "P30D",
             "/TENANT-A",
             "dept-1",
-            "质控指标规范",
+            "评价指标规范",
             EvaluationIndicatorStatus.ACTIVE,
             now.minusSeconds(3600),
             "tester",

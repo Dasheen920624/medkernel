@@ -41,7 +41,7 @@ public class PathwayEngineController {
     }
 
     /**
-     * 创建临床路径草稿，并一次性保存节点、边和质控指标绑定。
+     * 创建临床路径草稿，并一次性保存节点、边和评价指标绑定。
      *
      * <p>权限：{@code pathway.write}；版本号由服务端按稳定路径编码自动递增。
      */
@@ -181,7 +181,7 @@ public class PathwayEngineController {
     /**
      * 查询患者路径实例的关键时钟列表。
      *
-     * <p>权限：{@code pathway.read}；关键时钟用于追踪节点时间窗和质控指标关联。
+     * <p>权限：{@code pathway.read}；关键时钟用于追踪节点时间窗和评价指标关联。
      */
     @GetMapping("/patient-pathways/{patientPathwayId}/clocks")
     @PreAuthorize("@perm.has('pathway.read')")

@@ -9,7 +9,7 @@ import org.springframework.stereotype.Repository;
 /**
  * 专病指标绑定仓库。
  *
- * <p>保存路径知识资产、临床路径、节点和质控指标之间的绑定关系。
+ * <p>保存路径知识资产、临床路径、节点和评价指标之间的绑定关系。
  */
 @Repository
 public interface SpecialtyMetricBindingRepository extends ListCrudRepository<SpecialtyMetricBinding, Long> {

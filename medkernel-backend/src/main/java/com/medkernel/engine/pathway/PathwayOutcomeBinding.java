@@ -9,7 +9,7 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * 路径结局指标绑定。
  *
- * <p>将全路径、阶段或里程碑与评估指标编码关联，形成路径疗效与质控评价闭环。
+ * <p>将全路径、阶段或里程碑与评估指标编码关联，形成路径疗效与质量评价闭环。
  */
 @Table("pathway_outcome_binding")
 public record PathwayOutcomeBinding(

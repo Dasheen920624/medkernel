@@ -192,7 +192,8 @@ class InsuranceQualityServiceTest {
             SELECT COUNT(*) FROM quality_finding
             WHERE tenant_id = 'tenant-A'
               AND indicator_id = 'INSURANCE_RULE_MANUAL'
-              AND evidence_summary LIKE '%未绑定生效质控指标%'
+              AND evidence_summary LIKE '%未绑定生效评价指标%'
+              AND evidence_summary NOT LIKE '%未绑定生效质控指标%'
             """, Long.class)).isEqualTo(1L);
         assertThat(jdbc.queryForObject("""
             SELECT COUNT(*)

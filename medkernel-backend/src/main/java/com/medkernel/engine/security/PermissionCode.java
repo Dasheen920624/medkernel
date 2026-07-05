@@ -61,10 +61,10 @@ public enum PermissionCode {
     RECOMMENDATION_READ("recommendation.read", Risk.LOW, "查看推荐 / 提醒"),
     RECOMMENDATION_ACCEPT("recommendation.accept", Risk.MEDIUM, "采纳或拒绝推荐（医师权限）"),
 
-    // ─── 评估质控（GA-ENG-EVAL-01）─────────────────────────────
+    // ─── 质量评价（GA-ENG-EVAL-01）─────────────────────────────
     EVALUATION_READ("evaluation.read", Risk.LOW, "查看评估指标和结果"),
     EVALUATION_WRITE("evaluation.write", Risk.MEDIUM, "修改评估指标"),
-    EVALUATION_PUBLISH("evaluation.publish", Risk.HIGH, "发布质控指标"),
+    EVALUATION_PUBLISH("evaluation.publish", Risk.HIGH, "发布评价指标"),
 
     // ─── 审计与证据（GA-ENG-EVID-01）──────────────────────────
     AUDIT_READ("audit.read", Risk.LOW, "查看审计日志"),

@@ -39,7 +39,7 @@ const realIndicator = {
   indicatorCode: "IND.VTE.REAL",
   versionNo: 2,
   name: "外科 VTE 风险评估率",
-  subjectType: "MEDICAL_RECORD",
+  subjectType: "DEPARTMENT",
   denominatorDefinition: JSON.stringify({
     all: [{ fact: "encounters.0.admissionType", operator: "equals", value: "SURGICAL" }],
   }),
@@ -193,9 +193,13 @@ describe("QcEvalSets", () => {
     expect(screen.getByRole("heading", { name: "评价指标" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "评估指标库" })).not.toBeInTheDocument();
     expect(
-      screen.getByText("定义质控评价指标，试算影响范围并通过机构生效版本统一发布。"),
+      screen.getByText("定义质量评价指标，试算影响范围并通过机构生效版本统一发布。"),
     ).toBeInTheDocument();
-    expect(screen.queryByText("维护" + "质控评价指标、影响分析和发布状态")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("定义质控评价指标，试算影响范围并通过机构生效版本统一发布。"),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByText("科室质量评价").length).toBeGreaterThan(0);
+    expect(screen.queryByText("科室质控")).not.toBeInTheDocument();
     expect(screen.getByText("评价指标总数")).toBeInTheDocument();
     expect(screen.queryByText("真实评估指标总数")).not.toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "证据详情" })).toBeInTheDocument();
@@ -323,6 +327,14 @@ describe("QcEvalSets", () => {
     expect(screen.getByRole("dialog", { name: "新建评价指标" })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "新建评估指标" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("版本号")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("用于版本发布、质量追溯和跨机构迁移；默认台账仍按指标名称与业务状态展示。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "用于版本发布、质控追溯和跨机构迁移；默认台账仍按指标名称与业务状态展示。",
+      ),
+    ).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("稳定评价指标身份"), {
       target: { value: "IND.NEW.VTE" },
     });

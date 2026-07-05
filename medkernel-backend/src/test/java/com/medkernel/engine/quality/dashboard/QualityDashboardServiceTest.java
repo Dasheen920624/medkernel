@@ -198,6 +198,8 @@ class QualityDashboardServiceTest {
             .satisfies(alert -> {
                 assertThat(alert.title()).contains("高风险质量问题待闭环");
                 assertThat(alert.title()).doesNotContain("质控问题");
+                assertThat(alert.title()).contains("质量缺陷");
+                assertThat(alert.title()).doesNotContain("质控缺陷");
             });
         assertThat(alerts.count()).isEqualTo(2);
     }
@@ -306,7 +308,7 @@ class QualityDashboardServiceTest {
         findings.save(new QualityFinding(
             null, findingId, tenantId, "run-" + findingId, "result-" + findingId,
             "indicator-" + departmentId, "FIND." + findingId,
-            "质控问题 " + findingId, "质控命中需复核",
+            "质控缺陷 " + findingId, "质量命中需复核",
             severity, status, "病历证据 evidence-" + findingId, departmentId,
             createdAt.plusSeconds(86400), createdAt, "qa-1", createdAt, "qa-1", "trace-quality"));
     }

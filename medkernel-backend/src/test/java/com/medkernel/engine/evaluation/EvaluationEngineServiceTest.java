@@ -627,7 +627,7 @@ class EvaluationEngineServiceTest {
         EvaluationIndicator indicator = new EvaluationIndicator(
             null, "ei-active", "tenant-A", "IND.VTE.PROPHYLAXIS", 1, "静脉血栓预防完成率",
             EvaluationSubjectType.MEDICAL_RECORD, "{\"all\":[]}", "{\"all\":[]}", "{\"all\":[]}",
-            "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
+            "P1级严重质量缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
@@ -670,7 +670,7 @@ class EvaluationEngineServiceTest {
             EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
-            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
+            null, "P1级严重质量缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
@@ -713,7 +713,7 @@ class EvaluationEngineServiceTest {
             EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
-            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
+            null, "P1级严重质量缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
@@ -755,7 +755,7 @@ class EvaluationEngineServiceTest {
             EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
-            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
+            null, "P1级严重质量缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
@@ -838,7 +838,7 @@ class EvaluationEngineServiceTest {
         EvaluationIndicator indicator = new EvaluationIndicator(
             null, "ei-active", "tenant-A", "IND.VTE.PROPHYLAXIS", 1, "静脉血栓预防完成率",
             EvaluationSubjectType.MEDICAL_RECORD, "{bad-json", "{\"all\":[]}", null,
-            "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
+            "P1级严重质量缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))
@@ -868,7 +868,7 @@ class EvaluationEngineServiceTest {
             EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
-            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
+            null, "P1级严重质量缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         EvaluationIndicator outside = new EvaluationIndicator(
@@ -876,7 +876,7 @@ class EvaluationEngineServiceTest {
             EvaluationSubjectType.MEDICAL_RECORD,
             ruleDefinition("patient.qualityReady", "equals", "true"),
             ruleDefinition("patient.completed", "equals", "true"),
-            null, "P1级严重质控缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
+            null, "P1级严重质量缺陷", "DISCHARGE+24H", "全院", "dept-1", "guideline-1",
             EvaluationIndicatorStatus.ACTIVE, Instant.now(), "qa-1", Instant.now(), Instant.now(),
             "qa-1", Instant.now(), "qa-1", "trace-eval");
         when(indicators.findByTenantIdAndStatus("tenant-A", EvaluationIndicatorStatus.ACTIVE))

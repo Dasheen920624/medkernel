@@ -372,7 +372,7 @@ export default function QcEvalResults() {
                 className="mk-select-narrow"
                 onChange={setResultLevel}
                 options={[
-                  { value: "NON_COMPLIANT", label: "质控缺陷" },
+                  { value: "NON_COMPLIANT", label: "质量缺陷" },
                   { value: "CRITICAL", label: "严重红线" },
                   { value: "ATTENTION", label: "需关注" },
                   { value: "PASS", label: "达标" },
@@ -656,7 +656,7 @@ function renderLevelTag(level: EvaluationResultLevel) {
     case "ATTENTION":
       return <Tag color="warning">需关注</Tag>;
     case "NON_COMPLIANT":
-      return <Tag color="error">质控缺陷</Tag>;
+      return <Tag color="error">质量缺陷</Tag>;
     case "CRITICAL":
       return <Tag color="red">严重红线</Tag>;
     default:

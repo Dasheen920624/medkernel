@@ -17,9 +17,9 @@ import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.api.error.ErrorCode;
 
 /**
- * 从当前机构生效版本中选择本次自动质控评价可执行的指标版本。
+ * 从当前机构生效版本中选择本次自动质量评价可执行的指标版本。
  *
- * <p>质控运行只消费机构生效版本锁定的精确指标版本，不扫描租户下全部 ACTIVE 指标。
+ * <p>质量评价运行只消费机构生效版本锁定的精确指标版本，不扫描租户下全部 ACTIVE 指标。
  */
 @Component
 public class RuntimeReleaseEvaluationSelector {

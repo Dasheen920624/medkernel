@@ -399,8 +399,8 @@ describe("InsuranceAudit", () => {
     );
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("combobox", { name: "质控指标" }));
-    await user.type(screen.getByRole("combobox", { name: "质控指标" }), "INS.FEE.2026");
+    await user.click(screen.getByRole("combobox", { name: "评价指标" }));
+    await user.type(screen.getByRole("combobox", { name: "评价指标" }), "INS.FEE.2026");
 
     await waitFor(() => {
       expect(mockUseEvaluationIndicators).toHaveBeenCalledWith(
@@ -490,14 +490,17 @@ describe("InsuranceAudit", () => {
       screen.getByText("未读取到可选科室，已使用当前组织范围作为责任归属。"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("未读取到已生效质控指标，先跳过内涵质控并按本次医保规则依据归档。"),
+      screen.getByText("未读取到已生效评价指标，将按本次医保规则依据归档并生成整改任务。"),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText("未读取到已生效质控指标，先跳过内涵质控并按本次医保规则依据归档。"),
+    ).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("患者信息"), { target: { value: "patient-ins" } });
     await userEvent.click(await screen.findByRole("button", { name: "选择第 1 个病案快照" }));
     await userEvent.click(screen.getByRole("combobox", { name: "责任科室" }));
     await userEvent.click(await screen.findByText("当前机构"));
     expect(screen.queryByText("当前机构 · hospital-rehearsal")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("combobox", { name: "质控指标" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "评价指标" }));
     await userEvent.click(await screen.findByText("按本次规则归档"));
     fireEvent.change(screen.getByLabelText("审核场景"), { target: { value: "A9" } });
     fireEvent.change(screen.getByLabelText("DRG 分组器版本"), {
@@ -589,7 +592,7 @@ describe("InsuranceAudit", () => {
     await userEvent.click(await screen.findByRole("button", { name: "选择第 1 个病案快照" }));
     await userEvent.click(screen.getByRole("combobox", { name: "责任科室" }));
     await userEvent.click(await screen.findByText("医保管理科 · DEPT-INS"));
-    await userEvent.click(screen.getByRole("combobox", { name: "质控指标" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "评价指标" }));
     await userEvent.click(await screen.findByText("医保违规费用率 · INS.FEE · v2"));
     expect(screen.getByLabelText("审核场景")).toBeInTheDocument();
     expect(screen.queryByLabelText("场景编码")).not.toBeInTheDocument();
