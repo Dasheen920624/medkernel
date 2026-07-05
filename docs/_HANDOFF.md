@@ -10,6 +10,46 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百一十四批最新应用提交为 `6d12324d9710bc9920b21f897abfb73cdf2a4571`
+  （`fix: 收敛实施验收处理入口口径`）。本批未使用子代理、未推送远程、未合并 `main`；
+  继续以宪章、产品范围、体验契约、功能目录和四职责旅程为准，复核平台管理员在 `实施与验收`
+  主链路中的下一步理解。结论：菜单命名、顺序和页面措辞本身是医疗产品全角色体验的重要入口，
+  但不能等同于完整上线验收；本批只将 `实施与验收` 页中会把院方实施人员引向抽象后台对象的
+  `下一配置页`、`机构实施配置`、`对应配置页` 等口径，收敛为 `下一处理入口`、
+  `服务机构开通`、`对应处理入口`，并同步后端 `ImplementationStep` 公共 Javadoc。
+  路由、菜单顺序、接口字段、步骤 ID、幂等和持久化契约均不改。
+- 第一百一十四批验证：先改 `ImplementationGuide` 用例并在旧实现上跑出预期失败
+  （`npm --prefix frontend run test -- ImplementationGuide` 无法找到 `下一处理入口`，旧 DOM 仍展示
+  `下一配置页/机构实施配置/对应配置页`）；修正后同命令通过（1 个文件、4 个测试）。
+  扩展前端 `npm --prefix frontend run test -- ImplementationGuide WorkbenchPanel productRoleJourneys routes`
+  通过（4 个文件、83 个测试）；租户实施/权限相关后端窄测
+  `mvn -f medkernel-backend/pom.xml -Dtest=TenantPilotServiceTest,TenantEngineControllerContractTest test`
+  通过（9 个测试），
+  `mvn -f medkernel-backend/pom.xml -Dtest=DefaultPermissionPolicyTest,MenuPermissionCatalogTest test`
+  通过（16 个测试）。重门禁：`npm --prefix frontend run build` 通过，
+  `npm --prefix frontend run verify` 通过（114 个测试文件、967 个测试；仅既有 antd Timeline deprecation warning），
+  `mvn -f medkernel-backend/pom.xml test` 通过（3064 个测试、0 failures、0 errors、7 skipped；
+  Docker/Testcontainers 多方言容器用例因本机无 Docker 按既有条件跳过），`git diff --check`
+  与 `git diff --cached --check` 均退出码 0。旧词扫描
+  `rg -n "配置页|下一配置页|机构实施配置|对应配置页" ...` 仅剩体验契约中的通用页面类型、
+  `WorkbenchPanel` 的合法 `安全配置页面`、审计配置 Javadoc、`RuleDefinitions` 测试名和本批测试反向断言；
+  `ImplementationGuide` 生产代码与 `ImplementationStep` Javadoc 已收敛为处理入口口径。
+- 第一百一十四批开工/收尾核查：`git fetch origin main` 后远端 `refs/heads/main`、本地 `origin/main`
+  与本地 `main` 仍为 `1561ba6bef8777dcef76432696f43de4277fdd3f`
+  （`完善全角色上线演练与134复演闭环 (#653)`）；应用提交前本地分支领先 `origin/main` 307 个提交，
+  应用提交后领先 308 个提交。134 当前公网首页 `https://193.112.107.134/medkernel/` HTTP 200，
+  `Date=Sun, 05 Jul 2026 05:08:06 GMT`，`Content-Length=832`，仍指向
+  `/assets/index-DYTh-Ceu.js`、`/assets/vendor-react-bdrMx_IT.js`、`/assets/vendor-data-D9EFEnEk.js`、
+  `/assets/vendor-react-C5ap-Sga.css`、`/assets/index-XMjG4gr3.css`；正确 readiness 端点
+  `https://193.112.107.134/medkernel/actuator/health/readiness` HTTP 200 / `{"status":"UP"}`，
+  `X-Trace-Id=555079e9-e622-4dfa-b5ec-2d6c9ff4a183`；登录租户入口
+  `https://193.112.107.134/medkernel/api/v1/auth/login-tenants` HTTP 200，
+  `success=true`、`hasCustomerTenants=true`、`primaryTenants[0].tenantId=t-rehearsal`、
+  `primaryTenants[0].name=完整上线演练机构`、`X-Trace-Id=4b446197-3394-461f-b3eb-1be757f2bf7d`。
+  本批本地应用提交尚未发布到 134、尚未推送远程、尚未合并 `main`。
+- 下一步继续主线：不使用子代理；不要把命名优化与内容修正降级为次要项，但后续每批都要把菜单、
+  页面、权限、后端服务、迁移、契约测试、E2E/真实前台演练和 134 发布映射一起核查，按原始权威范围与
+  全领域上线标准判断是否存在未完整实现的功能闭环，发现问题即按上线级方案修正并阶段提交。
 - 第一百一十三批最新应用提交为 `01e10939c20e4128e5b5bfc8ada3e54971a794f4`
   （`fix: 收敛质量评价前台口径`）。本批未使用子代理、未推送远程、未合并 `main`；
   继续以宪章、产品范围、体验契约、功能目录和四职责旅程为准，从全角色医疗产品体验复核质量域、
