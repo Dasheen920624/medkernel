@@ -26,6 +26,26 @@ type MpiPatientCreated = {
   idLast4: string;
 };
 
+type RecommendationEvaluationCard = {
+  cardId?: string;
+  sourceSummary?: string;
+  explanationJson?: string;
+};
+
+type RecommendationEvaluationPayload = {
+  triggerId?: string;
+  status?: string;
+  visibleCardCount?: number;
+  suppressedCardCount?: number;
+  traceId?: string;
+  cards?: RecommendationEvaluationCard[];
+};
+
+type RecommendationCardDetailPayload = {
+  card?: RecommendationEvaluationCard;
+  trigger?: { runtimeReleaseId?: string };
+};
+
 test.describe.configure({ mode: "serial" });
 
 test.describe("全前台真实操作演练", () => {
@@ -472,16 +492,106 @@ async function runCdssRecommendationFromUi(
     response.ok(),
     `医生从前台触发 CDSS 推荐评估应返回成功 status=${response.status()} body=${responseText}`,
   ).toBe(true);
-  const result = JSON.parse(responseText) as {
-    data?: { visibleCardCount?: number; suppressedCardCount?: number };
-  };
+  const result = JSON.parse(responseText) as { data?: RecommendationEvaluationPayload };
+  const cardId = assertRuntimeRecommendationEvidence(
+    result.data,
+    "医生从前台已生效快照触发 CDSS 推荐评估",
+  );
+  const detailResponse = await page.request.get(
+    `/medkernel/api/v1/engine/recommendations/cards/${encodeURIComponent(cardId)}`,
+    { headers: { "X-Trace-Id": `e2e-card-detail-${Date.now()}` } },
+  );
+  const detailText = await detailResponse.text();
   expect(
-    result.data?.visibleCardCount ?? -1,
-    "推荐评估响应应返回展示卡片数量",
-  ).toBeGreaterThanOrEqual(0);
+    detailResponse.ok(),
+    `推荐卡详情应可由真实服务读取 status=${detailResponse.status()} body=${detailText}`,
+  ).toBe(true);
+  const detail = JSON.parse(detailText) as { data?: RecommendationCardDetailPayload };
+  assertPersistedRuntimeRecommendationEvidence(
+    detail.data,
+    "医生从前台已生效快照触发 CDSS 推荐评估",
+  );
   await expect(dialog).toBeHidden({ timeout: 20_000 });
+  await page.getByLabel("患者或证据线索").fill(cardId);
+  const recommendationRow = page
+    .getByRole("row", {
+      name: /本地上线演练.*基础规则.*待处理.*查看与人机反馈/u,
+    })
+    .first();
+  await expect(recommendationRow, "前台列表应展示本次真实规则命中的推荐卡").toBeVisible({
+    timeout: 20_000,
+  });
+  await recommendationRow.getByRole("button", { name: "查看与人机反馈" }).click();
+  await expect(page.getByRole("dialog", { name: "推荐详情与反馈闭环" })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.getByText("这条推荐是怎么来的")).toBeVisible();
   await captureEvidence(page, testInfo, "real-frontdesk-cdss-recommendation");
   recordCleanRuntime(page, "医生从前台已生效快照触发 CDSS 推荐评估", runtime, records);
+}
+
+function assertRuntimeRecommendationEvidence(
+  evaluation: RecommendationEvaluationPayload | undefined,
+  label: string,
+) {
+  expect(evaluation?.status, `${label} 推荐触发状态应为已评估`).toBe("EVALUATED");
+  expect(evaluation?.triggerId, `${label} 响应应返回推荐触发编号`).toBeTruthy();
+  expect(evaluation?.traceId, `${label} 响应应返回追踪号`).toBeTruthy();
+  expect(evaluation?.visibleCardCount ?? 0, `${label} 应新增至少 1 张可见推荐卡`).toBeGreaterThan(
+    0,
+  );
+  expect(evaluation?.suppressedCardCount ?? 0, `${label} 不应被疲劳策略抑制`).toBe(0);
+  const card = evaluation?.cards?.[0];
+  expect(card?.cardId, `${label} 响应应返回推荐卡编号`).toBeTruthy();
+  expect(card?.sourceSummary ?? "", `${label} 来源摘要应包含运行版本`).toContain("运行版本=");
+  expect(card?.sourceSummary ?? "", `${label} 来源摘要应包含资产版本`).toContain("asset_version=");
+  expect(card?.sourceSummary ?? "", `${label} 来源摘要应包含来源层`).toContain("来源层=");
+  expect(card?.sourceSummary ?? "", `${label} 来源摘要应包含内容哈希`).toContain("content_hash=");
+  const explanation = parseRecommendationExplanation(card?.explanationJson, label);
+  expect(
+    explanation.runtimeRelease?.runtimeReleaseId,
+    `${label} 解释应记录机构生效版本`,
+  ).toBeTruthy();
+  expect(
+    explanation.runtimeRelease?.assetVersionId,
+    `${label} 解释应记录机构生效资产版本`,
+  ).toBeTruthy();
+  expect(explanation.runtimeRelease?.sourceLayer, `${label} 解释应记录资产来源层`).toBeTruthy();
+  expect(explanation.runtimeRelease?.contentHash, `${label} 解释应记录内容哈希`).toBeTruthy();
+  return card?.cardId ?? "";
+}
+
+function assertPersistedRuntimeRecommendationEvidence(
+  detail: RecommendationCardDetailPayload | undefined,
+  label: string,
+) {
+  expect(detail?.card?.cardId, `${label} 详情应返回已落库推荐卡`).toBeTruthy();
+  expect(detail?.trigger?.runtimeReleaseId, `${label} 详情触发记录应关联机构生效版本`).toBeTruthy();
+  assertRecommendationSourceSummary(detail?.card, label);
+  parseRecommendationExplanation(detail?.card?.explanationJson, label);
+}
+
+function assertRecommendationSourceSummary(
+  card: RecommendationEvaluationCard | undefined,
+  label: string,
+) {
+  expect(card?.sourceSummary ?? "", `${label} 来源摘要应包含运行版本`).toContain("运行版本=");
+  expect(card?.sourceSummary ?? "", `${label} 来源摘要应包含资产版本`).toContain("asset_version=");
+  expect(card?.sourceSummary ?? "", `${label} 来源摘要应包含来源层`).toContain("来源层=");
+  expect(card?.sourceSummary ?? "", `${label} 来源摘要应包含内容哈希`).toContain("content_hash=");
+}
+
+function parseRecommendationExplanation(value: string | undefined, label: string) {
+  expect(value, `${label} 响应应返回推荐解释 JSON`).toBeTruthy();
+  const parsed = JSON.parse(value ?? "{}") as {
+    runtimeRelease?: {
+      runtimeReleaseId?: string;
+      assetVersionId?: string;
+      sourceLayer?: string;
+      contentHash?: string;
+    };
+  };
+  return parsed;
 }
 
 async function createFollowupTemplateFromUi(

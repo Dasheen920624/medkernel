@@ -62,6 +62,37 @@
 - 第一百一十七批后续主线：本批尚未发布到 134、尚未做 134 清库重新部署，也未完成全功能与全知识全流程复演。
   下一步继续从真实前台全角色操作入手，按平台管理员、医院管理员、医生、质控/运营等角色覆盖剩余页面、
   权限、真实后端服务、统一迁移、部署与回滚证据；发现不符合项先复现并定位根因，再做上线级修复，不做片面优化。
+- 第一百一十八批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是局部 UI、
+  菜单或文案优化，而是把真实 CDSS 推荐卡、运行版本资产证据和机构生效版本发布/回滚链路纳入上线演练证据。
+  本批使用 2 个只读子代理核查前端 E2E 缺口与后端推荐调用链；提交前曾尝试补开 1 个只读 reviewer，
+  但多轮等待未返回并已关闭，不作为完成证据。子代理均未改文件。本批不推送远程、不合并 `main`。
+- 第一百一十八批修复范围：`real-frontdesk-rehearsal.spec.ts` 不再接受 `visibleCardCount >= 0` 的空推荐结果，
+  医生从真实前台创建上下文快照并触发 CDSS 后，必须断言评估状态为 `EVALUATED`、`triggerId`/`traceId` 非空、
+  `visibleCardCount > 0`、`suppressedCardCount = 0`，且推荐卡响应包含 `cardId`、运行版本、`asset_version`、
+  来源层和 `content_hash`；随后通过真实推荐卡详情接口读取落库卡，验证触发记录关联机构生效版本，并在前台列表
+  用本次 `cardId` 打开“推荐详情与反馈闭环”。`stakeholder-view-rehearsal.spec.ts`
+  将医生/药师触发推荐后 0 卡失败前移到创建推荐卡 helper 内，避免上层反馈动作才暴露“无卡”。
+  新增 `runtime-release-frontdesk.spec.ts`，覆盖医疗引擎运营员在 `/config/releases` 选择“本地上线演练医院”、
+  必要时评估发布影响、生成新机构生效版本、从历史版本回滚；发布与回滚后均通过真实 API 读取 current runtime，
+  断言当前修订号正确且 active `FIELD_CATALOG`、`RULE` 均启用并带 `versionId`，避免“修订号递增但不可运行”。
+- 第一百一十八批验证证据：触达文件 Prettier check
+  `npm --prefix frontend exec prettier -- --check frontend/e2e/real-frontdesk-rehearsal.spec.ts frontend/e2e/stakeholder-view-rehearsal.spec.ts frontend/e2e/runtime-release-frontdesk.spec.ts`
+  通过；`npm --prefix frontend run test -- e2eAuthCredentialContract CdssFatigue ReleaseGovernance hooks`
+  通过（4 files，160 tests）；后端窄测
+  `mvn -f medkernel-backend/pom.xml -Dtest=RecommendationDeterministicMatcherTest,RuntimeReleaseRuleSelectorTest,ClinicalRuntimeReleaseServiceTest test`
+  通过（19 tests）。目标真实前台 E2E
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium real-frontdesk-rehearsal.spec.ts stakeholder-view-rehearsal.spec.ts runtime-release-frontdesk.spec.ts`
+  通过（3 passed，约 2.1 分钟）；单条回归 `runtime-release-frontdesk.spec.ts` 通过（1 passed），
+  `real-frontdesk-rehearsal.spec.ts` 通过（1 passed）。重门禁：`npm --prefix frontend run build` 通过；
+  `npm --prefix frontend run verify` 通过（114 test files，986 tests，仅既有 antd Timeline deprecation warning）；
+  `mvn -f medkernel-backend/pom.xml test` 通过（3072 tests，0 failures，0 errors，7 skipped；本机 Docker 不可用导致
+  Testcontainers 多方言/空 Postgres smoke 按既有条件跳过）；`git diff --check && git diff --cached --check`
+  退出码 0。
+- 第一百一十八批后续主线：本批仍未发布到 134、尚未做 134 清库重新部署，也未完成全功能与全知识全流程复演；
+  Docker 跳过的多方言迁移测试不能替代 134 空库首启证据。下一步继续从真实前台全角色操作扩面，优先覆盖
+  服务机构开通与组织树、协同待办完成/转交、质量问题整改闭环、评价指标发布驱动医保/质量链路、MFA 真实开启后登录、
+  运行保障/备份恢复证据、身份来源绑定，以及平台标准版本/医院 runtime 的全资产闭包；发现红点先复现和定根因，
+  再按上线级标准修复并跑对应门禁，不做片面优化。
 - 第一百一十五批本地交接（未完成，因额度中止）：本批只做可续接交接，不使用子代理、不推送远程、
   不合并 `main`，也不把当前未完成修复伪装为阶段完成。开工已重新读取 `AGENTS.md` 与本文件；
   `git status --short --branch` 显示当前分支仍为 `codex/final-handoff-product-optimization`，

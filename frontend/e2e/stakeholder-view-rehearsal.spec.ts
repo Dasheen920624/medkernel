@@ -44,6 +44,21 @@ type RecommendationContextOptions = {
   reason: string;
 };
 
+type RecommendationEvaluationCard = {
+  cardId?: string;
+  sourceSummary?: string;
+  explanationJson?: string;
+};
+
+type RecommendationEvaluationPayload = {
+  triggerId?: string;
+  status?: string;
+  visibleCardCount?: number;
+  suppressedCardCount?: number;
+  traceId?: string;
+  cards?: RecommendationEvaluationCard[];
+};
+
 const stakeholderViews: StakeholderView[] = [
   {
     code: "PHYSICIAN",
@@ -976,13 +991,47 @@ async function createRecommendationCardForStakeholderAction(
     evaluateResponse.ok(),
     `${view.label} 触发推荐评估应返回成功 status=${evaluateResponse.status()} body=${evaluateText}`,
   ).toBe(true);
-  const evaluation = JSON.parse(evaluateText) as {
-    data?: { visibleCardCount?: number; cards?: Array<{ cardId?: string }> };
-  };
+  const evaluation = JSON.parse(evaluateText) as { data?: RecommendationEvaluationPayload };
+  const cardId = assertRuntimeRecommendationEvidence(
+    evaluation.data,
+    `${view.label} 触发推荐评估`,
+    evaluateText,
+  );
   await expect(dialog).toBeHidden({ timeout: 20_000 });
-  return (evaluation.data?.visibleCardCount ?? 0) > 0
-    ? (evaluation.data?.cards?.[0]?.cardId ?? null)
-    : null;
+  return cardId;
+}
+
+function assertRuntimeRecommendationEvidence(
+  evaluation: RecommendationEvaluationPayload | undefined,
+  label: string,
+  responseText: string,
+) {
+  expect(evaluation?.status, `${label} 应由当前前台上下文完成规则评估：${responseText}`).toBe(
+    "EVALUATED",
+  );
+  expect(evaluation?.triggerId, `${label} 响应应返回触发编号：${responseText}`).toBeTruthy();
+  expect(evaluation?.traceId, `${label} 响应应返回追踪号：${responseText}`).toBeTruthy();
+  expect(
+    evaluation?.visibleCardCount ?? 0,
+    `${label} 应新增至少 1 张可见推荐卡：${responseText}`,
+  ).toBeGreaterThan(0);
+  expect(evaluation?.suppressedCardCount ?? 0, `${label} 不应被疲劳策略抑制：${responseText}`).toBe(
+    0,
+  );
+  const card = evaluation?.cards?.[0];
+  expect(card?.cardId, `${label} 应返回推荐卡编号：${responseText}`).toBeTruthy();
+  expect(card?.sourceSummary ?? "", `${label} 来源摘要应包含运行版本`).toContain("运行版本=");
+  expect(card?.sourceSummary ?? "", `${label} 来源摘要应包含资产版本`).toContain("asset_version=");
+  const explanation = JSON.parse(card?.explanationJson ?? "{}") as {
+    runtimeRelease?: { runtimeReleaseId?: string; assetVersionId?: string; sourceLayer?: string };
+  };
+  expect(
+    explanation.runtimeRelease?.runtimeReleaseId,
+    `${label} 解释应记录机构生效版本`,
+  ).toBeTruthy();
+  expect(explanation.runtimeRelease?.assetVersionId, `${label} 解释应记录资产版本`).toBeTruthy();
+  expect(explanation.runtimeRelease?.sourceLayer, `${label} 解释应记录来源层`).toBeTruthy();
+  return card?.cardId ?? "";
 }
 
 async function createContextSnapshotForReportInterpretation(page: Page, view: StakeholderView) {
