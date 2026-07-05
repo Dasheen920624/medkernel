@@ -37,14 +37,14 @@ import styles from "./Tenant.module.css";
 const { Text, Title } = Typography;
 
 const targetLabelByPath: Record<string, string> = {
-  "/tenant/onboarding": "机构实施配置",
+  "/tenant/onboarding": "服务机构开通",
   "/adapter/hub": "系统接入",
   "/config/releases": "机构生效版本",
   "/terminology/mapping": "术语字典",
 };
 
 function targetLabel(path: string) {
-  return targetLabelByPath[path] ?? "对应配置页";
+  return targetLabelByPath[path] ?? "对应处理入口";
 }
 
 function statusLabel(step: ImplementationStep) {
@@ -185,8 +185,8 @@ export default function ImplementationGuide() {
           </Col>
           <Col xs={24} md={8}>
             <Card className={styles.readinessSummaryCard}>
-              <Statistic title="下一配置页" value={targetLabel(primaryTarget.targetPath)} />
-              <Text type="secondary">所有跳转均来自实施服务返回的目标页面</Text>
+              <Statistic title="下一处理入口" value={targetLabel(primaryTarget.targetPath)} />
+              <Text type="secondary">所有跳转均来自实施服务返回的目标入口</Text>
             </Card>
           </Col>
         </Row>
@@ -196,7 +196,7 @@ export default function ImplementationGuide() {
             type="warning"
             showIcon
             message="部分步骤未就绪"
-            description="阻塞项会保留在本页并指向对应配置页；未完成前不得把交付准备标记为完成。"
+            description="阻塞项会保留在本页并指向对应处理入口；未完成前不得把交付准备标记为完成。"
           />
         ) : (
           <Alert

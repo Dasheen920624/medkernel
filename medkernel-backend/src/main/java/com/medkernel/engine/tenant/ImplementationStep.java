@@ -9,7 +9,7 @@ import java.util.List;
  * @param title 中文步骤名称
  * @param status {@code DONE} 或 {@code BLOCKED}
  * @param blockers 阻塞原因清单
- * @param targetPath 对应配置页路由
+ * @param targetPath 对应处理入口路由
  * @param evidence 已完成时的关系库证据摘要
  */
 public record ImplementationStep(

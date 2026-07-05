@@ -104,10 +104,15 @@ describe("ImplementationGuide", () => {
     window.localStorage.clear();
   });
 
-  it("renders real implementation steps with business blockers and configuration links", () => {
+  it("renders real implementation steps with business blockers and business next-step links", () => {
     renderGuide();
 
     expect(screen.getByRole("heading", { name: "实施与验收" })).toBeInTheDocument();
+    expect(screen.getByText("下一处理入口")).toBeInTheDocument();
+    expect(screen.getByText("服务机构开通")).toBeInTheDocument();
+    expect(screen.queryByText("下一配置页")).not.toBeInTheDocument();
+    expect(screen.queryByText("机构实施配置")).not.toBeInTheDocument();
+    expect(screen.queryByText(/对应配置页/)).not.toBeInTheDocument();
     const organizationStep = screen.getByTestId("implementation-step-organization");
     expect(within(organizationStep).getByText("组织树")).toBeInTheDocument();
     expect(within(organizationStep).getByText("已存在集团、医院和科室组织")).toBeInTheDocument();
@@ -119,6 +124,10 @@ describe("ImplementationGuide", () => {
     const adapterStep = screen.getByTestId("implementation-step-adapters");
     const adapterLink = within(adapterStep).getByRole("link", { name: "前往系统接入" });
     expect(adapterLink).toHaveAttribute("href", "/adapter/hub");
+
+    const usersStep = screen.getByTestId("implementation-step-users");
+    const onboardingLink = within(usersStep).getByRole("link", { name: "前往服务机构开通" });
+    expect(onboardingLink).toHaveAttribute("href", "/tenant/onboarding");
   });
 
   it("shows raw implementation evidence only after evidence details are enabled", async () => {
