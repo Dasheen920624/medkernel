@@ -442,6 +442,26 @@ describe("E2E credential contract", () => {
     expect(source).toContain("UNBOUND");
     expect(source).not.toContain("page.request.post(`${apiBase}/compliance/identity-bindings`");
   });
+
+  it("requires system providers frontdesk rehearsal to prove readonly operations readiness", () => {
+    const source = readFileSync("e2e/system-providers-frontdesk.spec.ts", "utf8");
+
+    expect(source).toContain("/system/providers");
+    expect(source).toContain("/system/operations");
+    expect(source).toContain("assertRuntimeOperationsSnapshot");
+    expect(source).toContain("assertBackupReadinessCard");
+    expect(source).toContain("assertEvidenceDetailsDiagnostics");
+    expect(source).toContain("assertClinicalUserCannotReadOperations");
+    expect(source).toContain("备份恢复");
+    expect(source).toContain("证据详情");
+    expect(source).toContain("当前权限不足");
+    expect(source).toContain("backup-restore-drill.sh");
+    expect(source).toContain("backup.sh");
+    expect(source).toContain("restore.sh");
+    expect(source).not.toContain("postApi(");
+    expect(source).not.toContain("exec");
+    expect(source).not.toContain("spawn");
+  });
 });
 
 function account(role: string, tenantId: string, prefix: string) {

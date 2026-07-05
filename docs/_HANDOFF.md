@@ -10,6 +10,43 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百二十五批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面 UI 优化，而是补齐 `/system/providers` 服务运行保障真实前台只读演练切片，验证平台管理员
+  能从真实前台读取 `/api/v1/system/operations` 运行快照，核查核心服务、依赖服务、备份恢复 RPO/RTO、
+  SHA-256 校验策略、恢复演练状态、国产化档案，以及在“证据详情”打开后才展示部署档案、数据库方言、
+  迁移路径、备份脚本、恢复脚本和演练证据引用；同时验证临床账号无权直接读取运维快照，也不能在前台看到
+  运维数据。本批不执行备份或恢复脚本，只验证核心 §12 要求的“应用只读呈现备份就绪状态和演练证据”；
+  本批未使用子代理，不推送远程、不合并 `main`。
+- 第一百二十五批修复范围：新增 `frontend/e2e/system-providers-frontdesk.spec.ts`。用例先用平台管理员真实
+  会话读取 `/system/operations` API，断言响应包含 `database`、`backup-restore`、RPO、RTO、校验策略、
+  `backup.sh` / `restore.sh` 只读证据和国产化目标操作系统；随后进入 `/system/providers` 前台，断言
+  “服务运行保障”主页面没有权限错误，展示备份恢复就绪卡、依赖诚实降级说明或全部依赖正常状态，并在打开
+  “证据详情”后展示部署和备份恢复诊断字段。第二个用例用 `clinical-user` 真实会话直接请求
+  `/system/operations`，断言 403，再访问 `/system/providers` 断言只呈现“当前权限不足”，且未发起运维快照
+  读取、未展示关系数据库或备份恢复就绪。`frontend/src/test/e2eAuthCredentialContract.test.ts` 新增源码合同，
+  要求服务运行保障演练必须覆盖 `/system/providers`、`/system/operations`、备份恢复、证据详情、权限隔离，
+  且不得引入 `postApi` 或本地命令执行。
+- 第一百二十五批红点根因与定位修复：源码合同先红于
+  `ENOENT: no such file or directory, open 'e2e/system-providers-frontdesk.spec.ts'`，新增 E2E 后转绿。
+  目标真实 E2E 首轮红于 `依赖服务` 文本 strict locator 命中页面说明和统计标题两处，第二轮红于校验策略同时
+  出现在依赖表和备份卡，第三轮红于短值 `h2` 同时出现在依赖详情、迁移路径和数据库方言统计；均为测试定位
+  过宽，不是页面或后端业务失败。已分别改为精确文本和卡片作用域定位，保持产品页面与后端服务不变。
+- 第一百二十五批验证证据：`npm --prefix frontend run test -- e2eAuthCredentialContract -t
+  "system providers frontdesk"` 通过（1 passed，16 skipped；曾先红后绿）；触达文件 Prettier check
+  `npm --prefix frontend exec prettier -- --check frontend/e2e/system-providers-frontdesk.spec.ts
+  frontend/src/test/e2eAuthCredentialContract.test.ts` 通过；目标真实前台 E2E
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium system-providers-frontdesk.spec.ts`
+  通过（2 passed，约 5.8 秒）；`npm --prefix frontend run test -- SystemProviders operationalControlPages
+  e2eAuthCredentialContract` 通过（31 tests）；`npm --prefix frontend exec tsc -- --noEmit --pretty false
+  --skipLibCheck false --project frontend/tsconfig.json` 通过；后端运行保障窄测
+  `mvn -f medkernel-backend/pom.xml -Dtest=RuntimeOperationsServiceTest,RuntimeBackupDrillEvidenceReaderTest,RuntimeConfigurationContractTest test`
+  通过（11 tests）；前端重门禁 `npm --prefix frontend run verify` 通过（115 files，1006 tests，仅既有
+  AntD Timeline warning）。
+- 第一百二十五批后续主线：本批仍未发布到 134，尚未做 134 清库重新部署，也未完成真实备份、隔离恢复、
+  重启恢复、全功能与全知识全流程复演；不能把服务运行保障只读前台证据等同于总目标完成。下一步继续按
+  全角色真实操作扩面，优先覆盖 134 空库首启与统一迁移、实际备份恢复/重启恢复证据、全资产 runtime 闭包
+  复核、全知识流程复演，以及跨角色真实前台体验中尚未跑透的端到端缺口；发现红点继续先复现、定根因，
+  再按上线级标准修复，不做片面优化。
 - 第一百二十四批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面 UI 优化，而是补齐身份来源绑定真实前台上线演练切片：平台管理员先在
   `/admin/users` 前台创建两个真实临时人员账号，再进入 `/security/identity-binding` 真实前台对
