@@ -413,6 +413,28 @@ describe("TerminologyMapping", () => {
     expect(await screen.findByText(/标准术语 前台演练血钾 已登记/)).toBeInTheDocument();
   });
 
+  it("opens standard terminology registration without touching an unmounted form", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      renderPage();
+      await userEvent.click(screen.getByRole("button", { name: "登记标准术语" }));
+
+      expect(await screen.findByRole("dialog", { name: "登记标准术语" })).toBeInTheDocument();
+      expect(screen.getByLabelText("标准体系")).toHaveValue("TERM.LAB");
+      expect(screen.getByLabelText("版本号")).toHaveValue("2026.07");
+      expect(
+        consoleError.mock.calls.some((args) =>
+          args.some((arg) =>
+            String(arg).includes("Instance created by `useForm` is not connected"),
+          ),
+        ),
+      ).toBe(false);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it("starts and tracks candidate generation without a package version", async () => {
     const generate = vi.fn().mockResolvedValue({
       ...completedGenerationJob,

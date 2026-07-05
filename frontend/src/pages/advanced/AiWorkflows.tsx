@@ -152,7 +152,7 @@ function isLocalModelAvailable(item: ModelCapabilityStatusResponse) {
 function capabilityDetails(item: ModelCapabilityStatusResponse, evidenceDetailsEnabled: boolean) {
   const scopeLabel = `${policyScopeView[item.policyScopeType] ?? customerEnumLabel(item.policyScopeType)}:${item.policyScopeRef}`;
   return (
-    <Descriptions className={styles.details} column={{ xs: 1, sm: 2, lg: 3 }} size="small">
+    <Descriptions className={styles.details} column={1} size="small">
       {evidenceDetailsEnabled ? (
         <Descriptions.Item label="能力代码">
           <Text code>{item.capabilityCode}</Text>
@@ -180,11 +180,9 @@ function capabilityDetails(item: ModelCapabilityStatusResponse, evidenceDetailsE
       <Descriptions.Item label="状态说明">
         {customerDisplayText(item.fallbackReason)}
       </Descriptions.Item>
-      <Descriptions.Item label="模型边界" span={3}>
-        {modelDataBoundaryText(item)}
-      </Descriptions.Item>
+      <Descriptions.Item label="模型边界">{modelDataBoundaryText(item)}</Descriptions.Item>
       {evidenceDetailsEnabled && item.expectedSchema ? (
-        <Descriptions.Item label="输出格式明细" span={3}>
+        <Descriptions.Item label="输出格式明细">
           <Text code className={styles.schemaText}>
             {item.expectedSchema}
           </Text>

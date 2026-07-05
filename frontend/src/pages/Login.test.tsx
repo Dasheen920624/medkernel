@@ -97,7 +97,7 @@ describe("Login", () => {
       mfaBound: false,
     });
     render(<Login />);
-    fireEvent.change(screen.getByLabelText("工号 / 登录名"), {
+    fireEvent.change(screen.getByLabelText("工号 / 账号"), {
       target: { value: "clinical-user" },
     });
     fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Mk@2026dev" } });
@@ -120,7 +120,7 @@ describe("Login", () => {
       mfaBound: false,
     });
     render(<Login />);
-    fireEvent.change(screen.getByLabelText("工号 / 登录名"), {
+    fireEvent.change(screen.getByLabelText("工号 / 账号"), {
       target: { value: "platform-owner" },
     });
     fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Init@2026pw" } });
@@ -146,7 +146,7 @@ describe("Login", () => {
       mfaBound: true,
     });
     render(<Login />);
-    fireEvent.change(screen.getByLabelText("工号 / 登录名"), {
+    fireEvent.change(screen.getByLabelText("工号 / 账号"), {
       target: { value: "engine-operator" },
     });
     fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Mk@2026dev" } });
@@ -167,7 +167,7 @@ describe("Login", () => {
       response: { data: { detail: "用户名或密码不正确" } },
     });
     render(<Login />);
-    fireEvent.change(screen.getByLabelText("工号 / 登录名"), { target: { value: "x" } });
+    fireEvent.change(screen.getByLabelText("工号 / 账号"), { target: { value: "x" } });
     fireEvent.change(screen.getByLabelText("密码"), { target: { value: "y" } });
     fireEvent.click(screen.getByRole("button", { name: /进入工作台/ }));
     await waitFor(() => expect(screen.getByText("用户名或密码不正确")).toBeInTheDocument());
@@ -203,8 +203,8 @@ describe("Login", () => {
   it("登录页以登录卡片居中为主，平台状态默认隐藏", () => {
     render(<Login />);
 
-    expect(screen.getByRole("heading", { name: "进入平台治理" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "登录平台治理" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "登录平台治理" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "进入平台治理" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("登录上下文")).not.toBeInTheDocument();
     expect(screen.queryByText("平台管理入口")).not.toBeInTheDocument();
     expect(screen.queryByText("安全审计已开启")).not.toBeInTheDocument();
@@ -216,7 +216,7 @@ describe("Login", () => {
     expect(screen.getByText("MedKernel")).toBeInTheDocument();
     expect(screen.getByText("医疗知识与决策支持平台")).toBeInTheDocument();
     expect(screen.getByText("使用平台管理员账号登录")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("请输入平台管理员登录名")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("请输入平台管理员账号")).toBeInTheDocument();
     expect(screen.queryByText("使用平台治理登录名")).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText("请输入平台治理登录名")).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText("请输入平台治理账号")).not.toBeInTheDocument();
@@ -284,7 +284,7 @@ describe("Login", () => {
     expect(screen.queryByText(legacyDelegatedUnavailableCopy)).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("请输入工号或院内账号")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("工号 / 登录名"), {
+    fireEvent.change(screen.getByLabelText("工号 / 账号"), {
       target: { value: "hosp-admin" },
     });
     fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Mk@2026dev" } });
@@ -415,6 +415,10 @@ describe("Login", () => {
 
     expect(main?.style.getPropertyValue("--mk-login-control-font")).not.toBe("");
     expect(main?.style.getPropertyValue("--mk-login-control-height")).not.toBe("");
+
+    const loginCss = readLoginCss();
+    expect(loginCss).toContain(".page :global(.ant-input-affix-wrapper input)");
+    expect(loginCss).toContain("font-size: var(--mk-login-control-font)");
   });
 
   it("提交加载时暴露页面级忙碌状态", () => {

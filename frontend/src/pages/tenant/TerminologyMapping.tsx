@@ -639,11 +639,6 @@ export default function TerminologyMapping() {
   }
 
   function openRegisterStandardTerm() {
-    standardTermForm.setFieldsValue({
-      standardSystem: "TERM.LAB",
-      category: "LAB",
-      versionNo: "2026.07",
-    });
     setStandardTermOpen(true);
   }
 
@@ -667,7 +662,6 @@ export default function TerminologyMapping() {
       });
       message.success(`标准术语 ${term.displayName} 已登记`);
       setStandardTermOpen(false);
-      standardTermForm.resetFields();
       void standardTerms.refetch();
     } catch (error) {
       message.error(getApiErrorMessage(error, "标准术语登记失败，请核对编码、版本和权限"));
@@ -1081,7 +1075,16 @@ export default function TerminologyMapping() {
         okText="提交登记"
         destroyOnClose
       >
-        <Form form={standardTermForm} layout="vertical" preserve={false}>
+        <Form
+          form={standardTermForm}
+          layout="vertical"
+          preserve={false}
+          initialValues={{
+            standardSystem: "TERM.LAB",
+            category: "LAB",
+            versionNo: "2026.07",
+          }}
+        >
           <Alert
             type="info"
             showIcon

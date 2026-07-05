@@ -7702,10 +7702,10 @@ export function useCurrentPlatformBaseline() {
   return useQuery({
     queryKey: ["runtime-releases", "platform-baseline", "current"],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: PlatformBaselineDetail }>(
+      const { data } = await apiClient.get<{ data?: PlatformBaselineDetail | null }>(
         `${RUNTIME_RELEASE_API_ROOT}/platform-baselines/current`,
       );
-      return data.data;
+      return data.data ?? null;
     },
     retry: false,
   });
@@ -7748,12 +7748,12 @@ export function useCurrentHospitalRuntime(hospitalId: string | undefined) {
     queryKey: ["runtime-releases", "hospital", hospitalId, "current"],
     enabled: Boolean(hospitalId),
     queryFn: async () => {
-      const { data } = await apiClient.get<{ data: ClinicalRuntimeReleaseDetail }>(
+      const { data } = await apiClient.get<{ data?: ClinicalRuntimeReleaseDetail | null }>(
         `${RUNTIME_RELEASE_API_ROOT}/hospitals/${encodeURIComponent(
           hospitalId ?? "",
         )}/runtime-releases/current`,
       );
-      return data.data;
+      return data.data ?? null;
     },
     retry: false,
   });

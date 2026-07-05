@@ -1,7 +1,6 @@
 package com.medkernel.engine.release;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -17,8 +16,6 @@ import com.medkernel.engine.context.ClinicalRuntimeReleaseItemRepository;
 import com.medkernel.engine.context.ClinicalRuntimeReleaseRepository;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.PageRequest;
-import com.medkernel.shared.api.error.ApiException;
-import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.context.PlatformTenant;
 
 class RuntimeReleaseQueryServiceTest {
@@ -48,10 +45,17 @@ class RuntimeReleaseQueryServiceTest {
         when(baselineItems.findByBaselineReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
             "baseline-A8")).thenReturn(List.of(item));
 
-        PlatformBaselineDetailResponse result = service.currentPlatformBaseline();
+        PlatformBaselineDetailResponse result = service.currentPlatformBaseline().orElseThrow();
 
         assertThat(result.release()).isEqualTo(baseline);
         assertThat(result.items()).containsExactly(item);
+    }
+
+    @Test
+    void reportsAnHonestEmptyStateWhenPlatformHasNoBaselineRevision() {
+        when(baselines.findFirstByOrderByRevisionNoDesc()).thenReturn(Optional.empty());
+
+        assertThat(service.currentPlatformBaseline()).isEmpty();
     }
 
     @Test
@@ -68,22 +72,18 @@ class RuntimeReleaseQueryServiceTest {
             "runtime-H9")).thenReturn(List.of(item));
 
         ClinicalRuntimeReleaseDetailResponse result =
-            service.currentHospitalRuntime("tenant-A", "hospital-A");
+            service.currentHospitalRuntime("tenant-A", "hospital-A").orElseThrow();
 
         assertThat(result.release()).isEqualTo(runtime);
         assertThat(result.items()).containsExactly(item);
     }
 
     @Test
-    void reportsAnHonestNotFoundStateWhenHospitalHasNoRuntimeRevision() {
+    void reportsAnHonestEmptyStateWhenHospitalHasNoRuntimeRevision() {
         when(runtimes.findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
             "tenant-A", "hospital-A")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.currentHospitalRuntime(
-            "tenant-A", "hospital-A"))
-            .isInstanceOf(ApiException.class)
-            .extracting("errorCode")
-            .isEqualTo(ErrorCode.NOT_FOUND);
+        assertThat(service.currentHospitalRuntime("tenant-A", "hospital-A")).isEmpty();
     }
 
     @Test

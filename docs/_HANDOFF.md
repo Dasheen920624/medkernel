@@ -10,6 +10,33 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百一十六批本地收尾：接续 `2058e000` 未完成上线演练交接，仍按全角色真实前台、
+  真实服务链路和上线门禁推进，不把本轮工作降级成菜单或文案单点优化。本批未推送远程、
+  未合并 `main`；用户已允许使用子代理，但本批现有长门禁和修复均在当前线程完成，未实际使用子代理。
+- 第一百一十六批修复范围：`frontend/e2e/support/auth.ts` 已补齐本地上线演练平台基线资产解析，
+  从当前平台标准版本收集 active `FIELD_CATALOG`、`RULE` 等资产并传入医院运行时激活；若当前医院
+  运行时缺少 active 字段目录或规则资产，会基于现有 release 重新激活带完整基线资产的新医院生效版本，
+  避免旧 `activeAssets: []` 生成的空资产医院 release 卡住真实 E2E。同步补充
+  `e2eAuthCredentialContract.test.ts`，覆盖本地演练租户、演练医院、四职责账号、平台标准版本资产和
+  医院 runtime 自愈契约；后端新增知识与规则发布状态同步器及测试，保证平台权威资产发布状态进入版本链。
+- 第一百一十六批前台体验与真实链路修复：`ProviderSetupPanel` 从静态 `message` 切到 Ant Design
+  `App.useApp()`，仅对登记/编辑模型服务弹窗启用 `forceRender`，修复真实浏览器打开表单时的
+  `useForm not connected` 警告，同时避免高风险密钥/启停/移除表单被隐藏预挂载；对应测试已包
+  `ConfigProvider` 与 `App` 并新增无警告回归。信息科长真实演练从旧“插件边界”同步为当前
+  “扩展能力”契约，先在运行诊断查看扩展能力边界，再进入系统接入生成数据质量报告，继续覆盖真实服务链路。
+- 第一百一十六批验证证据：目标真实前台 E2E
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium real-frontdesk-rehearsal.spec.ts stakeholder-view-rehearsal.spec.ts`
+  通过（2 passed，约 2.0 分钟）；`npm --prefix frontend run test -- ProviderSetupPanel`
+  通过（14 tests）；`npm --prefix frontend run test -- ProviderSetupPanel e2eAuthCredentialContract QcDashboard InsuranceAudit`
+  通过（4 files，47 tests）；`npm --prefix frontend run test -- Login pages.smoke e2eAuthCredentialContract viteProxyGuard productRoleJourneys ProviderSetupPanel`
+  通过（6 files，86 tests）；`mvn -f medkernel-backend/pom.xml -Dtest=KnowledgePublicationStatusSynchronizerTest,RulePublicationStatusSynchronizerTest test`
+  通过（5 tests）；`npm --prefix frontend run build` 通过；`npm --prefix frontend run verify`
+  通过（114 test files，983 tests，只有既有 antd Timeline 弃用警告）；`mvn -f medkernel-backend/pom.xml test`
+  通过（3072 tests，0 failures，0 errors，7 skipped；本机 Docker 不可用导致 Testcontainers 多方言用例按既有条件跳过）；
+  `git diff --check && git diff --cached --check` 退出码 0。
+- 第一百一十六批后续主线：继续按宪章、产品范围、体验契约、功能目录和四职责旅程推进全局上线演练；
+  不要片面做 UI 或文案优化。下一步应在当前已通过的本地全角色演练基础上，继续扩展到剩余页面、
+  权限、迁移、134 清库部署和全知识全流程复演；若发现真实链路红点，先复现和定根因，再最小修复并跑相应门禁。
 - 第一百一十五批本地交接（未完成，因额度中止）：本批只做可续接交接，不使用子代理、不推送远程、
   不合并 `main`，也不把当前未完成修复伪装为阶段完成。开工已重新读取 `AGENTS.md` 与本文件；
   `git status --short --branch` 显示当前分支仍为 `codex/final-handoff-product-optimization`，

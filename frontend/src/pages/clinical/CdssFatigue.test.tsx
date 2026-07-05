@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App as AntdApp, ConfigProvider } from "antd";
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -86,6 +87,13 @@ describe("CdssFatigue", () => {
   const submitFeedback = vi.fn();
   const evaluateRecommendations = vi.fn();
   const interpretDiagnosticReport = vi.fn();
+
+  it("使用页面上下文消息 API，避免真实主题下 antd 静态 message 告警", () => {
+    const source = readFileSync("src/pages/clinical/CdssFatigue.tsx", "utf8");
+
+    expect(source).toContain("App.useApp()");
+    expect(source).not.toContain("  message,\n");
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();

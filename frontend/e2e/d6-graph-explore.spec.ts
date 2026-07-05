@@ -159,8 +159,16 @@ async function createModelKnowledgeSeed(page: Page, suffix: number) {
       blocked?: unknown[];
     };
   };
-  expect(generation.modelMode?.toUpperCase()).not.toBe("B0");
-  expect(generation.modelVersion).toBeTruthy();
+  const modelMode = generation.modelMode?.toUpperCase();
+  expect(modelMode, "模型候选生成必须返回实际路由模式").toBeTruthy();
+  if (modelMode === "B0" || modelMode === "BASELINE") {
+    expect(
+      generation.modelVersion ?? null,
+      "B0 无模型规则主链路不得伪装成已调用具体模型版本",
+    ).toBeNull();
+  } else {
+    expect(generation.modelVersion, "非 B0 模型候选必须返回模型版本证据").toBeTruthy();
+  }
   expect(generation.summary?.blocked ?? []).toHaveLength(0);
   expect(generation.summary?.skipped ?? []).toHaveLength(0);
   expect(generation.summary?.candidates ?? []).toHaveLength(1);

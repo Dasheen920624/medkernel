@@ -57,7 +57,7 @@ public class RuntimeReleaseController {
     @GetMapping("/platform-baselines/current")
     @PreAuthorize("@perm.has('asset.read')")
     public ApiResult<PlatformBaselineDetailResponse> currentPlatformBaseline() {
-        return ApiResult.ok(queries.currentPlatformBaseline());
+        return ApiResult.ok(queries.currentPlatformBaseline().orElse(null));
     }
 
     /**
@@ -83,7 +83,7 @@ public class RuntimeReleaseController {
     @PreAuthorize("@perm.has('asset.read')")
     public ApiResult<ClinicalRuntimeReleaseDetailResponse> currentHospitalRuntime(
             @PathVariable String hospitalId) {
-        return ApiResult.ok(queries.currentHospitalRuntime(tenantId(), hospitalId));
+        return ApiResult.ok(queries.currentHospitalRuntime(tenantId(), hospitalId).orElse(null));
     }
 
     /**

@@ -17,28 +17,63 @@ export const appBase = (process.env.E2E_BASE_URL?.trim() || "http://localhost:51
 );
 const frontendApiBase = resolveFrontendApiBase(appBase);
 export const tenantId = "t-1";
+const platformTenantId = tenantId;
 const defaultPassword = "Mk@2026dev";
+const localInitialPassword = "Mk@2026localinit";
+const localRehearsalTenantId =
+  process.env.E2E_LOCAL_REHEARSAL_TENANT_ID?.trim() || "t-e2e-rehearsal-local";
+const localRehearsalTenantName = "本地上线演练服务机构";
+const localRehearsalAdminUsername = "e2e-rehearsal-admin";
+const localRehearsalAdminPassword = "Mk@2026localadmin";
+const localRehearsalHospitalCode = "e2e-rehearsal-hospital";
+const localRehearsalHospitalName = "本地上线演练医院";
 export const roleAccounts = ROLE_ACCOUNT_CODES;
 const defaultCredentialScope: RoleCredentialScope = "rehearsal";
+const platformDiagnosticItemKnowledgeIdentity = "plat:diagnostic_item:lab-potassium";
+const requiredRuntimeAssets = [
+  { assetType: "FIELD_CATALOG" },
+  { assetType: "RULE" },
+  { assetType: "KNOWLEDGE", assetIdentity: platformDiagnosticItemKnowledgeIdentity },
+] as const;
+const requiredRuntimeAssetTypes = ["FIELD_CATALOG", "RULE", "KNOWLEDGE"] as const;
 
 export type RoleAccount = RoleAccountCode;
+type RuntimeAssetSelection = {
+  assetType: string;
+  assetIdentity: string;
+  versionId: string | null;
+};
+type RuntimeAssetCandidate = {
+  assetType: string;
+  assetIdentity: string;
+  versionId: string;
+};
+type BaselineRuntimeAssets = {
+  baselineReleaseId: string | null;
+  activeAssets: RuntimeAssetSelection[];
+};
 
 const credentialsConfigured = Boolean(process.env.E2E_ROLE_CREDENTIALS_FILE?.trim());
 const credentialOverrides = loadCredentialOverrides();
+let localRehearsalReadyPromise: Promise<void> | null = null;
 
 export async function ensureReadySession(
   page: Page,
   role: RoleAccount,
   scope: RoleCredentialScope = defaultCredentialScope,
 ) {
+  await ensureLocalRehearsalReady(page, scope);
   await resetRoleSession(page);
   const password = stablePassword(role, scope);
   const username = usernameFor(role, scope);
   let currentPassword = password;
   let login = await loginWith(page, username, password, scope);
   if (!login.ok() && !credentialsConfigured) {
-    currentPassword = defaultPassword;
-    login = await loginWith(page, username, defaultPassword, scope);
+    for (const fallbackPassword of fallbackPasswordsFor(scope)) {
+      currentPassword = fallbackPassword;
+      login = await loginWith(page, username, fallbackPassword, scope);
+      if (login.ok()) break;
+    }
   }
   await expectOk(login, `${role} 登录`);
   let result = (await login.json()).data;
@@ -53,11 +88,15 @@ export async function ensureReadySession(
       newPassword: password,
     });
     if (!change.ok() && !credentialsConfigured) {
-      const retry = await postApi(page, "/auth/change-password", {
-        oldPassword: defaultPassword,
-        newPassword: password,
-      });
-      await expectOk(retry, `${role} 首次改密`);
+      let retry: APIResponse | null = null;
+      for (const fallbackPassword of fallbackPasswordsFor(scope)) {
+        retry = await postApi(page, "/auth/change-password", {
+          oldPassword: fallbackPassword,
+          newPassword: password,
+        });
+        if (retry.ok()) break;
+      }
+      await expectOk(retry ?? change, `${role} 首次改密`);
     } else {
       await expectOk(change, `${role} 首次改密`);
     }
@@ -105,9 +144,12 @@ export async function loginFromPlatformPage(page: Page, role: RoleAccount) {
   const platformTenantSwitch = page
     .locator('[aria-label="登录类型切换"]')
     .getByRole("button", { name: "平台治理", exact: true });
-  await expect(platformTenantSwitch).toBeVisible();
-  await platformTenantSwitch.click();
-  await expect(platformTenantSwitch).toHaveAttribute("aria-pressed", "true");
+  const platformHeading = page.getByRole("heading", { name: "登录平台治理" });
+  await expect(platformTenantSwitch.or(platformHeading).first()).toBeVisible();
+  if (await platformTenantSwitch.isVisible()) {
+    await platformTenantSwitch.click();
+    await expect(platformTenantSwitch).toHaveAttribute("aria-pressed", "true");
+  }
   await expect(page.getByRole("heading", { name: "登录平台治理" })).toBeVisible();
 
   await page.getByLabel("工号 / 账号").fill(usernameFor(role, scope));
@@ -176,6 +218,745 @@ async function reloadFrontendSession(page: Page, role: RoleAccount) {
   });
 }
 
+async function ensureLocalRehearsalReady(page: Page, scope: RoleCredentialScope) {
+  if (credentialsConfigured || scope !== "rehearsal") {
+    return;
+  }
+  localRehearsalReadyPromise ??= bootstrapLocalRehearsal(page).catch((error) => {
+    localRehearsalReadyPromise = null;
+    throw error;
+  });
+  await localRehearsalReadyPromise;
+}
+
+async function bootstrapLocalRehearsal(page: Page) {
+  await ensureApiRoleSession(page, "platform-admin", "platform");
+  await ensureLocalTenant(page);
+
+  await ensureApiLoginSession(page, {
+    username: localRehearsalAdminUsername,
+    tenantId: localRehearsalTenantId,
+    preferredPassword: localRehearsalAdminPassword,
+    fallbackPasswords: [localInitialPassword, defaultPassword],
+    finalPassword: localRehearsalAdminPassword,
+    label: "本地上线演练管理员",
+  });
+  const hospital = await ensureLocalHospital(page);
+  for (const role of ROLE_ACCOUNT_CODES) {
+    await ensureLocalRoleAccount(page, role, hospital.id);
+  }
+
+  const baseline = await ensurePlatformBaseline(page);
+  await ensureApiRoleSession(page, "engine-operator", "rehearsal");
+  await ensureHospitalRuntime(page, hospital.id, baseline);
+}
+
+async function ensureApiRoleSession(page: Page, role: RoleAccount, scope: RoleCredentialScope) {
+  return ensureApiLoginSession(page, {
+    username: usernameFor(role, scope),
+    tenantId: resolvedTenantIdFor(role, scope),
+    preferredPassword: stablePassword(role, scope),
+    fallbackPasswords: credentialsConfigured ? [] : fallbackPasswordsFor(scope),
+    finalPassword: stablePassword(role, scope),
+    label: `${role} API 会话`,
+  });
+}
+
+async function ensureApiLoginSession(
+  page: Page,
+  options: {
+    username: string;
+    tenantId: string;
+    preferredPassword: string;
+    fallbackPasswords: string[];
+    finalPassword: string;
+    label: string;
+  },
+) {
+  await page.context().clearCookies();
+  const passwords = [
+    options.preferredPassword,
+    ...options.fallbackPasswords.filter((password) => password !== options.preferredPassword),
+  ];
+  let currentPassword = passwords[0];
+  let login: APIResponse | null = null;
+  for (const password of passwords) {
+    currentPassword = password;
+    login = await apiLogin(page, options.username, password, options.tenantId);
+    if (login.ok()) break;
+  }
+  if (!login) {
+    throw new Error(`${options.label} 缺少可尝试密码`);
+  }
+  await expectOk(login, `${options.label} 登录`);
+  let result = (await login.json()).data as {
+    mustChangePwd?: boolean;
+    mfaRequired?: boolean;
+    mfaBound?: boolean;
+  };
+
+  if (result.mustChangePwd) {
+    const change = await postApi(page, "/auth/change-password", {
+      oldPassword: currentPassword,
+      newPassword: options.finalPassword,
+    });
+    await expectOk(change, `${options.label} 首次改密`);
+    const relogin = await apiLogin(page, options.username, options.finalPassword, options.tenantId);
+    await expectOk(relogin, `${options.label} 改密后重新登录`);
+    result = (await relogin.json()).data;
+  }
+
+  if (result.mfaRequired && !result.mfaBound) {
+    const setupResponse = await postApi(page, "/auth/mfa/bind", {
+      label: `${options.label} 安全设备`,
+    });
+    await expectOk(setupResponse, `${options.label} 生成 MFA 密钥`);
+    const setup = (await setupResponse.json()).data;
+    const verifyResponse = await postApi(page, "/auth/mfa/bind", {
+      label: `${options.label} 安全设备`,
+      secret: setup.secret,
+      code: totp(setup.secret),
+    });
+    await expectOk(verifyResponse, `${options.label} 验证 MFA`);
+    const relogin = await apiLogin(page, options.username, options.finalPassword, options.tenantId);
+    await expectOk(relogin, `${options.label} MFA 后重新登录`);
+  }
+}
+
+async function apiLogin(page: Page, username: string, password: string, sessionTenantId: string) {
+  return page.request.post(`${apiBase}/auth/login`, {
+    data: { username, password, tenantId: sessionTenantId },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Trace-Id": `e2e-api-login-${username}-${Date.now()}`,
+    },
+  });
+}
+
+async function ensureLocalTenant(page: Page) {
+  const response = await getApi(page, "/admin/tenants");
+  await expectOk(response, "读取本地上线演练租户台账");
+  const tenants = arrayData(await responseData(response));
+  if (tenants.some((tenant) => textField(tenant, "tenantId") === localRehearsalTenantId)) {
+    return;
+  }
+  const created = await postApi(page, "/admin/tenants", {
+    tenantId: localRehearsalTenantId,
+    tenantName: localRehearsalTenantName,
+    adminUsername: localRehearsalAdminUsername,
+    adminInitialPassword: localInitialPassword,
+  });
+  if (!created.ok() && created.status() !== 409) {
+    await expectOk(created, "开通本地上线演练租户");
+  }
+}
+
+async function ensureLocalHospital(page: Page) {
+  const existing = await getApi(
+    page,
+    `/engine/org/org-units/${encodeURIComponent(localRehearsalHospitalCode)}`,
+  );
+  if (existing.ok()) {
+    return requireOrgUnit(await responseData(existing), "读取本地上线演练医院");
+  }
+  if (existing.status() !== 404) {
+    await expectOk(existing, "读取本地上线演练医院");
+  }
+
+  const rootsResponse = await getApi(page, "/engine/org/org-units/by-level?level=TENANT");
+  await expectOk(rootsResponse, "读取本地上线演练租户根组织");
+  const root = arrayData(await responseData(rootsResponse)).find(
+    (item) =>
+      textField(item, "tenantId") === localRehearsalTenantId ||
+      textField(item, "code") === localRehearsalTenantId,
+  );
+  const rootId = textField(root, "id");
+  if (!rootId) {
+    throw new Error("本地上线演练租户缺少 TENANT 根组织，无法创建医院节点");
+  }
+
+  const created = await postApi(page, "/engine/org/org-units", {
+    parentId: rootId,
+    level: "FACILITY",
+    code: localRehearsalHospitalCode,
+    name: localRehearsalHospitalName,
+    namePinyin: "bendi shangxian yanlian yiyuan",
+    facilityType: "HOSPITAL",
+    status: "ACTIVE",
+  });
+  await expectOk(created, "创建本地上线演练医院");
+  return requireOrgUnit(await responseData(created), "创建本地上线演练医院");
+}
+
+async function ensureLocalRoleAccount(page: Page, role: RoleAccount, hospitalId: string) {
+  const detail = await getApi(page, `/compliance/users/${encodeURIComponent(role)}`);
+  if (detail.status() === 404) {
+    const created = await postApi(page, "/compliance/users", {
+      credentialManaged: true,
+      userId: role,
+      displayName: localRoleDisplayName(role),
+      username: usernameFor(role, "rehearsal"),
+      initialPassword: localInitialPassword,
+    });
+    await expectOk(created, `创建本地上线演练账号 ${role}`);
+  } else {
+    await expectOk(detail, `读取本地上线演练账号 ${role}`);
+  }
+
+  const assigned = await postApi(page, `/compliance/users/${encodeURIComponent(role)}/roles`, {
+    roleCode: role,
+    scopeLevel: "FACILITY",
+    scopeCode: hospitalId,
+  });
+  await expectOk(assigned, `绑定本地上线演练账号 ${role} 医院职责`);
+}
+
+async function ensurePlatformBaseline(page: Page): Promise<BaselineRuntimeAssets> {
+  await ensureApiRoleSession(page, "engine-operator", "platform");
+  const current = await getApi(page, "/engine/releases/platform-baselines/current");
+  await expectOk(current, "读取当前平台标准版本");
+  const currentBaseline = resolveBaselineRuntimeAssets(await responseData(current));
+  if (
+    currentBaseline.baselineReleaseId &&
+    runtimeAssetsCoverRequiredTypes(currentBaseline.activeAssets)
+  ) {
+    return currentBaseline;
+  }
+
+  const candidatesResponse = await getApi(
+    page,
+    "/engine/releases/platform-baselines/candidates?page=1&size=100",
+  );
+  await expectOk(candidatesResponse, "读取平台标准版本候选资产");
+  let candidates = resolveRuntimeAssetCandidates(await responseData(candidatesResponse));
+  if (!runtimeCandidatesCoverRequiredTypes(candidates)) {
+    await ensurePlatformRuntimeAssetCandidates(page, missingRuntimeCandidateTypes(candidates));
+    const refreshedCandidatesResponse = await getApi(
+      page,
+      "/engine/releases/platform-baselines/candidates?page=1&size=100",
+    );
+    await expectOk(refreshedCandidatesResponse, "重读平台标准版本候选资产");
+    candidates = resolveRuntimeAssetCandidates(await responseData(refreshedCandidatesResponse));
+  }
+
+  const versionIds = versionIdsForRequiredRuntimeCandidates(candidates);
+  if (!runtimeCandidatesCoverRequiredTypes(candidates) || versionIds.length === 0) {
+    throw new Error("本地上线演练缺少可发布的平台运行资产，无法准备医院生效版本");
+  }
+
+  const published = await postApi(page, "/engine/releases/platform-baselines", {
+    publishVersionIds: versionIds,
+    disabledAssets: [],
+  });
+  await expectOk(published, "发布本地上线演练平台标准版本");
+  const publishedReleaseId = textField(await responseData(published), "baselineReleaseId");
+  if (!publishedReleaseId) {
+    throw new Error("平台标准版本发布响应缺少 baselineReleaseId");
+  }
+  const refreshed = await getApi(page, "/engine/releases/platform-baselines/current");
+  await expectOk(refreshed, "重读当前平台标准版本");
+  const refreshedBaseline = resolveBaselineRuntimeAssets(await responseData(refreshed));
+  if (!refreshedBaseline.baselineReleaseId) {
+    throw new Error("平台标准版本发布后仍缺少 baselineReleaseId");
+  }
+  if (!runtimeAssetsCoverRequiredTypes(refreshedBaseline.activeAssets)) {
+    throw new Error(
+      "平台标准版本缺少 active FIELD_CATALOG 或 RULE，无法准备本地上线演练医院生效版本",
+    );
+  }
+  return refreshedBaseline;
+}
+
+async function ensurePlatformRuntimeAssetCandidates(
+  page: Page,
+  missingTypes: Array<(typeof requiredRuntimeAssetTypes)[number]>,
+) {
+  if (missingTypes.includes("FIELD_CATALOG")) {
+    const fieldCatalog = await postApi(page, "/engine/context/field-catalog/drafts", {});
+    await expectOk(fieldCatalog, "固化本地上线演练字段目录资产");
+  }
+  if (missingTypes.includes("RULE")) {
+    const rule = await postApi(page, "/engine/rule/rules", platformRehearsalRuleRequest());
+    await expectOk(rule, "创建本地上线演练平台规则资产");
+  }
+  if (missingTypes.includes("KNOWLEDGE")) {
+    await ensurePlatformDiagnosticItemKnowledgeCandidate(page);
+  }
+}
+
+export function platformRehearsalRuleRequest() {
+  const traceId = `e2e-platform-rule-${Date.now()}`;
+  return {
+    request_id: traceId,
+    trace_id: traceId,
+    tenant_id: platformTenantId,
+    user_id: "engine-operator",
+    role_codes: ["engine-operator"],
+    triggers: [
+      {
+        trigger_point: "patient-view",
+        purpose: "RULE_EXECUTION",
+        required_fields: ["patientId"],
+      },
+      {
+        trigger_point: "order-sign",
+        purpose: "RULE_EXECUTION",
+        required_fields: ["patientId", "encounterId", "orders"],
+      },
+      {
+        trigger_point: "medication-prescribe",
+        purpose: "RULE_EXECUTION",
+        required_fields: ["patientId", "encounterId", "medications"],
+      },
+    ],
+    ruleCode: "RULE.LOCAL.REHEARSAL.BASELINE",
+    name: "本地上线演练平台基础规则",
+    ruleType: "QUALITY",
+    authoringMode: "DSL",
+    riskLevel: "LOW",
+    priority: 100,
+    applicableOrgUnitId: null,
+    sourceRef: "local-e2e:platform-baseline-runtime-assets",
+    changeSummary: "清库上线演练自动准备平台基础运行规则",
+    dsl: {
+      applicability: {
+        population: {},
+        orgScope: {},
+        settings: ["INPATIENT", "OUTPATIENT", "ED", "FOLLOWUP"],
+        effective: {
+          rolloutPercent: 100,
+        },
+      },
+      when: {
+        all: [{ fact: "patient.age", operator: "gte", value: 0 }],
+      },
+      then: [
+        {
+          actionCode: "REMIND",
+          atSeverity: "LOW",
+          indicator: "info",
+          summary: "本地上线演练基础提醒",
+          detail: "用于验证平台标准版本、医院生效版本和规则执行链路已启用。",
+          source: { label: "MedKernel 本地上线演练" },
+          suggestions: [],
+          overrideReasons: [],
+          requiresPhysicianConfirmation: false,
+        },
+      ],
+      explain: {
+        title: "本地上线演练基础规则",
+        summary: "证明清库环境已具备可发布规则资产。",
+      },
+    },
+    explanation: {
+      title: "本地上线演练基础规则",
+      summary: "证明清库环境已具备可发布规则资产。",
+    },
+    parameterBindings: {},
+  };
+}
+
+async function ensurePlatformDiagnosticItemKnowledgeCandidate(page: Page) {
+  const identity = await ensurePlatformDiagnosticItemKnowledgeIdentity(page);
+  const identityId = numericField(identity, "id");
+  if (!identityId) {
+    throw new Error("本地上线演练医技项目说明书身份缺少 id");
+  }
+  const source = await ensurePlatformDiagnosticItemSource(page);
+  const sourceDocumentId = numericField(source, "id");
+  if (!sourceDocumentId) {
+    throw new Error("本地上线演练医技项目说明书来源缺少 id");
+  }
+  const sourceVersion = await ensurePlatformDiagnosticItemSourceVersion(page, sourceDocumentId);
+  const sourceVersionId = numericField(sourceVersion, "id");
+  if (!sourceVersionId) {
+    throw new Error("本地上线演练医技项目说明书来源版本缺少 id");
+  }
+  const fragment = await ensurePlatformDiagnosticItemSourceFragment(page, sourceVersionId);
+  const sourceFragmentId = numericField(fragment, "id");
+  if (!sourceFragmentId) {
+    throw new Error("本地上线演练医技项目说明书来源片段缺少 id");
+  }
+  const existingVersion = await findPlatformDiagnosticItemKnowledgeVersion(page, identityId);
+  const version =
+    existingVersion ??
+    (await createPlatformDiagnosticItemKnowledgeVersion(
+      page,
+      identityId,
+      sourceDocumentId,
+      sourceVersionId,
+    ));
+  const versionId = numericField(version, "id");
+  if (!versionId) {
+    throw new Error("本地上线演练医技项目说明书版本缺少 id");
+  }
+  const citation = await postApi(page, "/engine/knowledge/citations", {
+    assetVersionId: versionId,
+    sourceFragmentId,
+    relation: "DERIVED_FROM",
+    weight: 90,
+    startOffset: null,
+    endOffset: null,
+  });
+  await expectOk(citation, "绑定本地上线演练医技项目说明书来源引用");
+}
+
+async function ensurePlatformDiagnosticItemKnowledgeIdentity(page: Page) {
+  const existing = await getApi(
+    page,
+    `/engine/knowledge/identities/by-code/${encodeURIComponent(
+      platformDiagnosticItemKnowledgeIdentity,
+    )}`,
+  );
+  if (existing.ok()) {
+    return responseData(existing);
+  }
+  if (existing.status() !== 404) {
+    await expectOk(existing, "读取本地上线演练医技项目说明书身份");
+  }
+  const created = await postApi(
+    page,
+    "/engine/knowledge/identities",
+    platformDiagnosticItemKnowledgeIdentityRequest(),
+  );
+  await expectOk(created, "创建本地上线演练医技项目说明书身份");
+  return responseData(created);
+}
+
+async function ensurePlatformDiagnosticItemSource(page: Page) {
+  const created = await postApi(page, "/engine/knowledge/sources", {
+    ...platformKnowledgeContext("e2e-knowledge-source"),
+    sourceCode: "local-e2e-lab-potassium",
+    sourceType: "HOSPITAL_PROTOCOL",
+    authorityLevel: "D_HOSPITAL",
+    authorityBasis: "本地上线演练内置医技项目说明书，用于清库验证报告解读主链路。",
+    title: "本地上线演练血钾检验说明书来源",
+    publisher: "MedKernel 本地上线演练",
+    license: "内部演练",
+    language: "zh-CN",
+  });
+  await expectOk(created, "登记本地上线演练医技项目说明书来源");
+  return responseData(created);
+}
+
+async function ensurePlatformDiagnosticItemSourceVersion(page: Page, sourceDocumentId: number) {
+  const created = await postApi(page, `/engine/knowledge/sources/${sourceDocumentId}/versions`, {
+    ...platformKnowledgeContext("e2e-knowledge-source-version"),
+    versionNo: "2026",
+    publishedAt: "2026-07-05T00:00:00Z",
+    fileUri: "medkernel://local-e2e/diagnostic-item/lab-potassium.md",
+    language: "zh-CN",
+    content: platformDiagnosticItemKnowledgeContent(),
+  });
+  await expectOk(created, "登记本地上线演练医技项目说明书来源版本");
+  return responseData(created);
+}
+
+async function ensurePlatformDiagnosticItemSourceFragment(page: Page, sourceVersionId: number) {
+  const created = await postApi(page, "/engine/knowledge/sources/fragments", {
+    sourceVersionId,
+    anchorPath: "diagnostic-item/lab-potassium",
+    anchorLabel: "血钾检验危急值说明",
+    textExcerpt: platformDiagnosticItemKnowledgeContent(),
+  });
+  await expectOk(created, "登记本地上线演练医技项目说明书来源片段");
+  return responseData(created);
+}
+
+async function findPlatformDiagnosticItemKnowledgeVersion(page: Page, identityId: number) {
+  const versions = await getApi(
+    page,
+    `/engine/knowledge/identities/${identityId}/versions?page=1&size=100`,
+  );
+  await expectOk(versions, "读取本地上线演练医技项目说明书版本");
+  return (
+    pageItems(await responseData(versions)).find((item) => textField(item, "versionNo") === "V1") ??
+    null
+  );
+}
+
+async function createPlatformDiagnosticItemKnowledgeVersion(
+  page: Page,
+  identityId: number,
+  sourceDocumentId: number,
+  sourceVersionId: number,
+) {
+  const created = await postApi(
+    page,
+    `/engine/knowledge/identities/${identityId}/versions`,
+    platformDiagnosticItemKnowledgeVersionRequest(sourceDocumentId, sourceVersionId),
+  );
+  await expectOk(created, "创建本地上线演练医技项目说明书版本");
+  const createdData = await responseData(created);
+  const candidate = pageItems(recordField(createdData, "candidates")).find(
+    (item) => textField(item, "versionNo") === "V1",
+  );
+  if (!candidate) {
+    throw new Error("本地上线演练医技项目说明书候选响应缺少 V1 版本");
+  }
+  return candidate;
+}
+
+export function platformDiagnosticItemKnowledgeIdentityRequest() {
+  return {
+    ...platformKnowledgeContext("e2e-knowledge-identity"),
+    identitySlug: "lab-potassium",
+    domain: "DIAGNOSTIC_ITEM",
+    subject: "血钾检验说明书",
+    assetSpecialtyId: null,
+    description: "用于本地清库上线演练的医技报告解读基础说明书。",
+  };
+}
+
+export function platformDiagnosticItemKnowledgeVersionRequest(
+  sourceDocumentId: number,
+  sourceVersionId: number,
+) {
+  return {
+    ...platformKnowledgeContext("e2e-knowledge-version"),
+    versionNo: "V1",
+    versionLabel: "本地上线演练血钾检验说明书 V1",
+    sourceDocumentId,
+    sourceVersionId,
+    content: platformDiagnosticItemKnowledgeContent(),
+    anchors: JSON.stringify([
+      {
+        anchorPath: "diagnostic-item/lab-potassium",
+        label: "血钾检验危急值说明",
+      },
+    ]),
+    riskLevel: "LOW",
+    gradeQuality: "LOW",
+    gradeStrength: "WEAK",
+    reviewCycleMonths: 12,
+  };
+}
+
+function platformKnowledgeContext(prefix: string) {
+  const traceId = `${prefix}-${Date.now()}`;
+  return {
+    request_id: traceId,
+    trace_id: traceId,
+    tenant_id: platformTenantId,
+    user_id: "engine-operator",
+    role_codes: ["engine-operator"],
+  };
+}
+
+function platformDiagnosticItemKnowledgeContent() {
+  return [
+    "血钾检验说明书。",
+    "适用于本地上线演练中的血钾检验报告阅读辅助。",
+    "当报告结论包含血钾升高、危急值或 critical 表述时，应提示医师结合症状、既往趋势和原始报告人工复核。",
+    "系统不改写已签发报告，不自动开立医嘱。",
+  ].join("\n");
+}
+
+async function ensureHospitalRuntime(
+  page: Page,
+  hospitalId: string,
+  baseline: BaselineRuntimeAssets,
+) {
+  if (!baseline.baselineReleaseId) {
+    throw new Error("本地上线演练缺少平台标准版本，无法准备医院生效版本");
+  }
+  if (!runtimeAssetsCoverRequiredTypes(baseline.activeAssets)) {
+    throw new Error("平台标准版本缺少 active FIELD_CATALOG 或 RULE，无法激活医院生效版本");
+  }
+  const path = `/engine/releases/hospitals/${encodeURIComponent(
+    hospitalId,
+  )}/runtime-releases/current`;
+  const current = await getApi(page, path);
+  await expectOk(current, "读取本地上线演练医院生效版本");
+  const currentRuntime = hospitalRuntimeCoversRequiredAssets(await responseData(current));
+  if (currentRuntime.ready) {
+    return;
+  }
+
+  const activated = await postApi(
+    page,
+    `/engine/releases/hospitals/${encodeURIComponent(hospitalId)}/runtime-releases`,
+    {
+      platformBaselineReleaseId: baseline.baselineReleaseId,
+      expectedCurrentReleaseId: currentRuntime.releaseId,
+      activeAssets: baseline.activeAssets,
+    },
+  );
+  await expectOk(activated, "激活本地上线演练医院生效版本");
+}
+
+export function resolveBaselineRuntimeAssets(value: unknown): BaselineRuntimeAssets {
+  const baselineReleaseId = textField(recordField(value, "release"), "baselineReleaseId");
+  const activeAssets = pageItems(value)
+    .filter((item) => textField(item, "entryState") === "ACTIVE")
+    .map((item) => ({
+      assetType: textField(item, "assetType"),
+      assetIdentity: textField(item, "assetIdentity"),
+    }))
+    .filter((item): item is { assetType: string; assetIdentity: string } =>
+      Boolean(item.assetType && item.assetIdentity),
+    )
+    .map((item) => ({
+      assetType: item.assetType,
+      assetIdentity: item.assetIdentity,
+      versionId: null,
+    }));
+  return {
+    baselineReleaseId,
+    activeAssets: uniqueRuntimeAssets(activeAssets),
+  };
+}
+
+export function hospitalRuntimeCoversRequiredAssets(value: unknown) {
+  const releaseId = textField(recordField(value, "release"), "releaseId");
+  const activeAssets = pageItems(value)
+    .filter((item) => textField(item, "entryState") === "ACTIVE")
+    .map((item) => ({
+      assetType: textField(item, "assetType"),
+      assetIdentity: textField(item, "assetIdentity"),
+      versionId: textField(item, "versionId"),
+    }))
+    .filter((item): item is RuntimeAssetSelection =>
+      Boolean(item.assetType && item.assetIdentity && item.versionId),
+    );
+  return {
+    releaseId,
+    ready: Boolean(releaseId) && runtimeAssetsCoverRequiredTypes(activeAssets),
+  };
+}
+
+export function runtimeAssetsCoverRequiredTypes(assets: RuntimeAssetSelection[]) {
+  return requiredRuntimeAssets.every((required) =>
+    assets.some((asset) => runtimeAssetMatchesRequired(asset, required)),
+  );
+}
+
+export function missingRuntimeCandidateTypes(candidates: unknown[]) {
+  return requiredRuntimeAssets
+    .filter(
+      (required) =>
+        !candidates.some((candidate) => runtimeAssetMatchesRequired(candidate, required)),
+    )
+    .map((required) => required.assetType);
+}
+
+export function runtimeCandidatesCoverRequiredTypes(candidates: unknown[]) {
+  return missingRuntimeCandidateTypes(candidates).length === 0;
+}
+
+export function versionIdsForRequiredRuntimeCandidates(candidates: unknown[]) {
+  return requiredRuntimeAssets
+    .map((required) => {
+      const candidate = candidates.find((item) => runtimeAssetMatchesRequired(item, required));
+      return candidate ? textField(candidate, "versionId") : null;
+    })
+    .filter((versionId): versionId is string => Boolean(versionId));
+}
+
+function runtimeAssetMatchesRequired(
+  value: unknown,
+  required: (typeof requiredRuntimeAssets)[number],
+) {
+  if (textField(value, "assetType") !== required.assetType) {
+    return false;
+  }
+  return (
+    !("assetIdentity" in required) || textField(value, "assetIdentity") === required.assetIdentity
+  );
+}
+
+function resolveRuntimeAssetCandidates(value: unknown): RuntimeAssetCandidate[] {
+  return pageItems(value)
+    .map((item) => ({
+      assetType: textField(item, "assetType"),
+      assetIdentity: textField(item, "assetIdentity"),
+      versionId: textField(item, "versionId"),
+    }))
+    .filter((item): item is RuntimeAssetCandidate =>
+      Boolean(item.assetType && item.assetIdentity && item.versionId),
+    );
+}
+
+async function getApi(page: Page, path: string) {
+  return page.request.get(`${apiBase}${path}`, {
+    headers: { "X-Trace-Id": `e2e-api-get-${Date.now()}` },
+  });
+}
+
+async function responseData(response: APIResponse) {
+  const body = (await response.json()) as { data?: unknown };
+  return body.data ?? null;
+}
+
+function pageItems(value: unknown) {
+  const record = recordValue(value);
+  const items = record ? record.items : undefined;
+  return Array.isArray(items) ? items : [];
+}
+
+function arrayData(value: unknown) {
+  return Array.isArray(value) ? value : pageItems(value);
+}
+
+function recordField(value: unknown, field: string) {
+  const record = recordValue(value);
+  return record ? record[field] : undefined;
+}
+
+function numericField(value: unknown, field: string) {
+  const record = recordValue(value);
+  const raw = record ? record[field] : undefined;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return raw;
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function textField(value: unknown, field: string) {
+  const record = recordValue(value);
+  const raw = record ? record[field] : undefined;
+  return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+}
+
+function requireOrgUnit(value: unknown, label: string) {
+  const id = textField(value, "id");
+  const code = textField(value, "code");
+  if (!id || !code) {
+    throw new Error(`${label} 响应缺少组织 id/code`);
+  }
+  return { id, code };
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function uniqueRuntimeAssets(assets: RuntimeAssetSelection[]) {
+  const seen = new Set<string>();
+  return assets.filter((asset) => {
+    const key = `${asset.assetType}:${asset.assetIdentity}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function localRoleDisplayName(role: RoleAccount) {
+  const names: Record<RoleAccount, string> = {
+    "platform-admin": "本地演练平台管理员",
+    "engine-operator": "本地演练医疗引擎运营员",
+    "clinical-user": "本地演练临床使用者",
+    auditor: "本地演练审计员",
+  };
+  return names[role];
+}
+
 export async function postApi(page: Page, path: string, data: unknown) {
   return writeApi(page, "post", path, data);
 }
@@ -216,6 +997,17 @@ function usernameFor(role: RoleAccount, scope: RoleCredentialScope = defaultCred
   return credentialOverrides[scope]?.[role]?.username ?? role;
 }
 
+function fallbackPasswordsFor(scope: RoleCredentialScope) {
+  return scope === "rehearsal" ? [localInitialPassword, defaultPassword] : [defaultPassword];
+}
+
+export function resolvedTenantIdFor(
+  role: RoleAccount,
+  scope: RoleCredentialScope = defaultCredentialScope,
+) {
+  return tenantIdFor(role, scope);
+}
+
 export function resolveFrontendApiBase(baseUrl: string) {
   const normalized = baseUrl.trim().replace(/\/+$/, "");
   const pathname = new URL(normalized).pathname.replace(/\/+$/, "");
@@ -245,7 +1037,7 @@ function credentialFor(principal: string, scope: RoleCredentialScope = defaultCr
 
 function loadCredentialOverrides() {
   const file = process.env.E2E_ROLE_CREDENTIALS_FILE?.trim();
-  if (!file) return {} as Partial<ScopedRoleCredentialOverrides>;
+  if (!file) return buildLocalCredentialOverrides();
   const parsed = JSON.parse(readFileSync(file, "utf8"));
   const source =
     parsed && typeof parsed === "object" && !Array.isArray(parsed)
@@ -299,6 +1091,33 @@ function loadCredentialOverrides() {
       accounts: source.rehearsal.accounts,
     },
   });
+}
+
+function buildLocalCredentialOverrides(): ScopedRoleCredentialOverrides {
+  return {
+    platform: Object.fromEntries(
+      ROLE_ACCOUNT_CODES.map((role) => [
+        role,
+        {
+          tenantId: platformTenantId,
+          username: role,
+          role,
+          password: `Mk@2026${role.replace(/-/g, "")}`,
+        },
+      ]),
+    ) as ScopedRoleCredentialOverrides["platform"],
+    rehearsal: Object.fromEntries(
+      ROLE_ACCOUNT_CODES.map((role) => [
+        role,
+        {
+          tenantId: localRehearsalTenantId,
+          username: role,
+          role,
+          password: `Mk@2026${role.replace(/-/g, "")}`,
+        },
+      ]),
+    ) as ScopedRoleCredentialOverrides["rehearsal"],
+  };
 }
 
 function hasOwnField(source: object, field: string) {

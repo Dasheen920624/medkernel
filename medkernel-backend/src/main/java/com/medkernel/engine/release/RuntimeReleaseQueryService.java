@@ -1,5 +1,7 @@
 package com.medkernel.engine.release;
 
+import java.util.Optional;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,36 +39,29 @@ public class RuntimeReleaseQueryService {
      * 返回当前完整平台标准版本。
      */
     @Transactional(readOnly = true)
-    public PlatformBaselineDetailResponse currentPlatformBaseline() {
-        PlatformBaselineRelease release = baselines
-            .findFirstByOrderByRevisionNoDesc()
-            .orElseThrow(() -> new ApiException(
-                ErrorCode.NOT_FOUND, "平台尚未发布标准版本"));
-        return new PlatformBaselineDetailResponse(
+    public Optional<PlatformBaselineDetailResponse> currentPlatformBaseline() {
+        return baselines.findFirstByOrderByRevisionNoDesc().map(release -> new PlatformBaselineDetailResponse(
             release,
             baselineItems.findByBaselineReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
                 release.baselineReleaseId())
-        );
+        ));
     }
 
     /**
      * 返回指定医院当前完整机构生效版本。
      */
     @Transactional(readOnly = true)
-    public ClinicalRuntimeReleaseDetailResponse currentHospitalRuntime(
+    public Optional<ClinicalRuntimeReleaseDetailResponse> currentHospitalRuntime(
             String tenantId,
             String hospitalId) {
-        ClinicalRuntimeRelease release = runtimes
-            .findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+        return runtimes.findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
                 required(tenantId, "租户"),
                 required(hospitalId, "医院"))
-            .orElseThrow(() -> new ApiException(
-                ErrorCode.NOT_FOUND, "医院尚未生成机构生效版本"));
-        return new ClinicalRuntimeReleaseDetailResponse(
+            .map(release -> new ClinicalRuntimeReleaseDetailResponse(
             release,
             runtimeItems.findByReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
                 release.releaseId())
-        );
+            ));
     }
 
     /**

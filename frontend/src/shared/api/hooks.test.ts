@@ -3490,6 +3490,24 @@ describe("release governance api hooks", () => {
     );
   });
 
+  it("maps missing current release payloads to explicit empty states", async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ data: { success: true } })
+      .mockResolvedValueOnce({ data: { data: null } });
+
+    const baselineHook = renderApiHook(() => useCurrentPlatformBaseline());
+    await waitFor(() => expect(baselineHook.result.current.data).toBeNull());
+
+    const runtimeHook = renderApiHook(() => useCurrentHospitalRuntime("hospital-A"));
+    await waitFor(() => expect(runtimeHook.result.current.data).toBeNull());
+
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/engine/releases/platform-baselines/current");
+    expect(apiClient.get).toHaveBeenNthCalledWith(
+      2,
+      "/engine/releases/hospitals/hospital-A/runtime-releases/current",
+    );
+  });
+
   it("publishes platform standard versions and institution effective versions without package ids or manual revision numbers", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ data: { data: {} } });
 

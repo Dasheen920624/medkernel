@@ -167,8 +167,8 @@ async function createValueSetFromUi(
   await page.goto("/authoring/assets", { waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { name: "统一资产库" })).toBeVisible();
   await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
-  await page.getByRole("tab", { name: "配置资产维护" }).click();
-  await expectNoRootOverflow(page, "统一资产库配置资产维护桌面");
+  await page.getByRole("tab", { name: "字段与配置资产" }).click();
+  await expectNoRootOverflow(page, "统一资产库字段与配置资产桌面");
 
   const assetIdentity = `VS.REAL.FRONTDESK.${suffix.toUpperCase()}`;
   await expect(page.getByRole("button", { name: "新建值集" })).toBeEnabled();
@@ -365,9 +365,9 @@ async function runInsuranceAuditFromUi(
   await ensureReadySession(page, "engine-operator");
   clearRuntime(runtime);
   await page.goto("/qc/insurance", { waitUntil: "networkidle" });
-  await expect(page.getByRole("heading", { name: "医保智能审核" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "医保审核" })).toBeVisible();
   await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
-  await expectNoRootOverflow(page, "医保智能审核桌面");
+  await expectNoRootOverflow(page, "医保审核桌面");
 
   await page.getByLabel("患者信息").fill(snapshot.patientId);
   if (snapshot.encounterId) {
@@ -382,7 +382,7 @@ async function runInsuranceAuditFromUi(
     await expect(page.getByLabel("就诊信息")).toHaveValue("已关联就诊");
   }
   await choosePageSelectOption(page, "责任科室");
-  await choosePageSelectOption(page, "质控指标");
+  await choosePageSelectOption(page, "评价指标");
 
   await page.getByLabel("审核场景").fill("A9");
   await page.getByLabel("整改截止时间").fill("2026年07月15日 08:30");
@@ -397,11 +397,11 @@ async function runInsuranceAuditFromUi(
   await page.getByLabel("费用阈值").fill("1000");
   await page.getByLabel("规则说明").fill("结算金额超过当前演练阈值，需要责任科室提交整改证据。");
 
-  const skipsCaseReview = await page
-    .getByText("先跳过内涵质控")
+  const usesManualIndicator = await page
+    .getByText("未读取到已生效评价指标，将按本次医保规则依据归档并生成整改任务。")
     .isVisible()
     .catch(() => false);
-  const caseReviewPromise = skipsCaseReview
+  const caseReviewPromise = usesManualIndicator
     ? null
     : waitForPost(page, "/api/v1/engine/quality/case-review");
   const drgPromise = waitForPost(page, "/api/v1/engine/quality/drg-grouping");
@@ -514,11 +514,11 @@ async function createFollowupTemplateFromUi(
     .fill("真实前台演练创建；不包含患者姓名、证件号、电话、住址等核心敏感信息。");
   await chooseDialogOption(page, dialog, "适用机构范围", "当前医院");
   await chooseDialogOption(page, dialog, "随访病种", "慢阻肺");
-  await chooseDialogOption(page, dialog, "问卷内容", "真实前台慢病随访问卷");
+  await chooseDialogOption(page, dialog, "问卷内容", "慢病随访问卷");
   await chooseDialogOption(page, dialog, "核心随访问题", "呼吸困难变化");
   await dialog.getByLabel("异常触发条件").fill("呼吸困难加重、血氧下降或患者主动报告异常");
   await dialog.getByLabel("通知对象").fill("责任医生与随访护士");
-  await chooseDialogOption(page, dialog, "院内依据", "真实前台演练随访制度");
+  await chooseDialogOption(page, dialog, "院内依据", "慢病随访管理制度");
 
   const responsePromise = waitForPost(page, "/api/v1/engine/followup/templates");
   await dialog.getByRole("button", { name: /创\s*建/ }).click();

@@ -86,8 +86,8 @@ const stakeholderViews: StakeholderView[] = [
     label: "质控",
     role: "engine-operator",
     path: "/qc/dashboard",
-    heading: "质量管理概览",
-    markers: ["真实指标", "下钻问题证据", "导出证据"],
+    heading: "质量风险概览",
+    markers: ["质量指标", "指标口径已记录", "下钻问题证据", "导出证据"],
     action: "QUALITY_DRILLDOWN",
   },
   {
@@ -132,7 +132,7 @@ const stakeholderViews: StakeholderView[] = [
     role: "platform-admin",
     path: "/system/runtime-diagnostics",
     heading: "运行诊断",
-    markers: ["服务契约", "追踪诊断", "插件边界"],
+    markers: ["服务契约", "追踪诊断", "扩展能力"],
     action: "ADAPTER_QUALITY_REPORT",
   },
   {
@@ -141,7 +141,7 @@ const stakeholderViews: StakeholderView[] = [
     role: "platform-admin",
     path: "/onboarding/guide",
     heading: "实施与验收",
-    markers: ["实施步骤真实状态", "阻塞项", "下一配置页"],
+    markers: ["实施步骤真实状态", "阻塞项", "下一处理入口"],
     action: "ADAPTER_QUALITY_REPORT",
   },
   {
@@ -149,7 +149,7 @@ const stakeholderViews: StakeholderView[] = [
     label: "院长",
     role: "engine-operator",
     path: "/qc/dashboard",
-    heading: "质量管理概览",
+    heading: "质量风险概览",
     markers: ["质量成效", "风险热力", "闭环"],
     action: "QUALITY_DRILLDOWN",
   },
@@ -337,11 +337,11 @@ async function performQualityDrilldownAction(page: Page, view: StakeholderView) 
   expect(response.ok(), `${view.label} 切换下钻证据应返回真实服务端结果`).toBe(true);
 
   await page.getByRole("button", { name: "下钻问题证据" }).click();
-  const drawer = page.locator(".ant-drawer-content").filter({ hasText: "真实下钻证据" }).last();
+  const drawer = page.locator(".ant-drawer-content").filter({ hasText: "问题下钻证据" }).last();
   await expect(drawer).toBeVisible({ timeout: 20_000 });
-  await expect(drawer.getByText("真实下钻证据", { exact: true })).toBeVisible();
+  await expect(drawer.getByText("问题下钻证据", { exact: true })).toBeVisible();
   await expect(
-    drawer.getByText(/证据包已生成|已按当前筛选范围记录|证据导出编号/u).first(),
+    drawer.getByText(/证据包已生成|已按当前筛选条件生成证据包|证据导出编号/u).first(),
   ).toBeVisible({ timeout: 20_000 });
   await expectDrawerSettledInViewport(page, drawer, `${view.label} 下钻证据抽屉`);
   return ["切换质量下钻类型并读取整改证据"];
@@ -428,6 +428,17 @@ async function performAuditExportVerifyAction(page: Page, view: StakeholderView)
 }
 
 async function performAdapterQualityReportAction(page: Page, view: StakeholderView) {
+  if (view.path === "/system/runtime-diagnostics") {
+    await page.getByRole("tab", { name: "扩展能力" }).click();
+    await expect(
+      page.getByRole("button", { name: /登记扩展能力/u }),
+      `${view.label} 应能从运行诊断页看到扩展能力授权边界`,
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("边界", { exact: true }).first()).toBeVisible({
+      timeout: 30_000,
+    });
+  }
+
   await page.goto(appPath("/adapter/hub"), { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
   await expect(
@@ -466,7 +477,11 @@ async function performAdapterQualityReportAction(page: Page, view: StakeholderVi
     reportCard.getByText(/NOT_CONNECTED/),
     `${view.label} 数据质量报告默认摘要不应展示原始枚举`,
   ).toHaveCount(0);
-  return ["生成系统接入数据质量报告"];
+  return [
+    view.path === "/system/runtime-diagnostics"
+      ? "查看运行诊断扩展能力授权边界并生成系统接入数据质量报告"
+      : "生成系统接入数据质量报告",
+  ];
 }
 
 async function performPlatformAdminPersonnelAction(page: Page, view: StakeholderView) {
@@ -814,11 +829,11 @@ async function createFollowupTemplateForStakeholderAction(
     .fill("全角色真实前台演练创建；不包含患者姓名、电话、住址、证件号等核心敏感信息。");
   await chooseDialogOption(page, dialog, "适用机构范围", "当前医院");
   await chooseDialogOption(page, dialog, "随访病种", "慢阻肺");
-  await chooseDialogOption(page, dialog, "问卷内容", "真实前台慢病随访问卷");
+  await chooseDialogOption(page, dialog, "问卷内容", "慢病随访问卷");
   await chooseDialogOption(page, dialog, "核心随访问题", "呼吸困难变化");
   await dialog.getByLabel("异常触发条件").fill("呼吸困难加重、血氧下降或患者主动报告异常");
   await dialog.getByLabel("通知对象").fill("责任医生与随访护士");
-  await chooseDialogOption(page, dialog, "院内依据", "真实前台演练随访制度");
+  await chooseDialogOption(page, dialog, "院内依据", "慢病随访管理制度");
 
   const templateResponsePromise = waitForPost(page, "/engine/followup/templates");
   await dialog.getByRole("button", { name: /创\s*建/ }).click();

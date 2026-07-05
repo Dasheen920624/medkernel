@@ -12,7 +12,7 @@ import {
   Descriptions,
   Badge,
   Alert,
-  message,
+  App,
   Tabs,
   Row,
   Col,
@@ -444,6 +444,7 @@ function recommendationEvaluationMessage(res: {
 export default function CdssFatigue() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { message } = App.useApp();
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [triggerModalVisible, setTriggerModalVisible] = useState<boolean>(false);
   const [triggerModalMode, setTriggerModalMode] = useState<TriggerModalMode>("RECOMMENDATION");

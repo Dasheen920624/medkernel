@@ -1,25 +1,28 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type * as AuthSupport from "../../e2e/support/auth.ts";
 
 const envSnapshot = {
   E2E_API_BASE_URL: process.env.E2E_API_BASE_URL,
   E2E_BASE_URL: process.env.E2E_BASE_URL,
+  E2E_LOCAL_REHEARSAL_TENANT_ID: process.env.E2E_LOCAL_REHEARSAL_TENANT_ID,
   E2E_ROLE_CREDENTIALS_FILE: process.env.E2E_ROLE_CREDENTIALS_FILE,
 };
 
 let tempDir: string | null = null;
 
 afterEach(() => {
+  vi.resetModules();
   if (tempDir) {
     rmSync(tempDir, { recursive: true, force: true });
     tempDir = null;
   }
   restoreEnv("E2E_API_BASE_URL", envSnapshot.E2E_API_BASE_URL);
   restoreEnv("E2E_BASE_URL", envSnapshot.E2E_BASE_URL);
+  restoreEnv("E2E_LOCAL_REHEARSAL_TENANT_ID", envSnapshot.E2E_LOCAL_REHEARSAL_TENANT_ID);
   restoreEnv("E2E_ROLE_CREDENTIALS_FILE", envSnapshot.E2E_ROLE_CREDENTIALS_FILE);
 });
 
@@ -80,6 +83,21 @@ describe("E2E credential contract", () => {
     );
   });
 
+  it("keeps local full-role frontdesk rehearsal out of the platform source tenant", async () => {
+    delete process.env.E2E_ROLE_CREDENTIALS_FILE;
+    delete process.env.E2E_LOCAL_REHEARSAL_TENANT_ID;
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    process.env.E2E_BASE_URL = "http://localhost:5173";
+    vi.resetModules();
+
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+
+    expect(auth.tenantId).toBe("t-1");
+    expect(auth.resolvedTenantIdFor("platform-admin")).toBe("t-e2e-rehearsal-local");
+    expect(auth.resolvedTenantIdFor("clinical-user")).toBe("t-e2e-rehearsal-local");
+    expect(auth.resolvedTenantIdFor("engine-operator", "platform")).toBe("t-1");
+  });
+
   it("mirrors secure backend cookies only as local proxy cookies for HTTP frontdesk rehearsal", async () => {
     process.env.E2E_API_BASE_URL = "https://127.0.0.1/medkernel/api/v1";
     const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
@@ -105,11 +123,253 @@ describe("E2E credential contract", () => {
     ).toBeNull();
   });
 
-  it("keeps platform UI login bound to the explicit login type switch", () => {
+  it("collects active platform baseline assets required by local runtime rehearsal", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+
+    const baseline = auth.resolveBaselineRuntimeAssets({
+      release: { baselineReleaseId: "baseline-1" },
+      items: [
+        {
+          assetType: "FIELD_CATALOG",
+          assetIdentity: "CLINICAL_CONTEXT_IDENTITY",
+          versionId: "field-v1",
+          entryState: "ACTIVE",
+        },
+        {
+          assetType: "RULE",
+          assetIdentity: "RULE.CLINICAL.RECOMMENDATION",
+          versionId: "rule-v1",
+          entryState: "ACTIVE",
+        },
+        {
+          assetType: "KNOWLEDGE",
+          assetIdentity: "plat:diagnostic_item:lab-potassium",
+          versionId: "knowledge-v1",
+          entryState: "ACTIVE",
+        },
+        {
+          assetType: "RULE",
+          assetIdentity: "RULE.DISABLED",
+          versionId: "rule-disabled",
+          entryState: "DISABLED",
+        },
+      ],
+    });
+
+    expect(baseline).toEqual({
+      baselineReleaseId: "baseline-1",
+      activeAssets: [
+        {
+          assetType: "FIELD_CATALOG",
+          assetIdentity: "CLINICAL_CONTEXT_IDENTITY",
+          versionId: null,
+        },
+        {
+          assetType: "RULE",
+          assetIdentity: "RULE.CLINICAL.RECOMMENDATION",
+          versionId: null,
+        },
+        {
+          assetType: "KNOWLEDGE",
+          assetIdentity: "plat:diagnostic_item:lab-potassium",
+          versionId: null,
+        },
+      ],
+    });
+    expect(auth.runtimeAssetsCoverRequiredTypes(baseline.activeAssets)).toBe(true);
+  });
+
+  it("requires hospital runtime rehearsal to self-heal when current release has no active field catalog or rule", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+
+    expect(
+      auth.hospitalRuntimeCoversRequiredAssets({
+        release: { releaseId: "hospital-release-empty" },
+        items: [
+          {
+            assetType: "FIELD_CATALOG",
+            assetIdentity: "CLINICAL_CONTEXT_IDENTITY",
+            versionId: "field-v1",
+            entryState: "DISABLED",
+          },
+          {
+            assetType: "RULE",
+            assetIdentity: "RULE.CLINICAL.RECOMMENDATION",
+            versionId: "rule-v1",
+            entryState: "DISABLED",
+          },
+        ],
+      }),
+    ).toEqual({ releaseId: "hospital-release-empty", ready: false });
+
+    expect(
+      auth.hospitalRuntimeCoversRequiredAssets({
+        release: { releaseId: "hospital-release-ready" },
+        items: [
+          {
+            assetType: "FIELD_CATALOG",
+            assetIdentity: "CLINICAL_CONTEXT_IDENTITY",
+            versionId: "field-v1",
+            entryState: "ACTIVE",
+          },
+          {
+            assetType: "RULE",
+            assetIdentity: "RULE.CLINICAL.RECOMMENDATION",
+            versionId: "rule-v1",
+            entryState: "ACTIVE",
+          },
+          {
+            assetType: "KNOWLEDGE",
+            assetIdentity: "plat:diagnostic_item:lab-potassium",
+            versionId: "knowledge-v1",
+            entryState: "ACTIVE",
+          },
+        ],
+      }),
+    ).toEqual({ releaseId: "hospital-release-ready", ready: true });
+  });
+
+  it("requires diagnostic-item knowledge for report interpretation runtime rehearsal", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+
+    expect(auth.missingRuntimeCandidateTypes([])).toEqual(["FIELD_CATALOG", "RULE", "KNOWLEDGE"]);
+    expect(
+      auth.hospitalRuntimeCoversRequiredAssets({
+        release: { releaseId: "hospital-release-no-knowledge" },
+        items: [
+          {
+            assetType: "FIELD_CATALOG",
+            assetIdentity: "CLINICAL_CONTEXT_IDENTITY",
+            versionId: "field-v1",
+            entryState: "ACTIVE",
+          },
+          {
+            assetType: "RULE",
+            assetIdentity: "RULE.CLINICAL.RECOMMENDATION",
+            versionId: "rule-v1",
+            entryState: "ACTIVE",
+          },
+        ],
+      }),
+    ).toEqual({ releaseId: "hospital-release-no-knowledge", ready: false });
+  });
+
+  it("detects missing platform runtime candidates before publishing the baseline", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+
+    const candidates = [
+      {
+        assetType: "FIELD_CATALOG",
+        assetIdentity: "FIELD.CATALOG.CLINICAL_CONTEXT",
+        versionId: "field-v1",
+        status: "DRAFT",
+      },
+      {
+        assetType: "VALUE_SET",
+        assetIdentity: "VS.EXTRA",
+        versionId: "value-v1",
+        status: "DRAFT",
+      },
+    ];
+
+    expect(auth.missingRuntimeCandidateTypes(candidates)).toEqual(["RULE", "KNOWLEDGE"]);
+    expect(auth.runtimeCandidatesCoverRequiredTypes(candidates)).toBe(false);
+    expect(auth.versionIdsForRequiredRuntimeCandidates(candidates)).toEqual(["field-v1"]);
+  });
+
+  it("selects only required platform runtime candidates once the rehearsal bootstrap fills gaps", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+
+    const candidates = [
+      {
+        assetType: "VALUE_SET",
+        assetIdentity: "VS.EXTRA",
+        versionId: "value-v1",
+        status: "DRAFT",
+      },
+      {
+        assetType: "FIELD_CATALOG",
+        assetIdentity: "FIELD.CATALOG.CLINICAL_CONTEXT",
+        versionId: "field-v1",
+        status: "DRAFT",
+      },
+      {
+        assetType: "RULE",
+        assetIdentity: "RULE.LOCAL.REHEARSAL.BASELINE",
+        versionId: "rule-v1",
+        status: "DRAFT",
+      },
+      {
+        assetType: "KNOWLEDGE",
+        assetIdentity: "plat:diagnostic_item:lab-potassium",
+        versionId: "knowledge-v1",
+        status: "DRAFT",
+      },
+      {
+        assetType: "RULE",
+        assetIdentity: "RULE.LOCAL.REHEARSAL.BASELINE",
+        versionId: "",
+        status: "DRAFT",
+      },
+    ];
+
+    expect(auth.missingRuntimeCandidateTypes(candidates)).toEqual([]);
+    expect(auth.runtimeCandidatesCoverRequiredTypes(candidates)).toBe(true);
+    expect(auth.versionIdsForRequiredRuntimeCandidates(candidates)).toEqual([
+      "field-v1",
+      "rule-v1",
+      "knowledge-v1",
+    ]);
+  });
+
+  it("builds a platform diagnostic-item knowledge request that matches report interpretation E2E", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+
+    expect(auth.platformDiagnosticItemKnowledgeIdentityRequest()).toMatchObject({
+      tenant_id: "t-1",
+      identitySlug: "lab-potassium",
+      domain: "DIAGNOSTIC_ITEM",
+      subject: "血钾检验说明书",
+    });
+    expect(auth.platformDiagnosticItemKnowledgeVersionRequest(1, 1)).toMatchObject({
+      tenant_id: "t-1",
+      versionNo: "V1",
+      sourceDocumentId: 1,
+      sourceVersionId: 1,
+      content: expect.stringContaining("血钾检验"),
+      riskLevel: "LOW",
+    });
+  });
+
+  it("binds the local platform rehearsal rule to medication prescribing evaluations", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+
+    const rule = auth.platformRehearsalRuleRequest();
+
+    expect(rule.triggers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          trigger_point: "medication-prescribe",
+          purpose: "RULE_EXECUTION",
+          required_fields: ["patientId", "encounterId", "medications"],
+        }),
+      ]),
+    );
+  });
+
+  it("keeps platform UI login bound to the explicit login type switch when present", () => {
     const source = readFileSync("e2e/support/auth.ts", "utf8");
 
     expect(source).toContain("locator('[aria-label=\"登录类型切换\"]')");
     expect(source).toContain('getByRole("button", { name: "平台治理", exact: true })');
+    expect(source).toContain("platformTenantSwitch.or(platformHeading)");
     expect(source).toContain('toHaveAttribute("aria-pressed", "true")');
     expect(source).toContain('getByRole("heading", { name: "登录平台治理" })');
   });

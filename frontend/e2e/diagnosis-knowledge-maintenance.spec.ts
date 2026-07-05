@@ -8,7 +8,7 @@ type StandardTerm = {
   displayName?: string | null;
 };
 
-test.describe("诊断知识维护真实前台链路", () => {
+test.describe("诊断知识库真实前台链路", () => {
   test("运营员从前台创建证据完整诊断资产并登记标准与验证病例", async ({
     page,
   }, testInfo) => {
@@ -27,10 +27,12 @@ test.describe("诊断知识维护真实前台链路", () => {
     await page.goto(appPath("/knowledge/diagnosis"), { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle");
     await setEvidenceDetails(page, false);
-    await expect(page.getByRole("heading", { name: "诊断知识维护" })).toBeVisible({
+    await expect(page.getByRole("heading", { name: "诊断知识库" })).toBeVisible({
       timeout: 30_000,
     });
-    await expect(page.getByText("在统一知识治理下维护诊断身份")).toBeVisible();
+    await expect(
+      page.getByText("在统一知识治理下管理诊断身份、诊断标准、鉴别诊断、验证病例与来源证据"),
+    ).toBeVisible();
 
     await page.getByRole("button", { name: "新建诊断资产" }).click();
     const drawer = page.locator(".ant-drawer-content").filter({
@@ -94,9 +96,9 @@ test.describe("诊断知识维护真实前台链路", () => {
     await expect(page.locator("main")).not.toContainText(`DXCASE-${suffix.toUpperCase()}`);
     await expect(page.locator("main")).not.toContainText(findingTerm.termCode);
 
-    expect(browserErrors, "诊断知识维护前台演练不应产生浏览器错误").toEqual([]);
-    expect(serverErrors, "诊断知识维护前台演练不应产生 HTTP 错误").toEqual([]);
-    expect(networkFailures, "诊断知识维护前台演练不应产生网络失败").toEqual([]);
+    expect(browserErrors, "诊断知识库前台演练不应产生浏览器错误").toEqual([]);
+    expect(serverErrors, "诊断知识库前台演练不应产生 HTTP 错误").toEqual([]);
+    expect(networkFailures, "诊断知识库前台演练不应产生网络失败").toEqual([]);
 
     await page.screenshot({
       path: testInfo.outputPath("diagnosis-knowledge-maintenance.png"),
@@ -112,7 +114,7 @@ async function registerFindingTermFromFrontend(page: Page, suffix: string): Prom
   await page.goto(appPath("/terminology/mapping"), { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
   await setEvidenceDetails(page, false);
-  await expect(page.getByRole("heading", { name: "术语与字典" })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "术语字典" })).toBeVisible({
     timeout: 30_000,
   });
 
@@ -121,7 +123,9 @@ async function registerFindingTermFromFrontend(page: Page, suffix: string): Prom
   await expect(dialog).toBeVisible({ timeout: 10_000 });
   await dialog.getByLabel("标准体系").fill("TERM.LAB");
   await dialog.getByLabel("标准编码").fill(termCode);
+  await selectAntOption(page, dialog, "术语类别", "检验项目");
   await dialog.getByLabel("标准名称").fill(displayName);
+  await dialog.getByLabel("版本号").fill("2026.07");
   await dialog.getByLabel("依据说明").fill("真实前台演练登记的诊断标准发现项");
 
   const responsePromise = waitForPost(page, "/engine/terminology/terms/standard");
@@ -159,6 +163,21 @@ async function waitForPost(page: Page, path: string) {
 
 async function clickDialogOk(dialog: ReturnType<Page["getByRole"]>) {
   await dialog.getByRole("button", { name: /OK|确\s*定/u }).click();
+}
+
+async function selectAntOption(
+  page: Page,
+  dialog: ReturnType<Page["getByRole"]>,
+  fieldLabel: string,
+  optionLabel: string,
+) {
+  const combobox = dialog.getByRole("combobox", { name: fieldLabel });
+  const select = combobox.locator(
+    "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
+  );
+  await select.click();
+  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)");
+  await dropdown.getByText(optionLabel, { exact: true }).click();
 }
 
 function collectBrowserErrors(page: Page) {

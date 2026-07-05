@@ -291,7 +291,7 @@ describe("page smoke coverage", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole("heading", { name: "进入平台治理" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "登录平台治理" })).toBeInTheDocument();
     expect(screen.getByText("MedKernel")).toBeInTheDocument();
     expect(screen.getByText("使用平台管理员账号登录")).toBeInTheDocument();
     expect(await screen.findByText("平台治理入口")).toBeInTheDocument();

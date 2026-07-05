@@ -1,5 +1,6 @@
 import {
   Alert,
+  App as AntdApp,
   Button,
   Card,
   Checkbox,
@@ -11,7 +12,6 @@ import {
   Table,
   Tag,
   Typography,
-  message,
 } from "antd";
 import { useState } from "react";
 
@@ -121,6 +121,7 @@ function renderCredentialAudit(
 }
 
 export default function ProviderSetupPanel() {
+  const { message } = AntdApp.useApp();
   const security = useSecurityProfile();
   const canManage =
     security.data?.permissions?.some((permission) => permission.code === "llm.provider.manage") ??
@@ -435,6 +436,7 @@ export default function ProviderSetupPanel() {
         confirmLoading={upsert.isPending}
         onOk={() => providerForm.submit()}
         onCancel={closeProviderModal}
+        forceRender
         destroyOnClose
       >
         <Form

@@ -316,7 +316,7 @@ export default function Login() {
               </div>
             </div>
             <Title level={2} className={styles.cardTitle}>
-              {isPlatformLayer ? "进入平台治理" : "进入机构工作台"}
+              {isPlatformLayer ? "登录平台治理" : "登录机构工作台"}
             </Title>
             <Text type="secondary">
               {canUseDelegatedLogin ? "选择机构后使用院内账号登录" : "使用平台管理员账号登录"}
@@ -383,13 +383,13 @@ export default function Login() {
             onFinish={handleSubmit}
           >
             <Form.Item
-              label="工号 / 登录名"
+              label="工号 / 账号"
               name="username"
-              rules={[{ required: true, message: "请输入工号或登录名" }]}
+              rules={[{ required: true, message: "请输入工号或账号" }]}
             >
               <Input
                 prefix={<UserOutlined />}
-                placeholder={isPlatformLayer ? "请输入平台管理员登录名" : "请输入工号或院内账号"}
+                placeholder={isPlatformLayer ? "请输入平台管理员账号" : "请输入工号或院内账号"}
                 size="large"
                 autoComplete="username"
               />

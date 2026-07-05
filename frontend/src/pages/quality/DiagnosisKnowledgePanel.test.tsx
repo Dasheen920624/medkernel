@@ -197,6 +197,52 @@ describe("DiagnosisKnowledgePanel", () => {
     expect(screen.queryByText("暂无诊断知识")).not.toBeInTheDocument();
   });
 
+  it("does not reset an unmounted publish form when no diagnosis exists", async () => {
+    hooks.useKnowledgeIdentities.mockReturnValue(query({ items: [] }));
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([])));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      renderPanel();
+
+      await waitFor(() => {
+        expect(screen.getByText("暂无诊断知识")).toBeInTheDocument();
+      });
+      expect(
+        consoleError.mock.calls.some((args) =>
+          args.some((arg) =>
+            String(arg).includes("Instance created by `useForm` is not connected"),
+          ),
+        ),
+      ).toBe(false);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("opens the criterion dialog without resetting an unmounted form", async () => {
+    hooks.useKnowledgeVersions.mockReturnValue(query(versionPage([editableVersion])));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      renderPanel();
+      fireEvent.click(await screen.findByRole("button", { name: /新增标准/ }));
+
+      await waitFor(() => {
+        expect(screen.getByText("新增诊断标准")).toBeInTheDocument();
+      });
+      expect(
+        consoleError.mock.calls.some((args) =>
+          args.some((arg) =>
+            String(arg).includes("Instance created by `useForm` is not connected"),
+          ),
+        ),
+      ).toBe(false);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it("keeps active diagnosis versions immutable", async () => {
     const user = userEvent.setup();
     renderPanel();

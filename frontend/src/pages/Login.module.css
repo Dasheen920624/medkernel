@@ -50,7 +50,10 @@
 .page :global(.ant-form-item-label > label),
 .page :global(.ant-input),
 .page :global(.ant-input-affix-wrapper),
+.page :global(.ant-input-affix-wrapper .ant-input),
+.page :global(.ant-input-affix-wrapper input),
 .page :global(.ant-select),
+.page :global(.ant-select-selection-item),
 .page :global(.ant-btn) {
   font-size: var(--mk-login-control-font);
 }
@@ -334,6 +337,11 @@
 
 @media (max-height: 44rem) {
   .page {
+    gap: calc(var(--mk-unit) * 6);
+    padding-block: calc(var(--mk-unit) * 12);
+  }
+
+  .pageExpanded {
     height: auto;
     align-items: start;
     overflow-y: auto;

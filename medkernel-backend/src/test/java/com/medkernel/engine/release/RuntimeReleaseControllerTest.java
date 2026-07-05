@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -113,10 +114,26 @@ class RuntimeReleaseControllerTest {
         ClinicalRuntimeReleaseDetailResponse detail =
             new ClinicalRuntimeReleaseDetailResponse(runtimeRelease(), List.of());
         when(queries.currentHospitalRuntime("tenant-A", "hospital-A"))
-            .thenReturn(detail);
+            .thenReturn(Optional.of(detail));
 
         assertThat(controller.currentHospitalRuntime("hospital-A").data())
             .isEqualTo(detail);
+    }
+
+    @Test
+    void currentPlatformBaselineReturnsSuccessfulEmptyStateBeforeFirstBaseline() {
+        when(queries.currentPlatformBaseline()).thenReturn(Optional.empty());
+
+        assertThat(controller.currentPlatformBaseline().data()).isNull();
+    }
+
+    @Test
+    void currentHospitalRuntimeReturnsSuccessfulEmptyStateBeforeFirstHospitalRevision() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-hospital", OrgScope.tenant("tenant-A"), "operator-hospital"));
+        when(queries.currentHospitalRuntime("tenant-A", "hospital-A")).thenReturn(Optional.empty());
+
+        assertThat(controller.currentHospitalRuntime("hospital-A").data()).isNull();
     }
 
     @Test

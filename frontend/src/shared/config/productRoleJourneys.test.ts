@@ -196,4 +196,11 @@ describe("product role journeys", () => {
     expect(embedHostSource).toContain("process.env.E2E_BASE_URL");
     expect(embedHostSource).not.toContain('const embedOrigin = "http://localhost:5173"');
   });
+
+  it("本地 E2E 默认代理与后端默认端口保持一致", () => {
+    const configSource = readFileSync(resolve(process.cwd(), "playwright.config.ts"), "utf8");
+
+    expect(configSource).toContain("'http://localhost:18080'");
+    expect(configSource).not.toContain("127.0.0.1:18081");
+  });
 });

@@ -37,7 +37,7 @@ const localFrontendServer = {
     MEDKERNEL_API_PROXY_TARGET:
       process.env.MEDKERNEL_API_PROXY_TARGET ||
       process.env.VITE_API_PROXY_TARGET ||
-      'http://127.0.0.1:18081',
+      'http://localhost:18080',
   },
 };
 
