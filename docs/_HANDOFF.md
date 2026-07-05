@@ -10,6 +10,86 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百一十五批本地交接（未完成，因额度中止）：本批只做可续接交接，不使用子代理、不推送远程、
+  不合并 `main`，也不把当前未完成修复伪装为阶段完成。开工已重新读取 `AGENTS.md` 与本文件；
+  `git status --short --branch` 显示当前分支仍为 `codex/final-handoff-product-optimization`，
+  工作树有 26 个未提交修改文件；交接开工核查时 `git log --oneline -8` 显示 HEAD 为
+  `76080ba257d8351d776cfbd79bd466bc59cc3abb`（`docs: 记录实施验收入口口径复演`），
+  最新应用提交仍为 `6d12324d9710bc9920b21f897abfb73cdf2a4571`
+  （`fix: 收敛实施验收处理入口口径`）；`git rev-parse HEAD origin/main main`
+  分别为 `76080ba257d8351d776cfbd79bd466bc59cc3abb`、
+  `1561ba6bef8777dcef76432696f43de4277fdd3f`、
+  `1561ba6bef8777dcef76432696f43de4277fdd3f`；`git worktree list` 仅有当前工作区。
+- 第一百一十五批用户最新口径：当前目标不是只改菜单名称和页面文案，而是为了上线做全方面、
+  全角色、全功能、真实前台和真实服务链路的完整验证；菜单名称、顺序和登录页滚动条/措辞只是
+  产品体验线索，后续必须扩展到权限、后端服务、迁移、契约、真实 E2E、构建、T-GATE、134 发布证据映射。
+  后续按最新约束不使用子代理、不咨询，按最优上线级决策执行；只做本地阶段提交，不推送远程，
+  不直接改写或合并 `main`。
+- 第一百一十五批未提交修改范围（不要回滚，下一棒直接续接）：`frontend/playwright.config.ts`
+  将本地代理默认收敛到 `http://localhost:18080`；`RuntimeReleaseController` /
+  `RuntimeReleaseQueryService` 及测试让医院当前生效版本空态返回可识别 `null/optional` 而不是前台 404；
+  `frontend/src/shared/api/hooks.ts` 与测试同步空态；`Login.tsx`、`Login.module.css`、
+  `Login.test.tsx` 和 `pages.smoke.test.tsx` 优化登录页低高度滚动条和“平台治理 / 机构工作台”措辞；
+  `AiWorkflows.tsx` 收敛模型能力说明布局；`TerminologyMapping.tsx` 与测试修正未挂载表单
+  `setFieldsValue` 警告；`DiagnosisKnowledgePanel.test.tsx` 增加同类回归断言；
+  多个 Playwright 用例修正最新医疗产品口径、菜单顺序和选择器稳健性，包括
+  `core-ui-runtime.spec.ts`、`d6-ai-workflows.spec.ts`、`d6-graph-explore.spec.ts`、
+  `diagnosis-knowledge-maintenance.spec.ts`、`pathway-graph-editor.spec.ts`、
+  `product-role-journeys.spec.ts`、`stakeholder-view-rehearsal.spec.ts`；
+  `frontend/e2e/support/auth.ts` 是最大改动，新增本地上线演练租户
+  `t-e2e-rehearsal-local`、演练医院 `e2e-rehearsal-hospital`、四职责账号开通、首次改密、
+  平台标准版本发布和医院生效版本激活准备；`e2eAuthCredentialContract.test.ts`
+  增加断言，确保本地全角色前台演练不再把 `t-1` 平台标准源当客户机构使用。
+- 第一百一十五批已跑过的非最终验证（均针对当前未提交工作树，不能作为最终完成声明）：后端运行时空态窄测
+  14 个通过；`npm --prefix frontend run test -- hooks productRoleJourneys viteProxyGuard`
+  141 个通过；产品角色/all-done Chromium 子集 6 个通过；`npm --prefix frontend run test -- Login pages.smoke e2eAuthCredentialContract`
+  51 个通过；`npm --prefix frontend run test -- AiWorkflows` 11 个通过；
+  `d6-ai-workflows.spec.ts` Chromium 2 个通过；组合单测
+  `AiWorkflows Login pages.smoke e2eAuthCredentialContract TerminologyMapping DiagnosisKnowledgePanel`
+  99 个通过；诊断知识与路径编辑器 targeted E2E 通过；广度子集
+  `core-ui-runtime d0-bootstrap-closure d0-login-domain d6-ai-workflows theme-mobile-browser-compatibility diagnosis-knowledge-maintenance pathway-graph-editor`
+  Chromium 16 个通过；`TerminologyMapping` 14 个通过；本地演练租户隔离 TDD 红绿已完成：
+  旧实现跑 `npm --prefix frontend run test -- e2eAuthCredentialContract -t "local full-role"`
+  失败于 `auth.resolvedTenantIdFor is not a function`，实现后
+  `npm --prefix frontend run test -- e2eAuthCredentialContract` 4 个通过；
+  `npm --prefix frontend exec prettier -- --check frontend/e2e/support/auth.ts frontend/src/test/e2eAuthCredentialContract.test.ts`
+  通过；`npm --prefix frontend run test -- Login pages.smoke e2eAuthCredentialContract viteProxyGuard productRoleJourneys`
+  65 个通过。
+- 第一百一十五批当前真实 E2E 红点与根因：命令
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium real-frontdesk-rehearsal.spec.ts stakeholder-view-rehearsal.spec.ts`
+  初次失败于本地租户开通密码策略（`PWD_POLICY_VIOLATION`，密码至少 12 位），已用
+  `localInitialPassword = "Mk@2026localinit"` 修正。第二次已越过租户/医院/账号准备，但仍红：
+  `real-frontdesk-rehearsal.spec.ts` 在“前台创建系统接入适配器”记录浏览器错误，
+  运行记录含 `400 GET .../engine/integration/data-contract`，页面展示“数据接入契约暂时不可用”；
+  `stakeholder-view-rehearsal.spec.ts` 医生视角触发推荐后返回
+  “推荐评估已完成：本次未新增可见提醒；当前列表已刷新存量提醒。”，`visibleCardCount=0`。
+  根因已追到本地演练医院生效版本激活逻辑：`frontend/e2e/support/auth.ts`
+  当前 `ensureHospitalRuntime` 只要存在当前医院 release 就直接返回，且首次激活请求传
+  `activeAssets: []`；后端 `ClinicalRuntimeReleaseService.activate` 会从平台标准版本复制为
+  disabled，再只启用请求中的资产。因此本地演练医院的运行时版本所有平台资产都处于禁用状态，
+  `IntegrationDataContractService.generate()` 解析不到 active `FIELD_CATALOG`
+  `ContextFieldCatalogAssets.CLINICAL_CONTEXT_IDENTITY`，推荐链路的
+  `RuntimeReleaseRuleSelector.select(...)` 也选不到 active `RULE`。
+- 第一百一十五批下一棒首要修复路径：先继续 TDD，不要直接改成“看起来能跑”。在
+  `frontend/e2e/support/auth.ts` 增加平台基线资产解析与医院生效版本自愈：
+  `ensurePlatformBaseline` 不应只返回 `baselineReleaseId`，应返回
+  `{ baselineReleaseId, activeAssets }`，从 `/engine/releases/platform-baselines/current`
+  的 `items` 中收集 `entryState === "ACTIVE"` 且有 `assetType/assetIdentity` 的资产，
+  传给医院激活请求时使用 `{ assetType, assetIdentity, versionId: null }`；如果当前平台标准版本
+  缺少 active `FIELD_CATALOG` 或 `RULE`，应读取 `/engine/releases/platform-baselines/candidates`
+  并发布候选后重读 current，仍缺则抛清晰错误并继续追种子/资产发布根因，不得伪造通过。
+  `ensureHospitalRuntime` 应读取当前医院 release 的 `items`，只有已存在 active `FIELD_CATALOG`
+  且 active `RULE` 时才返回；否则用现有 `releaseId` 作为 `expectedCurrentReleaseId`
+  再激活一版带 `baseline.activeAssets` 的医院运行时。若因为第二次 E2E 已创建过空资产 release，
+  这个自愈逻辑必须能生成新医院 release，而不是被旧空 release 卡住。
+- 第一百一十五批建议下一棒命令顺序：补/改 `e2eAuthCredentialContract.test.ts` 或相邻单测先红后绿，
+  再跑 `npm --prefix frontend exec prettier -- --check frontend/e2e/support/auth.ts frontend/src/test/e2eAuthCredentialContract.test.ts`，
+  `npm --prefix frontend run test -- e2eAuthCredentialContract`，
+  然后复跑上述两个真实前台 E2E。通过后再进入更广的全角色/全功能门禁：
+  `npm --prefix frontend run test -- Login pages.smoke e2eAuthCredentialContract viteProxyGuard productRoleJourneys`、
+  相关 Playwright Chromium 子集、`npm --prefix frontend run build`、
+  `npm --prefix frontend run verify`、`mvn -f medkernel-backend/pom.xml test`、
+  `git diff --check` 与 `git diff --cached --check`。最终仍需更新本文件并只做本地提交。
 - 第一百一十四批最新应用提交为 `6d12324d9710bc9920b21f897abfb73cdf2a4571`
   （`fix: 收敛实施验收处理入口口径`）。本批未使用子代理、未推送远程、未合并 `main`；
   继续以宪章、产品范围、体验契约、功能目录和四职责旅程为准，复核平台管理员在 `实施与验收`
