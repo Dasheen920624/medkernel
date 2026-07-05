@@ -131,6 +131,7 @@ export default function InsuranceAudit() {
   const indicatorsQuery = useEvaluationIndicators(
     {
       status: "ACTIVE",
+      subjectType: "CLAIM",
       ...(indicatorKeyword ? { indicatorCode: indicatorKeyword } : {}),
       page: 1,
       size: AUDIT_INDICATOR_REFERENCE_PAGE_SIZE,

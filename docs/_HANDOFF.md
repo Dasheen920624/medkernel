@@ -10,6 +10,52 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百二十三批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面 UI 优化，而是补齐 ACTIVE CLAIM 评价指标从前台创建、复核、发布、灰度、全量激活，
+  再纳入本地上线演练医院机构生效版本，最后驱动 `/qc/insurance` 真实医保审核、绑定
+  `evaluationRunId` / `quality_finding` / `mk_quality_insurance_issue` 并进入质量整改闭环的
+  端到端切片。本批曾发起只读子代理 Hubble 审查医保质量链路，但截至本地提交前未返回可采纳结论，
+  子代理未改文件；本批不推送远程、不合并 `main`。
+- 第一百二十三批修复范围：`real-frontdesk-rehearsal.spec.ts` 新增
+  `createActiveClaimEvaluationIndicatorFromUi`，由医疗引擎运营员在 `/qc/eval/sets` 前台创建
+  CLAIM 主体费用型医保指标，提交安全复核、确认发布、开始 10% 灰度并全量激活；新增
+  `activateHospitalRuntimeWithClaimIndicatorFromUi`，在 `/config/releases` 选择“本地上线演练医院”，
+  勾选本院评价指标内容并生成新机构生效版本，随后用 current runtime API 精确断言本轮指标进入
+  `ACTIVE` 清单。`/qc/insurance` 演练改为强制选择本轮 CLAIM 指标，不再接受
+  `INSURANCE_RULE_MANUAL` 手工兜底；审核后断言 `evaluationRunId` 存在，且质量问题详情中的
+  `runId` 与 `indicatorId` 分别绑定本次评估运行和本轮指标。
+- 第一百二十三批后端防绕过：`InsuranceQualityService` 对非手工医保审核新增服务端基线校验：
+  `indicatorId` 必须属于当前租户、状态为 `ACTIVE`、主体为 `CLAIM`，并且同一指标编码和规范版本号必须
+  已进入快照锁定的 `clinical_runtime_release_item` 当前机构生效版本 `ACTIVE` 清单；评估运行完成后按
+  `tenantId + evaluationRunId + finding_code=INSURANCE.<issueId>` 精确查找 `quality_finding`，
+  回填医保 issue 的 `finding_id` / `evaluation_run_id` / `RECTIFICATION_CREATED` 状态。若运行没有生成
+  匹配质量问题，服务端抛 `ENG_EVAL_005`，不再吞错或返回假成功；若使用非 CLAIM 指标，即使 ACTIVE 且
+  已进 runtime 也会抛出“医保审核评价指标必须面向医保合规主体”。
+- 第一百二十三批红点根因与定位修复：真实 E2E 红点的业务根因是本地演练医院 runtime 必须显式包含本轮
+  ACTIVE CLAIM 评价指标，否则医保审核会退到手工规则路径或无法形成可追溯评估运行；本批把该要求同时放在
+  前台演练和后端防线中。过程中的前台定位红点来自当前 AntD Select 虚拟列表、指标详情 Drawer、发布 Modal
+  文案和客户机构版 `/config/releases` 当前结构差异，已改为按真实业务名称/弹层标题/确认按钮定位；Release
+  页面没有旧搜索框，因此候选精确性用只读 `runtime-candidates?assetType=EVALUATION&keyword=...` 验证，
+  生成机构生效版本仍走真实前台勾选与按钮动作。
+- 第一百二十三批红绿事实：后端新增回归先用
+  `InsuranceQualityServiceTest#insuranceAuditRejectsNonClaimIndicatorEvenWhenActiveInRuntimeRelease`
+  复现了“ACTIVE 且进入 runtime 的 MEDICAL_RECORD 指标也可驱动医保审核”的绕过缺口，红于
+  “Expecting code to raise a throwable”；随后在 `requireClaimIndicatorInSnapshotRuntime` 补 CLAIM 主体校验，
+  单用例转绿。既有医保审核测试同步断言 issue / finding / run / indicator 直连、评估运行未落库对应 finding
+  时诚实失败、指标未进入 snapshot runtime 时拒绝且不调用评估引擎。
+- 第一百二十三批验证证据：目标真实前台 E2E
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium real-frontdesk-rehearsal.spec.ts`
+  通过（1 passed，约 1.1 分钟）；`npm --prefix frontend run test -- e2eAuthCredentialContract -t
+  "active CLAIM evaluation indicator"` 通过；`npm --prefix frontend run test -- InsuranceAudit QcEvalSets
+  e2eAuthCredentialContract` 通过（34 tests）；前端触达文件 Prettier check 通过；`npm --prefix frontend exec tsc
+  -- --noEmit --pretty false --skipLibCheck false --project frontend/tsconfig.json` 通过；`npm --prefix frontend run verify`
+  通过（115 files，1004 tests，仅既有 AntD Timeline warning）；后端红灯单测先失败后通过，随后
+  `mvn -f medkernel-backend/pom.xml -Dtest=InsuranceQualityServiceTest test` 通过（10 tests）；
+  `git diff --check && git diff --cached --check` 退出码 0。
+- 第一百二十三批后续主线：本批仍未发布到 134，尚未做 134 清库重新部署，也未完成全功能与全知识全流程
+  复演；不能把 ACTIVE CLAIM 医保质量链路等同于总目标完成。下一步继续按全角色真实操作扩面，优先覆盖
+  134 空库首启与统一迁移、全资产 runtime 闭包复核、备份恢复与重启恢复、身份来源绑定真实前台动作、运行保障
+  和全知识流程复演；发现红点继续先复现、定根因，再按上线级标准修复，不做片面优化。
 - 第一百二十二批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，而是补齐 S1/S14 服务机构开通、机构管理员首登、组织树建设、人员建档、
   科室职责范围、临床账号首登和 `/security/me` 登录画像的真实前台闭环。本批使用只读子代理

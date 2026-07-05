@@ -394,7 +394,7 @@ describe("InsuranceAudit", () => {
       status: "ACTIVE",
     });
     expect(mockUseEvaluationIndicators).toHaveBeenCalledWith(
-      { status: "ACTIVE", page: 1, size: 20, sort: "name,asc" },
+      { status: "ACTIVE", subjectType: "CLAIM", page: 1, size: 20, sort: "name,asc" },
       { enabled: true },
     );
 
@@ -406,6 +406,7 @@ describe("InsuranceAudit", () => {
       expect(mockUseEvaluationIndicators).toHaveBeenCalledWith(
         {
           status: "ACTIVE",
+          subjectType: "CLAIM",
           indicatorCode: "INS.FEE.2026",
           page: 1,
           size: 20,

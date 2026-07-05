@@ -17,8 +17,11 @@ import com.medkernel.engine.clinical.model.ClinicalClaim;
 import com.medkernel.engine.clinical.model.ClinicalClaimRepository;
 import com.medkernel.engine.context.ContextSnapshot;
 import com.medkernel.engine.context.ContextSnapshotRepository;
+import com.medkernel.engine.evaluation.EvaluationIndicator;
+import com.medkernel.engine.evaluation.EvaluationIndicatorRepository;
 import com.medkernel.engine.evaluation.EvaluationEngineService;
 import com.medkernel.engine.evaluation.EvaluationEvaluateSnapshotRequest;
+import com.medkernel.engine.evaluation.EvaluationIndicatorStatus;
 import com.medkernel.engine.evaluation.EvaluationModelStatus;
 import com.medkernel.engine.evaluation.EvaluationResultLevel;
 import com.medkernel.engine.evaluation.EvaluationResultRequest;
@@ -30,6 +33,8 @@ import com.medkernel.engine.evaluation.ManualQualityRectificationBridge;
 import com.medkernel.engine.evaluation.ManualQualityRectificationBridge.ManualQualityRectificationCommand;
 import com.medkernel.engine.evaluation.ManualQualityRectificationBridge.ManualQualityRectificationResult;
 import com.medkernel.engine.evaluation.QualityFindingRequest;
+import com.medkernel.engine.versioning.VersionedAssetType;
+import com.medkernel.engine.versioning.AssetVersionNumbers;
 import com.medkernel.shared.api.PageRequest;
 import com.medkernel.shared.api.PageResponse;
 import com.medkernel.shared.api.error.ApiException;
@@ -55,18 +60,21 @@ public class InsuranceQualityService {
     private final ClinicalClaimRepository claims;
     private final EvaluationEngineService evaluations;
     private final ManualQualityRectificationBridge manualRectifications;
+    private final EvaluationIndicatorRepository indicators;
 
     public InsuranceQualityService(
             JdbcTemplate jdbc,
             ContextSnapshotRepository snapshots,
             ClinicalClaimRepository claims,
             EvaluationEngineService evaluations,
-            ManualQualityRectificationBridge manualRectifications) {
+            ManualQualityRectificationBridge manualRectifications,
+            EvaluationIndicatorRepository indicators) {
         this.jdbc = jdbc;
         this.snapshots = snapshots;
         this.claims = claims;
         this.evaluations = evaluations;
         this.manualRectifications = manualRectifications;
+        this.indicators = indicators;
     }
 
     /**
@@ -200,6 +208,9 @@ public class InsuranceQualityService {
         List<String> newIssueIds = new ArrayList<>();
         Instant now = Instant.now();
         boolean manualRule = isManualInsuranceRule(request.indicatorId());
+        if (!manualRule) {
+            requireClaimIndicatorInSnapshotRuntime(tenantId, snapshot, request.indicatorId());
+        }
         for (ClinicalClaim claim : scopedClaims) {
             for (InsuranceAuditRuleRequest rule : request.rules()) {
                 if (!matches(rule, claim)) {
@@ -249,38 +260,90 @@ public class InsuranceQualityService {
             "sha256:" + digestHex(tenantId, snapshot.snapshotId(), rulesDigest(request.rules())),
             now,
             results));
-        String placeholders = placeholders(newIssueIds.size());
-        List<Object> updateArgs = new ArrayList<>();
-        updateArgs.add(InsuranceIssueStatus.RECTIFICATION_CREATED.name());
-        updateArgs.add(run.runId());
-        updateArgs.add(Timestamp.from(now));
-        updateArgs.add(actor());
-        updateArgs.add(traceId());
-        updateArgs.add(tenantId);
-        updateArgs.add(InsuranceIssueStatus.OPEN.name());
-        updateArgs.addAll(newIssueIds);
-        jdbc.update("""
-            UPDATE mk_quality_insurance_issue
-               SET status = ?,
-                   evaluation_run_id = ?,
-                   updated_at = ?,
-                   updated_by = ?,
-                   trace_id = ?
-             WHERE tenant_id = ?
-               AND status = ?
-               AND issue_id IN (%s)
-            """.formatted(placeholders), updateArgs.toArray());
-        List<Object> selectArgs = new ArrayList<>();
-        selectArgs.add(tenantId);
-        selectArgs.addAll(newIssueIds);
-        List<InsuranceIssueResponse> refreshed = jdbc.query("""
-            SELECT * FROM mk_quality_insurance_issue
-            WHERE tenant_id = ? AND issue_id IN (%s)
-            ORDER BY created_at ASC, issue_id ASC
-            """.formatted(placeholders), this::mapIssue, selectArgs.toArray());
+        linkEvaluationFindingsToInsuranceIssues(tenantId, run.runId(), newIssueIds, now);
+        List<InsuranceIssueResponse> refreshed = refreshedIssues(tenantId, newIssueIds);
         return new InsuranceAuditResponse(
             auditId, InsuranceAuditStatus.ISSUE_FOUND, refreshed, run.runId(),
             run.findingCount(), run.taskCount(), run.traceId());
+    }
+
+    private void requireClaimIndicatorInSnapshotRuntime(
+            String tenantId,
+            ContextSnapshot snapshot,
+            String indicatorId) {
+        EvaluationIndicator indicator = indicators
+            .findByIndicatorIdAndTenantId(required(indicatorId, "评价指标"), tenantId)
+            .orElseThrow(() -> new ApiException(ErrorCode.ENG_EVAL_002, "医保审核评价指标不存在"));
+        if (indicator.status() != EvaluationIndicatorStatus.ACTIVE) {
+            throw new ApiException(ErrorCode.ENG_EVAL_004, "医保审核评价指标未激活");
+        }
+        if (indicator.subjectType() != EvaluationSubjectType.CLAIM) {
+            throw new ApiException(ErrorCode.ENG_EVAL_004, "医保审核评价指标必须面向医保合规主体");
+        }
+        Integer count = jdbc.queryForObject("""
+            SELECT COUNT(*)
+              FROM clinical_runtime_release_item
+             WHERE release_id = ?
+               AND source_tenant_id = ?
+               AND asset_type = ?
+               AND asset_identity = ?
+               AND entry_state = 'ACTIVE'
+               AND version_no = ?
+            """, Integer.class,
+            required(snapshot.runtimeReleaseId(), "机构生效版本"),
+            indicator.tenantId(),
+            VersionedAssetType.EVALUATION.name(),
+            indicator.indicatorCode(),
+            AssetVersionNumbers.canonical(indicator.versionNo()));
+        if (count == null || count == 0) {
+            throw new ApiException(
+                ErrorCode.ENG_EVAL_004,
+                "医保审核评价指标未进入当前机构生效版本：" + indicator.indicatorCode());
+        }
+    }
+
+    private void linkEvaluationFindingsToInsuranceIssues(
+            String tenantId,
+            String evaluationRunId,
+            List<String> issueIds,
+            Instant now) {
+        String actor = actor();
+        String traceId = traceId();
+        for (String issueId : issueIds) {
+            String findingId = findingIdForInsuranceIssue(tenantId, evaluationRunId, issueId);
+            jdbc.update("""
+                UPDATE mk_quality_insurance_issue
+                   SET status = ?,
+                       evaluation_run_id = ?,
+                       finding_id = ?,
+                       updated_at = ?,
+                       updated_by = ?,
+                       trace_id = ?
+                 WHERE tenant_id = ?
+                   AND status = ?
+                   AND issue_id = ?
+                """,
+                InsuranceIssueStatus.RECTIFICATION_CREATED.name(), evaluationRunId, findingId,
+                Timestamp.from(now), actor, traceId, tenantId, InsuranceIssueStatus.OPEN.name(), issueId);
+        }
+    }
+
+    private String findingIdForInsuranceIssue(String tenantId, String evaluationRunId, String issueId) {
+        List<String> findingIds = jdbc.query("""
+            SELECT finding_id
+              FROM quality_finding
+             WHERE tenant_id = ?
+               AND run_id = ?
+               AND finding_code = ?
+            ORDER BY created_at ASC, finding_id ASC
+            """, (rs, rowNum) -> rs.getString("finding_id"),
+            tenantId, evaluationRunId, "INSURANCE." + issueId);
+        if (findingIds.isEmpty()) {
+            throw new ApiException(
+                ErrorCode.ENG_EVAL_005,
+                "医保审核评估运行未生成对应质量问题：" + issueId);
+        }
+        return findingIds.get(0);
     }
 
     private InsuranceAuditResponse createManualInsuranceRectifications(
@@ -648,6 +711,13 @@ public class InsuranceQualityService {
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private static String required(String value, String label) {
+        if (!hasText(value)) {
+            throw new ApiException(ErrorCode.ENG_EVAL_001, label + "不能为空");
+        }
+        return value.trim();
     }
 
     private static String nullToBlank(String value) {

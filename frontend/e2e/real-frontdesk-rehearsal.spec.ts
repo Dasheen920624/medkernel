@@ -20,6 +20,17 @@ type ContextSnapshotSummary = {
   encounterId?: string | null;
 };
 
+type OrgUnitSummary = {
+  id?: string;
+  parentId?: string | null;
+  level?: string;
+  code?: string;
+  name?: string;
+  status?: string;
+  orgPath?: string | null;
+  facilityType?: string | null;
+};
+
 type MpiPatientCreated = {
   mpiId: string;
   maskedName: string;
@@ -46,8 +57,32 @@ type RecommendationCardDetailPayload = {
   trigger?: { runtimeReleaseId?: string };
 };
 
+type ClaimEvaluationIndicatorSummary = {
+  indicatorId: string;
+  indicatorCode: string;
+  name: string;
+  versionNo: number;
+};
+
+type RuntimeReleaseDetailPayload = {
+  data?: {
+    release?: {
+      releaseId?: string;
+      revisionNo?: number;
+      platformBaselineReleaseId?: string;
+    };
+    items?: Array<{
+      assetType?: string;
+      assetIdentity?: string;
+      entryState?: string;
+      versionId?: string | null;
+    }>;
+  } | null;
+};
+
 type InsuranceAuditSummary = {
   issueId: string;
+  evaluationRunId: string;
 };
 
 type QualityAlertPayload = {
@@ -68,6 +103,8 @@ type QualityFindingDetailPayload = {
     finding?: {
       findingId?: string;
       findingCode?: string;
+      runId?: string;
+      indicatorId?: string;
     };
     rectificationTask?: {
       taskId?: string;
@@ -102,6 +139,20 @@ test.describe("全前台真实操作演练", () => {
         suffix,
       );
       await publishFollowupTemplateFromUi(page, testInfo, runtime, records, followupTemplate);
+      const claimIndicator = await createActiveClaimEvaluationIndicatorFromUi(
+        page,
+        testInfo,
+        runtime,
+        records,
+        suffix,
+      );
+      await activateHospitalRuntimeWithClaimIndicatorFromUi(
+        page,
+        testInfo,
+        runtime,
+        records,
+        claimIndicator,
+      );
       const snapshot = await createContextSnapshotFromUi(page, testInfo, runtime, records, patient);
       const insuranceAudit = await runInsuranceAuditFromUi(
         page,
@@ -109,7 +160,9 @@ test.describe("全前台真实操作演练", () => {
         runtime,
         records,
         snapshot,
+        claimIndicator,
       );
+      await assertInsuranceAuditUsesEvaluationRun(page, insuranceAudit, claimIndicator);
       await closeQualityRectificationFromAlertsUi(page, testInfo, runtime, records, insuranceAudit);
       await runCdssRecommendationFromUi(page, testInfo, runtime, records, snapshot);
       await generateFollowupPlanAndHandlePatientFeedbackFromUi(
@@ -412,12 +465,476 @@ async function createContextSnapshotFromUi(
   };
 }
 
+async function createActiveClaimEvaluationIndicatorFromUi(
+  page: Page,
+  testInfo: TestInfo,
+  runtime: RuntimeCollectors,
+  records: RuntimeRecord[],
+  suffix: string,
+): Promise<ClaimEvaluationIndicatorSummary> {
+  const department = await ensureQualityDepartmentFromFrontdesk(page, suffix);
+  await ensureReadySession(page, "engine-operator");
+  clearRuntime(runtime);
+  await page.goto("/qc/eval/sets", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "评价指标" })).toBeVisible();
+  await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
+  await expectNoRootOverflow(page, "评价指标发布桌面");
+
+  const indicatorCode = `INS.REAL.CLAIM.${suffix.toUpperCase()}`;
+  const indicatorName = `真实前台医保合规指标 ${suffix}`;
+  const claimIndicatorDraft = { subjectType: "CLAIM" as const };
+  await page.getByRole("button", { name: "新建指标" }).click();
+  const dialog = page.getByRole("dialog", { name: "新建评价指标" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("稳定评价指标身份").fill(indicatorCode);
+  await dialog.getByLabel("指标名称").fill(indicatorName);
+  await chooseDialogOption(page, dialog, "评估主体", "医保合规", claimIndicatorDraft.subjectType);
+  await searchDialogOption(page, dialog, "责任科室", department.name ?? "", department.name ?? "");
+  await dialog
+    .getByLabel("来源依据")
+    .fill("真实前台演练：医保合规评价指标由前台发布并进入机构生效版本。");
+  await dialog.getByLabel("评分定义").fill("P1级医保合规缺陷，命中后必须由责任科室整改。");
+
+  const factInputs = dialog.getByRole("combobox", { name: "上下文字段路径" });
+  const operatorInputs = dialog.getByRole("combobox", { name: "算子" });
+  const kindInputs = dialog.getByRole("combobox", { name: "比较值类型" });
+  const valueInputs = dialog.getByRole("textbox", { name: /^比较值$/ });
+  await factInputs.nth(0).fill("claims[].totalCost");
+  await chooseIndexedSelectOption(page, operatorInputs.nth(0), "大于");
+  await chooseIndexedSelectOption(page, kindInputs.nth(0), "数值");
+  await valueInputs.nth(0).fill("0");
+  await factInputs.nth(1).fill("claims[].totalCost");
+  await chooseIndexedSelectOption(page, operatorInputs.nth(1), "大于");
+  await chooseIndexedSelectOption(page, kindInputs.nth(1), "数值");
+  await valueInputs.nth(1).fill("999999");
+
+  const createResponsePromise = waitForPost(page, "/api/v1/engine/evaluation/indicators");
+  await dialog.getByRole("button", { name: "创建指标草稿" }).click();
+  const createResponse = await createResponsePromise;
+  const createText = await createResponse.text();
+  expect(
+    createResponse.ok(),
+    `前台创建 CLAIM 评价指标草稿应返回成功 status=${createResponse.status()} body=${createText}`,
+  ).toBe(true);
+  const created = JSON.parse(createText) as {
+    data?: {
+      indicatorId?: string;
+      indicatorCode?: string;
+      name?: string;
+      subjectType?: string;
+      status?: string;
+      versionNo?: number;
+    };
+  };
+  expect(created.data?.subjectType, "前台创建的评价指标必须面向医保合规主体").toBe(
+    claimIndicatorDraft.subjectType,
+  );
+  expect(created.data?.status, "评价指标创建后必须先进入草稿").toBe("DRAFT");
+  const indicatorId = created.data?.indicatorId ?? "";
+  expect(indicatorId, "评价指标创建响应必须返回 indicatorId").toBeTruthy();
+  await expect(dialog).toBeHidden({ timeout: 20_000 });
+
+  await page.getByLabel("评价指标身份筛选").fill(indicatorCode);
+  const row = page
+    .getByRole("row", {
+      name: new RegExp(escapeRegExp(indicatorName)),
+    })
+    .first();
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  await row.getByRole("button", { name: "查看指标详情" }).click();
+  const drawer = page.getByRole("dialog").filter({ hasText: "指标详情" }).last();
+  await expect(drawer).toBeVisible({ timeout: 20_000 });
+
+  await transitionClaimIndicator(page, drawer, {
+    button: "提交安全复核",
+    path: `/api/v1/engine/evaluation/indicators/${indicatorId}/submit`,
+    expectedStatus: "PENDING_REVIEW",
+  });
+  await confirmClaimIndicatorRelease(page, drawer, {
+    button: "确认发布",
+    title: "确认发布",
+    ok: "确认发布",
+    path: `/api/v1/engine/evaluation/indicators/${indicatorId}/publish`,
+    reason: "真实前台演练：医保合规指标安全复核通过，确认发布。",
+    expectedStatus: "PUBLISHED",
+  });
+  await confirmClaimIndicatorRelease(page, drawer, {
+    button: "开始灰度",
+    title: "开始 10% 床位灰度",
+    ok: "确认灰度",
+    path: `/api/v1/engine/evaluation/indicators/${indicatorId}/gray`,
+    reason: "真实前台演练：先按默认灰度观察医保合规指标。",
+    expectedStatus: "GRAY",
+  });
+  await confirmClaimIndicatorRelease(page, drawer, {
+    button: "全量激活",
+    title: "全量激活",
+    ok: "确认全量",
+    path: `/api/v1/engine/evaluation/indicators/${indicatorId}/activate`,
+    reason: "真实前台演练：灰度观察通过，允许 CLAIM 指标全量激活。",
+    expectedStatus: "ACTIVE",
+  });
+  await expect(drawer.getByText("生效中", { exact: true }).first()).toBeVisible({
+    timeout: 20_000,
+  });
+  await captureEvidence(page, testInfo, "real-frontdesk-claim-evaluation-indicator-active");
+  recordCleanRuntime(page, "前台创建发布并激活 CLAIM 评价指标", runtime, records);
+
+  return {
+    indicatorId,
+    indicatorCode: created.data?.indicatorCode ?? indicatorCode,
+    name: created.data?.name ?? indicatorName,
+    versionNo: created.data?.versionNo ?? 1,
+  };
+}
+
+async function ensureQualityDepartmentFromFrontdesk(
+  page: Page,
+  suffix: string,
+): Promise<OrgUnitSummary> {
+  await ensureReadySession(page, "platform-admin");
+  const hospital = await resolveLocalRehearsalHospital(page);
+  const existing = await firstActiveDepartment(page, hospital.id ?? "");
+  if (existing) {
+    return existing;
+  }
+
+  await page.goto("/tenant/onboarding", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "服务机构" })).toBeVisible();
+  await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
+  await page.getByRole("tab", { name: "组织树" }).click();
+
+  const department = await createOrgUnitFromUi(page, {
+    levelLabel: "科室",
+    parentId: hospital.id,
+    parentName: hospital.name,
+    code: `E2E-QC-DEPT-${suffix.toUpperCase()}`,
+    name: `上线演练质控科${suffix.slice(-4)}`,
+  });
+  expect(department.level, "质控责任科室必须按组织树创建为科室").toBe("DEPARTMENT");
+  expect(department.parentId, "质控责任科室必须归属本地上线演练医院").toBe(hospital.id);
+  return department;
+}
+
+async function createOrgUnitFromUi(
+  page: Page,
+  options: {
+    levelLabel: string;
+    facilityTypeLabel?: string;
+    parentId?: string;
+    parentName?: string;
+    code: string;
+    name: string;
+  },
+): Promise<OrgUnitSummary> {
+  const panel = page.locator(".ant-card").filter({ hasText: "新增组织节点" }).first();
+  await expect(panel).toBeVisible();
+  await chooseDialogOption(page, panel, "组织层级", options.levelLabel);
+  if (options.facilityTypeLabel) {
+    await chooseDialogOption(page, panel, "机构类型", options.facilityTypeLabel);
+  }
+  await panel.getByLabel("稳定组织身份").fill(options.code);
+  await panel.getByLabel("组织名称").fill(options.name);
+  await searchDialogOption(
+    page,
+    panel,
+    "直接上级",
+    options.parentName ?? "",
+    options.parentName ?? "",
+  );
+  const responsePromise = waitForPost(page, "/api/v1/engine/org/org-units");
+  await panel.getByRole("button", { name: "保存组织节点" }).click();
+  const response = await responsePromise;
+  const text = await response.text();
+  expect(response.ok(), `前台保存组织节点应返回成功 status=${response.status()} body=${text}`).toBe(
+    true,
+  );
+  const payload = JSON.parse(text) as { data?: OrgUnitSummary };
+  expect(payload.data?.id, "组织节点响应必须返回 id").toBeTruthy();
+  if (options.parentId) {
+    expect(payload.data?.parentId, "组织节点必须绑定预期直接上级").toBe(options.parentId);
+  }
+  await expect(page.getByText(options.name, { exact: true })).toBeVisible({ timeout: 20_000 });
+  return payload.data ?? {};
+}
+
+async function firstActiveDepartment(
+  page: Page,
+  hospitalId: string,
+): Promise<OrgUnitSummary | null> {
+  expect(hospitalId, "查找责任科室前必须解析本地上线演练医院 ID").toBeTruthy();
+  const response = await page.request.get("/medkernel/api/v1/engine/org/org-units", {
+    params: {
+      page: "1",
+      size: "20",
+      sort: "name,asc",
+      level: "DEPARTMENT",
+      status: "ACTIVE",
+      ancestorId: hospitalId,
+    },
+    headers: { "X-Trace-Id": `e2e-qc-department-${Date.now()}` },
+  });
+  const text = await response.text();
+  expect(
+    response.ok(),
+    `应能读取本地上线演练医院科室 status=${response.status()} body=${text}`,
+  ).toBe(true);
+  const parsed = JSON.parse(text) as { data?: { items?: OrgUnitSummary[] } };
+  return (
+    (parsed.data?.items ?? []).find(
+      (item) => item.level === "DEPARTMENT" && item.status === "ACTIVE" && item.id && item.name,
+    ) ?? null
+  );
+}
+
+async function resolveLocalRehearsalHospital(page: Page): Promise<OrgUnitSummary> {
+  const hospital = await chooseHospitalByName(page, "本地上线演练医院", { openSelect: false });
+  expect(hospital.id, "本地上线演练医院必须返回组织 ID").toBeTruthy();
+  expect(hospital.level, "本地上线演练医院必须是医疗机构节点").toBe("FACILITY");
+  return hospital;
+}
+
+async function transitionClaimIndicator(
+  page: Page,
+  drawer: Locator,
+  options: { button: string; path: string; expectedStatus: string },
+) {
+  const responsePromise = waitForPost(page, options.path);
+  await drawer.getByRole("button", { name: options.button }).click();
+  const response = await responsePromise;
+  const text = await response.text();
+  expect(
+    response.ok(),
+    `评价指标 ${options.button} 应返回成功 status=${response.status()} body=${text}`,
+  ).toBe(true);
+  const payload = JSON.parse(text) as { data?: { status?: string } };
+  expect(payload.data?.status, `评价指标 ${options.button} 后状态应正确`).toBe(
+    options.expectedStatus,
+  );
+}
+
+async function confirmClaimIndicatorRelease(
+  page: Page,
+  drawer: Locator,
+  options: {
+    button: string;
+    title: string;
+    ok: string;
+    path: string;
+    reason: string;
+    expectedStatus: string;
+  },
+) {
+  await drawer.getByRole("button", { name: options.button }).click();
+  const modal = page.getByRole("dialog", { name: options.title });
+  await expect(modal).toBeVisible({ timeout: 20_000 });
+  await modal.getByLabel("发布说明").fill(options.reason);
+  const responsePromise = waitForPost(page, options.path);
+  await modal.getByRole("button", { name: options.ok }).click();
+  const response = await responsePromise;
+  const text = await response.text();
+  expect(
+    response.ok(),
+    `评价指标 ${options.button} 应返回成功 status=${response.status()} body=${text}`,
+  ).toBe(true);
+  const payload = JSON.parse(text) as { data?: { status?: string } };
+  expect(payload.data?.status, `评价指标 ${options.button} 后状态应正确`).toBe(
+    options.expectedStatus,
+  );
+  await expect(modal).toBeHidden({ timeout: 20_000 });
+}
+
+async function activateHospitalRuntimeWithClaimIndicatorFromUi(
+  page: Page,
+  testInfo: TestInfo,
+  runtime: RuntimeCollectors,
+  records: RuntimeRecord[],
+  claimIndicator: ClaimEvaluationIndicatorSummary,
+) {
+  await ensureReadySession(page, "engine-operator");
+  clearRuntime(runtime);
+  await page.goto("/config/releases", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "机构生效版本" })).toBeVisible();
+  await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
+  await page.getByRole("tab", { name: "机构生效版本" }).click();
+  const hospital = await chooseHospitalByName(page, "本地上线演练医院");
+  await expect(page.getByText(/当前机构生效版本 第 \d+ 版/)).toBeVisible({ timeout: 20_000 });
+
+  await assertHospitalRuntimeCandidateContainsClaimIndicator(
+    page,
+    hospital.id ?? "",
+    claimIndicator,
+  );
+  const evaluationCheckbox = page.getByRole("checkbox", { name: /启用.*评价指标内容/u }).first();
+  await expect(
+    evaluationCheckbox,
+    `机构生效版本候选应包含本轮 CLAIM 指标 ${claimIndicator.indicatorCode}`,
+  ).toBeVisible({ timeout: 20_000 });
+  if (!(await evaluationCheckbox.isChecked())) {
+    await evaluationCheckbox.check();
+  }
+  await assessLocalReleaseImpactIfRequired(page);
+
+  const activateResponsePromise = waitForPostMatching(
+    page,
+    /\/api\/v1\/engine\/releases\/hospitals\/.+\/runtime-releases$/u,
+  );
+  await page.getByRole("button", { name: "生成新机构生效版本" }).click();
+  const activateResponse = await activateResponsePromise;
+  const activateText = await activateResponse.text();
+  expect(
+    activateResponse.ok(),
+    `前台生成含 CLAIM 指标的机构生效版本应返回成功 status=${activateResponse.status()} body=${activateText}`,
+  ).toBe(true);
+  const activated = JSON.parse(activateText) as { data?: { revisionNo?: number } };
+  expect(activated.data?.revisionNo, "机构生效版本响应应返回修订号").toBeGreaterThan(0);
+  await assertCurrentRuntimeContainsClaimIndicator(page, hospital.id ?? "", claimIndicator);
+  await captureEvidence(page, testInfo, "real-frontdesk-runtime-claim-evaluation-active");
+  recordCleanRuntime(page, "前台生成包含 CLAIM 评价指标的机构生效版本", runtime, records);
+}
+
+async function assertHospitalRuntimeCandidateContainsClaimIndicator(
+  page: Page,
+  hospitalId: string,
+  claimIndicator: ClaimEvaluationIndicatorSummary,
+) {
+  expect(hospitalId, "读取机构生效版本候选前必须解析本地上线演练医院 ID").toBeTruthy();
+  const response = await page.request.get(
+    `/medkernel/api/v1/engine/releases/hospitals/${encodeURIComponent(
+      hospitalId,
+    )}/runtime-candidates`,
+    {
+      params: {
+        assetType: "EVALUATION",
+        keyword: claimIndicator.indicatorCode,
+        page: "1",
+        size: "20",
+      },
+      headers: { "X-Trace-Id": `e2e-runtime-candidate-claim-${Date.now()}` },
+    },
+  );
+  const text = await response.text();
+  expect(
+    response.ok(),
+    `应能读取本轮 CLAIM 指标机构候选 status=${response.status()} body=${text}`,
+  ).toBe(true);
+  const parsed = JSON.parse(text) as {
+    data?: { items?: Array<{ assetType?: string; assetIdentity?: string; status?: string }> };
+  };
+  expect(
+    (parsed.data?.items ?? []).some(
+      (item) =>
+        item.assetType === "EVALUATION" &&
+        item.assetIdentity === claimIndicator.indicatorCode &&
+        item.status === "PUBLISHED",
+    ),
+    `机构生效版本候选 API 必须包含本轮 CLAIM 指标 ${claimIndicator.indicatorCode}`,
+  ).toBe(true);
+}
+
+async function chooseHospitalByName(
+  page: Page,
+  hospitalName: string,
+  options: { openSelect?: boolean } = {},
+): Promise<OrgUnitSummary> {
+  const response = await page.request.get("/medkernel/api/v1/engine/org/org-units", {
+    params: {
+      keyword: hospitalName,
+      level: "FACILITY",
+      status: "ACTIVE",
+      page: "1",
+      size: "20",
+    },
+    headers: { "X-Trace-Id": `e2e-runtime-hospital-${Date.now()}` },
+  });
+  const body = await response.text();
+  expect(response.ok(), `应能按名称读取演练医院 status=${response.status()} body=${body}`).toBe(
+    true,
+  );
+  const parsed = JSON.parse(body) as { data?: { items?: OrgUnitSummary[] } };
+  const hospital = (parsed.data?.items ?? []).find(
+    (item) => item.name === hospitalName && item.level === "FACILITY" && item.id,
+  );
+  expect(hospital?.id, `应能解析演练医院 ${hospitalName} 的组织 ID`).toBeTruthy();
+
+  if (options.openSelect !== false) {
+    const combobox = page.getByRole("combobox", { name: "目标医院" });
+    const select = combobox.locator(
+      "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
+    );
+    await openAntdSelect(select, "目标医院");
+    await combobox.fill(hospitalName);
+    const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
+    await expect(dropdown).toBeVisible({ timeout: 10_000 });
+    const option = dropdown
+      .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
+      .filter({ hasText: hospitalName })
+      .first();
+    await expect(option).toBeVisible({ timeout: 20_000 });
+    await option.click();
+  }
+
+  return hospital ?? {};
+}
+
+async function assessLocalReleaseImpactIfRequired(page: Page) {
+  const impactButton = page.getByRole("button", { name: "评估发布影响" });
+  if ((await impactButton.count()) === 0 || !(await impactButton.first().isVisible())) {
+    return;
+  }
+  const simulationResponsePromise = waitForPost(page, "/engine/versioning/releases/simulations");
+  await impactButton.first().click();
+  const simulationResponse = await simulationResponsePromise;
+  const simulationBody = await simulationResponse.text();
+  expect(
+    simulationResponse.ok(),
+    `发布影响评估应返回成功 status=${simulationResponse.status()} body=${simulationBody}`,
+  ).toBe(true);
+  const simulation = JSON.parse(simulationBody) as { data?: { releasable?: boolean } };
+  expect(simulation.data?.releasable, "本轮 CLAIM 指标发布影响评估必须允许生成机构生效版本").toBe(
+    true,
+  );
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByText("发布影响评估未完成")).toHaveCount(0);
+  await expect(page.getByText("需处理")).toHaveCount(0);
+}
+
+async function assertCurrentRuntimeContainsClaimIndicator(
+  page: Page,
+  hospitalId: string,
+  claimIndicator: ClaimEvaluationIndicatorSummary,
+) {
+  expect(hospitalId, "本地上线演练医院必须可解析组织 ID").toBeTruthy();
+  const response = await page.request.get(
+    `/medkernel/api/v1/engine/releases/hospitals/${encodeURIComponent(
+      hospitalId,
+    )}/runtime-releases/current`,
+    { headers: { "X-Trace-Id": `e2e-runtime-claim-${Date.now()}` } },
+  );
+  const text = await response.text();
+  expect(response.ok(), `应能读取当前机构生效版本 status=${response.status()} body=${text}`).toBe(
+    true,
+  );
+  const current = JSON.parse(text) as RuntimeReleaseDetailPayload;
+  expect(
+    current.data?.items?.some(
+      (item) =>
+        item.assetType === "EVALUATION" &&
+        item.assetIdentity === claimIndicator.indicatorCode &&
+        item.entryState === "ACTIVE" &&
+        Boolean(item.versionId),
+    ),
+    `当前机构生效版本必须启用本轮 CLAIM 指标 ${claimIndicator.indicatorCode}`,
+  ).toBe(true);
+}
+
 async function runInsuranceAuditFromUi(
   page: Page,
   testInfo: TestInfo,
   runtime: RuntimeCollectors,
   records: RuntimeRecord[],
   snapshot: ContextSnapshotSummary,
+  claimIndicator: ClaimEvaluationIndicatorSummary,
 ): Promise<InsuranceAuditSummary> {
   await ensureReadySession(page, "engine-operator");
   clearRuntime(runtime);
@@ -439,7 +956,10 @@ async function runInsuranceAuditFromUi(
     await expect(page.getByLabel("就诊信息")).toHaveValue("已关联就诊");
   }
   await choosePageSelectOption(page, "责任科室");
-  await choosePageSelectOption(page, "评价指标");
+  await searchPageSelectOption(page, "评价指标", claimIndicator.indicatorCode, claimIndicator.name);
+  await expect(
+    page.getByText("未读取到已生效评价指标，将按本次医保规则依据归档并生成整改任务。"),
+  ).toHaveCount(0);
 
   await page.getByLabel("审核场景").fill("A9");
   await page.getByLabel("整改截止时间").fill("2026年07月15日 08:30");
@@ -454,21 +974,16 @@ async function runInsuranceAuditFromUi(
   await page.getByLabel("费用阈值").fill("1000");
   await page.getByLabel("规则说明").fill("结算金额超过当前演练阈值，需要责任科室提交整改证据。");
 
-  const usesManualIndicator = await page
-    .getByText("未读取到已生效评价指标，将按本次医保规则依据归档并生成整改任务。")
-    .isVisible()
-    .catch(() => false);
-  const caseReviewPromise = usesManualIndicator
-    ? null
-    : waitForPost(page, "/api/v1/engine/quality/case-review");
+  const caseReviewPromise = waitForPost(page, "/api/v1/engine/quality/case-review");
   const drgPromise = waitForPost(page, "/api/v1/engine/quality/drg-grouping");
   const auditPromise = waitForPost(page, "/api/v1/engine/quality/insurance-audit");
   await page.getByRole("button", { name: "执行审核并派整改" }).click();
-  const [drgResponse, auditResponse] = await Promise.all([drgPromise, auditPromise]);
-  if (caseReviewPromise) {
-    const caseReviewResponse = await caseReviewPromise;
-    expect(caseReviewResponse.ok(), "前台执行病案内涵质控应返回成功").toBe(true);
-  }
+  const [caseReviewResponse, drgResponse, auditResponse] = await Promise.all([
+    caseReviewPromise,
+    drgPromise,
+    auditPromise,
+  ]);
+  expect(caseReviewResponse.ok(), "前台执行病案内涵质控应返回成功").toBe(true);
   expect(drgResponse.ok(), "前台执行 DRG/DIP 分组应返回成功").toBe(true);
   const auditResponseText = await auditResponse.text();
   expect(
@@ -478,12 +993,14 @@ async function runInsuranceAuditFromUi(
   const audit = JSON.parse(auditResponseText) as {
     data?: {
       auditStatus?: string;
+      evaluationRunId?: string | null;
       findingCount?: number;
       taskCount?: number;
       issues?: Array<{ issueId?: string; ruleCode?: string; evidenceSummary?: string }>;
     };
   };
   expect(audit.data?.auditStatus, "真实结算事实应触发医保问题").toBe("ISSUE_FOUND");
+  expect(audit.data?.evaluationRunId, "CLAIM 评价指标驱动的医保审核必须返回评估运行").toBeTruthy();
   expect(audit.data?.findingCount ?? 0, "医保审核应联动质量问题").toBeGreaterThan(0);
   expect(audit.data?.taskCount ?? 0, "医保审核应派发整改任务").toBeGreaterThan(0);
   expect(audit.data?.issues?.length ?? 0, "医保审核应返回问题明细").toBeGreaterThan(0);
@@ -496,7 +1013,27 @@ async function runInsuranceAuditFromUi(
   expect(issue?.issueId, "医保审核问题应返回 issueId 以便前台追溯质量整改").toBeTruthy();
   return {
     issueId: issue?.issueId ?? "",
+    evaluationRunId: audit.data?.evaluationRunId ?? "",
   };
+}
+
+async function assertInsuranceAuditUsesEvaluationRun(
+  page: Page,
+  audit: InsuranceAuditSummary,
+  claimIndicator: ClaimEvaluationIndicatorSummary,
+) {
+  expect(audit.evaluationRunId, "医保审核必须绑定非手工评估运行").toBeTruthy();
+  expect(audit.evaluationRunId, "医保审核不得落入 INSURANCE_RULE_MANUAL 手工归档路径").not.toBe(
+    "INSURANCE_RULE_MANUAL",
+  );
+  const alert = await findInsuranceQualityAlert(page, audit.issueId, "OPEN");
+  const detail = await qualityFindingDetail(page, alert.sourceId ?? "");
+  expect(detail.data?.finding?.runId, "质量问题必须来自本次医保审核评估运行").toBe(
+    audit.evaluationRunId,
+  );
+  expect(detail.data?.finding?.indicatorId, "质量问题必须绑定本轮 CLAIM 评价指标").toBe(
+    claimIndicator.indicatorId,
+  );
 }
 
 async function closeQualityRectificationFromAlertsUi(
@@ -944,24 +1481,44 @@ async function generateFollowupPlanAndHandlePatientFeedbackFromUi(
   recordCleanRuntime(page, "前台生成随访计划并完成问卷与异常回院登记", runtime, records);
 }
 
-async function chooseDialogOption(page: Page, dialog: Locator, label: string, option: string) {
+async function chooseDialogOption(
+  page: Page,
+  dialog: Locator,
+  label: string,
+  option?: string,
+  fallbackOption?: string,
+) {
   const combobox = dialog.getByRole("combobox", { name: new RegExp(escapeRegExp(label)) }).first();
   const select = combobox.locator(
     "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
   );
+  const expectedOptions = [option, fallbackOption].filter((value): value is string =>
+    Boolean(value),
+  );
   const selectedText = await currentSelectText(select);
-  if (selectedText === option) {
+  if (expectedOptions.includes(selectedText)) {
     return;
   }
-  await select.locator(".ant-select-selector").click();
+  await openAntdSelect(select, label);
   const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
   await expect(dropdown).toBeVisible({ timeout: 5_000 });
-  const optionLocator = dropdown
-    .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
-    .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(option)}\\s*$`) })
-    .first();
-  await expect(optionLocator).toBeVisible({ timeout: 5_000 });
-  await optionLocator.click();
+  const availableOptions = dropdown.locator(
+    ".ant-select-item-option:not(.ant-select-item-option-disabled)",
+  );
+  const optionLocator =
+    expectedOptions.length > 0
+      ? availableOptions
+          .filter({
+            hasText: new RegExp(
+              expectedOptions.map((value) => `^\\s*${escapeRegExp(value)}\\s*$`).join("|"),
+            ),
+          })
+          .first()
+      : availableOptions.first();
+  await clickAntdOption(optionLocator, label, 5_000, expectedOptions[0]);
+  if (expectedOptions.length > 0) {
+    await expectSelectedAntdOption(select, label, expectedOptions);
+  }
 }
 
 async function searchDialogOption(
@@ -975,18 +1532,20 @@ async function searchDialogOption(
   const select = combobox.locator(
     "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
   );
-  await select.locator(".ant-select-selector").click();
-  await combobox.fill(searchText);
+  await openAntdSelect(select, label);
+  if (searchText && (await combobox.getAttribute("readonly")) === null) {
+    await combobox.fill(searchText);
+  }
   const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
   await expect(dropdown).toBeVisible({ timeout: 5_000 });
   const optionLocator = dropdown
     .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
     .filter({
-      hasText: new RegExp(`^\\s*${escapeRegExp(optionText)}(?:\\s*·.*|（.*）)?\\s*$`),
+      hasText: new RegExp(`^\\s*${escapeRegExp(optionText)}(?:\\s*·.*|\\s*（.*）)?\\s*$`),
     })
     .first();
-  await expect(optionLocator).toBeVisible({ timeout: 20_000 });
-  await optionLocator.click();
+  await clickAntdOption(optionLocator, label, 20_000, optionText);
+  await expectSelectedAntdOption(select, label, [optionText], 20_000);
 }
 
 async function choosePageSelectOption(page: Page, label: string) {
@@ -994,14 +1553,13 @@ async function choosePageSelectOption(page: Page, label: string) {
   const select = combobox.locator(
     "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
   );
-  await select.locator(".ant-select-selector").click();
+  await openAntdSelect(select, label, 10_000);
   const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
   await expect(dropdown).toBeVisible({ timeout: 10_000 });
   const optionLocator = dropdown
     .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
     .first();
-  await expect(optionLocator).toBeVisible({ timeout: 20_000 });
-  await optionLocator.click();
+  await clickAntdOption(optionLocator, label, 20_000);
 }
 
 async function choosePageSelectOptionByText(page: Page, label: string, option: string) {
@@ -1009,15 +1567,153 @@ async function choosePageSelectOptionByText(page: Page, label: string, option: s
   const select = combobox.locator(
     "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
   );
-  await select.locator(".ant-select-selector").click();
+  await openAntdSelect(select, label, 10_000);
   const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
   await expect(dropdown).toBeVisible({ timeout: 10_000 });
   const optionLocator = dropdown
     .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
     .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(option)}\\s*$`) })
     .first();
-  await expect(optionLocator).toBeVisible({ timeout: 10_000 });
-  await optionLocator.click();
+  await clickAntdOption(optionLocator, label, 10_000, option);
+  await expectSelectedAntdOption(select, label, [option], 10_000);
+}
+
+async function searchPageSelectOption(
+  page: Page,
+  label: string,
+  searchText: string,
+  optionText: string,
+) {
+  const combobox = page.getByRole("combobox", { name: new RegExp(escapeRegExp(label)) }).first();
+  const select = combobox.locator(
+    "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
+  );
+  await openAntdSelect(select, label, 10_000);
+  await combobox.fill(searchText);
+  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
+  await expect(dropdown).toBeVisible({ timeout: 10_000 });
+  const optionLocator = dropdown
+    .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
+    .filter({
+      hasText: new RegExp(`${escapeRegExp(optionText)}|${escapeRegExp(searchText)}`),
+    })
+    .first();
+  await clickAntdOption(optionLocator, label, 20_000, optionText);
+  await expectSelectedAntdOption(select, label, [optionText, searchText], 20_000);
+}
+
+async function chooseIndexedSelectOption(page: Page, combobox: Locator, option: string) {
+  const select = combobox.locator(
+    "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
+  );
+  await openAntdSelect(select, option, 10_000);
+  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
+  await expect(dropdown).toBeVisible({ timeout: 10_000 });
+  const optionLocator = dropdown
+    .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
+    .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(option)}\\s*$`) })
+    .first();
+  await clickAntdOption(optionLocator, option, 10_000, option);
+  await expectSelectedAntdOption(select, option, [option], 10_000);
+}
+
+async function clickAntdOption(
+  optionLocator: Locator,
+  label: string,
+  timeout = 5_000,
+  optionText?: string,
+) {
+  await expect(optionLocator, `${label} 下拉选项应可见`).toBeVisible({ timeout });
+  await optionLocator.scrollIntoViewIfNeeded({ timeout }).catch(() => undefined);
+  await optionLocator.click({ timeout: Math.min(timeout, 1_500) }).catch(async (error) => {
+    if (!optionText) {
+      throw error;
+    }
+    const selectedByText = await dispatchAntdOptionByText(
+      optionLocator.page(),
+      optionText,
+      Math.min(timeout, 2_000),
+    );
+    expect(selectedByText, `应能在当前 AntD 下拉中选择 ${optionText}`).toBe(true);
+  });
+  await expect(
+    optionLocator.page().locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)"),
+  )
+    .toHaveCount(0, { timeout: 5_000 })
+    .catch(() => undefined);
+}
+
+async function dispatchAntdOptionByText(page: Page, optionText: string, timeout = 2_000) {
+  return expect
+    .poll(
+      () =>
+        page.evaluate((expected) => {
+          const normalize = (value: string | null | undefined) => (value ?? "").trim();
+          const dispatchMouseSelection = (target: HTMLElement) => {
+            const eventInit: MouseEventInit = {
+              bubbles: true,
+              button: 0,
+              cancelable: true,
+              view: window,
+            };
+            target.dispatchEvent(new MouseEvent("mousemove", eventInit));
+            target.dispatchEvent(new MouseEvent("mousedown", { ...eventInit, buttons: 1 }));
+            target.dispatchEvent(new MouseEvent("mouseup", eventInit));
+            target.dispatchEvent(new MouseEvent("click", eventInit));
+            return true;
+          };
+          const dropdowns = Array.from(
+            document.querySelectorAll<HTMLElement>(
+              ".ant-select-dropdown:not(.ant-select-dropdown-hidden)",
+            ),
+          );
+          const dropdown = dropdowns.at(-1);
+          if (!dropdown) {
+            return false;
+          }
+          const options = Array.from(
+            dropdown.querySelectorAll<HTMLElement>(
+              ".ant-select-item-option:not(.ant-select-item-option-disabled)",
+            ),
+          );
+          const option = options.find((item) => normalize(item.textContent) === expected);
+          return option ? dispatchMouseSelection(option) : false;
+        }, optionText),
+      { message: `应能在当前 AntD 下拉中选择 ${optionText}`, timeout },
+    )
+    .toBe(true)
+    .then(() => true)
+    .catch(() => false);
+}
+
+async function openAntdSelect(select: Locator, label: string, timeout = 5_000) {
+  const selector = select.locator(".ant-select-selector");
+  await selector.scrollIntoViewIfNeeded({ timeout });
+  await selector.evaluate((element) => {
+    element.scrollIntoView({ block: "center", inline: "nearest" });
+  });
+  await expect(selector, `${label} 下拉触发器应可见`).toBeVisible({ timeout });
+  await selector.click({ timeout });
+}
+
+async function expectSelectedAntdOption(
+  select: Locator,
+  label: string,
+  expectedOptions: string[],
+  timeout = 5_000,
+) {
+  const expectedPattern = new RegExp(
+    expectedOptions
+      .filter(Boolean)
+      .map((value) => `^\\s*${escapeRegExp(value)}(?:\\s*·.*|\\s*（.*）)?\\s*$`)
+      .join("|"),
+  );
+  await expect
+    .poll(() => currentSelectText(select), {
+      message: `${label} 下拉应选中 ${expectedOptions.join(" 或 ")}`,
+      timeout,
+    })
+    .toMatch(expectedPattern);
 }
 
 async function currentSelectText(select: Locator) {

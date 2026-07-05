@@ -413,6 +413,18 @@ describe("E2E credential contract", () => {
     expect(source).toContain("assertClinicalUserSecurityScope");
     expect(source).not.toContain(".catch(() => null)");
   });
+
+  it("requires insurance frontdesk rehearsal to be driven by an active CLAIM evaluation indicator", () => {
+    const source = readFileSync("e2e/real-frontdesk-rehearsal.spec.ts", "utf8");
+
+    expect(source).toContain("createActiveClaimEvaluationIndicatorFromUi");
+    expect(source).toContain('subjectType: "CLAIM"');
+    expect(source).toContain("runInsuranceAuditFromUi(");
+    expect(source).toContain("claimIndicator");
+    expect(source).toContain("assertInsuranceAuditUsesEvaluationRun");
+    expect(source).toContain("evaluationRunId");
+    expect(source).toContain("INSURANCE_RULE_MANUAL");
+  });
 });
 
 function account(role: string, tenantId: string, prefix: string) {
