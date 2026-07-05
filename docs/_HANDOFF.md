@@ -10,6 +10,53 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百二十一批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是
+  登录页或文案单点优化，而是补齐产品范围中“开启 MFA 后必须完成真实 TOTP 登录验证”的
+  P0 安全演练证据。本批只做本地提交，不推送远程、不合并 `main`；已使用只读子代理 Darwin
+  辅助排查非 MFA 缺口优先级，另使用只读子代理 Boyle 审查 MFA 改动，子代理均未改文件。
+- 第一百二十一批根因与修复范围：目标真实 E2E 初始红于配置中心查不到
+  `medkernel.auth.mfa.enabled`，根因是 `MfaRuntimePolicy` 运行时读取该 key，但
+  `SystemConfigSeeder.seedAuthPolicy` 未把 MFA 开关种入配置中心。后端新增
+  `SystemConfigService.AUTH_MFA_ENABLED_KEY`，`SystemConfigSeeder` 注入 `AuthMfaProperties`
+  并以默认 `false`、`BOOLEAN`、`HIGH`、`protectedConfig=true` 正式种入配置中心；
+  `SystemConfigControllerTest` 不再清理掉 MFA seed，而是在用例后恢复为默认关闭，并新增
+  `mfaSwitchIsSeededAsProtectedConfigCenterPolicy` 覆盖受保护配置契约；按审查意见补
+  `mfaSwitchIsBackedByConfigCenterWithoutRestart`，通过真实 `/auth/login` 验证配置中心 PATCH 后
+  MFA 运行策略无需重启即生效，防止 seed key 与运行时 key 漂移。前端导出
+  `frontend/e2e/support/auth.ts` 既有 `totp(secret)` 计算器，并用 RFC 风格向量测试证明
+  真实前台 MFA 演练复用同一个 TOTP 生成逻辑；另新增 E2E 源码合同，要求 MFA 演练必须停用
+  临时平台管理员账号。
+- 第一百二十一批真实前台演练：新增 `frontend/e2e/mfa-login-frontdesk.spec.ts`。用例先创建
+  可控平台管理员账号，API 首登改密并绑定真实 TOTP secret，再通过已验证账号临时开启
+  `medkernel.auth.mfa.enabled`；随后从真实 `/login` 选择“平台治理”、输入账号密码进入
+  `/bootstrap`，在“验证多因素认证”前台表单填写动态验证码，等待真实
+  `/api/v1/auth/mfa/verify` 返回 `verified=true`，再进入 `/dashboard` 并读取
+  `/security/me` 断言 `mfaRequired/mfaBound/mfaVerified` 均为 `true`。只读审查发现初版会留下
+  已知密码的高权限临时平台管理员账号，已修复为 `finally` 中分别尽力恢复 MFA 配置、通过真实
+  `/compliance/users/{userId}/status` 停用临时账号，并无条件关闭浏览器 context；目标 E2E
+  复跑证明该清理不破坏真实登录链路。
+- 第一百二十一批验证证据：`npm --prefix frontend run test -- e2eAuthCredentialContract -t
+  "requires MFA frontdesk rehearsal to disable"` 先红于缺少 `disableMfaAdminAccount`，实现后通过；
+  `mvn -f medkernel-backend/pom.xml
+  -Dtest=SystemConfigControllerTest#mfaSwitchIsBackedByConfigCenterWithoutRestart test`
+  先红于测试凭证占位 hash 无法真实登录，改为真实 BCrypt 测试密码后通过；`npm --prefix frontend run test --
+  e2eAuthCredentialContract -t "exports the shared TOTP calculator|requires MFA frontdesk rehearsal to disable"`
+  通过（2 passed）；`mvn -f medkernel-backend/pom.xml
+  -Dtest=SystemConfigControllerTest#mfaSwitchIsSeededAsProtectedConfigCenterPolicy,mfaSwitchIsBackedByConfigCenterWithoutRestart test`
+  通过；触达 MFA 文件 Prettier check 通过；目标真实前台 E2E
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium mfa-login-frontdesk.spec.ts`
+  通过。上一轮重门禁已跑：`npm --prefix frontend run test --
+  e2eAuthCredentialContract Login pages.smoke` 通过（3 files，61 tests）；
+  `mvn -f medkernel-backend/pom.xml -Dtest=SystemConfigControllerTest,AuthControllerTest,SecurityMeControllerTest,MfaPolicyServiceTest,ComplianceUserCredentialFlowTest#setStatus_disablesAccount test`
+  通过（52 tests）；`npm --prefix frontend run typecheck` 通过；`npm --prefix frontend run verify`
+  通过（115 files，1002 tests，仅既有 AntD Timeline warning）；`mvn -f medkernel-backend/pom.xml test`
+  通过（3074 tests，0 failures，0 errors，7 skipped；本机 Docker 不可用导致 Testcontainers
+  多方言用例按既有条件跳过）；`git diff --check && git diff --cached --check` 退出码 0。
+- 第一百二十一批后续主线：本批仍未发布到 134、尚未做 134 清库重新部署，也未完成全功能与
+  全知识全流程复演，不能把 MFA 单点通过等同于总目标完成。下一步继续全局全角色扩面，优先
+  覆盖服务机构前台开通与组织树、评价指标前台发布驱动医保 / 质量链路、运行保障与备份恢复、
+  身份来源绑定真实前台动作，以及平台标准版本 / 医院 runtime 全资产闭包和 134 空库首启迁移
+  证据；发现红点先复现和定根因，再做上线级修复，不做片面优化。
 - 第一百二十批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或局部 UI 优化，而是把质量问题前台从“确认提醒 / 派发整改”推进到责任科室提交整改证据、
   质控复核关闭、非 P0 豁免、P0 豁免阻断和整改闭环报告的真实后端任务链路。本批使用 1 个只读

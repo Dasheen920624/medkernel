@@ -123,6 +123,19 @@ describe("E2E credential contract", () => {
     ).toBeNull();
   });
 
+  it("exports the shared TOTP calculator for frontdesk MFA rehearsal", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+    const originalNow = Date.now;
+    try {
+      Date.now = () => 59_000;
+
+      expect(auth.totp("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ")).toBe("287082");
+    } finally {
+      Date.now = originalNow;
+    }
+  });
+
   it("collects active platform baseline assets required by local runtime rehearsal", async () => {
     process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
     const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
@@ -372,6 +385,14 @@ describe("E2E credential contract", () => {
     expect(source).toContain("platformTenantSwitch.or(platformHeading)");
     expect(source).toContain('toHaveAttribute("aria-pressed", "true")');
     expect(source).toContain('getByRole("heading", { name: "登录平台治理" })');
+  });
+
+  it("requires MFA frontdesk rehearsal to disable the temporary platform admin", () => {
+    const source = readFileSync("e2e/mfa-login-frontdesk.spec.ts", "utf8");
+
+    expect(source).toContain("disableMfaAdminAccount");
+    expect(source).toContain("/compliance/users/${encodeURIComponent(userId)}/status");
+    expect(source).toContain('status: "DISABLED"');
   });
 });
 

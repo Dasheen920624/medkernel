@@ -44,6 +44,7 @@ public class SystemConfigService {
     static final String RUNTIME_BACKUP_PREFIX = "medkernel.runtime.backup.";
     public static final String AUTH_JWT_TTL_SECONDS_KEY = "medkernel.auth.jwt.ttl-seconds";
     public static final String AUTH_MODE_KEY = "medkernel.auth.mode";
+    public static final String AUTH_MFA_ENABLED_KEY = "medkernel.auth.mfa.enabled";
     public static final String AUTH_COOKIE_PREFIX = "medkernel.auth.cookie.";
     public static final String AUTH_SESSION_PREFIX = "medkernel.auth.session.";
     public static final String AUTH_PASSWORD_PREFIX = "medkernel.auth.password.";

@@ -1187,7 +1187,7 @@ function requireEnv(name: string) {
   return value;
 }
 
-function totp(secret: string) {
+export function totp(secret: string) {
   const counter = Math.floor(Date.now() / 1000 / 30);
   const key = base32Decode(secret);
   const message = Buffer.alloc(8);

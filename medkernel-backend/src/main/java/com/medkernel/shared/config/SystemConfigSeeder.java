@@ -11,6 +11,7 @@ import com.medkernel.shared.audit.persistence.AuditFallbackProperties;
 import com.medkernel.shared.runtime.RuntimeProperties;
 import com.medkernel.shared.security.AuthCookieProperties;
 import com.medkernel.shared.security.AuthJwtProperties;
+import com.medkernel.shared.security.AuthMfaProperties;
 import com.medkernel.shared.security.AuthSessionProperties;
 
 /**
@@ -23,6 +24,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
     private final AuthJwtProperties jwtProperties;
     private final AuthCookieProperties cookieProperties;
     private final AuthSessionProperties sessionProperties;
+    private final AuthMfaProperties mfaProperties;
     private final AuditFallbackProperties auditFallbackProperties;
     private final ClinicalEventWorkerSettings clinicalEventProperties;
     private final RealtimeCdsSettings realtimeCdsSettings;
@@ -34,6 +36,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
                               AuthJwtProperties jwtProperties,
                               AuthCookieProperties cookieProperties,
                               AuthSessionProperties sessionProperties,
+                              AuthMfaProperties mfaProperties,
                               AuditFallbackProperties auditFallbackProperties,
                               ClinicalEventWorkerSettings clinicalEventProperties,
                               RealtimeCdsSettings realtimeCdsSettings,
@@ -44,6 +47,7 @@ public class SystemConfigSeeder implements ApplicationRunner {
         this.jwtProperties = jwtProperties;
         this.cookieProperties = cookieProperties;
         this.sessionProperties = sessionProperties;
+        this.mfaProperties = mfaProperties;
         this.auditFallbackProperties = auditFallbackProperties;
         this.clinicalEventProperties = clinicalEventProperties;
         this.realtimeCdsSettings = realtimeCdsSettings;
@@ -126,6 +130,9 @@ public class SystemConfigSeeder implements ApplicationRunner {
         seedConfigValue(SystemConfigService.AUTH_JWT_TTL_SECONDS_KEY, Long.toString(jwtProperties.ttlSeconds()),
             "INTEGER", "JWT 有效期", "HIGH", "安全组",
             "控制登录后新签发 JWT 的有效期，变更会影响后续登录会话。", true, seededAt);
+        seedConfigValue(SystemConfigService.AUTH_MFA_ENABLED_KEY, Boolean.toString(mfaProperties.enabled()),
+            "BOOLEAN", "登录 MFA", "HIGH", "安全组",
+            "控制平台账号登录是否强制完成 TOTP 多因素认证；默认关闭，开启后必须通过真实验证码验证。", true, seededAt);
         seedConfigValue(SystemConfigService.AUTH_COOKIE_PREFIX + "name", cookieProperties.name(),
             "STRING", "登录 Cookie 名称", "HIGH", "安全组",
             "控制登录态 Cookie 名称，变更需确认前后端与网关策略。", true, seededAt);
