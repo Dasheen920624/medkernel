@@ -140,6 +140,7 @@ import {
   usePublishDiagnosis,
   usePublishEvaluationIndicator,
   useQualityFindings,
+  useQualityFindingDetail,
   useRegionalSources,
   useRegisterPlugin,
   useRegisterRegionalSource,
@@ -157,6 +158,7 @@ import {
   useRuleDriftLatest,
   useCaptureRuleDriftSnapshot,
   useReviewRectification,
+  useRectificationReport,
   useReviewKnowledgeCandidate,
   useResolveTerminologyConflict,
   useRunDrgGrouping,
@@ -168,6 +170,7 @@ import {
   useSubmitRectification,
   useStandardTerms,
   useSubmitEvaluationIndicator,
+  useWaiveRectification,
   useActivateHospitalRuntime,
   useCurrentHospitalRuntime,
   useCurrentPlatformBaseline,
@@ -2278,7 +2281,7 @@ describe("shared runtime api helpers", () => {
     });
   });
 
-  it("submits and reviews rectification through API-08 canonical endpoints", async () => {
+  it("submits, reviews and waives rectification through task-scoped service endpoints", async () => {
     vi.mocked(apiClient.post)
       .mockResolvedValueOnce({
         data: {
@@ -2299,15 +2302,25 @@ describe("shared runtime api helpers", () => {
             traceId: "trace-eval",
           },
         },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            reviewId: "rr-waive-1",
+            findingStatus: "WAIVED",
+            taskStatus: "WAIVED",
+            traceId: "trace-waive",
+          },
+        },
       });
 
-    const submitHook = renderApiHook(() => useSubmitRectification("qf-1"));
+    const submitHook = renderApiHook(() => useSubmitRectification("rct-1"));
     await submitHook.result.current.mutateAsync({
       request: { rectificationSummary: "补录风险评估记录", evidenceRef: "proof-1" },
       idempotencyKey: "idem-rect-1",
     });
 
-    const reviewHook = renderApiHook(() => useReviewRectification("qf-1"));
+    const reviewHook = renderApiHook(() => useReviewRectification("rct-1"));
     await reviewHook.result.current.mutateAsync({
       request: {
         decision: "APPROVED",
@@ -2317,18 +2330,89 @@ describe("shared runtime api helpers", () => {
       idempotencyKey: "idem-review-1",
     });
 
+    const waiveHook = renderApiHook(() => useWaiveRectification("rct-2"));
+    await waiveHook.result.current.mutateAsync({
+      request: {
+        reason: "专家组确认该问题不适用当前病例",
+        decisionRef: "MDT-2026-07-05",
+        evidenceRef: "waive-proof-1",
+      },
+      idempotencyKey: "idem-waive-1",
+    });
+
     expect(apiClient.post).toHaveBeenNthCalledWith(
       1,
-      "/engine/evaluation/rectifications",
+      "/engine/rectifications/rct-1/submit",
       { rectificationSummary: "补录风险评估记录", evidenceRef: "proof-1" },
-      { params: { findingId: "qf-1" }, headers: { "Idempotency-Key": "idem-rect-1" } },
+      { headers: { "Idempotency-Key": "idem-rect-1" } },
     );
     expect(apiClient.post).toHaveBeenNthCalledWith(
       2,
-      "/engine/evaluation/rectifications/qf-1/review",
+      "/engine/rectifications/rct-1/review",
       { decision: "APPROVED", comment: "证据充分，允许闭环", evidenceRef: "review-proof-1" },
       { headers: { "Idempotency-Key": "idem-review-1" } },
     );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      3,
+      "/engine/rectifications/rct-2/waive",
+      {
+        reason: "专家组确认该问题不适用当前病例",
+        decisionRef: "MDT-2026-07-05",
+        evidenceRef: "waive-proof-1",
+      },
+      { headers: { "Idempotency-Key": "idem-waive-1" } },
+    );
+  });
+
+  it("loads rectification report from the task fact table endpoint", async () => {
+    const report = {
+      status: "AVAILABLE",
+      totalTasks: 12,
+      openTasks: 3,
+      closedTasks: 9,
+      waivedTasks: 1,
+      overdueTasks: 2,
+      highPriorityOpenTasks: 1,
+      closureRate: 0.75,
+      sourceTable: "rectification_task",
+      traceId: "trace-report",
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: report } });
+
+    const { result } = renderApiHook(() =>
+      useRectificationReport({ responsibleDepartmentId: "dept-cardio" }),
+    );
+
+    await waitFor(() => expect(result.current.data).toEqual(report));
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/rectifications/report", {
+      params: { responsibleDepartmentId: "dept-cardio" },
+    });
+  });
+
+  it("loads quality finding detail with the backend rectificationTask field", async () => {
+    const detail = {
+      finding: {
+        findingId: "qf-1",
+        status: "ASSIGNED",
+        severity: "P1",
+        title: "医保审核问题",
+      },
+      rectificationTask: {
+        taskId: "rct-1",
+        findingId: "qf-1",
+        responsibleDepartmentId: "dept-cardio",
+        status: "ASSIGNED",
+        dueAt: "2026-07-15T00:30:00Z",
+      },
+      reviews: [],
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: detail } });
+
+    const { result } = renderApiHook(() => useQualityFindingDetail("qf-1"));
+
+    await waitFor(() => expect(result.current.data?.rectificationTask?.taskId).toBe("rct-1"));
+    expect(result.current.data).not.toHaveProperty("task");
+    expect(apiClient.get).toHaveBeenCalledWith("/engine/evaluation/issues/qf-1");
   });
 
   it("loads the context field working catalog without a legacy package selector", async () => {

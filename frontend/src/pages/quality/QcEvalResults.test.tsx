@@ -147,7 +147,7 @@ beforeEach(() => {
     error: undefined,
   });
   mockUseQualityFindingDetail.mockReturnValue({
-    data: { finding: realFinding, task: undefined, reviews: [] },
+    data: { finding: realFinding, rectificationTask: undefined, reviews: [] },
     isLoading: false,
     isError: false,
     error: undefined,

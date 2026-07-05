@@ -7,6 +7,7 @@ import {
   Drawer,
   Empty,
   Form,
+  Input,
   List,
   Pagination,
   Select,
@@ -21,17 +22,24 @@ import {
   useAcknowledgeQualityAlert,
   useDispatchRectification,
   useOrgUnits,
+  useQualityFindingDetail,
+  useRectificationReport,
+  useReviewRectification,
   useSecurityProfile,
   useQualityAlerts,
+  useSubmitRectification,
+  useWaiveRectification,
   type QualityAlertsQueryParams,
   type QualityDashboardAlert,
   type QualityDashboardAlertStatus,
+  type RectificationTaskStatus,
 } from "@/shared/api/hooks";
 import { PageShell } from "@/shared/ui/PageShell";
 import { RectificationAssignmentFields } from "@/shared/ui/RectificationAssignmentFields";
 import { RectificationDueAtField } from "@/shared/ui/RectificationDueAtField";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { buildStableIdempotencyKey } from "@/shared/lib/idempotencyKey";
 import {
   clinicalDateTimeInputToIso,
   formatClinicalDateTimeInputValue,
@@ -40,6 +48,7 @@ import { canUseEvidenceDetails } from "@/shared/ui/evidenceDetailsAccess";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
 
 const { Text } = Typography;
+const { TextArea } = Input;
 
 type TimeScope = "TODAY" | "LAST_7_DAYS" | "ALL";
 type AlertSeverityScope = "HIGH_RISK" | "P0" | "P1" | "P2" | "P3" | "ALL";
@@ -49,6 +58,22 @@ interface DispatchFormValues {
   responsibleDepartmentId: string;
   assigneeUserId?: string;
   dueAt: string;
+}
+
+interface SubmitFormValues {
+  rectificationSummary: string;
+  evidenceRef: string;
+}
+
+interface ReviewFormValues {
+  comment: string;
+  evidenceRef?: string;
+}
+
+interface WaiveFormValues {
+  reason: string;
+  decisionRef: string;
+  evidenceRef?: string;
 }
 
 export default function QcAlerts() {
@@ -61,11 +86,11 @@ export default function QcAlerts() {
   const [alertPage, setAlertPage] = useState(1);
   const [selectedAlert, setSelectedAlert] = useState<QualityDashboardAlert | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [reviewDecision, setReviewDecision] = useState<"APPROVED" | "RETURNED">("APPROVED");
   const [dispatchFeedback, setDispatchFeedback] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
-  const [dispatchForm] = Form.useForm<DispatchFormValues>();
 
   const alertsParams = useMemo<QualityAlertsQueryParams>(() => {
     const range = resolveTimeRange(timeScope);
@@ -79,6 +104,7 @@ export default function QcAlerts() {
   }, [alertPage, severity, status, timeScope]);
 
   const alertsQuery = useQualityAlerts(alertsParams);
+  const rectificationReportQuery = useRectificationReport({});
   const departmentsQuery = useOrgUnits({
     page: 1,
     size: 50,
@@ -88,6 +114,21 @@ export default function QcAlerts() {
   });
   const dispatchMutation = useDispatchRectification();
   const acknowledgeMutation = useAcknowledgeQualityAlert();
+  const findingDetailQuery = useQualityFindingDetail(
+    selectedAlert?.sourceType === "quality_finding" ? selectedAlert.sourceId : "",
+  );
+  const rectificationTaskId = selectedAlert
+    ? resolveRectificationTaskId(selectedAlert, findingDetailQuery.data?.rectificationTask?.taskId)
+    : undefined;
+  const rectificationTaskStatus = selectedAlert
+    ? resolveRectificationTaskStatus(
+        selectedAlert,
+        findingDetailQuery.data?.rectificationTask?.status,
+      )
+    : undefined;
+  const submitMutation = useSubmitRectification(rectificationTaskId ?? "");
+  const reviewMutation = useReviewRectification(rectificationTaskId ?? "");
+  const waiveMutation = useWaiveRectification(rectificationTaskId ?? "");
   const alertItems = alertsQuery.data?.items ?? [];
   const alertsTotal = alertsQuery.data?.total ?? 0;
   const alertOffset = alertsQuery.data?.offset ?? (alertPage - 1) * ALERT_PAGE_SIZE;
@@ -106,11 +147,7 @@ export default function QcAlerts() {
   function openAlertDrawer(alert: QualityDashboardAlert) {
     setSelectedAlert(alert);
     setDispatchFeedback(null);
-    dispatchForm.setFieldsValue({
-      responsibleDepartmentId: alert.departmentId ?? "",
-      assigneeUserId: "",
-      dueAt: defaultDueAt(alert.createdAt),
-    });
+    setReviewDecision("APPROVED");
     setDrawerOpen(true);
   }
 
@@ -135,8 +172,111 @@ export default function QcAlerts() {
         text: "整改任务已派发，处置状态将随来源事实闭环刷新。",
       });
       alertsQuery.refetch();
+      rectificationReportQuery.refetch();
+      findingDetailQuery.refetch();
     } catch (error: unknown) {
       setDispatchFeedback({ type: "error", text: getApiErrorMessage(error, "整改任务派发失败") });
+    }
+  }
+
+  async function onSubmitRectification(values: SubmitFormValues) {
+    if (!rectificationTaskId) {
+      setDispatchFeedback({
+        type: "error",
+        text: "当前质量问题尚未关联真实整改任务，不能提交整改。",
+      });
+      return;
+    }
+    try {
+      const rectificationSummary = values.rectificationSummary.trim();
+      const evidenceRef = values.evidenceRef.trim();
+      await submitMutation.mutateAsync({
+        request: { rectificationSummary, evidenceRef },
+        idempotencyKey: buildTaskActionIdempotencyKey(
+          "submit",
+          rectificationTaskId,
+          rectificationSummary,
+          evidenceRef,
+        ),
+      });
+      setDispatchFeedback({
+        type: "success",
+        text: "整改证据已提交，等待质控复核后闭环。",
+      });
+      alertsQuery.refetch();
+      rectificationReportQuery.refetch();
+      findingDetailQuery.refetch();
+    } catch (error: unknown) {
+      setDispatchFeedback({ type: "error", text: getApiErrorMessage(error, "整改证据提交失败") });
+    }
+  }
+
+  async function onReviewRectification(values: ReviewFormValues) {
+    if (!rectificationTaskId) {
+      setDispatchFeedback({
+        type: "error",
+        text: "当前质量问题尚未关联真实整改任务，不能复核整改。",
+      });
+      return;
+    }
+    try {
+      const comment = values.comment.trim();
+      const evidenceRef = optionalText(values.evidenceRef);
+      await reviewMutation.mutateAsync({
+        request: { decision: reviewDecision, comment, evidenceRef },
+        idempotencyKey: buildTaskActionIdempotencyKey(
+          "review",
+          `${rectificationTaskId}-${reviewDecision}`,
+          comment,
+          evidenceRef,
+        ),
+      });
+      setDispatchFeedback({
+        type: "success",
+        text:
+          reviewDecision === "APPROVED"
+            ? "整改已复核通过，质量问题已闭环。"
+            : "整改已退回责任科室继续处理。",
+      });
+      alertsQuery.refetch();
+      rectificationReportQuery.refetch();
+      findingDetailQuery.refetch();
+    } catch (error: unknown) {
+      setDispatchFeedback({ type: "error", text: getApiErrorMessage(error, "整改复核失败") });
+    }
+  }
+
+  async function onWaiveRectification(values: WaiveFormValues) {
+    if (!rectificationTaskId) {
+      setDispatchFeedback({
+        type: "error",
+        text: "当前质量问题尚未关联真实整改任务，不能提交豁免。",
+      });
+      return;
+    }
+    try {
+      const reason = values.reason.trim();
+      const decisionRef = values.decisionRef.trim();
+      const evidenceRef = optionalText(values.evidenceRef);
+      await waiveMutation.mutateAsync({
+        request: { reason, decisionRef, evidenceRef },
+        idempotencyKey: buildTaskActionIdempotencyKey(
+          "waive",
+          rectificationTaskId,
+          reason,
+          decisionRef,
+          evidenceRef,
+        ),
+      });
+      setDispatchFeedback({
+        type: "success",
+        text: "整改豁免已提交，质量问题状态将随真实复核结果刷新。",
+      });
+      alertsQuery.refetch();
+      rectificationReportQuery.refetch();
+      findingDetailQuery.refetch();
+    } catch (error: unknown) {
+      setDispatchFeedback({ type: "error", text: getApiErrorMessage(error, "整改豁免失败") });
     }
   }
 
@@ -244,6 +384,68 @@ export default function QcAlerts() {
           <MetricCard title="当前页医疗安全" value={`${countSafetyAlerts(alertItems)} 个安全级`} />
         </Space>
 
+        <Card title="整改闭环报告">
+          {rectificationReportQuery.isError ? (
+            <Alert
+              type="warning"
+              showIcon
+              message="整改报告暂时不可用"
+              description={getApiErrorMessage(
+                rectificationReportQuery.error,
+                "请稍后重试；报告读取失败不影响质量问题逐条处置。",
+              )}
+              action={
+                <Button size="small" onClick={() => rectificationReportQuery.refetch()}>
+                  重试
+                </Button>
+              }
+            />
+          ) : (
+            <Space direction="vertical" size="middle" className="mk-full-width">
+              <Space wrap size="middle" className="mk-full-width">
+                <MetricCard
+                  title="整改任务总数"
+                  value={`${rectificationReportQuery.data?.totalTasks ?? 0} 个`}
+                />
+                <MetricCard
+                  title="待闭环整改"
+                  value={`${rectificationReportQuery.data?.openTasks ?? 0} 个`}
+                />
+                <MetricCard
+                  title="逾期整改"
+                  value={`${rectificationReportQuery.data?.overdueTasks ?? 0} 个`}
+                />
+                <MetricCard
+                  title="闭环率"
+                  value={formatPercent(rectificationReportQuery.data?.closureRate)}
+                />
+              </Space>
+              <Descriptions bordered column={1} size="small">
+                <Descriptions.Item label="安全红线待闭环">
+                  {rectificationReportQuery.data?.highPriorityOpenTasks ?? 0} 个
+                </Descriptions.Item>
+                <Descriptions.Item label="已豁免整改">
+                  {rectificationReportQuery.data?.waivedTasks ?? 0} 个
+                </Descriptions.Item>
+                <Descriptions.Item label="统计来源">
+                  {evidenceText(
+                    rectificationReportQuery.data?.sourceTable,
+                    evidenceDetailsEnabled,
+                    "整改任务事实已关联",
+                  )}
+                </Descriptions.Item>
+                <Descriptions.Item label="报告证据">
+                  {evidenceText(
+                    rectificationReportQuery.data?.traceId,
+                    evidenceDetailsEnabled,
+                    "报告证据已记录",
+                  )}
+                </Descriptions.Item>
+              </Descriptions>
+            </Space>
+          )}
+        </Card>
+
         <Card
           title="质量问题与整改列表"
           extra={
@@ -261,6 +463,9 @@ export default function QcAlerts() {
             }}
             renderItem={(alert) => (
               <List.Item
+                data-alert-id={alert.alertId}
+                data-source-id={alert.sourceId}
+                data-source-type={alert.sourceType}
                 actions={[
                   <Button
                     key="evidence"
@@ -341,6 +546,10 @@ export default function QcAlerts() {
       >
         {selectedAlert ? (
           <Space direction="vertical" size="large" className="mk-full-width">
+            {dispatchFeedback && (
+              <Alert type={dispatchFeedback.type} showIcon message={dispatchFeedback.text} />
+            )}
+
             {isSafetyAlert(selectedAlert) && (
               <Alert
                 type="warning"
@@ -373,6 +582,24 @@ export default function QcAlerts() {
               </Descriptions.Item>
             </Descriptions>
 
+            {findingDetailQuery.isLoading && selectedAlert.sourceType === "quality_finding" && (
+              <Alert
+                type="info"
+                showIcon
+                message="正在读取整改任务"
+                description="质量问题提醒需要读取真实整改任务后才能提交或复核。"
+              />
+            )}
+
+            {rectificationTaskId && (
+              <Alert
+                type="success"
+                showIcon
+                message={`整改任务 ${rectificationTaskId} ${rectificationTaskStatusText(rectificationTaskStatus)}`}
+                description="本页后续操作将调用整改任务 ID 版真实服务入口，状态以后端返回为准。"
+              />
+            )}
+
             <Alert
               type="info"
               showIcon
@@ -391,20 +618,146 @@ export default function QcAlerts() {
               </Button>
             )}
 
-            {selectedAlert.sourceType === "quality_finding" && selectedAlert.status === "OPEN" ? (
-              <Card title="派发整改任务">
-                {dispatchFeedback && (
-                  <Alert
-                    className="mk-margin-bottom"
-                    type={dispatchFeedback.type}
-                    showIcon
-                    message={dispatchFeedback.text}
-                  />
-                )}
+            {canSubmitRectification(rectificationTaskStatus) && (
+              <Card title="提交整改证据">
                 <Form
-                  form={dispatchForm}
+                  key={`submit-${rectificationTaskId}`}
+                  name={`qc-alert-submit-${rectificationTaskId}`}
+                  layout="vertical"
+                  onFinish={onSubmitRectification}
+                  preserve={false}
+                >
+                  <Form.Item
+                    name="rectificationSummary"
+                    label="整改说明"
+                    rules={[{ required: true, message: "请填写整改说明" }]}
+                  >
+                    <TextArea rows={3} placeholder="说明责任科室已完成的整改动作" />
+                  </Form.Item>
+                  <Form.Item
+                    name="evidenceRef"
+                    label="整改证据"
+                    rules={[{ required: true, message: "请填写整改证据" }]}
+                  >
+                    <Input placeholder="填写病历、记录或附件编号" />
+                  </Form.Item>
+                  <Button
+                    aria-label="提交整改证据"
+                    type="primary"
+                    htmlType="submit"
+                    icon={<SendOutlined />}
+                    loading={submitMutation.isPending}
+                  >
+                    提交整改证据
+                  </Button>
+                </Form>
+              </Card>
+            )}
+
+            {canReviewRectification(rectificationTaskStatus) && (
+              <Card title="复核整改闭环">
+                <Form
+                  key={`review-${rectificationTaskId}`}
+                  name={`qc-alert-review-${rectificationTaskId}`}
+                  layout="vertical"
+                  onFinish={onReviewRectification}
+                  preserve={false}
+                >
+                  <Form.Item
+                    name="comment"
+                    label="复核意见"
+                    rules={[{ required: true, message: "请填写复核意见" }]}
+                  >
+                    <TextArea rows={3} placeholder="说明是否允许关闭或需要退回继续整改" />
+                  </Form.Item>
+                  <Form.Item name="evidenceRef" label="复核证据">
+                    <Input placeholder="可填写复核记录或附件编号" />
+                  </Form.Item>
+                  <Space wrap>
+                    <Button
+                      aria-label="复核通过并关闭"
+                      type="primary"
+                      htmlType="submit"
+                      icon={<AuditOutlined />}
+                      loading={reviewMutation.isPending}
+                      onClick={() => setReviewDecision("APPROVED")}
+                    >
+                      复核通过并关闭
+                    </Button>
+                    <Button
+                      aria-label="退回继续整改"
+                      htmlType="submit"
+                      loading={reviewMutation.isPending}
+                      onClick={() => setReviewDecision("RETURNED")}
+                    >
+                      退回继续整改
+                    </Button>
+                  </Space>
+                </Form>
+              </Card>
+            )}
+
+            {canReviewRectification(rectificationTaskStatus) &&
+              (isP0Alert(selectedAlert, findingDetailQuery.data?.finding?.severity) ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="安全红线问题不得在本页豁免"
+                  description="P0 质量问题必须完成整改并复核关闭，不能通过普通复核豁免。"
+                />
+              ) : (
+                <Card title="提交整改豁免">
+                  <Form
+                    key={`waive-${rectificationTaskId}`}
+                    name={`qc-alert-waive-${rectificationTaskId}`}
+                    layout="vertical"
+                    onFinish={onWaiveRectification}
+                    preserve={false}
+                  >
+                    <Form.Item
+                      name="reason"
+                      label="豁免理由"
+                      rules={[{ required: true, message: "请填写豁免理由" }]}
+                    >
+                      <TextArea rows={2} placeholder="说明为何该问题不适用当前病例或场景" />
+                    </Form.Item>
+                    <Form.Item
+                      name="decisionRef"
+                      label="决定依据"
+                      rules={[{ required: true, message: "请填写决定依据" }]}
+                    >
+                      <Input placeholder="填写会议纪要、专家组意见或制度依据" />
+                    </Form.Item>
+                    <Form.Item name="evidenceRef" label="豁免证据">
+                      <Input placeholder="可填写补充证据编号" />
+                    </Form.Item>
+                    <Button
+                      aria-label="提交整改豁免"
+                      htmlType="submit"
+                      loading={waiveMutation.isPending}
+                    >
+                      提交整改豁免
+                    </Button>
+                  </Form>
+                </Card>
+              ))}
+
+            {canDispatchRectification(
+              selectedAlert,
+              rectificationTaskId,
+              findingDetailQuery.isLoading,
+            ) ? (
+              <Card title="派发整改任务">
+                <Form
+                  key={`dispatch-${selectedAlert.alertId}`}
+                  name={`qc-alert-dispatch-${selectedAlert.alertId}`}
                   layout="vertical"
                   onFinish={onDispatchRectification}
+                  initialValues={{
+                    responsibleDepartmentId: selectedAlert.departmentId ?? "",
+                    assigneeUserId: "",
+                    dueAt: defaultDueAt(selectedAlert.createdAt),
+                  }}
                   preserve={false}
                 >
                   <RectificationAssignmentFields />
@@ -425,7 +778,11 @@ export default function QcAlerts() {
                 type="info"
                 showIcon
                 message="当前质量风险提醒不支持直接派发"
-                description="只有未处置的质量问题来源提醒可在本页派发整改任务。"
+                description={
+                  rectificationTaskId
+                    ? "该提醒已关联整改任务，请按当前任务状态提交整改或复核闭环。"
+                    : "只有可读取到真实质量问题且尚未派发的提醒，才可在本页派发整改任务。"
+                }
               />
             )}
           </Space>
@@ -554,6 +911,13 @@ function formatAlertPageSummary(total: number, offset: number, currentCount: num
   return `共 ${total} 条质量问题，当前显示 ${start}-${end} 条`;
 }
 
+function formatPercent(value: number | undefined) {
+  if (value === undefined || Number.isNaN(value)) {
+    return "0.0%";
+  }
+  return `${(value * 100).toFixed(1)}%`;
+}
+
 function isSafetyAlert(alert: QualityDashboardAlert) {
   return (
     alert.severity === "P0" || alert.severity === "P1" || alert.alertType === "HIGH_RISK_FINDING"
@@ -578,12 +942,91 @@ function optionalText(value: string | undefined) {
   return trimmed ? trimmed : undefined;
 }
 
+function resolveRectificationTaskId(alert: QualityDashboardAlert, detailTaskId?: string) {
+  if (alert.sourceType === "rectification_task") {
+    return alert.sourceId;
+  }
+  if (alert.sourceType === "quality_finding") {
+    return detailTaskId;
+  }
+  return undefined;
+}
+
+function resolveRectificationTaskStatus(
+  alert: QualityDashboardAlert,
+  detailTaskStatus?: RectificationTaskStatus,
+): RectificationTaskStatus | undefined {
+  if (alert.sourceType === "rectification_task") {
+    return isRectificationTaskStatus(alert.severity) ? alert.severity : undefined;
+  }
+  return detailTaskStatus;
+}
+
+function isRectificationTaskStatus(value: string | undefined): value is RectificationTaskStatus {
+  return (
+    value === "ASSIGNED" ||
+    value === "SUBMITTED" ||
+    value === "RETURNED" ||
+    value === "CLOSED" ||
+    value === "WAIVED"
+  );
+}
+
+function rectificationTaskStatusText(status: RectificationTaskStatus | undefined) {
+  if (status === "ASSIGNED") return "已派发";
+  if (status === "SUBMITTED") return "待复核";
+  if (status === "RETURNED") return "已退回";
+  if (status === "CLOSED") return "已闭环";
+  if (status === "WAIVED") return "已豁免";
+  return "已关联";
+}
+
+function canSubmitRectification(status: RectificationTaskStatus | undefined) {
+  return status === "ASSIGNED" || status === "RETURNED";
+}
+
+function canReviewRectification(status: RectificationTaskStatus | undefined) {
+  return status === "SUBMITTED";
+}
+
+function canDispatchRectification(
+  alert: QualityDashboardAlert,
+  taskId: string | undefined,
+  detailLoading: boolean,
+) {
+  return (
+    alert.sourceType === "quality_finding" && alert.status === "OPEN" && !taskId && !detailLoading
+  );
+}
+
+function isP0Alert(alert: QualityDashboardAlert, findingSeverity?: string) {
+  return alert.severity === "P0" || findingSeverity === "P0";
+}
+
 function buildDispatchIdempotencyKey(
   alert: QualityDashboardAlert,
   responsibleDepartmentId: string,
   dueAt: string,
 ) {
-  return `qc-alert-dispatch-${alert.alertId}-${responsibleDepartmentId}-${dueAt}`.slice(0, 160);
+  return buildStableIdempotencyKey(
+    "qc-alert-dispatch",
+    `${alert.sourceType}-${alert.sourceId}`,
+    alert.alertId,
+    responsibleDepartmentId,
+    dueAt,
+  );
+}
+
+function buildTaskActionIdempotencyKey(
+  action: string,
+  readableRef: string,
+  ...parts: Array<string | undefined>
+) {
+  return buildStableIdempotencyKey(
+    `qc-alert-${action}`,
+    readableRef,
+    ...parts.filter((part): part is string => Boolean(part)),
+  );
 }
 
 function getResponseStatus(error: unknown): number | undefined {

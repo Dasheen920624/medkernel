@@ -5828,7 +5828,7 @@ export interface RectificationReview {
 
 export interface QualityFindingDetailResponse {
   finding: QualityFinding;
-  task?: RectificationTask;
+  rectificationTask?: RectificationTask;
   reviews: RectificationReview[];
 }
 
@@ -5855,6 +5855,23 @@ export interface RectificationReviewResponse {
   findingStatus: QualityFindingStatus;
   taskStatus: RectificationTaskStatus;
   traceId: string;
+}
+
+export interface RectificationReportResponse {
+  status: "AVAILABLE" | "NO_TASKS" | string;
+  totalTasks: number;
+  openTasks: number;
+  closedTasks: number;
+  waivedTasks: number;
+  overdueTasks: number;
+  highPriorityOpenTasks: number;
+  closureRate: number;
+  sourceTable: string;
+  traceId: string;
+}
+
+export interface RectificationReportQueryParams {
+  responsibleDepartmentId?: string;
 }
 
 export interface QualityDashboardSummary {
@@ -6398,7 +6415,7 @@ export function useQualityFindingDetail(findingId: string) {
   });
 }
 
-export function useSubmitRectification(findingId: string) {
+export function useSubmitRectification(taskId: string) {
   return useMutation({
     mutationFn: async (payload: {
       request: { rectificationSummary: string; evidenceRef: string };
@@ -6408,9 +6425,9 @@ export function useSubmitRectification(findingId: string) {
         ? { "Idempotency-Key": payload.idempotencyKey }
         : undefined;
       const { data } = await apiClient.post<{ data: RectificationResponse }>(
-        "/engine/evaluation/rectifications",
+        `/engine/rectifications/${encodeURIComponent(taskId)}/submit`,
         payload.request,
-        { params: { findingId }, headers },
+        { headers },
       );
       return data.data;
     },
@@ -6436,7 +6453,7 @@ export function useDispatchRectification() {
   });
 }
 
-export function useReviewRectification(findingId: string) {
+export function useReviewRectification(taskId: string) {
   return useMutation({
     mutationFn: async (payload: {
       request: { decision: RectificationReviewDecision; comment: string; evidenceRef?: string };
@@ -6446,9 +6463,41 @@ export function useReviewRectification(findingId: string) {
         ? { "Idempotency-Key": payload.idempotencyKey }
         : undefined;
       const { data } = await apiClient.post<{ data: RectificationReviewResponse }>(
-        `/engine/evaluation/rectifications/${findingId}/review`,
+        `/engine/rectifications/${encodeURIComponent(taskId)}/review`,
         payload.request,
         { headers },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useWaiveRectification(taskId: string) {
+  return useMutation({
+    mutationFn: async (payload: {
+      request: { reason: string; decisionRef: string; evidenceRef?: string };
+      idempotencyKey?: string;
+    }) => {
+      const headers = payload.idempotencyKey
+        ? { "Idempotency-Key": payload.idempotencyKey }
+        : undefined;
+      const { data } = await apiClient.post<{ data: RectificationReviewResponse }>(
+        `/engine/rectifications/${encodeURIComponent(taskId)}/waive`,
+        payload.request,
+        { headers },
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useRectificationReport(params: RectificationReportQueryParams = {}) {
+  return useQuery({
+    queryKey: ["evaluations", "rectification-report", params],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: RectificationReportResponse }>(
+        "/engine/rectifications/report",
+        { params },
       );
       return data.data;
     },

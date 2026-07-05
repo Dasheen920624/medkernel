@@ -46,6 +46,7 @@ import { RectificationAssignmentFields } from "@/shared/ui/RectificationAssignme
 import { RectificationDueAtField } from "@/shared/ui/RectificationDueAtField";
 import { customerEnumLabel } from "@/shared/config/customerLabels";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
+import { buildStableIdempotencyKey } from "@/shared/lib/idempotencyKey";
 import {
   clinicalDateTimeInputToIso,
   formatClinicalDateTime,
@@ -520,9 +521,9 @@ export default function QcEvalResults() {
             />
 
             <Card title="整改任务状态">
-              {selectedFindingDetail?.task ? (
+              {selectedFindingDetail?.rectificationTask ? (
                 <TaskSummary
-                  task={selectedFindingDetail.task}
+                  task={selectedFindingDetail.rectificationTask}
                   departmentNames={departmentNames}
                   evidenceDetailsEnabled={evidenceDetailsEnabled}
                 />
@@ -767,5 +768,10 @@ function buildDispatchIdempotencyKey(
   responsibleDepartmentId: string,
   dueAt: string,
 ) {
-  return `qc-eval-result-dispatch-${findingId}-${responsibleDepartmentId}-${dueAt}`.slice(0, 160);
+  return buildStableIdempotencyKey(
+    "qc-eval-result-dispatch",
+    findingId,
+    responsibleDepartmentId,
+    dueAt,
+  );
 }

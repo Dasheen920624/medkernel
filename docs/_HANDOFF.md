@@ -10,6 +10,40 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百二十批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或局部 UI 优化，而是把质量问题前台从“确认提醒 / 派发整改”推进到责任科室提交整改证据、
+  质控复核关闭、非 P0 豁免、P0 豁免阻断和整改闭环报告的真实后端任务链路。本批使用 1 个只读
+  子代理发起代码审查，子代理未改文件；本批不推送远程、不合并 `main`。
+- 第一百二十批修复范围：`frontend/src/shared/api/hooks.ts` 将质量问题详情 DTO 对齐后端真实字段
+  `rectificationTask`，`useSubmitRectification` / `useReviewRectification` 改为任务 ID 版
+  `/engine/rectifications/{taskId}/submit|review`，新增 `useWaiveRectification` 与
+  `useRectificationReport`。`QcAlerts` 接入整改报告、任务状态识别、提交整改证据、复核通过关闭、
+  退回继续整改、非 P0 豁免和 P0 豁免阻断；`quality_finding` 先读详情中的
+  `rectificationTask.taskId/status`，`rectification_task` 直接使用 `sourceId` 作为任务 ID。
+  `QcEvalResults` 同步使用 `rectificationTask` 字段。新增
+  `frontend/src/shared/lib/idempotencyKey.ts`，生成稳定且不超过后端 128 字符门禁的幂等键，
+  替换整改派发 / 提交 / 复核 / 豁免中包含长说明导致失败的旧拼接方式。质量提醒列表行新增
+  `data-source-id` / `data-alert-id` 稳定锚点，仅用于真实演练绑定本次事实，不新增可见技术文案。
+- 第一百二十批红绿与调试事实：新增幂等键和质量整改单测后，已覆盖任务级提交、复核关闭、复核退回、
+  退回后重提、非 P0 豁免、P0 豁免阻断、报告读取和 `rectificationTask` 字段契约。目标真实前台
+  E2E 首次复跑红于质量整改提交后，提交接口返回本次任务 `SUBMITTED`，但随后按 finding 回查到另一个
+  `ASSIGNED` 任务；根因不是后端提交失败，而是 `/qc/alerts` 列表存在历史同标题医保审核质量问题，
+  E2E 仍用标题 + `.first()` 打开抽屉，可能点到历史行。按 TDD 先新增“同标题历史问题也存在时，行必须
+  暴露稳定 sourceId 锚点”的组件测试并观察红灯，再给列表行补稳定锚点，E2E 改为按本次 `findingId`
+  定位行，复跑通过。
+- 第一百二十批验证证据：`npm --prefix frontend run test -- QcAlerts -t "stable source identifiers"`
+  先红后绿；触达文件 Prettier check
+  `npm --prefix frontend exec prettier -- --check frontend/e2e/real-frontdesk-rehearsal.spec.ts frontend/src/pages/quality/QcAlerts.tsx frontend/src/pages/quality/QcAlerts.test.tsx frontend/src/pages/quality/QcEvalResults.tsx frontend/src/pages/quality/QcEvalResults.test.tsx frontend/src/shared/api/hooks.ts frontend/src/shared/api/hooks.test.ts frontend/src/shared/lib/idempotencyKey.ts frontend/src/shared/lib/idempotencyKey.test.ts`
+  通过；`npm --prefix frontend run test -- QcAlerts QcEvalResults hooks idempotencyKey productRoleJourneys routes`
+  通过（6 files，216 tests）；`npm --prefix frontend run typecheck` 通过；目标真实前台 E2E
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium real-frontdesk-rehearsal.spec.ts`
+  通过（1 passed，约 47.8 秒）；`npm --prefix frontend run build` 通过；`npm --prefix frontend run verify`
+  通过（115 test files，1000 tests，仅既有 antd Timeline deprecation warning）。本批未改后端代码，
+  后端控制器和契约测试已核对存在 `rectificationTask` 与任务级整改接口，未跑后端全量。
+- 第一百二十批后续主线：本批仍未发布到 134、尚未做 134 清库重新部署，也未完成全功能与全知识全流程复演；
+  不能把 `/qc/alerts` 闭环等同于总目标完成。下一步继续按全角色真实操作扩面，优先覆盖服务机构开通与组织树、
+  评价指标发布驱动医保 / 质量链路、MFA 真实开启后登录、运行保障 / 备份恢复证据、身份来源绑定，以及平台标准版本
+  / 医院 runtime 全资产闭包和 134 空库首启迁移证据；发现红点先复现和定根因，再做上线级修复，不做片面优化。
 - 第一百一十九批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或局部 UI 优化，而是把协同任务从“报告解读待办出现”推进到医技真实前台完成、服务端持久化、
   已完成筛选回看和后端来源枚举完整中文呈现。本批使用 2 个只读子代理辅助核查 `/workflow/todos` 与

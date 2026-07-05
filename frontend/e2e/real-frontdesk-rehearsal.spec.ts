@@ -46,6 +46,36 @@ type RecommendationCardDetailPayload = {
   trigger?: { runtimeReleaseId?: string };
 };
 
+type InsuranceAuditSummary = {
+  issueId: string;
+};
+
+type QualityAlertPayload = {
+  alertId?: string;
+  sourceType?: string;
+  sourceId?: string;
+  title?: string;
+};
+
+type QualityAlertsPayload = {
+  data?: {
+    items?: QualityAlertPayload[];
+  };
+};
+
+type QualityFindingDetailPayload = {
+  data?: {
+    finding?: {
+      findingId?: string;
+      findingCode?: string;
+    };
+    rectificationTask?: {
+      taskId?: string;
+      status?: string;
+    };
+  };
+};
+
 test.describe.configure({ mode: "serial" });
 
 test.describe("全前台真实操作演练", () => {
@@ -73,7 +103,14 @@ test.describe("全前台真实操作演练", () => {
       );
       await publishFollowupTemplateFromUi(page, testInfo, runtime, records, followupTemplate);
       const snapshot = await createContextSnapshotFromUi(page, testInfo, runtime, records, patient);
-      await runInsuranceAuditFromUi(page, testInfo, runtime, records, snapshot);
+      const insuranceAudit = await runInsuranceAuditFromUi(
+        page,
+        testInfo,
+        runtime,
+        records,
+        snapshot,
+      );
+      await closeQualityRectificationFromAlertsUi(page, testInfo, runtime, records, insuranceAudit);
       await runCdssRecommendationFromUi(page, testInfo, runtime, records, snapshot);
       await generateFollowupPlanAndHandlePatientFeedbackFromUi(
         page,
@@ -381,7 +418,7 @@ async function runInsuranceAuditFromUi(
   runtime: RuntimeCollectors,
   records: RuntimeRecord[],
   snapshot: ContextSnapshotSummary,
-) {
+): Promise<InsuranceAuditSummary> {
   await ensureReadySession(page, "engine-operator");
   clearRuntime(runtime);
   await page.goto("/qc/insurance", { waitUntil: "networkidle" });
@@ -443,7 +480,7 @@ async function runInsuranceAuditFromUi(
       auditStatus?: string;
       findingCount?: number;
       taskCount?: number;
-      issues?: Array<unknown>;
+      issues?: Array<{ issueId?: string; ruleCode?: string; evidenceSummary?: string }>;
     };
   };
   expect(audit.data?.auditStatus, "真实结算事实应触发医保问题").toBe("ISSUE_FOUND");
@@ -455,6 +492,124 @@ async function runInsuranceAuditFromUi(
   ).toBeVisible({ timeout: 20_000 });
   await captureEvidence(page, testInfo, "real-frontdesk-insurance-quality-rectification");
   recordCleanRuntime(page, "前台执行医保审核并联动质量整改", runtime, records);
+  const issue = audit.data?.issues?.[0];
+  expect(issue?.issueId, "医保审核问题应返回 issueId 以便前台追溯质量整改").toBeTruthy();
+  return {
+    issueId: issue?.issueId ?? "",
+  };
+}
+
+async function closeQualityRectificationFromAlertsUi(
+  page: Page,
+  testInfo: TestInfo,
+  runtime: RuntimeCollectors,
+  records: RuntimeRecord[],
+  audit: InsuranceAuditSummary,
+) {
+  await ensureReadySession(page, "engine-operator");
+  clearRuntime(runtime);
+  await page.goto("/qc/alerts", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "质量问题与整改" })).toBeVisible();
+  await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
+  await expectNoRootOverflow(page, "质量问题与整改桌面");
+
+  const openAlert = await findInsuranceQualityAlert(page, audit.issueId, "OPEN");
+  const findingId = openAlert.sourceId;
+  expect(findingId, "本次医保审核问题应解析到质量问题 ID").toBeTruthy();
+  const alertRow = qualityAlertRowBySourceId(page, findingId);
+  await expect(alertRow, "质量问题提醒列表应展示本次医保审核生成的问题").toBeVisible({
+    timeout: 20_000,
+  });
+
+  await alertRow.getByRole("button", { name: "查看处置证据" }).click();
+  const drawer = qualityAlertDrawer(page);
+  await expect(drawer).toBeVisible({ timeout: 20_000 });
+  await expect(drawer.getByText(/整改任务 .* 已派发/)).toBeVisible({ timeout: 20_000 });
+  await expect(drawer.getByRole("button", { name: "提交整改证据" })).toBeVisible({
+    timeout: 20_000,
+  });
+  await drawer
+    .getByLabel("整改说明")
+    .fill("真实前台演练：责任科室已复核医保结算事实并补充病案费用说明，等待质控复核。");
+  await drawer
+    .getByRole("textbox", { name: /整改证据/ })
+    .fill(`INS-AUDIT-${audit.issueId}-RECTIFIED`);
+
+  const submitPromise = waitForPostMatching(page, /\/api\/v1\/engine\/rectifications\/.+\/submit/u);
+  await drawer.getByRole("button", { name: "提交整改证据" }).click();
+  const submitResponse = await submitPromise;
+  const submitText = await submitResponse.text();
+  expect(
+    submitResponse.ok(),
+    `质量整改提交应调用任务级真实接口 status=${submitResponse.status()} body=${submitText}`,
+  ).toBe(true);
+  const submit = JSON.parse(submitText) as { data?: { taskId?: string; taskStatus?: string } };
+  const taskId = submit.data?.taskId ?? "";
+  expect(taskId, "整改提交响应应返回任务 ID").toBeTruthy();
+  expect(submit.data?.taskStatus, "整改提交后任务应进入待复核").toBe("SUBMITTED");
+  expect(
+    await taskStatusForFinding(page, findingId),
+    "本次医保审核质量问题关联的整改任务应进入待复核",
+  ).toEqual({ taskId, status: "SUBMITTED" });
+  await expect(drawer.getByText("整改证据已提交，等待质控复核后闭环。")).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.goto("/qc/alerts", { waitUntil: "networkidle" });
+  const submittedRow = qualityAlertRowBySourceId(page, findingId);
+  await expect(submittedRow, "整改提交后质量问题仍应可由提醒入口复核").toBeVisible({
+    timeout: 20_000,
+  });
+  await submittedRow.getByRole("button", { name: "查看处置证据" }).click();
+  const reviewDrawer = qualityAlertDrawer(page);
+  await expect(reviewDrawer.getByText(/整改任务 .* 待复核/)).toBeVisible({ timeout: 20_000 });
+  await reviewDrawer
+    .getByLabel("复核意见")
+    .fill("真实前台演练：整改证据充分，医保结算问题已完成质控复核，允许关闭。");
+  await reviewDrawer.getByRole("textbox", { name: /复核证据/ }).fill(`QC-REVIEW-${audit.issueId}`);
+
+  const reviewPromise = waitForPostMatching(page, /\/api\/v1\/engine\/rectifications\/.+\/review/u);
+  await reviewDrawer.getByRole("button", { name: "复核通过并关闭" }).click();
+  const reviewResponse = await reviewPromise;
+  const reviewText = await reviewResponse.text();
+  expect(
+    reviewResponse.ok(),
+    `质量整改复核应调用任务级真实接口 status=${reviewResponse.status()} body=${reviewText}`,
+  ).toBe(true);
+  const review = JSON.parse(reviewText) as {
+    data?: { reviewId?: string; findingStatus?: string; taskStatus?: string };
+  };
+  expect(review.data?.reviewId, "整改复核响应应返回复核记录").toBeTruthy();
+  expect(review.data?.findingStatus, "复核通过后问题应关闭").toBe("CLOSED");
+  expect(review.data?.taskStatus, "复核通过后任务应关闭").toBe("CLOSED");
+  await expect(reviewDrawer.getByText("整改已复核通过，质量问题已闭环。")).toBeVisible({
+    timeout: 20_000,
+  });
+  await captureEvidence(page, testInfo, "real-frontdesk-qc-alerts-rectification-reviewed");
+
+  await reviewDrawer.getByLabel(/Close|关闭/u).click();
+  await expect(reviewDrawer).toBeHidden({ timeout: 20_000 });
+  await choosePageSelectOptionByText(page, "处置状态", "已闭环");
+  const closedResponse = await page.request.get("/medkernel/api/v1/engine/quality/alerts", {
+    params: { status: "RESOLVED", severity: "ALL", page: "1", size: "20" },
+    headers: { "X-Trace-Id": `e2e-qc-closed-alerts-${Date.now()}` },
+  });
+  const closedText = await closedResponse.text();
+  expect(
+    closedResponse.ok(),
+    `质量提醒闭环回看接口应返回成功 status=${closedResponse.status()} body=${closedText}`,
+  ).toBe(true);
+  const closedAlerts = JSON.parse(closedText) as QualityAlertsPayload;
+  expect(
+    closedAlerts.data?.items?.some(
+      (item) => item.sourceType === "quality_finding" && item.sourceId === findingId,
+    ),
+    "已闭环提醒接口应包含本次医保审核质量问题",
+  ).toBe(true);
+  await expect(qualityAlertRowBySourceId(page, findingId)).toBeVisible({ timeout: 20_000 });
+  await captureEvidence(page, testInfo, "real-frontdesk-qc-alerts-rectification-closed");
+  recordCleanRuntime(page, "前台提交并复核关闭质量整改任务", runtime, records);
 }
 
 async function runCdssRecommendationFromUi(
@@ -849,6 +1004,22 @@ async function choosePageSelectOption(page: Page, label: string) {
   await optionLocator.click();
 }
 
+async function choosePageSelectOptionByText(page: Page, label: string, option: string) {
+  const combobox = page.getByRole("combobox", { name: new RegExp(escapeRegExp(label)) }).first();
+  const select = combobox.locator(
+    "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
+  );
+  await select.locator(".ant-select-selector").click();
+  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
+  await expect(dropdown).toBeVisible({ timeout: 10_000 });
+  const optionLocator = dropdown
+    .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
+    .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(option)}\\s*$`) })
+    .first();
+  await expect(optionLocator).toBeVisible({ timeout: 10_000 });
+  await optionLocator.click();
+}
+
 async function currentSelectText(select: Locator) {
   const selected = select.locator(".ant-select-selection-item").first();
   if ((await selected.count()) === 0) {
@@ -898,11 +1069,80 @@ function waitForPost(page: Page, path: string) {
   );
 }
 
+function waitForPostMatching(page: Page, pattern: RegExp) {
+  return page.waitForResponse(
+    (response) => response.request().method() === "POST" && pattern.test(response.url()),
+    { timeout: 30_000 },
+  );
+}
+
+function qualityAlertDrawer(page: Page) {
+  return page.getByRole("dialog").filter({ hasText: "质量风险处置证据" }).last();
+}
+
+function qualityAlertRowBySourceId(page: Page, sourceId: string) {
+  return page.locator(`[data-source-id="${cssStringEscape(sourceId)}"]`).first();
+}
+
+async function findInsuranceQualityAlert(page: Page, issueId: string, status: "OPEN" | "RESOLVED") {
+  const alertsResponse = await page.request.get("/medkernel/api/v1/engine/quality/alerts", {
+    params: { status, severity: "ALL", page: "1", size: "50" },
+    headers: { "X-Trace-Id": `e2e-qc-alerts-${status.toLowerCase()}-${Date.now()}` },
+  });
+  const alertsText = await alertsResponse.text();
+  expect(
+    alertsResponse.ok(),
+    `质量提醒接口应返回成功 status=${alertsResponse.status()} body=${alertsText}`,
+  ).toBe(true);
+  const alerts = JSON.parse(alertsText) as QualityAlertsPayload;
+  const candidates =
+    alerts.data?.items?.filter((item) => item.sourceType === "quality_finding") ?? [];
+  for (const candidate of candidates) {
+    if (!candidate.sourceId) {
+      continue;
+    }
+    const detail = await qualityFindingDetail(page, candidate.sourceId);
+    if (detail.data?.finding?.findingCode === `INSURANCE.${issueId}`) {
+      return candidate;
+    }
+  }
+  throw new Error(
+    `未找到本次医保审核 issueId=${issueId} 对应的 ${status} 质量提醒；候选=${candidates
+      .map((item) => item.sourceId)
+      .join(",")}`,
+  );
+}
+
+async function qualityFindingDetail(page: Page, findingId: string) {
+  const detailResponse = await page.request.get(
+    `/medkernel/api/v1/engine/evaluation/issues/${encodeURIComponent(findingId)}`,
+    { headers: { "X-Trace-Id": `e2e-qc-finding-${Date.now()}` } },
+  );
+  const detailText = await detailResponse.text();
+  expect(
+    detailResponse.ok(),
+    `质量问题详情接口应返回成功 status=${detailResponse.status()} body=${detailText}`,
+  ).toBe(true);
+  return JSON.parse(detailText) as QualityFindingDetailPayload;
+}
+
+async function taskStatusForFinding(page: Page, findingId: string) {
+  const detail = await qualityFindingDetail(page, findingId);
+  return {
+    taskId: detail.data?.rectificationTask?.taskId,
+    status: detail.data?.rectificationTask?.status,
+  };
+}
+
 function waitForPut(page: Page, path: string) {
   return page.waitForResponse(
     (response) => response.request().method() === "PUT" && response.url().includes(path),
     { timeout: 30_000 },
   );
+}
+
+function cssStringEscape(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 function collectRuntime(page: Page): RuntimeCollectors {
