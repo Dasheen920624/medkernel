@@ -12,6 +12,8 @@ const activateHospitalAsync = vi.fn();
 const rollbackHospitalAsync = vi.fn();
 const simulateReleaseImpactAsync = vi.fn();
 const useOrgUnitsMock = vi.fn();
+const usePlatformReleaseCandidatesMock = vi.fn();
+let currentTenantId = "t-1";
 
 vi.mock("@/shared/api/hooks", async () => {
   const actual = await vi.importActual<typeof ApiHooks>("@/shared/api/hooks");
@@ -23,7 +25,7 @@ vi.mock("@/shared/api/hooks", async () => {
         roles: [{ code: "platform-admin", displayName: "平台管理员" }],
         permissions: [],
         menuKeys: ["runtime-releases"],
-        dataScope: { tenantId: "tenant-a", hospitalId: null },
+        dataScope: { tenantId: currentTenantId, hospitalId: null },
       },
     }),
     useOrgUnits: (params: unknown) => {
@@ -77,31 +79,37 @@ vi.mock("@/shared/api/hooks", async () => {
       isLoading: false,
       isError: false,
     }),
-    usePlatformReleaseCandidates: () => ({
-      data: {
-        items: [
-          {
-            sourceLayer: "PLATFORM",
-            assetType: "RULE",
-            assetIdentity: "RULE.CKD",
-            versionId: "rule-v2",
-            versionNo: "V2",
-            status: "DRAFT",
-            organizationScope: "/platform",
-            applicableScope: "ALL",
-            contentHash: "3".repeat(64),
-            sourceRef: "指南 2026",
-            updatedAt: "2026-06-23T09:00:00Z",
-          },
-        ],
-        page: 1,
-        size: 20,
-        total: 1,
-        hasNext: false,
-        totalEstimated: false,
-      },
-      isLoading: false,
-    }),
+    usePlatformReleaseCandidates: (params: unknown, enabled?: boolean) => {
+      usePlatformReleaseCandidatesMock(params, enabled);
+      return {
+        data:
+          enabled === false
+            ? undefined
+            : {
+                items: [
+                  {
+                    sourceLayer: "PLATFORM",
+                    assetType: "RULE",
+                    assetIdentity: "RULE.CKD",
+                    versionId: "rule-v2",
+                    versionNo: "V2",
+                    status: "DRAFT",
+                    organizationScope: "/platform",
+                    applicableScope: "ALL",
+                    contentHash: "3".repeat(64),
+                    sourceRef: "指南 2026",
+                    updatedAt: "2026-06-23T09:00:00Z",
+                  },
+                ],
+                page: 1,
+                size: 20,
+                total: 1,
+                hasNext: false,
+                totalEstimated: false,
+              },
+        isLoading: false,
+      };
+    },
     usePublishPlatformBaseline: () => ({
       mutateAsync: publishPlatformAsync,
       isPending: false,
@@ -220,11 +228,13 @@ describe("ReleaseGovernance", () => {
   beforeEach(() => {
     window.localStorage.clear();
     useEvidenceDetailsStore.setState({ enabled: false });
+    currentTenantId = "t-1";
     publishPlatformAsync.mockReset();
     activateHospitalAsync.mockReset();
     rollbackHospitalAsync.mockReset();
     simulateReleaseImpactAsync.mockReset();
     useOrgUnitsMock.mockReset();
+    usePlatformReleaseCandidatesMock.mockReset();
     publishPlatformAsync.mockResolvedValue({ revisionNo: 9 });
     activateHospitalAsync.mockResolvedValue({ revisionNo: 10 });
     rollbackHospitalAsync.mockResolvedValue({ revisionNo: 10 });
@@ -305,6 +315,35 @@ describe("ReleaseGovernance", () => {
         disabledAssets: [{ assetType: "PATHWAY", assetIdentity: "PATH.OLD" }],
       }),
     );
+    expect(usePlatformReleaseCandidatesMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, size: 50 }),
+      true,
+    );
+  });
+
+  it("keeps platform publishing operations out of the customer tenant while retaining institution runtime work", async () => {
+    currentTenantId = "tenant-a";
+    renderPage();
+
+    expect(screen.getByText("当前平台标准版本 第 8 版")).toBeInTheDocument();
+    expect(screen.queryByText("本次发布变更")).not.toBeInTheDocument();
+    expect(screen.queryByText("当前清单停用")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "发布新平台标准版本" })).not.toBeInTheDocument();
+    expect(screen.queryByText("临床规则内容已准备发布")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("平台标准版本由平台治理入口发布；本机构在机构生效版本中选择并启用内容。"),
+    ).toBeInTheDocument();
+    expect(usePlatformReleaseCandidatesMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, size: 50 }),
+      false,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
+    fireEvent.click(await screen.findByText(/中心医院/));
+
+    expect(await screen.findByText("当前机构生效版本 第 9 版")).toBeInTheDocument();
+    expect(screen.getByLabelText("启用平台临床规则内容 V1")).toBeChecked();
   });
 
   it("builds one institution effective version from platform and local asset selections", async () => {

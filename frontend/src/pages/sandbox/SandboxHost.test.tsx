@@ -1,9 +1,17 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import SandboxHost from "./SandboxHost";
+
+const sandboxHostCss = readFileSync(
+  resolve(process.cwd(), "src/pages/sandbox/SandboxHost.module.css"),
+  "utf8",
+);
 
 const sandboxHookMocks = vi.hoisted(() => ({
   run: vi.fn(),
@@ -289,6 +297,11 @@ describe("SandboxHost", () => {
     expect(screen.getByText("宿主已收到采纳建议（ADOPT）决策")).toBeInTheDocument();
     expect(screen.getByText("卡片：card-1")).toBeInTheDocument();
     expect(screen.getByText("状态：建议已采纳（ADOPTED）")).toBeInTheDocument();
+  });
+
+  it("stacks the sandbox workspace before the application sidebar can cause root overflow", () => {
+    expect(sandboxHostCss).toContain("@media (max-width: 90rem)");
+    expect(sandboxHostCss).not.toContain("@media (max-width: 78rem)");
   });
 
   it("keeps a truthful failure state when orchestration cannot complete", async () => {

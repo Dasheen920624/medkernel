@@ -37,6 +37,31 @@
 - 第一百一十六批后续主线：继续按宪章、产品范围、体验契约、功能目录和四职责旅程推进全局上线演练；
   不要片面做 UI 或文案优化。下一步应在当前已通过的本地全角色演练基础上，继续扩展到剩余页面、
   权限、迁移、134 清库部署和全知识全流程复演；若发现真实链路红点，先复现和定根因，再最小修复并跑相应门禁。
+- 第一百一十七批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单或文案单点优化，
+  而是把全局上线演练中暴露的真实权限边界、当前知识关系契约和根级布局红点纳入闭环。本批使用 2 个只读子代理
+  辅助核查 `/config/releases` 与 `/advanced/graph` 当前产品契约，子代理未改文件；本批不推送远程、不合并 `main`。
+- 第一百一十七批修复范围：`ReleaseGovernance` 按当前登录租户区分平台治理租户与客户机构租户，客户机构不再请求
+  需要 `platform.publish` 和平台上下文的 `/engine/releases/platform-baselines/candidates`，也不展示平台发布、
+  本次发布变更和当前清单停用操作；客户机构仍可查看当前平台标准版本，并在机构生效版本中选择医院、启用平台与本地内容。
+  `usePlatformReleaseCandidates` 增加 `enabled` 开关与回归测试，避免客户租户真实访问 `/config/releases` 时出现 403 噪声。
+  `d6-graph-explore.spec.ts` 从旧“图谱查询 / 投影关系图 / 投影目标 / 知识关系投影”同步为当前“知识关系 /
+  知识关系图 / 关系范围 / 知识关系”契约；不把页面改回旧口径。`SandboxHost.module.css` 将沙盘工作区折叠阈值从
+  `78rem` 调整为 `90rem`，修复 1280 桌面含应用侧栏时 `/sandbox` 根级横向溢出，并补 CSS 合同测试。
+- 第一百一十七批验证证据：TDD 红灯已捕获客户租户仍展示平台发布操作、沙盘仍使用 `78rem` 折叠阈值；修正后
+  `npm --prefix frontend run test -- ReleaseGovernance -t "keeps platform publishing operations"` 通过，
+  `npm --prefix frontend run test -- hooks -t "does not request platform publishing candidates"` 通过，
+  `npm --prefix frontend run test -- ReleaseGovernance GraphExplore hooks` 通过（3 files，141 tests），
+  `npm --prefix frontend run test -- SandboxHost` 通过（12 tests），触达文件 Prettier check 通过。真实 E2E 子集
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium all-done-route-smoke.spec.ts core-ui-runtime.spec.ts d6-graph-explore.spec.ts`
+  通过（4 passed）；全量 Chromium E2E
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium`
+  通过（27 passed）；`npm --prefix frontend run build` 通过；`npm --prefix frontend run verify` 通过（114 test files，
+  986 tests，仅既有 antd Timeline deprecation warning）；`mvn -f medkernel-backend/pom.xml test` 通过（3072 tests，
+  0 failures，0 errors，7 skipped；本机 Docker 不可用导致 Testcontainers 多方言/空 Postgres smoke 按既有条件跳过）；
+  `git diff --check && git diff --cached --check` 退出码 0。
+- 第一百一十七批后续主线：本批尚未发布到 134、尚未做 134 清库重新部署，也未完成全功能与全知识全流程复演。
+  下一步继续从真实前台全角色操作入手，按平台管理员、医院管理员、医生、质控/运营等角色覆盖剩余页面、
+  权限、真实后端服务、统一迁移、部署与回滚证据；发现不符合项先复现并定位根因，再做上线级修复，不做片面优化。
 - 第一百一十五批本地交接（未完成，因额度中止）：本批只做可续接交接，不使用子代理、不推送远程、
   不合并 `main`，也不把当前未完成修复伪装为阶段完成。开工已重新读取 `AGENTS.md` 与本文件；
   `git status --short --branch` 显示当前分支仍为 `codex/final-handoff-product-optimization`，

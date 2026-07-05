@@ -6,7 +6,7 @@ import { apiBase, ensureReadySession, expectOk, patchApi, postApi } from "./supp
 
 test.describe.configure({ mode: "serial" });
 
-test.describe("D6 图谱查询真实验收", () => {
+test.describe("D6 知识关系真实验收", () => {
   test("医疗引擎运营员可重建并探索真实知识投影", async ({ page }, testInfo) => {
     const browserErrors = collectBrowserErrors(page);
 
@@ -22,12 +22,12 @@ test.describe("D6 图谱查询真实验收", () => {
     await ensureReadySession(page, "engine-operator", "platform");
 
     await page.goto("/advanced/graph");
-    await expect(page.getByRole("heading", { name: "图谱查询" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "知识关系" })).toBeVisible();
     await selectKnowledgeProjection(page);
-    await expect(page.getByRole("group", { name: "投影关系图" })).toBeVisible();
+    await expect(page.getByRole("group", { name: "知识关系图" })).toBeVisible();
     await expect(page.getByRole("button", { name: "重建投影" })).toBeVisible();
 
-    const nodes = page.locator('svg[aria-label="投影关系图"] g[role="button"]');
+    const nodes = page.locator('svg[aria-label="知识关系图"] g[role="button"]');
     expect(await nodes.count()).toBeGreaterThan(0);
     await nodes.first().click();
     const detail = page.locator("aside");
@@ -54,9 +54,9 @@ test.describe("D6 图谱查询真实验收", () => {
     await ensureReadySession(page, "engine-operator", "platform");
     await page.goto("/advanced/graph");
 
-    await expect(page.getByRole("heading", { name: "图谱查询" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "知识关系" })).toBeVisible();
     await selectKnowledgeProjection(page);
-    await expect(page.getByRole("group", { name: "投影关系图" })).toBeVisible();
+    await expect(page.getByRole("group", { name: "知识关系图" })).toBeVisible();
     await expectNoRootOverflow(page);
     await expectGraphIsInternallyScrollable(page);
     await page.evaluate(() => window.scrollTo(0, 0));
@@ -350,10 +350,10 @@ function sha256(value: string) {
 }
 
 async function selectKnowledgeProjection(page: Page) {
-  await page.locator('div.ant-select[aria-label="投影目标"]').click();
+  await page.locator('div.ant-select[aria-label="关系范围"]').click();
   const option = page
     .locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option")
-    .filter({ hasText: "知识关系投影" });
+    .filter({ hasText: "知识关系" });
   await expect(option).toBeVisible();
   await option.click();
   await expect(page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)")).toHaveCount(
@@ -381,7 +381,7 @@ async function expectNoRootOverflow(page: Page) {
 }
 
 async function expectGraphIsInternallyScrollable(page: Page) {
-  const dimensions = await page.getByRole("group", { name: "投影关系图" }).evaluate((svg) => {
+  const dimensions = await page.getByRole("group", { name: "知识关系图" }).evaluate((svg) => {
     const viewport = svg.parentElement?.parentElement;
     return {
       clientWidth: viewport?.clientWidth ?? 0,

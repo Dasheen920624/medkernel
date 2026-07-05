@@ -3490,6 +3490,23 @@ describe("release governance api hooks", () => {
     );
   });
 
+  it("does not request platform publishing candidates outside the platform authority tenant", async () => {
+    const hook = renderApiHook(() =>
+      usePlatformReleaseCandidates(
+        { assetType: "RULE", keyword: "肾病", page: 1, size: 20 },
+        false,
+      ),
+    );
+
+    await act(async () => undefined);
+
+    expect(hook.result.current.fetchStatus).toBe("idle");
+    expect(apiClient.get).not.toHaveBeenCalledWith(
+      "/engine/releases/platform-baselines/candidates",
+      expect.anything(),
+    );
+  });
+
   it("maps missing current release payloads to explicit empty states", async () => {
     vi.mocked(apiClient.get)
       .mockResolvedValueOnce({ data: { success: true } })

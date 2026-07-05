@@ -44,6 +44,7 @@ import {
   type RuntimeAssetType,
 } from "@/shared/api/hooks";
 import { ENGINE_ASSET_LABELS, RUNTIME_ASSET_OPTIONS } from "@/shared/config/assetCatalog";
+import { platformTenantId } from "@/shared/config/tenantDictionary";
 import { formatClinicalDateTime } from "@/shared/lib/dateTimeText";
 import { useEvidenceDetailsStore } from "@/shared/lib/evidenceDetailsStore";
 import { EvidenceDetailsToggle } from "@/shared/ui/EvidenceDetailsToggle";
@@ -175,6 +176,7 @@ export default function ReleaseGovernance() {
   const [impactResults, setImpactResults] = useState<ReleaseImpactSimulationResult[]>([]);
   const [impactError, setImpactError] = useState<string>();
   const initializedHospitalRevision = useRef<string>();
+  const isPlatformTenant = security.data?.dataScope.tenantId === platformTenantId;
 
   const hospitalsQuery = useOrgUnits({
     page: 1,
@@ -185,12 +187,15 @@ export default function ReleaseGovernance() {
     status: "ACTIVE",
   });
   const baselineQuery = useCurrentPlatformBaseline();
-  const platformCandidatesQuery = usePlatformReleaseCandidates({
-    assetType,
-    keyword: keyword || undefined,
-    page: 1,
-    size: 50,
-  });
+  const platformCandidatesQuery = usePlatformReleaseCandidates(
+    {
+      assetType,
+      keyword: keyword || undefined,
+      page: 1,
+      size: 50,
+    },
+    isPlatformTenant,
+  );
   const runtimeQuery = useCurrentHospitalRuntime(hospitalId);
   const localCandidatesQuery = useHospitalRuntimeCandidates(hospitalId, {
     assetType,
@@ -344,6 +349,10 @@ export default function ReleaseGovernance() {
   }
 
   async function publishPlatformBaseline() {
+    if (!isPlatformTenant) {
+      message.warning("平台标准版本由平台治理入口发布");
+      return;
+    }
     if (platformPublishIds.length === 0 && platformDisabled.length === 0) {
       message.warning("请至少选择一个发布或停用变更");
       return;
@@ -524,141 +533,155 @@ export default function ReleaseGovernance() {
           type="info"
           showIcon
           message="平台尚未建立标准版本"
-          description="选择已完成校验的草稿内容后发布首个平台标准版本。"
+          description={
+            isPlatformTenant
+              ? "选择已完成校验的草稿内容后发布首个平台标准版本。"
+              : "平台标准版本由平台治理入口发布；本机构在机构生效版本中选择并启用内容。"
+          }
         />
       )}
 
-      <Card
-        title="本次发布变更"
-        extra={
-          <Space>
-            <Select
-              allowClear
-              placeholder="全部内容类型"
-              value={assetType}
-              options={RUNTIME_ASSET_OPTIONS}
-              onChange={setAssetType}
-              className={styles.assetTypeSelect}
-            />
-            <Input.Search
-              allowClear
-              placeholder="搜索内容名称、身份或来源"
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-              className={styles.keywordInput}
-            />
-          </Space>
-        }
-      >
-        <Table
-          rowKey="versionId"
-          size="small"
-          loading={platformCandidatesQuery.isLoading}
-          pagination={false}
-          dataSource={platformCandidates}
-          locale={{ emptyText: "没有待发布草稿" }}
-          columns={[
-            {
-              title: "选择",
-              width: 72,
-              render: (_value, candidate) => (
-                <Checkbox
-                  aria-label={assetActionLabel(
-                    "发布",
-                    candidate.assetType,
-                    candidate.versionNo,
-                    candidate.sourceLayer,
-                  )}
-                  checked={platformPublishIds.includes(candidate.versionId)}
-                  onChange={(event) => togglePlatformCandidate(candidate, event.target.checked)}
+      {isPlatformTenant ? (
+        <>
+          <Card
+            title="本次发布变更"
+            extra={
+              <Space>
+                <Select
+                  allowClear
+                  placeholder="全部内容类型"
+                  value={assetType}
+                  options={RUNTIME_ASSET_OPTIONS}
+                  onChange={setAssetType}
+                  className={styles.assetTypeSelect}
                 />
-              ),
-            },
-            {
-              title: "内容",
-              render: (_value, candidate) => (
-                <Space direction="vertical" size={0}>
-                  <Text strong>
-                    {assetSummaryText(
-                      candidate.assetType,
-                      evidenceDetailsEnabled,
-                      candidate.assetIdentity,
-                      "已准备发布",
-                    )}
-                  </Text>
-                  <Text type="secondary">
-                    {assetContentLabel(candidate.assetType)} · {candidate.versionNo}
-                  </Text>
-                </Space>
-              ),
-            },
-            { title: "内容版本", dataIndex: "versionNo", width: 110 },
-            {
-              title: "状态",
-              dataIndex: "status",
-              width: 100,
-              render: stateTag,
-            },
-            { title: "来源依据", dataIndex: "sourceRef" },
-          ]}
-        />
-      </Card>
-
-      <Card title="当前清单停用">
-        <Table
-          rowKey={(item) => assetKey(item.assetType, item.assetIdentity)}
-          size="small"
-          pagination={false}
-          dataSource={activeBaselineItems}
-          locale={{ emptyText: "当前标准版本没有启用内容" }}
-          columns={[
-            {
-              title: "停用",
-              width: 72,
-              render: (_value, item) => (
-                <Checkbox
-                  aria-label={assetActionLabel("停用", item.assetType, item.versionNo)}
-                  checked={platformDisabled.some(
-                    (candidate) =>
-                      assetKey(candidate.assetType, candidate.assetIdentity) ===
-                      assetKey(item.assetType, item.assetIdentity),
-                  )}
-                  onChange={(event) => togglePlatformDisabled(item, event.target.checked)}
+                <Input.Search
+                  allowClear
+                  placeholder="搜索内容名称、身份或来源"
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                  className={styles.keywordInput}
                 />
-              ),
-            },
-            {
-              title: "内容",
-              render: (_value, item) => (
-                <Space direction="vertical" size={0}>
-                  <Text strong>
-                    {assetSummaryText(
-                      item.assetType,
-                      evidenceDetailsEnabled,
-                      item.assetIdentity,
-                      "已在平台标准版本中",
-                    )}
-                  </Text>
-                  <Text type="secondary">{assetContentLabel(item.assetType)}</Text>
-                </Space>
-              ),
-            },
-            { title: "当前版本", dataIndex: "versionNo", width: 110 },
-          ]}
-        />
-      </Card>
+              </Space>
+            }
+          >
+            <Table
+              rowKey="versionId"
+              size="small"
+              loading={platformCandidatesQuery.isLoading}
+              pagination={false}
+              dataSource={platformCandidates}
+              locale={{ emptyText: "没有待发布草稿" }}
+              columns={[
+                {
+                  title: "选择",
+                  width: 72,
+                  render: (_value, candidate) => (
+                    <Checkbox
+                      aria-label={assetActionLabel(
+                        "发布",
+                        candidate.assetType,
+                        candidate.versionNo,
+                        candidate.sourceLayer,
+                      )}
+                      checked={platformPublishIds.includes(candidate.versionId)}
+                      onChange={(event) => togglePlatformCandidate(candidate, event.target.checked)}
+                    />
+                  ),
+                },
+                {
+                  title: "内容",
+                  render: (_value, candidate) => (
+                    <Space direction="vertical" size={0}>
+                      <Text strong>
+                        {assetSummaryText(
+                          candidate.assetType,
+                          evidenceDetailsEnabled,
+                          candidate.assetIdentity,
+                          "已准备发布",
+                        )}
+                      </Text>
+                      <Text type="secondary">
+                        {assetContentLabel(candidate.assetType)} · {candidate.versionNo}
+                      </Text>
+                    </Space>
+                  ),
+                },
+                { title: "内容版本", dataIndex: "versionNo", width: 110 },
+                {
+                  title: "状态",
+                  dataIndex: "status",
+                  width: 100,
+                  render: stateTag,
+                },
+                { title: "来源依据", dataIndex: "sourceRef" },
+              ]}
+            />
+          </Card>
 
-      <div className={styles.primaryAction}>
-        <Button
-          type="primary"
-          aria-label="发布新平台标准版本"
-          icon={<RocketOutlined />}
-          loading={publishPlatform.isPending}
-          onClick={() => void publishPlatformBaseline()}
-        >
-          发布新平台标准版本
-        </Button>
-      </div>
+          <Card title="当前清单停用">
+            <Table
+              rowKey={(item) => assetKey(item.assetType, item.assetIdentity)}
+              size="small"
+              pagination={false}
+              dataSource={activeBaselineItems}
+              locale={{ emptyText: "当前标准版本没有启用内容" }}
+              columns={[
+                {
+                  title: "停用",
+                  width: 72,
+                  render: (_value, item) => (
+                    <Checkbox
+                      aria-label={assetActionLabel("停用", item.assetType, item.versionNo)}
+                      checked={platformDisabled.some(
+                        (candidate) =>
+                          assetKey(candidate.assetType, candidate.assetIdentity) ===
+                          assetKey(item.assetType, item.assetIdentity),
+                      )}
+                      onChange={(event) => togglePlatformDisabled(item, event.target.checked)}
+                    />
+                  ),
+                },
+                {
+                  title: "内容",
+                  render: (_value, item) => (
+                    <Space direction="vertical" size={0}>
+                      <Text strong>
+                        {assetSummaryText(
+                          item.assetType,
+                          evidenceDetailsEnabled,
+                          item.assetIdentity,
+                          "已在平台标准版本中",
+                        )}
+                      </Text>
+                      <Text type="secondary">{assetContentLabel(item.assetType)}</Text>
+                    </Space>
+                  ),
+                },
+                { title: "当前版本", dataIndex: "versionNo", width: 110 },
+              ]}
+            />
+          </Card>
+
+          <div className={styles.primaryAction}>
+            <Button
+              type="primary"
+              aria-label="发布新平台标准版本"
+              icon={<RocketOutlined />}
+              loading={publishPlatform.isPending}
+              onClick={() => void publishPlatformBaseline()}
+            >
+              发布新平台标准版本
+            </Button>
+          </div>
+        </>
+      ) : (
+        <Alert
+          type="info"
+          showIcon
+          message="平台标准版本由平台治理入口发布；本机构在机构生效版本中选择并启用内容。"
+        />
+      )}
     </Space>
   );
 

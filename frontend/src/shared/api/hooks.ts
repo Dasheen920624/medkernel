@@ -7711,10 +7711,11 @@ export function useCurrentPlatformBaseline() {
   });
 }
 
-export function usePlatformReleaseCandidates(params: ReleaseCandidateQuery = {}) {
+export function usePlatformReleaseCandidates(params: ReleaseCandidateQuery = {}, enabled = true) {
   const requestParams = releaseCandidateParams(params);
   return useQuery({
     queryKey: ["runtime-releases", "platform-baseline", "candidates", requestParams],
+    enabled,
     queryFn: async () => {
       const { data } = await apiClient.get<{ data: PageResponse<ReleaseCandidateAsset> }>(
         `${RUNTIME_RELEASE_API_ROOT}/platform-baselines/candidates`,
