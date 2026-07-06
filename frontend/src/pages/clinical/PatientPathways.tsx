@@ -312,6 +312,18 @@ export default function PatientPathways() {
     selectedContextSnapshotId,
     PATHWAY_RUNTIME_TRIGGER,
   );
+  const entryCandidateCount = entryCandidatesQuery.data?.candidates?.length ?? 0;
+  const entryCandidateOptions = (entryCandidatesQuery.data?.candidates ?? []).map((candidate) => ({
+    value: candidate.templateId,
+    label: `${candidate.name} · ${candidate.diseaseCode}`,
+  }));
+  const entryCandidateStatusMessage = !selectedContextSnapshotId
+    ? "请先选择已生效临床快照，再读取当前机构生效候选路径。"
+    : entryCandidatesQuery.isLoading
+      ? "正在读取当前机构生效候选路径。"
+      : entryCandidateCount > 0
+        ? `已读取 ${entryCandidateCount} 条当前机构生效候选路径，确认后才会入径。`
+        : "当前机构生效版本无可用候选路径。";
 
   const {
     data: patientPathwaysData,
@@ -734,8 +746,9 @@ export default function PatientPathways() {
     >
       <div className={`${styles.surface} ${styles.filterSurface}`}>
         <Form layout="inline" className={styles.inlineForm}>
-          <Form.Item label="患者检索">
+          <Form.Item label="患者检索" htmlFor="patient-pathway-list-patient-filter">
             <Input
+              id="patient-pathway-list-patient-filter"
               placeholder="输入姓名、门急诊号或院内患者编号"
               allowClear
               value={patientFilter}
@@ -799,8 +812,9 @@ export default function PatientPathways() {
         <Form form={enterForm} layout="vertical" className={styles.formGap}>
           <Row gutter={12}>
             <Col xs={24} md={12}>
-              <Form.Item label="患者信息">
+              <Form.Item label="患者信息" htmlFor="patient-pathway-entry-patient-filter">
                 <Input
+                  id="patient-pathway-entry-patient-filter"
                   allowClear
                   placeholder="输入姓名、门急诊号或院内患者编号"
                   value={enterPatientFilter}
@@ -812,8 +826,9 @@ export default function PatientPathways() {
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item label="就诊信息">
+              <Form.Item label="就诊信息" htmlFor="patient-pathway-entry-encounter-filter">
                 <Input
+                  id="patient-pathway-entry-encounter-filter"
                   allowClear
                   placeholder="输入门急诊号、住院号或就诊编号"
                   value={enterEncounterFilter}
@@ -843,23 +858,15 @@ export default function PatientPathways() {
           >
             <Select
               showSearch
+              virtual={false}
               optionFilterProp="label"
               placeholder="选择当前机构生效版本允许的路径"
               loading={entryCandidatesQuery.isLoading}
               notFoundContent={
                 selectedContextSnapshotId ? "当前机构生效版本无可用候选路径" : "请先选择临床快照"
               }
-            >
-              {(entryCandidatesQuery.data?.candidates ?? []).map((candidate) => (
-                <Option
-                  key={candidate.templateId}
-                  value={candidate.templateId}
-                  label={`${candidate.name} ${candidate.diseaseCode}`}
-                >
-                  {candidate.name} · {candidate.diseaseCode}
-                </Option>
-              ))}
-            </Select>
+              options={entryCandidateOptions}
+            />
           </Form.Item>
           {entryCandidatesQuery.isError ? (
             <Alert
@@ -868,7 +875,7 @@ export default function PatientPathways() {
               message={getApiErrorMessage(entryCandidatesQuery.error, "运行候选路径读取失败")}
             />
           ) : (
-            <Alert type="info" showIcon message="候选来自当前机构生效版本，确认后才会入径。" />
+            <Alert type="info" showIcon message={entryCandidateStatusMessage} />
           )}
           <Form.Item name="startNodeCode" label="起始临床推进节点 (可选，留空使用路径起点)">
             <Input placeholder="留空使用已发布临床路径的起始节点" />
@@ -877,6 +884,7 @@ export default function PatientPathways() {
       </Modal>
 
       <Drawer
+        aria-label="患者路径推进与解释追溯"
         title={
           <div className={styles.drawerTitle}>
             <CompassOutlined className={styles.iconInfo} />
@@ -1268,6 +1276,7 @@ export default function PatientPathways() {
                               rules={[{ required: true }]}
                             >
                               <Select
+                                virtual={false}
                                 placeholder="选择出边允许推进的下一节点"
                                 aria-label="指定流转目标节点"
                               >
@@ -1391,7 +1400,11 @@ export default function PatientPathways() {
                                 dependencies={["resolutionDecision"]}
                                 rules={[{ required: true, message: "请选择再入径节点" }]}
                               >
-                                <Select placeholder="选择目标节点" aria-label="再入径节点">
+                                <Select
+                                  virtual={false}
+                                  placeholder="选择目标节点"
+                                  aria-label="再入径节点"
+                                >
                                   {templateDetail?.nodes.map((n) => (
                                     <Option key={n.nodeId} value={n.nodeCode}>
                                       {nodeDisplayName(
@@ -1498,6 +1511,7 @@ export default function PatientPathways() {
       </Drawer>
 
       <Drawer
+        aria-label="临床路径变异事实"
         title={
           <div className={styles.drawerTitle}>
             <WarningOutlined className={styles.iconInfo} />

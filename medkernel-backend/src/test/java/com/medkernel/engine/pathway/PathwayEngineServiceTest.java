@@ -43,6 +43,9 @@ import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
 import com.medkernel.engine.versioning.AssetVersionRepository;
 import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
 import com.medkernel.engine.versioning.AssetVersionStatus;
+import com.medkernel.engine.versioning.AssetTriggerBindingInput;
+import com.medkernel.engine.versioning.AssetTriggerBindingService;
+import com.medkernel.engine.versioning.AssetTriggerPurpose;
 import com.medkernel.engine.versioning.InheritanceResolver;
 import com.medkernel.engine.versioning.ResolvedAssetVersion;
 import com.medkernel.engine.versioning.SourceTier;
@@ -90,6 +93,7 @@ class PathwayEngineServiceTest {
     private ClinicalSafetyGuard safetyGuard;
     private PathwayVersionedAssetAdapter versionedAssets;
     private AssetVersionRepository assetVersions;
+    private AssetTriggerBindingService triggerBindings;
     private InheritanceResolver inheritanceResolver;
     private RuntimeReleasePathwaySelector runtimePathways;
     private ObjectMapper json;
@@ -117,6 +121,7 @@ class PathwayEngineServiceTest {
         safetyGuard = mock(ClinicalSafetyGuard.class);
         versionedAssets = mock(PathwayVersionedAssetAdapter.class);
         assetVersions = mock(AssetVersionRepository.class);
+        triggerBindings = mock(AssetTriggerBindingService.class);
         inheritanceResolver = mock(InheritanceResolver.class);
         runtimePathways = mock(RuntimeReleasePathwaySelector.class);
         json = new ObjectMapper();
@@ -126,7 +131,7 @@ class PathwayEngineServiceTest {
             clocks, metricBindings, outcomeBindings, evaluationIndicators,
             contextSnapshots, new PathwayProgressor(), auditRecorder,
             transitions, diagnoseAssembler, json, followupHandoff, worklist, domainEvents, safetyGuard,
-            versionedAssets, assetVersions, inheritanceResolver, runtimePathways);
+            versionedAssets, assetVersions, triggerBindings, inheritanceResolver, runtimePathways);
 
         when(templates.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(nodes.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -195,6 +200,30 @@ class PathwayEngineServiceTest {
                 && command.content().contains("\"metricCode\":\"COPD.TIME_TO_ASSESS\"")
                 && command.content().contains("\"metricCode\":\"COPD.TIME_TO_FOLLOWUP\"")
         ));
+    }
+
+    @Test
+    void createTemplateRegistersPathwayRuntimeTriggerBindings() {
+        service.createTemplate(templateRequest());
+
+        verify(triggerBindings).replaceBindings(
+            org.mockito.Mockito.argThat(version ->
+                version.assetType() == VersionedAssetType.PATHWAY
+                    && version.assetIdentity().equals("TPL.COPD")
+                    && version.versionId().equals("av-pathway-default")
+                    && version.status() == AssetVersionStatus.DRAFT),
+            org.mockito.Mockito.argThat((List<AssetTriggerBindingInput> bindings) ->
+                bindings.size() == 2
+                    && bindings.stream().anyMatch(binding ->
+                        binding.purpose() == AssetTriggerPurpose.PATHWAY_ENTRY_CANDIDATE
+                            && binding.triggerPoint().equals("patient-view")
+                            && binding.requiredFields().containsAll(List.of("patient.mpi", "encounters[].encounterId")))
+                    && bindings.stream().anyMatch(binding ->
+                        binding.purpose() == AssetTriggerPurpose.PATHWAY_PROGRESS
+                            && binding.triggerPoint().equals("patient-view")
+                            && binding.requiredFields().contains("patientPathwayId"))),
+            eq("tester"),
+            eq("trace-pathway"));
     }
 
     @Test

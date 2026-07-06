@@ -735,6 +735,45 @@ describe("E2E credential contract", () => {
     expect(hostSource).toContain("token=");
     expect(hostSource).not.toContain("host-e2e-token");
   });
+
+  it("requires pathway lifecycle rehearsal to prove real S6 frontdesk and service operations before launch coverage", () => {
+    const source = readFileSync("e2e/pathway-lifecycle-frontdesk.spec.ts", "utf8");
+
+    expect(source).toContain("recordPathwayLifecycleStage");
+    expect(source).toContain("attachPathwayLifecycleScenarioEvidence");
+    expect(source).toContain("pathway-lifecycle-scenario-codes");
+    expect(source).toContain('code: "S6"');
+    expect(source).toContain("CLINICAL_EXECUTION");
+    expect(source).toContain("SPECIAL_DISEASE_PATHWAY");
+    expect(source).toContain("SCREENING_TRIAGE");
+    expect(source).toContain("QUALITY_ITERATION");
+    expect(source).toContain("/engine/pathway/pathway-templates");
+    expect(source).toContain("/engine/authoring/preview-run");
+    expect(source).toContain("/engine/pathway/pathway-templates/${encodeURIComponent(templateId)}/simulate");
+    expect(source).toContain("/engine/pathway/patient-pathways/entry-candidates");
+    expect(source).toContain("/engine/pathway/patient-pathways/enter");
+    expect(source).toContain("/engine/pathway/patient-pathways/${encodeURIComponent(patientPathwayId)}/advance");
+    expect(source).toContain("/engine/pathway/patient-pathways/${encodeURIComponent(patientPathwayId)}/clocks");
+    expect(source).toContain("/engine/pathway/patient-pathways/${encodeURIComponent(patientPathwayId)}/variances");
+    expect(source).toContain("/engine/followup/plans");
+    expect(source).toContain("前台创建专病路径草稿并保存节点边时钟");
+    expect(source).toContain("后端回读路径节点边时钟与十阶段里程碑");
+    expect(source).toContain("前台使用真实 ACTIVE 快照完成草稿试运行");
+    expect(source).toContain("真实服务链路对已保存路径执行仿真");
+    expect(source).toContain("临床用户基于当前机构生效版本读取入径候选");
+    expect(source).toContain("临床用户办理患者入径并生成首个关键时钟");
+    expect(source).toContain("临床用户完成当前节点并标准推进");
+    expect(source).toContain("真实后端登记路径变异与处置决策");
+    expect(source).toContain("真实后端完成随访接续终点节点");
+    expect(source).toContain("后端回读关键时钟和变异事实");
+    expect(source).toContain("路径完成后生成随访接续证据");
+    expect(source).toContain("formatClinicalDateTimeForE2e");
+    expect(source).toContain("建立的临床快照");
+    expect(source).not.toContain("page.route(");
+    expect(source).not.toContain("route.fulfill");
+    expect(source).not.toContain("pathway-graph-editor.spec.ts");
+    expect(source).not.toContain("选择第 1 个临床快照");
+  });
 });
 
 function account(role: string, tenantId: string, prefix: string) {

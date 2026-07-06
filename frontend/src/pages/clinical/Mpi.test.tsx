@@ -319,6 +319,40 @@ describe("Mpi", () => {
   );
 
   it(
+    "updates current clinical context from patient 360 when a prior snapshot already exists",
+    async () => {
+      const user = userEvent.setup();
+      renderMpi();
+
+      await user.click(screen.getAllByRole("button", { name: /患者360/ })[0]);
+      expect(await screen.findByText("患者身份与就诊上下文已关联")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "更新当前就诊上下文" }));
+
+      const diseaseInput = screen.getByLabelText("诊断/随访病种");
+      await user.clear(diseaseInput);
+      await user.type(diseaseInput, "上线演练路径入径复核");
+      const reasonInput = screen.getByLabelText("建立原因");
+      await user.clear(reasonInput);
+      await user.type(reasonInput, "真实前台演练：机构生效版本更新后重建当前上下文。");
+      await user.click(screen.getByRole("button", { name: "生成上下文快照" }));
+
+      await waitFor(() => {
+        expect(createContextSnapshot).toHaveBeenCalledWith(
+          expect.objectContaining({
+            patient: expect.objectContaining({ mpiId: "mpi-real-1" }),
+            diseaseCode: "上线演练路径入径复核",
+            diseaseName: "上线演练路径入径复核",
+            reason: "真实前台演练：机构生效版本更新后重建当前上下文。",
+            idempotencyKey: expect.any(String),
+          }),
+        );
+      });
+      expect(refetchDetail).toHaveBeenCalled();
+    },
+    MPI_INTERACTION_TIMEOUT_MS,
+  );
+
+  it(
     "reveals MPI audit identifiers only after evidence details are enabled",
     async () => {
       const user = userEvent.setup();

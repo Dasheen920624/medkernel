@@ -40,6 +40,9 @@ import com.medkernel.engine.versioning.AssetReferenceConsistency;
 import com.medkernel.engine.rule.ConditionEvaluation;
 import com.medkernel.engine.rule.ConditionEvaluator;
 import com.medkernel.engine.safety.ClinicalSafetyGuard;
+import com.medkernel.engine.versioning.AssetTriggerBindingInput;
+import com.medkernel.engine.versioning.AssetTriggerBindingService;
+import com.medkernel.engine.versioning.AssetTriggerPurpose;
 import com.medkernel.engine.versioning.AssetVersion;
 import com.medkernel.engine.versioning.AssetDependencyDeclaration;
 import com.medkernel.engine.versioning.AssetVersionNumbers;
@@ -110,6 +113,7 @@ public class PathwayEngineService {
     private final ClinicalSafetyGuard safetyGuard;
     private final PathwayVersionedAssetAdapter versionedAssets;
     private final AssetVersionRepository assetVersions;
+    private final AssetTriggerBindingService triggerBindings;
     private final InheritanceResolver inheritanceResolver;
     private final RuntimeReleasePathwaySelector runtimePathways;
     private final ConditionEvaluator conditionEvaluator;
@@ -143,6 +147,7 @@ public class PathwayEngineService {
                                 ObjectProvider<EngineDomainEventPort> domainEventProvider,
                                 PathwayVersionedAssetAdapter versionedAssets,
                                 AssetVersionRepository assetVersions,
+                                AssetTriggerBindingService triggerBindings,
                                 InheritanceResolver inheritanceResolver,
                                 RuntimeReleasePathwaySelector runtimePathways) {
         this(templates, nodes, milestones, edges, patientPathways, variances, clocks,
@@ -151,7 +156,7 @@ public class PathwayEngineService {
             followupHandoffProvider.getIfAvailable(PathwayFollowupHandoffPort::noop),
             worklistProvider.getIfAvailable(PathwayWorklistPort::noop),
             domainEventProvider.getIfAvailable(EngineDomainEventPort::noop), safetyGuard,
-            versionedAssets, assetVersions, inheritanceResolver, runtimePathways);
+            versionedAssets, assetVersions, triggerBindings, inheritanceResolver, runtimePathways);
     }
 
     PathwayEngineService(PathwayTemplateRepository templates,
@@ -182,7 +187,39 @@ public class PathwayEngineService {
             metricBindings, outcomeBindings, evaluationIndicators, contextSnapshots, progressor,
             new ConditionEvaluator(json), AuthoringFeatureGate.alwaysEnabled(), auditRecorder, transitions,
             diagnoseAssembler, json, followupHandoff, worklist, domainEvents, safetyGuard,
-            versionedAssets, assetVersions, inheritanceResolver, runtimePathways);
+            versionedAssets, assetVersions, null, inheritanceResolver, runtimePathways);
+    }
+
+    PathwayEngineService(PathwayTemplateRepository templates,
+                         PathwayNodeRepository nodes,
+                         PathwayMilestoneRepository milestones,
+                         PathwayEdgeRepository edges,
+                         PatientPathwayRepository patientPathways,
+                         PathwayVarianceRepository variances,
+                         ClinicalClockRepository clocks,
+                         SpecialtyMetricBindingRepository metricBindings,
+                         PathwayOutcomeBindingRepository outcomeBindings,
+                         EvaluationIndicatorRepository evaluationIndicators,
+                         ContextSnapshotService contextSnapshots,
+                         PathwayProgressor progressor,
+                         AuditRecorder auditRecorder,
+                         StateTransitionRecorder transitions,
+                         DiagnoseResponseAssembler diagnoseAssembler,
+                         ObjectMapper json,
+                         PathwayFollowupHandoffPort followupHandoff,
+                         PathwayWorklistPort worklist,
+                         EngineDomainEventPort domainEvents,
+                         ClinicalSafetyGuard safetyGuard,
+                         PathwayVersionedAssetAdapter versionedAssets,
+                         AssetVersionRepository assetVersions,
+                         AssetTriggerBindingService triggerBindings,
+                         InheritanceResolver inheritanceResolver,
+                         RuntimeReleasePathwaySelector runtimePathways) {
+        this(templates, nodes, milestones, edges, patientPathways, variances, clocks,
+            metricBindings, outcomeBindings, evaluationIndicators, contextSnapshots, progressor,
+            new ConditionEvaluator(json), AuthoringFeatureGate.alwaysEnabled(), auditRecorder, transitions,
+            diagnoseAssembler, json, followupHandoff, worklist, domainEvents, safetyGuard,
+            versionedAssets, assetVersions, triggerBindings, inheritanceResolver, runtimePathways);
     }
 
     PathwayEngineService(PathwayTemplateRepository templates,
@@ -238,6 +275,7 @@ public class PathwayEngineService {
                                  ClinicalSafetyGuard safetyGuard,
                                  PathwayVersionedAssetAdapter versionedAssets,
                                  AssetVersionRepository assetVersions,
+                                 AssetTriggerBindingService triggerBindings,
                                  InheritanceResolver inheritanceResolver,
                                  RuntimeReleasePathwaySelector runtimePathways) {
         this.templates = templates;
@@ -266,6 +304,7 @@ public class PathwayEngineService {
         this.safetyGuard = safetyGuard;
         this.versionedAssets = Objects.requireNonNull(versionedAssets, "路径统一版本适配器不能为空");
         this.assetVersions = Objects.requireNonNull(assetVersions, "统一资产版本仓库不能为空");
+        this.triggerBindings = triggerBindings;
         this.inheritanceResolver = Objects.requireNonNull(inheritanceResolver, "继承解析器不能为空");
         this.runtimePathways = Objects.requireNonNull(runtimePathways, "机构生效版本路径选择器不能为空");
     }
@@ -395,6 +434,7 @@ public class PathwayEngineService {
             pathwayDependencyDeclarations(
                 template, savedMilestones, savedNodes, savedEdges, savedOutcomeBindings)
         ));
+        registerDefaultPathwayTriggerBindings(assetVersion, actor, traceId);
         transitions.record(TEMPLATE_ENTITY, templateId, null, PathwayTemplateStatus.DRAFT.name(),
             "CREATE_PATHWAY_TEMPLATE", null);
         auditRecorder.record(AuditAction.CREATE, TEMPLATE_ENTITY, templateId,
@@ -402,6 +442,30 @@ public class PathwayEngineService {
         return new PathwayTemplateDetailResponse(
             template, savedMilestones, savedNodes, savedEdges, savedBindings, savedOutcomeBindings,
             nextTemplateVersionNo(template), assetVersion.status(), traceId);
+    }
+
+    private void registerDefaultPathwayTriggerBindings(
+            AssetVersion assetVersion,
+            String actor,
+            String traceId) {
+        if (triggerBindings == null) {
+            return;
+        }
+        triggerBindings.replaceBindings(
+            assetVersion,
+            List.of(
+                new AssetTriggerBindingInput(
+                    "patient-view",
+                    AssetTriggerPurpose.PATHWAY_ENTRY_CANDIDATE,
+                    List.of("patient.mpi", "encounters[].encounterId")),
+                new AssetTriggerBindingInput(
+                    "patient-view",
+                    AssetTriggerPurpose.PATHWAY_PROGRESS,
+                    List.of("patientPathwayId"))
+            ),
+            actor,
+            traceId
+        );
     }
 
     private AssetVersion requirePathwayAssetVersion(PathwayTemplate template) {

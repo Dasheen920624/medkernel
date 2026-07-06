@@ -10,6 +10,46 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百三十八批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整 S6、全角色、全功能、全专病十阶段运行覆盖或 134 清库部署收口，而是把
+  S6 专病路径生命周期补成可被浏览器覆盖 reporter 消费的真实前台与真实服务链路证据切片。新增
+  `pathway-lifecycle-frontdesk.spec.ts`：临床用户真实前台创建脱敏患者、建立 ACTIVE 当前就诊上下文；
+  医疗引擎运营员真实前台新建专病路径草稿、读取本轮真实快照、回填受控配置、执行草稿试运行并保存；
+  后端回读节点 / 边 / 时钟 / 十阶段 milestone 配置；真实服务链路仿真已保存路径；激活包含平台基线
+  activeAssets 和本轮 PATHWAY 的本地医院 runtime；临床用户从患者 360 更新当前就诊上下文，基于当前机构
+  生效版本读取入径候选、前台办理入径并完成一次标准推进；随后通过真实后端 API 辅助登记变异、完成随访
+  接续终点节点，并回读关键时钟、变异事实和随访计划。`launchCoverageEvidence` 只有在 spec 通过、
+  非 flaky，且附件 `pathway-lifecycle-scenario-codes` 完整包含 S6、`CLINICAL_EXECUTION`、
+  `SPECIAL_DISEASE_PATHWAY`、必要 API evidence 和十阶段 milestone 配置时，才声明 `scenarios:S6`、
+  `productLayers:CLINICAL_EXECUTION`、`serviceCombinations:SPECIAL_DISEASE_PATHWAY`。本批明确不输出
+  `specialDiseaseStages` 到 coverage；附件里的 `specialDiseaseStages` 只作为“路径模板配置和后端详情回读
+  含十阶段里程碑”的完整性门槛，不代表专病十阶段逐阶段运行覆盖。
+- 第一百三十八批边界说明：本批不是纯前台闭环。真实前台覆盖患者 / 上下文 / 路径草稿 / 草稿试运行 /
+  入径 / 一次标准推进；仿真、runtime 激活、变异登记、终点完成、时钟 / 变异 / 随访回读仍含 API 辅助。
+  登录角色实际主要为 `clinical-user` 和 `engine-operator`，节点元数据中的护士、药师、质控等不等同于
+  全角色真实操作。`PathwayEngineService` 为新建 PATHWAY 资产注册默认 `patient-view` trigger bindings：
+  `PATHWAY_ENTRY_CANDIDATE` 需要 `patient.mpi`、`encounters[].encounterId`，`PATHWAY_PROGRESS` 需要
+  `patientPathwayId`，用于让本轮 runtime 候选和患者路径推进能被机构生效版本消费。
+- 第一百三十八批验证证据：TDD 红灯中，收紧口径后的
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "S6 pathway lifecycle"` 曾失败于
+  `expected undefined to deeply equal [ 'S6' ]`；`npm --prefix frontend run test -- e2eAuthCredentialContract -t "pathway lifecycle"`
+  曾失败于旧 spec 缺 `真实服务链路对已保存路径执行仿真`，修正标题和阶段文案后两者转绿。重新打包后端
+  `mvn -f medkernel-backend/pom.xml -DskipTests package` 通过，并在 2026-07-06 22:09 后启动当前分支
+  JAR 的 18080 dev/H2 后端（PID 49326）。目标真实 E2E 通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-pathway-lifecycle-coverage npm --prefix frontend run e2e -- --project=chromium pathway-lifecycle-frontdesk.spec.ts`
+  通过（1 expected，0 unexpected，0 flaky），仓库外 `results.json` 为 `PASSED`，coverage 只含
+  `scenarios:S6`、`productLayers:CLINICAL_EXECUTION`、`serviceCombinations:SPECIAL_DISEASE_PATHWAY`。
+  其他新鲜门禁：`npm --prefix frontend run test -- Mpi PatientPathways ContextSnapshotSelector QcEvalSets e2eLaunchCoverageEvidence e2eAuthCredentialContract`
+  通过（87 tests）；`npm --prefix frontend run typecheck` 通过；E2E TS 检查
+  `cd frontend && npx tsc --noEmit --pretty false --skipLibCheck false --allowImportingTsExtensions --moduleResolution bundler --module ESNext --target ES2022 --lib ES2023,DOM --strict --types node e2e/support/launchCoverageEvidence.ts e2e/pathway-lifecycle-frontdesk.spec.ts`
+  通过；`node --test scripts/release/launch-coverage-audit.test.mjs` 通过（6 tests）；后端
+  `mvn -f medkernel-backend/pom.xml -Dtest=PathwayEngineServiceTest test` 通过（63 tests）；
+  `git diff --check` 通过。
+- 第一百三十八批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把 S6 证据切片等同于
+  完整 S6、完整临床执行层、完整专病十阶段、全角色全功能或总目标完成。后续仍需继续补 S0-S40 其余场景、
+  全角色真实前台操作、13 类 runtime 资产逐类业务消费者、完整语义族 / 专业域 / 全知识、两家机构差异化
+  发布 / 回滚、真实备份 / 隔离恢复 / 重启恢复，以及 134 清库部署复演；发现红点继续先复现、定根因，再按
+  上线级标准修复，不做片面优化。
 - 第一百三十七批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是登录页文案或
   片面 MFA 优化，而是把既有 `mfa-login-frontdesk.spec.ts` 从“真实前台 E2E + 截图”补成可被浏览器覆盖
   reporter 消费的认证安全证据。该 spec 现在先由平台管理员真实创建 MFA 临时平台管理员账号，临时账号完成

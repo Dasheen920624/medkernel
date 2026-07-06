@@ -732,7 +732,11 @@ export default function Mpi() {
           }
         />
       );
-    } else if (canOpenCdssFatigue && patient.status === "ACTIVE" && hasSnapshot) {
+    } else if (
+      patient.status === "ACTIVE" &&
+      hasSnapshot &&
+      (canCreateContextSnapshot || canOpenCdssFatigue)
+    ) {
       contextAction = (
         <Alert
           message="已关联当前就诊上下文"
@@ -740,13 +744,26 @@ export default function Mpi() {
           type="success"
           showIcon
           action={
-            <Button
-              aria-label="生成报告解读"
-              icon={<ReadOutlined />}
-              onClick={() => openReportInterpretation(patientDetail)}
-            >
-              生成报告解读
-            </Button>
+            <Space wrap>
+              {canCreateContextSnapshot && (
+                <Button
+                  aria-label="更新当前就诊上下文"
+                  icon={<FileDoneOutlined />}
+                  onClick={() => showContextSnapshotModal(patient)}
+                >
+                  更新当前就诊上下文
+                </Button>
+              )}
+              {canOpenCdssFatigue && (
+                <Button
+                  aria-label="生成报告解读"
+                  icon={<ReadOutlined />}
+                  onClick={() => openReportInterpretation(patientDetail)}
+                >
+                  生成报告解读
+                </Button>
+              )}
+            </Space>
           }
         />
       );

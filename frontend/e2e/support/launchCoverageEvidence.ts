@@ -50,6 +50,7 @@ type CoverageProof = {
   requiresMfaLoginScenarioAttachment?: boolean;
   requiresDiagnosisKnowledgeScenarioAttachment?: boolean;
   requiresEmbedBusinessHostAttachment?: boolean;
+  requiresPathwayLifecycleAttachment?: boolean;
 };
 
 const stakeholderClaims = [
@@ -137,6 +138,12 @@ const embedBusinessHostClaims = [
   "deliveryShapes:EMBEDDED_COMPONENT",
 ];
 
+const pathwayLifecycleClaims = [
+  "scenarios:S6",
+  "productLayers:CLINICAL_EXECUTION",
+  "serviceCombinations:SPECIAL_DISEASE_PATHWAY",
+];
+
 const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
   .filter((claim) => claim.startsWith("thirdPartySystemFamilies:"))
   .map((claim) => claim.split(":")[1]);
@@ -207,6 +214,39 @@ const requiredEmbedBusinessHostScenarioCodes = Object.keys(
   requiredEmbedBusinessHostScenarioEvidence,
 );
 
+const requiredPathwayLifecycleScenarioEvidence: Record<string, string[]> = {
+  S6: [
+    "前台创建专病路径草稿并保存节点边时钟",
+    "后端回读路径节点边时钟与十阶段里程碑",
+    "前台使用真实 ACTIVE 快照完成草稿试运行",
+    "真实服务链路对已保存路径执行仿真",
+    "临床用户基于当前机构生效版本读取入径候选",
+    "临床用户办理患者入径并生成首个关键时钟",
+    "临床用户完成当前节点并标准推进",
+    "真实后端登记路径变异与处置决策",
+    "真实后端完成随访接续终点节点",
+    "后端回读关键时钟和变异事实",
+    "路径完成后生成随访接续证据",
+  ],
+};
+
+const requiredPathwayLifecycleScenarioCodes = Object.keys(
+  requiredPathwayLifecycleScenarioEvidence,
+);
+
+const requiredPathwayMilestoneStages = [
+  "SCREENING_TRIAGE",
+  "DIAGNOSIS_DIFFERENTIAL",
+  "RISK_STRATIFICATION",
+  "TREATMENT_DECISION",
+  "EXECUTION_CANDIDATE",
+  "MONITORING_WARNING",
+  "DISCHARGE_REFERRAL",
+  "REHAB_EDUCATION_FOLLOWUP",
+  "OUTCOME_EVALUATION",
+  "QUALITY_ITERATION",
+];
+
 const coverageProofs: CoverageProof[] = [
   {
     file: "stakeholder-view-rehearsal.spec.ts",
@@ -255,6 +295,12 @@ const coverageProofs: CoverageProof[] = [
     claims: embedBusinessHostClaims,
     requiresEmbedBusinessHostAttachment: true,
   },
+  {
+    file: "pathway-lifecycle-frontdesk.spec.ts",
+    titleIncludes: "运营员与临床用户完成专病路径生产、真实服务仿真、入径、推进、变异和随访接续证据切片",
+    claims: pathwayLifecycleClaims,
+    requiresPathwayLifecycleAttachment: true,
+  },
 ];
 
 export function buildBrowserE2eLaunchEvidence(input: {
@@ -298,7 +344,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.requiresMfaLoginScenarioAttachment || hasRequiredMfaLoginScenarioAttachment(test)) &&
       (!proof.requiresDiagnosisKnowledgeScenarioAttachment ||
         hasRequiredDiagnosisKnowledgeScenarioAttachment(test)) &&
-      (!proof.requiresEmbedBusinessHostAttachment || hasRequiredEmbedBusinessHostAttachment(test))
+      (!proof.requiresEmbedBusinessHostAttachment || hasRequiredEmbedBusinessHostAttachment(test)) &&
+      (!proof.requiresPathwayLifecycleAttachment || hasRequiredPathwayLifecycleAttachment(test))
     );
   });
 }
@@ -539,6 +586,52 @@ function hasRequiredEmbedBusinessHostAttachment(test: BrowserE2eTestResult) {
   }
 }
 
+function hasRequiredPathwayLifecycleAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "pathway-lifecycle-scenario-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scenarioCodes?: unknown;
+      productLayers?: unknown;
+      serviceCombinations?: unknown;
+      specialDiseaseStages?: unknown;
+      apiEvidence?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    if (
+      !arrayEquals(parsed.scenarioCodes, requiredPathwayLifecycleScenarioCodes) ||
+      !arrayEquals(parsed.productLayers, ["CLINICAL_EXECUTION"]) ||
+      !arrayEquals(parsed.serviceCombinations, ["SPECIAL_DISEASE_PATHWAY"]) ||
+      !arrayEquals(parsed.specialDiseaseStages, requiredPathwayMilestoneStages) ||
+      !hasCompletePathwayLifecycleApiEvidence(parsed.apiEvidence) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const evidenceByCode = new Map<string, string[]>();
+    for (const item of parsed.scenarioEvidence) {
+      if (!item || typeof item !== "object") continue;
+      const code = (item as { code?: unknown }).code;
+      const stages = (item as { observedStages?: unknown }).observedStages;
+      if (typeof code !== "string" || !Array.isArray(stages)) continue;
+      evidenceByCode.set(
+        code,
+        stages.filter((stage): stage is string => typeof stage === "string"),
+      );
+    }
+    return requiredPathwayLifecycleScenarioCodes.every((code) => {
+      const observedStages = evidenceByCode.get(code) ?? [];
+      return requiredPathwayLifecycleScenarioEvidence[code].every((stage) =>
+        observedStages.includes(stage),
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
 function hasCompleteEmbedApiEvidence(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const evidence = value as Record<string, unknown>;
@@ -548,6 +641,25 @@ function hasCompleteEmbedApiEvidence(value: unknown) {
     "recommendationsRead",
     "feedbackSubmitted",
     "hostMessageReceived",
+  ].every((key) => evidence[key] === true);
+}
+
+function hasCompletePathwayLifecycleApiEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const evidence = value as Record<string, unknown>;
+  return [
+    "templateSaved",
+    "templateReadback",
+    "draftPreviewRun",
+    "templateSimulated",
+    "entryCandidatesRead",
+    "patientEntered",
+    "standardAdvanced",
+    "varianceRecorded",
+    "followupHandoffCreated",
+    "clocksRead",
+    "variancesRead",
+    "followupHandoffObserved",
   ].every((key) => evidence[key] === true);
 }
 

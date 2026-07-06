@@ -475,6 +475,133 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.serviceCombinations).toBeUndefined();
   });
 
+  it("declares S6 pathway lifecycle evidence slice without packaging milestone config as ten-stage runtime coverage", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/pathway-lifecycle-frontdesk.spec.ts",
+          title: "运营员与临床用户完成专病路径生产、真实服务仿真、入径、推进、变异和随访接续证据切片",
+          status: "passed",
+          attachments: [
+            {
+              name: "pathway-lifecycle-scenario-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                scenarioCodes: ["S6"],
+                productLayers: ["CLINICAL_EXECUTION"],
+                serviceCombinations: ["SPECIAL_DISEASE_PATHWAY"],
+                specialDiseaseStages: [
+                  "SCREENING_TRIAGE",
+                  "DIAGNOSIS_DIFFERENTIAL",
+                  "RISK_STRATIFICATION",
+                  "TREATMENT_DECISION",
+                  "EXECUTION_CANDIDATE",
+                  "MONITORING_WARNING",
+                  "DISCHARGE_REFERRAL",
+                  "REHAB_EDUCATION_FOLLOWUP",
+                  "OUTCOME_EVALUATION",
+                  "QUALITY_ITERATION",
+                ],
+                apiEvidence: {
+                  templateSaved: true,
+                  templateReadback: true,
+                  draftPreviewRun: true,
+                  templateSimulated: true,
+                  entryCandidatesRead: true,
+                  patientEntered: true,
+                  standardAdvanced: true,
+                  varianceRecorded: true,
+                  followupHandoffCreated: true,
+                  clocksRead: true,
+                  variancesRead: true,
+                  followupHandoffObserved: true,
+                },
+                scenarioEvidence: [
+                  {
+                    code: "S6",
+                    observedStages: [
+                      "前台创建专病路径草稿并保存节点边时钟",
+                      "后端回读路径节点边时钟与十阶段里程碑",
+                      "前台使用真实 ACTIVE 快照完成草稿试运行",
+                      "真实服务链路对已保存路径执行仿真",
+                      "临床用户基于当前机构生效版本读取入径候选",
+                      "临床用户办理患者入径并生成首个关键时钟",
+                      "临床用户完成当前节点并标准推进",
+                      "真实后端登记路径变异与处置决策",
+                      "真实后端完成随访接续终点节点",
+                      "后端回读关键时钟和变异事实",
+                      "路径完成后生成随访接续证据",
+                    ],
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S6"]);
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "CLINICAL_EXECUTION",
+    ]);
+    expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
+      "SPECIAL_DISEASE_PATHWAY",
+    ]);
+    expect(evidence.launchCoverage.specialDiseaseStages).toBeUndefined();
+  });
+
+  it("does not declare S6 pathway lifecycle coverage from a passed spec without complete real lifecycle evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/pathway-lifecycle-frontdesk.spec.ts",
+          title: "运营员与临床用户完成专病路径生产、真实服务仿真、入径、推进、变异和随访接续证据切片",
+          status: "passed",
+          attachments: [
+            {
+              name: "pathway-lifecycle-scenario-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                scenarioCodes: ["S6"],
+                productLayers: ["CLINICAL_EXECUTION"],
+                serviceCombinations: ["SPECIAL_DISEASE_PATHWAY"],
+                specialDiseaseStages: ["SCREENING_TRIAGE"],
+                apiEvidence: {
+                  templateSaved: true,
+                  templateReadback: true,
+                  draftPreviewRun: true,
+                  templateSimulated: true,
+                  entryCandidatesRead: true,
+                  patientEntered: true,
+                  standardAdvanced: true,
+                  varianceRecorded: true,
+                  followupHandoffCreated: false,
+                  clocksRead: true,
+                  variancesRead: true,
+                  followupHandoffObserved: false,
+                },
+                scenarioEvidence: [
+                  {
+                    code: "S6",
+                    observedStages: ["前台创建专病路径草稿并保存节点边时钟"],
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.productLayers).toBeUndefined();
+    expect(evidence.launchCoverage.serviceCombinations).toBeUndefined();
+    expect(evidence.launchCoverage.specialDiseaseStages).toBeUndefined();
+  });
+
   it("does not declare embedded business host coverage from a passed spec without complete real service evidence", () => {
     const evidence = buildBrowserE2eLaunchEvidence({
       stats: passedStats,

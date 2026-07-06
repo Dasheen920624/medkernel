@@ -458,7 +458,11 @@ describe("QcEvalSets", () => {
       ),
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "选择第 1 个临床快照" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "选择 2026年06月06日 08:00:00 建立的临床快照",
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "执行仿真评估" }));
 
     await waitFor(() =>
