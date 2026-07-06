@@ -1,4 +1,6 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { writeFile } from "node:fs/promises";
+
+import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 
 import { apiBase, appPath, ensureReadySession, expectOk, patchApi, postApi } from "./support/auth";
 
@@ -19,27 +21,135 @@ type IdentityBindingPayload = {
   };
 };
 
+type IdentityPlaintextSafetyEvidence = {
+  subjectHintIncludesTail: boolean;
+  listOmitsExternalSubjectDigest: boolean;
+  listOmitsExternalSubjectPlaintext: boolean;
+  duplicateStatus: number;
+  duplicateRejectedMessage: string;
+};
+
+type IdentityUnbindingEvidence = {
+  bindingId: string;
+  status: string;
+  versionAdvanced: boolean;
+};
+
+type IdentityCleanupEvidence = {
+  createdAccountDisabled: boolean;
+  duplicateAccountDisabled: boolean;
+  bindingUnboundOrAlreadyUnbound: boolean;
+};
+
+type IdentityBindingApiEvidence = {
+  personnelCreated: boolean;
+  bindingPosted: boolean;
+  bindingListRead: boolean;
+  plaintextNotPersisted: boolean;
+  duplicateRejected: boolean;
+  unbindPosted: boolean;
+  cleanupCompleted: boolean;
+};
+
+type IdentityBindingScenarioEvidence = {
+  scenarioCodes: ["S14"];
+  productLayers: ["FOUNDATION_GOVERNANCE"];
+  serviceCombinations: ["COMPLIANCE_OPERATIONS"];
+  apiEvidence: IdentityBindingApiEvidence;
+  createdPersonnel: CreatedPersonnel[];
+  binding: NonNullable<IdentityBindingPayload["data"]> | null;
+  plaintextSafety: IdentityPlaintextSafetyEvidence | null;
+  unbinding: IdentityUnbindingEvidence | null;
+  cleanup: IdentityCleanupEvidence;
+  scenarioEvidence: Array<{ code: "S14"; observedStages: string[] }>;
+};
+
 test.describe("身份来源真实前台上线演练", () => {
-  test("平台管理员可前台绑定和解绑院内身份来源且身份原文不落库", async ({ page }) => {
+  test("平台管理员可前台绑定和解绑院内身份来源且身份原文不落库", async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     const suffix = Date.now().toString(36);
     const externalSubject = `EMP-FRONT-${suffix.toUpperCase()}`;
-    const created = await createPersonnelAccountFromUi(page, suffix);
-    const duplicateCandidate = await createPersonnelAccountFromUi(page, `${suffix}b`);
+    const observedStages = new Set<string>();
+    const apiEvidence: IdentityBindingApiEvidence = {
+      personnelCreated: false,
+      bindingPosted: false,
+      bindingListRead: false,
+      plaintextNotPersisted: false,
+      duplicateRejected: false,
+      unbindPosted: false,
+      cleanupCompleted: false,
+    };
+    const createdPersonnel: CreatedPersonnel[] = [];
+    const cleanupEvidence: IdentityCleanupEvidence = {
+      createdAccountDisabled: false,
+      duplicateAccountDisabled: false,
+      bindingUnboundOrAlreadyUnbound: false,
+    };
+    let created: CreatedPersonnel | null = null;
+    let duplicateCandidate: CreatedPersonnel | null = null;
     let binding: NonNullable<IdentityBindingPayload["data"]> | null = null;
+    let plaintextSafety: IdentityPlaintextSafetyEvidence | null = null;
+    let unbinding: IdentityUnbindingEvidence | null = null;
 
     try {
+      created = await createPersonnelAccountFromUi(page, suffix);
+      duplicateCandidate = await createPersonnelAccountFromUi(page, `${suffix}b`);
+      createdPersonnel.push(created, duplicateCandidate);
+      apiEvidence.personnelCreated = createdPersonnel.length === 2;
+      observedStages.add("前台创建身份来源演练人员账号");
+
       binding = await bindIdentitySourceFromUi(page, created, externalSubject);
-      await assertIdentityPlaintextIsNotPersisted(
+      apiEvidence.bindingPosted = binding.providerType === "EMPLOYEE_NO" && binding.status === "ACTIVE";
+      observedStages.add("前台绑定院内身份来源");
+
+      plaintextSafety = await assertIdentityPlaintextIsNotPersisted(
         page,
         binding.bindingId ?? "",
         externalSubject,
         duplicateCandidate.userId,
       );
-      await unbindIdentitySourceFromUi(page, binding.bindingId ?? "", binding.version ?? 1);
-      binding = null;
+      apiEvidence.bindingListRead = true;
+      apiEvidence.plaintextNotPersisted =
+        plaintextSafety.subjectHintIncludesTail &&
+        plaintextSafety.listOmitsExternalSubjectDigest &&
+        plaintextSafety.listOmitsExternalSubjectPlaintext;
+      apiEvidence.duplicateRejected = plaintextSafety.duplicateStatus === 409;
+      observedStages.add("列表回读只展示脱敏身份提示");
+      observedStages.add("后端拒绝重复外部身份绑定");
+
+      unbinding = await unbindIdentitySourceFromUi(page, binding.bindingId ?? "", binding.version ?? 1);
+      apiEvidence.unbindPosted = unbinding.status === "UNBOUND" && unbinding.versionAdvanced;
+      observedStages.add("前台解绑身份来源并保留历史证据");
     } finally {
-      await cleanupIdentityBindingRehearsal(page, binding?.bindingId, created, duplicateCandidate);
+      try {
+        await cleanupIdentityBindingRehearsal(
+          page,
+          binding?.bindingId,
+          created,
+          duplicateCandidate,
+          cleanupEvidence,
+        );
+        apiEvidence.cleanupCompleted =
+          cleanupEvidence.createdAccountDisabled &&
+          cleanupEvidence.duplicateAccountDisabled &&
+          cleanupEvidence.bindingUnboundOrAlreadyUnbound;
+        if (apiEvidence.cleanupCompleted) {
+          observedStages.add("停用身份来源演练账号");
+        }
+      } finally {
+        await attachIdentityBindingScenarioEvidence(testInfo, {
+          scenarioCodes: ["S14"],
+          productLayers: ["FOUNDATION_GOVERNANCE"],
+          serviceCombinations: ["COMPLIANCE_OPERATIONS"],
+          apiEvidence,
+          createdPersonnel,
+          binding,
+          plaintextSafety,
+          unbinding,
+          cleanup: cleanupEvidence,
+          scenarioEvidence: [{ code: "S14", observedStages: Array.from(observedStages) }],
+        });
+      }
     }
   });
 });
@@ -145,7 +255,7 @@ async function assertIdentityPlaintextIsNotPersisted(
   bindingId: string,
   externalSubject: string,
   duplicateUserId: string,
-) {
+): Promise<IdentityPlaintextSafetyEvidence> {
   expect(bindingId, "身份来源绑定必须返回 bindingId").toBeTruthy();
   expect(duplicateUserId, "重复身份校验必须使用真实已开通人员账号").toBeTruthy();
   const response = await page.request.get(`${apiBase}/compliance/identity-bindings`, {
@@ -161,9 +271,8 @@ async function assertIdentityPlaintextIsNotPersisted(
   const binding = (payload.data?.items ?? []).find((item) => item.bindingId === bindingId);
   expect(binding?.subjectHint, "列表只应返回脱敏身份提示").toContain(externalSubject.slice(-4));
   expect(binding?.externalSubjectDigest, "身份来源前台列表不得返回身份摘要字段").toBeUndefined();
-  expect(JSON.stringify(binding), "身份来源前台列表不得返回身份原文").not.toContain(
-    externalSubject,
-  );
+  const serializedBinding = JSON.stringify(binding);
+  expect(serializedBinding, "身份来源前台列表不得返回身份原文").not.toContain(externalSubject);
 
   const duplicateResponse = await postApi(page, "/compliance/identity-bindings", {
     userId: duplicateUserId,
@@ -177,9 +286,20 @@ async function assertIdentityPlaintextIsNotPersisted(
     `同一外部身份已绑定其他真实用户时必须由后端拒绝 body=${duplicateText}`,
   ).toBe(409);
   expect(duplicateText).toContain("该外部身份已绑定其他用户");
+  return {
+    subjectHintIncludesTail: binding?.subjectHint?.includes(externalSubject.slice(-4)) === true,
+    listOmitsExternalSubjectDigest: binding?.externalSubjectDigest === undefined,
+    listOmitsExternalSubjectPlaintext: !serializedBinding.includes(externalSubject),
+    duplicateStatus: duplicateResponse.status(),
+    duplicateRejectedMessage: duplicateText,
+  };
 }
 
-async function unbindIdentitySourceFromUi(page: Page, bindingId: string, expectedVersion: number) {
+async function unbindIdentitySourceFromUi(
+  page: Page,
+  bindingId: string,
+  expectedVersion: number,
+): Promise<IdentityUnbindingEvidence> {
   const row = identityBindingRowById(page, bindingId);
   await expect(row, "身份来源绑定行应保留到前台列表").toBeVisible({ timeout: 20_000 });
   await row.getByRole("button", { name: "解绑" }).click();
@@ -208,6 +328,11 @@ async function unbindIdentitySourceFromUi(page: Page, bindingId: string, expecte
   await expect(identityBindingRowById(page, bindingId).getByText("已解绑")).toBeVisible({
     timeout: 20_000,
   });
+  return {
+    bindingId,
+    status: payload.data?.status ?? "",
+    versionAdvanced: payload.data?.version === expectedVersion + 1,
+  };
 }
 
 async function chooseDialogOption(page: Page, dialog: Locator, label: string, option: string) {
@@ -276,24 +401,40 @@ function waitForPost(page: Page, path: string) {
 
 async function disableCreatedAccount(page: Page, userId: string, label: string) {
   if (!userId) {
-    return;
+    return false;
   }
   const disabled = await patchApi(page, `/compliance/users/${encodeURIComponent(userId)}/status`, {
     status: "DISABLED",
   });
   await expectOk(disabled, label);
+  return true;
 }
 
 async function cleanupIdentityBindingRehearsal(
   page: Page,
   bindingId: string | undefined,
-  created: CreatedPersonnel,
-  duplicateCandidate: CreatedPersonnel,
+  created: CreatedPersonnel | null,
+  duplicateCandidate: CreatedPersonnel | null,
+  evidence: IdentityCleanupEvidence,
 ) {
   const cleanupTasks = [
-    () => unbindCreatedIdentityIfNeeded(page, bindingId),
-    () => disableCreatedAccount(page, created.userId, "停用身份来源前台演练账号"),
-    () => disableCreatedAccount(page, duplicateCandidate.userId, "停用身份来源重复校验账号"),
+    async () => {
+      evidence.bindingUnboundOrAlreadyUnbound = await unbindCreatedIdentityIfNeeded(page, bindingId);
+    },
+    async () => {
+      evidence.createdAccountDisabled = await disableCreatedAccount(
+        page,
+        created?.userId ?? "",
+        "停用身份来源前台演练账号",
+      );
+    },
+    async () => {
+      evidence.duplicateAccountDisabled = await disableCreatedAccount(
+        page,
+        duplicateCandidate?.userId ?? "",
+        "停用身份来源重复校验账号",
+      );
+    },
   ];
   const results = await Promise.allSettled(cleanupTasks.map((cleanup) => cleanup()));
   const failures = results
@@ -306,7 +447,7 @@ async function cleanupIdentityBindingRehearsal(
 
 async function unbindCreatedIdentityIfNeeded(page: Page, bindingId: string | undefined) {
   if (!bindingId) {
-    return;
+    return true;
   }
   const response = await page.request.get(`${apiBase}/compliance/identity-bindings`, {
     params: { page: "1", size: "20" },
@@ -320,13 +461,26 @@ async function unbindCreatedIdentityIfNeeded(page: Page, bindingId: string | und
   };
   const binding = (payload.data?.items ?? []).find((item) => item.bindingId === bindingId);
   if (!binding || binding.status === "UNBOUND") {
-    return;
+    return true;
   }
   const unbound = await postApi(page, `/compliance/identity-bindings/${bindingId}:unbind`, {
     reason: "真实前台演练清理：失败路径解除临时身份来源绑定。",
     expectedVersion: binding.version ?? 1,
   });
   await expectOk(unbound, "清理身份来源前台演练绑定");
+  return true;
+}
+
+async function attachIdentityBindingScenarioEvidence(
+  testInfo: TestInfo,
+  evidence: IdentityBindingScenarioEvidence,
+) {
+  const recordPath = testInfo.outputPath("identity-binding-scenario-codes.json");
+  await writeFile(recordPath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  await testInfo.attach("identity-binding-scenario-codes", {
+    path: recordPath,
+    contentType: "application/json",
+  });
 }
 
 function escapeRegExp(value: string) {

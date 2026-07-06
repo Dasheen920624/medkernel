@@ -10,6 +10,41 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百四十二批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整 S14、完整身份安全治理、全角色全功能或 134 清库部署收口，而是把既有
+  `identity-binding-frontdesk.spec.ts` 从“真实前台绑定 / 解绑 + 隐私断言”补成可被浏览器覆盖 reporter
+  消费的身份来源证据切片。`launchCoverageEvidence` 现在只有在该 spec 通过、非 flaky，且附件
+  `identity-binding-scenario-codes` 完整包含 `scenarios:S14`、`productLayers:FOUNDATION_GOVERNANCE`、
+  `serviceCombinations:COMPLIANCE_OPERATIONS`、七项 API evidence、两个真实演练人员账号、ACTIVE
+  `EMPLOYEE_NO` 绑定响应、列表不返回身份摘要 / 原文、重复外部身份 409 拒绝、UNBOUND 解绑响应、清理停用结果和六个真实阶段时，才声明上述 coverage；没有附件或附件缺隐私、重复拒绝、解绑、清理事实时不再声明 coverage。
+- 第一百四十二批真实链路说明：`identity-binding-frontdesk.spec.ts` 现在以平台管理员真实前台进入
+  `/admin/users` 创建两个身份来源演练人员账号，再进入 `/security/identity-binding` 对其中一个账号执行
+  单个绑定院内工号；随后通过真实后端列表回读确认只展示 `subjectHint`，不返回 `externalSubjectDigest` 或身份原文；
+  用第二个真实账号提交同一外部身份，断言后端返回 409 且提示“该外部身份已绑定其他用户”；再由前台解除绑定，
+  断言状态 `UNBOUND` 且版本递增；finally 中清理解除残留绑定并停用两个演练账号。附件记录绑定 `bindingId/userId/providerType/subjectHint/status/version`、
+  重复拒绝响应、解绑结果、清理结果和阶段证据。
+- 第一百四十二批边界说明：本批 coverage 只含 `scenarios:S14`、`productLayers:FOUNDATION_GOVERNANCE` 和
+  `serviceCombinations:COMPLIANCE_OPERATIONS`；不声明完整 S14、完整组织 / 权限 / MFA / 身份安全治理、全角色真实操作、
+  完整合规运维、完整上线验收或 134 清库复演。
+- 第一百四十二批验证证据：TDD 红灯
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "identity binding"` 曾失败于完整附件仍不声明
+  `S14`（`expected undefined to deeply equal [ 'S14' ]`）；
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -t "identity binding"` 曾失败于目标 spec 缺
+  `attachIdentityBindingScenarioEvidence`。实现后上述红灯转绿。E2E TS 检查
+  `cd frontend && npx tsc --noEmit --pretty false --skipLibCheck false --allowImportingTsExtensions --moduleResolution bundler --module ESNext --target ES2022 --lib ES2023,DOM --strict --types node e2e/support/launchCoverageEvidence.ts e2e/identity-binding-frontdesk.spec.ts`
+  通过。目标真实 E2E 在本地 18080 dev/H2 后端（PID 49326）上通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-identity-binding-coverage npm --prefix frontend run e2e -- --project=chromium identity-binding-frontdesk.spec.ts`
+  通过，仓库外 `results.json` 为 `PASSED`（1 expected，0 unexpected，0 flaky），coverage 只含
+  `scenarios:S14`、`productLayers:FOUNDATION_GOVERNANCE`、`serviceCombinations:COMPLIANCE_OPERATIONS`；附件记录两名演练人员、
+  `EMPLOYEE_NO` ACTIVE 绑定、列表脱敏 / 不含摘要 / 不含原文、重复绑定 409、UNBOUND 解绑和清理停用均完成。其他新鲜门禁：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract` 通过（55 tests）；
+  `npm --prefix frontend run typecheck` 通过；`node --test scripts/release/launch-coverage-audit.test.mjs`
+  通过（6 tests）；`git diff --check` 通过。
+- 第一百四十二批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把 identity-binding
+  身份来源证据切片等同于完整 S14、完整基础治理、完整全角色或总目标完成。后续优先继续真实覆盖缺口：S13
+  两机构差异化发布 / 部分选择 / 离线交付 / 导入或校验闭环，S2/S4 真实接入与字典映射，S0-S40 其余场景、
+  完整语义族 / 专业域 / 全知识、真实备份 / 隔离恢复 / 重启恢复，以及 134 清库部署复演；继续坚持真实前台与真实服务链路，
+  发现红点先复现、定根因，再按上线级标准修复，不做片面优化。
 - 第一百四十一批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整系统运维、真实备份 / 隔离恢复 / 重启恢复、完整 S15、完整全角色或 134
   清库部署收口，而是把既有 `system-providers-frontdesk.spec.ts` 从“真实前台只读核查 + 权限禁入”补成可被

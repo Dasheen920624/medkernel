@@ -109,6 +109,71 @@ const systemProvidersEvidence = {
   ],
 };
 
+const identityBindingEvidence = {
+  scenarioCodes: ["S14"],
+  productLayers: ["FOUNDATION_GOVERNANCE"],
+  serviceCombinations: ["COMPLIANCE_OPERATIONS"],
+  apiEvidence: {
+    personnelCreated: true,
+    bindingPosted: true,
+    bindingListRead: true,
+    plaintextNotPersisted: true,
+    duplicateRejected: true,
+    unbindPosted: true,
+    cleanupCompleted: true,
+  },
+  createdPersonnel: [
+    {
+      userId: "user-1",
+      username: "idb-user-1",
+      displayName: "身份绑定演练人员0001",
+    },
+    {
+      userId: "user-2",
+      username: "idb-user-2",
+      displayName: "身份绑定演练人员0002",
+    },
+  ],
+  binding: {
+    bindingId: "binding-1",
+    userId: "user-1",
+    providerType: "EMPLOYEE_NO",
+    subjectHint: "****A001",
+    status: "ACTIVE",
+    version: 1,
+  },
+  plaintextSafety: {
+    subjectHintIncludesTail: true,
+    listOmitsExternalSubjectDigest: true,
+    listOmitsExternalSubjectPlaintext: true,
+    duplicateStatus: 409,
+    duplicateRejectedMessage: "该外部身份已绑定其他用户",
+  },
+  unbinding: {
+    bindingId: "binding-1",
+    status: "UNBOUND",
+    versionAdvanced: true,
+  },
+  cleanup: {
+    createdAccountDisabled: true,
+    duplicateAccountDisabled: true,
+    bindingUnboundOrAlreadyUnbound: true,
+  },
+  scenarioEvidence: [
+    {
+      code: "S14",
+      observedStages: [
+        "前台创建身份来源演练人员账号",
+        "前台绑定院内身份来源",
+        "列表回读只展示脱敏身份提示",
+        "后端拒绝重复外部身份绑定",
+        "前台解绑身份来源并保留历史证据",
+        "停用身份来源演练账号",
+      ],
+    },
+  ],
+};
+
 describe("browser E2E launch coverage evidence", () => {
   it("declares stakeholder views only when the real stakeholder rehearsal spec passes", () => {
     const evidence = buildBrowserE2eLaunchEvidence({
@@ -646,6 +711,116 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.scenarios).toBeUndefined();
     expect(evidence.launchCoverage.productLayers).toBeUndefined();
     expect(evidence.launchCoverage.serviceCombinations).toBeUndefined();
+  });
+
+  it("declares identity binding coverage only when the passed spec attaches complete plaintext-safety evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/identity-binding-frontdesk.spec.ts",
+          title: "平台管理员可前台绑定和解绑院内身份来源且身份原文不落库",
+          status: "passed",
+          attachments: [
+            {
+              name: "identity-binding-scenario-codes",
+              contentType: "application/json",
+              body: JSON.stringify(identityBindingEvidence),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S14"]);
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "FOUNDATION_GOVERNANCE",
+    ]);
+    expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
+      "COMPLIANCE_OPERATIONS",
+    ]);
+    expect(evidence.launchCoverage.organizationLevels).toBeUndefined();
+  });
+
+  it("does not declare identity binding coverage from a passed spec without complete bind/unbind cleanup evidence", () => {
+    const missingAttachment = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/identity-binding-frontdesk.spec.ts",
+          title: "平台管理员可前台绑定和解绑院内身份来源且身份原文不落库",
+          status: "passed",
+        },
+      ],
+    });
+    const incompleteAttachment = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/identity-binding-frontdesk.spec.ts",
+          title: "平台管理员可前台绑定和解绑院内身份来源且身份原文不落库",
+          status: "passed",
+          attachments: [
+            {
+              name: "identity-binding-scenario-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                scenarioCodes: ["S14"],
+                productLayers: ["FOUNDATION_GOVERNANCE"],
+                serviceCombinations: ["COMPLIANCE_OPERATIONS"],
+                apiEvidence: {
+                  personnelCreated: true,
+                  bindingPosted: true,
+                  bindingListRead: true,
+                },
+                binding: {
+                  bindingId: "binding-1",
+                  providerType: "EMPLOYEE_NO",
+                  subjectHint: "****A001",
+                  status: "ACTIVE",
+                },
+                scenarioEvidence: [
+                  {
+                    code: "S14",
+                    observedStages: ["前台绑定院内身份来源"],
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+    const unsafeAttachment = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/identity-binding-frontdesk.spec.ts",
+          title: "平台管理员可前台绑定和解绑院内身份来源且身份原文不落库",
+          status: "passed",
+          attachments: [
+            {
+              name: "identity-binding-scenario-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                ...identityBindingEvidence,
+                plaintextSafety: {
+                  ...identityBindingEvidence.plaintextSafety,
+                  listOmitsExternalSubjectPlaintext: false,
+                },
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(missingAttachment.launchCoverage.scenarios).toBeUndefined();
+    expect(missingAttachment.launchCoverage.productLayers).toBeUndefined();
+    expect(incompleteAttachment.launchCoverage.scenarios).toBeUndefined();
+    expect(incompleteAttachment.launchCoverage.productLayers).toBeUndefined();
+    expect(unsafeAttachment.launchCoverage.scenarios).toBeUndefined();
+    expect(unsafeAttachment.launchCoverage.productLayers).toBeUndefined();
   });
 
   it("does not declare service organization coverage from a passed spec without complete scenario附件", () => {

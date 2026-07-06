@@ -54,6 +54,7 @@ type CoverageProof = {
   requiresEmbedBusinessHostAttachment?: boolean;
   requiresPathwayLifecycleAttachment?: boolean;
   requiresSystemProvidersAttachment?: boolean;
+  requiresIdentityBindingAttachment?: boolean;
 };
 
 const stakeholderClaims = [
@@ -151,6 +152,12 @@ const pathwayLifecycleClaims = [
 
 const systemProvidersClaims = [
   "deliveryShapes:MANAGEMENT_WORKSPACE",
+  "serviceCombinations:COMPLIANCE_OPERATIONS",
+];
+
+const identityBindingClaims = [
+  "scenarios:S14",
+  "productLayers:FOUNDATION_GOVERNANCE",
   "serviceCombinations:COMPLIANCE_OPERATIONS",
 ];
 
@@ -291,6 +298,21 @@ const requiredSystemProvidersScenarioEvidence = [
   "临床账号无法读取或展示服务运行保障快照",
 ];
 
+const requiredIdentityBindingScenarioEvidence: Record<string, string[]> = {
+  S14: [
+    "前台创建身份来源演练人员账号",
+    "前台绑定院内身份来源",
+    "列表回读只展示脱敏身份提示",
+    "后端拒绝重复外部身份绑定",
+    "前台解绑身份来源并保留历史证据",
+    "停用身份来源演练账号",
+  ],
+};
+
+const requiredIdentityBindingScenarioCodes = Object.keys(
+  requiredIdentityBindingScenarioEvidence,
+);
+
 const coverageProofs: CoverageProof[] = [
   {
     file: "stakeholder-view-rehearsal.spec.ts",
@@ -358,6 +380,12 @@ const coverageProofs: CoverageProof[] = [
     claims: systemProvidersClaims,
     requiresSystemProvidersAttachment: true,
   },
+  {
+    file: "identity-binding-frontdesk.spec.ts",
+    titleIncludes: "平台管理员可前台绑定和解绑院内身份来源且身份原文不落库",
+    claims: identityBindingClaims,
+    requiresIdentityBindingAttachment: true,
+  },
 ];
 
 export function buildBrowserE2eLaunchEvidence(input: {
@@ -405,7 +433,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.requiresSourceLineageAttachment || hasRequiredSourceLineageAttachment(test)) &&
       (!proof.requiresEmbedBusinessHostAttachment || hasRequiredEmbedBusinessHostAttachment(test)) &&
       (!proof.requiresPathwayLifecycleAttachment || hasRequiredPathwayLifecycleAttachment(test)) &&
-      (!proof.requiresSystemProvidersAttachment || hasRequiredSystemProvidersAttachment(test))
+      (!proof.requiresSystemProvidersAttachment || hasRequiredSystemProvidersAttachment(test)) &&
+      (!proof.requiresIdentityBindingAttachment || hasRequiredIdentityBindingAttachment(test))
     );
   });
 }
@@ -908,6 +937,83 @@ function hasRequiredSystemProvidersAttachment(test: BrowserE2eTestResult) {
   }
 }
 
+function hasRequiredIdentityBindingAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "identity-binding-scenario-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scenarioCodes?: unknown;
+      productLayers?: unknown;
+      serviceCombinations?: unknown;
+      apiEvidence?: unknown;
+      createdPersonnel?: unknown;
+      binding?: unknown;
+      plaintextSafety?: unknown;
+      unbinding?: unknown;
+      cleanup?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    const binding = parseIdentityBindingEvidence(parsed.binding);
+    if (
+      !arrayEquals(parsed.scenarioCodes, requiredIdentityBindingScenarioCodes) ||
+      !arrayEquals(parsed.productLayers, ["FOUNDATION_GOVERNANCE"]) ||
+      !arrayEquals(parsed.serviceCombinations, ["COMPLIANCE_OPERATIONS"]) ||
+      !hasCompleteIdentityBindingApiEvidence(parsed.apiEvidence) ||
+      !hasCompleteIdentityBindingCreatedPersonnel(parsed.createdPersonnel, binding?.userId) ||
+      !binding ||
+      !hasCompleteIdentityPlaintextSafetyEvidence(parsed.plaintextSafety) ||
+      !hasCompleteIdentityUnbindingEvidence(parsed.unbinding, binding) ||
+      !hasCompleteIdentityCleanupEvidence(parsed.cleanup) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const evidenceByCode = new Map<string, string[]>();
+    for (const item of parsed.scenarioEvidence) {
+      if (!item || typeof item !== "object") continue;
+      const code = (item as { code?: unknown }).code;
+      const stages = (item as { observedStages?: unknown }).observedStages;
+      if (typeof code !== "string" || !Array.isArray(stages)) continue;
+      evidenceByCode.set(
+        code,
+        stages.filter((stage): stage is string => typeof stage === "string"),
+      );
+    }
+    return requiredIdentityBindingScenarioCodes.every((code) => {
+      const observedStages = evidenceByCode.get(code) ?? [];
+      return requiredIdentityBindingScenarioEvidence[code].every((stage) =>
+        observedStages.includes(stage),
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
+function parseIdentityBindingEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const binding = value as Record<string, unknown>;
+  if (
+    !hasText(binding.bindingId) ||
+    !hasText(binding.userId) ||
+    binding.providerType !== "EMPLOYEE_NO" ||
+    binding.status !== "ACTIVE" ||
+    !hasText(binding.subjectHint) ||
+    !String(binding.subjectHint).startsWith("****") ||
+    typeof binding.version !== "number" ||
+    binding.version < 1
+  ) {
+    return null;
+  }
+  return {
+    bindingId: binding.bindingId,
+    userId: binding.userId,
+    version: binding.version,
+  };
+}
+
 function hasCompleteRuntimeReleaseApiEvidence(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const evidence = value as Record<string, unknown>;
@@ -921,6 +1027,74 @@ function hasCompleteRuntimeReleaseApiEvidence(value: unknown) {
     "rollbackCurrentReleaseReadback",
     "rollbackRuntimeConsumerReadback",
   ].every((key) => evidence[key] === true);
+}
+
+function hasCompleteIdentityBindingApiEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const evidence = value as Record<string, unknown>;
+  return [
+    "personnelCreated",
+    "bindingPosted",
+    "bindingListRead",
+    "plaintextNotPersisted",
+    "duplicateRejected",
+    "unbindPosted",
+    "cleanupCompleted",
+  ].every((key) => evidence[key] === true);
+}
+
+function hasCompleteIdentityBindingCreatedPersonnel(value: unknown, boundUserId?: unknown) {
+  if (!Array.isArray(value) || !hasText(boundUserId)) return false;
+  const expectedBoundUserId = String(boundUserId);
+  const personnel = value.filter(
+    (item): item is Record<string, unknown> =>
+      Boolean(item && typeof item === "object" && !Array.isArray(item)),
+  );
+  if (personnel.length < 2) return false;
+  const userIds = new Set<string>();
+  for (const item of personnel) {
+    if (!hasText(item.userId) || !hasText(item.username) || !hasText(item.displayName)) {
+      return false;
+    }
+    userIds.add(String(item.userId));
+  }
+  return userIds.size >= 2 && userIds.has(expectedBoundUserId);
+}
+
+function hasCompleteIdentityPlaintextSafetyEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const safety = value as Record<string, unknown>;
+  return (
+    safety.subjectHintIncludesTail === true &&
+    safety.listOmitsExternalSubjectDigest === true &&
+    safety.listOmitsExternalSubjectPlaintext === true &&
+    safety.duplicateStatus === 409 &&
+    typeof safety.duplicateRejectedMessage === "string" &&
+    safety.duplicateRejectedMessage.includes("该外部身份已绑定其他用户")
+  );
+}
+
+function hasCompleteIdentityUnbindingEvidence(
+  value: unknown,
+  binding: { bindingId: unknown; version: number },
+) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const unbinding = value as Record<string, unknown>;
+  return (
+    unbinding.bindingId === binding.bindingId &&
+    unbinding.status === "UNBOUND" &&
+    unbinding.versionAdvanced === true
+  );
+}
+
+function hasCompleteIdentityCleanupEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const cleanup = value as Record<string, unknown>;
+  return (
+    cleanup.createdAccountDisabled === true &&
+    cleanup.duplicateAccountDisabled === true &&
+    cleanup.bindingUnboundOrAlreadyUnbound === true
+  );
 }
 
 function hasCompleteSystemProvidersApiEvidence(value: unknown) {
