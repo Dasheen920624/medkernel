@@ -297,6 +297,89 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.serviceCombinations).toBeUndefined();
   });
 
+  it("declares diagnosis knowledge maintenance coverage only when the passed spec attaches complete asset-production evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/diagnosis-knowledge-maintenance.spec.ts",
+          title: "运营员从前台创建证据完整诊断资产并登记标准与验证病例",
+          status: "passed",
+          attachments: [
+            {
+              name: "diagnosis-knowledge-scenario-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                scenarioCodes: ["S3"],
+                productLayers: ["MEDICAL_ASSET"],
+                semanticFamilies: ["DISEASE_DIAGNOSIS"],
+                specialtyDomains: ["CLINICAL_SPECIALTIES"],
+                scenarioEvidence: [
+                  {
+                    code: "S3",
+                    observedStages: [
+                      "前台登记标准发现项术语",
+                      "前台创建证据完整诊断资产草稿",
+                      "前台登记诊断标准",
+                      "前台登记验证病例",
+                    ],
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S3"]);
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "MEDICAL_ASSET",
+    ]);
+    expect(evidence.launchCoverage.semanticFamilies?.map((item) => item.code)).toEqual([
+      "DISEASE_DIAGNOSIS",
+    ]);
+    expect(evidence.launchCoverage.specialtyDomains?.map((item) => item.code)).toEqual([
+      "CLINICAL_SPECIALTIES",
+    ]);
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).not.toContain("S16");
+  });
+
+  it("does not declare diagnosis knowledge coverage from a passed spec without complete asset-production附件", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/diagnosis-knowledge-maintenance.spec.ts",
+          title: "运营员从前台创建证据完整诊断资产并登记标准与验证病例",
+          status: "passed",
+          attachments: [
+            {
+              name: "diagnosis-knowledge-scenario-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                scenarioCodes: ["S3"],
+                productLayers: ["MEDICAL_ASSET"],
+                semanticFamilies: ["DISEASE_DIAGNOSIS"],
+                specialtyDomains: ["CLINICAL_SPECIALTIES"],
+                scenarioEvidence: [
+                  {
+                    code: "S3",
+                    observedStages: ["前台创建证据完整诊断资产草稿"],
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.semanticFamilies).toBeUndefined();
+    expect(evidence.launchCoverage.specialtyDomains).toBeUndefined();
+  });
+
   it("does not declare real-frontdesk scenario coverage from a passed spec without complete scenario附件", () => {
     const missingAttachment = buildBrowserE2eLaunchEvidence({
       stats: passedStats,

@@ -47,6 +47,7 @@ type CoverageProof = {
   requiresSystemFamilyAttachment?: boolean;
   requiresRealFrontdeskScenarioAttachment?: boolean;
   requiresServiceOrganizationScenarioAttachment?: boolean;
+  requiresDiagnosisKnowledgeScenarioAttachment?: boolean;
 };
 
 const stakeholderClaims = [
@@ -119,6 +120,13 @@ const serviceOrganizationClaims = [
   "serviceCombinations:COMPLIANCE_OPERATIONS",
 ];
 
+const diagnosisKnowledgeClaims = [
+  "scenarios:S3",
+  "productLayers:MEDICAL_ASSET",
+  "semanticFamilies:DISEASE_DIAGNOSIS",
+  "specialtyDomains:CLINICAL_SPECIALTIES",
+];
+
 const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
   .filter((claim) => claim.startsWith("thirdPartySystemFamilies:"))
   .map((claim) => claim.split(":")[1]);
@@ -149,6 +157,19 @@ const requiredServiceOrganizationScenarioCodes = Object.keys(
   requiredServiceOrganizationScenarioEvidence,
 );
 
+const requiredDiagnosisKnowledgeScenarioEvidence: Record<string, string[]> = {
+  S3: [
+    "前台登记标准发现项术语",
+    "前台创建证据完整诊断资产草稿",
+    "前台登记诊断标准",
+    "前台登记验证病例",
+  ],
+};
+
+const requiredDiagnosisKnowledgeScenarioCodes = Object.keys(
+  requiredDiagnosisKnowledgeScenarioEvidence,
+);
+
 const coverageProofs: CoverageProof[] = [
   {
     file: "stakeholder-view-rehearsal.spec.ts",
@@ -177,6 +198,12 @@ const coverageProofs: CoverageProof[] = [
     titleIncludes: "平台开通服务机构后，新机构可完成组织树、科室账号、职责范围和登录画像闭环",
     claims: serviceOrganizationClaims,
     requiresServiceOrganizationScenarioAttachment: true,
+  },
+  {
+    file: "diagnosis-knowledge-maintenance.spec.ts",
+    titleIncludes: "运营员从前台创建证据完整诊断资产并登记标准与验证病例",
+    claims: diagnosisKnowledgeClaims,
+    requiresDiagnosisKnowledgeScenarioAttachment: true,
   },
 ];
 
@@ -217,7 +244,9 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.requiresRealFrontdeskScenarioAttachment ||
         hasRequiredRealFrontdeskScenarioAttachment(test)) &&
       (!proof.requiresServiceOrganizationScenarioAttachment ||
-        hasRequiredServiceOrganizationScenarioAttachment(test))
+        hasRequiredServiceOrganizationScenarioAttachment(test)) &&
+      (!proof.requiresDiagnosisKnowledgeScenarioAttachment ||
+        hasRequiredDiagnosisKnowledgeScenarioAttachment(test))
     );
   });
 }
@@ -317,6 +346,50 @@ function hasRequiredServiceOrganizationScenarioAttachment(test: BrowserE2eTestRe
     return requiredServiceOrganizationScenarioCodes.every((code) => {
       const observedStages = evidenceByCode.get(code) ?? [];
       return requiredServiceOrganizationScenarioEvidence[code].every((stage) =>
+        observedStages.includes(stage),
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
+function hasRequiredDiagnosisKnowledgeScenarioAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "diagnosis-knowledge-scenario-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scenarioCodes?: unknown;
+      productLayers?: unknown;
+      semanticFamilies?: unknown;
+      specialtyDomains?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    if (
+      !arrayEquals(parsed.scenarioCodes, requiredDiagnosisKnowledgeScenarioCodes) ||
+      !arrayEquals(parsed.productLayers, ["MEDICAL_ASSET"]) ||
+      !arrayEquals(parsed.semanticFamilies, ["DISEASE_DIAGNOSIS"]) ||
+      !arrayEquals(parsed.specialtyDomains, ["CLINICAL_SPECIALTIES"]) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const evidenceByCode = new Map<string, string[]>();
+    for (const item of parsed.scenarioEvidence) {
+      if (!item || typeof item !== "object") continue;
+      const code = (item as { code?: unknown }).code;
+      const stages = (item as { observedStages?: unknown }).observedStages;
+      if (typeof code !== "string" || !Array.isArray(stages)) continue;
+      evidenceByCode.set(
+        code,
+        stages.filter((stage): stage is string => typeof stage === "string"),
+      );
+    }
+    return requiredDiagnosisKnowledgeScenarioCodes.every((code) => {
+      const observedStages = evidenceByCode.get(code) ?? [];
+      return requiredDiagnosisKnowledgeScenarioEvidence[code].every((stage) =>
         observedStages.includes(stage),
       );
     });

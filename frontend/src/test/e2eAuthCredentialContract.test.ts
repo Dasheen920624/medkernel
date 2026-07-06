@@ -557,6 +557,23 @@ describe("E2E credential contract", () => {
     expect(source).not.toContain(".catch(() => null)");
   });
 
+  it("requires diagnosis knowledge rehearsal to attach bounded asset-production coverage evidence", () => {
+    const source = readFileSync("e2e/diagnosis-knowledge-maintenance.spec.ts", "utf8");
+
+    expect(source).toContain("recordDiagnosisKnowledgeStage");
+    expect(source).toContain("attachDiagnosisKnowledgeScenarioEvidence");
+    expect(source).toContain("diagnosis-knowledge-scenario-codes");
+    expect(source).toContain('code: "S3"');
+    expect(source).toContain("前台登记标准发现项术语");
+    expect(source).toContain("前台创建证据完整诊断资产草稿");
+    expect(source).toContain("前台登记诊断标准");
+    expect(source).toContain("前台登记验证病例");
+    expect(source).toContain("MEDICAL_ASSET");
+    expect(source).toContain("DISEASE_DIAGNOSIS");
+    expect(source).toContain("CLINICAL_SPECIALTIES");
+    expect(source).not.toContain('code: "S16"');
+  });
+
   it("requires insurance frontdesk rehearsal to be driven by an active CLAIM evaluation indicator", () => {
     const source = readFileSync("e2e/real-frontdesk-rehearsal.spec.ts", "utf8");
 

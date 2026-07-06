@@ -10,6 +10,32 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百三十五批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，而是把 `diagnosis-knowledge-maintenance.spec.ts` 从专项真实前台链路补成可被浏览器
+  覆盖 reporter 消费的 S3 医疗资产生产证据。该 spec 现在只有在医疗引擎运营员真实登记标准发现项术语、
+  创建证据完整诊断资产草稿、登记诊断标准和登记验证病例后，才附件 `diagnosis-knowledge-scenario-codes`。
+  `launchCoverageEvidence` 只有在该 spec 通过、非 flaky，且附件完整包含 `scenarios:S3`、
+  `productLayers:MEDICAL_ASSET`、`semanticFamilies:DISEASE_DIAGNOSIS` 和
+  `specialtyDomains:CLINICAL_SPECIALTIES` 时才声明这些覆盖项；不声明 S16 诊断运行、全知识、完整语义族、
+  全专业域、专病十阶段或 134 部署覆盖。
+- 第一百三十五批验证证据：TDD 红灯
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "diagnosis knowledge"` 曾失败于
+  `expected undefined to deeply equal [ 'S3' ]`；`npm --prefix frontend run test -- e2eAuthCredentialContract -t "diagnosis knowledge"`
+  曾失败于 `diagnosis-knowledge-maintenance.spec.ts` 缺 `recordDiagnosisKnowledgeStage`。实现后两者转绿。
+  新鲜门禁：`npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract`
+  通过（39 tests）；E2E TS 检查
+  `cd frontend && npx tsc --noEmit --pretty false --skipLibCheck false --allowImportingTsExtensions --moduleResolution bundler --module ESNext --target ES2022 --lib ES2023,DOM --strict --types node e2e/support/launchCoverageEvidence.ts e2e/diagnosis-knowledge-maintenance.spec.ts`
+  通过；`node --test scripts/release/launch-coverage-audit.test.mjs` 通过（6 tests）；`git diff --check` 通过。
+  目标真实前台 E2E 在重启后的本地 18080 H2 后端（当前监听 PID 60679）通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-diagnosis-knowledge-coverage npm --prefix frontend run e2e -- --project=chromium diagnosis-knowledge-maintenance.spec.ts`
+  通过（1 expected，0 unexpected，0 flaky），仓库外 `results.json` 为 `PASSED`，
+  `coverageKeys=["scenarios","productLayers","semanticFamilies","specialtyDomains"]`，只含
+  `scenarios:S3`、`productLayers:MEDICAL_ASSET`、`semanticFamilies:DISEASE_DIAGNOSIS` 和
+  `specialtyDomains:CLINICAL_SPECIALTIES`。
+- 第一百三十五批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把 S3 诊断知识资产生产
+  切片等同于 S16 诊断支持运行、全知识或总目标完成。仍需继续补 S0-S40 其余场景、13 类标准患者资源逐类
+  真实前台接入、完整语义族、完整专业域、专病十阶段、嵌入组件 / 离线交付、专业协同服务组合、两机构
+  差异化发布 / 回滚、真实备份 / 隔离恢复 / 重启恢复，以及 134 清库部署复演。
 - 第一百三十四批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，而是把已存在但只附截图的 `service-organization-frontdesk.spec.ts` 补成可被浏览器
   覆盖 reporter 消费的 S1/S14 真实前台证据。该 spec 现在只有在平台管理员真实开通服务机构、机构管理员
