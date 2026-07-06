@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +40,39 @@ class ReleaseCandidateQueryServiceTest {
     @BeforeEach
     void setUp() {
         service = new ReleaseCandidateQueryService(versions, organizations, hierarchy);
+    }
+
+    @Test
+    void listsEveryRuntimeConfigurationAssetTypeAsPlatformCandidate() {
+        List<AssetVersion> allRuntimeAssets = Arrays.stream(VersionedAssetType.values())
+            .map(type -> version(
+                PlatformTenant.ID,
+                type,
+                "BASELINE." + type.name(),
+                "av-" + type.name().toLowerCase(),
+                "V1",
+                AssetVersionStatus.PUBLISHED,
+                "/platform"))
+            .toList();
+        when(versions.pagePlatformReleaseCandidates(
+                PlatformTenant.ID, null, null, 0, 100))
+            .thenReturn(allRuntimeAssets);
+        when(versions.countPlatformReleaseCandidates(
+                PlatformTenant.ID, null, null))
+            .thenReturn((long) allRuntimeAssets.size());
+
+        var result = service.platformCandidates(
+            null, null, new PageRequest(1, 100, null));
+
+        assertThat(result.items())
+            .extracting(ReleaseCandidateAsset::assetType)
+            .containsExactly(VersionedAssetType.values());
+        assertThat(result.items())
+            .allSatisfy(candidate -> {
+                assertThat(candidate.sourceLayer()).isEqualTo(ReleaseSourceLayer.PLATFORM);
+                assertThat(candidate.versionId()).isNotBlank();
+                assertThat(candidate.contentHash()).matches("[0-9a-f]{64}");
+            });
     }
 
     @Test

@@ -56,7 +56,7 @@ public record ClinicalRedlineRule(
             triggerPoint,
             scopeType,
             scopeRef,
-            nextStatus == ClinicalRedlineStatus.ACTIVE ? activeScopeKey() : null,
+            nextStatus == ClinicalRedlineStatus.ACTIVE ? computedActiveScopeKey() : null,
             redlineKey,
             redlineVersion,
             nextStatus,
@@ -80,8 +80,8 @@ public record ClinicalRedlineRule(
             traceId);
     }
 
-    public String activeScopeKey() {
-        return tenantId + "|" + category.name() + "|" + triggerPoint + "|" + redlineKey;
+    public String computedActiveScopeKey() {
+        return tenantId + "|" + scopeType + ":" + scopeRef + "|" + category.name() + "|" + triggerPoint + "|" + redlineKey;
     }
 
     public ClinicalRedlineResponse toResponse() {

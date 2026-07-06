@@ -87,7 +87,7 @@ public class TerminologyAssetDraftService {
             tenantId,
             VersionedAssetType.TERMINOLOGY,
             assetIdentity,
-            scope.organizationPath(),
+            null,
             "ALL",
             content,
             null,
@@ -163,8 +163,7 @@ public class TerminologyAssetDraftService {
         }
         return new AssetScope(
             level,
-            code,
-            level.toLowerCase(java.util.Locale.ROOT) + ":" + code
+            code
         );
     }
 
@@ -187,7 +186,7 @@ public class TerminologyAssetDraftService {
         }
     }
 
-    private record AssetScope(String level, String code, String organizationPath) {
+    private record AssetScope(String level, String code) {
     }
 
     private record TerminologyAssetContent(

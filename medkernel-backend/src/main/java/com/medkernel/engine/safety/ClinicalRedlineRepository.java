@@ -31,6 +31,11 @@ public interface ClinicalRedlineRepository extends ListCrudRepository<ClinicalRe
 
     Optional<ClinicalRedlineRule> findByTenantIdAndRedlineId(String tenantId, String redlineId);
 
+    Optional<ClinicalRedlineRule> findByTenantIdAndRedlineKeyAndRedlineVersion(
+        String tenantId,
+        String redlineKey,
+        String redlineVersion);
+
     Optional<ClinicalRedlineRule> findByTenantIdAndActiveScopeKeyAndStatus(
         String tenantId,
         String activeScopeKey,

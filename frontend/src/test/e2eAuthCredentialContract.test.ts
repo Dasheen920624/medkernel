@@ -5,6 +5,38 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type * as AuthSupport from "../../e2e/support/auth.ts";
 
+const runtimeAssetTypes = [
+  "KNOWLEDGE",
+  "TERMINOLOGY",
+  "RULE",
+  "PATHWAY",
+  "EVALUATION",
+  "FOLLOWUP",
+  "FIELD_CATALOG",
+  "SAFETY",
+  "CDSS_RISK",
+  "VALUE_SET",
+  "FORMULA",
+  "ORDER_SET",
+  "ACTION_CARD",
+] as const;
+
+const runtimeAssetIdentities = {
+  KNOWLEDGE: "plat:diagnostic_item:lab-potassium",
+  TERMINOLOGY: "TERMINOLOGY.LOCAL.REHEARSAL.BASELINE",
+  RULE: "RULE.LOCAL.REHEARSAL.BASELINE",
+  PATHWAY: "PATHWAY.LOCAL.REHEARSAL.BASELINE",
+  EVALUATION: "EVAL.LOCAL.REHEARSAL.BASELINE",
+  FOLLOWUP: "FOLLOWUP.LOCAL.REHEARSAL.BASELINE",
+  FIELD_CATALOG: "FIELD.CATALOG.CLINICAL_CONTEXT",
+  SAFETY: "SAFETY.RDL-LOCAL-REHEARSAL",
+  CDSS_RISK: "CDSS.RISK.MATRIX",
+  VALUE_SET: "VALUE_SET.LOCAL.REHEARSAL.BASELINE",
+  FORMULA: "FORMULA.LOCAL.REHEARSAL.BASELINE",
+  ORDER_SET: "ORDER_SET.LOCAL.REHEARSAL.BASELINE",
+  ACTION_CARD: "ACTION_CARD.LOCAL.REHEARSAL.BASELINE",
+} as const satisfies Record<(typeof runtimeAssetTypes)[number], string>;
+
 const envSnapshot = {
   E2E_API_BASE_URL: process.env.E2E_API_BASE_URL,
   E2E_BASE_URL: process.env.E2E_BASE_URL,
@@ -136,59 +168,36 @@ describe("E2E credential contract", () => {
     }
   });
 
-  it("collects active platform baseline assets required by local runtime rehearsal", async () => {
+  it("collects all active platform baseline assets required by local runtime rehearsal", async () => {
     process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
     const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
 
     const baseline = auth.resolveBaselineRuntimeAssets({
       release: { baselineReleaseId: "baseline-1" },
-      items: [
-        {
-          assetType: "FIELD_CATALOG",
-          assetIdentity: "CLINICAL_CONTEXT_IDENTITY",
-          versionId: "field-v1",
+      items: runtimeAssetTypes
+        .map((assetType) => ({
+          assetType,
+          assetIdentity: runtimeAssetIdentities[assetType],
+          versionId: `${assetType.toLowerCase()}-v1`,
           entryState: "ACTIVE",
-        },
-        {
-          assetType: "RULE",
-          assetIdentity: "RULE.CLINICAL.RECOMMENDATION",
-          versionId: "rule-v1",
-          entryState: "ACTIVE",
-        },
-        {
-          assetType: "KNOWLEDGE",
-          assetIdentity: "plat:diagnostic_item:lab-potassium",
-          versionId: "knowledge-v1",
-          entryState: "ACTIVE",
-        },
-        {
-          assetType: "RULE",
-          assetIdentity: "RULE.DISABLED",
-          versionId: "rule-disabled",
-          entryState: "DISABLED",
-        },
-      ],
+        }))
+        .concat([
+          {
+            assetType: "RULE",
+            assetIdentity: "RULE.DISABLED",
+            versionId: "rule-disabled",
+            entryState: "DISABLED",
+          },
+        ]),
     });
 
     expect(baseline).toEqual({
       baselineReleaseId: "baseline-1",
-      activeAssets: [
-        {
-          assetType: "FIELD_CATALOG",
-          assetIdentity: "CLINICAL_CONTEXT_IDENTITY",
-          versionId: null,
-        },
-        {
-          assetType: "RULE",
-          assetIdentity: "RULE.CLINICAL.RECOMMENDATION",
-          versionId: null,
-        },
-        {
-          assetType: "KNOWLEDGE",
-          assetIdentity: "plat:diagnostic_item:lab-potassium",
-          versionId: null,
-        },
-      ],
+      activeAssets: runtimeAssetTypes.map((assetType) => ({
+        assetType,
+        assetIdentity: runtimeAssetIdentities[assetType],
+        versionId: null,
+      })),
     });
     expect(auth.runtimeAssetsCoverRequiredTypes(baseline.activeAssets)).toBe(true);
   });
@@ -220,26 +229,12 @@ describe("E2E credential contract", () => {
     expect(
       auth.hospitalRuntimeCoversRequiredAssets({
         release: { releaseId: "hospital-release-ready" },
-        items: [
-          {
-            assetType: "FIELD_CATALOG",
-            assetIdentity: "CLINICAL_CONTEXT_IDENTITY",
-            versionId: "field-v1",
-            entryState: "ACTIVE",
-          },
-          {
-            assetType: "RULE",
-            assetIdentity: "RULE.CLINICAL.RECOMMENDATION",
-            versionId: "rule-v1",
-            entryState: "ACTIVE",
-          },
-          {
-            assetType: "KNOWLEDGE",
-            assetIdentity: "plat:diagnostic_item:lab-potassium",
-            versionId: "knowledge-v1",
-            entryState: "ACTIVE",
-          },
-        ],
+        items: runtimeAssetTypes.map((assetType) => ({
+          assetType,
+          assetIdentity: runtimeAssetIdentities[assetType],
+          versionId: `${assetType.toLowerCase()}-v1`,
+          entryState: "ACTIVE",
+        })),
       }),
     ).toEqual({ releaseId: "hospital-release-ready", ready: true });
   });
@@ -248,7 +243,7 @@ describe("E2E credential contract", () => {
     process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
     const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
 
-    expect(auth.missingRuntimeCandidateTypes([])).toEqual(["FIELD_CATALOG", "RULE", "KNOWLEDGE"]);
+    expect(auth.missingRuntimeCandidateTypes([])).toEqual([...runtimeAssetTypes]);
     expect(
       auth.hospitalRuntimeCoversRequiredAssets({
         release: { releaseId: "hospital-release-no-knowledge" },
@@ -289,40 +284,60 @@ describe("E2E credential contract", () => {
       },
     ];
 
-    expect(auth.missingRuntimeCandidateTypes(candidates)).toEqual(["RULE", "KNOWLEDGE"]);
+    expect(auth.missingRuntimeCandidateTypes(candidates)).toEqual([
+      "KNOWLEDGE",
+      "TERMINOLOGY",
+      "RULE",
+      "PATHWAY",
+      "EVALUATION",
+      "FOLLOWUP",
+      "SAFETY",
+      "CDSS_RISK",
+      "VALUE_SET",
+      "FORMULA",
+      "ORDER_SET",
+      "ACTION_CARD",
+    ]);
     expect(auth.runtimeCandidatesCoverRequiredTypes(candidates)).toBe(false);
     expect(auth.versionIdsForRequiredRuntimeCandidates(candidates)).toEqual(["field-v1"]);
   });
 
-  it("selects only required platform runtime candidates once the rehearsal bootstrap fills gaps", async () => {
+  it("does not let same-type historical assets satisfy the local runtime rehearsal baseline", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+
+    const historicalCandidates = runtimeAssetTypes.map((assetType) => ({
+      assetType,
+      assetIdentity: `HISTORICAL.${assetType}`,
+      versionId: `${assetType.toLowerCase()}-old`,
+      status: "PUBLISHED",
+    }));
+
+    expect(auth.missingRuntimeCandidateTypes(historicalCandidates)).toEqual([...runtimeAssetTypes]);
+    expect(auth.runtimeCandidatesCoverRequiredTypes(historicalCandidates)).toBe(false);
+    expect(auth.versionIdsForRequiredRuntimeCandidates(historicalCandidates)).toEqual([]);
+    expect(
+      auth.hospitalRuntimeCoversRequiredAssets({
+        release: { releaseId: "hospital-release-historical-assets" },
+        items: historicalCandidates.map((item) => ({
+          ...item,
+          entryState: "ACTIVE",
+        })),
+      }),
+    ).toEqual({ releaseId: "hospital-release-historical-assets", ready: false });
+  });
+
+  it("selects every required platform runtime candidate once the rehearsal bootstrap fills gaps", async () => {
     process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
     const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
 
     const candidates = [
-      {
-        assetType: "VALUE_SET",
-        assetIdentity: "VS.EXTRA",
-        versionId: "value-v1",
+      ...runtimeAssetTypes.map((assetType) => ({
+        assetType,
+        assetIdentity: runtimeAssetIdentities[assetType],
+        versionId: `${assetType.toLowerCase()}-v1`,
         status: "DRAFT",
-      },
-      {
-        assetType: "FIELD_CATALOG",
-        assetIdentity: "FIELD.CATALOG.CLINICAL_CONTEXT",
-        versionId: "field-v1",
-        status: "DRAFT",
-      },
-      {
-        assetType: "RULE",
-        assetIdentity: "RULE.LOCAL.REHEARSAL.BASELINE",
-        versionId: "rule-v1",
-        status: "DRAFT",
-      },
-      {
-        assetType: "KNOWLEDGE",
-        assetIdentity: "plat:diagnostic_item:lab-potassium",
-        versionId: "knowledge-v1",
-        status: "DRAFT",
-      },
+      })),
       {
         assetType: "RULE",
         assetIdentity: "RULE.LOCAL.REHEARSAL.BASELINE",
@@ -333,11 +348,55 @@ describe("E2E credential contract", () => {
 
     expect(auth.missingRuntimeCandidateTypes(candidates)).toEqual([]);
     expect(auth.runtimeCandidatesCoverRequiredTypes(candidates)).toBe(true);
-    expect(auth.versionIdsForRequiredRuntimeCandidates(candidates)).toEqual([
-      "field-v1",
-      "rule-v1",
-      "knowledge-v1",
-    ]);
+    expect(auth.versionIdsForRequiredRuntimeCandidates(candidates)).toEqual(
+      runtimeAssetTypes.map((assetType) => `${assetType.toLowerCase()}-v1`),
+    );
+  });
+
+  it("requires local rehearsal bootstrap to create every platform runtime asset through real services", () => {
+    const source = readFileSync("e2e/support/auth.ts", "utf8");
+
+    expect(source).toContain('"/engine/context/field-catalog/drafts"');
+    expect(source).toContain('"/engine/rule/rules"');
+    expect(source).toContain('"/engine/knowledge/identities"');
+    expect(source).toContain('"/engine/authoring/declarative-assets"');
+    expect(source).toContain('"/engine/pathway/pathway-templates"');
+    expect(source).toContain('"/engine/evaluation/indicators"');
+    expect(source).toContain('"/engine/followup/templates"');
+    expect(source).toContain('"/engine/cdss/risk-matrix"');
+    expect(source).toContain('"/engine/terminology/terms/standard"');
+    expect(source).toContain('"/engine/terminology/terms/local"');
+    expect(source).toContain('"/engine/terminology/mappings/candidates"');
+    expect(source).toContain('"/engine/terminology/assets/drafts"');
+    expect(source).toContain('"/engine/safety/redlines"');
+    expect(source).toContain('"/engine/safety/redlines:dry-run"');
+    expect(source).toContain('"/engine/safety/redlines:promote"');
+    expect(source).toContain('arrayField(await responseData(response), "rules")');
+    expect(source).toContain("riskMatrixId: riskMatrix.matrixId");
+    expect(source).toContain("riskMatrixVersion: riskMatrix.matrixVersion");
+    expect(source).not.toContain('riskMatrixId: "risk-matrix-local-rehearsal"');
+    expect(source).not.toContain('riskMatrixVersion: "4"');
+    for (const assetType of runtimeAssetTypes) {
+      expect(source).toContain(`missingTypes.includes("${assetType}")`);
+    }
+    expect(source).toContain('writeApi(page, "put", path, data)');
+    expect(source).toContain("function ruleDefinition(");
+    expect(source).toContain("JSON.stringify({ all: [{ fact, operator, value }] })");
+    expect(source).toContain("waitForPollingInterval(250)");
+    expect(source).not.toContain("activeAssets: []");
+    expect(source).not.toContain("page.waitForTimeout");
+  });
+
+  it("requires runtime release frontdesk E2E to assert the exact 13-asset runtime closure", () => {
+    const source = readFileSync("e2e/runtime-release-frontdesk.spec.ts", "utf8");
+
+    expect(source).toContain("requiredRuntimeAssetsForRehearsal");
+    expect(source).toContain("assertRuntimeReleaseRequestCarriesRequiredAssets");
+    expect(source).toContain("assertRuntimeDetailCarriesRequiredAssets");
+    expect(source).toContain("assetIdentity");
+    expect(source).toContain("postDataJSON");
+    expect(source).not.toContain('runtimeHasActiveAsset(current.data, "FIELD_CATALOG")');
+    expect(source).not.toContain('runtimeHasActiveAsset(current.data, "RULE")');
   });
 
   it("builds a platform diagnostic-item knowledge request that matches report interpretation E2E", async () => {

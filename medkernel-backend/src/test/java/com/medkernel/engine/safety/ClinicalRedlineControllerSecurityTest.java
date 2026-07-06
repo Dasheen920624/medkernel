@@ -104,6 +104,43 @@ class ClinicalRedlineControllerSecurityTest {
     }
 
     @Test
+    void engineOperatorWithTenantCanCreateSafetyRedlineDraft() throws Exception {
+        when(service.createDraft(org.mockito.ArgumentMatchers.any()))
+            .thenReturn(new ClinicalRedlineResponse(
+                "redline-local-rehearsal-baseline",
+                ClinicalRedlineCategory.DOSE_LIMIT,
+                "RDL-LOCAL-REHEARSAL",
+                "2026.1",
+                ClinicalRedlineStatus.DRAFT,
+                "本地上线演练安全红线",
+                "用于验证安全红线草稿创建后仍需静默试运行和上线门禁。",
+                "{\"all\":[{\"field\":\"medications[].dose\",\"operator\":\"gt\",\"value\":1}]}",
+                com.medkernel.engine.recommendation.RecommendationRiskLevel.CRITICAL,
+                "risk-matrix-local-rehearsal",
+                "4",
+                com.medkernel.engine.cdss.risk.CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
+                168,
+                "OPT04_REDLINE_SILENT_TRIAL",
+                "本地上线演练安全证据",
+                "source-version:local-e2e#safety-redline",
+                null,
+                false));
+
+        mockMvc.perform(post("/api/v1/engine/safety/redlines")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(validDraftJson())
+                .with(jwt().jwt(token -> token
+                    .subject("engine-operator")
+                    .claim("tenant_id", "t-1")
+                    .claim("roles", List.of("engine-operator")))
+                    .authorities(new SimpleGrantedAuthority("ROLE_ENGINE_OPERATOR"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.redlineId").value("redline-local-rehearsal-baseline"))
+            .andExpect(jsonPath("$.data.status").value("DRAFT"))
+            .andExpect(jsonPath("$.data.lowerTenantOverrideAllowed").value(false));
+    }
+
+    @Test
     void doctorWithTenantCannotPromoteRedline() throws Exception {
         mockMvc.perform(post("/api/v1/engine/safety/redlines:promote")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -170,6 +207,32 @@ class ClinicalRedlineControllerSecurityTest {
               "safetyIncidentCount": 0,
               "evidenceReference": "evidence://silent-trials/redline-ddi-warfarin-nsaid/2026.2",
               "operatorNote": "试运行窗口来自真实临床事件回放统计"
+            }
+            """;
+    }
+
+    private String validDraftJson() {
+        return """
+            {
+              "redlineId": "redline-local-rehearsal-baseline",
+              "category": "DOSE_LIMIT",
+              "triggerPoint": "medication-prescribe",
+              "scopeType": "TENANT",
+              "scopeRef": "t-1",
+              "redlineKey": "RDL-LOCAL-REHEARSAL",
+              "redlineVersion": "2026.1",
+              "hazardSeverity": "CRITICAL",
+              "riskMatrixId": "risk-matrix-local-rehearsal",
+              "riskMatrixVersion": "4",
+              "reviewRequirement": "PHYSICIAN_CONFIRMATION",
+              "silentRunHours": 168,
+              "releaseGate": "OPT04_REDLINE_SILENT_TRIAL",
+              "title": "本地上线演练安全红线",
+              "clinicalHazard": "用于验证安全红线草稿创建后仍需静默试运行和上线门禁。",
+              "conditionDsl": "{\\"all\\":[{\\"field\\":\\"medications[].dose\\",\\"operator\\":\\"gt\\",\\"value\\":1}]}",
+              "evidenceSource": "本地上线演练安全证据",
+              "evidenceReference": "source-version:local-e2e#safety-redline",
+              "lowerTenantOverrideAllowed": false
             }
             """;
     }

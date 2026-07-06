@@ -10,6 +10,60 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百二十七批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，而是把本地上线演练平台标准版本和医院 runtime 从 3 类资产扩成 13 类资产闭包，
+  通过真实服务创建并发布 `KNOWLEDGE`、`TERMINOLOGY`、`RULE`、`PATHWAY`、`EVALUATION`、
+  `FOLLOWUP`、`FIELD_CATALOG`、`SAFETY`、`CDSS_RISK`、`VALUE_SET`、`FORMULA`、
+  `ORDER_SET`、`ACTION_CARD`，再由前台 `/config/releases` 生成本地上线演练医院生效版本并回滚。
+  本批复用上一轮只读子代理关于全资产 runtime 闭包、前台覆盖缺口和 134 上线验收缺口的结论；未新建
+  线程，不推送远程、不合并 `main`。
+- 第一百二十七批修复范围：`frontend/e2e/support/auth.ts` 导出
+  `requiredRuntimeAssetsForRehearsal`，把本地演练 runtime 基线扩为 13 类精确
+  `assetType + assetIdentity`，成功缓存命中后也会轻量回读医院 current runtime，缺资产时继续自愈，
+  不再因旧缓存跳过资产闭包复核；并新增真实服务候选创建链路：声明式资产
+  `/engine/authoring/declarative-assets` 覆盖 `VALUE_SET` / `FORMULA` / `ORDER_SET` /
+  `ACTION_CARD`，路径资产使用合法字段目录与普通 `ASSESSMENT` 节点，评价指标会先保证平台组织科室，
+  随访模板、CDSS 风险矩阵、术语映射、临床安全红线均走真实 API。术语资产草稿不再把
+  `tenant:t-1` 伪组织路径传给统一版本底座，而是交由平台租户解析为唯一平台权威路径
+  `/__platform__`。安全红线新增真实草稿入口 `POST /engine/safety/redlines`，必须先登记草稿、
+  提交静默试运行证据，再 promote 生成并发布 `SAFETY` 统一资产；promote 时向统一发布服务传入完整
+  `VersionPublishQualityGate`，质量门由 DSL 字段目录绑定、风险矩阵/证据引用/版本链、禁止下级关闭、
+  安全事件为 0、静默试运行观察窗口和病例计数等真实证据派生，禁止硬编码自签全绿或绕过发布治理。
+  `runtime-release-frontdesk.spec.ts` 复用同一份 13 类清单，断言 `/config/releases` 生成机构生效版本的
+  POST 请求体 `activeAssets` 精确包含 13 类身份，且回读 current runtime 时 13 类均为 `ACTIVE` 并带有
+  `versionId`。
+- 第一百二十七批红点根因与定位修复：目标真实 E2E 首先红于
+  `POST /engine/terminology/assets/drafts` 返回
+  “平台资产必须使用唯一平台权威路径”。源码和窄测已证明修复后的
+  `TerminologyAssetDraftService` 传 `organizationScope=null`，真实 18080 上的旧 Java 进程从
+  7 月 5 日 23:12 启动，早于当前未提交修复；重启后术语草稿成功生成。随后 E2E 红于
+  `POST /engine/safety/redlines:promote` 返回“平台发布质量校验未全部通过”，根因是 SAFETY
+  promote 内部调用统一发布服务时质量门为 `null`；先用服务层红灯复现，再补
+  `safetyPublishQualityGate` 与组织适用域校验转绿。审查指出的“SAFETY 不能硬编码五项质量门为
+  true”Critical 已修复：不通过时抛 `VALIDATION_FAILED`，且不激活红线、不注册资产、不发布。最新后端
+  重启后目标 E2E 又红于 `PUT /engine/cdss/risk-matrix` 返回“平台发布质量校验未全部通过”，根因是
+  CDSS_RISK 发布命令缺真实派生的 `VersionPublishQualityGate`；已在 `CdssRiskMatrixService` 补齐
+  CDSS 风险矩阵、安全基线、禁止自动执行和影响评估摘要后转绿。
+- 第一百二十七批验证证据：目标真实前台 E2E
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium runtime-release-frontdesk.spec.ts`
+  在 2026-07-06 当前 18080 后端进程 / H2 空库重启后通过（1 passed，6.3 秒），同一 H2 进程重复运行再次通过
+  （1 passed，6.4 秒），用于补证已有候选 / 已有 release 场景的自举幂等性。源码合同
+  `npm --prefix frontend run test -- e2eAuthCredentialContract`
+  通过（20 passed），其中锁住 13 类精确 runtime 身份、请求体断言、current runtime 断言和禁止
+  `activeAssets: []` 回退。后端红绿：`ClinicalRedlineServiceTest` 先红于
+  `publish.qualityGate()` 为 `null`，补质量门后转绿；`CdssRiskMatrixServiceTest` 锁住 CDSS_RISK 发布命令
+  必须携带真实质量门。后端相关窄测
+  `mvn -f medkernel-backend/pom.xml -Dtest=CdssRiskMatrixServiceTest,TerminologyAssetDraftServiceTest,ClinicalRedlineServiceTest,ClinicalRedlineControllerSecurityTest,ClinicalRuntimeReleaseServiceTest,ReleaseCandidateQueryServiceTest,ClinicalRuntimeDeclarativeAssetResolverTest test`
+  通过（54 tests）。E2E support 类型检查
+  `cd frontend && npx tsc --noEmit --pretty false --skipLibCheck false --allowImportingTsExtensions --moduleResolution bundler --module ESNext --target ES2022 --lib ES2023,DOM --strict --types node e2e/support/auth.ts e2e/runtime-release-frontdesk.spec.ts`
+  通过；触达前端文件 Prettier check 通过；`git diff --check` 退出码 0，仅提示
+  `docs/_HANDOFF.md` 下次 Git 触碰会从 CRLF 转 LF。
+- 第一百二十七批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也未完成真实备份、
+  隔离恢复、重启恢复、13 类患者资源逐类接入、11 类知识全流程、两家机构差异化发布 / 回滚和
+  S0-S40 全角色前台演练；不能把本地 H2 空库 runtime 闭包切片等同于总目标完成。下一步继续从全局矩阵推进：
+  优先把 13 类 runtime 资产的“候选可见 → 勾选 → 医院生效版本 ACTIVE → 运行消费者读取”补成更完整的
+  自动化证据，再扩到 134 清库部署、全知识、全患者资源和全角色真实前台体验；发现红点仍先复现、
+  定根因，再修复，不做片面优化。
 - 第一百二十六批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，而是把部署侧 `backup-restore-drill.sh` 输出的
   `latest-restore-drill.properties` 恢复演练证据与后端 `/system/operations` 运行快照、

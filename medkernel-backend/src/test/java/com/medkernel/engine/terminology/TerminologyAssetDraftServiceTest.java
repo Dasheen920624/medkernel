@@ -99,7 +99,7 @@ class TerminologyAssetDraftServiceTest {
         AssetVersionRegisterCommand command = versionCaptor.getValue();
         assertThat(command.assetType()).isEqualTo(VersionedAssetType.TERMINOLOGY);
         assertThat(command.assetIdentity()).isEqualTo("TERM.LAB");
-        assertThat(command.organizationScope()).isEqualTo("department:CARD");
+        assertThat(command.organizationScope()).isNull();
         assertThat(command.content()).contains(
             "\"assetIdentity\":\"TERM.LAB\"",
             "\"mappingId\":401"
@@ -119,6 +119,40 @@ class TerminologyAssetDraftServiceTest {
             "av-term-v1",
             "生成术语资产草稿: TERM.LAB@V1，映射 1 条"
         );
+    }
+
+    @Test
+    void platformDraftDelegatesOwnershipToUnifiedPlatformAuthorityPath() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-term-platform",
+            OrgScope.tenant(PlatformAuthority.PLATFORM_TENANT_ID),
+            "engine-operator"
+        ));
+        TermMapping mapping = platformMapping();
+        when(mappingRepository.findConfirmedByTenantIdAndScope(
+            PlatformAuthority.PLATFORM_TENANT_ID,
+            "TENANT",
+            PlatformAuthority.PLATFORM_TENANT_ID)).thenReturn(List.of(mapping));
+        when(localTermRepository.findByTenantIdAndId(PlatformAuthority.PLATFORM_TENANT_ID, 111L))
+            .thenReturn(Optional.of(platformLocalTerm()));
+        when(standardTermRepository.findFirstByTenantIdsAndId(
+            List.of(PlatformAuthority.PLATFORM_TENANT_ID),
+            PlatformAuthority.PLATFORM_TENANT_ID,
+            222L)).thenReturn(Optional.of(platformStandardTerm()));
+
+        service.createDraft(new TerminologyAssetDraftRequest(
+            "TERMINOLOGY.LOCAL.REHEARSAL.BASELINE",
+            "本地上线演练平台术语映射",
+            "TENANT",
+            PlatformAuthority.PLATFORM_TENANT_ID
+        ));
+
+        ArgumentCaptor<AssetVersionRegisterCommand> versionCaptor =
+            ArgumentCaptor.forClass(AssetVersionRegisterCommand.class);
+        verify(versionedAssets).registerDraft(versionCaptor.capture());
+        assertThat(versionCaptor.getValue().organizationScope())
+            .as("平台术语草稿应让 AssetVersionService 按平台租户解析为 /__platform__，不能传 tenant:t-1 伪路径")
+            .isNull();
     }
 
     @Test
@@ -184,6 +218,16 @@ class TerminologyAssetDraftServiceTest {
         );
     }
 
+    private TermMapping platformMapping() {
+        Instant now = Instant.parse("2026-06-01T00:00:00Z");
+        return new TermMapping(
+            1401L, PlatformAuthority.PLATFORM_TENANT_ID, 111L, 222L, "LOCAL-E2E",
+            TermCategory.LAB, 0.99D, TermRiskLevel.LOW, TermMappingStatus.CONFIRMED,
+            "本地上线演练平台术语映射确认", "engine-operator",
+            now, now, "engine-operator", now, "engine-operator"
+        );
+    }
+
     private LocalTerm localTerm() {
         Instant now = Instant.parse("2026-06-01T00:00:00Z");
         return new LocalTerm(
@@ -199,6 +243,25 @@ class TerminologyAssetDraftServiceTest {
             22L, PlatformAuthority.PLATFORM_TENANT_ID, "LOINC", "718-7",
             TermCategory.LAB, "Hemoglobin", "hemoglobin", "2.78",
             StandardTermStatus.ACTIVE, 100L, "LOINC 2.78", now, "system", now, "system"
+        );
+    }
+
+    private LocalTerm platformLocalTerm() {
+        Instant now = Instant.parse("2026-06-01T00:00:00Z");
+        return new LocalTerm(
+            111L, PlatformAuthority.PLATFORM_TENANT_ID, "LOCAL-E2E", "K", TermCategory.LAB,
+            "血钾", "血钾", null, LocalTermStatus.MAPPED,
+            now, now, now, "engine-operator", now, "engine-operator"
+        );
+    }
+
+    private StandardTerm platformStandardTerm() {
+        Instant now = Instant.parse("2026-06-01T00:00:00Z");
+        return new StandardTerm(
+            222L, PlatformAuthority.PLATFORM_TENANT_ID, "LOINC", "6298-4",
+            TermCategory.LAB, "Potassium", "potassium|血钾", "2.78",
+            StandardTermStatus.ACTIVE, null, "LOINC 2.78", now, "engine-operator",
+            now, "engine-operator"
         );
     }
 }

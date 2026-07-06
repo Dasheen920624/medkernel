@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -96,6 +98,56 @@ class ClinicalRuntimeReleaseServiceTest {
             .findByTenantIdAndAssetTypeAndAssetIdentityAndVersionIdOrderByDependsOnAssetTypeAscDependsOnIdentityAsc(
                 any(), any(), any(), any()))
             .thenReturn(List.of());
+    }
+
+    @Test
+    void activatesEveryRuntimeAssetTypeFromPlatformBaselineIntoHospitalManifest() {
+        stubHospitalAndBaseline();
+        List<PlatformBaselineItem> allRuntimeAssets = Arrays.stream(VersionedAssetType.values())
+            .map(type -> baselineItem(
+                type,
+                "BASELINE." + type.name(),
+                "av-" + type.name().toLowerCase(),
+                "V1",
+                Integer.toHexString(type.ordinal() + 1).repeat(64).substring(0, 64)))
+            .toList();
+        when(baselineItems.findByBaselineReleaseIdOrderByAssetTypeAscAssetIdentityAsc(
+            "baseline-A8"))
+            .thenReturn(allRuntimeAssets);
+        when(releases.findFirstByTenantIdAndHospitalIdOrderByRevisionNoDesc(
+            "tenant-A", "hospital-A")).thenReturn(Optional.empty());
+
+        service.activate(new ClinicalRuntimeReleaseCommand(
+            "tenant-A",
+            "hospital-A",
+            "baseline-A8",
+            null,
+            allRuntimeAssets.stream()
+                .map(item -> ClinicalRuntimeAssetSelection.platform(
+                    item.assetType(),
+                    item.assetIdentity()))
+                .toList(),
+            "operator-A",
+            "trace-all-assets"
+        ));
+
+        ArgumentCaptor<ClinicalRuntimeReleaseItem> saved =
+            ArgumentCaptor.forClass(ClinicalRuntimeReleaseItem.class);
+        verify(runtimeItems, org.mockito.Mockito.times(VersionedAssetType.values().length))
+            .save(saved.capture());
+        assertThat(saved.getAllValues())
+            .filteredOn(item -> item.entryState() == ReleaseEntryState.ACTIVE)
+            .extracting(ClinicalRuntimeReleaseItem::assetType)
+            .containsExactly(Arrays.stream(VersionedAssetType.values())
+                .sorted(Comparator.comparing(VersionedAssetType::name))
+                .toArray(VersionedAssetType[]::new));
+        assertThat(saved.getAllValues())
+            .allSatisfy(item -> {
+                assertThat(item.sourceLayer()).isEqualTo(ReleaseSourceLayer.PLATFORM);
+                assertThat(item.versionId()).isNotBlank();
+                assertThat(item.versionNo()).isEqualTo("V1");
+                assertThat(item.contentHash()).matches("[0-9a-f]{64}");
+            });
     }
 
     @Test

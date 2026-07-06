@@ -11,9 +11,14 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import com.medkernel.engine.cdss.risk.CdssAutomationLevel;
 import com.medkernel.engine.cdss.risk.CdssReviewRequirement;
+import com.medkernel.engine.cdss.risk.CdssRiskMatrixRepository;
+import com.medkernel.engine.cdss.risk.CdssRiskMatrixRule;
+import com.medkernel.engine.cdss.risk.CdssRiskMatrixStatus;
 import com.medkernel.engine.recommendation.RecommendationRiskLevel;
 import com.medkernel.engine.versioning.AssetVersion;
+import com.medkernel.engine.versioning.AssetDependencyKind;
 import com.medkernel.engine.versioning.AssetVersionOverridePolicy;
 import com.medkernel.engine.versioning.AssetVersionRegisterCommand;
 import com.medkernel.engine.versioning.AssetVersionSafetyPolicy;
@@ -21,6 +26,7 @@ import com.medkernel.engine.versioning.AssetVersionService;
 import com.medkernel.engine.versioning.AssetVersionStatus;
 import com.medkernel.engine.versioning.ReleasePort;
 import com.medkernel.engine.versioning.VersionReleaseCommand;
+import com.medkernel.engine.versioning.VersionPublishQualityGate;
 import com.medkernel.engine.versioning.VersionedAssetType;
 import com.medkernel.shared.api.error.ApiException;
 import com.medkernel.shared.audit.AuditAction;
@@ -39,6 +45,7 @@ class ClinicalRedlineServiceTest {
     private AuditRecorder auditRecorder;
     private AssetVersionService versionService;
     private ReleasePort releasePort;
+    private CdssRiskMatrixRepository riskMatrices;
     private ClinicalRedlineService service;
 
     @BeforeEach
@@ -48,9 +55,16 @@ class ClinicalRedlineServiceTest {
         auditRecorder = Mockito.mock(AuditRecorder.class);
         versionService = Mockito.mock(AssetVersionService.class);
         releasePort = Mockito.mock(ReleasePort.class);
-        service = new ClinicalRedlineService(repository, trialRepository, auditRecorder, versionService, releasePort);
+        riskMatrices = Mockito.mock(CdssRiskMatrixRepository.class);
+        service = new ClinicalRedlineService(
+            repository, trialRepository, auditRecorder, versionService, releasePort, riskMatrices);
         when(versionService.registerDraft(any(AssetVersionRegisterCommand.class)))
             .thenReturn(assetVersion("av-safety-redline-v1", VersionedAssetType.SAFETY, "SAFETY.RDL-DDI-001"));
+        when(riskMatrices.findByTenantIdAndMatrixVersionOrderByTriggerPointAscSeverityLevelAscAutomationLevelAsc(
+                "tenant-A", "4"))
+            .thenReturn(List.of(
+                riskMatrixRule("risk-matrix-critical-ddi", "4"),
+                riskMatrixRuleForDraft("risk-matrix-local-rehearsal", "4")));
         RequestContext.restore(new RequestContext.Snapshot(
             "trace-redline", OrgScope.tenant("tenant-A"), "medical-admin-1"));
     }
@@ -137,6 +151,82 @@ class ClinicalRedlineServiceTest {
     }
 
     @Test
+    void createDraftPersistsSafetyRedlineWithoutPublishingUnifiedAsset() {
+        when(repository.findByTenantIdAndRedlineId("tenant-A", "redline-local-rehearsal-baseline"))
+            .thenReturn(Optional.empty());
+        when(repository.findByTenantIdAndRedlineKeyAndRedlineVersion(
+                "tenant-A", "RDL-LOCAL-REHEARSAL", "2026.1"))
+            .thenReturn(Optional.empty());
+        when(repository.save(any(ClinicalRedlineRule.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ClinicalRedlineResponse response = service.createDraft(validDraftRequest());
+
+        assertThat(response.redlineId()).isEqualTo("redline-local-rehearsal-baseline");
+        assertThat(response.status()).isEqualTo(ClinicalRedlineStatus.DRAFT);
+        assertThat(response.lowerTenantOverrideAllowed()).isFalse();
+        verify(repository).save(org.mockito.ArgumentMatchers.argThat(rule ->
+            rule.status() == ClinicalRedlineStatus.DRAFT
+                && rule.activeScopeKey() == null
+                && rule.redlineKey().equals("RDL-LOCAL-REHEARSAL")
+                && rule.title().contains("本地上线演练")
+                && rule.clinicalHazard().contains("SAFETY 资产")
+        ));
+        verify(versionService, org.mockito.Mockito.never()).registerDraft(any());
+        verify(releasePort, org.mockito.Mockito.never()).publish(any());
+        verify(auditRecorder).record(
+            AuditAction.CREATE,
+            "mk_engine_clinical_redline",
+            "redline-local-rehearsal-baseline",
+            "创建临床安全红线草稿");
+    }
+
+    @Test
+    void createDraftRejectsLowerTenantOverrideForSafetyRedline() {
+        ClinicalRedlineDraftRequest request = new ClinicalRedlineDraftRequest(
+            "redline-unsafe-override",
+            ClinicalRedlineCategory.DOSE_LIMIT,
+            "medication-prescribe",
+            "TENANT",
+            "tenant-A",
+            "RDL-UNSAFE-OVERRIDE",
+            "2026.1",
+            RecommendationRiskLevel.CRITICAL,
+            "risk-matrix-dose-limit",
+            "4",
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
+            168,
+            "OPT04_REDLINE_SILENT_TRIAL",
+            "不合规红线",
+            "下级关闭会破坏安全红线",
+            "{\"all\":[{\"field\":\"medications[].dose\",\"operator\":\"gt\",\"value\":1}]}",
+            "本地上线演练证据",
+            "source-version:local-e2e#dose-limit",
+            null,
+            true
+        );
+
+        assertThatThrownBy(() -> service.createDraft(request))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("安全红线禁止下级关闭");
+    }
+
+    @Test
+    void createDraftRejectsRiskMatrixThatIsNotActiveAndMatching() {
+        when(riskMatrices.findByTenantIdAndMatrixVersionOrderByTriggerPointAscSeverityLevelAscAutomationLevelAsc(
+                "tenant-A", "4"))
+            .thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.createDraft(validDraftRequest()))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("风险矩阵绑定未通过验证");
+
+        verify(repository, org.mockito.Mockito.never()).save(any());
+        verify(versionService, org.mockito.Mockito.never()).registerDraft(any());
+        verify(releasePort, org.mockito.Mockito.never()).publish(any());
+    }
+
+    @Test
     void dryRunRecordsRealSilentWindowEvidenceAndMovesDraftIntoSilentRunning() {
         ClinicalRedlineRule draft = redline(
             "redline-ddi-warfarin-nsaid",
@@ -173,6 +263,30 @@ class ClinicalRedlineServiceTest {
             "mk_engine_clinical_redline_trial",
             response.trialId(),
             "记录临床安全红线静默试运行证据");
+    }
+
+    @Test
+    void dryRunRejectsRiskMatrixThatBecameInactiveOrMismatchedAfterDraft() {
+        ClinicalRedlineRule draft = redline(
+            "redline-risk-matrix-drifted",
+            ClinicalRedlineCategory.DRUG_INTERACTION,
+            "RDL-DDI-DRIFTED",
+            "2026.2",
+            ClinicalRedlineStatus.DRAFT);
+        when(repository.findByTenantIdAndRedlineId("tenant-A", "redline-risk-matrix-drifted"))
+            .thenReturn(Optional.of(draft));
+        when(riskMatrices.findByTenantIdAndMatrixVersionOrderByTriggerPointAscSeverityLevelAscAutomationLevelAsc(
+                "tenant-A", "4"))
+            .thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.dryRun(validDryRunRequest("redline-risk-matrix-drifted")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("风险矩阵绑定未通过验证");
+
+        verify(trialRepository, org.mockito.Mockito.never()).save(any());
+        verify(repository, org.mockito.Mockito.never()).save(any());
+        verify(versionService, org.mockito.Mockito.never()).registerDraft(any());
+        verify(releasePort, org.mockito.Mockito.never()).publish(any());
     }
 
     @Test
@@ -295,7 +409,7 @@ class ClinicalRedlineServiceTest {
             .thenReturn(Optional.of(passedTrial));
         when(repository.findByTenantIdAndActiveScopeKeyAndStatus(
                 "tenant-A",
-                "tenant-A|DRUG_INTERACTION|medication-prescribe|RDL-DDI-001",
+                "tenant-A|TENANT:tenant-A|DRUG_INTERACTION|medication-prescribe|RDL-DDI-001",
                 ClinicalRedlineStatus.ACTIVE))
             .thenReturn(Optional.empty());
         when(repository.save(any(ClinicalRedlineRule.class)))
@@ -317,20 +431,201 @@ class ClinicalRedlineServiceTest {
         assertThat(command.assetType()).isEqualTo(VersionedAssetType.SAFETY);
         assertThat(command.assetIdentity()).isEqualTo("SAFETY.RDL-DDI-001");
         assertThat(command.content()).contains("\"redlineVersion\":\"2026.2\"");
+        assertThat(command.content()).contains("\"riskMatrixId\":\"risk-matrix-critical-ddi\"");
+        assertThat(command.content()).contains("\"riskMatrixVersion\":\"4\"");
         assertThat(command.content()).contains("华法林合并非甾体抗炎药出血风险");
         assertThat(command.safetyPolicy()).isEqualTo(AssetVersionSafetyPolicy.SAFETY_REDLINE);
         assertThat(command.overridePolicy()).isEqualTo(AssetVersionOverridePolicy.LOCKED);
-        verify(releasePort).publish(org.mockito.ArgumentMatchers.argThat(
-            (VersionReleaseCommand publish) ->
-                publish.assetType() == VersionedAssetType.SAFETY
-                    && publish.assetIdentity().equals("SAFETY.RDL-DDI-001")
-                    && publish.versionId().equals("av-safety-redline-v1")
-                    && publish.impactDigest().contains("静默试运行达标")));
+        assertThat(command.dependencies()).singleElement().satisfies(dependency -> {
+            assertThat(dependency.dependsOnAssetType()).isEqualTo(VersionedAssetType.CDSS_RISK);
+            assertThat(dependency.dependsOnIdentity()).isEqualTo("CDSS.RISK.MATRIX");
+            assertThat(dependency.minVersionNo()).isNull();
+            assertThat(dependency.maxVersionNo()).isNull();
+            assertThat(dependency.kind()).isEqualTo(AssetDependencyKind.RUNTIME_ASSET);
+        });
+        org.mockito.ArgumentCaptor<VersionReleaseCommand> publishCaptor =
+            org.mockito.ArgumentCaptor.forClass(VersionReleaseCommand.class);
+        verify(releasePort).publish(publishCaptor.capture());
+        VersionReleaseCommand publish = publishCaptor.getValue();
+        assertThat(publish.assetType()).isEqualTo(VersionedAssetType.SAFETY);
+        assertThat(publish.assetIdentity()).isEqualTo("SAFETY.RDL-DDI-001");
+        assertThat(publish.versionId()).isEqualTo("av-safety-redline-v1");
+        assertThat(publish.impactDigest()).contains("静默试运行达标");
+        VersionPublishQualityGate qualityGate = publish.qualityGate();
+        assertThat(qualityGate).isNotNull();
+        assertThat(qualityGate.schemaValid()).isTrue();
+        assertThat(qualityGate.terminologyBindingComplete()).isTrue();
+        assertThat(qualityGate.dependencyIntegrityVerified()).isTrue();
+        assertThat(qualityGate.safetyMonotonicityVerified()).isTrue();
+        assertThat(qualityGate.impactSimulationPassed()).isTrue();
+        assertThat(qualityGate.summary()).contains("静默试运行", "安全单调性", "影响评估");
         verify(auditRecorder).record(
             AuditAction.PUBLISH,
             "mk_engine_clinical_redline",
             "redline-ddi-warfarin-nsaid",
             "临床安全红线静默试运行达标后上线");
+    }
+
+    @Test
+    void promoteFailsClosedWhenQualityGateEvidenceIsIncomplete() {
+        ClinicalRedlineRule silent = redline(
+            "redline-unknown-field",
+            ClinicalRedlineCategory.DRUG_INTERACTION,
+            "RDL-UNKNOWN-FIELD",
+            "2026.2",
+            ClinicalRedlineStatus.SILENT_RUNNING,
+            false,
+            "{\"all\":[{\"field\":\"legacy.medicationDose\",\"operator\":\"gt\",\"value\":1}]}"
+        );
+        ClinicalRedlineTrial passedTrial = trial(
+            "trial-pass",
+            silent,
+            ClinicalRedlineTrialStatus.PASSED,
+            192,
+            0);
+        when(repository.findByTenantIdAndRedlineId("tenant-A", "redline-unknown-field"))
+            .thenReturn(Optional.of(silent));
+        when(trialRepository.findByTenantIdAndRedlineIdAndTrialId(
+                "tenant-A", "redline-unknown-field", "trial-pass"))
+            .thenReturn(Optional.of(passedTrial));
+        when(repository.findByTenantIdAndActiveScopeKeyAndStatus(
+                "tenant-A",
+                "tenant-A|TENANT:tenant-A|DRUG_INTERACTION|medication-prescribe|RDL-UNKNOWN-FIELD",
+                ClinicalRedlineStatus.ACTIVE))
+            .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.promote(new ClinicalRedlinePromoteRequest(
+                "redline-unknown-field",
+                "trial-pass",
+                "2026.2",
+                "字段绑定证据缺失时禁止上线")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("发布质量校验未全部通过")
+            .hasMessageContaining("legacy.medicationDose");
+
+        verify(versionService, org.mockito.Mockito.never()).registerDraft(any());
+        verify(releasePort, org.mockito.Mockito.never()).publish(any());
+        verify(repository, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.argThat(
+            rule -> rule.status() == ClinicalRedlineStatus.ACTIVE));
+    }
+
+    @Test
+    void promoteFailsClosedWhenRiskMatrixBindingDoesNotExist() {
+        ClinicalRedlineRule silent = redline(
+            "redline-missing-risk-matrix",
+            ClinicalRedlineCategory.DOSE_LIMIT,
+            "RDL-MISSING-RISK-MATRIX",
+            "2026.2",
+            ClinicalRedlineStatus.SILENT_RUNNING);
+        ClinicalRedlineTrial passedTrial = trial(
+            "trial-pass",
+            silent,
+            ClinicalRedlineTrialStatus.PASSED,
+            192,
+            0);
+        when(repository.findByTenantIdAndRedlineId("tenant-A", "redline-missing-risk-matrix"))
+            .thenReturn(Optional.of(silent));
+        when(trialRepository.findByTenantIdAndRedlineIdAndTrialId(
+                "tenant-A", "redline-missing-risk-matrix", "trial-pass"))
+            .thenReturn(Optional.of(passedTrial));
+        when(riskMatrices.findByTenantIdAndMatrixVersionOrderByTriggerPointAscSeverityLevelAscAutomationLevelAsc(
+                "tenant-A", "4"))
+            .thenReturn(List.of());
+        when(repository.findByTenantIdAndActiveScopeKeyAndStatus(
+                "tenant-A",
+                "tenant-A|TENANT:tenant-A|DOSE_LIMIT|medication-prescribe|RDL-MISSING-RISK-MATRIX",
+                ClinicalRedlineStatus.ACTIVE))
+            .thenReturn(Optional.empty());
+        when(repository.save(any(ClinicalRedlineRule.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThatThrownBy(() -> service.promote(new ClinicalRedlinePromoteRequest(
+                "redline-missing-risk-matrix",
+                "trial-pass",
+                "2026.2",
+                "风险矩阵绑定不存在时禁止上线")))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("发布质量校验未全部通过")
+            .hasMessageContaining("风险矩阵");
+
+        verify(versionService, org.mockito.Mockito.never()).registerDraft(any());
+        verify(releasePort, org.mockito.Mockito.never()).publish(any());
+        verify(repository, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.argThat(
+            rule -> rule.status() == ClinicalRedlineStatus.ACTIVE));
+    }
+
+    @Test
+    void createDraftRejectsScopeOutsideCurrentOrganizationContext() {
+        ClinicalRedlineDraftRequest request = new ClinicalRedlineDraftRequest(
+            "redline-cross-tenant",
+            ClinicalRedlineCategory.DOSE_LIMIT,
+            "medication-prescribe",
+            "TENANT",
+            "tenant-B",
+            "RDL-CROSS-TENANT",
+            "2026.1",
+            RecommendationRiskLevel.CRITICAL,
+            "risk-matrix-dose-limit",
+            "4",
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
+            168,
+            "OPT04_REDLINE_SILENT_TRIAL",
+            "跨租户红线",
+            "红线适用域必须与当前组织上下文一致",
+            "{\"all\":[{\"field\":\"medications[].dose\",\"operator\":\"gt\",\"value\":1}]}",
+            "本地上线演练证据",
+            "source-version:local-e2e#dose-limit",
+            null,
+            false
+        );
+
+        assertThatThrownBy(() -> service.createDraft(request))
+            .isInstanceOf(ApiException.class)
+            .hasMessageContaining("红线适用域必须与当前组织上下文一致");
+
+        verify(repository, org.mockito.Mockito.never()).save(any());
+        verify(versionService, org.mockito.Mockito.never()).registerDraft(any());
+        verify(releasePort, org.mockito.Mockito.never()).publish(any());
+    }
+
+    @Test
+    void createDraftNormalizesScopeTypeBeforePersistingActiveScopeKeys() {
+        when(repository.findByTenantIdAndRedlineId("tenant-A", "redline-lower-scope"))
+            .thenReturn(Optional.empty());
+        when(repository.findByTenantIdAndRedlineKeyAndRedlineVersion(
+                "tenant-A", "RDL-LOWER-SCOPE", "2026.1"))
+            .thenReturn(Optional.empty());
+        when(repository.save(any(ClinicalRedlineRule.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.createDraft(new ClinicalRedlineDraftRequest(
+            "redline-lower-scope",
+            ClinicalRedlineCategory.DOSE_LIMIT,
+            "medication-prescribe",
+            "tenant",
+            " tenant-A ",
+            "RDL-LOWER-SCOPE",
+            "2026.1",
+            RecommendationRiskLevel.CRITICAL,
+            "risk-matrix-local-rehearsal",
+            "4",
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
+            168,
+            "OPT04_REDLINE_SILENT_TRIAL",
+            "大小写规范红线",
+            "红线适用域必须规范入库",
+            "{\"all\":[{\"field\":\"medications[].dose\",\"operator\":\"gt\",\"value\":1}]}",
+            "本地上线演练证据",
+            "source-version:local-e2e#dose-limit",
+            null,
+            false
+        ));
+
+        verify(repository).save(org.mockito.ArgumentMatchers.argThat(rule ->
+            rule.scopeType().equals("TENANT")
+                && rule.scopeRef().equals("tenant-A")
+                && rule.computedActiveScopeKey().contains("|TENANT:tenant-A|")
+        ));
     }
 
     private ClinicalRedlineRule redline(
@@ -349,6 +644,19 @@ class ClinicalRedlineServiceTest {
             String redlineVersion,
             ClinicalRedlineStatus status,
             boolean lowerTenantOverrideAllowed) {
+        return redline(redlineId, category, redlineKey, redlineVersion, status, lowerTenantOverrideAllowed, """
+            {"all":[{"field":"medications[].code","operator":"in","value":["ATC:B01AA03","ATC:M01A"]}]}
+            """);
+    }
+
+    private ClinicalRedlineRule redline(
+            String redlineId,
+            ClinicalRedlineCategory category,
+            String redlineKey,
+            String redlineVersion,
+            ClinicalRedlineStatus status,
+            boolean lowerTenantOverrideAllowed,
+            String conditionDsl) {
         Instant now = Instant.parse("2026-06-04T02:00:00Z");
         return new ClinicalRedlineRule(
             null,
@@ -358,7 +666,7 @@ class ClinicalRedlineServiceTest {
             "medication-prescribe",
             "TENANT",
             "tenant-A",
-            "tenant-A|" + category.name() + "|medication-prescribe|" + redlineKey,
+            "tenant-A|TENANT:tenant-A|" + category.name() + "|medication-prescribe|" + redlineKey,
             redlineKey,
             redlineVersion,
             status,
@@ -370,9 +678,7 @@ class ClinicalRedlineServiceTest {
             "OPT04_REDLINE_SILENT_TRIAL",
             "华法林合并非甾体抗炎药出血风险",
             "合用可能显著增加出血风险",
-            """
-            {"all":[{"field":"medications[].code","operator":"in","value":["ATC:B01AA03","ATC:M01A"]}]}
-            """,
+            conditionDsl,
             "药品说明书与临床指南证据",
             "source-version:42#section-1",
             42L,
@@ -395,6 +701,31 @@ class ClinicalRedlineServiceTest {
             0,
             "evidence://silent-trials/" + redlineId,
             "试运行窗口来自真实临床事件回放统计");
+    }
+
+    private ClinicalRedlineDraftRequest validDraftRequest() {
+        return new ClinicalRedlineDraftRequest(
+            "redline-local-rehearsal-baseline",
+            ClinicalRedlineCategory.DOSE_LIMIT,
+            "medication-prescribe",
+            "TENANT",
+            "tenant-A",
+            "RDL-LOCAL-REHEARSAL",
+            "2026.1",
+            RecommendationRiskLevel.CRITICAL,
+            "risk-matrix-local-rehearsal",
+            "4",
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
+            168,
+            "OPT04_REDLINE_SILENT_TRIAL",
+            "本地上线演练安全红线",
+            "用于验证空库环境可以先创建真实安全红线草稿，再经静默试运行和上线门禁纳入 SAFETY 资产。",
+            "{\"all\":[{\"field\":\"medications[].dose\",\"operator\":\"gt\",\"value\":1}]}",
+            "本地上线演练安全证据",
+            "source-version:local-e2e#safety-redline",
+            null,
+            false
+        );
     }
 
     private ClinicalRedlineTrial trial(
@@ -447,6 +778,58 @@ class ClinicalRedlineServiceTest {
             "test",
             null,
             null,
+            now,
+            "tester",
+            now,
+            "tester",
+            "trace-redline");
+    }
+
+    private CdssRiskMatrixRule riskMatrixRule(String matrixId, String matrixVersion) {
+        Instant now = Instant.parse("2026-06-04T02:00:00Z");
+        return new CdssRiskMatrixRule(
+            null,
+            matrixId,
+            "tenant-A",
+            "medication-prescribe",
+            RecommendationRiskLevel.CRITICAL,
+            CdssAutomationLevel.INFORM_ONLY,
+            RecommendationRiskLevel.CRITICAL,
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
+            168,
+            "OPT04_REDLINE_SILENT_TRIAL",
+            false,
+            "NMPA_RESERVED",
+            "NOT_ASSESSED",
+            CdssRiskMatrixStatus.ACTIVE,
+            matrixVersion,
+            "红线风险矩阵证据",
+            now,
+            "tester",
+            now,
+            "tester",
+            "trace-redline");
+    }
+
+    private CdssRiskMatrixRule riskMatrixRuleForDraft(String matrixId, String matrixVersion) {
+        Instant now = Instant.parse("2026-06-04T02:00:00Z");
+        return new CdssRiskMatrixRule(
+            null,
+            matrixId,
+            "tenant-A",
+            "medication-prescribe",
+            RecommendationRiskLevel.CRITICAL,
+            CdssAutomationLevel.INFORM_ONLY,
+            RecommendationRiskLevel.CRITICAL,
+            CdssReviewRequirement.PHYSICIAN_CONFIRMATION,
+            168,
+            "OPT04_REDLINE_SILENT_TRIAL",
+            false,
+            "NMPA_RESERVED",
+            "NOT_ASSESSED",
+            CdssRiskMatrixStatus.ACTIVE,
+            matrixVersion,
+            "红线风险矩阵证据",
             now,
             "tester",
             now,

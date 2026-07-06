@@ -34,6 +34,41 @@ class ClinicalRuntimeDeclarativeAssetResolverTest {
         new ClinicalRuntimeDeclarativeAssetResolver(runtime, versions, contents);
 
     @Test
+    void resolvesEveryUnifiedContentStoreAssetTypeFromTheHospitalRuntimeRelease() throws Exception {
+        for (VersionedAssetType type : VersionedAssetType.values()) {
+            if (!type.usesUnifiedContentStore()) {
+                continue;
+            }
+            String identity = "BASELINE." + type.name();
+            String versionId = "av-" + type.name().toLowerCase();
+            String body = "{\"schemaVersion\":\"1.0\",\"assetType\":\"" + type.name() + "\"}";
+            String hash = sha256(body);
+            ClinicalRuntimeReleaseItem runtimeItem = item(type, "tenant-A", identity, versionId, "V1", hash);
+            when(runtime.resolve("tenant-A", "release-" + type.name())).thenReturn(content(runtimeItem));
+            when(versions.findByVersionIdAndTenantId(versionId, "tenant-A"))
+                .thenReturn(Optional.of(version(
+                    type,
+                    "tenant-A",
+                    versionId,
+                    identity,
+                    "V1",
+                    hash,
+                    AssetVersionStatus.PUBLISHED)));
+            when(contents.findByTenantIdAndVersionId("tenant-A", versionId))
+                .thenReturn(Optional.of(new AssetVersionContent(
+                    null, versionId, "tenant-A", body, hash,
+                    NOW, "operator", NOW, "operator", "trace-" + type.name())));
+
+            ResolvedDeclarativeAsset resolved = resolver.resolve(
+                "tenant-A", "release-" + type.name(), type, identity).orElseThrow();
+
+            assertThat(resolved.assetType()).isEqualTo(type);
+            assertThat(resolved.assetIdentity()).isEqualTo(identity);
+            assertThat(resolved.contentJson()).isEqualTo(body);
+        }
+    }
+
+    @Test
     void resolvesExactPublishedBodyFromTheHospitalRuntimeRelease() throws Exception {
         ClinicalRuntimeReleaseItem item = item(
             PlatformTenant.ID, "VS.ANTICOAGULANT", "av-1", "V2", "pending");

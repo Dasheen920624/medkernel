@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 
-import { ensureReadySession } from "./support/auth";
+import { ensureReadySession, requiredRuntimeAssetsForRehearsal } from "./support/auth";
 
 type RuntimeCollectors = {
   browserErrors: string[];
@@ -21,8 +21,14 @@ type RuntimeReleaseDetail = {
 
 type RuntimeReleaseItem = {
   assetType?: string;
+  assetIdentity?: string;
   entryState?: string;
   versionId?: string;
+};
+type RuntimeAssetSelection = {
+  assetType?: string;
+  assetIdentity?: string;
+  versionId?: string | null;
 };
 
 test.describe.configure({ mode: "serial" });
@@ -63,6 +69,10 @@ test.describe("机构生效版本真实前台发布回滚", () => {
         activateResponse.ok(),
         `前台生成机构生效版本应返回成功 status=${activateResponse.status()} body=${activateBody}`,
       ).toBe(true);
+      assertRuntimeReleaseRequestCarriesRequiredAssets(
+        activateResponse.request().postDataJSON(),
+        "前台生成机构生效版本",
+      );
       const activated = JSON.parse(activateBody) as { data?: { revisionNo?: number } };
       expect(activated.data?.revisionNo, "生成机构生效版本响应应返回新修订号").toBeGreaterThan(
         initialRevision,
@@ -159,10 +169,7 @@ async function assertCurrentRuntimeAssetsReady(
       expectedRevision,
     );
   }
-  expect(runtimeHasActiveAsset(current.data, "FIELD_CATALOG"), `${label} 后字段目录必须启用`).toBe(
-    true,
-  );
-  expect(runtimeHasActiveAsset(current.data, "RULE"), `${label} 后规则资产必须启用`).toBe(true);
+  assertRuntimeDetailCarriesRequiredAssets(current.data, label);
 }
 
 async function resolveHospitalId(page: Page, hospitalName: string) {
@@ -186,11 +193,39 @@ async function resolveHospitalId(page: Page, hospitalName: string) {
   return hospital?.id ?? "";
 }
 
-function runtimeHasActiveAsset(detail: RuntimeReleaseDetail | null | undefined, assetType: string) {
-  return (detail?.items ?? []).some(
-    (item) =>
-      item.assetType === assetType && item.entryState === "ACTIVE" && Boolean(item.versionId),
-  );
+function assertRuntimeReleaseRequestCarriesRequiredAssets(value: unknown, label: string) {
+  const activeAssets = Array.isArray((value as { activeAssets?: unknown }).activeAssets)
+    ? ((value as { activeAssets: RuntimeAssetSelection[] }).activeAssets ?? [])
+    : [];
+  for (const required of requiredRuntimeAssetsForRehearsal) {
+    const match = activeAssets.find(
+      (item) =>
+        item.assetType === required.assetType && item.assetIdentity === required.assetIdentity,
+    );
+    expect(
+      match,
+      `${label} 请求必须携带 ${required.assetType} ${required.assetIdentity}`,
+    ).toBeTruthy();
+  }
+}
+
+function assertRuntimeDetailCarriesRequiredAssets(
+  detail: RuntimeReleaseDetail | null | undefined,
+  label: string,
+) {
+  for (const required of requiredRuntimeAssetsForRehearsal) {
+    const match = (detail?.items ?? []).find(
+      (item) =>
+        item.assetType === required.assetType &&
+        item.assetIdentity === required.assetIdentity &&
+        item.entryState === "ACTIVE" &&
+        Boolean(item.versionId),
+    );
+    expect(
+      match,
+      `${label} 后必须启用 ${required.assetType} ${required.assetIdentity}`,
+    ).toBeTruthy();
+  }
 }
 
 async function assessLocalReleaseImpactIfRequired(page: Page) {
