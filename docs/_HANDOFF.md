@@ -10,6 +10,42 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百四十一批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整系统运维、真实备份 / 隔离恢复 / 重启恢复、完整 S15、完整全角色或 134
+  清库部署收口，而是把既有 `system-providers-frontdesk.spec.ts` 从“真实前台只读核查 + 权限禁入”补成可被
+  浏览器覆盖 reporter 消费的服务运行保障证据切片。`launchCoverageEvidence` 现在只有在该 spec 通过、非 flaky，
+  且附件 `system-providers-operations-codes` 完整包含 `deliveryShapes:MANAGEMENT_WORKSPACE`、
+  `serviceCombinations:COMPLIANCE_OPERATIONS`、五项 API evidence、运行快照字段、备份恢复只读证据、依赖诚实降级
+  证据、临床账号 403 / 页面禁入证据和五个真实阶段时，才声明上述 coverage；没有附件或附件缺备份恢复、
+  依赖降级、证据详情、临床禁入事实时不再声明 coverage。
+- 第一百四十一批真实链路说明：`system-providers-frontdesk.spec.ts` 现在由平台管理员真实读取
+  `/system/operations`，前台进入 `/system/providers` 展示核心服务、依赖服务、备份恢复就绪和国产化适配档案；
+  默认视图不展示 `backup.sh` / `restore.sh` 等脚本路径，打开“证据详情”后才展示部署档案、数据库方言、迁移路径、
+  备份脚本、恢复脚本和备份恢复诊断字段；依赖非 UP 时展示“核心业务继续走本地确定性主链路”的诚实降级提示。
+  同一证明测试再切换临床账号，直接读 `/system/operations` 必须 403，前台 `/system/providers` 必须显示
+  “当前权限不足”且不展示关系数据库或备份恢复就绪数据。当前本地 dev/H2 附件记录备份恢复 `drillEvidence.status`
+  为 `NOT_AVAILABLE`，只证明“只读呈现和诚实未完成演练”，不证明真实备份恢复已通过。
+- 第一百四十一批边界说明：本批 coverage 只含 `deliveryShapes:MANAGEMENT_WORKSPACE` 和
+  `serviceCombinations:COMPLIANCE_OPERATIONS`；不新增 `scenarios:S15`，不声明 `deliveryShapes:ENGINE_CORE`、
+  真实备份 / 隔离恢复 / 重启恢复完成、完整系统运维、完整国产化、完整部署验收、全角色真实操作或 134 清库复演。
+- 第一百四十一批验证证据：TDD 红灯
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "system operations"` 曾失败于
+  `system-providers-frontdesk.spec.ts` 即使携带完整附件也不声明 `MANAGEMENT_WORKSPACE`（`expected undefined to deeply equal [ 'MANAGEMENT_WORKSPACE' ]`）；
+  实现后转绿。E2E TS 检查
+  `cd frontend && npx tsc --noEmit --pretty false --skipLibCheck false --allowImportingTsExtensions --moduleResolution bundler --module ESNext --target ES2022 --lib ES2023,DOM --strict --types node e2e/support/launchCoverageEvidence.ts e2e/system-providers-frontdesk.spec.ts`
+  通过。目标真实 E2E 在本地 18080 dev/H2 后端（PID 49326）上通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-system-providers-coverage npm --prefix frontend run e2e -- --project=chromium system-providers-frontdesk.spec.ts`
+  通过，仓库外 `results.json` 为 `PASSED`（2 expected，0 unexpected，0 flaky），coverage 只含
+  `deliveryShapes:MANAGEMENT_WORKSPACE` 和 `serviceCombinations:COMPLIANCE_OPERATIONS`；平台管理员证明测试附件记录
+  `/system/operations` 200、临床账号 403、备份 RPO/RTO/SHA-256/脚本路径、依赖降级明细和五个真实阶段。其他新鲜门禁：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract` 通过（53 tests）；
+  `npm --prefix frontend run typecheck` 通过；`node --test scripts/release/launch-coverage-audit.test.mjs`
+  通过（6 tests）；`git diff --check` 通过。
+- 第一百四十一批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把服务运行保障只读证据
+  切片等同于真实备份 / 隔离恢复 / 重启恢复或总目标完成。后续优先继续真实覆盖缺口：identity-binding 身份来源
+  coverage 附件门槛，S13 两机构差异化发布 / 部分选择 / 离线交付 / 导入或校验闭环，S2/S4 真实接入与字典映射，
+  S0-S40 其余场景、完整语义族 / 专业域 / 全知识、真实备份 / 隔离恢复 / 重启恢复，以及 134 清库部署复演；
+  继续坚持真实前台与真实服务链路，发现红点先复现、定根因，再按上线级标准修复，不做片面优化。
 - 第一百四十批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整 S13、两机构差异化发布、离线交付、13 类 runtime 资产逐类业务消费者、
   全角色全功能或 134 清库部署收口，而是修复既有 `runtime-release-frontdesk.spec.ts` 被浏览器覆盖 reporter

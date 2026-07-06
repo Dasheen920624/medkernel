@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { writeFile } from "node:fs/promises";
 
 import { apiBase, appPath, ensureReadySession, expectOk } from "./support/auth";
 
@@ -40,39 +41,132 @@ type RuntimeCollectors = {
   operationsResponses: number[];
 };
 
+type SystemProvidersCoverageEvidence = {
+  deliveryShapes: string[];
+  serviceCombinations: string[];
+  apiEvidence: Record<string, boolean>;
+  snapshot?: {
+    healthStatus?: string;
+    databaseDialect?: string;
+    migrationLocation?: string;
+    activeProfiles?: string[];
+  };
+  backup?: RuntimeOperationsSnapshot["backup"];
+  dependencyEvidence?: {
+    dependencies: Array<{ key?: string; displayName?: string; status?: string }>;
+    honestDegradationText?: string;
+  };
+  accessEvidence?: {
+    platformAdminOperationsStatus?: number;
+    clinicalOperationsStatus?: number;
+    clinicalPageForbidden?: boolean;
+    clinicalPageNoOperationsData?: boolean;
+  };
+  scenarioEvidence: Array<{ observedStages: string[] }>;
+};
+
 test.describe("服务运行保障真实前台上线演练", () => {
-  test("平台管理员可只读核查运行状态、备份恢复证据和诚实降级依赖", async ({ page }) => {
+  test("平台管理员可只读核查运行状态、备份恢复证据和诚实降级依赖", async ({
+    page,
+  }, testInfo) => {
     test.setTimeout(180_000);
     const runtime = collectRuntime(page);
-    await ensureReadySession(page, "platform-admin");
+    const coverageEvidence = createSystemProvidersCoverageEvidence();
+    try {
+      await ensureReadySession(page, "platform-admin");
 
-    const snapshot = await loadRuntimeOperationsSnapshot(page);
-    assertRuntimeOperationsSnapshot(snapshot);
+      const snapshot = await loadRuntimeOperationsSnapshot(page);
+      assertRuntimeOperationsSnapshot(snapshot);
+      coverageEvidence.apiEvidence.operationsSnapshotRead = true;
+      coverageEvidence.snapshot = {
+        healthStatus: snapshot.healthStatus,
+        databaseDialect: snapshot.databaseDialect,
+        migrationLocation: snapshot.migrationLocation,
+        activeProfiles: snapshot.activeProfiles ?? [],
+      };
+      coverageEvidence.backup = snapshot.backup;
+      coverageEvidence.dependencyEvidence = {
+        dependencies: (snapshot.dependencies ?? []).map((dependency) => ({
+          key: dependency.key,
+          displayName: dependency.displayName,
+          status: dependency.status,
+        })),
+      };
+      recordSystemProvidersStage(coverageEvidence, "平台管理员读取真实服务运行保障快照");
 
-    await page.goto(appPath("/system/providers"), { waitUntil: "networkidle" });
-    await expect(page.getByRole("heading", { name: "服务运行保障" })).toBeVisible();
-    await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("核心服务", { exact: true })).toBeVisible();
-    await expect(page.getByText("依赖服务", { exact: true })).toBeVisible();
-    await assertBackupReadinessCard(page, snapshot);
-    await assertHonestDependencyDegradation(page, snapshot);
-    await assertEvidenceDetailsDiagnostics(page, snapshot);
+      await page.goto(appPath("/system/providers"), { waitUntil: "networkidle" });
+      await expect(page.getByRole("heading", { name: "服务运行保障" })).toBeVisible();
+      await expect(page.getByText("当前权限不足", { exact: true })).toHaveCount(0);
+      await expect(page.getByText("核心服务", { exact: true })).toBeVisible();
+      await expect(page.getByText("依赖服务", { exact: true })).toBeVisible();
+      await assertBackupReadinessCard(page, snapshot);
+      coverageEvidence.apiEvidence.backupReadinessObserved = true;
+      recordSystemProvidersStage(
+        coverageEvidence,
+        "前台展示备份恢复 RPO、RTO 与 SHA-256 校验策略",
+      );
+      await assertHonestDependencyDegradation(page, snapshot);
+      coverageEvidence.apiEvidence.honestDegradationObserved = true;
+      coverageEvidence.dependencyEvidence = {
+        ...(coverageEvidence.dependencyEvidence ?? { dependencies: [] }),
+        honestDegradationText: "核心业务继续走本地确定性主链路",
+      };
+      recordSystemProvidersStage(
+        coverageEvidence,
+        "前台展示依赖诚实降级并保留本地主链路提示",
+      );
+      await assertEvidenceDetailsDiagnostics(page, snapshot);
+      coverageEvidence.apiEvidence.evidenceDetailsObserved = true;
+      recordSystemProvidersStage(
+        coverageEvidence,
+        "证据详情展示部署档案、迁移路径和备份恢复诊断",
+      );
 
-    expect(
-      runtime.operationsResponses.some((status) => status >= 200 && status < 300),
-      "服务运行保障前台必须读取真实 /system/operations",
-    ).toBe(true);
-    expect(runtime.serverErrors, "服务运行保障前台不应产生 HTTP 错误").toEqual([]);
-    expect(runtime.browserErrors, "服务运行保障前台不应产生浏览器错误").toEqual([]);
+      expect(
+        runtime.operationsResponses.some((status) => status >= 200 && status < 300),
+        "服务运行保障前台必须读取真实 /system/operations",
+      ).toBe(true);
+      coverageEvidence.accessEvidence = {
+        platformAdminOperationsStatus: runtime.operationsResponses.find(
+          (status) => status >= 200 && status < 300,
+        ),
+      };
+      expect(runtime.serverErrors, "服务运行保障前台不应产生 HTTP 错误").toEqual([]);
+      expect(runtime.browserErrors, "服务运行保障前台不应产生浏览器错误").toEqual([]);
+
+      const clinicalAccessEvidence = await assertClinicalUserCannotReadOperations(page);
+      coverageEvidence.apiEvidence.clinicalForbidden = true;
+      coverageEvidence.accessEvidence = {
+        ...coverageEvidence.accessEvidence,
+        ...clinicalAccessEvidence,
+      };
+      recordSystemProvidersStage(
+        coverageEvidence,
+        "临床账号无法读取或展示服务运行保障快照",
+      );
+    } finally {
+      await attachSystemProvidersCoverageEvidence(testInfo, coverageEvidence);
+    }
   });
 
-  test("临床账号不能读取或展示服务运行保障快照", async ({ page }) => {
+  test("临床账号不能读取或展示服务运行保障快照", async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     const runtime = collectRuntime(page);
-    await assertClinicalUserCannotReadOperations(page);
+    const coverageEvidence = createSystemProvidersCoverageEvidence();
+    try {
+      const accessEvidence = await assertClinicalUserCannotReadOperations(page);
+      coverageEvidence.apiEvidence.clinicalForbidden = true;
+      coverageEvidence.accessEvidence = accessEvidence;
+      recordSystemProvidersStage(
+        coverageEvidence,
+        "临床账号无法读取或展示服务运行保障快照",
+      );
 
-    expect(runtime.operationsResponses, "无权限页面不应发起运维快照读取").toEqual([]);
-    expect(runtime.browserErrors, "无权限服务运行保障页不应产生浏览器错误").toEqual([]);
+      expect(runtime.operationsResponses, "无权限页面不应发起运维快照读取").toEqual([]);
+      expect(runtime.browserErrors, "无权限服务运行保障页不应产生浏览器错误").toEqual([]);
+    } finally {
+      await attachSystemProvidersCoverageEvidence(testInfo, coverageEvidence);
+    }
   });
 });
 
@@ -188,6 +282,11 @@ async function assertClinicalUserCannotReadOperations(page: Page) {
   await expect(page.getByText("当前权限不足", { exact: true })).toBeVisible();
   await expect(page.getByText("关系数据库")).toHaveCount(0);
   await expect(page.getByText("备份恢复就绪")).toHaveCount(0);
+  return {
+    clinicalOperationsStatus: direct.status(),
+    clinicalPageForbidden: true,
+    clinicalPageNoOperationsData: true,
+  };
 }
 
 function collectRuntime(page: Page): RuntimeCollectors {
@@ -227,4 +326,42 @@ function collectOperationsResponses(page: Page) {
     }
   });
   return statuses;
+}
+
+function createSystemProvidersCoverageEvidence(): SystemProvidersCoverageEvidence {
+  return {
+    deliveryShapes: ["MANAGEMENT_WORKSPACE"],
+    serviceCombinations: ["COMPLIANCE_OPERATIONS"],
+    apiEvidence: {
+      operationsSnapshotRead: false,
+      backupReadinessObserved: false,
+      honestDegradationObserved: false,
+      evidenceDetailsObserved: false,
+      clinicalForbidden: false,
+    },
+    scenarioEvidence: [{ observedStages: [] }],
+  };
+}
+
+function recordSystemProvidersStage(
+  evidence: SystemProvidersCoverageEvidence,
+  stage: string,
+) {
+  const stages = evidence.scenarioEvidence[0]?.observedStages ?? [];
+  if (!stages.includes(stage)) {
+    stages.push(stage);
+  }
+  evidence.scenarioEvidence = [{ observedStages: stages }];
+}
+
+async function attachSystemProvidersCoverageEvidence(
+  testInfo: TestInfo,
+  evidence: SystemProvidersCoverageEvidence,
+) {
+  const recordPath = testInfo.outputPath("system-providers-operations-codes.json");
+  await writeFile(recordPath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  await testInfo.attach("system-providers-operations-codes", {
+    path: recordPath,
+    contentType: "application/json",
+  });
 }

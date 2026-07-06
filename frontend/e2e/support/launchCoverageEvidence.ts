@@ -53,6 +53,7 @@ type CoverageProof = {
   requiresSourceLineageAttachment?: boolean;
   requiresEmbedBusinessHostAttachment?: boolean;
   requiresPathwayLifecycleAttachment?: boolean;
+  requiresSystemProvidersAttachment?: boolean;
 };
 
 const stakeholderClaims = [
@@ -146,6 +147,11 @@ const pathwayLifecycleClaims = [
   "scenarios:S6",
   "productLayers:CLINICAL_EXECUTION",
   "serviceCombinations:SPECIAL_DISEASE_PATHWAY",
+];
+
+const systemProvidersClaims = [
+  "deliveryShapes:MANAGEMENT_WORKSPACE",
+  "serviceCombinations:COMPLIANCE_OPERATIONS",
 ];
 
 const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
@@ -277,6 +283,14 @@ const requiredPathwayMilestoneStages = [
   "QUALITY_ITERATION",
 ];
 
+const requiredSystemProvidersScenarioEvidence = [
+  "平台管理员读取真实服务运行保障快照",
+  "前台展示备份恢复 RPO、RTO 与 SHA-256 校验策略",
+  "前台展示依赖诚实降级并保留本地主链路提示",
+  "证据详情展示部署档案、迁移路径和备份恢复诊断",
+  "临床账号无法读取或展示服务运行保障快照",
+];
+
 const coverageProofs: CoverageProof[] = [
   {
     file: "stakeholder-view-rehearsal.spec.ts",
@@ -338,6 +352,12 @@ const coverageProofs: CoverageProof[] = [
     claims: pathwayLifecycleClaims,
     requiresPathwayLifecycleAttachment: true,
   },
+  {
+    file: "system-providers-frontdesk.spec.ts",
+    titleIncludes: "平台管理员可只读核查运行状态、备份恢复证据和诚实降级依赖",
+    claims: systemProvidersClaims,
+    requiresSystemProvidersAttachment: true,
+  },
 ];
 
 export function buildBrowserE2eLaunchEvidence(input: {
@@ -384,7 +404,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.requiresRuntimeReleaseAttachment || hasRequiredRuntimeReleaseAttachment(test)) &&
       (!proof.requiresSourceLineageAttachment || hasRequiredSourceLineageAttachment(test)) &&
       (!proof.requiresEmbedBusinessHostAttachment || hasRequiredEmbedBusinessHostAttachment(test)) &&
-      (!proof.requiresPathwayLifecycleAttachment || hasRequiredPathwayLifecycleAttachment(test))
+      (!proof.requiresPathwayLifecycleAttachment || hasRequiredPathwayLifecycleAttachment(test)) &&
+      (!proof.requiresSystemProvidersAttachment || hasRequiredSystemProvidersAttachment(test))
     );
   });
 }
@@ -844,6 +865,49 @@ function hasRequiredPathwayLifecycleAttachment(test: BrowserE2eTestResult) {
   }
 }
 
+function hasRequiredSystemProvidersAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "system-providers-operations-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      deliveryShapes?: unknown;
+      serviceCombinations?: unknown;
+      apiEvidence?: unknown;
+      snapshot?: unknown;
+      backup?: unknown;
+      dependencyEvidence?: unknown;
+      accessEvidence?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    if (
+      !arrayEquals(parsed.deliveryShapes, ["MANAGEMENT_WORKSPACE"]) ||
+      !arrayEquals(parsed.serviceCombinations, ["COMPLIANCE_OPERATIONS"]) ||
+      !hasCompleteSystemProvidersApiEvidence(parsed.apiEvidence) ||
+      !hasCompleteSystemProvidersSnapshot(parsed.snapshot) ||
+      !hasCompleteSystemProvidersBackupEvidence(parsed.backup) ||
+      !hasCompleteSystemProvidersDependencyEvidence(parsed.dependencyEvidence) ||
+      !hasCompleteSystemProvidersAccessEvidence(parsed.accessEvidence) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const observedStages = parsed.scenarioEvidence.flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const stages = (item as { observedStages?: unknown }).observedStages;
+      return Array.isArray(stages)
+        ? stages.filter((stage): stage is string => typeof stage === "string")
+        : [];
+    });
+    return requiredSystemProvidersScenarioEvidence.every((stage) =>
+      observedStages.includes(stage),
+    );
+  } catch {
+    return false;
+  }
+}
+
 function hasCompleteRuntimeReleaseApiEvidence(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const evidence = value as Record<string, unknown>;
@@ -857,6 +921,100 @@ function hasCompleteRuntimeReleaseApiEvidence(value: unknown) {
     "rollbackCurrentReleaseReadback",
     "rollbackRuntimeConsumerReadback",
   ].every((key) => evidence[key] === true);
+}
+
+function hasCompleteSystemProvidersApiEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const evidence = value as Record<string, unknown>;
+  return [
+    "operationsSnapshotRead",
+    "backupReadinessObserved",
+    "honestDegradationObserved",
+    "evidenceDetailsObserved",
+    "clinicalForbidden",
+  ].every((key) => evidence[key] === true);
+}
+
+function hasCompleteSystemProvidersSnapshot(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const snapshot = value as Record<string, unknown>;
+  return (
+    hasText(snapshot.healthStatus) &&
+    hasText(snapshot.databaseDialect) &&
+    hasText(snapshot.migrationLocation) &&
+    Array.isArray(snapshot.activeProfiles) &&
+    snapshot.activeProfiles.every((item) => typeof item === "string")
+  );
+}
+
+function hasCompleteSystemProvidersBackupEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const backup = value as Record<string, unknown>;
+  const drillEvidence = backup.drillEvidence;
+  if (!drillEvidence || typeof drillEvidence !== "object" || Array.isArray(drillEvidence)) {
+    return false;
+  }
+  const drill = drillEvidence as Record<string, unknown>;
+  return (
+    hasText(backup.rpo) &&
+    hasText(backup.rto) &&
+    typeof backup.checksumPolicy === "string" &&
+    backup.checksumPolicy.includes("SHA-256") &&
+    typeof backup.backupScript === "string" &&
+    backup.backupScript.includes("backup.sh") &&
+    typeof backup.restoreScript === "string" &&
+    backup.restoreScript.includes("restore.sh") &&
+    hasText(drill.status) &&
+    (typeof drill.migrationCount === "number" || drill.migrationCount === null) &&
+    (typeof drill.evidenceReference === "string" || drill.evidenceReference === null) &&
+    (typeof drill.checksumEvidence === "string" || drill.checksumEvidence === null) &&
+    (typeof drill.drillDatabaseIsIsolated === "boolean" ||
+      drill.drillDatabaseIsIsolated === null) &&
+    (typeof drill.rpo === "string" || drill.rpo === null) &&
+    (typeof drill.rto === "string" || drill.rto === null)
+  );
+}
+
+function hasCompleteSystemProvidersDependencyEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const evidence = value as Record<string, unknown>;
+  if (!Array.isArray(evidence.dependencies)) return false;
+  const dependencies = evidence.dependencies.filter(
+    (item): item is Record<string, unknown> =>
+      Boolean(item && typeof item === "object" && !Array.isArray(item)),
+  );
+  const hasBackup = dependencies.some(
+    (item) =>
+      item.key === "backup-restore" &&
+      item.displayName === "备份恢复" &&
+      typeof item.status === "string" &&
+      item.status.length > 0,
+  );
+  const hasHonestDegradation = dependencies.some(
+    (item) =>
+      typeof item.key === "string" &&
+      ["graph-projection", "search-projection", "external-provider"].includes(item.key) &&
+      item.status !== "UP",
+  );
+  return (
+    hasBackup &&
+    hasHonestDegradation &&
+    typeof evidence.honestDegradationText === "string" &&
+    evidence.honestDegradationText.includes("核心业务继续走本地确定性主链路")
+  );
+}
+
+function hasCompleteSystemProvidersAccessEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const evidence = value as Record<string, unknown>;
+  return (
+    typeof evidence.platformAdminOperationsStatus === "number" &&
+    evidence.platformAdminOperationsStatus >= 200 &&
+    evidence.platformAdminOperationsStatus < 300 &&
+    evidence.clinicalOperationsStatus === 403 &&
+    evidence.clinicalPageForbidden === true &&
+    evidence.clinicalPageNoOperationsData === true
+  );
 }
 
 function hasCompleteEmbedApiEvidence(value: unknown) {
@@ -911,6 +1069,10 @@ function arrayEquals(value: unknown, expected: string[]) {
   if (!Array.isArray(value)) return false;
   const observed = value.filter((item): item is string => typeof item === "string").sort();
   return JSON.stringify(observed) === JSON.stringify([...expected].sort());
+}
+
+function hasText(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function mergeClaims(

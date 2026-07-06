@@ -51,6 +51,64 @@ const runtimeReleaseScenarioEvidence = [
   },
 ];
 
+const systemProvidersEvidence = {
+  deliveryShapes: ["MANAGEMENT_WORKSPACE"],
+  serviceCombinations: ["COMPLIANCE_OPERATIONS"],
+  apiEvidence: {
+    operationsSnapshotRead: true,
+    backupReadinessObserved: true,
+    honestDegradationObserved: true,
+    evidenceDetailsObserved: true,
+    clinicalForbidden: true,
+  },
+  snapshot: {
+    healthStatus: "UP",
+    databaseDialect: "h2",
+    migrationLocation: "classpath:db/migration/h2",
+    activeProfiles: ["dev"],
+  },
+  backup: {
+    rpo: "24h",
+    rto: "4h",
+    checksumPolicy: "SHA-256",
+    backupScript: "deploy/docker/scripts/backup.sh",
+    restoreScript: "deploy/docker/scripts/restore.sh",
+    drillEvidence: {
+      status: "SUCCESS",
+      migrationCount: 42,
+      evidenceReference: "/var/lib/medkernel/evidence/backup-restore.json",
+      checksumEvidence: "sha256:abc",
+      drillDatabaseIsIsolated: true,
+      rpo: "24h",
+      rto: "4h",
+    },
+  },
+  dependencyEvidence: {
+    dependencies: [
+      { key: "backup-restore", displayName: "备份恢复", status: "UP" },
+      { key: "external-provider", displayName: "外部系统连接", status: "NOT_CONNECTED" },
+    ],
+    honestDegradationText: "核心业务继续走本地确定性主链路",
+  },
+  accessEvidence: {
+    platformAdminOperationsStatus: 200,
+    clinicalOperationsStatus: 403,
+    clinicalPageForbidden: true,
+    clinicalPageNoOperationsData: true,
+  },
+  scenarioEvidence: [
+    {
+      observedStages: [
+        "平台管理员读取真实服务运行保障快照",
+        "前台展示备份恢复 RPO、RTO 与 SHA-256 校验策略",
+        "前台展示依赖诚实降级并保留本地主链路提示",
+        "证据详情展示部署档案、迁移路径和备份恢复诊断",
+        "临床账号无法读取或展示服务运行保障快照",
+      ],
+    },
+  ],
+};
+
 describe("browser E2E launch coverage evidence", () => {
   it("declares stakeholder views only when the real stakeholder rehearsal spec passes", () => {
     const evidence = buildBrowserE2eLaunchEvidence({
@@ -258,6 +316,75 @@ describe("browser E2E launch coverage evidence", () => {
 
     expect(evidence.launchCoverage.productLayers).toBeUndefined();
     expect(evidence.launchCoverage.versionedAssets).toBeUndefined();
+  });
+
+  it("declares system operations coverage only when service providers rehearsal attaches readonly operations evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/system-providers-frontdesk.spec.ts",
+          title: "平台管理员可只读核查运行状态、备份恢复证据和诚实降级依赖",
+          status: "passed",
+          attachments: [
+            {
+              name: "system-providers-operations-codes",
+              contentType: "application/json",
+              body: JSON.stringify(systemProvidersEvidence),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual([
+      "MANAGEMENT_WORKSPACE",
+    ]);
+    expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
+      "COMPLIANCE_OPERATIONS",
+    ]);
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.productLayers).toBeUndefined();
+  });
+
+  it("does not declare system operations coverage without complete readonly operations evidence", () => {
+    const missingAttachment = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/system-providers-frontdesk.spec.ts",
+          title: "平台管理员可只读核查运行状态、备份恢复证据和诚实降级依赖",
+          status: "passed",
+        },
+      ],
+    });
+    const incompleteAttachment = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/system-providers-frontdesk.spec.ts",
+          title: "平台管理员可只读核查运行状态、备份恢复证据和诚实降级依赖",
+          status: "passed",
+          attachments: [
+            {
+              name: "system-providers-operations-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                deliveryShapes: ["MANAGEMENT_WORKSPACE"],
+                serviceCombinations: ["COMPLIANCE_OPERATIONS"],
+                apiEvidence: { operationsSnapshotRead: true },
+                scenarioEvidence: [{ observedStages: ["平台管理员读取真实服务运行保障快照"] }],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(missingAttachment.launchCoverage.deliveryShapes).toBeUndefined();
+    expect(missingAttachment.launchCoverage.serviceCombinations).toBeUndefined();
+    expect(incompleteAttachment.launchCoverage.deliveryShapes).toBeUndefined();
+    expect(incompleteAttachment.launchCoverage.serviceCombinations).toBeUndefined();
   });
 
   it("declares third-party system family coverage only when the real spec attaches all observed family codes", () => {

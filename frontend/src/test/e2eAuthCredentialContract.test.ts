@@ -687,6 +687,14 @@ describe("E2E credential contract", () => {
     expect(source).toContain("assertBackupReadinessCard");
     expect(source).toContain("assertEvidenceDetailsDiagnostics");
     expect(source).toContain("assertClinicalUserCannotReadOperations");
+    expect(source).toContain("attachSystemProvidersCoverageEvidence");
+    expect(source).toContain("system-providers-operations-codes");
+    expect(source).toContain("operationsSnapshotRead");
+    expect(source).toContain("backupReadinessObserved");
+    expect(source).toContain("honestDegradationObserved");
+    expect(source).toContain("evidenceDetailsObserved");
+    expect(source).toContain("clinicalForbidden");
+    expect(source).toContain("临床账号无法读取或展示服务运行保障快照");
     expect(source).toContain("备份恢复");
     expect(source).toContain("证据详情");
     expect(source).toContain("当前权限不足");
