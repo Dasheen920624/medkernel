@@ -10,6 +10,49 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百二十六批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，而是把部署侧 `backup-restore-drill.sh` 输出的
+  `latest-restore-drill.properties` 恢复演练证据与后端 `/system/operations` 运行快照、
+  前台 `/system/providers` 证据详情补成更强的上线合同。成功证据现在必须同时具备
+  `status=SUCCESS`、合法 `completed_at`、`checksum_file=.sha256`、隔离演练库、正数
+  `flyway_schema_history_rows`、非空 RPO/RTO，且演练库不得等于当前运行数据库名；应用只暴露
+  “SHA-256 摘要已校验”“隔离库已验证”、RPO/RTO、迁移行数和 latest 证据文件名，不返回真实 dump
+  路径或演练库名。本批使用只读子代理 Peirce / Harvey / James 分别核查部署恢复资产、运行保障证据链、
+  全角色前台缺口；使用只读代码审查子代理 Ptolemy 审查安全字段和失败关闭，审查指出的 RPO/RTO
+  可空、生产库名未对齐两项 Important 已在主线程修复；本批不推送远程、不合并 `main`。
+- 第一百二十六批修复范围：`RuntimeBackupDrillEvidenceReader` 新增
+  `read(configuredPath, productionDatabaseName)`，解析 properties 时强制校验 checksum、RPO/RTO、
+  隔离演练库和迁移历史，失败一律 `INVALID`；`RuntimeOperationsService` 从 `spring.datasource.url`
+  提取当前库名传入 reader，只传库名不传连接串。`RuntimeOperationsSnapshot.RuntimeBackupDrillEvidence`
+  新增 `checksumEvidence`、`drillDatabaseIsIsolated`、`rpo`、`rto` 安全摘要字段。前端
+  `SystemProviders` 在授权运维人员打开“证据详情”后展示校验证据、隔离库已验证和脚本证据 RPO/RTO；
+  默认页面仍不展示部署脚本、配置来源或低频诊断。`system-providers-frontdesk.spec.ts` 和
+  `e2eAuthCredentialContract.test.ts` 同步锁住真实 `/system/operations` 读取、证据详情展示和禁止
+  写接口 / 本地命令执行。`RuntimeConfigurationContractTest` 加强脚本输出字段、latest 原子替换和
+  恢复演练字段集合合同。
+- 第一百二十六批红绿事实：后端测试先红于新增 `checksumEvidence` / `drillDatabaseIsIsolated` /
+  `rpo` / `rto` 访问器不存在和 `RuntimeBackupDrillEvidence` 构造器缺参；实现安全摘要字段后转绿。
+  前端 `SystemProviders` 测试先红于证据详情找不到“SHA-256 摘要已校验”，补页面诊断展示后转绿。
+  代码审查后又新增红灯锁住“RPO/RTO 缺失仍 SUCCESS”和“自定义生产库名 `medkernel_prod` 被当作隔离库”
+  两个缺口，先红于 overload 与 service 调用不存在，随后通过 reader overload、JDBC URL 库名解析和
+  失败关闭条件转绿。
+- 第一百二十六批验证证据：部署资产与上线脚本合同
+  `bash deploy/docker/tests/validate-deployment-assets.sh && bash deploy/onprem/tests/validate-medkernel-fresh-deploy.sh && bash deploy/onprem/tests/validate-medkernel-failure-recovery.sh`
+  通过；后端运行保障窄测
+  `mvn -f medkernel-backend/pom.xml -Dtest=RuntimeConfigurationContractTest,RuntimeBackupDrillEvidenceReaderTest,RuntimeOperationsServiceTest test`
+  通过（15 tests）；前端目标单测和源码合同
+  `npm --prefix frontend run test -- SystemProviders e2eAuthCredentialContract -t
+"system providers frontdesk|SystemProviders"` 通过（5 passed，16 skipped）；触达文件 Prettier check
+  通过；`npm --prefix frontend exec tsc -- --noEmit --pretty false --skipLibCheck false --project frontend/tsconfig.json`
+  通过；目标真实前台 E2E
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium system-providers-frontdesk.spec.ts`
+  通过（2 passed，约 7.5 秒）；本批后端修复前已跑前端重门禁
+  `npm --prefix frontend run verify` 通过（115 files，1006 tests，仅既有 AntD Timeline warning）；
+  `git diff --check` 退出码 0。
+- 第一百二十六批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也未真实运行备份、
+  隔离恢复、重启恢复和全功能 / 全知识复演；不能把恢复演练证据合同补强等同于总目标完成。下一步继续优先
+  覆盖 134 空库首启与统一迁移、真实备份恢复 / 重启恢复证据、全资产 runtime 闭包、11 类知识全流程复演、
+  两家机构差异化发布 / 回滚，以及 S16-S40 专业协同前台闭环；发现红点继续先复现、定根因，再按上线级标准修复。
 - 第一百二十五批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面 UI 优化，而是补齐 `/system/providers` 服务运行保障真实前台只读演练切片，验证平台管理员
   能从真实前台读取 `/api/v1/system/operations` 运行快照，核查核心服务、依赖服务、备份恢复 RPO/RTO、
@@ -32,13 +75,13 @@
   出现在依赖表和备份卡，第三轮红于短值 `h2` 同时出现在依赖详情、迁移路径和数据库方言统计；均为测试定位
   过宽，不是页面或后端业务失败。已分别改为精确文本和卡片作用域定位，保持产品页面与后端服务不变。
 - 第一百二十五批验证证据：`npm --prefix frontend run test -- e2eAuthCredentialContract -t
-  "system providers frontdesk"` 通过（1 passed，16 skipped；曾先红后绿）；触达文件 Prettier check
+"system providers frontdesk"` 通过（1 passed，16 skipped；曾先红后绿）；触达文件 Prettier check
   `npm --prefix frontend exec prettier -- --check frontend/e2e/system-providers-frontdesk.spec.ts
-  frontend/src/test/e2eAuthCredentialContract.test.ts` 通过；目标真实前台 E2E
+frontend/src/test/e2eAuthCredentialContract.test.ts` 通过；目标真实前台 E2E
   `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium system-providers-frontdesk.spec.ts`
   通过（2 passed，约 5.8 秒）；`npm --prefix frontend run test -- SystemProviders operationalControlPages
-  e2eAuthCredentialContract` 通过（31 tests）；`npm --prefix frontend exec tsc -- --noEmit --pretty false
-  --skipLibCheck false --project frontend/tsconfig.json` 通过；后端运行保障窄测
+e2eAuthCredentialContract` 通过（31 tests）；`npm --prefix frontend exec tsc -- --noEmit --pretty false
+--skipLibCheck false --project frontend/tsconfig.json` 通过；后端运行保障窄测
   `mvn -f medkernel-backend/pom.xml -Dtest=RuntimeOperationsServiceTest,RuntimeBackupDrillEvidenceReaderTest,RuntimeConfigurationContractTest test`
   通过（11 tests）；前端重门禁 `npm --prefix frontend run verify` 通过（115 files，1006 tests，仅既有
   AntD Timeline warning）。
@@ -78,13 +121,13 @@
   `IdentityBindingControllerTest#createsBindingWithoutPersistingExternalIdentityPlaintext` 在既有
   digest 断言基础上新增脱敏提示和原文字段不存在断言，配合实体和迁移约束证明持久化层不保存外部身份原文。
 - 第一百二十四批验证证据：`npm --prefix frontend run test -- e2eAuthCredentialContract -t
-  "identity binding frontdesk"` 通过（1 passed，15 skipped；曾先红后绿）；触达文件 Prettier check
+"identity binding frontdesk"` 通过（1 passed，15 skipped；曾先红后绿）；触达文件 Prettier check
   `npm --prefix frontend exec prettier -- --check frontend/e2e/identity-binding-frontdesk.spec.ts
-  frontend/src/test/e2eAuthCredentialContract.test.ts` 通过；目标真实前台 E2E
+frontend/src/test/e2eAuthCredentialContract.test.ts` 通过；目标真实前台 E2E
   `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium identity-binding-frontdesk.spec.ts`
   通过（1 passed，约 13.4 秒）；`npm --prefix frontend run test -- IdentityBinding operationalControlPages
-  e2eAuthCredentialContract` 通过（29 tests）；`npm --prefix frontend exec tsc -- --noEmit --pretty false
-  --skipLibCheck false --project frontend/tsconfig.json` 通过；后端窄测
+e2eAuthCredentialContract` 通过（29 tests）；`npm --prefix frontend exec tsc -- --noEmit --pretty false
+--skipLibCheck false --project frontend/tsconfig.json` 通过；后端窄测
   `mvn -f medkernel-backend/pom.xml -Dtest=IdentityBindingControllerTest,IdentityBindingExternalSyncTest test`
   通过（14 tests）；前端重门禁 `npm --prefix frontend run verify` 通过（115 files，1005 tests，仅既有
   AntD Timeline warning）。
@@ -128,9 +171,9 @@
 - 第一百二十三批验证证据：目标真实前台 E2E
   `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium real-frontdesk-rehearsal.spec.ts`
   通过（1 passed，约 1.1 分钟）；`npm --prefix frontend run test -- e2eAuthCredentialContract -t
-  "active CLAIM evaluation indicator"` 通过；`npm --prefix frontend run test -- InsuranceAudit QcEvalSets
-  e2eAuthCredentialContract` 通过（34 tests）；前端触达文件 Prettier check 通过；`npm --prefix frontend exec tsc
-  -- --noEmit --pretty false --skipLibCheck false --project frontend/tsconfig.json` 通过；`npm --prefix frontend run verify`
+"active CLAIM evaluation indicator"` 通过；`npm --prefix frontend run test -- InsuranceAudit QcEvalSets
+e2eAuthCredentialContract` 通过（34 tests）；前端触达文件 Prettier check 通过；`npm --prefix frontend exec tsc
+-- --noEmit --pretty false --skipLibCheck false --project frontend/tsconfig.json` 通过；`npm --prefix frontend run verify`
   通过（115 files，1004 tests，仅既有 AntD Timeline warning）；后端红灯单测先失败后通过，随后
   `mvn -f medkernel-backend/pom.xml -Dtest=InsuranceQualityServiceTest test` 通过（10 tests）；
   `git diff --check && git diff --cached --check` 退出码 0。
@@ -167,7 +210,7 @@
 - 第一百二十二批验证证据：目标真实前台 E2E
   `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium service-organization-frontdesk.spec.ts`
   通过（1 passed）；`npm --prefix frontend run test -- e2eAuthCredentialContract -t
-  "service organization rehearsal"` 通过；触达文件 Prettier check 通过；后端窄测
+"service organization rehearsal"` 通过；触达文件 Prettier check 通过；后端窄测
   `mvn -f medkernel-backend/pom.xml -Dtest=ComplianceUserCredentialFlowTest,SecurityMeControllerTest,EffectivePermissionServiceTest,ComplianceUserExternalRoleSyncTest,TenantProvisioningControllerTest,OrgUnitControllerSecurityTest test`
   通过（49 tests）；前端重门禁 `npm --prefix frontend run verify` 通过（115 files，1003 tests，仅既有
   AntD Timeline warning）；后端全量 `mvn -f medkernel-backend/pom.xml test` 通过（3080 tests，
@@ -204,17 +247,17 @@
   `/compliance/users/{userId}/status` 停用临时账号，并无条件关闭浏览器 context；目标 E2E
   复跑证明该清理不破坏真实登录链路。
 - 第一百二十一批验证证据：`npm --prefix frontend run test -- e2eAuthCredentialContract -t
-  "requires MFA frontdesk rehearsal to disable"` 先红于缺少 `disableMfaAdminAccount`，实现后通过；
+"requires MFA frontdesk rehearsal to disable"` 先红于缺少 `disableMfaAdminAccount`，实现后通过；
   `mvn -f medkernel-backend/pom.xml
-  -Dtest=SystemConfigControllerTest#mfaSwitchIsBackedByConfigCenterWithoutRestart test`
+-Dtest=SystemConfigControllerTest#mfaSwitchIsBackedByConfigCenterWithoutRestart test`
   先红于测试凭证占位 hash 无法真实登录，改为真实 BCrypt 测试密码后通过；`npm --prefix frontend run test --
-  e2eAuthCredentialContract -t "exports the shared TOTP calculator|requires MFA frontdesk rehearsal to disable"`
+e2eAuthCredentialContract -t "exports the shared TOTP calculator|requires MFA frontdesk rehearsal to disable"`
   通过（2 passed）；`mvn -f medkernel-backend/pom.xml
-  -Dtest=SystemConfigControllerTest#mfaSwitchIsSeededAsProtectedConfigCenterPolicy,mfaSwitchIsBackedByConfigCenterWithoutRestart test`
+-Dtest=SystemConfigControllerTest#mfaSwitchIsSeededAsProtectedConfigCenterPolicy,mfaSwitchIsBackedByConfigCenterWithoutRestart test`
   通过；触达 MFA 文件 Prettier check 通过；目标真实前台 E2E
   `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium mfa-login-frontdesk.spec.ts`
   通过。上一轮重门禁已跑：`npm --prefix frontend run test --
-  e2eAuthCredentialContract Login pages.smoke` 通过（3 files，61 tests）；
+e2eAuthCredentialContract Login pages.smoke` 通过（3 files，61 tests）；
   `mvn -f medkernel-backend/pom.xml -Dtest=SystemConfigControllerTest,AuthControllerTest,SecurityMeControllerTest,MfaPolicyServiceTest,ComplianceUserCredentialFlowTest#setStatus_disablesAccount test`
   通过（52 tests）；`npm --prefix frontend run typecheck` 通过；`npm --prefix frontend run verify`
   通过（115 files，1002 tests，仅既有 AntD Timeline warning）；`mvn -f medkernel-backend/pom.xml test`

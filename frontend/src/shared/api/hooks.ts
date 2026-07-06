@@ -280,6 +280,10 @@ export interface RuntimeBackupReadiness {
     completedAt?: string | null;
     migrationCount?: number | null;
     evidenceReference?: string | null;
+    checksumEvidence?: string | null;
+    drillDatabaseIsIsolated?: boolean | null;
+    rpo?: string | null;
+    rto?: string | null;
     detail: string;
   };
   source?: string | null;

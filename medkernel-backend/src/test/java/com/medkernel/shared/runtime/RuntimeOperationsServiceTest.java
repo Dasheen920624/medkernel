@@ -15,8 +15,10 @@ import com.medkernel.shared.runtime.RuntimeOperationsSnapshot.RuntimeBackupReadi
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class RuntimeOperationsServiceTest {
@@ -26,11 +28,15 @@ class RuntimeOperationsServiceTest {
         RuntimeProperties properties = new RuntimeProperties();
         properties.getBackup().setEnabled(true);
         RuntimeOperationsFixture fixture = fixture(properties);
-        when(fixture.evidenceReader().read(any())).thenReturn(new RuntimeBackupDrillEvidence(
+        when(fixture.evidenceReader().read(anyString(), anyString())).thenReturn(new RuntimeBackupDrillEvidence(
             "SUCCESS",
             Instant.parse("2026-06-06T16:30:00Z"),
             96,
             "latest-restore-drill.properties",
+            "SHA-256 摘要已校验",
+            true,
+            "24 小时",
+            "4 小时",
             "隔离恢复演练通过，迁移历史校验正常"
         ));
 
@@ -42,6 +48,20 @@ class RuntimeOperationsServiceTest {
             .orElseThrow();
         assertThat(backup.status()).isEqualTo("UP");
         assertThat(backup.detail()).contains("隔离恢复演练通过");
+    }
+
+    @Test
+    void backupReadinessReadsTheConfiguredRestoreDrillEvidenceFile() {
+        RuntimeProperties properties = new RuntimeProperties();
+        properties.getBackup().setDrillEvidenceFile("/runtime/backups/drills/latest-restore-drill.properties");
+        RuntimeOperationsFixture fixture = fixture(properties);
+        when(fixture.environment().getProperty("spring.datasource.url", "")).thenReturn(
+            "jdbc:postgresql://postgres:5432/medkernel_prod");
+
+        fixture.service().snapshot();
+
+        verify(fixture.evidenceReader())
+            .read("/runtime/backups/drills/latest-restore-drill.properties", "medkernel_prod");
     }
 
     @Test
@@ -130,6 +150,7 @@ class RuntimeOperationsServiceTest {
         RuntimeBackupDrillEvidenceReader evidenceReader = mock(RuntimeBackupDrillEvidenceReader.class);
 
         when(environment.getProperty("spring.application.name", "medkernel")).thenReturn("medkernel");
+        when(environment.getProperty("spring.datasource.url", "")).thenReturn("");
         when(environment.getActiveProfiles()).thenReturn(new String[] {"test"});
         when(environment.getProperty("spring.threads.virtual.enabled", Boolean.class, false))
             .thenReturn(false);
@@ -147,9 +168,9 @@ class RuntimeOperationsServiceTest {
             "YML_SEED",
             null
         ));
-        when(evidenceReader.read(any())).thenReturn(RuntimeBackupDrillEvidence.notAvailable());
+        when(evidenceReader.read(anyString(), anyString())).thenReturn(RuntimeBackupDrillEvidence.notAvailable());
 
-        return new RuntimeOperationsFixture(evidenceReader, configService, new RuntimeOperationsService(
+        return new RuntimeOperationsFixture(evidenceReader, environment, configService, new RuntimeOperationsService(
             environment,
             healthEndpoint,
             new SimpleMeterRegistry(),
@@ -169,6 +190,7 @@ class RuntimeOperationsServiceTest {
 
     private record RuntimeOperationsFixture(
         RuntimeBackupDrillEvidenceReader evidenceReader,
+        Environment environment,
         SystemConfigService configService,
         RuntimeOperationsService service
     ) {

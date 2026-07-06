@@ -19,6 +19,10 @@ type RuntimeOperationsSnapshot = {
       status?: string;
       migrationCount?: number | null;
       evidenceReference?: string | null;
+      checksumEvidence?: string | null;
+      drillDatabaseIsIsolated?: boolean | null;
+      rpo?: string | null;
+      rto?: string | null;
       detail?: string;
     };
   };
@@ -157,6 +161,18 @@ async function assertEvidenceDetailsDiagnostics(page: Page, snapshot: RuntimeOpe
   await expect(page.getByText(snapshot.backup?.restoreScript ?? "", { exact: true })).toBeVisible();
   if (snapshot.backup?.drillEvidence?.evidenceReference) {
     await expect(page.getByText(snapshot.backup.drillEvidence.evidenceReference)).toBeVisible();
+  }
+  if (snapshot.backup?.drillEvidence?.checksumEvidence) {
+    await expect(page.getByText(snapshot.backup.drillEvidence.checksumEvidence)).toBeVisible();
+  }
+  if (snapshot.backup?.drillEvidence?.drillDatabaseIsIsolated) {
+    await expect(page.getByText("隔离库已验证")).toBeVisible();
+  }
+  if (snapshot.backup?.drillEvidence?.rpo) {
+    await expect(page.getByText(`证据 RPO：${snapshot.backup.drillEvidence.rpo}`)).toBeVisible();
+  }
+  if (snapshot.backup?.drillEvidence?.rto) {
+    await expect(page.getByText(`证据 RTO：${snapshot.backup.drillEvidence.rto}`)).toBeVisible();
   }
   await expect(page.getByText("backup-restore-drill.sh")).toHaveCount(0);
 }

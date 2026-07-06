@@ -421,6 +421,21 @@ export default function SystemProviders() {
                     </Typography.Text>
                   </Space>
                 ) : null}
+                {data.backup.drillEvidence.checksumEvidence ? (
+                  <Space size="small" wrap>
+                    <Typography.Text>校验证据：</Typography.Text>
+                    <Typography.Text>{data.backup.drillEvidence.checksumEvidence}</Typography.Text>
+                  </Space>
+                ) : null}
+                {data.backup.drillEvidence.drillDatabaseIsIsolated ? (
+                  <Typography.Text>隔离库已验证</Typography.Text>
+                ) : null}
+                {data.backup.drillEvidence.rpo ? (
+                  <Typography.Text>证据 RPO：{data.backup.drillEvidence.rpo}</Typography.Text>
+                ) : null}
+                {data.backup.drillEvidence.rto ? (
+                  <Typography.Text>证据 RTO：{data.backup.drillEvidence.rto}</Typography.Text>
+                ) : null}
               </Space>
             </Card>
           </>

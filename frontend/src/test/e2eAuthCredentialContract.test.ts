@@ -458,6 +458,10 @@ describe("E2E credential contract", () => {
     expect(source).toContain("backup-restore-drill.sh");
     expect(source).toContain("backup.sh");
     expect(source).toContain("restore.sh");
+    expect(source).toContain("checksumEvidence");
+    expect(source).toContain("drillDatabaseIsIsolated");
+    expect(source).toContain("证据 RPO");
+    expect(source).toContain("证据 RTO");
     expect(source).not.toContain("postApi(");
     expect(source).not.toContain("exec");
     expect(source).not.toContain("spawn");

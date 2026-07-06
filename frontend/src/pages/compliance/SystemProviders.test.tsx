@@ -90,6 +90,10 @@ const snapshot = {
       completedAt: "2026-06-06T16:30:00Z",
       migrationCount: 96,
       evidenceReference: "latest-restore-drill.properties",
+      checksumEvidence: "SHA-256 摘要已校验",
+      drillDatabaseIsIsolated: true,
+      rpo: "24 小时",
+      rto: "4 小时",
       detail: "隔离恢复演练通过，迁移历史校验正常",
     },
     source: "SAFE_DEFAULT",
@@ -289,6 +293,12 @@ describe("SystemProviders", () => {
     expect(screen.getAllByText("中风险").length).toBeGreaterThan(0);
     expect(screen.getByText("配置中心读取失败，已使用启动安全默认。")).toBeInTheDocument();
     expect(screen.getByText("latest-restore-drill.properties")).toBeInTheDocument();
+    expect(screen.getByText("SHA-256 摘要已校验")).toBeInTheDocument();
+    expect(screen.getByText("隔离库已验证")).toBeInTheDocument();
+    expect(screen.getByText("证据 RPO：24 小时")).toBeInTheDocument();
+    expect(screen.getByText("证据 RTO：4 小时")).toBeInTheDocument();
+    expect(screen.queryByText(/secret\.dump/)).not.toBeInTheDocument();
+    expect(screen.queryByText("medkernel_restore_drill")).not.toBeInTheDocument();
     expect(screen.getByText("能力开关关闭，未连接图谱投影")).toBeInTheDocument();
     expect(screen.getByText("能力开关关闭，模型工作流未启用")).toBeInTheDocument();
   });

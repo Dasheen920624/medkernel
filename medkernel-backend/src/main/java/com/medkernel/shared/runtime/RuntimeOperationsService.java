@@ -253,10 +253,30 @@ public class RuntimeOperationsService {
             configured.backupScript(),
             configured.restoreScript(),
             configured.checksumPolicy(),
-            backupDrillEvidenceReader.read(properties.getBackup().getDrillEvidenceFile()),
+            backupDrillEvidenceReader.read(
+                properties.getBackup().getDrillEvidenceFile(),
+                currentDatabaseName()
+            ),
             configured.source(),
             configured.warning()
         );
+    }
+
+    private String currentDatabaseName() {
+        String jdbcUrl = environment.getProperty("spring.datasource.url", "");
+        if (jdbcUrl == null || jdbcUrl.isBlank()) {
+            return "";
+        }
+        String withoutQuery = jdbcUrl.split("[?;]", 2)[0];
+        int slash = withoutQuery.lastIndexOf('/');
+        if (slash >= 0 && slash + 1 < withoutQuery.length()) {
+            return withoutQuery.substring(slash + 1).trim();
+        }
+        int colon = withoutQuery.lastIndexOf(':');
+        if (colon >= 0 && colon + 1 < withoutQuery.length()) {
+            return withoutQuery.substring(colon + 1).trim();
+        }
+        return "";
     }
 
     private RuntimeDomesticProfile domesticProfile() {
