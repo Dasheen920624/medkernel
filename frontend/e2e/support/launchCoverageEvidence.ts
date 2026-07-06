@@ -49,6 +49,7 @@ type CoverageProof = {
   requiresServiceOrganizationScenarioAttachment?: boolean;
   requiresMfaLoginScenarioAttachment?: boolean;
   requiresDiagnosisKnowledgeScenarioAttachment?: boolean;
+  requiresSourceLineageAttachment?: boolean;
   requiresEmbedBusinessHostAttachment?: boolean;
   requiresPathwayLifecycleAttachment?: boolean;
 };
@@ -132,6 +133,8 @@ const diagnosisKnowledgeClaims = [
   "specialtyDomains:CLINICAL_SPECIALTIES",
 ];
 
+const sourceLineageClaims = ["scenarios:S7", "semanticFamilies:SOURCE_VALIDITY"];
+
 const embedBusinessHostClaims = [
   "scenarios:S8",
   "productLayers:DELIVERY_FEEDBACK",
@@ -198,6 +201,18 @@ const requiredDiagnosisKnowledgeScenarioEvidence: Record<string, string[]> = {
 const requiredDiagnosisKnowledgeScenarioCodes = Object.keys(
   requiredDiagnosisKnowledgeScenarioEvidence,
 );
+
+const requiredSourceLineageScenarioEvidence: Record<string, string[]> = {
+  S7: [
+    "真实登记受控来源、版本和锚点",
+    "真实提交并审核激活带来源引用的知识候选",
+    "真实绑定来源引用并回读血缘证据",
+    "真实重建知识关系投影",
+    "前台探索知识关系图并查看追踪证据",
+  ],
+};
+
+const requiredSourceLineageScenarioCodes = Object.keys(requiredSourceLineageScenarioEvidence);
 
 const requiredEmbedBusinessHostScenarioEvidence: Record<string, string[]> = {
   S8: [
@@ -290,6 +305,12 @@ const coverageProofs: CoverageProof[] = [
     requiresDiagnosisKnowledgeScenarioAttachment: true,
   },
   {
+    file: "d6-graph-explore.spec.ts",
+    titleIncludes: "医疗引擎运营员可重建并探索真实知识投影",
+    claims: sourceLineageClaims,
+    requiresSourceLineageAttachment: true,
+  },
+  {
     file: "embed-business-host.spec.ts",
     titleIncludes: "独立业务系统宿主通过真实嵌入凭证完成 iframe 启动并接收医师反馈",
     claims: embedBusinessHostClaims,
@@ -344,6 +365,7 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.requiresMfaLoginScenarioAttachment || hasRequiredMfaLoginScenarioAttachment(test)) &&
       (!proof.requiresDiagnosisKnowledgeScenarioAttachment ||
         hasRequiredDiagnosisKnowledgeScenarioAttachment(test)) &&
+      (!proof.requiresSourceLineageAttachment || hasRequiredSourceLineageAttachment(test)) &&
       (!proof.requiresEmbedBusinessHostAttachment || hasRequiredEmbedBusinessHostAttachment(test)) &&
       (!proof.requiresPathwayLifecycleAttachment || hasRequiredPathwayLifecycleAttachment(test))
     );
@@ -542,6 +564,48 @@ function hasRequiredDiagnosisKnowledgeScenarioAttachment(test: BrowserE2eTestRes
   }
 }
 
+function hasRequiredSourceLineageAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "source-lineage-scenario-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scenarioCodes?: unknown;
+      semanticFamilies?: unknown;
+      apiEvidence?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    if (
+      !arrayEquals(parsed.scenarioCodes, requiredSourceLineageScenarioCodes) ||
+      !arrayEquals(parsed.semanticFamilies, ["SOURCE_VALIDITY"]) ||
+      !hasCompleteSourceLineageApiEvidence(parsed.apiEvidence) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const evidenceByCode = new Map<string, string[]>();
+    for (const item of parsed.scenarioEvidence) {
+      if (!item || typeof item !== "object") continue;
+      const code = (item as { code?: unknown }).code;
+      const stages = (item as { observedStages?: unknown }).observedStages;
+      if (typeof code !== "string" || !Array.isArray(stages)) continue;
+      evidenceByCode.set(
+        code,
+        stages.filter((stage): stage is string => typeof stage === "string"),
+      );
+    }
+    return requiredSourceLineageScenarioCodes.every((code) => {
+      const observedStages = evidenceByCode.get(code) ?? [];
+      return requiredSourceLineageScenarioEvidence[code].every((stage) =>
+        observedStages.includes(stage),
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
 function hasRequiredEmbedBusinessHostAttachment(test: BrowserE2eTestResult) {
   const attachment = test.attachments?.find(
     (item) => item.name === "embed-business-host-launch-codes",
@@ -641,6 +705,23 @@ function hasCompleteEmbedApiEvidence(value: unknown) {
     "recommendationsRead",
     "feedbackSubmitted",
     "hostMessageReceived",
+  ].every((key) => evidence[key] === true);
+}
+
+function hasCompleteSourceLineageApiEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const evidence = value as Record<string, unknown>;
+  return [
+    "sourceRegistered",
+    "sourceVersionRegistered",
+    "sourceFragmentRegistered",
+    "knowledgeCandidateSubmitted",
+    "citationBound",
+    "candidateApproved",
+    "graphProjectionRebuilt",
+    "provenanceReadback",
+    "graphNodeExplored",
+    "traceEvidenceVisible",
   ].every((key) => evidence[key] === true);
 }
 

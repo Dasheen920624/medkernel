@@ -10,6 +10,44 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百三十九批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整 S7、全知识治理、全语义族、全角色、全功能或 134 清库部署收口，而是把
+  既有 `d6-graph-explore.spec.ts` 从“图谱页面可见 + 存量投影兜底”补成可被浏览器覆盖 reporter 消费的
+  S7 关系与来源追溯证据切片。该 spec 现在每轮真实登记受控来源、来源版本和来源锚点；通过
+  `/engine/knowledge-production/generate` 从受控来源版本走真实 B0/人工候选生成编排，经过服务端安全门、
+  分流和影子评测后进入候选审核链；真实绑定本轮 citation，生成服务端发布质量记录，审核激活知识候选；
+  回读 `/engine/knowledge/identities/{id}/provenance` 与 `/citations`，断言 `partial=false`、
+  `unresolvedCitationCount=0`，同一 `citationId` 同时存在于结构化引用和 `sourceEvidence`，并带出本轮
+  `sourceCode/sourceVersionNo/anchorPath/textExcerpt/hash`；随后重建知识关系投影并断言本轮
+  `KNOWLEDGE_IDENTITY -> KNOWLEDGE_VERSION -> SOURCE_FRAGMENT -> SOURCE_DOCUMENT` 投影事实存在；最后在真实前台
+  `/advanced/graph` 切到知识关系、按本轮 `KNOWLEDGE_IDENTITY:{id}` 查询，打开证据详情并点选本轮知识身份节点，
+  验证对象标识和追踪号可见且无“未返回”。`launchCoverageEvidence` 只有在目标 spec 通过、非 flaky，且附件
+  `source-lineage-scenario-codes` 完整包含 S7、`SOURCE_VALIDITY`、必要 API evidence 和五个阶段时，才声明
+  `scenarios:S7` 与 `semanticFamilies:SOURCE_VALIDITY`。
+- 第一百三十九批边界说明：本批只声明 S7 和 `SOURCE_VALIDITY`。不声明完整 S7、完整语义族、全知识、全
+  S0-S40、完整知识生产、全角色真实操作或 134 清库复演；本批登录角色为 `engine-operator`，前台证明点为
+  知识关系图谱探索，来源登记、候选生成编排、citation 绑定、质量记录、审核、provenance/citations 回读和
+  投影重建仍包含真实后端 API 辅助。目标 E2E 最初红于旧测试强制每轮创建 seed 后暴露
+  `/model-candidates` 在当前无模型环境下没有候选路由证据；按“无模型可运行”红线改走受控来源版本
+  `/engine/knowledge-production/generate` 的 B0/人工候选生成编排。随后红于手工直提候选没有安全门 /
+  分流 / 影子评测记录，服务端拒绝发布质量记录；已改为生成编排入口产生真实门禁证据。最后红于生成编排已自动
+  complete job，测试重复 complete 触发终态冲突，已删除重复 complete。
+- 第一百三十九批验证证据：TDD 红灯
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "S7 source lineage"` 曾失败于
+  `expected undefined to deeply equal [ 'S7' ]`；实现后转绿。E2E TS 检查
+  `cd frontend && npx tsc --noEmit --pretty false --skipLibCheck false --allowImportingTsExtensions --moduleResolution bundler --module ESNext --target ES2022 --lib ES2023,DOM --strict --types node e2e/support/launchCoverageEvidence.ts e2e/d6-graph-explore.spec.ts`
+  通过。目标真实 E2E 在上一批本地 18080 dev/H2 后端（PID 49326）上通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-source-lineage-coverage npm --prefix frontend run e2e -- --project=chromium d6-graph-explore.spec.ts`
+  通过（2 expected，0 unexpected，0 flaky），仓库外 `results.json` 为 `PASSED`，coverage 只含
+  `scenarios:S7` 和 `semanticFamilies:SOURCE_VALIDITY`。其他新鲜门禁：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract` 通过（49 tests）；
+  `npm --prefix frontend run typecheck` 通过；`node --test scripts/release/launch-coverage-audit.test.mjs`
+  通过（6 tests）；`git diff --check` 通过。
+- 第一百三十九批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把 S7 来源追溯证据切片
+  等同于完整 S7、完整全知识、全角色全功能或总目标完成。后续仍需继续补 S0-S40 其余场景、全角色真实前台操作、
+  13 类 runtime 资产逐类业务消费者、完整语义族 / 专业域 / 全知识、五种交付形态未覆盖项、两家机构差异化
+  发布 / 回滚、真实备份 / 隔离恢复 / 重启恢复，以及 134 清库部署复演；继续坚持真实前台与真实服务链路，
+  发现红点先复现、定根因，再按上线级标准修复，不做片面优化。
 - 第一百三十八批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整 S6、全角色、全功能、全专病十阶段运行覆盖或 134 清库部署收口，而是把
   S6 专病路径生命周期补成可被浏览器覆盖 reporter 消费的真实前台与真实服务链路证据切片。新增

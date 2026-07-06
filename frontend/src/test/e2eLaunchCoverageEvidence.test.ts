@@ -422,6 +422,103 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).not.toContain("S16");
   });
 
+  it("declares S7 source lineage coverage only from a complete graph provenance attachment", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/d6-graph-explore.spec.ts",
+          title: "医疗引擎运营员可重建并探索真实知识投影",
+          status: "passed",
+          attachments: [
+            {
+              name: "source-lineage-scenario-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                scenarioCodes: ["S7"],
+                semanticFamilies: ["SOURCE_VALIDITY"],
+                apiEvidence: {
+                  sourceRegistered: true,
+                  sourceVersionRegistered: true,
+                  sourceFragmentRegistered: true,
+                  knowledgeCandidateSubmitted: true,
+                  citationBound: true,
+                  candidateApproved: true,
+                  graphProjectionRebuilt: true,
+                  provenanceReadback: true,
+                  graphNodeExplored: true,
+                  traceEvidenceVisible: true,
+                },
+                scenarioEvidence: [
+                  {
+                    code: "S7",
+                    observedStages: [
+                      "真实登记受控来源、版本和锚点",
+                      "真实提交并审核激活带来源引用的知识候选",
+                      "真实绑定来源引用并回读血缘证据",
+                      "真实重建知识关系投影",
+                      "前台探索知识关系图并查看追踪证据",
+                    ],
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S7"]);
+    expect(evidence.launchCoverage.semanticFamilies?.map((item) => item.code)).toEqual([
+      "SOURCE_VALIDITY",
+    ]);
+    expect(evidence.launchCoverage.productLayers).toBeUndefined();
+  });
+
+  it("does not declare S7 source lineage coverage from graph UI without complete source evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/d6-graph-explore.spec.ts",
+          title: "医疗引擎运营员可重建并探索真实知识投影",
+          status: "passed",
+          attachments: [
+            {
+              name: "source-lineage-scenario-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                scenarioCodes: ["S7"],
+                semanticFamilies: ["SOURCE_VALIDITY"],
+                apiEvidence: {
+                  sourceRegistered: true,
+                  sourceVersionRegistered: true,
+                  sourceFragmentRegistered: true,
+                  knowledgeCandidateSubmitted: true,
+                  citationBound: false,
+                  candidateApproved: true,
+                  graphProjectionRebuilt: true,
+                  provenanceReadback: false,
+                  graphNodeExplored: true,
+                  traceEvidenceVisible: true,
+                },
+                scenarioEvidence: [
+                  {
+                    code: "S7",
+                    observedStages: ["真实重建知识关系投影"],
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.semanticFamilies).toBeUndefined();
+  });
+
   it("declares embedded business host coverage only when the passed spec attaches complete real service evidence", () => {
     const evidence = buildBrowserE2eLaunchEvidence({
       stats: passedStats,

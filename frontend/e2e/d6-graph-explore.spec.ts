@@ -1,41 +1,118 @@
 import { createHash } from "node:crypto";
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 import { apiBase, ensureReadySession, expectOk, patchApi, postApi } from "./support/auth";
+
+type SourceLineageApiEvidence = {
+  sourceRegistered: boolean;
+  sourceVersionRegistered: boolean;
+  sourceFragmentRegistered: boolean;
+  knowledgeCandidateSubmitted: boolean;
+  citationBound: boolean;
+  candidateApproved: boolean;
+  graphProjectionRebuilt: boolean;
+  provenanceReadback: boolean;
+  graphNodeExplored: boolean;
+  traceEvidenceVisible: boolean;
+};
+
+type GraphKnowledgeSource = {
+  sourceDocumentId: number;
+  sourceVersionId: number;
+  sourceCode: string;
+  sourceVersionNo: string;
+  sourceVersionHash: string;
+  sourceRef: string;
+  sourceFragmentId: number;
+  fragmentHash: string;
+  anchorPath: string;
+  anchorLabel: string;
+  textExcerpt: string;
+  content: string;
+};
+
+type GraphKnowledgeSeed = GraphKnowledgeSource & {
+  identityId: number;
+  identityCode: string;
+  versionId: number;
+  subject: string;
+  citationId: number;
+};
+
+const sourceLineageTitle = "医疗引擎运营员可重建并探索真实知识投影";
+const requiredSourceLineageScenarioEvidence = [
+  {
+    code: "S7",
+    observedStages: [
+      "真实登记受控来源、版本和锚点",
+      "真实提交并审核激活带来源引用的知识候选",
+      "真实绑定来源引用并回读血缘证据",
+      "真实重建知识关系投影",
+      "前台探索知识关系图并查看追踪证据",
+    ],
+  },
+] as const;
 
 test.describe.configure({ mode: "serial" });
 
 test.describe("D6 知识关系真实验收", () => {
-  test("医疗引擎运营员可重建并探索真实知识投影", async ({ page }, testInfo) => {
+  test(sourceLineageTitle, async ({ page }, testInfo) => {
     const browserErrors = collectBrowserErrors(page);
+    const observedStages = new Set<string>();
+    const apiEvidence: SourceLineageApiEvidence = {
+      sourceRegistered: false,
+      sourceVersionRegistered: false,
+      sourceFragmentRegistered: false,
+      knowledgeCandidateSubmitted: false,
+      citationBound: false,
+      candidateApproved: false,
+      graphProjectionRebuilt: false,
+      provenanceReadback: false,
+      graphNodeExplored: false,
+      traceEvidenceVisible: false,
+    };
 
     await enableGraphProjection(page);
-    await seedActiveKnowledge(page);
+    const seed = await seedActiveKnowledge(page, observedStages, apiEvidence);
     await ensureReadySession(page, "engine-operator", "platform");
     const rebuild = await postApi(page, "/projections/knowledge-graph/rebuild", {});
     await expectOk(rebuild, "重建知识关系投影");
     const rebuilt = (await rebuild.json()).data;
     expect(rebuilt.sourceCount).toBeGreaterThan(0);
     expect(rebuilt.projectionCount).toBe(rebuilt.sourceCount);
+    await assertSeedProjected(page, seed);
+    apiEvidence.graphProjectionRebuilt = true;
+    recordSourceLineageStage(observedStages, "真实重建知识关系投影");
 
     await ensureReadySession(page, "engine-operator", "platform");
 
     await page.goto("/advanced/graph");
     await expect(page.getByRole("heading", { name: "知识关系" })).toBeVisible();
     await selectKnowledgeProjection(page);
+    await ensureEvidenceDetailsEnabled(page);
+    await page
+      .getByRole("textbox", { name: "实体、关系或追踪号" })
+      .fill(`KNOWLEDGE_IDENTITY:${seed.identityId}`);
+    await page.getByRole("button", { name: "查询" }).click();
     await expect(page.getByRole("group", { name: "知识关系图" })).toBeVisible();
     await expect(page.getByRole("button", { name: "重建投影" })).toBeVisible();
 
     const nodes = page.locator('svg[aria-label="知识关系图"] g[role="button"]');
     expect(await nodes.count()).toBeGreaterThan(0);
-    await nodes.first().click();
+    const seedNode = page.locator(
+      `svg[aria-label="知识关系图"] g[role="button"][aria-label="知识身份 ${seed.identityId}"]`,
+    );
+    await expect(seedNode).toBeVisible({ timeout: 30_000 });
+    await seedNode.click();
     const detail = page.locator("aside");
-    await expect(detail.getByText("追踪证据", { exact: true })).toBeVisible();
-    await expect(detail.getByText("追踪证据已记录", { exact: true })).toBeVisible();
-    await page.getByRole("switch", { name: "证据详情" }).click();
+    await expect(detail.getByText("对象标识", { exact: true })).toBeVisible();
+    await expect(detail.getByText(String(seed.identityId), { exact: true })).toBeVisible();
     await expect(detail.getByText("追踪号", { exact: true })).toBeVisible();
     await expect(detail.getByText("未返回", { exact: true })).toHaveCount(0);
+    apiEvidence.graphNodeExplored = true;
+    apiEvidence.traceEvidenceVisible = true;
+    recordSourceLineageStage(observedStages, "前台探索知识关系图并查看追踪证据");
     await expectNoRootOverflow(page);
     await page.evaluate(() => window.scrollTo(0, 0));
 
@@ -46,6 +123,15 @@ test.describe("D6 知识关系真实验收", () => {
       contentType: "image/png",
     });
     expect(browserErrors).toEqual([]);
+    await attachSourceLineageScenarioEvidence(testInfo, observedStages, apiEvidence, {
+      identityId: seed.identityId,
+      identityCode: seed.identityCode,
+      versionId: seed.versionId,
+      sourceCode: seed.sourceCode,
+      sourceVersionNo: seed.sourceVersionNo,
+      sourceFragmentId: seed.sourceFragmentId,
+      citationId: seed.citationId,
+    });
   });
 
   test("医疗引擎运营员在移动端可查询图谱且页面无根级横向溢出", async ({ page }, testInfo) => {
@@ -96,17 +182,14 @@ async function enableGraphProjection(page: Page) {
   await expectOk(update, "启用图谱投影");
 }
 
-async function seedActiveKnowledge(page: Page) {
+async function seedActiveKnowledge(
+  page: Page,
+  observedStages: Set<string>,
+  apiEvidence: SourceLineageApiEvidence,
+): Promise<GraphKnowledgeSeed> {
   await ensureReadySession(page, "engine-operator", "platform");
-  const existing = await rebuildKnowledgeProjection(page, "检查已有知识关系投影源");
-  if (existing.sourceCount > 0) return;
-
   const suffix = Date.now();
-  const seed = await createModelKnowledgeSeed(page, suffix);
-  const rebuilt = await rebuildKnowledgeProjection(page, "种子知识发布后重建知识关系投影");
-  expect(rebuilt.sourceCount, `图谱种子知识 ${seed.identityCode} 必须进入投影源`).toBeGreaterThan(
-    0,
-  );
+  return createModelKnowledgeSeed(page, suffix, observedStages, apiEvidence);
 }
 
 async function rebuildKnowledgeProjection(page: Page, label: string) {
@@ -115,65 +198,43 @@ async function rebuildKnowledgeProjection(page: Page, label: string) {
   return (await response.json()).data as { sourceCount: number; projectionCount: number };
 }
 
-async function createModelKnowledgeSeed(page: Page, suffix: number) {
-  const source = await registerGraphKnowledgeSource(page, suffix);
+async function createModelKnowledgeSeed(
+  page: Page,
+  suffix: number,
+  observedStages: Set<string>,
+  apiEvidence: SourceLineageApiEvidence,
+): Promise<GraphKnowledgeSeed> {
+  const source = await registerGraphKnowledgeSource(page, suffix, observedStages, apiEvidence);
   const identityCode = `e2e.graph.source-boundary.${suffix}`;
   const subject = "图谱投影验收来源边界知识";
-  const job = await postApi(page, "/engine/knowledge-production/jobs", {
-    sourceScope: source.sourceRef,
-    assetType: "KNOWLEDGE",
-    producer: "API_MODEL",
+  const generated = await postApi(page, "/engine/knowledge-production/generate", {
+    sourceVersionId: source.sourceVersionId,
     targetPipeline: "PLATFORM_SOURCE",
     domain: "CLINICAL",
-    modelStrategy: "FORMAL_KNOWLEDGE",
-  });
-  await expectOk(job, "创建图谱种子正式模型生产任务");
-  const jobData = (await job.json()).data as { jobCode: string };
-
-  const generated = await postApi(
-    page,
-    `/engine/knowledge-production/jobs/${encodeURIComponent(jobData.jobCode)}/model-candidates`,
-    {
-      capabilityCode: "knowledge.production.knowledge",
-      prompt: buildGraphSeedPrompt(source.sourceRef, subject),
-      providerCode: graphSeedProviderCode(),
-      timeoutSeconds: 120,
-      assetIdentity: identityCode,
-      subject,
-      sources: [{ sourceRef: source.sourceRef, authorityLevel: "B_GUIDELINE" }],
-      trustLevel: "B_GUIDELINE",
-      riskLevel: "LOW",
-      target: {
-        targetIdentityId: null,
-        newIdentity: { domain: "OTHER", subject, identityCode },
+    items: [
+      {
+        assetType: "KNOWLEDGE",
+        target: {
+          targetIdentityId: null,
+          newIdentity: { domain: "OTHER", subject, identityCode },
+        },
       },
-    },
-  );
-  await expectOk(generated, "生成图谱种子正式模型候选");
+    ],
+  });
+  await expectOk(generated, "从受控来源生成图谱种子正式生产候选");
   const generation = (await generated.json()).data as {
-    modelMode?: string;
-    modelVersion?: string;
-    summary?: {
-      candidates?: Array<{ candidateRef: string; jobCode: string }>;
-      skipped?: unknown[];
-      blocked?: unknown[];
-    };
+    candidates?: Array<{ candidateRef?: string; jobCode?: string }>;
+    skipped?: unknown[];
+    blocked?: unknown[];
   };
-  const modelMode = generation.modelMode?.toUpperCase();
-  expect(modelMode, "模型候选生成必须返回实际路由模式").toBeTruthy();
-  if (modelMode === "B0" || modelMode === "BASELINE") {
-    expect(
-      generation.modelVersion ?? null,
-      "B0 无模型规则主链路不得伪装成已调用具体模型版本",
-    ).toBeNull();
-  } else {
-    expect(generation.modelVersion, "非 B0 模型候选必须返回模型版本证据").toBeTruthy();
-  }
-  expect(generation.summary?.blocked ?? []).toHaveLength(0);
-  expect(generation.summary?.skipped ?? []).toHaveLength(0);
-  expect(generation.summary?.candidates ?? []).toHaveLength(1);
-  const candidateRef = generation.summary?.candidates?.[0]?.candidateRef;
+  expect(generation.blocked ?? []).toHaveLength(0);
+  expect(generation.skipped ?? []).toHaveLength(0);
+  expect(generation.candidates ?? []).toHaveLength(1);
+  apiEvidence.knowledgeCandidateSubmitted = true;
+  const candidateRef = generation.candidates?.[0]?.candidateRef;
+  const jobCode = generation.candidates?.[0]?.jobCode;
   expect(candidateRef).toBeTruthy();
+  expect(jobCode).toBeTruthy();
 
   const identity = await getApiData<{ id: number }>(
     page,
@@ -201,17 +262,20 @@ async function createModelKnowledgeSeed(page: Page, suffix: number) {
 
   const citation = await postApi(page, "/engine/knowledge/citations", {
     assetVersionId: version?.id,
-    sourceFragmentId: source.fragmentId,
+    sourceFragmentId: source.sourceFragmentId,
     relation: "DERIVED_FROM",
     weight: 100,
     startOffset: 0,
     endOffset: source.textExcerpt.length,
   });
   await expectOk(citation, "绑定图谱种子来源引用");
+  const citationData = (await citation.json()).data as { id: number };
+  expect(citationData.id, "来源引用必须返回 citationId").toBeTruthy();
+  apiEvidence.citationBound = true;
 
   const qualityRecord = await postApi(
     page,
-    `/engine/knowledge-production/jobs/${encodeURIComponent(jobData.jobCode)}/publication-quality-records`,
+    `/engine/knowledge-production/jobs/${encodeURIComponent(jobCode ?? "")}/publication-quality-records`,
     {
       candidateRef,
       identityId: identity.id,
@@ -228,23 +292,38 @@ async function createModelKnowledgeSeed(page: Page, suffix: number) {
     qualityGateRecordId: quality.id,
   });
   await expectOk(review, "审核激活图谱种子知识");
+  apiEvidence.candidateApproved = true;
+  recordSourceLineageStage(observedStages, "真实提交并审核激活带来源引用的知识候选");
 
-  const complete = await postApi(
-    page,
-    `/engine/knowledge-production/jobs/${encodeURIComponent(jobData.jobCode)}/complete`,
-    {},
-  );
-  await expectOk(complete, "完成图谱种子生产任务");
+  const seed = {
+    ...source,
+    identityId: identity.id,
+    identityCode,
+    versionId: version?.id ?? 0,
+    subject,
+    citationId: citationData.id,
+  };
+  await assertSourceLineageReadback(page, seed);
+  apiEvidence.provenanceReadback = true;
+  recordSourceLineageStage(observedStages, "真实绑定来源引用并回读血缘证据");
 
-  return { identityCode };
+  return seed;
 }
 
-async function registerGraphKnowledgeSource(page: Page, suffix: number) {
+async function registerGraphKnowledgeSource(
+  page: Page,
+  suffix: number,
+  observedStages: Set<string>,
+  apiEvidence: SourceLineageApiEvidence,
+): Promise<GraphKnowledgeSource> {
   const sourceCode = `E2E-GRAPH-SOURCE-${suffix}`;
   const versionNo = `2026-e2e-${suffix}`;
   const anchorPath = "section:source-boundary";
+  const anchorLabel = "来源边界";
   const textExcerpt = `图谱投影验收来源边界 ${suffix}：本材料只验证 MedKernel 关系库权威知识到知识关系投影的真实链路。`;
   const content = `${textExcerpt}\n不得由此推断诊断、处方、剂量、阈值或自动医嘱。`;
+  const sourceVersionHash = sha256(content);
+  const fragmentHash = sha256(textExcerpt);
   const source = await postApi(page, "/engine/knowledge/sources", {
     ...apiContext(`e2e-graph-source-${suffix}`),
     sourceCode,
@@ -258,57 +337,217 @@ async function registerGraphKnowledgeSource(page: Page, suffix: number) {
   });
   await expectOk(source, "登记图谱种子受控来源");
   const sourceDocument = (await source.json()).data as { id: number };
+  apiEvidence.sourceRegistered = true;
 
   const version = await postApi(page, `/engine/knowledge/sources/${sourceDocument.id}/versions`, {
     ...apiContext(`e2e-graph-source-version-${suffix}`),
     versionNo,
     publishedAt: "2026-06-25T00:00:00Z",
-    contentHash: sha256(content),
+    contentHash: sourceVersionHash,
     fileUri: `repository://e2e/graph-source-boundary-${suffix}`,
     language: "zh-CN",
     content,
   });
   await expectOk(version, "登记图谱种子来源版本");
   const sourceVersion = (await version.json()).data as { id: number };
+  apiEvidence.sourceVersionRegistered = true;
 
   const fragment = await postApi(page, "/engine/knowledge/sources/fragments", {
     sourceVersionId: sourceVersion.id,
     anchorPath,
-    anchorLabel: "来源边界",
+    anchorLabel,
     textExcerpt,
   });
   await expectOk(fragment, "登记图谱种子来源锚点");
   const sourceFragment = (await fragment.json()).data as { id: number };
+  apiEvidence.sourceFragmentRegistered = true;
+  recordSourceLineageStage(observedStages, "真实登记受控来源、版本和锚点");
 
   return {
-    fragmentId: sourceFragment.id,
+    sourceDocumentId: sourceDocument.id,
+    sourceVersionId: sourceVersion.id,
+    sourceCode,
+    sourceVersionNo: versionNo,
+    sourceVersionHash,
+    sourceFragmentId: sourceFragment.id,
+    fragmentHash,
+    anchorPath,
+    anchorLabel,
     sourceRef: `${sourceCode}:${versionNo}:${anchorPath}`,
     textExcerpt,
+    content,
   };
 }
 
-function buildGraphSeedPrompt(sourceRef: string, subject: string) {
-  const template = {
-    domain: "OTHER",
-    subject,
-    clinicalActionable: false,
-    sourceReferences: [{ sourceRef, authorityLevel: "B_GUIDELINE", anchorLabel: "来源边界" }],
-    limitations: [
-      "本候选仅用于 MedKernel 图谱投影验收，不构成诊断、处方、剂量、阈值或自动医嘱。",
-      "正式临床内容必须绑定具体原始文件、机构版本、适用范围和人工审核结论。",
-    ],
-    sections: {
-      sourceBoundary: "来源边界：仅验证关系库权威知识进入知识关系投影；不可推断医学结论。",
-      clinicalLimit: "正式临床内容不可推断，必须由人工审核后按来源和版本另行编著。",
-    },
-  };
-  return [
-    "只返回一个合法 JSON 对象，不要 Markdown、代码围栏或额外说明；第一个字符必须是 {，最后一个字符必须是 }。",
-    `主题：${subject}；唯一受控来源：${sourceRef}。`,
-    "目标是生成低风险来源边界说明，禁止生成诊断、处方、剂量、阈值、治疗建议、患者事实或自动医嘱。",
-    "必须严格按以下 JSON 返回，顶层字段不得增删：",
-    JSON.stringify(template, null, 2),
-  ].join("\n");
+async function assertSourceLineageReadback(page: Page, seed: GraphKnowledgeSeed) {
+  const provenance = await getApiData<{
+    identity: { id: number; identityCode: string };
+    currentVersionId?: number | null;
+    versions: { items?: Array<{ id: number; status: string }> };
+    sourceEvidence: Array<{
+      assetVersionId: number;
+      citationId: number;
+      sourceFragmentId: number;
+      sourceDocumentId: number;
+      sourceVersionId: number;
+      sourceCode: string;
+      sourceTitle: string;
+      sourceType: string;
+      authorityLevel?: string | null;
+      authorityLabel: string;
+      authorityBasis?: string | null;
+      sourceVersionNo?: string | null;
+      sourceVersionHash?: string | null;
+      anchorPath?: string | null;
+      anchorLabel?: string | null;
+      textExcerpt?: string | null;
+      fragmentHash?: string | null;
+      startOffset?: number | null;
+      endOffset?: number | null;
+      publishedAt?: string | null;
+      relation?: string | null;
+      weight?: number | null;
+      displayRole: string;
+      recommendedByDefault: boolean;
+      supplementary: boolean;
+      displayLabel: string;
+      rankingReason: string;
+    }>;
+    unresolvedCitationCount: number;
+    partial: boolean;
+  }>(
+    page,
+    `/engine/knowledge/identities/${seed.identityId}/provenance?page=1&size=20`,
+    "回读图谱种子来源血缘",
+  );
+
+  expect(provenance.identity.id).toBe(seed.identityId);
+  expect(provenance.identity.identityCode).toBe(seed.identityCode);
+  expect(provenance.currentVersionId).toBe(seed.versionId);
+  expect(provenance.partial, "本轮来源引用必须完整解析").toBe(false);
+  expect(provenance.unresolvedCitationCount, "本轮来源引用不得产生未解析引用").toBe(0);
+  const activeVersion = provenance.versions.items?.find(
+    (item) => item.id === provenance.currentVersionId,
+  );
+  expect(activeVersion?.status).toBe("ACTIVE");
+
+  const evidence = provenance.sourceEvidence.find((item) => item.citationId === seed.citationId);
+  expect(evidence, "血缘证据必须包含本轮 citationId").toBeDefined();
+  expect(evidence?.assetVersionId).toBe(seed.versionId);
+  expect(evidence?.sourceFragmentId).toBe(seed.sourceFragmentId);
+  expect(evidence?.sourceDocumentId).toBe(seed.sourceDocumentId);
+  expect(evidence?.sourceVersionId).toBe(seed.sourceVersionId);
+  expect(evidence?.sourceCode).toBe(seed.sourceCode);
+  expect(evidence?.sourceTitle).toBe("图谱投影验收来源边界");
+  expect(evidence?.sourceType).toBe("GUIDELINE");
+  expect(evidence?.authorityLevel).toBe("B_GUIDELINE");
+  expect(evidence?.authorityLabel).toBe("B 指南");
+  expect(evidence?.authorityBasis).toBe("D6 图谱投影验收受控来源");
+  expect(evidence?.sourceVersionNo).toBe(seed.sourceVersionNo);
+  expect(evidence?.sourceVersionHash).toBe(seed.sourceVersionHash);
+  expect(evidence?.anchorPath).toBe(seed.anchorPath);
+  expect(evidence?.anchorLabel).toBe(seed.anchorLabel);
+  expect(evidence?.textExcerpt).toBe(seed.textExcerpt);
+  expect(evidence?.fragmentHash).toBe(seed.fragmentHash);
+  expect(evidence?.startOffset).toBe(0);
+  expect(evidence?.endOffset).toBe(seed.textExcerpt.length);
+  expect(evidence?.publishedAt).toBe("2026-06-25T00:00:00Z");
+  expect(evidence?.relation).toBe("DERIVED_FROM");
+  expect(evidence?.weight).toBe(100);
+  expect(evidence?.displayRole).toBe("PRIMARY");
+  expect(evidence?.recommendedByDefault).toBe(true);
+  expect(evidence?.supplementary).toBe(false);
+  expect(evidence?.displayLabel).toContain("主证据");
+  expect(evidence?.rankingReason).toContain("引用权重 100");
+
+  const citations = await getApiData<
+    Array<{
+      id: number;
+      assetVersionId: number;
+      sourceFragmentId: number;
+      relation: string;
+      weight?: number | null;
+      startOffset?: number | null;
+      endOffset?: number | null;
+    }>
+  >(page, `/engine/knowledge/identities/${seed.identityId}/citations`, "回读图谱种子来源引用");
+  const citation = citations.find((item) => item.id === seed.citationId);
+  expect(citation, "当前 ACTIVE 版本必须包含本轮结构化引用").toBeDefined();
+  expect(citation?.assetVersionId).toBe(seed.versionId);
+  expect(citation?.sourceFragmentId).toBe(seed.sourceFragmentId);
+  expect(citation?.relation).toBe("DERIVED_FROM");
+  expect(citation?.weight).toBe(100);
+  expect(citation?.startOffset).toBe(0);
+  expect(citation?.endOffset).toBe(seed.textExcerpt.length);
+}
+
+async function assertSeedProjected(page: Page, seed: GraphKnowledgeSeed) {
+  const identityFacts = await getProjectionFacts(page, `KNOWLEDGE_IDENTITY:${seed.identityId}`);
+  expect(
+    identityFacts.some(
+      (item) => item.factKind === "NODE" && item.objectType === "KNOWLEDGE_IDENTITY",
+    ),
+    `知识身份 ${seed.identityId} 必须进入知识关系投影`,
+  ).toBe(true);
+  expect(
+    identityFacts.some(
+      (item) =>
+        item.factKind === "EDGE" &&
+        item.subjectKey === `KNOWLEDGE_IDENTITY:${seed.identityId}` &&
+        item.predicate === "HAS_ACTIVE_VERSION" &&
+        item.objectKey === `KNOWLEDGE_VERSION:${seed.versionId}`,
+    ),
+    `知识身份 ${seed.identityCode} 必须投影到当前 ACTIVE 版本关系`,
+  ).toBe(true);
+
+  const versionFacts = await getProjectionFacts(page, `KNOWLEDGE_VERSION:${seed.versionId}`);
+  expect(
+    versionFacts.some(
+      (item) =>
+        item.factKind === "EDGE" &&
+        item.subjectKey === `KNOWLEDGE_VERSION:${seed.versionId}` &&
+        item.predicate === "CITES_FRAGMENT" &&
+        item.objectKey === `SOURCE_FRAGMENT:${seed.sourceFragmentId}`,
+    ),
+    `知识版本 ${seed.versionId} 必须投影到本轮来源片段`,
+  ).toBe(true);
+
+  const fragmentFacts = await getProjectionFacts(page, `SOURCE_FRAGMENT:${seed.sourceFragmentId}`);
+  expect(
+    fragmentFacts.some(
+      (item) => item.factKind === "NODE" && item.objectType === "SOURCE_FRAGMENT",
+    ),
+    `来源片段 ${seed.sourceFragmentId} 必须进入知识关系投影`,
+  ).toBe(true);
+  expect(
+    fragmentFacts.some(
+      (item) =>
+        item.factKind === "EDGE" &&
+        item.subjectKey === `SOURCE_FRAGMENT:${seed.sourceFragmentId}` &&
+        item.predicate === "BELONGS_TO_SOURCE" &&
+        item.objectKey === `SOURCE_DOCUMENT:${seed.sourceDocumentId}`,
+    ),
+    `来源片段 ${seed.sourceFragmentId} 必须投影到来源文档 ${seed.sourceDocumentId}`,
+  ).toBe(true);
+}
+
+async function getProjectionFacts(page: Page, keyword: string) {
+  const result = await getApiData<{
+    items: Array<{
+      factKind: string;
+      objectType: string;
+      objectId: string;
+      subjectKey?: string | null;
+      predicate?: string | null;
+      objectKey?: string | null;
+      traceId?: string | null;
+    }>;
+  }>(
+    page,
+    `/projections/knowledge-graph/facts?keyword=${encodeURIComponent(keyword)}&page=1&size=40`,
+    `读取知识关系投影事实 ${keyword}`,
+  );
+  return result.items ?? [];
 }
 
 async function getApiData<T>(page: Page, path: string, label: string): Promise<T> {
@@ -337,14 +576,6 @@ function parseCandidateRef(candidateRef: string) {
   return { identityId: Number(parts[1]), versionNo: parts.slice(2).join(":") };
 }
 
-function graphSeedProviderCode() {
-  return (
-    process.env.E2E_GRAPH_SEED_PROVIDER_CODE?.trim() ||
-    process.env.E2E_KNOWLEDGE_PROVIDER_CODE?.trim() ||
-    "ollama-launch"
-  );
-}
-
 function sha256(value: string) {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
@@ -359,6 +590,53 @@ async function selectKnowledgeProjection(page: Page) {
   await expect(page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)")).toHaveCount(
     0,
   );
+}
+
+async function ensureEvidenceDetailsEnabled(page: Page) {
+  const toggle = page.getByRole("switch", { name: "证据详情" });
+  await expect(toggle).toBeVisible();
+  if ((await toggle.getAttribute("aria-checked")) !== "true") {
+    await toggle.click();
+  }
+}
+
+function recordSourceLineageStage(observedStages: Set<string>, stage: string) {
+  observedStages.add(stage);
+}
+
+async function attachSourceLineageScenarioEvidence(
+  testInfo: TestInfo,
+  observedStageSet: Set<string>,
+  apiEvidence: SourceLineageApiEvidence,
+  context: Record<string, unknown>,
+) {
+  const scenarioEvidence = requiredSourceLineageScenarioEvidence.map((scenario) => ({
+    code: scenario.code,
+    observedStages: scenario.observedStages.filter((stage) => observedStageSet.has(stage)),
+  }));
+  const completedScenarioCodes = scenarioEvidence
+    .filter((scenario) => {
+      const requiredStages =
+        requiredSourceLineageScenarioEvidence.find((item) => item.code === scenario.code)
+          ?.observedStages ?? [];
+      return requiredStages.every((stage) => scenario.observedStages.includes(stage));
+    })
+    .map((scenario) => scenario.code);
+
+  await testInfo.attach("source-lineage-scenario-codes", {
+    body: JSON.stringify(
+      {
+        scenarioCodes: completedScenarioCodes,
+        semanticFamilies: ["SOURCE_VALIDITY"],
+        apiEvidence,
+        context,
+        scenarioEvidence,
+      },
+      null,
+      2,
+    ),
+    contentType: "application/json",
+  });
 }
 
 function collectBrowserErrors(page: Page) {
