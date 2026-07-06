@@ -11,6 +11,8 @@ const publishPlatformAsync = vi.fn();
 const activateHospitalAsync = vi.fn();
 const rollbackHospitalAsync = vi.fn();
 const simulateReleaseImpactAsync = vi.fn();
+const exportOfflineDeliveryAsync = vi.fn();
+const validateOfflineImportAsync = vi.fn();
 const useOrgUnitsMock = vi.fn();
 const usePlatformReleaseCandidatesMock = vi.fn();
 let currentTenantId = "t-1";
@@ -205,6 +207,14 @@ vi.mock("@/shared/api/hooks", async () => {
       mutateAsync: rollbackHospitalAsync,
       isPending: false,
     }),
+    useExportHospitalRuntimeOfflineDelivery: () => ({
+      mutateAsync: exportOfflineDeliveryAsync,
+      isPending: false,
+    }),
+    useValidateHospitalRuntimeOfflineImport: () => ({
+      mutateAsync: validateOfflineImportAsync,
+      isPending: false,
+    }),
     useSimulateReleaseImpact: () => ({
       mutateAsync: simulateReleaseImpactAsync,
       isPending: false,
@@ -233,11 +243,35 @@ describe("ReleaseGovernance", () => {
     activateHospitalAsync.mockReset();
     rollbackHospitalAsync.mockReset();
     simulateReleaseImpactAsync.mockReset();
+    exportOfflineDeliveryAsync.mockReset();
+    validateOfflineImportAsync.mockReset();
     useOrgUnitsMock.mockReset();
     usePlatformReleaseCandidatesMock.mockReset();
     publishPlatformAsync.mockResolvedValue({ revisionNo: 9 });
     activateHospitalAsync.mockResolvedValue({ revisionNo: 10 });
     rollbackHospitalAsync.mockResolvedValue({ revisionNo: 10 });
+    exportOfflineDeliveryAsync.mockResolvedValue({
+      deliveryKind: "CLINICAL_RUNTIME_RELEASE",
+      evidenceId: "runtime-offline-runtime-H9-01",
+      fileUri: "/api/v1/compliance/evidence/snapshots/runtime-offline-runtime-H9-01/file",
+      fileDigest: "sm3:" + "1".repeat(64),
+      signatureAlgorithm: "SM3_WITH_SM2",
+      runtimeMutation: false,
+      release: { releaseId: "runtime-H9", hospitalId: "hospital-a" },
+      items: [],
+    });
+    validateOfflineImportAsync.mockResolvedValue({
+      status: "VALIDATED",
+      runtimeMutation: false,
+      signatureValid: true,
+      manifestMatched: true,
+      releaseId: "runtime-H9",
+      hospitalId: "hospital-a",
+      manifestSha256: "b".repeat(64),
+      fileDigest: "sm3:" + "1".repeat(64),
+      itemCount: 1,
+      message: "离线交付文件仅用于完整性校验和导入预检，不作为临床运行指针",
+    });
     simulateReleaseImpactAsync.mockResolvedValue({
       simulationDigest: "d".repeat(64),
       generatedAt: "2026-06-23T10:00:00Z",
@@ -461,6 +495,42 @@ describe("ReleaseGovernance", () => {
         targetReleaseId: "runtime-H7",
       }),
     );
+  });
+
+  it("exports and validates an offline delivery file without exposing technical evidence by default", async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
+    fireEvent.click(await screen.findByText(/中心医院/));
+
+    fireEvent.click(await screen.findByRole("button", { name: "导出离线交付文件" }));
+    await waitFor(() =>
+      expect(exportOfflineDeliveryAsync).toHaveBeenCalledWith({ hospitalId: "hospital-a" }),
+    );
+    expect(await screen.findByText("离线交付文件已生成")).toBeInTheDocument();
+    expect(screen.getByText("SM3/SM2 签名已生成")).toBeInTheDocument();
+    expect(screen.queryByText("runtime-offline-runtime-H9-01")).not.toBeInTheDocument();
+    expect(screen.queryByText(/sm3:/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "校验离线交付文件" }));
+    await waitFor(() =>
+      expect(validateOfflineImportAsync).toHaveBeenCalledWith({
+        hospitalId: "hospital-a",
+        request: {
+          evidenceId: "runtime-offline-runtime-H9-01",
+          expectedReleaseId: "runtime-H9",
+          expectedHospitalId: "hospital-a",
+        },
+      }),
+    );
+    expect(await screen.findByText("导入预检通过")).toBeInTheDocument();
+    expect(screen.getByText("不会改写当前机构生效版本")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("switch", { name: "证据详情" }));
+
+    expect(screen.getByText("runtime-offline-runtime-H9-01")).toBeInTheDocument();
+    expect(screen.getByText("sm3:1111111111111111111111111111111111111111111111111111111111111111")).toBeInTheDocument();
+    expect(screen.getByText("/api/v1/compliance/evidence/snapshots/runtime-offline-runtime-H9-01/file")).toBeInTheDocument();
   });
 
   it("loads hospitals through bounded server-side organization filtering", () => {

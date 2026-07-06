@@ -7624,6 +7624,43 @@ export interface ClinicalRuntimeReleaseDetail {
   items: ClinicalRuntimeReleaseItem[];
 }
 
+export interface RuntimeReleaseOfflineDelivery {
+  deliveryKind: "CLINICAL_RUNTIME_RELEASE" | string;
+  evidenceId: string;
+  fileUri: string;
+  fileDigest: string;
+  signatureAlgorithm: string;
+  runtimeMutation: boolean;
+  release: {
+    releaseId: string;
+    tenantId?: string;
+    hospitalId: string;
+    revisionNo?: number;
+    platformBaselineReleaseId?: string;
+    manifestSha256?: string;
+  };
+  items: ClinicalRuntimeReleaseItem[];
+}
+
+export interface RuntimeReleaseOfflineImportPreviewRequest {
+  evidenceId: string;
+  expectedReleaseId: string;
+  expectedHospitalId: string;
+}
+
+export interface RuntimeReleaseOfflineImportPreview {
+  status: "VALIDATED" | string;
+  runtimeMutation: boolean;
+  signatureValid: boolean;
+  manifestMatched: boolean;
+  releaseId: string;
+  hospitalId: string;
+  manifestSha256: string;
+  fileDigest: string;
+  itemCount: number;
+  message: string;
+}
+
 export interface ReleaseCandidateAsset {
   sourceLayer: ReleaseSourceLayer;
   assetType: RuntimeAssetType;
@@ -7896,6 +7933,36 @@ export function useRollbackHospitalRuntime() {
       await queryClient.invalidateQueries({
         queryKey: ["runtime-releases", "hospital", variables.hospitalId],
       });
+    },
+  });
+}
+
+export function useExportHospitalRuntimeOfflineDelivery() {
+  return useMutation({
+    mutationFn: async (payload: { hospitalId: string }) => {
+      const { data } = await apiClient.post<{ data: RuntimeReleaseOfflineDelivery }>(
+        `${RUNTIME_RELEASE_API_ROOT}/hospitals/${encodeURIComponent(
+          payload.hospitalId,
+        )}/runtime-releases/offline-delivery`,
+      );
+      return data.data;
+    },
+  });
+}
+
+export function useValidateHospitalRuntimeOfflineImport() {
+  return useMutation({
+    mutationFn: async (payload: {
+      hospitalId: string;
+      request: RuntimeReleaseOfflineImportPreviewRequest;
+    }) => {
+      const { data } = await apiClient.post<{ data: RuntimeReleaseOfflineImportPreview }>(
+        `${RUNTIME_RELEASE_API_ROOT}/hospitals/${encodeURIComponent(
+          payload.hospitalId,
+        )}/runtime-releases/offline-delivery:validate-import`,
+        payload.request,
+      );
+      return data.data;
     },
   });
 }

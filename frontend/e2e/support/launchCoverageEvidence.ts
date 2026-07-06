@@ -237,6 +237,9 @@ const requiredRuntimeReleasePartialSelectionScenarioEvidence = [
   "前台只选择本轮部分本院内容进入机构生效版本",
   "前台为第二家医院选择不同本院内容生成机构生效版本",
   "两家医院后端与第三方运行契约读回互不串用",
+  "前台导出机构生效版本离线交付文件",
+  "下载离线交付文件并校验完整快照",
+  "离线交付导入预检验签且不改写当前机构生效版本",
 ];
 
 const requiredSourceLineageScenarioEvidence: Record<string, string[]> = {
@@ -710,11 +713,13 @@ function hasRequiredRuntimeReleasePartialSelectionAttachment(test: BrowserE2eTes
       runtimeConsumerReadback?: unknown;
       partialSelection?: unknown;
       multiHospitalDifferentiation?: unknown;
+      offlineDelivery?: unknown;
       scenarioEvidence?: unknown;
     };
     if (
       !hasCompleteRuntimeReleasePartialSelectionEvidence(parsed) ||
       !hasCompleteRuntimeReleaseMultiHospitalEvidence(parsed.multiHospitalDifferentiation) ||
+      !hasCompleteRuntimeReleaseOfflineDeliveryEvidence(parsed) ||
       !Array.isArray(parsed.scenarioEvidence)
     ) {
       return false;
@@ -819,6 +824,135 @@ function hasCompleteRuntimeReleaseMultiHospitalEvidence(value: unknown) {
       primary.selectedCandidate,
     )
   );
+}
+
+function hasCompleteRuntimeReleaseOfflineDeliveryEvidence(value: {
+  apiEvidence?: unknown;
+  offlineDelivery?: unknown;
+}) {
+  if (!value.apiEvidence || typeof value.apiEvidence !== "object" || Array.isArray(value.apiEvidence)) {
+    return false;
+  }
+  const apiEvidence = value.apiEvidence as Record<string, unknown>;
+  if (
+    apiEvidence.offlineDeliveryExported !== true ||
+    apiEvidence.offlineDeliveryFileDownloaded !== true ||
+    apiEvidence.offlineDeliveryImportPreviewValidated !== true ||
+    apiEvidence.offlineDeliveryRuntimeUnchanged !== true
+  ) {
+    return false;
+  }
+  if (!value.offlineDelivery || typeof value.offlineDelivery !== "object" || Array.isArray(value.offlineDelivery)) {
+    return false;
+  }
+  const evidence = value.offlineDelivery as Record<string, unknown>;
+  const delivery = parseRuntimeReleaseOfflineDelivery(evidence.delivery);
+  const preview = parseRuntimeReleaseOfflineImportPreview(evidence.importPreview);
+  const file = evidence.downloadedFile;
+  if (!delivery || !preview || !file || typeof file !== "object" || Array.isArray(file)) {
+    return false;
+  }
+  const downloaded = file as Record<string, unknown>;
+  const runtimeBefore = parseRuntimeReleaseOfflineRuntimeSnapshot(evidence.runtimeBefore);
+  const runtimeAfter = parseRuntimeReleaseOfflineRuntimeSnapshot(evidence.runtimeAfter);
+  return (
+    delivery.deliveryKind === "CLINICAL_RUNTIME_RELEASE" &&
+    delivery.runtimeMutation === false &&
+    delivery.signatureAlgorithm === "SM3_WITH_SM2" &&
+    delivery.evidenceId.length > 0 &&
+    delivery.fileUri.endsWith(`/snapshots/${delivery.evidenceId}/file`) &&
+    delivery.fileDigest.startsWith("sm3:") &&
+    delivery.fileDigest.length === 68 &&
+    delivery.releaseId === preview.releaseId &&
+    delivery.hospitalId === preview.hospitalId &&
+    delivery.itemCount > 0 &&
+    preview.status === "VALIDATED" &&
+    preview.signatureValid === true &&
+    preview.manifestMatched === true &&
+    preview.runtimeMutation === false &&
+    preview.itemCount === delivery.itemCount &&
+    downloaded.fileUri === delivery.fileUri &&
+    downloaded.containsDeliveryKind === true &&
+    downloaded.containsRuntimeMutationFalse === true &&
+    downloaded.containsReleaseId === true &&
+    Boolean(runtimeBefore) &&
+    Boolean(runtimeAfter) &&
+    runtimeBefore?.releaseId === delivery.releaseId &&
+    runtimeAfter?.releaseId === delivery.releaseId &&
+    runtimeBefore?.revisionNo === runtimeAfter?.revisionNo &&
+    runtimeBefore?.manifestSha256 === runtimeAfter?.manifestSha256
+  );
+}
+
+function parseRuntimeReleaseOfflineDelivery(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const delivery = value as Record<string, unknown>;
+  if (
+    typeof delivery.deliveryKind !== "string" ||
+    typeof delivery.evidenceId !== "string" ||
+    typeof delivery.fileUri !== "string" ||
+    typeof delivery.fileDigest !== "string" ||
+    typeof delivery.signatureAlgorithm !== "string" ||
+    typeof delivery.runtimeMutation !== "boolean" ||
+    typeof delivery.releaseId !== "string" ||
+    typeof delivery.hospitalId !== "string" ||
+    typeof delivery.itemCount !== "number"
+  ) {
+    return null;
+  }
+  return {
+    deliveryKind: delivery.deliveryKind,
+    evidenceId: delivery.evidenceId,
+    fileUri: delivery.fileUri,
+    fileDigest: delivery.fileDigest,
+    signatureAlgorithm: delivery.signatureAlgorithm,
+    runtimeMutation: delivery.runtimeMutation,
+    releaseId: delivery.releaseId,
+    hospitalId: delivery.hospitalId,
+    itemCount: delivery.itemCount,
+  };
+}
+
+function parseRuntimeReleaseOfflineImportPreview(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const preview = value as Record<string, unknown>;
+  if (
+    typeof preview.status !== "string" ||
+    typeof preview.signatureValid !== "boolean" ||
+    typeof preview.manifestMatched !== "boolean" ||
+    typeof preview.runtimeMutation !== "boolean" ||
+    typeof preview.releaseId !== "string" ||
+    typeof preview.hospitalId !== "string" ||
+    typeof preview.itemCount !== "number"
+  ) {
+    return null;
+  }
+  return {
+    status: preview.status,
+    signatureValid: preview.signatureValid,
+    manifestMatched: preview.manifestMatched,
+    runtimeMutation: preview.runtimeMutation,
+    releaseId: preview.releaseId,
+    hospitalId: preview.hospitalId,
+    itemCount: preview.itemCount,
+  };
+}
+
+function parseRuntimeReleaseOfflineRuntimeSnapshot(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const snapshot = value as Record<string, unknown>;
+  if (
+    typeof snapshot.releaseId !== "string" ||
+    typeof snapshot.revisionNo !== "number" ||
+    typeof snapshot.manifestSha256 !== "string"
+  ) {
+    return null;
+  }
+  return {
+    releaseId: snapshot.releaseId,
+    revisionNo: snapshot.revisionNo,
+    manifestSha256: snapshot.manifestSha256,
+  };
 }
 
 function parseRuntimeReleaseHospitalEvidence(value: unknown) {

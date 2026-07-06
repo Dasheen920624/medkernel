@@ -409,6 +409,30 @@ class MigrationBaselineContractTest {
     }
 
     @Test
+    void evidenceSnapshotPayloadSnapshotUsesLongTextForCompleteJsonPayloads() throws IOException {
+        JsonNode payloadSnapshot = column(table(schema(), "evidence_snapshot"), "payload_snapshot");
+        assertThat(payloadSnapshot.path("type").asText())
+            .as("存证快照必须保存完整 JSON 明文，不得被 4000 字符短字段截断")
+            .isEqualTo("text");
+        assertThat(payloadSnapshot.has("length"))
+            .as("text 类型不得继续保留短字符串长度")
+            .isFalse();
+
+        for (String dialect : List.of("h2", "postgres", "kingbase")) {
+            assertThat(createTableBlock(readBaseline(dialect), "evidence_snapshot"))
+                .as("%s 存证快照完整 JSON 使用长文本字段", dialect)
+                .contains("payload_snapshot TEXT NOT NULL")
+                .doesNotContain("payload_snapshot VARCHAR(4000)");
+        }
+        for (String dialect : List.of("oracle", "dm")) {
+            assertThat(createTableBlock(readBaseline(dialect), "evidence_snapshot"))
+                .as("%s 存证快照完整 JSON 使用 CLOB 字段", dialect)
+                .contains("payload_snapshot CLOB NOT NULL")
+                .doesNotContain("payload_snapshot VARCHAR2(4000)");
+        }
+    }
+
+    @Test
     void integrationOnboardingPersistsCanonicalThirdPartySystemFamily() throws IOException {
         JsonNode onboarding = table(schema(), "mk_integration_onboarding");
         assertThat(columnNames(onboarding)).contains("system_family_code");
@@ -482,9 +506,13 @@ class MigrationBaselineContractTest {
     }
 
     private String columnComment(JsonNode table, String columnName) {
+        return column(table, columnName).path("comment").asText();
+    }
+
+    private JsonNode column(JsonNode table, String columnName) {
         for (JsonNode column : table.path("columns")) {
             if (columnName.equals(column.path("name").asText())) {
-                return column.path("comment").asText();
+                return column;
             }
         }
         throw new IllegalArgumentException(

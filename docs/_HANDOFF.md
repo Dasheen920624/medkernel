@@ -10,6 +10,69 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百四十五批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整 S13、完整离线导入恢复、平台升级冲突分析、全角色全功能或 134
+  清库部署收口，而是在第一百四十三 / 一百四十四批部分选择和两机构差异化基础上，把
+  `runtime-release-frontdesk.spec.ts` 继续补成可证明“机构生效版本离线交付文件导出 / SM3+SM2
+  签名 / 真实文件下载 / 导入预检验签且不改写 runtime”的真实证据切片。`launchCoverageEvidence`
+  现在只有在 runtime-release coverage 同时证明 partial selection、两机构差异读回、完整发布回滚、
+  13 类 runtime 资产闭包，以及 `offlineDeliveryExported/offlineDeliveryFileDownloaded/
+  offlineDeliveryImportPreviewValidated/offlineDeliveryRuntimeUnchanged` 均为 true 时，才额外声明
+  `scenarios:S13`；离线交付附件还必须包含 `deliveryKind=CLINICAL_RUNTIME_RELEASE`、
+  `signatureAlgorithm=SM3_WITH_SM2`、`runtimeMutation=false`、真实 `fileUri`、SM3 文件摘要、
+  下载文件中的完整快照、导入预检 `VALIDATED/signatureValid/manifestMatched/runtimeMutation=false`，
+  以及预检前后当前机构生效版本 `releaseId/revisionNo/manifestSha256` 完全不变。
+- 第一百四十五批真实链路说明：真实前台在 `/config/releases` 完成本地上线演练医院发布和第二家医院差异化发布后，
+  回到第一医院当前机构生效版本，点击“导出离线交付文件”；前端捕获真实
+  `/engine/releases/hospitals/{hospitalId}/runtime-releases/offline-delivery` 响应，后端通过
+  `RuntimeReleaseOfflineDeliveryService` 从当前机构生效版本账本物化完整快照，交由合规证据服务生成真实证据文件、
+  `sm3:<hex>` 文件摘要和 `SM3_WITH_SM2` 签名。随后 E2E 用返回的 `fileUri` 下载真实文件，断言文件包含
+  `deliveryKind`、`runtimeMutation=false` 和当前 `releaseId`；再点击“校验离线交付文件”，真实调用
+  `/runtime-releases/offline-delivery:validate-import` 验签、对账医院和清单摘要，前台展示“导入预检通过”和
+  “不会改写当前机构生效版本”，最后再次回读当前 runtime，断言预检前后 `releaseId/revisionNo/manifestSha256`
+  不变。
+- 第一百四十五批根因与底层修复：目标真实 E2E 最初红于离线交付导出 409，根因不是前台按钮，而是
+  `evidence_snapshot.payload_snapshot` 仍是五方言 `VARCHAR(4000)/VARCHAR2(4000)`，完整机构生效版本快照
+  JSON 超过旧上限；已按单一结构源把 `medkernel.schema.json` 中该字段改为 `text`，并由
+  `node scripts/db/generate-migrations.mjs` 生成五方言 V1（H2 / Postgres / Kingbase 为 `TEXT`，
+  Oracle / 达梦为 `CLOB`）。第二个红点暴露离线交付 `evidenceId` 用完整 `releaseId + ULID`
+  拼接后超过 64 字段契约；已在 `RuntimeReleaseOfflineDeliveryService` 改为
+  `runtime-offline-<releaseId SHA-256 短摘要>-<ULID>`，完整机构生效版本 ID 仍作为 `subjectId`
+  和离线快照字段保存。新增 `MigrationBaselineContractTest` 静态护栏、`H2BaselineMigrationTest`
+  超 4000 字符 JSON 真实写入护栏，以及 `RuntimeReleaseOfflineDeliveryServiceTest`
+  证据 ID 长度护栏。
+- 第一百四十五批边界说明：本批 coverage 只是 S13 的“部分选择 + 两机构差异化 + 离线交付导出签名下载 +
+  导入预检不改 runtime + 回滚读回”证据切片；不声明完整 S13、完整离线导入恢复、跨环境离线导入执行、
+  平台升级冲突分析、13 类资产逐类业务消费者、完整临床运行、全角色全功能真实操作、完整 S0-S40 或
+  134 清库复演。离线交付文件用于完整性校验和导入预检，不作为临床运行指针，不自动改写当前机构生效版本。
+- 第一百四十五批验证证据：TDD 红灯
+  `mvn -f medkernel-backend/pom.xml -Dtest=MigrationBaselineContractTest#evidenceSnapshotPayloadSnapshotUsesLongTextForCompleteJsonPayloads,H2BaselineMigrationTest#h2AppliesSingleAuthoritativeBaseline test`
+  曾失败于规范模型仍为 `string` 且 H2 插入 7135 字符离线交付 JSON 报
+  `Value too long for column PAYLOAD_SNAPSHOT CHARACTER VARYING(4000)`；修正后转绿。
+  TDD 红灯
+  `mvn -f medkernel-backend/pom.xml -Dtest=RuntimeReleaseOfflineDeliveryServiceTest#exportEvidenceIdFitsEvidenceSnapshotColumnContractForUlidReleaseIds test`
+  曾失败于生成 77 字符证据 ID，修正后 `RuntimeReleaseOfflineDeliveryServiceTest` 全部转绿。目标真实 E2E 在本地
+  18080 dev/H2 后端上通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-runtime-release-offline-delivery npm --prefix frontend run e2e -- --project=chromium runtime-release-frontdesk.spec.ts`
+  通过，仓库外 `results.json` 为 `PASSED`（1 expected，0 unexpected，0 flaky）；coverage 含
+  `scenarios:S13`、`productLayers:RELEASE_GOVERNANCE`、13 类 `versionedAssets`、
+  `deliveryShapes:MANAGEMENT_WORKSPACE/API_EVENT`、`serviceCombinations:CLINICAL_RUNTIME/THIRD_PARTY_INTERFACE`；
+  附件记录 `offlineDelivery.delivery.evidenceId=runtime-offline-4920d23e6425-01KWW5EARMDXJJ3183EKEVZ7MQ`、
+  `fileDigest=sm3:570a053009b450017909102ac26574eba747cb3bf514f563cdefe9a69642d40c`、
+  `offlineDeliveryFileDownloaded=true`、`offlineDeliveryImportPreviewValidated=true`、
+  `offlineDeliveryRuntimeUnchanged=true`，预检前后 runtime identity 均为
+  `releaseId=runtime-01KWW5E6046MX2CY90M8D1NRYQ/revisionNo=2/manifestSha256=84ea2652acb033152f8a3b27debbd31d5c36741d85943d4f244ae85517691c15`。
+  其他新鲜门禁：`npm --prefix frontend run test -- ReleaseGovernance hooks e2eLaunchCoverageEvidence e2eAuthCredentialContract`
+  通过（4 files，202 tests）；`npm --prefix frontend run typecheck` 通过；
+  `node --test scripts/release/launch-coverage-audit.test.mjs` 通过（6 tests）；
+  `node scripts/db/generate-migrations.mjs --check` 通过；
+  `mvn -f medkernel-backend/pom.xml -Dtest=RuntimeReleaseOfflineDeliveryServiceTest,RuntimeReleaseControllerTest,MigrationBaselineContractTest,H2BaselineMigrationTest test`
+  通过（32 tests）；`git diff --check` 通过。
+- 第一百四十五批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把离线交付导出预检证据切片
+  等同于完整上线验收。后续继续补真实覆盖缺口：S13 平台升级冲突分析、完整离线导入恢复执行、S2/S4
+  真实接入与字典映射，S0-S40 其余场景、完整语义族 / 专业域 / 全知识、13 类 runtime 资产逐类业务消费者、
+  真实备份 / 隔离恢复 / 重启恢复，以及 134 清库部署复演；继续坚持全角色真实前台和真实服务链路，发现红点先复现、
+  定根因，再按上线级标准修复，不做片面优化。
 - 第一百四十四批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整 S13、完整离线交付、平台升级冲突分析、全角色全功能或 134
   清库部署收口，而是在第一百四十三批“部分选择上线”基础上，把既有

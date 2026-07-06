@@ -174,12 +174,14 @@ import {
   useActivateHospitalRuntime,
   useCurrentHospitalRuntime,
   useCurrentPlatformBaseline,
+  useExportHospitalRuntimeOfflineDelivery,
   useHospitalRuntimeCandidates,
   useHospitalRuntimeHistory,
   usePlatformReleaseCandidates,
   useSimulateReleaseImpact,
   usePublishPlatformBaseline,
   useRollbackHospitalRuntime,
+  useValidateHospitalRuntimeOfflineImport,
   useTerminologyCandidates,
   useTerminologyConflicts,
   useMasterDataReconciliation,
@@ -3651,6 +3653,70 @@ describe("release governance api hooks", () => {
       3,
       "/engine/releases/hospitals/hospital-A/runtime-releases:rollback",
       { targetReleaseId: "runtime-H7" },
+    );
+  });
+
+  it("exports and validates institution effective version offline delivery without treating the file as a runtime pointer", async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            deliveryKind: "CLINICAL_RUNTIME_RELEASE",
+            evidenceId: "runtime-offline-runtime-H9-01",
+            fileUri: "/api/v1/compliance/evidence/snapshots/runtime-offline-runtime-H9-01/file",
+            fileDigest: "sm3:" + "1".repeat(64),
+            signatureAlgorithm: "SM3_WITH_SM2",
+            runtimeMutation: false,
+            release: { releaseId: "runtime-H9", hospitalId: "hospital-A" },
+            items: [],
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            status: "VALIDATED",
+            runtimeMutation: false,
+            signatureValid: true,
+            manifestMatched: true,
+            releaseId: "runtime-H9",
+            hospitalId: "hospital-A",
+            manifestSha256: "b".repeat(64),
+            fileDigest: "sm3:" + "1".repeat(64),
+            itemCount: 13,
+            message: "离线交付文件仅用于完整性校验和导入预检，不作为临床运行指针",
+          },
+        },
+      });
+
+    const delivery = await renderApiHook(() =>
+      useExportHospitalRuntimeOfflineDelivery(),
+    ).result.current.mutateAsync({ hospitalId: "hospital-A" });
+    const preview = await renderApiHook(() =>
+      useValidateHospitalRuntimeOfflineImport(),
+    ).result.current.mutateAsync({
+      hospitalId: "hospital-A",
+      request: {
+        evidenceId: delivery.evidenceId,
+        expectedReleaseId: "runtime-H9",
+        expectedHospitalId: "hospital-A",
+      },
+    });
+
+    expect(delivery.runtimeMutation).toBe(false);
+    expect(preview.runtimeMutation).toBe(false);
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      "/engine/releases/hospitals/hospital-A/runtime-releases/offline-delivery",
+    );
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      "/engine/releases/hospitals/hospital-A/runtime-releases/offline-delivery:validate-import",
+      {
+        evidenceId: "runtime-offline-runtime-H9-01",
+        expectedReleaseId: "runtime-H9",
+        expectedHospitalId: "hospital-A",
+      },
     );
   });
 

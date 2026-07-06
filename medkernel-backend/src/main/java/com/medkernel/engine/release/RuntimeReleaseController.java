@@ -39,16 +39,19 @@ public class RuntimeReleaseController {
     private final ClinicalRuntimeReleaseService runtimes;
     private final RuntimeReleaseQueryService queries;
     private final ReleaseCandidateQueryService candidates;
+    private final RuntimeReleaseOfflineDeliveryService offlineDelivery;
 
     public RuntimeReleaseController(
             PlatformBaselineService baselines,
             ClinicalRuntimeReleaseService runtimes,
             RuntimeReleaseQueryService queries,
-            ReleaseCandidateQueryService candidates) {
+            ReleaseCandidateQueryService candidates,
+            RuntimeReleaseOfflineDeliveryService offlineDelivery) {
         this.baselines = baselines;
         this.runtimes = runtimes;
         this.queries = queries;
         this.candidates = candidates;
+        this.offlineDelivery = offlineDelivery;
     }
 
     /**
@@ -171,6 +174,39 @@ public class RuntimeReleaseController {
             actor(),
             RequestContext.currentTraceId()
         ));
+    }
+
+    /**
+     * 导出当前机构生效版本离线交付文件。
+     *
+     * <p>文件只用于传输和导入预检，不作为临床运行指针。
+     */
+    @PostMapping("/hospitals/{hospitalId}/runtime-releases/offline-delivery")
+    @PreAuthorize("@perm.has('tenant.override')")
+    public ApiResult<RuntimeReleaseOfflineDeliveryResponse> exportHospitalRuntimeOfflineDelivery(
+            @PathVariable String hospitalId) {
+        return ApiResult.ok(offlineDelivery.exportCurrentRuntimeRelease(
+            tenantId(),
+            hospitalId,
+            actor(),
+            RequestContext.currentTraceId()
+        ));
+    }
+
+    /**
+     * 校验机构生效版本离线交付文件。
+     *
+     * <p>仅执行验签和清单对账，不修改当前机构生效版本。
+     */
+    @PostMapping("/hospitals/{hospitalId}/runtime-releases/offline-delivery:validate-import")
+    @PreAuthorize("@perm.has('asset.read')")
+    public ApiResult<RuntimeReleaseOfflineImportPreviewResponse> validateHospitalRuntimeOfflineImport(
+            @PathVariable String hospitalId,
+            @Valid @RequestBody RuntimeReleaseOfflineImportPreviewRequest request) {
+        if (!hospitalId.equals(request.expectedHospitalId())) {
+            throw new ApiException(ErrorCode.CONFLICT, "路径医院与离线交付预期医院不一致");
+        }
+        return ApiResult.ok(offlineDelivery.validateImportPreview(tenantId(), request));
     }
 
     private void requirePlatformContext() {

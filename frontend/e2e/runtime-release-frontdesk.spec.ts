@@ -30,7 +30,11 @@ type RuntimeRecord = RuntimeCollectors & {
 };
 
 type RuntimeReleaseDetail = {
-  release?: { revisionNo?: number };
+  release?: {
+    releaseId?: string;
+    revisionNo?: number;
+    manifestSha256?: string;
+  };
   items?: RuntimeReleaseItem[];
 };
 
@@ -87,12 +91,48 @@ type RuntimeReleaseCoverageEvidence = {
     backendReadbacksIsolated: boolean;
     runtimeConsumerReadbacksIsolated: boolean;
   };
+  offlineDelivery?: RuntimeReleaseOfflineDeliveryEvidence;
   rollbackReadback?: { localCandidateAbsent: boolean; assets: RuntimeReleaseAssetEvidence[] };
   rollbackRuntimeConsumerReadback?: {
     localCandidateAbsent: boolean;
     assets: RuntimeReleaseAssetEvidence[];
   };
   scenarioEvidence: Array<{ observedStages: string[] }>;
+};
+type RuntimeReleaseOfflineDeliveryEvidence = {
+  delivery: {
+    deliveryKind: string;
+    evidenceId: string;
+    fileUri: string;
+    fileDigest: string;
+    signatureAlgorithm: string;
+    runtimeMutation: boolean;
+    releaseId: string;
+    hospitalId: string;
+    itemCount: number;
+  };
+  downloadedFile: {
+    fileUri: string;
+    containsDeliveryKind: boolean;
+    containsRuntimeMutationFalse: boolean;
+    containsReleaseId: boolean;
+  };
+  importPreview: {
+    status: string;
+    signatureValid: boolean;
+    manifestMatched: boolean;
+    runtimeMutation: boolean;
+    releaseId: string;
+    hospitalId: string;
+    itemCount: number;
+  };
+  runtimeBefore: RuntimeReleaseSnapshotIdentity;
+  runtimeAfter: RuntimeReleaseSnapshotIdentity;
+};
+type RuntimeReleaseSnapshotIdentity = {
+  releaseId: string;
+  revisionNo: number;
+  manifestSha256: string;
 };
 type RuntimeReleaseHospitalDifferentiationEvidence = {
   hospitalId: string;
@@ -452,6 +492,32 @@ test.describe("机构生效版本真实前台发布回滚", () => {
       await expect(
         page.getByText(`当前机构生效版本 第 ${activated.data?.revisionNo} 版`),
       ).toBeVisible({ timeout: 20_000 });
+      const offlineDelivery = await exerciseOfflineDelivery(
+        page,
+        primaryHospitalName,
+        primaryHospitalId,
+        activated.data?.revisionNo,
+      );
+      coverageEvidence.offlineDelivery = offlineDelivery;
+      coverageEvidence.apiEvidence.offlineDeliveryExported = true;
+      coverageEvidence.apiEvidence.offlineDeliveryFileDownloaded = true;
+      coverageEvidence.apiEvidence.offlineDeliveryImportPreviewValidated = true;
+      coverageEvidence.apiEvidence.offlineDeliveryRuntimeUnchanged =
+        offlineDelivery.runtimeBefore.releaseId === offlineDelivery.runtimeAfter.releaseId &&
+        offlineDelivery.runtimeBefore.revisionNo === offlineDelivery.runtimeAfter.revisionNo &&
+        offlineDelivery.runtimeBefore.manifestSha256 === offlineDelivery.runtimeAfter.manifestSha256;
+      recordRuntimeReleaseStage(
+        coverageEvidence,
+        "前台导出机构生效版本离线交付文件",
+      );
+      recordRuntimeReleaseStage(coverageEvidence, "下载离线交付文件并校验完整快照");
+      recordRuntimeReleaseStage(
+        coverageEvidence,
+        "离线交付导入预检验签且不改写当前机构生效版本",
+      );
+      recordCleanRuntime(page, "前台导出并预检机构生效版本离线交付文件", runtime, records);
+
+      clearRuntime(runtime);
       await page.getByRole("button", { name: "刷新" }).click();
       const rollbackButton = page
         .getByRole("button", { name: `回滚到 第 ${initialRevision} 版` })
@@ -948,6 +1014,191 @@ async function assertThirdPartyRuntimeConsumerCarriesRequiredAssets(
   );
   assertRuntimeDetailCarriesRequiredAssets({ items: parsed.data?.assets ?? [] }, label);
   return parsed.data ?? { assets: [] };
+}
+
+async function exerciseOfflineDelivery(
+  page: Page,
+  hospitalName: string,
+  hospitalId: string,
+  expectedRevision: number | undefined,
+): Promise<RuntimeReleaseOfflineDeliveryEvidence> {
+  const runtimeBefore = await assertCurrentRuntimeAssetsReady(
+    page,
+    hospitalName,
+    expectedRevision,
+    "离线交付导出前",
+  );
+  const beforeIdentity = runtimeSnapshotIdentity(runtimeBefore, "离线交付导出前");
+  await expect(page.getByRole("button", { name: "导出离线交付文件" })).toBeVisible({
+    timeout: 20_000,
+  });
+  const exportResponsePromise = waitForPost(
+    page,
+    "/engine/releases/hospitals/",
+    "/runtime-releases/offline-delivery",
+  );
+  await page.getByRole("button", { name: "导出离线交付文件" }).click();
+  const exportResponse = await exportResponsePromise;
+  const exportBody = await exportResponse.text();
+  expect(
+    exportResponse.ok(),
+    `前台导出机构生效版本离线交付文件应成功 status=${exportResponse.status()} body=${exportBody}`,
+  ).toBe(true);
+  const delivery = (JSON.parse(exportBody) as {
+    data?: {
+      deliveryKind?: string;
+      evidenceId?: string;
+      fileUri?: string;
+      fileDigest?: string;
+      signatureAlgorithm?: string;
+      runtimeMutation?: boolean;
+      release?: { releaseId?: string; hospitalId?: string };
+      items?: RuntimeReleaseItem[];
+    };
+  }).data;
+  expect(delivery?.deliveryKind, "离线交付文件类型必须是机构生效版本完整快照").toBe(
+    "CLINICAL_RUNTIME_RELEASE",
+  );
+  expect(delivery?.runtimeMutation, "导出离线交付文件不得修改机构生效版本").toBe(false);
+  expect(delivery?.signatureAlgorithm, "离线交付文件必须使用 SM3/SM2 签名").toBe(
+    "SM3_WITH_SM2",
+  );
+  expect(delivery?.evidenceId, "离线交付必须返回可信证据 ID").toBeTruthy();
+  expect(delivery?.fileUri, "离线交付必须返回真实文件下载 URI").toContain(
+    `/snapshots/${delivery?.evidenceId}/file`,
+  );
+  expect(delivery?.fileDigest, "离线交付必须返回 SM3 文件摘要").toMatch(/^sm3:[0-9a-f]{64}$/);
+  expect(delivery?.release?.releaseId, "离线交付文件必须指向当前机构生效版本").toBe(
+    beforeIdentity.releaseId,
+  );
+  expect(delivery?.release?.hospitalId, "离线交付文件必须指向当前医院").toBe(hospitalId);
+  expect(delivery?.items?.length, "离线交付文件必须包含完整物化资产清单").toBe(
+    runtimeBefore.items?.length,
+  );
+  await expect(page.getByText("离线交付文件已生成")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("SM3/SM2 签名已生成")).toBeVisible();
+
+  const fileResponse = await page.request.get(apiPathFromFileUri(delivery?.fileUri ?? ""), {
+    headers: { "X-Trace-Id": `e2e-runtime-offline-file-${Date.now()}` },
+  });
+  const fileBody = await fileResponse.text();
+  expect(
+    fileResponse.ok(),
+    `离线交付真实文件必须可下载 status=${fileResponse.status()} body=${fileBody}`,
+  ).toBe(true);
+  expect(fileBody, "离线交付文件必须写入机构生效版本快照类型").toContain(
+    '"deliveryKind":"CLINICAL_RUNTIME_RELEASE"',
+  );
+  expect(fileBody, "离线交付文件必须标明不改写运行版本").toContain(
+    '"runtimeMutation":false',
+  );
+  expect(fileBody, "离线交付文件必须包含当前 releaseId").toContain(
+    `"releaseId":"${beforeIdentity.releaseId}"`,
+  );
+
+  const validateResponsePromise = waitForPost(
+    page,
+    "/engine/releases/hospitals/",
+    "/runtime-releases/offline-delivery:validate-import",
+  );
+  await page.getByRole("button", { name: "校验离线交付文件" }).click();
+  const validateResponse = await validateResponsePromise;
+  const validateBody = await validateResponse.text();
+  expect(
+    validateResponse.ok(),
+    `离线交付导入预检应验签通过 status=${validateResponse.status()} body=${validateBody}`,
+  ).toBe(true);
+  const preview = (JSON.parse(validateBody) as {
+    data?: {
+      status?: string;
+      signatureValid?: boolean;
+      manifestMatched?: boolean;
+      runtimeMutation?: boolean;
+      releaseId?: string;
+      hospitalId?: string;
+      itemCount?: number;
+    };
+  }).data;
+  expect(preview?.status, "离线交付导入预检状态必须通过").toBe("VALIDATED");
+  expect(preview?.signatureValid, "离线交付导入预检必须验签通过").toBe(true);
+  expect(preview?.manifestMatched, "离线交付导入预检必须命中当前清单摘要").toBe(true);
+  expect(preview?.runtimeMutation, "离线交付导入预检不得改写当前机构生效版本").toBe(false);
+  expect(preview?.releaseId, "导入预检 releaseId 必须与导出文件一致").toBe(
+    beforeIdentity.releaseId,
+  );
+  expect(preview?.hospitalId, "导入预检 hospitalId 必须与当前医院一致").toBe(hospitalId);
+  expect(preview?.itemCount, "导入预检必须返回完整资产条数").toBe(delivery?.items?.length);
+  await expect(page.getByText("导入预检通过")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("不会改写当前机构生效版本")).toBeVisible();
+
+  const runtimeAfter = await assertCurrentRuntimeAssetsReady(
+    page,
+    hospitalName,
+    expectedRevision,
+    "离线交付导入预检后",
+  );
+  const afterIdentity = runtimeSnapshotIdentity(runtimeAfter, "离线交付导入预检后");
+  expect(afterIdentity, "离线交付导入预检前后当前机构生效版本不得改变").toEqual(
+    beforeIdentity,
+  );
+
+  return {
+    delivery: {
+      deliveryKind: delivery?.deliveryKind ?? "",
+      evidenceId: delivery?.evidenceId ?? "",
+      fileUri: delivery?.fileUri ?? "",
+      fileDigest: delivery?.fileDigest ?? "",
+      signatureAlgorithm: delivery?.signatureAlgorithm ?? "",
+      runtimeMutation: delivery?.runtimeMutation ?? true,
+      releaseId: delivery?.release?.releaseId ?? "",
+      hospitalId: delivery?.release?.hospitalId ?? "",
+      itemCount: delivery?.items?.length ?? 0,
+    },
+    downloadedFile: {
+      fileUri: delivery?.fileUri ?? "",
+      containsDeliveryKind: fileBody.includes('"deliveryKind":"CLINICAL_RUNTIME_RELEASE"'),
+      containsRuntimeMutationFalse: fileBody.includes('"runtimeMutation":false'),
+      containsReleaseId: fileBody.includes(`"releaseId":"${beforeIdentity.releaseId}"`),
+    },
+    importPreview: {
+      status: preview?.status ?? "",
+      signatureValid: preview?.signatureValid ?? false,
+      manifestMatched: preview?.manifestMatched ?? false,
+      runtimeMutation: preview?.runtimeMutation ?? true,
+      releaseId: preview?.releaseId ?? "",
+      hospitalId: preview?.hospitalId ?? "",
+      itemCount: preview?.itemCount ?? 0,
+    },
+    runtimeBefore: beforeIdentity,
+    runtimeAfter: afterIdentity,
+  };
+}
+
+function runtimeSnapshotIdentity(
+  detail: RuntimeReleaseDetail,
+  label: string,
+): RuntimeReleaseSnapshotIdentity {
+  expect(detail.release?.releaseId, `${label} 必须返回机构生效版本 ID`).toBeTruthy();
+  expect(detail.release?.revisionNo, `${label} 必须返回机构生效版本修订号`).toBeGreaterThan(0);
+  expect(detail.release?.manifestSha256, `${label} 必须返回机构生效版本清单摘要`).toMatch(
+    /^[0-9a-f]{64}$/i,
+  );
+  return {
+    releaseId: detail.release?.releaseId ?? "",
+    revisionNo: detail.release?.revisionNo ?? 0,
+    manifestSha256: detail.release?.manifestSha256 ?? "",
+  };
+}
+
+function apiPathFromFileUri(fileUri: string) {
+  expect(fileUri, "离线交付文件下载 URI 不能为空").toBeTruthy();
+  if (fileUri.startsWith("/api/v1/")) {
+    return `${apiBase}${fileUri.slice("/api/v1".length)}`;
+  }
+  if (fileUri.startsWith(apiBase)) {
+    return fileUri;
+  }
+  throw new Error(`不支持的离线交付文件下载 URI: ${fileUri}`);
 }
 
 function assertRuntimeAssetsContainLocalCandidate(

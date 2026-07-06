@@ -36,6 +36,10 @@ const runtimeReleaseApiEvidence = {
   rollbackCurrentReleaseReadback: true,
   rollbackRuntimeConsumerReadback: true,
   partialSelectionProved: true,
+  offlineDeliveryExported: true,
+  offlineDeliveryFileDownloaded: true,
+  offlineDeliveryImportPreviewValidated: true,
+  offlineDeliveryRuntimeUnchanged: true,
 };
 
 const runtimeReleaseScenarioEvidence = [
@@ -49,6 +53,9 @@ const runtimeReleaseScenarioEvidence = [
       "后端回读当前机构生效版本资产闭包",
       "第三方运行契约读取同一机构生效版本",
       "两家医院后端与第三方运行契约读回互不串用",
+      "前台导出机构生效版本离线交付文件",
+      "下载离线交付文件并校验完整快照",
+      "离线交付导入预检验签且不改写当前机构生效版本",
       "前台从历史机构生效版本回滚",
       "回滚后后端和第三方运行契约读取同一修订",
     ],
@@ -106,6 +113,45 @@ const runtimeReleaseMultiHospitalDifferentiation = {
   runtimeConsumerReadbacksIsolated: true,
 };
 
+const runtimeReleaseOfflineDelivery = {
+  delivery: {
+    deliveryKind: "CLINICAL_RUNTIME_RELEASE",
+    evidenceId: "runtime-offline-runtime-H9-01",
+    fileUri: "/api/v1/compliance/evidence/snapshots/runtime-offline-runtime-H9-01/file",
+    fileDigest: "sm3:" + "1".repeat(64),
+    signatureAlgorithm: "SM3_WITH_SM2",
+    runtimeMutation: false,
+    releaseId: "runtime-H9",
+    hospitalId: "hospital-A",
+    itemCount: runtimeReleaseVersionedAssets.length,
+  },
+  downloadedFile: {
+    fileUri: "/api/v1/compliance/evidence/snapshots/runtime-offline-runtime-H9-01/file",
+    containsDeliveryKind: true,
+    containsRuntimeMutationFalse: true,
+    containsReleaseId: true,
+  },
+  importPreview: {
+    status: "VALIDATED",
+    signatureValid: true,
+    manifestMatched: true,
+    runtimeMutation: false,
+    releaseId: "runtime-H9",
+    hospitalId: "hospital-A",
+    itemCount: runtimeReleaseVersionedAssets.length,
+  },
+  runtimeBefore: {
+    releaseId: "runtime-H9",
+    revisionNo: 9,
+    manifestSha256: "b".repeat(64),
+  },
+  runtimeAfter: {
+    releaseId: "runtime-H9",
+    revisionNo: 9,
+    manifestSha256: "b".repeat(64),
+  },
+};
+
 function runtimeReleaseCompleteEvidence(overrides: Record<string, unknown> = {}) {
   return {
     productLayers: ["RELEASE_GOVERNANCE"],
@@ -126,6 +172,7 @@ function runtimeReleaseCompleteEvidence(overrides: Record<string, unknown> = {})
       runtimeConsumerOmitsUnselected: true,
     },
     multiHospitalDifferentiation: runtimeReleaseMultiHospitalDifferentiation,
+    offlineDelivery: runtimeReleaseOfflineDelivery,
     rollbackReadback: { localCandidateAbsent: true, assets: [] },
     rollbackRuntimeConsumerReadback: { localCandidateAbsent: true, assets: [] },
     scenarioEvidence: runtimeReleaseScenarioEvidence,
@@ -446,6 +493,7 @@ describe("browser E2E launch coverage evidence", () => {
                   backendReadbacksIsolated: true,
                   runtimeConsumerReadbacksIsolated: true,
                 },
+                offlineDelivery: runtimeReleaseOfflineDelivery,
                 rollbackReadback: { localCandidateAbsent: true, assets: [] },
                 rollbackRuntimeConsumerReadback: { localCandidateAbsent: true, assets: [] },
                 scenarioEvidence: runtimeReleaseScenarioEvidence,
@@ -765,6 +813,60 @@ describe("browser E2E launch coverage evidence", () => {
       "RELEASE_GOVERNANCE",
     ]);
     expect(evidence.launchCoverage.scenarios).toBeUndefined();
+  });
+
+  it("does not declare S13 coverage when runtime evidence lacks offline delivery export validation", () => {
+    const evidence = runtimeReleaseEvidenceResult(
+      runtimeReleaseCompleteEvidence({
+        offlineDelivery: undefined,
+        apiEvidence: {
+          ...runtimeReleaseApiEvidence,
+          offlineDeliveryExported: false,
+          offlineDeliveryFileDownloaded: false,
+          offlineDeliveryImportPreviewValidated: false,
+          offlineDeliveryRuntimeUnchanged: false,
+        },
+      }),
+    );
+
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "RELEASE_GOVERNANCE",
+    ]);
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+  });
+
+  it("does not declare S13 coverage when offline delivery preview mutates runtime or fails signature", () => {
+    const mutatingPreview = runtimeReleaseEvidenceResult(
+      runtimeReleaseCompleteEvidence({
+        offlineDelivery: {
+          ...runtimeReleaseOfflineDelivery,
+          importPreview: {
+            ...runtimeReleaseOfflineDelivery.importPreview,
+            runtimeMutation: true,
+          },
+        },
+      }),
+    );
+    const invalidSignature = runtimeReleaseEvidenceResult(
+      runtimeReleaseCompleteEvidence({
+        offlineDelivery: {
+          ...runtimeReleaseOfflineDelivery,
+          importPreview: {
+            ...runtimeReleaseOfflineDelivery.importPreview,
+            signatureValid: false,
+          },
+        },
+      }),
+    );
+
+    expect(mutatingPreview.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "RELEASE_GOVERNANCE",
+    ]);
+    expect(mutatingPreview.launchCoverage.scenarios).toBeUndefined();
+    expect(invalidSignature.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "RELEASE_GOVERNANCE",
+    ]);
+    expect(invalidSignature.launchCoverage.scenarios).toBeUndefined();
   });
 
   it("declares system operations coverage only when service providers rehearsal attaches readonly operations evidence", () => {

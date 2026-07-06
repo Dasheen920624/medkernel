@@ -39,8 +39,10 @@ class RuntimeReleaseControllerTest {
         mock(RuntimeReleaseQueryService.class);
     private final ReleaseCandidateQueryService candidates =
         mock(ReleaseCandidateQueryService.class);
+    private final RuntimeReleaseOfflineDeliveryService offlineDelivery =
+        mock(RuntimeReleaseOfflineDeliveryService.class);
     private final RuntimeReleaseController controller =
-        new RuntimeReleaseController(baselines, runtimes, queries, candidates);
+        new RuntimeReleaseController(baselines, runtimes, queries, candidates, offlineDelivery);
 
     @AfterEach
     void clearContext() {
@@ -192,6 +194,62 @@ class RuntimeReleaseControllerTest {
             Integer.class,
             String.class
         )).isEqualTo("@perm.has('asset.read')");
+        assertThat(permissionOf(
+            "validateHospitalRuntimeOfflineImport",
+            String.class,
+            RuntimeReleaseOfflineImportPreviewRequest.class
+        )).isEqualTo("@perm.has('asset.read')");
+    }
+
+    @Test
+    void offlineDeliveryEndpointsUseAuthenticatedTenantAndDoNotAcceptHospitalMismatch() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-hospital", OrgScope.tenant("tenant-A"), "operator-hospital"));
+        RuntimeReleaseOfflineDeliveryResponse delivery = new RuntimeReleaseOfflineDeliveryResponse(
+            RuntimeReleaseOfflineDeliveryService.DELIVERY_KIND,
+            "ev-runtime",
+            "/api/v1/compliance/evidence/snapshots/ev-runtime/file",
+            "sm3:" + "1".repeat(64),
+            "SM3_WITH_SM2",
+            false,
+            null,
+            List.of()
+        );
+        when(offlineDelivery.exportCurrentRuntimeRelease(
+            "tenant-A", "hospital-A", "operator-hospital", "trace-hospital"))
+            .thenReturn(delivery);
+        RuntimeReleaseOfflineImportPreviewRequest request =
+            new RuntimeReleaseOfflineImportPreviewRequest("ev-runtime", "runtime-H9", "hospital-A");
+        RuntimeReleaseOfflineImportPreviewResponse preview =
+            new RuntimeReleaseOfflineImportPreviewResponse(
+                "VALIDATED",
+                false,
+                true,
+                true,
+                "runtime-H9",
+                "hospital-A",
+                "b".repeat(64),
+                "sm3:" + "1".repeat(64),
+                13,
+                RuntimeReleaseOfflineDeliveryService.WARNING
+            );
+        when(offlineDelivery.validateImportPreview("tenant-A", request)).thenReturn(preview);
+
+        assertThat(controller.exportHospitalRuntimeOfflineDelivery("hospital-A").data())
+            .isEqualTo(delivery);
+        assertThat(controller.validateHospitalRuntimeOfflineImport("hospital-A", request).data())
+            .isEqualTo(preview);
+        assertThatThrownBy(() -> controller.validateHospitalRuntimeOfflineImport(
+            "hospital-B",
+            request
+        )).isInstanceOfSatisfying(ApiException.class, exception ->
+            assertThat(exception.errorCode()).isEqualTo(ErrorCode.CONFLICT));
+    }
+
+    @Test
+    void releaseOfflineDeliveryExportRequiresTenantOverridePermission() throws Exception {
+        assertThat(permissionOf("exportHospitalRuntimeOfflineDelivery", String.class))
+            .isEqualTo("@perm.has('tenant.override')");
     }
 
     private String permissionOf(String methodName, Class<?>... parameterTypes) throws Exception {

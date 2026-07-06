@@ -1,4 +1,5 @@
 import {
+  DownloadOutlined,
   ReloadOutlined,
   RocketOutlined,
   RollbackOutlined,
@@ -27,6 +28,7 @@ import {
   useActivateHospitalRuntime,
   useCurrentHospitalRuntime,
   useCurrentPlatformBaseline,
+  useExportHospitalRuntimeOfflineDelivery,
   useHospitalRuntimeCandidates,
   useHospitalRuntimeHistory,
   useOrgUnits,
@@ -34,6 +36,7 @@ import {
   usePublishPlatformBaseline,
   useRollbackHospitalRuntime,
   useSimulateReleaseImpact,
+  useValidateHospitalRuntimeOfflineImport,
   useSecurityProfile,
   type ClinicalRuntimeAssetSelection,
   type ClinicalRuntimeRelease,
@@ -41,6 +44,8 @@ import {
   type PlatformBaselineItem,
   type ReleaseCandidateAsset,
   type ReleaseAssetRef,
+  type RuntimeReleaseOfflineDelivery,
+  type RuntimeReleaseOfflineImportPreview,
   type RuntimeAssetType,
 } from "@/shared/api/hooks";
 import { ENGINE_ASSET_LABELS, RUNTIME_ASSET_OPTIONS } from "@/shared/config/assetCatalog";
@@ -175,6 +180,9 @@ export default function ReleaseGovernance() {
   >(new Map());
   const [impactResults, setImpactResults] = useState<ReleaseImpactSimulationResult[]>([]);
   const [impactError, setImpactError] = useState<string>();
+  const [offlineDelivery, setOfflineDelivery] = useState<RuntimeReleaseOfflineDelivery>();
+  const [offlineImportPreview, setOfflineImportPreview] =
+    useState<RuntimeReleaseOfflineImportPreview>();
   const initializedHospitalRevision = useRef<string>();
   const isPlatformTenant = security.data?.dataScope.tenantId === platformTenantId;
 
@@ -212,6 +220,8 @@ export default function ReleaseGovernance() {
   const activateHospital = useActivateHospitalRuntime();
   const rollbackHospital = useRollbackHospitalRuntime();
   const simulateReleaseImpact = useSimulateReleaseImpact();
+  const exportOfflineDelivery = useExportHospitalRuntimeOfflineDelivery();
+  const validateOfflineImport = useValidateHospitalRuntimeOfflineImport();
   const evidenceDetailsEnabled = canUseEvidenceDetails(security.data) && globalEvidenceDetails;
 
   const baseline = baselineQuery.data;
@@ -289,6 +299,11 @@ export default function ReleaseGovernance() {
     setImpactResults([]);
     setImpactError(undefined);
   }, [hospitalId, selectedLocalCandidateKey]);
+
+  useEffect(() => {
+    setOfflineDelivery(undefined);
+    setOfflineImportPreview(undefined);
+  }, [hospitalId, currentRuntime?.release.releaseId]);
 
   function togglePlatformCandidate(candidate: ReleaseCandidateAsset, checked: boolean) {
     setPlatformPublishIds((current) =>
@@ -462,6 +477,42 @@ export default function ReleaseGovernance() {
     }
   }
 
+  async function exportCurrentOfflineDelivery() {
+    if (!hospitalId || !currentRuntime?.release.releaseId) {
+      message.warning("请先选择已有机构生效版本的医院");
+      return;
+    }
+    try {
+      const result = await exportOfflineDelivery.mutateAsync({ hospitalId });
+      setOfflineDelivery(result);
+      setOfflineImportPreview(undefined);
+      message.success("已生成离线交付文件");
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "离线交付文件生成失败"));
+    }
+  }
+
+  async function validateCurrentOfflineDelivery() {
+    if (!hospitalId || !currentRuntime?.release.releaseId || !offlineDelivery?.evidenceId) {
+      message.warning("请先导出当前机构生效版本离线交付文件");
+      return;
+    }
+    try {
+      const result = await validateOfflineImport.mutateAsync({
+        hospitalId,
+        request: {
+          evidenceId: offlineDelivery.evidenceId,
+          expectedReleaseId: currentRuntime.release.releaseId,
+          expectedHospitalId: hospitalId,
+        },
+      });
+      setOfflineImportPreview(result);
+      message.success("离线交付导入预检已通过");
+    } catch (error) {
+      message.error(getApiErrorMessage(error, "离线交付文件校验失败"));
+    }
+  }
+
   let hospitalRuntimeSummary = null;
   if (hospitalId && currentRuntime) {
     hospitalRuntimeSummary = (
@@ -489,6 +540,56 @@ export default function ReleaseGovernance() {
             )}
           </Descriptions.Item>
         </Descriptions>
+        <div className={styles.runtimeTools}>
+          <Space wrap>
+            <Button
+              aria-label="导出离线交付文件"
+              icon={<DownloadOutlined />}
+              loading={exportOfflineDelivery.isPending}
+              onClick={() => void exportCurrentOfflineDelivery()}
+            >
+              导出离线交付文件
+            </Button>
+            <Button
+              aria-label="校验离线交付文件"
+              icon={<SafetyCertificateOutlined />}
+              disabled={!offlineDelivery}
+              loading={validateOfflineImport.isPending}
+              onClick={() => void validateCurrentOfflineDelivery()}
+            >
+              校验离线交付文件
+            </Button>
+          </Space>
+          {(offlineDelivery || offlineImportPreview) && (
+            <Descriptions size="small" column={2} className={styles.runtimeToolStatus}>
+              {offlineDelivery && (
+                <>
+                  <Descriptions.Item label="交付文件">离线交付文件已生成</Descriptions.Item>
+                  <Descriptions.Item label="签名状态">SM3/SM2 签名已生成</Descriptions.Item>
+                </>
+              )}
+              {offlineImportPreview && (
+                <>
+                  <Descriptions.Item label="导入预检">导入预检通过</Descriptions.Item>
+                  <Descriptions.Item label="运行版本">不会改写当前机构生效版本</Descriptions.Item>
+                </>
+              )}
+              {evidenceDetailsEnabled && offlineDelivery && (
+                <>
+                  <Descriptions.Item label="证据编号">
+                    {offlineDelivery.evidenceId}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="文件摘要">
+                    <Text className={styles.digest}>{offlineDelivery.fileDigest}</Text>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="下载地址" span={2}>
+                    <Text className={styles.digest}>{offlineDelivery.fileUri}</Text>
+                  </Descriptions.Item>
+                </>
+              )}
+            </Descriptions>
+          )}
+        </div>
       </Card>
     );
   } else if (hospitalId) {

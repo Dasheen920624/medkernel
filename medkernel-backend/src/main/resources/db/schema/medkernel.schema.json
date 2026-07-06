@@ -3944,8 +3944,7 @@
         },
         {
           "name": "payload_snapshot",
-          "type": "string",
-          "length": 4000,
+          "type": "text",
           "nullable": false,
           "default": null,
           "identity": false,

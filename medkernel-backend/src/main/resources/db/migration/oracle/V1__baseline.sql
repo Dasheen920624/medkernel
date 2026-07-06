@@ -348,7 +348,7 @@ CREATE TABLE evidence_snapshot (
     subject_type VARCHAR2(128) NOT NULL,
     subject_id VARCHAR2(64) NOT NULL,
     evidence_summary VARCHAR2(512) NOT NULL,
-    payload_snapshot VARCHAR2(4000) NOT NULL,
+    payload_snapshot CLOB NOT NULL,
     payload_hash VARCHAR2(128) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_by VARCHAR2(64) DEFAULT 'system' NOT NULL,
