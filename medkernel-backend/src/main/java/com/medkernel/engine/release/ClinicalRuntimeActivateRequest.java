@@ -15,6 +15,7 @@ public record ClinicalRuntimeActivateRequest(
     @NotBlank(message = "平台标准版本不能为空")
     String platformBaselineReleaseId,
     String expectedCurrentReleaseId,
+    String confirmedPlatformUpgradeDigest,
     List<ClinicalRuntimeAssetSelection> activeAssets
 ) {
     public ClinicalRuntimeActivateRequest {

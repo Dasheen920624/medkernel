@@ -531,7 +531,12 @@ async function activateRuntimeWithPathway(page: Page, templateCode: string) {
     `/engine/releases/hospitals/${encodeURIComponent(hospitalId)}/runtime-releases/current`,
   );
   await expectOk(current, "读取当前医院生效版本");
-  const currentReleaseId = textField(await responseData(current), "release.releaseId");
+  const currentRuntime = await responseData(current);
+  const currentReleaseId = textField(currentRuntime, "release.releaseId");
+  const currentPlatformBaselineReleaseId = textField(
+    currentRuntime,
+    "release.platformBaselineReleaseId",
+  );
 
   const candidateResponse = await getApi(
     page,
@@ -562,10 +567,38 @@ async function activateRuntimeWithPathway(page: Page, templateCode: string) {
     {
       platformBaselineReleaseId: baselineAssets.baselineReleaseId,
       expectedCurrentReleaseId: currentReleaseId,
+      confirmedPlatformUpgradeDigest:
+        currentReleaseId &&
+        currentPlatformBaselineReleaseId &&
+        currentPlatformBaselineReleaseId !== baselineAssets.baselineReleaseId
+          ? await readPlatformUpgradeAnalysisDigest(
+              page,
+              hospitalId,
+              baselineAssets.baselineReleaseId,
+            )
+          : null,
       activeAssets,
     },
   );
   await expectOk(activated, "激活包含本轮 PATHWAY 的医院生效版本");
+}
+
+async function readPlatformUpgradeAnalysisDigest(
+  page: Page,
+  hospitalId: string,
+  targetBaselineReleaseId: string,
+) {
+  const response = await getApi(
+    page,
+    `/engine/releases/hospitals/${encodeURIComponent(
+      hospitalId,
+    )}/platform-upgrade-analysis?targetBaselineReleaseId=${encodeURIComponent(
+      targetBaselineReleaseId,
+    )}`,
+  );
+  await expectOk(response, "读取 PATHWAY 演练平台升级分析");
+  const digest = textField(await responseData(response), "analysisDigest");
+  return requireText(digest, "PATHWAY 演练平台升级分析必须返回摘要");
 }
 
 function pathwayTemplateRequest(templateCode: string, templateName: string) {

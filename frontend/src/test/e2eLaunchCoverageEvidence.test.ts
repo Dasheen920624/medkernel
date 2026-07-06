@@ -47,6 +47,7 @@ const runtimeReleaseScenarioEvidence = [
     observedStages: [
       "前台展示并勾选 13 类平台标准资产",
       "前台评估机构生效版本发布影响",
+      "前台完成平台升级差异与冲突分析",
       "前台只选择本轮部分本院内容进入机构生效版本",
       "前台为第二家医院选择不同本院内容生成机构生效版本",
       "前台生成携带 13 类资产闭包的机构生效版本",
@@ -152,6 +153,65 @@ const runtimeReleaseOfflineDelivery = {
   },
 };
 
+const runtimeReleasePlatformUpgradeAnalysis = {
+  targetBaseline: {
+    baselineReleaseId: "baseline-A9",
+    revisionNo: 9,
+    manifestSha256: "a".repeat(64),
+  },
+  currentRuntime: {
+    releaseId: "runtime-H8",
+    revisionNo: 8,
+    platformBaselineReleaseId: "baseline-A8",
+    manifestSha256: "b".repeat(64),
+  },
+  analysisDigest: "c".repeat(64),
+  runtimeMutation: false,
+  diffSummary: {
+    added: 1,
+    modified: 1,
+    disabled: 0,
+    unchanged: 11,
+    conflictCount: 0,
+  },
+  items: [
+    {
+      assetType: "ACTION_CARD",
+      assetIdentity: "ACTION_CARD.UPGRADE.NEW",
+      changeType: "ADDED",
+      currentVersionId: null,
+      targetVersionId: "platform-card-v2",
+      conflicts: [],
+    },
+    {
+      assetType: "RULE",
+      assetIdentity: "RULE.UPGRADE.MODIFIED",
+      changeType: "MODIFIED",
+      currentVersionId: "platform-rule-v1",
+      targetVersionId: "platform-rule-v2",
+      conflicts: [],
+    },
+    ...Array.from({ length: 11 }, (_, index) => ({
+      assetType: "DIAGNOSIS_KNOWLEDGE",
+      assetIdentity: `DIAGNOSIS.UPGRADE.UNCHANGED.${index + 1}`,
+      changeType: "UNCHANGED",
+      currentVersionId: `diagnosis-unchanged-v${index + 1}`,
+      targetVersionId: `diagnosis-unchanged-v${index + 1}`,
+      conflicts: [],
+    })),
+  ],
+  runtimeBefore: {
+    releaseId: "runtime-H8",
+    revisionNo: 8,
+    manifestSha256: "b".repeat(64),
+  },
+  runtimeAfter: {
+    releaseId: "runtime-H8",
+    revisionNo: 8,
+    manifestSha256: "b".repeat(64),
+  },
+};
+
 function runtimeReleaseCompleteEvidence(overrides: Record<string, unknown> = {}) {
   return {
     productLayers: ["RELEASE_GOVERNANCE"],
@@ -171,6 +231,7 @@ function runtimeReleaseCompleteEvidence(overrides: Record<string, unknown> = {})
       activationReadbackOmitsUnselected: true,
       runtimeConsumerOmitsUnselected: true,
     },
+    platformUpgradeAnalysis: runtimeReleasePlatformUpgradeAnalysis,
     multiHospitalDifferentiation: runtimeReleaseMultiHospitalDifferentiation,
     offlineDelivery: runtimeReleaseOfflineDelivery,
     rollbackReadback: { localCandidateAbsent: true, assets: [] },
@@ -427,6 +488,7 @@ describe("browser E2E launch coverage evidence", () => {
                   activationReadbackOmitsUnselected: true,
                   runtimeConsumerOmitsUnselected: true,
                 },
+                platformUpgradeAnalysis: runtimeReleasePlatformUpgradeAnalysis,
                 multiHospitalDifferentiation: {
                   primaryHospital: {
                     hospitalId: "hospital-A",
@@ -825,6 +887,89 @@ describe("browser E2E launch coverage evidence", () => {
           offlineDeliveryFileDownloaded: false,
           offlineDeliveryImportPreviewValidated: false,
           offlineDeliveryRuntimeUnchanged: false,
+        },
+      }),
+    );
+
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "RELEASE_GOVERNANCE",
+    ]);
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+  });
+
+  it("does not declare S13 coverage when runtime evidence lacks platform upgrade analysis", () => {
+    const evidence = runtimeReleaseEvidenceResult(
+      runtimeReleaseCompleteEvidence({
+        platformUpgradeAnalysis: undefined,
+        scenarioEvidence: [
+          {
+            observedStages: runtimeReleaseScenarioEvidence[0].observedStages.filter(
+              (stage) => stage !== "前台完成平台升级差异与冲突分析",
+            ),
+          },
+        ],
+      }),
+    );
+
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "RELEASE_GOVERNANCE",
+    ]);
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+  });
+
+  it("does not declare S13 coverage when platform upgrade analysis still has unresolved conflicts", () => {
+    const evidence = runtimeReleaseEvidenceResult(
+      runtimeReleaseCompleteEvidence({
+        platformUpgradeAnalysis: {
+          ...runtimeReleasePlatformUpgradeAnalysis,
+          diffSummary: {
+            ...runtimeReleasePlatformUpgradeAnalysis.diffSummary,
+            conflictCount: 1,
+          },
+          items: [
+            {
+              ...runtimeReleasePlatformUpgradeAnalysis.items[0],
+              conflicts: [
+                {
+                  overrideId: "override-local-1",
+                  orgPath: "/tenant-A/hospital-A",
+                  overrideMode: "REPLACE",
+                  resultingSource: "LOCAL_OVERRIDE:local-card-v1",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "RELEASE_GOVERNANCE",
+    ]);
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+  });
+
+  it("does not declare S13 coverage when platform upgrade analysis lacks changed diff items", () => {
+    const evidence = runtimeReleaseEvidenceResult(
+      runtimeReleaseCompleteEvidence({
+        platformUpgradeAnalysis: {
+          ...runtimeReleasePlatformUpgradeAnalysis,
+          diffSummary: {
+            ...runtimeReleasePlatformUpgradeAnalysis.diffSummary,
+            added: 1,
+            modified: 0,
+            disabled: 0,
+          },
+          items: [
+            {
+              assetType: "ACTION_CARD",
+              assetIdentity: "ACTION_CARD.UPGRADE.UNCHANGED",
+              changeType: "UNCHANGED",
+              currentVersionId: "platform-card-v1",
+              targetVersionId: "platform-card-v1",
+              conflicts: [],
+            },
+          ],
         },
       }),
     );

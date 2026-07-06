@@ -79,6 +79,7 @@ class RuntimeReleaseControllerTest {
         controller.activateHospitalRuntime("hospital-A", new ClinicalRuntimeActivateRequest(
             "baseline-A8",
             "runtime-H8",
+            null,
             List.of(
                 ClinicalRuntimeAssetSelection.platform(
                     VersionedAssetType.KNOWLEDGE, "KNOW.CKD"),
@@ -94,6 +95,45 @@ class RuntimeReleaseControllerTest {
         assertThat(command.getValue().hospitalId()).isEqualTo("hospital-A");
         assertThat(command.getValue().actor()).isEqualTo("operator-hospital");
         assertThat(command.getValue().activeAssets()).hasSize(2);
+    }
+
+    @Test
+    void hospitalActivationRequiresConfirmedPlatformUpgradeAnalysisWhenBaselineChanges() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-hospital", OrgScope.tenant("tenant-A"), "operator-hospital"));
+        when(queries.analyzePlatformUpgrade("tenant-A", "hospital-A", "baseline-A9"))
+            .thenReturn(upgradeAnalysis("digest-A9", "baseline-A8"));
+
+        assertThatThrownBy(() -> controller.activateHospitalRuntime(
+            "hospital-A",
+            new ClinicalRuntimeActivateRequest("baseline-A9", "runtime-H8", null, List.of())
+        )).isInstanceOfSatisfying(ApiException.class, exception -> {
+            assertThat(exception.errorCode()).isEqualTo(ErrorCode.CONFLICT);
+            assertThat(exception).hasMessageContaining("平台升级前必须先完成差异与冲突分析");
+        });
+
+        controller.activateHospitalRuntime(
+            "hospital-A",
+            new ClinicalRuntimeActivateRequest("baseline-A9", "runtime-H8", "digest-A9", List.of())
+        );
+
+        verify(runtimes).activate(any());
+    }
+
+    @Test
+    void hospitalActivationRejectsConfirmedPlatformUpgradeWhenConflictsRemain() {
+        RequestContext.restore(new RequestContext.Snapshot(
+            "trace-hospital", OrgScope.tenant("tenant-A"), "operator-hospital"));
+        when(queries.analyzePlatformUpgrade("tenant-A", "hospital-A", "baseline-A9"))
+            .thenReturn(upgradeAnalysis("digest-A9", "baseline-A8", 1));
+
+        assertThatThrownBy(() -> controller.activateHospitalRuntime(
+            "hospital-A",
+            new ClinicalRuntimeActivateRequest("baseline-A9", "runtime-H8", "digest-A9", List.of())
+        )).isInstanceOfSatisfying(ApiException.class, exception -> {
+            assertThat(exception.errorCode()).isEqualTo(ErrorCode.CONFLICT);
+            assertThat(exception).hasMessageContaining("平台升级分析仍存在机构覆盖冲突");
+        });
     }
 
     @Test
@@ -272,6 +312,32 @@ class RuntimeReleaseControllerTest {
             Instant.EPOCH,
             "operator-hospital",
             "trace-hospital"
+        );
+    }
+
+    private PlatformUpgradeAnalysisResponse upgradeAnalysis(
+            String digest,
+            String currentBaselineReleaseId) {
+        return upgradeAnalysis(digest, currentBaselineReleaseId, 0);
+    }
+
+    private PlatformUpgradeAnalysisResponse upgradeAnalysis(
+            String digest,
+            String currentBaselineReleaseId,
+            int conflictCount) {
+        return new PlatformUpgradeAnalysisResponse(
+            digest,
+            Instant.EPOCH,
+            false,
+            new PlatformUpgradeBaselineSnapshot("baseline-A9", 9L, "a".repeat(64)),
+            new PlatformUpgradeRuntimeSnapshot(
+                "runtime-H8",
+                8L,
+                currentBaselineReleaseId,
+                "b".repeat(64)
+            ),
+            new PlatformUpgradeDiffSummary(1, 1, 0, 11, conflictCount),
+            List.of()
         );
     }
 }

@@ -177,6 +177,7 @@ import {
   useExportHospitalRuntimeOfflineDelivery,
   useHospitalRuntimeCandidates,
   useHospitalRuntimeHistory,
+  useHospitalPlatformUpgradeAnalysis,
   usePlatformReleaseCandidates,
   useSimulateReleaseImpact,
   usePublishPlatformBaseline,
@@ -3623,6 +3624,7 @@ describe("release governance api hooks", () => {
       request: {
         platformBaselineReleaseId: "baseline-A8",
         expectedCurrentReleaseId: "runtime-H9",
+        confirmedPlatformUpgradeDigest: "c".repeat(64),
         activeAssets: [
           { assetType: "RULE", assetIdentity: "RULE.CKD", versionId: null },
           { assetType: "PATHWAY", assetIdentity: "PATH.CKD.LOCAL", versionId: "path-v3" },
@@ -3644,6 +3646,7 @@ describe("release governance api hooks", () => {
       expect.objectContaining({
         platformBaselineReleaseId: "baseline-A8",
         expectedCurrentReleaseId: "runtime-H9",
+        confirmedPlatformUpgradeDigest: "c".repeat(64),
         activeAssets: expect.arrayContaining([
           { assetType: "RULE", assetIdentity: "RULE.CKD", versionId: null },
         ]),
@@ -3653,6 +3656,53 @@ describe("release governance api hooks", () => {
       3,
       "/engine/releases/hospitals/hospital-A/runtime-releases:rollback",
       { targetReleaseId: "runtime-H7" },
+    );
+  });
+
+  it("reads platform upgrade analysis before activating a newer institution runtime baseline", async () => {
+    const analysis = {
+      analysisDigest: "c".repeat(64),
+      generatedAt: "2026-07-06T12:00:00Z",
+      runtimeMutation: false,
+      targetBaseline: {
+        baselineReleaseId: "baseline-A9",
+        revisionNo: 9,
+        manifestSha256: "a".repeat(64),
+      },
+      currentRuntime: {
+        releaseId: "runtime-H8",
+        revisionNo: 8,
+        platformBaselineReleaseId: "baseline-A8",
+        manifestSha256: "b".repeat(64),
+      },
+      diffSummary: {
+        added: 1,
+        modified: 1,
+        disabled: 0,
+        unchanged: 11,
+        conflictCount: 0,
+      },
+      items: [
+        {
+          assetType: "ACTION_CARD",
+          assetIdentity: "ACTION_CARD.UPGRADE",
+          changeType: "ADDED",
+          currentVersionId: null,
+          targetVersionId: "card-v2",
+          conflicts: [],
+        },
+      ],
+    };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: analysis } });
+
+    const result = renderApiHook(() =>
+      useHospitalPlatformUpgradeAnalysis("hospital-A", "baseline-A9"),
+    );
+
+    await waitFor(() => expect(result.result.current.data).toEqual(analysis));
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/engine/releases/hospitals/hospital-A/platform-upgrade-analysis",
+      { params: { targetBaselineReleaseId: "baseline-A9" } },
     );
   });
 

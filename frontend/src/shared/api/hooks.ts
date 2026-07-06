@@ -7700,7 +7700,49 @@ export interface ClinicalRuntimeAssetSelection extends ReleaseAssetRef {
 export interface ClinicalRuntimeActivateRequest {
   platformBaselineReleaseId: string;
   expectedCurrentReleaseId?: string | null;
+  confirmedPlatformUpgradeDigest?: string | null;
   activeAssets: ClinicalRuntimeAssetSelection[];
+}
+
+export interface PlatformUpgradeAnalysis {
+  analysisDigest: string;
+  generatedAt: string;
+  runtimeMutation: boolean;
+  targetBaseline: {
+    baselineReleaseId: string;
+    revisionNo: number;
+    manifestSha256: string;
+  };
+  currentRuntime: {
+    releaseId: string;
+    revisionNo: number;
+    platformBaselineReleaseId: string;
+    manifestSha256: string;
+  };
+  diffSummary: {
+    added: number;
+    modified: number;
+    disabled: number;
+    unchanged: number;
+    conflictCount: number;
+  };
+  items: Array<{
+    assetType: RuntimeAssetType;
+    assetIdentity: string;
+    changeType: "ADDED" | "MODIFIED" | "DISABLED" | "UNCHANGED" | string;
+    currentVersionId?: string | null;
+    currentVersionNo?: string | null;
+    currentContentHash?: string | null;
+    targetVersionId?: string | null;
+    targetVersionNo?: string | null;
+    targetContentHash?: string | null;
+    conflicts: Array<{
+      overrideId?: string | null;
+      orgPath?: string | null;
+      overrideMode?: string | null;
+      resultingSource?: string | null;
+    }>;
+  }>;
 }
 
 export type ReleaseRolloutStrategy =
@@ -7891,6 +7933,33 @@ export function useHospitalRuntimeHistory(
       );
       return data.data ?? emptyPage<ClinicalRuntimeRelease>();
     },
+  });
+}
+
+export function useHospitalPlatformUpgradeAnalysis(
+  hospitalId: string | undefined,
+  targetBaselineReleaseId: string | undefined,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: [
+      "runtime-releases",
+      "hospital",
+      hospitalId,
+      "platform-upgrade-analysis",
+      targetBaselineReleaseId,
+    ],
+    enabled: Boolean(enabled && hospitalId && targetBaselineReleaseId),
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ data: PlatformUpgradeAnalysis }>(
+        `${RUNTIME_RELEASE_API_ROOT}/hospitals/${encodeURIComponent(
+          hospitalId ?? "",
+        )}/platform-upgrade-analysis`,
+        { params: { targetBaselineReleaseId } },
+      );
+      return data.data;
+    },
+    retry: false,
   });
 }
 

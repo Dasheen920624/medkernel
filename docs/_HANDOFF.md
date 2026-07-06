@@ -10,6 +10,55 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百四十六批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整 S13、完整离线导入恢复、全角色全功能、完整上线验收或 134
+  清库部署收口，而是在第一百四十三至一百四十五批 S13 部分选择、两机构差异化和离线交付预检基础上，把
+  `runtime-release-frontdesk.spec.ts` 继续补成可证明“平台权威 baseline 升级前先做差异与冲突分析，且分析不改写当前机构
+  runtime”的真实证据切片。`launchCoverageEvidence` 现在只有在 runtime-release coverage 继续满足既有发布、
+  回滚、部分选择、两机构差异、离线交付预检等门槛，并额外证明 `platformUpgradeAnalysis` 存在、`analysisDigest`
+  为 64 位十六进制、`runtimeMutation=false`、目标平台 baseline 与当前机构 runtime 快照完整、`diffSummary`
+  与 diff items 四类计数一致且有真实 changed diff、`conflictCount=0`、每个 diff item 无冲突、分析前后机构
+  runtime `releaseId/revisionNo/manifestSha256` 完全不变时，才额外声明 `scenarios:S13`。
+- 第一百四十六批真实链路说明：后端新增只读平台升级分析接口
+  `GET /api/v1/engine/releases/hospitals/{hospitalId}/platform-upgrade-analysis?targetBaselineReleaseId=...`，
+  通过 `RuntimeReleaseQueryService.analyzePlatformUpgrade(...)` 比较目标平台 baseline 与当前医院 runtime，
+  返回 `ADDED/MODIFIED/DISABLED/UNCHANGED`、`diffSummary`、`analysisDigest` 和 `runtimeMutation=false`。
+  新增 `PlatformUpgradeAnalysisResponse`、`PlatformUpgradeBaselineSnapshot`、
+  `PlatformUpgradeRuntimeSnapshot`、`PlatformUpgradeDiffSummary`、`PlatformUpgradeDiffItem`
+  作为只读契约。`analysisDigest` 纳入冲突明细字段
+  `overrideId/orgPath/overrideMode/resultingSource`，避免只看冲突数量导致确认串用；`ClinicalRuntimeActivateRequest`
+  新增 `confirmedPlatformUpgradeDigest`，当机构 runtime 的平台 baseline 变化时，激活必须携带匹配摘要，且只要分析仍有
+  conflict，即使摘要匹配也拒绝激活并提示“平台升级分析仍存在机构覆盖冲突”。`ReleaseSimulationService`
+  同步把 conflicts 作为不可发布条件。
+- 第一百四十六批前台与 E2E 说明：`/config/releases` 新增“平台升级差异与冲突分析”卡片；baseline
+  不一致时，未完成分析或分析存在冲突会阻止“生成新机构生效版本”，激活请求只在 baseline 变化时携带
+  `confirmedPlatformUpgradeDigest`。`frontend/e2e/support/auth.ts` 修复本地演练医院 runtime
+  自愈：当前 runtime ready 但 baseline 不一致时，会先调用平台升级分析并带 digest 激活，不再直接返回；同时导出
+  `ensurePlatformRuntimeAssetApiSession(page)`，让 E2E 通过平台 `engine-operator` API 会话创建、发布平台运行资产。
+  目标 E2E 现在创建唯一平台升级候选资产，发布新的平台 baseline，真实前台等待并触发平台升级影响分析，断言分析前后当前
+  runtime identity 不变，再重新选择本院候选并完成影响评估与激活，捕获激活请求中的 digest 与分析响应一致。
+- 第一百四十六批边界说明：本批 coverage 只是 S13 的“平台升级差异与冲突分析 + 冲突安全门 + 分析不改 runtime”
+  证据切片；不声明完整 S13、完整跨环境离线导入恢复执行、S2/S4 真实接入与字典映射、完整 S0-S40、完整语义族 /
+  专业域 / 全知识、13 类 runtime 资产逐类业务消费者、真实备份 / 隔离恢复 / 重启恢复、全角色全功能真实操作或
+  134 清库复演。后续继续按全局全角色真实操作推进，发现红点先复现、定根因，再按上线级标准修复，不做片面优化。
+- 第一百四十六批验证证据：目标真实 E2E 在本地 18080 dev/H2 后端上通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-runtime-release-platform-upgrade npm --prefix frontend run e2e -- --project=chromium runtime-release-frontdesk.spec.ts`
+  通过，仓库外 `results.json` 为 `PASSED`（1 expected，0 unexpected，0 flaky）；附件记录
+  `platformUpgradeAnalysis.analysisDigest=a23cd931dac766bafcd550fcc8fd3a53138bee798af084eeb09eac89808aa8de`、
+  `runtimeMutation=false`、`diffSummary={ added:1, modified:0, disabled:0, unchanged:15, conflictCount:0 }`、
+  `items.length=16`，
+  changed item 为 `ACTION_CARD.RUNTIME.UPGRADE.1783359466227-0-platform-upgrade/ADDED`，分析前后 runtime identity 均为
+  `releaseId=runtime-01KWW83NW35D5M03JWKV8FPCDV/revisionNo=3/manifestSha256=57f549...`。
+  其他新鲜门禁：
+  `npm --prefix frontend run test -- ReleaseGovernance hooks e2eLaunchCoverageEvidence e2eAuthCredentialContract`
+  通过（207 tests）；`npm --prefix frontend run typecheck` 通过；
+  `node --test scripts/release/launch-coverage-audit.test.mjs` 通过（6 tests）；
+  `mvn -f medkernel-backend/pom.xml -Dtest=RuntimeReleaseControllerTest,RuntimeReleaseQueryServiceTest,ReleaseSimulationServiceTest test`
+  通过（25 tests）；`git diff --check` 通过。本地 18080 演练后端服务已在收尾时停止。
+- 第一百四十六批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把平台升级分析证据切片等同于完整
+  上线验收。后续继续补真实覆盖缺口：完整离线导入恢复执行、S2/S4 真实接入与字典映射、S0-S40 其余场景、完整语义族 /
+  专业域 / 全知识、13 类 runtime 资产逐类业务消费者、真实备份 / 隔离恢复 / 重启恢复，以及 134 清库部署复演；继续坚持
+  全角色真实前台和真实服务链路，下一棒不要回滚本批代码，应在此基础上继续全局推进。
 - 第一百四十五批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整 S13、完整离线导入恢复、平台升级冲突分析、全角色全功能或 134
   清库部署收口，而是在第一百四十三 / 一百四十四批部分选择和两机构差异化基础上，把

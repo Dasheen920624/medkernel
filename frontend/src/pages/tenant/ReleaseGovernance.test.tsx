@@ -11,11 +11,14 @@ const publishPlatformAsync = vi.fn();
 const activateHospitalAsync = vi.fn();
 const rollbackHospitalAsync = vi.fn();
 const simulateReleaseImpactAsync = vi.fn();
+const platformUpgradeRefetchAsync = vi.fn();
 const exportOfflineDeliveryAsync = vi.fn();
 const validateOfflineImportAsync = vi.fn();
 const useOrgUnitsMock = vi.fn();
 const usePlatformReleaseCandidatesMock = vi.fn();
 let currentTenantId = "t-1";
+let currentHospitalPlatformBaselineReleaseId = "baseline-A8";
+let platformUpgradeAnalysisMock: ApiHooks.PlatformUpgradeAnalysis | undefined;
 
 vi.mock("@/shared/api/hooks", async () => {
   const actual = await vi.importActual<typeof ApiHooks>("@/shared/api/hooks");
@@ -124,7 +127,7 @@ vi.mock("@/shared/api/hooks", async () => {
               tenantId: "tenant-a",
               hospitalId,
               revisionNo: 9,
-              platformBaselineReleaseId: "baseline-A8",
+              platformBaselineReleaseId: currentHospitalPlatformBaselineReleaseId,
               manifestSha256: "b".repeat(64),
               activatedAt: "2026-06-23T09:00:00Z",
               activatedBy: "operator-a",
@@ -199,6 +202,12 @@ vi.mock("@/shared/api/hooks", async () => {
       },
       isLoading: false,
     }),
+    useHospitalPlatformUpgradeAnalysis: () => ({
+      data: platformUpgradeAnalysisMock,
+      error: null,
+      isFetching: false,
+      refetch: platformUpgradeRefetchAsync,
+    }),
     useActivateHospitalRuntime: () => ({
       mutateAsync: activateHospitalAsync,
       isPending: false,
@@ -243,13 +252,17 @@ describe("ReleaseGovernance", () => {
     activateHospitalAsync.mockReset();
     rollbackHospitalAsync.mockReset();
     simulateReleaseImpactAsync.mockReset();
+    platformUpgradeRefetchAsync.mockReset();
     exportOfflineDeliveryAsync.mockReset();
     validateOfflineImportAsync.mockReset();
     useOrgUnitsMock.mockReset();
     usePlatformReleaseCandidatesMock.mockReset();
+    currentHospitalPlatformBaselineReleaseId = "baseline-A8";
+    platformUpgradeAnalysisMock = undefined;
     publishPlatformAsync.mockResolvedValue({ revisionNo: 9 });
     activateHospitalAsync.mockResolvedValue({ revisionNo: 10 });
     rollbackHospitalAsync.mockResolvedValue({ revisionNo: 10 });
+    platformUpgradeRefetchAsync.mockResolvedValue({ data: undefined, error: null });
     exportOfflineDeliveryAsync.mockResolvedValue({
       deliveryKind: "CLINICAL_RUNTIME_RELEASE",
       evidenceId: "runtime-offline-runtime-H9-01",
@@ -399,6 +412,7 @@ describe("ReleaseGovernance", () => {
         request: {
           platformBaselineReleaseId: "baseline-A8",
           expectedCurrentReleaseId: "runtime-H9",
+          confirmedPlatformUpgradeDigest: null,
           activeAssets: [
             { assetType: "RULE", assetIdentity: "RULE.CKD", versionId: null },
             {
@@ -418,6 +432,20 @@ describe("ReleaseGovernance", () => {
     fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
     fireEvent.click(await screen.findByText(/中心医院/));
     fireEvent.click(screen.getByLabelText("启用本院临床路径内容 V3"));
+    fireEvent.click(screen.getByRole("button", { name: "生成新机构生效版本" }));
+
+    expect(activateHospitalAsync).not.toHaveBeenCalled();
+  });
+
+  it("blocks institution activation when platform baseline changed before upgrade analysis completes", async () => {
+    currentHospitalPlatformBaselineReleaseId = "baseline-A7";
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "机构生效版本" }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标医院" }));
+    fireEvent.click(await screen.findByText(/中心医院/));
+
+    expect(await screen.findByText("平台升级差异与冲突分析")).toBeInTheDocument();
+    expect(screen.getByText("平台标准版本已更新")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "生成新机构生效版本" }));
 
     expect(activateHospitalAsync).not.toHaveBeenCalled();

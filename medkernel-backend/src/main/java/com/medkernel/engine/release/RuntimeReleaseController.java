@@ -121,7 +121,19 @@ public class RuntimeReleaseController {
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String sort) {
         return ApiResult.ok(queries.hospitalRuntimeHistory(
-            tenantId(), hospitalId, new PageRequest(page, size, sort)));
+                tenantId(), hospitalId, new PageRequest(page, size, sort)));
+    }
+
+    /**
+     * 只读分析目标平台标准版本升级到当前机构生效版本前的差异和冲突。
+     */
+    @GetMapping("/hospitals/{hospitalId}/platform-upgrade-analysis")
+    @PreAuthorize("@perm.has('asset.read')")
+    public ApiResult<PlatformUpgradeAnalysisResponse> analyzeHospitalPlatformUpgrade(
+            @PathVariable String hospitalId,
+            @RequestParam String targetBaselineReleaseId) {
+        return ApiResult.ok(queries.analyzePlatformUpgrade(
+            tenantId(), hospitalId, targetBaselineReleaseId));
     }
 
     /**
@@ -148,6 +160,7 @@ public class RuntimeReleaseController {
     public ApiResult<ClinicalRuntimeRelease> activateHospitalRuntime(
             @PathVariable String hospitalId,
             @Valid @RequestBody ClinicalRuntimeActivateRequest request) {
+        confirmPlatformUpgradeDigestIfRequired(hospitalId, request);
         return ApiResult.ok(runtimes.activate(new ClinicalRuntimeReleaseCommand(
             tenantId(),
             hospitalId,
@@ -230,5 +243,38 @@ public class RuntimeReleaseController {
             .map(String::trim)
             .orElseThrow(() -> new ApiException(
                 ErrorCode.UNAUTHORIZED, "认证上下文缺少操作人"));
+    }
+
+    private void confirmPlatformUpgradeDigestIfRequired(
+            String hospitalId,
+            ClinicalRuntimeActivateRequest request) {
+        PlatformUpgradeAnalysisResponse analysis;
+        try {
+            analysis = queries.analyzePlatformUpgrade(
+                tenantId(), hospitalId, request.platformBaselineReleaseId());
+        } catch (ApiException exception) {
+            if (exception.errorCode() == ErrorCode.CONFLICT
+                    && exception.getMessage().contains("尚未建立当前生效版本")) {
+                return;
+            }
+            throw exception;
+        }
+        if (analysis == null) {
+            return;
+        }
+        if (analysis.currentRuntime().platformBaselineReleaseId()
+                .equals(request.platformBaselineReleaseId())) {
+            return;
+        }
+        String confirmed = request.confirmedPlatformUpgradeDigest();
+        if (confirmed == null || confirmed.isBlank()) {
+            throw new ApiException(ErrorCode.CONFLICT, "平台升级前必须先完成差异与冲突分析");
+        }
+        if (!analysis.analysisDigest().equals(confirmed.trim())) {
+            throw new ApiException(ErrorCode.CONFLICT, "平台升级分析摘要已变化，请重新评估");
+        }
+        if (analysis.diffSummary().conflictCount() > 0) {
+            throw new ApiException(ErrorCode.CONFLICT, "平台升级分析仍存在机构覆盖冲突，请先处理后再生成机构生效版本");
+        }
     }
 }

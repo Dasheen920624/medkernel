@@ -237,6 +237,7 @@ const requiredRuntimeReleasePartialSelectionScenarioEvidence = [
   "前台只选择本轮部分本院内容进入机构生效版本",
   "前台为第二家医院选择不同本院内容生成机构生效版本",
   "两家医院后端与第三方运行契约读回互不串用",
+  "前台完成平台升级差异与冲突分析",
   "前台导出机构生效版本离线交付文件",
   "下载离线交付文件并校验完整快照",
   "离线交付导入预检验签且不改写当前机构生效版本",
@@ -713,12 +714,14 @@ function hasRequiredRuntimeReleasePartialSelectionAttachment(test: BrowserE2eTes
       runtimeConsumerReadback?: unknown;
       partialSelection?: unknown;
       multiHospitalDifferentiation?: unknown;
+      platformUpgradeAnalysis?: unknown;
       offlineDelivery?: unknown;
       scenarioEvidence?: unknown;
     };
     if (
       !hasCompleteRuntimeReleasePartialSelectionEvidence(parsed) ||
       !hasCompleteRuntimeReleaseMultiHospitalEvidence(parsed.multiHospitalDifferentiation) ||
+      !hasCompleteRuntimeReleasePlatformUpgradeEvidence(parsed.platformUpgradeAnalysis) ||
       !hasCompleteRuntimeReleaseOfflineDeliveryEvidence(parsed) ||
       !Array.isArray(parsed.scenarioEvidence)
     ) {
@@ -824,6 +827,136 @@ function hasCompleteRuntimeReleaseMultiHospitalEvidence(value: unknown) {
       primary.selectedCandidate,
     )
   );
+}
+
+function hasCompleteRuntimeReleasePlatformUpgradeEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const evidence = value as Record<string, unknown>;
+  const targetBaseline = parseRuntimeReleasePlatformUpgradeBaseline(evidence.targetBaseline);
+  const currentRuntime = parseRuntimeReleasePlatformUpgradeRuntime(evidence.currentRuntime);
+  const before = parseRuntimeReleaseOfflineRuntimeSnapshot(evidence.runtimeBefore);
+  const after = parseRuntimeReleaseOfflineRuntimeSnapshot(evidence.runtimeAfter);
+  const summary = evidence.diffSummary;
+  if (
+    !targetBaseline ||
+    !currentRuntime ||
+    !before ||
+    !after ||
+    !summary ||
+    typeof summary !== "object" ||
+    Array.isArray(summary) ||
+    typeof evidence.analysisDigest !== "string" ||
+    !/^[0-9a-f]{64}$/i.test(evidence.analysisDigest) ||
+    evidence.runtimeMutation !== false ||
+    !Array.isArray(evidence.items)
+  ) {
+    return false;
+  }
+  const diffSummary = summary as Record<string, unknown>;
+  const diffCounts = ["added", "modified", "disabled", "unchanged", "conflictCount"].map(
+    (key) => diffSummary[key],
+  );
+  if (!diffCounts.every((count) => typeof count === "number" && count >= 0)) return false;
+  if (diffSummary.conflictCount !== 0) return false;
+  const changedCount =
+    Number(diffSummary.added) + Number(diffSummary.modified) + Number(diffSummary.disabled);
+  if (changedCount < 1) return false;
+  const parsedItems = evidence.items.map(parseRuntimeReleasePlatformUpgradeDiffItem);
+  if (parsedItems.some((item) => item === null)) return false;
+  const hasStructuredDiff = parsedItems.length > 0;
+  const itemCounts = countRuntimeReleasePlatformUpgradeDiffItems(parsedItems);
+  return (
+    hasStructuredDiff &&
+    itemCounts.added === Number(diffSummary.added) &&
+    itemCounts.modified === Number(diffSummary.modified) &&
+    itemCounts.disabled === Number(diffSummary.disabled) &&
+    itemCounts.unchanged === Number(diffSummary.unchanged) &&
+    itemCounts.changed > 0 &&
+    currentRuntime.platformBaselineReleaseId !== targetBaseline.baselineReleaseId &&
+    before.releaseId === currentRuntime.releaseId &&
+    after.releaseId === currentRuntime.releaseId &&
+    before.revisionNo === after.revisionNo &&
+    before.manifestSha256 === after.manifestSha256
+  );
+}
+
+function parseRuntimeReleasePlatformUpgradeBaseline(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const baseline = value as Record<string, unknown>;
+  if (
+    typeof baseline.baselineReleaseId !== "string" ||
+    typeof baseline.revisionNo !== "number" ||
+    typeof baseline.manifestSha256 !== "string"
+  ) {
+    return null;
+  }
+  return {
+    baselineReleaseId: baseline.baselineReleaseId,
+    revisionNo: baseline.revisionNo,
+    manifestSha256: baseline.manifestSha256,
+  };
+}
+
+function parseRuntimeReleasePlatformUpgradeRuntime(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const runtime = value as Record<string, unknown>;
+  if (
+    typeof runtime.releaseId !== "string" ||
+    typeof runtime.revisionNo !== "number" ||
+    typeof runtime.platformBaselineReleaseId !== "string" ||
+    typeof runtime.manifestSha256 !== "string"
+  ) {
+    return null;
+  }
+  return {
+    releaseId: runtime.releaseId,
+    revisionNo: runtime.revisionNo,
+    platformBaselineReleaseId: runtime.platformBaselineReleaseId,
+    manifestSha256: runtime.manifestSha256,
+  };
+}
+
+function parseRuntimeReleasePlatformUpgradeDiffItem(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const item = value as Record<string, unknown>;
+  if (
+    typeof item.assetType === "string" &&
+    typeof item.assetIdentity === "string" &&
+    ["ADDED", "MODIFIED", "DISABLED", "UNCHANGED"].includes(
+      typeof item.changeType === "string" ? item.changeType : "",
+    ) &&
+    Array.isArray(item.conflicts)
+  ) {
+    return item.conflicts.length === 0 ? item : null;
+  }
+  return null;
+}
+
+function countRuntimeReleasePlatformUpgradeDiffItems(
+  items: Array<{ changeType?: unknown } | null>,
+) {
+  const counts = {
+    added: 0,
+    modified: 0,
+    disabled: 0,
+    unchanged: 0,
+    changed: 0,
+  };
+  for (const item of items) {
+    if (item?.changeType === "ADDED") {
+      counts.added++;
+      counts.changed++;
+    } else if (item?.changeType === "MODIFIED") {
+      counts.modified++;
+      counts.changed++;
+    } else if (item?.changeType === "DISABLED") {
+      counts.disabled++;
+      counts.changed++;
+    } else if (item?.changeType === "UNCHANGED") {
+      counts.unchanged++;
+    }
+  }
+  return counts;
 }
 
 function hasCompleteRuntimeReleaseOfflineDeliveryEvidence(value: {

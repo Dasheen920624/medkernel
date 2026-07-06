@@ -173,6 +173,10 @@ export async function loginFromPlatformPage(page: Page, role: RoleAccount) {
   await expect(page).toHaveURL(/\/dashboard$/);
 }
 
+export async function ensurePlatformRuntimeAssetApiSession(page: Page) {
+  await ensureApiRoleSession(page, "engine-operator", "platform");
+}
+
 export async function expectLoginPageReady(page: Page) {
   await expect(page.getByRole("main", { name: "登录 MedKernel 工作台" })).toBeVisible();
   await expect(page.getByRole("heading", { name: /登录(?:平台治理|机构工作台)/ })).toBeVisible();
@@ -1323,9 +1327,15 @@ async function ensureHospitalRuntime(
   const current = await getApi(page, path);
   await expectOk(current, "读取本地上线演练医院生效版本");
   const currentRuntime = hospitalRuntimeCoversRequiredAssets(await responseData(current));
-  if (currentRuntime.ready) {
+  if (currentRuntime.ready && currentRuntime.platformBaselineReleaseId === baseline.baselineReleaseId) {
     return;
   }
+  const confirmedPlatformUpgradeDigest =
+    currentRuntime.releaseId &&
+    currentRuntime.platformBaselineReleaseId &&
+    currentRuntime.platformBaselineReleaseId !== baseline.baselineReleaseId
+      ? await platformUpgradeAnalysisDigest(page, hospitalId, baseline.baselineReleaseId)
+      : null;
 
   const activated = await postApi(
     page,
@@ -1333,10 +1343,30 @@ async function ensureHospitalRuntime(
     {
       platformBaselineReleaseId: baseline.baselineReleaseId,
       expectedCurrentReleaseId: currentRuntime.releaseId,
+      confirmedPlatformUpgradeDigest,
       activeAssets: baseline.activeAssets,
     },
   );
   await expectOk(activated, "激活本地上线演练医院生效版本");
+}
+
+async function platformUpgradeAnalysisDigest(
+  page: Page,
+  hospitalId: string,
+  baselineReleaseId: string,
+) {
+  const analysis = await getApi(
+    page,
+    `/engine/releases/hospitals/${encodeURIComponent(
+      hospitalId,
+    )}/platform-upgrade-analysis?targetBaselineReleaseId=${encodeURIComponent(baselineReleaseId)}`,
+  );
+  await expectOk(analysis, "分析本地上线演练医院平台升级差异");
+  const digest = textField(await responseData(analysis), "analysisDigest");
+  if (!digest) {
+    throw new Error("平台升级分析响应缺少 analysisDigest");
+  }
+  return digest;
 }
 
 export function resolveBaselineRuntimeAssets(value: unknown): BaselineRuntimeAssets {
@@ -1362,7 +1392,9 @@ export function resolveBaselineRuntimeAssets(value: unknown): BaselineRuntimeAss
 }
 
 export function hospitalRuntimeCoversRequiredAssets(value: unknown) {
-  const releaseId = textField(recordField(value, "release"), "releaseId");
+  const release = recordField(value, "release");
+  const releaseId = textField(release, "releaseId");
+  const platformBaselineReleaseId = textField(release, "platformBaselineReleaseId");
   const activeAssets = pageItems(value)
     .filter((item) => textField(item, "entryState") === "ACTIVE")
     .map((item) => ({
@@ -1375,6 +1407,7 @@ export function hospitalRuntimeCoversRequiredAssets(value: unknown) {
     );
   return {
     releaseId,
+    platformBaselineReleaseId,
     ready: Boolean(releaseId) && runtimeAssetsCoverRequiredTypes(activeAssets),
   };
 }

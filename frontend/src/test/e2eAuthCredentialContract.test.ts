@@ -261,7 +261,11 @@ describe("E2E credential contract", () => {
           },
         ],
       }),
-    ).toEqual({ releaseId: "hospital-release-empty", ready: false });
+    ).toEqual({
+      releaseId: "hospital-release-empty",
+      platformBaselineReleaseId: null,
+      ready: false,
+    });
 
     expect(
       auth.hospitalRuntimeCoversRequiredAssets({
@@ -273,7 +277,11 @@ describe("E2E credential contract", () => {
           entryState: "ACTIVE",
         })),
       }),
-    ).toEqual({ releaseId: "hospital-release-ready", ready: true });
+    ).toEqual({
+      releaseId: "hospital-release-ready",
+      platformBaselineReleaseId: null,
+      ready: true,
+    });
   });
 
   it("requires diagnostic-item knowledge for report interpretation runtime rehearsal", async () => {
@@ -299,7 +307,11 @@ describe("E2E credential contract", () => {
           },
         ],
       }),
-    ).toEqual({ releaseId: "hospital-release-no-knowledge", ready: false });
+    ).toEqual({
+      releaseId: "hospital-release-no-knowledge",
+      platformBaselineReleaseId: null,
+      ready: false,
+    });
   });
 
   it("requires report interpretation E2E to prove runtime knowledge consumption through the frontdesk chain", () => {
@@ -384,7 +396,11 @@ describe("E2E credential contract", () => {
           entryState: "ACTIVE",
         })),
       }),
-    ).toEqual({ releaseId: "hospital-release-historical-assets", ready: false });
+    ).toEqual({
+      releaseId: "hospital-release-historical-assets",
+      platformBaselineReleaseId: null,
+      ready: false,
+    });
   });
 
   it("selects every required platform runtime candidate once the rehearsal bootstrap fills gaps", async () => {

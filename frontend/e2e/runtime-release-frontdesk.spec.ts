@@ -10,6 +10,7 @@ import { writeFile } from "node:fs/promises";
 
 import {
   apiBase,
+  ensurePlatformRuntimeAssetApiSession,
   ensureReadySession,
   expectOk,
   patchApi,
@@ -34,6 +35,7 @@ type RuntimeReleaseDetail = {
     releaseId?: string;
     revisionNo?: number;
     manifestSha256?: string;
+    platformBaselineReleaseId?: string;
   };
   items?: RuntimeReleaseItem[];
 };
@@ -91,6 +93,7 @@ type RuntimeReleaseCoverageEvidence = {
     backendReadbacksIsolated: boolean;
     runtimeConsumerReadbacksIsolated: boolean;
   };
+  platformUpgradeAnalysis?: RuntimeReleasePlatformUpgradeEvidence;
   offlineDelivery?: RuntimeReleaseOfflineDeliveryEvidence;
   rollbackReadback?: { localCandidateAbsent: boolean; assets: RuntimeReleaseAssetEvidence[] };
   rollbackRuntimeConsumerReadback?: {
@@ -98,6 +101,38 @@ type RuntimeReleaseCoverageEvidence = {
     assets: RuntimeReleaseAssetEvidence[];
   };
   scenarioEvidence: Array<{ observedStages: string[] }>;
+};
+type RuntimeReleasePlatformUpgradeEvidence = {
+  targetBaseline: {
+    baselineReleaseId: string;
+    revisionNo: number;
+    manifestSha256: string;
+  };
+  currentRuntime: {
+    releaseId: string;
+    revisionNo: number;
+    platformBaselineReleaseId: string;
+    manifestSha256: string;
+  };
+  analysisDigest: string;
+  runtimeMutation: boolean;
+  diffSummary: {
+    added: number;
+    modified: number;
+    disabled: number;
+    unchanged: number;
+    conflictCount: number;
+  };
+  items: Array<{
+    assetType: string;
+    assetIdentity: string;
+    changeType: string;
+    currentVersionId?: string | null;
+    targetVersionId?: string | null;
+    conflicts: unknown[];
+  }>;
+  runtimeBefore: RuntimeReleaseSnapshotIdentity;
+  runtimeAfter: RuntimeReleaseSnapshotIdentity;
 };
 type RuntimeReleaseOfflineDeliveryEvidence = {
   delivery: {
@@ -219,6 +254,27 @@ test.describe("机构生效版本真实前台发布回滚", () => {
         "前台只选择本轮部分本院内容进入机构生效版本",
       );
 
+      const platformUpgradeCandidate = await createPlatformRuntimeUpgradeCandidate(
+        adminPage,
+        testInfo,
+      );
+      await publishPlatformUpgradeCandidate(adminPage, platformUpgradeCandidate);
+      await page.reload({ waitUntil: "networkidle" });
+      await expect(page.getByRole("heading", { name: "机构生效版本" })).toBeVisible();
+      await page.getByRole("tab", { name: "机构生效版本" }).click();
+      await chooseHospital(page, primaryHospitalName);
+      const platformUpgradeAnalysis = await exercisePlatformUpgradeAnalysis(
+        page,
+        primaryHospitalName,
+        primaryHospitalId,
+        platformUpgradeCandidate,
+      );
+      coverageEvidence.platformUpgradeAnalysis = platformUpgradeAnalysis;
+      coverageEvidence.apiEvidence.platformUpgradeAnalysisRun = true;
+      recordRuntimeReleaseStage(coverageEvidence, "前台完成平台升级差异与冲突分析");
+      await selectHospitalLocalRuntimeCandidate(page, localCandidate);
+      await assertHospitalLocalRuntimeCandidateVisibleAndUnselected(page, unselectedLocalCandidate);
+
       clearRuntime(runtime);
       await assessLocalReleaseImpact(page);
       coverageEvidence.apiEvidence.impactSimulationRun = true;
@@ -236,6 +292,11 @@ test.describe("机构生效版本真实前台发布回滚", () => {
         `前台生成机构生效版本应返回成功 status=${activateResponse.status()} body=${activateBody}`,
       ).toBe(true);
       const activationRequest = activateResponse.request().postDataJSON();
+      expect(
+        (activationRequest as { confirmedPlatformUpgradeDigest?: string | null })
+          .confirmedPlatformUpgradeDigest,
+        "平台升级生成机构生效版本请求必须携带服务端分析摘要",
+      ).toBe(platformUpgradeAnalysis.analysisDigest);
       const activationRequestAssets = assertRuntimeReleaseRequestCarriesRequiredAssets(
         activationRequest,
         "前台生成机构生效版本",
@@ -835,6 +896,62 @@ async function createHospitalRuntimeReleaseCandidate(
   };
 }
 
+async function createPlatformRuntimeUpgradeCandidate(
+  page: Page,
+  testInfo: TestInfo,
+): Promise<RuntimeReleaseLocalCandidate> {
+  await ensurePlatformRuntimeAssetApiSession(page);
+  const suffix = `${Date.now()}-${testInfo.retry}-platform-upgrade`;
+  const assetIdentity = `ACTION_CARD.RUNTIME.UPGRADE.${suffix}`;
+  const response = await postApi(page, "/engine/authoring/declarative-assets", {
+    assetType: "ACTION_CARD",
+    assetIdentity,
+    applicableScope: "ALL",
+    sourceRef: "local-e2e:runtime-platform-upgrade-analysis",
+    content: {
+      schemaVersion: "1.0",
+      title: "平台升级分析提示卡",
+      actionCode: "INFO",
+      atSeverity: "LOW",
+      indicator: "info",
+      summary: "用于验证平台标准版本升级前必须完成差异与冲突分析。",
+      detail: "本资产仅用于上线演练的平台升级分析证据，不包含诊疗结论，不自动开立医嘱。",
+      source: { label: "MedKernel 本地上线演练" },
+      suggestions: [
+        { label: "查看升级分析", actionType: "OPEN_FORM", payload: { target: "upgrade" } },
+      ],
+      overrideReasons: [],
+      requiresPhysicianConfirmation: false,
+    },
+  });
+  await expectOk(response, "创建平台升级分析候选资产");
+  const payload = (await response.json()) as {
+    data?: { assetType?: string; assetIdentity?: string; versionId?: string; versionNo?: string };
+  };
+  const candidate = payload.data;
+  expect(candidate?.assetType, "平台升级候选资产类型必须返回").toBe("ACTION_CARD");
+  expect(candidate?.assetIdentity, "平台升级候选资产身份必须返回").toBe(assetIdentity);
+  expect(candidate?.versionId, "平台升级候选资产必须返回版本 ID").toBeTruthy();
+  return {
+    assetType: candidate?.assetType ?? "ACTION_CARD",
+    assetIdentity: candidate?.assetIdentity ?? assetIdentity,
+    versionId: candidate?.versionId ?? "",
+    versionNo: candidate?.versionNo,
+  };
+}
+
+async function publishPlatformUpgradeCandidate(
+  page: Page,
+  candidate: RuntimeReleaseLocalCandidate,
+) {
+  await ensurePlatformRuntimeAssetApiSession(page);
+  const response = await postApi(page, "/engine/releases/platform-baselines", {
+    publishVersionIds: [candidate.versionId],
+    disabledAssets: [],
+  });
+  await expectOk(response, "发布包含平台升级分析候选的新平台标准版本");
+}
+
 async function selectHospitalLocalRuntimeCandidate(
   page: Page,
   candidate: RuntimeReleaseLocalCandidate,
@@ -1014,6 +1131,104 @@ async function assertThirdPartyRuntimeConsumerCarriesRequiredAssets(
   );
   assertRuntimeDetailCarriesRequiredAssets({ items: parsed.data?.assets ?? [] }, label);
   return parsed.data ?? { assets: [] };
+}
+
+async function exercisePlatformUpgradeAnalysis(
+  page: Page,
+  hospitalName: string,
+  hospitalId: string,
+  platformUpgradeCandidate: RuntimeReleaseLocalCandidate,
+): Promise<RuntimeReleasePlatformUpgradeEvidence> {
+  const runtimeBefore = await assertCurrentRuntimeAssetsReady(
+    page,
+    hospitalName,
+    undefined,
+    "平台升级分析前",
+  );
+  const beforeIdentity = runtimeSnapshotIdentity(runtimeBefore, "平台升级分析前");
+  await expect(page.getByText("平台升级差异与冲突分析")).toBeVisible({ timeout: 20_000 });
+  const analysisButton = page.getByRole("button", { name: "分析平台升级影响" });
+  await expect(analysisButton).toBeEnabled({ timeout: 20_000 });
+  const analysisResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      response
+        .url()
+        .includes(
+          `/engine/releases/hospitals/${encodeURIComponent(
+            hospitalId,
+          )}/platform-upgrade-analysis`,
+    ),
+    { timeout: 60_000 },
+  );
+  await analysisButton.click();
+  const analysisResponse = await analysisResponsePromise;
+  const analysisBody = await analysisResponse.text();
+  expect(
+    analysisResponse.ok(),
+    `平台升级差异与冲突分析应返回成功 status=${analysisResponse.status()} body=${analysisBody}`,
+  ).toBe(true);
+  const analysis = (JSON.parse(analysisBody) as {
+    data?: RuntimeReleasePlatformUpgradeEvidence;
+  }).data;
+  expect(analysis?.analysisDigest, "平台升级分析必须返回稳定摘要").toMatch(/^[0-9a-f]{64}$/);
+  expect(analysis?.runtimeMutation, "平台升级分析不得改写当前机构生效版本").toBe(false);
+  expect(analysis?.currentRuntime.releaseId, "平台升级分析必须绑定当前机构生效版本").toBe(
+    beforeIdentity.releaseId,
+  );
+  expect(
+    analysis?.currentRuntime.platformBaselineReleaseId,
+    "平台升级分析必须证明当前机构仍锁定旧平台标准版本",
+  ).toBe(runtimeBefore.release?.platformBaselineReleaseId);
+  const candidateDiff = analysis?.items.find(
+    (item) =>
+      item.assetType === platformUpgradeCandidate.assetType &&
+      item.assetIdentity === platformUpgradeCandidate.assetIdentity &&
+      item.targetVersionId === platformUpgradeCandidate.versionId,
+  );
+  expect(candidateDiff, "平台升级分析必须列出本轮平台新增候选资产差异").toBeTruthy();
+  expect(candidateDiff?.changeType, "本轮平台升级候选应作为新增差异呈现").toBe("ADDED");
+  expect(analysis?.diffSummary.added, "平台升级分析至少应包含一个新增差异").toBeGreaterThan(0);
+  expect(analysis?.diffSummary.conflictCount, "平台升级分析本轮不应存在未处理冲突").toBe(0);
+  await expect(page.getByText("差异与冲突分析已完成")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/新增 \d+ 项，修改 \d+ 项/)).toBeVisible();
+
+  const runtimeAfter = await assertCurrentRuntimeAssetsReady(
+    page,
+    hospitalName,
+    beforeIdentity.revisionNo,
+    "平台升级分析后",
+  );
+  const afterIdentity = runtimeSnapshotIdentity(runtimeAfter, "平台升级分析后");
+  expect(afterIdentity, "平台升级分析前后当前机构生效版本不得改变").toEqual(
+    beforeIdentity,
+  );
+
+  return {
+    targetBaseline: {
+      baselineReleaseId: analysis?.targetBaseline.baselineReleaseId ?? "",
+      revisionNo: analysis?.targetBaseline.revisionNo ?? 0,
+      manifestSha256: analysis?.targetBaseline.manifestSha256 ?? "",
+    },
+    currentRuntime: {
+      releaseId: analysis?.currentRuntime.releaseId ?? "",
+      revisionNo: analysis?.currentRuntime.revisionNo ?? 0,
+      platformBaselineReleaseId: analysis?.currentRuntime.platformBaselineReleaseId ?? "",
+      manifestSha256: analysis?.currentRuntime.manifestSha256 ?? "",
+    },
+    analysisDigest: analysis?.analysisDigest ?? "",
+    runtimeMutation: analysis?.runtimeMutation ?? true,
+    diffSummary: {
+      added: analysis?.diffSummary.added ?? 0,
+      modified: analysis?.diffSummary.modified ?? 0,
+      disabled: analysis?.diffSummary.disabled ?? 0,
+      unchanged: analysis?.diffSummary.unchanged ?? 0,
+      conflictCount: analysis?.diffSummary.conflictCount ?? 0,
+    },
+    items: analysis?.items ?? [],
+    runtimeBefore: beforeIdentity,
+    runtimeAfter: afterIdentity,
+  };
 }
 
 async function exerciseOfflineDelivery(
@@ -1413,6 +1628,7 @@ function createRuntimeReleaseCoverageEvidence(): RuntimeReleaseCoverageEvidence 
     serviceCombinations: ["CLINICAL_RUNTIME", "THIRD_PARTY_INTERFACE"],
     apiEvidence: {
       impactSimulationRun: false,
+      platformUpgradeAnalysisRun: false,
       partialSelectionProved: false,
       activationPosted: false,
       activationRequestCarriesRequiredAssets: false,
