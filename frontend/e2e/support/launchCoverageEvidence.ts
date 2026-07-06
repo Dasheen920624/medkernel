@@ -55,6 +55,7 @@ type CoverageProof = {
   requiresPathwayLifecycleAttachment?: boolean;
   requiresSystemProvidersAttachment?: boolean;
   requiresIdentityBindingAttachment?: boolean;
+  requiresRuntimeReleasePartialSelectionAttachment?: boolean;
 };
 
 const stakeholderClaims = [
@@ -92,6 +93,8 @@ const runtimeReleaseClaims = [
   "serviceCombinations:CLINICAL_RUNTIME",
   "serviceCombinations:THIRD_PARTY_INTERFACE",
 ];
+
+const runtimeReleasePartialSelectionClaims = ["scenarios:S13"];
 
 const thirdPartySystemFamilyClaims = [
   "productLayers:DATA_INTEROPERABILITY",
@@ -230,6 +233,10 @@ const requiredRuntimeReleaseScenarioEvidence = [
   "回滚后后端和第三方运行契约读取同一修订",
 ];
 
+const requiredRuntimeReleasePartialSelectionScenarioEvidence = [
+  "前台只选择本轮部分本院内容进入机构生效版本",
+];
+
 const requiredSourceLineageScenarioEvidence: Record<string, string[]> = {
   S7: [
     "真实登记受控来源、版本和锚点",
@@ -324,6 +331,13 @@ const coverageProofs: CoverageProof[] = [
     titleIncludes: "生成新生效版本并从历史版本回滚",
     claims: runtimeReleaseClaims,
     requiresRuntimeReleaseAttachment: true,
+  },
+  {
+    file: "runtime-release-frontdesk.spec.ts",
+    titleIncludes: "生成新生效版本并从历史版本回滚",
+    claims: runtimeReleasePartialSelectionClaims,
+    requiresRuntimeReleaseAttachment: true,
+    requiresRuntimeReleasePartialSelectionAttachment: true,
   },
   {
     file: "third-party-system-families-rehearsal.spec.ts",
@@ -434,7 +448,9 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.requiresEmbedBusinessHostAttachment || hasRequiredEmbedBusinessHostAttachment(test)) &&
       (!proof.requiresPathwayLifecycleAttachment || hasRequiredPathwayLifecycleAttachment(test)) &&
       (!proof.requiresSystemProvidersAttachment || hasRequiredSystemProvidersAttachment(test)) &&
-      (!proof.requiresIdentityBindingAttachment || hasRequiredIdentityBindingAttachment(test))
+      (!proof.requiresIdentityBindingAttachment || hasRequiredIdentityBindingAttachment(test)) &&
+      (!proof.requiresRuntimeReleasePartialSelectionAttachment ||
+        hasRequiredRuntimeReleasePartialSelectionAttachment(test))
     );
   });
 }
@@ -644,11 +660,13 @@ function hasRequiredRuntimeReleaseAttachment(test: BrowserE2eTestResult) {
       serviceCombinations?: unknown;
       apiEvidence?: unknown;
       localCandidate?: unknown;
+      unselectedLocalCandidate?: unknown;
       activationRequest?: unknown;
       activationReadback?: unknown;
       runtimeConsumerReadback?: unknown;
       rollbackReadback?: unknown;
       rollbackRuntimeConsumerReadback?: unknown;
+      partialSelection?: unknown;
       scenarioEvidence?: unknown;
     };
     if (
@@ -670,6 +688,43 @@ function hasRequiredRuntimeReleaseAttachment(test: BrowserE2eTestResult) {
         : [];
     });
     return requiredRuntimeReleaseScenarioEvidence.every((stage) => observedStages.includes(stage));
+  } catch {
+    return false;
+  }
+}
+
+function hasRequiredRuntimeReleasePartialSelectionAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "runtime-release-coverage-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      apiEvidence?: unknown;
+      localCandidate?: unknown;
+      unselectedLocalCandidate?: unknown;
+      activationRequest?: unknown;
+      activationReadback?: unknown;
+      runtimeConsumerReadback?: unknown;
+      partialSelection?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    if (
+      !hasCompleteRuntimeReleasePartialSelectionEvidence(parsed) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const observedStages = parsed.scenarioEvidence.flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const stages = (item as { observedStages?: unknown }).observedStages;
+      return Array.isArray(stages)
+        ? stages.filter((stage): stage is string => typeof stage === "string")
+        : [];
+    });
+    return requiredRuntimeReleasePartialSelectionScenarioEvidence.every((stage) =>
+      observedStages.includes(stage),
+    );
   } catch {
     return false;
   }
@@ -698,6 +753,40 @@ function hasCompleteRuntimeReleaseLocalCandidateEvidence(value: {
   );
 }
 
+function hasCompleteRuntimeReleasePartialSelectionEvidence(value: {
+  apiEvidence?: unknown;
+  localCandidate?: unknown;
+  unselectedLocalCandidate?: unknown;
+  activationRequest?: unknown;
+  activationReadback?: unknown;
+  runtimeConsumerReadback?: unknown;
+  partialSelection?: unknown;
+}) {
+  if (!value.apiEvidence || typeof value.apiEvidence !== "object" || Array.isArray(value.apiEvidence)) {
+    return false;
+  }
+  if ((value.apiEvidence as Record<string, unknown>).partialSelectionProved !== true) {
+    return false;
+  }
+  const selected = parseRuntimeReleaseCandidate(value.localCandidate);
+  const unselected = parseRuntimeReleaseCandidate(value.unselectedLocalCandidate);
+  if (!selected || !unselected || runtimeReleaseSameCandidate(selected, unselected)) return false;
+  if (!value.partialSelection || typeof value.partialSelection !== "object" || Array.isArray(value.partialSelection)) {
+    return false;
+  }
+  const partial = value.partialSelection as Record<string, unknown>;
+  return (
+    runtimeReleaseCandidateEquals(partial.selectedCandidate, selected) &&
+    runtimeReleaseCandidateEquals(partial.unselectedCandidate, unselected) &&
+    partial.activationRequestOmitsUnselected === true &&
+    partial.activationReadbackOmitsUnselected === true &&
+    partial.runtimeConsumerOmitsUnselected === true &&
+    !runtimeReleasePayloadContainsIdentity(value.activationRequest, "activeAssets", unselected) &&
+    !runtimeReleasePayloadContainsIdentity(value.activationReadback, "assets", unselected) &&
+    !runtimeReleasePayloadContainsIdentity(value.runtimeConsumerReadback, "assets", unselected)
+  );
+}
+
 function parseRuntimeReleaseCandidate(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const candidate = value as Record<string, unknown>;
@@ -718,6 +807,25 @@ function parseRuntimeReleaseCandidate(value: unknown) {
   };
 }
 
+function runtimeReleaseSameCandidate(
+  left: { assetType: string; assetIdentity: string; versionId: string },
+  right: { assetType: string; assetIdentity: string; versionId: string },
+) {
+  return (
+    left.assetType === right.assetType &&
+    left.assetIdentity === right.assetIdentity &&
+    left.versionId === right.versionId
+  );
+}
+
+function runtimeReleaseCandidateEquals(
+  value: unknown,
+  candidate: { assetType: string; assetIdentity: string; versionId: string },
+) {
+  const parsed = parseRuntimeReleaseCandidate(value);
+  return Boolean(parsed && runtimeReleaseSameCandidate(parsed, candidate));
+}
+
 function runtimeReleasePayloadContainsCandidate(
   value: unknown,
   assetField: "activeAssets" | "assets",
@@ -728,6 +836,17 @@ function runtimeReleasePayloadContainsCandidate(
   const assets = (value as Record<string, unknown>)[assetField];
   if (!Array.isArray(assets)) return false;
   return assets.some((item) => runtimeReleaseAssetMatchesCandidate(item, candidate, options));
+}
+
+function runtimeReleasePayloadContainsIdentity(
+  value: unknown,
+  assetField: "activeAssets" | "assets",
+  candidate: { assetType: string; assetIdentity: string },
+) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const assets = (value as Record<string, unknown>)[assetField];
+  if (!Array.isArray(assets)) return false;
+  return assets.some((item) => runtimeReleaseAssetMatchesIdentity(item, candidate));
 }
 
 function runtimeReleasePayloadExcludesCandidate(

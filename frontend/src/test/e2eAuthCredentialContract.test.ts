@@ -454,6 +454,7 @@ describe("E2E credential contract", () => {
     expect(source).toContain("assertRuntimeReleaseRequestCarriesRequiredAssets");
     expect(source).toContain("assertRuntimeDetailCarriesRequiredAssets");
     expect(source).toContain("assertRuntimeAssetsContainLocalCandidate");
+    expect(source).toContain("assertRuntimeAssetsExcludeUnselectedCandidate");
     expect(source).toContain("assertRuntimeAssetsExcludeLocalCandidate");
     expect(source).toContain("assertRequiredRuntimeInputsVisibleAndSelected");
     expect(source).toContain("createHospitalRuntimeReleaseCandidate");
@@ -466,7 +467,13 @@ describe("E2E credential contract", () => {
     expect(source).toContain("平台标准内容");
     expect(source).toContain("集团与本院内容");
     expect(source).toContain("前台评估机构生效版本发布影响");
+    expect(source).toContain("前台只选择本轮部分本院内容进入机构生效版本");
     expect(source).toContain("activationRequestCarriesRequiredAssets");
+    expect(source).toContain("partialSelection");
+    expect(source).toContain("unselectedLocalCandidate");
+    expect(source).toContain("activationRequestOmitsUnselected");
+    expect(source).toContain("activationReadbackOmitsUnselected");
+    expect(source).toContain("runtimeConsumerOmitsUnselected");
     expect(source).toContain("activationReadback");
     expect(source).toContain("runtimeConsumerReadback");
     expect(source).toContain("rollbackReadback");

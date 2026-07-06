@@ -58,9 +58,17 @@ type RuntimeReleaseCoverageEvidence = {
   activatedRevisionNo?: number;
   rolledBackRevisionNo?: number;
   localCandidate?: RuntimeReleaseLocalCandidate;
+  unselectedLocalCandidate?: RuntimeReleaseLocalCandidate;
   activationRequest?: { activeAssets: RuntimeReleaseAssetEvidence[] };
   activationReadback?: { assets: RuntimeReleaseAssetEvidence[] };
   runtimeConsumerReadback?: { assets: RuntimeReleaseAssetEvidence[] };
+  partialSelection?: {
+    selectedCandidate: RuntimeReleaseLocalCandidate;
+    unselectedCandidate: RuntimeReleaseLocalCandidate;
+    activationRequestOmitsUnselected: boolean;
+    activationReadbackOmitsUnselected: boolean;
+    runtimeConsumerOmitsUnselected: boolean;
+  };
   rollbackReadback?: { localCandidateAbsent: boolean; assets: RuntimeReleaseAssetEvidence[] };
   rollbackRuntimeConsumerReadback?: {
     localCandidateAbsent: boolean;
@@ -81,6 +89,9 @@ test.describe("机构生效版本真实前台发布回滚", () => {
     try {
       await ensureReadySession(page, "engine-operator");
       const localCandidate = await createHospitalRuntimeReleaseCandidate(page, testInfo);
+      const unselectedLocalCandidate = await createHospitalRuntimeReleaseCandidate(page, testInfo, {
+        purpose: "unselected",
+      });
       clearRuntime(runtime);
       await page.goto("/config/releases", { waitUntil: "networkidle" });
       await expect(page.getByRole("heading", { name: "机构生效版本" })).toBeVisible();
@@ -97,6 +108,12 @@ test.describe("机构生效版本真实前台发布回滚", () => {
       await assertRequiredRuntimeInputsVisibleAndSelected(page);
       recordRuntimeReleaseStage(coverageEvidence, "前台展示并勾选 13 类平台标准资产");
       await selectHospitalLocalRuntimeCandidate(page, localCandidate);
+      await assertHospitalLocalRuntimeCandidateVisibleAndUnselected(page, unselectedLocalCandidate);
+      coverageEvidence.unselectedLocalCandidate = unselectedLocalCandidate;
+      recordRuntimeReleaseStage(
+        coverageEvidence,
+        "前台只选择本轮部分本院内容进入机构生效版本",
+      );
 
       clearRuntime(runtime);
       await assessLocalReleaseImpact(page);
@@ -122,6 +139,11 @@ test.describe("机构生效版本真实前台发布回滚", () => {
       const activationRequestCandidate = assertRuntimeAssetsContainLocalCandidate(
         activationRequestAssets,
         localCandidate,
+        "前台生成机构生效版本请求",
+      );
+      const activationRequestOmitsUnselected = assertRuntimeAssetsExcludeUnselectedCandidate(
+        activationRequestAssets,
+        unselectedLocalCandidate,
         "前台生成机构生效版本请求",
       );
       coverageEvidence.apiEvidence.activationPosted = true;
@@ -151,6 +173,11 @@ test.describe("机构生效版本真实前台发布回滚", () => {
         "前台生成新机构生效版本后端读回",
         { requireActive: true },
       );
+      const activationReadbackOmitsUnselected = assertRuntimeAssetsExcludeUnselectedCandidate(
+        activatedRuntime.items ?? [],
+        unselectedLocalCandidate,
+        "前台生成新机构生效版本后端读回",
+      );
       coverageEvidence.activationReadback = { assets: [activationReadbackCandidate] };
       coverageEvidence.apiEvidence.currentReleaseReadback = true;
       recordRuntimeReleaseStage(coverageEvidence, "后端回读当前机构生效版本资产闭包");
@@ -165,8 +192,24 @@ test.describe("机构生效版本真实前台发布回滚", () => {
         "前台生成新机构生效版本第三方运行契约",
         { requireActive: true },
       );
+      const runtimeConsumerOmitsUnselected = assertRuntimeAssetsExcludeUnselectedCandidate(
+        activatedConsumer.assets ?? [],
+        unselectedLocalCandidate,
+        "前台生成新机构生效版本第三方运行契约",
+      );
       coverageEvidence.runtimeConsumerReadback = { assets: [activationConsumerCandidate] };
       coverageEvidence.apiEvidence.runtimeConsumerReadback = true;
+      coverageEvidence.partialSelection = {
+        selectedCandidate: localCandidate,
+        unselectedCandidate: unselectedLocalCandidate,
+        activationRequestOmitsUnselected,
+        activationReadbackOmitsUnselected,
+        runtimeConsumerOmitsUnselected,
+      };
+      coverageEvidence.apiEvidence.partialSelectionProved =
+        activationRequestOmitsUnselected &&
+        activationReadbackOmitsUnselected &&
+        runtimeConsumerOmitsUnselected;
       coverageEvidence.activatedRevisionNo = activated.data?.revisionNo;
       recordRuntimeReleaseStage(coverageEvidence, "第三方运行契约读取同一机构生效版本");
       recordCleanRuntime(page, "前台生成新机构生效版本", runtime, records);
@@ -289,8 +332,9 @@ async function assertRequiredRuntimeInputsVisibleAndSelected(page: Page) {
 async function createHospitalRuntimeReleaseCandidate(
   page: Page,
   testInfo: TestInfo,
+  options: { purpose?: "selected" | "unselected" } = {},
 ): Promise<RuntimeReleaseLocalCandidate> {
-  const suffix = `${Date.now()}-${testInfo.retry}`;
+  const suffix = `${Date.now()}-${testInfo.retry}-${options.purpose ?? "selected"}`;
   const assetIdentity = `ACTION_CARD.RUNTIME.RELEASE.${suffix}`;
   const response = await postApi(page, "/engine/authoring/declarative-assets", {
     assetType: "ACTION_CARD",
@@ -299,12 +343,21 @@ async function createHospitalRuntimeReleaseCandidate(
     sourceRef: "local-e2e:runtime-release-frontdesk",
     content: {
       schemaVersion: "1.0",
-      title: "机构生效版本本院提示卡",
+      title:
+        options.purpose === "unselected"
+          ? "机构生效版本未选择本院提示卡"
+          : "机构生效版本本院提示卡",
       actionCode: "INFO",
       atSeverity: "LOW",
       indicator: "info",
-      summary: "用于验证本院候选资产进入机构生效版本前必须完成发布影响评估。",
-      detail: "本资产仅用于本地上线演练，不包含诊疗结论，不自动开立医嘱。",
+      summary:
+        options.purpose === "unselected"
+          ? "用于验证本院候选资产可见但未被选入本轮机构生效版本。"
+          : "用于验证本院候选资产进入机构生效版本前必须完成发布影响评估。",
+      detail:
+        options.purpose === "unselected"
+          ? "本资产仅用于本地上线演练的部分选择缺席证明，不参与临床运行。"
+          : "本资产仅用于本地上线演练，不包含诊疗结论，不自动开立医嘱。",
       source: { label: "MedKernel 本地上线演练" },
       suggestions: [
         { label: "查看机构生效版本", actionType: "OPEN_FORM", payload: { target: "runtime" } },
@@ -360,6 +413,30 @@ async function selectHospitalLocalRuntimeCandidate(
   await expect(candidateRow, "本轮候选行必须展示候选版本").toContainText(
     candidate.versionNo ?? candidate.versionId,
   );
+}
+
+async function assertHospitalLocalRuntimeCandidateVisibleAndUnselected(
+  page: Page,
+  candidate: RuntimeReleaseLocalCandidate,
+) {
+  const localContentCard = page
+    .locator(".ant-card")
+    .filter({ has: page.getByText("集团与本院内容", { exact: true }) })
+    .first();
+  const candidateRow = localContentCard
+    .getByRole("row")
+    .filter({ hasText: candidate.assetIdentity })
+    .filter({ hasText: "本院 · 临床提示卡内容" })
+    .first();
+  await expect(
+    candidateRow,
+    `集团与本院内容必须展示未选择候选资产 ${candidate.assetIdentity}`,
+  ).toBeVisible({ timeout: 20_000 });
+  const enableCheckbox = candidateRow.getByRole("checkbox", {
+    name: /启用本院临床提示卡内容/u,
+  });
+  await expect(enableCheckbox, "未选择候选资产必须可勾选但保持未选").toBeVisible();
+  await expect(enableCheckbox, "本轮未选择候选资产不应进入机构生效版本").not.toBeChecked();
 }
 
 async function assertCurrentRuntimeAssetsReady(
@@ -533,6 +610,24 @@ function assertRuntimeAssetsExcludeLocalCandidate(
   };
 }
 
+function assertRuntimeAssetsExcludeUnselectedCandidate(
+  assets: Array<RuntimeAssetSelection | RuntimeReleaseItem>,
+  candidate: RuntimeReleaseLocalCandidate,
+  label: string,
+) {
+  const stillPresent = assets.find(
+    (item) =>
+      item.assetType === candidate.assetType &&
+      item.assetIdentity === candidate.assetIdentity &&
+      item.versionId === candidate.versionId,
+  );
+  expect(
+    stillPresent,
+    `${label} 不应包含本轮未选择候选资产 ${candidate.assetType} ${candidate.assetIdentity} ${candidate.versionId}`,
+  ).toBeUndefined();
+  return true;
+}
+
 function toRuntimeReleaseAssetEvidence(
   asset: RuntimeAssetSelection | RuntimeReleaseItem | RuntimeReleaseLocalCandidate,
   fallback?: RuntimeReleaseLocalCandidate,
@@ -680,6 +775,7 @@ function createRuntimeReleaseCoverageEvidence(): RuntimeReleaseCoverageEvidence 
     serviceCombinations: ["CLINICAL_RUNTIME", "THIRD_PARTY_INTERFACE"],
     apiEvidence: {
       impactSimulationRun: false,
+      partialSelectionProved: false,
       activationPosted: false,
       activationRequestCarriesRequiredAssets: false,
       currentReleaseReadback: false,

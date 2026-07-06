@@ -10,6 +10,44 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百四十三批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，也不是完整 S13、两机构差异化发布、离线交付、导入校验、全角色全功能或 134
+  清库部署收口，而是把既有 `runtime-release-frontdesk.spec.ts` 从“选择一个本院候选进入机构生效版本”
+  补成可证明 S13 部分选择上线的真实证据切片。`launchCoverageEvidence` 现在将 runtime-release coverage
+  拆成两层门槛：完整发布 / 回滚 / 13 类资产闭包证据继续只声明 `RELEASE_GOVERNANCE`、13 类 `versionedAssets`、
+  `MANAGEMENT_WORKSPACE/API_EVENT` 和 `CLINICAL_RUNTIME/THIRD_PARTY_INTERFACE`；只有额外附件证明本轮同时创建
+  selected 与 unselected 两个本院候选，且 unselected 在激活请求、后端当前版本读回和第三方运行契约读回均缺席时，
+  才额外声明 `scenarios:S13`。
+- 第一百四十三批真实链路说明：`runtime-release-frontdesk.spec.ts` 现在每轮通过真实后端创建两个本院
+  `ACTION_CARD.RUNTIME.RELEASE.*` 候选；真实前台进入 `/config/releases` 选择本地上线演练医院，确认 13 类平台标准资产
+  已勾选，在“集团与本院内容”中只勾选 selected 候选，并断言 unselected 候选可见但保持未选；完成发布影响评估后，
+  前台生成机构生效版本。附件 `runtime-release-coverage-codes` 记录 selected / unselected 的
+  `assetType/assetIdentity/versionId/versionNo`，并证明激活请求、后端当前机构生效版本读回、第三方运行契约读回
+  只包含 selected、不包含 unselected；随后仍执行历史版本回滚并证明本轮 selected 在回滚后后端和第三方运行契约均缺席。
+- 第一百四十三批边界说明：本批新增 coverage 只是在既有 runtime-release 证据上额外声明 `scenarios:S13` 的
+  “部分选择上线”切片；不声明完整 S13、两家机构差异化扩展、平台升级冲突分析、离线交付文件导出 / 导入 / 签名校验、
+  完整 13 类资产逐类消费者、全角色真实操作或 134 清库复演。
+- 第一百四十三批验证证据：TDD 红灯
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "release governance and runtime asset coverage"`
+  曾失败于完整 partial-selection 附件仍不声明 `S13`（`expected undefined to deeply equal [ 'S13' ]`）；
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -t "runtime release frontdesk"` 曾失败于目标 spec
+  缺 `assertRuntimeAssetsExcludeUnselectedCandidate`。修正后另一个回归红点显示，缺 partial proof 时不能连既有
+  `RELEASE_GOVERNANCE` 一起拒绝，已拆成两层 reporter 门槛并转绿。E2E TS 检查
+  `cd frontend && npx tsc --noEmit --pretty false --skipLibCheck false --allowImportingTsExtensions --moduleResolution bundler --module ESNext --target ES2022 --lib ES2023,DOM --strict --types node e2e/support/launchCoverageEvidence.ts e2e/runtime-release-frontdesk.spec.ts`
+  通过。目标真实 E2E 在本地 18080 dev/H2 后端（PID 49326）上通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-runtime-release-partial-selection npm --prefix frontend run e2e -- --project=chromium runtime-release-frontdesk.spec.ts`
+  通过，仓库外 `results.json` 为 `PASSED`（1 expected，0 unexpected，0 flaky），coverage 含
+  `scenarios:S13`、`productLayers:RELEASE_GOVERNANCE`、13 类 `versionedAssets`、`deliveryShapes:MANAGEMENT_WORKSPACE/API_EVENT`、
+  `serviceCombinations:CLINICAL_RUNTIME/THIRD_PARTY_INTERFACE`；附件记录 `partialSelectionProved=true`，
+  selected 候选进入请求 / 后端读回 / 第三方读回，unselected 候选在三处均缺席。其他新鲜门禁：
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract` 通过（56 tests）；
+  `npm --prefix frontend run typecheck` 通过；`node --test scripts/release/launch-coverage-audit.test.mjs`
+  通过（6 tests）；`git diff --check` 通过。
+- 第一百四十三批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把 S13 部分选择证据切片
+  等同于完整 S13 或总目标完成。后续优先继续真实覆盖缺口：S13 两机构差异化发布 / 平台升级冲突分析 /
+  离线交付文件导出、签名校验、导入或校验闭环，S2/S4 真实接入与字典映射，S0-S40 其余场景、完整语义族 / 专业域 /
+  全知识、真实备份 / 隔离恢复 / 重启恢复，以及 134 清库部署复演；继续坚持真实前台与真实服务链路，发现红点先复现、
+  定根因，再按上线级标准修复，不做片面优化。
 - 第一百四十二批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，也不是完整 S14、完整身份安全治理、全角色全功能或 134 清库部署收口，而是把既有
   `identity-binding-frontdesk.spec.ts` 从“真实前台绑定 / 解绑 + 隐私断言”补成可被浏览器覆盖 reporter

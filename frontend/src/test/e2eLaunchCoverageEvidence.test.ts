@@ -35,6 +35,7 @@ const runtimeReleaseApiEvidence = {
   rollbackPosted: true,
   rollbackCurrentReleaseReadback: true,
   rollbackRuntimeConsumerReadback: true,
+  partialSelectionProved: true,
 };
 
 const runtimeReleaseScenarioEvidence = [
@@ -42,6 +43,7 @@ const runtimeReleaseScenarioEvidence = [
     observedStages: [
       "前台展示并勾选 13 类平台标准资产",
       "前台评估机构生效版本发布影响",
+      "前台只选择本轮部分本院内容进入机构生效版本",
       "前台生成携带 13 类资产闭包的机构生效版本",
       "后端回读当前机构生效版本资产闭包",
       "第三方运行契约读取同一机构生效版本",
@@ -229,6 +231,11 @@ describe("browser E2E launch coverage evidence", () => {
                   assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
                   versionId: "local-version-1",
                 },
+                unselectedLocalCandidate: {
+                  assetType: "ACTION_CARD",
+                  assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.2",
+                  versionId: "local-version-2",
+                },
                 activationRequest: {
                   activeAssets: [
                     {
@@ -257,6 +264,21 @@ describe("browser E2E launch coverage evidence", () => {
                       entryState: "ACTIVE",
                     },
                   ],
+                },
+                partialSelection: {
+                  selectedCandidate: {
+                    assetType: "ACTION_CARD",
+                    assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+                    versionId: "local-version-1",
+                  },
+                  unselectedCandidate: {
+                    assetType: "ACTION_CARD",
+                    assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.2",
+                    versionId: "local-version-2",
+                  },
+                  activationRequestOmitsUnselected: true,
+                  activationReadbackOmitsUnselected: true,
+                  runtimeConsumerOmitsUnselected: true,
                 },
                 rollbackReadback: { localCandidateAbsent: true, assets: [] },
                 rollbackRuntimeConsumerReadback: { localCandidateAbsent: true, assets: [] },
@@ -294,7 +316,7 @@ describe("browser E2E launch coverage evidence", () => {
       "CLINICAL_RUNTIME",
       "THIRD_PARTY_INTERFACE",
     ]);
-    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S13"]);
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
@@ -381,6 +403,74 @@ describe("browser E2E launch coverage evidence", () => {
 
     expect(evidence.launchCoverage.productLayers).toBeUndefined();
     expect(evidence.launchCoverage.versionedAssets).toBeUndefined();
+  });
+
+  it("does not declare S13 partial-selection coverage when runtime evidence omits the unselected candidate absence proof", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/runtime-release-frontdesk.spec.ts",
+          title: "医疗引擎运营员可为本院生成新生效版本并从历史版本回滚",
+          status: "passed",
+          attachments: [
+            {
+              name: "runtime-release-coverage-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                productLayers: ["RELEASE_GOVERNANCE"],
+                versionedAssets: runtimeReleaseVersionedAssets,
+                deliveryShapes: ["MANAGEMENT_WORKSPACE", "API_EVENT"],
+                serviceCombinations: ["CLINICAL_RUNTIME", "THIRD_PARTY_INTERFACE"],
+                apiEvidence: runtimeReleaseApiEvidence,
+                localCandidate: {
+                  assetType: "ACTION_CARD",
+                  assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+                  versionId: "local-version-1",
+                },
+                activationRequest: {
+                  activeAssets: [
+                    {
+                      assetType: "ACTION_CARD",
+                      assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+                      versionId: "local-version-1",
+                    },
+                  ],
+                },
+                activationReadback: {
+                  assets: [
+                    {
+                      assetType: "ACTION_CARD",
+                      assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+                      versionId: "local-version-1",
+                      entryState: "ACTIVE",
+                    },
+                  ],
+                },
+                runtimeConsumerReadback: {
+                  assets: [
+                    {
+                      assetType: "ACTION_CARD",
+                      assetIdentity: "ACTION_CARD.RUNTIME.RELEASE.1",
+                      versionId: "local-version-1",
+                      entryState: "ACTIVE",
+                    },
+                  ],
+                },
+                rollbackReadback: { localCandidateAbsent: true, assets: [] },
+                rollbackRuntimeConsumerReadback: { localCandidateAbsent: true, assets: [] },
+                scenarioEvidence: runtimeReleaseScenarioEvidence,
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "RELEASE_GOVERNANCE",
+    ]);
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
   });
 
   it("declares system operations coverage only when service providers rehearsal attaches readonly operations evidence", () => {
