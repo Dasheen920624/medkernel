@@ -237,6 +237,26 @@ public class FollowupTemplateService {
         return template;
     }
 
+    Optional<FollowupTemplate> findById(String tenantId, String templateId) {
+        if (normalize(tenantId) == null || normalize(templateId) == null) {
+            return Optional.empty();
+        }
+        return templates.findByTemplateIdAndTenantId(templateId.trim(), tenantId.trim());
+    }
+
+    Optional<FollowupTemplate> findByCodeAndVersion(
+            String tenantId,
+            String templateCode,
+            Integer versionNo) {
+        if (normalize(tenantId) == null || normalize(templateCode) == null || versionNo == null) {
+            return Optional.empty();
+        }
+        return templates.findByTenantIdAndTemplateCodeAndVersionNo(
+            tenantId.trim(),
+            templateCode.trim(),
+            versionNo);
+    }
+
     List<FollowupTemplateTaskInput> tasks(FollowupTemplate template) {
         try {
             return json.readValue(template.taskDefinitionJson(), TASK_LIST);

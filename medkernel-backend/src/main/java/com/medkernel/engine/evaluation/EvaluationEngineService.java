@@ -556,23 +556,14 @@ public class EvaluationEngineService {
     public EvaluationRunResponse run(EvaluationRunRequest request) {
         validateRun(request);
         String tenantId = tenantId();
-        Map<String, EvaluationIndicator> activeIndicators = new LinkedHashMap<>();
-        for (EvaluationResultRequest resultRequest : request.results()) {
-            EvaluationIndicator indicator = indicators
-                .findByIndicatorIdAndTenantId(resultRequest.indicatorId(), tenantId)
-                .orElseThrow(() -> new ApiException(ErrorCode.ENG_EVAL_004));
-            if (indicator.status() != EvaluationIndicatorStatus.ACTIVE) {
-                throw new ApiException(ErrorCode.ENG_EVAL_004);
-            }
-            activeIndicators.put(resultRequest.indicatorId(), indicator);
-            validateResult(resultRequest);
-        }
+        String runtimeReleaseId = resolveRuntimeReleaseId(request, tenantId);
+        Map<String, EvaluationIndicator> activeIndicators =
+            resolveActiveIndicatorsForRun(request, tenantId, runtimeReleaseId);
 
         Instant now = Instant.now();
         String actor = actor();
         String traceId = traceId();
         String runId = "er-" + UUID.randomUUID();
-        String runtimeReleaseId = resolveRuntimeReleaseId(request, tenantId);
         EvaluationRun savedRun = runs.save(new EvaluationRun(
             null, runId, tenantId, request.runCode(), request.runType(), request.sourceEventId(),
             request.contextSnapshotId(), request.patientId(), request.encounterId(), request.scenarioCode(),
@@ -979,6 +970,37 @@ public class EvaluationEngineService {
         if (!hasContextReference && !hasManualSource) {
             throw new ApiException(ErrorCode.ENG_EVAL_001, "评估运行缺少可追溯的上下文或人工抽检来源");
         }
+    }
+
+    private Map<String, EvaluationIndicator> resolveActiveIndicatorsForRun(
+            EvaluationRunRequest request, String tenantId, String runtimeReleaseId) {
+        Map<String, EvaluationIndicator> activeIndicators = hasText(runtimeReleaseId)
+            ? activeRuntimeIndicatorsById(tenantId, runtimeReleaseId)
+            : new LinkedHashMap<>();
+        for (EvaluationResultRequest resultRequest : request.results()) {
+            EvaluationIndicator indicator = hasText(runtimeReleaseId)
+                ? activeIndicators.get(resultRequest.indicatorId())
+                : indicators.findByIndicatorIdAndTenantId(resultRequest.indicatorId(), tenantId)
+                    .orElseThrow(() -> new ApiException(ErrorCode.ENG_EVAL_004));
+            if (indicator == null || indicator.status() != EvaluationIndicatorStatus.ACTIVE) {
+                throw new ApiException(ErrorCode.ENG_EVAL_004);
+            }
+            activeIndicators.put(resultRequest.indicatorId(), indicator);
+            validateResult(resultRequest);
+        }
+        return activeIndicators;
+    }
+
+    private Map<String, EvaluationIndicator> activeRuntimeIndicatorsById(
+            String tenantId, String runtimeReleaseId) {
+        Map<String, EvaluationIndicator> runtimeIndicators = new LinkedHashMap<>();
+        for (EvaluationIndicator indicator : runtimeEvaluations.select(tenantId, runtimeReleaseId)) {
+            if (indicator.status() != EvaluationIndicatorStatus.ACTIVE) {
+                throw new ApiException(ErrorCode.ENG_EVAL_004);
+            }
+            runtimeIndicators.put(indicator.indicatorId(), indicator);
+        }
+        return runtimeIndicators;
     }
 
     private String resolveRuntimeReleaseId(EvaluationRunRequest request, String tenantId) {

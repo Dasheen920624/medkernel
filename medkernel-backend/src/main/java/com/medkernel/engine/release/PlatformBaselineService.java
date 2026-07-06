@@ -167,15 +167,17 @@ public class PlatformBaselineService {
 
         assertDependencyClosure(manifest);
         Instant now = clock.instant();
-        for (AssetVersion version : draftVersions.values()) {
-            AssetVersion published = versions.save(version.withStatusAndWindow(
-                AssetVersionStatus.PUBLISHED,
-                "version:" + version.versionId(),
-                now,
-                null,
-                now,
-                actor
-            ));
+        for (AssetVersion version : requestedVersions.values()) {
+            AssetVersion published = version.status() == AssetVersionStatus.DRAFT
+                ? versions.save(version.withStatusAndWindow(
+                    AssetVersionStatus.PUBLISHED,
+                    "version:" + version.versionId(),
+                    now,
+                    null,
+                    now,
+                    actor
+                ))
+                : version;
             notifyPublished(published, now, actor, command.traceId());
         }
 

@@ -256,6 +256,30 @@
   overflow: hidden;
 }
 
+.followupPlanPrimaryColumn {
+  vertical-align: top;
+}
+
+.followupPlanCell {
+  min-width: 0;
+  width: 100%;
+}
+
+.followupEvidenceText {
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.followupEvidenceTag {
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.6;
+}
+
 .workflowTodoPrimaryColumn {
   vertical-align: top;
 }

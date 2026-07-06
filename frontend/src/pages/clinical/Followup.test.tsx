@@ -474,7 +474,9 @@ describe("Followup", () => {
     expect(screen.queryByText(/patient_proxy-mr28o43q/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("switch", { name: "证据详情" }));
-    expect(screen.getAllByText("ftpl-patient-proxy · v1").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("全角色患者代理随访方案 · ftpl-patient-proxy · v1").length,
+    ).toBeGreaterThan(0);
   });
 
   it("办理抽屉打开后收起背景计划列表，避免干扰护士操作", async () => {
@@ -500,12 +502,85 @@ describe("Followup", () => {
     expect(screen.getByText("plan-real-1")).toBeInTheDocument();
     expect(screen.getByText("patient-real-1")).toBeInTheDocument();
     expect(screen.getByText("enc-real-1")).toBeInTheDocument();
-    expect(screen.getByText("ftpl-1 · v1")).toBeInTheDocument();
+    expect(screen.getByText("慢阻肺出院随访 · ftpl-1 · v1")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /查看与办理/ }));
     await screen.findByText("随访任务");
+    expect(screen.getAllByText("慢阻肺出院随访 · ftpl-1 · v1").length).toBeGreaterThan(0);
     expect(screen.getByText("task-questionnaire-1")).toBeInTheDocument();
     expect(screen.getByText("FOLLOWUP_QUESTIONNAIRE_DEFAULT")).toBeInTheDocument();
+  });
+
+  it("随访计划证据标识在列表内换行展示，不撑破真实前台根布局", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/pages/clinical/Followup.tsx"), {
+      encoding: "utf8",
+    });
+
+    expect(source).toContain("className={styles.tablePanel}");
+    expect(source).toContain('tableLayout="fixed"');
+    expect(source).toContain("scroll={{ x: 1220 }}");
+    expect(source).toContain("className: styles.followupPlanPrimaryColumn");
+    expect(source).toContain("className={styles.followupEvidenceText}");
+    expect(source).toContain("className={styles.followupEvidenceTag}");
+    expect(source).toContain("width=\"min(860px, 100vw)\"");
+    expect(source).toContain('column={{ xs: 1, sm: 1, md: 2 }}');
+    expect(source).toContain("task.questionnaireTemplateId");
+    expect(source).toContain("FollowupEvidenceTag color=\"red\"");
+    expect(source).toContain("FollowupEvidenceTag color=\"orange\"");
+    expect(source).toContain("FollowupEvidenceTag color=\"gold\"");
+    expect(clinicalCss).toMatch(
+      /\.followupEvidenceText\s*\{[^}]*min-width:\s*0;[^}]*overflow-wrap:\s*anywhere;[^}]*word-break:\s*break-word;/s,
+    );
+    expect(clinicalCss).toMatch(
+      /\.followupEvidenceTag\s*\{[^}]*max-width:\s*100%;[^}]*white-space:\s*normal;/s,
+    );
+  });
+
+  it("随访计划响应自带方案名称时不依赖模板分页结果展示业务方案名", async () => {
+    const user = userEvent.setup();
+    followupHookMocks.useFollowupPlans.mockReturnValue({
+      data: {
+        items: [
+          {
+            planId: "plan-stable-template-name",
+            tenantId: "tenant-A",
+            patientId: "patient-real-1",
+            encounterId: "enc-real-1",
+            diseaseCode: "COPD",
+            templateId: "ftpl-outside-current-page",
+            templateCode: "FUP.STABLE.NAME",
+            templateName: "真实前台慢病随访方案",
+            templateVersion: 7,
+            status: "ACTIVE",
+            tasks: [],
+          },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        hasNext: false,
+      },
+      isError: false,
+      isLoading: false,
+      refetch: followupHookMocks.refetchPlans,
+    });
+    followupHookMocks.useFollowupTemplates.mockReturnValue({
+      data: { items: [], page: 1, size: 20, total: 0, hasNext: false },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderFollowup();
+
+    expect(screen.getByText("真实前台慢病随访方案（第 7 版）")).toBeInTheDocument();
+    expect(screen.queryByText("已绑定随访方案（第 7 版）")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("switch", { name: "证据详情" }));
+    expect(
+      screen.getByText("真实前台慢病随访方案 · ftpl-outside-current-page · v7"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("已绑定随访方案 · ftpl-outside-current-page · v7")).not.toBeInTheDocument();
   });
 
   it("keeps follow-up read failures in hospital language", () => {

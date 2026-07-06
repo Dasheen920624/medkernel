@@ -139,15 +139,38 @@ function templateVersionText(version: number | null | undefined, evidenceDetails
 }
 
 function planTemplateText(
-  plan: Pick<FollowupPlanDetailResponse, "templateId" | "templateVersion">,
+  plan: Pick<
+    FollowupPlanDetailResponse,
+    "templateId" | "templateVersion" | "templateName" | "templateCode"
+  >,
   templateNameById: Map<string, string>,
   evidenceDetailsEnabled: boolean,
 ) {
   if (!plan.templateId) return "未绑定随访方案";
   const version = templateVersionText(plan.templateVersion, evidenceDetailsEnabled);
-  if (evidenceDetailsEnabled) return `${plan.templateId}${version}`;
-  const templateName = templateBusinessName(templateNameById.get(plan.templateId));
+  const templateName = templateBusinessName(
+    plan.templateName ?? templateNameById.get(plan.templateId),
+  );
+  if (evidenceDetailsEnabled) return `${templateName} · ${plan.templateId}${version}`;
   return `${templateName}${version}`;
+}
+
+function FollowupEvidenceText({ children }: { children: ReactNode }) {
+  return <span className={styles.followupEvidenceText}>{children}</span>;
+}
+
+function FollowupEvidenceTag({
+  children,
+  color,
+}: {
+  children: ReactNode;
+  color?: string;
+}) {
+  return (
+    <Tag color={color} className={styles.followupEvidenceTag}>
+      <FollowupEvidenceText>{children}</FollowupEvidenceText>
+    </Tag>
+  );
 }
 
 function hasPermission(profile: SecurityProfile | undefined, code: string) {
@@ -467,10 +490,14 @@ export default function Followup() {
     {
       title: "随访计划",
       key: "plan",
+      width: 220,
+      className: styles.followupPlanPrimaryColumn,
       render: (_value: unknown, record) => (
-        <Space direction="vertical" size={0}>
+        <Space direction="vertical" size={0} className={styles.followupPlanCell}>
           <span className={styles.textStrong}>
-            {evidenceDetailsEnabled ? record.planId : "已生成随访计划"}
+            <FollowupEvidenceText>
+              {evidenceDetailsEnabled ? record.planId : "已生成随访计划"}
+            </FollowupEvidenceText>
           </span>
         </Space>
       ),
@@ -478,12 +505,15 @@ export default function Followup() {
     {
       title: "随访对象",
       key: "subject",
+      width: 210,
       render: (_value: unknown, record) => (
         <Space wrap>
-          <Tag>{associationText(record.patientId, evidenceDetailsEnabled, "患者")}</Tag>
-          <Tag color="blue">
+          <FollowupEvidenceTag>
+            {associationText(record.patientId, evidenceDetailsEnabled, "患者")}
+          </FollowupEvidenceTag>
+          <FollowupEvidenceTag color="blue">
             {associationText(record.encounterId, evidenceDetailsEnabled, "就诊")}
-          </Tag>
+          </FollowupEvidenceTag>
         </Space>
       ),
     },
@@ -491,22 +521,27 @@ export default function Followup() {
       title: "随访病种",
       dataIndex: "diseaseCode",
       key: "diseaseCode",
+      width: 110,
       render: (code: string) => (
-        <Tag>{evidenceDetailsEnabled ? code : optionLabel(followupDiseaseOptions, code)}</Tag>
+        <FollowupEvidenceTag>
+          {evidenceDetailsEnabled ? code : optionLabel(followupDiseaseOptions, code)}
+        </FollowupEvidenceTag>
       ),
     },
     {
       title: "随访方案",
       key: "template",
+      width: 280,
       render: (_value: unknown, record) => (
-        <Tag color={record.templateId ? "purple" : "default"}>
+        <FollowupEvidenceTag color={record.templateId ? "purple" : "default"}>
           {planTemplateText(record, templateNameById, evidenceDetailsEnabled)}
-        </Tag>
+        </FollowupEvidenceTag>
       ),
     },
     {
       title: "任务进度",
       key: "progress",
+      width: 170,
       render: (_value: unknown, record) => {
         const total = record.tasks.length;
         const done = record.tasks.filter((task) => task.status === "COMPLETED").length;
@@ -525,6 +560,7 @@ export default function Followup() {
       title: "计划状态",
       dataIndex: "status",
       key: "status",
+      width: 110,
       render: (status: FollowupPlanStatus) => {
         const current = planStatusConfig[status] ?? {
           status: "default",
@@ -536,6 +572,7 @@ export default function Followup() {
     {
       title: "操作",
       key: "action",
+      width: 120,
       render: (_value: unknown, record) => (
         <Button
           type="link"
@@ -806,12 +843,18 @@ export default function Followup() {
             />
           )}
 
-          <Card aria-label="随访计划列表" hidden={followupHandlingDrawerOpen}>
+          <Card
+            aria-label="随访计划列表"
+            className={styles.tablePanel}
+            hidden={followupHandlingDrawerOpen}
+          >
             <Table
               columns={columns}
               dataSource={displayPlans}
               rowKey="planId"
               loading={isLoading}
+              tableLayout="fixed"
+              scroll={{ x: 1220 }}
               locale={{ emptyText: "当前暂无随访计划" }}
               pagination={{
                 current: apiPlansData?.page ?? planPage,
@@ -1016,7 +1059,7 @@ export default function Followup() {
       <Drawer
         title="随访计划办理"
         aria-label="随访计划办理"
-        width={860}
+        width="min(860px, 100vw)"
         zIndex={FOLLOWUP_HANDLING_DRAWER_Z_INDEX}
         open={followupHandlingDrawerOpen}
         onClose={() => {
@@ -1028,28 +1071,38 @@ export default function Followup() {
       >
         {selectedPlanDetail && (
           <Space direction="vertical" size="large" className={styles.fullWidth}>
-            <Descriptions bordered size="small" column={2}>
+            <Descriptions bordered size="small" column={{ xs: 1, sm: 1, md: 2 }}>
               <Descriptions.Item label="计划证据">
-                {evidenceDetailsEnabled ? selectedPlanDetail.planId : "已生成随访计划"}
+                <FollowupEvidenceText>
+                  {evidenceDetailsEnabled ? selectedPlanDetail.planId : "已生成随访计划"}
+                </FollowupEvidenceText>
               </Descriptions.Item>
               <Descriptions.Item label="服务机构">
-                {evidenceDetailsEnabled ? selectedPlanDetail.tenantId : "当前服务机构"}
+                <FollowupEvidenceText>
+                  {evidenceDetailsEnabled ? selectedPlanDetail.tenantId : "当前服务机构"}
+                </FollowupEvidenceText>
               </Descriptions.Item>
               <Descriptions.Item label="患者">
-                {associationText(selectedPlanDetail.patientId, evidenceDetailsEnabled, "患者")}
+                <FollowupEvidenceText>
+                  {associationText(selectedPlanDetail.patientId, evidenceDetailsEnabled, "患者")}
+                </FollowupEvidenceText>
               </Descriptions.Item>
               <Descriptions.Item label="就诊">
-                {associationText(selectedPlanDetail.encounterId, evidenceDetailsEnabled, "就诊")}
+                <FollowupEvidenceText>
+                  {associationText(selectedPlanDetail.encounterId, evidenceDetailsEnabled, "就诊")}
+                </FollowupEvidenceText>
               </Descriptions.Item>
               <Descriptions.Item label="随访病种">
-                {evidenceDetailsEnabled
-                  ? selectedPlanDetail.diseaseCode
-                  : optionLabel(followupDiseaseOptions, selectedPlanDetail.diseaseCode)}
+                <FollowupEvidenceText>
+                  {evidenceDetailsEnabled
+                    ? selectedPlanDetail.diseaseCode
+                    : optionLabel(followupDiseaseOptions, selectedPlanDetail.diseaseCode)}
+                </FollowupEvidenceText>
               </Descriptions.Item>
               <Descriptions.Item label="随访方案">
-                <Tag color={selectedPlanDetail.templateId ? "purple" : "default"}>
+                <FollowupEvidenceTag color={selectedPlanDetail.templateId ? "purple" : "default"}>
                   {planTemplateText(selectedPlanDetail, templateNameById, evidenceDetailsEnabled)}
-                </Tag>
+                </FollowupEvidenceTag>
               </Descriptions.Item>
               <Descriptions.Item label="状态">
                 <Badge
@@ -1071,11 +1124,17 @@ export default function Followup() {
                           {customerEnumLabel(task.status)}
                         </Tag>
                         <span className={styles.textStrong}>
-                          {evidenceDetailsEnabled ? task.taskId : `第 ${index + 1} 项`}
+                          <FollowupEvidenceText>
+                            {evidenceDetailsEnabled ? task.taskId : `第 ${index + 1} 项`}
+                          </FollowupEvidenceText>
                         </span>
                         <span>{customerEnumLabel(task.taskType)}</span>
                         {evidenceDetailsEnabled && task.questionnaireTemplateId ? (
-                          <span className={styles.textMuted}>{task.questionnaireTemplateId}</span>
+                          <span className={styles.textMuted}>
+                            <FollowupEvidenceText>
+                              {task.questionnaireTemplateId}
+                            </FollowupEvidenceText>
+                          </span>
                         ) : null}
                         <span className={styles.textMuted}>
                           截止：{formatClinicalDate(task.dueDate)}
@@ -1197,26 +1256,26 @@ export default function Followup() {
                   message="异常回院证据已登记"
                   description={
                     <Space wrap>
-                      <Tag color="red">
+                      <FollowupEvidenceTag color="red">
                         {evidenceDetailsEnabled
                           ? `异常记录 ${abnormalEvidence.eventId}`
                           : "异常记录已登记"}
-                      </Tag>
-                      <Tag color="orange">
+                      </FollowupEvidenceTag>
+                      <FollowupEvidenceTag color="orange">
                         {evidenceDetailsEnabled
                           ? `回院任务 ${abnormalEvidence.returnTaskId}`
                           : "回院任务已生成"}
-                      </Tag>
-                      <Tag color="gold">
+                      </FollowupEvidenceTag>
+                      <FollowupEvidenceTag color="gold">
                         {evidenceDetailsEnabled
                           ? `通知记录 ${abnormalEvidence.notificationEventId}`
                           : "通知已发送"}
-                      </Tag>
-                      <Tag>
+                      </FollowupEvidenceTag>
+                      <FollowupEvidenceTag>
                         {evidenceDetailsEnabled
                           ? `追踪号 ${abnormalEvidence.traceId}`
                           : "追踪已记录"}
-                      </Tag>
+                      </FollowupEvidenceTag>
                     </Space>
                   }
                 />

@@ -7024,6 +7024,8 @@ export interface FollowupPlanDetailResponse {
   tasks: FollowupTaskDetailResponse[];
   templateId?: string | null;
   templateVersion?: number | null;
+  templateCode?: string | null;
+  templateName?: string | null;
 }
 
 export interface FollowupPlanGenerateRequest {

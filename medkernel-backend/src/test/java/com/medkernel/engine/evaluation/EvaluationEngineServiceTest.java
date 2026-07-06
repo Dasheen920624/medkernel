@@ -21,6 +21,7 @@ import com.medkernel.shared.api.error.ErrorCode;
 import com.medkernel.shared.audit.AuditAction;
 import com.medkernel.shared.audit.AuditRecorder;
 import com.medkernel.shared.context.OrgScope;
+import com.medkernel.shared.context.PlatformTenant;
 import com.medkernel.shared.context.RequestContext;
 import com.medkernel.shared.observability.DiagnoseResponse;
 import com.medkernel.shared.observability.DiagnoseResponseAssembler;
@@ -897,6 +898,69 @@ class EvaluationEngineServiceTest {
         verify(results).save(result.capture());
         assertThat(result.getValue().indicatorId()).isEqualTo("ei-runtime");
         verify(indicators, never()).findByIndicatorIdAndTenantId("ei-outside", "tenant-A");
+    }
+
+    @Test
+    void evaluateSnapshotAllowsPlatformIndicatorPinnedByCurrentRuntimeRelease() {
+        ContextSnapshot snapshot = snapshot("snap-1");
+        when(snapshots.findBySnapshotIdAndTenantId("snap-1", "tenant-A")).thenReturn(Optional.of(snapshot));
+        when(canonicalResources.findBySnapshotIdOrderBySeqNoAsc("snap-1"))
+            .thenReturn(List.of(patientResource(
+                "res-1", "{\"patientId\":\"patient-1\",\"qualityReady\":true,\"completed\":true}")));
+
+        EvaluationIndicator platformIndicator = new EvaluationIndicator(
+            null, "ei-platform", PlatformTenant.ID, "EVAL.PLATFORM.BASELINE", 1,
+            "平台基线评价指标",
+            EvaluationSubjectType.MEDICAL_RECORD,
+            ruleDefinition("patient.qualityReady", "equals", "true"),
+            ruleDefinition("patient.completed", "equals", "true"),
+            null, "P1级严重质量缺陷", "DISCHARGE+24H", "全院", "dept-1", "platform-guideline",
+            EvaluationIndicatorStatus.ACTIVE, Instant.now(), "platform-admin", Instant.now(), Instant.now(),
+            "platform-admin", Instant.now(), "platform-admin", "trace-platform");
+        when(runtimeEvaluations.select("tenant-A", "runtime-release-test"))
+            .thenReturn(List.of(platformIndicator));
+        when(ruleEvaluator.evaluateConditionTree(any(), any(), any()))
+            .thenReturn(ruleEvaluation(true, "分母入组规则校验", "patient.qualityReady", true))
+            .thenReturn(ruleEvaluation(true, "分子达标规则校验", "patient.completed", true));
+
+        EvaluationRunResponse response = service.evaluateSnapshot(
+            new EvaluationEvaluateSnapshotRequest("snap-1", "DISCHARGE"));
+
+        assertThat(response.status()).isEqualTo(EvaluationRunStatus.RECORDED);
+        assertThat(response.resultCount()).isEqualTo(1);
+        ArgumentCaptor<EvaluationRun> run = ArgumentCaptor.forClass(EvaluationRun.class);
+        ArgumentCaptor<EvaluationResult> result = ArgumentCaptor.forClass(EvaluationResult.class);
+        verify(runs).save(run.capture());
+        verify(results).save(result.capture());
+        assertThat(run.getValue().tenantId()).isEqualTo("tenant-A");
+        assertThat(run.getValue().runtimeReleaseId()).isEqualTo("runtime-release-test");
+        assertThat(result.getValue().tenantId()).isEqualTo("tenant-A");
+        assertThat(result.getValue().indicatorId()).isEqualTo("ei-platform");
+        assertThat(result.getValue().indicatorCode()).isEqualTo("EVAL.PLATFORM.BASELINE");
+        verify(indicators, never()).findByIndicatorIdAndTenantId("ei-platform", "tenant-A");
+    }
+
+    @Test
+    void runRejectsCrossTenantIndicatorWhenRuntimeReleaseDoesNotPinIt() {
+        EvaluationIndicator runtimeIndicator = indicator("ei-runtime", 1, EvaluationIndicatorStatus.ACTIVE);
+        when(runtimeEvaluations.select("tenant-A", "runtime-release-test"))
+            .thenReturn(List.of(runtimeIndicator));
+        EvaluationResultRequest result = new EvaluationResultRequest(
+            "ei-platform", EvaluationSubjectType.MEDICAL_RECORD, "record-1", BigDecimal.ONE,
+            EvaluationResultLevel.PASS, true, "跨租户指标不能绕过机构生效版本", "proof-1", null,
+            List.of());
+        EvaluationRunRequest request = new EvaluationRunRequest(
+            "RUN.CROSS.TENANT", EvaluationRunType.UPSTREAM_RESULT, "event-1", null,
+            "patient-1", "enc-1", "DISCHARGE", "runtime-release-test",
+            "sha256:cross-tenant", Instant.now(), List.of(result));
+
+        assertThatThrownBy(() -> service.run(request))
+            .isInstanceOf(ApiException.class)
+            .extracting("errorCode")
+            .isEqualTo(ErrorCode.ENG_EVAL_004);
+
+        verify(runs, never()).save(any());
+        verify(results, never()).save(any());
     }
 
     private AssetVersion assetVersion(String versionId, String versionNo, AssetVersionStatus status) {

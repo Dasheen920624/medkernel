@@ -30,12 +30,13 @@ const localRehearsalHospitalName = "本地上线演练医院";
 export const roleAccounts = ROLE_ACCOUNT_CODES;
 const defaultCredentialScope: RoleCredentialScope = "rehearsal";
 const platformDiagnosticItemKnowledgeIdentity = "plat:diagnostic_item:lab-potassium";
+const platformEvaluationIndicatorIdentity = "EVAL.LOCAL.REHEARSAL.BASELINE";
 export const requiredRuntimeAssetsForRehearsal = [
   { assetType: "KNOWLEDGE", assetIdentity: platformDiagnosticItemKnowledgeIdentity },
   { assetType: "TERMINOLOGY", assetIdentity: "TERMINOLOGY.LOCAL.REHEARSAL.BASELINE" },
   { assetType: "RULE", assetIdentity: "RULE.LOCAL.REHEARSAL.BASELINE" },
   { assetType: "PATHWAY", assetIdentity: "PATHWAY.LOCAL.REHEARSAL.BASELINE" },
-  { assetType: "EVALUATION", assetIdentity: "EVAL.LOCAL.REHEARSAL.BASELINE" },
+  { assetType: "EVALUATION", assetIdentity: platformEvaluationIndicatorIdentity },
   { assetType: "FOLLOWUP", assetIdentity: "FOLLOWUP.LOCAL.REHEARSAL.BASELINE" },
   { assetType: "FIELD_CATALOG", assetIdentity: "FIELD.CATALOG.CLINICAL_CONTEXT" },
   { assetType: "SAFETY", assetIdentity: "SAFETY.RDL-LOCAL-REHEARSAL" },
@@ -466,7 +467,8 @@ async function ensurePlatformBaseline(page: Page): Promise<BaselineRuntimeAssets
   const currentBaseline = resolveBaselineRuntimeAssets(await responseData(current));
   if (
     currentBaseline.baselineReleaseId &&
-    runtimeAssetsCoverRequiredTypes(currentBaseline.activeAssets)
+    runtimeAssetsCoverRequiredTypes(currentBaseline.activeAssets) &&
+    (await platformEvaluationProjectionReady(page))
   ) {
     return currentBaseline;
   }
@@ -514,7 +516,25 @@ async function ensurePlatformBaseline(page: Page): Promise<BaselineRuntimeAssets
       ).join(", ")}`,
     );
   }
+  if (!(await platformEvaluationProjectionReady(page))) {
+    throw new Error("平台标准版本评价指标投影未激活，无法准备医院生效版本");
+  }
   return refreshedBaseline;
+}
+
+async function platformEvaluationProjectionReady(page: Page) {
+  const response = await getApi(
+    page,
+    `/engine/evaluation/indicators?indicatorCode=${encodeURIComponent(
+      platformEvaluationIndicatorIdentity,
+    )}&page=1&size=20`,
+  );
+  await expectOk(response, "读取本地上线演练平台评价指标投影");
+  const ready = platformEvaluationProjectionReadyForRehearsal(await responseData(response));
+  if (!ready) {
+    console.info("平台标准版本评价指标投影未激活，将重发平台标准版本触发统一资产同步");
+  }
+  return ready;
 }
 
 async function ensurePlatformRuntimeAssetCandidates(page: Page, missingTypes: string[]) {
@@ -729,7 +749,7 @@ async function ensurePlatformEvaluationCandidate(page: Page) {
   const department = await ensurePlatformEvaluationDepartment(page);
   await ensureApiRoleSession(page, "engine-operator", "platform");
   const created = await postApi(page, "/engine/evaluation/indicators", {
-    indicatorCode: "EVAL.LOCAL.REHEARSAL.BASELINE",
+    indicatorCode: platformEvaluationIndicatorIdentity,
     name: "本地上线演练基础评价指标",
     subjectType: "MEDICAL_RECORD",
     denominatorDefinition: ruleDefinition("patient.age", "gte", 0),
@@ -1376,6 +1396,15 @@ export function missingRuntimeCandidateTypes(candidates: unknown[]) {
 
 export function runtimeCandidatesCoverRequiredTypes(candidates: unknown[]) {
   return missingRuntimeCandidateTypes(candidates).length === 0;
+}
+
+export function platformEvaluationProjectionReadyForRehearsal(value: unknown) {
+  return pageItems(value).some(
+    (item) =>
+      textField(item, "indicatorCode") === platformEvaluationIndicatorIdentity &&
+      numericField(item, "versionNo") === 1 &&
+      textField(item, "status") === "ACTIVE",
+  );
 }
 
 export function versionIdsForRequiredRuntimeCandidates(candidates: unknown[]) {

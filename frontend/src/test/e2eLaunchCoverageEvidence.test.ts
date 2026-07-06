@@ -162,6 +162,94 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.productLayers).toBeUndefined();
   });
 
+  it("declares real-frontdesk scenario coverage only when the passed spec attaches complete scenario evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/real-frontdesk-rehearsal.spec.ts",
+          title:
+            "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
+          status: "passed",
+          attachments: [
+            {
+              name: "real-frontdesk-scenario-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                scenarioCodes: ["S10", "S11", "S12"],
+                scenarioEvidence: [
+                  { code: "S10", observedStages: ["前台执行医保审核并联动质量整改"] },
+                  {
+                    code: "S11",
+                    observedStages: [
+                      "前台创建发布并激活 CLAIM 评价指标",
+                      "前台提交并复核关闭质量整改任务",
+                    ],
+                  },
+                  {
+                    code: "S12",
+                    observedStages: [
+                      "前台创建随访方案",
+                      "前台发布随访方案",
+                      "前台生成随访计划并完成问卷与异常回院登记",
+                    ],
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual([
+      "S10",
+      "S11",
+      "S12",
+    ]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("does not declare real-frontdesk scenario coverage from a passed spec without complete scenario附件", () => {
+    const missingAttachment = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/real-frontdesk-rehearsal.spec.ts",
+          title:
+            "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
+          status: "passed",
+        },
+      ],
+    });
+    const incompleteAttachment = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/real-frontdesk-rehearsal.spec.ts",
+          title:
+            "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
+          status: "passed",
+          attachments: [
+            {
+              name: "real-frontdesk-scenario-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                scenarioCodes: ["S10", "S11"],
+                scenarioEvidence: [
+                  { code: "S10", observedStages: ["前台执行医保审核并联动质量整改"] },
+                ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(missingAttachment.launchCoverage.scenarios).toBeUndefined();
+    expect(incompleteAttachment.launchCoverage.scenarios).toBeUndefined();
+  });
+
   it("does not declare coverage when the proving spec fails or the run is flaky", () => {
     const failedEvidence = buildBrowserE2eLaunchEvidence({
       stats: { ...passedStats, expected: 0, unexpected: 1 },

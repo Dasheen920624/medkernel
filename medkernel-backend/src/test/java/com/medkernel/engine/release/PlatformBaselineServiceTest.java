@@ -181,8 +181,14 @@ class PlatformBaselineServiceTest {
         });
         verify(validation, never()).validateForPublish(publishedKnowledge, "operator-A", "trace-A");
         verify(versions, never()).save(any(AssetVersion.class));
-        verify(publicationSynchronizer, never()).afterPublished(
-            any(), any(), any(), any());
+        verify(publicationSynchronizer).afterPublished(
+            org.mockito.ArgumentMatchers.argThat(value ->
+                value.versionId().equals("know-v1")
+                    && value.assetType() == VersionedAssetType.KNOWLEDGE
+                    && value.status() == AssetVersionStatus.PUBLISHED),
+            org.mockito.ArgumentMatchers.eq(NOW),
+            org.mockito.ArgumentMatchers.eq("operator-A"),
+            org.mockito.ArgumentMatchers.eq("trace-A"));
     }
 
     @Test

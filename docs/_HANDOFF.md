@@ -10,6 +10,49 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百三十三批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，而是把 `real-frontdesk-rehearsal.spec.ts` 中 S10/S11/S12 的医保审核、
+  CLAIM 评价指标激活、质量整改闭环和随访协同链路补成更强的真实前台证据。浏览器覆盖证据现在只有在
+  `real-frontdesk-rehearsal.spec.ts` 真实通过、非 flaky，且附件 `real-frontdesk-scenario-codes`
+  精确包含 S10/S11/S12 并逐项具备必要前台阶段时，才声明 `launchCoverage.scenarios:S10/S11/S12`；
+  不声明 S0-S40 全量、第三方系统族、专病十阶段、完整语义族、专业域或 134 部署覆盖。
+- 第一百三十三批修复范围：`frontend/e2e/support/auth.ts` 要求平台标准版本评价指标投影已经同步为
+  ACTIVE，否则重发平台标准版本并阻断医院 runtime 复用旧缓存；`PlatformBaselineService` 对已发布资产也
+  触发发布同步器，新增 `EvaluationPublicationStatusSynchronizer`，使统一 EVALUATION 资产发布后同步激活
+  评价指标投影并下线旧 ACTIVE。`EvaluationEngineService.run` 在绑定机构生效版本时只允许该 runtime
+  精确钉住的 ACTIVE 评价指标，可消费平台主租户指标；没有 runtime 时仍按当前租户 ACTIVE 指标校验。
+  `real-frontdesk-rehearsal.spec.ts` 精确选择本轮 CDSS/医保上下文快照，机构版本激活前必须勾选 13 类平台
+  runtime 基线资产和本院 CLAIM 指标，并断言生成请求 `activeAssets` 与 current runtime 均保留这些资产。
+  随访计划响应新增 `templateCode/templateName`，前台优先显示计划响应自带的业务方案名，不再依赖当前模板分页
+  列表猜测；随访计划表使用固定列宽、内部滚动和可换行证据标签，办理抽屉在移动视口按 `min(860px, 100vw)`
+  和响应式 `Descriptions` 展示，任务、问卷、异常回院证据 ID 均可换行但不隐藏。
+- 第一百三十三批红点根因与定位修复：最初真实 E2E 红于本地演练医院 runtime 激活请求曾使用
+  `activeAssets: []`，导致字段目录和规则资产未启用；后续红于评价运行按医院租户查平台标准 EVALUATION
+  指标抛 `ENG-EVAL-004`，根因是 runtime 选择器允许平台指标但 `run()` 二次按当前租户查询。修复后目标 E2E
+  又暴露 CDSS 选择“第 1 个临床快照”可能拿错当前快照、随访方案证据详情只展示 `ftpl...` 不展示业务方案名、
+  以及随访计划表长 `planId/patientId/encounterId/templateId` 撑破根布局；均按真实前台和源码合同修复。
+  只读子代理 Avicenna 核查确认 S10/S11/S12 覆盖映射没有包装成全量 coverage，但指出医保 helper 仍有
+  “选择第 1 个病案快照”回退，已删除并用合同锁住必须选择 `snapshot.snapshotId`。只读子代理 Euclid 指出
+  随访业务方案名依赖分页、表格宽度预算不一致和抽屉证据移动端溢出风险，已补后端/前端合同并修复。
+- 第一百三十三批验证证据：TDD 红灯包括
+  `npm --prefix frontend run test -- Followup -t "随访计划证据标识在列表内换行"` 曾失败于缺
+  `tablePanel/tableLayout/followupEvidenceText`；`mvn -f medkernel-backend/pom.xml -Dtest=FollowupEngineServiceTest#generatePlanUsesRuntimeReleasePinnedTemplateTasksAndQuestionnaireBinding test`
+  曾编译失败于 `FollowupPlanDetailResponse` 缺 `templateCode()/templateName()`；相关修复后转绿。目标真实前台
+  E2E 在 2026-07-06 18:57 后新启动的本地 18080 H2 空库后端（PID 10663）通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-real-frontdesk-scenarios npm --prefix frontend run e2e -- --project=chromium real-frontdesk-rehearsal.spec.ts`
+  通过（1 expected，0 unexpected，0 flaky），仓库外 `results.json` 为 `PASSED`，`coverageKeys=["scenarios"]`，
+  只含 S10/S11/S12。其他门禁：`npm --prefix frontend run test -- Followup` 通过（21 tests）；
+  `npm --prefix frontend run test -- e2eAuthCredentialContract e2eLaunchCoverageEvidence` 通过（34 tests）；
+  `node --test scripts/release/launch-coverage-audit.test.mjs` 通过（6 tests）；E2E TS 检查
+  `cd frontend && npx tsc --noEmit --pretty false --skipLibCheck false --allowImportingTsExtensions --moduleResolution bundler --module ESNext --target ES2022 --lib ES2023,DOM --strict --types node e2e/support/auth.ts e2e/real-frontdesk-rehearsal.spec.ts`
+  通过；后端相关窄测
+  `mvn -f medkernel-backend/pom.xml -Dtest=PlatformBaselineServiceTest,EvaluationPublicationStatusSynchronizerTest,EvaluationEngineServiceTest,FollowupEngineServiceTest test`
+  通过（55 tests）；`git diff --check` 通过。
+- 第一百三十三批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把 S10/S11/S12
+  真实前台切片等同于总目标完成。仍需继续补 S0-S40 全量、13 类标准患者资源逐类接入、13 类 runtime 资产
+  逐类业务消费者、完整全知识 / 语义族 / 专业域 / 专病十阶段、五种交付形态未覆盖项、真实备份 / 隔离恢复 /
+  重启恢复、两家机构差异化发布 / 回滚和 134 清库部署复演。当前 18080 后端 PID 10663 在最后一次 Maven
+  窄测后未重启；若下一步继续跑真实 E2E，应先重启后端以避免运行时类与 `target/classes` 不一致。
 - 第一百三十二批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，而是把第三方系统族从旧 `sourceSystem`/名称推断收敛为一等
   `systemFamilyCode` 合同，并用真实 Playwright 前台操作生成浏览器上线覆盖证据。本批新增

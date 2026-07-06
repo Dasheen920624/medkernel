@@ -207,6 +207,38 @@ describe("E2E credential contract", () => {
     expect(auth.runtimeAssetsCoverRequiredTypes(baseline.activeAssets)).toBe(true);
   });
 
+  it("requires the platform baseline evaluation projection to be active before reusing rehearsal runtime", async () => {
+    process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
+    const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
+
+    expect(
+      auth.platformEvaluationProjectionReadyForRehearsal({
+        items: [
+          {
+            indicatorCode: runtimeAssetIdentities.EVALUATION,
+            versionNo: 1,
+            status: "DRAFT",
+          },
+        ],
+      }),
+    ).toBe(false);
+    expect(
+      auth.platformEvaluationProjectionReadyForRehearsal({
+        items: [
+          {
+            indicatorCode: runtimeAssetIdentities.EVALUATION,
+            versionNo: 1,
+            status: "ACTIVE",
+          },
+        ],
+      }),
+    ).toBe(true);
+
+    const source = readFileSync("e2e/support/auth.ts", "utf8");
+    expect(source).toContain("platformEvaluationProjectionReady(page)");
+    expect(source).toContain("平台标准版本评价指标投影未激活");
+  });
+
   it("requires hospital runtime rehearsal to self-heal when current release has no active field catalog or rule", async () => {
     process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
     const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
@@ -523,6 +555,52 @@ describe("E2E credential contract", () => {
     expect(source).toContain("assertInsuranceAuditUsesEvaluationRun");
     expect(source).toContain("evaluationRunId");
     expect(source).toContain("INSURANCE_RULE_MANUAL");
+    expect(source).toContain("selectInsuranceAuditSnapshotFromUi(page, snapshot)");
+    expect(source).toContain('`选择 ${snapshot.snapshotId}`');
+    const insuranceAuditBody = source.slice(
+      source.indexOf("async function runInsuranceAuditFromUi"),
+      source.indexOf("async function assertInsuranceAuditUsesEvaluationRun"),
+    );
+    expect(insuranceAuditBody).not.toContain(
+      'getByRole("button", { name: "选择第 1 个病案快照" })',
+    );
+    const insuranceSnapshotSelectorBody = source.slice(
+      source.indexOf("async function selectInsuranceAuditSnapshotFromUi"),
+      source.indexOf("async function closeQualityRectificationFromAlertsUi"),
+    );
+    expect(insuranceSnapshotSelectorBody).toContain("snapshot.snapshotId");
+    expect(insuranceSnapshotSelectorBody).toContain('name: `选择 ${snapshot.snapshotId}`');
+    expect(insuranceSnapshotSelectorBody).not.toContain("选择第 1 个病案快照");
+  });
+
+  it("requires CDSS frontdesk rehearsal to select the exact active context snapshot", () => {
+    const source = readFileSync("e2e/real-frontdesk-rehearsal.spec.ts", "utf8");
+
+    const cdssBody = source.slice(
+      source.indexOf("async function runCdssRecommendationFromUi"),
+      source.indexOf("function assertRuntimeRecommendationEvidence"),
+    );
+    expect(cdssBody).toContain("snapshot.snapshotId");
+    expect(cdssBody).toContain('name: `选择 ${snapshot.snapshotId}`');
+    expect(cdssBody).not.toContain('name: "选择第 1 个临床快照"');
+  });
+
+  it("requires CLAIM runtime activation to select the local evaluation candidate and assert the request payload", () => {
+    const source = readFileSync("e2e/real-frontdesk-rehearsal.spec.ts", "utf8");
+
+    expect(source).toContain("requiredRuntimeAssetsForRehearsal");
+    expect(source).toContain("selectRequiredPlatformRuntimeAssetsForClaimActivation");
+    expect(source).toContain("selectHospitalLocalClaimIndicatorCandidate");
+    expect(source).toContain("assertRuntimeReleaseRequestCarriesRequiredBaselineAssets");
+    expect(source).toContain("assertRuntimeReleaseRequestContainsClaimIndicator");
+    expect(source).toContain("assertCurrentRuntimeContainsRequiredBaselineAssets");
+    expect(source).toContain("平台标准内容");
+    expect(source).toContain("集团与本院内容");
+    expect(source).toContain("本院 · 评价指标内容");
+    expect(source).toContain("postDataJSON");
+    expect(source).not.toContain(
+      'page.getByRole("checkbox", { name: /启用.*评价指标内容/u }).first()',
+    );
   });
 
   it("requires identity binding frontdesk rehearsal to prove bind, unbind and plaintext-safety", () => {

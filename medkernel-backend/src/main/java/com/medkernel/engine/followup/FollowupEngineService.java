@@ -263,7 +263,9 @@ public class FollowupEngineService {
             plan.generationRuleCode(),
             plan.generationExplanation(),
             plan.templateId(),
-            plan.templateVersion()
+            plan.templateVersion(),
+            controlledPlan.templateCode(),
+            controlledPlan.templateName()
         );
     }
 
@@ -661,7 +663,9 @@ public class FollowupEngineService {
             clock.map(ClinicalClock::dueAt).orElse(null),
             clock.map(ClinicalClock::clockId).orElse(null),
             template == null ? null : template.templateId(),
-            template == null ? null : template.versionNo()
+            template == null ? null : template.versionNo(),
+            template == null ? null : template.templateCode(),
+            template == null ? null : template.name()
         );
     }
 
@@ -800,6 +804,7 @@ public class FollowupEngineService {
             .stream()
             .map(this::toTaskResponse)
             .toList();
+        Optional<FollowupTemplate> template = resolvePlanTemplate(plan);
 
         return new FollowupPlanDetailResponse(
             plan.planId(),
@@ -816,8 +821,25 @@ public class FollowupEngineService {
             plan.generationRuleCode(),
             plan.generationExplanation(),
             plan.templateId(),
-            plan.templateVersion()
+            plan.templateVersion(),
+            template.map(FollowupTemplate::templateCode).orElse(null),
+            template.map(FollowupTemplate::name).orElse(null)
         );
+    }
+
+    private Optional<FollowupTemplate> resolvePlanTemplate(FollowupPlan plan) {
+        if (!hasText(plan.templateId())) {
+            return Optional.empty();
+        }
+        Optional<FollowupTemplate> byId = templateService.findById(plan.tenantId(), plan.templateId());
+        if (byId.isEmpty() || plan.templateVersion() == null
+                || byId.get().versionNo() == plan.templateVersion()) {
+            return byId;
+        }
+        return templateService.findByCodeAndVersion(
+            plan.tenantId(),
+            byId.get().templateCode(),
+            plan.templateVersion());
     }
 
     private FollowupTaskDetailResponse toTaskResponse(FollowupTask task) {
@@ -1047,7 +1069,9 @@ public class FollowupEngineService {
         Instant dueAt,
         String clinicalClockId,
         String templateId,
-        Integer templateVersion
+        Integer templateVersion,
+        String templateCode,
+        String templateName
     ) {}
 
     private record ResolvedTask(

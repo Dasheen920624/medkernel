@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 
-import { ensureReadySession } from "./support/auth";
+import { ensureReadySession, requiredRuntimeAssetsForRehearsal } from "./support/auth";
 
 type RuntimeCollectors = {
   browserErrors: string[];
@@ -12,6 +12,11 @@ type RuntimeCollectors = {
 type RuntimeRecord = RuntimeCollectors & {
   stage: string;
   url: string;
+};
+
+type FrontdeskScenarioEvidence = {
+  code: string;
+  observedStages: string[];
 };
 
 type ContextSnapshotSummary = {
@@ -64,6 +69,21 @@ type ClaimEvaluationIndicatorSummary = {
   versionNo: number;
 };
 
+type ClaimRuntimeCandidateSummary = {
+  assetType: "EVALUATION";
+  assetIdentity: string;
+  versionId: string;
+  versionNo?: string;
+  sourceLayer?: string;
+  status: "PUBLISHED";
+};
+
+type RuntimeAssetSelection = {
+  assetType?: string;
+  assetIdentity?: string;
+  versionId?: string | null;
+};
+
 type RuntimeReleaseDetailPayload = {
   data?: {
     release?: {
@@ -112,6 +132,25 @@ type QualityFindingDetailPayload = {
     };
   };
 };
+
+const requiredFrontdeskScenarioEvidence: FrontdeskScenarioEvidence[] = [
+  {
+    code: "S10",
+    observedStages: ["前台执行医保审核并联动质量整改"],
+  },
+  {
+    code: "S11",
+    observedStages: ["前台创建发布并激活 CLAIM 评价指标", "前台提交并复核关闭质量整改任务"],
+  },
+  {
+    code: "S12",
+    observedStages: [
+      "前台创建随访方案",
+      "前台发布随访方案",
+      "前台生成随访计划并完成问卷与异常回院登记",
+    ],
+  },
+];
 
 test.describe.configure({ mode: "serial" });
 
@@ -174,6 +213,7 @@ test.describe("全前台真实操作演练", () => {
         snapshot,
       );
     } finally {
+      await attachScenarioEvidence(testInfo, records);
       await attachRuntimeRecords(testInfo, records);
     }
   });
@@ -244,8 +284,7 @@ async function createIntegrationOnboardingFromUi(
   const adapterOption = page.getByText(`真实演练 HIS ${suffix} · REST`, { exact: true });
   await expect(adapterOption).toBeVisible({ timeout: 20_000 });
   await adapterOption.click();
-  await dialog.getByLabel("系统族").click();
-  await page.getByText("HIS、EMR、CDR、医嘱与费用", { exact: true }).click();
+  await chooseDialogFirstOption(page, dialog, "系统族", "HIS、EMR、CDR、医嘱与费用");
   await dialog.getByLabel("来源系统").fill("HIS");
   await dialog.getByLabel("业务场景").fill("门诊患者主数据");
   await dialog.getByLabel("组织范围").click();
@@ -762,19 +801,13 @@ async function activateHospitalRuntimeWithClaimIndicatorFromUi(
   const hospital = await chooseHospitalByName(page, "本地上线演练医院");
   await expect(page.getByText(/当前机构生效版本 第 \d+ 版/)).toBeVisible({ timeout: 20_000 });
 
-  await assertHospitalRuntimeCandidateContainsClaimIndicator(
+  const claimCandidate = await assertHospitalRuntimeCandidateContainsClaimIndicator(
     page,
     hospital.id ?? "",
     claimIndicator,
   );
-  const evaluationCheckbox = page.getByRole("checkbox", { name: /启用.*评价指标内容/u }).first();
-  await expect(
-    evaluationCheckbox,
-    `机构生效版本候选应包含本轮 CLAIM 指标 ${claimIndicator.indicatorCode}`,
-  ).toBeVisible({ timeout: 20_000 });
-  if (!(await evaluationCheckbox.isChecked())) {
-    await evaluationCheckbox.check();
-  }
+  await selectRequiredPlatformRuntimeAssetsForClaimActivation(page);
+  await selectHospitalLocalClaimIndicatorCandidate(page, claimIndicator, claimCandidate);
   await assessLocalReleaseImpactIfRequired(page);
 
   const activateResponsePromise = waitForPostMatching(
@@ -788,6 +821,14 @@ async function activateHospitalRuntimeWithClaimIndicatorFromUi(
     activateResponse.ok(),
     `前台生成含 CLAIM 指标的机构生效版本应返回成功 status=${activateResponse.status()} body=${activateText}`,
   ).toBe(true);
+  assertRuntimeReleaseRequestContainsClaimIndicator(
+    activateResponse.request().postDataJSON(),
+    claimIndicator,
+    claimCandidate,
+  );
+  assertRuntimeReleaseRequestCarriesRequiredBaselineAssets(
+    activateResponse.request().postDataJSON(),
+  );
   const activated = JSON.parse(activateText) as { data?: { revisionNo?: number } };
   expect(activated.data?.revisionNo, "机构生效版本响应应返回修订号").toBeGreaterThan(0);
   await assertCurrentRuntimeContainsClaimIndicator(page, hospital.id ?? "", claimIndicator);
@@ -799,7 +840,7 @@ async function assertHospitalRuntimeCandidateContainsClaimIndicator(
   page: Page,
   hospitalId: string,
   claimIndicator: ClaimEvaluationIndicatorSummary,
-) {
+): Promise<ClaimRuntimeCandidateSummary> {
   expect(hospitalId, "读取机构生效版本候选前必须解析本地上线演练医院 ID").toBeTruthy();
   const response = await page.request.get(
     `/medkernel/api/v1/engine/releases/hospitals/${encodeURIComponent(
@@ -821,17 +862,160 @@ async function assertHospitalRuntimeCandidateContainsClaimIndicator(
     `应能读取本轮 CLAIM 指标机构候选 status=${response.status()} body=${text}`,
   ).toBe(true);
   const parsed = JSON.parse(text) as {
-    data?: { items?: Array<{ assetType?: string; assetIdentity?: string; status?: string }> };
+    data?: {
+      items?: Array<{
+        assetType?: string;
+        assetIdentity?: string;
+        versionId?: string;
+        versionNo?: string;
+        sourceLayer?: string;
+        status?: string;
+      }>;
+    };
   };
+  const claimCandidate = (parsed.data?.items ?? []).find(
+    (item) =>
+      item.assetType === "EVALUATION" &&
+      item.assetIdentity === claimIndicator.indicatorCode &&
+      item.status === "PUBLISHED",
+  );
   expect(
-    (parsed.data?.items ?? []).some(
-      (item) =>
-        item.assetType === "EVALUATION" &&
-        item.assetIdentity === claimIndicator.indicatorCode &&
-        item.status === "PUBLISHED",
-    ),
+    claimCandidate,
     `机构生效版本候选 API 必须包含本轮 CLAIM 指标 ${claimIndicator.indicatorCode}`,
-  ).toBe(true);
+  ).toBeTruthy();
+  expect(claimCandidate?.versionId, "本轮 CLAIM 指标候选必须返回可发布版本 ID").toBeTruthy();
+  expect(claimCandidate?.sourceLayer, "本轮 CLAIM 指标必须作为本院内容进入机构版本").toBe(
+    "HOSPITAL",
+  );
+  return {
+    assetType: "EVALUATION",
+    assetIdentity: claimCandidate?.assetIdentity ?? claimIndicator.indicatorCode,
+    versionId: claimCandidate?.versionId ?? "",
+    versionNo: claimCandidate?.versionNo,
+    sourceLayer: claimCandidate?.sourceLayer,
+    status: "PUBLISHED",
+  };
+}
+
+async function selectHospitalLocalClaimIndicatorCandidate(
+  page: Page,
+  claimIndicator: ClaimEvaluationIndicatorSummary,
+  claimCandidate: ClaimRuntimeCandidateSummary,
+) {
+  await enableEvidenceDetails(page);
+  const localContentCard = page
+    .locator(".ant-card")
+    .filter({ has: page.getByText("集团与本院内容", { exact: true }) })
+    .first();
+  await expect(localContentCard, "机构生效版本页必须展示集团与本院内容清单").toBeVisible({
+    timeout: 20_000,
+  });
+  const claimRow = localContentCard
+    .getByRole("row")
+    .filter({ hasText: claimIndicator.indicatorCode })
+    .filter({ hasText: "本院 · 评价指标内容" })
+    .first();
+  await expect(
+    claimRow,
+    `集团与本院内容必须展示本轮 CLAIM 指标 ${claimIndicator.indicatorCode}`,
+  ).toBeVisible({ timeout: 20_000 });
+  const enableCheckbox = claimRow.getByRole("checkbox", { name: /启用本院评价指标内容/u });
+  await expect(
+    enableCheckbox,
+    `本轮 CLAIM 指标 ${claimIndicator.indicatorCode} 必须可勾选进入机构生效版本`,
+  ).toBeVisible();
+  if (!(await enableCheckbox.isChecked())) {
+    await enableCheckbox.check();
+  }
+  await expect(enableCheckbox, "本轮 CLAIM 指标必须已选入机构生效版本").toBeChecked();
+  await expect(claimRow, "前台选择的 CLAIM 指标行必须对应候选版本").toContainText(
+    claimCandidate.versionNo ?? claimCandidate.versionId,
+  );
+}
+
+async function selectRequiredPlatformRuntimeAssetsForClaimActivation(page: Page) {
+  await enableEvidenceDetails(page);
+  const platformContentCard = page
+    .locator(".ant-card")
+    .filter({ has: page.getByText("平台标准内容", { exact: true }) })
+    .first();
+  await expect(platformContentCard, "机构生效版本页必须展示平台标准内容清单").toBeVisible({
+    timeout: 20_000,
+  });
+  for (const required of requiredRuntimeAssetsForRehearsal) {
+    const platformRow = platformContentCard
+      .getByRole("row")
+      .filter({ hasText: required.assetIdentity })
+      .first();
+    await expect(
+      platformRow,
+      `平台标准内容必须展示 ${required.assetType} ${required.assetIdentity}`,
+    ).toBeVisible({ timeout: 20_000 });
+    const enableCheckbox = platformRow.getByRole("checkbox", { name: /启用/ });
+    await expect(
+      enableCheckbox,
+      `${required.assetType} ${required.assetIdentity} 必须可勾选进入 CLAIM 演练机构版本`,
+    ).toBeVisible();
+    if (!(await enableCheckbox.isChecked())) {
+      await enableCheckbox.check();
+    }
+    await expect(
+      enableCheckbox,
+      `${required.assetType} ${required.assetIdentity} 必须保留在机构生效版本选择集中`,
+    ).toBeChecked();
+  }
+}
+
+function assertRuntimeReleaseRequestContainsClaimIndicator(
+  value: unknown,
+  claimIndicator: ClaimEvaluationIndicatorSummary,
+  claimCandidate: ClaimRuntimeCandidateSummary,
+) {
+  const activeAssets = Array.isArray((value as { activeAssets?: unknown }).activeAssets)
+    ? ((value as { activeAssets: RuntimeAssetSelection[] }).activeAssets ?? [])
+    : [];
+  const match = activeAssets.find(
+    (item) =>
+      item.assetType === "EVALUATION" && item.assetIdentity === claimIndicator.indicatorCode,
+  );
+  expect(
+    match,
+    `生成机构生效版本请求必须携带本轮 CLAIM 指标 ${claimIndicator.indicatorCode}`,
+  ).toBeTruthy();
+  expect(
+    match?.versionId,
+    `本轮 CLAIM 指标必须使用本院候选版本 ${claimCandidate.versionId}`,
+  ).toBe(claimCandidate.versionId);
+}
+
+function assertRuntimeReleaseRequestCarriesRequiredBaselineAssets(value: unknown) {
+  const activeAssets = Array.isArray((value as { activeAssets?: unknown }).activeAssets)
+    ? ((value as { activeAssets: RuntimeAssetSelection[] }).activeAssets ?? [])
+    : [];
+  for (const required of requiredRuntimeAssetsForRehearsal) {
+    const match = activeAssets.find(
+      (item) =>
+        item.assetType === required.assetType && item.assetIdentity === required.assetIdentity,
+    );
+    expect(
+      match,
+      `生成含 CLAIM 指标的机构生效版本请求必须保留 ${required.assetType} ${required.assetIdentity}`,
+    ).toBeTruthy();
+    expect(
+      match?.versionId ?? null,
+      `${required.assetType} ${required.assetIdentity} 必须沿用平台标准版本`,
+    ).toBeNull();
+  }
+}
+
+async function enableEvidenceDetails(page: Page) {
+  const details = page.getByRole("switch", { name: "证据详情" });
+  await expect(details.first(), "精确选择本轮 CLAIM 指标需要打开证据详情").toBeVisible({
+    timeout: 20_000,
+  });
+  if (!(await details.first().isChecked())) {
+    await details.first().click();
+  }
 }
 
 async function chooseHospitalByName(
@@ -918,6 +1102,7 @@ async function assertCurrentRuntimeContainsClaimIndicator(
     true,
   );
   const current = JSON.parse(text) as RuntimeReleaseDetailPayload;
+  assertCurrentRuntimeContainsRequiredBaselineAssets(current);
   expect(
     current.data?.items?.some(
       (item) =>
@@ -928,6 +1113,22 @@ async function assertCurrentRuntimeContainsClaimIndicator(
     ),
     `当前机构生效版本必须启用本轮 CLAIM 指标 ${claimIndicator.indicatorCode}`,
   ).toBe(true);
+}
+
+function assertCurrentRuntimeContainsRequiredBaselineAssets(current: RuntimeReleaseDetailPayload) {
+  for (const required of requiredRuntimeAssetsForRehearsal) {
+    const match = (current.data?.items ?? []).find(
+      (item) =>
+        item.assetType === required.assetType &&
+        item.assetIdentity === required.assetIdentity &&
+        item.entryState === "ACTIVE" &&
+        Boolean(item.versionId),
+    );
+    expect(
+      match,
+      `当前机构生效版本必须保留 ${required.assetType} ${required.assetIdentity}`,
+    ).toBeTruthy();
+  }
 }
 
 async function runInsuranceAuditFromUi(
@@ -949,10 +1150,7 @@ async function runInsuranceAuditFromUi(
   if (snapshot.encounterId) {
     await page.getByLabel("就诊信息").fill(snapshot.encounterId);
   }
-  await expect(page.getByRole("button", { name: "选择第 1 个病案快照" })).toBeVisible({
-    timeout: 20_000,
-  });
-  await page.getByRole("button", { name: "选择第 1 个病案快照" }).click();
+  await selectInsuranceAuditSnapshotFromUi(page, snapshot);
   await expect(page.getByLabel("患者信息")).toHaveValue("已关联患者");
   if (snapshot.encounterId) {
     await expect(page.getByLabel("就诊信息")).toHaveValue("已关联就诊");
@@ -1038,6 +1236,15 @@ async function assertInsuranceAuditUsesEvaluationRun(
   );
 }
 
+async function selectInsuranceAuditSnapshotFromUi(page: Page, snapshot: ContextSnapshotSummary) {
+  const evidenceButton = page.getByRole("button", { name: `选择 ${snapshot.snapshotId}` });
+  await expect(
+    evidenceButton,
+    `医保审核页必须展示本轮病案快照 ${snapshot.snapshotId}`,
+  ).toBeVisible({ timeout: 20_000 });
+  await evidenceButton.click();
+}
+
 async function closeQualityRectificationFromAlertsUi(
   page: Page,
   testInfo: TestInfo,
@@ -1053,7 +1260,7 @@ async function closeQualityRectificationFromAlertsUi(
   await expectNoRootOverflow(page, "质量问题与整改桌面");
 
   const openAlert = await findInsuranceQualityAlert(page, audit.issueId, "OPEN");
-  const findingId = openAlert.sourceId;
+  const findingId = openAlert.sourceId ?? "";
   expect(findingId, "本次医保审核问题应解析到质量问题 ID").toBeTruthy();
   const alertRow = qualityAlertRowBySourceId(page, findingId);
   await expect(alertRow, "质量问题提醒列表应展示本次医保审核生成的问题").toBeVisible({
@@ -1172,10 +1379,11 @@ async function runCdssRecommendationFromUi(
   if (snapshot.encounterId) {
     await dialog.getByLabel("就诊信息").fill(snapshot.encounterId);
   }
-  await expect(dialog.getByRole("button", { name: "选择第 1 个临床快照" })).toBeVisible({
+  const snapshotButton = dialog.getByRole("button", { name: `选择 ${snapshot.snapshotId}` });
+  await expect(snapshotButton, `提醒推荐页必须展示本轮临床快照 ${snapshot.snapshotId}`).toBeVisible({
     timeout: 20_000,
   });
-  await dialog.getByRole("button", { name: "选择第 1 个临床快照" }).click();
+  await snapshotButton.click();
   await chooseDialogOption(page, dialog, "触发时点", "查看患者");
 
   const responsePromise = waitForPost(page, "/api/v1/engine/recommendations:evaluate");
@@ -1523,6 +1731,36 @@ async function chooseDialogOption(
   }
 }
 
+async function chooseDialogFirstOption(
+  page: Page,
+  dialog: Locator,
+  label: string,
+  expectedOption: string,
+) {
+  const combobox = dialog.getByRole("combobox", { name: new RegExp(escapeRegExp(label)) }).first();
+  const select = combobox.locator(
+    "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' ant-select ')][1]",
+  );
+  const selectedText = await currentSelectText(select);
+  if (selectedText === expectedOption) {
+    return;
+  }
+  await openAntdSelect(select, label);
+  const dropdown = page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").last();
+  await expect(dropdown).toBeVisible({ timeout: 5_000 });
+  const firstOption = dropdown
+    .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
+    .first();
+  await expect(firstOption, `${label} 下拉首项必须是 ${expectedOption}`).toHaveText(
+    new RegExp(`^\\s*${escapeRegExp(expectedOption)}\\s*$`),
+    { timeout: 5_000 },
+  );
+  await firstOption.evaluate((element) => {
+    (element as HTMLElement).click();
+  });
+  await expectSelectedAntdOption(select, label, [expectedOption], 5_000);
+}
+
 async function searchDialogOption(
   page: Page,
   dialog: Locator,
@@ -1628,6 +1866,15 @@ async function clickAntdOption(
   await expect(optionLocator, `${label} 下拉选项应可见`).toBeVisible({ timeout });
   await optionLocator.scrollIntoViewIfNeeded({ timeout }).catch(() => undefined);
   await optionLocator.click({ timeout: Math.min(timeout, 1_500) }).catch(async (error) => {
+    const clickedVisibleOption = await optionLocator
+      .evaluate((element) => {
+        (element as HTMLElement).click();
+        return true;
+      })
+      .catch(() => false);
+    if (clickedVisibleOption) {
+      return;
+    }
     if (!optionText) {
       throw error;
     }
@@ -1926,6 +2173,36 @@ async function attachRuntimeRecords(testInfo: TestInfo, records: RuntimeRecord[]
   await testInfo.attach("real-frontdesk-runtime-records", {
     path: recordPath,
     contentType: "application/json",
+  });
+}
+
+async function attachScenarioEvidence(testInfo: TestInfo, records: RuntimeRecord[]) {
+  const observedStageSet = new Set(records.map((record) => record.stage));
+  const scenarioEvidence = requiredFrontdeskScenarioEvidence.map((scenario) => ({
+    code: scenario.code,
+    observedStages: scenario.observedStages.filter((stage) => observedStageSet.has(stage)),
+  }));
+  const completedScenarioCodes = scenarioEvidence
+    .filter((scenario) => {
+      const requiredStages =
+        requiredFrontdeskScenarioEvidence.find((item) => item.code === scenario.code)
+          ?.observedStages ?? [];
+      return requiredStages.every((stage) => scenario.observedStages.includes(stage));
+    })
+    .map((scenario) => scenario.code);
+  await testInfo.attach("real-frontdesk-scenario-codes", {
+    contentType: "application/json",
+    body: Buffer.from(
+      JSON.stringify(
+        {
+          scenarioCodes: completedScenarioCodes,
+          scenarioEvidence,
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    ),
   });
 }
 

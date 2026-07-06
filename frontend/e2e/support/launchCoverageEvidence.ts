@@ -45,6 +45,7 @@ type CoverageProof = {
   titleIncludes?: string;
   claims: string[];
   requiresSystemFamilyAttachment?: boolean;
+  requiresRealFrontdeskScenarioAttachment?: boolean;
 };
 
 const stakeholderClaims = [
@@ -102,9 +103,23 @@ const thirdPartySystemFamilyClaims = [
   "thirdPartySystemFamilies:MODEL_DIFY_AGENT",
 ];
 
+const realFrontdeskScenarioClaims = [
+  "scenarios:S10",
+  "scenarios:S11",
+  "scenarios:S12",
+];
+
 const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
   .filter((claim) => claim.startsWith("thirdPartySystemFamilies:"))
   .map((claim) => claim.split(":")[1]);
+
+const requiredRealFrontdeskScenarioEvidence: Record<string, string[]> = {
+  S10: ["前台执行医保审核并联动质量整改"],
+  S11: ["前台创建发布并激活 CLAIM 评价指标", "前台提交并复核关闭质量整改任务"],
+  S12: ["前台创建随访方案", "前台发布随访方案", "前台生成随访计划并完成问卷与异常回院登记"],
+};
+
+const requiredRealFrontdeskScenarioCodes = Object.keys(requiredRealFrontdeskScenarioEvidence);
 
 const coverageProofs: CoverageProof[] = [
   {
@@ -122,6 +137,12 @@ const coverageProofs: CoverageProof[] = [
     titleIncludes: "逐类登记第三方系统族接入并验证断连诚实降级",
     claims: thirdPartySystemFamilyClaims,
     requiresSystemFamilyAttachment: true,
+  },
+  {
+    file: "real-frontdesk-rehearsal.spec.ts",
+    titleIncludes: "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
+    claims: realFrontdeskScenarioClaims,
+    requiresRealFrontdeskScenarioAttachment: true,
   },
 ];
 
@@ -158,7 +179,9 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       test.status === "passed" &&
       (test.outcome ?? "expected") === "expected" &&
       (!proof.titleIncludes || test.title.includes(proof.titleIncludes)) &&
-      (!proof.requiresSystemFamilyAttachment || hasRequiredSystemFamilyAttachment(test))
+      (!proof.requiresSystemFamilyAttachment || hasRequiredSystemFamilyAttachment(test)) &&
+      (!proof.requiresRealFrontdeskScenarioAttachment ||
+        hasRequiredRealFrontdeskScenarioAttachment(test))
     );
   });
 }
@@ -175,6 +198,47 @@ function hasRequiredSystemFamilyAttachment(test: BrowserE2eTestResult) {
       .filter((code): code is string => typeof code === "string")
       .sort();
     return JSON.stringify(observed) === JSON.stringify([...requiredThirdPartySystemFamilyCodes].sort());
+  } catch {
+    return false;
+  }
+}
+
+function hasRequiredRealFrontdeskScenarioAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find((item) => item.name === "real-frontdesk-scenario-codes");
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scenarioCodes?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    if (!Array.isArray(parsed.scenarioCodes) || !Array.isArray(parsed.scenarioEvidence)) {
+      return false;
+    }
+    const observedCodes = parsed.scenarioCodes
+      .filter((code): code is string => typeof code === "string")
+      .sort();
+    if (
+      JSON.stringify(observedCodes) !== JSON.stringify([...requiredRealFrontdeskScenarioCodes].sort())
+    ) {
+      return false;
+    }
+    const evidenceByCode = new Map<string, string[]>();
+    for (const item of parsed.scenarioEvidence) {
+      if (!item || typeof item !== "object") continue;
+      const code = (item as { code?: unknown }).code;
+      const stages = (item as { observedStages?: unknown }).observedStages;
+      if (typeof code !== "string" || !Array.isArray(stages)) continue;
+      evidenceByCode.set(
+        code,
+        stages.filter((stage): stage is string => typeof stage === "string"),
+      );
+    }
+    return requiredRealFrontdeskScenarioCodes.every((code) => {
+      const observedStages = evidenceByCode.get(code) ?? [];
+      return requiredRealFrontdeskScenarioEvidence[code].every((stage) =>
+        observedStages.includes(stage),
+      );
+    });
   } catch {
     return false;
   }

@@ -123,27 +123,7 @@ class FollowupEngineServiceTest {
     void generatePlanUsesRuntimeReleasePinnedTemplateTasksAndQuestionnaireBinding() {
         stubActiveSnapshot("ctx-template-1", "PAT01", "ENC01", "D01");
         Instant now = Instant.parse("2026-06-14T00:00:00Z");
-        FollowupTemplate template = new FollowupTemplate(
-            null,
-            "ftpl-1",
-            "tenant-1",
-            "FUP.COPD",
-            3,
-            "慢阻肺出院随访",
-            null,
-            "tenant:tenant-1",
-            "riskLevel=HIGH",
-            "[]",
-            "{}",
-            "{}",
-            "hospital://followup/copd",
-            "av-followup-3",
-            now,
-            "user-1",
-            now,
-            "user-1",
-            "trace-123"
-        );
+        FollowupTemplate template = followupTemplate("ftpl-1", 3);
         when(runtimeTemplates.requireByTemplateId("tenant-1", "runtime-release-test", "ftpl-1"))
             .thenReturn(template);
         when(templateService.tasks(template)).thenReturn(List.of(
@@ -169,6 +149,8 @@ class FollowupEngineServiceTest {
         assertThat(response.runtimeReleaseId()).isEqualTo("runtime-release-test");
         assertThat(response.templateId()).isEqualTo("ftpl-1");
         assertThat(response.templateVersion()).isEqualTo(3);
+        assertThat(response.templateCode()).isEqualTo("FUP.COPD");
+        assertThat(response.templateName()).isEqualTo("慢阻肺出院随访");
         assertThat(response.tasks()).extracting(FollowupTaskDetailResponse::taskType)
             .containsExactly(FollowupTaskType.QUESTIONNAIRE, FollowupTaskType.OUTPATIENT);
         assertThat(response.tasks().get(0).questionnaireTemplateId())
@@ -358,8 +340,11 @@ class FollowupEngineServiceTest {
 
     @Test
     void testListPlans() {
-        FollowupPlan plan = new FollowupPlan(1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
-            FollowupPlanStatus.ACTIVE, Instant.now(), "sys", Instant.now(), "sys", "trace-123");
+        FollowupPlan plan = new FollowupPlan(
+            1L, "PLAN01", "tenant-1", "PAT01", "ENC01", "PATH01", "D01", "HIGH",
+            "runtime-release-test", FollowupPlanStatus.ACTIVE, null, "DIAGNOSIS", "D01",
+            "FOLLOWUP_TEMPLATE_FUP.COPD_V3", "{}", "ftpl-1", 3,
+            Instant.now(), "sys", Instant.now(), "sys", "trace-123");
             
         Page<FollowupPlan> planPage = new PageImpl<>(List.of(plan));
         
@@ -371,12 +356,16 @@ class FollowupEngineServiceTest {
             
         when(taskRepository.findByTenantIdAndPlanId(any(String.class), any(String.class)))
             .thenReturn(List.of(task));
+        when(templateService.findById("tenant-1", "ftpl-1"))
+            .thenReturn(Optional.of(followupTemplate("ftpl-1", 3)));
 
         PageResponse<FollowupPlanDetailResponse> response = service.listPlans(null, new PageRequest(1, 10, null));
         
         assertNotNull(response);
         assertEquals(1, response.items().size());
         assertEquals("PLAN01", response.items().get(0).planId());
+        assertThat(response.items().get(0).templateCode()).isEqualTo("FUP.COPD");
+        assertThat(response.items().get(0).templateName()).isEqualTo("慢阻肺出院随访");
     }
 
     @Test
@@ -615,6 +604,31 @@ class FollowupEngineServiceTest {
             Map.of(),
             now,
             "trace-123"));
+    }
+
+    private FollowupTemplate followupTemplate(String templateId, int versionNo) {
+        Instant now = Instant.parse("2026-06-14T00:00:00Z");
+        return new FollowupTemplate(
+            null,
+            templateId,
+            "tenant-1",
+            "FUP.COPD",
+            versionNo,
+            "慢阻肺出院随访",
+            null,
+            "tenant:tenant-1",
+            "riskLevel=HIGH",
+            "[]",
+            "{}",
+            "{}",
+            "hospital://followup/copd",
+            "av-followup-" + versionNo,
+            now,
+            "user-1",
+            now,
+            "user-1",
+            "trace-123"
+        );
     }
 
     private void stubSnapshotEntity(
