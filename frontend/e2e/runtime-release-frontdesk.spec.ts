@@ -54,6 +54,7 @@ test.describe("机构生效版本真实前台发布回滚", () => {
       await expectNoRootOverflow(page, "机构生效版本初始桌面");
       const initialRevision = await currentHospitalRevision(page);
       recordCleanRuntime(page, "选择本地上线演练医院", runtime, records);
+      await assertRequiredRuntimeInputsVisibleAndSelected(page);
 
       clearRuntime(runtime);
       await assessLocalReleaseImpactIfRequired(page);
@@ -83,6 +84,11 @@ test.describe("机构生效版本真实前台发布回滚", () => {
       await assertCurrentRuntimeAssetsReady(
         page,
         "本地上线演练医院",
+        activated.data?.revisionNo,
+        "前台生成新机构生效版本",
+      );
+      await assertThirdPartyRuntimeConsumerCarriesRequiredAssets(
+        page,
         activated.data?.revisionNo,
         "前台生成新机构生效版本",
       );
@@ -120,6 +126,11 @@ test.describe("机构生效版本真实前台发布回滚", () => {
         rolledBack.data?.revisionNo,
         "前台从历史机构生效版本回滚",
       );
+      await assertThirdPartyRuntimeConsumerCarriesRequiredAssets(
+        page,
+        rolledBack.data?.revisionNo,
+        "前台从历史机构生效版本回滚",
+      );
       recordCleanRuntime(page, "前台从历史机构生效版本回滚", runtime, records);
       await captureEvidence(page, testInfo, "runtime-release-frontdesk-rollback");
     } finally {
@@ -143,6 +154,39 @@ async function chooseHospital(page: Page, hospitalName: string) {
     .first();
   await expect(option).toBeVisible({ timeout: 20_000 });
   await option.click();
+}
+
+async function assertRequiredRuntimeInputsVisibleAndSelected(page: Page) {
+  const details = page.getByRole("switch", { name: "证据详情" });
+  if ((await details.count()) > 0 && !(await details.first().isChecked())) {
+    await details.first().click();
+  }
+  const platformStandardContent = page
+    .locator(".ant-card")
+    .filter({ has: page.getByText("平台标准内容", { exact: true }) })
+    .first();
+  await expect(platformStandardContent, "机构生效版本页必须展示平台标准内容清单").toBeVisible({
+    timeout: 20_000,
+  });
+  for (const required of requiredRuntimeAssetsForRehearsal) {
+    const platformInputRow = platformStandardContent
+      .getByRole("row")
+      .filter({ hasText: required.assetIdentity })
+      .first();
+    await expect(
+      platformInputRow,
+      `平台标准内容必须展示 ${required.assetType} ${required.assetIdentity}`,
+    ).toBeVisible({ timeout: 20_000 });
+    const enableCheckbox = platformInputRow.getByRole("checkbox", { name: /启用/ });
+    await expect(
+      enableCheckbox,
+      `${required.assetType} ${required.assetIdentity} 必须可勾选进入机构生效版本`,
+    ).toBeVisible();
+    await expect(
+      enableCheckbox,
+      `${required.assetType} ${required.assetIdentity} 必须在当前选择集中`,
+    ).toBeChecked();
+  }
 }
 
 async function assertCurrentRuntimeAssetsReady(
@@ -226,6 +270,40 @@ function assertRuntimeDetailCarriesRequiredAssets(
       `${label} 后必须启用 ${required.assetType} ${required.assetIdentity}`,
     ).toBeTruthy();
   }
+}
+
+async function assertThirdPartyRuntimeConsumerCarriesRequiredAssets(
+  page: Page,
+  expectedRevision: number | undefined,
+  label: string,
+) {
+  const response = await page.request.get(
+    "/medkernel/api/v1/engine/integration/knowledge-runtime/runtime-release/current",
+    { headers: { "X-Trace-Id": `e2e-runtime-consumer-${Date.now()}` } },
+  );
+  const text = await response.text();
+  expect(
+    response.ok(),
+    `${label} 后第三方运行契约必须读取当前机构生效版本 status=${response.status()} body=${text}`,
+  ).toBe(true);
+  const parsed = JSON.parse(text) as {
+    data?: {
+      contractVersion?: string;
+      revisionNo?: number;
+      assetCount?: number;
+      assets?: RuntimeReleaseItem[];
+    };
+  };
+  expect(parsed.data?.contractVersion, `${label} 后运行契约版本必须稳定`).toBe("v1");
+  if (expectedRevision !== undefined) {
+    expect(parsed.data?.revisionNo, `${label} 后运行消费者必须读取同一修订号`).toBe(
+      expectedRevision,
+    );
+  }
+  expect(parsed.data?.assetCount, `${label} 后运行消费者必须返回资产数`).toBe(
+    parsed.data?.assets?.length,
+  );
+  assertRuntimeDetailCarriesRequiredAssets({ items: parsed.data?.assets ?? [] }, label);
 }
 
 async function assessLocalReleaseImpactIfRequired(page: Page) {

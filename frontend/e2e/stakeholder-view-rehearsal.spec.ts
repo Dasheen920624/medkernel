@@ -58,6 +58,23 @@ type RecommendationEvaluationPayload = {
   traceId?: string;
   cards?: RecommendationEvaluationCard[];
 };
+type ContextSnapshotSummary = {
+  patientId: string;
+  snapshotId: string;
+  runtimeReleaseId: string;
+  encounterId: string | null;
+};
+type ReportInterpretationPayload = {
+  runtimeReleaseId?: string;
+  interpretations?: Array<{
+    itemCode?: string;
+    sourceVersionId?: number;
+    versionNo?: string;
+    summary?: string;
+  }>;
+};
+
+const reportInterpretationKnowledgeIdentity = "plat:diagnostic_item:lab-potassium";
 
 const stakeholderViews: StakeholderView[] = [
   {
@@ -485,7 +502,7 @@ async function performAdapterQualityReportAction(page: Page, view: StakeholderVi
   await expect(reportCard.getByText("数据质量报告已生成")).toBeVisible({ timeout: 30_000 });
   await expect(reportCard.getByText("缺口摘要")).toBeVisible();
   await expect(
-    reportCard.getByText("未接通适配器").first(),
+    reportCard.getByText(/未登记院内系统适配器|未接通适配器/u).first(),
     `${view.label} 数据质量报告默认摘要应使用业务可读文案`,
   ).toBeVisible({ timeout: 30_000 });
   await expect(
@@ -652,7 +669,7 @@ async function performReportInterpretationAction(page: Page, view: StakeholderVi
     `${view.label} 生成医技报告解读应返回成功 status=${interpretResponse.status()} body=${interpretText}`,
   ).toBe(true);
   const interpretation = JSON.parse(interpretText) as {
-    data?: { interpretations?: Array<{ reportType?: string }> };
+    data?: ReportInterpretationPayload & { interpretations?: Array<{ reportType?: string }> };
   };
   expect(
     Array.isArray(interpretation.data?.interpretations),
@@ -662,6 +679,7 @@ async function performReportInterpretationAction(page: Page, view: StakeholderVi
     interpretation.data?.interpretations?.length ?? 0,
     `${view.label} 医技报告解读必须基于前台录入的已签发报告生成至少 1 项结果`,
   ).toBeGreaterThan(0);
+  assertReportInterpretationUsesSnapshotRuntimeKnowledge(interpretation.data, snapshot, view);
   const interpretedReportType = interpretation.data?.interpretations?.[0]?.reportType ?? "血钾检验";
   await expect(dialog).toBeHidden({ timeout: 20_000 });
   await page.goto(appPath("/workflow/todos"), { waitUntil: "domcontentloaded" });
@@ -733,6 +751,34 @@ async function performReportInterpretationAction(page: Page, view: StakeholderVi
   await expect(completedTodoRow).toContainText("报告解读");
   await expect(completedTodoRow).toContainText(interpretedReportType);
   return ["从患者360带入当前上下文并生成医技报告解读，协同任务完成报告解读待办"];
+}
+
+function assertReportInterpretationUsesSnapshotRuntimeKnowledge(
+  interpretation: ReportInterpretationPayload | undefined,
+  snapshot: ContextSnapshotSummary,
+  view: StakeholderView,
+) {
+  expect(
+    interpretation?.runtimeReleaseId,
+    `${view.label} 报告解读必须使用上下文锁定的当前机构生效版本`,
+  ).toBe(snapshot.runtimeReleaseId);
+  const item = interpretation?.interpretations?.find(
+    (candidate) =>
+      candidate.itemCode === reportInterpretationKnowledgeIdentity &&
+      Boolean(candidate.sourceVersionId) &&
+      Boolean(candidate.versionNo),
+  );
+  expect(
+    item,
+    `${view.label} 报告解读必须由 ${reportInterpretationKnowledgeIdentity} 知识资产生成`,
+  ).toBeTruthy();
+  expect(item?.summary ?? "", `${view.label} 报告解读摘要必须呈现运行版本证据`).toContain(
+    snapshot.runtimeReleaseId,
+  );
+  expect(item?.sourceVersionId, `${view.label} 报告解读必须返回知识来源版本身份`).toBeGreaterThan(
+    0,
+  );
+  expect(item?.versionNo, `${view.label} 报告解读必须返回知识版本号`).toBeTruthy();
 }
 
 async function performFollowupPlanAction(
@@ -1193,14 +1239,23 @@ async function createContextSnapshotForStakeholderAction(
     `${view.label} 建立当前就诊上下文应返回成功 status=${contextResponse.status()} body=${contextText}`,
   ).toBe(true);
   const context = JSON.parse(contextText) as {
-    data?: { snapshotId?: string; resources?: { encounters?: Array<{ encounterId?: string }> } };
+    data?: {
+      snapshotId?: string;
+      runtimeReleaseId?: string;
+      resources?: { encounters?: Array<{ encounterId?: string }> };
+    };
   };
   expect(context.data?.snapshotId, `${view.label} 上下文创建响应应返回快照身份`).toBeTruthy();
+  expect(
+    context.data?.runtimeReleaseId,
+    `${view.label} 上下文创建响应应锁定机构生效版本`,
+  ).toBeTruthy();
   await expect(contextDialog).toBeHidden({ timeout: 20_000 });
   await expect(page.getByText("当前就诊上下文已建立")).toBeVisible({ timeout: 20_000 });
   return {
     patientId: patientId ?? "",
     snapshotId: context.data?.snapshotId ?? "",
+    runtimeReleaseId: context.data?.runtimeReleaseId ?? "",
     encounterId: context.data?.resources?.encounters?.[0]?.encounterId ?? null,
   };
 }

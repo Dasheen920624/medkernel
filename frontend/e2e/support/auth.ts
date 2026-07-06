@@ -980,7 +980,7 @@ async function ensurePlatformSafetyCandidate(
     clinicalHazard:
       "用于验证空库环境可以先创建真实安全红线草稿，再经静默试运行和上线门禁纳入 SAFETY 资产。",
     conditionDsl: JSON.stringify({
-      all: [{ field: "medications[].dose", operator: "gt", value: 1 }],
+      all: [{ fact: "medications[].dose", operator: "gt", value: 1 }],
     }),
     evidenceSource: "本地上线演练安全证据",
     evidenceReference: "source-version:local-e2e#safety-redline",

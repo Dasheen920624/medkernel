@@ -265,6 +265,21 @@ describe("E2E credential contract", () => {
     ).toEqual({ releaseId: "hospital-release-no-knowledge", ready: false });
   });
 
+  it("requires report interpretation E2E to prove runtime knowledge consumption through the frontdesk chain", () => {
+    const source = readFileSync("e2e/stakeholder-view-rehearsal.spec.ts", "utf8");
+
+    expect(source).toContain("assertReportInterpretationUsesSnapshotRuntimeKnowledge");
+    expect(source).toContain("plat:diagnostic_item:lab-potassium");
+    expect(source).toContain("snapshot.runtimeReleaseId");
+    expect(source).toContain("interpretation?.runtimeReleaseId");
+    expect(source).toContain("reportInterpretationKnowledgeIdentity");
+    expect(source).toContain("sourceVersionId");
+    expect(source).toContain("versionNo");
+    expect(source).toContain("summary");
+    expect(source).not.toContain("assertCurrentRuntimeKnowledgeForReportInterpretation");
+    expect(source).not.toContain("/engine/integration/knowledge-runtime/runtime-release/current");
+  });
+
   it("detects missing platform runtime candidates before publishing the baseline", async () => {
     process.env.E2E_API_BASE_URL = "http://localhost:18080/medkernel/api/v1";
     const auth = (await import("../../e2e/support/auth.ts")) as typeof AuthSupport;
@@ -393,6 +408,11 @@ describe("E2E credential contract", () => {
     expect(source).toContain("requiredRuntimeAssetsForRehearsal");
     expect(source).toContain("assertRuntimeReleaseRequestCarriesRequiredAssets");
     expect(source).toContain("assertRuntimeDetailCarriesRequiredAssets");
+    expect(source).toContain("assertRequiredRuntimeInputsVisibleAndSelected");
+    expect(source).toContain("assertThirdPartyRuntimeConsumerCarriesRequiredAssets");
+    expect(source).toContain("/engine/integration/knowledge-runtime/runtime-release/current");
+    expect(source).toContain('getByRole("checkbox", { name: /启用/ })');
+    expect(source).toContain("平台标准内容");
     expect(source).toContain("assetIdentity");
     expect(source).toContain("postDataJSON");
     expect(source).not.toContain('runtimeHasActiveAsset(current.data, "FIELD_CATALOG")');
@@ -434,6 +454,13 @@ describe("E2E credential contract", () => {
         }),
       ]),
     );
+  });
+
+  it("keeps local rehearsal safety redline condition executable by the rule condition evaluator", () => {
+    const source = readFileSync("e2e/support/auth.ts", "utf8");
+
+    expect(source).toContain('fact: "medications[].dose"');
+    expect(source).not.toContain('field: "medications[].dose"');
   });
 
   it("keeps platform UI login bound to the explicit login type switch when present", () => {

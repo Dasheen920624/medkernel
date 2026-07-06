@@ -10,6 +10,53 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百二十八批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，而是补齐 13 类 runtime 闭包的真实运行消费者证据、SAFETY 红线运行时条件树执行、
+  以及医技报告解读在普通临床权限下通过上下文快照消费 runtime 知识的前台证据。本批使用只读子代理
+  Maxwell 核查报告解读后端链路与第三方 runtime current 权限边界；子代理未改文件、未提交。本批不推送
+  远程、不合并 `main`。
+- 第一百二十八批修复范围：`runtime-release-frontdesk.spec.ts` 在 `/config/releases` 机构生效版本页断言
+  “平台标准内容”清单中 13 类 `requiredRuntimeAssetsForRehearsal` 均可见且启用复选框已勾选；前台生成
+  新机构生效版本和回滚后，继续以授权 `engine-operator` 会话调用
+  `/engine/integration/knowledge-runtime/runtime-release/current`，断言第三方运行契约 `contractVersion=v1`、
+  `revisionNo` 与前台操作一致、13 类资产均为 `ACTIVE` 且带 `versionId`。`ClinicalRedlineMatcher` 修复
+  SAFETY 红线 `conditionDsl`：若为完整 `when/then` 规则仍走规则 DSL，否则按条件树调用
+  `evaluateConditionTree`，不再把安全红线条件误当完整规则动作包；`frontend/e2e/support/auth.ts` 的本地
+  演练安全红线条件同步使用条件引擎所需 `fact: "medications[].dose"`。`stakeholder-view-rehearsal.spec.ts`
+  不再让医技/`clinical-user` 直接读取第三方 runtime current 端点，而是断言前台创建的 context snapshot
+  返回 `runtimeReleaseId`，报告解读响应 `runtimeReleaseId` 等于该快照版本，且
+  `plat:diagnostic_item:lab-potassium` 解读项返回 `sourceVersionId`、`versionNo`，摘要包含同一
+  `runtimeReleaseId`。信息科长数据质量报告断言同步覆盖空库真实缺口“未登记院内系统适配器”和已有适配器
+  断连缺口“未接通适配器”，仍要求默认摘要不泄漏 `NOT_CONNECTED` 原始枚举。`e2eAuthCredentialContract`
+  锁住上述源码合同：stakeholder E2E 不得调用 third-party current，runtime 发布 E2E 保留 current 消费证据，
+  SAFETY 条件使用 `fact`。
+- 第一百二十八批红点根因与定位修复：真实全角色 E2E 先红于医技报告解读前置断言
+  `GET /engine/integration/knowledge-runtime/runtime-release/current` 返回 403，根因不是业务缺资产，而是测试把
+  `asset.read` 的第三方运行契约端点误放到 `clinical-user` 医技角色链路中。后端源码核查确认
+  `ReportInterpretationService` 通过 `snapshot.runtimeReleaseId` 调
+  `RuntimeReleaseDiagnosticItemSelector` 读取当前机构生效版本中的 ACTIVE 诊断项目知识；第三方 current 端点
+  由 `ThirdPartyKnowledgeRuntimeController` 保护 `@perm.has('asset.read')`，普通临床角色不应扩权。修复后
+  E2E 越过医技链路，又红于信息科长数据质量报告摘要找不到“未接通适配器”；失败现场和
+  `IntegrationService.generateDataQualityReport` 证明空库真实状态是“未登记院内系统适配器”，测试断言过窄，
+  已改为接受真实业务缺口集合且继续禁止默认层枚举泄漏。随后 runtime 发布 E2E 曾红于发布影响评估 500，
+  日志为 `NoClassDefFoundError: ReleaseSimulationService$1`；根因是同一 18080 Spring Boot 进程运行时并行
+  执行 Maven 窄测重编译 `target/classes`，导致懒加载合成类短暂缺失。重启干净后端进程、不再并行编译后，
+  同一 E2E 通过；该红点未改业务代码。
+- 第一百二十八批验证证据：后端窄测
+  `mvn -f medkernel-backend/pom.xml -Dtest=ClinicalRedlineMatcherTest test` 通过（4 tests）。源码合同
+  `npm --prefix frontend run test -- e2eAuthCredentialContract` 通过（22 passed）。E2E 类型检查
+  `cd frontend && npx tsc --noEmit --pretty false --skipLibCheck false --allowImportingTsExtensions --moduleResolution bundler --module ESNext --target ES2022 --lib ES2023,DOM --strict --types node e2e/stakeholder-view-rehearsal.spec.ts e2e/runtime-release-frontdesk.spec.ts`
+  通过；触达文件 Prettier check 通过；`git diff --check` 退出码 0。真实前台 E2E 在 2026-07-06
+  14:21 后新启动的 18080 后端 / H2 空库上通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium runtime-release-frontdesk.spec.ts`
+  通过（1 passed，9.3 秒），随后同一干净后端进程复跑
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 npm --prefix frontend run e2e -- --project=chromium stakeholder-view-rehearsal.spec.ts`
+  通过（1 passed，1.4 分钟），覆盖 12 类业务视角真实前台动作。
+- 第一百二十八批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也未完成真实备份、
+  隔离恢复、重启恢复、13 类患者资源逐类接入、11 类知识全流程、两家机构差异化发布 / 回滚和 S0-S40
+  全量前台验收；不能把本地 H2 空库 runtime 运行消费者与 12 视角 E2E 切片等同于总目标完成。下一步继续从
+  134 空库部署、全知识 / 全患者资源 / 全角色矩阵广度推进；跑真实 E2E 时避免与 Maven 编译并行使用同一
+  `target/classes` 后端进程，发现红点仍先复现、定根因，再修复，不做片面优化。
 - 第一百二十七批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，而是把本地上线演练平台标准版本和医院 runtime 从 3 类资产扩成 13 类资产闭包，
   通过真实服务创建并发布 `KNOWLEDGE`、`TERMINOLOGY`、`RULE`、`PATHWAY`、`EVALUATION`、
