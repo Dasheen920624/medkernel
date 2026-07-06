@@ -2,13 +2,13 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Alert,
+  App as AntdApp,
   Badge,
   Button,
   Card,
   Dropdown,
   Empty,
   Input,
-  message,
   Modal,
   Radio,
   Spin,
@@ -66,6 +66,7 @@ function triggerPointText(triggerPoint?: string | null, evidenceDetailsEnabled =
 }
 
 export default function EmbedLaunch() {
+  const { message } = AntdApp.useApp();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") || "";
   const {

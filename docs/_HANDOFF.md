@@ -10,6 +10,43 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百三十六批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，而是把旧 `embed-business-host.spec.ts` 的 `page.route` mock 嵌入演示补成可被浏览器
+  覆盖 reporter 消费的真实嵌入式交付和反馈闭环证据。该 spec 现在先以 `clinical-user` 真实登录前台
+  `/mpi`，创建脱敏患者、进入患者 360、按页面业务校验补齐医技报告项目 / 报告结论 / 异常重点并建立当前就诊
+  上下文，再通过真实后端创建候选推荐卡、登记宿主 Origin、签发一次性 iframe 启动凭证。独立宿主
+  `127.0.0.1:4174` 从 query token 动态加载真实 `/embed/launch?token=...`，嵌入端真实兑换 token、读取推荐卡、
+  医师在目标“检验危急值需人工确认”卡片内采纳建议，并把 postMessage 回传宿主；`launchCoverageEvidence`
+  只有在 spec 通过、非 flaky，且附件 `embed-business-host-launch-codes` 完整包含六个阶段和
+  `apiEvidence.launchTokenIssued/launchExchanged/recommendationsRead/feedbackSubmitted/hostMessageReceived`
+  全为 true 时，才声明 `scenarios:S8`、`productLayers:DELIVERY_FEEDBACK` 和
+  `deliveryShapes:EMBEDDED_COMPONENT`。本批还修复 `EmbedLaunch` 使用 AntD 静态 `message` 导致的浏览器
+  console warning，改用 `AntdApp.useApp()`；补齐上一批第三方系统族类型红点：AdapterHub 测试样例携带
+  `adapterId`，系统族 Select 接受普通数组选项。
+- 第一百三十六批红点根因与定位修复：目标 E2E 最初红于前台建立上下文没有发出
+  `/engine/context/snapshots` POST，根因是只填写“异常重点”触发了页面“医技报告项目和报告结论必须同时填写”
+  业务校验，已按真实前台补齐医技报告事实。随后红于 iframe 内存在本轮危急值卡和平台基线规则卡两张建议卡，
+  全局点击 `/采纳建议/` 在 strict mode 下不明确，已收敛为标题所在卡片内点击；再后红于推荐评估返回顺序不保证
+  本轮 candidate card 为 `cards[0]`，已按标题和来源摘要匹配本轮真实推荐卡；最后红于 AntD 静态 message
+  console warning，已迁入 App 上下文。全量前端 typecheck 额外暴露 AdapterHub 既有类型红点，已用最小类型
+  补齐收口。
+- 第一百三十六批验证证据：TDD 红灯
+  `npm --prefix frontend run test -- e2eAuthCredentialContract -t "embedded business host"` 曾失败于
+  `createClinicalContextFromFrontdesk` 缺 `医技报告项目/报告结论`、仍全局点击 iframe `采纳建议`、以及仍使用
+  `payload.data?.cards?.[0]`；实现后同命令转绿。目标真实 E2E 在本地 18080 H2 后端上通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-embed-host-coverage npm --prefix frontend run e2e -- --project=chromium embed-business-host.spec.ts`
+  通过（1 expected，0 unexpected，0 flaky），仓库外 `results.json` 为 `PASSED`，
+  `coverageKeys=["scenarios","productLayers","deliveryShapes"]`，只含 `scenarios:S8`、
+  `productLayers:DELIVERY_FEEDBACK` 和 `deliveryShapes:EMBEDDED_COMPONENT`，不含 `serviceCombinations` 或
+  `CLINICAL_RUNTIME`。其他新鲜门禁：`npm --prefix frontend run test -- e2eLaunchCoverageEvidence
+e2eAuthCredentialContract EmbedLaunch AdapterHub` 通过（74 tests）；`npm --prefix frontend run typecheck`
+  通过；E2E TS 检查
+  `cd frontend && npx tsc --noEmit --pretty false --skipLibCheck false --allowImportingTsExtensions --moduleResolution bundler --module ESNext --target ES2022 --lib ES2023,DOM --strict --types node e2e/support/launchCoverageEvidence.ts e2e/embed-business-host.spec.ts`
+  通过；`node --test scripts/release/launch-coverage-audit.test.mjs` 通过（6 tests）；`git diff --check` 通过。
+- 第一百三十六批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把嵌入宿主 S8
+  切片等同于完整 S8、完整临床运行组合、离线交付、全角色全功能或总目标完成。后续仍需按真实前台继续补齐
+  S0-S40 其余未覆盖项、完整语义族 / 专业域 / 专病十阶段、13 类 runtime 资产逐类业务消费者、五种交付形态
+  未覆盖项、两家机构差异化发布 / 回滚、真实备份 / 隔离恢复 / 重启恢复，以及 134 清库部署复演。
 - 第一百三十五批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，而是把 `diagnosis-knowledge-maintenance.spec.ts` 从专项真实前台链路补成可被浏览器
   覆盖 reporter 消费的 S3 医疗资产生产证据。该 spec 现在只有在医疗引擎运营员真实登记标准发现项术语、

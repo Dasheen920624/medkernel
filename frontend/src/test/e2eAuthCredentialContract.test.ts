@@ -585,7 +585,7 @@ describe("E2E credential contract", () => {
     expect(source).toContain("evaluationRunId");
     expect(source).toContain("INSURANCE_RULE_MANUAL");
     expect(source).toContain("selectInsuranceAuditSnapshotFromUi(page, snapshot)");
-    expect(source).toContain('`选择 ${snapshot.snapshotId}`');
+    expect(source).toContain("`选择 ${snapshot.snapshotId}`");
     const insuranceAuditBody = source.slice(
       source.indexOf("async function runInsuranceAuditFromUi"),
       source.indexOf("async function assertInsuranceAuditUsesEvaluationRun"),
@@ -598,7 +598,7 @@ describe("E2E credential contract", () => {
       source.indexOf("async function closeQualityRectificationFromAlertsUi"),
     );
     expect(insuranceSnapshotSelectorBody).toContain("snapshot.snapshotId");
-    expect(insuranceSnapshotSelectorBody).toContain('name: `选择 ${snapshot.snapshotId}`');
+    expect(insuranceSnapshotSelectorBody).toContain("name: `选择 ${snapshot.snapshotId}`");
     expect(insuranceSnapshotSelectorBody).not.toContain("选择第 1 个病案快照");
   });
 
@@ -610,7 +610,7 @@ describe("E2E credential contract", () => {
       source.indexOf("function assertRuntimeRecommendationEvidence"),
     );
     expect(cdssBody).toContain("snapshot.snapshotId");
-    expect(cdssBody).toContain('name: `选择 ${snapshot.snapshotId}`');
+    expect(cdssBody).toContain("name: `选择 ${snapshot.snapshotId}`");
     expect(cdssBody).not.toContain('name: "选择第 1 个临床快照"');
   });
 
@@ -671,6 +671,54 @@ describe("E2E credential contract", () => {
     expect(source).not.toContain("postApi(");
     expect(source).not.toContain("exec");
     expect(source).not.toContain("spawn");
+  });
+
+  it("requires embedded business host rehearsal to use real embed services before launch coverage", () => {
+    const source = readFileSync("e2e/embed-business-host.spec.ts", "utf8");
+    const hostSource = readFileSync("e2e/support/embed-business-host-server.mjs", "utf8");
+    const clinicalContextBody = source.slice(
+      source.indexOf("async function createClinicalContextFromFrontdesk"),
+      source.indexOf("async function createEmbeddedRecommendationCard"),
+    );
+
+    expect(source).toContain("/engine/embed/origins");
+    expect(source).toContain("/engine/embed/launch-tokens");
+    expect(source).toContain("/engine/recommendations:evaluate");
+    expect(source).toContain("findEmbeddedRecommendationCard(payload.data?.cards ?? [])");
+    expect(source).toContain('card.title === "检验危急值需人工确认"');
+    expect(source).toContain('card.sourceSummary?.includes("嵌入宿主真实服务链路演练")');
+    expect(source).not.toContain("payload.data?.cards?.[0]");
+    const embedLaunchSource = readFileSync("src/pages/clinical/EmbedLaunch.tsx", "utf8");
+    expect(embedLaunchSource).toContain("App as AntdApp");
+    expect(embedLaunchSource).toContain("AntdApp.useApp()");
+    expect(embedLaunchSource).not.toContain("  message,");
+    expect(clinicalContextBody).toContain('getByLabel("医技报告项目").fill("血钾检验")');
+    expect(clinicalContextBody).toContain(
+      'getByLabel("报告结论").fill("血钾 6.3 mmol/L，危急值，已复核")',
+    );
+    expect(clinicalContextBody.indexOf('getByLabel("医技报告项目")')).toBeLessThan(
+      clinicalContextBody.indexOf('getByLabel("异常重点")'),
+    );
+    expect(clinicalContextBody.indexOf('getByLabel("报告结论")')).toBeLessThan(
+      clinicalContextBody.indexOf('getByLabel("异常重点")'),
+    );
+    expect(source).toContain("const targetRecommendationCard = embeddedRecommendationCard(");
+    expect(source).toContain('"检验危急值需人工确认"');
+    expect(source).toContain('targetRecommendationCard.getByRole("button", { name: /采纳建议/ })');
+    expect(source).not.toContain('frame.getByRole("button", { name: /采纳建议/ }).click()');
+    expect(source).toContain("真实签发一次性嵌入启动凭证");
+    expect(source).toContain("独立业务系统宿主加载真实 iframe 启动地址");
+    expect(source).toContain("嵌入终端真实兑换启动凭证并读取当前就诊上下文");
+    expect(source).toContain("嵌入终端真实读取当前就诊推荐卡");
+    expect(source).toContain("医师在嵌入终端提交采纳反馈");
+    expect(source).toContain("独立业务系统宿主收到医师反馈 postMessage");
+    expect(source).toContain("attachEmbedBusinessHostScenarioEvidence");
+    expect(source).toContain("embed-business-host-launch-codes");
+    expect(source).not.toContain("page.route(");
+    expect(source).not.toContain("card-embed-e2e");
+    expect(hostSource).toContain('searchParams.get("token")');
+    expect(hostSource).toContain("token=");
+    expect(hostSource).not.toContain("host-e2e-token");
   });
 });
 

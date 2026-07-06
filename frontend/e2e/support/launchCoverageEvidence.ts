@@ -48,6 +48,7 @@ type CoverageProof = {
   requiresRealFrontdeskScenarioAttachment?: boolean;
   requiresServiceOrganizationScenarioAttachment?: boolean;
   requiresDiagnosisKnowledgeScenarioAttachment?: boolean;
+  requiresEmbedBusinessHostAttachment?: boolean;
 };
 
 const stakeholderClaims = [
@@ -105,11 +106,7 @@ const thirdPartySystemFamilyClaims = [
   "thirdPartySystemFamilies:MODEL_DIFY_AGENT",
 ];
 
-const realFrontdeskScenarioClaims = [
-  "scenarios:S10",
-  "scenarios:S11",
-  "scenarios:S12",
-];
+const realFrontdeskScenarioClaims = ["scenarios:S10", "scenarios:S11", "scenarios:S12"];
 
 const serviceOrganizationClaims = [
   "scenarios:S1",
@@ -125,6 +122,12 @@ const diagnosisKnowledgeClaims = [
   "productLayers:MEDICAL_ASSET",
   "semanticFamilies:DISEASE_DIAGNOSIS",
   "specialtyDomains:CLINICAL_SPECIALTIES",
+];
+
+const embedBusinessHostClaims = [
+  "scenarios:S8",
+  "productLayers:DELIVERY_FEEDBACK",
+  "deliveryShapes:EMBEDDED_COMPONENT",
 ];
 
 const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
@@ -146,11 +149,7 @@ const requiredServiceOrganizationScenarioEvidence: Record<string, string[]> = {
     "前台创建医疗机构与科室",
     "前台回读服务机构组织树",
   ],
-  S14: [
-    "前台创建临床账号并绑定科室职责范围",
-    "临床账号首次登录后读取权限画像",
-    "前台停用演练账号",
-  ],
+  S14: ["前台创建临床账号并绑定科室职责范围", "临床账号首次登录后读取权限画像", "前台停用演练账号"],
 };
 
 const requiredServiceOrganizationScenarioCodes = Object.keys(
@@ -168,6 +167,21 @@ const requiredDiagnosisKnowledgeScenarioEvidence: Record<string, string[]> = {
 
 const requiredDiagnosisKnowledgeScenarioCodes = Object.keys(
   requiredDiagnosisKnowledgeScenarioEvidence,
+);
+
+const requiredEmbedBusinessHostScenarioEvidence: Record<string, string[]> = {
+  S8: [
+    "真实签发一次性嵌入启动凭证",
+    "独立业务系统宿主加载真实 iframe 启动地址",
+    "嵌入终端真实兑换启动凭证并读取当前就诊上下文",
+    "嵌入终端真实读取当前就诊推荐卡",
+    "医师在嵌入终端提交采纳反馈",
+    "独立业务系统宿主收到医师反馈 postMessage",
+  ],
+};
+
+const requiredEmbedBusinessHostScenarioCodes = Object.keys(
+  requiredEmbedBusinessHostScenarioEvidence,
 );
 
 const coverageProofs: CoverageProof[] = [
@@ -189,7 +203,8 @@ const coverageProofs: CoverageProof[] = [
   },
   {
     file: "real-frontdesk-rehearsal.spec.ts",
-    titleIncludes: "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
+    titleIncludes:
+      "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
     claims: realFrontdeskScenarioClaims,
     requiresRealFrontdeskScenarioAttachment: true,
   },
@@ -204,6 +219,12 @@ const coverageProofs: CoverageProof[] = [
     titleIncludes: "运营员从前台创建证据完整诊断资产并登记标准与验证病例",
     claims: diagnosisKnowledgeClaims,
     requiresDiagnosisKnowledgeScenarioAttachment: true,
+  },
+  {
+    file: "embed-business-host.spec.ts",
+    titleIncludes: "独立业务系统宿主通过真实嵌入凭证完成 iframe 启动并接收医师反馈",
+    claims: embedBusinessHostClaims,
+    requiresEmbedBusinessHostAttachment: true,
   },
 ];
 
@@ -246,7 +267,8 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.requiresServiceOrganizationScenarioAttachment ||
         hasRequiredServiceOrganizationScenarioAttachment(test)) &&
       (!proof.requiresDiagnosisKnowledgeScenarioAttachment ||
-        hasRequiredDiagnosisKnowledgeScenarioAttachment(test))
+        hasRequiredDiagnosisKnowledgeScenarioAttachment(test)) &&
+      (!proof.requiresEmbedBusinessHostAttachment || hasRequiredEmbedBusinessHostAttachment(test))
     );
   });
 }
@@ -262,14 +284,18 @@ function hasRequiredSystemFamilyAttachment(test: BrowserE2eTestResult) {
     const observed = parsed.systemFamilyCodes
       .filter((code): code is string => typeof code === "string")
       .sort();
-    return JSON.stringify(observed) === JSON.stringify([...requiredThirdPartySystemFamilyCodes].sort());
+    return (
+      JSON.stringify(observed) === JSON.stringify([...requiredThirdPartySystemFamilyCodes].sort())
+    );
   } catch {
     return false;
   }
 }
 
 function hasRequiredRealFrontdeskScenarioAttachment(test: BrowserE2eTestResult) {
-  const attachment = test.attachments?.find((item) => item.name === "real-frontdesk-scenario-codes");
+  const attachment = test.attachments?.find(
+    (item) => item.name === "real-frontdesk-scenario-codes",
+  );
   if (!attachment?.body) return false;
   try {
     const parsed = JSON.parse(attachment.body) as {
@@ -283,7 +309,8 @@ function hasRequiredRealFrontdeskScenarioAttachment(test: BrowserE2eTestResult) 
       .filter((code): code is string => typeof code === "string")
       .sort();
     if (
-      JSON.stringify(observedCodes) !== JSON.stringify([...requiredRealFrontdeskScenarioCodes].sort())
+      JSON.stringify(observedCodes) !==
+      JSON.stringify([...requiredRealFrontdeskScenarioCodes].sort())
     ) {
       return false;
     }
@@ -396,6 +423,62 @@ function hasRequiredDiagnosisKnowledgeScenarioAttachment(test: BrowserE2eTestRes
   } catch {
     return false;
   }
+}
+
+function hasRequiredEmbedBusinessHostAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "embed-business-host-launch-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scenarioCodes?: unknown;
+      productLayers?: unknown;
+      deliveryShapes?: unknown;
+      apiEvidence?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    if (
+      !arrayEquals(parsed.scenarioCodes, requiredEmbedBusinessHostScenarioCodes) ||
+      !arrayEquals(parsed.productLayers, ["DELIVERY_FEEDBACK"]) ||
+      !arrayEquals(parsed.deliveryShapes, ["EMBEDDED_COMPONENT"]) ||
+      !hasCompleteEmbedApiEvidence(parsed.apiEvidence) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const evidenceByCode = new Map<string, string[]>();
+    for (const item of parsed.scenarioEvidence) {
+      if (!item || typeof item !== "object") continue;
+      const code = (item as { code?: unknown }).code;
+      const stages = (item as { observedStages?: unknown }).observedStages;
+      if (typeof code !== "string" || !Array.isArray(stages)) continue;
+      evidenceByCode.set(
+        code,
+        stages.filter((stage): stage is string => typeof stage === "string"),
+      );
+    }
+    return requiredEmbedBusinessHostScenarioCodes.every((code) => {
+      const observedStages = evidenceByCode.get(code) ?? [];
+      return requiredEmbedBusinessHostScenarioEvidence[code].every((stage) =>
+        observedStages.includes(stage),
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
+function hasCompleteEmbedApiEvidence(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const evidence = value as Record<string, unknown>;
+  return [
+    "launchTokenIssued",
+    "launchExchanged",
+    "recommendationsRead",
+    "feedbackSubmitted",
+    "hostMessageReceived",
+  ].every((key) => evidence[key] === true);
 }
 
 function arrayEquals(value: unknown, expected: string[]) {

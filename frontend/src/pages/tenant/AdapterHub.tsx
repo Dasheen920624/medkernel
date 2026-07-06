@@ -1858,7 +1858,7 @@ export default function AdapterHub() {
               showSearch
               optionFilterProp="label"
               placeholder="选择产品范围内的第三方系统族"
-              options={THIRD_PARTY_SYSTEM_FAMILY_OPTIONS}
+              options={[...THIRD_PARTY_SYSTEM_FAMILY_OPTIONS]}
             />
           </Form.Item>
           <Form.Item name="sourceSystem" label="来源系统" rules={[{ required: true }]}>

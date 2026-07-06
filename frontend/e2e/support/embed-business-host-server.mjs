@@ -7,7 +7,13 @@ const port = 4174;
 const embedAppBase = resolveEmbedAppBase(process.env.E2E_BASE_URL);
 const embedOrigin = resolveEmbedOrigin(embedAppBase);
 
-const html = `<!doctype html>
+function renderHtml(requestUrl) {
+  const url = new URL(requestUrl, `http://${host}:${port}`);
+  const token = url.searchParams.get("token") ?? "";
+  const iframeSrc = token
+    ? `${embedAppBase}/embed/launch?token=${encodeURIComponent(token)}`
+    : `${embedAppBase}/embed/launch`;
+  return `<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
@@ -44,7 +50,7 @@ const html = `<!doctype html>
         <iframe
           id="medkernel-frame"
           title="MedKernel 临床建议"
-          src="${embedAppBase}/embed/launch?token=host-e2e-token"
+          src="${iframeSrc}"
           sandbox="allow-forms allow-same-origin allow-scripts"
         ></iframe>
       </section>
@@ -61,9 +67,11 @@ const html = `<!doctype html>
     </script>
   </body>
 </html>`;
+}
 
 const server = createServer((request, response) => {
-  if (request.url !== "/") {
+  const url = new URL(request.url ?? "/", `http://${host}:${port}`);
+  if (url.pathname !== "/") {
     response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
     response.end("Not Found");
     return;
@@ -72,7 +80,7 @@ const server = createServer((request, response) => {
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store",
   });
-  response.end(html);
+  response.end(renderHtml(request.url ?? "/"));
 });
 
 server.listen(port, host);

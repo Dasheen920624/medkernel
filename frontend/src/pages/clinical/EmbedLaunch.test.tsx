@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ConfigProvider } from "antd";
+import { App as AntdApp, ConfigProvider } from "antd";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -43,7 +43,9 @@ function renderEmbedLaunch() {
       future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
       <ConfigProvider>
-        <EmbedLaunch />
+        <AntdApp>
+          <EmbedLaunch />
+        </AntdApp>
       </ConfigProvider>
     </MemoryRouter>,
   );

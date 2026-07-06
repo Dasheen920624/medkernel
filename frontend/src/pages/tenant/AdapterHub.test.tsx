@@ -245,6 +245,7 @@ const onboarding: IntegrationOnboarding = {
   name: "HIS 主数据接入申请",
   status: "MAPPING_CONFIGURED",
   routeType: "ADAPTER",
+  adapterId: "his-main",
   routeReference: "/api/v1/engine/integration/adapters/his-main",
   healthStatus: "NOT_CONNECTED",
   mappedFieldCount: 12,

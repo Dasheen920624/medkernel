@@ -137,9 +137,7 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
       "DATA_INTEROPERABILITY",
     ]);
-    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual([
-      "API_EVENT",
-    ]);
+    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual(["API_EVENT"]);
     expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
       "THIRD_PARTY_INTERFACE",
     ]);
@@ -216,8 +214,7 @@ describe("browser E2E launch coverage evidence", () => {
       tests: [
         {
           file: "/repo/frontend/e2e/service-organization-frontdesk.spec.ts",
-          title:
-            "平台开通服务机构后，新机构可完成组织树、科室账号、职责范围和登录画像闭环",
+          title: "平台开通服务机构后，新机构可完成组织树、科室账号、职责范围和登录画像闭环",
           status: "passed",
           attachments: [
             {
@@ -271,8 +268,7 @@ describe("browser E2E launch coverage evidence", () => {
       tests: [
         {
           file: "/repo/frontend/e2e/service-organization-frontdesk.spec.ts",
-          title:
-            "平台开通服务机构后，新机构可完成组织树、科室账号、职责范围和登录画像闭环",
+          title: "平台开通服务机构后，新机构可完成组织树、科室账号、职责范围和登录画像闭环",
           status: "passed",
           attachments: [
             {
@@ -282,9 +278,7 @@ describe("browser E2E launch coverage evidence", () => {
                 scenarioCodes: ["S1"],
                 organizationLevels: ["HOSPITAL"],
                 serviceCombinations: ["ONBOARDING_INTEGRATION"],
-                scenarioEvidence: [
-                  { code: "S1", observedStages: ["前台开通服务机构"] },
-                ],
+                scenarioEvidence: [{ code: "S1", observedStages: ["前台开通服务机构"] }],
               }),
             },
           ],
@@ -343,6 +337,100 @@ describe("browser E2E launch coverage evidence", () => {
       "CLINICAL_SPECIALTIES",
     ]);
     expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).not.toContain("S16");
+  });
+
+  it("declares embedded business host coverage only when the passed spec attaches complete real service evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/embed-business-host.spec.ts",
+          title: "独立业务系统宿主通过真实嵌入凭证完成 iframe 启动并接收医师反馈",
+          status: "passed",
+          attachments: [
+            {
+              name: "embed-business-host-launch-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                scenarioCodes: ["S8"],
+                productLayers: ["DELIVERY_FEEDBACK"],
+                deliveryShapes: ["EMBEDDED_COMPONENT"],
+                apiEvidence: {
+                  launchTokenIssued: true,
+                  launchExchanged: true,
+                  recommendationsRead: true,
+                  feedbackSubmitted: true,
+                  hostMessageReceived: true,
+                },
+                scenarioEvidence: [
+                  {
+                    code: "S8",
+                    observedStages: [
+                      "真实签发一次性嵌入启动凭证",
+                      "独立业务系统宿主加载真实 iframe 启动地址",
+                      "嵌入终端真实兑换启动凭证并读取当前就诊上下文",
+                      "嵌入终端真实读取当前就诊推荐卡",
+                      "医师在嵌入终端提交采纳反馈",
+                      "独立业务系统宿主收到医师反馈 postMessage",
+                    ],
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S8"]);
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "DELIVERY_FEEDBACK",
+    ]);
+    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual([
+      "EMBEDDED_COMPONENT",
+    ]);
+    expect(evidence.launchCoverage.serviceCombinations).toBeUndefined();
+  });
+
+  it("does not declare embedded business host coverage from a passed spec without complete real service evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/embed-business-host.spec.ts",
+          title: "独立业务系统宿主通过真实嵌入凭证完成 iframe 启动并接收医师反馈",
+          status: "passed",
+          attachments: [
+            {
+              name: "embed-business-host-launch-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                scenarioCodes: ["S8"],
+                productLayers: ["DELIVERY_FEEDBACK"],
+                deliveryShapes: ["EMBEDDED_COMPONENT"],
+                apiEvidence: {
+                  launchTokenIssued: true,
+                  launchExchanged: true,
+                  recommendationsRead: true,
+                  feedbackSubmitted: true,
+                  hostMessageReceived: false,
+                },
+                scenarioEvidence: [
+                  {
+                    code: "S8",
+                    observedStages: ["真实签发一次性嵌入启动凭证"],
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.productLayers).toBeUndefined();
+    expect(evidence.launchCoverage.deliveryShapes).toBeUndefined();
   });
 
   it("does not declare diagnosis knowledge coverage from a passed spec without complete asset-production附件", () => {
