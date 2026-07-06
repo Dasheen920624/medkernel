@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 
 import {
   apiBase,
@@ -40,6 +40,26 @@ type ClinicalUserCredential = {
   personId: string;
 };
 
+const requiredServiceOrganizationScenarioEvidence = [
+  {
+    code: "S1",
+    observedStages: [
+      "前台开通服务机构",
+      "机构管理员首次登录并改密",
+      "前台创建医疗机构与科室",
+      "前台回读服务机构组织树",
+    ],
+  },
+  {
+    code: "S14",
+    observedStages: [
+      "前台创建临床账号并绑定科室职责范围",
+      "临床账号首次登录后读取权限画像",
+      "前台停用演练账号",
+    ],
+  },
+] as const;
+
 test.describe.configure({ mode: "serial" });
 
 test.describe("S1/S14 服务机构与人员账号真实前台上线演练", () => {
@@ -60,16 +80,19 @@ test.describe("S1/S14 服务机构与人员账号真实前台上线演练", () =
     let provisionedOrganization: ProvisionedOrganization | null = null;
     let adminCleanupPassword = "";
     let clinicalUser: ClinicalUserCredential | null = null;
+    const observedStages = new Set<string>();
 
     try {
       await ensureReadySession(page, "platform-admin", "platform");
       const provisioned = await provisionServiceOrganizationFromUi(page, organization);
+      recordServiceOrganizationStage(observedStages, "前台开通服务机构");
       provisionedOrganization = provisioned;
       const adminPassword = await completeTenantAdminFirstLoginFromUi(
         page,
         provisioned,
         adminFinalPassword,
       );
+      recordServiceOrganizationStage(observedStages, "机构管理员首次登录并改密");
       adminCleanupPassword = adminPassword;
       await loginAsInstitutionUser(
         page,
@@ -79,11 +102,13 @@ test.describe("S1/S14 服务机构与人员账号真实前台上线演练", () =
       );
 
       const orgTree = await createFacilityAndDepartmentFromUi(page, suffix);
+      recordServiceOrganizationStage(observedStages, "前台创建医疗机构与科室");
       clinicalUser = await createClinicalUserWithDepartmentScopeFromUi(page, {
         suffix,
         facility: orgTree.facility,
         department: orgTree.department,
       });
+      recordServiceOrganizationStage(observedStages, "前台创建临床账号并绑定科室职责范围");
 
       await completeClinicalUserFirstLoginFromUi(
         page,
@@ -99,11 +124,13 @@ test.describe("S1/S14 服务机构与人员账号真实前台上线演练", () =
         departmentId: orgTree.department.id,
         username: clinicalUser.username,
       });
+      recordServiceOrganizationStage(observedStages, "临床账号首次登录后读取权限画像");
       await assertProvisionedOrgTree(page, {
         tenantId: provisioned.tenantId,
         facility: orgTree.facility,
         department: orgTree.department,
       });
+      recordServiceOrganizationStage(observedStages, "前台回读服务机构组织树");
 
       const screenshotPath = testInfo.outputPath("service-organization-clinical-scope.png");
       await page.screenshot({ path: screenshotPath, fullPage: true });
@@ -118,14 +145,16 @@ test.describe("S1/S14 服务机构与人员账号真实前台上线演练", () =
           adminPassword: adminCleanupPassword,
           clinicalUserId: clinicalUser?.userId,
         });
+        recordServiceOrganizationStage(observedStages, "前台停用演练账号");
       }
     }
+    await attachServiceOrganizationScenarioEvidence(testInfo, observedStages);
   });
 });
 
 async function provisionServiceOrganizationFromUi(
   page: Page,
-  organization: Omit<ProvisionedOrganization, "adminPassword">,
+  organization: Pick<ProvisionedOrganization, "tenantId" | "tenantName" | "adminUsername">,
 ): Promise<ProvisionedOrganization> {
   await page.goto(appPath("/tenant/onboarding"), { waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { name: "服务机构" })).toBeVisible();
@@ -248,7 +277,7 @@ async function createFacilityAndDepartmentFromUi(
 
   return {
     facility: requireOrgUnit(facility, "前台创建医疗机构"),
-    department: requireOrgUnit(department, "前台创建科室"),
+    department: requireDepartmentOrgUnit(department, "前台创建科室"),
   };
 }
 
@@ -604,6 +633,48 @@ function requireOrgUnit(value: OrgUnit, label: string) {
   return value as Required<Pick<OrgUnit, "id" | "name" | "level">> & OrgUnit;
 }
 
+function recordServiceOrganizationStage(observedStages: Set<string>, stage: string) {
+  observedStages.add(stage);
+}
+
+async function attachServiceOrganizationScenarioEvidence(
+  testInfo: TestInfo,
+  observedStageSet: Set<string>,
+) {
+  const scenarioEvidence = requiredServiceOrganizationScenarioEvidence.map((scenario) => ({
+    code: scenario.code,
+    observedStages: scenario.observedStages.filter((stage) => observedStageSet.has(stage)),
+  }));
+  const completedScenarioCodes = scenarioEvidence
+    .filter((scenario) => {
+      const requiredStages = requiredServiceOrganizationScenarioEvidence.find(
+        (item) => item.code === scenario.code,
+      )?.observedStages ?? [];
+      return requiredStages.every((stage) => scenario.observedStages.includes(stage));
+    })
+    .map((scenario) => scenario.code);
+  await testInfo.attach("service-organization-scenario-codes", {
+    body: JSON.stringify(
+      {
+        scenarioCodes: completedScenarioCodes,
+        organizationLevels: ["HOSPITAL", "DEPARTMENT"],
+        serviceCombinations: ["ONBOARDING_INTEGRATION", "COMPLIANCE_OPERATIONS"],
+        scenarioEvidence,
+      },
+      null,
+      2,
+    ),
+    contentType: "application/json",
+  });
+}
+
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function requireDepartmentOrgUnit(value: OrgUnit, label: string) {
+  if (!value.id || !value.name || !value.level || value.parentId === undefined) {
+    throw new Error(`${label} 响应缺少 id/name/level/parentId`);
+  }
+  return value as Required<Pick<OrgUnit, "id" | "parentId" | "name" | "level">> & OrgUnit;
 }

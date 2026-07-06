@@ -542,6 +542,18 @@ describe("E2E credential contract", () => {
     expect(source).toContain("停用服务机构演练管理员账号");
     expect(source).toContain("assertProvisionedOrgTree");
     expect(source).toContain("assertClinicalUserSecurityScope");
+    expect(source).toContain("recordServiceOrganizationStage");
+    expect(source).toContain("attachServiceOrganizationScenarioEvidence");
+    expect(source).toContain("service-organization-scenario-codes");
+    expect(source).toContain('code: "S1"');
+    expect(source).toContain('code: "S14"');
+    expect(source).toContain("前台开通服务机构");
+    expect(source).toContain("机构管理员首次登录并改密");
+    expect(source).toContain("前台创建医疗机构与科室");
+    expect(source).toContain("前台回读服务机构组织树");
+    expect(source).toContain("前台创建临床账号并绑定科室职责范围");
+    expect(source).toContain("临床账号首次登录后读取权限画像");
+    expect(source).toContain("前台停用演练账号");
     expect(source).not.toContain(".catch(() => null)");
   });
 

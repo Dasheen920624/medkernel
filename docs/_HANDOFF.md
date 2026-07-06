@@ -10,6 +10,34 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百三十四批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，而是把已存在但只附截图的 `service-organization-frontdesk.spec.ts` 补成可被浏览器
+  覆盖 reporter 消费的 S1/S14 真实前台证据。该 spec 现在只有在平台管理员真实开通服务机构、机构管理员
+  首次登录并改密、前台创建医疗机构与科室、前台创建临床账号并绑定科室职责范围、临床账号首次登录后回读
+  权限画像、回读新服务机构组织树，并在 finally 中真实停用演练账号后，才附件
+  `service-organization-scenario-codes`。`launchCoverageEvidence` 只有在该 spec 通过、非 flaky，且附件完整
+  包含 S1/S14、`organizationLevels:HOSPITAL/DEPARTMENT` 和
+  `serviceCombinations:ONBOARDING_INTEGRATION/COMPLIANCE_OPERATIONS` 时才声明这些覆盖项；不声明 S0-S40
+  全量、完整组织层级、全语义族、专业域、专病十阶段或 134 部署覆盖。
+- 第一百三十四批验证证据：TDD 红灯
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence -t "service organization"` 曾失败于
+  `expected undefined to deeply equal [ 'S1', 'S14' ]`；`npm --prefix frontend run test -- e2eAuthCredentialContract -t "service organization"`
+  曾失败于 `service-organization-frontdesk.spec.ts` 缺 `recordServiceOrganizationStage`。实现后两者转绿。
+  新鲜门禁：`npm --prefix frontend run test -- e2eLaunchCoverageEvidence e2eAuthCredentialContract`
+  通过（36 tests）；E2E TS 检查
+  `cd frontend && npx tsc --noEmit --pretty false --skipLibCheck false --allowImportingTsExtensions --moduleResolution bundler --module ESNext --target ES2022 --lib ES2023,DOM --strict --types node e2e/support/launchCoverageEvidence.ts e2e/service-organization-frontdesk.spec.ts`
+  通过；`node --test scripts/release/launch-coverage-audit.test.mjs` 通过（6 tests）；`git diff --check` 通过。
+  目标真实前台 E2E 在重启后的本地 18080 H2 后端（当前监听 PID 48944）通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-service-organization-coverage npm --prefix frontend run e2e -- --project=chromium service-organization-frontdesk.spec.ts`
+  通过（1 expected，0 unexpected，0 flaky），仓库外 `results.json` 为 `PASSED`，
+  `coverageKeys=["scenarios","organizationLevels","serviceCombinations"]`，只含
+  `scenarios:S1/S14`、`organizationLevels:HOSPITAL/DEPARTMENT` 和
+  `serviceCombinations:ONBOARDING_INTEGRATION/COMPLIANCE_OPERATIONS`。
+- 第一百三十四批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也不能把 S1/S14
+  服务机构与人员账号切片等同于总目标完成。只读子代理 Sartre/Erdos 均确认当前全量覆盖审计缺口仍包括
+  S0-S40 未覆盖项、13 类标准患者资源逐类真实前台接入、完整语义族、专业域、专病十阶段、嵌入组件 /
+  离线交付、专业协同服务组合、两机构差异化发布 / 回滚、真实备份 / 隔离恢复 / 重启恢复，以及 134 清库部署
+  复演；`launch-coverage-audit` 因这些 UNKNOWN 项失败是正确门禁，不能绕过或用局部 E2E 静态包装。
 - 第一百三十三批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，而是把 `real-frontdesk-rehearsal.spec.ts` 中 S10/S11/S12 的医保审核、
   CLAIM 评价指标激活、质量整改闭环和随访协同链路补成更强的真实前台证据。浏览器覆盖证据现在只有在

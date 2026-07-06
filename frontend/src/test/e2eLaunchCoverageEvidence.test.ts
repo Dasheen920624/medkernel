@@ -210,6 +210,93 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
+  it("declares service organization coverage only when the passed spec attaches complete frontdesk evidence", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/service-organization-frontdesk.spec.ts",
+          title:
+            "平台开通服务机构后，新机构可完成组织树、科室账号、职责范围和登录画像闭环",
+          status: "passed",
+          attachments: [
+            {
+              name: "service-organization-scenario-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                scenarioCodes: ["S1", "S14"],
+                organizationLevels: ["HOSPITAL", "DEPARTMENT"],
+                serviceCombinations: ["ONBOARDING_INTEGRATION", "COMPLIANCE_OPERATIONS"],
+                scenarioEvidence: [
+                  {
+                    code: "S1",
+                    observedStages: [
+                      "前台开通服务机构",
+                      "机构管理员首次登录并改密",
+                      "前台创建医疗机构与科室",
+                      "前台回读服务机构组织树",
+                    ],
+                  },
+                  {
+                    code: "S14",
+                    observedStages: [
+                      "前台创建临床账号并绑定科室职责范围",
+                      "临床账号首次登录后读取权限画像",
+                      "前台停用演练账号",
+                    ],
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarios?.map((item) => item.code)).toEqual(["S1", "S14"]);
+    expect(evidence.launchCoverage.organizationLevels?.map((item) => item.code)).toEqual([
+      "HOSPITAL",
+      "DEPARTMENT",
+    ]);
+    expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
+      "ONBOARDING_INTEGRATION",
+      "COMPLIANCE_OPERATIONS",
+    ]);
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
+  it("does not declare service organization coverage from a passed spec without complete scenario附件", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/service-organization-frontdesk.spec.ts",
+          title:
+            "平台开通服务机构后，新机构可完成组织树、科室账号、职责范围和登录画像闭环",
+          status: "passed",
+          attachments: [
+            {
+              name: "service-organization-scenario-codes",
+              contentType: "application/json",
+              body: JSON.stringify({
+                scenarioCodes: ["S1"],
+                organizationLevels: ["HOSPITAL"],
+                serviceCombinations: ["ONBOARDING_INTEGRATION"],
+                scenarioEvidence: [
+                  { code: "S1", observedStages: ["前台开通服务机构"] },
+                ],
+              }),
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.organizationLevels).toBeUndefined();
+    expect(evidence.launchCoverage.serviceCombinations).toBeUndefined();
+  });
+
   it("does not declare real-frontdesk scenario coverage from a passed spec without complete scenario附件", () => {
     const missingAttachment = buildBrowserE2eLaunchEvidence({
       stats: passedStats,

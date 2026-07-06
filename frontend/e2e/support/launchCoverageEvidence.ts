@@ -46,6 +46,7 @@ type CoverageProof = {
   claims: string[];
   requiresSystemFamilyAttachment?: boolean;
   requiresRealFrontdeskScenarioAttachment?: boolean;
+  requiresServiceOrganizationScenarioAttachment?: boolean;
 };
 
 const stakeholderClaims = [
@@ -109,6 +110,15 @@ const realFrontdeskScenarioClaims = [
   "scenarios:S12",
 ];
 
+const serviceOrganizationClaims = [
+  "scenarios:S1",
+  "scenarios:S14",
+  "organizationLevels:HOSPITAL",
+  "organizationLevels:DEPARTMENT",
+  "serviceCombinations:ONBOARDING_INTEGRATION",
+  "serviceCombinations:COMPLIANCE_OPERATIONS",
+];
+
 const requiredThirdPartySystemFamilyCodes = thirdPartySystemFamilyClaims
   .filter((claim) => claim.startsWith("thirdPartySystemFamilies:"))
   .map((claim) => claim.split(":")[1]);
@@ -120,6 +130,24 @@ const requiredRealFrontdeskScenarioEvidence: Record<string, string[]> = {
 };
 
 const requiredRealFrontdeskScenarioCodes = Object.keys(requiredRealFrontdeskScenarioEvidence);
+
+const requiredServiceOrganizationScenarioEvidence: Record<string, string[]> = {
+  S1: [
+    "前台开通服务机构",
+    "机构管理员首次登录并改密",
+    "前台创建医疗机构与科室",
+    "前台回读服务机构组织树",
+  ],
+  S14: [
+    "前台创建临床账号并绑定科室职责范围",
+    "临床账号首次登录后读取权限画像",
+    "前台停用演练账号",
+  ],
+};
+
+const requiredServiceOrganizationScenarioCodes = Object.keys(
+  requiredServiceOrganizationScenarioEvidence,
+);
 
 const coverageProofs: CoverageProof[] = [
   {
@@ -143,6 +171,12 @@ const coverageProofs: CoverageProof[] = [
     titleIncludes: "平台接入、知识资产、模型安全边界、患者资源、医保质控与临床随访数据均由前台页面提交产生",
     claims: realFrontdeskScenarioClaims,
     requiresRealFrontdeskScenarioAttachment: true,
+  },
+  {
+    file: "service-organization-frontdesk.spec.ts",
+    titleIncludes: "平台开通服务机构后，新机构可完成组织树、科室账号、职责范围和登录画像闭环",
+    claims: serviceOrganizationClaims,
+    requiresServiceOrganizationScenarioAttachment: true,
   },
 ];
 
@@ -181,7 +215,9 @@ function hasPassingProof(tests: BrowserE2eTestResult[], proof: CoverageProof) {
       (!proof.titleIncludes || test.title.includes(proof.titleIncludes)) &&
       (!proof.requiresSystemFamilyAttachment || hasRequiredSystemFamilyAttachment(test)) &&
       (!proof.requiresRealFrontdeskScenarioAttachment ||
-        hasRequiredRealFrontdeskScenarioAttachment(test))
+        hasRequiredRealFrontdeskScenarioAttachment(test)) &&
+      (!proof.requiresServiceOrganizationScenarioAttachment ||
+        hasRequiredServiceOrganizationScenarioAttachment(test))
     );
   });
 }
@@ -242,6 +278,57 @@ function hasRequiredRealFrontdeskScenarioAttachment(test: BrowserE2eTestResult) 
   } catch {
     return false;
   }
+}
+
+function hasRequiredServiceOrganizationScenarioAttachment(test: BrowserE2eTestResult) {
+  const attachment = test.attachments?.find(
+    (item) => item.name === "service-organization-scenario-codes",
+  );
+  if (!attachment?.body) return false;
+  try {
+    const parsed = JSON.parse(attachment.body) as {
+      scenarioCodes?: unknown;
+      organizationLevels?: unknown;
+      serviceCombinations?: unknown;
+      scenarioEvidence?: unknown;
+    };
+    if (
+      !arrayEquals(parsed.scenarioCodes, requiredServiceOrganizationScenarioCodes) ||
+      !arrayEquals(parsed.organizationLevels, ["HOSPITAL", "DEPARTMENT"]) ||
+      !arrayEquals(parsed.serviceCombinations, [
+        "ONBOARDING_INTEGRATION",
+        "COMPLIANCE_OPERATIONS",
+      ]) ||
+      !Array.isArray(parsed.scenarioEvidence)
+    ) {
+      return false;
+    }
+    const evidenceByCode = new Map<string, string[]>();
+    for (const item of parsed.scenarioEvidence) {
+      if (!item || typeof item !== "object") continue;
+      const code = (item as { code?: unknown }).code;
+      const stages = (item as { observedStages?: unknown }).observedStages;
+      if (typeof code !== "string" || !Array.isArray(stages)) continue;
+      evidenceByCode.set(
+        code,
+        stages.filter((stage): stage is string => typeof stage === "string"),
+      );
+    }
+    return requiredServiceOrganizationScenarioCodes.every((code) => {
+      const observedStages = evidenceByCode.get(code) ?? [];
+      return requiredServiceOrganizationScenarioEvidence[code].every((stage) =>
+        observedStages.includes(stage),
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
+function arrayEquals(value: unknown, expected: string[]) {
+  if (!Array.isArray(value)) return false;
+  const observed = value.filter((item): item is string => typeof item === "string").sort();
+  return JSON.stringify(observed) === JSON.stringify([...expected].sort());
 }
 
 function mergeClaims(
