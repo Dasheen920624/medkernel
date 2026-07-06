@@ -109,6 +109,32 @@ test("完整覆盖审计拒绝用静态矩阵替代前置阶段逐项证据", ()
   );
 });
 
+test("完整覆盖审计拒绝把单一浏览器角色切片包装成全量覆盖", () => {
+  const stageEvidence = completeStageEvidence();
+  stageEvidence["browser-e2e"].launchCoverage = launchCoverageClaims([
+    "stakeholderViews:PHYSICIAN",
+    "stakeholderViews:NURSE",
+    "stakeholderViews:PHARMACIST",
+    "stakeholderViews:MEDICAL_TECHNICIAN",
+    "stakeholderViews:QUALITY_CONTROLLER",
+    "stakeholderViews:PATIENT_PROXY",
+    "stakeholderViews:PLATFORM_ADMIN",
+    "stakeholderViews:ENGINE_OPERATOR",
+    "stakeholderViews:AUDITOR",
+    "stakeholderViews:IT_MANAGER",
+    "stakeholderViews:IMPLEMENTATION_ENGINEER",
+    "stakeholderViews:HOSPITAL_EXECUTIVE",
+  ]);
+
+  assert.throws(
+    () =>
+      buildLaunchCoverageEvidence(auditConfig(), {
+        readJson: readKnownEvidence(stageEvidence),
+      }),
+    /六层产品能力.*DATA_INTEROPERABILITY.*缺少前置阶段证据/u,
+  );
+});
+
 test("完整覆盖审计拒绝缺失 S40、Claim 或第三方系统族的逐项证据", () => {
   const missingS40 = completeStageEvidence();
   missingS40["browser-e2e"].launchCoverage.scenarios = missingS40[

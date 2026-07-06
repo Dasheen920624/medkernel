@@ -42,6 +42,48 @@ describe("browser E2E launch coverage evidence", () => {
     expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
   });
 
+  it("declares release governance and runtime asset coverage only when the real runtime release spec passes", () => {
+    const evidence = buildBrowserE2eLaunchEvidence({
+      stats: passedStats,
+      tests: [
+        {
+          file: "/repo/frontend/e2e/runtime-release-frontdesk.spec.ts",
+          title: "医疗引擎运营员可为本院生成新生效版本并从历史版本回滚",
+          status: "passed",
+        },
+      ],
+    });
+
+    expect(evidence.launchCoverage.productLayers?.map((item) => item.code)).toEqual([
+      "RELEASE_GOVERNANCE",
+    ]);
+    expect(evidence.launchCoverage.versionedAssets?.map((item) => item.code)).toEqual([
+      "KNOWLEDGE",
+      "TERMINOLOGY",
+      "RULE",
+      "PATHWAY",
+      "EVALUATION",
+      "FOLLOWUP",
+      "FIELD_CATALOG",
+      "SAFETY",
+      "CDSS_RISK",
+      "VALUE_SET",
+      "FORMULA",
+      "ORDER_SET",
+      "ACTION_CARD",
+    ]);
+    expect(evidence.launchCoverage.deliveryShapes?.map((item) => item.code)).toEqual([
+      "MANAGEMENT_WORKSPACE",
+      "API_EVENT",
+    ]);
+    expect(evidence.launchCoverage.serviceCombinations?.map((item) => item.code)).toEqual([
+      "CLINICAL_RUNTIME",
+      "THIRD_PARTY_INTERFACE",
+    ]);
+    expect(evidence.launchCoverage.scenarios).toBeUndefined();
+    expect(evidence.launchCoverage.thirdPartySystemFamilies).toBeUndefined();
+  });
+
   it("does not declare coverage when the proving spec fails or the run is flaky", () => {
     const failedEvidence = buildBrowserE2eLaunchEvidence({
       stats: { ...passedStats, expected: 0, unexpected: 1 },

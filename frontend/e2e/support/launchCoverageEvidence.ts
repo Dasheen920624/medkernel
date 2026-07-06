@@ -54,11 +54,37 @@ const stakeholderClaims = [
   "stakeholderViews:HOSPITAL_EXECUTIVE",
 ];
 
+const runtimeReleaseClaims = [
+  "productLayers:RELEASE_GOVERNANCE",
+  "versionedAssets:KNOWLEDGE",
+  "versionedAssets:TERMINOLOGY",
+  "versionedAssets:RULE",
+  "versionedAssets:PATHWAY",
+  "versionedAssets:EVALUATION",
+  "versionedAssets:FOLLOWUP",
+  "versionedAssets:FIELD_CATALOG",
+  "versionedAssets:SAFETY",
+  "versionedAssets:CDSS_RISK",
+  "versionedAssets:VALUE_SET",
+  "versionedAssets:FORMULA",
+  "versionedAssets:ORDER_SET",
+  "versionedAssets:ACTION_CARD",
+  "deliveryShapes:MANAGEMENT_WORKSPACE",
+  "deliveryShapes:API_EVENT",
+  "serviceCombinations:CLINICAL_RUNTIME",
+  "serviceCombinations:THIRD_PARTY_INTERFACE",
+];
+
 const coverageProofs: CoverageProof[] = [
   {
     file: "stakeholder-view-rehearsal.spec.ts",
     titleIncludes: "十二类业务视角",
     claims: stakeholderClaims,
+  },
+  {
+    file: "runtime-release-frontdesk.spec.ts",
+    titleIncludes: "生成新生效版本并从历史版本回滚",
+    claims: runtimeReleaseClaims,
   },
 ];
 

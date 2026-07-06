@@ -10,6 +10,37 @@
   （`完善全角色上线演练与134复演闭环 (#653)`）。
 - 当前本地工作分支：`codex/final-handoff-product-optimization`，从 `1561ba6b` 创建；
   本阶段只做本地提交，不推送远程，不直接改写远端 `main`。
+- 第一百三十一批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
+  文案或片面页面优化，而是把已经真实通过的浏览器前台发布回滚演练纳入上线覆盖证据聚合，并继续防止
+  “单一浏览器切片包装成全量覆盖”。`frontend/e2e/support/launchCoverageEvidence.ts` 新增
+  `runtime-release-frontdesk.spec.ts` proof：只有该 spec 通过且非 flaky 时，才声明
+  `productLayers:RELEASE_GOVERNANCE`、13 类 `versionedAssets`、`deliveryShapes:MANAGEMENT_WORKSPACE/API_EVENT`
+  和 `serviceCombinations:CLINICAL_RUNTIME/THIRD_PARTY_INTERFACE`。这些声明只对应
+  `runtime-release-frontdesk.spec.ts` 已经真实断言的“13 类平台标准内容前台可见并勾选 → 生成/回滚请求携带
+  `activeAssets` → 医院 current runtime 13 类 ACTIVE 且有 `versionId` → 第三方运行契约读取同一修订号”，
+  不等同于 13 类资产逐类业务消费者证据。
+- 第一百三十一批修复范围：`e2eLaunchCoverageEvidence.test.ts` 先红于 runtime 发布 spec 通过后没有覆盖声明，
+  再补 reporter 映射转绿；`launch-coverage-audit.test.mjs` 新增“完整覆盖审计拒绝把单一浏览器角色切片包装成
+  全量覆盖”回归，构造仅含 12 个 `stakeholderViews` 的 browser evidence，必须因缺
+  `productLayers:DATA_INTEROPERABILITY` 等前置证据而失败。实现继续禁止静态声明 S0-S40、第三方系统族、
+  专病十阶段、完整语义族或专业域。
+- 第一百三十一批验证证据：TDD 红灯
+  `npm --prefix frontend run test -- e2eLaunchCoverageEvidence` 曾失败于
+  `expected undefined to deeply equal [ 'RELEASE_GOVERNANCE' ]`；补实现后同命令通过（4 tests）。
+  `node --test scripts/release/launch-coverage-audit.test.mjs` 通过（6 tests）。真实 Playwright 在当前本地
+  18080 H2 后端上通过：
+  `E2E_API_BASE_URL=http://localhost:18080/medkernel/api/v1 MEDKERNEL_API_PROXY_TARGET=http://localhost:18080 E2E_EVIDENCE_DIR=/tmp/medkernel-e2e-runtime-coverage npm --prefix frontend run e2e -- --project=chromium runtime-release-frontdesk.spec.ts`
+  通过，仓库外 `results.json` 只包含
+  `coverageKeys=["productLayers","versionedAssets","deliveryShapes","serviceCombinations"]`；组合复跑
+  `runtime-release-frontdesk.spec.ts stakeholder-view-rehearsal.spec.ts` 通过（2 expected，0 unexpected，
+  0 flaky），仓库外 `/tmp/medkernel-e2e-combined-coverage/report/results.json` 只包含
+  `stakeholderViews/productLayers/versionedAssets/deliveryShapes/serviceCombinations`，并明确不包含
+  `scenarios`、`thirdPartySystemFamilies`、`specialDiseaseStages`、`semanticFamilies`、`specialtyDomains`。
+- 第一百三十一批后续主线：本批仍未发布到 134，未实际执行 134 清库重新部署，也未补齐
+  S0-S40、第三方系统族、专病十阶段、完整语义族、专业域、五种交付形态中的未覆盖项，以及
+  13 类资产逐类业务消费者证据。只读核查确认当前 13 类资产已有“清单/运行契约消费者”证据，但
+  `SAFETY/CDSS_RISK` 红线命中和风险矩阵版本、`PATHWAY/ORDER_SET` 路径推进、`VALUE_SET/FORMULA/ACTION_CARD`
+  规则展开、`FIELD_CATALOG/TERMINOLOGY` 集成运行、`FOLLOWUP` 版本证据化仍应继续补真实 E2E 或后端合同。
 - 第一百三十批本地收尾：继续按全角色真实前台、真实服务链路和上线门禁推进；本批不是菜单、
   文案或片面页面优化，而是让浏览器 E2E 阶段在真实 Playwright 运行结束后输出可被
   `launch-coverage-audit` 消费的仓库外上线覆盖证据摘要。`frontend/playwright.config.ts` 保留 HTML 和
